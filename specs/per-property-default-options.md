@@ -49,6 +49,10 @@ per-property defaults table (`property_option_defaults`) backs it, so the proper
 5. **Persisted with the option save.** Saving the option persists the per-property defaults map (set/unset
    + offered) alongside `property_options` (applicability) and `property_option_prices` (price). Setting a
    default implies applicability (the model already upserts the `property_options` row).
+   > **Amended 2026-10-28 — [options-resources-ux.md](options-resources-ux.md) rule 15.** When the save
+   > carries an explicit scope (`propertyIds`), a default for a property outside it is **dropped**, not
+   > promoted to applicability; « a default implies applicability » now holds only for a payload with no
+   > scope.
 6. **Property-side card stays consistent.** The fiche-logement card (`PropertyDefaultOptionsCard`) drops its
    linen-only filter and lists the **options applicable to that property** (so the same per-property
    defaults are visible/editable from the property page too — same `property_option_defaults` table, always
@@ -139,7 +143,7 @@ until the operator sets a default; all writes are idempotent upserts/deletes on 
   full-width inputs; ≥44px toggles.
 - **PageActionBar:** N/A (content inside existing pages/forms).
 
-> **Amended 2026-10-28 — [options-resources-ux.md](options-resources-ux.md) (Implemented).** The Inclus / Offert switches move into the same per-property table as the scope and the price (editor panel, « Logements et prix »); on `xs` the table stacks one block per property instead of scrolling. The list shows « Offert · <logements> » / « Inclus · <logements> » traits. Rules unchanged.
+> **Amended 2026-10-28 — [options-resources-ux.md](options-resources-ux.md) (Implemented).** The Inclus / Offert switches move into the same per-property table as the scope and the price (editor panel, « Logements et prix »); on `xs` the table stacks one block per property instead of scrolling. The list shows « Offert · <logements> » / « Inclus · <logements> » traits. 
 
 ## 7. Test plan
 

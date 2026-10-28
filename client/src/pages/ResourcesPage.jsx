@@ -5,7 +5,7 @@
  * existing impact confirmation.
  */
 import React, { useCallback, useEffect, useState } from 'react';
-import { Box, Typography } from '@mui/material';
+import { Box, ButtonBase, Typography } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DevicesOtherIcon from '@mui/icons-material/DevicesOther';
 import api from '../api';
@@ -21,16 +21,8 @@ import ResourceEditorPanel from './options/ResourceEditorPanel';
 function ResourceCard({ item, onOpen, onDelete }) {
   return (
     <Box
-      role="button"
-      tabIndex={0}
-      aria-label={`${TEXTS.edit} ${item.name}`}
-      onClick={() => onOpen(item)}
-      onKeyDown={(e) => {
-        if (e.target !== e.currentTarget) return;
-        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(item); }
-      }}
       sx={{
-        bgcolor: 'background.paper', borderRadius: '14px', p: { xs: 1.75, sm: 2.25 }, cursor: 'pointer',
+        position: 'relative', bgcolor: 'background.paper', borderRadius: '14px', p: { xs: 1.75, sm: 2.25 },
         boxShadow: '0 1px 2px rgba(39,37,31,.06), 0 4px 14px rgba(39,37,31,.05)',
         border: '1px solid transparent', display: 'flex', flexDirection: 'column', gap: 1,
         transition: 'border-color 150ms', '@media (hover: hover) and (pointer: fine)': { '&:hover': { borderColor: 'primary.light' } },
@@ -38,7 +30,19 @@ function ResourceCard({ item, onOpen, onDelete }) {
       }}
     >
       <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1.5, alignItems: 'flex-start' }}>
-        <Typography variant="sectionHeader" component="h2" sx={{ minWidth: 0, overflowWrap: 'anywhere' }}>{item.name}</Typography>
+        {/* The name is the card's one button, stretched over the whole card; the rest stays plain text. */}
+        <Typography variant="sectionHeader" component="h2" sx={{ minWidth: 0, overflowWrap: 'anywhere' }}>
+          <ButtonBase
+            onClick={() => onOpen(item)}
+            sx={{
+              position: 'static', display: 'block', textAlign: 'left', font: 'inherit', overflowWrap: 'anywhere', borderRadius: 1,
+              '&::after': { content: '""', position: 'absolute', inset: 0, borderRadius: '14px' },
+              '&.Mui-focusVisible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: 2 },
+            }}
+          >
+            {item.name}
+          </ButtonBase>
+        </Typography>
         <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.5, flex: 'none' }}>
           <Box sx={{ textAlign: 'right' }}>
             <Typography sx={{ fontWeight: 700, fontSize: '1.4rem', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
@@ -46,16 +50,18 @@ function ResourceCard({ item, onOpen, onDelete }) {
             </Typography>
             <Typography variant="caption" color="text.secondary">{item.stock.label}</Typography>
           </Box>
-          <RowActionsMenu
-            label={`Actions de ${item.name}`}
-            items={[
-              { label: TEXTS.edit, onClick: () => onOpen(item) },
-              {
-                label: 'Supprimer', danger: true, onClick: () => onDelete(item),
-                disabled: !item.deletable, hint: item.deletable ? undefined : 'Le lit bébé reste au catalogue.',
-              },
-            ]}
-          />
+          <Box sx={{ position: 'relative', zIndex: 1 }}>
+            <RowActionsMenu
+              label={TEXTS.actionsOf(item.name)}
+              items={[
+                { label: TEXTS.edit, onClick: () => onOpen(item) },
+                {
+                  label: TEXTS.delete, danger: true, onClick: () => onDelete(item),
+                  disabled: Boolean(item.deleteBlockedReason), hint: item.deleteBlockedReason || undefined,
+                },
+              ]}
+            />
+          </Box>
         </Box>
       </Box>
       {item.description && <Typography variant="body2" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>{item.description}</Typography>}
@@ -110,21 +116,20 @@ export default function ResourcesPage({ barTabs }) {
     const bookings = Number(impact && impact.bookingsCount) || 0;
     const inUse = reservations > 0 || bookings > 0;
     const parts = [];
-    if (reservations > 0) parts.push(`${reservations} réservation(s)`);
-    if (bookings > 0) parts.push(`${bookings} créneau(x)`);
+    if (reservations > 0) parts.push(TEXTS.reservationsCount(reservations));
+    if (bookings > 0) parts.push(TEXTS.slotsCount(bookings));
     const ok = await confirm({
-      title: 'Confirmer la suppression',
-      message: inUse
-        ? `Cette ressource est utilisée par ${parts.join(' et ')}. La supprimer la retirera de ces réservations et supprimera ces créneaux. Continuer ?`
-        : `Supprimer « ${item.name} » ?`,
-      confirmLabel: 'Supprimer',
+      title: TEXTS.confirmDeleteTitle,
+      message: inUse ? TEXTS.confirmDeleteInUse(parts.join(' et ')) : TEXTS.confirmDelete(item.name),
+      confirmLabel: TEXTS.delete,
     });
     if (!ok) return;
     try {
       await api.deleteResource(item.id, inUse ? { force: true } : undefined);
+      showSuccess(TEXTS.resourceDeleted);
       await load();
     } catch (err) {
-      showError(err.message || 'Suppression impossible.');
+      showError(err.message || TEXTS.deleteFailed);
     }
   };
 

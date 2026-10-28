@@ -114,6 +114,7 @@ function createContext(id, { db, settingsModel, dataDir = null } = {}) {
     // rule 19). Synchronous, no I/O; a plugin declares one.
     resourceCatalogueLines(build) {
       if (typeof build !== 'function') throw new Error(`${prefix} resourceCatalogueLines needs a function`);
+      if (record.resourceCatalogueLines) throw new Error(`${prefix} resourceCatalogueLines is already declared`);
       record.resourceCatalogueLines = build;
     },
     // A commit hook for one of the plugin's arrival SAS steps (rule 6).

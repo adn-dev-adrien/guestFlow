@@ -27,7 +27,7 @@ import OptionPropertyDefaultsMirror from '../../components/OptionPropertyDefault
 import { useToast } from '../../components/DialogProvider';
 import { usePlugin } from '../../hooks/usePlugins';
 import { LINEN, WEBSITE_BOOKING } from '../../constants/plugins';
-import { OPTION_PRICE_TYPES, UNIT_BY_PRICE_TYPE } from '../../constants/optionsResourcesTexts';
+import { OPTION_PRICE_TYPES, TEXTS, UNIT_BY_PRICE_TYPE } from '../../constants/optionsResourcesTexts';
 import CategoryField from './CategoryField';
 import OptionPropertyTable from './OptionPropertyTable';
 import {
@@ -77,12 +77,13 @@ export default function OptionEditorPanel({
 
   const setForm = (next) => { setServerErrors({}); setFormState(next); };
   const clientErrors = useMemo(() => (form ? validateOptionForm(form) : {}), [form]);
-  const errors = { ...clientErrors, ...serverErrors };
-  const errorFields = Object.keys(errors);
   const dirty = Boolean(form) && JSON.stringify(form) !== saved;
+  // A pristine form shows no error (a new option does not open on « Nom requis »): they appear once it is edited.
+  const errors = dirty ? { ...clientErrors, ...serverErrors } : serverErrors;
+  const errorFields = Object.keys(errors);
 
   const handleSave = async () => {
-    if (!form || errorFields.length > 0) return;
+    if (!form || errorFields.length > 0) return false;
     setSaving(true);
     try {
       const payload = optionPayload(form);
@@ -93,12 +94,14 @@ export default function OptionEditorPanel({
         await api.updateOption(optionId, payload);
         onSaved({ id: optionId, isNew: false });
       }
+      return true;
     } catch (err) {
       if (err.status === 422 && Array.isArray(err.details)) {
         setServerErrors(Object.fromEntries(err.details.map((d) => [d.field, d.message])));
       } else {
-        showError(err.message || 'Enregistrement impossible.');
+        showError(err.message || TEXTS.saveFailed);
       }
+      return false;
     } finally {
       setSaving(false);
     }
@@ -132,8 +135,8 @@ export default function OptionEditorPanel({
     return `Interne : ${hidden}.`;
   };
 
-  let title = 'Nouvelle option';
-  if (optionId != null) title = (form && form.title) || 'Option';
+  let title = TEXTS.newOptionTitle;
+  if (optionId != null) title = (form && form.title) || TEXTS.optionFallbackTitle;
   else if (form && form.title) title = form.title;
 
   let body;

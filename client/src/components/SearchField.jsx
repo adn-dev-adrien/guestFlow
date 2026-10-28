@@ -39,7 +39,7 @@ export default function SearchField({
           ),
           endAdornment: value ? (
             <InputAdornment position="end">
-              <IconButton size="small" aria-label={clearLabel} onClick={() => onChange('')} edge="end" sx={{ width: 36, height: 36 }}>
+              <IconButton size="small" aria-label={clearLabel} onClick={() => onChange('')} edge="end" sx={{ width: { xs: 44, sm: 36 }, height: { xs: 44, sm: 36 } }}>
                 <CloseIcon fontSize="small" />
               </IconButton>
             </InputAdornment>

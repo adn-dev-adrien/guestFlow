@@ -12,4 +12,4 @@ function archiveBlockedReason(option) {
   return '';
 }
 
-module.exports = { archiveBlockedReason, SYSTEM_OPTION_REASON };
+module.exports = { archiveBlockedReason };

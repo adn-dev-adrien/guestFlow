@@ -115,3 +115,19 @@ test('a long name wraps in the header instead of being cut', async () => {
   renderEditor();
   expect(await screen.findByRole('heading', { name })).toBeInTheDocument();
 });
+
+test('rule 30: a new option opens without an error shown; « Nom requis » appears once the form is edited and the name left empty', async () => {
+  const user = userEvent.setup();
+  renderEditor({ optionId: null });
+  await screen.findByRole('heading', { name: 'Nouvelle option' });
+  expect(screen.queryByText('Nom requis')).not.toBeInTheDocument();
+  expect(screen.queryByText(/champ.* à corriger/)).not.toBeInTheDocument();
+  await user.type(screen.getByLabelText(/^Description/), 'x');
+  expect(screen.getByText('Nom requis')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Enregistrer' })).toBeDisabled();
+});
+
+test('rules 29, 30: the panel is a dialog named by its visible title', async () => {
+  renderEditor();
+  expect(await screen.findByRole('dialog', { name: 'Ménage' })).toBeInTheDocument();
+});

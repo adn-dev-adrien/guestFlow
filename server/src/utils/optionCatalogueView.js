@@ -56,8 +56,9 @@ function scopeTrait(applicable, properties) {
   return { key: 'scope', label: `${names} seulement`, tone: 'neutral' };
 }
 
-function defaultTraits(option, properties) {
-  const defaults = option.propertyDefaults || {};
+function defaultTraits(option, properties, filterProperty) {
+  const defaults = Object.fromEntries(Object.entries(option.propertyDefaults || {})
+    .filter(([pid]) => !filterProperty || Number(pid) === Number(filterProperty)));
   const withOffered = (offered) => Object.entries(defaults)
     .filter(([, cfg]) => Boolean(cfg && cfg.offered) === offered)
     .map(([pid]) => Number(pid));
@@ -83,21 +84,34 @@ function planningTrait(option) {
   return { key: 'planning', label, tone: 'info' };
 }
 
+/**
+ * The cancellation insurance the server would not offer: « tarif à 0 » when no property sells it,
+ * the names of the properties at 0 when only some do.
+ */
+function insuranceUnsoldTrait(option, applicable, properties, insuranceDynamic) {
+  if (Number(option.isCancellationInsurance || 0) !== 1 || insuranceDynamic || applicable.length === 0) return null;
+  const prices = effectivePrices(option, applicable);
+  const atZero = applicable.filter((_, i) => !(prices[i] > 0));
+  if (atZero.length === 0) return null;
+  const label = atZero.length === applicable.length
+    ? `Non proposée${DOT}tarif à 0`
+    : `Non proposée${DOT}${propertiesPhrase(atZero.map((p) => p.id), properties)}`;
+  return { key: 'insurance', label, tone: 'warning' };
+}
+
 /** Rule 5 — the traits, in order. Nothing is emitted for what is true of every ordinary option. */
-function traitsOf(option, applicable, properties, { insuranceDynamic }) {
+function traitsOf(option, applicable, properties, { insuranceDynamic }, filterProperty) {
   const traits = [];
   const scope = scopeTrait(applicable, properties);
   if (scope) traits.push(scope);
-  traits.push(...defaultTraits(option, properties));
+  traits.push(...defaultTraits(option, properties, filterProperty));
   if (option.displayToClient !== undefined && option.displayToClient !== null && Number(option.displayToClient) === 0) {
     traits.push({ key: 'internal', label: 'Interne', tone: 'neutral' });
   }
   const planning = planningTrait(option);
   if (planning) traits.push(planning);
-  if (Number(option.isCancellationInsurance || 0) === 1 && !insuranceDynamic && applicable.length > 0
-    && !effectivePrices(option, applicable).some((v) => v > 0)) {
-    traits.push({ key: 'insurance', label: `Non proposée${DOT}tarif à 0`, tone: 'warning' });
-  }
+  const unsold = insuranceUnsoldTrait(option, applicable, properties, insuranceDynamic);
+  if (unsold) traits.push(unsold);
   return traits;
 }
 
@@ -111,7 +125,7 @@ function toItem(option, properties, filterProperty, flags) {
     description: option.description || '',
     category: normalizeCategory(option.category),
     price: priceSummary(option, priced),
-    traits: traitsOf(option, applicable, properties, flags),
+    traits: traitsOf(option, applicable, properties, flags, filterProperty),
     archivable: !blocked,
     archiveBlockedReason: blocked,
   };
@@ -147,9 +161,11 @@ function buildCatalogueView(options, properties, { propertyId = null, insuranceD
   return { total: options.length, chips, groups: shown };
 }
 
-/** Rule 26 — the archived options, most recently archived first. */
-function buildArchivedItems(rows) {
-  return (rows || []).map((o) => ({
+/** Rule 26 — the archived options, most recently archived first; with a property, those it was proposed on. */
+function buildArchivedItems(rows, { propertyId = null } = {}) {
+  return (rows || [])
+    .filter((o) => !propertyId || (o.propertyIds || []).map(Number).includes(Number(propertyId)))
+    .map((o) => ({
     id: o.id,
     title: o.title || '',
     category: normalizeCategory(o.category),
@@ -157,4 +173,4 @@ function buildArchivedItems(rows) {
   }));
 }
 
-module.exports = { buildCatalogueView, buildArchivedItems, UNGROUPED_KEY, UNGROUPED_LABEL };
+module.exports = { buildCatalogueView, buildArchivedItems };

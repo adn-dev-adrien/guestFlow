@@ -3,9 +3,14 @@
  *
  *  - Detects dirty state via JSON.stringify deep-equal between `draft` and `saved`.
  *  - Hooks the project-wide `window.__guestflowBeforeNavigate` mechanism
- *    (intercepts internal sidebar/router navigation while dirty).
+ *    (intercepts internal sidebar/router navigation) — ONLY WHILE DIRTY. The slot is a single global:
+ *    the guard takes it when the form becomes dirty and puts the previous handler back when it is clean
+ *    or unmounted, so a clean page, a closed panel or two mounted forms never hold or erase each
+ *    other's guard.
  *  - Adds a `beforeunload` listener so the browser warns on tab close/reload.
- *  - Listens to `popstate` so the user is prompted before back/forward navigation.
+ *  - Listens to `popstate` (unless `guardBack: false`) so the user is prompted before back/forward
+ *    navigation; the page's own entry is put back with ITS state and ITS URL (the URL the browser
+ *    already moved away from is never kept).
  *
  * Returns:
  *  - `isDirty: boolean`
@@ -26,7 +31,9 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-export default function useDirtyFormGuard({ draft, saved, navigate }) {
+export default function useDirtyFormGuard({
+  draft, saved, navigate, guardBack = true,
+}) {
   const isDirty = useMemo(() => {
     try {
       return JSON.stringify(draft) !== JSON.stringify(saved);
@@ -35,18 +42,14 @@ export default function useDirtyFormGuard({ draft, saved, navigate }) {
     }
   }, [draft, saved]);
 
-  const dirtyRef = useRef(false);
   const pendingNavRef = useRef(null);
   const [guardDialogOpen, setGuardDialogOpen] = useState(false);
 
+  // Project-wide navigation guard (sidebar / router-level): held only while dirty, previous one restored.
   useEffect(() => {
-    dirtyRef.current = isDirty;
-  }, [isDirty]);
-
-  // Project-wide navigation guard (sidebar / router-level).
-  useEffect(() => {
+    if (!isDirty) return undefined;
+    const previous = window.__guestflowBeforeNavigate;
     const guardHandler = (targetPath) => {
-      if (!dirtyRef.current) return false;
       if (!targetPath || targetPath === window.location.pathname) return false;
       pendingNavRef.current = targetPath;
       setGuardDialogOpen(true);
@@ -54,11 +57,11 @@ export default function useDirtyFormGuard({ draft, saved, navigate }) {
     };
     window.__guestflowBeforeNavigate = guardHandler;
     return () => {
-      if (window.__guestflowBeforeNavigate === guardHandler) {
-        delete window.__guestflowBeforeNavigate;
-      }
+      if (window.__guestflowBeforeNavigate !== guardHandler) return;
+      if (previous) window.__guestflowBeforeNavigate = previous;
+      else delete window.__guestflowBeforeNavigate;
     };
-  }, []);
+  }, [isDirty]);
 
   // Tab close / reload guard.
   useEffect(() => {
@@ -74,19 +77,20 @@ export default function useDirtyFormGuard({ draft, saved, navigate }) {
 
   // Browser back/forward guard.
   useEffect(() => {
-    if (!isDirty) return undefined;
+    if (!isDirty || !guardBack) return undefined;
     const pageState = window.history.state;
+    const pageUrl = window.location.href;
     const handler = () => {
       pendingNavRef.current = null;
       setGuardDialogOpen(true);
       // Keep the URL where it was.
       // The page's own router state, not null: a null entry loses `idx`, and the next « Retour » would
       // think the page was opened directly (specs/ui-review-2026-10-19-operations.md rule 26).
-      window.history.pushState(pageState, '', window.location.href);
+      window.history.pushState(pageState, '', pageUrl);
     };
     window.addEventListener('popstate', handler);
     return () => window.removeEventListener('popstate', handler);
-  }, [isDirty]);
+  }, [isDirty, guardBack]);
 
   const openGuard = useCallback(() => setGuardDialogOpen(true), []);
 

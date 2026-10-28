@@ -4,7 +4,7 @@
  * price; blank = the base price, shown as placeholder; 0 = free), « Inclus » (added to new reservations)
  * and « Offert » (included at 0 €, only once « Inclus »).
  *
- * Turning « Proposée » off greys the line and clears its default. A free option has no « Prix »
+ * Turning « Proposée » off greys the line and clears its price and its default. A free option has no « Prix »
  * column; an option with auto-timed pricing has no « Inclus » / « Offert »; a progressive one shows its
  * tier editor under the table (tiers are global). On `xs` each property becomes a block with
  * label / control lines instead of a table that would scroll.
@@ -42,8 +42,12 @@ export default function OptionPropertyTable({ form, setForm, properties, errors 
   const setProposed = (pid, on) => {
     const ids = on ? [...new Set([...proposed, pid])] : [...proposed].filter((id) => id !== pid);
     const nextDefaults = { ...defaults };
-    if (!on) delete nextDefaults[pid];
-    setForm({ ...form, propertyIds: ids, propertyDefaults: nextDefaults });
+    const nextPrices = { ...prices };
+    if (!on) {
+      delete nextDefaults[pid];
+      delete nextPrices[pid];
+    }
+    setForm({ ...form, propertyIds: ids, propertyDefaults: nextDefaults, propertyPrices: nextPrices });
   };
   const setPrice = (pid, text) => setForm({ ...form, propertyPrices: { ...prices, [pid]: text } });
   const setIncluded = (pid, on) => {

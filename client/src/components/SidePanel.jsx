@@ -5,17 +5,24 @@
  * chips that scroll to each `SidePanelSection`, a body that scrolls on its own, a sticky footer with the
  * state text and « Annuler » / « Enregistrer ».
  *
- * Closing (close button, Escape, scrim) with unsaved changes opens UnsavedChangesDialog; a browser
- * back, a reload or a sidebar navigation are guarded by useDirtyFormGuard while the panel is dirty. The
- * panel never closes itself after a save: the owner sets `open` to false once `onSave` succeeded, so a
- * refused save leaves the form where it is.
+ * Closing (close button, Escape, scrim) with unsaved changes opens UnsavedChangesDialog. The panel owns
+ * one history entry while it is open: the browser « Retour » closes a clean panel and asks first on a
+ * dirty one (the entry is put back), and closing any other way removes it, so the page behind is one
+ * « Retour » away as before. A reload or a sidebar navigation is guarded by useDirtyFormGuard while the
+ * panel is dirty — which holds the global navigation slot only while dirty and restores the previous
+ * one, so two panels, or a panel and a page form, never erase each other's guard.
+ *
+ * The panel never closes itself after a save: the owner sets `open` to false once `onSave` succeeded, so
+ * a refused save leaves the form where it is. `onSave` answers `true` when it saved; « Enregistrer et
+ * quitter » then continues to where the operator was going (the page behind, or the clicked sidebar item).
  *
  * Props:
  *   open          boolean
  *   onClose       () => void                  final close (after the guard, if any)
  *   title         ReactNode                   header, serif
  *   dirty?        boolean                     unsaved changes: enables « Enregistrer » and the guard
- *   onSave?       () => Promise<void>|void    « Enregistrer » (and « Enregistrer et quitter » of the guard)
+ *   onSave?       () => Promise<boolean|void>  « Enregistrer » (and « Enregistrer et quitter » of the guard);
+ *                                              resolve `false` when nothing was saved (the guard then stays out)
  *   saving?       boolean                     spinner on « Enregistrer »
  *   errorCount?   number                      invalid fields: disables saving, footer reads « N champ(s) à corriger »
  *   sections?     Array<{ id, label, hasError? }>   chips; `id` matches a <SidePanelSection id>
@@ -27,7 +34,7 @@
  * `prefers-reduced-motion`: opacity only, no slide. Motion is one curve both ways (the panel leaves
  * the way it came).
  */
-import React, { useRef } from 'react';
+import React, { useEffect, useId, useRef } from 'react';
 import {
   Box, Button, CircularProgress, Drawer, Fade, IconButton, Typography, useMediaQuery,
 } from '@mui/material';
@@ -66,10 +73,45 @@ export default function SidePanel({
   const routerNavigate = useNavigate();
   const bodyRef = useRef(null);
 
+  const titleId = useId();
+
   const go = (destination) => (typeof destination === 'string' ? routerNavigate(destination) : onClose());
-  const guard = useDirtyFormGuard({ draft: open && dirty, saved: false, navigate: go });
+  const guard = useDirtyFormGuard({
+    draft: open && dirty, saved: false, navigate: go, guardBack: false,
+  });
 
   const requestClose = () => (dirty ? guard.openGuard() : onClose());
+
+  // The panel's own history entry (see the header): « Retour » pops it.
+  const live = useRef({});
+  live.current = { dirty, onClose, openGuard: guard.openGuard };
+  useEffect(() => {
+    if (!open) return undefined;
+    const pageUrl = window.location.href;
+    let entryOpen = true;
+    window.history.pushState({ ...(window.history.state || {}), sidePanel: true }, '', pageUrl);
+    const onPop = () => {
+      if (!entryOpen) return;
+      if (live.current.dirty) {
+        window.history.pushState({ ...(window.history.state || {}), sidePanel: true }, '', pageUrl);
+        live.current.openGuard();
+        return;
+      }
+      entryOpen = false;
+      live.current.onClose();
+    };
+    window.addEventListener('popstate', onPop);
+    return () => {
+      window.removeEventListener('popstate', onPop);
+      if (entryOpen) window.history.back();
+    };
+  }, [open]);
+
+  const saveAndQuit = async () => {
+    const saved = onSave ? await onSave() : true;
+    if (saved === false) guard.dismissGuard();
+    else guard.confirmLeave();
+  };
 
   const scrollTo = (id) => {
     const target = bodyRef.current && bodyRef.current.querySelector(`[data-side-panel-section="${id}"]`);
@@ -94,7 +136,7 @@ export default function SidePanel({
           paper: {
             role: 'dialog',
             'data-anchor': phone ? 'bottom' : 'right',
-            'aria-label': typeof title === 'string' ? title : undefined,
+            'aria-labelledby': titleId,
             sx: {
               width: { xs: '100%', sm: 560 }, maxWidth: '100%',
               height: { xs: 'calc(100% - 10px)', sm: '100%' },
@@ -105,7 +147,7 @@ export default function SidePanel({
         }}
       >
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, pl: 2.5, pr: 1.5, py: 1, borderBottom: '1px solid', borderColor: 'divider' }}>
-          <Typography variant="sectionHeader" component="h2" sx={{ flex: 1, minWidth: 0, fontSize: '1.15rem', overflowWrap: 'anywhere' }}>
+          <Typography id={titleId} variant="sectionHeader" component="h2" sx={{ flex: 1, minWidth: 0, fontSize: '1.15rem', overflowWrap: 'anywhere' }}>
             {title}
           </Typography>
           <IconButton aria-label={closeLabel} onClick={requestClose} sx={{ width: 44, height: 44 }}><CloseIcon /></IconButton>
@@ -127,7 +169,7 @@ export default function SidePanel({
                 onClick={() => scrollTo(section.id)}
                 data-has-error={section.hasError ? 'true' : undefined}
                 sx={(t) => ({
-                  flex: 'none', borderRadius: 99, minHeight: 32, px: 1.5, textTransform: 'none', fontWeight: 500,
+                  flex: 'none', borderRadius: 99, minHeight: { xs: 44, sm: 32 }, px: 1.5, textTransform: 'none', fontWeight: 500,
                   bgcolor: section.hasError ? t.palette.error.soft : t.palette.grey[200],
                   color: section.hasError ? t.palette.error.text : t.palette.text.secondary,
                   '&:hover': { bgcolor: section.hasError ? t.palette.error.soft : t.palette.grey[300] },
@@ -171,7 +213,7 @@ export default function SidePanel({
         open={guard.guardDialogOpen}
         onStay={guard.dismissGuard}
         onDiscard={guard.confirmLeave}
-        onSaveAndQuit={async () => { guard.dismissGuard(); if (onSave) await onSave(); }}
+        onSaveAndQuit={saveAndQuit}
       />
     </>
   );

@@ -76,8 +76,8 @@ test('rule 18: a property line that only repeats the base price (a free hour, sa
 
 test('rule 18: only the baby bed is not deletable', () => {
   const [bed, bath] = buildResourceItems([resource({ name: 'Lit bébé' }), resource({ id: 2, name: 'Bain nordique' })], PROPS);
-  assert.equal(bed.deletable, false);
-  assert.equal(bath.deletable, true);
+  assert.equal(bed.deleteBlockedReason, 'Le lit bébé reste au catalogue.');
+  assert.equal(bath.deleteBlockedReason, '');
 });
 
 test('rule 19: a contributor adds lines after the core ones and sets the footer; a null answer adds nothing', () => {
@@ -91,6 +91,43 @@ test('rule 19: a contributor adds lines after the core ones and sets the footer;
   const [bare] = buildResourceItems([resource()], PROPS, []);
   assert.equal(bare.footer, '');
   assert.deepEqual(bare.lines.map((l) => l.label), ['Prix', 'Logements']);
+});
+
+test('rule 19: a builder that throws, or answers garbage, adds nothing and does not break the card', () => {
+  const original = console.error;
+  const logged = [];
+  console.error = (...args) => logged.push(args.join(' '));
+  try {
+    const [item] = buildResourceItems([resource({ priceType: 'per_hour' })], PROPS, [
+      () => { throw new Error('boom'); },
+      () => 'nope',
+      () => ({ lines: [{ label: 'Soir', value: 12 }, { label: '', value: 'x' }, null, { label: 'Ok', value: 'bien', extra: 1 }], footer: { not: 'text' } }),
+    ]);
+    assert.deepEqual(item.lines.slice(-1), [{ label: 'Ok', value: 'bien' }]);
+    assert.equal(item.lines.some((l) => l.label === 'Soir'), false);
+    assert.equal(item.footer, '');
+    assert.equal(logged.length, 1);
+    assert.match(logged[0], /boom/);
+  } finally {
+    console.error = original;
+  }
+});
+
+test('rule 19: a null price line (inherited) is not a price line of its own', () => {
+  const [item] = buildResourceItems([
+    resource({ priceType: 'per_hour', price: 30, basePrice: 30, propertyPricing: { 1: { price: null, freeMinutes: 60 }, 2: { price: 40, freeMinutes: 0 } } }),
+  ], PROPS);
+  assert.equal(lineOf(item, 'Prix'), '30 € / h');
+  assert.equal(lineOf(item, 'Estiva'), '40 € / h');
+  assert.equal(lineOf(item, 'Granja'), undefined);
+});
+
+test('rule 19: a plugin declares its resource builder once', () => {
+  sdkRegistry.reset();
+  const ctx = createContext('twice-plugin');
+  ctx.resourceCatalogueLines(() => null);
+  assert.throws(() => ctx.resourceCatalogueLines(() => null), /already declared/);
+  sdkRegistry.reset();
 });
 
 test('rule 19: the SDK brick registers the builder of a plugin, and only a live plugin contributes', () => {

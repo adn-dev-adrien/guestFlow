@@ -21,9 +21,11 @@ import TokenTextField from '../../components/TokenTextField';
 import { useToast } from '../../components/DialogProvider';
 import { usePlugin } from '../../hooks/usePlugins';
 import { HOURLY_RESOURCES } from '../../constants/plugins';
-import { RESOURCE_PRICE_TYPES, UNIT_BY_PRICE_TYPE } from '../../constants/optionsResourcesTexts';
+import { RESOURCE_PRICE_TYPES, TEXTS, UNIT_BY_PRICE_TYPE } from '../../constants/optionsResourcesTexts';
 import { useSlot } from '../../plugins/sdk';
-import { emptyResource, formFromResource, toResourcePayload, validateResourceForm } from './resourceForm';
+import {
+  emptyResource, formFromResource, toResourcePayload, validateResourceForm, withScope,
+} from './resourceForm';
 import { isBlank } from './optionForm';
 
 const HOURLY_FIELDS = ['closeTime', 'hourlyEveningRate', 'hourlyExternalDayRate', 'hourlyExternalEveningRate'];
@@ -124,12 +126,12 @@ export default function ResourceEditorPanel({ open, resourceId, properties, onCl
     setFormState(typeof next === 'function' ? next(form) : next);
   };
   const clientErrors = useMemo(() => (form ? validateResourceForm(form) : {}), [form]);
-  const errors = { ...clientErrors, ...serverErrors };
-  const errorFields = Object.keys(errors);
   const dirty = Boolean(form) && JSON.stringify(form) !== saved;
+  const errors = dirty ? { ...clientErrors, ...serverErrors } : serverErrors;
+  const errorFields = Object.keys(errors);
 
   const handleSave = async () => {
-    if (!form || errorFields.length > 0) return;
+    if (!form || errorFields.length > 0) return false;
     setSaving(true);
     try {
       const payload = toResourcePayload(form);
@@ -140,12 +142,14 @@ export default function ResourceEditorPanel({ open, resourceId, properties, onCl
         await api.updateResource(resourceId, payload);
         onSaved({ id: resourceId, isNew: false });
       }
+      return true;
     } catch (err) {
       if (err.status === 422 && Array.isArray(err.details)) {
         setServerErrors(Object.fromEntries(err.details.map((d) => [d.field, d.message])));
       } else {
-        showError(err.message || 'Enregistrement impossible.');
+        showError(err.message || TEXTS.saveFailed);
       }
+      return false;
     } finally {
       setSaving(false);
     }
@@ -204,7 +208,7 @@ export default function ResourceEditorPanel({ open, resourceId, properties, onCl
             <PropertiesMultiSelect
               properties={properties}
               value={form.propertyIds}
-              onChange={(ids) => setForm({ ...form, propertyIds: ids })}
+              onChange={(ids) => setForm(withScope(form, ids))}
             />
           </Box>
         </SidePanelSection>
@@ -270,7 +274,7 @@ export default function ResourceEditorPanel({ open, resourceId, properties, onCl
     <SidePanel
       open={open}
       onClose={onClose}
-      title={(form && form.name) || (resourceId == null ? 'Nouvelle ressource' : 'Ressource')}
+      title={(form && form.name) || (resourceId == null ? TEXTS.newResourceTitle : TEXTS.resourceFallbackTitle)}
       dirty={dirty}
       saving={saving}
       errorCount={errorFields.length}

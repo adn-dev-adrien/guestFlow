@@ -11,6 +11,8 @@ const db = require('../database');
 const controller = require('../controllers/optionsController');
 const { validateOptionPayload } = require('../utils/optionValidation');
 const { scopePayload } = require('../utils/optionPayloadScope');
+const sdkRegistry = require('../plugins/sdk/registry');
+const { createContext } = require('../plugins/sdk/createContext');
 
 const res = () => ({ statusCode: 200, status(c) { this.statusCode = c; return this; }, json(b) { this.body = b; return this; } });
 
@@ -126,11 +128,50 @@ test('rule 15: saving an option removes the out-of-scope rows from the database'
   assert.deepEqual(db.prepare('SELECT propertyId FROM property_option_defaults WHERE optionId = ?').all(id).map((x) => x.propertyId), [granja]);
 });
 
-test('rule 16: the legacy negative base price keeps its 400 NEGATIVE_OPTION_PRICE', () => {
+test('rule 16: a negative base price is a 422 detail on `price` carrying the legacy code, next to the other field errors', () => {
   const r = res();
-  controller.create({ body: valid({ price: -3 }) }, r);
-  assert.equal(r.statusCode, 400);
-  assert.equal(r.body.code, 'NEGATIVE_OPTION_PRICE');
+  controller.create({ body: valid({ title: '', price: -3, propertyPrices: { [granja]: -1 } }) }, r);
+  assert.equal(r.statusCode, 422);
+  const byField = Object.fromEntries(r.body.details.map((d) => [d.field, d]));
+  assert.equal(byField.price.code, 'NEGATIVE_OPTION_PRICE');
+  assert.equal(byField.price.message, 'Positif ou nul');
+  assert.ok(byField.title);
+  assert.ok(byField[`propertyPrices.${granja}`]);
+});
+
+test('rule 16: validation judges the scoped payload — an invalid price on a property that is not proposed is dropped, not refused', () => {
+  const r = res();
+  controller.create({ body: valid({ title: 'Hors périmètre', propertyIds: [granja], propertyPrices: { [granja]: 40, [estiva]: -5 } }) }, r);
+  assert.equal(r.statusCode, 200);
+  assert.deepEqual(db.prepare('SELECT propertyId FROM property_option_prices WHERE optionId = ?').all(r.body.id).map((x) => x.propertyId), [granja]);
+});
+
+test('rule 16: a percentage above 100 on a property that is not proposed is dropped too', () => {
+  const r = res();
+  controller.create({ body: valid({
+    title: 'Assurance hors périmètre', priceType: 'percent_of_stay', price: 4, propertyIds: [granja], propertyPrices: { [granja]: 5, [estiva]: 400 },
+  }) }, r);
+  assert.equal(r.statusCode, 200);
+  assert.deepEqual(db.prepare('SELECT propertyId, price FROM property_option_prices WHERE optionId = ?').all(r.body.id), [{ propertyId: granja, price: 5 }]);
+  const still = res();
+  controller.create({ body: valid({ title: 'Assurance dans le périmètre', priceType: 'percent_of_stay', price: 4, propertyPrices: { [granja]: 400 } }) }, still);
+  assert.equal(still.statusCode, 422);
+});
+
+test('rule 16: a free option with a garbage base price saves at 0 instead of failing', () => {
+  const r = res();
+  controller.create({ body: valid({ title: 'Gratuite x', priceType: 'free', price: 'x' }) }, r);
+  assert.equal(r.statusCode, 200);
+  assert.equal(db.prepare('SELECT price FROM options WHERE id = ?').get(r.body.id).price, 0);
+});
+
+test('rule 16: a property key that is not a positive integer is a 422 on that key, not a 500', () => {
+  for (const key of ['abc', '-3', '0', '1.5']) {
+    const r = res();
+    controller.create({ body: { title: 'Clés', priceType: 'per_stay', price: 5, propertyPrices: { [key]: 4 } } }, r);
+    assert.equal(r.statusCode, 422, key);
+    assert.deepEqual(r.body.details, [{ field: `propertyPrices.${key}`, message: 'Logement inconnu' }]);
+  }
 });
 
 test('rule 2, 4: the catalogue-view endpoint answers the grouped payload and 404 on an unknown property', () => {
@@ -165,7 +206,10 @@ test('rule 2: archived options are not in the groups but in `archived`, latest f
   assert.deepEqual(r.body.archived.map((i) => i.title).slice(0, 2), ['Archivée B', 'Archivée A']);
 });
 
-test('rule 27: restore brings an archived option back, without its property defaults', () => {
+test('rule 27: restore brings an archived option back, without its property defaults, and announces a pricing change', async () => {
+  const events = [];
+  sdkRegistry.configure({ isActive: () => true, allows: () => true });
+  createContext('pricing-probe').events.on('pricing.changed', (payload) => events.push(payload));
   const created = res();
   controller.create({ body: valid({ title: 'À restaurer', propertyDefaults: { [granja]: { default: true, offered: false } } }) }, created);
   const id = created.body.id;
@@ -175,7 +219,10 @@ test('rule 27: restore brings an archived option back, without its property defa
 
   const restored = res();
   controller.restore({ params: { id } }, restored);
+  await new Promise((resolve) => { setImmediate(() => setImmediate(resolve)); });
+  sdkRegistry.reset();
   assert.equal(restored.statusCode, 200);
+  assert.ok(events.some((e) => e.source === 'options' && e.propertyId === null));
   assert.equal(db.prepare('SELECT archivedAt FROM options WHERE id = ?').get(id).archivedAt, null);
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM property_option_defaults WHERE optionId = ?').get(id).n, 0);
 });

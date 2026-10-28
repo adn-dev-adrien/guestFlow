@@ -1,7 +1,7 @@
 // SidePanel — generic contract (specs/options-resources-ux.md §4.2): sheet on xs, drawer on sm+, dirty
 // guard, Escape, save gating, section chips with error state.
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, act, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import SidePanel, { SidePanelSection, errorCountLabel } from '../SidePanel';
@@ -18,8 +18,8 @@ afterEach(() => { delete window.matchMedia; });
 
 function renderPanel(props = {}, width = 1280) {
   mockViewport(width);
-  const handlers = { onClose: vi.fn(), onSave: vi.fn() };
-  render(
+  const handlers = { onClose: vi.fn(), onSave: props.onSave || vi.fn() };
+  const view = render(
     <MemoryRouter>
       <SidePanel
         open
@@ -33,7 +33,7 @@ function renderPanel(props = {}, width = 1280) {
       </SidePanel>
     </MemoryRouter>,
   );
-  return handlers;
+  return { ...handlers, ...view };
 }
 
 test('is a dialog named by its title, with a close button of 44 px', () => {
@@ -76,13 +76,23 @@ test('« Quitter sans enregistrer » closes without saving', async () => {
   expect(onSave).not.toHaveBeenCalled();
 });
 
-test('« Enregistrer et quitter » saves and leaves closing to the owner', async () => {
+test('« Enregistrer et quitter » saves, then goes on to leave', async () => {
   const user = userEvent.setup();
-  const { onClose, onSave } = renderPanel({ dirty: true });
+  const { onClose, onSave } = renderPanel({ dirty: true, onSave: vi.fn().mockResolvedValue(true) });
+  await user.click(screen.getByRole('button', { name: 'Fermer' }));
+  await user.click(screen.getByRole('button', { name: 'Enregistrer et quitter' }));
+  expect(onSave).toHaveBeenCalledTimes(1);
+  await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+});
+
+test('« Enregistrer et quitter » with a save that refused stays on the panel', async () => {
+  const user = userEvent.setup();
+  const { onClose, onSave } = renderPanel({ dirty: true, onSave: vi.fn().mockResolvedValue(false) });
   await user.click(screen.getByRole('button', { name: 'Fermer' }));
   await user.click(screen.getByRole('button', { name: 'Enregistrer et quitter' }));
   expect(onSave).toHaveBeenCalledTimes(1);
   expect(onClose).not.toHaveBeenCalled();
+  await waitFor(() => expect(screen.queryByText('Modifications non enregistrées')).not.toBeInTheDocument());
 });
 
 test('Enregistrer is disabled until something changed, then enabled; the footer says « Modifié »', () => {
@@ -124,6 +134,53 @@ test('section chips scroll to their section and flag the ones holding an error',
   await user.click(prix);
   expect(scrollIntoView).toHaveBeenCalled();
   expect(scrollIntoView.mock.contexts[0]).toBe(document.querySelector('[data-side-panel-section="prix"]'));
+});
+
+test('rule 29: while open the panel owns one history entry; Back closes a clean panel', () => {
+  const push = vi.spyOn(window.history, 'pushState');
+  const { onClose } = renderPanel();
+  expect(push).toHaveBeenCalledTimes(1);
+  expect(window.history.state.sidePanel).toBe(true);
+  act(() => { window.dispatchEvent(new PopStateEvent('popstate')); });
+  expect(onClose).toHaveBeenCalledTimes(1);
+  push.mockRestore();
+});
+
+test('rule 29: Back on a dirty panel asks first, puts the entry back and keeps the panel', () => {
+  const push = vi.spyOn(window.history, 'pushState');
+  const { onClose } = renderPanel({ dirty: true });
+  act(() => { window.dispatchEvent(new PopStateEvent('popstate')); });
+  expect(screen.getByText('Modifications non enregistrées')).toBeInTheDocument();
+  expect(push).toHaveBeenCalledTimes(2);
+  expect(onClose).not.toHaveBeenCalled();
+  push.mockRestore();
+});
+
+test('rule 29: closing the panel any other way removes its history entry', async () => {
+  const user = userEvent.setup();
+  const back = vi.spyOn(window.history, 'back').mockImplementation(() => {});
+  const { rerender } = renderPanel();
+  await user.click(screen.getByRole('button', { name: 'Annuler' }));
+  rerender(<MemoryRouter><SidePanel open={false} onClose={() => {}} title="Ménage" /></MemoryRouter>);
+  expect(back).toHaveBeenCalledTimes(1);
+  back.mockRestore();
+});
+
+test('rule 29: a clean panel holds no navigation guard, a dirty one does, and closing releases it', () => {
+  window.__guestflowBeforeNavigate = undefined;
+  delete window.__guestflowBeforeNavigate;
+  const view = renderPanel();
+  expect(window.__guestflowBeforeNavigate).toBeUndefined();
+  view.rerender(<MemoryRouter><SidePanel open title="Ménage" dirty onClose={() => {}}><i /></SidePanel></MemoryRouter>);
+  expect(typeof window.__guestflowBeforeNavigate).toBe('function');
+  view.rerender(<MemoryRouter><SidePanel open={false} title="Ménage" dirty onClose={() => {}}><i /></SidePanel></MemoryRouter>);
+  expect(window.__guestflowBeforeNavigate).toBeUndefined();
+});
+
+test('rule 30: the dialog is named by its visible title, even when the title is not a string', () => {
+  mockViewport(1280);
+  render(<MemoryRouter><SidePanel open title={<span>Titre riche</span>} onClose={() => {}}>x</SidePanel></MemoryRouter>);
+  expect(screen.getByRole('dialog', { name: 'Titre riche' })).toBeInTheDocument();
 });
 
 test('on a phone it is a bottom sheet (anchor bottom), on a laptop a right drawer', () => {

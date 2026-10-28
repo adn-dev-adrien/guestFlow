@@ -49,10 +49,22 @@ function hourlySettings(form) {
 
 const amountOf = (text) => (isBlank(text) ? 0 : parseAmount(text));
 
+/** The form with a new scope: the price lines of properties that left it are dropped. */
+export function withScope(form, ids) {
+  const kept = ids.length > 0 ? new Set(ids.map(String)) : null;
+  const propertyPricing = Object.fromEntries(
+    Object.entries(form.propertyPricing || {}).filter(([pid]) => !kept || kept.has(pid)),
+  );
+  return { ...form, propertyIds: ids, propertyPricing };
+}
+
+const inScope = (form, pid) => form.propertyIds.length === 0 || form.propertyIds.map(String).includes(String(pid));
+
 /**
  * The API payload. Hours, slots and the planning card are for a resource sold by the hour only
- * (specs/plugins-phase-3c-hourly-resources.md rule 4): cleared otherwise. A property line with no price
- * but a free hour keeps the base price as its price, so only the hour differs.
+ * (specs/plugins-phase-3c-hourly-resources.md rule 4): cleared otherwise. A property line with no typed
+ * price is sent with `price: null` — it inherits the base price on the server (rule 28); lines of
+ * properties outside the scope are not sent.
  */
 export function toResourcePayload(form) {
   const base = form.priceType === 'free' ? 0 : amountOf(form.price);
@@ -63,9 +75,10 @@ export function toResourcePayload(form) {
     priceType: form.priceType || 'per_stay',
     propertyIds: form.propertyIds && form.propertyIds.length > 0 ? form.propertyIds : [],
     propertyPricing: Object.entries(form.propertyPricing || {}).reduce((acc, [propertyId, line]) => {
+      if (!inScope(form, propertyId)) return acc;
       const typed = line && !isBlank(line.price);
       const freeMinutes = form.priceType === 'per_hour' ? Math.max(0, Math.round(Number(line && line.freeMinutes) || 0)) : 0;
-      if (typed || freeMinutes > 0) acc[String(propertyId)] = { price: typed ? parseAmount(line.price) : base, freeMinutes };
+      if (typed || freeMinutes > 0) acc[String(propertyId)] = { price: typed ? parseAmount(line.price) : null, freeMinutes };
       return acc;
     }, {}),
     note: form.description || '',
@@ -132,7 +145,7 @@ export function validateResourceForm(form) {
     if (message) errors.price = message;
   }
   Object.entries(form.propertyPricing || {}).forEach(([pid, line]) => {
-    if (!line || isBlank(line.price)) return;
+    if (!line || isBlank(line.price) || !inScope(form, pid)) return;
     const message = amountProblem(line.price);
     if (message) errors[`propertyPricing.${pid}`] = message;
   });

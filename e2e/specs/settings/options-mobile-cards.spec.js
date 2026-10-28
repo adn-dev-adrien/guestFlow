@@ -18,7 +18,7 @@ test('/options at 390px: sections and rows, a row opens a full-width sheet, no h
   const overflow = () => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(await overflow()).toBeLessThanOrEqual(0);
 
-  await page.getByRole('button', { name: 'Modifier Jus de pomme 1L' }).click();
+  await page.getByRole('button', { name: 'Jus de pomme 1L', exact: true }).click();
   const sheet = page.getByRole('dialog', { name: 'Jus de pomme 1L' });
   await expect(sheet).toBeVisible();
   const box = await sheet.boundingBox();

@@ -2763,6 +2763,16 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   db.prepare('INSERT OR IGNORE INTO migrations (name) VALUES (?)').run(migrationName);
 }
 
+// `property_resource_prices.price` becomes nullable: NULL = « inherits the resource's base price »
+// (specs/options-resources-ux.md rule 28). Table rebuild, every row and value kept as stored.
+{
+  const migrationName = 'resource_property_price_nullable_v1';
+  const { makeResourcePriceNullable } = require('./utils/resourcePriceNullableMigration');
+  const copied = makeResourcePriceNullable(db);
+  if (copied !== null) console.log(`[resources] property_resource_prices.price accepte NULL — ${copied} ligne(s) conservée(s) telles quelles.`);
+  db.prepare('INSERT OR IGNORE INTO migrations (name) VALUES (?)').run(migrationName);
+}
+
 // ---------- REJEU DU BASELINE ----------
 // Voir la note en tete de fichier : quand la premiere passe de schema.sql s'est interrompue sur
 // une base existante, les migrations gardees ci-dessus ont depuis ajoute les colonnes

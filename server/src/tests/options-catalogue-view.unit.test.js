@@ -127,6 +127,15 @@ test('rule 7: the chips and the total describe the whole catalogue, not the prop
   assert.equal(filtered.groups.find((g) => g.key === 'cat:Boissons').count, 1);
 });
 
+test('rule 4: with a property, the offered / included traits name that property only', () => {
+  const view = buildCatalogueView([
+    option({ title: 'Ménage', propertyDefaults: { 2: { offered: true } } }),
+    option({ title: 'Linge', propertyDefaults: { 1: { offered: false }, 2: { offered: true } } }),
+  ], PROPS, { propertyId: 1 });
+  assert.deepEqual(find(view, 'Ménage').traits, []);
+  assert.deepEqual(find(view, 'Linge').traits, [{ key: 'included', label: 'Inclus · tous les logements', tone: 'info' }].map((t) => ({ ...t, label: 'Inclus · Granja' })));
+});
+
 test('rule 5: no trait for an ordinary option', () => {
   const view = buildCatalogueView([option({ title: 'Ordinaire' })], PROPS);
   assert.deepEqual(find(view, 'Ordinaire').traits, []);
@@ -191,6 +200,18 @@ test('rule 5: the cancellation insurance is « Non proposée · tarif à 0 » un
   assert.deepEqual(find(dynamic, 'Assurance').traits, []);
 });
 
+test('rule 5: an insurance at 0 on only some properties names them; all at 0 reads « tarif à 0 »', () => {
+  const three = [...PROPS, { id: 3, name: 'Tente' }];
+  const view = buildCatalogueView([
+    option({ title: 'Partielle', isCancellationInsurance: 1, priceType: 'percent_of_stay', price: 5, propertyIds: [1, 2, 3], propertyPrices: { 1: 0 } }),
+    option({ title: 'Deux à zéro', isCancellationInsurance: 1, priceType: 'percent_of_stay', price: 5, propertyIds: [1, 2, 3], propertyPrices: { 1: 0, 2: 0 } }),
+    option({ title: 'Toutes à zéro', isCancellationInsurance: 1, priceType: 'percent_of_stay', price: 0, propertyIds: [1, 2] }),
+  ], three);
+  assert.equal(find(view, 'Partielle').traits.find((x) => x.key === 'insurance').label, 'Non proposée · Granja');
+  assert.equal(find(view, 'Deux à zéro').traits.find((x) => x.key === 'insurance').label, 'Non proposée · Granja, Estiva');
+  assert.equal(find(view, 'Toutes à zéro').traits.find((x) => x.key === 'insurance').label, 'Non proposée · tarif à 0');
+});
+
 test('rule 5: traits come in the documented order', () => {
   const view = buildCatalogueView([option({
     title: 'Tout', propertyIds: [1], displayToClient: 0, showsPlanningCard: 1, planningCardTimes: ['12:00'],
@@ -219,4 +240,7 @@ test('rule 26: the archived options keep their name, category and archive date',
     [{ id: 4, title: 'Vélo', category: 'Sorties', archivedAt: '2026-10-01 10:00:00' }],
   );
   assert.deepEqual(buildArchivedItems(null), []);
+  const rows = [{ id: 1, title: 'A', propertyIds: [1] }, { id: 2, title: 'B', propertyIds: [2] }];
+  assert.deepEqual(buildArchivedItems(rows, { propertyId: 2 }).map((i) => i.title), ['B']);
+  assert.equal(buildArchivedItems(rows).length, 2);
 });

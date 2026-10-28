@@ -65,7 +65,7 @@ beforeEach(() => {
 });
 
 const header = (name) => within(screen.getByRole('heading', { name: new RegExp(`^${name}`) })).getByRole('button');
-const rowOf = (name) => screen.getByRole('button', { name: `Modifier ${name}` });
+const rowOf = (name) => screen.getByRole('button', { name });
 
 test('rule 8: one section per group with its count, the rows inside; archived is folded', async () => {
   renderPage();
@@ -91,7 +91,7 @@ test('rule 8: folding a section hides its rows, and the choice is remembered', a
 
 test('rule 9: a row shows the name, the description, the traits and the price with its unit and note', async () => {
   renderPage();
-  const row = await screen.findByRole('button', { name: 'Modifier Ménage' });
+  const row = (await screen.findByRole('button', { name: 'Ménage' })).parentElement.parentElement;
   expect(within(row).getByText('Fin de séjour')).toBeInTheDocument();
   expect(within(row).getByText('Offert · Estiva')).toBeInTheDocument();
   expect(within(row).getByText('30 € – 80 €')).toBeInTheDocument();
@@ -101,7 +101,7 @@ test('rule 9: a row shows the name, the description, the traits and the price wi
 test('rule 9: the whole row opens the editor — click, Enter and Space — and the panel loads that option', async () => {
   const user = userEvent.setup();
   renderPage();
-  await user.click(await screen.findByRole('button', { name: 'Modifier Vin rouge' }));
+  await user.click(await screen.findByRole('button', { name: 'Vin rouge' }));
   expect(await screen.findByRole('dialog')).toBeInTheDocument();
   expect(api.getOption).toHaveBeenCalledWith(3);
   await user.click(screen.getByRole('button', { name: 'Fermer' }));
@@ -114,7 +114,7 @@ test('rule 9: the whole row opens the editor — click, Enter and Space — and 
 
 test('rule 9: no pencil and no trash icon on a row', async () => {
   renderPage();
-  await screen.findByRole('button', { name: 'Modifier Ménage' });
+  await screen.findByRole('button', { name: 'Ménage' });
   expect(screen.queryByTestId('DeleteIcon')).not.toBeInTheDocument();
   expect(screen.queryByTestId('EditIcon')).not.toBeInTheDocument();
 });
@@ -122,7 +122,7 @@ test('rule 9: no pencil and no trash icon on a row', async () => {
 test('rule 10: « Archiver » asks for confirmation, then archives and reloads', async () => {
   const user = userEvent.setup();
   renderPage();
-  await screen.findByRole('button', { name: 'Modifier Vin rouge' });
+  await screen.findByRole('button', { name: 'Vin rouge' });
   await user.click(screen.getByRole('button', { name: 'Actions de Vin rouge' }));
   await user.click(await screen.findByRole('menuitem', { name: 'Archiver' }));
   expect(await screen.findByText('Archiver « Vin rouge » ?')).toBeInTheDocument();
@@ -135,7 +135,7 @@ test('rule 10: « Archiver » asks for confirmation, then archives and reloads',
 test('rule 10: cancelling the confirmation archives nothing', async () => {
   const user = userEvent.setup();
   renderPage();
-  await screen.findByRole('button', { name: 'Modifier Vin rouge' });
+  await screen.findByRole('button', { name: 'Vin rouge' });
   await user.click(screen.getByRole('button', { name: 'Actions de Vin rouge' }));
   await user.click(await screen.findByRole('menuitem', { name: 'Archiver' }));
   await user.click(await screen.findByRole('button', { name: 'Annuler' }));
@@ -145,7 +145,7 @@ test('rule 10: cancelling the confirmation archives nothing', async () => {
 test('rule 10: a system option cannot be archived, and the reason is written under the item', async () => {
   const user = userEvent.setup();
   renderPage();
-  await screen.findByRole('button', { name: 'Modifier Petit déjeuner' });
+  await screen.findByRole('button', { name: 'Petit déjeuner' });
   await user.click(screen.getByRole('button', { name: 'Actions de Petit déjeuner' }));
   const archive = await screen.findByRole('menuitem', { name: /Archiver/ });
   expect(archive).toHaveAttribute('aria-disabled', 'true');
@@ -225,7 +225,7 @@ test('rule 17: a saved option closes the panel, toasts, reloads and the row flas
   const user = userEvent.setup();
   api.updateOption.mockResolvedValue({ ok: true });
   renderPage();
-  await user.click(await screen.findByRole('button', { name: 'Modifier Vin rouge' }));
+  await user.click(await screen.findByRole('button', { name: 'Vin rouge' }));
   await user.type(await screen.findByLabelText(/^Description/), '!');
   await user.click(screen.getByRole('button', { name: 'Enregistrer' }));
   expect(await screen.findByText('Option enregistrée')).toBeInTheDocument();
@@ -283,6 +283,48 @@ test('worst case: 110-character names and a single property are rendered whole',
     ...VIEW, groups: [{ key: 'none', label: 'Sans catégorie', count: 1, items: [item(1, name)] }], archived: [],
   });
   renderPage();
-  expect(await screen.findByRole('button', { name: `Modifier ${name}` })).toBeInTheDocument();
+  expect(await screen.findByRole('button', { name })).toBeInTheDocument();
   expect(screen.queryByRole('group', { name: 'Logement' })).not.toBeInTheDocument();
+});
+
+test('rules 9, 30: the row is not one big button — its name is, so the price and the traits stay readable and nothing is nested', async () => {
+  renderPage();
+  const name = await screen.findByRole('button', { name: 'Ménage' });
+  expect(name.textContent).toBe('Ménage');
+  const row = name.parentElement.parentElement;
+  expect(row).not.toHaveAttribute('role');
+  expect(within(row).getByText('30 € – 80 €')).toBeInTheDocument();
+  expect(name.querySelector('button')).toBeNull();
+  expect(within(row).getByRole('button', { name: 'Actions de Ménage' })).toBeInTheDocument();
+});
+
+test('rules 11, 30: a failed refresh keeps the list but says it may be old, with « Réessayer »', async () => {
+  const user = userEvent.setup();
+  renderPage();
+  await user.click(await screen.findByRole('button', { name: 'Estiva' }));
+  api.getOptionsCatalogueView.mockRejectedValueOnce(new Error('down'));
+  await user.click(screen.getByRole('button', { name: 'Granja' }));
+  expect(await screen.findByText(/la liste affichée peut être ancienne/)).toBeInTheDocument();
+  expect(screen.getByText('Vin rouge')).toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: 'Réessayer' }));
+  await waitFor(() => expect(screen.queryByText(/peut être ancienne/)).not.toBeInTheDocument());
+});
+
+test('rules 11, 30: a property change shows a loading cue until the new view arrives', async () => {
+  const user = userEvent.setup();
+  renderPage();
+  await user.click(await screen.findByRole('button', { name: 'Estiva' }));
+  api.getOptionsCatalogueView.mockReturnValueOnce(new Promise(() => {}));
+  await user.click(screen.getByRole('button', { name: 'Granja' }));
+  expect(await screen.findByRole('progressbar', { name: 'Chargement' })).toBeInTheDocument();
+});
+
+test('rules 8, 30: while a search is active the headings are plain: clicking one folds nothing and stores nothing', async () => {
+  const user = userEvent.setup();
+  renderPage();
+  await user.type(await screen.findByRole('searchbox'), 'vin');
+  const heading = screen.getByRole('heading', { name: /^Boissons/ });
+  expect(within(heading).queryByRole('button')).not.toBeInTheDocument();
+  await user.click(heading);
+  expect(window.localStorage.getItem('guestflow:collapsed:options-catalogue')).toBeNull();
 });

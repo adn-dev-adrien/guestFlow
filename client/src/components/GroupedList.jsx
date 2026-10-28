@@ -12,7 +12,8 @@
  *   getItemKey?   (item) => string|number    default `item.id`
  *   isCollapsed?  (key) => boolean           folded sections (see useCollapsedGroups); default none
  *   onToggle?     (key) => void              header click; without it the headers are not foldable
- *   forceOpen?    boolean                    unfold everything (a search is active)
+ *   forceOpen?    boolean                    unfold everything (a search is active); the headers are then plain
+ *                                            headings and the stored folds are left untouched
  *   highlightId?  string|number              row to flash after a save, handed to `renderItem`
  *   empty?        ReactNode                  shown when `groups` is empty
  *
@@ -24,10 +25,10 @@ import { Box, ButtonBase, Typography } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 
 function GroupSection({
-  group, renderItem, getItemKey, collapsed, onToggle, highlightId,
+  group, renderItem, getItemKey, collapsed, onToggle, highlightId, forceOpen,
 }) {
   const bodyId = useId();
-  const foldable = typeof onToggle === 'function';
+  const foldable = typeof onToggle === 'function' && !forceOpen;
   const total = group.count ?? group.items.length;
   const pill = group.items.length < total ? `${group.items.length} / ${total}` : String(total);
   return (
@@ -37,7 +38,7 @@ function GroupSection({
           component={foldable ? ButtonBase : 'div'}
           onClick={foldable ? () => onToggle(group.key) : undefined}
           aria-expanded={foldable ? !collapsed : undefined}
-          aria-controls={foldable ? bodyId : undefined}
+          aria-controls={foldable && !collapsed ? bodyId : undefined}
           sx={{
             display: 'flex', width: '100%', justifyContent: 'flex-start', alignItems: 'center', gap: 1.25, px: 0.5, py: 1,
             minHeight: 44, textAlign: 'left', borderRadius: 2, font: 'inherit', color: group.muted ? 'text.secondary' : 'text.primary',
@@ -106,6 +107,7 @@ export default function GroupedList({
           collapsed={!forceOpen && isCollapsed(group.key)}
           onToggle={onToggle}
           highlightId={highlightId}
+          forceOpen={forceOpen}
         />
       ))}
     </Box>

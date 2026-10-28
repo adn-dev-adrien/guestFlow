@@ -24,4 +24,4 @@ function scopePayload(payload) {
   return out;
 }
 
-module.exports = { scopePayload };
+module.exports = { scopePayload, NO_PROPERTY_PRICE };

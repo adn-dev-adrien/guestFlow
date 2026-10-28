@@ -44,3 +44,11 @@ test('rule 19: the footer drops what the resource does not have', () => {
   const { footer } = buildCatalogueLines(bath({ isComplex: 0, turnoverMinutes: 0, showsPlanningCard: 0, minimumUsageMinutes: 90 }), { properties: PROPS });
   assert.equal(footer, 'À l’heure · 1 h 30 minimum');
 });
+
+test('rule 19: « Offert » counts only the properties the resource is sold on', () => {
+  const pricing = { 1: { price: 30, freeMinutes: 60 }, 2: { price: 30, freeMinutes: 60 } };
+  const scoped = buildCatalogueLines(bath({ propertyIds: [1], propertyPricing: pricing }), { properties: PROPS });
+  assert.deepEqual(scoped.lines.at(-1), { label: 'Offert', value: '1re heure · tous les logements' });
+  const outside = buildCatalogueLines(bath({ propertyIds: [2], propertyPricing: { 1: { price: 30, freeMinutes: 60 } } }), { properties: PROPS });
+  assert.equal(outside.lines.some((l) => l.label === 'Offert'), false);
+});

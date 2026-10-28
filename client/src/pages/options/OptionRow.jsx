@@ -2,12 +2,13 @@
  * OptionRow — one option in the catalogue list (specs/options-resources-ux.md rule 9): the name
  * (wraps, never cut), the description on one line, the traits the server computed, the price summary
  * right-aligned in tabular figures with its unit under it, and the « ⋯ » menu. The whole row opens the
- * editor (click, Enter, Space). On `xs` the price sits top right and the menu under it.
+ * editor (click anywhere, or Tab to the name and Enter / Space). On `xs` the price sits top right and
+ * the menu under it.
  *
  * Props: item (a catalogue-view item), highlighted (flash after a save), onOpen(item), onArchive(item)
  */
 import React from 'react';
-import { Box, Chip, Typography } from '@mui/material';
+import { Box, ButtonBase, Chip, Typography } from '@mui/material';
 import { softChipSx } from '../../components/StatusBadge';
 import RowActionsMenu from '../../components/RowActionsMenu';
 import { TEXTS } from '../../constants/optionsResourcesTexts';
@@ -19,23 +20,15 @@ export default function OptionRow({ item, highlighted, onOpen, onArchive }) {
     danger: true,
     onClick: () => onArchive(item),
     disabled: !item.archivable,
-    hint: item.archivable ? undefined : TEXTS.systemOption,
+    hint: item.archivable ? undefined : TEXTS.keptInCatalogue(item.archiveBlockedReason),
   };
   return (
     <Box
-      role="button"
-      tabIndex={0}
-      aria-label={`${TEXTS.edit} ${item.title}`}
-      onClick={open}
-      onKeyDown={(e) => {
-        if (e.target !== e.currentTarget) return;
-        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); }
-      }}
       sx={{
-        display: 'grid', gridTemplateColumns: { xs: 'minmax(0,1fr) auto', sm: 'minmax(0,1fr) auto 44px' },
+        position: 'relative', display: 'grid', gridTemplateColumns: { xs: 'minmax(0,1fr) auto', sm: 'minmax(0,1fr) auto 44px' },
         gap: { xs: '2px 10px', sm: '4px 16px' }, alignItems: 'center',
-        pl: { xs: 1.75, sm: 2.25 }, pr: 1, py: 1.5, cursor: 'pointer', outlineOffset: -2,
-        '&:hover': { bgcolor: 'action.hover' },
+        pl: { xs: 1.75, sm: 2.25 }, pr: 1, py: 1.5,
+        '@media (hover: hover) and (pointer: fine)': { '&:hover': { bgcolor: 'action.hover' } },
         '&:active': { bgcolor: 'action.selected' },
         ...(highlighted ? {
           animation: 'row-flash 1.2s cubic-bezier(.32,.72,0,1)',
@@ -45,7 +38,19 @@ export default function OptionRow({ item, highlighted, onOpen, onArchive }) {
       }}
     >
       <Box sx={{ gridColumn: 1, gridRow: { xs: '1 / 3', sm: 'auto' }, minWidth: 0 }}>
-        <Typography sx={{ fontWeight: 600, fontSize: '0.95rem', lineHeight: 1.35, overflowWrap: 'anywhere' }}>{item.title}</Typography>
+        {/* The name is the row's one button; its ::after stretches over the whole row, so a click anywhere
+            opens the editor while the price and the traits stay plain, readable text. */}
+        <ButtonBase
+          onClick={open}
+          sx={{
+            position: 'static', display: 'block', textAlign: 'left', font: 'inherit', fontWeight: 600, fontSize: '0.95rem', lineHeight: 1.35,
+            overflowWrap: 'anywhere', borderRadius: 1,
+            '&::after': { content: '""', position: 'absolute', inset: 0 },
+            '&.Mui-focusVisible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: 2 },
+          }}
+        >
+          {item.title}
+        </ButtonBase>
         {item.description && (
           <Typography
             variant="body2"
@@ -79,9 +84,9 @@ export default function OptionRow({ item, highlighted, onOpen, onArchive }) {
           </Typography>
         )}
       </Box>
-      <Box sx={{ gridColumn: { xs: 2, sm: 3 }, gridRow: { xs: 2, sm: 1 }, justifySelf: 'end', alignSelf: { xs: 'end', sm: 'center' } }}>
+      <Box sx={{ position: 'relative', zIndex: 1, gridColumn: { xs: 2, sm: 3 }, gridRow: { xs: 2, sm: 1 }, justifySelf: 'end', alignSelf: { xs: 'end', sm: 'center' } }}>
         <RowActionsMenu
-          label={`Actions de ${item.title}`}
+          label={TEXTS.actionsOf(item.title)}
           items={[{ label: TEXTS.edit, onClick: open }, archiveItem]}
         />
       </Box>

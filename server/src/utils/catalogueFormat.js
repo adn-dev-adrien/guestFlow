@@ -5,8 +5,6 @@
 
 const { emailAmount } = require('./emailMoney');
 
-const collator = new Intl.Collator('fr', { sensitivity: 'base', numeric: true });
-
 const EURO_UNITS = Object.freeze({
   per_stay: '/ séjour',
   per_person: '/ pers.',
@@ -40,15 +38,6 @@ function propertiesPhrase(propertyIds, properties) {
   return `${concerned.length} logements`;
 }
 
-/** « 1 h », « 1 h 30 », « 45 min ». */
-function durationLabel(minutes) {
-  const total = Math.max(0, Math.round(Number(minutes) || 0));
-  if (total < 60) return `${total} min`;
-  const h = Math.floor(total / 60);
-  const m = total % 60;
-  return m ? `${h} h ${String(m).padStart(2, '0')}` : `${h} h`;
-}
-
 module.exports = {
-  collator, EURO_UNITS, euros, percent, range, propertiesPhrase, durationLabel,
+  EURO_UNITS, euros, percent, range, propertiesPhrase,
 };

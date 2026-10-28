@@ -7,13 +7,19 @@
  * The editor mirrors these checks as a UX hint, only this one can reject a write.
  */
 
+const { NO_PROPERTY_PRICE } = require('./optionPayloadScope');
+
 const MESSAGES = Object.freeze({
   titleRequired: 'Nom requis',
   notANumber: 'Nombre attendu',
   negative: 'Positif ou nul',
   decimals: '2 décimales max',
   percentMax: '100 % max',
+  unknownProperty: 'Logement inconnu',
 });
+
+// A negative base price used to be refused with its own 400; the code now rides on the `price` detail.
+const NEGATIVE_PRICE_CODE = 'NEGATIVE_OPTION_PRICE';
 
 const isBlank = (value) => value === undefined || value === null || (typeof value === 'string' && value.trim() === '');
 
@@ -27,8 +33,6 @@ function priceProblem(raw, { percent = false } = {}) {
   return '';
 }
 
-const NO_PROPERTY_PRICE = ['free', 'per_participant_progressive'];
-
 function validateOptionPayload(payload) {
   const body = payload || {};
   const details = [];
@@ -37,11 +41,15 @@ function validateOptionPayload(payload) {
   const percent = body.priceType === 'percent_of_stay';
   if (!isBlank(body.price) && body.priceType !== 'free') {
     const message = priceProblem(body.price, { percent });
-    if (message) details.push({ field: 'price', message });
+    if (message) details.push({ field: 'price', message, ...(message === MESSAGES.negative ? { code: NEGATIVE_PRICE_CODE } : {}) });
   }
 
   if (!NO_PROPERTY_PRICE.includes(body.priceType)) {
     for (const [pid, raw] of Object.entries(body.propertyPrices || {})) {
+      if (!/^[1-9]\d*$/.test(pid)) {
+        details.push({ field: `propertyPrices.${pid}`, message: MESSAGES.unknownProperty });
+        continue;
+      }
       if (isBlank(raw)) continue;
       const message = priceProblem(raw, { percent });
       if (message) details.push({ field: `propertyPrices.${pid}`, message });
@@ -50,4 +58,4 @@ function validateOptionPayload(payload) {
   return details;
 }
 
-module.exports = { validateOptionPayload, priceProblem, MESSAGES };
+module.exports = { validateOptionPayload, priceProblem, MESSAGES, NEGATIVE_PRICE_CODE };

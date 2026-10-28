@@ -85,14 +85,16 @@ organised by topic — on a laptop and on a phone. No pricing or catalogue rule 
    séjour » for `percent_of_stay`. The unit labels are « / séjour », « / pers. », « / jour »,
    « / pers. / jour ». The base price is never displayed when no applicable property uses it; an option proposed nowhere shows « — ».
 4. With `?propertyId=<id>`, only the options applicable to that property are returned, and the price
-   summary is that property's effective price. An unknown property id answers 404.
+   summary is that property's effective price, and the offered / included traits name that property only
+   (« Offert · Granja », not the other properties' defaults). An unknown property id answers 404.
 5. Each item carries its **traits**, in this order, each with a tone: scope when the option is not
    offered everywhere (« Granja seulement », « Granja et Estiva seulement », past two names « 3 logements seulement »; « Aucun
    logement » in warning when the scope is empty); « Offert · <logements> » (success) and « Inclus ·
    <logements> » (info) from the per-property defaults; « Interne » when `displayToClient = 0`;
    « Planning 12:00 · 19:30 » when the option shows a planning card (« Planning 3× par jour » past two
-   slots); « Non proposée · tarif à 0 » (warning) for the cancellation insurance when the server would
-   not offer it. « tous les logements » replaces the list of names when every property is concerned (past two names: « N logements »). The breakfast option carries its planning card at its default time (« Planning 09:00 »).
+   slots); « Non proposée · tarif à 0 » (warning) for the cancellation insurance when no applicable property
+   sells it, « Non proposée · Granja » (the properties at 0) when only some do, nothing when a plugin
+   prices it. « tous les logements » replaces the list of names when every property is concerned (past two names: « N logements »). The breakfast option carries its planning card at its default time (« Planning 09:00 »).
    No trait is emitted for what is true of every ordinary option.
 6. Each item carries `archivable` and, when false, `archiveBlockedReason` (« Option système » for an
    option with an `autoOptionType` or the cancellation insurance) — the same guard as
@@ -147,7 +149,12 @@ organised by topic — on a laptop and on a phone. No pricing or catalogue rule 
 16. Authoritative validation on create and update (422 `VALIDATION_FAILED` with `details[]`, French
     message per field): title required (trimmed); base price and every per-property price are numbers
     ≥ 0 with at most 2 decimals; a percentage is ≤ 100. A negative or non-numeric per-property price is
-    **refused**, no longer skipped silently. The panel mirrors these checks inline (« Nom requis »,
+    **refused**, no longer skipped silently; a `propertyPrices` key that is not a positive integer is
+    refused on that key (« Logement inconnu »). The server judges the payload **after** rule 15's
+    clean-up: an invalid price on a property that is not proposed is dropped, never refused. A `free`
+    option stores a base price of 0 whatever was sent. The former `400 NEGATIVE_OPTION_PRICE` is gone:
+    a negative base price is a 422 detail on `price` carrying `code: 'NEGATIVE_OPTION_PRICE'`, next to
+    the other field errors. The panel mirrors these checks inline (« Nom requis »,
     « Positif ou nul », « 2 décimales max », « 100 % max », « Nombre attendu »), and shows any 422
     detail on its field.
 17. The footer holds « Annuler » and « Enregistrer ». « Enregistrer » is disabled while nothing changed
@@ -164,18 +171,22 @@ organised by topic — on a laptop and on a phone. No pricing or catalogue rule 
     legacy empty scope, `resources.md`), the per-property overrides when any. Resources sold by the hour
     stay hidden while the hourly plugin is off (`plugins-phase-3c-hourly-resources.md` rules 18, 20).
 19. A plugin adds lines and a footer to a resource through a new inert SDK brick,
-    `ctx.resourceCatalogueLines(build)` (SDK 2.8.0; `build(resource, { properties }) → { lines?: [...], footer?: string } | null`, synchronous, one builder per plugin, called only while the plugin is live).
+    `ctx.resourceCatalogueLines(build)` (SDK 2.8.0; `build(resource, { properties }) → { lines?: [...], footer?: string } | null`, synchronous, one builder per plugin — a second declaration by the same plugin throws — called only while the plugin is live). The core keeps only `{ label, value }` text lines and a text footer: a builder that throws or answers anything else adds nothing and is logged.
     The hourly plugin contributes « Soir » (« 50 € / h après 20:00 »), « Extérieurs » (« 50 € / h · soir
     70 € / h »), « Offert » (« 1re heure · <logements> ») and the footer « À l’heure · 11:00–22:00 · 1 h
-    minimum · remise en état 15 min · carte au planning ». No contributor, no line.
+    minimum · remise en état 15 min · carte au planning ». « Offert » counts only the properties the
+    resource is sold on. No contributor, no line.
 20. The resources render as cards (one column on `xs`), the stock in large tabular figures top right.
     A card opens the same side panel with the sections Général (Nom, Description, quantity labelled
     « En stock » / « En service »), Prix (type, base price, one line per property with its price and,
     for an hourly resource, « 1re heure offerte »), then the `resources.fields` plugin slot as its own
     section « Horaires », then Mails (« Phrase une fois réservée »). Deleting stays in the card's « ⋯ »
-    menu with the existing impact confirmation (`resources.md`); the baby bed stays non-deletable.
+    menu with the existing impact confirmation (`resources.md`), then the toast « Ressource supprimée »; the
+    baby bed stays non-deletable, the item carries `deleteBlockedReason` and the menu writes it under « Supprimer ».
 21. Resource validation mirrors rule 16: name required, quantity a whole number ≥ 0, prices ≥ 0 with
-    2 decimals max, closing time after opening time (hourly block). The server refuses with 422.
+    2 decimals max, closing time after opening time (hourly block). The server refuses with 422. Only the
+    price lines of properties in the resource's scope (none selected = all) are judged and sent; changing
+    the scope drops the lines of the properties that left it.
 
 ### 3.E States
 
@@ -197,13 +208,39 @@ organised by topic — on a laptop and on a phone. No pricing or catalogue rule 
 ### 3.G Archived options (added 2026-10-28, arbitration 3)
 
 26. The catalogue view carries `archived: [{ id, title, category, archivedAt }]`, the archived options
-    most recently archived first. The list ends with a folded « Archivées » section (count in the
+    most recently archived first (with `?propertyId=`, those that were proposed on that property). The list ends with a folded « Archivées » section (count in the
     header, folded by default) whose rows show the name, the category and « Restaurer »; the text search
     also filters it.
 27. `POST /api/options/:id/restore` clears `archivedAt` (200 `{ ok: true }`), emits `pricingChanged`,
     and does **not** bring back the per-property defaults the archive dropped
     (`option-soft-delete.md` rule 5) — the operator sets them again. 404 for an unknown option, 409
     `OPTION_NOT_ARCHIVED` for an active one. A restore toasts « Option restaurée » and reloads the view.
+
+### 3.H Price inheritance, panel history, accessibility (added 2026-10-28, review round)
+
+28. `property_resource_prices.price` is nullable: **NULL = « inherits the resource's base price »**. A
+    property line with a free first hour and no typed price is sent with `price: null` and stored NULL —
+    the client no longer decides a price. Raising the base price moves every inheriting line; a reload
+    shows a blank field for it. A typed 0 is a price (free there). Migration
+    `resource_property_price_nullable_v1` rebuilds the table (every row and value kept as stored);
+    **existing rows are not reinterpreted**: a row `price 0, freeMinutes 60` saved by the former form is
+    indistinguishable from « free there » and stays as it is — the operator blanks the field if it was
+    meant to inherit. Readers (`pricing.js`, the hourly plugin, the public projections) already fall
+    back to the base price on NULL.
+29. `SidePanel` owns one history entry while open: the browser « Retour » closes a clean panel and asks
+    first on a dirty one (the entry is put back, the panel stays); closing any other way removes the
+    entry. `useDirtyFormGuard` takes the global navigation slot only while its form is dirty and puts
+    the previous handler back, and its Back path keeps the page's own URL; a clean or closed form holds
+    nothing. « Enregistrer et quitter » continues to the pending destination only when the save
+    succeeded.
+30. Accessibility and feedback of the lists and panels: a row or card has one button, its name, stretched
+    over the whole row (price, traits and the « ⋯ » menu are not nested inside a button); the panel is
+    named by its visible title; a pristine form shows no error — they appear once it is edited; while a
+    search is active the section headings are plain (no fold, nothing stored) and `aria-controls` only
+    points at a rendered section; the interactive chips, suggestions and the search clear button are
+    44 px on `xs`; a failed refetch keeps the list with an error « Réessayer », and a refetch shows a
+    loading cue; disabled-action reasons come from the server (`archiveBlockedReason`,
+    `deleteBlockedReason`).
 
 **Edge cases:**
 - 12 properties: traits read « 8 logements seulement », the property filter is a select.
@@ -293,19 +330,21 @@ organised by topic — on a laptop and on a phone. No pricing or catalogue rule 
   "traits": [{ "key": "planning", "label": "Planning 09:00", "tone": "info" }],
   "archivable": false, "archiveBlockedReason": "Option système" }
 // ResourceItem
-{ "id": 2, "name": "Bain nordique", "description": "", "deletable": true, "stock": { "value": 1, "label": "en service" },
+{ "id": 2, "name": "Bain nordique", "description": "", "deleteBlockedReason": "", "stock": { "value": 1, "label": "en service" },
   "lines": [{ "label": "Prix", "value": "30 € / h" }, { "label": "Soir", "value": "50 € / h après 20:00" }],
   "footer": "À l’heure · 11:00–22:00 · 1 h minimum · remise en état 15 min · carte au planning" }
 ```
 
-`price.note` is « selon logement » when the properties differ, else empty. `description` is the whole text; the row ellipses it on one line.
+`price.note` is « selon logement » when the properties differ, else empty. `description` is the whole text; the row ellipses it on one line. A resource item carries `deleteBlockedReason` (empty when deletable).
 
 ---
 
 ## 5. Data model
 
-No schema change, no migration. The existing rows that the new validation would refuse (a negative
-per-property price) cannot exist — the model already skipped them on write — so no backfill.
+One migration: `resource_property_price_nullable_v1` (rule 28) rebuilds `property_resource_prices` so that
+`price` accepts NULL; every row and value is copied as stored, nothing is reinterpreted. The options
+side has no schema change: the rows the new validation would refuse (a negative per-property price)
+cannot exist — the model already skipped them on write — so no backfill.
 
 ## 6. UI / UX
 
@@ -427,11 +466,11 @@ Deviations from the draft, decided while building:
 
 - A property line of a resource that only repeats the base price (a free first hour, no price of its own)
   is not listed as a price line; the plugin's « Offert » line carries the free hour.
-- A resource property line with a free hour and no typed price is saved with the base price as its price
-  (the model reads a stored row as an override), so only the hour differs.
+- A resource property line with a free hour and no typed price is stored with a NULL price and inherits
+  the base (rule 28, review round) instead of freezing a copy of it.
 - A default outside an option's explicit scope is now dropped on save instead of widening the scope
   (rule 15); a payload without `propertyIds` keeps « a default implies applicability ».
-- The negative base price keeps its legacy `400 NEGATIVE_OPTION_PRICE` (it runs before the 422 checks).
+- The negative base price is a 422 detail carrying the legacy code (rule 16, review round).
 - The panel sits on the modal layer, above the app bar, so its header is never covered.
 
 Verification: server suite, client suite, `check-spec-coverage`, `vite build`, E2E (full suite and the new

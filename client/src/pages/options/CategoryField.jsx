@@ -33,7 +33,7 @@ export default function CategoryField({ form, setForm, suggestions = [] }) {
               aria-pressed={current === label}
               onClick={() => setForm({ ...form, category: label })}
               sx={{
-                borderRadius: 99, minHeight: 32, textTransform: 'none', fontWeight: 500,
+                borderRadius: 99, minHeight: { xs: 44, sm: 32 }, textTransform: 'none', fontWeight: 500,
                 border: '1px', borderStyle: current === label ? 'solid' : 'dashed', borderColor: current === label ? 'primary.main' : 'divider',
                 color: current === label ? 'primary.main' : 'text.primary',
               }}

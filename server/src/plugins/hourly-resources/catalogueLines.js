@@ -35,11 +35,13 @@ function externalLine(resource) {
 
 function freeHourLine(resource, properties) {
   const pricing = resource.propertyPricing || {};
-  const free = properties.filter((p) => Number((pricing[String(p.id)] || {}).freeMinutes) > 0);
+  const scope = (resource.propertyIds || []).map(Number);
+  const selling = scope.length === 0 ? properties : properties.filter((p) => scope.includes(Number(p.id)));
+  const free = selling.filter((p) => Number((pricing[String(p.id)] || {}).freeMinutes) > 0);
   if (free.length === 0) return null;
   const minutes = [...new Set(free.map((p) => Number(pricing[String(p.id)].freeMinutes)))];
   const what = minutes.length === 1 && minutes[0] === 60 ? '1re heure' : `${durationLabel(Math.min(...minutes))} offertes`;
-  const where = free.length === properties.length ? 'tous les logements' : free.map((p) => p.name).join(', ');
+  const where = free.length === selling.length ? 'tous les logements' : free.map((p) => p.name).join(', ');
   return { label: 'Offert', value: `${what} · ${where}` };
 }
 

@@ -374,7 +374,7 @@ function createOptionsModel(database) {
           sentenceCase(payload.title),
           capitalizeFirst(payload.description),
           payload.priceType || 'per_stay',
-          Number(payload.price || 0),
+          payload.priceType === 'free' ? 0 : Number(payload.price || 0),
           JSON.stringify(normalizeProgressiveOptionTiers(payload.optionProgressiveTiers)),
           payload.autoOptionType || null,
           payload.autoEnabled ? 1 : 0,
@@ -434,7 +434,7 @@ function createOptionsModel(database) {
           sentenceCase(payload.title),
           capitalizeFirst(payload.description),
           payload.priceType || 'per_stay',
-          Number(payload.price || 0),
+          payload.priceType === 'free' ? 0 : Number(payload.price || 0),
           JSON.stringify(normalizeProgressiveOptionTiers(payload.optionProgressiveTiers)),
           payload.autoOptionType === undefined ? existingAutoType : (payload.autoOptionType || null),
           payload.autoEnabled ? 1 : 0,
@@ -495,7 +495,8 @@ function createOptionsModel(database) {
     // specs/options-resources-ux.md rule 26 — the archived options, the latest archived first.
     listArchived() {
       if (!HAS_OPTION_ARCHIVED) return [];
-      return database.prepare('SELECT * FROM options WHERE archivedAt IS NOT NULL ORDER BY archivedAt DESC, id DESC').all();
+      return database.prepare('SELECT * FROM options WHERE archivedAt IS NOT NULL ORDER BY archivedAt DESC, id DESC').all()
+        .map((o) => ({ ...o, propertyIds: propertyIdsFor(o.id) }));
     },
 
     // Rule 27 — an archived option comes back to the catalogue. The per-property defaults the archive

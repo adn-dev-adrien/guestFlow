@@ -114,3 +114,24 @@ test('rule 16: a 422 on the title shows under the name', async () => {
   await user.click(screen.getByRole('button', { name: 'Enregistrer' }));
   expect(await screen.findByText('Nom requis')).toBeInTheDocument();
 });
+
+test('rule 16: an invalid price typed on a property that is then switched off no longer blocks the save, and is not sent', async () => {
+  api.updateOption.mockResolvedValue({ ok: true });
+  const user = await open();
+  await user.type(screen.getByLabelText('Prix · Granja'), '-5');
+  expect(screen.getByRole('button', { name: 'Enregistrer' })).toBeDisabled();
+  await user.click(screen.getByRole('switch', { name: 'Proposée · Granja' }));
+  expect(screen.queryByText('Positif ou nul')).not.toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: 'Enregistrer' }));
+  const payload = api.updateOption.mock.calls[0][1];
+  expect(payload.propertyPrices).toEqual({});
+  expect(payload.propertyIds).toEqual([2]);
+});
+
+test('rule 16: turning a property back on does not bring the discarded price back', async () => {
+  const user = await open();
+  await user.type(screen.getByLabelText('Prix · Granja'), '12');
+  await user.click(screen.getByRole('switch', { name: 'Proposée · Granja' }));
+  await user.click(screen.getByRole('switch', { name: 'Proposée · Granja' }));
+  expect(screen.getByLabelText('Prix · Granja')).toHaveValue('');
+});

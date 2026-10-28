@@ -7,7 +7,7 @@
  * category chip — and the folded sections.
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Chip } from '@mui/material';
+import { Box, Chip, LinearProgress } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import InventoryIcon from '@mui/icons-material/Inventory2Outlined';
 import SearchOffIcon from '@mui/icons-material/SearchOff';
@@ -44,6 +44,7 @@ export default function OptionsPage({ barTabs }) {
   const [properties, setProperties] = useState([]);
   const [view, setView] = useState(null);
   const [error, setError] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [propertyFilter, setPropertyFilter] = useState(ALL);
   const [query, setQuery] = useState('');
   const [chip, setChip] = useState(ALL);
@@ -53,12 +54,15 @@ export default function OptionsPage({ barTabs }) {
   const flashTimer = useRef(null);
 
   const load = useCallback(async (filter) => {
+    setRefreshing(true);
     try {
       const data = await api.getOptionsCatalogueView(filter === ALL ? undefined : filter);
       setView(data);
       setError(false);
     } catch {
       setError(true);
+    } finally {
+      setRefreshing(false);
     }
   }, []);
 
@@ -114,10 +118,10 @@ export default function OptionsPage({ barTabs }) {
     if (!ok) return;
     try {
       await api.deleteOption(item.id);
-      showSuccess('Option archivée');
+      showSuccess(TEXTS.optionArchived);
       await load(propertyFilter);
     } catch (err) {
-      showError(err.message || 'Archivage impossible.');
+      showError(err.message || TEXTS.archiveFailed);
     }
   };
 
@@ -128,7 +132,7 @@ export default function OptionsPage({ barTabs }) {
       showSuccess(TEXTS.optionRestored);
       await load(propertyFilter);
     } catch (err) {
-      showError(err.message || 'Restauration impossible.');
+      showError(err.message || TEXTS.restoreFailed);
     } finally {
       setRestoring(false);
     }
@@ -154,6 +158,7 @@ export default function OptionsPage({ barTabs }) {
   } else {
     body = (
       <>
+        {error && <ErrorAlert message={TEXTS.refreshError} onRetry={() => load(propertyFilter)} sx={{ mb: 1.25 }} />}
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.25, alignItems: 'center', mb: 1.25 }}>
           <SearchField label={TEXTS.searchLabel} value={query} onChange={setQuery} sx={{ flex: '1 1 240px', minWidth: 0 }} />
           {properties.length > 1 && (
@@ -179,6 +184,7 @@ export default function OptionsPage({ barTabs }) {
             <CategoryChip key={c.key} label={c.label} count={c.count} selected={chip === c.key} onClick={() => setChip(c.key)} />
           ))}
         </Box>
+        <Box sx={{ height: 3, mb: 0.5 }}>{refreshing && <LinearProgress aria-label={TEXTS.loading} />}</Box>
         <GroupedList
           groups={groups}
           forceOpen={searching}
@@ -189,7 +195,7 @@ export default function OptionsPage({ barTabs }) {
             <EmptyState
               icon={<SearchOffIcon />}
               title={TEXTS.noResult}
-              message={filtersActive ? 'Rien ne correspond à ces filtres.' : ''}
+              message={filtersActive ? TEXTS.noMatchFilters : ''}
               actionLabel={TEXTS.clearFilters}
               onAction={resetFilters}
               py={5}
@@ -238,7 +244,7 @@ function CategoryChip({ label, count, selected, onClick }) {
           <Box component="span" sx={{ fontSize: '0.78rem', opacity: 0.75, fontVariantNumeric: 'tabular-nums' }}>{count}</Box>
         </Box>
       )}
-      sx={{ flex: 'none', height: 34, fontWeight: 500 }}
+      sx={{ flex: 'none', height: { xs: 44, sm: 34 }, fontWeight: 500 }}
     />
   );
 }

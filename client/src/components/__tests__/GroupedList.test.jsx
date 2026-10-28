@@ -44,9 +44,20 @@ test('a header folds and unfolds its section and says so with aria-expanded', as
 });
 
 test('forceOpen shows every row even in a folded section', () => {
-  render(<GroupedList groups={GROUPS} renderItem={renderItem} isCollapsed={() => true} onToggle={() => {}} forceOpen />);
+  const onToggle = vi.fn();
+  render(<GroupedList groups={GROUPS} renderItem={renderItem} isCollapsed={() => true} onToggle={onToggle} forceOpen />);
   expect(screen.getByText('Ménage')).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: /Boissons/ })).toHaveAttribute('aria-expanded', 'true');
+  expect(screen.queryByRole('button')).not.toBeInTheDocument();
+  expect(onToggle).not.toHaveBeenCalled();
+});
+
+test('rule 30: aria-controls only points at a section that is rendered', () => {
+  const { rerender } = render(<GroupedList groups={GROUPS} renderItem={renderItem} isCollapsed={(k) => k === 'none'} onToggle={() => {}} />);
+  expect(screen.getByRole('button', { name: /^Sans catégorie/ })).not.toHaveAttribute('aria-controls');
+  const open = screen.getByRole('button', { name: /^Boissons/ });
+  expect(document.getElementById(open.getAttribute('aria-controls'))).not.toBeNull();
+  rerender(<GroupedList groups={GROUPS} renderItem={renderItem} onToggle={() => {}} />);
+  expect(screen.getByRole('button', { name: /^Sans catégorie/ })).toHaveAttribute('aria-controls');
 });
 
 test('without onToggle the headers are plain headings, not buttons', () => {
