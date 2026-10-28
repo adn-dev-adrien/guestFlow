@@ -19,13 +19,14 @@ const handlers = {
   onOpenNote: vi.fn(), onOpenNewReservation: vi.fn(), onDevisClick: vi.fn(),
 };
 
-function renderGrid({ stays = [stay()], year = 2026, month = 11, onReservationClick = vi.fn(), cellProps = {} } = {}) {
+function renderGrid({ stays = [stay()], closures = [], year = 2026, month = 11, onReservationClick = vi.fn(), cellProps = {} } = {}) {
   return render(
     <ThemeProvider theme={theme}>
       <CalendarMonthGrid
         year={year}
         month={month}
         stays={stays}
+        closures={closures}
         onReservationClick={onReservationClick}
         renderCell={(d, y, m, outside) => (
           <CalendarDayCell
@@ -107,4 +108,17 @@ test('rule 28 — stays that overlap stack in lanes instead of hiding each other
   const tops = [...container.querySelectorAll('[data-ribbon]')].map((r) => getComputedStyle(r).top);
   expect(container.querySelectorAll('[data-ribbon]')).toHaveLength(6);
   expect(new Set(tops).size).toBe(6);
+});
+
+test('rule 30 — a closure on days several stays hold gets a hatched ribbon of its own in a lane; one on free days does not', () => {
+  const stays = [1, 2, 3].map((i) => stay({ id: 200 + i, startDate: '2026-12-08', endDate: '2026-12-11', label: `Guest ${i}` }));
+  const closure = (id, startDate, endDate) => ({ id, propertyId: 1, propertyName: 'Granja', global: false, label: 'Travaux', startDate, endDate });
+  const { container } = renderGrid({ stays, closures: [closure(9, '2026-12-09', '2026-12-12'), closure(10, '2026-12-20', '2026-12-22')] });
+  const ribbon = container.querySelector('[data-closure-ribbon="c9"]');
+  expect(ribbon).not.toBeNull();
+  expect(ribbon).toHaveAttribute('aria-label', 'Granja fermé — Travaux, 9 décembre → 11 décembre');
+  expect(getComputedStyle(ribbon).backgroundImage).toMatch(/repeating-linear-gradient/);
+  expect(container.querySelector('[data-closure-ribbon="c10"]')).toBeNull();
+  const tops = [...container.querySelectorAll('[data-ribbon], [data-closure-ribbon]')].map((r) => getComputedStyle(r).top);
+  expect(new Set(tops).size).toBe(4);
 });

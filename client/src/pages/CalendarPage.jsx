@@ -398,6 +398,7 @@ export default function CalendarPage() {
       year={year}
       month={month}
       stays={data ? data.stays : []}
+      closures={data ? data.closures : []}
       renderCell={renderCell}
       onReservationClick={handleReservationClick}
     />

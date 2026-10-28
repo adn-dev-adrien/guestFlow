@@ -225,6 +225,8 @@ export default function ReservationPage() {
   // Bumped by a plugin banner that changed the reservation server-side: re-runs the page load.
   const [reloadToken, setReloadToken] = useState(0);
   const [restoring, setRestoring] = useState(false);
+  // Where a cancelled fiche keeps its « Nouveau remboursement » button, outside the disabled fieldset.
+  const [refundHost, setRefundHost] = useState(null);
   const setPluginBlock = useCallback((pluginId, block) => {
     setPluginBlocks((prev) => ({ ...prev, [pluginId]: block }));
   }, []);
@@ -3373,6 +3375,7 @@ export default function ReservationPage() {
     datesUnavailableForProperty, datesUnavailableMessage, minNightsState, minNightsWarning,
     liveTimeConflictState, liveTimeConflictMessage, defaultCheckInTime, defaultCheckOutTime,
     isReservationLocked, extrasWindowOpen, arrivalLines, frozenCustomOptionIds,
+    refundHost: isCancelledReservation ? refundHost : null,
     // guests / beds
     maxGuestsAllowed, maxBabiesAllowed, maxSingleBeds, maxDoubleBeds,
     exceedsGuestsCapacity, exceedsBabiesCapacity,
@@ -3615,7 +3618,6 @@ export default function ReservationPage() {
           disabled={isClosedFiche}
           sx={{
             position: 'relative', border: 0, p: 0, m: 0, minWidth: 0,
-            ...(isClosedFiche ? { opacity: 0.55 } : {}),
           }}
         >
 
@@ -3763,6 +3765,7 @@ export default function ReservationPage() {
         </Box>
         </ReservationFormProvider>
         </Box>
+        {isCancelledReservation && <Box ref={setRefundHost} sx={{ mt: 1 }} />}
         </Box>
 
         {/* Panneau latéral droit : Résumé des prix */}

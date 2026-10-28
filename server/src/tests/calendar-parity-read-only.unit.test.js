@@ -28,6 +28,7 @@ app.use((req, _res, next) => { req.user = { id: 1, roles: ['admin'] }; next(); }
 app.use('/api/reservations', require('../routes/reservations'));
 app.use('/api/payments', require('../routes/payments'));
 app.use('/api/emails', require('../routes/emails'));
+app.use('/api/dashboard', require('../routes/dashboard'));
 // The SAS routes belong to a plugin: its controller is mounted here the way the plugin registers it.
 for (const [suffix, handler] of [['arrival', 'commitArrival'], ['arrival/preview', 'previewArrival'], ['departure', 'commitDeparture'], ['departure/preview', 'previewDeparture']]) {
   app.post(`/api/reservations/:id/sas/${suffix}`, (req, res) => sasController[handler](req, res));
@@ -64,6 +65,9 @@ const PATHS = [
   ['POST', () => '/api/emails/send', { reservationId: 1, templateId: TEMPLATE_ID }],
   ['POST', () => '/api/emails/queue', { reservationId: 1, templateId: TEMPLATE_ID }],
   ['POST', () => `/api/emails/pending/${TEMPLATE_ID}/1/mark-sent`],
+  ['POST', () => `/api/emails/pending/${TEMPLATE_ID}/1/acknowledge`],
+  ['POST', (id) => `/api/dashboard/payment-deadlines/${id}/snooze`, { days: 7 }],
+  ['POST', (id) => `/api/dashboard/payment-deadlines/${id}/remind`, { type: 'balance' }],
 ];
 
 test('rule 25 — every write on a duplicate set aside answers 409 RESERVATION_SUPERSEDED and writes nothing', async () => {
@@ -87,7 +91,7 @@ test('rule 22 — the same writes on a live stay are not refused by the guard', 
 });
 
 test('rule 25 — a cancelled stay stays read-only for the fiche, the payment marks, the SAS, the arrival payment and the links', async () => {
-  const closed = [0, 1, 2, 3, 4, 5, 6, 12, 13];
+  const closed = [0, 1, 2, 3, 4, 5, 6, 12, 13, 19];
   for (const i of closed) {
     const [method, path, body] = PATHS[i];
     const res = await call(method, path(2), body);
@@ -101,4 +105,15 @@ test('rule 25 — a cancelled stay keeps the writes its history needs: a refund,
   assert.notEqual(refund.body.code, 'RESERVATION_CANCELLED');
   const queued = await call('POST', '/api/emails/queue', { reservationId: 2, templateId: TEMPLATE_ID });
   assert.notEqual(queued.body.code, 'RESERVATION_CANCELLED');
+});
+
+test('rule 25 — the payment service itself refuses a link or a request on a duplicate or a cancelled stay, whoever calls it', async () => {
+  const service = require('../utils/paymentRequestService');
+  const deps = { database: db, paymentLinksModel: {}, resolveAmountCents: () => 1000, provider: { createLink() { throw new Error('provider must not be called'); } }, sendTemplate() { throw new Error('no mail'); } };
+  for (const [id, code] of [[1, 'RESERVATION_SUPERSEDED'], [2, 'RESERVATION_CANCELLED']]) {
+    await assert.rejects(() => service.ensurePaymentLink(deps, id, 'balance'), (e) => e.httpStatus === 409 && e.error === code);
+    const sent = await service.sendPaymentRequest(deps, id, 'balance');
+    assert.equal(sent.httpStatus, 409);
+    assert.equal(sent.body.error, code);
+  }
 });

@@ -238,8 +238,9 @@ name is always readable or truncated cleanly with the full name on hover.
 
 25. **A duplicate set aside takes no write.** Every route that writes to a stay answers `409
     { code: 'RESERVATION_SUPERSEDED' }` and writes nothing: the fiche save, the payment marks, the SAS commit and
-    its previews, the arrival payment, refunds, installments, payment links and requests, e-mail send / queue /
-    mark-sent, the cancellation. One shared guard (`utils/reservationReadOnly.js`). A **cancelled** stay keeps
+    its previews, the arrival payment, refunds, installments, payment links and requests (and the payment service itself, whoever calls it: the dashboard
+    reminder included), e-mail send / queue / mark-sent / acknowledge, the dashboard snooze and reminder, the
+    cancellation. One shared guard (`utils/reservationReadOnly.js`). A **cancelled** stay keeps
     its existing behaviour (`specs/payment-schedule-and-cancellation.md` rule 25) and the guard now also closes
     what was clearly a bug: SAS commit and previews, arrival payment, payment links and requests answer
     `409 RESERVATION_CANCELLED`; refunds, the plan it was cancelled with and the cancellation e-mails stay possible.
@@ -257,7 +258,13 @@ name is always readable or truncated cleanly with the full name on hover.
     is over is drawn as on « Tous » and the phone — tint, stripe, ink, no opacity (rule 8).
 29. **A closed fiche is shown, not edited.** The fiche of a cancelled stay or of a duplicate has no Enregistrer,
     no extra action (nouvelle note, devis, e-mail, demande de solde, annulation), its fields are disabled (a
-    disabled fieldset: keyboard included) and it shows no date-conflict hint.
+    disabled fieldset, no opacity: keyboard included) and it shows no date-conflict hint. The one write a
+    cancelled fiche keeps is « + Nouveau remboursement » (rule 25), placed outside the fieldset; a duplicate
+    has none.
+
+30. **A closure is never hidden by a stay on the logement calendar.** A closure of the logement on days a stay
+    also holds (a conflict the day cells cannot show both of) gets a hatched ribbon « Fermé · label » of its own,
+    in a lane with the lane packing of « Tous »; a closure on free days keeps the cell hatching alone.
 
 **Edge cases:**
 - Stay with a disabled iCal source → shown in both calendars (rule 2).
@@ -462,16 +469,17 @@ any more (the arrows and « Aujourd'hui » move to the calendar's own toolbar, i
 - [x] `tests/calendar-property-parity.unit.test.js` — 10 cases: logement range = general range filtered (rule 1); the disabled platform's stay is in both and in `list({ propertyId })` (rule 2); the cancelled stay in neither; `label` (3 fallbacks), `color`, `textColor`, `past` on the server day (rule 3); closures with `global` / `propertyName` / `label`; 400 on `from > to`, malformed date, > 400 days, unknown logement; reception-only whitelist.
 - [x] `tests/calendar-colors.unit.test.js` — 10 cases: `contrastRatio` pairs, `textColorFor` (rule 5); every built-in at 4.5:1 and one hue per platform (rule 6); `validateCalendarColor` with its three messages, the previous colour kept on a refused PUT and a refused bulk save (rule 7); `textColors` in the listing; the boot backfill keeps only Lodgify `#fec700` as custom on the prod-shaped fixture and the listing ignores an old built-in per-source colour (rule 27).
 - [x] `tests/calendar-parity-superseded.unit.test.js` — 13 cases: the set-aside with keeper, reason text and `superseded` history event (rules 23, 24); the prod-shaped fixture (1 duplicate + 9 isolated); idempotent second boot; money, longer-than-keeper and hidden-overlap cases left as they are and both stays flagged (rule 26); keeper = earliest overlap within ±1 day; a superseded stay absent from the calendar, lists, availability and the books but found by search (rule 22); the fiche payload; « Rétablir » with its audit event and 409 (rules 22, 24); the iCal sync never touches it.
-- [x] `tests/calendar-parity-read-only.unit.test.js` — 4 cases: every write path of rule 25 answers 409 `RESERVATION_SUPERSEDED` and writes nothing (an express harness over the real routes and the SAS controller); a live stay is not refused; a cancelled stay stays refused where listed, keeps refunds and the cancellation e-mails.
+- [x] `tests/calendar-parity-read-only.unit.test.js` — 5 cases (rule 25; the dashboard, acknowledge and payment-service paths included): every write path of rule 25 answers 409 `RESERVATION_SUPERSEDED` and writes nothing (an express harness over the real routes and the SAS controller); a live stay is not refused; a cancelled stay stays refused where listed, keeps refunds and the cancellation e-mails.
 - [x] `tests/platforms-and-ical-rework.unit.test.js` — the « list excludes a disabled-platform reservation » case is inverted (rule 2).
 
 ### Client tests (Vitest)
 - [x] `utils/__tests__/calendarLayout.closure-lane.test.js` — 10 cases (rules 9, 10, 18).
 - [x] `components/__tests__/CumulativeMonthCalendar.solid-bars.test.jsx` — 7 cases: solid future bar, past tint, closure bar and lane, legend, « Aujourd'hui », keyboard (rules 4, 8, 9, 11, 14).
 - [x] `components/__tests__/InfiniteMonthScroller.month-cache.test.jsx` — 5 cases (rules 13-15).
-- [x] `components/__tests__/CalendarMonthGrid.stay-label.test.jsx` — 8 cases: one ribbon per week segment, never clipped, top band, edge days, past tint, lanes for overlapping stays (rules 8, 16, 18-20, 28).
+- [x] `components/__tests__/CalendarMonthGrid.stay-label.test.jsx` — 8 cases: one ribbon per week segment, never clipped, top band, edge days, past tint, lanes for overlapping stays (rules 8, 16, 18-20, 28, 30).
 - [x] `components/__tests__/CalendarDayCell.closure-half-day.test.jsx` — 6 cases (rule 12).
 - [x] `components/__tests__/CalendarDayAgenda.test.jsx` — 5 cases (rule 17); `CalendarDayAgenda.ribbons.test.jsx` — 6 cases (rule 21).
+- [x] `pages/__tests__/ReservationPage.cancelled-refund.test.jsx` — 2 cases: a cancelled fiche keeps the refund button usable (its dialog opens), no opacity, a duplicate's stays blocked (rules 25, 29).
 - [x] `pages/__tests__/ReservationPage.superseded.test.jsx` — 3 cases: banner, no Save / extra action, disabled fieldset, no conflict hint, « Rétablir » for an admin only with the 409 message (rules 22, 29).
 - [x] `pages/__tests__/CalendarPage.property-scroll.test.jsx` — 3 cases (rules 14, 15).
 - [x] `components/__tests__/PlatformColorPicker.refusal.test.jsx` — 3 cases (rule 7).

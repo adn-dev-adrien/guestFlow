@@ -13,7 +13,7 @@
  * deposit / tax / payout notion, an own channel no payout) and is shown as « — ».
  * Desktop: one table. Mobile: one card per platform.
  */
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import {
   Alert, Box, Card, CardContent, FormControlLabel, MenuItem, Stack, Switch, Table, TableContainer, TableBody, TableCell, TableHead,
@@ -78,6 +78,8 @@ export default function PlatformsSettingsPage() {
   const [errors, setErrors] = useState({});
   const [loadError, setLoadError] = useState(false);
   const [saving, setSaving] = useState(false);
+  const refusalTimers = useRef(new Map());
+  useEffect(() => () => refusalTimers.current.forEach((timer) => clearTimeout(timer)), []);
 
   const load = useCallback(async () => {
     setLoadError(false);
@@ -109,6 +111,8 @@ export default function PlatformsSettingsPage() {
   const handleSave = async () => {
     setSaving(true);
     setErrors({});
+    refusalTimers.current.forEach((timer) => clearTimeout(timer));
+    refusalTimers.current.clear();
     try {
       const { platforms } = await api.savePlatformSettings(changedRows(draft, saved));
       const rows = toDraft(platforms || []);
@@ -124,11 +128,18 @@ export default function PlatformsSettingsPage() {
           const previous = saved.find((p) => p.id === row.id);
           return previous ? { ...row, color: previous.color } : row;
         }));
-        // The message stays long enough to be read, then goes with the colour it was about.
-        window.setTimeout(() => setErrors((prev) => Object.fromEntries(Object.entries(prev).map(([id, fields]) => {
-          const { color: _gone, ...rest } = fields;
-          return [id, rest];
-        }))), COLOR_REFUSAL_MS);
+        // The message stays long enough to be read, then goes with the colour it was about — one timer per row.
+        Object.keys(err.errors).filter((id) => err.errors[id].color).forEach((id) => {
+          clearTimeout(refusalTimers.current.get(id));
+          refusalTimers.current.set(id, setTimeout(() => {
+            refusalTimers.current.delete(id);
+            setErrors((prev) => {
+              if (!prev[id] || !prev[id].color) return prev;
+              const { color: _gone, ...rest } = prev[id];
+              return { ...prev, [id]: rest };
+            });
+          }, COLOR_REFUSAL_MS));
+        });
         showError('Enregistrement refusé : corrigez les champs en rouge.');
       } else {
         showError((err && err.message) || "Impossible d'enregistrer les plateformes.");

@@ -47,4 +47,4 @@ function guardReadOnly(database, options, idOf = (req) => req.params.id) {
   return (req, res, next) => (refuseIfReadOnly(res, database, idOf(req), options) ? undefined : next());
 }
 
-module.exports = { readOnlyRefusal, refuseIfReadOnly, guardReadOnly };
+module.exports = { refusalForKind, readOnlyRefusal, refuseIfReadOnly, guardReadOnly };

@@ -44,3 +44,25 @@ test('a refused save shows the message and the swatch returns to the previous co
   expect(await screen.findByText('Couleur trop claire pour le calendrier.')).toBeInTheDocument();
   await waitFor(() => expect(getComputedStyle(screen.getAllByRole('button', { name: 'Changer la couleur' })[0]).backgroundColor).toBe('rgb(254, 199, 0)'));
 });
+
+test('rule 7 — the message goes after a while, only that row\'s, and a newer save keeps its own', async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  try {
+    const platforms = [
+      { id: 4, name: 'Lodgify', isDirect: false, countsAsDirect: false, color: '#fec700', commissionPercent: 5, takesDeposit: true, touristTaxCollection: 'owner', payoutDueDays: 7 },
+      { id: 5, name: 'Booking', isDirect: false, countsAsDirect: false, color: '#1B3F8B', commissionPercent: 5, takesDeposit: true, touristTaxCollection: 'owner', payoutDueDays: 7 },
+    ];
+    api.getPlatformSettings.mockResolvedValue({ platforms });
+    api.savePlatformSettings.mockRejectedValue(Object.assign(new Error('refus'), { errors: { 4: { color: 'Couleur trop claire pour le calendrier.' }, 5: { commissionPercent: 'Entre 0 et 99,99 %.' } } }));
+    render(<MemoryRouter><PlatformsSettingsPage /></MemoryRouter>);
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Changer la couleur' }))[0]);
+    fireEvent.click(within(document.body).getByRole('button', { name: '#2F5D46' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+    expect(await screen.findByText('Couleur trop claire pour le calendrier.')).toBeInTheDocument();
+    await vi.advanceTimersByTimeAsync(6100);
+    expect(screen.queryByText('Couleur trop claire pour le calendrier.')).toBeNull();
+    expect(screen.getAllByText('Entre 0 et 99,99 %.').length).toBeGreaterThan(0);
+  } finally {
+    vi.useRealTimers();
+  }
+});

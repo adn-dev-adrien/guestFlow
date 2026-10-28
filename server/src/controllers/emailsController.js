@@ -363,6 +363,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
     if (!templateId || !reservationId) return res.status(400).json({ error: 'INVALID_PAYLOAD' });
     const occurrenceKey = String((req.query && req.query.occurrenceKey) || '');
 
+    if (refuseIfReadOnly(res, database, reservationId, { cancelled: false })) return undefined;
     const template = templatesModel.findById(templateId);
     if (!template) return res.status(404).json({ error: 'TEMPLATE_NOT_FOUND' });
     const graph = loadReservationGraph(database, reservationId);
