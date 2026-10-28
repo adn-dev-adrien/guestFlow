@@ -5,7 +5,8 @@
  * snaps back and shows the server's sentence under the line. Everything shown is the server's.
  *
  * An inactive module that still holds data has a menu « Effacer les données… » (rule 22): the dialog
- * lists what will be erased, as the space counts it, and asks to type the customer's slug.
+ * lists what will be erased, as the space counts it, and asks to type the customer's slug. One that is
+ * installed without data has « Désinstaller… » (rule 38): same order, a plain confirmation.
  *
  * Props: customerId, slug (typed to confirm an erasure), onChanged() (the page reloads its journal).
  */
@@ -28,8 +29,9 @@ function badgeStatus(line) {
   return line.stale ? 'warning' : BADGE[line.state] || 'neutral';
 }
 
-// 44 px of hit area around a 38 px control, without moving its track or its thumb.
-const SWITCH_SX = { flexShrink: 0, overflow: 'visible', '& .MuiSwitch-switchBase': { p: '12px', top: -3, left: -3 } };
+// 44 px tall hit area with the track and thumb where they were. The root keeps its default
+// overflow:hidden: MUI's hidden input is three times the thumb wide and would otherwise cover the neighbouring button.
+const SWITCH_SX = { flexShrink: 0, height: 44, py: '15px', '& .MuiSwitch-switchBase': { top: 3 } };
 
 export default function ModulesSection({ customerId, slug, onChanged }) {
   const { confirm } = useAppDialogs();
@@ -102,6 +104,25 @@ export default function ModulesSection({ customerId, slug, onChanged }) {
     }
   }
 
+  async function uninstall(line) {
+    const ok = await confirm({
+      title: `Désinstaller ${line.name} ?`,
+      message: 'Le module est retiré de l’espace. Il ne contient aucune donnée.',
+      confirmLabel: 'Désinstaller',
+      confirmColor: 'primary',
+    });
+    if (!ok) return;
+    setBusy(true);
+    try {
+      setView(await api.eraseModule(customerId, line.id, slug));
+      if (onChanged) onChanged();
+    } catch (err) {
+      showError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function retry() {
     setRefusal(null);
     setBusy(true);
@@ -132,7 +153,7 @@ export default function ModulesSection({ customerId, slug, onChanged }) {
           </Box>
           {refused && <Typography id={`module-${line.id}-refusal`} variant="caption" role="alert" sx={{ display: 'block', mt: 0.5, color: 'error.main' }}>{refused}</Typography>}
         </Box>
-        {line.canErase && (
+        {(line.canErase || line.canUninstall) && (
           <IconButton aria-label={`Plus d’actions pour ${line.name}`} sx={{ minWidth: 44, minHeight: 44 }} onClick={(e) => setMenu({ anchor: e.currentTarget, line })}>
             <MoreVertIcon />
           </IconButton>
@@ -192,7 +213,9 @@ export default function ModulesSection({ customerId, slug, onChanged }) {
         )}
       </CardContent>
       <Menu anchorEl={menu && menu.anchor} open={Boolean(menu)} onClose={() => setMenu(null)}>
-        <MenuItem sx={{ minHeight: 44 }} onClick={() => { setErasing(menu.line); setTyped(''); setMenu(null); }}>Effacer les données…</MenuItem>
+        {menu && menu.line.canUninstall
+          ? <MenuItem sx={{ minHeight: 44 }} onClick={() => { const { line } = menu; setMenu(null); uninstall(line); }}>Désinstaller…</MenuItem>
+          : <MenuItem sx={{ minHeight: 44 }} onClick={() => { setErasing(menu.line); setTyped(''); setMenu(null); }}>Effacer les données…</MenuItem>}
       </Menu>
       <FormDialog open={Boolean(erasing)} onClose={() => setErasing(null)} title={erasing ? `Effacer les données de ${erasing.name} ?` : ''}
         submitLabel="Effacer" submitColor="error" submitDisabled={typed !== slug} submitBusy={busy} onSubmit={erase}>

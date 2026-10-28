@@ -68,7 +68,7 @@ test('rule 32: an allowed dependant still blocks, as before', async () => {
 });
 
 test('rule 33: an older licence put back in place is skipped, a newer one is applied', async () => {
-  const s = space({ installed: ['linen'], active: ['linen'] });
+  const s = space({ installed: ['linen'], active: ['linen'], now: () => new Date('2026-10-28T12:00:00Z') });
   s.licence.state.issuedAt = '2026-10-28T10:00:00.000Z';
   await s.reconciler.run();
   assert.equal(s.provisioning.highestIssuedAt(), '2026-10-28T10:00:00.000Z');
@@ -81,6 +81,28 @@ test('rule 33: an older licence put back in place is skipped, a newer one is app
   await s.reconciler.run();
   assert.equal(s.model.get('linen').enabled, false);
   assert.equal(s.provisioning.highestIssuedAt(), '2026-10-28T11:00:00.000Z');
+});
+
+test('rule 37: a licence dated far ahead of the space clock is applied but never becomes the mark, so honest licences still follow', async () => {
+  const s = space({ installed: ['linen'], active: ['linen'] });
+  s.licence.state.active = [];
+  s.licence.state.issuedAt = '2026-10-29T08:00:00.000Z';
+  await s.reconciler.run();
+  assert.equal(s.model.get('linen').enabled, false, 'applied');
+  assert.equal(s.provisioning.highestIssuedAt(), null, 'not adopted as the mark');
+  s.licence.state.active = ['linen'];
+  s.licence.state.issuedAt = '2026-10-28T08:01:00.000Z';
+  const out = await s.reconciler.run();
+  assert.equal(out.skipped, false);
+  assert.equal(s.model.get('linen').enabled, true);
+  assert.equal(s.provisioning.highestIssuedAt(), '2026-10-28T08:01:00.000Z');
+});
+
+test('rule 37: a licence a few minutes ahead (clock drift) still becomes the mark', async () => {
+  const s = space({ installed: ['linen'], active: ['linen'] });
+  s.licence.state.issuedAt = '2026-10-28T08:03:00.000Z';
+  await s.reconciler.run();
+  assert.equal(s.provisioning.highestIssuedAt(), '2026-10-28T08:03:00.000Z');
 });
 
 test('rule 33: the same licence is read again and again', async () => {

@@ -15,6 +15,8 @@ const { capture } = require('./captureHandler');
 const { desiredPlugins, pendingEraseOrders } = require('./pluginGovernance');
 
 const BLOCKED_RETRY_MS = 60 * 60 * 1000;
+// How far ahead of the space's own clock a licence may be dated and still count as the newest (rule 33).
+const CLOCK_SKEW_MS = 5 * 60 * 1000;
 const BLOCKED_CODES = new Set(['PLUGIN_BLOCKED', 'REQUIRED_BY']);
 const TRANSIENT_CODES = new Set(['UPDATE_IN_PROGRESS', 'RESTART_PENDING']);
 
@@ -143,7 +145,9 @@ function createReconciler({ licence, model, provisioning, controller, catalogue,
     if (highest && Date.parse(issuedAt) < Date.parse(highest)) return { skipped: true, reason: 'older licence' };
     running = true;
     try {
-      if (issuedAt !== highest) provisioning.setHighestIssuedAt(issuedAt);
+      // A licence dated beyond the clock's tolerance is applied but never becomes the mark: it would shut out every honest licence.
+      const ahead = Date.parse(issuedAt) > now().getTime() + CLOCK_SKEW_MS;
+      if (!ahead && issuedAt !== highest) provisioning.setHighestIssuedAt(issuedAt);
       const wantedSet = new Set(desired);
       const { states, requires } = readState();
       const steps = planSteps({ desired, states, requires, order });

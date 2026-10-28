@@ -57,17 +57,34 @@ const LIFECYCLE = [
   ['POST', '/PLUGINS/linen/Deactivate/'], ['DELETE', '/Plugins/linen/'],
 ];
 
-test('rule 30: a support session on a managed space gets the unknown-route 404 on every lifecycle route, and no log entry', async () => {
+test('rule 30: a support session on a managed space gets the unknown-route 404 on every lifecycle route', async () => {
   const s = await serve({ managed: true });
   try {
     const unknown = await s.ask('POST', '/zzz/none');
     assert.deepEqual(unknown, { status: 404, text: JSON.stringify(UNKNOWN) });
-    s.logged.length = 0;
     for (const [method, path] of LIFECYCLE) {
       // eslint-disable-next-line no-await-in-loop
       assert.deepEqual(await s.ask(method, path), unknown, `${method} ${path}`);
     }
-    assert.deepEqual(s.logged, []);
+  } finally { await s.close(); }
+});
+
+test('rule 30: a hidden lifecycle route leaves the same trace as an unknown path — no side channel through the support log', async () => {
+  const s = await serve({ managed: true });
+  try {
+    const trace = async (method, path) => {
+      s.logged.length = 0;
+      await s.ask(method, path);
+      await new Promise((resolve) => setImmediate(resolve));
+      return s.logged.map((e) => ({ method: e.method, summary: e.summary }));
+    };
+    for (const [method, path] of LIFECYCLE) {
+      const hidden = await trace(method, path); // eslint-disable-line no-await-in-loop
+      const unknown = await trace(method, `/zzz${path.split('?')[0].replace(/\//g, '-')}`); // eslint-disable-line no-await-in-loop
+      assert.equal(hidden.length, unknown.length, `${method} ${path}`);
+      assert.deepEqual(hidden, unknown, `${method} ${path}`);
+      if (method !== 'GET') assert.deepEqual(hidden, [{ method, summary: '404' }]);
+    }
   } finally { await s.close(); }
 });
 

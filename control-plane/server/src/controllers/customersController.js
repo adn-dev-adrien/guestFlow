@@ -173,7 +173,16 @@ function createCustomersController(ctx) {
     return { state, licence: writeLicence ? issueLicence(id) : null };
   }
 
-  function licencePayload(id) {
+  // Rule 37 — a licence is stamped after the one before it, whatever the console's clock did meanwhile;
+  // a copy to download keeps the stamp of the last one written when the clock is behind it.
+  function stampFor(id, fresh) {
+    const last = Date.parse(models.meta.get(`licenceIssuedAt:${id}`));
+    const at = now();
+    if (!Number.isFinite(last) || last < at.getTime()) return at;
+    return fresh ? new Date(last + 1) : new Date(last);
+  }
+
+  function licencePayload(id, fresh = false) {
     const c = customers.get(id);
     return buildPayload({
       customer: { ...c, modules: modules().licenceChoice(c) },
@@ -182,7 +191,7 @@ function createCustomersController(ctx) {
       lowest: catalogue.lowest(),
       catalogueVersion: catalogue.currentVersion(),
       payUrl: invoices.openPayUrl(id),
-      now: now(),
+      now: stampFor(id, fresh),
     });
   }
 
@@ -190,7 +199,7 @@ function createCustomersController(ctx) {
 
   function issueLicence(id) {
     const c = customers.get(id);
-    const payload = licencePayload(id);
+    const payload = licencePayload(id, true);
     const result = issuer.write(c.slug, issuer.sign(payload));
     // The stamp the space answers to (specs/plugin-operator-provisioning.md rule 14).
     if (result.written) models.meta.set(`licenceIssuedAt:${id}`, payload.issuedAt);

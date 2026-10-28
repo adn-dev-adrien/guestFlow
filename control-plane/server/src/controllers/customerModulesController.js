@@ -72,7 +72,7 @@ function createCustomerModulesController(ctx, customersController) {
     if (!allowed.has(id)) {
       return {
         id, name: entry.name, on: false, switchable: false, state: 'outOfPlan', stateLabel: null, detail: null, setupLabel: null, stale: false, needsSetup: false,
-        canRetry: false, canErase: false, eraseLines: [], eraseWarnings: [], planChip: planChip(id),
+        canRetry: false, canErase: false, canUninstall: false, blockedBy: null, eraseLines: [], eraseWarnings: [], planChip: planChip(id),
       };
     }
     const on = chosen.has(id);
@@ -82,11 +82,17 @@ function createCustomerModulesController(ctx, customersController) {
     // The plugin's own lines are { label, count, warning? }: a warning says what stays, not what goes.
     const dataLines = reported && reported.erasable ? reported.data || [] : [];
     const eraseLines = dataLines.filter((l) => !l.warning).map((l) => l.label);
-    const canErase = !on && state.state === 'inactive' && !erasing.has(id) && eraseLines.length > 0;
+    // Rules 31, 38 — a module that is off can be wiped (it holds data) or removed (it holds none) unless an installed plugin needs it.
+    const idle = !on && state.state === 'inactive' && !erasing.has(id);
+    const installed = Boolean(facts) && facts.installed.includes(id);
+    const dependants = idle && (eraseLines.length > 0 || installed) ? erasureDependants(id, allowed, facts) : [];
+    const canErase = idle && eraseLines.length > 0 && dependants.length === 0;
+    const canUninstall = idle && eraseLines.length === 0 && installed && dependants.length === 0;
+    const blockedBy = dependants.length ? `Nécessaire à ${dependants.map(nameOf).join(', ')} : à désinstaller d’abord.` : null;
     return {
       id, name: entry.name, on, switchable: true, ...state,
-      detail: erasing.has(id) ? erasureIssue(id, facts, writtenAt) || 'Effacement des données en cours.' : state.detail || keptData(state, eraseLines),
-      canErase, eraseLines: canErase ? eraseLines : [], eraseWarnings: canErase ? dataLines.filter((l) => l.warning).map((l) => l.label) : [], planChip: null,
+      detail: erasing.has(id) ? erasureIssue(id, facts, writtenAt) || 'Effacement des données en cours.' : blockedBy || state.detail || keptData(state, eraseLines),
+      canErase, canUninstall, blockedBy, eraseLines: canErase ? eraseLines : [], eraseWarnings: canErase ? dataLines.filter((l) => l.warning).map((l) => l.label) : [], planChip: null,
     };
   }
 
@@ -166,9 +172,8 @@ function createCustomerModulesController(ctx, customersController) {
     if (String(confirmSlug || '') !== c.slug) throw httpError(400, 'SLUG_MISMATCH', `Tapez exactement « ${c.slug} » pour confirmer.`);
     if (customerPlugins.pendingOrders(c.id).some((o) => o.pluginId === pluginId)) return view(c.id);
     const line = view(c.id).included.find((l) => l.id === pluginId);
-    const dependants = line && line.canErase ? erasureDependants(pluginId, allowedOf(c), instances.readFacts(customersController.servedSlug(c))) : [];
-    if (dependants.length) throw httpError(422, 'REQUIRED_BY', `Nécessaire à ${dependants.map(nameOf).join(', ')} : à désinstaller d’abord.`);
-    if (!line || !line.canErase) throw httpError(409, 'NOTHING_TO_ERASE', 'Rien à effacer : le module est encore actif sur l’espace, ou sans données.');
+    if (line && line.blockedBy) throw httpError(422, 'REQUIRED_BY', line.blockedBy);
+    if (!line || !(line.canErase || line.canUninstall)) throw httpError(409, 'NOTHING_TO_ERASE', 'Rien à effacer : le module est encore actif sur l’espace, ou sans données.');
     customerPlugins.addOrder({ orderId: crypto.randomUUID(), customerId: c.id, pluginId, createdAt: now().toISOString(), operator });
     customersController.journal(c.id, operator, 'module', `Effacement des données de ${nameOf(pluginId)} demandé`);
     customersController.issueLicence(c.id);

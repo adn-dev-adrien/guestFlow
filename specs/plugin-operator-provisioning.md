@@ -263,12 +263,15 @@ screen or endpoint: the customer sees only the features themselves.
     and the first reconciliation after the upgrade would switch them off. Such a customer stays
     unseeded — « Espace à mettre à jour : modules non relevés. » (an unreadable one keeps « Espace
     illisible… ») — and is seeded by the minute tick as soon as the space reports. _Added at review._
-30. **The lifecycle 404 is mounted before the support audit.** The audit forbids `DELETE /plugins/:id`
+30. **The lifecycle 404 leaves the trace of an unknown path.** The audit forbids `DELETE /plugins/:id`
     and `POST /plugins/:id/deactivate` to a support session (403 and a log entry), which told an
     operator-managed space from an unmanaged one. `createSupportAudit` takes `isHidden(req)`
-    (`requireSelfManagedPlugins.isHidden`: the lifecycle routes of rule 4, on a managed space) and lets
-    such a request through untouched — no 403, no log entry — to the router guard that answers the
-    unknown-route 404. An ended access still answers `SUPPORT_ACCESS_ENDED`, like any path. _Added at review._
+    (`requireSelfManagedPlugins.isHidden`: the lifecycle routes of rule 4, on a managed space) and, for
+    such a request, skips only the policy's 403: it is logged like any other (a change always, a read
+    once per path and minute, summary `404`) and reaches the router guard that answers the unknown-route
+    404. Skipping the log too would have made the support log — which the support session can read — a
+    second way to tell a hidden route from an unknown one, and would have dropped the audit trace of
+    hosting rule 19. An ended access still answers `SUPPORT_ACCESS_ENDED`, like any path. _Added at review; amended at second review._
 31. **Erase orders follow the settled rule of rules 18–19.** A refused erase (`REQUIRED_BY`,
     `PLUGIN_BLOCKED`) is recorded `blocked` and retried at most hourly; any other failure is recorded
     `failed` and waits for a new `issuedAt`. The closing pass of the reconciler leaves the line of a
@@ -276,7 +279,7 @@ screen or endpoint: the customer sees only the features themselves.
     the line (« Effacement bloqué : <message> » / the space's failure sentence, for the licence it last
     wrote only) instead of « Effacement des données en cours. », and refuses the erase itself
     (422 `REQUIRED_BY`, « Nécessaire à X : à désinstaller d’abord. ») while an installed plugin the
-    plan allows requires the module. _Added at review._
+    plan allows requires the module; the line itself says so and offers no menu (rule 38). _Added at review._
 32. **A reconciler run ignores the dependants the licence does not allow.** A plugin outside `plugins[]`
     keeps its stored state (rule 21) and cannot be acted on by the operator, so it no longer holds
     back the deactivation or the erase of what it requires (`req.reconciling`). The plugins page rules
@@ -293,6 +296,21 @@ screen or endpoint: the customer sees only the features themselves.
     `GET /api/auth/me` on every route change and when the tab becomes visible again, at most once every
     30 s; a failed re-read keeps the session. A module switched off by the operator thus leaves the menu
     without a reload (rule 3 hides entries from `enabledPlugins` / `pluginsManageable`). _Added at review._
+37. **A licence dated in the future never becomes the mark.** Both sides: the console stamps each
+    licence strictly after the previous one it wrote for the customer (`issuedAt = max(now,
+    lastWritten + 1 ms)`, so a clock that stepped back cannot issue an older licence; a download of an
+    unchanged licence keeps the last stamp), and the space applies a licence whose `issuedAt` is more
+    than 5 minutes ahead of its own clock but does not keep it as `highestIssuedAt` (rule 33) — otherwise
+    every honest licence would be skipped as « older » until the clock caught up, the console showing
+    « En attente » then « espace injoignable ? » with no retry possible. _Added at second review._
+38. **A module needed by an installed plugin, and the way out.** For a module that is off, the line
+    computes its installed dependants (an installed plugin the plan allows that requires it, active or
+    not). While one exists the line shows « Nécessaire à X : à désinstaller d’abord. » (`blockedBy`, also
+    the `detail`) and offers no erase. To make that reachable, a module that is off, installed and
+    holding no data gets `canUninstall`: the menu reads « Désinstaller… », a plain confirmation (no typed
+    address, nothing to lose) sends the same `POST …/erase` order as rule 22, and the space settles it by
+    leaving the module uninstalled (rule 31's `NOT_ERASABLE` path). A module off, not installed and
+    without data offers nothing. _Added at second review._
 
 **Edge cases:**
 
@@ -472,7 +490,7 @@ Skills loaded for the mockups: `apple-design`, `impeccable`. Interactive mockups
 - « Inclus » list: name (no icon: the catalogue's icon names have no mapping in the console), one state line under it (rule 14) as a soft `StatusBadge`
   (success « Actif · 1.2.0 », neutral « Inactif », info « En attente », warning « à configurer » and
   « Bloqué », error « Échec »), a `Switch` on the right (44 px target). « Échec » adds « Réessayer »;
-  an inactive line that still holds data adds a « ⋯ » menu with « Effacer les données… ». The switch-off dialog is a `ConfirmDialog` (« Désactiver » in the primary colour: the data is kept).
+  an inactive line that still holds data adds a « ⋯ » menu with « Effacer les données… » (« Désinstaller… » for an installed one without data, rule 38; none while an installed plugin requires it). The switch-off dialog is a `ConfirmDialog` (« Désactiver » in the primary colour: the data is kept).
 - A refused switch (rule 11) snaps back and shows the server's sentence under the line in
   `error.main`, until the next action.
 - « Hors forfait (n) »: a disclosure, closed at first; lines with the plan chip and no switch.
@@ -530,18 +548,21 @@ kept visible; changing plan re-ticks. Under it: « 8 modules actifs à la créat
   (payload fields, unseeded customer has none, seed from active ∩ allowed, unreadable space stays
   unseeded, acknowledged order dropped) — **8 cases (done: 8)**
 
-- [x] `server/src/tests/plugin-reconciler-hardening.unit.test.js` — rules 31–34 (erase order blocked hourly /
+- [x] `server/src/tests/plugin-reconciler-hardening.unit.test.js` — rules 31–34, 37 (erase order blocked hourly /
   failed until a new licence, the record survives the closing pass, out-of-plan dependants ignored, an
-  allowed one still blocks, older licence skipped, closing pass limited to the plan) — **7 cases**
+  allowed one still blocks, older licence skipped, closing pass limited to the plan, a licence dated far
+  ahead applied but not kept as the mark, a few minutes ahead still kept) — **9 cases**
 - [x] `server/src/tests/plugin-operator-support-hidden.unit.test.js` — rules 30, 35 (through the real
   chain: `createSupportAudit` with a real `supportAccessId` session gets the byte-identical 404 on
-  every lifecycle route and no log entry; unmanaged space unchanged, 403 logged; the matcher covers
-  exactly the guarded routes; no plugins line in the summary) — **4 cases**
+  every lifecycle route, and the same log trace as an unknown path; unmanaged space unchanged, 403
+  logged; the matcher covers exactly the guarded routes; no plugins line in the summary) — **5 cases**
 - [x] `server/src/tests/plugin-provisioning-task.unit.test.js` — rule 16 (boot pass, one per minute, a failing pass is logged) — 2 cases (added)
 
-- [x] `control-plane/server/src/tests/customer-modules-hardening.unit.test.js` — rules 29, 31 (an old-release
+- [x] `control-plane/server/src/tests/customer-modules-hardening.unit.test.js` — rules 29, 31, 37, 38 (an old-release
   space stays unseeded then seeds once it reports; erase refused naming the dependant; an erase the
-  space blocked or failed shows on the line, for the current licence only) — **3 cases**; the state
+  space blocked or failed shows on the line, for the current licence only; licence stamps strictly
+  increase when the clock steps back; the dependant line shows its reason and the data-less dependant
+  offers removal, whose order lifts it; nothing to remove when not installed) — **7 cases**; the state
   lines of rule 14 (short badge + detail, `setupLabel`, `stale`, « données conservées ») are covered in
   `customer-modules.unit.test.js` and `customer-modules-erase.unit.test.js`.
 
@@ -550,7 +571,8 @@ kept visible; changing plan re-ticks. Under it: « 8 modules actifs à la créat
 - [x] `client/src/hooks/__tests__/useAuth.revalidate.test.jsx` — rule 36 (route change after 30 s, tab
   visible again, failed re-read keeps the session) — **3 cases**
 - [x] `control-plane/client/src/__tests__/ModulesSection.polish.test.jsx` — rules 10–12, 14, 22 (refusal and
-  failed count red, stale wait in warning, focus kept on the switch being saved, 44 px target, erase
+  failed count red, stale wait in warning, focus kept on the switch being saved, 44 px tall switch whose
+  root clips its hidden input, so it never covers « Plus d’actions » — also proved with a real pointer click in Playwright, erase
   dialog focus and Enter, no animation under reduced motion) — **6 cases**; `NewCustomerPage.modules`
   gains the two-quick-unticks case (rule 13).
 
@@ -563,7 +585,7 @@ kept visible; changing plan re-ticks. Under it: « 8 modules actifs à la créat
   no last link) — **3 cases**
 - [x] `control-plane/client/src/__tests__/ModulesSection.switches.test.jsx` — rules 10, 12, 14 (groups,
   confirm on off, refusal snaps back with text, state badges, retry) — **7 cases**
-- [x] `control-plane/client/src/__tests__/ModulesSection.erase.test.jsx` — rule 22 — **3 cases**
+- [x] `control-plane/client/src/__tests__/ModulesSection.erase.test.jsx` — rules 22, 38 (« Désinstaller… » with a plain confirmation; the blocked line has no menu) — **5 cases**
 - [x] `control-plane/client/src/__tests__/NewCustomerPage.modules.test.jsx` — rule 13 — **3 cases**
 
 ### E2E
@@ -637,6 +659,10 @@ Four lots, each shippable on `inte/plugins`:
 Lots 1 → 2 → 3 in one release is the safe order (rule 26); lot 4 can follow.
 
 ### Implementation progress
+
+**Second review (2026-10-28):** the switch's hidden input no longer covers « Plus d’actions » (the
+root keeps `overflow: hidden`, 44 px tall); rule 30 amended (a hidden route is logged like an unknown
+one); rules 37 (future-dated licence) and 38 (dependants and the removal of a data-less module) added.
 
 **Review fixes (2026-10-28, two Opus reviewers):** rules 29–36 and the UI details of rule 14 — see the
 rules; the `inte/plugins` merge (2FA, perf, planning, calendar, options) was resolved without conflict

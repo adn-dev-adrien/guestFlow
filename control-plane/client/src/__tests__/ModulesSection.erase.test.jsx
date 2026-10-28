@@ -1,4 +1,4 @@
-// specs/plugin-operator-provisioning.md rule 22 — « Effacer les données… » on an inactive module: the
+// specs/plugin-operator-provisioning.md rules 22, 38 — « Effacer les données… » on an inactive module: the
 // dialog lists what will be erased and asks the customer's address typed; only the exact address
 // enables « Effacer ».
 import React from 'react';
@@ -60,4 +60,31 @@ it('rule 22 — confirming sends the typed address and shows the order on its wa
   await waitFor(() => expect(screen.queryByText('Effacer les données de Linge et blanchisserie ?')).not.toBeInTheDocument());
   expect(screen.queryByRole('button', { name: /Plus d’actions/ })).not.toBeInTheDocument();
   expect(screen.getByText('Effacement des données en cours.')).toBeInTheDocument();
+});
+
+it('rule 38 — a module installed without data is removed through « Désinstaller… » and a plain confirmation', async () => {
+  api.customerModules.mockResolvedValue(modulesView({
+    included: [line({ id: 'google-vacation-rentals', name: 'Google Vacation Rentals', on: false, state: 'inactive', stateLabel: 'Inactif', canUninstall: true })],
+  }));
+  api.eraseModule.mockResolvedValue(modulesView({
+    included: [line({ id: 'google-vacation-rentals', name: 'Google Vacation Rentals', on: false, state: 'inactive', stateLabel: 'Inactif', detail: 'Effacement des données en cours.' })],
+  }));
+  open();
+  fireEvent.click(await screen.findByRole('button', { name: 'Plus d’actions pour Google Vacation Rentals' }));
+  expect(screen.queryByRole('menuitem', { name: 'Effacer les données…' })).not.toBeInTheDocument();
+  fireEvent.click(await screen.findByRole('menuitem', { name: 'Désinstaller…' }));
+  expect(await screen.findByText('Désinstaller Google Vacation Rentals ?')).toBeInTheDocument();
+  expect(screen.queryByLabelText(/Pour confirmer/)).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Désinstaller' }));
+  await waitFor(() => expect(api.eraseModule).toHaveBeenCalledWith(3, 'google-vacation-rentals', 'moulin'));
+  expect(await screen.findByText('Effacement des données en cours.')).toBeInTheDocument();
+});
+
+it('rule 38 — a module an installed plugin requires shows the reason and no menu', async () => {
+  api.customerModules.mockResolvedValue(modulesView({
+    included: [line({ on: false, state: 'inactive', stateLabel: 'Inactif', detail: 'Nécessaire à Google Vacation Rentals : à désinstaller d’abord.', blockedBy: 'Nécessaire à Google Vacation Rentals : à désinstaller d’abord.' })],
+  }));
+  open();
+  expect(await screen.findByText('Nécessaire à Google Vacation Rentals : à désinstaller d’abord.')).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /Plus d’actions/ })).not.toBeInTheDocument();
 });

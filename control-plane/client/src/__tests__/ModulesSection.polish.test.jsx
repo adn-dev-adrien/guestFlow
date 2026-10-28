@@ -68,11 +68,17 @@ it('rule 12 — the switch being saved keeps the focus and ignores a second clic
   expect(screen.getByRole('switch', { name: 'Linge et blanchisserie' })).not.toBeDisabled();
 });
 
-it('rule 12 — the switch has a 44 px hit area', async () => {
+it('rule 12 — the switch is 44 px tall and clips its hidden input so it never covers « Plus d’actions »', async () => {
+  api.customerModules.mockResolvedValue(modulesView({
+    included: [line({ on: false, state: 'inactive', stateLabel: 'Inactif', canErase: true, eraseLines: ['3 pièces de stock'], eraseWarnings: [] })],
+  }));
   open();
-  const sw = await screen.findByRole('switch', { name: 'Vacances scolaires' });
-  const base = sw.closest('.MuiSwitch-switchBase');
-  expect(getComputedStyle(base).padding).toBe('12px');
+  const sw = await screen.findByRole('switch', { name: 'Linge et blanchisserie' });
+  const root = sw.closest('.MuiSwitch-root');
+  expect(getComputedStyle(root).height).toBe('44px');
+  expect(getComputedStyle(root).overflow).toBe('hidden');
+  expect(root.contains(sw)).toBe(true);
+  expect(root.contains(screen.getByRole('button', { name: 'Plus d’actions pour Linge et blanchisserie' }))).toBe(false);
 });
 
 it('rule 22 — the erase dialog focuses the slug field, and Enter erases once the slug matches', async () => {
