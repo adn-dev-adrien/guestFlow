@@ -188,7 +188,8 @@ any more.
     `errorMessage` toast (unchanged). *Amended 2026-10-28:* at the START edge the skeleton row is replaced by a thin (2 px)
     indeterminate progress bar (`LinearProgress`, theme primary, static under `prefers-reduced-motion`)
     glued under the page bar at every scroll position (`PageActionBar`'s `progress` prop: absolute under
-    the bar's border, over the first 2 px of the page), out of the layout, and only while the past
+    the bar's border, over the first 2 px of the page; fixed under the app's top bar when a phone's bar is
+    not drawn — its lone action handed to the top bar, or nothing left to draw), out of the layout, and only while the past
     window loads: inserting then removing a skeleton above
     the viewport shifted every card and made the scroll compensation jerk (its scroll events were read
     as new gestures), and an overlaid skeleton covered the first cards. *Resolved 2026-10-28 (Adrien):
@@ -432,7 +433,8 @@ None. No migration.
 - [x] `hooks/__tests__/useInfiniteEdgeScroll.scrolled-before-commit.test.jsx` (2) — rule 31.
 - [x] `pages/__tests__/PlanningPage.edge-layout.test.jsx` (2) — rule 20 (start-edge progress bar out of the layout), rule 31 (`overflow-anchor: none` on the timeline).
 - [x] `hooks/__tests__/useInfiniteEdgeScroll.crossing-threshold.test.jsx` (3) — rule 32.
-- [x] `components/__tests__/PageActionBar.progress.test.jsx` (2) — rule 20 (`progress` prop of the bar).
+- [x] `e2e/bare/planning-past-progress.spec.js` — rule 20 on a bare install at 390 px (bar not drawn, progress still shown under the top bar).
+- [x] `components/__tests__/PageActionBar.progress.test.jsx` (4) — rule 20 (`progress` prop of the bar).
 
 ### E2E (Playwright)
 - [x] New `e2e/specs/planning/timeline-scroll.spec.js` — opens on today under the bar; wheel up shows

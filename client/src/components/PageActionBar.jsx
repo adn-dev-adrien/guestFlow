@@ -23,8 +23,8 @@
  *                                SECOND ROW of the same sticky block on xs. Mutually exclusive with
  *                                `center`; see specs/ds-tabs.md rules 2-3.)
  *
- *   progress?    boolean | string  (a thin 2 px indeterminate bar glued under the bar, over the first 2 px of the
- *                                page, out of the layout; the string is its accessible name. Reduced motion: static)
+ *   progress?    boolean | string  (a thin 2 px indeterminate bar glued under the bar (fixed under the app's top
+ *                                bar when the bar is not drawn on a phone), over 2 px of the page, out of the layout; the string is its accessible name. Reduced motion: static)
  *
  *   onSave?      () => void     (omit → no Save button)
  *   saveDisabled? boolean
@@ -207,7 +207,24 @@ export default function PageActionBar({
   const movable = lone.length === 1 && !lone[0].node && lone[0].color !== 'error';
   const inTopBar = bareOnPhone && !onSave && !onCancel && !useOverflow && movable && Boolean(topBarSlot);
   usePublishBarBottom(barRef, isMobile, !(bareOnPhone && !hasActions) && !inTopBar);
-  if (bareOnPhone && !hasActions) return null;
+
+  // The thin loading bar: under the bar's border when the bar is drawn; fixed under the app's top bar
+  // when the bar is not (a phone bar handed to the top bar or not drawn at all).
+  const progressBar = (position) => (
+    <LinearProgress
+      aria-label={typeof progress === 'string' ? progress : undefined}
+      data-testid="page-action-bar-progress"
+      sx={{
+        ...position,
+        height: 2,
+        '@media (prefers-reduced-motion: reduce)': { '& .MuiLinearProgress-bar': { animation: 'none', width: '100%', left: 0, transform: 'none' } },
+      }}
+    />
+  );
+  const undrawnProgress = progress
+    ? progressBar({ position: 'fixed', top: APP_BAR_HEIGHT.xs, left: 0, right: 0, zIndex: (t) => t.zIndex.appBar - 1 })
+    : null;
+  if (bareOnPhone && !hasActions) return undrawnProgress;
 
   // The actions keep their full width: when they do not fit beside the title they take a row of their
   // own, right-aligned — never a column of stacked buttons.
@@ -289,7 +306,7 @@ export default function PageActionBar({
     </Box>
   );
 
-  if (inTopBar) return createPortal(actions, topBarSlot);
+  if (inTopBar) return <>{createPortal(actions, topBarSlot)}{undrawnProgress}</>;
 
   return (
     <Box
@@ -308,16 +325,7 @@ export default function PageActionBar({
         containerType: 'inline-size',
       }}
     >
-      {progress && (
-        <LinearProgress
-          aria-label={typeof progress === 'string' ? progress : undefined}
-          data-testid="page-action-bar-progress"
-          sx={{
-            position: 'absolute', top: 'calc(100% + 1px)', left: 0, right: 0, height: 2,
-            '@media (prefers-reduced-motion: reduce)': { '& .MuiLinearProgress-bar': { animation: 'none', width: '100%', left: 0, transform: 'none' } },
-          }}
-        />
-      )}
+      {progress && progressBar({ position: 'absolute', top: 'calc(100% + 1px)', left: 0, right: 0 })}
       <Box
         data-testid="page-action-bar-row"
         sx={{
