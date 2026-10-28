@@ -765,7 +765,7 @@ function buildEntry(row, kind, perLineData, commissionContext, taxContext) {
       : (Number(row.complementAmount) || 0);
     // specs/accounting-books-the-money-collected.md rules 1-2 — the end-of-stay complement is scheduled
     // money too. Leaving it out made the denominator short by whatever was sold mid-stay, so every entry
-    // of such a stay was grossed up by that amount (Carpier #22275: +29,42 € of CA, +25,47 € on the
+    // of such a stay was grossed up by that amount (Carrier #22275: +29,42 € of CA, +25,47 € on the
     // client's debit) and cash-settled complements leaked back into the books through the same ratio.
     const scheduledTotal = round2((Number(row.depositAmount) || 0) + (Number(row.balanceAmount) || 0)
       + scheduledComplement + (Number(row.endOfStayComplementAmount) || 0));
@@ -993,7 +993,7 @@ function buildEntry(row, kind, perLineData, commissionContext, taxContext) {
 // (specs/cash-complement-and-endofstay-finance.md §3.1 + Q1). Returns null when there's nothing to book.
 //
 // specs/accounting-books-the-money-collected.md rule 8 — ventilated by stored detail line: a `res:*` key
-// is a resource (70601000), everything else a prestation (70600010). Carpier's bain nordique, sold
+// is a resource (70601000), everything else a prestation (70600010). Carrier's bain nordique, sold
 // mid-stay, was landing on the prestations account.
 function buildEndOfStayEntry(row, vatRate) {
   const ttc = round2(Number(row.endOfStayComplementAmount || 0));

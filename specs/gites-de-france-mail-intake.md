@@ -28,7 +28,7 @@ Montant net propriétaire = Prix location + Options − round(10 % × Prix locat
 Brut to type             = Prix location + Options + Taxe de séjour        (frais de dossier excluded)
 ```
 
-Copying by hand is where the errors come from: three past fiches (Lehmann, Vallée, Filizetti) hold
+Copying by hand is where the errors come from: three past fiches (Lefort, Vasseur, Fontaine) hold
 the guest's « Prix total client » as brut, so their commission silently absorbed the centrale's
 booking fees — and the ✓ « cohérent avec le virement » still showed.
 
@@ -42,7 +42,7 @@ sample (dossier 11773):
 Réservation n° 11773-2026            État : Réservation confirmée
 Gîte 309700 | Domaine Solio
 du 13/11/2026 à partir de 16h00      au 15/11/2026 avant 10h00 (2 nuits)
-Réservation effectuée par : ROUX Lucie
+Réservation effectuée par : RENARD Lucie
 8 adultes, 2 enfants et 2 bébés      Pas de chien, pas de chat
 lucie.roux@example.com                 0743338633
 Détail des suppléments    Forfait ménage ( 1 ) x 1    80.00 €
@@ -97,8 +97,8 @@ choice in one click.
 5. **Internal consistency is checked before anything else:** net location + total options = total net,
    and the sum of supplement lines = total options, to the cent. A mismatch → `status = error`, nothing
    applied.
-6. Phone normalised to the French spaced form (`0743338633` → `07 43 33 86 33`); name in title case
-   (`ROUX Lucie` → Lucie Roux); e-mail language `fr`.
+6. Phone normalised to the French spaced form (`0743338633` → `07 00 00 00 01`); name in title case
+   (`RENARD Lucie` → Lucie Renard); e-mail language `fr`.
 
 ### 3.3 The gross rent — the one figure the mail does not give
 

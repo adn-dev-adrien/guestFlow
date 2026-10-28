@@ -11,7 +11,7 @@ const { calculateReservationQuote } = require('../utils/pricing').__test;
 // computed commission all land on the stay alone.
 //
 // The fil rouge is the reservation that produced the accountant's 2026-08-24 report and the
-// operator's 2026-09-11 one alike — Gîtes de France, Grimaud #22225, 26-28 June 2026:
+// operator's 2026-09-11 one alike — Gîtes de France, Girard #22225, 26-28 June 2026:
 //
 //   Prix location            653,00
 //   Options / ménage          80,00
@@ -70,7 +70,7 @@ function createDb({ sources = [], touristTaxMode = 'per_day_per_person', percent
 
 // 6 adults × 2 nights × 1.20 = 14.40 — the engine's own estimate, which happens to equal the GdF
 // figure here. The whole point of the feature is that it does not have to.
-const GRIMAUD = {
+const GIRARD = {
   propertyId: 1,
   startDate: '2026-06-26',
   endDate: '2026-06-28',
@@ -96,10 +96,10 @@ const VIREMENT = 668;
 // rules 3 + 6 — a stated tax comes back out of the brut
 // ---------------------------------------------------------------------------
 
-test('rules 3 + 6 — Grimaud: brut 747,40 with 14,40 withheld → finalPrice 733, accommodation 653', () => {
+test('rules 3 + 6 — Girard: brut 747,40 with 14,40 withheld → finalPrice 733, accommodation 653', () => {
   const db = createDb({ sources: OFFERED });
   const q = calculateReservationQuote({
-    ...GRIMAUD, db, platform: 'GitesDeFrance',
+    ...GIRARD, db, platform: 'GitesDeFrance',
     platformGrossAmount: BRUT_TTC,
     platformTouristTaxAmount: TAX,
   });
@@ -118,7 +118,7 @@ test('rule 2 — an empty box keeps the August reading of the brut, to the cent'
   // nothing is subtracted and the numbers are the ones already exported to the accountant.
   const db = createDb({ sources: OFFERED });
   const q = calculateReservationQuote({
-    ...GRIMAUD, db, platform: 'GitesDeFrance',
+    ...GIRARD, db, platform: 'GitesDeFrance',
     platformGrossAmount: BRUT_HT_TAX,
   });
 
@@ -131,11 +131,11 @@ test('rule 2 — an empty box keeps the August reading of the brut, to the cent'
 test('rule 2 — both conventions land on the same revenue, which is what makes the migration unnecessary', () => {
   const db = createDb({ sources: OFFERED });
   const withBox = calculateReservationQuote({
-    ...GRIMAUD, db, platform: 'GitesDeFrance',
+    ...GIRARD, db, platform: 'GitesDeFrance',
     platformGrossAmount: BRUT_TTC, platformTouristTaxAmount: TAX,
   });
   const withoutBox = calculateReservationQuote({
-    ...GRIMAUD, db, platform: 'GitesDeFrance',
+    ...GIRARD, db, platform: 'GitesDeFrance',
     platformGrossAmount: BRUT_HT_TAX,
   });
 
@@ -152,7 +152,7 @@ test('rule 2 — both conventions land on the same revenue, which is what makes 
 test('rule 1 — a direct booking ignores the withheld amount entirely', () => {
   const db = createDb({ sources: OFFERED });
   const q = calculateReservationQuote({
-    ...GRIMAUD, db, platform: 'direct',
+    ...GIRARD, db, platform: 'direct',
     platformGrossAmount: BRUT_TTC, platformTouristTaxAmount: TAX,
   });
 
@@ -165,11 +165,11 @@ test('rule 1 — a direct booking ignores the withheld amount entirely', () => {
 test('rule 1 — `platform_reversed` ignores it: the tax is in the brut AND in the virement', () => {
   const db = createDb({ sources: REVERSED });
   const withBox = calculateReservationQuote({
-    ...GRIMAUD, db, platform: 'Lodgify',
+    ...GIRARD, db, platform: 'Lodgify',
     platformGrossAmount: BRUT_TTC, platformTouristTaxAmount: TAX,
   });
   const withoutBox = calculateReservationQuote({
-    ...GRIMAUD, db, platform: 'Lodgify',
+    ...GIRARD, db, platform: 'Lodgify',
     platformGrossAmount: BRUT_TTC,
   });
 
@@ -183,11 +183,11 @@ test('rule 1 — `platform_reversed` ignores it: the tax is in the brut AND in t
 test('rule 1 — `owner` ignores it: the tax never enters the platform flow', () => {
   const db = createDb({ sources: OWNER });
   const withBox = calculateReservationQuote({
-    ...GRIMAUD, db, platform: 'Abracadaroom',
+    ...GIRARD, db, platform: 'Abracadaroom',
     platformGrossAmount: BRUT_HT_TAX, platformTouristTaxAmount: TAX,
   });
   const withoutBox = calculateReservationQuote({
-    ...GRIMAUD, db, platform: 'Abracadaroom',
+    ...GIRARD, db, platform: 'Abracadaroom',
     platformGrossAmount: BRUT_HT_TAX,
   });
 
@@ -202,7 +202,7 @@ test('rule 1 — `owner` ignores it: the tax never enters the platform flow', ()
 test('rule 1 — without a brut there is nothing to take the tax out of', () => {
   const db = createDb({ sources: OFFERED });
   const q = calculateReservationQuote({
-    ...GRIMAUD, db, platform: 'GitesDeFrance',
+    ...GIRARD, db, platform: 'GitesDeFrance',
     platformTouristTaxAmount: TAX,
   });
 
@@ -220,11 +220,11 @@ test('rule 6bis — the declared tax base drops the withheld tax (no tax on the 
   // tax-inclusive brut left in the base would tax the tax.
   const db = createDb({ sources: OFFERED, touristTaxMode: 'percentage_accommodation', percentage: 5 });
   const withBox = calculateReservationQuote({
-    ...GRIMAUD, db, platform: 'GitesDeFrance',
+    ...GIRARD, db, platform: 'GitesDeFrance',
     platformGrossAmount: BRUT_TTC, platformTouristTaxAmount: TAX,
   });
   const reference = calculateReservationQuote({
-    ...GRIMAUD, db, platform: 'GitesDeFrance',
+    ...GIRARD, db, platform: 'GitesDeFrance',
     platformGrossAmount: BRUT_HT_TAX,
   });
 
@@ -237,7 +237,7 @@ test('rule 6bis — the declared tax base drops the withheld tax (no tax on the 
 test('rule 7 — the VAT base is the stay, never the tourist tax', () => {
   const db = createDb({ sources: OFFERED });
   const q = calculateReservationQuote({
-    ...GRIMAUD, db, platform: 'GitesDeFrance',
+    ...GIRARD, db, platform: 'GitesDeFrance',
     platformGrossAmount: BRUT_TTC, platformTouristTaxAmount: TAX,
   });
 
@@ -256,7 +256,7 @@ test('rule 9 — the quote publishes the withheld amount beside the untouched en
   const db = createDb({ sources: OFFERED });
   const OTHER = 16.02; // a platform figure that is NOT our per-person nightly estimate (Booking-style)
   const q = calculateReservationQuote({
-    ...GRIMAUD, db, platform: 'GitesDeFrance',
+    ...GIRARD, db, platform: 'GitesDeFrance',
     platformGrossAmount: 749.02, platformTouristTaxAmount: OTHER,
   });
 
@@ -271,7 +271,7 @@ test('rule 11 — net perçu equals the virement: the écart closes on the state
   const db = createDb({ sources: OFFERED });
   const COMMISSION = 65;
   const q = calculateReservationQuote({
-    ...GRIMAUD, db, platform: 'GitesDeFrance',
+    ...GIRARD, db, platform: 'GitesDeFrance',
     platformGrossAmount: BRUT_TTC, platformTouristTaxAmount: TAX,
     platformCommissionAmount: COMMISSION,
   });
@@ -292,7 +292,7 @@ test('rule 10 — the commission the « Calculer » button writes is the real on
 
   const db = createDb({ sources: OFFERED });
   const q = calculateReservationQuote({
-    ...GRIMAUD, db, platform: 'GitesDeFrance',
+    ...GIRARD, db, platform: 'GitesDeFrance',
     platformGrossAmount: BRUT_TTC, platformTouristTaxAmount: TAX,
     platformCommissionAmount: commission,
   });
@@ -307,7 +307,7 @@ test('rule 8 — the withheld tax stays out of our books and out of the declarat
   // the brut is not revenue.
   const db = createDb({ sources: OFFERED });
   const q = calculateReservationQuote({
-    ...GRIMAUD, db, platform: 'GitesDeFrance',
+    ...GIRARD, db, platform: 'GitesDeFrance',
     platformGrossAmount: BRUT_TTC, platformTouristTaxAmount: TAX,
     platformCommissionAmount: 65,
   });
@@ -328,7 +328,7 @@ test('rule 16 — a brut that does not cover the tax it claims to contain is fla
   const db = createDb({ sources: OFFERED });
   // Brut 85 covers the 80 € option but not the option + the 14,40 it is supposed to include.
   const q = calculateReservationQuote({
-    ...GRIMAUD, db, platform: 'GitesDeFrance',
+    ...GIRARD, db, platform: 'GitesDeFrance',
     platformGrossAmount: 85, platformTouristTaxAmount: TAX,
   });
 
@@ -340,7 +340,7 @@ test('rule 16 — a brut that does not cover the tax it claims to contain is fla
 test('rule 16 — the same brut without a withheld tax is consistent (the threshold really moved)', () => {
   const db = createDb({ sources: OFFERED });
   const q = calculateReservationQuote({
-    ...GRIMAUD, db, platform: 'GitesDeFrance',
+    ...GIRARD, db, platform: 'GitesDeFrance',
     platformGrossAmount: 85,
   });
 
@@ -353,7 +353,7 @@ test('rule 17 — a platform switched out of the offered mode makes a stored amo
   // stored euros stay in the row and become live again if the mode comes back.
   const offered = createDb({ sources: OFFERED });
   const before = calculateReservationQuote({
-    ...GRIMAUD, db: offered, platform: 'GitesDeFrance',
+    ...GIRARD, db: offered, platform: 'GitesDeFrance',
     platformGrossAmount: BRUT_TTC, platformTouristTaxAmount: TAX,
   });
   assert.equal(before.finalPrice, BRUT_HT_TAX);
@@ -363,12 +363,12 @@ test('rule 17 — a platform switched out of the offered mode makes a stored amo
   // Same reservation, same stored amount, the platform now reverses the tax to us.
   const flipped = createDb({ sources: [{ platformKey: 'gitesdefrance', platformLabel: 'GitesDeFrance', collects: 1, remitted: 0 }] });
   const after = calculateReservationQuote({
-    ...GRIMAUD, db: flipped, platform: 'GitesDeFrance',
+    ...GIRARD, db: flipped, platform: 'GitesDeFrance',
     platformGrossAmount: BRUT_TTC, platformTouristTaxAmount: TAX,
   });
   assert.equal(after.platformTouristTaxWithheld, null); // inert
   const reference = calculateReservationQuote({
-    ...GRIMAUD, db: flipped, platform: 'GitesDeFrance', platformGrossAmount: BRUT_TTC,
+    ...GIRARD, db: flipped, platform: 'GitesDeFrance', platformGrossAmount: BRUT_TTC,
   });
   assert.equal(after.finalPrice, reference.finalPrice);
   flipped.close();
@@ -377,11 +377,11 @@ test('rule 17 — a platform switched out of the offered mode makes a stored amo
 test('rule 15 — an explicit 0 computes like an empty box', () => {
   const db = createDb({ sources: OFFERED });
   const zero = calculateReservationQuote({
-    ...GRIMAUD, db, platform: 'GitesDeFrance',
+    ...GIRARD, db, platform: 'GitesDeFrance',
     platformGrossAmount: BRUT_HT_TAX, platformTouristTaxAmount: 0,
   });
   const empty = calculateReservationQuote({
-    ...GRIMAUD, db, platform: 'GitesDeFrance',
+    ...GIRARD, db, platform: 'GitesDeFrance',
     platformGrossAmount: BRUT_HT_TAX, platformTouristTaxAmount: '',
   });
 
@@ -395,7 +395,7 @@ test('rule 15 — an explicit 0 computes like an empty box', () => {
 test('rule 20 — a negative amount is clamped, never allowed to inflate the brut', () => {
   const db = createDb({ sources: OFFERED });
   const q = calculateReservationQuote({
-    ...GRIMAUD, db, platform: 'GitesDeFrance',
+    ...GIRARD, db, platform: 'GitesDeFrance',
     platformGrossAmount: BRUT_HT_TAX, platformTouristTaxAmount: -14.40,
   });
 
@@ -407,7 +407,7 @@ test('rule 20 — a negative amount is clamped, never allowed to inflate the bru
 test('rule 20 — a non-numeric amount is ignored, leaving the August reading', () => {
   const db = createDb({ sources: OFFERED });
   const q = calculateReservationQuote({
-    ...GRIMAUD, db, platform: 'GitesDeFrance',
+    ...GIRARD, db, platform: 'GitesDeFrance',
     platformGrossAmount: BRUT_HT_TAX, platformTouristTaxAmount: 'abc',
   });
 
@@ -419,7 +419,7 @@ test('rule 20 — a non-numeric amount is ignored, leaving the August reading', 
 test('rule 19 — a frozen tax does not move the withheld amount, which is the platform’s', () => {
   const db = createDb({ sources: OFFERED });
   const q = calculateReservationQuote({
-    ...GRIMAUD, db, platform: 'GitesDeFrance',
+    ...GIRARD, db, platform: 'GitesDeFrance',
     platformGrossAmount: BRUT_TTC, platformTouristTaxAmount: TAX,
     freezeTouristTax: true, frozenTouristTaxTotal: 9.60, frozenTouristTaxRate: 0.80,
   });

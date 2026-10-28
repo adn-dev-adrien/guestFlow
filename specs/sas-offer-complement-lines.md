@@ -89,7 +89,7 @@ geste commercial is recorded as such instead of being billed, hidden, or left pe
    re-commit but shown nowhere and counted in no total, so the recap under-stated what the server would
    store. They now appear in the recap list like any other line — and are therefore offerable too.
 6.ter **The offered set only speaks for the lines the recap rendered** (fix 2026-08-29, réservation
-   Geuffrard). `offeredArrivalExtras` is *authoritative*: a recalled line absent from it is billed back.
+   Gauthier). `offeredArrivalExtras` is *authoritative*: a recalled line absent from it is billed back.
    But the check-out recap only recalls the arrival complement when something is still owed on it
    (`amount > 0` and unpaid — `recall-unpaid-arrival-complement-at-checkout.md`), and **an arrival
    complement made entirely of gestes commerciaux is worth 0 €** — so the recap showed nothing, sent an

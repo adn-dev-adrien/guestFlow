@@ -119,7 +119,7 @@ guessing; and the quote the guest receives looks like the house that sends it.
     flush with the screen's edges and its bottom, scrolled to the end too. Its accessible name carries
     both figures.
 12. **Whose reservation is open.** Below `lg` the action bar carries a second line « Prénom Nom ·
-    N° 6646665983 · 07/08 → 13/08 », ellipsised, in place of the centred name it shows from `lg`.
+    N° 6600000002 · 07/08 → 13/08 », ellipsised, in place of the centred name it shows from `lg`.
 
 ### Calendar (proposal 21)
 

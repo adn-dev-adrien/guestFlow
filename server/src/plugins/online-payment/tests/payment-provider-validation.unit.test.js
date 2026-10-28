@@ -26,17 +26,17 @@ test('requires a bank account', () => {
 });
 
 test('normalizePhone tolerates the French national form', () => {
-  assert.equal(normalizePhone('06 28 05 60 66'), '+33628056066');
-  assert.equal(normalizePhone('0628056066'), '+33628056066');
-  assert.equal(normalizePhone('0033628056066'), '+33628056066');
-  assert.equal(normalizePhone('+33628056066'), '+33628056066');
+  assert.equal(normalizePhone('06 00 00 00 02'), '+33600000002');
+  assert.equal(normalizePhone('0600000002'), '+33600000002');
+  assert.equal(normalizePhone('0033600000002'), '+33600000002');
+  assert.equal(normalizePhone('+33600000002'), '+33600000002');
   assert.equal(normalizePhone('12345'), '12345');
 });
 
 test('accepts a French national phone (normalised to +33) and rejects a genuinely invalid one', () => {
-  const nat = validateProviderConnection({ ...VALID, phone: '0628056066' });
+  const nat = validateProviderConnection({ ...VALID, phone: '0600000002' });
   assert.equal(nat.ok, true);
-  assert.equal(nat.value.phone, '+33628056066');
+  assert.equal(nat.value.phone, '+33600000002');
   assert.equal(validateProviderConnection({ ...VALID, phone: '+33' }).ok, false);
   assert.equal(validateProviderConnection({ ...VALID, phone: '123' }).ok, false);
 });

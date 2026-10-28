@@ -6,7 +6,7 @@ const Database = require('better-sqlite3');
 
 const { buildModel, TABLE_SQL } = require('../intakesModel');
 const { createIntakeService } = require('../intakeService');
-const { PAGE_6392081711, replaceOnce } = require('./fixtures');
+const { PAGE_6300000001, replaceOnce } = require('./fixtures');
 
 const PLACEHOLDER = {
   id: 22309, kind: 'reservation', propertyId: 1, clientId: 700, platform: 'Lodgify', startDate: '2026-11-06', endDate: '2026-11-08',
@@ -15,7 +15,7 @@ const PLACEHOLDER = {
 };
 const FILLED = {
   ...PLACEHOLDER, firstName: 'Camille', lastName: 'Garnier', email: 'cgarnier.123456@guest.booking.com', phone: '06 12 34 56 78',
-  platform: 'Booking', reservationNumber: '6392081711', adults: 10, checkInTime: '20:00',
+  platform: 'Booking', reservationNumber: '6300000001', adults: 10, checkInTime: '20:00',
   platformGrossAmount: 721.82, platformTouristTaxAmount: 20.02, platformPayoutAmount: 606.44,
   notes: 'Booking, 15/10 :\nEst ce possible d\'avoir 2 lits d\'appoints (nous ne sommes pas certains d\'en avoir besoin)\nDemande de lit d\'appoint: Le client a demandé un lit d\'appoint pour un bébé de adult an.',
 };
@@ -50,7 +50,7 @@ function setup({ reservation = PLACEHOLDER, rows = [{ id: 22309 }], hotels = { 1
   return { service, intakes, calls, db, state };
 }
 
-const page = { hotelId: '14407976', resId: '6392081711', text: PAGE_6392081711 };
+const page = { hotelId: '14407976', resId: '6300000001', text: PAGE_6300000001 };
 
 test('specs/booking-extranet-intake.md rule 12: the property is the one mapped to the establishment id', () => {
   const { service, calls } = setup();
@@ -107,7 +107,7 @@ test('specs/booking-extranet-intake.md rule 15: applying writes the guest, the p
   const { patch, opts } = calls.reservation[0];
   assert.deepEqual(
     [patch.platform, patch.reservationNumber, patch.adults, patch.teens, patch.children, patch.babies, patch.checkInTime],
-    ['Booking', '6392081711', 10, 0, 0, 0, '20:00'],
+    ['Booking', '6300000001', 10, 0, 0, 0, '20:00'],
   );
   assert.deepEqual(
     [patch.platformGrossAmount, patch.platformTouristTaxAmount, patch.platformPayoutAmount, patch.platformCommissionAmount],
@@ -118,7 +118,7 @@ test('specs/booking-extranet-intake.md rule 15: applying writes the guest, the p
   assert.deepEqual(calls.client, [{ id: 700, patch: {
     firstName: 'Camille', lastName: 'Garnier', email: 'cgarnier.123456@guest.booking.com', phone: '+33612345678', emailLanguage: 'fr',
   } }]);
-  assert.equal(opts.label, 'Rempli depuis l’extranet Booking (réservation 6392081711)');
+  assert.equal(opts.label, 'Rempli depuis l’extranet Booking (réservation 6300000001)');
 });
 
 test('specs/booking-extranet-intake.md rule 15: the guest’s requests are appended under a dated line, the operator’s text stays', () => {
@@ -142,14 +142,14 @@ test('specs/booking-extranet-intake.md rule 15: requests already in the notes ar
 
 test('specs/booking-extranet-intake.md rule 15: a phone Booking did not give is not written over the client’s, and the toast says so', () => {
   const { service, calls } = setup();
-  const r = service.handlePage({ ...page, text: replaceOnce(PAGE_6392081711, '+33 6 12 34 56 78\n', '') });
+  const r = service.handlePage({ ...page, text: replaceOnce(PAGE_6300000001, '+33 6 12 34 56 78\n', '') });
   assert.equal(r.message, 'GuestFlow : fiche 22309 remplie ✓ (téléphone non communiqué)');
   assert.equal('phone' in calls.client[0].patch, false);
 });
 
 test('specs/booking-extranet-intake.md rule 15: the English-speaking guest gets English e-mails', () => {
   const { service, calls } = setup();
-  service.handlePage({ ...page, text: replaceOnce(PAGE_6392081711, 'Langue préférée\n\nfrançais', 'Langue préférée\n\nnéerlandais') });
+  service.handlePage({ ...page, text: replaceOnce(PAGE_6300000001, 'Langue préférée\n\nfrançais', 'Langue préférée\n\nnéerlandais') });
   assert.equal(calls.client[0].patch.emailLanguage, 'en');
 });
 
@@ -226,7 +226,7 @@ test('specs/booking-extranet-intake.md rule 18: a later view of the page updates
   const applied = setup();
   applied.service.handlePage(page);
   applied.state.reservation = FILLED; // what the fiche has become
-  const waiting = replaceOnce(PAGE_6392081711, 'Demande acceptée\nEnvoyé\n11h19\n', 'Demande acceptée\nEnvoyé\n11h19\nEt le parking ?\nRépondre\n11h45\n').replace('Aucune réponse requise\n', '');
+  const waiting = replaceOnce(PAGE_6300000001, 'Demande acceptée\nEnvoyé\n11h19\n', 'Demande acceptée\nEnvoyé\n11h19\nEt le parking ?\nRépondre\n11h45\n').replace('Aucune réponse requise\n', '');
   applied.service.handlePage({ ...page, text: waiting });
   assert.equal(applied.service.blockFor(22309).guestMessagePending, true);
   applied.service.hide(applied.intakes.latestForReservation(22309).id);
@@ -266,7 +266,7 @@ test('specs/booking-extranet-intake.md rule 20: a refused page keeps no guest da
 
 test('specs/booking-extranet-intake.md rule 6: the answer carries the toast text — refusal reasons of the parser included', () => {
   const { service } = setup();
-  const r = service.handlePage({ ...page, text: replaceOnce(PAGE_6392081711, 'Taxe de séjour\t4.4 %\t€ 20,02', 'Taxe de séjour\t4.4 %\t€ 25,02') });
+  const r = service.handlePage({ ...page, text: replaceOnce(PAGE_6300000001, 'Taxe de séjour\t4.4 %\t€ 20,02', 'Taxe de séjour\t4.4 %\t€ 25,02') });
   assert.equal(r.status, 'refused');
   assert.match(r.message, /Sous-total 701,80 € \+ taxe 25,02 € ≠ total 721,82 €/);
 });

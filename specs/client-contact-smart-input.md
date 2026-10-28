@@ -27,7 +27,7 @@ signature, the property's own web page):
    is `readOnly` — it only mirrors the concatenation, it cannot be used to *enter* an address.
 2. **Dragging a contact link from a web page inserts the raw href.** Dropping an email link into the
    **Email** field writes `mailto:jean.dupont@example.com?subject=Contact`, and a phone link writes
-   `tel:+33627753922`. Both then fail (or dirty) the format validation of
+   `tel:+33600000001`. Both then fail (or dirty) the format validation of
    [`clientValidation.js`](../server/src/utils/clientValidation.js) / [`validation.js`](../client/src/utils/validation.js),
    and have to be cleaned by hand.
 
@@ -38,7 +38,7 @@ Normalization of client fields is already server-side (`sentenceCase` on street/
 
 Capture a client's address by pasting/typing **one line** and let the server split it into
 number / street / postal code / city, and drop an email or phone link straight from a web page into the
-form and get **only** the cleaned value (`jean.dupont@example.com`, `0627753922`) — no manual cleanup.
+form and get **only** the cleaned value (`jean.dupont@example.com`, `0600000001`) — no manual cleanup.
 
 ## 3. Functional rules
 
@@ -93,7 +93,7 @@ form and get **only** the cleaned value (`jean.dupont@example.com`, `0627753922`
    - a leading `00` becomes `+` (`0032475123456` → `+32475123456`).
 10. **Country code — `+33` only.** The conversion of an international prefix into a national `0` applies
     to **France and nothing else**:
-    - `+33` / `0033` → `0` + the national number → `tel:+33627753922` → `0627753922`;
+    - `+33` / `0033` → `0` + the national number → `tel:+33600000001` → `0600000001`;
     - **every other country code is preserved as-is**, in compact international form:
       `+32 475 12 34 56` → `+32475123456`, `+41 79 123 45 67` → `+41791234567`,
       `+44 7911 123456` → `+447911123456`, `+49 151 12345678` → `+4915112345678`,
@@ -239,8 +239,8 @@ the top of the address group, so the input sits directly above the four fields i
       input; 5-digit first token treated as CP not number; `sentenceCase` applied to street/city.
 - [x] `extractEmail`: `mailto:` + query; percent-encoded `%40`; `Nom <mail>`; free-text sentence with
       trailing punctuation; subdomain + plus-addressing; uppercase → lowercase; no match → `''`.
-- [x] `extractPhone`: `tel:+33627753922` → `0627753922`; `+33 6 27 75 39 22` → same;
-      `0033627753922` → same; `+33 (0)6 …` → no doubled trunk zero; `04.75.64.12.34` → `0475641234`;
+- [x] `extractPhone`: `tel:+33600000001` → `0600000001`; `+33 6 00 00 00 01` → same;
+      `0033600000001` → same; `+33 (0)6 …` → no doubled trunk zero; `04.75.64.12.34` → `0475641234`;
       free text `« Tél. : 04 75 64 12 34 (accueil) »`; `+33` / `12` / `appelez-nous` → `''`.
 - [x] **Foreign numbers keep their country code** (rule 10): `+32 475 12 34 56` → `+32475123456`;
       `0032475123456` → `+32475123456`; `tel:+41791234567`; `+44 7911 123456`; `+49 151 12345678`;
@@ -269,12 +269,12 @@ the top of the address group, so the input sits directly above the four fields i
       `Privas`, block re-rendered normalized as `12 Rue des lilas 07000 Privas`.
 - [x] Dropping `mailto:Jean.Dupont@Example.com?subject=Contact%20site` on **Email** → only
       `jean.dupont@example.com`.
-- [x] Dropping `tel:+33627753922` on **Téléphone** → `0627753922`.
+- [x] Dropping `tel:+33600000001` on **Téléphone** → `0600000001`.
 - [x] Dropping `« Tél. Belgique : +32 475 12 34 56 »` → `+32475123456` (prefix kept).
 - [x] Save + reopen the client → the four columns persisted, block recomposed from them.
 - [x] Same dialog from `ReservationPage` (inline create client): dropping
       `8 bis avenue de la Gare 07200 Aubenas France` on the block → `8 bis` / `Avenue de la gare` /
-      `07200` / `Aubenas`, and `tel:+33…` on the phone → `0627753922`.
+      `07200` / `Aubenas`, and `tel:+33…` on the phone → `0600000001`.
 - [x] Mobile (390×844): block full width, fields stacked, **no horizontal scroll**
       (`scrollWidth === clientWidth === 390`).
 - [x] No console error raised by the feature (the only console noise pre-dates the run: a 404 upload
@@ -299,7 +299,7 @@ the top of the address group, so the input sits directly above the four fields i
 - Q: Where does the free-text block live in the dialog? **A: at the top of the address group, right
   under Nom / Prénom** — the former `readOnly` "Adresse complète" field at the bottom is removed and
   becomes this input.
-- Q: Phone format? **A: compact national** — `tel:+33627753922` → `0627753922`; foreign numbers stay
+- Q: Phone format? **A: compact national** — `tel:+33600000001` → `0600000001`; foreign numbers stay
   compact international.
 - Q: Splitting when the postal code is missing? **A: positional — the last token is the city.**
 - Q: Which gestures trigger the extraction? **A: drag & drop** (no paste interception, no reformatting

@@ -314,7 +314,7 @@ test('departure commit: everything offered → nothing is marked collected', () 
   assert.equal(r.endOfStayComplementPaid, 0);
 });
 
-// Régression 2026-08-29 (réservation Geuffrard) — a check-out that billed back a geste commercial.
+// Régression 2026-08-29 (réservation Gauthier) — a check-out that billed back a geste commercial.
 // The Gîte routes its « Linge de lit » to the complement as a property default and OFFERS it (it is
 // included in the base price), so the arrival complement is worth 0 €. The recap then shows no recall
 // block at all, and the empty offered set it used to send read as « nothing is offered » — billing the

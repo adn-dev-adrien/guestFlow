@@ -187,7 +187,7 @@ no duplicate, no lost Booking reservation, no phantom — before the Lodgify sub
     tombstone inherits it. When a Booking source runs the echo filter, tombstones whose owner is
     **that same source** are not part of the cover; tombstones with another owner or `NULL` cover as
     before.
-    **Why** (incident 2026-10-22, gîte, Booking 6669322709): a Booking guest whose card failed
+    **Why** (incident 2026-10-22, gîte, Booking 6600000001): a Booking guest whose card failed
     cancelled and re-booked the same nights (6 → 8 November 2026). The first stay (fiche 22309,
     Booking source #12) left the feed, the operator approved the cancellation alert, the fiche was
     deleted and its range became a tombstone. The new booking then came back — with the **same
@@ -410,7 +410,7 @@ tables, because its Booking source now goes through the Booking path.
   non-regression on the same copy. The output of both runs goes in the PR.
 - [ ] The live case cannot serve as the check: tombstone #3 was written without an owner and
   expires on 2026-10-25 around 07:55 (Paris), before any release can be installed. After that time,
-  confirm in production that Booking 6669322709 did appear on its own, and complete its fiche.
+  confirm in production that Booking 6600000001 did appear on its own, and complete its fiche.
 
 ## 8. Out of scope
 
@@ -569,7 +569,7 @@ Order matters: a channel is never left without a sync path, and Lodgify is cance
      per night *above* the recipe's net target, so applying the recipe is a price cut of about 3 %
      (see §9 Q5).
    - Two future reservations carried the grid faithfully and can be used to check the re-entry:
-     `6392081711` (6–8 Nov 2026, 2 nights, 701.80 € = 2 × 350.90) and `5449776734` (25 Jul–1 Aug
+     `6300000001` (6–8 Nov 2026, 2 nights, 701.80 € = 2 × 350.90) and `5300000003` (25 Jul–1 Aug
      2027, 7 nights, 2 014.18 € = 7 × 496.10 × 0.58).
    - Unrelated but blocking in time: the extranet shows a « Connaître son partenaire » compliance
      banner on both hotels.
@@ -661,7 +661,7 @@ Airbnb, Booking and Abritel become consoles of their own, no longer « nourris p
   - *iCal wired both ways.* GuestFlow's export is imported into each hotel, and Booking's own feed
     (`ical.booking.com/v1/export?t=…`) into sources #12 and #11. First sync: **4 takeovers on the
     gîte and 1 on L'Estiva, zero creations** — rule 4 behaving exactly as specified, the five stays
-    now carrying their Booking references (6392081711, 6646665983, 5449776734 and the two others).
+    now carrying their Booking references (6300000001, 6600000002, 5300000003 and the two others).
   - *The incident.* See the rewritten step 6 above. Five duplicates (22310–22314) were created by
     the **Lodgify** source, not by the Booking one, in the minutes following the cut. GuestFlow
     flagged each of them itself with « Ce logement est déjà réservé pour ces dates ». Both Lodgify
@@ -807,8 +807,8 @@ Airbnb, Booking and Abritel become consoles of their own, no longer « nourris p
   - ⚠️ **The five duplicate reservations of 15/10 are still in production.** #22316, #22317, #22318,
     #22319 and #22315 (numbers 202610003 to 202610007), all created `2026-10-15 18:41`, all at 0 €
     with one guest and the anonymous client #144, each shadowing a real Booking reservation on the
-    same dates and property (#22309 / 6392081711, #22282 / 6396936881, #22301 / 6617083884, #22304 /
-    5449776734, #22270 / 6646665983). They carry no money but they occupy the calendar twice on five
+    same dates and property (#22309 / 6300000001, #22282 / 6300000003, #22301 / 6300000004, #22304 /
+    5300000003, #22270 / 6600000002). They carry no money but they occupy the calendar twice on five
     future stays. Deleting a production reservation is irreversible, so it waits for the operator.
   - *Runbook step 3 is smaller than it reads.* Production holds 14 future reservations (2026-10-16 →
     2028-12-31): 5 `Booking`, 5 `Lodgify`, 2 `direct`, 1 `Greengo`, 1 `GitesDeFrance` — **no

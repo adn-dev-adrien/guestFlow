@@ -9,7 +9,7 @@ import PricingSummary from '../PricingSummary';
 // This revises per-platform-tourist-tax-three-way.md, which printed it plain on the grounds that the
 // tax « isn't offert » — the strike does not say FREE, it says NOT OURS.
 //
-// Numbers: Gîtes de France, Grimaud #22225 — client 747,40 · taxe 14,40 · virement 668,00.
+// Numbers: Gîtes de France, Girard #22225 — client 747,40 · taxe 14,40 · virement 668,00.
 
 const FORM = {
   startDate: '2099-06-26', endDate: '2099-06-28', finalPrice: 733, customPrice: '',

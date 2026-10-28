@@ -7,15 +7,15 @@ const Database = require('better-sqlite3');
 
 const { buildModel, TABLE_SQL } = require('../intakesModel');
 const { createIntakeService } = require('../intakeService');
-const { PAGE_6392081711 } = require('./fixtures');
+const { PAGE_6300000001 } = require('./fixtures');
 
 const DAVID = { name: 'David Roux', email: 'droux.4444@guest.booking.com' };
 const EMMA = { name: 'Emma Leroy', email: 'eleroy.5555@guest.booking.com' };
 
 const pageFor = (guest) => ({
   hotelId: '14407976',
-  resId: '6392081711',
-  text: PAGE_6392081711.split('Camille Garnier').join(guest.name).split('cgarnier.123456@guest.booking.com').join(guest.email),
+  resId: '6300000001',
+  text: PAGE_6300000001.split('Camille Garnier').join(guest.name).split('cgarnier.123456@guest.booking.com').join(guest.email),
 });
 
 // A database with the two tables the intake touches, and a core that writes them the way the real one does.

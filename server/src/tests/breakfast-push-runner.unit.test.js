@@ -28,7 +28,7 @@ function makeDeps({ items = [], lead = 30 } = {}) {
 function item(over = {}) {
   return {
     reservationId: 42,
-    clientName: 'Sarah Arnaud',
+    clientName: 'Sara Aubert',
     propertyName: 'Aventura lodge',
     persons: 4,
     breakfastTime: '09:00',
@@ -67,7 +67,7 @@ test('payload shape: pref key, title, body, deep-link url, per-day tag', async (
   const { prefKey, payload } = deps.pushes[0];
   assert.equal(prefKey, 'breakfast');
   assert.equal(payload.title, 'Petit déjeuner 09:00');
-  assert.equal(payload.body, 'Sarah Arnaud · Aventura lodge — 4 petits déjeuners');
+  assert.equal(payload.body, 'Sara Aubert · Aventura lodge — 4 petits déjeuners');
   assert.equal(payload.url, '/planning?breakfast=42&date=2026-07-19');
   assert.equal(payload.tag, 'guestflow-breakfast-42-2026-07-19');
 });

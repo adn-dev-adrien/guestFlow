@@ -138,7 +138,7 @@ test('« Calculer la commission »: the engine\'s tax estimate is never sent (pl
   await calculate(ctx);
 });
 
-test('the Grimaud case: 733 facturé and 668 viré go to the server', async () => {
+test('the Girard case: 733 facturé and 668 viré go to the server', async () => {
   const ctx = renderFinance({
     form: { platform: 'GitesDeFrance', platformGrossAmount: 733, platformPayoutAmount: 668 },
     pricingQuote: { touristTaxOfferedByPlatform: true, touristTaxOriginalTotal: 14.4 },
