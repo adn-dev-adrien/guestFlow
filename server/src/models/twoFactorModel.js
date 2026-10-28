@@ -18,12 +18,40 @@ function buildModel(db, { encrypt = encryption.encrypt, decrypt = encryption.dec
   const getStmt = db.prepare('SELECT * FROM user_two_factor WHERE userId = ?');
   const ensureStmt = db.prepare('INSERT OR IGNORE INTO user_two_factor (userId) VALUES (?)');
   const setPendingStmt = db.prepare(`UPDATE user_two_factor SET pendingMethod = ?, pendingSecretEncrypted = ?, pendingFailures = 0,
+    pendingStartedAt = ?, pendingTokenHash = ?, pendingSends = 0, emailCodeHash = NULL, emailCodeExpiresAt = NULL WHERE userId = ?`);
+  const switchPendingStmt = db.prepare(`UPDATE user_two_factor SET pendingMethod = ?, pendingSecretEncrypted = ?, pendingFailures = 0,
     emailCodeHash = NULL, emailCodeExpiresAt = NULL WHERE userId = ?`);
+  // A slot: lastCodeSentAt becomes now, mailsSent counts within an hour (reset once the hour is over).
+  // The hour's budget is counted in `sent`/`since`: the login resend has its own pair, so « Recevoir un
+  // code » (a session's own mails) can never use up the budget of the login (rule 55).
+  const slot = (sent, since) => ({
+    set: `lastCodeSentAt = ?,
+    ${sent} = CASE WHEN ${since} IS NULL OR ${since} <= ? THEN 1 ELSE ${sent} + 1 END,
+    ${since} = CASE WHEN ${since} IS NULL OR ${since} <= ? THEN ? ELSE ${since} END`,
+    where: `(lastCodeSentAt IS NULL OR lastCodeSentAt <= ?)
+    AND (${since} IS NULL OR ${since} <= ? OR ${sent} < ?)`,
+  });
+  const mail = slot('mailsSent', 'mailsSince');
+  const loginMail = slot('loginMailsSent', 'loginMailsSince');
+  const reserveStmt = db.prepare(`UPDATE user_two_factor SET ${mail.set} WHERE userId = ? AND ${mail.where}`);
+  const reserveLoginStmt = db.prepare(`UPDATE user_two_factor SET ${loginMail.set} WHERE userId = ? AND ${loginMail.where}`);
+  const reserveEnrolmentStmt = db.prepare(`UPDATE user_two_factor SET pendingSends = pendingSends + 1, ${mail.set}
+    WHERE userId = ? AND pendingSends < ? AND ${mail.where}`);
+  const setActionStmt = db.prepare('UPDATE user_two_factor SET actionCodeHash = ?, actionCodeExpiresAt = ? WHERE userId = ?');
+  const clearActionStmt = db.prepare('UPDATE user_two_factor SET actionCodeHash = NULL, actionCodeExpiresAt = NULL WHERE userId = ?');
+  const enrolmentSendStmt = db.prepare('UPDATE user_two_factor SET pendingSends = pendingSends + 1 WHERE userId = ?');
+  const codeSentStmt = db.prepare('UPDATE user_two_factor SET lastCodeSentAt = ? WHERE userId = ?');
   const pendingFailStmt = db.prepare('UPDATE user_two_factor SET pendingFailures = pendingFailures + 1 WHERE userId = ?');
-  const dropPendingStmt = db.prepare('UPDATE user_two_factor SET pendingMethod = NULL, pendingSecretEncrypted = NULL, pendingFailures = 0 WHERE userId = ?');
+  // The email code is dropped only when it belonged to the enrolment (SQLite reads the old row on the right).
+  const dropPendingStmt = db.prepare(`UPDATE user_two_factor SET pendingMethod = NULL, pendingSecretEncrypted = NULL, pendingFailures = 0,
+    pendingStartedAt = NULL, pendingTokenHash = NULL, pendingSends = 0,
+    emailCodeHash = CASE WHEN pendingMethod = 'email' THEN NULL ELSE emailCodeHash END,
+    emailCodeExpiresAt = CASE WHEN pendingMethod = 'email' THEN NULL ELSE emailCodeExpiresAt END WHERE userId = ?`);
   const activateStmt = db.prepare(`UPDATE user_two_factor SET method = pendingMethod,
-    secretEncrypted = CASE WHEN pendingMethod = 'totp' THEN pendingSecretEncrypted ELSE NULL END, enabledAt = ?,
-    pendingMethod = NULL, pendingSecretEncrypted = NULL, pendingFailures = 0, failedCount = 0, lockedUntil = NULL,
+    secretEncrypted = CASE WHEN pendingMethod = 'totp' THEN pendingSecretEncrypted ELSE NULL END,
+    enabledAt = CASE WHEN ? = 1 THEN enabledAt ELSE ? END,
+    pendingMethod = NULL, pendingSecretEncrypted = NULL, pendingFailures = 0, pendingStartedAt = NULL, pendingTokenHash = NULL,
+    pendingSends = 0, failedCount = 0, lockedUntil = NULL,
     lastTotpStep = ?, emailCodeHash = NULL, emailCodeExpiresAt = NULL WHERE userId = ?`);
   const deleteStmt = db.prepare('DELETE FROM user_two_factor WHERE userId = ?');
   const setCodeStmt = db.prepare('UPDATE user_two_factor SET emailCodeHash = ?, emailCodeExpiresAt = ? WHERE userId = ?');
@@ -65,16 +93,40 @@ function buildModel(db, { encrypt = encryption.encrypt, decrypt = encryption.dec
     isEnabled: (userId) => Boolean((getStmt.get(Number(userId)) || {}).enabledAt),
     enabledUserIds: () => enabledIdsStmt.all().map((r) => Number(r.userId)),
 
-    setPending(userId, method, secret) {
+    // A new enrolment, opened with the password: its start and the hash of its token (rules 43-44, 54).
+    setPending(userId, method, secret, { startedAt, tokenHash = null }) {
       ensureStmt.run(Number(userId));
-      setPendingStmt.run(method, secret ? encrypt(secret) : null, Number(userId));
+      setPendingStmt.run(method, secret ? encrypt(secret) : null, startedAt, tokenHash, Number(userId));
     },
+    // The same enrolment moving to another method: its start, its session and its sends are kept.
+    switchPending(userId, method, secret) {
+      switchPendingStmt.run(method, secret ? encrypt(secret) : null, Number(userId));
+    },
+    ensure: (userId) => ensureStmt.run(Number(userId)),
+    markEnrolmentSend: (userId) => enrolmentSendStmt.run(Number(userId)),
+    markCodeSent: (userId, nowIso) => codeSentStmt.run(nowIso, Number(userId)),
+    // Rule 44/55 — a mail slot is taken BEFORE the mail is sent, in one conditional UPDATE, so parallel
+    // requests cannot all pass a check made before the first one writes. `enrolment`: at most `maxSends`
+    // per enrolment; always: no send within the gap, and at most `maxPerHour` mails per hour. → true when
+    // the slot is yours.
+    reserveMailSlot(userId, { nowIso, gapBeforeIso, hourAgoIso, enrolment = false, login = false, maxSends = 5, maxPerHour = 10 }) {
+      const stmt = enrolment ? reserveEnrolmentStmt : (login ? reserveLoginStmt : reserveStmt);
+      const set = [nowIso, hourAgoIso, hourAgoIso, nowIso];
+      const where = [gapBeforeIso, hourAgoIso, maxPerHour];
+      const args = enrolment ? [...set, Number(userId), maxSends, ...where] : [...set, Number(userId), ...where];
+      return stmt.run(...args).changes === 1;
+    },
+    // The re-authentication code is kept apart from the login code, so asking for one never cancels the other.
+    setActionCode: (userId, codeHash, expiresAt) => setActionStmt.run(codeHash, expiresAt, Number(userId)),
+    clearActionCode: (userId) => clearActionStmt.run(Number(userId)),
     recordPendingFailure: (userId) => pendingFailStmt.run(Number(userId)),
     dropPending: (userId) => dropPendingStmt.run(Number(userId)),
     // `totpStep`: the step of the code that confirmed the enrolment, so that code cannot also open a
-    // session (specs/hosting-h2-account-security.md rule 28).
-    activatePending: db.transaction((userId, nowIso, backupHashes, totpStep = null) => {
-      activateStmt.run(nowIso, totpStep == null ? null : Number(totpStep), Number(userId));
+    // session (specs/hosting-h2-account-security.md rule 28). `keepEnabledAt`: a replacement of the
+    // method (rule 48) keeps the date the step was turned on, so the trusted devices stay trusted; the
+    // method, the secret and the backup codes change in this one transaction.
+    activatePending: db.transaction((userId, nowIso, backupHashes, totpStep = null, { keepEnabledAt = false } = {}) => {
+      activateStmt.run(keepEnabledAt ? 1 : 0, nowIso, totpStep == null ? null : Number(totpStep), Number(userId));
       replaceCodes(Number(userId), backupHashes);
     }),
     disable: db.transaction((userId) => {

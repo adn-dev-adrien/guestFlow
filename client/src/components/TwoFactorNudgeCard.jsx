@@ -1,7 +1,7 @@
 /**
- * TwoFactorNudgeCard — « Protéger le compte par un second code », for an administrator without one
- * (specs/hosting-h2-account-security.md rule 10). The server decides whether it shows; it arrives as a
- * subject of the home (specs/shell-and-home-day-first.md rule 6). « Activer » opens « Mon compte »;
+ * TwoFactorNudgeCard — « Validation en deux étapes », for an administrator without one
+ * (specs/hosting-h2-account-security.md rules 10, 51). The server decides whether it shows; it arrives as a
+ * subject of the home (specs/shell-and-home-day-first.md rule 6). « Activer » opens the activation dialog of « Mon compte » (`?activer=deux-etapes`);
  * « Plus tard » hides it 30 days (the home re-reads its subjects after that write).
  */
 import React from 'react';
@@ -18,7 +18,7 @@ export default function TwoFactorNudgeCard({ attention }) {
     <AttentionCard
       attention={attention}
       actions={[
-        { label: 'Activer', primary: true, onClick: () => navigate('/mon-compte') },
+        { label: 'Activer', primary: true, onClick: () => navigate('/mon-compte?activer=deux-etapes') },
         { label: 'Plus tard', color: 'inherit', onClick: later },
       ]}
     />

@@ -1,0 +1,1 @@
+- plugin:hourly-resources The resource cards of Options & ressources show the evening rate, the external rates, the free first hour and the schedule (SDK 2.8.0 `ctx.resourceCatalogueLines`).

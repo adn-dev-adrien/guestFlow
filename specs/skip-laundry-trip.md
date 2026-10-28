@@ -384,7 +384,8 @@ that ships each step, per CLAUDE.md §4.1.)_
 - [x] **Hotfix 2026-06-05 follow-up #2** — after skipping two trips
       in a row, the trip-3 card *disappeared* instead of absorbing
       the 3-week backlog. The toggle's refetch used `from = startDate`
-      to `startDate + DAYS_AHEAD - 1` (= the initial 14-day window)
+      to `startDate + DAYS_AHEAD - 1` (= the initial 14-day window; « the loaded windows of the
+      timeline » since dashboard-planning-scroll.md, 2026-10-28, which reloads each window with its own range)
       and `setLaundryByDate` REPLACES the whole map — wiping any
       dates the user had already scrolled into view via infinite
       scroll. **Initial patch** used `lastLoadedRef.current` as the

@@ -32,6 +32,9 @@ const HISTORY_EVENT_TITLES = {
   terms_accepted: 'CGV acceptées en ligne',
   // specs/plugins-phase-3a-online-payment.md rule 3: money received, accounting split missing.
   payment_capture_failed: 'Paiement en ligne',
+  // specs/calendar-property-parity.md rule 24.
+  superseded: 'Doublon écarté',
+  unsuperseded: 'Doublon rétabli',
 };
 
 const KIND_PREFIX = {

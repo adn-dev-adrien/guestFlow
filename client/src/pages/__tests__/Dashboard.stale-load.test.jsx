@@ -1,8 +1,8 @@
-// specs/upcoming-reservations-cards.md rule 9 — the dashboard reloads on every day change: when an
-// older load answers last, it must not paint over the newer one (review of PR #700, finding 4).
+// specs/upcoming-reservations-cards.md rule 9 (kept for the server day moving on, specs/dashboard-planning-
+// scroll.md rule 7) — when an older load answers last, it must not paint over the newer one.
 import { vi } from 'vitest';
 import React from 'react';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { ThemeProvider } from '@mui/material/styles';
 import theme from '../../theme';
@@ -13,8 +13,7 @@ vi.mock('../../api', () => ({
   default: {
     getToday: vi.fn(),
     getAttention: vi.fn(),
-    getReservations: vi.fn(),
-    getReservation: vi.fn(),
+    getPlanningToday: vi.fn(),
     markPayment: vi.fn(),
   },
 }));
@@ -23,7 +22,6 @@ vi.mock('../../components/CumulativeMonthCalendar', () => ({ __esModule: true, d
 
 import api from '../../api';
 import Dashboard from '../Dashboard';
-import { addIsoDays } from '../../utils/isoDay';
 
 function renderPage() {
   return render(
@@ -47,27 +45,18 @@ beforeEach(() => {
   api.getAttention.mockResolvedValue({ pinned: [], items: [], total: 0 });
 });
 
-test('rule 9 — a late answer for the day left behind does not replace the arrivals of the day shown', async () => {
-  const server = '2026-10-25';
-  const previous = addIsoDays(server, -1);
-  const late = stay(1, 'Tardif', server);
-  const fresh = stay(2, 'Actuel', previous);
-  const slow = [];
-  let clicked = false;
-  api.getToday.mockResolvedValue({ today: server });
-  api.getReservations.mockImplementation(({ from }) => {
-    if (clicked) return Promise.resolve(from === previous ? [fresh] : []);
-    const d = deferred();
-    slow.push(d);
-    return d.promise;
-  });
-  api.getReservation.mockImplementation((id) => Promise.resolve(id === 1 ? late : fresh));
+test('rule 9 — a late answer for the day left behind does not replace the lists of the day shown', async () => {
+  const slow = deferred();
+  api.getToday.mockResolvedValueOnce({ today: '2026-10-25' }).mockResolvedValue({ today: '2026-10-26' });
+  api.getPlanningToday
+    .mockReturnValueOnce(slow.promise)
+    .mockResolvedValue({ today: '2026-10-26', departures: [], arrivals: [stay(2, 'Actuel', '2026-10-26')], nextArrival: null });
   renderPage();
-  await waitFor(() => expect(slow).toHaveLength(1));
-  clicked = true;
-  fireEvent.click(screen.getAllByLabelText('Jour précédent')[0]);
+  await vi.waitFor(() => expect(api.getPlanningToday).toHaveBeenCalledTimes(1));
+  // The page comes back to the foreground after midnight: the server's day moved on.
+  window.dispatchEvent(new Event('focus'));
   expect((await screen.findAllByText(/Actuel/)).length).toBeGreaterThan(0);
-  slow.forEach((d) => d.resolve([late]));
+  slow.resolve({ today: '2026-10-25', departures: [], arrivals: [stay(1, 'Tardif', '2026-10-25')], nextArrival: null });
   await new Promise((r) => setTimeout(r, 30));
   expect(screen.queryByText(/Tardif/)).not.toBeInTheDocument();
   expect(screen.getAllByText(/Actuel/).length).toBeGreaterThan(0);

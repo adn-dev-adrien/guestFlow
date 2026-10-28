@@ -54,7 +54,10 @@ the same actions (open fiche, arrival SAS, open client, toggle « prêt »).
 7. **The server's today** (added 2026-10-18, review #8 n-1). The pages that open « on today » — the
    dashboard's day, the planning's first day, this page's « Aujourd'hui » — take the calendar day of
    the server, whose clock runs in the accommodations' time zone (specs/server-timezone.md), from
-   `GET /api/today` → `{ today }` (any signed-in role: it is a self endpoint). Until it answers they
+   `GET /api/today` → `{ today }` (any signed-in role: it is a self endpoint).
+   > **Amended 2026-10-28 (dashboard-planning-scroll.md):** the dashboard's day and the planning's first
+   > day are the server's today with no picker to move them.
+    Until it answers they
    use the browser's own calendar day — never `toISOString()`, the UTC day, which read yesterday
    between midnight and 2 a.m. in Paris (« 17/10/2026 » shown at 01:54 on the 18th). Day arithmetic
    on `YYYY-MM-DD` stays in UTC so a time change cannot skip or repeat a day. The reservation list's
@@ -80,6 +83,8 @@ the same actions (open fiche, arrival SAS, open client, toggle « prêt »).
    reloads on every day change (and when the server's day moves on, rule 7); a load that
    answers after a newer one started is dropped, so the day shown and its arrivals and departures
    always match.
+   > **Amended 2026-10-28 (dashboard-planning-scroll.md rule 7):** the guard now covers the server's day
+   > moving on and « Réessayer » only — there is no day change to click any more.
 10. **`?day=` must be a real calendar day** (fixed at the 2026-10-27 spec review). A day with the right
     shape but none behind it (`2026-13-01`, `2026-02-30`) answered 200 with no day; it is refused 400
     « Date invalide. » like a malformed one.

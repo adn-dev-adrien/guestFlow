@@ -1,6 +1,6 @@
 /**
- * GET /api/reservations/upcoming — every arrival from today on, grouped by day and fully detailed, in
- * ONE response (specs/upcoming-reservations-cards.md rule 6). The page used to fetch the list and
+ * GET /api/reservations/upcoming — every arrival from today on, grouped by day and shaped for its cards
+ * (specs/inte-performance.md rule 12), in ONE response (specs/upcoming-reservations-cards.md rule 6). The page used to fetch the list and
  * then each reservation on its own: one call per stay, enough to hit the API rate limit and lock the
  * whole app out once a season was booked.
  *
@@ -11,7 +11,7 @@
 const upcomingModel = require('../models/upcomingReservationsModel');
 const reservationsModel = require('../models/reservationsModel');
 const { getTodayIsoDate } = require('../utils/reservationHelpers');
-const { groupArrivalsByDay } = require('../utils/upcomingArrivals');
+const { groupArrivalsByDay, toArrivalCard } = require('../utils/upcomingArrivals');
 
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -38,7 +38,7 @@ function buildController({
       if (only === undefined) ids = model.arrivalIdsFrom(current);
       else ids = only >= current ? model.arrivalIdsOn(only) : [];
       const detailed = ids.map((id) => detailOf(id)).filter(Boolean);
-      return res.json(groupArrivalsByDay(detailed, current));
+      return res.json(groupArrivalsByDay(detailed.map(toArrivalCard), current));
     },
   };
 }

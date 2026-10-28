@@ -13,7 +13,7 @@ vi.mock('../../api', () => ({
   __esModule: true,
   default: {
     getProperties: vi.fn(), getProperty: vi.fn().mockResolvedValue({ id: 1, name: 'Gite' }),
-    getReservations: vi.fn().mockResolvedValue([]), getCalendarNotes: vi.fn().mockResolvedValue([]),
+    getCalendar: vi.fn().mockResolvedValue({ from: '2026-01-01', to: '2026-01-31', today: '2026-01-15', stays: [], closures: [] }), getCalendarNotes: vi.fn().mockResolvedValue([]),
     getDevis: vi.fn().mockResolvedValue([]), getOccupiedDates: vi.fn().mockResolvedValue([]),
     getEstablishmentClosures: vi.fn().mockResolvedValue([]), getPublicHolidays: vi.fn().mockResolvedValue([]),
     upsertCalendarNote: vi.fn(), deleteCalendarNote: vi.fn(),

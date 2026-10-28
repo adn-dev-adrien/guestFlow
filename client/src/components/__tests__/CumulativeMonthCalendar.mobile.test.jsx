@@ -7,10 +7,7 @@ vi.mock('@mui/material', async (importOriginal) => {
   const actual = await importOriginal();
   return { ...actual, useMediaQuery: () => true };
 });
-vi.mock('../../api', () => ({ default: {
-  getReservations: vi.fn().mockResolvedValue([]),
-  getEstablishmentClosures: vi.fn().mockResolvedValue([]),
-} }));
+vi.mock('../../api', () => ({ default: { getCalendar: vi.fn() } }));
 
 import api from '../../api';
 import CumulativeMonthCalendar from '../CumulativeMonthCalendar';
@@ -27,9 +24,10 @@ describe('CumulativeMonthCalendar — mobile agenda', () => {
 
   it('renders reservations as agenda rows (logement + client + date range)', async () => {
     const d = todayIso();
-    api.getReservations.mockResolvedValue([
-      { id: 1, startDate: d, endDate: d, platform: 'airbnb', propertyName: 'Le Studio', firstName: 'Marie', lastName: 'Martin' },
-    ]);
+    api.getCalendar.mockResolvedValue({
+      from: d, to: d, today: d, closures: [],
+      stays: [{ id: 1, startDate: d, endDate: d, platform: 'Airbnb', platformDisplay: 'Airbnb', propertyName: 'Le Studio', label: 'Marie Martin', color: '#C93848', textColor: '#FFFFFF', past: false }],
+    });
     const { container } = render(<CumulativeMonthCalendar onReservationClick={() => {}} />);
     await waitFor(() => expect(container.textContent).toMatch(/Le Studio/));
     expect(container.textContent).toMatch(/Marie Martin/);

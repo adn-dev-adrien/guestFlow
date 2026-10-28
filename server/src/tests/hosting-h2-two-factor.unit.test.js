@@ -130,11 +130,11 @@ test('rule 7 — « faire confiance à cet appareil » skips the step, and a new
 test('rule 7 — turning the step off revokes the trusted devices too', async () => {
   const h = setup();
   const marie = h.addUser('marie@domaine-ombre.fr');
-  await enableTotp(h, marie);
+  const { backupCodes } = await enableTotp(h, marie);
   const cookie = h.twoFactor.issueTrust(marie.id);
   const header = `${cookie.name}=${cookie.value}`;
   assert.equal(h.twoFactor.isRequired(marie, cookie.value), false);
-  h.twoFactor.disable(marie, { password: 'correct horse battery' });
+  h.twoFactor.disable(marie, { password: 'correct horse battery', code: backupCodes[0] });
   h.now.advance(1000);
   const { secret } = await enableTotp(h, marie);
   assert.ok(secret);
@@ -183,7 +183,7 @@ test('rule 9 — an administrator turns another user\'s second step off, recorde
   assert.equal(h.twoFactorModel.isEnabled(marie.id), false);
   assert.equal(h.db.prepare('SELECT COUNT(*) AS n FROM user_backup_codes WHERE userId = ?').get(marie.id).n, 0);
   const [event] = h.twoFactor.status(marie).events;
-  assert.equal(event.label, 'Second code désactivé par Paul Martin');
+  assert.equal(event.label, 'Validation en deux étapes désactivée par Paul Martin');
   assert.throws(() => h.twoFactor.disableFor(paul, marie.id), (e) => e.body.error === 'NOT_ENABLED');
 });
 
@@ -216,7 +216,7 @@ test('edge case — reset-admin.js --disable-2fa records the recovery in the his
   await enableTotp(h, marie);
   h.twoFactorModel.disable(marie.id);
   h.twoFactorModel.addEvent(marie.id, 'disabled_by_script', 'reset-admin.js', h.now().toISOString());
-  assert.equal(h.twoFactor.status(marie).events[0].label, 'Second code désactivé en ligne de commande');
+  assert.equal(h.twoFactor.status(marie).events[0].label, 'Validation en deux étapes désactivée en ligne de commande');
   const script = require('fs').readFileSync(path.join(__dirname, '..', '..', 'scripts', 'reset-admin.js'), 'utf8');
   assert.match(script, /--disable-2fa/);
   assert.match(script, /disabled_by_script/);

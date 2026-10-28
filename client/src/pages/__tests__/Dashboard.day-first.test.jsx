@@ -1,8 +1,8 @@
 // specs/shell-and-home-day-first.md rules 1–3, 11, 19 — the home shows the day first: pinned subjects,
-// departures, arrivals, then « À traiter »; no KPI tile; counts re-read after a write; « Aujourd'hui »
-// brings the date back.
+// departures, arrivals, then « À traiter »; no KPI tile; counts re-read after a write. (Rule 19, the
+// date cluster, is superseded by specs/dashboard-planning-scroll.md rule 6.)
 import React from 'react';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { ThemeProvider } from '@mui/material/styles';
 import { vi } from 'vitest';
@@ -15,8 +15,7 @@ vi.mock('../../api', () => ({
   default: {
     getToday: vi.fn(),
     getProperties: vi.fn(),
-    getReservations: vi.fn(),
-    getReservation: vi.fn(),
+    getPlanningToday: vi.fn(),
     getAttention: vi.fn(),
     markPayment: vi.fn(),
   },
@@ -46,16 +45,15 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockAuth.user = { roles: ['admin'], enabledPlugins: [] };
   api.getToday.mockResolvedValue({ today: '2026-10-19' });
-  api.getReservations.mockResolvedValue([]);
-  api.getReservation.mockResolvedValue(null);
+  api.getPlanningToday.mockResolvedValue({ today: '2026-10-19', departures: [], arrivals: [], nextArrival: null });
   api.getAttention.mockResolvedValue(ATTENTION);
 });
 
 test('rule 1: pinned → Départs → Arrivées → « À traiter » → calendar', async () => {
   renderPage();
   const pinned = await screen.findByText('PINNED_PAYMENTS');
-  const departures = await screen.findByText(/^Départs — /);
-  const arrivals = screen.getByText(/^Arrivées — /);
+  const departures = await screen.findByText('Départs du jour');
+  const arrivals = screen.getByText('Arrivées du jour');
   const inbox = await screen.findByRole('heading', { name: 'À traiter' });
   const calendar = screen.getByText('CUMULATIVE_CALENDAR');
   expect(follows(pinned, departures)).toBe(true);
@@ -67,13 +65,12 @@ test('rule 1: pinned → Départs → Arrivées → « À traiter » → calenda
 
 test('rule 2: no KPI tile, and the home no longer loads the properties nor the 30-day list for them', async () => {
   renderPage();
-  await screen.findByText(/^Départs — /);
+  await screen.findByText('Départs du jour');
   expect(screen.queryByText('Logements')).not.toBeInTheDocument();
   expect(screen.queryByText('Réservations (30j)')).not.toBeInTheDocument();
   expect(screen.queryByText('Arrivées (date sélectionnée)')).not.toBeInTheDocument();
   expect(api.getProperties).not.toHaveBeenCalled();
-  expect(api.getReservations).toHaveBeenCalledTimes(1);
-  expect(api.getReservations).toHaveBeenCalledWith({ from: '2026-10-19' });
+  expect(api.getPlanningToday).toHaveBeenCalledTimes(1);
 });
 
 test('rule 11: a write anywhere makes the home read its counts again', async () => {
@@ -82,15 +79,4 @@ test('rule 11: a write anywhere makes the home read its counts again', async () 
   expect(api.getAttention).toHaveBeenCalledTimes(1);
   window.dispatchEvent(new CustomEvent(DATA_CHANGED_EVENT));
   await waitFor(() => expect(api.getAttention).toHaveBeenCalledTimes(2));
-});
-
-test('rule 19: « Aujourd’hui » brings the date back to the server’s day', async () => {
-  renderPage();
-  await screen.findByText(/^Départs — /);
-  const field = () => screen.getAllByLabelText('Date affichée')[0];
-  await waitFor(() => expect(field()).toHaveValue('2026-10-19'));
-  fireEvent.click(screen.getAllByLabelText('Jour suivant')[0]);
-  await waitFor(() => expect(field()).toHaveValue('2026-10-20'));
-  fireEvent.click(screen.getAllByRole('button', { name: 'Aujourd\'hui' })[0]);
-  await waitFor(() => expect(field()).toHaveValue('2026-10-19'));
 });

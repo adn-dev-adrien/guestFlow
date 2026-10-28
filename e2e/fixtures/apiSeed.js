@@ -84,12 +84,12 @@ async function createReservation({
 
 async function createIcalSource({
   propertyId, name = 'Test feed', url = 'https://example.test/feed.ics',
-  platformKey = 'direct', platformLabel = 'Test',
+  platformKey = 'direct', platformLabel = 'Test', disabled = false,
 } = {}) {
   if (!propertyId) throw new Error('createIcalSource requires propertyId');
   return withRequest(async (ctx) => {
     const res = await ctx.post(`/api/properties/${propertyId}/ical-sources`, {
-      data: { name, url, platformKey, platformLabel },
+      data: { name, url, platformKey, platformLabel, disabled },
     });
     if (!res.ok()) throw new Error(`createIcalSource failed: ${res.status()} ${await res.text()}`);
     return res.json();
