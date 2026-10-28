@@ -216,7 +216,7 @@ export default function UserManagementPage() {
     setBusy(true);
     try {
       await api.disableUserTwoFactor(target.id);
-      showSuccess(`Second code de ${fullName(target)} désactivé.`);
+      showSuccess(`Validation en deux étapes de ${fullName(target)} désactivée.`);
       await refresh();
     } catch (err) {
       showError(err, 'Désactivation impossible.');
@@ -362,10 +362,10 @@ export default function UserManagementPage() {
         open={Boolean(twoFactorDialog)}
         onClose={() => setTwoFactorDialog(null)}
         onConfirm={handleDisableTwoFactor}
-        title="Désactiver le second code"
+        title="Désactiver la validation en deux étapes"
         message={twoFactorDialog ? (
           <>
-            Désactiver le second code de <strong>{fullName(twoFactorDialog)}</strong> ? Seul le mot de
+            Désactiver la validation en deux étapes de <strong>{fullName(twoFactorDialog)}</strong> ? Seul le mot de
             passe sera demandé. Inscrit au journal de son compte.
           </>
         ) : ''}
@@ -379,9 +379,9 @@ export default function UserManagementPage() {
 function TwoFactorOffButton({ user, isSelf, busy, onClick, small }) {
   if (!user.twoFactorEnabled || isSelf) return null;
   return (
-    <Tooltip title="Désactiver le second code">
+    <Tooltip title="Désactiver la validation en deux étapes">
       <span>
-        <IconButton size="small" onClick={() => onClick(user)} disabled={busy} aria-label="Désactiver le second code">
+        <IconButton size="small" onClick={() => onClick(user)} disabled={busy} aria-label="Désactiver la validation en deux étapes">
           <PhonelinkEraseIcon fontSize={small ? 'small' : undefined} />
         </IconButton>
       </span>

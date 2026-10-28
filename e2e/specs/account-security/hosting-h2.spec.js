@@ -1,7 +1,7 @@
 // @ts-check
 // specs/hosting-h2-account-security.md §7 E2E — the forgotten password through the dev mail
 // catcher (rules 1-4), turning on the authenticator app and logging in with a computed code
-// (rules 6-7, 32-33), and the support flow with a locally signed link (rules 12-16).
+// (rules 6-7, 32-33, 38-45), changing the app (rules 47-48), and the support flow with a locally signed link (rules 12-16).
 import { test, expect } from '@playwright/test';
 import fixtures from '../../fixtures/accountSecurity.js';
 
@@ -37,24 +37,45 @@ test('rules 1-4 — a forgotten password is reset through the emailed link', asy
   await expect(page.getByRole('heading', { name: 'Tableau de bord' })).toBeVisible();
 });
 
-test('rules 6-7 — turn on the authenticator app, then log in with a computed code', async ({ page, context }) => {
+// Activates through the dialog and returns { secret, backupCodes }. Rules 38-45: one dialog, the QR code
+// with the key folded, a wrong code that says the tries left, the code sent at its 6th digit, and
+// backup codes that must be saved before « Terminé ».
+async function activate(page, account) {
+  await page.goto('/mon-compte');
+  await expect(page.getByText('Désactivée')).toBeVisible();
+  await expect(page.getByLabel(/^Mot de passe \(confirmation\)/)).toHaveCount(0);
+  await page.getByRole('button', { name: 'Activer' }).click();
+  await expect(page.getByText('Étape 1 sur 3')).toBeVisible();
+  await page.getByLabel(/^Mot de passe \(confirmation\)/).fill('not-the-password');
+  await page.getByRole('button', { name: 'Continuer' }).click();
+  await expect(page.getByText('Mot de passe incorrect.')).toBeVisible();
+  await page.getByLabel(/^Mot de passe \(confirmation\)/).fill(account.password);
+  await page.getByRole('button', { name: 'Continuer' }).click();
+  await expect(page.getByText('Étape 2 sur 3')).toBeVisible();
+  await expect(page.getByAltText('QR code de l’appli d’authentification')).toBeVisible();
+  await page.getByRole('button', { name: 'Saisie manuelle de la clé' }).click();
+  const secret = (await page.getByTestId('secret-value').textContent()).trim();
+  await page.getByLabel('Code à 6 chiffres').fill('000000');
+  await expect(page.getByRole('alert').filter({ hasText: 'Code incorrect : 4 essais restants.' })).toBeVisible();
+  await page.getByLabel('Code à 6 chiffres').fill(codeFor(secret));
+  await expect(page.getByText('Étape 3 sur 3')).toBeVisible();
+  await expect(page.getByTestId('backup-codes')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Terminé' })).toBeDisabled();
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Télécharger' }).click();
+  expect((await download).suggestedFilename()).toMatch(/^guestflow-codes-de-secours-\d{4}-\d{2}-\d{2}\.txt$/);
+  const backupCodes = (await page.getByTestId('backup-codes').innerText()).split(/\s+/).filter(Boolean);
+  await page.getByRole('button', { name: 'Terminé' }).click();
+  await expect(page.getByText('Activée', { exact: true })).toBeVisible();
+  return { secret: secret.replace(/\s/g, ''), backupCodes };
+}
+
+test('rules 6-7, 38-45 — turn on the validation in the dialog, then log in with a computed code', async ({ page, context }) => {
   const account = seedAccount('totp');
   await login(page, account);
   await expect(page.getByRole('heading', { name: 'Tableau de bord' })).toBeVisible();
-  await page.goto('/mon-compte');
-  // The « Second code » card loads its status first; only then is its password field the last one.
-  await expect(page.getByRole('button', { name: 'Activer' })).toBeVisible();
-  await page.getByLabel(/^Mot de passe \(confirmation\)/).fill(account.password);
-  await page.getByRole('button', { name: 'Activer' }).click();
-  await expect(page.getByAltText('QR code de l’appli d’authentification')).toBeVisible();
-  const secret = await page.getByText(/^([A-Z2-7]{4} ?)+$/).textContent();
-  await page.getByLabel('Code à 6 chiffres').fill('000000');
-  await page.getByRole('button', { name: 'Confirmer' }).click();
-  await expect(page.getByText('Code incorrect.')).toBeVisible();
-  await page.getByLabel('Code à 6 chiffres').fill(codeFor(secret));
-  await page.getByRole('button', { name: 'Confirmer' }).click();
-  await expect(page.getByTestId('backup-codes')).toBeVisible();
-  await page.getByRole('button', { name: 'Terminé' }).click();
+  const { secret } = await activate(page, account);
+  await expect(page.getByText('10 codes de secours sur 10')).toBeVisible();
 
   await context.clearCookies();
   await login(page, account);
@@ -71,6 +92,39 @@ test('rules 6-7 — turn on the authenticator app, then log in with a computed c
   // Rule 32: the code is sent at its 6th digit, with no « Valider ».
   await page.getByLabel('Code à 6 chiffres').fill(codeFor(secret, new Date(Date.now() + 30_000)));
   await expect(page.getByRole('heading', { name: 'Tableau de bord' })).toBeVisible();
+});
+
+test('rules 47-48 — « Changer d’appli » asks the password and a code, and the new app replaces the old one when confirmed', async ({ page }) => {
+  const account = seedAccount('replace');
+  await login(page, account);
+  await expect(page.getByRole('heading', { name: 'Tableau de bord' })).toBeVisible();
+  const first = await activate(page, account);
+
+  await page.getByRole('button', { name: 'Changer d’appli' }).click();
+  await page.getByLabel(/^Mot de passe \(confirmation\)/).fill(account.password);
+  await page.getByLabel('Code à 6 chiffres').fill('000000');
+  await page.getByRole('button', { name: 'Continuer' }).click();
+  await expect(page.getByRole('alert').filter({ hasText: 'Code incorrect.' })).toBeVisible();
+  // Rule 24: the enrolment code is spent, so the re-authentication takes the next step's code.
+  await page.getByLabel('Code à 6 chiffres').fill(codeFor(first.secret, new Date(Date.now() + 30_000)));
+  await page.getByRole('button', { name: 'Continuer' }).click();
+  await expect(page.getByText('Étape 2 sur 3')).toBeVisible();
+  await expect(page.locator('.MuiDialog-root')).toHaveCount(1);
+  await page.getByRole('button', { name: 'Saisie manuelle de la clé' }).click();
+  const next = (await page.getByTestId('secret-value').textContent()).replace(/\s/g, '');
+  expect(next).not.toBe(first.secret);
+  await page.getByLabel('Code à 6 chiffres').fill(codeFor(next));
+  await expect(page.getByText('Étape 3 sur 3')).toBeVisible();
+  await page.getByRole('checkbox', { name: 'Codes enregistrés en lieu sûr' }).check();
+  await page.getByRole('button', { name: 'Terminé' }).click();
+  await page.getByRole('button', { name: /^Historique/ }).click();
+  await expect(page.getByText('Appli d’authentification changée')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Désactiver' }).click();
+  await page.getByLabel(/^Mot de passe \(confirmation\)/).fill(account.password);
+  await page.getByLabel('Code à 6 chiffres').fill(codeFor(next, new Date(Date.now() + 30_000)));
+  await page.getByRole('dialog').getByRole('button', { name: 'Désactiver' }).click();
+  await expect(page.getByText('Désactivée', { exact: true })).toBeVisible();
 });
 
 test('rules 12-16 + 20 — the support asks, the admin accepts, a signed link opens a traced support session', async ({ page, browser }) => {

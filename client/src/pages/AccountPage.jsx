@@ -8,13 +8,14 @@
  *     writable there — the server ignores them).
  *   - « Mon mot de passe » — ChangePasswordForm. On a forced first-login change the server destroys
  *     the session and the page redirects to /login?reason=password-changed.
- *   - « Second code » — TwoFactorSection (specs/hosting-h2-account-security.md rule 6).
+ *   - « Validation en deux étapes » — TwoFactorSection (specs/hosting-h2-account-security.md rules 6, 38–53);
+ *     `?activer=deux-etapes` opens its activation (rule 51) and is removed from the address.
  *
  * A support session borrows an account it must not touch: neither password nor second step
  * (rule 15).
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import { Alert, Box, Card, CardContent, Stack, Typography } from '@mui/material';
 import api from '../api';
 import PageActionBar from '../components/PageActionBar';
@@ -27,6 +28,9 @@ import { useAuth } from '../hooks/useAuth';
 export default function AccountPage() {
   const { user: me, changePassword, refresh: refreshAuth } = useAuth();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const wantsActivation = searchParams.get('activer') === 'deux-etapes';
+  const activationHandled = useCallback(() => setSearchParams({}, { replace: true }), [setSearchParams]);
   const { showSuccess, showError } = useToast();
   const [passwordChanged, setPasswordChanged] = useState(false);
   const [profileBusy, setProfileBusy] = useState(false);
@@ -112,7 +116,7 @@ export default function AccountPage() {
           </CardContent>
         </Card>
         )}
-        {me && !me.isSupport && !wasMustChange && <TwoFactorSection account={me.email} />}
+        {me && !me.isSupport && !wasMustChange && <TwoFactorSection account={me.email} startOpen={wantsActivation} onStartHandled={activationHandled} />}
       </Box>
     </Box>
   );
