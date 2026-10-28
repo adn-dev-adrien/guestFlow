@@ -326,6 +326,13 @@ one place.
     iban, smtp… » — the former « Chercher un réglage : … » was clipped at 390 px. The field's
     accessible name stays « Chercher un réglage ».
 
+32. **Property documents are private (2026-10-28, authz L2).** A document is stored in `<uploads>/_private`
+    (`documents.filePath` = `private/<name>`), which the public `/uploads` route answers 404. The property
+    payload carries `filePath` = `/api/properties/:id/documents/:docId/file`, an authenticated download
+    (404 under another property) named after the document; « Retirer » and the removal of the property
+    delete the file. Files uploaded before the audit are moved at boot. Photos, logo and favicon stay in
+    the public tree: the WordPress site, the emails and the login page link them.
+
 **Edge cases**
 - A page with unsaved changes and a click on another settings entry → the existing dirty-form guard.
 - (rule 28) The address changes to another provider after a host was saved → the saved host wins;

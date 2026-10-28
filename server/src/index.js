@@ -141,8 +141,16 @@ try {
 // to the client for the push subscription. Never logged.
 require('./utils/vapid').ensureVapid(require('./models/settingsModel').read());
 
-// Serve uploads (public static images)
-app.use('/uploads', express.static(require('./utils/instancePaths').uploadsDir()));
+// Serve uploads (public static images). Property documents live in `_private` and go through the
+// authenticated /api/properties/:id/documents/:docId/file instead.
+try {
+  const moved = require('./utils/propertyDocumentFiles').moveLegacyDocumentsToPrivate(db);
+  if (moved > 0) console.log(`[migration:documents-private] ${moved} document(s) de logement déplacé(s) hors de /uploads`);
+} catch (err) {
+  logErrorMarker(`Documents privacy migration failed: ${err.message}`);
+}
+app.use('/uploads', (req, res, next) => (/^\/+_private(\/|$)/i.test(decodeURIComponent(req.path)) ? res.status(404).end() : next()),
+  express.static(require('./utils/instancePaths').uploadsDir()));
 
 // specs/plugins-phase-4-registry.md rule 18 — the client bundle of each loaded plugin, immutable, and
 // the list the browser imports before rendering. Outside /api and its guards: the bundles hold no
