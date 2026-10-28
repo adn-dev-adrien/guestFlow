@@ -2,6 +2,12 @@
 // setting, `platforms.forbidsGuestChores`: the guest e-mails and the departure commit read it, never a
 // platform name. The SAS read is pinned by plugins/sas/tests/sas-chore-free-channel.unit.test.js.
 
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+
+process.env.DB_PATH = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'gf-chores-')), 'guestflow.db');
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');

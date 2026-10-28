@@ -2,6 +2,12 @@
 // through its `sasCommit` hook, exactly as the commit does: the evening supplement shows once, the
 // hook's `write` never runs on a preview, and a stale block is refused before « Valider ».
 
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+
+process.env.DB_PATH = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'gf-sas-preview-')), 'guestflow.db');
+
 const test = require('node:test');
 const { skipWithout } = require('../../sdk/testing');
 const assert = require('node:assert/strict');
