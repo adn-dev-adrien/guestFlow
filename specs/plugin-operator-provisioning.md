@@ -252,7 +252,8 @@ screen or endpoint: the customer sees only the features themselves.
 28. **The space publishes what the console cannot compute.** Each reconciliation pass writes, for
     every installed plugin, `facts:<id>` in `plugin_provisioning_meta` — `{ setup, erasable, data }`:
     the setup the plugin still lacks (`ctx.setupStatus`, rule 14) and the lines `data.describe`
-    returns (rule 22: `[{ label, count, warning? }]`, a warning saying what stays) — and removes it for a
+    returns (rule 22: `[{ label, count, warning? }]`; a warning with a zero count is a note on what stays, any
+    other line is data — rule 45) — and removes it for a
     plugin that is not installed. The console reads them with
     the rest of rule 20. The ids of the erase orders executed are kept as `erase:<order>` (rule 23).
     _Added at implementation._
@@ -321,6 +322,21 @@ screen or endpoint: the customer sees only the features themselves.
     walks: it ignores it, whatever `activePlugins` says, and an erase order naming it is settled without
     touching anything (rule 23). The row stays — never live, never listed by the managed `GET /api/plugins`
     (rule 5) — until a release ships the plugin again or the row is removed from the database.
+45. **What the console offers follows what the purge erases** (audit 2026-10-28, H2). A line of
+    `data` counts as data unless it is a warning with a zero count (a note on what stays, e.g. « les
+    réglages restent dans l’espace »): a warning that carries a count — hourly-resources' « N réservations
+    hors séjour, X € encaissés » — is data the purge erases, so it keeps « Effacer les données… » on offer
+    (the line is listed among the erase lines) and never « Désinstaller ». « Désinstaller » (removal
+    without erasure, rule 38) is offered only when the space reports `erasable: false`, or `erasable: true`
+    with no data line at all. When the space cannot say — no facts for an installed module, `dataUnknown:
+    true` (its count threw), `data: null` — the line reads « Données non relevées : ni effacement ni
+    désinstallation. » and offers no action: unknown is not « nothing ».
+46. **A removal order carries `removal: true` in the licence** (audit 2026-10-28, H2): `eraseOrders` is
+    `[{ order, id, removal? }]`, `removal: true` only for « Désinstaller ». The space runs such an order
+    without `purge`, so the promise made to the operator (« Il ne contient aucune donnée ») holds even if
+    data appeared since. Switching the module back on settles its pending orders (rule 27) — and when the
+    space has already run one (`erase:<order>` reported), the journal reads « Données de X déjà effacées » /
+    « X déjà désinstallé » instead of « annulé » (audit L1).
 
 **Edge cases:**
 
