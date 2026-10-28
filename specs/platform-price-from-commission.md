@@ -76,6 +76,7 @@ owner nets the season's price/night. The commission % is entered per platform an
    price is far below (−15 %) or above (+25 %, and at least 30 €) what this grid lists for its channel
    and nights raises one alert on the pricing summary. The check reads the cells `platformPrices()`
    returns — nothing here changes.
+   > **Sans test** — a cross-reference: the check is tested by `platform-price-check.unit.test.js` (ledger rules 58-63).
 
 ---
 

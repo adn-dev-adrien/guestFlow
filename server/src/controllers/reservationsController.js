@@ -873,6 +873,7 @@ function platformPriceCheckOf({ quote, body, propertyId, storedRow, devisId, nig
     stay: {
       kind: storedRow ? storedRow.kind : (devisId > 0 ? 'devis' : 'reservation'),
       startDate: body.startDate,
+      endDate: body.endDate,
       platform: body.platform,
       propertyId,
     },

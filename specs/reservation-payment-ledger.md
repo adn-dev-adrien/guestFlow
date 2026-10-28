@@ -619,6 +619,11 @@ tariff would fire on every platform stay (the brut is grossed up by the commissi
     season (`unpricedNights`); or the nights were priced on today's seasons (no stored snapshot) **and**
     `tariff_change_events` holds an event for the property dated after the booking date — the grid
     then describes a tariff the guest never saw, and the comparison would only measure the change.
+    The same holds when the nights come from the sale's snapshot but **differ from what today's seasons
+    price for the same dates** (the tariff moved since the sale, or the sale was priced on the 100 €
+    fallback of a night no season covered yet): the grid describes a tariff the guest never saw, whatever
+    the journal says. _Added after the real-data pass of 2026-10-28: a Booking stay of August 2027,
+    booked in August 2026 on the fallback 100 € nights, read +43 % against today's grid._
     A manual price (`customPrice`) does not exist on a platform stay (the brut is the single lever,
     platform-payment-entry), so it needs no case.
 62. **One short alert, in the card.** When raised, the « Résumé tarifaire » opens with a single
@@ -908,15 +913,15 @@ summary page (normal direct · normal platform · misconfigured platform, panel 
   un-drifted stay (parity); rule 57 — a season price raised after the save leaves `storedDrift` false; a
   tourist-tax convention switched after the save raises `storedDrift` and returns no item list
   (`storedDriftItems` absent).
-- [x] **Amendment 2026-10-28** `tests/platform-price-check.unit.test.js` (new, 15), the util behind the
+- [x] **Amendment 2026-10-28** `tests/platform-price-check.unit.test.js` (new, 16), the util behind the
   real controller and the pure util on synthetic inputs: rule 59 — a stay at the grid raises nothing
   (commissions 15 % and 0 %), the cleaning fee is grossed up with the commission read now, the
   degressivity of the nights is kept, the in-brut extra-guest surcharge is compared with the channel's
   extra-guest price; rule 60 — −14,97 % and +24,86 % pass, −15,25 % and +25,14 % alert, −20 % on a one-night
   stay (−24 €) passes (absolute floor), the payload shape; rule 58 — the withheld tourist tax is out of
   `paid`; rule 61 — null for devis, cancelled, started, own channel, brut empty, unknown platform,
-  commission 100 %, unpriced night, today's nights + a journal event after the booking date (and not null
-  with the same event when the snapshot is replayed); rule 63 — `calculate-price` returns the object and
+  commission 100 %, unpriced night, replayed nights that differ from today's seasons, today's nights + a
+  journal event after the booking date (and not null with the same event when the snapshot is replayed); rule 63 — `calculate-price` returns the object and
   omits it for a reception-only user. _The "eight channel totals of tariff recipes rule 54" were not
   replayed through the engine: the real-data pass on the shadow copy (§7 manual) stands in for them._
   The `properties-platform-prices` case planned for `gridCellOf` is dropped with the extraction.

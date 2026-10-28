@@ -30,6 +30,15 @@ function initialsOf(client) {
   return letters || '?';
 }
 
+// « 06/11 → 08/11/2026 »: the year is said once when both days are in it.
+function stayDates(stay) {
+  const start = displayDate(stay.startDate);
+  const end = displayDate(stay.endDate);
+  return `${start.slice(6) === end.slice(6) ? start.slice(0, 5) : start} → ${end}`;
+}
+
+const chipSx = { flex: 'none', height: 20, fontSize: '0.6875rem' };
+
 const contactLinkSx = {
   ...ellipsis, display: 'block', color: 'text.secondary', textDecoration: 'none', fontSize: '0.8125rem',
   position: 'relative', zIndex: 1, '&:hover': { color: 'primary.main', textDecoration: 'underline' },
@@ -93,14 +102,17 @@ export default function ClientDirectoryRow({ client, onOpen }) {
 
       {stay && (
         <Box sx={{ minWidth: 0, gridColumn: { xs: 2, md: 'auto' }, gridRow: { xs: 2, md: 'auto' } }}>
-          <Typography variant="body2" title={stay.propertyName} sx={{ ...ellipsis, fontWeight: 500 }}>
-            {stay.propertyName}
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
+            <Typography variant="body2" title={stay.propertyName} sx={{ ...ellipsis, fontWeight: 500 }}>
+              {stay.propertyName}
+            </Typography>
+            <PlatformChip platform={stay.platform} sx={{ ...chipSx, display: { xs: 'inline-flex', md: 'none' } }} />
+          </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0, color: 'text.secondary', fontSize: '0.8125rem' }}>
             <Box component="span" sx={{ ...ellipsis, fontVariantNumeric: 'tabular-nums' }}>
-              {displayDate(stay.startDate)} → {displayDate(stay.endDate)} · {TEXTS.nights(stay.nights)}
+              {stayDates(stay)} · {TEXTS.nights(stay.nights)}
             </Box>
-            <PlatformChip platform={stay.platform} sx={{ flex: 'none', height: 20, fontSize: '0.6875rem' }} />
+            <PlatformChip platform={stay.platform} sx={{ ...chipSx, display: { xs: 'none', md: 'inline-flex' } }} />
           </Box>
         </Box>
       )}

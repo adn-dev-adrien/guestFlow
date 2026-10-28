@@ -4,7 +4,7 @@ import { vi } from 'vitest';
 
 import PricingSummary from '../PricingSummary';
 
-// specs/reservation-payment-ledger.md rules 50, 52 and 57 — the stored summary goes through the same
+// specs/reservation-payment-ledger.md rules 50, 52 and 57 (and specs/pricing-summary-extraction.md rule 7) — the stored summary goes through the same
 // component as the live quote: same sections, same labels, no per-line control, no notice.
 
 const PROPERTY_OPTIONS = [{ id: 10, title: 'Petit-déjeuner', price: 25, priceType: 'per_stay' }];

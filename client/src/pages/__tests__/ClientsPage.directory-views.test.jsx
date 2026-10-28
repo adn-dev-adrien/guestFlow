@@ -107,8 +107,8 @@ test('rules 14-15 — the row prints the server label, the stay, the platform an
   const row = (await screen.findByText('Morel Inès')).closest('[data-testid="client-row"]');
   expect(within(row).getByText('En séjour · départ le 08/11')).toBeInTheDocument();
   expect(within(row).getByText('La Granja')).toBeInTheDocument();
-  expect(within(row).getByText(/06\/11\/2026 → 08\/11\/2026 · 2 nuits/)).toBeInTheDocument();
-  expect(within(row).getByText('Booking')).toBeInTheDocument();
+  expect(within(row).getByText('06/11 → 08/11/2026 · 2 nuits')).toBeInTheDocument();
+  expect(within(row).getAllByText('Booking').length).toBeGreaterThan(0);
   expect(within(row).getByText('3 séjours')).toBeInTheDocument();
   const other = screen.getByText('Bernard Luc').closest('[data-testid="client-row"]');
   expect(within(other).queryByText(/séjours/)).not.toBeInTheDocument();

@@ -85,7 +85,7 @@ function util(over = {}) {
       platformGrossAmount: 354, accommodationAdjustedPrice: 354, extraGuestInBrutSurcharge: 0, unpricedNights: [],
       nightlyBreakdown: [night(1, 100), night(2, 100), night(3, 100)], ...quoteOver,
     },
-    stay: { kind: 'reservation', startDate: '2027-09-01', platform: 'Booking', propertyId: 7, ...stayOver },
+    stay: { kind: 'reservation', startDate: '2027-09-01', endDate: '2027-09-04', platform: 'Booking', propertyId: 7, ...stayOver },
     nightsReplayed: true,
     today: '2026-10-28',
     loadContext: () => ({ rules: RULES, property: {}, grid: GRID, tariffChangedSinceBooking: false }),
@@ -95,10 +95,11 @@ function util(over = {}) {
 
 test('rule 59 — the degressivity of the nights is kept (price × grid ÷ billed, night by night)', () => {
   const degressive = { nightlyBreakdown: [night(1, 100), night(2, 70), night(3, 70)] };
-  assert.equal(util({ quote: { ...degressive, platformGrossAmount: 283, accommodationAdjustedPrice: 283 } }), null);
-  const full = util({ quote: { ...degressive, platformGrossAmount: 354, accommodationAdjustedPrice: 354 } });
+  const todays = { nightsReplayed: false };
+  assert.equal(util({ ...todays, quote: { ...degressive, platformGrossAmount: 283, accommodationAdjustedPrice: 283 } }), null);
+  const full = util({ ...todays, quote: { ...degressive, platformGrossAmount: 354, accommodationAdjustedPrice: 354 } });
   assert.equal(full, null, '+25,0 % of a degressive stay is on the edge of the band');
-  const high = util({ quote: { ...degressive, platformGrossAmount: 380, accommodationAdjustedPrice: 380 } });
+  const high = util({ ...todays, quote: { ...degressive, platformGrossAmount: 380, accommodationAdjustedPrice: 380 } });
   assert.equal(high.expected, 283.2);
   assert.equal(high.direction, 'above');
 });
@@ -132,6 +133,15 @@ test('rule 61 — today’s nights + a tariff change after the booking date: no 
   const far = { quote: { platformGrossAmount: 150, accommodationAdjustedPrice: 150 } };
   assert.equal(util({ ...far, ...ctx, nightsReplayed: false }), null);
   assert.ok(util({ ...far, ...ctx, nightsReplayed: true }));
+});
+
+test('rule 61 — replayed nights that no longer match today’s seasons (tariff moved, or a 100 € fallback night) are not judged', () => {
+  const far = { platformGrossAmount: 150, accommodationAdjustedPrice: 150 };
+  assert.ok(util({ quote: far }), 'sanity: nights equal to today’s seasons are judged');
+  const oldTariff = { ...far, nightlyBreakdown: [night(1, 80), night(2, 80), night(3, 80)] };
+  assert.equal(util({ quote: oldTariff }), null, 'sold at 80 € a night, the season is 100 € today');
+  assert.ok(util({ quote: oldTariff, nightsReplayed: false }), 'today’s nights are always today’s');
+  assert.equal(util({ quote: { ...far, nightlyBreakdown: [night(1, 100), night(2, 100)] } }), null, 'a different number of nights');
 });
 
 test('rule 59 — a legacy season (no net target) still has a grid cell: pricePerNight grossed up', async () => {

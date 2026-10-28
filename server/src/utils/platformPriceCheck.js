@@ -12,13 +12,22 @@
  */
 
 const { isDirectChannel } = require('./platformNameFormat');
-const { matchNightRule } = require('./pricing');
+const { matchNightRule, calculateBaseStayPrice } = require('./pricing');
 
 const BELOW_PERCENT = -15;
 const ABOVE_PERCENT = 25;
 const MIN_GAP_EUR = 30;
 
 const cents = (value) => Math.round(Number(value || 0) * 100) / 100;
+
+// The sale's saved nights, against what today's seasons price for the same dates. They differ when the
+// tariff moved since the sale — or when the sale was priced on the 100 € fallback of a night no season
+// covered yet — and the grid then describes a tariff the guest never saw.
+function nightsMatchToday(nights, rules, startDate, endDate) {
+  const fresh = calculateBaseStayPrice(rules, startDate, endDate).nightlyBreakdown;
+  return fresh.length === nights.length
+    && fresh.every((night, index) => Math.abs(Number(night.price) - Number(nights[index].price)) < 0.005);
+}
 
 function seasonRatio(billed, grid) {
   return Number(billed) > 0 && Number.isFinite(Number(grid)) ? Number(grid) / Number(billed) : null;
@@ -28,7 +37,7 @@ function seasonRatio(billed, grid) {
  * @param {object} p
  * @param {object} p.quote                 the live quote (`platformGrossAmount`, `accommodationAdjustedPrice`,
  *                                         `extraGuestInBrutSurcharge`, `nightlyBreakdown`, `unpricedNights`)
- * @param {{kind: string, startDate: string, platform: string, propertyId: number}} p.stay
+ * @param {{kind: string, startDate: string, endDate: string, platform: string, propertyId: number}} p.stay
  * @param {boolean} p.nightsReplayed       the nights come from the sale's stored snapshot
  * @param {() => {rules: Array, property: {extraGuestPrice?: number}, grid: {platforms: Array, seasons: Array},
  *            tariffChangedSinceBooking: boolean}} p.loadContext
@@ -59,6 +68,7 @@ function platformPriceCheck({
   const seasonsById = new Map((grid.seasons || []).map((s) => [s.ruleId, s]));
   const nights = Array.isArray(quote.nightlyBreakdown) ? quote.nightlyBreakdown : [];
   if (nights.length === 0) return null;
+  if (nightsReplayed && !nightsMatchToday(nights, rules, stay.startDate, stay.endDate)) return null;
 
   let expected = 0;
   const extraRatios = [];
