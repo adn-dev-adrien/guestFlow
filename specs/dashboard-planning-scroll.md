@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Approved |
+| **Status** | Implemented |
 | **Branch** | `feature/dashboard-planning-scroll` _(user-managed)_ |
 | **Created** | 2026-10-28 |
 | **Author** | Adrien |
@@ -198,6 +198,17 @@ any more.
     open, the timeline is rebuilt on the new today (rule 12). The SAS and breakfast deep-links
     (`?sas=…`, `?breakfast=…&date=…`) are unchanged.
 
+### 3.E Added during implementation (2026-10-28)
+
+24. **The opening position holds.** Cards that render late (plugin cards are lazy-loaded) can grow the
+    timeline above today after it was scrolled into place. Until the operator scrolls, touches, types or
+    clicks, today's header is kept under the bar whenever the timeline's height changes
+    (`pinAnchor` of the shared hook, a `ResizeObserver` on the day list).
+25. **The hook's own scroll is not a gesture.** The scroll event that follows an anchoring or a
+    `scrollToAnchor` made by `useInfiniteEdgeScroll` does not restart the chain of rule 13: without it a
+    short feed (an empty past, folded into one line) loaded windows without end through its own
+    adjustments.
+
 **Edge cases:**
 - Several arrivals on the next arrival day → all listed (rule 2), one row each.
 - The next arrival is next year → `label` carries the year.
@@ -324,57 +335,59 @@ None. No migration.
 ## 7. Test plan
 
 ### Server unit tests
-- [ ] `tests/planning-today.unit.test.js` (10) — rule 1 (departures / arrivals of the day, order by
+- [x] `tests/planning-today.unit.test.js` (8) — rule 1 (departures / arrivals of the day, order by
   hour then id, devis and cancelled excluded, model shape not the fiche), rule 2 (next arrival when
   none today, every stay of that day, « demain » / « dans N jours », year in the label next year, null
   with arrivals today, null with nothing after today), rule 3 (reception view with locks, accountant
   403 through the route).
-- [ ] `tests/planning-days.unit.test.js` (12) — rule 8 (every date of the window, empty ones
+- [x] `tests/planning-days.unit.test.js` (10) — rule 8 (every date of the window, empty ones
   included; stays by start / end day and order; breakfast, option cards and alerts on their days;
   labels, `isToday`, `isPast`; reception view), rule 9 (malformed, unreal day, `from > to`, 32 days →
   400; a past window answered), rule 10 (`/alerts` and `/option-cards` → 404).
-- [ ] `tests/planning-breakfast-controller.unit.test.js`, `reception-role-access.unit.test.js`,
-  `plugins/linen/tests/phase-2-linen.unit.test.js` — the removed paths dropped from their lists.
+- [x] `reception-role-access.unit.test.js`, `plugins/linen/tests/phase-2-linen.unit.test.js` — the removed
+  paths replaced by the two new ones (`planning-breakfast-controller.unit.test.js` listed none).
 
 ### Client tests (Vitest)
-- [ ] `pages/__tests__/Dashboard.next-arrival.test.jsx` (8) — rules 1 (one `getPlanningToday`, no
+- [x] `pages/__tests__/Dashboard.next-arrival.test.jsx` (9) — rules 1 (one `getPlanningToday`, no
   `getReservations` / `getReservation`), 4 (folded lines, no table), 5 (date head, relative chip, rows,
   no check box, row opens the fiche, reception row inert, « aucune arrivée prévue »), 6 (no
   « Date affichée », no arrows).
-- [ ] `pages/__tests__/Dashboard.server-today.test.jsx`, `Dashboard.stale-load.test.jsx`,
+- [x] `pages/__tests__/Dashboard.server-today.test.jsx`, `Dashboard.stale-load.test.jsx`,
   `Dashboard.day-first.test.jsx` — rewritten on `getPlanningToday` (rule 7: reload on a new server
   day, only the latest load paints); the rule-19 case (« Aujourd'hui » of the date cluster) deleted.
-- [ ] `hooks/__tests__/useInfiniteEdgeScroll.window.test.jsx` (6) — rule 13 (prepend keeps the first
+- [x] `hooks/__tests__/useInfiniteEdgeScroll.window.test.jsx` (8, rules 24 and 25 included) — rule 13 (prepend keeps the first
   visible anchor in place on the window and on an element scroller; chain bounded at 4), rule 19
   (release above keeps the view), rule 18 (scroll to an anchor, instant under reduced motion).
-- [ ] `utils/__tests__/planningTimeline.test.js` (6) — rule 15 (runs of empty days, one-day label,
+- [x] `utils/__tests__/planningTimeline.test.js` (6) — rule 15 (runs of empty days, one-day label,
   today never folded, a run never crosses today, a plugin-only day is not empty, windows merged in
   order).
-- [ ] `pages/__tests__/PlanningPage.timeline.test.jsx` (10) — rules 11 (one call per window, plugin
+- [x] `pages/__tests__/PlanningPage.timeline.test.jsx` (11) — rules 11 (one call per window, plugin
   `load` per window, no double ask), 12 (windows −1, 0, 1 at open, today under the bar), 14 (an empty
   window followed by a full one keeps loading), 17 (past header tone), 18 (« Aujourd'hui » scrolls,
   disabled at today), 19 (ninth window releases the farthest), 20 (edge error with retry, other edge
   still extends), 21 (SAS done reloads the two windows only), 22 (no date input, bar actions), 23 (new
   server day rebuilds).
-- [ ] `PlanningPage.phone-bar.test.jsx`, `PlanningPage.plugin-slots.test.jsx`,
+- [x] `PlanningPage.phone-bar.test.jsx` (2: the band with a plugin button, the top bar without), `PlanningPage.plugin-slots.test.jsx`,
   `PlanningPage.arrival-alerts.test.jsx` — moved to `getPlanningDays`; phone-bar pins rule 22 (plugin
   buttons beside « Aujourd'hui », no date strip).
-- [ ] `components/__tests__/PageActionBar.bar-bottom.test.jsx` (2) — rule 16 (variable published,
+- [x] `components/__tests__/PageActionBar.bar-bottom.test.jsx` (2) — rule 16 (variable published,
   removed on unmount).
-- [ ] `components/__tests__/FoldedDayList.render.test.jsx` (2) — rule 4.
+- [x] `components/__tests__/FoldedDayList.render.test.jsx` (2) — rule 4.
 
 ### E2E (Playwright)
-- [ ] New `e2e/specs/planning/timeline-scroll.spec.js` — opens on today under the bar; wheel up shows
+- [x] New `e2e/specs/planning/timeline-scroll.spec.js` — opens on today under the bar; wheel up shows
   yesterday without the view jumping; wheel down past an empty fortnight reaches a stay 8 weeks out
   (rule 14); « Aujourd'hui » comes back; no date input on the page.
-- [ ] New `e2e/specs/dashboard/next-arrival.spec.js` — a day without arrival shows « Prochaine
-  arrivée » with its date; departures folded.
-- [ ] Updated: `mobile/planning-mobile.spec.js` (no date strip; bar still visible after scroll; no
+- [x] New `e2e/specs/dashboard/next-arrival.spec.js` — a day without arrival shows « Prochaine
+  arrivée » with its date; departures folded (the day's lists are fixed by answering
+  `GET /api/planning/today`, the shared E2E database holding stays of other specs; the real payload's
+  shape is pinned alongside).
+- [x] Updated: `mobile/planning-mobile.spec.js` (no date strip; bar still visible after scroll; no
   horizontal scroll), `mobile/narrow-bar-and-touch-targets.spec.js` (the 900 px rule-19 pin moves from
   the dashboard's date input to `/calendar`'s centre), `auth/dashboard-loads`.
 
 ### Manual UI verification
-- [ ] Shadow copy at 390 / 900 / 1280: home on 2026-10-28 (both folded, next arrival 6 November);
+- [x] Shadow copy at 390 / 1280 (900 not exercised by script): home on 2026-10-28 (both folded, next arrival 6 November);
   planning scrolled from today to April 2027 and back to September 2026, sticky headers, no jump on
   prepend, « Aujourd'hui », network panel = one `/planning/days` per window (+ plugin loads).
 
@@ -434,3 +447,29 @@ Notes appended under the rules, never renumbered:
 3. **Lot 3 — Planning timeline**: `useInfiniteEdgeScroll`, `usePlanningTimeline`, `planningTimeline.js`,
    `PlanningDayHeader`, `PageActionBar` variable, PlanningPage rules 11–23, tests and E2E, remaining
    amendments. ~16 files.
+
+## 12. Implementation progress
+
+Implemented 2026-10-28 on `feature/dashboard-planning-scroll`, three commits, in this order: server
+(`/today`, `/days`, removed routes), home (lot 1), planning timeline (lot 3). Notes where the code
+differs from the draft above:
+
+- `planningDaysModel` returns `[{ id, date }]` rows for a window (`arrivalsInRange`,
+  `departuresInRange`) and the first arrival day after a date; `utils/planningDays.js` holds the
+  window arithmetic (`windowDays`, `checkWindow`, `relativeLabel`, `idsByDate`). `frenchDayLabel` takes
+  an optional `today` to add the year.
+- `useInfiniteEdgeScroll` asks its feed through `onNearStart` / `onNearEnd`, which answer `'started'`,
+  `'pending'` or `'none'`; it does not own the feed's in-flight state. It also offers `pinAnchor`
+  (rule 24) and ignores its own scroll events (rule 25).
+- The 8-window cap (rule 19) releases the opposite-edge window when a ninth **finishes loading**, not
+  when it is requested, so a failed load costs nothing.
+- Folds are keyed by their last day (`fold-<to>`): content prepended to a run extends it at the start and
+  the anchor key does not change.
+- `PlanningDayHeader` carries `data-tone` (`today` / `past` / `done` / `upcoming`) for the tests.
+- Plugin cards: `buildTimeline` merges what every window's contributions returned by date, a window's
+  own range winning over another window's answer for the same date.
+- Real-data check (shadow copy of 2026-10-22, server day 2026-10-28): home at 1280 and 390 (both
+  lists folded, next arrival « vendredi 6 novembre · dans 9 jours »), planning opened on today under the
+  bar, scrolled back to September and on to April 2027, « Aujourd'hui » back, one `/planning/days` per
+  window, a window asked again only after it was released, no horizontal scroll.
+

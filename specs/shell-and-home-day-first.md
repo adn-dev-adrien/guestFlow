@@ -43,9 +43,11 @@ the top bar says which page is open.
 
 ### 3.A Home order (proposal 1, decisions 1–2)
 
-1. The home reads, top to bottom: the page bar (date) → the **pinned** subjects → « Départs » →
+1. The home reads, top to bottom: the page bar → the **pinned** subjects → « Départs » →
    « Arrivées » → the box « **À traiter** (n) » → the month calendar. Departures stay before arrivals
    (specs/reception-role-checkin-only.md §6). A reception account sees the two lists only, as before.
+   > **Amended 2026-10-28 (dashboard-planning-scroll.md rules 4–6):** the bar carries no date; the
+   > lists are « Départs du jour » / « Arrivées du jour », and an empty list folds to one line.
 2. **The KPI tiles leave the home** (decision 1). Each figure stays reachable elsewhere, so nothing is
    moved: « Logements » → the Suivi financier tile « Logements » (« N logements ») and Paramètres ›
    Logements; « Réservations (30j) » → the Suivi financier tile « Réservations » (« N à venir ») and the
@@ -143,6 +145,8 @@ the top bar says which page is open.
 
 19. The « Aujourd'hui » button of the home's date navigation brings the date back to today (it threw:
     it called a setter that did not exist).
+    > **Superseded 2026-10-28:** the home has no date navigation any more
+    > (dashboard-planning-scroll.md rule 6); the rule and its test left with the date cluster.
 
 ### 3.H Review of PR #725 (2026-10-19)
 
@@ -200,6 +204,9 @@ the top bar says which page is open.
 26. **The planning draws no empty bar on a phone.** Its plugin buttons (the laundry trip) are custom
     nodes, which rule 23 never moves to the top bar: below `sm` they ride with the date strip and the
     page bar, left with nothing, is not drawn.
+    > **Amended 2026-10-28 (dashboard-planning-scroll.md rule 22):** there is no date strip any more:
+    > the plugin buttons stay in the band beside « Aujourd'hui » (a bar action); without any plugin
+    > button the lone « Aujourd'hui » icon moves to the top bar (rule 23) and no band is drawn.
 
 ---
 
@@ -278,12 +285,12 @@ None.
 
 ## 6. UI / UX
 
-- **Home, desktop (≥ 1200)**: bar « Tableau de bord » with the date cluster centred; pinned cards
-  (gate keys, payment deadlines) full width; « Départs » and « Arrivées » tables; the « À traiter »
-  card; the month calendar.
+- **Home, desktop (≥ 1200)**: bar « Tableau de bord » alone (no date cluster since 2026-10-28); pinned
+  cards (gate keys, payment deadlines) full width; « Départs du jour » and « Arrivées du jour » (table, or
+  one folded line); the « À traiter » card; the month calendar.
 - **Home, tablet (~900)**: same order; tables as today.
-- **Home, phone (≤ 600)**: top bar « ☰ GuestFlow 🔍 » (wordmark on the home); the date strip; pinned
-  cards; departures and arrivals as cards; the box, rows 44 px high, titles wrapping; the actions of an
+- **Home, phone (≤ 600)**: top bar « ☰ GuestFlow 🔍 » (wordmark on the home); no date strip (since
+  2026-10-28); pinned cards; departures and arrivals as cards (or one folded line); the box, rows 44 px high, titles wrapping; the actions of an
   unfolded row stack.
 - **Other pages, phone**: top bar « ☰ <titre de la page> 🔍 »; the page bar holds only back, tabs and
   actions, and disappears when it would be empty.
