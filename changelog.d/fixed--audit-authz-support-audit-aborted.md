@@ -1,0 +1,1 @@
+- **Support journal keeps writes whose client disconnected**: logged on `close` as « Interrompu », never twice (rule 60, audit M2).
