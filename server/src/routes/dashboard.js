@@ -9,6 +9,8 @@
 const router = require('express').Router();
 const controller = require('../controllers/dashboardController');
 const db = require('../database');
+const vatRegimeModel = require('../models/vatRegimeModel');
+const { franchiseApplies } = require('../utils/vatFranchise');
 const { guardReadOnly } = require('../utils/reservationReadOnly');
 
 router.get('/ical-date-drift', controller.icalDateDrift);
@@ -40,6 +42,13 @@ function coreAttentionSources() {
   const today = new Date();
   return [
     { key: 'payment-deadlines', rank: 20, handler: controller.paymentDeadlines },
+    {
+      key: 'vat-franchise',
+      rank: 25,
+      handler: require('../controllers/financeController').getVatFranchise,
+      // Outside the franchise the subject does not exist: not even declared (specs/vat-optional-mode.md rule 44).
+      skip: () => !franchiseApplies(vatRegimeModel.inForceBlock(db)),
+    },
     { key: 'ical-date-drift', rank: 10, handler: controller.icalDateDrift },
     { key: 'ical-cancellation', rank: 20, handler: controller.icalCancellation },
     {

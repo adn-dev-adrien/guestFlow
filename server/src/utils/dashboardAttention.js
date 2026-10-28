@@ -9,6 +9,8 @@
  * would strand a guest.
  */
 
+const { attentionSummary: vatFranchiseSummary } = require('./vatFranchise');
+
 const SEVERITIES = ['urgent', 'todo', 'info'];
 
 // Decision 2 of the 2026-10-18 review: what can strand a guest or lose money stays unfolded. Only
@@ -55,6 +57,7 @@ const CORE_SUMMARIES = {
       pinned: late > 0,
     };
   },
+  'vat-franchise': (payload) => vatFranchiseSummary(payload),
   'ical-date-drift': (payload) => {
     const n = listOf(payload, 'alerts').length;
     return n ? { count: n, title: 'Dates iCal à valider', detail: plural(n, 'changement de dates', 'changements de dates'), severity: 'todo' } : null;

@@ -8,19 +8,25 @@
  * use them (specs/settings-rationalization.md rule 14).
  *
  * Props:
- *   values:    { regime, rate, legalMention } — the settings draft
- *   errors:    { vatRate?, legalMention? }
- *   onChange:  (key, value) => void   // 'rate' | 'legalMention'
+ *   values:    { regime, rate, legalMention, franchiseThreshold, franchise: { setAt } } — the settings draft
+ *   errors:    { vatRate?, legalMention?, vatFranchiseThreshold? }
+ *   onChange:  (key, value) => void   // 'rate' | 'legalMention' | 'franchiseThreshold'
  *   disabled:  boolean
  *   regime:    useVatRegime().state — { inForce, periods, mentions }, null while loading
  *   onSwitch:  () => void            // opens the switch dialog
  *   onUndo:    (period) => void      // asks to undo an unused period
  */
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Button, Card, CardContent, Stack, Typography, TextField, Box, MenuItem } from '@mui/material';
 import StatusBadge from './StatusBadge';
 import VatPeriodHistory from './VatPeriodHistory';
-import { VAT_TEXTS, regimeLabel } from '../constants/vatRegime';
+import { VAT_TEXTS, regimeLabel, showsFranchiseField } from '../constants/vatRegime';
+import { vatThresholdInputError } from '../utils/validation';
+import { displayDate } from '../utils/formatters';
+
+// A valid typed amount becomes a number on leaving the field, shown with its thousands separator.
+const thresholdText = (value) => (typeof value === 'number' ? new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 }).format(value) : (value ?? ''));
+const parsedThreshold = (text) => Number(String(text).replace(/[\s\u00a0\u202f]/g, '').replace(',', '.'));
 
 export default function SettingsVatSection({
   values,
@@ -34,7 +40,19 @@ export default function SettingsVatSection({
   const v = values || {};
   const notSubject = v.regime === 'not_subject';
   const mentions = (regime && regime.mentions) || [];
+  // « Saisir le seuil » of the Suivi financier lands here with #seuil-franchise: the field is focused and centred.
+  const fieldRef = useRef(null);
+  const focused = useRef(false);
   const mention = mentions.find((m) => m.key === v.legalMention);
+  const franchiseField = showsFranchiseField(v);
+  const thresholdError = errors.vatFranchiseThreshold || vatThresholdInputError(v.franchiseThreshold);
+  const setAt = v.franchise && v.franchise.setAt;
+  useEffect(() => {
+    if (!franchiseField || focused.current || window.location.hash !== '#seuil-franchise' || !fieldRef.current) return;
+    focused.current = true;
+    fieldRef.current.focus();
+    if (fieldRef.current.scrollIntoView) fieldRef.current.scrollIntoView({ block: 'center' });
+  }, [franchiseField]);
   return (
     <Card variant="outlined" sx={{ bgcolor: 'background.paper', mb: 3 }}>
       <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
@@ -79,6 +97,26 @@ export default function SettingsVatSection({
               slotProps={{
                 htmlInput: { min: 0, max: 100, step: 0.5 }
               }}
+            />
+          )}
+
+          {franchiseField && (
+            <TextField
+              id="seuil-franchise"
+              inputRef={fieldRef}
+              label={VAT_TEXTS.thresholdLabel}
+              value={thresholdText(v.franchiseThreshold)}
+              onChange={(e) => onChange('franchiseThreshold', e.target.value)}
+              onBlur={() => {
+                const typed = v.franchiseThreshold;
+                if (typeof typed === 'string' && typed.trim() !== '' && !vatThresholdInputError(typed)) onChange('franchiseThreshold', parsedThreshold(typed));
+              }}
+              fullWidth
+              disabled={disabled}
+              error={Boolean(thresholdError)}
+              helperText={thresholdError || (setAt ? VAT_TEXTS.thresholdSetOn(displayDate(setAt)) : VAT_TEXTS.thresholdHint)}
+              sx={{ maxWidth: { sm: 320 } }}
+              slotProps={{ htmlInput: { inputMode: 'decimal', autoComplete: 'off' } }}
             />
           )}
 

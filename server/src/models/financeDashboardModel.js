@@ -321,7 +321,7 @@ function createDashboardModel(database, finance) {
   // « Encaissé » (rule 13): every payment received for the window's stays, dated, so that the
   // table adds up to the tile (Σ comptaCollected). Same buckets, same exclusions (caisse interne,
   // internal refunds), same commission netting as utils/reservationSettlement.comptaCollected.
-  function paymentsLedger(reservations) {
+  function paymentsLedger(reservations, { withCommission = false } = {}) {
     const ids = reservations.map((r) => r.id);
     const refunds = ids.length && hasTable('reservation_refunds')
       ? database.prepare(`SELECT reservationId, refundDate, totalTtc FROM reservation_refunds WHERE method <> 'internal' AND reservationId IN (${ids.map(() => '?').join(',')})`).all(...ids)
@@ -343,9 +343,14 @@ function createDashboardModel(database, finance) {
         propertyName: r.propertyName, platform: r.platform,
       };
       const day = (d) => (d ? String(d).slice(0, 10) : r.attributionDate);
-      const add = (date, kind, label, amount) => { if (round2(amount) !== 0) rows.push({ ...base, date: day(date), kind, label, amount: round2(amount) }); };
-      if (r.depositPaid && !r.depositPaidCash) add(r.depositPaidDate, 'deposit', 'Acompte', Number(r.depositAmount || 0) - Number(r.acompteCommissionAmount || 0));
-      if (r.balancePaid && !r.balancePaidCash) add(r.balancePaidDate, 'balance', isPlatformStay(r) ? 'Versement plateforme' : 'Solde', Number(r.balanceAmount || 0) - Number(r.platformCommissionAmount || 0) - platformPenalty(r));
+      // `withCommission` adds what the platform already took out of `amount` (commission and penalty), for
+      // the figures that count the guest's full price (specs/vat-optional-mode.md rule 37 (a)); « Encaissé » never shows it.
+      const add = (date, kind, label, amount, commission = 0) => {
+        if (round2(amount) === 0) return;
+        rows.push({ ...base, date: day(date), kind, label, amount: round2(amount), ...(withCommission ? { commission: round2(commission) } : {}) });
+      };
+      if (r.depositPaid && !r.depositPaidCash) add(r.depositPaidDate, 'deposit', 'Acompte', Number(r.depositAmount || 0) - Number(r.acompteCommissionAmount || 0), r.acompteCommissionAmount);
+      if (r.balancePaid && !r.balancePaidCash) add(r.balancePaidDate, 'balance', isPlatformStay(r) ? 'Versement plateforme' : 'Solde', Number(r.balanceAmount || 0) - Number(r.platformCommissionAmount || 0) - platformPenalty(r), Number(r.platformCommissionAmount || 0) + platformPenalty(r));
       if (r.complementPaid && !r.complementPaidCash) add(r.complementPaidDate, 'complement', 'Complément', Number(r.complementAmount || 0));
       if (r.endOfStayComplementPaid && !r.endOfStayComplementPaidCash) add(r.endOfStayComplementPaidDate, 'endOfStay', 'Complément fin de séjour', Number(r.endOfStayComplementAmount || 0));
       for (const i of installments.filter((x) => x.reservationId === r.id)) {
@@ -462,11 +467,12 @@ function createDashboardModel(database, finance) {
     };
   }
 
-  return { getDashboard, getDashboardDetail };
+  return { getDashboard, getDashboardDetail, paymentsLedger };
 }
 
 const defaultModel = createDashboardModel(db, financeModel);
 defaultModel.buildModel = (database) => createDashboardModel(database, financeModel.buildModel(database));
 defaultModel.bestMonthOf = bestMonthOf;
+defaultModel.isPlatformStay = isPlatformStay;
 
 module.exports = defaultModel;
