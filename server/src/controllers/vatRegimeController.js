@@ -24,7 +24,7 @@ function preview(req, res) {
   if (result.errors) return res.status(422).json({ errors: result.errors });
   const { ids, changedIds, ...figures } = result.preview;
   const active = accountingExportActive();
-  return res.json({ ...figures, lines: rules.previewLines(inputOf(req.body), figures, { accountingExportActive: active }), accountingExportActive: active });
+  return res.json({ ...figures, lines: rules.previewLines(inputOf(req.body), figures, { accountingExportActive: active, fromRegime: figures.fromRegime }), accountingExportActive: active });
 }
 
 function makeSwitch(req, res) {
@@ -36,7 +36,7 @@ function makeSwitch(req, res) {
   });
   if (result.errors) return res.status(422).json({ errors: result.errors });
   if (result.stale) return res.status(409).json({ error: 'preview_stale' });
-  return res.status(201).json({ period: result.period, reassigned: result.reassigned });
+  return res.status(201).json({ period: result.period, reassigned: result.reassigned, notRepriced: result.notRepriced });
 }
 
 function remove(req, res) {

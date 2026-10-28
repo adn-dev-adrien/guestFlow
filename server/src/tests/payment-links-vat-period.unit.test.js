@@ -7,6 +7,8 @@ const assert = require('node:assert/strict');
 const { buildVatGoldenDb } = require('./vatRegimeGoldenFixture');
 
 const db = buildVatGoldenDb();
+// The fixture's devis expired on 2027-06-30 / 07-15; a live offer is what these suites are about (rule 25).
+db.prepare("UPDATE reservations SET validUntil = '2027-12-31' WHERE kind = 'devis'").run();
 db.prepare("INSERT INTO vat_periods (regime, rate, basis, effectiveFrom) VALUES ('subject', 20, 'arrival', '2027-08-01')").run();
 db.prepare("UPDATE reservations SET vatPeriodId = 2 WHERE startDate >= '2027-08-01' AND kind != 'devis'").run();
 

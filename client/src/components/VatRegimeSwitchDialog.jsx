@@ -9,7 +9,9 @@
  *
  * Props:
  *   open, onClose
- *   inForce:    the period in force (its regime decides the target)
+ *   inForce:    the period in force (shown as the current regime)
+ *   latest:     the latest period (its regime decides the target: a change dated ahead is reversible)
+ *   onStale:    () => void — the server refused a regime already in place: reload the page's state
  *   mentions:   [{ key, label }] — the two legal mentions
  *   preview:    (input) => Promise<{ fingerprint, lines, exportMonths, … }> (rejects with `.errors` on 422)
  *   onSubmit:   (input) => Promise — the switch; rejects with `.status === 409` when the preview is stale
@@ -29,10 +31,10 @@ import {
 
 const PREVIEW_DELAY_MS = 300;
 
-function initialDraft(inForce) {
+function initialDraft(latest) {
   const today = localIsoToday();
   return {
-    regime: inForce && inForce.regime === 'subject' ? 'not_subject' : 'subject',
+    regime: latest && latest.regime === 'subject' ? 'not_subject' : 'subject',
     rate: '10',
     legalMention: 'art_293_b',
     basis: VAT_BASIS.BOOKING,
@@ -47,8 +49,8 @@ const inputOf = (draft) => ({
   ...(draft.basis === VAT_BASIS.ALL ? {} : { effectiveFrom: draft.dates[draft.basis] }),
 });
 
-export default function VatRegimeSwitchDialog({ open, onClose, inForce, mentions = [], preview, onSubmit, onDone }) {
-  const [draft, setDraft] = useState(() => initialDraft(inForce));
+export default function VatRegimeSwitchDialog({ open, onClose, inForce, latest, mentions = [], preview, onSubmit, onDone, onStale }) {
+  const [draft, setDraft] = useState(() => initialDraft(latest));
   const [result, setResult] = useState({ status: 'idle', data: null, errors: {} });
   const [acknowledged, setAcknowledged] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -58,13 +60,13 @@ export default function VatRegimeSwitchDialog({ open, onClose, inForce, mentions
 
   useEffect(() => {
     if (open) {
-      setDraft(initialDraft(inForce));
+      setDraft(initialDraft(latest));
       setAcknowledged(false);
       setResult({ status: 'idle', data: null, errors: {} });
       setStale(false);
       setFailure(null);
     }
-  }, [open, inForce]);
+  }, [open, latest]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -91,14 +93,18 @@ export default function VatRegimeSwitchDialog({ open, onClose, inForce, mentions
   const { errors } = result;
   const ready = result.status === 'ready';
   const monthsAffected = ready && result.data.accountingExportActive && result.data.exportMonths.length > 0;
-  const submitDisabled = !ready || (correction && !acknowledged);
+  // Rule 24 — the server says when books or collected money are rewritten, whatever the scope.
+  const needsAck = correction || (ready && result.data.needsAcknowledgement);
+  const submitDisabled = !ready || (needsAck && !acknowledged);
+  const regimeRefused = Boolean(errors.regime);
+  useEffect(() => { if (regimeRefused && onStale) onStale(); }, [regimeRefused, onStale]);
   const mention = mentions.find((m) => m.key === draft.legalMention);
 
   const submit = async () => {
     setBusy(true);
     setFailure(null);
     try {
-      const done = await onSubmit({ ...inputOf(draft), fingerprint: result.data.fingerprint, acknowledged: correction ? acknowledged : undefined });
+      const done = await onSubmit({ ...inputOf(draft), fingerprint: result.data.fingerprint, acknowledged: needsAck ? acknowledged : undefined });
       onDone(done);
     } catch (err) {
       if (err && err.status === 409) { setStale(true); setDraft((prev) => ({ ...prev })); }
@@ -123,7 +129,7 @@ export default function VatRegimeSwitchDialog({ open, onClose, inForce, mentions
       submitBusy={busy}
     >
       <Stack spacing={2.5} sx={{ pt: 0.5 }}>
-        <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap', rowGap: 0.5 }} aria-label="Régime actuel et régime visé">
+        <Stack direction="row" spacing={1} role="group" sx={{ alignItems: 'center', flexWrap: 'wrap', rowGap: 0.5 }} aria-label="Régime actuel et régime visé">
           {inForce && <StatusBadge status={inForce.regime === 'subject' ? 'success' : 'neutral'} label={regimeLabel(inForce)} />}
           <Typography component="span" aria-hidden color="text.secondary">→</Typography>
           <StatusBadge status={toNotSubject ? 'neutral' : 'success'} label={target} />
@@ -136,10 +142,10 @@ export default function VatRegimeSwitchDialog({ open, onClose, inForce, mentions
             value={draft.legalMention}
             onChange={(e) => set({ legalMention: e.target.value })}
             error={Boolean(errors.legalMention)}
-            helperText={errors.legalMention || (mention ? `« ${mention.label} »` : ' ')}
+            helperText={errors.legalMention || (mention ? `Imprimée : « ${mention.label} »` : undefined)}
             fullWidth
           >
-            {mentions.map((m) => <MenuItem key={m.key} value={m.key}>{m.label}</MenuItem>)}
+            {mentions.map((m) => <MenuItem key={m.key} value={m.key}>{m.short}</MenuItem>)}
           </TextField>
         ) : (
           <TextField
@@ -161,38 +167,44 @@ export default function VatRegimeSwitchDialog({ open, onClose, inForce, mentions
                 const selected = draft.basis === scope.value;
                 const dateError = selected && errors.effectiveFrom;
                 const scheduled = selected && scope.dated && draft.dates[scope.value] > localIsoToday();
+                const titleId = `vat-scope-${scope.value}`;
+                const hintId = `${titleId}-hint`;
+                const warn = scope.correction;
                 return (
                   <Box
                     key={scope.value}
-                    component="label"
+                    onClick={() => chooseScope(scope.value)}
                     sx={(t) => ({
-                      display: 'block', border: 1, borderRadius: 1, p: 1.5, cursor: 'pointer',
-                      borderColor: selected ? 'primary.main' : 'divider',
-                      bgcolor: selected ? t.palette.action.hover : 'transparent',
+                      border: 1, borderRadius: 1, p: 1.5, cursor: 'pointer',
+                      borderColor: selected ? (warn ? 'warning.main' : 'primary.main') : 'divider',
+                      bgcolor: selected ? (warn ? t.palette.warning.soft : t.palette.action.hover) : 'transparent',
                     })}
                   >
-                    <FormControlLabel
-                      value={scope.value}
-                      control={<Radio />}
-                      label={<Typography variant="body2" sx={{ fontWeight: 600 }}>{scope.title}</Typography>}
-                      sx={{ m: 0, alignItems: 'center' }}
-                    />
-                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', ml: 4.5, mb: scope.dated ? 1 : 0 }}>
-                      {scope.hint}
-                    </Typography>
-                    {scope.dated && (
-                      <TextField
-                        type="date"
-                        size="small"
-                        value={draft.dates[scope.value]}
-                        onClick={(e) => e.stopPropagation()}
-                        onChange={(e) => set({ basis: scope.value, dates: { ...draft.dates, [scope.value]: e.target.value } })}
-                        error={Boolean(dateError)}
-                        helperText={dateError || (scheduled ? VAT_TEXTS.scheduledHelp : ' ')}
-                        sx={{ ml: { sm: 4.5 }, width: { xs: '100%', sm: 220 } }}
-                        slotProps={{ htmlInput: { 'aria-label': `${scope.title} : date` } }}
+                    <Stack direction="row" spacing={0.5} sx={{ alignItems: 'flex-start' }}>
+                      <Radio
+                        value={scope.value}
+                        color={warn ? 'warning' : 'primary'}
+                        slotProps={{ input: { 'aria-labelledby': titleId, 'aria-describedby': hintId } }}
+                        sx={{ mt: -0.5, ml: -0.5 }}
                       />
-                    )}
+                      <Box sx={{ minWidth: 0 }}>
+                        <Typography id={titleId} variant="body2" sx={{ fontWeight: 600 }}>{scope.title}</Typography>
+                        <Typography id={hintId} variant="caption" color="text.secondary" sx={{ display: 'block' }}>{scope.hint}</Typography>
+                        {selected && scope.dated && (
+                          <TextField
+                            type="date"
+                            size="small"
+                            value={draft.dates[scope.value]}
+                            onClick={(e) => e.stopPropagation()}
+                            onChange={(e) => set({ dates: { ...draft.dates, [scope.value]: e.target.value } })}
+                            error={Boolean(dateError)}
+                            helperText={dateError || (scheduled ? VAT_TEXTS.scheduledHelp : undefined)}
+                            sx={{ mt: 1, width: { xs: '100%', sm: 220 } }}
+                            slotProps={{ htmlInput: { 'aria-label': `${scope.title} : date` } }}
+                          />
+                        )}
+                      </Box>
+                    </Stack>
                   </Box>
                 );
               })}
@@ -216,14 +228,15 @@ export default function VatRegimeSwitchDialog({ open, onClose, inForce, mentions
           )}
         </Box>
 
-        {correction && (
+        {needsAck && (
           <FormControlLabel
-            control={<Checkbox checked={acknowledged} onChange={(e) => setAcknowledged(e.target.checked)} />}
-            label={monthsAffected ? VAT_TEXTS.ackSent : VAT_TEXTS.ackDocuments}
-            sx={{ alignItems: 'flex-start', '& .MuiCheckbox-root': { pt: 0.5 } }}
+            control={<Checkbox checked={acknowledged} color="warning" onChange={(e) => setAcknowledged(e.target.checked)} />}
+            label={monthsAffected ? VAT_TEXTS.ackSent : (ready && result.data.collected > 0 ? VAT_TEXTS.ackCollected : VAT_TEXTS.ackDocuments)}
+            sx={(t) => ({ m: 0, alignItems: 'flex-start', borderRadius: 1, px: 1, py: 0.5, bgcolor: t.palette.warning.soft, color: t.palette.warning.text, '& .MuiCheckbox-root': { pt: 0.5 } })}
           />
         )}
         {errors.acknowledged && <ErrorAlert message={errors.acknowledged} />}
+        {regimeRefused && <ErrorAlert message={VAT_TEXTS.regimeStale} />}
         {stale && <ErrorAlert message={VAT_TEXTS.stale} />}
         {failure && <ErrorAlert message={failure} />}
       </Stack>

@@ -96,7 +96,7 @@ Consequences retained by this spec:
 - **Platform commissions**: the platform's VAT on its commission is not deductible — it is a cost.
 - **Thresholds**: GuestFlow does not monitor the franchise thresholds (out of scope, §8).
 
-### 1.4 Impact measured on the shadow (prod copy, 2026-10-28)
+### 1.4 Impact measured on the shadow (prod copy, at the time of writing: 2026-10-28; figures move with the data — the dialog's preview is the live answer)
 
 58 reservations (49 past, 9 upcoming), 5 devis (2 drafts), 40 tourist taxes frozen, 12 declared,
 1 refund (2 lines), 3 installments, 1 cancellation compensation, 5 open payment links, encaissements
@@ -142,7 +142,7 @@ explained confirmation, with a dated, permanent history. A VAT-registered instal
    `effectiveFrom`; basis `arrival` → the row's `startDate` ≥ `effectiveFrom`.
 6. **The assignment is final.** Editing dates, party, prices, options, cancelling or reinstating never
    changes `vatPeriodId`. Only a switch (rule 15) reassigns.
-7. **A devis not converted is a live offer**: it is always resolved as if booked today (rule 5 with
+7. **A devis not converted is a live offer** (narrowed by rule 25): it is always resolved as if booked today (rule 5 with
    today's date and the devis's `startDate`), so a draft re-sent after a switch prints the regime in
    force. The reservation born from its conversion gets its own period through rule 4.
 8. **One resolver.** `vatRegime.forRow(db, row)` → `{ periodId, regime, rate, legalMention,
@@ -186,7 +186,7 @@ explained confirmation, with a dated, permanent history. A VAT-registered instal
     default 10, 0–100) or its mention (`not_subject`); a scope — `booking` « Réservations prises à partir
     du … » (default), `arrival` « Séjours qui commencent à partir du … », `all` « Toutes les réservations
     (correction) »; and `effectiveFrom` for `booking` / `arrival`. Admin only.
-15. **Bounds.** `effectiveFrom` is a valid date, ≥ the `effectiveFrom` of the latest dated period (the
+15. **Bounds** (the identity check is restated by rule 28; a decimal comma is a rate; an empty rate is refused, an absent one means 10): `effectiveFrom` is a valid date, ≥ the `effectiveFrom` of the latest dated period (the
     history is never rewritten in the middle), ≥ today − 366 days (further back is a correction) and
     ≤ today + 366 days. A target identical to the period in force (same regime, and same rate for `subject`) is refused. Errors are 422 with the field and a
     short message (§4.3).
@@ -201,10 +201,10 @@ explained confirmation, with a dated, permanent history. A VAT-registered instal
     rewritten — Qonto links are immutable); months whose accounting entries change; devis drafts that
     now print differently. The preview returns a fingerprint; the switch re-sends it and is refused
     with 409 when the reassigned set changed in between.
-18. **Undo of an unused change.** The latest period, when no reservation references it (a future-dated
+18. **Undo of an unused change** (extended to a change that has not started by rule 26): The latest period, when no reservation references it (a future-dated
     switch, or a mistake caught at once), can be deleted (« Annuler ce changement »). Otherwise the
     history is immutable; a wrong switch is fixed by another switch or a correction.
-19. **Scope `all` asks for an explicit acknowledgement** (a checkbox « Les écritures déjà transmises
+19. **Scope `all` asks for an explicit acknowledgement** (rule 24 asks it for any scope that rewrites collected money or booked months): (a checkbox « Les écritures déjà transmises
     au comptable changent. », shown only when months are affected; « Les documents déjà envoyés ne
     changent pas. » otherwise) before the button enables; the server refuses scope `all` without
     `acknowledged: true`.
@@ -222,6 +222,45 @@ explained confirmation, with a dated, permanent history. A VAT-registered instal
     period 1, the quote of every stay and devis, the stored summary, the devis PDF, the payment-link
     baskets of every type, the accounting CSV of every month, the finance payloads and the Suivi taxe de
     séjour are byte-identical to their capture on the code before Lot 1.
+
+### 3.5 Follow-ups of the review (2026-10-28)
+
+Appended, never renumbered; each narrows or completes a rule above.
+
+24. **Acknowledgement whenever money or books are rewritten.** Whatever the scope, a switch whose preview
+    has `collected > 0` or a non-empty `exportMonths` needs `acknowledged: true` (the preview says so in
+    `needsAcknowledgement`; the server refuses with 422 `acknowledged` otherwise; the dialog shows the
+    checkbox, worded for the books, for the collected stays, or for the documents). The correction (rule 19)
+    always asks.
+25. **A devis is live only while it is open.** Draft or sent and not expired → resolved as if booked today
+    (rule 7). Accepted or expired → the period it carries. Converted → the period of the reservation it
+    became, so the devis and its reservation always print the same regime.
+26. **A switch that has not started is undone exactly.** The period stores, per reservation it moved, the
+    period it had (`vat_periods.movedFrom`). While its date is still ahead, « Annuler ce changement » is
+    offered even though reservations moved: each goes back to its previous period (its refund lines re-rated,
+    a history line « changement annulé », its tourist tax re-saved under rule 27); a reservation born under
+    the period since falls to the period the others give it; its devis go to the previous period. Once the
+    date has come, rule 18 applies again.
+27. **The tourist tax and totals are re-saved, not just previewed.** Inside the switch transaction — and
+    inside the retroactive rate edit of rule 9 — each moved stay of a proportional-tax property whose tax is
+    neither frozen nor declared is re-saved through the fiche's own save (`performUpdate`: it keeps the
+    freeze, the locked prices and the schedule, and writes the stay's history). The preview is that same
+    save played in a savepoint, so the stored tax equals the announced line. A stay whose save would also
+    move its price keeps its stored figures and is reported (« garde sa taxe de séjour enregistrée »);
+    « Prix inchangés » never lies. Open links on a stay whose amount changes are abandoned by the save
+    (told in the preview); the others keep theirs.
+28. **The identity check compares with the latest period**, not with today's: after a switch dated ahead,
+    the way back is offered and the same target is refused. The dialog builds its target from the latest
+    period (`state.latest`), and still shows the period in force as the current regime.
+29. **The settings mirror follows the calendar.** `app_settings.vatRate` is refreshed at the hourly tick
+    (`scheduledTasks.tickVatRateMirror`), so a period that starts today is mirrored within the hour.
+30. **The resolver is strict.** `forRow` refuses a row that names no id, no stored period and is not a devis,
+    unless it says `newSale: true` (the engine does, for a stay not stored yet): it throws, and in
+    production logs loudly and answers today's regime. `null` still means « the regime in force ».
+31. **The fingerprint covers the source rates.** It hashes the moved set, the target and every period's
+    content plus the settings mirror: a rate edited between the preview and the switch gives a 409. The
+    months of the books are those of the journal's own predicates (paid, not in cash, a real amount; a
+    refund that is not internal; a compensation received).
 
 **Edge cases:**
 - Booking at 00:30 on the switch day (Paris) → the booking date is that day (rule 5 uses Europe/Paris,
@@ -272,7 +311,8 @@ explained confirmation, with a dated, permanent history. A VAT-registered instal
 | `plugins/accounting-export/` | `accountingModel.js`, `accountingExport.js` | T | Rate per row via `sdk.coreModule('vatRegimeModel')`; `not_subject` entries without VAT, commission TTC without 44566, compensation 0 % (rule 12g). Plugin version bump + changelog line. |
 | `plugins/sdk/` | core module list | T | Expose `vatRegimeModel` to plugins (`forRow`, `rateForRow`, `inForceBlock`): SDK 2.8.0, `coreModules.json`, `coreModuleHistory.json`. |
 | `middleware/` | — | — | Existing admin role guard reused. |
-| `scheduledTasks.js` | — | — | None (a future-dated period needs no job: rule 5 is evaluated at insert). |
+| `scheduledTasks.js` | `scheduledTasks.js` | T | `tickVatRateMirror` at the hourly tick (rule 29); nothing else: a future-dated period needs no job, rule 5 is evaluated at insert. |
+| `utils/` | `settingsValidation.js` | T | `validateVatRate` accepts a decimal comma. |
 
 ### 4.2 Client side (`client/src/`)
 
@@ -304,8 +344,8 @@ All under the admin guard; « Comptable » may `GET`.
 
 | Method | Endpoint | Request body | Response | Notes |
 |---|---|---|---|---|
-| GET | `/api/settings/vat-regime` | — | `{ inForce: Period, periods: Period[], mentions: [{ key, label }], accountingExportActive: bool }` | `Period = { id, regime, rate, legalMention, legalMentionText, basis, effectiveFrom, createdAt, createdByName, reservations: n, deletable: bool, label }` — `label` is the server's sentence (« Depuis le 01/01/2027 · réservations prises à partir de cette date »). |
-| POST | `/api/settings/vat-regime/preview` | `{ regime, rate?, legalMention?, basis, effectiveFrom? }` | `{ fingerprint, reassigned, collected, touristTaxChanged, touristTaxDelta, touristTaxKept, openLinks, exportMonths: ['2026-05', …], devisDrafts, lines: ['9 réservations passent sans TVA, …'], accountingExportActive }` or 422 `{ errors: { effectiveFrom?: string, rate?: string, regime?: string } }` | Pure read. |
+| GET | `/api/settings/vat-regime` | — | `{ inForce: Period, latest: Period, periods: Period[], mentions: [{ key, label, short }], accountingExportActive: bool }` | `Period = { id, regime, rate, legalMention, legalMentionText, basis, effectiveFrom, createdAt, createdAtDay, createdByName, reservations: n, deletable: bool, scheduled: bool, correction: bool, initial: bool, label }` — `scheduled`: the period has not started (rule 26); `correction`: scope `all` after the initial period; `createdAtDay`: the Paris day; `createdByName`: a name, or « Un administrateur », never an email (the accountant reads it) — `label` is the server's sentence (« Depuis le 01/01/2027 · réservations prises à partir de cette date »). |
+| POST | `/api/settings/vat-regime/preview` | `{ regime, rate?, legalMention?, basis, effectiveFrom? }` | `{ fingerprint, reassigned, collected, touristTaxChanged, touristTaxDelta, touristTaxKept, openLinks, exportMonths: ['2026-05', …], devisDrafts, linksReplaced, notRepriced, needsAcknowledgement, fromRegime, lines: ['9 réservations passent sans TVA, …'], accountingExportActive }` or 422 `{ errors: { effectiveFrom?: string, rate?: string, regime?: string } }` | Pure read. |
 | POST | `/api/settings/vat-regime/switch` | preview body + `{ fingerprint, acknowledged? }` | 201 `{ period: Period, reassigned }` | 409 `{ error: 'preview_stale' }`; 422 as preview, or `{ errors: { acknowledged } }` for scope `all`. |
 | DELETE | `/api/settings/vat-regime/periods/:id` | — | 204 | 409 `{ error: 'period_in_use' \| 'not_latest' \| 'initial_period' }`. |
 | PUT | `/api/settings` | `vat: { rate?, legalMention? }` | as today, `vat` = `{ regime, rate, legalMention }` | Edits the period in force (rule 9); 422 `vatRate` when `not_subject`, 422 `legalMention` when `subject`. The page sends back only what it changed, but a value that says nothing new (a null mention, a rate of 0 under « Sans TVA ») is not a change. |
@@ -340,6 +380,8 @@ INSERT INTO vat_periods (regime, rate, basis, note)
   SELECT 'subject', COALESCE(vatRate, 10), 'all', 'initial' FROM app_settings WHERE id = 1;
 UPDATE reservations SET vatPeriodId = 1 WHERE vatPeriodId IS NULL;
 
+-- Rule 26: vat_periods also carries `movedFrom TEXT` (JSON: reservation id -> previous period id).
+-- The trigger falls back to the first period when no predicate holds: COALESCE((SELECT … LIMIT 1), (SELECT MIN(id) FROM vat_periods)).
 CREATE TRIGGER IF NOT EXISTS trg_reservations_vat_period AFTER INSERT ON reservations
 WHEN NEW.vatPeriodId IS NULL BEGIN
   UPDATE reservations SET vatPeriodId = (
@@ -507,6 +549,19 @@ All four resolved by Adrien on 2026-10-28, each as proposed.
 - Q4: Are the two fixed mentions enough, or is a free text needed?
   - **Resolved 2026-10-28:** the two fixed mentions, FR and EN (rule 2).
 
+Raised by the review of 2026-10-28, for Adrien and his accountant. The spec takes no position on the law:
+
+- Q5: **A platform's commission invoiced from another EU country.** Under « Sans TVA », the journal books the
+  commission TTC with no deductible-VAT line (rule 12 (g)), whatever the platform row says. Does the
+  accountant want any specific entry for a commission invoiced without French VAT by a platform established
+  in another EU member state (a reverse-charge treatment, or none)? Until answered, GuestFlow books the
+  commission as a cost with no VAT line.
+- Q6: **Which date decides the regime of a stay: the sale or the payment?** GuestFlow assigns the regime by
+  the booking day or the arrival day, as the operator chooses (rule 14), and each reservation keeps it. Does
+  the accountant want the regime of an encaissement to follow the date of its payment instead (an acompte
+  collected before a switch for a stay booked after it, or the reverse)? Until answered, every entry of a
+  reservation follows that reservation's regime.
+
 ## 10. Implementation — ordered lots, each shippable
 
 | Lot | Content | Visible change | Gate |
@@ -522,6 +577,11 @@ Estimated size: ~16 server files touched, 4 created; ~10 client files touched, 5
 
 
 ## 11. Implementation progress (2026-10-28)
+
+Review fixes of the same day: rules 24-31, the client items (devis status, scope cards, short mentions,
+TTC/HT wording, history captions, stacked dialog actions), and a base fix for the English devis summary.
+Preview time measured on the shadow copy (machine under load): about 770 ms for a correction of 58
+reservations, about 300 ms for an arrival scope of 9; nothing was optimised.
 
 All four lots are done, committed in order on `feature/vat-optional-mode`; Lot 0 was committed alone on the
 unchanged code and every later lot kept its capture byte-identical.

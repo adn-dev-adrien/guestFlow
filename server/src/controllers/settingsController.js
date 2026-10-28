@@ -65,7 +65,7 @@ function readVatGroup(vat, errors) {
   if (Object.prototype.hasOwnProperty.call(vat, 'rate')) {
     const err = validation.validateVatRate(vat.rate);
     if (err) errors.vatRate = err;
-    else change.rate = vat.rate === '' || vat.rate == null ? vatRegimeModel.DEFAULT_RATE : Number(vat.rate);
+    else change.rate = vat.rate === '' || vat.rate == null ? vatRegimeModel.DEFAULT_RATE : vatRegime.parseRate(vat.rate);
   }
   const mention = vat.legalMention;
   if (mention != null && mention !== '') {
@@ -257,7 +257,11 @@ async function updateSettings(req, res) {
   }
 
   db.transaction(() => {
-    if (vatChange.rate !== undefined) vatRegimeModel.setRateInForce(db, vatChange.rate);
+    if (vatChange.rate !== undefined) {
+      vatRegimeModel.setRateInForce(db, vatChange.rate);
+      // Rule 27 — the stored tourist tax of the period's stays follows the rate the same way a switch's does.
+      require('../models/vatRegimeSwitchModel').repriceStaysOfPeriod(db, vatRegimeModel.inForce(db).id);
+    }
     if (vatChange.legalMention !== undefined) vatRegimeModel.setMentionInForce(db, vatChange.legalMention);
     settingsModel.upsert(payload);
   })();

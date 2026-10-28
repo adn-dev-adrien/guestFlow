@@ -10,8 +10,8 @@ import VatRegimeSwitchDialog from '../VatRegimeSwitchDialog';
 import { setViewport, resetViewport } from './viewportFixture';
 
 const MENTIONS = [
-  { key: 'art_293_b', label: 'TVA non applicable, art. 293 B du CGI' },
-  { key: 'art_261_d_4', label: 'Exonération de TVA, art. 261 D 4° du CGI' },
+  { key: 'art_293_b', label: 'TVA non applicable, art. 293 B du CGI', short: 'Franchise en base — art. 293 B' },
+  { key: 'art_261_d_4', label: 'Exonération de TVA, art. 261 D 4° du CGI', short: 'Location meublée exonérée — art. 261 D 4°' },
 ];
 const SUBJECT = { id: 1, regime: 'subject', rate: 10 };
 const NOT_SUBJECT = { id: 2, regime: 'not_subject', rate: 0 };
@@ -22,13 +22,13 @@ const READY = {
 };
 const refusal = (errors) => Object.assign(new Error('refused'), { status: 422, errors });
 
-function draw({ inForce = SUBJECT, preview = vi.fn().mockResolvedValue(READY), onSubmit = vi.fn().mockResolvedValue({ reassigned: 9 }), onDone = vi.fn() } = {}) {
+function draw({ inForce = SUBJECT, latest = inForce, onStale = vi.fn(), preview = vi.fn().mockResolvedValue(READY), onSubmit = vi.fn().mockResolvedValue({ reassigned: 9 }), onDone = vi.fn() } = {}) {
   render(
     <ThemeProvider theme={theme}>
-      <VatRegimeSwitchDialog open onClose={() => {}} inForce={inForce} mentions={MENTIONS} preview={preview} onSubmit={onSubmit} onDone={onDone} />
+      <VatRegimeSwitchDialog open onClose={() => {}} inForce={inForce} latest={latest} onStale={onStale} mentions={MENTIONS} preview={preview} onSubmit={onSubmit} onDone={onDone} />
     </ThemeProvider>,
   );
-  return { preview, onSubmit, onDone };
+  return { preview, onSubmit, onDone, onStale };
 }
 const button = (name) => screen.getByRole('button', { name });
 const today = () => new Date().toLocaleDateString('sv-SE');
@@ -41,7 +41,8 @@ test('from VAT: « Passer sans TVA », the current and the target regime, the me
   expect(screen.getByText('Assujetti · 10 %', { selector: '.MuiChip-label' })).toBeInTheDocument();
   expect(screen.getByText('Sans TVA', { selector: '.MuiChip-label' })).toBeInTheDocument();
   expect(screen.getByLabelText('Mention légale')).toBeInTheDocument();
-  expect(screen.getByRole('radio', { name: /Réservations prises à partir du/ })).toBeChecked();
+  expect(screen.getByText('« TVA non applicable, art. 293 B du CGI »', { exact: false })).toBeInTheDocument();
+  expect(screen.getByRole('radio', { name: 'Réservations prises à partir du' })).toBeChecked();
   expect(screen.getByLabelText('Réservations prises à partir du : date')).toHaveValue(today());
   await waitFor(() => expect(preview).toHaveBeenCalledWith({ regime: 'not_subject', legalMention: 'art_293_b', basis: 'booking', effectiveFrom: today() }));
 });
@@ -57,7 +58,7 @@ test('the submit button waits for the preview, then opens, and the lines are the
 
 test('choosing « Séjours qui commencent à partir du » asks the preview for that scope and its own date', async () => {
   const { preview } = draw();
-  await userEvent.click(screen.getByRole('radio', { name: /Séjours qui commencent à partir du/ }));
+  await userEvent.click(screen.getByRole('radio', { name: 'Séjours qui commencent à partir du' }));
   await waitFor(() => expect(preview).toHaveBeenLastCalledWith(expect.objectContaining({ basis: 'arrival', effectiveFrom: today() })));
 });
 
@@ -71,11 +72,12 @@ test('a date the server refuses is shown under the field, the button closes, the
 
 test('a correction asks for the acknowledgement before the button opens, in warning colour', async () => {
   draw();
-  await userEvent.click(screen.getByRole('radio', { name: /Toutes les réservations — correction/ }));
+  await userEvent.click(screen.getByRole('radio', { name: 'Toutes les réservations — correction' }));
   const go = await screen.findByRole('button', { name: 'Corriger toutes les réservations' });
   await screen.findByText('Prix inchangés.');
   expect(go).toBeDisabled();
   expect(go.className).toMatch(/Warning/);
+  expect(screen.getByRole('radio', { name: 'Toutes les réservations — correction' })).toBeChecked();
   await userEvent.click(screen.getByRole('checkbox', { name: 'Les documents déjà envoyés ne changent pas.' }));
   expect(go).toBeEnabled();
 });
@@ -83,13 +85,13 @@ test('a correction asks for the acknowledgement before the button opens, in warn
 test('a correction that rewrites months already sent says so in the acknowledgement', async () => {
   const preview = vi.fn().mockResolvedValue({ ...READY, exportMonths: ['2026-05', '2026-10'], accountingExportActive: true });
   draw({ preview });
-  await userEvent.click(screen.getByRole('radio', { name: /Toutes les réservations — correction/ }));
+  await userEvent.click(screen.getByRole('radio', { name: 'Toutes les réservations — correction' }));
   expect(await screen.findByRole('checkbox', { name: 'Les écritures déjà transmises au comptable changent.' })).toBeInTheDocument();
 });
 
 test('the switch sends the inputs, the preview\'s fingerprint and the acknowledgement, then reports it done', async () => {
   const { onSubmit, onDone } = draw();
-  await userEvent.click(screen.getByRole('radio', { name: /Toutes les réservations — correction/ }));
+  await userEvent.click(screen.getByRole('radio', { name: 'Toutes les réservations — correction' }));
   await screen.findByText('Prix inchangés.');
   await userEvent.click(screen.getByRole('checkbox'));
   await userEvent.click(button('Corriger toutes les réservations'));
@@ -136,4 +138,44 @@ test('on a phone the dialog is full screen and the scope cards stack', () => {
   draw();
   expect(screen.getByRole('dialog').closest('.MuiDialog-paper')).toHaveClass('MuiDialog-paperFullScreen');
   expect(screen.getAllByRole('radio')).toHaveLength(3);
+});
+
+test('the date field lives in the selected card only, and the cards carry no empty helper line', async () => {
+  draw();
+  expect(screen.getAllByLabelText(/: date$/)).toHaveLength(1);
+  await userEvent.click(screen.getByRole('radio', { name: 'Séjours qui commencent à partir du' }));
+  expect(screen.getAllByLabelText(/: date$/)).toHaveLength(1);
+  expect(screen.getByLabelText('Séjours qui commencent à partir du : date')).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('radio', { name: 'Toutes les réservations — correction' }));
+  expect(screen.queryAllByLabelText(/: date$/)).toHaveLength(0);
+});
+
+test('each scope card is one radio with one name, and its hint is its description', () => {
+  draw();
+  const radio = screen.getByRole('radio', { name: 'Réservations prises à partir du' });
+  expect(radio).toHaveAccessibleDescription('Les réservations déjà prises gardent leur régime.');
+  expect(screen.getByRole('radio', { name: 'Séjours qui commencent à partir du' })).toHaveAccessibleDescription('Y compris les séjours déjà réservés.');
+  expect(screen.getByRole('radio', { name: 'Toutes les réservations — correction' })).toHaveAccessibleDescription('Pour un régime mal paramétré.');
+});
+
+test('rule 24: a back-dated scope that moves collected money asks for the acknowledgement too', async () => {
+  const preview = vi.fn().mockResolvedValue({ ...READY, needsAcknowledgement: true, collected: 3 });
+  draw({ preview });
+  const go = screen.getByRole('button', { name: 'Passer sans TVA' });
+  await screen.findByText('Prix inchangés.');
+  expect(go).toBeDisabled();
+  await userEvent.click(screen.getByRole('checkbox', { name: 'Des réservations déjà encaissées changent de régime.' }));
+  expect(go).toBeEnabled();
+});
+
+test('the dialog targets the LATEST period: back to VAT after a change dated ahead', () => {
+  draw({ inForce: SUBJECT, latest: NOT_SUBJECT });
+  expect(screen.getByRole('dialog', { name: 'Passer à la TVA' })).toBeInTheDocument();
+});
+
+test('a regime already in place (422) is not a dead end: a notice, and the page\'s state is reloaded', async () => {
+  const preview = vi.fn().mockRejectedValue(refusal({ regime: 'Régime déjà en vigueur' }));
+  const { onStale } = draw({ preview });
+  expect(await screen.findByText('Le régime a changé entre-temps. Écran mis à jour.')).toBeInTheDocument();
+  expect(onStale).toHaveBeenCalled();
 });

@@ -4,9 +4,9 @@
 export const VAT_BASIS = Object.freeze({ BOOKING: 'booking', ARRIVAL: 'arrival', ALL: 'all' });
 
 export const VAT_SCOPES = [
-  { value: VAT_BASIS.BOOKING, title: 'Réservations prises à partir du', hint: 'Les séjours déjà réservés gardent leur régime.', dated: true },
-  { value: VAT_BASIS.ARRIVAL, title: 'Séjours qui commencent à partir du', hint: 'Même les réservations déjà prises changent, si le séjour commence après.', dated: true },
-  { value: VAT_BASIS.ALL, title: 'Toutes les réservations — correction', hint: 'En cas de mauvais réglage : tout l’historique est refait.', dated: false },
+  { value: VAT_BASIS.BOOKING, title: 'Réservations prises à partir du', hint: 'Les réservations déjà prises gardent leur régime.', dated: true },
+  { value: VAT_BASIS.ARRIVAL, title: 'Séjours qui commencent à partir du', hint: 'Y compris les séjours déjà réservés.', dated: true },
+  { value: VAT_BASIS.ALL, title: 'Toutes les réservations — correction', hint: 'Pour un régime mal paramétré.', dated: false, correction: true },
 ];
 
 export const VAT_TEXTS = Object.freeze({
@@ -18,7 +18,8 @@ export const VAT_TEXTS = Object.freeze({
   historyTitle: 'Historique',
   undo: 'Annuler ce changement',
   undoConfirmTitle: 'Annuler ce changement ?',
-  undoConfirmMessage: 'Le régime précédent reste en vigueur. Aucune réservation n’est touchée.',
+  undoConfirmMessage: 'Le régime précédent est rétabli ; les réservations déplacées par ce changement y reviennent.',
+  keep: 'Garder',
   scheduledTag: 'Prévu',
   correctionTag: 'Correction',
   inForceTag: 'En vigueur',
@@ -26,7 +27,9 @@ export const VAT_TEXTS = Object.freeze({
   appliesTo: 'Appliquer à',
   previewWaiting: 'Aperçu disponible une fois les champs corrigés.',
   ackSent: 'Les écritures déjà transmises au comptable changent.',
+  ackCollected: 'Des réservations déjà encaissées changent de régime.',
   ackDocuments: 'Les documents déjà envoyés ne changent pas.',
+  regimeStale: 'Le régime a changé entre-temps. Écran mis à jour.',
   stale: 'Les réservations ont changé. Aperçu mis à jour.',
   scheduledHelp: 'Changement prévu, annulable tant qu’aucune réservation ne l’utilise.',
 });

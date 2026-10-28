@@ -9,6 +9,8 @@ const { buildVatGoldenDb } = require('./vatRegimeGoldenFixture');
 const rules = require('../utils/vatRegime');
 
 const db = buildVatGoldenDb();
+// The fixture's devis expired on 2027-06-30 / 07-15; a live offer is what these suites are about (rule 25).
+db.prepare("UPDATE reservations SET validUntil = '2027-12-31' WHERE kind = 'devis'").run();
 const { calculateReservationQuote } = require('../utils/pricing');
 const { buildReservationEngineInput } = require('../utils/reservationEngineInput');
 const reservationsController = require('../controllers/reservationsController');

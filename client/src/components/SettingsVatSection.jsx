@@ -63,7 +63,7 @@ export default function SettingsVatSection({
               helperText={errors.legalMention || (mention ? `Imprimée sur les devis : « ${mention.label} ».` : ' ')}
               sx={{ maxWidth: { sm: 420 } }}
             >
-              {mentions.map((m) => <MenuItem key={m.key} value={m.key}>{m.label}</MenuItem>)}
+              {mentions.map((m) => <MenuItem key={m.key} value={m.key}>{m.short}</MenuItem>)}
             </TextField>
           ) : (
             <TextField

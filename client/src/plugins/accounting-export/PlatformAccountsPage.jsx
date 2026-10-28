@@ -387,7 +387,7 @@ export default function PlatformAccountsPage() {
                 <Box>
                   <Typography variant="sectionHeader">Par plateforme</Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                    Compte commission et TVA déductible, plateforme par plateforme.
+                    {notSubject ? 'Compte commission, plateforme par plateforme.' : 'Compte commission et TVA déductible, plateforme par plateforme.'}
                   </Typography>
                 </Box>
                 {!notSubject && (
@@ -411,7 +411,7 @@ export default function PlatformAccountsPage() {
                   <TableRow>
                     <TableCell>Plateforme</TableCell>
                     <TableCell>Compte commission</TableCell>
-                    <TableCell align="center">TVA déductible</TableCell>
+                    {!notSubject && <TableCell align="center">TVA déductible</TableCell>}
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -440,14 +440,16 @@ export default function PlatformAccountsPage() {
                             sx={{ width: { xs: '100%', sm: 180 } }}
                           />
                         </TableCell>
-                        <TableCell align="center">
-                          <Switch
-                            checked={Boolean(p.hasVatOnCommission)}
-                            onChange={(e) => updatePlatformField(p.id, 'hasVatOnCommission', e.target.checked)}
-                            disabled={p.isDirect || saving}
-                            slotProps={{ input: { 'aria-label': `TVA déductible commission ${formatPlatformLabel(p.name)}` } }}
-                          />
-                        </TableCell>
+                        {!notSubject && (
+                          <TableCell align="center">
+                            <Switch
+                              checked={Boolean(p.hasVatOnCommission)}
+                              onChange={(e) => updatePlatformField(p.id, 'hasVatOnCommission', e.target.checked)}
+                              disabled={p.isDirect || saving}
+                              slotProps={{ input: { 'aria-label': `TVA déductible commission ${formatPlatformLabel(p.name)}` } }}
+                            />
+                          </TableCell>
+                        )}
                       </TableRow>
                     );
                   })}

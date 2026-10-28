@@ -3,7 +3,8 @@
  * (period in force, history, mentions), and the three calls a switch needs. The server decides everything
  * (validation, preview, effects); this hook only carries the calls.
  *
- * Returns: { state, loading, error, reload, preview(input), switchRegime(input), deletePeriod(id) }
+ * Returns: { state, loading, error, reload, notSubject, preview(input), switchRegime(input), deletePeriod(id) }
+ *   notSubject — the regime in force is « Sans TVA » (false while loading or when the role cannot read it)
  */
 import { useCallback, useEffect, useState } from 'react';
 import api from '../api';
@@ -40,5 +41,6 @@ export default function useVatRegime() {
     return reload();
   }, [reload]);
 
-  return { state, loading, error, reload, preview: api.previewVatSwitch, switchRegime, deletePeriod };
+  const notSubject = Boolean(state && state.inForce && state.inForce.regime === 'not_subject');
+  return { state, loading, error, reload, notSubject, preview: api.previewVatSwitch, switchRegime, deletePeriod };
 }

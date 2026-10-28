@@ -59,6 +59,8 @@ export default function VatFiscalSettingsPage() {
           open={switching}
           onClose={() => setSwitching(false)}
           inForce={vat.state.inForce}
+          latest={vat.state.latest}
+          onStale={vat.reload}
           mentions={vat.state.mentions}
           preview={vat.preview}
           onSubmit={vat.switchRegime}
@@ -76,6 +78,7 @@ export default function VatFiscalSettingsPage() {
         message={VAT_TEXTS.undoConfirmMessage}
         confirmLabel={VAT_TEXTS.undo}
         confirmColor="primary"
+        cancelLabel={VAT_TEXTS.keep}
         onConfirm={async () => {
           const period = undoing;
           setUndoing(null);

@@ -9,6 +9,8 @@ const assert = require('node:assert/strict');
 const { buildVatGoldenDb } = require('./vatRegimeGoldenFixture');
 
 const db = buildVatGoldenDb();
+// The fixture's devis expired in June / July 2027; a live offer is what the preview counts (rule 25).
+db.prepare("UPDATE reservations SET validUntil = '2027-12-31' WHERE kind = 'devis'").run();
 const controller = require('../controllers/vatRegimeController');
 const vatRegimeModel = require('../models/vatRegimeModel');
 
@@ -66,7 +68,7 @@ test('rule 17: the open payment links of the reservations that change — their 
 });
 
 test('rule 17: the months of the books that would change', () => {
-  assert.deepEqual(preview(ALL).exportMonths, ['2027-03', '2027-04', '2027-05', '2027-06', '2027-08', '2027-09']);
+  assert.deepEqual(preview(ALL).exportMonths, ['2027-04', '2027-05', '2027-06', '2027-08', '2027-09']);
   assert.deepEqual(preview({ regime: 'not_subject', basis: 'arrival', effectiveFrom: '2027-12-01' }).exportMonths, []);
 });
 
@@ -93,7 +95,7 @@ test('rule 17: a switch whose reassigned set changed since the preview is refuse
   const stale = call(controller.makeSwitch, { ...input, fingerprint });
   assert.deepEqual([stale.statusCode, stale.body], [409, { error: 'preview_stale' }]);
   assert.equal(vatRegimeModel.listPeriods(db).length, 1);
-  const again = call(controller.makeSwitch, { ...input, fingerprint: preview(input).fingerprint });
+  const again = call(controller.makeSwitch, { ...input, fingerprint: preview(input).fingerprint, acknowledged: true });
   assert.equal(again.statusCode, 201);
 });
 
@@ -124,13 +126,14 @@ test('rule 17: the lines of « Ce qui change » are phrased by the server, only 
   ]);
 });
 
-test('rule 17: the months of the books are told only when the accounting export is on, as a range', () => {
+test('rule 17: the months of the books are told only when the accounting export is on, listed one by one', () => {
   const { previewLines } = require('../utils/vatRegime');
   const base = { reassigned: 3, collected: 0, touristTaxChanged: 0, touristTaxDelta: 0, touristTaxKept: 0, openLinks: 1, exportMonths: ['2026-05', '2026-06', '2026-10'] };
   const ALL_NO = { regime: 'not_subject', basis: 'all' };
   assert.ok(!previewLines(ALL_NO, base, { accountingExportActive: false }).some((l) => l.startsWith('Écritures')));
-  assert.ok(previewLines(ALL, base, { accountingExportActive: true }).includes('Écritures comptables modifiées : mai à octobre 2026 (3 mois).'));
-  assert.ok(previewLines(ALL, { ...base, exportMonths: ['2026-12', '2027-02'] }, { accountingExportActive: true }).includes('Écritures comptables modifiées : décembre 2026 à février 2027 (2 mois).'));
+  assert.ok(previewLines(ALL, base, { accountingExportActive: true }).includes('Écritures comptables modifiées : mai, juin et octobre 2026.'));
+  assert.ok(previewLines(ALL, { ...base, exportMonths: ['2026-12', '2027-02'] }, { accountingExportActive: true }).includes('Écritures comptables modifiées : décembre 2026 et février 2027.'));
+  assert.ok(previewLines(ALL, { ...base, exportMonths: ['2026-06', '2026-08', '2026-10'] }, { accountingExportActive: true }).includes('Écritures comptables modifiées : juin, août et octobre 2026.'), 'a gap is never hidden by a range');
   assert.ok(previewLines(ALL, { ...base, exportMonths: ['2026-05'] }, { accountingExportActive: true }).includes('Écritures comptables modifiées : mai 2026.'));
   assert.ok(previewLines(ALL, base).includes('1 lien de paiement ouvert garde son montant.'));
   assert.equal(previewLines(ALL, base)[0], '3 réservations passent sans TVA.');

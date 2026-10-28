@@ -24,7 +24,7 @@ const call = (fn, { body, params, user = { id: 1, roles: ['admin'] } } = {}) => 
 const previewOf = (input) => call(controller.preview, { body: input });
 const send = (input, extra = {}) => {
   const p = previewOf(input);
-  return call(controller.makeSwitch, { body: { ...input, fingerprint: p.body && p.body.fingerprint, ...extra } });
+  return call(controller.makeSwitch, { body: { ...input, fingerprint: p.body && p.body.fingerprint, acknowledged: true, ...extra } });
 };
 const periodOf = (id) => db.prepare('SELECT vatPeriodId FROM reservations WHERE id = ?').get(id).vatPeriodId;
 const periods = () => vatRegimeModel.listPeriods(db);

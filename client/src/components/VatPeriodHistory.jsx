@@ -18,7 +18,7 @@ import { VAT_TEXTS, regimeLabel } from '../constants/vatRegime';
 
 const caption = (period) => {
   const n = period.reservations;
-  const parts = [period.createdByName, period.createdAt && displayDate(String(period.createdAt).slice(0, 10)), `${n} réservation${n > 1 ? 's' : ''}`];
+  const parts = [period.createdByName, !period.initial && period.createdAtDay && displayDate(period.createdAtDay), `${n} réservation${n > 1 ? 's' : ''}`];
   return parts.filter(Boolean).join(' · ');
 };
 

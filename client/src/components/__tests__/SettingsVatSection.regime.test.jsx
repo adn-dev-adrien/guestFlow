@@ -9,11 +9,11 @@ import theme from '../../theme';
 import SettingsVatSection from '../SettingsVatSection';
 
 const MENTIONS = [
-  { key: 'art_293_b', label: 'TVA non applicable, art. 293 B du CGI' },
-  { key: 'art_261_d_4', label: 'Exonération de TVA, art. 261 D 4° du CGI' },
+  { key: 'art_293_b', label: 'TVA non applicable, art. 293 B du CGI', short: 'Franchise en base — art. 293 B' },
+  { key: 'art_261_d_4', label: 'Exonération de TVA, art. 261 D 4° du CGI', short: 'Location meublée exonérée — art. 261 D 4°' },
 ];
-const INITIAL = { id: 1, regime: 'subject', rate: 10, basis: 'all', label: 'Depuis toujours', createdByName: '', createdAt: '2026-01-02 10:00:00', reservations: 58, deletable: false, scheduled: false, correction: false };
-const SCHEDULED = { id: 2, regime: 'not_subject', rate: 0, basis: 'booking', label: 'Depuis le 01/01/2027 · réservations prises à partir de cette date', createdByName: 'Adrien Jouve', createdAt: '2026-10-28 09:00:00', reservations: 0, deletable: true, scheduled: true, correction: false };
+const INITIAL = { id: 1, regime: 'subject', rate: 10, basis: 'all', label: 'Depuis toujours', createdByName: '', createdAt: '2026-01-02 10:00:00', createdAtDay: '2026-01-02', initial: true, reservations: 58, deletable: false, scheduled: false, correction: false };
+const SCHEDULED = { id: 2, regime: 'not_subject', rate: 0, basis: 'booking', label: 'Depuis le 01/01/2027 · réservations prises à partir de cette date', createdByName: 'Adrien Jouve', createdAt: '2026-10-28 09:00:00', createdAtDay: '2026-10-28', reservations: 0, deletable: true, scheduled: true, correction: false };
 const CORRECTION = { id: 3, regime: 'subject', rate: 10, basis: 'all', label: 'Toutes les réservations (correction)', createdByName: 'Adrien Jouve', createdAt: '2026-10-29 09:00:00', reservations: 58, deletable: false, scheduled: false, correction: true };
 
 const draw = (props = {}) => render(
@@ -90,4 +90,18 @@ test('« Changer de régime… » opens the switch; nothing of it shows while th
   draw({ regime: null });
   expect(screen.queryByRole('button', { name: 'Changer de régime…' })).not.toBeInTheDocument();
   expect(screen.getByLabelText('Taux de TVA (%)')).toBeInTheDocument();
+});
+
+test('the history prints the Paris day of a period, and none for the initial one', () => {
+  draw({ regime: { inForce: INITIAL, periods: [SCHEDULED, INITIAL], mentions: MENTIONS } });
+  const items = within(screen.getByRole('list', { name: 'Historique' })).getAllByRole('listitem');
+  expect(within(items[0]).getByText(/Adrien Jouve · 28\/10\/2026 · 0 réservation/)).toBeInTheDocument();
+  expect(within(items[1]).getByText('58 réservations')).toBeInTheDocument();
+});
+
+test('the legal mention is told once under the field, the select showing the short name', () => {
+  const current = { ...SCHEDULED, scheduled: false, deletable: false };
+  draw({ values: { regime: 'not_subject', rate: 0, legalMention: 'art_293_b' }, regime: { inForce: current, periods: [current, INITIAL], mentions: MENTIONS } });
+  expect(screen.getAllByText(/art\. 293 B/)).toHaveLength(2);
+  expect(screen.getAllByText(/TVA non applicable, art\. 293 B du CGI/)).toHaveLength(1);
 });

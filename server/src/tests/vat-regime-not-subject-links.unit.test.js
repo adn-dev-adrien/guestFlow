@@ -8,6 +8,8 @@ const assert = require('node:assert/strict');
 const { buildVatGoldenDb } = require('./vatRegimeGoldenFixture');
 
 const db = buildVatGoldenDb();
+// The fixture's devis expired on 2027-06-30 / 07-15; a live offer is what these suites are about (rule 25).
+db.prepare("UPDATE reservations SET validUntil = '2027-12-31' WHERE kind = 'devis'").run();
 const payments = require('../controllers/paymentsController').__test;
 const devisQuote = require('../utils/devisQuote');
 const publicPayment = require('../utils/publicPaymentMode');
