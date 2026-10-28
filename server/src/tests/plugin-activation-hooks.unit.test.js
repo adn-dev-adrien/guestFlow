@@ -12,7 +12,7 @@ function setup({ allowed }) {
   const fired = [];
   const state = { allowed };
   registry.reset();
-  loader.resetLiveTransitions();
+  loader.resetLiveTransitionsForTests();
   registry.configure({ isActive: () => true, allows: () => state.allowed });
   registry.ensure('fixture-live').onActivate.push(() => { fired.push('fixture-live'); });
   return { fired, state };
