@@ -33,8 +33,9 @@ test('the past-loading progress bar shows at 390 px even when the page bar is no
   await expect(progress).toBeVisible();
   const box = await progress.boundingBox();
   const topBar = await page.locator('header.MuiAppBar-root').first().boundingBox();
-  // The top bar's 1 px border is the bar's own: the progress starts at the layout's 56 px, within 1 px of its bottom.
-  expect(Math.abs(box.y - (topBar.y + topBar.height))).toBeLessThanOrEqual(1);
+  // The progress starts right under the top bar's 1 px border, so both of its pixel rows show.
+  expect(box.y).toBeGreaterThanOrEqual(topBar.y + topBar.height - 0.5);
+  expect(box.y).toBeLessThanOrEqual(topBar.y + topBar.height + 0.5);
   expect(box.height).toBe(2);
 
   release();

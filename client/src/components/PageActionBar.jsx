@@ -222,7 +222,7 @@ export default function PageActionBar({
     />
   );
   const undrawnProgress = progress
-    ? progressBar({ position: 'fixed', top: APP_BAR_HEIGHT.xs, left: 0, right: 0, zIndex: (t) => t.zIndex.appBar - 1 })
+    ? progressBar({ position: 'fixed', top: APP_BAR_HEIGHT.xs + 1, left: 0, right: 0, zIndex: (t) => t.zIndex.appBar - 1 })
     : null;
   if (bareOnPhone && !hasActions) return undrawnProgress;
 

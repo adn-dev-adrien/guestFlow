@@ -43,13 +43,13 @@ describe('when the bar is not drawn on a phone', () => {
     expect(document.querySelector('[data-sticky-bar]')).toBeNull();
     const bar = screen.getByTestId('page-action-bar-progress');
     expect(bar).toHaveAttribute('aria-label', 'Chargement');
-    expect(bar).toHaveStyle({ position: 'fixed', top: '56px', height: '2px' });
+    expect(bar).toHaveStyle({ position: 'fixed', top: '57px', height: '2px' });
   });
 
   test('a lone action handed to the top bar still draws the progress', () => {
     setViewport(390);
     render(<Shell><PageActionBar title="Planning" progress="Chargement" actionsBefore={[{ icon: <SyncIcon />, tooltip: 'Actualiser', onClick: () => {} }]} /></Shell>);
     expect(screen.getByTestId('top')).toContainElement(screen.getByRole('button', { name: 'Actualiser' }));
-    expect(screen.getByTestId('page-action-bar-progress')).toHaveStyle({ position: 'fixed', top: '56px' });
+    expect(screen.getByTestId('page-action-bar-progress')).toHaveStyle({ position: 'fixed', top: '57px' });
   });
 });
