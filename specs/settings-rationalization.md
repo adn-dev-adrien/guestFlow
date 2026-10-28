@@ -332,9 +332,12 @@ one place.
     payload carries `filePath` = `/api/properties/:id/documents/:docId/file`, an authenticated download
     (404 under another property) named after the document; « Retirer » and the removal of the property
     delete the file. Files uploaded before the audit are moved at boot (copy under the final name, never over an existing file,
-    then the row, then the original; a missing file is logged and its row left alone; accepted exception to
+    then the original, then the row; a missing file is logged and its row left alone; accepted exception to
     additive migrations, self-update-and-releases.md rule 39 — production holds no document). The download
-    name appends the extension only when the name lacks it. Photos, logo and favicon stay in
+    name appends the extension only when the name lacks it. The folder is
+    backed up and restored with the uploads: `backup-from-pi.sh` / `restore-to-pi.sh`, the fleet's rclone sync and
+    local copy, the customer data export, and the lose-the-host restore of `deploy/hosting/README.md`; the
+    console's disk probe measures the whole instance directory. Photos, logo and favicon stay in
     the public tree: the WordPress site, the emails and the login page link them.
 
 **Edge cases**

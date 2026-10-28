@@ -29,7 +29,8 @@ client address.
   instances/                 guestflow:guestflow-app 2770 (setgid: everything inside stays in the group)
   instances/<slug>/          one directory per customer — the console creates it
     data/guestflow.db        its database, 0660 (+ licence.jws, local.env, platform-mail.json, backups/)
-    uploads/                 its photos and documents
+    uploads/                 its photos and logo
+    private-documents/       its property documents (outside the public uploads tree)
   releases/<version>/        each GuestFlow version, unpacked once, shared by every instance on it
                              (guestflow:guestflow-app 2750, files g+r never g+w: read-only for the instances)
   envs/<slug>                each instance's whole configuration (0600 in a 0700 dir of guestflow);
@@ -171,7 +172,8 @@ it was on.
   and put back its keys (`CP_LICENCE_PRIVATE_KEY`, `.key`, `.directory-key`, kept offline by the owner — they are
   not in the database); then restore each customer with `litestream restore -o
   /srv/guestflow/instances/<slug>/data/guestflow.db <CP_BACKUP_URL>/c<id>/db` before starting its
-  unit, and copy its uploads back with `rclone copy`.
+  unit, and copy its `uploads` and `private-documents` back with `rclone copy` (the second
+  holds the property documents and is absent for a customer who never added one).
 
 ## Real-host check (lab)
 

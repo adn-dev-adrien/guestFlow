@@ -168,3 +168,40 @@ test('rule 32 - the move at boot: missing file logged, no overwrite, a retry rec
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('rule 32 - a crash between deleting the original and updating the row leaves no public copy, and the retry finishes', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gf-docs-crash-'));
+  process.env.GUESTFLOW_UPLOADS_DIR = path.join(dir, 'uploads');
+  try {
+    const files = require('../utils/propertyDocumentFiles');
+    const uploads = path.join(dir, 'uploads');
+    fs.mkdirSync(uploads, { recursive: true });
+    const real = new Database(':memory:');
+    real.exec('CREATE TABLE documents (id INTEGER PRIMARY KEY, propertyId INTEGER, filePath TEXT)');
+    real.prepare("INSERT INTO documents (id, propertyId, filePath) VALUES (1, 1, '/uploads/a.pdf'), (2, 1, '/uploads/b.pdf')").run();
+    fs.writeFileSync(path.join(uploads, 'a.pdf'), 'A');
+    fs.writeFileSync(path.join(uploads, 'b.pdf'), 'B');
+    const priv = files.ensurePrivateDir();
+    fs.writeFileSync(path.join(priv, 'b.pdf'), 'someone else');
+    let crash = true;
+    const crashing = { prepare: (sql) => (crash && sql.startsWith('UPDATE') ? { run() { throw new Error('crash'); } } : real.prepare(sql)) };
+    assert.throws(() => files.moveLegacyDocumentsToPrivate(crashing, { warn() {} }), /crash/);
+    assert.equal(fs.existsSync(path.join(uploads, 'a.pdf')), false, 'nothing left in the public tree');
+    assert.equal(fs.readFileSync(path.join(priv, 'a.pdf'), 'utf8'), 'A');
+    crash = false;
+    assert.equal(files.moveLegacyDocumentsToPrivate(real, { warn() {} }), 2);
+    const stored = (id) => real.prepare('SELECT filePath FROM documents WHERE id = ?').get(id).filePath;
+    assert.equal(stored(1), 'private/a.pdf');
+    assert.equal(stored(2), 'private/2-b.pdf');
+    // Crash after the aliased copy and the delete: the retry must not adopt the other document's b.pdf.
+    const real2 = new Database(':memory:');
+    real2.exec('CREATE TABLE documents (id INTEGER PRIMARY KEY, propertyId INTEGER, filePath TEXT)');
+    real2.prepare("INSERT INTO documents (id, propertyId, filePath) VALUES (3, 1, '/uploads/b.pdf')").run();
+    fs.writeFileSync(path.join(priv, '3-b.pdf'), 'B3');
+    assert.equal(files.moveLegacyDocumentsToPrivate(real2, { warn() {} }), 1);
+    assert.equal(real2.prepare('SELECT filePath FROM documents WHERE id = 3').get().filePath, 'private/3-b.pdf');
+  } finally {
+    delete process.env.GUESTFLOW_UPLOADS_DIR;
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

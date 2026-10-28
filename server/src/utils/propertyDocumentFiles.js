@@ -59,8 +59,8 @@ function downloadName(docName, file) {
 
 /**
  * Moves the files uploaded before the audit out of the public tree. Crash-safe order: the file is copied
- * under its final name (never over an existing one), the row is updated, then the original is removed; a
- * retry recognises a file already in place. A row whose file is missing is logged and left alone.
+ * under its final name (never over an existing one), the original is removed (no public copy is ever left
+ * behind), then the row is updated; a retry recognises a file already in place. A row whose file is missing is logged and left alone.
  * Not additive after a rollback (specs/self-update-and-releases.md rule 39, accepted exception: the
  * production instance holds no document).
  */
@@ -73,6 +73,8 @@ function moveLegacyDocumentsToPrivate(db, log = console) {
     const dir = ensurePrivateDir();
     let to = safeUploadPath(dir, name);
     const sourceExists = from && fs.existsSync(from);
+    const aliased = safeUploadPath(dir, `${row.id}-${name}`);
+    if (!sourceExists && aliased && fs.existsSync(aliased)) to = aliased;
     if (!sourceExists && !(to && fs.existsSync(to))) {
       log.warn(`[documents-private] document ${row.id}: file ${name} not found, row left as it is`);
       continue;
@@ -83,8 +85,8 @@ function moveLegacyDocumentsToPrivate(db, log = console) {
       }
       if (!fs.existsSync(to)) fs.copyFileSync(from, to, fs.constants.COPYFILE_EXCL);
     }
-    db.prepare('UPDATE documents SET filePath = ? WHERE id = ?').run(`${PRIVATE_PREFIX}${path.basename(to)}`, row.id);
     if (sourceExists) fs.unlinkSync(from);
+    db.prepare('UPDATE documents SET filePath = ? WHERE id = ?').run(`${PRIVATE_PREFIX}${path.basename(to)}`, row.id);
     moved += 1;
   }
   return moved;
