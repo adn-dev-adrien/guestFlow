@@ -194,9 +194,10 @@ Let a website visitor **pay their full stay online** and have the reservation co
     converted and ticked by hand), the ledger's rule 24 reading applies: ticked the day of the payment
     or after = the same money, no alert; ticked on an earlier day = « Paiement à vérifier ». This also
     covers the `full` links minted before the tourist tax joined the amount (rule 18 of
-    deposit-blocks-the-dates.md). Covered by `tests/audit-devis-link-amount.unit.test.js` and
-    `tests/audit-devis-link-amount-review.unit.test.js`. _Open (Adrien): a « Renvoyer la demande » on the
-    devis page — no operator-side payment request exists for a devis, it needs its own spec and mockup._
+    deposit-blocks-the-dates.md). Two overlapping retry passes never book the same link twice: the pass
+    that clears the owed-deactivation marker (`claimRemoteCancelPending`) owns it, and the retry runs
+    one at a time per process. A paid link is never turned back into `cancelled`. Covered by
+    `tests/audit-devis-link-amount.unit.test.js` and `tests/audit-devis-link-amount-review.unit.test.js`.
 15. **One live link per devis and type.** `ensurePaymentLink` runs one at a time per reservation and
     type (the lock of the installments, rule 40 of direct-installments.md): two concurrent `pay` calls
     mint one provider link. Should two links of one devis be paid anyway, the second payment is not
@@ -345,6 +346,10 @@ the status poll. The proxy (`class-gf-rest-proxy.php`) forwards `token` from the
 - Auto-refund on conflict (manual admin resolution only).
 
 ## 9. Open questions
+
+- Q: A « Renvoyer la demande » on the devis page after its payment link was withdrawn (rule 14)? — Open
+  (Adrien, 2026-10-29): no operator-side payment request exists for a devis today; it needs its own spec
+  and an interactive mockup.
 
 1. **Qonto return URL** — confirm the payment-link API accepts a redirect/success URL and the exact field
    name (sandbox check). If unsupported → ship "status polled only" (the site provides its own return

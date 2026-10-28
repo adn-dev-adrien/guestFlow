@@ -218,7 +218,16 @@ async function processPaidLink({ database, devisModel, paymentLinksModel, link, 
 // retired for an amount change, booked at its amount (specs/reservation-payment-ledger.md rule 31): the admin is told,
 // the payment's id stays on the row for the refund. Returns the per-link results, and whether a rate
 // limit stopped the retries.
-async function retryPendingCancellations({ paymentLinksModel, provider, notifyPaidAfterCancel, database, devisModel, recordPayment, checkConflict, notifyConflict, emitPluginEvent }) {
+const retryInFlight = new WeakMap();
+function retryPendingCancellations(deps) {
+  const running = retryInFlight.get(deps.paymentLinksModel);
+  if (running) return running;
+  const run = retryPendingCancellationsOnce(deps).finally(() => retryInFlight.delete(deps.paymentLinksModel));
+  retryInFlight.set(deps.paymentLinksModel, run);
+  return run;
+}
+
+async function retryPendingCancellationsOnce({ paymentLinksModel, provider, notifyPaidAfterCancel, database, devisModel, recordPayment, checkConflict, notifyConflict, emitPluginEvent }) {
   const results = [];
   for (const link of paymentLinksModel.listRemoteCancelPending()) {
     if (link.provider !== provider.id || !link.providerLinkId) continue;
@@ -288,6 +297,18 @@ async function settleRetiredPaidLink({ paymentLinksModel, notifyPaidAfterCancel,
 async function bookAmountChangedPaidLink({ paymentLinksModel, notifyPaidAfterCancel, database, devisModel, recordPayment, checkConflict, notifyConflict, emitPluginEvent = require('../plugins/sdk/eventBus').emit, link, pay }) {
   const { paidDayOf } = require('./stayPaymentRecorder');
   const paidAt = pay.paidAt || new Date().toISOString();
+  if (!paymentLinksModel.claimRemoteCancelPending(link.id)) {
+    return { id: link.id, reservationId: link.reservationId, type: link.type, status: 'already-processed', effect: 'claimed-elsewhere' };
+  }
+  try {
+    return await bookClaimedAmountChangedLink({ paymentLinksModel, notifyPaidAfterCancel, database, devisModel, recordPayment, checkConflict, notifyConflict, emitPluginEvent, link, pay, paidAt, paidDayOf });
+  } catch (err) {
+    paymentLinksModel.restoreRemoteCancelPending(link.id);
+    throw err;
+  }
+}
+
+async function bookClaimedAmountChangedLink({ paymentLinksModel, notifyPaidAfterCancel, database, devisModel, recordPayment, checkConflict, notifyConflict, emitPluginEvent, link, pay, paidAt, paidDayOf }) {
   // A link retired from a devis the guest paid before it was deactivated: the money is real, so the devis
   // becomes the stay first (the payment is what confirms it) and the link is booked at what was received.
   const stay = database.prepare('SELECT * FROM reservations WHERE id = ?').get(Number(link.reservationId));

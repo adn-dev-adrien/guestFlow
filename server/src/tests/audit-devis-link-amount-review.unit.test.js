@@ -158,3 +158,46 @@ test('review 4 — the mismatch alert says no confirmation went out and where th
   const over = buildPaidAfterCancelEmail(resa, { amountCents: 56000 }, '', { amountMismatch: { expectedCents: 55500 } }).text;
   assert.match(over, /trop-perçu/);
 });
+
+test('review 7 — two overlapping retry passes find the same paid link: one books it, no false refund alert', async () => {
+  const { db, id, links, model } = seed({ deposit: 0, balance: 463.12 });
+  const stale = links.create({ reservationId: id, type: 'full', amountCents: 46312, providerLinkId: 'old', url: 'u', status: 'open' });
+  db.prepare('UPDATE reservations SET balanceAmount = 610.12, finalPrice = 610.12 WHERE id = ?').run(id);
+  model.__retireStaleLinks(id);
+  let asked = 0;
+  const provider = {
+    id: 'qonto',
+    getPayment: async () => { asked += 1; await new Promise((r) => setTimeout(r, 40)); return { paid: true, paymentId: 'p', paidAt: '2027-04-01T10:00:00Z' }; },
+  };
+  const alerts = [];
+  const deps = { paymentLinksModel: links, provider, database: db, devisModel: model, emitPluginEvent: () => {}, notifyPaidAfterCancel: async (l, o) => alerts.push(o) };
+  const [a, b] = await Promise.all([retryPendingCancellations(deps), retryPendingCancellations(deps)]);
+  assert.equal(a, b, 'the second call awaits the running pass');
+  assert.equal(asked, 1);
+  assert.deepEqual(alerts, [{ amountMismatch: { expectedCents: 61012, receivedCents: 46312 } }]);
+  assert.equal(links.findById(stale.id).status, 'paid');
+});
+
+test('review 7 — a pass that loses the claim of a pending link does nothing and says nothing', async () => {
+  const { db, id, links, model } = seed({ deposit: 0, balance: 463.12 });
+  const stale = links.create({ reservationId: id, type: 'full', amountCents: 46312, providerLinkId: 'old', url: 'u', status: 'open' });
+  db.prepare('UPDATE reservations SET balanceAmount = 610.12, finalPrice = 610.12 WHERE id = ?').run(id);
+  model.__retireStaleLinks(id);
+  const provider = { id: 'qonto', getPayment: async () => {
+    links.claimRemoteCancelPending(stale.id);
+    return { paid: true, paymentId: 'p', paidAt: '2027-04-01T10:00:00Z' };
+  } };
+  const alerts = [];
+  const out = await retryPendingCancellations({ paymentLinksModel: links, provider, database: db, devisModel: model, notifyPaidAfterCancel: async (l, o) => alerts.push(o) });
+  assert.equal(out.results[0].status, 'already-processed');
+  assert.deepEqual(alerts, []);
+  assert.equal(db.prepare('SELECT convertedReservationId FROM reservations WHERE id = ?').get(id).convertedReservationId, null);
+});
+
+test('review 7 — a paid link is never turned back into cancelled', () => {
+  const { id, links } = seed();
+  const link = links.create({ reservationId: id, type: 'full', amountCents: 55500, providerLinkId: 'l', url: 'u', status: 'open' });
+  links.markPaid(link.id, { providerPaymentId: 'p', paidAt: '2027-04-01T10:00:00Z' });
+  assert.equal(links.cancel(link.id, { remotePending: true }).status, 'paid');
+  assert.equal(links.findById(link.id).remoteCancelPendingAt, null);
+});
