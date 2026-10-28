@@ -2,6 +2,9 @@
 // insurance leaves every option list, the site included, and cannot be made again; a stay that carries
 // it gets it back read-only; the plugin's return brings the option back with its settings.
 
+const { requirePlugins } = require('../plugins/sdk/testing');
+if (!requirePlugins(['neat', 'website-booking'])) return;
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');

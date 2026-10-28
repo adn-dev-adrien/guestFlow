@@ -10,6 +10,9 @@
  * these columns exist on both sides of the fusion and the devis stack must write them.
  */
 
+const { requirePlugins } = require('../plugins/sdk/testing');
+if (!requirePlugins(['hourly-resources'])) return;
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');

@@ -2,6 +2,9 @@
 // through its `sasCommit` hook, exactly as the commit does: the evening supplement shows once, the
 // hook's `write` never runs on a preview, and a stale block is refused before « Valider ».
 
+const { requirePlugins } = require('../../sdk/testing');
+if (!requirePlugins(['sas'])) return;
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Module = require('module');

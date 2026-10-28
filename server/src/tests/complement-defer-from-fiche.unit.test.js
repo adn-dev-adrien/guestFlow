@@ -6,6 +6,9 @@
  * la carte fusionnée et le panneau de droite se contrediraient.
  */
 
+const { requirePlugins } = require('../plugins/sdk/testing');
+if (!requirePlugins(['accounting-export'])) return;
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Module = require('module');

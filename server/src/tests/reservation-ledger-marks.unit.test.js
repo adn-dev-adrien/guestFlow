@@ -4,6 +4,9 @@
 
 process.env.DB_PATH = ':memory:';
 
+const { requirePlugins } = require('../plugins/sdk/testing');
+if (!requirePlugins(['accounting-export'])) return;
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { db, createStay, rowOf, liveQuote, save, mark } = require('./ledgerFixture');

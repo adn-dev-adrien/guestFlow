@@ -4,7 +4,11 @@
  * The module registers against a capture context, so the global registry is left untouched.
  */
 
+const fs = require('fs');
+const path = require('path');
 const { runPluginMigrations } = require('./pluginMigrations');
+
+const PLUGINS_DIR = path.join(__dirname, '..');
 
 function captureContext(id, migrations) {
   const noop = new Proxy(function noop() {}, { get: () => noop, apply: () => noop });
@@ -26,4 +30,44 @@ function applyPluginSchema(db, id) {
   return runPluginMigrations(db, id, migrations);
 }
 
-module.exports = { applyPluginSchema };
+/**
+ * specs/plugin-removal-resilience.md rules 4, 13 — which plugins this tree ships, read from the
+ * folders (a folder holding a `manifest.json`), so a suite never lists them by hand and never
+ * assumes one exists.
+ */
+function listPlugins() {
+  return fs.readdirSync(PLUGINS_DIR, { withFileTypes: true })
+    .filter((d) => d.isDirectory() && fs.existsSync(path.join(PLUGINS_DIR, d.name, 'manifest.json')))
+    .map((d) => d.name)
+    .sort();
+}
+
+/** → the ids of `ids` that are not shipped. */
+function missingPlugins(ids) {
+  const shipped = listPlugins();
+  return ids.filter((id) => !shipped.includes(id));
+}
+
+/**
+ * A test file that proves something about plugin code opens with
+ * `if (!requirePlugins(['a', 'b'])) return;` — before it requires any of them. When one is not shipped
+ * the file registers one skipped test named `skipped: requires <ids>` and returns false.
+ */
+function requirePlugins(ids) {
+  const missing = missingPlugins(ids);
+  if (!missing.length) return true;
+  const label = `requires ${missing.join(', ')}`;
+  require('node:test').test(`skipped: ${label}`, { skip: label }, () => {});
+  return false;
+}
+
+/**
+ * For one test inside a mixed file: `test(name, { skip: skipWithout(['a']) }, fn)` — the skip reason
+ * (`requires a`) while a plugin is not shipped, `false` otherwise.
+ */
+function skipWithout(ids) {
+  const missing = missingPlugins(ids);
+  return missing.length ? `requires ${missing.join(', ')}` : false;
+}
+
+module.exports = { applyPluginSchema, listPlugins, missingPlugins, requirePlugins, skipWithout };

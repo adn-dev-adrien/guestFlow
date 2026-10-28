@@ -1,5 +1,8 @@
 // specs/direct-installments.md rules 35-38 — the plan at the door and in the books: what is due at arrival, the
 // SAS settling it, the fiscal attribution date, the bank reconciliation, and the paid buckets a plan never zeroes.
+const { requirePlugins } = require('../plugins/sdk/testing');
+if (!requirePlugins(['online-payment'])) return;
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');

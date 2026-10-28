@@ -11,8 +11,7 @@ const Module = require('module');
 const Database = require('better-sqlite3');
 
 const settingsModel = require('../models/settingsModel');
-const schoolHolidaysModel = require('../plugins/school-holidays/model');
-const { applyPluginSchema } = require('../plugins/sdk/testing');
+const { applyPluginSchema, skipWithout } = require('../plugins/sdk/testing');
 const { shapeResponse } = require('../utils/settingsResponse');
 const { __test: { SMTP_FIELDS } } = require('../controllers/settingsController');
 const { smtpPortForSecure } = require('../utils/settingsValidation');
@@ -113,7 +112,8 @@ test('rule 11: the SMTP field map has no port entry, so a sent port cannot be st
 
 // ---------- rule 13 — the school-holiday sync cadence is fixed ----------
 
-test('rule 13: the sync cadence is 60 days / 24 months whatever the legacy columns hold', () => {
+test('rule 13: the sync cadence is 60 days / 24 months whatever the legacy columns hold', { skip: skipWithout(['school-holidays']) }, () => {
+  const schoolHolidaysModel = require('../plugins/school-holidays/model');
   const db = baselineDb();
   applyPluginSchema(db, 'school-holidays');
   db.prepare('INSERT OR IGNORE INTO school_holidays_sync_state (id) VALUES (1)').run();

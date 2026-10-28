@@ -3,6 +3,9 @@
 // night, and never after a refused write. Real controllers over the real schema in memory.
 process.env.DB_PATH = ':memory:';
 
+const { requirePlugins } = require('../plugins/sdk/testing');
+if (!requirePlugins(['tariff-recipes'])) return;
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 

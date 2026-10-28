@@ -5,6 +5,9 @@
 //      `46710000` pass-through line of the accounting detail AND of the CSV export; a platform-collected
 //      stay surfaces no such line.
 
+const { requirePlugins } = require('../plugins/sdk/testing');
+if (!requirePlugins(['accounting-export'])) return;
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');

@@ -7,6 +7,9 @@
 // bouger. Et le mécanisme choisi est « échouer en se fermant » — le champ interdit est retiré en
 // silence, jamais rejeté, pour qu'un client un peu ancien ne perde pas tout un check-in sur un
 // champ qu'il n'aurait pas dû envoyer.
+const { requirePlugins } = require('../plugins/sdk/testing');
+if (!requirePlugins(['sas'])) return;
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 

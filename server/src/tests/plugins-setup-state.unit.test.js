@@ -4,6 +4,7 @@
 // The plugin says what it lacks through `ctx.setupStatus` (SDK 1.5.0).
 
 const test = require('node:test');
+const { skipWithout } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
 
 const registry = require('../plugins/sdk/registry');
@@ -107,7 +108,7 @@ function registered(id, stored) {
   return registry.get(id).setupStatus;
 }
 
-test('rule 25: Google Agenda — à connecter, then agenda à choisir, then nothing', () => {
+test('rule 25: Google Agenda — à connecter, then agenda à choisir, then nothing', { skip: skipWithout(['google-calendar']) }, () => {
   const stored = {};
   const check = registered('google-calendar', stored);
   assert.equal(check(), 'à connecter');
@@ -117,7 +118,7 @@ test('rule 25: Google Agenda — à connecter, then agenda à choisir, then noth
   assert.equal(check(), null);
 });
 
-test('rule 25: Neat — identifiants manquants until the client id and secret are both there', () => {
+test('rule 25: Neat — identifiants manquants until the client id and secret are both there', { skip: skipWithout(['neat']) }, () => {
   const stored = {};
   const check = registered('neat', stored);
   assert.equal(check(), 'identifiants manquants');
@@ -127,7 +128,7 @@ test('rule 25: Neat — identifiants manquants until the client id and secret ar
   assert.equal(check(), null);
 });
 
-test('rule 25: Vigilance Météo-France — clé manquante until the key is stored', () => {
+test('rule 25: Vigilance Météo-France — clé manquante until the key is stored', { skip: skipWithout(['weather-alerts']) }, () => {
   const stored = {};
   const check = registered('weather-alerts', stored);
   assert.equal(check(), 'clé manquante');
@@ -135,7 +136,7 @@ test('rule 25: Vigilance Météo-France — clé manquante until the key is stor
   assert.equal(check(), null);
 });
 
-test('rule 25: Paiement en ligne — à connecter until Qonto handed a refresh token', () => {
+test('rule 25: Paiement en ligne — à connecter until Qonto handed a refresh token', { skip: skipWithout(['online-payment']) }, () => {
   const stored = {};
   const check = registered('online-payment', stored);
   assert.equal(check(), 'à connecter');

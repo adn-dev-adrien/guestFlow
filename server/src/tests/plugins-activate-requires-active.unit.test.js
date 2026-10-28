@@ -2,6 +2,9 @@
 // of rule 36: activating a plugin whose requirement is inactive is refused 409 REQUIREMENT_INACTIVE,
 // naming the plugin to activate first. Google Vacation Rentals could be re-activated while
 // website-booking, which it requires, was off.
+const { requirePlugins } = require('../plugins/sdk/testing');
+if (!requirePlugins(['google-vacation-rentals', 'website-booking'])) return;
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');

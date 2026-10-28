@@ -7,6 +7,9 @@
  * only — the grouping key stays French, or the drawer would group differently in each language.
  */
 
+const { requirePlugins } = require('../plugins/sdk/testing');
+if (!requirePlugins(['website-booking'])) return;
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 

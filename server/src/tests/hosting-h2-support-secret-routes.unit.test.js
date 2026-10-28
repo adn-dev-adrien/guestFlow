@@ -4,6 +4,7 @@
 // token rotation. specs/hosting-h2-account-security.md rule 31 — the plugin's declaration is the only
 // source of those routes: the core policy keeps no copy.
 const test = require('node:test');
+const { skipWithout } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const os = require('os');
@@ -42,7 +43,7 @@ test('rule 23 — ctx.secretRoutes records its entries and refuses a malformed o
   registry.reset();
 });
 
-test('rule 23 — the gate connector declares its keys as a secret route', () => {
+test('rule 23 — the gate connector declares its keys as a secret route', { skip: skipWithout(['gate-access']) }, () => {
   const source = fs.readFileSync(path.join(__dirname, '..', 'plugins', 'gate-access', 'index.js'), 'utf8');
   assert.match(source, /ctx\.secretRoutes\(\[\{ method: 'GET', re: \/\^\\\/settings\\\/gate-connector\\\/secrets\$\/ \}\]\)/);
   // The plugin's declaration is the only source: the core policy holds no copy of the path.

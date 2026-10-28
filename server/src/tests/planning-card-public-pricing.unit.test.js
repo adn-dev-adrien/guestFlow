@@ -3,6 +3,9 @@
 // (quantity × (perPerson ? persons : 1) × unitPrice) and the line is left unscheduled; without the
 // flag (admin), a planning-card option still requires scheduled occurrences.
 
+const { requirePlugins } = require('../plugins/sdk/testing');
+if (!requirePlugins(['hourly-resources'])) return;
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');

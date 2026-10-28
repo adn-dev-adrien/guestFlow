@@ -5,6 +5,9 @@
 // its OWN month instead: an avoir reversing the revenue + VAT, an indemnity crediting the same sum
 // VAT-free. Which is why the reservation row survives the cancellation.
 
+const { requirePlugins } = require('../plugins/sdk/testing');
+if (!requirePlugins(['accounting-export'])) return;
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');

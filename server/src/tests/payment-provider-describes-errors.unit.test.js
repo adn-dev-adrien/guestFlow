@@ -1,6 +1,9 @@
 // specs/platform-settings-relay-and-review.md rule 9 — the core's money path names no payment provider:
 // an error the provider knows (Qonto « à connecter d'abord ») is worded by the provider itself through
 // `describeError`; without it, the core answers its generic 502 (audit 2026-10-27).
+const { requirePlugins } = require('../plugins/sdk/testing');
+if (!requirePlugins(['online-payment'])) return;
+
 const path = require('path');
 const os = require('os');
 const fs = require('fs');

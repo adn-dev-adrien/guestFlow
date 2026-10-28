@@ -3,6 +3,7 @@
 // which may go, and a « non » never switches anything off.
 
 const test = require('node:test');
+const { skipWithout } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
 
 const { freshDb } = require('./guestEmailSequenceFixtures');
@@ -55,7 +56,7 @@ const fresh = () => ({
   'hourly-resources': 'available', linen: 'available', sas: 'available', 'website-booking': 'available', 'online-payment': 'available', neat: 'available',
 });
 
-test('rule 43: three questions, each naming the plugins its « oui » turns on', async () => {
+test('rule 43: three questions, each naming the plugins its « oui » turns on', { skip: skipWithout(['hourly-resources', 'linen', 'online-payment', 'sas', 'website-booking']) }, async () => {
   assert.deepEqual(ONBOARDING_QUESTIONS.map((q) => q.id), ['options', 'website', 'payment']);
   ONBOARDING_QUESTIONS.forEach((q) => q.plugins.forEach((id) => assert.ok(PLUGIN_IDS.includes(id), `${id} is a catalogued plugin`)));
   const { db, controller } = setup(fresh());

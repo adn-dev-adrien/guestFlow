@@ -8,6 +8,9 @@ process.env.DB_PATH = ':memory:';
 process.env.PUBLIC_API_KEY = 'phase-2-website-key';
 process.env.PUBLIC_API_RATELIMIT_MAX = '50';
 
+const { requirePlugins } = require('../../sdk/testing');
+if (!requirePlugins(['gate-access', 'online-payment'])) return;
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');

@@ -4,6 +4,9 @@
 // the code before the regime existed. `GOLDEN_UPDATE=1` rewrites the capture, which is only ever
 // legitimate on that code (Lot 0).
 
+const { requirePlugins } = require('../plugins/sdk/testing');
+if (!requirePlugins(['accounting-export'])) return;
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');

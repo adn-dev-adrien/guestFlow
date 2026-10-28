@@ -8,6 +8,9 @@
 //   LEDGER_PARITY_DB=/path/to/solio.db node --test src/tests/reservation-ledger-parity.unit.test.js
 // Without it (CI), the same checks run on a synthetic base that walks every bucket state.
 
+const { requirePlugins } = require('../plugins/sdk/testing');
+if (!requirePlugins(['accounting-export'])) return;
+
 const fs = require('fs');
 const os = require('os');
 const path = require('path');

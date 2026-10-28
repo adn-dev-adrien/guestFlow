@@ -3,6 +3,7 @@
 // read-only path (rules 14, 16), the banner payload (§4.3) and the host-only session cookie (rule 23).
 
 const test = require('node:test');
+const { skipWithout } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
 const crypto = require('crypto');
 const express = require('express');
@@ -235,7 +236,7 @@ function pluginsSetup(licence) {
   return { model, ctrl, call };
 }
 
-test('rule 11: installing a plugin outside the plan answers 402 PLAN_REQUIRED with the plan to buy', async () => {
+test('rule 11: installing a plugin outside the plan answers 402 PLAN_REQUIRED with the plan to buy', { skip: skipWithout(['neat']) }, async () => {
   const { model, call } = pluginsSetup(reader());
   const res = await call('install', 'neat');
   assert.equal(res.statusCode, 402);
@@ -245,7 +246,7 @@ test('rule 11: installing a plugin outside the plan answers 402 PLAN_REQUIRED wi
   assert.equal(model.get('neat'), null);
 });
 
-test('rule 11: the list marks a plugin outside the plan with its plan chip', async () => {
+test('rule 11: the list marks a plugin outside the plan with its plan chip', { skip: skipWithout(['neat', 'sas']) }, async () => {
   const { call } = pluginsSetup(reader());
   const list = (await call('list')).body;
   const neat = list.find((p) => p.id === 'neat');
@@ -256,14 +257,14 @@ test('rule 11: the list marks a plugin outside the plan with its plan chip', asy
   assert.deepEqual([sas.outOfPlan, sas.planChip], [false, null]);
 });
 
-test('rule 4: a plugin in no plan reads « Option à la carte »', async () => {
+test('rule 4: a plugin in no plan reads « Option à la carte »', { skip: skipWithout(['neat']) }, async () => {
   const { call } = pluginsSetup(reader({ payload: { ...PRO, planOf: {} } }));
   const neat = (await call('list')).body.find((p) => p.id === 'neat');
   assert.equal(neat.planChip, 'Option à la carte');
   assert.match((await call('install', 'neat')).body.message, /option/);
 });
 
-test('rule 12: a downgrade leaves the stored state untouched and an upgrade brings the plugin back as it was', async () => {
+test('rule 12: a downgrade leaves the stored state untouched and an upgrade brings the plugin back as it was', { skip: skipWithout(['neat']) }, async () => {
   const premium = reader({ payload: { ...PRO, plugins: [...PRO.plugins, 'neat'] } });
   const { model, call } = pluginsSetup(premium);
   assert.equal((await call('install', 'neat')).statusCode, 200);

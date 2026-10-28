@@ -11,12 +11,9 @@ const { buildController, livePluginSources } = require('../controllers/dashboard
 const registry = require('../plugins/sdk/registry');
 const { createContext } = require('../plugins/sdk/createContext');
 
-const gate = require('../plugins/gate-access/attention');
-const linen = require('../plugins/linen/attention');
-const recipes = require('../plugins/tariff-recipes/attention');
-const gdf = require('../plugins/gites-de-france-intake/attention');
-const booking = require('../plugins/booking-intake/attention');
-const site = require('../plugins/website-booking/attention');
+// A summarizer of the shape a plugin declares: the controller's isolation is what this file proves.
+const summarizeAlerts = ({ alerts }) => ({ count: alerts.length, title: 'Demandes du site', detail: `${alerts.length} devis en attente`, severity: 'info' });
+const summarizeNever = () => null;
 
 const fakeRes = () => {
   const res = { body: undefined, statusCode: 200 };
@@ -134,8 +131,8 @@ test('rules 4, 20: the controller reads every source; a failing one is logged an
       },
     ],
     pluginSources: () => [
-      { key: 'site-requests', rank: 20, handler: (req, res) => res.json({ alerts: [{}] }), summarize: site.summarize },
-      { key: 'gate-keys', rank: 10, handler: (req, res) => res.status(503).json({ error: 'SOWEL' }), summarize: gate.summarize },
+      { key: 'site-requests', rank: 20, handler: (req, res) => res.json({ alerts: [{}] }), summarize: summarizeAlerts },
+      { key: 'gate-keys', rank: 10, handler: (req, res) => res.status(503).json({ error: 'SOWEL' }), summarize: summarizeNever },
     ],
   });
   const res = fakeRes();
@@ -175,26 +172,4 @@ test('rule 9: ctx.attention declares a plugin subject; only live plugins contrib
   assert.throws(() => createContext('p-live', {}).attention({ key: 'k-off', handler, summarize: () => null }), /already declared/);
   assert.throws(() => createContext('p-live', {}).attention({ key: 'x', handler }), /summarize/);
   registry.reset();
-});
-
-test('rule 6: plugin subjects — gate keys, linen, recipes, Gîtes de France, Booking, site', () => {
-  assert.deepEqual(gate.summarize({ failures: [{}, {}], stale: true }),
-    { count: 3, title: 'Clés portail', detail: 'Sowel ne lit plus les clés · 2 clés en échec', severity: 'urgent' });
-  assert.equal(gate.summarize({ failures: [], stale: false }), null);
-  const now = new Date('2026-10-19T10:00:00Z');
-  assert.equal(linen.summarize({ shortagesByType: [{ firstShortageDate: '2026-10-23' }, { firstShortageDate: '2026-10-21' }] }, now).detail,
-    '2 types en rupture à partir du 21 octobre');
-  assert.equal(linen.summarize({ shortagesByType: [{ firstShortageDate: '2027-01-04' }] }, now).detail,
-    '1 type en rupture à partir du 4 janvier 2027');
-  assert.equal(linen.summarize({ shortagesByType: [] }), null);
-  assert.equal(recipes.summarize({ runs: [{ blocking: 0 }], missingEvents: [] }).severity, 'info');
-  assert.equal(recipes.summarize({ runs: [{ blocking: 1 }], missingEvents: [] }).severity, 'todo');
-  assert.equal(recipes.summarize({ runs: [], missingEvents: [{}] }).detail, '1 point à relire');
-  assert.equal(gdf.summarize({ items: [{}, {}] }).detail, '2 mails');
-  const pending = [{ urgent: true }, { urgent: false }, { urgent: false }];
-  assert.deepEqual(booking.summarizeUrgent(pending),
-    { count: 1, title: 'Réservations Booking à compléter, arrivée proche', detail: '1 fiche à compléter', severity: 'urgent' });
-  assert.equal(booking.summarizeLater(pending).count, 2);
-  assert.equal(booking.summarizeLater([]), null);
-  assert.equal(site.summarize({ alerts: [{}, {}, {}] }).detail, '3 devis en attente');
 });

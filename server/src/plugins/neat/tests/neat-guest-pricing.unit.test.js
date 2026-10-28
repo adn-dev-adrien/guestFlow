@@ -7,6 +7,9 @@
  * frozen; the public projection announces the per-stay label.
  */
 
+const { requirePlugins } = require('../../sdk/testing');
+if (!requirePlugins(['website-booking'])) return;
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');

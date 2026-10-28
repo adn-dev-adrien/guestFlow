@@ -6,6 +6,9 @@
 // the cancellation e-mails stay possible.
 process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';
+const { requirePlugins } = require('../plugins/sdk/testing');
+if (!requirePlugins(['sas'])) return;
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const express = require('express');

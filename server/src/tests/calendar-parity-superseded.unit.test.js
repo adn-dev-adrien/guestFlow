@@ -5,6 +5,9 @@
 // « Rétablir » undoes it when its dates are still free.
 process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';
+const { requirePlugins } = require('../plugins/sdk/testing');
+if (!requirePlugins(['accounting-export'])) return;
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 

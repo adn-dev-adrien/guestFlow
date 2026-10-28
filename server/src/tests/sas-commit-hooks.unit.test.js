@@ -1,5 +1,8 @@
 // The SAS commit contract of plugin steps (specs/plugins-phase-3c-hourly-resources.md rules 6–8).
 
+const { requirePlugins } = require('../plugins/sdk/testing');
+if (!requirePlugins(['hourly-resources'])) return;
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 

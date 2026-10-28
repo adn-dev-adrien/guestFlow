@@ -5,6 +5,9 @@
 // moves, the mid-stay part lands in the end-of-stay complement) only mean something end to end.
 process.env.DB_PATH = ':memory:';
 
+const { requirePlugins } = require('../plugins/sdk/testing');
+if (!requirePlugins(['hourly-resources'])) return;
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 

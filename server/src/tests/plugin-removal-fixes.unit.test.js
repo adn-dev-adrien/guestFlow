@@ -7,6 +7,7 @@ const Database = require('better-sqlite3');
 
 const { CATALOG_ORDER, readCatalogue } = require('../constants/plugins');
 const { readSourceManifest } = require('../plugins/manifest');
+const { listPlugins } = require('../plugins/sdk/testing');
 const loader = require('../plugins/loader');
 const host = require('../plugins/host');
 const registry = require('../plugins/sdk/registry');
@@ -17,12 +18,13 @@ const { buildController } = require('../controllers/emailsController');
 const { buildModel: buildTemplatesModel } = require('../models/emailTemplatesModel');
 const { buildModel: buildLogModel } = require('../models/emailLogModel');
 
-const GONE = 'weather-alerts';
+const ORPHAN = 'orphan-plugin';
+const GONE = CATALOG_ORDER[0];
 
 function missingOne(id) {
   return (wanted) => {
     if (wanted === id) throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
-    return readSourceManifest(wanted);
+    return { id: wanted };
   };
 }
 
@@ -57,15 +59,16 @@ test('rule 1: the catalogue skips a plugin whose manifest is missing and says so
 
 test('rule 1: an invalid manifest is skipped like a missing one, never a boot failure', () => {
   const logs = [];
-  const invalid = (id) => { if (id === GONE) throw new Error('INVALID_MANIFEST:Nom manquant.'); return readSourceManifest(id); };
+  const invalid = (id) => { if (id === GONE) throw new Error('INVALID_MANIFEST:Nom manquant.'); return { id }; };
   assert.equal(readCatalogue(invalid, (line) => logs.push(line)).length, CATALOG_ORDER.length - 1);
   assert.equal(logs.length, 1);
 });
 
-test('rule 1: the shipped catalogue is complete when every folder is there', () => {
+test('rule 1: the shipped catalogue lists every folder, and says nothing about the ones that are there', () => {
   const logs = [];
-  assert.equal(readCatalogue(readSourceManifest, (line) => logs.push(line)).length, CATALOG_ORDER.length);
-  assert.deepEqual(logs, []);
+  const present = CATALOG_ORDER.filter((id) => listPlugins().includes(id));
+  assert.deepEqual(readCatalogue(readSourceManifest, (line) => logs.push(line)).map((p) => p.id), present);
+  assert.equal(logs.length, CATALOG_ORDER.length - present.length);
 });
 
 test('rule 1: the packages boot loads the installed rows outside the catalogue, reported PACKAGE_MISSING', () => {
@@ -76,7 +79,7 @@ test('rule 1: the packages boot loads the installed rows outside the catalogue, 
     const db = pluginsDb();
     const model = pluginsModel.buildModel(db);
     model.install('linen');
-    model.install(GONE, { source: 'bundled', manifest: { id: GONE, name: 'Vigilance Météo-France' } });
+    model.install(ORPHAN, { source: 'bundled', manifest: { id: ORPHAN, name: 'Vigilance Météo-France' } });
     const calls = [];
     const fakeLoader = {
       loadPackages(args) {
@@ -86,8 +89,8 @@ test('rule 1: the packages boot loads the installed rows outside the catalogue, 
       registerAll() {},
     };
     host.boot({ db, loader: fakeLoader, registry, model, catalogue: [{ id: 'linen', name: 'Linge' }] });
-    assert.deepEqual(calls[0], ['linen', GONE]);
-    assert.deepEqual(host.state().incompatible[GONE], { code: 'PACKAGE_MISSING', message: 'Paquet introuvable : à réinstaller.' });
+    assert.deepEqual(calls[0], ['linen', ORPHAN]);
+    assert.deepEqual(host.state().incompatible[ORPHAN], { code: 'PACKAGE_MISSING', message: 'Paquet introuvable : à réinstaller.' });
   } finally {
     process.env.GUESTFLOW_PLUGINS = env.GUESTFLOW_PLUGINS;
     if (env.GUESTFLOW_PLUGINS === undefined) delete process.env.GUESTFLOW_PLUGINS;
@@ -99,13 +102,13 @@ test('rule 1: the packages boot loads the installed rows outside the catalogue, 
 test('rule 1: the sources boot reports an installed row without a module the same way', () => {
   const db = pluginsDb();
   const model = pluginsModel.buildModel(db);
-  model.install(GONE, { source: 'bundled', manifest: { id: GONE, name: 'Vigilance Météo-France' } });
+  model.install(ORPHAN, { source: 'bundled', manifest: { id: ORPHAN, name: 'Vigilance Météo-France' } });
   const savedMode = process.env.GUESTFLOW_PLUGINS;
   process.env.GUESTFLOW_PLUGINS = 'sources';
   registry.reset();
   try {
     host.boot({ db, loader: { registerAll() {} }, registry, model, catalogue: [] });
-    assert.equal(host.state().incompatible[GONE].code, 'PACKAGE_MISSING');
+    assert.equal(host.state().incompatible[ORPHAN].code, 'PACKAGE_MISSING');
   } finally {
     if (savedMode === undefined) delete process.env.GUESTFLOW_PLUGINS; else process.env.GUESTFLOW_PLUGINS = savedMode;
     registry.reset();
@@ -115,19 +118,19 @@ test('rule 1: the sources boot reports an installed row without a module the sam
 test('rule 1: the Plugins list shows an installed orphan under its stored name, and it can be uninstalled', () => {
   const db = pluginsDb();
   const model = pluginsModel.buildModel(db);
-  model.install(GONE, { source: 'bundled', manifest: { id: GONE, name: 'Vigilance Météo-France', icon: 'thunderstorm', surfaces: ['Intégrations'], requires: [] } });
-  host.setIncompatible({ [GONE]: { code: 'PACKAGE_MISSING', message: 'Paquet introuvable : à réinstaller.' } });
+  model.install(ORPHAN, { source: 'bundled', manifest: { id: ORPHAN, name: 'Vigilance Météo-France', icon: 'thunderstorm', surfaces: ['Intégrations'], requires: [] } });
+  host.setIncompatible({ [ORPHAN]: { code: 'PACKAGE_MISSING', message: 'Paquet introuvable : à réinstaller.' } });
   const ctrl = createController(model, { db: () => db, registry: { get: () => null, isLive: () => false }, operatorManaged: () => false });
   const listed = fakeRes();
   ctrl.list({}, listed);
-  const orphan = listed.body.find((p) => p.id === GONE);
+  const orphan = listed.body.find((p) => p.id === ORPHAN);
   assert.equal(orphan.name, 'Vigilance Météo-France');
   assert.equal(orphan.state, 'incompatible');
   assert.equal(orphan.incompatible.code, 'PACKAGE_MISSING');
   const removed = fakeRes();
-  ctrl.uninstall({ params: { id: GONE }, query: {} }, removed);
+  ctrl.uninstall({ params: { id: ORPHAN }, query: {} }, removed);
   assert.equal(removed.statusCode, 200);
-  assert.equal(model.get(GONE), null);
+  assert.equal(model.get(ORPHAN), null);
   host.setIncompatible({});
 });
 
@@ -144,7 +147,7 @@ test('rule 2: /api/auth/me never lists an active row whose module is not loaded'
   const db = pluginsDb();
   const model = pluginsModel.buildModel(db);
   model.install('linen');
-  model.install(GONE);
+  model.install(ORPHAN);
   registry.reset();
   registry.configure({ allows: () => true, isActive: (id) => model.isActive(id) });
   registry.ensure('linen');

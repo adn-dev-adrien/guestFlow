@@ -3,6 +3,7 @@
 // registry client, the offers and their refusals, the loader's package path, the controller flows
 // and the migration of an existing install (Solio: twelve `builtin` rows → `bundled`).
 const test = require('node:test');
+const { skipWithout } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const os = require('os');
@@ -466,7 +467,7 @@ test('rules 10, 20: an installed plugin shows its version and the update with it
   assert.match(status.registry.label, /^Registre lu/);
 });
 
-test('rule 21: an available plugin is listed with the version it would install', async () => {
+test('rule 21: an available plugin is listed with the version it would install', { skip: skipWithout(['neat']) }, async () => {
   const { ctrl } = setup({ bundled: [manifest('neat', '1.0.0')] });
   const neat = (await call(ctrl.list)).body.find((p) => p.id === 'neat');
   assert.equal(neat.state, 'available');
@@ -581,7 +582,7 @@ test('rule 14: an incompatible plugin is shown as such, with the compatible vers
   assert.equal(linen.update.version, '1.0.0');
 });
 
-test('rules 10, 13: installing from the archive registers the plugin live and records the package', async () => {
+test('rules 10, 13: installing from the archive registers the plugin live and records the package', { skip: skipWithout(['neat']) }, async () => {
   const { ctrl, model, calls } = setup({ bundled: [manifest('neat', '1.0.0')] });
   const res = await call(ctrl.install, { params: { id: 'neat' } });
   assert.equal(res.statusCode, 200);
@@ -593,7 +594,7 @@ test('rules 10, 13: installing from the archive registers the plugin live and re
   assert.equal(row.manifest.id, 'neat');
 });
 
-test('rule 12: installing a plugin whose requirement is missing asks first, then installs both', async () => {
+test('rule 12: installing a plugin whose requirement is missing asks first, then installs both', { skip: skipWithout(['sas']) }, async () => {
   const sas = manifest('sas', '1.0.0', { requires: [{ id: 'linen', range: '^1.0.0' }] });
   const { ctrl, model } = setup({ bundled: [manifest('linen', '1.0.0'), sas] });
   const first = await call(ctrl.install, { params: { id: 'sas' } });
@@ -608,7 +609,7 @@ test('rule 12: installing a plugin whose requirement is missing asks first, then
   assert.equal(refused.body.error, 'REQUIRED_BY');
 });
 
-test('rule 22: an install whose only version needs a newer core is refused in plain French', async () => {
+test('rule 22: an install whose only version needs a newer core is refused in plain French', { skip: skipWithout(['neat']) }, async () => {
   const { ctrl } = setup({ bundled: [manifest('neat', '1.0.0', { guestflow: '>=4.1.0' })] });
   const res = await call(ctrl.install, { params: { id: 'neat' } });
   assert.equal(res.statusCode, 409);
@@ -644,7 +645,7 @@ test('rule 20: « Tout mettre à jour » verifies every package first, then swit
 
 // ---------- §5 data model: an existing install keeps everything ----------
 
-test('§5, rule 25: an existing install\'s `builtin` rows become `bundled` and follow the running copy', () => {
+test('§5, rule 25: an existing install\'s `builtin` rows become `bundled` and follow the running copy', { skip: skipWithout(['linen']) }, () => {
   const db = new Database(':memory:');
   db.exec("CREATE TABLE migrations (name TEXT PRIMARY KEY, ran_at TEXT NOT NULL DEFAULT (datetime('now')))");
   db.exec(`CREATE TABLE plugins (id TEXT PRIMARY KEY, enabled INTEGER NOT NULL DEFAULT 1, source TEXT NOT NULL DEFAULT 'builtin',
@@ -691,7 +692,7 @@ test('rule 13: the restart goes through the server\'s own shutdown, not a bare e
   assert.match(index, /startedAt: PROCESS_STARTED_AT/, '/api/version says when the process started, not when it was asked');
 });
 
-test('rule 29: an install needing a restart is refused without a supervisor, and one install runs at a time', async () => {
+test('rule 29: an install needing a restart is refused without a supervisor, and one install runs at a time', { skip: skipWithout(['neat']) }, async () => {
   const { ctrl, host, model } = setup({ bundled: [manifest('neat', '1.1.0')], supervised: false, loaded: { neat: '1.0.0' } });
   const res = await call(ctrl.install, { params: { id: 'neat' } });
   assert.equal(res.statusCode, 412);
@@ -701,7 +702,7 @@ test('rule 29: an install needing a restart is refused without a supervisor, and
   assert.equal((await call(ctrl.install, { params: { id: 'neat' } })).body.error, 'UPDATE_IN_PROGRESS');
 });
 
-test('rule 29: a requirement installed for a plugin whose install fails is uninstalled again', async () => {
+test('rule 29: a requirement installed for a plugin whose install fails is uninstalled again', { skip: skipWithout(['sas']) }, async () => {
   const sas = manifest('sas', '1.0.0', { requires: [{ id: 'linen', range: '^1.0.0' }] });
   const { ctrl, model, host } = setup({ bundled: [manifest('linen', '1.0.0'), sas] });
   const db = freshDb();
@@ -723,7 +724,7 @@ test('rule 29: a requirement installed for a plugin whose install fails is unins
   assert.ok(ctrl);
 });
 
-test('rule 29: a requirement downloaded from the registry and undone leaves no `current` pointer', async () => {
+test('rule 29: a requirement downloaded from the registry and undone leaves no `current` pointer', { skip: skipWithout(['sas']) }, async () => {
   const linen = manifest('linen', '1.1.0');
   const sas = manifest('sas', '1.0.0', { requires: [{ id: 'linen', range: '^1.1.0' }] });
   const { model, host, registryClient } = setup({ bundled: [manifest('linen', '1.0.0'), sas], regEntries: [{ m: linen, buf: makePackage(linen).buf }] });
@@ -737,7 +738,7 @@ test('rule 29: a requirement downloaded from the registry and undone leaves no `
   assert.equal(model.get('linen'), null);
 });
 
-test('rule 29 (second review m3): every refusal releases the lock; only a restart keeps it', async () => {
+test('rule 29 (second review m3): every refusal releases the lock; only a restart keeps it', { skip: skipWithout(['neat']) }, async () => {
   const next = manifest('linen', '1.1.0');
   const buf = makePackage(next).buf;
   const { ctrl, registryClient, host, files } = setup({

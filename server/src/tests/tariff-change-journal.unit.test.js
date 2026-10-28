@@ -1,3 +1,6 @@
+const { requirePlugins } = require('../plugins/sdk/testing');
+if (!requirePlugins(['tariff-recipes'])) return;
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');

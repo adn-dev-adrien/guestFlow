@@ -1,3 +1,6 @@
+const { requirePlugins } = require('../../sdk/testing');
+if (!requirePlugins(['hourly-resources'])) return;
+
 require('./isolatedDb');
 const test = require('node:test');
 const assert = require('node:assert/strict');

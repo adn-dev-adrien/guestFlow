@@ -1,6 +1,9 @@
 // specs/breakfast-offer-price-server-side.md rules 1-3 — the price of one breakfast morning that the
 // arrival SAS offer page shows comes from the server, priced by the very function the sale is billed with.
 
+const { requirePlugins } = require('../plugins/sdk/testing');
+if (!requirePlugins(['sas'])) return;
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 

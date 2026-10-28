@@ -6,6 +6,9 @@
  * the form opens; the two strings and their English.
  */
 
+const { requirePlugins } = require('../plugins/sdk/testing');
+if (!requirePlugins(['website-booking'])) return;
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');

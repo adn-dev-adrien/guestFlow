@@ -7,6 +7,9 @@
  * bounded date range).
  */
 
+const { requirePlugins } = require('../plugins/sdk/testing');
+if (!requirePlugins(['hourly-resources', 'linen'])) return;
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 

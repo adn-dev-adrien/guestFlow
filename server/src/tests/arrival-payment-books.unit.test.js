@@ -8,6 +8,9 @@
 //     `comptaCollected + remainingToPay === totalSejour` survives an adjustment;
 //   - the journal still balances, with the rebate on its own `70900000` debit rather than a quietly
 //     smaller accommodation credit.
+const { requirePlugins } = require('../plugins/sdk/testing');
+if (!requirePlugins(['accounting-export'])) return;
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');

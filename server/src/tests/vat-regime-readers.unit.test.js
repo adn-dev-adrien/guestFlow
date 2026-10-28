@@ -3,6 +3,9 @@
 // two periods (10 % for the stays before 2027-08-01, 20 % from then on) every one of them gives the
 // right rate to a stay of each side.
 
+const { requirePlugins } = require('../plugins/sdk/testing');
+if (!requirePlugins(['accounting-export'])) return;
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');

@@ -3,6 +3,9 @@
 // proportional tourist tax follows the price paid (its base HT is the price itself), a frozen or
 // declared one never moves; a view that spans both regimes treats each row with its own.
 
+const { requirePlugins } = require('../plugins/sdk/testing');
+if (!requirePlugins(['accounting-export'])) return;
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 

@@ -4,6 +4,9 @@
 // night the website's own.
 process.env.DB_PATH = ':memory:';
 
+const { requirePlugins } = require('../../sdk/testing');
+if (!requirePlugins(['tariff-recipes'])) return;
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 

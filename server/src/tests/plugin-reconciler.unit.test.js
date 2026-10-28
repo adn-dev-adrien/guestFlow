@@ -1,6 +1,7 @@
 // specs/plugin-operator-provisioning.md rules 16–19 — the space brings its plugins to the licence's
 // activePlugins through the controller's own handlers, reports each outcome, and never loops on a failure.
 const test = require('node:test');
+const { skipWithout } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
 
 const { space } = require('./pluginOperatorFixture');
@@ -9,7 +10,7 @@ const { planSteps, BLOCKED_RETRY_MS } = require('../utils/pluginReconciler');
 const ids = (steps) => steps.map((s) => `${s.op}:${s.id}`);
 const enabled = (s) => s.model.list().filter((r) => r.enabled).map((r) => r.id).sort();
 
-test('rule 16: a plugin in activePlugins and not installed is installed and active', async () => {
+test('rule 16: a plugin in activePlugins and not installed is installed and active', { skip: skipWithout(['linen']) }, async () => {
   const s = space({ active: ['linen'] });
   const out = await s.reconciler.run();
   assert.deepEqual(ids(out.steps), ['install:linen']);
@@ -17,14 +18,14 @@ test('rule 16: a plugin in activePlugins and not installed is installed and acti
   assert.equal(s.provisioning.get('linen').outcome, 'applied');
 });
 
-test('rule 16: an installed, inactive plugin in activePlugins is activated', async () => {
+test('rule 16: an installed, inactive plugin in activePlugins is activated', { skip: skipWithout(['linen']) }, async () => {
   const s = space({ installed: [['linen', false]], active: ['linen'] });
   const out = await s.reconciler.run();
   assert.deepEqual(ids(out.steps), ['activate:linen']);
   assert.deepEqual(enabled(s), ['linen']);
 });
 
-test('rule 16: an active plugin missing from activePlugins is deactivated, its data and settings kept', async () => {
+test('rule 16: an active plugin missing from activePlugins is deactivated, its data and settings kept', { skip: skipWithout(['linen']) }, async () => {
   const s = space({ installed: ['linen', 'sas'], active: ['sas'] });
   s.db.prepare('INSERT INTO linen_stock (n) VALUES (3)').run();
   const out = await s.reconciler.run();
@@ -72,21 +73,21 @@ test('rule 16: order — a dependant is deactivated before its requirement, and 
   assert.deepEqual(ids(steps), ['deactivate:google-vacation-rentals', 'deactivate:website-booking', 'activate:sas']);
 });
 
-test('rule 16: the real catalogue — switching the pair on installs website-booking first', async () => {
+test('rule 16: the real catalogue — switching the pair on installs website-booking first', { skip: skipWithout(['google-vacation-rentals', 'website-booking']) }, async () => {
   const s = space({ active: ['google-vacation-rentals', 'website-booking'] });
   const out = await s.reconciler.run();
   assert.deepEqual(ids(out.steps), ['install:website-booking', 'install:google-vacation-rentals']);
   assert.deepEqual(enabled(s), ['google-vacation-rentals', 'website-booking']);
 });
 
-test('rule 16: the real catalogue — switching the pair off deactivates the dependant first', async () => {
+test('rule 16: the real catalogue — switching the pair off deactivates the dependant first', { skip: skipWithout(['google-vacation-rentals', 'website-booking']) }, async () => {
   const s = space({ installed: ['google-vacation-rentals', 'website-booking'], active: [] });
   const out = await s.reconciler.run();
   assert.deepEqual(ids(out.steps), ['deactivate:google-vacation-rentals', 'deactivate:website-booking']);
   assert.deepEqual(enabled(s), []);
 });
 
-test('rule 17: a package that needs a restart is reported, never switched', async () => {
+test('rule 17: a package that needs a restart is reported, never switched', { skip: skipWithout(['linen']) }, async () => {
   const s = space({ active: ['linen'] });
   s.controller.install = async (req, res) => {
     assert.equal(req.noRestart, true);
@@ -99,14 +100,14 @@ test('rule 17: a package that needs a restart is reported, never switched', asyn
   assert.equal(row.message, 'Redémarrage nécessaire — passer par Versions › Plugins.');
 });
 
-test('rule 21: a plugin outside the plan is never installed, even when activePlugins names it', async () => {
+test('rule 21: a plugin outside the plan is never installed, even when activePlugins names it', { skip: skipWithout(['linen']) }, async () => {
   const s = space({ plugins: ['linen'], active: ['linen', 'sas'] });
   await s.reconciler.run();
   assert.deepEqual(enabled(s), ['linen']);
   assert.equal(s.model.get('sas'), null);
 });
 
-test('rule 18: a failure is not retried for the same licence, and is retried for a new one', async () => {
+test('rule 18: a failure is not retried for the same licence, and is retried for a new one', { skip: skipWithout(['linen']) }, async () => {
   const s = space({ active: ['linen'] });
   let calls = 0;
   const real = s.controller.install;
@@ -129,7 +130,7 @@ test('rule 18: a failure is not retried for the same licence, and is retried for
   assert.deepEqual(enabled(s), ['linen']);
 });
 
-test('rule 19: a deactivation refused by a business guard is blocked, the plugin stays active, retried each hour', async () => {
+test('rule 19: a deactivation refused by a business guard is blocked, the plugin stays active, retried each hour', { skip: skipWithout(['online-payment']) }, async () => {
   const s = space({ installed: ['online-payment'], active: [], blockers: { 'online-payment': 2 } });
   await s.reconciler.run();
   const row = s.provisioning.get('online-payment');
@@ -149,7 +150,7 @@ test('rule 19: a deactivation refused by a business guard is blocked, the plugin
   assert.equal(s.provisioning.get('online-payment').outcome, 'applied');
 });
 
-test('rule 19: a new licence retries a blocked deactivation at once', async () => {
+test('rule 19: a new licence retries a blocked deactivation at once', { skip: skipWithout(['online-payment']) }, async () => {
   const s = space({ installed: ['online-payment'], active: [], blockers: { 'online-payment': 1 } });
   await s.reconciler.run();
   s.db.prepare("UPDATE payment_links SET status = 'paid'").run();
@@ -158,7 +159,7 @@ test('rule 19: a new licence retries a blocked deactivation at once', async () =
   assert.equal(s.model.get('online-payment').enabled, false);
 });
 
-test('rule 18: one plugin failing never stops the others', async () => {
+test('rule 18: one plugin failing never stops the others', { skip: skipWithout(['linen', 'online-payment']) }, async () => {
   const s = space({ installed: ['online-payment'], active: ['linen'], blockers: { 'online-payment': 1 } });
   await s.reconciler.run();
   assert.equal(s.provisioning.get('online-payment').outcome, 'blocked');
@@ -166,7 +167,7 @@ test('rule 18: one plugin failing never stops the others', async () => {
   assert.equal(s.provisioning.appliedLicence(), '2026-10-28T08:00:00.000Z');
 });
 
-test('rule 16: an update in progress is not recorded — the pass tries again, the licence stays unapplied', async () => {
+test('rule 16: an update in progress is not recorded — the pass tries again, the licence stays unapplied', { skip: skipWithout(['linen']) }, async () => {
   const s = space({ active: ['linen'] });
   const real = s.controller.install;
   let busy = true;
@@ -196,7 +197,7 @@ test('rules 14, 22, 28: the pass publishes the setup a plugin lacks and the data
   assert.equal(facts['facts:neat'], undefined, 'a plugin that is not installed publishes nothing');
 });
 
-test('rule 21: a plugin the licence does not allow keeps its stored state — a plan that takes it back finds it as it was', async () => {
+test('rule 21: a plugin the licence does not allow keeps its stored state — a plan that takes it back finds it as it was', { skip: skipWithout(['linen', 'sas']) }, async () => {
   const s = space({ installed: ['linen', 'booking-intake', ['airbnb-intake', false]], plugins: ['linen', 'sas'], active: ['sas'] });
   const out = await s.reconciler.run();
   assert.deepEqual(ids(out.steps), ['deactivate:linen', 'install:sas']);

@@ -1,6 +1,9 @@
 // A resource sold by the hour is offered only while its plugin is live
 // (specs/plugins-phase-3c-hourly-resources.md rules 18–20 — decision P14).
 
+const { requirePlugins } = require('../plugins/sdk/testing');
+if (!requirePlugins(['hourly-resources'])) return;
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 

@@ -5,6 +5,9 @@
 // « À planifier » however many hours were placed. The amount was right either way: a sold line is the
 // locked snapshot's.
 
+const { requirePlugins } = require('../plugins/sdk/testing');
+if (!requirePlugins(['hourly-resources'])) return;
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');

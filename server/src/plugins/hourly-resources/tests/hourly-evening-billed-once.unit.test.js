@@ -7,6 +7,9 @@
 //  - a re-opened SAS sent the old supplement back as a custom line, and the server added a fresh one;
 //  - a save after a partial placement shrank the sold hours to the hours placed.
 
+const { requirePlugins } = require('../../sdk/testing');
+if (!requirePlugins(['sas'])) return;
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');

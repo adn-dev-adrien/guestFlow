@@ -1,6 +1,9 @@
 // specs/direct-installments.md rules 4, 5, 8, 22 and §4.1 — what a plan does to the money readers: the
 // pricing engine (acompte and solde replaced, the rise on a settled plan goes to the arrival complement),
 // the settlement figures, the ledger, the accounting export and the collection alert.
+const { requirePlugins } = require('../plugins/sdk/testing');
+if (!requirePlugins(['accounting-export'])) return;
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
