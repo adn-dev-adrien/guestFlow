@@ -321,6 +321,22 @@ signed-off releases over HTTPS, when the operator asks for it.
     `rolled_back`, plus a French human-readable label, the target version, and — on failure — the
     error and the log tail.
 38. The last 5 update outcomes are kept and shown in the settings section (version, date, result).
+39. **A release's install scripts never see the installer's secrets** (audit 2026-10-28, H1). The
+    dependency install runs `npm ci --omit=dev --ignore-scripts` with a minimal environment — `PATH`,
+    a `HOME` and npm cache inside the release being staged, nothing else, so no `CP_*`/`GUESTFLOW_*`
+    variable, session secret or key is inherited. Lifecycle scripts are then run only for the native
+    modules present in the tree and named by an allowlist (`better-sqlite3`, `sharp`), through an explicit
+    `npm rebuild <name>` with the same minimal environment (`better-sqlite3` from source). The fleet
+    console, which holds the licence private key, installs releases through the same function.
+40. **Optional release signature** (audit 2026-10-28, H1). When `GUESTFLOW_RELEASE_PUBLIC_KEY` (base64 DER
+    SPKI Ed25519) is configured on the installer, the release must carry a `SHA256SUMS.sig` asset — the
+    base64 Ed25519 signature of the exact `SHA256SUMS` bytes — and an unsigned release, a signature that
+    does not verify or an unreadable key is refused (`SIGNATURE_MISSING`, `SIGNATURE_INVALID`,
+    `SIGNATURE_KEY_INVALID`) before the archive is trusted. With no key configured nothing changes. The
+    signing key is held by the maintainer, never by GitHub: after the release workflow has published,
+    `node scripts/sign-release.mjs sign <private-key-file> vX.Y.Z` signs the published `SHA256SUMS` and
+    uploads `SHA256SUMS.sig`; `keygen <private-key-file>` creates the key pair and prints the public key
+    to configure. The release skill's last step is that signing once the key exists.
 
 **Edge cases**
 
@@ -842,7 +858,10 @@ Resolved 2026-08-20 with the user before writing this spec:
   truncated download and CDN-level tampering, **not** against someone who has taken over the
   GitHub account and publishes a malicious release. Minisign signing with a key held outside
   GitHub was offered and declined for now; it remains the natural hardening step if the threat
-  model changes.
+  model changes. **Amended 2026-10-28:** the threat
+  model did change — the fleet console installs releases in the process that holds the licence key —
+  so rules 39 (install scripts isolated from secrets) and 40 (optional Ed25519 signature of
+  `SHA256SUMS`, enforced once a public key is configured) were added.
 - **Q: Release channel?**
   A: **Tag `vX.Y.Z` on `master` via a `release/vX.Y.Z` PR**, sowel-style. The permanent `release`
   branch disappears.

@@ -18,6 +18,7 @@ const { promisify } = require('util');
 const { isAllowedDownloadUrl, parseSha256Sums } = require('./releaseClient');
 const { isValidVersion } = require('./semver');
 const { linkPersistentPaths } = require('./releaseLinks');
+const { assertSumsSigned, releasePublicKeyFromEnv } = require('./releaseSignature');
 
 const execFileAsync = promisify(execFile);
 
@@ -160,22 +161,52 @@ function assertReleaseLayout(releaseDir, expectedVersion) {
   return true;
 }
 
+// The only dependencies whose own install scripts are allowed to run (the native ones): every other
+// lifecycle script of a release is skipped, because a release is third-party code installed by a
+// process that may hold secrets (audit 2026-10-28, H1).
+const NATIVE_REBUILD_ALLOWLIST = ['better-sqlite3', 'sharp'];
+
+/**
+ * The environment of every npm / node child of an install: nothing of the parent's, so no secret
+ * (`CP_*`, `GUESTFLOW_*`, session or encryption keys) can reach a lifecycle script of the release.
+ */
+function installEnv(homeDir, extra = {}) {
+  return {
+    PATH: process.env.PATH || '/usr/local/bin:/usr/bin:/bin',
+    HOME: homeDir,
+    npm_config_cache: path.join(homeDir, '.npm'),
+    npm_config_update_notifier: 'false',
+    npm_config_fund: 'false',
+    npm_config_audit: 'false',
+    ...extra,
+  };
+}
+
 /**
  * Install production dependencies and make sure the native module actually loads.
  *
- * `npm ci --omit=dev` first (plain, so `sharp` keeps its prebuilt binary), then a from-source
- * rebuild of `better-sqlite3` alone so its ABI matches the Node that will run it — the same
- * two-step the deploy workflow used, for the same reason.
+ * `npm ci --omit=dev --ignore-scripts` first: no lifecycle script of the release or of any of its
+ * dependencies runs, and the environment is minimal (see `installEnv`). Then the native modules
+ * present in the tree (`NATIVE_REBUILD_ALLOWLIST`) are rebuilt explicitly — `better-sqlite3` from
+ * source so its ABI matches the Node that will run it, the same two-step the deploy workflow used —
+ * with the same minimal environment.
  */
 async function installDependencies({ releaseDir, execFileImpl = execFileAsync }) {
   const serverDir = path.join(releaseDir, 'server');
-  const options = { cwd: serverDir, timeout: NPM_TIMEOUT_MS, maxBuffer: 32 * 1024 * 1024 };
-  await execFileImpl('npm', ['ci', '--omit=dev'], options);
-  await execFileImpl('npm', ['rebuild', 'better-sqlite3'], {
-    ...options,
-    env: { ...process.env, npm_config_build_from_source: 'true' },
-  });
-  await execFileImpl(process.execPath, ['-e', "require('better-sqlite3')"], options);
+  const homeDir = path.join(releaseDir, '.install-home');
+  fs.mkdirSync(homeDir, { recursive: true });
+  const options = { cwd: serverDir, timeout: NPM_TIMEOUT_MS, maxBuffer: 32 * 1024 * 1024, env: installEnv(homeDir) };
+  try {
+    await execFileImpl('npm', ['ci', '--omit=dev', '--ignore-scripts'], options);
+    const present = NATIVE_REBUILD_ALLOWLIST.filter((name) => fs.existsSync(path.join(serverDir, 'node_modules', name)));
+    for (const name of present) {
+      const extra = name === 'better-sqlite3' ? { npm_config_build_from_source: 'true' } : {};
+      await execFileImpl('npm', ['rebuild', name], { ...options, env: installEnv(homeDir, extra) });
+    }
+    await execFileImpl(process.execPath, ['-e', "require('better-sqlite3')"], options);
+  } finally {
+    fs.rmSync(homeDir, { recursive: true, force: true });
+  }
 }
 
 /**
@@ -188,6 +219,7 @@ async function stageRelease({
   onPhase = () => {},
   fetchImpl = fetch,
   installImpl = installDependencies,
+  releasePublicKey = releasePublicKeyFromEnv(),
 }) {
   if (!isValidVersion(release.version)) throw new Error('INVALID_VERSION');
   const { version } = release;
@@ -205,7 +237,14 @@ async function stageRelease({
     await downloadToFile({ url: release.archive.url, destFile: tmpArchive, fetchImpl });
 
     onPhase('verifying');
-    const sums = parseSha256Sums(await fetchText({ url: release.checksums.url, fetchImpl }));
+    const sumsText = await fetchText({ url: release.checksums.url, fetchImpl });
+    await assertSumsSigned({
+      sumsText,
+      signature: release.checksumsSignature,
+      publicKey: releasePublicKey,
+      fetchSignature: (asset) => fetchText({ url: asset.url, fetchImpl }),
+    });
+    const sums = parseSha256Sums(sumsText);
     const expected = sums[release.archive.name];
     if (!expected) throw new Error('CHECKSUM_MISSING');
     const actual = await sha256File(tmpArchive);
