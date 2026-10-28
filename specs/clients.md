@@ -124,6 +124,12 @@ list.
     it). The shared `ConfirmDialog` gains an optional `secondaryLabel`, resolved by `confirm()` as the
     string `'secondary'`. *Why: the second review of 2026-10-18 found no way to create, from the fiche, a
     partner sharing the family phone (compared on its last 9 digits): only the Clients page could.*
+15. **The client sheet is the only way to delete (Draft, 2026-10-28).** The Clients list rows carry no
+    trash icon any more ([clients-upcoming-past-directory.md](clients-upcoming-past-directory.md) rule
+    18): rule 10's « Supprimer » in the sheet is the single entry, and it opens the same impact dialog.
+    `?deleteClientId=` stays a valid deep link (rule 11). *Why: two stacked icons doubled the height of
+    every row for an action taken a few times a year; the sheet already holds it, with the impact.*
+    _Q-B resolved 2026-10-28: (a)._
 
 **Edge cases:**
 - Client with only devis (no reservations) → `409` now also triggers (was silently deleted); impact shows

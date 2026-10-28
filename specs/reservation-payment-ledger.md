@@ -2,11 +2,12 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Implemented |
+| **Status** | Implemented (rules 1-49) · **Draft** amendment of 2026-10-28 (rules 50-64, §3.8; 53-55 withdrawn) |
 | **Branch** | `docs/payments-ledger-spec` (spec, #718) · `feature/reservation-payment-ledger` (implementation) |
 | **Created** | 2026-10-19 |
 | **Author** | Adrien |
 | **Related PR** | #718 (spec) |
+| **Amendment 2026-10-28** | Branch `feature/clients-directory-and-fiche-tariff` · summary [docs/specs/2026-10-28-clients-directory-and-fiche-tariff.html](../docs/specs/2026-10-28-clients-directory-and-fiche-tariff.html) |
 | **Summary page** | [docs/specs/2026-10-19-reservation-payment-ledger.html](../docs/specs/2026-10-19-reservation-payment-ledger.html) — interactive mocks at 390 and 1280 px |
 
 ---
@@ -485,6 +486,168 @@ decimals is rounded and shown rounded.
     solde minus the tourist tax they carry (none when it is collected on arrival) — the ceiling the save
     refuses beyond (rule 16). It read `null`.
 
+### 3.8 Amendment of 2026-10-28 — the stored summary looks like the summary; one alert for a platform price that looks misconfigured
+
+Feedback of 2026-10-28: « Sur une fiche client, si le montant diffère pourquoi afficher un résumé
+tarifaire sous un autre format, moi je veux le même visuel. En plus c'est très bizarre qu'on ait un
+changement tarifaire ? Il faudrait marquer : "Cette réservation bénéficie d'un ancien tarif" si j'ai bien
+compris l'idée de cet affichage. »
+
+**What the block really means.** Rule 45's `StoredPricingSummary` appears when the amounts saved on the
+fiche (price, tourist tax, acompte, solde, complement, their due dates) differ from what the engine
+computes **today** for the same fiche. It is *not* an old tariff: the live quote already replays the
+nightly prices, option lines and tariff the stay was saved with (`getPricingSnapshot`,
+[tariff-recipes/spec.md](tariff-recipes/spec.md) rule 12bis), so a change of season prices never
+raises it. What raises it is a change of *rules or settings* since the save: the tourist tax (rate,
+platform collection mode), the payment schedule (acompte %, J-N, platform payout delay), or an engine
+fix. Measured on the shadow (prod copy of 2026-10-22): **4 fiches out of 9 upcoming** show it — four
+Booking stays of 2027 saved with a 0 € tourist tax before Booking's tax convention was switched to
+« nous reverse » on 16/10 (live: 19,20 € to 33,60 €), so their solde and total differ by that tax, and
+one also has its solde due date moved by the payout delay (31/07 → 23/08). In those 4 cases the stored
+price is *higher* than today's calculation for 3 of them (905,00 € vs 901,82 €): « bénéficie d'un ancien
+tarif » would be false twice over. The sentence on screen today, « Montants enregistrés. Le calcul
+actuel du séjour diffère : il s'affiche dès que la fiche est modifiée. », is accurate but says neither
+*what* differs nor what to do, and the card drops the « OPTIONS » section, the per-night detail, the
+captions and the platform cascade labels the live card has.
+
+50. **One summary, two sources.** When rule 45 shows the stored figures they render through the same
+    `PricingSummary` component as the live quote — same sections in the same order, same labels, same
+    row components and typography: « Prix hébergement » (with « Détail (N nuits) » when the stored
+    nightly lines add up), « OPTIONS » with each stored option, custom option and resource line by name
+    (quantity caption, « Comprise » / « Offert » state, struck amount when offered), « Taxe de séjour »
+    with its collection caption, Total HT / TVA, « Total du séjour », the platform cascade (« Commission
+    acompte / solde », « Versement plateforme »), « Total perçu sur le séjour », the échéances with
+    « À payer avant », the complements and the caution. `StoredPricingSummary` is deleted.
+51. **The server shapes the stored lines.** `storedSummary` gains `nights`, `nightlyBreakdown` (the
+    stored snapshot; `[]` when its sum is more than 0,01 € away from the stored accommodation — « Détail »
+    is then not offered rather than showing nights that do not add up), `lines` —
+    `[{ key, section: 'accommodation'|'options'|'tax', label, caption, amount, offered, included,
+    inComplement }]` from `reservation_options`, `reservation_custom_options`, `reservation_resources` —
+    the tourist-tax caption the live quote uses for the stay's collection mode, and the platform cascade
+    labels. The same `lines` shape is added to the live quote (`calculate-price`), and `PricingSummary`
+    renders its option section from `lines` in both modes: the client no longer composes option lines
+    from `propertyOptions` / `availableResources`. *Parity:* for a stay without drift, the stored
+    summary and the live one render the same text, line for line.
+52. **Read-only while stored.** In stored mode the per-line controls (« Offrir », « compl. », « Recalculer
+    la taxe de séjour », « Afficher détail » of the tax) are not rendered — a value shown as stored is
+    never edited in place. Any change to the fiche brings the live summary back (rule 45 unchanged).
+53. **The notice names what differs.** _(Withdrawn 2026-10-28, §9 Q-C: no list of differences is
+    shown. Replaced by rules 57-64.)_
+54. **« Appliquer le calcul actuel ».** _(Withdrawn 2026-10-28, §9 Q-C: the existing « Actualiser
+    tarifs » of the Finances section already re-prices a fiche; no second button. Rule 64.)_
+55. **A tariff change alone never raises the notice.** _(Withdrawn 2026-10-28 with the notice itself;
+    its invariant — a tariff change alone leaves `storedDrift` false — is carried by rule 57.)_
+56. **The phone sheet follows.** Below `lg` the summary sheet opened from the sticky total bar renders
+    the same component in the same mode, notice included; the notice lines wrap, amounts never do.
+
+**Second feedback of 2026-10-28, on the first draft of this amendment** (« montants enregistrés +
+écarts »): « J'aime l'option montants enregistrés + écarts mais je trouve les explications pas claires,
+surtout lorsque c'est une plateforme : nous avons forcément des écarts car on suit notre politique
+tarifaire. Est-ce qu'il faut faire un check si on ne suit pas la politique ? J'en doute. Du coup je
+remets en cause la pertinence de cette information ; on peut peut-être la conserver pour alerter en cas
+d'écart trop important qui montrerait une erreur de paramétrage sur une plateforme. »
+
+**What that changes.** The difference « stored vs today's calculation » is not information the operator
+acts on: on a direct stay it only says a setting moved since the save (the 4 Booking stays above moved
+because of a tax convention, not because anything is wrong with them), and the existing « Actualiser
+tarifs » already re-prices a fiche on purpose. What *is* worth an alert is a platform that sells the
+stay far from the price GuestFlow tells it to list — the « Prix plateformes » grid of the property
+([platform-price-from-commission.md](platform-price-from-commission.md),
+[tariff-recipes/spec.md](tariff-recipes/spec.md) rules 31-34bis) — because that gap does not come from
+our policy, it comes from a channel configured wrong. Comparing the platform's brut with our *own*
+tariff would fire on every platform stay (the brut is grossed up by the commission on purpose,
+`gross = ceil(net / (1 − c))`, plus a cleaning fee on some channels); comparing it with the grid price
+*of that channel* fires only when the channel is not what the grid says.
+
+57. **No drift notice.** The stored summary of rule 50 renders the stored amounts with no notice, no
+    list of differences, no sentence about the calculation: it is the usual card. This supersedes the
+    sentence of rule 45 (« Montants enregistrés. Le calcul actuel du séjour diffère… »), which is
+    removed; rule 45's switch itself is unchanged — `storedDrift` still decides which source the card
+    reads, server-side, and is no longer shown. A tariff change alone (season price, option price,
+    recipe re-applied) still leaves `storedDrift` false, the snapshot being replayed (rule 12bis of the
+    tariff recipes). Where rule 56 says « notice included », read the alert of rule 62.
+58. **The platform price check compares two amounts of the same channel.** On a commissioned
+    platform stay (`!isDirectChannel(platform)`, `platformGrossAmount` entered) the server compares:
+    - **paid** — the part of the brut that pays the stay: `platformGrossAmount` minus the tourist tax
+      inside it (withheld or reversed, as the engine routes it) minus the pre-arrival options and
+      resources it carries. It is the accommodation the engine back-solves from the brut
+      ([platform-payment-entry.md](platform-payment-entry.md)) plus the in-brut extra-guest surcharge,
+      so the platform's cleaning fee stays inside it;
+    - **expected** — what the property's « Prix plateformes » grid says this channel should charge for
+      these nights and these paid guests (rule 59).
+    Both are TTC, rounded to the cent. The commission entered on the fiche plays no part: a wrong
+    commission amount is the platform payout's business (the bank reconciliation), not this check.
+59. **Expected = the grid, night by night.** For each night of the quote's `nightlyBreakdown` (the
+    replayed snapshot when there is one, else today's nights), `nightPrice × grid / billed`, where
+    `billed` is the season's `pricePerNight` and `grid` is the grid cell of that season and channel
+    (`grossFromNet(COALESCE(netTargetPerNight, pricePerNight), commissionPercent)`, whole euro up —
+    the exact number the grid displays). Using the ratio keeps the stay's degressivity, which platforms
+    apply as a percentage of their nightly price (tariff recipes rule 54). Plus the in-brut extra-guest
+    surcharge × `extraGrid / extraBilled` of the same seasons, plus the channel's cleaning fee grossed
+    up (`platformCleaningFees`, [tariff-recipe-platform-cleaning-fee.md](tariff-recipe-platform-cleaning-fee.md)
+    rules 8-9). The guests the platform did not bill (`platformPaidGuests`, collected on arrival) are
+    out of both sides.
+60. **The alert fires on a gap that no normal pricing explains.** `gap = paid − expected`,
+    `gapPercent = gap / expected`. The alert is raised when **`gapPercent < −15 %` or
+    `gapPercent > +25 %`, and `|gap| ≥ 30 €`**. The band absorbs what is normal on a channel: whole-euro
+    rounding (≤ 1 € a night), a non-refundable or early-booking rate (−10 % on Booking), a commission %
+    a point off, a platform degressivity that rounds differently, a weekly discount set a little
+    higher. It does not absorb what a misconfiguration produces: a season left at another season's price
+    (the gîte recipe's net targets run from 288 € to 908 €), a missing extra-guest price, a cleaning fee
+    missing on a short stay, a degressivity applied twice, a weekly price entered as nightly. The floor
+    of 30 € keeps a one-night stay from alerting on a few euros. Asymmetric on purpose: below the grid
+    the owner loses money (the net target is the floor, gîte recipe `_comment_pivot`); above it the
+    guest overpaid, which matters later in a review but is rarer as an error. _(Thresholds pending
+    Adrien's answer to Q-D.)_
+61. **When the check is not run.** `platformPriceCheck` is `null` — no alert, nothing computed — when:
+    the stay is a devis, is cancelled (`kind = 'cancelled'`), has started (`startDate ≤ today`: the
+    fiche is locked, rule 7, and nothing on it can fix a channel); the channel is an own channel
+    (`isDirectChannel`: direct, the booking engine, a sale channel counting as direct); the brut is not
+    entered (an iCal import awaiting « Paiement plateforme »); the channel is not in the `platforms`
+    table or its commission is ≥ 100 % (`grossFromNet` returns `null`); a night of the stay has no
+    season (`unpricedNights`); or the nights were priced on today's seasons (no stored snapshot) **and**
+    `tariff_change_events` holds an event for the property dated after the booking date — the grid
+    then describes a tariff the guest never saw, and the comparison would only measure the change.
+    A manual price (`customPrice`) does not exist on a platform stay (the brut is the single lever,
+    platform-payment-entry), so it needs no case.
+62. **One short alert, in the card.** When raised, the « Résumé tarifaire » opens with a single
+    warning-soft block, above « Prix hébergement », in live and stored mode alike, desktop panel and
+    phone sheet: a title **« Prix {Plateforme} à vérifier »**, one line **« {paid} payés · {expected}
+    selon la grille ({gapPercent}) »** (« 812,00 € payés · 1 180,00 € selon la grille (−31 %) »), and
+    a text link **« Voir la grille »** to `/properties/:propertyId/pricing-seasons` (the « Prix
+    plateformes » section). Nothing else: no explanation of the mechanism, no « tarif » / « ancien »,
+    no dismiss button (Q-F). It follows the live quote: entering the brut in « Paiement plateforme »
+    shows or clears it on the next preview, so a mistyped brut is caught at intake too.
+63. **The server decides, the client renders.** `calculate-price` returns `platformPriceCheck`
+    (`null`, or `{ platformLabel, paid, expected, gap, gapPercent, direction: 'below'|'above',
+    gridPath }`) computed by a pure util from the quote, the seasons, the platform row, the property's
+    cleaning fees and the journal. The client prints it with `formatCurrency` and a signed
+    `formatPercent`, and never compares two amounts itself. The thresholds are server constants
+    exported by the util, not settings (Q-D).
+64. **No second re-price button.** The stored card carries no « Appliquer le calcul actuel »: the
+    Finances section's « Actualiser tarifs » (`refreshToCurrentPricing`, confirmation, chip « Tarifs
+    actuels appliqués (non sauvegardé) ») stays the one deliberate way to re-price a direct fiche. A
+    platform stay has nothing to apply: its price is the brut.
+
+**Edge cases (amendment):**
+- Only a due date or the tourist tax differs from today (the 4 Booking stays of 2027) → the stored card,
+  no alert: the tax is out of rule 58's « paid », the dates are not compared.
+- Normal Booking stay listed at the grid (`ceil(288 / 0,85) = 339 €` a night on the gîte) → `gap ≈ 0` →
+  no alert, although the brut is ~6 % above the direct price and ~18 % above the net target.
+- Booking non-refundable rate at −10 % → −10 % → no alert. Genius (−10 %) on top of it → −19 % → alert:
+  that stacking is below the floor the grid defends, which is the point.
+- Airbnb without its 145 € cleaning fee (122 € net grossed at 15,5 %, whole euro up) on 2 nights of the
+  gîte (2 × 341 € + 145 € expected) → −18 % and −145 € → alert; the same omission on 7 nights → −6 % → no alert (accepted: the fee is a fixed part,
+  diluted on long stays — the grid page shows it anyway).
+- Channel at 0 % commission (Gîtes de France) → grid = net target: the check still runs.
+- Extra guests collected on arrival → out of both sides (rule 59); the stay is judged on the guests the
+  platform billed.
+- The stored price is lower or higher than today's on a direct stay → no alert at all (rule 57).
+- A platform stay whose stored nightly snapshot is empty (iCal import, `platformGrossAmount` pinned) →
+  « Prix hébergement » without « Détail », as on the live card of such a stay; the check runs on today's
+  nights unless the journal guard of rule 61 applies.
+- A devis never gets the alert (rule 61).
+
 ---
 
 ## 4. Architecture
@@ -519,6 +682,18 @@ decimals is rounded and shown rounded.
 | `tests/` | `reservation-ledger-parity.unit.test.js` | C | Parity on a neutralised copy of the Solio base (§7), `LEDGER_PARITY_DB=<copy>`; a synthetic base otherwise (CI). |
 | `tests/` | `ledgerFixture.js` | C | Shared fixture: in-memory base, one property, the real controller driven like the fiche. |
 
+**Amendment 2026-10-28 (rules 50-52, 56-64):**
+
+| Layer | File | T/C | Responsibility in this change |
+|---|---|---|---|
+| `controllers/` | `reservationsController.js` | T | `storedSummaryOf(row)` adds `nights`, `nightlyBreakdown`, `lines`, tax caption and cascade labels (rule 51); `calculate-price` adds the same `lines` on the live quote (rule 51) and `platformPriceCheck` (rule 63) for a saved or new reservation. `storedDrift` keeps its inline computation, unchanged (rule 57). |
+| `utils/` | `utils/pricingSummaryLines.js` | C | Pure: stored option / custom option / resource rows, or the live quote's lines → `lines[]` in one shape (rule 51). Shared by both paths so they cannot drift apart. |
+| `utils/` | `utils/platformPriceCheck.js` | C | Pure: `({ quote, row, seasons, platform, cleaningFee, journal, today }) → null | check` (rules 58-61); exports `BELOW_PERCENT = -15`, `ABOVE_PERCENT = 25`, `MIN_GAP_EUR = 30`. Reuses `grossFromNet` and `matchNightRule` from `utils/pricing.js` so the expected price is the grid's number, not a re-implementation. |
+| `models/` | `propertiesModel.js` | T | Extract the per-season grid cell of `platformPrices()` into `gridCellOf(season, commissionPercent)` so the grid page and the check compute it once (rule 59). Behaviour of the grid unchanged. |
+| `models/` | `tariffChangeJournalModel.js` | T | `hasEventAfter(propertyId, isoDate)` for the guard of rule 61. |
+| `models/` | `bookingLinesModel.js` | — | `getPricingSnapshot` reused as-is for the stored nightly lines and to know whether the nights were replayed (rule 61). |
+| `routes/`, `middleware/`, `tasks/`, `database.js` | — | — | Untouched: no new endpoint, no schema change. |
+
 ### 4.2 Client side (`client/src/`)
 
 | Layer | File | T/C | Responsibility in this change |
@@ -534,6 +709,16 @@ decimals is rounded and shown rounded.
 | `api.js` | `api.js` | T | `sendPaymentRequestOfType` (« Renvoyer la demande », rule 28); `markPayment` / `calculatePrice` carry `expectedAmountCents` / `ledgerEdit` in their bodies. |
 | `__tests__/` | `LedgerList.rendering.test.jsx`, `LedgerAmountEditor.refusals.test.jsx`, `FinanceSection.ledger.test.jsx` (+ `ledgerFixtures.jsx`) | C | One file per subject; the existing FinanceSection suites were moved onto the ledger rows. |
 
+**Amendment 2026-10-28 (rules 50-52, 56-64):**
+
+| Layer | File | T/C | Responsibility in this change |
+|---|---|---|---|
+| `components/` | `PricingSummary.jsx` | T | New props `mode: 'live'|'stored'` and `topNotice` (a node rendered above « Prix hébergement »); option section rendered from the server's `lines` in both modes; per-line controls hidden in stored mode (rules 50-52, 57). |
+| `components/` | `reservation/PlatformPriceAlert.jsx` | C | Specific to the fiche: renders `platformPriceCheck` (title, one line, « Voir la grille » link) — rule 62. Not generic: its only content is this check; the warning-soft look is the theme's `Alert` severity `warning`, variant `standard`, no icon override. |
+| `components/` | `reservation/StoredPricingSummary.jsx` | D | Deleted (rule 50), with its test `StoredPricingSummary.drifted.test.jsx` (cases moved to the new suites). |
+| `pages/` | `ReservationPage.jsx` | T | Passes `storedSummary` as the summary source when `showStoredSummary`; passes `<PlatformPriceAlert check={pricingQuote.platformPriceCheck} />` as `topNotice` in both modes and in the phone sheet; no option-line composition left for the summary. |
+| `constants/` | `constants/pricingSummaryStrings.js` | C | « Prix {platform} à vérifier », « payés », « selon la grille », « Voir la grille ». |
+
 **Component reuse declaration:**
 
 | Category | Components | Notes |
@@ -543,6 +728,8 @@ decimals is rounded and shown rounded.
 | **Specific (kept feature-local)** | `FinanceSection` | Reservation-specific orchestration only. `ComplementCard` and `ArrivalPaymentCard` become the `detail` content of their rows. |
 
 ### 4.3 API contract
+
+**Amendment 2026-10-28:** `storedSummary` and `calculate-price` additions (rules 51, 63) are specified with their payload at the end of §6, next to the UI they feed.
 
 | Method | Endpoint | Request body | Response | Notes |
 |---|---|---|---|---|
@@ -563,6 +750,8 @@ Row shape:
 ---
 
 ## 5. Data model
+
+**Amendment 2026-10-28:** no schema change, no migration — the stored lines are read from the existing `reservation_options`, `reservation_custom_options`, `reservation_resources` and the pricing snapshot.
 
 **No schema change.** The ledger is a view over existing columns: `deposit*`, `balance*`,
 `complement*`, `endOfStayComplement*`, `caution*`, `depositAmountOverride`, `customPrice`,
@@ -628,6 +817,41 @@ Interactive rendering: [docs/specs/2026-10-19-reservation-payment-ledger.html](.
   le ») and the confirmation button names the gesture (« Annuler la perception », « Annuler le
   versement », « Annuler la réception », « Annuler la restitution »).
 
+**Amendment 2026-10-28 (rules 50-64) — API.** `GET /api/reservations/:id` → `storedSummary` gains
+`nights`, `nightlyBreakdown[]`, `lines[]`, `touristTaxCaption`, `cascadeLabels`. `POST
+/api/reservations/calculate-price` → adds `lines[]` and `platformPriceCheck` (absent for a
+reception-only user, like the ledger). `storedDrift` is unchanged and no `storedDriftItems` is added.
+
+```json
+{
+  "storedDrift": false,
+  "platformPriceCheck": {
+    "platformLabel": "Booking",
+    "paid": 812,
+    "expected": 1180,
+    "gap": -368,
+    "gapPercent": -31.2,
+    "direction": "below",
+    "gridPath": "/properties/3/pricing-seasons"
+  },
+  "lines": [
+    { "key": "option:12", "section": "options", "label": "Linge de lit", "caption": "incluse dans le tarif", "amount": 70, "offered": false, "included": true, "inComplement": false }
+  ]
+}
+```
+
+`platformPriceCheck` is `null` whenever rule 61 applies **and** whenever the gap sits inside the band of
+rule 60 — the client never receives a « no alert » object to interpret. `gapPercent` is rounded to one
+decimal; the client prints it whole (« −31 % »).
+
+**Amendment 2026-10-28 — UI.** Desktop: the stored card is the live card (same width, sections, labels),
+no notice (rule 57). On a platform stay outside the band, the card opens with the alert of rule 62:
+MUI `Alert` severity `warning` (Maison warning soft background), radius 10, 12 px padding, title in 600,
+the line in `body2` with amounts in `tabular-nums`, « Voir la grille » as a text link under the line.
+Phone (`xs`): the same alert at the top of the summary sheet; the line wraps after « payés · », the
+amounts and the percentage never break; the link is a 44 px-high target. Mockups in the 2026-10-28
+summary page (normal direct · normal platform · misconfigured platform, panel and phone width).
+
 **`PageActionBar`:** unchanged. « Enregistrer » still saves the fiche; marks save first (rule 10).
 
 **Copy** — short and impersonal: « Marquer perçu », « Recevoir », « Restituer », « Marquer reçu »,
@@ -666,6 +890,26 @@ Interactive rendering: [docs/specs/2026-10-19-reservation-payment-ledger.html](.
   byte-identical before and after, and identical between `inte/plugins` and this branch (same
   SHA-256).** CI runs it on a synthetic base (10 stays covering every bucket state).
 
+- [ ] **Amendment 2026-10-28** `tests/stored-summary-same-visual.unit.test.js` (new, 7): rule 51 —
+  `storedSummary.lines` lists stored options, custom options and resources by name with offered /
+  included / inComplement; `nightlyBreakdown` empty when its sum is off by more than 0,01 €; tax caption
+  per collection mode; live and stored `lines` identical for an un-drifted stay (parity); rule 57 — a
+  season price raised after the save leaves `storedDrift` false; a tourist-tax convention switched
+  after the save raises `storedDrift` and returns no item list (`storedDriftItems` absent).
+- [ ] **Amendment 2026-10-28** `tests/platform-price-check.unit.test.js` (new, 16), pure util +
+  one controller pass: rule 58 — `paid` excludes the withheld tax, the reversed tax and the pre-arrival
+  options, keeps the cleaning fee; rule 59 — the 8 channel totals of tariff recipes rule 54 give `gap`
+  within 1 € (no alert), a legacy season (`netTargetPerNight` NULL) grosses `pricePerNight`, the
+  degressivity ratio, the cleaning fee grossed whole-euro up, guests collected on arrival out of both
+  sides; rule 60 — −14,9 % → null, −15,1 % → below, +25,1 % → above, −20 % on a 120 € stay (−24 €)
+  → null (absolute floor); rule 61 — null for devis, cancelled, started, own channel, brut empty,
+  unknown platform, commission 100 %, unpriced night, today's nights + a journal event after the
+  booking date (and not null with the same event when the snapshot was replayed); rule 63 — the
+  controller returns the object on `calculate-price` and omits it for a reception-only user. Fixture:
+  `pricing-platform-gross-pin`'s base (2 nights × 300 €) with a Booking row at 15 %.
+- [ ] **Amendment 2026-10-28** `tests/properties-platform-prices.unit.test.js` — existing suite, +1
+  case: `gridCellOf` returns exactly the cells `platformPrices()` returned before the extraction.
+
 ### Client (Vitest)
 - [x] `LedgerList.rendering.test.jsx` (8), `LedgerAmountEditor.refusals.test.jsx` (6),
   `FinanceSection.ledger.test.jsx` (19: locked amounts, confirmation per row type, stored-amount line,
@@ -674,6 +918,16 @@ Interactive rendering: [docs/specs/2026-10-19-reservation-payment-ledger.html](.
   deferred-complement, caisse-interne, mid-stay-notes, platform-no-deposit, platform-tourist-tax,
   refunds, single-arrival-payment, arrival-payment-detail, RefundDialog overpayment).
 
+- [ ] **Amendment 2026-10-28** `components/__tests__/PricingSummary.stored-mode.test.jsx` (new, 6):
+  rule 50 — the stored mode renders « OPTIONS » and the option names, « Détail (N nuits) » only with
+  breakdown, the same section labels as the live mode for the same fixture; rule 52 — no « Offrir »,
+  « compl. » or tax refresh in stored mode; rule 57 — no « Montants enregistrés » / « calcul actuel »
+  text and no « Appliquer le calcul actuel » in stored mode (rule 64).
+- [ ] **Amendment 2026-10-28** `components/reservation/__tests__/PlatformPriceAlert.rendering.test.jsx`
+  (new, 5): rule 62 — title with the platform label, « 812,00 € payés · 1 180,00 € selon la grille
+  (−31 %) », « + 28 % » above, link to `gridPath`; nothing rendered for `null`; rule 56 — the sheet
+  variant renders it at the top; no « tarif » word in the rendered text.
+
 ### E2E
 - [x] `e2e/specs/reservations/payment-ledger.spec.js` (5): a past locked Booking stay received with its
   transfer and no full save; a drifted stored amount shown and marked as stored, no save, the fiche left
@@ -681,6 +935,15 @@ Interactive rendering: [docs/specs/2026-10-19-reservation-payment-ledger.html](.
   the accommodation, future date refused then today, undo with confirmation, caution in order; a
   Booking payout received with its transfer and gap; no sideways scroll at 390 px.
 - [x] `booking-intake.spec.js` anchors on « Paiements » (the « Paiement plateforme » heading is gone).
+
+- [ ] **Amendment 2026-10-28** `e2e/specs/reservations/stored-summary.spec.js` (new, 3): a drifted
+  direct stay opens with the usual card (« OPTIONS », no notice); a Booking stay at the grid shows no
+  alert; entering a brut 30 % under the grid in « Paiement plateforme » shows « Prix Booking à
+  vérifier » on the next preview and « Voir la grille » opens the property's pricing page; 390 px:
+  sheet with the alert, no horizontal scroll.
+- [ ] **Amendment 2026-10-28 — manual:** shadow copy, every upcoming platform fiche at 390 / 900 /
+  1280: count the alerts raised and check each one against the property's « Prix plateformes » grid
+  (expected: zero or a real configuration gap); the 4 tax-drifted Booking fiches show the usual card.
 
 ### Review of #727 — re-run on the reviewer's Solio copy (2026-10-19)
 - [x] The 56 stored stays opened unmodified: the displayed « Reste à percevoir » equals
@@ -710,6 +973,13 @@ Interactive rendering: [docs/specs/2026-10-19-reservation-payment-ledger.html](.
 - The SAS screens: they keep their own payment steps; reusing `LedgerList` there is a later spec.
 - Removing `paymentStatus.computePaymentStatus` (unused outside its test): a separate clean-up.
 
+**Amendment 2026-10-28 — out of scope:** correcting the 4 drifted Booking fiches themselves (« Actualiser
+tarifs » + « Enregistrer » on each, the operator's call); showing *what* differs between stored and
+today's calculation (withdrawn rules 53-55); a dashboard list of the platform stays out of the band (a
+later spec if the alert proves useful); thresholds per channel or as settings; checking direct stays
+against the tariff (a direct price comes from the engine itself, so a gap there is a manual price,
+not a misconfiguration); reading the platform's own configuration through an API.
+
 ## 8bis. Specs amended
 
 When this spec is approved and implemented, the same PR updates:
@@ -725,6 +995,12 @@ When this spec is approved and implemented, the same PR updates:
   (`docs/specs/2026-09-25-payment-link-visible-and-renewable.html`) exists only, untracked, in
   Adrien's main checkout. Rule 28 covers its « visible » half; its « renewable » half (re-sending
   from the row) is to be reconciled with it when that spec lands. Not copied here.
+
+**Amendment 2026-10-28** also updates [pricing-summary-extraction.md](pricing-summary-extraction.md)
+(PricingSummary renders option lines from the server's `lines`, gains the stored mode and the
+`topNotice` slot), [platform-price-from-commission.md](platform-price-from-commission.md) (the grid cell
+is now also the reference of the fiche's price check — rules 59-60 here) and
+[tariff-recipes/spec.md](tariff-recipes/spec.md) rule 12bis gets a cross-reference to rule 57 here.
 
 ## 9. Open questions
 
@@ -743,3 +1019,23 @@ None left. **Resolved 2026-10-19** — Adrien took the recommended option on all
   Rule 14.
 - **Q5. Complements in the ledger** → (a) they are ledger rows; their lines, adjustment and « Percevoir
   en fin de séjour » fold under the row's « Détail ». Rule 22.
+
+### Amendment of 2026-10-28
+
+- **Q-C. The notice's wording — Resolved 2026-10-28.** Adrien kept the stored amounts in the usual card
+  (rule 50) but questioned the « écarts » list itself: on a platform stay a gap with our tariff is the
+  policy, not an anomaly. Decision: no drift notice at all (rules 53-55 withdrawn, rule 57); one alert
+  only when a platform's brut is far from the « Prix plateformes » grid of that channel (rules 58-63);
+  no « Appliquer le calcul actuel » (rule 64).
+
+**Open (to settle before implementation):**
+
+- **Q-D. The alert band.** (a, recommended) below −15 % or above +25 % of the grid, and at least 30 € —
+  absorbs a non-refundable rate and rounding, fires on Genius stacked on it and on any season or
+  cleaning-fee mistake; (b) symmetric ±20 % and 30 € — simpler to state, misses the stacked-promo case
+  (−19 %) and fires on a weekly discount set a bit high; (c) below only, −15 % and 30 € — never alerts on
+  an overpriced channel, which is a misconfiguration too but costs no money.
+- **Q-F. Dismissing an alert.** (a, recommended) not dismissable — it is rare by construction and goes
+  away when the channel is fixed or the stay starts; (b) « Ignorer » per fiche — stops a known, accepted
+  gap (a deliberate promotion) from showing on every opening, at the cost of a column on `reservations`
+  and a rule for when the ignore lapses.
