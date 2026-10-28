@@ -20,11 +20,14 @@ import ErrorAlert from './ErrorAlert';
 const RELOADED_FLAG = 'guestflow.chunkReloaded';
 const FALLBACK_DELAY_MS = 150;
 
+// The route whose chunk failed and was reloaded once. It is cleared only when THAT route renders: a
+// prefetch of another page that succeeds says nothing about the one that keeps failing.
 const flag = {
-  isSet: () => { try { return sessionStorage.getItem(RELOADED_FLAG) === '1'; } catch { return false; } },
-  set: () => { try { sessionStorage.setItem(RELOADED_FLAG, '1'); } catch { /* storage blocked: the second failure still shows the error */ } },
-  clear: () => { try { sessionStorage.removeItem(RELOADED_FLAG); } catch { /* nothing to clear */ } },
+  get: () => { try { return sessionStorage.getItem(RELOADED_FLAG); } catch { return null; } },
+  set: (route) => { try { sessionStorage.setItem(RELOADED_FLAG, route); } catch { /* storage blocked: the second failure still shows the error */ } },
+  clear: (route) => { try { if (sessionStorage.getItem(RELOADED_FLAG) === route) sessionStorage.removeItem(RELOADED_FLAG); } catch { /* nothing to clear */ } },
 };
+const currentRoute = () => window.location.pathname;
 
 function DelayedLoading() {
   const [visible, setVisible] = useState(false);
@@ -46,12 +49,12 @@ class ChunkBoundary extends React.Component {
   }
 
   static getDerivedStateFromError(error) {
-    return { error, reloading: isChunkError(error) && !flag.isSet() };
+    return { error, reloading: isChunkError(error) && flag.get() !== currentRoute() };
   }
 
   componentDidCatch() {
     if (this.state.reloading) {
-      flag.set();
+      flag.set(currentRoute());
       window.location.reload();
     }
   }
@@ -65,10 +68,16 @@ class ChunkBoundary extends React.Component {
   }
 }
 
+// Commits only once the page under the same boundary has rendered: the route is then known to load.
+function RouteLoaded() {
+  useEffect(() => { flag.clear(currentRoute()); }, []);
+  return null;
+}
+
 export default function LazyPage({ children }) {
   return (
     <ChunkBoundary>
-      <Suspense fallback={<DelayedLoading />}>{children}</Suspense>
+      <Suspense fallback={<DelayedLoading />}><RouteLoaded />{children}</Suspense>
     </ChunkBoundary>
   );
 }
@@ -78,7 +87,7 @@ export function lazyPage(loader) {
   let loaded = null;
   // One import for the whole life of the page: the boot preload, the idle prefetch and React.lazy share it.
   const preload = () => {
-    if (!loading) loading = loader().then((module) => { loaded = module; flag.clear(); return module; });
+    if (!loading) loading = loader().then((module) => { loaded = module; return module; });
     return loading;
   };
   const Lazy = lazy(preload);

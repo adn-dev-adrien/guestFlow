@@ -11,7 +11,7 @@ const original = window.location;
 beforeEach(() => {
   vi.clearAllMocks();
   sessionStorage.clear();
-  Object.defineProperty(window, 'location', { configurable: true, value: { ...original, reload } });
+  Object.defineProperty(window, 'location', { configurable: true, value: { ...original, pathname: '/clients', reload } });
 });
 afterEach(() => {
   Object.defineProperty(window, 'location', { configurable: true, value: original });
@@ -46,12 +46,12 @@ test('rule 2: a failed chunk reloads the page once', async () => {
   render(<Shell><Broken /></Shell>);
   await act(async () => { await Promise.resolve(); });
   expect(reload).toHaveBeenCalledTimes(1);
-  expect(sessionStorage.getItem('guestflow.chunkReloaded')).toBe('1');
+  expect(sessionStorage.getItem('guestflow.chunkReloaded')).toBe('/clients');
   expect(screen.queryByText('Page indisponible.')).not.toBeInTheDocument();
 });
 
 test('rule 2: the second failure shows the error with « Recharger », and the menu stays', async () => {
-  sessionStorage.setItem('guestflow.chunkReloaded', '1');
+  sessionStorage.setItem('guestflow.chunkReloaded', '/clients');
   vi.spyOn(console, 'error').mockImplementation(() => {});
   const Broken = lazyPage(() => Promise.reject(new Error('Failed to fetch dynamically imported module')));
   render(<Shell><Broken /></Shell>);
@@ -62,8 +62,8 @@ test('rule 2: the second failure shows the error with « Recharger », and the m
   expect(reload).toHaveBeenCalledTimes(1);
 });
 
-test('rule 2: a loaded chunk clears the reload flag, so a later release can reload again', async () => {
-  sessionStorage.setItem('guestflow.chunkReloaded', '1');
+test('rule 18: the route that renders clears its own reload flag, so a later release can reload again', async () => {
+  sessionStorage.setItem('guestflow.chunkReloaded', '/clients');
   const Clients = lazyPage(() => Promise.resolve({ default: Page }));
   render(<Shell><Clients title="Clients" /></Shell>);
   expect(await screen.findByRole('heading', { name: 'Clients' })).toBeInTheDocument();
@@ -71,13 +71,13 @@ test('rule 2: a loaded chunk clears the reload flag, so a later release can relo
 });
 
 test('rule 3: a plugin route goes through the same boundary', async () => {
-  sessionStorage.setItem('guestflow.chunkReloaded', '1');
   vi.spyOn(console, 'error').mockImplementation(() => {});
   const PluginPage = lazy(() => Promise.resolve({ default: Page }));
   const BrokenPlugin = lazy(() => Promise.reject(new Error('Failed to fetch dynamically imported module')));
   const { unmount } = render(<Shell><LazyPage><PluginPage title="Plugin" /></LazyPage></Shell>);
   expect(await screen.findByRole('heading', { name: 'Plugin' })).toBeInTheDocument();
   unmount();
+  sessionStorage.setItem('guestflow.chunkReloaded', '/clients');
   render(<Shell><LazyPage><BrokenPlugin /></LazyPage></Shell>);
   expect(await screen.findByText('Page indisponible.')).toBeInTheDocument();
 });
@@ -101,4 +101,29 @@ test('a render crash of a page is not a chunk failure: it reaches the app error 
   render(<Catcher><Crashing /></Catcher>);
   expect(await screen.findByText('caught: boom')).toBeInTheDocument();
   expect(reload).not.toHaveBeenCalled();
+});
+
+test('rule 18: a prefetch that succeeds does not clear the flag of a route that keeps failing: one reload, then the error', async () => {
+  vi.spyOn(console, 'error').mockImplementation(() => {});
+  const Broken = lazyPage(() => Promise.reject(new Error('Failed to fetch dynamically imported module')));
+  const Other = lazyPage(() => Promise.resolve({ default: Page }));
+  const first = render(<Shell><Broken /></Shell>);
+  await act(async () => { await Promise.resolve(); });
+  expect(reload).toHaveBeenCalledTimes(1);
+  first.unmount();
+  // What happens after the reload: another page is prefetched while the failing one is asked for again.
+  await Other.preload();
+  render(<Shell><Broken /></Shell>);
+  expect(await screen.findByText('Page indisponible.')).toBeInTheDocument();
+  expect(reload).toHaveBeenCalledTimes(1);
+  expect(sessionStorage.getItem('guestflow.chunkReloaded')).toBe('/clients');
+});
+
+test('rule 18: the flag of another route does not stop the reload of this one', async () => {
+  sessionStorage.setItem('guestflow.chunkReloaded', '/planning');
+  vi.spyOn(console, 'error').mockImplementation(() => {});
+  const Broken = lazyPage(() => Promise.reject(new Error('Failed to fetch dynamically imported module')));
+  render(<Shell><Broken /></Shell>);
+  await act(async () => { await Promise.resolve(); });
+  expect(reload).toHaveBeenCalledTimes(1);
 });

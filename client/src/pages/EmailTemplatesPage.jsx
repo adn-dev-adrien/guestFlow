@@ -191,6 +191,13 @@ export default function EmailTemplatesPage() {
     }
   };
 
+  // Only the two bodies: what was typed elsewhere in the form stays.
+  const readBodies = (id) => {
+    api.getEmailTemplate(id)
+      .then((full) => setForm((f) => (f.id === id ? { ...f, body: full.body || '', bodyEn: full.bodyEn || '', bodiesState: 'ready' } : f)))
+      .catch(() => setForm((f) => (f.id === id ? { ...f, bodiesState: 'failed' } : f)));
+  };
+
   const handleOpen = (row) => {
     whenSeq.current += 1;
     clearTimeout(whenTimer.current);
@@ -218,11 +225,7 @@ export default function EmailTemplatesPage() {
     }
     // The list carries no body (specs/inte-performance.md rule 11): both are read when the editor opens, and
     // « Enregistrer » waits for them so an empty body is never saved over a real one.
-    if (row) {
-      api.getEmailTemplate(row.id)
-        .then((full) => setForm((f) => (f.id === row.id ? { ...f, body: full.body || '', bodyEn: full.bodyEn || '', bodiesState: 'ready' } : f)))
-        .catch(() => setForm((f) => (f.id === row.id ? { ...f, bodiesState: 'failed' } : f)));
-    }
+    if (row) readBodies(row.id);
     api.getEmailTemplateVariables(row ? row.id : null).then(setChips).catch(() => setChips({ variables: [], conditions: [] }));
     setOpen(true);
   };
@@ -565,7 +568,7 @@ export default function EmailTemplatesPage() {
             errorEn={fieldError?.field === 'subjectEn' ? fieldError : undefined}
           />
           {form.bodiesState === 'loading' && <LoadingState variant="skeleton" rows={4} />}
-          {form.bodiesState === 'failed' && <ErrorAlert message="Impossible de charger le texte du modèle." onRetry={() => handleOpen(groups.flatMap((g) => g.templates).find((t) => t.id === form.id))} />}
+          {form.bodiesState === 'failed' && <ErrorAlert message="Impossible de charger le texte du modèle." onRetry={() => { setForm((f) => ({ ...f, bodiesState: 'loading' })); readBodies(form.id); }} />}
           {(!form.bodiesState || form.bodiesState === 'ready') && <TokenTextField
             id="template-body"
             label="Corps du message"

@@ -44,3 +44,15 @@ test('rules 14–15: an existing stay reads the stay view of its property, no ca
   expect(api.getOptions).not.toHaveBeenCalled();
   expect(api.getClients).not.toHaveBeenCalled();
 });
+
+test('rule 15: when the client cannot be read, the search is what the page shows and its list is read', async () => {
+  vi.clearAllMocks();
+  api.getClient.mockRejectedValueOnce(new Error('boom'));
+  render(
+    <MemoryRouter initialEntries={['/reservations/5']}>
+      <Routes><Route path="/reservations/:reservationId" element={<ReservationPage />} /></Routes>
+    </MemoryRouter>,
+  );
+  await waitFor(() => expect(api.getClient).toHaveBeenCalledWith(9));
+  await waitFor(() => expect(api.getClients).toHaveBeenCalled());
+});

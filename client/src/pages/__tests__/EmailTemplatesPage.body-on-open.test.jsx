@@ -60,10 +60,14 @@ test('rule 11: a body that cannot be read says so, offers to retry, and cannot b
   api.getEmailTemplate.mockRejectedValueOnce(new Error('boom'));
   await openEditor();
   expect(await screen.findByText('Impossible de charger le texte du modèle.')).toBeInTheDocument();
+  fireEvent.change(screen.getByDisplayValue('Sujet'), { target: { value: 'Sujet retouché' } });
   expect(screen.getByRole('button', { name: 'Enregistrer' })).toBeDisabled();
   api.getEmailTemplate.mockResolvedValueOnce({ ...ROW, body: 'Corps', bodyEn: '' });
   fireEvent.click(screen.getByRole('button', { name: 'Réessayer' }));
   expect(await screen.findByDisplayValue('Corps')).toBeInTheDocument();
+  expect(screen.getByDisplayValue('Sujet retouché')).toBeInTheDocument();
+  expect(screen.getByRole('dialog')).toHaveTextContent('Promo');
+  expect(api.getEmailTemplateVariables).toHaveBeenCalledTimes(1);
 });
 
 test('rule 11: the saved payload carries the body that was read, with what was typed on top', async () => {

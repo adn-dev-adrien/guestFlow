@@ -146,8 +146,8 @@ the same kind fails CI instead of reaching Adrien.
 8. **Identical reads in flight are one request.** (Added 2026-10-28, widening decision below.) In
    `client/src/api.js`, GET requests for the same path started while one is in flight share it: the
    first caller gets the parsed body, each other a `structuredClone` of it (all copies made before any
-   caller continues, so one mutating its list cannot change another's). Any write empties the table, so
-   a read started after a write never joins a read started before it. A failed read rejects every
+   caller continues, so one mutating its list cannot change another's). Any write empties the table when it starts and again when it settles, so
+   a read started after a write never joins a read started before it commits. A failed read rejects every
    caller and is not remembered. Measured on the production-build shadow: one request fewer on every
    page (the shell and a page both read `/system/version`; `/properties` on its own page).
 9. **One « count + word » helper.** (Added 2026-10-28.) `plural(n, word)` lives in
@@ -166,7 +166,7 @@ the same kind fails CI instead of reaching Adrien.
 11. **The email timeline carries no template body.** `GET /api/email-templates?view=timeline` drops
     `body` and `bodyEn` (after `hasEnglish` is computed from them); the editor of Emails › Modèles reads
     both with `GET /:id` when it opens, shows a skeleton, keeps « Enregistrer » disabled until they are
-    read (an empty body is never saved over a real one) and offers « Réessayer » when the read fails.
+    read (an empty body is never saved over a real one) and offers « Réessayer » when the read fails (it re-reads the two bodies only; what was typed stays).
     The plain list and `GET /:id` keep their full rows.
 12. **« Réservations à venir » answers what its cards render.** `GET /api/reservations/upcoming` maps
     each stay to the fields `ReservationCard` and the page read (`CARD_FIELDS`, field by field), its
@@ -181,10 +181,23 @@ the same kind fails CI instead of reaching Adrien.
 15. **The fiche reads nothing it does not show.** The option catalogue it fetched as a fallback for a
     payload that "predates" the property's own options (always present) is gone, and the client list
     (all clients, 29 kB here, growing with the business) is read only when the client search is shown
-    (a new stay, or « changer » on an existing one); an existing stay shows its client from
-    `GET /clients/:id`.
+    (a new stay, « changer » on an existing one, or an existing stay whose client lookup failed); an
+    existing stay shows its client from `GET /clients/:id`.
 16. **The email pickers carry no body.** `GET /api/email-templates?view=picker` is the list, in stay
     order, without `body` and `bodyEn`; the history filter and the send and compose dialogs use it.
+17. **A computation is not a write.** (Added 2026-10-28, review finding.) The POSTs that only compute or
+    preview (`calculatePrice`, `suggestBeds`, `computePlatformCommission`, `previewMidStayNote`,
+    `previewTerms`, `previewEmailDraft`, `previewProgressivePricing`, `describeTemplateWhen`,
+    `parseClientContact`, `detectSmtp`) are sent `readOnly: true`: they do not announce a data change
+    (the side menu re-read `/properties` on every price calculation of the fiche) and do not reset the
+    in-flight table of rule 8.
+18. **The reload guard is per route.** The `sessionStorage` flag of rule 2 holds the route whose chunk
+    failed and was reloaded once; it is cleared only when THAT route renders, never by a preload or an
+    idle prefetch of another page. A chunk answered with `index.html` (what the SPA fallback sends for a
+    missing asset) therefore reloads once, then shows « Page indisponible. » — before, a successful
+    prefetch cleared the flag and the page reloaded in a loop (12 reloads in 5 s).
+19. **The release carries no Vite manifest.** `release.sh` copies `client/dist` without `.vite/`: the
+    manifest is read by the CI budget (rule 4) and is not served by production.
 
 **Edge cases:**
 
@@ -404,7 +417,7 @@ their own: they are UI refactors, not measurable payload or bundle gains.
 ## 9. Open questions
 
 - Q1 — **Resolved 2026-10-28:** the shadow runs the production build by default; `--dev` on demand.
-- Q2 — **Resolved 2026-10-28:** lazy routes (rules 2–3) are in this spec, as their own lot (lot 3).
+- Q2 — **Resolved 2026-10-28:** lazy routes (rules 2–3) are in this spec, as their own lot (lot 3). After the measurement of §11 Adrien decided, the same day, to **keep them**: the bytes parsed on a phone are the production gain.
 - Q3 — **Resolved 2026-10-28:** the bundle budget is blocking in CI, with 10 % headroom.
 
 ## 10. Implementation (ordered lots, each shippable)

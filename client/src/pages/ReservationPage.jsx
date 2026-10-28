@@ -1244,9 +1244,12 @@ export default function ReservationPage() {
     setClients(data);
   };
 
-  // The list feeds the search box only: an existing stay shows its client by name until « changer »
-  // opens the search, so it is not read before (specs/inte-performance.md rule 15).
-  const clientSearchShown = clientSearchOpen || !reservationId;
+  // The list feeds the search box only: it is read when the box is what the page shows. An existing stay
+  // shows its client by name until « changer » opens the search; while that client is being looked up
+  // the box is not shown yet, and if the lookup fails it is (specs/inte-performance.md rule 15).
+  const [clientLookupFailed, setClientLookupFailed] = useState(false);
+  const clientLookupPending = Boolean(reservationId) && (loading || (Boolean(form.clientId) && !selectedClient && !clientLookupFailed));
+  const clientSearchShown = !(selectedClient && !clientSearchOpen) && !clientLookupPending;
   useEffect(() => { if (clientSearchShown) loadClientsForSearch(clientSearch); }, [clientSearch, clientSearchShown]);
   // Keep `selectedClient` (the bold-name display) in sync with the attached clientId — from the
   // search list when present, otherwise fetched directly so it works on initial load / deep-links.
@@ -1255,7 +1258,8 @@ export default function ReservationPage() {
     const inList = clients.find((c) => c.id === form.clientId);
     if (inList) { setSelectedClient(inList); return undefined; }
     let cancelled = false;
-    api.getClient(form.clientId).then((c) => { if (!cancelled && c) setSelectedClient(c); }).catch(() => {});
+    setClientLookupFailed(false);
+    api.getClient(form.clientId).then((c) => { if (!cancelled && c) setSelectedClient(c); }).catch(() => { if (!cancelled) setClientLookupFailed(true); });
     return () => { cancelled = true; };
   }, [form.clientId, clients, pendingClient]);
   // Load occupied dates from backend when property or dates change
