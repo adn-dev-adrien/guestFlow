@@ -47,7 +47,7 @@ export default function OptionsResourcesPage() {
     <Box>
       {tab === 'options' && <OptionsPage barTabs={barTabs} />}
       {tab === 'resources' && <ResourcesPage barTabs={barTabs} />}
-      {Contributed && <Suspense fallback={<PageBarFallback title={active.label} tabs={barTabs} />}><Contributed barTabs={barTabs} /></Suspense>}
+      {Contributed && <Suspense fallback={<PageBarFallback title={active.label} tabs={barTabs} withSave />}><Contributed barTabs={barTabs} /></Suspense>}
     </Box>
   );
 }

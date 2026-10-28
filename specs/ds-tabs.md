@@ -73,8 +73,10 @@ on desktop as on mobile — and a page can no longer invent its own.
     Options & ressources, Vacances & fermetures: Save / Cancel always on the title's row.
 12. **A tab switch never blanks the bar** (added 2026-10-28). A wrapper that mounts only the active tab
     (Options & ressources, Vacances & fermetures) shows, while a lazy plugin tab's chunk loads, the
-    bar itself (`PageBarFallback`: the tab's label as title, the same tabs, inert Save / Cancel in the
-    same slots) — not an empty or skeleton-only Suspense fallback. Before, switching to
+    bar itself (`PageBarFallback`: the tab's label as title, the same tabs, and inert Save / Cancel in
+    the same slots when the loaded tab has them — Options & ressources' « Facturables au SAS » —
+    otherwise an empty action-sized slot that holds the row's height, so a page without Save never
+    flashes one — Vacances scolaires) — not an empty or skeleton-only Suspense fallback. Before, switching to
     « Facturables au SAS » made the title and the tabs disappear for ~400 ms (measured at 390 px, CPU
     x5), and a fallback without Save / Cancel made the tab strip jump 44 px when the real bar mounted.
 
