@@ -74,13 +74,11 @@ const ClientsPage = lazyPage(() => import('./pages/ClientsPage'));
 const PropertiesPage = lazyPage(() => import('./pages/PropertiesPage'));
 const PropertyDetail = lazyPage(() => import('./pages/PropertyDetail'));
 const PropertyPricingSeasonsPage = lazyPage(() => import('./pages/PropertyPricingSeasonsPage'));
-const OptionsPage = lazyPage(() => import('./pages/OptionsPage'));
 const CalendarPage = lazyPage(() => import('./pages/CalendarPage'));
 const ReservationPage = lazyPage(() => import('./pages/ReservationPage'));
 const ReservationsUpcomingPage = lazyPage(() => import('./pages/ReservationsUpcomingPage'));
 const FinancePage = lazyPage(() => import('./pages/FinancePage'));
 const TouristTaxPage = lazyPage(() => import('./pages/TouristTaxPage'));
-const ResourcesPage = lazyPage(() => import('./pages/ResourcesPage'));
 const PlanningPage = lazyPage(() => import('./pages/PlanningPage'));
 const EstablishmentSettingsPage = lazyPage(() => import('./pages/settings/EstablishmentSettingsPage'));
 const PlatformsSettingsPage = lazyPage(() => import('./pages/settings/PlatformsSettingsPage'));
@@ -106,8 +104,6 @@ const PAGE_ROUTES = [
   ['/properties', PropertiesPage],
   ['/properties/:id', PropertyDetail],
   ['/properties/:id/pricing-seasons', PropertyPricingSeasonsPage],
-  ['/options', OptionsPage],
-  ['/resources', ResourcesPage],
   ['/calendar', CalendarPage],
   ['/reservations/new', ReservationPage],
   ['/reservations/upcoming', ReservationsUpcomingPage],
@@ -849,8 +845,8 @@ function AppShell() {
           <Route path="/properties" element={<PropertiesPage />} />
           <Route path="/properties/:id" element={<PropertyDetail />} />
           <Route path="/properties/:id/pricing-seasons" element={<PropertyPricingSeasonsPage />} />
-          <Route path="/options" element={<OptionsPage />} />
-          <Route path="/resources" element={<ResourcesPage />} />
+          <Route path="/options" element={<Navigate to="/parametres/options-ressources" replace />} />
+          <Route path="/resources" element={<Navigate to="/parametres/options-ressources?tab=resources" replace />} />
           <Route path="/calendar" element={<CalendarPage />} />
           <Route path="/reservations/new" element={<ReservationPage />} />
           <Route path="/reservations/:reservationId" element={<ReservationPage />} />

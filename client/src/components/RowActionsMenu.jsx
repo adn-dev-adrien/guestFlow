@@ -8,7 +8,8 @@
  *
  * Props:
  *   label          string     accessible name of the « ⋯ » button (« Actions du devis 2026-09-007 »)
- *   items          Array<{ label, onClick, icon?, danger?, hidden? }>   menu entries, in order
+ *   items          Array<{ label, onClick, icon?, danger?, hidden?, disabled?, hint? }>   menu entries, in order;
+ *                  a `disabled` entry is greyed and its `hint` (the reason) is written under the label
  *   pinned?        Array<{ label, onClick, icon }>   actions shown as icon buttons from `pinnedFrom`
  *   pinnedFrom?    'sm' | 'md' | 'lg'   breakpoint from which `pinned` is visible (default 'md')
  */
@@ -63,16 +64,16 @@ export default function RowActionsMenu({ label, items = [], pinned = [], pinnedF
         transformOrigin={{ vertical: 'top', horizontal: 'right' }}
       >
         {menuItems.map((action) => (
-          <MenuItem key={action.label} onClick={run(action)} sx={{ minHeight: 44 }}>
+          <MenuItem key={action.label} onClick={run(action)} disabled={action.disabled} sx={{ minHeight: 44 }}>
             {action.icon && <ListItemIcon>{action.icon}</ListItemIcon>}
-            <ListItemText>{action.label}</ListItemText>
+            <ListItemText secondary={action.hint}>{action.label}</ListItemText>
           </MenuItem>
         ))}
         {danger.length > 0 && menuItems.length > 0 && <Divider />}
         {danger.map((action) => (
-          <MenuItem key={action.label} onClick={run(action)} sx={{ minHeight: 44, color: 'error.main' }}>
+          <MenuItem key={action.label} onClick={run(action)} disabled={action.disabled} sx={{ minHeight: 44, color: 'error.main' }}>
             {action.icon && <ListItemIcon sx={{ color: 'error.main' }}>{action.icon}</ListItemIcon>}
-            <ListItemText>{action.label}</ListItemText>
+            <ListItemText secondary={action.hint}>{action.label}</ListItemText>
           </MenuItem>
         ))}
       </Menu>

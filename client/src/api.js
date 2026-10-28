@@ -308,7 +308,12 @@ const api = {
   // Options
   getOptions: () => request('/options'),
   // The options catalogue page: without the early / late options edited on each property (rule 15).
-  getCatalogueOptions: () => request('/options?view=catalogue'),
+  // specs/options-resources-ux.md — the catalogue shaped by the server, one option for the editor, restore.
+  getOptionsCatalogueView: (propertyId) => request(`/options/catalogue-view${propertyId ? `?propertyId=${propertyId}` : ''}`),
+  getOption: (id) => request(`/options/${id}`),
+  restoreOption: (id) => request(`/options/${id}/restore`, { method: 'POST' }),
+  getResourcesCatalogueView: () => request('/resources/catalogue-view'),
+  getResource: (id) => request(`/resources/${id}`),
   createOption: (data) => request('/options', { method: 'POST', body: data }),
   updateOption: (id, data) => request(`/options/${id}`, { method: 'PUT', body: data }),
   deleteOption: (id) => request(`/options/${id}`, { method: 'DELETE' }),

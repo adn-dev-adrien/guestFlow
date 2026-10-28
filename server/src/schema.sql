@@ -345,7 +345,7 @@ CREATE TABLE IF NOT EXISTS property_options (
 CREATE TABLE IF NOT EXISTS property_resource_prices (
     propertyId INTEGER NOT NULL,
     resourceId INTEGER NOT NULL,
-    price REAL NOT NULL DEFAULT 0,
+    price REAL,
     freeMinutes INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (propertyId, resourceId),
     FOREIGN KEY (propertyId) REFERENCES properties(id) ON DELETE CASCADE,
