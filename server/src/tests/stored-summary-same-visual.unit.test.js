@@ -137,3 +137,17 @@ test('rule 50 — « Total du séjour » of the card is the one of the sticky ba
   assert.equal(s.summaryCascade.offeredTaxDeduction, 16.02);
   assert.equal(Math.round((s.accommodation + s.optionsTotal + s.resourcesTotal + s.platformTouristTaxWithheld) * 100), Math.round(bar * 100));
 });
+
+test('rule 50 — a stated withheld tax left over on a row that carries its own tax is ignored, by the card and by the bar', () => {
+  const id = createStay({ platform: 'Reversee' });
+  db.prepare('UPDATE reservations SET touristTaxTotal = 19.2, platformTouristTaxAmount = 16.02 WHERE id = ?').run(id);
+  const res = respond();
+  controller.getById({ params: { id: String(id) }, user: ADMIN }, res);
+  const s = res.body.storedSummary;
+  const row = rowOf(id);
+  assert.equal(s.platformTouristTaxWithheld, null);
+  assert.equal(s.touristTaxOfferedByPlatform, false);
+  assert.equal(s.touristTaxReversedByPlatform, true, 'the 19,20 € the operator declares stays on the card');
+  assert.equal(s.summaryCascade.grossTotal, Math.round((row.finalPrice + 19.2) * 100) / 100);
+  assert.equal(res.body.storedHeadline.secondary.amount, s.summaryCascade.grossTotal, 'card and bar agree');
+});

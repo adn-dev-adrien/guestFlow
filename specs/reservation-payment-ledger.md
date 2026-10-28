@@ -629,6 +629,10 @@ tariff would fire on every platform stay (the brut is grossed up by the commissi
     « Ménage » option from the fee (a stay may carry both for one chore): **(a)** « paid » without those
     lines (rule 58), **(b)** « paid » with them. The alert is raised only when both readings are out of
     band (rule 60) on the same side.
+    _Known limit: an Airbnb stay booked before the channel cleaning fee existed (26/10) is judged against a
+    grid that includes a fee its guest never paid, so a short upcoming stay can read about −17 %. The fee
+    carries no date (`platformCleaningFees` entries hold only the nets) and the tariff journal records
+    every change of a property, not this one, so there is no reliable date to count the fee from._
     _Accepted limit (review 2026-10-28): a stay sold before a season edit is silenced by the clause above
     rather than judged on today's grid._
     A manual price (`customPrice`) does not exist on a platform stay (the brut is the single lever,
@@ -1068,8 +1072,10 @@ None left. **Resolved 2026-10-19** — Adrien took the recommended option on all
   ui-review-2026-10-19-operations: one gross for live and stored): the saved price plus the tourist tax as the
   books know it — the amount the operator stated as withheld by the platform when there is one. That stated
   amount is printed on the tax line struck with its « Plateforme » tag and deducted in the cascade
-  (« Taxe de séjour (plateforme) »), whatever the platform's mode says today, so the lines add up to the
-  total. A parity script over the shadow stays checks card = bar and printed lines = total.
+  (« Taxe de séjour (plateforme) »), so the lines add up to the total. The stated amount counts only on a
+  row that keeps no tourist tax of its own (`touristTaxTotal` 0, as the engine's « offered » mode leaves
+  it): a leftover amount on a row that carries a tax — a platform switched to « nous reverse » — is
+  ignored by the card and by the bar alike (`storedWithheldTax`), and the tax to declare stays on the card. A parity script over the shadow stays checks card = bar and printed lines = total.
 - Rule 61, cleaning fee: the stay is read twice (extras taken out of « paid », and left in) and only a gap
   in both readings, on the same side, alerts.
 

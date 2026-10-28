@@ -9,7 +9,7 @@
  * Pure but for the reads it is handed (`db`, the settings VAT rate): the controller owns the caller.
  */
 
-const { summaryCascade } = require('./quoteHeadline');
+const { summaryCascade, storedWithheldTax } = require('./quoteHeadline');
 const { isPlatformCollectingTouristTax, isTouristTaxRemittedByOwner } = require('./pricing');
 const { saleChannel } = require('./saleChannel');
 
@@ -156,10 +156,8 @@ function buildStoredSummary({ row, db, vatRegime, headline, refundsTotal = 0, mi
   const platformKey = String(row.platform || 'direct').trim().toLowerCase();
   const collects = isPlatformCollectingTouristTax(db, row.propertyId, platformKey);
   const remittedByOwner = isTouristTaxRemittedByOwner(db, row.propertyId, platformKey);
-  const withheld = row.platformTouristTaxAmount == null || row.platformTouristTaxAmount === ''
-    ? null : round2(row.platformTouristTaxAmount);
-  // A tax the operator stated as withheld by the platform is the platform's, whatever the platform's mode
-  // says today: the card prints it struck with its « Plateforme » tag and the cascade deducts it, so the
+  const withheld = storedWithheldTax(row);
+  // A tax the operator stated as withheld by the platform, on a row that keeps no tax of its own, is the platform's: the card prints it struck with its « Plateforme » tag and the cascade deducts it, so the
   // lines add up to the same « Total du séjour » as the sticky bar.
   const touristTaxOfferedByPlatform = (collects && !remittedByOwner) || withheld != null;
 
