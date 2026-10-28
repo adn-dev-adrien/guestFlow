@@ -7,7 +7,6 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const Module = require('module');
 
 const DEFAULT_DB = path.resolve(__dirname, '..', '..', '..', 'guestflow.db');
 
@@ -19,20 +18,13 @@ const isForbidden = (file) => {
   return [DEFAULT_DB, `${DEFAULT_DB}-wal`, `${DEFAULT_DB}-shm`].includes(path.resolve(file));
 };
 
-const originalLoad = Module._load;
-Module._load = function load(request, parent, isMain) {
-  const exported = originalLoad.apply(this, arguments);
-  if (request !== 'better-sqlite3' || exported.__guardsDefaultDb) return exported;
-  function GuardedDatabase(file, ...rest) {
-    if (isForbidden(file)) {
-      throw new Error(`A test opened the checkout's own database (${file}): set DB_PATH to a temp file first.`);
-    }
-    return new exported(file, ...rest);
+const exported = require('better-sqlite3');
+function GuardedDatabase(file, ...rest) {
+  if (isForbidden(file)) {
+    throw new Error(`A test opened the checkout's own database (${file}): set DB_PATH to a temp file first.`);
   }
-  Object.setPrototypeOf(GuardedDatabase, exported);
-  GuardedDatabase.prototype = exported.prototype;
-  GuardedDatabase.__guardsDefaultDb = true;
-  Module._load = originalLoad;
-  require.cache[require.resolve('better-sqlite3')].exports = GuardedDatabase;
-  return GuardedDatabase;
-};
+  return new exported(file, ...rest);
+}
+Object.setPrototypeOf(GuardedDatabase, exported);
+GuardedDatabase.prototype = exported.prototype;
+require.cache[require.resolve('better-sqlite3')].exports = GuardedDatabase;

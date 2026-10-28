@@ -125,6 +125,11 @@ or mutable state.
     selectors. Resilient to MUI structural changes during the Vite migration.
 19. **Timeouts**: action timeout 5 s, navigation 10 s, expect 5 s. Suite-wide
     timeout 30 s per spec. CI total budget < 5 min.
+20. **Specs that rewrite global state never overlap other specs** (2026-10-28 audit). The VAT specs
+    (`vat-regime-switch`, `vat-franchise`, `vat-roundtrip`: global regime and rate) and `laundry-days` (global
+    laundry schedule) are each their own Playwright project, run after the main `chromium` project (the VAT
+    ones one after the other) so that a spec reading « TVA 10 % » or placing an extra trip on a free Thursday
+    never meets a state in flux. `vat-roundtrip` puts the rate back to 10 % when done.
 
 ### 3.4 Test coverage — one or more specs per implemented `/specs/` feature
 

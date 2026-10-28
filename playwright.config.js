@@ -33,6 +33,9 @@ process.env.TZ = 'Europe/Paris';
 const isCI = Boolean(process.env.CI);
 
 // Specs that rewrite the global VAT regime / rate, in the order they run (see the projects below).
+// The laundry-days spec rewrites the global laundry schedule (Tuesday + Thursday for a while): a spec that
+// places an extra trip on a « free » Thursday (laundry-extra-trip) would be refused if it ran meanwhile.
+const LAUNDRY_SCHEDULE_SPEC = /laundry-days\.spec\.js$/;
 const VAT_STATE_SPECS = [/vat-regime-switch\.spec\.js$/, /vat-franchise\.spec\.js$/, /vat-roundtrip\.spec\.js$/];
 
 module.exports = defineConfig({
@@ -115,12 +118,18 @@ module.exports = defineConfig({
       // its own project, after the others, so it never overlaps a spec that expects Qonto to be absent.
       // The three VAT specs rewrite the global VAT regime and rate (specs/vat-optional-mode.md): they run
       // one after the other, once everything else is done, so no spec ever reads a regime in flux.
-      testIgnore: [/reconciliation-assisted-matching\.spec\.js$/, ...VAT_STATE_SPECS],
+      testIgnore: [/reconciliation-assisted-matching\.spec\.js$/, LAUNDRY_SCHEDULE_SPEC, ...VAT_STATE_SPECS],
     },
     {
       name: 'bank-reconciliation',
       use: { ...devices['Desktop Chrome'] },
       testMatch: /reconciliation-assisted-matching\.spec\.js$/,
+      dependencies: ['chromium'],
+    },
+    {
+      name: 'laundry-schedule',
+      use: { ...devices['Desktop Chrome'] },
+      testMatch: LAUNDRY_SCHEDULE_SPEC,
       dependencies: ['chromium'],
     },
     {
