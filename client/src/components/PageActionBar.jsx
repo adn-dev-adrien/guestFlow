@@ -36,7 +36,9 @@
  *   actionsAfter?  Action[]     (inserted AFTER Cancel — destructive zone)
  *
  *   Action shape (icon button):
- *     { icon, tooltip, onClick, color?, disabled?, ariaLabel? }
+ *     { icon, tooltip, onClick, color?, disabled?, ariaDisabled?, ariaLabel? }
+ *     `ariaDisabled`: looks and reads as disabled but stays focusable and inert (an action that has just
+ *     been performed, so keyboard focus does not drop to the page)
  *     color ∈ 'primary' | 'info' | 'success' | 'warning' | 'error' | 'default'
  *   Or a custom node: { node: ReactNode } — rendered as-is (e.g. a <Select>),
  *     always kept inline (never collapsed into the mobile overflow menu).
@@ -55,12 +57,16 @@
  *    middle of a wrapped subtitle (rule 24).
  *  - On xs, if `actionsBefore + actionsAfter` has > 2 items, the extras collapse
  *    into a "…" overflow menu (Save/Cancel always stay visible).
+ *  - The bar publishes its bottom edge as the CSS variable `--gf-page-bar-bottom` on the document root
+ *    (the app bar's height plus the bar's own, measured — it varies with the bar's rows; the app bar's
+ *    alone while the bar is not drawn) so a sticky element of the page can stick right under it
+ *    (specs/dashboard-planning-scroll.md rule 16). Removed on unmount.
  *  - Narrow bar (specs/ds-components.md rules 19-20): the title keeps a readable width and ends
  *    in an ellipsis only past it; the subtitle wraps under the title; the actions never shrink
  *    (they take a row of their own when they do not fit), and `center`/`tabs` move to a second row
  *    when the bar is under 720 px wide. Every button is 44 × 44.
  */
-import React, { useState } from 'react';
+import React, { useLayoutEffect, useRef, useState } from 'react';
 import {
   Box, Typography, IconButton, Tooltip, Menu, MenuItem,
   ListItemIcon, ListItemText, useMediaQuery, CircularProgress,
@@ -73,6 +79,29 @@ import MoreVertIcon from '@mui/icons-material/MoreVert';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router';
 import { usePublishPageTitle, useTopBarActionSlot } from '../hooks/usePageTitle';
+
+// The app bar's height, above the sticky page bar (the bar's `top` below).
+const APP_BAR_HEIGHT = { xs: 56, sm: 64 };
+
+// Publishes where the page bar ends, so a sticky element of the page can stick right under it.
+function usePublishBarBottom(ref, isMobile, drawn) {
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    const base = isMobile ? APP_BAR_HEIGHT.xs : APP_BAR_HEIGHT.sm;
+    const el = drawn ? ref.current : null;
+    const publish = () => root.style.setProperty('--gf-page-bar-bottom', `${base + (el ? el.offsetHeight : 0)}px`);
+    publish();
+    let observer = null;
+    if (el && typeof ResizeObserver !== 'undefined') {
+      observer = new ResizeObserver(publish);
+      observer.observe(el);
+    }
+    return () => {
+      if (observer) observer.disconnect();
+      root.style.removeProperty('--gf-page-bar-bottom');
+    };
+  }, [ref, isMobile, drawn]);
+}
 
 // Every bar button is a 44 × 44 touch target, whatever its border (specs/ds-components.md rule 20).
 const BUTTON_SIZE = { width: 44, height: 44 };
@@ -101,16 +130,17 @@ function renderCustomAction(action, key) {
   if (action.node) {
     return <React.Fragment key={key}>{action.node}</React.Fragment>;
   }
-  const { icon, tooltip, onClick, color, disabled, ariaLabel } = action;
+  const { icon, tooltip, onClick, color, disabled, ariaDisabled, ariaLabel } = action;
   return (
     <Tooltip key={key} title={tooltip} enterDelay={500} enterNextDelay={500}>
       <span>
         <IconButton
           aria-label={ariaLabel || tooltip}
           color={color && color !== 'default' ? color : 'default'}
-          onClick={onClick}
+          onClick={ariaDisabled ? undefined : onClick}
           disabled={disabled}
-          sx={borderedSx(color)}
+          aria-disabled={ariaDisabled || undefined}
+          sx={{ ...borderedSx(color), ...(ariaDisabled ? { opacity: 0.38, cursor: 'default' } : {}) }}
         >
           {icon}
         </IconButton>
@@ -151,6 +181,7 @@ export default function PageActionBar({
   const [menuAnchor, setMenuAnchor] = useState(null);
   usePublishPageTitle(title);
   const topBarSlot = useTopBarActionSlot();
+  const barRef = useRef(null);
 
   // Only icon actions collapse into the mobile overflow menu; custom-node items always stay inline.
   const iconExtras = [...actionsBefore, ...actionsAfter].filter((a) => !a.node);
@@ -164,7 +195,6 @@ export default function PageActionBar({
   // On a phone the title is the top bar's; `center` is hidden there. Nothing else → no empty band.
   const hasActions = Boolean(onSave || onCancel || useOverflow || visibleBefore.length || visibleAfter.length);
   const bareOnPhone = isMobile && !(onBack || backTo) && !subtitle && !tabs && !identityOnSecondRow;
-  if (bareOnPhone && !hasActions) return null;
   // A phone bar left with one ICON action and nothing else gives it to the top bar instead of drawing
   // a nearly empty band (specs/shell-and-home-day-first.md rule 23). Never Save / Cancel, never a
   // custom node (a text button, a select), never a destructive action, never the « ⋯ » menu; and only
@@ -172,6 +202,8 @@ export default function PageActionBar({
   const lone = [...visibleBefore, ...visibleAfter];
   const movable = lone.length === 1 && !lone[0].node && lone[0].color !== 'error';
   const inTopBar = bareOnPhone && !onSave && !onCancel && !useOverflow && movable && Boolean(topBarSlot);
+  usePublishBarBottom(barRef, isMobile, !(bareOnPhone && !hasActions) && !inTopBar);
+  if (bareOnPhone && !hasActions) return null;
 
   // The actions keep their full width: when they do not fit beside the title they take a row of their
   // own, right-aligned — never a column of stacked buttons.
@@ -208,7 +240,7 @@ export default function PageActionBar({
               <MenuItem
                 key={`menu-${i}`}
                 onClick={() => { setMenuAnchor(null); a.onClick(); }}
-                disabled={a.disabled}
+                disabled={a.disabled || a.ariaDisabled}
               >
                 <ListItemIcon>{a.icon}</ListItemIcon>
                 <ListItemText>{a.tooltip}</ListItemText>
@@ -257,6 +289,7 @@ export default function PageActionBar({
 
   return (
     <Box
+      ref={barRef}
       data-sticky-bar=""
       sx={{
         position: 'sticky',

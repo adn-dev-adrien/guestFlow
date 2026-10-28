@@ -197,6 +197,8 @@ input on one line. Renders in the existing `FormDialog` (fullscreen on mobile) �
 **PageActionBar:** unchanged — `OptionsPage` keeps its existing action bar; this change only adds fields
 inside the existing option form, no new page-level actions.
 
+> **Amended 2026-10-28 — [options-resources-ux.md](options-resources-ux.md) (Implemented).** The « Prix différent selon le logement » switch and the field order above are replaced by the editor panel's « Logements et prix » section: one table, one line per property (Proposée · Prix · Inclus · Offert), blank price = base price as placeholder, 0 = free. The list shows the effective price summary (single value, or « min – max · selon logement »); the base price is no longer displayed when no property uses it. Pricing rules unchanged.
+
 ## 7. Test plan
 
 ### Server unit tests

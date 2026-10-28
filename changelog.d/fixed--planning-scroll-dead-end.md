@@ -1,0 +1,1 @@
+- **Planning scroll never stalls on an empty fortnight** (spec `dashboard-planning-scroll.md` rule 14). A window with no reservation used to stop the infinite scroll for good, so the stays after it (Christmas, the next season) could never be reached by scrolling.

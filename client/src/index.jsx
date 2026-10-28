@@ -8,6 +8,10 @@ import '@fontsource/inter/700.css';
 import '@fontsource/source-serif-4/600.css';
 import '@fontsource/source-serif-4/700.css';
 import { registerServiceWorker } from './push/registerPush';
+import installBackGuard from './utils/backGuard';
+
+// Before the router mounts, so a dirty form sees « Retour » before the router does (rule 29).
+installBackGuard();
 
 // specs/plugins-phase-4-registry.md rule 18 — a production build imports each plugin's own bundle
 // BEFORE the app modules evaluate, so the menus, routes and slots they compute see the plugins. The

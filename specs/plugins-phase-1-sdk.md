@@ -245,6 +245,12 @@ Optional: a plugin that declares nothing reads « Actif ».
     wrappers of the five plugins stay in the core `api.js` in this phase; they move with the plugin
     bundles in phase 4.
 
+> 2026-10-28 — SDK 2.8.0 (`specs/options-resources-ux.md` rule 19): `ctx.resourceCatalogueLines(build)` —
+> `build(resource, { properties }) → { lines?: [{ label, value }], footer?: string } | null`, synchronous,
+> called only while the plugin is live; the hourly plugin shows its evening / external rates, free first
+> hour and schedule on the resource card (hourly-resources 1.3.0, `sdk ^2.8.0`, `guestflow >=3.18.0`: the
+> host bricks it needs ship in the same core build). No `coreModule` change.
+
 > 2026-10-27 — SDK 2.7.0 (spec review): `ctx.core.reservations.update(id, patch, { label, client })` takes
 > the guest's find-or-create payload and creates the client in the same transaction as the update, so a
 > fiche the core refuses leaves no orphan client (`specs/airbnb-mail-intake.md` rule 21,

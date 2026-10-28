@@ -50,9 +50,13 @@ test('rules 28 + 30 — no core page shows a plugin, links to its page or calls 
     await page.goto(path);
     await page.waitForLoadState('networkidle');
     await expect(page.locator('main').first(), path).toBeVisible();
-    // Rule 30: the planning is still empty here (this test runs first in the file) and names no
-    // plugin's cards.
-    if (path === '/planning') await expect(page.getByText(/^Rien de prévu sur les \d+ prochains jours\.$/)).toBeVisible();
+    // Rule 30: the planning is still empty here (this test runs first in the file): today says so and
+    // the days around it fold into « Rien de prévu · du … » lines (specs/dashboard-planning-scroll.md
+    // rule 15); it names no plugin's cards.
+    if (path === '/planning') {
+      await expect(page.getByText("Rien de prévu aujourd'hui")).toBeVisible();
+      await expect(page.getByTestId('planning-fold').first()).toBeVisible();
+    }
     const text = await page.locator('main').first().innerText();
     // The Plugins page and the option catalogue are the two places that may NAME a plugin's subject:
     // the first offers them, the second holds the core's sellable linen options.

@@ -8,7 +8,7 @@ test.use({ viewport: { width: 390, height: 844 } });
 test('Dashboard renders on xs viewport with reachable navigation drawer', async ({ page }) => {
   await page.goto('/');
   // The day first (specs/shell-and-home-day-first.md rule 1); the home's top bar keeps the wordmark.
-  await expect(page.getByRole('heading', { name: /^Départs — / })).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText('Départs du jour')).toBeVisible({ timeout: 10_000 });
 
   // On xs the persistent sidebar collapses behind the named menu button (rule 18).
   await page.getByRole('button', { name: 'Ouvrir le menu' }).click();

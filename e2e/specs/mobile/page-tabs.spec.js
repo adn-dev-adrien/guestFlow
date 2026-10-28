@@ -11,7 +11,7 @@ test.use({ viewport: { width: 390, height: 844 } });
 test('/parametres/options-ressources at 390px: title first, tabs under it, no sideways scroll', async ({ page }) => {
   await page.goto('/parametres/options-ressources');
 
-  const title = page.getByRole('heading', { name: 'Options de séjour' });
+  const title = page.getByRole('heading', { name: 'Options & ressources' });
   await expect(title).toBeVisible({ timeout: 10_000 });
 
   const tabs = page.getByRole('tab');
@@ -31,13 +31,13 @@ test('/parametres/options-ressources at 390px: title first, tabs under it, no si
 
 test('switching tab on a phone keeps the title + tabs in the same block', async ({ page }) => {
   await page.goto('/parametres/options-ressources');
-  await expect(page.getByRole('heading', { name: 'Options de séjour' })).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByRole('heading', { name: 'Options & ressources' })).toBeVisible({ timeout: 10_000 });
 
   // rule 10 — the tab still lives in the URL, under its original name.
   await page.getByRole('tab', { name: 'Ressources' }).click();
   await expect(page).toHaveURL(/tab=resources/);
 
-  const title = page.getByRole('heading', { name: 'Ressources' });
+  const title = page.getByRole('heading', { name: 'Options & ressources' });
   await expect(title).toBeVisible();
   const tabsBox = await page.getByRole('tab').first().boundingBox();
   expect(tabsBox.y).toBeGreaterThan((await title.boundingBox()).y);
