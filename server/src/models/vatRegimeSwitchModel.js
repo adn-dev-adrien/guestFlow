@@ -15,8 +15,7 @@ const vatRegimeModel = require('./vatRegimeModel');
 const rules = require('../utils/vatRegime');
 const { isTouristTaxFrozen } = require('../utils/touristTaxFreeze');
 const { comptaCollected } = require('../utils/reservationSettlement');
-const { calculateReservationQuote } = require('../utils/pricing');
-const { buildReservationEngineInput } = require('../utils/reservationEngineInput');
+const { quoteStoredReservation } = require('../utils/storedReservationQuote');
 const { staleLinks } = require('../utils/ledgerLinks');
 const { todayIso, localIsoDate } = require('../utils/localDate');
 
@@ -99,7 +98,7 @@ const hasInstallmentPlan = (db, id) => tableExists(db, 'reservation_installments
   && Boolean(db.prepare('SELECT 1 FROM reservation_installments WHERE reservationId = ? LIMIT 1').get(id));
 
 const engineQuote = (db, row) => {
-  const quote = calculateReservationQuote(buildReservationEngineInput(db, row));
+  const quote = quoteStoredReservation(db, row);
   return quote && !quote.error ? quote : null;
 };
 

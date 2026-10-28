@@ -26,6 +26,7 @@ import EmailManualSendDialog from '../components/EmailManualSendDialog';
 import PricingSummary from '../components/PricingSummary';
 import StickyTotalBar from '../components/StickyTotalBar';
 import PlatformPriceAlert from '../components/reservation/PlatformPriceAlert';
+import PricingNotices from '../components/reservation/PricingNotices';
 import DevisValidityChip from '../components/reservation/DevisValidityChip';
 import DevisExtensionSummary from '../components/reservation/DevisExtensionSummary';
 import ClientFormFields from '../components/ClientFormFields';
@@ -3463,7 +3464,12 @@ export default function ReservationPage() {
   const pricingSummary = (
     <PricingSummary
       mode={showStoredSummary ? 'stored' : 'live'}
-      topNotice={<PlatformPriceAlert check={pricingQuote?.platformPriceCheck} />}
+      topNotice={(
+        <>
+          <PricingNotices notices={pricingQuote?.notices} onAction={(action) => { if (action === 'refreshTouristTax') setTouristTaxRefreshRequested(true); }} />
+          <PlatformPriceAlert check={pricingQuote?.platformPriceCheck} />
+        </>
+      )}
       quote={showStoredSummary ? storedSummary : pricingQuote}
       form={showStoredSummary ? {
         ...form,
@@ -3539,7 +3545,7 @@ export default function ReservationPage() {
         actionsBefore={actionBarBefore}
         onSave={isClosedFiche ? undefined : handleSaveClick}
         saveTooltip={isDevisMode ? 'Enregistrer le devis' : 'Enregistrer'}
-        saveDisabled={saving}
+        saveDisabled={saving || !(isDirty || touristTaxRefreshRequested)}
         saveBusy={saving}
         onCancel={goBackToOrigin}
         actionsAfter={actionBarAfter}

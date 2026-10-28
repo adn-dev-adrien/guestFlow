@@ -2730,7 +2730,7 @@ function calculateReservationQuote({
   // keeps a paid bucket's amount, so without this the money received above the new total went unseen.
   const paidOnSchedule = (depositPaid ? resolvedDepositAmount : 0) + (balancePaid ? resolvedBalanceAmount : 0)
     + (installmentPlan ? installmentPlan.paid : 0);
-  const overCollectedTtc = roundMoney(Math.max(
+  const scheduleOverCollectedTtc = roundMoney(Math.max(
     0,
     paidOnSchedule - (ownerStayTotal - complementForcedItemsTotal - taxInComplement - midStayTotal),
   ));
@@ -2753,6 +2753,16 @@ function calculateReservationQuote({
   let resolvedComplementAmount = complementPaid ? roundMoney(complementAmount) : liveComplementAmount;
   const complementOverridden = complementAmountOverride !== null && complementAmountOverride !== undefined
     && complementAmountOverride !== '' && Number.isFinite(Number(complementAmountOverride));
+  // specs/reservation-save-keeps-pricing.md rule 4 — a collected complement stays at what was collected
+  // (the books follow the money), but a later edit can leave it above what the stay now asks of the
+  // arrival: a line moved out of it, a tax that fell. That excess is money received beyond the stay
+  // total — a trop-perçu, like the same excess on the acompte and the solde — never a second charge and
+  // never an anonymous « Complément d'arrivée » line the total does not include. The operator's own
+  // adjustment of the complement is his decision and is not second-guessed.
+  const complementCollectedExcess = complementPaid && !complementOverridden
+    ? roundMoney(Math.max(0, roundMoney(complementAmount) - rawComplement))
+    : 0;
+  const overCollectedTtc = roundMoney(scheduleOverCollectedTtc + complementCollectedExcess);
   // specs/mid-stay-extras-to-end-of-stay-complement.md rule 20 — a collected arrival complement is
   // closed, so what was routed to it since (an extra added on the complement before any arrival
   // baseline existed, a tax or an extra guest added after the collection) is billed at check-out, in

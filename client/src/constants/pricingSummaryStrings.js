@@ -7,3 +7,8 @@ export const PLATFORM_PRICE_ALERT = {
   expected: 'selon la grille',
   link: 'Voir la grille',
 };
+
+// The button a server notice (`quote.notices[i].action`) carries.
+export const PRICING_NOTICE_ACTIONS = {
+  refreshTouristTax: 'Recalculer',
+};

@@ -318,5 +318,10 @@ become the money that actually moved. No new string, no responsive impact, no ac
 
 1. ✅ **One line for options + resources, or one per nature?** (2026-08-24) → **one per nature**:
    70600010 for options and custom options, 70601000 for resources, each carrying its real total.
-2. **Why do #22226 and #22224 carry a schedule above their stay total?** Tracked out of scope; the
-   books no longer depend on the answer, but the fiches deserve a look.
+2. ✅ **Why do #22226 and #22224 carry a schedule above their stay total?** (resolved 2026-10-28) → a
+   collected arrival complement is frozen at what was collected (the books follow the money), and a later
+   edit moved a line out of it (the bed linen, 21 € and 28 €) or lowered its tax (#22209, +0,60 €). The
+   excess is a trop-perçu, reported by the engine like the one on the acompte and the solde
+   (`reservation-save-keeps-pricing.md` rule 4); the alternative — lowering the collected complement —
+   would move an exported entry and write down money the guest paid. #22275 (+3,95 €) is an operator
+   adjustment of the complement and stays his decision.

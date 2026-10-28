@@ -326,19 +326,13 @@ function bind() {
   const database = require('../database');
   const paymentLinksModel = require('../models/paymentLinksModel');
   const paymentProviders = require('../utils/paymentProviders');
-  const { calculateReservationQuote } = require('../utils/pricing');
-  const { buildReservationEngineInput } = require('../utils/reservationEngineInput');
+  const { quoteStoredReservation } = require('../utils/storedReservationQuote');
   bound = buildController({
     database,
     installmentsModel: require('../models/installmentsModel'),
     paymentLinksModel,
-    // The stay as its fiche prices it, with the acompte context a save would carry.
-    quoteOf: (row) => calculateReservationQuote({
-      ...buildReservationEngineInput(database, row),
-      depositAmountOverride: row.depositAmountOverride,
-      bookingDate: row.createdAt || null,
-      existingDepositDueDate: null,
-    }),
+    // The stay as its fiche prices it on a save.
+    quoteOf: (row) => quoteStoredReservation(database, row),
     providerReady: () => Boolean(paymentProviders.active()),
     deactivateLinks: (links) => require('../utils/paymentLinkDeactivation').deactivateAbandonedLinks(links, { paymentLinksModel }),
     assertLinkNotPaid: (link) => require('../utils/paymentLinkDeactivation').assertNotPaid(link, paymentProviders.active()),

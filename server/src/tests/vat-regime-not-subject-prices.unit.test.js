@@ -53,9 +53,11 @@ test('rule 11: a tourist tax per person and per night does not move', () => {
 });
 
 test('rule 11: the proportional tourist tax is based on the price paid, so it rises by the rate', () => {
-  const before = quote(106);
+  // The solde of 106 is paid, so the replay pins its tax like the fiche does: this rule is about the live computation.
+  const live = { freezeTouristTax: false };
+  const before = quote(106, live);
   toggle(106, true);
-  const after = quote(106);
+  const after = quote(106, live);
   toggle(106, false);
   assert.ok(Math.abs(before.touristTaxBaseHt - before.touristTaxAccommodationPaid / 1.1) < 0.05);
   assert.ok(Math.abs(after.touristTaxBaseHt - after.touristTaxAccommodationPaid) < 0.05);
