@@ -97,7 +97,8 @@
       "Compatible avec le SDK 2.5 de GuestFlow."
     ],
     "1.8.3": [
-      "Un nom, un prénom, un téléphone ou une adresse e-mail démesuré est refusé avec un message sur le champ."
+      "Un nom, un prénom, un téléphone ou une adresse e-mail démesuré est refusé avec un message sur le champ.",
+      "Compatible avec le SDK 2.5 de GuestFlow."
     ]
   }
 }

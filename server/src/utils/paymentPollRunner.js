@@ -37,7 +37,7 @@ const { linkAmountCents, bookPaidAfterAmountChange } = require('./ledgerLinks');
 // re-checked (the devis never blocked them) — a conflict flags the reservation + surfaces `conflict:true`.
 // The bucket goes through the same recorder as a manual tick (rule 1).
 function applyPaidEffect({ database, devisModel, link, checkConflict, paidDate = null, recordPayment = recordOn(database), settledAlready = false }) {
-  const row = database.prepare('SELECT id, kind, convertedReservationId, depositAmount, balanceAmount FROM reservations WHERE id = ?').get(link.reservationId);
+  const row = database.prepare('SELECT * FROM reservations WHERE id = ?').get(link.reservationId);
   if (!row) return { effect: 'no-reservation' };
   // A payment that lands after the stay was cancelled is money to refund, never a paid stay.
   if (row.kind === 'cancelled') return { effect: 'reservation-cancelled' };
@@ -76,7 +76,7 @@ function applyPaidEffect({ database, devisModel, link, checkConflict, paidDate =
     // The quote can be re-priced after its link was minted, and a link older than the tourist-tax rule
     // charges less than the quote asks: what the guest paid is booked, never the quote's amount.
     const expectedCents = linkAmountCents(link.type, row);
-    if (expectedCents != null && Number(link.amountCents) !== expectedCents) {
+    if (expectedCents != null && link.amountCents != null && Number(link.amountCents) !== expectedCents) {
       const booked = bookPaidAfterAmountChange({ database, recordPayment }, link, { paidDay: paidDate });
       return { effect: booked.effect, reservationId, conflict, justConverted: effect === 'converted', amountMismatch: { expectedCents, receivedCents: Number(link.amountCents) } };
     }
