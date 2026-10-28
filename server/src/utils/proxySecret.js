@@ -35,4 +35,22 @@ function proxySecretGuard(secret) {
   };
 }
 
-module.exports = { proxySecretGuard, HEADER, HEALTH_HEADER, sameSecret: same };
+/**
+ * What `trust proxy` is set to, from the environment (specs/hosting-h1-fleet-runtime.md rule 35).
+ * X-Forwarded-For is believed only when TRUST_PROXY_HOPS is set (a number of trusted hops), and then
+ * only for a request that carries the proxy secret when GUESTFLOW_PROXY_SECRET is set. Hops without a
+ * secret are legitimate behind a proxy that is the only way in, but spoofable by anyone who can reach
+ * the Node port directly: the caller logs `warning` at boot so the operator sees it. Nothing is
+ * defaulted silently: unset hops stay `false`.
+ */
+function proxyTrust(env = process.env) {
+  const raw = env.TRUST_PROXY_HOPS;
+  const hops = raw != null && raw !== '' ? Number(raw) : false;
+  const trusted = typeof hops === 'number' && Number.isFinite(hops) && hops > 0;
+  const warning = trusted && !env.GUESTFLOW_PROXY_SECRET
+    ? 'TRUST_PROXY_HOPS is set without GUESTFLOW_PROXY_SECRET: X-Forwarded-For can be spoofed by anyone who reaches this port without the proxy.'
+    : null;
+  return { hops: trusted ? hops : false, warning };
+}
+
+module.exports = { proxyTrust, proxySecretGuard, HEADER, HEALTH_HEADER, sameSecret: same };

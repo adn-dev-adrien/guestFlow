@@ -64,12 +64,14 @@ const commitSha = String(
 const commitShaShort = commitSha ? commitSha.slice(0, 7) : null;
 
 const app = express();
-// `trust proxy` MUST match the real deployment: today the Node app is exposed directly (its own TLS,
-// no reverse proxy), so we trust NO forwarded hop — otherwise any direct caller could spoof
-// X-Forwarded-For and defeat the IP rate limiters (specs/public-online-payment.md §7). When a reverse
-// proxy is put in front (WordPress prod), set TRUST_PROXY_HOPS to the exact number of trusted hops.
-const TRUST_PROXY_HOPS = process.env.TRUST_PROXY_HOPS;
-app.set('trust proxy', TRUST_PROXY_HOPS != null && TRUST_PROXY_HOPS !== '' ? Number(TRUST_PROXY_HOPS) : false);
+// `trust proxy` MUST match the real deployment. X-Forwarded-For is believed only when TRUST_PROXY_HOPS
+// is set to the exact number of trusted hops (Caddy in front: 1) — unset, no hop is trusted, so a direct
+// caller cannot spoof its address past the IP rate limiters (specs/public-online-payment.md §7). With
+// GUESTFLOW_PROXY_SECRET also set, forwarded headers count only on requests carrying Caddy's secret;
+// hops without that secret are spoofable by whoever reaches this port directly (boot warning below).
+const proxyTrust = require('./utils/proxySecret').proxyTrust();
+if (proxyTrust.warning) console.warn(`[security] ${proxyTrust.warning}`);
+app.set('trust proxy', proxyTrust.hops);
 // Behind the hosting's proxy, forwarded headers count only when Caddy's secret header comes with them
 // (specs/hosting-h1-fleet-runtime.md rule 21). Unset: nothing changes.
 app.use(require('./utils/proxySecret').proxySecretGuard(process.env.GUESTFLOW_PROXY_SECRET));
