@@ -38,6 +38,9 @@ const DEFAULT_THRESHOLD_PX = 800;
 const DEFAULT_MAX_CHAIN = 4;
 const SETTLE_MS = 150;
 const UP_KEYS = new Set(['PageUp', 'Home', 'ArrowUp']);
+// Keys typed into a field, a select or a dialog belong to it, not to the scroller.
+const typesInto = (node) => Boolean(node && node.closest
+  && node.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="dialog"]'));
 const SCROLL_KEYS = new Set(['PageDown', 'PageUp', 'Home', 'End', 'ArrowDown', 'ArrowUp', ' ']);
 
 const reducedMotion = () => typeof window.matchMedia === 'function'
@@ -213,6 +216,20 @@ export default function useInfiniteEdgeScroll({
     chainingRef.current = answer !== 'none';
   }, [extend]);
 
+  // A burst of input (a trackpad flick fires dozens of wheel events) is ONE gesture: the chain is reset
+  // only once the operator has been quiet for SETTLE_MS, or when they turn around.
+  const gestureTimerRef = useRef(null);
+  const gestureActiveRef = useRef(false);
+  const gesture = useCallback((direction) => {
+    clearTimeout(gestureTimerRef.current);
+    gestureTimerRef.current = setTimeout(() => { gestureActiveRef.current = false; }, SETTLE_MS);
+    const turned = direction && direction !== directionRef.current;
+    if (direction) directionRef.current = direction;
+    if (gestureActiveRef.current && !turned) return;
+    gestureActiveRef.current = true;
+    kick();
+  }, [kick]);
+
   useEffect(() => {
     if (!enabled) return undefined;
     const target = scrollerRef?.current || window;
@@ -223,29 +240,37 @@ export default function useInfiniteEdgeScroll({
       ownScrollRef.current = null;
       lastTopRef.current = now;
       if (own !== null && Math.abs(now - own) < 1) return;
-      if (before !== null && Math.abs(now - before) >= 1) directionRef.current = now < before ? 'start' : 'end';
-      kick();
+      gesture(before !== null && Math.abs(now - before) >= 1 ? (now < before ? 'start' : 'end') : null);
     };
     // Wheel, touch and the scrolling keys are gestures even when the page cannot move (a short feed
-    // fires no scroll event at all).
+    // fires no scroll event at all). Typing in a field or a dialog is not one.
+    let touchY = null;
     const onInput = (event) => {
-      if (event.type === 'wheel' && event.deltaY) directionRef.current = event.deltaY < 0 ? 'start' : 'end';
-      if (event.type === 'keydown') {
-        if (!SCROLL_KEYS.has(event.key)) return;
-        directionRef.current = UP_KEYS.has(event.key) ? 'start' : 'end';
+      if (event.type === 'wheel') {
+        if (event.deltaY) gesture(event.deltaY < 0 ? 'start' : 'end');
+      } else if (event.type === 'keydown') {
+        if (event.defaultPrevented || !SCROLL_KEYS.has(event.key) || typesInto(event.target)) return;
+        gesture(UP_KEYS.has(event.key) ? 'start' : 'end');
+      } else if (event.type === 'touchstart') {
+        touchY = event.touches?.[0]?.clientY ?? null;
+      } else if (event.type === 'touchmove') {
+        const y = event.touches?.[0]?.clientY;
+        if (touchY !== null && y !== undefined && y !== touchY) gesture(y > touchY ? 'start' : 'end');
+        touchY = y ?? touchY;
       }
-      kick();
     };
     target.addEventListener('scroll', onScroll, { passive: true });
-    const inputs = ['wheel', 'touchstart', 'keydown'];
+    const inputs = ['wheel', 'touchstart', 'touchmove', 'keydown'];
     inputs.forEach((name) => window.addEventListener(name, onInput, { passive: true }));
     lastTopRef.current = scrollTop();
     kick();
     return () => {
+      clearTimeout(gestureTimerRef.current);
+      gestureActiveRef.current = false;
       target.removeEventListener('scroll', onScroll);
       inputs.forEach((name) => window.removeEventListener(name, onInput));
     };
-  }, [enabled, scrollerRef, kick]);
+  }, [enabled, scrollerRef, kick, gesture]);
 
   // After the feed commits: restore the held anchor, then carry on while the new content leaves the
   // scroller within the threshold (bounded, so an empty feed cannot loop).

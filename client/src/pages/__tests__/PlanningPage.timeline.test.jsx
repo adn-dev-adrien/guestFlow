@@ -56,7 +56,11 @@ const cards = (byDate) => (range) => daysPayload(range, { today: TODAY, cardsByD
 function renderPage(url = '/planning') {
   return render(<MemoryRouter initialEntries={[url]}><PlanningPage /></MemoryRouter>);
 }
-const scrollWindowTo = (y) => act(() => { scrollY = y; window.dispatchEvent(new Event('scroll')); });
+// Each call is its own gesture: the operator was quiet for longer than the hook's settle time.
+const scrollWindowTo = async (y) => {
+  await new Promise((resolve) => setTimeout(resolve, 230));
+  act(() => { scrollY = y; window.dispatchEvent(new Event('scroll')); });
+};
 const opened = async () => { await screen.findByTestId('planning-timeline'); await waitFor(() => expect(scrollTo).toHaveBeenCalled()); };
 
 beforeEach(() => {
@@ -80,9 +84,9 @@ test('rule 11 — each window is asked once, with every plugin contribution for 
     expect(load).toHaveBeenCalledWith(windowRange(k));
   });
   // A burst of scroll events at the top asks the window before once, never twice.
-  scrollWindowTo(10);
-  scrollWindowTo(20);
-  scrollWindowTo(30);
+  await scrollWindowTo(10);
+  await scrollWindowTo(20);
+  await scrollWindowTo(30);
   await waitFor(() => expect(askedWindows(-2)).toHaveLength(1));
   const froms = asked().map((r) => r.from);
   expect(new Set(froms).size).toBe(froms.length);
@@ -104,7 +108,7 @@ test('rule 14 — an empty fortnight never stops the scroll: windows keep coming
   // Empty windows fold into the run already drawn and push the edge no farther: each pull of the
   // operator (one gesture) asks one more, until the stays of December.
   for (let i = 0; i < 12 && askedWindows(3).length === 0; i += 1) {
-    scrollWindowTo(99000 + i);
+    await scrollWindowTo(99000 + i);
     await waitFor(() => expect(asked().length).toBeGreaterThan(3 + i));
   }
   await waitFor(() => expect(askedWindows(3)).toHaveLength(1));
@@ -135,7 +139,7 @@ test('rule 18 — « Aujourd\'hui » scrolls back smoothly, and is disabled whil
   fireEvent.click(button);
   expect(scrollTo).toHaveBeenCalledWith({ top: 5000 + 3000 - 64, behavior: 'smooth' });
   todayTop = 64;
-  scrollWindowTo(7936);
+  await scrollWindowTo(7936);
   // Disabled for assistive tech but still focusable, so keyboard focus does not drop to the page.
   await waitFor(() => expect(screen.getByRole('button', { name: "Aujourd'hui" })).toHaveAttribute('aria-disabled', 'true'));
   expect(screen.getByRole('button', { name: "Aujourd'hui" })).not.toBeDisabled();
@@ -148,13 +152,13 @@ test('rule 19 — a ninth window releases the farthest one on the other side, an
   await opened();
   expect((await screen.findAllByText(/Client5/)).length).toBeGreaterThan(0);
   for (let i = 0; i < 12 && askedWindows(7).length === 0; i += 1) {
-    scrollWindowTo(99000 + i);
+    await scrollWindowTo(99000 + i);
     await waitFor(() => expect(asked().length).toBeGreaterThan(3 + i));
   }
   await waitFor(() => expect(askedWindows(7)).toHaveLength(1));
   await waitFor(() => expect(screen.queryByText(/Client5/)).not.toBeInTheDocument());
   expect(askedWindows(-1)).toHaveLength(1);
-  scrollWindowTo(100);
+  await scrollWindowTo(100);
   await waitFor(() => expect(askedWindows(-1)).toHaveLength(2));
 });
 
@@ -166,12 +170,12 @@ test('rule 20 — a failed window says so at its edge with a retry; the other ed
   });
   renderPage();
   await opened();
-  scrollWindowTo(99500);
+  await scrollWindowTo(99500);
   expect(await screen.findByText("Ces jours n'ont pas pu être chargés.")).toBeInTheDocument();
   const before = asked().length;
-  scrollWindowTo(99600);
+  await scrollWindowTo(99600);
   expect(asked()).toHaveLength(before);
-  scrollWindowTo(100);
+  await scrollWindowTo(100);
   await waitFor(() => expect(askedWindows(-2)).toHaveLength(1));
   failing = false;
   fireEvent.click(screen.getByRole('button', { name: 'Réessayer' }));
@@ -239,6 +243,12 @@ test('rule 29 — the day header keeps the month lowercase (first letter capital
   expect(getComputedStyle(label).textTransform).not.toBe('capitalize');
   await waitFor(() => expect(screen.getByRole('button', { name: "Aujourd'hui" })).toHaveAttribute('aria-disabled', 'true'));
   const button = screen.getByRole('button', { name: "Aujourd'hui" });
+  // The real scenario: the operator tabs to it, presses it at today's position, and keeps the focus.
   button.focus();
+  expect(button).toHaveFocus();
+  scrollTo.mockClear();
+  fireEvent.click(button);
+  fireEvent.keyDown(button, { key: 'Enter' });
+  expect(scrollTo).not.toHaveBeenCalled();
   expect(button).toHaveFocus();
 });

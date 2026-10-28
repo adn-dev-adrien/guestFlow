@@ -221,8 +221,72 @@ test('rule 26 — a load that pushes the edge no farther ends the chain, and the
   const onNearEnd = vi.fn((c) => { c.append([]); return 'started'; });
   render(<Harness initial={range(1, 3)} onNearEnd={onNearEnd} maxChain={4} />);
   expect(onNearEnd).toHaveBeenCalledTimes(1);
-  act(() => { window.dispatchEvent(new Event('wheel')); });
-  expect(onNearEnd).toHaveBeenCalledTimes(2);
+  vi.useFakeTimers();
+  try {
+    act(() => { window.dispatchEvent(new WheelEvent('wheel', { deltaY: 100 })); vi.advanceTimersByTime(300); });
+    expect(onNearEnd).toHaveBeenCalledTimes(2);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test('rule 30 — a burst of wheel events is one gesture: 30 rapid wheels on a feed that does not grow ask once', () => {
+  vi.useFakeTimers();
+  try {
+    const onNearEnd = vi.fn((c) => { c.append([]); return 'started'; });
+    render(<Harness initial={range(1, 3)} onNearEnd={onNearEnd} />);
+    onNearEnd.mockClear();
+    act(() => { vi.advanceTimersByTime(300); });
+    for (let i = 0; i < 30; i += 1) {
+      act(() => { window.dispatchEvent(new WheelEvent('wheel', { deltaY: 100 })); vi.advanceTimersByTime(16); });
+    }
+    expect(onNearEnd).toHaveBeenCalledTimes(1);
+    // Quiet for 200 ms, then a new pull asks again.
+    act(() => { vi.advanceTimersByTime(300); });
+    act(() => { window.dispatchEvent(new WheelEvent('wheel', { deltaY: 100 })); });
+    expect(onNearEnd).toHaveBeenCalledTimes(2);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test('rule 30 — typing in a field or a dialog, or a key already handled, is not a gesture', () => {
+  const onNearStart = vi.fn(() => 'none');
+  render(<Harness initial={range(10, 49)} onNearStart={onNearStart} />);
+  onNearStart.mockClear();
+  const field = document.createElement('input');
+  const dialog = document.createElement('div');
+  dialog.setAttribute('role', 'dialog');
+  const inner = document.createElement('button');
+  dialog.appendChild(inner);
+  document.body.append(field, dialog);
+  const press = (target, init = {}) => act(() => { target.dispatchEvent(new KeyboardEvent('keydown', { key: 'PageUp', bubbles: true, cancelable: true, ...init })); });
+  press(field);
+  press(inner);
+  document.body.addEventListener('keydown', (e) => e.preventDefault(), { once: true });
+  press(document.body);
+  expect(onNearStart).not.toHaveBeenCalled();
+  press(document.body);
+  expect(onNearStart).toHaveBeenCalledTimes(1);
+  field.remove();
+  dialog.remove();
+});
+
+test('rule 30 — the direction of a touch comes from its move: a finger going down scrolls up', () => {
+  const onNearStart = vi.fn(() => 'none');
+  const onNearEnd = vi.fn(() => 'none');
+  render(<Harness initial={range(1, 3)} onNearStart={onNearStart} onNearEnd={onNearEnd} />);
+  onNearStart.mockClear();
+  onNearEnd.mockClear();
+  const touch = (type, y) => act(() => {
+    const event = new Event(type, { bubbles: true });
+    event.touches = [{ clientY: y }];
+    window.dispatchEvent(event);
+  });
+  touch('touchstart', 300);
+  touch('touchmove', 340);
+  expect(onNearStart).toHaveBeenCalled();
+  expect(onNearEnd).not.toHaveBeenCalled();
 });
 
 test('rule 26 — the scroll event of a browser clamp after a commit is not a gesture; a real scroll is', () => {

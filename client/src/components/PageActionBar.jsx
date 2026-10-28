@@ -240,7 +240,7 @@ export default function PageActionBar({
               <MenuItem
                 key={`menu-${i}`}
                 onClick={() => { setMenuAnchor(null); a.onClick(); }}
-                disabled={a.disabled}
+                disabled={a.disabled || a.ariaDisabled}
               >
                 <ListItemIcon>{a.icon}</ListItemIcon>
                 <ListItemText>{a.tooltip}</ListItemText>

@@ -230,6 +230,14 @@ any more.
     The day header is set in sans, its first letter capitalised and the month lowercase (« Mercredi 28
     octobre »: dates are never serif).
 
+30. **A burst of input is one gesture.** A trackpad flick fires dozens of wheel events: they and the
+    scroll events they cause form ONE gesture, whose chain is reset only after 200 ms without input (the
+    hook's settle time) or when the operator turns around. A key typed into a field, a select, a
+    `contenteditable` or a dialog, or already handled (`defaultPrevented`), is not a gesture; a touch
+    gives its direction from the move (a finger going up scrolls down). The empty horizon is capped at
+    **N = 1**: within one gesture the first window that brings nothing to draw (rule 26's « no growth »)
+    ends the chain, so a flick over an empty planning asks once, not once per wheel event.
+
 **Edge cases:**
 - Several arrivals on the next arrival day → all listed (rule 2), one row each.
 - The next arrival is next year → `label` carries the year.
@@ -395,6 +403,7 @@ None. No migration.
   removed on unmount).
 - [x] `components/__tests__/FoldedDayList.render.test.jsx` (2) — rule 4.
 - [x] `pages/__tests__/PlanningPage.timeline.test.jsx` gains rule 29 (12 in all).
+- [x] `components/__tests__/PageActionBar.aria-disabled.test.jsx` (2) — rule 29.
 - [x] `hooks/__tests__/usePlanningTimeline.windows.test.jsx` (3) — rules 27, 28; `useInfiniteEdgeScroll.window.test.jsx` gains rules 24 and 26 (14 in all).
 
 ### E2E (Playwright)

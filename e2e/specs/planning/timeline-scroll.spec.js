@@ -58,7 +58,7 @@ test('the planning opens on today, scrolls into the past, crosses an empty fortn
   const far = page.locator(`[data-scroll-anchor="day-${farArrival}"]`);
   for (let i = 0; i < 60 && (await far.count()) === 0; i += 1) {
     await page.mouse.wheel(0, 1500);
-    await page.waitForTimeout(120);
+    await page.waitForTimeout(260);
   }
   await expect(far).toHaveCount(1);
   await far.scrollIntoViewIfNeeded();
