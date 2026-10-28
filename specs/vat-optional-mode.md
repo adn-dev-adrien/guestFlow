@@ -7,7 +7,7 @@
 | **Created** | 2026-10-28 |
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
-| **Related** | [single-vat-rate.md](single-vat-rate.md) (the one rate — amended by its rule 14), [payment-links-vat.md](payment-links-vat.md) (link baskets — amended by its rule 11), [accountant-accounting-export.md](accountant-accounting-export.md) (journal — amended by its rule 36), [fiscal-year-and-nights-sold.md](fiscal-year-and-nights-sold.md) (the exercise, unchanged), [tourist-tax-matches-the-office-calculation.md](tourist-tax-matches-the-office-calculation.md) (the HT base of the proportional tax), [plugins-phase-p-productisation.md](plugins-phase-p-productisation.md) (GuestFlow sold to other operators) |
+| **Related** | [single-vat-rate.md](single-vat-rate.md) (the one rate — amended by its rule 14), [payment-links-vat.md](payment-links-vat.md) (link baskets — amended by its rule 11), [accountant-accounting-export.md](accountant-accounting-export.md) (journal — amended by its rule 37), [fiscal-year-and-nights-sold.md](fiscal-year-and-nights-sold.md) (the exercise, unchanged), [tourist-tax-matches-the-office-calculation.md](tourist-tax-matches-the-office-calculation.md) (the HT base of the proportional tax), [plugins-phase-p-productisation.md](plugins-phase-p-productisation.md) (GuestFlow sold to other operators) |
 | **HTML summary** | [docs/specs/2026-10-28-vat-optional-mode.html](../docs/specs/2026-10-28-vat-optional-mode.html) |
 
 ---
@@ -508,7 +508,7 @@ Each test file opens with the spec and rules it covers. Counts are targets.
 - [ ] `tests/vat-regime-not-subject-links.unit.test.js` — rule 12c (4).
 - [ ] `tests/vat-regime-not-subject-finance.unit.test.js` — rule 12d (4).
 - [ ] `plugins/accounting-export/tests/accounting-export-not-subject.unit.test.js` — rule 12g, rule 20 and
-      accountant-accounting-export rule 36 (7): no 4457x, commission TTC without 44566, compensation 0 %,
+      accountant-accounting-export rule 37 (7): no 4457x, commission TTC without 44566, compensation 0 %,
       refund avoir 0 %, balanced entries, mixed month.
 - [ ] `tests/vat-regime-switch.unit.test.js` — rules 3, 14, 15, 16, 18, 19 (16): each scope, bounds and
       messages, identical-target refusal, transaction (all-or-nothing), history entries, refund re-rate,

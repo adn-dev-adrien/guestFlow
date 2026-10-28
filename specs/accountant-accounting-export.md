@@ -298,12 +298,6 @@ standard).
     *Why:* the second pass of the final review (minor 3) noted that production, which never had the
     split, may export October before installing this version: a fixed 1 October cutoff would then
     move October's cents on a re-export.
-36. **Each entry is booked under its reservation's VAT regime (2026-10-28, Implemented — [vat-optional-mode.md](vat-optional-mode.md) rule 12g).**
-    The sales rate of every entry (stay buckets, end-of-stay, mid-stay, arrival adjustments, refunds)
-    is the rate of the reservation's VAT period, not the global setting. A « Sans TVA » reservation
-    produces no 4457x line, its revenue lines carry the whole TTC share, its platform commission is
-    booked TTC with no 44566 line whatever `hasVatOnCommission`, and a cancellation compensation is
-    booked at 0 %. A month may mix both kinds of entries; each stays balanced.
 
 ---
 
@@ -315,6 +309,15 @@ standard).
     The balance entry keeps its commission, or carries the lowered one when the declaration moved the penalty
     out of the payout's commission. *Why:* a penalty kept on a payout was booked as commission, with
     deductible VAT, whenever the operator typed the bank amount as the payout.
+
+### VAT regime per reservation (Implemented 2026-10-28)
+
+37. **Each entry is booked under its reservation's VAT regime (2026-10-28, Implemented — [vat-optional-mode.md](vat-optional-mode.md) rule 12g).**
+    The sales rate of every entry (stay buckets, end-of-stay, mid-stay, arrival adjustments, refunds)
+    is the rate of the reservation's VAT period, not the global setting. A « Sans TVA » reservation
+    produces no 4457x line, its revenue lines carry the whole TTC share, its platform commission is
+    booked TTC with no 44566 line whatever `hasVatOnCommission`, and a cancellation compensation is
+    booked at 0 %. A month may mix both kinds of entries; each stays balanced.
 
 ## 4. Architecture
 

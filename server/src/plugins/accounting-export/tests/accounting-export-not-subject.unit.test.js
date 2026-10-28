@@ -1,4 +1,4 @@
-// specs/vat-optional-mode.md rules 12 and 20, and specs/accountant-accounting-export.md rule 36 — the
+// specs/vat-optional-mode.md rules 12 and 20, and specs/accountant-accounting-export.md rule 37 — the
 // journal books each entry under its reservation's regime: no 4457x line for a « Sans TVA » stay, its
 // revenue lines carry the whole TTC share, its platform commission is booked TTC with no 44566 line
 // (whatever hasVatOnCommission says), a cancellation compensation and a refund carry 0 %, a month may
