@@ -1204,6 +1204,10 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   tryAddRes('cancellationReason', 'ALTER TABLE reservations ADD COLUMN cancellationReason TEXT');
   tryAddRes('cancelledBy', 'ALTER TABLE reservations ADD COLUMN cancelledBy INTEGER');
   tryAddRes('paymentAlertSnoozedUntil', 'ALTER TABLE reservations ADD COLUMN paymentAlertSnoozedUntil TEXT');
+  // specs/calendar-property-parity.md rule 22 — a duplicate set aside keeps who it duplicates and why.
+  tryAddRes('supersededAt', 'ALTER TABLE reservations ADD COLUMN supersededAt TEXT');
+  tryAddRes('supersededByReservationId', 'ALTER TABLE reservations ADD COLUMN supersededByReservationId INTEGER');
+  tryAddRes('supersededReason', 'ALTER TABLE reservations ADD COLUMN supersededReason TEXT');
   db.exec('CREATE INDEX IF NOT EXISTS idx_reservations_cancelled ON reservations(cancelledAt)');
 
   const compCols = db.prepare('PRAGMA table_info(cancellation_compensations)').all().map((c) => c.name);
@@ -2761,6 +2765,23 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   const copied = keepHistoryBeyondReservation(db);
   if (copied !== null) console.log(`[history] ${copied} ligne(s) d'historique conservée(s) au-delà de la suppression du séjour.`);
   db.prepare('INSERT OR IGNORE INTO migrations (name) VALUES (?)').run(migrationName);
+}
+
+// ---------- DUPLICATES THE OLD « PLATFORM DISABLED » FILTER HID (specs/calendar-property-parity.md rules 23-24) ----------
+// Runs before any read: the filter is gone from reservationsModel.list(), so a hidden stay that sits on a
+// visible one must already be set aside by then. Idempotent — a second run finds no `kind = 'reservation'`
+// candidate left, and the `migrations` row records it anyway.
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  const migrationName = 'calendar_parity_superseded_v1';
+  if (!db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(migrationName)) {
+    const { setAsideDuplicates } = require('./utils/supersededDuplicates');
+    const { superseded, skippedPaid, keptVisible } = setAsideDuplicates(db);
+    const ids = (list) => (list.length ? list.join(', ') : 'aucun');
+    console.log(`[migration:${migrationName}] ${superseded.length} doublon(s) écarté(s) (${ids(superseded.map((s) => s.id))}) ; `
+      + `${skippedPaid.length} laissé(s) car payé(s) (${ids(skippedPaid)}) ; `
+      + `${keptVisible.length} séjour(s) masqué(s) redevenu(s) visible(s) (${ids(keptVisible)}).`);
+    db.prepare('INSERT OR IGNORE INTO migrations (name) VALUES (?)').run(migrationName);
+  }
 }
 
 // ---------- REJEU DU BASELINE ----------
