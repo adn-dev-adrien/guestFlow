@@ -40,23 +40,32 @@ when the tent is next open. Search engines get the same season, as structured da
 
 1. The Google rating (score and number of reviews) is stored once, as two WordPress options, and
    edited in **Réglages → Note Google**. No page writes it.
+   > **Sans test** — held in the deployment's private repository (`tests/season-and-google-rating.test.js`), outside this repository's CI.
 2. Every page that shows the rating renders it with `[solio_note_google]`: « Note 5,0 sur Google —
    25 avis » in French, « Rated 5.0 on Google — 25 reviews » in English. It links to the
    domain's Google listing (`cid=8290763928945273589`), the same URL as the `sameAs` entry.
+   > **Sans test** — held in the deployment's private repository (`tests/season-and-google-rating.test.js`), outside this repository's CI.
 3. The settings page refuses a score outside 1.0–5.0 or with more than one decimal (a comma is
    accepted), and a review count that is not a whole number above 0. It names the reason and keeps
    the previous value.
+   > **Sans test** — held in the deployment's private repository (`tests/season-and-google-rating.test.js`), outside this repository's CI, and by the PHP run (§7).
 4. Until the options are first saved, the rating reads 5.0 and 25 (the listing on 2026-10-28).
+   > **Sans test** — checked by the 33 assertions run in the container's PHP on 2026-10-28 (§7); no PHP runner exists in either repository's CI.
 5. No `AggregateRating` or `Review` in the JSON-LD. Google shows no stars for reviews a business
    publishes about itself, and its rules forbid the markup.
+   > **Sans test** — an absence: nothing to call. The schema header in the private repository states it.
 6. `/llms.txt` states the rating and the listing URL among its facts.
+   > **Sans test** — measured on the live `/llms.txt` on 2026-10-28 (§7 bis); this repository does not run the site's PHP.
 7. The Estiva's opening is stored once, as month-day: `'ouverture' => array( 'debut' => '04-01',
    'fin' => '10-14' )`. The rule text (`saison`, `saison_en`), the FAQ answers and `/llms.txt` are
    derived from it.
+   > **Sans test** — held in the deployment's private repository (`tests/season-and-google-rating.test.js`), outside this repository's CI.
 8. The **period shown** is the current season, or the next one when the tent is closed. The day
    after the closing date, the next year's season is shown.
+   > **Sans test** — checked by the 33 assertions run in the container's PHP on 2026-10-28 (§7); no PHP runner exists in either repository's CI.
 9. « L'essentiel » on the Estiva page shows the period with its year: « du 1er avril au 14 octobre
    2027 » / « 1 April to 14 October 2027 ».
+   > **Sans test** — held in the deployment's private repository (`tests/season-and-google-rating.test.js`), outside this repository's CI; measured live on 2026-10-28.
 10. The Estiva hero line reads « Tente safari · dès le 1er avril 2027 » when closed and
     « Tente safari · jusqu'au 14 octobre » when open, through `[solio_saison logement="lodge"]`
     (English: « from 1 April 2027 », « until 14 October »). The date is written with non-breaking
@@ -64,13 +73,17 @@ when the tent is next open. Search engines get the same season, as structured da
     *Amended 2026-10-28, after the mock-up:* the mock-up said « réouverture le 1er avril 2027 » and
     « ouverte jusqu'au 14 octobre ». Measured on the live page at 375 px, the kicker (spaced
     capitals) needed three lines and split « 1ER / AVRIL ». Even unbreakable, it overflowed by
-    46 px. The short forms fit, with a 60 px margin.
+    47 px. The short forms fit, with a 60 px margin.
+    > **Sans test** — held in the deployment's private repository (`tests/season-and-google-rating.test.js`), outside this repository's CI; measured at 375 px on the live page.
 11. The Estiva's `Campground` node carries an `openingHoursSpecification`: every day, `00:00` to
     `23:59`, `validFrom` / `validThrough` = the period of rule 8.
+    > **Sans test** — held in the deployment's private repository (`tests/season-and-google-rating.test.js`), outside this repository's CI; measured live on 2026-10-28.
 12. A lodging with no `ouverture` (La Granja, open all year) keeps its `saison` text, gets no year
     and no `openingHoursSpecification`.
+    > **Sans test** — checked by the 33 assertions run in the container's PHP on 2026-10-28 (§7); no PHP runner exists in either repository's CI.
 13. The FAQ, `/llms.txt` and the comparison table keep the rule without a year. They describe how
     the tent works, not the season of the moment.
+    > **Sans test** — checked by the 33 assertions run in the container's PHP on 2026-10-28 (§7); no PHP runner exists in either repository's CI.
 
 **Edge cases:**
 - 31 March → closed, « dès le 1er avril 2027 ».
