@@ -208,13 +208,13 @@ test('rule 20: the console reads the space\'s report read-only — outcomes, app
   writeSpace(env, {
     active: ['linen'], versions: { linen: '1.2.0' }, applied: '2026-10-28T08:00:00.000Z', erased: ['o-1'],
     rows: [{ pluginId: 'sas', desired: 'active', outcome: 'failed', message: 'Échec du démarrage.', licenceIssuedAt: '2026-10-28T08:00:00.000Z' }],
-    facts: { linen: { setup: null, erasable: true, data: ['3 pièces'] } },
+    facts: { linen: { setup: null, erasable: true, data: [{ label: '3 pièces', count: 3 }] } },
   });
   const facts = env.ctx.instances.readFacts(env.slug);
   assert.equal(facts.provisioning.appliedLicenceIssuedAt, '2026-10-28T08:00:00.000Z');
   assert.deepEqual(facts.provisioning.rows.map((r) => [r.pluginId, r.outcome, r.message]), [['sas', 'failed', 'Échec du démarrage.']]);
   assert.deepEqual(facts.provisioning.erasedOrders, ['o-1']);
-  assert.deepEqual(facts.provisioning.moduleFacts.linen.data, ['3 pièces']);
+  assert.deepEqual(facts.provisioning.moduleFacts.linen.data, [{ label: '3 pièces', count: 3 }]);
   writeSpace(env, { active: ['linen'], provisioning: false });
   assert.equal(env.ctx.instances.readFacts(env.slug).provisioning, null);
   env.cleanup();

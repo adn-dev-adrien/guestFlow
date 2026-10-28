@@ -183,15 +183,24 @@ test('rule 16: an update in progress is not recorded — the pass tries again, t
   assert.equal(s.provisioning.appliedLicence(), '2026-10-28T08:00:00.000Z');
 });
 
-test('rules 14, 22: the pass publishes the setup a plugin lacks and the data it would erase', async () => {
+test('rules 14, 22, 28: the pass publishes the setup a plugin lacks and the data it would erase', async () => {
   const s = space({
     installed: ['linen', 'weather-alerts'], active: ['linen', 'weather-alerts'],
-    data: { linen: { tables: ['linen_stock'], describe: () => ['3 pièces de stock'] } },
+    data: { linen: { tables: ['linen_stock'], describe: () => [{ label: '3 pièces de stock', count: 3 }] } },
     setup: { 'weather-alerts': 'clé API manquante' },
   });
   await s.reconciler.run();
   const facts = Object.fromEntries(s.db.prepare("SELECT key, value FROM plugin_provisioning_meta WHERE key LIKE 'facts:%'").all().map((r) => [r.key, JSON.parse(r.value)]));
-  assert.deepEqual(facts['facts:linen'], { setup: null, erasable: true, data: ['3 pièces de stock'] });
+  assert.deepEqual(facts['facts:linen'], { setup: null, erasable: true, data: [{ label: '3 pièces de stock', count: 3 }] });
   assert.equal(facts['facts:weather-alerts'].setup, 'clé API manquante');
   assert.equal(facts['facts:neat'], undefined, 'a plugin that is not installed publishes nothing');
+});
+
+test('rule 21: a plugin the licence does not allow keeps its stored state — a plan that takes it back finds it as it was', async () => {
+  const s = space({ installed: ['linen', 'booking-intake', ['airbnb-intake', false]], plugins: ['linen', 'sas'], active: ['sas'] });
+  const out = await s.reconciler.run();
+  assert.deepEqual(ids(out.steps), ['deactivate:linen', 'install:sas']);
+  assert.equal(s.model.get('booking-intake').enabled, true);
+  assert.equal(s.model.get('airbnb-intake').enabled, false);
+  assert.equal(s.provisioning.get('booking-intake'), null);
 });

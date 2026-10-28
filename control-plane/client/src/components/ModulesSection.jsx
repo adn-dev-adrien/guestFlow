@@ -183,6 +183,7 @@ export default function ModulesSection({ customerId, slug, onChanged }) {
             <Box component="ul" sx={{ m: 0, pl: 3 }}>
               {erasing.eraseLines.map((l) => <li key={l}><Typography variant="body2">{l}</Typography></li>)}
             </Box>
+            {erasing.eraseWarnings.map((w) => <Typography key={w} variant="body2" color="text.secondary">{w}</Typography>)}
             <Typography variant="body2" color="text.secondary">Une restauration reste possible depuis la sauvegarde de l’hébergement.</Typography>
             <TextField label={`Pour confirmer, tapez « ${slug} »`} value={typed} onChange={(e) => setTyped(e.target.value)} autoComplete="off" />
           </Stack>

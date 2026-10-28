@@ -12,7 +12,7 @@ vi.mock('../api', () => ({ default: { customerModules: vi.fn(), toggleModule: vi
 
 const withData = () => modulesView({
   included: [
-    line({ on: false, state: 'inactive', stateLabel: 'Inactif', canErase: true, eraseLines: ['3 pièces de stock', '12 mouvements'] }),
+    line({ on: false, state: 'inactive', stateLabel: 'Inactif', canErase: true, eraseLines: ['3 pièces de stock', '12 mouvements'], eraseWarnings: ['les réglages restent dans l’espace'] }),
     line({ id: 'sas', name: 'Arrivée et départ guidés' }),
   ],
 });
@@ -38,6 +38,7 @@ it('rule 22 — the dialog lists the data, and « Effacer » waits for the exact
   expect(await screen.findByText('Effacer les données de Linge et blanchisserie ?')).toBeInTheDocument();
   expect(screen.getByText('3 pièces de stock')).toBeInTheDocument();
   expect(screen.getByText('12 mouvements')).toBeInTheDocument();
+  expect(screen.getByText('les réglages restent dans l’espace')).toBeInTheDocument();
   const submit = screen.getByRole('button', { name: 'Effacer' });
   expect(submit).toBeDisabled();
   fireEvent.change(screen.getByLabelText('Pour confirmer, tapez « moulin »'), { target: { value: 'moulin ' } });

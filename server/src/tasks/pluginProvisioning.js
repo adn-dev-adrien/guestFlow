@@ -8,13 +8,17 @@ const TICK_MS = 60 * 1000;
 const BOOT_DELAY_MS = 5 * 1000;
 
 function buildReconciler() {
-  return require('../utils/pluginReconciler').createReconciler({
-    licence: require('../utils/licence').default,
+  const licence = require('../utils/licence').default;
+  const reconciler = require('../utils/pluginReconciler').createReconciler({
+    licence,
     model: require('../models/pluginsModel'),
     provisioning: require('../models/pluginProvisioningModel').default,
     controller: require('../controllers/pluginsController'),
     catalogue: require('../constants/plugins').PLUGIN_CATALOG,
   });
+  // The reader keeps a licence for a minute: the pass reads the file as it is, so a choice is applied
+  // within a minute of the console writing it and not within two.
+  return { run: () => { licence.invalidate(); return reconciler.run(); } };
 }
 
 function start({ reconciler = buildReconciler(), setIntervalFn = setInterval, setTimeoutFn = setTimeout } = {}) {

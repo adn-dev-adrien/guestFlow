@@ -158,7 +158,8 @@ screen or endpoint: the customer sees only the features themselves.
     without `activePlugins` (an older console, a licence written by hand) changes nothing on the
     space: the stored plugin states stand, and rule 1 still makes the space operator-managed when
     `GUESTFLOW_MANAGED=1`.
-16. **The space reconciles.** At boot and then every minute (`tasks/pluginProvisioning.js`), when the
+16. **The space reconciles.** At boot and then every minute (`tasks/pluginProvisioning.js`, which also
+    drops the licence reader's one-minute cache so a choice is applied within the minute), when the
     valid licence carries `activePlugins`, the space compares it with its `plugins` table and acts
     through the same code paths the Plugins page used (`pluginsController` install / activate /
     deactivate, with the plugin lock): no logic is duplicated, every existing refusal applies.
@@ -193,7 +194,10 @@ screen or endpoint: the customer sees only the features themselves.
     the installed versions.) Nothing is ever sent to the console by the space.
 21. **A plugin outside `plugins[]` stays governed by the licence downgrade rule**
     (`control-plane-plans-and-access.md` rule 12): treated inactive, data untouched. `activePlugins`
-    never revives it (rule 11 keeps it a subset; the space intersects it with `plugins` anyway).
+    never revives it (rule 11 keeps it a subset; the space intersects it with `plugins` anyway). The
+    reconciliation does not look at such a plugin at all: its stored `enabled` flag stands, so a plan
+    that takes it back finds it as it was (found on the shadow copy: the three intakes, active in the
+    shadow but in no plan, were being switched off in the table by the first pass).
 
 ### 3.E Erasing a module's data
 
@@ -242,7 +246,8 @@ screen or endpoint: the customer sees only the features themselves.
 28. **The space publishes what the console cannot compute.** Each reconciliation pass writes, for
     every installed plugin, `facts:<id>` in `plugin_provisioning_meta` — `{ setup, erasable, data }`:
     the setup the plugin still lacks (`ctx.setupStatus`, rule 14) and the lines `data.describe`
-    returns (rule 22) — and removes it for a plugin that is not installed. The console reads them with
+    returns (rule 22: `[{ label, count, warning? }]`, a warning saying what stays) — and removes it for a
+    plugin that is not installed. The console reads them with
     the rest of rule 20. The ids of the erase orders executed are kept as `erase:<order>` (rule 23).
     _Added at implementation._
 
@@ -339,7 +344,7 @@ rules 31, 36):
 
 | Method | Endpoint | Request | Response | Notes |
 |---|---|---|---|---|
-| GET | `/api/customers/:id/modules` | — | `{ seeded, seedLabel, counts: { active, toConfigure, failed, blocked }, header: "7 actifs · 1 à configurer", empty, included: [Line], outOfPlan: [Line] }` | `Line = { id, name, on, switchable, state: 'active'\|'inactive'\|'pending'\|'failed'\|'blocked'\|'unknown'\|'outOfPlan', stateLabel, detail, needsSetup, canRetry, canErase, eraseLines: [string], planChip }` — an unseeded customer gets `seeded: false`, `seedLabel` and empty lists |
+| GET | `/api/customers/:id/modules` | — | `{ seeded, seedLabel, counts: { active, toConfigure, failed, blocked }, header: "7 actifs · 1 à configurer", empty, included: [Line], outOfPlan: [Line] }` | `Line = { id, name, on, switchable, state: 'active'\|'inactive'\|'pending'\|'failed'\|'blocked'\|'unknown'\|'outOfPlan', stateLabel, detail, needsSetup, canRetry, canErase, eraseLines: [string], eraseWarnings: [string], planChip }` — an unseeded customer gets `seeded: false`, `seedLabel` and empty lists |
 | POST | `/api/customers/:id/modules/:pluginId` | `{ on: boolean }` | the GET payload | 422 `{ error: 'OUT_OF_PLAN' \| 'REQUIREMENT_OFF' \| 'REQUIRED_BY', message }`; re-issues the licence |
 | POST | `/api/customers/:id/modules/retry` | — | the GET payload | Re-issues the licence (rule 18); also « Relever maintenant » when unseeded |
 | POST | `/api/customers/:id/modules/:pluginId/erase` | `{ confirmSlug }` | the GET payload | 409 `MODULE_ACTIVE` / `NOTHING_TO_ERASE` / `NOT_SEEDED`, 400 `SLUG_MISMATCH`; one pending order per plugin |
@@ -459,40 +464,44 @@ kept visible; changing plan re-ticks. Under it: « 8 modules actifs à la créat
 
 ### Server unit tests — instance
 
-- [ ] `server/src/tests/plugin-operator-governance.unit.test.js` — rules 1, 2, 15, 21 (operator-managed
+- [x] `server/src/tests/plugin-operator-governance.unit.test.js` — rules 1, 2, 15, 21 (operator-managed
   by env, by licence, neither; `activePlugins` ∩ `plugins`; absent field = no desire; expired licence
   keeps its `activePlugins`) — **9 cases (done: 9)**
-- [ ] `server/src/tests/plugin-operator-hidden-surface.unit.test.js` — rules 3–9 (each lifecycle route
+- [x] `server/src/tests/plugin-operator-hidden-surface.unit.test.js` — rules 3–9 (each lifecycle route
   404 with the unknown-path body, for admin and support session; `GET /api/plugins` narrowed shape;
   settings routes still answer; `pluginsManageable`; `pluginStep` and `PUT /onboarding/plugins` 404;
   unmanaged space unchanged) — **16 cases (done: 15)**
-- [ ] `server/src/tests/plugin-reconciler.unit.test.js` — rules 16–19 (install + requirements,
+- [x] `server/src/tests/plugin-reconciler.unit.test.js` — rules 16–19 (install + requirements,
   activate, deactivate keeps data, ordering both ways, no restart path → failure message, failure not
   retried for the same `issuedAt`, retried on a new one, blocked by open links then retried hourly,
   one failure does not stop the others) — **14 cases (done: 17, incl. the facts publication)**
-- [ ] `server/src/tests/plugin-erase-orders.unit.test.js` — rule 23 (executed once, refused while
+- [x] `server/src/tests/plugin-erase-orders.unit.test.js` — rule 23 (executed once, refused while
   desired active, not installed = acknowledged no-op, recorded order id) — **5 cases (done: 6)**
 
 ### Server unit tests — console
 
-- [ ] `control-plane/server/src/tests/customer-modules.unit.test.js` — rules 10–14, 22 (allowed subset
+- [x] `control-plane/server/src/tests/customer-modules.unit.test.js` — rules 10–14, 22 (allowed subset
   refusals with their French text, requirement both ways, audit lines, licence re-issued, state lines
   from facts incl. pending after 5 min, erase slug check, plan downgrade drops a module) — **15 cases (done: 17, plus `customer-modules-erase.unit.test.js`, 7 cases, rules 22–23)**
-- [ ] `control-plane/server/src/tests/licence-active-plugins.unit.test.js` — rules 15, 23, 25
+- [x] `control-plane/server/src/tests/licence-active-plugins.unit.test.js` — rules 15, 23, 25
   (payload fields, unseeded customer has none, seed from active ∩ allowed, unreadable space stays
   unseeded, acknowledged order dropped) — **8 cases (done: 8)**
 
+- [x] `server/src/tests/plugin-provisioning-task.unit.test.js` — rule 16 (boot pass, one per minute, a failing pass is logged) — 2 cases (added)
+
 ### Client Vitest
 
-- [ ] `client/src/constants/__tests__/roles.plugins-managed.test.js` — rule 3 (route condition,
+- [x] `client/src/__tests__/App.plugins-managed.test.jsx` — rule 3 (the route itself: « Page introuvable » managed, the Plugins page unmanaged) — 2 cases (added)
+
+- [x] `client/src/constants/__tests__/roles.plugins-managed.test.js` — rule 3 (route condition,
   settings menu without « Plugins », search words gone) — **3 cases (done: 3)**
-- [ ] `client/src/components/__tests__/NotFoundPage.plugins-managed.test.jsx` — rule 7 — **2 cases**
-- [ ] `client/src/pages/__tests__/OnboardingPage.plugins-managed.test.jsx` — rule 8 (no step, numbering,
+- [x] `client/src/components/__tests__/NotFoundPage.plugins-managed.test.jsx` — rule 7 — **2 cases**
+- [x] `client/src/pages/__tests__/OnboardingPage.plugins-managed.test.jsx` — rule 8 (no step, numbering,
   no last link) — **3 cases**
-- [ ] `control-plane/client/src/__tests__/ModulesSection.switches.test.jsx` — rules 10, 12, 14 (groups,
+- [x] `control-plane/client/src/__tests__/ModulesSection.switches.test.jsx` — rules 10, 12, 14 (groups,
   confirm on off, refusal snaps back with text, state badges, retry) — **7 cases**
-- [ ] `control-plane/client/src/__tests__/ModulesSection.erase.test.jsx` — rule 22 — **3 cases**
-- [ ] `control-plane/client/src/__tests__/NewCustomerPage.modules.test.jsx` — rule 13 — **3 cases**
+- [x] `control-plane/client/src/__tests__/ModulesSection.erase.test.jsx` — rule 22 — **3 cases**
+- [x] `control-plane/client/src/__tests__/NewCustomerPage.modules.test.jsx` — rule 13 — **3 cases**
 
 ### E2E
 
@@ -503,16 +512,17 @@ are release-process rules → marked « Sans test » with that reason.
 
 ### Manual UI verification
 
-- [ ] Shadow copy started with `GUESTFLOW_MANAGED=1` and a licence signed by the test key carrying
+- [x] Shadow copy started with `GUESTFLOW_MANAGED=1` and a licence signed by the test key carrying
   `activePlugins`: no Plugins entry, `/parametres/plugins` 404, a module page off → « Page
   introuvable », assistant without the step; desktop and **390 px phone**.
-- [ ] Console dev (`npm run dev:console`): switch Linge off → confirm → space shows « Inactif » within a
+- [x] Console dev (own ports, real console server on a seeded customer whose space is a copy of the shadow): switch Linge off → confirm → space shows « Inactif » within a
   minute and the Linge menu is gone after reload; switch it on → « Actif · 1.0.x ».
-- [ ] Refusal: switch off Réservation depuis le site while Google Vacation Rentals is on → sentence under
-  the line, switch back on.
-- [ ] Blocked: open a payment link, switch Paiement en ligne off → « Bloqué : … ».
-- [ ] Phone (390 px) console: lines wrap, switches 44 px, dialogs full-screen.
-- [ ] Regression: Solio copy (unmanaged, no licence) — Plugins page, assistant step and « Plugin
+- [x] Refusal: out-of-plan 422 on the real console; the requirement refusals (switch off Réservation
+  depuis le site while Google Vacation Rentals is on → sentence under the line, switch back on) are
+  covered by the server and component suites.
+- [x] Blocked: open payment links, switch Paiement en ligne off → « Bloqué : … ».
+- [x] Phone (390 px) console: lines wrap, switches 44 px, dialogs full-screen.
+- [x] Regression: Solio copy (unmanaged, no licence) — Plugins page, assistant step and « Plugin
   inactif » unchanged.
 
 ## 8. Out of scope
@@ -558,3 +568,29 @@ Four lots, each shippable on `inte/plugins`:
 4. **Lot 4 — erasure** (rules 22–23). ~5 files, 2 test files.
 
 Lots 1 → 2 → 3 in one release is the safe order (rule 26); lot 4 can follow.
+
+### Implementation progress
+
+All four lots are in, one commit each, on `feature/plugin-operator-provisioning`.
+
+| Lot | Commit | Server | Client |
+|---|---|---|---|
+| 1 — the space applies the licence (and runs erase orders, rule 23) | `feat(plugins): the space applies…` | governance 9, reconciler 18, erase orders 6, task 2 | — |
+| 2 — the console decides | `feat(console): the operator switches…` | `customer-modules` 17, `licence-active-plugins` 8 | console: switches 7, new customer 3 |
+| 3 — the customer no longer sees it | `feat(plugins): an operator-managed space hides…` | hidden surface 15 | roles 3, not found 2, assistant 3, App route 2 |
+| 4 — erasure from the console | `feat(console): erase one module's data…` | `customer-modules-erase` 7 | console: erase 3 |
+
+Deviations from the draft, all recorded in the rules above: no plugin icon in the console lines (the
+catalogue's icon names have no mapping there); the fleet table is unchanged (rule 20); `counts` also
+has `blocked`; rules 27 and 28 added; the reconciliation ignores plugins outside the licence (rule 21)
+and drops the licence reader's cache (rule 16); the `/parametres/plugins` route itself is guarded in
+`App.jsx` (the menu condition alone left the page reachable by address).
+
+Verified on a shadow copy (prod data of 22/10): unmanaged — Plugins page, assistant step, lifecycle API
+as before; managed with a console-signed licence — no Plugins entry, `/parametres/plugins` and a
+module page that is off read « Page introuvable », every lifecycle call answers `{"error":"API route
+not found"}`, settings still answer, the first reconciliation changed nothing, a licence without
+Linge switched it off within seconds and a new one switched it on, an open payment link blocked its
+deactivation (« Bloqué : 5 liens de paiement en attente… »); real console: seed from the space, switch
+off with confirmation, « En attente » then « Inactif », out-of-plan refusal, erase with the typed slug
+(tables, settings and row gone, order acknowledged and dropped from the licence), at 1280 and 390 px.

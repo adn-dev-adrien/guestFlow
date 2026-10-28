@@ -51,11 +51,13 @@ function createReconciler({ licence, model, provisioning, controller, catalogue,
   const catalogueRequires = Object.fromEntries(catalogue.map((p) => [p.id, (p.requires || []).map((r) => r.id)]));
   let running = false;
 
-  // The stored manifest of an installed plugin (a registry version) wins over the catalogue's.
+  // The stored manifest of an installed plugin (a registry version) wins over the catalogue's. A plugin
+  // the licence does not allow is not looked at: its stored state stands, so a plan that takes it back
+  // finds it as it was (rule 21).
   const readState = () => {
     const states = {};
     const requires = { ...catalogueRequires };
-    model.list().forEach((r) => {
+    model.list().filter((r) => licence.allowsPlugin(r.id)).forEach((r) => {
       states[r.id] = r.enabled ? 'active' : 'inactive';
       if (r.manifest && r.manifest.requires) requires[r.id] = r.manifest.requires.map((x) => x.id);
     });

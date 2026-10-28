@@ -56,17 +56,20 @@ function createCustomerModulesController(ctx, customersController) {
     if (!allowed.has(id)) {
       return {
         id, name: entry.name, on: false, switchable: false, state: 'outOfPlan', stateLabel: null, detail: null,
-        canRetry: false, canErase: false, eraseLines: [], planChip: planChip(id),
+        canRetry: false, canErase: false, eraseLines: [], eraseWarnings: [], planChip: planChip(id),
       };
     }
     const on = chosen.has(id);
     const state = moduleState({ id, on, facts, licenceWrittenAt: writtenAt, now: now() });
     // Rule 22 — only an inactive module with something to erase, and not while an order is on its way.
     const reported = facts && facts.provisioning ? facts.provisioning.moduleFacts[id] : null;
-    const canErase = !on && state.state === 'inactive' && !erasing.has(id) && Boolean(reported && reported.erasable && reported.data.length);
+    // The plugin's own lines are { label, count, warning? }: a warning says what stays, not what goes.
+    const dataLines = reported && reported.erasable ? reported.data || [] : [];
+    const eraseLines = dataLines.filter((l) => !l.warning).map((l) => l.label);
+    const canErase = !on && state.state === 'inactive' && !erasing.has(id) && eraseLines.length > 0;
     return {
       id, name: entry.name, on, switchable: true, ...state, detail: erasing.has(id) ? 'Effacement des données en cours.' : state.detail,
-      canErase, eraseLines: canErase ? reported.data : [], planChip: null,
+      canErase, eraseLines: canErase ? eraseLines : [], eraseWarnings: canErase ? dataLines.filter((l) => l.warning).map((l) => l.label) : [], planChip: null,
     };
   }
 

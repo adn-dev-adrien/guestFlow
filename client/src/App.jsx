@@ -823,7 +823,8 @@ function AppShell() {
           <Route path="/parametres/vacances-fermetures" element={<SeasonsClosuresPage />} />
           <Route path="/parametres/options-ressources" element={<OptionsResourcesPage />} />
           <Route path="/parametres/conditions-generales" element={<TermsSettingsPage />} />
-          <Route path="/parametres/plugins" element={<PluginsPage />} />
+          {/* specs/plugin-operator-provisioning.md rule 3 — no Plugins page where the operator manages the plugins. */}
+          <Route path="/parametres/plugins" element={canSeeRoute(user, '/parametres/plugins') ? <PluginsPage /> : <NotFoundPage />} />
           {/* specs/hosting-h2-account-security.md rules 13, 15, 17 — managed instances only. */}
           <Route path="/parametres/acces-support" element={canSeeRoute(user, '/parametres/acces-support') ? <SupportAccessPage /> : <Navigate to="/" replace />} />
           {/* The pre-auth pages, reached with a session (a reset that logged in): home. */}

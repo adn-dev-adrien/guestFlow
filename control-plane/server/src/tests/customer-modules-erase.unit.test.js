@@ -6,7 +6,7 @@ const assert = require('node:assert/strict');
 const { customerWithSpace, writeSpace, lineOf, writtenAt, licenceOf } = require('./moduleFixture');
 const { createScheduler } = require('../tasks/scheduler');
 
-const FACTS = { linen: { setup: null, erasable: true, data: ['3 pièces de stock', '12 mouvements'] } };
+const FACTS = { linen: { setup: null, erasable: true, data: [{ label: '3 pièces de stock', count: 3 }, { label: '12 mouvements', count: 12 }, { label: 'les réglages restent dans l’espace', count: 0, warning: true }] } };
 
 // Linen switched off by the operator, the space applied it and still holds data.
 async function linenOffWithData() {
@@ -21,6 +21,7 @@ test('rule 22: an inactive module with data offers « Effacer les données… »
   const line = lineOf(env.ctx.controllers.modules.view(env.id), 'linen');
   assert.equal(line.canErase, true);
   assert.deepEqual(line.eraseLines, ['3 pièces de stock', '12 mouvements']);
+  assert.deepEqual(line.eraseWarnings, ['les réglages restent dans l’espace']);
   env.cleanup();
 });
 
@@ -79,7 +80,7 @@ test('rule 23: once the space reports the order executed, it leaves the licence 
   env.cleanup();
 });
 
-test('rule 23: switching the module back on cancels an order still on its way', async () => {
+test('rule 27: switching the module back on cancels an order still on its way', async () => {
   const env = await linenOffWithData();
   const { modules } = env.ctx.controllers;
   modules.erase(env.id, 'linen', env.slug, 'op');
