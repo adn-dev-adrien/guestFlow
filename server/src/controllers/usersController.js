@@ -29,6 +29,7 @@ const { ROLES, ADMIN, isKnownRole } = require('../constants/roles');
 const { MIN_PASSWORD_LENGTH } = require('../constants/authDefaults');
 const { quotaRefusal } = require('../utils/planQuota');
 const { ROLE_PLUGINS } = require('../constants/plugins');
+const { sendError } = require('../utils/httpError');
 
 function isValidEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
@@ -81,6 +82,18 @@ function buildController({
     return predicate(current);
   }
 
+  // Rule 59 — the old address learns of the change. Best effort, after the change: a mail failure must
+  // not undo it, nor tell the caller anything.
+  function notifyOldAddress(before, after) {
+    Promise.resolve()
+      .then(() => getEmailService().send({
+        to: before.email,
+        subject: 'Adresse email modifiée — GuestFlow',
+        text: `L’adresse de connexion de ce compte est maintenant ${after.email}.\n\nSi ce changement n’est pas de vous, le signaler à l’administrateur sans attendre.`,
+      }))
+      .catch((err) => console.error('[usersController.updateSelf] old-address notice failed:', err && err.code ? err.code : err));
+  }
+
   return {
     // GET /api/users — admin only (the route group is admin-gated by enforceRoleAccess).
     // Each account says whether its second step is on, so the admin can turn it off
@@ -112,12 +125,14 @@ function buildController({
       return res.json({ user: fresh });
     },
 
-    // PUT /api/users/me — any authenticated user updates their OWN identity fields. Email and
-    // roles are explicitly NOT editable from this endpoint:
+    // PUT /api/users/me — any authenticated user updates their OWN identity fields. Roles are
+    // explicitly NOT editable from this endpoint:
     //   - email is editable since 2026-06-02 (the bootstrap admin needs to replace the
     //     `admin@guestflow.local` seed with a real address). The model enforces uniqueness
     //     and we validate the format here; an unchanged email skips the validation altogether
-    //     so existing callers that don't touch it (or send the same string) keep working.
+    //     so existing callers that don't touch it (or send the same string) keep working. A changed
+    //     one needs `currentPassword` (+ `code` with a second step) and is told to the old address
+    //     (specs/hosting-h2-account-security.md rule 59).
     //   - roles must never be self-modifiable — a user could otherwise grant themselves admin.
     // Validation mirrors `create` (firstName + lastName required). Returns the refreshed safe user
     // so the caller can update its local auth state immediately.
@@ -138,6 +153,16 @@ function buildController({
         if (trimmed && trimmed.toLowerCase() !== String(req.user.email || '').toLowerCase()) {
           if (!isValidEmail(trimmed)) return res.status(400).json({ error: 'INVALID_EMAIL', field: 'email' });
           emailForModel = trimmed;
+        }
+      }
+
+      // Rule 59 — a new address redirects the reset link and the login code: it asks the current
+      // password, and a current code when the second step is on.
+      if (emailForModel !== undefined) {
+        try {
+          twoFactor.reauthenticateForChange(req.user, { password: body.currentPassword, code: body.code });
+        } catch (err) {
+          return sendError(res, err);
         }
       }
 
@@ -166,6 +191,7 @@ function buildController({
       // (sidebar greeting, dialogs, future navigation) sees the new values immediately,
       // without waiting for the next /me round-trip to refresh from the DB.
       if (req.session) req.session.user = updated;
+      if (emailForModel !== undefined) notifyOldAddress(req.user, updated);
       return res.json({ user: updated });
     },
 
@@ -430,7 +456,11 @@ const defaultDeps = {
   passwordGenerator: defaultGenerateTemporaryPassword,
   get twoFactor() {
     const { twoFactor, twoFactorModel } = require('../utils/accountSecurityServices');
-    return { disableFor: twoFactor.disableFor, enabledUserIds: twoFactorModel.enabledUserIds };
+    return {
+      disableFor: twoFactor.disableFor,
+      enabledUserIds: twoFactorModel.enabledUserIds,
+      reauthenticateForChange: twoFactor.reauthenticateForChange,
+    };
   },
 };
 

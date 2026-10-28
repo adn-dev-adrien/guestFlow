@@ -6,6 +6,8 @@
  * Two sections:
  *   - « Mes informations » — the user edits their own identity (PUT /api/users/me; roles are never
  *     writable there — the server ignores them).
+ *     A changed email first asks the password (and the current code of a second step) in a
+ *     ReauthDialog (specs/hosting-h2-account-security.md rule 59).
  *   - « Mon mot de passe » — ChangePasswordForm. On a forced first-login change the server destroys
  *     the session and the page redirects to /login?reason=password-changed.
  *   - « Validation en deux étapes » — TwoFactorSection (specs/hosting-h2-account-security.md rules 6, 38–53);
@@ -21,6 +23,7 @@ import api from '../api';
 import PageActionBar from '../components/PageActionBar';
 import { useToast } from '../components/DialogProvider';
 import ChangePasswordForm from '../components/ChangePasswordForm';
+import ReauthDialog from '../components/ReauthDialog';
 import SelfProfileSection from '../components/SelfProfileSection';
 import TwoFactorSection from '../components/TwoFactorSection';
 import { useAuth } from '../hooks/useAuth';
@@ -36,6 +39,7 @@ export default function AccountPage() {
   const [profileBusy, setProfileBusy] = useState(false);
   const [profileErrors, setProfileErrors] = useState({});
   const [emailStatus, setEmailStatus] = useState(null);
+  const [emailChange, setEmailChange] = useState(null);
 
   const wasMustChange = Boolean(me && me.mustChangePassword);
   const handlePasswordSubmit = useCallback(async (currentPassword, newPassword) => {
@@ -53,7 +57,7 @@ export default function AccountPage() {
   }, []);
   useEffect(() => { refreshEmailStatus(); }, [refreshEmailStatus]);
 
-  const handleProfileSubmit = useCallback(async (payload) => {
+  const saveProfile = useCallback(async (payload) => {
     setProfileBusy(true);
     setProfileErrors({});
     try {
@@ -67,13 +71,34 @@ export default function AccountPage() {
           : err.error === 'EMAIL_ALREADY_EXISTS' ? 'Cette adresse est déjà utilisée par un autre compte.'
             : (err.detail || err.error);
         setProfileErrors({ [err.field]: friendly });
-      } else {
-        showError((err && (err.detail || err.message || err.error)) || 'Mise à jour impossible.');
+        return true;
       }
+      if (payload.currentPassword !== undefined) throw err;
+      showError((err && (err.detail || err.message || err.error)) || 'Mise à jour impossible.');
     } finally {
       setProfileBusy(false);
     }
   }, [refreshAuth, refreshEmailStatus, showSuccess, showError]);
+
+  const handleProfileSubmit = useCallback(async (payload) => {
+    const changed = String(payload.email || '').trim().toLowerCase() !== String((me && me.email) || '').toLowerCase();
+    if (!changed) {
+      await saveProfile(payload);
+      return;
+    }
+    let status = null;
+    try {
+      status = await api.getTwoFactorStatus();
+    } catch {
+      status = null;
+    }
+    setEmailChange({ payload, needsCode: Boolean(status && status.reauthNeedsCode), byEmail: Boolean(status && status.method === 'email') });
+  }, [me, saveProfile]);
+
+  const confirmEmailChange = useCallback(async ({ password, code }) => {
+    await saveProfile({ ...emailChange.payload, currentPassword: password, code });
+    setEmailChange(null);
+  }, [emailChange, saveProfile]);
 
   const subtitle = useMemo(() => (
     me && me.email ? <Typography variant="caption" color="text.disabled">{me.email}</Typography> : null
@@ -89,6 +114,16 @@ export default function AccountPage() {
           fieldErrors={profileErrors}
           busy={profileBusy}
           onSubmit={handleProfileSubmit}
+        />
+        <ReauthDialog
+          open={Boolean(emailChange)}
+          onClose={() => setEmailChange(null)}
+          title="Changer l’adresse email"
+          text="Mot de passe demandé : cette adresse sert à la connexion."
+          submitLabel="Confirmer"
+          needsCode={Boolean(emailChange && emailChange.needsCode)}
+          onSendCode={emailChange && emailChange.byEmail ? () => api.sendTwoFactorActionCode() : undefined}
+          onSubmit={confirmEmailChange}
         />
         {!(me && me.isSupport) && (
         <Card variant="outlined" sx={{ mb: 3 }}>
