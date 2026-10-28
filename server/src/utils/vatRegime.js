@@ -5,7 +5,8 @@
  * `vat-regime-assignment.unit.test.js` runs both on the same matrix.
  */
 
-const { localIsoDate } = require('./localDate');
+const crypto = require('crypto');
+const { localIsoDate, todayIso } = require('./localDate');
 
 const REGIMES = Object.freeze({ SUBJECT: 'subject', NOT_SUBJECT: 'not_subject' });
 const BASES = Object.freeze({ ALL: 'all', BOOKING: 'booking', ARRIVAL: 'arrival' });
@@ -70,7 +71,148 @@ function toRegime(period) {
   };
 }
 
+const addDays = (iso, days) => {
+  const [y, m, d] = iso.split('-').map(Number);
+  return localIsoDate(new Date(y, m - 1, d + days));
+};
+
+const isIsoDate = (value) => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
+  && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
+
+const frDate = (iso) => iso.split('-').reverse().join('/');
+
+/** The rate of a switch's target: asked for under VAT (10 by default), always 0 without. */
+function targetRate(input) {
+  if (input.regime !== REGIMES.SUBJECT) return 0;
+  return input.rate == null || input.rate === '' ? 10 : Number(input.rate);
+}
+
+/**
+ * Rules 14 and 15 — the inputs of a switch against the stored periods. → { errors: { field: message } },
+ * empty when valid. `today` is injected for tests.
+ */
+function validateSwitch(input, periods, { today = todayIso() } = {}) {
+  const errors = {};
+  const body = input || {};
+  const inForce = pickPeriod(periods, { bookingDay: today, startDate: today });
+
+  if (body.regime !== REGIMES.SUBJECT && body.regime !== REGIMES.NOT_SUBJECT) errors.regime = 'Régime invalide';
+  if (!Object.values(BASES).includes(body.basis)) errors.basis = 'Portée invalide';
+
+  if (body.regime === REGIMES.SUBJECT) {
+    const rate = targetRate(body);
+    if (!Number.isFinite(rate) || rate < 0 || rate > 100) errors.rate = 'Taux entre 0 et 100';
+  }
+  if (body.regime === REGIMES.NOT_SUBJECT && body.legalMention != null && body.legalMention !== '' && !isMentionKey(body.legalMention)) {
+    errors.legalMention = 'Mention inconnue';
+  }
+
+  if (body.basis === BASES.BOOKING || body.basis === BASES.ARRIVAL) {
+    const from = body.effectiveFrom;
+    const latestDated = [...periods].filter((p) => p.effectiveFrom).sort((a, b) => b.id - a.id)[0] || null;
+    if (!isIsoDate(from)) errors.effectiveFrom = 'Date invalide';
+    else if (latestDated && from < latestDated.effectiveFrom) errors.effectiveFrom = `Date antérieure au dernier changement (${frDate(latestDated.effectiveFrom)})`;
+    else if (from < addDays(today, -366)) errors.effectiveFrom = 'Au plus un an en arrière, sinon correction';
+    else if (from > addDays(today, 366)) errors.effectiveFrom = "Au plus un an à l'avance";
+  }
+
+  if (!errors.regime && !errors.rate && inForce && inForce.regime === body.regime
+    && (body.regime === REGIMES.NOT_SUBJECT || Number(inForce.rate) === targetRate(body))) {
+    errors.regime = 'Régime déjà en vigueur';
+  }
+  return { errors };
+}
+
+/** The row a switch inserts (rule 14), from validated inputs. */
+function periodFromInput(input) {
+  const subject = input.regime === REGIMES.SUBJECT;
+  return {
+    regime: input.regime,
+    rate: targetRate(input),
+    legalMention: subject ? null : (input.legalMention || DEFAULT_MENTION),
+    basis: input.basis,
+    effectiveFrom: input.basis === BASES.ALL ? null : input.effectiveFrom,
+  };
+}
+
+/** Rule 17 — what the switch must still find true when it is confirmed. */
+function fingerprint({ input, reassignedIds, latestPeriodId }) {
+  const normalized = { ...periodFromInput(input), reassigned: [...reassignedIds].sort((a, b) => a - b), latestPeriodId };
+  return crypto.createHash('sha256').update(JSON.stringify(normalized)).digest('hex').slice(0, 32);
+}
+
+/** The server's sentence for a period of the history (§4.3). */
+function periodLabel(period) {
+  if (period.basis === BASES.ALL) return period.note === 'initial' ? 'Depuis toujours' : 'Toutes les réservations (correction)';
+  const scope = period.basis === BASES.BOOKING ? 'réservations prises à partir de cette date' : 'séjours qui commencent à partir de cette date';
+  return `Depuis le ${frDate(period.effectiveFrom)} · ${scope}`;
+}
+
+/** « Assujetti 10 % » / « Sans TVA » — the regime in a history entry. */
+function regimeLabel(period) {
+  if (period.regime === REGIMES.NOT_SUBJECT) return 'Sans TVA';
+  return `Assujetti ${String(Number(period.rate)).replace('.', ',')} %`;
+}
+
+const MONTHS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+const plural = (n, one, many) => `${n} ${n > 1 ? many : one}`;
+const euros = (n) => `${Math.abs(n).toFixed(2).replace('.', ',')} €`;
+
+function monthLabel(ym) {
+  const [year, month] = ym.split('-');
+  return `${MONTHS[Number(month) - 1]} ${year}`;
+}
+
+function monthRange(months) {
+  if (months.length === 1) return monthLabel(months[0]);
+  const first = months[0];
+  const last = months[months.length - 1];
+  const head = first.slice(0, 4) === last.slice(0, 4) ? MONTHS[Number(first.split('-')[1]) - 1] : monthLabel(first);
+  return `${head} à ${monthLabel(last)} (${months.length} mois)`;
+}
+
+/**
+ * Rule 17 — the 2 to 8 short lines of « Ce qui change », phrased here (French, plurals, month range) so
+ * the dialog only prints them. Only the non-zero effects are told.
+ */
+function previewLines(input, preview, { accountingExportActive = false, today = todayIso() } = {}) {
+  const toNo = input.regime === REGIMES.NOT_SUBJECT;
+  const verb = (many) => (toNo ? (many ? 'passent sans TVA' : 'passe sans TVA') : (many ? 'passent à la TVA' : 'passe à la TVA'));
+  const lines = [];
+  if (preview.reassigned === 0) {
+    const dated = input.basis !== BASES.ALL && input.effectiveFrom > today;
+    const who = !dated ? 'Les prochaines'
+      : `${input.basis === BASES.BOOKING ? 'Les réservations prises' : 'Les séjours qui commencent'} à partir du ${frDate(input.effectiveFrom)}`;
+    lines.push(`Aucune réservation existante. ${who} ${verb(true)}.`);
+  } else {
+    const collected = preview.collected ? `, dont ${plural(preview.collected, 'déjà encaissée', 'déjà encaissées')}` : '';
+    lines.push(`${plural(preview.reassigned, 'réservation', 'réservations')} ${verb(preview.reassigned > 1)}${collected}.`);
+  }
+  lines.push(`Prix inchangés.${toNo ? '' : ' Le chiffre d’affaires HT baisse d’autant.'}`);
+  if (preview.touristTaxChanged) {
+    lines.push(`Taxe de séjour recalculée sur ${plural(preview.touristTaxChanged, 'séjour', 'séjours')} (${preview.touristTaxDelta >= 0 ? '+' : '−'}${euros(preview.touristTaxDelta)}).`);
+  }
+  if (preview.touristTaxKept) {
+    lines.push(`${plural(preview.touristTaxKept, 'taxe de séjour figée inchangée', 'taxes de séjour figées inchangées')}.`);
+  }
+  if (preview.openLinks) {
+    lines.push(preview.openLinks === 1
+      ? '1 lien de paiement ouvert garde son montant.'
+      : `${preview.openLinks} liens de paiement ouverts gardent leur montant.`);
+  }
+  if (accountingExportActive && preview.exportMonths.length) {
+    lines.push(`Écritures comptables modifiées : ${monthRange(preview.exportMonths)}.`);
+  }
+  const target = periodFromInput(input);
+  lines.push(toNo
+    ? `Devis et résumés : mention « ${mentionText(target.legalMention, 'fr')} ».`
+    : `Devis et résumés : TVA ${String(target.rate).replace('.', ',')} %.`);
+  return lines;
+}
+
 module.exports = {
+  previewLines,
   REGIMES, BASES, MENTIONS, DEFAULT_MENTION,
   isMentionKey, mentionText, bookingDayOf, appliesTo, pickPeriod, toRegime,
+  validateSwitch, periodFromInput, fingerprint, periodLabel, regimeLabel, frDate, addDays,
 };

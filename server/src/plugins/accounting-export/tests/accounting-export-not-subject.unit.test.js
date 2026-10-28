@@ -1,4 +1,4 @@
-// specs/vat-optional-mode.md rules 12g and 20, and specs/accountant-accounting-export.md rule 36 — the
+// specs/vat-optional-mode.md rules 12 and 20, and specs/accountant-accounting-export.md rule 36 — the
 // journal books each entry under its reservation's regime: no 4457x line for a « Sans TVA » stay, its
 // revenue lines carry the whole TTC share, its platform commission is booked TTC with no 44566 line
 // (whatever hasVatOnCommission says), a cancellation compensation and a refund carry 0 %, a month may
@@ -32,13 +32,13 @@ const month = (model, m, id) => {
 const accountsOf = (rows) => rows.map((r) => String(r[COL.compte]));
 const sum = (rows, col) => Math.round(rows.reduce((s, r) => s + Number(String(r[col] || 0).replace(',', '.')), 0) * 100) / 100;
 
-test('rule 12g: under VAT the same stay books its VAT and the deductible VAT of its commission (the control)', () => {
+test('rule 12 (g): under VAT the same stay books its VAT and the deductible VAT of its commission (the control)', () => {
   const { rows } = month(accounting(), 6, 104);
   assert.ok(accountsOf(rows).some((a) => a.startsWith('44571')));
   assert.ok(accountsOf(rows).includes('44566000'));
 });
 
-test('rule 12g: a « Sans TVA » stay books no 4457x line and no 44566 line, whatever hasVatOnCommission says', () => {
+test('rule 12 (g): a « Sans TVA » stay books no 4457x line and no 44566 line, whatever hasVatOnCommission says', () => {
   toggle(104, true);
   const { rows } = month(accounting(), 6, 104);
   toggle(104, false);
@@ -46,7 +46,7 @@ test('rule 12g: a « Sans TVA » stay books no 4457x line and no 44566 line, wha
   assert.deepEqual(accountsOf(rows).filter((a) => a.startsWith('44571') || a === '44566000'), []);
 });
 
-test('rule 12g: its revenue lines take the whole TTC share, its commission is booked TTC', () => {
+test('rule 12 (g): its revenue lines take the whole TTC share, its commission is booked TTC', () => {
   const entryOf = () => month(accounting(), 6, 104).entries[0];
   const withVat = entryOf();
   toggle(104, true);
@@ -61,7 +61,7 @@ test('rule 12g: its revenue lines take the whole TTC share, its commission is bo
   assert.equal(withVat.commission.hasVat, true);
 });
 
-test('rule 12g: a cancellation compensation of a « Sans TVA » stay carries 0 %, whatever rate the plan names', () => {
+test('rule 12 (g): a cancellation compensation of a « Sans TVA » stay carries 0 %, whatever rate the plan names', () => {
   const credits = (m) => month(accounting(20), m, 109).entries.filter((e) => e.kind === 'compensation').map((e) => e.compensation.ratePercent);
   assert.deepEqual(credits(5), [20]);
   toggle(109, true);
@@ -71,7 +71,7 @@ test('rule 12g: a cancellation compensation of a « Sans TVA » stay carries 0 %
   assert.deepEqual(accountsOf(rows).filter((a) => a.startsWith('44571')), []);
 });
 
-test('rule 12g: a refund of a « Sans TVA » stay is an avoir at 0 % (its lines were re-rated with the stay)', () => {
+test('rule 12 (g): a refund of a « Sans TVA » stay is an avoir at 0 % (its lines were re-rated with the stay)', () => {
   toggle(101, true);
   db.prepare("UPDATE reservation_refund_lines SET vatRate = 0 WHERE refundId IN (SELECT id FROM reservation_refunds WHERE reservationId = 101)").run();
   const { rows, entries } = month(accounting(), 6, 101);
@@ -103,7 +103,7 @@ test('rule 20: the VAT of an entry follows the regime of its reservation, not th
   assert.equal(entry.buckets[0].ratePercent, 0);
 });
 
-test('rule 12g: the Plan comptable payload tells which sales VAT regime is in force, so the page hides the rates that cannot apply', () => {
+test('rule 12 (g): the Plan comptable payload tells which sales VAT regime is in force, so the page hides the rates that cannot apply', () => {
   const { create } = require('../platformAccountsController');
   const { create: createModel } = require('../platformAccountsModel');
   const read = (controller) => { let body; controller.getAll({}, { json: (b) => { body = b; } }); return body.salesVatRegime; };

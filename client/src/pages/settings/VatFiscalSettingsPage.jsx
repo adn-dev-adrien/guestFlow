@@ -12,12 +12,29 @@ import SettingsFormPage from '../../components/SettingsFormPage';
 import SettingsVatSection from '../../components/SettingsVatSection';
 import SettingsFiscalYearSection, { hasInvalidRevenueGoal } from '../../components/SettingsFiscalYearSection';
 import api from '../../api';
+import useVatRegime from '../../hooks/useVatRegime';
+import VatRegimeSwitchDialog from '../../components/VatRegimeSwitchDialog';
+import ConfirmDialog from '../../components/ConfirmDialog';
+import { useToast } from '../../components/DialogProvider';
+import { VAT_TEXTS } from '../../constants/vatRegime';
 import Slot from '../../plugins/sdk/Slot';
 
 export default function VatFiscalSettingsPage() {
   const navigate = useNavigate();
   const form = useSettingsForm({ groups: ['vat', 'accounting'], navigate });
   const disabled = form.loading || form.saving;
+  const { showSuccess, showError } = useToast();
+  const vat = useVatRegime();
+  const [switching, setSwitching] = useState(false);
+  const [undoing, setUndoing] = useState(null);
+  // The switch writes through its own endpoint: the page's saved values follow what the server now holds.
+  const adoptRegime = (next) => {
+    if (!next || !next.inForce) return;
+    const subject = next.inForce.regime === 'subject';
+    form.replaceSaved('vat', 'regime', next.inForce.regime);
+    form.replaceSaved('vat', 'rate', subject ? next.inForce.rate : 0);
+    form.replaceSaved('vat', 'legalMention', subject ? null : next.inForce.legalMention);
+  };
   // specs/finance-dashboard-redesign.md §3.8 — the exercises the goal fields name, from the server.
   const [goalContext, setGoalContext] = useState(null);
   useEffect(() => {
@@ -33,6 +50,42 @@ export default function VatFiscalSettingsPage() {
         errors={form.errors}
         onChange={(key, value) => form.setField('vat', key, value)}
         disabled={disabled}
+        regime={vat.state}
+        onSwitch={() => setSwitching(true)}
+        onUndo={setUndoing}
+      />
+      {vat.state && (
+        <VatRegimeSwitchDialog
+          open={switching}
+          onClose={() => setSwitching(false)}
+          inForce={vat.state.inForce}
+          mentions={vat.state.mentions}
+          preview={vat.preview}
+          onSubmit={vat.switchRegime}
+          onDone={async (done) => {
+            setSwitching(false);
+            adoptRegime(await vat.reload());
+            showSuccess(done && done.reassigned ? 'Régime modifié.' : 'Changement enregistré.');
+          }}
+        />
+      )}
+      <ConfirmDialog
+        open={Boolean(undoing)}
+        onClose={() => setUndoing(null)}
+        title={VAT_TEXTS.undoConfirmTitle}
+        message={VAT_TEXTS.undoConfirmMessage}
+        confirmLabel={VAT_TEXTS.undo}
+        confirmColor="primary"
+        onConfirm={async () => {
+          const period = undoing;
+          setUndoing(null);
+          try {
+            adoptRegime(await vat.deletePeriod(period.id));
+            showSuccess('Changement annulé.');
+          } catch (err) {
+            showError((err && err.message) || 'Annulation impossible.');
+          }
+        }}
       />
       <Slot name="settings.platforms.links" page="vat" />
       <SettingsFiscalYearSection

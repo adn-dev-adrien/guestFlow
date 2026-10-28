@@ -46,7 +46,7 @@ const ERROR_KEYS = {
     siret: 'companySiret', tva: 'companyTva', iban: 'companyIban', bic: 'companyBic', bankName: 'companyBankName',
   },
   quote: { footerText: 'quoteFooterText', footerTextEn: 'quoteFooterTextEn', validityDays: 'quoteValidityDays' },
-  vat: { rate: 'vatRate' },
+  vat: { rate: 'vatRate', legalMention: 'legalMention' },
   accounting: { fiscalYearEndMonth: 'fiscalYearEndMonth', revenueGoals: 'revenueGoals' },
   smtp: { host: 'smtpHost', fromEmail: 'smtpFromEmail', fromName: 'smtpFromName', publicUrl: 'publicUrl' },
   notifications: { recipientEmail: 'notificationRecipientEmail' },

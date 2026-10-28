@@ -35,7 +35,11 @@ function hasPeriods(db) {
 }
 
 function listPeriods(db) {
-  return hasPeriods(db) ? stmt(db, `SELECT ${COLUMNS} FROM vat_periods ORDER BY id`).all() : [];
+  try {
+    return hasPeriods(db) ? stmt(db, `SELECT ${COLUMNS} FROM vat_periods ORDER BY id`).all() : [];
+  } catch {
+    return []; // a database whose periods cannot be read answers the historical default
+  }
 }
 
 function appSettingsRate(db) {

@@ -391,6 +391,11 @@ const api = {
   getFinancePace: (params = {}) => request(`/finance/pace?${financeQuery(params)}`),
   getFinancePaceMonth: (month, params = {}) => request(`/finance/pace/${encodeURIComponent(month)}?${financeQuery(params)}`),
   getFinanceGoalContext: () => request('/finance/goal-context'),
+  // specs/vat-optional-mode.md §4.3 — the VAT regime, its switch and the undo of an unused one.
+  getVatRegime: () => request('/settings/vat-regime'),
+  previewVatSwitch: (input) => request('/settings/vat-regime/preview', { method: 'POST', body: input }),
+  switchVatRegime: (input) => request('/settings/vat-regime/switch', { method: 'POST', body: input }),
+  deleteVatPeriod: (id) => request(`/settings/vat-regime/periods/${id}`, { method: 'DELETE' }),
   getTouristTaxExtraction: (month) => request(`/finance/tourist-tax?month=${encodeURIComponent(month)}`),
   // specs/tourist-tax-declared-checkbox.md — tick / untick « Déclarée » for one reservation.
   setTouristTaxDeclared: (reservationId, declared) => request(`/finance/tourist-tax/${reservationId}/declared`, { method: 'PATCH', body: { declared } }),

@@ -1,4 +1,4 @@
-// specs/vat-optional-mode.md rule 12c and payment-links-vat rule 11 — under « Sans TVA » a payment link
+// specs/vat-optional-mode.md rule 12 (c) and payment-links-vat rule 11 — under « Sans TVA » a payment link
 // carries the same items (stay, « Taxe de séjour », « Ajustement ») and the same charged total, to the
 // cent, every item at VAT rate 0.
 
@@ -20,7 +20,7 @@ const NOT_SUBJECT = Number(db.prepare("INSERT INTO vat_periods (regime, rate, le
 const toggle = (id, notSubject) => db.prepare('UPDATE reservations SET vatPeriodId = ? WHERE id = ?').run(notSubject ? NOT_SUBJECT : 1, id);
 const gross = (basket) => basket.components.reduce((sum, c) => sum + c.grossCents, 0);
 
-test('rule 12c: a stay basket has the same items and the same total, at rate 0', () => {
+test('rule 12 (c): a stay basket has the same items and the same total, at rate 0', () => {
   let compared = 0;
   for (const type of ['deposit', 'balance', 'full']) {
     for (const id of [101, 104, 108]) {
@@ -42,14 +42,14 @@ test('rule 12c: a stay basket has the same items and the same total, at rate 0',
   assert.ok(compared >= 6, `baskets compared: ${compared}`);
 });
 
-test('rule 12c: the tourist-tax line stays its own item', () => {
+test('rule 12 (c): the tourist-tax line stays its own item', () => {
   toggle(101, true);
   const basket = payments.storedReservationComponents(101, 'balance');
   toggle(101, false);
   assert.ok(buildVatItems(basket).items.some((i) => i.title === 'Taxe de séjour' && i.vatRate === 0));
 });
 
-test('rule 12c: an installment of a « Sans TVA » stay carries rate 0 and its tax share', () => {
+test('rule 12 (c): an installment of a « Sans TVA » stay carries rate 0 and its tax share', () => {
   const plan = installments.listFor(106);
   const before = payments.resolveInstallmentComponents(106, plan[0], plan);
   toggle(106, true);
@@ -59,7 +59,7 @@ test('rule 12c: an installment of a « Sans TVA » stay carries rate 0 and its t
   assert.equal(gross(after), gross(before));
 });
 
-test('rule 12c: the public payment of a devis quoted « Sans TVA » goes at rate 0, same amounts', () => {
+test('rule 12 (c): the public payment of a devis quoted « Sans TVA » goes at rate 0, same amounts', () => {
   const calc = calculateReservationQuote;
   const before = devisQuote.fullPaymentComponents({ database: db, devisModel, calc }, 202);
   const beforeDeposit = publicPayment.depositPaymentComponents(db, 202);

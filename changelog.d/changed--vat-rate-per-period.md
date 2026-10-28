@@ -1,0 +1,1 @@
+- Le taux de TVA (Paramètres › TVA & exercice) est désormais celui de la période de régime en vigueur : le modifier recalcule les réservations de cette période, pas celles d'une période antérieure. Avec une seule période (toute installation avant le premier changement de régime) rien ne change, au centime près.
