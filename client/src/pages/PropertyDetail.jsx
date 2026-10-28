@@ -34,7 +34,7 @@ const NEW_DEFAULTS = {
   // A deposit nobody typed is no deposit (specs/guest-email-texts-made-simple.md rule 28).
   defaultCautionAmount: 0,
   parkingDistanceMeters: 0, hasWifi: true,
-  cleaningIncluded: 'options', towelsProvided: 'options', bedLinenProvided: 'options', poolSeasonStart: '', poolSeasonEnd: '',
+  cleaningIncluded: 'options', towelsProvided: 'options', bedLinenProvided: 'options', poolSeasonMode: 'none', poolSeasonStart: '', poolSeasonEnd: '',
   touristTaxPerDayPerPerson: 0,
   touristTaxMode: 'per_day_per_person',
   touristTaxPercentage: 0,
@@ -62,7 +62,7 @@ export const FIELD_TAB = {
   depositEnabled: 'paiement', depositPercent: 'paiement', depositDueDays: 'paiement', balanceDaysBefore: 'paiement',
   cancelAfterBalanceDueDays: 'paiement', defaultCautionAmount: 'paiement',
   parkingDistanceMeters: 'sejour', hasWifi: 'sejour',
-  cleaningIncluded: 'sejour', towelsProvided: 'sejour', bedLinenProvided: 'sejour', poolSeasonStart: 'sejour', poolSeasonEnd: 'sejour',
+  cleaningIncluded: 'sejour', towelsProvided: 'sejour', bedLinenProvided: 'sejour', poolSeasonStart: 'sejour', poolSeasonEnd: 'sejour', poolSeasonMode: 'sejour',
 };
 
 // specs/guest-email-texts-made-simple.md rule 28 — a fact the start assistant could not know shows
@@ -73,7 +73,6 @@ const choiceOf = (flag) => (flag == null ? 'options' : String(Number(flag)));
 export function propertyFormData(form, original = {}) {
   const fd = new FormData();
   Object.entries(form).forEach(([k, v]) => {
-    if (k === 'poolOpen') return;
     if (PENDING_FIELDS[k] && (v === '' || v == null)) return;
     if (k === 'nameArticle' && (!v || v === original.nameArticle)) return;
     fd.append(k, v);
@@ -144,6 +143,7 @@ export default function PropertyDetail() {
   const [saving, setSaving] = useState(false);
   const [originalForm, setOriginalForm] = useState(isNew ? NEW_DEFAULTS : {});
   const [errors, setErrors] = useState({});
+  const [limits, setLimits] = useState(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const tab = PROPERTY_TABS.some((t) => t.key === searchParams.get('tab')) ? searchParams.get('tab') : 'general';
   const selectTab = (next) => setSearchParams((prev) => {
@@ -197,7 +197,7 @@ export default function PropertyDetail() {
       cleaningIncluded: pending.has('cleaning') ? '' : choiceOf(p.cleaningIncluded),
       towelsProvided: pending.has('towels') ? '' : choiceOf(p.towelsProvided),
       bedLinenProvided: pending.has('linen') ? '' : choiceOf(p.bedLinenProvided),
-      poolSeasonStart: p.poolSeasonStart || '', poolSeasonEnd: p.poolSeasonEnd || '',
+      poolSeasonMode: p.poolSeasonMode || 'none', poolSeasonStart: p.poolSeasonStart || '', poolSeasonEnd: p.poolSeasonEnd || '',
       touristTaxPerDayPerPerson: p.touristTaxPerDayPerPerson ?? 0,
       touristTaxMode: p.touristTaxMode ?? 'per_day_per_person',
       touristTaxPercentage: p.touristTaxPercentage ?? 0,
@@ -304,6 +304,7 @@ export default function PropertyDetail() {
   }, [canManageExtras, timedOptions, id, load]);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { api.getPropertyLimits().then(setLimits).catch(() => setLimits(null)); }, []);
 
   // Rule 30 (2026-10-18) — the articles as the emails write them, from the server (it contracts
   // « au Le Fournil » into « au Fournil »), following the name as it is typed.
@@ -537,7 +538,7 @@ export default function PropertyDetail() {
   const tabItems = PROPERTY_TABS
     .filter((t) => !isNew || ['general', 'tarifs', 'paiement', 'sejour'].includes(t.key))
     .map((t) => ({ value: t.key, label: t.label, badge: tabDot(tabState(t.key)) }));
-  const common = { form, errors, updateField, onZeroFocus: handleZeroFocus };
+  const common = { form, errors, updateField, onZeroFocus: handleZeroFocus, limits };
 
   return (
     <Box>
@@ -581,7 +582,7 @@ export default function PropertyDetail() {
             onOpenTariffs={() => navigate(withFrom(`/properties/${id}/pricing-seasons`, `/properties/${id}?tab=tarifs`))}
           />
         )}
-        {tab === 'paiement' && <PropertyPaymentTab {...common} />}
+        {tab === 'paiement' && limits && <PropertyPaymentTab {...common} />}
         {tab === 'sejour' && (
           <PropertyStayTab
             {...common}

@@ -204,6 +204,7 @@ const api = {
   getProperties: () => request('/properties'),
   getProperty: (id) => request(`/properties/${id}`),
   getPlatformColors: () => request('/properties/platform-colors'),
+  getPropertyLimits: () => request('/properties/limits'),
   getArticleLabels: (name) => request(`/properties/article-labels?name=${encodeURIComponent(name || '')}`),
   createProperty: (formData) => request('/properties', { method: 'POST', body: formData }),
   updateProperty: (id, formData) => request(`/properties/${id}`, { method: 'PUT', body: formData }),

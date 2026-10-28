@@ -19,6 +19,7 @@ import React from 'react';
 import { Link as RouterLink } from 'react-router';
 import PropertyArrivalFacts from './PropertyArrivalFacts';
 import MonthDayField from '../MonthDayField';
+import SegmentedSelect from '../SegmentedSelect';
 import {
   Box, Card, CardContent, FormControl, FormControlLabel, FormHelperText, InputLabel, Link, MenuItem, Select, Switch, TextField, Typography,
 } from '@mui/material';
@@ -49,7 +50,7 @@ export default function PropertyStayTab({
       <FormHelperText>{errors[field] || (form[field] === '' ? 'Vide : rien n’est dit aux voyageurs.' : ' ')}</FormHelperText>
     </FormControl>
   );
-  const hasPool = Boolean(form.poolSeasonStart || form.poolSeasonEnd || form.poolOpen);
+  const poolMode = form.poolSeasonMode || 'none';
   return (
     <>
       <Card sx={{ mb: 3 }}>
@@ -98,17 +99,22 @@ export default function PropertyStayTab({
             <FormControlLabel
               control={(
                 <Switch
-                  checked={hasPool}
-                  onChange={(e) => {
-                    updateField('poolOpen', e.target.checked);
-                    if (!e.target.checked) { updateField('poolSeasonStart', ''); updateField('poolSeasonEnd', ''); }
-                  }}
+                  checked={poolMode !== 'none'}
+                  onChange={(e) => updateField('poolSeasonMode', e.target.checked ? 'allYear' : 'none')}
                 />
               )}
               label="Piscine"
               sx={{ minHeight: 44 }}
             />
-            {hasPool && (
+            {poolMode !== 'none' && (
+              <SegmentedSelect
+                label="Ouverture de la piscine"
+                options={[{ value: 'allYear', label: "Toute l'année" }, { value: 'season', label: 'Saison' }]}
+                value={poolMode}
+                onChange={(next) => updateField('poolSeasonMode', next)}
+              />
+            )}
+            {poolMode === 'season' && (
               <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
                 <MonthDayField label="Ouverte du" value={form.poolSeasonStart} onChange={(v) => updateField('poolSeasonStart', v)} error={errors.poolSeasonStart} />
                 <MonthDayField label="Au" value={form.poolSeasonEnd} onChange={(v) => updateField('poolSeasonEnd', v)} error={errors.poolSeasonEnd} />
