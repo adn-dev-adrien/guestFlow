@@ -1,0 +1,1 @@
+- **Built files are cached for a year** (spec `inte-performance.md`, 2026-10-28). The server serves the content-hashed files of the client build with an immutable cache, so a page no longer revalidates each of its scripts at every load; `index.html` is still revalidated, which is how a release reaches an open browser. +2 tests.
