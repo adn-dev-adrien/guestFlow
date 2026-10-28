@@ -9,17 +9,20 @@
 const { buildModel: buildLaundryModel } = require('./laundryModel');
 const { buildModel: buildLinenInventoryModel } = require('./linenInventoryModel');
 const skipsModel = require('./skipsModel');
+const laundryScheduleModel = require('./laundryScheduleModel');
 const manualAdditionsModel = require('./manualAdditionsModel');
 const extraTripsModel = require('./extraTripsModel');
 const reservationNamesModel = require('./reservationNamesModel');
 const skipsController = require('./skipsController');
+const laundryScheduleController = require('./laundryScheduleController');
 const manualAdditionsController = require('./manualAdditionsController');
 const extraTripsController = require('./extraTripsController');
 const { buildController: buildPlanningController } = require('./planningController');
 const { buildController: buildShortageController } = require('./shortageController');
 const { buildRouter } = require('./routes');
-const { DECLARED, SETTING_KEYS, createLinenSettings } = require('./settings');
+const { DECLARED, STOCK_KEYS, createLinenSettings } = require('./settings');
 const { MIGRATIONS } = require('./migrations');
+const sdk = require('../sdk');
 
 const id = 'linen';
 
@@ -39,23 +42,27 @@ function register(ctx) {
     const skips = skipsModel.create(db);
     const manual = manualAdditionsModel.create(db);
     const extra = extraTripsModel.create(db);
+    const schedule = laundryScheduleModel.create(db);
     const laundry = buildLaundryModel(db);
     const inventory = buildLinenInventoryModel(db, {
       settingsModel: settings,
+      laundryScheduleModel: schedule,
       laundryTripSkipsModel: skips,
       laundryManualAdditionsModel: manual,
       laundryExtraTripsModel: extra,
     });
     built = {
+      schedule: laundryScheduleController.create({ scheduleModel: schedule, today: () => sdk.coreModule('reservationHelpers').getTodayIsoDate() }),
       skips: skipsController.create(skips),
       additions: manualAdditionsController.create(manual),
       extraTrips: extraTripsController.create({
-        extraTripsModel: extra, manualAdditionsModel: manual, settingsModel: settings, laundryModel: laundry, skipsModel: skips,
+        extraTripsModel: extra, manualAdditionsModel: manual, scheduleModel: schedule, laundryModel: laundry, skipsModel: skips,
       }),
       planning: buildPlanningController({
         laundryModel: laundry,
         settingsModel: settings,
         linenInventoryModel: inventory,
+        laundryScheduleModel: schedule,
         laundryTripSkipsModel: skips,
         laundryManualAdditionsModel: manual,
         laundryExtraTripsModel: extra,
@@ -67,6 +74,7 @@ function register(ctx) {
   const handler = (group, method) => (req, res, next) => parts()[group][method](req, res, next);
 
   ctx.mount('/api/laundry', buildRouter({
+    schedule: { get: handler('schedule', 'get'), set: handler('schedule', 'set'), preview: handler('schedule', 'preview') },
     skips: { listSkips: handler('skips', 'listSkips'), addSkip: handler('skips', 'addSkip'), removeSkip: handler('skips', 'removeSkip') },
     additions: { listAdditions: handler('additions', 'listAdditions'), setAddition: handler('additions', 'setAddition') },
     extraTrips: {
@@ -76,9 +84,8 @@ function register(ctx) {
       remove: handler('extraTrips', 'remove'),
     },
   }));
-  // Rule 4 — under the core /api/planning prefix, at their URLs.
-  ctx.route('get', '/api/planning/laundry', handler('planning', 'laundrySummary'));
-  ctx.route('get', '/api/planning/linen-inventory', handler('planning', 'linenInventory'));
+  // Rule 4 — under the core /api/planning prefix, at its URL: the cards of a window, past or future.
+  ctx.route('get', '/api/planning/laundry/days', handler('planning', 'laundryDays'));
   // Gap 1 — the shortage alert answered while the plugin was off.
   ctx.route('get', '/api/dashboard/linen-shortage', handler('shortage', 'linenShortage'));
   ctx.attention({ key: 'linen-shortage', rank: 30, handler: handler('shortage', 'linenShortage'), summarize: require('./attention').summarize });
@@ -95,7 +102,7 @@ function register(ctx) {
   // Rule 18 — the laundry's own records and the eight settings; every option, price, booked linen
   // line and bed stays (they are core). The tables and settings go through the generic purge.
   ctx.data({
-    tables: ['laundry_trip_skips', 'laundry_trip_manual_additions', 'laundry_extra_trips'],
+    tables: ['laundry_trip_skips', 'laundry_trip_manual_additions', 'laundry_extra_trips', 'laundry_schedule_versions'],
     describe: (db) => {
       const lines = [];
       const skipped = countRows(db, 'laundry_trip_skips');
@@ -104,9 +111,11 @@ function register(ctx) {
       if (additions > 0) lines.push({ label: plural(additions, 'ajout manuel', 'ajouts manuels'), count: additions });
       const extra = countRows(db, 'laundry_extra_trips');
       if (extra > 0) lines.push({ label: plural(extra, 'tournée supplémentaire', 'tournées supplémentaires'), count: extra });
-      const stored = db.prepare(`SELECT COUNT(*) AS n FROM plugin_settings WHERE plugin_id = ? AND key IN (${SETTING_KEYS.map(() => '?').join(', ')})`)
-        .get(id, ...SETTING_KEYS).n;
-      if (stored > 0) lines.push({ label: 'le stock et le jour de blanchisserie', count: stored });
+      const stored = db.prepare(`SELECT COUNT(*) AS n FROM plugin_settings WHERE plugin_id = ? AND key IN (${STOCK_KEYS.map(() => '?').join(', ')})`)
+        .get(id, ...STOCK_KEYS).n;
+      if (stored > 0) lines.push({ label: 'le stock de linge', count: stored });
+      const versions = countRows(db, 'laundry_schedule_versions');
+      if (versions > 0) lines.push({ label: 'le rythme de blanchisserie', count: versions });
       return lines;
     },
     purge: () => { built = null; },

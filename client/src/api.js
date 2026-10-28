@@ -271,13 +271,21 @@ const api = {
   getTariffRecipeRuns: () => request('/tariff-recipes/runs'),
   dismissTariffRecipeRun: (runId) => request(`/tariff-recipes/runs/${runId}/dismiss`, { method: 'POST' }),
   // Rapprochement bancaire Qonto (specs/qonto-bank-reconciliation.md §4.3) + the generic plugin settings
-  getReconciliation: (view) => request(`/payments/reconciliation?view=${encodeURIComponent(view || 'todo')}`),
-  readReconciliation: (view) => request(`/payments/reconciliation/read?view=${encodeURIComponent(view || 'todo')}`, { method: 'POST' }),
+  getReconciliation: (view, filter) => request(`/payments/reconciliation?view=${encodeURIComponent(view || 'todo')}${filter ? `&filter=${encodeURIComponent(filter)}` : ''}`),
+  readReconciliation: (view, filter) => request(`/payments/reconciliation/read?view=${encodeURIComponent(view || 'todo')}${filter ? `&filter=${encodeURIComponent(filter)}` : ''}`, { method: 'POST' }),
   confirmReconciliation: (payload) => request('/payments/reconciliation/links', { method: 'POST', body: payload }),
   undoReconciliation: (transactionId) => request(`/payments/reconciliation/links/${encodeURIComponent(transactionId)}`, { method: 'DELETE' }),
   discardReconciliation: (payload) => request('/payments/reconciliation/discards', { method: 'POST', body: payload }),
   setReconciliationOutside: (transactionId, outside) => request(`/payments/reconciliation/transactions/${encodeURIComponent(transactionId)}/outside`, { method: outside ? 'POST' : 'DELETE' }),
-  getReconciliationCandidates: (q) => request(`/payments/reconciliation/candidates?q=${encodeURIComponent(q || '')}`),
+  getReconciliationCandidates: ({ transactionId, q, offset } = {}) => request(`/payments/reconciliation/candidates?transactionId=${encodeURIComponent(transactionId || '')}&q=${encodeURIComponent(q || '')}&offset=${Number(offset) || 0}`),
+  getReconciliationFicheCredits: (reservationId, { q, offset } = {}) => request(`/payments/reconciliation/reservations/${encodeURIComponent(reservationId)}/credits?q=${encodeURIComponent(q || '')}&offset=${Number(offset) || 0}`),
+  previewReconciliationAllocation: (payload) => request('/payments/reconciliation/allocation-preview', { method: 'POST', body: payload }),
+  linkReconciliationBatch: (payload) => request('/payments/reconciliation/links/batch', { method: 'POST', body: payload }),
+  confirmAllReconciliation: (payload) => request('/payments/reconciliation/confirm-all', { method: 'POST', body: payload }),
+  listPlatformPenalties: (reservationId) => request(`/reservations/${reservationId}/platform-penalties`),
+  previewPlatformPenalty: (reservationId, payload) => request(`/reservations/${reservationId}/platform-penalties/preview`, { method: 'POST', body: payload }),
+  declarePlatformPenalty: (reservationId, payload) => request(`/reservations/${reservationId}/platform-penalties`, { method: 'POST', body: payload }),
+  removePlatformPenalty: (reservationId, penaltyId) => request(`/reservations/${reservationId}/platform-penalties/${penaltyId}`, { method: 'DELETE' }),
   getReconciliationBankAccounts: () => request('/payments/reconciliation/bank-accounts'),
   getPluginSettings: (id) => request(`/plugins/${encodeURIComponent(id)}/settings`),
   savePluginSettings: (id, payload) => request(`/plugins/${encodeURIComponent(id)}/settings`, { method: 'PUT', body: payload }),
@@ -570,17 +578,20 @@ const api = {
   getMyEmailStatus: () => request('/users/me/email-status'),
   // specs/control-plane-plans-and-access.md — the admin subscription banner.
   getSubscription: () => request('/subscription'),
-  // Weekly bed-linen tracking (specs/weekly-bed-linen-tracking.md). Returns the laundry-day
-  // summaries that fall in [from, to] inclusive — each with dropOff + pickUp bed counts.
-  // `to` is OPTIONAL: when omitted the server projects to the inventory horizon (= last
-  // reservation endDate). Use the explicit form when paginating an infinite-scroll viewport;
-  // omit it for "give me everything that matters" calls like a post-toggle refetch
-  // (specs/skip-laundry-trip.md §4.3 — hotfix 2026-06-05 follow-up #3).
+  // The laundry cards of the Planning for [from, to] (specs/linen-laundry-days.md §4.3): `{ days: { date: card } }`
+  // holding only the dates to draw, each card ready to render — the weekly bed-linen summary, the
+  // « disponible après ce dépôt » projection, the skips, manual lines and extra trips in one answer.
+  // Both bounds are required; any window, past or future.
+  getLaundryPlanningDays: ({ from, to }) =>
+    request(`/planning/laundry/days?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
+  // Kept for `linen` 1.1.x, still installable from the registry: its own server answers these two URLs
+  // (specs/linen-laundry-days.md §4.2). `linen` 1.2.0 does not call them; remove at the next major SDK.
   getLaundryPlanningSummary: ({ from, to } = {}) => {
     const params = [`from=${encodeURIComponent(from)}`];
     if (to) params.push(`to=${encodeURIComponent(to)}`);
     return request(`/planning/laundry?${params.join('&')}`);
   },
+  getLinenInventory: () => request('/planning/linen-inventory'),
   // Per-day breakfast list (specs/breakfast-option-and-planning-card.md §4.3). Returns the
   // dates in [from, to] where ≥1 reservation has the breakfast option AND the customer is
   // present in the morning (= `startDate < D AND endDate >= D`). Payload:
@@ -614,9 +625,6 @@ const api = {
       method: 'POST',
       body: { reservationId, resourceId, date, start, done, ...(kind ? { kind } : {}) },
     }),
-  // Linen inventory projection (specs/linen-inventory-shortage-tracking.md §4.3). Returns the
-  // post-day-end clean state per laundry day in the horizon, used by LaundryDayCard.
-  getLinenInventory: () => request('/planning/linen-inventory'),
   // Dashboard linen shortage alert. Returns the grouped-by-type list of projected shortages,
   // empty when nothing is in shortage.
   getLinenShortageAlert: () => request('/dashboard/linen-shortage'),
@@ -645,6 +653,11 @@ const api = {
   updateLinenItems: (items) => request('/settings/linen-items', { method: 'PUT', body: items }),
   getRepairAmounts: () => request('/settings/repair-amounts'),
   updateRepairAmounts: (items) => request('/settings/repair-amounts', { method: 'PUT', body: items }),
+  // The laundry schedule (specs/linen-laundry-days.md §4.3): `{ current, pending, tomorrow }`; PUT writes
+  // the version effective tomorrow, the preview describes the cycle of a candidate without writing.
+  getLaundrySchedule: () => request('/laundry/schedule'),
+  saveLaundrySchedule: (schedule) => request('/laundry/schedule', { method: 'PUT', body: schedule }),
+  previewLaundrySchedule: (schedule) => request('/laundry/schedule/preview', { method: 'POST', body: schedule, readOnly: true }),
   // Laundry trip skips — admin-only toggle on `/api/laundry/skips`. Marking a date as
   // skipped tells the linen inventory engine to defer drop-off + pick-up to the next
   // non-skipped trip. Global per date (one human, one trip). Spec

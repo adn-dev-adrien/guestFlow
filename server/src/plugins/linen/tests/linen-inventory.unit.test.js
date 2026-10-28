@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const { simulateInventory, findHorizon, ALL_TYPES } = require('../linenInventory');
+const { constantSchedule } = require('./laundry-schedule-fixtures');
 
 // Helpers — keep test fixtures small and deterministic.
 function makeStock(over = {}) {
@@ -47,7 +48,7 @@ test('empty horizon: from > to returns no days', () => {
   const r = simulateInventory({
     stock: makeStock({ single: 10 }),
     reservations: [], options: [], reservationOptions: [], propertyDefaults: [],
-    laundryWeekday: TUESDAY, from: '2026-06-10', to: '2026-06-01',
+    schedule: constantSchedule(TUESDAY), from: '2026-06-10', to: '2026-06-01',
   });
   assert.deepEqual(r.days, []);
 });
@@ -56,7 +57,7 @@ test('no reservations: clean = stock on every day, no shortages', () => {
   const r = simulateInventory({
     stock: makeStock({ single: 10, double: 5, large: 20 }),
     reservations: [], options: [], reservationOptions: [], propertyDefaults: [],
-    laundryWeekday: TUESDAY, from: '2026-06-01', to: '2026-06-08',
+    schedule: constantSchedule(TUESDAY), from: '2026-06-01', to: '2026-06-08',
   });
   assert.equal(r.days.length, 8);
   for (const d of r.days) {
@@ -83,7 +84,7 @@ test('one reservation with explicit bed-linen option: clean drops on check-in, r
 
   const r = simulateInventory({
     stock, reservations, options: [opt], reservationOptions, propertyDefaults: [],
-    laundryWeekday: TUESDAY, from: '2026-06-01', to: '2026-06-20',
+    schedule: constantSchedule(TUESDAY), from: '2026-06-01', to: '2026-06-20',
   });
 
   // 06-01 (Mon): nothing yet.
@@ -139,7 +140,7 @@ test('property default of a VISIBLE option does NOT create a contract without an
 
   const r = simulateInventory({
     stock, reservations, options: [opt], reservationOptions: [], propertyDefaults,
-    laundryWeekday: TUESDAY, from: '2026-06-01', to: '2026-06-20',
+    schedule: constantSchedule(TUESDAY), from: '2026-06-01', to: '2026-06-20',
   });
 
   const d0603 = r.days.find((d) => d.date === '2026-06-03');
@@ -161,7 +162,7 @@ test('property default of an INTERNAL option still creates a contract (its only 
 
   const r = simulateInventory({
     stock, reservations, options: [opt], reservationOptions: [], propertyDefaults,
-    laundryWeekday: TUESDAY, from: '2026-06-01', to: '2026-06-20',
+    schedule: constantSchedule(TUESDAY), from: '2026-06-01', to: '2026-06-20',
   });
 
   const d0603 = r.days.find((d) => d.date === '2026-06-03');
@@ -184,7 +185,7 @@ test('explicit option WINS over property default (includes flags from explicit o
 
   const r = simulateInventory({
     stock, reservations, options: [optDefault, optExplicit], reservationOptions, propertyDefaults,
-    laundryWeekday: TUESDAY, from: '2026-06-01', to: '2026-06-20',
+    schedule: constantSchedule(TUESDAY), from: '2026-06-01', to: '2026-06-20',
   });
   const d0603 = r.days.find((d) => d.date === '2026-06-03');
   assert.equal(d0603.inCirculation.baby, 0, 'explicit option had linenIncludesBaby=0 → 0 baby counted');
@@ -205,7 +206,7 @@ test('bathroom contract: persons × Σqty × towel<Size>PerPerson', () => {
 
   const r = simulateInventory({
     stock, reservations, options: [opt], reservationOptions, propertyDefaults: [],
-    laundryWeekday: TUESDAY, from: '2026-06-01', to: '2026-06-20',
+    schedule: constantSchedule(TUESDAY), from: '2026-06-01', to: '2026-06-20',
   });
   const d0603 = r.days.find((d) => d.date === '2026-06-03');
   // 3 persons × 1.0 × 1 large = 3 ; 3 × 1.0 × 2 small = 6.
@@ -225,7 +226,7 @@ test('bathroom Σqty sub-occupation factor honoured (0.6667 on 3 persons → 2 t
 
   const r = simulateInventory({
     stock, reservations, options: [opt], reservationOptions, propertyDefaults: [],
-    laundryWeekday: TUESDAY, from: '2026-06-01', to: '2026-06-20',
+    schedule: constantSchedule(TUESDAY), from: '2026-06-01', to: '2026-06-20',
   });
   const d0603 = r.days.find((d) => d.date === '2026-06-03');
   assert.equal(d0603.inCirculation.large, 2); // round(3 × 0.6667 × 1) = 2
@@ -245,7 +246,7 @@ test('stock = 0 for a type: simulation runs without that type triggering any sho
 
   const r = simulateInventory({
     stock, reservations, options: [opt], reservationOptions, propertyDefaults: [],
-    laundryWeekday: TUESDAY, from: '2026-06-01', to: '2026-06-10',
+    schedule: constantSchedule(TUESDAY), from: '2026-06-01', to: '2026-06-10',
   });
   // double goes to -5 internally, but stock=0 → no shortage flagged on double.
   for (const day of r.days) {
@@ -270,7 +271,7 @@ test('kind=devis reservation excluded from the simulation', () => {
 
   const r = simulateInventory({
     stock, reservations, options: [opt], reservationOptions, propertyDefaults: [],
-    laundryWeekday: TUESDAY, from: '2026-06-01', to: '2026-06-10',
+    schedule: constantSchedule(TUESDAY), from: '2026-06-01', to: '2026-06-10',
   });
   for (const d of r.days) {
     assert.equal(d.inCirculation.single, 0);
@@ -294,7 +295,7 @@ test('shortage detected when demand exceeds stock; missing equals overflow', () 
 
   const r = simulateInventory({
     stock, reservations, options: [opt], reservationOptions, propertyDefaults: [],
-    laundryWeekday: TUESDAY, from: '2026-06-01', to: '2026-06-20',
+    schedule: constantSchedule(TUESDAY), from: '2026-06-01', to: '2026-06-20',
   });
   // After R2 checks in on 06-04: 2 + 2 = 4 needed, stock = 3 → 1 missing.
   const d0604 = r.days.find((d) => d.date === '2026-06-04');
@@ -321,7 +322,7 @@ test('shortage with 3 impacted reservations on different days', () => {
 
   const r = simulateInventory({
     stock, reservations, options: [opt], reservationOptions, propertyDefaults: [],
-    laundryWeekday: TUESDAY, from: '2026-06-01', to: '2026-06-20',
+    schedule: constantSchedule(TUESDAY), from: '2026-06-01', to: '2026-06-20',
   });
   // First shortage on 06-04 (when 3 + 4 check in pushing demand to 4 vs stock 2). 2 missing.
   assert.equal(r.shortagesByType.double.firstDate, '2026-06-04');
@@ -350,7 +351,7 @@ test('arrival on a laundry day is served by the same-day pickup', () => {
 
   const r = simulateInventory({
     stock, reservations, options: [opt], reservationOptions, propertyDefaults: [],
-    laundryWeekday: TUESDAY, from: '2026-06-03', to: '2026-06-15',
+    schedule: constantSchedule(TUESDAY), from: '2026-06-03', to: '2026-06-15',
   });
   const d0609 = r.days.find((d) => d.date === '2026-06-09');
   // Pickup → clean += 2; check-in → clean -= 2, inCirculation += 2.
@@ -392,7 +393,7 @@ test('arrival on the first simulated day is counted once (no double-count, no ph
     options: [opt],
     reservationOptions: [{ reservationId: 1, optionId: 100, quantity: 1 }],
     propertyDefaults: [],
-    laundryWeekday: TUESDAY, from: '2026-06-12', to: '2026-06-12',
+    schedule: constantSchedule(TUESDAY), from: '2026-06-12', to: '2026-06-12',
   });
   // 4 doubles consumed (once), not 8 → clean = 6, never negative.
   assert.equal(r.days[0].inCirculation.double, 4, 'arrival counted exactly once');
@@ -414,7 +415,7 @@ test('a guest who arrived BEFORE `from` is still in circulation on `from`', () =
     options: [opt],
     reservationOptions: [{ reservationId: 1, optionId: 100, quantity: 1 }],
     propertyDefaults: [],
-    laundryWeekday: TUESDAY, from: '2026-06-12', to: '2026-06-12',
+    schedule: constantSchedule(TUESDAY), from: '2026-06-12', to: '2026-06-12',
   });
   assert.equal(r.days[0].inCirculation.double, 3, 'prior arrival still in circulation');
   assert.equal(r.days[0].clean.double, 7);

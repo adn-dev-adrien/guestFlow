@@ -1,6 +1,8 @@
 /**
  * The eight linen settings, stored in plugin_settings (specs/plugins-phase-2-hosts.md rule 15): the
  * laundry day and the stock per linen type. Same names as the app_settings columns they came from.
+ * `laundryWeekday` is frozen since the laundry schedule (specs/linen-laundry-days.md): it stays
+ * declared so a rollback to 1.1.x finds it, but nothing reads it and nothing writes it any more.
  *
  * `GET/PUT /api/plugins/linen/settings` read and write them; each declared key validates its value
  * (phase 1 rule 7 plus `validate`), with the messages the core settings form used to show.
@@ -14,12 +16,11 @@ const STOCK_KEYS = Object.freeze([
 const SETTING_KEYS = Object.freeze([LAUNDRY_WEEKDAY, ...STOCK_KEYS]);
 const DEFAULT_WEEKDAY = 2;
 
-// 0 = Sunday … 6 = Saturday (Date.getDay()).
+// Frozen since the laundry schedule (specs/linen-laundry-days.md rule 26): a write is refused and points to
+// the endpoint that owns the laundry days now. An empty value stays a no-op (the purge writes it).
 function validateLaundryWeekday(value) {
   if (value == null || value === '') return null;
-  const n = Number(value);
-  if (!Number.isInteger(n) || n < 0 || n > 6) return 'Doit être un entier entre 0 (dimanche) et 6 (samedi).';
-  return null;
+  return 'Les jours de blanchisserie se règlent par PUT /api/laundry/schedule.';
 }
 
 // A stock count: an integer from 0 to 999. 0 means « this type is not tracked ».
@@ -35,14 +36,12 @@ const DECLARED = Object.freeze([
   ...STOCK_KEYS.map((key) => ({ key, default: '0', validate: validateLinenStockCount })),
 ]);
 
-// The settings as numbers, shaped like the former app_settings row so the moved models and
+// The stock settings as numbers, shaped like the former app_settings row so the moved models and
 // controllers read them unchanged (`settingsModel.read()`).
 function createLinenSettings(store) {
   return {
     read() {
       const row = {};
-      const weekday = Number(store.get(LAUNDRY_WEEKDAY));
-      row[LAUNDRY_WEEKDAY] = Number.isInteger(weekday) && weekday >= 0 && weekday <= 6 ? weekday : DEFAULT_WEEKDAY;
       STOCK_KEYS.forEach((key) => { row[key] = Math.max(0, Math.floor(Number(store.get(key)) || 0)); });
       return row;
     },

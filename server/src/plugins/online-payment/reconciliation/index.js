@@ -5,7 +5,7 @@
  */
 
 const sdk = require('../../sdk');
-const { up, TABLES } = require('./schema');
+const { up, upV2, TABLES } = require('./schema');
 const { createBankTransactionsModel } = require('./bankTransactionsModel');
 const { createReconciliationModel } = require('./reconciliationModel');
 const { readTransactions } = require('./transactionsReader');
@@ -17,7 +17,7 @@ const { summarize } = require('./attention');
 const READ_INTERVAL_MS = 8 * 60 * 60 * 1000;
 
 function mountReconciliation(ctx, { store }) {
-  ctx.migrations([{ name: 'reconciliation_v1', up }]);
+  ctx.migrations([{ name: 'reconciliation_v1', up }, { name: 'reconciliation_v2', up: upV2 }]);
 
   let controller = null;
   const build = () => {
@@ -35,7 +35,7 @@ function mountReconciliation(ctx, { store }) {
     const transactions = createBankTransactionsModel(ctx.db);
     const model = createReconciliationModel(ctx.db);
     const qonto = (fn) => withQonto({ settings: store, origin: 'reconciliation' }, fn);
-    const writer = createFicheWriter({ model, applyPaymentMark, computePlatformCommission, reservations });
+    const writer = createFicheWriter({ model, applyPaymentMark, computePlatformCommission, reservations, installments });
     const links = paymentLinks.buildModel(ctx.db);
     controller = createReconciliationController({
       db: ctx.db, settings: ctx.settings, transactions, model, writer,
@@ -53,10 +53,14 @@ function mountReconciliation(ctx, { store }) {
   ctx.mount('/api/payments/reconciliation', buildRouter({
     list: (...a) => build().list(...a), readNow: (...a) => build().readNow(...a), confirm: (...a) => build().confirm(...a),
     undo: (...a) => build().undo(...a), discard: (...a) => build().discard(...a), setOutside: (...a) => build().setOutside(...a),
+    linkBatch: (...a) => build().linkBatch(...a), previewAllocation: (...a) => build().previewAllocation(...a),
+    confirmAll: (...a) => build().confirmAll(...a), ficheCredits: (...a) => build().ficheCredits(...a),
     candidates: (...a) => build().candidates(...a), bankAccounts: (...a) => build().bankAccounts(...a),
   }));
 
   ctx.reservationBlock('online-payment', (reservation) => build().buildFicheBlock(reservation));
+  ctx.events.on('platform-penalty.changed', ({ reservationId }) => build().afterPenalty(reservationId));
+  ctx.paymentDeadlineDecorator((rows) => build().decorateDeadlines(rows));
 
   ctx.jobs.every({
     name: 'bank-reconciliation-read',

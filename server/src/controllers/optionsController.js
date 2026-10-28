@@ -9,13 +9,12 @@ const { buildCatalogueView, buildArchivedItems } = require('../utils/optionCatal
 const { emitPricingChanged } = require('../utils/pricingChanged');
 
 // The early-arrival / late-departure options are edited on each property (specs/settings-rationalization.md
-// rule 15): the catalogue view (`?view=catalogue`) leaves them out; every other caller gets them all.
+// rule 15): the catalogue view (`GET /catalogue-view`) leaves them out; the plain list gets them all.
 const PROPERTY_EDITED_AUTO_OPTIONS = ['early_check_in', 'late_check_out'];
 
 const catalogueOptions = () => model.list().filter((o) => !PROPERTY_EDITED_AUTO_OPTIONS.includes(o.autoOptionType));
 
 function list(req, res) {
-  if (req.query && req.query.view === 'catalogue') return res.json(catalogueOptions());
   return res.json(model.list());
 }
 

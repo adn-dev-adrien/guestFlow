@@ -65,6 +65,7 @@ function storedNetTotal(row = {}, { refundsBookTtc = 0 } = {}) {
     + Number(row.complementAmount || 0) + Number(row.endOfStayComplementAmount || 0)
     + midStayNotesTotal(row, { withCash: true })
     - Number(refundsBookTtc || 0)
+    - Math.max(0, Number(row.platformPenaltyAmount || 0))
     + arrivalPaymentAdjustment(row).net,
   );
 }

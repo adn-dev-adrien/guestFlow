@@ -2148,6 +2148,27 @@ db.prepare("UPDATE repair_amounts SET label = 'Plomb manquant' WHERE repairKey =
   // row, no backfill) means the brut was typed tax-excluded — the convention of
   // platform-brut-excludes-offered-tourist-tax.md, which must keep computing to the cent.
   if (!rcols.includes('platformTouristTaxAmount')) db.exec('ALTER TABLE reservations ADD COLUMN platformTouristTaxAmount REAL');
+  // specs/reconciliation-assisted-matching.md rules 23-31 — what a platform keeps on a stay's payout for a
+  // reason other than its commission or the tourist tax. `platformPenaltyAmount` is the sum of the lines
+  // (€), kept in step by platformPenaltiesModel, so every reader of the stay's money already has it.
+  if (!rcols.includes('platformPenaltyAmount')) db.exec('ALTER TABLE reservations ADD COLUMN platformPenaltyAmount REAL NOT NULL DEFAULT 0');
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS reservation_platform_penalties (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      reservationId INTEGER NOT NULL REFERENCES reservations(id) ON DELETE CASCADE,
+      amountCents INTEGER NOT NULL CHECK (amountCents > 0),
+      reason TEXT NOT NULL,
+      penaltyDate TEXT NOT NULL,
+      source TEXT NOT NULL DEFAULT 'fiche',
+      payoutAdjustedFrom REAL,
+      payoutAdjustedTo REAL,
+      commissionAdjustedFrom REAL,
+      commissionAdjustedTo REAL,
+      createdAt TEXT NOT NULL DEFAULT (datetime('now')),
+      createdBy INTEGER
+    );
+    CREATE INDEX IF NOT EXISTS idx_platform_penalties_res ON reservation_platform_penalties (reservationId);
+  `);
   // specs/public-online-payment.md §5 — set when a paid online full-payment was converted onto dates that
   // had become unavailable (the devis never blocked them). Drives the admin notification + the conflict
   // chip; NULL on every normal booking. Idempotent ADD COLUMN.

@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 // linen (clean → laundry → clean) on a trip's drop, and defer past a skipped trip. Conservation must
 // hold (no phantom linen). June 2026 Tuesdays: 02, 09, 16, 23, 30 (laundryWeekday = 2).
 const { simulateInventory } = require('../linenInventory');
+const { constantSchedule } = require('./laundry-schedule-fixtures');
 
 const TUESDAY = 2;
 const TYPES = ['single', 'double', 'baby', 'large', 'medium', 'small'];
@@ -19,7 +20,7 @@ function assertConservation(r, st) {
   }
 }
 const base = {
-  reservations: [], options: [], reservationOptions: [], propertyDefaults: [], laundryWeekday: TUESDAY,
+  reservations: [], options: [], reservationOptions: [], propertyDefaults: [], schedule: constantSchedule(TUESDAY),
 };
 
 test('manual addition is washed on its trip: clean dips on the drop, comes back on pick-up; conservation holds', () => {

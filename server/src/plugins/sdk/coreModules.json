@@ -758,5 +758,14 @@
   ],
   "installmentsModel": [
     "buildModel"
+  ],
+  "platformPenaltiesModel": [
+    "buildModel",
+    "findById",
+    "insert",
+    "listByDate",
+    "listFor",
+    "remove",
+    "totalFor"
   ]
 }

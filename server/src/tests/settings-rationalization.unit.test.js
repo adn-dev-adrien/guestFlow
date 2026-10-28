@@ -387,14 +387,18 @@ test('rule 17c: saving the hooks writes the two hook columns and nothing else', 
 function optionsControllerWith(rows) {
   const modelPath = require.resolve('../models/optionsModel');
   const controllerPath = require.resolve('../controllers/optionsController');
+  const propertiesPath = require.resolve('../models/propertiesModel');
   const saved = require.cache[modelPath];
+  const savedProperties = require.cache[propertiesPath];
   delete require.cache[controllerPath];
-  require.cache[modelPath] = { id: modelPath, filename: modelPath, loaded: true, exports: { list: () => rows } };
+  require.cache[modelPath] = { id: modelPath, filename: modelPath, loaded: true, exports: { list: () => rows, listArchived: () => [] } };
+  require.cache[propertiesPath] = { id: propertiesPath, filename: propertiesPath, loaded: true, exports: { list: () => [] } };
   try {
     return require('../controllers/optionsController');
   } finally {
     delete require.cache[controllerPath];
     if (saved) require.cache[modelPath] = saved; else delete require.cache[modelPath];
+    if (savedProperties) require.cache[propertiesPath] = savedProperties; else delete require.cache[propertiesPath];
   }
 }
 
@@ -404,12 +408,14 @@ function listed(controller, query) {
   return body.map((o) => o.id);
 }
 
-test('rule 15: the catalogue view hides early arrival / late departure; every other caller gets them', () => {
+test('rule 15: the catalogue leaves out early arrival / late departure; the plain list gets them all', () => {
   const controller = optionsControllerWith([
     { id: 1, autoOptionType: null },
     { id: 2, autoOptionType: 'early_check_in' },
     { id: 3, autoOptionType: 'late_check_out' },
   ]);
-  assert.deepEqual(listed(controller, { view: 'catalogue' }), [1]);
+  let view;
+  controller.catalogueView({ query: {} }, { json: (value) => { view = value; return value; } });
+  assert.deepEqual(view.groups.flatMap((g) => g.items.map((i) => i.id)), [1]);
   assert.deepEqual(listed(controller, {}), [1, 2, 3]);
 });

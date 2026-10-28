@@ -5,14 +5,20 @@
  * Separated from `/api/planning` so the mount point matches the resource semantics: a skip
  * is a property of the laundry process, not of a planning view.
  *
- * Specs: specs/skip-laundry-trip.md §4.1 + §4.3, specs/manual-laundry-additions.md §4.3,
+ * Specs: specs/linen-laundry-days.md §4.3, specs/skip-laundry-trip.md §4.1 + §4.3, specs/manual-laundry-additions.md §4.3,
  * specs/laundry-extra-trip.md §4.3.
  */
 
 const express = require('express');
 
-function buildRouter({ skips, additions, extraTrips }) {
+function buildRouter({ schedule, skips, additions, extraTrips }) {
   const router = express.Router();
+
+  // The laundry schedule (specs/linen-laundry-days.md §4.3). Reads reach the reception through the
+  // `GET /laundry/*` allowlist entry; PUT and the preview POST stay admin-only.
+  router.get('/schedule', schedule.get);
+  router.put('/schedule', schedule.set);
+  router.post('/schedule/preview', schedule.preview);
 
   router.get('/skips', skips.listSkips);
   router.post('/skips', skips.addSkip);

@@ -163,6 +163,13 @@ function createContext(id, { db, settingsModel, dataDir = null } = {}) {
       if (taken) throw new Error(`${prefix} the push channel "${key}" is already declared`);
       record.pushChannels.push({ key, label });
     },
+    // (rows) → rows: decorates the rows of the home's « Échéances » card while the plugin is live — a row may
+    // gain a `bank` line or be dropped (specs/reconciliation-assisted-matching.md rule 22). At most one per plugin.
+    paymentDeadlineDecorator(decorate) {
+      if (typeof decorate !== 'function') throw new Error(`${prefix} the payment-deadline decorator must be a function`);
+      if (record.paymentDeadlineDecorator) throw new Error(`${prefix} the payment-deadline decorator is already declared`);
+      record.paymentDeadlineDecorator = decorate;
+    },
     migrations(list) { record.migrations.push(...list); },
     settings,
     jobs: {

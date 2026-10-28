@@ -83,7 +83,12 @@ test('checkPlanningRange: ok, inverted, bad ISO, and the width ceiling', () => {
   assert.equal(checkPlanningRange(base, atCeiling), null);
   const overCeiling = new Date(Date.parse(base + 'T00:00:00Z') + (MAX_PLANNING_RANGE_DAYS + 1) * 86400000).toISOString().slice(0, 10);
   assert.deepEqual(checkPlanningRange(base, overCeiling), { status: 400, error: 'DATE_RANGE_TOO_WIDE' });
-  assert.equal(isIsoDate('2026-13-99'), true); // shape-only check, as documented
+  // A real calendar day (specs/linen-laundry-days.md rule 13): `9999-99-99` used to pass the shape check, parse
+  // to NaN and slip under the cap.
+  for (const bad of ['2026-13-99', '9999-99-99', '2026-02-30', '2026-00-10']) assert.equal(isIsoDate(bad), false, bad);
+  assert.equal(isIsoDate('2026-02-28'), true);
+  assert.deepEqual(checkPlanningRange('2026-06-01', '9999-99-99'), { status: 400, error: 'INVALID_DATE_RANGE' });
+  assert.deepEqual(checkPlanningRange('0000-00-00', '2026-06-01'), { status: 400, error: 'INVALID_DATE_RANGE' });
 });
 
 test('planning-events rejects a pathological span before hitting the DB', () => {
@@ -97,16 +102,16 @@ test('planning-events rejects a pathological span before hitting the DB', () => 
   assert.equal(called, false, 'the model must not be queried for an out-of-bounds range');
 });
 
-test('laundrySummary rejects a pathological span before the ledger walks it', () => {
+test('laundryDays rejects a pathological span before the ledger walks it', () => {
   let touched = false;
   const trap = new Proxy({}, { get() { touched = true; return () => { throw new Error('ledger should not run'); }; } });
   const c = buildPlanning({
     settingsModel: { read: () => ({ laundryWeekday: 2 }) },
-    laundryModel: trap, linenInventoryModel: trap, laundryTripSkipsModel: trap,
+    laundryModel: trap, linenInventoryModel: trap, laundryScheduleModel: trap, laundryTripSkipsModel: trap,
     laundryManualAdditionsModel: trap, laundryExtraTripsModel: trap,
   });
   const r = res();
-  c.laundrySummary({ query: { from: '0001-01-01', to: '9999-12-31' } }, r);
+  c.laundryDays({ query: { from: '0001-01-01', to: '9999-12-31' } }, r);
   assert.equal(r.statusCode, 400);
   assert.equal(r.body.error, 'DATE_RANGE_TOO_WIDE');
   assert.equal(touched, false);

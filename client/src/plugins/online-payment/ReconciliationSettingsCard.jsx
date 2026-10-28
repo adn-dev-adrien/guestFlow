@@ -5,7 +5,7 @@
  * (`PUT /api/plugins/online-payment/settings`); the server validates and words a refusal.
  */
 import React, { useCallback, useEffect, useState } from 'react';
-import { Box, Button, Card, CardContent, MenuItem, Stack, TextField, Typography } from '@mui/material';
+import { Box, Button, Card, CardContent, FormControlLabel, MenuItem, Stack, Switch, TextField, Typography } from '@mui/material';
 import { api, useToast } from '../sdk/ui';
 
 const PLUGIN = 'online-payment';
@@ -29,6 +29,7 @@ export default function ReconciliationSettingsCard({ connected }) {
         feePercent: fee ? String(fee.percent) : '',
         feeFixedCents: fee ? String(fee.fixedCents) : '',
         cardFeePercent: s.reconciliationCardFeePercent || '',
+        autoConfirm: s.reconciliationAutoConfirm !== '0',
       });
     } catch { setForm(null); }
   }, []);
@@ -56,6 +57,7 @@ export default function ReconciliationSettingsCard({ connected }) {
         reconciliationPlatformPatterns: Object.keys(patterns).length ? JSON.stringify(patterns) : '',
         reconciliationAcquiringFee: form.feePercent === '' && form.feeFixedCents === '' ? '' : JSON.stringify({ percent: Number(form.feePercent || 0), fixedCents: Number(form.feeFixedCents || 0) }),
         reconciliationCardFeePercent: form.cardFeePercent,
+        reconciliationAutoConfirm: form.autoConfirm ? '1' : '0',
       });
       setErrors({});
       showSuccess('Réglages du rapprochement enregistrés.');
@@ -90,6 +92,15 @@ export default function ReconciliationSettingsCard({ connected }) {
             <TextField label="Frais du prestataire (%)" value={form.feePercent} onChange={set('feePercent')} slotProps={{ htmlInput: { inputMode: 'decimal' } }} error={Boolean(errors.reconciliationAcquiringFee)} helperText={errors.reconciliationAcquiringFee || ' '} />
             <TextField label="Frais fixes (centimes)" value={form.feeFixedCents} onChange={set('feeFixedCents')} slotProps={{ htmlInput: { inputMode: 'numeric' } }} />
             <TextField label="Frais de carte (%)" value={form.cardFeePercent} onChange={set('cardFeePercent')} slotProps={{ htmlInput: { inputMode: 'decimal' } }} error={Boolean(errors.reconciliationCardFeePercent)} helperText={errors.reconciliationCardFeePercent || ' '} />
+          </Box>
+          <Box>
+            <FormControlLabel
+              control={<Switch checked={form.autoConfirm} onChange={(e) => setForm((f) => ({ ...f, autoConfirm: e.target.checked }))} />}
+              label="Confirmer automatiquement les correspondances sûres"
+            />
+            <Typography variant="caption" color="text.secondary" component="div">
+              Après chaque lecture du compte, un virement sûr (montant exact, une seule fiche) est rapproché sans clic. « Défaire » reste possible.
+            </Typography>
           </Box>
           <Box><Button variant="contained" onClick={save} disabled={saving} sx={{ minHeight: 44, textTransform: 'none' }}>Enregistrer</Button></Box>
         </Stack>

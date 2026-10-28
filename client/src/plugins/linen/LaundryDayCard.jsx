@@ -1,16 +1,18 @@
 /**
- * LaundryDayCard — pure renderer for the weekly bed-linen summary on PlanningPage
- * (specs/weekly-bed-linen-tracking.md §6.1).
+ * LaundryDayCard — pure renderer for a laundry card of PlanningPage
+ * (specs/weekly-bed-linen-tracking.md §6.1, specs/linen-laundry-days.md §6.2).
  *
  * Sits under the day header of every laundry-day cell. Two blocks side by side: "À apporter"
- * (sheets used since the previous laundry day) + "À récupérer" (the previous batch coming back
- * from the laundry). Stacks vertically on `xs`.
+ * (the linen used since the previous trip) + "À récupérer" (the batches that are ready, with the days
+ * they were dropped). Stacks vertically on `xs`. A line « Encore à la blanchisserie » says what is
+ * still there and when it will be ready.
  *
- * Returns `null` when both sides are zero (rule 13: no visual noise on a quiet week). The
- * server still emits zero-everywhere days uniformly — the silence is a client decision.
+ * The server decides which days carry a card (`GET /api/planning/laundry/days`): this component draws
+ * what it is given and never hides itself for being empty.
  *
  * Props:
- *   data — { dropOff: { singleBeds, doubleBeds, babyBeds }, pickUp: same } from the server.
+ *   data — the server's card: { kind, dropOff: { singleBeds, doubleBeds, babyBeds, … }, pickUp: same +
+ *     `fromTrips: ['YYYY-MM-DD']`, stillAtLaundry: [{ counts, readyOn }] (one per ready date), extraTrip, leftAtLaundry }.
  *     Pass `undefined` / `null` → renders nothing. `dropOff.incomplete` (optional) lists the stays
  *     that declare bed linen with no quantity saved yet — rendered as a warning + clickable chips
  *     (specs/laundry-counts-explicit-option-only.md §3.2).
@@ -19,8 +21,7 @@
  *     (the handler is called with this date).
  *   isSkipped — boolean. When true: the card greys out (opacity 0.45), the 3 detail blocks
  *     are replaced by a single muted caption "Voyage non réalisé — reporté au prochain
- *     voyage", and the header IconButton swaps to "Réactiver". Hide-when-empty rule is
- *     bypassed (a skipped card is always rendered, even if its pre-skip counts were 0).
+ *     voyage", and the header IconButton swaps to "Réactiver".
  *     Spec: specs/skip-laundry-trip.md §3.3 + §6.
  *   onToggleSkip — `(date, nextValue) => Promise<void>`. When provided, the header shows an
  *     IconButton to flip the skip flag. Omit (or pass null) on read-only surfaces.
@@ -32,9 +33,8 @@
  *     IconButton instead of the skip toggle. Omit both on read-only surfaces (reception role).
  *
  * `data.kind === 'extra'` flags an extra laundry trip on a free date: the title changes, a small
- * « exceptionnel » chip joins it, `data.pickUpAll === false` adds the « Récupération partielle »
- * caption listing `data.leftAtLaundry`, `isSkipped` / `onToggleSkip` are ignored, and the card is
- * always rendered (the operator must see and be able to undo his own decision).
+ * « exceptionnel » chip joins it, `data.extraTrip.pickUpAll === false` adds the « Récupération
+ * partielle » caption listing `data.leftAtLaundry`, `isSkipped` / `onToggleSkip` are ignored.
  */
 import React from 'react';
 import { Card, CardContent, Box, Typography, Stack, IconButton, Tooltip, Chip } from '@mui/material';
@@ -46,7 +46,7 @@ import EventAvailableIcon from '@mui/icons-material/EventAvailable';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlineOutlined';
-import { formatSheets, formatTowels } from './formatLinen';
+import { formatSheets, formatTowels, formatLinenBlock, formatDropDay } from './formatLinen';
 
 // Laundry-themed palette (2026-06-02). Cyan reads as "fresh / water / linen" without leaning
 // clinical or flashy. Three tones cascade — bg subtle → border just defined enough to pop off
@@ -55,15 +55,12 @@ const LAUNDRY_BG = cyan[50];      // #E0F7FA
 const LAUNDRY_BORDER = cyan[200]; // #80DEEA
 const LAUNDRY_ACCENT = cyan[800]; // #00838F
 
-function totalSheets(side) {
-  if (!side) return 0;
-  return Number(side.singleBeds || 0) + Number(side.doubleBeds || 0) + Number(side.babyBeds || 0);
-}
+const dayList = (dates) => new Intl.ListFormat('fr', { style: 'long', type: 'conjunction' }).format(dates.map(formatDropDay));
 
-function totalTowels(side) {
-  if (!side) return 0;
-  return Number(side.largeTowels || 0) + Number(side.mediumTowels || 0) + Number(side.smallTowels || 0)
-    + Number(side.bathMats || 0);
+// « déposé mar. 14 et jeu. 16 » — where the pick-up comes from; nothing when nothing is collected.
+function provenanceOf(pickUp) {
+  const dates = Array.isArray(pickUp?.fromTrips) ? pickUp.fromTrips : [];
+  return dates.length > 0 ? `déposé ${dayList(dates)}` : null;
 }
 
 // One half of a signed manual line, as positive counts: `sign = 1` keeps the additions, `sign = -1`
@@ -79,7 +76,7 @@ function signedHalf(counts, sign) {
   return out;
 }
 
-function SideBlock({ title, side }) {
+function SideBlock({ title, note, side }) {
   const sheetsLine = formatSheets(side);
   const towelsLine = formatTowels(side);
   // Both null → render the em-dash placeholder so the visual symmetry holds when only the
@@ -89,6 +86,9 @@ function SideBlock({ title, side }) {
     <Box sx={{ flex: 1, minWidth: 0 }}>
       <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
         {title}
+        {note && (
+          <Box component="span" sx={{ textTransform: 'none', fontWeight: 500, letterSpacing: 0 }}>{` · ${note}`}</Box>
+        )}
       </Typography>
       {!hasAny && (
         <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.primary', mt: 0.25 }}>—</Typography>
@@ -170,7 +170,7 @@ export default function LaundryDayCard({
   // (delete it instead), so the skip state is ignored for it.
   const isExtra = data.kind === 'extra';
   const skipped = isSkipped && !isExtra;
-  const isPartial = isExtra && data.pickUpAll === false;
+  const isPartial = isExtra && data.extraTrip?.pickUpAll === false;
   const leftSheets = isPartial ? formatSheets(data.leftAtLaundry) : null;
   const leftTowels = isPartial ? formatTowels(data.leftAtLaundry) : null;
   const leftLine = [leftSheets, leftTowels].filter(Boolean).join(' · ');
@@ -194,19 +194,9 @@ export default function LaundryDayCard({
   const hasManual = Boolean(manualSheets || manualTowels);
   const hasWithdrawn = Boolean(withdrawnSheets || withdrawnTowels);
   const canEditManual = typeof onEditManual === 'function' && Boolean(date);
-  // Hide the card when everything is zero on BOTH sides (no sheets and no towels at all). Per
-  // spec rule 13 — keeps a quiet week silent. EXCEPTION (specs/skip-laundry-trip.md §3.3
-  // rule 11): a skipped card is ALWAYS shown so the operator can see (and undo) their own
-  // decision, even if the pre-skip counts would have been 0. SECOND EXCEPTION
-  // (specs/laundry-counts-explicit-option-only.md §3.2): a week whose only departures still lack
-  // their quantities totals zero on both sides — the very case the warning exists for, so the card
-  // must survive the silence rule.
-  // THIRD EXCEPTION (specs/laundry-extra-trip.md §3.5 rule 19): an extra trip is always rendered —
-  // it is the operator's own decision, and the card is where he edits or deletes it.
-  const dropTotal = totalSheets(data.dropOff) + totalTowels(data.dropOff);
-  const pickTotal = totalSheets(data.pickUp) + totalTowels(data.pickUp);
-  if (dropTotal === 0 && pickTotal === 0 && !skipped && !isExtra && incomplete.length === 0) return null;
-
+  // specs/linen-laundry-days.md rule 11 — batches dropped earlier that are not ready yet: one line per ready
+  // date, as the server groups them (a partial extra trip comes with none: it keeps its own caption).
+  const stillLines = Array.isArray(data.stillAtLaundry) ? data.stillAtLaundry : [];
   // §3.5 — third block: post-drop available stock. Hidden when no inventory data is provided
   // (e.g. stock untracked = nothing to display).
   const bedParts = formatInventoryParts(inventoryAfter, ['double', 'single', 'baby'], BED_LABELS);
@@ -316,8 +306,16 @@ export default function LaundryDayCard({
               divider={<Box sx={{ display: { xs: 'none', sm: 'block' }, borderLeft: '1px solid', borderColor: 'divider' }} />}
             >
               <SideBlock title="À apporter" side={data.dropOff} />
-              <SideBlock title="À récupérer" side={data.pickUp} />
+              <SideBlock title="À récupérer" note={provenanceOf(data.pickUp)} side={data.pickUp} />
             </Stack>
+            {stillLines.map((line) => (
+              <Typography key={line.readyOn} variant="body2" sx={{ mt: 0.75, fontWeight: 600, color: 'text.primary' }}>
+                <Box component="span" sx={{ color: 'text.secondary', fontWeight: 500, mr: 0.5 }}>
+                  {`Encore à la blanchisserie · prêt ${formatDropDay(line.readyOn)} :`}
+                </Box>{' '}
+                {formatLinenBlock(line.counts)}
+              </Typography>
+            ))}
             {isPartial && (
               <Typography variant="caption" sx={{ display: 'block', mt: 0.75, fontStyle: 'italic', color: 'text.secondary' }}>
                 {leftLine

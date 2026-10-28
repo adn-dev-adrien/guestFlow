@@ -1,0 +1,1 @@
+- **Migration.** Core: table `reservation_platform_penalties` and column `reservations.platformPenaltyAmount REAL NOT NULL DEFAULT 0` (idempotent, in `database.js`); every existing reservation reads 0, so no figure changes until a penalty is declared. Past penalties already hidden in a commission are not detected.

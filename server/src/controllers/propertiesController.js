@@ -28,6 +28,20 @@ function list(req, res) {
   res.json(receptionOnly ? toReceptionPropertyList(properties) : properties);
 }
 
+// The groups repeat each option of `options` in full (49 kB beside 28 kB on the shadow), and their
+// `pinned` / `foldable` slices again: the stay view names the options by id, drops the two slices (the
+// fiche recomputes them from the reservation) and the client joins the ids back to `options`
+// (specs/inte-performance.md rule 21).
+function referenceOptionGroups(groups) {
+  if (!groups) return groups;
+  const ref = (option) => ({ id: option.id });
+  return {
+    ...groups,
+    ungrouped: (groups.ungrouped || []).map(ref),
+    groups: (groups.groups || []).map(({ pinned, foldable, ...group }) => ({ ...group, options: (group.options || []).map(ref) })), // eslint-disable-line no-unused-vars
+  };
+}
+
 function getOne(req, res) {
   const property = model.getByIdWithDetails(req.params.id);
   if (!property) return res.status(404).json({ error: 'Logement non trouvé' });
@@ -35,7 +49,7 @@ function getOne(req, res) {
   // the tariff pages render (the bulk of the payload; specs/inte-performance.md rule 14).
   if (req.query && req.query.view === 'stay') {
     const { pricingRules, ...stay } = property; // eslint-disable-line no-unused-vars
-    return res.json(stay);
+    return res.json({ ...stay, optionGroups: referenceOptionGroups(stay.optionGroups) });
   }
   return res.json(property);
 }

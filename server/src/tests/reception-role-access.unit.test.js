@@ -37,8 +37,7 @@ const ALLOWED = [
   ['PATCH', '/reservations/42/payment'],
   ['GET', '/properties'],
   ['GET', '/properties/platform-colors'],
-  ['GET', '/planning/laundry'],
-  ['GET', '/planning/linen-inventory'],
+  ['GET', '/planning/laundry/days'],
   ['GET', '/planning/breakfast'],
   ['GET', '/planning/today'],
   ['GET', '/planning/days'],
@@ -53,6 +52,8 @@ const ALLOWED = [
   // Extra laundry trips — READ only (specs/laundry-extra-trip.md §3.4 rule 16).
   ['GET', '/laundry/extra-trips'],
   ['GET', '/laundry/extra-trips/preview'],
+  // The laundry schedule — READ only (specs/linen-laundry-days.md §3.5 rule 23).
+  ['GET', '/laundry/schedule'],
   ['GET', '/resource-bookings/planning-events'],
   // Self endpoints — reachable by every role.
   ['GET', '/auth/me'],
@@ -89,6 +90,9 @@ const FORBIDDEN = [
   // Extra laundry trips are admin-only to create / edit / delete (specs/laundry-extra-trip.md §3.4).
   ['PUT', '/laundry/extra-trips/2026-08-21'],
   ['DELETE', '/laundry/extra-trips/2026-08-21'],
+  // The laundry schedule is admin-only to change or preview (specs/linen-laundry-days.md §3.5 rule 23).
+  ['PUT', '/laundry/schedule'],
+  ['POST', '/laundry/schedule/preview'],
 ];
 
 test('reception: every allowlisted method+path passes', () => {

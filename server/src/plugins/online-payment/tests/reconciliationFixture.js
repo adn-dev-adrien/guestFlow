@@ -10,7 +10,7 @@ console.log = () => {};
 const db = require('../../../database');
 console.log = silent;
 
-const { up } = require('../reconciliation/schema');
+const { up, upV2 } = require('../reconciliation/schema');
 const { createBankTransactionsModel } = require('../reconciliation/bankTransactionsModel');
 const { createReconciliationModel } = require('../reconciliation/reconciliationModel');
 const { createFicheWriter } = require('../reconciliation/ficheWriter');
@@ -23,6 +23,7 @@ const reservations = require('../../../models/reservationsModel');
 const paymentLinks = require('../../../models/paymentLinksModel');
 
 up(db);
+upV2(db);
 db.prepare("INSERT OR IGNORE INTO properties (id, name) VALUES (1, 'Gîte')").run();
 db.prepare("INSERT OR IGNORE INTO clients (id, firstName, lastName, email) VALUES (1, 'Jean', 'Dupont', 'jean@x.fr')").run();
 db.prepare("INSERT OR IGNORE INTO clients (id, firstName, lastName, email) VALUES (2, 'Lucia', 'Rossi', 'lucia@x.fr')").run();
@@ -37,7 +38,7 @@ let nextId = 100;
 function addReservation(over = {}) {
   const id = over.id || (nextId += 1);
   const row = {
-    id, kind: 'reservation', propertyId: 1, clientId: 1, startDate: '2026-11-10', endDate: '2026-11-12', adults: 2, platform: 'direct',
+    id, kind: 'reservation', propertyId: 1, clientId: 1, startDate: '2026-10-02', endDate: '2026-10-04', adults: 2, platform: 'direct',
     finalPrice: 700, depositAmount: 0, balanceAmount: 700, depositDueDate: null, balanceDueDate: '2026-11-01', ...over,
   };
   const cols = Object.keys(row);
@@ -52,16 +53,16 @@ function credit(id, cents, over = {}) {
   };
 }
 
-function build({ connected = true, startDate = '2026-10-01', mark = applyPaymentMark, withQonto } = {}) {
+function build({ connected = true, startDate = '2026-10-01', mark = applyPaymentMark, withQonto, read } = {}) {
   const store = new Map([['reconciliationBankAccountId', 'acc-1'], ['reconciliationStartDate', startDate]]);
   const settings = { get: (k) => store.get(k) || '', set: (k, v) => store.set(k, v) };
   const transactions = createBankTransactionsModel(db);
   const model = createReconciliationModel(db);
-  const writer = createFicheWriter({ model, applyPaymentMark: mark, computePlatformCommission, reservations });
+  const writer = createFicheWriter({ model, applyPaymentMark: mark, computePlatformCommission, reservations, installments: require('../../../models/installmentsModel').buildModel(db) });
   const calls = { qonto: 0, read: 0 };
   const controller = createReconciliationController({
     db, settings, transactions, model, writer,
-    read: async () => { calls.read += 1; return { ok: true }; },
+    read: read || (async () => { calls.read += 1; return { ok: true }; }),
     connected: () => connected,
     withQonto: withQonto || (async () => { calls.qonto += 1; throw new Error('no Qonto call expected'); }),
     core: {
