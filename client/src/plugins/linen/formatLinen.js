@@ -44,3 +44,36 @@ export function formatLinenBlock(side) {
   if (towels) parts.push(`Serviettes : ${towels}`);
   return parts.length > 0 ? parts.join(' · ') : null;
 }
+
+// "mer. 29 oct." — a date as the laundry screens name it; « dim. 25 juil. 2027 » when it is not of the current
+// year (the horizon can reach into the next one). Noon avoids any timezone drift on the day.
+export function formatDayShort(iso) {
+  if (!iso) return '';
+  const d = new Date(`${String(iso).slice(0, 10)}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return String(iso);
+  const options = { weekday: 'short', day: 'numeric', month: 'short' };
+  if (d.getFullYear() !== new Date().getFullYear()) options.year = 'numeric';
+  return d.toLocaleDateString('fr-FR', options);
+}
+
+// "mar. 21" — the day a batch was dropped, on the pick-up side of a laundry card.
+export function formatDropDay(iso) {
+  if (!iso) return '';
+  const d = new Date(`${String(iso).slice(0, 10)}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return String(iso);
+  return d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric' });
+}
+
+// « du mer. 13 au lun. 23 nov. » — a spell of days; the month is named once when both ends share it, and a
+// single day reads « le mer. 13 nov. ».
+export function formatDayRange(fromIso, toIso) {
+  if (!fromIso) return '';
+  if (!toIso || toIso === fromIso) return `le ${formatDayShort(fromIso)}`;
+  const from = new Date(`${String(fromIso).slice(0, 10)}T12:00:00`);
+  const to = new Date(`${String(toIso).slice(0, 10)}T12:00:00`);
+  const sameMonth = from.getFullYear() === to.getFullYear() && from.getMonth() === to.getMonth();
+  const fromLabel = sameMonth
+    ? from.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric' })
+    : formatDayShort(fromIso);
+  return `du ${fromLabel} au ${formatDayShort(toIso)}`;
+}

@@ -3,8 +3,14 @@
  * (specs/linen-inventory-shortage-tracking.md §3.2–3.6).
  *
  * Pure functional core: no DB access. The caller assembles the inputs (stock, reservations,
- * options, propertyDefaults, laundryWeekday, from, to) and the engine walks day-by-day through
+ * options, propertyDefaults, schedule, from, to) and the engine walks day-by-day through
  * the horizon, returning a per-day snapshot of every bucket + shortage detection.
+ *
+ * The walk starts `REPLAY_DAYS` before `from` (28-day skip lookback + the 14-day maximum laundry
+ * turnaround) from a neutral state — the stays in progress installed, everything else clean — and
+ * replays every day with one loop, so the state on `from` needs no seed and no special case
+ * (specs/linen-laundry-days.md §3.3 rule 16). The linen at the laundry is a list of batches, each
+ * ready `turnaroundDays` after its drop (rule 15).
  *
  * Data shape conventions:
  *   - Dates are ISO YYYY-MM-DD strings throughout. Internal arithmetic uses UTC-anchored Date
@@ -17,6 +23,9 @@
  *   stock[t] = clean[t] + inCirculation[t] + dirty[t] + atLaundry[t]
  * Asserted by the tests on every day of every scenario.
  */
+
+const { addBatch, collectBatches, totalOf } = require('./laundryBatches');
+const { REPLAY_DAYS } = require('./laundrySchedule');
 
 const BED_TYPES = Object.freeze(['single', 'double', 'baby']);
 // `bathMat` (specs/laundry-bath-mat.md) is a towel-family type: flat per-stay quantity from the
@@ -53,7 +62,6 @@ function addDays(iso, n) {
   d.setUTCDate(d.getUTCDate() + Number(n));
   return toIso(d);
 }
-function weekdayOf(iso) { return parseIso(iso).getUTCDay(); }
 
 /**
  * Compute the linen contract for ONE reservation: how many of each type it consumes for the
@@ -209,53 +217,26 @@ function buildContractsByReservationId({ reservations, options, reservationOptio
 }
 
 /**
- * Find the most recent laundry day on-or-before `iso`. Returns the ISO date or null when the
- * weekday is invalid.
- */
-function previousOrSameLaundryDay(iso, weekday) {
-  if (!Number.isInteger(weekday) || weekday < 0 || weekday > 6) return null;
-  const delta = (weekdayOf(iso) - weekday + 7) % 7;
-  return addDays(iso, -delta);
-}
-
-/**
- * Like `previousOrSameLaundryDay` but skips dates the operator marked as not-made
- * (`skippedDates`). Walks backward in 7-day steps until finding a non-skipped Tuesday, or
- * gives up after `maxLookbackDays`. Returns null when no non-skipped trip exists within the
- * lookback (= "haven't done laundry in N weeks" — the simulation then starts from a fully
- * clean stock, which is a defensible degenerate state).
- *
- * specs/skip-laundry-trip.md §3.1 rule 4 — past skips must influence the initial-state
- * computation, not just the forward loop.
- */
-function previousOrSameNonSkippedLaundryDay(iso, weekday, skippedDates, maxLookbackDays = 28) {
-  if (!Number.isInteger(weekday) || weekday < 0 || weekday > 6) return null;
-  let candidate = previousOrSameLaundryDay(iso, weekday);
-  let attempts = Math.floor(maxLookbackDays / 7) + 1;
-  while (candidate && skippedDates && skippedDates.has(candidate) && attempts > 0) {
-    candidate = addDays(candidate, -7);
-    attempts -= 1;
-  }
-  return candidate;
-}
-
-/**
- * Core engine. Walks day by day from `from` to `to` and returns:
+ * Core engine. Walks day by day from `from − REPLAY_DAYS` to `to`, emits the days from `from`, and returns:
  *   {
- *     days: [{ date, clean, inCirculation, dirty, atLaundry,
+ *     days: [{ date, clean, inCirculation, dirty, atLaundry, isTripDay,
+ *              dropped, pickedUp, batches,
  *              shortagesToday: [{ type, missing }] }, ...],
- *     shortagesByType: { single: { firstDate, maxMissing, impactedReservationIds: number[] }, ... }
+ *     shortagesByType: { single: { firstDate, lastShortageDate, laterShortage, maxMissing, impactedReservationIds }, ... }
  *   }
+ * `dropped` / `pickedUp` are the moves of a trip day (zeros on any other day); `batches` is what
+ * stays at the laundry at the end of the day, `[{ dropDate, readyFrom, counts }]`.
  *
  * Inputs:
  *   stock — { single, double, baby, large, medium, small } (integers ≥ 0)
  *   reservations, options, reservationOptions, propertyDefaults — see helpers above
- *   laundryWeekday — 0..6 (Date.getDay() convention)
+ *   schedule — `createSchedule(...)` from `laundrySchedule.js`: which days are laundry days, and the
+ *     turnaround of each drop
  *   from, to — ISO dates (inclusive). `to` should be ≥ from; if to < from the result is empty.
  */
 function simulateInventory({
   stock, reservations, options, reservationOptions, propertyDefaults,
-  laundryWeekday, from, to,
+  schedule, from, to,
   // specs/laundry-bath-mat.md §4 — Map<propertyId, quantity> of bath mats per stay for the
   // "Tapis de bain" option. Default empty Map keeps every pre-feature caller behaviour-identical.
   bathMatByProperty = new Map(),
@@ -269,10 +250,10 @@ function simulateInventory({
   // clean) on the trip's drop. Default empty Map keeps every pre-feature caller behaviour-identical.
   manualAdditionsByDate = new Map(),
   // specs/laundry-extra-trip.md §3.3 — a Map<'YYYY-MM-DD', { pickUpAll, pickUp: {single,…,bathMat} }>
-  // of laundry trips on a FREE date (early pick-up). On such a day the engine takes the whole pool
-  // back (or the declared per-type quantities, capped at the pool) before the check-ins, then drops
-  // the whole dirty pile. A record stored on the laundry weekday is inert (that day is already a
-  // trip). Default empty Map keeps every pre-feature caller behaviour-identical.
+  // of laundry trips on a FREE date (early pick-up). On such a day the engine takes the ready batches
+  // back (or the declared per-type quantities, capped at what is ready) before the check-ins, then
+  // drops the whole dirty pile. A record stored on a regular laundry day is inert (that day is already
+  // a trip). Default empty Map keeps every pre-feature caller behaviour-identical.
   extraTripsByDate = new Map(),
 }) {
   // --- Pre-compute per-reservation contracts (skips devis + zero contracts) ---
@@ -292,121 +273,67 @@ function simulateInventory({
     endsByDate.get(r.endDate).push(r);
   }
 
-  // --- Initial state on `from` ---
-  // inCirculation = reservations that ALREADY arrived before `from` and are still staying
-  // (startDate < from < endDate). Arrivals ON `from` are deliberately excluded here: the day-`from`
-  // iteration of the loop below checks them in (clean → inCirculation). Counting them in both the
-  // initial state AND the check-in step double-counted today's arrivals — inflating consumption and
-  // producing phantom shortages (specs/linen-inventory-shortage-tracking.md §3.2).
+  // --- Neutral state on the first replayed day ---
+  // inCirculation = stays that ALREADY arrived before `start` and are still staying
+  // (startDate < start < endDate). Arrivals ON `start` are checked in by the loop itself; counting
+  // them here too double-counted them and produced phantom shortages
+  // (specs/linen-inventory-shortage-tracking.md §3.2). Nothing is dirty and nothing is at the
+  // laundry: the replay builds both, so no seed and no special case is needed.
+  const start = addDays(from, -REPLAY_DAYS);
   const inCirculation = zeroByType();
   for (const r of activeReservations) {
-    if (r.startDate < from && r.endDate > from) {
+    if (r.startDate < start && r.endDate > start) {
       addInto(inCirculation, contractsByReservationId.get(Number(r.id)));
     }
   }
-  // atLaundry = drops that occurred at the most recent NON-SKIPPED laundry day on/before
-  // `from` and that haven't been picked up yet. With the skip feature, `initLaundryDay` is
-  // the most recent Tuesday that the operator actually went — could be further back than
-  // 7 days if intervening Tuesdays were skipped. Anything dropped on a skipped Tuesday
-  // didn't happen → those reservations stay in `dirty` (handled below).
-  const initLaundryDay = previousOrSameNonSkippedLaundryDay(from, laundryWeekday, skippedDates);
-  // specs/laundry-extra-trip.md §3.1 rule 2 — an extra trip stored on the laundry weekday is inert.
-  const activeExtraDates = Array.from(extraTripsByDate.keys())
-    .filter((d) => weekdayOf(d) !== laundryWeekday)
-    .sort();
-  const contractsEndingIn = (startExclusive, endInclusive) => {
-    const sum = zeroByType();
-    for (const r of activeReservations) {
-      if (r.endDate > startExclusive && r.endDate <= endInclusive) {
-        addInto(sum, contractsByReservationId.get(Number(r.id)));
-      }
-    }
-    return sum;
-  };
-  const atLaundry = zeroByType();
-  if (initLaundryDay && initLaundryDay > addDays(from, -7) && initLaundryDay <= from) {
-    // Drops at initLaundryDay = sum of contracts of reservations whose endDate is in
-    // (initLaundryDay - 7, initLaundryDay]. Bounded by 7-day lookback so atLaundry can be
-    // computed without loading the full reservation history. An extra trip in that week already
-    // took the dirty pile with it, so the window starts at that extra trip instead
-    // (specs/laundry-extra-trip.md §3.3 rule 13).
-    const weekStart = addDays(initLaundryDay, -7);
-    const extraInWeek = activeExtraDates.filter((d) => d > weekStart && d < initLaundryDay).pop();
-    addInto(atLaundry, contractsEndingIn(extraInWeek || weekStart, initLaundryDay));
-  }
-  // specs/laundry-extra-trip.md §3.3 rule 13 — replay the extra trips between the last regular trip
-  // and `from` (strictly before `from`; an extra trip ON `from` is executed by the loop below): each
-  // one takes the pool back (all of it, or the declared quantities capped at the pool) and drops the
-  // dirty pile accumulated since the previous trip. Reservation contracts only, like the seed above —
-  // past manual lines stay out of the initial state (pre-existing approximation). When the seed guard
-  // above did not fire (last regular trip more than a week back), the pool starts at 0, so a partial
-  // pick-up's remainder from before that trip is not tracked — same class of approximation as the
-  // guard itself.
-  let lastTripBefore = initLaundryDay || addDays(from, -7);
-  for (const extraDate of activeExtraDates.filter((d) => d > lastTripBefore && d < from)) {
-    const trip = extraTripsByDate.get(extraDate);
-    for (const t of ALL_TYPES) {
-      const declared = trip && trip.pickUpAll === false ? Math.max(0, Number(trip.pickUp && trip.pickUp[t]) || 0) : atLaundry[t];
-      atLaundry[t] -= Math.min(atLaundry[t], declared);
-    }
-    addInto(atLaundry, contractsEndingIn(lastTripBefore, extraDate));
-    lastTripBefore = extraDate;
-  }
-  // dirty = reservations whose endDate is in (lastTrip, from], i.e. NOT yet dropped at the
-  // laundry. When intervening Tuesdays are skipped, this naturally accumulates the deferred
-  // batches because their endDate falls in the same window.
-  const dirty = contractsEndingIn(lastTripBefore, from);
-  // clean = stock - inCirculation - dirty - atLaundry  (may go negative on day 0 — that's a
-  // real shortage and we surface it as such). Start from a zero-filled record so a partial
-  // `stock` (e.g. a caller that omits a type) yields 0, not NaN, for the missing key.
-  let clean = addInto(zeroByType(), stock);
+  const dirty = zeroByType();
+  // Linen the operator washed himself, waiting for the next drop to be taken off the dirty pile.
+  const washedAtHome = zeroByType();
+  let atLaundry = [];
+  // clean = stock - inCirculation (may go negative — a real shortage, surfaced as such). Start from a
+  // zero-filled record so a partial `stock` (a caller that omits a type) yields 0, not NaN.
+  const clean = addInto(zeroByType(), stock);
   subtractInto(clean, inCirculation);
-  subtractInto(clean, dirty);
-  subtractInto(clean, atLaundry);
 
   // --- Walk through the horizon ---
   const days = [];
   const shortagesByType = {};
-  for (const t of ALL_TYPES) shortagesByType[t] = { firstDate: null, maxMissing: 0, impactedReservationIds: new Set() };
+  for (const t of ALL_TYPES) {
+    shortagesByType[t] = {
+      firstDate: null, lastDate: null, firstSpellOver: false, laterSpell: false, maxMissing: 0, impactedReservationIds: new Set(),
+    };
+  }
 
-  // When `from` is itself a non-skipped laundry day, the seed above IS today's drop (the previous
-  // batch is assumed collected already — it sits in `clean` by construction), so the day-`from`
-  // iteration must not take the pool back again. Only that first day is special.
-  const seedIsTodaysDrop = initLaundryDay === from;
-
-  let cursor = from;
+  let cursor = start;
   // Guard against runaway loops on malformed inputs.
-  const maxIter = 366 * 5;
+  const maxIter = 366 * 5 + REPLAY_DAYS;
   let iter = 0;
 
   while (cursor <= to && iter < maxIter) {
     // specs/skip-laundry-trip.md §3.2 rules 5-7: a skipped laundry date performs NEITHER the
-    // pick-up NOR the drop-off. The dirty stays dirty, the atLaundry stays at the laundry —
+    // pick-up NOR the drop-off. The dirty stays dirty, the batches stay at the laundry —
     // both backlogs flow forward to the next non-skipped trip naturally because neither `dirty`
-    // nor the at-laundry pool is mutated on that day.
-    const isLaundryDay = weekdayOf(cursor) === laundryWeekday;
+    // nor the batch list is mutated on that day.
+    const isLaundryDay = schedule.isRegularDay(cursor);
     const isSkipped = isLaundryDay && skippedDates.has(cursor);
     // specs/laundry-extra-trip.md §3.3 rule 11 — a trip day is a non-skipped regular laundry day OR
-    // an active extra trip (never on the laundry weekday: that record is inert).
+    // an active extra trip (never on a regular laundry day: that record is inert).
     const extraTrip = !isLaundryDay ? extraTripsByDate.get(cursor) : undefined;
     const isTripDay = (isLaundryDay && !isSkipped) || Boolean(extraTrip);
+    const pickedUp = zeroByType();
+    const dropped = zeroByType();
 
-    // 1) Pick-ups happen BEFORE check-ins (rule 6) — on every trip day. The at-laundry bucket is a
-    // per-type POOL: a regular trip takes the whole pool back (with weekly trips only, every batch
-    // in the pool is ≥ 7 days old by construction — same result as the former per-date ledger), an
-    // extra trip takes the whole pool when `pickUpAll`, else the declared quantities capped at the
-    // pool; what is left stays at the laundry for the next trip (specs/laundry-extra-trip.md §3.3
-    // rule 12). A batch deferred by a skipped trip is collected on the next non-skipped trip the
-    // same way, so the at-laundry stock can never drift permanently.
-    if (isTripDay && !(cursor === from && seedIsTodaysDrop)) {
-      for (const t of ALL_TYPES) {
-        const wanted = extraTrip && extraTrip.pickUpAll === false
-          ? Math.max(0, Number(extraTrip.pickUp && extraTrip.pickUp[t]) || 0)
-          : atLaundry[t];
-        const picked = Math.min(atLaundry[t], wanted);
-        atLaundry[t] -= picked;
-        clean[t] += picked;
-      }
+    // 1) Pick-ups happen BEFORE check-ins (rule 6) — on every trip day. A regular trip, and an extra
+    // trip that picks everything up, collects every batch whose `readyFrom` has come; a partial extra
+    // trip collects the declared quantities per type, oldest batch first, capped at what is ready.
+    // What is not collected stays at the laundry for the next trip (specs/linen-laundry-days.md rule
+    // 10, specs/laundry-extra-trip.md §3.3 rule 12).
+    if (isTripDay) {
+      const wanted = extraTrip && extraTrip.pickUpAll === false ? extraTrip.pickUp || {} : null;
+      const collected = collectBatches(atLaundry, cursor, ALL_TYPES, wanted);
+      atLaundry = collected.remaining;
+      addInto(pickedUp, collected.collected);
+      addInto(clean, collected.collected);
     }
 
     // 2) Check-ins on `cursor` — clean → inCirculation. Always run, independent of skip.
@@ -417,60 +344,79 @@ function simulateInventory({
       subtractInto(clean, c);
     }
 
-    // 2.5) Manual additions for THIS laundry day (specs/manual-laundry-additions.md §4 rules 4-5):
-    // the operator washes extra linen this trip → it leaves clean and joins the dirty pile, so the
-    // drop step (3) washes it and it returns clean on pick-up (+7d). On a SKIPPED trip the drop is
-    // skipped, so it stays dirty and defers to the next non-skipped trip — same carry-forward as
-    // reservation linen. Conservation holds: what leaves clean returns on pick-up.
-    // A NEGATIVE manual value is the mirror move (specs/laundry-manual-removals.md §3 rules 4-5): the
-    // operator washed that linen himself, so it goes dirty → clean on the trip date, never joins the
-    // at-laundry batch and never comes back on the +7 j pick-up. Capped at the dirty pile of its type:
-    // linen still in a guest's room — or already clean — cannot be « washed at home », and inventing it
-    // here would break the conservation invariant.
-    if (isLaundryDay || extraTrip) {
-      const manual = manualAdditionsByDate.get(cursor);
-      if (manual) {
-        const applied = zeroByType();
-        for (const t of ALL_TYPES) {
-          const wanted = Number(manual[t] || 0);
-          applied[t] = wanted < 0 ? -Math.max(0, Math.min(dirty[t], -wanted)) : wanted;
+    // 2.5) Manual lines of THIS date, whatever the date is (the Planning window sums count them too, so a
+    // line left on a date that a schedule change turned into a non-laundry day still reaches the next trip).
+    // A positive line (specs/manual-laundry-additions.md §4 rules 4-5): the operator washes extra linen, it
+    // leaves clean and joins the dirty pile, so the next drop washes it and it returns clean on pick-up. On a
+    // SKIPPED trip the drop is skipped, so it stays dirty and defers to the next non-skipped trip — same
+    // carry-forward as reservation linen. A NEGATIVE line is the mirror move
+    // (specs/laundry-manual-removals.md §3 rules 4-5): the operator washed that linen himself. It waits for
+    // the next drop and is capped THERE at the dirty pile of its type — the rule the Planning ledger applies
+    // (a window's sum floored at 0) — so the two agree whatever the date of the line. Linen still in a
+    // guest's room, or already clean, cannot be « washed at home »; inventing it would break conservation.
+    const manual = manualAdditionsByDate.get(cursor);
+    if (manual) {
+      for (const t of ALL_TYPES) {
+        const wanted = Number(manual[t] || 0);
+        if (wanted > 0) {
+          dirty[t] += wanted;
+          clean[t] -= wanted;
+        } else if (wanted < 0) {
+          washedAtHome[t] += -wanted;
         }
-        addInto(dirty, applied);
-        subtractInto(clean, applied);
       }
     }
 
-    // 3) Trip-day drop: the whole dirty pile → atLaundry, dirty resets to 0. Skipped trips don't drop.
+    // 3) Trip-day drop: the whole dirty pile becomes a batch, ready `turnaroundDays` later; dirty
+    // resets to 0. Skipped days don't drop.
     if (isTripDay) {
-      const dropSnap = cloneByType(dirty);
-      addInto(atLaundry, dropSnap);
-      subtractInto(dirty, dropSnap);
+      for (const t of ALL_TYPES) {
+        const washed = Math.max(0, Math.min(dirty[t], washedAtHome[t]));
+        dirty[t] -= washed;
+        clean[t] += washed;
+        washedAtHome[t] = 0;
+      }
+      addInto(dropped, dirty);
+      atLaundry = addBatch(atLaundry, { dropDate: cursor, readyFrom: schedule.readyFrom(cursor), counts: dropped });
+      subtractInto(dirty, dropped);
     }
 
     // 4) Detect shortages on this day's end-of-day state. `clean[t] < 0` ⇒ shortage of `-clean[t]`.
-    const shortagesToday = [];
-    for (const t of ALL_TYPES) {
-      if (Number(stock[t]) > 0 && clean[t] < 0) {
-        shortagesToday.push({ type: t, missing: -clean[t] });
+    // The days before `from` are only the warm-up: neither emitted nor counted.
+    if (cursor >= from) {
+      const shortagesToday = [];
+      for (const t of ALL_TYPES) {
         const agg = shortagesByType[t];
-        if (!agg.firstDate) agg.firstDate = cursor;
-        if (-clean[t] > agg.maxMissing) agg.maxMissing = -clean[t];
-        for (const a of arrivalsToday) {
-          const c = contractsByReservationId.get(Number(a.id));
-          if (c && c[t] > 0) agg.impactedReservationIds.add(Number(a.id));
+        if (Number(stock[t]) > 0 && clean[t] < 0) {
+          shortagesToday.push({ type: t, missing: -clean[t] });
+          if (!agg.firstDate) agg.firstDate = cursor;
+          // specs/linen-laundry-days.md rule 18 — the first spell runs until the first day with a clean sheet
+          // for everyone again; a shortage after that is a later spell, flagged, not merged into it.
+          if (!agg.firstSpellOver) agg.lastDate = cursor;
+          else agg.laterSpell = true;
+          if (-clean[t] > agg.maxMissing) agg.maxMissing = -clean[t];
+          for (const a of arrivalsToday) {
+            const c = contractsByReservationId.get(Number(a.id));
+            if (c && c[t] > 0) agg.impactedReservationIds.add(Number(a.id));
+          }
+        } else if (agg.firstDate && Number(stock[t]) > 0) {
+          agg.firstSpellOver = true;
         }
       }
-    }
 
-    days.push({
-      date: cursor,
-      clean: cloneByType(clean),
-      inCirculation: cloneByType(inCirculation),
-      dirty: cloneByType(dirty),
-      atLaundry: cloneByType(atLaundry),
-      shortagesToday,
-      isTripDay,
-    });
+      days.push({
+        date: cursor,
+        clean: cloneByType(clean),
+        inCirculation: cloneByType(inCirculation),
+        dirty: cloneByType(dirty),
+        atLaundry: totalOf(atLaundry, ALL_TYPES).counts,
+        shortagesToday,
+        isTripDay,
+        dropped,
+        pickedUp,
+        batches: atLaundry.map((b) => ({ ...b, counts: { ...b.counts } })),
+      });
+    }
 
     // 5) Prepare for next day: tomorrow's check-outs leave inCirculation → dirty.
     const tomorrow = addDays(cursor, 1);
@@ -491,6 +437,9 @@ function simulateInventory({
     shortagesByTypeOut[t] = {
       firstDate: shortagesByType[t].firstDate,
       maxMissing: shortagesByType[t].maxMissing,
+      // null while the first spell is still running at the horizon.
+      lastShortageDate: shortagesByType[t].firstSpellOver ? shortagesByType[t].lastDate : null,
+      laterShortage: shortagesByType[t].laterSpell,
       impactedReservationIds: Array.from(shortagesByType[t].impactedReservationIds).sort((a, b) => a - b),
     };
   }
@@ -521,6 +470,6 @@ module.exports = {
   TOWEL_TYPES,
   // exported for tests
   __test: {
-    parseIso, toIso, addDays, weekdayOf, previousOrSameLaundryDay, zeroByType,
+    parseIso, toIso, addDays, zeroByType,
   },
 };
