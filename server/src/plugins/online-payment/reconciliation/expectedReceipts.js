@@ -71,10 +71,12 @@ function receiptsOfReservation(row, { buildLedger, parseGroup, links, installmen
     if (!(grossRaw > 0) && payout == null) return out;
     // Rule 46 — the solde credit of a platform that took an acompte carries the solde only.
     const acompteNet = platformAcompteNet(row);
+    // Rule 31 of the reconciliation spec — what the platform kept as a penalty never reaches the account.
+    const penalties = Math.max(0, Number(row.platformPenaltyAmount || 0));
     const soldeGross = acompteNet > 0 ? Math.max(0, grossRaw - Number(row.depositAmount || 0)) : grossRaw;
     out.push({
       reservationId: row.id, ledgerKey: 'balance', label: balance.label, channel: `platform:${platform}`, platform,
-      expectedCents: payout != null ? cents(Math.max(0, payout - acompteNet)) : cents(soldeGross),
+      expectedCents: payout != null ? cents(Math.max(0, payout - acompteNet - penalties)) : cents(soldeGross),
       grossCents: cents(soldeGross),
       payoutRecorded: payout != null,
       expectedDate: paid ? day(row.balancePaidDate) : day(row.balanceDueDate),

@@ -9,6 +9,7 @@ const icalCancellationModel = require('../models/icalCancellationModel');
 const { emit: defaultEmitPluginEvent } = require('../plugins/sdk/eventBus');
 const { validateApprovalCompensation } = require('../utils/cancellationCompensations');
 const { buildPaymentDeadlineRows } = require('../utils/paymentDeadlines');
+const { decorateDeadlineRows } = require('../utils/pluginPaymentDeadlineDecorators');
 const { isDirectChannel } = require('../utils/platformNameFormat');
 const platformsModel = require('../models/platformsModel');
 const { DEFAULT_PAYOUT_DUE_DAYS } = require('../utils/platformPayout');
@@ -204,7 +205,7 @@ function buildController({
           ? { ...row, remindByEmail: true, remindTemplateId: templateId, remindNote: 'Aucun paiement en ligne : demande par email.' }
           : { ...row, remindType: null };
       });
-      return res.json({ rows });
+      return res.json({ rows: decorateDeadlineRows(rows) });
     },
 
     /**

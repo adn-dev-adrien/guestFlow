@@ -8,13 +8,14 @@
  *
  * Props: reservationId, cardSx, contentSx (the fiche's section rhythm), pluginBlocks, reloadFinance, formDirty
  */
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { Box, Button, Card, CardContent, Stack, Typography } from '@mui/material';
-import { StatusBadge } from '../sdk';
+import { StatusBadge, PlatformPenaltyDialog } from '../sdk';
 import ReconciliationLine from './ReconciliationLine';
 import LinkTransactionDialog from './LinkTransactionDialog';
+import SplitSharesDialog from './SplitSharesDialog';
 import useReconciliationActions from './useReconciliationActions';
-import { lastReadLabel, readFailureLabel } from './reconciliationShared';
+import { lastReadLabel, readFailureLabel, shareLabels } from './reconciliationShared';
 
 const UNSAVED = 'Enregistrer ou annuler les modifications avant de rapprocher.';
 
@@ -22,20 +23,23 @@ export default function ReservationReconciliationCard({ cardSx, contentSx, plugi
   const block = pluginBlocks ? pluginBlocks['online-payment'] : null;
   const [expanded, setExpanded] = useState(false);
   const [linking, setLinking] = useState(false);
+  const [sharesItem, setSharesItem] = useState(null);
+  const [penaltyItem, setPenaltyItem] = useState(null);
   const reload = useCallback(async () => { if (reloadFinance) await reloadFinance(); }, [reloadFinance]);
   const actions = useReconciliationActions({ onChanged: reload });
-
-  const receipts = useMemo(() => (block && block.lines ? block.lines.map((l) => ({
-    key: l.key, reservationId: l.reservation.id, ledgerKey: l.ledgerKey, label: l.label, expectedCents: l.expectedCents,
-  })) : []), [block]);
 
   if (!block || !block.lines || block.lines.length === 0) return null;
   const folded = block.allReconciled && !expanded;
   const failure = readFailureLabel(block.lastError);
 
-  const submitLink = async (link) => {
-    const ok = await actions.link('manual', link.transactionId, [{ reservationId: link.reservationId, ledgerKey: link.ledgerKey, amountCents: link.amountCents }]);
+  const submitLink = async (pairs) => {
+    const ok = await actions.linkBatch('manual', pairs);
     if (ok) setLinking(false);
+  };
+
+  const submitShares = async ({ pairs, proposalId }) => {
+    const ok = await actions.linkBatch(sharesItem.key, pairs, proposalId);
+    if (ok) setSharesItem(null);
   };
 
   return (
@@ -68,6 +72,8 @@ export default function ReservationReconciliationCard({ cardSx, contentSx, plugi
                   onConfirm={actions.confirm}
                   onDiscard={actions.discard}
                   onUndo={actions.undo}
+                  onShares={setSharesItem}
+                  onDeclarePenalty={setPenaltyItem}
                 />
               ))}
             </Box>
@@ -75,15 +81,25 @@ export default function ReservationReconciliationCard({ cardSx, contentSx, plugi
               <Typography variant="body2" color="text.secondary">Un virement manque ou est mal proposé ?</Typography>
               <Stack direction={{ xs: 'column', sm: 'row' }} gap={1}>
                 {block.allReconciled && <Button variant="text" onClick={() => setExpanded(false)} sx={{ minHeight: 44, textTransform: 'none' }}>Replier</Button>}
-                <Button variant="outlined" disabled={formDirty} onClick={() => setLinking(true)} sx={{ minHeight: 44, textTransform: 'none' }}>Rattacher un virement</Button>
+                <Button variant="outlined" disabled={formDirty} onClick={() => setLinking(true)} sx={{ minHeight: 44, textTransform: 'none' }}>Rattacher des virements</Button>
               </Stack>
             </Stack>
           </>
         )}
       </CardContent>
       <LinkTransactionDialog
-        open={linking} onClose={() => setLinking(false)} receipts={receipts} credits={block.credits || []}
+        open={linking} onClose={() => setLinking(false)} reservationId={block.lines[0].reservation.id}
         busy={actions.busy === 'manual'} onSubmit={submitLink}
+      />
+      {penaltyItem && (
+        <PlatformPenaltyDialog
+          open onClose={() => setPenaltyItem(null)} reservationId={penaltyItem.reservation.id} source="reconciliation"
+          initialAmount={penaltyItem.declarePenalty.amount} onDone={reload}
+        />
+      )}
+      <SplitSharesDialog
+        open={Boolean(sharesItem)} onClose={() => setSharesItem(null)} proposal={sharesItem ? sharesItem.proposal : null}
+        labels={sharesItem ? shareLabels(sharesItem) : {}} busy={Boolean(sharesItem) && actions.busy === sharesItem.key} onSubmit={submitShares}
       />
     </Card>
   );

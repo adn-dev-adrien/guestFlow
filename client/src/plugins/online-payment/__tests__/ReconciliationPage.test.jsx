@@ -5,7 +5,7 @@ import { vi } from 'vitest';
 
 import DialogProvider from '../../../components/DialogProvider';
 import ReconciliationPage from '../ReconciliationPage';
-import { proposed, gap, done, COUNTS, credit } from './reconciliationFixtures';
+import { proposed, gap, done, COUNTS, BULK, credit } from './reconciliationFixtures';
 
 // specs/qonto-bank-reconciliation.md rule 28, §6 — the Suivi financier page: counters, tabs read from the
 // server per view, confirm / discard on a row, credits no fiche claims, the disconnected state.
@@ -24,7 +24,7 @@ import api from '../../../api';
 const payload = (over = {}) => ({
   lastReadAt: '2026-10-23T08:00:00.000Z', lastError: null, startDate: '2026-10-01', counts: COUNTS, view: 'todo',
   items: [gap(), proposed({ key: '8|balance', reservation: { id: 8, clientName: 'Camille Lefevre', propertyName: 'Gîte', platform: 'direct' } })],
-  credits: [credit()], ...over,
+  credits: [credit()], filter: null, bulk: BULK, ...over,
 });
 const renderPage = () => render(<MemoryRouter><DialogProvider><ReconciliationPage /></DialogProvider></MemoryRouter>);
 
@@ -38,7 +38,7 @@ test('draws counters, the tabs with their counts and the server rows', async () 
   expect(screen.getByRole('tab', { name: /À traiter 3/ })).toBeTruthy();
   expect(screen.getByText('Camille Lefevre')).toBeTruthy();
   expect(screen.getByText('Non rattaché')).toBeTruthy();
-  expect(api.getReconciliation).toHaveBeenCalledWith('todo');
+  expect(api.getReconciliation).toHaveBeenCalledWith('todo', null);
 });
 
 test('a tab asks the server for its view', async () => {
@@ -47,7 +47,7 @@ test('a tab asks the server for its view', async () => {
   await screen.findByText('Écart de montant');
   api.getReconciliation.mockResolvedValue(payload({ view: 'done', items: [done()], credits: [] }));
   fireEvent.click(screen.getByRole('tab', { name: /Rapprochés/ }));
-  await waitFor(() => expect(api.getReconciliation).toHaveBeenCalledWith('done'));
+  await waitFor(() => expect(api.getReconciliation).toHaveBeenCalledWith('done', null));
   expect(await screen.findByText('Rapproché')).toBeTruthy();
 });
 
@@ -69,7 +69,7 @@ test('« Actualiser » reads the account and shows the failure in words', async 
   await screen.findByText('Écart de montant');
   fireEvent.click(screen.getByRole('button', { name: 'Actualiser' }));
   expect(await screen.findByText(/Lecture du compte impossible.*Qonto indisponible/)).toBeTruthy();
-  expect(api.readReconciliation).toHaveBeenCalledWith('todo');
+  expect(api.readReconciliation).toHaveBeenCalledWith('todo', null);
 });
 
 test('credits no fiche claims: « Hors réservation » marks the credit', async () => {

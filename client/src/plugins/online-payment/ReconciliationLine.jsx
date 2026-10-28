@@ -9,17 +9,19 @@
  *   busy        boolean — a write on this line is in flight
  *   blocked?    string — why a write is refused right now (unsaved fiche); disables the actions
  *   onConfirm, onDiscard, onUndo   (item) => void
+ *   onDeclarePenalty?  (item) => void — « Déclarer une pénalité de … » on a platform credit below the payout
+ *   onShares?   (item) => void — a grouped payout whose shares are typed (« Répartir et confirmer »)
  *   showReservation?  boolean — name the client and the platform (the page; the fiche knows its stay)
  *   onOpenFiche?      (item) => void — « Ouvrir la fiche » on a gap (the page)
  */
 import React from 'react';
-import { Box, Button, Stack, Typography } from '@mui/material';
+import { Box, Button, Chip, Stack, Typography } from '@mui/material';
 import { PlatformChip, StatusBadge } from '../sdk';
 import { money, CONFIDENCE_STATUS } from './reconciliationShared';
 
 const BANK_ROW_SX = { display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'baseline', mt: 0.75, fontSize: 13 };
 
-function BankRow({ label, side, amountCents }) {
+function BankRow({ label, side, amountCents, auto = false, alsoCovers = [] }) {
   return (
     <Box sx={BANK_ROW_SX}>
       <Typography component="span" variant="caption" color="text.secondary" sx={{ minWidth: { sm: 120 } }}>{label}</Typography>
@@ -28,12 +30,54 @@ function BankRow({ label, side, amountCents }) {
       </Typography>
       <Typography component="span" variant="body2" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>
         {side.counterparty}{side.reference ? ` · « ${side.reference} »` : ''}
+        {alsoCovers.length > 0 && ` · couvre aussi ${alsoCovers.map((c) => `${c.clientName || 'client'} (${c.label})`).join(', ')}`}
       </Typography>
+      {auto && <Chip size="small" variant="outlined" label="auto" />}
     </Box>
   );
 }
 
-export default function ReconciliationLine({ item, busy = false, blocked = '', onConfirm, onDiscard, onUndo, showReservation = false, onOpenFiche }) {
+/**
+ * BankCell — « Sur le compte » of the page's table: the confirmed transfers (with their « auto » badge and the stays
+ * they also covered) or the proposed ones (several credits of a split, the other stays of a group). Same wording as the
+ * mobile cards, drawn from the same server fields.
+ */
+export function BankCell({ item }) {
+  const { proposal } = item;
+  if (item.bank.length === 0 && !proposal) return '—';
+  return (
+    <Box>
+      {item.bank.map((b) => (
+        <Box key={b.transactionId} sx={{ mb: 0.5 }}>
+          <Typography component="span" variant="body2" sx={{ fontVariantNumeric: 'tabular-nums' }}>{b.dateLabel} · {money(b.allocatedCents)}</Typography>
+          {b.auto && <Chip size="small" variant="outlined" label="auto" sx={{ ml: 0.75, height: 20 }} />}
+          <Typography variant="caption" color="text.secondary" component="div" sx={{ overflowWrap: 'anywhere' }}>
+            {b.counterparty}
+            {(b.alsoCovers || []).length > 0 && ` · couvre aussi ${b.alsoCovers.map((c) => `${c.clientName || 'client'} (${c.label})`).join(', ')}`}
+          </Typography>
+        </Box>
+      ))}
+      {item.bank.length === 0 && proposal && (
+        <>
+          {(proposal.parts || [proposal.bank]).map((part) => (
+            <Box key={part.transactionId} sx={{ mb: 0.5 }}>
+              <Typography variant="caption" color="text.secondary">proposé · </Typography>
+              <Typography component="span" variant="body2" sx={{ fontVariantNumeric: 'tabular-nums' }}>{part.dateLabel} · {money(part.amountCents)}</Typography>
+              <Typography variant="caption" color="text.secondary" component="div" sx={{ overflowWrap: 'anywhere' }}>{part.counterparty}</Typography>
+            </Box>
+          ))}
+          {proposal.alsoCovers.length > 0 && (
+            <Typography variant="caption" color="text.secondary" component="div">
+              Versement groupé · couvre aussi {proposal.alsoCovers.map((c) => `${c.clientName || 'client'} (${c.label})`).join(', ')}
+            </Typography>
+          )}
+        </>
+      )}
+    </Box>
+  );
+}
+
+export default function ReconciliationLine({ item, busy = false, blocked = '', onConfirm, onDiscard, onUndo, onShares, onDeclarePenalty, showReservation = false, onOpenFiche }) {
   const { proposal } = item;
   const disabled = busy || Boolean(blocked);
   const buttonSx = { minHeight: 44, textTransform: 'none', width: { xs: '100%', sm: 'auto' } };
@@ -41,7 +85,7 @@ export default function ReconciliationLine({ item, busy = false, blocked = '', o
     <Box sx={{ py: 1.5, borderTop: 1, borderColor: 'divider', '&:first-of-type': { borderTop: 0 } }} data-testid={`line-${item.key}`}>
       <Stack direction="row" gap={1} sx={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <Box sx={{ minWidth: 0 }}>
-          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+          <Typography component="div" variant="body2" sx={{ fontWeight: 600 }}>
             {showReservation && `${item.reservation.clientName || 'Client'} · `}{item.label}
             {showReservation && <PlatformChip platform={item.reservation.platform} sx={{ ml: 1 }} />}
           </Typography>
@@ -54,12 +98,14 @@ export default function ReconciliationLine({ item, busy = false, blocked = '', o
       </Stack>
 
       {item.bank.map((b) => (
-        <BankRow key={b.transactionId} label={`Sur le compte le ${b.dateLabel}`} side={b} amountCents={b.allocatedCents} />
+        <BankRow key={b.transactionId} label={`Sur le compte le ${b.dateLabel}`} side={b} amountCents={b.allocatedCents} auto={b.auto} alsoCovers={b.alsoCovers} />
       ))}
 
       {proposal && (
         <>
-          <BankRow label={`Proposé · ${proposal.bank.dateLabel}`} side={proposal.bank} />
+          {proposal.parts
+            ? proposal.parts.map((part) => <BankRow key={part.transactionId} label={`Proposé · ${part.dateLabel}`} side={part} />)
+            : <BankRow label={`Proposé · ${proposal.bank.dateLabel}`} side={proposal.bank} />}
           <Typography variant="caption" color="text.secondary" component="div" sx={{ mt: 0.5 }}>
             <StatusBadge status={CONFIDENCE_STATUS[proposal.confidence] || 'neutral'} label={proposal.confidenceLabel} />
             {' '}{proposal.reason}
@@ -90,11 +136,18 @@ export default function ReconciliationLine({ item, busy = false, blocked = '', o
       <Stack direction={{ xs: 'column', sm: 'row' }} gap={1} sx={{ mt: 1.25 }}>
         {proposal && (
           <>
-            <Button variant="contained" disabled={disabled} onClick={() => onConfirm(item)} sx={buttonSx}>Confirmer</Button>
+            <Button variant="contained" disabled={disabled} onClick={() => (proposal.needsShares ? onShares(item) : onConfirm(item))} sx={buttonSx}>
+              {proposal.needsShares ? 'Répartir et confirmer' : 'Confirmer'}
+            </Button>
             <Button variant="text" color="inherit" disabled={disabled} onClick={() => onDiscard(item)} sx={buttonSx}>Écarter</Button>
           </>
         )}
         {item.canUndo && <Button variant="text" color="inherit" disabled={disabled} onClick={() => onUndo(item)} sx={buttonSx}>Défaire</Button>}
+        {onDeclarePenalty && item.declarePenalty && (
+          <Button variant="outlined" disabled={disabled} onClick={() => onDeclarePenalty(item)} sx={buttonSx}>
+            Déclarer une pénalité de {money(item.declarePenalty.amountCents)}
+          </Button>
+        )}
         {onOpenFiche && item.isGap && <Button variant="outlined" onClick={() => onOpenFiche(item)} sx={buttonSx}>Ouvrir la fiche</Button>}
       </Stack>
       {blocked && proposal && <Typography variant="caption" color="text.secondary" component="div" sx={{ mt: 0.5 }}>{blocked}</Typography>}

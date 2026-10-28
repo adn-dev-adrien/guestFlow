@@ -195,6 +195,15 @@ move into it in phases 2 and 3, and plugin downloads arrive in phase 4.
 > handler, summarize })` declares a subject of the home's « À traiter »; the client SDK exports
 > `AttentionCard`, and a `dashboard.alerts(.urgent)` contribution receives the server's `attention`.
 
+> 2026-10-28 (SDK 2.9.0, `specs/reconciliation-assisted-matching.md`): the SDK gains
+> - client export `FilterChip` (an active-filter chip, Escape and close button);
+> - server `ctx.paymentDeadlineDecorator(rows => rows)` — decorates, or drops, the rows of the home's « Échéances »
+>   card while the plugin is live; one per plugin, a throwing decorator changes nothing (rule 22 of that spec);
+> - the event `platform-penalty.changed` `{ reservationId }`, emitted after a platform penalty is declared or removed;
+> - core module `platformPenaltiesModel` (`buildModel`, `listFor`, `listByDate`, `findById`, `insert`, `remove`, `totalFor`),
+>   and `installmentsModel.markUnpaid` (« Défaire » of the bank reconciliation);
+> - client export `PlatformPenaltyDialog` (the penalty dialog a plugin opens from a reconciliation gap).
+
 _Added 2026-10-19 (SDK 1.5.0)_ — **Setup state** — `ctx.setupStatus(() => null | '<what is missing>')`:
 the plugin says, from its own settings and without any remote call, what it still lacks; the Plugins
 page shows « Actif · <what> » and « Configurer » (`specs/plugins-phase-0-foundation.md` rule 25).

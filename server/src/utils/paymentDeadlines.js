@@ -154,7 +154,7 @@ function buildPlatformPayoutRow(row, today) {
 
   // specs/finance-dashboard-redesign.md rule 41 — the platform owes its payout: the solde net of its
   // commission, as the finance page counts it.
-  const payout = round2(Math.max(0, balanceAmount - Number(row.platformCommissionAmount || 0)));
+  const payout = round2(Math.max(0, balanceAmount - Number(row.platformCommissionAmount || 0) - Number(row.platformPenaltyAmount || 0)));
   // Rule 41 — nothing owed, nothing late.
   if (!(payout > 0)) return null;
   return {

@@ -108,6 +108,15 @@ module.exports = defineConfig({
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
+      // The bank reconciliation spec seeds a stored Qonto connection into the shared database: it runs in
+      // its own project, after the others, so it never overlaps a spec that expects Qonto to be absent.
+      testIgnore: /reconciliation-assisted-matching\.spec\.js$/,
+    },
+    {
+      name: 'bank-reconciliation',
+      use: { ...devices['Desktop Chrome'] },
+      testMatch: /reconciliation-assisted-matching\.spec\.js$/,
+      dependencies: ['chromium'],
     },
   ],
 });

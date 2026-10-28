@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Box, Card, CardContent, Typography, Stack, Divider, Grid, TextField, Button, Switch, FormControlLabel, Tooltip } from '@mui/material';
+import { Box, Card, CardContent, Typography, Stack, Divider, Grid, TextField, Button, Switch, FormControlLabel, Tooltip, IconButton } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import api from '../../api';
 import ArithmeticTextField from '../ArithmeticTextField';
@@ -11,6 +11,8 @@ import { createPortal } from 'react-dom';
 import RefundDialog from './RefundDialog';
 import PaymentMarkForm from './PaymentMarkForm';
 import PlatformStatementEditor from './PlatformStatementEditor';
+import PlatformPenaltyDialog from './PlatformPenaltyDialog';
+import DeleteIcon from '@mui/icons-material/Delete';
 import LedgerList from '../LedgerList';
 import InstallmentPlanCard from './InstallmentPlanCard';
 import LedgerAmountEditor from '../LedgerAmountEditor';
@@ -278,7 +280,8 @@ export default function FinanceSection() {
     installmentPlan = null, setInstallmentPlan, fichePristine = true,
   } = useReservationForm();
   const { confirm } = useAppDialogs();
-  const { showError } = useToast();
+  const { showError, showSuccess } = useToast();
+  const [penaltyOpen, setPenaltyOpen] = useState(false);
   const [arrivalPayDate, setArrivalPayDate] = useState(todayStr());
   const [arrivalPayBusy, setArrivalPayBusy] = useState(false);
   const [arrivalPayError, setArrivalPayError] = useState('');
@@ -503,6 +506,19 @@ export default function FinanceSection() {
     return res;
   };
 
+  // Rules 24, 30 — a penalty is declared and removed where the payout is, on a locked fiche too: the server writes
+  // it, the fiche only re-reads what the server moved.
+  const removePenalty = async (penalty) => {
+    const ok = await confirm({ title: 'Supprimer la pénalité ?', message: penalty.label, confirmLabel: 'Supprimer' });
+    if (!ok) return;
+    try {
+      const answer = await api.removePlatformPenalty(editingReservationId, penalty.id);
+      showSuccess(answer.message || 'Pénalité supprimée.');
+      await reloadReservationFinance();
+      close();
+    } catch (err) { showError(err?.message || 'Suppression impossible.'); }
+  };
+
   const renderDetail = (row) => {
     const d = row.detail || {};
     const bits = [];
@@ -512,11 +528,12 @@ export default function FinanceSection() {
     if (d.pending) bits.push(<span key="p">{d.pending}</span>);
     const warnings = d.warnings || [];
     const lines = d.lines || [];
+    const penaltyLines = d.penalties || [];
     const slot = d.slot;
     const foldable = Boolean(slot) || row.state === 'paid-group';
     const groupFirst = row.state === 'paid-group' && rows.find((r) => r.state === 'paid-group')?.key === row.key;
     const hasFold = slot || (groupFirst && form.arrivalPayment?.covers);
-    if (bits.length === 0 && warnings.length === 0 && lines.length === 0 && !d.reconciliation && !d.note && !hasFold && !d.link?.resend) return null;
+    if (bits.length === 0 && warnings.length === 0 && lines.length === 0 && penaltyLines.length === 0 && !row.penaltyAction && !d.reconciliation && !d.note && !hasFold && !d.link?.resend) return null;
     const open = folds.has(row.key);
     return (
       <Box sx={{ mt: 0.5 }}>
@@ -536,6 +553,27 @@ export default function FinanceSection() {
           )}
         </Box>
         {lines.map((l) => <Typography key={l} variant="body2" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>{l}</Typography>)}
+        {penaltyLines.map((p) => (
+          <Stack key={p.id} direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
+            <Typography variant="body2" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>{p.label}</Typography>
+            <Tooltip title="Supprimer la pénalité">
+              <span>
+                <IconButton aria-label="Supprimer la pénalité" disabled={!fichePristine} onClick={() => removePenalty(p)} sx={{ minWidth: 44, minHeight: 44 }}>
+                  <DeleteIcon fontSize="small" />
+                </IconButton>
+              </span>
+            </Tooltip>
+          </Stack>
+        ))}
+        {row.penaltyAction && editingReservationId && (
+          <Tooltip title={fichePristine ? '' : 'Enregistrer ou annuler les modifications avant de déclarer une pénalité.'}>
+            <span>
+              <Button size="small" variant="text" disabled={!fichePristine} onClick={() => setPenaltyOpen(true)} sx={{ minHeight: 44, textTransform: 'none' }}>
+                {row.penaltyAction.label}
+              </Button>
+            </span>
+          </Tooltip>
+        )}
         {d.note && <Typography variant="caption" color="text.secondary" sx={{ fontStyle: 'italic' }}>{d.note}</Typography>}
         {open && slot === 'complement' && (
           <ComplementDetail
@@ -888,6 +926,9 @@ export default function FinanceSection() {
             })}
             onSellOnly={() => saveThenRun(reloadReservationFinance)}
           />
+        )}
+        {editingReservationId && (
+          <PlatformPenaltyDialog open={penaltyOpen} onClose={() => setPenaltyOpen(false)} reservationId={editingReservationId} source="fiche" onDone={async () => { await reloadReservationFinance(); close(); }} />
         )}
         {!isDevisMode && editingReservationId && (
           <RefundDialog

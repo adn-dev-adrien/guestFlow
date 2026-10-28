@@ -112,9 +112,11 @@ function ledgerFor({ row, quote = null, live = {}, propertyId = null, overpaymen
   const id = row && row.id ? Number(row.id) : null;
   let links = [];
   let refunds = [];
+  let penalties = [];
   if (id) {
     try { links = require('../models/paymentLinksModel').listForReservation(id); } catch { links = []; }
     try { refunds = refundsModel.listByReservation(id); } catch { refunds = []; }
+    try { penalties = require('../models/platformPenaltiesModel').listFor(id); } catch { penalties = []; }
   }
   // specs/caution-live-from-property.md §3 — live from the property until received, then frozen.
   let cautionAmount = Number(row && row.cautionAmount) || 0;
@@ -129,6 +131,7 @@ function ledgerFor({ row, quote = null, live = {}, propertyId = null, overpaymen
     live,
     links,
     refunds,
+    penalties,
     overpayment,
     midStayNotes: parseMidStayNotes(row && row.midStaySettledNotes),
     cautionAmount,
@@ -180,6 +183,7 @@ function midStayQuoteInputs(reservationId) {
     // specs/reservation-refunds.md §3.3 — book-money refunds only: a caisse-interne refund is off the
     // books, exactly like the cash complements it mirrors.
     refundsTotal: refundsModel.totalsByReservation(Number(reservationId)).book,
+    platformPenaltyAmount: row.platformPenaltyAmount,
     // specs/arrival-payment-detail-and-adjustment.md rule 21 — a réduction accordée on the single
     // arrival payment lowers the « total du séjour » exactly as a refund does (and a pourboire raises
     // it). Read from the row, never from the browser: it is money, and the helper already gates a
