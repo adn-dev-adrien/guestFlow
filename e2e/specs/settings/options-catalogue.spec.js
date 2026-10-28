@@ -26,7 +26,7 @@ test('fold a category, search, refuse a negative per-property price, save a fixe
   const estiva = await createProperty({ name: 'Estiva E2E catalogue' });
   seedCateringOptions(granja.id);
   await createOption({
-    title: 'Ménage E2E catalogue', priceType: 'per_stay', price: 30, propertyIds: [granja.id, estiva.id],
+    title: 'Ménage catalogue', priceType: 'per_stay', price: 30, propertyIds: [granja.id, estiva.id],
   });
 
   await page.goto('/parametres/options-ressources');
@@ -41,12 +41,12 @@ test('fold a category, search, refuse a negative per-property price, save a fixe
   // Rule 11 — searching unfolds every section and keeps the matches.
   await page.getByRole('searchbox', { name: 'Rechercher une option' }).fill('jus');
   await expect(page.getByRole('button', { name: 'Jus de pomme 1L', exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Ménage E2E catalogue', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Ménage catalogue', exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'Effacer' }).click();
 
   // Rules 12-14 — the option opens in a side panel; a negative price on Granja is refused inline.
-  await page.getByRole('button', { name: 'Ménage E2E catalogue', exact: true }).click();
-  const panel = page.getByRole('dialog', { name: 'Ménage E2E catalogue' });
+  await page.getByRole('button', { name: 'Ménage catalogue', exact: true }).click();
+  const panel = page.getByRole('dialog', { name: 'Ménage catalogue' });
   await expect(panel).toBeVisible();
   const granjaPrice = panel.getByLabel('Prix · Granja E2E catalogue');
   await granjaPrice.fill('-5');
@@ -58,7 +58,7 @@ test('fold a category, search, refuse a negative per-property price, save a fixe
   await panel.getByRole('button', { name: 'Enregistrer' }).click();
   await expect(page.getByText('Option enregistrée')).toBeVisible();
   await expect(panel).toHaveCount(0);
-  const row = page.getByRole('button', { name: 'Ménage E2E catalogue', exact: true }).locator('xpath=../..');
+  const row = page.getByRole('button', { name: 'Ménage catalogue', exact: true }).locator('xpath=../..');
   await expect(row).toContainText(/30\s€\s–\s85\s€/);
   await expect(row).toContainText('selon logement');
 });
