@@ -155,9 +155,12 @@ function buildStoredSummary({ row, db, vatRate, headline, refundsTotal = 0, midS
   const platformKey = String(row.platform || 'direct').trim().toLowerCase();
   const collects = isPlatformCollectingTouristTax(db, row.propertyId, platformKey);
   const remittedByOwner = isTouristTaxRemittedByOwner(db, row.propertyId, platformKey);
-  const touristTaxOfferedByPlatform = collects && !remittedByOwner;
   const withheld = row.platformTouristTaxAmount == null || row.platformTouristTaxAmount === ''
     ? null : round2(row.platformTouristTaxAmount);
+  // A tax the operator stated as withheld by the platform is the platform's, whatever the platform's mode
+  // says today: the card prints it struck with its « Plateforme » tag and the cascade deducts it, so the
+  // lines add up to the same « Total du séjour » as the sticky bar.
+  const touristTaxOfferedByPlatform = (collects && !remittedByOwner) || withheld != null;
 
   const deferred = flag(row.complementDeferredToCheckout);
   const endOfStay = round2(row.endOfStayComplementAmount);
@@ -190,7 +193,7 @@ function buildStoredSummary({ row, db, vatRate, headline, refundsTotal = 0, midS
     touristTaxInComplement: flag(row.touristTaxInComplement),
     touristTaxOfferedByPlatform,
     touristTaxCollectedOnArrival: !collects && isPlatform && tax > 0,
-    touristTaxReversedByPlatform: collects && remittedByOwner && tax > 0,
+    touristTaxReversedByPlatform: !touristTaxOfferedByPlatform && collects && remittedByOwner && tax > 0,
     platformTouristTaxWithheld: withheld,
     platformSale: channel.platformSale,
     depositAmount: round2(row.depositAmount),
@@ -210,12 +213,7 @@ function buildStoredSummary({ row, db, vatRate, headline, refundsTotal = 0, midS
     platformNetReceivedAmount: totalCommission > 0 ? round2(preArrival - totalCommission) : null,
     headline,
   };
-  // The card's lines add up to the saved total (`totalStayPrice`): the tourist tax a platform withheld is
-  // shown struck on its own line, never added on top, so the cascade starts from the saved total and
-  // deducts nothing for it.
-  summary.summaryCascade = {
-    ...summaryCascade(summary), grossTotal: summary.totalStayPrice, offeredTaxDeduction: 0,
-  };
+  summary.summaryCascade = summaryCascade(summary);
   return summary;
 }
 

@@ -182,10 +182,15 @@ test('rule 63 — the controller answers the check on calculate-price and omits 
   assert.equal('platformPriceCheck' in reception.body, false);
 });
 
-test('rule 61 — a channel cleaning fee and a ménage option inside the brut cannot be told apart: not judged', () => {
+test('rule 61 — with a cleaning fee on the grid and a ménage inside the brut, the stay is read twice: only a gap in both fires', () => {
   const withFee = { loadContext: () => ({ rules: RULES, property: {}, grid: { ...GRID, platforms: [{ id: 5, name: 'Booking', commissionPercent: 15, cleaningFee: 145 }] }, tariffChangedSinceBooking: false }) };
-  const far = { platformGrossAmount: 150, accommodationAdjustedPrice: 150 };
-  assert.ok(util({ quote: far, ...withFee }), 'sanity: the fee alone does not silence it');
-  assert.equal(util({ quote: { ...far, optionLines: [{ title: 'Ménage', totalPrice: 80, inComplement: 0 }] }, ...withFee }), null);
-  assert.ok(util({ quote: { ...far, optionLines: [{ title: 'Ménage', totalPrice: 80, inComplement: 1 }] }, ...withFee }), 'a line collected on arrival is not in the brut');
+  // Grid: 3 × 118 + 145 = 499. Ménage 80 € sold in the brut for the same chore as the fee.
+  const menage = [{ title: 'Ménage', totalPrice: 80, inComplement: 0 }];
+  const sold = (accommodation, optionLines) => ({ platformGrossAmount: accommodation + 80, accommodationAdjustedPrice: accommodation, optionLines });
+  assert.equal(util({ quote: sold(420, menage), ...withFee }), null, 'ménage duplicating the fee: 420 reads -16 %, 500 reads +0 %: not an error');
+  const real = util({ quote: sold(300, menage), ...withFee });
+  assert.ok(real, 'a misprice shows in both readings (300 → -40 %, 380 → -24 %)');
+  assert.equal(real.direction, 'below');
+  assert.equal(util({ quote: sold(300, [{ title: 'Ménage', totalPrice: 80, inComplement: 1 }]), ...withFee }).direction, 'below', 'a line collected on arrival is not in the brut');
+  assert.equal(util({ quote: sold(600, menage), ...withFee }), null, 'above in one reading only (+20 %, +36 %): the first is inside the band');
 });

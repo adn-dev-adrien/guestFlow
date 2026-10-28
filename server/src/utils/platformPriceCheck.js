@@ -65,11 +65,10 @@ function platformPriceCheck({
   const channel = (grid?.platforms || []).find((p) => String(p.name || '').trim().toLowerCase() === platformKey);
   if (!channel || !(Number(channel.commissionPercent) < 100)) return null;
 
-  // A cleaning fee billed by the channel and a ménage sold as an option inside the same brut cannot be told
-  // apart (no flag marks the cleaning option): the fee would be counted twice, so the stay is not judged.
+  // What the brut carries beside the accommodation, at the stay's own price (not collected on arrival).
   const extrasInBrut = [...(quote.optionLines || []), ...(quote.resourceLines || [])]
-    .some((line) => !Number(line.inComplement || 0) && Number(line.totalPrice || 0) > 0);
-  if (Number(channel.cleaningFee || 0) > 0 && extrasInBrut) return null;
+    .filter((line) => !Number(line.inComplement || 0))
+    .reduce((sum, line) => sum + Number(line.totalPrice || 0), 0);
 
   const seasonsById = new Map((grid.seasons || []).map((s) => [s.ruleId, s]));
   const nights = Array.isArray(quote.nightlyBreakdown) ? quote.nightlyBreakdown : [];
@@ -98,13 +97,26 @@ function platformPriceCheck({
   }
   expected += Number(channel.cleaningFee || 0);
 
-  const paid = cents(Number(quote.accommodationAdjustedPrice || 0) + surcharge);
   expected = cents(expected);
   if (!(expected > 0)) return null;
-  const gap = cents(paid - expected);
-  const gapPercent = (gap / expected) * 100;
-  const outOfBand = gapPercent < BELOW_PERCENT || gapPercent > ABOVE_PERCENT;
-  if (!outOfBand || Math.abs(gap) < MIN_GAP_EUR) return null;
+  const judge = (paid) => {
+    const gap = cents(paid - expected);
+    const gapPercent = (gap / expected) * 100;
+    const outOfBand = gapPercent < BELOW_PERCENT || gapPercent > ABOVE_PERCENT;
+    return outOfBand && Math.abs(gap) >= MIN_GAP_EUR ? { paid, gap, gapPercent } : null;
+  };
+
+  // No flag tells a « Ménage » option from the channel's cleaning fee, and a stay may carry both for one
+  // chore. With such a fee on the grid the stay is read twice — the extras taken out of what was paid, and
+  // left in — and only a gap that shows in both, on the same side, is an error.
+  const paid = cents(Number(quote.accommodationAdjustedPrice || 0) + surcharge);
+  const reading = judge(paid);
+  if (!reading) return null;
+  if (Number(channel.cleaningFee || 0) > 0 && extrasInBrut > 0) {
+    const withExtras = judge(cents(paid + extrasInBrut));
+    if (!withExtras || Math.sign(withExtras.gap) !== Math.sign(reading.gap)) return null;
+  }
+  const { gap, gapPercent } = reading;
 
   return {
     platformLabel: channel.name,

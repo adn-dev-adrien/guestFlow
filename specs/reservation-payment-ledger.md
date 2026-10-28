@@ -624,9 +624,11 @@ tariff would fire on every platform stay (the brut is grossed up by the commissi
     fallback of a night no season covered yet): the grid describes a tariff the guest never saw, whatever
     the journal says. _Added after the real-data pass of 2026-10-28: a Booking stay of August 2027,
     booked in August 2026 on the fallback 100 € nights, read +43 % against today's grid._
-    A channel that bills a cleaning fee on the grid is not judged when the brut also carries a line sold
-    at the stay's own price (an option or a resource not collected on arrival): the fee and a « Ménage »
-    option cannot be told apart — no flag marks the cleaning option — and would be counted twice.
+    A channel that bills a cleaning fee on the grid, whose brut also carries a line sold at the stay's own
+    price (an option or a resource not collected on arrival), is read twice, because no flag tells a
+    « Ménage » option from the fee (a stay may carry both for one chore): **(a)** « paid » without those
+    lines (rule 58), **(b)** « paid » with them. The alert is raised only when both readings are out of
+    band (rule 60) on the same side.
     _Accepted limit (review 2026-10-28): a stay sold before a season edit is silenced by the clause above
     rather than judged on today's grid._
     A manual price (`customPrice`) does not exist on a platform stay (the brut is the single lever,
@@ -1062,9 +1064,14 @@ None left. **Resolved 2026-10-19** — Adrien took the recommended option on all
 - **Gîtes de France fiche 22308 raises the alert — Resolved 2026-10-28 (Adrien):** keep the alert as it is. The
   gap is real; Adrien aligns the Gîtes de France prices in ITEA on the grid, so 22308 is expected to alert until then.
   No code change.
-- Stored card: « Total du séjour » is the saved total (`totalStayPrice`): the cascade starts from it and a platform's
-  withheld tourist tax is shown struck on its own line, never added on top (a parity script over the 53 shadow
-  stays checks that the printed lines add up to it).
+- Stored card: « Total du séjour » is the sticky bar's (`storedHeadline`, rule 31 of
+  ui-review-2026-10-19-operations: one gross for live and stored): the saved price plus the tourist tax as the
+  books know it — the amount the operator stated as withheld by the platform when there is one. That stated
+  amount is printed on the tax line struck with its « Plateforme » tag and deducted in the cascade
+  (« Taxe de séjour (plateforme) »), whatever the platform's mode says today, so the lines add up to the
+  total. A parity script over the shadow stays checks card = bar and printed lines = total.
+- Rule 61, cleaning fee: the stay is read twice (extras taken out of « paid », and left in) and only a gap
+  in both readings, on the same side, alerts.
 
 ## 10. Implementation progress — amendment of 2026-10-28
 
