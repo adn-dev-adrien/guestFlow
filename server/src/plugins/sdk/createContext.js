@@ -109,6 +109,14 @@ function createContext(id, { db, settingsModel, dataDir = null } = {}) {
       });
       record.priceLineContributor = contributor;
     },
+    // (resource, { properties }) → { lines?: [{ label, value }], footer?: string } | null — what the plugin
+    // adds to a resource's card on Options & ressources while it is live (specs/options-resources-ux.md
+    // rule 19). Synchronous, no I/O; a plugin declares one.
+    resourceCatalogueLines(build) {
+      if (typeof build !== 'function') throw new Error(`${prefix} resourceCatalogueLines needs a function`);
+      if (record.resourceCatalogueLines) throw new Error(`${prefix} resourceCatalogueLines is already declared`);
+      record.resourceCatalogueLines = build;
+    },
     // A commit hook for one of the plugin's arrival SAS steps (rule 6).
     sasCommit(hook) {
       SAS_COMMIT_MEMBERS.forEach((m) => {
@@ -154,6 +162,13 @@ function createContext(id, { db, settingsModel, dataDir = null } = {}) {
         || registry.all().some((r) => (r.pushChannels || []).some((c) => c.key === key));
       if (taken) throw new Error(`${prefix} the push channel "${key}" is already declared`);
       record.pushChannels.push({ key, label });
+    },
+    // (rows) → rows: decorates the rows of the home's « Échéances » card while the plugin is live — a row may
+    // gain a `bank` line or be dropped (specs/reconciliation-assisted-matching.md rule 22). At most one per plugin.
+    paymentDeadlineDecorator(decorate) {
+      if (typeof decorate !== 'function') throw new Error(`${prefix} the payment-deadline decorator must be a function`);
+      if (record.paymentDeadlineDecorator) throw new Error(`${prefix} the payment-deadline decorator is already declared`);
+      record.paymentDeadlineDecorator = decorate;
     },
     migrations(list) { record.migrations.push(...list); },
     settings,

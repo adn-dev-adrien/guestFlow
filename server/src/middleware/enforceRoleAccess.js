@@ -48,6 +48,8 @@ const RECEPTION_MATCHERS = [
   // Reservations — finance-stripped reads (the controller applies the reception view).
   { method: 'GET', re: /^\/reservations$/ },
   { method: 'GET', re: /^\/reservations\/\d+$/ },
+  // The calendar read shared by the Dashboard and the Calendrier page (same finance-free shaping).
+  { method: 'GET', re: /^\/calendar$/ },
   // Check-in / check-out status toggles only — the controller ignores any financial field in the
   // same payload for a reception-only requester (rule 10).
   { method: 'PATCH', re: /^\/reservations\/\d+\/payment$/ },

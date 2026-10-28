@@ -30,6 +30,7 @@ function createPasswordResetController({
   model,
   mailer,
   twoFactorModel,
+  passwordGuard = null,
   now = () => new Date(),
   log = (msg) => console.error(msg),
   defer = setImmediate,
@@ -108,6 +109,7 @@ function createPasswordResetController({
     if (!user || !user.isActive || user.isSupport) throw httpError(400, 'INVALID_TOKEN', 'Lien expiré ou déjà utilisé.');
     users.updatePassword(user.id, password);
     model.endSessionsOf(user.id);
+    if (passwordGuard) passwordGuard.clear(user.id);
     if (twoFactorModel) twoFactorModel.addEvent(user.id, 'password_reset', '', nowIso());
     return { user: users.findById(user.id) };
   }

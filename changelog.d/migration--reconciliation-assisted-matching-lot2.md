@@ -1,0 +1,1 @@
+- **Migration.** Plugin migration `plugin:online-payment:reconciliation_v2` adds `bank_reconciliation_lines.auto` (default 0) and `bank_reconciliation_lines.groupId` (NULL); idempotent, existing lines are unchanged and count as confirmed by the operator.

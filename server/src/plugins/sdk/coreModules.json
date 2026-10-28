@@ -759,6 +759,15 @@
   "installmentsModel": [
     "buildModel"
   ],
+  "platformPenaltiesModel": [
+    "buildModel",
+    "findById",
+    "insert",
+    "listByDate",
+    "listFor",
+    "remove",
+    "totalFor"
+  ],
   "vatRegimeModel": [
     "forRow",
     "inForceBlock",

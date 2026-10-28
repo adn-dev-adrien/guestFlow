@@ -19,7 +19,7 @@ import MonthlyRevenueChart from '../components/MonthlyRevenueChart';
 import SmallMultiplesLineChart from '../components/SmallMultiplesLineChart';
 import BookingPaceCard from '../components/BookingPaceCard';
 import { seriesColor } from '../utils/chartColors';
-import { formatCurrencyRounded } from '../utils/formatters';
+import { formatCurrencyRounded, plural } from '../utils/formatters';
 import api from '../api';
 import { localIsoToday } from '../utils/isoDay';
 
@@ -27,7 +27,6 @@ const DETAIL_ID = 'finance-detail';
 const percent = (x) => (x == null ? '—' : `${Math.round(x * 100)} %`);
 const shortDate = (iso) => (iso ? new Date(`${String(iso).slice(0, 10)}T12:00:00`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) : '');
 const FORMAT = { amount: formatCurrencyRounded, percent, date: shortDate };
-const plural = (n, w) => `${n} ${w}${n > 1 ? 's' : ''}`;
 // The browser's own calendar day, never the UTC one (rule 37).
 const iso = (d) => localIsoToday(d);
 

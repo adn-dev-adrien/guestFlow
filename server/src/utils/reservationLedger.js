@@ -13,7 +13,7 @@
  * arithmetic of its own.
  */
 
-const { remainingToPay, round2 } = require('./reservationSettlement');
+const { remainingToPay, platformPenalty, round2 } = require('./reservationSettlement');
 const { parseGroup } = require('./arrivalPaymentGroup');
 const { saleChannel } = require('./saleChannel');
 const { platformDisplay } = require('./platformDisplay');
@@ -117,6 +117,8 @@ function dueState(deadline, today, stayYear, { platformPayout = false } = {}) {
  * @param {number} [p.cautionAmount] the effective caution (live from the property until received)
  * @param {object|null} [p.installmentPlan] the `installmentPlan` payload (specs/direct-installments.md rule 5):
  *                                  its installments REPLACE the acompte and solde rows
+ * @param {object[]} [p.penalties]  the platform penalties of the stay (`{ amount, reason, date }`), drawn under the payout row
+ *                                  (specs/reconciliation-assisted-matching.md rule 27)
  * @param {boolean} [p.canRequest]  a payment provider is ready (« Renvoyer la demande »)
  * @param {string} p.today          `YYYY-MM-DD`
  * @returns {{ rows: object[], remaining: number, remainingLabel: string, settled: boolean }}
@@ -124,7 +126,7 @@ function dueState(deadline, today, stayYear, { platformPayout = false } = {}) {
 function buildLedger({
   row = null, quote = null, live = {}, links = [], refunds = [], overpayment = null,
   midStayNotes = [], cautionAmount = 0, canRequest = false, installmentPlan = null, today,
-  storedAccommodationPreArrival = null,
+  storedAccommodationPreArrival = null, penalties = [],
 } = {}) {
   const r = row || {};
   const has = (k) => Object.prototype.hasOwnProperty.call(live, k) && live[k] !== undefined;
@@ -326,8 +328,12 @@ function buildLedger({
     const depositApplies = depositRow.state !== 'na';
     let base;
     if (isPlatform) {
-      if (soldeCommission > 0) {
-        detail.commission = `Commission ${formatEuros(soldeCommission)} · net ${formatEuros(balanceAmount - soldeCommission)}`;
+      const penaltyTotal = platformPenalty(r);
+      if (soldeCommission > 0 || penaltyTotal > 0) {
+        detail.commission = `Commission ${formatEuros(soldeCommission)} · net ${formatEuros(balanceAmount - soldeCommission - penaltyTotal)}`;
+      }
+      if (penalties.length > 0) {
+        detail.penalties = penalties.map((p) => ({ id: p.id, label: `Pénalité plateforme −${formatEuros(p.amount)} · ${p.reason} · ${shortDate(p.date, stayYear)}` }));
       }
       const payoutRaw = has('platformPayoutAmount') ? live.platformPayoutAmount : r.platformPayoutAmount;
       const payout = payoutRaw === '' || payoutRaw == null || !Number.isFinite(Number(payoutRaw)) ? null : round2(payoutRaw);
@@ -393,7 +399,9 @@ function buildLedger({
       if (paid.deposit) detail.hint = 'Acompte perçu : modifier le solde change le prix';
       base = { ...due, action: canAct && balanceAmount > 0 ? { kind: 'mark', label: 'Marquer perçu', dateLabel: 'Perçu le' } : null, amountEdit };
     }
-    rows.push({ key: 'balance', label, amount: balanceAmount, ...base, detail: tidyDetail(detail) });
+    // Rule 24 of the reconciliation spec — a penalty is declared where the payout is, even on a fiche whose amounts are frozen.
+    const penaltyAction = isPlatform && canAct ? { label: 'Déclarer une pénalité' } : null;
+    rows.push({ key: 'balance', label, amount: balanceAmount, ...base, ...(penaltyAction ? { penaltyAction } : {}), detail: tidyDetail(detail) });
   }
 
   // ── Compléments + notes en séjour (rules 2, 22, Q5) ──────────────────────

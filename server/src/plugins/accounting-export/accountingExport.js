@@ -62,6 +62,7 @@ const {
   DEFAULT_CANCELLATION_COMPENSATION_ACCOUNT,
   DISCOUNT_ACCOUNT,
   TIP_ACCOUNT,
+  PLATFORM_PENALTY_ACCOUNT,
   planMapper,
 } = require('./accountPlan');
 const { TTC_SPLIT_FALLBACK } = require('./settings');
@@ -137,6 +138,8 @@ function rowsAtDefaults(entry, splitFrom = TTC_SPLIT_FALLBACK) {
   // handed over » for a single arrival payment.
   if (entry && entry.direction === 'discount') return discountEntryToRows(entry);
   if (entry && entry.direction === 'tip') return tipEntryToRows(entry);
+  // Pénalité plateforme (reconciliation-assisted-matching.md rule 28).
+  if (entry && entry.direction === 'penalty') return penaltyEntryToRows(entry);
   const { day, month, year } = splitIsoDate(entry.paidDate);
   const libelle = libelleFor(entry);
   const clientAccount = buildClientAccount(entry.client.lastName);
@@ -446,6 +449,27 @@ function tipEntryToRows(entry) {
   ];
 }
 
+// Une pénalité plateforme (reconciliation-assisted-matching.md rule 28) : de l'argent que la plateforme
+// a gardé sur un versement, sans prestation en face et sans TVA.
+//   - 1 DÉBIT sur le compte de pénalités ;
+//   - 1 CRÉDIT sur le compte client : l'écriture de vente l'a débité du net du relevé, ce crédit le ramène
+//     à l'argent réellement versé.
+function penaltyEntryToRows(entry) {
+  const { day, month, year } = splitIsoDate(entry.paidDate);
+  const libelle = libelleFor(entry);
+  const clientAccount = buildClientAccount(entry.client?.lastName);
+  const piece = '';
+  const ttc = round2(entry.encaissementTtc);
+  return [
+    zerofyMoneyColumns([
+      day, month, year, SALES_JOURNAL_CODE, piece, libelle, entry.penaltyAccount || PLATFORM_PENALTY_ACCOUNT, ttc, '', '', '', '',
+    ]),
+    zerofyMoneyColumns([
+      day, month, year, SALES_JOURNAL_CODE, piece, libelle, clientAccount, '', ttc, '', '', '',
+    ]),
+  ];
+}
+
 // Column positions of the journal code and the account in a row (CSV_HEADERS).
 const JOURNAL_COLUMN = 3;
 const ACCOUNT_COLUMN = 6;
@@ -489,8 +513,9 @@ function entryToStructured(entry, plan) {
   const isCompensation = entry.direction === 'compensation';
   const isDiscount = entry.direction === 'discount';
   const isTip = entry.direction === 'tip';
+  const isPenalty = entry.direction === 'penalty';
   const platformInfo = (entry.platform && entry.platform !== 'direct' && !isRefund && !isCompensation
-    && !isDiscount && !isTip)
+    && !isDiscount && !isTip && !isPenalty)
     ? {
         platform: entry.platform,
         gross: entry.clientGrossAmount == null ? null : Number(entry.clientGrossAmount),
@@ -537,7 +562,7 @@ function entryToStructured(entry, plan) {
   const finalPrice = round2(entry.finalPrice);
   // A refund covers no « share of the séjour » — it gives part of it back (the caption is hidden).
   // A compensation has no séjour at all: the stay was cancelled (the caption is hidden too).
-  const stayShare = (!isRefund && !isCompensation && !isDiscount && !isTip && finalPrice > 0)
+  const stayShare = (!isRefund && !isCompensation && !isDiscount && !isTip && !isPenalty && finalPrice > 0)
     ? Math.max(0, (round2(entry.encaissementTtc) - round2(entry.taxTtc || 0)) / finalPrice)
     : null;
 
@@ -548,7 +573,7 @@ function entryToStructured(entry, plan) {
     // specs/cancellation-compensation.md §6.3 — « compensation » renders as an indemnity card.
     direction: isRefund ? 'refund'
       : (isCompensation ? 'compensation'
-        : (isDiscount ? 'discount' : (isTip ? 'tip' : 'sale'))),
+        : (isDiscount ? 'discount' : (isTip ? 'tip' : (isPenalty ? 'penalty' : 'sale')))),
     compensationId: entry.compensationId != null ? entry.compensationId : null,
     // The cancelled stay window, so the card can say WHICH séjour the indemnity replaces.
     compensationStay: isCompensation

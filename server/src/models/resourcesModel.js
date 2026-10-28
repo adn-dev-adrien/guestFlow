@@ -56,7 +56,7 @@ function createModel(database) {
       .all(Number(resourceId))
       .reduce((acc, row) => {
         acc[String(row.propertyId)] = {
-          price: Number(row.price || 0),
+          price: row.price === null || row.price === undefined ? null : Number(row.price),
           freeMinutes: Math.max(0, Number(row.freeMinutes || 0)),
         };
         return acc;
@@ -128,7 +128,7 @@ function createModel(database) {
       freeMinutes: effectiveFreeMinutes(propertyPricing, propertyId),
       propertyPricing,
       propertyPrices: Object.entries(propertyPricing).reduce((acc, [pid, cfg]) => {
-        acc[pid] = Number(cfg.price || 0);
+        if (cfg.price !== null) acc[pid] = Number(cfg.price);
         return acc;
       }, {}),
     };
@@ -212,23 +212,27 @@ function createModel(database) {
       basePrice: Number(parsed.price || 0),
       propertyPricing,
       propertyPrices: Object.entries(propertyPricing).reduce((acc, [pid, cfg]) => {
-        acc[pid] = Number(cfg.price || 0);
+        if (cfg.price !== null) acc[pid] = Number(cfg.price);
         return acc;
       }, {}),
     };
   }
 
+  // A line without a price (null, blank) inherits the base price: stored as NULL, never as a copy of it.
   function normalizePricing(payload) {
+    const priceOf = (raw) => (raw === null || raw === undefined || raw === '' ? null : Number(raw));
     const raw = payload.propertyPricing && typeof payload.propertyPricing === 'object'
-      ? Object.entries(payload.propertyPricing).map(([pid, cfg]) => ({ propertyId: Number(pid), price: Number(cfg?.price), freeMinutes: Number(cfg?.freeMinutes || 0) }))
-      : Object.entries(payload.propertyPrices || {}).map(([pid, rawPrice]) => ({ propertyId: Number(pid), price: Number(rawPrice), freeMinutes: 0 }));
+      ? Object.entries(payload.propertyPricing).map(([pid, cfg]) => ({ propertyId: Number(pid), price: priceOf(cfg?.price), freeMinutes: Number(cfg?.freeMinutes || 0) }))
+      : Object.entries(payload.propertyPrices || {}).map(([pid, rawPrice]) => ({ propertyId: Number(pid), price: priceOf(rawPrice), freeMinutes: 0 }));
     return raw
-      .filter((line) => Number.isFinite(line.propertyId) && line.propertyId > 0 && Number.isFinite(line.price) && line.price >= 0)
+      .filter((line) => Number.isFinite(line.propertyId) && line.propertyId > 0
+        && (line.price === null || (Number.isFinite(line.price) && line.price >= 0)))
       .map((line) => ({
         propertyId: Number(line.propertyId),
-        price: Number(line.price),
+        price: line.price,
         freeMinutes: Math.max(0, Math.round(Number(line.freeMinutes || 0))),
-      }));
+      }))
+      .filter((line) => line.price !== null || line.freeMinutes > 0);
   }
 
   function normalizePropertyIds(payload) {

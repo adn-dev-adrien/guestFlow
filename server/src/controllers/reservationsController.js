@@ -86,8 +86,10 @@ const { carriedOfferedDefaultsToRestore } = require('../utils/propertyDefaultOpt
 const platformsModel = require('../models/platformsModel');
 const { DEFAULT_PAYOUT_DUE_DAYS } = require('../utils/platformPayout');
 const { isReceptionOnly, userHasRole, ADMIN } = require('../constants/roles');
+const { readOnlyRefusal } = require('../utils/reservationReadOnly');
 const { isWithinSasWindow, sasLockReason } = require('../utils/sasEditWindow');
 const { isDevisExpired } = require('../utils/devisValidity');
+const { toOccupancyRow } = require('../utils/upcomingArrivals');
 const { toReceptionReservationView, toReceptionReservationList, toReceptionPaymentPatch } = require('../utils/receptionView');
 const {
   midStayExtrasWindow, arrivalLineFloors, arrivalExtrasViolations, extrasContentChanged,
@@ -110,9 +112,11 @@ function ledgerFor({ row, quote = null, live = {}, propertyId = null, overpaymen
   const id = row && row.id ? Number(row.id) : null;
   let links = [];
   let refunds = [];
+  let penalties = [];
   if (id) {
     try { links = require('../models/paymentLinksModel').listForReservation(id); } catch { links = []; }
     try { refunds = refundsModel.listByReservation(id); } catch { refunds = []; }
+    try { penalties = require('../models/platformPenaltiesModel').listFor(id); } catch { penalties = []; }
   }
   // specs/caution-live-from-property.md §3 — live from the property until received, then frozen.
   let cautionAmount = Number(row && row.cautionAmount) || 0;
@@ -127,6 +131,7 @@ function ledgerFor({ row, quote = null, live = {}, propertyId = null, overpaymen
     live,
     links,
     refunds,
+    penalties,
     overpayment,
     midStayNotes: parseMidStayNotes(row && row.midStaySettledNotes),
     cautionAmount,
@@ -178,6 +183,7 @@ function midStayQuoteInputs(reservationId) {
     // specs/reservation-refunds.md §3.3 — book-money refunds only: a caisse-interne refund is off the
     // books, exactly like the cash complements it mirrors.
     refundsTotal: refundsModel.totalsByReservation(Number(reservationId)).book,
+    platformPenaltyAmount: row.platformPenaltyAmount,
     // specs/arrival-payment-detail-and-adjustment.md rule 21 — a réduction accordée on the single
     // arrival payment lowers the « total du séjour » exactly as a refund does (and a pourboire raises
     // it). Read from the row, never from the browser: it is money, and the helper already gates a
@@ -201,17 +207,6 @@ function scheduleQuoteInputs(bookingId) {
     kind: row.kind || 'reservation',
     validUntil: row.validUntil || null,
   };
-}
-
-// specs/payment-schedule-and-cancellation.md §3.5 rule 25 — a cancelled stay is read-only. Its
-// amounts and échéances are history (accounting still reads them) and its dates are back on sale,
-// so any write would either rewrite the books or resurrect a booking nobody expects.
-function cancelledGuard(reservationId) {
-  const row = db.prepare('SELECT kind FROM reservations WHERE id = ?').get(Number(reservationId));
-  if (row && String(row.kind) === 'cancelled') {
-    return { status: 409, body: { error: 'Cette réservation est annulée et ne peut plus être modifiée.', code: 'RESERVATION_CANCELLED' } };
-  }
-  return null;
 }
 
 // specs/mid-stay-notes.md §4.3 — the two note actions carried by the payment PATCH. Business
@@ -576,7 +571,11 @@ function list(req, res) {
   // specs/ui-review-2026-10-19-operations.md rule 15 — the display name the calendar prints.
   const rows = model.list({ propertyId, clientId, from, to })
     .map((row) => ({ ...row, platformDisplay: platformDisplay(row.platform) }));
-  res.json(isReceptionOnly(req.user) ? toReceptionReservationList(rows) : rows);
+  if (isReceptionOnly(req.user)) return res.json(toReceptionReservationList(rows));
+  // `?view=occupancy` — the fiche's conflict checks and mini planning read nine fields of each stay of
+  // the property, not the whole row (specs/inte-performance.md rule 20).
+  if (req.query.view === 'occupancy') return res.json(rows.map(toOccupancyRow));
+  return res.json(rows);
 }
 
 // Live "jump to a reservation" search (specs/reservation-number-and-search.md §3). Matching + shaping
@@ -1584,7 +1583,7 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
 
   const id = Number(req.params.id);
 
-  const cancelled = cancelledGuard(id);
+  const cancelled = readOnlyRefusal(db, id);
   if (cancelled) return res.status(cancelled.status).json(cancelled.body);
 
   // specs/direct-installments.md rule 1 — a plan with money in keeps the reservation on the own channels.
@@ -2157,7 +2156,7 @@ function updatePayment(req, res) {
   if (financeError) return res.status(400).json(financeErrorBody(financeError));
   const existing = model.getBasic(Number(req.params.id));
   if (!existing) return res.status(404).json({ error: 'Réservation non trouvée' });
-  const cancelledPayment = cancelledGuard(Number(req.params.id));
+  const cancelledPayment = readOnlyRefusal(db, Number(req.params.id));
   if (cancelledPayment) return res.status(cancelledPayment.status).json(cancelledPayment.body);
 
   // specs/reservation-payment-ledger.md rules 9, 11, 12 — the guards of a mark, all checked BEFORE
@@ -2378,9 +2377,32 @@ function remove(req, res) {
   emitPluginEvent('reservation.deleted', { reservationId: Number(req.params.id) });
 }
 
+// POST /api/reservations/:id/restore — « Rétablir » on a duplicate set aside (specs/calendar-property-parity.md
+// rules 22, 24). The dates must still be free: another stay may have been booked on them since.
+function restoreSuperseded(req, res) {
+  const id = Number(req.params.id);
+  const row = db.prepare('SELECT id, kind, propertyId, startDate, endDate, checkInTime, checkOutTime, blocksPreviousNight, blocksNextNight FROM reservations WHERE id = ?').get(id);
+  if (!row) return res.status(404).json({ error: 'Réservation non trouvée' });
+  if (row.kind !== 'superseded') return res.status(400).json({ error: "Cette réservation n'est pas un doublon écarté." });
+  const taken = model.validateAvailability(
+    row.propertyId, row.startDate, row.endDate, row.checkInTime, row.checkOutTime, id,
+    { blocksPreviousNight: row.blocksPreviousNight, blocksNextNight: row.blocksNextNight },
+    { allowPastDates: true },
+  );
+  if (taken) return res.status(409).json({ error: 'Ces dates sont déjà prises.' });
+  db.transaction(() => {
+    model.restoreSuperseded(id);
+    model.addHistoryEntry(id, 'unsuperseded', [
+      { field: 'kind', label: 'Statut', fromText: 'Doublon écarté', toText: 'Réservation' },
+      { field: 'actor', label: 'Auteur', fromText: null, toText: (req.user && (req.user.email || req.user.name)) || 'administrateur' },
+    ]);
+  })();
+  return res.json(model.getByIdWithDetails(id));
+}
+
 module.exports = {
   suggestBeds, platformCommission, previewMidStayNote, list, search, occupiedDates, getById, getHistory, calculatePrice,
-  create, update, performUpdate, updatePayment, settleArrivalPayment, remove,
+  create, update, performUpdate, updatePayment, settleArrivalPayment, remove, restoreSuperseded,
 };
 
 // Test surface: the guard of a payment mark, exercised without an HTTP round-trip.

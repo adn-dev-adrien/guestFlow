@@ -42,6 +42,9 @@ buttons), with a **sticky month label** and an « Aujourd'hui » shortcut.
    a bar — it hatches its days (a band along the bottom for one logement, the whole day for a global
    one) with one label per week, and a stay bar is a 14 % tint of its platform colour with a 3 px stripe
    and ink text.
+   **Amended 2026-10-28** (`calendar-property-parity.md` rules 1-11): data from `GET /api/calendar`;
+   a current or future stay is a solid bar with a server-chosen text colour, a past one keeps the tint;
+   a logement's closure is a hatched bar in its logement's lanes, half-day from `startDate` to `endDate`.
 3. **Grouped by logement.** Within a week the lanes are organised **per logement** (a contiguous band of
    lanes per property: all of one logement's bars, then the next). Global closures take the **top** band.
    Within a band, bars are lane-packed by start (a same-day departure→arrival shares a lane thanks to the

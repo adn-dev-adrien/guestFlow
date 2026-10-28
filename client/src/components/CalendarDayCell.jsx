@@ -1,36 +1,43 @@
 import React from 'react';
 import { Box, Typography, Tooltip } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
-import WarningAmberIcon from '@mui/icons-material/WarningAmber';
-import { getClosureForDate } from '../utils/closureCalendar';
+import { getClosureDayParts } from '../utils/closureCalendar';
+import { frRange } from '../utils/calendarLayout';
 import {
-  formatDate, shiftDate, timeToHour, hourToPercent, getReservationColor,
-  getBlockedNightInfo, resHasMidDays, compactName,
+  formatDate, shiftDate, timeToHour, hourToPercent,
+  getBlockedNightInfo, compactName, closureHatch,
   CLEANING_COLOR, BLOCKED_NIGHT_COLOR,
 } from '../utils/calendarVisuals';
 import { formatPlatformLabel } from '../constants/platforms';
 
-// A long name stays inside its day: cut with an ellipsis, never drawn over the next cells
-// (2026-10-27 spec review, F13).
-const FIT = { maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis' };
+// A devis label is three short lines in a fixed-height flex column: it must never be shrunk (the 3.9 px
+// name of 2026-10-28 was a flex child with `overflow: hidden`), only cut by width.
+const NO_SHRINK = { flexShrink: 0, maxWidth: '100%', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' };
+
+// The row of a cell that holds the day number, the « férié » marker, the note and the zone dots.
+// Stay names are drawn below it, by the grid (specs/calendar-property-parity.md rule 20).
+export const CELL_TOP_BAND_H = 22;
 
 /**
- * CalendarDayCell — renders a single day of the reservation calendar (the diagonal
- * check-in/check-out/cleaning gradients, blocked-night bands, devis overlay, closures,
- * holiday/zone indicators, calendar-note label and the click-zone hit-testing).
- * Moved verbatim from CalendarPage; closed-over data/handlers are now props.
+ * CalendarDayCell — renders a single day of the logement calendar: the diagonal check-in / check-out /
+ * cleaning gradients, blocked-night bands, devis overlay, closure hatching (half a day at its start and
+ * at its reopening, specs/calendar-property-parity.md rule 12), a top band with the day number, holiday
+ * marker, calendar note and zone dots, and the click-zone hit-testing. Stay names are NOT drawn here:
+ * the grid lays one ribbon per week segment over the cells.
  *
- * Props: day, y, m, dim (coordinates); reservations, devisList, closures, selectedProp,
- * calendarNotes, publicHolidays (Set of YYYY-MM-DD), markersFor(dateStr) → [{ key, color, title }]
- * (the plugins' day dots, hooks/useDayMarkers), today, cleaningHours,
- * inDrag, isDragging; callbacks onReservationClick(id), onMouseDown(day,y,m),
- * onMouseEnter(day,y,m), onOpenNote(dateStr), onOpenNewReservation(start,end), onDevisClick(devisId).
+ * Props: day, y, m (coordinates of the day itself — an edge day of a block carries its own month);
+ * outside (the day belongs to the neighbouring month: dimmed, still interactive);
+ * reservations (the payload's stays: color / textColor decided by the server), devisList, closures,
+ * selectedProp, calendarNotes, publicHolidays (Set of YYYY-MM-DD), markersFor(dateStr) → [{ key, color, title }]
+ * (the plugins' day dots, hooks/useDayMarkers), today, cleaningHours, inDrag, isDragging;
+ * callbacks onReservationClick(id), onMouseDown(day,y,m), onMouseEnter(day,y,m), onOpenNote(dateStr),
+ * onOpenNewReservation(start,end), onDevisClick(devisId).
  */
 const NOTE_FALLBACK = {};
 const NO_MARKERS = () => [];
 
 export default function CalendarDayCell({
-  day, y, m, dim,
+  day, y, m, outside = false,
   reservations, devisList, closures, selectedProp,
   calendarNotes = NOTE_FALLBACK, publicHolidays, markersFor = NO_MARKERS,
   today, cleaningHours, inDrag, isDragging,
@@ -40,56 +47,60 @@ export default function CalendarDayCell({
   // (sx token strings can't reach inside `linear-gradient(...)`).
   const theme = useTheme();
   const white = theme.palette.common.white;
-  const whiteSoft = alpha(white, 0.85);
-  const whiteFaint = alpha(white, 0.7);
-  const darkTextShadow = `0 0 2px ${alpha(theme.palette.common.black, 0.5)}`;
   const dragColor = theme.palette.primary.light;
   const devisColor = theme.palette.grey[400];
-
-  const renderHolidayIndicators = (dateStr) => {
-    const isPublicHoliday = publicHolidays.has(dateStr);
-    const markers = markersFor(dateStr);
-    return (
-      <>
-        {isPublicHoliday && (
-          <Typography sx={{ position: 'absolute', top: 1, left: '50%', transform: 'translateX(-50%)', fontSize: 14, color: 'error.main', zIndex: 3, pointerEvents: 'none', lineHeight: 1, opacity: 0.7, whiteSpace: 'nowrap' }}>férié</Typography>
-        )}
-        {markers.length > 0 && (
-          <Box sx={{ position: 'absolute', bottom: 2, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: '3px', zIndex: 3, pointerEvents: 'none' }}>
-            {markers.map((mk) => (
-              <Box key={mk.key} title={mk.title} sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: mk.color }} />
-            ))}
-          </Box>
-        )}
-      </>
-    );
-  };
-
-  const renderNoteLabel = (dateStr, hasReservation) => {
-    const note = calendarNotes[dateStr];
-    if (!note) return null;
-    const fontSize = hasReservation ? 8 : 10;
-    return (
-      <Typography title={note} sx={{
-        position: 'absolute', bottom: hasReservation ? 14 : 16, left: '50%', transform: 'translateX(-50%)',
-        fontSize, lineHeight: 1.1, color: hasReservation ? alpha(white, 0.9) : 'text.primary',
-        zIndex: 2, pointerEvents: 'auto', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-        maxWidth: '90%', fontStyle: 'italic', fontWeight: 600,
-        textShadow: hasReservation ? darkTextShadow : 'none',
-      }}>
-        {note}
-      </Typography>
-    );
-  };
+  const baseColor = theme.palette.grey[100];
+  const hatch = closureHatch(theme);
 
   const dateStr = formatDate(y, m, day);
   const isPast = dateStr < today;
+  const isToday = dateStr === today;
+  const opacity = (isPast ? 0.5 : 1) * (outside ? 0.7 : 1);
+
+  // The top band: day number, « férié », the day's note (cut by width, full text on hover), zone dots.
+  const renderTopBand = ({ color = 'text.primary', holidayColor = 'error.main', glow = false } = {}) => {
+    const markers = markersFor(dateStr);
+    const note = calendarNotes[dateStr];
+    return (
+      <Box
+        sx={{
+          position: 'absolute', top: 3, left: 6, right: 6, height: CELL_TOP_BAND_H - 6, zIndex: 3, pointerEvents: 'none',
+          display: 'flex', alignItems: 'center', gap: 0.75, color, lineHeight: 1, fontSize: 12,
+          ...(glow ? { textShadow: `0 0 3px ${alpha(white, 0.8)}` } : {}),
+        }}
+      >
+        <Box component="span" sx={{ fontWeight: isToday ? 800 : 600, flexShrink: 0 }}>{day}</Box>
+        {publicHolidays.has(dateStr) && (
+          <Box component="span" sx={{ color: holidayColor, fontSize: 10, fontWeight: 600, flexShrink: 0 }}>férié</Box>
+        )}
+        {note ? (
+          <Box
+            component="span"
+            title={note}
+            sx={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 10, fontStyle: 'italic', fontWeight: 600, pointerEvents: 'auto' }}
+          >
+            {note}
+          </Box>
+        ) : <Box component="span" sx={{ flex: 1 }} />}
+        {markers.length > 0 && (
+          <Box component="span" sx={{ display: 'flex', gap: '3px', flexShrink: 0 }}>
+            {markers.map((mk) => (
+              <Box key={mk.key} title={mk.title} sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: mk.color }} />
+            ))}
+          </Box>
+        )}
+      </Box>
+    );
+  };
+
+  const cellBorder = (t) => (isToday ? `3px solid ${t.palette.primary.main}` : `1px solid ${t.palette.divider}`);
 
   // Find departure (endDate === this day), arrival (startDate === this day), mid-stay
   const departureRes = reservations.find((r) => r.endDate === dateStr);
   const arrivalRes = reservations.find((r) => r.startDate === dateStr);
   const midRes = reservations.find((r) => dateStr > r.startDate && dateStr < r.endDate);
   const blockedNightInfo = getBlockedNightInfo(dateStr, reservations);
+  const closureDay = getClosureDayParts(dateStr, closures, selectedProp);
 
   // Devis (quotes) — shown as faded overlay when no reservation is present
   const midDevis = !midRes && !departureRes && !arrivalRes
@@ -102,46 +113,17 @@ export default function CalendarDayCell({
     ? devisList.find((d) => d.endDate === dateStr)
     : null;
 
-  // If mid-stay: full color fill
+  // If mid-stay: full color fill (the ribbon over the cell carries the name)
   if (midRes) {
-    const color = getReservationColor(midRes.platform);
-    const isToday = dateStr === today;
-    // Show label on the true middle day of the entire reservation
-    const resStart = new Date(midRes.startDate);
-    const resEnd = new Date(midRes.endDate);
-    const totalDays = Math.round((resEnd - resStart) / 86400000);
-    const midDate = new Date(resStart);
-    midDate.setDate(midDate.getDate() + Math.round(totalDays / 2));
-    const midDateStr = formatDate(midDate.getFullYear(), midDate.getMonth(), midDate.getDate());
-    const isLabelDay = dateStr === midDateStr;
     return (
       <Box data-date={dateStr} onClick={() => onReservationClick(midRes.id)} onContextMenu={(e) => { e.preventDefault(); onOpenNote(dateStr); }} sx={{
-        textAlign: 'center', py: 3, borderRadius: 1, position: 'relative', cursor: 'pointer',
-        bgcolor: color, color: 'common.white', fontWeight: 600, fontSize: 14, overflow: 'hidden',
-        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 64, height: 64, boxSizing: 'border-box',
-        opacity: isPast ? 0.5 : 1,
+        borderRadius: 1, position: 'relative', cursor: 'pointer', overflow: 'hidden',
+        bgcolor: midRes.color, minHeight: 64, height: 64, boxSizing: 'border-box',
+        opacity,
         border: (t) => (isToday ? `3px solid ${t.palette.primary.main}` : 'none'),
         transition: 'border 0.2s',
       }}>
-        {renderHolidayIndicators(dateStr)}
-        {renderNoteLabel(dateStr, true)}
-        {isLabelDay ? (
-          <>
-            <Typography sx={{ fontSize: 14, fontWeight: 700, lineHeight: 1.1, color: 'common.white', whiteSpace: 'nowrap', ...FIT, px: 0.5 }}>
-              {midRes.bookingConflictAt && (
-                <Tooltip title="Conflit de dates — paiement en ligne reçu (remboursement / relogement à traiter)">
-                  <WarningAmberIcon sx={{ fontSize: 15, verticalAlign: 'text-bottom', mr: 0.5 }} />
-                </Tooltip>
-              )}
-              {midRes.firstName} {midRes.lastName}
-            </Typography>
-            <Typography sx={{ fontSize: 11, fontWeight: 500, lineHeight: 1.1, color: whiteSoft, whiteSpace: 'nowrap' }}>
-              {formatPlatformLabel(midRes.platform)}
-            </Typography>
-          </>
-        ) : (
-          <Typography sx={{ fontSize: 14, color: whiteFaint }}>{day}</Typography>
-        )}
+        {renderTopBand({ color: midRes.textColor, holidayColor: midRes.textColor })}
       </Box>
     );
   }
@@ -158,12 +140,11 @@ export default function CalendarDayCell({
   const hasEarlyBlockedNight = blockedNightInfo?.type === 'early-arrival';
   const isEarlyArrivalDay = Boolean(arrivalRes && checkInHour !== null && checkInHour <= 10);
 
-  const hasVisual = departPct !== null || arrivePct !== null || Boolean(blockedNightInfo);
+  const partialClosure = closureDay && closureDay.part !== 'full' ? closureDay : null;
+  const hasVisual = departPct !== null || arrivePct !== null || Boolean(blockedNightInfo) || Boolean(partialClosure);
 
   // Empty or drag-only day
   if (!hasVisual) {
-    const isToday = dateStr === today;
-
     // Render devis (quote) as faded background when no reservation
     const activeDevis = midDevis || arrivalDevis || departureDevis;
     if (activeDevis && !inDrag) {
@@ -181,10 +162,10 @@ export default function CalendarDayCell({
           data-date={dateStr}
           onClick={() => onDevisClick(activeDevis.id)}
           sx={{
-            textAlign: 'center', py: 1, borderRadius: 1, position: 'relative', cursor: 'pointer',
+            textAlign: 'center', pt: `${CELL_TOP_BAND_H - 4}px`, borderRadius: 1, position: 'relative', cursor: 'pointer',
             bgcolor: devisColor, color: 'common.white', fontWeight: 600, fontSize: 14, overflow: 'hidden',
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 64, height: 64, boxSizing: 'border-box',
-            opacity: isPast ? 0.5 : 1,
+            opacity,
             border: (t) => (isToday ? `3px solid ${t.palette.primary.main}` : 'none'),
             transition: 'border 0.2s',
             background: isArrival
@@ -194,35 +175,32 @@ export default function CalendarDayCell({
                 : devisColor,
           }}
         >
-          {renderHolidayIndicators(dateStr)}
-          {renderNoteLabel(dateStr, true)}
+          {renderTopBand({ color: 'common.white', holidayColor: 'common.white' })}
           {isLabelDay && (
             <>
-              <Typography sx={{ fontSize: 11, fontWeight: 500, lineHeight: 1.1, color: whiteSoft, whiteSpace: 'nowrap' }}>
+              <Typography sx={{ fontSize: 11, fontWeight: 500, lineHeight: 1.1, color: alpha(white, 0.85), ...NO_SHRINK }}>
                 devis
               </Typography>
-              <Typography sx={{ fontSize: 14, fontWeight: 700, lineHeight: 1.1, color: 'common.white', whiteSpace: 'nowrap', ...FIT, px: 0.5 }}>
+              <Typography sx={{ fontSize: 14, fontWeight: 700, lineHeight: 1.1, color: 'common.white', px: 0.5, ...NO_SHRINK }}>
                 {activeDevis.firstName} {activeDevis.lastName}
               </Typography>
-              <Typography sx={{ fontSize: 11, fontWeight: 500, lineHeight: 1.1, color: whiteSoft, whiteSpace: 'nowrap' }}>
+              <Typography sx={{ fontSize: 11, fontWeight: 500, lineHeight: 1.1, color: alpha(white, 0.85), ...NO_SHRINK }}>
                 {formatPlatformLabel(activeDevis.platform) || '-'}
               </Typography>
             </>
           )}
-          {!isLabelDay && (
-            <Typography sx={{ fontSize: 14, color: whiteFaint }}>{day}</Typography>
-          )}
         </Box>
       );
     }
-    const closure = getClosureForDate(dateStr, closures, selectedProp);
+    const closure = closureDay ? closureDay.closure : null;
     const cellNode = (
       <Box data-date={dateStr}
+        aria-label={closure ? `${day}, ${closure.label || 'Fermé'}, fermé` : undefined}
         onMouseDown={() => !isPast && onMouseDown(day, y, m)}
         onMouseEnter={() => onMouseEnter(day, y, m)}
         onContextMenu={(e) => { e.preventDefault(); onOpenNote(dateStr); }}
         sx={{
-          textAlign: 'center', py: 3, borderRadius: 1, position: 'relative', minHeight: 64,
+          borderRadius: 1, position: 'relative', minHeight: 64,
           height: 64, boxSizing: 'border-box',
           cursor: isPast || closure ? 'default' : 'pointer', fontSize: 14,
           bgcolor: isPast ? 'grey.300' : inDrag ? 'primary.light' : 'grey.100',
@@ -231,39 +209,35 @@ export default function CalendarDayCell({
           border: (t) => (isToday ? `3px solid ${t.palette.primary.main}` : 'none'),
           ...(!isPast && !closure && { '&:hover': { bgcolor: 'primary.light', color: 'common.white' } }),
           transition: 'background-color 0.15s, border 0.2s',
+          opacity: outside ? 0.7 : 1,
           ...(closure ? {
-            backgroundImage: (t) => {
-              const soft = alpha(t.palette.common.black, 0.06);
-              const strong = alpha(t.palette.common.black, 0.14);
-              return `repeating-linear-gradient(135deg, ${soft} 0, ${soft} 8px, ${strong} 8px, ${strong} 16px)`;
-            },
+            backgroundImage: hatch,
             borderTop: '1px dashed',
             borderBottom: '1px dashed',
             borderColor: 'grey.500',
           } : {}),
         }}
       >
-        {renderHolidayIndicators(dateStr)}
-        {renderNoteLabel(dateStr, false)}
-        {closure ? (
+        {renderTopBand({ color: 'inherit', holidayColor: inDrag ? 'common.white' : 'error.main' })}
+        {closure && (
           <Typography
             variant="caption"
             sx={{
               position: 'absolute',
-              left: 0, right: 0, top: '50%', transform: 'translateY(-50%)',
-              fontStyle: 'italic', color: 'text.disabled', fontSize: 11,
+              left: 0, right: 0, bottom: 6,
+              fontStyle: 'italic', color: 'text.secondary', fontSize: 11, textAlign: 'center',
               overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
               px: 0.5,
             }}
           >
             {closure.label || 'Fermé'}
           </Typography>
-        ) : day}
+        )}
       </Box>
     );
     return closure ? (
       <Tooltip
-        title={`${closure.label || 'Fermeture'} — du ${closure.startDate} au ${closure.endDate}`}
+        title={`${closure.label || 'Fermeture'} — ${frRange(closure.startDate, shiftDate(closure.endDate, -1))}`}
         arrow
       >
         {cellNode}
@@ -272,8 +246,8 @@ export default function CalendarDayCell({
   }
 
   // Build gradient stops for the diagonal fill
-  const departColor = departureRes ? getReservationColor(departureRes.platform) : null;
-  const arriveColor = arrivalRes ? getReservationColor(arrivalRes.platform) : null;
+  const departColor = departureRes ? departureRes.color : null;
+  const arriveColor = arrivalRes ? arrivalRes.color : null;
   const stops = [];
   const gapColor = inDrag ? dragColor : 'transparent';
 
@@ -355,7 +329,17 @@ export default function CalendarDayCell({
     }
   }
 
-  const gradient = stops.length > 0 ? `linear-gradient(135deg, ${stops.join(', ')})` : undefined;
+  // Layers, top first: the stays' diagonal, then — for a closure that starts or reopens on this day — a
+  // plain half that masks the hatching it must not cover, then the hatching itself.
+  const layers = [];
+  if (stops.length > 0) layers.push(`linear-gradient(135deg, ${stops.join(', ')})`);
+  if (partialClosure) {
+    const cover = inDrag ? dragColor : baseColor;
+    layers.push(partialClosure.part === 'start'
+      ? `linear-gradient(135deg, ${cover} 0 50%, transparent 50%)`
+      : `linear-gradient(135deg, transparent 0 50%, ${cover} 50%)`);
+    layers.push(hatch);
+  }
 
   // Boundary between departure/cleaning zone and free zone (for click detection)
   const blockedZoneStartPct = blockedNightInfo && blockedNightInfo.type !== 'late-departure-morning'
@@ -382,12 +366,17 @@ export default function CalendarDayCell({
   if (blockedNightInfo?.type === 'early-arrival') tooltipParts.push(`Nuit bloquée: arrivée anticipée de ${blockedNightInfo.client.firstName} ${blockedNightInfo.client.lastName}`);
   if (blockedNightInfo?.type === 'late-departure-evening') tooltipParts.push(`Nuit bloquée: départ tardif de ${blockedNightInfo.client.firstName} ${blockedNightInfo.client.lastName}`);
   if (blockedNightInfo?.type === 'late-departure-morning') tooltipParts.push(`Nuit bloquée puis ménage pour ${blockedNightInfo.client.firstName} ${blockedNightInfo.client.lastName}`);
+  if (partialClosure) {
+    tooltipParts.push(`${partialClosure.closure.label || 'Fermeture'} — ${partialClosure.part === 'start' ? 'fermé à partir du milieu de la journée' : 'rouvre au milieu de la journée'}`);
+  }
 
   // Compute click zone from cursor position on the 135deg gradient
   const getClickPct = (e) => {
     const rect = e.currentTarget.getBoundingClientRect();
     return ((e.clientX - rect.left) + (e.clientY - rect.top)) / (rect.width + rect.height) * 100;
   };
+  // The closed half of a closure day: the second half on its first day, the first half on its reopening day.
+  const onClosedZone = (pct) => Boolean(partialClosure) && (partialClosure.part === 'start' ? pct >= 50 : pct <= 50);
 
   return (
     <Box data-date={dateStr}
@@ -398,7 +387,7 @@ export default function CalendarDayCell({
         const onArriveZone = arrivalRes && pct >= arrivePct;
         const onBlockedZone = blockedNightInfo && blockedZoneStartPct !== null && blockedZoneEndPct !== null && pct >= blockedZoneStartPct && pct <= blockedZoneEndPct;
         const onArrivalBlockedZone = isEarlyArrivalDay && arrivalBlockedZoneEndPct !== null && pct <= arrivalBlockedZoneEndPct;
-        if (!onDepartZone && !onArriveZone && !onBlockedZone && !onArrivalBlockedZone) {
+        if (!onDepartZone && !onArriveZone && !onBlockedZone && !onArrivalBlockedZone && !onClosedZone(pct)) {
           onMouseDown(day, y, m);
         }
       }}
@@ -417,6 +406,8 @@ export default function CalendarDayCell({
           onReservationClick(departureRes.id);
         } else if (arrivalRes && pct >= arrivePct) {
           onReservationClick(arrivalRes.id);
+        } else if (onClosedZone(pct)) {
+          // A closure never opens a fiche.
         } else if (departureRes && !arrivalRes) {
           // Free zone on departure-only day: create new reservation
           const startDate = formatDate(y, m, day);
@@ -429,66 +420,31 @@ export default function CalendarDayCell({
       }}
       title={tooltipParts.join('\n')}
       sx={{
-        textAlign: 'center', py: 3, borderRadius: 1, position: 'relative', minHeight: 64,
+        borderRadius: 1, position: 'relative', minHeight: 64,
         height: 64, boxSizing: 'border-box',
         cursor: 'pointer', fontSize: 14, fontWeight: 600,
-        background: gradient || 'grey.100',
+        backgroundColor: 'grey.100',
+        backgroundImage: layers.length > 0 ? layers.join(', ') : undefined,
         // Clip the gradient to the padding box so the colored fill never bleeds under the
         // translucent divider border and shows through it as a colored rim.
         backgroundClip: 'padding-box',
-        border: (t) => (dateStr === today ? `3px solid ${t.palette.primary.main}` : `1px solid ${t.palette.divider}`),
+        border: cellBorder,
         color: 'text.primary', overflow: 'hidden',
-        opacity: isPast ? 0.5 : 1,
+        opacity,
         transition: 'border 0.2s',
       }}
     >
-      <Box sx={{ position: 'relative', zIndex: 1, textShadow: `0 0 3px ${alpha(white, 0.8)}` }}>
-        {day}
-      </Box>
-      {renderHolidayIndicators(dateStr)}
-      {renderNoteLabel(dateStr, !!(departureRes || arrivalRes || blockedNightInfo))}
+      {renderTopBand({ glow: true })}
       {blockedNightInfo?.client && !departureRes && !arrivalRes && (
-        <Box sx={{ position: 'absolute', bottom: 1, right: 2, zIndex: 2, textAlign: 'right', lineHeight: 1, pointerEvents: 'none' }}>
-          <Typography sx={{ fontSize: 10, fontWeight: 700, color: 'common.white', lineHeight: 1, whiteSpace: 'nowrap', textShadow: darkTextShadow }}>
+        <Box sx={{ position: 'absolute', bottom: 3, right: 4, zIndex: 2, textAlign: 'right', lineHeight: 1, pointerEvents: 'none' }}>
+          <Typography sx={{ fontSize: 10, fontWeight: 700, color: 'text.primary', lineHeight: 1, whiteSpace: 'nowrap' }}>
             {compactName(blockedNightInfo.client.firstName, blockedNightInfo.client.lastName)}
           </Typography>
-          <Typography sx={{ fontSize: 9, fontWeight: 500, color: alpha(white, 0.88), lineHeight: 1, whiteSpace: 'nowrap', textShadow: darkTextShadow }}>
+          <Typography sx={{ fontSize: 9, fontWeight: 500, color: 'text.secondary', lineHeight: 1, whiteSpace: 'nowrap' }}>
             {blockedNightInfo.type === 'early-arrival' ? 'arrivée anticipée' : 'nuit bloquée'}
           </Typography>
         </Box>
       )}
-      {/* Compact label for arrival on short reservations (no mid-day visible) */}
-      {arrivalRes && !resHasMidDays(arrivalRes, y, m, dim) && (() => {
-        const colorPct = 100 - (arrivePct || 0);
-        const nameSize = Math.max(10, Math.round(colorPct / 100 * 28));
-        const platSize = Math.max(9, Math.round(colorPct / 100 * 20));
-        return (
-          <Box sx={{ position: 'absolute', bottom: 1, right: 2, left: 2, zIndex: 2, textAlign: 'right', lineHeight: 1, pointerEvents: 'none' }}>
-            <Typography sx={{ fontSize: nameSize, fontWeight: 700, color: 'common.white', lineHeight: 1, whiteSpace: 'nowrap', textShadow: darkTextShadow, ...FIT }}>
-              {compactName(arrivalRes.firstName, arrivalRes.lastName)}
-            </Typography>
-            <Typography sx={{ fontSize: platSize, fontWeight: 500, color: whiteSoft, lineHeight: 1, whiteSpace: 'nowrap', textShadow: darkTextShadow }}>
-              {formatPlatformLabel(arrivalRes.platform)}
-            </Typography>
-          </Box>
-        );
-      })()}
-      {/* Compact label for departure on short reservations when arrival not in this month */}
-      {departureRes && !resHasMidDays(departureRes, y, m, dim) && !(departureRes.startDate >= formatDate(y, m, 1) && departureRes.startDate <= formatDate(y, m, dim)) && (() => {
-        const colorPct = departEndPct || departPct || 0;
-        const nameSize = Math.max(10, Math.round(colorPct / 100 * 28));
-        const platSize = Math.max(9, Math.round(colorPct / 100 * 20));
-        return (
-          <Box sx={{ position: 'absolute', top: 1, left: 2, right: 2, zIndex: 2, textAlign: 'left', lineHeight: 1, pointerEvents: 'none' }}>
-            <Typography sx={{ fontSize: nameSize, fontWeight: 700, color: 'common.white', lineHeight: 1, whiteSpace: 'nowrap', textShadow: darkTextShadow, ...FIT }}>
-              {compactName(departureRes.firstName, departureRes.lastName)}
-            </Typography>
-            <Typography sx={{ fontSize: platSize, fontWeight: 500, color: whiteSoft, lineHeight: 1, whiteSpace: 'nowrap', textShadow: darkTextShadow }}>
-              {formatPlatformLabel(departureRes.platform)}
-            </Typography>
-          </Box>
-        );
-      })()}
     </Box>
   );
 }

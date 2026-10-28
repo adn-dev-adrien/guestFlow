@@ -390,7 +390,9 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS }
         // startDate/endDate are needed so the locked date-drift detector
         // (isLockedDateDrift / icalDateDriftModel) can compare the persisted dates against the
         // ones proposed by the source feed — see specs/ical-sync-override-locked-dates.md §3.
-        const getReservationById = database.prepare('SELECT id, sourceType, icalSyncLocked, startDate, endDate FROM reservations WHERE id = ?');
+        // A minimal test schema without `kind` has no stay set aside (specs/calendar-property-parity.md rule 22).
+        const hasKind = database.prepare('PRAGMA table_info(reservations)').all().some((c) => c.name === 'kind');
+        const getReservationById = database.prepare(`SELECT id, ${hasKind ? 'kind' : "'reservation' AS kind"}, sourceType, icalSyncLocked, startDate, endDate FROM reservations WHERE id = ?`);
         // Step ①bis (specs/ical-sync-mapping-resilience.md §3 rule 1) — the reservation row itself
         // stores the feed UID. If the mapping table lost its memory (2026-07-21 incident: one
         // degenerate empty fetch swept every mapping), this lookup re-claims the reservation
@@ -890,6 +892,13 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS }
             }
 
             const mappedReservation = getReservationById.get(mapping.reservationId);
+            // specs/calendar-property-parity.md rule 22 — a stay set aside as a duplicate is never
+            // updated, re-imported nor resurrected: its UID is known and unchanged.
+            if (mappedReservation && mappedReservation.kind === 'superseded') {
+              upsertMapping.run(source.id, event.uid, mapping.reservationId, eventHash, event.startDate, event.endDate, summaryNormalized);
+              unchangedCount += 1;
+              continue;
+            }
             if (!mappedReservation) {
               const clientId = getOrCreateIcalClient(parseGuestName(event.summary, event.description), source.platformLabel || source.name);
               const result = insertReservation.run(
@@ -1194,21 +1203,6 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS }
       } catch (error) {
         return { error: String(error.message || 'Erreur de synchronisation iCal'), status: 400 };
       }
-    },
-
-    // The property's disabled platform labels (specs/platforms-and-ical-rework.md §3 rule 10) — the
-    // platforms whose bookings are hidden from this property's reservation views. Returns the set of
-    // platform labels + keys (lowercased) so callers can match `reservations.platform` either way.
-    disabledPlatformLabels(propertyId) {
-      const rows = database.prepare(
-        "SELECT platformLabel, platformKey FROM ical_sources WHERE propertyId = ? AND disabled = 1"
-      ).all(propertyId);
-      const set = new Set();
-      for (const r of rows) {
-        if (r.platformLabel) set.add(String(r.platformLabel).toLowerCase());
-        if (r.platformKey) set.add(String(r.platformKey).toLowerCase());
-      }
-      return [...set];
     },
 
     // specs/ical-import-hardening.md rule 4 — every feed is fetched at once, then applied one after the

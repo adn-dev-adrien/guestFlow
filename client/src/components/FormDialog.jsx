@@ -1,5 +1,6 @@
 /**
  * FormDialog — standard form dialog: title, content, Annuler/Enregistrer actions.
+ * Transitions are off under `prefers-reduced-motion`.
  * fullScreen under the `sm` breakpoint (specs/ds-components.md §3.3 — CLAUDE.md dialog rule).
  *
  * Props: open, onClose, title, children, maxWidth ('sm'), fullWidth (true),
@@ -30,8 +31,9 @@ export default function FormDialog({
 }) {
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down('sm'));
+  const reduceMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
   return (
-    <Dialog open={open} onClose={onClose} maxWidth={maxWidth} fullWidth={fullWidth} fullScreen={fullScreen}>
+    <Dialog open={open} onClose={onClose} maxWidth={maxWidth} fullWidth={fullWidth} fullScreen={fullScreen} transitionDuration={reduceMotion ? 0 : undefined}>
       <DialogTitle>{title}</DialogTitle>
       <DialogContent>{children}</DialogContent>
       <DialogActions

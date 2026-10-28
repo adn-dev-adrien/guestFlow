@@ -45,4 +45,11 @@ function up(db) {
   `);
 }
 
-module.exports = { TABLES, up };
+/** `reconciliation_v2` — who confirmed a line and with which others (specs/reconciliation-assisted-matching.md §5). */
+function upV2(db) {
+  const columns = new Set(db.prepare('PRAGMA table_info(bank_reconciliation_lines)').all().map((c) => c.name));
+  if (!columns.has('auto')) db.exec('ALTER TABLE bank_reconciliation_lines ADD COLUMN auto INTEGER NOT NULL DEFAULT 0');
+  if (!columns.has('groupId')) db.exec('ALTER TABLE bank_reconciliation_lines ADD COLUMN groupId TEXT');
+}
+
+module.exports = { TABLES, up, upV2 };

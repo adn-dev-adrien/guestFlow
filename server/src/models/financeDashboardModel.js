@@ -20,7 +20,7 @@ const { isDirectChannel } = require('../utils/platformNameFormat');
 const { round2 } = require('../utils/paymentStatus');
 const { parseNotes } = require('../utils/midStayExtras');
 const { parseGroup } = require('../utils/arrivalPaymentGroup');
-const { arrivalPaymentAdjustment } = require('../utils/reservationSettlement');
+const { arrivalPaymentAdjustment, platformPenalty } = require('../utils/reservationSettlement');
 const { paceStartOf } = require('../utils/bookingPace');
 
 const H = financeModel.helpers;
@@ -161,7 +161,7 @@ function createDashboardModel(database, finance) {
       const c = commissionOf(r);
       if (!isPlatformStay(r) || c <= 0) continue;
       commission += c;
-      gross += Number(r.totalSejour || 0) + c;
+      gross += Number(r.totalSejour || 0) + c + platformPenalty(r);
     }
     return gross > 0 ? Math.round((commission / gross) * 10000) / 10000 : null;
   }
@@ -345,7 +345,7 @@ function createDashboardModel(database, finance) {
       const day = (d) => (d ? String(d).slice(0, 10) : r.attributionDate);
       const add = (date, kind, label, amount) => { if (round2(amount) !== 0) rows.push({ ...base, date: day(date), kind, label, amount: round2(amount) }); };
       if (r.depositPaid && !r.depositPaidCash) add(r.depositPaidDate, 'deposit', 'Acompte', Number(r.depositAmount || 0) - Number(r.acompteCommissionAmount || 0));
-      if (r.balancePaid && !r.balancePaidCash) add(r.balancePaidDate, 'balance', isPlatformStay(r) ? 'Versement plateforme' : 'Solde', Number(r.balanceAmount || 0) - Number(r.platformCommissionAmount || 0));
+      if (r.balancePaid && !r.balancePaidCash) add(r.balancePaidDate, 'balance', isPlatformStay(r) ? 'Versement plateforme' : 'Solde', Number(r.balanceAmount || 0) - Number(r.platformCommissionAmount || 0) - platformPenalty(r));
       if (r.complementPaid && !r.complementPaidCash) add(r.complementPaidDate, 'complement', 'Complément', Number(r.complementAmount || 0));
       if (r.endOfStayComplementPaid && !r.endOfStayComplementPaidCash) add(r.endOfStayComplementPaidDate, 'endOfStay', 'Complément fin de séjour', Number(r.endOfStayComplementAmount || 0));
       for (const i of installments.filter((x) => x.reservationId === r.id)) {

@@ -11,9 +11,8 @@ import DialogProvider from '../../components/DialogProvider';
 vi.mock('../../api', () => ({
   __esModule: true,
   default: {
-    getReservations: vi.fn(),
+    getPlanningToday: vi.fn(),
     getAttention: vi.fn(),
-    getReservation: vi.fn(),
     markPayment: vi.fn(),
     getToday: vi.fn(),
   },
@@ -41,6 +40,8 @@ const renderPage = () => render(
 
 const STAY = { id: 1, startDate: '2026-10-25', endDate: '2026-10-27', propertyName: 'Gite', firstName: 'Camille', lastName: 'Martin', options: [], resources: [] };
 
+const day = (arrival) => ({ today: '2026-10-25', departures: [], arrivals: [arrival], nextArrival: null });
+
 beforeEach(() => {
   mockAuth.user = { roles: ['admin'] };
   api.getAttention.mockReset().mockResolvedValue({ pinned: [], total: 0, items: [] });
@@ -48,16 +49,14 @@ beforeEach(() => {
 });
 
 test('rule 11: no bed count → « — » in the arrivals table, no « Lits » line', async () => {
-  api.getReservations.mockReset().mockResolvedValue([STAY]);
-  api.getReservation.mockReset().mockResolvedValue({ ...STAY, doubleBeds: 0, singleBeds: 0, babyBeds: 0 });
+  api.getPlanningToday.mockReset().mockResolvedValue(day({ ...STAY, doubleBeds: 0, singleBeds: 0, babyBeds: 0 }));
   renderPage();
   await waitFor(() => expect(screen.getAllByText('Camille Martin').length).toBeGreaterThan(0));
   expect(screen.queryByText(/D:0 \/ S:0/)).not.toBeInTheDocument();
 });
 
 test('rule 11: a stay with beds still shows them', async () => {
-  api.getReservations.mockReset().mockResolvedValue([STAY]);
-  api.getReservation.mockReset().mockResolvedValue({ ...STAY, doubleBeds: 1, singleBeds: 2, babyBeds: 0 });
+  api.getPlanningToday.mockReset().mockResolvedValue(day({ ...STAY, doubleBeds: 1, singleBeds: 2, babyBeds: 0 }));
   renderPage();
   expect((await screen.findAllByText(/D:1 \/ S:2 \/ B:0/)).length).toBeGreaterThan(0);
 });

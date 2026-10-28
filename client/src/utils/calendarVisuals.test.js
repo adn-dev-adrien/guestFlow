@@ -5,10 +5,10 @@ import {
   timeToHour,
   hourToPercent,
   compactName,
-  resHasMidDays,
   getBlockedNightInfo,
   DAY_START,
   DAY_END,
+  MONTH_SHORT_NAMES,
 } from './calendarVisuals';
 
 describe('calendarVisuals', () => {
@@ -61,19 +61,6 @@ describe('calendarVisuals', () => {
     });
   });
 
-  describe('resHasMidDays', () => {
-    const inJuly = (res) => resHasMidDays(res, 2026, 6, 31);
-    it('false for a 1-night stay (no mid days)', () => {
-      expect(inJuly({ startDate: '2026-07-10', endDate: '2026-07-11' })).toBe(false);
-    });
-    it('true when a mid day falls inside the month', () => {
-      expect(inJuly({ startDate: '2026-07-10', endDate: '2026-07-15' })).toBe(true);
-    });
-    it('false when the only mid days are in another month', () => {
-      expect(inJuly({ startDate: '2026-08-10', endDate: '2026-08-15' })).toBe(false);
-    });
-  });
-
   describe('getBlockedNightInfo', () => {
     it('returns null when there is no blocked night', () => {
       expect(getBlockedNightInfo('2026-07-15', [])).toBeNull();
@@ -85,6 +72,14 @@ describe('calendarVisuals', () => {
       expect(info?.type).toBe('early-arrival');
       expect(info.endPct).toBe(100);
       expect(info.client.id).toBe(1);
+    });
+  });
+
+  describe('MONTH_SHORT_NAMES', () => {
+    it('reads the French abbreviation, and June is not July', () => {
+      expect(MONTH_SHORT_NAMES[9]).toBe('Oct.');
+      expect(MONTH_SHORT_NAMES[10]).toBe('Nov.');
+      expect(MONTH_SHORT_NAMES[5]).not.toBe(MONTH_SHORT_NAMES[6]);
     });
   });
 });

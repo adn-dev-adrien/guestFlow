@@ -232,7 +232,7 @@ planning card and the kitchen prep all follow that number instead of the party s
 | GET | `/api/reservations/:id/sas?mode=arrival` | — | `sasSales.breakfast` and each `sasSales.catering.options[]` gain `defaultPersons`, `maxPersons`, `selectedPersons`; `sasSales.breakfast.compositionPerPerson = { pastries: 1, bread: 0.5, … }` | The server decides the default and the ceiling. |
 | POST | `/api/reservations/:id/sas/arrival` | `soldOptions: [{ optionId, occurrences: [{date,time}], persons }]` (card option) \| `[{ optionId, units }]` (other) | `{ ok, complementAmount }` | `persons` optional; absent → the party. Clamped server-side. |
 | POST/PUT | `/api/reservations` · `/api/reservations/:id` · `/api/reservations/quote` · devis twins | `selectedOptions[].cardPersons: number \| null` | unchanged | Ignored for non-per-person / non-card options. |
-| GET | `/api/planning/option-cards` | — | `items[].servedPersons: number \| null` | Feeds the « N couverts » chip. |
+| GET | `/api/planning/option-cards` | — | `items[].servedPersons: number \| null` | Feeds the « N couverts » chip. Route removed 2026-10-28: the same items ride in `optionCards` of each day of `GET /api/planning/days` (dashboard-planning-scroll.md rule 10). |
 | GET | `/api/planning/breakfast` · `/api/reservations/:id/sas` (`breakfast.persons`) | — | unchanged shape, value now honours `cardPersons` | Rule 16. |
 
 ---

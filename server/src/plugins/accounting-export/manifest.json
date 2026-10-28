@@ -1,7 +1,7 @@
 {
   "id": "accounting-export",
   "name": "Export comptable",
-  "version": "1.0.15",
+  "version": "1.0.16",
   "description": "Écritures, plan comptable et export pour le cabinet comptable.",
   "icon": "book",
   "surfaces": [
@@ -9,8 +9,8 @@
     "Le rôle « Comptable »"
   ],
   "requires": [],
-  "guestflow": ">=3.9.0 <4.0.0",
-  "sdk": "^2.8.0",
+  "guestflow": ">=3.18.0 <4.0.0",
+  "sdk": "^2.10.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
@@ -66,10 +66,14 @@
       "Compatible avec le SDK 2.5 de GuestFlow."
     ],
     "1.0.15": [
+      "Une pénalité qu’une plateforme a gardée sur un versement est une écriture à part : débit du compte « Pénalités plateformes » (658000 par défaut, modifiable dans le Plan comptable), crédit du compte client, sans TVA.",
+      "Compatible avec le SDK 2.9 de GuestFlow."
+    ],
+    "1.0.16": [
       "Le taux de TVA de chaque écriture est celui du régime de la réservation.",
       "Une réservation « Sans TVA » n’écrit ni TVA collectée, ni TVA déductible sur la commission ; l’indemnité d’annulation et l’avoir restent à 0 %.",
       "Le plan comptable masque les taux de TVA qui ne peuvent pas s’appliquer sous « Sans TVA ».",
-      "Compatible avec le SDK 2.8 de GuestFlow."
+      "Compatible avec le SDK 2.10 de GuestFlow."
     ]
   }
 }

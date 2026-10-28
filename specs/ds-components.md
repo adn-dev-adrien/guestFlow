@@ -132,6 +132,8 @@ n-3, n-4, m-5 and the systemic touch targets) left these rules. They hold for ev
     column. `center` (or `tabs` from sm) takes a second row of the bar when the **bar** is narrower
     than 720 px — measured on the bar (container query), not the viewport, since the sidebar takes a
     different share at each breakpoint.
+    > **Amended 2026-10-28 (dashboard-planning-scroll.md rule 6):** the 900 px E2E pin no longer uses the
+    > dashboard's date input (gone): it measures the `/calendar` bar's centre node instead.
     > **Amended 2026-10-18 (review of PR #700):** with a `center`, the actions take an equal share
     > (so the centre is truly centred) only while the centre sits beside the title — on xs, where it
     > is hidden, and on a bar under 720 px, where it has its own row, the actions keep their own

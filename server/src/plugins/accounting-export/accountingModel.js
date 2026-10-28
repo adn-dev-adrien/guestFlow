@@ -23,7 +23,9 @@
 
 const sdk = require('../sdk');
 const { taxShares } = sdk.coreModule('installmentPlan');
-const { DEFAULT_COMMISSION_ACCOUNT, VAT_DEDUCTIBLE_COMMISSION_ACCOUNT, DISCOUNT_ACCOUNT, TIP_ACCOUNT } = require('./accountPlan');
+const {
+  DEFAULT_COMMISSION_ACCOUNT, VAT_DEDUCTIBLE_COMMISSION_ACCOUNT, DISCOUNT_ACCOUNT, TIP_ACCOUNT, PLATFORM_PENALTY_ACCOUNT,
+} = require('./accountPlan');
 const { createAccountSettings } = require('./settings');
 
 const { isPlatformCollectingTouristTax } = sdk.coreModule('pricing');
@@ -31,6 +33,7 @@ const vatRegimeModel = sdk.coreModule('vatRegimeModel');
 const { resolveMidStaySplit, storedMidStayLines, extraLineKey, parseNotes } = sdk.coreModule('midStayExtras');
 const { createModel: createRefundsModel } = sdk.coreModule('refundsModel');
 const { buildModel: buildCompensationsModel } = sdk.coreModule('cancellationCompensationsModel');
+const { buildModel: buildPenaltiesModel } = sdk.coreModule('platformPenaltiesModel');
 const { parseComplementAllocation } = sdk.coreModule('complementAllocation');
 const { parseGroup } = sdk.coreModule('arrivalPaymentGroup');
 
@@ -103,6 +106,8 @@ function createAccountingModel(database, { settings = createAccountSettings(data
   // Cancellation compensations (specs/cancellation-compensation.md §3.3): same lazy-statement
   // discipline as the refunds model, so a minimal test schema without the table stays buildable.
   const compensations = buildCompensationsModel(database);
+  // Platform penalties (specs/reconciliation-assisted-matching.md rule 28), same lazy discipline.
+  const penalties = buildPenaltiesModel(database);
   return {
     // List every encaissement (deposit + balance) whose paid date falls in [`YYYY-MM-01`, end of month].
     // Returns enriched entries already carrying the per-bucket HT/VAT and the platform info.
@@ -260,6 +265,24 @@ function createAccountingModel(database, { settings = createAccountSettings(data
       return refunds.listByMonth({ from, nextMonth }).map(buildRefundEntry).filter(Boolean);
     },
 
+    // Pénalités plateforme du mois (specs/reconciliation-assisted-matching.md rule 28): one entry per
+    // penalty, dated on the penalty's own date — never folded into the balance entry of the stay.
+    platformPenaltiesByMonth({ month, year }) {
+      // A minimal test schema has no penalties table: nothing to report there.
+      if (!hasTable(database, 'reservation_platform_penalties')) return [];
+      const mm = String(month).padStart(2, '0');
+      const yyyy = String(year);
+      const from = `${yyyy}-${mm}-01`;
+      const before = Number(mm) === 12 ? `${Number(yyyy) + 1}-01-01` : `${yyyy}-${String(Number(mm) + 1).padStart(2, '0')}-01`;
+      const account = String(settings.read().platformPenaltyAccount || PLATFORM_PENALTY_ACCOUNT);
+      const stayOf = database.prepare(`
+        SELECT r.id, r.platform, r.finalPrice, c.firstName, c.lastName, p.name AS propertyName
+        FROM reservations r JOIN clients c ON c.id = r.clientId JOIN properties p ON p.id = r.propertyId WHERE r.id = ?`);
+      return penalties.listByDate({ from, before })
+        .map((penalty) => buildPenaltyEntry(penalty, stayOf.get(penalty.reservationId), account))
+        .filter(Boolean);
+    },
+
     // Indemnités d'annulation encaissées dans le mois (specs/cancellation-compensation.md §3.3
     // rule 15): one entry per compensation whose `receivedDate` falls in the month. A `pending`
     // compensation is NOT accounting — no money moved yet, so it never reaches this list.
@@ -298,6 +321,34 @@ function compensationSettings(accountSettings) {
   return {
     account: accountSettings.cancellationCompensationAccount,
     vatRatePercent: Number(accountSettings.vatRateCancellationCompensation) || 0,
+  };
+}
+
+// One penalty → its own entry: debit the penalty account, credit the client's account, no VAT. The
+// client account nets to the money the platform really paid; the balance entry is untouched.
+function buildPenaltyEntry(penalty, stay, account) {
+  if (!stay) return null;
+  const ttc = round2(penalty.amount);
+  if (!(ttc > 0)) return null;
+  return {
+    reservationId: stay.id,
+    penaltyId: penalty.id,
+    kind: 'penalty',
+    direction: 'penalty',
+    paidDate: penalty.date,
+    client: { firstName: stay.firstName || '', lastName: stay.lastName || '' },
+    propertyName: stay.propertyName || '',
+    platform: stay.platform || '',
+    finalPrice: round2(stay.finalPrice),
+    encaissementTtc: ttc,
+    encaissementNetTtc: ttc,
+    commission: null,
+    taxTtc: 0,
+    fraction: 1,
+    buckets: [],
+    reason: penalty.reason,
+    penaltyAccount: account,
+    accountLabels: { [account]: 'Pénalité plateforme' },
   };
 }
 

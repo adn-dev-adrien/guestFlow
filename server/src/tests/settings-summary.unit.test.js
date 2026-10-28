@@ -32,7 +32,7 @@ test('rule 25: counts and states of the core pages', () => {
   assert.deepEqual(lines['/settings/tva-exercice'], { text: 'TVA 10 % · exercice clos fin septembre', tone: 'neutral' });
   assert.deepEqual(lines['/settings/emails'], { text: 'Envoi non configuré', tone: 'warning' });
   assert.deepEqual(lines['/settings/systeme'], { text: 'Version 3.10.0', tone: 'neutral' });
-  assert.deepEqual(lines['/mon-compte'], { text: 'Second code non activé', tone: 'neutral' });
+  assert.deepEqual(lines['/mon-compte'], { text: 'Validation en deux étapes non activée', tone: 'neutral' });
   assert.equal(lines['/settings/integrations'], undefined, 'nothing to configure: no line');
   db.close();
 });
@@ -76,7 +76,7 @@ test('rule 25: a line that fails is left out, the others stay', () => {
   db.exec('DROP TABLE terms_versions');
   const { lines } = buildSummary(deps(db, { twoFactor: true }), { id: 4 });
   assert.equal(lines['/parametres/conditions-generales'], undefined);
-  assert.equal(lines['/mon-compte'].text, 'Second code activé');
+  assert.equal(lines['/mon-compte'].text, 'Validation en deux étapes activée');
   assert.ok(lines['/properties']);
   db.close();
 });

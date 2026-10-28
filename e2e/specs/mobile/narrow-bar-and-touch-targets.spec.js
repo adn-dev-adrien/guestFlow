@@ -63,13 +63,13 @@ test.describe('phone (390 px, touch)', () => {
 test.describe('tablet (900 px)', () => {
   test.use({ viewport: { width: 900, height: 1000 } });
 
-  test('rule 19 — the date navigation takes a second row instead of crushing the dashboard title', async ({ page }) => {
-    await page.goto('/');
-    const title = page.getByRole('heading', { name: 'Tableau de bord' });
+  test('rule 19 — the calendar\'s centre node takes a second row instead of crushing the page title', async ({ page }) => {
+    await page.goto('/calendar');
+    const title = page.getByRole('heading', { name: 'Calendrier' });
     await expect(title).toBeVisible({ timeout: 10_000 });
     expect(await title.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(false);
     const titleBox = await title.boundingBox();
-    const dateBox = await page.getByLabel('Date affichée').first().boundingBox();
-    expect(dateBox.y).toBeGreaterThan(titleBox.y + titleBox.height - 1);
+    const centre = await page.getByTestId('page-action-bar-center').first().boundingBox();
+    expect(centre.y).toBeGreaterThan(titleBox.y + titleBox.height - 1);
   });
 });

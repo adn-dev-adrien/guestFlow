@@ -340,7 +340,7 @@ Appended, never renumbered; each narrows or completes a rule above.
 | `middleware/` | `enforceRoleAccess.js` | T | The accountant may `GET /settings/vat-regime`. |
 | `utils/` | `settingsResponse.js` | T | `vat: { regime, rate, legalMention }` of the regime in force. |
 | `plugins/accounting-export/` | `accountingModel.js`, `accountingExport.js` | T | Rate per row via `sdk.coreModule('vatRegimeModel')`; `not_subject` entries without VAT, commission TTC without 44566, compensation 0 % (rule 12g). Plugin version bump + changelog line. |
-| `plugins/sdk/` | core module list | T | Expose `vatRegimeModel` to plugins (`forRow`, `rateForRow`, `inForceBlock`): SDK 2.8.0, `coreModules.json`, `coreModuleHistory.json`. |
+| `plugins/sdk/` | core module list | T | Expose `vatRegimeModel` to plugins (`forRow`, `rateForRow`, `inForceBlock`): SDK 2.10.0, `coreModules.json`, `coreModuleHistory.json`. |
 | `middleware/` | — | — | Existing admin role guard reused. |
 | `scheduledTasks.js` | `scheduledTasks.js` | T | `tickVatRateMirror` at the hourly tick (rule 29); nothing else: a future-dated period needs no job, rule 5 is evaluated at insert. |
 | `utils/` | `settingsValidation.js` | T | `validateVatRate` accepts a decimal comma. |

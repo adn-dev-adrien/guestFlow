@@ -22,6 +22,8 @@ router.get('/support', c.supportLogin);
 router.get('/2fa/status', c.twoFactorStatus);
 router.post('/2fa/start', c.twoFactorStart);
 router.post('/2fa/confirm', c.twoFactorConfirm);
+router.post('/2fa/cancel', c.twoFactorCancel);
+router.post('/2fa/code', c.twoFactorCode);
 router.post('/2fa/disable', c.twoFactorDisable);
 router.post('/2fa/backup-codes', c.twoFactorRegenerate);
 router.post('/2fa/snooze', c.twoFactorSnooze);

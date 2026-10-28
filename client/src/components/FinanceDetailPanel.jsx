@@ -27,13 +27,12 @@ import PlatformChip from './PlatformChip';
 import LoadingState from './LoadingState';
 import ErrorAlert from './ErrorAlert';
 import YearOverYearBadge from './YearOverYearBadge';
-import { displayDate, formatCurrency, formatCurrencyRounded } from '../utils/formatters';
+import { displayDate, formatCurrency, formatCurrencyRounded, plural } from '../utils/formatters';
 import { seriesColor } from '../utils/chartColors';
 
 const TAB = { fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' };
 const pct = (x) => (x == null ? '—' : `${Math.round(x * 100)} %`);
 const money = (n) => (n == null ? '—' : formatCurrencyRounded(n));
-const plural = (n, w) => `${n} ${w}${n > 1 ? 's' : ''}`;
 
 const TITLES = {
   collected: ['Encaissé', 'Chaque paiement reçu pour les séjours de la période, du plus récent au plus ancien'],

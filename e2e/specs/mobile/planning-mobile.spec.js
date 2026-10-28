@@ -2,7 +2,7 @@
 // DS phase-5 mobile smoke (specs/ds-sweep-planning.md §7). /planning at 390px:
 //   - the page title is visible on arrival (on xs it is the top bar's heading,
 //     specs/shell-and-home-day-first.md rule 15);
-//   - the date cluster renders as the compact strip under the bar (bar `center` is hidden on xs);
+//   - no date strip any more (specs/dashboard-planning-scroll.md rule 22): « Aujourd'hui » is a bar action;
 //   - no page-level horizontal scroll;
 //   - the page scrolls through the WINDOW (no own scroll container — rule 6), so the bar
 //     stays sticky after scrolling.
@@ -10,15 +10,15 @@ import { test, expect } from '@playwright/test';
 
 test.use({ viewport: { width: 390, height: 844 } });
 
-test('Planning on xs: sticky bar + date strip, no horizontal scroll, window scroll keeps the bar', async ({ page }) => {
+test('Planning on xs: no date strip, « Aujourd\'hui » at hand, no horizontal scroll, window scroll keeps the bar', async ({ page }) => {
   await page.goto('/planning');
 
   // Title visible on xs (the top bar's heading) — pins « bandeau visible à l'ouverture ».
   await expect(page.getByRole('heading', { name: 'Planning' })).toBeVisible({ timeout: 10_000 });
 
-  // The xs date strip renders the date input + nav arrows below the bar. The bar `center`
-  // clone exists in the DOM but is display:none on xs — filter to the visible one.
-  await expect(page.locator('input[type="date"]:visible').first()).toBeVisible();
+  // No date picker; the one icon action « Aujourd'hui » is in the top bar (or beside the plugin buttons).
+  await expect(page.locator('input[type="date"]')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: "Aujourd'hui" })).toBeVisible();
 
   // No page-level horizontal overflow.
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);

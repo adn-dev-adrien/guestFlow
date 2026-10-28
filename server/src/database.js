@@ -1046,30 +1046,9 @@ db.exec(`
    WHERE platform IS NOT NULL AND platform != '' AND LOWER(platform) != 'direct'
 `);
 
-// specs/platforms-and-ical-rework.md §5 — one-time backfill of the new GLOBAL `platforms.color`
-// from any operator-customised per-source `ical_sources.platformColor` (a colour that differs from
-// both the grey default and the platform's built-in brand colour). Only fills rows whose
-// `platforms.color` is still NULL, so it never overwrites a colour later chosen via the new palette.
-{
-  const { KNOWN_PLATFORM_COLORS, DEFAULT_PLATFORM_COLOR } = require('./constants/platformColors');
-  const slug = (v) => String(v || '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/[^a-z0-9]/g, '');
-  const setColor = db.prepare('UPDATE platforms SET color = ? WHERE id = ? AND color IS NULL');
-  const platformRows = db.prepare('SELECT id, name FROM platforms WHERE color IS NULL').all();
-  for (const platform of platformRows) {
-    const key = slug(platform.name);
-    const source = db.prepare(`
-      SELECT platformColor FROM ical_sources
-       WHERE lower(platformLabel) = lower(?)
-         AND platformColor IS NOT NULL AND trim(platformColor) != ''
-       ORDER BY updatedAt DESC, id DESC LIMIT 1
-    `).get(platform.name);
-    const custom = source && String(source.platformColor).trim();
-    if (custom && custom.toLowerCase() !== DEFAULT_PLATFORM_COLOR.toLowerCase()
-        && custom.toLowerCase() !== String(KNOWN_PLATFORM_COLORS[key] || '').toLowerCase()) {
-      setColor.run(custom, platform.id);
-    }
-  }
-}
+// specs/platforms-and-ical-rework.md §5 — one-time backfill of the GLOBAL `platforms.color` from the operator's
+// per-source colours; the old built-in palette is not a custom colour (specs/calendar-property-parity.md rule 6).
+require('./utils/platformColorBackfill').backfillPlatformColors(db);
 
 // specs/platforms-and-ical-rework.md — fold the legacy singular "Gîte de France" (slug `gitedefrance`)
 // into the canonical plural "Gîtes de France" ("GitesDeFrance"). Same brand, must show as one. Slug-based
@@ -1204,6 +1183,10 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   tryAddRes('cancellationReason', 'ALTER TABLE reservations ADD COLUMN cancellationReason TEXT');
   tryAddRes('cancelledBy', 'ALTER TABLE reservations ADD COLUMN cancelledBy INTEGER');
   tryAddRes('paymentAlertSnoozedUntil', 'ALTER TABLE reservations ADD COLUMN paymentAlertSnoozedUntil TEXT');
+  // specs/calendar-property-parity.md rule 22 — a duplicate set aside keeps who it duplicates and why.
+  tryAddRes('supersededAt', 'ALTER TABLE reservations ADD COLUMN supersededAt TEXT');
+  tryAddRes('supersededByReservationId', 'ALTER TABLE reservations ADD COLUMN supersededByReservationId INTEGER');
+  tryAddRes('supersededReason', 'ALTER TABLE reservations ADD COLUMN supersededReason TEXT');
   db.exec('CREATE INDEX IF NOT EXISTS idx_reservations_cancelled ON reservations(cancelledAt)');
 
   const compCols = db.prepare('PRAGMA table_info(cancellation_compensations)').all().map((c) => c.name);
@@ -2165,6 +2148,27 @@ db.prepare("UPDATE repair_amounts SET label = 'Plomb manquant' WHERE repairKey =
   // row, no backfill) means the brut was typed tax-excluded — the convention of
   // platform-brut-excludes-offered-tourist-tax.md, which must keep computing to the cent.
   if (!rcols.includes('platformTouristTaxAmount')) db.exec('ALTER TABLE reservations ADD COLUMN platformTouristTaxAmount REAL');
+  // specs/reconciliation-assisted-matching.md rules 23-31 — what a platform keeps on a stay's payout for a
+  // reason other than its commission or the tourist tax. `platformPenaltyAmount` is the sum of the lines
+  // (€), kept in step by platformPenaltiesModel, so every reader of the stay's money already has it.
+  if (!rcols.includes('platformPenaltyAmount')) db.exec('ALTER TABLE reservations ADD COLUMN platformPenaltyAmount REAL NOT NULL DEFAULT 0');
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS reservation_platform_penalties (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      reservationId INTEGER NOT NULL REFERENCES reservations(id) ON DELETE CASCADE,
+      amountCents INTEGER NOT NULL CHECK (amountCents > 0),
+      reason TEXT NOT NULL,
+      penaltyDate TEXT NOT NULL,
+      source TEXT NOT NULL DEFAULT 'fiche',
+      payoutAdjustedFrom REAL,
+      payoutAdjustedTo REAL,
+      commissionAdjustedFrom REAL,
+      commissionAdjustedTo REAL,
+      createdAt TEXT NOT NULL DEFAULT (datetime('now')),
+      createdBy INTEGER
+    );
+    CREATE INDEX IF NOT EXISTS idx_platform_penalties_res ON reservation_platform_penalties (reservationId);
+  `);
   // specs/public-online-payment.md §5 — set when a paid online full-payment was converted onto dates that
   // had become unavailable (the devis never blocked them). Drives the admin notification + the conflict
   // chip; NULL on every normal booking. Idempotent ADD COLUMN.
@@ -2763,6 +2767,16 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   db.prepare('INSERT OR IGNORE INTO migrations (name) VALUES (?)').run(migrationName);
 }
 
+// `property_resource_prices.price` becomes nullable: NULL = « inherits the resource's base price »
+// (specs/options-resources-ux.md rule 28). Table rebuild, every row and value kept as stored.
+{
+  const migrationName = 'resource_property_price_nullable_v1';
+  const { makeResourcePriceNullable } = require('./utils/resourcePriceNullableMigration');
+  const copied = makeResourcePriceNullable(db);
+  if (copied !== null) console.log(`[resources] property_resource_prices.price accepte NULL — ${copied} ligne(s) conservée(s) telles quelles.`);
+  db.prepare('INSERT OR IGNORE INTO migrations (name) VALUES (?)').run(migrationName);
+}
+
 // ---------- VAT REGIME PERIODS (specs/vat-optional-mode.md rule 22) ----------
 require('./utils/vatRegimeMigration').runVatRegimeMigration(db);
 
@@ -2776,6 +2790,24 @@ require('./utils/vatRegimeMigration').runVatRegimeMigration(db);
 if (baselineDeferredError) {
   db.exec(SCHEMA_SQL);
   console.log('[schema] baseline rejoue avec succes apres les migrations gardees.');
+}
+
+// ---------- DUPLICATES THE OLD « PLATFORM DISABLED » FILTER HID (specs/calendar-property-parity.md rules 23-24) ----------
+// Runs after the baseline replay (the money tables it reads exist) and before any read: the filter is gone
+// from reservationsModel.list(), so a hidden stay that sits on a visible one must already be set aside by
+// then. Idempotent — a second run finds no `kind = 'reservation'` candidate left, and the `migrations` row
+// records it anyway.
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  const migrationName = 'calendar_parity_superseded_v1';
+  if (!db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(migrationName)) {
+    const { setAsideDuplicates } = require('./utils/supersededDuplicates');
+    const { superseded, flagged, keptVisible } = setAsideDuplicates(db);
+    const ids = (list) => (list.length ? list.join(', ') : 'aucun');
+    console.log(`[migration:${migrationName}] ${superseded.length} doublon(s) écarté(s) (${ids(superseded.map((s) => s.id))}) ; `
+      + `${flagged.length} séjour(s) signalé(s) en conflit de dates (${ids(flagged)}) ; `
+      + `${keptVisible.length} séjour(s) masqué(s) redevenu(s) visible(s) (${ids(keptVisible)}).`);
+    db.prepare('INSERT OR IGNORE INTO migrations (name) VALUES (?)').run(migrationName);
+  }
 }
 
 // ---------- DB HYGIENE — Bloc 0 ----------

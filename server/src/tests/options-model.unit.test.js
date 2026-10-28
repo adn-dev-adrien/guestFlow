@@ -204,13 +204,24 @@ test('create persists per-property defaults; get/list expose propertyDefaults', 
   assert.deepEqual(model.list()[0].propertyDefaults, { 1: { offered: true } });
 });
 
-test('setting a default implies applicability (property_options row)', () => {
+test('a default implies applicability when the payload carries no scope', () => {
+  const { db, model } = freshModel();
+  const { id } = model.create({
+    title: 'Vélo', priceType: 'per_stay', price: 5,
+    propertyDefaults: { 3: { default: true, offered: false } },
+  });
+  assert.equal(db.prepare('SELECT COUNT(*) c FROM property_options WHERE propertyId = 3 AND optionId = ?').get(id).c, 1);
+});
+
+// specs/options-resources-ux.md rule 15 — with an explicit scope, a default outside it is dropped, not promoted.
+test('specs/options-resources-ux.md rule 15: a default outside the explicit scope is dropped', () => {
   const { db, model } = freshModel();
   const { id } = model.create({
     title: 'Vélo', priceType: 'per_stay', price: 5, propertyIds: [],
     propertyDefaults: { 3: { default: true, offered: false } },
   });
-  assert.equal(db.prepare('SELECT COUNT(*) c FROM property_options WHERE propertyId = 3 AND optionId = ?').get(id).c, 1);
+  assert.equal(db.prepare('SELECT COUNT(*) c FROM property_options WHERE optionId = ?').get(id).c, 0);
+  assert.equal(db.prepare('SELECT COUNT(*) c FROM property_option_defaults WHERE optionId = ?').get(id).c, 0);
 });
 
 test('update replaces the default set (de-scoped property cleared)', () => {

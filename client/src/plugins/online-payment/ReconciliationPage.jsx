@@ -2,24 +2,29 @@
  * ReconciliationPage — « Rapprochement bancaire » of Suivi financier (specs/qonto-bank-reconciliation.md
  * rule 28, §6): the overview of every gap and proposal across reservations, and the only place for the
  * credits no fiche claims. Table on md+, cards on xs. Counters, states, wording and actions are the
- * server's (`GET /api/payments/reconciliation?view=`); this page draws them.
+ * server's (`GET /api/payments/reconciliation?view=&filter=`); this page draws them. A counter is a filter
+ * kept in the URL (specs/reconciliation-assisted-matching.md rule 11); « Tout confirmer » confirms the
+ * view's proposals in one batch (rules 12–13).
  */
 import React, {
-  useCallback, useEffect, useMemo, useRef, useState,
+  useCallback, useEffect, useRef, useState,
 } from 'react';
 import {
   Box, Button, Stack, TableBody, TableCell, TableHead, TableRow, Typography, useMediaQuery,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import SyncIcon from '@mui/icons-material/Sync';
-import { useNavigate } from 'react-router';
+import DoneAllIcon from '@mui/icons-material/DoneAll';
+import { useNavigate, useSearchParams } from 'react-router';
 import {
-  api, useToast, PageActionBar, PageTabs, TableCard, EmptyState, ErrorAlert, LoadingState, StatusBadge, PlatformChip,
+  api, useToast, PageActionBar, PageTabs, TableCard, EmptyState, ErrorAlert, LoadingState, StatusBadge, PlatformChip, FilterChip, PlatformPenaltyDialog,
 } from '../sdk';
-import ReconciliationLine from './ReconciliationLine';
+import ReconciliationLine, { BankCell } from './ReconciliationLine';
 import LinkTransactionDialog from './LinkTransactionDialog';
+import BulkConfirmDialog from './BulkConfirmDialog';
+import SplitSharesDialog from './SplitSharesDialog';
 import useReconciliationActions from './useReconciliationActions';
-import { money, lastReadLabel, readFailureLabel } from './reconciliationShared';
+import { money, lastReadLabel, readFailureLabel, shareLabels } from './reconciliationShared';
 
 const TABS = [
   { view: 'todo', label: 'À traiter', count: (c) => c.todo },
@@ -33,6 +38,14 @@ const COUNTERS = [
   { label: 'Non rattachés', key: 'unmatched', view: 'todo', color: 'warning.main' },
   { label: 'Rapprochés', key: 'reconciled', view: 'done', color: 'success.main' },
 ];
+// `auto` is no counter: « Voir » after an automatic read leads to the lines the server confirmed alone.
+const FILTER_VIEWS = { gaps: 'todo', proposed: 'todo', unmatched: 'todo', reconciled: 'done', auto: 'done' };
+const FILTER_LABELS = { gaps: 'Écarts', proposed: 'À confirmer', unmatched: 'Non rattachés', reconciled: 'Rapprochés', auto: 'Rapprochements automatiques' };
+const FILTER_EMPTY = {
+  gaps: 'Aucun écart à traiter.', proposed: 'Plus rien à confirmer.', unmatched: 'Aucun virement non rattaché.',
+  reconciled: 'Aucun rapprochement.', auto: 'Aucun rapprochement automatique.',
+};
+const FILTER_KEYS = Object.keys(FILTER_VIEWS);
 const CREDIT_BADGE = { unmatched: ['warning', 'Non rattaché'], other: ['neutral', 'Autre crédit'], outside: ['neutral', 'Hors réservation'] };
 
 export default function ReconciliationPage() {
@@ -41,19 +54,38 @@ export default function ReconciliationPage() {
   const navigate = useNavigate();
   const { showError } = useToast();
   const latest = useRef(0);
-  const [view, setView] = useState('todo');
+  const [params, setParams] = useSearchParams();
+  const [view, setViewState] = useState(() => {
+    const f = params.get('filter');
+    return FILTER_VIEWS[f] || 'todo';
+  });
+  const filter = FILTER_KEYS.includes(params.get('filter')) ? params.get('filter') : null;
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [reading, setReading] = useState(false);
   const [linkCredit, setLinkCredit] = useState(null);
-  const [candidates, setCandidates] = useState([]);
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [sharesItem, setSharesItem] = useState(null);
+  const [penaltyItem, setPenaltyItem] = useState(null);
+  const [dismissedAuto, setDismissedAuto] = useState(null);
 
-  const load = useCallback(async (which) => {
+  const setView = useCallback((next) => {
+    setViewState(next);
+    setParams({}, { replace: true });
+  }, [setParams]);
+  const toggleFilter = (counter) => {
+    if (filter === counter.key) { setParams({}, { replace: true }); return; }
+    setViewState(counter.view);
+    setParams({ filter: counter.key }, { replace: true });
+  };
+  const clearFilter = useCallback(() => setParams({}, { replace: true }), [setParams]);
+
+  const load = useCallback(async (which, narrow) => {
     latest.current += 1;
     const ticket = latest.current;
     try {
-      const answer = await api.getReconciliation(which);
+      const answer = await api.getReconciliation(which, narrow);
       if (ticket === latest.current) { setData(answer); setError(null); }
     } catch (err) {
       if (ticket === latest.current) { setData(null); setError(err); }
@@ -62,41 +94,42 @@ export default function ReconciliationPage() {
     }
   }, []);
 
-  useEffect(() => { setLoading(true); setData(null); load(view); }, [view, load]);
-  const reload = useCallback(() => load(view), [load, view]);
+  useEffect(() => { setLoading(true); setData(null); load(view, filter); }, [view, filter, load]);
+  const reload = useCallback(() => load(view, filter), [load, view, filter]);
   const actions = useReconciliationActions({ onChanged: reload });
 
   const refresh = async () => {
     setReading(true);
     try {
-      setData(await api.readReconciliation(view));
+      setData(await api.readReconciliation(view, filter));
       setError(null);
     } catch (err) {
-      if (err && err.code === 'READ_TOO_SOON') await load(view); else setError(err);
+      if (err && err.code === 'READ_TOO_SOON') await load(view, filter); else setError(err);
     } finally {
       setReading(false);
     }
   };
 
-  const openLink = async (credit) => {
-    try {
-      setCandidates((await api.getReconciliationCandidates('')).items || []);
-    } catch (err) {
-      showError(err?.message || 'Échéances indisponibles.');
-      return;
-    }
-    setLinkCredit(credit);
-  };
-  const receiptsForDialog = useMemo(() => candidates.map((c) => ({
-    key: c.key, reservationId: c.reservation.id, ledgerKey: c.ledgerKey, label: c.label, expectedCents: c.expectedCents, clientName: c.reservation.clientName,
-  })), [candidates]);
-  const submitLink = async (l) => {
-    const ok = await actions.link('manual', l.transactionId, [{ reservationId: l.reservationId, ledgerKey: l.ledgerKey, amountCents: l.amountCents }]);
+  const submitLink = async (pairs) => {
+    const ok = await actions.linkBatch('manual', pairs);
     if (ok) setLinkCredit(null);
+  };
+  const submitShares = async ({ pairs, proposalId }) => {
+    const ok = await actions.linkBatch(sharesItem.key, pairs, proposalId);
+    if (ok) setSharesItem(null);
+  };
+  const showAutomatic = () => {
+    setViewState('done');
+    setParams({ filter: 'auto' }, { replace: true });
+  };
+  const confirmAll = async (payload) => {
+    const answer = await actions.confirmAll(payload);
+    if (answer) setBulkOpen(false);
   };
 
   const openFiche = (item) => navigate(`/reservations/${item.reservation.id}`);
 
+  const hasProposals = Boolean(data && data.bulk && data.bulk.count + data.bulk.toVerify.count > 0);
   const bar = (
     <PageActionBar
       title="Rapprochement bancaire"
@@ -105,7 +138,10 @@ export default function ReconciliationPage() {
           {readFailureLabel(data.lastError) || lastReadLabel(data.lastReadAt)}
         </Typography>
       ) : null}
-      actionsBefore={[{ icon: <SyncIcon />, tooltip: 'Actualiser', onClick: refresh, color: 'info', disabled: reading || !data }]}
+      actionsBefore={[
+        { icon: <SyncIcon />, tooltip: 'Actualiser', onClick: refresh, color: 'info', disabled: reading || !data },
+        ...(hasProposals ? [{ icon: <DoneAllIcon />, tooltip: 'Tout confirmer', onClick: () => setBulkOpen(true), color: 'success' }] : []),
+      ]}
     />
   );
 
@@ -130,17 +166,38 @@ export default function ReconciliationPage() {
     <>
       {bar}
       {error && <ErrorAlert message={error.message} onRetry={refresh} />}
+      {data.autoConfirmed && data.autoConfirmed.count > 0 && dismissedAuto !== data.autoConfirmed.at && (
+        <Stack direction="row" gap={1} sx={{ alignItems: 'center', flexWrap: 'wrap', mb: 1.5, px: 1.5, py: 0.5, borderRadius: 1.5, bgcolor: 'info.soft', color: 'info.text' }}>
+          <Typography variant="body2">
+            {data.autoConfirmed.count} rapprochement{data.autoConfirmed.count > 1 ? 's' : ''} automatique{data.autoConfirmed.count > 1 ? 's' : ''}
+          </Typography>
+          <Button size="small" color="inherit" onClick={showAutomatic} sx={{ textTransform: 'none', minHeight: 44, fontWeight: 600 }}>Voir</Button>
+          <Button size="small" color="inherit" onClick={() => setDismissedAuto(data.autoConfirmed.at)} sx={{ textTransform: 'none', minHeight: 44 }} aria-label="Fermer l'information">Fermer</Button>
+        </Stack>
+      )}
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(4, 1fr)' }, gap: 1.25, mb: 1.5 }}>
-        {COUNTERS.map((c) => (
-          <Box
-            key={c.key} component="button" type="button" onClick={() => setView(c.view)}
-            sx={{ textAlign: 'left', font: 'inherit', cursor: 'pointer', bgcolor: 'background.paper', border: 1, borderColor: 'divider', borderRadius: 1.5, p: 1.25, minHeight: 44 }}
-          >
-            <Typography variant="caption" color="text.secondary" component="div">{c.label}</Typography>
-            <Typography sx={{ fontSize: 24, fontWeight: 700, color: c.color, fontVariantNumeric: 'tabular-nums' }}>{counts[c.key]}</Typography>
-          </Box>
-        ))}
+        {COUNTERS.map((c) => {
+          const pressed = filter === c.key;
+          return (
+            <Box
+              key={c.key} component="button" type="button" onClick={() => toggleFilter(c)} aria-pressed={pressed}
+              sx={{
+                textAlign: 'left', font: 'inherit', cursor: 'pointer', bgcolor: pressed ? 'action.selected' : 'background.paper', border: 1,
+                borderColor: pressed ? 'primary.main' : 'divider', boxShadow: pressed ? (t) => `0 0 0 1px ${t.palette.primary.main}` : 'none',
+                borderRadius: 1.5, p: 1.25, minHeight: 44,
+              }}
+            >
+              <Typography variant="caption" color="text.secondary" component="div">{c.label}</Typography>
+              <Typography sx={{ fontSize: 24, fontWeight: 700, color: c.color, fontVariantNumeric: 'tabular-nums' }}>{counts[c.key]}</Typography>
+            </Box>
+          );
+        })}
       </Box>
+      {filter && (
+        <Box sx={{ mb: 1.5 }}>
+          <FilterChip label={FILTER_LABELS[filter]} count={counts[filter]} onClear={clearFilter} clearLabel="Retirer le filtre" />
+        </Box>
+      )}
 
       <PageTabs
         variant="card" value={view} onChange={setView} ariaLabel="Vues du rapprochement"
@@ -148,7 +205,10 @@ export default function ReconciliationPage() {
       />
 
       {empty ? (
-        <EmptyState message={view === 'todo' ? 'Rien à traiter : chaque échéance est rapprochée ou attendue.' : 'Aucune ligne ici.'} />
+        <EmptyState
+          message={filter ? FILTER_EMPTY[filter] : (view === 'todo' ? 'Rien à traiter : chaque échéance est rapprochée ou attendue.' : 'Aucune ligne ici.')}
+          actionLabel={filter ? 'Retirer le filtre' : undefined} onAction={filter ? clearFilter : undefined}
+        />
       ) : (
         <>
           {items.length > 0 && (isMobile ? (
@@ -156,7 +216,7 @@ export default function ReconciliationPage() {
               {items.map((item) => (
                 <ReconciliationLine
                   key={item.key} item={item} showReservation busy={actions.busy === item.key}
-                  onConfirm={actions.confirm} onDiscard={actions.discard} onUndo={actions.undo} onOpenFiche={openFiche}
+                  onConfirm={actions.confirm} onDiscard={actions.discard} onUndo={actions.undo} onShares={setSharesItem} onDeclarePenalty={setPenaltyItem} onOpenFiche={openFiche}
                 />
               ))}
             </Box>
@@ -170,7 +230,6 @@ export default function ReconciliationPage() {
               </TableHead>
               <TableBody>
                 {items.map((item) => {
-                  const side = item.bank[0] || (item.proposal && item.proposal.bank);
                   const busy = actions.busy === item.key;
                   return (
                     <TableRow key={item.key} hover>
@@ -180,24 +239,17 @@ export default function ReconciliationPage() {
                       </TableCell>
                       <TableCell>{item.label}</TableCell>
                       <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>{money(item.expectedCents)}</TableCell>
-                      <TableCell>
-                        {side ? (
-                          <>
-                            {!item.bank[0] && <Typography variant="caption" color="text.secondary">proposé · </Typography>}
-                            {side.dateLabel} · <span style={{ fontVariantNumeric: 'tabular-nums' }}>{money(item.bank[0] ? item.allocatedCents : side.amountCents)}</span>
-                            <Typography variant="caption" color="text.secondary" component="div">{side.counterparty}</Typography>
-                          </>
-                        ) : '—'}
-                      </TableCell>
+                      <TableCell><BankCell item={item} /></TableCell>
                       <TableCell>
                         <StatusBadge status={item.tone} label={item.stateLabel} />
                         {item.proposal && <Typography variant="caption" color="text.secondary" component="div">{item.proposal.confidenceLabel}</Typography>}
                         {item.fixText && <Typography variant="caption" color="text.secondary" component="div" sx={{ maxWidth: 260 }}>{item.fixText}</Typography>}
                       </TableCell>
                       <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
-                        {item.proposal && <Button size="small" variant="contained" disabled={busy} onClick={() => actions.confirm(item)} sx={{ mr: 0.5, textTransform: 'none' }}>Confirmer</Button>}
+                        {item.proposal && <Button size="small" variant="contained" disabled={busy} onClick={() => (item.proposal.needsShares ? setSharesItem(item) : actions.confirm(item))} sx={{ mr: 0.5, textTransform: 'none' }}>{item.proposal.needsShares ? 'Répartir et confirmer' : 'Confirmer'}</Button>}
                         {item.proposal && <Button size="small" color="inherit" disabled={busy} onClick={() => actions.discard(item)} sx={{ textTransform: 'none' }}>Écarter</Button>}
                         {item.canUndo && <Button size="small" color="inherit" disabled={busy} onClick={() => actions.undo(item)} sx={{ textTransform: 'none' }}>Défaire</Button>}
+                        {item.declarePenalty && <Button size="small" variant="outlined" onClick={() => setPenaltyItem(item)} sx={{ ml: 0.5, minHeight: 44, textTransform: 'none' }}>Déclarer une pénalité de {money(item.declarePenalty.amountCents)}</Button>}
                         {item.isGap && <Button size="small" variant="outlined" onClick={() => openFiche(item)} sx={{ ml: 0.5, textTransform: 'none' }}>Ouvrir la fiche</Button>}
                       </TableCell>
                     </TableRow>
@@ -225,7 +277,7 @@ export default function ReconciliationPage() {
                       <StatusBadge status={tone} label={label} />
                     </Stack>
                     <Stack direction={{ xs: 'column', sm: 'row' }} gap={1} sx={{ mt: 1 }}>
-                      {credit.status !== 'outside' && <Button variant="outlined" disabled={busy} onClick={() => openLink(credit)} sx={{ minHeight: 44, textTransform: 'none' }}>Rattacher à une fiche</Button>}
+                      {credit.status !== 'outside' && <Button variant="outlined" disabled={busy} onClick={() => setLinkCredit(credit)} sx={{ minHeight: 44, textTransform: 'none' }}>Rattacher à des fiches</Button>}
                       {credit.status !== 'outside' && <Button variant="text" color="inherit" disabled={busy} onClick={() => actions.setOutside(credit, true)} sx={{ minHeight: 44, textTransform: 'none' }}>Hors réservation</Button>}
                       {credit.status === 'outside' && <Button variant="text" color="inherit" disabled={busy} onClick={() => actions.setOutside(credit, false)} sx={{ minHeight: 44, textTransform: 'none' }}>Remettre</Button>}
                     </Stack>
@@ -237,10 +289,20 @@ export default function ReconciliationPage() {
         </>
       )}
 
-      <LinkTransactionDialog
-        open={Boolean(linkCredit)} onClose={() => setLinkCredit(null)} credit={linkCredit} receipts={receiptsForDialog}
-        busy={actions.busy === 'manual'} onSubmit={submitLink}
+      {linkCredit && (
+        <LinkTransactionDialog open onClose={() => setLinkCredit(null)} credit={linkCredit} busy={actions.busy === 'manual'} onSubmit={submitLink} />
+      )}
+      {penaltyItem && (
+        <PlatformPenaltyDialog
+          open onClose={() => setPenaltyItem(null)} reservationId={penaltyItem.reservation.id} source="reconciliation"
+          initialAmount={penaltyItem.declarePenalty.amount} onDone={reload}
+        />
+      )}
+      <SplitSharesDialog
+        open={Boolean(sharesItem)} onClose={() => setSharesItem(null)} proposal={sharesItem ? sharesItem.proposal : null}
+        labels={sharesItem ? shareLabels(sharesItem) : {}} busy={Boolean(sharesItem) && actions.busy === sharesItem.key} onSubmit={submitShares}
       />
+      <BulkConfirmDialog open={bulkOpen} onClose={() => setBulkOpen(false)} bulk={data.bulk} busy={actions.busy === 'bulk'} onConfirm={confirmAll} />
     </>
   );
 }

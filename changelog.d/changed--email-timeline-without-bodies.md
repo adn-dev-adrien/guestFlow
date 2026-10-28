@@ -1,0 +1,1 @@
+- **Emails › Modèles loads faster** (spec `inte-performance.md`, 2026-10-28). The list no longer carries the French and English body of every template (about 60 % of its size); the editor reads them when it opens, with a loading state, and « Enregistrer » waits for them. +4 server tests, +3 client tests.
