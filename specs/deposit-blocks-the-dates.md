@@ -126,6 +126,8 @@ booking is settled by the platform and carries no such promise.
     already resolves the payment mode as `deposit` only when `depositAmount > 0`; a last-minute stay
     therefore falls back to `full` — one charge, no Acompte/Solde lines — with no plugin change. Covered
     by a test, not by new code.
+    **Amended 2026-10-28** (specs/settings-input-guards.md rules 15, 21): `depositDueDays = 0` reads « à la
+    réservation »; the website path is unchanged and nothing blocks the operator's paths (A1 = label only).
 
 **Edge cases:**
 - Stay starting **exactly** on the threshold (30 days out) → last-minute, full payment

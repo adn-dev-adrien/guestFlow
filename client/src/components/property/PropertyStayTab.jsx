@@ -108,7 +108,7 @@ export default function PropertyStayTab({
             />
             {poolMode !== 'none' && (
               <SegmentedSelect
-                label="Ouverture de la piscine"
+                label="Période d'ouverture"
                 options={[{ value: 'allYear', label: "Toute l'année" }, { value: 'season', label: 'Saison' }]}
                 value={poolMode}
                 onChange={(next) => updateField('poolSeasonMode', next)}

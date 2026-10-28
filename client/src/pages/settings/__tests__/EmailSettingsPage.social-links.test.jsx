@@ -5,7 +5,7 @@
  */
 import React from 'react';
 import { vi } from 'vitest';
-import { render, screen, waitFor, act, within } from '@testing-library/react';
+import { render, screen, waitFor, act, within, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 
@@ -49,7 +49,7 @@ test('rule 35, 42: an added link is saved as the whole list, without the legacy 
   renderPage();
   await screen.findByText('Réseaux sociaux');
   await user.click(screen.getByRole('button', { name: 'Ajouter un réseau' }));
-  await user.type(screen.getAllByLabelText('Adresse du lien')[1], 'https://facebook.com/a');
+  fireEvent.change(screen.getAllByLabelText('Adresse du lien')[1], { target: { value: 'https://facebook.com/a' } });
   await act(async () => { await user.click(screen.getByRole('button', { name: 'Enregistrer' })); });
   await waitFor(() => expect(api.updateSettings).toHaveBeenCalledTimes(1));
   expect(api.updateSettings.mock.calls[0][0]).toEqual({
@@ -64,7 +64,7 @@ test('rule 37: the server\'s refusal of one link shows under that row', async ()
   }));
   renderPage();
   await screen.findByText('Réseaux sociaux');
-  await user.type(screen.getByLabelText('Adresse du lien'), 'x');
+  fireEvent.change(screen.getByLabelText('Adresse du lien'), { target: { value: 'https://instagram.com/ax' } });
   await act(async () => { await user.click(screen.getByRole('button', { name: 'Enregistrer' })); });
   const row = (await screen.findAllByRole('listitem'))[0];
   expect(await within(row).findByText("Lien d'un autre réseau.")).toBeInTheDocument();

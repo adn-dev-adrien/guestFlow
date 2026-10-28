@@ -191,6 +191,9 @@ one place.
 17. One row per platform: colour, commission %, takes a deposit (Oui/Non — kept, Q3), tourist-tax
     collection (3-way), payout after N days. Validation reuses the existing platform validators
     (commission 0–100, payout ≥ 0).
+    **Amended 2026-10-28** (specs/settings-input-guards.md rules 28-31): the commission % and the payout
+    days are `BoundedNumberField`s — a minus is stripped as typed, a non-number restores the previous
+    value on blur / Enter, an out-of-range value is refused (400, same message).
 18. The property page's « Plateformes & iCal » table keeps only what is per property: the iCal URL,
     the sync status, add/remove a feed. The global columns become read-only chips with a link to
     « Plateformes ».

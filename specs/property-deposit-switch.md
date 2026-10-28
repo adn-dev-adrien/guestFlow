@@ -107,6 +107,8 @@ website — and the property page stops asking for acompte settings that mean no
     d'indemnité. » OFF: « Délai avant de pouvoir annuler un séjour dont le paiement n'est pas réglé.
     Sans acompte, l'annulation suit les conditions des CGV. » — a property without an acompte has no
     acompte to keep.
+    **Amended 2026-10-28** (specs/settings-input-guards.md rules 1-14): the four numbers of the tab are
+    `BoundedNumberField`s fed by the server's limits (acompte days 0–30, solde and annulation 0–60).
 
 **Edge cases:**
 
