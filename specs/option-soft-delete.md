@@ -124,6 +124,8 @@ until an option is archived. No loss — archiving never deletes a reservation's
 - **Fiche / PDF / compta / historique:** unchanged — the option's title/price still render.
 - **Responsive / PageActionBar:** N/A (no new page or page-level action).
 
+> **Amended 2026-10-28 — [options-resources-ux.md](options-resources-ux.md) (Draft).** « Supprimer » becomes « Archiver » in the row's « ⋯ » menu, with a confirmation; for a system option it is disabled with the reason « Option système : elle reste au catalogue. ». Archive behaviour unchanged (a restore action is open question Q3 there).
+
 ## 7. Test plan
 
 ### Server unit tests (`options-model.unit.test.js`, +3; suite 1510 green)

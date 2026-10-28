@@ -6,6 +6,8 @@ const { sentenceCase, capitalizeFirst } = require('../utils/textFormatters');
 const { formatTimeShort } = require('../utils/dateFr');
 const { normalizeCategory, pinCancellationInsurance } = require('../utils/optionGrouping');
 const { insuranceOffered } = require('../utils/quotePostProcessors');
+const { archiveBlockedReason } = require('../utils/optionArchiveGuard');
+const { scopePayload } = require('../utils/optionPayloadScope');
 
 // specs/plugins-phase-3b-neat.md rule 21 — the catalogue hides the cancellation insurance while no plugin
 // offers it. The row and its settings stay; they come back with the plugin.
@@ -263,7 +265,9 @@ function createOptionsModel(database) {
       if (raw === null || raw === undefined || raw === '') continue; // blank = inherit
       const price = Number(raw);
       const propertyId = Number(pid);
-      if (!Number.isFinite(price) || price < 0 || !Number.isInteger(propertyId) || propertyId <= 0) continue;
+      if (!Number.isFinite(price) || price < 0 || !Number.isInteger(propertyId) || propertyId <= 0) {
+        throw new Error(`Invalid per-property price for property ${pid}: ${JSON.stringify(raw)}`);
+      }
       insert.run(propertyId, optionId, price);
     }
   }
@@ -352,7 +356,8 @@ function createOptionsModel(database) {
       return found;
     },
 
-    create(payload = {}) {
+    create(rawPayload = {}) {
+      const payload = scopePayload(rawPayload);
       const insertOption = database.prepare(`
         INSERT INTO options (
           title, description, priceType, price, optionProgressiveTiers,
@@ -405,7 +410,8 @@ function createOptionsModel(database) {
       return { id: optionId };
     },
 
-    update(id, payload = {}) {
+    update(id, rawPayload = {}) {
+      const payload = scopePayload(rawPayload);
       const updateOption = database.prepare(`
         UPDATE options SET
           title = ?, description = ?, priceType = ?, price = ?, optionProgressiveTiers = ?,
@@ -471,9 +477,7 @@ function createOptionsModel(database) {
       const row = database.prepare(`SELECT autoOptionType, ${insuranceCol} FROM options WHERE id = ?`).get(id);
       if (!row) return { error: 'OPTION_NOT_FOUND', status: 404 };
       // specs/cancellation-insurance.md rule 14 — the insurance is not deletable, like the typed seeds.
-      if (row.autoOptionType || Number(row.isCancellationInsurance || 0) === 1) {
-        return { error: 'AUTO_OPTION_NON_DELETABLE', status: 409 };
-      }
+      if (archiveBlockedReason(row)) return { error: 'AUTO_OPTION_NON_DELETABLE', status: 409 };
       database.transaction(() => {
         if (HAS_OPTION_ARCHIVED) {
           database.prepare("UPDATE options SET archivedAt = datetime('now') WHERE id = ?").run(id);
@@ -486,6 +490,23 @@ function createOptionsModel(database) {
         try { database.prepare('DELETE FROM property_option_defaults WHERE optionId = ?').run(id); } catch { /* table may be absent in minimal schemas */ }
       })();
       return { ok: true, archived: HAS_OPTION_ARCHIVED };
+    },
+
+    // specs/options-resources-ux.md rule 26 — the archived options, the latest archived first.
+    listArchived() {
+      if (!HAS_OPTION_ARCHIVED) return [];
+      return database.prepare('SELECT * FROM options WHERE archivedAt IS NOT NULL ORDER BY archivedAt DESC, id DESC').all();
+    },
+
+    // Rule 27 — an archived option comes back to the catalogue. The per-property defaults the archive
+    // dropped are not restored (specs/option-soft-delete.md rule 5): the operator decides again.
+    restore(id) {
+      if (!HAS_OPTION_ARCHIVED) return { error: 'OPTION_NOT_FOUND', status: 404 };
+      const row = database.prepare('SELECT archivedAt FROM options WHERE id = ?').get(id);
+      if (!row) return { error: 'OPTION_NOT_FOUND', status: 404 };
+      if (!row.archivedAt) return { error: 'OPTION_NOT_ARCHIVED', status: 409 };
+      database.prepare('UPDATE options SET archivedAt = NULL WHERE id = ?').run(id);
+      return { ok: true };
     },
   };
 

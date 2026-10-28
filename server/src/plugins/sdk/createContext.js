@@ -109,6 +109,13 @@ function createContext(id, { db, settingsModel, dataDir = null } = {}) {
       });
       record.priceLineContributor = contributor;
     },
+    // (resource, { properties }) → { lines?: [{ label, value }], footer?: string } | null — what the plugin
+    // adds to a resource's card on Options & ressources while it is live (specs/options-resources-ux.md
+    // rule 19). Synchronous, no I/O; a plugin declares one.
+    resourceCatalogueLines(build) {
+      if (typeof build !== 'function') throw new Error(`${prefix} resourceCatalogueLines needs a function`);
+      record.resourceCatalogueLines = build;
+    },
     // A commit hook for one of the plugin's arrival SAS steps (rule 6).
     sasCommit(hook) {
       SAS_COMMIT_MEMBERS.forEach((m) => {
