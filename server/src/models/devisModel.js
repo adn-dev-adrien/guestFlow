@@ -12,6 +12,7 @@
  */
 
 const db = require('../database');
+const vatRegimeModel = require('./vatRegimeModel');
 const { calculateReservationQuote } = require('../utils/pricing');
 const { capitalizeFirst } = require('../utils/textFormatters');
 const { roundMoney } = require('../utils/devisHelpers');
@@ -223,6 +224,7 @@ function createModel(database) {
       extendable: isDevisExtendable(row, today),
       // While the quote holds, its prices are frozen exactly like a saved reservation's (rule 13).
       pricingLocked: !expired,
+      vatRegime: vatRegimeModel.forRow(database, row),
       ...schedule,
       options: [...options, ...customOptions],
       resources,

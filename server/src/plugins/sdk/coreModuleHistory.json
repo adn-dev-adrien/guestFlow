@@ -135,6 +135,13 @@
           "setReviewWhere"
         ]
       }
+    },
+    {
+      "version": "2.8.0",
+      "modules": [
+        "vatRegimeModel"
+      ],
+      "names": {}
     }
   ]
 }

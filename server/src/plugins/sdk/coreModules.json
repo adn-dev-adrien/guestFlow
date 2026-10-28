@@ -758,5 +758,9 @@
   ],
   "installmentsModel": [
     "buildModel"
+  ],
+  "vatRegimeModel": [
+    "forRow",
+    "rateForRow"
   ]
 }

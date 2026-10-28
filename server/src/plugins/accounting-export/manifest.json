@@ -1,7 +1,7 @@
 {
   "id": "accounting-export",
   "name": "Export comptable",
-  "version": "1.0.14",
+  "version": "1.0.15",
   "description": "Écritures, plan comptable et export pour le cabinet comptable.",
   "icon": "book",
   "surfaces": [
@@ -10,7 +10,7 @@
   ],
   "requires": [],
   "guestflow": ">=3.9.0 <4.0.0",
-  "sdk": "^2.5.0",
+  "sdk": "^2.8.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
@@ -64,6 +64,10 @@
       "Une hausse de taxe de séjour après le solde ne réécrit plus l’écriture du solde : le complément qui l’encaisse la passe en 46710000.",
       "Une échéance payée garde la ventilation enregistrée à son paiement : une modification ultérieure de la fiche ne change plus un mois passé.",
       "Compatible avec le SDK 2.5 de GuestFlow."
+    ],
+    "1.0.15": [
+      "Le taux de TVA de chaque écriture est celui du régime de la réservation.",
+      "Compatible avec le SDK 2.8 de GuestFlow."
     ]
   }
 }

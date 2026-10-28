@@ -27,6 +27,7 @@ const { DEFAULT_COMMISSION_ACCOUNT, VAT_DEDUCTIBLE_COMMISSION_ACCOUNT, DISCOUNT_
 const { createAccountSettings } = require('./settings');
 
 const { isPlatformCollectingTouristTax } = sdk.coreModule('pricing');
+const vatRegimeModel = sdk.coreModule('vatRegimeModel');
 const { resolveMidStaySplit, storedMidStayLines, extraLineKey, parseNotes } = sdk.coreModule('midStayExtras');
 const { createModel: createRefundsModel } = sdk.coreModule('refundsModel');
 const { buildModel: buildCompensationsModel } = sdk.coreModule('cancellationCompensationsModel');
@@ -171,6 +172,7 @@ function createAccountingModel(database, { settings = createAccountSettings(data
         : entry);
 
       return reservations.flatMap((row) => {
+        const rowContext = { ...commissionContext, vatRate: vatRegimeModel.rateForRow(database, row) };
         const perLineData = buildPerLineData(database, row);
         // Tax collected at check-in (→ complement) only when WE charge the guest directly, i.e. a
         // non-direct platform that does NOT collect the tax from the guest (case 3 « owner » of
@@ -185,10 +187,10 @@ function createAccountingModel(database, { settings = createAccountSettings(data
         // Cash-collected stay buckets are settled off the books → never emitted as an encaissement
         // (specs/collect-stay-payment-at-check-in.md §3.4).
         if (inMonth(row.depositPaid, row.depositPaidDate) && Number(row.depositPaidCash || 0) === 0) {
-          entries.push(buildEntry(row, 'deposit', perLineData, commissionContext, taxContext));
+          entries.push(buildEntry(row, 'deposit', perLineData, rowContext, taxContext));
         }
         if (inMonth(row.balancePaid, row.balancePaidDate) && Number(row.balancePaidCash || 0) === 0) {
-          entries.push(buildEntry(row, 'balance', perLineData, commissionContext, taxContext));
+          entries.push(buildEntry(row, 'balance', perLineData, rowContext, taxContext));
         }
         // One encaissement per installment collected in the month (specs/direct-installments.md): the plan
         // replaces the acompte and the solde, so these are the pre-arrival money of such a stay.
@@ -198,19 +200,19 @@ function createAccountingModel(database, { settings = createAccountSettings(data
           const shares = taxShares(Math.round(Number(row.touristTaxTotal || 0) * 100), plan.map((i) => Number(i.amountCents)));
           plan.forEach((installment, index) => {
             if (Number(installment.paid) === 1 && inMonth(1, installment.paidDate)) {
-              entries.push(buildInstallmentEntry(row, installment, plan.length, shares[index] / 100, perLineData, commissionContext, taxContext));
+              entries.push(buildInstallmentEntry(row, installment, plan.length, shares[index] / 100, perLineData, rowContext, taxContext));
             }
           });
         }
         // Cash complements are settled off the books → never emitted as an encaissement.
         if (inMonth(row.complementPaid, row.complementPaidDate) && Number(row.complementPaidCash || 0) === 0) {
-          entries.push(buildEntry(row, 'complement', perLineData, commissionContext, taxContext));
+          entries.push(buildEntry(row, 'complement', perLineData, rowContext, taxContext));
         }
         // End-of-stay complement (SAS): a flat TTC amount booked as a « prestation complémentaire »
         // at the app general VAT rate (specs/cash-complement-and-endofstay-finance.md §3.1). Excluded
         // when paid in cash.
         if (inMonth(row.endOfStayComplementPaid, row.endOfStayComplementPaidDate) && Number(row.endOfStayComplementPaidCash || 0) === 0) {
-          entries.push(buildEndOfStayEntry(row, commissionContext.vatRate));
+          entries.push(buildEndOfStayEntry(row, rowContext.vatRate));
         }
         // « Notes en séjour » (specs/mid-stay-notes.md §3.4 rule 14): one entry per SETTLED note, at
         // its own payment date — the note IS the real-world collection. Same flat-TTC shape as the
@@ -218,7 +220,7 @@ function createAccountingModel(database, { settings = createAccountSettings(data
         for (const note of parseNotes(row.midStaySettledNotes)) {
           if (Number(note.paidCash || 0) === 1) continue;
           if (!inMonth(1, note.paidDate)) continue;
-          entries.push(buildMidStayNoteEntry(row, note, commissionContext.vatRate));
+          entries.push(buildMidStayNoteEntry(row, note, rowContext.vatRate));
         }
         // Stamp the group on the entries it named, so the Comptabilité can render one card for one
         // collection. A cash group emits no entry at all (its buckets are off the books), so there is
@@ -237,7 +239,7 @@ function createAccountingModel(database, { settings = createAccountSettings(data
           // booked).
           if (group.cash === 0 && group.at >= from && group.at < nextMonth) {
             const stamp = { id, at: group.at, cash: false, total: group.total };
-            const adjustments = buildArrivalAdjustmentEntries(row, group, commissionContext.vatRate);
+            const adjustments = buildArrivalAdjustmentEntries(row, group, rowContext.vatRate);
             for (const entry of adjustments) entries.push({ ...inTipAccount(entry), paymentGroup: stamp });
           }
         }
@@ -381,21 +383,18 @@ function buildRefundEntry(refund) {
   };
 }
 
-// One-shot snapshot of the per-platform commission config + the global default account +
-// the global VAT rate. Computed once per export-run and threaded into every `buildEntry`
-// call so we don't re-query the DB for every line.
+// One-shot snapshot of the per-platform commission config + the global default account. Computed once
+// per export-run and threaded into every `buildEntry` call so we don't re-query the DB for every line;
+// the sales VAT rate joins it per reservation (`withSalesVat`), each stay carrying its own regime.
 function buildCommissionContext(accountSettings) {
-  const core = sdk.coreModule('settingsModel').read();
   const defaultAccount = accountSettings.defaultCommissionAccountNumber || DEFAULT_COMMISSION_ACCOUNT;
   const vatRateCommission = Number(accountSettings.vatRateCommission);
-  // General sales VAT rate (same one the stay/options use) — applied to the end-of-stay complement.
-  const vatRate = core && core.vatRate != null ? Number(core.vatRate) : 10;
   // Index platforms by lowercased name for case-insensitive matching (`Airbnb` vs `airbnb`).
   const platformsModel = sdk.coreModule('platformsModel');
   const platforms = (platformsModel.listAll ? platformsModel.listAll() : []) || [];
   const byName = new Map();
   for (const p of platforms) byName.set(String(p.name || '').toLowerCase(), p);
-  return { defaultAccount, vatRateCommission, vatRate, platformByName: byName };
+  return { defaultAccount, vatRateCommission, platformByName: byName };
 }
 
 // Resolve the commission config for one reservation. Returns null for direct bookings (no

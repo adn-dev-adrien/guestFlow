@@ -18,6 +18,7 @@ const { DEFAULT_PAYOUT_DUE_DAYS, normalizePayoutDueDays } = require('../utils/pl
 const { addDaysToIsoDate } = require('../utils/devisHelpers');
 const { exerciseMonths } = require('../utils/exerciseOverview');
 const installmentPlan = require('../utils/installmentPlan');
+const vatRegimeModel = require('./vatRegimeModel');
 
 const UPCOMING_PER_PROPERTY = 5;
 
@@ -98,11 +99,6 @@ function totalSejour(r) {
 // (specs/finance-operational-remaining-to-pay.md §3) and `comptaCollected` (« encaissé ») live in
 // utils/reservationSettlement.js — the day-of-operations collection status and the refund dialog
 // share the very same bucket rules (specs/dashboard-collection-alert.md).
-
-function getVatRate(database) {
-  const row = database.prepare('SELECT vatRate FROM app_settings WHERE id = 1').get();
-  return row && row.vatRate != null ? Number(row.vatRate) : 10;
-}
 
 // Accounting closing month (specs/fiscal-year-and-nights-sold.md §3.1). A minimal test schema without
 // the column — or a fresh install — degrades to 12 = calendar year, the pre-spec behaviour.
@@ -374,7 +370,7 @@ function createFinanceModel(database) {
         ORDER BY ${ATTRIBUTION_DATE_SQL}
       `).all(start, end, ...scope.params);
 
-      const vatRate = getVatRate(database);
+      const vatOf = (r) => vatRegimeModel.rateForRow(database, r);
       let revenueTotal = 0;
       let totalCollected = 0;
       let revenueTotalHt = 0;
@@ -477,7 +473,7 @@ function createFinanceModel(database) {
       let revenueTotalNights = 0;
       const enriched = reservations.map((r) => {
         const stay = totalSejour(r);
-        const stayHt = htAmount(r, stay, vatRate);
+        const stayHt = htAmount(r, stay, vatOf(r));
         const settled = isSettled(r);
         const collected = comptaCollected(r);
         const nights = nightsBetween(r.startDate, r.endDate);
@@ -485,7 +481,7 @@ function createFinanceModel(database) {
         revenueTotalHt += stayHt;
         revenueTotalNights += nights;
         totalCollected += collected;
-        totalCollectedHt += htAmount(r, collected, vatRate);
+        totalCollectedHt += htAmount(r, collected, vatOf(r));
 
         accumulate(byProperty, r, stay, stayHt, nights);
         accumulateChannel(byChannel, r, stay, stayHt, nights);
@@ -516,7 +512,7 @@ function createFinanceModel(database) {
         if (isSettled(r)) continue;
         const remaining = remainingToPay(r);
         totalPending += remaining;
-        totalPendingHt += htAmount(r, remaining, vatRate);
+        totalPendingHt += htAmount(r, remaining, vatOf(r));
       }
 
       // Exercise cards — the SELECTED fiscal year, independent of the du/au period. Attributed by the
@@ -548,7 +544,7 @@ function createFinanceModel(database) {
       const byMonth = new Map(exerciseMonths(exercise.from, exercise.to).map((m) => [m.month, { ...m, revenue: 0, revenueHt: 0, past: 0, upcoming: 0, nights: 0 }]));
       for (const r of yearRows) {
         const stay = totalSejour(r);
-        const stayHt = htAmount(r, stay, vatRate);
+        const stayHt = htAmount(r, stay, vatOf(r));
         const nights = nightsBetween(r.startDate, r.endDate);
         yearTotal += stay;
         yearTotalHt += stayHt;
@@ -822,7 +818,6 @@ function createFinanceModel(database) {
           COALESCE(p.touristTaxFixedAmount, 0) as touristTaxFixedAmount,
           COALESCE(p.basePriceIncludedGuests, 0) as basePriceIncludedGuests,
           COALESCE(p.extraGuestPrice, 0) as extraGuestPrice,
-          COALESCE((SELECT vatRate FROM app_settings WHERE id = 1), 10) as accommodationVatRate,
           MAX(0,
             CAST(
               JULIANDAY(r.endDate) - JULIANDAY(r.startDate)
@@ -1084,6 +1079,6 @@ const defaultModel = createFinanceModel(db);
 defaultModel.buildModel = createFinanceModel;
 // Shared with the dashboard model (specs/finance-dashboard-redesign.md §4.1), which composes this one
 // and must never re-derive a stay's revenue or nights on its own.
-defaultModel.helpers = { totalSejour, nightsBetween, getFiscalYearEndMonth, getVatRate, htAmount, todayIso, TAX_ON_ARRIVAL_SQL };
+defaultModel.helpers = { totalSejour, nightsBetween, getFiscalYearEndMonth, htAmount, todayIso, TAX_ON_ARRIVAL_SQL };
 
 module.exports = defaultModel;

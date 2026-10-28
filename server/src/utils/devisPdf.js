@@ -15,6 +15,7 @@ const {
 const { labels } = require("./devisPdfLabels");
 const { isDirectChannel } = require("./platformNameFormat");
 const { uploadsDir } = require("./instancePaths");
+const { DEFAULT_RATE: DEFAULT_VAT_RATE } = require("../models/vatRegimeModel");
 
 // specs/ui-review-2026-10-19-operations.md rule 17 — the « Maison » tokens of client/src/theme.js:
 // fir green, ink, warm paper, honey and the success soft fill. No navy left.
@@ -268,10 +269,10 @@ function generateDevisPdf(full, settings, quote) {
 
   const property = full.property;
   const client = full.client;
-  // Single global VAT rate (specs/single-vat-rate.md §4.1). Applied uniformly to every line:
-  // accommodation, options, resources, custom options. The three local bindings stay so the
-  // existing `drawRow(..., rate, ...)` call sites read clearly; they all hold the same value.
-  const vatRate = Number(settings?.vatRate ?? 10);
+  // One VAT rate per sale (specs/single-vat-rate.md §4.1), the one of the regime the devis is quoted
+  // under (specs/vat-optional-mode.md rule 7). The three local bindings stay so the existing
+  // `drawRow(..., rate, ...)` call sites read clearly; they all hold the same value.
+  const vatRate = Number(full.vatRegime ? full.vatRegime.rate : DEFAULT_VAT_RATE);
   const vatAccommodation = vatRate;
   const vatOptions = vatRate;
   const vatResources = vatRate;
