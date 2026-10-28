@@ -128,3 +128,23 @@ test.describe('on a phone', () => {
     await expect(page.getByText(/Jusqu’à demain : mardi/)).toBeVisible();
   });
 });
+
+for (const [width, rows] of [[375, 2], [340, 2], [390, 1]]) {
+  test.describe(`on a ${width} px phone`, () => {
+    test.use({ viewport: { width, height: 800 } });
+
+    test(`the seven day toggles sit on ${rows === 1 ? 'one row' : 'two rows, 4 + 3 — never a lone « D »'}`, async ({ page }) => {
+      await page.goto('/parametres/stock-blanchisserie');
+      const buttons = page.getByRole('group', { name: 'Jours' }).getByRole('button');
+      await expect(buttons).toHaveCount(7, { timeout: 20_000 });
+      const boxes = [];
+      for (let i = 0; i < 7; i += 1) boxes.push(await buttons.nth(i).boundingBox());
+      const rowYs = [...new Set(boxes.map((b) => Math.round(b.y)))];
+      expect(rowYs.length).toBe(rows);
+      if (rows === 2) expect(boxes.filter((b) => Math.round(b.y) === rowYs[0]).length).toBe(4);
+      boxes.forEach((b) => { expect(b.width).toBeGreaterThanOrEqual(40); expect(b.height).toBeGreaterThanOrEqual(44); });
+      expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
+    });
+  });
+}
+

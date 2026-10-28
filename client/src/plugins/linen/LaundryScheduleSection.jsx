@@ -17,10 +17,12 @@
  *   caption      string | null — the « À partir de demain … » line, built by the page
  *   error        { field: 'weekdays' | 'turnaroundDays', message: string } | null — the server's refusal
  *   disabled     boolean
+ *   loading      boolean — the schedule is still loading: the same frame (header, toggles, stepper) is drawn
+ *                disabled, with placeholder lines for the cycle, so the card keeps its real height
  */
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  Box, Card, CardContent, IconButton, InputBase, Stack, ToggleButton, ToggleButtonGroup, Typography,
+  Box, Card, CardContent, IconButton, InputBase, Skeleton, Stack, ToggleButton, ToggleButtonGroup, Typography,
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import LocalLaundryServiceIcon from '@mui/icons-material/LocalLaundryService';
@@ -67,7 +69,7 @@ function ErrorLine({ id, message }) {
 }
 
 export default function LaundryScheduleSection({
-  value, onChange, initialCycle = null, caption = null, error = null, disabled = false,
+  value, onChange, initialCycle = null, caption = null, error = null, disabled = false, loading: schedulePending = false,
 }) {
   const [refusal, setRefusal] = useState('');
   const daysRef = useRef(null);
@@ -76,8 +78,8 @@ export default function LaundryScheduleSection({
   const lastGood = useRef(initialCycle);
 
   const turnaround = parseTurnaround(value.turnaroundText);
-  const turnaroundValid = turnaround !== null;
-  const draftValid = isDraftValid(value);
+  const turnaroundValid = turnaround !== null || schedulePending;
+  const draftValid = !schedulePending && isDraftValid(value);
   const previewKey = draftValid ? JSON.stringify(scheduleBody(value)) : null;
 
   useEffect(() => {
@@ -137,13 +139,15 @@ export default function LaundryScheduleSection({
             ref={daysRef}
             value={value.weekdays}
             onChange={toggleDays}
-            disabled={disabled}
+            disabled={disabled || schedulePending}
             aria-labelledby="laundry-days-label"
             aria-describedby="laundry-days-error"
             sx={{
-              display: 'flex', flexWrap: { xs: 'wrap', sm: 'nowrap' }, gap: { xs: '4px', sm: 0.75 }, width: { xs: '100%', sm: 'auto' },
+              display: { xs: 'grid', sm: 'flex' }, gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: { xs: '3px', sm: 0.75 }, width: { xs: '100%', sm: 'auto' },
+              // Below ~380 px the seven toggles would drop under 40 px: 4 + 3, never a lone « D ».
+              '@media (max-width: 379.95px)': { gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' },
               '& .MuiToggleButtonGroup-grouped': {
-                flex: { xs: '1 1 40px', sm: 'none' }, minWidth: { xs: 40, sm: 44 }, height: 44, borderRadius: '10px !important',
+                flex: { sm: 'none' }, minWidth: { xs: 0, sm: 44 }, height: 44, borderRadius: '10px !important',
                 border: '1px solid', borderColor: 'divider', fontWeight: 600, touchAction: 'manipulation',
                 transition: 'background-color 150ms ease, color 150ms ease, transform 100ms ease',
                 '&:active': { transform: 'scale(0.95)' },
@@ -176,7 +180,7 @@ export default function LaundryScheduleSection({
             <IconButton
               aria-label="Un jour de moins"
               onClick={() => step(-1)}
-              disabled={disabled || (turnaroundValid && turnaround <= MIN_TURNAROUND)}
+              disabled={disabled || schedulePending || (turnaroundValid && turnaround <= MIN_TURNAROUND)}
               sx={{ borderRadius: 0, width: 44, height: 44, bgcolor: 'action.hover', touchAction: 'manipulation' }}
             >
               <RemoveIcon fontSize="small" />
@@ -188,7 +192,7 @@ export default function LaundryScheduleSection({
                 if (e.key === 'ArrowUp') { e.preventDefault(); step(1); }
                 if (e.key === 'ArrowDown') { e.preventDefault(); step(-1); }
               }}
-              disabled={disabled}
+              disabled={disabled || schedulePending}
               inputProps={{
                 inputMode: 'numeric', 'aria-label': 'Délai en jours', 'aria-invalid': turnaroundBad, 'aria-describedby': 'laundry-turnaround-error',
                 style: { textAlign: 'right', width: 46, padding: '0 4px', fontWeight: 600, fontVariantNumeric: 'tabular-nums', fontSize: 16 },
@@ -201,7 +205,7 @@ export default function LaundryScheduleSection({
             <IconButton
               aria-label="Un jour de plus"
               onClick={() => step(1)}
-              disabled={disabled || (turnaroundValid && turnaround >= MAX_TURNAROUND)}
+              disabled={disabled || schedulePending || (turnaroundValid && turnaround >= MAX_TURNAROUND)}
               sx={{ borderRadius: 0, width: 44, height: 44, bgcolor: 'action.hover', touchAction: 'manipulation' }}
             >
               <AddIcon fontSize="small" />
@@ -210,7 +214,13 @@ export default function LaundryScheduleSection({
           <ErrorLine id="laundry-turnaround-error" message={turnaroundMessage} />
         </FieldRow>
 
-        {cycle && cycle.cycle.length > 0 && (
+        {schedulePending && (
+          <Stack spacing={0.5} aria-hidden data-testid="laundry-cycle-skeleton" sx={{ borderTop: '1px solid', borderColor: 'divider', mt: 1.5, pt: 1.5 }}>
+            <Skeleton variant="text" width={160} />
+            <Skeleton variant="text" width={140} />
+          </Stack>
+        )}
+        {!schedulePending && cycle && cycle.cycle.length > 0 && (
           <Stack
             aria-live="polite"
             data-testid="laundry-cycle"

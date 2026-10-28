@@ -45,12 +45,15 @@ export function formatLinenBlock(side) {
   return parts.length > 0 ? parts.join(' · ') : null;
 }
 
-// "mer. 29 oct." — a date as the laundry screens name it. Noon avoids any timezone drift on the day.
+// "mer. 29 oct." — a date as the laundry screens name it; « dim. 25 juil. 2027 » when it is not of the current
+// year (the horizon can reach into the next one). Noon avoids any timezone drift on the day.
 export function formatDayShort(iso) {
   if (!iso) return '';
   const d = new Date(`${String(iso).slice(0, 10)}T12:00:00`);
   if (Number.isNaN(d.getTime())) return String(iso);
-  return d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
+  const options = { weekday: 'short', day: 'numeric', month: 'short' };
+  if (d.getFullYear() !== new Date().getFullYear()) options.year = 'numeric';
+  return d.toLocaleDateString('fr-FR', options);
 }
 
 // "mar. 21" — the day a batch was dropped, on the pick-up side of a laundry card.

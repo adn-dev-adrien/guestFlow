@@ -14,7 +14,7 @@
  */
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
-import { Box, Card, CardContent, Skeleton, Stack, Typography, TextField, FormHelperText } from '@mui/material';
+import { Box, Card, CardContent, Stack, Typography, TextField, FormHelperText } from '@mui/material';
 import HotelIcon from '@mui/icons-material/Hotel';
 import BathtubIcon from '@mui/icons-material/Bathtub';
 import {
@@ -148,8 +148,8 @@ export default function LinenStockPage() {
         )}
 
         {!scheduleDraft && !loadError && (
-          // Same height as the card, so the stock cards below do not jump when it arrives.
-          <Skeleton variant="rounded" aria-hidden sx={{ height: { xs: 309, sm: 261 }, mb: 3 }} />
+          // The real frame with placeholder lines, so the stock cards below do not jump when it arrives.
+          <LaundryScheduleSection value={{ weekdays: [], turnaroundText: '' }} onChange={() => {}} loading />
         )}
         {scheduleDraft && (
           <LaundryScheduleSection

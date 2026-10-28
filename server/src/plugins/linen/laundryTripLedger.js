@@ -116,7 +116,7 @@ function createTripLedger({ schedule, skippedDates, extraTrips, buildBlock, inco
   // every batch that is ready, so the state before `date` follows from F alone: the batches dropped
   // before F that were still not ready at F (at most 14 days back), then every trip from F on. That
   // keeps the drop-off windows queried to the few that matter. With no such trip in the lookback the
-  // laundry is replayed from the 42 days before `date` (the engine's own warm-up). An extra record
+  // laundry is replayed from `REPLAY_DAYS` before `date` (the engine's own warm-up). An extra record
   // stored on `date` itself is never part of it.
   const batchesBefore = (date) => {
     const anchor = previousMatchingDay(date, (d) => isRegular(d) && !skipped.has(d), lookbackDays);

@@ -6,7 +6,7 @@
  * options, propertyDefaults, schedule, from, to) and the engine walks day-by-day through
  * the horizon, returning a per-day snapshot of every bucket + shortage detection.
  *
- * The walk starts 42 days before `from` (28-day skip lookback + the 14-day maximum laundry
+ * The walk starts `REPLAY_DAYS` before `from` (28-day skip lookback + the 14-day maximum laundry
  * turnaround) from a neutral state — the stays in progress installed, everything else clean — and
  * replays every day with one loop, so the state on `from` needs no seed and no special case
  * (specs/linen-laundry-days.md §3.3 rule 16). The linen at the laundry is a list of batches, each
@@ -216,9 +216,8 @@ function buildContractsByReservationId({ reservations, options, reservationOptio
   return out;
 }
 
-
 /**
- * Core engine. Walks day by day from `from − 42` to `to`, emits the days from `from`, and returns:
+ * Core engine. Walks day by day from `from − REPLAY_DAYS` to `to`, emits the days from `from`, and returns:
  *   {
  *     days: [{ date, clean, inCirculation, dirty, atLaundry, isTripDay,
  *              dropped, pickedUp, batches,

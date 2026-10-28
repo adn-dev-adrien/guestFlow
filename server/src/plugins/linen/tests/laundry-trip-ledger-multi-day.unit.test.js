@@ -142,17 +142,19 @@ test('specs/linen-laundry-days.md §3.2 rule 11: stillAtLaundry never counts the
 });
 
 test('specs/linen-laundry-days.md §3.2 rule 11: batches ready on different days make one line each, soonest first — never added up under one date', () => {
-  const { ledger } = makeLedger({ schedule: tueThu(3), drops: { '2026-06-09': { singleBeds: 2 }, '2026-06-11': { doubleBeds: 1 }, '2026-06-16': { largeTowels: 9 } } });
-  // Tuesday 06-16 collects both earlier batches (ready 06-12 and 06-14): nothing stays.
-  assert.deepEqual(ledger.entryFor('2026-06-16').stillAtLaundry, []);
-  // Thursday 06-11: only Tuesday's batch (ready 06-12) is at the laundry.
-  const { ledger: slow } = makeLedger({ schedule: constantSchedule([TUE, THU], 5), drops: { '2026-06-04': { singleBeds: 1 }, '2026-06-09': { doubleBeds: 2 } } });
-  // Turnaround 5: Thursday's 06-04 batch is ready Tue 06-09 (collected), Tuesday's 06-09 batch is ready Sun 06-14.
-  const thu = slow.entryFor('2026-06-11');
-  assert.deepEqual(thu.stillAtLaundry, [{ counts: zeros({ doubleBeds: 2 }), readyOn: '2026-06-14' }]);
-  const { ledger: two } = makeLedger({ schedule: constantSchedule([TUE, THU], 4), drops: { '2026-06-09': { doubleBeds: 2 }, '2026-06-11': { singleBeds: 3 } } });
-  const next = two.entryFor('2026-06-12') || two.entryFor('2026-06-16');
-  assert.deepEqual(next.stillAtLaundry.map((l) => l.readyOn), [...next.stillAtLaundry.map((l) => l.readyOn)].sort());
+  // Tuesday + Thursday, turnaround 4: Tuesday 06-09's batch is ready Saturday 06-13, Thursday 06-11's Monday
+  // 06-15. An extra trip on Friday 06-12 finds neither ready: both batches stay, on two distinct dates.
+  const extras = [{ date: '2026-06-12', pickUpAll: true, pickUp: {} }];
+  const { ledger } = makeLedger({
+    schedule: constantSchedule([TUE, THU], 4), extras,
+    drops: { '2026-06-09': { doubleBeds: 2 }, '2026-06-11': { singleBeds: 3 } },
+  });
+  const friday = ledger.entryFor('2026-06-12');
+  assert.deepEqual(counts(friday.pickUp), zeros());
+  assert.deepEqual(friday.stillAtLaundry, [
+    { counts: zeros({ doubleBeds: 2 }), readyOn: '2026-06-13' },
+    { counts: zeros({ singleBeds: 3 }), readyOn: '2026-06-15' },
+  ]);
 });
 
 test('specs/linen-laundry-days.md §3.2 rule 11: an empty drop leaves no batch behind', () => {

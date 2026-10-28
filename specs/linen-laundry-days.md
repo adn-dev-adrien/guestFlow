@@ -247,8 +247,8 @@ release that ships these host names and api methods.
 | utils (pure) | `laundryWindow.js` | T | One day-by-day walk (`previousMatchingDay(date, matches, lookback)`) replaces the 7-day jumps; the single-weekday helpers go. |
 | utils (pure) | `laundryBatches.js` | C | The linen at the laundry as batches `{ dropDate, readyFrom, counts }`: `addBatch`, `collectBatches` (all ready / partial oldest first), `totalOf`. Shared by the ledger (`singleBeds`… keys) and the engine (`single`… keys). |
 | utils (pure) | `laundryTripLedger.js` | T | Takes a `schedule` instead of a `weekday`; the pool becomes a batch list with `readyFrom` (rules 10-11), replayed from the last non-skipped regular trip before the date (that trip collected everything ready), or from 42 days back when there is none; emits `pickUp.fromTrips` and `stillAtLaundry`. |
-| utils (pure) | `linenInventory.js` | T | `atLaundry` as batches (rule 15); warm-up replay from `today − 42` replacing the seed logic (rule 16); `lastShortageDate` / `laterShortage` per type (rule 18); the days it emits also carry `dropped`, `pickedUp` and `batches`. Takes `schedule` instead of `laundryWeekday`. |
-| models | `laundryScheduleModel.js` | C | `laundry_schedule_versions`: `listAll()`, `upsertPending(tomorrow, schedule)`, `deletePending(tomorrow)`. |
+| utils (pure) | `linenInventory.js` | T | `atLaundry` as batches (rule 15); warm-up replay from `today − REPLAY_DAYS` (28 + 14 = 42) replacing the seed logic (rule 16); `lastShortageDate` / `laterShortage` per type (rule 18); the days it emits also carry `dropped`, `pickedUp` and `batches`. Takes `schedule` instead of `laundryWeekday`. |
+| models | `laundryScheduleModel.js` | C | `laundry_schedule_versions`: `listAll()`, `upsert(effectiveFrom, schedule)`, `remove(effectiveFrom)`. |
 | models | `linenInventoryModel.js` | T | Reads the schedule model; fetch lookback 35 → 42 days. |
 | controllers | `laundryScheduleController.js` | C | `GET` (current + pending), `PUT` (validate → upsert or delete the pending version), `POST preview` (validate → `describeCycle`). |
 | controllers | `planningController.js` | T | New `laundryDays(req, res)` composing ledger + engine + skips + manual lines + extra trips into the per-day cards and the `shown` decision (rule 13). `laundrySummary` and `linenInventory` are removed with their last consumer. |
@@ -362,13 +362,20 @@ Replaces the « Linge & blanchisserie » card at the top of the page.
   preview error leaves the last good cycle. The dirty guard compares what would be sent (« 02 » over « 2 » is
   no change).
 - `PageActionBar`: title « Linge », Save + Cancel (unchanged), no new action.
-- **Mobile (`xs`)**: the seven toggles share the row (single letter, 44 px high, a 4 px gap), the stepper is
-  full-width, the cycle lines stack. Measured at 390 px: toggles 40.3 px wide, 3 px visible gap, no horizontal
-  scroll, card 309 px high; at 360 px the row wraps onto two lines (toggles 42.5 px) rather than shrink under
-  40 px; at 900 and 1280 px toggles are 44 px, card 261 px high. The inner padding is 16 px like the sibling
-  cards and the header uses their bold style. While the schedule loads, a placeholder of the same height holds
-  the place of the card. **`md`/`lg`**: the card sits at the top of the page column, max
-  width 900/1240 as today.
+- **Mobile (`xs`)**: the toggles are a grid (7 columns, 3 px gap, 44 px high); below 380 px the grid has
+  4 columns (4 + 3, never a lone « D »). The stepper is full-width, the cycle lines stack. Measured:
+
+  | Viewport | Toggle width | Layout |
+  |---|---|---|
+  | 320 / 340 / 360 / 375 px | 55 / 60 / 65 / 69 px | 4 + 3, card 356 px high |
+  | 390 px | 40.3 px (pitch 43.3 px) | one row of 7, card 309 px high |
+  | 900 / 1280 px | 44 px | one row, card 261 px high |
+
+  No horizontal scroll at any of them. 40.3 × 44 px at 390 px is accepted (pitch above 43 px). The inner padding
+  is 16 px like the sibling cards and the header uses their bold style. While the schedule loads, the same frame
+  (header, disabled toggles, disabled stepper) is drawn with placeholder lines for the cycle, so the card keeps
+  the height of the real layout. **`md`/`lg`**: the card sits at the top of the page column, max width 900/1240
+  as today.
 
 ### 6.2 Planning — laundry card
 
@@ -477,7 +484,7 @@ Tuesday + Thursday saved at 1280 and 390 px, the Planning shows the Thursday car
    fragment `changelog.d/added--linen-laundry-days.md`. **~14 files, the bulk of the work.**
 2. **Lot 2 — the per-day payload**: `GET /api/planning/laundry/days`, card provenance and « Encore à la
    blanchisserie », `planningDays.js` as one call, removal of the two former endpoints, E2E moved,
-   `recoversOn` + bath-mat label + « jusqu'au ». Plugin 1.2.1 or folded into 1.2.0 if both lots ship in
+   `lastShortageDate`/`laterShortage` + bath-mat label + « du … au … ». Plugin 1.2.1 or folded into 1.2.0 if both lots ship in
    the same release. **~10 files.** Lands after or alongside `dashboard-planning-scroll`; it does not
    depend on it.
 
@@ -493,7 +500,7 @@ per-day payload »), plugin `linen` 1.2.0 for both. Deviations from the draft, a
 - The extra-trip preview's `atLaundry` is what is **ready** on that date.
 - `GET /api/laundry/schedule` serves `cycle` and `longestWaitDays` inside `current` / `pending`.
 - Shortage alert (§6.3): the server serves the first spell's `lastShortageDate` and a `laterShortage` flag instead of `recoversOn` (review 2026-10-28: `recoversOn` was off by one and ignored later spells).
-- The Linge « Blanchisserie » card keeps the 16 px padding of its siblings; the toggles measure 40.3 px × 44 at 390 px (not 44 × 44) and the row wraps below ~380 px (§6.1).
+- The Linge « Blanchisserie » card keeps the 16 px padding of its siblings; the toggles are a grid: 40.3 × 44 px at 390 px (accepted), 4 + 3 below 380 px (§6.1 table); dates of another year show their year in the shortage alert.
 
 ### Review fixes (2026-10-28, two Opus reviewers)
 

@@ -35,6 +35,9 @@ function setup({ pending = null } = {}) {
   return render(<MemoryRouter><LinenStockPage /></MemoryRouter>);
 }
 
+// The card frame shows at once (disabled, with placeholder lines): wait for the schedule itself.
+const loaded = () => waitFor(() => expect(screen.queryByTestId('laundry-cycle-skeleton')).not.toBeInTheDocument());
+
 const save = () => screen.getByRole('button', { name: 'Enregistrer' });
 const cancel = () => screen.getByRole('button', { name: 'Annuler' });
 
@@ -42,7 +45,7 @@ beforeEach(() => { vi.clearAllMocks(); });
 
 test('specs/linen-laundry-days.md §3.4 rule 19: the page loads the schedule next to the stock, nothing to save yet', async () => {
   setup();
-  expect(await screen.findByText('Blanchisserie')).toBeInTheDocument();
+  await loaded();
   expect(api.getLaundrySchedule).toHaveBeenCalled();
   expect(screen.getByRole('button', { name: 'Mardi' })).toHaveAttribute('aria-pressed', 'true');
   expect(save()).toBeDisabled();
@@ -52,7 +55,7 @@ test('specs/linen-laundry-days.md §3.4 rule 19: the page loads the schedule nex
 test('specs/linen-laundry-days.md §3.4 rule 21: a schedule change alone saves the schedule, not the stock, and says it starts tomorrow', async () => {
   const pending = { effectiveFrom: '2026-10-29', weekdays: [2, 4], turnaroundDays: 1, cycle: [], longestWaitDays: 5 };
   setup();
-  await screen.findByText('Blanchisserie');
+  await loaded();
   fireEvent.click(screen.getByRole('button', { name: 'Jeudi' }));
   expect(screen.getByText('À partir de demain, jeu. 29 oct.')).toBeInTheDocument();
   expect(save()).toBeEnabled();
@@ -68,6 +71,7 @@ test('specs/linen-laundry-days.md §3.4 rule 21: a schedule change alone saves t
 test('specs/linen-laundry-days.md §3.4 rule 21: stock and schedule changed together are both saved', async () => {
   setup();
   const doubles = await screen.findByLabelText('Doubles');
+  await loaded();
   fireEvent.change(doubles, { target: { value: '16' } });
   fireEvent.click(screen.getByRole('button', { name: 'Un jour de plus' }));
   api.saveLaundrySchedule.mockResolvedValue({ ok: true, current: inForce, pending: { ...inForce, effectiveFrom: '2026-10-29', turnaroundDays: 2 }, tomorrow: '2026-10-29' });
@@ -80,6 +84,7 @@ test('specs/linen-laundry-days.md §3.4 rule 21: stock and schedule changed toge
 test('specs/linen-laundry-days.md §3.4 rule 21: Cancel restores the stock and the schedule', async () => {
   setup();
   const doubles = await screen.findByLabelText('Doubles');
+  await loaded();
   fireEvent.change(doubles, { target: { value: '16' } });
   fireEvent.click(screen.getByRole('button', { name: 'Jeudi' }));
   fireEvent.click(screen.getByRole('button', { name: 'Un jour de plus' }));
@@ -93,7 +98,7 @@ test('specs/linen-laundry-days.md §3.4 rule 21: Cancel restores the stock and t
 
 test('specs/linen-laundry-days.md §3.4 rule 20: an invalid turnaround disables Save', async () => {
   setup();
-  await screen.findByText('Blanchisserie');
+  await loaded();
   fireEvent.change(screen.getByLabelText('Délai en jours'), { target: { value: '15' } });
   expect(screen.getByText('Entre 1 et 14 jours.')).toBeInTheDocument();
   expect(save()).toBeDisabled();
@@ -102,7 +107,7 @@ test('specs/linen-laundry-days.md §3.4 rule 20: an invalid turnaround disables 
 
 test('specs/linen-laundry-days.md §3.4 rule 21: a refusal of the server keeps the draft and shows its message under the field', async () => {
   setup();
-  await screen.findByText('Blanchisserie');
+  await loaded();
   fireEvent.click(screen.getByRole('button', { name: 'Un jour de plus' }));
   api.saveLaundrySchedule.mockRejectedValue(Object.assign(new Error('Entre 1 et 14 jours.'), { field: 'turnaroundDays', code: 'LAUNDRY_TURNAROUND_INVALID' }));
   fireEvent.click(save());
@@ -117,7 +122,7 @@ test('specs/linen-laundry-days.md §3.4 rule 21: a refusal of the server keeps t
 
 test('specs/linen-laundry-days.md §3.4 rule 21: a failure without a field is a toast and keeps the draft', async () => {
   setup();
-  await screen.findByText('Blanchisserie');
+  await loaded();
   fireEvent.click(screen.getByRole('button', { name: 'Jeudi' }));
   api.saveLaundrySchedule.mockRejectedValue(new Error('Réseau indisponible'));
   fireEvent.click(save());
@@ -154,7 +159,8 @@ test('specs/linen-laundry-days.md §3.4 rule 22: with a pending version, going b
 
 test('specs/linen-laundry-days.md §3.4 rule 21: « 02 » typed over « 2 » is not a change — Save stays off, no phantom dirty state', async () => {
   setup();
-  const input = await screen.findByLabelText('Délai en jours');
+  await loaded();
+  const input = screen.getByLabelText('Délai en jours');
   fireEvent.change(input, { target: { value: '01' } });
   expect(save()).toBeDisabled();
   expect(cancel()).toBeDisabled();
@@ -164,15 +170,18 @@ test('specs/linen-laundry-days.md §3.4 rule 21: « 02 » typed over « 2 » is 
   await waitFor(() => expect(api.saveLaundrySchedule).toHaveBeenCalledWith({ weekdays: [2], turnaroundDays: 2 }));
 });
 
-test('specs/linen-laundry-days.md §3.4 rule 19: a placeholder of the same height holds the place of the card while the schedule loads', async () => {
+test('specs/linen-laundry-days.md §3.4 rule 19: while the schedule loads, the real frame is drawn (disabled) with placeholder lines, then replaced in place', async () => {
   let release;
   api.getPluginSettings.mockResolvedValue(STOCK);
   api.getLaundrySchedule.mockReturnValue(new Promise((resolve) => { release = resolve; }));
   api.previewLaundrySchedule.mockResolvedValue({ cycle: CYCLE_TUESDAY, longestWaitDays: 7, firstTripOn: '2026-10-29' });
-  const { container } = render(<MemoryRouter><LinenStockPage /></MemoryRouter>);
-  await waitFor(() => expect(container.querySelector('.MuiSkeleton-root')).not.toBeNull());
-  expect(screen.queryByText('Blanchisserie')).not.toBeInTheDocument();
-  release({ current: inForce, pending: null, tomorrow: '2026-10-29' });
+  render(<MemoryRouter><LinenStockPage /></MemoryRouter>);
   expect(await screen.findByText('Blanchisserie')).toBeInTheDocument();
-  expect(container.querySelector('.MuiSkeleton-root')).toBeNull();
+  expect(screen.getByTestId('laundry-cycle-skeleton')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Mardi' })).toBeDisabled();
+  expect(screen.queryByText('Entre 1 et 14 jours.')).not.toBeInTheDocument();
+  expect(api.previewLaundrySchedule).not.toHaveBeenCalled();
+  release({ current: inForce, pending: null, tomorrow: '2026-10-29' });
+  await waitFor(() => expect(screen.queryByTestId('laundry-cycle-skeleton')).not.toBeInTheDocument());
+  expect(screen.getByRole('button', { name: 'Mardi' })).toBeEnabled();
 });
