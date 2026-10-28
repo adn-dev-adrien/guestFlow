@@ -1,6 +1,6 @@
 import React, { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
-import { Box, Typography } from '@mui/material';
+import { Box, LinearProgress, Typography } from '@mui/material';
 import TodayIcon from '@mui/icons-material/Today';
 import PageActionBar from '../components/PageActionBar';
 import LoadingState from '../components/LoadingState';
@@ -65,6 +65,7 @@ function mapBreakfastItem(i, date) {
 
 // How close today's header must be to its resting place under the bar to count as « there ».
 const AT_TODAY_TOLERANCE_PX = 8;
+const PAST_LOADING = 'Chargement des jours précédents';
 
 const barBottom = () => parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--gf-page-bar-bottom')) || 0;
 const todayKey = (today) => `day-${today}`;
@@ -426,14 +427,24 @@ export default function PlanningPage() {
   );
 
   // A window in flight shows a skeleton at its edge; a failed one says so and offers to retry.
-  // At the start edge the skeleton is drawn over the top of the timeline, out of the layout: inserting
-  // then removing 120 px above the viewport moved every card, and the scroll compensation visibly jerked.
+  // At the start edge a thin progress bar sticks just under the page bar, out of the layout: nothing is
+  // inserted above the viewport, so no card moves and nothing is covered (specs/dashboard-planning-scroll.md rule 20).
   const renderEdge = (window, atStart = false) => {
     if (!window || window.status === 'loaded') return null;
     if (window.status === 'loading' && atStart) {
       return (
-        <Box key={`edge-${window.k}`} sx={{ position: 'relative', height: 0 }}>
-          <Box sx={{ position: 'absolute', top: 0, left: 0, right: 0 }}><LoadingState variant="skeleton" rows={2} /></Box>
+        <Box
+          key={`edge-${window.k}`}
+          data-testid="planning-past-progress"
+          sx={{ position: 'sticky', top: 'var(--gf-page-bar-bottom, 0px)', height: 0, zIndex: 1 }}
+        >
+          <LinearProgress
+            aria-label={PAST_LOADING}
+            sx={{
+              position: 'absolute', top: 0, left: 0, right: 0, height: 2,
+              '@media (prefers-reduced-motion: reduce)': { '& .MuiLinearProgress-bar': { animation: 'none', width: '100%', left: 0, transform: 'none' } },
+            }}
+          />
         </Box>
       );
     }

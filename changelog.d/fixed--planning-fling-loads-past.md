@@ -1,0 +1,1 @@
+- Planning: a fast swipe or a smooth scroll upwards that crosses the top of the loaded days now loads the earlier days during the gesture, instead of stopping at the top. While earlier days load, a thin progress bar under the page bar replaces the skeleton, so nothing moves or is covered.
