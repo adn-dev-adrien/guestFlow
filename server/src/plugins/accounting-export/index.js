@@ -12,9 +12,11 @@ const { create: createAccountingModel } = require('./accountingModel');
 const { create: createAccountingController } = require('./controller');
 const { create: createPlatformAccountsModel } = require('./platformAccountsModel');
 const { create: createPlatformAccountsController } = require('./platformAccountsController');
+const sdk = require('../sdk');
 const { PLUGIN_ID, KEYS, DEFAULTS, DECLARED, createAccountSettings, readTtcSplitFrom, storeTtcSplitFrom } = require('./settings');
 
 const id = PLUGIN_ID;
+const vatRegimeModel = sdk.coreModule('vatRegimeModel');
 
 const hasTable = (db, name) => Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(name));
 const tableColumns = (db, name) => new Set(db.prepare(`PRAGMA table_info(${name})`).all().map((c) => c.name));
@@ -64,7 +66,11 @@ function register(ctx) {
     return controller;
   };
   const getPlatformAccounts = () => {
-    if (!platformAccounts) platformAccounts = createPlatformAccountsController(createPlatformAccountsModel(ctx.db));
+    if (!platformAccounts) {
+      platformAccounts = createPlatformAccountsController(createPlatformAccountsModel(ctx.db), {
+        regimeInForce: () => vatRegimeModel.inForceBlock(ctx.db) || { regime: 'subject' },
+      });
+    }
     return platformAccounts;
   };
 

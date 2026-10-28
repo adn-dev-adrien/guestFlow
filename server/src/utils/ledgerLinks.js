@@ -69,8 +69,13 @@ async function findPaidStaleLink(stale, provider) {
  * `reservationsModel` defaults to the model bound to `database`.
  */
 function bookPaidAfterAmountChange({ database, recordPayment, reservationsModel = null }, link, { paidDay }) {
-  const row = database.prepare('SELECT * FROM reservations WHERE id = ?').get(Number(link.reservationId));
+  let row = database.prepare('SELECT * FROM reservations WHERE id = ?').get(Number(link.reservationId));
   if (!row) return { effect: 'no-reservation' };
+  // A link minted on a devis that was then converted is paid on the reservation it became
+  // (specs/vat-optional-mode.md rule 34).
+  if (String(row.kind) === 'devis' && row.convertedReservationId) {
+    row = database.prepare('SELECT * FROM reservations WHERE id = ?').get(Number(row.convertedReservationId)) || row;
+  }
   if (String(row.kind) !== 'reservation') return { effect: 'not-a-reservation' };
   const paidAmount = round2(Number(link.amountCents || 0) / 100);
   const type = String(link.type);

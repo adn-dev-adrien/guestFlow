@@ -142,6 +142,13 @@
         "platformPenaltiesModel"
       ],
       "names": {}
+    },
+    {
+      "version": "2.10.0",
+      "modules": [
+        "vatRegimeModel"
+      ],
+      "names": {}
     }
   ]
 }

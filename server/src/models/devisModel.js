@@ -12,6 +12,7 @@
  */
 
 const db = require('../database');
+const vatRegimeModel = require('./vatRegimeModel');
 const { calculateReservationQuote } = require('../utils/pricing');
 const { capitalizeFirst } = require('../utils/textFormatters');
 const { roundMoney } = require('../utils/devisHelpers');
@@ -223,6 +224,7 @@ function createModel(database) {
       extendable: isDevisExtendable(row, today),
       // While the quote holds, its prices are frozen exactly like a saved reservation's (rule 13).
       pricingLocked: !expired,
+      vatRegime: vatRegimeModel.forRow(database, row),
       ...schedule,
       options: [...options, ...customOptions],
       resources,
@@ -632,7 +634,10 @@ function createModel(database) {
     // specs/ui-review-2026-10-19-operations.md rules 5, 9, 21 — total, origin and validity shaped for
     // the list.
     const today = sqliteNow().slice(0, 10);
-    return database.prepare(sql).all(...params).map((row) => devisListRow(row, today));
+    const listed = database.prepare(sql).all(...params).map((row) => ({ ...devisListRow(row, today), vatRegimeKind: vatRegimeModel.forRow(database, row).regime }));
+    // Rule 12 (a): the « TTC » wording stays while one quote of the list is under VAT — decided here, not in the page.
+    const showTtc = listed.length === 0 || listed.some((row) => row.vatRegimeKind === 'subject');
+    return listed.map((row) => ({ ...row, vatShowTtc: showTtc }));
   }
 
   function findById(id) {

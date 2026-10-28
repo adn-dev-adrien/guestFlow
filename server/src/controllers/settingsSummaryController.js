@@ -11,6 +11,7 @@
 
 const { resolveEmailIdentity } = require('../utils/emailIdentity');
 const { PLUGIN_SETTINGS_PLACES } = require('../constants/plugins');
+const vatRegimeModel = require('../models/vatRegimeModel');
 
 const MONTHS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
 
@@ -65,7 +66,9 @@ function buildSummary(deps, user) {
   });
   put('/settings/tva-exercice', () => {
     const month = MONTHS[(Number(row.fiscalYearEndMonth) || 12) - 1];
-    return neutral(`TVA ${Number(row.vatRate)} % · exercice clos fin ${month}`);
+    const vat = vatRegimeModel.inForceBlock(deps.db);
+    if (vat && vat.regime === 'not_subject') return neutral(`Sans TVA · exercice clos fin ${month}`);
+    return neutral(`TVA ${vat ? vat.rate : Number(row.vatRate)} % · exercice clos fin ${month}`);
   });
   put('/settings/emails', () => {
     const host = String(row.smtpHost || '').trim();

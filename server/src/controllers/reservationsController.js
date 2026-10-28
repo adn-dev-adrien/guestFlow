@@ -33,7 +33,7 @@ const { planMidStayNote } = require('../utils/midStayNotePlan');
 const establishmentClosuresModel = require('../models/establishmentClosuresModel');
 const { emit: emitPluginEvent } = require('../plugins/sdk/eventBus');
 const reservationsModel = require('../models/reservationsModel');
-const settingsModel = require('../models/settingsModel');
+const vatRegimeModel = require('../models/vatRegimeModel');
 const termsController = require('./termsController');
 const quotePostProcessors = require('../utils/quotePostProcessors');
 const insuranceOffer = require('../utils/insuranceOffer');
@@ -764,13 +764,12 @@ function storedHeadlineOf(row) {
 
 function storedSummaryOf(row) {
   if (!row) return null;
-  const settings = settingsModel.read() || {};
   let refundsTotal = 0;
   try { refundsTotal = Number(refundsModel.totalsByReservation(Number(row.id)).book || 0); } catch { refundsTotal = 0; }
   return buildStoredSummary({
     row,
     db,
-    vatRate: settings.vatRate != null ? Number(settings.vatRate) : 10,
+    vatRegime: vatRegimeModel.forRow(db, row),
     headline: storedHeadlineOf(row),
     refundsTotal,
     midStayRemaining: storedMidStayLines(row.endOfStayComplementDetail).reduce((sum, l) => sum + (Number(l.amount) || 0), 0),

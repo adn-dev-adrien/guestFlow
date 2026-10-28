@@ -310,6 +310,15 @@ standard).
     out of the payout's commission. *Why:* a penalty kept on a payout was booked as commission, with
     deductible VAT, whenever the operator typed the bank amount as the payout.
 
+### VAT regime per reservation (Implemented 2026-10-28)
+
+37. **Each entry is booked under its reservation's VAT regime (2026-10-28, Implemented — [vat-optional-mode.md](vat-optional-mode.md) rule 12g).**
+    The sales rate of every entry (stay buckets, end-of-stay, mid-stay, arrival adjustments, refunds)
+    is the rate of the reservation's VAT period, not the global setting. A « Sans TVA » reservation
+    produces no 4457x line, its revenue lines carry the whole TTC share, its platform commission is
+    booked TTC with no 44566 line whatever `hasVatOnCommission`, and a cancellation compensation is
+    booked at 0 %. A month may mix both kinds of entries; each stays balanced.
+
 ## 4. Architecture
 
 > **Moved to plugin `accounting-export` (phase 2, `specs/plugins-phase-2-hosts.md`) — current file map

@@ -25,7 +25,13 @@ function formatUpdatedAtLabel(updatedAt) {
   return `${dateFmt.format(date)} à ${timeFmt.format(date)}`;
 }
 
-function shapeResponse(row, env = process.env) {
+/**
+ * @param {object} row  settingsModel.read()
+ * @param {object} env
+ * @param {{ regime, rate, legalMention }} [vat]  the regime in force (vatRegimeModel.inForceBlock); absent →
+ *   the settings row's own rate, as a schema without periods holds it
+ */
+function shapeResponse(row, env = process.env, vat = null) {
   const identity = resolveEmailIdentity(row);
   const safeStr = (v) => String(v == null ? '' : v);
 
@@ -51,9 +57,7 @@ function shapeResponse(row, env = process.env) {
       footerTextEn: safeStr(row.quoteFooterTextEn),
       validityDays: Number(row.quoteValidityDays) || 30,
     },
-    vat: {
-      rate: row.vatRate == null ? 10 : Number(row.vatRate),
-    },
+    vat: vat || { regime: 'subject', rate: row.vatRate == null ? 10 : Number(row.vatRate), legalMention: null },
     // Accounting block (specs/fiscal-year-and-nights-sold.md §4.3). `fiscalYearEndMonth` is the month
     // the books are closed on; 12 (calendar year) when unset. Every annual window of the Suivi
     // financier is derived from it server-side.

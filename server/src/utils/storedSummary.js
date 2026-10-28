@@ -127,12 +127,12 @@ function nightsBetween(start, end) {
  * @param {object} p
  * @param {object} p.row         the stored reservation row
  * @param {object} p.db
- * @param {number} p.vatRate     the global VAT rate
+ * @param {{rate: number}} p.vatRegime   the VAT regime in force for the stay (`vatRegimeModel.forRow`)
  * @param {object} p.headline    `storedHeadlineOf(row)`
  * @param {number} p.refundsTotal   book refunds of the stay
  * @param {number} p.midStayRemaining  what the mid-stay notes still ask at check-out
  */
-function buildStoredSummary({ row, db, vatRate, headline, refundsTotal = 0, midStayRemaining = 0 }) {
+function buildStoredSummary({ row, db, vatRegime, headline, refundsTotal = 0, midStayRemaining = 0 }) {
   const channel = saleChannel(row.platform);
   const isPlatform = channel.namedChannel;
   const acompteCommission = isPlatform ? round2(row.acompteCommissionAmount) : 0;
@@ -148,6 +148,7 @@ function buildStoredSummary({ row, db, vatRate, headline, refundsTotal = 0, midS
   const optionsTotal = round2(optionLines.reduce((total, l) => total + l.totalPrice, 0));
   const resourcesTotal = round2(resourceLines.reduce((total, l) => total + l.totalPrice, 0));
   const accommodation = round2(Math.max(0, Number(row.finalPrice || 0) - optionsTotal - resourcesTotal));
+  const vatRate = vatRegime.rate;
   const vatOf = (ttc) => round2(ttc * (vatRate / (100 + vatRate)));
   const totalVatAmount = round2(vatOf(accommodation) + vatOf(optionsTotal) + vatOf(resourcesTotal));
 
@@ -182,6 +183,7 @@ function buildStoredSummary({ row, db, vatRate, headline, refundsTotal = 0, midS
     resourcesTotal,
     discountAmount: 0,
     vatRate,
+    vatRegime,
     vatPercentageAccommodation: vatRate,
     totalVatAmount,
     totalNetPrice: round2(Number(row.finalPrice || 0) - totalVatAmount),

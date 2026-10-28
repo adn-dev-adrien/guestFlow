@@ -21,10 +21,14 @@ import TableCard from '../TableCard';
 import { displayDate, formatCurrency } from '../../utils/formatters';
 import { usePlugin } from '../../hooks/usePlugins';
 import { TARIFF_RECIPES } from '../../constants/plugins';
+import useVatRegime from '../../hooks/useVatRegime';
 
 export default function PropertyTariffTab({
   property, form, errors = {}, updateField, onZeroFocus, canManage, onOpenTariffs, getSortedSeasonRanges,
 }) {
+  // « Sans TVA » (specs/vat-optional-mode.md rule 12f): the prices are simply what the guest pays.
+  const { state: vatState } = useVatRegime();
+  const notSubject = Boolean(vatState && vatState.inForce && vatState.inForce.regime === 'not_subject');
   // Without the tariff-recipes plugin the seasons read as manual ones (specs/plugins-phase-0-foundation.md rule 16).
   const recipesOn = usePlugin(TARIFF_RECIPES);
   const recipe = recipesOn ? property.tariffRecipeId : null;
@@ -162,9 +166,13 @@ export default function PropertyTariffTab({
           </Box>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
             Qui collecte la taxe sur chaque plateforme se règle dans{' '}
-            <Link component={RouterLink} to="/settings/plateformes">Plateformes</Link>. Tous les montants
-            sont TTC ; le taux de TVA des séjours se règle dans{' '}
-            <Link component={RouterLink} to="/settings/tva-exercice">TVA &amp; exercice</Link>.
+            <Link component={RouterLink} to="/settings/plateformes">Plateformes</Link>.{' '}
+            {notSubject ? 'Prix payés par le client.' : (
+              <>
+                Tous les montants sont TTC ; le taux de TVA des séjours se règle dans{' '}
+                <Link component={RouterLink} to="/settings/tva-exercice">TVA &amp; exercice</Link>.
+              </>
+            )}
           </Typography>
         </CardContent>
       </Card>

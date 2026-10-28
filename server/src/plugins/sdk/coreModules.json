@@ -767,5 +767,10 @@
     "listFor",
     "remove",
     "totalFor"
+  ],
+  "vatRegimeModel": [
+    "forRow",
+    "inForceBlock",
+    "rateForRow"
   ]
 }

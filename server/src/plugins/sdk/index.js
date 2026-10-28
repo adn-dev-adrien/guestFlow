@@ -77,6 +77,7 @@ const CORE_MODULES = Object.freeze({
   complementAllocation: '../../utils/complementAllocation', // the stored ventilation of an adjusted complement
   csv: '../../utils/csv', // the generic CSV writer the sales export serialises with
   settingsValidation: '../../utils/settingsValidation', // the VAT-rate validator of the account plan
+  vatRegimeModel: '../../models/vatRegimeModel', // the VAT rate and regime of each sale: the journal reads them per reservation (vat-optional-mode rule 8, SDK 2.8.0)
   // online-payment — the provider hands the core what it reads; the core records it (phase 3a rule 4)
   paymentLinksModel: '../../models/paymentLinksModel', // the webhook finds its link by provider id
   paymentPollRunner: '../../utils/paymentPollRunner', // the paid effect and the poll pass, core money

@@ -254,6 +254,11 @@ Optional: a plugin that declares nothing reads « Actif ».
     wrappers of the five plugins stay in the core `api.js` in this phase; they move with the plugin
     bundles in phase 4.
 
+> 2026-10-28 — SDK 2.10.0 (VAT optional mode): `coreModule('vatRegimeModel')` — `forRow(db, row)` and
+> `rateForRow(db, row)` answer the VAT regime and rate of one sale (`specs/vat-optional-mode.md` rule 8).
+> `accounting-export` reads them per reservation instead of the global rate and declares `^2.10.0`. No
+> removal: `publicPaymentMode#globalVatRate` stays, answering the rate in force today.
+
 > 2026-10-28 — SDK 2.8.0 (`specs/options-resources-ux.md` rule 19): `ctx.resourceCatalogueLines(build)` —
 > `build(resource, { properties }) → { lines?: [{ label, value }], footer?: string } | null`, synchronous,
 > called only while the plugin is live; the hourly plugin shows its evening / external rates, free first

@@ -272,6 +272,7 @@ function createDashboardModel(database, finance) {
         fiscalYears: summary.fiscalYears,
         months: exerciseMonths(exercise.from, exercise.to).map((m) => ({ month: m.month, label: m.label })),
         propertyId,
+        showHt: summary.showHt,
         hero: {
           revenue, revenueHt: summary.revenueTotalHt, stays: summary.reservations.length, nights: windowNights.nights,
           occupancy: scopeOcc ? scopeOcc.rate : null,
@@ -426,6 +427,7 @@ function createDashboardModel(database, finance) {
         ok: true,
         data: {
           rows,
+          showHt: summary.showHt,
           totals: {
             nights: nightsOf.nights, occupancy: occ.rate, revenuePerNight: occupancy.revenuePerNight(summary.revenueTotal, nightsOf.pricedNights),
             revPar: occupancy.revPar(summary.revenueTotal, occ.sellable), revenue: summary.revenueTotal, revenueHt: summary.revenueTotalHt,

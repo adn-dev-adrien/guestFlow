@@ -10,6 +10,8 @@
  * Every dependency is injected so this is unit-testable without the prod DB.
  */
 
+const vatRegimeModel = require('../models/vatRegimeModel');
+
 // Build the engine input from a persisted devis row and run it.
 //
 // NOT the full replay of the sold state: this mapping drops `offeredOptionIds` and the price-lock
@@ -77,14 +79,6 @@ function fullPaymentCents({ devisModel }, devisId, fallbackRow) {
   return preArrivalCents(savedDevis({ devisModel }, devisId, fallbackRow));
 }
 
-// Global VAT rate (single-rate model, specs/single-vat-rate.md). Falls back to 10 on any read failure.
-function globalVatRate(database) {
-  try {
-    const row = database.prepare('SELECT vatRate FROM app_settings WHERE id = 1').get();
-    return row && row.vatRate != null ? Number(row.vatRate) : 10;
-  } catch { return 10; }
-}
-
 // VAT basket components for a public FULL payment (specs/payment-links-vat.md): the stay part of the
 // pre-arrival amount (VAT-liable at the global rate) as one taxable line, plus the tourist tax as a
 // 0 %-VAT line (VAT-exempt) — unless it is paid on arrival (collected there, or forced to the
@@ -106,7 +100,7 @@ function fullPaymentComponents({ database, devisModel, calc }, devisId, fallback
   if (taxCents > totalCents) return null;
   const components = [{ title: 'Séjour et prestations', grossCents: totalCents - taxCents, taxable: true }];
   if (taxCents > 0) components.push({ title: 'Taxe de séjour', grossCents: taxCents, taxable: false });
-  return { components, vatRatePercent: globalVatRate(database) };
+  return { components, vatRatePercent: vatRegimeModel.rateForRow(database, { id: devisId, ...devis }) };
 }
 
 module.exports = { recomputeDevisQuote, fullPaymentCents, fullPaymentComponents };
