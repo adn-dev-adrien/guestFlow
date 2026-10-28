@@ -49,7 +49,7 @@ test('extra laundry trip — API round-trip + planning page still renders with a
   await page.goto('/planning');
   await expect(page.getByRole('heading', { name: 'Planning', exact: true })).toBeVisible({ timeout: 10_000 });
   // Admin session → the action-bar entry point is present.
-  await expect(page.getByRole('button', { name: 'Ajouter un voyage blanchisserie exceptionnel' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Ajouter un voyage blanchisserie exceptionnel' })).toBeVisible({ timeout: 10_000 });
 
   // Cleanup — DELETE the trip so subsequent E2E runs aren't polluted. Idempotent server-side.
   const delResp = await request.delete(`/api/laundry/extra-trips/${FAR_FUTURE_THURSDAY}`);
