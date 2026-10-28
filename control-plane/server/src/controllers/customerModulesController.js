@@ -57,11 +57,11 @@ function createCustomerModulesController(ctx, customersController) {
     return (facts ? facts.installed : []).filter((other) => other !== id && allowed.has(other) && requiresOf(other).includes(id));
   }
 
-  function erasureIssue(id, facts, writtenAt) {
+  function erasureIssue(id, facts, writtenAt, removal) {
     const row = facts && facts.provisioning ? facts.provisioning.rows.find((r) => r.pluginId === id) : null;
     if (!row || row.desired !== 'inactive' || row.licenceIssuedAt !== writtenAt) return null;
     if (row.outcome === 'failed') return row.message;
-    if (row.outcome === 'blocked') return `Effacement bloqué : ${row.message}`;
+    if (row.outcome === 'blocked') return `${removal ? 'Désinstallation bloquée' : 'Effacement bloqué'} : ${row.message}`;
     return null;
   }
 
@@ -91,7 +91,7 @@ function createCustomerModulesController(ctx, customersController) {
     const blockedBy = dependants.length ? `Nécessaire à ${dependants.map(nameOf).join(', ')} : à désinstaller d’abord.` : null;
     return {
       id, name: entry.name, on, switchable: true, ...state,
-      detail: erasing.has(id) ? erasureIssue(id, facts, writtenAt) || 'Effacement des données en cours.' : blockedBy || state.detail || keptData(state, eraseLines),
+      detail: erasing.has(id) ? erasureIssue(id, facts, writtenAt, erasing.get(id)) || (erasing.get(id) ? 'Désinstallation en cours.' : 'Effacement des données en cours.') : blockedBy || state.detail || keptData(state, eraseLines),
       canErase, canUninstall, blockedBy, eraseLines: canErase ? eraseLines : [], eraseWarnings: canErase ? dataLines.filter((l) => l.warning).map((l) => l.label) : [], planChip: null,
     };
   }
@@ -114,7 +114,7 @@ function createCustomerModulesController(ctx, customersController) {
     const chosen = new Set(customerPlugins.chosen(c.id).filter((id) => allowed.has(id)));
     const facts = instances.readFacts(customersController.servedSlug(c));
     const writtenAt = meta.get(`licenceIssuedAt:${c.id}`);
-    const erasing = new Set(customerPlugins.pendingOrders(c.id).map((o) => o.pluginId));
+    const erasing = new Map(customerPlugins.pendingOrders(c.id).map((o) => [o.pluginId, Boolean(o.removal)]));
     const lines = gfPlugins.PLUGIN_IDS.map((id) => lineOf(c, id, { allowed, chosen, facts, writtenAt, erasing }));
     const included = lines.filter((l) => l.switchable);
     const counts = {
@@ -149,9 +149,10 @@ function createCustomerModulesController(ctx, customersController) {
     if (refused) throw refused;
     if (on) {
       customerPlugins.add(c.id, pluginId, day(), operator);
+      const removal = customerPlugins.pendingOrders(c.id).some((o) => o.pluginId === pluginId && o.removal);
       // An order still on its way must not fire the next time the module is switched off.
       if (customerPlugins.cancelOrdersOf(c.id, pluginId, now().toISOString())) {
-        customersController.journal(c.id, operator, 'module', `Effacement des données de ${nameOf(pluginId)} annulé`);
+        customersController.journal(c.id, operator, 'module', removal ? `Désinstallation de ${nameOf(pluginId)} annulée` : `Effacement des données de ${nameOf(pluginId)} annulé`);
       }
     } else {
       customerPlugins.remove(c.id, pluginId);
@@ -174,8 +175,8 @@ function createCustomerModulesController(ctx, customersController) {
     const line = view(c.id).included.find((l) => l.id === pluginId);
     if (line && line.blockedBy) throw httpError(422, 'REQUIRED_BY', line.blockedBy);
     if (!line || !(line.canErase || line.canUninstall)) throw httpError(409, 'NOTHING_TO_ERASE', 'Rien à effacer : le module est encore actif sur l’espace, ou sans données.');
-    customerPlugins.addOrder({ orderId: crypto.randomUUID(), customerId: c.id, pluginId, createdAt: now().toISOString(), operator });
-    customersController.journal(c.id, operator, 'module', `Effacement des données de ${nameOf(pluginId)} demandé`);
+    customerPlugins.addOrder({ orderId: crypto.randomUUID(), customerId: c.id, pluginId, createdAt: now().toISOString(), operator, removal: line.canUninstall });
+    customersController.journal(c.id, operator, 'module', line.canUninstall ? `Désinstallation de ${nameOf(pluginId)} demandée` : `Effacement des données de ${nameOf(pluginId)} demandé`);
     customersController.issueLicence(c.id);
     return view(c.id);
   }
@@ -190,7 +191,7 @@ function createCustomerModulesController(ctx, customersController) {
       const done = customerPlugins.pendingOrders(customerId).filter((o) => facts.provisioning.erasedOrders.includes(o.orderId));
       done.forEach((o) => {
         customerPlugins.acknowledge(o.orderId, now().toISOString());
-        customersController.journal(customerId, 'système', 'module', `Données de ${nameOf(o.pluginId)} effacées`);
+        customersController.journal(customerId, 'système', 'module', o.removal ? `${nameOf(o.pluginId)} désinstallé` : `Données de ${nameOf(o.pluginId)} effacées`);
         acknowledged += 1;
       });
       if (done.length) customersController.issueLicence(customerId);

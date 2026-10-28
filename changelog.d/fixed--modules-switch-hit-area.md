@@ -1,0 +1,1 @@
+- Console « Modules »: the whole height of a module switch is clickable (a click on its top or bottom edge did nothing), and removing a module that holds no data reads « Désinstallation » in its line and in the journal instead of « Effacement des données ».

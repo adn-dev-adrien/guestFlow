@@ -310,7 +310,11 @@ screen or endpoint: the customer sees only the features themselves.
     holding no data gets `canUninstall`: the menu reads « Désinstaller… », a plain confirmation (no typed
     address, nothing to lose) sends the same `POST …/erase` order as rule 22, and the space settles it by
     leaving the module uninstalled (rule 31's `NOT_ERASABLE` path). A module off, not installed and
-    without data offers nothing. _Added at second review._
+    without data offers nothing. The order remembers that it is a removal (`customer_erase_orders.removal`,
+    added by the idempotent column pass), so the words follow: the line reads « Désinstallation en cours. »
+    / « Désinstallation bloquée : … », the journal « Désinstallation de X demandée » / « Désinstallation de X
+    annulée » / « X désinstallé » — never « Effacement des données » for a module that holds none.
+    _Added at second review; wording amended at follow-up._
 
 **Edge cases:**
 
@@ -464,7 +468,8 @@ CREATE TABLE IF NOT EXISTS customer_erase_orders (
   pluginId TEXT NOT NULL,
   createdAt TEXT NOT NULL,
   operator TEXT NOT NULL,
-  acknowledgedAt TEXT
+  acknowledgedAt TEXT,
+  removal INTEGER NOT NULL DEFAULT 0      -- rule 38: 1 = uninstall of a module without data
 );
 ALTER TABLE customers ADD COLUMN pluginsSeededAt TEXT;  -- guarded by pragma_table_info
 ```
@@ -562,7 +567,7 @@ kept visible; changing plan re-ticks. Under it: « 8 modules actifs à la créat
   space stays unseeded then seeds once it reports; erase refused naming the dependant; an erase the
   space blocked or failed shows on the line, for the current licence only; licence stamps strictly
   increase when the clock steps back; the dependant line shows its reason and the data-less dependant
-  offers removal, whose order lifts it; nothing to remove when not installed) — **7 cases**; the state
+  offers removal, whose order lifts it, in « désinstallation » words; nothing to remove when not installed; a data erase keeps its words and cancelling a removal says so) — **8 cases**; the state
   lines of rule 14 (short badge + detail, `setupLabel`, `stale`, « données conservées ») are covered in
   `customer-modules.unit.test.js` and `customer-modules-erase.unit.test.js`.
 
@@ -571,8 +576,8 @@ kept visible; changing plan re-ticks. Under it: « 8 modules actifs à la créat
 - [x] `client/src/hooks/__tests__/useAuth.revalidate.test.jsx` — rule 36 (route change after 30 s, tab
   visible again, failed re-read keeps the session) — **3 cases**
 - [x] `control-plane/client/src/__tests__/ModulesSection.polish.test.jsx` — rules 10–12, 14, 22 (refusal and
-  failed count red, stale wait in warning, focus kept on the switch being saved, 44 px tall switch whose
-  root clips its hidden input, so it never covers « Plus d’actions » — also proved with a real pointer click in Playwright, erase
+  failed count red, stale wait in warning, focus kept on the switch being saved, switch 44 px tall and fully clickable whose
+  root clips its hidden input, so it never covers « Plus d’actions » — also proved with real pointer clicks in Playwright, erase
   dialog focus and Enter, no animation under reduced motion) — **6 cases**; `NewCustomerPage.modules`
   gains the two-quick-unticks case (rule 13).
 

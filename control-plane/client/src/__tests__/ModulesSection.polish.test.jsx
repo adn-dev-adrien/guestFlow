@@ -68,17 +68,24 @@ it('rule 12 — the switch being saved keeps the focus and ignores a second clic
   expect(screen.getByRole('switch', { name: 'Linge et blanchisserie' })).not.toBeDisabled();
 });
 
-it('rule 12 — the switch is 44 px tall and clips its hidden input so it never covers « Plus d’actions »', async () => {
+it('rule 12 — the whole 44 px of the switch is clickable and its clipped input never reaches « Plus d’actions »', async () => {
   api.customerModules.mockResolvedValue(modulesView({
     included: [line({ on: false, state: 'inactive', stateLabel: 'Inactif', canErase: true, eraseLines: ['3 pièces de stock'], eraseWarnings: [] })],
   }));
   open();
   const sw = await screen.findByRole('switch', { name: 'Linge et blanchisserie' });
   const root = sw.closest('.MuiSwitch-root');
+  const base = sw.closest('.MuiSwitch-switchBase');
+  const kebab = screen.getByRole('button', { name: 'Plus d’actions pour Linge et blanchisserie' });
   expect(getComputedStyle(root).height).toBe('44px');
   expect(getComputedStyle(root).overflow).toBe('hidden');
+  expect(getComputedStyle(base).height).toBe('44px');
+  expect(getComputedStyle(base).top).toBe('0px');
+  expect(getComputedStyle(sw).height).toBe('100%');
   expect(root.contains(sw)).toBe(true);
-  expect(root.contains(screen.getByRole('button', { name: 'Plus d’actions pour Linge et blanchisserie' }))).toBe(false);
+  expect(sw.contains(kebab) || kebab.contains(sw)).toBe(false);
+  expect(root.parentElement).toBe(kebab.parentElement);
+  expect(root.compareDocumentPosition(kebab) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
 });
 
 it('rule 22 — the erase dialog focuses the slug field, and Enter erases once the slug matches', async () => {

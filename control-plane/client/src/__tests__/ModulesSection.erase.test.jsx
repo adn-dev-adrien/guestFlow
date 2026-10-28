@@ -67,7 +67,7 @@ it('rule 38 — a module installed without data is removed through « Désinstal
     included: [line({ id: 'google-vacation-rentals', name: 'Google Vacation Rentals', on: false, state: 'inactive', stateLabel: 'Inactif', canUninstall: true })],
   }));
   api.eraseModule.mockResolvedValue(modulesView({
-    included: [line({ id: 'google-vacation-rentals', name: 'Google Vacation Rentals', on: false, state: 'inactive', stateLabel: 'Inactif', detail: 'Effacement des données en cours.' })],
+    included: [line({ id: 'google-vacation-rentals', name: 'Google Vacation Rentals', on: false, state: 'inactive', stateLabel: 'Inactif', detail: 'Désinstallation en cours.' })],
   }));
   open();
   fireEvent.click(await screen.findByRole('button', { name: 'Plus d’actions pour Google Vacation Rentals' }));
@@ -77,7 +77,7 @@ it('rule 38 — a module installed without data is removed through « Désinstal
   expect(screen.queryByLabelText(/Pour confirmer/)).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Désinstaller' }));
   await waitFor(() => expect(api.eraseModule).toHaveBeenCalledWith(3, 'google-vacation-rentals', 'moulin'));
-  expect(await screen.findByText('Effacement des données en cours.')).toBeInTheDocument();
+  expect(await screen.findByText('Désinstallation en cours.')).toBeInTheDocument();
 });
 
 it('rule 38 — a module an installed plugin requires shows the reason and no menu', async () => {
