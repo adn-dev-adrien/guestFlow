@@ -185,7 +185,11 @@ any more.
     (`ErrorAlert`), the loaded days stay usable and the other edge keeps extending; scrolling past the
     edge does not retry by itself. A failed opening (window 0) shows the page's `ErrorAlert` with retry.
     A plugin `load` that fails only loses that plugin's cards of that window, with the plugin's
-    `errorMessage` toast (unchanged).
+    `errorMessage` toast (unchanged). *Amended 2026-10-28:* at the START edge the loading skeleton is
+    drawn over the top of the timeline, out of the layout (a zero-height wrapper, the skeleton absolute
+    inside it): inserting then removing it above the viewport shifted every card and made the scroll
+    compensation jerk, and the scroll events of that compensation were read as new gestures. The END
+    edge and the failure alert keep their place in the flow.
 21. **Writes refresh what they touched.** A tick stays optimistic (unchanged). A SAS committed
     (`onDone`) reloads the loaded windows holding the stay's arrival and departure days, not the whole
     timeline. A plugin's `reload()` reloads that plugin's cards over every loaded window, each window
@@ -231,7 +235,7 @@ any more.
     octobre »: dates are never serif).
 
 30. **A burst of input is one gesture.** A trackpad flick fires dozens of wheel events: they and the
-    scroll events they cause form ONE gesture, whose chain is reset only after 200 ms without input (the
+    scroll events they cause form ONE gesture, whose chain is reset only after 150 ms without input (the
     hook's settle time) or when the operator turns around. A key typed into a field, a select, a
     `contenteditable` or a dialog, or already handled (`defaultPrevented`), is not a gesture; a touch
     gives its direction from the move (a finger going up scrolls down). The empty horizon is capped at
@@ -242,7 +246,10 @@ any more.
     browser applies the scroll, so the position held right before a prepend or a release may predate a
     move the operator has already made. The restore after the commit keeps that move: it undoes only the
     content's shift (the held item's screen position, minus how far the scroller moved since the hold).
-    Without it, the first wheel up after opening could snap the view back under today's header.
+    The browser's own scroll anchoring is switched off on the timeline (`overflow-anchor: none`): the
+    hook is the only mechanism that compensates a shift, otherwise the browser's compensation (already
+    applied when the restore runs) would be read as the operator's move and applied a second time.
+    Without this, the first wheel up after opening could snap the view back under today's header.
 
 **Edge cases:**
 - Several arrivals on the next arrival day → all listed (rule 2), one row each.
@@ -412,6 +419,7 @@ None. No migration.
 - [x] `components/__tests__/PageActionBar.aria-disabled.test.jsx` (2) — rule 29.
 - [x] `hooks/__tests__/usePlanningTimeline.windows.test.jsx` (3) — rules 27, 28; `useInfiniteEdgeScroll.window.test.jsx` gains rules 24 and 26 (14 in all).
 - [x] `hooks/__tests__/useInfiniteEdgeScroll.scrolled-before-commit.test.jsx` (2) — rule 31.
+- [x] `pages/__tests__/PlanningPage.edge-layout.test.jsx` (2) — rule 20 (start-edge skeleton out of the layout), rule 31 (`overflow-anchor: none` on the timeline).
 
 ### E2E (Playwright)
 - [x] New `e2e/specs/planning/timeline-scroll.spec.js` — opens on today under the bar; wheel up shows

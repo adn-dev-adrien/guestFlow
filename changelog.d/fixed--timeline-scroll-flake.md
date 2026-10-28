@@ -1,1 +1,1 @@
-- Planning: scrolling up right after the page opens could snap the view back under today's header, when a past window was requested at the same moment (the first wheel notch of a slow machine). The operator's own scroll is now kept when content is added above.
+- Planning: scrolling up right after the page opens could snap the view back under today's header, and the loading skeleton above the timeline made the view jump. The operator's own scroll is now kept when content is added above, and the skeleton no longer moves the cards.
