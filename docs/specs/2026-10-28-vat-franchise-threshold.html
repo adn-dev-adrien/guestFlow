@@ -1,0 +1,424 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Seuil de franchise — résumé</title>
+<style>
+:root{
+  --primary:#2F5D46; --primary-dark:#244A37; --honey:#C99038; --ink-bg:#23302A;
+  --bg:#F8F5EF; --paper:#FFFFFF; --ink:#27251F; --muted:#6E6A5E;
+  --divider:rgba(60,54,36,0.10); --divider-strong:rgba(60,54,36,0.18);
+  --success:#3E7D54; --success-soft:#E6EFE7; --warning:#8F6A1D; --warning-soft:#F6EDD7;
+  --error:#A8433A; --error-soft:#F7E8E5; --info:#31556E; --info-soft:#E4EDF3;
+  --radius:14px; --shadow:0 3px 16px rgba(60,54,36,0.09);
+  --serif:"Source Serif 4","Source Serif Pro",Georgia,"Times New Roman",serif;
+  --sans:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 var(--sans)}
+.wrap{max-width:1040px;margin:0 auto;padding:32px 16px 80px}
+h1{font:600 2rem/1.15 var(--serif);letter-spacing:-0.01em;margin:0 0 8px}
+h2{font:600 1.35rem/1.25 var(--serif);margin:48px 0 12px}
+h3{font:600 1.05rem/1.3 var(--serif);margin:24px 0 8px}
+p{margin:0 0 12px}
+.lead{color:var(--muted);font-size:1.02rem;max-width:760px}
+.meta{color:var(--muted);font-size:.85rem;margin-bottom:24px}
+.num{font-variant-numeric:tabular-nums}
+.card{background:var(--paper);border:1px solid var(--divider);border-radius:var(--radius);box-shadow:var(--shadow);padding:20px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media (max-width:760px){.grid2{grid-template-columns:1fr}}
+ul.tight{margin:0;padding-left:18px} ul.tight li{margin:4px 0}
+table.data{width:100%;border-collapse:collapse;font-size:.88rem}
+table.data th,table.data td{text-align:left;padding:7px 9px;border-bottom:1px solid var(--divider);vertical-align:top}
+table.data th{color:var(--muted);font-weight:600;font-size:.75rem;text-transform:uppercase;letter-spacing:.03em}
+table.data td.r,table.data th.r{text-align:right}
+table.data tr.off td{color:var(--muted);text-decoration:line-through}
+table.data tfoot td{font-weight:700;border-bottom:0}
+.scroll-x{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.chip{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:2px 10px;font-size:.78rem;font-weight:600;white-space:nowrap}
+.chip .dot{width:7px;height:7px;border-radius:50%;background:currentColor}
+.t-ok{background:#EFEBE2;color:var(--muted)}
+.t-warn{background:var(--warning-soft);color:var(--warning)}
+.t-err{background:var(--error-soft);color:var(--error)}
+.t-succ{background:var(--success-soft);color:var(--success)}
+.callout{border-left:3px solid var(--honey);background:#FBF6EC;padding:12px 16px;border-radius:0 10px 10px 0;margin:12px 0}
+.risk{border-left-color:var(--error);background:var(--error-soft)}
+
+.mock-controls{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin:8px 0 12px;font-size:.86rem}
+.seg{display:inline-flex;background:#EFEBE2;border-radius:10px;padding:3px;flex-wrap:wrap}
+.seg button{border:0;background:transparent;font:600 .84rem var(--sans);color:var(--muted);padding:6px 12px;border-radius:8px;cursor:pointer;min-height:36px}
+.seg button[aria-pressed="true"]{background:var(--paper);color:var(--ink);box-shadow:0 1px 3px rgba(60,54,36,.15)}
+.stage{display:flex;justify-content:center}
+.device{width:100%;max-width:980px;background:var(--bg);border:1px solid var(--divider-strong);border-radius:18px;overflow:hidden;position:relative;transition:max-width .35s cubic-bezier(.2,.8,.2,1)}
+.device.phone{max-width:390px}
+.appbar{background:var(--primary);color:#fff;height:48px;display:flex;align-items:center;padding:0 16px;font-weight:600;font-size:.92rem;gap:10px}
+.appbar .brand{font-family:var(--serif);font-size:1.05rem}
+.screen{display:flex;min-height:560px}
+.side{width:200px;background:var(--paper);border-right:1px solid var(--divider);padding:12px 8px;font-size:.86rem;flex-shrink:0}
+.side .grp{color:var(--muted);font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin:12px 10px 4px}
+.side a{display:block;padding:7px 10px;border-radius:8px;color:var(--ink);text-decoration:none;cursor:pointer}
+.side a.on{background:var(--success-soft);color:var(--primary);font-weight:600}
+.device.phone .side{display:none}
+.main{flex:1;min-width:0;padding:0 0 28px}
+.pab{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:8px;background:var(--paper);border-bottom:1px solid var(--divider);padding:8px 16px;min-height:56px}
+.pab .t{font:600 1.2rem var(--serif);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ib{width:44px;height:44px;border-radius:12px;border:1px solid var(--divider-strong);background:var(--paper);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;color:var(--ink)}
+.ib.save{background:var(--primary);border-color:var(--primary);color:#fff}
+.ib:disabled{opacity:.4;cursor:default}
+.ib svg{width:20px;height:20px}
+.content{max-width:900px;margin:0 auto;padding:20px 20px 0}
+.device.phone .content{padding:12px 12px 0}
+.scard{background:var(--paper);border:1px solid var(--divider);border-radius:var(--radius);box-shadow:var(--shadow);padding:20px;margin-bottom:16px;transition:border-color .2s}
+.device.phone .scard{padding:16px}
+.shead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:2px}
+.shead h4{font:600 1.05rem var(--serif);margin:0}
+.sub{color:var(--muted);font-size:.84rem;margin:0 0 14px}
+.field{display:flex;flex-direction:column;gap:4px;max-width:320px;margin-bottom:14px}
+.device.phone .field{max-width:none}
+.field label{font-size:.78rem;color:var(--muted);font-weight:600}
+.field input,.field select{font:15px var(--sans);padding:10px 12px;border:1px solid var(--divider-strong);border-radius:10px;background:var(--paper);color:var(--ink);min-height:44px;width:100%}
+.field input:focus,.field select:focus{outline:2px solid var(--primary);outline-offset:-1px;border-color:var(--primary)}
+.field.err input{border-color:var(--error);outline-color:var(--error)}
+.help{font-size:.78rem;color:var(--muted)}
+.field.err .help{color:var(--error)}
+.btn{font:600 .9rem var(--sans);border-radius:10px;padding:10px 16px;min-height:44px;cursor:pointer;border:1px solid transparent}
+.btn.outline{background:var(--paper);border-color:var(--divider-strong);color:var(--primary)}
+.btn.errc{background:var(--error);color:#fff}
+.btn.text{background:transparent;color:var(--primary);padding:6px 4px;min-height:36px}
+.btn:active:not(:disabled){transform:scale(.98)}
+.toast{position:absolute;left:50%;top:60px;transform:translate(-50%,-12px);opacity:0;background:var(--ink);color:#fff;padding:10px 16px;border-radius:10px;font-size:.88rem;transition:opacity .2s,transform .25s;pointer-events:none;z-index:9;max-width:90%}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+.fade{animation:fadein .22s ease-out}
+@keyframes fadein{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+
+/* finance */
+.hero{background:var(--ink-bg);color:#fff;border-radius:var(--radius);padding:20px;margin-bottom:16px}
+.hero .k{color:var(--honey);font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em}
+.hero .v{font-weight:700;font-size:2.3rem;line-height:1.05;margin:6px 0}
+.device.phone .hero .v{font-size:1.9rem}
+.hero .c{color:rgba(255,255,255,.65);font-size:.82rem}
+.figs{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:10px 0 12px}
+.device.phone .figs{grid-template-columns:1fr;gap:6px}
+.fig .l{font-size:.75rem;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.fig .n{font-size:1.55rem;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.2}
+.fig .n.proj{color:var(--muted)}
+.meter{position:relative;height:12px;border-radius:99px;background:#EFEBE2;overflow:visible;margin:18px 0 8px}
+.meter .fill,.meter .proj{position:absolute;left:0;top:0;bottom:0;border-radius:99px;transition:width .4s cubic-bezier(.2,.8,.2,1)}
+.meter .proj{background:repeating-linear-gradient(135deg,rgba(47,93,70,.35) 0 5px,rgba(47,93,70,.12) 5px 10px)}
+.meter .fill{background:var(--primary)}
+.meter.near .fill{background:var(--warning)} .meter.near .proj{background:repeating-linear-gradient(135deg,rgba(143,106,29,.4) 0 5px,rgba(143,106,29,.12) 5px 10px)}
+.meter.over .fill{background:var(--error)}
+.meter .tick{position:absolute;top:-6px;bottom:-6px;width:2px;background:var(--ink);border-radius:2px}
+.meter .tick span{position:absolute;top:-20px;transform:translateX(-50%);font-size:.7rem;color:var(--ink);font-weight:600;white-space:nowrap}
+@media (prefers-reduced-motion:reduce){.meter .fill,.meter .proj,.device{transition:none}.fade{animation:none}}
+.mline{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;font-size:.82rem;color:var(--muted)}
+.ltext{font-size:.9rem;margin:10px 0 2px;font-weight:600}
+.ltext.warn{color:var(--warning)} .ltext.err{color:var(--error)} .ltext.ok{color:var(--ink)}
+.cardfoot{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px}
+.device.phone .cardfoot .btn{width:100%}
+.scard.over{border-color:var(--error)}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.device.phone .tiles{grid-template-columns:1fr 1fr}
+.tile{background:var(--paper);border:1px solid var(--divider);border-radius:12px;padding:12px}
+.tile .l{font-size:.78rem;color:var(--muted)} .tile .n{font-weight:700;font-variant-numeric:tabular-nums}
+.ins{background:var(--paper);border:1px solid var(--divider);border-radius:12px;padding:12px;margin-bottom:12px;font-size:.86rem}
+.attn{background:var(--paper);border:1px solid var(--divider);border-radius:12px;overflow:hidden}
+.arow{display:flex;gap:12px;align-items:center;padding:12px 14px;border-bottom:1px solid var(--divider);font-size:.9rem;min-height:52px}
+.arow:last-child{border-bottom:0}
+.arow .b{width:26px;height:26px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:.8rem;flex-shrink:0}
+.arow .x{flex:1;min-width:0}
+.arow .x small{display:block;color:var(--muted)}
+.new{outline:2px dashed var(--honey);outline-offset:-2px}
+.arb{display:grid;gap:12px}
+.arb .q{font-weight:600;margin-bottom:6px}
+.arb ol{margin:0;padding-left:20px}
+.arb li{margin:3px 0}
+.rec{color:var(--success);font-weight:700;font-size:.78rem}
+label.tog{display:inline-flex;gap:6px;align-items:center;cursor:pointer}
+label.tog input{accent-color:var(--primary);width:18px;height:18px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<p class="meta">Amendement de la spec « TVA optionnelle » (règles 24 à 33) · 28/10/2026 · statut : brouillon</p>
+<h1>Seuil de franchise</h1>
+<p class="lead">Sous « Sans TVA · franchise en base », suivre le chiffre d'affaires de l'année face au seuil que l'exploitant saisit lui-même, dans le Suivi financier, avec une alerte avant et après le dépassement.</p>
+
+<h2>Le constat</h2>
+<div class="grid2">
+  <div class="card">
+    <h3 style="margin-top:0">Ce qui manque</h3>
+    <ul class="tight">
+      <li>La spec TVA optionnelle exclut explicitement le suivi des seuils (§8).</li>
+      <li>Sous franchise, dépasser le seuil fait revenir la TVA : rien ne prévient aujourd'hui.</li>
+      <li>Le montant légal dépend de l'activité et change avec les lois de finances : GuestFlow ne peut pas le connaître pour chaque exploitant.</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0">Ce qui existe déjà</h3>
+    <ul class="tight">
+      <li>Chaque encaissement est daté, poste par poste (registre de la tuile « Encaissé »).</li>
+      <li>La part taxe de séjour d'un séjour est déjà calculée (le HT du Suivi financier).</li>
+      <li>Les échéances non payées ont une date attendue (acompte, solde, versement plateforme, échéances).</li>
+      <li>Un montant saisi en Paramètres et lu par le Suivi financier existe : l'objectif de chiffre d'affaires.</li>
+    </ul>
+  </div>
+</div>
+<div class="callout">Rien de nouveau côté calcul d'argent : on réutilise ces quatre briques. Fonction du cœur, comme le régime de TVA, pas du plugin comptable.</div>
+
+<h2>Ce qu'on propose</h2>
+
+<h3>1. La saisie du seuil — Paramètres › TVA &amp; exercice</h3>
+<p>Le champ n'apparaît que sous « Sans TVA » avec la mention art. 293 B. Vide par défaut, aucun montant suggéré. Essayer : <span class="num">0</span>, <span class="num">-5</span>, <span class="num">12,345</span>, <span class="num">abc</span>, puis un vrai montant, puis Enregistrer. Changer la mention pour voir le champ disparaître.</p>
+<div class="mock-controls">
+  <span>Vue</span>
+  <div class="seg" data-dev="d1"><button aria-pressed="true" data-w="desk">Ordinateur</button><button aria-pressed="false" data-w="phone">Téléphone</button></div>
+</div>
+<div class="stage"><div class="device" id="d1">
+  <div class="appbar"><span class="brand">GuestFlow</span></div>
+  <div class="screen">
+    <nav class="side"><div class="grp">Paramètres</div><a>Établissement</a><a>Logements</a><a>Plateformes</a><a class="on">TVA &amp; exercice</a><a>Emails &amp; notifications</a></nav>
+    <div class="main">
+      <div class="pab"><span class="t">TVA &amp; exercice</span>
+        <button class="ib save" id="saveBtn" disabled aria-label="Enregistrer" title="Enregistrer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12l5 5L20 7"/></svg></button>
+        <button class="ib" id="cancelBtn" disabled aria-label="Annuler" title="Annuler"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
+      <div class="content">
+        <div class="scard">
+          <div class="shead"><h4>TVA</h4><span class="chip t-ok"><span class="dot"></span>Sans TVA</span></div>
+          <p class="sub">Aucune TVA sur les documents. Mention légale imprimée à la place.</p>
+          <div class="field"><label for="mention">Mention légale</label>
+            <select id="mention"><option value="293">TVA non applicable, art. 293 B du CGI</option><option value="261">Exonération de TVA, art. 261 D 4° du CGI</option></select>
+          </div>
+          <div class="field fade" id="thrField"><label for="thr">Seuil de franchise (€)</label>
+            <input id="thr" inputmode="decimal" autocomplete="off">
+            <span class="help" id="thrHelp">Montant fixé par la loi pour l'activité. À vérifier avant saisie.</span>
+          </div>
+          <button class="btn outline">Changer de régime…</button>
+        </div>
+        <div class="scard"><div class="shead"><h4>Exercice comptable</h4></div><p class="sub" style="margin:0">Mois de clôture : décembre.</p></div>
+      </div>
+    </div>
+  </div>
+  <div class="toast" id="toast1">Paramètres enregistrés.</div>
+</div></div>
+
+<h3>2. La carte du Suivi financier</h3>
+<p>Entre le bandeau et les faits marquants. Toujours l'année civile, tous logements, quels que soient l'exercice et le filtre choisis. Plein = encaissé, hachuré = projection au 31/12, trait = seuil. Le seuil vient de la saisie ci-dessus.</p>
+<div class="mock-controls">
+  <span>Vue</span>
+  <div class="seg" data-dev="d2"><button aria-pressed="true" data-w="desk">Ordinateur</button><button aria-pressed="false" data-w="phone">Téléphone</button></div>
+  <span>Simuler</span>
+  <div class="seg" id="scen"><button aria-pressed="true" data-s="ok">Sous le seuil</button><button aria-pressed="false" data-s="proj">Projection au-delà</button><button aria-pressed="false" data-s="near">Seuil proche</button><button aria-pressed="false" data-s="over">Dépassé</button></div>
+  <span>Rôle</span>
+  <div class="seg" id="role"><button aria-pressed="true" data-r="admin">Admin</button><button aria-pressed="false" data-r="acc">Comptable</button></div>
+</div>
+<div class="stage"><div class="device" id="d2">
+  <div class="appbar"><span class="brand">GuestFlow</span></div>
+  <div class="screen">
+    <nav class="side"><div class="grp">Suivi financier</div><a class="on">Tableau de bord</a><a>Taxe de séjour</a><a>Indemnités d'annulation</a><a>Rapprochement bancaire</a></nav>
+    <div class="main">
+      <div class="pab"><span class="t">Suivi financier</span><button class="ib" aria-label="Actualiser" title="Actualiser"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5"/></svg></button></div>
+      <div class="content">
+        <div class="hero"><div class="k">Chiffre d'affaires · exercice 2026</div><div class="v num">41 380 €</div><div class="c">net de commissions · 46 séjours</div></div>
+        <div class="scard" id="fcard"></div>
+        <div class="ins">Octobre, meilleur mois terminé · 6 210 €</div>
+        <div class="tiles"><div class="tile"><div class="l">Encaissé</div><div class="n num">38 905 €</div></div><div class="tile"><div class="l">À encaisser</div><div class="n num">4 120 €</div></div><div class="tile"><div class="l">En retard</div><div class="n num">0 €</div></div></div>
+      </div>
+    </div>
+  </div>
+</div></div>
+
+<h3>3. L'alerte de l'accueil</h3>
+<p>Une ligne de plus dans la boîte « À traiter », à partir de « Seuil proche ». Jamais épinglée au-dessus de la journée. Elle suit la simulation ci-dessus.</p>
+<div class="card" style="max-width:520px"><div class="attn" id="attn"></div></div>
+
+<h3>4. Comment le chiffre est obtenu</h3>
+<p>Exemple inventé, cinq encaissements. Les cases correspondent aux arbitrages Q5 à Q7 : cocher ou décocher change le total.</p>
+<div class="mock-controls">
+  <label class="tog"><input type="checkbox" id="qGross" checked> Commission plateforme réintégrée (brut)</label>
+  <label class="tog"><input type="checkbox" id="qCash"> Caisse interne comptée</label>
+  <label class="tog"><input type="checkbox" id="qCash2" checked> Date de l'encaissement (sinon : date du séjour)</label>
+</div>
+<div class="card scroll-x"><table class="data num" id="calc"></table></div>
+
+<h2>Ce qu'on ne fait pas</h2>
+<ul class="tight">
+  <li>Fournir, suggérer ou mettre à jour un montant légal : l'exploitant le saisit.</li>
+  <li>Repasser automatiquement à la TVA : la carte mène au changement de régime, la date reste un choix.</li>
+  <li>Un second « seuil majoré » (sauf décision contraire, Q8).</li>
+  <li>Des seuils par activité (ventes / services) : un seul montant.</li>
+  <li>Emails ou notifications : la carte et l'accueil seulement.</li>
+  <li>Rien sous TVA : Solio ne voit aucun changement.</li>
+</ul>
+
+<h2>Le risque</h2>
+<div class="callout risk">
+  <p><b>Un chiffre qui n'est pas celui du fisc.</b> GuestFlow ne connaît que ce qu'il enregistre : une recette encaissée hors GuestFlow, ou en caisse interne si elle est exclue, manque. La carte dit « Encaissé » et « Projection », jamais « chiffre d'affaires déclaré ».</p>
+  <p style="margin:0"><b>Faible pour le reste</b> : lecture seule, deux colonnes ajoutées vides, invisible tant que l'installation est sous TVA (test « golden »).</p>
+</div>
+
+<h2>Les arbitrages en attente</h2>
+<div class="arb">
+  <div class="card"><div class="q">Q5 · Quel chiffre comparer au seuil ?</div><ol><li><span class="rec">Recommandé</span> Encaissé de l'année civile, chaque paiement à sa date — colle à la banque.</li><li>Séjours de l'année, rattachés comme le Suivi financier — même logique que le bandeau, moins exact pour les acomptes reçus l'année d'avant.</li></ol></div>
+  <div class="card"><div class="q">Q6 · Séjours plateforme : brut ou net de commission ?</div><ol><li><span class="rec">Recommandé</span> Brut — le client a payé le prix entier, la commission est une charge.</li><li>Net — même chiffre que « Encaissé », plus bas que le chiffre d'affaires.</li></ol></div>
+  <div class="card"><div class="q">Q7 · Caisse interne (hors comptabilité) ?</div><ol><li><span class="rec">Recommandé</span> Exclue, comme tous les chiffres financiers de GuestFlow.</li><li>Comptée — la carte diffère alors d'« Encaissé » du montant en liquide.</li></ol></div>
+  <div class="card"><div class="q">Q8 · Combien de seuils ?</div><ol><li><span class="rec">Recommandé</span> Un seul montant, comme demandé.</li><li>Deux : seuil + seuil majoré facultatif (au-delà, TVA due tout de suite) — un champ et un niveau de plus.</li></ol></div>
+  <div class="card"><div class="q">Q9 · Alerte sur l'accueil ?</div><ol><li><span class="rec">Recommandé</span> Oui, dans « À traiter », dès « Seuil proche ».</li><li>Non, Suivi financier seulement.</li></ol></div>
+  <div class="card"><div class="q">Q10 · Quelles périodes « Sans TVA » ?</div><ol><li><span class="rec">Recommandé</span> Art. 293 B seulement (la franchise) — l'exonération 261 D 4° ne dépend pas du chiffre d'affaires.</li><li>Toute période « Sans TVA », titre « Seuil de chiffre d'affaires ».</li></ol></div>
+</div>
+<p class="meta" style="margin-top:24px">Taille : lot 5 de la spec, après le changement de régime · serveur 9 fichiers modifiés, 2 créés · client 7 modifiés, 2 créés (dont un composant générique ThresholdMeter) · ≈ 60 tests.</p>
+</div>
+
+<script>
+(function(){
+  const eur = (n) => `${String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g,' ')} €`;
+  const pct = (x) => `${Math.round(x*100)} %`;
+  const state = { threshold:null, savedThreshold:null, setAt:null, mention:'293', scen:'ok', role:'admin' };
+
+  document.querySelectorAll('.seg[data-dev]').forEach((seg) => {
+    seg.addEventListener('click', (e) => {
+      const b = e.target.closest('button'); if (!b) return;
+      seg.querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+      document.getElementById(seg.dataset.dev).classList.toggle('phone', b.dataset.w === 'phone');
+    });
+  });
+  const segPick = (id, key, attr) => document.getElementById(id).addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    document.querySelectorAll(`#${id} button`).forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    state[key] = b.dataset[attr]; render();
+  });
+  segPick('scen', 'scen', 's'); segPick('role', 'role', 'r');
+
+  // --- settings field, mirror of rule 25 ---
+  const thr = document.getElementById('thr'), field = document.getElementById('thrField'), help = document.getElementById('thrHelp');
+  const saveBtn = document.getElementById('saveBtn'), cancelBtn = document.getElementById('cancelBtn');
+  const HINT = "Montant fixé par la loi pour l'activité. À vérifier avant saisie.";
+  function parse(v){
+    const t = String(v).replace(/[\s  ]/g,'').replace(',', '.');
+    if (t === '') return { ok:true, value:null };
+    if (/^-/.test(t)) return { ok:false, error:'Montant supérieur à 0 €. Vide pour ne pas en fixer.' };
+    if (!/^\d+(\.\d+)?$/.test(t)) return { ok:false, error:'Un montant en euros (ex. 12 500).' };
+    const n = Number(t);
+    if (n <= 0) return { ok:false, error:'Montant supérieur à 0 €. Vide pour ne pas en fixer.' };
+    if (t.includes('.') && t.split('.')[1].length > 2) return { ok:false, error:'Deux décimales au plus.' };
+    if (n > 10000000) return { ok:false, error:'10 000 000 € au plus.' };
+    return { ok:true, value:n };
+  }
+  function helpText(){ return state.setAt ? `Saisi le ${state.setAt}` : HINT; }
+  function onInput(){
+    const p = parse(thr.value);
+    const dirty = (p.ok ? p.value : NaN) !== state.savedThreshold || !p.ok;
+    field.classList.toggle('err', !p.ok);
+    help.textContent = p.ok ? helpText() : p.error;
+    saveBtn.disabled = !p.ok || !dirty; cancelBtn.disabled = !dirty;
+  }
+  thr.addEventListener('input', onInput);
+  thr.addEventListener('blur', () => { const p = parse(thr.value); if (p.ok && p.value != null) thr.value = p.value.toLocaleString('fr-FR', { maximumFractionDigits:2 }); });
+  saveBtn.addEventListener('click', () => {
+    const p = parse(thr.value); if (!p.ok) return;
+    state.savedThreshold = p.value; state.threshold = p.value;
+    state.setAt = p.value == null ? null : new Date().toLocaleDateString('fr-FR');
+    onInput(); toast(); render();
+  });
+  cancelBtn.addEventListener('click', () => {
+    thr.value = state.savedThreshold == null ? '' : state.savedThreshold.toLocaleString('fr-FR'); onInput();
+  });
+  document.getElementById('mention').addEventListener('change', (e) => {
+    state.mention = e.target.value;
+    field.style.display = state.mention === '293' ? '' : 'none';
+    render();
+  });
+  function toast(){ const t = document.getElementById('toast1'); t.classList.add('on'); setTimeout(() => t.classList.remove('on'), 1600); }
+
+  // --- finance card ---
+  // Each scenario is expressed as a share of the threshold so it works with whatever amount is typed.
+  const SCEN = { ok:[0.62,0.78], proj:[0.71,1.06], near:[0.86,1.02], over:[1.04,1.12] };
+  const NO_THRESHOLD_COLLECTED = 22510.4;
+  function levelOf(c, p, t){
+    if (c > t) return 'over';
+    if (c >= 0.8 * t) return 'near';
+    if (p > t) return 'projected_over';
+    return 'ok';
+  }
+  const LEVEL = {
+    ok:{ chip:'t-ok', badge:'Sous le seuil', cls:'ok', text:(c,p,t) => `Reste ${eur(t-c)} avant le seuil.` },
+    projected_over:{ chip:'t-warn', badge:'Projection au-delà', cls:'warn', text:(c,p,t) => `${eur(p-c)} attendus d'ici le 31/12 avec les réservations en cours.` },
+    near:{ chip:'t-warn', badge:'Seuil proche', cls:'warn', text:(c,p,t) => `Reste ${eur(t-c)} avant le seuil.` },
+    over:{ chip:'t-err', badge:'Seuil dépassé', cls:'err', text:(c,p,t) => `${eur(c-t)} au-delà du seuil. Retour à la TVA à prévoir.` },
+  };
+  function render(){
+    const card = document.getElementById('fcard'), attn = document.getElementById('attn');
+    const applies = state.mention === '293';
+    attn.innerHTML = '<div class="arow"><span class="b t-err">2</span><span class="x">Échéances de paiement<small>2 en retard</small></span></div>'
+      + '<div class="arow"><span class="b t-warn">1</span><span class="x">Dates iCal à valider<small>1 changement de dates</small></span></div>';
+    if (!applies) { card.style.display = 'none'; return; }
+    card.style.display = '';
+    const t = state.threshold;
+    if (t == null) {
+      card.className = 'scard';
+      card.innerHTML = `<div class="shead"><h4>Seuil de franchise</h4></div>
+        <p class="sub">Année civile 2026 · tous logements</p>
+        <div class="cardfoot"><span>Encaissé 2026 : <b class="num">${eur(NO_THRESHOLD_COLLECTED)}</b></span>
+        ${state.role === 'admin' ? '<button class="btn text" id="goSet">Saisir le seuil</button>' : ''}</div>`;
+      const go = document.getElementById('goSet');
+      if (go) go.addEventListener('click', () => { thr.focus(); thr.scrollIntoView({ behavior:'smooth', block:'center' }); });
+      return;
+    }
+    const [rc, rp] = SCEN[state.scen];
+    const c = Math.round(t * rc * 100) / 100, p = Math.round(t * rp * 100) / 100;
+    const lvl = levelOf(c, p, t), L = LEVEL[lvl];
+    const scale = Math.max(t, p, c) * 1.05;
+    const meterCls = lvl === 'over' ? 'over' : (lvl === 'near' || lvl === 'projected_over' ? 'near' : '');
+    card.className = `scard${lvl === 'over' ? ' over' : ''}`;
+    const action = lvl === 'over' && state.role === 'admin' ? '<button class="btn errc">Passer à la TVA…</button>' : '';
+    card.innerHTML = `<div class="shead"><h4>Seuil de franchise</h4><span class="chip ${L.chip}"><span class="dot"></span>${L.badge}</span></div>
+      <p class="sub" style="margin-bottom:4px">Année civile 2026 · tous logements · au 28/10</p>
+      <div class="figs"><div class="fig"><div class="l">Encaissé</div><div class="n">${eur(c)}</div></div>
+      <div class="fig"><div class="l">Projection au 31/12</div><div class="n proj">${eur(p)}</div></div></div>
+      <div class="meter ${meterCls}" role="meter" aria-label="Encaissé par rapport au seuil" aria-valuemin="0" aria-valuemax="${t}" aria-valuenow="${c}">
+        <div class="proj" style="width:0"></div><div class="fill" style="width:0"></div>
+        <div class="tick" style="left:${(t/scale*100).toFixed(2)}%"><span>seuil</span></div></div>
+      <div class="mline"><span><b>${pct(c/t)}</b> du seuil de ${eur(t)}</span><span>projection ${pct(p/t)}</span></div>
+      <p class="ltext ${L.cls}">${L.text(c,p,t)}</p>
+      <div class="cardfoot"><span class="help">2025 : ${eur(t*0.83)}</span>${action}</div>`;
+    requestAnimationFrame(() => {
+      card.querySelector('.proj').style.width = `${(p/scale*100).toFixed(2)}%`;
+      card.querySelector('.fill').style.width = `${(c/scale*100).toFixed(2)}%`;
+    });
+    if (lvl !== 'ok') {
+      const detail = lvl === 'over' ? `Dépassé de ${eur(c-t)}` : lvl === 'near' ? `${pct(c/t)} atteint` : `Projection : ${pct(p/t)}`;
+      const tone = lvl === 'over' ? 't-err' : 't-warn';
+      attn.insertAdjacentHTML('beforeend', `<div class="arow new fade"><span class="b ${tone}">1</span><span class="x">Seuil de franchise<small>${detail}</small></span><span class="help">nouveau</span></div>`);
+    }
+  }
+
+  // --- worked example ---
+  const ROWS = [
+    { d:'14/12/2025', s:'mars 2026', l:'Acompte · direct', amt:600, comm:0, tax:0.04, cash:false, stayIn:true, inYear:false },
+    { d:'02/03/2026', s:'mars 2026', l:'Solde · direct', amt:900, comm:0, tax:0.04, cash:false, stayIn:true, inYear:true },
+    { d:'18/07/2026', s:'juillet 2026', l:'Versement Booking', amt:1530, comm:270, tax:0.05, cash:false, stayIn:true, inYear:true },
+    { d:'09/08/2026', s:'août 2026', l:'Complément arrivée · liquide', amt:180, comm:0, tax:0, cash:true, stayIn:true, inYear:true },
+    { d:'20/12/2026', s:'avril 2027', l:'Acompte · direct', amt:450, comm:0, tax:0.04, cash:false, stayIn:false, inYear:true },
+  ];
+  function calc(){
+    const gross = document.getElementById('qGross').checked, cash = document.getElementById('qCash').checked, byPay = document.getElementById('qCash2').checked;
+    let total = 0;
+    const body = ROWS.map((r) => {
+      const counted = (byPay ? r.inYear : r.stayIn) && (cash || !r.cash);
+      const base = r.amt + (gross ? r.comm : 0);
+      const v = Math.round(base * (1 - r.tax) * 100) / 100;
+      if (counted) total += v;
+      return `<tr class="${counted ? '' : 'off'}"><td>${r.d}</td><td>${r.s}</td><td>${r.l}</td><td class="r">${eur(r.amt)}</td><td class="r">${gross && r.comm ? '+' + eur(r.comm) : '—'}</td><td class="r">${r.tax ? '−' + Math.round(r.tax*100) + ' %' : '—'}</td><td class="r">${counted ? eur(v) : 'hors 2026'}</td></tr>`;
+    }).join('');
+    document.getElementById('calc').innerHTML = `<thead><tr><th>Encaissé le</th><th>Séjour</th><th>Poste</th><th class="r">Reçu</th><th class="r">Commission</th><th class="r">Taxe séjour</th><th class="r">Compté 2026</th></tr></thead><tbody>${body}</tbody><tfoot><tr><td colspan="6">Chiffre comparé au seuil</td><td class="r">${eur(total)}</td></tr></tfoot>`;
+  }
+  ['qGross','qCash','qCash2'].forEach((id) => document.getElementById(id).addEventListener('change', calc));
+
+  onInput(); render(); calc();
+})();
+</script>
+</body>
+</html>

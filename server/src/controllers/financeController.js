@@ -3,6 +3,7 @@
 const model = require('../models/financeModel');
 const dashboard = require('../models/financeDashboardModel');
 const bookingPace = require('../models/bookingPaceModel');
+const vatFranchise = require('../models/vatFranchiseModel');
 
 // specs/finance-dashboard-redesign.md §4.3 — the whole page in one payload, and each tile's table.
 const dashboardParams = (q) => ({
@@ -35,6 +36,11 @@ function getPaceMonth(req, res) {
   return res.json(result.data);
 }
 
+// specs/vat-optional-mode.md rule 35 — the franchise threshold card; `{ applies: false }` outside the franchise.
+function getVatFranchise(req, res) {
+  res.json(vatFranchise.getFollowUp());
+}
+
 function goalContext(req, res) {
   res.json(model.getGoalContext());
 }
@@ -55,4 +61,4 @@ function setTouristTaxDeclared(req, res) {
   return res.json({ ok: true, declaredAt: result.data.declaredAt });
 }
 
-module.exports = { getDashboard, getDashboardDetail, getPace, getPaceMonth, goalContext, touristTax, setTouristTaxDeclared };
+module.exports = { getVatFranchise, getDashboard, getDashboardDetail, getPace, getPaceMonth, goalContext, touristTax, setTouristTaxDeclared };

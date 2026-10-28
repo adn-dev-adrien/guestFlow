@@ -28,3 +28,16 @@ export function revenueGoalInputError(value) {
   if (Number(text) > 10000000) return 'Montant trop élevé : 10 000 000 € au plus.';
   return '';
 }
+
+// specs/vat-optional-mode.md rule 36 — immediate feedback on the franchise threshold, mirroring
+// server/src/utils/vatFranchise.js (the server re-validates). '' when acceptable (empty = no threshold).
+export function vatThresholdInputError(value) {
+  if (value == null || typeof value === 'number') return '';
+  const text = String(value).replace(/[\s\u00a0\u202f]/g, '').replace(',', '.');
+  if (text === '') return '';
+  if (/^-/.test(text) || /^0+(\.0*)?$/.test(text)) return 'Montant supérieur à 0 €. Vide pour ne pas en fixer.';
+  if (!/^\d+(\.\d+)?$/.test(text)) return 'Un montant en euros (ex. 12 500).';
+  if (text.includes('.') && text.split('.')[1].length > 2) return 'Deux décimales au plus.';
+  if (Number(text) > 10000000) return '10 000 000 € au plus.';
+  return '';
+}

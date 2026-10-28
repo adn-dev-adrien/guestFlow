@@ -622,6 +622,21 @@ function createFinanceModel(database) {
       };
     },
 
+    // specs/vat-optional-mode.md rule 37 — every stay that ever took a payment, whatever the window: a
+    // cancelled one keeps its acompte and its refund on their own dates. Same row shape as getSummary's
+    // reservations, so the payments ledger reads it as is.
+    getLedgerStays() {
+      return database.prepare(`
+        SELECT r.*, c.lastName, c.firstName, p.name AS propertyName,
+               ${ATTRIBUTION_DATE_SQL} AS attributionDate,
+               ${REFUND_COLS}
+        FROM reservations r
+        JOIN clients c ON r.clientId = c.id
+        JOIN properties p ON r.propertyId = p.id
+        WHERE r.kind IN ('reservation', 'cancelled')
+      `).all();
+    },
+
     // specs/finance-dashboard-redesign.md rules 26 + 28 — what the goal fields of Settings need: the
     // current and the next exercise (labels computed here, never on the client) and the current
     // exercise's revenue, the same figure the Suivi financier's hero shows for that exercise.

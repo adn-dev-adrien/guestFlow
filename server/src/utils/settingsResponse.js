@@ -8,6 +8,7 @@
 const { resolveEmailIdentity } = require('./emailIdentity');
 const { readRevenueGoals } = require('./revenueGoals');
 const platformMail = require('./platformMail');
+const { franchiseApplies } = require('./vatFranchise');
 const { effectiveSocialLinks, publicNetworks } = require('./socialLinks');
 
 function formatUpdatedAtLabel(updatedAt) {
@@ -58,7 +59,15 @@ function shapeResponse(row, env = process.env, vat = null) {
       footerTextEn: safeStr(row.quoteFooterTextEn),
       validityDays: Number(row.quoteValidityDays) || 30,
     },
-    vat: vat || { regime: 'subject', rate: row.vatRate == null ? 10 : Number(row.vatRate), legalMention: null },
+    vat: {
+      ...(vat || { regime: 'subject', rate: row.vatRate == null ? 10 : Number(row.vatRate), legalMention: null }),
+      // Specs/vat-optional-mode.md rule 36 — the threshold stays stored, unused, outside the franchise.
+      franchise: {
+        applies: franchiseApplies(vat),
+        threshold: row.vatFranchiseThreshold == null || row.vatFranchiseThreshold === '' ? null : Number(row.vatFranchiseThreshold),
+        setAt: row.vatFranchiseThreshold == null || row.vatFranchiseThreshold === '' ? null : (row.vatFranchiseThresholdSetAt || null),
+      },
+    },
     // Accounting block (specs/fiscal-year-and-nights-sold.md §4.3). `fiscalYearEndMonth` is the month
     // the books are closed on; 12 (calendar year) when unset. Every annual window of the Suivi
     // financier is derived from it server-side.

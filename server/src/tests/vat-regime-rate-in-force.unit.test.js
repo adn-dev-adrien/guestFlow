@@ -18,13 +18,15 @@ async function put(vat) {
   await updateSettings({ body: { vat }, user: { id: 1 } }, res);
   return res;
 }
+// specs/vat-optional-mode.md rule 44 — the settings payload names the follow-up, absent by default.
+const NO_FRANCHISE = { applies: false, threshold: null, setAt: null };
 const rateOf = (id) => vatRegimeModel.forRow(db, { id }).rate;
 const mirror = () => db.prepare('SELECT vatRate FROM app_settings WHERE id = 1').get().vatRate;
 
 test('rule 9: the rate edits the period in force and the response reads it back', async () => {
   const res = await put({ rate: 20 });
   assert.equal(res.statusCode, 200);
-  assert.deepEqual(res.body.vat, { regime: 'subject', rate: 20, legalMention: null });
+  assert.deepEqual(res.body.vat, { regime: 'subject', rate: 20, legalMention: null, franchise: NO_FRANCHISE });
   assert.equal(rateOf(101), 20);
   assert.equal(mirror(), 20);
   assert.equal(db.prepare('SELECT rate FROM vat_periods WHERE id = 1').get().rate, 20);
@@ -72,7 +74,7 @@ test('rule 9: refused with 422 when the period in force is not subject, the ment
   assert.ok(refused.body.errors.vatRate);
   const ok = await put({ legalMention: 'art_261_d_4' });
   assert.equal(ok.statusCode, 200);
-  assert.deepEqual(ok.body.vat, { regime: 'not_subject', rate: 0, legalMention: 'art_261_d_4' });
+  assert.deepEqual(ok.body.vat, { regime: 'not_subject', rate: 0, legalMention: 'art_261_d_4', franchise: NO_FRANCHISE });
   assert.equal(mirror(), 0);
   assert.equal((await put({ legalMention: 'free text' })).statusCode, 400);
 });
@@ -89,7 +91,7 @@ test('rule 9: the page sends its whole group back — a null mention, or a rate 
   assert.equal((await put({ regime: 'subject', rate: 15, legalMention: null })).statusCode, 200);
   assert.equal(rateOf(104), 15);
   db.prepare("INSERT INTO vat_periods (regime, rate, legalMention, basis) VALUES ('not_subject', 0, 'art_293_b', 'all')").run();
-  const echoed = await put({ regime: 'not_subject', rate: 0, legalMention: 'art_293_b' });
+  const echoed = await put({ regime: 'not_subject', rate: 0, legalMention: 'art_293_b', franchise: { ...NO_FRANCHISE, applies: true } });
   assert.equal(echoed.statusCode, 200);
-  assert.deepEqual(echoed.body.vat, { regime: 'not_subject', rate: 0, legalMention: 'art_293_b' });
+  assert.deepEqual(echoed.body.vat, { regime: 'not_subject', rate: 0, legalMention: 'art_293_b', franchise: { ...NO_FRANCHISE, applies: true } });
 });

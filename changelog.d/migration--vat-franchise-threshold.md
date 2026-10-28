@@ -1,0 +1,1 @@
+- Two columns added to `app_settings` (`vatFranchiseThreshold`, `vatFranchiseThresholdSetAt`), empty for every existing installation: no data is modified.

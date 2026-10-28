@@ -44,3 +44,26 @@ test('rule 23: the capture is deterministic', async () => {
   const b = await capture(db);
   for (const key of Object.keys(a)) assert.equal(a[key], b[key], key);
 });
+
+// specs/vat-optional-mode.md rule 44 — the franchise follow-up is invisible to a VAT-registered install.
+test('rule 44: the settings payload only adds an absent follow-up to the VAT block', async () => {
+  const { getSettings } = require('../controllers/settingsController');
+  const res = { body: null, json(b) { this.body = b; return this; } };
+  await getSettings({ user: { id: 1 } }, res);
+  const { franchise, ...rest } = res.body.vat;
+  assert.deepEqual(rest, { regime: 'subject', rate: 10, legalMention: null });
+  assert.deepEqual(franchise, { applies: false, threshold: null, setAt: null });
+});
+
+test('rule 44: the home attention payload does not even declare the franchise subject', async () => {
+  const { coreAttentionSources } = require('../routes/dashboard');
+  const { buildController } = require('../controllers/dashboardAttentionController');
+  const source = coreAttentionSources().find((s) => s.key === 'vat-franchise');
+  assert.equal(source.skip({}), true);
+  const controller = buildController({ coreSources: () => [source], pluginSources: () => [] });
+  const res = { body: null, json(b) { this.body = b; return this; } };
+  await controller.attention({}, res);
+  assert.deepEqual(res.body, { pinned: [], items: [], total: 0, unavailable: [], unavailableLabel: '', declared: [] });
+  const finance = require('../models/vatFranchiseModel');
+  assert.deepEqual(finance.getFollowUp(), { applies: false });
+});

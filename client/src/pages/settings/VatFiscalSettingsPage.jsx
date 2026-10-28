@@ -12,11 +12,12 @@ import SettingsFormPage from '../../components/SettingsFormPage';
 import SettingsVatSection from '../../components/SettingsVatSection';
 import SettingsFiscalYearSection, { hasInvalidRevenueGoal } from '../../components/SettingsFiscalYearSection';
 import api from '../../api';
+import { vatThresholdInputError } from '../../utils/validation';
 import useVatRegime from '../../hooks/useVatRegime';
 import VatRegimeSwitchDialog from '../../components/VatRegimeSwitchDialog';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import { useToast } from '../../components/DialogProvider';
-import { VAT_TEXTS } from '../../constants/vatRegime';
+import { VAT_TEXTS, showsFranchiseField } from '../../constants/vatRegime';
 import Slot from '../../plugins/sdk/Slot';
 
 export default function VatFiscalSettingsPage() {
@@ -27,6 +28,8 @@ export default function VatFiscalSettingsPage() {
   const vat = useVatRegime();
   // Rule 33: an emptied rate is refused on screen, never sent (the server refuses it too).
   const rateBlank = form.draft.vat?.regime !== 'not_subject' && (form.draft.vat?.rate === '' || form.draft.vat?.rate == null);
+  // Rule 36 — a field that is not on screen blocks nothing.
+  const thresholdInvalid = showsFranchiseField(form.draft.vat) && Boolean(vatThresholdInputError(form.draft.vat?.franchiseThreshold));
   const [switching, setSwitching] = useState(false);
   const [undoing, setUndoing] = useState(null);
   // The switch writes through its own endpoint: the page's saved values follow what the server now holds.
@@ -36,6 +39,8 @@ export default function VatFiscalSettingsPage() {
     form.replaceSaved('vat', 'regime', next.inForce.regime);
     form.replaceSaved('vat', 'rate', subject ? next.inForce.rate : 0);
     form.replaceSaved('vat', 'legalMention', subject ? null : next.inForce.legalMention);
+    // Rule 35 — a hidden field gives back what was typed in it.
+    form.replaceSaved('vat', 'franchiseThreshold', form.saved.vat?.franchiseThreshold ?? '');
   };
   // specs/finance-dashboard-redesign.md §3.8 — the exercises the goal fields name, from the server.
   const [goalContext, setGoalContext] = useState(null);
@@ -46,11 +51,14 @@ export default function VatFiscalSettingsPage() {
   }, []);
 
   return (
-    <SettingsFormPage title="TVA & exercice" form={form} saveBlocked={hasInvalidRevenueGoal(form.draft.accounting?.revenueGoals) || rateBlank}>
+    <SettingsFormPage title="TVA & exercice" form={form} saveBlocked={hasInvalidRevenueGoal(form.draft.accounting?.revenueGoals) || rateBlank || thresholdInvalid}>
       <SettingsVatSection
         values={form.draft.vat}
         errors={rateBlank ? { ...form.errors, vatRate: VAT_TEXTS.rateRequired } : form.errors}
-        onChange={(key, value) => form.setField('vat', key, value)}
+        onChange={(key, value) => {
+          form.setField('vat', key, value);
+          if (key === 'legalMention' && value !== 'art_293_b') form.setField('vat', 'franchiseThreshold', form.saved.vat?.franchiseThreshold ?? '');
+        }}
         disabled={disabled}
         regime={vat.state}
         onSwitch={() => setSwitching(true)}

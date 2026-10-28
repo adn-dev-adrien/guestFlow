@@ -126,7 +126,7 @@ export const SETTINGS_KEYWORDS = Object.freeze({
   '/parametres/conditions-generales': ['CGV', 'CGL', 'Conditions de vente', 'Annulation'],
   '/parametres/options-ressources': ['Options', 'Repas', 'Petit-déjeuner', 'Ressources', 'Traductions'],
   '/parametres/vacances-fermetures': ['Vacances scolaires', 'Zone A', 'Zone B', 'Zone C', 'Fermeture', 'Congés'],
-  '/settings/tva-exercice': ['TVA', 'Taux', 'Exercice comptable', 'Clôture', 'Objectif de chiffre d’affaires'],
+  '/settings/tva-exercice': ['TVA', 'Taux', 'Exercice comptable', 'Clôture', 'Objectif de chiffre d’affaires', 'Seuil de franchise', 'Franchise en base'],
   '/settings/emails': ['SMTP', 'Serveur d’envoi', 'Mot de passe d’application', 'Gmail', 'Expéditeur', 'Adresse d’envoi', 'Notifications', 'Push', 'Mail de test'],
   // Rule 29 — the emails by the names every page gives them (« Accès et arrivée », « Rappel de solde »).
   '/settings/emails/textes': [...new Set([...Object.values(EMAIL_DISPLAY_NAMES), 'Message', 'Phrase', 'Traduction', 'Anglais', 'Variables', 'Modèle'])],

@@ -2,13 +2,13 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Implemented |
+| **Status** | Implemented (Lot 5 — franchise threshold follow-up, amendment of 2026-10-28 — included) |
 | **Branch** | `feature/vat-optional-mode` _(user-managed)_ |
 | **Created** | 2026-10-28 |
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
-| **Related** | [single-vat-rate.md](single-vat-rate.md) (the one rate — amended by its rule 14), [payment-links-vat.md](payment-links-vat.md) (link baskets — amended by its rule 11), [accountant-accounting-export.md](accountant-accounting-export.md) (journal — amended by its rule 37), [fiscal-year-and-nights-sold.md](fiscal-year-and-nights-sold.md) (the exercise, unchanged), [tourist-tax-matches-the-office-calculation.md](tourist-tax-matches-the-office-calculation.md) (the HT base of the proportional tax), [plugins-phase-p-productisation.md](plugins-phase-p-productisation.md) (GuestFlow sold to other operators) |
-| **HTML summary** | [docs/specs/2026-10-28-vat-optional-mode.html](../docs/specs/2026-10-28-vat-optional-mode.html) |
+| **Related** | [single-vat-rate.md](single-vat-rate.md) (the one rate — amended by its rule 14), [payment-links-vat.md](payment-links-vat.md) (link baskets — amended by its rule 11), [accountant-accounting-export.md](accountant-accounting-export.md) (journal — amended by its rule 37), [fiscal-year-and-nights-sold.md](fiscal-year-and-nights-sold.md) (the exercise, unchanged), [tourist-tax-matches-the-office-calculation.md](tourist-tax-matches-the-office-calculation.md) (the HT base of the proportional tax), [plugins-phase-p-productisation.md](plugins-phase-p-productisation.md) (GuestFlow sold to other operators), [finance-dashboard-redesign.md](finance-dashboard-redesign.md) (the Suivi financier — gains one card), [shell-and-home-day-first.md](shell-and-home-day-first.md) (the home's attention box — gains one core subject) |
+| **HTML summary** | [docs/specs/2026-10-28-vat-optional-mode.html](../docs/specs/2026-10-28-vat-optional-mode.html); franchise threshold: [docs/specs/2026-10-28-vat-franchise-threshold.html](../docs/specs/2026-10-28-vat-franchise-threshold.html) |
 
 ---
 
@@ -112,12 +112,39 @@ not change it); L'Estiva: **proportional** 5 % + 10 % departmental (the VAT chan
 Solio itself never switches: it is VAT-registered at 10 %. For Solio the whole change must be
 invisible — that is what the golden tests of rule 23 prove.
 
+### 1.5 Franchise threshold (feedback of 2026-10-28, second pass)
+
+> Lorsqu'on est sans TVA, ajoute un suivi de seuils de franchise et affiche-le dans la partie suivi
+> financier. Tu ajoutes un emplacement pour saisir la valeur du seuil qui sera setté par l'utilisateur
+> lorsqu'il est sûr de ce seuil.
+
+An operator under the « franchise en base » (art. 293 B) stays out of VAT only while its turnover stays
+under a threshold set by law and revised over time. Crossing it brings VAT back — the switch of rule 14.
+GuestFlow does not know the figure that applies to a given operator (it depends on the activity and
+changes with finance laws), so **the operator types it**; GuestFlow never ships, suggests or asserts a
+legal amount. What GuestFlow does know is the money: every payment is already dated, per bucket, in
+`financeDashboardModel.paymentsLedger` ([financeDashboardModel.js:324](../server/src/models/financeDashboardModel.js#L324)
+— acompte, solde / versement plateforme, compléments, échéances, notes en séjour, ajustements à
+l'arrivée, minus refunds on their own date). The share of a payment that is tourist tax is already
+derived per stay by `htAmount` ([financeModel.js:120](../server/src/models/financeModel.js#L120)). The
+expected dates of unpaid buckets already exist (`depositDueDate`, `balanceDueDate`, installment
+`dueDate`, platform payout = `endDate + payoutDueDays`, [financeModel.js:195-255](../server/src/models/financeModel.js#L195)).
+An amount typed in Paramètres and read by the Suivi financier already exists too: the revenue goal
+(`utils/revenueGoals.js`, `SettingsFiscalYearSection`, the goal bar of `FinanceHero`). The follow-up
+reuses all four; it adds no new money rule.
+
+Scope: **core**, like the regime it depends on (§1.2). No plugin involved.
+
 ## 2. Goal
 
 An operator who is not liable to VAT runs GuestFlow without any VAT on screens, documents, links and
 accounting, with the right legal mention; and an operator who changes status can switch, from a date,
 for the reservations to come — or correct every reservation after a misconfiguration — through one
 explained confirmation, with a dated, permanent history. A VAT-registered install sees no difference.
+
+An operator under the franchise sees, in the Suivi financier, its turnover of the calendar year against
+the threshold it typed itself, with the projection to 31 December from the stays already booked, and is
+warned before and when it crosses it.
 
 ## 3. Functional rules
 
@@ -308,6 +335,98 @@ Appended, never renumbered; each narrows or completes a rule above.
 - A converted devis whose period differs from the draft's: the TTC promised is the same (rule 10); only
   the proportional tax may move, as on any recompute today.
 
+### 3.6 Franchise threshold follow-up
+
+35. **When it applies.** The follow-up exists only while the period in force today is `not_subject`
+    with the mention `art_293_b` (« franchise en base »). Under `subject`, or under `art_261_d_4`
+    (an exemption that does not depend on turnover), the threshold field, the Suivi financier card and
+    the home alert are absent; the stored threshold is kept, unused. _(Q12)_
+36. **The threshold is typed by the operator, never supplied.** One amount, `app_settings.vatFranchiseThreshold`
+    (euros, NULL = not set), edited in Paramètres › TVA & exercice, card « TVA », under the mention
+    select, saved with the page's Save. GuestFlow ships no default, no placeholder figure and no
+    legal amount in any text. Validation (server authoritative, same parser as the revenue goal):
+    empty → NULL; spaces and a decimal comma accepted (« 30 000,00 »); > 0; at most 2 decimals;
+    ≤ 10 000 000. Messages: « Montant supérieur à 0 €. Vide pour ne pas en fixer. », « Un montant en
+    euros (ex. 12 500). », « Deux décimales au plus. », « 10 000 000 € au plus. ». A malformed value
+    answers 400 `SETTINGS_INVALID` with the message under `errors.vatFranchiseThreshold` (like every settings
+    field); a non-empty amount sent while rule 35 does not apply (the mention sent in the same save counts)
+    → 422 « Seuil sans objet hors franchise ». The same amount sent again says nothing new. The day it is saved is
+    stored (`vatFranchiseThresholdSetAt`) and shown in caption. _(Q10: one amount, not two.)_
+37. **What counts — « chiffre d'affaires encaissé » of the calendar year.** The figure is the sum, over
+    every payment row of `paymentsLedger` dated **1 January – 31 December** of the year (Europe/Paris,
+    the row's own date — a December acompte for a March stay counts in December), of:
+    - a. the amount **gross of what the platform took out** — the row's commission
+      (`acompteCommissionAmount` on the acompte, `platformCommissionAmount` on the solde / payout) **and the
+      platform penalty** (`platformPenaltyAmount`, deducted from the payout) are added back: both are costs,
+      the guest paid the full price; _(Q8)_
+    - b. **without tourist tax** — multiplied by the stay's non-tax share, the `htAmount` ratio of the
+      finance dashboard taken with the row's own period rate (0 under `not_subject`, so the ratio is
+      `finalPrice ÷ (finalPrice + touristTaxTotal)`; under a `subject` period of the same year it also
+      removes the VAT, so a mixed year adds HT figures);
+    - c. **refunds** (non-`internal`) subtract on their refund date, with the same ratio;
+    - d. **caisse interne** buckets and `internal` refunds are **left out**, exactly as in « Encaissé »;
+      _(Q9)_
+    - e. a **cancellation compensation** received by the operator counts on its received date, **at face
+      value** — an indemnity carries neither VAT nor tourist tax, so no share is taken out of it, even when
+      it is linked to a stay; a cancelled stay's acompte counts as received then refunded (the `retained`
+      avoir of a cancellation that keeps the acompte included), and the compensation that replaces it
+      counts once it is received. A stay whose client or logement was deleted is left out, as in
+      « Encaissé » (the ledger's own joins).
+    The calendar year is used whatever the exercise of Paramètres (the exercise drives the books, the
+    franchise is judged per calendar year). Every reservation of every logement counts; the Suivi
+    financier's window and logement filter do not apply to the card. _(Q7: encaissé, not séjours.)_
+38. **Projection to 31 December** (current year only): the collected figure of rule 37 plus every
+    amount **still expected before 31 December** on a reservation of kind `reservation` (never
+    `cancelled`, never a devis): each unpaid bucket whose expected date — acompte / solde due date,
+    installment due date, platform payout `endDate + payoutDueDays`, arrival complement on `startDate`,
+    end-of-stay complement on `endDate` — falls **between 1 January and 31 December** of the year,
+    **including** dates of the year already past (late money is still expected). Money expected before 1
+    January stays visible in « En retard », not in this projection: an old unticked solde must not inflate
+    every year's projection for ever. The pending cancellation compensations whose expected date is in the
+    same range are added, at face value. Same treatment a–d as rule 37. Unpriced stays add 0. The past year has
+    no projection: its figure is final.
+39. **Levels**, derived on the server from `collected`, `projected` and `threshold` (constant
+    `NEAR_RATIO = 0.8`):
+    - `over` — collected > threshold → tone error, title « Seuil dépassé », text « {montant} au-delà du
+      seuil. Retour à la TVA à prévoir. » with an action « Passer à la TVA… » that opens Paramètres ›
+      TVA & exercice;
+    - `near` — collected ≥ 80 % of the threshold → tone warning, « Seuil proche », « Reste {montant}
+      avant le seuil. »;
+    - `projected_over` — collected < 80 % but projected > threshold → tone warning, « Projection
+      au-delà » (short, so the badge does not wrap on a phone), « {montant} attendus d'ici le 31/12 avec les réservations en cours. »;
+    - `ok` — otherwise → tone neutral, « Sous le seuil », « Reste {montant} avant le seuil. ».
+    Ratios are rounded to the whole percent for display only; comparisons use cents. `= threshold`
+    exactly is `near`, not `over`.
+40. **No threshold set** → no gauge, no level, no home alert. The card shows the collected figure of the
+    year and a discreet « Saisir le seuil » link to Paramètres › TVA & exercice. The Suivi
+    financier is an admin page (`/api/finance/*` is outside the accountant's allowlist), so the card has
+    one audience.
+41. **Last year beside it.** The card adds one caption line « {année − 1} : {montant} » with the figure
+    of rule 37 for the previous calendar year (0 € shown, never hidden, as soon as the install has
+    one reservation in that year; absent otherwise).
+42. **Home alert.** The home's attention box gains a core subject `vat-franchise`, severity `todo` for
+    `near` and `projected_over`, `urgent` for `over`, never pinned; title « Seuil de franchise »,
+    detail « 84 % atteint » / « Dépassé de 1 240 € » / « Projection : 104 % ». Absent for `ok`, without
+    threshold, or when rule 35 does not apply. A failed read is named in `unavailable`, like every
+    source (shell-and-home-day-first rule 20). _(Q11)_
+43. **Read-only, cheap.** The follow-up writes nothing besides the threshold. It reads through
+    `financeModel` / `paymentsLedger` and is computed on request (no cache, no scheduled task); one
+    request for the card, one source for the home.
+44. **A VAT-registered install sees no difference** (extends rule 23): with no `not_subject` period
+    in force, `GET /api/finance/vat-franchise` answers `{ applies: false }`, the settings payload
+    carries the new keys with `applies: false`, the home attention payload is byte-identical, and the
+    Suivi financier renders exactly as before.
+
+**Edge cases:**
+- Switch to « Sans TVA » on 1 March: the year's figure still counts January–February (HT, rule 37b) —
+  the franchise is judged on the whole year.
+- A threshold lowered below the figure: the level is recomputed at the next read; no stored state.
+- A refund in January of an acompte received in December: lowers the new year, not the old one.
+- A platform payout grouping three stays: three ledger rows, one per stay, each on the payout date.
+- Year with only cancelled stays fully refunded: collected 0 €, card shown with 0 €.
+- A stay priced 0 € with only tourist tax: ratio 0, counts 0.
+- Threshold « 0 », « -5 », « 12,345 », « abc », « 1e5 » → refused with the rule-36 message.
+
 ---
 
 ## 4. Architecture
@@ -344,6 +463,21 @@ Appended, never renumbered; each narrows or completes a rule above.
 | `middleware/` | — | — | Existing admin role guard reused. |
 | `scheduledTasks.js` | `scheduledTasks.js` | T | `tickVatRateMirror` at the hourly tick (rule 29); nothing else: a future-dated period needs no job, rule 5 is evaluated at insert. |
 | `utils/` | `settingsValidation.js` | T | `validateVatRate` accepts a decimal comma. |
+| `database.js` | `database.js` | T | `tryAddAppSettingsCol('vatFranchiseThreshold', 'REAL')` and `('vatFranchiseThresholdSetAt', 'TEXT')` — NULL for every existing install. |
+| `utils/` | `vatFranchise.js` | C | Pure: `parseThreshold` (reuses `revenueGoals.parseGoalAmount` with its own messages), `turnoverOf({ rows, compensations, from, to, share })` (rule 37 on ledger rows and received compensations), `expectedOf({ stay, installments, … })` (rule 38), `wordsOf` and `attentionSummary` (rules 39, 42), `levelOf({ collected, projected, threshold })` (rule 39), French titles / texts / home details. |
+| `models/` | `vatFranchiseModel.js` | C | `getFollowUp({ today })`: applies? (rule 35 via `vatRegimeModel.inForceBlock`), reads every stay through `financeModel.getLedgerStays`, their ledger through `financeDashboardModel.paymentsLedger` (returned by the factory for it, `withCommission: true`), the stay's own `htAmount` ratio at its period's rate, the unpaid buckets and installments, the received compensations; returns the card payload. |
+| `models/` | `financeDashboardModel.js` | T | `paymentsLedger` is returned by the factory, and with the opt-in `withCommission` each row carries `commission` (the share added back by rule 37a); `isPlatformStay` is exported. Without the option the rows, hence the « Encaissé » table, are unchanged. |
+| `models/` | `financeModel.js` | T | `getLedgerStays()`: every `reservation` and `cancelled` stay, with the shape of `getSummary`'s rows. |
+| `models/` | `settingsModel.js` | T | Reads the two columns; `setVatFranchiseThreshold(amount, today)` writes NULL or the amount, and the day only when the amount really changes. |
+| `controllers/` | `financeController.js` | T | `getVatFranchise` handler → `vatFranchiseModel.getFollowUp`. |
+| `controllers/` | `settingsController.js` | T | `vat.franchiseThreshold` validation (rule 36): 400 for a malformed amount, 422 when rule 35 does not apply. |
+| `routes/` | `dashboard.js` | T | Core source `vat-franchise` (rank 25, handler `financeController.getVatFranchise`), `skip` when rule 35 does not apply — so a VAT-registered install does not even declare the subject. |
+| `utils/` | `dashboardAttention.js` | T | `CORE_SUMMARIES['vat-franchise']` (rule 42). |
+| `utils/` | `settingsResponse.js` | T | `vat` block gains `franchise: { applies, threshold, setAt }`. |
+| `routes/` | `finance.js` | T | `GET /vat-franchise` (thin). |
+| `middleware/` | `enforceRoleAccess.js` | — | Unchanged: `/api/finance/*` stays admin-only. |
+| `scheduledTasks.js` | — | — | None (rule 43). |
+| `plugins/` | — | — | None (core, §1.5). |
 
 ### 4.2 Client side (`client/src/`)
 
@@ -360,14 +494,24 @@ Appended, never renumbered; each narrows or completes a rule above.
 | `hooks/` | `useVatRegime.js` | C | Load state, carry the preview / switch / delete calls (the 300 ms debounce lives in the dialog, which owns the draft). |
 | `api.js` | `api.js` | T | `getVatRegime`, `previewVatSwitch`, `switchVatRegime`, `deleteVatPeriod`. |
 | `constants/` | `vatRegime.js` | C | French labels of scopes and buttons. |
+| `components/` | `SettingsVatSection.jsx` | T | « Seuil de franchise (€) » field under the mention select while the draft mention is art. 293 B; caption « Saisi le 12/03/2026 » or the hint « Montant fixé par la loi pour l'activité. À vérifier avant saisie. ». |
+| `components/` | `ThresholdMeter.jsx` | C | **Generic**: a horizontal meter `{ value, projected?, limit, tone, ariaLabel }` — filled bar to `value`, hatched extension to `projected`, a tick at `limit`, overflow drawn past the tick. Generic because the goal bar of `FinanceHero` and any future quota (nights per year, micro-BIC ceiling) are the same shape. |
+| `components/` | `VatFranchiseCard.jsx` | C | Specific: title, `StatusBadge` of the level, the two figures (« Encaissé {année} », « Projection au 31/12 »), `ThresholdMeter`, level text, last year caption, « Saisir le seuil » / « Passer à la TVA… » action. Renders the payload only. |
+| `pages/` | `FinancePage.jsx` | T | Loads `api.getVatFranchise()` once (and on « Actualiser »); renders `VatFranchiseCard` between the hero and the insights when `applies`. |
+| `components/` | `attentionSubjects.js`, `VatFranchiseAlert.jsx` | T / C | Subject `vat-franchise` → `AttentionCard` whose « Voir le suivi » opens `/finance`. |
+| `hooks/` | `useSettingsForm.js` | T | The `vat` draft gains `franchiseThreshold` (from `franchise.threshold`); the server's `franchise` block is read-only. |
+| `api.js` | `api.js` | T | `getVatFranchise()`. |
+| `constants/` | `vatRegime.js` | T | Labels of the field and the card. |
+| `constants/` | `settingsMenu.js` | T | Search keywords of `/settings/tva-exercice` gain « Seuil de franchise ». |
+| `utils/` | `validation.js` | T | `vatThresholdInputError` — UX mirror of rule 36 (the server re-validates). |
 
 **Component reuse declaration:**
 
 | Category | Components | Notes |
 |---|---|---|
-| **Consumed (existing generic)** | `FormDialog`, `StatusBadge`, `SummaryItem`, `ErrorAlert`, `LoadingState`, `SettingsFormPage`, `PageActionBar` (via `SettingsFormPage`) | No new generic needed. |
-| **Created (new generic)** | — | — |
-| **Specific (kept feature-local)** | `VatRegimeSwitchDialog`, `VatPeriodHistory` | Tied to the VAT regime's rules and payload; the history's shape (dated periods with a scope) exists nowhere else. |
+| **Consumed (existing generic)** | `FormDialog`, `StatusBadge`, `Card`, `InsightCard` tones, `SummaryItem`, `ErrorAlert`, `LoadingState`, `SettingsFormPage`, `PageActionBar` (via `SettingsFormPage`) | No new generic needed. |
+| **Created (new generic)** | `ThresholdMeter` (Lot 5) | A horizontal meter `{ value, projected?, limit, tone, ariaLabel }`: the goal bar of `FinanceHero` and any future quota are the same shape. |
+| **Specific (kept feature-local)** | `VatRegimeSwitchDialog`, `VatPeriodHistory`, `VatFranchiseCard` | Tied to the VAT regime's rules and payload; the history's shape (dated periods with a scope) exists nowhere else. |
 
 ### 4.3 API contract
 
@@ -383,6 +527,9 @@ All under the admin guard; « Comptable » may `GET`.
 | — | Every quote payload | — | adds `vatRegime` | `vatPercentage*` keep their names. |
 | — | Finance payloads | — | adds `showHt` | — |
 | GET | `/api/devis` | — | each row adds `vatRegimeKind` and `vatShowTtc` | `vatShowTtc` is the same on every row: the « TTC » wording stays while one quote of the list is under VAT (decided by the server). |
+| GET | `/api/finance/vat-franchise` | — | `{ applies: false }` or `{ applies: true, year: 2026, asOf: '2026-10-28', threshold: 30000.00 \| null, thresholdSetAt: '2026-03-12' \| null, collected: 22510.40, projected: 27380.20, ratio: 0.7503 \| null, projectedRatio: 0.9127 \| null, level: 'ok'\|'near'\|'projected_over'\|'over'\|null, tone, title, text, action: { label, path } \| null, previousYear: { year: 2025, collected: 31204.10 } \| null, settingsPath: '/settings/tva-exercice' }` | Admin only. The projection is the current year's (the card is always about today's year). The 30 000 above is an example payload, not a default. |
+| PUT | `/api/settings` | `vat: { franchiseThreshold: '30 000' \| number \| null }` | `vat.franchise = { applies, threshold, setAt }` | 400 `{ code: 'SETTINGS_INVALID', errors: { vatFranchiseThreshold: '<message rule 36>' } }` for a malformed amount; 422 with « Seuil sans objet hors franchise » outside the franchise. |
+| GET | `/api/dashboard/attention` | — | may contain `{ key: 'vat-franchise', count: 1, title, detail, severity }` | Rule 42. |
 
 Messages (422): « Date antérieure au dernier changement (01/01/2027) », « Au plus un an à l'avance », « Au plus un an en arrière, sinon correction »,
 « Régime déjà en vigueur », « Taux entre 0 et 100 », « Confirmation requise ».
@@ -434,6 +581,16 @@ matrix (§7).
 existing row points at period 1 whose rate is the current rate, so every reader returns what it returns
 today (rule 23). Rollback = the pre-migration backup the updater already takes.
 
+Lot 5 (franchise threshold):
+
+```sql
+ALTER TABLE app_settings ADD COLUMN vatFranchiseThreshold REAL;        -- guarded; NULL = not set
+ALTER TABLE app_settings ADD COLUMN vatFranchiseThresholdSetAt TEXT;   -- guarded; YYYY-MM-DD
+```
+
+Additive, NULL by default: an existing install (Solio) has no threshold and is `subject` — nothing
+renders (rule 44). Not encrypted (not a secret).
+
 ## 6. UI / UX
 
 Interactive mockups: [docs/specs/2026-10-28-vat-optional-mode.html](../docs/specs/2026-10-28-vat-optional-mode.html).
@@ -481,6 +638,44 @@ Interactive mockups: [docs/specs/2026-10-28-vat-optional-mode.html](../docs/spec
 Unchanged: `SettingsFormPage` already renders `PageActionBar` with Save / Cancel for the rate and the
 mention. The switch has its own confirmation and never dirties the form.
 
+### 6.6 Paramètres › TVA & exercice — threshold field
+
+- Only under « Sans TVA · art. 293 B », below « Mention légale », same 320 px column.
+- `TextField` « Seuil de franchise (€) », `inputMode="decimal"`, empty by default, no placeholder figure.
+- Helper: empty → « Montant fixé par la loi pour l'activité. À vérifier avant saisie. »; set →
+  « Saisi le 12/03/2026 ». An invalid value → red message of rule 36 under the field, Save disabled
+  (mirror), the server re-validates.
+- The field exists only while the draft shows « Sans TVA · art. 293 B ». When it is hidden — another mention
+  picked, or a switch of regime — it gives back the stored amount, blocks Save for nothing and sends nothing,
+  so the server's « Seuil sans objet hors franchise » can never land on a field the operator cannot see.
+- « Saisir le seuil » of the Suivi financier opens this page on `#seuil-franchise`: the field takes focus.
+
+### 6.7 Suivi financier — card « Seuil de franchise »
+
+- Between the hero and the « Faits marquants », full width, white card (not ink: the hero stays the
+  only dark block).
+- Header: « Seuil de franchise » + `StatusBadge` of the level (« Sous le seuil », « Seuil proche »,
+  « Projection au-delà », « Seuil dépassé »); caption « Année civile 2026 · tous logements · au 28/10 »,
+  without the date when no threshold is set.
+- Two figures side by side: « Encaissé » {collected} and « Projection au 31/12 » {projected}; under
+  them the `ThresholdMeter` (solid = encaissé, hatched = projection, tick = seuil) and one line
+  « 75 % du seuil de 30 000 € ». Level text (rule 39) in the level's tone. Caption « 2025 : 31 204 € ».
+- No threshold: one line « Encaissé 2026 : 22 510 € » + text button « Saisir le seuil », which opens
+  Paramètres › TVA & exercice on `#seuil-franchise`: the field is focused and centred.
+- A negative figure (a January refund of a December acompte) shows its signed amount; the percentage shows
+  0 % and the meter draws 0. The meter's reading for assistive tech is the server's sentence; its maximum
+  follows the value once the threshold is crossed.
+- The page waits for the card's read before drawing (no late pop-in pushing the insights down); a failed
+  read hides the card, nothing else.
+- `over`: card border in error, action button « Passer à la TVA… » → Paramètres › TVA & exercice.
+- Motion: the meter fills from 0 on first render, 400 ms ease-out, `prefers-reduced-motion` → none.
+
+### 6.8 Responsive
+
+- `xs`: the two figures stack; the meter is full width; the « 75 % du seuil » line wraps under it; the
+  action button full width. No horizontal scroll.
+- `md+`: figures on one row, meter below at 100 % of the card.
+
 ## 7. Test plan
 
 Each test file opens with the spec and rules it covers. Counts are targets.
@@ -518,7 +713,23 @@ Each test file opens with the spec and rules it covers. Counts are targets.
 - [ ] `tests/single-vat-rate-period.unit.test.js` — single-vat-rate rule 14 (2).
 - [ ] `tests/payment-links-vat-period.unit.test.js` — payment-links-vat rule 11 (2).
 
-≈ 90 server cases, 14 files.
+- [ ] `tests/vat-franchise-threshold.unit.test.js` — rules 35, 36 (9): parse accepted forms
+      (« 30 000,00 », 30000, empty → null), each refusal message, 400 on the endpoint, 422 when rule 35 does not apply (a mention sent in the same
+      save counts), `setAt` written on change only, cleared with the amount, kept across a switch to `subject`.
+- [ ] `tests/vat-franchise-turnover.unit.test.js` — rules 37, 41 (13): calendar-year bounds, acompte in December for a stay in March, commission added back (acompte and
+      payout), tourist-tax ratio, mixed year HT, refund on its own date, caisse interne excluded,
+      internal refund excluded, cancellation compensation counted, installments, previous year.
+- [ ] `tests/vat-franchise-projection.unit.test.js` — rule 38 (8): each expected-date source, past
+      unpaid counted, cancelled / devis / caisse interne / after 31/12 excluded, unpriced adds 0.
+- [ ] `tests/vat-franchise-levels.unit.test.js` — rules 35, 39, 40 (8): four levels, equality is `near`,
+      cents comparison, texts, no threshold → null level, not applicable outside the franchise.
+- [ ] `tests/vat-franchise-attention.unit.test.js` — rules 42, 43 (5): summary per level, absent for
+      `ok` / no threshold / not applicable, never pinned, failed source named, read-only.
+- [ ] `tests/vat-regime-golden.unit.test.js` — rule 44 (+2): the settings payload only adds an absent
+      follow-up, the attention payload does not declare the subject for a `subject`-only database.
+
+
+≈ 90 server cases, 14 files; Lot 5 adds 57 cases in 5 new files (and +2 golden cases).
 
 ### Client tests (Vitest)
 
@@ -527,12 +738,22 @@ Each test file opens with the spec and rules it covers. Counts are targets.
 - [ ] `components/__tests__/VatRegimeSwitchDialog.switch.test.jsx` (9): scope radios, date refusal from
       the 422, acknowledgement gating, button labels, 409 alert, fullScreen on xs.
 - [ ] `components/__tests__/PricingSummary.not-subject.test.jsx` (3).
+- [ ] `components/__tests__/SettingsVatSection.franchise-threshold.test.jsx` (10): field only under
+      293 B, hint vs `Saisi le`, refusal mirror, number on blur.
+- [ ] `hooks/__tests__/useSettingsForm.vat-franchise.test.jsx` (3): draft from the stored amount, sent only when changed.
+- [ ] `components/__tests__/ThresholdMeter.meter.test.jsx` (4): fill, projection, overflow, aria.
+- [ ] `components/__tests__/VatFranchiseCard.levels.test.jsx` (6): each level, the way back to VAT, no threshold,
+      nothing outside the franchise.
+- [ ] `pages/__tests__/FinancePage.vat-franchise.test.jsx` (3): the card between hero and insights, reload on « Actualiser », hidden when not applicable or failed, « Saisir le seuil ».
 
 ### E2E (Playwright)
 
 - [ ] `e2e/specs/settings/vat-regime-switch.spec.js` (3): switch to « Sans TVA » from today → a new reservation's résumé
       and devis PDF show the mention, an old one keeps « TVA 10 % »; correction → every fiche without VAT;
       switch back. Mobile viewport for the dialog.
+- [ ] `e2e/specs/finance/vat-franchise.spec.js` (2): switch to « Sans TVA » → type a threshold → the
+      Suivi financier shows the card with its level; empty the field → the card invites to set it.
+      Mobile viewport for the card.
 
 ### Prod-copy proof (manual, not committed data)
 
@@ -549,10 +770,14 @@ Each test file opens with the spec and rules it covers. Counts are targets.
 - [ ] Future-dated switch → « Prévu » → « Annuler ce changement ».
 - [ ] Mobile (390 px): dialog full screen, radio cards stacked, no horizontal scroll.
 - [ ] Regression: Solio's devis PDF, accounting CSV of October and finance dashboard are unchanged.
+- [ ] Shadow copy switched to « Sans TVA »: figure of the year checked by hand against the « Encaissé »
+      tile + commissions − tourist tax (three stays).
+- [ ] Refusals in the field: « 0 », « -5 », « 12,345 ».
+- [ ] Mobile (390 px): card stacked, no horizontal scroll.
+- [ ] Solio (`subject`): Suivi financier and home unchanged.
 
 ## 8. Out of scope
 
-- **Franchise thresholds**: GuestFlow neither tracks the turnover nor warns when a threshold is crossed.
 - **A dated rate change** inside `subject` (10 % → 20 % from a date). The model supports it (a `subject`
   period with another rate); the dialog only offers the other regime.
 - **Invoices** — GuestFlow issues devis and payment links, no invoice; the mention applies to the
@@ -561,10 +786,13 @@ Each test file opens with the spec and rules it covers. Counts are targets.
 - **Per-line VAT exemptions** (an option outside VAT while the stay is taxed).
 - **Activating or deactivating the accounting plugin from the dialog** — it stays in Paramètres › Plugins.
 - **Renaming the page** — it keeps « TVA & exercice ».
-- **Franchise-threshold tracking** (a user-set threshold in the financial tracking, « Sans TVA » only) — to
-  come, by a later amendment. The model is ready for it: « was the operator not subject on year Y » is a
-  read of `vat_periods` (`listPeriods` + the predicate of rule 5), and each reservation carries its own
-  period, so a per-exercise revenue split needs no new storage.
+- **Supplying the legal threshold**: GuestFlow never ships, suggests or updates a legal amount; the
+  operator types it (rule 36).
+- **Automatic switch back to VAT** when the threshold is crossed: the card points to the switch
+  (rule 14); the operator decides the date.
+- **A second, « majoré » threshold** (Q10).
+- **Per-activity thresholds** (sale of goods vs services) — one amount for the whole install.
+- **Emails or push** on crossing — the home box and the card only.
 
 ## 9. Open questions
 
@@ -594,6 +822,33 @@ Raised by the review of 2026-10-28, for Adrien and his accountant. The spec take
   collected before a switch for a stay booked after it, or the reverse)? Until answered, every entry of a
   reservation follows that reservation's regime.
 
+Raised by the franchise-threshold amendment (feedback of 2026-10-28, second pass); all six resolved by Adrien on 2026-10-28:
+
+- Q7: Which turnover is compared with the threshold?
+  - encaissé of the calendar year, each payment on its date (rule 37) — follows the bank.
+  - Stays of the year, attributed like the Suivi financier (solde date / departure) — matches the hero, less exact for acomptes received the year before.
+  - **Resolved 2026-10-28:** base: encaissé of the calendar year, each payment on its date (rule 37).
+- Q8: Platform stays: gross or net of commission?
+  - gross — the guest paid the full price to the operator; the commission is a cost.
+  - Net — same figure as « Encaissé », lower than the turnover by the commissions.
+  - **Resolved 2026-10-28:** gross, commission included (Adrien) — the guest paid the full price; the commission is a cost (rule 37a).
+- Q9: Caisse interne (off the books)?
+  - excluded, like every finance figure of GuestFlow.
+  - Included — the turnover is the turnover; the card then differs from « Encaissé » by the cash.
+  - **Resolved 2026-10-28:** internal cash (caisse interne) excluded (Adrien), like every finance figure (rule 37d).
+- Q10: How many thresholds?
+  - one amount, as asked.
+  - Two: « seuil » + optional « seuil majoré » (beyond it, VAT is due immediately) — one more field and a fifth level.
+  - **Resolved 2026-10-28:** one threshold amount, typed by the user in Paramètres › TVA & exercice (rule 36).
+- Q11: Home alert?
+  - yes, in the attention box, from « Seuil proche » (rule 42).
+  - Suivi financier only.
+  - **Resolved 2026-10-28:** alert in the attention box from « Seuil proche » (rule 42).
+- Q12: Which « Sans TVA » periods get the follow-up?
+  - art. 293 B only (the franchise) — the 261 D 4° exemption does not depend on turnover.
+  - Every « Sans TVA » period, title « Seuil de chiffre d'affaires ».
+  - **Resolved 2026-10-28:** art. 293 B only (rule 35).
+
 ## 10. Implementation — ordered lots, each shippable
 
 | Lot | Content | Visible change | Gate |
@@ -603,9 +858,14 @@ Raised by the review of 2026-10-28, for Adrien and his accountant. The spec take
 | 2 | Schema, seed, backfill, trigger; resolver reads periods | none | golden; migration tests; prod-copy 0 diff |
 | 3 | `not_subject` rendering in quote, summaries, PDF, links, finance, accounting plugin | none (no way to switch yet) | golden; not-subject suites |
 | 4 | Switch API, preview, dialog, history, delete; plugin bump; changelog | the feature | all suites + E2E + manual |
+| 5 | Threshold column + field, `vatFranchise` util/model, endpoint, `ThresholdMeter`, `VatFranchiseCard`, home source | the follow-up, only under « Sans TVA · 293 B » | golden (rule 44); franchise suites; E2E; manual |
 
 Estimated size: ~16 server files touched, 4 created; ~10 client files touched, 5 created; 18 test files;
 ≈ 105 test cases. Lots 1 and 2 carry the risk; lots 3 and 4 are unreachable for Solio by construction.
+
+Lot 5 ships after Lot 4 (it needs a way to be `not_subject`), on its own commit/PR.
+Estimated size of Lot 5: server 9 files touched, 2 created; client 7 touched, 2 created; 9 test files;
+≈ 60 test cases. Low risk: read-only, additive column, hidden for VAT-registered installs.
 
 
 ## 11. Implementation progress (2026-10-28)
@@ -637,3 +897,33 @@ Tests: server 6972 / 0 failed (full suite); new server files 13 (`vat-regime-*`,
 `payment-links-vat-period`, plugin `accounting-export-not-subject`); client 3 new files (26 cases) and the
 full run, whose failures under load (machine at load 200) pass when re-run alone; E2E `vat-regime-switch`
 (4) green; `check-spec-coverage` 23/23.
+
+### Lot 5 — franchise threshold follow-up (2026-10-28)
+
+Rules 35-44, decisions Q7-Q12 resolved by Adrien the same day, all as recommended (gross of commission,
+caisse interne excluded). Server: `vatFranchise` (pure) + `vatFranchiseModel` (read-only), `GET
+/api/finance/vat-franchise`, the two `app_settings` columns, the settings field, the `vat-franchise` home
+subject. Client: `ThresholdMeter` (generic), `VatFranchiseCard`, the field of `SettingsVatSection`,
+`VatFranchiseAlert`. No plugin touched, no SDK bump.
+
+Review fixes of 2026-10-28 (two Opus reviews), written back into rules 37, 38, 39 and §6.6-6.7: the platform
+penalty is added back with the commission; the projection ignores unpaid money older than 1 January and
+adds the pending compensations of the year; compensations count at face value; a hidden threshold field
+blocks and sends nothing; the meter's reading is valid past the limit and for a negative figure; the page
+waits for the card's read; « Saisir le seuil » focuses the field.
+
+Deviations from the amendment, written back above: the Suivi financier is admin-only, so the accountant
+audience of rules 29/40 and the null `settingsPath` are gone; `paymentsLedger` gets an opt-in
+`withCommission` instead of a `cash` flag (the ledger already excludes the caisse interne), so the «
+Encaissé » payload stays byte for byte the same; the home source needs a `skip` for rule 44 (the
+`declared` list would otherwise differ); a malformed amount answers 400 like every settings field, only
+« sans objet » is 422; the settings and the golden suites gained the absent `franchise` block.
+
+Checked on the shadow copy switched to « Sans TVA » through the real dialog: the year's figure
+(29 901,57 €) matches an independent SQL sum of the buckets (deposit, solde with commission added back,
+complements, refunds, compensations, tourist tax removed) to the cent; levels `ok`, `near`, `over` drawn at
+1280 / 900 / 390 px, home line « Dépassé de 4 902 € », no horizontal scroll.
+
+Tests: server 7539 / 0 failed; client 2783 / 0 failed (531 files); `vat-franchise.spec.js` 3 green, full
+E2E 170 green (two specs that fail only under parallel load pass alone); `check-spec-coverage` ok for
+this spec, `vite build` ok.
