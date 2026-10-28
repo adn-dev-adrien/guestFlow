@@ -114,10 +114,14 @@ function buildController(model, settingsModel, deps = {}) {
     hasEnglish: hasEnglishVersion(row),
   });
 
+  const withoutBodies = ({ body, bodyEn, ...rest }) => rest; // eslint-disable-line no-unused-vars
+
   // `?view=timeline` — Emails › Modèles in stay order, grouped by moment (rule 44).
   function list(req, res) {
     const rows = model.list().filter(sendable).map(withSection);
-    if (req.query && req.query.view === 'timeline') return res.json({ groups: timeline(rows) });
+    // The timeline lists what the page shows; the two bodies (the bulk of the payload) are read from
+    // `GET /:id` when the editor opens (specs/inte-performance.md rule 11).
+    if (req.query && req.query.view === 'timeline') return res.json({ groups: timeline(rows.map(withoutBodies)) });
     // In stay order, like the timeline: the history filter and the send dialog list them so (rule 44).
     return res.json(rows.sort(stayOrder));
   }

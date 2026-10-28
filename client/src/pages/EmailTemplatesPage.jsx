@@ -199,9 +199,10 @@ export default function EmailTemplatesPage() {
         id: row.id,
         name: row.name || '',
         subject: row.subject || '',
-        body: row.body || '',
+        body: '',
         subjectEn: row.subjectEn || '',
-        bodyEn: row.bodyEn || '',
+        bodyEn: '',
+        bodiesState: 'loading',
         dayOffset: Number(row.dayOffset || 0),
         sendMode: row.sendMode || 'manual',
         enabled: row.enabled !== 0,
@@ -214,6 +215,13 @@ export default function EmailTemplatesPage() {
     } else {
       setForm({ ...emptyTemplate, when: NEW_TEMPLATE_WHEN });
       setWhen({ days: '7', direction: 'before', error: '', example: '' });
+    }
+    // The list carries no body (specs/inte-performance.md rule 11): both are read when the editor opens, and
+    // « Enregistrer » waits for them so an empty body is never saved over a real one.
+    if (row) {
+      api.getEmailTemplate(row.id)
+        .then((full) => setForm((f) => (f.id === row.id ? { ...f, body: full.body || '', bodyEn: full.bodyEn || '', bodiesState: 'ready' } : f)))
+        .catch(() => setForm((f) => (f.id === row.id ? { ...f, bodiesState: 'failed' } : f)));
     }
     api.getEmailTemplateVariables(row ? row.id : null).then(setChips).catch(() => setChips({ variables: [], conditions: [] }));
     setOpen(true);
@@ -488,7 +496,7 @@ export default function EmailTemplatesPage() {
         onClose={handleClose}
         title={form.id ? (form.displayName || 'Modifier le modèle') : 'Nouveau modèle'}
         onSubmit={handleSave}
-        submitDisabled={!form.name || !form.subject || !form.body || Boolean(when.error) || Boolean(when.pending)}
+        submitDisabled={!form.name || !form.subject || !form.body || form.bodiesState === 'loading' || form.bodiesState === 'failed' || Boolean(when.error) || Boolean(when.pending)}
         maxWidth="md"
       >
         <Stack spacing={2} sx={{ pt: 1 }}>
@@ -556,7 +564,9 @@ export default function EmailTemplatesPage() {
             errorFr={fieldError?.field === 'subject' ? fieldError : undefined}
             errorEn={fieldError?.field === 'subjectEn' ? fieldError : undefined}
           />
-          <TokenTextField
+          {form.bodiesState === 'loading' && <LoadingState variant="skeleton" rows={4} />}
+          {form.bodiesState === 'failed' && <ErrorAlert message="Impossible de charger le texte du modèle." onRetry={() => handleOpen(groups.flatMap((g) => g.templates).find((t) => t.id === form.id))} />}
+          {(!form.bodiesState || form.bodiesState === 'ready') && <TokenTextField
             id="template-body"
             label="Corps du message"
             language={language}
@@ -573,7 +583,7 @@ export default function EmailTemplatesPage() {
                 Anglais vide : l'email part en français. Une seule condition à la fois.
               </Typography>
             )}
-          />
+          />}
 
           <FormControl>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
