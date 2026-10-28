@@ -1,0 +1,538 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Modules réglés par l’opérateur</title>
+<style>
+:root{
+  --primary:#2F5D46; --primary-dark:#244a37; --honey:#C99038;
+  --paper:#F8F5EF; --card:#FFFFFF; --ink:#27251F; --muted:#6E6A5E; --line:#E4DFD3;
+  --ok:#3E7D54; --ok-bg:#E6EFE7; --warn:#8F6A1D; --warn-bg:#F6EDD7;
+  --err:#A8433A; --err-bg:#F7E8E5; --info:#31556E; --info-bg:#E4EDF3; --neutral-bg:#EFECE4;
+  --radius:14px; --shadow:0 3px 16px rgba(60,54,36,.09);
+  --serif:"Source Serif 4","Iowan Old Style",Georgia,"Times New Roman",serif;
+  --sans:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.55 var(--sans)}
+::selection{background:#d9e6dd}
+a{color:var(--primary);text-underline-offset:3px}
+.wrap{max-width:1040px;margin:0 auto;padding:40px 16px 80px}
+h1{font:600 2.1rem/1.15 var(--serif);letter-spacing:-.015em;margin:0 0 10px}
+h2{font:600 1.45rem/1.25 var(--serif);margin:56px 0 14px}
+h3{font:600 1.08rem/1.3 var(--serif);margin:0 0 6px}
+p{margin:0 0 12px;max-width:72ch}
+.lead{font-size:1.08rem;color:var(--muted);max-width:68ch}
+ul.plain{margin:0 0 12px;padding-left:20px;max-width:72ch} ul.plain li{margin:4px 0}
+code{font:0.88em ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--neutral-bg);padding:1px 5px;border-radius:5px}
+.meta{font-size:.9rem;color:var(--muted);margin-bottom:22px}
+.card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:20px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:16px}
+.quote{border-radius:var(--radius);background:#fff;box-shadow:var(--shadow);padding:16px 20px;font-style:italic;color:#4a463c;max-width:72ch;margin-bottom:18px}
+/* flow diagram */
+.flow{display:grid;grid-template-columns:1fr auto 1fr auto 1fr;gap:10px;align-items:stretch;margin:18px 0}
+.flow .step{background:#fff;border-radius:12px;box-shadow:var(--shadow);padding:14px}
+.flow .step b{display:block;font-family:var(--serif);font-size:1rem;margin-bottom:4px}
+.flow .step span{font-size:.88rem;color:var(--muted)}
+.flow .arrow{align-self:center;color:var(--primary)}
+@media (max-width:760px){.flow{grid-template-columns:1fr}.flow .arrow{transform:rotate(90deg);justify-self:center}}
+/* mockup frame */
+.demo-head{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin:10px 0 12px}
+.seg{display:inline-flex;background:var(--neutral-bg);border-radius:10px;padding:3px}
+.seg button{border:0;background:transparent;font:500 .9rem var(--sans);color:var(--muted);padding:8px 14px;border-radius:8px;min-height:40px;cursor:pointer}
+.seg button[aria-pressed=true]{background:#fff;color:var(--ink);box-shadow:0 1px 4px rgba(0,0,0,.08)}
+.stage{background:#ECE7DC;border-radius:18px;padding:18px;overflow:hidden}
+.screen{margin:0 auto;background:var(--paper);border-radius:12px;box-shadow:0 8px 30px rgba(40,36,24,.14);overflow:hidden;transition:max-width .35s cubic-bezier(.2,.8,.2,1);max-width:960px}
+.screen.phone{max-width:390px;border-radius:28px}
+@media (prefers-reduced-motion:reduce){.screen{transition:none}}
+.appbar{background:var(--primary);color:#fff;padding:12px 16px;display:flex;align-items:center;gap:10px;font-weight:600}
+.appbar small{font-weight:400;opacity:.8}
+.actionbar{background:#fff;border-bottom:1px solid var(--line);padding:10px 16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.actionbar .t{font:600 1.15rem var(--serif);flex:1;min-width:0;overflow-wrap:anywhere}
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:.78rem;font-weight:600;border-radius:999px;padding:3px 10px;line-height:1.4;white-space:nowrap}
+.chip::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.c-ok{background:var(--ok-bg);color:var(--ok)} .c-warn{background:var(--warn-bg);color:var(--warn)}
+.c-err{background:var(--err-bg);color:var(--err)} .c-info{background:var(--info-bg);color:var(--info)}
+.c-neutral{background:var(--neutral-bg);color:var(--muted)}
+.c-plan{background:#F4EAD6;color:#7a5a1f}.c-plan::before{display:none}
+.body{padding:16px;display:grid;gap:16px}
+.screen:not(.phone) .body{grid-template-columns:minmax(0,1fr) minmax(0,1.35fr);align-items:start}
+.sec{background:#fff;border-radius:var(--radius);box-shadow:var(--shadow);padding:16px}
+.sec-h{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+.sec-h h4{font:600 1.05rem var(--serif);margin:0}
+.counts{font-size:.85rem;color:var(--muted)} .counts .bad{color:var(--err);font-weight:600}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:.9rem}.kv dt{color:var(--muted)}.kv dd{margin:0;overflow-wrap:anywhere}
+.mods{list-style:none;margin:0;padding:0}
+.mod{display:grid;grid-template-columns:32px minmax(0,1fr) auto;gap:10px;align-items:center;padding:10px 0;border-top:1px solid var(--line)}
+.mod:first-child{border-top:0}
+.ico{width:32px;height:32px;border-radius:9px;background:var(--neutral-bg);display:grid;place-items:center;color:var(--primary)}
+.ico svg{width:18px;height:18px}
+.name{font-weight:600;font-size:.95rem;overflow-wrap:break-word;hyphens:auto}
+.state .lnk.in{display:none;padding:4px 0;min-height:32px}
+.screen.phone .right .lnk{display:none}
+.screen.phone .state .lnk.in{display:inline-block}
+.state{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:3px}
+.state .detail{font-size:.8rem;color:var(--muted)}
+.refusal{font-size:.82rem;color:var(--err);margin-top:4px}
+.right{display:flex;align-items:center;gap:4px}
+.lnk{border:0;background:none;color:var(--primary);font:600 .82rem var(--sans);cursor:pointer;padding:8px 6px;min-height:40px}
+.more{border:0;background:none;cursor:pointer;width:44px;height:44px;border-radius:10px;color:var(--muted);font-size:1.2rem}
+.more:hover{background:var(--neutral-bg)}
+/* switch */
+.sw{position:relative;width:51px;height:31px;flex:none;cursor:pointer;border:0;padding:0;background:transparent}
+.sw .track{position:absolute;inset:0;border-radius:999px;background:#D7D2C6;transition:background .2s}
+.sw .knob{position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 2px 4px rgba(0,0,0,.2);transition:transform .25s cubic-bezier(.3,1.3,.5,1)}
+.sw[aria-checked=true] .track{background:var(--primary)}
+.sw[aria-checked=true] .knob{transform:translateX(20px)}
+.sw:active .knob{width:31px}
+.sw[aria-checked=true]:active .knob{transform:translateX(16px)}
+.sw:focus-visible{outline:3px solid #9fc0ad;outline-offset:3px;border-radius:999px}
+@media (prefers-reduced-motion:reduce){.sw .knob,.sw .track{transition:none}}
+.shake{animation:shake .32s}
+@keyframes shake{25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+details.oop{margin-top:10px;border-top:1px solid var(--line);padding-top:6px}
+details.oop summary{cursor:pointer;font-weight:600;font-size:.9rem;color:var(--muted);padding:10px 0;list-style:none;min-height:44px;display:flex;align-items:center;gap:6px}
+details.oop summary::before{content:"›";display:inline-block;transition:transform .2s}
+details.oop[open] summary::before{transform:rotate(90deg)}
+/* dialog */
+.scrim{position:absolute;inset:0;background:rgba(39,37,31,.38);display:none;align-items:center;justify-content:center;padding:16px;z-index:5}
+.scrim.on{display:flex}
+.dlg{background:#fff;border-radius:16px;box-shadow:0 12px 40px rgba(0,0,0,.25);max-width:440px;width:100%;padding:20px;animation:pop .22s cubic-bezier(.2,.8,.2,1)}
+.screen.phone .scrim{padding:0;align-items:stretch}
+.screen.phone .dlg{max-width:none;border-radius:0;display:flex;flex-direction:column}
+.screen.phone .dlg .btns{margin-top:auto}
+@keyframes pop{from{opacity:0;transform:scale(.97)}}
+@media (prefers-reduced-motion:reduce){.dlg{animation:none}}
+.dlg h5{font:600 1.1rem var(--serif);margin:0 0 8px}
+.dlg p{font-size:.92rem}
+.dlg ul{font-size:.9rem;margin:0 0 12px;padding-left:18px}
+.btns{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:14px}
+.btn{border:1px solid var(--line);background:#fff;color:var(--ink);font:600 .9rem var(--sans);border-radius:10px;padding:10px 16px;min-height:44px;cursor:pointer}
+.btn.primary{background:var(--primary);border-color:var(--primary);color:#fff}
+.btn.danger{background:var(--err);border-color:var(--err);color:#fff}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn:active:not(:disabled){transform:scale(.98)}
+label.fld{display:block;font-size:.82rem;color:var(--muted);margin-top:6px}
+input.txt{width:100%;font:16px var(--sans);padding:11px 12px;border:1px solid var(--line);border-radius:10px;margin-top:4px;background:#fff}
+input.txt:focus{outline:2px solid var(--primary);outline-offset:0;border-color:var(--primary)}
+input.txt.bad{border-color:var(--err)}
+.hint{font-size:.8rem;margin-top:5px;color:var(--muted)}.hint.bad{color:var(--err)}
+.relative{position:relative}
+/* guestflow side */
+.gf{display:grid;grid-template-columns:230px minmax(0,1fr);min-height:420px}
+.screen.phone .gf{grid-template-columns:minmax(0,1fr)}
+.screen.phone .urlbar span{display:none}
+.screen.phone #gfApi{flex:1 1 100%;min-width:0;width:100%}
+.screen.phone .side{min-width:0}
+.side{background:#fff;border-right:1px solid var(--line);padding:10px 8px}
+.screen.phone .side{border-right:0;border-bottom:1px solid var(--line)}
+.side .grp{font-size:.72rem;font-weight:600;color:var(--muted);padding:10px 10px 4px}
+.side a{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:9px;color:var(--ink);text-decoration:none;font-size:.9rem;min-height:40px}
+.side a.on{background:#E9F0EB;color:var(--primary);font-weight:600}
+.side a.gone{animation:fade .4s}
+@keyframes fade{from{opacity:.2}}
+.side hr{border:0;border-top:1px solid var(--line);margin:6px 8px}
+.screen.phone .side .items{display:flex;overflow-x:auto;gap:4px;scrollbar-width:none}
+.screen.phone .side .items a{white-space:nowrap}
+.screen.phone .side .items hr,.screen.phone .side .grp{display:none}
+.main{padding:16px;min-width:0}
+.urlbar{display:flex;gap:8px;align-items:center;background:#fff;border-radius:10px;border:1px solid var(--line);padding:4px 4px 4px 12px;margin-bottom:14px}
+.urlbar span{color:var(--muted);font-size:.85rem;white-space:nowrap}
+.urlbar input{border:0;outline:0;flex:1;min-width:0;font:15px ui-monospace,Menlo,monospace;padding:8px 0;background:transparent}
+.empty{text-align:center;padding:40px 12px;color:var(--muted)}
+.empty svg{width:42px;height:42px;color:#b9b2a2}
+.empty h4{font:600 1.15rem var(--serif);color:var(--ink);margin:10px 0 4px}
+.plg-card{background:#fff;border-radius:12px;box-shadow:var(--shadow);padding:12px 14px;display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:8px;font-size:.9rem}
+.steps{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 12px}
+.steps span{font-size:.8rem;padding:5px 10px;border-radius:999px;background:var(--neutral-bg);color:var(--muted)}
+.steps span.cut{text-decoration:line-through;background:var(--err-bg);color:var(--err)}
+.api{background:#1f2420;color:#d9e4dc;border-radius:12px;padding:14px;font:13px/1.6 ui-monospace,Menlo,monospace;overflow-x:auto;margin-top:12px}
+.api .k{color:#e6c07b}.api .s{color:#98c379}.api .e{color:#e88a7e}
+select.txt{font:15px var(--sans);padding:10px;border:1px solid var(--line);border-radius:10px;background:#fff;max-width:100%;min-height:44px}
+/* arbitrations */
+.arb{background:#fff;border-radius:var(--radius);box-shadow:var(--shadow);padding:18px 20px;margin-bottom:14px}
+.arb h3{margin-bottom:10px}
+.opt{display:grid;grid-template-columns:22px 1fr;gap:10px;padding:10px 12px;border-radius:10px;cursor:pointer;border:1px solid transparent;margin-top:4px}
+.opt:hover{background:#FAF8F3}
+.opt input{margin-top:4px;accent-color:var(--primary);width:18px;height:18px}
+.opt.sel{border-color:#cfe0d5;background:#F3F8F4}
+.opt b{font-weight:600}.opt small{display:block;color:var(--muted);font-size:.86rem;margin-top:2px}
+.rec{font-size:.72rem;font-weight:700;color:var(--ok);background:var(--ok-bg);border-radius:6px;padding:1px 6px;margin-left:6px;white-space:nowrap}
+textarea.out{width:100%;min-height:150px;font:13px/1.5 ui-monospace,Menlo,monospace;border:1px solid var(--line);border-radius:12px;padding:12px;background:#fff;color:var(--ink)}
+.risk{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;align-items:start}
+.lvl{font-size:.75rem;font-weight:700;border-radius:6px;padding:2px 8px;margin-top:3px}
+.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 16px;border-radius:10px;font-size:.9rem;opacity:0;pointer-events:none;transition:opacity .2s}
+.toast.on{opacity:1}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Les modules se règlent dans la console, plus chez le client</h1>
+  <p class="meta">Spec <code>specs/plugin-operator-provisioning.md</code> · brouillon du 28/10/2026 · amende les specs phase 4 (P25), plans et accès (règles 5, 11), phase P (règles 40, 43)</p>
+  <div class="quote">« Ce n'est pas l'utilisateur qui va activer les plugins, mais bien moi lorsque je vais configurer le guestflow pour un client. Il faut donc que l'installation des plugins soit gérée via une autre interface et que ça n'apparaisse pas chez un client guestflow. »</div>
+
+  <h2>Le constat</h2>
+  <div class="grid2">
+    <div class="card">
+      <h3>Aujourd’hui, l’admin du client fait tout</h3>
+      <ul class="plain">
+        <li>Paramètres › <b>Plugins</b> : installer, activer, désactiver, effacer, mettre à jour, revenir en arrière.</li>
+        <li>Les routes <code>/api/plugins/*</code> ne demandent que le rôle admin : un admin client (ou une session support) peut tout appeler.</li>
+        <li>L’assistant de démarrage pose 3 questions qui installent des plugins.</li>
+        <li>Une page de plugin éteint affiche « Plugin inactif » et « Ouvrir Plugins ».</li>
+        <li>Les chips « Forfait Pro » et « Inclus dans le forfait…, sur demande » s’adressent au client.</li>
+      </ul>
+      <p class="hint">C’était le choix P25 du 08/10 : « l’administrateur de l’instance installe ».</p>
+    </div>
+    <div class="card">
+      <h3>La console a déjà presque tout</h3>
+      <ul class="plain">
+        <li>Une <b>licence signée</b> déposée dans le dossier de l’espace, relue chaque minute : elle dit déjà quels plugins sont <i>permis</i>.</li>
+        <li>La console <b>lit déjà</b> la table <code>plugins</code> de chaque espace (colonne « Plugins » de la flotte).</li>
+        <li>Les <b>mises à jour</b> de plugins et du cœur passent déjà par « Versions » sur un espace hébergé.</li>
+        <li>Un journal d’audit existe.</li>
+      </ul>
+      <p class="hint">Il manque seulement : qui décide de ce qui <i>tourne</i>, et l’effacement côté client.</p>
+    </div>
+  </div>
+
+  <h2>Ce qu’on propose</h2>
+  <p>Une section <b>Modules</b> sur la fiche client de la console. Un interrupteur par module. Le choix part dans la licence signée ; l’espace l’applique tout seul en moins d’une minute, sans redémarrage. La console relit le résultat. Rien n’entre dans l’espace : aucun port, aucun compte opérateur.</p>
+  <div class="flow" aria-label="Circuit du réglage">
+    <div class="step"><b>1 · Console</b><span>Adrien bascule « Linge ». Ligne d’audit, licence réémise.</span></div>
+    <svg class="arrow" width="28" height="20" viewBox="0 0 28 20" aria-hidden="true"><path d="M2 10h22m-7-7 7 7-7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <div class="step"><b>2 · Licence signée</b><span><code>activePlugins</code> rejoint <code>plugins</code>. Inviolable sans la clé privée de la console.</span></div>
+    <svg class="arrow" width="28" height="20" viewBox="0 0 28 20" aria-hidden="true"><path d="M2 10h22m-7-7 7 7-7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <div class="step"><b>3 · L’espace applique</b><span>Installe, active ou désactive par le code existant. Écrit le résultat ; la console le lit.</span></div>
+  </div>
+
+  <h3 style="margin-top:28px">Maquette 1 — ce que voit l’opérateur</h3>
+  <p class="hint">Essayer : éteindre « Réservation depuis le site » (refusé, Google Vacation Rentals en dépend) ; éteindre « Paiement en ligne » (bloqué, liens ouverts) ; allumer « Export comptable » (en attente puis actif) ; « Réessayer » sur l’échec ; effacer les données d’un module éteint (le slug doit être tapé) ; ouvrir « Hors forfait ».</p>
+  <div class="demo-head">
+    <div class="seg" role="group" aria-label="Format">
+      <button type="button" aria-pressed="true" data-frame="cp" data-mode="desk">Bureau</button>
+      <button type="button" aria-pressed="false" data-frame="cp" data-mode="phone">Téléphone</button>
+    </div>
+    <button type="button" class="btn" id="cpReset">Remettre à zéro</button>
+  </div>
+  <div class="stage">
+    <div class="screen relative" id="cpScreen">
+      <div class="appbar">GuestFlow Console <small>· opérateur</small></div>
+      <div class="actionbar">
+        <span class="t">Gîte des Trois Châtaigniers et dépendances du Moulin-Haut</span>
+        <span class="chip c-ok">Actif</span>
+      </div>
+      <div class="body">
+        <div class="sec">
+          <div class="sec-h"><h4>Abonnement</h4></div>
+          <dl class="kv">
+            <dt>Adresse</dt><dd>trois-chataigniers.guestflow.fr</dd>
+            <dt>Forfait</dt><dd>Pro · Mensuelle</dd>
+            <dt>Échéance</dt><dd>28/11/2026 (31 j)</dd>
+            <dt>Création</dt><dd>Terminée : 11 étapes</dd>
+          </dl>
+        </div>
+        <div class="sec">
+          <div class="sec-h"><h4>Modules</h4><span class="counts" id="cpCounts"></span></div>
+          <ul class="mods" id="cpIncluded" aria-label="Modules inclus"></ul>
+          <details class="oop" id="cpOop"><summary id="cpOopSum"></summary><ul class="mods" id="cpOut" aria-label="Modules hors forfait"></ul></details>
+        </div>
+      </div>
+      <div class="scrim" id="cpScrim"><div class="dlg" role="dialog" aria-modal="true" id="cpDlg"></div></div>
+    </div>
+  </div>
+
+  <h3 style="margin-top:36px">Maquette 2 — ce que le client ne voit plus</h3>
+  <p class="hint">Basculer « Avant / Après ». Taper une adresse (<code>/parametres/plugins</code>, <code>/comptabilite</code>) ou appeler une route de l’API : sur un espace hébergé, tout répond comme une adresse qui n’existe pas.</p>
+  <div class="demo-head">
+    <div class="seg" role="group" aria-label="Période">
+      <button type="button" aria-pressed="false" data-when="before">Avant</button>
+      <button type="button" aria-pressed="true" data-when="after">Après (espace hébergé)</button>
+    </div>
+    <div class="seg" role="group" aria-label="Format">
+      <button type="button" aria-pressed="true" data-frame="gf" data-mode="desk">Bureau</button>
+      <button type="button" aria-pressed="false" data-frame="gf" data-mode="phone">Téléphone</button>
+    </div>
+  </div>
+  <div class="stage">
+    <div class="screen" id="gfScreen">
+      <div class="appbar">GuestFlow <small>· Gîte des Trois Châtaigniers</small></div>
+      <div class="gf">
+        <nav class="side" aria-label="Paramètres"><div class="items" id="gfMenu"></div></nav>
+        <div class="main">
+          <form class="urlbar" id="gfUrlForm"><span>trois-chataigniers.guestflow.fr</span><input id="gfUrl" value="/parametres/plugins" aria-label="Adresse" autocomplete="off" spellcheck="false"><button class="btn primary" style="min-height:38px;padding:6px 12px">Ouvrir</button></form>
+          <div id="gfPage"></div>
+          <div style="margin-top:18px">
+            <label class="fld" for="gfApi">Appel API d’un admin client (curl)</label>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
+              <select class="txt" id="gfApi">
+                <option value="POST /api/plugins/linen/activate">POST /api/plugins/linen/activate</option>
+                <option value="DELETE /api/plugins/linen?purge=1">DELETE /api/plugins/linen?purge=1</option>
+                <option value="GET /api/plugins/status">GET /api/plugins/status</option>
+                <option value="GET /api/plugins">GET /api/plugins</option>
+                <option value="PUT /api/plugins/linen/settings">PUT /api/plugins/linen/settings</option>
+                <option value="PUT /api/onboarding/plugins">PUT /api/onboarding/plugins</option>
+              </select>
+              <button type="button" class="btn" id="gfApiGo">Envoyer</button>
+            </div>
+            <pre class="api" id="gfApiOut" aria-live="polite"></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2>Ce qu’on ne fait pas</h2>
+  <ul class="plain">
+    <li><b>Pas de compte opérateur caché dans l’espace</b> : il faudrait un mot de passe par client, une route que le client peut deviner, et son accord à chaque passage.</li>
+    <li><b>Pas de réglages de module dans la console</b> : clés Météo, compte Qonto, stock de linge restent dans l’espace, chez le client ; Adrien les règle par l’accès support consenti.</li>
+    <li><b>Pas de changement pour Solio</b> ni pour le dev ou l’E2E (espaces non hébergés) : la page Plugins y reste, leur propriétaire est l’opérateur.</li>
+    <li><b>Rien de nouveau pour les mises à jour</b> : elles passent déjà par Versions › Plugins.</li>
+    <li>Pas d’activation en masse sur toute la flotte, pas de liste « Modules inclus » côté client, pas d’offre en libre-service.</li>
+  </ul>
+
+  <h2>Le risque</h2>
+  <div class="card risk">
+    <span class="lvl c-warn">moyen</span><p><b>Un module qui bascule sans qu’on le veuille.</b> À la mise en service, la console relève d’abord ce que chaque espace fait tourner et n’envoie le choix qu’ensuite : la première application ne change rien. Un espace illisible ne reçoit aucun choix.</p>
+    <span class="lvl c-warn">moyen</span><p><b>Un module éteint alors qu’il sert.</b> Les garde-fous actuels tiennent : liens de paiement ouverts, comptes Accueil ou Comptable, module requis par un autre. La console affiche « Bloqué » et le module reste actif.</p>
+    <span class="lvl c-info">faible</span><p><b>Effacement par erreur.</b> Seulement sur un module éteint, slug à taper, journalisé, et rattrapable par « Restaurer à une date ».</p>
+    <span class="lvl c-info">faible</span><p><b>Navigateur déjà ouvert.</b> Un module éteint disparaît à la requête suivante ; un module allumé apparaît au prochain chargement de page.</p>
+    <span class="lvl c-info">faible</span><p><b>Taille</b> : 4 lots, environ 30 fichiers, 13 fichiers de tests (≈ 88 cas). Lots 1 → 3 dans la même version.</p>
+  </div>
+
+  <h2>Les arbitrages en attente</h2>
+  <p class="hint">Cocher une réponse par question ; le texte en bas se met à jour et se copie.</p>
+  <div id="arbs"></div>
+  <textarea class="out" id="arbOut" readonly aria-label="Réponses"></textarea>
+  <div class="btns" style="justify-content:flex-start"><button type="button" class="btn primary" id="arbCopy">Copier les réponses</button></div>
+</div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+(function(){
+  const $ = (s, r=document) => r.querySelector(s);
+  const toast = (t) => { const el=$('#toast'); el.textContent=t; el.classList.add('on'); clearTimeout(toast.t); toast.t=setTimeout(()=>el.classList.remove('on'),2200); };
+  const ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6v4a2 2 0 1 0 0 4v4h-4a2 2 0 1 0-4 0H3V9h4a2 2 0 1 0 0-4V3z"/></svg>';
+
+  /* ---------- frame toggles ---------- */
+  document.querySelectorAll('[data-frame]').forEach(b => b.addEventListener('click', () => {
+    const f=b.dataset.frame; document.querySelectorAll(`[data-frame="${f}"]`).forEach(x=>x.setAttribute('aria-pressed', String(x===b)));
+    $(f==='cp'?'#cpScreen':'#gfScreen').classList.toggle('phone', b.dataset.mode==='phone');
+  }));
+
+  /* ---------- console mockup ---------- */
+  const SLUG='trois-chataigniers';
+  const INIT = () => ({
+    included: [
+      { id:'school-holidays', name:'Vacances scolaires', v:'1.0.3', on:true, st:'active' },
+      { id:'weather-alerts', name:'Vigilance Météo-France', v:'1.2.1', on:true, st:'active', setup:'clé manquante' },
+      { id:'google-calendar', name:'Google Agenda', v:'1.2.1', on:false, st:'inactive', data:['2 agendas reliés','Jeton de connexion'] },
+      { id:'sas', name:'Arrivée et départ guidés', v:'1.7.1', on:true, st:'active' },
+      { id:'website-booking', name:'Réservation depuis le site', v:'1.8.2', on:true, st:'active' },
+      { id:'google-vacation-rentals', name:'Google Vacation Rentals', v:'1.0.1', on:true, st:'active', req:['website-booking'] },
+      { id:'online-payment', name:'Paiement en ligne (Qonto)', v:'1.3.0', on:true, st:'active', blocker:'2 liens de paiement ouverts : à clôturer d’abord.' },
+      { id:'linen', name:'Linge et blanchisserie', v:'1.1.2', on:true, st:'failed', fail:'Paquet introuvable.' },
+      { id:'accounting-export', name:'Export comptable', v:'1.0.14', on:false, st:'inactive', data:['Plan comptable personnalisé','14 exports archivés'] },
+      { id:'booking-intake', name:'Saisie Booking', v:'1.3.4', on:false, st:'inactive', data:['37 saisies en mémoire'] },
+    ],
+    out: [
+      { name:'Recettes tarifaires', plan:'Forfait Premium' },
+      { name:'Ressources à l’heure', plan:'Forfait Premium' },
+      { name:'Assurance annulation Neat', plan:'Forfait Premium' },
+      { name:'Accès au portail (Sowel)', plan:'Forfait Premium' },
+      { name:'Saisie Gîtes de France', plan:'Option à la carte' },
+      { name:'Saisie Airbnb', plan:'Option à la carte' },
+    ],
+  });
+  let S = INIT();
+  const byId = (id) => S.included.find(m=>m.id===id);
+
+  function stateHtml(m){
+    if (m.st==='pending') return '<span class="chip c-info">En attente</span><span class="detail">l’espace lit la licence…</span>';
+    if (m.st==='failed') return `<span class="chip c-err">Échec</span><span class="detail">${m.fail}</span><button type="button" class="lnk in" data-retry>Réessayer</button>`;
+    if (m.st==='blocked') return `<span class="chip c-warn">Bloqué</span><span class="detail">${m.blocker}</span>`;
+    if (m.st==='inactive') return '<span class="chip c-neutral">Inactif</span><span class="detail">données conservées</span>';
+    if (m.setup) return `<span class="chip c-ok">Actif · ${m.v}</span><span class="chip c-warn">à configurer : ${m.setup}</span>`;
+    return `<span class="chip c-ok">Actif · ${m.v}</span>`;
+  }
+  function renderCp(){
+    const ul=$('#cpIncluded'); ul.innerHTML='';
+    S.included.forEach(m => {
+      const li=document.createElement('li'); li.className='mod'; li.dataset.id=m.id;
+      const extra = m.st==='failed' ? '<button type="button" class="lnk" data-retry>Réessayer</button>'
+        : (!m.on && m.st==='inactive' && m.data ? '<button type="button" class="more" data-erase aria-label="Effacer les données de '+m.name+'">⋯</button>' : '');
+      li.innerHTML = `<span class="ico">${ICON}</span>
+        <div><div class="name">${m.name}</div><div class="state">${stateHtml(m)}</div>${m.refusal?`<div class="refusal" role="alert">${m.refusal}</div>`:''}</div>
+        <div class="right">${extra}<button type="button" class="sw" role="switch" aria-checked="${m.on}" aria-label="${m.name}"><span class="track"></span><span class="knob"></span></button></div>`;
+      ul.appendChild(li);
+    });
+    const out=$('#cpOut'); out.innerHTML='';
+    S.out.forEach(m => { const li=document.createElement('li'); li.className='mod';
+      li.innerHTML=`<span class="ico" style="color:var(--muted)">${ICON}</span><div><div class="name" style="color:var(--muted)">${m.name}</div></div><div class="right"><span class="chip c-plan">${m.plan}</span></div>`; out.appendChild(li); });
+    $('#cpOopSum').textContent = `Hors forfait (${S.out.length})`;
+    const active=S.included.filter(m=>m.on && m.st!=='failed').length;
+    const conf=S.included.filter(m=>m.on && m.st==='active' && m.setup).length;
+    const failed=S.included.filter(m=>m.st==='failed').length;
+    $('#cpCounts').innerHTML = active ? `${active} actif${active>1?'s':''}${conf?` · ${conf} à configurer`:''}${failed?` · <span class="bad">${failed} en échec</span>`:''}` : 'Aucun module actif.';
+  }
+  function apply(m, on){
+    m.on=on; m.refusal=null; m.st='pending'; renderCp();
+    setTimeout(()=>{
+      if (!on && m.blocker){ m.on=true; m.st='blocked'; }
+      else m.st = on ? 'active' : 'inactive';
+      renderCp();
+    }, 1600);
+  }
+  function refuse(m, text){
+    m.refusal=text; renderCp();
+    const sw=$(`#cpIncluded [data-id="${m.id}"] .sw`); sw.classList.add('shake'); setTimeout(()=>sw.classList.remove('shake'),340);
+  }
+  function dialog(html, wire){ const d=$('#cpDlg'); d.innerHTML=html; $('#cpScrim').classList.add('on'); wire(d); const f=d.querySelector('input,button.btn:last-child'); f && f.focus(); }
+  function closeDlg(){ $('#cpScrim').classList.remove('on'); }
+  $('#cpScrim').addEventListener('click', e => { if (e.target.id==='cpScrim') closeDlg(); });
+  document.addEventListener('keydown', e => { if (e.key==='Escape') closeDlg(); });
+
+  $('#cpIncluded').addEventListener('click', e => {
+    const li=e.target.closest('.mod'); if(!li) return; const m=byId(li.dataset.id);
+    if (e.target.closest('[data-retry]')) { m.fail=null; m.st='pending'; renderCp(); toast('Licence réémise.'); setTimeout(()=>{ m.st='active'; renderCp(); },1600); return; }
+    if (e.target.closest('[data-erase]')) {
+      dialog(`<h5>Effacer les données de ${m.name} ?</h5><p>Effacé sur l’espace :</p><ul>${m.data.map(x=>`<li>${x}</li>`).join('')}</ul>
+        <label class="fld" for="slugIn">Taper l’adresse du client pour confirmer : <b>${SLUG}</b></label>
+        <input class="txt" id="slugIn" autocomplete="off" spellcheck="false"><div class="hint" id="slugHint">Rattrapable par « Restaurer à une date ».</div>
+        <div class="btns"><button type="button" class="btn" data-x>Annuler</button><button type="button" class="btn danger" data-ok disabled>Effacer</button></div>`, d => {
+        const inp=d.querySelector('#slugIn'), ok=d.querySelector('[data-ok]'), hint=d.querySelector('#slugHint');
+        inp.addEventListener('input', () => { const v=inp.value.trim(); const good=v===SLUG; ok.disabled=!good;
+          const bad = v.length>0 && !SLUG.startsWith(v); inp.classList.toggle('bad', bad);
+          hint.className='hint'+(bad?' bad':''); hint.textContent = bad ? 'Adresse différente : rien ne sera effacé.' : 'Rattrapable par « Restaurer à une date ».'; });
+        d.querySelector('[data-x]').onclick=closeDlg;
+        ok.onclick=()=>{ closeDlg(); m.data=null; renderCp(); toast(`Données de ${m.name} effacées. Ligne ajoutée au journal.`); };
+      }); return;
+    }
+    if (!e.target.closest('.sw')) return;
+    if (m.st==='pending') return;
+    const next=!m.on;
+    if (next){
+      const missing=(m.req||[]).map(byId).filter(r=>!r.on);
+      if (missing.length) return refuse(m, `Nécessite ${missing[0].name} : à activer d’abord.`);
+      if (m.st==='failed') { m.fail=null; }
+      return apply(m, true);
+    }
+    const dep=S.included.find(x=>x.on && (x.req||[]).includes(m.id));
+    if (dep) return refuse(m, `Nécessaire à ${dep.name} : à désactiver d’abord.`);
+    dialog(`<h5>Désactiver ${m.name} ?</h5><p>Ses pages disparaissent de l’espace ; ses données sont conservées.</p>
+      <div class="btns"><button type="button" class="btn" data-x>Annuler</button><button type="button" class="btn primary" data-ok>Désactiver</button></div>`, d => {
+      d.querySelector('[data-x]').onclick=closeDlg; d.querySelector('[data-ok]').onclick=()=>{ closeDlg(); apply(m,false); };
+    });
+  });
+  $('#cpReset').onclick=()=>{ S=INIT(); $('#cpOop').open=false; renderCp(); };
+  renderCp();
+
+  /* ---------- guestflow mockup ---------- */
+  let when='after';
+  const MENU = [['Établissement'],['Logements'],['Plateformes'],['Conditions générales'],null,['Options & ressources'],['Vacances & fermetures'],null,['TVA & exercice'],['Emails & notifications'],null,['Utilisateurs'],['Accès du support'],['Intégrations'],['Système'],['Plugins','plugins']];
+  function renderMenu(){
+    const m=$('#gfMenu'); m.innerHTML='<div class="grp">Paramètres</div>';
+    MENU.forEach(it => { if(!it){ m.insertAdjacentHTML('beforeend','<hr>'); return; }
+      if (it[1]==='plugins' && when==='after') return;
+      const a=document.createElement('a'); a.href='#'; a.textContent=it[0]; if (it[1]==='plugins') a.dataset.path='/parametres/plugins';
+      if (it[0]==='Intégrations') a.dataset.path='/settings/integrations';
+      a.onclick=(e)=>{e.preventDefault(); if(a.dataset.path){ $('#gfUrl').value=a.dataset.path; openUrl(); } else toast('Hors du périmètre de la maquette.');};
+      m.appendChild(a); });
+  }
+  const EMPTY_404 = '<div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5M8.5 8.5l5 5m0-5-5 5"/></svg><h4>Page introuvable</h4><p style="margin:0 auto 14px">Cette adresse ne correspond à aucune page de GuestFlow.</p><button class="btn primary" type="button">Retour au tableau de bord</button></div>';
+  function openUrl(){
+    const p=$('#gfUrl').value.trim().replace(/\/+$/,'') || '/';
+    const page=$('#gfPage');
+    document.querySelectorAll('#gfMenu a').forEach(a=>a.classList.toggle('on', a.dataset.path===p));
+    if (p==='/parametres/plugins'){
+      page.innerHTML = when==='before'
+        ? `<div class="actionbar" style="border-radius:12px;margin-bottom:10px;border:1px solid var(--line)"><span class="t">Plugins</span><span class="chip c-info">3 mises à jour disponibles</span></div>
+           <div class="plg-card"><span><b>Linge et blanchisserie</b><br><small style="color:var(--muted)">Actif · 1.1.2</small></span><button class="btn">Désactiver</button></div>
+           <div class="plg-card"><span><b>Recettes tarifaires</b><br><small style="color:var(--muted)">Inclus dans le forfait Premium, sur demande.</small></span><button class="btn" disabled>Installer</button></div>
+           <div class="plg-card"><span><b>Export comptable</b><br><small style="color:var(--muted)">Disponible · 1.0.14</small></span><button class="btn primary">Installer</button></div>`
+        : EMPTY_404;
+    } else if (p==='/comptabilite'){
+      page.innerHTML = when==='before'
+        ? '<div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 3h6v4a2 2 0 1 0 0 4v4h-4a2 2 0 1 0-4 0H3V9h4a2 2 0 1 0 0-4V3z"/><path d="M3 3l18 18"/></svg><h4>Plugin inactif</h4><p style="margin:0 auto 14px">Cette page dépend du plugin « Export comptable », qui n’est pas activé.</p><button class="btn primary" type="button">Ouvrir Plugins</button></div>'
+        : EMPTY_404;
+    } else if (p==='/demarrage'){
+      page.innerHTML = `<h4 style="font:600 1.1rem var(--serif);margin:0 0 6px">Assistant de démarrage</h4><div class="steps">
+        <span>1 Établissement</span><span>2 Logement</span>${when==='before'?'<span>3 Plugins</span><span>4 Emails</span>':'<span>3 Emails</span>'}</div>
+        <p style="font-size:.9rem">${when==='before'?'Dernière étape : « Plugins : 3 plugins actifs » (lien).':'Trois étapes, sans lien vers les plugins : les modules sont déjà en place.'}</p>`;
+    } else if (p==='/settings/integrations'){
+      page.innerHTML = '<div class="plg-card"><span><b>Intégrations</b><br><small style="color:var(--muted)">Onglets Google Agenda · Météo-France ● à configurer</small></span><span class="chip c-ok">inchangé</span></div><p class="hint">Les réglages des modules actifs restent au client.</p>';
+    } else {
+      page.innerHTML = EMPTY_404;
+    }
+  }
+  $('#gfUrlForm').addEventListener('submit', e=>{ e.preventDefault(); openUrl(); });
+  const RESP = {
+    'POST /api/plugins/linen/activate': {b:['200','{ "id": "linen", "state": "active" }']},
+    'DELETE /api/plugins/linen?purge=1': {b:['200','{ "id": "linen", "state": "available", "erased": true }']},
+    'GET /api/plugins/status': {b:['200','{ "updates": 3, "banner": "3 mises à jour disponibles", … }']},
+    'GET /api/plugins': {b:['200','[{ "id": "linen", "version": "1.1.2", "state": "active", "planChip": null, … }, 15 autres]'],
+                         a:['200','[{ "id": "weather-alerts", "name": "Vigilance Météo-France", "icon": "…", "setup": { "needed": true } }, … modules actifs seulement]']},
+    'PUT /api/plugins/linen/settings': {b:['200','{ "stockSheets": "24" }'], a:['200','{ "stockSheets": "24" }  // réglage d’un module actif : inchangé']},
+    'PUT /api/onboarding/plugins': {b:['200','{ "results": [{ "id": "linen", "ok": true }], "pluginsSummary": "3 plugins actifs" }']},
+  };
+  $('#gfApiGo').onclick = () => {
+    const k=$('#gfApi').value, r=RESP[k];
+    const res = when==='after' ? (r.a || ['404','{ "error": "API route not found" }']) : r.b;
+    const cls = res[0]==='404' ? 'e' : 's';
+    $('#gfApiOut').innerHTML = `<span class="k">$ curl -X ${k.split(' ')[0]}</span> https://trois-chataigniers.guestflow.fr${k.split(' ')[1]}\n<span class="${cls}">HTTP ${res[0]}</span>\n${res[1]}`;
+  };
+  document.querySelectorAll('[data-when]').forEach(b=>b.addEventListener('click',()=>{
+    when=b.dataset.when; document.querySelectorAll('[data-when]').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));
+    renderMenu(); openUrl(); $('#gfApiGo').click();
+  }));
+  renderMenu(); openUrl(); $('#gfApiGo').click();
+
+  /* ---------- arbitrations ---------- */
+  const Q = [
+    ['Q1 — Comment le choix de l’opérateur arrive dans l’espace ?', [
+      ['Dans la licence signée, appliqué en direct par l’espace', 'Aucun redémarrage, marche même console arrêtée, un seul canal déjà sûr. Le résultat arrive en moins d’une minute.', true],
+      ['La console arrête l’espace et lance un script', 'Comme la mise à jour d’un plugin : résultat immédiat, mais un redémarrage à chaque bascule.'],
+      ['Commande en SSH uniquement', 'Rien à coder côté console, mais ni écran, ni journal, ni état visible.'],
+    ]],
+    ['Q2 — Le forfait allume-t-il tous ses modules ?', [
+      ['L’opérateur choisit, tout le forfait pré-coché', 'Un client Pro sans linge n’a pas la page Linge. Le forfait reste le plafond.', true],
+      ['Le forfait = les modules, sans interrupteur', 'Plus simple, mais chaque client reçoit tout ce que son forfait permet.'],
+    ]],
+    ['Q3 — Le client voit-il quelque chose des modules ?', [
+      ['Rien : seulement les fonctions elles-mêmes', 'Fidèle à « que ça n’apparaisse pas chez un client ».', true],
+      ['Une carte « Modules inclus » en lecture seule', 'Dans Réglages › Système : utile au téléphone avec le support.'],
+      ['La même carte + « Demander un module »', 'Ouvre une vente, mais remet du forfait sous les yeux du client.'],
+    ]],
+    ['Q4 — Qui règle un module (clés, comptes, stock de linge) ?', [
+      ['Le client dans son espace ; Adrien via l’accès support', 'Les comptes Qonto, Google, Météo sont ceux du client. Rien à dupliquer.', true],
+      ['Adrien seul, depuis la console', 'Chaque page de réglages recopiée dans la console, comme Qonto en C2b : gros chantier.'],
+    ]],
+    ['Q5 — Et Solio (espace non hébergé) ?', [
+      ['Garder la page Plugins sur les espaces non hébergés', 'Solio, dev et E2E inchangés ; Adrien y est déjà l’opérateur.', true],
+      ['La masquer partout, Solio piloté par la console', 'Cohérent, mais suppose Solio déménagé sur la plateforme d’abord.'],
+    ]],
+    ['Q6 — Effacer les données d’un seul module ?', [
+      ['Oui, par l’opérateur, module éteint, slug à taper', 'Remplace « Effacer aussi ses données » du client ; rattrapable par la sauvegarde.', true],
+      ['Non : seul le déprovisionnement efface', 'Un lot de moins ; les données d’un module éteint restent pour toujours.'],
+    ]],
+  ];
+  const ans = Q.map(q => q[1].findIndex(o=>o[2]));
+  const box=$('#arbs');
+  Q.forEach((q,i)=>{
+    const d=document.createElement('div'); d.className='arb';
+    d.innerHTML=`<h3>${q[0]}</h3>`+q[1].map((o,j)=>`<label class="opt"><input type="radio" name="q${i}" value="${j}" ${ans[i]===j?'checked':''}><span><b>${o[0]}</b>${o[2]?'<span class="rec">recommandé</span>':''}<small>${o[1]}</small></span></label>`).join('');
+    box.appendChild(d);
+  });
+  function out(){
+    document.querySelectorAll('.opt').forEach(l=>l.classList.toggle('sel', l.querySelector('input').checked));
+    $('#arbOut').value = 'Arbitrages — modules réglés par l’opérateur (28/10/2026)\n' + Q.map((q,i)=>`${q[0].split(' — ')[0]} : ${q[1][ans[i]][0]}${q[1][ans[i]][2]?' (recommandé)':''}`).join('\n');
+  }
+  box.addEventListener('change', e=>{ const m=e.target.name.match(/q(\d+)/); if(m){ ans[+m[1]]=+e.target.value; out(); }});
+  $('#arbCopy').onclick=()=>{ const t=$('#arbOut'); t.select(); try{ navigator.clipboard.writeText(t.value).then(()=>toast('Réponses copiées.'),()=>{document.execCommand('copy');toast('Réponses copiées.');}); }catch(e){ document.execCommand('copy'); toast('Réponses copiées.'); } };
+  out();
+})();
+</script>
+</body>
+</html>

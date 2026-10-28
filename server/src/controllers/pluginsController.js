@@ -428,6 +428,10 @@ function createController(model = defaultModel, deps = {}) {
     // A version other than the one still loaded needs a restart (rule 13): refused up front without a
     // supervisor, like an update.
     const needsRestart = steps.some((st) => state.loaded[st.id] && state.loaded[st.id] !== st.candidate.version);
+    // The reconciliation never restarts the process (specs/plugin-operator-provisioning.md rule 17).
+    if (needsRestart && req.noRestart) {
+      return res.status(409).json({ error: 'RESTART_REQUIRED', message: 'Redémarrage nécessaire — passer par Versions › Plugins.' });
+    }
     if (needsRestart && !state.restart.supervised) {
       return res.status(412).json({ error: 'RESTART_UNAVAILABLE', message: MESSAGES.RESTART_UNAVAILABLE });
     }

@@ -39,26 +39,7 @@ const { ONBOARDING_QUESTIONS } = require('../constants/onboardingQuestions');
 const RECOMMENDED = new Set(ONBOARDING_QUESTIONS.filter((q) => q.recommended).flatMap((q) => q.plugins));
 const { defaultCapacity: capacityFor, MAX_CAPACITY } = require('../utils/defaultCapacity');
 
-/**
- * Runs an Express handler and resolves its answer once the handler has finished, so a step can reuse
- * an endpoint as it is. Rule 37 — an install answers before it releases the plugin lock: resolving on
- * the answer alone started the next install while the lock was still held.
- */
-function capture(handler, req) {
-  return new Promise((resolve) => {
-    let answer = null;
-    const res = {
-      statusCode: 200,
-      status(code) { this.statusCode = code; return this; },
-      json(body) { if (!answer) answer = { status: this.statusCode, body }; return this; },
-      end() { if (!answer) answer = { status: this.statusCode, body: null }; return this; },
-    };
-    Promise.resolve()
-      .then(() => handler(req, res))
-      .then(() => resolve(answer || { status: 500, body: { error: 'NO_ANSWER' } }))
-      .catch((err) => resolve(answer || { status: 500, body: { error: err && err.message } }));
-  });
-}
+const { capture } = require('../utils/captureHandler');
 
 // Rule 37 — the reason a plugin was not activated, in the words the step prints.
 const PLUGIN_FAILURES = Object.freeze({

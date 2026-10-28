@@ -54,6 +54,10 @@ below are the recommended ones; each is reversible in a later spec.
 - **P25 — the administrator of the instance installs and updates plugins**, within the plugins its
   licence allows (control-plane rule 11). Nothing updates by itself. Fleet-wide pushes are the
   operator's, in the hosting phase H.
+  > **2026-10-28 (owner feedback on the shadow):** on an operator-managed space (`GUESTFLOW_MANAGED=1`
+  > or a licence carrying `activePlugins`) the operator decides which plugins run, from the console, and
+  > the Plugins page does not exist — [`plugin-operator-provisioning.md`](plugin-operator-provisioning.md)
+  > rules 1–9, 16. P25 still holds on an unmanaged space (Solio, development, E2E).
 - **P26 — one plugin version per plugin, semver, bumped by the release.** A plugin whose files changed
   since the last tag gets a patch bump; the `verify` job refuses a release where a plugin changed and
   its version did not.

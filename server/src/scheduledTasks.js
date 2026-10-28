@@ -174,6 +174,9 @@ function startScheduledTasks() {
   const DIGEST_TICK = 60 * 1000;
   setInterval(() => { notificationService.flushDueDigests().catch(() => {}); }, DIGEST_TICK);
   setTimeout(() => { notificationService.flushDueDigests().catch(() => {}); }, 45 * 1000);
+
+  // The operator's plugin choice carried by the licence (specs/plugin-operator-provisioning.md rule 16).
+  require('./tasks/pluginProvisioning').start();
 }
 
 module.exports = {
