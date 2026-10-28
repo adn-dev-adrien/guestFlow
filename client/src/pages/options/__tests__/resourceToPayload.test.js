@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { toResourcePayload } from '../ResourcesPage';
+import { toResourcePayload } from '../resourceForm';
 
 // specs/resource-hourly-scheduling.md §3.1 — the catalog save must carry the hourly scheduling fields
 // (regression: toPayload dropped them, so « Planification par séances » was never persisted).
