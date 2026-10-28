@@ -1,7 +1,7 @@
 {
   "id": "airbnb-intake",
   "name": "Saisie Airbnb",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "description": "Remplit les fiches Airbnb depuis le mail « Réservation confirmée ».",
   "icon": "mail",
   "surfaces": [
@@ -10,8 +10,8 @@
     "Une alerte du tableau de bord"
   ],
   "requires": [],
-  "guestflow": ">=3.16.0 <4.0.0",
-  "sdk": "^2.7.0",
+  "guestflow": ">=3.18.0 <4.0.0",
+  "sdk": "^2.12.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet, pour le SDK 2 de GuestFlow : le mail « Réservation confirmée » d’Airbnb remplit la fiche iCal (voyageur, groupe, code de confirmation, message et « Paiement plateforme »).",
@@ -25,6 +25,12 @@
     ],
     "1.0.2": [
       "Une fiche refusée par GuestFlow ne laisse plus de fiche client derrière elle : le client du voyageur est créé dans la même opération que la mise à jour de la fiche (SDK 2.7 de GuestFlow)."
+    ],
+    "1.1.0": [
+      "Un mail dont l’expéditeur n’est pas authentifié (signature DKIM absente ou d’un autre domaine) n’est plus appliqué seul : il devient une proposition marquée « Expéditeur non vérifié ».",
+      "Seuls les mails dont l’adresse d’expéditeur est exactement celle des réglages sont lus ; un faux nom d’affichage ne passe plus.",
+      "Le mot de passe de la boîte n’est jamais envoyé en clair (TLS obligatoire) ni à un serveur IMAP d’un autre domaine que le serveur d’envoi.",
+      "Nouveaux réglages : domaines de signature acceptés et serveur de la boîte (authserv-id). Réservé au client : le support ne peut pas les modifier (SDK 2.12 de GuestFlow)."
     ]
   }
 }

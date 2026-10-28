@@ -26,7 +26,7 @@ function describePass(r) {
   if (r.error) parts.push(`${r.error} à vérifier`);
   return `${parts.join(', ')}.`;
 }
-const FIELDS = ['senderAddress', 'imapHost', 'imapPort', 'pollEveryHours', 'giteNumbers', 'autoApply'];
+const FIELDS = ['senderAddress', 'imapHost', 'imapPort', 'pollEveryHours', 'giteNumbers', 'autoApply', 'senderDomains', 'trustedAuthservId'];
 
 function SettingsSection({ onDirtyChange }, ref) {
   const [saved, setSaved] = useState(null);
@@ -104,10 +104,28 @@ function SettingsSection({ onDirtyChange }, ref) {
 
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <TextField
+              label="Domaines de signature acceptés"
+              value={draft.senderDomains || ''}
+              onChange={set('senderDomains')}
+              helperText="Vide : le domaine de l’expéditeur."
+              fullWidth
+            />
+            <TextField
+              label="Serveur de la boîte (authserv-id)"
+              value={draft.trustedAuthservId || ''}
+              onChange={set('trustedAuthservId')}
+              helperText="Vide : premier en-tête d’authentification."
+              fullWidth
+            />
+          </Stack>
+
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+            <TextField
               label="Serveur IMAP"
               value={draft.imapHost || ''}
               onChange={set('imapHost')}
-              helperText={`Vide : déduit du serveur d’envoi${mailbox && mailbox.defaultHost ? ` (${mailbox.defaultHost})` : ''}.`}
+              error={Boolean(errors.imapHost)}
+              helperText={errors.imapHost || `Vide : déduit du serveur d’envoi${mailbox && mailbox.defaultHost ? ` (${mailbox.defaultHost})` : ''}.`}
               fullWidth
             />
             <TextField label="Port IMAP" type="number" value={draft.imapPort || ''} onChange={set('imapPort')} helperText=" " sx={{ minWidth: { sm: 140 } }} />

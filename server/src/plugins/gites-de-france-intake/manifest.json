@@ -1,7 +1,7 @@
 {
   "id": "gites-de-france-intake",
   "name": "Saisie Gîtes de France",
-  "version": "1.3.5",
+  "version": "1.4.0",
   "description": "Remplit les fiches Gîtes de France depuis le mail de réservation de la centrale.",
   "icon": "mail",
   "surfaces": [
@@ -10,8 +10,8 @@
     "Une alerte du tableau de bord"
   ],
   "requires": [],
-  "guestflow": ">=3.10.0 <4.0.0",
-  "sdk": "^2.7.0",
+  "guestflow": ">=3.18.0 <4.0.0",
+  "sdk": "^2.12.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
@@ -49,6 +49,13 @@
     ],
     "1.3.5": [
       "Une fiche refusée par GuestFlow ne laisse plus de fiche client derrière elle : le client du voyageur est créé dans la même opération que la mise à jour de la fiche (SDK 2.7 de GuestFlow)."
+    ],
+    "1.4.0": [
+      "Un mail dont l’expéditeur n’est pas authentifié (signature DKIM absente ou d’un autre domaine) n’est plus appliqué seul : il devient une proposition marquée « Expéditeur non vérifié ».",
+      "Un mail authentifié ne remplace jamais l’e-mail ou le téléphone déjà présents sur la fiche : il reste une proposition.",
+      "Seuls les mails dont l’adresse d’expéditeur est exactement celle des réglages sont lus ; un faux nom d’affichage ne passe plus.",
+      "Le mot de passe de la boîte n’est jamais envoyé en clair (TLS obligatoire) ni à un serveur IMAP d’un autre domaine que le serveur d’envoi.",
+      "Nouveaux réglages : domaines de signature acceptés et serveur de la boîte (authserv-id). Réservé au client : le support ne peut pas les modifier (SDK 2.12 de GuestFlow)."
     ]
   }
 }

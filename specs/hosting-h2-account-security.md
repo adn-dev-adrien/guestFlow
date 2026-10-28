@@ -154,6 +154,10 @@ Three gaps block selling GuestFlow to customers we do not sit next to:
       uninstalling or turning off a plugin (`DELETE /api/plugins/:id`, `POST …/deactivate`), which
       erases or strands its credentials — installing, activating and updating stay allowed; and the
       whole SMTP group, the sender name and address included.
+    - Widened 2026-10-28 (audit authz H1): a plugin setting declared `supportLocked` is refused like a `secret`
+      one while staying readable — the intake plugins' `imapHost`, `imapPort`, `senderAddress`, `senderDomains`
+      and `trustedAuthservId`, which decide where the SMTP password is sent and who vouches for a sender
+      (`specs/airbnb-mail-intake.md` rules 22–23). Test: `mail-intake-credential-destination.unit.test.js`.
     - Widened 2026-10-23 (inte/plugins review): the sender name written by the start assistant
       (`senderName` on `PUT /api/onboarding/emails`), and a property's access code and Wi-Fi
       password, whether the start assistant (a non-empty `accessCode` / `wifiPassword` in

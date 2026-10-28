@@ -216,6 +216,26 @@ add the phone and e-mail from Airbnb. When the mail cannot be applied, the fiche
     { label, client })` (SDK 2.7.0) instead of calling `ctx.core.clients.findOrCreate` first. A fiche the core
     refuses for any reason (capacity, validation, a race with the start of the stay) rolls the client back:
     no orphan client holds the guest's personal data. Test: `tests/plugin-intake-client-in-update-transaction.unit.test.js`.
+22. *(Added 2026-10-28, audit finding F2.)* **The sender is proven, not read.** IMAP `SEARCH FROM` is a substring
+    match over the whole From field, display name included; the SDK reader (`mailAuthentication.js`) therefore
+    keeps a mail only when its envelope's first From address **equals** the configured sender
+    (case-insensitive), and flags it `authenticated` only when the `Authentication-Results` header written by the
+    mailbox's own server reports `dkim=pass` with a signing domain (`header.d`, or the domain of `header.i`) equal
+    to the sender's domain or listed in the `senderDomains` setting. Only one such header is trusted: the one
+    whose `authserv-id` is the `trustedAuthservId` setting, or, when empty, the first (topmost) one. A mail that
+    fails is stored (`senderVerified = 0`) and, once matched, becomes a **proposal** whose banner is
+    « Expéditeur non vérifié » — it is never auto-applied, whatever `autoApply` says; the operator can still
+    apply it by hand. A forged proposal never counts as « already handled » for rule 8's dedup, so it cannot
+    shadow the genuine mail, and an unauthenticated mail that does not parse leaves no row. Tests:
+    `server/src/tests/mail-sender-authentication.unit.test.js`, `airbnb-intake/tests/sender-verification.unit.test.js`,
+    `IntakeBanner.sender-verification.test.jsx`.
+23. *(Added 2026-10-28, audit finding H1 of authz.)* **The mailbox password has one destination.** The reader
+    connects over implicit TLS on 993 and requires STARTTLS on any other port (never plaintext); the IMAP host
+    is the SMTP server's own derived host (`smtp.x` → `imap.x`) or a host of the same domain
+    (`ctx` `sdk.mailbox.resolveImapHost`), a configured host elsewhere being refused at save and ignored at use.
+    `imapHost`, `imapPort`, `senderAddress`, `senderDomains` and `trustedAuthservId` are declared `supportLocked`:
+    refused to a support session like a secret setting (`specs/hosting-h2-account-security.md` rule 18). Test:
+    `server/src/tests/mail-intake-credential-destination.unit.test.js`.
 
 **Edge cases:**
 - Same mail twice → `Message-ID` dedup; a second mail with the same confirmation code → ignored once the
@@ -344,6 +364,7 @@ horizontal scroll at 390 px. No page added, so no new `PageActionBar`.
   (4); the Gîtes de France and Booking banner tests unchanged except their SDK mock (21).
 - [x] Rule 11 amendment, on the same production copy: no setting typed, the mapping read from `ical_sources`
   gives Granja → …254737 and Estiva → …216441, and the real mail fills fiche 22326 as before.
+- [x] 2026-10-28 audit fix (rules 22–23): `server/src/tests/mail-sender-authentication.unit.test.js` (11), `mail-intake-credential-destination.unit.test.js` (5), `airbnb-intake/tests/sender-verification.unit.test.js` (8), client `IntakeBanner.sender-verification` (2). Plugin 1.1.0, SDK 2.12.0.
 - [x] Suites on 2026-10-25: server 4 943 ✓, client 1 467 ✓ (one flaky `TariffRecipeCard` timing test on
   a first run, green alone twice and on the rerun), build ✓, E2E 89 ✓ (+1 skipped).
 - [x] Manual, on a copy of production of 2026-10-25 with the real mail injected in place of IMAP: fiche

@@ -15,14 +15,22 @@ const TABLE_SQL = `
     reservationId INTEGER,
     appliedAt     TEXT,
     dismissedAt   TEXT,
+    senderVerified INTEGER NOT NULL DEFAULT 1,
     createdAt     TEXT DEFAULT CURRENT_TIMESTAMP
   );
   CREATE INDEX IF NOT EXISTS idx_airbnb_intakes_reservation ON airbnb_intakes(reservationId);
 `;
 
+// Intakes tables created before the sender check have no `senderVerified` column; their rows were all
+// processed under the old rules and stay `1`.
+function addSenderVerifiedColumn(db) {
+  const has = db.prepare(`PRAGMA table_info(airbnb_intakes)`).all().some((c) => c.name === 'senderVerified');
+  if (!has) db.exec('ALTER TABLE airbnb_intakes ADD COLUMN senderVerified INTEGER NOT NULL DEFAULT 1');
+}
+
 function hydrate(row) {
   if (!row) return null;
-  return { ...row, parsed: row.parsed ? JSON.parse(row.parsed) : null };
+  return { ...row, parsed: row.parsed ? JSON.parse(row.parsed) : null, senderVerified: Number(row.senderVerified) !== 0 };
 }
 
 function buildModel(db) {
@@ -30,9 +38,9 @@ function buildModel(db) {
     has(messageId) {
       return Boolean(db.prepare('SELECT 1 FROM airbnb_intakes WHERE messageId = ?').get(messageId));
     },
-    insert({ messageId, receivedAt, confirmationCode = null, parsed = null, status, error = null }) {
-      const r = db.prepare(`INSERT INTO airbnb_intakes (messageId, receivedAt, confirmationCode, parsed, status, error)
-        VALUES (?, ?, ?, ?, ?, ?)`).run(messageId, receivedAt, confirmationCode, parsed ? JSON.stringify(parsed) : null, status, error);
+    insert({ messageId, receivedAt, confirmationCode = null, parsed = null, status, error = null, senderVerified = true }) {
+      const r = db.prepare(`INSERT INTO airbnb_intakes (messageId, receivedAt, confirmationCode, parsed, status, error, senderVerified)
+        VALUES (?, ?, ?, ?, ?, ?, ?)`).run(messageId, receivedAt, confirmationCode, parsed ? JSON.stringify(parsed) : null, status, error, senderVerified ? 1 : 0);
       return Number(r.lastInsertRowid);
     },
     get(id) {
@@ -45,7 +53,7 @@ function buildModel(db) {
     // A second mail with the same confirmation code changes nothing once the first one was applied (edge case).
     codeAlreadyHandled(confirmationCode, exceptId) {
       return Boolean(db.prepare(`SELECT 1 FROM airbnb_intakes WHERE confirmationCode = ? AND id != ?
-        AND status IN ('applied', 'proposed')`).get(confirmationCode, Number(exceptId)));
+        AND senderVerified = 1 AND status IN ('applied', 'proposed')`).get(confirmationCode, Number(exceptId)));
     },
     setStatus(id, { status, error = null, reservationId = undefined, applied = false }) {
       db.prepare(`UPDATE airbnb_intakes SET status = ?, error = ?,
@@ -59,7 +67,7 @@ function buildModel(db) {
     // The intake the fiche shows: the latest one tied to the reservation and not dismissed.
     latestForReservation(reservationId) {
       return hydrate(db.prepare(`SELECT * FROM airbnb_intakes WHERE reservationId = ? AND dismissedAt IS NULL
-        ORDER BY id DESC LIMIT 1`).get(Number(reservationId)));
+        ORDER BY senderVerified DESC, id DESC LIMIT 1`).get(Number(reservationId)));
     },
     // Dashboard: unreadable mails, and bookings still without a fiche after a day.
     listAttention(nowIso) {
@@ -72,4 +80,4 @@ function buildModel(db) {
   };
 }
 
-module.exports = { buildModel, TABLE_SQL };
+module.exports = { buildModel, TABLE_SQL, addSenderVerifiedColumn };

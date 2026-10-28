@@ -10,7 +10,8 @@
  * - deciding or revoking its own access, the account it borrows (password, second step, profile);
  * - rule 18: any write under `/api/users`, and the settings that hold credentials or secrets — the
  *   SMTP group (and the sender name the start assistant writes), the access code and the Wi-Fi
- *   password of a property (start assistant or property page), a plugin setting declared `secret`, the Google and Qonto OAuth connections (any
+ *   password of a property (start assistant or property page), a plugin setting declared `secret` or `supportLocked` (where a credential is sent, or what
+ *   vouches for a sender: the intake plugins' IMAP host and port, sender and signing domains), the Google and Qonto OAuth connections (any
  *   method), the Qonto and Neat credentials, and uninstalling or turning off a plugin;
  * - rule 23: every route a plugin declares with `ctx.secretRoutes` — it hands out, creates or rotates a
  *   secret (the Booking userscript and its key, the gate connector's keys, read in clear, the website
@@ -41,7 +42,7 @@ function defaultIsSecretRoute(method, path) {
 
 function defaultIsSecretSetting(pluginId, key) {
   const record = require('../plugins/sdk/registry').get(pluginId);
-  return Boolean(record && record.settings.some((s) => s.key === key && s.secret));
+  return Boolean(record && record.settings.some((s) => s.key === key && (s.secret || s.supportLocked)));
 }
 
 // → 'account' (rule 15: the access itself and the borrowed account), 'credentials' (rule 18), or null.
