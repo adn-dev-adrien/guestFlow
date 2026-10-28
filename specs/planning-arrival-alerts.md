@@ -72,7 +72,7 @@ glance, what to handle at check-in.
      (`property_option_defaults` with the `autoOptionType='bed_linen'` option, `offered=1`) — the
      operator doesn't manage linen per stay there. `bedLinenAlert` is then `null`.
 7. **The cleaning alerts are computed by the server** (2026-10-27 spec review, F1–F4 — supersedes the
-   client-side `detectAlerts`). `GET /api/planning/alerts?from&to` returns them ready to render; the
+   client-side `detectAlerts`). `GET /api/planning/alerts?from&to` returns them ready to render (route removed 2026-10-28: the alerts now ride in `GET /api/planning/days`, dashboard-planning-scroll.md rules 8–10); the
    page only paints them. The client computation missed and invented alerts: it only saw the stays
    ARRIVING inside the loaded window, substituted `11:00` for real checkout times, and read a
    non-existent `cleaning` field (always 120 min) instead of `cleaningHours`.
@@ -110,7 +110,7 @@ glance, what to handle at check-in.
 
 > **Fat backend, thin frontend.** The caution and platform badges are a straight display of existing
 > reservation fields. The cleaning alerts are business rules and live on the server since the
-> 2026-10-27 spec review (rules 7–10): the page asks `GET /api/planning/alerts` and paints the answer.
+> 2026-10-27 spec review (rules 7–10): the page asks `GET /api/planning/alerts` and paints the answer (superseded 2026-10-28 by `GET /api/planning/days`, dashboard-planning-scroll.md rule 10).
 
 ### 4.1 Server side (`server/src/`)
 
@@ -142,7 +142,7 @@ in-card complement badge, and the platform badge reuses the shared `getPlatformC
 
 ### 4.3 API contract
 
-`GET /api/planning/alerts?from=YYYY-MM-DD&to=YYYY-MM-DD` (2026-10-27, admin + reception) →
+`GET /api/planning/alerts?from=YYYY-MM-DD&to=YYYY-MM-DD` (2026-10-27, admin + reception; **removed 2026-10-28**, same payload under `alerts` in `GET /api/planning/days`, dashboard-planning-scroll.md rule 10) →
 
 ```json
 { "arrivals":   { "2": { "type": "red", "explanation": "Marie Durand part le 29/10/2026 à 10:00, ménage: 4h" },

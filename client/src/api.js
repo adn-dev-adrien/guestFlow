@@ -574,14 +574,15 @@ const api = {
   // `{ breakfastByDate: { 'YYYY-MM-DD': { items: [{ clientName, propertyName, persons }], totalPersons } } }`.
   getBreakfastPlanningSummary: ({ from, to }) =>
     request(`/planning/breakfast?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
-  // specs/planning-arrival-alerts.md rules 7–10 — the cards' cleaning alerts, computed by the server.
-  getPlanningAlerts: ({ from, to }) =>
-    request(`/planning/alerts?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
-  // Option-driven planning cards (specs/option-planning-card.md §3.3). Returns one card per stored
-  // occurrence of a « carte planning » option whose date ∈ [from, to]. Payload:
-  // `{ optionCardsByDate: { 'YYYY-MM-DD': { items: [{ reservationId, optionId, title, clientName, propertyName, date, time }] } } }`.
-  getPlanningOptionCards: ({ from, to }) =>
-    request(`/planning/option-cards?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
+  // The home's day lists in one call (specs/dashboard-planning-scroll.md rules 1-3): today's departures
+  // and arrivals, and the next arrival day when nobody arrives. Payload:
+  // `{ today, departures, arrivals, nextArrival: null | { date, label, relativeLabel, reservations } }`.
+  getPlanningToday: () => request('/planning/today'),
+  // Every day of a window of at most 31 days, cards and cleaning alerts included (rules 8-9). Payload:
+  // `{ from, to, today, days: [{ date, label, shortLabel, isToday, isPast, arrivals, departures, breakfast,
+  // optionCards }], alerts: { arrivals, departures } }`.
+  getPlanningDays: ({ from, to }) =>
+    request(`/planning/days?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
   // Toggle the « préparé » flag of one option-card occurrence (specs/option-planning-card.md §3.5).
   setPlanningOptionCardDone: ({ reservationId, optionId, date, time, done }) =>
     request('/planning/option-cards/done', {
