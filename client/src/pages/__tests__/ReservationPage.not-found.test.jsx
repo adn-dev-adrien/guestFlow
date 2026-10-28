@@ -41,6 +41,7 @@ function open(path = '/reservations/999999') {
     <MemoryRouter initialEntries={['/planning', path]} initialIndex={1}>
       <ThemeProvider theme={theme}>
         <Routes>
+          <Route path="/reservations/new" element={<ReservationPage />} />
           <Route path="/reservations/:reservationId" element={<ReservationPage />} />
           <Route path="/planning" element={<div>PLANNING</div>} />
         </Routes>
@@ -71,5 +72,57 @@ test('rule 34: any other failure keeps the error with « Réessayer »', async (
   open();
   expect(await screen.findByText('Impossible de charger la réservation.')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Réessayer' })).toBeInTheDocument();
+  expect(screen.queryByText('Réservation introuvable.')).toBeNull();
+});
+
+test('rule 34: in devis mode the 404 says « Devis introuvable. » and goes back to the quotes', async () => {
+  api.getDevisById.mockRejectedValue(Object.assign(new Error('Not found'), { status: 404 }));
+  render(
+    <MemoryRouter initialEntries={['/devis', '/reservations/new?mode=devis&devisId=999999']} initialIndex={1}>
+      <ThemeProvider theme={theme}>
+        <Routes>
+          <Route path="/reservations/new" element={<ReservationPage />} />
+          <Route path="/devis" element={<div>DEVIS</div>} />
+        </Routes>
+      </ThemeProvider>
+    </MemoryRouter>,
+  );
+  expect(await screen.findByText('Devis introuvable.')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Retour aux devis' }));
+  expect(await screen.findByText('DEVIS')).toBeInTheDocument();
+});
+
+test('rule 34: the back arrow of the devis not-found state falls back to the quotes, not the planning', async () => {
+  api.getDevisById.mockRejectedValue(Object.assign(new Error('Not found'), { status: 404 }));
+  render(
+    <MemoryRouter initialEntries={['/reservations/new?mode=devis&devisId=999999']}>
+      <ThemeProvider theme={theme}>
+        <Routes>
+          <Route path="/reservations/new" element={<ReservationPage />} />
+          <Route path="/devis" element={<div>DEVIS</div>} />
+          <Route path="/planning" element={<div>PLANNING</div>} />
+        </Routes>
+      </ThemeProvider>
+    </MemoryRouter>,
+  );
+  await screen.findByText('Devis introuvable.');
+  fireEvent.click(screen.getByRole('button', { name: 'Retour' }));
+  expect(await screen.findByText('DEVIS')).toBeInTheDocument();
+});
+
+test.each([
+  ['a 403', { status: 403 }],
+  ['a network error', {}],
+])('rule 34: %s keeps the error and « Réessayer »', async (_label, extra) => {
+  api.getReservation.mockRejectedValue(Object.assign(new Error('x'), extra));
+  open();
+  expect(await screen.findByText('Impossible de charger la réservation.')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Réessayer' })).toBeInTheDocument();
+});
+
+test('rule 34: a 404 on the property of a new reservation is not « Réservation introuvable. »', async () => {
+  api.getProperty.mockRejectedValue(Object.assign(new Error('Not found'), { status: 404 }));
+  open('/reservations/new?propertyId=777');
+  expect(await screen.findByText('Impossible de charger la réservation.')).toBeInTheDocument();
   expect(screen.queryByText('Réservation introuvable.')).toBeNull();
 });

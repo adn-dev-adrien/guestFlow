@@ -12,6 +12,10 @@ test.each([
   ['a javascript: URL', 'javascript:alert(1)'],
   ['a bare word', 'planning'],
   ['a backslash trick', '/\\evil.example'],
+  ['a tab the URL parser strips', '/\t/evil'],
+  ['a line feed the URL parser strips', '/\n/evil'],
+  ['a carriage return before a backslash', '/\r\\evil'],
+  ['two tabs', '/\t\t/evil'],
 ])('rule 33: %s is not followed; the default target is used', (_label, from) => {
   window.history.replaceState({ usr: null, key: 'a', idx: 0 }, '', '/reservations/12');
   const navigate = vi.fn();

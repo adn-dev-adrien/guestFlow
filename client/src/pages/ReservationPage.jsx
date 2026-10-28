@@ -156,6 +156,13 @@ const EMPTY_CLIENT = {
   emailLanguage: 'fr',
 };
 
+// Only the 404 of the fiche or quote being opened means « introuvable »; a 404 on a side lookup (the
+// property of a new stay) is an ordinary load failure.
+function markMissingLookup(err) {
+  if (err && err.status === 404) err.missingLookup = true;
+  throw err;
+}
+
 export default function ReservationPage() {
   const { reservationId } = useParams();
   const { user: currentUser } = useAuth();
@@ -825,7 +832,7 @@ export default function ReservationPage() {
         
         // Load reservation details if editing
         if (reservationId) {
-          const res = await api.getReservation(reservationId);
+          const res = await api.getReservation(reservationId).catch(markMissingLookup);
           setExistingReservationLocked(Boolean(res.editLock?.locked));
           setEditLock(res.editLock || null);
           setPastUnlocked(false);
@@ -978,7 +985,7 @@ export default function ReservationPage() {
           await loadResourcesAvailability(res.startDate, res.endDate, res.propertyId, res.id);
           await loadBabyBedAvailability(res.startDate, res.endDate, res.propertyId, res.id);
         } else if (editingDevisId) {
-          const devis = await api.getDevisById(editingDevisId);
+          const devis = await api.getDevisById(editingDevisId).catch(markMissingLookup);
           setCgvBlock(devis.cgv || null);
           setOnlinePayment(devis.onlinePayment || null);
           const loaded = await loadPropertyContext(devis.propertyId, props);
@@ -1207,7 +1214,7 @@ export default function ReservationPage() {
 
         setLoading(false);
       } catch (err) {
-        if (err && err.status === 404) setNotFound(true);
+        if (err && err.status === 404 && err.missingLookup) setNotFound(true);
         else setInitError(true);
         setLoading(false);
       }
@@ -2925,7 +2932,7 @@ export default function ReservationPage() {
   if (notFound) {
     return (
       <Box>
-        <PageActionBar title={isDevisMode ? 'Devis' : 'Réservation'} onBack={() => navigateBack(navigate)} />
+        <PageActionBar title={isDevisMode ? 'Devis' : 'Réservation'} onBack={() => navigateBack(navigate, isDevisMode ? '/devis' : DEFAULT_BACK_PATH)} />
         <EmptyState
           icon={<SearchOffIcon />}
           title={isDevisMode ? 'Devis introuvable.' : 'Réservation introuvable.'}

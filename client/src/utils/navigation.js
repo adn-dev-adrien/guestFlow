@@ -38,9 +38,18 @@ export function navigateBack(navigate, fallback = DEFAULT_BACK_PATH) {
   else navigate(fallback, { replace: true });
 }
 
-/** An in-app path: `/…` but not `//…`, `/\\…` or a URL, which React Router refuses to navigate to. */
+/**
+ * An in-app path. URL parsers drop tab, LF and CR and read `\` as `/`, so `/\t/host` or `/\\host` point to
+ * another origin: control characters and backslashes are refused, and the target must resolve to our origin.
+ */
 export function isInAppPath(target) {
-  return typeof target === 'string' && target.startsWith('/') && !target.startsWith('//') && !target.startsWith('/\\');
+  if (typeof target !== 'string' || !target.startsWith('/') || target.startsWith('//')) return false;
+  if (/[\u0000-\u001F\\]/.test(target)) return false;
+  try {
+    return new URL(target, window.location.origin).origin === window.location.origin;
+  } catch {
+    return false;
+  }
 }
 
 export function navigateBackWithFrom(navigate, from, fallback = DEFAULT_BACK_PATH) {
