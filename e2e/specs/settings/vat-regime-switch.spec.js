@@ -9,6 +9,7 @@ import { backdateReservation, resetVatRegime } from '../../fixtures/dbSeed.js';
 const MENTION = 'TVA non applicable, art. 293 B du CGI';
 
 test.describe.configure({ mode: 'serial' });
+test.beforeAll(() => { resetVatRegime(); });
 test.afterAll(() => { resetVatRegime(); });
 
 /** @type {{ old: number, fresh: number }} */
