@@ -5,6 +5,7 @@ const Database = require('better-sqlite3');
 const laundryExtraTripsModel = require('../extraTripsModel');
 const laundryManualAdditionsModel = require('../manualAdditionsModel');
 const laundryExtraTripsController = require('../extraTripsController');
+const { fakeScheduleModel } = require('./laundry-schedule-fixtures');
 
 // specs/laundry-extra-trip.md §4.3 + §7 — endpoint-shape coverage for the extra-trip handlers,
 // driven via mock req/res. Role enforcement is owned by `enforceRoleAccess` (its own suite); here
@@ -57,7 +58,7 @@ function freshController({ laundryWeekday = 2, skipped = [] } = {}) {
   const ctrl = laundryExtraTripsController.create({
     extraTripsModel: trips,
     manualAdditionsModel: manual,
-    settingsModel: { read: () => ({ laundryWeekday }) },
+    scheduleModel: fakeScheduleModel(laundryWeekday),
     laundryModel: fakeLaundryModel(),
     skipsModel: { listAll: () => [...skipped] },
   });

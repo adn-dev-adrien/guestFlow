@@ -199,6 +199,12 @@ towel sets, global across all properties) in a dedicated Settings sub-menu. The 
 - **Negative number formatting**: `−` (U+2212, math minus sign) not the hyphen, so the
   red chip reads cleanly on retina screens.
 
+18. **Batches with a ready date and a replayed initial state (2026-10-28,
+    [linen-laundry-days.md](linen-laundry-days.md) rules 15-16, 18).** `atLaundry` is a list of batches
+    `{ dropDate, readyFrom, counts }` and a trip collects only the ready ones (amends rules 3, 5). The
+    initial state of rule 4 is no longer seeded: the engine replays from `today − 42` and emits from
+    `today`. Each shortage type carries `recoversOn`.
+
 ---
 
 ## 4. Architecture

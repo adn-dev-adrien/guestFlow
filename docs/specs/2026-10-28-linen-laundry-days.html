@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jours de blanchisserie</title>
+<style>
+:root{
+  --primary:#2F5D46;--primary-soft:#E3ECE6;--honey:#C99038;
+  --paper:#F8F5EF;--card:#FFFFFF;--ink:#27251F;--muted:#6E6A5E;--line:#E4DED2;
+  --success:#3E7D54;--success-bg:#E6EFE7;--warning:#8F6A1D;--warning-bg:#F6EDD7;
+  --error:#A8433A;--error-bg:#F7E8E5;--info:#31556E;--info-bg:#E4EDF3;
+  --l-bg:#E0F7FA;--l-border:#80DEEA;--l-accent:#00838F;
+  --radius:14px;--serif:"Source Serif 4","Iowan Old Style",Georgia,serif;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.55 var(--sans)}
+::selection{background:#D5E3D9}
+:focus-visible{outline:2px solid var(--primary);outline-offset:2px;border-radius:6px}
+main{max-width:1040px;margin:0 auto;padding:40px 16px 80px}
+h1{font:600 clamp(1.8rem,4vw,2.5rem)/1.1 var(--serif);letter-spacing:-.015em;margin:0 0 10px}
+h2{font:600 1.35rem/1.2 var(--serif);margin:52px 0 12px}
+h3{font:600 1.05rem/1.3 var(--serif);margin:22px 0 8px}
+p{margin:0 0 12px;max-width:70ch}
+code{font-size:.88em;background:#EFEBE2;padding:1px 5px;border-radius:5px}
+.lede{color:var(--muted);font-size:1.05rem}
+ul.plain{margin:0 0 12px;padding-left:1.1em;max-width:72ch}
+ul.plain li{margin:5px 0}
+.num{font-variant-numeric:tabular-nums}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:720px){.cols{grid-template-columns:1fr}}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px}
+.panel h3{font:600 1rem/1.3 var(--sans);margin:0 0 8px}
+
+/* demo controls */
+.demo-bar{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;margin:10px 0 14px}
+.seg{display:inline-flex;background:#ECE7DC;border-radius:10px;padding:3px;flex-wrap:wrap}
+.seg button{border:0;background:transparent;font:500 .9rem var(--sans);color:#57534A;padding:7px 12px;border-radius:8px;cursor:pointer;min-height:36px}
+.seg button[aria-pressed=true]{background:var(--card);color:var(--ink);box-shadow:0 1px 3px rgba(39,37,31,.12)}
+.hint{font-size:.85rem;color:var(--muted)}
+.stage{margin:0 auto;max-width:1040px;transition:max-width .35s cubic-bezier(.2,.8,.2,1)}
+.stage.phone{max-width:390px}
+.frame{background:var(--paper);border:1px solid var(--line);border-radius:18px;padding:14px;box-shadow:0 10px 30px -18px rgba(39,37,31,.35)}
+
+/* action bar */
+.actionbar{display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-bottom:12px;position:sticky;top:0;z-index:2}
+.actionbar .t{font:600 1rem var(--serif);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ib{width:44px;height:44px;border-radius:10px;border:1px solid var(--line);background:var(--card);display:inline-grid;place-items:center;cursor:pointer;color:var(--ink);transition:transform .1s ease,background .15s ease}
+.ib:active:not(:disabled){transform:scale(.96)}
+.ib.save{background:var(--primary);border-color:var(--primary);color:#fff}
+.ib:disabled{opacity:.38;cursor:not-allowed}
+.ib svg{width:20px;height:20px}
+
+/* settings card */
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin-bottom:14px}
+.card h4{font:600 1.08rem var(--serif);margin:0 0 14px;display:flex;align-items:center;gap:8px}
+.card h4 svg{width:20px;height:20px;color:var(--muted)}
+.field{display:grid;grid-template-columns:150px 1fr;gap:10px 16px;align-items:center;margin-bottom:12px}
+.field>label{font-size:.9rem;color:var(--muted)}
+.phone .field{grid-template-columns:1fr}
+@media(max-width:600px){.field{grid-template-columns:1fr}}
+.days{display:flex;gap:6px;flex-wrap:nowrap}
+.days button{min-width:44px;height:44px;border-radius:10px;border:1px solid var(--line);background:var(--card);font:600 .95rem var(--sans);color:#57534A;cursor:pointer;transition:background .15s ease,color .15s ease,border-color .15s ease,transform .1s ease}
+.days button:active{transform:scale(.95)}
+.days button[aria-pressed=true]{background:var(--primary);border-color:var(--primary);color:#fff}
+.phone .days{justify-content:space-between}.phone .days button{flex:1;min-width:0}
+@media(max-width:600px){.days{justify-content:space-between}.days button{flex:1;min-width:0}}
+.shake{animation:nudge .32s cubic-bezier(.2,.8,.2,1)}
+@keyframes nudge{0%,100%{transform:translateX(0)}30%{transform:translateX(-4px)}60%{transform:translateX(3px)}}
+.stepper{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--card);user-select:none;-webkit-user-select:none}
+.stepper button{width:44px;height:44px;border:0;background:#F4F1EA;font-size:1.2rem;cursor:pointer;color:var(--ink);touch-action:manipulation}
+.stepper button:disabled{color:#BDB7A9;cursor:not-allowed}
+.stepper input{width:46px;height:44px;border:0;text-align:right;font:600 1rem var(--sans);font-variant-numeric:tabular-nums;color:var(--ink);background:transparent;padding:0 4px}
+.stepper input:focus{outline:none}
+.stepper .u{padding:0 12px 0 4px;font-size:.95rem;color:var(--muted);min-width:52px}
+.stepper.bad{border-color:var(--error);background:var(--error-bg)}
+.phone .stepper{display:flex}.phone .stepper .u{flex:1}
+.err{color:var(--error);font-size:.84rem;margin-top:6px;min-height:0}
+.cycle{border-top:1px solid var(--line);margin-top:14px;padding-top:12px;display:grid;gap:4px;transition:opacity .2s ease}
+.cycle.dim{opacity:.45}
+.cyc{display:flex;gap:12px;font-size:.95rem}
+.cyc b{font-weight:600;min-width:110px}
+.cyc span{color:var(--muted);font-variant-numeric:tabular-nums}
+.cyc.long span{color:var(--warning)}
+.effective{margin-top:10px;font-size:.85rem;color:var(--info);background:var(--info-bg);border-radius:8px;padding:7px 10px;display:inline-block}
+.stockrow{display:flex;gap:12px;flex-wrap:wrap}
+.stockrow label{display:flex;flex-direction:column;font-size:.8rem;color:var(--muted);gap:4px}
+.stockrow input{width:120px;height:42px;border:1px solid var(--line);border-radius:8px;padding:0 10px;font:600 .95rem var(--sans);font-variant-numeric:tabular-nums}
+.toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,20px);opacity:0;background:var(--ink);color:#fff;border-radius:10px;padding:10px 16px;font-size:.92rem;transition:opacity .2s ease,transform .25s cubic-bezier(.2,.8,.2,1);pointer-events:none;z-index:9}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+
+/* planning */
+.plan{max-height:640px;overflow-y:auto;overscroll-behavior:contain;padding-right:4px;scroll-behavior:smooth}
+.dayh{display:flex;align-items:center;gap:8px;margin:18px 0 8px;font:600 1rem var(--serif)}
+.dayh .today{font:600 .72rem var(--sans);text-transform:none;background:var(--primary);color:#fff;border-radius:99px;padding:2px 8px}
+.dayh.past{color:var(--muted)}
+.mini{background:#F2F0EC;border-radius:10px;padding:8px 12px;font-size:.88rem;color:var(--muted);margin-bottom:6px}
+.mini.arr{background:#FFF3E0;color:#6B4A1F}
+.lcard{background:var(--l-bg);border:1px solid var(--l-border);border-radius:12px;padding:10px 14px;margin-bottom:8px;transition:opacity .2s ease}
+.lcard.skipped{opacity:.5}
+.lhead{display:flex;align-items:center;gap:8px;margin-bottom:6px;color:var(--l-accent);font-weight:700;font-size:.92rem}
+.lhead .tt{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lhead svg{width:18px;height:18px;flex:none}
+.lhead button{width:36px;height:36px;border-radius:8px;border:0;background:transparent;color:var(--l-accent);cursor:pointer;display:grid;place-items:center}
+.lhead button:hover{background:rgba(0,131,143,.08)}
+.sides{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.sides>div+div{border-left:1px solid #B9E4EA;padding-left:12px}
+.phone .sides{grid-template-columns:1fr}.phone .sides>div+div{border-left:0;padding-left:0}
+@media(max-width:600px){.sides{grid-template-columns:1fr}.sides>div+div{border-left:0;padding-left:0}}
+.cap{font-size:.72rem;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.cap i{font-style:normal;text-transform:none;letter-spacing:0;font-weight:500}
+.ln{font-size:.9rem;font-weight:600}
+.ln em{font-style:normal;color:var(--muted);font-weight:500;margin-right:4px}
+.still{margin-top:8px;font-size:.82rem;color:#2D5F66;font-style:italic}
+.inv{margin-top:8px;padding-top:6px;border-top:1px solid #B9E4EA}
+.neg{color:var(--error);font-weight:700}
+.alert{background:var(--card);border:1px solid var(--line);border-left:0;border-radius:12px;padding:12px 14px;margin-bottom:12px;display:flex;gap:10px}
+.alert .dot{width:10px;height:10px;border-radius:50%;background:var(--error);margin-top:7px;flex:none}
+.alert.ok .dot{background:var(--success)}
+.alert b{font-weight:600}
+.alert .sub{font-size:.88rem;color:var(--muted)}
+
+/* arbitrages */
+.arb{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px;margin-bottom:14px}
+.arb h3{margin:0 0 6px;font:600 1.05rem var(--serif)}
+.opt{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-top:1px solid var(--line)}
+.opt:first-of-type{border-top:0}
+.tag{font-size:.72rem;font-weight:600;border-radius:99px;padding:2px 8px;white-space:nowrap;margin-top:3px}
+.rec{background:var(--success-bg);color:var(--success)}
+.alt{background:#EFEBE2;color:var(--muted)}
+.risk{background:var(--warning-bg);border-radius:12px;padding:14px 16px;color:#5E4713}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+</style>
+</head>
+<body>
+<main>
+<h1>Jours de blanchisserie</h1>
+<p class="lede">Plusieurs jours par semaine (mardi et jeudi), un délai de lavage, et le stock qui sait que le linge sale n’est pas disponible tant qu’il n’est pas revenu. Plugin Linge, aucune modification du cœur.</p>
+
+<h2>Le constat</h2>
+<ul class="plain">
+  <li><b>Un seul jour possible.</b> Le réglage est un entier unique (mardi par défaut). Les fenêtres, le stock et les tournées sautées avancent toutes par sauts de 7 jours : ajouter jeudi est impossible sans toucher aux trois.</li>
+  <li><b>Pas de délai de lavage.</b> Le linge déposé revient à la tournée suivante, quel que soit l’écart. Avec mardi + jeudi, cela suppose une blanchisserie en 48 h ; si elle met 3 jours, la prévision de rupture est trop optimiste.</li>
+  <li><b>Changer de jour réécrit le passé.</b> La spec dit « s’applique pour la suite » ; le code recalcule toutes les cartes passées avec le nouveau jour. Invisible tant que le Planning ne regardait que l’avenir — plus avec le défilement vers le passé.</li>
+  <li><b>Le navigateur fait le tri.</b> Le Planning appelle 5 services et décide lui-même quelles cartes afficher : contraire à la règle « le serveur calcule ».</li>
+  <li><b>Petit bug vu en passant :</b> une rupture de tapis de bain s’affiche « bathMat ».</li>
+</ul>
+
+<h2>Ce qu’on propose</h2>
+<p>Un <b>rythme</b> : des jours cochés et un délai « linge prêt après N jours ». Chaque jour de blanchisserie = un passage (dépôt + retrait). Le linge déposé un jour revient au premier passage où il est prêt. Le rythme s’applique <b>à partir de demain</b> ; le passé garde le sien. Les installations existantes ne voient aucun changement (un jour, délai 1).</p>
+
+<div class="demo-bar">
+  <div class="seg" role="group" aria-label="Largeur">
+    <button type="button" data-w="desk" aria-pressed="true">Bureau</button>
+    <button type="button" data-w="phone" aria-pressed="false">Téléphone</button>
+  </div>
+  <span class="hint">Les deux maquettes sont liées : enregistrer le rythme met à jour le planning et l’alerte.</span>
+</div>
+
+<h3>1. Paramètres › Linge</h3>
+<div class="stage" id="stage1"><div class="frame">
+  <div class="actionbar">
+    <span class="t">Linge</span>
+    <button class="ib save" id="saveBtn" type="button" aria-label="Enregistrer" title="Enregistrer" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></button>
+    <button class="ib" id="cancelBtn" type="button" aria-label="Annuler" title="Annuler" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  </div>
+  <div class="card">
+    <h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="3" width="16" height="18" rx="2"/><circle cx="12" cy="13" r="4.5"/><path d="M7 6.5h2"/></svg>Blanchisserie</h4>
+    <div class="field">
+      <label id="daysLbl">Jours</label>
+      <div>
+        <div class="days" id="days" role="group" aria-labelledby="daysLbl"></div>
+        <div class="err" id="daysErr" role="alert"></div>
+      </div>
+    </div>
+    <div class="field">
+      <label for="ta">Linge prêt après</label>
+      <div>
+        <div class="stepper" id="stepper">
+          <button type="button" id="minus" aria-label="Un jour de moins">−</button>
+          <input id="ta" inputmode="numeric" value="1" aria-describedby="taErr">
+          <span class="u" id="taUnit">jour</span>
+          <button type="button" id="plus" aria-label="Un jour de plus">+</button>
+        </div>
+        <div class="err" id="taErr" role="alert"></div>
+      </div>
+    </div>
+    <div class="cycle" id="cycle" aria-live="polite"></div>
+    <div id="eff"></div>
+  </div>
+  <div class="card">
+    <h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 18v-6a3 3 0 013-3h12a3 3 0 013 3v6M3 14h18M6 9V6h5v3"/></svg>Stock (inchangé)</h4>
+    <div class="stockrow"><label>Draps doubles<input value="20" disabled></label><label>Grandes serviettes<input value="44" disabled></label></div>
+  </div>
+</div></div>
+
+<h3>2. Planning et accueil</h3>
+<div class="demo-bar">
+  <span class="hint">Arbitrage A1 — un changement de rythme :</span>
+  <div class="seg" role="group" aria-label="Portée du changement">
+    <button type="button" data-a1="tomorrow" aria-pressed="true">s’applique à partir de demain</button>
+    <button type="button" data-a1="all" aria-pressed="false">réécrit aussi le passé</button>
+  </div>
+</div>
+<div class="stage" id="stage2"><div class="frame">
+  <div class="actionbar"><span class="t">Planning</span><span class="hint" id="rhythmNow"></span></div>
+  <div id="alert"></div>
+  <div class="plan" id="plan" tabindex="0" aria-label="Planning, défilable"></div>
+</div></div>
+<p class="hint" style="margin-top:10px">Données inventées, stock de 20 draps doubles et 44 grandes serviettes. Essayer : mardi seul (rupture), mardi + jeudi à 2 jours (plus de rupture), puis 3 jours (le linge de mardi ne revient que mardi suivant : rupture). Le bouton <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 9h16M9 13l6 4M15 13l-6 4"/></svg> d’une carte marque la tournée « non réalisée ».</p>
+
+<h2>Ce qu’on ne fait pas</h2>
+<ul class="plain">
+  <li>Des jours de dépôt seul et des jours de retrait seul, ou plusieurs blanchisseries.</li>
+  <li>Un délai différent pour les draps et les serviettes.</li>
+  <li>Une case « Fait » sur la carte blanchisserie (arbitrage A3).</li>
+  <li>Choisir une date d’effet autre que demain, ou corriger un ancien rythme.</li>
+  <li>Le suivi du coût de la blanchisserie.</li>
+  <li>Le cœur du Planning : il fournit déjà l’emplacement « cartes du jour » ; le défilement passé/futur (autre spec) s’y branche tel quel.</li>
+</ul>
+
+<h2>Le risque</h2>
+<div class="risk">
+  <p><b>Le moteur du stock est réécrit en son centre.</b> Le linge à la blanchisserie devient une liste de lots datés, et l’état de départ est rejoué sur 6 semaines au lieu d’être reconstitué par cas particuliers. Garde-fous : les suites existantes passent sans modification sur un rythme « un jour, délai 1 » ; un test vérifie jour par jour que la carte du Planning et le stock disent la même chose sur un mois mardi + jeudi avec tournée sautée, tournée exceptionnelle et changement de délai.</p>
+  <p style="margin:0">Deux chiffres existants peuvent bouger, et seulement vers le plus juste : les ajouts manuels passés et les restes d’une récupération partielle de plus d’une semaine sont désormais comptés. Taille : 2 lots, ~24 fichiers, le gros dans le lot 1.</p>
+</div>
+
+<h2>Les arbitrages en attente</h2>
+<div class="arb">
+  <h3>A1 — Un changement de rythme touche-t-il le passé ?</h3>
+  <div class="opt"><span class="tag rec">Recommandé</span><div><b>À partir de demain, le passé garde son rythme.</b> Les cartes passées restent vraies au défilement ; une table de versions datées. Demain et pas aujourd’hui : la tournée du jour est peut-être déjà faite.</div></div>
+  <div class="opt"><span class="tag alt">Autre</span><div><b>Un seul rythme pour toutes les dates.</b> Plus simple ; les cartes passées changent avec le réglage (visible dans la maquette 2).</div></div>
+</div>
+<div class="arb">
+  <h3>A2 — Le délai de lavage : réglable, et à combien ?</h3>
+  <div class="opt"><span class="tag rec">Recommandé</span><div><b>Réglable de 1 à 14 jours, 1 par défaut.</b> 1 = « prêt à la tournée suivante » : rien ne change tant qu’on ne le touche pas ; 3 décrit une blanchisserie lente.</div></div>
+  <div class="opt"><span class="tag alt">Autre</span><div><b>Pas de réglage : toujours la tournée suivante.</b> Un champ de moins ; le stock reste optimiste si la blanchisserie met plus de 2 jours.</div></div>
+</div>
+<div class="arb">
+  <h3>A3 — La tournée devient-elle une tâche à cocher ?</h3>
+  <div class="opt"><span class="tag rec">Recommandé</span><div><b>Non, carte d’information.</b> « Non réalisée » reste le seul état enregistré ; le compteur du jour ne change pas.</div></div>
+  <div class="opt"><span class="tag alt">Autre</span><div><b>Oui, une case « Fait » comptée dans le compteur du jour.</b> Le jour passe au vert seulement une fois la blanchisserie faite ; un état de plus, sans effet sur le stock.</div></div>
+</div>
+</main>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+(function(){
+  'use strict';
+  const TODAY='2026-10-28';
+  const TOMORROW='2026-10-29';
+  const ORDER=[1,2,3,4,5,6,0];
+  const SHORT=['D','L','M','M','J','V','S'];
+  const LONG=['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
+  const ABBR=['dim.','lun.','mar.','mer.','jeu.','ven.','sam.'];
+  const MONTHS=['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+  const addD=(iso,n)=>{const d=new Date(iso+'T00:00:00Z');d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10);};
+  const wdOf=iso=>new Date(iso+'T00:00:00Z').getUTCDay();
+  const dnum=iso=>Number(iso.slice(8,10));
+  const MABBR=['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
+  const short=iso=>ABBR[wdOf(iso)]+' '+dnum(iso)+(iso.slice(5,7)!==TODAY.slice(5,7)?' '+MABBR[Number(iso.slice(5,7))-1]:'');
+  const longDate=iso=>LONG[wdOf(iso)]+' '+dnum(iso)+' '+MONTHS[Number(iso.slice(5,7))-1];
+  const cap=s=>s.charAt(0).toUpperCase()+s.slice(1);
+
+  // Invented stays: [arrival, departure, double sheets, large towels]
+  const STAYS=[
+    ['2026-10-10','2026-10-17',2,4],['2026-10-16','2026-10-24',3,6],['2026-10-18','2026-10-25',2,4],
+    ['2026-10-22','2026-10-29',2,5],['2026-10-24','2026-10-31',3,6],['2026-10-25','2026-11-01',2,4],
+    ['2026-10-29','2026-11-02',3,6],['2026-10-30','2026-11-04',2,4],['2026-10-31','2026-11-03',2,5],
+    ['2026-11-01','2026-11-06',3,6],['2026-11-02','2026-11-07',2,4],['2026-11-04','2026-11-08',3,6],
+    ['2026-11-05','2026-11-09',2,4],['2026-11-07','2026-11-12',2,5],['2026-11-08','2026-11-14',3,6],
+  ];
+  const NAMES=['Léa Martin','Marie-Charlotte de La Rochefoucauld-Montbazon','Tom Girard','Inès Roux','Paul Ferrand','Zoé Blanc','Hugo Lemaire','Chloé Bertin','Noah Perrin','Jade Morel','Louis Caron','Emma Vidal','Arthur Noël','Lina Faure','Jules Masson'];
+  const STOCK={d:20,t:44};
+
+  const saved={weekdays:[2],ta:1};           // what is stored (version from tomorrow once saved)
+  const base={weekdays:[2],ta:1};            // version in force until today
+  let draft={weekdays:[2],ta:1,taText:'1'};
+  let a1='tomorrow';
+  const skipped=new Set();
+
+  // ---------- schedule (server side in the real thing) ----------
+  function versionOn(d){
+    if(a1==='all') return saved;
+    return d>=TOMORROW?saved:base;
+  }
+  function describeCycle(s){
+    const days=ORDER.filter(w=>s.weekdays.includes(w));
+    return days.map(w=>{
+      // first laundry day >= drop + ta
+      for(let k=s.ta;k<s.ta+15;k++){ const w2=(w+k)%7; if(s.weekdays.includes(w2)) return {drop:w,pick:w2,wait:k}; }
+      return {drop:w,pick:w,wait:7};
+    });
+  }
+
+  // ---------- engine: batches + replay from today − 42 ----------
+  function simulate(){
+    const start=addD(TODAY,-42), end=addD(TODAY,20);
+    const clean={...STOCK}, inC={d:0,t:0}; let dirty={d:0,t:0}; let batches=[];
+    const out={};
+    STAYS.forEach(s=>{ if(s[0]<start&&s[1]>start){inC.d+=s[2];inC.t+=s[3];clean.d-=s[2];clean.t-=s[3];} });
+    for(let d=start;d<=end;d=addD(d,1)){
+      const v=versionOn(d), regular=v.weekdays.includes(wdOf(d)), isSkip=regular&&skipped.has(d), trip=regular&&!isSkip;
+      const card={regular,isSkipped:isSkip,pick:{d:0,t:0},from:[],drop:{d:0,t:0},still:null,arrivals:[],departures:[]};
+      if(trip){
+        batches=batches.filter(b=>{ if(b.ready<=d){clean.d+=b.d;clean.t+=b.t;card.pick.d+=b.d;card.pick.t+=b.t;card.from.push(b.drop);return false;} return true; });
+        const st=batches.filter(b=>b.drop<d&&(b.d+b.t)>0);
+        if(st.length) card.still={d:st.reduce((a,b)=>a+b.d,0),t:st.reduce((a,b)=>a+b.t,0),ready:st.map(b=>b.ready).sort()[0]};
+      }
+      STAYS.forEach((s,i)=>{ if(s[0]===d){inC.d+=s[2];inC.t+=s[3];clean.d-=s[2];clean.t-=s[3];card.arrivals.push(i);} if(s[1]===d) card.departures.push(i); });
+      if(trip){ card.drop={...dirty}; if(dirty.d+dirty.t>0) batches.push({drop:d,ready:addD(d,v.ta),d:dirty.d,t:dirty.t}); dirty={d:0,t:0}; }
+      card.clean={...clean};
+      out[d]=card;
+      const t=addD(d,1); STAYS.forEach(s=>{ if(s[1]===t){inC.d-=s[2];inC.t-=s[3];dirty.d+=s[2];dirty.t+=s[3];} });
+    }
+    return out;
+  }
+
+  // ---------- Linge page ----------
+  const $=id=>document.getElementById(id);
+  const daysEl=$('days');
+  ORDER.forEach(w=>{
+    const b=document.createElement('button'); b.type='button'; b.textContent=SHORT[w]; b.dataset.w=w;
+    b.setAttribute('aria-label',cap(LONG[w])); b.title=cap(LONG[w]);
+    b.addEventListener('click',()=>toggleDay(w,b)); daysEl.appendChild(b);
+  });
+  function toggleDay(w,btn){
+    const on=draft.weekdays.includes(w);
+    if(on&&draft.weekdays.length===1){
+      $('daysErr').textContent='Au moins un jour.';
+      daysEl.classList.remove('shake'); void daysEl.offsetWidth; daysEl.classList.add('shake');
+      return;
+    }
+    $('daysErr').textContent='';
+    draft.weekdays=on?draft.weekdays.filter(x=>x!==w):[...draft.weekdays,w];
+    renderSettings();
+  }
+  function parseTa(txt){ return /^\s*\d+\s*$/.test(txt)?Number(txt):NaN; }
+  function taValid(){ const n=parseTa(draft.taText); return Number.isInteger(n)&&n>=1&&n<=14; }
+  $('minus').addEventListener('click',()=>{ const n=taValid()?draft.ta:1; setTa(Math.max(1,n-1)); });
+  $('plus').addEventListener('click',()=>{ const n=taValid()?draft.ta:1; setTa(Math.min(14,n+1)); });
+  function setTa(n){ draft.ta=n; draft.taText=String(n); $('ta').value=draft.taText; renderSettings(); }
+  $('ta').addEventListener('input',e=>{ draft.taText=e.target.value; if(taValid()) draft.ta=parseTa(draft.taText); renderSettings(); });
+  $('ta').addEventListener('keydown',e=>{ if(e.key==='ArrowUp'){e.preventDefault();$('plus').click();} if(e.key==='ArrowDown'){e.preventDefault();$('minus').click();} });
+
+  const same=(a,b)=>a.ta===b.ta&&a.weekdays.slice().sort().join()===b.weekdays.slice().sort().join();
+  let previewTimer=null;
+  function renderSettings(){
+    [...daysEl.children].forEach(b=>b.setAttribute('aria-pressed',String(draft.weekdays.includes(Number(b.dataset.w)))));
+    const ok=taValid();
+    $('stepper').classList.toggle('bad',!ok);
+    $('taErr').textContent=ok?'':'Entre 1 et 14 jours.';
+    $('minus').disabled=ok&&draft.ta<=1; $('plus').disabled=ok&&draft.ta>=14;
+    $('taUnit').textContent=(ok?draft.ta:0)>1?'jours':'jour';
+    const dirty=!same(draft,saved)||!ok;
+    $('saveBtn').disabled=!dirty||!ok; $('cancelBtn').disabled=!dirty;
+    // cycle: the server's preview, debounced; the previous lines stay, dimmed
+    const cyc=$('cycle'); cyc.classList.add('dim'); clearTimeout(previewTimer);
+    previewTimer=setTimeout(()=>{
+      if(!ok){ return; }
+      const lines=describeCycle(draft);
+      cyc.innerHTML=lines.map(l=>'<div class="cyc'+(l.wait>7?' long':'')+'"><b>'+cap(ABBR[l.drop])+' → '+ABBR[l.pick]+'</b><span>'+l.wait+' j</span></div>').join('');
+      cyc.classList.remove('dim');
+    },250);
+    const pendingChange=!same(saved,base);
+    $('eff').innerHTML=(dirty&&ok)?'<span class="effective">À partir de demain, '+short(TOMORROW)+' oct.</span>'
+      :(pendingChange&&a1==='tomorrow'?'<span class="effective">À partir de demain, '+short(TOMORROW)+' oct. — aujourd’hui : '+base.weekdays.map(w=>LONG[w]).join(', ')+'</span>':'');
+  }
+  $('saveBtn').addEventListener('click',()=>{
+    if(!taValid()) return;
+    saved.weekdays=draft.weekdays.slice(); saved.ta=draft.ta;
+    toast('Enregistré.'); renderSettings(); renderPlanning();
+  });
+  $('cancelBtn').addEventListener('click',()=>{
+    draft={weekdays:saved.weekdays.slice(),ta:saved.ta,taText:String(saved.ta)}; $('ta').value=draft.taText;
+    $('daysErr').textContent=''; renderSettings();
+  });
+  let tt=null;
+  function toast(msg){ const t=$('toast'); t.textContent=msg; t.classList.add('on'); clearTimeout(tt); tt=setTimeout(()=>t.classList.remove('on'),1600); }
+
+  // ---------- Planning ----------
+  const ICON_L='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="3" width="16" height="18" rx="2"/><circle cx="12" cy="13" r="4.5"/><path d="M7 6.5h2"/></svg>';
+  const ICON_SKIP='<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 9h16M9 13l6 4M15 13l-6 4"/></svg>';
+  const ICON_UNSKIP='<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 9h16M9 15l2 2 4-4"/></svg>';
+  const fmt=(n,one,many)=>n+' '+(n>1?many:one);
+  const lines=c=>{ let h=''; if(c.d>0) h+='<div class="ln"><em>Draps :</em>'+fmt(c.d,'double','doubles')+'</div>'; if(c.t>0) h+='<div class="ln"><em>Serviettes :</em>'+fmt(c.t,'grande','grandes')+'</div>'; return h||'<div class="ln">—</div>'; };
+  const joinDates=a=>a.length<2?short(a[0]):a.slice(0,-1).map(short).join(', ')+' et '+short(a[a.length-1]);
+
+  function renderPlanning(){
+    const sim=simulate();
+    const v=versionOn(TOMORROW);
+    $('rhythmNow').textContent=v.weekdays.slice().sort((a,b)=>ORDER.indexOf(a)-ORDER.indexOf(b)).map(w=>ABBR[w]).join(' + ')+' · prêt après '+fmt(v.ta,'jour','jours');
+    // dashboard alert — shortage per type with its first spell (lastShortageDate, laterShortage)
+    const parts=[];
+    [['d','Drap double'],['t','Serviette grande']].forEach(([k,label])=>{
+      let first=null,max=0,rec=null; const names=new Set();
+      for(let d=TODAY;d<=addD(TODAY,20);d=addD(d,1)){
+        const c=sim[d].clean[k];
+        if(c<0){ if(!first) first=d; max=Math.max(max,-c); sim[d].arrivals.forEach(i=>names.add(NAMES[i])); }
+        else if(first&&!rec) rec=d;
+      }
+      if(first) parts.push('<div><b>'+label+'</b> : jusqu’à <b>'+max+' manquant'+(max>1?'s':'')+'</b> · '+(rec?'du '+short(first)+' au '+short(addD(rec,-1)):'à partir du '+short(first))+'<div class="sub">Séjours : '+[...names].slice(0,3).join(' · ')+(names.size>3?' · +'+(names.size-3):'')+'</div></div>');
+    });
+    $('alert').innerHTML=parts.length
+      ?'<div class="alert"><span class="dot"></span><div style="display:grid;gap:6px;min-width:0">'+parts.join('')+'</div></div>'
+      :'<div class="alert ok"><span class="dot"></span><div><b>Pas de manque de linge prévu.</b></div></div>';
+
+    const plan=$('plan'); const keepTop=plan.scrollTop; let html='';
+    for(let d=addD(TODAY,-7);d<=addD(TODAY,17);d=addD(d,1)){
+      const c=sim[d]; const past=d<TODAY;
+      const shown=c.regular&&(c.isSkipped||c.drop.d+c.drop.t+c.pick.d+c.pick.t>0||c.still);
+      html+='<div class="dayh'+(past?' past':'')+'" id="d-'+d+'">'+cap(longDate(d))+(d===TODAY?' <span class="today">Aujourd’hui</span>':'')+'</div>';
+      if(shown){
+        html+='<div class="lcard'+(c.isSkipped?' skipped':'')+'"><div class="lhead">'+ICON_L+'<span class="tt">Linge à la blanchisserie</span>'
+          +'<button type="button" data-skip="'+d+'" aria-label="'+(c.isSkipped?'Marquer ce voyage comme réalisé':'Marquer ce voyage comme non réalisé')+'" title="'+(c.isSkipped?'Marquer comme réalisé':'Marquer comme non réalisé')+'">'+(c.isSkipped?ICON_UNSKIP:ICON_SKIP)+'</button></div>';
+        if(c.isSkipped){ html+='<div class="ln" style="font-style:italic;font-weight:500;color:var(--muted)">Voyage non réalisé — reporté au prochain voyage</div></div>'; }
+        else{
+          html+='<div class="sides"><div><div class="cap">À apporter</div>'+lines(c.drop)+'</div><div><div class="cap">À récupérer'+(c.from.length?' <i>· déposé '+joinDates(c.from)+'</i>':'')+'</div>'+lines(c.pick)+'</div></div>';
+          if(c.still) html+='<div class="still">Encore à la blanchisserie : '+[c.still.d?fmt(c.still.d,'double','doubles'):'',c.still.t?fmt(c.still.t,'grande','grandes'):''].filter(Boolean).join(' · ')+' · prêt '+short(c.still.ready)+'</div>';
+          if(!past){
+            const p=k=>(c.clean[k]<0?'<span class="neg">−'+(-c.clean[k])+'</span>':c.clean[k]);
+            html+='<div class="inv"><div class="cap">Disponible après ce dépôt</div><div class="ln"><em>Draps :</em>'+p('d')+' doubles <em style="margin-left:6px">Serviettes :</em>'+p('t')+' grandes</div></div>';
+          }
+          html+='</div>';
+        }
+      }
+      if(c.departures.length) html+='<div class="mini">'+fmt(c.departures.length,'départ','départs')+' · '+c.departures.map(i=>NAMES[i]).join(' · ')+'</div>';
+      if(c.arrivals.length) html+='<div class="mini arr">'+fmt(c.arrivals.length,'arrivée','arrivées')+' · '+c.arrivals.map(i=>NAMES[i]).join(' · ')+'</div>';
+    }
+    plan.innerHTML=html;
+    if(!renderPlanning.done){ const el=$('d-'+TODAY); plan.scrollTop=el.offsetTop-plan.offsetTop-8; renderPlanning.done=true; } else plan.scrollTop=keepTop;
+  }
+  $('plan').addEventListener('click',e=>{
+    const b=e.target.closest('[data-skip]'); if(!b) return;
+    const d=b.dataset.skip; if(skipped.has(d)) skipped.delete(d); else skipped.add(d); renderPlanning();
+  });
+  document.querySelectorAll('[data-a1]').forEach(b=>b.addEventListener('click',()=>{
+    a1=b.dataset.a1; document.querySelectorAll('[data-a1]').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));
+    renderSettings(); renderPlanning();
+  }));
+  document.querySelectorAll('[data-w]').forEach(b=>{ if(b.closest('.seg')) b.addEventListener('click',()=>{
+    const phone=b.dataset.w==='phone';
+    document.querySelectorAll('.seg [data-w]').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));
+    $('stage1').classList.toggle('phone',phone); $('stage2').classList.toggle('phone',phone);
+  }); });
+
+  renderSettings(); renderPlanning();
+})();
+</script>
+</body>
+</html>

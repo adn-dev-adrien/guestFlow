@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const { simulateInventory, ALL_TYPES } = require('../linenInventory');
+const { constantSchedule } = require('./laundry-schedule-fixtures');
 
 // specs/skip-laundry-trip.md §3.2 + §7.1 — engine-level coverage for the skip feature.
 //
@@ -50,7 +51,7 @@ const STOCK = makeStock({ single: 10, double: 10, baby: 10 });
 function run(skippedDates, to = '2026-06-30') {
   return simulateInventory({
     stock: STOCK, reservations: RES, options: OPT, reservationOptions: RO, propertyDefaults: [],
-    laundryWeekday: TUESDAY, from: '2026-06-01', to,
+    schedule: constantSchedule(TUESDAY), from: '2026-06-01', to,
     skippedDates: skippedDates instanceof Set ? skippedDates : new Set(skippedDates || []),
   });
 }
@@ -147,7 +148,7 @@ test('empty skip set: simulation output is byte-identical to the no-`skippedDate
   // Two parallel calls: one with `skippedDates` argument omitted, one with `new Set()`.
   const withoutArg = simulateInventory({
     stock: STOCK, reservations: RES, options: OPT, reservationOptions: RO, propertyDefaults: [],
-    laundryWeekday: TUESDAY, from: '2026-06-01', to: '2026-06-30',
+    schedule: constantSchedule(TUESDAY), from: '2026-06-01', to: '2026-06-30',
   });
   const withEmptySet = run([]);
   assert.deepEqual(withEmptySet.days, withoutArg.days,
@@ -163,7 +164,7 @@ test('past skip — when `from` is after the skipped Tuesday, the initial state 
   // skipped) the drop finally happens.
   const r = simulateInventory({
     stock: STOCK, reservations: RES, options: OPT, reservationOptions: RO, propertyDefaults: [],
-    laundryWeekday: TUESDAY, from: '2026-06-15', to: '2026-06-30',
+    schedule: constantSchedule(TUESDAY), from: '2026-06-15', to: '2026-06-30',
     skippedDates: new Set(['2026-06-09']),
   });
 

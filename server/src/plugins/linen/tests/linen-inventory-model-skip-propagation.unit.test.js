@@ -5,6 +5,7 @@ const Database = require('better-sqlite3');
 const linenInventoryModel = require('../linenInventoryModel');
 const laundryTripSkipsModel = require('../skipsModel');
 const laundryExtraTripsModel = require('../extraTripsModel');
+const { fakeScheduleModel } = require('./laundry-schedule-fixtures');
 
 // specs/skip-laundry-trip.md §4.1 — wiring test that pins the propagation chain:
 // `laundry_trip_skips` DB rows → `laundryTripSkipsModel.listAll()` →
@@ -99,6 +100,7 @@ function freshScenario({ today = '2026-06-15' } = {}) {
   const skips = laundryTripSkipsModel.create(db);
   const model = linenInventoryModel.buildModel(db, {
     settingsModel: makeSettingsModel(db),
+    laundryScheduleModel: fakeScheduleModel(2),
     laundryTripSkipsModel: skips,
   });
   return { db, model, skips, today };

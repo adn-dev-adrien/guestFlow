@@ -24,6 +24,11 @@ const Database = require('better-sqlite3');
 
 const laundryModel = require('../laundryModel');
 const { buildController } = require('../planningController');
+const { constantSchedule, fakeScheduleModel } = require('./laundry-schedule-fixtures');
+
+// The pick-up also names the drop dates it comes from (specs/linen-laundry-days.md rule 11); these
+// pre-feature assertions are about the quantities.
+const counts = ({ fromTrips, ...quantities }) => quantities;
 
 const DDL = `
   CREATE TABLE reservations (
@@ -64,7 +69,7 @@ function makeStack({ laundryWeekday = 2, skippedDates = [], extraTrips = [] } = 
   const db = new Database(':memory:');
   db.exec(DDL);
   const model = laundryModel.buildModel(db);
-  const settingsModel = { read: () => ({ laundryWeekday }) };
+  const laundryScheduleModel = fakeScheduleModel(laundryWeekday);
   // No `laundry_trip_skips` table in this fixture — inject an in-memory stub. Defaults to
   // an empty list so every legacy assertion stays byte-identical to the pre-skip baseline.
   const laundryTripSkipsModel = { listAll: () => [...skippedDates] };
@@ -72,14 +77,23 @@ function makeStack({ laundryWeekday = 2, skippedDates = [], extraTrips = [] } = 
   // model bound to the REAL server/guestflow.db, and any manual addition living there leaks
   // into the fixture's windows (surfaced when a prod DB copy was imported into dev).
   const laundryManualAdditionsModel = {
+    listAll: () => ({}),
     sumForWindow: () => ({ singleBeds: 0, doubleBeds: 0, babyBeds: 0, largeTowels: 0, mediumTowels: 0, smallTowels: 0 }),
   };
   // Same isolation for extra trips (specs/laundry-extra-trip.md) — the fixture decides which exist.
   const laundryExtraTripsModel = { listAll: () => [...extraTrips] };
   const controller = buildController({
-    laundryModel: model, settingsModel, laundryTripSkipsModel, laundryManualAdditionsModel, laundryExtraTripsModel,
+    laundryModel: model, laundryScheduleModel, laundryTripSkipsModel, laundryManualAdditionsModel, laundryExtraTripsModel,
+    settingsModel: { read: () => ({}) }, linenInventoryModel: { simulate: () => null }, today: () => '2026-06-01',
   });
   return { db, model, controller };
+}
+
+// The cards of the Planning for a window, listed as `laundryDays` (date + card) the way the former summary
+// endpoint listed them — only the dates the server decides to draw (specs/linen-laundry-days.md rule 13).
+function callDays(controller, from, to, res) {
+  controller.laundryDays({ query: { from, to } }, res);
+  res.body = { laundryDays: Object.entries(res.body.days).map(([date, card]) => ({ date, ...card })) };
 }
 
 function makeRes() {
@@ -164,7 +178,7 @@ test('END-TO-END: Adrien\'s prod scenario produces the exact expected dropOff fo
 
   // Hit the controller for the window that contains the 2026-06-09 laundry day.
   const res = makeRes();
-  controller.laundrySummary({ query: { from: '2026-06-09', to: '2026-06-09' } }, res);
+  callDays(controller, '2026-06-09', '2026-06-09', res);
 
   assert.equal(res.statusCode, 200);
   assert.equal(res.body.laundryDays.length, 1);
@@ -181,7 +195,14 @@ test('END-TO-END: Adrien\'s prod scenario produces the exact expected dropOff fo
     pickUp: {
       singleBeds: 0, doubleBeds: 0, babyBeds: 0,
       largeTowels: 0, mediumTowels: 0, smallTowels: 0, bathMats: 0,
+      fromTrips: [],
     },
+    stillAtLaundry: [],
+    isSkipped: false,
+    inventoryAfter: null,
+    manualAddition: null,
+    extraTrip: null,
+    leftAtLaundry: null,
   });
 });
 
@@ -200,7 +221,7 @@ test('END-TO-END: linenIncludesBaby = 0 on the option hides baby beds in the pay
   linkOption(db, r, db.prepare("SELECT id FROM options WHERE autoOptionType='bed_linen'").get().id);
 
   const res = makeRes();
-  controller.laundrySummary({ query: { from: '2026-06-09', to: '2026-06-09' } }, res);
+  callDays(controller, '2026-06-09', '2026-06-09', res);
   assert.deepEqual(res.body.laundryDays[0].dropOff, {
     singleBeds: 2, doubleBeds: 1, babyBeds: 0, // 5 baby beds NOT counted
     largeTowels: 0, mediumTowels: 0, smallTowels: 0, bathMats: 0, incomplete: [],
@@ -218,7 +239,7 @@ test('END-TO-END: towelMediumPerPerson = 2 ADDS a medium counter all the way to 
   linkOption(db, r, bathId, 1);
 
   const res = makeRes();
-  controller.laundrySummary({ query: { from: '2026-06-09', to: '2026-06-09' } }, res);
+  callDays(controller, '2026-06-09', '2026-06-09', res);
   assert.deepEqual(res.body.laundryDays[0].dropOff, {
     singleBeds: 0, doubleBeds: 0, babyBeds: 0,
     largeTowels: 4, mediumTowels: 8, smallTowels: 4, bathMats: 0, incomplete: [],
@@ -239,7 +260,7 @@ test('END-TO-END: pickUp(L) equals dropOff(L - 7 days) — sliding window across
   linkOption(db, r, bedId);
 
   const res = makeRes();
-  controller.laundrySummary({ query: { from: '2026-06-09', to: '2026-06-16' } }, res);
+  callDays(controller, '2026-06-09', '2026-06-16', res);
   assert.equal(res.body.laundryDays.length, 2);
   // L = 2026-06-09: drop-off = 3+2.
   assert.equal(res.body.laundryDays[0].date, '2026-06-09');
@@ -268,11 +289,9 @@ test('END-TO-END: kind=devis reservations are excluded from both bed and bathroo
   linkOption(db, r, bathId, 1);
 
   const res = makeRes();
-  controller.laundrySummary({ query: { from: '2026-06-09', to: '2026-06-09' } }, res);
-  assert.deepEqual(res.body.laundryDays[0].dropOff, {
-    singleBeds: 0, doubleBeds: 0, babyBeds: 0,
-    largeTowels: 0, mediumTowels: 0, smallTowels: 0, bathMats: 0, incomplete: [],
-  });
+  callDays(controller, '2026-06-09', '2026-06-09', res);
+  // Nothing counts, so there is nothing to draw on that Tuesday (specs/linen-laundry-days.md rule 13).
+  assert.deepEqual(res.body.laundryDays, []);
 });
 
 // --- Window boundary ---
@@ -290,7 +309,7 @@ test('END-TO-END: checkout on the START of the window goes to the PREVIOUS batch
   linkOption(db, r, bedId);
 
   const res = makeRes();
-  controller.laundrySummary({ query: { from: '2026-06-09', to: '2026-06-09' } }, res);
+  callDays(controller, '2026-06-09', '2026-06-09', res);
   // Drop-off on 06-09 = sums (06-02, 06-09]. 06-02 is excluded.
   assert.equal(res.body.laundryDays[0].dropOff.singleBeds, 0);
 });
@@ -318,11 +337,9 @@ test('END-TO-END: property default of a VISIBLE option does NOT lift an unticked
   ).run(10, bedId);
 
   const res = makeRes();
-  controller.laundrySummary({ query: { from: '2026-06-09', to: '2026-06-09' } }, res);
-  assert.deepEqual(res.body.laundryDays[0].dropOff, {
-    singleBeds: 0, doubleBeds: 0, babyBeds: 0,
-    largeTowels: 0, mediumTowels: 0, smallTowels: 0, bathMats: 0, incomplete: [],
-  });
+  callDays(controller, '2026-06-09', '2026-06-09', res);
+  // Nothing counts, so there is nothing to draw on that Tuesday (specs/linen-laundry-days.md rule 13).
+  assert.deepEqual(res.body.laundryDays, []);
 });
 
 test('END-TO-END: explicit reservation_options row STILL wins over the property default', () => {
@@ -352,7 +369,7 @@ test('END-TO-END: explicit reservation_options row STILL wins over the property 
   ).run(10, bedDefault);
 
   const res = makeRes();
-  controller.laundrySummary({ query: { from: '2026-06-09', to: '2026-06-09' } }, res);
+  callDays(controller, '2026-06-09', '2026-06-09', res);
   assert.deepEqual(res.body.laundryDays[0].dropOff, {
     singleBeds: 2, doubleBeds: 1, babyBeds: 0, // baby suppressed by the explicit row
     largeTowels: 0, mediumTowels: 0, smallTowels: 0, bathMats: 0, incomplete: [],
@@ -368,7 +385,7 @@ test('END-TO-END: explicit reservation_options row STILL wins over the property 
 
 test('END-TO-END: skipping a laundry day defers BOTH drop-off and pick-up to the next non-skipped card', () => {
   const { db, controller } = makeStack({
-    laundryWeekday: 2,
+    schedule: constantSchedule(2),
     skippedDates: ['2026-06-02'], // Tuesday 2026-06-02 marked as not-made.
   });
   const { bedId, bathId } = seedSeeds(db);
@@ -393,7 +410,7 @@ test('END-TO-END: skipping a laundry day defers BOTH drop-off and pick-up to the
   linkOption(db, rB, bathId, 1.0);
 
   const res = makeRes();
-  controller.laundrySummary({ query: { from: '2026-06-02', to: '2026-06-09' } }, res);
+  callDays(controller, '2026-06-02', '2026-06-09', res);
   const byDate = Object.fromEntries(res.body.laundryDays.map((d) => [d.date, d]));
 
   // The skipped card emits zeros — the client masks it with the "Voyage non réalisé" caption.
@@ -401,7 +418,7 @@ test('END-TO-END: skipping a laundry day defers BOTH drop-off and pick-up to the
     singleBeds: 0, doubleBeds: 0, babyBeds: 0, largeTowels: 0, mediumTowels: 0, smallTowels: 0, bathMats: 0,
     incomplete: [],
   });
-  assert.deepEqual(byDate['2026-06-02'].pickUp, {
+  assert.deepEqual(counts(byDate['2026-06-02'].pickUp), {
     singleBeds: 0, doubleBeds: 0, babyBeds: 0, largeTowels: 0, mediumTowels: 0, smallTowels: 0, bathMats: 0,
   });
 
@@ -426,7 +443,7 @@ test('END-TO-END: skipping a laundry day defers BOTH drop-off and pick-up to the
 test('END-TO-END: an extra trip on Thursday between two Tuesdays — summary ledger and inventory engine agree', () => {
   const { simulateInventory } = require('../linenInventory');
   const { db, controller } = makeStack({
-    laundryWeekday: 2,
+    schedule: constantSchedule(2),
     extraTrips: [{ date: '2026-06-04', pickUpAll: false, pickUp: { singleBeds: 1, doubleBeds: 9, babyBeds: 0, largeTowels: 0, mediumTowels: 0, smallTowels: 0, bathMats: 0 } }],
   });
   const { bedId } = seedSeeds(db);
@@ -443,7 +460,7 @@ test('END-TO-END: an extra trip on Thursday between two Tuesdays — summary led
   linkOption(db, rC, bedId, 1);
 
   const res = makeRes();
-  controller.laundrySummary({ query: { from: '2026-06-02', to: '2026-06-09' } }, res);
+  callDays(controller, '2026-06-02', '2026-06-09', res);
   assert.deepEqual(res.body.laundryDays.map((d) => [d.date, d.kind]), [
     ['2026-06-02', 'regular'], ['2026-06-04', 'extra'], ['2026-06-09', 'regular'],
   ]);
@@ -451,15 +468,15 @@ test('END-TO-END: an extra trip on Thursday between two Tuesdays — summary led
 
   // Thursday: drops B (2 doubles), takes back 1 single (declared) + 1 double (9 declared, 1 there).
   const thu = byDate['2026-06-04'];
-  assert.equal(thu.pickUpAll, false);
+  assert.equal(thu.extraTrip.pickUpAll, false);
   assert.deepEqual(thu.dropOff, { singleBeds: 0, doubleBeds: 2, babyBeds: 0, largeTowels: 0, mediumTowels: 0, smallTowels: 0, bathMats: 0, incomplete: [] });
-  assert.deepEqual(thu.pickUp, { singleBeds: 1, doubleBeds: 1, babyBeds: 0, largeTowels: 0, mediumTowels: 0, smallTowels: 0, bathMats: 0 });
+  assert.deepEqual(counts(thu.pickUp), { singleBeds: 1, doubleBeds: 1, babyBeds: 0, largeTowels: 0, mediumTowels: 0, smallTowels: 0, bathMats: 0 });
   assert.deepEqual(thu.leftAtLaundry, { singleBeds: 1, doubleBeds: 0, babyBeds: 0, largeTowels: 0, mediumTowels: 0, smallTowels: 0, bathMats: 0 });
 
   // Tuesday 06-09: drops only C (since the Thursday), takes back the remainder (1 single) + B (2 doubles).
   const tue = byDate['2026-06-09'];
   assert.deepEqual(tue.dropOff, { singleBeds: 1, doubleBeds: 0, babyBeds: 1, largeTowels: 0, mediumTowels: 0, smallTowels: 0, bathMats: 0, incomplete: [] });
-  assert.deepEqual(tue.pickUp, { singleBeds: 1, doubleBeds: 2, babyBeds: 0, largeTowels: 0, mediumTowels: 0, smallTowels: 0, bathMats: 0 });
+  assert.deepEqual(counts(tue.pickUp), { singleBeds: 1, doubleBeds: 2, babyBeds: 0, largeTowels: 0, mediumTowels: 0, smallTowels: 0, bathMats: 0 });
 
   // The inventory engine, fed the same rows, tells the same story day by day.
   const reservations = db.prepare('SELECT id, kind, propertyId, startDate, endDate, singleBeds, doubleBeds, babyBeds, adults, teens, children FROM reservations').all();
@@ -468,7 +485,7 @@ test('END-TO-END: an extra trip on Thursday between two Tuesdays — summary led
   const sim = simulateInventory({
     stock: { single: 10, double: 10, baby: 10, large: 0, medium: 0, small: 0 },
     reservations, options, reservationOptions, propertyDefaults: [],
-    laundryWeekday: 2, from: '2026-05-26', to: '2026-06-10',
+    schedule: constantSchedule(2), from: '2026-05-26', to: '2026-06-10',
     extraTripsByDate: new Map([['2026-06-04', { pickUpAll: false, pickUp: { single: 1, double: 9 } }]]),
   });
   const day = (iso) => sim.days.find((d) => d.date === iso);

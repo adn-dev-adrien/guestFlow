@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const { createTripLedger, emptyBlock } = require('../laundryTripLedger');
+const { constantSchedule } = require('./laundry-schedule-fixtures');
 
 // specs/laundry-extra-trip.md §3.2 — the pure trip-sequence + pool ledger, driven with an injected
 // `buildBlock` fake keyed by window, so every assertion reads as "which window, which pool".
@@ -10,6 +11,10 @@ const { createTripLedger, emptyBlock } = require('../laundryTripLedger');
 // Tuesdays; 06-04 is a Thursday, 06-06 a Saturday.
 
 const TUESDAY = 2;
+
+// The pick-up also names the drop dates it comes from (specs/linen-laundry-days.md rule 11); the
+// pre-feature assertions below are about the quantities.
+const counts = ({ fromTrips, ...quantities }) => quantities;
 
 function zeros(over = {}) {
   return { ...emptyBlock(), ...over };
@@ -25,7 +30,7 @@ function makeLedger({ windows = {}, skipped = [], extras = [], incompleteFn } = 
   const incompleteCalls = [];
   const incompleteFor = incompleteFn || ((start, end) => { incompleteCalls.push({ start, end }); return []; });
   const ledger = createTripLedger({
-    weekday: TUESDAY, skippedDates: new Set(skipped), extraTrips: extras, buildBlock, incompleteFor,
+    schedule: constantSchedule(TUESDAY), skippedDates: new Set(skipped), extraTrips: extras, buildBlock, incompleteFor,
   });
   return { ledger, calls, incompleteCalls };
 }
@@ -40,7 +45,7 @@ test('no extra trip: regular entry = drop (prev, T] + pick-up = drop (prevPrev, 
   const e = ledger.entryFor('2026-06-09');
   assert.equal(e.kind, 'regular');
   assert.deepEqual(e.dropOff, { ...zeros({ singleBeds: 2 }), incomplete: [] });
-  assert.deepEqual(e.pickUp, zeros({ singleBeds: 5 }));
+  assert.deepEqual(counts(e.pickUp), zeros({ singleBeds: 5 }));
   // Call order pinned: the drop-off window first, then the previous trip's window.
   assert.deepEqual(calls, [
     { start: '2026-06-02', end: '2026-06-09' },
@@ -51,7 +56,9 @@ test('no extra trip: regular entry = drop (prev, T] + pick-up = drop (prevPrev, 
 test('skipped regular day: zeros, kind regular, no model call', () => {
   const { ledger, calls, incompleteCalls } = makeLedger({ skipped: ['2026-06-09'] });
   const e = ledger.entryFor('2026-06-09');
-  assert.deepEqual(e, { date: '2026-06-09', kind: 'regular', dropOff: { ...zeros(), incomplete: [] }, pickUp: zeros() });
+  assert.deepEqual(e, {
+    date: '2026-06-09', kind: 'regular', dropOff: { ...zeros(), incomplete: [] }, pickUp: { ...zeros(), fromTrips: [] }, stillAtLaundry: [],
+  });
   assert.equal(calls.length, 0);
   assert.equal(incompleteCalls.length, 0);
 });
@@ -69,13 +76,13 @@ test('extra trip (pickUpAll) between two Tuesdays: takes the dirty pile since Tu
   assert.equal(extra.kind, 'extra');
   assert.equal(extra.pickUpAll, true);
   assert.deepEqual(extra.dropOff, { ...zeros({ singleBeds: 2 }), incomplete: [] });
-  assert.deepEqual(extra.pickUp, zeros({ singleBeds: 5, largeTowels: 4 }));
+  assert.deepEqual(counts(extra.pickUp), zeros({ singleBeds: 5, largeTowels: 4 }));
   assert.deepEqual(extra.leftAtLaundry, zeros());
 
   const tue = ledger.entryFor('2026-06-09');
   assert.deepEqual(tue.dropOff, { ...zeros({ singleBeds: 3 }), incomplete: [] });
   // Pool before 06-09 = (drop(06-02) − all taken on 06-04) + drop(06-04) = drop(06-04).
-  assert.deepEqual(tue.pickUp, zeros({ singleBeds: 2 }));
+  assert.deepEqual(counts(tue.pickUp), zeros({ singleBeds: 2 }));
 });
 
 test('partial pick-up: capped per type, remainder stays and returns on the next regular trip', () => {
@@ -90,12 +97,12 @@ test('partial pick-up: capped per type, remainder stays and returns on the next 
   });
   const extra = ledger.entryFor('2026-06-04');
   assert.equal(extra.pickUpAll, false);
-  assert.deepEqual(extra.pickUp, zeros({ singleBeds: 1, doubleBeds: 2 }));
+  assert.deepEqual(counts(extra.pickUp), zeros({ singleBeds: 1, doubleBeds: 2 }));
   assert.deepEqual(extra.leftAtLaundry, zeros({ singleBeds: 2 }));
 
   const tue = ledger.entryFor('2026-06-09');
   // Pool before 06-09 = remainder (2 singles) + drop(06-04) (1 single).
-  assert.deepEqual(tue.pickUp, zeros({ singleBeds: 3 }));
+  assert.deepEqual(counts(tue.pickUp), zeros({ singleBeds: 3 }));
   assert.deepEqual(tue.dropOff, { ...zeros({ doubleBeds: 4 }), incomplete: [] });
 });
 
@@ -115,11 +122,11 @@ test('two extra trips in the same week chain their windows and pools', () => {
   const e2 = ledger.entryFor('2026-06-06');
   assert.deepEqual(e2.dropOff, { ...zeros({ singleBeds: 1 }), incomplete: [] });
   // Pool before 06-06 = (5 − 4) + drop(06-04) = 1 + 2 = 3.
-  assert.deepEqual(e2.pickUp, zeros({ singleBeds: 3 }));
+  assert.deepEqual(counts(e2.pickUp), zeros({ singleBeds: 3 }));
   assert.deepEqual(e2.leftAtLaundry, zeros());
   const tue = ledger.entryFor('2026-06-09');
   assert.deepEqual(tue.dropOff, { ...zeros({ singleBeds: 7 }), incomplete: [] });
-  assert.deepEqual(tue.pickUp, zeros({ singleBeds: 1 }));
+  assert.deepEqual(counts(tue.pickUp), zeros({ singleBeds: 1 }));
 });
 
 test('extra trip after a skipped Tuesday: its window reaches back across the skip and it takes the deferred pool', () => {
@@ -134,10 +141,10 @@ test('extra trip after a skipped Tuesday: its window reaches back across the ski
   });
   const extra = ledger.entryFor('2026-06-04');
   assert.deepEqual(extra.dropOff, { ...zeros({ singleBeds: 6 }), incomplete: [] });
-  assert.deepEqual(extra.pickUp, zeros({ singleBeds: 9 }));
+  assert.deepEqual(counts(extra.pickUp), zeros({ singleBeds: 9 }));
   const tue = ledger.entryFor('2026-06-09');
   assert.deepEqual(tue.dropOff, { ...zeros({ singleBeds: 1 }), incomplete: [] });
-  assert.deepEqual(tue.pickUp, zeros({ singleBeds: 6 }));
+  assert.deepEqual(counts(tue.pickUp), zeros({ singleBeds: 6 }));
 });
 
 test('an extra trip stored on the laundry weekday is inert', () => {
@@ -148,7 +155,7 @@ test('an extra trip stored on the laundry weekday is inert', () => {
   assert.deepEqual(ledger.extraDates, []);
   const e = ledger.entryFor('2026-06-09');
   assert.equal(e.kind, 'regular');
-  assert.deepEqual(e.pickUp, zeros({ singleBeds: 5 }));
+  assert.deepEqual(counts(e.pickUp), zeros({ singleBeds: 5 }));
 });
 
 test('entryFor on a plain day (no trip) returns null', () => {

@@ -8,13 +8,15 @@
  *
  * UX: one `AttentionCard` (title, count and « N types en rupture à partir du … » from the server,
  * specs/shell-and-home-day-first.md rule 6), body grouped by linen type. Each type
- * shows: first shortage date, max missing quantity, clickable reservation chips that navigate
- * to the reservation page on click.
+ * shows: the first spell of the shortage (« du mer. 13 au lun. 23 nov. », or « à partir du … » while it runs
+ * at the horizon), a mention when another spell follows (specs/linen-laundry-days.md rule 18), max missing quantity, clickable reservation chips
+ * that navigate to the reservation page on click.
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import { Box, Typography, Stack, Chip } from '@mui/material';
 import { useNavigate } from 'react-router';
-import { api, displayDateLong, AttentionCard } from '../sdk';
+import { api, AttentionCard } from '../sdk';
+import { formatDayRange, formatDayShort } from './formatLinen';
 
 export default function LinenShortageAlert({ attention }) {
   const navigate = useNavigate();
@@ -44,7 +46,11 @@ export default function LinenShortageAlert({ attention }) {
           <Box key={entry.type}>
             <Typography variant="body2" color="text.secondary">
               <strong>{entry.label}</strong> : jusqu&apos;à <strong>{entry.maxMissing} manquant{entry.maxMissing > 1 ? 's' : ''}</strong>
-              {' · '}première rupture le <strong>{displayDateLong(entry.firstShortageDate)}</strong>
+              {' · '}
+              {entry.lastShortageDate
+                ? <strong>{formatDayRange(entry.firstShortageDate, entry.lastShortageDate)}</strong>
+                : <>à partir du <strong>{formatDayShort(entry.firstShortageDate)}</strong></>}
+              {entry.laterShortage && ' · puis d’autres périodes'}
             </Typography>
             {entry.impactedReservations.length > 0 && (
               <Box sx={{ mt: 0.75 }}>
