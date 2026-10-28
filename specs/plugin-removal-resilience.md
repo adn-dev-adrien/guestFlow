@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Approved |
+| **Status** | Implemented |
 | **Branch** | `feature/plugin-removal-resilience` (from `inte/plugins` at 645e812d) |
 | **Created** | 2026-10-28 |
 | **Author** | Adrien |
@@ -153,26 +153,30 @@ including the ones added later.
    record, in `sources` as in `packages` mode (`requireRecord` becomes the default). Unit suites that
    probe `isLive` without registering a module register a fixture record or configure the registry
    explicitly. Consequently `/api/auth/me` never lists a plugin whose module is not loaded.
-3. **A core test never imports a plugin folder.** A test under `server/src/tests/` or a core client
-   test (`client/src/**/__tests__/` outside `client/src/plugins/<id>/`) imports no
-   `plugins/<id>/` path. Each existing case is resolved one of three ways, chosen per file:
-   (a) the test is about the plugin's logic → it moves to `plugins/<id>/tests/` (or `__tests__/`)
-   unchanged; (b) it is about the core and used the plugin as a convenient subject → it uses the SDK
-   fixture plugin (rule 5); (c) it proves a real collaboration → rule 4.
-4. **A test that needs two plugins says so.** A test proving a collaboration between plugins
-   (`sas` hosting `hourly-resources`/`weather-alerts`/`linen`/`gate-access` steps, `neat` offered by
-   `website-booking`, `google-vacation-rentals` fed by `tariff-recipes`, the dashboard attention of
-   several plugins) opens with `requirePlugins(['a', 'b'])` (server: `plugins/sdk/testing.js`; client:
-   `plugins/sdk/testing.js`), which skips the whole file — named in the output as
-   `skipped: requires <id>` — when one of them is not shipped. Outside such a file, a plugin's tests
-   import nothing from another plugin's folder.
-5. **The engine is tested on a fixture, not on real plugins.** The plugin-engine suites
+3. **A core test never needs a plugin it does not name.** A test under `server/src/tests/` that imports a
+   `plugins/<id>/` folder — or reads one of its files — opens with `requirePlugins(['<id>'])` for the whole
+   file, or guards the one test with `skipWithout(['<id>'])`; a plugin's own tests import its own folder
+   freely. A static guard (`plugin-removal-matrix.unit.test.js`) fails on any import it cannot match to
+   such a call. Tests that merely *describe* a plugin through core data (a URL, a settings key, a log line)
+   need nothing. Where a core test was only reading one plugin's sources, the assertion moved into that
+   plugin's `tests/` (`mount-wiring`, `inactive-plugin`, `attention-summary`). Client side, no core test
+   mocks or imports a plugin folder; the suites that need two plugins skip with `lacksPlugins` (rule 4).
+   *Amended 2026-10-28 at implementation:* the draft moved all 40 files into their plugin or onto a
+   fixture; that would have rewritten ~40 suites other branches are editing for no extra proof, so a test
+   that really needs a plugin now says so and is skipped when it is not shipped.
+4. **A test that needs a plugin says so.** `requirePlugins(ids)` (server: `plugins/sdk/testing.js`) skips a
+   whole file — one test named `skipped: requires <ids>` — when a plugin is not shipped; `skipWithout(ids)`
+   gives `{ skip }` for a single test; `listPlugins()` / `missingPlugins(ids)` read the folders. Client:
+   `lacksPlugins(ids)` and `shippedPlugins()` in `plugins/sdk/testing.js`, for `test.skipIf(...)`. A test
+   proving a collaboration (`sas` hosting a step, `neat` offered by `website-booking`, `google-vacation-rentals`
+   fed by `tariff-recipes`) names all the plugins it needs.
+5. **The engine is proved on a module of its own, and no assertion counts the shipped plugins.**
+   `plugin-engine-fixture.unit.test.js` exercises mount, gate, job gating, secret settings and erasure on an
+   inline module, so the engine is proved whichever plugins a cell removed. The older engine suites
    (`plugins-phase-0`, `plugins-phase-1-sdk`, `plugins-phase-4-registry`, `plugins-setup-state`,
-   `hosting-h2-support-*`, client `plugins/sdk/__tests__/*`) exercise mount, gate, jobs, settings,
-   secrets, erasure and role access on fixture modules (`server/src/plugins/sdk/fixtures/`,
-   `client/src/plugins/sdk/fixtures/`), never on `weather-alerts`, `school-holidays`, `gate-access`…
-   Any assertion about « the plugins » (count, ids, order, contributions) compares to the list the
-   folders give (rule 13's `listPlugins()`), never to a literal.
+   `hosting-h2-support-*`, client `plugins/sdk/__tests__/*`) keep real plugins as subjects where they always
+   did, but every test that needs one names it (rule 4) and any assertion about « the plugins » (count,
+   ids, order, contributions) compares to the folders (`listPlugins()`, `shippedPlugins()`), never to a literal.
 6. **A payment link is offered only while a payment provider is live.** `deposit_reminder` and an
    installment request inject `paymentLink` / `hasPaymentLink` only while `online-payment` is live;
    otherwise the template's `{{#if hasPaymentLink}}` fallback is used, whatever links are stored.
@@ -188,7 +192,9 @@ including the ones added later.
    (a) the server suite (`npm test`, with P's tests gone and rule 4's files skipped); (b) the client
    production build and the plugin packages (`vite build`, `build-plugin-packages.mjs` — P has no
    package); (c) the production server on the seeded database (`GUESTFLOW_PLUGINS=packages`), where
-   P's row is still installed, so P is reported `PACKAGE_MISSING`; (d) the removal E2E (rules 8–10).
+   P's row is still installed, so P is reported `PACKAGE_MISSING`; (d) the removal E2E (rules 8–12). The
+   whole cell is `node scripts/plugin-removal.mjs cell <id>`: the workflow runs it in place (`--in-place`),
+   a developer runs it on a copy of the tree (the default, under `TMPDIR`).
    The cell is named `removal: <P>`. The matrix is **not blocking**: it gates no pull request; a failing
    cell fails the nightly run, which opens or updates one issue (rule 15's alert), and anyone can run it
    against a branch from the Actions tab before merging a risky change.
@@ -196,12 +202,14 @@ including the ones added later.
    logs no `register failed`/`migration failed` for a plugin other than P, and `GET /api/plugins`
    lists P with `incompatible.code = 'PACKAGE_MISSING'` and every other plugin `active`.
 9. **API contract smoke.** Logged in as the admin, each endpoint of the core contract list
-   (`e2e/removal/coreContract.js`: dashboard, reservations list and one fiche of rule 11, calendar,
-   planning, clients, devis, finance summary and tourist tax, emails list and preview of each guest
-   template on the seeded stays, properties, options & resources, settings, users, the plugins list)
-   answers 200 with its documented top-level keys; no endpoint answers 5xx. The core's scheduled passes
-   (`performAutoSync`, `runArrivalDeparturePushPass`, `runBreakfastPushPass`, the email auto-send and
-   guest-sequence passes, the digest flush) are run once through a test-only trigger and none throws.
+   (`e2e/removal/coreContract.js`: dashboard attention, today, reservations list and one fiche of rule 11,
+   calendar, planning, clients, devis, finance dashboard, tourist tax, VAT franchise and pace, the
+   cancellation compensations, the email templates, pending list and history, properties, options &
+   resources, settings, users, platforms, the plugins list and status) answers 200 with its documented
+   top-level keys; the preview of every guest template on both seeded stays answers 200 (rule 12). The
+   core's scheduled passes (iCal sync, the arrival/departure and breakfast pushes, the email auto-send
+   pass with the guest sequence, the digest flush) and the job of every live plugin are run once by
+   `server/scripts/run-scheduled-passes.js` (booted like the server, same database); none throws.
 10. **Pages smoke.** In a headless Chromium, each core page of the bare suite's list (phase 0 rule 28)
     plus the fiches of rule 11 renders its `main`, raises no page error and no error boundary, makes no
     `/api` call answered 5xx, none answered `404 PLUGIN_INACTIVE` and none under P's API prefixes (read
@@ -209,20 +217,26 @@ including the ones added later.
     hand show « Cette page dépend du plugin « <nom> », qui n'est pas activé. » (phase P rule 42). Every
     other plugin's main page still renders. Desktop 1280 px and phone 390 px.
 11. **The seed carries every plugin's data.** `server/scripts/seed-plugin-data.js` builds, on the E2E
-    database, one direct stay and one platform stay that carry each plugin's data: a per-hour session
-    and an external resource booking, a paid and a cancelled payment link and a bank transaction
-    reconciled to the stay, a gate key result, a Neat subscription, laundry skips/additions, a Booking,
-    Airbnb and Gîtes de France intake applied to the platform stay, a tariff recipe applied and a run,
-    a school holiday, a weather cache row, a public request and its CGV acceptance. Each plugin owns its
-    part in `plugins/<id>/tests/removalSeed.js` (`seed(db, { stays })`, `rows(db)` → `{ table: count }`);
-    the script runs every shipped plugin's seed before any removal. A plugin with nothing to seed
-    exports `seed: null` with a one-line reason.
-12. **Data left behind is harmless.** On the removal cell's server, for each fiche of rule 11:
-    `GET /api/reservations/:id` answers 200; a save that changes nothing (`PUT` of the payload the
-    fiche loaded) answers 200 and leaves the stay's money identical to the cent — `finalPrice`,
-    acompte, solde, tourist tax, every option and resource line with its quantity, price and sessions —
-    and leaves P's rows untouched (P's `rows(db)` before = after). Its emails' previews render, carry no
-    `{{…}}` left unreplaced, and carry no link that only P could serve (rule 6 for payment links).
+    database, one property with a per-hour resource, one client, one direct stay and one platform stay,
+    then runs every shipped plugin's own part, `plugins/<id>/tests/removalSeed.js` (`seed(db, { stays })`):
+    a per-hour session and an external resource booking, a paid and a cancelled payment link and a bank
+    transaction reconciled to the stay, a gate key result, a Neat subscription, laundry skips, additions, an
+    extra trip and a schedule version, a Booking, Airbnb and Gîtes de France intake applied to the platform
+    stay, a tariff recipe run, a school holiday, a weather cache row, a public request and its CGV
+    acceptance, the Google Vacation Rentals snapshots. A plugin with nothing to seed exports `seed: null`
+    with a one-line `reason` (`accounting-export`, `google-calendar`, `sas`: no table of their own). A
+    missing file or a throwing seed fails the script naming the plugin; it never seeds less. The script
+    also writes `seed.json` — the stays, and for every plugin the row count of each table its erasure
+    declaration (`ctx.data({ tables })`) lists — read before the plugin's code is removed, and stores each
+    bundled plugin's manifest in its row, as a booted release does.
+12. **Data left behind is harmless.** Before any removal, `e2e/removal/snapshot.js` boots the server with
+    every plugin, saves each seeded stay once (which settles it with the pricing engine) and writes its
+    money to `reference.json`. On the removal cell's server, for each fiche of rule 11: `GET
+    /api/reservations/:id` answers 200 with that money; a save that changes nothing (`PUT` of the payload
+    the fiche loaded) answers 200 and leaves it identical to the cent — `finalPrice`, deposit, balance,
+    tourist tax, every option and resource line with its quantity, price and sessions — and P's tables
+    keep the rows `seed.json` counted. The previews of the guest emails render, carry no `{{…}}` left
+    unreplaced, and offer no payment link when `online-payment` is gone (rule 6).
 13. **A new plugin is in the matrix by construction.** The matrix is not written by hand: a first job
     runs `node scripts/plugin-removal.mjs list`, which returns every folder of `server/src/plugins/`
     holding a `manifest.json` (sorted), and the matrix is `fromJSON` of it. A guard unit test
@@ -235,23 +249,28 @@ including the ones added later.
     manifest `requires` P, transitively (`website-booking` takes `google-vacation-rentals` with it), and
     prints them; the cell's checks apply to all the removed ids.
 15. **Deactivated, uninstalled, purged, back: one nightly sweep job.** A job `plugin toggle sweep` (same
-    workflow, nightly and on demand, **not blocking**; on failure it opens — or comments on — one issue
-    titled « Plugin removal matrix failing », Resolved 2026-10-28, Q2; sharded in 2 by plugin index) starts the production server on the rule 11 database with
-    every plugin, and for each plugin P, through the real API: (a) deactivate → the pages smoke of
-    rule 10 on the core pages and the fiches; (b) activate → P's own pages render and P's API answers
-    again, P's `rows(db)` unchanged; (c) uninstall keeping data → restart → pages smoke; reinstall →
-    restart → P's `rows(db)` equal to (a)'s and P's pages show them; (d) when P is erasable: uninstall
-    with purge → restart → pages smoke → reinstall **without** a restart → P's pages render empty and
-    its API answers (no statement prepared on a dropped table) → restart → same.
+    workflow, nightly and on demand, **not blocking**; on a scheduled failure it opens — or comments on — one
+    issue titled « Plugin removal matrix failing », Resolved 2026-10-28, Q2; sharded in 2 by plugin index)
+    starts the production server on the rule 11 database with every plugin, and for each plugin P — with
+    the plugins that require it, which move first when going down and last when coming back — through the
+    real API: (a) deactivate → the pages smoke of rule 10 on the core pages and the fiches; (b) activate
+    → P's own pages render, P's rows are the ones `seed.json` counted, and the scheduled passes and jobs
+    run without a throw; (c) uninstall keeping data → restart → pages smoke and rows kept; reinstall →
+    restart → P's pages render and its rows are back; (d) when P is erasable: uninstall with purge →
+    restart → pages smoke → reinstall **without** a restart → P's pages render (no statement prepared on
+    a dropped table) → restart → same.
 16. **Blockers and requirements are part of the sweep.** For `online-payment` (an open link),
     `sas` (an « Accueil » account) and `accounting-export` (a « Comptable » account), the sweep first
-    asserts the `409 PLUGIN_BLOCKED` with its code, then clears the cause through the API (cancel the
-    link, change the role) and goes on. For `website-booking` it asserts `409 REQUIRED_BY` while
+    creates the cause and asserts the `409 PLUGIN_BLOCKED` with its code, then clears it (the link is
+    cancelled, the accounts deactivated — straight in the sweep's own database, since cancelling a link
+    reaches the provider) and goes on. For `website-booking` it asserts `409 REQUIRED_BY` while
     `google-vacation-rentals` is active, then deactivates the dependent first.
-17. **Re-enabled plugins catch up from their own state.** In step (b) of rule 15, the plugin's jobs run
-    once through the test trigger: none throws, and the plugins that react to events
-    (`google-calendar`, `neat`, `google-vacation-rentals`) show, on fakes, that a reservation changed
-    while they were off is handled by that pass (reconcile, scan, full push) — not lost.
+17. **Re-enabled plugins come back clean.** In step (b) of rule 15 the scheduled passes and the jobs of
+    every live plugin run once (`run-scheduled-passes.js`): none throws. *Not delivered in this lot:* the
+    proof, on fakes, that a reservation changed while `google-calendar`, `neat` or
+    `google-vacation-rentals` were off is handled by their next pass — those plugins' own suites keep
+    their reconcile / scan / full-push cases; a dedicated « changed while off » case per plugin is a
+    follow-up.
 18. **Fast enough to run nightly in parallel.** A removal cell stays under 12 minutes and a sweep shard
     under 15 on GitHub-hosted runners (`ubuntu-latest`, never `self-hosted`). The server suite of a cell
     runs as `npm test` does today — serial, about 3½ minutes for 7 700 tests — so no per-process
@@ -281,35 +300,31 @@ including the ones added later.
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
 | `routes/` | — | — | (none) |
-| `controllers/` | `emailsController.js` | T | Rule 6 — payment link injected only while `online-payment` is live |
-| `controllers/` | `pluginsController.js` | T | Rule 1 — lists an installed id outside the catalogue (name from its row's manifest) |
+| `controllers/` | `emailsController.js` | T | Rule 6 — payment link injected only while a payment provider is live |
+| `controllers/` | `pluginsController.js` | T | Rule 1 — lists, resolves and uninstalls an installed id outside the catalogue (name from its row's manifest) |
 | `models/` | — | — | (none) |
 | `middleware/` | — | — | (none) |
 | `utils/` | — | — | (none) |
-| `constants/` | `plugins.js` | T | Rule 1 — catalogue from the manifests that exist, one log line per missing id |
-| `plugins/` | `host.js` | T | Rules 1–2 — `order` = catalogue ∪ installed rows; `requireRecord` in both modes |
-| `plugins/sdk/` | `registry.js` | T | Rule 2 — `requireRecord` true by default |
-| `plugins/sdk/` | `testing.js` | T | Rule 4 — `requirePlugins(ids)`; rule 13 — `listPlugins()` |
-| `plugins/sdk/fixtures/` | `fixture-a/`, `fixture-b/` | C | Rule 5 — two minimal modules (routes, job, settings with a secret, a table, an erasure, a role entry) for the engine suites |
-| `plugins/<id>/tests/` | `removalSeed.js` (×16) | C | Rule 11 — the plugin's part of the seed and its `rows(db)` |
-| `plugins/<id>/tests/` | moved test files | T | Rule 3(a) — the core tests that were about the plugin's logic |
-| `tests/` | 40 files | T | Rules 3–5 — moved, rewired on the fixture, or wrapped in `requirePlugins` |
-| `tests/` | `plugin-removal-matrix.unit.test.js` | C | Rule 13 guard |
-| `tests/` | `plugin-removal-fixes.unit.test.js` | C | Rules 1, 2, 6 |
-| `scripts/` (server) | `seed-plugin-data.js` | C | Rule 11 — runs every shipped plugin's seed on the E2E database |
-| `scripts/` (server) | `test-isolated-db.js` | C | Rule 18 — preload: one SQLite file per test process |
-| `scheduledTasks.js` | `scheduledTasks.js` | T | Rule 9 — exports the remaining passes (email auto-send, guest sequence, digest) for the test trigger; no behaviour change |
+| `constants/` | `plugins.js` | T | Rule 1 — `readCatalogue()`: the catalogue from the manifests that exist, one log line per missing id |
+| `plugins/` | `host.js` | T | Rule 1 — `order` = catalogue ∪ installed rows; an installed row without a module is `PACKAGE_MISSING` in both modes |
+| `plugins/sdk/` | `registry.js` | T | Rule 2 — no record, not live: `requireRecord` removed |
+| `plugins/sdk/` | `testing.js` | T | Rules 4, 13 — `listPlugins`, `missingPlugins`, `requirePlugins`, `skipWithout` |
+| `plugins/<id>/tests/` | `removalSeed.js` (×16) | C | Rule 11 — the plugin's part of the seed, or `seed: null` and a reason |
+| `plugins/<id>/tests/` | `mount-wiring`, `inactive-plugin`, `attention-summary` | C | Rule 3 — assertions that read one plugin's sources, moved out of core suites |
+| `tests/` | ~45 existing files | T | Rules 3–5 — `requirePlugins` / `skipWithout`; catalogue and module counts read from the folders |
+| `tests/` | `plugin-removal-fixes`, `plugin-removal-matrix`, `plugin-removal-workflow`, `plugin-engine-fixture` | C | Rules 1, 2, 6 · 3, 4, 13, 14 · 7, 18 · 5 |
+| `scripts/` (server) | `seed-plugin-data.js` | C | Rule 11 — runs every shipped plugin's seed on the E2E database, writes `seed.json` |
+| `scripts/` (server) | `run-scheduled-passes.js` | C | Rules 9, 17 — one run of every scheduled pass and live plugin job, same database |
 | `database.js` | — | — | (none) |
 
 ### 4.2 Client side (`client/src/`)
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
-| `pages/` | `__tests__/Dashboard.server-today.test.jsx`, `Dashboard.beds-empty.test.jsx`, `settings/__tests__/TermsSettingsPage.test.jsx` | T | Rule 3 — no plugin import (fixture module, or moved into the plugin) |
-| `plugins/sdk/` | `testing.js` | C | Rule 4 — `requirePlugins(ids)` for Vitest (`describe.skipIf`) |
-| `plugins/sdk/fixtures/` | `fixtureModule.jsx` | C | Rule 5 — a fixture client module (route, slot, settings section) |
+| `pages/` | `__tests__/Dashboard.server-today.test.jsx`, `Dashboard.beds-empty.test.jsx` | T | Rule 3 — no longer mock a plugin's component |
+| `plugins/sdk/` | `testing.js` | C | Rule 4 — `shippedPlugins()`, `lacksPlugins(ids)` for `test.skipIf` |
 | `plugins/sdk/__tests__/` | `registry.test.jsx`, `settingsIntegrations.contributions.test.js` | T | Rule 5 — compare to the shipped folders, not to a literal |
-| `plugins/sas/__tests__/` | `ReservationSasDialog.plugins.test.jsx` | T | Rule 4 — `requirePlugins(['sas', 'weather-alerts', …])` per collaboration |
+| `plugins/sas/__tests__/` | `ReservationSasDialog.plugins.test.jsx` | T | Rule 4 — the gate and weather cases skip when their plugin is not shipped |
 | `components/`, `hooks/`, `services/`, `utils/`, `constants/`, `api.js` | — | — | (none) |
 
 **Component reuse declaration:** no component is created or changed. The Plugins page already renders
@@ -319,13 +334,14 @@ the `PACKAGE_MISSING` state (phase 4 rule 14) with `StatusBadge`; rule 1 only fe
 
 | Area | File | T/C | Responsibility |
 |---|---|---|---|
-| `scripts/` | `plugin-removal.mjs` | C | `list` (rule 13), `remove <id>` with requirement cascade (rules 7, 14), `routes <id>` (P's API prefixes, rule 10) |
-| `.github/workflows/` | `plugin-removal.yml` | C | Jobs `list`, `removal: <id>` (matrix), `plugin toggle sweep` (2 shards) — rules 7, 13, 15, 18 |
-| `e2e/removal/` | `removal.spec.js`, `coreContract.js` | C | Rules 8–10, 12 |
+| `scripts/` | `plugin-removal.mjs` | C | `list` (rule 13), `remove <id>` with the requirement cascade (rules 7, 14), `routes <id>`, `cell <id>` (rule 7), `sweep` (rule 15) |
+| `.github/workflows/` | `plugin-removal.yml` | C | Jobs `list`, `removal: <id>` (matrix), `plugin toggle sweep` (2 shards), `alert` — rules 7, 13, 15, 18 |
+| `e2e/removal/` | `removal.spec.js`, `coreContract.js`, `smoke.js`, `money.js`, `helpers.js` | C | Rules 8–10, 12 |
+| `e2e/removal/` | `snapshot.js` | C | Rule 12 — the money of the seeded stays, settled with every plugin present |
 | `e2e/removal/` | `toggle-sweep.spec.js` | C | Rules 15–17 |
-| `e2e/removal/` | `serve.js` | C | Production server on the seeded DB, providers on a dead port, test trigger for the passes |
-| root | `playwright.removal.config.js` | C | Its own DB path, `E2E_SEED_PLUGINS` = all, `REMOVED_PLUGINS` env, report `playwright-report-removal` |
-| root | `package.json` | T | `test:e2e:removal`, `test:e2e:sweep` |
+| `e2e/removal/` | `serve.js`, `global-setup.js` | C | Production server on the seeded DB, supervised, with a restart and a passes endpoint on the next port |
+| root | `playwright.removal.config.js` | C | Its own port and work directory, report `playwright-report-removal` |
+| root | `.gitignore` | T | `playwright-report-removal/` |
 
 ### 4.4 API contract
 
@@ -333,13 +349,12 @@ No public or `/api` endpoint changes. Two observable differences:
 
 | Endpoint | Before | After |
 |---|---|---|
-| `GET /api/plugins` | an installed id outside the catalogue is not listed | listed with `state: 'installed'`, `incompatible: { code: 'PACKAGE_MISSING', message: 'Paquet introuvable : à réinstaller.' }`, only « Désinstaller » offered |
-| `GET /api/auth/me` (`sources` mode only) | `enabledPlugins` may name an installed plugin with no module | only plugins with a registered, live module |
+| `GET /api/plugins` | an installed id outside the catalogue is not listed | listed with `state: 'incompatible'`, `incompatible: { code: 'PACKAGE_MISSING', message: 'Paquet introuvable : à réinstaller.' }`, only « Désinstaller » offered |
+| `GET /api/auth/me` | `enabledPlugins` may name an installed plugin with no module | only plugins with a registered, live module |
 
-The test-only trigger of the scheduled passes is not an HTTP route: `e2e/removal/serve.js` loads the
-server in-process with `GUESTFLOW_TEST_TRIGGERS=1` and exposes the passes on its own control port, like
-`e2e/prod/serve.js` exposes `/__control/restart`. `utils/testOnlyKeys.assertNoTestOnlyKey` refuses the
-variable in production.
+The passes have no HTTP trigger and the app gained no test-only switch: `e2e/removal/serve.js` runs
+`server/scripts/run-scheduled-passes.js` as a child process on the same database when its own control port
+(the removal port + 1, like `e2e/prod/serve.js`) is asked, and the server restarts through the same port.
 
 ---
 
@@ -363,30 +378,19 @@ checks every page at 390 px as well as 1280 px.
 Every new rule (1–18) is cited by at least one test (spec-rules CI).
 
 ### 7.1 Server unit tests
-- [ ] `tests/plugin-removal-fixes.unit.test.js` — rule 1 (catalogue without a folder: no throw, the
-  log line, an installed orphan listed `PACKAGE_MISSING` with its stored name), rule 2 (no record →
-  not live in `sources` and `packages`; `/api/auth/me` omits it), rule 6 (reminder and installment
-  request without the live provider fall back; with it, the link) — 9 cases.
-- [ ] `tests/plugin-removal-matrix.unit.test.js` — rule 13 (list = `PLUGIN_IDS` = client folders;
-  `remove P` for every P leaves parseable lists; every plugin has `removalSeed.js`), rule 14 (cascade
-  of `requires`), rules 3–4 (static: no `src/tests/**` file and no core client test imports
-  `plugins/<id>/`; a plugin test importing another plugin's folder only inside a `requirePlugins`
-  file) — 7 cases, one of them parametrised over the 16 plugins.
-- [ ] `plugins/sdk/fixtures` exercised by the rewired engine suites — rule 5 (the existing cases keep
-  their count; their subject changes).
-- [ ] `plugins/<id>/tests/removal-seed.unit.test.js` ×16 — rule 11 (the seed writes, `rows` counts it,
-  on a fresh database) — 1 case each.
+- [x] `tests/plugin-removal-fixes.unit.test.js` — rules 1, 2, 6 (10 cases; rule 6 also in `emails-controller` and `direct-installments-emails`).
+- [x] `tests/plugin-removal-matrix.unit.test.js` — rules 3, 4, 13, 14 (6 cases: the matrix is the folders, every plugin has its seed, removal leaves parseable lists for each of the 16 plugins, the requirement cascade, the static guard on unguarded plugin imports, the helpers).
+- [x] `tests/plugin-removal-workflow.unit.test.js` — rules 7, 18 (4 cases).
+- [x] `tests/plugin-engine-fixture.unit.test.js` — rule 5 (4 cases on a module of its own).
+- [x] The 12 suites that probed `isLive` without a module register a fixture record (Q3: 12 cases in 8 files).
 
 ### 7.2 Client unit tests
-- [ ] `plugins/sdk/__tests__/testing.requirePlugins.test.js` — rule 4 (skips when absent, runs when
-  present) — 2 cases.
-- [ ] `plugins/sdk/__tests__/registry.test.jsx` — rule 5 (list from the folders) — existing case rewired.
+- [x] `plugins/sdk/__tests__/registry.test.jsx`, `settingsIntegrations.contributions.test.js` read the shipped folders; `ReservationSasDialog.plugins.test.jsx` skips with `lacksPlugins`.
 
 ### 7.3 E2E
-- [ ] `e2e/removal/removal.spec.js` — rules 8, 9, 10, 12 — 4 tests per cell (boot/health, contract,
-  pages desktop + phone, data left behind).
-- [ ] `e2e/removal/toggle-sweep.spec.js` — rules 15, 16, 17 — 1 test per plugin, sharded.
-- [ ] The existing smoke, bare and production-build suites stay green.
+- [x] `e2e/removal/removal.spec.js` — rules 8, 9, 10, 12 (4 tests per cell).
+- [x] `e2e/removal/toggle-sweep.spec.js` — rules 15, 16 and the passes of 17 (1 test per plugin, 2 shards).
+- [x] The existing smoke, bare and production-build suites are untouched.
 
 ### 7.4 Reproducing the 2026-10-28 measurement
 The scripts that produced §1.3 are the prototype of rules 7–15: a packages-mode server on a copy of the
@@ -400,9 +404,11 @@ committed files of §4.3; nothing of the scratchpad is committed, and no real gu
 - [ ] Run the workflow from the Actions tab: the `removal: <id>` cells appear, one per plugin, and are green.
 - [ ] Add a throw-away plugin folder on a branch: its cell appears without touching the workflow, and
   the guard fails until it has its `removalSeed.js` (rule 13).
-- [ ] Break a core page on purpose for one plugin's absence (e.g. call its API unconditionally): only
-  that plugin's cell fails, naming the page and the call.
-- [ ] Mobile: the pages smoke screenshots at 390 px of a failing cell are in its report.
+- [x] Positive control (done locally): with every plugin present but `school-holidays` declared removed,
+  the pages smoke names `/calendar` and `/parametres/vacances-fermetures` as calling its API.
+- [x] The Plugins page on a copy of the real shadow data with `weather-alerts`' folder deleted: the server
+  boots, the card reads « Vigilance Météo-France — Paquet introuvable : à réinstaller. » and « Désinstaller »
+  is offered, at 1280 and 390 px.
 
 ## 8. Out of scope
 
@@ -432,3 +438,16 @@ None open.
   failure. Rule 15 rewritten.
 - **Q3 — `requireRecord` in `sources` mode (rule 2).** Default as written: the unit suites it exposes are
   fixed in the same PR (see §10).
+
+## 10. Implementation progress
+
+All three lots are implemented. Deviations from the draft, each written into the rule it changes:
+rule 3 (core tests name the plugins they need instead of moving or being rewritten on a fixture), rule 5
+(engine suites keep real subjects but name them; one fixture suite added), rules 9, 11, 12 (a child-process
+pass runner instead of an in-process trigger; row counts taken from the erasure declarations; a
+pre-removal money snapshot), rule 16 (blockers cleared in the sweep's database), rule 17 (the « changed while
+off » proofs per plugin are not written), rule 18 (no per-process database preload: the suite is serial and
+takes ~3½ minutes on a free machine). Qonto and Neat are pointed at a dead local port (`QONTO_API_BASE`,
+`NEAT_API_BASE`); Google and Météo-France have no credentials in the seeded database, so no cell reaches them.
+The wave's operator-managed mode hides the plugin lifecycle routes; the matrix removes code, not rows, and the
+sweep runs on a space that is not operator-managed.
