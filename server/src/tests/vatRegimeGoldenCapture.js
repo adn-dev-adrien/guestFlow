@@ -10,6 +10,7 @@
  */
 
 const crypto = require('crypto');
+const zlib = require('zlib');
 
 // Timestamps SQLite stamps with the real clock say nothing about a VAT reader. `vatRegime`,
 // `vatPeriodId` and `showHt` are what the regime ADDED to the payloads (rule 23 compares what already existed; the
@@ -28,6 +29,22 @@ function canonical(value) {
 }
 
 const sha = (text) => crypto.createHash('sha256').update(text).digest('hex');
+
+// zlib's deflate output differs between Node majors (22 locally, 24 on CI), so the PDF is compared
+// with its streams inflated, without the /Length values and the xref offsets that follow from them.
+function pdfContent(buffer) {
+  const raw = buffer.toString('latin1');
+  const body = raw.slice(0, raw.lastIndexOf('\nxref'));
+  return body
+    .replace(/stream\n([\s\S]*?)\nendstream/g, (all, data) => {
+      try {
+        return `stream\n${zlib.inflateSync(Buffer.from(data, 'latin1')).toString('latin1')}\nendstream`;
+      } catch {
+        return all;
+      }
+    })
+    .replace(/\/Length \d+/g, '/Length');
+}
 
 function fakeRes() {
   const res = { statusCode: 200, body: undefined };
@@ -105,7 +122,7 @@ async function capture(db, { years = [2025, 2026, 2027, 2028] } = {}) {
         const full = devisModel.findById(r.id);
         const quote = devisModel.recomputeQuote(r.id);
         const bytes = await generateDevisPdf(full, settingsModel.read(), quote);
-        return { text: calls, bytes: sha(bytes.toString('latin1')) };
+        return { text: calls, content: sha(pdfContent(bytes)) };
       } finally {
         PDFDocument.prototype.text = realText;
       }
