@@ -74,6 +74,40 @@ updates:
         patterns: ['*']
         update-types: [minor, patch]
 
+  # ── Control plane (server) : déployé à part, son propre package-lock.json ──
+  - package-ecosystem: npm
+    directory: /control-plane/server
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: Europe/Paris
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: chore(deps)
+    labels: [dependencies, server]
+    groups:
+      control-plane-server-mineures:
+        patterns: ['*']
+        update-types: [minor, patch]
+
+  # ── Control plane (client) : déployé à part, son propre package-lock.json ──
+  - package-ecosystem: npm
+    directory: /control-plane/client
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: Europe/Paris
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: chore(deps)
+    labels: [dependencies, client]
+    groups:
+      control-plane-client-mineures:
+        patterns: ['*']
+        update-types: [minor, patch]
+
   # ── Actions GitHub : les workflows épinglent des actions (checkout@v6, setup-node@v6…) ──
   - package-ecosystem: github-actions
     directory: /
