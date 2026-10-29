@@ -22,3 +22,16 @@ describe('versionAfterOwnWrite', () => {
     expect(versionAfterOwnWrite(7, null, detail())).toBeNull();
   });
 });
+
+describe('versionAfterOwnWrite — writes from outside the stay (rule 8)', () => {
+  const stays = (...list) => ({ stays: list });
+
+  it('adopts the version of the fiche stay in the list, ignoring the others', () => {
+    expect(versionAfterOwnWrite(7, 'v1', stays(detail({ reservationId: 8, before: 'x', after: 'y' }), detail()))).toBe('v2');
+  });
+
+  it('keeps the held version when the list broke the chain or does not list the stay', () => {
+    expect(versionAfterOwnWrite(7, 'v1', stays(detail({ before: 'v-foreign' })))).toBe('v1');
+    expect(versionAfterOwnWrite(7, 'v1', stays(detail({ reservationId: 8 })))).toBe('v1');
+  });
+});

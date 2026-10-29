@@ -22,7 +22,7 @@ function ExtraGuestRow({ label, caption, amount, offered, onToggleOffered, chip 
       <Divider />
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1, flexWrap: 'wrap' }}>
         <Box sx={{ flex: 1, minWidth: 160 }}>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" component="div" color="text.secondary">
             {label}
             {chip && <Box component="span" sx={{ ml: 1 }}>{chip}</Box>}
           </Typography>

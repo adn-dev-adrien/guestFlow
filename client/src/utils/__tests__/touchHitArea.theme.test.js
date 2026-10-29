@@ -12,7 +12,7 @@ test('rule 39: the hit area is at least 44 × 44, centred, only under a finger',
 });
 
 test('rule 39: every link-button and toggle of the theme follows it', () => {
-  expect(theme.components.MuiLink.styleOverrides.root['&.MuiLink-button']).toEqual(touchHitArea);
+  expect(theme.components.MuiLink.styleOverrides.root).toEqual(touchHitArea);
   const toggle = theme.components.MuiToggleButton.styleOverrides.root;
   expect(toggle.textTransform).toBe('none');
   expect(toggle[COARSE_POINTER]).toEqual({ minHeight: 44, minWidth: 44 });

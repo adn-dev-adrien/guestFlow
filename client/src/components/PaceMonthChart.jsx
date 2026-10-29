@@ -85,6 +85,7 @@ export function MonthTick({ x, y, payload, months, formatShort, formatValue, has
   };
   return (
     <g transform={`translate(${x},${y})`} tabIndex={0} role="button" aria-pressed={selected === m.month} aria-label={`${capitalise(m.label)} : ${formatValue(m.current)}`} onKeyDown={open} className="pace-month">
+      <rect x={-28} y={-1} width={56} height={44} fill="transparent" data-testid="pace-month-hit" />
       <rect className="pace-month-ring" x={-25} y={-1} width={50} height={hasComparison ? 37 : 21} rx={6} fill="none" stroke={c.current} strokeWidth={2} />
       <text dy={12} textAnchor="middle" fontSize={11} fontWeight={m.isCurrent ? 700 : 600} fill={m.isCurrent ? c.current : c.value}>{m.tick}</text>
       {m.isCurrent && <rect x={-10} y={17} width={20} height={2} rx={1} fill={c.current} />}

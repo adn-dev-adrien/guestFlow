@@ -8,10 +8,15 @@
  *
  * @param {number|string} reservationId  the stay the fiche shows
  * @param {string|null} held             the `updatedAt` the fiche was built on
- * @param {{reservationId:number,before:string,after:string}|null} detail
+ * @param {{reservationId:number,before:string,after:string}|{stays:Array}|null} detail  a `stays` list
+ *   (writes from outside the stay, rule 8) is searched for the fiche's stay
  * @returns {string|null} the version to hold from now on
  */
 export function versionAfterOwnWrite(reservationId, held, detail) {
+  if (detail && Array.isArray(detail.stays)) {
+    const own = detail.stays.find((s) => Number(s.reservationId) === Number(reservationId));
+    return own ? versionAfterOwnWrite(reservationId, held, own) : held;
+  }
   if (!detail || Number(detail.reservationId) !== Number(reservationId)) return held;
   return held !== null && String(detail.before) === String(held) ? detail.after : held;
 }

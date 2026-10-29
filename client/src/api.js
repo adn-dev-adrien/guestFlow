@@ -38,10 +38,19 @@ function request(path, options = {}) {
 // The stay a write touched and its version before / after (specs/reservation-fiche-concurrency.md rule 4),
 // so an open fiche can tell its own writes from a foreign one.
 function ficheVersionOf(path, res) {
+  const header = (name) => (res.headers && res.headers.get ? res.headers.get(name) : null);
   const match = /^\/reservations\/(\d+)(?:[/?]|$)/.exec(path);
-  const before = res.headers && res.headers.get ? res.headers.get('X-Fiche-Version-Before') : null;
-  const after = res.headers && res.headers.get ? res.headers.get('X-Fiche-Version-After') : null;
-  return match && before !== null && after !== null ? { reservationId: Number(match[1]), before, after } : null;
+  const before = header('X-Fiche-Version-Before');
+  const after = header('X-Fiche-Version-After');
+  if (match && before !== null && after !== null) return { reservationId: Number(match[1]), before, after };
+  // A write from outside the stay (bank reconciliation, payment poll) lists the stays it moved
+  // (specs/reservation-fiche-concurrency.md rule 8).
+  const trail = header('X-Stay-Versions');
+  if (!trail) return null;
+  try {
+    const stays = JSON.parse(trail).map((s) => ({ reservationId: Number(s.id), before: s.before, after: s.after }));
+    return { stays };
+  } catch { return null; }
 }
 
 async function send(path, options = {}) {

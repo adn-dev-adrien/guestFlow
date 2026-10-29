@@ -1,0 +1,1 @@
+- **Refund dialog: a free line with an amount and no label is refused** (spec `reservation-refunds.md` rule 41, audit R2, 2026-10-29). « Libellé manquant. » disables the save, so the total shown is the total recorded instead of silently dropping the line.

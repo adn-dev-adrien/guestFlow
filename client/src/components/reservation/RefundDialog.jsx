@@ -142,15 +142,20 @@ export default function RefundDialog({
   });
   const unreadable = Object.values(selected).some((l) => !Number.isFinite(l.amount))
     || freeAmounts.some((v) => !Number.isFinite(v));
+  // A free line with an amount but no label would be dropped by the server's own rule: refused here, never
+  // counted in a total that is not the one recorded (specs/reservation-refunds.md rule 41).
+  const unlabeledFreeLine = (l, i) => Number.isFinite(freeAmounts[i]) && freeAmounts[i] > 0 && !String(l.label || '').trim();
+  const missingLabel = freeLines.some(unlabeledFreeLine);
   let refusal = null;
   if (unreadable) refusal = { tone: 'error', text: 'Montant illisible.' };
+  else if (missingLabel) refusal = { tone: 'error', text: 'Libellé manquant.' };
   else if (overCapLine) {
     const excess = round2(selected[overCapLine.key].amount - overCapLine.refundableTtc);
     refusal = { tone: 'error', text: `${overCapLine.label} : dépasse le remboursable de ${formatCurrency(excess)}.` };
   } else if (overCollected && total > 0) {
     refusal = { tone: 'warning', text: `Dépasse l’encaissé de ${formatCurrency(round2(total - collectedTtc))}.` };
   }
-  const blocked = unreadable || Boolean(overCapLine);
+  const blocked = unreadable || missingLabel || Boolean(overCapLine);
 
   const submit = async () => {
     setError('');
@@ -160,6 +165,8 @@ export default function RefundDialog({
         refundDate,
         method,
         reason: reason.trim(),
+        // Opened on a trop-perçu: the server caps the refund at what is still over-collected (rule 42).
+        ...(overpaymentTtc > 0 ? { fromOverpayment: true, overpaymentTtc } : {}),
         lines: [
           ...Object.entries(selected).map(([key, value]) => ({
             key,
@@ -263,6 +270,7 @@ export default function RefundDialog({
                   size="small"
                   label="Libellé"
                   value={line.label}
+                  error={unlabeledFreeLine(line, index)}
                   onChange={(e) => setFreeLines((prev) => prev.map((l, i) => (i === index ? { ...l, label: e.target.value } : l)))}
                   sx={{ flex: 1 }}
                 />

@@ -1,0 +1,2 @@
+- **Touch targets of 44 px on a phone** (spec `ds-components.md` rule 29, audit R2, 2026-10-29): switches (« Forcer en complément », options, e-mail toggles), clickable chips (hourly slots), all inline links, the sidebar rows on a touch tablet and the /finance month columns. Also fixes an invalid `<div>` inside `<p>` in the pricing summary and the reservation search.
+- plugin:tariff-recipes The « (voir le site) » link has a 44 px touch target.

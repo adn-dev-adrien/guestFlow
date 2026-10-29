@@ -2665,7 +2665,7 @@ export default function ReservationPage() {
         });
         if (!proceed) return false;
         return await handleSaveReservation(
-          safeAfterSaveAction || (() => openOverpaymentRefund(Number(err.overpaymentTtc || 0), err.overpaymentLines)),
+          safeAfterSaveAction || (() => openOverpaymentRefund(Number(err.overpaymentTtc || 0), err.overpaymentLines, err.overpaymentMethod)),
           forceMinNights, forceCapacity, forceChangeover, forceMaxNights, true,
         );
       }
@@ -2695,7 +2695,11 @@ export default function ReservationPage() {
         if (choice === true) setReloadToken((token) => token + 1);
         if (choice === 'secondary') {
           overwriteOnceRef.current = true;
-          return await handleSaveReservation(safeAfterSaveAction, forceMinNights, forceCapacity, forceChangeover, forceMaxNights, forceOverpayment);
+          try {
+            return await handleSaveReservation(safeAfterSaveAction, forceMinNights, forceCapacity, forceChangeover, forceMaxNights, forceOverpayment);
+          } finally {
+            overwriteOnceRef.current = false;
+          }
         }
         return false;
       }
@@ -2942,23 +2946,27 @@ export default function ReservationPage() {
 
   // specs/reservation-refunds.md rule 34 — after a save confirmed over a trop-perçu: re-read the paid
   // state and open the refund dialog on the amount the server announced.
-  const openOverpaymentRefund = useCallback(async (overpaymentTtc, overpaymentLines) => {
+  const openOverpaymentRefund = useCallback(async (overpaymentTtc, overpaymentLines, method) => {
     await reloadReservationFinance();
-    if (overpaymentTtc > 0) setRefundDialogOpen({ overpaymentTtc, overpaymentLines: Array.isArray(overpaymentLines) ? overpaymentLines : null });
+    if (overpaymentTtc > 0) setRefundDialogOpen({ overpaymentTtc, overpaymentLines: Array.isArray(overpaymentLines) ? overpaymentLines : null, method: method || undefined });
   }, [reloadReservationFinance]);
 
   const createRefund = useCallback(async (payload) => {
     const res = await api.createReservationRefund(editingReservationId, payload);
     applyRefundPayload(res);
-  }, [editingReservationId, applyRefundPayload]);
+    // The stored ledger moved with the refund (the trop-perçu row, the « Remboursement » row): re-read it, or a
+    // second click refunds the same money again.
+    await reloadReservationFinance().catch(() => {});
+  }, [editingReservationId, applyRefundPayload, reloadReservationFinance]);
 
   const deleteRefund = useCallback(async (refundId) => {
     try {
       applyRefundPayload(await api.deleteReservationRefund(editingReservationId, refundId));
+      await reloadReservationFinance();
     } catch (err) {
       await alert({ title: 'Erreur', message: err.message || 'Impossible de supprimer ce remboursement.' });
     }
-  }, [editingReservationId, applyRefundPayload, alert]);
+  }, [editingReservationId, applyRefundPayload, reloadReservationFinance, alert]);
 
   const buildBackUrlWithReservationFocus = useCallback(() => {
     if (!from) return from;
