@@ -48,8 +48,8 @@ function convertAndTick(db, model, id, day) {
 
 test('review 1 — the operator converted by hand and ticked the same day: the stale link is that money, no refund wording', async () => {
   const { db, id, links, model } = seed();
-  const link = links.create({ reservationId: id, type: 'full', amountCents: 54536, providerLinkId: 'pre18', url: 'u', status: 'open' });
   convertAndTick(db, model, id, '2027-04-01');
+  const link = links.create({ reservationId: id, type: 'full', amountCents: 54536, providerLinkId: 'pre18', url: 'u', status: 'open' });
   const { out, alerts, confirmations } = await pay(db, links, model, link);
   assert.equal(out.effect, 'settled-elsewhere');
   assert.equal(out.status, 'paid');
@@ -59,8 +59,8 @@ test('review 1 — the operator converted by hand and ticked the same day: the s
 
 test('review 1 — ticked on an earlier day than the payment: « à vérifier », never « payé deux fois »', async () => {
   const { db, id, links, model } = seed();
-  const link = links.create({ reservationId: id, type: 'full', amountCents: 54536, providerLinkId: 'pre18', url: 'u', status: 'open' });
   convertAndTick(db, model, id, '2027-03-20');
+  const link = links.create({ reservationId: id, type: 'full', amountCents: 54536, providerLinkId: 'pre18', url: 'u', status: 'open' });
   const { out, alerts } = await pay(db, links, model, link);
   assert.equal(out.status, 'paid-after-settled');
   assert.deepEqual(alerts, [{ settledOn: '2027-03-20' }]);
@@ -156,7 +156,7 @@ test('review 4 — the mismatch alert says no confirmation went out and where th
   assert.match(short, /Aucun e-mail de confirmation/);
   assert.match(short, /9,64.*complément d’arrivée/);
   const over = buildPaidAfterCancelEmail(resa, { amountCents: 56000 }, '', { amountMismatch: { expectedCents: 55500 } }).text;
-  assert.match(over, /trop-perçu/);
+  assert.match(over, /Trop-perçu de .* à rembourser/);
 });
 
 test('review 7 — two overlapping retry passes find the same paid link: one books it, no false refund alert', async () => {

@@ -64,7 +64,7 @@ it('rule 18 — switching on a module whose requirement is off asks « Activer a
   expect(screen.getByText('Active aussi : Arrivée et départ guidés.')).toBeInTheDocument();
   expect(api.toggleModule).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole('button', { name: 'Tout activer' }));
-  await waitFor(() => expect(api.toggleModule).toHaveBeenCalledWith(3, 'weather-alerts', true, { withRequirements: true }));
+  await waitFor(() => expect(api.toggleModule).toHaveBeenCalledWith(3, 'weather-alerts', true, { withRequirements: ['sas'] }));
 });
 
 it('rule 18 — switching off a module that others use lists them in the dialog and sends withDependents', async () => {
@@ -74,7 +74,7 @@ it('rule 18 — switching off a module that others use lists them in the dialog 
   fireEvent.click(await screen.findByRole('switch', { name: 'Arrivée et départ guidés' }));
   expect(await screen.findByText(/^Désactive aussi : Vigilance Météo-France\./)).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Tout désactiver' }));
-  await waitFor(() => expect(api.toggleModule).toHaveBeenCalledWith(3, 'sas', false, { withDependents: true }));
+  await waitFor(() => expect(api.toggleModule).toHaveBeenCalledWith(3, 'sas', false, { withDependents: ['weather-alerts'] }));
 });
 
 it('rule 18 — a cancelled confirmation changes nothing', async () => {

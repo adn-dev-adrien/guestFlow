@@ -104,7 +104,7 @@ test('rule 9: with the flag a requirement installed but off is switched on, then
   model.setEnabled = (id, on) => { order.push(`${id}:${on}`); return real(id, on); };
   const install = model.install;
   model.install = (id, ...rest) => { order.push(`install:${id}`); return install(id, ...rest); };
-  const res = await h.call(ctrl.install, { params: { id: GVR }, body: { withRequirements: true } });
+  const res = await h.call(ctrl.install, { params: { id: GVR }, body: { withRequirements: [WB] } });
   assert.equal(res.statusCode, 200);
   assert.deepEqual(order, [`${WB}:true`, `install:${GVR}`]);
   assert.equal(model.get(WB).enabled, true);
@@ -116,7 +116,7 @@ test('rule 9: with the flag, a missing and an off requirement go in order — in
   const weather = h.manifest(WEATHER, '1.3.0', { requires: [need(SAS, '^1.7.0')] });
   const { ctrl, model } = h.setup({ bundled: [wb(), sasM, weather], installed: [row(SAS, '1.7.2', sasM)] });
   model.setEnabled(SAS, false);
-  const res = await h.call(ctrl.install, { params: { id: WEATHER }, body: { withRequirements: true } });
+  const res = await h.call(ctrl.install, { params: { id: WEATHER }, body: { withRequirements: [WB, SAS] } });
   assert.equal(res.statusCode, 200);
   assert.deepEqual([WB, SAS, WEATHER].map((id) => model.get(id) && model.get(id).enabled), [true, true, true]);
 });
@@ -139,7 +139,7 @@ test('rule 9: all or nothing — a failure after a requirement was switched on s
   });
   const quiet = console.error;
   console.error = () => {};
-  const res = await h.call(ctrl.install, { params: { id: GVR }, body: { withRequirements: true } });
+  const res = await h.call(ctrl.install, { params: { id: GVR }, body: { withRequirements: [WB] } });
   console.error = quiet;
   assert.equal(res.statusCode, 500);
   assert.equal(ctx.model.get(GVR), null);
@@ -161,7 +161,7 @@ test('rule 5: installing a plugin in a cycle is refused 409 REQUIREMENT_CYCLE', 
   const weather = h.manifest(WEATHER, '1.3.0', { requires: [need(SAS, '^1.7.0')] });
   const sasM = h.manifest(SAS, '1.7.2', { requires: [need(WEATHER, '^1.3.0')] });
   const { ctrl, model } = h.setup({ bundled: [weather, sasM] });
-  const res = await h.call(ctrl.install, { params: { id: WEATHER }, body: { withRequirements: true } });
+  const res = await h.call(ctrl.install, { params: { id: WEATHER }, body: { withRequirements: [SAS] } });
   assert.equal(res.statusCode, 409);
   assert.equal(res.body.error, 'REQUIREMENT_CYCLE');
   assert.equal(res.body.message, `Dépendance circulaire : ${nm(WEATHER)} → ${nm(SAS)} → ${nm(WEATHER)}.`);
@@ -239,7 +239,7 @@ test('rule 10: confirmed, the requirement’s row is written first, then the plu
   const order = [];
   const install = model.install;
   model.install = (id, ...rest) => { order.push(id); return install(id, ...rest); };
-  const res = await h.call(ctrl.install, { params: { id: GVR }, body: { withRequirements: true } });
+  const res = await h.call(ctrl.install, { params: { id: GVR }, body: { withRequirements: [WB] } });
   assert.equal(res.statusCode, 200);
   assert.deepEqual(order, [WB, GVR]);
   assert.deepEqual(calls.filter(([k]) => k === 'install'), [], 'no module registered here: no install hook');
@@ -250,7 +250,7 @@ test('rule 10: a requirement installed but off is switched on in a development t
   model.install(WB);
   model.setEnabled(WB, false);
   assert.equal((await h.call(ctrl.install, { params: { id: GVR } })).body.error, 'REQUIREMENT_INACTIVE');
-  const res = await h.call(ctrl.install, { params: { id: GVR }, body: { withRequirements: true } });
+  const res = await h.call(ctrl.install, { params: { id: GVR }, body: { withRequirements: [WB] } });
   assert.equal(res.statusCode, 200);
   assert.equal(model.get(WB).enabled, true);
   assert.equal(model.get(GVR).enabled, true);
@@ -258,7 +258,7 @@ test('rule 10: a requirement installed but off is switched on in a development t
 
 test('rule 10: a requirement absent from the tree is refused REQUIREMENT_MISSING', skip, async () => {
   const { ctrl, model } = sourcesTree({ without: [WB] });
-  const res = await h.call(ctrl.install, { params: { id: GVR }, body: { withRequirements: true } });
+  const res = await h.call(ctrl.install, { params: { id: GVR }, body: { withRequirements: [WB] } });
   assert.equal(res.statusCode, 409);
   assert.equal(res.body.error, 'REQUIREMENT_MISSING');
   assert.equal(model.get(GVR), null);
@@ -268,7 +268,7 @@ test('rule 10: all or nothing in a development tree — a failed migration of th
   const { ctrl, model } = sourcesTree({ failMigration: GVR });
   const quiet = console.error;
   console.error = () => {};
-  const res = await h.call(ctrl.install, { params: { id: GVR }, body: { withRequirements: true } });
+  const res = await h.call(ctrl.install, { params: { id: GVR }, body: { withRequirements: [WB] } });
   console.error = quiet;
   assert.equal(res.statusCode, 500);
   assert.equal(model.get(WB), null);
@@ -278,7 +278,7 @@ test('rule 10: all or nothing in a development tree — a failed migration of th
 test('rule 9: an install plan that switches a requirement on and then needs a restart leaves that requirement owing its hooks', skip, async () => {
   const ctx = h.setup({ bundled: [wb(), gvr()], installed: [row(WB, '1.8.3', wb())], loaded: { [GVR]: '0.9.0' } });
   ctx.model.setEnabled(WB, false);
-  const res = await h.call(ctx.ctrl.install, { params: { id: GVR }, body: { withRequirements: true } });
+  const res = await h.call(ctx.ctrl.install, { params: { id: GVR }, body: { withRequirements: [WB] } });
   assert.equal(res.statusCode, 202);
   assert.deepEqual(ctx.model.pendingHooks(), [GVR, WB].sort());
 });

@@ -22,6 +22,7 @@
  * Business failures are returned (`{ error, status }`), never thrown — the controller maps them to HTTP.
  */
 
+const { withConvertedDevis } = require('./deletionGuard');
 const { buildCancellationRequalification } = require('./cancellationRequalification');
 const { isDirectChannel } = require('./platformNameFormat');
 const { taxShares } = require('./installmentPlan');
@@ -113,8 +114,11 @@ function cancelReservation(deps, reservationId, { reason = '', cancelledBy = nul
       refundId = refundsModel.create(id, { ...requalification.refund, totalTtc: retainedDepositAmount });
       compensationId = compensationsModel.createReceived(requalification.compensation).id;
     }
-    for (const link of paymentLinksModel.listForReservation(id)) {
-      if (String(link.status) === 'open') cancelledLinks.push(paymentLinksModel.updateStatus(link.id, 'cancelled'));
+    // The links of the devis converted into the stay keep the devis id and stay payable otherwise.
+    for (const ownerId of withConvertedDevis(database, [id])) {
+      for (const link of paymentLinksModel.listForReservation(ownerId)) {
+        if (String(link.status) === 'open') cancelledLinks.push(paymentLinksModel.updateStatus(link.id, 'cancelled'));
+      }
     }
   }).immediate();
 

@@ -354,7 +354,13 @@ Other facts the design rests on:
     deletes nothing. The refusal to delete a stay or devis carrying money is the reservations rules
     (`RESERVATION_CARRIES_MONEY`, fix/audit-reservations), not this spec; no foreign key was added (a
     rebuild of a table other code reads).
-28. **Money write transactions take the write lock up front (2026-10-29, audit R2).** A deferred SQLite
+28. **Abandoning a link never overwrites a payment (2026-10-29, audit R2).** `paymentLinksModel.cancelIfOpen`
+    cancels only a link still `open`; `retireOpenLink` (refuse when paid, cancel if open, deactivate) is the
+    one way a stale link is replaced by `ensurePaymentLink`, the installment links and the public `pay`. The
+    stay's paid flags are read again after the provider call. Cancelling a stay also abandons the open
+    links of the devis converted into it; a devis's links are also retired by its stay's `retireForAmountChange`. See
+    public-online-payment.md rule 16.
+29. **Money write transactions take the write lock up front (2026-10-29, audit R2).** A deferred SQLite
     transaction that reads then writes fails at once with `SQLITE_BUSY_SNAPSHOT` ("database is locked") when
     another connection commits in between, without waiting for the busy timeout (5 s, better-sqlite3's
     default). `recordStayPayment` and the other read-then-write money transactions (installments, refunds,
@@ -468,7 +474,7 @@ the moved page. No behaviour change.
 
 ## 7. Test plan
 
-- [x] `money-transactions-immediate.unit.test.js` (rule 28): a second process holds the write lock; `recordStayPayment` waits and succeeds, a deferred read-then-write fails.
+- [x] `money-transactions-immediate.unit.test.js` (rule 29): a second process holds the write lock; `recordStayPayment` waits and succeeds, a deferred read-then-write fails.
 
 ### Server — new tests (25)
 

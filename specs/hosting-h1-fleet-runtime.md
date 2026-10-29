@@ -279,6 +279,8 @@ These are the recommended options, taken under the owner's instruction to run th
     allowed (a proxy that is the only way in) but is spoofable by anyone who can reach the Node port
     directly: the process now logs a `[security]` warning at boot. Covered by `tests/proxy-trust-config.unit.test.js`.
 
+36. **From is encoded by the mail library, never quoted by hand** (audit R2 N1, 2026-10-29). Both the platform sender and the operator SMTP pass `from: { name, address }`; a display name cannot rewrite the From address or the envelope sender. `smtpFromName` and `companyName` are refused above 120 characters or with a control character. Test: `tests/audit-r2-mail-from.unit.test.js`.
+
 ---
 
 ## 4. Architecture

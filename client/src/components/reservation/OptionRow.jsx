@@ -13,6 +13,7 @@ import { isWelcomePackLine } from '../../utils/welcomePackApply';
 import { formatCurrency } from '../../utils/formatters';
 import { COMPLEMENT_TOOLTIP, PRICE_TYPE_LABELS } from './extrasLabels';
 import { useSlot } from '../../plugins/sdk/useSlot';
+import { Contribution } from '../../plugins/sdk/Slot';
 import { ARRIVAL_LINE_CAPTION, OFFERED_LINE_CAPTION } from '../../constants/reservationLock';
 import { optionLineKey, displayedFloor } from '../../utils/arrivalLineKey';
 
@@ -308,14 +309,14 @@ export default function OptionRow({ opt }) {
         </Stack>
 
         {lineContributions.map(({ key, pluginId, Component }) => (
-          <React.Suspense key={`${pluginId}:${key}`} fallback={null}>
+          <Contribution key={`${pluginId}:${key}`} pluginId={pluginId}>
             <Component
               option={opt}
               block={pluginBlocks ? pluginBlocks[pluginId] ?? null : null}
               onBlockChange={(block) => setPluginBlock(pluginId, block)}
               {...pluginLineContext}
             />
-          </React.Suspense>
+          </Contribution>
         ))}
 
         {enabled && !isAutoTimedOption && !readOnly && (

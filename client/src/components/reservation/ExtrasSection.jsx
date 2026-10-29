@@ -12,6 +12,7 @@ import OptionRow from './OptionRow';
 import OptionCategorySection from './OptionCategorySection';
 import { COMPLEMENT_TOOLTIP, PRICE_TYPE_LABELS } from './extrasLabels';
 import { useSlot } from '../../plugins/sdk/useSlot';
+import { Contribution } from '../../plugins/sdk/Slot';
 import { ARRIVAL_LINE_CAPTION, OFFERED_LINE_CAPTION } from '../../constants/reservationLock';
 import { resourceLineKey, displayedFloor } from '../../utils/arrivalLineKey';
 
@@ -343,7 +344,7 @@ export default function ExtrasSection() {
                           )}
 
                           {enabled && !readOnly && resourceLineSlots.filter((c) => c.appliesTo(resource)).map(({ key, pluginId, Component }) => (
-                            <React.Suspense key={`${pluginId}:${key}`} fallback={null}>
+                            <Contribution key={`${pluginId}:${key}`} pluginId={pluginId}>
                               <Component
                                 resource={resource}
                                 sessions={selected?.sessions}
@@ -351,7 +352,7 @@ export default function ExtrasSection() {
                                 onSessionsChange={(next) => setResourceSessions(resource.id, next)}
                                 disabled={extrasLocked}
                               />
-                            </React.Suspense>
+                            </Contribution>
                           ))}
                         </CardContent>
                       </Card>

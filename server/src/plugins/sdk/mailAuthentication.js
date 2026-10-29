@@ -76,12 +76,12 @@ function parseAuthenticationResults(value) {
       const i = prop.indexOf('=');
       if (i > 0) properties[lower(prop.slice(0, i))] = prop.slice(i + 1);
     }
-    return { method: lower(name), result: lower(result), properties };
+    return { method: lower(name), result: lower(result), properties, bare: props.some((prop) => prop.indexOf('=') < 1) };
   });
-  return { authservId, results };
+  return { authservId, results, malformed: results.some((r) => r.bare) };
 }
 
-const signingDomain = ({ properties }) => lower(properties['header.d'] || properties.d || domainOf(properties['header.i'] || ''));
+const signingDomain = ({ properties }) => lower(properties['header.d'] || domainOf(properties['header.i'] || ''));
 
 // The server name a provider writes in the Authentication-Results of the mail it receives. Anywhere else
 // the operator names it; with neither, nothing is trusted.
@@ -106,7 +106,13 @@ function verifyDkim(headerBlock, { domains, trustedAuthservId = '' } = {}) {
   if (headers.length === 0) return { ok: false, reason: 'no-authentication-results' };
   const header = headers.find((h) => h.authservId === trusted);
   if (!header) return { ok: false, reason: 'untrusted-authserv-id' };
-  const dkim = header.results.filter((r) => r.method === 'dkim');
+  // A value without `name=` inside a result is what an unquoted echo of an address leaves behind
+  // (`dkim=pass header.d=… x@evil.test`): the whole header is then not believed.
+  if (header.malformed) return { ok: false, reason: 'malformed-authentication-results' };
+  // Only the results written before the first `smtp.*` one count: whatever the server echoes of the
+  // envelope (a MAIL FROM it failed to quote) comes after the dkim verdicts.
+  const echoAt = header.results.findIndex((r) => Object.keys(r.properties).some((k) => k.startsWith('smtp.')));
+  const dkim = (echoAt < 0 ? header.results : header.results.slice(0, echoAt)).filter((r) => r.method === 'dkim');
   if (dkim.length === 0) return { ok: false, reason: 'no-dkim-result' };
   const passed = dkim.filter((r) => r.result === 'pass');
   if (passed.length === 0) return { ok: false, reason: 'dkim-not-pass' };

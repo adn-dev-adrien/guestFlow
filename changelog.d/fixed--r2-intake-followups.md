@@ -1,0 +1,1 @@
+- Mail intakes: an Authentication-Results header with an unquoted echo is refused, the Gîtes de France opening sentence is anchored before the dossier number, iCal placeholder clients drop invisible Unicode characters, and the console passes dash-leading names to the first-admin script.

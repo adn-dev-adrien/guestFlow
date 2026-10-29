@@ -1,4 +1,4 @@
-// specs/plugins-phase-3a-online-payment.md rule 28 (audit R2, F-R2-4) — a read-then-write transaction on a money
+// specs/plugins-phase-3a-online-payment.md rule 29 (audit R2, F-R2-4) — a read-then-write transaction on a money
 // path takes the write lock up front (BEGIN IMMEDIATE), so a writer holding it for a moment makes it
 // wait for the busy timeout instead of failing at once with SQLITE_BUSY.
 const test = require('node:test');
@@ -48,7 +48,7 @@ function holdWriteLock(file) {
   return { locked, exited };
 }
 
-test('rule 28: recording a stay payment waits for a concurrent writer instead of failing', async (t) => {
+test('rule 29: recording a stay payment waits for a concurrent writer instead of failing', async (t) => {
   const { db, file, id } = fileDb(t);
   const writer = holdWriteLock(file);
   await writer.locked;
@@ -63,7 +63,7 @@ test('rule 28: recording a stay payment waits for a concurrent writer instead of
   assert.equal(db.prepare('SELECT depositPaid FROM reservations WHERE id = ?').get(id).depositPaid, 1);
 });
 
-test('rule 28: the connection waits for the lock (busy timeout is set) while a deferred read-then-write would fail', async (t) => {
+test('rule 29: the connection waits for the lock (busy timeout is set) while a deferred read-then-write would fail', async (t) => {
   const { db, file } = fileDb(t);
   assert.ok(db.pragma('busy_timeout', { simple: true }) >= 1000);
   const writer = holdWriteLock(file);
