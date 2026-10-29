@@ -9,7 +9,7 @@ const { findFiches } = require('../ficheFinder');
 const { parseBookingPage } = require('../pageParser');
 const { buildModel, TABLE_SQL } = require('../intakesModel');
 const { createIntakeService } = require('../intakeService');
-const { PAGE_6392081711, replaceOnce } = require('./fixtures');
+const { PAGE_6300000001, replaceOnce } = require('./fixtures');
 
 function fiches(rows) {
   const db = new Database(':memory:');
@@ -43,7 +43,7 @@ test('rule 33: several candidates are refused, nothing is written', () => {
     clientShared: () => false,
     core: { updateReservation: (...a) => { writes.push(a); return { status: 200 }; }, updateClient: () => {}, suggestBeds: () => ({}), platformCommission: () => 0, withholdsTouristTax: () => true },
   });
-  const r = service.handlePage({ hotelId: '14407976', resId: '6392081711', text: PAGE_6392081711 });
+  const r = service.handlePage({ hotelId: '14407976', resId: '6300000001', text: PAGE_6300000001 });
   assert.equal(r.status, 'refused');
   assert.equal(r.code, 'AMBIGUOUS_FICHE');
   assert.match(r.message, /Plusieurs fiches Booking/);
@@ -51,7 +51,7 @@ test('rule 33: several candidates are refused, nothing is written', () => {
 });
 
 test('rule 34: the e-mail of the page is one address — a list or an angle address is not read', () => {
-  const email = (line) => parseBookingPage(replaceOnce(PAGE_6392081711, 'cgarnier.123456@guest.booking.com', line), { resId: '6392081711' });
+  const email = (line) => parseBookingPage(replaceOnce(PAGE_6300000001, 'cgarnier.123456@guest.booking.com', line), { resId: '6300000001' });
   assert.equal(email('cgarnier.123456@guest.booking.com').booking.guest.email, 'cgarnier.123456@guest.booking.com');
   for (const bad of ['a@x.test,b@evil.test', 'a@x.test;b@evil.test', '<a@x.test>']) {
     const r = email(bad);
