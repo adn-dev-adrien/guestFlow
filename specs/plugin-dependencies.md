@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Approved (2026-10-29, Q1–Q7 resolved — §9) |
+| **Status** | Implemented (2026-10-29) |
 | **Branch** | `feature/plugin-dependencies` (cut from `inte/plugins`) |
 | **Created** | 2026-10-29 |
 | **Author** | Adrien |
@@ -151,6 +151,8 @@ explicit confirmation, or says why it is refused *before* the click.
 10. **Same plan in a development tree** (closes H1). Outside packages mode the install plan reads
     the source manifests (`host().runningCopy`) and installs/activates the requirements' rows first,
     under the same confirmation. A requirement absent from the tree is refused `REQUIREMENT_MISSING`.
+    The views of available plugins carry the same `offer.requirements` there, so the card asks the
+    same question in both modes.
 11. **Activate pulls inactive requirements** (Q3, same answer as rule 9). `POST /:id/activate` with `withRequirements: true`
     activates the closure of inactive requirements first, then the plugin. Without the flag, and with
     a requirement off, the answer stays 409 `REQUIREMENT_INACTIVE` (rule 37) and now carries
@@ -183,8 +185,10 @@ explicit confirmation, or says why it is refused *before* the click.
     It already runs on every PR (`unit-tests.yml`) and in the release `verify` job. Messages in
     English, one per violation, e.g. `google-vacation-rentals requires website-booking ^2.0.0, shipped 1.8.3`.
 17. **The console reads the same graph.** `control-plane/server/src/utils/gf.js` exposes
-    `pluginGraph`; `customerModulesController.lineOf` adds `requires` and `usedBy` lines (rules 6–7,
-    statuses from the console's own choice and the space's reported facts).
+    `pluginGraph`; `customerModulesController.lineOf` adds `requires` and `usedBy` lines (rules 6–7),
+    plus `alsoOn` / `alsoOff` (the modules a switch would take along, for the confirmation). Statuses
+    come from the console's own choice and the plan (« éteint » for an off module, not an `outOfRange`:
+    the space does not report versions to the console).
 18. **The console's switches take the linked modules along, with confirmation.** Switching on a module
     whose requirement is off opens « Activer aussi X ? » and sends `{ on: true, withRequirements: true }`;
     switching off a module that switched-on modules require lists them in the existing switch-off
@@ -210,8 +214,10 @@ explicit confirmation, or says why it is refused *before* the click.
 - A requirement installed from the registry at a newer version whose own manifest changed its
   `requires` → the graph reads the **installed row's** manifest (rule 2), never the catalogue's.
 - An orphan plugin (installed, no longer shipped) still appears in `usedBy` under its stored name.
-- A plugin out of plan (licence) as dependant → it does not block a deactivation (it is not live),
-  it still blocks an uninstall (rule 12 of phase 4, reconciler exception unchanged).
+- A plugin out of plan (licence) as dependant → it does not block a deactivation (it is not live) and
+  is not switched off with it (`dependantsOf(…, { activeOnly })` keeps only active, licensed ones —
+  this also changes the manual path, which used to count it); it still blocks an uninstall (rule 12 of
+  phase 4, reconciler exception unchanged).
 - A dependant failed at `register` → counts as active for rule 12 (its row is enabled), so the
   cascade switches it off too: switching off a failed plugin is harmless.
 - A cascade interrupted by a business blocker on a dependant → nothing moves, the message names the
@@ -315,15 +321,16 @@ is new, the switch-off one gains the list.
 ## 7. Test plan
 
 ### Server unit tests (one file per subject)
-- [ ] `server/src/tests/plugin-graph.unit.test.js` — statuses, labels, closures (order, transitive), cycles (rules 2–7).
-- [ ] `server/src/tests/plugin-dependencies-actions.unit.test.js` — `actions` in the view; activate with requirements; deactivate cascade all-or-nothing with a blocker; uninstall refusal unchanged (8, 11–14).
-- [ ] `server/src/tests/plugin-install-plan-activate.unit.test.js` — `activate` steps, dev-tree plan, `REQUIREMENT_CYCLE` (5, 9–10).
-- [ ] `server/src/tests/check-plugin-requirements.unit.test.js` — `requirementViolations` (16).
-- [ ] `control-plane/server/src/tests/console-module-dependencies.unit.test.js` — lines, cascaded toggles, plan coherence (17–19).
-- [ ] Existing suites kept green: `plugins-activate-requires-active`, `plugin-install-requirement-inactive`, `plugin-reconciler`.
+- [x] `server/src/tests/plugin-graph.unit.test.js` — statuses, labels, closures (order, transitive), cycles (rules 1–5, 7).
+- [x] `server/src/tests/plugin-dependencies-actions.unit.test.js` — views (`dependencies`, `actions`); activate with requirements; deactivate cascade all-or-nothing with a blocker; uninstall refusal unchanged (6–8, 11–15).
+- [x] `server/src/tests/plugin-install-plan-activate.unit.test.js` — `activate` steps, release and dev-tree plans, `REQUIREMENT_CYCLE` in the plan and in the loader (5, 9–10, 15).
+- [x] `server/src/tests/check-plugin-requirements.unit.test.js` — `requirementViolations`, the shipped graph (16, 20).
+- [x] `control-plane/server/src/tests/console-module-dependencies.unit.test.js` — lines, cascaded toggles (also over the route), plan coherence (17–19).
+- [x] Existing suites kept green: `plugins-activate-requires-active`, `plugin-install-requirement-inactive`, `plugin-reconciler`; `plugins-phase-0/1/4` and `customer-modules-erase` adjusted for the new shipped edge and `op` on plan steps.
 
 ### Client tests
-- [ ] `client/src/components/__tests__/PluginCard.dependencies.test.jsx` — both lines, disabled uninstall, the three dialogs send their flag.
+- [x] `client/src/components/__tests__/PluginCard.dependencies.test.jsx` — both lines, disabled uninstall, the dialogs send their flag (6–9, 11–15).
+- [x] `control-plane/client/src/__tests__/ModulesSection.dependencies.test.jsx` — console lines and confirmations (17–18).
 
 ### Manual UI verification
 - [ ] Happy path: GVR card shows « Nécessite Réservation depuis le site »; website-booking shows « Utilisé par Google Vacation Rentals ».
@@ -363,3 +370,15 @@ None open. **Resolved 2026-10-29** (owner, AskUserQuestion — each time the rec
 - **Q6 — Plan coherence in the console?** → **Refuse an incoherent plan or option, and drop the
   dependant with its requirement on a plan change** (rule 19). No runtime `isLive` cascade (§8).
 - **Q7 — Declare soft links (« Complète … »)?** → **No** (§8). They refuse nothing.
+
+---
+
+## 10. Implementation progress
+
+Implemented 2026-10-29 on `feature/plugin-dependencies`, in three lots: (1) server graph, cascades, loader,
+CI check and `weather-alerts` 1.3.0; (2) `PluginCard`; (3) console. Deviations from the draft, all
+recorded above: the install 409 keeps rule 38's `REQUIREMENT_INACTIVE` for a plan of switch-ons alone;
+a dependant out of plan neither blocks nor follows a deactivation; the console's statuses come from its
+own choice (no versions reported); the plan-coherence refusal also covers customer creation and plan
+change. The manual UI check (Plugins page at 390 / 900 / 1280 on a copy of real data) is reported in the
+hand-off, not here.

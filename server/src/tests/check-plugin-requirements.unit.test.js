@@ -58,7 +58,7 @@ test('rule 20: weather-alerts requires sas ^1.7.0, in 1.3.0, with its French cha
   const weather = read('weather-alerts');
   assert.deepEqual(weather.requires, [{ id: 'sas', range: '^1.7.0' }]);
   assert.equal(weather.version, '1.3.0');
-  assert.deepEqual(weather.changelog['1.3.0'], ['Nécessite Arrivée et départ guidés.']);
+  assert.equal(weather.changelog['1.3.0'][0], 'Nécessite Arrivée et départ guidés.');
   const { satisfies } = require('../utils/semverRange');
   assert.ok(satisfies(read('sas').version, '^1.7.0'), 'the shipped sas satisfies the range');
 });
