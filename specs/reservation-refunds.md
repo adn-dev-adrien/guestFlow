@@ -579,6 +579,7 @@ like « Nouvelle note », not a page-level one).
   records it. Only the bookkeeping is in scope.
 - **Reissuing the devis/facture PDF** with the avoir on it.
 - **Refunds initiated from the SAS de départ** (decision 2026-08-10: fiche only for now).
+- **Switching a paid direct stay to a platform** — not a supported use case (decision 2026-10-29): see `reservation-save-keeps-pricing.md` §8.
 - **A month-close lock** preventing the deletion of a refund already exported.
 - **Refund of a platform commission** or any platform-side money flow.
 - **Refunding accommodation does not change the declared « Montant hébergement HT »** (the tax base of

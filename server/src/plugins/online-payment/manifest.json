@@ -1,7 +1,7 @@
 {
   "id": "online-payment",
   "name": "Paiement en ligne (Qonto)",
-  "version": "1.4.4",
+  "version": "1.4.5",
   "description": "Liens de paiement envoyés aux voyageurs, et rapprochement des virements du compte Qonto avec les fiches.",
   "icon": "payments",
   "surfaces": [
@@ -83,6 +83,10 @@
     ],
     "1.4.4": [
       "Demande désormais le SDK 2.15 : un GuestFlow plus ancien refuse le plugin au lieu de relancer toutes les annulations à chaque notification Qonto. Compatible avec le SDK 2.15 de GuestFlow."
+    ],
+    "1.4.5": [
+      "Rapprochement bancaire : un séjour réglé par le lien de paiement de son devis attend un virement de lien (il se rapproche du versement Qonto) et non un virement direct.",
+      "Compatible avec le SDK 2.15 de GuestFlow."
     ]
   }
 }

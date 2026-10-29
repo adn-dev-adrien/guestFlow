@@ -450,7 +450,7 @@ function complementLeftOf(reservationId, quote, row = model.getRow(reservationId
   // collected complement lost are read from the history since it was collected.
   const complementPaidDate = String(row && row.complementPaidDate || '').slice(0, 10);
   if (Number(row && row.complementPaid || 0) === 1 && complementPaidDate) {
-    const dropped = droppedSince(reservationId, complementPaidDate);
+    const dropped = droppedSince(reservationId, complementPaidDate, 'complement');
     left.options = Math.max(left.options, round2(dropped.options));
     left.resources = Math.max(left.resources, round2(dropped.resources));
   }
@@ -531,11 +531,30 @@ function droppedSinceCollection(reservationId, row) {
     const first = db.prepare('SELECT MIN(paidDate) AS d FROM reservation_installments WHERE reservationId = ? AND paid = 1 AND paidDate IS NOT NULL').get(Number(reservationId));
     if (first && first.d) dates.push(String(first.d).slice(0, 10));
   } catch { /* no installments table */ }
-  return droppedSince(reservationId, dates.sort()[0] || '');
+  return droppedSince(reservationId, dates.sort()[0] || '', 'schedule');
 }
 
-function droppedSince(reservationId, since) {
-  const total = (signature) => String(signature || '').split('|').filter(Boolean).reduce((t, part) => t + (Number(part.split(':')[2]) || 0), 0);
+// `scope` narrows the drops to the lines of one window: 'complement' keeps the lines that sat in the arrival
+// complement (`:c1` in the signatures), 'schedule' the others (`:c0`). A signature written before the flag
+// existed carries none: its lines count in both, and the overflow correction of `overpaymentLinesOf` trims
+// the overlap.
+function droppedSince(reservationId, since, scope = null) {
+  const lines = (field, signature) => new Map(String(signature || '').split('|').filter(Boolean).map((part) => {
+    const seg = part.split(':');
+    const flag = String(seg[field === 'resourcesSignature' ? 4 : 3] || '');
+    return [Number(seg[0]), { total: Number(seg[2]) || 0, flag: flag === 'c0' || flag === 'c1' ? flag : null }];
+  }));
+  const inScope = (flag) => scope == null || flag == null || flag === (scope === 'complement' ? 'c1' : 'c0');
+  const drop = (field, from, to) => {
+    const before = lines(field, from);
+    const after = lines(field, to);
+    let total = 0;
+    for (const id of new Set([...before.keys(), ...after.keys()])) {
+      const line = before.get(id) || after.get(id);
+      if (inScope(line.flag)) total += ((before.get(id) || {}).total || 0) - ((after.get(id) || {}).total || 0);
+    }
+    return total;
+  };
   const net = { options: 0, resources: 0, touristTax: 0 };
   const entries = db.prepare("SELECT changedFields, createdAt FROM reservation_history WHERE reservationId = ? AND eventType = 'update' ORDER BY id").all(Number(reservationId));
   for (const entry of entries) {
@@ -545,8 +564,8 @@ function droppedSince(reservationId, since) {
     for (const change of changes) {
       if (!change) continue;
       if (change.field === 'touristTaxTotal') net.touristTax += Number(change.from || 0) - Number(change.to || 0);
-      if (change.field === 'optionsSignature') net.options += total(change.from) - total(change.to);
-      if (change.field === 'resourcesSignature') net.resources += total(change.from) - total(change.to);
+      if (change.field === 'optionsSignature') net.options += drop('optionsSignature', change.from, change.to);
+      if (change.field === 'resourcesSignature') net.resources += drop('resourcesSignature', change.from, change.to);
     }
   }
   return Object.fromEntries(Object.entries(net).map(([poste, value]) => [poste, Math.max(0, value)]));

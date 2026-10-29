@@ -67,7 +67,7 @@ function build({ connected = true, startDate = '2026-10-01', mark = applyPayment
     withQonto: withQonto || (async () => { calls.qonto += 1; throw new Error('no Qonto call expected'); }),
     core: {
       buildLedger, parseGroup, platformDisplay, todayIso: () => TODAY,
-      listLinks: (id) => paymentLinks.listForReservation(id),
+      listLinks: (id) => paymentLinks.listForStay(id),
     },
   });
   return { controller, transactions, model, settings, store, calls };
