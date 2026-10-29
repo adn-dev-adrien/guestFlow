@@ -1,0 +1,2 @@
+- Managed spaces: a removal order from the console uninstalls the module without erasing its data, and a module whose data count cannot be read is reported as unknown instead of empty.
+- Plugins: role allowlist entries and webhook exemptions now apply only while the plugin is live, and role entries only on the plugin's own routes.

@@ -29,10 +29,11 @@ function setup({
     settings: {
       mailbox: () => ({ host: 'imap.test', port: 993, user: 'contact@test', password: 'x' }),
       sender: () => 'resa@gdf07.com',
+      authentication: () => ({ allowedDomains: 'gdf07.com', trustedAuthservId: 'mx.test' }),
       giteNumbers: () => ({ 1: '309700' }),
       autoApply: () => autoApply,
     },
-    readMails: async (cfg) => { calls.readWith = cfg; return mails; },
+    readMails: async (cfg) => { calls.readWith = cfg; return mails.map((m) => ({ authenticated: true, ...m })); },
     findReservations: findReservations || (({ propertyIds, startDate, endDate }) => reservations
       .filter((r) => propertyIds.includes(r.propertyId) && startDate === '2026-11-13' && endDate === '2026-11-15')),
     commissionPercent: () => rate,

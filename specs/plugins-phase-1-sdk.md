@@ -254,6 +254,13 @@ Optional: a plugin that declares nothing reads « Actif ».
     wrappers of the five plugins stay in the core `api.js` in this phase; they move with the plugin
     bundles in phase 4.
 
+> 2026-10-28 — SDK 2.12.0 (audit fixes, `specs/airbnb-mail-intake.md` rules 22–23): `sdk.mailbox.readMailsFrom`
+> keeps only mails whose header From address equals `sender`, returns `authenticated` / `authReason` (DKIM pass in the
+> Authentication-Results of the mailbox's own server, found by `trustedAuthservId` or the provider's default name;
+> `allowedDomains`), requires TLS, and pins the IMAP host to the SMTP server's domain itself; new
+> `sdk.mailbox.resolveImapHost(smtpHost, configured)`; a setting may be declared `supportLocked`. Both intake plugins
+> declare `^2.12.0`.
+>
 > 2026-10-28 — SDK 2.11.0 (`specs/plugin-removal-resilience.md` rule 17): `ctx.onActivate(fn)` — runs in the
 > background each time a plugin goes from off to live: activated (Plugins API or reconciler), installed (after its
 > install hooks, once the whole install committed), or turned live by the licence (a plan upgrade, the row already

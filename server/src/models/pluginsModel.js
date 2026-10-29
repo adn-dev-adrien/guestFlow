@@ -19,6 +19,7 @@
  *   rollBack(id)            → the previous package becomes the running one, and no rollback is left
  *   expireRollback(id)      → forgets the previous package (its window is over)
  *   syncBundled(id, manifest, sha256) → a `bundled` row follows the copy the running release ships
+ *   markHooksPending(id) / pendingHooks() / clearHooksPending(id) → an install that needed a restart owes its hooks
  *   setEnabled(id, enabled) → flips the flag
  *   uninstall(id)           → deletes the row (the plugin's data is kept, rule 6)
  *   isActive(id)            → boolean
@@ -96,6 +97,9 @@ function buildModel(database) {
     syncBundled(id, manifest, sha256 = null) {
       return syncBundledStmt.run({ id, version: manifest.version, manifest: JSON.stringify(manifest), sha256 }).changes > 0;
     },
+    markHooksPending(id) { database.prepare('UPDATE plugins SET hooks_pending = 1 WHERE id = ?').run(id); },
+    pendingHooks: () => database.prepare('SELECT id FROM plugins WHERE hooks_pending = 1 ORDER BY id').all().map((r) => r.id),
+    clearHooksPending(id) { database.prepare('UPDATE plugins SET hooks_pending = 0 WHERE id = ?').run(id); },
     setEnabled(id, enabled) { setEnabledStmt.run(enabled ? 1 : 0, id); },
     uninstall(id) { deleteStmt.run(id); },
     isActive: (id) => Boolean(isActiveStmt.get(id)),

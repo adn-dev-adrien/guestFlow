@@ -2405,7 +2405,8 @@ export default function ReservationPage() {
         };
 
         if (editingDevisId) {
-          await api.updateDevis(editingDevisId, devisPayload);
+          const savedDevis = await api.updateDevis(editingDevisId, devisPayload);
+          if (savedDevis?.retiredPaymentLinks) showSuccess('Devis enregistré. Le lien de paiement en cours est retiré : le montant a changé.');
           setInitialSnapshot(formSnapshot);
           if (safeAfterSaveAction) {
             safeAfterSaveAction();

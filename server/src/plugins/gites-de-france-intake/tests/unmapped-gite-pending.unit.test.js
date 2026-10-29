@@ -18,7 +18,7 @@ test('rule 18: unmapped gîte → pending with its reason; mapped later → appl
   const service = createIntakeService({
     intakes: buildModel(db),
     settings: { mailbox: () => ({ host: 'h', user: 'u', password: 'p' }), sender: () => 's', giteNumbers: () => giteNumbers, autoApply: () => true },
-    readMails: async () => [{ messageId: '<m1>', receivedAt: '2026-10-14T16:32:00.000Z', text: BOOKING_MAIL }],
+    readMails: async () => [{ messageId: '<m1>', receivedAt: '2026-10-14T16:32:00.000Z', text: BOOKING_MAIL, authenticated: true }],
     findReservations: ({ propertyIds }) => (propertyIds.includes(2) ? [R] : []),
     commissionPercent: () => 10,
     propertyOptions: () => [],
@@ -48,7 +48,7 @@ test('rule 18: mapped but no iCal fiche yet → still pending, the unmapped reas
   const service = createIntakeService({
     intakes: buildModel(db),
     settings: { mailbox: () => ({ host: 'h', user: 'u', password: 'p' }), sender: () => 's', giteNumbers: () => giteNumbers, autoApply: () => true },
-    readMails: async () => [{ messageId: '<m1>', receivedAt: '2026-10-14T16:32:00.000Z', text: BOOKING_MAIL }],
+    readMails: async () => [{ messageId: '<m1>', receivedAt: '2026-10-14T16:32:00.000Z', text: BOOKING_MAIL, authenticated: true }],
     findReservations: () => [], commissionPercent: () => 10, propertyOptions: () => [], getReservation: () => null, core: {},
     today: () => '2026-10-20',
   });
