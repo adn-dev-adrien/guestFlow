@@ -3,7 +3,7 @@ Contributors: adrien
 Tags: booking, availability, quote, gutenberg
 Requires at least: 6.4
 Requires PHP: 8.0
-Stable tag: 1.18.0
+Stable tag: 1.18.1
 License: GPLv2 or later
 
 Affiche les disponibilités, calcule des devis et envoie des demandes de réservation vers GuestFlow via son API publique.
@@ -36,6 +36,9 @@ Non. Elle est lue uniquement côté serveur (constante `wp-config` ou option mas
 Non. Elle crée un devis « brouillon » côté GuestFlow, que l'administrateur revoit puis convertit éventuellement en réservation.
 
 == Changelog ==
+
+= 1.18.1 =
+* Page de retour du paiement : quand la réservation a été annulée entre-temps, la page affiche « Cette réservation est annulée. » et cesse de vérifier le paiement (GuestFlow à jour requis, sinon le comportement reste celui d'avant).
 
 = 1.18.0 =
 * Anti-robot : dès que les coordonnées s'affichent ou qu'on y touche (jamais au simple chargement de la page), le navigateur résout une vérification de GuestFlow (preuve de travail, calculée en arrière-plan, sans service extérieur ni cookie). Le visiteur ne la voit pas, sauf s'il envoie avant la fin : le bouton affiche alors « Vérification… ». GuestFlow 3 avec l'extension « Réservation depuis le site » 1.8.0 requis ; à partir de cette version, GuestFlow refuse les demandes envoyées sans vérification.

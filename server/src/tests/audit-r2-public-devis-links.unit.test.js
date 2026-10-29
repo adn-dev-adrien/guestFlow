@@ -1,5 +1,5 @@
-// Audit R2 (2026-10-28), public surface — specs/public-online-payment.md rules 28-32 and
-// specs/plugins-phase-3a-online-payment.md rules 25-26: a devis link must follow the stay the devis became.
+// Audit R2 (2026-10-28), public surface — specs/public-online-payment.md rule 16 and
+// specs/plugins-phase-3a-online-payment.md rule 28: a devis link must follow the stay the devis became.
 // N1 cancellation, N2 re-price, N3 acompte + full both paid, N4 a payment is never overwritten by a
 // cancellation, unreadable provider keeps the link; A allowConflict on a retired link paid anyway.
 
@@ -45,7 +45,7 @@ async function pay(link, extra = {}) {
   return { out, calls };
 }
 
-test('N1 — cancelling a stay abandons the open links of the devis converted into it', () => {
+test('specs/public-online-payment.md rule 16 — N1 cancelling a stay abandons the open links of the devis converted into it', () => {
   const stayId = createStay();
   const { link } = convertedDevis(stayId, { amountCents: fullCents(stayId) });
   const deps = {
@@ -133,7 +133,7 @@ test('N4 — a link paid while it is being replaced stays paid and no new link i
   assert.equal(links.findById(l1.id).status, 'paid');
 });
 
-test('N4 — cancelIfOpen never overwrites a paid link', () => {
+test('specs/plugins-phase-3a-online-payment.md rule 28 — N4 cancelIfOpen never overwrites a paid link', () => {
   const stayId = createStay();
   const { link } = convertedDevis(stayId);
   links.markPaid(link.id, { providerPaymentId: 'x' });

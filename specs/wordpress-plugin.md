@@ -252,6 +252,11 @@ remaining the single source of truth for prices, availability, and validation.
     answer never starts a payment, even with a token (rule 27 of the same spec); since the 2026-10-27
     spec review any answer carrying a boolean `messageAdded` is message-only, and `messageAdded: false`
     (the message cap was reached, rule 30) reads « Demande reçue. Nous vous recontactons rapidement. ».
+32. **The payment return page stops on a cancelled stay** (2026-10-29, plugin 1.18.1,
+    [public-online-payment.md](public-online-payment.md) rule 16). When the status answers `cancelled`
+    (the stay the request became was cancelled), the block stops polling and reads « Cette réservation
+    est annulée. » (`paymentCancelled`, English « This booking has been cancelled. »). Against a
+    GuestFlow that never answers `cancelled` nothing changes.
 
 **Edge cases:**
 - API key not configured → blocks show "Réservation temporairement indisponible" and the settings
