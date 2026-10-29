@@ -380,6 +380,8 @@ function overpaymentIntroducedBy(reservationId, quote, overrides = {}) {
     // Rule 35 — the same amount split by poste, for the refund the fiche opens next.
     overpaymentLines: overpaymentLinesOf({
       row, capturedByPoste: model.capturedScheduleContribsByPoste(reservationId), quote, overpaymentTtc: after,
+      // Computed before the write: the stored lines are still the ones the complement collected.
+      complementLeft: Number(quote.complementCollectedExcessTtc) > 0 ? complementLeftOf(reservationId, quote, row) : {},
     }),
   };
 }
@@ -417,13 +419,35 @@ function liveOverpayment(reservationId, engineInput) {
 
 // What the stored arrival complement carries on each poste beyond what the stay's complement now carries:
 // the lines an edit took out of it (bed linen, a tourist tax that fell).
-function complementLeftOf(reservationId, quote) {
+function complementLeftOf(reservationId, quote, row = model.getRow(reservationId)) {
   const stored = { options: 0, resources: 0, touristTax: 0 };
   const live = { options: 0, resources: 0, touristTax: 0 };
   const key = { option: 'options', resource: 'resources', tax: 'touristTax' };
   for (const line of model.buildArrivalComplementDetail(reservationId).detail || []) if (key[line.kind]) stored[key[line.kind]] += Number(line.amount || 0);
   for (const line of quote.complementDetailLines || []) if (key[line.kind]) live[key[line.kind]] += Number(line.amount || 0);
-  return Object.fromEntries(Object.keys(stored).map((poste) => [poste, round2(Math.max(0, stored[poste] - live[poste]))]));
+  const left = Object.fromEntries(Object.keys(stored).map((poste) => [poste, round2(Math.max(0, stored[poste] - live[poste]))]));
+  // Once the save has run, the stored lines already carry the lower tax: what the complement collected
+  // is read from the history (the value the tax had before its first change since the collection).
+  const routed = Boolean(quote.touristTaxInComplement || quote.touristTaxCollectedOnArrival);
+  const collected = routed ? touristTaxCollectedInComplement(reservationId, row) : null;
+  if (collected != null) left.touristTax = Math.max(left.touristTax, round2(Math.max(0, collected - Number(quote.touristTaxTotal || 0))));
+  return left;
+}
+
+// The tourist tax a collected complement held: the amount the tax had before its first change since the
+// complement was collected (null when it never changed, or the complement is not collected).
+function touristTaxCollectedInComplement(reservationId, row) {
+  if (!row || Number(row.complementPaid || 0) !== 1) return null;
+  const paidDate = String(row.complementPaidDate || '').slice(0, 10);
+  const entries = db.prepare("SELECT changedFields, createdAt FROM reservation_history WHERE reservationId = ? AND eventType = 'update' ORDER BY id").all(Number(reservationId));
+  for (const entry of entries) {
+    if (paidDate && String(entry.createdAt || '').slice(0, 10) < paidDate) continue;
+    let changes = [];
+    try { changes = JSON.parse(entry.changedFields || '[]'); } catch { changes = []; }
+    const taxChange = changes.find((c) => c && c.field === 'touristTaxTotal');
+    if (taxChange && Number.isFinite(Number(taxChange.from))) return Number(taxChange.from);
+  }
+  return null;
 }
 
 // The trop-perçu of a stay and its split by poste, from the quote of the stay as it would be saved.
@@ -447,7 +471,7 @@ function overpaymentOfQuote(reservationId, row, asSaved, { storedSchedule = fals
     overpaymentMethod: onlyComplementInCash ? 'internal' : null,
     overpaymentLines: overpaymentLinesOf({
       row, capturedByPoste: model.capturedScheduleContribsByPoste(reservationId), quote: asSaved, overpaymentTtc,
-      complementLeft: complementExcess > 0 ? complementLeftOf(reservationId, asSaved) : {},
+      complementLeft: complementExcess > 0 ? complementLeftOf(reservationId, asSaved, row) : {},
     }),
   };
 }
@@ -1487,7 +1511,7 @@ function performUpdate(reservationId, body, { unlockPast = false, dryRun = false
   return preview;
 }
 
-const ARRIVAL_LINE_RENAME_MESSAGE = 'Une prestation ajoutée une fois le séjour commencé ne peut pas être renommée.';
+const ARRIVAL_LINE_RENAME_MESSAGE = 'Une prestation ne peut plus être renommée une fois le séjour commencé.';
 const ARRIVAL_EXTRAS_FROZEN_MESSAGE = 'Une prestation vendue à l\'arrivée ne peut être ni retirée ni réduite.';
 const MID_STAY_EXTRAS_CLOSED_MESSAGE = 'Complément de fin de séjour déjà encaissé : décocher « payé » ou déverrouiller la fiche.';
 

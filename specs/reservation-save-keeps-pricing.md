@@ -98,6 +98,8 @@ changed something the price depends on; money collected beyond the total is repo
    « caisse interne » (`complementPaidCash`), the `refundPrefill` carries `method: 'internal'` and the refund
    dialog opens on that means (`defaultMethod`), so nothing is booked in the accounts; the operator can change
    it. A refund by transfer is booked on the poste of its lines (70600010 for options), an internal one nowhere.
+   Once the save has run the stored lines already carry the lower tax, so the tax a collected complement
+   held is read back from the history (the value before its first change since the collection).
    The poste of the excess is taken from what left the complement: the lines the stored complement carries
    beyond what the stay's complement now carries (options, resources, **tourist tax → 46710000**); what the
    stored lines cannot explain falls on the options, then the resources, then the accommodation.
@@ -174,16 +176,27 @@ An amber alert above the platform price alert, one per notice, 44 px action targ
 
 ## 7. Test plan
 
-- [x] `reservation-save-keeps-pricing.unit.test.js` (4) — rules 1-2: a stay shaped like #22212 / #22282
+- [x] `reservation-save-keeps-pricing.unit.test.js` (12) — rules 1-2: a stay shaped like #22212 / #22282
       (stored figures an older engine produced) saved untouched keeps money, custom option ids, nights and
-      history; a note is saved and logged; a moved input re-prices; « Recalculer » re-prices.
+      history; a note is saved and logged; a moved input re-prices; « Recalculer » re-prices; the bed
+      invariant on stored lines; a refused or dry-run save pins no baseline; a rename saves the text alone
+      (paid and offered line), a retyped offered amount re-prices; an adjusted complement is not an edit
+      (#22275); a rename in the extras window is refused with its own message.
+- [x] `reservation-save-keeps-pricing.auto-options.unit.test.js` (3) — rule 1: an early check-in line, a cot
+      line, an offered auto-option whose catalogue price moved.
 - [x] `reservation-engine-input-parity.unit.test.js` (1) — rule 3: the auditor's repro (12 adults, extra guest
       price raised 25 → 40): the plan splits the stay total, the restamp goes back to it.
-- [x] `frozen-complement-excess-is-trop-percu.unit.test.js` (3) — rule 4.
-- [x] `fiche-pricing-notices.unit.test.js` (5) — rules 5-6; client `PricingNotices.test.jsx` (3).
+- [x] `frozen-complement-excess-is-trop-percu.unit.test.js` (4) — rule 4, platform stays included.
+- [x] `fiche-shows-collected-complement-excess.unit.test.js` (8) — rule 4: the preview announces it; the
+      GET ledger of a locked fiche carries the row and its prefill; no false row when the replay prices a
+      paid stay lower (#14); caisse interne default; options / tax poste, through the 409 and after the save.
+- [x] `plugins/accounting-export/tests/accounting-complement-excess-refund.unit.test.js` (2) — the excess
+      refunded by transfer is booked on 70600010, by caisse interne nowhere.
+- [x] `fiche-pricing-notices.unit.test.js` (6) — rules 5-6; client `PricingNotices.test.jsx` (3).
+- [x] Client `RefundDialog.overpayment.test.jsx` (5, `defaultMethod`) and `FinanceSection.refunds.test.jsx`
+      (7, the row's own prefill).
 - [x] `vat-regime-golden`: the `quote/*` family of the golden capture was regenerated (quotes of stored
-      stays now carry refunds, commissions, the freeze and the payout delay); the 180 other keys are
-      unchanged.
+      stays now carry refunds, commissions, the freeze and the payout delay); the other keys are unchanged.
 
 ## 8. Out of scope
 

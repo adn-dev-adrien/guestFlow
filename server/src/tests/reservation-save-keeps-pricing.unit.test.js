@@ -208,6 +208,6 @@ test('rule 2 — in the extras window of a started fiche a rename is refused wit
     const refused = send(lines);
     assert.equal(refused.status, 400, target);
     assert.equal(refused.body.code, 'ARRIVAL_LINE_RENAME');
-    assert.match(refused.body.error, /ne peut pas être renommée/);
+    assert.match(refused.body.error, /ne peut plus être renommée/);
   }
 });

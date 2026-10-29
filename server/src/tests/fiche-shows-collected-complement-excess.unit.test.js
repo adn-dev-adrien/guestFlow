@@ -116,3 +116,37 @@ test('rule 4 — a tourist tax that fell out of the complement is refunded on th
   });
   assert.deepEqual(lines.map((l) => [l.bucket, l.amountTtc]).sort(), [['options', 5], ['touristTax', 4]]);
 });
+
+test('rule 4 — a tourist tax that fell after the complement collected it is refunded on the tax poste: on the 409, then on the fiche after the save', async () => {
+  const db = require('../database');
+  const controller = require('../controllers/reservationsController');
+  db.prepare(`INSERT INTO properties (id, name, maxGuests, touristTaxMode, touristTaxPerDayPerPerson, depositEnabled)
+              VALUES (2, 'Gîte taxé', 8, 'per_day_per_person', 1, 0)`).run();
+  db.prepare("INSERT INTO pricing_rules (propertyId, label, pricePerNight) VALUES (2, 'Standard', 100)").run();
+  const body = (adults, extra = {}) => ({
+    propertyId: 2, clientId: 1, startDate: '2099-07-04', endDate: '2099-07-07', checkInTime: '16:00', checkOutTime: '10:00',
+    platform: 'direct', adults, children: 0, teens: 0, babies: 0, singleBeds: 0, doubleBeds: 0, babyBeds: 0, depositDisabled: 1,
+    touristTaxInComplement: 1, options: [], ...extra,
+  });
+  const created = await new Promise((resolve) => {
+    controller.create({ body: body(2), user: { role: 'admin' } }, { status() { return this; }, json: resolve });
+  });
+  const id = created.id;
+  const stored = db.prepare('SELECT finalPrice, touristTaxTotal FROM reservations WHERE id = ?').get(id);
+  assert.equal(stored.touristTaxTotal, 6);
+  // The solde is paid, and the complement collected the tax by transfer.
+  db.prepare("UPDATE reservations SET balancePaid = 1, balanceAmount = finalPrice, complementPaid = 1, complementPaidCash = 0, complementPaidDate = date('now'), complementAmount = 6 WHERE id = ?").run(id);
+
+  const refused = controller.performUpdate(id, body(1));
+  assert.equal(refused.status, 409, JSON.stringify(refused.body));
+  assert.deepEqual(refused.body.overpaymentLines.map((l) => [l.bucket, l.amountTtc]), [['touristTax', 3]]);
+
+  const forced = controller.performUpdate(id, body(1, { forceOverpayment: true }));
+  assert.equal(forced.status, 200, JSON.stringify(forced.body));
+  const fiche = await new Promise((resolve) => {
+    controller.getById({ params: { id: String(id) }, user: { role: 'admin', roles: ['admin'] } }, { status() { return this; }, json: resolve });
+  });
+  const row = fiche.ledger.rows.find((r) => r.key === 'overpayment');
+  assert.ok(row, 'the trop-perçu row survives the save');
+  assert.deepEqual(row.refundPrefill.overpaymentLines.map((l) => [l.bucket, l.amountTtc]), [['touristTax', 3]]);
+});
