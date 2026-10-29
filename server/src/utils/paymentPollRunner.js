@@ -324,6 +324,11 @@ async function settleRetiredPaidLink({ paymentLinksModel, notifyPaidAfterCancel,
     return { id: link.id, reservationId: link.reservationId, type: link.type, status: 'paid-after-cancel', effect: 'double-payment', duplicateLink: true, duplicateCents: duplicate.duplicateCents };
   }
   const effect = applyPaidEffect({ database, devisModel, link, paidDate: paidDay, recordPayment: recordPayment || recordOn(database), settledAlready: true });
+  if (effect.effect === 'double-payment' && effect.duplicateLink) {
+    recordRefundOwed(database, effect.reservationId, link, effect.duplicateCents);
+    if (notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link, { doublePaid: true, ...(effect.duplicateCents != null ? { duplicateCents: effect.duplicateCents } : {}) }); } catch { /* best effort */ } }
+    return { id: link.id, reservationId: link.reservationId, type: link.type, status: 'paid-after-cancel', ...effect };
+  }
   if ((effect.effect === 'reservation-cancelled' || effect.effect === 'installment-unallocated') && notifyPaidAfterCancel) {
     try { await notifyPaidAfterCancel(link); } catch { /* best effort */ }
   }

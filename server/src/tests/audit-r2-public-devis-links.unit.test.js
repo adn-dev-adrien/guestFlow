@@ -335,3 +335,25 @@ test('S3 — the partial double-payment alert asks to refund « cette part »', 
   assert.match(mail.text, /rembourser cette part/);
   assert.match(mail.subject, /100,00/);
 });
+
+// Review of PR #851, T1 — two links of the same type on one devis, the second retired as settled then paid.
+for (const type of ['full', 'deposit']) {
+  test(`T1 — two ${type} links: the second, retired as settled and paid anyway, is a refund-flagged double payment`, async () => {
+    const stayId = createStay();
+    const cents = type === 'full' ? fullCents(stayId) : Math.round(rowOf(stayId).depositAmount * 100);
+    const { devisId, link: first } = convertedDevis(stayId, { type, amountCents: cents });
+    const second = links.create({ reservationId: devisId, type, amountCents: cents, providerLinkId: `T1${type}`, url: 'u', status: 'open' });
+    await pay(first);
+    assert.ok(links.retireSettled().some((l) => l.id === second.id && l.cancelReason === 'settled'));
+    const alerts = [];
+    const provider = { id: 'qonto', getPayment: async (pid) => (pid === `T1${type}` ? { paid: true, paymentId: 'pT', paidAt: '2027-04-01T15:00:00Z' } : { paid: false }), cancelLink: async () => {} };
+    const out = await retryPendingCancellations({
+      paymentLinksModel: links, provider, database: db, devisModel: dm, emitPluginEvent: () => {},
+      notifyPaidAfterCancel: async (l, o) => alerts.push([l.id, o]),
+    });
+    assert.equal(out.results.find((r) => r.id === second.id).status, 'paid-after-cancel');
+    assert.deepEqual(alerts.find(([id]) => id === second.id)[1], { doublePaid: true });
+    const refund = db.prepare("SELECT changedFields FROM reservation_history WHERE reservationId = ? AND changedFields LIKE '%refundOwed%'").all(stayId);
+    assert.ok(refund.length >= 1);
+  });
+}
