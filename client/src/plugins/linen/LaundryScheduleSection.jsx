@@ -143,9 +143,11 @@ export default function LaundryScheduleSection({
             aria-labelledby="laundry-days-label"
             aria-describedby="laundry-days-error"
             sx={{
-              display: { xs: 'grid', sm: 'flex' }, gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: { xs: '3px', sm: 0.75 }, width: { xs: '100%', sm: 'auto' },
-              // Below ~380 px the seven toggles would drop under 40 px: 4 + 3, never a lone « D ».
-              '@media (max-width: 379.95px)': { gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' },
+              display: { xs: 'grid', sm: 'flex' }, gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: { xs: '1px', sm: 0.75 },
+              // On a phone the row bleeds 8 px into the card's padding so each toggle is 44 px wide.
+              width: { xs: 'calc(100% + 16px)', sm: 'auto' }, mx: { xs: '-8px', sm: 0 },
+              // Below ~388 px the seven toggles would drop under 44 px: 4 + 3, never a lone « D ».
+              '@media (max-width: 387.95px)': { gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', width: '100%', mx: 0, gap: '3px' },
               '& .MuiToggleButtonGroup-grouped': {
                 flex: { sm: 'none' }, minWidth: { xs: 0, sm: 44 }, height: 44, borderRadius: '10px !important',
                 border: '1px solid', borderColor: 'divider', fontWeight: 600, touchAction: 'manipulation',

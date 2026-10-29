@@ -60,7 +60,7 @@ export default function OccurrenceGrid({
                 value={time}
                 onChange={(e) => onSlotTimeChange(slot, e.target.value)}
                 disabled={disabled}
-                slotProps={{ inputLabel: { shrink: true } }}
+                slotProps={{ inputLabel: { shrink: true }, ...(multi ? {} : { htmlInput: { 'aria-label': 'Heure par défaut' } }) }}
                 sx={{ width: 130 }}
               />
             ))}

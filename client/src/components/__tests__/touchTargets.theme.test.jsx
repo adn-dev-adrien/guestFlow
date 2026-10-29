@@ -69,5 +69,5 @@ test('rule 21 — the colour swatch gets a 44 × 44 hit area on touch', () => {
       <PlatformColorPicker color="#123456" onChange={() => {}} size={24} />
     </ThemeProvider>,
   );
-  expect(coarseBlockOf(getByRole('button', { name: 'Changer la couleur' }))).toMatch(/::after\{content:"";position:absolute;inset:-10px/);
+  expect(coarseBlockOf(getByRole('button', { name: 'Changer la couleur' }))).toMatch(/::after\{content:"";position:absolute;top:50%;left:50%;width:max\(100%, ?44px\)/);
 });

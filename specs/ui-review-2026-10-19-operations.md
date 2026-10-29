@@ -273,6 +273,21 @@ guessing; and the quote the guest receives looks like the house that sends it.
     `margin: -1` as -8px, so the hidden live regions of `BoundedNumberField`, `AttentionCard` and
     `TwoFactorSetupDialog` were as wide as the viewport and gave Réglages → Plateformes a horizontal
     scroll at 1280 px. They share `utils/visuallyHidden.js` (explicit `1px` / `-1px`).
+36. **Operator text is short and impersonal (audit R3, 2026-10-29).** No « vous », « votre », « Veuillez »,
+    « Voulez-vous » or « Êtes-vous » in a confirmation, an alert, an empty state or a tooltip: « Supprimer
+    cette réservation ? », « Forcer l'enregistrement ? », « Logement à sélectionner. », « Aucune saison. ».
+    Guest-facing wording (e-mails, share text, the public site) is out of this rule, and so is the
+    server-built « Vous percevez » headline label of a platform stay, which keeps its own wording. Test:
+    `__tests__/operator-wording.impersonal.test.js` (no « Veuillez », « Voulez-vous » or « Êtes-vous » left
+    in the client's sources).
+37. **Touch leftovers (audit R3, 2026-10-29).** On a finger-driven screen: the `mailto:` / `tel:` links of
+    the Clients directory are MUI `Link`s 44 px tall (side by side when they fit, otherwise stacked; the
+    row grows only on touch); the devis number link and the clickable sentences of the e-mail preview
+    (« Modifier : objet ») use `touchHitArea`; « Changer la couleur » uses it too (the swatch's border made
+    its old hit area 42 px); the laundry weekday toggles are 44 px wide from 388 px (the row bleeds 8 px
+    into the card's padding, 4 + 3 below). The default-hour field of a single-slot option grid is named
+    « Heure par défaut ». Measured with Playwright at 390 and 900 (coarse pointer). Test:
+    `components/__tests__/OccurrenceGrid.time-label.test.jsx`.
 
 ---
 

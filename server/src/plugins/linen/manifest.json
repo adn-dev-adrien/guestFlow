@@ -1,7 +1,7 @@
 {
   "id": "linen",
   "name": "Linge et blanchisserie",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Stock de linge, tournées de blanchisserie, lits à préparer.",
   "icon": "laundry",
   "surfaces": [
@@ -51,6 +51,9 @@
       "Une rupture de linge dit jusqu’à quand.",
       "Le tapis de bain a son nom dans l’alerte de manque de linge.",
       "Compatible avec le SDK 2 de GuestFlow."
+    ],
+    "1.2.1": [
+      "Les boutons des jours de blanchisserie font 44 px de large sur téléphone."
     ]
   }
 }

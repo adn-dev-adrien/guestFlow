@@ -33,10 +33,12 @@ import {
   Stack, ToggleButton, ToggleButtonGroup, Typography,
 } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
+import { touchHitArea } from '../utils/touchHitArea';
 
 export const SAMPLE = 'sample';
 
 const sentenceSx = (active) => ({
+  ...touchHitArea,
   borderRadius: 0.5,
   cursor: 'pointer',
   boxDecorationBreak: 'clone',
