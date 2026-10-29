@@ -1605,11 +1605,6 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
   const effectiveBalancePaid = Number(storedPaymentForQuote.balancePaid || 0) === 1;
   const effectiveComplementPaid = Number(storedPaymentForQuote.complementPaid || 0) === 1;
 
-  // specs/mid-stay-extras-to-end-of-stay-complement.md §3.1 rule 3 — capture the baseline BEFORE the
-  // lines are replaced: the state the reservation had entering this save is exactly « what was sold
-  // by the time the guest arrived », so an extra added in this very save is detected as mid-stay.
-  model.captureArrivalExtrasBaselineIfDue(id);
-
   // specs/frozen-complement-trusts-client.md §3 rules 1-2 — a collected complement is frozen at what
   // was COLLECTED, so the engine must be fed the stored amount, never the one the browser computed:
   // a client-side quote built without the mid-stay baseline puts a sale made during the stay back
@@ -1716,7 +1711,10 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
   // specs/bed-config-in-linen-card.md §3 rules 7 and 12 — invariant on save: zero single/double bed
   // counts when the lines the engine kept carry no bed-linen option (no linen contract). Read on the
   // persisted lines, not the payload, so an option the engine drops takes the beds with it.
-  const bedLinenIncluded = keepPricing || hasBedLinenOption(quote.optionLines);
+  // An unpriced save keeps the lines it stored, so the invariant reads those, not the engine's derivation.
+  const bedLinenIncluded = hasBedLinenOption(keepPricing
+    ? db.prepare('SELECT optionId FROM reservation_options WHERE reservationId = ?').all(id)
+    : quote.optionLines);
   const effectiveSingleBeds = bedLinenIncluded ? singleBeds : 0;
   const effectiveDoubleBeds = bedLinenIncluded ? doubleBeds : 0;
   req.body.singleBeds = effectiveSingleBeds;
@@ -1874,6 +1872,12 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
   // The row, its lines and its history land together: a refused resource (409) must not leave the
   // lines half rewritten (specs/mid-stay-extras-on-locked-fiche.md).
   const writeAll = () => {
+    // specs/mid-stay-extras-to-end-of-stay-complement.md §3.1 rule 3 — capture the baseline BEFORE the
+    // lines are replaced: the state the reservation had entering this save is exactly « what was sold
+    // by the time the guest arrived », so an extra added in this very save is detected as mid-stay.
+    // After every refusal of the save: a refused or previewed save writes nothing. The engine above read
+    // the very baseline this stores (`resolveArrivalExtrasBaseline` synthesizes it).
+    model.captureArrivalExtrasBaselineIfDue(id);
     model.updateReservation(id, modelPayload, quote, nightBlocks, nextIcalSyncLocked, { keepPricing });
     if (!keepPricing) writePricedLines();
     const changes = computeAuditChanges(beforeAuditSnapshot, afterAuditSnapshot);

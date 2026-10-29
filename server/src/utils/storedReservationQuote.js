@@ -39,9 +39,40 @@ const PRICING_COLUMNS = [
   'acompteCommissionAmount',
 ];
 
-// `customKey` is the browser's handle on a custom line, not part of its price.
-function withoutClientKeys(quote) {
-  return { ...quote, optionLines: (quote.optionLines || []).map(({ customKey, ...line }) => line) };
+// What a line bills, not how the engine got there: its identity, units, amounts and routing. An
+// engine-derived auto-option comes back as a plain locked line from the replay and as a derived one
+// (with its hours and mode) from the save; the unit price of an offered line is informational.
+// `customKey` is the browser's handle on a custom line.
+function billedLine(line) {
+  const offered = Number(line.offered || 0) === 1 || line.offered === true;
+  return {
+    id: line.customOptionId != null ? `custom:${line.customOptionId}` : (line.optionId != null ? `option:${line.optionId}` : `resource:${line.resourceId}`),
+    quantity: Number(line.quantity || 0),
+    billedUnits: Number(line.billedUnits || 0),
+    unitPrice: offered ? null : Math.round(Number(line.unitPrice || 0) * 100),
+    totalPrice: Math.round(Number(line.totalPrice || 0) * 100),
+    offered,
+    inComplement: Number(line.inComplement || 0),
+    sessions: line.sessions || null,
+    cardOccurrences: line.cardOccurrences || null,
+    cardPersons: line.cardPersons || null,
+  };
+}
+
+// Every figure a save would write from the engine: the money columns, the lines, the nights.
+const PRICED_FIGURES = [
+  ...PRICING_COLUMNS, 'totalStayPrice', 'optionsTotal', 'resourcesTotal', 'extraGuestSurcharge', 'complementAmountAuto',
+  'endOfStayComplementTotal', 'midStayExtrasLines', 'overCollectedTtc',
+];
+
+function pricedProjection(quote) {
+  const figures = Object.fromEntries(PRICED_FIGURES.map((key) => [key, quote[key]]));
+  return {
+    figures,
+    optionLines: (quote.optionLines || []).map(billedLine).sort((a, b) => a.id.localeCompare(b.id)),
+    resourceLines: (quote.resourceLines || []).map(billedLine).sort((a, b) => a.id.localeCompare(b.id)),
+    nights: (quote.nightlyBreakdown || []).map((n) => [n.date, Math.round(Number(n.price || 0) * 100)]),
+  };
 }
 
 /**
@@ -56,7 +87,7 @@ function withoutClientKeys(quote) {
 function pricingUnchangedFromStored(db, stored, quote) {
   try {
     const replay = quoteStoredReservation(db, stored);
-    return Boolean(replay && !replay.error && isDeepStrictEqual(withoutClientKeys(replay), withoutClientKeys(quote)));
+    return Boolean(replay && !replay.error && isDeepStrictEqual(pricedProjection(replay), pricedProjection(quote)));
   } catch {
     return false;
   }

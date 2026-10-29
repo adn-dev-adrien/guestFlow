@@ -33,3 +33,9 @@ test('rule 4 — the operator\'s own adjustment of the complement is not second-
   assert.equal(q.complementAmount, 100);
   assert.equal(q.overCollectedTtc, 0);
 });
+
+test('rule 4 — a platform stay reports no trop-perçu from its collected complement (reservation-refunds.md rule 38)', () => {
+  const q = calculateReservationQuote({ ...COLLECTED, platform: 'Airbnb', db: pricingAuditDb({ depositPercent: 0 }), customPrice: 650 });
+  assert.equal(q.complementAmount, 100);
+  assert.equal(q.overCollectedTtc, 0);
+});

@@ -2758,8 +2758,9 @@ function calculateReservationQuote({
   // arrival: a line moved out of it, a tax that fell. That excess is money received beyond the stay
   // total — a trop-perçu, like the same excess on the acompte and the solde — never a second charge and
   // never an anonymous « Complément d'arrivée » line the total does not include. The operator's own
-  // adjustment of the complement is his decision and is not second-guessed.
-  const complementCollectedExcess = complementPaid && !complementOverridden
+  // adjustment of the complement is his decision and is not second-guessed. A platform stay has no
+  // trop-perçu to give back (reservation-refunds.md rule 38): the excess stays where it is (Adrien, 2026-10-29).
+  const complementCollectedExcess = complementPaid && !complementOverridden && !channel.platformSale
     ? roundMoney(Math.max(0, roundMoney(complementAmount) - rawComplement))
     : 0;
   const overCollectedTtc = roundMoney(scheduleOverCollectedTtc + complementCollectedExcess);

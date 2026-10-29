@@ -24,9 +24,14 @@ function touristTaxStale({ quote, storedRow }) {
   const stored = round2(storedRow.touristTaxTotal);
   const current = round2(quote.touristTaxTotal);
   if (Math.abs(stored - current) < 0.01) return null;
+  // A platform switched to « nous reverse » the tax after the stay was saved: what the summary still
+  // shows as the platform's tax is the amount entered then. The notice names the same figure.
+  const enteredWithheld = quote.touristTaxReversedByPlatform && stored === 0 && storedRow.platformTouristTaxAmount != null
+    ? round2(storedRow.platformTouristTaxAmount) : 0;
+  const shown = enteredWithheld > 0 ? enteredWithheld : stored;
   return {
     code: 'TOURIST_TAX_STALE',
-    text: `Taxe de séjour à mettre à jour : ${euros(stored)} enregistrés, ${euros(current)} calculés.`,
+    text: `Taxe de séjour à mettre à jour : ${euros(shown)} enregistrés, ${euros(current)} calculés.`,
     action: 'refreshTouristTax',
   };
 }

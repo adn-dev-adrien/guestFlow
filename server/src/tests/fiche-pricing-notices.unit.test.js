@@ -43,3 +43,11 @@ test('rule 6 — same tax, frozen tax, devis and new stays announce nothing', ()
   assert.equal(touristTaxStale({ quote: { touristTaxTotal: 30 }, storedRow: { kind: 'devis', touristTaxTotal: 0 } }), null);
   assert.equal(touristTaxStale({ quote: { touristTaxTotal: 30 }, storedRow: null }), null);
 });
+
+test('rule 6 — a platform now reversing the tax: the notice names the figure the summary still shows (the amount entered then)', () => {
+  const notice = touristTaxStale({
+    quote: { touristTaxTotal: 19.2, touristTaxReversedByPlatform: true },
+    storedRow: { kind: 'reservation', touristTaxTotal: 0, platformTouristTaxAmount: 16.02 },
+  });
+  assert.equal(notice.text, 'Taxe de séjour à mettre à jour : 16,02 € enregistrés, 19,20 € calculés.');
+});

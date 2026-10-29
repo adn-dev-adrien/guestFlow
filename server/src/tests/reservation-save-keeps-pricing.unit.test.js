@@ -28,8 +28,8 @@ function seed(db) {
 let nextWeek = 0;
 function stay(db, controller) {
   nextWeek += 1;
-  const start = `2099-02-${String(nextWeek * 5).padStart(2, '0')}`;
-  const end = `2099-02-${String(nextWeek * 5 + 3).padStart(2, '0')}`;
+  const start = `2099-02-${String(nextWeek * 4).padStart(2, '0')}`;
+  const end = `2099-02-${String(nextWeek * 4 + 3).padStart(2, '0')}`;
   const body = (overrides = {}) => ({
     propertyId: 1, clientId: 1, startDate: start, endDate: end,
     checkInTime: '16:00', checkOutTime: '10:00', platform: 'direct',
@@ -104,4 +104,32 @@ test('rule 2 — « Recalculer » (refreshTouristTax) re-prices an untouched sta
   assert.equal(row(db, id).touristTaxTotal, 0, 'an untouched save leaves the stored tax alone');
   assert.equal(controller.performUpdate(id, body({ ...sent, refreshTouristTax: true })).status, 200);
   assert.equal(row(db, id).touristTaxTotal, 6, '2 adults x 3 nights x 1 €');
+});
+
+test('rule 1 — an unpriced save still applies the bed invariant on the lines it stored (bed-config-in-linen-card rules 7, 12)', () => {
+  const { db, controller, id, body } = fixture();
+  db.prepare('UPDATE reservations SET singleBeds = 2, doubleBeds = 1 WHERE id = ?').run(id);
+  const custom = db.prepare('SELECT id FROM reservation_custom_options WHERE reservationId = ?').get(id);
+  const sent = { singleBeds: 2, doubleBeds: 1, customOptions: [{ customKey: String(custom.id), customOptionId: custom.id, description: 'Panier', amount: 20, offered: false }] };
+  assert.equal(controller.performUpdate(id, body(sent)).status, 200);
+  const after = row(db, id);
+  assert.deepEqual([after.singleBeds, after.doubleBeds], [0, 0], 'no bed-linen line: no beds');
+
+  const linen = db.prepare("INSERT INTO options (title, priceType, price, countsAsBedLinen) VALUES ('Linge test', 'per_stay', 0, 1)").run().lastInsertRowid;
+  db.prepare('INSERT INTO reservation_options (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice) VALUES (?, ?, 1, 0, 1, ?, 0)').run(id, linen, 'per_stay');
+  assert.equal(controller.performUpdate(id, body({ ...sent, options: [{ optionId: linen, quantity: 1 }] })).status, 200);
+  assert.deepEqual([row(db, id).singleBeds, row(db, id).doubleBeds], [2, 1], 'a stored linen line keeps the beds');
+});
+
+test('rule 1 — a refused save writes nothing: the arrival baseline is not captured before the gate', () => {
+  const { db, controller, id, body } = fixture();
+  db.prepare("UPDATE reservations SET startDate = '2000-01-01', endDate = '2000-01-04', arrivalExtrasBaseline = NULL, endOfStayComplementPaid = 1, complementPaid = 1 WHERE id = ?").run(id);
+  const custom = db.prepare('SELECT id FROM reservation_custom_options WHERE reservationId = ?').get(id);
+  const refused = controller.performUpdate(id, body({
+    startDate: '2000-01-01', endDate: '2000-01-04', adults: 5,
+    customOptions: [{ customKey: String(custom.id), customOptionId: custom.id, description: 'Panier', amount: 20, offered: false }],
+  }));
+  assert.equal(refused.status, 400);
+  assert.equal(refused.body.code, 'PAST_RESERVATION_LOCKED');
+  assert.equal(row(db, id).arrivalExtrasBaseline, null);
 });
