@@ -119,7 +119,7 @@ guessing; and the quote the guest receives looks like the house that sends it.
     flush with the screen's edges and its bottom, scrolled to the end too. Its accessible name carries
     both figures.
 12. **Whose reservation is open.** Below `lg` the action bar carries a second line « Prénom Nom ·
-    N° 6646665983 · 07/08 → 13/08 », ellipsised, in place of the centred name it shows from `lg`.
+    N° 6600000002 · 07/08 → 13/08 », ellipsised, in place of the centred name it shows from `lg`.
 
 ### Calendar (proposal 21)
 
@@ -132,12 +132,16 @@ guessing; and the quote the guest receives looks like the house that sends it.
     **Superseded 2026-10-28** for a logement's closure by `calendar-property-parity.md` rules 9-11: it is
     a hatched bar in its logement's lane group with a stay's half-day edges. A global closure keeps the
     column hatch.
+    > Live part (a closure of every logement hatches whole day columns, one « Tout fermé » label) is pinned by
+    > `CumulativeMonthCalendar.solid-bars.test.jsx`; the per-logement closure bar is `calendar-property-parity.md` rules 9-11.
 14. **Legible stay bars.** A stay bar is a soft tint of its platform colour (14 %), a 3 px stripe of the
     platform colour on its left edge and ink text: AA on every platform colour, including the yellow
     ones. The phone agenda's platform chip uses the same tint and ink text. A past stay fades to 65 %,
     not 50 %, so its text keeps 3:1.
     **Superseded 2026-10-28** by `calendar-property-parity.md` rules 4-8: a current or future stay is a
     solid bar with a server-chosen text colour (≥ 4.5:1); the tint is kept for past stays only.
+    > Live part (a past stay keeps the soft tint and ink text) is pinned by `CumulativeMonthCalendar.solid-bars.test.jsx`.
+    > The 65 % fade is gone from the code: a past stay is a tint, never an opacity (`calendar-property-parity.md` rules 4-8).
 15. **A folded legend with real names.** The platform legend is folded behind « Légende » (closed by
     default) and prints display names: « Gîtes de France », « GreenGo », never a raw key. The name comes
     from the server, with each row of the reservation list (`platformDisplay`): one source.

@@ -1,0 +1,1 @@
+- **Approving an iCal date drift is guarded** (spec `ical-sync-override-locked-dates.md` rule 11). The new nights are checked against other stays and closures (a clash is flagged and notified), the payout deadline of a platform stay follows the new departure, and a stay that is no longer a live reservation is refused.

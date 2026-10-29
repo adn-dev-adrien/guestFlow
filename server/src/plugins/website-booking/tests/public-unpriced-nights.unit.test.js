@@ -1,5 +1,5 @@
 require('./isolatedDb');
-// specs/tariff-recipes/spec.md rule 59 + specs/public-api.md (2026-10-27 audit) — a night no season
+// specs/tariff-recipes/spec.md item 59 + specs/public-api.md (2026-10-27 audit) — a night no season
 // covers is never sold on the site: the engine names it (`unpricedNights`) and the public quote and
 // booking request refuse the stay instead of pricing it at the engine's fallback rate.
 const test = require('node:test');

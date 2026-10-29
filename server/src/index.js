@@ -376,6 +376,13 @@ const server = serverHandle.listen(...listenArgs, () => {
   // old releases. Must run before the scheduled tasks so the first version check sees clean state.
   require('./controllers/systemController').initOnBoot();
 
+  try {
+    const orphans = require('./models/paymentLinksModel').listOrphanOpen();
+    if (orphans.length) {
+      console.warn(`[payments] ${orphans.length} payment link(s) still payable point at a missing reservation (links ${orphans.map((l) => `${l.id}->${l.reservationId}`).join(', ')}): to deactivate by hand at the provider.`);
+    }
+  } catch { /* no payment_links table: nothing to report */ }
+
   // Start scheduled tasks (like iCal auto-sync)
   startScheduledTasks();
   pluginLoader.startJobs();

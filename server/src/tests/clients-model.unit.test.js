@@ -91,6 +91,7 @@ test('update changes the stored phone and names', () => {
 
 // ---------- email language (specs/email-client-language-and-fiche-polish.md) ----------
 
+// specs/email-client-language-and-fiche-polish.md rule 1 — the client carries its own e-mail language.
 test('emailLanguage: persisted + normalised (en/fr, junk → fr), default fr', () => {
   const { model } = freshModel();
   assert.equal(model.insert({ lastName: 'a', firstName: 'b' }).emailLanguage, 'fr'); // default

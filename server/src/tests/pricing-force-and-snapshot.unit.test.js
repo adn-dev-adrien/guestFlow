@@ -344,7 +344,7 @@ test('auto-option forced → contribs are cleared to NULL (line lives 100 % in C
   assert.equal(lateLine.soldeContribTtc, null);
 });
 
-// ── specs/force-extras-complement-on-platform.md §3 rule 1bis: platform default + operator override ──
+// ── specs/force-extras-complement-on-platform.md §3 update 2026-06-20 (1bis): platform default + operator override ──
 // On a non-direct platform reservation an extra DEFAULTS into Complément when the line carries no
 // explicit flag (a freshly-added line), but an explicit per-line `inComplement` always wins so the
 // operator can pull a line back out of Complément.

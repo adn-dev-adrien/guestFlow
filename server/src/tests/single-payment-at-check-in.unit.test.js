@@ -235,7 +235,7 @@ test('« Régler séparément » keeps the v2.8.0 behaviour: two settlements, no
   const model = createReservationsModel(db);
   const id = seedBoth(db);
 
-  // The stay collected, the complement deferred to the check-out — the case rule 22 exists for.
+  // The stay collected, the complement deferred to the check-out — the case collect-stay-payment-at-check-in's recap exists for.
   model.commitArrivalSas(id, {
     stayPaid: true, complementSettled: false, groupArrivalPayment: undefined,
   });

@@ -1,4 +1,4 @@
-// specs/shell-and-home-day-first.md rule 23 (2026-10-27 audit) — on a 390 px phone the planning bar
+// specs/shell-and-home-day-first.md rules 23 + 26 (2026-10-27 audit) — on a 390 px phone the planning bar
 // was an empty band holding only the laundry icon (a plugin node, which the bar never moves to the
 // top bar). specs/dashboard-planning-scroll.md rule 22: the plugin buttons stay in the band beside
 // « Aujourd'hui »; without any plugin button the lone « Aujourd'hui » icon moves to the top bar; no

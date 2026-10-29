@@ -64,13 +64,13 @@ function insert(db, row) {
 const read = (db, id) => db.prepare('SELECT * FROM reservations WHERE id = ?').get(id);
 
 // La forme historique exacte de la #7 : total 994 €, solde 903 € (net), commission 91 €.
-const PARRETON = {
+const PERRIN = {
   id: 7, platform: 'GitesDeFrance', finalPrice: 994, balanceAmount: 903, platformCommissionAmount: 91,
 };
 
 test('le solde net redevient brut : la commission rejoint son échéance', () => {
   const db = repairDb();
-  insert(db, PARRETON);
+  insert(db, PERRIN);
 
   const { repaired, ids } = runLegacyNetSoldeRepair(db);
 
@@ -84,14 +84,14 @@ test('le solde net redevient brut : la commission rejoint son échéance', () =>
 
 test('le journal comptable est inchangé, au centime', { skip: skipWithout(['accounting-export']) }, () => {
   const before = buildEntry(
-    { ...PARRETON, balancePaid: 1, balancePaidDate: '2026-05-21', firstName: 'Yann', lastName: 'Parreton' },
+    { ...PERRIN, balancePaid: 1, balancePaidDate: '2026-05-21', firstName: 'Yann', lastName: 'Perrin' },
     'balance', null, COMMISSION_CONTEXT, { collectedOnArrival: false },
   );
   const db = repairDb();
-  insert(db, PARRETON);
+  insert(db, PERRIN);
   runLegacyNetSoldeRepair(db);
   const after = buildEntry(
-    { ...read(db, 7), balancePaid: 1, balancePaidDate: '2026-05-21', firstName: 'Yann', lastName: 'Parreton' },
+    { ...read(db, 7), balancePaid: 1, balancePaidDate: '2026-05-21', firstName: 'Yann', lastName: 'Perrin' },
     'balance', null, COMMISSION_CONTEXT, { collectedOnArrival: false },
   );
 
@@ -182,7 +182,7 @@ test('une commission sans échéance où atterrir est signalée, pas réparée',
 
 test('rejouer la réparation ne change plus rien', () => {
   const db = repairDb();
-  insert(db, PARRETON);
+  insert(db, PERRIN);
 
   runLegacyNetSoldeRepair(db);
   const afterFirst = read(db, 7);

@@ -70,10 +70,10 @@ test('parseSpecRules rend une liste vide quand la spec n’a pas de §3', async 
 test('parseCitations comprend les formes réellement écrites dans le dépôt', async () => {
   const { parseCitations } = await load();
   const src = [
-    '// specs/ma-spec.md §3.2 rule 10 — ce que fait la règle',
-    '// specs/autre.md §4 rules 4-5 — une plage',
-    '// specs/troisieme.md §3.E rules 28 + 30b — une liste',
-    '// specs/quatrieme.md règle 11bis — en français',
+    '// specs\/ma-spec.md §3.2 rule\x2010 — ce que fait la règle',
+    '// specs\/autre.md §4 rules\x204-5 — une plage',
+    '// specs\/troisieme.md §3.E rules\x2028 + 30b — une liste',
+    '// specs\/quatrieme.md règle\x2011bis — en français',
   ].join('\n');
   const got = parseCitations(src).map((c) => `${c.spec}:${c.rule}`);
   assert.deepEqual(got, [
@@ -99,7 +99,7 @@ test('une citation loin de sa spec retombe sur celle que le fichier annonce en t
     '',
     '',
     '',
-    "test('rule 18 — un remboursement par virement sort du total', () => {});",
+    "test('rule\x2018 — un remboursement par virement sort du total', () => {});",
   ].join('\n');
   assert.deepEqual(parseCitations(src), [{ spec: 'reservation-refunds', rule: '18' }]);
 });

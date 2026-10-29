@@ -18,6 +18,7 @@ const {
 const reservationsModelFactory = require('../models/reservationsModel');
 const devisModelFactory = require('../models/devisModel');
 const propertyIcalModel = require('../models/propertyIcalModel');
+const { globalFetch } = require('./icalFetchFixture');
 
 const SCHEMA = fs.readFileSync(path.join(__dirname, '..', 'schema.sql'), 'utf8');
 const PREFIX = monthPrefix(new Date());
@@ -120,7 +121,7 @@ test('rule 13 — an iCal booking imported after a cancellation is created and n
   });
   try {
     const source = { id: 1, propertyId: 1, url: 'http://feed.test/ical', platformKey: 'booking', platformLabel: 'Booking', name: 'Booking' };
-    const result = await propertyIcalModel.buildModel(db).syncSource(source);
+    const result = await propertyIcalModel.buildModel(db, { fetchImpl: globalFetch }).syncSource(source);
     assert.equal(result.createdCount, 1);
   } finally {
     global.fetch = origFetch;

@@ -1,0 +1,1 @@
+- **Converting a devis checks the dates** (spec `devis-accept-to-reservation.md` rule 9). Accepting a quote over nights another channel sold meanwhile is refused (409 `DATES_UNAVAILABLE`) instead of silently creating a double booking; the paid-link path still converts and flags the conflict.

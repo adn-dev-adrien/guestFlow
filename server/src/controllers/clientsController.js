@@ -9,6 +9,7 @@
 const { validateClientPayload } = require('../utils/clientValidation');
 const { parseAddressBlock, extractEmail, extractPhone } = require('../utils/contactParsing');
 const { clientExistsRefusal } = require('../utils/clientDuplicates');
+const { deactivateOpenLinksBeforeDelete } = require('../utils/paymentLinkDeactivation');
 
 // When a drop holds nothing recognizable, the raw text is echoed back rather than swallowed: the user
 // sees what they dropped and the field's format validation flags it (spec §3 rules 8 and 11).
@@ -71,7 +72,7 @@ function createController(model) {
     return res.json(model.update(req.params.id, req.body));
   }
 
-  function remove(req, res) {
+  async function remove(req, res) {
     const id = Number(req.params.id);
     const force = String((req.query && req.query.force) || '').toLowerCase() === 'true';
     const impact = model.getDeleteImpact(id);
@@ -90,7 +91,15 @@ function createController(model) {
       });
     }
 
-    model.remove(id);
+    const blocker = model.deletionBlocker(id);
+    if (blocker) return res.status(409).json({ error: blocker, code: 'CLIENT_CARRIES_MONEY' });
+    try {
+      await deactivateOpenLinksBeforeDelete(model.rowIdsToDelete(id), { paymentLinksModel: require('../models/paymentLinksModel') });
+    } catch (err) {
+      return res.status((err && err.httpStatus) || 500).json({ error: (err && err.message) || 'Suppression impossible.', code: (err && err.error) || 'DELETE_FAILED' });
+    }
+    const outcome = model.removeGuarded(id);
+    if (outcome.blocker) return res.status(409).json({ error: outcome.blocker, code: 'CLIENT_CARRIES_MONEY' });
     return res.json({ ok: true });
   }
 

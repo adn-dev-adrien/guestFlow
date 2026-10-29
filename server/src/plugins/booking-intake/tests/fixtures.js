@@ -1,7 +1,7 @@
-// The Booking extranet reservation page for 6392081711 (Granja, 6-8 Nov 2026, 10 adults), as
+// The Booking extranet reservation page for 6300000001 (Granja, 6-8 Nov 2026, 10 adults), as
 // `document.body.innerText` renders it on 2026-10-15, with a fictitious guest (the repository is public).
 // Only the part from « Détails de la réservation » on: the extranet menu above it is of no interest.
-const PAGE_6392081711 = `Revenir à la synthèse des réservations
+const PAGE_6300000001 = `Revenir à la synthèse des réservations
 Détails de la réservation
 
 Date d'arrivée
@@ -52,7 +52,7 @@ PC029090
 
 Numéro de réservation :
 
-6392081711
+6300000001
 
 Montant soumis à commission :
 
@@ -164,4 +164,4 @@ const replaceOnce = (text, from, to) => {
   return text.replace(from, to);
 };
 
-module.exports = { PAGE_6392081711, withBookingWhitespace, replaceOnce };
+module.exports = { PAGE_6300000001, withBookingWhitespace, replaceOnce };

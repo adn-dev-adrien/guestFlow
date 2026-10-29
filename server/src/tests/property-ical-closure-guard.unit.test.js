@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
 const propertyIcalModel = require('../models/propertyIcalModel');
+const { globalFetch } = require('./icalFetchFixture');
 
 // Guards the closure-overlap contract on the iCal sync (Adrien 2026-06-06).
 // Until this guard landed, `propertyIcalModel.syncSource` called the prepared INSERT
@@ -83,7 +84,7 @@ function freshModel() {
   const db = new Database(':memory:');
   db.exec(DDL);
   db.prepare("INSERT INTO properties (id, name, defaultCheckIn, defaultCheckOut, defaultCautionAmount) VALUES (1, 'Gîte', '15:00', '10:00', 500)").run();
-  const model = propertyIcalModel.buildModel(db);
+  const model = propertyIcalModel.buildModel(db, { fetchImpl: globalFetch });
   const source = { id: 1, propertyId: 1, url: 'http://feed.test/ical', platformKey: 'airbnb', platformLabel: 'Airbnb', name: 'Airbnb' };
   return { db, model, source };
 }

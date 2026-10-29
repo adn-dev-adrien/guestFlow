@@ -5,7 +5,7 @@
  */
 
 // Normalise a phone to E.164, tolerating the French national form the operator naturally types:
-//   "06 28 05 60 66" / "0628056066" → "+33628056066"; "0033…" → "+33…"; an already-"+…" number is
+//   "06 00 00 00 02" / "0600000002" → "+33600000002"; "0033…" → "+33…"; an already-"+…" number is
 //   kept. Separators are stripped first. Anything else is returned as-is (the E.164 check then rejects it).
 function normalizePhone(raw) {
   const p = String(raw || '').replace(/[\s().-]/g, '');

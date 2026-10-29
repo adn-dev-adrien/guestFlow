@@ -32,6 +32,7 @@ const icalExportRangesModel = require('./icalExportRangesModel');
 const { classifyBookingEvent } = require('../utils/icalBookingEcho');
 const notificationService = require('../utils/notificationService');
 const { emit: emitPluginEvent } = require('../plugins/sdk/eventBus');
+const { fetchPublic, readCapped, MAX_FEED_BYTES, FeedFetchError } = require('../utils/safeFeedFetch');
 const { removeOrphanIcalPlaceholders } = require('../utils/icalPlaceholderClientsMigration');
 // Establishment closures (2026-06-06, narrowed 2026-10-27 — specs/lodgify-decommission.md §3 rule 17):
 // the iCal sync inserts without `validateAvailability`, so it checks the closures itself. A new event
@@ -80,7 +81,7 @@ function touristTaxCollectionString(collects, remitted) {
   return Number(remitted) === 0 ? 'platform_reversed' : 'platform';
 }
 
-function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS } = {}) {
+function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, fetchImpl } = {}) {
   // Bind the drift + cancellation models to the SAME database instance so prod and unit
   // tests share one consistent SQLite handle (the default exports are bound to the
   // production DB; tests build a fresh property-ical model on `:memory:`, and they need
@@ -271,29 +272,35 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS }
     async fetchFeed(source) {
       let response;
       try {
-        response = await fetch(source.url, { method: 'GET', signal: AbortSignal.timeout(fetchTimeoutMs) });
+        response = await fetchPublic(source.url, { signal: AbortSignal.timeout(fetchTimeoutMs), ...(fetchImpl ? { fetchImpl } : {}) });
       } catch (error) {
+        if (error instanceof FeedFetchError) throw error;
         if (error && (error.name === 'TimeoutError' || error.name === 'AbortError')) {
           throw new Error('Plateforme injoignable (délai dépassé).');
         }
         throw new Error('Plateforme injoignable.');
       }
-      if (!response.ok) {
-        throw new Error(`Impossible de lire le flux iCal (${response.status}).`);
-      }
-      let icsText;
       try {
-        icsText = await response.text();
-      } catch (error) {
-        throw new Error(error && error.name === 'TimeoutError' ? 'Plateforme injoignable (délai dépassé).' : 'Flux iCal interrompu.');
+        if (!response.ok) {
+          throw new Error(`Impossible de lire le flux iCal (${response.status}).`);
+        }
+        let icsText;
+        try {
+          icsText = await readCapped(response, MAX_FEED_BYTES);
+        } catch (error) {
+          if (error instanceof FeedFetchError) throw error;
+          throw new Error(error && error.name === 'TimeoutError' ? 'Plateforme injoignable (délai dépassé).' : 'Flux iCal interrompu.');
+        }
+        if (!isWellFormedIcs(icsText)) {
+          throw new Error('Réponse iCal invalide (contenu non ICS).');
+        }
+        if (!isCompleteIcs(icsText)) {
+          throw new Error('Flux iCal incomplet — synchronisation ignorée.');
+        }
+        return icsText;
+      } finally {
+        if (typeof response.release === 'function') await response.release();
       }
-      if (!isWellFormedIcs(icsText)) {
-        throw new Error('Réponse iCal invalide (contenu non ICS).');
-      }
-      if (!isCompleteIcs(icsText)) {
-        throw new Error('Flux iCal incomplet — synchronisation ignorée.');
-      }
-      return icsText;
     },
 
     syncSource(source, { prefetched = null } = {}) {
@@ -315,7 +322,7 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS }
           throw fetchError;
         }
         // specs/lodgify-decommission.md §3 rule 5 — Booking.com's feed calls every taken night
-        // « CLOSED - Not available », real reservations included: keep them, the echo filter sorts them.
+        // « CLOSED - Not available », real reservations included: keep them, the cover check flags the overlaps.
         // Rule 16 — which feed does so is the source's own setting, not the slug `booking`: under
         // `booking-com` every stay used to be dropped, then cancelled by the empty-feed sweep.
         const isBookingFeed = sourceMarksStaysClosed(source);
@@ -425,7 +432,6 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS }
           SET sourceIcalEventUid = ?, updatedAt = datetime('now')
           WHERE id = ?
         `);
-        const deleteReservation = database.prepare('DELETE FROM reservations WHERE id = ?');
         const insertReservation = database.prepare(`
           INSERT INTO reservations (
             propertyId, clientId, startDate, endDate, adults, children, teens, babies,
@@ -604,8 +610,8 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS }
         } catch { takeover = null; }
 
         // specs/lodgify-decommission.md §3 rules 6-8 — what GuestFlow already holds on this property,
-        // against which a Booking event is judged an echo: stays from any other origin, closures, and
-        // the ranges that left the export less than 72 h ago (Booking has not re-read the feed yet).
+        // against which a Booking event is judged a conflict: stays from any other origin, closures, and
+        // the ranges that left the export less than 72 h ago.
         let bookingCover = null;
         if (isBookingFeed) {
           const exportRanges = icalExportRangesModel.create(database);
@@ -658,7 +664,6 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS }
         let removedCount = 0;
         let skippedClosureCount = 0;
         let takenOverCount = 0;
-        let echoSkippedCount = 0;
         const conflictReservationIds = [];
         // Rule 3 — stays already known that a date change moved onto taken nights (notified like a new one).
         const movedIntoConflictIds = [];
@@ -836,16 +841,12 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS }
               continue;
             }
 
-            // Booking echo filter (rules 6-8): every night already held → Booking is mirroring
-            // GuestFlow, skip; some nights held → create, but flag the conflict — never drop it.
+            // Booking cover (rules 6, 8): a night already held — wholly or partly — is a stay Booking sold
+            // on nights GuestFlow holds. It is created and flagged in conflict, never dropped: Booking's
+            // feed carries its own reservations only (rule 14), so there is no echo to recognise.
             let bookingConflict = false;
             if (!mapping && bookingCover) {
-              const verdict = classifyBookingEvent(event, bookingCover);
-              if (verdict === 'echo') {
-                echoSkippedCount += 1;
-                continue;
-              }
-              bookingConflict = verdict === 'partial';
+              bookingConflict = classifyBookingEvent(event, bookingCover) !== 'free';
             } else if (!mapping) {
               bookingConflict = overlapsOtherStay(event);
             }
@@ -1084,7 +1085,6 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS }
           removedCount,
           skippedClosureCount,
           takenOverCount,
-          echoSkippedCount,
           conflictReservationIds,
           movedIntoConflictIds,
           repeatedUidCount,
@@ -1103,7 +1103,7 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS }
       if (!String(source.url || '').trim()) {
         return {
           createdCount: 0, updatedCount: 0, unchangedCount: 0, lockedCount: 0,
-          removedCount: 0, skippedClosureCount: 0, takenOverCount: 0, echoSkippedCount: 0,
+          removedCount: 0, skippedClosureCount: 0, takenOverCount: 0,
           conflictReservationIds: [], createdReservationIds: [], skipped: true,
         };
       }
@@ -1119,7 +1119,6 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS }
           locked: result.lockedCount,
           skippedClosure: result.skippedClosureCount,
           takenOver: result.takenOverCount || 0,
-          echoSkipped: result.echoSkippedCount || 0,
           conflicts: (result.conflictReservationIds || []).length,
           repeatedUids: result.repeatedUidCount || 0,
         });
@@ -1138,9 +1137,9 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS }
           // `skippedClosureCount` (2026-06-06) — events dropped because they fell on a
           // declared establishment closure. Surfaced for operator visibility in
           // `ical_sources.lastSyncMessage`.
-          // specs/lodgify-decommission.md §3 rule 13 — takeovers, Booking echoes and conflicts only
+          // specs/lodgify-decommission.md §3 rule 13 — takeovers and conflicts only
           // appear when non-zero, like the closure count.
-          `${result.createdCount} créé(s), ${result.updatedCount} mis à jour${result.takenOverCount > 0 ? `, ${result.takenOverCount} reprise(s)` : ''}, ${result.lockedCount} verrouillé(s), ${result.removedCount} annulation(s) à valider${result.skippedClosureCount > 0 ? `, ${result.skippedClosureCount} ignoré(s) (fermeture)` : ''}${result.echoSkippedCount > 0 ? `, ${result.echoSkippedCount} écho(s) ignoré(s)` : ''}${(result.conflictReservationIds || []).length > 0 ? `, ${result.conflictReservationIds.length} en conflit` : ''}${result.repeatedUidCount > 0 ? `, ${result.repeatedUidCount} au même identifiant` : ''}, ${result.unchangedCount} inchangé(s)`,
+          `${result.createdCount} créé(s), ${result.updatedCount} mis à jour${result.takenOverCount > 0 ? `, ${result.takenOverCount} reprise(s)` : ''}, ${result.lockedCount} verrouillé(s), ${result.removedCount} annulation(s) à valider${result.skippedClosureCount > 0 ? `, ${result.skippedClosureCount} ignoré(s) (fermeture)` : ''}${(result.conflictReservationIds || []).length > 0 ? `, ${result.conflictReservationIds.length} en conflit` : ''}${result.repeatedUidCount > 0 ? `, ${result.repeatedUidCount} au même identifiant` : ''}, ${result.unchangedCount} inchangé(s)`,
           syncCounts,
           result.createdCount + result.updatedCount,
           source.id,

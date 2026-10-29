@@ -125,6 +125,19 @@ nothing, and the platforms tab says in one short line what the last sync did.
     - the unavailability words (« blocked », « non disponible »…) in `DESCRIPTION` only drop an event
       whose summary names nobody: « Jean Dupont » with « non disponible pour le ménage » is a stay. A
       summary carrying those words is still dropped, as before.
+17. **A feed is read bounded and public-only** _(added 2026-10-28, audit)_. The URL is operator input
+    fetched from inside the LAN (next to the database host and the other containers): the import now
+    refuses, with « Adresse du flux non autorisée (réseau privé). », a loopback, private (RFC 1918),
+    carrier-grade, link-local (`169.254.x.x`, cloud metadata), unique-local or multicast address — written
+    as a literal (IPv4-mapped IPv6 included: the URL parser rewrites `::ffff:127.0.0.1` as
+    `::ffff:7f00:1`, so addresses are classified on their bytes; `64:ff9b::/16` NAT64 and `2002::/16` 6to4 are
+    refused), reached through a name that resolves to one, or reached through a redirect (redirects are
+    followed by hand, at most 3, each hop checked). The address checked is the address **dialled**: the
+    connection goes through an undici `Agent` whose `lookup` validates what it resolves, on every hop, so a
+    name that answers a public address to a check and a private one to the connection (DNS rebinding) is
+    refused; a failed lookup is a refusal. The body is capped at 5 MB, by `Content-Length` and
+    while streaming (« Flux iCal trop volumineux. »). `GUESTFLOW_ICAL_ALLOW_PRIVATE=1` lifts the address
+    check for a development box whose test feed lives on localhost; it is not set in production.
 
 17. *(Added 2026-10-28, audit finding F9.)* **A date is a day of the calendar, and a stay is bounded.** `20270231`
     and `20271399` used to import as `2027-02-31` / `2027-14-00`, and `DTEND:99991231` as a placeholder blocking
@@ -234,6 +247,8 @@ shared placeholder clients are split at boot, idempotently; nothing is deleted, 
   `specs/ical-summary-fallback-cross-uid.md` rule 7) — rule 15: two platforms' « Reserved » on the same
   dates → two stays, the second flagged; a guest named on two feeds is still one stay.
 - `server/src/tests/ical-parser-edges.unit.test.js` (4 cases) — rule 16.
+- `server/src/tests/ical-safe-feed-fetch.unit.test.js` (11 cases, 2026-10-28) — rule 17: address classes, literal / name / redirect refusals, redirect cap, 5 MB cap (declared, streamed, text), the dev setting, the source-level message.
+- `ical-import-hardening.unit.test.js` sets `GUESTFLOW_ICAL_ALLOW_PRIVATE=1`: its fetch tests use a loopback server.
 
 ### Client tests
 

@@ -2334,7 +2334,7 @@ function calculateReservationQuote({
     adults: Number(adults || 0),
     // specs/tourist-tax-matches-the-office-calculation.md rule 8 — babies are NOT occupants for the
     // divisor. They were, and since dividing by more occupants lowers the tax, every stay with a cot
-    // was billed short of what the office's own form computes (checked against the Carpier
+    // was billed short of what the office's own form computes (checked against the Marchand
     // declaration, filed with 4 occupants where the engine counted 5). The cot still bills its
     // supplement — this is the divisor, not the sale.
     // A frozen stay keeps the divisor it was frozen with (rule 12), so a party edited after

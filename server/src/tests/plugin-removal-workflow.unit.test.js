@@ -1,4 +1,4 @@
-// specs/plugin-removal-resilience.md rules 7, 18 — the removal workflow runs nightly and on demand only,
+// specs/plugin-removal-resilience.md rule 7 — the removal workflow runs nightly and on demand only,
 // builds its matrix from the folders, never touches a self-hosted runner and leaves the pull-request
 // checks alone.
 
@@ -33,7 +33,7 @@ test('rule 7: a failing night opens or comments on one issue, and only a schedul
   assert.match(code, /issues: write/);
 });
 
-test('rule 18: GitHub-hosted runners only, eight cells at a time, and the server suite stays serial', () => {
+test('review follow-up: GitHub-hosted runners only, eight cells at a time, and the server suite stays serial', () => {
   assert.doesNotMatch(code, /self-hosted/);
   assert.match(code, /max-parallel: 8/);
   assert.match(code, /runs-on: ubuntu-latest/);

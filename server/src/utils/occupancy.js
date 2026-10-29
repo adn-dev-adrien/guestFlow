@@ -29,6 +29,22 @@ function getNightBlocksFromTimes(checkInTime, checkOutTime) {
   };
 }
 
+// The nights a stay really takes: an early check-in takes the night before, a late check-out the night
+// after. This is what the availability check refuses, so it is what the iCal export must publish.
+function effectiveRange(row) {
+  const { blocksPreviousNight, blocksNextNight } = getNightBlocksFromTimes(row.checkInTime, row.checkOutTime);
+  return {
+    startDate: blocksPreviousNight ? addIsoDays(row.startDate, -1) : row.startDate,
+    endDate: blocksNextNight ? addIsoDays(row.endDate, 1) : row.endDate,
+  };
+}
+
+// Columns to select to feed `effectiveRange`; a minimal schema without the times simply has none.
+function timeColumnsOf(database) {
+  const names = new Set(database.prepare('PRAGMA table_info(reservations)').all().map((c) => c.name));
+  return ['checkInTime', 'checkOutTime'].filter((c) => names.has(c));
+}
+
 function buildOccupiedDatesFromReservations(reservations) {
   const occupiedDates = new Set();
 
@@ -61,5 +77,7 @@ module.exports = {
   timeToHour,
   addIsoDays,
   getNightBlocksFromTimes,
+  effectiveRange,
+  timeColumnsOf,
   buildOccupiedDatesFromReservations,
 };

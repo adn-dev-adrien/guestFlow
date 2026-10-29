@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 
 const { eur } = require('../utils/financeInsights');
 
-// specs/finance-dashboard-redesign.md §3.3 rule 11 (2026-10-27 audit) — the « faits marquants »
+// specs/finance-dashboard-redesign.md rule 48 (2026-10-27 audit) — the « faits marquants »
 // printed « 1300 € » (Intl's narrow no-break space, invisible in the app font) under tiles reading
 // « 1 900 € ». Same writing as the client's formatCurrencyRounded: a regular space every 3 digits.
 

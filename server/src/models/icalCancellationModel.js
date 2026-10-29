@@ -34,6 +34,7 @@
  */
 
 const { totalSejour } = require('./financeModel').helpers;
+const { carriesMoney, withConvertedDevis } = require('../utils/deletionGuard');
 
 function buildModel(database) {
   // Bound to the SAME database so a test factory gets a matching pair. Its statements are
@@ -171,6 +172,17 @@ function buildModel(database) {
     'DELETE FROM ical_import_events WHERE reservationId = ?',
   );
   const deleteReservation = database.prepare('DELETE FROM reservations WHERE id = ?');
+  // Open payment links of the stay (and of the devis converted into it): abandoned in the transaction, with
+  // the marker that keeps them on the poll's retry list; the caller deactivates them after the commit
+  // (specs/plugins-phase-3a-online-payment.md rule 7), as utils/cancelReservation does.
+  const abandonOpenLinks = (reservationId) => {
+    let links;
+    try {
+      const store = require('./paymentLinksModel').buildModel(database);
+      links = withConvertedDevis(database, [reservationId]).flatMap((id) => store.listForReservation(id)).filter((l) => l.status === 'open');
+      return links.map((l) => store.cancel(l.id, { remotePending: true }));
+    } catch { return []; }
+  };
   // specs/booking-pace.md §5 — the deleted stay keeps counting « on the books » on the dates it was.
   // Lazy: a schema without the ledger (older test fixtures) skips it.
   const recordPaceCancellation = (reservationId) => {
@@ -227,13 +239,22 @@ function buildModel(database) {
       ackAlreadyCancelled.run(id);
       return { ok: true, outcome: 'already_cancelled', reservationId: null, compensationId: null };
     }
+    // THE delete guard (specs/payment-schedule-and-cancellation.md rule 52): a stay that carries money
+    // (a refund, a penalty, a paid link, a compensation…) is never hard-deleted by a platform's
+    // disappearance: it is cancelled and kept, its mappings go, the alert closes as approved.
+    const keptAsCancelled = carriesMoney(database, [cancellation.reservationId]);
     // Snapshot BEFORE delete — same reason as the history row below.
     const snapshot = compensation ? selectReservationSnapshot().get(cancellation.reservationId) : null;
     // History BEFORE delete so the reservationId FK is still resolvable.
     insertHistoryStmt.run(cancellation.reservationId, HISTORY_PAYLOAD);
     recordPaceCancellation(cancellation.reservationId);
     deleteImportEvents.run(cancellation.reservationId);
-    deleteReservation.run(cancellation.reservationId);
+    const cancelledLinks = abandonOpenLinks(cancellation.reservationId);
+    if (keptAsCancelled) {
+      require('./reservationsModel').create(database).markCancelled(cancellation.reservationId, { reason: 'Annulation iCal approuvée' });
+    } else {
+      deleteReservation.run(cancellation.reservationId);
+    }
     ackApproved.run(id);
     let compensationId = null;
     if (compensation) {
@@ -254,7 +275,7 @@ function buildModel(database) {
       });
       compensationId = created ? created.id : null;
     }
-    return { ok: true, outcome: 'approved', reservationId: cancellation.reservationId, compensationId };
+    return { ok: true, outcome: keptAsCancelled ? 'approved_kept' : 'approved', reservationId: cancellation.reservationId, compensationId, ...(cancelledLinks.length > 0 ? { cancelledLinks } : {}) };
   });
 
   /**

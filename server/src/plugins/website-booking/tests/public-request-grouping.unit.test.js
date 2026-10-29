@@ -93,6 +93,18 @@ test('edge case: the same request twice (double click) answers the same quote, u
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM reservation_history WHERE reservationId = ?').get(first.body.data.requestId).n, historyBefore);
 });
 
+test('rule 19: a quote the operator typed for the same guest and dates is left alone — the request makes its own', () => {
+  const stay = { propertyId: gite, ...freshStay(), adults: 2, guest: guest('typed@example.fr') };
+  const first = send(stay);
+  db.prepare("UPDATE reservations SET requestOrigin = NULL WHERE id = ?").run(first.body.data.requestId);
+  const before = row(first.body.data.requestId);
+  const second = send({ ...stay, adults: 3, message: 'Nous serons trois' });
+  assert.equal(second.statusCode, 201);
+  assert.equal(second.body.data.updated, false);
+  assert.notEqual(second.body.data.requestId, first.body.data.requestId);
+  assert.deepEqual(row(first.body.data.requestId), before);
+});
+
 test('rule 15: same e-mail and dates, another property → a second quote', () => {
   const dates = freshStay();
   const a = send({ propertyId: gite, ...dates, adults: 2, guest: guest('group@example.fr') });
@@ -102,7 +114,7 @@ test('rule 15: same e-mail and dates, another property → a second quote', () =
   assert.equal(count('group@example.fr'), 2);
 });
 
-test('rules 14 + 21: a quote the operator already sent keeps its composition and is flagged', () => {
+test('rules 14 + 18 + 21: a quote the operator already sent keeps its composition and is flagged until the next save', () => {
   const stay = { propertyId: gite, ...freshStay(), guest: guest('sent@example.fr') };
   const first = send({ ...stay, adults: 2 });
   db.prepare("UPDATE reservations SET devisStatus = 'sent' WHERE id = ?").run(first.body.data.requestId);

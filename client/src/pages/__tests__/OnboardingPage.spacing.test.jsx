@@ -1,4 +1,4 @@
-// specs/plugins-phase-p-productisation.md §3.D (2026-10-27 audit) — the start assistant reserved an
+// specs/plugins-phase-p-productisation.md rule 47 (§3.D, 2026-10-27 audit) — the start assistant reserved an
 // empty helper line under every field, so the gaps varied with the stack, the grid and the hints.
 // No blank helper is drawn now: a message shows when there is one.
 import React from 'react';

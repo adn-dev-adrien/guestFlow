@@ -1,0 +1,1 @@
+- **A Booking event wholly over held nights is created and flagged** (spec `lodgify-decommission.md` rules 6 and 18). It was skipped as an « echo » with no row and no alert, which hid a Booking stay sold on nights GuestFlow already held. The `echoSkipped` counter and its « écho(s) ignoré(s) » wording are gone.

@@ -59,6 +59,14 @@ reservation editor.
    before — otherwise leaving via "Annuler" or navigation wrongly shows the "Modifications non
    enregistrées" dialog. New/prefilled records still baseline immediately. Genuine user edits after load
    still flag the form dirty as before.
+9. **A conversion checks the dates** _(added 2026-10-28, audit)_. A devis never blocks the dates it
+   quotes, so another channel may have sold them by the time the quote is accepted. `convertToReservation`
+   (the model, so every caller gets it) runs the availability check of a new stay (other stays with their
+   early check-in / late check-out nights, cleaning gap, closures; the past guard is lifted). Over a taken
+   range the HTTP route answers `409 DATES_UNAVAILABLE` with the French message of the check, creates
+   nothing and leaves the devis as it was. The **paid-link path** (`paymentPollRunner`) passes
+   `{ allowConflict: true }`: the money is already in, so the stay is created and flagged
+   `bookingConflictAt` with the admin notification, as before (`specs/online-payments-qonto.md` §3.3).
 
 **Edge cases:**
 - Save validation fails (no client/dates/property, conflicts, capacity/min-nights refused) → conversion
@@ -131,6 +139,7 @@ updates `devis.status`/`devis.convertedReservationId` — all pre-existing.
 
 ### Server unit tests
 - [x] N/A — no server change. Existing suite stays green (257).
+- [x] `devis-convert-availability.unit.test.js` (5, 2026-10-28): rule 9 — refusal over a taken range, the HTTP 409, free dates convert, a closure refuses, the paid-link path converts and flags.
 
 ### Manual UI verification
 - [x] Devis editor no longer shows "Passer en réservation" (verified in browser).

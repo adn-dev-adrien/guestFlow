@@ -7,7 +7,7 @@
     "dev": "npm run dev:clean && npm run dev:watch",
     "start": "node src/index.js",
     "reset-admin": "node scripts/reset-admin.js",
-    "test": "node --test --test-concurrency=1 \"src/tests/**/*.test.js\" \"src/plugins/**/tests/*.test.js\""
+    "test": "node --test --test-concurrency=1 --require ./src/tests/setup/isolateDefaultDb.js \"src/tests/**/*.test.js\" \"src/plugins/**/tests/*.test.js\""
   },
   "devDependencies": {
     "nodemon": "^3.1.7"
@@ -29,6 +29,7 @@
     "qrcode": "^1.5.4",
     "semver": "^7.8.5",
     "sharp": "^0.35.5",
+    "undici": "7.30.1",
     "web-push": "^3.6.7"
   },
   "allowScripts": {

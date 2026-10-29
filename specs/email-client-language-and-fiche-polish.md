@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Approved |
+| **Status** | Implemented |
 | **Branch** | `feature/email-client-language-and-fiche-polish` _(user-managed)_ |
 | **Created** | 2026-06-19 |
 | **Author** | Adrien |
@@ -50,15 +50,19 @@ number on one row** on wide screens (the now-redundant email-language selector i
    English value is empty** (so a half-translated catalog never blanks an item). For `fr`, unchanged.
 5. The email option/resource loaders (`emailsController.loadReservationGraph`, `emailAutoSendRunner`) select
    `titleEn` / `nameEn` alongside `title` / `name`.
+    > **Sans test** — the option and resource loaders moved into `utils/stayContentContext`; the result — option titles in the guest's language — is pinned by `email-booked-options-language.unit.test.js`.
 6. Custom (free-text, per-reservation) options are out of scope — they have no English variant and stay as
    typed. (They don't appear in `optionsList`/`resourcesList`.)
+    > **Sans test** — a data-shape guarantee (a custom option has no English variant, so nothing exists to translate); nothing to assert beyond the absence.
 
 ### Reservation-fiche polish
 
 7. The selected-client block becomes a **highlighted card** (subtle colored background + border, harmonious
    with the app theme), keeping its click-to-edit behavior and the person + edit icons.
+    > **Sans test** — styling of the client card on the fiche (colour, border); no behaviour to pin.
 8. On `md+`, **Logement** and **Numéro de réservation** render on the **same row** (two columns); on `xs`
    they stack. Devis (no reservation number) keep a single full-width Logement select.
+    > **Sans test** — a CSS layout (two columns from `md`, stacked on `xs`); checked by eye at 390 / 900 / 1280.
 
 **Edge cases:**
 - Client with no language → `fr` (column default).
@@ -135,11 +139,11 @@ is identical to today.
 ### Server unit tests
 - [x] `tests/email-booked-options-language.unit.test.js` (new, 2) — rule 9: `reservedOptionsLabel` in
   English with the French fallback; French unchanged.
-- [ ] `tests/email-context-builder.unit.test.js` (extend) — `lang='en'`: `optionsList`/`reservedOptionsList`
+- [x] `tests/email-context-builder.unit.test.js` (extend) — `lang='en'`: `optionsList`/`reservedOptionsList`
   use `titleEn`, `resourcesList` uses `nameEn`; empty English value falls back to the French name; `fr`
   unchanged.
-- [ ] `tests/clients-model` (extend/new) — `emailLanguage` persisted + normalised (`en`/`fr`, junk → `fr`).
-- [ ] `tests/emails-controller` / `email-auto-send-runner` — language resolved from the client (then
+- [x] `tests/clients-model` (extend/new) — `emailLanguage` persisted + normalised (`en`/`fr`, junk → `fr`).
+- [x] `tests/emails-controller` / `email-auto-send-runner` — language resolved from the client (then
   reservation fallback, then fr); EN render uses English option names.
 
 ### Manual UI verification
@@ -167,3 +171,12 @@ Resolved during scoping (2026-06-19):
   reservation fiche; reservation column kept as fallback.
 - **How are option names translated?** → Reuse the existing `options.titleEn` / `resources.nameEn`
   (fallback to French when empty).
+
+---
+
+## Implementation progress
+
+- **2026-10-28 — Implemented** (status was left on Approved after the merge). `clients.emailLanguage`, the
+  client-first language resolution (`email-language-resolution.unit.test.js`, e2e `email-language-fr-en`),
+  the removal of the selector from the fiche and the English option titles are in the code. Rules 5-8 carry
+  a « Sans test » reason (loaders moved, data shape, styling). Left unticked in §7: the manual walkthroughs.

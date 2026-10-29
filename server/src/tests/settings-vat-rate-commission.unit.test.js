@@ -5,7 +5,7 @@ const Database = require('better-sqlite3');
 const settingsModel = require('../models/settingsModel');
 const { shapeResponse } = require('../utils/settingsResponse');
 
-// accounting-platform-commission-and-no-deposit.md §3.7 rule 17b + §7.1. The commission and
+// accounting-platform-commission-and-no-deposit.md §3.7 (17b) + §7.1. The commission and
 // cancellation-indemnity rates (and their accounts) moved to the accounting-export plugin's settings
 // (specs/plugins-phase-2-hosts.md rule 19): the core settings model no longer reads or writes them,
 // and their app_settings columns stay in place, unread. The plugin's tests cover the new store.

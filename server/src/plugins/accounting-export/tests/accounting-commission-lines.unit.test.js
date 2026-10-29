@@ -139,7 +139,7 @@ test('Case 4ter: real Booking reservation (Estelle Z.) — revenu brut 102.50, c
   // The accounting MUST surface: CA (revenu brut) = 102,50 ; commission = 16,48 ; net (versement) = 86,02.
   // Booking is unknown to the commissionContext map → default account 622600, no VAT on the commission.
   const row = {
-    id: 1, firstName: 'Estelle', lastName: 'Zmyslowski', propertyName: 'Aventura lodge',
+    id: 1, firstName: 'Emma', lastName: 'Zielinski', propertyName: 'Aventura lodge',
     platform: 'Booking', finalPrice: 102.50, totalPrice: 102.50, touristTaxTotal: 0, touristTaxInComplement: 0,
     clientGrossAmount: 102.51, platformCommissionAmount: 16.48, // stale gross present; the new field wins
     depositAmount: 0, depositPaid: 0, depositPaidDate: null,
@@ -167,7 +167,7 @@ test('Case 4ter-bis: stored solde is the FULL total (older résa, not re-saved a
   // commission) — otherwise it double-grosses (CA 122,14 / net 105,66). Whatever the stored balance,
   // the books MUST read CA 102,50 / commission 16,48 / net 86,02.
   const row = {
-    id: 1, firstName: 'Estelle', lastName: 'Zmyslowski', propertyName: 'Aventura lodge',
+    id: 1, firstName: 'Emma', lastName: 'Zielinski', propertyName: 'Aventura lodge',
     platform: 'Booking', finalPrice: 102.50, totalPrice: 102.50, touristTaxTotal: 0, touristTaxInComplement: 0,
     clientGrossAmount: 102.51, platformCommissionAmount: 16.48,
     depositAmount: 0, depositPaid: 0, depositPaidDate: null,

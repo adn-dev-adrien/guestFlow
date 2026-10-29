@@ -2534,7 +2534,7 @@ discarded — it is the only record of those four months._
   visibles et corrigeables.
 - Fiche client : un lien déposé depuis une page web dans les champs Email ou Téléphone n'insère plus son
   `href` brut. Seule la valeur utile est conservée (`mailto:…?subject=…` → `jean.dupont@example.com`,
-  `tel:+33627753922` → `0627753922`). Seul l'indicatif `+33` est ramené à `0` : les numéros étrangers
+  `tel:+33600000001` → `0600000001`). Seul l'indicatif `+33` est ramené à `0` : les numéros étrangers
   gardent le leur (`+32475123456`).
 - **Clients : « À venir » et « Passés », avec la date de séjour.** La page Clients s'ouvre sur les
   clients attendus (séjour en cours ou à venir, plus ceux sans séjour), avec un onglet « Passés » à
@@ -3799,7 +3799,7 @@ discarded — it is the only record of those four months._
 - **Public online-payment hardening** (spec `public-online-payment.md`, 2026-07-02 security audit). The public `pay`/`status` routes now require an unguessable **per-devis capability token** (returned by the booking-request create, echoed by the WordPress plugin) so the sequential devis id can no longer be enumerated to read another booking's recap or mint its payment link; `GET /status` gets a dedicated tighter rate limiter (Qonto-quota/cost DoS guard); `trust proxy` now defaults to **off** (env `TRUST_PROXY_HOPS` when a reverse proxy fronts the app) so a direct caller can't spoof `X-Forwarded-For`; a reused payment link is re-minted if its amount drifted from an edited devis. +6 server tests.
 - Notifications push : un clic sur la notification d'**arrivée** ou de **départ** ouvre désormais directement le **SAS** correspondant (au lieu de la fiche réservation). La notification de **nouvelle réservation** ouvre la réservation concernée (une notification par réservation). Toutes les notifications affichent le **nom du voyageur + le logement**.
 - Paramètres → Générale → Notifications push : le bouton « Envoyer une notification de test » adopte le même format que « Envoyer un mail de test » (bouton + légende explicative) et reste toujours visible dans la section, désactivé tant que les notifications ne sont pas activées sur l'appareil.
-- **Connexion provider Qonto : le téléphone accepte le format national** (spec `online-payments-qonto.md` §3.2, 2026-06-29). Le formulaire de connexion du provider de liens de paiement exige un numéro E.164 ; on peut désormais saisir un numéro **national français** (`06 28 05 60 66` / `0628056066` / `0033…`) — normalisé en `+33…` côté client (le bouton s'active) **et** côté serveur (valeur envoyée à Qonto en E.164). Un numéro réellement invalide reste rejeté. +1 test serveur.
+- **Connexion provider Qonto : le téléphone accepte le format national** (spec `online-payments-qonto.md` §3.2, 2026-06-29). Le formulaire de connexion du provider de liens de paiement exige un numéro E.164 ; on peut désormais saisir un numéro **national français** (`06 00 00 00 02` / `0600000002` / `0033…`) — normalisé en `+33…` côté client (le bouton s'active) **et** côté serveur (valeur envoyée à Qonto en E.164). Un numéro réellement invalide reste rejeté. +1 test serveur.
 - Rôle « Accueil » : seuls les SAS **du jour** sont modifiables. Un check-in / check-out **passé**,
   **à venir** ou **déjà validé** est inerte dans l'interface (✓ grisé + info-bulle expliquant
   pourquoi) et refusé par le serveur (403 `SAS_LOCKED` avec le motif) avant la moindre écriture. Les
@@ -3956,7 +3956,7 @@ discarded — it is the only record of those four months._
   parser. Server tests 1041 → 1047 green in isolation.
 - **Accounting export — legacy path now sees `customPrice` + offered
   options, no more negative VAT row** (2026-06-05). Live prod bug
-  reported on Chloé Le Lann's reservation
+  reported on Clara Lemaire's reservation
   (#5, Gitedefrance, balancePaidDate 2026-05-07): the monthly export
   was producing
   ```

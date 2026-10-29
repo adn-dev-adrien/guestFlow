@@ -682,50 +682,50 @@ Each test file opens with the spec and rules it covers. Counts are targets.
 
 ### Server unit tests
 
-- [ ] `tests/vat-regime-golden.unit.test.js` — rule 23 (8): quotes of every Solio stay and devis, stored
+- [x] `tests/vat-regime-golden.unit.test.js` — rule 23 (8): quotes of every Solio stay and devis, stored
       summaries, devis PDF draw list, link baskets (deposit, balance, full, complement), accounting CSV per
       month, finance payloads, tourist-tax page rows, refund lines. Captured in Lot 0 on unchanged code
       (`GOLDEN_UPDATE=1` is only legitimate in that commit), on `productisationGoldenFixture.buildSolioDb`
       plus two Estiva stays (proportional tax) and one installment plan.
-- [ ] `tests/vat-regime-readers.unit.test.js` — rule 8 (3): no `vatRate FROM app_settings` outside
+- [x] `tests/vat-regime-readers.unit.test.js` — rule 8 (3): no `vatRate FROM app_settings` outside
       `vatRegimeModel.js`; each of the eleven readers answers the row's period on a two-period DB.
-- [ ] `tests/vat-regime-assignment.unit.test.js` — rules 4, 5, 6, 7 (12): trigger on each insert path,
+- [x] `tests/vat-regime-assignment.unit.test.js` — rules 4, 5, 6, 7 (12): trigger on each insert path,
       booking vs arrival vs all, Paris midnight, future-dated period, latest-wins, edit keeps the period,
       live devis, conversion; JS/SQL parity over a 40-row matrix.
-- [ ] `tests/vat-regime-migration.unit.test.js` — rules 21, 22 (5): seed from the current rate, backfill,
+- [x] `tests/vat-regime-migration.unit.test.js` — rules 21, 22 (5): seed from the current rate, backfill,
       idempotent re-run, mirror column, fresh install.
-- [ ] `tests/vat-regime-rate-in-force.unit.test.js` — rule 9 (3).
-- [ ] `tests/vat-regime-not-subject-prices.unit.test.js` — rules 10, 11, 13 (8): same TTC on direct,
+- [x] `tests/vat-regime-rate-in-force.unit.test.js` — rule 9 (3).
+- [x] `tests/vat-regime-not-subject-prices.unit.test.js` — rules 10, 11, 13 (8): same TTC on direct,
       platform, discounted, installment stays; proportional tax rises by the rate; frozen and declared
       taxes untouched; mixed-period finance sum.
-- [ ] `tests/vat-regime-not-subject-documents.unit.test.js` — rules 1, 2, 12a, 12b, 12e, 12f (8): stored
+- [x] `tests/vat-regime-not-subject-documents.unit.test.js` — rules 1, 2, 12a, 12b, 12e, 12f (8): stored
       and live summary payloads, PDF columns, labels, mention FR/EN, summary wording.
-- [ ] `tests/vat-regime-not-subject-links.unit.test.js` — rule 12c (4).
-- [ ] `tests/vat-regime-not-subject-finance.unit.test.js` — rule 12d (4).
-- [ ] `plugins/accounting-export/tests/accounting-export-not-subject.unit.test.js` — rule 12g, rule 20 and
+- [x] `tests/vat-regime-not-subject-links.unit.test.js` — rule 12c (4).
+- [x] `tests/vat-regime-not-subject-finance.unit.test.js` — rule 12d (4).
+- [x] `plugins/accounting-export/tests/accounting-export-not-subject.unit.test.js` — rule 12g, rule 20 and
       accountant-accounting-export rule 37 (7): no 4457x, commission TTC without 44566, compensation 0 %,
       refund avoir 0 %, balanced entries, mixed month.
-- [ ] `tests/vat-regime-switch.unit.test.js` — rules 3, 14, 15, 16, 18, 19 (16): each scope, bounds and
+- [x] `tests/vat-regime-switch.unit.test.js` — rules 3, 14, 15, 16, 18, 19 (16): each scope, bounds and
       messages, identical-target refusal, transaction (all-or-nothing), history entries, refund re-rate,
       delete unused / refuse used / refuse initial, acknowledgement, admin only.
-- [ ] `tests/vat-regime-preview.unit.test.js` — rule 17 (8): each count against a crafted DB, fingerprint,
+- [x] `tests/vat-regime-preview.unit.test.js` — rule 17 (8): each count against a crafted DB, fingerprint,
       409 on a changed set.
-- [ ] `tests/single-vat-rate-period.unit.test.js` — single-vat-rate rule 14 (2).
-- [ ] `tests/payment-links-vat-period.unit.test.js` — payment-links-vat rule 11 (2).
+- [x] `tests/single-vat-rate-period.unit.test.js` — single-vat-rate rule 14 (2).
+- [x] `tests/payment-links-vat-period.unit.test.js` — payment-links-vat rule 11 (2).
 
-- [ ] `tests/vat-franchise-threshold.unit.test.js` — rules 35, 36 (9): parse accepted forms
+- [x] `tests/vat-franchise-threshold.unit.test.js` — rules 35, 36 (9): parse accepted forms
       (« 30 000,00 », 30000, empty → null), each refusal message, 400 on the endpoint, 422 when rule 35 does not apply (a mention sent in the same
       save counts), `setAt` written on change only, cleared with the amount, kept across a switch to `subject`.
-- [ ] `tests/vat-franchise-turnover.unit.test.js` — rules 37, 41 (13): calendar-year bounds, acompte in December for a stay in March, commission added back (acompte and
+- [x] `tests/vat-franchise-turnover.unit.test.js` — rules 37, 41 (13): calendar-year bounds, acompte in December for a stay in March, commission added back (acompte and
       payout), tourist-tax ratio, mixed year HT, refund on its own date, caisse interne excluded,
       internal refund excluded, cancellation compensation counted, installments, previous year.
-- [ ] `tests/vat-franchise-projection.unit.test.js` — rule 38 (8): each expected-date source, past
+- [x] `tests/vat-franchise-projection.unit.test.js` — rule 38 (8): each expected-date source, past
       unpaid counted, cancelled / devis / caisse interne / after 31/12 excluded, unpriced adds 0.
-- [ ] `tests/vat-franchise-levels.unit.test.js` — rules 35, 39, 40 (8): four levels, equality is `near`,
+- [x] `tests/vat-franchise-levels.unit.test.js` — rules 35, 39, 40 (8): four levels, equality is `near`,
       cents comparison, texts, no threshold → null level, not applicable outside the franchise.
-- [ ] `tests/vat-franchise-attention.unit.test.js` — rules 42, 43 (5): summary per level, absent for
+- [x] `tests/vat-franchise-attention.unit.test.js` — rules 42, 43 (5): summary per level, absent for
       `ok` / no threshold / not applicable, never pinned, failed source named, read-only.
-- [ ] `tests/vat-regime-golden.unit.test.js` — rule 44 (+2): the settings payload only adds an absent
+- [x] `tests/vat-regime-golden.unit.test.js` — rule 44 (+2): the settings payload only adds an absent
       follow-up, the attention payload does not declare the subject for a `subject`-only database.
 
 
@@ -733,25 +733,25 @@ Each test file opens with the spec and rules it covers. Counts are targets.
 
 ### Client tests (Vitest)
 
-- [ ] `components/__tests__/SettingsVatSection.regime.test.jsx` (6): badge per regime, rate vs mention,
+- [x] `components/__tests__/SettingsVatSection.regime.test.jsx` (6): badge per regime, rate vs mention,
       history tags, delete button only when deletable.
-- [ ] `components/__tests__/VatRegimeSwitchDialog.switch.test.jsx` (9): scope radios, date refusal from
+- [x] `components/__tests__/VatRegimeSwitchDialog.switch.test.jsx` (9): scope radios, date refusal from
       the 422, acknowledgement gating, button labels, 409 alert, fullScreen on xs.
-- [ ] `components/__tests__/PricingSummary.not-subject.test.jsx` (3).
-- [ ] `components/__tests__/SettingsVatSection.franchise-threshold.test.jsx` (10): field only under
+- [x] `components/__tests__/PricingSummary.not-subject.test.jsx` (3).
+- [x] `components/__tests__/SettingsVatSection.franchise-threshold.test.jsx` (10): field only under
       293 B, hint vs `Saisi le`, refusal mirror, number on blur.
-- [ ] `hooks/__tests__/useSettingsForm.vat-franchise.test.jsx` (3): draft from the stored amount, sent only when changed.
-- [ ] `components/__tests__/ThresholdMeter.meter.test.jsx` (4): fill, projection, overflow, aria.
-- [ ] `components/__tests__/VatFranchiseCard.levels.test.jsx` (6): each level, the way back to VAT, no threshold,
+- [x] `hooks/__tests__/useSettingsForm.vat-franchise.test.jsx` (3): draft from the stored amount, sent only when changed.
+- [x] `components/__tests__/ThresholdMeter.meter.test.jsx` (4): fill, projection, overflow, aria.
+- [x] `components/__tests__/VatFranchiseCard.levels.test.jsx` (6): each level, the way back to VAT, no threshold,
       nothing outside the franchise.
-- [ ] `pages/__tests__/FinancePage.vat-franchise.test.jsx` (3): the card between hero and insights, reload on « Actualiser », hidden when not applicable or failed, « Saisir le seuil ».
+- [x] `pages/__tests__/FinancePage.vat-franchise.test.jsx` (3): the card between hero and insights, reload on « Actualiser », hidden when not applicable or failed, « Saisir le seuil ».
 
 ### E2E (Playwright)
 
-- [ ] `e2e/specs/settings/vat-regime-switch.spec.js` (3): switch to « Sans TVA » from today → a new reservation's résumé
+- [x] `e2e/specs/settings/vat-regime-switch.spec.js` (3): switch to « Sans TVA » from today → a new reservation's résumé
       and devis PDF show the mention, an old one keeps « TVA 10 % »; correction → every fiche without VAT;
       switch back. Mobile viewport for the dialog.
-- [ ] `e2e/specs/finance/vat-franchise.spec.js` (2): switch to « Sans TVA » → type a threshold → the
+- [x] `e2e/specs/finance/vat-franchise.spec.js` (2): switch to « Sans TVA » → type a threshold → the
       Suivi financier shows the card with its level; empty the field → the card invites to set it.
       Mobile viewport for the card.
 

@@ -334,9 +334,9 @@ textarea.out{min-height:260px;font:13px/1.45 ui-monospace,SFMono-Regular,Menlo,m
   /* ---------- proposals ---------- */
   var ALERTS = [
     { k: 'gate', sev: 'urgent', t: 'Clés de portail non créées', n: 1, d: 'Sowel n’a pas lu la liste depuis 26 h · arrivée ven. 23 oct.', a: 'Relancer' },
-    { k: 'pay', sev: 'late', t: 'Échéances de paiement en retard', n: 2, d: 'Luc Thomas · 140,97 € · 25 j · Françoise Dausque · 706,00 € · 10 j', a: 'Reporter' },
-    { k: 'ical', sev: 'late', t: 'Annulation iCal à valider', n: 1, d: 'Carole Tournade · Gite · 9 au 11 oct. · Lodgify', a: 'Voir la fiche' },
-    { k: 'comp', sev: 'late', t: 'Indemnité d’annulation à encaisser', n: 1, d: 'Sébastien Conry · 53,10 € · prévu le 27 août', a: 'Encaisser' },
+    { k: 'pay', sev: 'late', t: 'Échéances de paiement en retard', n: 2, d: 'Luc Thibault · 140,97 € · 25 j · Françoise Dumas · 706,00 € · 10 j', a: 'Reporter' },
+    { k: 'ical', sev: 'late', t: 'Annulation iCal à valider', n: 1, d: 'Carla Tessier · Gite · 9 au 11 oct. · Lodgify', a: 'Voir la fiche' },
+    { k: 'comp', sev: 'late', t: 'Indemnité d’annulation à encaisser', n: 1, d: 'Sébastien Colin · 53,10 € · prévu le 27 août', a: 'Encaisser' },
     { k: 'quote', sev: 'info', t: 'Demandes de devis depuis le site', n: 5, d: '5 devis reçus via le site, en attente', a: 'Voir les devis' },
     { k: 'mail', sev: 'info', t: 'Emails à vérifier', n: 1, d: '1 message manuel · 1 client sans adresse', a: 'Voir et envoyer' },
     { k: '2fa', sev: 'info', t: 'Second code de connexion', n: 1, d: 'Protéger le compte par un second code', a: 'Activer' }
@@ -433,7 +433,7 @@ textarea.out{min-height:260px;font:13px/1.45 ui-monospace,SFMono-Regular,Menlo,m
         cards = (n > 0 ? oldAlert(probe) : '') +
           '<div style="background:transparent;border:1px solid #9fb3c2;border-radius:14px;padding:14px;margin-bottom:16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap"><span class="m-pill" style="border:1px solid #31556E;color:#31556E">✉</span><div style="flex:1;min-width:140px"><div style="font-size:1.1rem;font-weight:600">Emails à vérifier (1)</div><div class="m-muted">fond « info.lighter » : jeton absent, rien ne s’affiche</div></div><button class="m-fbtn" type="button" style="background:#23384a;border-radius:999px">Voir et envoyer</button></div>' +
           '<div style="background:var(--shell-warn-s);border:1px solid #d9b56a;border-radius:14px;padding:14px;margin-bottom:16px"><b>Emails incomplets avant une arrivée</b><div class="m-muted">Carte entière cliquable, aucune action visible</div></div>' +
-          '<div style="border:2px solid #6f8ea5;border-radius:14px;padding:14px;margin-bottom:16px"><b>Indemnités d’annulation · 1 versement en attente</b><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px"><span style="flex:1;min-width:120px">Sébastien Conry · 53,10 €</span><span aria-hidden="true">✕</span></div><button class="m-fbtn" type="button" style="margin-top:6px">Encaisser</button> <button class="m-tbtn" type="button" style="border:1px solid var(--shell-line)">Modifier</button></div>';
+          '<div style="border:2px solid #6f8ea5;border-radius:14px;padding:14px;margin-bottom:16px"><b>Indemnités d’annulation · 1 versement en attente</b><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px"><span style="flex:1;min-width:120px">Sébastien Colin · 53,10 €</span><span aria-hidden="true">✕</span></div><button class="m-fbtn" type="button" style="margin-top:6px">Encaisser</button> <button class="m-tbtn" type="button" style="border:1px solid var(--shell-line)">Modifier</button></div>';
       } else {
         var mk = function (a) {
           var k = SEV[a.sev];
@@ -442,7 +442,7 @@ textarea.out{min-height:260px;font:13px/1.45 ui-monospace,SFMono-Regular,Menlo,m
         cards = (n > 0 ? mk(probe) : '<div class="m-muted" style="padding:8px 4px 16px">Carte d’essai masquée : rien à traiter.</div>') +
           mk({ sev: 'info', t: 'Emails à vérifier', n: 1, d: '1 message manuel · 1 client sans adresse', a: 'Voir et envoyer' }) +
           mk({ sev: 'late', t: 'Emails incomplets avant une arrivée', n: 2, d: 'Textes manquants pour 2 séjours sous 14 jours', a: 'Compléter' }) +
-          mk({ sev: 'late', t: 'Indemnité d’annulation à encaisser', n: 1, d: 'Sébastien Conry · 53,10 €', a: 'Encaisser', primary: true });
+          mk({ sev: 'late', t: 'Indemnité d’annulation à encaisser', n: 1, d: 'Sébastien Colin · 53,10 €', a: 'Encaisser', primary: true });
       }
       return frame(w, appBar(w, { shadow: true }), simpleDrawer('Tableau de bord'), pageBar('Tableau de bord') + cards);
     },
@@ -1237,12 +1237,12 @@ textarea.out{min-height:260px;font:13px/1.45 ui-monospace,SFMono-Regular,Menlo,m
     var DEMO = [
       { n: '2026-09-007', s: 'Converti', c: 'Repro Breakfast1790153253040', p: 'Gite', a: '10/05/2027', d: '13/05/2027', m: 355.20, o: 'Site internet' },
       { n: '2026-09-003', s: 'Brouillon', c: 'Dominique Test wp 409', p: 'Gite', a: '19/10/2026', d: '22/10/2026', m: 789.60, o: 'Site internet' },
-      { n: '2026-08-002', s: 'Brouillon', c: 'Constance Gay', p: 'Gite', a: '04/09/2026', d: '06/09/2026', m: 1117.40, o: '' },
-      { n: '2026-08-001', s: 'Envoyé', c: 'Marie claude Oriol', p: 'Aventura lodge', a: '12/04/2027', d: '16/04/2027', m: 535.00, o: '' }];
+      { n: '2026-08-002', s: 'Brouillon', c: 'Constance Gautier', p: 'Gite', a: '04/09/2026', d: '06/09/2026', m: 1117.40, o: '' },
+      { n: '2026-08-001', s: 'Envoyé', c: 'Marie Claude Olivier', p: 'Aventura lodge', a: '12/04/2027', d: '16/04/2027', m: 535.00, o: '' }];
     var WORST = [
       { n: '2027-01-112', s: 'Brouillon', c: 'Aleksandra-Marie Wiśniewska-Kowalczyk de La Tour d\'Auvergne', p: 'Aventura lodge', a: '24/12/2027', d: '02/01/2028', m: 11117.40, o: 'Site internet' },
       { n: '2027-01-113', s: 'Envoyé', c: 'Jo', p: 'Gite', a: '01/02/2028', d: '03/02/2028', m: 96.00, o: '' },
-      { n: '2026-08-002', s: 'Brouillon', c: 'Constance Gay', p: 'Gite', a: '04/09/2026', d: '06/09/2026', m: 1117.40, o: '' }];
+      { n: '2026-08-002', s: 'Brouillon', c: 'Constance Gautier', p: 'Gite', a: '04/09/2026', d: '06/09/2026', m: 1117.40, o: '' }];
     var removed = {}; var menuFor = null; var confirmFor = null;
     function chip(s) { var c = s === 'Converti' ? 'ok' : s === 'Envoyé' ? 'info' : 'mute'; return '<span class="resa-chip ' + c + '">' + s + '</span>'; }
     function eurBefore(n) { return eur(n).replace(' €', ' €').replace(/ /g, ' '); }
@@ -1307,7 +1307,7 @@ textarea.out{min-height:260px;font:13px/1.45 ui-monospace,SFMono-Regular,Menlo,m
     }
     function form() {
       var h = '<div class="resa-panel"><div class="resa-h">Séjour</div><div class="resa-field"><label>Logement</label><div class="resa-input">Aventura lodge</div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px"><div class="resa-field"><label>Arrivée</label><div class="resa-input">07/08/2027</div></div><div class="resa-field"><label>Départ</label><div class="resa-input">13/08/2027</div></div></div></div>';
-      h += '<div class="resa-panel"><div class="resa-h">Client</div><span class="resa-chip ok" style="font-size:14px;padding:6px 12px">Guernier Vittoria</span></div>';
+      h += '<div class="resa-panel"><div class="resa-h">Client</div><span class="resa-chip ok" style="font-size:14px;padding:6px 12px">Garnier Victoria</span></div>';
       h += '<div class="resa-panel"><div class="resa-h">Options</div>' + OPTS.map(function (o) { return '<div class="resa-optrow"><div><div class="n">' + o.n + '</div><div class="p">' + o.p + '</div></div><button class="resa-switch" role="switch" aria-checked="' + o.on + '" aria-label="' + o.n + '" data-opt="' + o.id + '"></button></div>'; }).join('') + '</div>';
       h += '<div class="resa-panel"><div class="resa-h">Finance</div><p style="color:var(--resa-muted);font-size:13px">Paiement plateforme, acompte, solde, caution…</p><div style="height:420px;background:repeating-linear-gradient(0deg,#fff 0 46px,#F6F3EC 46px 52px);border-radius:10px"></div></div>';
       h += '<div class="resa-panel"><div class="resa-h">Notes</div><div class="resa-input" style="height:80px"></div></div>';
@@ -1316,7 +1316,7 @@ textarea.out{min-height:260px;font:13px/1.45 ui-monospace,SFMono-Regular,Menlo,m
     function render(host) {
       var mode = host.dataset.mode, w = Number(card.dataset.w), lg = w >= 1100, t = serverTotals();
       var pab = '<div class="resa-pab" style="flex-wrap:wrap"><button class="resa-ib">←</button>' + (w >= 700 ? '<span class="resa-pab-title" style="flex:1">Modifier la réservation</span>' : '<span style="flex:1"></span>') + '<button class="resa-ib">✉</button><button class="resa-ib resa-save">✓</button><button class="resa-ib">✕</button><button class="resa-ib resa-del">⌫</button>' +
-        (mode === 'apres' && w < 700 ? '<div style="flex-basis:100%;font-size:13px;color:var(--resa-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><b style="color:var(--resa-ink)">Guernier V.</b> · N° 6646665983 · 07/08 → 13/08</div>' : '') + '</div>';
+        (mode === 'apres' && w < 700 ? '<div style="flex-basis:100%;font-size:13px;color:var(--resa-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><b style="color:var(--resa-ink)">Guernier V.</b> · N° 6600000002 · 07/08 → 13/08</div>' : '') + '</div>';
       var html = '<div class="resa-appbar"><span class="resa-logo">GuestFlow</span></div><div class="resa-scroll" style="height:' + (w < 700 ? 700 : 720) + 'px;position:relative">' + pab;
       if (lg) html += '<div class="resa-page"><div style="display:grid;gap:14px">' + form() + '</div><div class="resa-side resa-panel resa-sum">' + summary(t) + '</div></div>';
       else {
@@ -1454,7 +1454,7 @@ textarea.out{min-height:260px;font:13px/1.45 ui-monospace,SFMono-Regular,Menlo,m
     var PCOL = { Booking: '#2E5AAC', Airbnb: '#FF5A5F', Lodgify: '#F4C430', Abracadaroom: '#26C6DA', GitesDeFrance: '#E2C335', Greengo: '#4CAF50' };
     var LABEL = { GitesDeFrance: 'Gîtes de France' };
     // Week rows (Mon..Sun), October 2026 from Mon 5 to Sun 1 Nov.
-    var EV = [{ p: 'Gite', who: 'Carole Tournade', pl: 'Booking', s: 4, e: 6 }, { p: 'Gite', who: 'Ical Airbnb', pl: 'Airbnb', s: 4, e: 6 }, { p: 'Gite', who: 'N****** F******', pl: 'Lodgify', s: 4, e: 6 }, { p: 'Aventura lodge', who: 'Amandine M.', pl: 'Abracadaroom', s: 5, e: 6 }, { p: 'Gite', who: 'Jo Ng', pl: 'Greengo', s: 18, e: 21 }];
+    var EV = [{ p: 'Gite', who: 'Carla Tessier', pl: 'Booking', s: 4, e: 6 }, { p: 'Gite', who: 'Ical Airbnb', pl: 'Airbnb', s: 4, e: 6 }, { p: 'Gite', who: 'N****** F******', pl: 'Lodgify', s: 4, e: 6 }, { p: 'Aventura lodge', who: 'Amandine M.', pl: 'Abracadaroom', s: 5, e: 6 }, { p: 'Gite', who: 'Jo Ng', pl: 'Greengo', s: 18, e: 21 }];
     var CLOSE = { p: 'Aventura lodge', s: 10 }; // closed from day index 10 (Thu 15) onwards
     function hexA(hex, a) { var c = hex.replace('#', ''); return 'rgba(' + parseInt(c.substr(0, 2), 16) + ',' + parseInt(c.substr(2, 2), 16) + ',' + parseInt(c.substr(4, 2), 16) + ',' + a + ')'; }
     function render(host) {
@@ -2522,7 +2522,7 @@ textarea.out{min-height:260px;font:13px/1.45 ui-monospace,SFMono-Regular,Menlo,m
         </div>
         <div class="settings-card">
           <h3 style="margin-bottom:6px">Vos emails</h3>
-          <div class="settings-row" style="border:0; padding-top:0"><div class="settings-grow"><div class="settings-sub">Téléphone dans les emails</div>06 15 73 93 37</div><button class="settings-btn settings-btn-quiet">Modifier</button></div>
+          <div class="settings-row" style="border:0; padding-top:0"><div class="settings-grow"><div class="settings-sub">Téléphone dans les emails</div>06 00 00 00 03</div><button class="settings-btn settings-btn-quiet">Modifier</button></div>
           <div data-role="tabs" style="display:flex; gap:6px; overflow-x:auto; padding:2px 0 10px; scroll-snap-type:x mandatory"></div>
           <div data-role="prop"></div>
           <div class="settings-row" style="border:0">
@@ -2675,7 +2675,7 @@ textarea.out{min-height:260px;font:13px/1.45 ui-monospace,SFMono-Regular,Menlo,m
       ['fullName', 'Nom complet du voyageur', 'Camille Martin'], ['property', 'Logement', 'Gite'],
       ['propertyWithArticle', 'Logement avec article', 'au Gite'], ['arrivalDay', 'Jour d’arrivée', 'vendredi 23 octobre'],
       ['arrivalWeekday', 'Jour de la semaine d’arrivée', 'vendredi'], ['arrivalTime', 'Heure d’arrivée', '16 h'],
-      ['companyName', 'Entreprise', 'Domaine Solio'], ['companyPhone', 'Téléphone de l’entreprise', '06 15 73 93 37'],
+      ['companyName', 'Entreprise', 'Domaine Solio'], ['companyPhone', 'Téléphone de l’entreprise', '06 00 00 00 03'],
       ['deposit', 'Caution', '500,00 €'], ['distance', 'Distance (m)', '400'],
     ];
     var byLabel = {}; VARS.forEach(function (v) { byLabel[v[1]] = v; });
@@ -2948,7 +2948,7 @@ textarea.out{min-height:260px;font:13px/1.45 ui-monospace,SFMono-Regular,Menlo,m
     function drawBefore() {
       var field = function (l, v) { return '<input class="settings-input" placeholder="' + esc(l) + '" value="' + esc(v || '') + '" style="margin-bottom:8px" aria-label="' + esc(l) + '">'; };
       var pair = function (l, a, b) { return '<div class="settings-sub" style="margin:4px 0">' + esc(l) + '</div><button class="settings-btn" style="min-height:32px;padding:6px 10px;border-color:var(--s-line);color:var(--s-ink)">' + a + '</button> <button class="settings-btn" style="min-height:32px;padding:6px 10px;border-color:var(--s-line);color:var(--s-ink)">' + b + '</button>'; };
-      bp.innerHTML = '<h3 style="margin-bottom:8px">Vos emails</h3>' + field('Téléphone', '0615739337') + field('Nom d’expéditeur', 'Domaine Solio') +
+      bp.innerHTML = '<h3 style="margin-bottom:8px">Vos emails</h3>' + field('Téléphone', '0600000003') + field('Nom d’expéditeur', 'Domaine Solio') +
         names.slice(0, count).map(function (nm) {
           return '<div style="border-top:1px solid var(--s-line); margin-top:10px; padding-top:10px"><div class="settings-label">' + esc(nm) + '</div>' +
             field('Adresse', '215 Côte de Japperenard07290 SATILLIEU') + field('Accès') + field('Code de la boîte à clés') + field('Wi-Fi') + field('Mot de passe Wi-Fi') + field('Caution (€)', '500') +
@@ -3901,14 +3901,14 @@ button.public-badge{cursor:pointer}
     var head = '<div class="public-mail-h"><small>Domaine Solio &lt;contact@exemple.fr&gt;</small><b>Réglez l’acompte pour confirmer votre séjour au Gîte</b></div>';
     var text;
     if (!after) {
-      text = 'Bonjour Test,\n\nPour confirmer votre séjour au Gite, il vous suffit de régler l\'acompte en ligne.\n\nRécapitulatif de votre séjour :\n- Logement : Gite\n- Arrivée  : le 8 février 2027 à partir de 16:00\n- Départ   : le 11 février 2027 avant 10:00\n- Option(s) : Petit déjeuner\n- Montant total du séjour : 396,00 €\n\nAcompte à régler maintenant : ' + (prev ? '0,00 €' : '118,80 €') + '\n\nPayer l\'acompte en ligne : ' + (prev ? '' : url) + '\n\nImportant : le règlement de l\'acompte bloque vos dates. Tant qu\'il n\'est pas payé, les dates restent disponibles et peuvent être réservées par un autre client.\n\nPour toute question, répondez simplement à cet email ou appelez-nous au 0615739337.\n\nÀ très bientôt,\nDomaine Solio';
+      text = 'Bonjour Test,\n\nPour confirmer votre séjour au Gite, il vous suffit de régler l\'acompte en ligne.\n\nRécapitulatif de votre séjour :\n- Logement : Gite\n- Arrivée  : le 8 février 2027 à partir de 16:00\n- Départ   : le 11 février 2027 avant 10:00\n- Option(s) : Petit déjeuner\n- Montant total du séjour : 396,00 €\n\nAcompte à régler maintenant : ' + (prev ? '0,00 €' : '118,80 €') + '\n\nPayer l\'acompte en ligne : ' + (prev ? '' : url) + '\n\nImportant : le règlement de l\'acompte bloque vos dates. Tant qu\'il n\'est pas payé, les dates restent disponibles et peuvent être réservées par un autre client.\n\nPour toute question, répondez simplement à cet email ou appelez-nous au 0600000003.\n\nÀ très bientôt,\nDomaine Solio';
       scr.innerHTML = '<div class="public-mail">' + head.replace('Gîte', 'Gite') + '<div class="public-mail-txt">' + esc(text) + '</div></div>';
       return;
     }
     var link = prev ? '<span class="public-ph">[lien de paiement créé à l’envoi]</span>' : '';
     if (st.part === 'text') {
       text = 'Bonjour Test,\n\nPour confirmer votre séjour au Gîte, il vous suffit de régler l’acompte en ligne.\n\nRécapitulatif de votre séjour :\n- Logement : Gîte\n- Arrivée : le 8 février 2027 à partir de 16 h\n- Départ : le 11 février 2027 avant 10 h\n- Option : Petit déjeuner\n- Montant total du séjour : 396,00 €\n\nAcompte à régler maintenant : 118,80 €\n\nPayer l’acompte en ligne : ';
-      scr.innerHTML = '<div class="public-mail' + (dark ? ' is-dark' : '') + '">' + head + '<div class="public-mail-txt">' + esc(text) + (prev ? link : esc(url)) + esc('\n\nLe règlement de l’acompte bloque vos dates. Tant qu’il n’est pas payé, elles restent disponibles pour d’autres voyageurs.\n\nUne question ? Répondez simplement à ce mail, ou appelez-nous au 06 15 73 93 37.\n\nÀ très bientôt,\nDomaine Solio') + '</div></div>';
+      scr.innerHTML = '<div class="public-mail' + (dark ? ' is-dark' : '') + '">' + head + '<div class="public-mail-txt">' + esc(text) + (prev ? link : esc(url)) + esc('\n\nLe règlement de l’acompte bloque vos dates. Tant qu’il n’est pas payé, elles restent disponibles pour d’autres voyageurs.\n\nUne question ? Répondez simplement à ce mail, ou appelez-nous au 06 00 00 00 03.\n\nÀ très bientôt,\nDomaine Solio') + '</div></div>';
       return;
     }
     var btn = prev ? '<p>' + link + '</p>' : '<p style="margin-bottom:4px"><a class="public-paybtn" href="#public" onclick="return false">Payer l’acompte · 118,80 €</a></p><p class="public-fallback">Si le bouton ne s’ouvre pas : ' + esc(url) + '</p>';
@@ -3916,7 +3916,7 @@ button.public-badge{cursor:pointer}
       '<p>Bonjour Test,</p><p>Pour confirmer votre séjour au Gîte, il vous suffit de régler l’acompte en ligne.</p>' +
       '<table role="presentation"><tr><td>Logement</td><td>Gîte</td></tr><tr><td>Arrivée</td><td>lun. 8 février 2027, dès 16 h</td></tr><tr><td>Départ</td><td>jeu. 11 février 2027, avant 10 h</td></tr><tr><td>Option</td><td>Petit déjeuner</td></tr><tr><td>Séjour</td><td>396,00 €</td></tr><tr><td class="public-due"><b>Acompte à régler</b></td><td class="public-due">118,80 €</td></tr></table>' +
       btn + '<p>Le règlement de l’acompte bloque vos dates. Tant qu’il n’est pas payé, elles restent disponibles pour d’autres voyageurs.</p>' +
-      '<p>Une question ? Répondez simplement à ce mail, ou appelez-nous au <a href="#public" onclick="return false">06 15 73 93 37</a>.</p><p>À très bientôt,<br>Domaine Solio</p></div></div>';
+      '<p>Une question ? Répondez simplement à ce mail, ou appelez-nous au <a href="#public" onclick="return false">06 00 00 00 03</a>.</p><p>À très bientôt,<br>Domaine Solio</p></div></div>';
   };
 
   // =====================================================================================

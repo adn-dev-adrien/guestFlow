@@ -9,6 +9,7 @@
  * against an in-memory schema.
  */
 
+const { carriesMoney, idsOfOwner, withConvertedDevis, CLIENT_MONEY_MESSAGE } = require('../utils/deletionGuard');
 const { todayIso: localTodayIso } = require('../utils/localDate');
 const db = require('../database');
 const { sentenceCase, capitalizeFirst, personNameCase } = require('../utils/textFormatters');
@@ -303,6 +304,26 @@ function createModel(database) {
     return findById(id);
   }
 
+  // THE delete guard for a client (utils/deletionGuard): a forced delete would cascade every stay and
+  // devis, including those that carry money.
+  function deletionBlocker(id) {
+    return carriesMoney(database, idsOfOwner(database, 'clientId', id)) ? CLIENT_MONEY_MESSAGE : null;
+  }
+
+  function rowIdsToDelete(id) {
+    return withConvertedDevis(database, idsOfOwner(database, 'clientId', id));
+  }
+
+  // The delete the controller runs after its provider awaits: judged again, in the same transaction.
+  function removeGuarded(id) {
+    return database.transaction(() => {
+      const blocker = deletionBlocker(id);
+      if (blocker) return { blocker };
+      database.prepare('DELETE FROM clients WHERE id = ?').run(Number(id));
+      return { ok: true };
+    })();
+  }
+
   function remove(id) {
     // FK cascade removes the client's reservations + devis and all their child rows.
     database.prepare('DELETE FROM clients WHERE id = ?').run(Number(id));
@@ -427,6 +448,9 @@ function createModel(database) {
     insert,
     update,
     remove,
+    deletionBlocker,
+    removeGuarded,
+    rowIdsToDelete,
     listReservationsForClient,
     listDevisForClient,
     getDeleteImpact,

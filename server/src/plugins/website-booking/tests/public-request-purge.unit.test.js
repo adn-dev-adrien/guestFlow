@@ -68,7 +68,7 @@ test('a 29-day request stays', () => {
   assert.equal(exists(id), true);
 });
 
-test('a request the operator opened stays (operatorSeenAt set by GET /api/devis/:id)', () => {
+test('rule 17: a request the operator opened stays (operatorSeenAt set by GET /api/devis/:id)', () => {
   const id = request('opened@example.fr');
   devisController.getOne({ params: { id } }, res());
   assert.ok(db.prepare('SELECT operatorSeenAt FROM reservations WHERE id = ?').get(id).operatorSeenAt);
@@ -104,7 +104,7 @@ test('a client with another reservation stays when its untouched request goes', 
 
 // ── review of PR #805 ──────────────────────────────────────────────────────────────────────────────
 
-test('a request whose PDF the operator downloaded from the list stays (operatorSeenAt set by the PDF route)', async () => {
+test('rule 25: a request whose PDF the operator downloaded from the list stays (operatorSeenAt set by the PDF route)', async () => {
   const id = request('pdf@example.fr');
   const r = res();
   r.setHeader = () => {}; r.send = () => r; r.end = () => r; r.type = () => r; r.set = () => r;
@@ -115,7 +115,7 @@ test('a request whose PDF the operator downloaded from the list stays (operatorS
   assert.equal(exists(id), true);
 });
 
-test('the 30 days run from the guest\'s last request, not the first', () => {
+test('rule 25: the 30 days run from the guest\'s last request, not the first', () => {
   const id = request('recent@example.fr');
   age(id, 40);
   db.prepare("UPDATE public_request_stays SET lastRequestAt = datetime('now', '-2 days') WHERE reservationId = ?").run(id);

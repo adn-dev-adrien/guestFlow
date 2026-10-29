@@ -31,7 +31,7 @@ test('acompte 180 + solde 420 paid, stay raised to 700: net 700', () => {
   assert.equal(q.sejourNetTotal, 700);
 });
 
-test('a paid stay reduced afterwards keeps the money received in the total (trop-perçu, rule 36)', () => {
+test('a paid stay reduced afterwards keeps the money received in the total (trop-perçu)', () => {
   const q = calculateReservationQuote({
     ...STAY, db: pricingAuditDb({ depositPercent: 30 }), platform: 'direct',
     customPrice: 500, depositPaid: 1, depositAmount: 180, balancePaid: 1, balanceAmount: 420,

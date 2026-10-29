@@ -2,6 +2,7 @@
 const { defineConfig, devices } = require('@playwright/test');
 const path = require('path');
 const { CLIENT_PORT, CLIENT_URL, SERVER_PORT } = require('./e2e/clientUrl');
+const { PROJECTS } = require('./e2e/projects');
 const { OUTBOX, SUPPORT_PUBLIC_KEY } = require('./e2e/fixtures/accountSecurity');
 
 // E2E configuration for the smoke suite (specs/e2e-playwright-smoke-suite.md §3 + §4).
@@ -104,19 +105,5 @@ module.exports = defineConfig({
       stderr: 'pipe',
     },
   ],
-  projects: [
-    {
-      name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
-      // The bank reconciliation spec seeds a stored Qonto connection into the shared database: it runs in
-      // its own project, after the others, so it never overlaps a spec that expects Qonto to be absent.
-      testIgnore: /reconciliation-assisted-matching\.spec\.js$/,
-    },
-    {
-      name: 'bank-reconciliation',
-      use: { ...devices['Desktop Chrome'] },
-      testMatch: /reconciliation-assisted-matching\.spec\.js$/,
-      dependencies: ['chromium'],
-    },
-  ],
+  projects: PROJECTS.map((project) => ({ ...project, use: { ...devices['Desktop Chrome'] } })),
 });

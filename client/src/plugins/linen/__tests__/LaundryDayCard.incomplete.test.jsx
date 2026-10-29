@@ -46,7 +46,7 @@ test('no warning block when the list is empty or absent', () => {
 
 test('an all-zero week still renders the card when a stay is flagged (silence rule bypassed)', () => {
   // The whole point of the warning: the only departures of the week have no quantity yet, so both
-  // sides total zero. Rule 13 would hide the card and the operator would see nothing at all.
+  // sides total zero. The silence rule would hide the card and the operator would see nothing at all.
   const { container } = render(<LaundryDayCard data={{
     dropOff: { ...ZERO, incomplete: [STAY] },
     pickUp: ZERO,

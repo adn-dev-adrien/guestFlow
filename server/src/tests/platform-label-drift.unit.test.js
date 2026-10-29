@@ -1,4 +1,4 @@
-// specs/normalize-platform-names.md rule 22 (audit 2026-10-27) — saving a calendar must not respell its
+// specs/normalize-platform-names.md addendum 2026-10-27, item 22 — saving a calendar must not respell its
 // platform. A sentence-case pass before `formatPlatformName` turned `GitesDeFrance` into `Gitesdefrance`
 // and `AirbnbTente` into `Airbnbtente`: a second catalogue row with no commission, every import tagged
 // with it, and the GdF intake reading 0 % instead of 10 %. The boot de-duplication now groups spellings
@@ -57,7 +57,7 @@ test('the boot de-duplication merges spellings of one slug into the most-referen
   assert.deepEqual(runPlatformSlugDedup(mem), { mergedCount: 0, renamedCount: 0, normalisedRefs: 0 }, 'idempotent');
 });
 
-// Rule 23, amended after the PR #798 review — the surviving name is the most-referenced row's (stays +
+// Amendment of addendum item 23, after the PR #798 review — the surviving name is the most-referenced row's (stays +
 // iCal sources), then the lowest id; « most segments » only breaks a tie between unreferenced rows. A
 // stray `AirBnb` row must not rename the established `Airbnb`: the Qonto reconciliation matches names
 // exactly. The cancellation compensations follow the merge like the stays.

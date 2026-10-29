@@ -13,7 +13,7 @@ const { __test: { buildEntry } } = require('../accountingModel');
 // the `46710000` pass-through account. The entry is no longer dropped when revenue is 0 — a
 // pure-tax encaissement is a valid 1-debit / 1-credit row. Tests below pin the new behaviour;
 // the historical "drop pure-tax entry" cases now expect a 46710000-only entry instead.
-// Spec: accountant-accounting-export.md §3.4 rule 14.
+// Spec: specs/accountant-accounting-export.md §3.4 rule 14.
 
 // Stay: 2 nights × 100€ = 200€ finalPrice + 4.80€ tourist tax. depositPercent = 30 %.
 // Buckets pre-set so the test focuses on the entry shaping (no engine math here).
@@ -117,7 +117,7 @@ test('direct booking (legacy path) — the tourist tax rides 100% on the solde, 
 });
 
 test('direct booking (contrib path) — a STALE acompte tax share is forced back onto the solde, bank-matched', () => {
-  // Regression for the prod bug (THOMAS VANDEN WILDENBERG / DAMIEN NICOLET, June 2026): their acompte
+  // Regression for the prod bug (TOM VAN BERG / DANIEL NICOLAS, June 2026): their acompte
   // flip happened BEFORE specs/tourist-tax-on-solde.md, so it captured a proportional tax share
   // (touristTaxAcompteContribTtc = 1.44 on a 61.44 deposit). The accounting then surfaced that tax on
   // the acompte entry. The export must now force the WHOLE tax onto the solde — 0 on the deposit — while

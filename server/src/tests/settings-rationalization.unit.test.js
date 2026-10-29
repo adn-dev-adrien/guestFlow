@@ -268,7 +268,7 @@ function reservationsControllerWith(stored, captures) {
     if (id === '../models/reservationsModel') {
       return new Proxy({}, { get: (_, key) => {
         if (key === 'getForArchiveCheck') return () => stored;
-        if (key === 'remove') return (rid) => { captures.removed = rid; };
+        if (key === 'removeGuarded') return (rid) => { captures.removed = rid; return { ok: true }; };
         return () => null;
       } });
     }
@@ -287,30 +287,30 @@ function fakeRes() {
   return { statusCode: 200, body: null, status(c) { this.statusCode = c; return this; }, json(b) { this.body = b; return this; } };
 }
 
-const ENDED = { id: 9, endDate: '2020-01-05' };
+const ENDED = { id: 9, endDate: '2020-01-05', kind: 'reservation' };
 const admin = { roles: ['admin'] };
 const reception = { roles: ['reception'] };
 
-test('rule 17a: a stay that has ended cannot be deleted without an explicit unlock', () => {
+test('rule 17a: a stay that has ended cannot be deleted without an explicit unlock', async () => {
   const captures = {};
   const res = fakeRes();
-  reservationsControllerWith(ENDED, captures).remove({ params: { id: '9' }, query: {}, user: admin }, res);
+  await reservationsControllerWith(ENDED, captures).remove({ params: { id: '9' }, query: {}, user: admin }, res);
   assert.equal(res.statusCode, 403);
   assert.equal(captures.removed, undefined);
 });
 
-test('rule 17a: an admin who unlocked the fiche can delete it', () => {
+test('rule 17a: an admin who unlocked the fiche can delete it', async () => {
   const captures = {};
   const res = fakeRes();
-  reservationsControllerWith(ENDED, captures).remove({ params: { id: '9' }, query: { unlockPast: '1' }, user: admin }, res);
+  await reservationsControllerWith(ENDED, captures).remove({ params: { id: '9' }, query: { unlockPast: '1' }, user: admin }, res);
   assert.equal(res.statusCode, 200);
-  assert.equal(captures.removed, '9');
+  assert.equal(captures.removed, 9);
 });
 
-test('rule 17a: the unlock flag means nothing coming from another role', () => {
+test('rule 17a: the unlock flag means nothing coming from another role', async () => {
   const captures = {};
   const res = fakeRes();
-  reservationsControllerWith(ENDED, captures).remove({ params: { id: '9' }, query: { unlockPast: '1' }, body: { unlockPast: true }, user: reception }, res);
+  await reservationsControllerWith(ENDED, captures).remove({ params: { id: '9' }, query: { unlockPast: '1' }, body: { unlockPast: true }, user: reception }, res);
   assert.equal(res.statusCode, 403);
   assert.equal(captures.removed, undefined);
 });

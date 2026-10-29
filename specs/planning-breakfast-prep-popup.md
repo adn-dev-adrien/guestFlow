@@ -81,7 +81,7 @@ Clicking a breakfast card opens a small popup summarizing exactly what to prepar
 - [x] E2E: 32 pass / 1 skipped
 
 ### Manual UI verification (2026-07-18, dev — counts seeded on reservation 22198, reset afterwards)
-- [x] Click the breakfast card → popup: amber 09:00 pill, « Sarah Arnaud · Aventura lodge — dimanche 19 juillet », « 4 petits déjeuners », then ONLY Café ×2 / Lait ×2 / Viennoiseries ×3 / Céréales ×1 + « sans gluten » in italics
+- [x] Click the breakfast card → popup: amber 09:00 pill, « Sara Aubert · Aventura lodge — dimanche 19 juillet », « 4 petits déjeuners », then ONLY Café ×2 / Lait ×2 / Viennoiseries ×3 / Céréales ×1 + « sans gluten » in italics
 - [x] « Fiche » → `/reservations/22198?from=/planning`; « Fermer » closes
 - [x] Empty-composition card (20/07) → « Composition non renseignée (à compléter au check-in). »
 - [x] Mobile 375px: fullScreen dialog, buttons stacked full-width

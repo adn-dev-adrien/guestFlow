@@ -8,6 +8,7 @@ const platformPenalties = require('../controllers/platformPenaltiesController');
 const { isReceptionOnly } = require('../constants/roles');
 const db = require('../database');
 const { guardReadOnly } = require('../utils/reservationReadOnly');
+const { ficheVersionHeaders } = require('../middleware/ficheVersionHeaders');
 
 // A duplicate set aside takes no write (specs/calendar-property-parity.md rule 22); a cancelled stay keeps the
 // writes its history needs (refunds, the plan it was cancelled with).
@@ -21,6 +22,9 @@ const notReception = (handler) => (req, res) => (isReceptionOnly(req.user)
 
 // Thin routes: wire HTTP verbs/paths to controller methods. All logic lives in the controller,
 // model (DB), and utils (occupancy / audit / bed distribution).
+// The open fiche follows its own writes (specs/reservation-fiche-concurrency.md rule 4).
+router.use('/:id', ficheVersionHeaders());
+
 router.post('/suggest-beds', controller.suggestBeds);
 router.post('/platform-commission', controller.platformCommission);
 // « Nouvelle note » total (specs/mid-stay-notes.md rule 22) — before '/:id'.

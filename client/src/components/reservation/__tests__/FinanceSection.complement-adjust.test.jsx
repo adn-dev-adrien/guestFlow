@@ -144,7 +144,7 @@ test('la carte de fin de séjour rend le devis live, pas seulement le montant st
   expect(screen.getByText(/Calcul auto \(30,00 €\)/)).toBeInTheDocument();
 });
 
-// §3.2 rule 7bis — la carte fusionnée suit le devis LIVE : le bloc stocké date du dernier
+// §3.2 (7bis) — la carte fusionnée suit le devis LIVE : le bloc stocké date du dernier
 // enregistrement et gardait les anciennes lignes pendant que le résumé suivait déjà le moteur.
 test('la carte fusionnée préfère le bloc live du devis au bloc stocké', async () => {
   await renderFinance({

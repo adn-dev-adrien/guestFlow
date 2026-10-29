@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Approved _(2026-09-24)_ |
+| **Status** | Implemented _(2026-10-28; Approved 2026-09-24)_ |
 | **Branch** | `feature/site-english-version` |
 | **Created** | 2026-09-23 |
 | **Author** | Adrien |
@@ -836,3 +836,9 @@ _(filled during implementation)_
 - [ ] `specs/public-api.md` + `specs/wordpress-plugin.md:289` amended
 - [ ] _(not in this branch — rules 14-17)_ `specs/guest-gate-access.md` §4.3 amended when the gate
       app is built
+
+- **2026-10-28 — Status Implemented for the code.** The public API, the plugin (1.12.0) and the back office
+  carry the language end to end. The unticked lines above are content published straight in WordPress
+  (outside this repository: pages go online one by one) and follow-ups of the gate application, not code of
+  this repository.
+

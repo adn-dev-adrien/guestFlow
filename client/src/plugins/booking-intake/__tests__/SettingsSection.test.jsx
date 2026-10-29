@@ -19,8 +19,8 @@ beforeEach(() => {
   api.getPluginSettings.mockResolvedValue(SETTINGS);
   api.getProperties.mockResolvedValue([{ id: 1, name: 'La Granja' }, { id: 2, name: 'L’Estiva' }]);
   api.getBookingIntakeLog.mockResolvedValue([
-    { id: 2, resId: '6392081711', status: 'applied', createdAt: '2026-10-15 13:52:00', error: null },
-    { id: 1, resId: '6392081712', status: 'refused', createdAt: '2026-10-15 13:40:00', error: 'Aucune fiche du 06/11 au 08/11' },
+    { id: 2, resId: '6300000001', status: 'applied', createdAt: '2026-10-15 13:52:00', error: null },
+    { id: 1, resId: '6300000002', status: 'refused', createdAt: '2026-10-15 13:40:00', error: 'Aucune fiche du 06/11 au 08/11' },
   ]);
 });
 afterEach(() => vi.clearAllMocks());
@@ -70,8 +70,8 @@ test('specs/booking-extranet-intake.md rule 21 (amended 2026-10-18): no field as
 
 test('specs/booking-extranet-intake.md rule 20: the last pages received are listed with their outcome and the reason of a refusal', async () => {
   render(<SettingsSection />);
-  expect(await screen.findByText(/15\/10\/2026 · 6392081711 · rempli/)).toBeInTheDocument();
-  expect(screen.getByText(/6392081712 · refusé \(Aucune fiche du 06\/11 au 08\/11\)/)).toBeInTheDocument();
+  expect(await screen.findByText(/15\/10\/2026 · 6300000001 · rempli/)).toBeInTheDocument();
+  expect(screen.getByText(/6300000002 · refusé \(Aucune fiche du 06\/11 au 08\/11\)/)).toBeInTheDocument();
 });
 
 test('specs/booking-extranet-intake.md rule 12: a refused save shows the server’s message under the field and rejects', async () => {

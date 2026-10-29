@@ -1,0 +1,1 @@
+- **The iCal export publishes early check-in / late check-out nights** (spec `ical-export-closures.md` rule 12). A check-out at 17:00 or later now blocks the next night in the feed, as GuestFlow's own availability check does. Text values are escaped and lines folded at 75 octets per RFC 5545 (rule 13).

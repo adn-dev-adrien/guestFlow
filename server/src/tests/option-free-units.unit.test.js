@@ -4,7 +4,7 @@ const Database = require('better-sqlite3');
 
 const { calculateReservationQuote } = require('../utils/pricing').__test;
 
-// specs/tariff-recipes/spec.md §3.9 rules 52bis-52ter — the first N units of an option are included
+// specs/tariff-recipes/spec.md §3.9 items 52bis-52ter — the first N units of an option are included
 // in the rate (the direct welcome pack's two breakfasts). The operator adds the FULL quantity and
 // only the units beyond the free ones are billed; the prepared quantity is untouched so the Planning
 // and SAS cards still show everything to serve. Direct bookings only.
@@ -95,7 +95,7 @@ test('no free units configured → the option bills in full (every existing prop
   db.close();
 });
 
-test('a platform reservation gets no free units — the pack is own-channel only (rule 53)', () => {
+test('a platform reservation gets no free units — the pack is own-channel only (tariff-recipes item 53)', () => {
   const db = createDb();
   const q = calculateReservationQuote({
     ...BASE, db, adults: 5, startDate: '2026-05-01', endDate: '2026-05-03', platform: 'Airbnb',

@@ -44,10 +44,11 @@ Three facts shape the work:
    reservation**: GuestFlow would never know about them, and its export would leave those dates open
    on every other channel — an overbooking machine.
 
-The Booking feed also **echoes back** what it imported from GuestFlow's export: a GreenGo stay
-exported to Booking returns as a `CLOSED - Not available` event on the same dates. Treating every
-Booking event as a reservation would therefore turn every other channel's booking into a phantom
-Booking one.
+The Booking feed was thought to **echo back** what it imported from GuestFlow's export: a GreenGo stay
+exported to Booking returning as a `CLOSED - Not available` event on the same dates, which would turn every
+other channel's booking into a phantom Booking one. _(Amended 2026-10-28, rule 18: measured on the gîte
+(rule 14), Booking's feed carries its own reservations only. A wholly covered event is a conflict to
+flag, not an echo to drop; only a closure's own echo is still skipped, rule 17.)_
 
 ## 2. Goal
 
@@ -80,8 +81,9 @@ no duplicate, no lost Booking reservation, no phantom — before the Lodgify sub
    Lodgify is a real Booking booking, not an echo, and must be claimed by the native Booking feed.
 4. A reservation whose platform is still `Lodgify` but which really came from a channel is **not**
    claimed — the platform equality is the safety. The runbook (§10 step 3) has the operator relabel
-   those before the switch. On a Booking feed such a stay is covered, hence skipped as an echo (no
-   duplicate, but no link either); on Airbnb or Abritel it is created next to the old one.
+   those before the switch. On a Booking feed such a stay holds the nights, so the Booking event is
+   created and flagged in conflict (rule 18, amended 2026-10-28 — it used to be skipped as an echo); on
+   Airbnb or Abritel it is created next to the old one.
 4bis. **Booking re-issuing a UID.** The Booking feed has no guest name, so the summary fallbacks are
    blind there. A Booking event with no mapping re-claims this source's own stay with the exact same
    dates when that stay's UID has left the feed and it is the only one. The summary-based re-claim of
@@ -103,6 +105,10 @@ no duplicate, no lost Booking reservation, no phantom — before the Lodgify sub
    - closures applying to the property (`closuresModel`), and/or
    - **tombstones** (rule 7).
    Echoes are counted in the sync result (`échos Booking ignorés`).
+   > **Amended 2026-10-28 (rule 18):** the full-cover skip is withdrawn for stays and tombstones. An
+   > event wholly over held nights is **created and flagged** exactly like a partial one (rule 8); the
+   > counter `échos Booking ignorés` / `echoSkipped` no longer exists. Only a closure's own echo is still
+   > dropped, by the closure guard (rule 17).
 7. **Tombstones.** When a range stops being exported by GuestFlow (stay deleted, cancelled, or its
    dates changed), it is written to `ical_export_tombstones` with the time. A tombstone covers an echo
    for **72 hours**, the time for Booking to re-import GuestFlow's feed and drop the dates; tombstones
@@ -187,7 +193,7 @@ no duplicate, no lost Booking reservation, no phantom — before the Lodgify sub
     tombstone inherits it. When a Booking source runs the echo filter, tombstones whose owner is
     **that same source** are not part of the cover; tombstones with another owner or `NULL` cover as
     before.
-    **Why** (incident 2026-10-22, gîte, Booking 6669322709): a Booking guest whose card failed
+    **Why** (incident 2026-10-22, gîte, Booking 6600000001): a Booking guest whose card failed
     cancelled and re-booked the same nights (6 → 8 November 2026). The first stay (fiche 22309,
     Booking source #12) left the feed, the operator approved the cancellation alert, the fiche was
     deleted and its range became a tombstone. The new booking then came back — with the **same
@@ -250,6 +256,19 @@ no duplicate, no lost Booking reservation, no phantom — before the Lodgify sub
     the guest moved on Airbnb onto a closure stayed on its old dates in GuestFlow with no alert, and a
     new booking straddling the end of a closure never existed in GuestFlow — its nights stayed open
     in the export to every other channel.
+18. **A Booking event wholly over held nights is a conflict, not an echo** _(fixed at the 2026-10-28
+    audit; rule 6 amended)_. Rule 14 records the measurement behind it: with Booking's import set to
+    « Uniquement les dates réservées » its feed carries **its own reservations only** — GuestFlow's
+    ranges are absent from it. A Booking event whose every night is held by a stay from another origin or
+    by a recent tombstone is therefore not Booking mirroring GuestFlow: it is a Booking stay sold on nights
+    GuestFlow holds (an import lag on Booking's side, or a sale within 72 h of a cancellation). It used to
+    be skipped with no row, no mapping, no flag and no notification, and stayed invisible for as long as
+    it was covered, while a partial overlap — the lesser case — was flagged. It is now created and flagged
+    `bookingConflictAt` with the conflict notification, like rule 8. A tombstone still counts as held
+    (a flag on a stay whose predecessor was just cancelled is noise the operator dismisses; a silent drop
+    is an overbooking). A wholly-closure event stays dropped by rule 17. **Accepted residual risk:** if the
+    operator ever sets Booking's import to « all dates », every non-Booking stay comes back as a flagged
+    Booking event; the answer is the import setting, not a silent skip.
 
 ---
 
@@ -396,6 +415,12 @@ tables, because its Booking source now goes through the Booking path.
 - [x] Client: `components/property/__tests__/PropertyPlatformsTab.closed-feed.test.jsx` (3 tests) — chip,
   switch saved with the URL, kept by « Désactiver ».
 
+### Server unit tests — 2026-10-28 audit (rules 6, 14, 18)
+- [x] `lodgify-decommission-native-feeds.unit.test.js` and `booking-tombstone-owner.unit.test.js` updated:
+  a Booking event wholly over a GreenGo stay, over a GreenGo + hand-entered stay back to back, over a
+  fresh tombstone (owner other source or none) is created and flagged; past 72 h it is created unflagged;
+  the recorded sync message and counts name the conflicts and no longer any echo.
+
 ### Manual verification
 - [ ] On a prod copy (`DB_PATH`), point the Booking source at a recorded native feed fixture and run a sync: no duplicate, echoes counted.
 - [ ] Mobile: the longer sync message wraps without horizontal scroll on the sources screen.
@@ -410,7 +435,7 @@ tables, because its Booking source now goes through the Booking path.
   non-regression on the same copy. The output of both runs goes in the PR.
 - [ ] The live case cannot serve as the check: tombstone #3 was written without an owner and
   expires on 2026-10-25 around 07:55 (Paris), before any release can be installed. After that time,
-  confirm in production that Booking 6669322709 did appear on its own, and complete its fiche.
+  confirm in production that Booking 6600000001 did appear on its own, and complete its fiche.
 
 ## 8. Out of scope
 
@@ -569,7 +594,7 @@ Order matters: a channel is never left without a sync path, and Lodgify is cance
      per night *above* the recipe's net target, so applying the recipe is a price cut of about 3 %
      (see §9 Q5).
    - Two future reservations carried the grid faithfully and can be used to check the re-entry:
-     `6392081711` (6–8 Nov 2026, 2 nights, 701.80 € = 2 × 350.90) and `5449776734` (25 Jul–1 Aug
+     `6300000001` (6–8 Nov 2026, 2 nights, 701.80 € = 2 × 350.90) and `5300000003` (25 Jul–1 Aug
      2027, 7 nights, 2 014.18 € = 7 × 496.10 × 0.58).
    - Unrelated but blocking in time: the extranet shows a « Connaître son partenaire » compliance
      banner on both hotels.
@@ -661,7 +686,7 @@ Airbnb, Booking and Abritel become consoles of their own, no longer « nourris p
   - *iCal wired both ways.* GuestFlow's export is imported into each hotel, and Booking's own feed
     (`ical.booking.com/v1/export?t=…`) into sources #12 and #11. First sync: **4 takeovers on the
     gîte and 1 on L'Estiva, zero creations** — rule 4 behaving exactly as specified, the five stays
-    now carrying their Booking references (6392081711, 6646665983, 5449776734 and the two others).
+    now carrying their Booking references (6300000001, 6600000002, 5300000003 and the two others).
   - *The incident.* See the rewritten step 6 above. Five duplicates (22310–22314) were created by
     the **Lodgify** source, not by the Booking one, in the minutes following the cut. GuestFlow
     flagged each of them itself with « Ce logement est déjà réservé pour ces dates ». Both Lodgify
@@ -807,8 +832,8 @@ Airbnb, Booking and Abritel become consoles of their own, no longer « nourris p
   - ⚠️ **The five duplicate reservations of 15/10 are still in production.** #22316, #22317, #22318,
     #22319 and #22315 (numbers 202610003 to 202610007), all created `2026-10-15 18:41`, all at 0 €
     with one guest and the anonymous client #144, each shadowing a real Booking reservation on the
-    same dates and property (#22309 / 6392081711, #22282 / 6396936881, #22301 / 6617083884, #22304 /
-    5449776734, #22270 / 6646665983). They carry no money but they occupy the calendar twice on five
+    same dates and property (#22309 / 6300000001, #22282 / 6300000003, #22301 / 6300000004, #22304 /
+    5300000003, #22270 / 6600000002). They carry no money but they occupy the calendar twice on five
     future stays. Deleting a production reservation is irreversible, so it waits for the operator.
   - *Runbook step 3 is smaller than it reads.* Production holds 14 future reservations (2026-10-16 →
     2028-12-31): 5 `Booking`, 5 `Lodgify`, 2 `direct`, 1 `Greengo`, 1 `GitesDeFrance` — **no

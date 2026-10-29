@@ -1,4 +1,4 @@
-// specs/auto-early-late-options (2026-10-27 audit) — on a phone the « Arrivée anticipée » card showed
+// specs/reservation-form-sections.md rule 7 (2026-10-27 audit) — on a phone the « Arrivée anticipée » card showed
 // its switch floating alone with « Ajout automatique » stacked under it. The switch and the word that
 // explains it are one FormControlLabel row, and the switch carries the option's name.
 import React from 'react';

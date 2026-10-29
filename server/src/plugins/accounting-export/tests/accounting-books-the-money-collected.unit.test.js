@@ -41,13 +41,13 @@ function perLine({ options = 0, resources = 0, destinations }) {
   return { hasContribs: false, optionsTtc: options, resourcesTtc: resources, destinations };
 }
 
-// ── Carpier #22275 — a bain nordique sold DURING the stay ───────────────────────────────────────────
+// ── Marchand #22275 — a bain nordique sold DURING the stay ───────────────────────────────────────────
 // Abracadaroom bills 720,82 and wires 573,77 (147,05 of commission). The stay also collects a 132 €
 // arrival complement and a 30 € checkout complement. The 30 € used to be missing from the gross-up
 // denominator, inflating every entry by 3,5 %: the solde debited the client 599,24 € against a 573,77 €
 // transfer, and credited 113,63 € HT of extras it had not collected.
-const CARPIER = baseRow({
-  id: 22275, lastName: 'Carpier', platform: 'Abracadaroom',
+const MARCHAND = baseRow({
+  id: 22275, lastName: 'Marchand', platform: 'Abracadaroom',
   finalPrice: 865.82, totalPrice: 865.82, touristTaxTotal: 13.05,
   balanceAmount: 720.82, balancePaid: 1, balancePaidDate: '2026-08-10',
   complementAmount: 132, complementPaid: 1, complementPaidDate: '2026-08-19',
@@ -55,18 +55,18 @@ const CARPIER = baseRow({
   endOfStayComplementAmount: 30,
   platformCommissionAmount: 147.05,
 });
-const CARPIER_LINES = perLine({
+const MARCHAND_LINES = perLine({
   options: 115, resources: 30,
   destinations: { preArrivalOptions: 0, preArrivalResources: 0, complementOptions: 115, complementResources: 0 },
 });
 
-test('Carpier: the solde debits the client the exact transfer and credits accommodation only', () => {
-  const entry = buildEntry(CARPIER, 'balance', CARPIER_LINES, COMMISSION_CONTEXT, { collectedOnArrival: true });
+test('Marchand: the solde debits the client the exact transfer and credits accommodation only', () => {
+  const entry = buildEntry(MARCHAND, 'balance', MARCHAND_LINES, COMMISSION_CONTEXT, { collectedOnArrival: true });
   assert.equal(round2(entry.encaissementTtc), 720.82, 'no gross-up: the stored solde IS the money');
   assert.equal(round2(entry.encaissementNetTtc), 573.77, 'the Abracadaroom transfer, to the cent');
 
   const rows = rowsByAccount(entry);
-  assert.equal(round2(rows.get('CCARPIE').debit), 573.77);
+  assert.equal(round2(rows.get('CMARCHA').debit), 573.77);
   assert.equal(round2(rows.get('622600').debit), 147.05);
   assert.equal(round2(rows.get('70600000').credit), 655.29, 'accommodation HT');
   assert.equal(round2(rows.get('44571100').credit), 65.53);
@@ -74,18 +74,18 @@ test('Carpier: the solde debits the client the exact transfer and credits accomm
   assert.ok(!rows.has('70601000'), 'the checkout extras are NOT credited here');
 });
 
-test('Carpier: the arrival complement keeps the ventilation the fiche stored', () => {
-  const entry = buildEntry(CARPIER, 'complement', CARPIER_LINES, COMMISSION_CONTEXT, { collectedOnArrival: true });
+test('Marchand: the arrival complement keeps the ventilation the fiche stored', () => {
+  const entry = buildEntry(MARCHAND, 'complement', MARCHAND_LINES, COMMISSION_CONTEXT, { collectedOnArrival: true });
   const rows = rowsByAccount(entry);
-  assert.equal(round2(rows.get('CCARPIE').debit), 132, 'the amount announced to the guest');
+  assert.equal(round2(rows.get('CMARCHA').debit), 132, 'the amount announced to the guest');
   assert.equal(round2(rows.get('70600010').credit), 108.14);
   assert.equal(round2(rows.get('46710000').credit), 13.05, 'tourist tax on the pass-through');
   assert.ok(!rows.has('70600000'), 'a complement never credits accommodation');
 });
 
-test('Carpier: the bain nordique sold mid-stay is booked as a resource, not a prestation', () => {
+test('Marchand: the bain nordique sold mid-stay is booked as a resource, not a prestation', () => {
   const entry = buildEndOfStayEntry({
-    ...CARPIER,
+    ...MARCHAND,
     endOfStayComplementPaidDate: '2026-08-22',
     endOfStayComplementDetail: '[{"label":"Bain nordique","amount":30,"source":"midStayExtra","key":"res:2"}]',
   }, 10);
@@ -98,7 +98,7 @@ test('Carpier: the bain nordique sold mid-stay is booked as a resource, not a pr
 test('an end-of-stay complement without mid-stay lines stays on the prestations account', () => {
   // The departure SAS's own lines (ménage, linge manquant) are services, not resources.
   const entry = buildEndOfStayEntry({
-    ...CARPIER,
+    ...MARCHAND,
     endOfStayComplementAmount: 45,
     endOfStayComplementDetail: '[{"label":"Ménage","amount":45}]',
   }, 10);
@@ -107,10 +107,10 @@ test('an end-of-stay complement without mid-stay lines stays on the prestations 
   assert.ok(!rows.has('70601000'));
 });
 
-// ── Foulon #22269 — a checkout complement settled in caisse interne ─────────────────────────────────
-test('Foulon: a caisse-interne complement never leaks back into the solde', () => {
+// ── Fabre #22269 — a checkout complement settled in caisse interne ─────────────────────────────────
+test('Fabre: a caisse-interne complement never leaks back into the solde', () => {
   const row = baseRow({
-    id: 22269, lastName: 'Foulon', platform: 'Lodgify',
+    id: 22269, lastName: 'Fabre', platform: 'Lodgify',
     finalPrice: 462.23, totalPrice: 462.23, touristTaxTotal: 21,
     balanceAmount: 452.73, balancePaid: 1, balancePaidDate: '2026-08-05',
     complementAmount: 24, complementPaid: 1, complementPaidDate: '2026-08-05',
@@ -128,10 +128,10 @@ test('Foulon: a caisse-interne complement never leaks back into the solde', () =
   assert.equal(round2(entry.taxTtc), 21, 'the reversed tax rides the solde');
 });
 
-// ── Nicolet #22226 — a schedule that drifted above the stay total ───────────────────────────────────
-test('Nicolet: a drifted schedule books the money banked, never an invented total', () => {
+// ── Nicolas #22226 — a schedule that drifted above the stay total ───────────────────────────────────
+test('Nicolas: a drifted schedule books the money banked, never an invented total', () => {
   const row = baseRow({
-    id: 22226, lastName: 'Nicolet', platform: 'Lodgify',
+    id: 22226, lastName: 'Nicolas', platform: 'Lodgify',
     finalPrice: 281.82, totalPrice: 281.82, touristTaxTotal: 2.94,
     depositAmount: 126.38, depositPaid: 1, depositPaidDate: '2026-06-22',
     balanceAmount: 126.38, balancePaid: 1, balancePaidDate: '2026-07-13',
@@ -149,10 +149,10 @@ test('Nicolet: a drifted schedule books the money banked, never an invented tota
   assert.equal(round2(entry.encaissementNetTtc), 122.97);
 });
 
-// ── Parreton #7 — the legacy « solde = net » shape the gross-up exists for ──────────────────────────
-test('Parreton: the legacy net schedule still grosses up to the total the guest paid', () => {
+// ── Perrin #7 — the legacy « solde = net » shape the gross-up exists for ──────────────────────────
+test('Perrin: the legacy net schedule still grosses up to the total the guest paid', () => {
   const row = baseRow({
-    id: 7, lastName: 'Parreton', platform: 'GitesDeFrance',
+    id: 7, lastName: 'Perrin', platform: 'GitesDeFrance',
     finalPrice: 994, totalPrice: 994, touristTaxTotal: 0,
     balanceAmount: 903, balancePaid: 1, balancePaidDate: '2026-05-13',
     platformCommissionAmount: 91,
