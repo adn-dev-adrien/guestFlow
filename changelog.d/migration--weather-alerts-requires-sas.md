@@ -1,0 +1,1 @@
+- **Vigilance Météo-France now requires Arrivée et départ guidés** (`weather-alerts` 1.3.0, spec `plugin-dependencies.md` rule 20). A space that runs the weather plugin without the SAS plugin sees it « Nécessite Arrivée et départ guidés » (installed, not loaded) after the update; its settings and data are kept, and installing the SAS plugin brings it back. No schema change.

@@ -62,14 +62,16 @@ function setup() {
 // Twelve arbitrated on 2026-09-28, plus « Saisie Gîtes de France » (specs/gites-de-france-mail-intake.md)
 // « Saisie Booking » (specs/booking-extranet-intake.md), « Saisie Airbnb » (specs/airbnb-mail-intake.md) and
 // « Google Vacation Rentals » (specs/google-vacation-rentals-feed.md), the first to require another plugin:
-// its landing page is the website.
+// its landing page is the website — and « Vigilance Météo-France », which needs the SAS (specs/plugin-dependencies.md rule 20).
+const SHIPPED_REQUIREMENTS = { 'google-vacation-rentals': ['website-booking'], 'weather-alerts': ['sas'] };
+
 test('catalogue: one entry per shipped plugin, with unique ids and every field', () => {
   assert.equal(PLUGIN_CATALOG.length, listPlugins().length);
   assert.equal(new Set(PLUGIN_IDS).size, listPlugins().length);
   for (const p of PLUGIN_CATALOG) {
     assert.ok(p.id && p.name && p.description && p.icon, p.id);
     assert.ok(Array.isArray(p.surfaces) && p.surfaces.length > 0, p.id);
-    assert.deepEqual([...p.requires].map((r) => r.id), p.id === 'google-vacation-rentals' ? ['website-booking'] : [], p.id);
+    assert.deepEqual([...p.requires].map((r) => r.id), SHIPPED_REQUIREMENTS[p.id] || [], p.id);
   }
   if (PLUGIN_IDS.includes('sas')) assert.equal(findPlugin('sas').name, 'Arrivée et départ guidés');
   assert.equal(findPlugin('nope'), null);

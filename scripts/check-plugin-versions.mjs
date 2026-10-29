@@ -16,9 +16,11 @@
  *                                                      # change (a dependency bump); it fails only when the
  *                                                      # sources changed without a bump
  *
- * Every run but `--built` also checks that the host module list only grows (rule 33), and that the
+ * Every run but `--built` also checks that the host module list only grows (rule 33), that the
  * core modules a server plugin reaches through `coreModule()` lose nothing unless the SDK's major
- * version moves (rule 35).
+ * version moves (rule 35), and that the `requires` of the shipped manifests form a sound graph:
+ * every requirement is shipped, at a version its range accepts, with no cycle
+ * (specs/plugin-dependencies.md rule 16).
  *
  * "Changed" means a file of `server/src/plugins/<id>/` or `client/src/plugins/<id>/` differs from the
  * previous tag, tests excepted (a test changes no package). The previous tag is the newest `v*` tag
@@ -32,6 +34,9 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SERVER_PLUGINS = 'server/src/plugins';
@@ -95,6 +100,28 @@ export function coreRemovals(before, after, { sdkBefore = null, sdkAfter = null 
   const major = (v) => String(v || '').split('.')[0];
   if (sdkBefore && sdkAfter && major(sdkBefore) !== major(sdkAfter)) return [];
   return hostRemovals(before, after);
+}
+
+/**
+ * Rule 16 — what is wrong with the `requires` of the shipped manifests (id → manifest): a requirement
+ * that is not shipped, a plugin requiring itself, a range the shipped version does not satisfy, a
+ * cycle. → ['message', …], in English, one per violation.
+ */
+export function requirementViolations(manifests) {
+  const { satisfies } = require('../server/src/utils/semverRange');
+  const { createGraph } = require('../server/src/utils/pluginGraph');
+  const out = [];
+  for (const id of Object.keys(manifests).sort()) {
+    for (const req of manifests[id].requires || []) {
+      const target = manifests[req.id];
+      if (req.id === id) out.push(`${id} requires itself`);
+      else if (!target) out.push(`${id} requires ${req.id}, which is not shipped`);
+      else if (!satisfies(target.version, req.range)) out.push(`${id} requires ${req.id} ${req.range}, shipped ${target.version}`);
+    }
+  }
+  createGraph({ manifests }).cycles().filter((cycle) => cycle.length > 1)
+    .forEach((cycle) => out.push(`dependency cycle: ${[...cycle, cycle[0]].join(' -> ')}`));
+  return out;
 }
 
 const sdkVersionOf = (source) => ((String(source || '').match(/SDK_VERSION\s*=\s*'([^']+)'/) || [])[1] || null);
@@ -189,6 +216,15 @@ function main() {
     }
     process.stdout.write('✓ No published plugin version changes content.\n');
     return 0;
+  }
+  const shipped = Object.fromEntries(fs.readdirSync(path.join(ROOT, SERVER_PLUGINS), { withFileTypes: true })
+    .filter((d) => d.isDirectory() && fs.existsSync(manifestPath(d.name)))
+    .map((d) => [d.name, JSON.parse(fs.readFileSync(manifestPath(d.name), 'utf8'))]));
+  const unsound = requirementViolations(shipped);
+  if (unsound.length) {
+    unsound.forEach((message) => process.stderr.write(`✗ ${message}\n`));
+    process.stderr.write('\nFix the `requires` of the manifest(s) above (specs/plugin-dependencies.md rule 16).\n');
+    return 1;
   }
   const base = at('--base') || previousTag();
   if (!base) {

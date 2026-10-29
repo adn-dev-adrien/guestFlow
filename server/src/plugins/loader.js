@@ -338,6 +338,15 @@ function loadPackages({ store, rows, order, env, nameOf = (id) => id }) {
     manifests[id] = manifest;
     dirs[id] = dir;
   });
+  // specs/plugin-dependencies.md rule 5 — a dependency cycle leaves every member unloaded: neither could
+  // be switched on first.
+  const { createGraph, cycleLabel } = require('../utils/pluginGraph');
+  createGraph({ manifests, nameOf }).cycles().forEach((cycle) => {
+    cycle.forEach((id) => {
+      incompatible[id] = { code: 'REQUIREMENT_CYCLE', message: `Dépendance circulaire : ${cycleLabel(cycle, nameOf)}.` };
+      delete manifests[id];
+    });
+  });
   // A requirement must itself be loadable, at a version its range accepts — repeated until stable.
   const { satisfies } = require('../utils/semverRange');
   let changed = true;

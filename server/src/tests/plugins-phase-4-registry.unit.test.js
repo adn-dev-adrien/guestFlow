@@ -24,7 +24,7 @@ const {
 } = require('../plugins/packageStore');
 const { createRegistryClient, signIndex } = require('../plugins/registryClient');
 const {
-  rangeRefusal, bestCandidate, requirementPlan, changelogBetween, dependentsOf,
+  rangeRefusal, bestCandidate, requirementPlan, changelogBetween,
 } = require('../utils/pluginOffers');
 const { ensurePluginsTable, ensurePluginSettingsTable, seedBuiltinPlugins } = require('../utils/pluginsSchema');
 const { buildModel: buildPluginsModel } = require('../models/pluginsModel');
@@ -286,15 +286,19 @@ test('rule 12: a missing requirement is proposed for the same confirmation, befo
   const ctx = {
     sources: sourcesOf({ bundled: { linen: manifest('linen', '1.0.0'), sas } }), env: ENV, installed: {}, nameOf: (id) => `Nom ${id}`, allows: () => true,
   };
-  assert.deepEqual(requirementPlan(sas, ctx), { plan: [{ id: 'linen', name: 'Nom linen', version: '1.0.0', source: 'bundled' }], refusal: null });
+  assert.deepEqual(requirementPlan(sas, ctx), { plan: [{ id: 'linen', name: 'Nom linen', version: '1.0.0', source: 'bundled', op: 'install' }], refusal: null });
   assert.deepEqual(requirementPlan(sas, { ...ctx, installed: { linen: '1.0.0' } }).plan, []);
   assert.equal(requirementPlan(sas, { ...ctx, installed: { linen: '0.9.0' } }).refusal.code, 'REQUIREMENT_TOO_OLD');
   assert.equal(requirementPlan(sas, { ...ctx, allows: () => false }).refusal.message, 'Nécessite Nom linen, hors forfait.');
 });
 
 test('rule 12: uninstalling a plugin another installed plugin requires names that plugin', () => {
-  const dependents = dependentsOf('linen', { sas: manifest('sas', '1.0.0', { requires: [{ id: 'linen', range: '^1.0.0' }] }), neat: manifest('neat', '1.0.0') });
-  assert.deepEqual(dependents.map((m) => m.id), ['sas']);
+  const { createGraph } = require('../utils/pluginGraph');
+  const graph = createGraph({
+    manifests: { sas: manifest('sas', '1.0.0', { requires: [{ id: 'linen', range: '^1.0.0' }] }), neat: manifest('neat', '1.0.0'), linen: manifest('linen', '1.0.0') },
+    states: { sas: 'inactive', neat: 'active', linen: 'active' },
+  });
+  assert.deepEqual(graph.dependantsOf('linen'), ['sas']);
 });
 
 test('rule 20: the changelog lines of the versions in between, newest first', () => {
