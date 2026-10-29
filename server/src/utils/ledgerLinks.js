@@ -48,6 +48,15 @@ function staleLinks(openLinks, row) {
  * be checked, nothing is refused; the poll will meet the payment, if any (rule 31).
  */
 async function findPaidStaleLink(stale, provider) {
+  return (await inspectStaleLinks(stale, provider)).paid;
+}
+
+/**
+ * Like `findPaidStaleLink`, and says which links the provider could not answer for: those are neither
+ * known paid nor known unpaid, so a caller about to deactivate them must keep them and retry later.
+ */
+async function inspectStaleLinks(stale, provider) {
+  const unreadable = [];
   for (const link of stale || []) {
     if (!link.providerLinkId || !provider || typeof provider.getPayment !== 'function') continue;
     if (link.provider && provider.id && link.provider !== provider.id) continue;
@@ -55,11 +64,12 @@ async function findPaidStaleLink(stale, provider) {
     try {
       pay = await provider.getPayment(link.providerLinkId, { origin: 'amount-changed' });
     } catch {
-      pay = null;
+      unreadable.push(link);
+      continue;
     }
-    if (pay && pay.paid) return link;
+    if (pay && pay.paid) return { paid: link, unreadable };
   }
-  return null;
+  return { paid: null, unreadable };
 }
 
 /**
@@ -185,4 +195,4 @@ function bookPaidAfterAmountChange({ database, recordPayment, reservationsModel 
   return { effect: 'complement-booked', amount: paidAmount };
 }
 
-module.exports = { linkAmountCents, staleLinks, findPaidStaleLink, bookPaidAfterAmountChange };
+module.exports = { linkAmountCents, staleLinks, findPaidStaleLink, inspectStaleLinks, bookPaidAfterAmountChange };

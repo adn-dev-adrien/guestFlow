@@ -27,9 +27,15 @@ function capitalizeFirst(value) {
 // « MARTIN-DUPONT ») → each word and each part after a hyphen or an apostrophe starts with a capital
 // (« Jean-Pierre », « Martin-Dupont », « D'Arc »). Typed in mixed case (« McDonald », « Le Goff »,
 // « de La Fontaine ») → kept as typed: the guest knows how their name is spelt.
+// Format characters (bidi overrides, zero-width space, BOM…) draw nothing or reorder what is drawn: a name
+// carrying them can read backwards or look identical to another. The joiners U+200C/U+200D stay, since
+// Persian and Indic names spell with them.
+const FORMAT_CHARS = /(?![\u200C\u200D])\p{Cf}/gu;
+const stripFormatChars = (value) => String(value == null ? '' : value).replace(FORMAT_CHARS, '');
+
 function personNameCase(value) {
   if (value === null || value === undefined) return '';
-  const trimmed = String(value).trim().replace(/\s+/g, ' ');
+  const trimmed = stripFormatChars(value).trim().replace(/\s+/g, ' ');
   if (!trimmed) return '';
 
   const lower = trimmed.toLocaleLowerCase('fr-FR');
@@ -43,4 +49,5 @@ module.exports = {
   sentenceCase,
   capitalizeFirst,
   personNameCase,
+  stripFormatChars,
 };

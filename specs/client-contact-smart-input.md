@@ -120,6 +120,8 @@ form and get **only** the cleaned value (`jean.dupont@example.com`, `0600000001`
 - A drop while the server is unreachable → the field is left untouched and an inline error helper
   ("Analyse impossible") shows for that field until the next successful parse.
 
+13. **The parse input is capped** (audit R2 N2, 2026-10-29). `POST /clients/parse-contact` answers 400 `PAYLOAD_TOO_LONG` for a field above 2048 characters, and `extractEmail` returns '' above it. Test: `tests/audit-r2-parse-contact-cap.unit.test.js`.
+
 ---
 
 ## 4. Architecture

@@ -354,6 +354,12 @@ Other facts the design rests on:
     deletes nothing. The refusal to delete a stay or devis carrying money is the reservations rules
     (`RESERVATION_CARRIES_MONEY`, fix/audit-reservations), not this spec; no foreign key was added (a
     rebuild of a table other code reads).
+28. **Abandoning a link never overwrites a payment (2026-10-29, audit R2).** `paymentLinksModel.cancelIfOpen`
+    cancels only a link still `open`; `retireOpenLink` (refuse when paid, cancel if open, deactivate) is the
+    one way a stale link is replaced by `ensurePaymentLink`, the installment links and the public `pay`. The
+    stay's paid flags are read again after the provider call. Cancelling a stay also abandons the open
+    links of the devis converted into it; a devis's links are also retired by its stay's `retireForAmountChange`. See
+    public-online-payment.md rule 16.
 
 ## 4. Architecture
 

@@ -36,7 +36,7 @@ let smtpDetector = createSmtpDetector();
 
 // Maps wrapped payload paths to DB column names + validators.
 const COMPANY_FIELDS = [
-  { input: 'name', column: 'companyName' },
+  { input: 'name', column: 'companyName', validator: validation.validateDisplayName },
   { input: 'address', column: 'companyAddress' },
   { input: 'email', column: 'companyEmail', validator: validation.validateEmail },
   { input: 'phone', column: 'companyPhone' },
@@ -106,7 +106,7 @@ const SMTP_FIELDS = [
   { input: 'secure', column: 'smtpSecure' },
   { input: 'username', column: 'smtpUsername' },
   { input: 'fromEmail', column: 'smtpFromEmail', validator: validation.validateEmail },
-  { input: 'fromName', column: 'smtpFromName', validator: validation.validateHeaderSafeText },
+  { input: 'fromName', column: 'smtpFromName', validator: validation.validateDisplayName },
   { input: 'publicUrl', column: 'publicUrl', validator: validation.validatePublicUrl },
 ];
 

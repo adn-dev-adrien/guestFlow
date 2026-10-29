@@ -72,7 +72,7 @@ function writeCount({ file, count, now = new Date() }) {
 function headers({ cfg, fromName, replyTo }) {
   const name = clean(fromName) || 'GuestFlow';
   return {
-    from: `"${name.replace(/"/g, '\\"')}" <${cfg.from}>`,
+    from: { name, address: cfg.from },
     replyTo: clean(replyTo) || undefined,
   };
 }

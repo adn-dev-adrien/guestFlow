@@ -18,6 +18,8 @@ const HOUSE_NUMBER = /^\d{1,4}[a-zA-Z]?$/;
 const NUMBER_SUFFIXES = new Set(['bis', 'ter', 'quater']);
 const POSTAL_CODE = /^\d{5}$/;
 
+// A pasted contact is a line or two; the email pattern below is not linear on a long dotted run.
+const MAX_RAW_LENGTH = 2048;
 const EMAIL = /[A-Za-z0-9._%+'-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}/;
 // A plausible number run: at least 7 characters, digits possibly spaced by the usual separators.
 const PHONE_RUN = /\+?\d[\d\s.\-()/]{5,}\d/;
@@ -88,7 +90,7 @@ function parseAddressBlock(raw) {
 /** Extract a single email address; returns '' when the input holds nothing email-shaped. */
 function extractEmail(raw) {
   let text = decodeMaybe(String(raw || '').trim());
-  if (!text) return '';
+  if (!text || text.length > MAX_RAW_LENGTH) return '';
 
   const mailto = text.match(/mailto:([^?\s>]+)/i);
   if (mailto) text = mailto[1];
@@ -126,6 +128,7 @@ function extractPhone(raw) {
 }
 
 module.exports = {
+  MAX_RAW_LENGTH,
   parseAddressBlock,
   extractEmail,
   extractPhone,

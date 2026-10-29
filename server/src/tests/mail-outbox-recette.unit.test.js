@@ -24,7 +24,7 @@ test('rule 26: a configured SMTP with the outbox set writes the guest email to a
   const mail = JSON.parse(fs.readFileSync(path.join(dir, files[0]), 'utf8'));
   assert.equal(mail.to, 'guest@example.com');
   assert.equal(mail.subject, 'Votre séjour');
-  assert.match(mail.from, /contact@solio\.example/);
+  assert.equal(mail.from.address, 'contact@solio.example');
 });
 
 test('rule 26: NODE_ENV=production ignores the outbox — real emails are never silenced by a stray variable', async () => {

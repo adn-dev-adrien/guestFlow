@@ -27,6 +27,7 @@
  *   findByProviderLinkId(provider, linkId)  → the row a provider id names (webhook, retries)
  *   markPaid(id, { providerPaymentId, paidAt }) → flips open|expired→paid (idempotent: a paid/cancelled row is untouched)
  *   updateStatus(id, status)                → 'open'|'paid'|'expired'|'cancelled'
+ *   cancelIfOpen(id)                        → cancels a still-open link and returns it; null when it is no longer open
  *   cancel(id, { remotePending })           → 'cancelled', with the remote-deactivation marker when pending
  *   listRemoteCancelPending()               → cancelled rows whose deactivation at the provider is owed
  *   clearRemoteCancelPending(id, { providerPaymentId?, paidAt? }) → the provider settled it (deactivated, or paid)
@@ -176,6 +177,7 @@ function buildModel(database) {
          AND (
            (l.type = 'deposit' AND COALESCE(c.depositPaid, r.depositPaid, 0) = 1)
            OR (l.type IN ('balance', 'full') AND COALESCE(c.balancePaid, r.balancePaid, 0) = 1)
+           OR (l.type = 'full' AND COALESCE(c.depositPaid, r.depositPaid, 0) = 1 AND COALESCE(c.depositAmount, r.depositAmount, 0) > 0)
            OR (l.type = 'complement' AND COALESCE(c.complementPaid, r.complementPaid, 0) = 1)
            OR (l.type = 'installment' AND EXISTS (
              SELECT 1 FROM reservation_installments i WHERE i.id = l.installmentId AND i.paid = 1
@@ -233,10 +235,12 @@ function buildModel(database) {
   // bills: the link is abandoned at once, with the remote-deactivation marker so the poll deactivates
   // it at the provider (rule 8) and books it if the guest paid it anyway (rule 31).
   function retireForAmountChange(reservationId, type, newAmountCents, installmentId = null) {
+    // The links of the devis converted into the stay keep the devis id: they retire with the stay's.
+    const owners = require('../utils/deletionGuard').withConvertedDevis(database, [Number(reservationId)]);
     const open = installmentId == null
-      ? database.prepare(
+      ? owners.flatMap((owner) => database.prepare(
         `SELECT ${SELECT_COLS} FROM payment_links WHERE reservationId = ? AND type = ? AND status = 'open' ORDER BY id`
-      ).all(Number(reservationId), String(type))
+      ).all(owner, String(type)))
       : database.prepare(
         `SELECT ${SELECT_COLS} FROM payment_links WHERE reservationId = ? AND type = ? AND installmentId = ? AND status = 'open' ORDER BY id`
       ).all(Number(reservationId), String(type), Number(installmentId));
@@ -318,6 +322,13 @@ function buildModel(database) {
     return findById(id);
   }
 
+  // Retires a link only while it is still `open`: null when it moved meanwhile (paid by a webhook that
+  // ran during an awaited provider call), so a payment is never overwritten by a later cancellation.
+  function cancelIfOpen(id) {
+    const info = database.prepare("UPDATE payment_links SET status = 'cancelled' WHERE id = ? AND status = 'open'").run(Number(id));
+    return Number(info.changes) > 0 ? findById(id) : null;
+  }
+
   // specs/plugins-phase-3a-online-payment.md rule 7 — the row is abandoned locally at once; when the
   // provider could not deactivate it, the marker keeps it on the poll's retry list (rule 8).
   function cancel(id, { remotePending = false } = {}) {
@@ -377,6 +388,7 @@ function buildModel(database) {
     markPaid,
     updateStatus,
     cancel,
+    cancelIfOpen,
     claimRemoteCancelPending,
     restoreRemoteCancelPending,
     listRemoteCancelPending,

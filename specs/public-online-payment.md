@@ -204,6 +204,31 @@ Let a website visitor **pay their full stay online** and have the reservation co
     recorded again and sends no confirmation: the admin gets the « Devis payé deux fois » alert to
     refund it, and a « Remboursement à faire » row on the converted stay's history keeps the debt
     after the alert is gone. Covered by `tests/audit-devis-link-amount.unit.test.js`.
+16. **A devis link follows the stay the devis became (2026-10-29, audit R2).** The links of a converted devis keep
+    the devis id, so every rule that looks at the stay looks at them too: cancelling the stay abandons
+    them (`cancelReservation`, as the iCal cancellation does); saving the fiche detects and retires the
+    stale ones (rule 14 through the converted devis); a payment is compared with the converted stay's
+    current amounts and booked at what was received, with the admin alert (`amountMismatch`); a payment
+    on a link of a cancelled stay is money to refund (« Paiement reçu sur un lien annulé »), never a paid
+    stay and never a confirmation. An acompte link and a full link both settle the acompte: minting one
+    retires the open other once the new link exists (as `pay` does; a refused or failed mint never cancels
+    a valid link), and `retireSettled` retires an open full link once the acompte is paid. The paid flags
+    are read on the stay the devis became too. If both are paid the second is a double payment (rule 15);
+    when the acompte was paid first, only the acompte part is refunded (« Remboursement à faire » and the
+    alert name that part) and the surplus is recorded as the solde (« rembourser cette part »); the same holds when that full link
+    was retired as `settled` and paid anyway (`settleRetiredPaidLink`: refund row and alert, devis or stay).
+    Retiring a link only ever cancels a link still `open` (`cancelIfOpen`): a payment that lands during
+    the provider round trip stays `paid` and the caller gets `LINK_ALREADY_PAID`. A provider that cannot
+    say whether a retired devis link was paid keeps it for the poll's retry instead of deactivating it.
+    A retired devis link paid anyway converts the devis with `allowConflict`, flagging dates taken
+    meanwhile. A converted devis's links are also retired when the devis converts and by
+    `retireForAmountChange` of its stay; a one-time boot migration (`stale_links_of_converted_devis_retired_v1`)
+    retires the ones already stale (never a paid one). The alert of a retired link paid anyway always
+    states what was booked against the stay's own amounts and the real direction: a trop-perçu reads
+    « Trop-perçu de X à rembourser. », a shortfall is carried on the complement. The solde records what
+    was received (`balanceAmount`). The public `/status` of a
+    devis whose stay was cancelled answers `cancelled`. Covered by
+    `tests/audit-r2-public-devis-links.unit.test.js`.
 
 ## 4. Architecture
 

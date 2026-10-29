@@ -118,7 +118,7 @@ function SettingsSection({ onDirtyChange }, ref) {
             <Typography variant="subtitle2" sx={{ mb: 1 }}>Avancé</Typography>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
               <TextField label="Domaines d’envoi acceptés" value={draft.senderDomains || ''} onChange={set('senderDomains')} helperText="Vide : celui de l’expéditeur." fullWidth />
-              <TextField label="Serveur de réception" value={draft.trustedAuthservId || ''} onChange={set('trustedAuthservId')} helperText=" " fullWidth />
+              <TextField label="Serveur de réception" value={draft.trustedAuthservId || ''} onChange={set('trustedAuthservId')} helperText="Vérification automatique : Gmail, courrier reçu directement (ni transfert, ni relève d’autres comptes)." fullWidth />
             </Stack>
           </Box>
 
