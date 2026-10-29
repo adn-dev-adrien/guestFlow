@@ -326,7 +326,7 @@ export default function TariffRecipeCard({ propertyId, activeRecipeId, appliedVe
                         href={h.sourceUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        sx={{ color: 'primary.main' }}
+                        sx={{ color: 'primary.main', display: 'inline-block', py: 1.5, my: -1.5 }}
                       >
                         (voir le site)
                       </Typography>

@@ -146,6 +146,7 @@ const theme = createTheme({
     // the thumb, so the track keeps its look.
     MuiSwitch: {
       styleOverrides: {
+        root: { [COARSE_POINTER]: { overflow: 'visible' } },
         input: {
           [COARSE_POINTER]: { top: '50%', height: TOUCH_TARGET, transform: 'translateY(-50%)' },
         },

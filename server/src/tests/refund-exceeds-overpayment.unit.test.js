@@ -29,9 +29,9 @@ function setup(overpayment) {
 }
 
 const res = () => ({ statusCode: 200, body: null, status(c) { this.statusCode = c; return this; }, json(b) { this.body = b; return this; } });
-const request = (amount, flagged = true) => ({
+const request = (amount, flagged = true, label = 'Trop-perçu', claimed = 28) => ({
   params: { id: '1' },
-  body: { refundDate: todayIso(), method: 'transfer', fromOverpayment: flagged || undefined, lines: [{ label: 'Trop-perçu', bucket: 'options', amountTtc: amount }] },
+  body: { refundDate: todayIso(), method: 'transfer', ...(flagged ? { fromOverpayment: true, overpaymentTtc: claimed } : {}), lines: [{ label, bucket: 'options', amountTtc: amount }] },
 });
 
 test('rule 42 — the trop-perçu is refunded once: the second identical request is refused', () => {
@@ -45,6 +45,10 @@ test('rule 42 — the trop-perçu is refunded once: the second identical request
   assert.equal(second.statusCode, 409);
   assert.equal(second.body.code, 'REFUND_EXCEEDS_OVERPAYMENT');
   assert.equal(second.body.error, 'Le trop-perçu est déjà remboursé.');
+  // …whatever the label says
+  const renamed = res();
+  controller.create(request(28, true, 'Trop-perçu linge'), renamed);
+  assert.equal(renamed.statusCode, 409);
   assert.equal(model.listByReservation(1).length, 1);
 });
 
@@ -53,6 +57,10 @@ test('rule 42 — a refund above the remaining trop-perçu is refused, one withi
   const above = res();
   controller.create(request(30), above);
   assert.equal(above.statusCode, 409);
+  assert.equal(above.body.error, 'Dépasse le trop-perçu restant (28,00 €).');
+  const changed = res();
+  controller.create(request(10, true, 'Trop-perçu', 40), changed);
+  assert.equal(changed.statusCode, 409);
   const within = res();
   controller.create(request(10), within);
   assert.equal(within.statusCode, 201);

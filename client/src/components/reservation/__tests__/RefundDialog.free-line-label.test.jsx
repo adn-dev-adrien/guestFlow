@@ -45,5 +45,14 @@ test('rule 42 — a refund opened on the trop-perçu says so to the server', asy
   const onSubmit = vi.fn();
   render(<RefundDialog open onClose={vi.fn()} refundableLines={LINES} collectedTtc={480} overpaymentTtc={28} onSubmit={onSubmit} />);
   await user.click(screen.getByRole('button', { name: 'Enregistrer le remboursement' }));
-  expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ fromOverpayment: true }));
+  expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ fromOverpayment: true, overpaymentTtc: 28 }));
+});
+
+test('rule 42 — a refund opened from « Nouveau remboursement » carries no trop-perçu flag', async () => {
+  const user = userEvent.setup();
+  const onSubmit = vi.fn();
+  render(<RefundDialog open onClose={vi.fn()} refundableLines={LINES} collectedTtc={480} onSubmit={onSubmit} />);
+  await user.click(screen.getByRole('checkbox'));
+  await user.click(screen.getByRole('button', { name: 'Enregistrer le remboursement' }));
+  expect(onSubmit.mock.calls[0][0].fromOverpayment).toBeUndefined();
 });

@@ -165,8 +165,8 @@ export default function RefundDialog({
         refundDate,
         method,
         reason: reason.trim(),
-        // The server caps a refund of the trop-perçu at what is still over-collected (rule 42).
-        ...(overpaymentTtc > 0 && freeLines.length > 0 && freeLines.every((l) => l.label === 'Trop-perçu') ? { fromOverpayment: true } : {}),
+        // Opened on a trop-perçu: the server caps the refund at what is still over-collected (rule 42).
+        ...(overpaymentTtc > 0 ? { fromOverpayment: true, overpaymentTtc } : {}),
         lines: [
           ...Object.entries(selected).map(([key, value]) => ({
             key,

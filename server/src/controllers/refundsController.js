@@ -101,12 +101,18 @@ function createRefundsController(deps = {}) {
         return res.status(validated.status || 400).json({ error: validated.error, code: validated.code });
       }
 
-      // A refund of the trop-perçu (rule 42) cannot exceed what is still over-collected: a double click or a
-      // stale tab would otherwise give the same money back twice.
+      // A refund opened on the trop-perçu (rule 42) cannot exceed what is still over-collected: a double click, a
+      // stale tab or a renamed label would otherwise give the same money back twice.
       if (req.body && req.body.fromOverpayment === true) {
+        const remaining = storedOverpaymentTtc(id);
+        const cents = (n) => Math.round(Number(n) * 100);
         const asked = validated.refund.lines.filter((l) => !l.lineKey).reduce((sum, l) => sum + l.amountTtc, 0);
-        if (Math.round(asked * 100) > Math.round(storedOverpaymentTtc(id) * 100)) {
+        const claimed = Number(req.body.overpaymentTtc);
+        if (cents(remaining) <= 0) {
           return res.status(409).json({ error: 'Le trop-perçu est déjà remboursé.', code: 'REFUND_EXCEEDS_OVERPAYMENT' });
+        }
+        if (cents(asked) > cents(remaining) || (Number.isFinite(claimed) && cents(claimed) > cents(remaining))) {
+          return res.status(409).json({ error: `Dépasse le trop-perçu restant (${remaining.toFixed(2).replace('.', ',')} €).`, code: 'REFUND_EXCEEDS_OVERPAYMENT' });
         }
       }
 

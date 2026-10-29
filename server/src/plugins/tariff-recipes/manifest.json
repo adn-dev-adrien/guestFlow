@@ -1,7 +1,7 @@
 {
   "id": "tariff-recipes",
   "name": "Recettes tarifaires",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "Génère les saisons et les prix à partir d’une recette.",
   "icon": "trending-up",
   "surfaces": [
@@ -47,6 +47,9 @@
       "Une plateforme encore inconnue n’empêche plus d’appliquer une recette : ses frais de ménage sont ignorés et signalés.",
       "Un pont férié qui n’ajoute aucune contrainte ne coupe plus la saison en plusieurs plages.",
       "Compatible avec le SDK 2 de GuestFlow."
+    ],
+    "1.4.1": [
+      "Le lien « (voir le site) » est plus facile à toucher sur un téléphone. Compatible avec le SDK 2 de GuestFlow."
     ]
   }
 }

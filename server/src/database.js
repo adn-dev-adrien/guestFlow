@@ -2835,4 +2835,7 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
 // See specs/db-hygiene-quick-wins.md and utils/dbHygiene.js for the contract.
 require('./utils/dbHygiene').applyHygiene(db);
 
+// Which stays a request wrote, for the open fiche (specs/reservation-fiche-concurrency.md rule 6).
+require('./utils/stayWriteTrail').install(db);
+
 module.exports = db;

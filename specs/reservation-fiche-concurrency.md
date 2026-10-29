@@ -57,7 +57,10 @@ silently reverting what an import, a mail or another tab wrote meanwhile.
    reconciliation (`POST/DELETE /api/payments/reconciliation/...`) and a payment poll (`POST
    /api/payments/poll`) write the stay's payment marks, hence `updatedAt`, without going through
    `/api/reservations/:id`. Every non-read request under `/api/payments` answers with `X-Stay-Versions`,
-   a JSON list `{ id, before, after }` of the stays whose `updatedAt` moved during the request.
+   a JSON list `{ id, before, after }` of the stays THIS request wrote — recorded where `reservations.updatedAt`
+   changes (a TEMP trigger plus the wrapped `UPDATE reservations` statements, attributed to the request by
+   its async context, `utils/stayWriteTrail.js`), never a before/after snapshot: a foreign write that lands
+   while a handler awaits the network (poll, payment e-mail, bank read) is not in the list.
    `api.js` puts `{ stays }` on the data-changed event and `versionAfterOwnWrite` applies the rule 4
    chain to the entry of the fiche's stay: a confirmed link, an undo or a poll no longer makes the next
    save fail with a false `STALE_FICHE`, while a foreign write that landed earlier still breaks the chain.
@@ -84,6 +87,7 @@ silently reverting what an import, a mail or another tab wrote meanwhile.
 | `models/` | `reservationsModel.js` | — | unchanged (`getRow`, `getByIdWithDetails` already return `updatedAt`) |
 | `middleware/` | `ficheVersionHeaders.js` | C | The two version headers on every write to `/api/reservations/:id/...` |
 | `middleware/` | `stayVersionsTrail.js` | C | `X-Stay-Versions` on every write under `/api/payments` (rule 6) |
+| `utils/` | `stayWriteTrail.js` | C | The TEMP trigger + request-scoped collector of the stays a request wrote |
 | `routes/` | `reservations.js` | T | Mounts the middleware on `/:id` |
 
 ### 4.2 Client side (`client/src/`)
@@ -116,7 +120,7 @@ The dialog of rule 5, on desktop and mobile alike (the shared confirm dialog is 
   the matching version / none / blank / unknown stay is not refused; rule 3 — the read carries the version.
 - [x] `tests/fiche-version-headers.unit.test.js`: rule 4 — the before / after headers on a write, none on a read.
 - [x] Client: `utils/ficheVersion.test.js` (6) and `__tests__/api.fiche-version.test.js` (3): rules 4 and 6.
-- [x] `tests/fiche-stay-versions-trail.unit.test.js` (2): rule 6.
+- [x] `tests/fiche-stay-versions-trail.unit.test.js` (3): rule 6, including a foreign write during an awaiting handler.
 - [x] Real-data check on the shadow (prod data of 22/10): the audit's `lost-update.sh` scenario answers 409
   and the intake's fill survives.
 

@@ -310,9 +310,12 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
     2026-10-29).** After `POST` and `DELETE /refunds` the fiche re-reads the stored finance
     (`reloadReservationFinance`, which moves the clean baseline with it, so the fiche stays clean): the
     « Trop-perçu » row and its button no longer outlive the refund. The refund dialog opened on a
-    trop-perçu sends `fromOverpayment: true`; the server then refuses the free lines beyond what is still
-    over-collected on the stored stay: `409 REFUND_EXCEEDS_OVERPAYMENT`, « Le trop-perçu est déjà
-    remboursé. ». A free line not flagged (a commercial gesture) is not capped by it.
+    trop-perçu (the ledger row or a `409 OVERPAID`) sends `fromOverpayment: true` and the prefill amount
+    `overpaymentTtc` — decided by where it was opened, never by a label. The server then refuses, with
+    `409 REFUND_EXCEEDS_OVERPAYMENT`, a request beyond what is still over-collected on the stored stay or
+    built on a larger prefill (« Dépasse le trop-perçu restant (X €). »), and any request once nothing
+    remains (« Le trop-perçu est déjà remboursé. »). A dialog opened from « + Nouveau remboursement »
+    carries no flag: a commercial gesture is not capped by it (the money collected still is).
     The dialog opened from a `409 OVERPAID` takes the body's `overpaymentMethod` (`internal` or null) as its
     default means, like the GET's refund prefill.
 

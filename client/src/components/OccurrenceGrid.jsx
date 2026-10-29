@@ -80,7 +80,7 @@ export default function OccurrenceGrid({
       {/* One row per day; each present créneau is a selectable chip. */}
       <Stack spacing={0.5}>
         {days.map((date) => (
-          <Box key={date} sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+          <Box key={date} sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', '@media (pointer: coarse)': { minHeight: 44 } }}>
             <Typography variant="body2" sx={{ minWidth: 104, textTransform: 'capitalize', color: 'text.secondary' }}>
               {occurrenceDateLabel(date)}
             </Typography>

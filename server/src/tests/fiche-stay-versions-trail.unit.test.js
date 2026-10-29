@@ -1,7 +1,9 @@
 // specs/reservation-fiche-concurrency.md rule 6 — a write that reaches stays from outside
-// /api/reservations/:id (bank reconciliation, payment poll) answers with the stays it moved.
+// /api/reservations/:id (bank reconciliation, payment poll) answers with the stays THIS request wrote, and
+// never with a foreign write that landed while the handler awaited.
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const express = require('express');
 const Database = require('better-sqlite3');
 
 const { stayVersionsTrail, HEADER } = require('../middleware/stayVersionsTrail');
@@ -9,34 +11,49 @@ const { stayVersionsTrail, HEADER } = require('../middleware/stayVersionsTrail')
 function fresh() {
   const db = new Database(':memory:');
   db.exec(`CREATE TABLE reservations (id INTEGER PRIMARY KEY, updatedAt TEXT);
-    INSERT INTO reservations VALUES (1, '2099-01-01 10:00:00'), (2, '2099-01-01 10:00:00'), (3, '2099-01-01 10:00:00')`);
+    INSERT INTO reservations VALUES (1, 'v0'), (2, 'w0'), (3, 'x0')`);
   return db;
 }
 
-function run(db, { method = 'POST', write = () => {} } = {}) {
-  const headers = {};
-  const res = { headersSent: false, set(k, v) { headers[k] = v; }, json(body) { this.body = body; return this; } };
-  let called = false;
-  stayVersionsTrail(db)({ method }, res, () => { called = true; });
-  assert.ok(called, 'always continues');
-  write();
-  res.json({ ok: true });
-  return headers;
+async function serve(db, routes) {
+  const app = express();
+  app.use('/api/payments', stayVersionsTrail(db));
+  routes(app);
+  const server = await new Promise((resolve) => { const s = app.listen(0, () => resolve(s)); });
+  return { base: `http://127.0.0.1:${server.address().port}`, close: () => server.close() };
 }
 
-const bump = (db, id, at) => db.prepare('UPDATE reservations SET updatedAt = ? WHERE id = ?').run(at, id);
+const set = (db, id, at) => db.prepare('UPDATE reservations SET updatedAt = ? WHERE id = ?').run(at, id);
 
-test('rule 6 — the stays a write moved are listed with their version before and after', () => {
+test('rule 6 — the stays this request wrote are listed with their version before and after', async () => {
   const db = fresh();
-  const headers = run(db, { write: () => { bump(db, 1, '2099-01-01 10:05:00'); bump(db, 3, '2099-01-01 10:06:00'); } });
-  assert.deepEqual(JSON.parse(headers[HEADER]), [
-    { id: 1, before: '2099-01-01 10:00:00', after: '2099-01-01 10:05:00' },
-    { id: 3, before: '2099-01-01 10:00:00', after: '2099-01-01 10:06:00' },
-  ]);
+  const { base, close } = await serve(db, (app) => app.post('/api/payments/links', (req, res) => { set(db, 1, 'v1'); set(db, 3, 'x1'); set(db, 1, 'v2'); res.json({}); }));
+  const res = await fetch(`${base}/api/payments/links`, { method: 'POST' });
+  close();
+  assert.deepEqual(JSON.parse(res.headers.get(HEADER)), [{ id: 1, before: 'v0', after: 'v2' }, { id: 3, before: 'x0', after: 'x1' }]);
 });
 
-test('rule 6 — a write that moved no stay, and a read, carry no header', () => {
+test('rule 6 — a foreign write during an awaiting handler is not reported as this request\'s own', async () => {
   const db = fresh();
-  assert.deepEqual(run(db), {});
-  assert.deepEqual(run(db, { method: 'GET', write: () => bump(db, 1, '2099-01-02 00:00:00') }), {});
+  const { base, close } = await serve(db, (app) => {
+    app.post('/api/payments/poll', async (req, res) => { await new Promise((r) => setTimeout(r, 200)); set(db, 2, 'w1'); res.json({}); });
+    app.put('/api/reservations/1', (req, res) => { set(db, 1, 'v1'); res.json({}); });
+  });
+  const pending = fetch(`${base}/api/payments/poll`, { method: 'POST' });
+  await new Promise((r) => setTimeout(r, 60));
+  await fetch(`${base}/api/reservations/1`, { method: 'PUT' });
+  const res = await pending;
+  close();
+  assert.deepEqual(JSON.parse(res.headers.get(HEADER)), [{ id: 2, before: 'w0', after: 'w1' }]);
+});
+
+test('rule 6 — a write that moved no stay, and a read, carry no header', async () => {
+  const db = fresh();
+  const { base, close } = await serve(db, (app) => {
+    app.post('/api/payments/noop', (req, res) => res.json({}));
+    app.get('/api/payments/read', (req, res) => { set(db, 1, 'v9'); res.json({}); });
+  });
+  assert.equal((await fetch(`${base}/api/payments/noop`, { method: 'POST' })).headers.get(HEADER), null);
+  assert.equal((await fetch(`${base}/api/payments/read`)).headers.get(HEADER), null);
+  close();
 });
