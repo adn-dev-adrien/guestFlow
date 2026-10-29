@@ -106,3 +106,59 @@ test('rule 11 — the detail line of a complement excess says what was collected
   assert.ok(row.detail.lines.length > 0);
   for (const line of row.detail.lines) assert.doesNotMatch(line, /dus/);
 });
+
+// ── Review of the fix: what the stored measure must also count (rule 12) ─────────────────────────────────────
+const price = (db, id) => db.prepare('SELECT finalPrice + touristTaxTotal AS t FROM reservations WHERE id = ?').get(id).t;
+
+test('rule 12 — an installment stay: the paid installments are collected (#22326)', async () => {
+  const { db, controller, id } = await stay();
+  const total = price(db, id);
+  db.prepare('UPDATE reservations SET depositAmount = 0, balanceAmount = 0, finalPrice = finalPrice - 30 WHERE id = ?').run(id);
+  const insert = db.prepare("INSERT INTO reservation_installments (reservationId, number, dueDate, amountCents, paid, paidDate) VALUES (?, ?, '2099-01-01', ?, 1, '2099-01-01')");
+  const cents = Math.round(total * 100);
+  insert.run(id, 1, Math.floor(cents / 3)); insert.run(id, 2, Math.floor(cents / 3)); insert.run(id, 3, cents - 2 * Math.floor(cents / 3));
+  assert.equal(overpaymentRow(await get(controller, id)).amount, 30);
+});
+
+test('rule 12 — a paid bucket counts at the larger of its captured contribs and its stored amount (a removed paid line, #22303)', async () => {
+  const { db, controller, id } = await stay();
+  db.prepare('UPDATE reservations SET touristTaxTotal = 0, finalPrice = 250, balancePaid = 1, balanceAmount = 330, accommodationSoldeContribTtc = 250, touristTaxSoldeContribTtc = 0 WHERE id = ?').run(id);
+  assert.equal(overpaymentRow(await get(controller, id)).amount, 80);
+});
+
+test('rule 12 — what the mid-stay extras collected at check-out is collected (#22281): a real excess is neither hidden nor reduced', async () => {
+  const { db, controller, id } = await stay();
+  const total = price(db, id);
+  const detail = JSON.stringify([{ label: 'Bain nordique', amount: 50, source: 'midStayExtra', key: 'res:2', qty: 1, unitPrice: 50 }]);
+  db.prepare('UPDATE reservations SET finalPrice = finalPrice - 20, balancePaid = 1, balanceAmount = ?, endOfStayComplementPaid = 1, endOfStayComplementAmount = 50, endOfStayComplementDetail = ? WHERE id = ?').run(total - 50, detail, id);
+  assert.equal(overpaymentRow(await get(controller, id)).amount, 20);
+  db.prepare('UPDATE reservations SET finalPrice = finalPrice + 20 WHERE id = ?').run(id);
+  assert.equal(overpaymentRow(await get(controller, id)), undefined, 'no false excess when everything was collected');
+});
+
+test('rule 12 — an adjusted complement is left out of both sides: no false excess whatever its amount', async () => {
+  const { db, controller, id } = await stay({ touristTaxInComplement: 1 });
+  db.prepare("UPDATE reservations SET balancePaid = 1, balanceAmount = finalPrice, complementPaid = 1, complementPaidDate = date('now'), complementAmount = 60, complementAmountOverride = 60 WHERE id = ?").run(id);
+  assert.equal(overpaymentRow(await get(controller, id)), undefined);
+  db.prepare('UPDATE reservations SET complementAmount = 2, complementAmountOverride = 2 WHERE id = ?').run(id);
+  assert.equal(overpaymentRow(await get(controller, id)), undefined);
+});
+
+test('rule 12 — the refund of a sold line does not eat into the excess; a free « Trop-perçu » refund does (#22306)', async () => {
+  const { db, controller, id } = await stay();
+  db.prepare('UPDATE reservations SET finalPrice = finalPrice - 30, balancePaid = 1, balanceAmount = finalPrice + touristTaxTotal WHERE id = ?').run(id);
+  const refunds = require('../models/refundsModel');
+  refunds.create(id, { refundDate: '2099-01-01', method: 'transfer', reason: '', totalTtc: 80, lines: [{ lineKey: 'opt:7', label: 'Ménage', bucket: 'options', quantity: 1, unitPrice: 80, amountTtc: 80, vatRate: 10 }] });
+  assert.equal(overpaymentRow(await get(controller, id)).amount, 30);
+  refunds.create(id, { refundDate: '2099-01-02', method: 'transfer', reason: '', totalTtc: 10, lines: [{ lineKey: null, label: 'Trop-perçu', bucket: 'accommodation', quantity: null, unitPrice: null, amountTtc: 10, vatRate: 10 }] });
+  assert.equal(overpaymentRow(await get(controller, id)).amount, 20);
+});
+
+test('rule 13 — the live ledger goes down when the edit absorbs the stored excess', async () => {
+  const { db, controller, id, body } = await stay();
+  db.prepare('UPDATE reservations SET balancePaid = 1, balanceAmount = finalPrice + touristTaxTotal WHERE id = ?').run(id);
+  assert.equal(controller.performUpdate(id, body({ discountPercent: 10, forceOverpayment: true })).status, 200);
+  assert.ok(overpaymentRow(await get(controller, id)).amount > 0);
+  const live = await preview(controller, id, body({ discountPercent: 0 }));
+  assert.equal(live.overpaymentTtc, 0);
+});

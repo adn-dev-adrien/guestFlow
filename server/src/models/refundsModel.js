@@ -123,6 +123,15 @@ function createRefundsModel(database) {
       return { book: round2(book), withCash: round2(withCash) };
     },
 
+    // What was given back through FREE lines (« Trop-perçu », no line key): the only refunds that reduce a
+    // trop-perçu. The refund of a sold line takes its price off the stay as well (a retained avoir counts in none).
+    freeLinesTotal(reservationId) {
+      const row = prep(`SELECT COALESCE(SUM(l.amountTtc), 0) AS total FROM reservation_refund_lines l
+        JOIN reservation_refunds r ON r.id = l.refundId
+        WHERE r.reservationId = ? AND l.lineKey IS NULL AND r.method != 'retained'`).get(reservationId);
+      return round2(row.total);
+    },
+
     // Book-money refund totals for a set of reservations, `{ reservationId → { book, withCash } }`.
     // Used by financeModel to net a whole period in one query instead of N.
     totalsByReservationIds(ids) {

@@ -424,10 +424,11 @@ function liveOverpayment(reservationId, engineInput) {
   } catch {
     beforeEngine = 0;
   }
-  const storedTtc = storedOverpaymentOf({
-    row, captured: model.capturedScheduleContribs(reservationId), refundedTtc: refundsModel.totalsByReservation(Number(reservationId)).withCash,
-  });
-  const reported = round2(storedTtc + Math.max(0, afterEngine.overpaymentTtc - beforeEngine));
+  let replayQuote = null;
+  try { replayQuote = quoteStoredReservation(db, row); } catch { replayQuote = null; }
+  const storedTtc = storedOverpaymentOf(storedOverpaymentInputs(reservationId, row, replayQuote));
+  // The stored figure moves with the edit, both ways: an edit that absorbs the excess takes it down.
+  const reported = Math.max(0, round2(storedTtc + afterEngine.overpaymentTtc - beforeEngine));
   return overpaymentResultOf(reservationId, row, asSaved, reported);
 }
 
@@ -501,6 +502,28 @@ function overpaymentOfQuote(reservationId, row, asSaved) {
   return overpaymentResultOf(reservationId, row, asSaved, overpaymentTtc);
 }
 
+// The stored figures the stored measure reads besides the row: free refunds, paid installments, what the
+// mid-stay extras collected, the engine's automatic complement.
+function storedOverpaymentInputs(reservationId, row, replay) {
+  let installmentsPaidTtc = 0;
+  try {
+    installmentsPaidTtc = Number(db.prepare('SELECT COALESCE(SUM(amountCents), 0) AS cents FROM reservation_installments WHERE reservationId = ? AND paid = 1').get(Number(reservationId)).cents) / 100;
+  } catch { installmentsPaidTtc = 0; }
+  const eosPaid = Number(row.endOfStayComplementPaid || 0) === 1 || Number(row.endOfStayComplementPaidCash || 0) === 1;
+  let midStayCollectedTtc = eosPaid ? storedMidStayLines(row.endOfStayComplementDetail).reduce((sum, l) => sum + (Number(l.amount) || 0), 0) : 0;
+  try {
+    midStayCollectedTtc += (JSON.parse(row.midStaySettledNotes || '[]') || []).reduce((sum, note) => sum + (Number(note && note.total) || 0), 0);
+  } catch { /* no settled note */ }
+  return {
+    row,
+    captured: model.capturedScheduleContribs(reservationId),
+    freeRefundedTtc: refundsModel.freeLinesTotal(Number(reservationId)),
+    installmentsPaidTtc: round2(installmentsPaidTtc),
+    midStayCollectedTtc: round2(midStayCollectedTtc),
+    autoComplementTtc: replay ? Number(replay.complementRoutedAmount || 0) : 0,
+  };
+}
+
 // The same, for a fiche read from the database (a locked fiche shows the stored ledger): measured against
 // the STORED price and what was collected (rule 8), the engine only splitting it by poste.
 function storedOverpayment(reservationId) {
@@ -508,10 +531,7 @@ function storedOverpayment(reservationId) {
   if (!row || row.kind !== 'reservation') return null;
   const quote = quoteStoredReservation(db, row);
   if (!quote || quote.error) return null;
-  const overpaymentTtc = storedOverpaymentOf({
-    row, captured: model.capturedScheduleContribs(reservationId), refundedTtc: refundsModel.totalsByReservation(Number(reservationId)).withCash,
-  });
-  return overpaymentResultOf(reservationId, row, quote, overpaymentTtc);
+  return overpaymentResultOf(reservationId, row, quote, storedOverpaymentOf(storedOverpaymentInputs(reservationId, row, quote)));
 }
 
 // A refusal raised inside the creation transaction: thrown to roll the whole write back, then answered

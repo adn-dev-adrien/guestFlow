@@ -56,23 +56,37 @@ function overpaymentOf({ row = {}, captured = {}, refundedTtc = 0, depositAmount
 
 /**
  * The trop-perçu of a stay read from what is STORED (reservation-save-keeps-pricing.md rule 8): what was
- * collected — the paid acompte and solde, the paid arrival complement — beyond the stored stay total
- * (`finalPrice` + tourist tax), net of what was given back. Today's engine is never consulted, so a drift
- * between the engine and the price the stay was sold at is not a trop-perçu, and one the operator confirmed
- * (a reduction after the solde was paid) is still there after the reload. A complement the operator adjusted
- * himself is left out of both sides.
+ * collected beyond the stored stay total (`finalPrice` + tourist tax), net of the free « Trop-perçu » refunds.
+ * Today's engine is never consulted for the amount, so a drift between the engine and the price the stay
+ * was sold at is not a trop-perçu, and one the operator confirmed (a reduction after the solde was paid)
+ * is still there after the reload.
  *
- * @param {object} args  row (stored), captured (Σ contribs per bucket), refundedTtc
+ * Collected = each paid bucket at the larger of what its contribs captured and its stored amount (removing a
+ * paid line drops its contrib; the guest still paid it), the paid installments, the paid arrival complement
+ * and what the mid-stay extras collected (they are inside `finalPrice`). A complement the operator adjusted is
+ * left out of BOTH sides: the engine's automatic one is what the total carries. Only free refund lines reduce
+ * the excess; the refund of a sold line takes its price off both sides.
+ *
+ * @param {object} args row (stored), captured (Σ contribs per bucket), freeRefundedTtc, installmentsPaidTtc,
+ *   midStayCollectedTtc, autoComplementTtc (the engine's complement without the adjustment)
  * @returns {number} ≥ 0
  */
-function storedOverpaymentOf({ row = {}, captured = {}, refundedTtc = 0 }) {
+function storedOverpaymentOf({
+  row = {}, captured = {}, freeRefundedTtc = 0, installmentsPaidTtc = 0, midStayCollectedTtc = 0, autoComplementTtc = 0,
+}) {
   if (!isDirectChannel(row.platform)) return 0;
+  const sums = captured || {};
+  const bucket = (paid, cash, capturedSum, stored) => (
+    Number(paid || 0) === 1 || Number(cash || 0) === 1 ? Math.max(Number(capturedSum || 0), Number(stored || 0)) : 0
+  );
+  const schedule = bucket(row.depositPaid, row.depositPaidCash, sums.deposit, row.depositAmount)
+    + bucket(row.balancePaid, row.balancePaidCash, sums.balance, row.balanceAmount);
   const adjusted = row.complementAmountOverride != null && row.complementAmountOverride !== '';
   const complementPaid = Number(row.complementPaid || 0) === 1 || Number(row.complementPaidCash || 0) === 1;
-  const complement = complementPaid ? Number(row.complementAmount || 0) : 0;
-  const collected = collectedOnSchedule(row, captured) + (adjusted ? 0 : complement);
-  const owed = Number(row.finalPrice || 0) + Number(row.touristTaxTotal || 0) - (adjusted ? complement : 0);
-  return Math.max(0, round2(collected - owed - Number(refundedTtc || 0)));
+  const complement = complementPaid && !adjusted ? Number(row.complementAmount || 0) : 0;
+  const collected = schedule + Number(installmentsPaidTtc || 0) + complement + Number(midStayCollectedTtc || 0);
+  const owed = Number(row.finalPrice || 0) + Number(row.touristTaxTotal || 0) - (adjusted && complementPaid ? Number(autoComplementTtc || 0) : 0);
+  return Math.max(0, round2(collected - owed - Number(freeRefundedTtc || 0)));
 }
 
 // The postes a refund line is booked on (specs/reservation-refunds.md §3.5), in display order.

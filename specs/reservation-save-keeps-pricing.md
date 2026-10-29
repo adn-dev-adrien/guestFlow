@@ -148,6 +148,17 @@ changed something the price depends on; money collected beyond the total is repo
     en trop », never « 0,00 € dus »: the stay still owes its prestations, the line only says what was taken
     in excess.
 
+12. **What the stored measure counts** (review of the round-2 fix, 2026-10-29). Collected is each paid bucket at
+    the LARGER of its captured contribs and its stored amount (removing a paid line drops its contrib, the guest
+    still paid it), plus the paid installments (an échéancier stay stores a 0 acompte and solde), the paid arrival
+    complement, and what the mid-stay extras collected (settled notes, and the `midStayExtra` lines of a collected
+    end-of-stay complement — they are inside `finalPrice`; the SAS-owned lines are not). An adjusted complement
+    is left out of both sides: the total carries the complement the engine routes on its own
+    (`complementRoutedAmount`), never the adjusted amount. Only free « Trop-perçu » refund lines (no line key)
+    reduce the excess: the refund of a sold line takes its price off the stay too.
+13. **The live ledger moves both ways.** It reports `max(0, stored + after − before)`: an edit that absorbs the
+    stored excess takes it down, so the fiche never invites a refund the edit cancels.
+
 **Edge cases:**
 - In the extras window of a started fiche a custom line is keyed by its text (end-of-stay complement,
   arrival baseline): a rename there is refused with « Une prestation ajoutée une fois le séjour commencé ne
@@ -225,7 +236,8 @@ An amber alert above the platform price alert, one per notice, 44 px action targ
       `ReservationPage.baseline-server-writes.test.jsx` (2) — a mark and an undo before the first quote leave the
       fiche clean, before and after the quote; `ReservationPage.baseline-drift.test.jsx` (1) — a drifted clean fiche never enables Enregistrer, not for a frame;
       `ReservationPage.bed-counts-zero.test.jsx` (3) — rule 7: a user edit then Enregistrer on a loaded fiche.
-- [x] `trop-percu-stored-measure.unit.test.js` (7) — rules 8-11: a confirmed trop-perçu
+- [x] `trop-percu-stored-measure.unit.test.js` (13) — rules 8-13 (installments, removed paid line, mid-stay extras,
+      adjusted complement, line versus free refunds, live ledger going down); rules 8-11: a confirmed trop-perçu
       survives the reload and shows locked (#22306 shape), no drift excess (#14 shape), platform none, the live
       ledger adds only the edit's change, the 409 means, the detail wording.
 - [x] `fiche-pricing-notices.unit.test.js` (6) — rules 5-6; client `PricingNotices.test.jsx` (3).
