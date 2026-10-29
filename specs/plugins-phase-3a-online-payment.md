@@ -396,6 +396,38 @@ Other facts the design rests on:
     link Y during the retry of X settles Y, and a cron tick during a targeted retry still runs its list.
 38. **`/status` answers the stay (`confirmed`, or `conflict` when the dates are taken) when its own retry converted the devis (2026-10-29).** The row is re-read after
     the owed links are settled.
+39. **A bucket collected at arrival retires its link at once, and a payment on a settled bucket is never recorded twice (audit R4 Q1, 2026-10-29).**
+    The fiche's « Paiement unique » (`settleArrivalBuckets`) and the SAS check-in (`commitArrivalSas`, stay or complement
+    collected) run `retireSettled()` after their write, as the PATCH `/payment` already does (rule 23). On the live
+    path, a `deposit`, `balance` or `full` link paid while its bucket is already settled (the webhook beat the cron) no
+    longer re-marks it: `applyPaidEffect` answers `double-payment` without `duplicateLink`, which `processPaidLink`
+    judges by rule 24 (settled on an earlier day: `paid-after-settled` and an admin alert; same day: silent,
+    `settled-elsewhere`), and no confirmation e-mail is sent. The retry of a retired link keeps its own rule 24 check.
+40. **The reconciliation reads the links of the stay and of its devis (audit R4 Q2, 2026-10-29).** See
+    `qonto-bank-reconciliation.md` rule 47.
+41. **A full link retired as `settled` is judged against the stay it pays (audit R4 Q3, 2026-10-29).** When a `full`
+    link whose acompte was collected another way is paid and its amount no longer equals acompte + solde of the stay
+    (the fiche re-priced it, whether the link is retired or, for a devis-owned link, still open), the payment is booked
+    through `bookPaidAfterAmountChange` with the `amountMismatch` alert (rule 31): the solde becomes what the link
+    brought and a shortfall or an excess reaches the complement or the trop-perçu. A matching link keeps the
+    acompte-duplicate refund, now computed as the link amount minus the solde still owed instead of the stored
+    acompte. The live path leaves a mismatching devis-owned link to `applyPaidEffect`, which compares it with the
+    converted stay.
+42. **An acompte ticked the day a full link is paid is the same money (audit R4 Q4, 2026-10-29).** In
+    `fullAfterDeposit`, an acompte whose paid date is on or after the day the link was paid, with no paid acompte or
+    full link behind it, is the payment the operator saw arrive and ticked before the webhook (rule 24's same-day
+    reasoning): the solde is recorded, no « acompte payé deux fois » row and no alert. An acompte paid on an earlier
+    day, or by a paid link, is still a second acompte.
+
+43. **A bucket collected at the door is never the link's money (audit R4 R1, 2026-10-29).** Rule 24's same-day
+    reading holds for a tick by hand, not for the single arrival payment or the check-in
+    (`balancePaidAtArrival`, `depositPaidAtArrival`, `complementPaidAtArrival`; `paymentLinksModel.settledAtArrival`):
+    a link paid on such a bucket alerts (`paid-after-settled`) whatever the day, on the retry path and on the live
+    path, and an acompte collected at the door is never absorbed by rule 42.
+44. **The amount alert reads the solde when the acompte is collected (audit R4 R2, 2026-10-29).** A full link paid on a
+    stay whose acompte is collected is booked as the solde, so `amountMismatch.expectedCents` is the solde, on the retry
+    path and the live path: re-priced up, the alert says the amount covers the stay (no « à percevoir »); re-priced down,
+    it states the true trop-perçu.
 
 ## 4. Architecture
 

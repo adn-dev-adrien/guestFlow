@@ -132,3 +132,14 @@ test('rule 27 — « /go » counts against the same limit: it cannot walk the sl
     await s.close();
   }
 });
+
+test('rule 44: a malformed gf_space cookie is treated as absent — the form, not a 500', async () => {
+  const s = await start();
+  try {
+    for (const cookie of ['gf_space=%E0%A4%A', 'gf_space=%']) {
+      const page = await s.call('GET', '/', { cookie });
+      assert.equal(page.status, 200, cookie);
+      assert.match(page.text, /name="email"/);
+    }
+  } finally { await s.close(); s.cleanup(); }
+});

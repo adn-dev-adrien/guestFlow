@@ -291,15 +291,21 @@ function buildController({
     if (useAsLogin !== true || !isBootstrapLogin(user)) return kept(current);
     const holder = usersModel.findByEmail(email);
     if (holder && Number(holder.id) !== Number(current.id)) return kept(current);
+    let updated;
     try {
-      const updated = usersModel.updateUser(current.id, { email });
-      // Rule 59 — like « Mon compte »: the other devices must sign in again with the new address.
-      if (req.session) req.session.user = updated;
-      sessionsModel.revokeOtherSessionsForUser(current.id, req.sessionID);
-      return { loginEmail: updated.email, loginChanged: true };
+      updated = usersModel.updateUser(current.id, { email });
     } catch {
       return kept(current);
     }
+    // Rule 59 — like « Mon compte »: the other devices must sign in again with the new address. The
+    // email is written by now, so a failed revoke is logged and the answer stays truthful (rule 65).
+    if (req.session) req.session.user = updated;
+    try {
+      sessionsModel.revokeOtherSessionsForUser(current.id, req.sessionID);
+    } catch (err) {
+      console.error('[onboarding] the login changed but the other sessions could not be revoked:', err.message);
+    }
+    return { loginEmail: updated.email, loginChanged: true };
   }
 
   function saveCompany(req, res) {

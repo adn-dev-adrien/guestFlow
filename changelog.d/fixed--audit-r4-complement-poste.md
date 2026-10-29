@@ -1,0 +1,1 @@
+- Refunds: the arrival complement's history window counts only the lines that sat in the complement, so a removed complement activity is booked on « Activités » even when a solde option was dropped earlier.

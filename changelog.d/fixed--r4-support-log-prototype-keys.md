@@ -1,0 +1,1 @@
+- Support access journal: a request path such as `/api/constructor` no longer prints a function's source in the customer's log.

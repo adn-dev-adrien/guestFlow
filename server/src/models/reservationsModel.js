@@ -317,6 +317,12 @@ function arrivalComplementDetailFromReservation(r, { includeOffered = false } = 
   return { amount, paid: Number(r.complementPaid || 0) === 1 ? 1 : 0, detail: lines };
 }
 
+// specs/plugins-phase-3a-online-payment.md rule 39 — a bucket collected at arrival retires its open payment link at
+// once (rule 23), so a payment landing before the next poll meets a settled bucket instead of a live link.
+function retireSettledLinksOf(database) {
+  try { require('./paymentLinksModel').buildModel(database).retireSettled(); } catch { /* no link table: nothing to retire */ }
+}
+
 function createReservationsModel(database) {
   // The own channels, read at query time (specs/plugins-phase-p-productisation.md rule 19).
   registerDirectChannelSql(database);
@@ -1778,7 +1784,9 @@ function createReservationsModel(database) {
         } catch { /* no column on a minimal schema: the settlement above still stands */ }
         return { buckets, total, grouped: Boolean(json) };
       });
-      return run();
+      const settled = run();
+      if (mode !== 'undo' && settled.buckets.length > 0) retireSettledLinksOf(database);
+      return settled;
     },
 
     /**
@@ -3497,7 +3505,9 @@ function createReservationsModel(database) {
 
         return database.prepare('SELECT complementAmount FROM reservations WHERE id = ?').get(reservationId).complementAmount;
       });
-      return tx();
+      const complementAmount = tx();
+      if (stayPaid || complementSettled) retireSettledLinksOf(database);
+      return complementAmount;
     },
 
     // specs/sas-departure-recap-server-side.md rules 6-9 — the departure SAS sends INTENT: the missing

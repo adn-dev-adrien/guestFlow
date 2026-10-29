@@ -12,6 +12,10 @@
  * or a relay — is attacker-controlled text, and with no name to look for, nothing is trusted.
  */
 
+// Rule 32 (audit r4, external N2) — a genuine Authentication-Results header is a few hundred to a few thousand
+// bytes; one over this is never read, and when it is the trusted server's own the mail is not verified.
+const MAX_AUTHENTICATION_RESULTS = 4096;
+
 const lower = (v) => String(v || '').trim().toLowerCase();
 
 const toList = (value) => (Array.isArray(value) ? value : String(value || '').split(/[\s,;]+/)).map(lower).filter(Boolean);
@@ -101,11 +105,19 @@ function verifyDkim(headerBlock, { domains, trustedAuthservId = '' } = {}) {
   if (accepted.length === 0) return { ok: false, reason: 'no-domain' };
   const trusted = lower(trustedAuthservId);
   if (!trusted) return { ok: false, reason: 'no-trusted-authserv-id' };
-  const headers = splitHeaders(Buffer.isBuffer(headerBlock) ? headerBlock.toString('utf8') : headerBlock)
-    .filter(([name]) => name === 'authentication-results').map(([, value]) => parseAuthenticationResults(value));
-  if (headers.length === 0) return { ok: false, reason: 'no-authentication-results' };
-  const header = headers.find((h) => h.authservId === trusted);
-  if (!header) return { ok: false, reason: 'untrusted-authserv-id' };
+  const present = splitHeaders(Buffer.isBuffer(headerBlock) ? headerBlock.toString('utf8') : headerBlock)
+    .filter(([name]) => name === 'authentication-results');
+  if (present.length === 0) return { ok: false, reason: 'no-authentication-results' };
+  // The FIRST header whose authserv-id is the trusted one decides, as it always did: the receiving server writes
+  // its own on top, and whatever sits below is the sender's. It is found by a prefix test and a boundary
+  // character (so `mx.google.com.x` is not it) before anything is tokenized, and only it is tokenized. If it is
+  // over the size cap the verification is refused: falling through to the next header would believe the sender's.
+  // An authserv-id preceded by a comment is not found either, and fails closed.
+  const mine = present.find(([, value]) => lower(value.slice(0, trusted.length)) === trusted && /^(?:[;\s]|$)/.test(value.slice(trusted.length, trusted.length + 1)));
+  if (!mine) return { ok: false, reason: 'untrusted-authserv-id' };
+  if (mine[1].length > MAX_AUTHENTICATION_RESULTS) return { ok: false, reason: 'oversized-authentication-results' };
+  const header = parseAuthenticationResults(mine[1]);
+  if (header.authservId !== trusted) return { ok: false, reason: 'untrusted-authserv-id' };
   // A value without `name=` inside a result is what an unquoted echo of an address leaves behind
   // (`dkim=pass header.d=… x@evil.test`): the whole header is then not believed.
   if (header.malformed) return { ok: false, reason: 'malformed-authentication-results' };

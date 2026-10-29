@@ -39,7 +39,7 @@ function request(path, options = {}) {
 // so an open fiche can tell its own writes from a foreign one.
 function ficheVersionOf(path, res) {
   const header = (name) => (res.headers && res.headers.get ? res.headers.get(name) : null);
-  const match = /^\/reservations\/(\d+)(?:[/?]|$)/.exec(path);
+  const match = /^\/(?:reservations|devis)\/(\d+)(?:[/?]|$)/.exec(path);
   const before = header('X-Fiche-Version-Before');
   const after = header('X-Fiche-Version-After');
   if (match && before !== null && after !== null) return { reservationId: Number(match[1]), before, after };

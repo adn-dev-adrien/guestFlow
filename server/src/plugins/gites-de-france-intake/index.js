@@ -44,6 +44,8 @@ function register(ctx) {
     { key: 'senderDomains', supportLocked: true, default: '' },
     { key: 'trustedAuthservId', supportLocked: true, default: '' },
     { key: 'lastRunAt', default: '' },
+    { key: 'unreadMails', default: '0' },
+    { key: 'unreadStreak', default: '0' },
   ]);
 
   let model = null;
@@ -81,12 +83,27 @@ function register(ctx) {
   });
 
   // Rule 31(c) — one pass at a time across the job tick and « Lire maintenant »: a second caller joins it.
+  // Rule 32(b) — the home line shows the mails left unread only once two passes in a row hit the cap: a first
+  // read of a 30-day backlog, or a re-read after a parser update, drains within a pass or two and is no flood.
+  function noteUnread(unread) {
+    const streak = unread ? (Number(ctx.settings.get('unreadStreak')) || 0) + 1 : 0;
+    ctx.settings.set('unreadStreak', String(streak));
+    ctx.settings.set('unreadMails', String(streak >= 2 ? unread : 0));
+  }
+
   let running = null;
   function runPass() {
     if (!running) {
       running = (async () => {
-        const result = await service().runPass();
+        let result;
+        try {
+          result = await service().runPass();
+        } catch (err) {
+          noteUnread(0);
+          throw err;
+        }
         ctx.settings.set('lastRunAt', new Date().toISOString());
+        noteUnread(result.skipped ? 0 : result.unread || 0);
         return result;
       })().finally(() => { running = null; });
     }
@@ -114,7 +131,7 @@ function register(ctx) {
   });
 
   const router = express.Router();
-  const listAttention = (req, res) => res.json({ items: service().attention() });
+  const listAttention = (req, res) => res.json({ items: service().attention(), unread: Number(ctx.settings.get('unreadMails')) || 0 });
   router.get('/', listAttention);
   router.post('/run', async (req, res) => {
     try { res.json(await runPass()); } catch (err) { res.status(502).json({ error: err.message }); }

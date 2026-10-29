@@ -309,6 +309,10 @@ a short list of the gaps to fix on the fiches.
     `AirBnb` still receives its platform's payout. *Why:* the boot de-duplication of platform rows may
     keep either spelling (specs/normalize-platform-names.md rule 23), and an exact-name match then
     proposed nothing (audit 2026-10-27).
+47. **A stay paid through its devis's link is expected as a link receipt (audit R4 Q2, 2026-10-29).** The plugin reads the
+    links of a stay with `listForStay` (the stay and the devis it was converted from), like the fiche: the receipt of a
+    stay paid by the site's link keeps `channel: 'link'` and its `linkPaidAt`, so the Qonto payout is proposed
+    (rule 15) and the receipt no longer reads « Enregistré, non reçu ».
 
 **Edge cases:**
 - Reservation cancelled after a payment was reconciled → leaves the scope; its reconciliations stay

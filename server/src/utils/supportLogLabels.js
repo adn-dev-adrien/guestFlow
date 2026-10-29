@@ -91,11 +91,16 @@ function pageName(path) {
   return hit ? hit[1](clean.match(hit[0])) : null;
 }
 
+// The section is a segment of a logged path, so `constructor` or `__proto__` must not find anything.
+function own(map, key) {
+  return Object.hasOwn(map, key) ? map[key] : null;
+}
+
 function requestLabel(method, path) {
   const segments = String(path || '').toLowerCase().replace(/^\/api/, '').split('/').filter(Boolean);
   const [section, id, ...rest] = segments;
   const read = method === 'GET';
-  const entity = ENTITIES[section];
+  const entity = own(ENTITIES, section);
   if (entity) {
     const numbered = /^\d+$/.test(id || '');
     // A sub-action on one object (« …/12/payment-links ») changes that object.
@@ -104,7 +109,7 @@ function requestLabel(method, path) {
     if (numbered) return `${entity.name} ${id} ${participle}`;
     if (!read && method === 'POST' && !id) return `${entity.name} ${participle}`;
   }
-  const name = SECTIONS[section] || (entity ? entity.plural : null);
+  const name = own(SECTIONS, section) || (entity ? entity.plural : null);
   if (read) return name ? `Consultation : ${name}` : 'Consultation';
   return name ? `Modification : ${name}` : 'Modification';
 }
@@ -116,9 +121,9 @@ function readTarget(method, path, summary) {
   const status = Number(summary);
   if (Number.isInteger(status) && status >= 400) return undefined;
   const [section, id] = String(path || '').toLowerCase().split(/[?#]/)[0].replace(/^\/api/, '').split('/').filter(Boolean);
-  const entity = ENTITIES[section];
+  const entity = own(ENTITIES, section);
   if (entity && /^\d+$/.test(id || '')) return `${entity.name} ${id}`;
-  return SECTIONS[section] || (entity ? entity.plural : null);
+  return own(SECTIONS, section) || (entity ? entity.plural : null);
 }
 
 /**

@@ -6,7 +6,7 @@
  * tests. (The factory is NOT named `create` — that's a request handler here.)
  */
 
-const { tokenError } = require('../utils/templateTokens');
+const { tokenError, lengthError } = require('../utils/templateTokens');
 const propertiesModel = require('../models/propertiesModel');
 const { RESOURCE_BOOKED } = require('../utils/stayTextCatalogue');
 
@@ -50,7 +50,9 @@ function validateResourcePayload(body) {
 // specs/plugins-phase-p-productisation.md rules 4, 11 — the sentence once booked knows `{{slots}}` only.
 function sentenceError(body) {
   return tokenError('emailBookedText', (body || {}).emailBookedText, RESOURCE_BOOKED)
-    || tokenError('emailBookedTextEn', (body || {}).emailBookedTextEn, RESOURCE_BOOKED);
+    || tokenError('emailBookedTextEn', (body || {}).emailBookedTextEn, RESOURCE_BOOKED)
+    || lengthError('emailBookedText', (body || {}).emailBookedText)
+    || lengthError('emailBookedTextEn', (body || {}).emailBookedTextEn);
 }
 
 
