@@ -17,7 +17,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Card, CardContent, Box, Typography, Chip, Button, Select, MenuItem, FormControl, InputLabel,
-  Dialog, DialogTitle, DialogContent, DialogActions, Alert, AlertTitle, List, ListItem,
+  Dialog, DialogTitle, DialogContent, DialogActions, Alert, AlertTitle, Link, List, ListItem,
   useMediaQuery, useTheme,
 } from '@mui/material';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
@@ -320,16 +320,15 @@ export default function TariffRecipeCard({ propertyId, activeRecipeId, appliedVe
                   {h.sourceUrl && (
                     <>
                       {' '}
-                      <Typography
-                        component="a"
+                      <Link
                         variant="caption"
+                        underline="hover"
                         href={h.sourceUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        sx={{ color: 'primary.main', display: 'inline-block', py: 1.5, my: -1.5 }}
                       >
                         (voir le site)
-                      </Typography>
+                      </Link>
                     </>
                   )}
                 </Typography>

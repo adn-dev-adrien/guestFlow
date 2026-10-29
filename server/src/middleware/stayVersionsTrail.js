@@ -22,7 +22,7 @@ function stayVersionsTrail(database = db) {
       const json = res.json.bind(res);
       res.json = (body) => {
         if (!res.headersSent) {
-          const moved = [...store.moved.values()].filter((s) => s.before !== s.after);
+          const moved = [...store.moved.values()].filter((s) => !s.broken && s.before !== s.after).map(({ id, before, after }) => ({ id, before, after }));
           if (moved.length > 0 && moved.length <= MAX_STAYS) res.set(HEADER, JSON.stringify(moved));
         }
         return json(body);

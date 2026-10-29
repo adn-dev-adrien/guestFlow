@@ -39,3 +39,12 @@ test('rule 6: a write from outside the stay puts the moved stays on the event', 
   try { await api.undoReconciliation('tx-1'); } finally { window.removeEventListener(DATA_CHANGED_EVENT, listener); }
   expect(seen).toEqual([{ stays: [{ reservationId: 9, before: 'v1', after: 'v2' }] }]);
 });
+
+// specs/reservation-refunds.md rule 42 — the 409 OVERPAID body (overpaymentMethod included, server side:
+// trop-percu-stored-measure.unit.test.js) reaches ReservationPage as fields of the thrown error.
+test('rule 42: the 409 OVERPAID body fields are on the error the fiche reads', async () => {
+  const body = { code: 'OVERPAID', error: 'Trop-perçu', overpaymentTtc: 28, overpaymentMethod: 'internal', overpaymentLines: null };
+  vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({ ok: false, status: 409, statusText: 'Conflict', headers: { get: () => null }, json: () => Promise.resolve(body) })));
+  const err = await api.updateReservation(7, {}).catch((e) => e);
+  expect(err).toMatchObject({ code: 'OVERPAID', overpaymentTtc: 28, overpaymentMethod: 'internal', status: 409 });
+});

@@ -57,3 +57,29 @@ test('rule 6 — a write that moved no stay, and a read, carry no header', async
   assert.equal((await fetch(`${base}/api/payments/read`)).headers.get(HEADER), null);
   close();
 });
+
+test('rule 6 — two writes of one request with a foreign write between them drop the stay (broken chain)', async () => {
+  const db = fresh();
+  const { base, close } = await serve(db, (app) => {
+    app.post('/api/payments/emails', async (req, res) => { set(db, 1, 'v1'); await new Promise((r) => setTimeout(r, 200)); set(db, 1, 'v3'); set(db, 2, 'w1'); res.json({}); });
+    app.put('/api/reservations/1', (req, res) => { set(db, 1, 'v2'); res.json({}); });
+  });
+  const pending = fetch(`${base}/api/payments/emails`, { method: 'POST' });
+  await new Promise((r) => setTimeout(r, 60));
+  await fetch(`${base}/api/reservations/1`, { method: 'PUT' });
+  const res = await pending;
+  close();
+  assert.deepEqual(JSON.parse(res.headers.get(HEADER)), [{ id: 2, before: 'w0', after: 'w1' }]);
+});
+
+test('rule 6 — a write rolled back with its transaction is never reported, a committed one is', async () => {
+  const db = fresh();
+  const { base, close } = await serve(db, (app) => app.post('/api/payments/tx', (req, res) => {
+    try { db.transaction(() => { set(db, 1, 'v1'); throw new Error('boom'); })(); } catch { /* rolled back */ }
+    db.transaction(() => { set(db, 2, 'w1'); })();
+    res.json({});
+  }));
+  const res = await fetch(`${base}/api/payments/tx`, { method: 'POST' });
+  close();
+  assert.deepEqual(JSON.parse(res.headers.get(HEADER)), [{ id: 2, before: 'w0', after: 'w1' }]);
+});
