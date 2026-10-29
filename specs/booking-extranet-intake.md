@@ -123,7 +123,7 @@ reconciled to the payout (✓). The operator only checks the fiche.
     Granja = 14407976). Unmapped id → refused « Établissement Booking 14407976 non relié à un
     logement ».
 13. Fiche = the non-cancelled reservation of that property with the **same arrival and departure**,
-    whatever its canal (Booking, Lodgify, or a placeholder). One property cannot hold two, so there is
+    whatever its canal among Booking's (Booking, Lodgify, or none — rule 33). One property cannot hold two, so there is
     at most one. None → refused « Aucune fiche du 06/11 au 08/11 : la synchro iCal ne l'a pas encore
     importée » (the toast says to retry after the next import; the plugin never creates a
     reservation).
@@ -265,6 +265,15 @@ attempts since 2026-10-16 were all refused « Sous-total introuvable »).
     { label, client })` (SDK 2.7.0) instead of calling `ctx.core.clients.findOrCreate` first; the client it got back (`result.clientId`) is the one rule 27 refreshes. A fiche the core
     refuses for any reason (capacity, validation, a race with the start of the stay) rolls the client back:
     no orphan client holds the guest's personal data. Test: `tests/plugin-intake-client-in-update-transaction.unit.test.js`.
+33. *(Added 2026-10-28, audit finding F6.)* **The fiche is one Booking could have created.** The query excludes
+    cancelled fiches (rule 13 said so, the code did not) and keeps only the canals of the « À compléter » list
+    (Booking, Booking.com, Lodgify, none); an Airbnb or Gîtes de France stay of the same dates is no candidate.
+    When several candidates remain the page is refused (`AMBIGUOUS_FICHE`, « Plusieurs fiches Booking du … »)
+    instead of taking the first. Code: `booking-intake/ficheFinder.js`. Test:
+    `booking-intake/tests/fiche-matching.unit.test.js`.
+34. *(Added 2026-10-28, audit finding F8.)* **The e-mail read on the page is one address:** a line with a comma,
+    semicolon or angle bracket is not an e-mail (mailer libraries split a list and send to every address), and the
+    client the SDK creates goes through its validation (SDK rule 28). Test: same file.
 
 ---
 

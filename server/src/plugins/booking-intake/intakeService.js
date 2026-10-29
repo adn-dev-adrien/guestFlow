@@ -151,6 +151,9 @@ function createIntakeService(deps) {
     if (rows.length === 0) {
       return refuse(base, `Aucune fiche du ${frDate(booking.arrival)} au ${frDate(booking.departure)} : la synchro iCal ne l’a pas encore importée`, 'NO_FICHE');
     }
+    if (rows.length > 1) {
+      return refuse(base, `Plusieurs fiches Booking du ${frDate(booking.arrival)} au ${frDate(booking.departure)} : à saisir à la main`, 'AMBIGUOUS_FICHE');
+    }
     const reservation = getReservation(rows[0].id);
     const withFiche = { ...base, reservationId: reservation.id };
     if (String(reservation.startDate) <= today()) return refuse(withFiche, 'Séjour commencé : fiche à saisir à la main', 'PAST_RESERVATION');
