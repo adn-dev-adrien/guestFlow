@@ -17,3 +17,14 @@ test('rule 42: the console runner passes a dash-leading name and company as --op
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('rule 43: a contact email starting with a dash is passed as --email=value and creates the admin', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gf-first-admin-runner-'));
+  try {
+    const run = createFirstAdminRunner({ serverDir: path.join(__dirname, '..', '..') });
+    const out = await run({ dbPath: path.join(dir, 'guestflow.db'), email: '-jean@example.invalid', name: '-Jean' });
+    assert.equal(out.created, true);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

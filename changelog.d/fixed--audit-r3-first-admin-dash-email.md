@@ -1,0 +1,1 @@
+- **A customer contact email starting with `-` can now be provisioned** (specs/control-plane-plans-and-access.md rule 43): the console passed `--email` as a separate argument, which the strict script parser refuses; it now uses the `--email=-x` form like the name and company.
