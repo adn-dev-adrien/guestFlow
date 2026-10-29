@@ -10,7 +10,7 @@
  */
 
 const {
-  carriesMoney, removesProtectedHistory, idsOfOwner, withConvertedDevis, CLIENT_MONEY_MESSAGE, CLIENT_HISTORY_MESSAGE,
+  carriesMoney, historyBlocker, idsOfOwner, withConvertedDevis, CLIENT_MONEY_MESSAGE,
 } = require('../utils/deletionGuard');
 const { todayIso: localTodayIso } = require('../utils/localDate');
 const db = require('../database');
@@ -311,7 +311,7 @@ function createModel(database) {
   function deletionBlocker(id) {
     const ids = idsOfOwner(database, 'clientId', id);
     if (carriesMoney(database, ids)) return CLIENT_MONEY_MESSAGE;
-    return removesProtectedHistory(database, ids) ? CLIENT_HISTORY_MESSAGE : null;
+    return historyBlocker(database, ids, 'client');
   }
 
   function rowIdsToDelete(id) {
@@ -371,6 +371,7 @@ function createModel(database) {
       reservations,
       devisCount: devis.length,
       devis,
+      blocker: deletionBlocker(id),
     };
   }
 

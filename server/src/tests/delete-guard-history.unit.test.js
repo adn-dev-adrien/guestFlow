@@ -9,7 +9,7 @@ const Database = require('better-sqlite3');
 const clientsModel = require('../models/clientsModel');
 const propertiesModel = require('../models/propertiesModel');
 const { buildController: buildClientsController } = require('../controllers/clientsController');
-const { CLIENT_HISTORY_MESSAGE, PROPERTY_HISTORY_MESSAGE } = require('../utils/deletionGuard');
+const { HISTORY_MESSAGES } = require('../utils/deletionGuard');
 
 const SCHEMA = fs.readFileSync(path.join(__dirname, '..', 'schema.sql'), 'utf8');
 
@@ -37,7 +37,7 @@ test('rule 53 — a forced client delete is refused while a cancelled stay would
   await buildClientsController(clientsModel.create(db)).remove({ params: { id: '1' }, query: { force: 'true' } }, res);
   assert.equal(res.statusCode, 409);
   assert.equal(res.body.code, 'CLIENT_KEEPS_HISTORY');
-  assert.equal(res.body.error, CLIENT_HISTORY_MESSAGE);
+  assert.equal(res.body.error, 'Ce client a une réservation annulée.');
   assert.equal(count(db, 'clients'), 1);
   assert.equal(count(db, 'reservations'), 1);
 });
@@ -52,6 +52,7 @@ test('rule 53 — a forced client delete is refused while a converted devis carr
   await buildClientsController(clientsModel.create(db)).remove({ params: { id: '1' }, query: { force: 'true' } }, res);
   assert.equal(res.statusCode, 409);
   assert.equal(res.body.code, 'CLIENT_KEEPS_HISTORY');
+  assert.equal(res.body.error, 'Ce client a accepté des CGV.');
   assert.equal(count(db, 'terms_acceptances'), 1);
   assert.equal(count(db, 'reservations'), 2);
 });
@@ -65,14 +66,21 @@ test('rule 53 — the client delete preview lists the cancelled stays that would
   assert.deepEqual(impact.reservations.map((r) => r.kind).sort(), ['cancelled', 'superseded']);
 });
 
-test('rule 53 — an unforced delete of a client holding only a cancelled stay asks for confirmation, listing it', async () => {
+test('rule 53 — the first, unforced delete of a client holding a cancelled stay already answers KEEPS_HISTORY', async () => {
   const { db, add } = seed();
   add('cancelled');
   const res = fakeRes();
   await buildClientsController(clientsModel.create(db)).remove({ params: { id: '1' }, query: {} }, res);
   assert.equal(res.statusCode, 409);
-  assert.equal(res.body.code, 'CLIENT_IN_USE');
-  assert.equal(res.body.reservationsCount, 1);
+  assert.equal(res.body.code, 'CLIENT_KEEPS_HISTORY');
+  assert.equal(count(db, 'reservations'), 1);
+});
+
+test('rule 53 — the delete preview carries the refusal, so the sheet shows it before any confirmation', () => {
+  const { db, add } = seed();
+  assert.equal(clientsModel.create(db).getDeleteImpact(1).blocker, null);
+  add('cancelled');
+  assert.equal(clientsModel.create(db).getDeleteImpact(1).blocker, 'Ce client a une réservation annulée.');
 });
 
 test('rule 53 — the property delete is refused for a cancelled stay or a CGV proof, and removeGuarded deletes nothing', () => {
@@ -80,8 +88,8 @@ test('rule 53 — the property delete is refused for a cancelled stay or a CGV p
   const model = propertiesModel.buildModel(db);
   assert.equal(model.deletionBlocker(1), null);
   add('cancelled');
-  assert.equal(model.deletionBlocker(1), PROPERTY_HISTORY_MESSAGE);
-  assert.deepEqual(model.removeGuarded(1), { blocker: PROPERTY_HISTORY_MESSAGE });
+  assert.equal(model.deletionBlocker(1), HISTORY_MESSAGES.property.cancelled);
+  assert.deepEqual(model.removeGuarded(1), { blocker: HISTORY_MESSAGES.property.cancelled });
   assert.equal(count(db, 'properties'), 1);
   assert.equal(count(db, 'reservations'), 1);
 
@@ -90,7 +98,7 @@ test('rule 53 — the property delete is refused for a cancelled stay or a CGV p
   const devis = other.add('devis');
   other.db.prepare('UPDATE reservations SET convertedReservationId = ? WHERE id = ?').run(stay, devis);
   acceptCgv(other.db, devis);
-  assert.equal(propertiesModel.buildModel(other.db).deletionBlocker(1), PROPERTY_HISTORY_MESSAGE);
+  assert.equal(propertiesModel.buildModel(other.db).deletionBlocker(1), HISTORY_MESSAGES.property.cgv);
 });
 
 test('rule 53 — plain stays and unconverted devis still cascade on a forced delete', async () => {

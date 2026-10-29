@@ -2,7 +2,7 @@
 
 const model = require('../models/propertiesModel');
 const { deactivateOpenLinksBeforeDelete } = require('../utils/paymentLinkDeactivation');
-const { PROPERTY_HISTORY_MESSAGE } = require('../utils/deletionGuard');
+const { isHistoryMessage } = require('../utils/deletionGuard');
 const { buildProgressivePreview } = require('../utils/pricing');
 const { ADMIN, RECEPTION, userHasRole } = require('../constants/roles');
 const { toReceptionPropertyList } = require('../utils/receptionView');
@@ -125,7 +125,7 @@ async function update(req, res) {
   }
 }
 
-const propertyBlockerCode = (message) => (message === PROPERTY_HISTORY_MESSAGE ? 'PROPERTY_KEEPS_HISTORY' : 'PROPERTY_CARRIES_MONEY');
+const propertyBlockerCode = (message) => (isHistoryMessage(message) ? 'PROPERTY_KEEPS_HISTORY' : 'PROPERTY_CARRIES_MONEY');
 
 async function remove(req, res) {
   const blocker = model.deletionBlocker(req.params.id);

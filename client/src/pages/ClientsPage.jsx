@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import {
-  Box, Button, Divider, FormControl, InputLabel, MenuItem, Select, Typography,
+  Box, Button, Chip, Divider, FormControl, InputLabel, MenuItem, Select, Typography,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -30,6 +30,8 @@ import { localIsoToday } from '../utils/isoDay';
 import {
   VIEWS, SORTS, TEXTS, viewFromParam, paramFromView, viewLabel,
 } from '../constants/clientsDirectory';
+
+const STAY_KIND_BADGES = { cancelled: 'Annulée', superseded: 'Écartée' };
 
 const DEVIS_STATUS = {
   draft: { status: 'neutral', label: 'Brouillon' },
@@ -359,6 +361,7 @@ export default function ClientsPage() {
         reservations: impact?.reservations || [],
         devis: impact?.devis || [],
         loading: false,
+        error: impact?.blocker || '',
       }));
     } catch (error) {
       setDeleteImpact((prev) => ({
@@ -455,9 +458,14 @@ export default function ClientsPage() {
               }}
             >
               <Box sx={{ flex: 1, minWidth: 0 }}>
-                <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                  {res.propertyName}
-                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                    {res.propertyName}
+                  </Typography>
+                  {STAY_KIND_BADGES[res.kind] && (
+                    <Chip size="small" variant="outlined" label={STAY_KIND_BADGES[res.kind]} />
+                  )}
+                </Box>
                 <Typography variant="caption" color="text.secondary">
                   {formatStayDates(res.startDate, res.endDate)} · {nights} nuit{nights > 1 ? 's' : ''}
                 </Typography>

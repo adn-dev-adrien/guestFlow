@@ -10,9 +10,9 @@ const { validateClientPayload } = require('../utils/clientValidation');
 const { parseAddressBlock, extractEmail, extractPhone } = require('../utils/contactParsing');
 const { clientExistsRefusal } = require('../utils/clientDuplicates');
 const { deactivateOpenLinksBeforeDelete } = require('../utils/paymentLinkDeactivation');
-const { CLIENT_HISTORY_MESSAGE } = require('../utils/deletionGuard');
+const { isHistoryMessage } = require('../utils/deletionGuard');
 
-const clientBlockerCode = (message) => (message === CLIENT_HISTORY_MESSAGE ? 'CLIENT_KEEPS_HISTORY' : 'CLIENT_CARRIES_MONEY');
+const clientBlockerCode = (message) => (isHistoryMessage(message) ? 'CLIENT_KEEPS_HISTORY' : 'CLIENT_CARRIES_MONEY');
 
 // When a drop holds nothing recognizable, the raw text is echoed back rather than swallowed: the user
 // sees what they dropped and the field's format validation flags it (spec §3 rules 8 and 11).
@@ -81,6 +81,8 @@ function createController(model) {
     const impact = model.getDeleteImpact(id);
     if (!impact) return res.status(404).json({ error: 'Client non trouvé' });
 
+    if (impact.blocker) return res.status(409).json({ error: impact.blocker, code: clientBlockerCode(impact.blocker) });
+
     const hasLinks = impact.reservationsCount > 0 || impact.devisCount > 0;
     if (hasLinks && !force) {
       return res.status(409).json({
@@ -94,8 +96,6 @@ function createController(model) {
       });
     }
 
-    const blocker = model.deletionBlocker(id);
-    if (blocker) return res.status(409).json({ error: blocker, code: clientBlockerCode(blocker) });
     try {
       await deactivateOpenLinksBeforeDelete(model.rowIdsToDelete(id), { paymentLinksModel: require('../models/paymentLinksModel') });
     } catch (err) {
