@@ -646,23 +646,29 @@ function createController(model = defaultModel, deps = {}) {
   // requirement is live, so installing it does not call for a restart.
   async function reviveDependants() {
     const state = host().state();
-    for (const row of model.list()) {
-      const left = state.incompatible[row.id];
-      const needs = (row.manifest && row.manifest.requires) || [];
-      const ready = left && left.code === 'REQUIREMENT_MISSING'
-        && needs.every((r) => state.loaded[r.id] && satisfies(state.loaded[r.id], r.range));
-      if (ready) {
-        try {
-          const dir = host().store().packageDirFor(row.id, row);
-          const mod = loader().requirePackage(row.id, dir);
-          if (loader().registerLive(mod, { db: getDb() })) {
-            host().setLoaded(row.id, row.version, row.manifest.contentHash);
-            loader().migrate(getDb(), row.id);
-            delete state.incompatible[row.id];
-            if (row.enabled) loader().runActivateHooks(row.id);
+    let progressed = true;
+    // Until nothing more comes back: a plugin revived makes its own dependants ready.
+    while (progressed) {
+      progressed = false;
+      for (const row of model.list()) {
+        const left = state.incompatible[row.id];
+        const needs = (row.manifest && row.manifest.requires) || [];
+        const ready = left && left.code === 'REQUIREMENT_MISSING'
+          && needs.every((r) => state.loaded[r.id] && satisfies(state.loaded[r.id], r.range));
+        if (ready) {
+          try {
+            const mod = loader().requirePackage(row.id, host().store().packageDirFor(row.id, row));
+            if (loader().registerLive(mod, { db: getDb() })) {
+              // Marked loaded only once its migrations ran: a failure leaves it unloaded until the next restart.
+              loader().migrate(getDb(), row.id);
+              host().setLoaded(row.id, row.version, row.manifest.contentHash);
+              delete state.incompatible[row.id];
+              if (row.enabled) loader().runActivateHooks(row.id);
+              progressed = true;
+            }
+          } catch (err) {
+            console.error(`[plugin:${row.id}] late registration failed:`, err && err.message ? err.message : err);
           }
-        } catch (err) {
-          console.error(`[plugin:${row.id}] late registration failed:`, err && err.message ? err.message : err);
         }
       }
     }
@@ -727,7 +733,7 @@ function createController(model = defaultModel, deps = {}) {
         }
         if (restartWanted) {
           // The switched-on requirements ran no activation hook either (rule 41 of phase 4): they owe them at boot.
-          steps.filter((st) => st.op === 'activate').forEach((st) => model.markHooksPending(st.id));
+          steps.filter((st) => st.op === 'activate').forEach((st) => model.markHooksPending(st.id, 'activate'));
           return restart({ version: offer.version });
         }
         [...activated, ...installed].forEach((id) => loader().runActivateHooks(id));

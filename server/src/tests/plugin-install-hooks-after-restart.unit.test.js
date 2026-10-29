@@ -39,3 +39,21 @@ test('rule 41: an ordinary live install leaves nothing pending', async () => {
   assert.deepEqual(globalThis.__hooks, ['install', 'activate']);
   delete globalThis.__hooks;
 });
+
+test('rule 41 + specs/plugin-dependencies.md rule 9: a plugin only switched on owes its activation hooks, not its install hooks', async () => {
+  globalThis.__hooks = [];
+  const s = h.realSetup([HOOKED]);
+  await h.call(s.ctrl.install, { params: { id: 'linen' } });
+  globalThis.__hooks = [];
+  s.model.markHooksPending('linen', 'activate');
+  assert.equal(s.model.hooksPendingKind('linen'), 'activate');
+  s.model.markHooksPending('linen', 'activate');
+  loader.resetLiveTransitionsForTests();
+  await loader.runPendingInstallHooks(s.model);
+  assert.deepEqual(globalThis.__hooks, ['activate']);
+  assert.deepEqual(s.model.pendingHooks(), []);
+  s.model.markHooksPending('linen', 'activate');
+  s.model.markHooksPending('linen');
+  assert.equal(s.model.hooksPendingKind('linen'), 'install', 'an install owed is never downgraded');
+  delete globalThis.__hooks;
+});

@@ -305,3 +305,38 @@ test('rule 9: a dependant incompatible for another reason is left alone', skip, 
   assert.equal(ctx.calls.some(([k, id]) => k === 'live' && id === WEATHER), false);
   assert.equal(ctx.host.state().incompatible[WEATHER].code, 'CORE_TOO_OLD');
 });
+
+test('rule 9: revival loops — a chain of dependants left unloaded at boot all come back', skip, async () => {
+  const sasM = h.manifest(SAS, '1.7.2');
+  const weather = h.manifest(WEATHER, '1.3.0', { requires: [need(SAS, '^1.7.0')] });
+  const dependant = h.manifest(GVR, '1.0.2', { requires: [need(WEATHER, '^1.3.0')] });
+  const ctx = h.setup({ bundled: [sasM, weather, dependant], installed: [row(WEATHER, '1.3.0', weather), row(GVR, '1.0.2', dependant)] });
+  [WEATHER, GVR].forEach((id) => { ctx.host.state().incompatible[id] = { code: 'REQUIREMENT_MISSING', message: 'x' }; });
+  await h.call(ctx.ctrl.install, { params: { id: SAS } });
+  assert.deepEqual(ctx.host.state().incompatible, {});
+  assert.deepEqual([ctx.host.state().loaded[WEATHER], ctx.host.state().loaded[GVR]], ['1.3.0', '1.0.2']);
+});
+
+test('rule 9: revival migrates first — a failed migration leaves the dependant unloaded and incompatible', skip, async () => {
+  const sasM = h.manifest(SAS, '1.7.2');
+  const weather = h.manifest(WEATHER, '1.3.0', { requires: [need(SAS, '^1.7.0')] });
+  const ctx = h.setup({ bundled: [sasM, weather], installed: [row(WEATHER, '1.3.0', weather)] });
+  ctx.host.state().incompatible[WEATHER] = { code: 'REQUIREMENT_MISSING', message: 'x' };
+  const controller = createController(ctx.model, {
+    registry: h.registry, host: () => ctx.host, db: () => ctx.db,
+    loader: () => ({
+      migrate: (db, id) => { if (id === WEATHER) throw new Error('boom'); },
+      runInstallHooks: async () => {}, runActivateHooks() {}, beginInstall() {}, endInstall() {}, markInactive() {},
+      requirePackage: (id) => ({ id, register() {} }), registerLive: () => true,
+    }),
+    licence: () => ({ allowsPlugin: () => true, planFor: () => null }),
+    coreVersion: () => '3.9.0',
+  });
+  const quiet = console.error;
+  console.error = () => {};
+  const res = await h.call(controller.install, { params: { id: SAS } });
+  console.error = quiet;
+  assert.equal(res.statusCode, 200);
+  assert.equal(ctx.host.state().incompatible[WEATHER].code, 'REQUIREMENT_MISSING');
+  assert.equal(ctx.host.state().loaded[WEATHER], undefined);
+});

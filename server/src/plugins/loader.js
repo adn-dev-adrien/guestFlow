@@ -182,10 +182,14 @@ function syncLiveTransitions() {
  */
 async function runPendingInstallHooks(model) {
   for (const id of model.pendingHooks()) {
+    const kind = model.hooksPendingKind(id);
     model.clearHooksPending(id);
     if (!registry.get(id)) continue;
-    announced.delete(id);
-    await runInstallHooks(id); // eslint-disable-line no-await-in-loop
+    // A plugin only switched on (specs/plugin-dependencies.md rule 9) owes its activation hooks, not its install hooks.
+    if (kind === 'install') {
+      announced.delete(id);
+      await runInstallHooks(id); // eslint-disable-line no-await-in-loop
+    }
     runActivateHooks(id);
   }
 }
