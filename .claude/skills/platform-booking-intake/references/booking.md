@@ -21,8 +21,8 @@ Measured on the two payouts received so far:
 
 | Reservation | Montant total | Commission | Frais de paiement | Net viré |
 |---|---|---|---|---|
-| 5300000001 (Fournier, GuestFlow 22219) | 1 283,34 | 190,10 | 17,97 | 1 075,27 |
-| 5300000002 (Maurel, GuestFlow 22280) | 1 184,61 | 173,64 | 16,58 | 994,39 |
+| 5300000001 (Romeo, GuestFlow 22219) | 1 283,34 | 190,10 | 17,97 | 1 075,27 |
+| 5300000002 (Omega, GuestFlow 22280) | 1 184,61 | 173,64 | 16,58 | 994,39 |
 
 **Payout = « Montant total » − « Commission et frais ».** The tourist tax is inside « Montant total »
 and is **not** withheld: it comes back in the payout. « Commission et frais » = 15 % of « Montant

@@ -13,6 +13,8 @@
 
 const path = require('path');
 
+require('./testProcessIsolation').isolate();
+
 const SERVER_DIR = path.resolve(__dirname, '..', '..');
 
 function uploadsDir(env = process.env) {

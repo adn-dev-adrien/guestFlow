@@ -1,0 +1,1 @@
+- **Payments — recording a payment, an installment, a refund, a cancellation or a platform penalty no longer fails with « database is locked » when another writer commits at the same moment** (`plugins-phase-3a-online-payment.md` rule 29, audit R2): these read-then-write transactions now take the write lock up front and wait for it (5 s) instead of failing at once.

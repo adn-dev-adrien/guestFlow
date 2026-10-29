@@ -10,12 +10,12 @@ const { createIntakeService } = require('../intakeService');
 const { PAGE_6300000001 } = require('./fixtures');
 
 const DAVID = { name: 'David Roux', email: 'droux.4444@guest.booking.com' };
-const EMMA = { name: 'Emma Leroy', email: 'eleroy.5555@guest.booking.com' };
+const MIKE = { name: 'Mike Leroy', email: 'eleroy.5555@guest.booking.com' };
 
 const pageFor = (guest) => ({
   hotelId: '14407976',
   resId: '6300000001',
-  text: PAGE_6300000001.split('Camille Garnier').join(guest.name).split('cgarnier.123456@guest.booking.com').join(guest.email),
+  text: PAGE_6300000001.split('Camille Sierra').join(guest.name).split('csierra.123456@guest.booking.com').join(guest.email),
 });
 
 // A database with the two tables the intake touches, and a core that writes them the way the real one does.
@@ -79,9 +79,9 @@ test('specs/booking-extranet-intake.md rule 27: two stays sharing the placeholde
   assert.equal(fill(22307, DAVID).status, 'applied');
   assert.equal(guestOf(22307).email, DAVID.email);
   assert.equal(guestOf(22308).email, null, 'the other stay keeps its placeholder');
-  assert.equal(fill(22308, EMMA).status, 'applied', 'the second stay is still untouched, not « déjà remplie »');
+  assert.equal(fill(22308, MIKE).status, 'applied', 'the second stay is still untouched, not « déjà remplie »');
   assert.deepEqual([guestOf(22307).firstName, guestOf(22307).email], ['David', DAVID.email]);
-  assert.deepEqual([guestOf(22308).firstName, guestOf(22308).email], ['Emma', EMMA.email]);
+  assert.deepEqual([guestOf(22308).firstName, guestOf(22308).email], ['Mike', MIKE.email]);
   assert.deepEqual(db.prepare('SELECT firstName, lastName, email FROM clients WHERE id = 140').get(),
     { firstName: 'Closed', lastName: 'Not available', email: null }, 'the shared placeholder is never written');
 });
@@ -89,8 +89,8 @@ test('specs/booking-extranet-intake.md rule 27: two stays sharing the placeholde
 test('specs/booking-extranet-intake.md rule 27: a shared client already carrying another guest’s e-mail counts as untouched', () => {
   const { db, fill, guestOf } = setup();
   db.prepare("UPDATE clients SET firstName = 'David', lastName = 'Roux', email = ? WHERE id = 140").run(DAVID.email);
-  assert.equal(fill(22308, EMMA).status, 'applied');
-  assert.equal(guestOf(22308).email, EMMA.email);
+  assert.equal(fill(22308, MIKE).status, 'applied');
+  assert.equal(guestOf(22308).email, MIKE.email);
   assert.equal(guestOf(22307).email, DAVID.email, 'the other stay is left as it was');
 });
 
@@ -98,11 +98,11 @@ test('specs/booking-extranet-intake.md rule 27: « Appliquer » on a proposal re
   const { db, service, fill, guestOf } = setup();
   fill(22307, DAVID);
   db.prepare('UPDATE reservations SET clientId = (SELECT clientId FROM reservations WHERE id = 22307), platformGrossAmount = 1 WHERE id = 22308').run();
-  const proposed = fill(22308, EMMA);
+  const proposed = fill(22308, MIKE);
   assert.equal(proposed.status, 'proposed');
   const intake = db.prepare("SELECT id FROM booking_intakes WHERE status = 'proposed'").get();
   assert.equal(service.applyProposal(intake.id).status, 'applied');
-  assert.equal(guestOf(22308).email, EMMA.email);
+  assert.equal(guestOf(22308).email, MIKE.email);
   assert.deepEqual([guestOf(22307).firstName, guestOf(22307).email], ['David', DAVID.email]);
 });
 

@@ -112,18 +112,24 @@ const isPlausible = (id) => PLAUSIBLE_RULE.test(id) && Number.parseInt(id, 10) <
 // annonce en tête — la convention veut qu'un fichier de test ouvre en nommant son sujet.
 const NEAR_LINES = 3;
 
+// « reservation-refunds.md rule 38 », « public-online-payment rule 12 » : la spec est nommée juste avant
+// « rule », sans le préfixe `specs/`. Reconnue seulement si ce nom est celui d'une spec existante.
+const NAME_BEFORE_CITATION = /([a-z0-9]+(?:-[a-z0-9]+)+)(?:\.md)?\s*(?:§\s*[\d.]+\s*)?,?\s*$/i;
+
 /**
  * Les couples (spec, règle) cités par un fichier de test (règle 3).
  *
+ * `knownSpecs` (ensemble de noms de specs) active la forme « <spec> rule N » sans préfixe `specs/`.
+ *
  * @returns {Array<{spec: string, rule: string}>}
  */
-export function parseCitations(source) {
+export function parseCitations(source, knownSpecs = null) {
   const text = String(source || '');
   const lineOf = (index) => text.slice(0, index).split('\n').length;
   const specs = [...text.matchAll(SPEC_MENTION)]
     .map((m) => ({ at: m.index, line: lineOf(m.index), name: m[1].toLowerCase() }));
-  if (specs.length === 0) return [];
-  const primary = specs[0].name;
+  if (specs.length === 0 && !knownSpecs) return [];
+  const primary = specs.length ? specs[0].name : null;
   const out = [];
   for (const m of text.matchAll(CITATION)) {
     const line = lineOf(m.index);
@@ -132,7 +138,10 @@ export function parseCitations(source) {
       if (s.at > m.index) break;
       if (line - s.line <= NEAR_LINES) near = s;
     }
-    const spec = near ? near.name : primary;
+    const lineStart = text.lastIndexOf('\n', m.index - 1) + 1;
+    const named = knownSpecs && text.slice(lineStart, m.index).match(NAME_BEFORE_CITATION);
+    const spec = named && knownSpecs.has(named[1].toLowerCase()) ? named[1].toLowerCase() : (near ? near.name : primary);
+    if (!spec) continue;
     for (const rule of expandGroup(m[1])) {
       if (isPlausible(rule)) out.push({ spec, rule });
     }
@@ -244,7 +253,9 @@ function readSpecs() {
     .map((f) => [f, fs.readFileSync(path.join(dir, f), 'utf8')]));
 }
 
-function readCitations() {
+const knownSpecNames = () => new Set(readSpecs().keys());
+
+function readCitations(knownSpecs) {
   const files = [
     ...listFiles(path.join(ROOT, 'server', 'src', 'tests'), isTestFile),
     // specs/plugins-phase-1-sdk.md rule 1 — a plugin module carries its tests in its own folder.
@@ -258,7 +269,7 @@ function readCitations() {
   const out = [];
   for (const f of files) {
     const rel = path.relative(ROOT, f);
-    for (const c of parseCitations(fs.readFileSync(f, 'utf8'))) out.push({ ...c, file: rel });
+    for (const c of parseCitations(fs.readFileSync(f, 'utf8'), knownSpecs)) out.push({ ...c, file: rel });
   }
   return out;
 }
@@ -417,7 +428,7 @@ function changedRules(base) {
 }
 
 function report({ specName }) {
-  const { specs, orphans } = buildCoverage(readSpecs(), readCitations());
+  const { specs, orphans } = buildCoverage(readSpecs(), readCitations(knownSpecNames()));
   if (specName) {
     const one = specs.find((s) => s.name === specName.replace(/\.md$/, '').toLowerCase());
     if (!one) { console.error(`Spec inconnue ou sans règles : ${specName}`); process.exit(2); }
@@ -452,7 +463,7 @@ function report({ specName }) {
 
 function gate(base) {
   const { addedRules, modifiedRules, exempt, codeCitations } = changedRules(base);
-  const citedAfter = new Set(readCitations().map((c) => `${c.spec}:${c.rule}`));
+  const citedAfter = new Set(readCitations(knownSpecNames()).map((c) => `${c.spec}:${c.rule}`));
   const verdict = gateVerdict({ addedRules, modifiedRules, citedAfter });
   for (const spec of exempt) console.log(`… specs/${spec}.md : pas encore livrée (Draft / Approved), règles différées (règle 14).`);
   if (codeCitations.length) {

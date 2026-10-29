@@ -93,7 +93,7 @@ function createRefundsModel(database) {
     // transaction, like the statements above, is built on first use.
     create(reservationId, refund) {
       if (!createTx) createTx = database.transaction(insertRefund);
-      return createTx(reservationId, refund);
+      return createTx.immediate(reservationId, refund);
     },
 
     // Returns false when the refund doesn't exist or belongs to another reservation (the controller

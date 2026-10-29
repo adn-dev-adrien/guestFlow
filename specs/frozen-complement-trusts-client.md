@@ -12,7 +12,7 @@
 
 ## 1. Context
 
-Reported in production on reservation #22269 (Carla Fabre, 05→…/08/2026): « Blonde du Pilat »
+Reported in production on reservation #22269 (Echo Papa, 05→…/08/2026): « Blonde du Pilat »
 6,50 € is booked **twice** in the accounts.
 
 Timeline from `reservation_history`:

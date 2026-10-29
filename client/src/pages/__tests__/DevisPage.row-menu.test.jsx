@@ -30,7 +30,7 @@ import api from '../../api';
 import DevisPage from '../DevisPage';
 
 const ROW = {
-  id: 7, devisNumber: '2026-08-002', status: 'draft', firstName: 'Constance', lastName: 'Gay',
+  id: 7, devisNumber: '2026-08-002', status: 'draft', firstName: 'Client', lastName: 'Exemple',
   propertyName: 'Gite', startDate: '2026-09-04', endDate: '2026-09-06',
   finalPrice: 1, touristTaxTotal: 1, totalTtc: 1117.4, originLabel: null,
 };

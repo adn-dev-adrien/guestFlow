@@ -230,3 +230,24 @@ test('une règle reformulée reste une modification, pas un ajout', async () => 
     modifiedRules: [{ spec: 'ma-spec', rule: '3' }],
   });
 });
+
+// specs/spec-rule-coverage.md rule 15 — « <spec> rule N » without the `specs/` prefix goes to that spec.
+test('rule 15: une citation qui nomme une spec sans préfixe lui est rattachée', async () => {
+  const { parseCitations } = await load();
+  const known = new Set(['reservation-refunds', 'public-online-payment', 'defer-arrival-complement-to-checkout']);
+  const src = [
+    '// specs/reservation-refunds.md §3.3 — l’argent rendu sort du total de séjour.',
+    '',
+    '',
+    '',
+    '',
+    "test('rule 4 — x (public-online-payment rule 12 ; defer-arrival-complement-to-checkout §3.3 règle 16 ; unknown-thing rule 9)', () => {});",
+  ].join('\n');
+  assert.deepEqual(parseCitations(src, known), [
+    { spec: 'reservation-refunds', rule: '4' },
+    { spec: 'public-online-payment', rule: '12' },
+    { spec: 'defer-arrival-complement-to-checkout', rule: '16' },
+    { spec: 'reservation-refunds', rule: '9' },
+  ]);
+  assert.deepEqual(parseCitations(src).map((c) => c.spec), ['reservation-refunds', 'reservation-refunds', 'reservation-refunds', 'reservation-refunds']);
+});

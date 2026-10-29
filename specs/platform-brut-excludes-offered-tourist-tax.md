@@ -13,14 +13,14 @@
 ## 1. Context
 
 The accountant reported that the journal entries GuestFlow exports for platform bookings under-state
-the commission. Her worked example — Stéphane Girard, réservation #22225, Gîtes de France, 26–28 June
+the commission. Her worked example — Stéphane Victor, réservation #22225, Gîtes de France, 26–28 June
 2026 — is what this spec repairs.
 
 **What GuestFlow exported** vs **what the accountant expects**:
 
 | Line | GuestFlow | Expected |
 |---|---|---|
-| Client (CGIRARD) — debit | 668,00 | 668,00 |
+| Client (CVICTOR) — debit | 668,00 | 668,00 |
 | 622600 commission HT — debit | 50,60 | **54,17** |
 | 44566000 TVA déductible/commission — debit | *(absent)* | **10,83** |
 | 70600000 location gîte — credit | 580,55 | **593,64** |
@@ -61,7 +61,7 @@ engine then subtracts its own estimate of the tax (6 adults × 2 nuits × 1,20 �
 The entry still balances, which is why nothing ever flagged it: it is wrong by 14,40 € on both sides.
 
 Booking makes the same subtraction unsafe for a second reason. Its guest-side breakdown for Lydianne
-Fournier (17–19 July 2026) reads `Sous-total 1 267,32` + `Taxe de séjour 4.4 % = 16,02` =
+Romeo (17–19 July 2026) reads `Sous-total 1 267,32` + `Taxe de séjour 4.4 % = 16,02` =
 `1 283,34`. GuestFlow's own estimate for that stay is 19,20 € (8 adultes × 2 nuits × 1,20 €). Even
 when a platform's total *does* include the tax, our estimate is not the platform's number, so
 subtracting it can never reconcile. The measured impact across the dev copy of prod: 13 reservations,
@@ -90,7 +90,7 @@ tourist-tax figure it estimated itself.
    `Sous-total` 1 267,32 on the Booking breakdown. It is no longer « what the guest paid ».
 2. **The engine stops taking the offered tax out of the brut.** The back-solve becomes
    `accommodation = max(0, brut − extraGuestSurcharge − pre-arrival options/resources − reversedTax)`;
-   the `offeredTouristTaxInBrut` term is removed. Consequence for Girard: `finalPrice = 733,00`,
+   the `offeredTouristTaxInBrut` term is removed. Consequence for Victor: `finalPrice = 733,00`,
    accommodation = 653,00, options = 80,00.
    **This supersedes rule 1 of `specs/platform-offered-tax-passthrough-and-cascade.md`**, which must be
    annotated in the same commit.
@@ -98,7 +98,7 @@ tourist-tax figure it estimated itself.
 > **Amended 2026-09-11** by [platform-tourist-tax-out-of-the-commission.md](platform-tourist-tax-out-of-the-commission.md): this reading is now the **empty-box** case, not the only case. When the operator states, in euros, the tourist tax the platform withheld, the brut is the guest-paid total again and that stated amount — the platform's, never our estimate — comes back out of it. An empty box keeps everything below exactly as written, which is what lets every reservation stored under this spec keep its amounts to the cent.
 3. **« Calculer la commission » stops subtracting the offered tax.** The formula is uniformly
    `commission solde = brut − virement reçu − commission acompte`, clamped ≥ 0, for every tax mode.
-   Girard: 733 − 668 − 0 = **65,00**.
+   Victor: 733 − 668 − 0 = **65,00**.
 
 > **Amended 2026-09-11** — the formula gains one term, and only one: `− taxe de séjour retenue`, the
 > amount the operator typed off the platform's statement. Our own estimate is still never subtracted,
@@ -134,7 +134,7 @@ tourist-tax figure it estimated itself.
 
 - **Re-saving an old platform reservation changes its books.** Once rule 2 ships, reopening and saving
   a pre-existing GdF/Booking/Airbnb reservation re-prices it and raises its `finalPrice` by the tax
-  (Girard: 718,60 → 733,00). That is the *correct* number, but it moves a month the accountant may
+  (Victor: 718,60 → 733,00). That is the *correct* number, but it moves a month the accountant may
   already have filed. The behaviour is accepted as-is (rule 10 leaves history alone precisely so that
   nothing moves without an operator action) — worth knowing, not worth blocking.
 - **A platform's tax mode changed after bookings were entered** → the stored brut of those bookings was
@@ -161,8 +161,8 @@ tourist-tax figure it estimated itself.
 | `models/` | `accountingModel.js` | — | (none — rule 9) |
 | `utils/` | `accountingExport.js` | — | (none — rule 9) |
 | `database.js` | — | — | (none — no schema change) |
-| `tests/` | `pricing-platform-tourist-tax-reversed-brut.unit.test.js` | T | Invert the « offered tax is taken OUT of the brut » test into « the brut is already net of the offered tax → `finalPrice = brut` »; the reversed + owner guards stay as they are. **Also hosts the Girard regression** (GdF, 6 adultes + 2 enfants, 2 nuits, brut 733, ménage 80 → `finalPrice` 733, accommodation 653, net 668): this is the only pricing fixture with a `platforms` table + a tourist tax, which the case needs. |
-| `tests/` | `accounting-offered-tax-platform-entry.unit.test.js` | C | End-to-end proof of the accountant's entry: the Girard reservation through `accountingModel` + `accountingExport` yields the six lines of §1, balanced at 733,00, with `hasVatOnCommission = 1`. |
+| `tests/` | `pricing-platform-tourist-tax-reversed-brut.unit.test.js` | T | Invert the « offered tax is taken OUT of the brut » test into « the brut is already net of the offered tax → `finalPrice = brut` »; the reversed + owner guards stay as they are. **Also hosts the Victor regression** (GdF, 6 adultes + 2 enfants, 2 nuits, brut 733, ménage 80 → `finalPrice` 733, accommodation 653, net 668): this is the only pricing fixture with a `platforms` table + a tourist tax, which the case needs. |
+| `tests/` | `accounting-offered-tax-platform-entry.unit.test.js` | C | End-to-end proof of the accountant's entry: the Victor reservation through `accountingModel` + `accountingExport` yields the six lines of §1, balanced at 733,00, with `hasVatOnCommission = 1`. |
 
 ### 4.2 Client side (`client/src/`)
 
@@ -224,7 +224,7 @@ The first field's label and helper follow the platform's tourist-tax mode:
 ### Server unit tests (5 added/changed — full suite 3608 pass)
 - [x] `pricing-platform-tourist-tax-reversed-brut.unit.test.js` (5) — rule 2: offered tax + brut →
       `finalPrice = brut` (was `brut − tax`); reversed case still `brut − tax`; owner case untouched;
-      **Girard regression**: brut 733 + ménage 80 on GdF → `finalPrice` 733 / accommodation 653 /
+      **Victor regression**: brut 733 + ménage 80 on GdF → `finalPrice` 733 / accommodation 653 /
       net perçu 668 with commission 65.
 - [x] `accounting-offered-tax-platform-entry.unit.test.js` (4, new) — rules 8+9: the exported entry is
       668,00 / 54,17 / 10,83 // 593,64 / 72,73 / 66,63, balanced at 733,00; no 46710000 line; and the
@@ -232,7 +232,7 @@ The first field's label and helper follow the platform's tourist-tax mode:
 
 ### Client (vitest — 22 in the file, full suite 1141 pass)
 - [x] `FinanceSection.platform-no-deposit.test.jsx` — rule 3: the commission button never subtracts the
-      tourist tax, in either mode, plus the Girard case (733 − 668 = 65); rule 7: the label + helper
+      tourist tax, in either mode, plus the Victor case (733 − 668 = 65); rule 7: the label + helper
       follow the tax mode.
 
 ### E2E (Playwright)
@@ -240,14 +240,14 @@ The first field's label and helper follow the platform's tourist-tax mode:
       plateforme » block, so the coverage there is the vitest file above.
 
 ### Manual UI verification
-- [ ] Réservation #22225 (Girard) on the dev copy of prod: brut 733 + virement 668 → « Calculer la
+- [ ] Réservation #22225 (Victor) on the dev copy of prod: brut 733 + virement 668 → « Calculer la
       commission » gives 65,00 ; « Net perçu 668,00 € » with the ✓ badge ; total séjour 733,00.
       _(not run — the fiche was not re-saved on purpose: re-saving would rewrite the stored money of a
       real reservation on the prod copy. Covered by the engine + accounting + component tests.)_
 - [ ] Comptabilité → export of July 2026 (the month #22225 was collected): the entry shows the six
       expected lines once `hasVatOnCommission` is on for GdF. _(same reason — needs the fiche re-saved
       first; the export path itself is locked by `accounting-offered-tax-platform-entry`.)_
-- [ ] Regression — a Lodgify reservation (e.g. #22271, Noirot): brut, commission, net and the ✓ badge
+- [ ] Regression — a Lodgify reservation (e.g. #22271, Theta): brut, commission, net and the ✓ badge
       unchanged. _(covered by the reversed-case unit + component tests.)_
 - [ ] Mobile (`xs`): the « Paiement plateforme » block stacks, the longer helper wraps, no horizontal
       scroll. _(layout untouched — only the helper string changed.)_

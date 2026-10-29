@@ -12,7 +12,7 @@ afterEach(resetViewport);
 
 const renderBar = () => render(
   <MemoryRouter><ThemeProvider theme={theme}>
-    <PageActionBar title="Modifier la réservation" identity="Victoria Garnier · N° 6600000002 · 07/08 → 13/08" identityBelow="lg" onSave={() => {}} />
+    <PageActionBar title="Modifier la réservation" identity="Cobalt Sierra · N° 6600000002 · 07/08 → 13/08" identityBelow="lg" onSave={() => {}} />
   </ThemeProvider></MemoryRouter>,
 );
 
@@ -20,7 +20,7 @@ test('rule 12 — below lg the identity line shows, on one ellipsised line', () 
   setViewport(390);
   renderBar();
   const line = screen.getByTestId('page-action-bar-identity');
-  expect(line).toHaveTextContent('Victoria Garnier · N° 6600000002 · 07/08 → 13/08');
+  expect(line).toHaveTextContent('Cobalt Sierra · N° 6600000002 · 07/08 → 13/08');
   expect(getComputedStyle(line).whiteSpace).toBe('nowrap');
   expect(getComputedStyle(line).textOverflow).toBe('ellipsis');
 });

@@ -30,9 +30,9 @@ Montant total
 
 Nom du client :
 
-Camille Garnier
+Camille Sierra
  fr
-cgarnier.123456@guest.booking.com
+csierra.123456@guest.booking.com
 
 Contactez vos clients ! Indiquez-leur l'heure à laquelle vous souhaitez les accueillir ou l'endroit où ils récupéreront leurs clés. Un simple appel suffit : 
 +33 6 12 34 56 78
@@ -95,7 +95,7 @@ Maison 4 Chambres (Domaine Solio - gite confort, nature, animaux)
 
 Nom du client
 
-Camille Garnier
+Camille Sierra
 
 Occupation réservée
 

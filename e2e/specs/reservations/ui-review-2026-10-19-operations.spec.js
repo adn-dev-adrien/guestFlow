@@ -9,7 +9,7 @@ let reservationId;
 
 test.beforeAll(async () => {
   const property = await createProperty({ name: 'E2E barre de total' });
-  const client = await createClient({ firstName: 'Victoria', lastName: 'Garnier' });
+  const client = await createClient({ firstName: 'Cobalt', lastName: 'Sierra' });
   const reservation = await createReservation({
     propertyId: property.id, clientId: client.id, startDate: '2099-08-07', endDate: '2099-08-13',
   });
@@ -22,7 +22,7 @@ test('rules 11-12 — at 390 px the bar shows the total and opens the summary; t
   const bar = page.getByTestId('sticky-total-bar');
   await expect(bar).toBeVisible({ timeout: 15_000 });
   await expect(bar).toContainText('Total du séjour');
-  await expect(page.getByTestId('page-action-bar-identity')).toContainText('Victoria Garnier');
+  await expect(page.getByTestId('page-action-bar-identity')).toContainText('Cobalt Sierra');
   // Pinned to the bottom of the screen, not at the end of the 6 000 px fiche.
   const box = await bar.boundingBox();
   expect(box && box.y + box.height).toBeLessThanOrEqual(860);

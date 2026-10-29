@@ -14,7 +14,7 @@ const PLACEHOLDER = {
   platformGrossAmount: null, reservationNumber: '202610123', checkInTime: '15:00', notes: 'Note de l’opérateur',
 };
 const FILLED = {
-  ...PLACEHOLDER, firstName: 'Camille', lastName: 'Garnier', email: 'cgarnier.123456@guest.booking.com', phone: '06 12 34 56 78',
+  ...PLACEHOLDER, firstName: 'Camille', lastName: 'Sierra', email: 'csierra.123456@guest.booking.com', phone: '06 12 34 56 78',
   platform: 'Booking', reservationNumber: '6300000001', adults: 10, checkInTime: '20:00',
   platformGrossAmount: 721.82, platformTouristTaxAmount: 20.02, platformPayoutAmount: 606.44,
   notes: 'Booking, 15/10 :\nEst ce possible d\'avoir 2 lits d\'appoints (nous ne sommes pas certains d\'en avoir besoin)\nDemande de lit d\'appoint: Le client a demandé un lit d\'appoint pour un bébé de adult an.',
@@ -116,7 +116,7 @@ test('specs/booking-extranet-intake.md rule 15: applying writes the guest, the p
   assert.deepEqual([patch.singleBeds, patch.doubleBeds], [6, 4]);
   assert.deepEqual(calls.beds, { propertyId: 1, party: { adults: 10, children: 0, teens: 0 } });
   assert.deepEqual(calls.client, [{ id: 700, patch: {
-    firstName: 'Camille', lastName: 'Garnier', email: 'cgarnier.123456@guest.booking.com', phone: '+33612345678', emailLanguage: 'fr',
+    firstName: 'Camille', lastName: 'Sierra', email: 'csierra.123456@guest.booking.com', phone: '+33612345678', emailLanguage: 'fr',
   } }]);
   assert.equal(opts.label, 'Rempli depuis l’extranet Booking (réservation 6300000001)');
 });

@@ -17,7 +17,7 @@ export const PROPOSED = {
   differences: [
     { field: 'adults', label: 'Adultes', from: 8, to: 10 },
     { field: 'platformPayoutAmount', label: 'Virement reçu', from: null, to: 606.44 },
-    { field: 'email', label: 'E-mail', from: 'c@x.fr', to: 'cgarnier.123456@guest.booking.com' },
+    { field: 'email', label: 'E-mail', from: 'c@x.fr', to: 'csierra.123456@guest.booking.com' },
   ],
   guestMessagePending: false,
 };

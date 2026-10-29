@@ -2,18 +2,14 @@
  * Preloaded by `npm test` (`node --require`) into every test process (specs/server-test-isolation.md
  * rule 1): the process gets its own throw-away SQLite file, and opening the checkout's own
  * `guestflow.db` (or `PERSISTENT_DB`) throws. A test that needs a database sets `DB_PATH` itself, as
- * before; one that forgets used to create and migrate the developer's `server/guestflow.db`.
+ * before; one that forgets used to create and migrate the developer's `server/guestflow.db`. The secrets
+ * file and the uploads folder move to the same temp directory (rule 4).
  */
-const fs = require('fs');
-const os = require('os');
 const path = require('path');
 
 const DEFAULT_DB = path.resolve(__dirname, '..', '..', '..', 'guestflow.db');
 
-const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gf-test-'));
-process.env.DB_PATH = path.join(tempDir, 'guestflow.db');
-process.on('exit', () => { try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch { /* already gone */ } });
-delete process.env.PERSISTENT_DB;
+require('../../utils/testProcessIsolation').isolate({ force: true });
 
 const isForbidden = (file) => {
   if (typeof file !== 'string' || file === ':memory:' || file === '') return false;

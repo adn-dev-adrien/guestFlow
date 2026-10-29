@@ -259,7 +259,7 @@ test('getSummary: totalPending is net of the UNPAID échéance commission (platf
 
 test('getSummary: totalPending IGNORES the selected period — a finished unpaid stay before « from » still counts', () => {
   const { db, model } = freshModel();
-  // The prod Girard shape (2026-07-17): stay ended before the displayed month, unpaid.
+  // The prod Victor shape (2026-07-17): stay ended before the displayed month, unpaid.
   insertRes(db, { id: 1, clientId: 1, propertyId: 1, startDate: iso(-40), endDate: iso(-35), balanceAmount: 668, balancePaid: 0 });
   // Period = a window that EXCLUDES the reservation entirely.
   const summary = model.getSummary({ from: iso(-10), to: iso(10) });

@@ -64,7 +64,7 @@ function buildModel(database) {
       );
       for (const row of rows) insert.run(Number(reservationId), row.number, row.dueDate, row.amountCents);
       refreshAggregates(reservationId, targetCents);
-    })();
+    }).immediate();
     return listFor(reservationId);
   }
 
@@ -72,7 +72,7 @@ function buildModel(database) {
     database.transaction(() => {
       database.prepare('DELETE FROM reservation_installments WHERE reservationId = ?').run(Number(reservationId));
       refreshAggregates(reservationId);
-    })();
+    }).immediate();
   }
 
   function updateRow(id, fields) {
@@ -83,7 +83,7 @@ function buildModel(database) {
       database.prepare('UPDATE reservation_installments SET dueDate = ?, dateEdited = ?, amountCents = ?, amountEdited = ? WHERE id = ?')
         .run(next.dueDate, next.dateEdited ? 1 : 0, next.amountCents, next.amountEdited ? 1 : 0, Number(id));
       refreshAggregates(row.reservationId);
-    })();
+    }).immediate();
     return findById(id);
   }
 
@@ -99,7 +99,7 @@ function buildModel(database) {
         database.prepare('UPDATE reservation_installments SET amountEdited = 0 WHERE reservationId = ?').run(Number(reservationId));
       }
       refreshAggregates(reservationId);
-    })();
+    }).immediate();
   }
 
   function markPaid(id, { paidDate, method }) {

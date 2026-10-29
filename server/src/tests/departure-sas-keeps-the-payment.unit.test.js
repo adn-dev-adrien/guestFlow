@@ -97,7 +97,7 @@ const read = (db) => db.prepare(`SELECT endOfStayComplementPaid AS paid, endOfSt
   arrivalPaymentGroup AS grp FROM reservations WHERE id = 1`).get();
 
 // Ce que le récap envoie quand aucun mode de règlement n'est sélectionné : le geste EXACT qui a
-// détruit le paiement de Harmen.
+// détruit le paiement de Testy.
 const VALIDATED_WITH_NO_MODE = { complementsSettled: false, extinguisherSealOkAtDeparture: 1 };
 
 test('un complément encaissé À LA PORTE survit à un départ validé sans mode de règlement', () => {

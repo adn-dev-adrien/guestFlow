@@ -695,7 +695,7 @@ afterwards** (reservation dates, sold hours, sessions, thermal columns, and the 
 - [x] The occupancy strip shows the neighbour (13:00–14:00) and **not** the operator's own placement.
 - [x] Departure day fully « fermé » (check-out 10:00 precedes the 11:00 opening).
 - [x] Resource planning after the merge moved server-side: the guest session renders with
-      « Réservation · 20:00→21:00 · Denise Berger · Aventura lodge · remise en état 15 min », no
+      « Réservation · 20:00→21:00 · Juliet Charlie · Aventura lodge · remise en état 15 min », no
       console error, and the second fetch is gone.
 
 Covered by automated tests but **not exercised by hand** — worth a pass on the first real check-in:

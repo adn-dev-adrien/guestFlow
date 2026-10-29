@@ -26,7 +26,7 @@ import api from '../../api';
 import DevisPage from '../DevisPage';
 
 const ROWS = [
-  { id: 7, devisNumber: '2026-08-002', status: 'draft', firstName: 'Constance', lastName: 'Gay', propertyName: 'Gite', startDate: '2026-09-04', endDate: '2026-09-06', totalTtc: 1117.4 },
+  { id: 7, devisNumber: '2026-08-002', status: 'draft', firstName: 'Client', lastName: 'Exemple', propertyName: 'Gite', startDate: '2026-09-04', endDate: '2026-09-06', totalTtc: 1117.4 },
   { id: 8, devisNumber: '2026-08-003', status: 'converted', convertedReservationId: 41, firstName: 'Léa', lastName: 'Roux', propertyName: 'Gite', startDate: '2026-10-04', endDate: '2026-10-06', totalTtc: 500 },
 ];
 

@@ -110,10 +110,10 @@ test('an end-of-stay complement without mid-stay lines stays on the prestations 
   assert.ok(!rows.has('70601000'));
 });
 
-// ── Fabre #22269 — a checkout complement settled in caisse interne ─────────────────────────────────
-test('Fabre: a caisse-interne complement never leaks back into the solde', () => {
+// ── Papa #22269 — a checkout complement settled in caisse interne ─────────────────────────────────
+test('Papa: a caisse-interne complement never leaks back into the solde', () => {
   const row = baseRow({
-    id: 22269, lastName: 'Fabre', platform: 'Lodgify',
+    id: 22269, lastName: 'Papa', platform: 'Lodgify',
     finalPrice: 462.23, totalPrice: 462.23, touristTaxTotal: 21,
     balanceAmount: 452.73, balancePaid: 1, balancePaidDate: '2026-08-05',
     complementAmount: 24, complementPaid: 1, complementPaidDate: '2026-08-05',
@@ -131,10 +131,10 @@ test('Fabre: a caisse-interne complement never leaks back into the solde', () =>
   assert.equal(round2(entry.taxTtc), 21, 'the reversed tax rides the solde');
 });
 
-// ── Nicolas #22226 — a schedule that drifted above the stay total ───────────────────────────────────
-test('Nicolas: a drifted schedule books the money banked, never an invented total', () => {
+// ── Sigma #22226 — a schedule that drifted above the stay total ───────────────────────────────────
+test('Sigma: a drifted schedule books the money banked, never an invented total', () => {
   const row = baseRow({
-    id: 22226, lastName: 'Nicolas', platform: 'Lodgify',
+    id: 22226, lastName: 'Sigma', platform: 'Lodgify',
     finalPrice: 281.82, totalPrice: 281.82, touristTaxTotal: 2.94,
     depositAmount: 126.38, depositPaid: 1, depositPaidDate: '2026-06-22',
     balanceAmount: 126.38, balancePaid: 1, balancePaidDate: '2026-07-13',
@@ -152,10 +152,10 @@ test('Nicolas: a drifted schedule books the money banked, never an invented tota
   assert.equal(round2(entry.encaissementNetTtc), 122.97);
 });
 
-// ── Perrin #7 — the legacy « solde = net » shape the gross-up exists for ──────────────────────────
-test('Perrin: the legacy net schedule still grosses up to the total the guest paid', () => {
+// ── Gamma #7 — the legacy « solde = net » shape the gross-up exists for ──────────────────────────
+test('Gamma: the legacy net schedule still grosses up to the total the guest paid', () => {
   const row = baseRow({
-    id: 7, lastName: 'Perrin', platform: 'GitesDeFrance',
+    id: 7, lastName: 'Gamma', platform: 'GitesDeFrance',
     finalPrice: 994, totalPrice: 994, touristTaxTotal: 0,
     balanceAmount: 903, balancePaid: 1, balancePaidDate: '2026-05-13',
     platformCommissionAmount: 91,

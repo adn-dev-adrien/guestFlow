@@ -32,8 +32,21 @@ Running `npm test` can never create, open or migrate the checkout's own `server/
 3. **The three offenders set their own temporary database** at the top of the file, so they are safe when run
    alone (`node --test <file>`), without the preload.
 
+4. **Rules 1-2 hold without the preload too** (added 2026-10-29). `database.js` and `utils/instancePaths.js` call
+   `utils/testProcessIsolation.js`: under the test runner (`NODE_TEST_CONTEXT`, set in every `node --test` child),
+   a process that names no `DB_PATH` / `PERSISTENT_DB`, `GUESTFLOW_LOCAL_ENV` or `GUESTFLOW_UPLOADS_DIR` gets
+   them in a private temp directory (`<tmp>/data/guestflow.db`, `env.local`, `uploads/`), removed at exit.
+   The preload uses the same module (forced), so the deploy root resolved from `DB_PATH` is the private
+   directory and not the shared `$TMPDIR`, and `server/.env.local` is never written by a suite. The process's
+   `TMPDIR` also moves to `<tmp>/tmp`, so the scratch directories suites create with `os.tmpdir()` (≈500 per
+   full run before: `gf-phase4-*`, `gf-website-booking-*`, `gvr-*`…) are removed with the process.
+
 **Edge cases:**
-- A test run by hand without the preload keeps the old behaviour: rule 3 is what protects the three known cases.
+- A targeted `node --test <file>` used to open and migrate `server/guestflow.db` for 389 test files (audit R2,
+  2026-10-29); rule 4 closes that. Rule 3 stays as the explicit guard of the three first offenders.
+- Only a process outside the test runner (e.g. `node -e`) opens the default path. `node --test --experimental-test-isolation=none`
+  runs the files in the parent process, where `NODE_TEST_CONTEXT` is not set: that mode is isolated only with the
+  preload (`npm test` never uses it). A process with `NODE_ENV=production` is never isolated, even under the runner.
 
 ---
 
@@ -43,7 +56,9 @@ Running `npm test` can never create, open or migrate the checkout's own `server/
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
-| `tests/setup/` | `isolateDefaultDb.js` | C | Preload: temp `DB_PATH` per process + guard on the default path. |
+| `tests/setup/` | `isolateDefaultDb.js` | C | Preload: temp `DB_PATH` / `.env.local` / uploads per process + guard on the default path. |
+| `utils/` | `testProcessIsolation.js` | T | Rule 4: same isolation for a process run without the preload. |
+| `database.js`, `utils/instancePaths.js` | | T | Call it before reading the environment. |
 | `tests/` | `server-test-isolation.unit.test.js` | C | Pins rules 1-2 in a child process. |
 | `tests/`, `plugins/hourly-resources/tests/` | the three offenders | T | Rule 3. |
 | `package.json` | `test` script | T | `--require ./src/tests/setup/isolateDefaultDb.js`. |
@@ -55,6 +70,7 @@ None. API, data model and UI are unchanged.
 ## 7. Test plan
 
 - [x] `server-test-isolation.unit.test.js`: the preload sets a temp `DB_PATH` (rule 1), refuses the default path and its `-wal` / `-shm` (rule 2), allows `:memory:` and the temp file.
+- [x] Rule 4: a single file run (`settings-model`) without preload leaves `guestflow.db` / `.env.local` / `uploads` untouched; under `NODE_TEST_CONTEXT` the three defaults are in the temp dir.
 - [x] Rule 3: the three tests, run alone with `server/guestflow.db` removed, leave no file behind.
 
 ## 8. Out of scope

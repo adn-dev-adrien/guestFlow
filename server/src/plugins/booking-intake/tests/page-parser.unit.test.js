@@ -13,7 +13,7 @@ test('specs/booking-extranet-intake.md rule 8: reads dates, party, guest, langua
   assert.equal(booking.resId, '6300000001');
   assert.deepEqual([booking.arrival, booking.departure, booking.nights], ['2026-11-06', '2026-11-08', 2]);
   assert.equal(booking.adults, 10);
-  assert.deepEqual(booking.guest, { firstName: 'Camille', lastName: 'Garnier', country: 'fr', email: 'cgarnier.123456@guest.booking.com', phone: '+33612345678' });
+  assert.deepEqual(booking.guest, { firstName: 'Camille', lastName: 'Sierra', country: 'fr', email: 'csierra.123456@guest.booking.com', phone: '+33612345678' });
   assert.deepEqual(
     [booking.total, booking.commissionable, booking.fees, booking.subtotal, booking.touristTax, booking.payout],
     [721.82, 701.8, 115.38, 701.8, 20.02, 606.44],
@@ -37,10 +37,10 @@ test('specs/booking-extranet-intake.md rule 8: the guest’s requests are kept v
 });
 
 test('specs/booking-extranet-intake.md rule 8: « Identité vérifiée » is stripped from the name, and Booking writes « Prénom Nom »', () => {
-  const text = replaceOnce(PAGE_6300000001, 'Camille Garnier\n fr', 'Jean-Pierre Le Garnier Identité vérifiée\n fr');
+  const text = replaceOnce(PAGE_6300000001, 'Camille Sierra\n fr', 'Jean-Pierre Le Sierra Identité vérifiée\n fr');
   assert.deepEqual(
     [parse(text).booking.guest.firstName, parse(text).booking.guest.lastName],
-    ['Jean-Pierre', 'Le Garnier'],
+    ['Jean-Pierre', 'Le Sierra'],
   );
 });
 

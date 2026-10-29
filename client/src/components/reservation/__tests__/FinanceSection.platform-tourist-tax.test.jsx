@@ -11,7 +11,7 @@ import { makeMockContext } from './mockReservationForm';
 // « Paiement plateforme » block: when it shows up, what it says, and what it does to the commission
 // the « Calculer » button writes.
 //
-// The numbers are the Gîtes de France statement for Girard #22225 (26-28 June 2026):
+// The numbers are the Gîtes de France statement for Victor #22225 (26-28 June 2026):
 // client 747,40 · taxe 14,40 · virement 668,00 → commission 65,00, not 79,40.
 
 vi.mock('../../../api', () => ({ __esModule: true, default: { markPayment: vi.fn(), computePlatformCommission: vi.fn() } }));

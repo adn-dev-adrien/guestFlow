@@ -113,7 +113,7 @@ test('booking intake: activation, mapping, dashboard line, fiche filled and reco
   await expect(page.getByText(/cohérent avec le virement/i)).toBeVisible();
   const stored = await (await page.request.get(`/api/reservations/${reservation.id}`)).json();
   expect(stored).toMatchObject({
-    platform: 'Booking', reservationNumber: RES_ID, firstName: 'Camille', lastName: 'Garnier', adults: 10, checkInTime: '20:00',
+    platform: 'Booking', reservationNumber: RES_ID, firstName: 'Camille', lastName: 'Sierra', adults: 10, checkInTime: '20:00',
     platformGrossAmount: 721.82, platformTouristTaxAmount: 20.02, platformPayoutAmount: 606.44, platformCommissionAmount: 95.36,
   });
 

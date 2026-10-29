@@ -31,19 +31,19 @@ function forwardTax(baseHt, nights, occupants, adults) {
 // The Lodge stays carrying a tax in the production copy on 2026-09-01, with the occupant count in
 // force when each amount was computed (babies included — rule 8 only applies from now on).
 const PRODUCTION_STAYS = [
-  { name: 'Vidal', total: 5.79, nights: 1, adults: 3, occupants: 3 },
+  { name: 'Dune', total: 5.79, nights: 1, adults: 3, occupants: 3 },
   { name: 'France', total: 5.4, nights: 2, adults: 2, occupants: 4 },
-  { name: 'Van Berg', total: 2.98, nights: 1, adults: 2, occupants: 3 },
-  { name: 'Nicolas', total: 2.94, nights: 1, adults: 2, occupants: 4 },
-  { name: 'Estrada', total: 11.96, nights: 2, adults: 2, occupants: 2 },
-  { name: 'Fabre', total: 21, nights: 3, adults: 5, occupants: 5 },
-  { name: 'Noirot', total: 8.44, nights: 2, adults: 2, occupants: 4 },
-  { name: 'Tremblay', total: 5.96, nights: 2, adults: 2, occupants: 5 },
-  { name: 'Stanis', total: 6.36, nights: 1, adults: 3, occupants: 4 },
+  { name: 'Bravo', total: 2.98, nights: 1, adults: 2, occupants: 3 },
+  { name: 'Sigma', total: 2.94, nights: 1, adults: 2, occupants: 4 },
+  { name: 'Oscar', total: 11.96, nights: 2, adults: 2, occupants: 2 },
+  { name: 'Papa', total: 21, nights: 3, adults: 5, occupants: 5 },
+  { name: 'Theta', total: 8.44, nights: 2, adults: 2, occupants: 4 },
+  { name: 'Apex', total: 5.96, nights: 2, adults: 2, occupants: 5 },
+  { name: 'Tau', total: 6.36, nights: 1, adults: 3, occupants: 4 },
   { name: 'Marchand', total: 13.05, nights: 3, adults: 3, occupants: 5 },
-  { name: 'Van dijk', total: 5.95, nights: 1, adults: 1, occupants: 1 },
-  { name: 'Maillard', total: 2.16, nights: 1, adults: 2, occupants: 4 },
-  { name: 'Olivier', total: 9.64, nights: 2, adults: 2, occupants: 4 },
+  { name: 'Van Test', total: 5.95, nights: 1, adults: 1, occupants: 1 },
+  { name: 'Zeta', total: 2.16, nights: 1, adults: 2, occupants: 4 },
+  { name: 'Lambda', total: 9.64, nights: 2, adults: 2, occupants: 4 },
 ];
 
 test('every production amount round-trips through the reconstructed base', () => {
@@ -56,12 +56,12 @@ test('every production amount round-trips through the reconstructed base', () =>
 });
 
 test('the two stays the operator checked rebuild the base he typed into the office form', () => {
-  // Fabre: he entered 380,92 € by trial and error to land back on the 21,00 € collected.
+  // Papa: he entered 380,92 € by trial and error to land back on the 21,00 € collected.
   const fabre = reconstructFrozenBase({ touristTaxTotal: 21, nights: 3, adults: 5, occupants: 5, ...LODGE });
   assert.equal(fabre.touristTaxFrozenBaseHt, 381.82);
   assert.equal(fabre.touristTaxFrozenUnitAmount, 1.4);
 
-  // Estrada: 54,38 €/occupant/night → 217,52 € for the stay.
+  // Oscar: 54,38 €/occupant/night → 217,52 € for the stay.
   const estrada = reconstructFrozenBase({ touristTaxTotal: 11.96, nights: 2, adults: 2, occupants: 2, ...LODGE });
   assert.equal(estrada.touristTaxFrozenBaseHt, 217.45);
   assert.equal(estrada.touristTaxFrozenUnitAmount, 2.99);

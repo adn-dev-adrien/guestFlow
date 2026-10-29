@@ -27,7 +27,7 @@ const FORM = {
   depositDisabled: true,
 };
 
-// The Estrada stay, frozen: 217,45 € HT ÷ 2 nuits ÷ 2 occupants → 2,99 €/adulte/nuit → 11,96 €.
+// The Oscar stay, frozen: 217,45 € HT ÷ 2 nuits ÷ 2 occupants → 2,99 €/adulte/nuit → 11,96 €.
 const FROZEN_QUOTE = {
   touristTaxTotal: 11.96,
   touristTaxOriginalTotal: 11.96,

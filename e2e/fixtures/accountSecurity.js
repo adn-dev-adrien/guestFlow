@@ -29,12 +29,12 @@ function withDb(fn) {
 }
 
 // A fresh admin account, unique per call.
-function seedAccount(prefix) {
+function seedAccount(prefix, { mustChangePassword = false } = {}) {
   const email = `${prefix}-${Date.now()}-${crypto.randomBytes(2).toString('hex')}@guestflow.test`;
   const password = 'e2e-account-1234';
   withDb((db) => {
-    const id = Number(db.prepare('INSERT INTO users (email, passwordHash, firstName, lastName, mustChangePassword, isActive) VALUES (?, ?, ?, ?, 0, 1)')
-      .run(email, hashPassword(password), 'E2E', prefix).lastInsertRowid);
+    const id = Number(db.prepare('INSERT INTO users (email, passwordHash, firstName, lastName, mustChangePassword, isActive) VALUES (?, ?, ?, ?, ?, 1)')
+      .run(email, hashPassword(password), 'E2E', prefix, mustChangePassword ? 1 : 0).lastInsertRowid);
     db.prepare("INSERT INTO user_roles (userId, role) VALUES (?, 'admin')").run(id);
   });
   return { email, password };

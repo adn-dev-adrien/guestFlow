@@ -95,7 +95,7 @@ textarea:focus,button:focus-visible{outline:2px solid var(--sapin);outline-offse
   <div class="box"><h3>L'iCal ne donne que les dates</h3>
     <p>Chaque réservation Gîtes de France arrive en fiche « Ical Booked », 1 adulte, sans montant. Tout le reste se recopie à la main depuis ITEA — ce matin, dossier 11773, une demi-heure.</p></div>
   <div class="box"><h3>La saisie à la main se trompe sans bruit</h3>
-    <p>3 fiches passées (Lefort, Vasseur, Fontaine) ont le « Prix total client » en brut : la commission avale les frais de dossier de la centrale, et le ✓ du virement reste vert.</p></div>
+    <p>3 fiches passées (Xray, Borealis, Quebec) ont le « Prix total client » en brut : la commission avale les frais de dossier de la centrale, et le ✓ du virement reste vert.</p></div>
 </div>
 
 <h2>Ce qu'on propose</h2>
@@ -127,7 +127,7 @@ Gîte 309700 | Domaine Solio
 du 13/11/2026 à partir de 16h00
 au 15/11/2026 avant 10h00 (2 nuits)
 
-Réservation effectuée par : RENARD Lucie
+Réservation effectuée par : IOTA Lucie
 8 adultes, 2 enfants et 2 bébés
 Pas de chien, pas de chat
 lucie.renard@example.com
@@ -292,7 +292,7 @@ Information : une taxe de séjour d'un montant de 19.20 € a été calculée po
     var pend = state === 'rent' && chosen == null;
     var proposal = state === 'proposal';
     fieldsEl.innerHTML =
-      f('Client', proposal ? 'Ical Booked' : 'Lucie Renard · 07 00 00 00 01') +
+      f('Client', proposal ? 'Ical Booked' : 'Lucie Iota · 07 00 00 00 01') +
       f('N° de réservation', proposal ? '202610003' : '11773') +
       f('Groupe', proposal ? '1 adulte' : '8 adultes · 2 enfants · 2 bébés') +
       f('Options', proposal ? '—' : 'Ménage 80 € (payé à la plateforme)') +

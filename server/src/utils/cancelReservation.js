@@ -120,7 +120,7 @@ function cancelReservation(deps, reservationId, { reason = '', cancelledBy = nul
         if (String(link.status) === 'open') cancelledLinks.push(paymentLinksModel.updateStatus(link.id, 'cancelled'));
       }
     }
-  })();
+  }).immediate();
 
   return {
     ok: true,

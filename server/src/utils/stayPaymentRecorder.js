@@ -79,7 +79,7 @@ function recordStayPayment({ db, reservationsModel, emit }, { reservationId, buc
       reservationsModel.releaseStayBucket(id, b);
       flipped.push(b);
     });
-  })();
+  }).immediate();
 
   if (flipped.length) {
     if (emit) emit('reservation.paid', { reservationId: id, bucket });

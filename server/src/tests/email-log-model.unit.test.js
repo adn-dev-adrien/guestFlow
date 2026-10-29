@@ -152,7 +152,7 @@ test('listPending: a before-arrival reminder is NOT re-proposed once the guest h
   // J-2 reminder for up to 5 days AFTER arrival (its sendDate stays in the window). Once startDate is
   // past, a before-or-on-arrival reminder must drop out.
   const { db, model } = fresh();
-  db.prepare("INSERT INTO clients (id, firstName, lastName, email) VALUES (1, 'Nicolas', 'Vidal', 'nico@v.fr')").run();
+  db.prepare("INSERT INTO clients (id, firstName, lastName, email) VALUES (1, 'Sigma', 'Dune', 'nico@v.fr')").run();
   db.prepare("INSERT INTO properties (id, name) VALUES (1, 'Villa A')").run();
   db.prepare("INSERT INTO email_templates (id, stableKey, name, subject, body, dayOffset, sendMode, enabled) VALUES (20, 'arrival_reminder_1d', 'J-2', 'S', 'B', -2, 'manual', 1)").run();
 
@@ -172,7 +172,7 @@ test('listPending: a post-stay email (positive dayOffset) is kept even after arr
   // Future-proofing rule 8: emails meant to fire AFTER arrival (e.g. a J+1 review request) must keep
   // surfacing for a past-startDate stay — the past-arrival guard only drops before/on-arrival reminders.
   const { db, model } = fresh();
-  db.prepare("INSERT INTO clients (id, firstName, lastName, email) VALUES (1, 'Nicolas', 'Vidal', 'nico@v.fr')").run();
+  db.prepare("INSERT INTO clients (id, firstName, lastName, email) VALUES (1, 'Sigma', 'Dune', 'nico@v.fr')").run();
   db.prepare("INSERT INTO properties (id, name) VALUES (1, 'Villa A')").run();
   db.prepare("INSERT INTO email_templates (id, stableKey, name, subject, body, dayOffset, sendMode, enabled) VALUES (21, NULL, 'J+1', 'S', 'B', 1, 'manual', 1)").run();
 
@@ -186,7 +186,7 @@ test('listPending: a post-stay email (positive dayOffset) is kept even after arr
 
 test('listPending: a validUntil-anchored reminder surfaces for an open, deposit-unpaid devis; converted/paid excluded', () => {
   const { db, model } = fresh();
-  db.prepare("INSERT INTO clients (id, firstName, lastName, email) VALUES (1, 'Tom', 'Baz', 'tom@b.fr')").run();
+  db.prepare("INSERT INTO clients (id, firstName, lastName, email) VALUES (1, 'Psi', 'Baz', 'tom@b.fr')").run();
   db.prepare("INSERT INTO properties (id, name) VALUES (1, 'Villa A')").run();
   // deposit_reminder anchored on validUntil, dayOffset -3.
   db.prepare("INSERT INTO email_templates (id, stableKey, name, subject, body, dayOffset, sendMode, enabled, anchor) VALUES (40, 'deposit_reminder', 'Relance', 'S', 'B', -3, 'manual', 1, 'validUntil')").run();

@@ -254,7 +254,7 @@ everything this feature needs.
   the Comptabilité of THAT month**, and the planning « préparé » flags of that stay verified untouched.
 - The same in caisse interne, then « Annuler ce paiement ».
 - Mobile (`xs`) at 420 px.
-- [x] **Done 2026-08-31, rule 2bis** on a copy of production, rebuilt to Harmen's exact shape (platform
+- [x] **Done 2026-08-31, rule 2bis** on a copy of production, rebuilt to Testy's exact shape (platform
       booking, acompte disabled, no arrival complement, 50 € in the end-of-stay complement): the control
       now appears, announces **1 983,52 €**, and settles both at 2026-08-17. The fiche reads « solde
       1 933,52 € · complément de fin de séjour 50,00 € », and August's Comptabilité carries the two

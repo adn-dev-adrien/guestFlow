@@ -360,6 +360,11 @@ Other facts the design rests on:
     stay's paid flags are read again after the provider call. Cancelling a stay also abandons the open
     links of the devis converted into it; a devis's links are also retired by its stay's `retireForAmountChange`. See
     public-online-payment.md rule 16.
+29. **Money write transactions take the write lock up front (2026-10-29, audit R2).** A deferred SQLite
+    transaction that reads then writes fails at once with `SQLITE_BUSY_SNAPSHOT` ("database is locked") when
+    another connection commits in between, without waiting for the busy timeout (5 s, better-sqlite3's
+    default). `recordStayPayment` and the other read-then-write money transactions (installments, refunds,
+    cancellation, platform penalties) therefore run `.immediate()`: a concurrent writer makes them wait.
 
 ## 4. Architecture
 
@@ -468,6 +473,8 @@ the moved page. No behaviour change.
 - **Mobile:** the address card stacks the field over a full-width button at 375 px; nothing else moves.
 
 ## 7. Test plan
+
+- [x] `money-transactions-immediate.unit.test.js` (rule 29): a second process holds the write lock; `recordStayPayment` waits and succeeds, a deferred read-then-write fails.
 
 ### Server — new tests (25)
 

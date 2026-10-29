@@ -9,7 +9,7 @@ const timed = (fn) => { const t = process.hrtime.bigint(); const out = fn(); ret
 const HOSTILE = `x@${'.'.repeat(200000)},`;
 
 test('rule 33: the Booking page parser reads a hostile dotted line in < 50 ms', () => {
-  const page = PAGE_6300000001.replace('cgarnier.123456@guest.booking.com', HOSTILE);
+  const page = PAGE_6300000001.replace('csierra.123456@guest.booking.com', HOSTILE);
   const { ms } = timed(() => parseBookingPage(page, { resId: '6300000001' }));
   assert.ok(ms < 50, `${ms} ms`);
 });

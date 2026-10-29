@@ -27,7 +27,8 @@ test('rule 23: « Actualiser » moves to the top bar; « Nouveau logement » sta
   await expect(page.locator('main').getByTestId('page-action-bar-row')).toHaveCount(0);
 
   await page.goto('/properties');
-  await expect(page.locator('main').getByRole('button', { name: /Nouveau logement/ })).toBeVisible({ timeout: 10_000 });
+  // With no logement yet the empty state offers the same button under the bar's: either one proves it stays in the page.
+  await expect(page.locator('main').getByRole('button', { name: /Nouveau logement/ }).first()).toBeVisible({ timeout: 10_000 });
   await expect(header(page).getByRole('button', { name: /Nouveau logement/ })).toHaveCount(0);
 });
 

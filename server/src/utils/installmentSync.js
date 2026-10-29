@@ -41,7 +41,7 @@ function syncAfterTotalChange(db, reservationId, { targetCents, startDate }) {
     result = rebalance({ installments: current, targetCents });
     model.applyAmounts(reservationId, result.amounts, { clearPins: result.clearPins, added: result.added });
     model.setTarget(reservationId, targetCents);
-  })();
+  }).immediate();
   return { gapCents: result.gapCents, frozen: result.frozen, added: result.added };
 }
 
