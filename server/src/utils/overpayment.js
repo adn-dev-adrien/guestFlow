@@ -155,8 +155,11 @@ function overpaymentLinesOf({ row = {}, capturedByPoste = {}, quote = {}, overpa
     const rest = round2(total - complementExcess);
     const lines = rest > 0 ? scheduleLines({ row, capturedByPoste, quote, total: rest, leftover }) : [];
     let remaining = complementExcess;
-    const add = (poste, amount) => {
-      const part = Math.min(remaining, round2(amount));
+    // The history window of the complement overlaps the schedule's: what the schedule share already took
+    // from a poste is not taken again from the complement's.
+    const taken = (poste) => round2(lines.filter((l) => l.bucket === poste.bucket && l.excessOnly).reduce((t, l) => t + l.amountTtc, 0));
+    const add = (poste, amount, alreadyTaken = 0) => {
+      const part = Math.min(remaining, Math.max(0, round2(amount - alreadyTaken)));
       if (!(part > 0)) return;
       const existing = lines.find((l) => l.bucket === poste.bucket);
       if (existing) existing.amountTtc = round2(existing.amountTtc + part);
@@ -166,8 +169,8 @@ function overpaymentLinesOf({ row = {}, capturedByPoste = {}, quote = {}, overpa
     // What the edit took out of the complement, poste by poste (the tourist tax included), when the stored
     // lines say so; the unexplained rest falls on the prestations the stay still sells.
     add(POSTES[3], complementLeft.touristTax);
-    add(POSTES[1], complementLeft.options);
-    add(POSTES[2], complementLeft.resources);
+    add(POSTES[1], complementLeft.options, taken(POSTES[1]));
+    add(POSTES[2], complementLeft.resources, taken(POSTES[2]));
     add(complementExcessPoste(quote), remaining);
     return lines;
   }

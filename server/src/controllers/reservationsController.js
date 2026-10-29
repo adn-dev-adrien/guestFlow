@@ -448,8 +448,9 @@ function complementLeftOf(reservationId, quote, row = model.getRow(reservationId
   const left = Object.fromEntries(Object.keys(stored).map((poste) => [poste, round2(Math.max(0, stored[poste] - live[poste]))]));
   // After the save the stored lines no longer carry what it removed: the options and the activities a
   // collected complement lost are read from the history since it was collected.
-  if (Number(row && row.complementPaid || 0) === 1) {
-    const dropped = droppedSince(reservationId, String(row.complementPaidDate || '').slice(0, 10));
+  const complementPaidDate = String(row && row.complementPaidDate || '').slice(0, 10);
+  if (Number(row && row.complementPaid || 0) === 1 && complementPaidDate) {
+    const dropped = droppedSince(reservationId, complementPaidDate);
     left.options = Math.max(left.options, round2(dropped.options));
     left.resources = Math.max(left.resources, round2(dropped.resources));
   }

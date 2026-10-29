@@ -199,7 +199,7 @@ export default function RefundDialog({
           {!(overpaymentTtc > 0) && openOverpaymentTtc > 0 && onUseOverpayment && (
             <Alert
               severity="warning"
-              action={<Button color="inherit" size="small" onClick={onUseOverpayment} sx={{ minHeight: 44 }}>Rembourser le trop-perçu</Button>}
+              action={<Button color="inherit" size="small" onClick={onUseOverpayment} aria-label="Rembourser le trop-perçu" sx={{ minHeight: 44, whiteSpace: 'nowrap' }}>Rembourser</Button>}
             >
               Un trop-perçu de {formatCurrency(openOverpaymentTtc)} est ouvert.
             </Alert>
