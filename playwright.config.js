@@ -33,6 +33,10 @@ process.env.TZ = 'Europe/Paris';
 
 const isCI = Boolean(process.env.CI);
 
+// The server's stdout/stderr go to a file, not a pipe nobody reads: a failed run keeps what the server said
+// (CI uploads it with the report).
+const SERVER_LOG = process.env.GUESTFLOW_E2E_SERVER_LOG || path.join(__dirname, 'playwright-server.log');
+
 module.exports = defineConfig({
   testDir: path.join(__dirname, 'e2e', 'specs'),
   // Per-spec timeout — the slowest specs are CRUD round-trips with multiple navigations.
@@ -80,7 +84,7 @@ module.exports = defineConfig({
         // ~140 specs a slow CI runner crossed the default 3 000 API requests and got 429s. The limiter
         // keeps its own unit tests; here it would only make the suite's size a failure.
         + ' API_RATELIMIT_MAX=100000'
-        + ' node src/index.js',
+        + ` node src/index.js > "${SERVER_LOG}" 2>&1`,
       url: `http://127.0.0.1:${SERVER_PORT}/api/version`,
       // Always start fresh — see the "DB wipe at config-eval time" comment above. Reusing a
       // server from a previous run would leave the server pointing at an unlinked inode

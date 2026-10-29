@@ -17,7 +17,7 @@ const paymentLinksModel = require('../../models/paymentLinksModel');
 const paymentProviders = require('../../utils/paymentProviders');
 const { retireOpenLink } = require('../../utils/paymentLinkDeactivation');
 const { ensurePaymentLink } = require('../../utils/paymentRequestService');
-const { processPaidLink } = require('../../utils/paymentPollRunner');
+const { processPaidLink, retryPendingCancellations } = require('../../utils/paymentPollRunner');
 const { buildPaymentEffectDeps } = require('../../utils/paymentEffectDeps');
 const { fullPaymentCents, fullPaymentComponents } = require('../../utils/devisQuote');
 const { resolvePublicPaymentMode, depositPaymentCents, depositPaymentComponents } = require('../../utils/publicPaymentMode');
@@ -175,6 +175,27 @@ function recap(reservationRow) {
   return out;
 }
 
+// A link retired by the stay's own payment may have been paid anyway (the guest still holds its URL):
+// settle it now, so the double payment is flagged while the guest is on the page. The page polls every few
+// seconds, so a link is asked about at most once per OWED_RETRY_MINUTES (the webhook covers the rest), and a
+// rate limit stops the loop (specs/payment-polling-fair-use.md).
+const OWED_RETRY_MINUTES = 5;
+async function settleOwedRetiredLinks(devisId) {
+  const provider = paymentProviders.declared();
+  if (!provider) return;
+  try {
+    const now = Date.now();
+    const owed = paymentLinksModel.listForReservation(devisId)
+      .filter((l) => l.status === 'cancelled' && l.remoteCancelPendingAt && l.providerLinkId && l.provider === provider.id)
+      .filter((l) => !(Date.parse(l.lastPolledAt) > now - OWED_RETRY_MINUTES * 60 * 1000));
+    for (const l of owed) {
+      paymentLinksModel.touchPolled(l.id);
+      const { stoppedBy } = await retryPendingCancellations({ ...buildPaymentEffectDeps(), provider, only: l.id });
+      if (stoppedBy) break;
+    }
+  } catch (e) { /* best-effort — the poll retries */ }
+}
+
 async function status(req, res) {
   const id = Number(req.params.id);
   const token = req.query && req.query.token;
@@ -188,7 +209,10 @@ async function status(req, res) {
     return ok(res, { status: r && r.bookingConflictAt ? 'conflict' : 'confirmed', ...recap(r) });
   };
   // Already confirmed (by the webhook / a prior poll)? loadPublicDevis tags it `already_converted`.
-  if (error === 'already_converted') return asConfirmed(row.convertedReservationId);
+  if (error === 'already_converted') {
+    await settleOwedRetiredLinks(id);
+    return asConfirmed(row.convertedReservationId);
+  }
 
   // On-demand reconciliation: if the devis's open link (deposit OR full, per the property's mode) is paid
   // at Qonto but not yet processed, process it now (best-effort) so the success page sees `confirmed`
@@ -212,6 +236,9 @@ async function status(req, res) {
       }
     } catch (e) { /* best-effort — fall through to pending */ }
   }
+  await settleOwedRetiredLinks(id);
+  const converted = db.prepare('SELECT convertedReservationId FROM reservations WHERE id = ?').get(id);
+  if (converted && converted.convertedReservationId) return asConfirmed(converted.convertedReservationId);
   return ok(res, { status: 'pending' });
 }
 

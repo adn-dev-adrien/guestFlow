@@ -136,8 +136,8 @@ test('Case 4bis: NEW model — operator-entered commission, no clientGrossAmount
 });
 
 // specs/accounting-platform-commission-and-no-deposit.md rule 12
-test('Case 4ter: real Booking reservation (Estelle Z.) — revenu brut 102.50, commission 16.48, versement 86.02', () => {
-  // Regression for the prod report (2026-06-22): Booking #6622323293. The owner listed the stay at
+test('Case 4ter: real Booking reservation (Mike F.) — revenu brut 102.50, commission 16.48, versement 86.02', () => {
+  // Regression for the prod report (2026-06-22): Booking #6600000003. The owner listed the stay at
   // 102,50 € (= what the guest pays the platform), Booking kept 16,48 € commission, and wired 86,02 €.
   // The accounting MUST surface: CA (revenu brut) = 102,50 ; commission = 16,48 ; net (versement) = 86,02.
   // Booking is unknown to the commissionContext map → default account 622600, no VAT on the commission.
@@ -164,7 +164,7 @@ test('Case 4ter: real Booking reservation (Estelle Z.) — revenu brut 102.50, c
 
 // specs/accounting-platform-commission-and-no-deposit.md rule 10
 test('Case 4ter-bis: stored solde is the FULL total (older résa, not re-saved after « solde = net »)', () => {
-  // Prod bug 2026-06-22 (Estelle Z. after the deploy): the reservation kept its OLD stored balance =
+  // Prod bug 2026-06-22 (Mike F. after the deploy): the reservation kept its OLD stored balance =
   // the full total (102,50), not the net (86,02), because it predates « solde = net » and was never
   // re-saved. The gross-up must derive its ratio from the ACTUAL stored sum, not from (finalPrice −
   // commission) — otherwise it double-grosses (CA 122,14 / net 105,66). Whatever the stored balance,

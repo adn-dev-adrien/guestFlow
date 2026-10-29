@@ -37,6 +37,7 @@ function collectedOnSchedule(row = {}, captured = {}) {
  * ledger compares a posted fiche and the stored stay in (a delta must not mix refund bases).
  */
 function engineExcessOf({ row = {}, captured = {}, depositAmount, balanceAmount, engineOverTtc = 0 }) {
+  if (!isDirectChannel(row.platform)) return 0;
   const pick = (given, stored) => Number((given === undefined ? stored : given) || 0);
   const due = pick(depositAmount, row.depositAmount) + pick(balanceAmount, row.balanceAmount);
   return round2(Math.max(collectedOnSchedule(row, captured) - due, Number(engineOverTtc) || 0));
@@ -154,8 +155,18 @@ function overpaymentLinesOf({ row = {}, capturedByPoste = {}, quote = {}, overpa
     const rest = round2(total - complementExcess);
     const lines = rest > 0 ? scheduleLines({ row, capturedByPoste, quote, total: rest, leftover }) : [];
     let remaining = complementExcess;
-    const add = (poste, amount) => {
-      const part = Math.min(remaining, round2(amount));
+    // The history window of the complement overlaps the schedule's: the hints can add up to more than the
+    // complement lost. Only that overflow is taken back, from the postes the schedule share already covers
+    // (whatever the way it was split), so a drop that really belongs to the complement is never cut.
+    let overflow = Math.max(0, round2(['touristTax', 'options', 'resources'].reduce((t, k) => t + Number(complementLeft[k] || 0), 0) - complementExcess));
+    const taken = (poste) => {
+      const share = round2(lines.filter((l) => l.bucket === poste.bucket).reduce((t, l) => t + l.amountTtc, 0));
+      const cut = Math.min(overflow, share);
+      overflow = round2(overflow - cut);
+      return cut;
+    };
+    const add = (poste, amount, alreadyTaken = 0) => {
+      const part = Math.min(remaining, Math.max(0, round2(amount - alreadyTaken)));
       if (!(part > 0)) return;
       const existing = lines.find((l) => l.bucket === poste.bucket);
       if (existing) existing.amountTtc = round2(existing.amountTtc + part);
@@ -165,8 +176,8 @@ function overpaymentLinesOf({ row = {}, capturedByPoste = {}, quote = {}, overpa
     // What the edit took out of the complement, poste by poste (the tourist tax included), when the stored
     // lines say so; the unexplained rest falls on the prestations the stay still sells.
     add(POSTES[3], complementLeft.touristTax);
-    add(POSTES[1], complementLeft.options);
-    add(POSTES[2], complementLeft.resources);
+    add(POSTES[1], complementLeft.options, taken(POSTES[1]));
+    add(POSTES[2], complementLeft.resources, taken(POSTES[2]));
     add(complementExcessPoste(quote), remaining);
     return lines;
   }

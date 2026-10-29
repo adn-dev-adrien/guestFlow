@@ -1,0 +1,1 @@
+- **Online payment — a hung Qonto request no longer blocks the poll for minutes** (`payment-polling-fair-use.md` rule 12): each request is aborted after 20 s (`QONTO_REQUEST_TIMEOUT_MS`) and fails as a network failure.

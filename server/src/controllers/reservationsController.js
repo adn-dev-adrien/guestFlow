@@ -121,7 +121,7 @@ function ledgerFor({ row, quote = null, live = {}, propertyId = null, overpaymen
   let refunds = [];
   let penalties = [];
   if (id) {
-    try { links = require('../models/paymentLinksModel').listForReservation(id); } catch { links = []; }
+    try { links = require('../models/paymentLinksModel').listForStay(id); } catch { links = []; }
     try { refunds = refundsModel.listByReservation(id); } catch { refunds = []; }
     try { penalties = require('../models/platformPenaltiesModel').listFor(id); } catch { penalties = []; }
   }
@@ -446,6 +446,14 @@ function complementLeftOf(reservationId, quote, row = model.getRow(reservationId
   for (const line of model.buildArrivalComplementDetail(reservationId).detail || []) if (key[line.kind]) stored[key[line.kind]] += Number(line.amount || 0);
   for (const line of quote.complementDetailLines || []) if (key[line.kind]) live[key[line.kind]] += Number(line.amount || 0);
   const left = Object.fromEntries(Object.keys(stored).map((poste) => [poste, round2(Math.max(0, stored[poste] - live[poste]))]));
+  // After the save the stored lines no longer carry what it removed: the options and the activities a
+  // collected complement lost are read from the history since it was collected.
+  const complementPaidDate = String(row && row.complementPaidDate || '').slice(0, 10);
+  if (Number(row && row.complementPaid || 0) === 1 && complementPaidDate) {
+    const dropped = droppedSince(reservationId, complementPaidDate);
+    left.options = Math.max(left.options, round2(dropped.options));
+    left.resources = Math.max(left.resources, round2(dropped.resources));
+  }
   // Once the save has run, the stored lines already carry the lower tax: what the complement collected
   // is read from the history (the value the tax had before its first change since the collection).
   const routed = Boolean(quote.touristTaxInComplement || quote.touristTaxCollectedOnArrival);
@@ -523,7 +531,10 @@ function droppedSinceCollection(reservationId, row) {
     const first = db.prepare('SELECT MIN(paidDate) AS d FROM reservation_installments WHERE reservationId = ? AND paid = 1 AND paidDate IS NOT NULL').get(Number(reservationId));
     if (first && first.d) dates.push(String(first.d).slice(0, 10));
   } catch { /* no installments table */ }
-  const since = dates.sort()[0] || '';
+  return droppedSince(reservationId, dates.sort()[0] || '');
+}
+
+function droppedSince(reservationId, since) {
   const total = (signature) => String(signature || '').split('|').filter(Boolean).reduce((t, part) => t + (Number(part.split(':')[2]) || 0), 0);
   const net = { options: 0, resources: 0, touristTax: 0 };
   const entries = db.prepare("SELECT changedFields, createdAt FROM reservation_history WHERE reservationId = ? AND eventType = 'update' ORDER BY id").all(Number(reservationId));
@@ -2578,5 +2589,5 @@ module.exports = {
 };
 
 // Test surface: the guard of a payment mark, exercised without an HTTP round-trip.
-module.exports.__test = { paymentMarkRefusal, staleFicheRefusal };
+module.exports.__test = { paymentMarkRefusal, staleFicheRefusal, complementLeftOf };
 module.exports.storedOverpayment = storedOverpayment;

@@ -31,11 +31,13 @@ function seed({ deposit = 100, balance = 355.36 } = {}) {
 
 const reprice = (db, id, deposit, balance) => db.prepare('UPDATE reservations SET depositAmount = ?, balanceAmount = ?, finalPrice = ? WHERE id = ?').run(deposit, balance, deposit + balance, id);
 
+// retireSettled is off on purpose: these cases pay two still-open links, the race of two webhooks. The
+// retired-link path is covered by payment-links-converted-devis-double-payment.unit.test.js (payRetired).
 async function pay(db, links, link, extra = {}) {
   const alerts = [];
   const confirmations = [];
   const out = await processPaidLink({
-    database: db, devisModel: devisModel.buildModel(db), paymentLinksModel: links, link: links.findById(link.id),
+    database: db, devisModel: devisModel.buildModel(db), paymentLinksModel: Object.assign(Object.create(links), { retireSettled: () => [] }), link: links.findById(link.id),
     paidPayment: { paid: true, paymentId: `pay_${link.id}`, paidAt: '2027-04-01T10:00:00Z' },
     sendConfirmation: async (rid) => confirmations.push(rid),
     notifyPaidAfterCancel: async (l, o) => alerts.push(o),

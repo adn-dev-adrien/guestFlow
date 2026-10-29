@@ -161,7 +161,7 @@ platforms, **NULL** for direct bookings. No backfill needed (NULL = no commissio
 > séjour so Σ debits = Σ credits = total séjour. **Bugfix 2026-06-22:** the ratio uses the ACTUAL stored
 > sum, NOT a fixed `finalPrice − commission` denominator — older platform reservations (or any not re-saved
 > after « solde = net ») still store the FULL total in the solde, and a fixed denominator double-grossed them
-> (prod: Estelle Z. showed CA 122,14 / net 105,66 instead of 102,50 / 86,02). With `finalPrice / storedSum`
+> (prod: Mike F. showed CA 122,14 / net 105,66 instead of 102,50 / 86,02). With `finalPrice / storedSum`
 > the CA = `finalPrice` and the net = `finalPrice − commission` whatever the stored balance's shape.
 > A **legacy fallback** keeps the old gross-based recognition for reservations that still have a stored
 > `clientGrossAmount` and no entered commission. Confirmed by questionnaire: CA = total séjour, VAT at the
@@ -171,7 +171,7 @@ platforms, **NULL** for direct bookings. No backfill needed (NULL = no commissio
 > **Accounting display (AccountingPage).** The platforms table + the journal cards now show
 > **Revenu brut / Commission / Net perçu (versement)** — the net is `encaissementNetTtc` (exposed as
 > `net` by `platformsPreview` + the structured export), so the operator can reconcile against the
-> platform's actual bank transfer. Validated on the real prod case Booking #6622323293 (Estelle Z.):
+> platform's actual bank transfer. Validated on the real prod case Booking #6600000003 (Mike F.):
 > revenu brut 102,50 € · commission 16,48 € · versement 86,02 € (was wrongly showing commission 0,01 €
 > and no versement under the old gross-based model). The sales CSV already carries the columns the
 > accountant requires (Jour/Mois/Année, comptes 70600000/70600010/70601000, TVA 44571200/44571100,
