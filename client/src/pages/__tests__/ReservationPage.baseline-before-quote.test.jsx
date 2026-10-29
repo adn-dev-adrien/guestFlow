@@ -61,6 +61,11 @@ test('an edit typed before the first quote resolves stays an edit: Enregistrer i
   );
   fireEvent.change(await screen.findByLabelText(/^Notes/i), { target: { value: 'Tapée avant le devis' } });
   await waitFor(() => expect(resolveQuote).toBeTypeOf('function'));
+  // Still before the quote: the edit can already be saved, and leaving asks first.
+  expect(await screen.findByRole('button', { name: 'Enregistrer' })).toBeEnabled();
+  fireEvent.click(screen.getByRole('button', { name: 'Annuler' }));
+  expect(await screen.findByText('Modifications non enregistrées')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Rester sur la page' }));
   resolveQuote({ optionLines: [], resourceLines: [] });
   const save = await screen.findByRole('button', { name: 'Enregistrer' });
   await waitFor(() => expect(save).toBeEnabled());

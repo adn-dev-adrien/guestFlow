@@ -628,7 +628,10 @@ export default function ReservationPage() {
     // « Recalculer » flips it (via `touristTaxRefreshRequested`), and without it here the memo
     // stays stale, the live-preview effect never re-fires, and the tax only recomputes after a save.
   }), [selectedProp, form.startDate, form.endDate, form.checkInTime, form.checkOutTime, form.adults, form.children, form.teens, form.babies, form.babyBeds, form.extraGuestSurchargeOffered, form.discountPercent, form.customPrice, form.depositPaid, form.balancePaid, form.depositAmount, form.balanceAmount, form.depositAmountOverride, form.complementAmountOverride, form.selectedOptions, form.customOptions, form.selectedResources, propertyOptions, offeredOptionIds, form.platform, form.depositDisabled, form.touristTaxInComplement, form.autoOptionsInComplement, form.platformCommissionAmount, form.acompteCommissionAmount, form.platformGrossAmount, form.platformTouristTaxAmount, refreshTouristTax]);
-  const isDirty = initialSnapshot !== null && formSnapshot !== initialSnapshot;
+  // Until the first quote lands the clean baseline is the form as loaded: an edit typed in that window is
+  // already an edit (it can be saved, and leaving asks first).
+  const cleanBaseline = initialSnapshot !== null ? initialSnapshot : loadedSnapshotRef.current;
+  const isDirty = cleanBaseline !== null && formSnapshot !== cleanBaseline;
   // Review of #727 (H2) — a mark re-reads what the server wrote, then the quote re-prices the form on
   // that state: neither is an edit. A fiche that was clean takes its baseline again once that quote has
   // landed.

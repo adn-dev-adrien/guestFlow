@@ -122,9 +122,11 @@ changed something the price depends on; money collected beyond the total is repo
    figure the summary still prints as the platform's tax (#22282: 16,02 € then, 19,20 € calculés). Nothing is rewritten on its own: #22270,
    #22282, #22301 and #22304 are re-saved by the operator.
 7. **The fiche's Enregistrer is disabled on a clean form** (and stays enabled once « Recalculer » is
-   requested).
-   > **Sans test** — one prop of a 4 000-line page; read in the browser on the shadow copy (the button is
-   > disabled until a field changes).
+   requested). The clean baseline of a loaded fiche is **the form as loaded**, plus what the quote writes
+   into it (`applyQuoteToForm` on the baseline, never on the live form); a payment mark re-baselines the same
+   way, and a reload (STALE_FICHE included) takes it again. Until the first quote lands the baseline is the
+   loaded form itself, so an edit typed meanwhile is already an edit: it can be saved, and leaving asks first
+   (« Modifications non enregistrées »).
 
 **Edge cases:**
 - In the extras window of a started fiche a custom line is keyed by its text (end-of-stay complement,
@@ -198,6 +200,9 @@ An amber alert above the platform price alert, one per notice, 44 px action targ
       un-collecting) and the legacy fallback.
 - [x] `plugins/accounting-export/tests/accounting-complement-excess-refund.unit.test.js` (2) — the excess
       refunded by transfer is booked on 70600010, by caisse interne nowhere.
+- [x] Client `ReservationPage.baseline-before-quote.test.jsx` (1) — rule 7: a note typed before the first quote
+      resolves (deferred mock) enables Enregistrer, shows the unsaved-changes dialog on leaving, and is sent;
+      `ReservationPage.bed-counts-zero.test.jsx` (3) — rule 7: a user edit then Enregistrer on a loaded fiche.
 - [x] `fiche-pricing-notices.unit.test.js` (6) — rules 5-6; client `PricingNotices.test.jsx` (3).
 - [x] Client `RefundDialog.overpayment.test.jsx` (5, `defaultMethod`) and `FinanceSection.refunds.test.jsx`
       (7, the row's own prefill).
