@@ -37,6 +37,7 @@ function collectedOnSchedule(row = {}, captured = {}) {
  * ledger compares a posted fiche and the stored stay in (a delta must not mix refund bases).
  */
 function engineExcessOf({ row = {}, captured = {}, depositAmount, balanceAmount, engineOverTtc = 0 }) {
+  if (!isDirectChannel(row.platform)) return 0;
   const pick = (given, stored) => Number((given === undefined ? stored : given) || 0);
   const due = pick(depositAmount, row.depositAmount) + pick(balanceAmount, row.balanceAmount);
   return round2(Math.max(collectedOnSchedule(row, captured) - due, Number(engineOverTtc) || 0));
