@@ -28,7 +28,7 @@ function slowCalendar(latency = 15) {
   };
 }
 
-function engineFor(calendar, { cancelled = new Set() } = {}) {
+function engineFor(calendar, { cancelled = new Set(), opTimeoutMs } = {}) {
   const stay = (id) => ({
     id, propertyId: 1, propertyName: 'Villa', clientLastName: 'Doe', clientFirstName: 'Jane',
     startDate: '2026-06-01', endDate: '2026-06-03', checkInTime: '15:00', checkOutTime: '10:00',
@@ -43,6 +43,7 @@ function engineFor(calendar, { cancelled = new Set() } = {}) {
     model: { getReservationForSync: (id) => (cancelled.has(Number(id)) ? null : stay(Number(id))), listReservationsForSync: () => [] },
     getCalendar: () => calendar,
     log: () => {},
+    ...(opTimeoutMs ? { opTimeoutMs } : {}),
   });
 }
 
@@ -95,4 +96,31 @@ test('a failing operation does not block the next one of the same reservation', 
   engine.schedulePush(7);
   await settle(calendar);
   assert.equal(calendar.store.size, 1);
+});
+
+test('rule 27: a call that never answers is abandoned after the bound and the next queued op runs', async () => {
+  const calendar = slowCalendar(2);
+  const logged = [];
+  let hang = true;
+  const realUpdate = calendar.events.update;
+  calendar.events.update = (args) => (hang ? new Promise(() => {}) : realUpdate(args));
+  const engine = create({
+    settings: { googleConnected: () => true, googleCalendarSelection: () => ({ calendarId: 'cal-1' }), recordGoogleSyncResult: () => {} },
+    model: { getReservationForSync: (id) => ({ id, propertyId: 1, propertyName: 'V', clientLastName: 'D', clientFirstName: 'J', startDate: '2026-06-01', endDate: '2026-06-03', checkInTime: '15:00', checkOutTime: '10:00', adults: 2, children: 0, teens: 0, babies: 0, singleBeds: 0, doubleBeds: 1, babyBeds: 0, options: [] }) },
+    getCalendar: () => calendar,
+    log: (...a) => logged.push(a.join(' ')),
+    opTimeoutMs: 40,
+  });
+  engine.schedulePush(7);
+  engine.schedulePush(7);
+  await tick(20);
+  hang = false;
+  await settle(calendar);
+  assert.equal(calendar.store.size, 1, 'the second push ran after the first was abandoned');
+  assert.ok(logged.some((l) => /schedulePush/.test(l) && /ne répond pas/.test(l)), logged.join('|'));
+});
+
+test('rule 27: the HTTP bound is 20 s on the calendar client and the token transporter', () => {
+  const { REQUEST_TIMEOUT_MS } = require('../oauthClient');
+  assert.equal(REQUEST_TIMEOUT_MS, 20000);
 });

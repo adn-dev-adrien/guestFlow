@@ -38,6 +38,7 @@
     ],
     "1.2.3": [
       "Un séjour annulé ne laisse plus d’événement dans l’agenda quand l’annulation arrive pendant l’envoi du séjour.",
+      "Un appel à Google qui ne répond pas est abandonné au bout de 20 s et repris à la synchronisation suivante.",
       "Compatible avec le SDK 2 de GuestFlow."
     ]
   }

@@ -12,7 +12,7 @@
  * is cached per refresh-token blob so a burst of pushes doesn't mint one access token each).
  */
 
-const { buildGoogleOAuthClient, isInvalidGrant } = require('./oauthClient');
+const { buildGoogleOAuthClient, isInvalidGrant, REQUEST_TIMEOUT_MS } = require('./oauthClient');
 const { mapGoogleError } = require('./client');
 const {
   buildGoogleEventPayload,
@@ -39,6 +39,7 @@ function createGoogleCalendarSync({
   // specs/plugins-phase-0-foundation.md rule 15 — the plugin wires its live state; a factory built by
   // a test syncs unless told otherwise.
   pluginActive = () => true,
+  opTimeoutMs = REQUEST_TIMEOUT_MS * 2,
 } = {}) {
   // Default client cache, keyed on the ENCRYPTED token blob: no decrypt on the fast path,
   // and googleapis keeps refreshing the access token in memory instead of doing one
@@ -215,9 +216,19 @@ function createGoogleCalendarSync({
   // push is between its update (404) and its insert would find nothing, then the insert would create the
   // event of a cancelled stay. Different reservations stay parallel.
   const tails = new Map();
+  // A call that never answers is abandoned after `opTimeoutMs` (the HTTP timeout, plus its update-then-insert
+  // second call): the queue moves on and the next reconcile retries, event ids being deterministic.
+  function bounded(task) {
+    let timer;
+    const timeout = new Promise((_, reject) => {
+      timer = setTimeout(() => reject(Object.assign(new Error('Google Agenda ne répond pas.'), { code: 'ETIMEDOUT' })), opTimeoutMs);
+    });
+    return Promise.race([task(), timeout]).finally(() => clearTimeout(timer));
+  }
+
   function inOrder(reservationId, task) {
     const previous = tails.get(reservationId) || Promise.resolve();
-    const run = previous.then(task);
+    const run = previous.then(() => bounded(task));
     const tail = run.catch(() => {});
     tails.set(reservationId, tail);
     tail.then(() => { if (tails.get(reservationId) === tail) tails.delete(reservationId); });
