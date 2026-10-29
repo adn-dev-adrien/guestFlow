@@ -281,8 +281,10 @@ guessing; and the quote the guest receives looks like the house that sends it.
     `__tests__/operator-wording.impersonal.test.js` (no « Veuillez », « Voulez-vous » or « Êtes-vous » left
     in the client's sources).
 37. **Touch leftovers (audit R3, 2026-10-29).** On a finger-driven screen: the `mailto:` / `tel:` links of
-    the Clients directory are MUI `Link`s 44 px tall (side by side when they fit, otherwise stacked; the
-    row grows only on touch); the devis number link and the clickable sentences of the e-mail preview
+    the Clients directory: the e-mail is a MUI `Link` 44 px tall; on a coarse pointer the phone number
+    is no longer a link and calling goes through the row's 44 px call button, placed at the end of the
+    contact column (decided by Adrien 2026-10-29, « Bouton d'appel seul »: the row keeps its height, about
+    73 px; the mouse layout keeps both text links); the devis number link and the clickable sentences of the e-mail preview
     (« Modifier : objet ») use `touchHitArea`; « Changer la couleur » uses it too (the swatch's border made
     its old hit area 42 px); the laundry weekday toggles are 44 px wide from 388 px (the row bleeds 8 px
     into the card's padding, 4 + 3 below). The default-hour field of a single-slot option grid is named
