@@ -394,7 +394,7 @@ Other facts the design rests on:
 37. **Retries of different scopes never share a result (2026-10-29).** `retryPendingCancellations` shares a run
     only with a call of the same scope (all links, or one `only`); different scopes are chained. A webhook for
     link Y during the retry of X settles Y, and a cron tick during a targeted retry still runs its list.
-38. **`/status` answers the stay (`confirmed`, or `conflict`) when its own retry converted the devis (2026-10-29).** The row is re-read after
+38. **`/status` answers the stay (`confirmed`, or `conflict` when the dates are taken) when its own retry converted the devis (2026-10-29).** The row is re-read after
     the owed links are settled.
 
 ## 4. Architecture

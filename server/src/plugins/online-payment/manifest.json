@@ -74,7 +74,8 @@
       "Exemple de téléphone d’un commentaire rendu anonyme (SDK 2 inchangé)."
     ],
     "1.4.2": [
-      "Un lien déjà abandonné puis payé par le voyageur est traité dès la notification de paiement (SDK 2 inchangé)."
+      "Un lien déjà abandonné puis payé par le voyageur est traité dès la notification de paiement (SDK 2 inchangé).",
+      "Une requête Qonto sans réponse est interrompue au bout de 20 secondes."
     ]
   }
 }
