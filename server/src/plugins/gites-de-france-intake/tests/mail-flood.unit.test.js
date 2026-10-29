@@ -41,3 +41,21 @@ test('rule 30: a second pass downloads none of the mails the first one saw', asy
   for (const m of [INVOICE, HUGE]) if (!h.seen(m.messageId)) delivered += 1;
   assert.equal(delivered, 0);
 });
+
+// Review of PR #865 — rule 31.
+test('rule 31: two passes at once (job tick + « Lire maintenant ») both succeed, one row', async () => {
+  const { service, db } = setup({ slowRead: true });
+  const results = await Promise.allSettled([service.runPass(), service.runPass()]);
+  assert.deepEqual(results.map((r) => r.status), ['fulfilled', 'fulfilled']);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM gdf_intakes').get().n, 1);
+});
+
+test('rule 31: ignored rows are not counted as read mails, and are purged after the 30-day window', async () => {
+  const { service, intakes, db } = setup({ mails: [INVOICE] });
+  await service.runPass();
+  assert.equal(intakes.count(), 0);
+  db.prepare("UPDATE gdf_intakes SET receivedAt = '2026-01-01T00:00:00.000Z'").run();
+  await service.runPass();
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM gdf_intakes').get().n, 1, 'old ignored row purged, then the unseen mail ignored again');
+  assert.equal(db.prepare("SELECT receivedAt FROM gdf_intakes").get().receivedAt, INVOICE.receivedAt);
+});

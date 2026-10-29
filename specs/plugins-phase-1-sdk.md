@@ -418,6 +418,10 @@ Optional: a plugin that declares nothing reads « Actif ».
 31. *(Added 2026-10-29, audit round 3, N-0, SDK 2.15.0.)* **`sdk.manifestVersion(__dirname)`** returns the
     running plugin's version, from the manifest in the plugin folder (source tree) or one level up (package).
     Test: `plugin-built-package-manifest.unit.test.js`.
+32. *(Added 2026-10-29, review of PR #865, SDK 2.15.0.)* **`readMailsFrom` caps only the unauthenticated mails**
+    (`limit`), fetches envelopes in bulk (500 UIDs per request, `client.fetch`), and delivers the DKIM-verified
+    mails first. `manifestVersion` is cached per folder and throws a clear error when no manifest is found.
+    Tests: `mail-reader-flood.unit.test.js`, `plugin-built-package-manifest.unit.test.js`.
 
 **Edge cases:**
 - **A plugin throws during `register`.** Rule 4 applies: the other plugins and the core boot. The Plugins

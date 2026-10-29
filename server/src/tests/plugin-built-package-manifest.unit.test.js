@@ -57,3 +57,15 @@ for (const id of ['gites-de-france-intake', 'airbnb-intake']) {
     }
   });
 }
+
+test('rule 52: manifestVersion is cached per folder, and names the folder when there is no manifest', () => {
+  const sdk = require('../plugins/sdk');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gf-mv-'));
+  assert.throws(() => sdk.manifestVersion(path.join(dir, 'server')), /no manifest\.json in .*server/);
+  fs.writeFileSync(path.join(dir, 'manifest.json'), JSON.stringify({ version: '1.2.3' }));
+  fs.mkdirSync(path.join(dir, 'server'));
+  assert.equal(sdk.manifestVersion(path.join(dir, 'server')), '1.2.3');
+  fs.writeFileSync(path.join(dir, 'manifest.json'), JSON.stringify({ version: '9.9.9' }));
+  assert.equal(sdk.manifestVersion(path.join(dir, 'server')), '1.2.3', 'cached');
+  fs.rmSync(dir, { recursive: true, force: true });
+});

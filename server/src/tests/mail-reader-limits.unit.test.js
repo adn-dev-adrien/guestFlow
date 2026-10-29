@@ -39,7 +39,7 @@ test('rule 26: the reader skips the oversized mail and returns the others', asyn
     async connect() {}
     async getMailboxLock() { return { release() {} }; }
     async search() { return [1, 2]; }
-    async fetchOne(uid) { return message(Number(uid)); }
+    async *fetch(range) { for (const uid of String(range).split(',')) yield message(Number(uid)); }
     async download(uid) { return streamOf(Number(uid) === 1 ? MAX_PART_BYTES + 10 : 100).download(); }
     async logout() {}
   }

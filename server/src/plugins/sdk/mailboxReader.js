@@ -6,7 +6,8 @@
  *
  * Rule 30 (audit r3, external N5): the caller may pass `seen(messageId)` — a known mail is skipped before its
  * body is downloaded —, `onMail(mail)` — each mail is handed over as it is read and none is kept, the
- * function then returns `[]` — and `limit` (default 200) — at most that many bodies per pass, newest first.
+ * function then returns `[]` — and `limit` (default 200) — at most that many UNAUTHENTICATED bodies per pass, newest first (rule 31: a mail with
+ * a good DKIM verdict is read whatever the cap).
  * Without `onMail` it returns `[{ messageId, receivedAt, sentAt, subject, text, authenticated, authReason }]`, the text being
  * the plain-text part, or the HTML part reduced to text when the mail has no plain part.
  *
@@ -137,6 +138,7 @@ const coreSmtpHost = () => require('./coreServices').settings.mailbox().host;
 
 // Rule 30 (audit r3, external N5) — a pass downloads at most this many bodies, newest first.
 const MAX_MAILS_PER_PASS = 200;
+const ENVELOPE_CHUNK = 500;
 
 async function readMailsFrom({
   host, port = 993, user, password, sender, allowedDomains = null, trustedAuthservId = '',
@@ -159,26 +161,39 @@ async function readMailsFrom({
     // returned in one array. An oversized part is handed over as `{ skipped: 'tooLarge', text: '' }` so the
     // caller can remember it; the array leaves it out.
     const deliver = onMail || ((mail) => { if (!mail.skipped) out.push(mail); });
-    let delivered = 0;
-    for (const uid of [...(uids || [])].reverse()) {
-      if (delivered >= limit) break;
-      const msg = await client.fetchOne(String(uid), { envelope: true, bodyStructure: true, internalDate: true, headers: ['authentication-results'] }, { uid: true });
-      if (!msg || !addressMatches(msg.envelope, sender)) continue;
-      const messageId = (msg.envelope && msg.envelope.messageId) || `uid:${uid}`;
-      if (seen(messageId)) continue;
-      delivered += 1;
-      const auth = verifyDkim(msg.headers, { domains, trustedAuthservId: trusted });
-      const plainPart = findPart(msg.bodyStructure, 'text/plain');
-      const htmlPart = plainPart ? null : findPart(msg.bodyStructure, 'text/html');
-      const partId = plainPart || htmlPart;
-      const raw = partId ? await readPart(client, uid, partId) : '';
+    // Rule 31 — the envelopes and the authentication header come in bulk, newest first, before any body: a
+    // mail whose DKIM verdict is good is always read (the sender's domain vouches for it); the cap only
+    // bounds the unauthenticated ones, which can never auto-apply anyway.
+    const verified = [];
+    const unverified = [];
+    let notRead = 0;
+    const ordered = [...(uids || [])].reverse();
+    for (let at = 0; at < ordered.length; at += ENVELOPE_CHUNK) {
+      const batch = [];
+      // eslint-disable-next-line no-await-in-loop
+      for await (const msg of client.fetch(ordered.slice(at, at + ENVELOPE_CHUNK).join(','), { envelope: true, bodyStructure: true, internalDate: true, headers: ['authentication-results'] }, { uid: true })) batch.push(msg);
+      batch.sort((x, y) => y.uid - x.uid).forEach((msg) => {
+        if (!msg || !addressMatches(msg.envelope, sender)) return;
+        const messageId = (msg.envelope && msg.envelope.messageId) || `uid:${msg.uid}`;
+        if (seen(messageId)) return;
+        const auth = verifyDkim(msg.headers, { domains, trustedAuthservId: trusted });
+        if (!auth.ok && unverified.length >= limit) { notRead += 1; return; }
+        const plainPart = findPart(msg.bodyStructure, 'text/plain');
+        (auth.ok ? verified : unverified).push({
+          uid: msg.uid, messageId, auth, plainPart, partId: plainPart || findPart(msg.bodyStructure, 'text/html'), envelope: msg.envelope, internalDate: msg.internalDate,
+        });
+      });
+    }
+    if (notRead) log(`mail intake: ${notRead} unauthenticated mails not read in this pass (cap ${limit}); the newest were read first`);
+    for (const { uid, messageId, auth, plainPart, partId, envelope, internalDate } of [...verified, ...unverified]) {
+      const raw = partId ? await readPart(client, uid, partId) : ''; // eslint-disable-line no-await-in-loop
       const tooLarge = Boolean(raw && raw.tooLarge);
       if (tooLarge) log(`mail intake: ${messageId} skipped, its text part is over ${MAX_PART_BYTES} bytes (read ${raw.tooLarge}+)`);
       await deliver({ // eslint-disable-line no-await-in-loop
         messageId,
-        receivedAt: new Date(msg.internalDate || (msg.envelope && msg.envelope.date) || now).toISOString(),
-        sentAt: new Date((msg.envelope && msg.envelope.date) || msg.internalDate || now).toISOString(),
-        subject: (msg.envelope && msg.envelope.subject) || '',
+        receivedAt: new Date(internalDate || (envelope && envelope.date) || now).toISOString(),
+        sentAt: new Date((envelope && envelope.date) || internalDate || now).toISOString(),
+        subject: (envelope && envelope.subject) || '',
         text: tooLarge ? '' : (plainPart ? raw : htmlToText(raw)),
         authenticated: auth.ok,
         authReason: auth.reason,

@@ -300,6 +300,14 @@ add the phone and e-mail from Airbnb. When the mail cannot be applied, the fiche
     other `ignored` rows they are read again when the plugin's version changes (rule 26). Heap and downloads are
     bounded however many mails the sender flooded. Tests: `tests/mail-reader-flood.unit.test.js`,
     `airbnb-intake/tests/mail-flood.unit.test.js`.
+31. *(Added (review of PR #865, 2026-10-29). (a) The cap bounds only the UNAUTHENTICATED mails: a mail with a good DKIM verdict
+    is read whatever the cap, in a first phase (the verdict comes from the headers, known before any body), so a
+    forged flood cannot push a genuine booking out of the 30-day window; reaching the cap logs how many were left.
+    (b) The envelopes and the authentication header are fetched in bulk, 500 UIDs per request, instead of one
+    request per mail. (c) A pass is single-flight: the job tick and « Lire maintenant » share the running pass,
+    and `insert` is `ON CONFLICT(messageId) DO NOTHING`. (d) `count()` (« N mails … lus ») leaves out `ignored`
+    rows, and an `ignored` row older than the 30-day window plus one day is purged at the start of a pass.
+    Tests: `tests/mail-reader-flood.unit.test.js`, `airbnb-intake/tests/mail-flood.unit.test.js`.
 
 ---
 

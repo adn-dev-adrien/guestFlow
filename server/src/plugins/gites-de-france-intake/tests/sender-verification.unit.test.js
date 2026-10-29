@@ -46,7 +46,7 @@ test('rule 20: a forged proposal does not shadow the genuine mail of the same do
 test('rule 20 (amended by rule 25): a forged mail that does not parse is kept as an ignored row, out of every list', async () => {
   const { service, intakes } = setup({ mails: [mail({ authenticated: false, text: 'Nouvelle réservation : rien de lisible' })] });
   assert.deepEqual(await service.runPass(), { read: 1 });
-  assert.equal(intakes.count(), 1);
+  assert.equal(intakes.count(), 0, 'ignored rows are not counted (rule 31)');
   assert.equal(intakes.get(1).status, 'ignored');
   assert.deepEqual(service.attention(), []);
 });

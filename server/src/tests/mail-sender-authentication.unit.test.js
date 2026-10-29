@@ -113,7 +113,7 @@ function fakeImap(messages) {
     async connect() {}
     async getMailboxLock() { return { release() {} }; }
     async search() { return messages.map((m) => m.uid); }
-    async fetchOne(uid) { return messages.find((m) => String(m.uid) === String(uid)); }
+    async *fetch(range) { for (const uid of String(range).split(',')) yield messages.find((m) => String(m.uid) === uid); }
     async download() { return { content: (async function* body() { yield Buffer.from('corps'); }()) }; }
     async logout() {}
   }
@@ -141,10 +141,10 @@ test('the reader drops a display-name spoof, flags a missing or failing signatur
   ];
   const mails = await reader(messages);
   assert.deepEqual(mails.map((m) => [m.messageId, m.authenticated, m.authReason]), [
+    ['<1@test>', true, 'dkim-pass'],
     ['<5@test>', false, 'dkim-domain-mismatch'],
     ['<4@test>', false, 'dkim-not-pass'],
     ['<3@test>', false, 'no-authentication-results'],
-    ['<1@test>', true, 'dkim-pass'],
   ]);
 });
 

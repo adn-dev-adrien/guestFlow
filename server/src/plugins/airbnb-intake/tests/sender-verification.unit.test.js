@@ -80,7 +80,7 @@ test('rule 22 (amended by rule 26): a forged mail that does not parse is kept as
   const unreadable = mail({ text: 'Code de confirmation : illisible. Vous gagnez : rien.' });
   const forged = setup([{ ...unreadable, authenticated: false }]);
   assert.deepEqual(await forged.service.runPass(), { read: 1 });
-  assert.equal(forged.intakes.count(), 1);
+  assert.equal(forged.intakes.count(), 0, 'ignored rows are not counted (rule 31)');
   assert.equal(forged.intakes.get(1).status, 'ignored');
   assert.deepEqual(forged.service.attention(), []);
   const verified = setup([{ ...unreadable, authenticated: true }]);

@@ -20,6 +20,7 @@ const frDay = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 const localDay = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
 const MAX_MAILS_PER_PASS = 200;
+const SINCE_DAYS = 30;
 
 function createIntakeService(deps) {
   const { intakes, settings, readMails, findReservations, propertyOptions, getReservation, core, parserVersion = null, now = () => new Date() } = deps;
@@ -159,13 +160,21 @@ function createIntakeService(deps) {
     return apply(intake, m.reservation).status;
   }
 
-  async function runPass() {
+  // Rule 31 — one pass at a time: a second call (job tick + « Lire maintenant ») joins the one running.
+  let running = null;
+  function runPass() {
+    if (!running) running = readPass().finally(() => { running = null; });
+    return running;
+  }
+
+  async function readPass() {
     const mailbox = settings.mailbox();
     if (!mailbox.host || !mailbox.user || !mailbox.password) return { skipped: 'Boîte mail non configurée' };
     // Rule 17 — installed with every plugin: nothing is read until a property is tied to a listing.
     if (settings.listings().length === 0) {
       return { skipped: 'Aucun logement relié à une annonce Airbnb' };
     }
+    intakes.purgeIgnored(new Date(now().getTime() - (SINCE_DAYS + 1) * 24 * 3600 * 1000).toISOString());
     let read = 0;
     // Rule 30 — mails arrive one by one: known ones are never downloaded, the others are all remembered
     // (an intake, or `ignored`), and a pass reads at most MAX_MAILS_PER_PASS of them, newest first.

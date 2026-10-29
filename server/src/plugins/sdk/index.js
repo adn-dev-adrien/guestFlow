@@ -13,6 +13,8 @@
 // the money they read or write stays in the core (the SAS commit, the journal's inputs, pricing), the
 // plugin only calls it. One reviewed list, one line per module, each with the plugin that needs it.
 // `coreModule(name)` refuses anything else, so a plugin cannot reach the core by a side door.
+const manifestVersions = new Map();
+
 const CORE_MODULES = Object.freeze({
   database: '../../database', // every plugin model binds to the app's database in production
   settingsModel: '../../models/settingsModel', // core settings a plugin reads (company, VAT, fiscal year)
@@ -136,10 +138,14 @@ module.exports = Object.freeze({
   // The version of the running plugin (audit r3, N-0): its manifest sits next to `server/` in a package and
   // next to `index.js` in the source tree; `dir` is the plugin's `__dirname`.
   manifestVersion: (dir) => {
-    const fs = require('fs');
-    const path = require('path');
-    const at = [path.join(dir, 'manifest.json'), path.join(dir, '..', 'manifest.json')].find((f) => fs.existsSync(f));
-    return JSON.parse(fs.readFileSync(at, 'utf8')).version;
+    if (!manifestVersions.has(dir)) {
+      const fs = require('fs');
+      const path = require('path');
+      const at = [path.join(dir, 'manifest.json'), path.join(dir, '..', 'manifest.json')].find((f) => fs.existsSync(f));
+      if (!at) throw new Error(`manifestVersion: no manifest.json in ${dir} or its parent`);
+      manifestVersions.set(dir, JSON.parse(fs.readFileSync(at, 'utf8')).version);
+    }
+    return manifestVersions.get(dir);
   },
   // Read-only IMAP for the plugins that read booking mails (specs/airbnb-mail-intake.md rule 4).
   mailbox: Object.freeze({

@@ -408,7 +408,7 @@ below are the recommended ones; each is reversible in a later spec.
     2026-10-29). `website-booking` 1.8.6, `booking-intake` 1.3.8, `airbnb-intake` 1.1.3 and
     `gites-de-france-intake` 1.4.5 declare `sdk ^2.15.0` (the linear e-mail check of `settingsValidation`,
     the DKIM « en-tête douteux » refusal, the mailbox reader's caps), so an older core refuses the package
-    (`CORE_INCOMPATIBLE`, « Incompatible avec cette version ») instead of running without them. The floor is
+    (`SDK_INCOMPATIBLE`, « Incompatible avec cette version ») instead of running without them. The floor is
     the SDK, not `guestflow >=3.19.0`: it exists on the integration branch before the core release it will
     ride, so it loads in development and in CI, and it names the feature actually needed. Test:
     `plugin-core-hardening-floor.unit.test.js`.
