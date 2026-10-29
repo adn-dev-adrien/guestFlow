@@ -181,7 +181,7 @@ function emailsFixture() {
     smtpConfigured: () => true,
     decryptedSmtpSettings: () => ({}),
   };
-  const paymentLinksModel = { findOpenForReservation: () => ({ url: 'https://pay.example/pl_X' }) };
+  const paymentLinksModel = { findOpenForStay: () => ({ url: 'https://pay.example/pl_X' }) };
   return buildController({
     database: db,
     templatesModel: buildTemplatesModel(db),

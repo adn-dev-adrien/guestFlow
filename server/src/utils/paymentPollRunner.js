@@ -31,6 +31,7 @@ function recordOn(database) {
 }
 
 const { linkAmountCents, bookPaidAfterAmountChange } = require('./ledgerLinks');
+const { withConvertedDevis } = require('./deletionGuard');
 
 // Apply the business consequence of a PAID link. A deposit OR a full payment on a devis converts it to a
 // reservation; a full payment marks it fully settled (deposit + balance). On conversion the dates are
@@ -97,6 +98,24 @@ function applyPaidEffect({ database, devisModel, link, checkConflict, paidDate =
     return { effect, reservationId, conflict };
   }
 
+  // A link minted on the stay itself, paid after another link of the same stay (its own or the devis it
+  // came from) already took the money: a refund to make, like two links of one devis.
+  if ((isDeposit || isFull) && row.kind === 'reservation') {
+    const second = secondPaidLink(database, link, row.id, isFull);
+    if (second) {
+      if (second.duplicateCents != null) recordPayment({ reservationId: row.id, bucket: 'balance', paidDate });
+      return { effect: 'double-payment', duplicateLink: true, duplicateCents: second.duplicateCents, reservationId: row.id, conflict: false };
+    }
+  }
+
+  if (link.type === 'balance' && row.kind === 'reservation' && Number(row.balancePaid || 0) === 1) {
+    const owners = withConvertedDevis(database, [Number(row.id)]);
+    const earlier = database.prepare(
+      `SELECT 1 FROM payment_links WHERE reservationId IN (${owners.map(() => '?').join(',')}) AND type IN ('balance', 'full') AND status = 'paid' AND id <> ? LIMIT 1`,
+    ).get(...owners, Number(link.id));
+    if (earlier) return { effect: 'double-payment', duplicateLink: true, duplicateCents: null, reservationId: row.id, conflict: false };
+  }
+
   if (isDeposit) {
     recordPayment({ reservationId: link.reservationId, bucket: 'deposit', paidDate });
     return { effect: 'deposit-marked' };
@@ -114,10 +133,12 @@ function applyPaidEffect({ database, devisModel, link, checkConflict, paidDate =
 
 // Two live links of one quote both paid (a retried request minted twice): the second money is a refund
 // to make, not a second payment to record or a second confirmation to send.
+// The links of the stay and of the devis it came from count together: a devis link keeps the devis id.
 function secondPaidLink(database, link, reservationId, isFull) {
+  const owners = withConvertedDevis(database, [Number(reservationId), Number(link.reservationId)]);
   const others = database.prepare(
-    "SELECT type, amountCents FROM payment_links WHERE reservationId = ? AND type IN ('deposit', 'full') AND status = 'paid' AND id <> ?",
-  ).all(Number(link.reservationId), Number(link.id));
+    `SELECT type, amountCents FROM payment_links WHERE reservationId IN (${owners.map(() => '?').join(',')}) AND type IN ('deposit', 'full') AND status = 'paid' AND id <> ?`,
+  ).all(...owners, Number(link.id));
   if (others.length === 0) return null;
   const flags = database.prepare('SELECT depositPaid, balancePaid FROM reservations WHERE id = ?').get(Number(reservationId));
   if (!flags) return null;
@@ -203,8 +224,15 @@ async function processPaidLink({ database, devisModel, paymentLinksModel, link, 
   }
   // The day the guest paid, as the provider says, in Paris time — not the day we noticed.
   const paidDate = require('./stayPaymentRecorder').paidDayOf(p.paidAt);
-  const effect = bookIfAmountChanged({ database, link, paidDate, recordPayment })
-    || applyPaidEffect({ database, devisModel, link, checkConflict, paidDate, recordPayment });
+  // A full link paid while the acompte was collected another way: the acompte part is paid twice.
+  const afterDeposit = fullAfterDeposit(database, link);
+  if (afterDeposit) (recordPayment || recordOn(database))({ reservationId: afterDeposit.stayId, bucket: 'balance', paidDate });
+  const effect = afterDeposit
+    ? { effect: 'double-payment', duplicateLink: true, duplicateCents: afterDeposit.duplicateCents, reservationId: afterDeposit.stayId, conflict: false }
+    : bookIfAmountChanged({ database, link, paidDate, recordPayment })
+      || applyPaidEffect({ database, devisModel, link, checkConflict, paidDate, recordPayment });
+  // The link that just paid settles its bucket: every other open link of it is retired now, not at the next poll.
+  if (typeof paymentLinksModel.retireSettled === 'function') paymentLinksModel.retireSettled();
   if (effect.effect === 'double-payment') {
     // Two live links of one devis both paid: the second money is a refund, kept on the fiche's history.
     if (effect.duplicateLink) {

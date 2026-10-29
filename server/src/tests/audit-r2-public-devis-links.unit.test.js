@@ -35,7 +35,7 @@ const fullCents = (stayId) => { const r = rowOf(stayId); return Math.round((r.de
 async function pay(link, extra = {}) {
   const calls = [];
   const out = await processPaidLink({
-    database: db, devisModel: dm, paymentLinksModel: links, link: links.findById(link.id),
+    database: db, devisModel: dm, paymentLinksModel: Object.assign(Object.create(links), { retireSettled: () => [] }), link: links.findById(link.id),
     paidPayment: { paid: true, paymentId: `pay${link.id}`, paidAt: '2027-04-01T10:00:00Z' },
     sendConfirmation: async (r) => calls.push(['confirm', r]),
     notifyPaidAfterCancel: async (l, o) => calls.push(['alert', o || {}]),

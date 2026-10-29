@@ -31,7 +31,7 @@ async function pay(db, links, model, link, paidAt = '2027-04-01T10:00:00Z') {
   const alerts = [];
   const confirmations = [];
   const out = await processPaidLink({
-    database: db, devisModel: model, paymentLinksModel: links, link: links.findById(link.id),
+    database: db, devisModel: model, paymentLinksModel: Object.assign(Object.create(links), { retireSettled: () => [] }), link: links.findById(link.id),
     paidPayment: { paid: true, paymentId: `pay_${link.id}`, paidAt },
     sendConfirmation: async (rid) => confirmations.push(rid),
     notifyPaidAfterCancel: async (l, o) => alerts.push(o),

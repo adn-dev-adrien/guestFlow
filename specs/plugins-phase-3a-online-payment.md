@@ -365,6 +365,20 @@ Other facts the design rests on:
     another connection commits in between, without waiting for the busy timeout (5 s, better-sqlite3's
     default). `recordStayPayment` and the other read-then-write money transactions (installments, refunds,
     cancellation, platform penalties) therefore run `.immediate()`: a concurrent writer makes them wait.
+30. **A converted devis's links belong to the stay (2026-10-29, audit R3 P1).** A devis link keeps the devis id
+    after the conversion. Every fiche-side lookup reads the links of the stay AND of the devis converted into it
+    (`paymentLinksModel.listForStay` / `findOpenForStay`): the fiche's link list, the ledger's links, the reuse of
+    an open link and the acompte/full mutual exclusion in `mintPaymentLink`, and the link put into a request
+    e-mail. A full request on the stay reuses the site's open link; an acompte request retires it.
+31. **A second payment is a double payment whoever owns the link (2026-10-29, audit R3 P1).** `secondPaidLink`
+    counts the paid acompte/full links of the stay and of its converted devis, and it also runs for an acompte or
+    full link minted on the stay itself: the second money is a `double-payment` (refund row « Remboursement à
+    faire » + admin alert), never a silent `balance-marked` or `settled-elsewhere` (a solde link paid after a solde or full link already paid counts too). The installments plan guard (`openLinksOf`) reads the same stay-wide list. Re-pointing the devis links to the stay at conversion was weighed and rejected: the devis token's `/status` and the audit trail rely on the devis id. A full link paid while the
+    acompte was collected another way is the same case (`fullAfterDeposit`, now also on the live path). After any
+    paid link, `retireSettled()` runs at once, as for a tick by hand and for an installment, so the other open
+    link no longer waits for the 8 h poll.
+32. **A payment-link type is an own key (2026-10-29, audit R3-2).** `constructor`, `__proto__` and `toString` are
+    refused with the ordinary 400 `INVALID_TYPE` (`Object.hasOwn` on the type maps), never a 502.
 
 ## 4. Architecture
 

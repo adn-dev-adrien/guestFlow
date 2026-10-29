@@ -23,6 +23,8 @@
  *   hasKnownExpiry(link)                    → whether the link carries a real expiry date
  *   listForReservation(reservationId)       → every link for a reservation, newest first
  *   findOpenForReservation(reservationId, type) → the current open link of that type, or undefined
+ *   listForStay(id) / findOpenForStay(id, type) → the same, over the stay AND the devis converted into it
+ *                                           (a devis link keeps the devis id after the conversion)
  *   findOpenForInstallment(installmentId)   → the current open link of that installment, or undefined
  *   findByProviderLinkId(provider, linkId)  → the row a provider id names (webhook, retries)
  *   markPaid(id, { providerPaymentId, paidAt }) → flips open|expired→paid (idempotent: a paid/cancelled row is untouched)
@@ -286,6 +288,18 @@ function buildModel(database) {
     ).get(Number(reservationId), String(type));
   }
 
+  function ownersOf(id) {
+    return require('../utils/deletionGuard').withConvertedDevis(database, [Number(id)]);
+  }
+
+  function listForStay(id) {
+    return ownersOf(id).flatMap((owner) => listForReservation(owner)).sort((a, b) => b.id - a.id);
+  }
+
+  function findOpenForStay(id, type) {
+    return ownersOf(id).map((owner) => findOpenForReservation(owner, type)).filter(Boolean).sort((a, b) => b.id - a.id)[0];
+  }
+
   function findOpenForInstallment(installmentId) {
     return database.prepare(
       `SELECT ${SELECT_COLS} FROM payment_links WHERE type = 'installment' AND installmentId = ? AND status = 'open' ORDER BY id DESC LIMIT 1`
@@ -383,6 +397,8 @@ function buildModel(database) {
     hasKnownExpiry,
     listForReservation,
     findOpenForReservation,
+    listForStay,
+    findOpenForStay,
     findOpenForInstallment,
     findByProviderLinkId,
     markPaid,

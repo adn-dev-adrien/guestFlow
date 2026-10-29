@@ -157,8 +157,8 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
     // Payment-link templates (e.g. deposit_reminder) re-offer the existing OPEN link for the devis —
     // read-only, no Qonto write. Empty when there is none → the body falls back via {{#if hasPaymentLink}}.
     const linkType = PAYMENT_LINK_TEMPLATES[template.stableKey];
-    if (linkType && providerLive && paymentLinksModel && typeof paymentLinksModel.findOpenForReservation === 'function') {
-      const openLink = paymentLinksModel.findOpenForReservation(Number(reservationId), linkType);
+    if (linkType && providerLive && paymentLinksModel && typeof paymentLinksModel.findOpenForStay === 'function') {
+      const openLink = paymentLinksModel.findOpenForStay(Number(reservationId), linkType);
       const url = openLink && openLink.url ? openLink.url : '';
       context.vars.paymentLink = url;
       context.flags.hasPaymentLink = Boolean(url);
