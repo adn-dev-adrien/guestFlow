@@ -15,6 +15,7 @@ const isGitesDeFrance = (platform) => /gites?defrance/.test(String(platform || '
   .replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z]/g, ''));
 const isCleaning = (o) => o.autoOptionType === 'cleaning' || /ménage/i.test(String(o.title || ''));
 const round2 = (n) => Math.round(n * 100) / 100;
+const CONTACT_KEPT = 'E-mail ou téléphone déjà renseigné sur la fiche';
 const frDate = (iso) => { const d = new Date(iso); return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`; };
 
 const localDay = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -40,6 +41,12 @@ function createIntakeService(deps) {
     if (rows.length > 1) return { error: 'Plusieurs fiches Gîtes de France sur ces dates' };
     return { reservation: rows[0] || null };
   }
+
+  // Rule 21 — the fiche's guest already has an e-mail or a phone: applying the mail would swap them.
+  const hasContact = (r) => {
+    const details = getReservation(r.id) || {};
+    return Boolean(String(details.email || '').trim() || String(details.phone || '').trim());
+  };
 
   // Rule 10 — the iCal placeholder nobody has saved yet: a manual save locks the iCal sync.
   function isUntouched(r) {
@@ -173,8 +180,14 @@ function createIntakeService(deps) {
       if ((intake.error || null) !== reason) intakes.setStatus(intake.id, { status: 'pending', error: reason });
       return 'pending';
     }
-    if (!settings.autoApply() || !isUntouched(m.reservation)) {
+    // Rules 20–21 — a mail whose sender is not authenticated is never applied on its own, and neither is
+    // one that would replace the e-mail or phone already on the fiche.
+    if (!intake.senderVerified || !settings.autoApply() || !isUntouched(m.reservation)) {
       intakes.setStatus(intake.id, { status: 'proposed', reservationId: m.reservation.id });
+      return 'proposed';
+    }
+    if (hasContact(m.reservation)) {
+      intakes.setStatus(intake.id, { status: 'proposed', reservationId: m.reservation.id, error: CONTACT_KEPT });
       return 'proposed';
     }
     return apply(intake, m.reservation).status;
@@ -187,19 +200,20 @@ function createIntakeService(deps) {
     if (Object.values(settings.giteNumbers()).every((g) => !String(g || '').trim())) {
       return { skipped: 'Aucun logement relié à un numéro de gîte' };
     }
-    const mails = await readMails({ ...mailbox, sender: settings.sender() });
+    const mails = await readMails({ ...mailbox, sender: settings.sender(), ...(settings.authentication ? settings.authentication() : {}) });
     let read = 0;
     for (const mail of mails) {
       if (intakes.has(mail.messageId)) continue;
+      const senderVerified = mail.authenticated === true;
       read += 1;
       const parsed = parseGitesDeFranceMail(mail.text);
       if (!parsed.ok) {
         // Another kind of mail from the centrale (invoice, newsletter) is not an intake at all.
-        if (!/nouvelle réservation/i.test(`${mail.subject || ''} ${mail.text}`)) continue;
-        intakes.insert({ messageId: mail.messageId, receivedAt: mail.receivedAt, status: 'error', error: parsed.error });
+        if (!/nouvelle réservation/i.test(`${mail.subject || ''} ${mail.text}`) || !senderVerified) continue;
+        intakes.insert({ messageId: mail.messageId, receivedAt: mail.receivedAt, status: 'error', error: parsed.error, senderVerified });
         continue;
       }
-      intakes.insert({ messageId: mail.messageId, receivedAt: mail.receivedAt, dossierNumber: parsed.booking.dossierNumber, parsed: parsed.booking, status: 'pending' });
+      intakes.insert({ messageId: mail.messageId, receivedAt: mail.receivedAt, dossierNumber: parsed.booking.dossierNumber, parsed: parsed.booking, status: 'pending', senderVerified });
     }
     const outcome = {};
     for (const intake of intakes.listOpen()) {
@@ -233,6 +247,8 @@ function createIntakeService(deps) {
       receivedAt: intake.receivedAt,
       receivedLabel: `${frDate(intake.receivedAt)} à ${new Date(intake.receivedAt).toTimeString().slice(0, 5)}`,
       dossierNumber: intake.dossierNumber,
+      senderUnverified: !intake.senderVerified,
+      reason: intake.status === 'proposed' ? intake.error : null,
       netRent: booking.netRent,
       rentCandidates: rents.map((rent) => ({ rent, commission: round2(rent - booking.netRent) })),
       customLines: (booking.supplements || [])

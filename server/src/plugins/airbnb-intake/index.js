@@ -6,7 +6,7 @@
 
 const express = require('express');
 const sdk = require('../sdk');
-const { buildModel, TABLE_SQL } = require('./intakesModel');
+const { buildModel, TABLE_SQL, addSenderVerifiedColumn } = require('./intakesModel');
 const { createIntakeService } = require('./intakeService');
 const { listingIdOf, detectedFromIcal, listingPairs } = require('./listings');
 
@@ -29,15 +29,20 @@ const validateListings = (v) => {
 };
 
 function register(ctx) {
-  ctx.migrations([{ name: 'intakes_table_v1', up: (db) => db.exec(TABLE_SQL) }]);
+  ctx.migrations([
+    { name: 'intakes_table_v1', up: (db) => db.exec(TABLE_SQL) },
+    { name: 'intakes_sender_verified_v2', up: addSenderVerifiedColumn },
+  ]);
 
   ctx.settings.declare([
-    { key: 'senderAddress', default: 'automated@airbnb.com' },
-    { key: 'imapHost', default: '' },
-    { key: 'imapPort', default: '993' },
+    { key: 'senderAddress', supportLocked: true, default: 'automated@airbnb.com' },
+    { key: 'imapHost', supportLocked: true, default: '', validate: (v) => (!v || sdk.mailbox.resolveImapHost(ctx.core.settings.mailbox().host, v) === String(v).trim().toLowerCase() ? null : 'Un serveur du même domaine que le serveur d’envoi.') },
+    { key: 'imapPort', supportLocked: true, default: '993' },
     { key: 'pollEveryHours', default: '3', validate: validateHours },
     { key: 'listings', default: '{}', validate: validateListings },
     { key: 'autoApply', default: '1' },
+    { key: 'senderDomains', supportLocked: true, default: '' },
+    { key: 'trustedAuthservId', supportLocked: true, default: '' },
     { key: 'lastRunAt', default: '' },
   ]);
 
@@ -53,7 +58,7 @@ function register(ctx) {
 
   const mailboxConfig = () => {
     const core = ctx.core.settings.mailbox();
-    return { host: ctx.settings.get('imapHost') || sdk.mailbox.imapHostFor(core.host), port: Number(ctx.settings.get('imapPort') || 993), user: core.user, password: core.password };
+    return { host: sdk.mailbox.resolveImapHost(core.host, ctx.settings.get('imapHost')), port: Number(ctx.settings.get('imapPort') || 993), user: core.user, password: core.password };
   };
 
   const service = () => createIntakeService({
@@ -61,6 +66,7 @@ function register(ctx) {
     settings: {
       mailbox: mailboxConfig,
       sender: () => ctx.settings.get('senderAddress'),
+      authentication: () => ({ allowedDomains: ctx.settings.get('senderDomains'), trustedAuthservId: ctx.settings.get('trustedAuthservId') }),
       listings,
       autoApply: () => String(ctx.settings.get('autoApply')) !== '0',
     },

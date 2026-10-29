@@ -253,7 +253,7 @@ screen or endpoint: the customer sees only the features themselves.
     every installed plugin, `facts:<id>` in `plugin_provisioning_meta` — `{ setup, erasable, data }`:
     the setup the plugin still lacks (`ctx.setupStatus`, rule 14) and the lines `data.describe`
     returns (rule 22: `[{ label, count, warning? }]`; a warning with a zero count is a note on what stays, any
-    other line is data — rule 45) — and removes it for a
+    other line is data — rule 41) — and removes it for a
     plugin that is not installed. The console reads them with
     the rest of rule 20. The ids of the erase orders executed are kept as `erase:<order>` (rule 23).
     _Added at implementation._
@@ -322,7 +322,22 @@ screen or endpoint: the customer sees only the features themselves.
     walks: it ignores it, whatever `activePlugins` says, and an erase order naming it is settled without
     touching anything (rule 23). The row stays — never live, never listed by the managed `GET /api/plugins`
     (rule 5) — until a release ships the plugin again or the row is removed from the database.
-45. **What the console offers follows what the purge erases** (audit 2026-10-28, H2). A line of
+40. **A removal order never purges, and an unknown data count is not « no data »** (audit 2026-10-28,
+    console H2). Each erase order of the licence is `{ order, id, removal }`. `removal: true` is the
+    console's « Désinstaller » of a module it showed with no data to lose: the space uninstalls it
+    **without** `purge`, whatever the plugin keeps (data stays for a later reinstall). `removal` absent
+    or false is the data erase of rule 23 (purge, then plain uninstall for a plugin keeping no data).
+    When a plugin's own data count (`describe`) throws, the plugin view carries `dataUnknown: true`
+    with `data: []`, logged, and the facts published to the console carry `dataUnknown: true`: the
+    console must offer neither erase nor removal on it. A removal order that fails is recorded « Échec de
+    la désinstallation. » (an erase order keeps « Échec de l’effacement. »). **Version skew:** a space
+    from before this rule would purge a removal order, so the console offers « Désinstaller » only to a
+    space that declares it understands it: each reconciliation pass publishes, in
+    `plugin_provisioning_meta`, `capabilities` = `{"removalOrders":true,"coreVersion":"x.y.z"}`
+    (`provisioning.setCapabilities`), which the console reads next to `facts:<id>`. A space without that
+    key predates the rule. This is the space side of `removal` and `dataUnknown`; the console refers to
+    it. Test: `plugin-removal-order-no-purge.unit.test.js`.
+41. **What the console offers follows what the purge erases** (audit 2026-10-28, H2). A line of
     `data` counts as data unless it is a warning with a zero count (a note on what stays, e.g. « les
     réglages restent dans l’espace »): a warning that carries a count — hourly-resources' « N réservations
     hors séjour, X € encaissés » — is data the purge erases, so it keeps « Effacer les données… » on offer
@@ -331,7 +346,11 @@ screen or endpoint: the customer sees only the features themselves.
     with no data line at all. When the space cannot say — no facts for an installed module, `dataUnknown:
     true` (its count threw), `data: null` — the line reads « Données non relevées : ni effacement ni
     désinstallation. » and offers no action: unknown is not « nothing ».
-46. **What the console sends for a removal, and a settled order** (audit 2026-10-28, H2 and L1). The
+    **Version skew:** « Désinstaller » is also offered only when the space publishes
+    `plugin_provisioning_meta.capabilities` with `removalOrders === true` (rule 40) — a space on an older
+    core would purge a removal order. Until that key is present the console offers no removal action
+    and sends no removal order; « Effacer les données… » is unaffected.
+42. **What the console sends for a removal, and a settled order** (audit 2026-10-28, H2 and L1). The
     licence's `eraseOrders` is `[{ order, id, removal? }]`, with `removal: true` only for « Désinstaller »;
     what the space does with it (never a purge, unknown data counts) is the space's rule — see the rule
     added by the audit of the plugin host (« A removal order never purges… », `plugin-removal-order-no-purge.unit.test.js`).

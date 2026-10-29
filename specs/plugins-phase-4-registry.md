@@ -297,6 +297,52 @@ below are the recommended ones; each is reversible in a later spec.
     with `requires` (those ids) and « Nécessite <nom> : à activer d’abord. », which the Plugins page
     shows on the card. Found when Google Vacation Rentals could be re-activated while
     `website-booking` was off.
+38. **Install refuses an installed but inactive requirement** (audit 2026-10-28, mirror of rule 37).
+    `POST /api/plugins/:id/install` — install is install-and-activate (rule 4) — answers 409
+    `REQUIREMENT_INACTIVE` (`requires`, « Nécessite <nom> : à activer d’abord. ») when a requirement
+    is installed yet switched off. A requirement not installed is the install plan's business (rule
+    12), not a refusal. Test: `plugin-install-requirement-inactive.unit.test.js`.
+39. **Reinstall, retry, erasure and slots tell the truth** (audit 2026-10-28):
+    - an install always runs the plugin's migrations, also when the same version is still loaded in
+      the process (the ledger makes it idempotent). Without it, « Effacer aussi ses données » then
+      a reinstall without a restart left the plugin active with no tables. The loaded record is
+      deliberately kept on uninstall: it names the code the process holds, and a different version
+      still restarts (rule 13);
+    - activating a plugin runs its migrations too (500 `PLUGIN_MIGRATION_FAILED` if they throw, the
+      plugin stays off): after an « Effacement incomplet » the tables are gone, and « Activer » must
+      not turn on a plugin without them;
+    - a plugin whose live `register` failed is registered afresh by the next install: its failed
+      record, its mounted layers and its job schedule are dropped first, so the retry either comes up
+      whole or answers 500 `PLUGIN_REGISTER_FAILED` again. The same holds for a plugin that failed at
+      boot and is installed again at the same version;
+    - an erasure runs the database step (one transaction) then the files step. A failure of the
+      first answers « rien n’a été effacé » (true: it rolled back); a failure of the second answers
+      « Effacement incomplet : les données sont effacées, pas les fichiers. À relancer. », leaves the
+      plugin installed and inactive, and a retry finishes the job;
+    - on the client each slot contribution sits in its own error boundary
+      (`client/src/plugins/sdk/Slot.jsx`): a throwing one renders nothing and is logged; a lazy chunk
+      that 404s after a plugin update (another tab) shows « Module mis à jour. Recharger ».
+    Tests: `plugin-reinstall-after-purge.unit.test.js`, `plugin-live-register-retry.unit.test.js`,
+    `Slot.isolation.test.jsx`.
+40. **The trust root is the registry signing key, and a package is fully trusted code** (audit
+    2026-10-28). A package runs in-process with the server's full `require` (any core file, raw SQL
+    through `ctx.db`, the decrypted SMTP settings, `secrets.getOrCreate` on any environment name) and
+    its client bundle runs same-origin with the administrator's session. `coreModule()`'s allowlist is
+    a contract and a lint aid, not a security boundary. This is acceptable for first-party packages
+    only (§8: third-party plugins are out of scope): whoever holds the key that signs the index can
+    run arbitrary code on every instance that clicks « Installer » or « Mettre à jour ». Before any
+    third-party plugin is considered, the registry must have its own dedicated key (it still falls
+    back to the licence key, handled by the control plane) and packages must be sandboxed.
+    `tar` refuses links but lets FIFO and device members through, and a gzip can expand without
+    limit: both need a signed package to be reached.
+    **Sans test** — a statement of the trust model, not a behaviour.
+41. **An install that needed a restart owes its hooks** (audit 2026-10-28, finding 4; lifts the
+    limit noted under rule 13). When an install is recorded but the old code is still loaded (a version
+    other than the loaded one), no hook can run. The row carries `hooks_pending = 1`; at the next boot,
+    once the plugins are registered and migrated, `loader.runPendingInstallHooks` runs the install hooks
+    then the activation hooks of each such plugin, clears the marker first (a failing hook is logged,
+    never repeated or blocking). School-holidays' first sync and Google Vacation Rentals' catch-up no
+    longer wait for something else to trigger them. Test: `plugin-install-hooks-after-restart.unit.test.js`.
 42. **Amendment of the registry-key fallback (rule 40's « it still falls back to the licence key »)**
     (audit 2026-10-28). The fallback is now optional: `CP_REGISTRY_PRIVATE_KEY` (Ed25519, base64 DER PKCS8,
     same format as `CP_LICENCE_PRIVATE_KEY`) signs the index when set, and the console writes its public half
@@ -410,6 +456,7 @@ word per line (seen in the browser check of 2026-10-17).
   `plugins-sdk-core-modules-contract.unit.test.js` (rule 35).
 - _(added 2026-10-27)_ `plugins-deactivate-required-by.unit.test.js` (rule 36, 4 tests).
 - _(added 2026-10-27, adversarial review)_ `plugins-activate-requires-active.unit.test.js` (rule 37, 3 tests; the refusal failed on the code before the fix).
+- _(added 2026-10-28, audit)_ rules 38–41: `plugin-install-hooks-after-restart.unit.test.js`, `plugin-install-requirement-inactive.unit.test.js`, `plugin-reinstall-after-purge.unit.test.js`, `plugin-live-register-retry.unit.test.js`, `Slot.isolation.test.jsx`.
 
 ## 8. Out of scope
 

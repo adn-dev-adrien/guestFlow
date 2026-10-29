@@ -82,18 +82,19 @@ function createCustomerModulesController(ctx, customersController) {
     // Rule 22 — only an inactive module with something to erase, and not while an order is on its way.
     const reported = facts && facts.provisioning ? facts.provisioning.moduleFacts[id] : null;
     // The plugin's own lines are { label, count, warning? }. A warning with a zero count is a note on what
-    // stays; any other line — a warning on money included — is data the purge erases (rule 45).
+    // stays; any other line — a warning on money included — is data the purge erases (rule 41).
     const dataLines = reported && reported.erasable && Array.isArray(reported.data) ? reported.data : [];
     const isNote = (l) => l.warning && l.count === 0;
     const eraseLines = dataLines.filter((l) => !isNote(l)).map((l) => l.label);
-    // Rule 45 — a space that cannot say what the module holds gives no action: unknown is not « nothing ».
+    // Rule 41 — a space that cannot say what the module holds gives no action: unknown is not « nothing ».
     const unknown = installedOn(facts, id) && (!reported || reported.dataUnknown === true || (reported.erasable && !Array.isArray(reported.data)));
     // Rules 31, 38 — a module that is off can be wiped (it holds data) or removed (it holds none) unless an installed plugin needs it.
     const idle = !on && state.state === 'inactive' && !erasing.has(id);
     const installed = installedOn(facts, id);
     const dependants = idle && !unknown && (eraseLines.length > 0 || installed) ? erasureDependants(id, allowed, facts) : [];
     const canErase = idle && !unknown && eraseLines.length > 0 && dependants.length === 0;
-    const canUninstall = idle && !unknown && eraseLines.length === 0 && installed && dependants.length === 0;
+    const removalOrders = Boolean(facts && facts.provisioning && facts.provisioning.capabilities && facts.provisioning.capabilities.removalOrders === true);
+    const canUninstall = idle && !unknown && removalOrders && eraseLines.length === 0 && installed && dependants.length === 0;
     const blockedBy = dependants.length ? `Nécessaire à ${dependants.map(nameOf).join(', ')} : à désinstaller d’abord.` : null;
     return {
       id, name: entry.name, on, switchable: true, ...state,

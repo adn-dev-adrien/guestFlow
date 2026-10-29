@@ -13,6 +13,7 @@ import { api, displayDate, AttentionCard } from '../sdk';
 const STATUS_TEXT = {
   pending: 'aucune fiche sur ces dates',
   needs_rent: 'loyer à choisir sur la fiche',
+  proposed: 'expéditeur non vérifié',
 };
 
 export default function IntakeAlert({ attention }) {
