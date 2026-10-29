@@ -53,7 +53,7 @@ const api = {
   // specs/hosting-h2-account-security.md rules 12-14 — support access with consent.
   // specs/plugin-operator-provisioning.md rules 10–14, 22 — the customer's modules.
   customerModules: (id) => request('GET', `/api/customers/${id}/modules`),
-  toggleModule: (id, pluginId, on) => request('POST', `/api/customers/${id}/modules/${pluginId}`, { on }),
+  toggleModule: (id, pluginId, on, flags = {}) => request('POST', `/api/customers/${id}/modules/${pluginId}`, { on, ...flags }),
   eraseModule: (id, pluginId, confirmSlug) => request('POST', `/api/customers/${id}/modules/${pluginId}/erase`, { confirmSlug }),
   retryModules: (id) => request('POST', `/api/customers/${id}/modules/retry`, {}),
   supportState: (id) => request('GET', `/api/customers/${id}/support`),

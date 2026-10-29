@@ -8,7 +8,7 @@ const crypto = require('crypto');
 const { allowedPlugins } = require('../utils/licenceIssuer');
 const { moduleState, headerText, headerParts } = require('../utils/moduleStates');
 const { httpError } = require('../utils/httpError');
-const { plugins: gfPlugins } = require('../utils/gf');
+const { plugins: gfPlugins, pluginGraph } = require('../utils/gf');
 
 const OUT_OF_PLAN = 'Hors forfait : à ajouter au forfait ou en option d’abord.';
 const UNREADABLE = 'Espace illisible : modules non relevés.';
@@ -17,6 +17,31 @@ const TOO_OLD = 'Espace à mettre à jour : modules non relevés.';
 const entryOf = (id) => gfPlugins.findPlugin(id);
 const nameOf = (id) => (entryOf(id) || { name: id }).name;
 const requiresOf = (id) => ((entryOf(id) || {}).requires || []).map((r) => r.id);
+const names = (ids) => ids.map(nameOf).join(', ');
+const refs = (ids) => ids.map((id) => ({ id, name: nameOf(id) }));
+
+// Rule 17 — the console reads the space's graph over the catalogue's manifests; its words for an
+// unmet requirement are the switch's (« éteint »). `chosen` is the operator's choice, `allowed` the plan's.
+function graphOf(allowed, chosen) {
+  return pluginGraph.createGraph({
+    manifests: Object.fromEntries(gfPlugins.PLUGIN_CATALOG.map((p) => [p.id, p])),
+    states: Object.fromEntries([...allowed].map((id) => [id, chosen.has(id) ? 'active' : 'inactive'])),
+    allows: (id) => allowed.has(id),
+    nameOf,
+    labels: { inactive: 'éteint' },
+  });
+}
+
+/**
+ * Rule 19 — a set of plugins a plan or an option composition allows is sound when every one of them has
+ * its requirements in the set too. → the 422 sentence for the first that does not, or null.
+ */
+function compositionRefusal(ids) {
+  const set = ids instanceof Set ? ids : new Set(ids);
+  const broken = gfPlugins.PLUGIN_IDS.find((id) => set.has(id) && requiresOf(id).some((r) => !set.has(r)));
+  if (!broken) return null;
+  return httpError(422, 'REQUIREMENT_NOT_IN_PLAN', `${nameOf(broken)} nécessite ${names(requiresOf(broken).filter((r) => !set.has(r)))} : à inclure aussi.`);
+}
 
 function createCustomerModulesController(ctx, customersController) {
   const { models, now, instances } = ctx;
@@ -32,14 +57,23 @@ function createCustomerModulesController(ctx, customersController) {
     return plan ? `Forfait ${plan.name}` : 'Option à la carte';
   }
 
-  function refusal(chosen, id, on) {
+  // Rule 18 — the modules a switch takes along, deepest first; without the operator's flag, the 422s of
+  // rule 14 stay as they were.
+  function followers(allowed, chosen, id, on) {
+    const g = graphOf(allowed, chosen);
+    return on ? g.requirementClosure(id).filter((r) => !chosen.has(r)) : g.activeDependantClosure(id);
+  }
+
+  function refusal(allowed, chosen, id, on, { withRequirements, withDependents }) {
+    const along = followers(allowed, chosen, id, on);
+    if (!along.length) return null;
     if (on) {
-      const off = requiresOf(id).filter((r) => !chosen.has(r));
-      if (off.length) return httpError(422, 'REQUIREMENT_OFF', `Nécessite ${off.map(nameOf).join(', ')} : à activer d’abord.`);
+      const unlicensed = along.filter((r) => !allowed.has(r));
+      if (unlicensed.length) return httpError(422, 'REQUIREMENT_OFF', `Nécessite ${names(unlicensed)}, hors forfait.`);
+      if (!withRequirements) return httpError(422, 'REQUIREMENT_OFF', `Nécessite ${names(along)} : à activer d’abord.`);
       return null;
     }
-    const dependants = [...chosen].filter((other) => requiresOf(other).includes(id));
-    if (dependants.length) return httpError(422, 'REQUIRED_BY', `Nécessaire à ${dependants.map(nameOf).join(', ')} : à désactiver d’abord.`);
+    if (!withDependents) return httpError(422, 'REQUIRED_BY', `Nécessaire à ${names(along)} : à désactiver d’abord.`);
     return null;
   }
 
@@ -71,6 +105,7 @@ function createCustomerModulesController(ctx, customersController) {
     const entry = entryOf(id);
     if (!allowed.has(id)) {
       return {
+        requires: [], usedBy: [], alsoOn: [], alsoOff: [],
         id, name: entry.name, on: false, switchable: false, state: 'outOfPlan', stateLabel: null, detail: null, setupLabel: null, stale: false, needsSetup: false,
         canRetry: false, canErase: false, canUninstall: false, blockedBy: null, eraseLines: [], eraseWarnings: [], planChip: planChip(id),
       };
@@ -89,11 +124,21 @@ function createCustomerModulesController(ctx, customersController) {
     const canErase = idle && eraseLines.length > 0 && dependants.length === 0;
     const canUninstall = idle && eraseLines.length === 0 && installed && dependants.length === 0;
     const blockedBy = dependants.length ? `Nécessaire à ${dependants.map(nameOf).join(', ')} : à désinstaller d’abord.` : null;
+    const g = graphOf(allowed, chosen);
     return {
+      requires: g.requirementsOf(id).map(({ id: rid, name, status, label }) => ({ id: rid, name, status, label })),
+      usedBy: g.usedBy(id).map((d) => ({ ...d, label: d.state === 'active' ? d.name : `${d.name} (éteint)` })),
+      alsoOn: on ? [] : refs(followers(allowed, chosen, id, true)),
+      alsoOff: on ? refs(followers(allowed, chosen, id, false)) : [],
       id, name: entry.name, on, switchable: true, ...state,
       detail: erasing.has(id) ? erasureIssue(id, facts, writtenAt, erasing.get(id)) || (erasing.get(id) ? 'Désinstallation en cours.' : 'Effacement des données en cours.') : blockedBy || state.detail || keptData(state, eraseLines),
       canErase, canUninstall, blockedBy, eraseLines: canErase ? eraseLines : [], eraseWarnings: canErase ? dataLines.filter((l) => l.warning).map((l) => l.label) : [], planChip: null,
     };
+  }
+
+  // Rule 19 — the options chosen on top of a plan must bring the requirements of what they add.
+  function refuseComposition(planCode, addons) {
+    return compositionRefusal(allowedPlugins({ planCode, addons, grandfathered: [] }, catalogue.plans(), catalogue.lowest()));
   }
 
   // A readable space on a release before the reconciler is not « illisible »: it only needs the update.
@@ -135,7 +180,8 @@ function createCustomerModulesController(ctx, customersController) {
     };
   }
 
-  function toggle(customerId, pluginId, on, operator) {
+  // Rule 18 — a switch takes the linked modules along, each with its journal line, under one licence.
+  function toggle(customerId, pluginId, on, operator, flags = {}) {
     const c = customersController.mustGet(customerId);
     if (typeof on !== 'boolean') throw httpError(400, 'INVALID', 'Module : allumé ou éteint.');
     if (!entryOf(pluginId)) throw httpError(404, 'UNKNOWN_PLUGIN', 'Module inconnu.');
@@ -145,19 +191,22 @@ function createCustomerModulesController(ctx, customersController) {
     if (!allowed.has(pluginId)) throw httpError(422, 'OUT_OF_PLAN', OUT_OF_PLAN);
     const chosen = new Set(customerPlugins.chosen(c.id).filter((id) => allowed.has(id)));
     if (chosen.has(pluginId) === on) return view(c.id);
-    const refused = refusal(chosen, pluginId, on);
+    const refused = refusal(allowed, chosen, pluginId, on, flags);
     if (refused) throw refused;
-    if (on) {
-      customerPlugins.add(c.id, pluginId, day(), operator);
-      const removal = customerPlugins.pendingOrders(c.id).some((o) => o.pluginId === pluginId && o.removal);
-      // An order still on its way must not fire the next time the module is switched off.
-      if (customerPlugins.cancelOrdersOf(c.id, pluginId, now().toISOString())) {
-        customersController.journal(c.id, operator, 'module', removal ? `Désinstallation de ${nameOf(pluginId)} annulée` : `Effacement des données de ${nameOf(pluginId)} annulé`);
+    const moved = [...followers(allowed, chosen, pluginId, on), pluginId];
+    moved.forEach((id) => {
+      if (on) {
+        customerPlugins.add(c.id, id, day(), operator);
+        const removal = customerPlugins.pendingOrders(c.id).some((o) => o.pluginId === id && o.removal);
+        // An order still on its way must not fire the next time the module is switched off.
+        if (customerPlugins.cancelOrdersOf(c.id, id, now().toISOString())) {
+          customersController.journal(c.id, operator, 'module', removal ? `Désinstallation de ${nameOf(id)} annulée` : `Effacement des données de ${nameOf(id)} annulé`);
+        }
+      } else {
+        customerPlugins.remove(c.id, id);
       }
-    } else {
-      customerPlugins.remove(c.id, pluginId);
-    }
-    customersController.journal(c.id, operator, 'module', `${nameOf(pluginId)} ${on ? 'activé' : 'désactivé'}`);
+      customersController.journal(c.id, operator, 'module', `${nameOf(id)} ${on ? 'activé' : 'désactivé'}`);
+    });
     customersController.issueLicence(c.id);
     return view(c.id);
   }
@@ -260,7 +309,8 @@ function createCustomerModulesController(ctx, customersController) {
     customerPlugins.markSeeded(customerId, now().toISOString());
   }
 
-  // A plan or option change: what is no longer allowed leaves the choice (edge case, rule 11).
+  // A plan or option change: what is no longer allowed leaves the choice (edge case, rule 11), and so does
+  // any chosen module left without a requirement (rule 19), with one journal line each.
   function dropNotAllowed(customerId, operator) {
     const c = customers.get(customerId);
     if (!c.pluginsSeededAt) return [];
@@ -270,10 +320,19 @@ function createCustomerModulesController(ctx, customersController) {
       customerPlugins.remove(c.id, id);
       customersController.journal(c.id, operator, 'module', `${nameOf(id)} retiré (hors forfait)`);
     });
+    let left = customerPlugins.chosen(c.id);
+    for (;;) {
+      const orphan = left.find((id) => requiresOf(id).some((r) => !left.includes(r)));
+      if (!orphan) break;
+      customerPlugins.remove(c.id, orphan);
+      customersController.journal(c.id, operator, 'module', `${nameOf(orphan)} retiré (nécessite ${names(requiresOf(orphan).filter((r) => !left.includes(r)))})`);
+      dropped.push(orphan);
+      left = left.filter((id) => id !== orphan);
+    }
     return dropped;
   }
 
-  return { view, toggle, retry, erase, sweep, acknowledgeErasures, seedCustomer, seedPending, licenceChoice, creationChoices, seedAtCreation, dropNotAllowed };
+  return { view, toggle, retry, erase, sweep, acknowledgeErasures, seedCustomer, seedPending, licenceChoice, creationChoices, seedAtCreation, dropNotAllowed, refuseComposition };
 }
 
-module.exports = { createCustomerModulesController };
+module.exports = { createCustomerModulesController, compositionRefusal };

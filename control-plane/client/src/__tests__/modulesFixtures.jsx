@@ -1,7 +1,8 @@
 // A « Modules » payload as the server sends it (ModulesSection suites).
 export const line = (over = {}) => ({
   id: 'linen', name: 'Linge et blanchisserie', on: true, switchable: true, state: 'active', stateLabel: 'Actif · 1.2.0', detail: null,
-  canRetry: false, needsSetup: false, setupLabel: null, stale: false, canErase: false, canUninstall: false, blockedBy: null, eraseLines: [], eraseWarnings: [], planChip: null, ...over,
+  canRetry: false, needsSetup: false, setupLabel: null, stale: false, canErase: false, canUninstall: false, blockedBy: null, eraseLines: [], eraseWarnings: [], planChip: null,
+  requires: [], usedBy: [], alsoOn: [], alsoOff: [], ...over,
 });
 
 export const modulesView = (over = {}) => {
