@@ -1,7 +1,7 @@
 {
   "id": "online-payment",
   "name": "Paiement en ligne (Qonto)",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "description": "Liens de paiement envoyés aux voyageurs, et rapprochement des virements du compte Qonto avec les fiches.",
   "icon": "payments",
   "surfaces": [
@@ -72,6 +72,9 @@
     ],
     "1.4.1": [
       "Exemple de téléphone d’un commentaire rendu anonyme (SDK 2 inchangé)."
+    ],
+    "1.4.2": [
+      "Si les paramètres de paiement ne se chargent pas, la page l’indique avec « Réessayer » au lieu de tourner sans fin."
     ]
   }
 }

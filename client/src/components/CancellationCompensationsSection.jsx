@@ -27,6 +27,7 @@ import ResponsiveTable from './ResponsiveTable';
 import StatusBadge from './StatusBadge';
 import PlatformChip from './PlatformChip';
 import LoadingState from './LoadingState';
+import ErrorAlert from './ErrorAlert';
 import CancellationCompensationDialog from './CancellationCompensationDialog';
 import { useAppDialogs, useToast } from './DialogProvider';
 import { displayDate, displayDateShort, formatCurrency } from '../utils/formatters';
@@ -37,6 +38,7 @@ const CancellationCompensationsSection = forwardRef(function CancellationCompens
   const { showSuccess, showError } = useToast();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [dialog, setDialog] = useState(null); // { mode, compensation }
 
@@ -44,8 +46,10 @@ const CancellationCompensationsSection = forwardRef(function CancellationCompens
     setLoading(true);
     try {
       setData(await api.getCancellationCompensations(month, year));
+      setLoadFailed(false);
     } catch {
       setData(null);
+      setLoadFailed(true);
     } finally {
       setLoading(false);
     }
@@ -157,7 +161,9 @@ const CancellationCompensationsSection = forwardRef(function CancellationCompens
           encaissée.
         </Typography>
 
-        {loading ? <LoadingState py={2} /> : (
+        {loading ? <LoadingState py={2} /> : loadFailed ? (
+          <ErrorAlert message="Impossible de charger les indemnités." onRetry={refresh} />
+        ) : (
           <Stack spacing={3}>
             <Box>
               <Stack direction="row" spacing={1} sx={{ alignItems: 'baseline', mb: 1, flexWrap: 'wrap' }}>

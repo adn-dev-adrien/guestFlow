@@ -82,6 +82,12 @@ that threshold are **automatically deleted**. The history is reachable from the 
     (≥ 44 px). The table stays from `md` up. The template names are the display names of
     guest-email-texts-made-simple rule 44 (« Merci et avis »), and the « Modèle » filter lists the
     templates in stay order.
+11. **A failed load is an error, and the latest request wins** (audit R3, 2026-10-29). A failed
+    `GET /api/emails/history` shows an `ErrorAlert` (« Impossible de charger l'historique des emails. »)
+    with « Réessayer » above the filters' results, not « Aucun email dans l'historique » and not an
+    unhandled rejection. Each load takes a sequence number (the pattern of `ClientsPage`): a response, or a
+    failure, of a request that is no longer the latest is dropped, so typing a reservation number never
+    shows the answer to its earlier prefix.
 
 ---
 

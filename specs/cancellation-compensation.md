@@ -186,6 +186,11 @@ quoi elle apparaît dans l'aperçu du journal et dans le CSV des ventes du **moi
     un `PUT` sur une indemnité `received` renvoie **409 `COMPENSATION_LOCKED`** quel que soit le corps
     (sans plateforme, il renvoyait 400 `PLATFORM_REQUIRED`).
 
+30. **A failed load is an error, never a zero (audit R3, 2026-10-29).** When
+    `GET /api/accounting/cancellation-compensations` fails, the card shows an `ErrorAlert`
+    (« Impossible de charger les indemnités. ») with « Réessayer » in place of the two lists: no
+    « Total : 0,00 € », no « Aucune indemnité… ». « Réessayer » reloads the same month.
+
 ---
 
 ## 4. Architecture
