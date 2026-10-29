@@ -406,15 +406,16 @@ function createTwoFactorController({
   async function beginLogin(user) {
     const row = model.get(user.id);
     assertNotLocked(row);
-    // Rule 62 — the login mail takes a slot like every code mail (rule 55). A right password repeated
-    // meets the limit: no new mail, the code already sent stays the one to type.
+    // Rule 62 — the login mail takes a slot like every code mail (rule 55). Over the limit no mail leaves:
+    // with a live login code the step is shown on it, without one the refusal says when to retry.
     let mailed = false;
     if (row.method === 'email') {
       try {
         reserveMailSlot(user.id, { login: true });
         mailed = true;
       } catch (err) {
-        if (!(err && err.status === 429)) throw err;
+        const liveCode = Boolean(row.emailCodeHash && row.emailCodeExpiresAt && row.emailCodeExpiresAt > nowIso());
+        if (!(err && err.status === 429) || !liveCode) throw err;
       }
       if (mailed) await sendEmailCode(user, 'login');
     }

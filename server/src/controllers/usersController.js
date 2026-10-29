@@ -26,7 +26,7 @@ const { createEmailService } = require('../utils/emailService');
 const defaultEmailTemplates = require('../utils/emailTemplates');
 const { generateTemporaryPassword: defaultGenerateTemporaryPassword } = require('../utils/passwordGenerator');
 const { ROLES, ADMIN, isKnownRole } = require('../constants/roles');
-const { MIN_PASSWORD_LENGTH } = require('../constants/authDefaults');
+const { MIN_PASSWORD_LENGTH, DEFAULT_ADMIN_EMAIL } = require('../constants/authDefaults');
 const { quotaRefusal } = require('../utils/planQuota');
 const { ROLE_PLUGINS } = require('../constants/plugins');
 const { sendError } = require('../utils/httpError');
@@ -85,6 +85,8 @@ function buildController({
   // Rule 59 — the old address learns of the change. Best effort, after the change: a mail failure must
   // not undo it, nor tell the caller anything.
   function notifyOldAddress(before, after) {
+    // The bootstrap login is nobody's mailbox.
+    if (String(before.email).toLowerCase() === DEFAULT_ADMIN_EMAIL) return;
     Promise.resolve()
       .then(() => getEmailService().send({
         to: before.email,
@@ -191,7 +193,11 @@ function buildController({
       // (sidebar greeting, dialogs, future navigation) sees the new values immediately,
       // without waiting for the next /me round-trip to refresh from the DB.
       if (req.session) req.session.user = updated;
-      if (emailForModel !== undefined) notifyOldAddress(req.user, updated);
+      if (emailForModel !== undefined) {
+        // Rule 59 — like a password change: the other devices must sign in again with the new address.
+        sessionsModel.revokeOtherSessionsForUser(req.user.id, req.sessionID);
+        notifyOldAddress(req.user, updated);
+      }
       return res.json({ user: updated });
     },
 

@@ -75,3 +75,16 @@ test('rule 59: a save that leaves the email as it is asks for no password', asyn
   await waitFor(() => expect(api.updateSelf).toHaveBeenCalled());
   expect(screen.queryByLabelText(/Mot de passe \(confirmation\)/)).toBeNull();
 });
+
+test('rule 59: when the second-step status cannot be read, the failure is shown and nothing is sent', async () => {
+  const user = userEvent.setup();
+  renderPage();
+  api.getTwoFactorStatus.mockRejectedValue(new Error('down'));
+  const email = await screen.findByLabelText(/^Email/);
+  await user.clear(email);
+  await user.type(email, 'marie@nouveau.fr');
+  await user.click(screen.getByRole('button', { name: 'Enregistrer' }));
+  expect(await screen.findByText('Vérification impossible : réessayer.')).toBeInTheDocument();
+  expect(screen.queryByLabelText(/Mot de passe \(confirmation\)/)).toBeNull();
+  expect(api.updateSelf).not.toHaveBeenCalled();
+});

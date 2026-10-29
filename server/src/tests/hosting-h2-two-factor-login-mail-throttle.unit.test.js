@@ -18,7 +18,7 @@ async function emailAccount(h, address = 'marie@domaine-ombre.fr') {
   return user;
 }
 
-test('rule 62 — a second login within the gap sends no second mail but still shows the code step', async () => {
+test('rule 62 — a second login within the gap, code still live: no second mail, the step is shown on the code sent', async () => {
   const h = setup();
   const user = await emailAccount(h);
   const first = await h.twoFactor.beginLogin(user);
@@ -27,18 +27,37 @@ test('rule 62 — a second login within the gap sends no second mail but still s
   h.now.advance(5000);
   const again = await h.twoFactor.beginLogin(user);
   assert.equal(again.step, 'second-factor');
+  assert.match(again.message, /Code déjà envoyé/);
   assert.equal(h.mailer.sent.length, 1, 'no new mail');
 });
 
-test('rule 62 — repeated right-password logins stay within the hourly budget of login mails', async () => {
+test('rule 62 — case A: a login within 60 s of a SUCCESSFUL one has no live code, so it is refused with the wait', async () => {
   const h = setup();
   const user = await emailAccount(h);
-  for (let i = 0; i < 30; i += 1) {
+  await h.twoFactor.beginLogin(user);
+  const code = /Code : (\d{6})/.exec(h.mailer.sent[0].text)[1];
+  h.twoFactor.verifyLogin(user.id, { code });
+  h.now.advance(10000);
+  await assert.rejects(h.twoFactor.beginLogin(user), (e) => e.status === 429 && e.body.error === 'RESEND_TOO_SOON'
+    && e.body.retryInSeconds > 0 && /Nouvel envoi possible dans \d+ s/.test(e.body.message));
+  assert.equal(h.mailer.sent.length, 1, 'no new mail');
+  h.now.advance(61000);
+  assert.equal((await h.twoFactor.beginLogin(user)).step, 'second-factor');
+  assert.equal(h.mailer.sent.length, 2);
+});
+
+test('rule 62 — case B: six logins in an hour use the budget; the 7th with no live code says « Trop d’envois »', async () => {
+  const h = setup();
+  const user = await emailAccount(h);
+  for (let i = 0; i < 6; i += 1) {
     await h.twoFactor.beginLogin(user);
+    const code = /Code : (\d{6})/.exec(h.mailer.sent[h.mailer.sent.length - 1].text)[1];
+    h.twoFactor.verifyLogin(user.id, { code });
     h.now.advance(61000);
-    if (i === 20) break;
   }
-  assert.ok(h.mailer.sent.length <= 6, `${h.mailer.sent.length} mails in about 20 minutes`);
+  assert.equal(h.mailer.sent.length, 6);
+  await assert.rejects(h.twoFactor.beginLogin(user), (e) => e.status === 429 && e.body.error === 'TOO_MANY_SENDS');
+  assert.equal(h.mailer.sent.length, 6, 'no seventh mail');
 });
 
 test('rule 62 — the login mail and « Renvoyer le code » share the slot: no resend right after a login mail', async () => {

@@ -86,14 +86,15 @@ export default function AccountPage() {
       await saveProfile(payload);
       return;
     }
-    let status = null;
+    let status;
     try {
       status = await api.getTwoFactorStatus();
     } catch {
-      status = null;
+      showError('Vérification impossible : réessayer.');
+      return;
     }
-    setEmailChange({ payload, needsCode: Boolean(status && status.reauthNeedsCode), byEmail: Boolean(status && status.method === 'email') });
-  }, [me, saveProfile]);
+    setEmailChange({ payload, needsCode: Boolean(status.reauthNeedsCode), byEmail: status.method === 'email' });
+  }, [me, saveProfile, showError]);
 
   const confirmEmailChange = useCallback(async ({ password, code }) => {
     await saveProfile({ ...emailChange.payload, currentPassword: password, code });

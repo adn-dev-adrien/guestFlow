@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Implemented (rules 1–37) · Implemented (rules 38–53, UX review of 2026-10-28, owner decisions of 2026-10-28) |
+| **Status** | Implemented (rules 1–37) · Implemented (rules 38–53, UX review of 2026-10-28, owner decisions of 2026-10-28) · Implemented (rules 59–62, authz audit of 2026-10-28; rule 18 widened) |
 | **Branch** | `feature/hosting-h2-account-security` (from `inte/plugins`) |
 | **Created** | 2026-10-08 |
 | **Author** | Adrien |
@@ -567,7 +567,12 @@ every change still writes the journal, the secret still never leaves the server 
     `CODE_REQUIRED` / `BAD_CODE`, and the password shares rule 49's limit. The format is checked first.
     Once changed, the OLD address gets a notice (best effort: a mail failure never undoes the change).
     A save that leaves the email as it is asks for nothing. « Mon compte » opens the re-authentication
-    dialog (rule 47) only when the email field changed.
+    dialog (rule 47) only when the email field changed (and shows a failure to read the second-step status
+    instead of guessing). The user's OTHER sessions end, as after a password change; no notice goes to the
+    bootstrap login `admin@guestflow.local`, which is nobody's mailbox. The start assistant's
+    `PUT /api/onboarding/company` with `useAsLogin: true` (rule 37) rewrites the login email too: it needs the
+    same `currentPassword` (and `code`), checked before anything is saved; the step shows a password field once
+    the box is ticked.
 60. **A support write is logged even if the client leaves** (added 2026-10-28, audit finding M2). The
     entry is written on `finish`, or on `close` without `finish` with the summary `aborted` (shown to the
     customer as « Interrompu »); never twice.
@@ -576,8 +581,10 @@ every change still writes the journal, the secret still never leaves the server 
     tell whether an account exists (rule 1's reasoning, applied to the login).
 62. **The login code mail is limited like every code mail** (added 2026-10-28, audit finding L3). For an
     email-method account the code mailed after the right password takes a login mail slot (rule 55: 60 s
-    gap, 6 an hour, shared with « Renvoyer le code »). Over the limit no mail leaves, the code step is still
-    shown (« Code déjà envoyé à … ») and the code already sent stays valid.
+    gap, 6 an hour, shared with « Renvoyer le code »). Over the limit no mail leaves. If a login code is
+    still live (`emailCodeHash` set, not expired), the code step is shown on it (« Code déjà envoyé à … »);
+    otherwise the login is refused 429 — `RESEND_TOO_SOON` with `retryInSeconds` (« Nouvel envoi possible dans
+    N s. ») or `TOO_MANY_SENDS` — and the login page counts the wait down on its button.
 
 ---
 
@@ -867,6 +874,15 @@ at the 6th digit, paste and backup code, the refusal under the cells with the di
 busy, refusal under the field), console `LoginPage.second-factor` (5: sent at the 6th digit, never at
 the 5th, refusal under the cells).
 
+**Authz audit of 2026-10-28 (rules 18, 59–62):** server `hosting-h2-self-email-change` (8: password,
+code, shared lock, old-address notice, other sessions, bootstrap login, format/uniqueness),
+`hosting-h2-support-aborted-writes` (3), `hosting-h2-support-settings-fields` (10: keypad code, IBAN/BIC,
+the RESOLVED recipient through `company.email` with an empty recipient, `PUT /onboarding/company`, unchanged
+values pass, the logged 403), `users-model.login-timing` (2), `hosting-h2-two-factor-login-mail-throttle`
+(5: live code kept, case A within 60 s of a successful login, case B six an hour), and
+`onboarding-login-opt-in` (+2); client `AccountPage.email-change` (4), `LoginPage.mail-limit` (2),
+`OnboardingPage.login-opt-in` (+1).
+
 **E2E:**
 - forgot password through the dev mail catcher;
 - enable TOTP and log in with a computed code (2026-10-19: a wrong code first, said under the cells,
@@ -970,3 +986,10 @@ customer (rule 20); the slug required, taken from the licence when the hosting d
 (rule 22); the forgotten password answering before any lookup, bounded counters (rules 3, 5); the
 backup-code switch (rule 7), the backup codes dialog closed by « Terminé » only (rule 6), the red bar
 clear of the home indicator (rule 16).
+
+**Authz audit, 2026-10-28 (`fix/audit-authz`, target `inte/plugins`):** rules 59–62 and the widening of rule 18
+(M3). `usersController.updateSelf` re-authenticates through `twoFactor.reauthenticateForChange`; the start
+assistant's company step does the same for `useAsLogin`; `supportAudit` logs on `close`; `supportSessionPolicy`
+judges the resolved e-mail identity; `usersModel.verifyCredentials` hashes against a dummy; `beginLogin` takes a
+login mail slot (`markCodeSent` removed). Client: `AccountPage` (ReauthDialog), `LoginPage` (wait countdown),
+`OnboardingPage` (password field). Not checked in a browser.

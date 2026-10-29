@@ -6,6 +6,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { setup, codeAt, enableTotp, fakeRes } = require('./accountSecurityFixture');
 const { buildController } = require('../controllers/usersController');
+const { DEFAULT_ADMIN_EMAIL } = require('../constants/authDefaults');
 
 const PASSWORD = 'correct horse battery';
 
@@ -13,14 +14,16 @@ function harness() {
   const h = setup();
   const sent = [];
   const emailService = { async send(mail) { sent.push(mail); } };
-  const controller = buildController({ usersModel: h.users, settingsModel: {}, emailService, twoFactor: h.twoFactor });
+  const revoked = [];
+  const sessionsModel = { revokeOtherSessionsForUser: (id, sid) => revoked.push([id, sid]) };
+  const controller = buildController({ usersModel: h.users, settingsModel: {}, emailService, twoFactor: h.twoFactor, sessionsModel });
   const call = (user, body) => {
     const res = fakeRes();
     const session = { user };
-    controller.updateSelf({ user, session, body: { firstName: 'Marie', lastName: 'D', ...body } }, res);
+    controller.updateSelf({ user, session, sessionID: 'sid-current', body: { firstName: 'Marie', lastName: 'D', ...body } }, res);
     return { res, session };
   };
-  return { h, sent, call };
+  return { h, sent, call, revoked };
 }
 
 const tick = () => new Promise((resolve) => setImmediate(resolve));
@@ -93,4 +96,22 @@ test('rule 59 — a malformed or taken address is refused before the password is
   assert.equal(call(marie, { email: 'pas-une-adresse' }).res.body.error, 'INVALID_EMAIL');
   const taken = call(marie, { email: 'paul@domaine-ombre.fr', currentPassword: PASSWORD }).res;
   assert.equal(taken.statusCode, 409);
+});
+
+test('rule 59 — a changed email ends the other sessions, a refused or unchanged one does not', () => {
+  const { h, call, revoked } = harness();
+  const marie = h.addUser('marie@domaine-ombre.fr');
+  call(marie, { email: 'marie@nouveau.fr' });
+  call(marie, { lastName: 'Dupont' });
+  assert.deepEqual(revoked, []);
+  call(marie, { email: 'marie@nouveau.fr', currentPassword: PASSWORD });
+  assert.deepEqual(revoked, [[marie.id, 'sid-current']]);
+});
+
+test('rule 59 — the bootstrap login is nobody\'s mailbox: no notice goes to it', async () => {
+  const { h, sent, call } = harness();
+  const admin = h.addUser(DEFAULT_ADMIN_EMAIL);
+  assert.equal(call(admin, { email: 'contact@domaine-ombre.fr', currentPassword: PASSWORD }).res.statusCode, 200);
+  await tick();
+  assert.equal(sent.length, 0);
 });

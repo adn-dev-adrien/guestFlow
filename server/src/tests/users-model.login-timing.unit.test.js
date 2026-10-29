@@ -40,7 +40,7 @@ test('rule 61 — an unknown email still verifies a password against a dummy has
   assert.equal(calls.length, 1, 'one hash was computed');
 });
 
-test('rule 61 — a known email verifies once, and an inactive or support account too', () => {
+test('rule 61 — a known email verifies once, and a deactivated or support account costs the same', () => {
   const { fresh, calls } = loadModelCountingVerifications();
   const db = memoryDb();
   const model = fresh.buildModel(db);
@@ -51,4 +51,8 @@ test('rule 61 — a known email verifies once, and an inactive or support accoun
   calls.length = 0;
   assert.equal(model.verifyCredentials('marie@domaine-ombre.fr', 'correct horse battery'), null);
   assert.equal(calls.length, 1, 'a deactivated account costs the same');
+  db.prepare('UPDATE users SET isActive = 1, isSupportAccount = 1').run();
+  calls.length = 0;
+  assert.equal(model.verifyCredentials('marie@domaine-ombre.fr', 'correct horse battery'), null);
+  assert.equal(calls.length, 1, 'a support account costs the same');
 });
