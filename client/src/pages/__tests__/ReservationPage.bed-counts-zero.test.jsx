@@ -53,9 +53,17 @@ function open(fiche) {
   );
 }
 
-// Enregistrer is disabled on a clean fiche (specs/reservation-save-keeps-pricing.md rule 7): touch a note first.
+// Enregistrer is disabled on a clean fiche (specs/reservation-save-keeps-pricing.md rule 7). The page takes its
+// clean baseline once the first quote has landed, so a note typed before that is part of the baseline: type
+// until the page sees an edit.
 async function makeDirty() {
-  fireEvent.change(await screen.findByLabelText(/^Notes/i), { target: { value: 'Arrivée tardive' } });
+  const notes = await screen.findByLabelText(/^Notes/i);
+  let n = 0;
+  await waitFor(() => {
+    n += 1;
+    fireEvent.change(notes, { target: { value: `Arrivée tardive ${n}` } });
+    expect(screen.getByRole('button', { name: 'Enregistrer' })).toBeEnabled();
+  });
 }
 
 beforeEach(() => {

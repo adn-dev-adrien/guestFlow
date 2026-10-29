@@ -637,7 +637,15 @@ export default function ReservationPage() {
     if (!resnapshotAfterQuoteRef.current || !pricingQuote) return;
     if (pricingQuote === resnapshotAfterQuoteRef.current.quote) return;
     resnapshotAfterQuoteRef.current = null;
-    setInitialSnapshot(formSnapshot);
+    // The baseline takes what the quote wrote into the form, and nothing else: whatever the operator typed
+    // while the quote was on its way (a note) stays an edit, so Enregistrer lights up.
+    setInitialSnapshot((prevSnapshot) => {
+      if (!prevSnapshot) return formSnapshot;
+      try {
+        const snap = JSON.parse(prevSnapshot);
+        return JSON.stringify({ ...snap, form: applyQuoteToFormPure(snap.form, pricingQuote, { preserveBlankPrice: false }) });
+      } catch { return formSnapshot; }
+    });
   }, [pricingQuote, formSnapshot]);
   const miniVisibleDays = downSm ? 5 : downMd ? 6 : downLg ? 7 : 8;
   // A saved booking keeps the prices it was sold at as long as its placement doesn't move. For a devis
