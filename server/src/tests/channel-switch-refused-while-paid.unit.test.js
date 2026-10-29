@@ -1,4 +1,4 @@
-// specs/reservation-save-keeps-pricing.md rule 19 + reservation-refunds.md rule 45 — audit R4 N6, Adrien's
+// specs/reservation-save-keeps-pricing.md rules 19-20 + reservation-refunds.md rule 45 — audit R4 N6, Adrien's
 // decision of 2026-10-29 (« Refuser, décocher d'abord »), superseding « figer le payé »: a direct stay can never
 // really become a platform stay, so a switch while the acompte or the solde is ticked is refused.
 
@@ -86,4 +86,12 @@ test('rule 19 — a paid direct stay saved as direct is untouched by the refusal
   const refused = controller.performUpdate(id, body({ discountPercent: 10 }));
   assert.equal(refused.status, 409);
   assert.equal(refused.body.code, 'OVERPAID');
+});
+
+test('rule 19 — the live preview of a refused switch carries the refusal as a notice', async () => {
+  const { controller, id, body } = await paidDirectStay();
+  const live = await preview(controller, id, body({ platform: 'Airbnb' }));
+  assert.ok((live.notices || []).some((n) => n.code === 'DIRECT_PAYMENT_RECORDED' && n.text === REFUSAL), JSON.stringify(live.notices));
+  const unchanged = await preview(controller, id, body());
+  assert.ok(!(unchanged.notices || []).some((n) => n.code === 'DIRECT_PAYMENT_RECORDED'));
 });

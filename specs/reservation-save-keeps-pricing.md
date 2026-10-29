@@ -202,6 +202,12 @@ changed something the price depends on; money collected beyond the total is repo
     changer de canal. », which the fiche shows in its ordinary error alert. Once the operator unticks it (the journal
     reverses), the switch is an ordinary platform fiche. Platform → platform and platform → direct are unaffected.
     The live preview of such a switch reports no trop-perçu. Nothing is computed in React.
+20. **The other ways to change a direct stay's channel obey rule 19 (Adrien, 2026-10-29, audit R4 re-review).** Unticking
+    « Compté comme vente directe » on a channel is refused while a stay of it has an acompte or a solde ticked
+    (`platform-settings-relay-and-review.md` rule 15), and the iCal resync of a never-edited stay keeps the platform of a
+    direct stay with a ticked payment (`ical-sync-override-locked-dates.md` rule 12). The live preview of a refused
+    switch carries the same sentence as a `DIRECT_PAYMENT_RECORDED` notice (`quote.notices`, rendered by the existing
+    pricing notices block).
 
 **Edge cases:**
 - In the extras window of a started fiche a custom line is keyed by its text (end-of-stay complement,

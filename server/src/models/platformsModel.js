@@ -377,6 +377,16 @@ function createPlatformsModel(database) {
       }
     },
 
+    /** How many live stays of this channel have an acompte or a solde ticked as received (cash included). */
+    countStaysWithDirectPayment(name) {
+      return Number(database.prepare(`
+        SELECT COUNT(*) AS n FROM reservations
+         WHERE kind = 'reservation' AND lower(trim(platform)) = lower(trim(?))
+           AND (COALESCE(depositPaid, 0) = 1 OR COALESCE(depositPaidCash, 0) = 1
+             OR COALESCE(balancePaid, 0) = 1 OR COALESCE(balancePaidCash, 0) = 1)
+      `).get(name).n);
+    },
+
     setCountsAsDirect(id, on) {
       database.prepare('UPDATE platforms SET countsAsDirect = ? WHERE id = ?').run(on ? 1 : 0, Number(id));
     },

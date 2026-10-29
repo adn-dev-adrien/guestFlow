@@ -169,6 +169,22 @@ function saveSettings(req, res) {
     actions.push(...plan.apply);
   }
   if (Object.keys(errors).length) return res.status(400).json({ code: 'PLATFORMS_INVALID', errors });
+  // specs/platform-settings-relay-and-review.md rule 15 — a channel stops counting as direct only once no stay of it
+  // carries a direct payment: the switch would turn them all into platform stays (reservation-save-keeps-pricing rule 20).
+  let ticked = 0;
+  for (const row of rows) {
+    const current = byId.get(Number(row.id));
+    if (current && !current.isDirect && current.countsAsDirect === true && row.countsAsDirect === false) {
+      ticked += platformsModel.countStaysWithDirectPayment(current.name);
+    }
+  }
+  if (ticked > 0) {
+    return res.status(409).json({
+      error: `Paiements directs enregistrés sur ce canal : les décocher avant de le passer en plateforme. (${ticked} fiche${ticked > 1 ? 's' : ''})`,
+      code: 'DIRECT_PAYMENTS_RECORDED',
+      count: ticked,
+    });
+  }
   actions.forEach((run) => run());
   platformsModel.refreshDirectChannels();
   platformsModel.refreshChoreFreeChannels();
