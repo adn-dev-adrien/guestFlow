@@ -183,6 +183,8 @@ async function status(req, res) {
 
   const asConfirmed = (rid) => {
     const r = db.prepare('SELECT * FROM reservations WHERE id = ?').get(rid);
+    // The stay the devis became was cancelled: the page must not claim a confirmed booking.
+    if (r && r.kind === 'cancelled') return ok(res, { status: 'cancelled' });
     return ok(res, { status: r && r.bookingConflictAt ? 'conflict' : 'confirmed', ...recap(r) });
   };
   // Already confirmed (by the webhook / a prior poll)? loadPublicDevis tags it `already_converted`.

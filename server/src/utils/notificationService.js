@@ -448,15 +448,17 @@ function buildNotificationService({
   const PAID_TWICE_TITLE = '⚠️ Devis payé deux fois';
   const PAID_OTHER_AMOUNT_TITLE = '⚠️ Paiement reçu d’un autre montant que le devis';
   const eurosFr = (cents) => (Number(cents || 0) / 100).toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' });
-  function buildPaidAfterCancelEmail(resa, link, publicUrl, { settledOn = null, amountMismatch = null, doublePaid = false } = {}) {
-    const amount = eurosFr(link.amountCents);
+  function buildPaidAfterCancelEmail(resa, link, publicUrl, { settledOn = null, amountMismatch = null, doublePaid = false, duplicateCents = null } = {}) {
+    const amount = eurosFr(doublePaid && duplicateCents != null ? duplicateCents : link.amountCents);
     const ref = resa.devisNumber || `#${Number(resa.id)}`;
     const title = doublePaid ? PAID_TWICE_TITLE : amountMismatch ? PAID_OTHER_AMOUNT_TITLE : (settledOn ? PAID_AFTER_SETTLED_TITLE : PAID_AFTER_CANCEL_TITLE);
     const subject = `${title} — ${ref} · ${amount}`;
     const intro = doublePaid
       ? [
         'Deux liens de paiement du même devis ont été payés.',
-        'Le second paiement n’est pas enregistré une seconde fois sur le séjour.',
+        duplicateCents != null
+          ? `Seule la part de l’acompte (${amount}) est payée deux fois ; le reste est enregistré comme solde.`
+          : 'Le second paiement n’est pas enregistré une seconde fois sur le séjour.',
         'Action requise : rembourser ce paiement depuis l’espace du prestataire de paiement.',
       ]
       : amountMismatch
@@ -465,7 +467,7 @@ function buildNotificationService({
         'Le séjour est enregistré au montant réellement reçu. Aucun e-mail de confirmation n’a été envoyé au client.',
         Number(amountMismatch.expectedCents) > Number(link.amountCents || 0)
           ? `Le reste (${eurosFr(Number(amountMismatch.expectedCents) - Number(link.amountCents || 0))}) est à percevoir : il est porté sur le complément d’arrivée.`
-          : `Le trop-perçu (${eurosFr(Number(link.amountCents || 0) - Number(amountMismatch.expectedCents))}) est à rembourser depuis l’espace du prestataire de paiement.`,
+          : `Le trop-perçu (${eurosFr(Number(link.amountCents || 0) - Number(amountMismatch.expectedCents))}) figure sur la fiche : à rembourser depuis l’espace du prestataire de paiement.`,
         'À vérifier : envoyer la confirmation au client une fois la différence réglée.',
       ]
       : settledOn

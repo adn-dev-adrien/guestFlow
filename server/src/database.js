@@ -2777,6 +2777,22 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   }
 }
 
+// ---------- THE LINKS OF A CONVERTED DEVIS FOLLOW ITS STAY (specs/public-online-payment.md rule 16) ----------
+// A link minted on a devis kept billing the devis's amount after the stay it became was re-priced. Once,
+// the open ones that no longer match their stay are retired (never a paid one) with the remote-deactivation
+// marker, so the poll deactivates them — or books them at what was received. Idempotent via `migrations`.
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  const migrationName = 'stale_links_of_converted_devis_retired_v1';
+  if (!db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(migrationName)) {
+    db.transaction(() => {
+      const retired = require('./utils/staleLinksOfStay').retireStaleLinksOfConvertedDevis(db);
+      db.prepare('INSERT INTO migrations (name) VALUES (?)').run(migrationName);
+      // eslint-disable-next-line no-console
+      console.log(`[migration:stale-links-of-converted-devis] retired ${retired.length} link(s)`);
+    })();
+  }
+}
+
 // ---------- HISTORY OUTLIVES THE STAY (specs/ical-cancellation-approval.md rules 11, 14) ----------
 // `reservation_history` no longer cascades with `reservations`: the audit trail of a deleted stay —
 // the « Suppression iCal approuvée » row first — must survive the delete. Table rebuild, every row kept.

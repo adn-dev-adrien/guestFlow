@@ -358,7 +358,8 @@ Other facts the design rests on:
     cancels only a link still `open`; `retireOpenLink` (refuse when paid, cancel if open, deactivate) is the
     one way a stale link is replaced by `ensurePaymentLink`, the installment links and the public `pay`. The
     stay's paid flags are read again after the provider call. Cancelling a stay also abandons the open
-    links of the devis converted into it. See public-online-payment.md rule 16.
+    links of the devis converted into it; a devis's links are also retired by its stay's `retireForAmountChange`. See
+    public-online-payment.md rule 16.
 
 ## 4. Architecture
 

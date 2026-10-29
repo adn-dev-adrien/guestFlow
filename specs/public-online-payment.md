@@ -211,12 +211,22 @@ Let a website visitor **pay their full stay online** and have the reservation co
     current amounts and booked at what was received, with the admin alert (`amountMismatch`); a payment
     on a link of a cancelled stay is money to refund (« Paiement reçu sur un lien annulé »), never a paid
     stay and never a confirmation. An acompte link and a full link both settle the acompte: minting one
-    retires the open other (as `pay` does), and if both are paid the second is a double payment (rule 15).
+    retires the open other once the new link exists (as `pay` does; a refused or failed mint never cancels
+    a valid link), and `retireSettled` retires an open full link once the acompte is paid. The paid flags
+    are read on the stay the devis became too. If both are paid the second is a double payment (rule 15);
+    when the acompte was paid first, only the acompte part is refunded (« Remboursement à faire » and the
+    alert name that part) and the surplus is recorded as the solde.
     Retiring a link only ever cancels a link still `open` (`cancelIfOpen`): a payment that lands during
     the provider round trip stays `paid` and the caller gets `LINK_ALREADY_PAID`. A provider that cannot
     say whether a retired devis link was paid keeps it for the poll's retry instead of deactivating it.
     A retired devis link paid anyway converts the devis with `allowConflict`, flagging dates taken
-    meanwhile. Covered by `tests/audit-r2-public-devis-links.unit.test.js`.
+    meanwhile. A converted devis's links are also retired when the devis converts and by
+    `retireForAmountChange` of its stay; a one-time boot migration (`stale_links_of_converted_devis_retired_v1`)
+    retires the ones already stale (never a paid one). The alert of a retired link paid anyway always
+    states what was booked against the stay's own amounts and the real direction: a trop-perçu « figure
+    sur la fiche : à rembourser », a shortfall is carried on the complement. The public `/status` of a
+    devis whose stay was cancelled answers `cancelled`. Covered by
+    `tests/audit-r2-public-devis-links.unit.test.js`.
 
 ## 4. Architecture
 

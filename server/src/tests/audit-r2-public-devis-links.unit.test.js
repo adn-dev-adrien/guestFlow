@@ -169,3 +169,137 @@ test('A — a retired devis link paid after its dates were taken still converts 
   assert.ok(rowOf(devisId).convertedReservationId, 'the guest paid: a stay must exist');
   assert.equal(links.findById(link.id).status, 'paid');
 });
+
+// ---- Review of PR #851 and money audit finding A (2026-10-29) ----
+const { retireStaleLinksOfConvertedDevis } = require('../utils/staleLinksOfStay');
+const notificationService = require('../utils/notificationService');
+const publicPayment = require('../controllers/public/publicPaymentController');
+
+test('money A — a devis link paid above what the converted stay owes shows the trop-perçu, and the alert says so', async () => {
+  const { liveQuote } = require('./ledgerFixture');
+  const stayId = createStay({ depositDisabled: 1 });
+  const owed = fullCents(stayId);
+  const { link } = convertedDevis(stayId, { amountCents: owed + 1035 });
+  const { out } = await pay(link);
+  assert.deepEqual(out.amountMismatch, { expectedCents: owed, receivedCents: owed + 1035 });
+  assert.equal((await liveQuote(stayId)).overpaymentTtc, 10.35);
+  const { buildPaidAfterCancelEmail } = notificationService.__test;
+  const mail = buildPaidAfterCancelEmail({ id: 1, devisNumber: 'D-1' }, { amountCents: owed + 1035 }, '', { amountMismatch: out.amountMismatch });
+  assert.match(mail.text, /trop-perçu \(10,35.€\) figure sur la fiche/);
+  assert.doesNotMatch(mail.text, /est à percevoir/);
+});
+
+test('money A — a link equal to the devis but above the re-priced stay is not booked as a plain payment', async () => {
+  const stayId = createStay({ depositDisabled: 1 });
+  const owed = fullCents(stayId);
+  const { link } = convertedDevis(stayId, { amountCents: owed + 1999 });
+  const { out, calls } = await pay(link);
+  assert.ok(out.amountMismatch);
+  assert.equal(calls.filter((c) => c[0] === 'alert').length, 1);
+});
+
+test('money A — retireForAmountChange on a stay also retires its devis links; a conversion retires the stale ones', () => {
+  const stayId = createStay();
+  const { link } = convertedDevis(stayId, { amountCents: 1234 });
+  const [retired] = links.retireForAmountChange(stayId, 'full', fullCents(stayId));
+  assert.equal(retired.id, link.id);
+  assert.equal(links.findById(link.id).cancelReason, 'amount-changed');
+
+  const other = createStay();
+  const stay = rowOf(other);
+  const devisId = Number(db.prepare(`INSERT INTO reservations (kind, propertyId, clientId, startDate, endDate, adults, finalPrice,
+      depositAmount, balanceAmount, devisStatus) VALUES ('devis', ?, 1, ?, ?, 2, ?, ?, ?, 'draft')`)
+    .run(stay.propertyId, '2029-01-10', '2029-01-13', stay.finalPrice, stay.depositAmount, stay.balanceAmount).lastInsertRowid);
+  const stale = links.create({ reservationId: devisId, type: 'full', amountCents: 1234, providerLinkId: 'CV', url: 'u', status: 'open' });
+  const conv = dm.convertToReservation(devisId, { allowConflict: true });
+  assert.ok(conv.ok, JSON.stringify(conv));
+  assert.equal(links.findById(stale.id).status, 'cancelled');
+  assert.ok(links.findById(stale.id).remoteCancelPendingAt);
+});
+
+test('money A — the boot migration retires stale links of converted devis, never a paid one, and is idempotent', () => {
+  const a = createStay();
+  const stale = convertedDevis(a, { amountCents: 777 }).link;
+  const b = createStay();
+  const paid = convertedDevis(b, { amountCents: 778 }).link;
+  links.markPaid(paid.id, { providerPaymentId: 'p' });
+  const c = createStay();
+  const fine = convertedDevis(c, { amountCents: fullCents(c) }).link;
+  const retired = retireStaleLinksOfConvertedDevis(db);
+  assert.ok(retired.some((l) => l.id === stale.id));
+  assert.equal(links.findById(stale.id).status, 'cancelled');
+  assert.ok(links.findById(stale.id).remoteCancelPendingAt);
+  assert.equal(links.findById(paid.id).status, 'paid');
+  assert.equal(links.findById(fine.id).status, 'open');
+  assert.equal(retireStaleLinksOfConvertedDevis(db).length, 0);
+});
+
+test('R1 — the retry of a retired link on an already converted devis alerts with what was booked and what is left', async () => {
+  const stayId = createStay({ depositDisabled: 1 });
+  const owed = fullCents(stayId);
+  const { link } = convertedDevis(stayId, { amountCents: owed - 5000 });
+  const [retired] = links.retireForAmountChange(link.reservationId, 'full', owed);
+  assert.equal(retired.id, link.id);
+  const alerts = [];
+  const provider = { id: 'qonto', getPayment: async () => ({ paid: true, paymentId: 'pr1', paidAt: '2027-04-01T10:00:00Z' }), cancelLink: async () => {} };
+  await retryPendingCancellations({
+    paymentLinksModel: links, provider, database: db, devisModel: dm, emitPluginEvent: () => {},
+    notifyPaidAfterCancel: async (l, o) => alerts.push([l.id, o]),
+  });
+  assert.deepEqual(alerts.find(([id]) => id === link.id)[1].amountMismatch, { expectedCents: owed, receivedCents: owed - 5000 });
+});
+
+test('R2 — acompte paid, then the full link: the surplus is the solde, only the acompte part is refunded', async () => {
+  const stayId = createStay();
+  const stay = rowOf(stayId);
+  const depositCents = Math.round(stay.depositAmount * 100);
+  const { devisId, link: full } = convertedDevis(stayId, { amountCents: fullCents(stayId) });
+  const deposit = links.create({ reservationId: devisId, type: 'deposit', amountCents: depositCents, providerLinkId: 'D2', url: 'u', status: 'open' });
+  await pay(deposit);
+  const { out, calls } = await pay(full);
+  assert.equal(out.effect, 'double-payment');
+  assert.equal(rowOf(stayId).balancePaid, 1, 'the solde is recorded');
+  assert.deepEqual(calls.map((c) => c[0]), ['alert']);
+  assert.deepEqual(calls[0][1], { doublePaid: true, duplicateCents: depositCents });
+  const history = db.prepare("SELECT changedFields FROM reservation_history WHERE reservationId = ? AND changedFields LIKE '%refundOwed%'").all(stayId);
+  assert.match(history.map((h) => h.changedFields).join(''), new RegExp(String(stay.depositAmount).replace('.', ',').slice(0, 2)));
+});
+
+test('R2 — retireSettled retires an open full link once the acompte is paid', () => {
+  const stayId = createStay();
+  const { link } = convertedDevis(stayId, { amountCents: fullCents(stayId) });
+  db.prepare('UPDATE reservations SET depositPaid = 1 WHERE id = ?').run(stayId);
+  assert.ok(links.retireSettled().some((l) => l.id === link.id));
+});
+
+test('R2 — minting on a converted devis id reads the paid flags of the converted stay', async () => {
+  const stayId = createStay();
+  const { devisId } = convertedDevis(stayId);
+  db.prepare('UPDATE reservations SET depositPaid = 1 WHERE id = ?').run(stayId);
+  const provider = { id: 'qonto', getPayment: async () => ({ paid: false }), cancelLink: async () => {}, createLink: async () => { throw new Error('must not mint'); } };
+  await assert.rejects(
+    ensurePaymentLink({ database: db, paymentLinksModel: links, provider, resolveAmountCents: () => 5000 }, devisId, 'full'),
+    (e) => e.error === 'ALREADY_PAID',
+  );
+});
+
+test('R3 — a refused or failed mint never retires the other valid link', async () => {
+  const stayId = createStay({ depositDisabled: 1 });
+  const { devisId, link: full } = convertedDevis(stayId, { amountCents: fullCents(stayId) });
+  db.prepare("UPDATE reservations SET convertedReservationId = NULL, depositAmount = 0 WHERE id = ?").run(devisId);
+  const provider = { id: 'qonto', getPayment: async () => ({ paid: false }), cancelLink: async () => {}, createLink: async () => { throw new Error('down'); } };
+  await assert.rejects(ensurePaymentLink({ database: db, paymentLinksModel: links, provider, resolveAmountCents: () => 0 }, devisId, 'deposit'), (e) => e.error === 'ZERO_AMOUNT');
+  assert.equal(links.findById(full.id).status, 'open');
+  await assert.rejects(ensurePaymentLink({ database: db, paymentLinksModel: links, provider, resolveAmountCents: () => 9000 }, devisId, 'deposit'), /down/);
+  assert.equal(links.findById(full.id).status, 'open');
+});
+
+test('R4 — the public status of a devis whose converted stay was cancelled answers cancelled', async () => {
+  const stayId = createStay();
+  const { devisId } = convertedDevis(stayId);
+  db.prepare("UPDATE reservations SET requestOrigin = 'public', publicToken = 'tok' WHERE id = ?").run(devisId);
+  db.prepare("UPDATE reservations SET kind = 'cancelled' WHERE id = ?").run(stayId);
+  const res = { statusCode: 200, status(c) { this.statusCode = c; return this; }, json(b) { this.body = b; return this; } };
+  await publicPayment.status({ params: { id: String(devisId) }, query: { token: 'tok' }, headers: {} }, res);
+  assert.equal(res.body.status || (res.body.data && res.body.data.status), 'cancelled');
+});
