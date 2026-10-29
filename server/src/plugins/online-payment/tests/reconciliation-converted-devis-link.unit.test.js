@@ -1,3 +1,4 @@
+// specs/plugins-phase-3a-online-payment.md rule 40 points here.
 // specs/qonto-bank-reconciliation.md rule 47 (audit R4 Q2): a stay paid through the payment link of the devis it
 // came from is expected as a LINK receipt, not as a direct transfer.
 const test = require('node:test');
