@@ -380,13 +380,18 @@ below are the recommended ones; each is reversible in a later spec.
     requirements** (audit round 2, N4, 2026-10-29). In `reviveDependants`, a migration failure after
     `registerLive` marks the plugin failed (nothing of it runs; its routes answer `PLUGIN_INACTIVE`), as
     a migration failing at boot does. An enabled dependant is revived only when each requirement is
-    enabled too (rule 37), not merely loaded. `POST /:id/activate` (cascade included) runs the same revive once the requirements are on, so a dependant left unloaded comes up in that operation. Test: `plugin-revive-failures.unit.test.js`.
+    enabled too (rule 37), not merely loaded. `POST /:id/activate` (cascade included) runs the same revive once the requirements are on, so a dependant left unloaded comes up in that operation: the answer carries `reload: true` and `revived: [ids]` (the page reloads to import the bundle), and a dependant still waiting names the requirement still unmet. Tests: `plugin-revive-failures.unit.test.js`, `plugin-revive-reload.unit.test.js`, `PluginsPage.activate-reload.test.jsx`.
 47. **The registry key falls back to the licence key — still, on purpose** (audit round 2, F7,
     2026-10-29; restates rules 9, 40 and 42). `GUESTFLOW_REGISTRY_PUBLIC_KEY` unset, the instance verifies
     the index with `GUESTFLOW_LICENCE_PUBLIC_KEY`. Whoever holds the signing key (the registry key, or the
     licence key while it falls back) is the sole root of trust: it can run arbitrary code on every
     instance that installs or updates. No behaviour change.
     **Sans test** — a statement of the trust model, not a behaviour.
+48. **Hooks run in graph order and are bounded** (audit round 2 review, 2026-10-29). `runPendingInstallHooks` runs
+    the pending plugins requirements first (rule 4 of plugin-dependencies), not in id order. An `onInstall` or
+    `onActivate` hook that has not settled after 120 s is logged (« hook did not settle ») and given up on, like one
+    that throws, so it cannot hold the plugin-operation lock (rule 43) for ever; it may still finish in the
+    background. Test: `plugin-hook-limits.unit.test.js`.
 
 ---
 

@@ -32,6 +32,7 @@ const { createContext } = require('./sdk/createContext');
 const { runPluginMigrations } = require('./sdk/pluginMigrations');
 const requirePlugin = require('../middleware/requirePlugin');
 const { whenPluginActive } = require('../utils/pluginScheduling');
+const { postOrder } = require('../utils/pluginGraph');
 
 const defaultSettingsModel = () => require('../models/pluginSettingsModel');
 const defaultIsInstalled = (id) => Boolean(require('../models/pluginsModel').get(id));
@@ -105,12 +106,24 @@ function migrate(db, id) {
   return runPluginMigrations(db, id, record.migrations);
 }
 
+// A hook that never settles must not hold the plugin-operation lock for ever: past this it is logged and
+// given up on (it may still finish in the background), like a hook that throws.
+let hookTimeoutMs = 120000;
+
+function withHookTimeout(promise) {
+  let timer;
+  const limit = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`hook did not settle within ${hookTimeoutMs} ms`)), hookTimeoutMs);
+  });
+  return Promise.race([promise, limit]).finally(() => clearTimeout(timer));
+}
+
 async function runInstallHooks(id) {
   const record = registry.get(id);
   if (!record) return;
   for (const hook of record.onInstall) {
     try {
-      await hook();
+      await withHookTimeout(new Promise((resolve) => { resolve(hook()); }));
     } catch (err) {
       // eslint-disable-next-line no-console
       console.error(`[plugin:${id}] install hook failed:`, err && err.message ? err.message : err);
@@ -132,7 +145,7 @@ function runActivateHooks(id) {
   wasLive.set(id, true);
   return Promise.all(record.onActivate.map(async (hook) => {
     try {
-      await hook();
+      await withHookTimeout(new Promise((resolve) => { resolve(hook()); }));
     } catch (err) {
       // eslint-disable-next-line no-console
       console.error(`[plugin:${id}] activation hook failed:`, err && err.message ? err.message : err);
@@ -181,7 +194,10 @@ function syncLiveTransitions() {
  * their activation hooks, once; the marker is cleared even if a hook fails (hooks never block).
  */
 async function runPendingInstallHooks(model) {
-  for (const id of model.pendingHooks()) {
+  const pending = model.pendingHooks();
+  const requires = Object.fromEntries(model.list().map((row) => [row.id, ((row.manifest && row.manifest.requires) || []).map((r) => r.id)]));
+  // Requirements first (specs/plugin-dependencies.md rule 4), not the table's id order.
+  for (const id of postOrder(pending, (other) => requires[other] || [], pending)) {
     const kind = model.hooksPendingKind(id);
     model.clearHooksPending(id);
     if (!registry.get(id)) continue;
@@ -192,6 +208,9 @@ async function runPendingInstallHooks(model) {
     runActivateHooks(id);
   }
 }
+
+/** Test-only: shorten the limit a hook gets before it is given up on. */
+function setHookTimeoutForTests(ms) { hookTimeoutMs = ms; }
 
 /** Test-only: forget every recorded transition so a suite starts from a clean boot. */
 function resetLiveTransitionsForTests() {
@@ -427,6 +446,7 @@ module.exports = {
   beginInstall,
   endInstall,
   resetLiveTransitionsForTests,
+  setHookTimeoutForTests,
   mountPublic,
   mountApi,
   startJobs,

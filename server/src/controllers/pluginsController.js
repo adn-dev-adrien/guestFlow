@@ -666,8 +666,10 @@ function createController(model = defaultModel, deps = {}) {
 
   // A plugin left unloaded at boot because its requirement was missing is registered as soon as the
   // requirement is live, so installing it does not call for a restart.
-  async function reviveDependants() {
+  // Synchronous on purpose (activate answers right after). Returns the ids brought up, so the caller can ask the browser to reload its plugin bundles.
+  function reviveDependants() {
     const state = host().state();
+    const revived = [];
     let progressed = true;
     // Until nothing more comes back: a plugin revived makes its own dependants ready.
     while (progressed) {
@@ -676,10 +678,12 @@ function createController(model = defaultModel, deps = {}) {
         const left = state.incompatible[row.id];
         const needs = (row.manifest && row.manifest.requires) || [];
         // An enabled dependant needs its requirements enabled too (rule 37), not only loaded.
-        const ready = left && (left.code === 'REQUIREMENT_MISSING' || left.code === 'REQUIREMENT_INACTIVE')
-          && needs.every((r) => state.loaded[r.id] && satisfies(state.loaded[r.id], r.range)
-            && (!row.enabled || (model.get(r.id) && model.get(r.id).enabled)));
-        if (ready) {
+        const unmet = needs.find((r) => !(state.loaded[r.id] && satisfies(state.loaded[r.id], r.range)
+          && (!row.enabled || (model.get(r.id) && model.get(r.id).enabled))));
+        if (left && left.code === 'REQUIREMENT_MISSING' && unmet) {
+          // Still waiting: say which requirement is still missing, not the one that just came up.
+          state.incompatible[row.id] = { ...left, message: `Nécessite ${nameOf(unmet.id)}.` };
+        } else if (left && left.code === 'REQUIREMENT_MISSING') {
           try {
             const mod = loader().requirePackage(row.id, host().store().packageDirFor(row.id, row));
             if (loader().registerLive(mod, { db: getDb() })) {
@@ -693,6 +697,7 @@ function createController(model = defaultModel, deps = {}) {
               host().setLoaded(row.id, row.version, row.manifest.contentHash);
               delete state.incompatible[row.id];
               if (row.enabled) loader().runActivateHooks(row.id);
+              revived.push(row.id);
               progressed = true;
             }
           } catch (err) {
@@ -701,6 +706,7 @@ function createController(model = defaultModel, deps = {}) {
         }
       }
     }
+    return revived;
   }
 
   // POST /api/plugins/:id/install in a release (rules 10–13): the requirements first when the
@@ -767,7 +773,7 @@ function createController(model = defaultModel, deps = {}) {
           return restart({ version: offer.version });
         }
         [...activated, ...installed].forEach((id) => loader().runActivateHooks(id));
-        await reviveDependants();
+        reviveDependants();
         // The browser loads the new bundle at its next page load (rule 18): the page reloads.
         return res.json({ ...view(entry), reload: true });
       } finally {
@@ -984,9 +990,10 @@ function createController(model = defaultModel, deps = {}) {
         }
       }
       activated.forEach((id) => loader().runActivateHooks(id));
-      // A dependant left unloaded for want of this requirement comes up in the same operation (no await inside).
-      reviveDependants();
-      return res.json(view(entry));
+      // A dependant left unloaded for want of this requirement comes up in the same operation (no await inside):
+      // the browser reloads to import its bundle.
+      const revived = reviveDependants();
+      return res.json(revived.length ? { ...view(entry), reload: true, revived } : view(entry));
     },
 
     // POST /api/plugins/:id/deactivate — rule 5: data and settings kept. specs/plugin-dependencies.md
