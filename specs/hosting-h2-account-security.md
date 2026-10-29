@@ -584,7 +584,7 @@ every change still writes the journal, the secret still never leaves the server 
     gap, 6 an hour, shared with « Renvoyer le code »). Over the limit no mail leaves. If a login code is
     still live (`emailCodeHash` set, not expired), the code step is shown on it (« Code déjà envoyé à … »);
     otherwise the login is refused 429 — `RESEND_TOO_SOON` with `retryInSeconds` (« Nouvel envoi possible dans
-    N s. ») or `TOO_MANY_SENDS` — and the login page counts the wait down on its button.
+    N s. ») or `TOO_MANY_SENDS` — and the login page counts the wait down on its button. That 429 follows a RIGHT password, so the per-IP login limiter does not count it as a failure (`hosting-h2-login-mail-limit-ip-limiter.unit.test.js`).
 
 ---
 
