@@ -250,19 +250,21 @@ function createCustomerModulesController(ctx, customersController) {
 
   // Rule 22 — the operator orders the erasure of an inactive module's data; the order travels in the
   // licence and the space runs it once (rule 23).
-  function erase(customerId, pluginId, confirmSlug, operator) {
+  function erase(customerId, pluginId, confirmSlug, operator, action) {
+    if (action !== 'erase' && action !== 'uninstall') throw httpError(400, 'INVALID', 'Action : effacer ou désinstaller.');
     const c = customersController.mustGet(customerId);
     if (!entryOf(pluginId)) throw httpError(404, 'UNKNOWN_PLUGIN', 'Module inconnu.');
     if (c.archivedAt) throw httpError(409, 'ARCHIVED', 'Client archivé : réactivez-le d’abord.');
     if (!c.pluginsSeededAt) throw httpError(409, 'NOT_SEEDED', unseededLabel(c));
     if (customerPlugins.chosen(c.id).includes(pluginId)) throw httpError(409, 'MODULE_ACTIVE', 'Module actif : à désactiver d’abord.');
-    if (String(confirmSlug || '') !== c.slug) throw httpError(400, 'SLUG_MISMATCH', `Tapez exactement « ${c.slug} » pour confirmer.`);
+    if (action === 'erase' && String(confirmSlug || '') !== c.slug) throw httpError(400, 'SLUG_MISMATCH', `Tapez exactement « ${c.slug} » pour confirmer.`);
     if (customerPlugins.pendingOrders(c.id).some((o) => o.pluginId === pluginId)) return view(c.id);
     const line = view(c.id).included.find((l) => l.id === pluginId);
     if (line && line.blockedBy) throw httpError(422, 'REQUIRED_BY', line.blockedBy);
     if (!line || !(line.canErase || line.canUninstall)) throw httpError(409, 'NOTHING_TO_ERASE', 'Rien à effacer : le module est encore actif sur l’espace, ou sans données.');
-    customerPlugins.addOrder({ orderId: crypto.randomUUID(), customerId: c.id, pluginId, createdAt: now().toISOString(), operator, removal: line.canUninstall });
-    customersController.journal(c.id, operator, 'module', line.canUninstall ? `Désinstallation de ${nameOf(pluginId)} demandée` : `Effacement des données de ${nameOf(pluginId)} demandé`);
+    if (action === 'uninstall' ? !line.canUninstall : !line.canErase) throw httpError(409, 'ACTION_CHANGED', 'Les données du module ont changé. Liste rechargée.');
+    customerPlugins.addOrder({ orderId: crypto.randomUUID(), customerId: c.id, pluginId, createdAt: now().toISOString(), operator, removal: action === 'uninstall' });
+    customersController.journal(c.id, operator, 'module', action === 'uninstall' ? `Désinstallation de ${nameOf(pluginId)} demandée` : `Effacement des données de ${nameOf(pluginId)} demandé`);
     customersController.issueLicence(c.id);
     return view(c.id);
   }

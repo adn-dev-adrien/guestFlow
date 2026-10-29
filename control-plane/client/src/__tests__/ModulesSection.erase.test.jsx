@@ -56,7 +56,7 @@ it('rule 22 — confirming sends the typed address and shows the order on its wa
   fireEvent.click(await screen.findByRole('menuitem', { name: 'Effacer les données…' }));
   fireEvent.change(await screen.findByLabelText('Pour confirmer, tapez « moulin »'), { target: { value: 'moulin' } });
   fireEvent.click(screen.getByRole('button', { name: 'Effacer' }));
-  await waitFor(() => expect(api.eraseModule).toHaveBeenCalledWith(3, 'linen', 'moulin'));
+  await waitFor(() => expect(api.eraseModule).toHaveBeenCalledWith(3, 'linen', 'erase', 'moulin'));
   await waitFor(() => expect(screen.queryByText('Effacer les données de Linge et blanchisserie ?')).not.toBeInTheDocument());
   expect(screen.queryByRole('button', { name: /Plus d’actions/ })).not.toBeInTheDocument();
   expect(screen.getByText('Effacement des données en cours.')).toBeInTheDocument();
@@ -76,7 +76,7 @@ it('rule 38 — a module installed without data is removed through « Désinstal
   expect(await screen.findByText('Désinstaller Google Vacation Rentals ?')).toBeInTheDocument();
   expect(screen.queryByLabelText(/Pour confirmer/)).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Désinstaller' }));
-  await waitFor(() => expect(api.eraseModule).toHaveBeenCalledWith(3, 'google-vacation-rentals', 'moulin'));
+  await waitFor(() => expect(api.eraseModule).toHaveBeenCalledWith(3, 'google-vacation-rentals', 'uninstall'));
   expect(await screen.findByText('Désinstallation en cours.')).toBeInTheDocument();
 });
 
@@ -87,4 +87,17 @@ it('rule 38 — a module an installed plugin requires shows the reason and no me
   open();
   expect(await screen.findByText('Nécessaire à Google Vacation Rentals : à désinstaller d’abord.')).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: /Plus d’actions/ })).not.toBeInTheDocument();
+});
+
+it('rule 43 — a refused action (the data changed meanwhile) reloads the list and closes the dialog', async () => {
+  const err = Object.assign(new Error('Les données du module ont changé. Liste rechargée.'), { status: 409, code: 'ACTION_CHANGED' });
+  api.eraseModule.mockRejectedValue(err);
+  open();
+  fireEvent.click(await screen.findByRole('button', { name: 'Plus d’actions pour Linge et blanchisserie' }));
+  fireEvent.click(await screen.findByRole('menuitem', { name: 'Effacer les données…' }));
+  fireEvent.change(await screen.findByLabelText('Pour confirmer, tapez « moulin »'), { target: { value: 'moulin' } });
+  api.customerModules.mockClear();
+  fireEvent.click(screen.getByRole('button', { name: 'Effacer' }));
+  await waitFor(() => expect(api.customerModules).toHaveBeenCalledTimes(1));
+  await waitFor(() => expect(screen.queryByText('Effacer les données de Linge et blanchisserie ?')).not.toBeInTheDocument());
 });

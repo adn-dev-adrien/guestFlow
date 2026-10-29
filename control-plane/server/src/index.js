@@ -37,6 +37,7 @@ const { loadOrCreateKey, createSecrets } = require('./utils/secrets');
 const { loadPrivateKey } = require('./utils/licenceIssuer');
 const { readBootConfig } = require('./utils/bootConfig');
 const { createFirstAdminRunner } = require('./utils/firstAdmin');
+const { checkReleaseSigning } = require('./utils/releaseSigningCheck');
 const clock = require('./utils/clock');
 
 const env = process.env;
@@ -79,6 +80,8 @@ const ctx = createContext({
   hostingEnv: env,
   consoleDbFile: path.join(dataDir, 'control-plane.db'),
 });
+
+checkReleaseSigning({ env, hostAlerts: ctx.hostAlerts });
 
 const app = createApp(ctx, {
   sessionSecret: boot.sessionSecret,

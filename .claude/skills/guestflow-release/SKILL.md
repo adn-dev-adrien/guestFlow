@@ -113,12 +113,13 @@ never stop the release after the tag (specs/plugins-phase-4-registry.md rule 27)
 node scripts/build-plugin-packages.mjs
 PREV="$(git describe --tags --abbrev=0 --match 'v[0-9]*')"
 rm -rf prev-dist && mkdir prev-dist && gh release download "$PREV" -p '*.tgz' -D prev-dist
-node scripts/check-plugin-versions.mjs --built plugins-dist --previous prev-dist --previous-tag "$PREV"
+node scripts/check-plugin-versions.mjs --built plugins-dist --previous prev-dist
 rm -rf prev-dist
 ```
 
-A `✗` means a plugin's sources changed without a version bump: stop, bump it in an ordinary PR.
-`↺` lines are fine (a dependency bump: the published package is kept).
+A `✗` means a plugin's built package differs from the one published under the same version (its sources,
+or a dependency bump, changed it): stop, bump its version in an ordinary PR. A published package is never
+reused (release assets are mutable; audit r2 N4).
 
 > **CHECK**: up-to-date master, no tracked change, server + client + build + E2E green, plugin packages checked.
 
@@ -293,8 +294,9 @@ git tag -f vX.Y.Z && git push --force origin vX.Y.Z
 That force-push is on a **tag**, and is the one exception to the never-force-push rule — the
 CLAUDE.md §5.2 ban on force-pushing branches still stands.
 
-> **CHECK**: the workflow is green and `gh release view vX.Y.Z` lists three assets:
-> `guestflow-X.Y.Z.tar.gz`, `SHA256SUMS`, `guestflow-booking-<v>.zip`.
+> **CHECK**: the workflow is green and `gh release view vX.Y.Z` lists the core archive
+> `guestflow-X.Y.Z.tar.gz`, `SHA256SUMS`, `guestflow-booking-<v>.zip` and one `<plugin>-<version>.tgz`
+> package per bundled plugin.
 
 ---
 
@@ -313,7 +315,9 @@ real hash, prints the sums, signs them and uploads `SHA256SUMS.sig`. Compare the
 this asset, so on a signed setup the release is **not installable until this step has run** — say so in
 the report.
 
-> **CHECK** (key present only): `gh release view vX.Y.Z` also lists `SHA256SUMS.sig`.
+> **CHECK** (key present only): `gh release view vX.Y.Z` lists `SHA256SUMS.sig` on top of the assets
+> of step 7 (archive, `SHA256SUMS`, WordPress zip, plugin `.tgz` packages), and `node scripts/sign-release.mjs`
+> printed the sums it signed.
 
 ---
 

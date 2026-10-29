@@ -359,13 +359,18 @@ signed-off releases over HTTPS, when the operator asks for it.
     variable is inherited. No lifecycle script runs and no rebuild is attempted: `better-sqlite3` ships
     N-API prebuilds and `sharp` its prebuilt optional packages, and a final `require('better-sqlite3')`
     proves the module loads. Both the self-update and the fleet console (which holds the licence key) use
-    this one function. **What is guaranteed**: no install-time code of the release or of a dependency runs.
-    **What is not**: the install and that final `require` still run as the installer's own unix user, so
-    code of an integrity-checked registry package that executes at load time can read what that user reads
-    (on the console host: `console/env` and `envs/`). Closing that needs the install to run as another user
-    (a root wrapper in the style of `guestflow-systemctl` running `npm ci` and the smoke test as an
-    unprivileged `gf-build` user, with the release directory handed over and back, a sudoers line and
-    bootstrap changes — not testable off the host, so not done).
+    this one function. **What is guaranteed**: no install-time code of the release or of a dependency runs,
+    subject to rule 46 (workspaces, aliases).
+    **What is not** (rewritten 2026-10-29, audit r2 N1): this is not isolation. The install and the final
+    `require('better-sqlite3')` run as the installer's own unix user, and on the console every release is
+    **trusted code run as the fleet's root identity**: the console itself executes the release's
+    `create-first-admin.js` (for a new customer and for the boot probe) and `switch-plugin-package.js` (on
+    every plugin push) under its own uid, and bootstrap makes `console/env` — which holds
+    `CP_LICENCE_PRIVATE_KEY`, `CP_REGISTRY_PRIVATE_KEY`, the session and proxy secrets — readable by that
+    uid. A separate install user (`gf-build`) would therefore close nothing: the release's code runs under
+    the console's uid right afterwards. **Release signing (rule 41) is the only barrier** between a
+    published GitHub release and the licence key; rule 47 makes its absence loud. Isolating the three
+    script call sites behind a root wrapper is the alternative, and is not done.
 41. **Optional release signature** (audit 2026-10-28, H1). When `GUESTFLOW_RELEASE_PUBLIC_KEY` (base64 DER
     SPKI Ed25519) is configured on the installer, the release must carry a `SHA256SUMS.sig` asset — the
     base64 Ed25519 signature of the exact `SHA256SUMS` bytes — and an unsigned release, a signature that
@@ -386,7 +391,8 @@ signed-off releases over HTTPS, when the operator asks for it.
     database and its WAL, `licence.jws`, TLS keys, uploaded photos) that a manual run would have shipped.
     `scripts/check-release-tree.mjs` then scans the staging tree and fails the script before `tar` when it
     finds a `.env*` (but `.env.example`), a database file, `licence.jws`, a key / certificate, `update-state.json`,
-    a log, or any file under `uploads/` other than `.gitkeep` (a README there is refused too).
+    a log, any file under `uploads/` other than `.gitkeep` (a README there is refused too), or any `node_modules`
+    directory (2026-10-29, review of PR #855: the installer refuses such an archive, rule 46, and CI must fail first).
 43. **A rollback does not queue the installment request (2026-10-29, round-2 audit).** v3.18.0's
     `emailLogModel.listPending` excludes only its own five event keys and lists any enabled manual template
     whose anchor is `start`; the `installment_request` row, seeded at the first boot of the new release,
@@ -411,6 +417,39 @@ signed-off releases over HTTPS, when the operator asks for it.
     behaviour of Qonto that cannot be verified without calling its API. The remedy is to reconnect Qonto
     from the Paiements en ligne settings after a rollback; no payment link already issued is affected.
     > **Sans test** — documented limit of a third-party behaviour, nothing to execute.
+
+46. **The lockfile check and the smoke test cannot be sidestepped** (audit r2 N2, 2026-10-29). `npm ci` walks up from its cwd
+    to a workspace root and installs from *that* root's lockfile, which is never checked: a release whose
+    root or `server/package.json` declares `workspaces` is refused (`LOCKFILE_UNTRUSTED:workspaces
+    declared`) and the install passes `--workspaces=false`. An npm alias (`"better-sqlite3":
+    "npm:attacker@1"`) resolves from the registry with an integrity hash, so every entry must also be its
+    own package: no `name` that differs from the path after the last `node_modules/`, and `resolved`
+    starting with `https://registry.npmjs.org/<name>/-/`. The npm cache next to the releases directory is
+    emptied once it exceeds 300 MB after an install (audit L-b), so it no longer grows with every update; a
+    failure of that pruning is logged and never fails or masks the install. **The smoke test** (review of
+    PR #855): `require('better-sqlite3')` by name would let Node answer from the release itself — the
+    `server/package.json` self-reference (`name` + `exports`) or a `node_modules` shipped higher in the
+    tree. So the smoke loads `<server>/node_modules/better-sqlite3` by absolute path, any archive member
+    under a `node_modules` segment is refused (`ARCHIVE_NODE_MODULES_MEMBER`; `release.sh` ships none), and
+    `server/package.json` must be named `guestflow-server` (`LOCKFILE_UNTRUSTED:server/package.json name`).
+    Test: `release-install-isolation.unit.test.js`.
+47. **A managed host without a release public key says so** (audit r2 N1, 2026-10-29). At boot the
+    console logs a `[security]` line and keeps an open host alert « Versions non signées… » (shown on the
+    home page and emailed every 24 h, `hostAlerts`) while `GUESTFLOW_RELEASE_PUBLIC_KEY` is unset; setting
+    it closes the alert — only when it parses as an Ed25519 SPKI key (`toKey`); an unreadable key keeps the
+    alert open (« illisible »), since nothing is installable then. The key is **not** mandatory: failing closed is the operator's decision, to be
+    taken once the production signing key exists. Test: `release-signing-check.unit.test.js` (console).
+48. **A release never ships a package it did not build, and its actions are pinned** (audit r2 N4 and
+    L-a, 2026-10-29). Amends the second-review note of `plugins-phase-4-registry.md` rule 27: the `package`
+    job downloads the previous release's packages only to compare content hashes, and a rebuild that
+    differs from the published package fails with « bump the version » even when its sources did not
+    change — release assets are mutable, and a reused package would have been signed by the release skill
+    as if CI had built it. `--previous-tag` is gone. Every action of every workflow is pinned by its full
+    commit SHA, the exact tag in a trailing comment (`# v7.0.1`). Step 8b's and step 7's CHECK in the release skill list the
+    real assets (plugin `.tgz` packages included). Safe reuse was considered and not done: the previous
+    release's `plugins-dist/SHA256SUMS` lives in the same mutable release, and the release public key is
+    deliberately not committed (the signing key is held off GitHub, rule 41), so CI cannot verify a
+    signature; a verified reuse would need that public key committed, which is a decision of its own. Test: `plugin-packages-release.unit.test.js`.
 
 **Edge cases**
 

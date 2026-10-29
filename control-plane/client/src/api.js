@@ -54,7 +54,7 @@ const api = {
   // specs/plugin-operator-provisioning.md rules 10–14, 22 — the customer's modules.
   customerModules: (id) => request('GET', `/api/customers/${id}/modules`),
   toggleModule: (id, pluginId, on, flags = {}) => request('POST', `/api/customers/${id}/modules/${pluginId}`, { on, ...flags }),
-  eraseModule: (id, pluginId, confirmSlug) => request('POST', `/api/customers/${id}/modules/${pluginId}/erase`, { confirmSlug }),
+  eraseModule: (id, pluginId, action, confirmSlug) => request('POST', `/api/customers/${id}/modules/${pluginId}/erase`, { action, confirmSlug }),
   retryModules: (id) => request('POST', `/api/customers/${id}/modules/retry`, {}),
   supportState: (id) => request('GET', `/api/customers/${id}/support`),
   supportRequest: (id, reason) => request('POST', `/api/customers/${id}/support/request`, { reason }),

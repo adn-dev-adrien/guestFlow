@@ -42,7 +42,7 @@ test('rule 31: the erase of a module an installed plugin requires is refused, na
   modules.toggle(env.id, 'google-vacation-rentals', false, 'op');
   modules.toggle(env.id, 'website-booking', false, 'op');
   writeSpace(env, { inactive: ['website-booking', 'google-vacation-rentals'], applied: writtenAt(env), facts: DATA });
-  assert.throws(() => modules.erase(env.id, 'website-booking', env.slug, 'op'), (err) => {
+  assert.throws(() => modules.erase(env.id, 'website-booking', env.slug, 'op', 'erase'), (err) => {
     assert.equal(err.status, 422);
     assert.equal(err.body.error, 'REQUIRED_BY');
     assert.match(err.body.message, /^Nécessaire à .+ : à désinstaller d’abord\.$/);
@@ -50,7 +50,7 @@ test('rule 31: the erase of a module an installed plugin requires is refused, na
   });
   assert.equal(env.ctx.models.customerPlugins.pendingOrders(env.id).length, 0);
   writeSpace(env, { inactive: ['website-booking'], applied: writtenAt(env), facts: DATA });
-  assert.doesNotThrow(() => modules.erase(env.id, 'website-booking', env.slug, 'op'));
+  assert.doesNotThrow(() => modules.erase(env.id, 'website-booking', env.slug, 'op', 'erase'));
   env.cleanup();
 });
 
@@ -59,7 +59,7 @@ test('rule 31: an erase the space failed or blocked shows on the line, for the c
   const { modules } = env.ctx.controllers;
   modules.toggle(env.id, 'linen', false, 'op');
   writeSpace(env, { inactive: ['linen'], applied: writtenAt(env), facts: { linen: { setup: null, erasable: true, data: [{ label: '3 pièces', count: 3 }] } } });
-  modules.erase(env.id, 'linen', env.slug, 'op');
+  modules.erase(env.id, 'linen', env.slug, 'op', 'erase');
   const row = (outcome, message) => ({ pluginId: 'linen', desired: 'inactive', outcome, message, licenceIssuedAt: writtenAt(env) });
   const facts = { linen: { setup: null, erasable: true, data: [{ label: '3 pièces', count: 3 }] } };
   writeSpace(env, { inactive: ['linen'], applied: writtenAt(env), facts, rows: [row('blocked', 'Nécessaire à Réservation depuis le site : à désinstaller d’abord.')] });
@@ -117,8 +117,8 @@ test('rule 38: removing a data-less module is an erase order the space settles b
   modules.toggle(env.id, 'google-vacation-rentals', false, 'op');
   modules.toggle(env.id, 'website-booking', false, 'op');
   writeSpace(env, { inactive: ['website-booking', 'google-vacation-rentals'], applied: writtenAt(env), facts: DATA });
-  assert.throws(() => modules.erase(env.id, 'google-vacation-rentals', 'wrong', 'op'), (err) => err.status === 400);
-  modules.erase(env.id, 'google-vacation-rentals', env.slug, 'op');
+  assert.throws(() => modules.erase(env.id, 'google-vacation-rentals', 'wrong', 'op', 'erase'), (err) => err.status === 400);
+  modules.erase(env.id, 'google-vacation-rentals', null, 'op', 'uninstall');
   assert.equal(env.ctx.models.customerPlugins.pendingOrders(env.id).length, 1);
   assert.equal(lineOf(modules.view(env.id), 'google-vacation-rentals').detail, 'Désinstallation en cours.');
   writeSpace(env, { inactive: ['website-booking'], applied: writtenAt(env), facts: DATA, erased: [env.ctx.models.customerPlugins.pendingOrders(env.id)[0].orderId] });
@@ -139,13 +139,13 @@ test('rule 38: a data erase keeps its wording, and cancelling a removal says so'
   env.ctx.models.customers.addGrandfathered(env.id, 'google-vacation-rentals', '2026-09-29');
   modules.toggle(env.id, 'google-vacation-rentals', false, 'op');
   writeSpace(env, { inactive: ['google-vacation-rentals'], applied: writtenAt(env), facts: { 'google-vacation-rentals': DATA['google-vacation-rentals'] } });
-  modules.erase(env.id, 'google-vacation-rentals', env.slug, 'op');
+  modules.erase(env.id, 'google-vacation-rentals', null, 'op', 'uninstall');
   modules.toggle(env.id, 'google-vacation-rentals', true, 'op');
   const journal = () => env.ctx.models.audit.forCustomer(env.id).filter((a) => a.kind === 'module').map((a) => a.text);
   assert.ok(journal().includes('Désinstallation de Google Vacation Rentals annulée'), journal().join(' | '));
   modules.toggle(env.id, 'school-holidays', false, 'op');
   writeSpace(env, { inactive: ['school-holidays'], applied: writtenAt(env), facts: { 'school-holidays': { setup: null, erasable: true, data: [{ label: '2 périodes', count: 2 }] } } });
-  modules.erase(env.id, 'school-holidays', env.slug, 'op');
+  modules.erase(env.id, 'school-holidays', env.slug, 'op', 'erase');
   assert.equal(lineOf(modules.view(env.id), 'school-holidays').detail, 'Effacement des données en cours.');
   assert.ok(journal().some((t) => /^Effacement des données de .+ demandé$/.test(t)));
   env.cleanup();
@@ -158,6 +158,6 @@ test('rule 38: a data-less module that is not installed offers nothing to remove
   writeSpace(env, { active: [], inactive: [], applied: writtenAt(env) });
   const linen = lineOf(modules.view(env.id), 'linen');
   assert.equal(linen.canUninstall, false);
-  assert.throws(() => modules.erase(env.id, 'linen', env.slug, 'op'), (err) => err.status === 409);
+  assert.throws(() => modules.erase(env.id, 'linen', env.slug, 'op', 'erase'), (err) => err.status === 409);
   env.cleanup();
 });

@@ -53,4 +53,4 @@ async function assertSumsSigned({ sums, signature, publicKey, fetchSignature }) 
   return true;
 }
 
-module.exports = { SIGNATURE_ASSET_NAME, releasePublicKeyFromEnv, signSums, assertSumsSigned };
+module.exports = { SIGNATURE_ASSET_NAME, toKey, releasePublicKeyFromEnv, signSums, assertSumsSigned };

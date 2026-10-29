@@ -5,7 +5,9 @@ const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 
-const { installDependencies } = require('../utils/updateStaging');
+const ROOT = path.resolve(__dirname, '..', '..', '..');
+
+const { installDependencies, pruneNpmCache } = require('../utils/updateStaging');
 const { lockfileViolations, assertLockfileProvenance } = require('../utils/lockfileProvenance');
 
 // specs/self-update-and-releases.md rule 40: before an install, the release's lockfile must resolve every
@@ -72,7 +74,7 @@ function writeRelease(lock) {
   fs.mkdirSync(serverDir, { recursive: true });
   const leak = (name) => `node -e "require('fs').writeFileSync(${JSON.stringify(path.join(root, name))}, JSON.stringify(process.env))"`;
   fs.writeFileSync(path.join(serverDir, 'package.json'), JSON.stringify({
-    name: 'hostile', version: '1.0.0', scripts: { preinstall: leak('preinstall.json'), postinstall: leak('postinstall.json'), prepare: leak('prepare.json') },
+    name: 'guestflow-server', version: '1.0.0', scripts: { preinstall: leak('preinstall.json'), postinstall: leak('postinstall.json'), prepare: leak('prepare.json') },
   }));
   if (lock) fs.writeFileSync(path.join(serverDir, 'package-lock.json'), JSON.stringify(lock));
   return { root, releaseDir };
@@ -97,7 +99,7 @@ test('a release with an untrusted lockfile is refused before npm runs at all (ru
 });
 
 test('npm ci of a clean release runs none of its lifecycle scripts, whatever the environment holds (rule 40)', withEnv(SECRETS, async () => {
-  const { root, releaseDir } = writeRelease({ lockfileVersion: 3, name: 'hostile', version: '1.0.0', packages: { '': { name: 'hostile', version: '1.0.0' } } });
+  const { root, releaseDir } = writeRelease({ lockfileVersion: 3, name: 'guestflow-server', version: '1.0.0', packages: { '': { name: 'guestflow-server', version: '1.0.0' } } });
   try {
     await installDependencies({
       releaseDir,
@@ -119,7 +121,7 @@ test('every child of the install gets a minimal environment, the proxy settings 
   const calls = [];
   try {
     await installDependencies({ releaseDir, execFileImpl: async (cmd, args, options) => { calls.push({ cmd, args, options }); } });
-    assert.deepEqual(calls.map((c) => c.args[0] === 'ci' ? c.args.join(' ') : '-e'), ['ci --omit=dev --ignore-scripts', '-e']);
+    assert.deepEqual(calls.map((c) => c.args[0] === 'ci' ? c.args.join(' ') : '-e'), ['ci --omit=dev --ignore-scripts --workspaces=false', '-e']);
     for (const { options } of calls) {
       assert.equal(JSON.stringify(options.env).includes('SENTINEL'), false);
       assert.equal(options.env.CP_LICENCE_PRIVATE_KEY, undefined);
@@ -160,5 +162,62 @@ test('a release shipping its own .install-home is refused, and the home is recre
     await installDependencies({ releaseDir, execFileImpl: async (cmd, args, options) => { assert.deepEqual(fs.readdirSync(options.env.HOME), []); } });
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('an npm alias or a tarball that is not the package\'s own is refused (rule 46)', () => {
+  const refused = {
+    alias: { name: 'attacker-pkg', version: '1.0.0', resolved: `${REG}attacker-pkg/-/attacker-pkg-1.0.0.tgz`, integrity: 'sha512-x' },
+    'alias without name field': { version: '1.0.0', resolved: `${REG}attacker-pkg/-/attacker-pkg-1.0.0.tgz`, integrity: 'sha512-x' },
+  };
+  for (const [label, entry] of Object.entries(refused)) {
+    assert.equal(lockfileViolations(clean({ 'node_modules/better-sqlite3': entry })).length, 1, label);
+  }
+  assert.deepEqual(lockfileViolations(clean({
+    'node_modules/@scope/pkg': { version: '1.0.0', resolved: `${REG}@scope/pkg/-/pkg-1.0.0.tgz`, integrity: 'sha512-x' },
+    'node_modules/a/node_modules/b': { version: '1.0.0', resolved: `${REG}b/-/b-1.0.0.tgz`, integrity: 'sha512-x' },
+  })), []);
+});
+
+test('a release declaring npm workspaces is refused, and npm is told not to look for a workspace root (rule 46)', async () => {
+  for (const where of ['.', 'server']) {
+    const { root, releaseDir } = writeRelease(clean());
+    const file = path.join(releaseDir, where, 'package.json');
+    fs.writeFileSync(file, JSON.stringify({ name: 'root', version: '1.0.0', workspaces: ['server'] }));
+    const calls = [];
+    try {
+      await assert.rejects(installDependencies({ releaseDir, execFileImpl: async (...a) => { calls.push(a); } }), /^Error: LOCKFILE_UNTRUSTED:workspaces/);
+      assert.deepEqual(calls, []);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  }
+});
+
+test('the npm cache next to the releases is emptied once it outgrows its bound (rule 46)', async () => {
+  const { root, releaseDir } = writeRelease(clean());
+  const cacheDir = path.join(root, 'releases', '.npm-cache');
+  try {
+    fs.mkdirSync(path.join(cacheDir, '_cacache'), { recursive: true });
+    fs.writeFileSync(path.join(cacheDir, '_cacache', 'blob'), Buffer.alloc(2048));
+    assert.equal(pruneNpmCache(cacheDir, 4096), false);
+    assert.ok(fs.existsSync(path.join(cacheDir, '_cacache', 'blob')));
+    assert.equal(pruneNpmCache(cacheDir, 1024), true);
+    assert.equal(fs.existsSync(cacheDir), false);
+    assert.equal(pruneNpmCache(cacheDir, 1024), false, 'a missing cache is fine');
+    await installDependencies({ releaseDir, execFileImpl: async () => {} });
+    assert.ok(fs.existsSync(cacheDir), 'a normal install keeps a small cache');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('rule 48: every third-party action of every workflow is pinned by a full commit SHA and its exact tag', () => {
+  const dir = path.join(ROOT, '.github', 'workflows');
+  const files = fs.readdirSync(dir).filter((f) => /\.ya?ml$/.test(f));
+  assert.ok(files.includes('release.yml'));
+  for (const file of files) {
+    const uses = fs.readFileSync(path.join(dir, file), 'utf8').split('\n').filter((l) => /^\s*(-\s+)?uses:/.test(l));
+    for (const line of uses) assert.match(line, /uses: [\w.-]+\/[\w.-]+@[0-9a-f]{40} # v\d+\.\d+\.\d+$/, `${file}: ${line}`);
   }
 });
