@@ -405,6 +405,13 @@ without the core knowing it.
     entries: the check proves the path is the plugin's, not that no core route shares it.
     Test: `plugin-role-entries-own-routes.unit.test.js`.
 
+34. **The accountant reads the platform colours (audit R4, 2026-10-29; amends rule 3).**
+    `GET /properties/platform-colors` joins the core accountant entries, as it already is the
+    reception's: the shell loads it for every role (non-sensitive display config of the badges and the
+    platform names), and its refusal left the accountant's pages with the default names. Nothing else
+    of `/properties` opens, and no write.
+    Test: `accountant-platform-colors.unit.test.js`.
+
 ## 4. Architecture
 
 > **Fat backend, thin frontend.** The linen gating of the SAS, the bed-linen alert, the push target,

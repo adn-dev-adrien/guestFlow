@@ -154,6 +154,14 @@ The number is also **recalled to the guest in the J-7 and J-2 reminder emails**.
     instead of answering the French 400 `RESERVATION_NUMBER_TAKEN`. The check now covers every row
     (cancelled stays were already refused: they keep `kind = 'reservation'`).
 
+17. **The search says when it is unavailable, and is the administrator's alone (audit R4, 2026-10-29).**
+    When `GET /api/reservations/search` fails, the dropdown reads « Recherche indisponible. » in place of
+    « Aucune réservation », which would read as « this reservation does not exist »; the next answer
+    clears it. The server allowlist refuses the search to reception and accountant (the reception rule
+    11, which neither role can follow to a fiche anyway), so the top-bar box and the phone's search
+    icon are rendered for an administrator only.
+    Tests: `ReservationSearchBox.failure.test.jsx`, `App.role-confinement.test.jsx`.
+
 ---
 
 ## 4. Architecture

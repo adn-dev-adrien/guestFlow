@@ -207,7 +207,9 @@ function NavContent({ onItemClick }) {
 
   // Read once, then again after a write (a property added or renamed), not on every page change
   // (specs/inte-performance.md rule 13).
+  const readsProperties = userHasRole(user, ADMIN) || userHasRole(user, RECEPTION);
   useEffect(() => {
+    if (!readsProperties) return undefined;
     let isMounted = true;
     const read = () => api.getProperties()
       .then((items) => {
@@ -222,7 +224,7 @@ function NavContent({ onItemClick }) {
       isMounted = false;
       window.removeEventListener(DATA_CHANGED_EVENT, read);
     };
-  }, []);
+  }, [readsProperties]);
 
   useEffect(() => {
     if (location.pathname.startsWith('/properties')) {
@@ -606,10 +608,40 @@ function useTopBarTitleRoom(toolbarRef, titleRef, title, active) {
   }, [toolbarRef, titleRef, title, active, setTitleRoom]);
 }
 
+/**
+ * Where a non-admin role is sent when the URL is outside its surface, or null when it may stay.
+ * Computed during render so the forbidden page is never mounted (its calls would only be refused;
+ * specs/reception-role-checkin-only.md rule 15). The server already 403s every other endpoint.
+ * A user who also holds admin keeps the full app; combined non-admin roles get the union.
+ * - Accountant: /comptabilite* + « Indemnités d'annulation » + /mon-compte while the accounting
+ *   export is live, « Mon compte » alone otherwise (specs/plugins-phase-2-hosts.md rules 3, 21).
+ * - Reception: / + /planning + /mon-compte (specs/reception-role-checkin-only.md).
+ * A page of an inactive plugin is not there (specs/plugins-phase-0-foundation.md rule 19): a URL
+ * typed by hand lands on the home page, or on « Mon compte » for a role with no home page. An
+ * administrator stays on the address and reads « Plugin inactif » (phase P rule 42).
+ */
+function roleRedirectTarget(user, path) {
+  if (!user || userHasRole(user, ADMIN)) return null;
+  const hasHome = userHasRole(user, RECEPTION);
+  if (!isRouteEnabled(user, path)) return hasHome ? '/' : '/mon-compte';
+  const isAccountant = userHasRole(user, ACCOUNTANT);
+  if (!isAccountant && !hasHome) return null;
+  const own = path === '/mon-compte' || path === '/account';
+  const exportLive = canSeeRoute(user, '/comptabilite');
+  const accountantPage = exportLive && (path.startsWith('/comptabilite') || path === COMPENSATIONS_PATH);
+  const allowed = (isAccountant && (accountantPage || own))
+    || (hasHome && (path === '/' || path === '/planning' || own));
+  if (allowed) return null;
+  if (hasHome) return '/';
+  return exportLive ? '/comptabilite' : '/mon-compte';
+}
+
 function AppShell() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
+  const canSearchReservations = userHasRole(user, ADMIN);
+  const roleRedirect = roleRedirectTarget(user, location.pathname);
   useEffect(() => prefetchOnIdle(IDLE_PAGES), []);
   // A page of an inactive plugin is never mounted (rule 18); in its place the 404, which an
   // administrator reads as « Plugin inactif » (specs/plugins-phase-p-productisation.md rule 42).
@@ -638,38 +670,6 @@ function AppShell() {
   // browser's aggressive favicon cache via a version-keyed buster.
   // Settings are admin-only: no other role asks for them (specs/reception-role-checkin-only.md rule 14).
   useDynamicFavicon({ refreshKey: user && user.id, enabled: userHasRole(user, ADMIN) });
-
-  // Non-admin roles are confined client-side to their allowed surface (the server already 403s every
-  // other endpoint, but we redirect so they don't see empty shells). A user who also holds admin
-  // keeps the full app. Combined non-admin roles get the union of their allowed paths.
-  // - Accountant → /comptabilite* + « Indemnités d'annulation » + /mon-compte while the accounting
-  //   export is live, « Mon compte » alone otherwise (specs/plugins-phase-2-hosts.md rules 3, 21).
-  // - Reception  → / + /planning + /mon-compte (specs/reception-role-checkin-only.md).
-  // A page of an inactive plugin is not there (specs/plugins-phase-0-foundation.md rule 19): a URL
-  // typed by hand lands on the home page, or on « Mon compte » for a role that has no home page.
-  // An administrator stays on the address and reads « Plugin inactif » with a way to Plugins
-  // (specs/plugins-phase-p-productisation.md rule 42).
-  useEffect(() => {
-    if (!user || userHasRole(user, ADMIN) || isRouteEnabled(user, location.pathname)) return;
-    const hasHome = userHasRole(user, ADMIN) || userHasRole(user, RECEPTION);
-    navigate(hasHome ? '/' : '/mon-compte', { replace: true });
-  }, [user, location.pathname, navigate]);
-
-  useEffect(() => {
-    if (!user || userHasRole(user, ADMIN)) return;
-    const isAccountant = userHasRole(user, ACCOUNTANT);
-    const isReception = userHasRole(user, RECEPTION);
-    if (!isAccountant && !isReception) return;
-    const path = location.pathname;
-    const own = path === '/mon-compte' || path === '/account';
-    const exportLive = canSeeRoute(user, '/comptabilite');
-    const accountantPage = exportLive && (path.startsWith('/comptabilite') || path === COMPENSATIONS_PATH);
-    const allowed = (isAccountant && (accountantPage || own))
-      || (isReception && (path === '/' || path === '/planning' || own));
-    if (allowed) return;
-    if (isReception) navigate('/', { replace: true });
-    else navigate(exportLive ? '/comptabilite' : '/mon-compte', { replace: true });
-  }, [user, location.pathname, navigate]);
 
   useEffect(() => {
     let isMounted = true;
@@ -732,7 +732,7 @@ function AppShell() {
               <MenuIcon />
             </IconButton>
           )}
-          {isMobile && searchOpen ? (
+          {isMobile && canSearchReservations && searchOpen ? (
             // Mobile, expanded: the search field takes over the bar, with a close affordance.
             <>
               <Box sx={{ flexGrow: 1 }}>
@@ -767,7 +767,7 @@ function AppShell() {
                   GuestFlow
                 </Typography>
               )}
-              {!isMobile && (
+              {!isMobile && canSearchReservations && (
                 // Desktop: the search field is always visible next to the logo.
                 <Box sx={{ ml: 3, flexGrow: 1, maxWidth: 440 }}>
                   <ReservationSearchBox onSelect={handleHeaderSearchSelect} />
@@ -775,7 +775,7 @@ function AppShell() {
               )}
               <Box data-topbar-spacer="" sx={{ flexGrow: 1 }} />
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, order: 2 }}>
-                {isMobile && (
+                {isMobile && canSearchReservations && (
                   <IconButton onClick={() => setSearchOpen(true)} aria-label="Rechercher une réservation">
                     <SearchIcon />
                   </IconButton>
@@ -835,6 +835,7 @@ function AppShell() {
         {/* A page of an inactive plugin is not even mounted (specs/plugins-phase-0-foundation.md
             rules 18-19): its API calls never leave, and the guard above sends the URL home — or,
             for an administrator, the 404 says « Plugin inactif » (phase P rule 42). */}
+        {roleRedirect ? <Navigate to={roleRedirect} replace /> : (
         <Routes>
           <Route path="/" element={<Dashboard />} />
           {/* Pages of plugin modules (specs/plugins-phase-1-sdk.md rule 15), lazily loaded. */}
@@ -890,6 +891,7 @@ function AppShell() {
           <Route path="/emails/historique" element={<EmailHistoryPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
+        )}
         </RouteErrorBoundary>
       </Box>
     </Box>
