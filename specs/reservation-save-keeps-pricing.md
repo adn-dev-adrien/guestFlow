@@ -196,6 +196,7 @@ changed something the price depends on; money collected beyond the total is repo
     is why rule 17's overflow correction stays.
 19. **Withdrawn (2026-10-29).** « Autoriser, figer le payé » (`keepPaidAmounts`) was superseded the same day by rule 20:
     the freeze did not survive the next re-pricing save and left the collected tourist tax undeclared.
+    > **Sans test** — withdrawn rule, nothing left to test.
 20. **A direct stay with a ticked acompte or solde cannot change to a platform channel (Adrien, 2026-10-29: « Refuser,
     décocher d'abord », audit R4 N6).** A direct stay never really becomes a platform stay (a payment cannot be
     collected on a platform's behalf): changing the channel only corrects a badly entered fiche, and a direct payment

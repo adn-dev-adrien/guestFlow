@@ -330,6 +330,7 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
     which reopens the dialog on the trop-perçu prefill (the `fromOverpayment` flow). No warning when no trop-perçu
     is open or when the dialog was opened on it. No server change.
 45. **Withdrawn (2026-10-29).** Superseded by rule 46.
+    > **Sans test** — withdrawn rule, nothing left to test.
 46. **A paid direct stay cannot switch to a platform (Adrien, 2026-10-29, audit R4 N6).** The channel change is refused
     while the acompte or the solde is ticked (`reservation-save-keeps-pricing.md` rule 20), so it never produces a
     trop-perçu, a frozen solde or a refund prompt. Rule 38 is unchanged for a stay already on a platform.
