@@ -916,13 +916,13 @@ Airbnb, Booking and Abritel become consoles of their own, no longer « nourris p
   - *Feeds.* GuestFlow's export of La Granja imported on Abritel as « GuestFlow ». Abritel's own
     export (`abritel.fr/icalendar/<hash>.ics?nonTentative`) carries only Abritel's native stays —
     no echo of imported dates — and is wired as GuestFlow source **#15** (`Abritel`, La Granja). Its
-    first sync created two **past** reservations at 0 €: #22928 (24→26/10/2025, « Reserved -
-    Adrien ») and #22929 (31/12/2025→03/01/2026, « Reserved - Camille », the twin of #22901, a
+    first sync created two **past** reservations at 0 €: #22328 (24→26/10/2025, « Reserved -
+    Adrien ») and #22329 (31/12/2025→03/01/2026, « Reserved - Camille », the twin of #22201, a
     hand-corrected Lodgify fiche with its own accounting). The takeover does not fire (different
-    platform label, one night apart), and relabelling #22901 to `Abritel` to force it would switch
+    platform label, one night apart), and relabelling #22201 to `Abritel` to force it would switch
     its tourist-tax mode and move its totals (1 222 € → 1 246 €) on a past stay — not done.
-    Operator's calls: #22928 priced at the 2025 « Standard » rate (2 × 100 €) and marked paid on
-    26/10/2025; #22929 **left as it is** next to #22901 (0 €, no money is misstated, 2025 counts one
+    Operator's calls: #22328 priced at the 2025 « Standard » rate (2 × 100 €) and marked paid on
+    26/10/2025; #22329 **left as it is** next to #22201 (0 €, no money is misstated, 2025 counts one
     stay too many).
   - *Back online* through `p/listing-status` → « Réactiver l'annonce » (« Publier l'annonce » alone
     only leaves it « Masquée »). Cancellation still « Modérée – 30 jours » after publication.

@@ -1,5 +1,5 @@
 // @ts-check
-// specs/e2e-playwright-smoke-suite.md rule 22 (repeatable). plugins/booking-intake — specs/booking-extranet-intake.md rules 1–3, 7, 12–15, 17–18, 21–23 (E2E).
+// specs/e2e-playwright-smoke-suite.md rule 22 (repeatable with `--repeat-each … --workers=1` only). plugins/booking-intake — specs/booking-extranet-intake.md rules 1–3, 7, 12–15, 17–18, 21–23 (E2E).
 // The userscript's request is replayed by hand against the real server: the iCal placeholder is filled
 // (guest, party, money reconciled with ✓), the dashboard line it created goes away, a second view is
 // « déjà à jour », a fiche edited since gets a proposal that Appliquer settles.

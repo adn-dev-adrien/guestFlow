@@ -177,6 +177,7 @@ server/certs/*.pem
 e2e/.auth/
 playwright-report/
 playwright-server.log
+playwright-server-bare.log
 test-results/
 .last-run.json
 

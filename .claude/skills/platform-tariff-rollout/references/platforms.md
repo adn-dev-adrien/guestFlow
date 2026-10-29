@@ -1565,13 +1565,13 @@ répond « Cet hébergement impose une durée de séjour plus longue ».
 L'export Abritel ne porte que les séjours propres à Abritel (pas les dates importées : aucun écho),
 **mais aussi les séjours passés**. Créer la source GuestFlow en a créé deux, à 0 € : un vieux séjour
 « Reserved - Adrien » (24→26/10/2025) et le doublon d'une fiche Lodgify corrigée à la main (Camille,
-#22901, 31/12/2025). La reprise automatique (`takeover`) ne joue pas : elle exige la même
+#22201, 31/12/2025). La reprise automatique (`takeover`) ne joue pas : elle exige la même
 plateforme **et** les mêmes dates, et la fiche Lodgify n'a ni l'une ni l'autre. Ne pas changer la
 plateforme d'une fiche passée pour forcer la reprise : passer de Lodgify à Abritel bascule le mode
 de taxe de séjour et change les totaux (1 222 € → 1 246 €). Supprimer un import ne sert à rien tant
 que la source est active : la synchro suivante le recrée. Choix d'Adrien : le séjour sans
-équivalent (#22928) est valorisé au tarif « Standard » 2025 et marqué payé, le doublon de Camille
-(#22929) reste à 0 € à côté de #22901.
+équivalent (#22328) est valorisé au tarif « Standard » 2025 et marqué payé, le doublon de Camille
+(#22329) reste à 0 € à côté de #22201.
 
 ### Piège n° 39 — la tente reste bloquée par Abritel
 
