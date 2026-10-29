@@ -181,7 +181,7 @@ body.phone .acts2 .btn{width:100%}
 <main>
 <h1>Dépendances des plugins</h1>
 <p class="lede">Un plugin qui a besoin d’un autre doit le dire, et l’autre doit savoir qui l’utilise. Le moteur sait déjà refuser ; il ne le montre presque jamais. Proposition : rien de plus que le champ <code>requires</code> des manifestes, un graphe calculé par le serveur, et deux lignes sur chaque carte.</p>
-<p style="font-size:.88rem;color:var(--muted)">Spec de référence : <code>specs/plugin-dependencies.md</code> (Draft) — arrive après #844.</p>
+<p style="font-size:.88rem;color:var(--muted)">Spec de référence : <code>specs/plugin-dependencies.md</code> — approuvée le 29/10/2026, s’appuie sur #844 (mergée).</p>
 
 <h2>Le constat</h2>
 <div class="cols">
@@ -230,14 +230,14 @@ body.phone .acts2 .btn{width:100%}
 </ul>
 
 <h2>Maquette — page Plugins</h2>
-<p class="try">Basculer « Aujourd’hui / Proposé » en haut. À essayer : ⋯ → Désactiver sur Réservation depuis le site ; Installer la Vigilance Météo-France ; puis Activer Google Vacation Rentals.</p>
+<p class="try">Les choix retenus sont actifs par défaut ; l’autre option reste visible pour comparer. Basculer « Aujourd’hui / Proposé » en haut. À essayer : ⋯ → Désactiver sur Réservation depuis le site ; Installer la Vigilance Météo-France ; puis Activer Google Vacation Rentals.</p>
 <div class="knobs" id="knobs">
   <div class="knob"><span class="k">Q1 · Désactiver un prérequis utilisé</span>
-    <div class="seg" role="group" aria-label="Q1"><button type="button" data-q="q1" data-v="cascade" aria-pressed="true">Entraîner</button><button type="button" data-q="q1" data-v="refuse" aria-pressed="false">Refuser</button></div></div>
+    <div class="seg" role="group" aria-label="Q1"><button type="button" data-q="q1" data-v="cascade" aria-pressed="true">Entraîner · retenu</button><button type="button" data-q="q1" data-v="refuse" aria-pressed="false">Refuser</button></div></div>
   <div class="knob"><span class="k">Q3 · Prérequis installé mais éteint</span>
-    <div class="seg" role="group" aria-label="Q3"><button type="button" data-q="q3" data-v="offer" aria-pressed="true">Proposer de l’activer</button><button type="button" data-q="q3" data-v="refuse" aria-pressed="false">Refuser</button></div></div>
+    <div class="seg" role="group" aria-label="Q3"><button type="button" data-q="q3" data-v="offer" aria-pressed="true">Proposer de l’activer · retenu</button><button type="button" data-q="q3" data-v="refuse" aria-pressed="false">Refuser</button></div></div>
   <div class="knob"><span class="k">Q5 · Plage de versions</span>
-    <div class="seg" role="group" aria-label="Q5"><button type="button" data-q="q5" data-v="unmet" aria-pressed="true">Si non tenue</button><button type="button" data-q="q5" data-v="always" aria-pressed="false">Toujours</button></div></div>
+    <div class="seg" role="group" aria-label="Q5"><button type="button" data-q="q5" data-v="unmet" aria-pressed="true">Si non tenue · retenu</button><button type="button" data-q="q5" data-v="always" aria-pressed="false">Toujours</button></div></div>
   <div class="knob"><span class="k">Scénario</span>
     <label class="chk"><input type="checkbox" id="old"> Réservation depuis le site en 1.6.0</label>
     <button type="button" class="reset" id="reset">Réinitialiser</button></div>
@@ -267,32 +267,18 @@ body.phone .acts2 .btn{width:100%}
 <div class="risk">
 <p><b>Faible côté données</b> : aucune table, aucune migration. Le graphe se recalcule à chaque lecture (16 plugins).</p>
 <p><b>À surveiller</b> : la désactivation en cascade éteint un plugin que l’opérateur n’a pas ouvert. D’où la liste nommée dans la confirmation, le tout-ou-rien si l’un d’eux refuse (lien de paiement ouvert, compte Accueil), et aucune réactivation automatique.</p>
-<p><b>Si Q4 = oui</b> : un espace qui a la Vigilance sans le sas la verra « Nécessite Arrivée et départ guidés » après mise à jour, données gardées. Solio a les deux.</p>
+<p><b>Q4 retenue</b> : un espace qui a la Vigilance sans le sas la verra « Nécessite Arrivée et départ guidés » après mise à jour, données gardées. Solio a les deux.</p>
 </div>
 
-<h2>Décisions en attente</h2>
-<div class="q"><h3>Q1 — Désactiver un plugin utilisé par un plugin actif ?</h3><ol>
-  <li class="rec">Désactiver les deux, après une confirmation qui les nomme (recommandé) — réversible, données gardées.</li>
-  <li>Refuser, mais le dire avant le clic.</li></ol></div>
-<div class="q"><h3>Q2 — Désinstaller un plugin utilisé par un autre plugin installé ?</h3><ol>
-  <li class="rec">Refuser, raison affichée avant le clic (recommandé) — la désinstallation peut effacer des données.</li>
-  <li>Désinstaller aussi les dépendants, sans effacement, après confirmation.</li></ol></div>
-<div class="q"><h3>Q3 — Installer ou activer sur un prérequis installé mais éteint ?</h3><ol>
-  <li class="rec">Proposer de l’activer dans la même confirmation (recommandé).</li>
-  <li>Refuser comme #844 (« à activer d’abord »).</li></ol></div>
-<div class="q"><h3>Q4 — Déclarer que la Vigilance Météo-France nécessite « Arrivée et départ guidés » ?</h3><ol>
-  <li class="rec">Oui (recommandé) — sans le sas elle ne produit rien.</li>
-  <li>Non, laisser le lien implicite.</li></ol></div>
-<div class="q"><h3>Q5 — Afficher la plage de versions requise ?</h3><ol>
-  <li class="rec">Seulement quand elle n’est pas tenue (recommandé).</li>
-  <li>Toujours.</li></ol></div>
-<div class="q"><h3>Q6 — Cohérence des forfaits dans la console ?</h3><ol>
-  <li class="rec">Refuser un forfait ou une option qui autorise un plugin sans son prérequis ; un changement de forfait retire le dépendant avec son prérequis (recommandé).</li>
-  <li>Côté espace : un plugin dont le prérequis ne tourne pas cesse de tourner.</li>
-  <li>Hors périmètre pour l’instant.</li></ol></div>
-<div class="q"><h3>Q7 — Déclarer aussi les liens faibles (« Complète … ») ?</h3><ol>
-  <li class="rec">Non (recommandé) — ils ne refusent rien, une notion de plus à apprendre.</li>
-  <li>Oui, un champ <code>enhances</code> affiché « Complète … ».</li></ol></div>
+<h2>Décisions — 29/10/2026</h2>
+<p style="color:var(--muted)">Toutes tranchées, chaque fois l’option recommandée.</p>
+<div class="q"><h3>Q1 — Désactiver un plugin utilisé par un plugin actif</h3><p class="rec" style="margin:0">✓ Les deux sont désactivés, après une confirmation qui nomme les plugins entraînés. Réversible, données gardées, réactivation un par un.</p></div>
+<div class="q"><h3>Q2 — Désinstaller un plugin utilisé par un autre plugin installé</h3><p class="rec" style="margin:0">✓ Refusé, raison affichée avant le clic. Jamais de désinstallation en cascade.</p></div>
+<div class="q"><h3>Q3 — Installer ou activer sur un prérequis installé mais éteint</h3><p class="rec" style="margin:0">✓ Proposé dans la même confirmation : « Active aussi … ».</p></div>
+<div class="q"><h3>Q4 — Vigilance Météo-France → Arrivée et départ guidés</h3><p class="rec" style="margin:0">✓ Déclaré : <code>requires sas ^1.7.0</code>, Vigilance en 1.3.0.</p></div>
+<div class="q"><h3>Q5 — Plage de versions</h3><p class="rec" style="margin:0">✓ Affichée seulement quand elle n’est pas tenue.</p></div>
+<div class="q"><h3>Q6 — Cohérence des forfaits dans la console</h3><p class="rec" style="margin:0">✓ Un forfait ou une option qui autorise un plugin sans son prérequis est refusé ; un changement de forfait retire le dépendant avec son prérequis.</p></div>
+<div class="q"><h3>Q7 — Liens faibles (« Complète … »)</h3><p class="rec" style="margin:0">✓ Non déclarés.</p></div>
 </main>
 
 <div class="scrim" id="scrim" role="presentation"><div class="dlg" role="dialog" aria-modal="true" aria-labelledby="dlgT">
@@ -305,7 +291,7 @@ body.phone .acts2 .btn{width:100%}
 (function(){
   var ORDER=['wb','gvr','sas','weather'];
   var BASE={
-    wb:{name:'Réservation depuis le site',ico:'◎',version:'1.8.2',desc:'Le moteur de réservation du site WordPress.',requires:[]},
+    wb:{name:'Réservation depuis le site',ico:'◎',version:'1.8.3',desc:'Le moteur de réservation du site WordPress.',requires:[]},
     gvr:{name:'Google Vacation Rentals',ico:'⌕',version:'1.0.2',desc:'Envoie à Google les prix du site et les disponibilités.',requires:[{id:'wb',range:'^1.7.1',min:'1.7.1'}]},
     sas:{name:'Arrivée et départ guidés',ico:'⇄',version:'1.7.2',desc:'Le sas pas à pas de l’accueil et du départ.',requires:[]},
     weather:{name:'Vigilance Météo-France',ico:'☂',version:'1.2.1',desc:'Prévient le voyageur d’une alerte météo à l’arrivée.',requires:[{id:'sas',range:'^1.0.0',min:'1.0.0'}]}

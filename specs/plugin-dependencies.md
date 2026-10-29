@@ -2,11 +2,11 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Draft |
+| **Status** | Approved (2026-10-29, Q1–Q7 resolved — §9) |
 | **Branch** | `feature/plugin-dependencies` (cut from `inte/plugins`) |
 | **Created** | 2026-10-29 |
 | **Author** | Adrien |
-| **Related PR** | (link once opened) — **lands after #844** (`fix/audit-plugins`, rules 36–39 of `plugins-phase-4-registry.md`) |
+| **Related PR** | (link once opened) — builds on #844 (`fix/audit-plugins`, merged into `inte/plugins` as 53c60253: rules 36–41 of `plugins-phase-4-registry.md`) |
 | **Summary for decision** | [`docs/specs/2026-10-29-plugin-dependencies.html`](../docs/specs/2026-10-29-plugin-dependencies.html) |
 
 ---
@@ -19,7 +19,7 @@ le système de dépendance dans python ou sur Linux. Bref trouve une solution si
 maintenable et légère. »
 
 Most of the *mechanics* already exist. What is missing is mostly **visibility**, plus a few holes.
-Map measured on `fix/audit-plugins` (#844) on 2026-10-29.
+Map measured on `fix/audit-plugins` (#844) on 2026-10-29, re-read on `inte/plugins` after its merge.
 
 ### 1.1 What already works
 
@@ -28,11 +28,11 @@ Map measured on `fix/audit-plugins` (#844) on 2026-10-29.
 | Declaration | `manifest.json` → `requires: [{ id, range }]`, validated by `plugins/manifest.js` (`validateManifest`: id shape + valid range) | The single source of a dependency (`plugins-phase-4-registry.md` rule 2). |
 | Load guard | `plugins/loader.js` `loadPackages` (≈ l. 300) | A package whose requirement is not loadable, or loaded at a version outside the range, stays installed but unloaded: `REQUIREMENT_MISSING`, « Nécessite <nom>. », card « Incompatible avec cette version ». Packages mode only. |
 | Install plan | `utils/pluginOffers.js` `requirementPlan` | Recursive, requirements first; refusals `REQUIREMENT_TOO_OLD`, `REQUIREMENT_OUT_OF_PLAN`, `REQUIREMENT_MISSING`. |
-| apt-like install | `pluginsController.installFromPackages` + `PluginCard` | 409 `REQUIREMENTS` without `withRequirements`; the card first shows « Nécessite : X » and a ConfirmDialog « Nécessite aussi : X 1.8.2, installé en premier. » / « Tout installer ». All or nothing (rule 29). |
+| apt-like install | `pluginsController.installFromPackages` + `PluginCard` | 409 `REQUIREMENTS` without `withRequirements`; the card first shows « Nécessite : X » and a ConfirmDialog « Nécessite aussi : X 1.8.3, installé en premier. » / « Tout installer ». All or nothing (rule 29). |
 | Uninstall guard | `refuseIfRequiredBy` (rule 12) | 409 `REQUIRED_BY` « Nécessaire à X : à désinstaller d'abord. » while any installed plugin requires it. |
 | Deactivate guard | `refuseIfRequiredBy({ activeOnly })` (rule 36) | 409 `REQUIRED_BY` « … à désactiver d'abord. » while an **active** plugin requires it. |
 | Activate guard | `refuseIfRequirementInactive` (rule 37) | 409 `REQUIREMENT_INACTIVE` « Nécessite X : à activer d'abord. » |
-| Install guard | same, `installedOnly` (rule 38, **#844**) | Install refused while a requirement is installed but off. |
+| Install guard | same, `installedOnly` (rule 38, #844) | Install refused while a requirement is installed but off. |
 | Update guard | `updateView` | An update whose new version needs a plugin not installed is refused « Nécessite X : à installer d'abord. » |
 | Reconciler | `utils/pluginReconciler.js` `planSteps` | Deactivates dependants before their requirements, activates/installs requirements first. |
 | Console | `control-plane/.../customerModulesController.js` | Switch on refused 422 `REQUIREMENT_OFF`, switch off refused 422 `REQUIRED_BY`, creation form refused, erase/uninstall refused while an installed dependant exists (`blockedBy`, shown on the line **before** the click). |
@@ -78,14 +78,14 @@ menu is the one place where a dependant is shown in advance (`blockedBy`).
 ### 1.4 Inventory of the shipped plugins (16 manifests, 2026-10-29)
 
 **Declared:** exactly one edge — `google-vacation-rentals` 1.0.2 → `website-booking ^1.7.1`
-(shipped 1.8.2, satisfied). Every other manifest has `requires: []`.
+(shipped 1.8.3, satisfied). Every other manifest has `requires: []`.
 
 **Implicit, not declared** (from `plugin-removal-resilience.md` §1.2 and a grep of every plugin's
 server and client sources for the other plugins' ids, slots and registry reads):
 
 | Plugin | Couples to | Nature | Verdict |
 |---|---|---|---|
-| `weather-alerts` | `sas` | Its surfaces are « Intégrations › Météo » and « L'étape météo du sas ». The settings only hold the API key: **without the SAS, the plugin produces nothing anywhere.** | **Hard in practice — undeclared.** Candidate for `requires: sas` (Q4). |
+| `weather-alerts` | `sas` | Its surfaces are « Intégrations › Météo » and « L'étape météo du sas ». The settings only hold the API key: **without the SAS, the plugin produces nothing anywhere.** | **Hard in practice — undeclared.** Declared by this spec (rule 20, Q4). |
 | `gate-access` | `sas` | Fills `sas.portal`; also emails, fiche card, public `/public/v1/gate` | Soft: useful without the SAS. |
 | `linen` | `sas` | SAS steps; `sas/controller.js:39` reads `registry.isLive('linen')` directly | Soft both ways. |
 | `hourly-resources` | `sas` | « créneaux » step; planning and fiche work alone | Soft. |
@@ -94,7 +94,7 @@ server and client sources for the other plugins' ids, slots and registry reads):
 | `google-vacation-rentals` | `tariff-recipes` | Listens to `pricing.changed`; reprices on its own schedule otherwise | Soft. |
 
 No plugin source imports another plugin (guarded by the phase 1 tests). Soft links stay undeclared
-(§8): a field for them would be a second notion for the operator to learn, for no refusal.
+(§8, Q7): a field for them would be a second notion for the operator to learn, for no refusal.
 
 ## 2. Goal
 
@@ -146,7 +146,7 @@ explicit confirmation, or says why it is refused *before* the click.
 9. **Install pulls what is missing, in order** (rule 12 of phase 4, completed). The install plan
    now lists two kinds of steps: `install` for a requirement not installed, `activate` for one
    installed but off (this replaces the bare 409 of rule 38 — Q3). One confirmation lists them
-   (« Installe aussi Réservation depuis le site 1.8.2. » / « Active aussi … »), one click
+   (« Installe aussi Réservation depuis le site 1.8.3. » / « Active aussi … »), one click
    « Tout installer », all or nothing (rule 29). The 409 `REQUIREMENTS` payload gains `op` per line.
 10. **Same plan in a development tree** (closes H1). Outside packages mode the install plan reads
     the source manifests (`host().runningCopy`) and installs/activates the requirements' rows first,
@@ -181,7 +181,7 @@ explicit confirmation, or says why it is refused *before* the click.
     `requirementViolations(manifests)` run in every mode but `--built`: an id not shipped, a plugin
     requiring itself, a range the shipped version of the requirement does not satisfy, and any cycle.
     It already runs on every PR (`unit-tests.yml`) and in the release `verify` job. Messages in
-    English, one per violation, e.g. `google-vacation-rentals requires website-booking ^2.0.0, shipped 1.8.2`.
+    English, one per violation, e.g. `google-vacation-rentals requires website-booking ^2.0.0, shipped 1.8.3`.
 17. **The console reads the same graph.** `control-plane/server/src/utils/gf.js` exposes
     `pluginGraph`; `customerModulesController.lineOf` adds `requires` and `usedBy` lines (rules 6–7,
     statuses from the console's own choice and the space's reported facts).
@@ -196,6 +196,15 @@ explicit confirmation, or says why it is refused *before* the click.
     422 « Google Vacation Rentals nécessite Réservation depuis le site : à inclure aussi. »; a plan
     change on a customer that would leave a chosen dependant without its requirement drops the
     dependant with it, with one audit line each (« … retiré (nécessite …) »).
+
+### 3.E The shipped graph
+
+20. **`weather-alerts` requires `sas`** (Q4, 2026-10-29). Its only output is the SAS arrival step;
+    without the SAS it runs and shows nothing. Manifest: `requires: [{ id: 'sas', range: '^1.7.0' }]`
+    (shipped `sas` 1.7.2), bumped to 1.3.0 with the changelog line « Nécessite Arrivée et départ
+    guidés. ». The CHANGELOG fragment (`changed`) says that a space with weather-alerts and without
+    the SAS sees it « Nécessite Arrivée et départ guidés » after the update, data kept. The other
+    implicit links of §1.4 stay undeclared (Q7).
 
 **Edge cases:**
 - A requirement installed from the registry at a newer version whose own manifest changed its
@@ -229,7 +238,7 @@ explicit confirmation, or says why it is refused *before* the click.
 | `routes/` | `plugins.js` | — | Unchanged: the flags travel in the existing bodies. |
 | `models/`, `database.js` | — | — | No schema change. |
 | `scripts/` | `check-plugin-versions.mjs` | T | `requirementViolations(manifests)` (rule 16). |
-| `plugins/weather-alerts/` | `manifest.json` | T | **Only if Q4 = yes**: `requires: [{ id: 'sas', range: '^1.0.0' }]`, version bump + changelog line. |
+| `plugins/weather-alerts/` | `manifest.json` | T | Rule 20: `requires: [{ id: 'sas', range: '^1.7.0' }]`, version 1.3.0 + changelog line. |
 
 **Console (`control-plane/`)**
 
@@ -275,7 +284,7 @@ All admin-only, as today.
 ## 5. Data model
 
 No schema change, no migration. The graph is recomputed from manifests on every request (16 plugins,
-≤ 1 edge each: negligible). **Data impact:** none. Q4 = yes adds one edge; an existing space with
+≤ 1 edge each: negligible). **Data impact:** none. Rule 20 adds one edge; an existing space with
 `weather-alerts` and without `sas` would see weather-alerts load as « Nécessite Arrivée et départ
 guidés » (unloaded, data kept) after the update — the CHANGELOG fragment must say so.
 
@@ -294,7 +303,7 @@ French copy, short and impersonal. Mockups: the HTML summary (interactive, mobil
   Réglages et données gardés. À réactiver ensuite un par un. », button « Tout désactiver ».
 - « Désinstaller » used by an installed plugin → disabled, with « Utilisé par Google Vacation
   Rentals : à désinstaller d'abord. » under it.
-- Install with missing requirements → existing dialog, lines « Installe aussi … 1.8.2 » / « Active aussi … ».
+- Install with missing requirements → existing dialog, lines « Installe aussi … 1.8.3 » / « Active aussi … ».
 
 **Responsive:** `xs` — captions wrap under the description, buttons full-width (unchanged card
 layout), ConfirmDialog full-screen. `md`/`lg` — unchanged card grid. No PageActionBar change (the
@@ -338,27 +347,19 @@ is new, the switch-off one gains the list.
 
 ## 9. Open questions
 
-Each is written to go into an `AskUserQuestion` as is.
+None open. **Resolved 2026-10-29** (owner, AskUserQuestion — each time the recommended option):
 
-- **Q1 — Désactiver un plugin utilisé par un plugin actif ?**
-  - (Recommandé) Désactiver les deux, après une confirmation qui nomme les plugins entraînés — réversible, données gardées.
-  - Refuser, mais le dire avant le clic (règle 36 inchangée, seulement visible plus tôt).
-- **Q2 — Désinstaller un plugin utilisé par un autre plugin installé ?**
-  - (Recommandé) Refuser, raison affichée avant le clic — la désinstallation peut effacer des données.
-  - Désinstaller aussi les dépendants, sans effacement, après confirmation.
-- **Q3 — Installer ou activer un plugin dont un prérequis est installé mais éteint ?**
-  - (Recommandé) Proposer de l'activer dans la même confirmation (« Active aussi … »).
-  - Refuser comme #844 (« à activer d'abord »).
-- **Q4 — Déclarer que la Vigilance Météo-France nécessite « Arrivée et départ guidés » ?**
-  - (Recommandé) Oui : sans le sas, le plugin ne produit rien ; un espace qui l'a sans sas le verra « Nécessite … » après mise à jour, données gardées.
-  - Non : laisser le lien implicite.
-- **Q5 — Afficher la plage de versions requise ?**
-  - (Recommandé) Seulement quand elle n'est pas respectée (« version 1.6.0 — 1.7.1 ou plus récente requise »).
-  - Toujours (« Nécessite Réservation depuis le site ^1.7.1 »).
-- **Q6 — Cohérence des forfaits dans la console ?**
-  - (Recommandé) Refuser un forfait ou une option qui autorise un plugin sans son prérequis, et retirer le dépendant avec son prérequis lors d'un changement de forfait.
-  - Côté espace : un plugin dont le prérequis n'est pas actif cesse de tourner (isLive en cascade).
-  - Hors périmètre pour l'instant.
-- **Q7 — Déclarer aussi les liens faibles (« Complète … ») ?**
-  - (Recommandé) Non : ils ne refusent rien, ce serait une notion de plus à apprendre.
-  - Oui : un champ `enhances` affiché « Complète Arrivée et départ guidés ».
+- **Q1 — Deactivating a plugin an active plugin uses?** → **Both are switched off, after a
+  confirmation that names the dependants** (rules 12–13). Reversible, data kept, no automatic
+  re-activation.
+- **Q2 — Uninstalling a plugin another installed plugin uses?** → **Refused, with the reason shown
+  before the click** (rule 14). Uninstall can erase data; it never cascades.
+- **Q3 — Installing or activating on top of an installed but switched-off requirement?** →
+  **Proposed in the same confirmation** (« Active aussi … », rules 9 and 11). Replaces the bare 409
+  of rule 38 of phase 4 when the operator confirms; without the flag the 409 stays.
+- **Q4 — Declare weather-alerts → sas?** → **Yes** (rule 20).
+- **Q5 — Show the version range?** → **Only when unmet** (rule 6), e.g. « version 1.6.0 — 1.7.1 ou
+  plus récente requise ».
+- **Q6 — Plan coherence in the console?** → **Refuse an incoherent plan or option, and drop the
+  dependant with its requirement on a plan change** (rule 19). No runtime `isLive` cascade (§8).
+- **Q7 — Declare soft links (« Complète … »)?** → **No** (§8). They refuse nothing.
