@@ -67,8 +67,10 @@ function legacyDb() {
   const db = new Database(':memory:');
   db.exec(`
     CREATE TABLE migrations (name TEXT PRIMARY KEY);
-    CREATE TABLE users (id INTEGER PRIMARY KEY);
+    CREATE TABLE users (id INTEGER PRIMARY KEY, isActive INTEGER NOT NULL DEFAULT 1, isSupportAccount INTEGER NOT NULL DEFAULT 0);
+    CREATE TABLE user_roles (userId INTEGER NOT NULL, role TEXT NOT NULL);
     INSERT INTO users (id) VALUES (1), (2), (3);
+    INSERT INTO user_roles (userId, role) VALUES (1, 'admin'), (2, 'admin'), (3, 'admin');
     CREATE TABLE push_subscriptions (id INTEGER PRIMARY KEY AUTOINCREMENT, userId INTEGER NOT NULL, endpoint TEXT NOT NULL UNIQUE, p256dh TEXT NOT NULL, auth TEXT NOT NULL);
     CREATE TABLE user_push_prefs (userId INTEGER PRIMARY KEY, newReservation INTEGER NOT NULL DEFAULT 1, arrivals INTEGER NOT NULL DEFAULT 1,
       departures INTEGER NOT NULL DEFAULT 1, breakfast INTEGER NOT NULL DEFAULT 1, neat INTEGER NOT NULL DEFAULT 1);
