@@ -1,0 +1,1 @@
+- The rollback schema floor now also covers the 16 tables owned by the plugins of v3.18.0, and the documented rollback of an instance holding property documents includes moving `data/private-documents/*` back to `data/uploads/` (`specs/self-update-and-releases.md` rules 39, 44, 45).

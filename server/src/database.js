@@ -1892,6 +1892,22 @@ db.prepare(`
   }
 }
 
+// specs/self-update-and-releases.md rule 43 — a rollback to v3.18.0 must not list the installment request
+// in its manual queue: the row leaves the `start` anchor that release reads.
+{
+  const migrationName = 'installment_template_anchor_v1';
+  const ran = db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(migrationName);
+  if (!ran) {
+    const { runInstallmentTemplateAnchorMigration } = require('./utils/migrateInstallmentTemplateAnchor');
+    const tx = db.transaction(() => {
+      const { action, changed } = runInstallmentTemplateAnchorMigration(db);
+      db.prepare('INSERT INTO migrations (name) VALUES (?)').run(migrationName);
+      console.log(`[migration:installment-template-anchor] ${action} (${changed})`);
+    });
+    tx();
+  }
+}
+
 // specs/site-meal-portions.md rule 11 — website devis stored while a per-person card option's
 // quantity still meant SÉANCES. Any replay of those devis (PDF, payment link) now reads the quantity
 // as portions and would charge less than the accepted quote; aligning it on `billedUnits` keeps the
