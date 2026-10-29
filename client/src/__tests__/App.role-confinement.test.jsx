@@ -74,6 +74,21 @@ test('rule 15 — an accountant on a page outside accounting is sent to Mon comp
   expect(api.getClientsDirectory).not.toHaveBeenCalled();
 });
 
+test('rule 15 — an accountant on the URL of an inactive plugin page lands on Comptabilité while the export is live', async () => {
+  signIn(['accountant'], '/resource-planning');
+  mockAuth.user.enabledPlugins = ['accounting-export'];
+  render(<App />);
+  await waitFor(() => expect(window.location.pathname).not.toBe('/resource-planning'));
+  expect(window.location.pathname).toBe('/comptabilite');
+});
+
+test('rule 15 — the same accountant lands on Mon compte when the export is not live', async () => {
+  signIn(['accountant'], '/resource-planning');
+  render(<App />);
+  await waitFor(() => expect(window.location.pathname).not.toBe('/resource-planning'));
+  expect(window.location.pathname).toBe('/mon-compte');
+});
+
 test('rule 34 — the accountant\'s shell loads the platform colours but not the property list', async () => {
   signIn(['accountant'], '/mon-compte');
   render(<App />);

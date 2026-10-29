@@ -106,3 +106,14 @@ test('rule 33 — the operator taking the scroll back cancels the return to toda
   await new Promise((resolve) => setTimeout(resolve, 100));
   expect(askedWindows(0)).toHaveLength(1);
 });
+
+test('rule 33 — a press on the page (a scrollbar drag) cancels the return to today as well', async () => {
+  renderPage();
+  await reachWindowSeven();
+  fireEvent.click(screen.getByRole('button', { name: "Aujourd'hui" }));
+  fireEvent.pointerDown(window);
+  await scrollWindowTo(99500);
+  await waitFor(() => expect(askedWindows(8)).toHaveLength(1));
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  expect(askedWindows(0)).toHaveLength(1);
+});

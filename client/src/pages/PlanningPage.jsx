@@ -153,7 +153,7 @@ export default function PlanningPage() {
 
   useEffect(() => {
     const cancel = () => { wantsToday.current = false; };
-    const events = ['wheel', 'touchstart', 'keydown'];
+    const events = ['wheel', 'touchstart', 'keydown', 'pointerdown'];
     events.forEach((name) => window.addEventListener(name, cancel, { passive: true }));
     return () => events.forEach((name) => window.removeEventListener(name, cancel));
   }, []);

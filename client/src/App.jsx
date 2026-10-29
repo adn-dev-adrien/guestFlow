@@ -617,17 +617,21 @@ function useTopBarTitleRoom(toolbarRef, titleRef, title, active) {
  *   export is live, « Mon compte » alone otherwise (specs/plugins-phase-2-hosts.md rules 3, 21).
  * - Reception: / + /planning + /mon-compte (specs/reception-role-checkin-only.md).
  * A page of an inactive plugin is not there (specs/plugins-phase-0-foundation.md rule 19): a URL
- * typed by hand lands on the home page, or on « Mon compte » for a role with no home page. An
+ * typed by hand lands on the home page, on « Comptabilité » for an accountant while the export is
+ * live, or on « Mon compte » for a role with no home page. An
  * administrator stays on the address and reads « Plugin inactif » (phase P rule 42).
  */
 function roleRedirectTarget(user, path) {
   if (!user || userHasRole(user, ADMIN)) return null;
   const hasHome = userHasRole(user, RECEPTION);
-  if (!isRouteEnabled(user, path)) return hasHome ? '/' : '/mon-compte';
   const isAccountant = userHasRole(user, ACCOUNTANT);
+  const exportLive = canSeeRoute(user, '/comptabilite');
+  if (!isRouteEnabled(user, path)) {
+    if (hasHome) return '/';
+    return isAccountant && exportLive ? '/comptabilite' : '/mon-compte';
+  }
   if (!isAccountant && !hasHome) return null;
   const own = path === '/mon-compte' || path === '/account';
-  const exportLive = canSeeRoute(user, '/comptabilite');
   const accountantPage = exportLive && (path.startsWith('/comptabilite') || path === COMPENSATIONS_PATH);
   const allowed = (isAccountant && (accountantPage || own))
     || (hasHome && (path === '/' || path === '/planning' || own));

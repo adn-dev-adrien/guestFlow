@@ -220,7 +220,7 @@ emails, settings, or any monetary figure beyond *the caution and complement to c
     `hooks/__tests__/useDynamicFavicon.role.test.jsx`.
 
 15. **The role redirect happens while the shell renders, not after (audit R4, 2026-10-29).** A URL
-    outside the role's surface (rule 2, the plugin-inactive rule 19 of phase 0) is answered by a
+    outside the role's surface (rule 2, the plugin-inactive rule 19 of phase 0: the accountant lands on Comptabilité while the export is live, otherwise on Mon compte) is answered by a
     `<Navigate>` in place of the routes, so the forbidden page is never mounted: none of its calls
     leave, no 403 burst, and no error toast greets the operator on the landing page. The accountant's
     shell reads the platform colours (`plugins-phase-2-hosts.md` rule 34) and skips the property list,
