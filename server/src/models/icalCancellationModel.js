@@ -247,12 +247,12 @@ function buildModel(database) {
     const snapshot = compensation ? selectReservationSnapshot().get(cancellation.reservationId) : null;
     // History BEFORE delete so the reservationId FK is still resolvable.
     insertHistoryStmt.run(cancellation.reservationId, HISTORY_PAYLOAD);
-    recordPaceCancellation(cancellation.reservationId);
     deleteImportEvents.run(cancellation.reservationId);
     const cancelledLinks = abandonOpenLinks(cancellation.reservationId);
     if (keptAsCancelled) {
       require('./reservationsModel').create(database).markCancelled(cancellation.reservationId, { reason: 'Annulation iCal approuvée' });
     } else {
+      recordPaceCancellation(cancellation.reservationId);
       deleteReservation.run(cancellation.reservationId);
     }
     ackApproved.run(id);

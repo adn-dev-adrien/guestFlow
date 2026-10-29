@@ -158,6 +158,8 @@ async function fetchPublic(url, { signal, fetchImpl = undici.fetch, resolve, env
         response.release = releaseFor(response);
         return response;
       }
+      // An unread redirect body would hold the pool open until the timeout when it is closed.
+      try { if (response.body && typeof response.body.cancel === 'function' && !response.bodyUsed) await response.body.cancel(); } catch { /* already closed */ }
       current = new URL(location, current).toString();
     }
     throw new FeedFetchError('Trop de redirections.');

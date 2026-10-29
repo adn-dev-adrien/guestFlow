@@ -21,6 +21,7 @@
  */
 
 const { classifyBookingEvent } = require('../utils/icalBookingEcho');
+const { effectiveRange, timeColumnsOf } = require('../utils/occupancy');
 const { addDaysToIsoDate } = require('../utils/devisHelpers');
 const { isDirectChannel } = require('../utils/platformNameFormat');
 
@@ -120,7 +121,8 @@ function buildModel(database) {
   function overlapsTakenNights(reservation, startDate, endDate) {
     const stay = { startDate, endDate };
     const others = has('kind')
-      ? database.prepare("SELECT startDate, endDate FROM reservations WHERE propertyId = ? AND kind = 'reservation' AND id != ?").all(reservation.propertyId, reservation.id)
+      ? database.prepare(`SELECT ${['startDate', 'endDate', ...timeColumnsOf(database)].join(', ')} FROM reservations WHERE propertyId = ? AND kind = 'reservation' AND id != ?`)
+        .all(reservation.propertyId, reservation.id).map((r) => effectiveRange(r))
       : [];
     let closures = [];
     try {

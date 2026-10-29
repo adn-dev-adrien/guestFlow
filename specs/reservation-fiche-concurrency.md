@@ -53,6 +53,16 @@ silently reverting what an import, a mail or another tab wrote meanwhile.
    « Recharger » (re-runs the page load), « Enregistrer quand même » (an explicit overwrite: that one save
    goes without `loadedUpdatedAt`, then the fiche holds the new version) and « Annuler » (closes the dialog;
    the draft stays on screen, the next save is refused again).
+6. **A sync that writes nothing leaves `updatedAt` alone** _(added 2026-10-29, audit R2)_. The iCal sync
+   re-stamps a mapped stay's `sourceIcalEventUid` on every pass; that statement now carries
+   `AND ifnull(sourceIcalEventUid, '') != ?`, so an unchanged stay keeps its version and a fiche left open
+   across the 5-minute pass is not refused as stale. Only a real write (a new UID, a date or detail change, a
+   takeover, an approved drift) moves the version. The Google Calendar, Neat and Google Vacation Rentals
+   handlers never write `reservations.updatedAt`.
+7. **The check is repeated right before the write** _(added 2026-10-29, audit R2)_. `update` judges
+   `loadedUpdatedAt` first, then may await the payment provider (stale-link payment check). A foreign write
+   landing during that await answers `409 STALE_FICHE` too: the check runs again, synchronously, just before
+   `performUpdate`.
 
 **Edge cases:**
 - The version check runs first in `update`, so a stale save on a cancelled or superseded stay answers `STALE_FICHE` before the read-only guard (`RESERVATION_CANCELLED`) would; a stay already read-only has nothing to overwrite, and the reload then shows it.

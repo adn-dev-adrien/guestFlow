@@ -30,6 +30,7 @@ const { calculateReservationQuote } = require('../utils/pricing');
 const icalCancellationModel = require('./icalCancellationModel');
 const icalExportRangesModel = require('./icalExportRangesModel');
 const { classifyBookingEvent } = require('../utils/icalBookingEcho');
+const { effectiveRange, timeColumnsOf } = require('../utils/occupancy');
 const notificationService = require('../utils/notificationService');
 const { emit: emitPluginEvent } = require('../plugins/sdk/eventBus');
 const { fetchPublic, readCapped, MAX_FEED_BYTES, FeedFetchError } = require('../utils/safeFeedFetch');
@@ -430,7 +431,7 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
         const markReservationUid = database.prepare(`
           UPDATE reservations
           SET sourceIcalEventUid = ?, updatedAt = datetime('now')
-          WHERE id = ?
+          WHERE id = ? AND ifnull(sourceIcalEventUid, '') != ?
         `);
         const insertReservation = database.prepare(`
           INSERT INTO reservations (
@@ -617,10 +618,11 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
           const exportRanges = icalExportRangesModel.create(database);
           exportRanges.refresh(source.propertyId);
           bookingCover = [
+            // The nights each stay really takes (early check-in / late check-out), as the export publishes them.
             ...database.prepare(`
-              SELECT startDate, endDate FROM reservations
+              SELECT ${['startDate', 'endDate', ...timeColumnsOf(database)].join(', ')} FROM reservations
               WHERE propertyId = ? AND kind = 'reservation' AND ifnull(sourceIcalSourceId, -1) != ?
-            `).all(source.propertyId, source.id),
+            `).all(source.propertyId, source.id).map((r) => effectiveRange(r)),
             ...closuresModel.list({ propertyId: source.propertyId }),
             // Rule 14 — its own cancelled stay's tombstone never hides that stay re-booked.
             ...exportRanges.listActiveTombstones(source.propertyId, undefined, { excludeSourceId: source.id }),
@@ -640,9 +642,9 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
           const cols = database.prepare('PRAGMA table_info(reservations)').all().map((c) => c.name);
           if (cols.includes('bookingConflictAt') && cols.includes('kind')) {
             otherStays = database.prepare(`
-              SELECT id, startDate, endDate FROM reservations
+              SELECT ${['id', 'startDate', 'endDate', ...timeColumnsOf(database)].join(', ')} FROM reservations
               WHERE propertyId = ? AND kind = 'reservation' AND ifnull(sourceIcalSourceId, -1) != ?
-            `).all(source.propertyId, source.id);
+            `).all(source.propertyId, source.id).map((r) => ({ id: r.id, ...effectiveRange(r) }));
             markConflict = database.prepare('UPDATE reservations SET bookingConflictAt = ? WHERE id = ?');
             clearConflict = database.prepare('UPDATE reservations SET bookingConflictAt = NULL WHERE id = ?');
             isFlagged = database.prepare("SELECT 1 FROM reservations WHERE id = ? AND ifnull(bookingConflictAt, '') != ''");
@@ -938,7 +940,7 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
               continue;
             }
 
-            markReservationUid.run(event.uid, mapping.reservationId);
+            markReservationUid.run(event.uid, mapping.reservationId, event.uid);
             if (event.summary) {
               backfillOriginalSummary.run(event.summary, mapping.reservationId);
             }

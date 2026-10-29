@@ -9,7 +9,9 @@
  * against an in-memory schema.
  */
 
-const { carriesMoney, idsOfOwner, withConvertedDevis, CLIENT_MONEY_MESSAGE } = require('../utils/deletionGuard');
+const {
+  carriesMoney, removesProtectedHistory, idsOfOwner, withConvertedDevis, CLIENT_MONEY_MESSAGE, CLIENT_HISTORY_MESSAGE,
+} = require('../utils/deletionGuard');
 const { todayIso: localTodayIso } = require('../utils/localDate');
 const db = require('../database');
 const { sentenceCase, capitalizeFirst, personNameCase } = require('../utils/textFormatters');
@@ -307,7 +309,9 @@ function createModel(database) {
   // THE delete guard for a client (utils/deletionGuard): a forced delete would cascade every stay and
   // devis, including those that carry money.
   function deletionBlocker(id) {
-    return carriesMoney(database, idsOfOwner(database, 'clientId', id)) ? CLIENT_MONEY_MESSAGE : null;
+    const ids = idsOfOwner(database, 'clientId', id);
+    if (carriesMoney(database, ids)) return CLIENT_MONEY_MESSAGE;
+    return removesProtectedHistory(database, ids) ? CLIENT_HISTORY_MESSAGE : null;
   }
 
   function rowIdsToDelete(id) {
@@ -332,10 +336,10 @@ function createModel(database) {
   function listReservationsForClient(clientId) {
     const rows = database.prepare(`
       SELECT r.id, r.clientId, r.propertyId, p.name AS propertyName, r.startDate, r.endDate,
-        r.platform, r.finalPrice, r.adults, r.children, r.teens, r.babies
+        r.kind, r.platform, r.finalPrice, r.adults, r.children, r.teens, r.babies
       FROM reservations r
       LEFT JOIN properties p ON p.id = r.propertyId
-      WHERE r.kind = 'reservation' AND r.clientId = ?
+      WHERE r.kind IN ('reservation', 'cancelled', 'superseded') AND r.clientId = ?
     `).all(Number(clientId));
     return rows
       .map((r) => ({ ...r, nights: computeNights(r.startDate, r.endDate) }))

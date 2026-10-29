@@ -1,0 +1,1 @@
+- An approved iCal cancellation of a stay that carries money is no longer counted twice in the booking pace; a redirect with a large body no longer holds a feed until the timeout; the import's overlap checks and the drift approval use the nights a stay really takes (early check-in, late check-out).
