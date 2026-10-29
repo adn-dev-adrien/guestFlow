@@ -62,6 +62,7 @@ test('rule 3: one value when every applicable property shares the price, with it
   assert.equal(find(view, 'D').price.unit, '/ pers. / jour');
 });
 
+// specs/per-property-option-prices.md rule 11 — the catalogue price summary shows the per-logement overrides.
 test('rule 3: « min – max » and « selon logement » when the properties differ; an override at 0 counts', () => {
   const view = buildCatalogueView([
     option({ title: 'Ménage', price: 30, propertyPrices: { 2: 80 } }),

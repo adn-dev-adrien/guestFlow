@@ -21,7 +21,7 @@ const SECRET_NAME = [
   /\.log$/i,
 ];
 const ALLOWED_NAME = [/^\.env\.example$/i];
-const KEEP_FILES = new Set(['.gitkeep', 'README.md']);
+const KEEP_FILES = new Set(['.gitkeep']);
 
 /** Paths (relative to `root`) a release must not contain. */
 export function findForbiddenFiles(root) {

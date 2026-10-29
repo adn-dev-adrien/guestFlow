@@ -380,7 +380,7 @@ signed-off releases over HTTPS, when the operator asks for it.
     database and its WAL, `licence.jws`, TLS keys, uploaded photos) that a manual run would have shipped.
     `scripts/check-release-tree.mjs` then scans the staging tree and fails the script before `tar` when it
     finds a `.env*` (but `.env.example`), a database file, `licence.jws`, a key / certificate, `update-state.json`,
-    a log, or any file under `uploads/` other than `.gitkeep`.
+    a log, or any file under `uploads/` other than `.gitkeep` (a README there is refused too).
 
 **Edge cases**
 
