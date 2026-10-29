@@ -326,6 +326,20 @@ one place.
     iban, smtp… » — the former « Chercher un réglage : … » was clipped at 390 px. The field's
     accessible name stays « Chercher un réglage ».
 
+32. **Property documents are private (2026-10-28, authz L2).** A document is stored in `private-documents`, a
+    sibling of the uploads directory (`data/private-documents` once the release links `uploads` into `data/`),
+    OUTSIDE the root the public `/uploads` route serves (`documents.filePath` = `private/<name>`). The property
+    payload carries `filePath` = `/api/properties/:id/documents/:docId/file`, an authenticated download
+    (404 under another property) named after the document; « Retirer » and the removal of the property
+    delete the file. Files uploaded before the audit are moved at boot (copy under the final name, never over an existing file,
+    then the original, then the row; a missing file is logged and its row left alone; accepted exception to
+    additive migrations, self-update-and-releases.md rule 39 — production holds no document). The download
+    name appends the extension only when the name lacks it. The folder is
+    backed up and restored with the uploads: `backup-from-pi.sh` / `restore-to-pi.sh`, the fleet's rclone sync and
+    local copy, the customer data export, and the lose-the-host restore of `deploy/hosting/README.md`; the
+    console's disk probe measures the whole instance directory. Photos, logo and favicon stay in
+    the public tree: the WordPress site, the emails and the login page link them.
+
 **Edge cases**
 - A page with unsaved changes and a click on another settings entry → the existing dirty-form guard.
 - (rule 28) The address changes to another provider after a host was saved → the saved host wins;

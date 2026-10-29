@@ -347,6 +347,13 @@ Other facts the design rests on:
     recorded and its row warns — unless the bucket was meanwhile perceived another way (double payment,
     admin told, as rule 8). [reservation-payment-ledger.md](reservation-payment-ledger.md) rules 29-31
     (§9 Q3).
+27. **Paid links left without a stay are surfaced, not deleted (2026-10-28, database audit).** `payment_links`
+    carries no foreign key, so a stay deleted before the delete guard left its money record behind (5 of 8
+    orphan links on the production copy were paid). The boot logs `[integrity] N lien(s) de paiement
+    payé(s) sans séjour` (a link retired after the guest paid it, rule 8, counts through its `paidAt`) and
+    deletes nothing. The refusal to delete a stay or devis carrying money is the reservations rules
+    (`RESERVATION_CARRIES_MONEY`, fix/audit-reservations), not this spec; no foreign key was added (a
+    rebuild of a table other code reads).
 
 ## 4. Architecture
 

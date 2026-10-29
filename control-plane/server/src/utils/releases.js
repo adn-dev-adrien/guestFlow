@@ -13,11 +13,15 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const { pipeline } = require('stream/promises');
-const { releaseClient, updateStaging, semver } = require('./gf');
+const { releaseClient, updateStaging, releaseSignature, semver } = require('./gf');
 
 const MESSAGES = {
   CHECKSUM_MISSING: 'L’empreinte SHA-256 de l’archive est absente de la version publiée.',
   CHECKSUM_MISMATCH: 'L’archive ne correspond pas à son empreinte SHA-256 : version refusée.',
+  LOCKFILE_UNTRUSTED: 'Le fichier de verrouillage des dépendances de la version pointe hors du registre npm : version refusée.',
+  SIGNATURE_MISSING: 'La version n’est pas signée alors qu’une clé de signature est configurée : version refusée.',
+  SIGNATURE_INVALID: 'La signature de la version ne correspond pas à la clé configurée : version refusée.',
+  SIGNATURE_KEY_INVALID: 'La clé publique de signature des versions est illisible : version refusée.',
   FORBIDDEN_HOST: 'Le téléchargement pointait vers un hôte non autorisé : version refusée.',
   ARCHIVE_TOO_LARGE: 'L’archive dépasse la taille autorisée.',
   ARCHIVE_LINK_MEMBER: 'L’archive contient un lien symbolique : version refusée.',
@@ -66,7 +70,7 @@ async function sha256File(file) {
   return hash.digest('hex');
 }
 
-function createReleases({ dir, fetchImpl = fetch, installImpl = updateStaging.installDependencies, now = () => new Date() }) {
+function createReleases({ dir, fetchImpl = fetch, installImpl = updateStaging.installDependencies, now = () => new Date(), releasePublicKey = releaseSignature.releasePublicKeyFromEnv() }) {
   let installing = null;
 
   function list() {
@@ -112,7 +116,14 @@ function createReleases({ dir, fetchImpl = fetch, installImpl = updateStaging.in
       onPhase('downloading');
       await updateStaging.downloadToFile({ url: release.archive.url, destFile: archive, fetchImpl });
       onPhase('verifying');
-      const sums = releaseClient.parseSha256Sums(await updateStaging.fetchText({ url: release.checksums.url, fetchImpl }));
+      const sumsBytes = await updateStaging.fetchBuffer({ url: release.checksums.url, fetchImpl });
+      await releaseSignature.assertSumsSigned({
+        sums: sumsBytes,
+        signature: release.checksumsSignature,
+        publicKey: releasePublicKey,
+        fetchSignature: (asset) => updateStaging.fetchText({ url: asset.url, fetchImpl }),
+      });
+      const sums = releaseClient.parseSha256Sums(sumsBytes.toString('utf8'));
       const expected = sums[release.archive.name];
       if (!expected) throw new Error('CHECKSUM_MISSING');
       if (await sha256File(archive) !== expected) throw new Error('CHECKSUM_MISMATCH');

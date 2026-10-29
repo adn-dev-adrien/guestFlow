@@ -1,0 +1,56 @@
+/**
+ * Provenance check of a release's `server/package-lock.json`, run before any `npm ci`
+ * (specs/self-update-and-releases.md rule 40). `--ignore-scripts` does not stop a git dependency's
+ * `prepare`; a lockfile in which every entry comes from the public npm registry with an integrity hash
+ * does, with no exemption (an `inBundle` entry is checked like any other). A release carrying an
+ * `npm-shrinkwrap.json`, an `.npmrc` or its own `.install-home` is refused outright.
+ */
+
+const fs = require('fs');
+const path = require('path');
+
+const REGISTRY_PREFIX = 'https://registry.npmjs.org/';
+
+/** → the offending entries as `[path, reason]`; empty when the lockfile is clean. */
+function lockfileViolations(lock) {
+  const packages = lock && typeof lock === 'object' ? lock.packages : null;
+  if (!packages || typeof packages !== 'object') return [['(lockfile)', 'no packages']];
+  const out = [];
+  for (const [key, entry] of Object.entries(packages)) {
+    if (key === '') continue;
+    if (!entry || typeof entry !== 'object') { out.push([key, 'unreadable entry']); continue; }
+    if (entry.link) { out.push([key, 'link dependency']); continue; }
+    if (typeof entry.resolved !== 'string' || !entry.resolved.startsWith(REGISTRY_PREFIX)) {
+      out.push([key, `not resolved from ${REGISTRY_PREFIX}`]);
+    } else if (typeof entry.integrity !== 'string' || !entry.integrity) {
+      out.push([key, 'no integrity hash']);
+    }
+  }
+  return out;
+}
+
+// Files npm would honour in place of, or on top of, the lockfile we check: a shrinkwrap wins over
+// package-lock.json, and a project .npmrc can re-enable scripts or point at another registry.
+const FORBIDDEN_FILES = [['server', 'npm-shrinkwrap.json'], ['server', '.npmrc'], ['release root', '.npmrc'], ['release root', '.install-home']];
+
+/** Throws `LOCKFILE_UNTRUSTED:<first offender>` when the release's lockfile is missing or not clean. */
+function assertLockfileProvenance(serverDir) {
+  FORBIDDEN_FILES.forEach(([where, name]) => {
+    const dir = where === 'server' ? serverDir : path.dirname(serverDir);
+    if (fs.existsSync(path.join(dir, name))) throw new Error(`LOCKFILE_UNTRUSTED:${where === 'server' ? 'server/' : ''}${name} present`);
+  });
+  let lock;
+  try {
+    lock = JSON.parse(fs.readFileSync(path.join(serverDir, 'package-lock.json'), 'utf8'));
+  } catch {
+    throw new Error('LOCKFILE_UNTRUSTED:package-lock.json unreadable');
+  }
+  const violations = lockfileViolations(lock);
+  if (violations.length) {
+    const [key, reason] = violations[0];
+    throw new Error(`LOCKFILE_UNTRUSTED:${key} (${reason})`);
+  }
+  return true;
+}
+
+module.exports = { assertLockfileProvenance, lockfileViolations, REGISTRY_PREFIX };

@@ -34,6 +34,7 @@ import PasswordField from './PasswordField';
 import OneTimeCodeField from './OneTimeCodeField';
 import BackupCodesPanel from './BackupCodesPanel';
 import { ENROLMENT_ENDED, SETUP_STEPS, TWO_FACTOR_EXPLAINER } from '../constants/twoFactor';
+import { visuallyHidden } from '../utils/visuallyHidden';
 
 const ENDING_ERRORS = Object.keys(ENROLMENT_ENDED);
 const messageOf = (err, fallback) => (err && err.message && err.message !== err.error ? err.message : fallback);
@@ -320,7 +321,7 @@ export default function TwoFactorSetupDialog({
           </IconButton>
         )}
       </DialogTitle>
-      <Box role="status" aria-live="polite" sx={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>
+      <Box role="status" aria-live="polite" sx={visuallyHidden}>
         {`${stepLabel} : ${stepTitle}`}
       </Box>
       <DialogContent ref={body}>

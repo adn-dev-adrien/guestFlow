@@ -3,7 +3,7 @@
  * 20–23, §4.3). Admin-only through the role guard.
  *
  *   GET  /api/onboarding            { open, company, property, plugins, questions, emails, pluginsSummary, login: { email, canAdopt } }
- *   PUT  /api/onboarding/company    { name, email, phone, address, siret, useAsLogin } → 200 { company, loginEmail, loginChanged } | 422 { errors }
+ *   PUT  /api/onboarding/company    { name, email, phone, address, siret, useAsLogin, currentPassword } → 200 { company, loginEmail, loginChanged } | 422 { errors }
  *   GET  /api/onboarding/default-capacity?doubleBeds=&singleBeds= → { maxGuests } (rule 21: the
  *                                     capacity proposed while the beds are typed)
  *   PUT  /api/onboarding/property   { name, doubleBeds, singleBeds, maxGuests, checkIn, checkOut,
@@ -30,6 +30,7 @@ const arrivalFactsModel = require('../models/propertyArrivalFactsModel');
 const propertyArticle = require('../utils/propertyArticle');
 const { pendingFactsOf, withoutPending, answeredFlag, PENDABLE, FLAG_FACTS } = require('../utils/propertyFacts');
 const { DEFAULT_ADMIN_EMAIL } = require('../constants/authDefaults');
+const { sendError } = require('../utils/httpError');
 
 // The articles a property name may take (models/propertiesModel.js).
 const NAME_ARTICLES = propertyArticle.ARTICLES;
@@ -63,6 +64,7 @@ function activeSummary(count) {
 
 function buildController({
   database, settingsModel, propertiesModel, plugins, usersModel = null, ensureVapid = () => {}, pluginStep = () => true,
+  reauthenticate = (user, credentials) => require('../utils/accountSecurityServices').twoFactor.reauthenticateForChange(user, credentials),
 }) {
   const model = () => onboardingModel.buildModel(database);
 
@@ -306,6 +308,15 @@ function buildController({
     else if (validation.validateEmail(company.email)) errors.email = 'Email invalide';
     if (company.siret && validation.validateSiret(company.siret)) errors.siret = '14 chiffres';
     if (Object.keys(errors).length) return res.status(422).json({ errors });
+    // Rule 59 — turning the company email into the login is a change of login email: same proof as on
+    // « Mon compte », asked before anything is written.
+    if (b.useAsLogin === true && isBootstrapLogin(req.user)) {
+      try {
+        reauthenticate(req.user, { password: b.currentPassword, code: b.code });
+      } catch (err) {
+        return sendError(res, err);
+      }
+    }
     settingsModel.upsert({
       companyName: company.name, companyEmail: company.email, companyPhone: company.phone,
       companyAddress: company.address, companySiret: company.siret,

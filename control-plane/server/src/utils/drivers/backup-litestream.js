@@ -121,6 +121,9 @@ function createLitestreamBackupDriver({
     },
     async syncUploads(inst) {
       await rclone(['sync', path.join(inst.dir, 'uploads'), `${remote()}/${inst.key}/uploads`]);
+      // Property documents (settings-rationalization.md rule 32): the folder only exists once a document was added.
+      await rclone(['sync', path.join(inst.dir, 'private-documents'), `${remote()}/${inst.key}/private-documents`])
+        .catch((err) => { if (!/directory not found/i.test(String((err && (err.stderr || err.message)) || ''))) throw err; });
     },
     // The console's own database, copied nightly (it is not replicated by Litestream, which runs as
     // the instances' user and cannot read the console's directory).

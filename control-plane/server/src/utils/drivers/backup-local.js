@@ -83,9 +83,10 @@ function createLocalBackupDriver({ dir, now = () => new Date(), intervalMs = 10 
     async syncConsole() {},
     // Rule 12: the uploads, every night.
     async syncUploads(inst) {
-      const uploads = path.join(inst.dir, 'uploads');
-      if (!fs.existsSync(uploads)) return;
-      fs.cpSync(uploads, path.join(base(inst), 'uploads'), { recursive: true });
+      for (const folder of ['uploads', 'private-documents']) {
+        const source = path.join(inst.dir, folder);
+        if (fs.existsSync(source)) fs.cpSync(source, path.join(base(inst), folder), { recursive: true });
+      }
     },
   };
 }

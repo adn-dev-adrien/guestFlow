@@ -1,0 +1,1 @@
+- **Login timing no longer reveals whether an account exists** (dummy hash for unknown, inactive or support accounts, rule 61, audit L1), and **the email 2FA login code is rate limited** like every code mail (rule 62, audit L3).
