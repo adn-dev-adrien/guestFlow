@@ -23,8 +23,8 @@ const {
   getErrorStatus,
 } = require('./events');
 
-const INVALID_GRANT_DETAIL = 'Connexion Google expirée ou révoquée. Reconnectez votre compte.';
-const UNREADABLE_TOKEN_DETAIL = 'Connexion Google illisible (clé de chiffrement changée ?). Reconnectez votre compte.';
+const INVALID_GRANT_DETAIL = 'Connexion Google expirée ou révoquée. Compte à reconnecter.';
+const UNREADABLE_TOKEN_DETAIL = 'Connexion Google illisible (clé de chiffrement changée ?). Compte à reconnecter.';
 
 function buildRunDetail({ pushed, deleted, skipped, errors }) {
   const base = `${pushed} envoyée(s), ${deleted} supprimée(s), ${skipped} inchangée(s)`;

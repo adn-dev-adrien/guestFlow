@@ -16,7 +16,7 @@ const frDate = (s) => `${s.slice(8, 10)}/${s.slice(5, 7)}/${s.slice(0, 4)}`;
 const monthLabel = (ym) => `${MONTH_NAMES[Number(ym.slice(5, 7)) - 1]} ${ym.slice(0, 4)}`;
 
 const MESSAGES = {
-  missingDates: 'Choisissez deux dates.',
+  missingDates: 'Deux dates à choisir.',
   reversed: 'La date de début doit précéder la date de fin.',
   badMonth: "Ce mois n'appartient pas à l'exercice choisi.",
   badKind: 'Période inconnue.',

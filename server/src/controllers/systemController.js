@@ -246,7 +246,7 @@ async function checkNow(req, res) {
     const retryAfter = Math.ceil((CHECK_THROTTLE_MS - elapsed) / 1000);
     return res.status(429).set('Retry-After', String(retryAfter)).json({
       error: 'TOO_MANY_REQUESTS',
-      message: `Patientez ${retryAfter} s avant de relancer une vérification.`,
+      message: `Nouvelle vérification possible dans ${retryAfter} s.`,
     });
   }
   lastManualCheckAt = now;
@@ -308,7 +308,7 @@ async function startUpdate(req, res) {
     return res.status(507).json({
       error: 'INSUFFICIENT_MEMORY',
       message: `Mémoire insuffisante (${Math.round(memory / 1e6)} Mo disponibles, `
-        + `${Math.round(REQUIRED_FREE_MEMORY_BYTES / 1e6)} Mo requis). Ajoutez du swap ou de la RAM.`,
+        + `${Math.round(REQUIRED_FREE_MEMORY_BYTES / 1e6)} Mo requis). Swap ou RAM à ajouter.`,
     });
   }
 

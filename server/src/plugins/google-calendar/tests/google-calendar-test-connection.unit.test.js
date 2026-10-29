@@ -91,7 +91,7 @@ test('testConnection: NOT_CONFIGURED when no calendarApi is supplied (no connect
   const out = await testConnection(VALID_CONFIG, {});
   assert.equal(out.ok, false);
   assert.equal(out.code, 'NOT_CONFIGURED');
-  assert.match(out.error, /Reconnectez/);
+  assert.match(out.error, /reconnecter/);
 });
 
 test('testConnection: ok on successful Google response', async () => {

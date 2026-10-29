@@ -352,7 +352,7 @@ function buildController({
       const id = asInt(req.params.id);
       if (id == null) return res.status(400).json({ error: 'INVALID_ID' });
       if (isSelf(req, id)) {
-        return res.status(403).json({ error: 'SELF_ACTION_FORBIDDEN', detail: 'Utilisez la page Mot de passe pour modifier le vôtre.' });
+        return res.status(403).json({ error: 'SELF_ACTION_FORBIDDEN', detail: 'Mot de passe personnel : page Mot de passe.' });
       }
       const target = usersModel.findById(id);
       if (!target || target.isSupport) return res.status(404).json({ error: 'USER_NOT_FOUND' });

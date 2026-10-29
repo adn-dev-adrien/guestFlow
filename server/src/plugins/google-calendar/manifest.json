@@ -1,7 +1,7 @@
 {
   "id": "google-calendar",
   "name": "Google Agenda",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "Copie les séjours dans un agenda Google.",
   "icon": "event",
   "surfaces": [
@@ -30,6 +30,10 @@
       "Ses réglages ont leur propre onglet dans Paramètres › Intégrations, retrouvé aussi par la recherche des Paramètres."
     ],
     "1.2.1": [
+      "Compatible avec le SDK 2 de GuestFlow."
+    ],
+    "1.2.2": [
+      "Messages d’erreur de la connexion Google à la forme impersonnelle.",
       "Compatible avec le SDK 2 de GuestFlow."
     ]
   }
