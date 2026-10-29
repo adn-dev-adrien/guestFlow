@@ -21,14 +21,14 @@ test('rule 24: a message line « CODE … Arrivée … » decides neither the co
   assert.equal(r.booking.endDate, '2026-12-30');
 });
 
-test('rule 24: a message carrying the money blocks, a listing and a party is ignored or refused, never applied', () => {
+test('rule 24: a message carrying the money blocks, a listing and a party changes nothing', () => {
   const r = parse(withMessage([
     'https://www.airbnb.fr/rooms/999', 'VOYAGEURS', '1 adulte',
     'LE VOYAGEUR A PAYÉ', '10,00 € x 4 nuits   40,00 €', 'TOTAL (EUR)   40,00 €',
     "VERSEMENT DE L'HÔTE", 'Frais de chambre pour 4 nuits   40,00 €', 'Frais de service hôte (15,5 %)   -6,20 €', 'VOUS GAGNEZ   33,80 €',
   ]));
-  assert.equal(r.ok, false);
-  assert.match(r.error, /plusieurs fois/);
+  assert.equal(r.ok, true);
+  assert.deepEqual([r.booking.listingId, r.booking.adults, r.booking.children, r.booking.total, r.booking.payout], ['1234567890123456789', 5, 6, 1236.26, 1028.44]);
 });
 
 test('rule 24: a harmless message that mentions a date still parses with the real fields', () => {
@@ -42,7 +42,14 @@ test('rule 24: a harmless message that mentions a date still parses with the rea
 
 test('rule 24: a message line « Envoyer un message à … » cannot move the start of the structured part', () => {
   const r = parse(withMessage(['Envoyer un message à Zoé', 'https://www.airbnb.fr/rooms/999', 'Arrivée        Départ']));
-  assert.equal(r.ok, false);
+  assert.equal(r.ok, true);
+  assert.equal(r.booking.listingId, '1234567890123456789');
+});
+
+test('rule 27: the guest’s own « Voyageurs » or « Code de confirmation » refuses nothing', () => {
+  const r = parse(withMessage(['Voyageurs', 'Code de confirmation', 'CODE de confirmation : merci', 'Voyageurs : 5']));
+  assert.equal(r.ok, true);
+  assert.equal(r.booking.adults, 5);
 });
 
 test('rule 24: the confirmation code must be the one of the reservation link', () => {
@@ -55,11 +62,26 @@ test('rule 24: the arrival must be the one of the subject', () => {
   assert.deepEqual(r, { ok: false, error: 'L’arrivée du mail ne correspond pas à son objet' });
 });
 
-test('rule 24: a repeated key header is refused', () => {
-  for (const header of ['CODE DE CONFIRMATION', 'VOYAGEURS', 'LE VOYAGEUR A PAYÉ']) {
-    const r = parse(withMessage([header, 'HMVICTIM99']));
+test('rule 24: a key header repeated in the structured part is refused', () => {
+  for (const header of ['CODE DE CONFIRMATION', 'VOYAGEURS', 'LE VOYAGEUR A PAYÉ', 'VOUS GAGNEZ   1,00 €']) {
+    const r = parse(`${bookingMail()}\n${header}\nHMVICTIM99`);
     assert.equal(r.ok, false, header);
   }
+});
+
+test('rule 27: a confirmation without guest message (no « Envoyer un message à » line) is read whole', () => {
+  const mail = bookingMail().replace(/Sur Airbnb depuis 2024[\s\S]*?(?=https:\/\/www\.airbnb\.fr\/rooms)/, '');
+  assert.ok(!/Envoyer un message/.test(mail));
+  const r = parse(mail);
+  assert.equal(r.ok, true, r.error);
+  assert.deepEqual([r.booking.code, r.booking.startDate, r.booking.adults, r.booking.message], ['HMTEST1234', '2026-12-26', 5, '']);
+});
+
+test('rule 27: an arrival on the « 1er » of a month is read in the subject and in the body', () => {
+  const mail = bookingMail({ dates: ['mer. 1er juil.', 'dim. 5 juil.'] });
+  const r = parseAirbnbMail({ subject: 'Réservation confirmée : Camille Martin arrive le 1er juil.', sentAt: '2026-05-01T10:00:00.000Z', text: mail });
+  assert.equal(r.ok, true, r.error);
+  assert.deepEqual([r.booking.startDate, r.booking.endDate], ['2026-07-01', '2026-07-05']);
 });
 
 function service(text, { authenticated = true } = {}) {
@@ -93,13 +115,15 @@ test('rule 24: end to end, a forged message cannot redirect the write onto anoth
   assert.deepEqual(writes, [{ id: 1, number: 'HMTEST1234' }]);
 });
 
-test('rule 25: only exact Airbnb hosts give a link', () => {
+test('rule 25: only listed Airbnb hosts give a link', () => {
   const evil = bookingMail().replaceAll('www.airbnb.fr/hosting/reservations', 'www.airbnb.fr.secure.example/hosting/reservations');
   assert.equal(parse(evil).ok, false);
   const lookalikeThread = parse(bookingMail().replace('www.airbnb.fr/hosting/thread', 'airbnb.fr.evil.test/hosting/thread'));
   assert.equal(lookalikeThread.booking.threadUrl, null);
   const ok = parse(bookingMail());
   assert.equal(ok.booking.reservationUrl, 'https://www.airbnb.fr/hosting/reservations/details/HMTEST1234');
+  const unlisted = parse(bookingMail().replaceAll('www.airbnb.fr', 'www.airbnb.evil'));
+  assert.equal(unlisted.ok, false);
   const co = parse(bookingMail().replaceAll('www.airbnb.fr', 'www.airbnb.co.uk'));
   assert.equal(co.booking.reservationUrl, 'https://www.airbnb.co.uk/hosting/reservations/details/HMTEST1234');
 });

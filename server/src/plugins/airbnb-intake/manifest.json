@@ -35,7 +35,8 @@
       "Seule la partie structurée du mail est lue, après « Envoyer un message à » : le message du voyageur ne peut plus changer le code, les dates, l’annonce, le groupe ni les montants. Le code doit être celui du lien de la réservation et l’arrivée celle de l’objet du mail.",
       "Un mail où un intitulé clé apparaît deux fois est refusé. Le lien « Voir sur Airbnb » n’accepte plus que les adresses airbnb.",
       "Un mail non signé et illisible n’est plus relu à chaque passage.",
-      "Compatible avec le SDK 2.12 de GuestFlow."
+      "Compatible avec le SDK 2.12 de GuestFlow.",
+      "Un mail illisible est relu après une mise à jour du plugin ; le lien « Voir sur Airbnb » est masqué quand l’expéditeur n’est pas vérifié."
     ]
   }
 }

@@ -6,20 +6,21 @@
 
 const MONTHS = { janv: 1, févr: 2, mars: 3, avr: 4, mai: 5, juin: 6, juil: 7, août: 8, sept: 9, oct: 10, nov: 11, déc: 12 };
 const WEEKDAYS = { dim: 0, lun: 1, mar: 2, mer: 3, jeu: 4, ven: 5, sam: 6 };
-const DATE_RE = /\b(lun|mar|mer|jeu|ven|sam|dim)\.\s+(\d{1,2})\s+(janv|févr|mars|avr|mai|juin|juil|août|sept|oct|nov|déc)\.?/gi;
+const DATE_RE = /\b(lun|mar|mer|jeu|ven|sam|dim)\.\s+(\d{1,2})(?:er)?\s+(janv|févr|mars|avr|mai|juin|juil|août|sept|oct|nov|déc)\.?/gi;
 const AMOUNT_LINE_RE = /^(.+?)\s{2,}(-?\d[\d ]*,\d{2})\s*€\s*$/;
 const MAX_LINE = 300;
 const MAX_MESSAGE = 4000;
 // Rule 24 — the guest's free text sits above these, so each is read on a line of its own and may appear once.
 const HEADER_RES = {
-  code: /^CODE DE CONFIRMATION\s*$/i,
-  guestPaid: /^LE VOYAGEUR A PAYÉ/i,
-  hostPayout: /^VERSEMENT DE L.H[ÔO]TE/i,
-  earns: /^VOUS GAGNEZ/i,
-  party: /^VOYAGEURS\s*$/i,
-  arrival: /^Arrivée\s{2,}Départ\s*$/i,
+  code: /^CODE DE CONFIRMATION\s*$/,
+  guestPaid: /^LE VOYAGEUR A PAYÉ/,
+  hostPayout: /^VERSEMENT DE L.H[ÔO]TE/,
+  earns: /^VOUS GAGNEZ/,
+  party: /^VOYAGEURS\s*$/,
+  arrival: /^Arrivée\s{2,}Départ\s*$/,
 };
-const AIRBNB_HOST = /^(?:www\.)?airbnb\.[a-z]{2,3}(?:\.[a-z]{2})?$/i;
+const AIRBNB_TLDS = new Set(['com', 'fr', 'de', 'es', 'it', 'co.uk', 'ch', 'be', 'ca', 'nl', 'pt', 'at', 'ie', 'se', 'dk', 'no', 'fi', 'pl', 'cz', 'com.au', 'co.nz', 'com.br', 'co.jp', 'jp', 'co.kr', 'com.mx', 'ru', 'gr', 'hu', 'lu']);
+const isAirbnbHost = (host) => { const m = /^(?:www\.)?airbnb\.([a-z.]+)$/i.exec(host); return Boolean(m) && AIRBNB_TLDS.has(m[1].toLowerCase()); };
 
 // Rule 8 — the raw mail writes « 4 nuits », « 15,5 % », « 1 154,60 » with non-breaking spaces.
 const normalizeSpaces = (s) => String(s || '').replace(/[   ]/g, ' ');
@@ -73,11 +74,11 @@ function guestMessage(lines) {
     .filter(Boolean).join('\n');
 }
 
-// Rule 7 — https on an exact Airbnb host (`airbnb.fr`, `www.airbnb.com`, `www.airbnb.co.uk`), nothing after it
-// but the path: `www.airbnb.fr.secure.example` is not Airbnb.
+// Rule 25 — https on a host of the explicit list (`airbnb.fr`, `www.airbnb.com`, `www.airbnb.co.uk`…), nothing after
+// it but the path: `www.airbnb.fr.secure.example` and `www.airbnb.evil` are not Airbnb.
 function airbnbUrl(text, pathRe) {
   const re = new RegExp(`https://([^/\\s\\]?#]+)(${pathRe}[^\\s\\]]*)`, 'g');
-  for (const m of text.matchAll(re)) if (AIRBNB_HOST.test(m[1])) return stripQuery(m[0]);
+  for (const m of text.matchAll(re)) if (isAirbnbHost(m[1])) return stripQuery(m[0]);
   return null;
 }
 
@@ -93,10 +94,11 @@ function parseAirbnbMail({ subject, text, sentAt }) {
   // line is the guest's own text (and the header block), which may say anything.
   const allLines = plain.split(/\r?\n/);
   const messageEnd = allLines.map((l) => l.length <= MAX_LINE && /^Envoyer un message à/i.test(l.trim())).lastIndexOf(true);
-  if (messageEnd < 0) return fail('Partie structurée du mail introuvable');
-  if (Object.values(HEADER_RES).some((re) => countLines(allLines, re) > 1)) return fail('Mail ambigu : un en-tête apparaît plusieurs fois');
-  const lines = allLines.slice(messageEnd);
-  const head = allLines.slice(0, messageEnd).join('\n');
+  // A confirmation without a guest message has no « Envoyer un message à » line: all of it is structured.
+  const lines = messageEnd < 0 ? allLines : allLines.slice(messageEnd);
+  const head = messageEnd < 0 ? allLines.join('\n') : allLines.slice(0, messageEnd).join('\n');
+  // Headers are printed in capitals; only the parsed lines count, so the guest's own « Voyageurs » proves nothing.
+  if (Object.values(HEADER_RES).some((re) => countLines(lines, re) > 1)) return fail('Mail ambigu : un en-tête apparaît plusieurs fois');
   const structured = lines.join('\n');
 
   const codeAt = lineIndex(lines, HEADER_RES.code);
@@ -134,7 +136,7 @@ function parseAirbnbMail({ subject, text, sentAt }) {
   const startDate = resolveDate(dates[0], sentIso);
   const endDate = startDate && resolveDate(dates[1], nextDay(startDate));
   if (!startDate || !endDate) return fail('Aucune date ne correspond aux jours du séjour');
-  const subjectStart = normalizeSpaces(subject).match(/arrive le\s+(\d{1,2})\s+([a-zéû]+)/i);
+  const subjectStart = normalizeSpaces(subject).match(/arrive le\s+(\d{1,2})(?:er)?\s+([a-zéû]+)/i);
   if (!subjectStart || Number(subjectStart[1]) !== dates[0].day || MONTHS[subjectStart[2].toLowerCase()] !== dates[0].month) {
     return fail('L’arrivée du mail ne correspond pas à son objet');
   }

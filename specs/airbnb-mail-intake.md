@@ -269,6 +269,16 @@ add the phone and e-mail from Airbnb. When the mail cannot be applied, the fiche
     never on the dashboard), and an authenticated one stays an `error` row. Tests:
     `airbnb-intake/tests/mail-injection.unit.test.js`, `server/src/tests/mail-reader-limits.unit.test.js`.
 
+27. *(Added 2026-10-28, review of PR #849.)* **Refinements of rules 24–25.** (a) Duplicate key headers are counted
+    in the parsed part only, case-sensitively (Airbnb prints them in capitals): the guest's own « Voyageurs » or
+    « Code de confirmation » refuses nothing, and a message that pastes whole header blocks changes nothing, since
+    it sits before the last « Envoyer un message à » line. (b) A confirmation with no guest message has no such
+    line: the whole mail is then the structured part. (c) « arrive le 1er juil. » is read in the subject and « 1er
+    juil. » in the body. (d) The link hosts are an explicit list (`airbnb.` + com, fr, de, es, it, co.uk, ch, be, ca…),
+    and the banner's `airbnbUrl` is not sent at all when the sender is unverified. (e) A mail refused at parsing is
+    stamped with the plugin version (`parserVersion`) and read again after an update (the same stamp as GdF rule 28).
+    Tests: `airbnb-intake/tests/mail-injection.unit.test.js`.
+
 **Edge cases:**
 - Same mail twice → `Message-ID` dedup; a second mail with the same confirmation code → ignored once the
   first is applied.
