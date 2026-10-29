@@ -10,6 +10,7 @@ const fs = require('fs');
 const path = require('path');
 
 const REGISTRY_PREFIX = 'https://registry.npmjs.org/';
+const SERVER_PACKAGE_NAME = 'guestflow-server';
 
 /** → the offending entries as `[path, reason]`; empty when the lockfile is clean. */
 function lockfileViolations(lock) {
@@ -46,6 +47,15 @@ function declaresWorkspaces(file) {
   }
 }
 
+// A server package named after a dependency would be found by Node's self-reference lookup before node_modules.
+function serverNameViolation(serverDir) {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(serverDir, 'package.json'), 'utf8')).name !== SERVER_PACKAGE_NAME;
+  } catch {
+    return true;
+  }
+}
+
 /** Throws `LOCKFILE_UNTRUSTED:<first offender>` when the release's lockfile is missing or not clean. */
 function assertLockfileProvenance(serverDir) {
   FORBIDDEN_FILES.forEach(([where, name]) => {
@@ -56,6 +66,7 @@ function assertLockfileProvenance(serverDir) {
   [path.join(path.dirname(serverDir), 'package.json'), path.join(serverDir, 'package.json')].forEach((file) => {
     if (declaresWorkspaces(file)) throw new Error('LOCKFILE_UNTRUSTED:workspaces declared');
   });
+  if (serverNameViolation(serverDir)) throw new Error('LOCKFILE_UNTRUSTED:server/package.json name');
   let lock;
   try {
     lock = JSON.parse(fs.readFileSync(path.join(serverDir, 'package-lock.json'), 'utf8'));

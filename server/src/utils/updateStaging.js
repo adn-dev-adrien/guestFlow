@@ -108,6 +108,7 @@ function assertMemberPaths(listing, expectedRoot) {
   for (const name of names) {
     if (name.startsWith('/') || name.startsWith('~')) throw new Error(`ARCHIVE_ABSOLUTE_MEMBER:${name}`);
     if (name.split('/').includes('..')) throw new Error(`ARCHIVE_TRAVERSAL_MEMBER:${name}`);
+    if (name.split('/').includes('node_modules')) throw new Error(`ARCHIVE_NODE_MODULES_MEMBER:${name}`);
     const normalised = name.replace(/\/+$/, '');
     if (normalised !== expectedRoot && !name.startsWith(`${expectedRoot}/`)) {
       throw new Error(`ARCHIVE_UNEXPECTED_ROOT:${name}`);
@@ -231,10 +232,14 @@ async function installDependencies({ releaseDir, execFileImpl = execFileAsync })
   const options = { cwd: serverDir, timeout: NPM_TIMEOUT_MS, maxBuffer: 32 * 1024 * 1024, env: installEnv(homeDir, cacheDir) };
   try {
     await execFileImpl('npm', ['ci', '--omit=dev', '--ignore-scripts', '--workspaces=false'], options);
-    await execFileImpl(process.execPath, ['-e', "require('better-sqlite3')"], options);
+    await execFileImpl(process.execPath, ['-e', 'require(process.argv[1])', path.join(serverDir, 'node_modules', 'better-sqlite3')], options);
   } finally {
     fs.rmSync(homeDir, { recursive: true, force: true });
-    pruneNpmCache(cacheDir);
+    try {
+      pruneNpmCache(cacheDir);
+    } catch (err) {
+      console.warn(`[update] npm cache not pruned: ${err.message}`);
+    }
   }
 }
 

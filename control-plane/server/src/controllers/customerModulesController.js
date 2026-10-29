@@ -256,7 +256,7 @@ function createCustomerModulesController(ctx, customersController) {
     const line = view(c.id).included.find((l) => l.id === pluginId);
     if (line && line.blockedBy) throw httpError(422, 'REQUIRED_BY', line.blockedBy);
     if (!line || !(line.canErase || line.canUninstall)) throw httpError(409, 'NOTHING_TO_ERASE', 'Rien à effacer : le module est encore actif sur l’espace, ou sans données.');
-    if (action === 'uninstall' ? !line.canUninstall : !line.canErase) throw httpError(409, 'ACTION_CHANGED', 'Les données du module ont changé : rechargez la page.');
+    if (action === 'uninstall' ? !line.canUninstall : !line.canErase) throw httpError(409, 'ACTION_CHANGED', 'Les données du module ont changé. Liste rechargée.');
     customerPlugins.addOrder({ orderId: crypto.randomUUID(), customerId: c.id, pluginId, createdAt: now().toISOString(), operator, removal: action === 'uninstall' });
     customersController.journal(c.id, operator, 'module', action === 'uninstall' ? `Désinstallation de ${nameOf(pluginId)} demandée` : `Effacement des données de ${nameOf(pluginId)} demandé`);
     customersController.issueLicence(c.id);

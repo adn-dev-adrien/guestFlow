@@ -2,3 +2,4 @@
 - **Console:** « Désinstaller » and « Effacer les données » now send the action the operator confirmed; the console answers 409 when the module's data changed in between, and never erases without the typed slug.
 - **Releases:** a plugin package published in a previous release is no longer re-shipped (a rebuild that differs fails with « bump the version »); the release workflow's actions are pinned by commit SHA.
 - **Console:** an unset `GUESTFLOW_RELEASE_PUBLIC_KEY` is logged at boot and kept as a host alert.
+- **Release install:** the dependency smoke test loads the module by absolute path, archives containing a `node_modules` are refused, and `server/package.json` must be named `guestflow-server`.

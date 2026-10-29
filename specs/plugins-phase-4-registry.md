@@ -356,7 +356,7 @@ below are the recommended ones; each is reversible in a later spec.
     rule 27). The release compares the rebuilt packages with the previous release's and fails on any
     difference under the same version (« Bump the version »); it never copies a downloaded package into
     `plugins-dist/` or `SHA256SUMS`. Test: `plugin-packages-release.unit.test.js`; see
-    `self-update-and-releases.md` rule 45.
+    `self-update-and-releases.md` rule 48.
 
 ---
 

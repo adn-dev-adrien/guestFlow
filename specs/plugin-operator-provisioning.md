@@ -360,11 +360,11 @@ screen or endpoint: the customer sees only the features themselves.
 43. **The request carries the action the operator confirmed** (audit r2 N3, 2026-10-29). `POST
     /customers/:id/modules/:pluginId/erase` takes `{ action: 'erase' | 'uninstall', confirmSlug? }`; any
     other action is a 400 `INVALID`. The server answers 409 `ACTION_CHANGED` (« Les données du module ont
-    changé : rechargez la page. ») when the line does not allow that exact action *now* — « Désinstaller »
+    changé. Liste rechargée. ») when the line does not allow that exact action *now* — « Désinstaller »
     on a module that has since taken data would otherwise become a purge nobody typed the slug for. The
     order's `removal` flag follows the confirmed action, not the facts at request time, and an `erase`
     without the exact typed slug is a 400 `SLUG_MISMATCH` (an `uninstall` needs no slug: it never erases
-    anything). The console client sends `eraseModule(id, pluginId, action, confirmSlug)`. Tests:
+    anything). On that 409 the client reloads the module list and closes the dialog. The console client sends `eraseModule(id, pluginId, action, confirmSlug)`. Tests:
     `customer-modules-audit.unit.test.js`, `ModulesSection.erase.test.jsx`, `ModulesSection.polish.test.jsx`.
 
 **Edge cases:**

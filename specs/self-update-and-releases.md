@@ -354,7 +354,7 @@ signed-off releases over HTTPS, when the operator asks for it.
     N-API prebuilds and `sharp` its prebuilt optional packages, and a final `require('better-sqlite3')`
     proves the module loads. Both the self-update and the fleet console (which holds the licence key) use
     this one function. **What is guaranteed**: no install-time code of the release or of a dependency runs,
-    subject to rule 43 (workspaces, aliases).
+    subject to rule 46 (workspaces, aliases).
     **What is not** (rewritten 2026-10-29, audit r2 N1): this is not isolation. The install and the final
     `require('better-sqlite3')` run as the installer's own unix user, and on the console every release is
     **trusted code run as the fleet's root identity**: the console itself executes the release's
@@ -363,7 +363,7 @@ signed-off releases over HTTPS, when the operator asks for it.
     `CP_LICENCE_PRIVATE_KEY`, `CP_REGISTRY_PRIVATE_KEY`, the session and proxy secrets — readable by that
     uid. A separate install user (`gf-build`) would therefore close nothing: the release's code runs under
     the console's uid right afterwards. **Release signing (rule 41) is the only barrier** between a
-    published GitHub release and the licence key; rule 44 makes its absence loud. Isolating the three
+    published GitHub release and the licence key; rule 47 makes its absence loud. Isolating the three
     script call sites behind a root wrapper is the alternative, and is not done.
 41. **Optional release signature** (audit 2026-10-28, H1). When `GUESTFLOW_RELEASE_PUBLIC_KEY` (base64 DER
     SPKI Ed25519) is configured on the installer, the release must carry a `SHA256SUMS.sig` asset — the
@@ -387,28 +387,37 @@ signed-off releases over HTTPS, when the operator asks for it.
     finds a `.env*` (but `.env.example`), a database file, `licence.jws`, a key / certificate, `update-state.json`,
     a log, or any file under `uploads/` other than `.gitkeep` (a README there is refused too).
 
-43. **The lockfile check cannot be sidestepped** (audit r2 N2, 2026-10-29). `npm ci` walks up from its cwd
+46. **The lockfile check and the smoke test cannot be sidestepped** (audit r2 N2, 2026-10-29). `npm ci` walks up from its cwd
     to a workspace root and installs from *that* root's lockfile, which is never checked: a release whose
     root or `server/package.json` declares `workspaces` is refused (`LOCKFILE_UNTRUSTED:workspaces
     declared`) and the install passes `--workspaces=false`. An npm alias (`"better-sqlite3":
     "npm:attacker@1"`) resolves from the registry with an integrity hash, so every entry must also be its
     own package: no `name` that differs from the path after the last `node_modules/`, and `resolved`
     starting with `https://registry.npmjs.org/<name>/-/`. The npm cache next to the releases directory is
-    emptied once it exceeds 300 MB after an install (audit L-b), so it no longer grows with every update.
+    emptied once it exceeds 300 MB after an install (audit L-b), so it no longer grows with every update; a
+    failure of that pruning is logged and never fails or masks the install. **The smoke test** (review of
+    PR #855): `require('better-sqlite3')` by name would let Node answer from the release itself — the
+    `server/package.json` self-reference (`name` + `exports`) or a `node_modules` shipped higher in the
+    tree. So the smoke loads `<server>/node_modules/better-sqlite3` by absolute path, any archive member
+    under a `node_modules` segment is refused (`ARCHIVE_NODE_MODULES_MEMBER`; `release.sh` ships none), and
+    `server/package.json` must be named `guestflow-server` (`LOCKFILE_UNTRUSTED:server/package.json name`).
     Test: `release-install-isolation.unit.test.js`.
-44. **A managed host without a release public key says so** (audit r2 N1, 2026-10-29). At boot the
+47. **A managed host without a release public key says so** (audit r2 N1, 2026-10-29). At boot the
     console logs a `[security]` line and keeps an open host alert « Versions non signées… » (shown on the
     home page and emailed every 24 h, `hostAlerts`) while `GUESTFLOW_RELEASE_PUBLIC_KEY` is unset; setting
-    it closes the alert. The key is **not** mandatory: failing closed is the operator's decision, to be
+    it closes the alert — only when it parses as an Ed25519 SPKI key (`toKey`); an unreadable key keeps the
+    alert open (« illisible »), since nothing is installable then. The key is **not** mandatory: failing closed is the operator's decision, to be
     taken once the production signing key exists. Test: `release-signing-check.unit.test.js` (console).
-45. **A release never ships a package it did not build, and its actions are pinned** (audit r2 N4 and
+48. **A release never ships a package it did not build, and its actions are pinned** (audit r2 N4 and
     L-a, 2026-10-29). Amends the second-review note of `plugins-phase-4-registry.md` rule 27: the `package`
     job downloads the previous release's packages only to compare content hashes, and a rebuild that
     differs from the published package fails with « bump the version » even when its sources did not
     change — release assets are mutable, and a reused package would have been signed by the release skill
-    as if CI had built it. `--previous-tag` is gone. Every action in `release.yml` is pinned by its full
-    commit SHA, the tag in a trailing comment. Step 8b's and step 7's CHECK in the release skill list the
-    real assets (plugin `.tgz` packages included). Test: `plugin-packages-release.unit.test.js`.
+    as if CI had built it. `--previous-tag` is gone. Every action of every workflow is pinned by its full
+    commit SHA, the exact tag in a trailing comment (`# v7.0.1`). Step 8b's and step 7's CHECK in the release skill list the
+    real assets (plugin `.tgz` packages included). Safe reuse was considered and not done: the previous
+    release's `plugins-dist/SHA256SUMS` lives in the same mutable release, and no public key is committed
+    for CI to verify its signature against, so a "verified" reuse would verify nothing. Test: `plugin-packages-release.unit.test.js`.
 
 **Edge cases**
 

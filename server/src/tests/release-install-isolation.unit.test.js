@@ -74,7 +74,7 @@ function writeRelease(lock) {
   fs.mkdirSync(serverDir, { recursive: true });
   const leak = (name) => `node -e "require('fs').writeFileSync(${JSON.stringify(path.join(root, name))}, JSON.stringify(process.env))"`;
   fs.writeFileSync(path.join(serverDir, 'package.json'), JSON.stringify({
-    name: 'hostile', version: '1.0.0', scripts: { preinstall: leak('preinstall.json'), postinstall: leak('postinstall.json'), prepare: leak('prepare.json') },
+    name: 'guestflow-server', version: '1.0.0', scripts: { preinstall: leak('preinstall.json'), postinstall: leak('postinstall.json'), prepare: leak('prepare.json') },
   }));
   if (lock) fs.writeFileSync(path.join(serverDir, 'package-lock.json'), JSON.stringify(lock));
   return { root, releaseDir };
@@ -99,7 +99,7 @@ test('a release with an untrusted lockfile is refused before npm runs at all (ru
 });
 
 test('npm ci of a clean release runs none of its lifecycle scripts, whatever the environment holds (rule 40)', withEnv(SECRETS, async () => {
-  const { root, releaseDir } = writeRelease({ lockfileVersion: 3, name: 'hostile', version: '1.0.0', packages: { '': { name: 'hostile', version: '1.0.0' } } });
+  const { root, releaseDir } = writeRelease({ lockfileVersion: 3, name: 'guestflow-server', version: '1.0.0', packages: { '': { name: 'guestflow-server', version: '1.0.0' } } });
   try {
     await installDependencies({
       releaseDir,
@@ -165,7 +165,7 @@ test('a release shipping its own .install-home is refused, and the home is recre
   }
 });
 
-test('an npm alias or a tarball that is not the package\'s own is refused (rule 43)', () => {
+test('an npm alias or a tarball that is not the package\'s own is refused (rule 46)', () => {
   const refused = {
     alias: { name: 'attacker-pkg', version: '1.0.0', resolved: `${REG}attacker-pkg/-/attacker-pkg-1.0.0.tgz`, integrity: 'sha512-x' },
     'alias without name field': { version: '1.0.0', resolved: `${REG}attacker-pkg/-/attacker-pkg-1.0.0.tgz`, integrity: 'sha512-x' },
@@ -179,7 +179,7 @@ test('an npm alias or a tarball that is not the package\'s own is refused (rule 
   })), []);
 });
 
-test('a release declaring npm workspaces is refused, and npm is told not to look for a workspace root (rule 43)', async () => {
+test('a release declaring npm workspaces is refused, and npm is told not to look for a workspace root (rule 46)', async () => {
   for (const where of ['.', 'server']) {
     const { root, releaseDir } = writeRelease(clean());
     const file = path.join(releaseDir, where, 'package.json');
@@ -194,7 +194,7 @@ test('a release declaring npm workspaces is refused, and npm is told not to look
   }
 });
 
-test('the npm cache next to the releases is emptied once it outgrows its bound (rule 43)', async () => {
+test('the npm cache next to the releases is emptied once it outgrows its bound (rule 46)', async () => {
   const { root, releaseDir } = writeRelease(clean());
   const cacheDir = path.join(root, 'releases', '.npm-cache');
   try {
@@ -212,9 +212,12 @@ test('the npm cache next to the releases is emptied once it outgrows its bound (
   }
 });
 
-test('rule 45: every third-party action of the release workflow is pinned by a full commit SHA', () => {
-  const workflow = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'release.yml'), 'utf8');
-  const uses = workflow.split('\n').filter((l) => /^\s*(-\s+)?uses:/.test(l));
-  assert.ok(uses.length > 0);
-  for (const line of uses) assert.match(line, /uses: [\w.-]+\/[\w.-]+@[0-9a-f]{40} # v\d/, line);
+test('rule 48: every third-party action of every workflow is pinned by a full commit SHA and its exact tag', () => {
+  const dir = path.join(ROOT, '.github', 'workflows');
+  const files = fs.readdirSync(dir).filter((f) => /\.ya?ml$/.test(f));
+  assert.ok(files.includes('release.yml'));
+  for (const file of files) {
+    const uses = fs.readFileSync(path.join(dir, file), 'utf8').split('\n').filter((l) => /^\s*(-\s+)?uses:/.test(l));
+    for (const line of uses) assert.match(line, /uses: [\w.-]+\/[\w.-]+@[0-9a-f]{40} # v\d+\.\d+\.\d+$/, `${file}: ${line}`);
+  }
 });

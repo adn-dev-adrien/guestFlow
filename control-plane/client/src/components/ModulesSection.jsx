@@ -96,6 +96,14 @@ export default function ModulesSection({ customerId, slug, onChanged }) {
     }
   }
 
+  function failed(err) {
+    showError(err.message);
+    if (err.code === 'ACTION_CHANGED') {
+      setErasing(null);
+      load();
+    }
+  }
+
   async function erase() {
     if (busy || typed !== slug) return;
     setBusy(true);
@@ -104,7 +112,7 @@ export default function ModulesSection({ customerId, slug, onChanged }) {
       setErasing(null);
       if (onChanged) onChanged();
     } catch (err) {
-      showError(err.message);
+      failed(err);
     } finally {
       setBusy(false);
     }
@@ -123,7 +131,7 @@ export default function ModulesSection({ customerId, slug, onChanged }) {
       setView(await api.eraseModule(customerId, line.id, 'uninstall'));
       if (onChanged) onChanged();
     } catch (err) {
-      showError(err.message);
+      failed(err);
     } finally {
       setBusy(false);
     }

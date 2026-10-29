@@ -5,17 +5,26 @@
  * console says so at boot and keeps a host alert open (emailed every 24 h) until the key is set.
  */
 
-const ALERT_KEY = 'release-signing';
-const ALERT_TEXT = 'Versions non signées : sans GUESTFLOW_RELEASE_PUBLIC_KEY, toute version publiée sur GitHub s’exécute sur la console.';
+const { releaseSignature } = require('./gf');
 
-/** → true when the key is configured. */
+const ALERT_KEY = 'release-signing';
+const TEXTS = {
+  unset: 'Versions non signées : sans GUESTFLOW_RELEASE_PUBLIC_KEY, toute version publiée sur GitHub s’exécute sur la console.',
+  unreadable: 'Versions non signées : GUESTFLOW_RELEASE_PUBLIC_KEY est illisible, aucune version n’est installable.',
+};
+
+/** → true when a readable key is configured. */
 function checkReleaseSigning({ env, hostAlerts, log = (msg) => console.warn(msg) }) {
-  if ((env.GUESTFLOW_RELEASE_PUBLIC_KEY || '').trim()) {
+  const configured = (env.GUESTFLOW_RELEASE_PUBLIC_KEY || '').trim();
+  if (configured && releaseSignature.toKey(configured)) {
     hostAlerts.close(ALERT_KEY);
     return true;
   }
-  log('[security] GUESTFLOW_RELEASE_PUBLIC_KEY is not set: releases are not signature-checked, and a release runs its own scripts under the console\'s user (licence key included). Set it (self-update rule 40).');
-  hostAlerts.open({ key: ALERT_KEY, kind: 'release-signing', severity: 'warning', text: ALERT_TEXT });
+  const reason = configured ? 'unreadable' : 'unset';
+  log(configured
+    ? '[security] GUESTFLOW_RELEASE_PUBLIC_KEY is not a readable Ed25519 public key: no release can be installed (self-update rule 41).'
+    : '[security] GUESTFLOW_RELEASE_PUBLIC_KEY is not set: releases are not signature-checked, and a release runs its own scripts under the console\'s user (licence key included). Set it (self-update rule 40).');
+  hostAlerts.open({ key: ALERT_KEY, kind: 'release-signing', severity: 'warning', text: TEXTS[reason] });
   return false;
 }
 
