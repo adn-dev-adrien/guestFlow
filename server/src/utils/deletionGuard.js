@@ -13,8 +13,8 @@ const CLIENT_MONEY_MESSAGE = 'Un paiement est enregistré sur une réservation d
 const PROPERTY_MONEY_MESSAGE = 'Un paiement est enregistré sur une réservation de ce logement : l’annuler plutôt que la supprimer.';
 
 const HISTORY_MESSAGES = {
-  client: { cancelled: 'Ce client a une réservation annulée.', cgv: 'Ce client a accepté des CGV.' },
-  property: { cancelled: 'Ce logement a une réservation annulée.', cgv: 'Ce logement a des CGV acceptées.' },
+  client: { cancelled: 'Ce client a une réservation annulée.', superseded: 'Ce client a une réservation écartée.', cgv: 'Ce client a accepté des CGV.' },
+  property: { cancelled: 'Ce logement a une réservation annulée.', superseded: 'Ce logement a une réservation écartée.', cgv: 'Ce logement a des CGV acceptées.' },
 };
 const isHistoryMessage = (message) => Object.values(HISTORY_MESSAGES).some((m) => Object.values(m).includes(message));
 
@@ -62,7 +62,8 @@ function historyBlocker(database, ids, owner) {
   const exists = (sql) => {
     try { return Boolean(database.prepare(sql).get(...all)); } catch { return false; }
   };
-  if (exists(`SELECT 1 FROM reservations WHERE id IN (${marks}) AND kind NOT IN ('reservation', 'devis')`)) return HISTORY_MESSAGES[owner].cancelled;
+  if (exists(`SELECT 1 FROM reservations WHERE id IN (${marks}) AND kind = 'cancelled'`)) return HISTORY_MESSAGES[owner].cancelled;
+  if (exists(`SELECT 1 FROM reservations WHERE id IN (${marks}) AND kind = 'superseded'`)) return HISTORY_MESSAGES[owner].superseded;
   if (exists(`SELECT 1 FROM reservations r WHERE r.id IN (${marks}) AND r.kind = 'devis' AND r.convertedReservationId IS NOT NULL
                 AND EXISTS (SELECT 1 FROM terms_acceptances a WHERE a.reservationId = r.id)`)) return HISTORY_MESSAGES[owner].cgv;
   return null;

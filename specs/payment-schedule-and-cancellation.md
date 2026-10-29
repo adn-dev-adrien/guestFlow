@@ -438,8 +438,8 @@ acompte is kept as an indemnity, and the books say so correctly.
     or not) and the property delete apply the same refusals to every row they would cascade
     (`deletionGuard.removesProtectedHistory`, judged again inside `removeGuarded`): `409 CLIENT_KEEPS_HISTORY` /
     `409 PROPERTY_KEEPS_HISTORY`, one short message per cause (« Ce client a une réservation annulée. »,
-    « Ce client a accepté des CGV. », « Ce logement a une réservation annulée. », « Ce logement a des CGV
-    acceptées. »). Money (rule 52) is judged first. The refusal is answered by the first, non-forced client
+    « Ce client a une réservation écartée. », « Ce client a accepté des CGV. », and the same three for a
+    property (« Ce logement a… », « …des CGV acceptées. »)). Money (rule 52) is judged first. The refusal is answered by the first, non-forced client
     delete too, and the delete preview carries it as `blocker` (specs/clients.md rule 16). The client delete preview
     (`GET /api/clients/:id/delete-impact`) lists and counts what would really go, cancelled and set-aside
     stays included (each row carries its `kind`).

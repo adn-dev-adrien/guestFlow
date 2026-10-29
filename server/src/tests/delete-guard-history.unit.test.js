@@ -110,3 +110,10 @@ test('rule 53 — plain stays and unconverted devis still cascade on a forced de
   assert.equal(res.statusCode, 200);
   assert.equal(count(db, 'reservations'), 0);
 });
+
+test('rule 53 — a set-aside stay has its own message, for a client and for a property', () => {
+  const { db, add } = seed();
+  add('superseded');
+  assert.equal(clientsModel.create(db).deletionBlocker(1), 'Ce client a une réservation écartée.');
+  assert.equal(propertiesModel.buildModel(db).deletionBlocker(1), 'Ce logement a une réservation écartée.');
+});

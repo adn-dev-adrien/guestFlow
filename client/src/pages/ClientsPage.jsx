@@ -362,6 +362,7 @@ export default function ClientsPage() {
         devis: impact?.devis || [],
         loading: false,
         error: impact?.blocker || '',
+        blocked: Boolean(impact?.blocker),
       }));
     } catch (error) {
       setDeleteImpact((prev) => ({
@@ -371,6 +372,8 @@ export default function ClientsPage() {
       }));
     }
   };
+
+  const deleteBlocked = Boolean(deleteImpact.blocked);
 
   const closeDeleteImpact = () => {
     setDeleteClientParam(null);
@@ -699,16 +702,20 @@ export default function ClientsPage() {
       <FormDialog
         open={deleteImpact.open}
         onClose={closeDeleteImpact}
-        title="Confirmer la suppression du client"
+        title={deleteBlocked ? 'Suppression impossible' : 'Confirmer la suppression du client'}
         maxWidth="md"
+        cancelLabel={deleteBlocked ? 'Fermer' : 'Annuler'}
+        hideSubmit={deleteBlocked}
         submitLabel="Confirmer la suppression"
         submitColor="error"
         onSubmit={handleForceDeleteClient}
         submitDisabled={deleteImpact.loading || !!deleteImpact.error}
       >
-        <Typography sx={{ mb: 1.5 }}>
-          Attention: la suppression du client <strong>{deleteImpact.clientName}</strong> supprimera aussi toutes ses réservations et devis associés.
-        </Typography>
+        {!deleteBlocked && (
+          <Typography sx={{ mb: 1.5 }}>
+            Attention: la suppression du client <strong>{deleteImpact.clientName}</strong> supprimera aussi toutes ses réservations et devis associés.
+          </Typography>
+        )}
         {deleteImpact.loading ? (
           <LoadingState py={2} />
         ) : deleteImpact.error ? (

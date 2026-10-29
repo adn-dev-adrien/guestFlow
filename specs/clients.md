@@ -135,8 +135,9 @@ list.
     (`GET /api/clients/:id/delete-impact`, also the sheet's stay list) now includes cancelled and set-aside
     stays, each with its `kind`; the sheet shows a short « Annulée » / « Écartée » badge on them. The
     payload carries `blocker` (null or one short refusal: « Ce client a une réservation annulée. », « Ce
-    client a accepté des CGV. », or the money refusal), computed by the server. When it is set the delete
-    dialog shows that refusal instead of the lists and « Confirmer la suppression » stays disabled, so the
+    client a une réservation écartée. », « Ce client a accepté des CGV. », or the money refusal), computed by
+    the server. When it is set the delete dialog turns neutral: title « Suppression impossible », only the
+    refusal (no « supprimera aussi… » warning, no lists) and a « Fermer » button, no confirm button, so the
     operator never reaches a forced delete that would be refused; `DELETE /api/clients/:id` answers the same
     `409 CLIENT_KEEPS_HISTORY` / `CLIENT_CARRIES_MONEY` on the first, non-forced call
     (`specs/payment-schedule-and-cancellation.md` rule 53).

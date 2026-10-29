@@ -238,7 +238,7 @@ describe('ClientsPage — protected history (clients.md rule 16)', () => {
     expect(screen.getAllByText('Gîte')).toHaveLength(3);
   });
 
-  test('a delete the server refuses shows the refusal before any confirmation, and cannot be confirmed', async () => {
+  test('a delete the server refuses shows a neutral « Suppression impossible » dialog with only the refusal and « Fermer »', async () => {
     const user = userEvent.setup();
     api.getClientDeleteImpact.mockResolvedValue({
       client: SAMPLE_CLIENT,
@@ -251,8 +251,12 @@ describe('ClientsPage — protected history (clients.md rule 16)', () => {
 
     const dialog = screen.getByRole('dialog');
     expect(await within(dialog).findByText('Ce client a une réservation annulée.')).toBeInTheDocument();
+    expect(within(dialog).getByText('Suppression impossible')).toBeInTheDocument();
+    expect(within(dialog).queryByText(/Confirmer la suppression du client/)).not.toBeInTheDocument();
+    expect(within(dialog).queryByText(/supprimera aussi toutes ses réservations/)).not.toBeInTheDocument();
     expect(within(dialog).queryByText(/Réservations qui seront supprimées/)).not.toBeInTheDocument();
-    expect(within(dialog).getByRole('button', { name: 'Confirmer la suppression' })).toBeDisabled();
+    expect(within(dialog).queryByRole('button', { name: 'Confirmer la suppression' })).not.toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Fermer' })).toBeInTheDocument();
     expect(api.deleteClient).not.toHaveBeenCalled();
   });
 });
