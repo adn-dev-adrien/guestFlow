@@ -93,6 +93,21 @@ function buildModel(database) {
     WHERE u.isActive = 1 AND r.role = ?
   `);
 
+  const tableExists = (name) => Boolean(database.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(name));
+
+  // specs/hosting-h2-account-security.md rule 63 — a link mailed before the address or the password
+  // changed must not work after.
+  function voidResetLinks(userId) {
+    if (!tableExists('password_reset_tokens')) return;
+    database.prepare("UPDATE password_reset_tokens SET usedAt = datetime('now') WHERE userId = ? AND usedAt IS NULL").run(Number(userId));
+  }
+
+  // specs/pwa-push-notifications.md rule 13 — devices of an account that is no longer an active admin.
+  function dropPushDevices(userId) {
+    if (!tableExists('push_subscriptions')) return;
+    database.prepare('DELETE FROM push_subscriptions WHERE userId = ?').run(Number(userId));
+  }
+
   function loadRoles(userId) {
     return loadRolesStmt.all(Number(userId)).map((r) => r.role);
   }
@@ -130,6 +145,7 @@ function buildModel(database) {
     for (const role of roles) {
       insertRoleStmt.run(userId, role);
     }
+    if (!roles.includes(ADMIN)) dropPushDevices(userId);
   });
 
   function setRoles(userId, roles) {
@@ -254,6 +270,7 @@ function buildModel(database) {
         );
         if (normalizedEmail && normalizedEmail !== existing.email) {
           updateEmailStmt.run(normalizedEmail, numericId);
+          voidResetLinks(numericId);
         }
         if (roles !== undefined) setRoles(numericId, roles);
       });
@@ -274,7 +291,10 @@ function buildModel(database) {
 
     updatePassword(id, newPassword) {
       assertNotSupport(findByIdStmt.get(Number(id)));
-      updatePasswordStmt.run(hashPassword(String(newPassword)), Number(id));
+      database.transaction(() => {
+        updatePasswordStmt.run(hashPassword(String(newPassword)), Number(id));
+        voidResetLinks(id);
+      })();
     },
 
     // Admin-side reset: hash the new password, force mustChangePassword=1, reactivate. Returns null
@@ -286,7 +306,10 @@ function buildModel(database) {
       if (!existing) return null;
       assertNotSupport(existing);
       const hash = hashPassword(String(newPassword || ''));
-      resetPasswordStmt.run(hash, numericId);
+      database.transaction(() => {
+        resetPasswordStmt.run(hash, numericId);
+        voidResetLinks(numericId);
+      })();
       return toSafeUser(findByIdStmt.get(numericId));
     },
 
@@ -295,7 +318,10 @@ function buildModel(database) {
       const existing = findByIdStmt.get(numericId);
       if (!existing) return null;
       assertNotSupport(existing);
-      softDeleteStmt.run(numericId);
+      database.transaction(() => {
+        softDeleteStmt.run(numericId);
+        dropPushDevices(numericId);
+      })();
       return toSafeUser(findByIdStmt.get(numericId));
     },
 

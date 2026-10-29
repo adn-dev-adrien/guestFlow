@@ -133,6 +133,13 @@ reservation's **check-out time** is reached (departure) — only to the users (a
     whose time is **already in the past today** are stamped as notified **without** sending (so a restart at
     14:00 doesn't blast every morning arrival). Only events crossing their time **while the server is
     running** notify. (Decision — avoids a restart spamming the day's past events.)
+13. **A device receives guest data only while its owner is an active, non-support administrator** (added
+    2026-10-29, audit R2 finding N1). The fan-out (`subscriptionsForPref`, `sendToUser`) joins `users` and
+    `user_roles` and keeps only devices whose owner is `isActive = 1`, `isSupportAccount = 0` and holds the
+    `admin` role. `POST /api/push/subscribe` is refused 403 `SUPPORT_FORBIDDEN` in a support session. A
+    user's subscriptions are deleted when the account is deactivated, when the `admin` role is removed, and
+    when a support access is revoked (the support account's rows); an access that merely expires leaves rows
+    that the fan-out filter never selects.
 
 **Edge cases:**
 - User denies the browser permission → the device isn't subscribed; the UI reflects "non activées".

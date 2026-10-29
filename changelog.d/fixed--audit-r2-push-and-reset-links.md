@@ -1,0 +1,2 @@
+- Push notifications now reach only active, non-support administrators: a deactivated account, a demoted admin or an ended support access no longer receives guest data, `/api/push/subscribe` is refused in a support session, and a user's devices are deleted on deactivation, on losing the admin role and when a support access is revoked.
+- A password-reset link mailed before an email or password change (admin reset included) is voided in the same transaction as the change.

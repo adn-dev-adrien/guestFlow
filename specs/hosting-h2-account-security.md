@@ -585,6 +585,11 @@ every change still writes the journal, the secret still never leaves the server 
     still live (`emailCodeHash` set, not expired), the code step is shown on it (« Code déjà envoyé à … »);
     otherwise the login is refused 429 — `RESEND_TOO_SOON` with `retryInSeconds` (« Nouvel envoi possible dans
     N s. ») or `TOO_MANY_SENDS` — and the login page counts the wait down on its button. That 429 follows a RIGHT password, so the per-IP login limiter does not count it as a failure (`hosting-h2-login-mail-limit-ip-limiter.unit.test.js`).
+63. **A reset link does not outlive the change of address or password** (added 2026-10-29, audit R2 finding
+    N2). In the same transaction as an email change (`updateUser`) and as a password change
+    (`updatePassword`, and the administrator's `resetUserPassword`), every unused `password_reset_tokens` row
+    of that user is voided (`usedAt` set). A link mailed to the old address stops working the moment the
+    address or the password changes.
 
 ---
 
