@@ -28,8 +28,9 @@ function seed(db) {
 let nextWeek = 0;
 function stay(db, controller) {
   nextWeek += 1;
-  const start = `2099-02-${String(nextWeek * 4).padStart(2, '0')}`;
-  const end = `2099-02-${String(nextWeek * 4 + 3).padStart(2, '0')}`;
+  const day = (offset) => new Date(Date.UTC(2099, 1, 1 + offset)).toISOString().slice(0, 10);
+  const start = day(nextWeek * 4);
+  const end = day(nextWeek * 4 + 3);
   const body = (overrides = {}) => ({
     propertyId: 1, clientId: 1, startDate: start, endDate: end,
     checkInTime: '16:00', checkOutTime: '10:00', platform: 'direct',
@@ -132,4 +133,43 @@ test('rule 1 — a refused save writes nothing: the arrival baseline is not capt
   assert.equal(refused.status, 400);
   assert.equal(refused.body.code, 'PAST_RESERVATION_LOCKED');
   assert.equal(row(db, id).arrivalExtrasBaseline, null);
+});
+
+// Review of #847, point 1: the operator's own text and amounts on a custom line are pricing inputs.
+function customSave(stay, patch) {
+  const { db, controller, id, body } = stay;
+  const custom = db.prepare('SELECT id FROM reservation_custom_options WHERE reservationId = ?').get(id);
+  const line = { customKey: String(custom.id), customOptionId: custom.id, description: 'Panier', amount: 20, offered: false, ...patch };
+  const saved = controller.performUpdate(id, body({ customOptions: [line] }));
+  assert.equal(saved.status, 200, JSON.stringify(saved.body));
+  return db.prepare('SELECT description, amount, offered FROM reservation_custom_options WHERE reservationId = ?').get(id);
+}
+
+test('rule 2 — renaming a paid custom line is saved', () => {
+  const stay = fixture();
+  assert.equal(customSave(stay, { description: 'Panier garni' }).description, 'Panier garni');
+});
+
+test('rule 2 — renaming an offered custom line is saved', () => {
+  const stay = fixture();
+  customSave(stay, { offered: true });
+  assert.equal(customSave(stay, { offered: true, description: 'Panier offert' }).description, 'Panier offert');
+});
+
+test('rule 2 — retyping the amount of an offered custom line is saved', () => {
+  const stay = fixture();
+  customSave(stay, { offered: true });
+  assert.equal(customSave(stay, { offered: true, amount: 35 }).amount, 35);
+});
+
+test('rule 1 — a refused or untouched save on a started fiche does not pin the arrival baseline either', () => {
+  const { db, controller, id, body } = fixture();
+  db.prepare("UPDATE reservations SET startDate = '2000-02-01', endDate = '2000-02-04', arrivalExtrasBaseline = NULL WHERE id = ?").run(id);
+  const custom = db.prepare('SELECT id FROM reservation_custom_options WHERE reservationId = ?').get(id);
+  const sent = { startDate: '2000-02-01', endDate: '2000-02-04', customOptions: [{ customKey: String(custom.id), customOptionId: custom.id, description: 'Panier', amount: 20, offered: false }] };
+  const refused = controller.performUpdate(id, body({ ...sent, adults: 5 }));
+  assert.equal(refused.status, 400);
+  assert.equal(row(db, id).arrivalExtrasBaseline, null, 'a refused save writes nothing');
+  assert.equal(controller.performUpdate(id, body(sent), { dryRun: true }).status, 200);
+  assert.equal(row(db, id).arrivalExtrasBaseline, null, 'a dry run writes nothing');
 });

@@ -41,14 +41,16 @@ changed something the price depends on; money collected beyond the total is repo
 1. **A save that moved no pricing input keeps the stay as it was priced.** The quote of the posted fiche is
    compared with the quote of the stored stay (both through the same engine, `pricingUnchangedFromStored`).
    Only what a line BILLS is compared (identity, units, unit price unless offered, total, offered,
-   routing, sessions, occurrences), with the money figures and the nights: an engine-derived auto-option
+   routing, sessions, occurrences; for a custom line also its text and the amount typed, offered or not —
+   renaming it or retyping an offered amount is an edit), with the money figures and the nights: an engine-derived auto-option
    (early check-in, cot) comes back from the replay as a plain locked line and from the save as a derived
    one, and must not count (review of #847: 14 of 52 fiches were re-priced by a note).
    When they are identical, the money columns, the option / custom-option / resource lines (ids included),
    the nights, the tariff snapshot, the tourist-tax freeze, the complement ventilation, the installment plan
    and the history are not touched. What is not priced (notes, client, beds, payment dates, cautions…) is
    saved and logged as before. The bed counts still follow the stored lines (`bed-config-in-linen-card.md`
-   rules 7, 12), and the arrival-extras baseline is captured inside the write, after every refusal.
+   rules 7, 12), and the arrival-extras baseline is captured inside the write, after every refusal — the
+   extras window of a started fiche included (it reads the baseline without storing it).
 2. **A save that moved a pricing input re-prices the stay, as before.** An explicit « Recalculer » of the
    tourist tax (`refreshTouristTax`) or « Utiliser les tarifs actuels » (`refreshPricingToCurrent`) also
    re-prices: it is how a stale figure gets updated. A replay that cannot run reads as « changed ».
@@ -77,7 +79,9 @@ changed something the price depends on; money collected beyond the total is repo
    **Direct channels only** (Adrien, 2026-10-29: « ne rien changer » on platform stays): a platform stay
    keeps rule 38 of `reservation-refunds.md` — the guest paid the platform, which refunds them itself, so
    the engine exposes no `overCollectedTtc` for it, in the preview and in the replay alike, and the excess
-   stays as it was (#22208, #22209 on the Solio base). Lodgify, a direct channel on Solio, is covered
+   stays as it was (#22208, #22209 on the Solio base).
+   On a direct channel the fiche preview (`liveOverpayment`) prices the stay with the collected complement
+   at its stored amount, so the trop-perçu reaches the fiche and the refund dialog. Lodgify, a direct channel on Solio, is covered
    (#22224, #22226). #22209 (+0,60 €, Abracadaroom) is a platform stay: out.
 5. **A commission far above the platform's rate is flagged.** On the fiche, a platform stay whose entered
    commission exceeds twice the platform's configured percent of the sale, or half of the sale, shows

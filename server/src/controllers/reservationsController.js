@@ -352,7 +352,7 @@ function refuseSessionConflict(res, resources, reservationId = null) {
 // operator confirms (`forceOverpayment`), so the money received and the sale never diverge silently.
 // A stay already over-collected can still be saved for anything else: only a save that ADDS to the
 // trop-perçu is stopped.
-function overpaymentIntroducedBy(reservationId, quote) {
+function overpaymentIntroducedBy(reservationId, quote, overrides = {}) {
   const row = model.getRow(reservationId);
   if (!row) return null;
   const captured = model.capturedScheduleContribs(reservationId);
@@ -360,7 +360,7 @@ function overpaymentIntroducedBy(reservationId, quote) {
   // The stay as stored, re-priced: what it already held in excess before this save.
   let storedOver = 0;
   try {
-    const stored = quoteStoredReservation(db, row);
+    const stored = quoteStoredReservation(db, row, overrides);
     storedOver = stored && !stored.error ? Number(stored.overCollectedTtc || 0) : 0;
   } catch {
     storedOver = 0;
@@ -399,6 +399,9 @@ function liveOverpayment(reservationId, engineInput) {
     // Rule 36 — the save prices a paid acompte or solde on its stored amount: so does this preview.
     ...(Number(row.depositPaid || 0) === 1 && !depositDisabled ? { depositAmount: row.depositAmount } : {}),
     ...(Number(row.balancePaid || 0) === 1 ? { balanceAmount: row.balanceAmount } : {}),
+    // A collected complement stays at what was collected (frozen-complement-trusts-client rules 1-2): the
+    // engine reads the excess it now holds from that amount.
+    ...(Number(row.complementPaid || 0) === 1 ? { complementAmount: row.complementAmount } : {}),
     // The save prices the tax unpinned (performUpdate passes no freeze): mirror it, or the preview
     // would announce no trop-perçu where the save refuses one.
     freezeTouristTax: false,
@@ -1466,8 +1469,8 @@ function enterMidStayExtrasWindow(id, body, today) {
   if (!midStayExtrasWindow(model.getRow(id), today).extrasEditable) return null;
   // The fiche is locked, so the stay has started whether or not the check-in was marked: pin what it
   // carries now as « sold at arrival » (rule 10), unconditionally.
-  model.captureArrivalExtrasBaseline(id);
-  const baseline = model.getArrivalExtrasBaseline(id);
+  // Read, not written: the baseline is stored by the write itself, after every refusal of the save.
+  const baseline = model.peekArrivalExtrasBaseline(id);
   const beforeLines = model.readExtraLinesWithQuantity(id);
   pinStoredRouting(body, model.getStoredRouting(id));
   body.refreshPricingToCurrent = false;
@@ -1534,6 +1537,8 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
 
   const todayIso = getTodayIsoDate();
   const midStayWindow = pastUnlocked ? null : enterMidStayExtrasWindow(id, req.body, todayIso);
+  // The window pins the baseline at the write: every pricing of this save reads the one that write will store.
+  const windowEngineInputs = midStayWindow ? { arrivalExtrasBaseline: midStayWindow.baseline } : {};
 
   const {
     propertyId, clientId, startDate, endDate, adults, children, teens, babies,
@@ -1677,6 +1682,7 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
     // surfaces as a trop-perçu or an amount owed (specs/reservation-refunds.md rules 34-36).
     ...frozenTouristTaxInputs(db, id, req.body.refreshTouristTax || !sameStayAsSold(existingReservation, req.body)),
     ...midStayQuoteInputs(db, id),
+    ...windowEngineInputs,
     // The acompte deadline was promised on the booking day: an edit never moves it (rule 4).
     ...scheduleQuoteInputs(db, id),
   };
@@ -1691,7 +1697,7 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
   // specs/reservation-save-keeps-pricing.md rule 1 — a save that moved no pricing input keeps the stay as
   // it was priced: money, lines, nights, snapshots and history stay put.
   const keepPricing = Boolean(existingReservation) && !refreshPricingToCurrent && !req.body.refreshTouristTax
-    && pricingUnchangedFromStored(db, storedPaymentForQuote, quote);
+    && pricingUnchangedFromStored(db, storedPaymentForQuote, quote, windowEngineInputs);
   if (keepPricing) quote = pinStoredPricing(quote, storedPaymentForQuote);
 
   // specs/platform-payout-due-date.md §3.5 rule 38 — a started or finished stay keeps the solde
@@ -1785,7 +1791,7 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
     return res.status(409).json(changeoverErrorPayload(quote));
   }
   if (!req.body.forceOverpayment) {
-    const overpaid = overpaymentIntroducedBy(id, quote);
+    const overpaid = overpaymentIntroducedBy(id, quote, windowEngineInputs);
     if (overpaid) return res.status(409).json(overpaid);
   }
 
@@ -1877,7 +1883,8 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
     // by the time the guest arrived », so an extra added in this very save is detected as mid-stay.
     // After every refusal of the save: a refused or previewed save writes nothing. The engine above read
     // the very baseline this stores (`resolveArrivalExtrasBaseline` synthesizes it).
-    model.captureArrivalExtrasBaselineIfDue(id);
+    if (midStayWindow) model.captureArrivalExtrasBaseline(id);
+    else model.captureArrivalExtrasBaselineIfDue(id);
     model.updateReservation(id, modelPayload, quote, nightBlocks, nextIcalSyncLocked, { keepPricing });
     if (!keepPricing) writePricedLines();
     const changes = computeAuditChanges(beforeAuditSnapshot, afterAuditSnapshot);

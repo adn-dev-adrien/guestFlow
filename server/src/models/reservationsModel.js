@@ -2674,6 +2674,15 @@ function createReservationsModel(database) {
     // the pre-sale state pinned right now — else the sale would have no baseline to stand above and
     // its money would never reach the end-of-stay complement
     // (specs/sas-breakfast-and-catering-upsell.md §3.4). Idempotent: an existing baseline is kept.
+    // What `captureArrivalExtrasBaseline` would store, without writing it: the stored baseline, else the
+    // one the extras carried now would pin.
+    peekArrivalExtrasBaseline(reservationId) {
+      if (!HAS_ARRIVAL_EXTRAS_BASELINE) return null;
+      const row = database.prepare('SELECT arrivalExtrasBaseline FROM reservations WHERE id = ?').get(reservationId);
+      if (!row) return null;
+      return row.arrivalExtrasBaseline || JSON.stringify(buildExtrasBaseline(model.readExtraLines(reservationId)));
+    },
+
     captureArrivalExtrasBaseline(reservationId) {
       if (!HAS_ARRIVAL_EXTRAS_BASELINE) return null;
       const row = database.prepare('SELECT arrivalExtrasBaseline FROM reservations WHERE id = ?').get(reservationId);

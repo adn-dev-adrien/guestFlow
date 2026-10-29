@@ -53,6 +53,11 @@ function billedLine(line) {
     totalPrice: Math.round(Number(line.totalPrice || 0) * 100),
     offered,
     inComplement: Number(line.inComplement || 0),
+    // A custom line is the operator's own text and amount: renaming it, or retyping the amount of an
+    // offered one, is an edit even though nothing is billed differently.
+    ...(line.customOptionId != null || line.isCustom
+      ? { title: String(line.title || line.description || ''), originalTotalPrice: Math.round(Number(line.originalTotalPrice ?? line.totalPrice ?? 0) * 100) }
+      : {}),
     sessions: line.sessions || null,
     cardOccurrences: line.cardOccurrences || null,
     cardPersons: line.cardPersons || null,
@@ -84,9 +89,9 @@ function pricedProjection(quote) {
  *
  * A replay that cannot run reads as « changed »: the save then prices the stay as it always did.
  */
-function pricingUnchangedFromStored(db, stored, quote) {
+function pricingUnchangedFromStored(db, stored, quote, overrides = {}) {
   try {
-    const replay = quoteStoredReservation(db, stored);
+    const replay = quoteStoredReservation(db, stored, overrides);
     return Boolean(replay && !replay.error && isDeepStrictEqual(pricedProjection(replay), pricedProjection(quote)));
   } catch {
     return false;
