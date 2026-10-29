@@ -33,7 +33,7 @@ function setup({
       listings: () => listings,
       autoApply: () => autoApply,
     },
-    readMails: async (cfg) => { calls.readWith = cfg; return mails; },
+    readMails: async (cfg) => { calls.readWith = cfg; return mails.map((m) => ({ authenticated: true, ...m })); },
     findReservations: ({ propertyIds, startDate, endDate }) => reservations
       .filter((r) => propertyIds.includes(r.propertyId) && startDate === dates[0] && endDate === dates[1]),
     propertyOptions: () => CATALOGUE,

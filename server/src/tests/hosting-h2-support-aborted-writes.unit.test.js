@@ -23,10 +23,11 @@ function serve(handler) {
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-test('rule 60 — a write whose client hangs up before the answer is still logged, as aborted', async () => {
+test('rule 60 — a write whose client hangs up before the answer is still logged, as aborted', async (t) => {
   const writes = [];
   const { server, log, port } = await serve(async (req, res) => {
     writes.push('cancelled');
+  t.after(() => server.close());
     await wait(200);
     res.json({ ok: true });
   });
@@ -36,21 +37,20 @@ test('rule 60 — a write whose client hangs up before the answer is still logge
   await wait(50);
   req.destroy();
   await wait(400);
-  server.close();
   assert.deepEqual(writes, ['cancelled']);
   assert.equal(log.length, 1);
   assert.equal(log[0].method, 'POST');
   assert.match(log[0].summary, /aborted/);
 });
 
-test('rule 60 — a normal answer is logged once, with its status, and not as aborted', async () => {
+test('rule 60 — a normal answer is logged once, with its status, and not as aborted', async (t) => {
   const { server, log, port } = await serve((req, res) => res.status(201).json({ ok: true }));
+  t.after(() => server.close());
   await new Promise((resolve) => {
     const req = http.request({ port, method: 'POST', path: '/api/reservations/1/cancel', headers: { 'content-type': 'application/json' } }, (res) => { res.resume(); res.on('end', resolve); });
     req.end('{}');
   });
   await wait(100);
-  server.close();
   assert.equal(log.length, 1);
   assert.equal(log[0].summary, '201');
 });

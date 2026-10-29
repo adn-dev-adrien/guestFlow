@@ -80,6 +80,7 @@ module.exports = {
     }
     records.set(id, record);
   },
+  discard: (id) => records.delete(id),
   isLive: (id) => {
     const record = records.get(id);
     if (!record) return false;

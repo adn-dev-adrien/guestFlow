@@ -874,10 +874,10 @@
     var warn = GF.el('div', { 'aria-live': 'polite' });
 
     // Contact + message + honeypot. The keyboard each field opens, and what autofill puts in it.
-    f.firstName = GF.el('input', { type: 'text', autocomplete: 'given-name', enterkeyhint: 'next' });
-    f.lastName = GF.el('input', { type: 'text', autocomplete: 'family-name', enterkeyhint: 'next' });
-    f.email = GF.el('input', { type: 'email', autocomplete: 'email', inputmode: 'email', autocapitalize: 'none', enterkeyhint: 'next' });
-    f.phone = GF.el('input', { type: 'tel', autocomplete: 'tel', inputmode: 'tel', enterkeyhint: 'next' });
+    f.firstName = GF.el('input', { type: 'text', autocomplete: 'given-name', enterkeyhint: 'next', maxlength: '100' });
+    f.lastName = GF.el('input', { type: 'text', autocomplete: 'family-name', enterkeyhint: 'next', maxlength: '100' });
+    f.email = GF.el('input', { type: 'email', autocomplete: 'email', inputmode: 'email', autocapitalize: 'none', enterkeyhint: 'next', maxlength: '254' });
+    f.phone = GF.el('input', { type: 'tel', autocomplete: 'tel', inputmode: 'tel', enterkeyhint: 'next', maxlength: '40' });
     // GuestFlow refuses a message over 2 000 characters (specs/public-request-abuse-and-grouping.md rule 22).
     f.message = GF.el('textarea', { rows: '3', maxlength: '2000' });
     f.hp = GF.el('input', { type: 'text', tabindex: '-1', autocomplete: 'off' });

@@ -310,9 +310,21 @@ function buildModel(database) {
   // specs/plugins-phase-3a-online-payment.md rule 7 — the row is abandoned locally at once; when the
   // provider could not deactivate it, the marker keeps it on the poll's retry list (rule 8).
   function cancel(id, { remotePending = false } = {}) {
-    database.prepare("UPDATE payment_links SET status = 'cancelled', remoteCancelPendingAt = ? WHERE id = ?")
+    database.prepare("UPDATE payment_links SET status = 'cancelled', remoteCancelPendingAt = ? WHERE id = ? AND status != 'paid'")
       .run(remotePending ? new Date().toISOString() : null, Number(id));
     return findById(id);
+  }
+
+  // Two overlapping retry passes can both find the same owed deactivation paid: the one whose UPDATE
+  // clears the marker owns the booking, the other does nothing.
+  function claimRemoteCancelPending(id) {
+    return Number(database.prepare('UPDATE payment_links SET remoteCancelPendingAt = NULL WHERE id = ? AND remoteCancelPendingAt IS NOT NULL')
+      .run(Number(id)).changes) === 1;
+  }
+
+  function restoreRemoteCancelPending(id) {
+    database.prepare("UPDATE payment_links SET remoteCancelPendingAt = ? WHERE id = ? AND status = 'cancelled'")
+      .run(new Date().toISOString(), Number(id));
   }
 
   function listRemoteCancelPending() {
@@ -353,6 +365,8 @@ function buildModel(database) {
     markPaid,
     updateStatus,
     cancel,
+    claimRemoteCancelPending,
+    restoreRemoteCancelPending,
     listRemoteCancelPending,
     clearRemoteCancelPending,
   };

@@ -32,11 +32,25 @@ test('rule 18 — other company and notification fields stay writable', () => {
   assert.equal(put({ company: { name: 'Domaine', phone: '0102030405' }, notifications: { enabled: false } }), null);
 });
 
+const bare = { ...stored, notificationRecipientEmail: '', smtpFromEmail: '', companyEmail: 'contact@domaine-ombre.fr' };
+const putBare = (body, path = '/settings') => forbiddenReason('PUT', path, body, { ...deps, currentSettings: () => bare });
+
+test('rule 18 — with no typed recipient, the company email IS the recipient: changing it is refused', () => {
+  assert.equal(putBare({ company: { email: 'audit@example.invalid' } }), 'credentials');
+  assert.equal(putBare({ email: 'audit@example.invalid', name: 'Domaine' }, '/onboarding/company'), 'credentials');
+  assert.equal(putBare({ notifications: { recipientEmail: 'audit@example.invalid' } }), 'credentials');
+});
+
+test('rule 18 — the company email sent back as it is, or an empty recipient left empty, passes', () => {
+  assert.equal(putBare({ company: { email: ' Contact@Domaine-Ombre.fr ', name: 'Domaine' }, notifications: { recipientEmail: '' } }), null);
+  assert.equal(putBare({ email: 'contact@domaine-ombre.fr', name: 'Domaine' }, '/onboarding/company'), null);
+});
+
 test('rule 18 — a read of the settings is untouched', () => {
   assert.equal(forbiddenReason('GET', '/settings', {}, deps), null);
 });
 
-test('rule 18 — the refusal is answered 403, never reaches the handler, and is logged like the others', async () => {
+test('rule 18 — the refusal is answered 403, never reaches the handler, and is logged like the others', async (t) => {
   const http = require('http');
   const express = require('express');
   const { createSupportAudit } = require('../middleware/supportAudit');
@@ -49,6 +63,7 @@ test('rule 18 — the refusal is answered 403, never reaches the handler, and is
   app.use('/api', createSupportAudit({ controller, isSecretSetting: () => false, currentSettings: () => stored }));
   app.put('/api/settings', (req, res) => { reached.push(req.body); res.json({ ok: true }); });
   const server = await new Promise((resolve) => { const s = app.listen(0, () => resolve(s)); });
+  t.after(() => server.close());
   const send = (body) => new Promise((resolve) => {
     const payload = JSON.stringify(body);
     const req = http.request({ port: server.address().port, method: 'PUT', path: '/api/settings', headers: { 'content-type': 'application/json', 'content-length': Buffer.byteLength(payload) } }, (res) => { res.resume(); res.on('end', () => resolve(res.statusCode)); });
@@ -57,7 +72,6 @@ test('rule 18 — the refusal is answered 403, never reaches the handler, and is
   assert.equal(await send({ company: { portalCode: 'AUDIT-0000' } }), 403);
   assert.equal(await send({ notifications: { recipientEmail: 'audit@example.invalid' } }), 403);
   assert.equal(await send({ company: { portalCode: '4821', name: 'Domaine' } }), 200);
-  server.close();
   assert.equal(reached.length, 1, 'only the unchanged save reached the handler');
   assert.deepEqual(log.filter((e) => e.summary === '403').map((e) => e.path), ['/api/settings', '/api/settings']);
 });

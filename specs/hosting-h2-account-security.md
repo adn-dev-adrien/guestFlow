@@ -145,14 +145,7 @@ Three gaps block selling GuestFlow to customers we do not sit next to:
     - the settings that hold a credential or where the account emails point: the SMTP connection
       (the `smtp` group), a plugin setting declared
       `secret`, the Google connection (`/api/google-calendar/oauth/*`, the calendar), the Qonto
-      credentials and provider connection, the Neat credentials and environment;
-    - *(amended 2026-10-28, audit finding M3 — the rule was incomplete)* changing the property's keypad
-      code (`company.portalCode`), the address the booking notifications go to
-      (`notifications.recipientEmail`) and the bank details printed on a devis (`company.iban`,
-      `company.bic`). The settings page sends its whole group on every save, so only a value that
-      differs from the stored one is refused; the same value sent back passes. Bank details are
-      forbidden as the safe default: the owner can relax that later. The refusal is a logged 403 like
-      the others.
+      credentials and provider connection, the Neat credentials and environment.
 
     Nothing the support does can therefore outlive the access.
     - Widened 2026-10-17 (second review): also refused, for any method, the Qonto OAuth connection
@@ -167,6 +160,24 @@ Three gaps block selling GuestFlow to customers we do not sit next to:
       `properties[]`) or the property page (`accessCode` / `wifiPassword` present on
       `PUT /api/properties/:id/arrival-facts`, clearing included) writes them. The other fields of
       those two forms stay open.
+    - Widened 2026-10-28 (audit authz H1, PR #840 review): a plugin setting declared `supportLocked` stays
+      readable, and is refused to a support session only when the value sent **differs from the stored one**
+      (the card's form sends every key, so an unchanged save passes) — the intake plugins' `imapHost`,
+      `imapPort`, `senderAddress`, `senderDomains` and `trustedAuthservId`, which decide where the SMTP password
+      is sent and who vouches for a sender (`specs/airbnb-mail-intake.md` rules 22–23). Also refused:
+      `POST /api/plugins/:id/rollback` and `POST /api/plugins/:id/update` with a chosen `version`, since a
+      support session must not bring back code from before a security fix (the newest-version update stays
+      allowed). Test: `mail-intake-credential-destination.unit.test.js`.
+    - Widened 2026-10-28 (audit authz M3): a support session also cannot change the property's keypad code
+      (`company.portalCode`), the bank details printed on a devis (`company.iban`, `company.bic` — forbidden as
+      the safe default, the owner can relax it later), nor where the booking notifications go. The latter is
+      judged on the RESOLVED identity (`utils/emailIdentity.js`: recipient ← `notifications.recipientEmail`
+      || sender || `company.email`): a write that changes the resolved `recipient` or `fromEmail` is refused,
+      whether it comes through `notifications.recipientEmail` or `company.email`, on `PUT /api/settings` and
+      `PUT /api/onboarding/company` (on prod the first two are empty, so the company email IS the recipient).
+      The settings page sends its whole group on every save: only a value that differs from the stored one is
+      refused. The refusal is a logged 403 like the others. Tests: `hosting-h2-support-settings-fields.unit.test.js`.
+
 19. **The server logs what the support reads too** (added 2026-10-17, review). Every `GET` of a
     support session is written to `support_access_log`, once per path and per minute, besides the
     pages the client reports (rule 15). What the application polls by itself (`/api/auth/*`,

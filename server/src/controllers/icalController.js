@@ -9,8 +9,9 @@ const model = require('../models/icalModel');
 // Deriver de la requete est aussi ce qui convient pendant la transition
 // guestflow.domainesolio.com -> guestflow.adn-dev.fr : le lien affiche correspond toujours
 // au nom que l'operateur est en train de consulter.
-// `req.protocol` respecte X-Forwarded-Proto parce que `trust proxy` est desormais arme
-// derriere Caddy (TRUST_PROXY_HOPS) — sans quoi on afficherait `http://` au lieu de `https://`.
+// `req.protocol` respecte X-Forwarded-Proto uniquement quand `trust proxy` est arme par
+// TRUST_PROXY_HOPS (derriere Caddy) ; sans cette variable, aucun saut n'est cru et on afficherait
+// `http://` au lieu de `https://` (utils/proxySecret.js).
 // BASE_URL reste prioritaire, comme echappatoire explicite si l'URL publique differe.
 function exportUrl(req, token) {
   const base = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;

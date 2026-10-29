@@ -62,15 +62,15 @@ const RECEPTION_MATCHERS = [
   { method: 'POST', re: /^\/planning\/option-cards\/done$/ },
 ];
 
-// Plugin modules add their own reception entries (specs/plugins-phase-1-sdk.md rule 5). Their
-// routes stay behind requirePlugin, so an entry of an inactive plugin still ends in a 404.
+// Plugin modules add their own reception entries (specs/plugins-phase-1-sdk.md rule 5). An inactive
+// plugin contributes none (specs/plugins-phase-2-hosts.md rule 33): its routes answer 403 FORBIDDEN_ROLE.
 function isReceptionAllowed(method, path) {
   const pluginMatchers = require('../plugins/loader').roleMatchers('reception');
   return [...RECEPTION_MATCHERS, ...pluginMatchers].some((m) => m.method === method && m.re.test(path));
 }
 
-// specs/plugins-phase-2-hosts.md rule 3 — the core entries, plus those of the accounting export. Its
-// routes stay behind requirePlugin, so an entry of an inactive plugin still ends in a 404.
+// specs/plugins-phase-2-hosts.md rule 3 — the core entries, plus those of the accounting export. While
+// the plugin is inactive it contributes none: its routes answer 403 FORBIDDEN_ROLE (rule 33).
 function isAccountantAllowed(method, path) {
   const pluginMatchers = require('../plugins/loader').roleMatchers('accountant');
   return [...ACCOUNTANT_MATCHERS, ...pluginMatchers].some((m) => m.method === method && m.re.test(path));
