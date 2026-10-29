@@ -1,0 +1,1 @@
+- A foreign write landing while a stay save or an installment change waits for the payment provider is no longer adopted by the open fiche: its next save is refused as modified in the meantime.
