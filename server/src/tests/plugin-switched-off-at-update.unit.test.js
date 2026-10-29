@@ -143,7 +143,7 @@ test('rule 56: an error while switching plugins off never stops the boot, and a 
     broken.setEnabled('xa', false);
     broken.switchOff = () => { throw new Error('disk'); };
     assert.doesNotThrow(() => host.housekeeping({ model: broken, ids: ['xa', 'xc'], copyOf: (id) => ({ manifest: id === 'xc' ? c2 : a1, sha256: null }) }));
-    assert.ok(errors.some((e) => /switching off over an inactive requirement failed/.test(e)));
+    assert.ok(errors.some((e) => /syncing the bundled rows failed/.test(e)));
   } finally {
     console.error = spy;
   }
@@ -156,4 +156,18 @@ test('rule 57: the line is skipped for whoever is not an administrator, and says
   assert.equal(source.skip({ user: { roles: ['admin'] } }), false);
   const items = [{ id: 'weather-alerts', name: 'Vigilance Météo-France', requires: 'Arrivée et départ guidés' }];
   assert.equal(CORE_SUMMARIES['plugins-switched-off']({ items, managed: true }).detail, 'À réactiver par l’exploitant');
+});
+
+test('rule 56: a switch-off that fails halfway saves nothing — not the sync, not the first switch-off — and the next boot retries', () => {
+  const { model, ids, copyOf } = chain(3);
+  const real = model.switchOff;
+  let calls = 0;
+  const failing = { ...model, switchOff: (id, reason) => { calls += 1; if (calls === 2) throw new Error('SQLITE_BUSY'); return real(id, reason); } };
+  const spy = console.error;
+  console.error = () => {};
+  try { host.housekeeping({ model: failing, ids, copyOf }); } finally { console.error = spy; }
+  assert.deepEqual(model.list().map((r) => [r.id, r.enabled, r.version]), [['xa', false, '1.0.0'], ['xb', true, '1.0.0'], ['xc', true, '1.0.0'], ['xd', true, '1.0.0']]);
+  host.housekeeping({ model, ids, copyOf });
+  assert.deepEqual(model.list().map((r) => r.enabled), [false, false, false, false]);
+  assert.equal(model.get('xb').version, '1.1.0');
 });

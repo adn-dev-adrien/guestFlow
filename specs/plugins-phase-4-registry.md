@@ -448,7 +448,8 @@ below are the recommended ones; each is reversible in a later spec.
     over an off SAS), it switches the dependant off at boot, then the active dependants of that one (nearest
     first, whatever the depth), and records
     `plugins.off_reason` (the id of the off requirement; idempotent column). It NEVER switches the requirement on.
-    Any later `setEnabled` clears the reason. An error in this step is logged and never stops the boot; a bundled
+    Any later `setEnabled` clears the reason. The sync of the bundled rows and the switch-offs are one transaction: an error saves nothing, so the next
+    boot retries, and it is logged and never stops the boot; a bundled
     sync refused for a cycle is logged once per release. Test: `plugin-switched-off-at-update.unit.test.js`.
 57. **The home says which plugins were switched off, and a rollback needs its requirements installed** (same
     decision, 2026-10-29). Core attention subject `plugins-switched-off` (rank 45): one plugin reads

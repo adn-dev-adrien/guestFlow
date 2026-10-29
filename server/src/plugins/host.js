@@ -129,19 +129,31 @@ function switchOffOverInactive(model, ids) {
  */
 function housekeeping({ model, ids, now = new Date(), copyOf = runningCopy }) {
   const s = ensure();
-  const synced = [];
+  // The sync of the bundled rows and the switch-offs it calls for are ONE transaction (rule 56): a failure saves
+  // nothing, so the next boot finds the same rows to sync and retries, and never leaves a dependant on over a
+  // requirement that was switched off. The boot goes on either way: the plugins then stay as they were.
+  try {
+    model.transaction(() => {
+      const synced = [];
+      ids.forEach((id) => {
+        const row = model.get(id);
+        if (!row || row.source !== 'bundled') return;
+        const copy = copyOf(id);
+        if (copy && syncClosesCycle(model, id, copy.manifest)) {
+          const key = `${id}@${copy.manifest.version}`;
+          if (!refusedSyncs.has(key)) { // once per release, not at every hourly pass
+            refusedSyncs.add(key);
+            console.error(`[plugins] ${key} not synced: REQUIREMENT_CYCLE`); // eslint-disable-line no-console
+          }
+        } else if (copy && model.syncBundled(id, copy.manifest, copy.sha256)) synced.push(id);
+      });
+      switchOffOverInactive(model, synced);
+    });
+  } catch (err) {
+    console.error('[plugins] syncing the bundled rows failed, nothing was saved:', err.message); // eslint-disable-line no-console
+  }
   ids.forEach((id) => {
     const row = model.get(id);
-    if (row && row.source === 'bundled') {
-      const copy = copyOf(id);
-      if (copy && syncClosesCycle(model, id, copy.manifest)) {
-        const key = `${id}@${copy.manifest.version}`;
-        if (!refusedSyncs.has(key)) { // once per release, not at every hourly pass
-          refusedSyncs.add(key);
-          console.error(`[plugins] ${key} not synced: REQUIREMENT_CYCLE`); // eslint-disable-line no-console
-        }
-      } else if (copy && model.syncBundled(id, copy.manifest, copy.sha256)) synced.push(id);
-    }
     if (row && row.rollbackUntil && Date.parse(row.rollbackUntil) <= now.getTime()) model.expireRollback(id);
     if (s.mode !== 'packages') return;
     const fresh = model.get(id);
@@ -153,8 +165,6 @@ function housekeeping({ model, ids, now = new Date(), copyOf = runningCopy }) {
       try { s.store.setCurrent(id, fresh.version); } catch { /* the loader reports the package missing */ }
     }
   });
-  // A bug in this step must not stop the boot: the plugins then simply stay as they were.
-  try { switchOffOverInactive(model, synced); } catch (err) { console.error('[plugins] switching off over an inactive requirement failed:', err.message); } // eslint-disable-line no-console
   return model.list();
 }
 

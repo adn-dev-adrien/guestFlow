@@ -90,6 +90,7 @@ function buildModel(database) {
   });
 
   return {
+    transaction: (fn) => database.transaction(fn)(),
     list: () => listStmt.all().map(toRow),
     get: (id) => toRow(getStmt.get(id)),
     install(id, pkg) { insertStmt.run(pkgParams(id, pkg)); },
