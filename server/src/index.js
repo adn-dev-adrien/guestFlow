@@ -370,6 +370,7 @@ const server = serverHandle.listen(...listenArgs, () => {
   // Start scheduled tasks (like iCal auto-sync)
   startScheduledTasks();
   pluginLoader.startJobs();
+  pluginLoader.runPendingInstallHooks(require('./models/pluginsModel')).catch((err) => console.error('[plugins] pending install hooks:', err && err.message ? err.message : err));
   // Rule 9 — the registry index at boot, then every 6 hours; rule 16 — the expired rollback copies.
   pluginHost.startBackground({ model: require('./models/pluginsModel'), ids: require('./constants/plugins').PLUGIN_IDS });
 });
