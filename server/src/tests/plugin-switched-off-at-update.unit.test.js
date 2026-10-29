@@ -1,4 +1,4 @@
-// specs/plugins-phase-4-registry.md rules 56 and 57 (audit r4, N-R4-2, decision of Adrien 2026-10-29: « Éteindre le
+// specs/plugins-phase-4-registry.md rules 57 and 58 (audit r4, N-R4-2, decision of Adrien 2026-10-29: « Éteindre le
 // dépendant ») — when a core update ships a manifest that makes an ACTIVE bundled plugin require a plugin that is
 // installed but OFF, the dependant is switched off at boot and the home says so; the requirement is never switched
 // on. A rollback to a version whose requirement is not installed is refused.
@@ -27,7 +27,7 @@ function weatherOverOffSas() {
   return { model, shipped, sas };
 }
 
-test('rule 56: weather-alerts 1.3.0 over an installed but OFF SAS is switched off at boot, the SAS stays off', () => {
+test('rule 57: weather-alerts 1.3.0 over an installed but OFF SAS is switched off at boot, the SAS stays off', () => {
   const { model, shipped, sas } = weatherOverOffSas();
   assert.ok(shipped.requires.some((r) => r.id === 'sas'));
   const copies = { 'weather-alerts': shipped, sas };
@@ -38,7 +38,7 @@ test('rule 56: weather-alerts 1.3.0 over an installed but OFF SAS is switched of
   assert.equal(model.get('weather-alerts').offReason, 'sas');
 });
 
-test('rule 56: an active requirement leaves the dependant on, and the dependants of the one switched off follow', () => {
+test('rule 57: an active requirement leaves the dependant on, and the dependants of the one switched off follow', () => {
   const a = h.manifest('xa', '1.0.0');
   const b1 = h.manifest('xb', '1.0.0');
   const b2 = h.manifest('xb', '1.1.0', { requires: [req('xa')] });
@@ -61,7 +61,7 @@ test('rule 56: an active requirement leaves the dependant on, and the dependants
   assert.equal(offModel.get('xc').offReason, 'xb');
 });
 
-test('rule 56: switching the dependant back on clears the notice', () => {
+test('rule 57: switching the dependant back on clears the notice', () => {
   const { model, shipped, sas } = weatherOverOffSas();
   const copies = { 'weather-alerts': shipped, sas };
   host.housekeeping({ model, ids: ['weather-alerts', 'sas'], copyOf: (id) => ({ manifest: copies[id], sha256: null }) });
@@ -71,7 +71,7 @@ test('rule 56: switching the dependant back on clears the notice', () => {
   assert.deepEqual(switchedOffNotices(model), []);
 });
 
-test('rule 57: the home line names the plugin and what it needs, in short impersonal French', () => {
+test('rule 58: the home line names the plugin and what it needs, in short impersonal French', () => {
   const { model, shipped, sas } = weatherOverOffSas();
   const copies = { 'weather-alerts': shipped, sas };
   host.housekeeping({ model, ids: ['weather-alerts', 'sas'], copyOf: (id) => ({ manifest: copies[id], sha256: null }) });
@@ -83,7 +83,7 @@ test('rule 57: the home line names the plugin and what it needs, in short impers
   assert.equal(CORE_SUMMARIES['plugins-switched-off']({ items: [...items, { id: 'x', name: 'X', requires: 'Y' }, ...items] }).title, 'Plugins éteints : 3');
 });
 
-test('rule 57: a rollback to a version whose requirement is not installed is refused with REQUIREMENT_MISSING', async () => {
+test('rule 58: a rollback to a version whose requirement is not installed is refused with REQUIREMENT_MISSING', async () => {
   const a1 = h.manifest('xa', '1.0.0', { requires: [req('xb')] });
   const b1 = h.manifest('xb', '1.0.0');
   const a2 = h.manifest('xa', '1.1.0');
@@ -114,7 +114,7 @@ function chain(depth) {
   return { model, ids: all.map((m) => m.id), copyOf: (id) => ({ manifest: copies[id], sha256: null }), names };
 }
 
-test('rule 56: a chain of dependants two and three levels deep is switched off, each with its nearest cause, and the boot is not stopped', () => {
+test('rule 57: a chain of dependants two and three levels deep is switched off, each with its nearest cause, and the boot is not stopped', () => {
   for (const depth of [3, 4]) {
     const { model, ids, copyOf, names } = chain(depth);
     host.housekeeping({ model, ids, copyOf });
@@ -124,7 +124,7 @@ test('rule 56: a chain of dependants two and three levels deep is switched off, 
   }
 });
 
-test('rule 56: an error while switching plugins off never stops the boot, and a refused sync is logged once per release', () => {
+test('rule 57: an error while switching plugins off never stops the boot, and a refused sync is logged once per release', () => {
   const a1 = h.manifest('xa', '1.0.0');
   const b1 = h.manifest('xb', '1.0.0', { requires: [req('xa')] });
   const a2 = h.manifest('xa', '1.1.0', { requires: [req('xb')] });
@@ -149,7 +149,7 @@ test('rule 56: an error while switching plugins off never stops the boot, and a 
   }
 });
 
-test('rule 57: the line is skipped for whoever is not an administrator, and says so on a managed space', () => {
+test('rule 58: the line is skipped for whoever is not an administrator, and says so on a managed space', () => {
   const { coreAttentionSources } = require('../routes/dashboard');
   const source = coreAttentionSources().find((s) => s.key === 'plugins-switched-off');
   assert.equal(source.skip({ user: { roles: ['reception'] } }), true);
@@ -158,7 +158,7 @@ test('rule 57: the line is skipped for whoever is not an administrator, and says
   assert.equal(CORE_SUMMARIES['plugins-switched-off']({ items, managed: true }).detail, 'À réactiver par l’exploitant');
 });
 
-test('rule 56: a switch-off that fails halfway saves nothing — not the sync, not the first switch-off — and the next boot retries', () => {
+test('rule 57: a switch-off that fails halfway saves nothing — not the sync, not the first switch-off — and the next boot retries', () => {
   const { model, ids, copyOf } = chain(3);
   const real = model.switchOff;
   let calls = 0;

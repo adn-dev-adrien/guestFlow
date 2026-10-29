@@ -1,4 +1,4 @@
-// specs/plugins-phase-4-registry.md rules 54 and 55 (audit r4, N-R4-2) — an update, update-all, rollback and the
+// specs/plugins-phase-4-registry.md rules 55 and 56 (audit r4, N-R4-2) — an update, update-all, rollback and the
 // bundled-row sync at a core update are held to the requirement checks install and activate enforce (rules 37, 38
 // and plugin-dependencies rule 5), and an installed cycle can be dismantled by uninstalling its members.
 const test = require('node:test');
@@ -10,7 +10,7 @@ const host = require('../plugins/host');
 const req = (id) => ({ id, range: '^1.0.0' });
 const row = (m) => ({ id: m.id, version: m.version, source: 'bundled', manifest: m });
 
-test('rule 54: an update that adds a requirement installed but OFF is refused while the plugin is active', async () => {
+test('rule 55: an update that adds a requirement installed but OFF is refused while the plugin is active', async () => {
   const a1 = h.manifest('xa', '1.0.0');
   const b1 = h.manifest('xb', '1.0.0');
   const a2 = h.manifest('xa', '1.1.0', { requires: [req('xb')] });
@@ -33,7 +33,7 @@ test('rule 54: an update that adds a requirement installed but OFF is refused wh
   assert.equal(model.get('xa').version, '1.0.0');
 });
 
-test('rule 54: the same update is allowed when the plugin itself is off', async () => {
+test('rule 55: the same update is allowed when the plugin itself is off', async () => {
   const a1 = h.manifest('xa', '1.0.0');
   const b1 = h.manifest('xb', '1.0.0');
   const a2 = h.manifest('xa', '1.1.0', { requires: [req('xb')] });
@@ -48,7 +48,7 @@ test('rule 54: the same update is allowed when the plugin itself is off', async 
   assert.equal(model.get('xa').version, '1.1.0');
 });
 
-test('rule 54: an update that closes a cycle through active plugins is refused, one by one and in bulk', async () => {
+test('rule 55: an update that closes a cycle through active plugins is refused, one by one and in bulk', async () => {
   const a1 = h.manifest('xa', '1.0.0');
   const b1 = h.manifest('xb', '1.0.0', { requires: [req('xa')] });
   const a2 = h.manifest('xa', '1.1.0', { requires: [req('xb')] });
@@ -67,7 +67,7 @@ test('rule 54: an update that closes a cycle through active plugins is refused, 
   assert.equal(model.get('xa').version, '1.0.0');
 });
 
-test('rule 54: a rollback to a version whose requirements close a cycle is refused', async () => {
+test('rule 55: a rollback to a version whose requirements close a cycle is refused', async () => {
   const a1 = h.manifest('xa', '1.0.0', { requires: [req('xb')] });
   const b1 = h.manifest('xb', '1.0.0');
   const a2 = h.manifest('xa', '1.1.0');
@@ -84,7 +84,7 @@ test('rule 54: a rollback to a version whose requirements close a cycle is refus
   assert.equal(model.get('xa').version, '1.1.0');
 });
 
-test('rule 54: the bundled-row sync at a core update leaves a row alone when the new manifest would close a cycle', () => {
+test('rule 55: the bundled-row sync at a core update leaves a row alone when the new manifest would close a cycle', () => {
   const a1 = h.manifest('xa', '1.0.0');
   const b1 = h.manifest('xb', '1.0.0', { requires: [req('xa')] });
   const a2 = h.manifest('xa', '1.1.0', { requires: [req('xb')] });
@@ -103,7 +103,7 @@ test('rule 54: the bundled-row sync at a core update leaves a row alone when the
   assert.ok(errors.some((e) => /xa/.test(e) && /REQUIREMENT_CYCLE/.test(e)), errors.join('|'));
 });
 
-test('rule 55: two installed plugins that require each other can be uninstalled, one after the other', async () => {
+test('rule 56: two installed plugins that require each other can be uninstalled, one after the other', async () => {
   const a = h.manifest('xa', '1.0.0', { requires: [req('xb')] });
   const b = h.manifest('xb', '1.0.0', { requires: [req('xa')] });
   const { ctrl, model } = h.setup({ bundled: [a, b], installed: [row(a), row(b)] });
@@ -115,7 +115,7 @@ test('rule 55: two installed plugins that require each other can be uninstalled,
   assert.equal((await h.call(ctrl.uninstall, { params: { id: 'xb' }, query: {} })).statusCode, 200);
 });
 
-test('rule 55: a dependant outside the cycle still blocks the uninstall', async () => {
+test('rule 56: a dependant outside the cycle still blocks the uninstall', async () => {
   const a = h.manifest('xa', '1.0.0', { requires: [req('xb')] });
   const b = h.manifest('xb', '1.0.0', { requires: [req('xa')] });
   const c = h.manifest('xc', '1.0.0', { requires: [req('xa')] });
@@ -127,7 +127,7 @@ test('rule 55: a dependant outside the cycle still blocks the uninstall', async 
   assert.deepEqual(res.body.requiredBy, ['xc']);
 });
 
-test('rule 55: a plugin that needs the cycle through one member blocks the removal of every member', async () => {
+test('rule 56: a plugin that needs the cycle through one member blocks the removal of every member', async () => {
   const a = h.manifest('xa', '1.0.0', { requires: [req('xb')] });
   const b = h.manifest('xb', '1.0.0', { requires: [req('xa')] });
   const d = h.manifest('xd', '1.0.0', { requires: [req('xa')] });

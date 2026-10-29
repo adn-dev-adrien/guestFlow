@@ -1,4 +1,4 @@
-// specs/plugins-phase-4-registry.md rules 51 and 53 (audit r3 N-R3-1, audit r4 N-R4-1) — a plugin whose behaviour
+// specs/plugins-phase-4-registry.md rules 51 and 54 (audit r3 N-R3-1, audit r4 N-R4-1) — a plugin whose behaviour
 // rests on a hardening of the CORE (the linear e-mail check, the mailbox reader's caps, the Qonto timeout, the scoped
 // cancellation retry) asks for the SDK that ships it: a core older than that SDK refuses the package instead of
 // running it without the hardening.
@@ -53,7 +53,7 @@ test('rule 51: the SDK that ships the hardenings is at least 2.15.0', () => {
   assert.ok(satisfies(SDK_VERSION, `>=${HARDENED_AT}`), SDK_VERSION);
 });
 
-test('rule 53: the discovery sees double quotes, a destructured readMailsFrom and a spread-out coreModule call', () => {
+test('rule 54: the discovery sees double quotes, a destructured readMailsFrom and a spread-out coreModule call', () => {
   const features = (text) => hardeningsIn(text).map((h) => h.feature);
   assert.ok(features('sdk.coreModule("qonto").qontoService').includes('Qonto request timeout'));
   assert.ok(features("sdk.coreModule(\n  `qonto`,\n)").includes('Qonto request timeout'));
@@ -61,14 +61,14 @@ test('rule 53: the discovery sees double quotes, a destructured readMailsFrom an
   assert.deepEqual(features('sdk.coreModule("dateFr")'), []);
 });
 
-test('rule 53: the discovery finds the plugins audit r3 and r4 named', () => {
+test('rule 54: the discovery finds the plugins audit r3 and r4 named', () => {
   for (const id of ['website-booking', 'booking-intake', 'airbnb-intake', 'gites-de-france-intake', 'online-payment']) {
     assert.ok(relying.has(id), `${id} is not discovered as relying on a core hardening`);
   }
 });
 
 for (const [id, hits] of relying) {
-  test(`rule 53: ${id} refuses a core whose SDK predates ${hits.map((h) => h.feature).join(', ')}, and loads on this one`, () => {
+  test(`rule 54: ${id} refuses a core whose SDK predates ${hits.map((h) => h.feature).join(', ')}, and loads on this one`, () => {
     const m = readSourceManifest(id);
     for (const h of hits) {
       const [major, minor] = h.sdk.split('.').map(Number);

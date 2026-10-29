@@ -87,7 +87,7 @@ function runningCopy(id) {
 
 const refusedSyncs = new Set();
 
-// Rule 54 — a release never rewrites a row with a manifest that would close a dependency cycle.
+// Rule 55 — a release never rewrites a row with a manifest that would close a dependency cycle.
 function syncClosesCycle(model, id, manifest) {
   const manifests = Object.fromEntries(model.list().map((r) => [r.id, r.manifest || { id: r.id, requires: [] }]));
   manifests[id] = manifest;
@@ -95,7 +95,7 @@ function syncClosesCycle(model, id, manifest) {
 }
 
 /**
- * Rule 56 — a release whose manifest makes an ACTIVE plugin require an installed but OFF plugin switches the
+ * Rule 57 — a release whose manifest makes an ACTIVE plugin require an installed but OFF plugin switches the
  * dependant off (and its active dependants), never the requirement on: the home says so.
  */
 function switchOffOverInactive(model, ids) {
@@ -129,7 +129,7 @@ function switchOffOverInactive(model, ids) {
  */
 function housekeeping({ model, ids, now = new Date(), copyOf = runningCopy }) {
   const s = ensure();
-  // The sync of the bundled rows and the switch-offs it calls for are ONE transaction (rule 56): a failure saves
+  // The sync of the bundled rows and the switch-offs it calls for are ONE transaction (rule 57): a failure saves
   // nothing, so the next boot finds the same rows to sync and retries, and never leaves a dependant on over a
   // requirement that was switched off. The boot goes on either way: the plugins then stay as they were.
   try {

@@ -262,13 +262,13 @@ function createController(model = defaultModel, deps = {}) {
   // A development tree installs from its sources (rule 10): the offer is the source manifest's.
   const sourceOffer = (entry) => offerOf(entry.id, entry, entry.version);
 
-  // Rule 54 — the cycle the target manifest would close, with the others as they are installed.
+  // Rule 55 — the cycle the target manifest would close, with the others as they are installed.
   function cycleRefusal(id, manifest) {
     const cycle = graph({ [id]: manifest }).cycleOf(id);
     return cycle ? { code: 'REQUIREMENT_CYCLE', message: `Dépendance circulaire : ${cycleLabel(cycle, nameOf)}.` } : null;
   }
 
-  // Rule 54 — an active plugin never moves onto a requirement that is installed but off (rule 37).
+  // Rule 55 — an active plugin never moves onto a requirement that is installed but off (rule 37).
   function inactiveRefusal(row, manifest) {
     if (!row.enabled) return null;
     const { plan } = requirementPlan(manifest, planCtx());
@@ -276,7 +276,7 @@ function createController(model = defaultModel, deps = {}) {
     return off.length ? { code: 'REQUIREMENT_INACTIVE', message: `Nécessite ${off.map((p) => p.name).join(', ')} : à activer d’abord.` } : null;
   }
 
-  // Rules 54 and 57 — every refusal of moving `row` onto `manifest` (an update, or a rollback to an older one).
+  // Rules 55 and 58 — every refusal of moving `row` onto `manifest` (an update, or a rollback to an older one).
   function movingRefusal(row, manifest) {
     const { plan, refusal } = requirementPlan(manifest, planCtx());
     const toInstall = plan.filter((p) => p.op === 'install');
@@ -333,7 +333,7 @@ function createController(model = defaultModel, deps = {}) {
   // Rule 23 — the cycle that stops `id` from coming up: its own, or one it would have to switch on.
   const cycleAround = (g, id) => [id, ...g.requirementClosure(id)].map((member) => g.cycleOf(member)).find(Boolean) || null;
 
-  // Rule 55 — a dependant inside the plugin's own strongly connected group does not block its removal:
+  // Rule 56 — a dependant inside the plugin's own strongly connected group does not block its removal:
   // that is how an installed cycle is taken apart. A dependant OUTSIDE the group blocks the removal of every
   // member, since it needs the whole group through the one it requires.
   const outsideGroup = (g, id) => {

@@ -111,7 +111,7 @@ function buildModel(database) {
     pendingHooks: () => database.prepare('SELECT id FROM plugins WHERE hooks_pending > 0 ORDER BY id').all().map((r) => r.id),
     clearHooksPending(id) { database.prepare('UPDATE plugins SET hooks_pending = 0 WHERE id = ?').run(id); },
     setEnabled(id, enabled) { setEnabledStmt.run(enabled ? 1 : 0, id); },
-    // Rule 56 — switched off by the system because the requirement `reason` is off; any later switch clears the notice.
+    // Rule 57 — switched off by the system because the requirement `reason` is off; any later switch clears the notice.
     switchOff(id, reason) { switchOffStmt.run(reason, id); },
     uninstall(id) { deleteStmt.run(id); },
     isActive: (id) => Boolean(isActiveStmt.get(id)),
