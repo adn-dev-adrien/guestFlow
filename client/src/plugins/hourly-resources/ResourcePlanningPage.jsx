@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router';
 import {
   Box, Typography, Button, IconButton, Select, MenuItem,
@@ -88,12 +88,16 @@ export default function ResourcePlanningPage() {
 
   // Load bookings when resource or week changes. A failed load must SURFACE (an empty grid would
   // read as « libre » and invite double-booking) — specs/ds-sweep-planning.md rule 9.
+  // An answer for a week or a resource already left is dropped: it would show a taken slot free.
+  const latestBookingsRequest = useRef(0);
   const loadBookings = useCallback(() => {
     if (!selectedResourceId) return;
+    latestBookingsRequest.current += 1;
+    const mine = latestBookingsRequest.current;
     setLoadError(false);
     api.getResourceBookings({ resourceId: selectedResourceId, weekStart: monday })
-      .then(setBookings)
-      .catch(() => { setBookings([]); setLoadError(true); });
+      .then((rows) => { if (mine === latestBookingsRequest.current) setBookings(rows); })
+      .catch(() => { if (mine === latestBookingsRequest.current) { setBookings([]); setLoadError(true); } });
   }, [selectedResourceId, monday]);
 
   useEffect(() => { loadBookings(); }, [loadBookings]);

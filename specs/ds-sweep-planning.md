@@ -233,6 +233,12 @@ business behavior, figure, or calendar geometry**.
     platform badge and the alert caption still wrap after it.
     > **Sans test** — line wrapping is CSS; jsdom computes no layout, so it is checked visually at 390 px.
 
+31. **The resource planning shows the bookings of the week and the resource on screen only (audit R4,
+    2026-10-29; reinforces rule 9).** An answer for a week or a resource already left is dropped, and so
+    is its failure: a taken slot never reads as free because a slow answer for another week landed
+    after the operator came back. Plugin `hourly-resources` 1.3.2.
+    Test: `ResourcePlanningPage.stale-bookings.test.jsx`.
+
 **Edge cases:**
 - No computed figure, occupancy math, drag-and-drop behavior, or calendar geometry changes.
 - `calendar-platform-colors.test.js` guard (no direct `PLATFORM_COLORS[…]` outside
