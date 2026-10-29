@@ -482,7 +482,7 @@ function refundMeansOf(row, complementExcess, overpaymentTtc) {
 
 // The trop-perçu `overpaymentTtc` of a stay, with its refund means and its split by poste, the quote being
 // the stay as it would be saved (or as it is stored).
-function overpaymentResultOf(reservationId, row, quote, overpaymentTtc) {
+function overpaymentResultOf(reservationId, row, quote, overpaymentTtc, { storedOnly = false } = {}) {
   const complementExcess = round2(quote.complementCollectedExcessTtc);
   return {
     overpaymentTtc,
@@ -490,7 +490,7 @@ function overpaymentResultOf(reservationId, row, quote, overpaymentTtc) {
     overpaymentLines: overpaymentLinesOf({
       row, capturedByPoste: model.capturedScheduleContribsByPoste(reservationId), quote, overpaymentTtc,
       complementLeft: complementExcess > 0 && overpaymentTtc > 0 ? complementLeftOf(reservationId, quote, row) : {},
-      leftover: overpaymentTtc > 0 ? leftOfStayOf(reservationId, row, quote) : {},
+      leftover: overpaymentTtc > 0 ? leftOfStayOf(reservationId, row, quote, { storedOnly }) : {},
     }),
   };
 }
@@ -498,7 +498,7 @@ function overpaymentResultOf(reservationId, row, quote, overpaymentTtc) {
 // What left the stay since its money was collected, per poste: the stored lines against the quote's (before
 // a save writes them) and the history (after it has), the larger of the two. The tax a fall of
 // `touristTaxTotal` took out, the options and resources a removal or a reduction took out.
-function leftOfStayOf(reservationId, row, quote) {
+function leftOfStayOf(reservationId, row, quote, { storedOnly = false } = {}) {
   const sum = (lines) => (lines || []).filter((l) => !Number(l.offered || 0)).reduce((t, l) => t + Number(l.totalPrice || 0), 0);
   const storedOptions = db.prepare('SELECT totalPrice, offered FROM reservation_options WHERE reservationId = ?').all(Number(reservationId));
   const storedResources = db.prepare('SELECT totalPrice, offered FROM reservation_resources WHERE reservationId = ?').all(Number(reservationId));
@@ -509,16 +509,23 @@ function leftOfStayOf(reservationId, row, quote) {
     touristTax: Math.max(0, Number(row.touristTaxTotal || 0) - Number(quote.touristTaxTotal || 0)),
   };
   const history = droppedSinceCollection(reservationId, row);
-  return Object.fromEntries(Object.keys(live).map((poste) => [poste, round2(Math.max(live[poste], history[poste]))]));
+  // A stored stay is read against its own history only: today's engine may price a line differently without
+  // any edit, which is no excess.
+  return Object.fromEntries(Object.keys(live).map((poste) => [poste, round2(storedOnly ? history[poste] : Math.max(live[poste], history[poste]))]));
 }
 
-// The drops the history recorded since the first paid bucket was collected: the tourist tax, the options and
-// the resources (their signatures carry each line's total).
+// The NET drops the history recorded since the first money was actually collected (an acompte or a solde paid
+// date, or the first paid installment): the tourist tax, the options and the resources (their signatures carry
+// each line's total). Increases inside the window are netted, so a line removed then restored counts for nothing.
 function droppedSinceCollection(reservationId, row) {
-  const dates = [row.depositPaid && row.depositPaidDate, row.balancePaid && row.balancePaidDate].filter(Boolean).map((d) => String(d).slice(0, 10)).sort();
-  const since = dates[0] || '';
+  const dates = [row.depositPaid && row.depositPaidDate, row.balancePaid && row.balancePaidDate].filter(Boolean).map((d) => String(d).slice(0, 10));
+  try {
+    const first = db.prepare('SELECT MIN(paidDate) AS d FROM reservation_installments WHERE reservationId = ? AND paid = 1 AND paidDate IS NOT NULL').get(Number(reservationId));
+    if (first && first.d) dates.push(String(first.d).slice(0, 10));
+  } catch { /* no installments table */ }
+  const since = dates.sort()[0] || '';
   const total = (signature) => String(signature || '').split('|').filter(Boolean).reduce((t, part) => t + (Number(part.split(':')[2]) || 0), 0);
-  const dropped = { options: 0, resources: 0, touristTax: 0 };
+  const net = { options: 0, resources: 0, touristTax: 0 };
   const entries = db.prepare("SELECT changedFields, createdAt FROM reservation_history WHERE reservationId = ? AND eventType = 'update' ORDER BY id").all(Number(reservationId));
   for (const entry of entries) {
     if (since && String(entry.createdAt || '').slice(0, 10) < since) continue;
@@ -526,12 +533,12 @@ function droppedSinceCollection(reservationId, row) {
     try { changes = JSON.parse(entry.changedFields || '[]'); } catch { changes = []; }
     for (const change of changes) {
       if (!change) continue;
-      if (change.field === 'touristTaxTotal') dropped.touristTax += Math.max(0, Number(change.from || 0) - Number(change.to || 0));
-      if (change.field === 'optionsSignature') dropped.options += Math.max(0, total(change.from) - total(change.to));
-      if (change.field === 'resourcesSignature') dropped.resources += Math.max(0, total(change.from) - total(change.to));
+      if (change.field === 'touristTaxTotal') net.touristTax += Number(change.from || 0) - Number(change.to || 0);
+      if (change.field === 'optionsSignature') net.options += total(change.from) - total(change.to);
+      if (change.field === 'resourcesSignature') net.resources += total(change.from) - total(change.to);
     }
   }
-  return dropped;
+  return Object.fromEntries(Object.entries(net).map(([poste, value]) => [poste, Math.max(0, value)]));
 }
 
 // The trop-perçu of the stay as the engine would save it (rule 34).
@@ -576,7 +583,7 @@ function storedOverpayment(reservationId) {
   if (!row || row.kind !== 'reservation') return null;
   const quote = quoteStoredReservation(db, row);
   if (!quote || quote.error) return null;
-  return overpaymentResultOf(reservationId, row, quote, storedOverpaymentOf(storedOverpaymentInputs(reservationId, row, quote)));
+  return overpaymentResultOf(reservationId, row, quote, storedOverpaymentOf(storedOverpaymentInputs(reservationId, row, quote)), { storedOnly: true });
 }
 
 // A refusal raised inside the creation transaction: thrown to roll the whole write back, then answered

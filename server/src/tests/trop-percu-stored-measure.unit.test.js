@@ -196,3 +196,49 @@ test('rule 15 — with no captured split the excess is split by what left since 
   const taxRow = overpaymentRow(await get(taxed.controller, taxed.id));
   assert.deepEqual(taxRow.refundPrefill.overpaymentLines.map((l) => [l.bucket, l.amountTtc]), [['touristTax', 3]]);
 });
+
+// ── Closing the poste notes (rule 15) ────────────────────────────────────────────────────────────────────
+const setHistoryDates = (db, id, dates) => {
+  const rows = db.prepare('SELECT id FROM reservation_history WHERE reservationId = ? ORDER BY id').all(id);
+  rows.forEach((r, i) => db.prepare('UPDATE reservation_history SET createdAt = ? WHERE id = ?').run(dates[i] || dates[dates.length - 1], r.id));
+};
+
+test('rule 15 — the window starts at the first money collected (a paid installment): a drop before it is not the excess', async () => {
+  const { db, controller, id, body } = await stay({ customOptions: [{ customKey: 'a', description: 'Panier', amount: 80, offered: false }] });
+  assert.equal(controller.performUpdate(id, body({ customOptions: [] })).status, 200); // option removed, nothing collected yet
+  const total = price(db, id);
+  db.prepare('UPDATE reservations SET depositAmount = 0, balanceAmount = 0 WHERE id = ?').run(id);
+  const cents = Math.round(total * 100);
+  const insert = db.prepare("INSERT INTO reservation_installments (reservationId, number, dueDate, amountCents, paid, paidDate) VALUES (?, ?, '2099-01-01', ?, 1, '2099-01-01')");
+  insert.run(id, 1, Math.floor(cents / 2)); insert.run(id, 2, cents - Math.floor(cents / 2));
+  assert.equal(controller.performUpdate(id, body({ customOptions: [], discountPercent: 10, forceOverpayment: true })).status, 200); // after the payment
+  setHistoryDates(db, id, ['2098-12-01 10:00:00', '2098-12-01 10:00:00', '2099-02-01 10:00:00']);
+  const row = overpaymentRow(await get(controller, id));
+  assert.deepEqual(row.refundPrefill.overpaymentLines.map((l) => l.bucket), ['accommodation'], 'the 80 € dropped before the first payment is not the excess');
+});
+
+test('rule 15 — an option removed then re-added inside the window nets to nothing', async () => {
+  const { db, controller, id, body } = await stay({ customOptions: [{ customKey: 'a', description: 'Panier', amount: 80, offered: false }] });
+  db.prepare('UPDATE reservations SET balancePaid = 1, balanceAmount = finalPrice + touristTaxTotal WHERE id = ?').run(id);
+  assert.equal(controller.performUpdate(id, body({ customOptions: [], forceOverpayment: true })).status, 200);
+  assert.equal(controller.performUpdate(id, body({ forceOverpayment: true })).status, 200); // back to the Panier
+  const paid = db.prepare('SELECT finalPrice FROM reservations WHERE id = ?').get(id).finalPrice;
+  db.prepare('UPDATE reservations SET balanceAmount = balanceAmount + 0 WHERE id = ?').run(id);
+  assert.equal(controller.performUpdate(id, body({ discountPercent: 10, forceOverpayment: true })).status, 200);
+  const row = overpaymentRow(await get(controller, id));
+  assert.ok(row && paid > 0);
+  assert.ok(!row.refundPrefill.overpaymentLines.some((l) => l.bucket === 'options'), 'the removed-then-restored line is not an excess');
+  assert.equal(row.refundPrefill.overpaymentLines.reduce((t, l) => t + l.amountTtc, 0), row.amount);
+});
+
+test('rule 15 — on the GET a line today\'s engine no longer derives is not an options share without an edit', async () => {
+  const { db, controller, id } = await stay();
+  const option = db.prepare(`INSERT INTO options (title, priceType, price, autoOptionType, autoEnabled, autoPricingMode, autoFullNightThreshold)
+    VALUES ('Arrivée test', 'per_stay', 40, 'early_check_in', 1, 'proportional', '10:00')`).run().lastInsertRowid;
+  db.prepare('INSERT INTO property_options (propertyId, optionId) VALUES (1, ?)').run(option);
+  // Stored with a 40 € early check-in line that the engine, at the property's default arrival, no longer derives.
+  db.prepare("INSERT INTO reservation_options (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice) VALUES (?, ?, 1, 40, 1, 'per_stay', 40)").run(id, option);
+  db.prepare('UPDATE reservations SET finalPrice = finalPrice - 20, balancePaid = 1, balanceAmount = finalPrice + touristTaxTotal WHERE id = ?').run(id);
+  const row = overpaymentRow(await get(controller, id));
+  assert.deepEqual(row.refundPrefill.overpaymentLines.map((l) => [l.bucket, l.amountTtc]), [['accommodation', 20]]);
+});

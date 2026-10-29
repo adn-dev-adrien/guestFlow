@@ -166,7 +166,10 @@ changed something the price depends on; money collected beyond the total is repo
 15. **The poste of an excess with no captured split is what left the stay.** The tourist tax first, then the
     options, then the resources, the rest on the accommodation: read from the stored lines against the quote's
     (before a save writes them) and from the history's tax / options / resources signatures since the first
-    paid bucket was collected (after), the larger of the two. Such a line reads « <poste> : <amount> encaissés
+    money was actually collected (after) — the first acompte or solde paid date, or the first paid installment —
+    netting the increases inside that window (an option removed then restored counts for nothing); before a
+    save writes, the larger of the two. A fiche read from the database uses the history alone: today's engine
+    may price a stored line differently without any edit, which is no excess. Such a line reads « <poste> : <amount> encaissés
     en trop », never an « encaissés / dus » pair that contradicts the amount. Limit: a stay whose history was
     lost falls back on the accommodation; the correction of an adjusted complement (rule 12) uses today's
     engine for the complement it routes on its own, no stamp of that amount exists.
