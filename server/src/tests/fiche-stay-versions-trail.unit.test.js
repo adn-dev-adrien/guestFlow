@@ -83,3 +83,14 @@ test('rule 8 — a write rolled back with its transaction is never reported, a c
   close();
   assert.deepEqual(JSON.parse(res.headers.get(HEADER)), [{ id: 2, before: 'w0', after: 'w1' }]);
 });
+
+test('rule 8 — a row left by a commit the wrapper did not see is never attributed to the next request', async () => {
+  const db = fresh();
+  const { base, close } = await serve(db, (app) => app.post('/api/payments/links', (req, res) => { set(db, 2, 'w1'); res.json({}); }));
+  db.prepare('BEGIN').run();
+  set(db, 1, 'v1'); // inside a manual transaction: not drained
+  db.prepare('COMMIT').run(); // the wrapper does not see the commit: the row stays behind
+  const res = await fetch(`${base}/api/payments/links`, { method: 'POST' });
+  close();
+  assert.deepEqual(JSON.parse(res.headers.get(HEADER)), [{ id: 2, before: 'w0', after: 'w1' }]);
+});
