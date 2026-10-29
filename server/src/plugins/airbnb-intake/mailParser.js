@@ -94,9 +94,19 @@ function parseAirbnbMail({ subject, text, sentAt }) {
   // line is the guest's own text (and the header block), which may say anything.
   const allLines = plain.split(/\r?\n/);
   const messageEnd = allLines.map((l) => l.length <= MAX_LINE && /^Envoyer un message à/i.test(l.trim())).lastIndexOf(true);
-  // A confirmation without a guest message has no « Envoyer un message à » line: all of it is structured.
-  const lines = messageEnd < 0 ? allLines : allLines.slice(messageEnd);
-  const head = messageEnd < 0 ? allLines.join('\n') : allLines.slice(0, messageEnd).join('\n');
+  // A confirmation without a guest message has no « Envoyer un message à » line. Nothing the guest typed may then
+  // sit above the structured part: right after « Sur Airbnb depuis … » comes the thread or rooms link, or the
+  // mail is refused (rule 27).
+  let from = 0;
+  if (messageEnd < 0) {
+    const since = lineIndex(allLines, /^Sur Airbnb depuis/i);
+    const first = since < 0 ? -1 : allLines.findIndex((l, i) => i > since && l.trim());
+    const link = first < 0 ? '' : allLines[first].trim().replace(/^\[/, '');
+    if (!/^https:/.test(link) || !airbnbUrl(link, '/(?:rooms|hosting/thread)/')) return fail('Partie structurée du mail introuvable');
+    from = first;
+  }
+  const lines = messageEnd < 0 ? allLines.slice(from) : allLines.slice(messageEnd);
+  const head = messageEnd < 0 ? allLines.slice(0, from).join('\n') : allLines.slice(0, messageEnd).join('\n');
   // Headers are printed in capitals; only the parsed lines count, so the guest's own « Voyageurs » proves nothing.
   if (Object.values(HEADER_RES).some((re) => countLines(lines, re) > 1)) return fail('Mail ambigu : un en-tête apparaît plusieurs fois');
   const structured = lines.join('\n');

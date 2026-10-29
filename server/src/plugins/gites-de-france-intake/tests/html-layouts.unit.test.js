@@ -71,3 +71,13 @@ test('rule 28: only a parse failure is forgotten — an intake that failed to ap
   const v2 = setup({ parserVersion: '1.4.2', existingDb: v1.db, today: '2026-12-01' });
   assert.deepEqual(await v2.service.runPass(), { read: 0 });
 });
+
+test('rule 28: a refused mail the operator dismissed is not brought back by a version bump', async () => {
+  const flat = { messageId: '<d@x>', receivedAt: '2026-10-14T16:32:00.000Z', text: BOOKING_MAIL.replace(/\n/g, ' '), authenticated: true };
+  const v1 = setup({ mails: [flat], parserVersion: '1.4.1' });
+  await v1.service.runPass();
+  v1.intakes.dismiss(1);
+  const v2 = setup({ mails: [{ ...flat, text: BOOKING_MAIL }], parserVersion: '1.4.2', existingDb: v1.db });
+  assert.deepEqual(await v2.service.runPass(), { read: 0 });
+  assert.equal(v2.intakes.count(), 1);
+});

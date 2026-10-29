@@ -70,11 +70,20 @@ test('rule 24: a key header repeated in the structured part is refused', () => {
 });
 
 test('rule 27: a confirmation without guest message (no « Envoyer un message à » line) is read whole', () => {
-  const mail = bookingMail().replace(/Sur Airbnb depuis 2024[\s\S]*?(?=https:\/\/www\.airbnb\.fr\/rooms)/, '');
+  const mail = bookingMail().replace(/(Sur Airbnb depuis 2024\n\n)[\s\S]*?(?=https:\/\/www\.airbnb\.fr\/rooms)/, '$1');
   assert.ok(!/Envoyer un message/.test(mail));
   const r = parse(mail);
   assert.equal(r.ok, true, r.error);
   assert.deepEqual([r.booking.code, r.booking.startDate, r.booking.adults, r.booking.message], ['HMTEST1234', '2026-12-26', 5, '']);
+});
+
+test('rule 27: without the end-of-message line, guest text above the links refuses the mail and decides nothing', () => {
+  const noEnd = (text) => text.replace(/(Sur Airbnb depuis 2024\n\n)[\s\S]*?(?=https:\/\/www\.airbnb\.fr\/rooms)/, `$1${'$$TEXT'}\n\n`);
+  const base = bookingMail();
+  const forged = noEnd(base).replace('$TEXT', 'Bonjour\nhttps://www.airbnb.fr/rooms/999');
+  const r = parse(forged);
+  assert.equal(r.ok, false);
+  assert.equal(parse(noEnd(base).replace('$TEXT', '')).ok, true);
 });
 
 test('rule 27: an arrival on the « 1er » of a month is read in the subject and in the body', () => {
@@ -149,4 +158,17 @@ test('rule 26: an authenticated mail that does not parse is an error row for the
   const { svc, db } = service(bookingMail().replace(/\nHMTEST1234\n/, '\nHMOTHER9999\n'));
   await svc.runPass();
   assert.equal(db.prepare('SELECT status FROM airbnb_intakes').get().status, 'error');
+});
+
+test('rule 27: a refused mail the operator dismissed is not re-read after a version bump, an undismissed one is', () => {
+  const db = new Database(':memory:');
+  db.exec(TABLE_SQL);
+  const intakes = buildModel(db);
+  const add = (messageId) => intakes.insert({ messageId, receivedAt: SENT_AT, status: 'error', error: 'x', parserVersion: '1.1.1' });
+  const dismissed = add('<a>');
+  add('<b>');
+  intakes.dismiss(dismissed);
+  assert.equal(intakes.has('<a>', '1.1.2'), true);
+  assert.equal(intakes.has('<b>', '1.1.2'), false);
+  assert.equal(intakes.has('<b>', '1.1.1'), false, 'already deleted by the previous check');
 });

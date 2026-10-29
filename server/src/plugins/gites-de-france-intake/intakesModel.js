@@ -46,11 +46,12 @@ function hydrate(row) {
 
 function buildModel(db) {
   return {
-    // With `parserVersion`: a mail whose parse failed under another version is forgotten, so it is read again.
+    // With `parserVersion`: a mail whose parse failed under another version is forgotten, so it is read again —
+    // unless the operator dismissed it, which stays final.
     has(messageId, parserVersion = null) {
-      const row = db.prepare('SELECT id, status, parsed, parserVersion FROM gdf_intakes WHERE messageId = ?').get(messageId);
+      const row = db.prepare('SELECT id, status, parsed, parserVersion, dismissedAt FROM gdf_intakes WHERE messageId = ?').get(messageId);
       if (!row) return false;
-      if (parserVersion && row.parsed == null && ['error', 'ignored'].includes(row.status) && row.parserVersion !== parserVersion) {
+      if (parserVersion && !row.dismissedAt && row.parsed == null && ['error', 'ignored'].includes(row.status) && row.parserVersion !== parserVersion) {
         db.prepare('DELETE FROM gdf_intakes WHERE id = ?').run(row.id);
         return false;
       }

@@ -250,7 +250,7 @@ choice in one click.
 28. *(Added 2026-10-28, review of PR #849.)* **A refused mail is read again after a plugin update.** A parse failure
     (`parsed` empty, status `error` or `ignored`) is stamped with the plugin version in `parserVersion`; when the
     version differs, the row is dropped and the mail read again, so a later parser fix recovers it. An intake that
-    parsed but failed to apply is never re-read. Same in `airbnb-intake`. Test: same file.
+    parsed but failed to apply is never re-read, nor is a row the operator dismissed. Same in `airbnb-intake`. Test: same file.
 
 ---
 
