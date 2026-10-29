@@ -86,3 +86,19 @@ test('rule 34 — « Rembourser » on the trop-perçu row opens the dialog on th
   await user.click(screen.getByRole('button', { name: /^Rembourser/ }));
   expect(setRefundDialogOpen).toHaveBeenCalledWith({ overpaymentTtc: 96, overpaymentLines: lines });
 });
+
+test('a trop-perçu row carrying its own prefill opens the dialog on it, whatever the live quote holds (locked fiche)', async () => {
+  const user = userEvent.setup();
+  const setRefundDialogOpen = vi.fn();
+  const lines = [{ bucket: 'options', label: 'Prestations complémentaires', collectedTtc: 21, dueTtc: 0, amountTtc: 21 }];
+  renderFinance({
+    setRefundDialogOpen, refundOverpaymentTtc: 0, refundOverpaymentLines: [],
+    ledger: ledgerOf([{
+      key: 'overpayment', label: 'Trop-perçu', amount: 21, state: 'due', tone: 'warning', stateLabel: 'À rembourser',
+      action: { kind: 'refund', label: 'Rembourser' }, amountEdit: NONE, detail: { lines: [] },
+      refundPrefill: { overpaymentTtc: 21, overpaymentLines: lines },
+    }]),
+  });
+  await user.click(screen.getByRole('button', { name: /^Rembourser/ }));
+  expect(setRefundDialogOpen).toHaveBeenCalledWith({ overpaymentTtc: 21, overpaymentLines: lines });
+});

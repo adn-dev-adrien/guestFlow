@@ -145,12 +145,21 @@ function customSave(stay, patch) {
   return db.prepare('SELECT description, amount, offered FROM reservation_custom_options WHERE reservationId = ?').get(id);
 }
 
-test('rule 2 — renaming a paid custom line is saved', () => {
+test('rule 2 — renaming a custom line saves the text alone: money, tax, ids and snapshots stand, one history row (Adrien, 2026-10-29)', () => {
   const stay = fixture();
+  const { db, id } = stay;
+  db.prepare('UPDATE reservations SET finalPrice = finalPrice - 5, balanceAmount = balanceAmount - 5, touristTaxTotal = 0 WHERE id = ?').run(id);
+  const before = row(db, id);
+  const ids = db.prepare('SELECT id FROM reservation_custom_options WHERE reservationId = ?').all(id);
+  const history = historyCount(db, id);
   assert.equal(customSave(stay, { description: 'Panier garni' }).description, 'Panier garni');
+  const after = row(db, id);
+  for (const column of ['finalPrice', 'balanceAmount', 'touristTaxTotal', 'tariffSnapshot']) assert.equal(after[column], before[column], column);
+  assert.deepEqual(db.prepare('SELECT id FROM reservation_custom_options WHERE reservationId = ?').all(id), ids);
+  assert.equal(historyCount(db, id), history + 1);
 });
 
-test('rule 2 — renaming an offered custom line is saved', () => {
+test('rule 2 — renaming an offered custom line saves the text alone', () => {
   const stay = fixture();
   customSave(stay, { offered: true });
   assert.equal(customSave(stay, { offered: true, description: 'Panier offert' }).description, 'Panier offert');
@@ -172,4 +181,14 @@ test('rule 1 — a refused or untouched save on a started fiche does not pin the
   assert.equal(row(db, id).arrivalExtrasBaseline, null, 'a refused save writes nothing');
   assert.equal(controller.performUpdate(id, body(sent), { dryRun: true }).status, 200);
   assert.equal(row(db, id).arrivalExtrasBaseline, null, 'a dry run writes nothing');
+});
+
+test('rule 1 — an adjusted complement is not an edit: a past stay carrying one is saved untouched (#22275)', () => {
+  const { db, controller, id, body } = fixture();
+  db.prepare("UPDATE reservations SET startDate = '2000-03-01', endDate = '2000-03-04', complementAmountOverride = 50, complementPaid = 1, complementAmount = 50 WHERE id = ?").run(id);
+  const custom = db.prepare('SELECT id FROM reservation_custom_options WHERE reservationId = ?').get(id);
+  const sent = { startDate: '2000-03-01', endDate: '2000-03-04', complementAmountOverride: 50, customOptions: [{ customKey: String(custom.id), customOptionId: custom.id, description: 'Panier', amount: 20, offered: false }] };
+  const saved = controller.performUpdate(id, body(sent));
+  assert.equal(saved.status, 200, JSON.stringify(saved.body));
+  assert.equal(row(db, id).complementAmountOverride, 50);
 });

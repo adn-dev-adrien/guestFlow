@@ -41,10 +41,13 @@ changed something the price depends on; money collected beyond the total is repo
 1. **A save that moved no pricing input keeps the stay as it was priced.** The quote of the posted fiche is
    compared with the quote of the stored stay (both through the same engine, `pricingUnchangedFromStored`).
    Only what a line BILLS is compared (identity, units, unit price unless offered, total, offered,
-   routing, sessions, occurrences; for a custom line also its text and the amount typed, offered or not —
-   renaming it or retyping an offered amount is an edit), with the money figures and the nights: an engine-derived auto-option
+   routing, sessions, occurrences; for a custom line also the amount typed, offered or not), with the money figures and the nights: an engine-derived auto-option
    (early check-in, cot) comes back from the replay as a plain locked line and from the save as a derived
    one, and must not count (review of #847: 14 of 52 fiches were re-priced by a note).
+   **A custom line renamed alone saves its text only** (Adrien, 2026-10-29: « Texte seul, rien ne bouge »):
+   the new name is written under the same id, a « Prestation libre » row goes to the history, and nothing
+   is re-priced; a changed amount, quantity, date or any other pricing input re-prices. On a locked fiche a
+   rename is refused like any other extras edit, unless the extras window is open.
    When they are identical, the money columns, the option / custom-option / resource lines (ids included),
    the nights, the tariff snapshot, the tourist-tax freeze, the complement ventilation, the installment plan
    and the history are not touched. What is not priced (notes, client, beds, payment dates, cautions…) is
@@ -80,6 +83,12 @@ changed something the price depends on; money collected beyond the total is repo
    keeps rule 38 of `reservation-refunds.md` — the guest paid the platform, which refunds them itself, so
    the engine exposes no `overCollectedTtc` for it, in the preview and in the replay alike, and the excess
    stays as it was (#22208, #22209 on the Solio base).
+   The trop-perçu reaches a **locked fiche** too: the ledger of `GET /api/reservations/:id` carries the
+   « Trop-perçu » row (`ledgerFor(..., overpayment)` from the stored stay priced like its fiche) with its
+   `refundPrefill`, which « Rembourser » opens the refund dialog on. The excess of a complement has no
+   captured split: it is booked on the prestations the stay still sells — options first, then resources,
+   then the accommodation — so bed linen moved out of the complement is refunded on the options account
+   (70600010), not on the accommodation (70600000).
    On a direct channel the fiche preview (`liveOverpayment`) prices the stay with the collected complement
    at its stored amount, so the trop-perçu reaches the fiche and the refund dialog. Lodgify, a direct channel on Solio, is covered
    (#22224, #22226). #22209 (+0,60 €, Abracadaroom) is a platform stay: out.
@@ -101,6 +110,9 @@ changed something the price depends on; money collected beyond the total is repo
 
 **Edge cases:**
 - A custom line's `customKey` is the browser's handle, not part of its price: ignored by the comparison.
+- The audit snapshot read from the database now carries `complementAmountOverride` and
+  `endOfStayComplementAmountOverride`: an adjusted stay saved untouched is no longer read as an edit (#22275
+  was refused with `PAST_RESERVATION_LOCKED` on a no-op save).
 - A save on a past stay passes the same gate; its allowlist is evaluated on the pinned figures, so a
   untouched save is never refused as « locked ».
 

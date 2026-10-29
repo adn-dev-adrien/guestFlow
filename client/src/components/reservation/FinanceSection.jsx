@@ -455,7 +455,7 @@ export default function FinanceSection() {
     const action = row.action || {};
     if (action.kind === 'mark') { setPanel({ key: row.key, kind: 'mark' }); return; }
     if (action.kind === 'refund') {
-      setRefundDialogOpen({ overpaymentTtc: refundOverpaymentTtc, overpaymentLines: refundOverpaymentLines });
+      setRefundDialogOpen(row.refundPrefill || { overpaymentTtc: refundOverpaymentTtc, overpaymentLines: refundOverpaymentLines });
       return;
     }
     if (action.kind === 'deleteRefund') {

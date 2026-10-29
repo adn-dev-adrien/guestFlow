@@ -412,6 +412,11 @@ function liveOverpayment(reservationId, engineInput) {
     engineInput: savedInput, quote: calculateReservationQuote(savedInput), calculate: calculateReservationQuote,
   });
   if (!asSaved || asSaved.error) return none;
+  return overpaymentOfQuote(reservationId, row, asSaved);
+}
+
+// The trop-perçu of a stay and its split by poste, from the quote of the stay as it would be saved.
+function overpaymentOfQuote(reservationId, row, asSaved) {
   const overpaymentTtc = overpaymentOf({
     row,
     captured: model.capturedScheduleContribs(reservationId),
@@ -426,6 +431,16 @@ function liveOverpayment(reservationId, engineInput) {
       row, capturedByPoste: model.capturedScheduleContribsByPoste(reservationId), quote: asSaved, overpaymentTtc,
     }),
   };
+}
+
+// The same, for a fiche read from the database (a locked fiche shows the stored ledger): the stored stay
+// priced as its fiche prices it.
+function storedOverpayment(reservationId) {
+  const row = model.getRow(reservationId);
+  if (!row || row.kind !== 'reservation') return null;
+  const quote = quoteStoredReservation(db, row);
+  if (!quote || quote.error) return null;
+  return overpaymentOfQuote(reservationId, row, quote);
 }
 
 // A refusal raised inside the creation transaction: thrown to roll the whole write back, then answered
@@ -734,7 +749,10 @@ function getById(req, res) {
     // specs/direct-installments.md §4.3 — the plan of a direct reservation, ready to render.
     installmentPlan: installments.planFor(reservation.id),
     // specs/reservation-payment-ledger.md rule 1 — the payments ledger, ready to render.
-    ledger: ledgerFor({ row: { ...model.getRow(reservation.id), cautionAmount: reservation.cautionAmount } }),
+    ledger: ledgerFor({
+      row: { ...model.getRow(reservation.id), cautionAmount: reservation.cautionAmount },
+      overpayment: (() => { const over = storedOverpayment(reservation.id); return over ? { ttc: over.overpaymentTtc, lines: over.overpaymentLines } : null; })(),
+    }),
     // Rule 39 — the headline of the sticky total bar, from the stored row: what the fiche shows while it
     // shows the stored ledger (rule 7), so the two never disagree.
     storedHeadline: storedHeadlineOf(model.getRow(reservation.id)),
@@ -783,6 +801,15 @@ function sameStayAsSold(stored, body) {
     && String(stored.startDate) === String(body.startDate) && String(stored.endDate) === String(body.endDate)
     && num(stored.adults) === num(body.adults) && num(stored.children) === num(body.children)
     && num(stored.teens) === num(body.teens) && num(stored.babies) === num(body.babies);
+}
+
+// The custom lines of a fiche whose NAME alone differs from the stored one: [{ id, from, to }].
+function customTextChangesOf(reservationId, postedLines) {
+  const stored = new Map(model.customOptionTexts(reservationId).map((line) => [Number(line.id), String(line.description || '')]));
+  return (Array.isArray(postedLines) ? postedLines : [])
+    .filter((line) => line && stored.has(Number(line.customOptionId)))
+    .map((line) => ({ id: Number(line.customOptionId), from: stored.get(Number(line.customOptionId)), to: String(line.description || '').trim() }))
+    .filter((change) => change.to && change.to !== change.from);
 }
 
 // The warnings of the pricing summary (`fichePricingNotices`): the commission entered against what the
@@ -1714,6 +1741,8 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
   const keepPricing = Boolean(existingReservation) && !refreshPricingToCurrent && !req.body.refreshTouristTax
     && pricingUnchangedFromStored(db, storedPaymentForQuote, quote, windowEngineInputs);
   if (keepPricing) quote = pinStoredPricing(quote, storedPaymentForQuote);
+  // Adrien, 2026-10-29: a custom line renamed alone saves its text, nothing is re-priced.
+  const customTextChanges = keepPricing ? customTextChangesOf(id, reservationCustomOptions) : [];
 
   // specs/platform-payout-due-date.md §3.5 rule 38 — a started or finished stay keeps the solde
   // deadline it was stored with. « Existing rows re-derive on their next save » (§3.0 arbitrage) can
@@ -1779,6 +1808,7 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
     }
     const forbiddenChanges = computeAuditChanges(beforeAuditSnapshot, afterAuditSnapshot)
       .filter((change) => !allowedLockedFields.has(change.field));
+    if (!midStayWindow) customTextChanges.forEach(() => forbiddenChanges.push({ field: 'optionsSignature' }));
     const extrasFields = new Set(['optionsSignature', 'resourcesSignature']);
     const collected = midStayExtrasWindow(storedPaymentForQuote, todayIso).extrasClosedReason === 'endOfStayCollected';
     if (collected && forbiddenChanges.length > 0 && forbiddenChanges.every((change) => extrasFields.has(change.field))
@@ -1902,7 +1932,9 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
     else model.captureArrivalExtrasBaselineIfDue(id);
     model.updateReservation(id, modelPayload, quote, nightBlocks, nextIcalSyncLocked, { keepPricing });
     if (!keepPricing) writePricedLines();
+    else if (customTextChanges.length > 0) model.renameCustomOptions(id, customTextChanges);
     const changes = computeAuditChanges(beforeAuditSnapshot, afterAuditSnapshot);
+    customTextChanges.forEach(({ from, to }) => changes.push({ field: 'customOptionText', label: 'Prestation libre', from, to }));
     // specs/reservation-payment-ledger.md rule 23 — an amount set from the ledger reads as such.
     const ledgerChange = ledgerHistoryChange({ body: req.body, stored: storedPaymentForQuote, quote });
     if (ledgerChange) changes.unshift(ledgerChange);

@@ -35,3 +35,38 @@ test('rule 4 — the fiche preview of a stay with an over-collected complement a
   assert.equal(quote.overpaymentTtc, 100, 'the 100 € complement is above the stay total');
   assert.ok(quote.overpaymentLines.length > 0, 'the refund dialog has a poste to offer');
 });
+
+test('rule 4 — the excess of a complement that lost its bed linen is booked on the options poste, not on the accommodation', () => {
+  const { overpaymentLinesOf } = require('../utils/overpayment');
+  const lines = overpaymentLinesOf({
+    row: { depositPaid: 0, balancePaid: 1 },
+    capturedByPoste: {},
+    quote: { finalPrice: 300, optionsTotal: 24, resourcesTotal: 0, touristTaxTotal: 0, complementCollectedExcessTtc: 21 },
+    overpaymentTtc: 21,
+  });
+  assert.deepEqual(lines.map((l) => [l.bucket, l.amountTtc]), [['options', 21]]);
+
+  const mixed = overpaymentLinesOf({
+    row: { depositPaid: 0, balancePaid: 1 },
+    capturedByPoste: { balance: { accommodation: 350, options: 0, resources: 0, touristTax: 0 } },
+    quote: { finalPrice: 300, optionsTotal: 24, resourcesTotal: 0, touristTaxTotal: 0, complementCollectedExcessTtc: 21 },
+    overpaymentTtc: 71,
+  });
+  assert.deepEqual(mixed.map((l) => [l.bucket, l.amountTtc]).sort(), [['accommodation', 50], ['options', 21]]);
+});
+
+test('rule 4 — the stored ledger of a LOCKED fiche carries the trop-perçu row, with the refund prefill by poste', async () => {
+  const db = require('../database');
+  const controller = require('../controllers/reservationsController');
+  const id = db.prepare('SELECT id FROM reservations ORDER BY id DESC LIMIT 1').get().id;
+  db.prepare("UPDATE reservations SET startDate = '2000-05-04', endDate = '2000-05-07' WHERE id = ?").run(id);
+  const res = await new Promise((resolve) => {
+    controller.getById({ params: { id: String(id) }, user: { role: 'admin', roles: ['admin'] } }, { status() { return this; }, json: resolve });
+  });
+  const row = res.ledger.rows.find((r) => r.key === 'overpayment');
+  assert.ok(row, 'the ledger of the GET has a Trop-perçu row');
+  assert.equal(row.amount, 100);
+  assert.equal(row.action.kind, 'refund');
+  assert.equal(row.refundPrefill.overpaymentTtc, 100);
+  assert.ok(row.refundPrefill.overpaymentLines.length > 0);
+});

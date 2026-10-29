@@ -1145,6 +1145,10 @@ function createReservationsModel(database) {
         // no deadline, whatever a row stored before rule 10 still holds.
         depositDueDate: round2(row.depositAmount) > 0 ? (row.depositDueDate || null) : null,
         depositAmountOverride: row.depositAmountOverride == null ? null : Number(row.depositAmountOverride),
+        // The two adjusted complements the payload side carries: without them the stored value read as « none »
+        // and every untouched save of an adjusted stay looked like an operator edit (refused on a past stay).
+        complementAmountOverride: row.complementAmountOverride == null ? null : Number(row.complementAmountOverride),
+        endOfStayComplementAmountOverride: row.endOfStayComplementAmountOverride == null ? null : Number(row.endOfStayComplementAmountOverride),
         depositPaidDate: row.depositPaidDate || null,
         balanceAmount: Number(row.balanceAmount || 0),
         balanceDueDate: row.balanceDueDate || null,
@@ -1988,6 +1992,17 @@ function createReservationsModel(database) {
 
     insertOptions(reservationId, optionLines, sasOriginIds = []) {
       bookingLines.insertOptions(reservationId, optionLines, sasOriginIds);
+    },
+
+    // The stored custom lines as { id, description }: what a text-only save compares the posted names to.
+    customOptionTexts(reservationId) {
+      return database.prepare('SELECT id, description FROM reservation_custom_options WHERE reservationId = ?').all(reservationId);
+    },
+
+    // A text-only save: the new names, nothing else on the lines moves (ids and amounts stay).
+    renameCustomOptions(reservationId, renames) {
+      const rename = database.prepare('UPDATE reservation_custom_options SET description = ? WHERE id = ? AND reservationId = ?');
+      for (const { id, to } of renames) rename.run(to, id, reservationId);
     },
 
     deleteCustomOptions(reservationId) {

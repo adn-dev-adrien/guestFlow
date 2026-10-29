@@ -53,10 +53,10 @@ function billedLine(line) {
     totalPrice: Math.round(Number(line.totalPrice || 0) * 100),
     offered,
     inComplement: Number(line.inComplement || 0),
-    // A custom line is the operator's own text and amount: renaming it, or retyping the amount of an
-    // offered one, is an edit even though nothing is billed differently.
+    // The amount typed on a custom line is an input even when the line is offered; its TEXT is not
+    // (Adrien, 2026-10-29: a rename saves the text only, nothing is re-priced).
     ...(line.customOptionId != null || line.isCustom
-      ? { title: String(line.title || line.description || ''), originalTotalPrice: Math.round(Number(line.originalTotalPrice ?? line.totalPrice ?? 0) * 100) }
+      ? { originalTotalPrice: Math.round(Number(line.originalTotalPrice ?? line.totalPrice ?? 0) * 100) }
       : {}),
     sessions: line.sessions || null,
     cardOccurrences: line.cardOccurrences || null,

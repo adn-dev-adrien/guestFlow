@@ -2973,6 +2973,7 @@ function calculateReservationQuote({
     balanceAmount: resolvedBalanceAmount,
     complementAmount: resolvedComplementAmount,
     overCollectedTtc,
+    complementCollectedExcessTtc: complementCollectedExcess,
     // specs/adjustable-complement-amounts.md §3.6 — what the engine produces on its own, so the fiche
     // can print « Calcul auto (X €) » under the adjustment field and ventilate the adjusted amount
     // over the postes the auto complement is actually made of.
