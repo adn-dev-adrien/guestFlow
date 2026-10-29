@@ -349,7 +349,7 @@ function refuseSessionConflict(res, resources, reservationId = null) {
   return false;
 }
 
-// specs/reservation-save-keeps-pricing.md rule 20 (Adrien, 2026-10-29: « Refuser, décocher d'abord ») — a direct
+// specs/reservation-save-keeps-pricing.md rule 19 (Adrien, 2026-10-29: « Refuser, décocher d'abord ») — a direct
 // stay never really becomes a platform stay: with an acompte or a solde ticked as received, the channel change is
 // refused until the operator unticks it.
 function directPaymentBlocksChannelSwitch(stored, postedPlatform) {

@@ -1,4 +1,4 @@
-// specs/reservation-save-keeps-pricing.md rule 20 + reservation-refunds.md rule 46 — audit R4 N6, Adrien's
+// specs/reservation-save-keeps-pricing.md rule 19 + reservation-refunds.md rule 45 — audit R4 N6, Adrien's
 // decision of 2026-10-29 (« Refuser, décocher d'abord »), superseding « figer le payé »: a direct stay can never
 // really become a platform stay, so a switch while the acompte or the solde is ticked is refused.
 
@@ -47,7 +47,7 @@ async function paidDirectStay(flag = 'balancePaid') {
 const REFUSAL = 'Paiement direct enregistré : le décocher avant de changer de canal.';
 
 for (const flag of ['balancePaid', 'depositPaid', 'balancePaidCash']) {
-  test(`rule 20 — ${flag} ticked: the switch to a platform is refused with a 409`, async () => {
+  test(`rule 19 — ${flag} ticked: the switch to a platform is refused with a 409`, async () => {
     const { db, controller, id, body } = await paidDirectStay(flag);
     const refused = controller.performUpdate(id, body({ platform: 'Airbnb' }));
     assert.equal(refused.status, 409, JSON.stringify(refused.body));
@@ -57,7 +57,7 @@ for (const flag of ['balancePaid', 'depositPaid', 'balancePaidCash']) {
   });
 }
 
-test('rule 20 — unticked, the switch goes through as an ordinary platform fiche; the tourist tax is not left behind', async () => {
+test('rule 19 — unticked, the switch goes through as an ordinary platform fiche; the tourist tax is not left behind', async () => {
   const { db, controller, id, body } = await paidDirectStay();
   const taxBefore = rowOf(db, id).touristTaxTotal;
   assert.equal(controller.performUpdate(id, body({ platform: 'Airbnb' })).status, 409);
@@ -72,7 +72,7 @@ test('rule 20 — unticked, the switch goes through as an ordinary platform fich
     'the solde and the tax are priced together: no collected tax left on a frozen solde');
 });
 
-test('rule 20 — a platform stay saved as another platform, or as direct, is not refused', async () => {
+test('rule 19 — a platform stay saved as another platform, or as direct, is not refused', async () => {
   const { db, controller, id, body } = await stay({ platform: 'Airbnb' });
   db.prepare("UPDATE reservations SET balancePaid = 1, balancePaidDate = '2099-01-01' WHERE id = ?").run(id);
   const other = controller.performUpdate(id, body({ platform: 'Booking.com' }));
@@ -81,7 +81,7 @@ test('rule 20 — a platform stay saved as another platform, or as direct, is no
   assert.notEqual(direct.body && direct.body.code, 'DIRECT_PAYMENT_RECORDED');
 });
 
-test('rule 20 — a paid direct stay saved as direct is untouched by the refusal, and still asks for the trop-perçu refund', async () => {
+test('rule 19 — a paid direct stay saved as direct is untouched by the refusal, and still asks for the trop-perçu refund', async () => {
   const { controller, id, body } = await paidDirectStay();
   const refused = controller.performUpdate(id, body({ discountPercent: 10 }));
   assert.equal(refused.status, 409);
