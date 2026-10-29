@@ -108,7 +108,7 @@ test('validateStayInput rejects a malformed option line', () => {
 });
 
 test('validateGuest requires names, a valid email, and a phone', () => {
-  assert.equal(validateGuest({ firstName: 'Marie', lastName: 'Durand', email: 'm@x.fr', phone: '0102' }).ok, true);
+  assert.equal(validateGuest({ firstName: 'Marie', lastName: 'Durand', email: 'm@x.fr', phone: '0102030405' }).ok, true);
   const bad = validateGuest({ firstName: 'Marie', email: 'not-an-email' });
   assert.equal(bad.ok, false);
   assert.ok(bad.errors.some((e) => e.field === 'guest.email'));

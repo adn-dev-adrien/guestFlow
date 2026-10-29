@@ -6,8 +6,21 @@
 
 const MONTHS = { janv: 1, févr: 2, mars: 3, avr: 4, mai: 5, juin: 6, juil: 7, août: 8, sept: 9, oct: 10, nov: 11, déc: 12 };
 const WEEKDAYS = { dim: 0, lun: 1, mar: 2, mer: 3, jeu: 4, ven: 5, sam: 6 };
-const DATE_RE = /\b(lun|mar|mer|jeu|ven|sam|dim)\.\s+(\d{1,2})\s+(janv|févr|mars|avr|mai|juin|juil|août|sept|oct|nov|déc)\.?/gi;
+const DATE_RE = /\b(lun|mar|mer|jeu|ven|sam|dim)\.\s+(\d{1,2})(?:er)?\s+(janv|févr|mars|avr|mai|juin|juil|août|sept|oct|nov|déc)\.?/gi;
 const AMOUNT_LINE_RE = /^(.+?)\s{2,}(-?\d[\d ]*,\d{2})\s*€\s*$/;
+const MAX_LINE = 300;
+const MAX_MESSAGE = 4000;
+// Rule 24 — the guest's free text sits above these, so each is read on a line of its own and may appear once.
+const HEADER_RES = {
+  code: /^CODE DE CONFIRMATION\s*$/,
+  guestPaid: /^LE VOYAGEUR A PAYÉ/,
+  hostPayout: /^VERSEMENT DE L.H[ÔO]TE/,
+  earns: /^VOUS GAGNEZ/,
+  party: /^VOYAGEURS\s*$/,
+  arrival: /^Arrivée\s{2,}Départ\s*$/,
+};
+const AIRBNB_TLDS = new Set(['com', 'fr', 'de', 'es', 'it', 'co.uk', 'ch', 'be', 'ca', 'nl', 'pt', 'at', 'ie', 'se', 'dk', 'no', 'fi', 'pl', 'cz', 'com.au', 'co.nz', 'com.br', 'co.jp', 'jp', 'co.kr', 'com.mx', 'ru', 'gr', 'hu', 'lu']);
+const isAirbnbHost = (host) => { const m = /^(?:www\.)?airbnb\.([a-z.]+)$/i.exec(host); return Boolean(m) && AIRBNB_TLDS.has(m[1].toLowerCase()); };
 
 // Rule 8 — the raw mail writes « 4 nuits », « 15,5 % », « 1 154,60 » with non-breaking spaces.
 const normalizeSpaces = (s) => String(s || '').replace(/[   ]/g, ' ');
@@ -41,13 +54,13 @@ const nextDay = (iso) => { const d = new Date(`${iso}T00:00:00Z`); d.setUTCDate(
 const nightsBetween = (a, b) => Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86400000);
 
 function section(lines, startRe, endRe) {
-  const start = lines.findIndex((l) => startRe.test(l));
+  const start = lines.findIndex((l) => startRe.test(l.trim()));
   if (start < 0) return null;
   const rel = lines.slice(start + 1).findIndex((l) => endRe.test(l));
   return lines.slice(start + 1, rel < 0 ? undefined : start + 1 + rel + 1);
 }
 
-const amountLines = (lines) => lines.map((l) => AMOUNT_LINE_RE.exec(l.trim())).filter(Boolean)
+const amountLines = (lines) => lines.map((l) => l.trim()).filter((l) => l.length <= MAX_LINE).map((l) => AMOUNT_LINE_RE.exec(l)).filter(Boolean)
   .map((m) => ({ label: m[1].trim(), cents: cents(m[2]) }));
 
 // The guest's free text: between « Sur Airbnb depuis … » and « Envoyer un message à … ». The plain part
@@ -56,38 +69,75 @@ function guestMessage(lines) {
   const from = lines.findIndex((l) => /^Sur Airbnb depuis/i.test(l.trim()));
   if (from < 0) return '';
   const to = lines.findIndex((l, i) => i > from && /^Envoyer un message à/i.test(l.trim()));
-  const body = lines.slice(from + 1, to < 0 ? from + 1 : to).map((l) => l.trim());
-  return body.join('\n').split(/\n{2,}/).map((p) => p.replace(/\n/g, ' ').replace(/\s+([!?;:])/g, ' $1').trim())
+  const body = lines.slice(from + 1, to < 0 ? from + 1 : to).map((l) => l.trim().slice(0, MAX_MESSAGE).replace(/[ \t]{2,}/g, ' '));
+  return body.join('\n').slice(0, MAX_MESSAGE).split(/\n{2,}/).map((p) => p.replace(/\n/g, ' ').replace(/\s+([!?;:])/g, ' $1').trim())
     .filter(Boolean).join('\n');
 }
+
+// Rule 25 — https on a host of the explicit list (`airbnb.fr`, `www.airbnb.com`, `www.airbnb.co.uk`…), nothing after
+// it but the path: `www.airbnb.fr.secure.example` and `www.airbnb.evil` are not Airbnb.
+function airbnbUrl(text, pathRe) {
+  const re = new RegExp(`https://([^/\\s\\]?#]+)(${pathRe}[^\\s\\]]*)`, 'g');
+  for (const m of text.matchAll(re)) if (isAirbnbHost(m[1])) return stripQuery(m[0]);
+  return null;
+}
+
+const countLines = (lines, re) => lines.filter((l) => l.length <= MAX_LINE && re.test(l.trim())).length;
+const lineIndex = (lines, re) => lines.findIndex((l) => l.length <= MAX_LINE && re.test(l.trim()));
 
 function parseAirbnbMail({ subject, text, sentAt }) {
   const plain = normalizeSpaces(text);
   if (!isBookingMail(subject, plain)) return { ok: false, error: 'Ce mail n’est pas une confirmation de réservation Airbnb' };
-  const lines = plain.split(/\r?\n/);
   const fail = (error) => ({ ok: false, error });
 
-  const code = (plain.match(/CODE DE CONFIRMATION\s+([A-Z0-9]{6,})/) || [])[1];
-  if (!code) return fail('Code de confirmation introuvable');
+  // Rule 24 — only the structured part of the mail decides: everything before the LAST « Envoyer un message à »
+  // line is the guest's own text (and the header block), which may say anything.
+  const allLines = plain.split(/\r?\n/);
+  const messageEnd = allLines.map((l) => l.length <= MAX_LINE && /^Envoyer un message à/i.test(l.trim())).lastIndexOf(true);
+  // A confirmation without a guest message has no « Envoyer un message à » line. Nothing the guest typed may then
+  // sit above the structured part: right after « Sur Airbnb depuis … » comes the thread link, or the
+  // mail is refused (rule 27).
+  let from = 0;
+  if (messageEnd < 0) {
+    const since = lineIndex(allLines, /^Sur Airbnb depuis/i);
+    const first = since < 0 ? -1 : allLines.findIndex((l, i) => i > since && l.trim());
+    const link = first < 0 ? '' : allLines[first].trim().replace(/^\[/, '');
+    if (!/^https:/.test(link) || !airbnbUrl(link, '/hosting/thread/')) return fail('Partie structurée du mail introuvable');
+    from = first;
+  }
+  const lines = messageEnd < 0 ? allLines.slice(from) : allLines.slice(messageEnd);
+  const head = messageEnd < 0 ? allLines.slice(0, from).join('\n') : allLines.slice(0, messageEnd).join('\n');
+  // Headers are printed in capitals; only the parsed lines count, so the guest's own « Voyageurs » proves nothing.
+  if (Object.values(HEADER_RES).some((re) => countLines(lines, re) > 1)) return fail('Mail ambigu : un en-tête apparaît plusieurs fois');
+  const structured = lines.join('\n');
+
+  const codeAt = lineIndex(lines, HEADER_RES.code);
+  const code = codeAt < 0 ? null : (lines.slice(codeAt + 1).find((l) => l.trim()) || '').trim();
+  if (!code || !/^[A-Z0-9]{6,}$/.test(code)) return fail('Code de confirmation introuvable');
+  const urlCode = ((airbnbUrl(head, '/hosting/reservations/details/') || '').match(/details\/([A-Z0-9]+)$/) || [])[1];
+  if (urlCode !== code) return fail('Le code de confirmation ne correspond pas au lien de la réservation');
 
   const fullName = ((normalizeSpaces(subject).match(/:\s*(.+?)\s+arrive le/i) || [])[1] || '').trim();
   if (!fullName) return fail('Nom du voyageur introuvable');
-  const heading = (plain.match(/CONFIRMÉE\s*!\s*(.+?)\s+ARRIVERA/i) || [])[1] || '';
+  const heading = (head.match(/CONFIRMÉE\s*!\s*(.+?)\s+ARRIVERA/i) || [])[1] || '';
   const firstWords = heading.trim().split(/\s+/).length || 1;
   const words = fullName.split(/\s+/);
   const firstName = titleCase(words.slice(0, firstWords).join(' '));
   const lastName = titleCase(words.slice(firstWords).join(' '));
   if (!lastName) return fail('Nom du voyageur incomplet');
 
-  const listingId = (plain.match(/airbnb\.[a-z.]+\/rooms\/(\d+)/i) || [])[1];
+  const arrivalLine = lineIndex(lines, HEADER_RES.arrival);
+  const listingId = (airbnbUrl(arrivalLine < 0 ? structured : lines.slice(0, arrivalLine).join('\n'), '/rooms/') || '').match(/\/rooms\/(\d+)/)?.[1];
   if (!listingId) return fail('Annonce introuvable');
   const roomsLine = lines.findIndex((l) => /\/rooms\/\d+/.test(l));
   const titleLine = lines.slice(roomsLine + 1).find((l) => l.trim() && !/^\[?https?:/.test(l.trim()));
   const listingTitle = titleLine ? sentenceCase(titleLine.trim()) : '';
-  const reservationUrl = stripQuery((plain.match(/https:\/\/www\.airbnb\.[a-z.]+\/hosting\/reservations\/details\/[A-Z0-9]+[^\s\]]*/) || [])[0]);
-  const threadUrl = stripQuery((plain.match(/https:\/\/www\.airbnb\.[a-z.]+\/hosting\/thread\/\d+[^\s\]]*/) || [])[0]);
+  const reservationUrl = airbnbUrl(head, '/hosting/reservations/details/');
+  const threadUrl = airbnbUrl(structured, '/hosting/thread/');
 
-  const afterArrival = plain.slice(Math.max(0, plain.search(/Arrivée/)));
+  const arrivalAt = lineIndex(lines, HEADER_RES.arrival);
+  if (arrivalAt < 0) return fail('Dates du séjour introuvables');
+  const afterArrival = lines.slice(arrivalAt).join('\n');
   const dates = [...afterArrival.matchAll(DATE_RE)].slice(0, 2).map((m) => ({
     weekday: WEEKDAYS[m[1].toLowerCase()], day: Number(m[2]), month: MONTHS[m[3].toLowerCase()],
   }));
@@ -97,17 +147,22 @@ function parseAirbnbMail({ subject, text, sentAt }) {
   const startDate = resolveDate(dates[0], sentIso);
   const endDate = startDate && resolveDate(dates[1], nextDay(startDate));
   if (!startDate || !endDate) return fail('Aucune date ne correspond aux jours du séjour');
+  const subjectStart = normalizeSpaces(subject).match(/arrive le\s+(\d{1,2})(?:er)?\s+([a-zéû]+)/i);
+  if (!subjectStart || Number(subjectStart[1]) !== dates[0].day || MONTHS[subjectStart[2].toLowerCase()] !== dates[0].month) {
+    return fail('L’arrivée du mail ne correspond pas à son objet');
+  }
   const times = afterArrival.match(/\b\d{1,2}:\d{2}\b/g) || [];
 
-  const partyLine = (plain.match(/VOYAGEURS\s*\n+\s*(\d[^\n]*)/) || [])[1] || '';
+  const partyAt = lineIndex(lines, HEADER_RES.party);
+  const partyLine = partyAt < 0 ? '' : (lines.slice(partyAt + 1).find((l) => l.trim()) || '').trim().slice(0, MAX_LINE);
   const count = (re) => Number((partyLine.match(re) || [])[1] || 0);
   const adults = count(/(\d+)\s+adultes?/i);
   if (adults < 1) return fail('Composition du groupe introuvable');
   const children = count(/(\d+)\s+enfants?/i);
   const babies = count(/(\d+)\s+bébés?/i);
 
-  const guestLines = section(lines, /^\s*LE VOYAGEUR A PAYÉ/i, /^\s*TOTAL \(EUR\)/i);
-  const hostLines = section(lines, /^\s*VERSEMENT DE L.H[ÔO]TE/i, /^\s*VOUS GAGNEZ/i);
+  const guestLines = section(lines, HEADER_RES.guestPaid, /^\s*TOTAL \(EUR\)/i);
+  const hostLines = section(lines, HEADER_RES.hostPayout, /^\s*VOUS GAGNEZ/i);
   if (!guestLines || !hostLines) return fail('Détail des montants introuvable');
 
   const guest = { nights: null, nightly: 0, nightsTotal: 0, cleaning: 0, serviceFee: 0, taxes: 0, other: 0, total: null };
@@ -150,7 +205,7 @@ function parseAirbnbMail({ subject, text, sentAt }) {
     booking: {
       code, firstName, lastName, listingId, listingTitle, reservationUrl, threadUrl,
       startDate, endDate, checkInTime: times[0] || null, checkOutTime: times[1] || null,
-      adults, children, babies, message: guestMessage(lines),
+      adults, children, babies, message: guestMessage(allLines),
       nights, nightlyPrice: euros(guest.nightly), cleaningFee: euros(guest.cleaning),
       guestServiceFee: euros(guest.serviceFee), guestTaxes: euros(guest.taxes), total: euros(guest.total),
       hostTaxes: euros(host.taxes), roomFees: euros(host.rooms), adjustments: euros(host.adjustments),

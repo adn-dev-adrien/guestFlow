@@ -43,10 +43,12 @@ test('rule 20: a forged proposal does not shadow the genuine mail of the same do
   assert.equal(service.blockFor(PLACEHOLDER.id).senderUnverified, false, 'the banner shows the genuine intake');
 });
 
-test('rule 20: a forged mail that does not parse leaves no row', async () => {
+test('rule 20 (amended by rule 25): a forged mail that does not parse is kept as an ignored row, out of every list', async () => {
   const { service, intakes } = setup({ mails: [mail({ authenticated: false, text: 'Nouvelle réservation : rien de lisible' })] });
   assert.deepEqual(await service.runPass(), { read: 1 });
-  assert.equal(intakes.count(), 0);
+  assert.equal(intakes.count(), 1);
+  assert.equal(intakes.get(1).status, 'ignored');
+  assert.deepEqual(service.attention(), []);
 });
 
 test('rule 20: an authenticated, untouched fiche is filled as before', async () => {

@@ -21,7 +21,7 @@ const frDate = (iso) => { const d = new Date(iso); return `${String(d.getDate())
 const localDay = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 function createIntakeService(deps) {
-  const { intakes, settings, readMails, findReservations, commissionPercent, propertyOptions, getReservation, core, now = () => new Date() } = deps;
+  const { intakes, settings, readMails, findReservations, commissionPercent, propertyOptions, getReservation, core, parserVersion = null, now = () => new Date() } = deps;
   // The accommodations' day: the process runs in their time zone (utils/localDate.js).
   const today = deps.today || (() => localDay(now()));
 
@@ -37,7 +37,7 @@ function createIntakeService(deps) {
     const propertyIds = propertyIdsForGite(booking.giteNumber);
     if (propertyIds.length === 0) return { reservation: null, unmapped: `Aucun logement n’est relié au gîte n°${booking.giteNumber}` };
     const rows = findReservations({ propertyIds, startDate: booking.startDate, endDate: booking.endDate })
-      .filter((r) => r.kind === 'reservation' && isGitesDeFrance(r.platform));
+      .filter((r) => r.kind === 'reservation' && !r.cancelledAt && isGitesDeFrance(r.platform));
     if (rows.length > 1) return { error: 'Plusieurs fiches Gîtes de France sur ces dates' };
     return { reservation: rows[0] || null };
   }
@@ -146,7 +146,7 @@ function createIntakeService(deps) {
 
     const { patch, client } = stayPatch(booking, reservation);
     const full = chosen != null ? { ...patch, ...paymentPatch(booking, chosen) } : patch;
-    const result = core.updateReservation(reservation.id, full, { label: `Mail Gîtes de France du ${frDate(intake.receivedAt)}`, client });
+    const result = core.updateReservation(reservation.id, full, { label: `Mail Gîtes de France du ${frDate(intake.receivedAt)}`, client, reuseByEmail: intake.senderVerified });
     if (result.status !== 200) {
       intakes.setStatus(intake.id, { status: 'error', reservationId: reservation.id, error: (result.body && result.body.error) || `Erreur ${result.status}` });
       return { status: 'error', error: result.body && result.body.error };
@@ -203,14 +203,16 @@ function createIntakeService(deps) {
     const mails = await readMails({ ...mailbox, sender: settings.sender(), ...(settings.authentication ? settings.authentication() : {}) });
     let read = 0;
     for (const mail of mails) {
-      if (intakes.has(mail.messageId)) continue;
+      if (intakes.has(mail.messageId, parserVersion)) continue;
       const senderVerified = mail.authenticated === true;
       read += 1;
       const parsed = parseGitesDeFranceMail(mail.text);
       if (!parsed.ok) {
         // Another kind of mail from the centrale (invoice, newsletter) is not an intake at all.
-        if (!/nouvelle réservation/i.test(`${mail.subject || ''} ${mail.text}`) || !senderVerified) continue;
-        intakes.insert({ messageId: mail.messageId, receivedAt: mail.receivedAt, status: 'error', error: parsed.error, senderVerified });
+        if (!/nouvelle réservation/i.test(`${mail.subject || ''} ${mail.text}`)) continue;
+        // Rule 25 — an unauthenticated mail that does not parse is remembered (`ignored`, out of every list)
+        // so the next pass does not parse it again.
+        intakes.insert({ messageId: mail.messageId, receivedAt: mail.receivedAt, status: senderVerified ? 'error' : 'ignored', error: parsed.error, senderVerified, parserVersion });
         continue;
       }
       intakes.insert({ messageId: mail.messageId, receivedAt: mail.receivedAt, dossierNumber: parsed.booking.dossierNumber, parsed: parsed.booking, status: 'pending', senderVerified });

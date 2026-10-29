@@ -12,7 +12,13 @@
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const ISO_TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const EMAIL = /^[^\s@,;<>"]+@[^\s@,;<>"]+\.[^\s@,;<>"]+$/;
+// Same shape as the client dialog's (utils/clientValidation.isValidPhone): 8–15 digits, an optional leading +,
+// spaces, dots, dashes and brackets as separators — and nothing else, so no line break reaches an operator e-mail.
+const isValidPhone = (value) => {
+  const normalized = String(value || '').trim().replace(/[ ().-]/g, '');
+  return normalized.startsWith('+') ? /^\+[0-9]{8,15}$/.test(normalized) : /^[0-9]{10,15}$/.test(normalized);
+};
 const MAX_AVAILABILITY_DAYS = 365;
 // Bounds on a public stay (specs/public-api.md rule 8). The engine walks the stay night by night,
 // synchronously: an unbounded endDate (9999-12-31) is millions of iterations that block the server.
@@ -208,7 +214,7 @@ function validateStayInput(body = {}, { todayIso } = {}) {
  * Validate the guest contact block + message for a booking request. Honeypot (`_hp`) is checked
  * by the controller (it intentionally returns a fake success), not here.
  *
- * Each error carries a `reason` (`required` | `emailInvalid` | `tooLong`) next to its unchanged `issue`: the
+ * Each error carries a `reason` (`required` | `emailInvalid` | `phoneInvalid` | `tooLong`) next to its unchanged `issue`: the
  * reason picks the visitor-facing sentence (`fieldErrors` in publicLabels), so an empty address
  * reads « Champ requis. » and `jo@` reads « Adresse e-mail incomplète. »
  * (specs/wordpress-plugin.md rule 28).
@@ -227,6 +233,7 @@ function validateGuest(guest = {}) {
     errors.push({ field: 'guest.email', issue: 'must be a valid email', reason: email ? 'emailInvalid' : 'required' });
   }
   if (!phone) errors.push({ field: 'guest.phone', issue: 'required', reason: 'required' });
+  else if (phone.length <= GUEST_MAX.phone && !isValidPhone(phone)) errors.push({ field: 'guest.phone', issue: 'must be a valid phone number', reason: 'phoneInvalid' });
   const tooLong = (field, text) => text.length > GUEST_MAX[field]
     && errors.every((e) => e.field !== `guest.${field}`)
     && errors.push({ field: `guest.${field}`, issue: `must be at most ${GUEST_MAX[field]} characters`, reason: 'tooLong' });
