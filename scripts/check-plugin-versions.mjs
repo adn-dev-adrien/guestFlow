@@ -8,13 +8,13 @@
  *                                                      # every PR (rule 28): the plugin a PR changes is
  *                                                      # bumped in that PR, with its changelog lines
  *   node scripts/check-plugin-versions.mjs --bump     # a developer's helper, in the feature PR
- *   node scripts/check-plugin-versions.mjs --built plugins-dist --previous prev-dist --previous-tag v3.9.0
+ *   node scripts/check-plugin-versions.mjs --built plugins-dist --previous prev-dist
  *                                                      # the release's package job and the release skill's
  *                                                      # pre-flight (rule 27): a package whose built content
- *                                                      # changed under the same version is replaced by the
- *                                                      # one already published when its sources did not
- *                                                      # change (a dependency bump); it fails only when the
- *                                                      # sources changed without a bump
+ *                                                      # differs from the one already published under the
+ *                                                      # same version fails — the version must be bumped.
+ *                                                      # The published package is only compared, never
+ *                                                      # shipped again (audit r2 N4)
  *
  * Every run but `--built` also checks that the host module list only grows (rule 33), that the
  * core modules a server plugin reaches through `coreModule()` lose nothing unless the SDK's major
@@ -31,7 +31,6 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import crypto from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
@@ -193,43 +192,17 @@ function manifestAt(ref, id) {
 
 const manifestPath = (id) => path.join(ROOT, SERVER_PLUGINS, id, 'manifest.json');
 
-const sourcesChangedSince = (tag, id) => git(['diff', '--name-only', tag, 'HEAD', '--', `${SERVER_PLUGINS}/${id}`, `${CLIENT_PLUGINS}/${id}`])
-  .split('\n').filter(Boolean).filter(countsForPackage).length > 0;
-
-// Second review M-A: the package already published replaces the rebuild — same version, same sources,
-// so the same plugin; only its build differs. `plugins-dist/<id>/` and SHA256SUMS follow.
-function reusePublished(builtDir, previousDir, id, version) {
-  const file = `${id}-${version}.tgz`;
-  fs.copyFileSync(path.join(previousDir, file), path.join(builtDir, file));
-  const unpacked = path.join(builtDir, id);
-  fs.rmSync(unpacked, { recursive: true, force: true });
-  fs.mkdirSync(unpacked, { recursive: true });
-  execFileSync('tar', ['-xzf', path.join(builtDir, file), '-C', unpacked]);
-  const sha = (f) => crypto.createHash('sha256').update(fs.readFileSync(path.join(builtDir, f))).digest('hex');
-  const sums = fs.readdirSync(builtDir).filter((f) => f.endsWith('.tgz')).sort().map((f) => `${sha(f)}  ${f}`);
-  fs.writeFileSync(path.join(builtDir, 'SHA256SUMS'), `${sums.join('\n')}\n`);
-}
-
 function main() {
   const args = process.argv.slice(2);
   const at = (flag) => { const i = args.indexOf(flag); return i === -1 ? null : args[i + 1]; };
   if (at('--built')) {
     const builtDir = path.resolve(ROOT, at('--built'));
     const previousDir = at('--previous') && path.resolve(ROOT, at('--previous'));
-    const tag = at('--previous-tag');
     const violations = findContentViolations(packagesIn(builtDir), packagesIn(previousDir));
-    const failures = [];
-    for (const v of violations) {
-      if (tag && !sourcesChangedSince(tag, v.id)) {
-        reusePublished(builtDir, previousDir, v.id, v.version);
-        process.stdout.write(`↺ ${v.id} ${v.version}: unchanged sources, the package published in ${tag} is kept.\n`);
-      } else {
-        failures.push(v);
-      }
-    }
-    for (const v of failures) process.stderr.write(`✗ ${v.id} ${v.version}: the package differs from the one already published under that version.\n`);
-    if (failures.length) {
-      process.stderr.write('\nBump the version of these plugins in a pull request (with its changelog lines), then release.\n');
+    for (const v of violations) process.stderr.write(`✗ ${v.id} ${v.version}: the package differs from the one already published under that version.\n`);
+    if (violations.length) {
+      process.stderr.write('\nBump the version of these plugins in a pull request (with its changelog lines), then release.\n'
+        + 'A published package is never reused: release assets are mutable, so nothing downloaded is shipped again.\n');
       return 1;
     }
     process.stdout.write('✓ No published plugin version changes content.\n');

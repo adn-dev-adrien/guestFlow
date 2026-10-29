@@ -189,12 +189,31 @@ function installEnv(homeDir, cacheDir) {
   return env;
 }
 
+const NPM_CACHE_MAX_BYTES = 300 * 1024 * 1024;
+
+function directoryBytes(dir) {
+  let total = 0;
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    total += entry.isDirectory() ? directoryBytes(full) : fs.lstatSync(full).size;
+  }
+  return total;
+}
+
+/** The npm cache only makes updates faster: past `maxBytes` it is emptied rather than left to grow forever. */
+function pruneNpmCache(cacheDir, maxBytes = NPM_CACHE_MAX_BYTES) {
+  if (!fs.existsSync(cacheDir) || directoryBytes(cacheDir) <= maxBytes) return false;
+  fs.rmSync(cacheDir, { recursive: true, force: true });
+  return true;
+}
+
 /**
  * Install production dependencies and make sure the native module actually loads.
  *
  * Guarantees (rule 40), and their limit. Before anything runs, the lockfile must resolve every package
  * from the public npm registry with an integrity hash (`assertLockfileProvenance`): no git, file, link
- * or http dependency, so no `prepare` script and no look-alike `sharp`. Then `npm ci --omit=dev
+ * or http dependency and no alias, so no `prepare` script and no look-alike `sharp`; a release
+ * declaring `workspaces` is refused, and `--workspaces=false` keeps npm on the checked lockfile. Then `npm ci --omit=dev
  * --ignore-scripts` runs with a minimal environment (`installEnv`). Packages from the registry can
  * still ship install scripts of their own, but none runs: scripts are skipped, and `better-sqlite3`
  * (N-API prebuilds) and `sharp` (prebuilt optional packages) need none. What this does NOT do: the
@@ -211,10 +230,11 @@ async function installDependencies({ releaseDir, execFileImpl = execFileAsync })
   fs.mkdirSync(cacheDir, { recursive: true, mode: 0o700 });
   const options = { cwd: serverDir, timeout: NPM_TIMEOUT_MS, maxBuffer: 32 * 1024 * 1024, env: installEnv(homeDir, cacheDir) };
   try {
-    await execFileImpl('npm', ['ci', '--omit=dev', '--ignore-scripts'], options);
+    await execFileImpl('npm', ['ci', '--omit=dev', '--ignore-scripts', '--workspaces=false'], options);
     await execFileImpl(process.execPath, ['-e', "require('better-sqlite3')"], options);
   } finally {
     fs.rmSync(homeDir, { recursive: true, force: true });
+    pruneNpmCache(cacheDir);
   }
 }
 
@@ -324,4 +344,5 @@ module.exports = {
   installDependencies,
   stageRelease,
   pruneReleases,
+  pruneNpmCache,
 };

@@ -235,6 +235,7 @@ below are the recommended ones; each is reversible in a later spec.
     build with the same version. Each package's manifest records a `contentHash` of its files; the
     release refuses a package whose content differs from the one already published under the same
     version (a dependency bump, say) — the plugin is then bumped in a PR.
+    > **Withdrawn 2026-10-29 (audit r2 N4, rule 43 below):** the reuse described in the next note no longer exists.
     > **2026-10-18 (second review):** The URL's hash is the package manifest's `contentHash` (not the archive's), and the archive itself is reproducible: names sorted, owner 0, mtime 0, gzip without a timestamp. When a rebuilt package differs from the one published under the same version but the plugin's sources did not change since the previous tag (a dependency bump), the release keeps the published package instead of failing; it fails only for changed sources without a bump — and the release skill runs the same check in its pre-flight, so this never fails after the tag.
 28. **A plugin is versioned in the pull request that changes it.** CI refuses a PR that changes a
     plugin's files (tests excepted) without a new `version` in its manifest and French lines under
@@ -351,6 +352,11 @@ below are the recommended ones; each is reversible in a later spec.
     index and is the registry key, as before. Rolling it out: set the variable, restart the console, let the
     next sync rewrite each instance's environment (a fleet update does), then restart the instances; in
     between, instances see an index they cannot verify and ignore it.
+43. **A published package is never shipped again** (audit r2 N4, 2026-10-29; withdraws the reuse note of
+    rule 27). The release compares the rebuilt packages with the previous release's and fails on any
+    difference under the same version (« Bump the version »); it never copies a downloaded package into
+    `plugins-dist/` or `SHA256SUMS`. Test: `plugin-packages-release.unit.test.js`; see
+    `self-update-and-releases.md` rule 45.
 
 ---
 

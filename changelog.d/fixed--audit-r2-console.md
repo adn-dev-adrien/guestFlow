@@ -1,0 +1,4 @@
+- **Release install:** `npm ci` can no longer be pointed at an unchecked lockfile through `workspaces`, and an npm alias or a tarball that is not the package's own is refused; the npm cache is bounded.
+- **Console:** « Désinstaller » and « Effacer les données » now send the action the operator confirmed; the console answers 409 when the module's data changed in between, and never erases without the typed slug.
+- **Releases:** a plugin package published in a previous release is no longer re-shipped (a rebuild that differs fails with « bump the version »); the release workflow's actions are pinned by commit SHA.
+- **Console:** an unset `GUESTFLOW_RELEASE_PUBLIC_KEY` is logged at boot and kept as a host alert.

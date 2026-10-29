@@ -218,24 +218,26 @@ test('rule 27: the package archive is reproducible â€” same files, same bytes â€
   assert.ok(names.includes('server/index.js') && names.includes(`client/chunks/${long}`));
 });
 
-test('rule 27: an unchanged plugin whose rebuild differs keeps the package already published', async () => {
-  const { execFileSync } = require('child_process');
+test('rule 43 (withdraws the reuse of rule 27): a rebuild that differs from the published package fails, and the published one is never shipped again', async () => {
+  const { execFileSync, spawnSync } = require('child_process');
   const work = fs.mkdtempSync(path.join(os.tmpdir(), 'gf-reuse-'));
-  const pack = (dir, contentHash) => {
+  const pack = (dir, contentHash, file = 'index.js') => {
     const src = fs.mkdtempSync(path.join(os.tmpdir(), 'gf-reuse-src-'));
     fs.writeFileSync(path.join(src, 'manifest.json'), JSON.stringify({ id: 'linen', version: '1.0.0', contentHash }));
+    fs.writeFileSync(path.join(src, file), contentHash === 'a'.repeat(64) ? 'EVIL' : 'GOOD');
     fs.mkdirSync(dir, { recursive: true });
-    execFileSync('tar', ['-czf', path.join(dir, 'linen-1.0.0.tgz'), '-C', src, 'manifest.json'], { env: { ...process.env, COPYFILE_DISABLE: '1' } });
+    execFileSync('tar', ['-czf', path.join(dir, 'linen-1.0.0.tgz'), '-C', src, 'manifest.json', file], { env: { ...process.env, COPYFILE_DISABLE: '1' } });
   };
   pack(path.join(work, 'built'), 'b'.repeat(64));
   pack(path.join(work, 'prev'), 'a'.repeat(64));
-  const run = (tag) => execFileSync(process.execPath, [path.join(ROOT, 'scripts', 'check-plugin-versions.mjs'), '--built', path.join(work, 'built'),
-    '--previous', path.join(work, 'prev'), ...(tag ? ['--previous-tag', tag] : [])], { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
-  assert.throws(() => run(null), /Command failed/, 'without the tag nothing tells the sources are unchanged');
-  assert.match(run('HEAD'), /linen 1\.0\.0: unchanged sources/);
-  const kept = execFileSync('tar', ['-xOzf', path.join(work, 'built', 'linen-1.0.0.tgz'), 'manifest.json'], { encoding: 'utf8' });
-  assert.equal(JSON.parse(kept).contentHash, 'a'.repeat(64));
-  assert.match(fs.readFileSync(path.join(work, 'built', 'SHA256SUMS'), 'utf8'), /linen-1\.0\.0\.tgz/);
+  const before = fs.readFileSync(path.join(work, 'built', 'linen-1.0.0.tgz'));
+  for (const extra of [[], ['--previous-tag', 'HEAD']]) {
+    const r = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'check-plugin-versions.mjs'), '--built', path.join(work, 'built'), '--previous', path.join(work, 'prev'), ...extra], { cwd: ROOT, encoding: 'utf8' });
+    assert.equal(r.status, 1, r.stdout);
+    assert.match(r.stderr, /linen 1\.0\.0: the package differs/);
+  }
+  assert.ok(fs.readFileSync(path.join(work, 'built', 'linen-1.0.0.tgz')).equals(before), 'the built package is untouched');
+  assert.equal(fs.existsSync(path.join(work, 'built', 'SHA256SUMS')), false);
 });
 
 test('rule 33: the host module list only grows, and the SDK is exposed whole', async () => {
@@ -249,6 +251,6 @@ test('rule 33: the host module list only grows, and the SDK is exposed whole', a
   assert.equal(HOST_EXPORTS['guestflow/sdk'], '*');
   assert.equal(HOST_EXPORTS['guestflow/sdk/ui'], '*');
   const workflow = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'release.yml'), 'utf8');
-  assert.match(workflow, /--previous-tag/);
-  assert.match(fs.readFileSync(path.join(ROOT, '.claude', 'skills', 'guestflow-release', 'SKILL.md'), 'utf8'), /--built plugins-dist --previous prev-dist --previous-tag/);
+  assert.doesNotMatch(workflow, /--previous-tag/);
+  assert.match(fs.readFileSync(path.join(ROOT, '.claude', 'skills', 'guestflow-release', 'SKILL.md'), 'utf8'), /--built plugins-dist --previous prev-dist/);
 });
