@@ -179,16 +179,18 @@ test('rule 16: « Revenir à la version précédente » is in the detail while t
 
 test('rules 12, 21: an available plugin shows its version; a missing requirement is confirmed with it', async () => {
   api.getPlugins.mockResolvedValue([plugin('sas', 'Arrivée et départ guidés', 'available', {
-    version: '1.1.0', offer: { version: '1.1.0', requirements: [{ id: 'linen', name: 'Linge et blanchisserie', version: '1.0.0' }], refusal: null },
+    version: '1.1.0',
+    dependencies: { requires: [{ id: 'linen', name: 'Linge et blanchisserie', status: 'missing', label: 'non installé', updateAvailable: false }], usedBy: [] },
+    offer: { version: '1.1.0', requirements: [{ id: 'linen', name: 'Linge et blanchisserie', version: '1.0.0', op: 'install' }], refusal: null },
   })]);
   api.installPlugin.mockResolvedValue({ reload: true });
   renderPage();
   const sas = await waitFor(() => card('Arrivée et départ guidés'));
   expect(within(sas).getByText('1.1.0')).toBeInTheDocument();
-  expect(within(sas).getByText('Nécessite : Linge et blanchisserie')).toBeInTheDocument();
+  expect(within(sas).getByText('non installé')).toBeInTheDocument();
   await userEvent.click(within(sas).getByRole('button', { name: 'Installer' }));
   const dialog = await screen.findByRole('dialog');
-  expect(dialog).toHaveTextContent('Nécessite aussi : Linge et blanchisserie 1.0.0, installé en premier.');
+  expect(dialog).toHaveTextContent('Installe aussi Linge et blanchisserie 1.0.0.');
   await userEvent.click(within(dialog).getByRole('button', { name: 'Tout installer' }));
   expect(api.installPlugin).toHaveBeenCalledWith('sas', { withRequirements: true });
   await waitFor(() => expect(onReload).toHaveBeenCalled());
