@@ -20,6 +20,9 @@ const frDate = (iso) => { const d = new Date(iso); return `${String(d.getDate())
 
 const localDay = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
+const MAX_MAILS_PER_PASS = 200;
+const SINCE_DAYS = 30;
+
 function createIntakeService(deps) {
   const { intakes, settings, readMails, findReservations, commissionPercent, propertyOptions, getReservation, core, parserVersion = null, now = () => new Date() } = deps;
   // The accommodations' day: the process runs in their time zone (utils/localDate.js).
@@ -193,30 +196,45 @@ function createIntakeService(deps) {
     return apply(intake, m.reservation).status;
   }
 
-  async function runPass() {
+  // Rule 31 — one pass at a time: a second call (job tick + « Lire maintenant ») joins the one running.
+  let running = null;
+  function runPass() {
+    if (!running) running = readPass().finally(() => { running = null; });
+    return running;
+  }
+
+  async function readPass() {
     const mailbox = settings.mailbox();
     if (!mailbox.host || !mailbox.user || !mailbox.password) return { skipped: 'Boîte mail non configurée' };
     // Installed with every plugin on an existing base: nothing is read until a property is tied to a gîte.
     if (Object.values(settings.giteNumbers()).every((g) => !String(g || '').trim())) {
       return { skipped: 'Aucun logement relié à un numéro de gîte' };
     }
-    const mails = await readMails({ ...mailbox, sender: settings.sender(), ...(settings.authentication ? settings.authentication() : {}) });
+    intakes.purgeIgnored(new Date(now().getTime() - (SINCE_DAYS + 1) * 24 * 3600 * 1000).toISOString());
     let read = 0;
-    for (const mail of mails) {
-      if (intakes.has(mail.messageId, parserVersion)) continue;
+    // Rule 30 — mails arrive one by one: known ones are never downloaded, the others are all remembered
+    // (an intake, or `ignored`), and a pass reads at most MAX_MAILS_PER_PASS of them, newest first.
+    const take = (mail) => {
       const senderVerified = mail.authenticated === true;
-      read += 1;
+      // A pass counts the rows it really wrote: a mail another pass stored first is not read twice.
+      const add = (row, counts = true) => { if (intakes.insert(row) !== null && counts) read += 1; };
+      const remember = (error, counts = false) => add({ messageId: mail.messageId, receivedAt: mail.receivedAt, status: 'ignored', error, senderVerified, parserVersion }, counts);
+      if (mail.skipped) { remember('Mail trop volumineux'); return; }
       const parsed = parseGitesDeFranceMail(mail.text);
       if (!parsed.ok) {
         // Another kind of mail from the centrale (invoice, newsletter) is not an intake at all.
-        if (!/nouvelle réservation/i.test(`${mail.subject || ''} ${mail.text}`)) continue;
+        if (!/nouvelle réservation/i.test(`${mail.subject || ''} ${mail.text}`)) { remember('Autre type de mail', true); return; }
         // Rule 25 — an unauthenticated mail that does not parse is remembered (`ignored`, out of every list)
         // so the next pass does not parse it again.
-        intakes.insert({ messageId: mail.messageId, receivedAt: mail.receivedAt, status: senderVerified ? 'error' : 'ignored', error: parsed.error, senderVerified, parserVersion });
-        continue;
+        add({ messageId: mail.messageId, receivedAt: mail.receivedAt, status: senderVerified ? 'error' : 'ignored', error: parsed.error, senderVerified, parserVersion });
+        return;
       }
-      intakes.insert({ messageId: mail.messageId, receivedAt: mail.receivedAt, dossierNumber: parsed.booking.dossierNumber, parsed: parsed.booking, status: 'pending', senderVerified });
-    }
+      add({ messageId: mail.messageId, receivedAt: mail.receivedAt, dossierNumber: parsed.booking.dossierNumber, parsed: parsed.booking, status: 'pending', senderVerified });
+    };
+    await readMails(
+      { ...mailbox, sender: settings.sender(), ...(settings.authentication ? settings.authentication() : {}) },
+      { seen: (messageId) => intakes.has(messageId, parserVersion), onMail: take, limit: MAX_MAILS_PER_PASS },
+    );
     const outcome = {};
     for (const intake of intakes.listOpen()) {
       // One intake that throws is recorded and left behind: it stays `pending` otherwise, first in

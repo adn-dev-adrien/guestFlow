@@ -59,8 +59,8 @@ function buildModel(db) {
     },
     insert({ messageId, receivedAt, confirmationCode = null, parsed = null, status, error = null, senderVerified = true, parserVersion = null }) {
       const r = db.prepare(`INSERT INTO airbnb_intakes (messageId, receivedAt, confirmationCode, parsed, status, error, senderVerified, parserVersion)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(messageId, receivedAt, confirmationCode, parsed ? JSON.stringify(parsed) : null, status, error, senderVerified ? 1 : 0, parserVersion);
-      return Number(r.lastInsertRowid);
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(messageId) DO NOTHING`).run(messageId, receivedAt, confirmationCode, parsed ? JSON.stringify(parsed) : null, status, error, senderVerified ? 1 : 0, parserVersion);
+      return r.changes ? Number(r.lastInsertRowid) : null;
     },
     get(id) {
       return hydrate(db.prepare('SELECT * FROM airbnb_intakes WHERE id = ?').get(Number(id)));
@@ -95,8 +95,13 @@ function buildModel(db) {
         OR (status = 'proposed' AND senderVerified = 0)
         OR (status = 'pending' AND datetime(receivedAt) <= datetime(?, '-1 day'))) ORDER BY receivedAt DESC`).all(nowIso).map(hydrate);
     },
+    // Rule 31 — mails that were not intakes are remembered, not counted as read.
     count() {
-      return db.prepare('SELECT COUNT(*) AS n FROM airbnb_intakes').get().n;
+      return db.prepare("SELECT COUNT(*) AS n FROM airbnb_intakes WHERE status != 'ignored'").get().n;
+    },
+    // Rule 31 — an ignored mail older than the reader's window can no longer come back: forgotten.
+    purgeIgnored(beforeIso) {
+      db.prepare("DELETE FROM airbnb_intakes WHERE status = 'ignored' AND dismissedAt IS NULL AND datetime(receivedAt) < datetime(?)").run(beforeIso);
     },
   };
 }

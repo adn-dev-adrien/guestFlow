@@ -18,7 +18,7 @@ function setup({ mails = [MAIL], today = '2026-10-25', findReservations = () => 
   const service = createIntakeService({
     intakes: buildModel(db),
     settings: { mailbox: () => ({ host: 'h', user: 'u', password: 'p' }), sender: () => 's', listings: () => [[1, '1234567890123456789']], autoApply: () => true },
-    readMails: async () => mails.map((m) => ({ authenticated: true, ...m })),
+    readMails: async (cfg, h) => { for (const m of mails) if (!h.seen(m.messageId)) await h.onMail({ authenticated: true, ...m }); },
     findReservations,
     propertyOptions: () => [],
     getReservation: () => ({ ...R, options: [], notes: '' }),

@@ -1,0 +1,1 @@
+- **Plugins:** a plugin whose requirements include a dependency cycle can no longer be activated (`REQUIREMENT_CYCLE`, on the action and on its card); a dependant whose revive migration fails reads "Erreur" instead of an unexplained "Incompatible"; when an install plan owes a restart, the later installs wait for the boot so requirements always run first.

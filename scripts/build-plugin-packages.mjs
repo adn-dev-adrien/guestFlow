@@ -93,7 +93,7 @@ function walk(dir, acc = []) {
   return acc;
 }
 
-function buildServer(id, destDir) {
+export function buildServer(id, destDir) {
   const pluginDir = path.join(SERVER_PLUGINS, id);
   const dependencies = Object.keys(JSON.parse(fs.readFileSync(path.join(ROOT, 'server', 'package.json'), 'utf8')).dependencies || {});
   const errors = [];

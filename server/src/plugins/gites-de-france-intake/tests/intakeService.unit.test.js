@@ -88,7 +88,7 @@ test('rule 18: a gîte number tied to no property waits (pending), shown on the 
   const service = createIntakeService({
     intakes: buildModel(db),
     settings: { mailbox: () => ({ host: 'h', user: 'u', password: 'p' }), sender: () => 's', giteNumbers: () => ({ 2: '400100' }), autoApply: () => true },
-    readMails: async () => [{ messageId: '<x>', receivedAt: '2026-10-14T16:32:00.000Z', text: BOOKING_MAIL, authenticated: true }],
+    readMails: async (cfg, h) => { await h.onMail({ messageId: '<x>', receivedAt: '2026-10-14T16:32:00.000Z', text: BOOKING_MAIL, authenticated: true }); },
     findReservations: () => [], commissionPercent: () => 10, propertyOptions: () => [], getReservation: () => null,
     core: {}, now: () => new Date('2026-10-16T10:00:00Z'),
   });
@@ -104,7 +104,7 @@ test('rule 16: no property tied to a gîte yet → the mailbox is not even read'
   const service = createIntakeService({
     intakes: buildModel(db),
     settings: { mailbox: () => ({ host: 'h', user: 'u', password: 'p' }), sender: () => 's', giteNumbers: () => ({}), autoApply: () => true },
-    readMails: async () => { read = true; return []; },
+    readMails: async () => { read = true; },
   });
   assert.deepEqual(await service.runPass(), { skipped: 'Aucun logement relié à un numéro de gîte' });
   assert.equal(read, false);
@@ -121,14 +121,15 @@ test('rule 3: the same Message-ID is read once; a second mail of the same dossie
   assert.equal(calls.updates.length, 1);
 });
 
-test('rule 3: an unreadable booking mail is an error; another mail of the centrale is skipped', async () => {
+test('rule 3: an unreadable booking mail is an error; another mail of the centrale is no intake', async () => {
   const { service, intakes } = setup({ mails: [
     { messageId: '<bad>', receivedAt: '2026-10-14T16:32:00.000Z', text: BOOKING_MAIL.replace('Total net : 534.00', 'Total net : 540.00') },
     { messageId: '<news>', receivedAt: '2026-10-14T16:32:00.000Z', subject: 'Lettre d’information', text: 'Les ateliers 2027 sont ouverts.' },
   ] });
   await service.runPass();
-  assert.equal(intakes.count(), 1);
   assert.equal(intakes.get(1).status, 'error');
+  assert.equal(intakes.get(2).status, 'ignored', 'rule 30: the newsletter is remembered, out of every list');
+  assert.deepEqual(intakes.listOpen(), []);
 });
 
 test('rule 7: a platform rate of 0 → error, nothing written', async () => {
