@@ -1,0 +1,1 @@
+- **Tourist tax: no year or month past the current one can be picked** (specs/ds-sweep-finance.md rule 24): choosing next year, or this year after a later month of last year, asked the server for a future month and left a load error that « Réessayer » could not clear. The year list stops at the current year and a year change clamps the month.
