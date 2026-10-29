@@ -15,8 +15,14 @@
  *   busy      boolean   an action on this card is running
  *   error     string?   refusal or failure message, shown in red under the card
  *   bundleFailed boolean the browser could not load this plugin's bundle (rule 18)
+ *   specs/plugin-dependencies.md rules 6–8: `dependencies` ({ requires: [{ id, name, status, label,
+ *             updateAvailable }], usedBy: [{ id, name, state, label }] }) is printed under the
+ *             description; `actions` ({ activate, deactivate, uninstall }, each { allowed, blockedBy,
+ *             alsoActivates?, alsoDeactivates? }) says what the buttons would refuse before the click
+ *             and which plugins a confirmed action takes along; `confirm` ({ title, message, label }) is
+ *             the server's text for the confirmation dialogs (also `offer.confirm` for an install).
  *   onAction  (action: 'install'|'activate'|'deactivate'|'uninstall'|'update'|'rollback',
- *             options?: { purge, withRequirements, version }) => void
+ *             options?: { purge, withRequirements, withDependents, version }) => void
  *   onOpenUpdate () => void  the « Mise à jour x.y.z » chip: opens the update dialog (rule 20)
  *   onOpenSettings (path) => void  the « Configurer » / « Réglages » button: opens the place the
  *             server names in `plugin.setup` ({ needed, label, path, action }) —
@@ -77,6 +83,7 @@ export default function PluginCard({
   const [erase, setErase] = useState(false);
   const [confirmRequirements, setConfirmRequirements] = useState(false);
   const [confirmRollback, setConfirmRollback] = useState(false);
+  const [confirmActivate, setConfirmActivate] = useState(false);
   const Icon = ICONS[plugin.icon] || ExtensionIcon;
   const installed = plugin.state !== 'available';
   const failed = plugin.state === 'failed' || (installed && bundleFailed);
@@ -92,7 +99,16 @@ export default function PluginCard({
   const eraseWarnings = (plugin.data || []).filter((line) => line.warning);
 
   // Rule 8: a refusal is said before the click, and the buttons it would refuse are disabled.
-  const blocked = Boolean(plugin.blocker);
+  const actions = plugin.actions || {};
+  const requires = (plugin.dependencies && plugin.dependencies.requires) || [];
+  const usedBy = (plugin.dependencies && plugin.dependencies.usedBy) || [];
+  const activateBlockedBy = (actions.activate && actions.activate.blockedBy) || null;
+  const activateConfirm = (actions.activate && actions.activate.confirm) || null;
+  const deactivateBlockedBy = (actions.deactivate && actions.deactivate.blockedBy) || (plugin.blocker && plugin.blocker.message) || null;
+  const deactivateConfirm = (actions.deactivate && actions.deactivate.confirm) || null;
+  const cascades = Boolean(actions.deactivate && actions.deactivate.alsoDeactivates && actions.deactivate.alsoDeactivates.length);
+  const uninstallBlockedBy = (actions.uninstall && actions.uninstall.blockedBy) || (plugin.blocker && plugin.blocker.message) || null;
+  const blocked = Boolean(deactivateBlockedBy);
   const active = plugin.state === 'active' && !failed && !incompatible;
   const setup = plugin.setup || {};
   // Rule 25 — an active plugin's useful action is its settings; switching it off waits in ⋯.
@@ -156,16 +172,29 @@ export default function PluginCard({
                 {bundleFailed && plugin.state !== 'failed' ? 'Échec du chargement.' : 'Échec du démarrage.'}
               </Typography>
             )}
-            {incompatible && plugin.incompatible && plugin.incompatible.message !== 'Incompatible avec cette version.' && (
+            {incompatible && plugin.incompatible && plugin.incompatible.code !== 'REQUIREMENT_MISSING' && plugin.incompatible.message !== 'Incompatible avec cette version.' && (
               <Typography variant="body2" color="error" sx={{ mt: 0.5 }}>{plugin.incompatible.message}</Typography>
             )}
             {offerRefusal && !outOfPlan && (
               <Typography variant="body2" color="warning.dark" sx={{ mt: 0.5 }}>{offerRefusal}</Typography>
             )}
-            {!installed && !outOfPlan && requirements.length > 0 && !offerRefusal && (
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-                Nécessite : {requirements.map((r) => r.name).join(', ')}
-              </Typography>
+            {(requires.length > 0 || usedBy.length > 0) && (
+              <Box sx={{ mt: 0.5, display: 'flex', flexDirection: 'column', gap: 0.5, alignItems: 'flex-start' }}>
+                {requires.map((r) => (
+                  <Box key={r.id} sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, alignItems: 'center' }}>
+                    <Typography variant="caption" color="text.secondary">
+                      Nécessite <b>{r.name}</b>
+                    </Typography>
+                    {r.label && <StatusBadge wrap status={r.status === 'missing' ? 'neutral' : 'warning'} label={r.label} />}
+                    {r.updateAvailable && <StatusBadge status="info" label={`Mise à jour de ${r.name} disponible`} />}
+                  </Box>
+                ))}
+                {usedBy.length > 0 && (
+                  <Typography variant="caption" color="text.secondary">
+                    Utilisé par {usedBy.map((u) => u.label).join(', ')}
+                  </Typography>
+                )}
+              </Box>
             )}
             {!installed && outOfPlan && plugin.planHint && (
               <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>{plugin.planHint}</Typography>
@@ -214,7 +243,7 @@ export default function PluginCard({
               >
                 <ListItemText
                   primary="Désactiver…"
-                  secondary={blocked ? plugin.blocker.message : null}
+                  secondary={blocked ? deactivateBlockedBy : null}
                   slotProps={{ secondary: { sx: { color: 'warning.dark', opacity: 1 } } }}
                 />
               </MenuItem>
@@ -224,14 +253,21 @@ export default function PluginCard({
         {!outOfPlan && primary && (
           <Button
             variant={primary.variant}
-            disabled={busy || (primary.action === 'deactivate' && blocked) || (primary.action === 'install' && Boolean(offerRefusal))}
-            onClick={() => (primary.action === 'install' && requirements.length ? setConfirmRequirements(true) : act(primary.action))}
+            disabled={busy || (primary.action === 'install' && Boolean(offerRefusal)) || (primary.action === 'activate' && Boolean(activateBlockedBy))}
+            onClick={() => {
+              if (primary.action === 'install' && requirements.length) setConfirmRequirements(true);
+              else if (primary.action === 'activate' && activateConfirm) setConfirmActivate(true);
+              else act(primary.action);
+            }}
             sx={{ minHeight: 44, flex: 'none', width: { xs: '100%', sm: 'auto' } }}
           >
             {primary.label}
           </Button>
         )}
       </Stack>
+      {!outOfPlan && primary && primary.action === 'activate' && activateBlockedBy && (
+        <Typography variant="body2" color="warning.dark" sx={{ px: 2, pb: 1.5 }}>{activateBlockedBy}</Typography>
+      )}
       {update && !outOfPlan && (
         <Box sx={{ px: 1.5, pb: 1.5, mt: -0.5, pl: { sm: 8.5 } }}>
           <Chip
@@ -247,10 +283,10 @@ export default function PluginCard({
       <ConfirmDialog
         open={confirmOff}
         onClose={() => setConfirmOff(false)}
-        onConfirm={() => { setConfirmOff(false); act('deactivate'); }}
-        title={`Désactiver ${plugin.name} ?`}
-        message="Ce qu’il ajoute s’arrête. Ses réglages et ses données sont gardés : le réactiver remet tout en place."
-        confirmLabel="Désactiver"
+        onConfirm={() => { setConfirmOff(false); act('deactivate', cascades ? { withDependents: true } : undefined); }}
+        title={deactivateConfirm ? deactivateConfirm.title : `Désactiver ${plugin.name} ?`}
+        message={deactivateConfirm ? deactivateConfirm.message : 'Ce qu’il ajoute s’arrête. Ses réglages et ses données sont gardés : le réactiver remet tout en place.'}
+        confirmLabel={deactivateConfirm ? deactivateConfirm.label : 'Désactiver'}
         cancelLabel="Garder"
         confirmColor="error"
       />
@@ -266,12 +302,21 @@ export default function PluginCard({
         />
       )}
       <ConfirmDialog
+        open={confirmActivate}
+        onClose={() => setConfirmActivate(false)}
+        onConfirm={() => { setConfirmActivate(false); act('activate', { withRequirements: true }); }}
+        title={activateConfirm ? activateConfirm.title : ''}
+        message={activateConfirm ? activateConfirm.message : ''}
+        confirmLabel={activateConfirm ? activateConfirm.label : ''}
+        confirmColor="primary"
+      />
+      <ConfirmDialog
         open={confirmRequirements}
         onClose={() => setConfirmRequirements(false)}
         onConfirm={() => { setConfirmRequirements(false); act('install', { withRequirements: true }); }}
-        title={`Installer ${plugin.name}`}
-        message={`Nécessite aussi : ${requirements.map((r) => `${r.name} ${r.version}`).join(', ')}, installé en premier.`}
-        confirmLabel="Tout installer"
+        title={offer && offer.confirm ? offer.confirm.title : ''}
+        message={offer && offer.confirm ? offer.confirm.message : ''}
+        confirmLabel={offer && offer.confirm ? offer.confirm.label : ''}
         confirmColor="primary"
       />
       {error && (
@@ -324,12 +369,15 @@ export default function PluginCard({
               <Button
                 color="error"
                 variant={armed ? 'contained' : 'outlined'}
-                disabled={busy || blocked}
+                disabled={busy || Boolean(uninstallBlockedBy)}
                 onClick={() => (armed ? act('uninstall', erase ? { purge: true } : undefined) : setArmed(true))}
                 sx={{ minHeight: 44, width: { xs: '100%', sm: 'auto' } }}
               >
                 {!armed ? 'Désinstaller' : erase ? 'Désinstaller et effacer' : 'Confirmer la désinstallation'}
               </Button>
+              {uninstallBlockedBy && (
+                <Typography variant="body2" color="warning.dark" sx={{ mt: 0.5 }}>{uninstallBlockedBy}</Typography>
+              )}
             </>
           )}
         </Box>

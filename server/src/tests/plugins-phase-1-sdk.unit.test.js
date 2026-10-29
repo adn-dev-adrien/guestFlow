@@ -248,10 +248,11 @@ test('rules 6, 25: on a database that predates the module the migrations are no-
   assert.equal(db.prepare("SELECT COUNT(*) AS n FROM migrations WHERE name LIKE 'plugin:weather-alerts:%'").get().n, 1);
 });
 
-test('rule 6: a migration that fails at install time refuses the install and records nothing', { skip: skipWithout(['weather-alerts']) }, async () => {
+test('rule 6: a migration that fails at install time refuses the install and records nothing', { skip: skipWithout(['weather-alerts', 'sas']) }, async () => {
   const db = freshDb();
   const bad = { id: 'weather-alerts', register(ctx) { ctx.migrations([{ name: 'bad', up: () => { throw new Error('nope'); } }]); } };
   const { plugins } = boot(db, { installed: [], modules: [bad] });
+  plugins.install('sas');
   const controller = createController(plugins, { registry, db: () => db, loader: () => loader });
   const res = fakeRes();
   await controller.install({ params: { id: 'weather-alerts' } }, res);
@@ -464,9 +465,10 @@ test('rule 12: the Plugins list says which plugins are erasable and what an eras
   assert.deepEqual(hourly.data, []);
 });
 
-test('rules 12, 24: erasing drops the tables, the settings and the ledger rows; a reinstall starts empty', { skip: skipWithout(['weather-alerts']) }, async () => {
+test('rules 12, 24: erasing drops the tables, the settings and the ledger rows; a reinstall starts empty', { skip: skipWithout(['weather-alerts', 'sas']) }, async () => {
   const db = freshDb();
   const { plugins, settingsModel } = boot(db, { installed: ['weather-alerts'] });
+  plugins.install('sas');
   settingsModel.set('weather-alerts', 'apiKey', 'k', { secret: true });
   db.prepare("INSERT INTO weather_vigilance_cache VALUES ('07', '[]', '2026-09-28')").run();
   const controller = createController(plugins, { registry, db: () => db, settingsModel: () => settingsModel, loader: () => loader });

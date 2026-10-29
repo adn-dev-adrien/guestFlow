@@ -11,6 +11,7 @@
  */
 
 const { satisfies, compare, highest, floorLabel, isVersion, boundedRange } = require('./semverRange');
+const { cycleLabel } = require('./pluginGraph');
 
 // A development tree reads `0.0.0-dev` (utils/appVersion.js): it runs whatever its sources are.
 const DEV_CORE = '0.0.0-dev';
@@ -87,30 +88,47 @@ function bestRefusal(id, sources, env) {
 }
 
 /**
- * The install plan of `manifest`'s requirements (rule 12): what must be installed first, in order,
- * or the refusal that stops it. `installed` maps an installed id to its version; `nameOf(id)` and
+ * The plan of `manifest`'s requirements (rules 9, 12 of phase 4; rules 5, 9, 15 of
+ * specs/plugin-dependencies.md): what must be installed or switched on first, in order, or the
+ * refusal that stops it. A step is `{ id, name, version, op: 'install' | 'activate' }` (`source` too
+ * for an install). `installed` maps an installed id to its version, `inactive` lists the installed ones
+ * that are off, `installedManifest(id)` gives an installed plugin's own manifest, `nameOf(id)` and
  * `allows(id)` come from the catalogue and the licence.
  */
-function requirementPlan(manifest, { sources, env, installed, nameOf, allows }, seen = new Set([manifest.id])) {
+function requirementPlan(manifest, ctx, seen = new Set([manifest.id]), path = [manifest.id]) {
+  const {
+    sources, env, installed, nameOf, allows, inactive = [], installedManifest = () => null,
+  } = ctx;
   const plan = [];
+  const refuse = (code, plugin, message) => ({ plan: [], refusal: { code, plugin, message } });
   for (const req of manifest.requires || []) {
     const name = nameOf(req.id) || req.id;
+    if (path.includes(req.id)) {
+      const cycle = path.slice(path.indexOf(req.id));
+      return refuse('REQUIREMENT_CYCLE', req.id, `Dépendance circulaire : ${cycleLabel(cycle, (id) => nameOf(id) || id)}.`);
+    }
     if (installed[req.id]) {
-      if (satisfies(installed[req.id], req.range)) continue;
-      return { plan: [], refusal: { code: 'REQUIREMENT_TOO_OLD', plugin: req.id, message: `Nécessite ${name} ${floorLabel(req.range) || req.range} ou plus récent.` } };
+      if (!satisfies(installed[req.id], req.range)) {
+        return refuse('REQUIREMENT_TOO_OLD', req.id, `Nécessite ${name} ${floorLabel(req.range) || req.range} ou plus récent (installé : ${installed[req.id]}).`);
+      }
+      if (!inactive.includes(req.id) || seen.has(req.id)) continue;
+      if (!allows(req.id)) return refuse('REQUIREMENT_OUT_OF_PLAN', req.id, `Nécessite ${name}, hors forfait.`);
+      seen.add(req.id);
+      const nested = requirementPlan(installedManifest(req.id) || { id: req.id, requires: [] }, ctx, seen, [...path, req.id]);
+      if (nested.refusal) return nested;
+      plan.push(...nested.plan, { id: req.id, name, version: installed[req.id], op: 'activate' });
+      continue;
     }
-    if (seen.has(req.id) || plan.some((p) => p.id === req.id)) continue;
-    if (!allows(req.id)) {
-      return { plan: [], refusal: { code: 'REQUIREMENT_OUT_OF_PLAN', plugin: req.id, message: `Nécessite ${name}, hors forfait.` } };
-    }
+    if (seen.has(req.id)) continue;
+    if (!allows(req.id)) return refuse('REQUIREMENT_OUT_OF_PLAN', req.id, `Nécessite ${name}, hors forfait.`);
     const offer = bestCandidate(req.id, sources, env, { range: req.range });
-    if (!offer) {
-      return { plan: [], refusal: { code: 'REQUIREMENT_MISSING', plugin: req.id, message: `Nécessite ${name}, indisponible.` } };
-    }
+    if (!offer) return refuse('REQUIREMENT_MISSING', req.id, `Nécessite ${name}, indisponible.`);
     seen.add(req.id);
-    const nested = requirementPlan(offer.manifest, { sources, env, installed, nameOf, allows }, seen);
+    const nested = requirementPlan(offer.manifest, ctx, seen, [...path, req.id]);
     if (nested.refusal) return nested;
-    plan.push(...nested.plan, { id: req.id, name, version: offer.version, source: offer.source });
+    plan.push(...nested.plan, {
+      id: req.id, name, version: offer.version, source: offer.source, op: 'install',
+    });
   }
   return { plan, refusal: null };
 }
@@ -125,11 +143,6 @@ function changelogBetween(manifest, from, to) {
     .map((version) => ({ version, lines: log[version] }));
 }
 
-/** The installed plugins that require `id` (rule 12: uninstalling it is refused). */
-function dependentsOf(id, installedManifests) {
-  return Object.values(installedManifests).filter((m) => m && (m.requires || []).some((r) => r.id === id));
-}
-
 module.exports = {
   DEV_CORE,
   MESSAGES,
@@ -140,5 +153,4 @@ module.exports = {
   bestRefusal,
   requirementPlan,
   changelogBetween,
-  dependentsOf,
 };

@@ -8,6 +8,11 @@
  * lists what will be erased, as the space counts it, and asks to type the customer's slug. One that is
  * installed without data has « Désinstaller… » (rule 38): same order, a plain confirmation.
  *
+ * specs/plugin-dependencies.md rules 17–18: each line says what it needs (`requires`, an unmet one with its
+ * status) and who uses it (`usedBy`); a switch that would take other modules along (`alsoOn`,
+ * `alsoOff`, listed by the server) names them in its confirmation and sends `withRequirements` /
+ * `withDependents`.
+ *
  * Props: customerId, slug (typed to confirm an erasure), onChanged() (the page reloads its journal).
  */
 import React, { useCallback, useEffect, useState } from 'react';
@@ -64,11 +69,12 @@ export default function ModulesSection({ customerId, slug, onChanged }) {
 
   async function change(line, on) {
     if (busyId) return;
-    if (!on) {
+    const along = on ? line.alsoOn : line.alsoOff;
+    if (line.confirm) {
       const ok = await confirm({
-        title: `Désactiver ${line.name} ?`,
-        message: 'Ses pages disparaissent de l’espace ; ses données sont conservées.',
-        confirmLabel: 'Désactiver',
+        title: line.confirm.title,
+        message: line.confirm.message,
+        confirmLabel: line.confirm.label,
         confirmColor: 'primary',
       });
       if (!ok) return;
@@ -78,7 +84,7 @@ export default function ModulesSection({ customerId, slug, onChanged }) {
     setBusy(true);
     setBusyId(line.id);
     try {
-      setView(await api.toggleModule(customerId, line.id, on));
+      setView(await api.toggleModule(customerId, line.id, on, ...(along.length ? [on ? { withRequirements: true } : { withDependents: true }] : [])));
       if (onChanged) onChanged();
     } catch (err) {
       if (err.status === 422) setRefusal({ id: line.id, message: err.message });
@@ -151,6 +157,22 @@ export default function ModulesSection({ customerId, slug, onChanged }) {
             {line.detail && <Typography variant="caption" sx={{ color: 'text.secondary', overflowWrap: 'anywhere' }}>{line.detail}</Typography>}
             {line.canRetry && <Button size="small" sx={{ minHeight: 44 }} disabled={busy} onClick={retry}>Réessayer</Button>}
           </Box>
+          {(line.requires.length > 0 || line.usedBy.length > 0) && (
+            <Box sx={{ mt: 0.5, display: 'flex', flexDirection: 'column', gap: 0.25, alignItems: 'flex-start' }}>
+              {line.requires.map((r) => (
+                <Box key={r.id} sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', columnGap: 0.75, rowGap: 0.5 }}>
+                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>Nécessite <b>{r.name}</b></Typography>
+                  {r.label && <StatusBadge status="warning" label={r.label} />}
+                </Box>
+              ))}
+              {line.usedBy.length > 0 && (
+                <Typography variant="caption" sx={{ color: 'text.secondary', overflowWrap: 'anywhere' }}>
+                  Utilisé par {line.usedBy.map((u) => u.label).join(', ')}
+                </Typography>
+              )}
+            </Box>
+          )}
+          {line.switchBlockedBy && <Typography variant="caption" sx={{ display: 'block', mt: 0.5, color: 'warning.dark' }}>{line.switchBlockedBy}</Typography>}
           {refused && <Typography id={`module-${line.id}-refusal`} variant="caption" role="alert" sx={{ display: 'block', mt: 0.5, color: 'error.main' }}>{refused}</Typography>}
         </Box>
         {(line.canErase || line.canUninstall) && (
@@ -159,7 +181,7 @@ export default function ModulesSection({ customerId, slug, onChanged }) {
           </IconButton>
         )}
         {line.switchable && (
-          <Switch checked={checked} disabled={Boolean(busyId) && busyId !== line.id} onChange={(e) => change(line, e.target.checked)}
+          <Switch checked={checked} disabled={(Boolean(busyId) && busyId !== line.id) || Boolean(line.switchBlockedBy)} onChange={(e) => change(line, e.target.checked)}
             slotProps={{ input: { 'aria-label': line.name, 'aria-describedby': describedBy, 'aria-busy': busyId === line.id } }} sx={SWITCH_SX} />
         )}
       </Box>

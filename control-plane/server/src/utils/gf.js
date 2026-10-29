@@ -22,6 +22,8 @@ module.exports = {
   totp: require(path.join(GF_SERVER, 'src', 'utils', 'totp')),
   supportAccess: require(path.join(GF_SERVER, 'src', 'utils', 'supportAccess')),
   plugins: require(path.join(GF_SERVER, 'src', 'constants', 'plugins')),
+  // specs/plugin-dependencies.md rule 17 — the space's own dependency graph, read by the console unchanged.
+  pluginGraph: require(path.join(GF_SERVER, 'src', 'utils', 'pluginGraph')),
   // specs/plugins-phase-4-registry.md rule 8 — the registry checks a package with the instance's own
   // checks: its members, its layout and its manifest.
   packages: require(path.join(GF_SERVER, 'src', 'plugins', 'packageStore')),
