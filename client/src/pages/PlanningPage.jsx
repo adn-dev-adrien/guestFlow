@@ -128,21 +128,52 @@ export default function PlanningPage() {
   }, [phase, positioned, todayStr, pinAnchor]);
 
   const [atToday, setAtToday] = useState(false);
+  // Set by « Aujourd'hui » while its smooth scroll runs: a window request that releases today's window
+  // meanwhile leaves the scroll without a target, so the timeline is reopened on today instead.
+  const wantsToday = useRef(false);
   useEffect(() => {
     if (!positioned) return undefined;
     const update = () => {
       const node = document.querySelector(`[data-scroll-anchor="${todayKey(todayStr)}"]`);
-      setAtToday(Boolean(node) && Math.abs(node.getBoundingClientRect().top - barBottom()) <= AT_TODAY_TOLERANCE_PX);
+      const there = Boolean(node) && Math.abs(node.getBoundingClientRect().top - barBottom()) <= AT_TODAY_TOLERANCE_PX;
+      if (there) wantsToday.current = false;
+      setAtToday(there);
     };
     update();
+    // A layout shift that moves today without a scroll event (cards settling, a window added above)
+    // must not leave « Aujourd'hui » enabled while today sits under the bar.
+    const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(update) : null;
+    if (observer) observer.observe(document.body);
     window.addEventListener('scroll', update, { passive: true });
-    return () => window.removeEventListener('scroll', update);
+    return () => {
+      if (observer) observer.disconnect();
+      window.removeEventListener('scroll', update);
+    };
   }, [positioned, todayStr, timeline.version]);
+
+  useEffect(() => {
+    const cancel = () => { wantsToday.current = false; };
+    const events = ['wheel', 'touchstart', 'keydown'];
+    events.forEach((name) => window.addEventListener(name, cancel, { passive: true }));
+    return () => events.forEach((name) => window.removeEventListener(name, cancel));
+  }, []);
+
+  useEffect(() => {
+    if (!wantsToday.current || phase !== 'ready') return;
+    if (windows.some((w) => w.k === 0 && w.status === 'loaded')) return;
+    wantsToday.current = false;
+    timeline.reopen();
+  }, [timeline.version, phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // « Aujourd'hui »: back under the bar; windows released since the opening are loaded first.
   const goToToday = () => {
-    if (windows.some((w) => w.k === 0 && w.status === 'loaded')) scrollToAnchor(todayKey(todayStr), { behavior: 'smooth' });
-    else timeline.reopen();
+    if (windows.some((w) => w.k === 0 && w.status === 'loaded')) {
+      wantsToday.current = true;
+      scrollToAnchor(todayKey(todayStr), { behavior: 'smooth' });
+    } else {
+      wantsToday.current = false;
+      timeline.reopen();
+    }
   };
 
   const { items } = useMemo(() => buildTimeline(windows.filter((w) => w.status === 'loaded')), [timeline.version]); // eslint-disable-line react-hooks/exhaustive-deps

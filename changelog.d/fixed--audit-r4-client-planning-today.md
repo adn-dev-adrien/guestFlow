@@ -1,0 +1,1 @@
+- **Planning: « Aujourd'hui » reaches today even when a window request releases today's window on the way** (specs/dashboard-planning-scroll.md rule 33): after a long scroll down, the button could do nothing and leave the page far from today. The timeline is now reopened on today in that case, and the button's enabled state follows layout changes, not only scroll events.
