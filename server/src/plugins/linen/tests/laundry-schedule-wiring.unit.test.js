@@ -99,7 +99,7 @@ test('specs/linen-laundry-days.md §3.1 rule 5: PUT then GET round-trips the pen
   assert.equal(rows(), before);
 });
 
-test('specs/linen-laundry-days.md §3.5 rule 25: the plugin's 1.2.0 changelog says, in French, impersonal and short, what changed', () => {
+test('specs/linen-laundry-days.md §3.5 rule 25: the 1.2.0 changelog of the plugin says, in French, impersonal and short, what changed', () => {
   const manifest = require('../manifest.json');
   const lines = manifest.changelog['1.2.0'];
   assert.ok(lines.includes('Plusieurs jours de blanchisserie par semaine.'));
