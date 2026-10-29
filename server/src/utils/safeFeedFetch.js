@@ -131,7 +131,13 @@ async function readCapped(response, maxBytes) {
  */
 async function fetchPublic(url, { signal, fetchImpl = undici.fetch, resolve, env = process.env } = {}) {
   const dispatcher = new undici.Agent({ connect: { lookup: guardedLookup({ resolve, env }) }, keepAliveTimeout: 1000 });
-  const release = () => dispatcher.close().catch(() => {});
+  // `close()` waits for the response body: an unread one (a 500 with a big body) would hold it until the
+  // timeout, so the body is cancelled first.
+  const releaseFor = (response) => async () => {
+    try { if (response && response.body && typeof response.body.cancel === 'function' && !response.bodyUsed) await response.body.cancel(); } catch { /* already closed */ }
+    await dispatcher.close().catch(() => {});
+  };
+  const release = releaseFor(null);
   try {
     let current = url;
     for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {
@@ -149,7 +155,7 @@ async function fetchPublic(url, { signal, fetchImpl = undici.fetch, resolve, env
       }
       const location = response.status >= 300 && response.status < 400 && response.headers && response.headers.get && response.headers.get('location');
       if (!location) {
-        response.release = release;
+        response.release = releaseFor(response);
         return response;
       }
       current = new URL(location, current).toString();

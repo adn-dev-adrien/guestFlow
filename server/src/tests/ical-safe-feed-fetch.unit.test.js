@@ -186,3 +186,30 @@ test('rule 17 — the pinning Agent is closed once the body is read, and when th
   assert.equal(await model.fetchFeed({ url: 'http://feeds.example/a.ics' }), feed);
   await assert.rejects(fetchPublic('http://feeds.example/a.ics', { fetchImpl: async () => { throw new Error('boom'); }, env: {} }), { message: 'boom' });
 });
+
+test('rule 17 — a non-OK answer with a huge unread body fails fast instead of waiting for the timeout', async () => {
+  const propertyIcalModel = require('../models/propertyIcalModel');
+  const Database = require('better-sqlite3');
+  const db = new Database(':memory:');
+  db.exec(require('fs').readFileSync(require('path').join(__dirname, '..', 'schema.sql'), 'utf8'));
+  const server = http.createServer((req, res) => {
+    res.writeHead(500, { 'Content-Type': 'text/plain' });
+    res.write(Buffer.alloc(2 * 1024 * 1024, 'x'));
+    // the body never ends: only a cancelled body lets the connection go
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const previous = process.env.GUESTFLOW_ICAL_ALLOW_PRIVATE;
+  process.env.GUESTFLOW_ICAL_ALLOW_PRIVATE = '1';
+  const started = Date.now();
+  try {
+    await assert.rejects(
+      propertyIcalModel.buildModel(db, { fetchTimeoutMs: 20_000 }).fetchFeed({ url: `http://127.0.0.1:${server.address().port}/feed.ics` }),
+      { message: 'Impossible de lire le flux iCal (500).' },
+    );
+    assert.ok(Date.now() - started < 3000, `took ${Date.now() - started} ms`);
+  } finally {
+    if (previous === undefined) delete process.env.GUESTFLOW_ICAL_ALLOW_PRIVATE; else process.env.GUESTFLOW_ICAL_ALLOW_PRIVATE = previous;
+    server.closeAllConnections();
+    server.close();
+  }
+});
