@@ -13,7 +13,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
-const { packages } = require('./gf');
+const { packages, registryClient } = require('./gf');
 const { httpError } = require('./httpError');
 
 const FILE_RE = /^([a-z][a-z0-9-]{1,40})-(\d+\.\d+\.\d+)\.tgz$/;
@@ -23,6 +23,8 @@ function writeAtomic(file, data) {
   fs.writeFileSync(tmp, data);
   fs.renameSync(tmp, file);
 }
+
+const MAX_AHEAD_MS = registryClient.FUTURE_TOLERANCE_MS;
 
 function createRegistryStore({ db, dir, privateKey, now = () => new Date() }) {
   fs.mkdirSync(dir, { recursive: true });
@@ -47,13 +49,13 @@ function createRegistryStore({ db, dir, privateKey, now = () => new Date() }) {
   // the previous one, even when two changes fall in the same millisecond or the clock steps back.
   let lastGenerated = 0;
   try { lastGenerated = Date.parse(JSON.parse(fs.readFileSync(path.join(dir, 'index.json'), 'utf8')).generatedAt) || 0; } catch { lastGenerated = 0; }
-  // A last date more than an hour ahead of the clock is a clock fault, not a date to honour: following it
-  // would freeze the registry until real time caught up (audit r4, rule 53).
-  const MAX_AHEAD_MS = 60 * 60 * 1000;
+  // A last date beyond what the instances accept is a clock fault, not a date to honour: following it
+  // would freeze the registry until real time caught up. Below that bound they remember the date, so it
+  // must be honoured or they would refuse the next index as stale (audit r4, rule 53).
   const nextGeneratedAt = () => {
     const current = now().getTime();
     if (lastGenerated - current > MAX_AHEAD_MS) {
-      console.warn(`[registry] last index generatedAt ${new Date(lastGenerated).toISOString()} is more than 1 h ahead of the clock; dating the index now`);
+      console.warn(`[registry] last index generatedAt ${new Date(lastGenerated).toISOString()} is more than 24 h ahead of the clock; dating the index now`);
       lastGenerated = 0;
     }
     lastGenerated = Math.max(current, lastGenerated + 1);
@@ -155,4 +157,4 @@ function createRegistryStore({ db, dir, privateKey, now = () => new Date() }) {
   return { list: rows, publish, withdraw, sign, indexFiles, packageFile };
 }
 
-module.exports = { createRegistryStore, FILE_RE };
+module.exports = { createRegistryStore, FILE_RE, MAX_AHEAD_MS };
