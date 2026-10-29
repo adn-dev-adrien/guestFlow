@@ -45,7 +45,8 @@ test('rule 35 — several postes in excess share the amount, the rounding cents 
 });
 
 test('rule 35 — no capture to read, or an unpaid bucket: the whole amount stays on the accommodation', () => {
-  const fallback = [{ bucket: 'accommodation', label: 'Hébergement', amountTtc: 12, collectedTtc: 0, dueTtc: 100 }];
+  // Nothing says what left the stay: the accommodation, as an amount collected in excess (reservation-save-keeps-pricing.md rule 15).
+  const fallback = [{ bucket: 'accommodation', label: 'Hébergement', amountTtc: 12, collectedTtc: 12, dueTtc: 0, excessOnly: true }];
   const quote = { finalPrice: 100, optionsTotal: 0, resourcesTotal: 0, touristTaxTotal: 0 };
   assert.deepEqual(overpaymentLinesOf({ row: PAID_BALANCE, capturedByPoste: { deposit: null, balance: null }, quote, overpaymentTtc: 12 }), fallback);
   assert.deepEqual(overpaymentLinesOf({
