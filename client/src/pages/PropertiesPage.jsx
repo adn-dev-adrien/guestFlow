@@ -66,7 +66,7 @@ export default function PropertiesPage() {
 
       {!loading && !listError && properties.length === 0 && (
         <EmptyState
-          message="Aucun logement. Créez votre premier logement !"
+          message="Aucun logement."
           actionLabel="Nouveau logement"
           onAction={createProperty}
         />
