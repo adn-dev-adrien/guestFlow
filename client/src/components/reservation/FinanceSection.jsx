@@ -436,6 +436,7 @@ export default function FinanceSection() {
 
   // ── Ledger actions (rules 8-14, 19, 25-26, 28) ─────────────────────────────
   const rows = ledger?.rows || [];
+  const openOverpaymentRow = rows.find((r) => r.key === 'overpayment' && r.action && r.action.kind === 'refund') || null;
   // The plan replaces the acompte and the solde: their « Sans acompte » switch has nothing to switch.
   const hasInstallmentPlan = Boolean(installmentPlan && installmentPlan.installments && installmentPlan.installments.length > 0);
   // Closing a panel gives the focus back to what opened it (the amount, or the row's action).
@@ -939,6 +940,8 @@ export default function FinanceSection() {
             overpaymentTtc={refundDialogOpen && refundDialogOpen.overpaymentTtc ? refundDialogOpen.overpaymentTtc : 0}
             overpaymentLines={refundDialogOpen && refundDialogOpen.overpaymentLines ? refundDialogOpen.overpaymentLines : null}
             defaultMethod={(refundDialogOpen && refundDialogOpen.method) || 'transfer'}
+            openOverpaymentTtc={openOverpaymentRow ? Number(openOverpaymentRow.amount || 0) : 0}
+            onUseOverpayment={() => openOverpaymentRow && onAction(openOverpaymentRow)}
             onSubmit={createRefund}
           />
         )}

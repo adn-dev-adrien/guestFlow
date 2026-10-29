@@ -253,6 +253,25 @@ choice in one click.
     parsed but failed to apply is never re-read, nor is a row the operator dismissed. Same in `airbnb-intake`. Test: same file.
 
 29. **The mail must open with the centrale's sentence** (audit R2 external N4, 2026-10-29). « Une nouvelle réservation a été effectuée pour votre logement N » as the FIRST line naming a « nouvelle réservation », before the « Réservation n° » line (a relayed text sits after it); a mail with another first line is refused. Same delivery assumption as airbnb-mail-intake rule 29: auto-apply needs direct delivery to the trusted server, and is tested on Gmail only. The subject template is not checked (unknown wording, open decision). Test: `gites-de-france-intake/tests/opening-line.unit.test.js`.
+30. **A pass downloads each mail once, and holds none** (audit r3, external N5, 2026-10-29; amends rules 3 and
+    25). The reader (SDK 2.15.0) takes `seen(messageId)` — a known Message-ID is skipped before its body is
+    downloaded — `onMail(mail)` — each mail is handed over as it is read, none is kept — and `limit` (the service
+    passes 200: a pass downloads at most 200 bodies, newest first). A mail of another kind from the centrale
+    (« Autre type de mail ») and a part over 256 KB (`skipped: 'tooLarge'`, « Mail trop volumineux ») are
+    remembered as `ignored` rows, out of every list, and read again when the plugin's version changes (rule 25).
+    Heap and downloads are bounded however many mails were forged. Tests: `tests/mail-reader-flood.unit.test.js`,
+    `gites-de-france-intake/tests/mail-flood.unit.test.js`.
+31. *(Added (review of PR #865, 2026-10-29). (a) The cap bounds only the UNAUTHENTICATED mails: a mail with a good DKIM verdict
+    is read whatever the cap, in a first phase (the verdict comes from the headers, known before any body), so a
+    forged flood cannot push a genuine booking out of the 30-day window; reaching the cap logs how many were left.
+    (b) The envelopes and the authentication header are fetched in bulk, 500 UIDs per request, instead of one
+    request per mail. (c) A pass is single-flight: the running promise lives at `register()` scope of the plugin's
+    `index.js` (each call builds its own service), so the job tick and « Lire maintenant » share one IMAP pass and
+    one result; the service keeps its own guard too. `insert` is `ON CONFLICT(messageId) DO NOTHING`, returns
+    `null` when nothing was written, and a pass counts as `read` only the rows it wrote. Test:
+    `tests/mail-intake-single-flight.unit.test.js`. (d) `count()` (« N mails … lus ») leaves out `ignored`
+    rows, and an `ignored` row older than the 30-day window plus one day is purged at the start of a pass.
+    Tests: `tests/mail-reader-flood.unit.test.js`, `gites-de-france-intake/tests/mail-flood.unit.test.js`.
 
 ---
 

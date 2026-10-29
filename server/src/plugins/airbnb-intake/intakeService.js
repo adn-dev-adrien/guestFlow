@@ -19,6 +19,9 @@ const frDate = (iso) => { const d = new Date(iso); return `${pad(d.getDate())}/$
 const frDay = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 const localDay = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
+const MAX_MAILS_PER_PASS = 200;
+const SINCE_DAYS = 30;
+
 function createIntakeService(deps) {
   const { intakes, settings, readMails, findReservations, propertyOptions, getReservation, core, parserVersion = null, now = () => new Date() } = deps;
   // The accommodations' day: the process runs in their time zone (utils/localDate.js).
@@ -157,30 +160,45 @@ function createIntakeService(deps) {
     return apply(intake, m.reservation).status;
   }
 
-  async function runPass() {
+  // Rule 31 — one pass at a time: a second call (job tick + « Lire maintenant ») joins the one running.
+  let running = null;
+  function runPass() {
+    if (!running) running = readPass().finally(() => { running = null; });
+    return running;
+  }
+
+  async function readPass() {
     const mailbox = settings.mailbox();
     if (!mailbox.host || !mailbox.user || !mailbox.password) return { skipped: 'Boîte mail non configurée' };
     // Rule 17 — installed with every plugin: nothing is read until a property is tied to a listing.
     if (settings.listings().length === 0) {
       return { skipped: 'Aucun logement relié à une annonce Airbnb' };
     }
-    const mails = await readMails({ ...mailbox, sender: settings.sender(), ...(settings.authentication ? settings.authentication() : {}) });
+    intakes.purgeIgnored(new Date(now().getTime() - (SINCE_DAYS + 1) * 24 * 3600 * 1000).toISOString());
     let read = 0;
-    for (const mail of mails) {
-      if (intakes.has(mail.messageId, parserVersion)) continue;
+    // Rule 30 — mails arrive one by one: known ones are never downloaded, the others are all remembered
+    // (an intake, or `ignored`), and a pass reads at most MAX_MAILS_PER_PASS of them, newest first.
+    const take = (mail) => {
       const senderVerified = mail.authenticated === true;
+      // A pass counts the rows it really wrote: a mail another pass stored first is not read twice.
+      const add = (row, counts = true) => { if (intakes.insert(row) !== null && counts) read += 1; };
+      const remember = (error, counts = false) => add({ messageId: mail.messageId, receivedAt: mail.receivedAt, status: 'ignored', error, senderVerified, parserVersion }, counts);
+      if (mail.skipped) { remember('Mail trop volumineux'); return; }
       // Rule 2 — messages, reminders, payouts and reviews from the same sender are not intakes at all.
-      if (!isBookingMail(mail.subject, mail.text)) continue;
-      read += 1;
+      if (!isBookingMail(mail.subject, mail.text)) { remember('Autre type de mail'); return; }
       const parsed = parseAirbnbMail({ subject: mail.subject, text: mail.text, sentAt: mail.sentAt || mail.receivedAt });
       if (!parsed.ok) {
         // Rule 26 — a forged mail that does not parse is noise for the operator, but it is remembered
         // (`ignored`, out of every list) so the next pass does not read it again.
-        intakes.insert({ messageId: mail.messageId, receivedAt: mail.receivedAt, status: senderVerified ? 'error' : 'ignored', error: parsed.error, senderVerified, parserVersion });
-        continue;
+        add({ messageId: mail.messageId, receivedAt: mail.receivedAt, status: senderVerified ? 'error' : 'ignored', error: parsed.error, senderVerified, parserVersion });
+        return;
       }
-      intakes.insert({ messageId: mail.messageId, receivedAt: mail.receivedAt, confirmationCode: parsed.booking.code, parsed: parsed.booking, status: 'pending', senderVerified });
-    }
+      add({ messageId: mail.messageId, receivedAt: mail.receivedAt, confirmationCode: parsed.booking.code, parsed: parsed.booking, status: 'pending', senderVerified });
+    };
+    await readMails(
+      { ...mailbox, sender: settings.sender(), ...(settings.authentication ? settings.authentication() : {}) },
+      { seen: (messageId) => intakes.has(messageId, parserVersion), onMail: take, limit: MAX_MAILS_PER_PASS },
+    );
     const outcome = {};
     for (const intake of intakes.listOpen()) {
       // Rule 19 — one intake that throws is recorded and left behind: it would stay `pending`, first in

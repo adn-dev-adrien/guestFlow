@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions, Box, Typography, Stack, Divider, Button,
   Checkbox, FormControlLabel, TextField, MenuItem, RadioGroup, Radio, FormControl, FormLabel,
-  IconButton, useMediaQuery,
+  IconButton, Alert, useMediaQuery,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -34,6 +34,9 @@ import { evaluateArithmetic } from '../../utils/arithmetic';
  *    refunded on the tax. Wins over `overpaymentTtc` when present.
  *  - `defaultMethod` — the means the dialog opens on (`transfer` by default; `internal` for a trop-perçu
  *    taken « caisse interne »), which the operator can change.
+ *  - `openOverpaymentTtc`, `onUseOverpayment()` — a trop-perçu still open on the stay (the ledger's row, rule 44),
+ *    when the dialog was NOT opened on it: a warning with an action that reopens the dialog on the trop-perçu.
+ *    A refund of a sold line stays independent of it.
  *  - `onSubmit(payload)` — throws an Error carrying the server message when the API refuses.
  *
  * Amounts are typed as text (« 12,5 » accepted, rule 37): a typed amount that is a whole number of
@@ -73,7 +76,7 @@ const wholeUnits = (amount, unitPrice) => {
 const DECIMAL_INPUT = { htmlInput: { inputMode: 'decimal' } };
 
 export default function RefundDialog({
-  open, onClose, refundableLines = [], collectedTtc = 0, overpaymentTtc = 0, overpaymentLines = null, defaultMethod = 'transfer', onSubmit,
+  open, onClose, refundableLines = [], collectedTtc = 0, overpaymentTtc = 0, overpaymentLines = null, defaultMethod = 'transfer', openOverpaymentTtc = 0, onUseOverpayment, onSubmit,
 }) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -193,6 +196,14 @@ export default function RefundDialog({
       <DialogContent dividers>
         <Stack spacing={2}>
           {error && <ErrorAlert message={error} />}
+          {!(overpaymentTtc > 0) && openOverpaymentTtc > 0 && onUseOverpayment && (
+            <Alert
+              severity="warning"
+              action={<Button color="inherit" size="small" onClick={onUseOverpayment} aria-label="Rembourser le trop-perçu" sx={{ minHeight: 44, whiteSpace: 'nowrap' }}>Rembourser</Button>}
+            >
+              Un trop-perçu de {formatCurrency(openOverpaymentTtc)} est ouvert.
+            </Alert>
+          )}
 
           <Box>
             <Typography variant="sectionHeader" sx={{ fontSize: '0.9rem', mb: 1 }}>Prestations facturées</Typography>

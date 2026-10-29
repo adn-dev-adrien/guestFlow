@@ -294,6 +294,13 @@ including the ones added later.
     install — requirements included — to commit, so a requirement rolled back with its dependant never announced
     itself. *Known limit:* an install that needs a restart (a version other than the loaded one) goes live at the
     next boot, and boot fires nothing; the plugin then catches up through its own passes (GVR: the nightly re-send).
+18. **A plugin reached through a controller is guarded like one that is required** (audit R3, 2026-10-29). The
+    static guard of rules 3-4 only sees a file that names a plugin folder; a test that reaches a plugin's real
+    module through `pluginsController` / `findPlugin` (a business blocker such as `payment_links`) names none.
+    Such a test carries `{ skip: skipWithout([...]) }` by hand: `plugin-dependencies-actions` rules 8 and 12 now
+    skip without `online-payment`, which had turned the `removal: online-payment` cell red. The guard is not
+    extended to infer it: the plugin is reached by table name or catalogue id, which no cheap scan separates from
+    the synthetic manifests those files build on purpose.
 
 **Edge cases:**
 - A plugin folder exists on one side only (server without client, or the reverse) → rule 13's guard

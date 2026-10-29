@@ -173,6 +173,20 @@ changed something the price depends on; money collected beyond the total is repo
     en trop », never an « encaissés / dus » pair that contradicts the amount. Limit: a stay whose history was
     lost falls back on the accommodation; the correction of an adjusted complement (rule 12) uses today's
     engine for the complement it routes on its own, no stamp of that amount exists.
+16. **No trop-perçu on a platform stay, live preview included (audit R3 N1, 2026-10-29).** The engine excess the
+    live ledger compares (`engineExcessOf`) carries the same `isDirectChannel` guard as `overpaymentOf` and
+    `storedOverpaymentOf` (reservation-refunds rule 38): a Gîtes de France or Airbnb stay whose solde is paid and
+    whose brut or price is lowered reports `overpaymentTtc` 0, so the fiche never offers « Rembourser » there.
+17. **The poste of a complement excess survives the save (audit R3 N3, 2026-10-29).** Once the save has
+    rewritten the stored lines, the options and the activities a collected complement lost are read from the
+    history's options / resources signatures since `complementPaidDate` (like the tax part, rule 15), the
+    larger of that and the stored-vs-quote difference: a removed activity is refunded on « Activités », not on
+    « Prestations complémentaires ».
+    The complement's window overlaps the schedule's, so the hints can add up to more than the complement lost:
+    only that overflow (Σ hints − `complementCollectedExcessTtc`) is taken back, from the options and resources
+    the schedule share already covers on that poste, whatever the way it was split (leftover hints or captured
+    contribs). A solde option removed in the window is thus not counted twice, and a drop that belongs to the
+    complement is never cut. A paid complement with no paid date reads no history.
 
 **Edge cases:**
 - In the extras window of a started fiche a custom line is keyed by its text (end-of-stay complement,

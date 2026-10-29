@@ -58,7 +58,7 @@ function register(ctx) {
 
   const service = () => createIntakeService({
     intakes: intakes(),
-    parserVersion: require('./manifest.json').version,
+    parserVersion: sdk.manifestVersion(__dirname),
     settings: {
       mailbox: mailboxConfig,
       sender: () => ctx.settings.get('senderAddress'),
@@ -66,7 +66,7 @@ function register(ctx) {
       giteNumbers: () => JSON.parse(ctx.settings.get('giteNumbers') || '{}'),
       autoApply: () => String(ctx.settings.get('autoApply')) !== '0',
     },
-    readMails: (cfg) => sdk.mailbox.readMailsFrom({ ...cfg, log: (line) => ctx.log.warn(line) }),
+    readMails: (cfg, handlers) => sdk.mailbox.readMailsFrom({ ...cfg, ...handlers, log: (line) => ctx.log.warn(line) }),
     findReservations: ({ propertyIds, startDate, endDate }) => ctx.db.prepare(`
       SELECT id, propertyId, platform, kind, sourceType, icalSyncLocked, platformGrossAmount, cancelledAt FROM reservations
       WHERE propertyId IN (${propertyIds.map(() => '?').join(',')}) AND startDate = ? AND endDate = ?`)
@@ -80,10 +80,17 @@ function register(ctx) {
     },
   });
 
-  async function runPass() {
-    const result = await service().runPass();
-    ctx.settings.set('lastRunAt', new Date().toISOString());
-    return result;
+  // Rule 31(c) — one pass at a time across the job tick and « Lire maintenant »: a second caller joins it.
+  let running = null;
+  function runPass() {
+    if (!running) {
+      running = (async () => {
+        const result = await service().runPass();
+        ctx.settings.set('lastRunAt', new Date().toISOString());
+        return result;
+      })().finally(() => { running = null; });
+    }
+    return running;
   }
 
   // Rule 2 — every `pollEveryHours` (3 by default). The job ticks every 15 minutes and only reads the

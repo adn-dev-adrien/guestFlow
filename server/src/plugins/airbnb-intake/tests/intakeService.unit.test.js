@@ -33,7 +33,7 @@ function setup({
       listings: () => listings,
       autoApply: () => autoApply,
     },
-    readMails: async (cfg) => { calls.readWith = cfg; return mails.map((m) => ({ authenticated: true, ...m })); },
+    readMails: async (cfg, h) => { calls.readWith = cfg; calls.handlers = h; for (const m of mails) if (!h.seen(m.messageId)) await h.onMail({ authenticated: true, ...m }); },
     findReservations: ({ propertyIds, startDate, endDate }) => reservations
       .filter((r) => propertyIds.includes(r.propertyId) && startDate === dates[0] && endDate === dates[1]),
     propertyOptions: () => CATALOGUE,
@@ -149,10 +149,11 @@ test('edge cases: the same mail twice, and a second mail with the same code', as
   assert.equal(calls.updates.length, 1);
 });
 
-test('rule 2: other mails from Airbnb are skipped without a trace', async () => {
+test('rule 2: other mails from Airbnb are no intake — remembered as ignored (rule 30), out of every list', async () => {
   const { service, intakes } = setup({ mails: [{ ...MAIL, subject: 'Nouveau message de Camille', text: 'Bonjour' }] });
   assert.deepEqual(await service.runPass(), { read: 0 });
-  assert.equal(intakes.count(), 0);
+  assert.equal(intakes.has(MAIL.messageId), true);
+  assert.deepEqual(intakes.listOpen(), []);
 });
 
 test('rule 3: a booking mail that fails its checks is recorded as an error, nothing written', async () => {

@@ -37,9 +37,14 @@ Running `npm test` can never create, open or migrate the checkout's own `server/
    a process that names no `DB_PATH` / `PERSISTENT_DB`, `GUESTFLOW_LOCAL_ENV` or `GUESTFLOW_UPLOADS_DIR` gets
    them in a private temp directory (`<tmp>/data/guestflow.db`, `env.local`, `uploads/`), removed at exit.
    The preload uses the same module (forced), so the deploy root resolved from `DB_PATH` is the private
-   directory and not the shared `$TMPDIR`, and `server/.env.local` is never written by a suite. The process's
-   `TMPDIR` also moves to `<tmp>/tmp`, so the scratch directories suites create with `os.tmpdir()` (≈500 per
-   full run before: `gf-phase4-*`, `gf-website-booking-*`, `gvr-*`…) are removed with the process.
+   directory and not the shared `$TMPDIR`, and `server/.env.local` is never written by a suite. With the
+   preload (`npm test`) the process's `TMPDIR` is moved to `<tmp>/tmp` before any suite loads, so the scratch
+   directories suites create with `os.tmpdir()` (≈500 per full run before: `gf-phase4-*`,
+   `gf-website-booking-*`, `gvr-*`…) are removed with the process. Without the preload, `TMPDIR` moves only
+   when `database.js` / `instancePaths.js` is first required, so a suite that creates its scratch directory
+   before that (`website-booking/tests/isolatedDb.js`, required first by design) leaves it behind (audit R3,
+   2026-10-29: 119 directories after a whole run without the preload). That leftover is harmless data-wise —
+   no checkout file and no real secret is touched, which is what rules 1-2 guarantee.
 
 **Edge cases:**
 - A targeted `node --test <file>` used to open and migrate `server/guestflow.db` for 389 test files (audit R2,

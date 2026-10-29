@@ -232,6 +232,18 @@ explicit confirmation, or says why it is refused *before* the click.
     `CONFIRMATION_STALE`. Tests: `plugin-confirmed-ids.unit.test.js`,
     `console-module-dependencies.unit.test.js`, `PluginsPage.stale-confirmation.test.jsx`.
 
+### 3.G Audit round 3 (2026-10-29)
+
+23. **A cycle anywhere in the requirement closure refuses the activation.** `activate` and the card's
+    `actions.activate.blockedBy` answer `REQUIREMENT_CYCLE` (« Dépendance circulaire : … ») when the plugin
+    OR any plugin it would switch on is a cycle member, not only the plugin itself (rule 5, rule 21): a
+    dependant can no longer switch a cycle on through its closure. Test:
+    `plugin-cycle-requirement.unit.test.js`.
+24. **A dependant whose revive migration failed reads « Erreur », not « Incompatible ».** When
+    `reviveDependants` marks a dependant failed (migration threw), its `REQUIREMENT_MISSING` entry is cleared,
+    so the card shows the failed state (« Échec du démarrage. ») instead of « Incompatible avec cette version »
+    with no reason (rule 46 of phase 4). Test: `plugin-revive-failed-state.unit.test.js`.
+
 **Edge cases:**
 - A requirement installed from the registry at a newer version whose own manifest changed its
   `requires` → the graph reads the **installed row's** manifest (rule 2), never the catalogue's.

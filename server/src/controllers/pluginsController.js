@@ -310,12 +310,15 @@ function createController(model = defaultModel, deps = {}) {
     return { requires, usedBy };
   }
 
+  // Rule 23 — the cycle that stops `id` from coming up: its own, or one it would have to switch on.
+  const cycleAround = (g, id) => [id, ...g.requirementClosure(id)].map((member) => g.cycleOf(member)).find(Boolean) || null;
+
   // Rule 8 — every refusal a card can predict, said before the click.
   function actionsView(entry, row, g, blocker) {
     const none = { allowed: false, blockedBy: null };
     if (!row) return { activate: { ...none, alsoActivates: [], confirm: null }, deactivate: { ...none, alsoDeactivates: [], confirm: null }, uninstall: none };
     const id = entry.id;
-    const cycle = g.cycleOf(id);
+    const cycle = cycleAround(g, id);
     let activate = { ...none, alsoActivates: [], confirm: null };
     if (!row.enabled) {
       const needed = g.requirementClosure(id);
@@ -452,7 +455,7 @@ function createController(model = defaultModel, deps = {}) {
 
   // Rule 13 — a package installed while the app runs: loaded, registered, mounted, migrated, then
   // recorded. Returns null, or the refusal to send.
-  async function installPackage(id, candidate, undo = [], installed = []) {
+  async function installPackage(id, candidate, undo = [], installed = [], restartOwed = false) {
     const pkg = await acquire(id, candidate);
     if (candidate.source === 'registry') {
       const before = host().store().readCurrent(id);
@@ -463,7 +466,7 @@ function createController(model = defaultModel, deps = {}) {
     let restart = false;
     // Loaded at this version but failed at boot: registered afresh, like a failed live install.
     const failedLoaded = loaded === candidate.version && Boolean(reg.get(id) && reg.get(id).failed);
-    if (loaded && loaded !== candidate.version) {
+    if (restartOwed || (loaded && loaded !== candidate.version)) {
       restart = true;
     } else if (loaded && !failedLoaded) {
       try {
@@ -692,6 +695,7 @@ function createController(model = defaultModel, deps = {}) {
               } catch (err) {
                 // Registered, mounted and scheduled already: failed, like a migration failing at boot, so nothing of it runs.
                 reg.markFailed(row.id, err);
+                delete state.incompatible[row.id];
                 throw err;
               }
               host().setLoaded(row.id, row.version, row.manifest.contentHash);
@@ -755,7 +759,7 @@ function createController(model = defaultModel, deps = {}) {
           try {
             result = step.op === 'activate'
               ? switchOn(step.id, undo, activated)
-              : await installPackage(step.id, step.candidate, undo, installed); // eslint-disable-line no-await-in-loop
+              : await installPackage(step.id, step.candidate, undo, installed, restartWanted); // eslint-disable-line no-await-in-loop
           } catch (err) {
             rollback();
             return refusePackageError(err, res);
@@ -957,7 +961,7 @@ function createController(model = defaultModel, deps = {}) {
       if (!model.get(entry.id)) return res.status(409).json({ error: 'NOT_INSTALLED' });
       if (refuseIfOutOfPlan(entry, res)) return undefined;
       const g = graph();
-      const cycle = g.cycleOf(entry.id);
+      const cycle = cycleAround(g, entry.id);
       if (cycle) return res.status(409).json({ error: 'REQUIREMENT_CYCLE', message: `Dépendance circulaire : ${cycleLabel(cycle, nameOf)}.` });
       const needed = g.requirementClosure(entry.id);
       const missing = needed.filter((id) => !model.get(id));

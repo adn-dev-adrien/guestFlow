@@ -7,6 +7,7 @@
 // command, the global setup and the specs (re-evaluated in every worker) all read them.
 process.env.GUESTFLOW_E2E_DB_PATH = process.env.GUESTFLOW_E2E_DB_PATH || '/tmp/guestflow-e2e-bare.db';
 process.env.E2E_SEED_PLUGINS = 'none';
+process.env.GUESTFLOW_E2E_SERVER_LOG = process.env.GUESTFLOW_E2E_SERVER_LOG || require('path').join(__dirname, 'playwright-server-bare.log');
 
 const path = require('path');
 const base = require('./playwright.config');

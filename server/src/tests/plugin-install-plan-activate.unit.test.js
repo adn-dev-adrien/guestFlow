@@ -317,7 +317,7 @@ test('rule 9: revival loops — a chain of dependants left unloaded at boot all 
   assert.deepEqual([ctx.host.state().loaded[WEATHER], ctx.host.state().loaded[GVR]], ['1.3.0', '1.0.2']);
 });
 
-test('rule 9: revival migrates first — a failed migration leaves the dependant unloaded and incompatible', skip, async () => {
+test('rule 9: revival migrates first — a failed migration leaves the dependant unloaded and failed (not incompatible, rule 24 of plugin-dependencies)', skip, async () => {
   const sasM = h.manifest(SAS, '1.7.2');
   const weather = h.manifest(WEATHER, '1.3.0', { requires: [need(SAS, '^1.7.0')] });
   const ctx = h.setup({ bundled: [sasM, weather], installed: [row(WEATHER, '1.3.0', weather)] });
@@ -337,6 +337,6 @@ test('rule 9: revival migrates first — a failed migration leaves the dependant
   const res = await h.call(controller.install, { params: { id: SAS } });
   console.error = quiet;
   assert.equal(res.statusCode, 200);
-  assert.equal(ctx.host.state().incompatible[WEATHER].code, 'REQUIREMENT_MISSING');
+  assert.equal(ctx.host.state().incompatible[WEATHER], undefined);
   assert.equal(ctx.host.state().loaded[WEATHER], undefined);
 });

@@ -291,6 +291,26 @@ add the phone and e-mail from Airbnb. When the mail cannot be applied, the fiche
 
 28. **Subject and heading are read on bounded lines** (audit R2 N3 + external N1, 2026-10-29). A subject over 300 characters is refused; the heading is read from lines of at most 300 characters; no `.+?\s+` backtracking. A 200 KB heading or a 3 KB subject costs milliseconds. Test: `airbnb-intake/tests/mail-parser-linear.unit.test.js`.
 29. **DKIM counts only the verdicts before the first `smtp.*` result** of the trusted header; the non-standard `d` alias is no signing domain (audit R2 external N3, 2026-10-29). A sender-written header under another name is never trusted; when the receiving server wrote none, a header forged under its own name cannot be told apart (accepted residual). A header with a bare value inside a result (`dkim=pass header.d=… x@evil.test`, the mark of an unquoted echo) is refused whole (`malformed-authentication-results`). The cut is kept as is: a provider that writes `spf` before `dkim` (Microsoft 365) gives only a proposal, never an auto-apply — auto-apply is tested on Gmail only. Auto-apply also assumes direct delivery to the trusted receiving server: no forward, no « check mail from other accounts » (POP fetch), no filter from another mailbox, or a forged header under the server's name would be the only one. Test: `tests/mail-sender-authentication.unit.test.js`.
+30. **A pass downloads each mail once, and holds none** (audit r3, external N5, 2026-10-29; amends rule 2's
+    « without a trace » and rule 26). The reader (SDK 2.15.0) takes `seen(messageId)` — a known Message-ID is
+    skipped before its body is downloaded — `onMail(mail)` — each mail is handed over as it is read, none is
+    kept — and `limit` (the service passes 200: a pass downloads at most 200 bodies, newest first). Every mail
+    that is not an intake is remembered as an `ignored` row, out of every list: a message, reminder or payout
+    (« Autre type de mail »), and a part over 256 KB (`skipped: 'tooLarge'`, « Mail trop volumineux »). Like the
+    other `ignored` rows they are read again when the plugin's version changes (rule 26). Heap and downloads are
+    bounded however many mails the sender flooded. Tests: `tests/mail-reader-flood.unit.test.js`,
+    `airbnb-intake/tests/mail-flood.unit.test.js`.
+31. *(Added (review of PR #865, 2026-10-29). (a) The cap bounds only the UNAUTHENTICATED mails: a mail with a good DKIM verdict
+    is read whatever the cap, in a first phase (the verdict comes from the headers, known before any body), so a
+    forged flood cannot push a genuine booking out of the 30-day window; reaching the cap logs how many were left.
+    (b) The envelopes and the authentication header are fetched in bulk, 500 UIDs per request, instead of one
+    request per mail. (c) A pass is single-flight: the running promise lives at `register()` scope of the plugin's
+    `index.js` (each call builds its own service), so the job tick and « Lire maintenant » share one IMAP pass and
+    one result; the service keeps its own guard too. `insert` is `ON CONFLICT(messageId) DO NOTHING`, returns
+    `null` when nothing was written, and a pass counts as `read` only the rows it wrote. Test:
+    `tests/mail-intake-single-flight.unit.test.js`. (d) `count()` (« N mails … lus ») leaves out `ignored`
+    rows, and an `ignored` row older than the 30-day window plus one day is purged at the start of a pass.
+    Tests: `tests/mail-reader-flood.unit.test.js`, `airbnb-intake/tests/mail-flood.unit.test.js`.
 
 ---
 
