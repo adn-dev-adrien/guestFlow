@@ -426,9 +426,9 @@ Optional: a plugin that declares nothing reads « Actif ».
     shares the cap on an unverifiable mailbox.** `onCap({ notRead, limit })` is called when the cap left
     unauthenticated mails unread (a MINOR bump). When no `authserv-id` is trusted the cap reads the newest half
     and the oldest half of the unread mails instead of the newest only (`gites-de-france-mail-intake.md` and
-    `airbnb-mail-intake.md` rule 32). `verifyDkim` ignores an `Authentication-Results` value over 4 KB and
-    only tokenizes those that start with the trusted `authserv-id`; the envelope batch yields to the event loop
-    every 25 mails. Tests: `mail-reader-unverifiable.unit.test.js`.
+    `airbnb-mail-intake.md` rule 32). `verifyDkim` lets the FIRST `Authentication-Results` header of the trusted `authserv-id` decide, tokenizes
+    only it and refuses the verification when it is over 4 KB (`oversized-authentication-results`, never falling
+    through to a header below); the envelope batch yields to the event loop every 25 mails. Tests: `mail-reader-unverifiable.unit.test.js`.
 
 **Edge cases:**
 - **A plugin throws during `register`.** Rule 4 applies: the other plugins and the core boot. The Plugins

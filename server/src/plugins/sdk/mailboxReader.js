@@ -5,8 +5,8 @@
  * still sees every message as it was.
  *
  * Rule 33 (audit r4, external N1/N2, SDK 2.16.0): `onCap({ notRead, limit })` is called when the cap left unauthenticated mails
- * unread; with no trusted server the cap reads half the newest and half the OLDEST unread mails, so a flood cannot starve
- * a mail for good; a batch of envelopes gives the event loop a turn every few mails.
+ * unread; with no trusted server the cap reads half the newest and half the OLDEST unread mails, so a flood delays a mail
+ * without starving it; a batch of envelopes gives the event loop a turn every few mails.
  *
  * Rule 30 (audit r3, external N5): the caller may pass `seen(messageId)` — a known mail is skipped before its
  * body is downloaded —, `onMail(mail)` — each mail is handed over as it is read and none is kept, the
@@ -150,7 +150,8 @@ const YIELD_EVERY = 25;
  * With a trusted server (`verifiable`) the newest `limit`. With none, nothing can tell a forged mail from a genuine
  * one, so the newest half of the cap is read as before and the other half is the OLDEST unread mails: the front
  * of the backlog moves by half a cap every pass whatever arrives behind it, so every mail of the window is read
- * within `rank / (limit / 2)` passes, however long a flood lasts.
+ * within `rank / (limit / 2)` passes. That is a delay, not a guarantee against loss: under a sustained flood of `r` > limit
+ * forged mails per pass mails start to age out of the window after about 30 + 3000 / (r - limit) days.
  */
 function capUnverified(mails, limit, verifiable) {
   if (mails.length <= limit) return mails;

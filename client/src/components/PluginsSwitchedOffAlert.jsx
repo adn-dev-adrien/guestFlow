@@ -4,9 +4,13 @@
  */
 import React from 'react';
 import { useNavigate } from 'react-router';
+import { useAuth } from '../hooks/useAuth';
+import { canSeeRoute } from '../constants/roles';
 import AttentionCard from './AttentionCard';
 
 export default function PluginsSwitchedOffAlert({ attention }) {
   const navigate = useNavigate();
-  return <AttentionCard attention={attention} actions={[{ label: 'Voir les plugins', primary: true, onClick: () => navigate('/parametres/plugins') }]} />;
+  const { user } = useAuth();
+  const actions = canSeeRoute(user, '/parametres/plugins') ? [{ label: 'Voir les plugins', primary: true, onClick: () => navigate('/parametres/plugins') }] : [];
+  return <AttentionCard attention={attention} actions={actions} />;
 }

@@ -96,26 +96,53 @@ test('rule 32: a cap that is hit is reported with the number of mails left, none
   assert.deepEqual(quiet, []);
 });
 
-test('rule 32: reading 500 envelopes with 64 KB Authentication-Results headers never blocks the event loop', async () => {
+test('rule 32: the event loop gets a turn between slices of a 500-envelope batch with 64 KB headers', async () => {
   const header = `Authentication-Results: evil.test; ${'dkim=pass header.d=a.b; '.repeat(Math.floor(64 * 1024 / 24))}\r\nAuthentication-Results: mx.google.com; dkim=none\r\n`;
   const mails = Array.from({ length: 500 }, (_, i) => ({ id: `<m${i + 1}@x>`, headers: header }));
-  let last = Date.now();
-  let stall = 0;
-  const ticker = setInterval(() => { const now = Date.now(); stall = Math.max(stall, now - last - 5); last = now; }, 5);
+  // Deterministic, whatever the load: a batch that yields lets a self-rescheduling immediate run once per slice.
+  let turns = 0;
+  let running = true;
+  const tick = () => { turns += 1; if (running) setImmediate(tick); };
+  setImmediate(tick);
   await readMailsFrom({
     host: 'imap.gmail.com', user: 'u', password: 'p', sender: SENDER, smtpHostOf: () => 'smtp.gmail.com', ImapClient: fakeImap(mails), log: () => {}, onMail: () => {},
   });
-  await new Promise((resolve) => setTimeout(resolve, 20));
-  clearInterval(ticker);
-  assert.ok(stall < 50, `the event loop was blocked for ${Math.round(stall)} ms`);
+  running = false;
+  assert.ok(turns >= 500 / 25 - 1, `only ${turns} event-loop turns during the batch`);
 });
 
-test('rule 32: verifyDkim ignores an Authentication-Results header over 4 KB and still reads the trusted short one', () => {
-  const forged = `Authentication-Results: mx.google.com; ${'x=y; '.repeat(1000)}dkim=pass header.d=gdf07.com\r\n`;
-  const genuine = 'Authentication-Results: mx.google.com; dkim=pass header.d=gdf07.com\r\n';
+test('rule 32: 500 mails of 16 headers of 4 KB that all start with the trusted id (or a longer one) cost a bounded time', () => {
   const opts = { domains: 'gdf07.com', trustedAuthservId: 'mx.google.com' };
-  assert.deepEqual(verifyDkim(forged, opts), { ok: false, reason: 'untrusted-authserv-id' });
-  assert.equal(verifyDkim(forged + genuine, opts).ok, true);
-  assert.equal(verifyDkim(genuine, opts).ok, true);
-  assert.equal(verifyDkim('Authentication-Results: mx.google.com.evil.test; dkim=pass header.d=gdf07.com\r\n', opts).ok, false);
+  const forged = Array.from({ length: 16 }, () => `Authentication-Results: mx.google.com.x; ${'dkim=fail header.d=a.b; '.repeat(168)}\r\n`).join('');
+  const mails = Array.from({ length: 500 }, () => Buffer.from(`${forged}Authentication-Results: mx.google.com; dkim=none\r\n`));
+  const before = process.cpuUsage();
+  mails.forEach((m) => verifyDkim(m, opts));
+  const used = process.cpuUsage(before);
+  const ms = (used.user + used.system) / 1000;
+  assert.ok(ms < 300, `${Math.round(ms)} ms of CPU for 500 mails (about 1200 ms when every prefixed header was tokenized)`);
+});
+
+const G = { domains: 'gdf07.com', trustedAuthservId: 'mx.google.com' };
+const FORGED_BELOW = 'Authentication-Results: mx.google.com; dkim=pass header.i=@gdf07.com header.s=sel1 header.b=x\r\n';
+const bogus = Array.from({ length: 30 }, (_, i) => `dkim=neutral (body hash did not verify) header.i=@${'x'.repeat(60)}${i}.evil.example header.s=${'s'.repeat(40)} header.b=Qw3rTy12`).join(';\r\n       ');
+const BIG_GMAIL = `Authentication-Results: mx.google.com;\r\n       ${bogus};\r\n       spf=softfail smtp.mailfrom=resa@gdf07.com;\r\n       dmarc=fail header.from=gdf07.com\r\n`;
+
+test('rule 32: the server\'s own header decides — an oversized one is refused, never skipped for a forged one below it', () => {
+  assert.ok(BIG_GMAIL.length > 4096);
+  assert.deepEqual(verifyDkim(BIG_GMAIL + FORGED_BELOW, G), { ok: false, reason: 'oversized-authentication-results' });
+  assert.equal(verifyDkim(`Authentication-Results: mx.google.com; dkim=none header.from=gdf07.com\r\n${FORGED_BELOW}`, G).ok, false);
+});
+
+test('rule 32: a forged header ABOVE a short trusted one is still the first trusted header (accepted residual of rule 29)', () => {
+  assert.equal(verifyDkim(`${FORGED_BELOW}Authentication-Results: mx.google.com; dkim=none\r\n`, G).ok, true);
+});
+
+test('rule 32: a longer authserv-id is not the trusted one, a comment before the id fails closed, folding and tabs still verify', () => {
+  assert.deepEqual(verifyDkim('Authentication-Results: mx.google.com.evil.test; dkim=pass header.d=gdf07.com\r\n', G), { ok: false, reason: 'untrusted-authserv-id' });
+  assert.deepEqual(verifyDkim('Authentication-Results: (x) mx.google.com; dkim=pass header.d=gdf07.com\r\n', G), { ok: false, reason: 'untrusted-authserv-id' });
+  const gmail = 'Authentication-Results: mx.google.com;\r\n       dkim=pass header.i=@gdf07.com header.s=sel1;\r\n       spf=pass smtp.mailfrom=resa@gdf07.com\r\n';
+  assert.equal(verifyDkim(gmail, G).ok, true);
+  assert.equal(verifyDkim(gmail.replace(/\r\n {7}/g, '\r\n\t'), G).ok, true);
+  assert.equal(verifyDkim(gmail.replace(/\r\n/g, '\n'), G).ok, true);
+  assert.equal(verifyDkim('Authentication-Results: mx.microsoft.com 1; dkim=pass header.d=gdf07.com; spf=pass smtp.mailfrom=gdf07.com\r\n', { domains: 'gdf07.com', trustedAuthservId: 'mx.microsoft.com' }).ok, true);
 });

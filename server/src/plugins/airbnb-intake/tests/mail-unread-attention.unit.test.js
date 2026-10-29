@@ -43,7 +43,7 @@ test('rule 32: a pass under the cap reports nothing', async () => {
 });
 
 test('rule 32: the attention line says the mails not read, alone or with the mails to check', () => {
-  assert.deepEqual(summarize({ items: [], unread: 340 }), { count: 340, title: 'Mails non lus : 340 (afflux).', detail: 'Plafond de lecture atteint', severity: 'todo' });
+  assert.deepEqual(summarize({ items: [], unread: 340 }), { count: 1, title: 'Mails Airbnb non lus : 340 (afflux).', detail: 'Plafond de lecture atteint', severity: 'todo' });
   assert.equal(summarize({ items: [{}], unread: 340 }).detail, '1 mail · 340 non lus (afflux)');
   assert.equal(summarize({ items: [], unread: 0 }), null);
   assert.equal(summarize({ items: [{}, {}] }).detail, '2 mails');

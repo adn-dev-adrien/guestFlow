@@ -425,8 +425,9 @@ below are the recommended ones; each is reversible in a later spec.
     core code of SDK 2.15.0. `plugin-core-hardening-floor.unit.test.js` no longer carries a hard-coded list: a
     table maps each core feature (recognised by the call that reaches it: `validateEmail`,
     `mailbox.readMailsFrom` / `manifestVersion`, `onCap` (SDK 2.16.0), `retryPendingCancellations`, `coreModule('qonto')`) to the SDK
-    that shipped it, scans every plugin's server sources, and requires every plugin that reaches one to floor
-    at that SDK. A new hardening adds one line to the table.
+    that shipped it (quote-agnostic, a bare `readMailsFrom` call counts), scans every plugin's server sources, and
+    requires every plugin that reaches one to floor at that SDK. A hardening nobody listed is not known: shipping
+    one adds a line to the table (a reviewer's check), and a module name built at run time is not seen.
 54. **An update, an update-all, a rollback and the bundled-row sync are held to the requirement checks**
     (audit r4, N-R4-2, 2026-10-29). Before the switch: the target manifest is substituted in the graph and a
     cycle through the plugin refuses with `REQUIREMENT_CYCLE` (« Dépendance circulaire : … »); an ACTIVE
@@ -439,18 +440,22 @@ below are the recommended ones; each is reversible in a later spec.
 55. **An installed cycle can be dismantled** (audit r4, N-R4-2, 2026-10-29). The uninstall checks (the card's
     `actions.uninstall` and the endpoint's `REQUIRED_BY`) ignore the dependants that sit in the plugin's own
     strongly connected group (`graph.groupOf`), so two plugins that require each other can be uninstalled one
-    after the other. A dependant outside the group still blocks. Test: `plugin-update-requirements.unit.test.js`.
+    after the other. A dependant outside the group still blocks, for every member: a plugin that needs the cycle through one
+    member blocks the removal of all of them. Test: `plugin-update-requirements.unit.test.js`.
 56. **A core update that makes an active plugin require an OFF plugin switches the dependant off** (audit r4,
     N-R4-2 case A, 2026-10-29; decision of Adrien: « Éteindre le dépendant »). When `host.housekeeping`
     syncs a `bundled` row whose shipped manifest now requires an installed but OFF plugin (weather-alerts 1.3.0
-    over an off SAS), it switches the dependant off at boot, then the active dependants of that one, and records
+    over an off SAS), it switches the dependant off at boot, then the active dependants of that one (nearest
+    first, whatever the depth), and records
     `plugins.off_reason` (the id of the off requirement; idempotent column). It NEVER switches the requirement on.
-    Any later `setEnabled` clears the reason. Test: `plugin-switched-off-at-update.unit.test.js`.
+    Any later `setEnabled` clears the reason. An error in this step is logged and never stops the boot; a bundled
+    sync refused for a cycle is logged once per release. Test: `plugin-switched-off-at-update.unit.test.js`.
 57. **The home says which plugins were switched off, and a rollback needs its requirements installed** (same
     decision, 2026-10-29). Core attention subject `plugins-switched-off` (rank 45): one plugin reads
     « Vigilance Météo-France éteint : nécessite Arrivée et départ guidés. », several read « Plugins éteints : N »,
     with « À réactiver depuis la page Plugins » and a « Voir les plugins » button; it ends once the plugin is back
-    on. A rollback to a version whose requirement is not installed is refused with `REQUIREMENT_MISSING`
+    on. The subject is skipped for whoever is not an administrator; on a managed space the detail reads « À
+    réactiver par l’exploitant » and the button is absent (the Plugins page does not exist there). A rollback to a version whose requirement is not installed is refused with `REQUIREMENT_MISSING`
     (rule 54 applies the same refusals as an update). Tests: `plugin-switched-off-at-update.unit.test.js`,
     `PluginsSwitchedOffAlert.test.jsx`.
 

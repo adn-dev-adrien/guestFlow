@@ -126,3 +126,15 @@ test('rule 55: a dependant outside the cycle still blocks the uninstall', async 
   assert.equal(res.body.error, 'REQUIRED_BY');
   assert.deepEqual(res.body.requiredBy, ['xc']);
 });
+
+test('rule 55: a plugin that needs the cycle through one member blocks the removal of every member', async () => {
+  const a = h.manifest('xa', '1.0.0', { requires: [req('xb')] });
+  const b = h.manifest('xb', '1.0.0', { requires: [req('xa')] });
+  const d = h.manifest('xd', '1.0.0', { requires: [req('xa')] });
+  const { ctrl, model } = h.setup({ bundled: [a, b, d], installed: [row(a), row(b), row(d)] });
+  ['xa', 'xb', 'xd'].forEach((id) => model.setEnabled(id, false));
+  const res = await h.call(ctrl.uninstall, { params: { id: 'xb' }, query: {} });
+  assert.equal(res.statusCode, 409);
+  assert.deepEqual(res.body.requiredBy, ['xd']);
+  assert.equal((await h.call(ctrl.list)).body.find((p) => p.id === 'xb').actions.uninstall.allowed, false);
+});

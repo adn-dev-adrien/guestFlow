@@ -16,6 +16,6 @@ function switchedOffNotices(model) {
 }
 
 /** Express handler for the attention source: `{ items }`. */
-const handler = (model) => (req, res) => res.json({ items: switchedOffNotices(model) });
+const handler = (model, managed = () => false) => (req, res) => res.json({ items: switchedOffNotices(model), managed: managed() });
 
 module.exports = { switchedOffNotices, handler };

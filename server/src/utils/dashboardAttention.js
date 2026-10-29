@@ -122,7 +122,7 @@ const CORE_SUMMARIES = {
     return {
       count: items.length,
       title: items.length === 1 ? `${items[0].name} éteint : nécessite ${items[0].requires}.` : `Plugins éteints : ${items.length}`,
-      detail: 'À réactiver depuis la page Plugins',
+      detail: payload.managed ? 'À réactiver par l’exploitant' : 'À réactiver depuis la page Plugins',
       severity: 'todo',
     };
   },

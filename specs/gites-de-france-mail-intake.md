@@ -278,19 +278,28 @@ choice in one click.
 32. **When nothing can be verified, the cap is shared between the newest and the oldest unread mails; a capped
     pass says so; a batch never blocks the server** (audit r4, external N1 and N2, 2026-10-29, SDK 2.16.0).
     (a) With no trusted `authserv-id` every mail is unauthenticated, so a forged flood used to share the 200-mail
-    cap with the genuine mails, newest first, and could keep a genuine booking unread for good. The reader now
-    reads the newest half of the cap (a fresh mail is still read at once) and the OLDEST half of the unread mails:
-    the front of the backlog moves by half a cap every pass whatever arrives behind it, so a mail with `k` unread
-    mails older than it is read within `ceil((k + 1) / 100)` passes under a flood of any length. This is the
-    real guarantee: bounded, not instantaneous, and conditioned on the mail staying in the 30-day window; with a
-    trusted `authserv-id` rule 31(a) holds as written. (b) A pass that leaves mails behind reports them
-    (`onCap({ notRead, limit })`); the pass result carries `unread`, the plugin keeps it (`unreadMails` setting)
-    and the home's attention line reads « Mails non lus : N (afflux). » (« Plafond de lecture atteint »), or
-    adds « · N non lus (afflux) » to the mails to check. (c) `verifyDkim` tokenizes only the
-    `Authentication-Results` headers whose first characters are the trusted `authserv-id`, and ignores any
-    value over 4 KB; the batch loop gives the event loop a turn (`setImmediate`) every 25 mails, so a batch of
-    500 mails with 64 KB headers blocks it for less than 50 ms (it was 1 s). Gîtes de France 1.4.6 asks for
-    `sdk ^2.16.0`. Tests: `tests/mail-reader-unverifiable.unit.test.js`,
+    cap with the genuine mails, newest first, and could keep a genuine booking unread. The reader now reads the
+    newest half of the cap (a fresh mail is still read at once) and the OLDEST half of the unread mails: the front
+    of the backlog moves by half a cap every pass whatever arrives behind it, so a mail with `k` unread mails older
+    than it is read within `ceil((k + 1) / 100)` passes. This is a DELAY, not a guarantee against loss. Measured
+    (deque model, 30-day window): under a sustained flood of `r` forged mails per pass, `r` above 200, a mail can
+    wait up to 30 days (about t/2 for a mail arriving on day t at `r` = 250) and mails start to be lost after about
+    `30 + 3000 / (r - 200)` days (day 89 at 250 per pass, day 60 at 300, day 34 at 1000), never inside the first
+    30 days. Setting `trustedAuthservId` removes the limit (rule 31(a)); a WRONG `trustedAuthservId` verifies
+    nothing yet keeps the newest-only cap, as a trusted one does. (b) A pass that leaves mails behind reports them
+    (`onCap({ notRead, limit })`, the pass result carries `unread`); the plugin shows the line only once TWO passes
+    in a row hit the cap (a first read of a 30-day backlog or a re-read after a parser update drains within a
+    pass or two and is no flood), and clears it with a pass that is not capped, is skipped or throws
+    (`unreadMails`, `unreadStreak` settings). The home line is « Mails Gîtes de France non lus : N (afflux). » with
+    « Plafond de lecture atteint » and counts as ONE subject; with mails to check it adds « · N non lus
+    (afflux) » to « Mails Gîtes de France à vérifier ». (c) `verifyDkim`: the FIRST `Authentication-Results` header whose
+    authserv-id is the trusted one decides, as before (the receiving server writes its own on top; a header
+    below is the sender's). It is found by a prefix test plus a boundary (`;`, whitespace or end of value), so
+    `mx.google.com.x` is not it, and only it is tokenized; when it is over 4 KB the verification is REFUSED
+    (`oversized-authentication-results`) and no later header is tried: skipping it would believe a forged header
+    below it. An authserv-id preceded by a comment (RFC 8601 CFWS) is not found and fails closed. The batch loop
+    gives the event loop a turn (`setImmediate`) every 25 mails, so 500 mails of 64 KB headers no longer block the
+    server for a second. Gîtes de France 1.4.6 asks for `sdk ^2.16.0`. Tests: `tests/mail-reader-unverifiable.unit.test.js`,
     `gites-de-france-intake/tests/mail-unread-attention.unit.test.js`.
 
 ---

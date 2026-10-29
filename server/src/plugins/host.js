@@ -85,6 +85,8 @@ function runningCopy(id) {
   }
 }
 
+const refusedSyncs = new Set();
+
 // Rule 54 — a release never rewrites a row with a manifest that would close a dependency cycle.
 function syncClosesCycle(model, id, manifest) {
   const manifests = Object.fromEntries(model.list().map((r) => [r.id, r.manifest || { id: r.id, requires: [] }]));
@@ -110,8 +112,10 @@ function switchOffOverInactive(model, ids) {
     if (!missing) return;
     model.switchOff(id, missing.id);
     off.add(id);
-    graph.activeDependantClosure(id).filter((f) => !off.has(f)).forEach((f) => {
-      model.switchOff(f, requiresOff(f, (other) => off.has(other) || other === id).id);
+    // Nearest dependant first (the closure lists the deepest first), so the requirement that caused each is already off.
+    [...graph.activeDependantClosure(id)].reverse().filter((f) => !off.has(f)).forEach((f) => {
+      const cause = requiresOff(f, (other) => off.has(other) || other === id);
+      model.switchOff(f, cause ? cause.id : id);
       off.add(f);
     });
     console.error(`[plugins] ${id} switched off: ${missing.id} is installed but off`); // eslint-disable-line no-console
@@ -131,7 +135,11 @@ function housekeeping({ model, ids, now = new Date(), copyOf = runningCopy }) {
     if (row && row.source === 'bundled') {
       const copy = copyOf(id);
       if (copy && syncClosesCycle(model, id, copy.manifest)) {
-        console.error(`[plugins] ${id} ${copy.manifest.version} not synced: REQUIREMENT_CYCLE`); // eslint-disable-line no-console
+        const key = `${id}@${copy.manifest.version}`;
+        if (!refusedSyncs.has(key)) { // once per release, not at every hourly pass
+          refusedSyncs.add(key);
+          console.error(`[plugins] ${key} not synced: REQUIREMENT_CYCLE`); // eslint-disable-line no-console
+        }
       } else if (copy && model.syncBundled(id, copy.manifest, copy.sha256)) synced.push(id);
     }
     if (row && row.rollbackUntil && Date.parse(row.rollbackUntil) <= now.getTime()) model.expireRollback(id);
@@ -145,7 +153,8 @@ function housekeeping({ model, ids, now = new Date(), copyOf = runningCopy }) {
       try { s.store.setCurrent(id, fresh.version); } catch { /* the loader reports the package missing */ }
     }
   });
-  switchOffOverInactive(model, synced);
+  // A bug in this step must not stop the boot: the plugins then simply stay as they were.
+  try { switchOffOverInactive(model, synced); } catch (err) { console.error('[plugins] switching off over an inactive requirement failed:', err.message); } // eslint-disable-line no-console
   return model.list();
 }
 

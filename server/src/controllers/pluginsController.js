@@ -334,10 +334,12 @@ function createController(model = defaultModel, deps = {}) {
   const cycleAround = (g, id) => [id, ...g.requirementClosure(id)].map((member) => g.cycleOf(member)).find(Boolean) || null;
 
   // Rule 55 — a dependant inside the plugin's own strongly connected group does not block its removal:
-  // that is how an installed cycle is taken apart.
-  const outsideGroup = (g, id, ids) => {
+  // that is how an installed cycle is taken apart. A dependant OUTSIDE the group blocks the removal of every
+  // member, since it needs the whole group through the one it requires.
+  const outsideGroup = (g, id) => {
     const group = g.groupOf(id);
-    return ids.filter((other) => !group.includes(other));
+    const members = group.length ? group : [id];
+    return [...new Set(members.flatMap((member) => g.dependantsOf(member)))].filter((other) => other !== id && !group.includes(other));
   };
 
   // Rule 8 — every refusal a card can predict, said before the click.
@@ -385,7 +387,7 @@ function createController(model = defaultModel, deps = {}) {
         },
       };
     }
-    const users = outsideGroup(g, id, g.dependantsOf(id));
+    const users = outsideGroup(g, id);
     const uninstallBlockedBy = users.length ? `Utilisé par ${namesOf(users)} : à désinstaller d’abord.` : (blocker && blocker.message) || null;
     return { activate, deactivate, uninstall: { allowed: !uninstallBlockedBy, blockedBy: uninstallBlockedBy } };
   }
@@ -841,7 +843,7 @@ function createController(model = defaultModel, deps = {}) {
     const g = graph();
     const dependents = activeOnly
       ? g.dependantsOf(entry.id, { activeOnly: true })
-      : outsideGroup(g, entry.id, g.dependantsOf(entry.id)).filter((id) => !reconciling || allows(id));
+      : outsideGroup(g, entry.id).filter((id) => !reconciling || allows(id));
     if (!dependents.length) return false;
     const step = activeOnly ? 'désactiver' : 'désinstaller';
     res.status(409).json({

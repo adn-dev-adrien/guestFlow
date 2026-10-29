@@ -51,7 +51,7 @@
     ],
     "1.1.4": [
       "Mails non lus : quand une passe atteint le plafond de 200 mails, la page d’accueil affiche « Mails non lus : N (afflux). » au lieu d’un simple message dans le journal.",
-      "Sans serveur de réception reconnu, une passe lit aussi les mails les plus anciens non lus : une rafale de faux mails ne repousse plus un vrai mail hors de la fenêtre de 30 jours.",
+      "Sans serveur de réception reconnu, une passe lit aussi les mails les plus anciens non lus : chaque mail est lu au plus tard au bout de quelques passes tant que la rafale reste modérée, et la page d’accueil prévient quand le plafond est atteint plusieurs passes de suite.",
       "Les en-têtes d’authentification démesurés sont ignorés et la lecture d’un lot ne fige plus le serveur.",
       "Compatible avec le SDK 2.16 de GuestFlow."
     ]

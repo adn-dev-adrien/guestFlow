@@ -4,8 +4,9 @@
 // running it without the hardening.
 //
 // The list of relying plugins is DISCOVERED: HARDENINGS maps a core feature, recognised by the call that reaches it,
-// to the SDK that shipped it, and every plugin source file is scanned. A new plugin (or a new call) that reaches one
-// of them without the floor fails here, with no list to remember to extend.
+// to the SDK that shipped it, and every plugin source file is scanned. A new plugin (or a new call) that reaches a
+// listed feature without the floor fails here. What it cannot do is know a hardening nobody listed: shipping one
+// still means adding a row to HARDENINGS (a reviewer's check), and a module name built at run time is not seen.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
@@ -20,10 +21,10 @@ const HARDENED_AT = '2.15.0';
 
 const HARDENINGS = [
   { feature: 'linear e-mail check', sdk: HARDENED_AT, pattern: /validateEmail\(/ },
-  { feature: 'mailbox reader caps and parser version', sdk: HARDENED_AT, pattern: /mailbox\.readMailsFrom|manifestVersion\(/ },
+  { feature: 'mailbox reader caps and parser version', sdk: HARDENED_AT, pattern: /\breadMailsFrom\b|\bmanifestVersion\(/ },
   { feature: 'scoped cancellation retry', sdk: HARDENED_AT, pattern: /retryPendingCancellations/ },
   { feature: 'mail cap report and unverifiable-mailbox reading', sdk: '2.16.0', pattern: /\bonCap\b/ },
-  { feature: 'Qonto request timeout', sdk: HARDENED_AT, pattern: /coreModule\('qonto'\)/ },
+  { feature: 'Qonto request timeout', sdk: HARDENED_AT, pattern: /coreModule\(\s*['"`]qonto['"`]\s*[,)]/ },
 ];
 
 function sourceFiles(dir) {
@@ -38,16 +39,26 @@ function sourceFiles(dir) {
   return out;
 }
 
+const hardeningsIn = (text) => HARDENINGS.filter((h) => h.pattern.test(text));
+
 const relying = new Map();
 for (const entry of fs.readdirSync(PLUGINS_DIR, { withFileTypes: true })) {
   if (!entry.isDirectory() || !fs.existsSync(path.join(PLUGINS_DIR, entry.name, 'manifest.json'))) continue;
   const text = sourceFiles(path.join(PLUGINS_DIR, entry.name)).map((f) => fs.readFileSync(f, 'utf8')).join('\n');
-  const hits = HARDENINGS.filter((h) => h.pattern.test(text));
+  const hits = hardeningsIn(text);
   if (hits.length) relying.set(entry.name, hits);
 }
 
 test('rule 51: the SDK that ships the hardenings is at least 2.15.0', () => {
   assert.ok(satisfies(SDK_VERSION, `>=${HARDENED_AT}`), SDK_VERSION);
+});
+
+test('rule 53: the discovery sees double quotes, a destructured readMailsFrom and a spread-out coreModule call', () => {
+  const features = (text) => hardeningsIn(text).map((h) => h.feature);
+  assert.ok(features('sdk.coreModule("qonto").qontoService').includes('Qonto request timeout'));
+  assert.ok(features("sdk.coreModule(\n  `qonto`,\n)").includes('Qonto request timeout'));
+  assert.ok(features('const { readMailsFrom } = sdk.mailbox;\nawait readMailsFrom({});').includes('mailbox reader caps and parser version'));
+  assert.deepEqual(features('sdk.coreModule("dateFr")'), []);
 });
 
 test('rule 53: the discovery finds the plugins audit r3 and r4 named', () => {
