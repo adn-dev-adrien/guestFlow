@@ -23,10 +23,12 @@ const { textColorFor } = require('../utils/colorContrast');
 const platformsModel = require('./platformsModel');
 const { platformDisplay } = require('../utils/platformDisplay');
 const { saveOptimizedPhoto, removeUploadedFile } = require('../utils/propertyUploads');
+const { publicDocument, removeDocumentFile, downloadUrl, PRIVATE_PREFIX } = require('../utils/propertyDocumentFiles');
 const { answeredFlag, withoutPending } = require('../utils/propertyFacts');
 const propertyArticle = require('../utils/propertyArticle');
 const { resolvePoolSeason, poolSeasonModeOf } = require('../utils/poolSeason');
 const { PROPERTY_LIMITS, parseBoundedNumber } = require('../utils/inputLimits');
+const { carriesMoney, idsOfOwner, withConvertedDevis, PROPERTY_MONEY_MESSAGE } = require('../utils/deletionGuard');
 
 // Multipart/FormData sends every field as a string, and "false"/"0" are truthy — so booleans must be
 // coerced explicitly to a 0/1 bit for INTEGER columns.
@@ -509,7 +511,7 @@ function createPropertiesModel(database) {
       const { dropInsurance } = require('../utils/insuranceOffer');
       property.rateInclusions = dropInsurance(database, property.rateInclusions);
 
-      property.documents = database.prepare('SELECT * FROM documents WHERE propertyId = ?').all(id);
+      property.documents = database.prepare('SELECT * FROM documents WHERE propertyId = ?').all(id).map(publicDocument);
       property.optionIds = dropInsurance(database, database.prepare('SELECT optionId FROM property_options WHERE propertyId = ?').all(id))
         .map((r) => r.optionId);
       // Options applicable to this property, each carrying its EFFECTIVE price for THIS property (the
@@ -695,6 +697,24 @@ function createPropertiesModel(database) {
       return { ok: true };
     },
 
+    // THE delete guard for a property (utils/deletionGuard): the delete cascades every stay and devis.
+    deletionBlocker(id) {
+      return carriesMoney(database, idsOfOwner(database, 'propertyId', id)) ? PROPERTY_MONEY_MESSAGE : null;
+    },
+
+    // The delete the controller runs after its provider awaits: judged again, in the same transaction.
+    removeGuarded(id) {
+      return database.transaction(() => {
+        const blocker = this.deletionBlocker(id);
+        if (blocker) return { blocker };
+        return this.remove(id);
+      })();
+    },
+
+    rowIdsToDelete(id) {
+      return withConvertedDevis(database, idsOfOwner(database, 'propertyId', id));
+    },
+
     remove(id) {
       const existing = database.prepare('SELECT photo FROM properties WHERE id = ?').get(id);
       if (!existing) return { ok: true };
@@ -704,6 +724,7 @@ function createPropertiesModel(database) {
         .all(id)
         .map((r) => r.clientId);
 
+      const documentFiles = database.prepare('SELECT filePath FROM documents WHERE propertyId = ?').all(id);
       database.transaction(() => {
         // Cascades to reservations + children, pricing_rules, documents, property_options,
         // ical_sources, ical_import_events, calendar_notes.
@@ -720,6 +741,7 @@ function createPropertiesModel(database) {
       })();
 
       if (existing.photo) removeUploadedFile(existing.photo);
+      documentFiles.forEach((d) => removeDocumentFile(d.filePath));
       return { ok: true };
     },
 
@@ -1089,16 +1111,21 @@ function createPropertiesModel(database) {
 
     addDocument(propertyId, file, body = {}) {
       if (!file) return { error: 'Fichier requis', status: 400 };
-      const filePath = `/uploads/${file.filename}`;
       const result = database.prepare(`
         INSERT INTO documents (propertyId, type, name, filePath) VALUES (?, ?, ?, ?)
-      `).run(propertyId, body.type || 'other', sentenceCase(body.name || file.originalname), filePath);
-      return { data: { id: result.lastInsertRowid, filePath } };
+      `).run(propertyId, body.type || 'other', sentenceCase(body.name || file.originalname), `${PRIVATE_PREFIX}${file.filename}`);
+      return { data: { id: result.lastInsertRowid, filePath: downloadUrl(propertyId, result.lastInsertRowid) } };
     },
 
     deleteDocument(propertyId, docId) {
+      const row = database.prepare('SELECT filePath FROM documents WHERE id = ? AND propertyId = ?').get(docId, propertyId);
       database.prepare('DELETE FROM documents WHERE id = ? AND propertyId = ?').run(docId, propertyId);
+      if (row) removeDocumentFile(row.filePath);
       return { data: { ok: true } };
+    },
+
+    getDocument(propertyId, docId) {
+      return database.prepare('SELECT * FROM documents WHERE id = ? AND propertyId = ?').get(docId, propertyId);
     },
 
     // specs/welcome-pack-auto-options.md §3.1 — the property's welcome pack: the options this

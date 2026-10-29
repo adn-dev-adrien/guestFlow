@@ -34,6 +34,7 @@ module.exports = {
   // self-update uses: allowed hosts, SHA256SUMS, archive members, release layout, npm ci.
   releaseClient: require(path.join(GF_SERVER, 'src', 'utils', 'releaseClient')),
   updateStaging: require(path.join(GF_SERVER, 'src', 'utils', 'updateStaging')),
+  releaseSignature: require(path.join(GF_SERVER, 'src', 'utils', 'releaseSignature')),
   semver: require(path.join(GF_SERVER, 'src', 'utils', 'semver')),
   proxySecret: require(path.join(GF_SERVER, 'src', 'utils', 'proxySecret')),
   // specs/control-plane-plans-and-access.md rule 36 — the instance's same-origin gate for writes.

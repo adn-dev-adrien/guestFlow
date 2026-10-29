@@ -130,6 +130,17 @@ function buildModel(database) {
     ).all();
   }
 
+  // Links whose reservation row no longer exists and that may still be payable at the provider: open ones,
+  // and cancelled ones whose deactivation is still owed (`remoteCancelPendingAt`), which nobody retries
+  // while the payment plugin is off.
+  function listOrphanOpen() {
+    return database.prepare(`
+      SELECT l.id, l.reservationId, l.type, l.amountCents, l.createdAt, l.status FROM payment_links l
+       WHERE (l.status = 'open' OR (l.status = 'cancelled' AND l.remoteCancelPendingAt IS NOT NULL)) AND NOT EXISTS (SELECT 1 FROM reservations r WHERE r.id = l.reservationId)
+       ORDER BY l.id
+    `).all();
+  }
+
   // Rule 1: no provider call — the expiry is already in our record.
   function retireExpired({ now = new Date() } = {}) {
     const nowMs = now.getTime();
@@ -350,6 +361,7 @@ function buildModel(database) {
     create,
     findById,
     listOpen,
+    listOrphanOpen,
     retireExpired,
     retireSettled,
     settledBucketDateOf,

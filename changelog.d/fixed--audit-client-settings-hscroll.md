@@ -1,0 +1,1 @@
+- Settings pages (Platforms, number fields, attention cards, two-factor setup) no longer scroll sideways at desktop width: the screen-reader-only text boxes are 1px.

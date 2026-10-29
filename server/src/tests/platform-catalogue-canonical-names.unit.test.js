@@ -12,12 +12,13 @@ const silent = console.log;
 console.log = () => {};
 const db = require('../database');
 const propertyIcalModel = require('../models/propertyIcalModel');
+const { globalFetch } = require('./icalFetchFixture');
 const platformsController = require('../controllers/platformsController');
 console.log = silent;
 
 const pid = db.prepare("INSERT INTO properties (name, maxGuests) VALUES ('Gîte', 6)").run().lastInsertRowid;
 const cid = db.prepare("INSERT INTO clients (firstName, lastName) VALUES ('Jean', 'Dupont')").run().lastInsertRowid;
-const ical = propertyIcalModel.buildModel(db);
+const ical = propertyIcalModel.buildModel(db, { fetchImpl: globalFetch });
 const platformNames = () => db.prepare('SELECT name FROM platforms ORDER BY name').all().map((r) => r.name);
 const sources = () => db.prepare('SELECT platformKey, platformLabel, url FROM ical_sources WHERE propertyId = ? ORDER BY id').all(pid);
 

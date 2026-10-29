@@ -86,7 +86,7 @@ test('an empty language on an update is still an explicit value, and means Frenc
 const devisModel = require('../models/devisModel');
 
 const CONVERSION_DDL = `
-  CREATE TABLE properties (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT);
+  CREATE TABLE properties (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, cleaningHours REAL DEFAULT 3);
   CREATE TABLE reservations (
     id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL DEFAULT 'reservation',
     devisNumber TEXT, devisStatus TEXT, validUntil TEXT, convertedReservationId INTEGER,

@@ -1,6 +1,7 @@
 // Properties controller — thin handlers over propertiesModel.
 
 const model = require('../models/propertiesModel');
+const { deactivateOpenLinksBeforeDelete } = require('../utils/paymentLinkDeactivation');
 const { buildProgressivePreview } = require('../utils/pricing');
 const { ADMIN, RECEPTION, userHasRole } = require('../constants/roles');
 const { toReceptionPropertyList } = require('../utils/receptionView');
@@ -123,8 +124,17 @@ async function update(req, res) {
   }
 }
 
-function remove(req, res) {
-  res.json(model.remove(req.params.id));
+async function remove(req, res) {
+  const blocker = model.deletionBlocker(req.params.id);
+  if (blocker) return res.status(409).json({ error: blocker, code: 'PROPERTY_CARRIES_MONEY' });
+  try {
+    await deactivateOpenLinksBeforeDelete(model.rowIdsToDelete(req.params.id), { paymentLinksModel: require('../models/paymentLinksModel') });
+  } catch (err) {
+    return res.status((err && err.httpStatus) || 500).json({ error: (err && err.message) || 'Suppression impossible.', code: (err && err.error) || 'DELETE_FAILED' });
+  }
+  const outcome = model.removeGuarded(req.params.id);
+  if (outcome.blocker) return res.status(409).json({ error: outcome.blocker, code: 'PROPERTY_CARRIES_MONEY' });
+  return res.json(outcome);
 }
 
 // specs/google-vacation-rentals-feed.md rule 12 — a write that succeeded announces itself; a refusal
@@ -167,6 +177,13 @@ function addDocument(req, res) {
   respond(res, model.addDocument(req.params.id, req.file, req.body));
 }
 
+function downloadDocument(req, res) {
+  const doc = model.getDocument(req.params.id, req.params.docId);
+  const file = doc && require('../utils/propertyDocumentFiles').resolveDocumentFile(doc.filePath);
+  if (!file) return res.status(404).json({ error: 'Document introuvable' });
+  return res.download(file, require('../utils/propertyDocumentFiles').downloadName(doc.name, file));
+}
+
 function deleteDocument(req, res) {
   respond(res, model.deleteDocument(req.params.id, req.params.docId));
 }
@@ -181,5 +198,5 @@ module.exports = {
   list, getOne, limits, articleLabels, platformColors, emailHooks, saveEmailHooks, progressivePreview,
   create, update, remove,
   addPricing, updatePricing, deletePricing, applyPricing, assignPricingDateRange, platformPrices,
-  addDocument, deleteDocument, setOptions,
+  addDocument, deleteDocument, downloadDocument, setOptions,
 };

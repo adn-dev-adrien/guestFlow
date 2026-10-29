@@ -18,6 +18,7 @@ const Database = require('better-sqlite3');
 
 const platformsModel = require('../models/platformsModel');
 const propertyIcalModel = require('../models/propertyIcalModel');
+const { globalFetch } = require('./icalFetchFixture');
 const reservationsModel = require('../models/reservationsModel');
 const propertiesModel = require('../models/propertiesModel');
 const { __test: { isPlatformCollectingTouristTax } } = require('../utils/pricing');
@@ -80,7 +81,7 @@ test('platformsModel.setColor/getColor: custom override, built-in fallback, clea
 test('platformsModel.listForProperty: every platform listed; source config + colour merged in', () => {
   const db = freshDb();
   const platforms = platformsModel.create(db);
-  const pim = propertyIcalModel.buildModel(db);
+  const pim = propertyIcalModel.buildModel(db, { fetchImpl: globalFetch });
 
   // No source yet: direct + the built-ins are all present with defaults.
   const base = platforms.listForProperty(1);
@@ -147,7 +148,7 @@ test('platformsModel.listForProperty: parses lastSyncCounts into a structured sy
 
 test('propertyIcalModel.createSource: empty URL allowed; bad URL rejected', () => {
   const db = freshDb();
-  const pim = propertyIcalModel.buildModel(db);
+  const pim = propertyIcalModel.buildModel(db, { fetchImpl: globalFetch });
 
   const empty = pim.createSource(1, { platformKey: 'airbnb', platformLabel: 'Airbnb', url: '' });
   assert.ok(!empty.error, 'empty URL is accepted (manual-entry platform)');
@@ -159,7 +160,7 @@ test('propertyIcalModel.createSource: empty URL allowed; bad URL rejected', () =
 
 test('propertyIcalModel: createSource upserts ONE row per (property, platform)', () => {
   const db = freshDb();
-  const pim = propertyIcalModel.buildModel(db);
+  const pim = propertyIcalModel.buildModel(db, { fetchImpl: globalFetch });
 
   pim.createSource(1, { platformKey: 'airbnb', platformLabel: 'Airbnb', url: '' });
   pim.createSource(1, { platformKey: 'airbnb', platformLabel: 'Airbnb', url: 'https://a/c.ics', collectsTouristTax: false });
@@ -199,7 +200,7 @@ test('platformsModel: setTouristTaxCollection maps the 3-way GLOBAL mode (+ norm
 
 test('propertyIcalModel: sync skips empty-URL sources (no fetch, status untouched)', async () => {
   const db = freshDb();
-  const pim = propertyIcalModel.buildModel(db);
+  const pim = propertyIcalModel.buildModel(db, { fetchImpl: globalFetch });
   const { data: source } = pim.createSource(1, { platformKey: 'airbnb', platformLabel: 'Airbnb', url: '' });
 
   const one = await pim.syncOne(1, source.id);
@@ -215,7 +216,7 @@ test('propertyIcalModel: sync skips empty-URL sources (no fetch, status untouche
 
 test('propertyIcalModel: the disabled flag persists per source', () => {
   const db = freshDb();
-  const pim = propertyIcalModel.buildModel(db);
+  const pim = propertyIcalModel.buildModel(db, { fetchImpl: globalFetch });
 
   pim.createSource(1, { platformKey: 'airbnb', platformLabel: 'Airbnb', url: '', disabled: true });
   pim.createSource(1, { platformKey: 'booking', platformLabel: 'Booking', url: '' }); // not disabled
@@ -236,7 +237,7 @@ function seedStay(db, { id, platform }) {
 
 test('reservationsModel.list keeps a disabled-platform reservation (rule 2 of calendar-property-parity); availability counts it too', () => {
   const db = freshDb();
-  const pim = propertyIcalModel.buildModel(db);
+  const pim = propertyIcalModel.buildModel(db, { fetchImpl: globalFetch });
   const rm = reservationsModel.create(db);
 
   seedStay(db, { id: 1, platform: 'Airbnb' });

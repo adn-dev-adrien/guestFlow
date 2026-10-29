@@ -13,7 +13,7 @@ if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 
 const DOCUMENT_LIMIT_BYTES = 10 * 1024 * 1024;
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, uploadsDir),
+  destination: (req, file, cb) => cb(null, require('./propertyDocumentFiles').ensurePrivateDir()),
   filename: (req, file, cb) => {
     cb(null, `${Date.now()}-${safeUploadName(file.originalname)}`);
   }

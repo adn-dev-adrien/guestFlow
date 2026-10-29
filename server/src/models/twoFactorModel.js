@@ -40,7 +40,6 @@ function buildModel(db, { encrypt = encryption.encrypt, decrypt = encryption.dec
   const setActionStmt = db.prepare('UPDATE user_two_factor SET actionCodeHash = ?, actionCodeExpiresAt = ? WHERE userId = ?');
   const clearActionStmt = db.prepare('UPDATE user_two_factor SET actionCodeHash = NULL, actionCodeExpiresAt = NULL WHERE userId = ?');
   const enrolmentSendStmt = db.prepare('UPDATE user_two_factor SET pendingSends = pendingSends + 1 WHERE userId = ?');
-  const codeSentStmt = db.prepare('UPDATE user_two_factor SET lastCodeSentAt = ? WHERE userId = ?');
   const pendingFailStmt = db.prepare('UPDATE user_two_factor SET pendingFailures = pendingFailures + 1 WHERE userId = ?');
   // The email code is dropped only when it belonged to the enrolment (SQLite reads the old row on the right).
   const dropPendingStmt = db.prepare(`UPDATE user_two_factor SET pendingMethod = NULL, pendingSecretEncrypted = NULL, pendingFailures = 0,
@@ -104,7 +103,6 @@ function buildModel(db, { encrypt = encryption.encrypt, decrypt = encryption.dec
     },
     ensure: (userId) => ensureStmt.run(Number(userId)),
     markEnrolmentSend: (userId) => enrolmentSendStmt.run(Number(userId)),
-    markCodeSent: (userId, nowIso) => codeSentStmt.run(nowIso, Number(userId)),
     // Rule 44/55 — a mail slot is taken BEFORE the mail is sent, in one conditional UPDATE, so parallel
     // requests cannot all pass a check made before the first one writes. `enrolment`: at most `maxSends`
     // per enrolment; always: no send within the gap, and at most `maxPerHour` mails per hour. → true when

@@ -1,4 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { DATA_CHANGED_EVENT } from '../constants/appEvents';
+import { versionAfterOwnWrite } from '../utils/ficheVersion';
 import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router';
 import {
   Box, TextField, Autocomplete, Button, FormControl, InputLabel, Select,
@@ -9,6 +11,7 @@ import {
 import { useTheme, alpha } from '@mui/material/styles';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EventBusyIcon from '@mui/icons-material/EventBusy';
+import SearchOffIcon from '@mui/icons-material/SearchOff';
 import DescriptionIcon from '@mui/icons-material/Description';
 import MailOutlineIcon from '@mui/icons-material/MailOutlined';
 import PointOfSaleIcon from '@mui/icons-material/PointOfSale';
@@ -50,7 +53,7 @@ import api from '../api';
 import { expandOptionGroups } from '../utils/optionGroups';
 import { getRangeOccupancyConflictInfo, isPlacementUnchanged } from '../utils/reservationConflicts';
 import { isValidEmail, isValidPhone } from '../utils/validation';
-import { getFromParam, navigateBack, navigateBackWithFrom } from '../utils/navigation';
+import { DEFAULT_BACK_PATH, getFromParam, navigateBack, navigateBackWithFrom } from '../utils/navigation';
 import { applyQuoteToForm as applyQuoteToFormPure } from '../utils/applyQuoteToForm';
 import { resolvePlatformTouristTaxPrefill } from '../utils/platformTouristTaxPrefill';
 import { COARSE_POINTER, TOUCH_TARGET } from '../utils/touchHitArea';
@@ -71,6 +74,7 @@ import {
 import { formatCurrency, displayDate } from '../utils/formatters';
 import LoadingState from '../components/LoadingState';
 import ErrorAlert from '../components/ErrorAlert';
+import EmptyState from '../components/EmptyState';
 import { useAuth } from '../hooks/useAuth';
 import { ADMIN, userHasRole } from '../constants/roles';
 import { optionLineKey, resourceLineKey } from '../utils/arrivalLineKey';
@@ -155,6 +159,13 @@ const EMPTY_CLIENT = {
   emailLanguage: 'fr',
 };
 
+// Only the 404 of the fiche or quote being opened means « introuvable »; a 404 on a side lookup (the
+// property of a new stay) is an ordinary load failure.
+function markMissingLookup(err) {
+  if (err && err.status === 404) err.missingLookup = true;
+  throw err;
+}
+
 export default function ReservationPage() {
   const { reservationId } = useParams();
   const { user: currentUser } = useAuth();
@@ -192,6 +203,7 @@ export default function ReservationPage() {
 
   const [loading, setLoading] = useState(true);
   const [initError, setInitError] = useState(false);
+  const [notFound, setNotFound] = useState(false);
   const [saving, setSaving] = useState(false);
   const [properties, setProperties] = useState([]);
   const [selectedProp, setSelectedProp] = useState('');
@@ -226,6 +238,19 @@ export default function ReservationPage() {
   const [pluginBlocks, setPluginBlocks] = useState({});
   // Bumped by a plugin banner that changed the reservation server-side: re-runs the page load.
   const [reloadToken, setReloadToken] = useState(0);
+  // The `updatedAt` this fiche was built on, sent back on save: the server refuses a save made on an
+  // older version instead of reverting what an import, a mail or another tab wrote meanwhile.
+  const loadedUpdatedAtRef = useRef(null);
+  // « Enregistrer quand même » : the one save that goes without the version, an explicit overwrite.
+  const overwriteOnceRef = useRef(false);
+  useEffect(() => {
+    if (!reservationId) return undefined;
+    const adoptOwnWrites = (event) => {
+      loadedUpdatedAtRef.current = versionAfterOwnWrite(reservationId, loadedUpdatedAtRef.current, event.detail);
+    };
+    window.addEventListener(DATA_CHANGED_EVENT, adoptOwnWrites);
+    return () => window.removeEventListener(DATA_CHANGED_EVENT, adoptOwnWrites);
+  }, [reservationId]);
   const [restoring, setRestoring] = useState(false);
   // Where a cancelled fiche keeps its « Nouveau remboursement » button, outside the disabled fieldset.
   const [refundHost, setRefundHost] = useState(null);
@@ -783,6 +808,7 @@ export default function ReservationPage() {
     const initPage = async () => {
       try {
         setLoading(true);
+        setNotFound(false);
         const props = await api.getProperties();
         setProperties(props);
 
@@ -822,7 +848,8 @@ export default function ReservationPage() {
         
         // Load reservation details if editing
         if (reservationId) {
-          const res = await api.getReservation(reservationId);
+          const res = await api.getReservation(reservationId).catch(markMissingLookup);
+          loadedUpdatedAtRef.current = res.updatedAt || null;
           setExistingReservationLocked(Boolean(res.editLock?.locked));
           setEditLock(res.editLock || null);
           setPastUnlocked(false);
@@ -855,9 +882,9 @@ export default function ReservationPage() {
             teens: res.teens || 0,
             babies: res.babies || 0,
             platform: res.platform || 'direct',
-            singleBeds: res.singleBeds || '',
-            doubleBeds: res.doubleBeds || '',
-            babyBeds: res.babyBeds || '',
+            singleBeds: res.singleBeds ?? '',
+            doubleBeds: res.doubleBeds ?? '',
+            babyBeds: res.babyBeds ?? '',
             breakfastTime: res.breakfastTime || '',
             extraGuestSurchargeOffered: Boolean(res.extraGuestSurchargeOffered),
             totalPrice: importedBlankPrice ? '' : res.totalPrice || 0,
@@ -975,7 +1002,7 @@ export default function ReservationPage() {
           await loadResourcesAvailability(res.startDate, res.endDate, res.propertyId, res.id);
           await loadBabyBedAvailability(res.startDate, res.endDate, res.propertyId, res.id);
         } else if (editingDevisId) {
-          const devis = await api.getDevisById(editingDevisId);
+          const devis = await api.getDevisById(editingDevisId).catch(markMissingLookup);
           setCgvBlock(devis.cgv || null);
           setOnlinePayment(devis.onlinePayment || null);
           const loaded = await loadPropertyContext(devis.propertyId, props);
@@ -1005,9 +1032,9 @@ export default function ReservationPage() {
             babies: devis.babies || 0,
             platform: devis.platform || 'direct',
             status: devis.status || 'draft',
-            singleBeds: devis.singleBeds || '',
-            doubleBeds: devis.doubleBeds || '',
-            babyBeds: devis.babyBeds || '',
+            singleBeds: devis.singleBeds ?? '',
+            doubleBeds: devis.doubleBeds ?? '',
+            babyBeds: devis.babyBeds ?? '',
             breakfastTime: devis.breakfastTime || '',
             extraGuestSurchargeOffered: Boolean(devis.extraGuestSurchargeOffered),
             totalPrice: devis.totalPrice || 0,
@@ -1204,7 +1231,8 @@ export default function ReservationPage() {
 
         setLoading(false);
       } catch (err) {
-        setInitError(true);
+        if (err && err.status === 404 && err.missingLookup) setNotFound(true);
+        else setInitError(true);
         setLoading(false);
       }
     };
@@ -2426,6 +2454,7 @@ export default function ReservationPage() {
       } else if (reservationId) {
         await api.updateReservation(reservationId, {
           ...unlockPayload,
+          loadedUpdatedAt: overwriteOnceRef.current ? undefined : (loadedUpdatedAtRef.current || undefined),
           propertyId: Number(selectedProp),
           clientId: form.clientId,
           // '' = keep the existing number; a non-empty value is an override (unique-checked server-side).
@@ -2494,9 +2523,11 @@ export default function ReservationPage() {
           resources: quote.resourceLines,
         });
         setInitialSnapshot(formSnapshot);
+        const overwritten = overwriteOnceRef.current;
+        overwriteOnceRef.current = false;
         ledgerEditMarkerRef.current = null;
         // Rule 7 — the stored ledger is what the fiche shows once clean again: re-read it after a save.
-        api.getReservation(reservationId).then((r) => { setStoredLedger(r.ledger || null); setStoredHeadline(r.storedHeadline || null); setStoredSummary(r.storedSummary || null); setInstallmentPlan(r.installmentPlan || null); }).catch(() => {});
+        api.getReservation(reservationId).then((r) => { if (overwritten) loadedUpdatedAtRef.current = r.updatedAt || null; setStoredLedger(r.ledger || null); setStoredHeadline(r.storedHeadline || null); setStoredSummary(r.storedSummary || null); setInstallmentPlan(r.installmentPlan || null); }).catch(() => {});
         if (safeAfterSaveAction) {
           safeAfterSaveAction();
           // The page stays open: refetch so the server's `editLock` (floors, window) is fresh. Only on a
@@ -2624,6 +2655,23 @@ export default function ReservationPage() {
         });
         if (proceed) {
           return await handleSaveReservation(safeAfterSaveAction, forceMinNights, forceCapacity, forceChangeover, true, forceOverpayment);
+        }
+        return false;
+      }
+      if (err?.code === 'STALE_FICHE') {
+        overwriteOnceRef.current = false;
+        const choice = await confirm({
+          title: 'Fiche modifiée entre-temps',
+          message: 'Recharger efface la saisie en cours. Enregistrer écrase la version à jour.',
+          confirmLabel: 'Recharger',
+          secondaryLabel: 'Enregistrer quand même',
+          cancelLabel: 'Annuler',
+          confirmColor: 'warning',
+        });
+        if (choice === true) setReloadToken((token) => token + 1);
+        if (choice === 'secondary') {
+          overwriteOnceRef.current = true;
+          return await handleSaveReservation(safeAfterSaveAction, forceMinNights, forceCapacity, forceChangeover, forceMaxNights, forceOverpayment);
         }
         return false;
       }
@@ -2918,6 +2966,21 @@ export default function ReservationPage() {
     }
     setHistoryOpen((prev) => !prev);
   };
+
+  if (notFound) {
+    return (
+      <Box>
+        <PageActionBar title={isDevisMode ? 'Devis' : 'Réservation'} onBack={() => navigateBack(navigate, isDevisMode ? '/devis' : DEFAULT_BACK_PATH)} />
+        <EmptyState
+          icon={<SearchOffIcon />}
+          title={isDevisMode ? 'Devis introuvable.' : 'Réservation introuvable.'}
+          message="Le lien est périmé ou la fiche a été supprimée."
+          actionLabel={isDevisMode ? 'Retour aux devis' : 'Retour au planning'}
+          onAction={() => navigate(isDevisMode ? '/devis' : DEFAULT_BACK_PATH, { replace: true })}
+        />
+      </Box>
+    );
+  }
 
   if (initError) {
     return (

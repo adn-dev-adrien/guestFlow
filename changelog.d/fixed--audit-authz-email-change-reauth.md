@@ -1,0 +1,1 @@
+- **Own email change asks the current password** (and a current second-step code when it is on); the old address receives a notice. « Mon compte » opens the confirmation dialog only when the email changed. Spec `hosting-h2-account-security.md` rule 59 (audit M1).

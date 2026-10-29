@@ -378,6 +378,62 @@ acompte is kept as an indemnity, and the books say so correctly.
     is due and unpaid, the derived `cancellationReason` is `unpaid_deposit` even though the solde is unpaid
     too — the first money missing names the cancellation, as rule 27 says. It read `unpaid_balance`.
 
+49. **`DELETE /api/reservations/:id` deletes a live, money-free stay only** _(added 2026-10-28, audit)_.
+    The route used to bypass every guard of the fiche: it erased a cancelled stay with its refunds, a
+    duplicate set aside, and a devis with its CGV acceptance (the FK cascade), though the fiche save
+    refuses all three (rule 25, `specs/terms-acceptance-record.md` rule 29). It now answers
+    `409 RESERVATION_NOT_DELETABLE` for any `kind` other than `reservation` (a devis is deleted from the
+    Devis page; a cancelled stay is history), and `409 RESERVATION_CARRIES_MONEY` for a stay with any
+    collected bucket (acompte, solde, complement, end-of-stay complement), a paid payment link, a paid
+    installment, a refund, a platform penalty or a cancellation compensation — read on the stay **and on
+    every devis converted into it** (website and devis payment links keep the devis id after the
+    conversion, as `vatRegimeSwitchModel` already reads them). The message points at the way out:
+    « Un paiement est enregistré sur ce séjour : l'annuler plutôt que le supprimer. » **This rule set is THE
+    delete guard** for stays, devis, clients and properties (`utils/deletionGuard`, rule 52): no other
+    path may drop a row carrying money. Cancelling the stay is the way to retire it. The archive rule (a finished stay needs the admin's per-fiche unlock) is unchanged.
+    The iCal cancellation approval, which deletes a stay on its own authority, is not this route.
+50. **A delete deactivates the row's payment links first** _(added 2026-10-28, audit)_. Neither a
+    deleted stay nor a deleted devis may leave an open link payable at the provider: before the delete
+    every open link of the row **and of the devis converted into it** is deactivated through the provider abstraction
+    (`deactivateOpenLinksBeforeDelete`) and marked `cancelled`. A link paid meanwhile answers
+    `409 LINK_ALREADY_PAID`; a provider that cannot deactivate it (down, plugin off) answers
+    `502 LINK_NOT_DEACTIVATED` and **nothing is deleted** (the links already deactivated stay cancelled).
+    With **no provider at all** (plugin off) nothing can be asked: the links are marked
+    `remoteCancelPendingAt` for the poll's retry (`specs/plugins-phase-3a-online-payment.md` rule 8) and the
+    delete goes on. **The guard is judged again after the awaits:** the poll can mark a link paid while the
+    provider is being called, so the kind and `carriesMoney` are re-run synchronously, in the same
+    transaction as the `DELETE` (`removeGuarded` on the reservations, clients and properties models); a stay
+    that became cancelled or carries money by then answers 409 and keeps its rows. `paymentLinksModel.cancel`
+    never overwrites a `paid` link, which is what the re-check relies on. When `removeGuarded` refuses
+    after links were already deactivated, the stay survives with those links cancelled: the operator
+    re-sends a link.
+    The devis route runs its own refusals (CGV proof) before touching any link.
+51. **Orphan open links are logged at boot** _(added 2026-10-28, audit)_. An open link whose reservation
+    row no longer exists (deleted before rule 50) is still payable at the provider and has nothing to
+    land on; so is a cancelled link whose remote deactivation is still owed (`remoteCancelPendingAt`) for a
+    reservation that is gone, which nobody retries while the payment plugin is off. The server logs one
+    warning at startup naming each (`link->reservation`); no data is changed, the operator deactivates them
+    by hand.
+52. **Every cascade is guarded** _(added 2026-10-28, PR review)_. The rest of the delete paths that could
+    drop a stay with its money go through the same check (`carriesMoney`, rule 49):
+    - **forced client delete** (`DELETE /api/clients/:id?force=true`, FK cascade) and **property delete**:
+      `409 CLIENT_CARRIES_MONEY` / `409 PROPERTY_CARRIES_MONEY` when any stay, cancelled stay or devis of the
+      client / property (and the devis converted into them) carries money; otherwise the open links of those
+      rows are deactivated first (rule 50) and the cascade runs;
+    - a **devis** carrying a paid link, installment or refund is kept (`409 DEVIS_CARRIES_MONEY`,
+      « Un paiement est enregistré sur ce devis : le conserver plutôt que le supprimer. »);
+    - **iCal cancellation approval**: a stay without money is deleted as before; a stay that carries money
+      (refund, penalty, compensation, paid link…) is **never hard-deleted**: it goes through
+      `reservationsModel.markCancelled` (reason « Annulation iCal approuvée »), its mappings are dropped so the
+      sync cannot resurrect it, the alert closes as `approved` and the endpoint answers outcome
+      `approved_kept` (the client reads no outcome). In both branches the open payment links of the stay and of
+      its converted devis are abandoned in the transaction (with the retry marker) and returned as
+      `cancelledLinks`; the controller deactivates them at the provider after the commit, as
+      `utils/cancelReservation` does, so a hard-deleted platform stay leaves no payable link either;
+    - the **iCal sync** never deletes a stay (it raises a cancellation alert, then the previous bullet): its
+      unused `DELETE FROM reservations` statement was removed.
+
+
 ---
 
 ## 4. Architecture

@@ -107,7 +107,14 @@ function createController(model, {
     return respond(res, model.update(req.params.id, req.body));
   }
 
-  function remove(req, res) {
+  async function remove(req, res) {
+    const refusal = model.removeRefusal(req.params.id);
+    if (refusal) return respond(res, refusal);
+    try {
+      await model.deactivateLinksBeforeRemove(req.params.id);
+    } catch (err) {
+      return res.status((err && err.httpStatus) || 500).json({ error: (err && err.message) || 'Suppression impossible.', code: (err && err.error) || 'DELETE_FAILED' });
+    }
     return respond(res, model.remove(req.params.id));
   }
 

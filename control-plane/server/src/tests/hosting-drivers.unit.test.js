@@ -188,8 +188,9 @@ test('rule 12 — Litestream: the console hands target and databases to the root
   assert.equal(calls[0], `${apply} c12=/srv/guestflow/instances/aulnes/data/guestflow.db c14=/srv/guestflow/instances/moulin/data/guestflow.db`);
   assert.equal(calls[1], apply);
   assert.equal(calls[2], 'rclone sync /srv/guestflow/instances/aulnes/uploads guestflow-backup:bucket/fleet/c12/uploads');
-  assert.equal(calls[3], 'rclone purge guestflow-backup:bucket/fleet/c12');
-  assert.match(calls[4], /^litestream restore -config \S+litestream-c12-[0-9a-f]+\.yml -o \/tmp\/x\.db -timestamp 2026-10-07T08:30:00\.000Z \/srv\/guestflow\/instances\/aulnes\/data\/guestflow\.db$/);
+  assert.equal(calls[3], 'rclone sync /srv/guestflow/instances/aulnes/private-documents guestflow-backup:bucket/fleet/c12/private-documents');
+  assert.equal(calls[4], 'rclone purge guestflow-backup:bucket/fleet/c12');
+  assert.match(calls[5], /^litestream restore -config \S+litestream-c12-[0-9a-f]+\.yml -o \/tmp\/x\.db -timestamp 2026-10-07T08:30:00\.000Z \/srv\/guestflow\/instances\/aulnes\/data\/guestflow\.db$/);
   // Litestream 0.3 ignores a query in a replica URL: endpoint and region are in the file.
   assert.equal(configs[0].text, 'dbs:\n  - path: /srv/guestflow/instances/aulnes/data/guestflow.db\n    replicas:\n      - type: s3\n        url: s3://bucket/fleet/c12/db\n        endpoint: https://s3.fr-par.scw.cloud\n        force-path-style: true\n        region: fr-par\n');
   assert.equal(configs[0].mode, 0o600);
@@ -336,4 +337,44 @@ test('rule 1 — two customers created together: Caddy reloads one after the oth
   listed.push(a, b);
   await Promise.all([ls.addReplica(a), ls.addReplica(b)]);
   assert.equal(applied.at(-1).length, 2, 'the last configuration lists both');
+});
+
+test('property documents are synced beside the uploads; a customer who never added one is not an error', async () => {
+  const calls = [];
+  const exec = async (file, args) => {
+    calls.push([file, ...args].join(' '));
+    if (args[0] === 'sync' && /private-documents/.test(args[1]) && calls.length === 4) {
+      const err = new Error('failed'); err.stderr = 'Failed to sync: directory not found'; throw err;
+    }
+    return { stdout: '' };
+  };
+  const d = createLitestreamBackupDriver({
+    exec, listReplicas: () => [], tmpDir: tmp(), url: 's3://bucket/fleet/', endpoint: 'https://e', region: 'fr-par', rcloneRemote: 'gf:bucket/fleet',
+    credentials: { LITESTREAM_ACCESS_KEY_ID: 'AK', LITESTREAM_SECRET_ACCESS_KEY: 'SK' },
+  });
+  await d.syncUploads(inst());
+  await d.syncUploads(inst());
+  assert.deepEqual(calls.filter((c) => /private-documents/.test(c)).length, 2);
+  const failing = createLitestreamBackupDriver({
+    exec: async () => { const err = new Error('boom'); err.stderr = 'access denied'; throw err; },
+    listReplicas: () => [], tmpDir: tmp(), url: 's3://b/f/', endpoint: 'https://e', region: 'r', rcloneRemote: 'gf:b/f', credentials: {},
+  });
+  await assert.rejects(failing.syncUploads(inst()), /boom|denied/);
+});
+
+test('the local backup copies the property documents with the uploads', async () => {
+  const dir = tmp();
+  const i = inst({ dir: path.join(dir, 'aulnes'), dbPath: path.join(dir, 'aulnes', 'data', 'guestflow.db') });
+  const d = createLocalBackupDriver({ dir: path.join(dir, 'backups'), now: () => new Date('2026-10-08T08:00:00Z'), intervalMs: 600000 });
+  fs.mkdirSync(path.join(dir, 'aulnes', 'uploads'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'aulnes', 'uploads', 'logo.png'), 'png');
+  await d.syncUploads(i);
+  const find = (name) => fs.readdirSync(path.join(dir, 'backups'), { recursive: true }).filter((f) => String(f).endsWith(name));
+  assert.equal(find('logo.png').length, 1);
+  assert.equal(find('contrat.pdf').length, 0, 'no folder, no error');
+  fs.mkdirSync(path.join(dir, 'aulnes', 'private-documents'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'aulnes', 'private-documents', 'contrat.pdf'), 'pdf');
+  await d.syncUploads(i);
+  assert.equal(find('contrat.pdf').length, 1);
+  assert.ok(find('contrat.pdf')[0].includes('private-documents'));
 });

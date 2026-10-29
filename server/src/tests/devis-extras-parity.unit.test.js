@@ -24,7 +24,7 @@ const { calculateReservationQuote } = require('../utils/pricing');
 
 const DDL = `
   CREATE TABLE properties (
-    id INTEGER PRIMARY KEY, name TEXT NOT NULL,
+    id INTEGER PRIMARY KEY, name TEXT NOT NULL, cleaningHours REAL DEFAULT 3,
     depositPercent REAL DEFAULT 30, depositDaysBefore INTEGER DEFAULT 30, balanceDaysBefore INTEGER DEFAULT 7,
     defaultCheckIn TEXT DEFAULT '15:00', defaultCheckOut TEXT DEFAULT '10:00', defaultCautionAmount REAL DEFAULT 500,
     touristTaxPerDayPerPerson REAL DEFAULT 0, touristTaxMode TEXT DEFAULT 'per_day_per_person',

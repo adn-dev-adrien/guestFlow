@@ -9,7 +9,7 @@
  * - What it may not do (utils/supportSessionPolicy.js) answers 403, judged on the path Express
  *   routes (any case, trailing slash).
  * - Every request that changes data is written to `support_access_log` with its outcome, a refused
- *   one included; every read too, once per path and per minute (rule 19). The pages it opens are
+ *   one included, and one whose client left before the answer too (« aborted », rule 60); every read too, once per path and per minute (rule 19). The pages it opens are
  *   reported by the client through POST /api/support-access/page.
  */
 
@@ -31,9 +31,9 @@ function isSupportSession(req) {
   return Boolean(session.supportAccessId || (session.user && session.user.isSupport));
 }
 
-function createSupportAudit({ controller, isSecretSetting, isHidden = () => false, now = () => Date.now() }) {
+function createSupportAudit({ controller, isSecretSetting, currentSettings, isHidden = () => false, now = () => Date.now() }) {
   const lastRead = new Map();
-  const policyDeps = isSecretSetting ? { isSecretSetting } : undefined;
+  const policyDeps = { ...(isSecretSetting ? { isSecretSetting } : {}), ...(currentSettings ? { currentSettings } : {}) };
 
   // true when this read was already logged within the minute; the map never outgrows its cap.
   function readSeenRecently(key) {
@@ -67,7 +67,16 @@ function createSupportAudit({ controller, isSecretSetting, isHidden = () => fals
       ? method === 'GET' && !UNLOGGED_READS.some((re) => re.test(path)) && !readSeenRecently(`${access.id} ${path}`)
       : path !== '/support-access/page' && path !== '/auth/logout';
     if (logged) {
-      res.on('finish', () => controller.record(access.id, { method, path: `/api${path}`, summary: String(res.statusCode) }));
+      // `finish` never fires when the client leaves first, and an async write can already be done by
+      // then: `close` without `finish` records it as aborted (rule 60). One entry either way.
+      let written = false;
+      const write = (summary) => {
+        if (written) return;
+        written = true;
+        controller.record(access.id, { method, path: `/api${path}`, summary });
+      };
+      res.on('finish', () => write(String(res.statusCode)));
+      res.on('close', () => { if (!res.writableFinished) write('aborted'); });
     }
     return next();
   };

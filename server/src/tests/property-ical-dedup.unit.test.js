@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
 const propertyIcalModel = require('../models/propertyIcalModel');
+const { globalFetch } = require('./icalFetchFixture');
 
 // iCal import de-duplication / no-overwrite guards. A re-import — same UID, a renamed UID, or the SAME
 // booking arriving from another platform — must map to the EXISTING reservation, never duplicate it, and
@@ -83,7 +84,7 @@ function fresh() {
   db.exec(DDL);
   db.prepare("INSERT INTO properties (id, defaultCheckIn, defaultCheckOut, defaultCautionAmount) VALUES (1, '15:00', '10:00', 500)").run();
   db.prepare("INSERT INTO ical_sources (id, propertyId, name, platformKey, platformLabel) VALUES (1, 1, 'Airbnb', 'airbnb', 'Airbnb'), (2, 1, 'Booking', 'booking', 'Booking')").run();
-  return { db, model: propertyIcalModel.buildModel(db) };
+  return { db, model: propertyIcalModel.buildModel(db, { fetchImpl: globalFetch }) };
 }
 const resCount = (db) => db.prepare('SELECT COUNT(*) c FROM reservations').get().c;
 

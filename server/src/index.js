@@ -143,7 +143,14 @@ try {
 // to the client for the push subscription. Never logged.
 require('./utils/vapid').ensureVapid(require('./models/settingsModel').read());
 
-// Serve uploads (public static images)
+// Serve uploads (public static images). Property documents live outside this root and go through the
+// authenticated /api/properties/:id/documents/:docId/file instead.
+try {
+  const moved = require('./utils/propertyDocumentFiles').moveLegacyDocumentsToPrivate(db);
+  if (moved > 0) console.log(`[migration:documents-private] ${moved} document(s) de logement déplacé(s) hors de /uploads`);
+} catch (err) {
+  logErrorMarker(`Documents privacy migration failed: ${err.message}`);
+}
 app.use('/uploads', express.static(require('./utils/instancePaths').uploadsDir()));
 
 // specs/plugins-phase-4-registry.md rule 18 — the client bundle of each loaded plugin, immutable, and
@@ -368,6 +375,13 @@ const server = serverHandle.listen(...listenArgs, () => {
   // helper reads this back to prove the update took effect), close out a finished update and prune
   // old releases. Must run before the scheduled tasks so the first version check sees clean state.
   require('./controllers/systemController').initOnBoot();
+
+  try {
+    const orphans = require('./models/paymentLinksModel').listOrphanOpen();
+    if (orphans.length) {
+      console.warn(`[payments] ${orphans.length} payment link(s) still payable point at a missing reservation (links ${orphans.map((l) => `${l.id}->${l.reservationId}`).join(', ')}): to deactivate by hand at the provider.`);
+    }
+  } catch { /* no payment_links table: nothing to report */ }
 
   // Start scheduled tasks (like iCal auto-sync)
   startScheduledTasks();

@@ -32,6 +32,7 @@ const ALLOWED_DOWNLOAD_HOSTS = new Set([
 
 const ARCHIVE_ASSET_RE = /^guestflow-(\d+\.\d+\.\d+)\.tar\.gz$/;
 const CHECKSUMS_ASSET_NAME = 'SHA256SUMS';
+const CHECKSUMS_SIGNATURE_ASSET_NAME = 'SHA256SUMS.sig';
 const PLUGIN_ASSET_RE = /^guestflow-booking-(\d+\.\d+\.\d+)\.zip$/;
 
 // CHANGELOG headings (Keep a Changelog + our `Migration` addition) → the French titles the UI shows.
@@ -165,6 +166,7 @@ function normaliseRelease(raw) {
     return Boolean(match) && match[1] === version;
   });
   const checksumsRaw = pickAsset(raw.assets, (a) => String(a?.name || '') === CHECKSUMS_ASSET_NAME);
+  const signatureRaw = pickAsset(raw.assets, (a) => String(a?.name || '') === CHECKSUMS_SIGNATURE_ASSET_NAME);
   const pluginRaw = pickAsset(raw.assets, (a) => PLUGIN_ASSET_RE.test(String(a?.name || '')));
 
   const archive = toAsset(archiveRaw);
@@ -181,6 +183,7 @@ function normaliseRelease(raw) {
     notes: parseReleaseNotes(raw.body),
     archive,
     checksums,
+    checksumsSignature: toAsset(signatureRaw),
     plugin: plugin ? { ...plugin, version: pluginVersion } : null,
   };
 }
