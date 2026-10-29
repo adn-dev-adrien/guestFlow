@@ -12,6 +12,10 @@
  * or a relay — is attacker-controlled text, and with no name to look for, nothing is trusted.
  */
 
+// Rule 32 (audit r4, external N2) — a genuine Authentication-Results header is a few hundred bytes; one over
+// this is text an attacker wrote to cost tokenizing time, and is never read.
+const MAX_AUTHENTICATION_RESULTS = 4096;
+
 const lower = (v) => String(v || '').trim().toLowerCase();
 
 const toList = (value) => (Array.isArray(value) ? value : String(value || '').split(/[\s,;]+/)).map(lower).filter(Boolean);
@@ -101,10 +105,15 @@ function verifyDkim(headerBlock, { domains, trustedAuthservId = '' } = {}) {
   if (accepted.length === 0) return { ok: false, reason: 'no-domain' };
   const trusted = lower(trustedAuthservId);
   if (!trusted) return { ok: false, reason: 'no-trusted-authserv-id' };
-  const headers = splitHeaders(Buffer.isBuffer(headerBlock) ? headerBlock.toString('utf8') : headerBlock)
-    .filter(([name]) => name === 'authentication-results').map(([, value]) => parseAuthenticationResults(value));
-  if (headers.length === 0) return { ok: false, reason: 'no-authentication-results' };
-  const header = headers.find((h) => h.authservId === trusted);
+  const present = splitHeaders(Buffer.isBuffer(headerBlock) ? headerBlock.toString('utf8') : headerBlock)
+    .filter(([name]) => name === 'authentication-results');
+  if (present.length === 0) return { ok: false, reason: 'no-authentication-results' };
+  // A cheap prefix test picks the headers that may be the trusted server's before any is tokenized; the exact
+  // authserv-id is still compared on the parsed header.
+  const header = present
+    .filter(([, value]) => value.length <= MAX_AUTHENTICATION_RESULTS && lower(value.slice(0, trusted.length)) === trusted)
+    .map(([, value]) => parseAuthenticationResults(value))
+    .find((h) => h.authservId === trusted);
   if (!header) return { ok: false, reason: 'untrusted-authserv-id' };
   // A value without `name=` inside a result is what an unquoted echo of an address leaves behind
   // (`dkim=pass header.d=… x@evil.test`): the whole header is then not believed.

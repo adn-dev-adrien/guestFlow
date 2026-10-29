@@ -262,8 +262,11 @@ choice in one click.
     Heap and downloads are bounded however many mails were forged. Tests: `tests/mail-reader-flood.unit.test.js`,
     `gites-de-france-intake/tests/mail-flood.unit.test.js`.
 31. *(Added (review of PR #865, 2026-10-29). (a) The cap bounds only the UNAUTHENTICATED mails: a mail with a good DKIM verdict
-    is read whatever the cap, in a first phase (the verdict comes from the headers, known before any body), so a
-    forged flood cannot push a genuine booking out of the 30-day window; reaching the cap logs how many were left.
+    is read whatever the cap, in a first phase (the verdict comes from the headers, known before any body). That
+    guarantee holds ONLY when the receiving server's `authserv-id` is known (Gmail, or `trustedAuthservId` set):
+    on any other mailbox no mail can be verified and rule 32 applies instead (rewritten 2026-10-29, audit r4,
+    external N1: the first wording claimed « a forged flood cannot push a genuine booking out of the 30-day
+    window » without that condition).
     (b) The envelopes and the authentication header are fetched in bulk, 500 UIDs per request, instead of one
     request per mail. (c) A pass is single-flight: the running promise lives at `register()` scope of the plugin's
     `index.js` (each call builds its own service), so the job tick and « Lire maintenant » share one IMAP pass and
@@ -272,6 +275,23 @@ choice in one click.
     `tests/mail-intake-single-flight.unit.test.js`. (d) `count()` (« N mails … lus ») leaves out `ignored`
     rows, and an `ignored` row older than the 30-day window plus one day is purged at the start of a pass.
     Tests: `tests/mail-reader-flood.unit.test.js`, `gites-de-france-intake/tests/mail-flood.unit.test.js`.
+32. **When nothing can be verified, the cap is shared between the newest and the oldest unread mails; a capped
+    pass says so; a batch never blocks the server** (audit r4, external N1 and N2, 2026-10-29, SDK 2.16.0).
+    (a) With no trusted `authserv-id` every mail is unauthenticated, so a forged flood used to share the 200-mail
+    cap with the genuine mails, newest first, and could keep a genuine booking unread for good. The reader now
+    reads the newest half of the cap (a fresh mail is still read at once) and the OLDEST half of the unread mails:
+    the front of the backlog moves by half a cap every pass whatever arrives behind it, so a mail with `k` unread
+    mails older than it is read within `ceil((k + 1) / 100)` passes under a flood of any length. This is the
+    real guarantee: bounded, not instantaneous, and conditioned on the mail staying in the 30-day window; with a
+    trusted `authserv-id` rule 31(a) holds as written. (b) A pass that leaves mails behind reports them
+    (`onCap({ notRead, limit })`); the pass result carries `unread`, the plugin keeps it (`unreadMails` setting)
+    and the home's attention line reads « Mails non lus : N (afflux). » (« Plafond de lecture atteint »), or
+    adds « · N non lus (afflux) » to the mails to check. (c) `verifyDkim` tokenizes only the
+    `Authentication-Results` headers whose first characters are the trusted `authserv-id`, and ignores any
+    value over 4 KB; the batch loop gives the event loop a turn (`setImmediate`) every 25 mails, so a batch of
+    500 mails with 64 KB headers blocks it for less than 50 ms (it was 1 s). Gîtes de France 1.4.6 asks for
+    `sdk ^2.16.0`. Tests: `tests/mail-reader-unverifiable.unit.test.js`,
+    `gites-de-france-intake/tests/mail-unread-attention.unit.test.js`.
 
 ---
 

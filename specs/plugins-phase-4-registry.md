@@ -424,7 +424,7 @@ below are the recommended ones; each is reversible in a later spec.
     cancellation retry with `retryPendingCancellations({ only })` and relies on the Qonto request timeout, both
     core code of SDK 2.15.0. `plugin-core-hardening-floor.unit.test.js` no longer carries a hard-coded list: a
     table maps each core feature (recognised by the call that reaches it: `validateEmail`,
-    `mailbox.readMailsFrom` / `manifestVersion`, `retryPendingCancellations`, `coreModule('qonto')`) to the SDK
+    `mailbox.readMailsFrom` / `manifestVersion`, `onCap` (SDK 2.16.0), `retryPendingCancellations`, `coreModule('qonto')`) to the SDK
     that shipped it, scans every plugin's server sources, and requires every plugin that reaches one to floor
     at that SDK. A new hardening adds one line to the table.
 54. **An update, an update-all, a rollback and the bundled-row sync are held to the requirement checks**

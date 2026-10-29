@@ -22,6 +22,7 @@ const HARDENINGS = [
   { feature: 'linear e-mail check', sdk: HARDENED_AT, pattern: /validateEmail\(/ },
   { feature: 'mailbox reader caps and parser version', sdk: HARDENED_AT, pattern: /mailbox\.readMailsFrom|manifestVersion\(/ },
   { feature: 'scoped cancellation retry', sdk: HARDENED_AT, pattern: /retryPendingCancellations/ },
+  { feature: 'mail cap report and unverifiable-mailbox reading', sdk: '2.16.0', pattern: /\bonCap\b/ },
   { feature: 'Qonto request timeout', sdk: HARDENED_AT, pattern: /coreModule\('qonto'\)/ },
 ];
 
@@ -62,8 +63,9 @@ for (const [id, hits] of relying) {
       const [major, minor] = h.sdk.split('.').map(Number);
       const before = `${major}.${minor - 1}.0`;
       assert.equal(satisfies(before, m.sdk), false, `${id} ${m.sdk} still loads on SDK ${before} (${h.feature})`);
-      assert.equal(satisfies(h.sdk, m.sdk), true, `${id} ${m.sdk}`);
     }
+    const newest = hits.map((h) => h.sdk).sort((a, b) => a.localeCompare(b, undefined, { numeric: true })).pop();
+    assert.equal(satisfies(newest, m.sdk), true, `${id} ${m.sdk} refuses SDK ${newest}`);
     assert.ok(satisfies(SDK_VERSION, m.sdk));
     assert.ok((m.changelog[m.version] || []).some((line) => /SDK 2\.\d+/.test(line)), `${id} ${m.version} names its SDK`);
   });

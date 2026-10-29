@@ -44,6 +44,7 @@ function register(ctx) {
     { key: 'senderDomains', supportLocked: true, default: '' },
     { key: 'trustedAuthservId', supportLocked: true, default: '' },
     { key: 'lastRunAt', default: '' },
+    { key: 'unreadMails', default: '0' },
   ]);
 
   let model = null;
@@ -87,6 +88,7 @@ function register(ctx) {
       running = (async () => {
         const result = await service().runPass();
         ctx.settings.set('lastRunAt', new Date().toISOString());
+        if (!result.skipped) ctx.settings.set('unreadMails', String(result.unread || 0));
         return result;
       })().finally(() => { running = null; });
     }
@@ -114,7 +116,7 @@ function register(ctx) {
   });
 
   const router = express.Router();
-  const listAttention = (req, res) => res.json({ items: service().attention() });
+  const listAttention = (req, res) => res.json({ items: service().attention(), unread: Number(ctx.settings.get('unreadMails')) || 0 });
   router.get('/', listAttention);
   router.post('/run', async (req, res) => {
     try { res.json(await runPass()); } catch (err) { res.status(502).json({ error: err.message }); }
