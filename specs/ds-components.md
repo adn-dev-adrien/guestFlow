@@ -201,6 +201,15 @@ n-3, n-4, m-5 and the systemic touch targets) left these rules. They hold for ev
     measured 33 × 44). Measured at 390 px with touch emulation, the other controls the audit listed
     (top-bar and date-nav icon buttons, checkboxes, SAS « Fiche », guest-name links) already reach
     44 px through rule 21 and the link hit area; the fiche's client chip gets a 44 px minimum height.
+29. **Switches, clickable chips, every inline link and the sidebar rows reach 44 px on touch** (audit R2,
+    2026-10-29, extends rules 21 and 28). Measured at 390 px (and 900 px for the sidebar) with touch
+    emulation: the theme gives `MuiSwitch` a 44 px tall input on touch (the input takes the tap; the
+    track and thumb keep their look, so « Forcer en complément », the options and the e-mail toggles
+    pass), a clickable `MuiChip` (the hourly slots, the « compl. » toggle) and **every** `MuiLink`
+    (not only `MuiLink-button`: « Plan comptable », the client names of /comptabilite) the invisible
+    `touchHitArea`, and `MuiListItemButton` a 44 px `min-height`. The /finance month columns carry a
+    transparent 56 × 44 hit rect in their tick (`PaceMonthChart`), so the keyboard handle is also a
+    finger-sized target; a tap anywhere in the column already selected it.
 
 ---
 

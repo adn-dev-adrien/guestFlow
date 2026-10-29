@@ -123,11 +123,32 @@ const theme = createTheme({
         },
       },
     },
-    // An inline link that acts as a button (a client's name, « Fiche ») keeps its size in the text
-    // and gets a 44 px hit area on touch (specs/plugins-phase-p-productisation.md rule 39).
+    // An inline link (a client's name, « Fiche », « Plan comptable ») keeps its size in the text and gets a
+    // 44 px hit area on touch (specs/plugins-phase-p-productisation.md rule 39, ds-components.md rule 21).
     MuiLink: {
       styleOverrides: {
-        root: { '&.MuiLink-button': touchHitArea },
+        root: touchHitArea,
+      },
+    },
+    // A clickable chip (a slot, a « compl. » toggle) keeps its compact size, with a 44 px hit area on touch.
+    MuiChip: {
+      styleOverrides: {
+        clickable: touchHitArea,
+      },
+    },
+    // The sidebar rows are 36-40 px tall on a desktop-sized tablet: 44 px on touch (specs/ds-components.md rule 21).
+    MuiListItemButton: {
+      styleOverrides: {
+        root: { [COARSE_POINTER]: { minHeight: TOUCH_TARGET } },
+      },
+    },
+    // A switch is 24 or 38 px tall: on touch its (invisible) input, which takes the tap, is 44 px tall around
+    // the thumb, so the track keeps its look.
+    MuiSwitch: {
+      styleOverrides: {
+        input: {
+          [COARSE_POINTER]: { top: '50%', height: TOUCH_TARGET, transform: 'translateY(-50%)' },
+        },
       },
     },
     // Sentence case like every button (specs/plugins-phase-p-productisation.md rule 39), 44 px on touch.

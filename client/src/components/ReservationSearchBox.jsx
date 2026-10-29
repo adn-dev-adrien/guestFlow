@@ -91,7 +91,7 @@ export default function ReservationSearchBox({ onSelect, placeholder = 'Recherch
         const { key, ...liProps } = props;
         return (
           <Box component="li" key={key} {...liProps} sx={{ display: 'block !important', py: 1 }}>
-            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+            <Typography variant="body2" component="div" sx={{ fontWeight: 600 }}>
               {option.reservationNumber ? `${option.reservationNumber} · ` : ''}{option.clientFullName || '—'}
               {option.cancelled && <Chip size="small" color="error" variant="outlined" label="Annulée" sx={{ ml: 1, height: 20 }} />}
               {option.superseded && <Chip size="small" color="warning" variant="outlined" label="Doublon écarté" sx={{ ml: 1, height: 20 }} />}
