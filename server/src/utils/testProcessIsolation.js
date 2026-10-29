@@ -28,7 +28,7 @@ function privateDir() {
 }
 
 function isolate({ force = false } = {}) {
-  if (!force && !process.env.NODE_TEST_CONTEXT) return;
+  if (!force && (!process.env.NODE_TEST_CONTEXT || process.env.NODE_ENV === 'production')) return;
   if (force) delete process.env.PERSISTENT_DB;
   if (force || (!process.env.DB_PATH && !process.env.PERSISTENT_DB)) {
     process.env.DB_PATH = path.join(privateDir(), 'data', 'guestflow.db');

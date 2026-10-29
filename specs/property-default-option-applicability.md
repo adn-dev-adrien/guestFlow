@@ -19,7 +19,7 @@ as a **default, offered** option (`property_option_defaults` row `(1, 8, offered
 ([ExtrasSection.js:238-244](../client/src/components/reservation/ExtrasSection.js#L238)): it renders
 only when an *enabled* `countsAsBedLinen = 1` option is present on the reservation.
 
-**Reported bug** (Lola Cordier, reservation #22200, Gîte, iCal/Greengo): the bed-config card is
+**Reported bug** (Zulu Hotel, reservation #22200, Gîte, iCal/Greengo): the bed-config card is
 absent on the reservation page. Investigation on prod shows it is **systemic — 22/22 Gîte
 reservations have no bed-linen option attached**, so none ever shows the card.
 

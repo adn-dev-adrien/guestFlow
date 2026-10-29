@@ -11,7 +11,7 @@ import { groupPreviewRows } from '../AccountingPage';
 const GROUP = { id: '22281:2026-08-31', at: '2026-08-31', cash: false, total: 281.98 };
 
 const row = (over = {}) => ({
-  reservationId: 22281, propertyName: 'Aventura lodge', client: 'Hans Van Dyke',
+  reservationId: 22281, propertyName: 'Aventura lodge', client: 'Whiskey Lima',
   platform: 'direct', date: '2026-08-31', kind: 'balance',
   encaissement: 231.98, net: 231.98, commission: null, paymentGroup: null,
   ...over,

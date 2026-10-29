@@ -29,8 +29,8 @@ ratio « is 1 for every reservation written by the current engine ». That is fa
 - **A stay with a mid-stay / end-of-stay complement.** The bain nordique sold during Marchand's stay
   (30 €) is revenue inside `finalPrice`, but its amount is carved *out* of the three échéances. The
   denominator is therefore 30 € short and every entry of that reservation is inflated by 3,5 %.
-- **A stay whose stored schedule drifted from the total** (a fiche edited after collection). Nicolas
-  #22226 has a schedule 28 € above its total, Van Berg #22224 21 € above: their entries are
+- **A stay whose stored schedule drifted from the total** (a fiche edited after collection). Sigma
+  #22226 has a schedule 28 € above its total, Bravo #22224 21 € above: their entries are
   *deflated* by 9 % and 12 %.
 
 Measured consequence on Marchand, once the money is marked collected (simulated on a throwaway copy):
@@ -45,7 +45,7 @@ The client's auxiliary account — the line the accountant reconciles against th
 25,47 €. The entry still balances, which is why nothing ever flagged it.
 
 Second-order effect: because the ratio pulls `finalPrice` into the numerator, **money settled in
-« caisse interne » leaks back into the books**. Fabre #22269's 6,50 € cash complement is excluded from
+« caisse interne » leaks back into the books**. Papa #22269's 6,50 € cash complement is excluded from
 the export (correct) but re-injected into the solde entry by the ratio (wrong).
 
 ### Defect 2 — the revenue is ventilated per reservation, not per encaissement
@@ -82,7 +82,7 @@ options and resources appear once, at their real amount, only when they were rea
      complement — the case that was silently inflating entries.
    - else `scheduledTotal + commission totale ≈ expected` (± 0,02 €) → the **legacy « solde = net »
      shape**: ratio = `expected / scheduledTotal`, exactly as today. This is the only case that grosses
-     amounts up, and it is what keeps réservation #7 (Perrin) booking 994 € of CA against a 903 €
+     amounts up, and it is what keeps réservation #7 (Gamma) booking 994 € of CA against a 903 €
      bank movement.
 
      > **Since 2026-08-25** the fiche of such a row disagreed with this branch: it deducted the
@@ -270,8 +270,8 @@ become the money that actually moved. No new string, no responsive impact, no ac
 ### Server unit tests
 - [x] `accounting-books-the-money-collected.unit.test.js` (9, new) — Marchand: ratio 1, client debit
       573,77 €, solde crediting accommodation only, bain nordique on 70601000, complement carrying the
-      fiche's ventilation; Fabre: the 6,50 € cash complement never reaches the books; Nicolas: the
-      drifted schedule books the 126,38 € actually banked; Perrin: the legacy gross-up still books
+      fiche's ventilation; Papa: the 6,50 € cash complement never reaches the books; Sigma: the
+      drifted schedule books the 126,38 € actually banked; Gamma: the legacy gross-up still books
       994 € against a 903 € debit; a control direct stay pro-rating acompte/solde as before; and the
       destination split itself (offered lines ignored, mid-stay share leaving the complement).
 - [x] `accounting-model-tourist-tax.unit.test.js` (2 realigned) — a complement collecting extras with no
@@ -309,7 +309,7 @@ become the money that actually moved. No new string, no responsive impact, no ac
 
 - The per-line **contribution** path (`hasContribs`): no reservation used it in August; left as is,
   except that it no longer applies to a grossed-up entry (rule 12, 2026-10-19).
-- Repairing the two drifted fiches (Nicolas #22226, Van Berg #22224). The books will now
+- Repairing the two drifted fiches (Sigma #22226, Bravo #22224). The books will now
   follow the money; *why* their schedule exceeds their total is a separate fiche-level investigation.
 - Merging the options and resources accounts (explicitly declined 2026-08-24, rule 9).
 - Any change to the refund, compensation or mid-stay-note entry shapes.

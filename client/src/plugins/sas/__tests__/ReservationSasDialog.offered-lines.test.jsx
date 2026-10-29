@@ -205,7 +205,7 @@ test('departure recap: a recalled arrival line is offerable, the taxe de séjour
   expect(api.commitDepartureSas.mock.calls[0][1].offeredArrivalExtras).toEqual([{ kind: 'option', id: 4 }]);
 });
 
-// Régression 2026-08-29 (réservation Gauthier) — the arrival complement is entirely made of gestes
+// Régression 2026-08-29 (réservation Tango) — the arrival complement is entirely made of gestes
 // commerciaux, so it is worth 0 € and the recap shows no recall block. The commit must then say
 // NOTHING about the offered flags: an empty set is authoritative server-side and billed them all back.
 // specs/sas-offer-complement-lines.md §3.2 rule 6.ter.

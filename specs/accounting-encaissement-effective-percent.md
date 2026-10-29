@@ -14,7 +14,7 @@
 
 The Comptabilité page (journal cards + « Encaissements du mois » table + sales CSV — all driven by
 `accountingModel.encaissementsByMonth` → `utils/accountingExport`) shows wrong amounts for
-per-échéance-commission reservations. Reference case: reservation #22224 (Tom Van Berg,
+per-échéance-commission reservations. Reference case: reservation #22224 (Psi Bravo,
 Lodgify, Aventura lodge) — `finalPrice` 131,28 €, tourist tax 2,98 €, `depositAmount` =
 `balanceAmount` = 67,13 € (each = 50 % of the 134,26 € gross charged by Lodgify),
 `acompteCommissionAmount` = `platformCommissionAmount` = 1,93 €.

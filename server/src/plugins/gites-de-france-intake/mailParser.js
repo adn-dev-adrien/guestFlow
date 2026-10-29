@@ -43,7 +43,7 @@ function titleCase(s) {
   return String(s).toLowerCase().replace(/(^|[\s'-])(\p{L})/gu, (_, sep, ch) => sep + ch.toUpperCase());
 }
 
-// « RENARD Lucie » → last name in capitals first, then the first name. « DE LA TOUR Marie-Anne » too.
+// « IOTA Lucie » → last name in capitals first, then the first name. « DE LA TOUR Marie-Anne » too.
 function splitName(full) {
   const words = full.trim().split(/\s+/);
   const isUpper = (w) => w === w.toUpperCase() && /\p{L}/u.test(w);

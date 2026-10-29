@@ -15,7 +15,7 @@ const EMMA = { name: 'Emma Leroy', email: 'eleroy.5555@guest.booking.com' };
 const pageFor = (guest) => ({
   hotelId: '14407976',
   resId: '6300000001',
-  text: PAGE_6300000001.split('Camille Garnier').join(guest.name).split('cgarnier.123456@guest.booking.com').join(guest.email),
+  text: PAGE_6300000001.split('Camille Sierra').join(guest.name).split('cgarnier.123456@guest.booking.com').join(guest.email),
 });
 
 // A database with the two tables the intake touches, and a core that writes them the way the real one does.

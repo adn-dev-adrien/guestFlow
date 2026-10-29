@@ -37,7 +37,7 @@ test('specs/booking-extranet-intake.md rule 8: the guest’s requests are kept v
 });
 
 test('specs/booking-extranet-intake.md rule 8: « Identité vérifiée » is stripped from the name, and Booking writes « Prénom Nom »', () => {
-  const text = replaceOnce(PAGE_6300000001, 'Camille Garnier\n fr', 'Jean-Pierre Le Garnier Identité vérifiée\n fr');
+  const text = replaceOnce(PAGE_6300000001, 'Camille Sierra\n fr', 'Jean-Pierre Le Sierra Identité vérifiée\n fr');
   assert.deepEqual(
     [parse(text).booking.guest.firstName, parse(text).booking.guest.lastName],
     ['Jean-Pierre', 'Le Garnier'],

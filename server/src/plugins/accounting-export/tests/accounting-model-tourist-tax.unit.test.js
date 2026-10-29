@@ -120,7 +120,7 @@ test('direct booking (legacy path) — the tourist tax rides 100% on the solde, 
 });
 
 test('direct booking (contrib path) — a STALE acompte tax share is forced back onto the solde, bank-matched', () => {
-  // Regression for the prod bug (TOM VAN BERG / DANIEL NICOLAS, June 2026): their acompte
+  // Regression for the prod bug (PSI BRAVO / INDIA SIGMA, June 2026): their acompte
   // flip happened BEFORE specs/tourist-tax-on-solde.md, so it captured a proportional tax share
   // (touristTaxAcompteContribTtc = 1.44 on a 61.44 deposit). The accounting then surfaced that tax on
   // the acompte entry. The export must now force the WHOLE tax onto the solde — 0 on the deposit — while

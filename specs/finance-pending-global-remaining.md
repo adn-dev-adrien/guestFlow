@@ -19,7 +19,7 @@ current month) and counts the **whole** `totalSejour` of past unsettled reservat
 Adrien reported (2026-07-17, prod):
 
 1. **Past unpaid stays fall out of the card** when their `endDate` predates the selected window.
-   Prod example (period = July 2026): Stéphane Girard (ended 28/06, 668 € unpaid) is missing —
+   Prod example (period = July 2026): Stéphane Victor (ended 28/06, 668 € unpaid) is missing —
    the card shows 1 298,21 € while the « Paiements en attente » operational tab (already
    period-free) correctly shows all 3 reservations / 1 966,21 €. The mismatch made the operational
    table *look* incomplete; it is in fact complete (verified against raw SQL on the prod import) —
@@ -104,7 +104,7 @@ Values now always equal the operational tab's chip. No layout change, no respons
 
 ### Server unit tests (`finance-model.unit.test.js` + `financeBreakdown.unit.test.js`)
 - [x] `totalPending` ignores the period: a past unsettled reservation with `endDate` BEFORE `from`
-      still counts (the prod Girard shape); `revenueTotal` stays period-bound in the same fixture.
+      still counts (the prod Victor shape); `revenueTotal` stays period-bound in the same fixture.
 - [x] `totalPending` = Σ `remainingToPay`: past reservation with paid deposit + unpaid balance →
       only the balance counts; `totalCollected + totalPending` reconstructs the stay total; platform
       variant nets the unpaid échéance's commission (300 − 30 = 270).
@@ -122,7 +122,7 @@ Values now always equal the operational tab's chip. No layout change, no respons
 
 ### Manual UI verification (2026-07-17, prod-import DB, headless Playwright)
 - [x] Period = July 2026: card shows 1 966 € / 1 783 € HT « séjours terminés » (was 1 298 € before —
-      Girard restored) = operational chip.
+      Victor restored) = operational chip.
 - [x] Breakdown dialog: « séjours terminés (toutes périodes) », 3 rows (668 + 237,21 + 1 061),
       total 1 966,21 €.
 

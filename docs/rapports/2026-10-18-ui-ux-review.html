@@ -334,9 +334,9 @@ textarea.out{min-height:260px;font:13px/1.45 ui-monospace,SFMono-Regular,Menlo,m
   /* ---------- proposals ---------- */
   var ALERTS = [
     { k: 'gate', sev: 'urgent', t: 'Clés de portail non créées', n: 1, d: 'Sowel n’a pas lu la liste depuis 26 h · arrivée ven. 23 oct.', a: 'Relancer' },
-    { k: 'pay', sev: 'late', t: 'Échéances de paiement en retard', n: 2, d: 'Luc Thibault · 140,97 € · 25 j · Françoise Dumas · 706,00 € · 10 j', a: 'Reporter' },
-    { k: 'ical', sev: 'late', t: 'Annulation iCal à valider', n: 1, d: 'Carla Tessier · Gite · 9 au 11 oct. · Lodgify', a: 'Voir la fiche' },
-    { k: 'comp', sev: 'late', t: 'Indemnité d’annulation à encaisser', n: 1, d: 'Sébastien Colin · 53,10 € · prévu le 27 août', a: 'Encaisser' },
+    { k: 'pay', sev: 'late', t: 'Échéances de paiement en retard', n: 2, d: 'Luc Chi · 140,97 € · 25 j · Françoise Kilo · 706,00 € · 10 j', a: 'Reporter' },
+    { k: 'ical', sev: 'late', t: 'Annulation iCal à valider', n: 1, d: 'Echo Phi · Gite · 9 au 11 oct. · Lodgify', a: 'Voir la fiche' },
+    { k: 'comp', sev: 'late', t: 'Indemnité d’annulation à encaisser', n: 1, d: 'Sébastien Golf · 53,10 € · prévu le 27 août', a: 'Encaisser' },
     { k: 'quote', sev: 'info', t: 'Demandes de devis depuis le site', n: 5, d: '5 devis reçus via le site, en attente', a: 'Voir les devis' },
     { k: 'mail', sev: 'info', t: 'Emails à vérifier', n: 1, d: '1 message manuel · 1 client sans adresse', a: 'Voir et envoyer' },
     { k: '2fa', sev: 'info', t: 'Second code de connexion', n: 1, d: 'Protéger le compte par un second code', a: 'Activer' }
@@ -433,7 +433,7 @@ textarea.out{min-height:260px;font:13px/1.45 ui-monospace,SFMono-Regular,Menlo,m
         cards = (n > 0 ? oldAlert(probe) : '') +
           '<div style="background:transparent;border:1px solid #9fb3c2;border-radius:14px;padding:14px;margin-bottom:16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap"><span class="m-pill" style="border:1px solid #31556E;color:#31556E">✉</span><div style="flex:1;min-width:140px"><div style="font-size:1.1rem;font-weight:600">Emails à vérifier (1)</div><div class="m-muted">fond « info.lighter » : jeton absent, rien ne s’affiche</div></div><button class="m-fbtn" type="button" style="background:#23384a;border-radius:999px">Voir et envoyer</button></div>' +
           '<div style="background:var(--shell-warn-s);border:1px solid #d9b56a;border-radius:14px;padding:14px;margin-bottom:16px"><b>Emails incomplets avant une arrivée</b><div class="m-muted">Carte entière cliquable, aucune action visible</div></div>' +
-          '<div style="border:2px solid #6f8ea5;border-radius:14px;padding:14px;margin-bottom:16px"><b>Indemnités d’annulation · 1 versement en attente</b><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px"><span style="flex:1;min-width:120px">Sébastien Colin · 53,10 €</span><span aria-hidden="true">✕</span></div><button class="m-fbtn" type="button" style="margin-top:6px">Encaisser</button> <button class="m-tbtn" type="button" style="border:1px solid var(--shell-line)">Modifier</button></div>';
+          '<div style="border:2px solid #6f8ea5;border-radius:14px;padding:14px;margin-bottom:16px"><b>Indemnités d’annulation · 1 versement en attente</b><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px"><span style="flex:1;min-width:120px">Sébastien Golf · 53,10 €</span><span aria-hidden="true">✕</span></div><button class="m-fbtn" type="button" style="margin-top:6px">Encaisser</button> <button class="m-tbtn" type="button" style="border:1px solid var(--shell-line)">Modifier</button></div>';
       } else {
         var mk = function (a) {
           var k = SEV[a.sev];
@@ -442,7 +442,7 @@ textarea.out{min-height:260px;font:13px/1.45 ui-monospace,SFMono-Regular,Menlo,m
         cards = (n > 0 ? mk(probe) : '<div class="m-muted" style="padding:8px 4px 16px">Carte d’essai masquée : rien à traiter.</div>') +
           mk({ sev: 'info', t: 'Emails à vérifier', n: 1, d: '1 message manuel · 1 client sans adresse', a: 'Voir et envoyer' }) +
           mk({ sev: 'late', t: 'Emails incomplets avant une arrivée', n: 2, d: 'Textes manquants pour 2 séjours sous 14 jours', a: 'Compléter' }) +
-          mk({ sev: 'late', t: 'Indemnité d’annulation à encaisser', n: 1, d: 'Sébastien Colin · 53,10 €', a: 'Encaisser', primary: true });
+          mk({ sev: 'late', t: 'Indemnité d’annulation à encaisser', n: 1, d: 'Sébastien Golf · 53,10 €', a: 'Encaisser', primary: true });
       }
       return frame(w, appBar(w, { shadow: true }), simpleDrawer('Tableau de bord'), pageBar('Tableau de bord') + cards);
     },
@@ -1237,12 +1237,12 @@ textarea.out{min-height:260px;font:13px/1.45 ui-monospace,SFMono-Regular,Menlo,m
     var DEMO = [
       { n: '2026-09-007', s: 'Converti', c: 'Repro Breakfast1790153253040', p: 'Gite', a: '10/05/2027', d: '13/05/2027', m: 355.20, o: 'Site internet' },
       { n: '2026-09-003', s: 'Brouillon', c: 'Dominique Test wp 409', p: 'Gite', a: '19/10/2026', d: '22/10/2026', m: 789.60, o: 'Site internet' },
-      { n: '2026-08-002', s: 'Brouillon', c: 'Constance Gautier', p: 'Gite', a: '04/09/2026', d: '06/09/2026', m: 1117.40, o: '' },
-      { n: '2026-08-001', s: 'Envoyé', c: 'Marie Claude Olivier', p: 'Aventura lodge', a: '12/04/2027', d: '16/04/2027', m: 535.00, o: '' }];
+      { n: '2026-08-002', s: 'Brouillon', c: 'Constance Uniform', p: 'Gite', a: '04/09/2026', d: '06/09/2026', m: 1117.40, o: '' },
+      { n: '2026-08-001', s: 'Envoyé', c: 'Marie Claude Lambda', p: 'Aventura lodge', a: '12/04/2027', d: '16/04/2027', m: 535.00, o: '' }];
     var WORST = [
       { n: '2027-01-112', s: 'Brouillon', c: 'Aleksandra-Marie Wiśniewska-Kowalczyk de La Tour d\'Auvergne', p: 'Aventura lodge', a: '24/12/2027', d: '02/01/2028', m: 11117.40, o: 'Site internet' },
       { n: '2027-01-113', s: 'Envoyé', c: 'Jo', p: 'Gite', a: '01/02/2028', d: '03/02/2028', m: 96.00, o: '' },
-      { n: '2026-08-002', s: 'Brouillon', c: 'Constance Gautier', p: 'Gite', a: '04/09/2026', d: '06/09/2026', m: 1117.40, o: '' }];
+      { n: '2026-08-002', s: 'Brouillon', c: 'Constance Uniform', p: 'Gite', a: '04/09/2026', d: '06/09/2026', m: 1117.40, o: '' }];
     var removed = {}; var menuFor = null; var confirmFor = null;
     function chip(s) { var c = s === 'Converti' ? 'ok' : s === 'Envoyé' ? 'info' : 'mute'; return '<span class="resa-chip ' + c + '">' + s + '</span>'; }
     function eurBefore(n) { return eur(n).replace(' €', ' €').replace(/ /g, ' '); }
@@ -1307,7 +1307,7 @@ textarea.out{min-height:260px;font:13px/1.45 ui-monospace,SFMono-Regular,Menlo,m
     }
     function form() {
       var h = '<div class="resa-panel"><div class="resa-h">Séjour</div><div class="resa-field"><label>Logement</label><div class="resa-input">Aventura lodge</div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px"><div class="resa-field"><label>Arrivée</label><div class="resa-input">07/08/2027</div></div><div class="resa-field"><label>Départ</label><div class="resa-input">13/08/2027</div></div></div></div>';
-      h += '<div class="resa-panel"><div class="resa-h">Client</div><span class="resa-chip ok" style="font-size:14px;padding:6px 12px">Garnier Victoria</span></div>';
+      h += '<div class="resa-panel"><div class="resa-h">Client</div><span class="resa-chip ok" style="font-size:14px;padding:6px 12px">Sierra Cobalt</span></div>';
       h += '<div class="resa-panel"><div class="resa-h">Options</div>' + OPTS.map(function (o) { return '<div class="resa-optrow"><div><div class="n">' + o.n + '</div><div class="p">' + o.p + '</div></div><button class="resa-switch" role="switch" aria-checked="' + o.on + '" aria-label="' + o.n + '" data-opt="' + o.id + '"></button></div>'; }).join('') + '</div>';
       h += '<div class="resa-panel"><div class="resa-h">Finance</div><p style="color:var(--resa-muted);font-size:13px">Paiement plateforme, acompte, solde, caution…</p><div style="height:420px;background:repeating-linear-gradient(0deg,#fff 0 46px,#F6F3EC 46px 52px);border-radius:10px"></div></div>';
       h += '<div class="resa-panel"><div class="resa-h">Notes</div><div class="resa-input" style="height:80px"></div></div>';
@@ -1454,7 +1454,7 @@ textarea.out{min-height:260px;font:13px/1.45 ui-monospace,SFMono-Regular,Menlo,m
     var PCOL = { Booking: '#2E5AAC', Airbnb: '#FF5A5F', Lodgify: '#F4C430', Abracadaroom: '#26C6DA', GitesDeFrance: '#E2C335', Greengo: '#4CAF50' };
     var LABEL = { GitesDeFrance: 'Gîtes de France' };
     // Week rows (Mon..Sun), October 2026 from Mon 5 to Sun 1 Nov.
-    var EV = [{ p: 'Gite', who: 'Carla Tessier', pl: 'Booking', s: 4, e: 6 }, { p: 'Gite', who: 'Ical Airbnb', pl: 'Airbnb', s: 4, e: 6 }, { p: 'Gite', who: 'N****** F******', pl: 'Lodgify', s: 4, e: 6 }, { p: 'Aventura lodge', who: 'Amandine M.', pl: 'Abracadaroom', s: 5, e: 6 }, { p: 'Gite', who: 'Jo Ng', pl: 'Greengo', s: 18, e: 21 }];
+    var EV = [{ p: 'Gite', who: 'Echo Phi', pl: 'Booking', s: 4, e: 6 }, { p: 'Gite', who: 'Ical Airbnb', pl: 'Airbnb', s: 4, e: 6 }, { p: 'Gite', who: 'N****** F******', pl: 'Lodgify', s: 4, e: 6 }, { p: 'Aventura lodge', who: 'Amandine M.', pl: 'Abracadaroom', s: 5, e: 6 }, { p: 'Gite', who: 'Jo Ng', pl: 'Greengo', s: 18, e: 21 }];
     var CLOSE = { p: 'Aventura lodge', s: 10 }; // closed from day index 10 (Thu 15) onwards
     function hexA(hex, a) { var c = hex.replace('#', ''); return 'rgba(' + parseInt(c.substr(0, 2), 16) + ',' + parseInt(c.substr(2, 2), 16) + ',' + parseInt(c.substr(4, 2), 16) + ',' + a + ')'; }
     function render(host) {

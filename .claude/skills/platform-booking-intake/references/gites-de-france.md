@@ -66,5 +66,5 @@ site) — kept on 22308 by the operator's choice.
 
 ## Known drift in past fiches (left as is, operator 2026-10-15)
 
-Lefort (9), Vasseur (10), Fontaine (1) hold « Prix total client » as brut, so their commission
+Xray (9), Borealis (10), Quebec (1) hold « Prix total client » as brut, so their commission
 includes frais de dossier (and Vallée's cancellation insurance). Do not repair them without asking.

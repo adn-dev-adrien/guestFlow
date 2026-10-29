@@ -37,15 +37,11 @@ test('rule 26: a group of the sidebar opens the summary on it and unfolds its pa
   await expect(nav.getByRole('link', { name: 'Plateformes', exact: true })).toBeVisible({ timeout: 10_000 });
   await expect(nav.getByRole('link', { name: 'TVA & exercice', exact: true })).toHaveCount(0);
   const group = nav.getByRole('link', { name: 'Paiements et emails' });
-  // The link sits under the fold of the sidebar and the group above is still unfolding: a click can land on
-  // a row that moved, so click again until the URL says the summary opened.
-  await expect.poll(async () => {
-    if (!/\/settings#paiements-emails$/.test(page.url())) {
-      await group.scrollIntoViewIfNeeded();
-      await group.click({ timeout: 3_000 }).catch(() => {});
-    }
-    return page.url();
-  }, { timeout: 15_000 }).toMatch(/\/settings#paiements-emails$/);
+  // The link sits under the fold of the sidebar: bring it in view (Playwright then waits for it to stop
+  // moving), click once, and let the URL say whether the summary opened.
+  await group.scrollIntoViewIfNeeded();
+  await group.click();
+  await expect(page).toHaveURL(/\/settings#paiements-emails$/, { timeout: 15_000 });
   await expect(nav.getByRole('link', { name: 'TVA & exercice', exact: true })).toBeVisible();
   await expect(nav.getByRole('link', { name: 'Plateformes', exact: true })).toHaveCount(0);
 });

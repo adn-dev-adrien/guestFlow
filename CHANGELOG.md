@@ -3956,7 +3956,7 @@ discarded — it is the only record of those four months._
   parser. Server tests 1041 → 1047 green in isolation.
 - **Accounting export — legacy path now sees `customPrice` + offered
   options, no more negative VAT row** (2026-06-05). Live prod bug
-  reported on Clara Lemaire's reservation
+  reported on Foxtrot Yankee's reservation
   (#5, Gitedefrance, balancePaidDate 2026-05-07): the monthly export
   was producing
   ```

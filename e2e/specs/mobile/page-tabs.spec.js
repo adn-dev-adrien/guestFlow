@@ -56,7 +56,10 @@ test('switching to a plugin tab never leaves the page without tabs', async ({ pa
   await page.evaluate(() => {
     window.__tabCounts = new Set();
     window.__tabYs = new Set();
-    // A Y counts once it held for two consecutive frames: a one-frame glitch of a loaded runner is not a layout jump.
+    // A Y counts once it held for two consecutive frames. One-frame readings are out of scope on purpose: a single
+    // sample 238 px lower was seen once on a loaded runner and never reproduced (12 runs at 6x CPU throttling and
+    // 52 under load show one constant Y), so it is read as a sampling artefact, not a flash. A bar that really
+    // jumps stays in the layout for more than one frame and is caught.
     let previous = null;
     const sample = () => {
       const tabs = document.querySelectorAll('[role=tab]');

@@ -44,7 +44,9 @@ Running `npm test` can never create, open or migrate the checkout's own `server/
 **Edge cases:**
 - A targeted `node --test <file>` used to open and migrate `server/guestflow.db` for 389 test files (audit R2,
   2026-10-29); rule 4 closes that. Rule 3 stays as the explicit guard of the three first offenders.
-- Only a process outside the test runner (e.g. `node -e`) opens the default path.
+- Only a process outside the test runner (e.g. `node -e`) opens the default path. `node --test --experimental-test-isolation=none`
+  runs the files in the parent process, where `NODE_TEST_CONTEXT` is not set: that mode is isolated only with the
+  preload (`npm test` never uses it). A process with `NODE_ENV=production` is never isolated, even under the runner.
 
 ---
 

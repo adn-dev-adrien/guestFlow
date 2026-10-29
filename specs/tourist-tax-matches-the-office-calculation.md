@@ -29,11 +29,11 @@ Measured on the two stays the operator checked against the office's calculator:
 
 | Stay | Collected | Engine today | Base the engine used |
 |---|---|---|---|
-| Estrada (22209, Abracadaroom, 2 n, 2 ad) | 11,96 € | 12,56 € | 250,74 € — the manual adjusted price, which holds the **net** of a 64,26 € commission |
-| Fabre (22269, Lodgify, 3 n, 5 ad) | 21,00 € | 20,40 € | 408 € — the tariff nights, extra-guest surcharge excluded |
+| Oscar (22209, Abracadaroom, 2 n, 2 ad) | 11,96 € | 12,56 € | 250,74 € — the manual adjusted price, which holds the **net** of a 64,26 € commission |
+| Papa (22269, Lodgify, 3 n, 5 ad) | 21,00 € | 20,40 € | 408 € — the tariff nights, extra-guest surcharge excluded |
 
 Neither is reproducible in the office's form, so the operator has been **adjusting the amount he
-types into it** until it lands back on what GuestFlow collected — down for Estrada, up for Fabre.
+types into it** until it lands back on what GuestFlow collected — down for Oscar, up for Papa.
 That is not a declaration, it is a reconciliation, and it silently hides whatever the real gap is.
 
 Two aggravating findings from the same investigation:
@@ -44,7 +44,7 @@ Two aggravating findings from the same investigation:
   ([pricing.js:2043](../server/src/utils/pricing.js#L2043) leaves `touristTaxLabel` to the live
   breakdown, rendered by [PricingSummary.jsx:657](../client/src/components/PricingSummary.jsx#L657))
   and on the « Suivi taxe de séjour » page
-  ([financeModel.js:840](../server/src/models/financeModel.js#L840)). Fabre's line reads « 24,73 €/occupant/nuit »
+  ([financeModel.js:840](../server/src/models/financeModel.js#L840)). Papa's line reads « 24,73 €/occupant/nuit »
   next to « 21,00 € », and 24,73 € yields 20,40 €. The line cannot be re-entered anywhere.
 - **The occupant count differs from the office's.** GuestFlow divides by `adults + children + teens +
   babies`; the office's form was filled with 4 occupants on Marchand (22275) where GuestFlow counts 5,
@@ -186,7 +186,7 @@ Nothing the guest has already paid moves. What is still to be collected is corre
     `touristTaxFrozenAt` and the base reconstructed from the stored amount (rule 14). Every other
     booking, already made but not yet collected, re-prices under the new rules so the guest is billed
     the right amount: on the production copy that is Marchand (22275) 13,05 € → 21,33 € and
-    Maillard (22211) 2,16 € → 3,36 €, and nothing else.
+    Zeta (22211) 2,16 € → 3,36 €, and nothing else.
 
 14. **Reconstructing a legacy base.** From the stored `touristTaxTotal`, inverting the engine's
     arithmetic with the occupant count in force **then** (babies included):
@@ -200,7 +200,7 @@ Nothing the guest has already paid moves. What is still to be collected is corre
 
     It is exact to the rounding: re-running the forward formula on the reconstructed base returns the
     stored amount. **Measured on the 13 Lodge stays carrying a tax in the production copy: 13/13 exact
-    round-trips** — Fabre 21,00 € → 381,82 € HT → 21,00 €, Estrada 11,96 € → 217,45 € HT → 11,96 €.
+    round-trips** — Papa 21,00 € → 381,82 € HT → 21,00 €, Oscar 11,96 € → 217,45 € HT → 11,96 €.
     Where the inversion cannot apply (per-night mode, a zero amount, zero adults or zero nights), the
     frozen base is left `NULL` and the page falls back to what it shows today.
 
@@ -372,7 +372,7 @@ Server 3868 pass, client 1199 pass.
 
 ### Manual UI verification
 
-- [ ] Fabre (22269) and Estrada (22209) are unchanged after the migration — same amount, and now a
+- [ ] Papa (22269) and Oscar (22209) are unchanged after the migration — same amount, and now a
       base that reproduces it in the office's form (381,82 € and 217,45 € HT).
 - [ ] Marchand (22275) and Maillard (22211), booked but uncollected, re-price to 21,33 € and
       3,36 € and stay re-priceable until collected.
@@ -410,7 +410,7 @@ Server 3868 pass, client 1199 pass.
   - A: **Resolved 2026-09-01** — what the guest paid the platform, extras excluded. Rule 2.
 - Q: Does the extra-guest surcharge belong to the accommodation?
   - A: **Resolved 2026-09-01** — no, it is subtracted from the brut. Rule 4. Noted for the record:
-    this declares less than the guest paid to sleep (Fabre 14,70 € against the 21,00 € collected),
+    this declares less than the guest paid to sleep (Papa 14,70 € against the 21,00 € collected),
     and it is a deliberate operator decision, not an engine constraint.
 - Q: Do bookings already made but not yet collected keep their old amount?
   - A: **Resolved 2026-09-01** — no, they re-price. The freeze protects what the guest has paid, not

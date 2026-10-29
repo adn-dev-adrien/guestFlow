@@ -244,7 +244,7 @@ already exists.
 _Done 2026-08-07 against the dev DB (real history rows, headless Chromium)._
 - [x] Happy path: reservation 22246 — each entry shows a single `+ Champagne … 40 € (compl.)` row
       under `Options` and `Prix final 457 € → 497 €` under « Recalculs ».
-- [x] Values: `Client #88 → Nicolas Vidal`, `Caution reçue Non → Oui`,
+- [x] Values: `Client #88 → Sigma Dune`, `Caution reçue Non → Oui`,
       `Date réception caution vide → 23/06/2026`, `Acompte désactivé Non → Oui`.
 - [x] Old entries (written before this change) render with the new formatting — read-time only.
 - [x] Mobile (`xs`, 390px): rows wrap under their label, no horizontal scroll.
