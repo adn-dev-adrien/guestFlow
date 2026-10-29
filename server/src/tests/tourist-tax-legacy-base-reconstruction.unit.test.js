@@ -41,7 +41,7 @@ const PRODUCTION_STAYS = [
   { name: 'Tremblay', total: 5.96, nights: 2, adults: 2, occupants: 5 },
   { name: 'Stanis', total: 6.36, nights: 1, adults: 3, occupants: 4 },
   { name: 'Marchand', total: 13.05, nights: 3, adults: 3, occupants: 5 },
-  { name: 'Van dijk', total: 5.95, nights: 1, adults: 1, occupants: 1 },
+  { name: 'Van Test', total: 5.95, nights: 1, adults: 1, occupants: 1 },
   { name: 'Maillard', total: 2.16, nights: 1, adults: 2, occupants: 4 },
   { name: 'Olivier', total: 9.64, nights: 2, adults: 2, occupants: 4 },
 ];

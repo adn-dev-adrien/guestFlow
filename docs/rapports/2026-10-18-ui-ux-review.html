@@ -1316,7 +1316,7 @@ textarea.out{min-height:260px;font:13px/1.45 ui-monospace,SFMono-Regular,Menlo,m
     function render(host) {
       var mode = host.dataset.mode, w = Number(card.dataset.w), lg = w >= 1100, t = serverTotals();
       var pab = '<div class="resa-pab" style="flex-wrap:wrap"><button class="resa-ib">←</button>' + (w >= 700 ? '<span class="resa-pab-title" style="flex:1">Modifier la réservation</span>' : '<span style="flex:1"></span>') + '<button class="resa-ib">✉</button><button class="resa-ib resa-save">✓</button><button class="resa-ib">✕</button><button class="resa-ib resa-del">⌫</button>' +
-        (mode === 'apres' && w < 700 ? '<div style="flex-basis:100%;font-size:13px;color:var(--resa-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><b style="color:var(--resa-ink)">Guernier V.</b> · N° 6600000002 · 07/08 → 13/08</div>' : '') + '</div>';
+        (mode === 'apres' && w < 700 ? '<div style="flex-basis:100%;font-size:13px;color:var(--resa-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><b style="color:var(--resa-ink)">Exemple V.</b> · N° 6600000002 · 07/08 → 13/08</div>' : '') + '</div>';
       var html = '<div class="resa-appbar"><span class="resa-logo">GuestFlow</span></div><div class="resa-scroll" style="height:' + (w < 700 ? 700 : 720) + 'px;position:relative">' + pab;
       if (lg) html += '<div class="resa-page"><div style="display:grid;gap:14px">' + form() + '</div><div class="resa-side resa-panel resa-sum">' + summary(t) + '</div></div>';
       else {

@@ -279,7 +279,7 @@ test('the options and their planning occurrences are NOT touched — the whole p
 test('a guest who pays everything on arrival settles the END-OF-STAY complement too', () => {
   const db = makeDb();
   const model = createReservationsModel(db);
-  // Harmen's shape, reported 2026-08-31: platform booking, acompte disabled, nothing sold at
+  // Testy's shape, reported 2026-08-31: platform booking, acompte disabled, nothing sold at
   // check-in, 50 € scheduled for the door on departure — and paid on arrival all the same.
   const id = seedStay(db, {
     depositDisabled: 1, depositAmount: 0, complementAmount: 0, endOfStayComplementAmount: 50,
