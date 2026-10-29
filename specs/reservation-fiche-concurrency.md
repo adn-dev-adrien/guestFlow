@@ -77,6 +77,16 @@ silently reverting what an import, a mail or another tab wrote meanwhile.
 9. **A refused or failed overwrite does not leave the overwrite armed (audit R2, 2026-10-29).**
    « Enregistrer quand même » skips the version check for that one save only: the flag is cleared on every
    exit path of the save (error alert, cancelled confirmation, network failure), not only on success.
+10. **The version pair is this request's own writes, not a snapshot (audit R3, 2026-10-29).** Rule 4's
+   `X-Fiche-Version-Before/After` were read when the request arrived and when the answer left, so a foreign
+   write landing while the handler awaited the payment provider (`update`'s `retireStaleLinks`, the
+   installments `paidLinkRefusal` / link retirement) was adopted as the fiche's own and its next save was
+   not refused. `ficheVersionHeaders` now collects the stays the request wrote with the rule 8
+   `stayWriteTrail` and sends `before` = the version before the request's first write to the stay,
+   `after` = the version after its last one. A foreign write that lands later is therefore not in `after`:
+   the fiche holds a version older than the stored one and its next save is refused. A request that did not
+   write the stay, or whose own writes a foreign one interleaved, carries no header and the fiche keeps its
+   version. Test: `fiche-version-headers-await.unit.test.js`.
 
 **Edge cases:**
 - The version check runs first in `update`, so a stale save on a cancelled or superseded stay answers `STALE_FICHE` before the read-only guard (`RESERVATION_CANCELLED`) would; a stay already read-only has nothing to overwrite, and the reload then shows it.
@@ -95,7 +105,7 @@ silently reverting what an import, a mail or another tab wrote meanwhile.
 |---|---|---|---|
 | `controllers/` | `reservationsController.js` | T | `staleFicheRefusal` — compares `loadedUpdatedAt` with the stored row, before `update` does anything |
 | `models/` | `reservationsModel.js` | — | unchanged (`getRow`, `getByIdWithDetails` already return `updatedAt`) |
-| `middleware/` | `ficheVersionHeaders.js` | C | The two version headers on every write to `/api/reservations/:id/...` |
+| `middleware/` | `ficheVersionHeaders.js` | C | The two version headers on every write to `/api/reservations/:id/...`, from the request's own trail (rule 10) |
 | `middleware/` | `stayVersionsTrail.js` | C | `X-Stay-Versions` on every write under `/api/payments` (rule 8) |
 | `utils/` | `stayWriteTrail.js` | C | The TEMP trigger + request-scoped collector of the stays a request wrote |
 | `routes/` | `reservations.js` | T | Mounts the middleware on `/:id` |

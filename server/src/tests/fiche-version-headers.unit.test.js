@@ -16,10 +16,8 @@ function run(db, { method = 'PATCH', id = '7', write = () => {} } = {}) {
   const headers = {};
   const res = { headersSent: false, set(k, v) { headers[k] = v; }, json(body) { this.body = body; return this; } };
   let called = false;
-  ficheVersionHeaders(db)({ method, params: { id } }, res, () => { called = true; });
+  ficheVersionHeaders(db)({ method, params: { id } }, res, () => { called = true; write(); res.json({ ok: true }); });
   assert.ok(called, 'always continues');
-  write();
-  res.json({ ok: true });
   return headers;
 }
 
