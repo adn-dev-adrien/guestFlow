@@ -593,7 +593,9 @@ every change still writes the journal, the secret still never leaves the server 
 64. **The assistant's login change ends the other sessions too** (added 2026-10-29, audit r3 L1). Rule 59's
     « the user's OTHER sessions end » also applies when `PUT /api/onboarding/company` with `useAsLogin: true`
     rewrites the login email: the other sessions are revoked (`revokeOtherSessionsForUser`) and
-    `req.session.user` is refreshed, exactly as on « Mon compte ». Test: `onboarding-login-opt-in.unit.test.js`.
+    `req.session.user` is refreshed, as on « Mon compte ». Unlike « Mon compte », no notice is sent to the
+    old address: there it is only the bootstrap login, never a mailbox the owner reads. Test:
+    `onboarding-login-opt-in.unit.test.js`.
 
 ---
 
