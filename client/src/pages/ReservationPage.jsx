@@ -244,13 +244,14 @@ export default function ReservationPage() {
   // « Enregistrer quand même » : the one save that goes without the version, an explicit overwrite.
   const overwriteOnceRef = useRef(false);
   useEffect(() => {
-    if (!reservationId) return undefined;
+    const versionedId = reservationId || editingDevisId;
+    if (!versionedId) return undefined;
     const adoptOwnWrites = (event) => {
-      loadedUpdatedAtRef.current = versionAfterOwnWrite(reservationId, loadedUpdatedAtRef.current, event.detail);
+      loadedUpdatedAtRef.current = versionAfterOwnWrite(versionedId, loadedUpdatedAtRef.current, event.detail);
     };
     window.addEventListener(DATA_CHANGED_EVENT, adoptOwnWrites);
     return () => window.removeEventListener(DATA_CHANGED_EVENT, adoptOwnWrites);
-  }, [reservationId]);
+  }, [reservationId, editingDevisId]);
   const [restoring, setRestoring] = useState(false);
   // Where a cancelled fiche keeps its « Nouveau remboursement » button, outside the disabled fieldset.
   const [refundHost, setRefundHost] = useState(null);
@@ -1027,6 +1028,7 @@ export default function ReservationPage() {
           await loadBabyBedAvailability(res.startDate, res.endDate, res.propertyId, res.id);
         } else if (editingDevisId) {
           const devis = await api.getDevisById(editingDevisId).catch(markMissingLookup);
+          loadedUpdatedAtRef.current = devis.updatedAt || null;
           setCgvBlock(devis.cgv || null);
           setOnlinePayment(devis.onlinePayment || null);
           const loaded = await loadPropertyContext(devis.propertyId, props);
@@ -2457,7 +2459,12 @@ export default function ReservationPage() {
         };
 
         if (editingDevisId) {
-          const savedDevis = await api.updateDevis(editingDevisId, devisPayload);
+          const savedDevis = await api.updateDevis(editingDevisId, {
+            ...devisPayload,
+            loadedUpdatedAt: overwriteOnceRef.current ? undefined : (loadedUpdatedAtRef.current || undefined),
+          });
+          if (overwriteOnceRef.current) loadedUpdatedAtRef.current = savedDevis?.updatedAt || null;
+          overwriteOnceRef.current = false;
           if (savedDevis?.retiredPaymentLinks) showSuccess('Devis enregistré. Le lien de paiement en cours est retiré : le montant a changé.');
           setInitialSnapshot(formSnapshot);
           if (safeAfterSaveAction) {
