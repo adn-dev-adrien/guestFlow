@@ -36,6 +36,7 @@ const ANCHORS = Object.freeze({
   balanceDueDate: { after: 'l’échéance du solde', dayOf: 'le jour de l’échéance du solde' },
 });
 const EDITABLE_ANCHORS = Object.keys(ANCHORS);
+const FIXED_ANCHOR_AFTER = Object.freeze({ installmentDueDate: 'l’échéance' });
 
 const MAX_DAYS = 90;
 const capitalised = (s) => `${s.charAt(0).toUpperCase()}${s.slice(1)}`;
@@ -74,7 +75,7 @@ function templateWhen(template) {
   return {
     editable: !fixed && !SEQUENCE_STABLE_KEYS.includes(t.stableKey),
     anchor,
-    anchorLabel: (ANCHORS[anchor] || ANCHORS.start).after,
+    anchorLabel: (ANCHORS[anchor] || { after: FIXED_ANCHOR_AFTER[anchor] || ANCHORS.start.after }).after,
     days: Math.abs(n),
     direction: n < 0 ? 'before' : (n > 0 ? 'after' : 'same'),
     label: capitalised(text),
