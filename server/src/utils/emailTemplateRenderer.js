@@ -43,10 +43,16 @@ function renderConditionals(text, flags) {
 // specs/email-automation.md rule 19 — an empty name token right before punctuation takes its leading
 // spaces with it: « Bonjour {{clientFirstName}}, » reads « Bonjour, », never « Bonjour , ».
 const NAME_TOKENS = new Set(['clientFirstName', 'clientLastName', 'clientFullName']);
-const LEADING_VARIABLE_RE = /([ \t]*)\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g;
+const VARIABLE_RE = /\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g;
 
+// The spaces before a swallowed name token are dropped by walking back from the match, not by a
+// `[ \t]*` prefix in the pattern: that prefix is quadratic on a long run of spaces (audit r4, R4-1).
 function renderVariables(text, vars, missing) {
-  return String(text || '').replace(LEADING_VARIABLE_RE, (match, lead, tokenName, offset, whole) => {
+  const source = String(text || '');
+  let out = '';
+  let from = 0;
+  for (const m of source.matchAll(VARIABLE_RE)) {
+    const tokenName = m[1];
     let value = '';
     if (vars && Object.prototype.hasOwnProperty.call(vars, tokenName)) {
       const v = vars[tokenName];
@@ -54,10 +60,15 @@ function renderVariables(text, vars, missing) {
     } else if (missing) {
       missing.add(tokenName);
     }
-    const next = whole.charAt(offset + match.length);
-    if (value === '' && NAME_TOKENS.has(tokenName) && /[,.!?;:]/.test(next)) return '';
-    return lead + value;
-  });
+    let chunkEnd = m.index;
+    const next = source.charAt(m.index + m[0].length);
+    if (value === '' && NAME_TOKENS.has(tokenName) && /[,.!?;:]/.test(next)) {
+      while (chunkEnd > from && (source[chunkEnd - 1] === ' ' || source[chunkEnd - 1] === '\t')) chunkEnd -= 1;
+    }
+    out += source.slice(from, chunkEnd) + (chunkEnd === m.index ? value : '');
+    from = m.index + m[0].length;
+  }
+  return out + source.slice(from);
 }
 
 /**

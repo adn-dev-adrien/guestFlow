@@ -47,8 +47,16 @@ function createRegistryStore({ db, dir, privateKey, now = () => new Date() }) {
   // the previous one, even when two changes fall in the same millisecond or the clock steps back.
   let lastGenerated = 0;
   try { lastGenerated = Date.parse(JSON.parse(fs.readFileSync(path.join(dir, 'index.json'), 'utf8')).generatedAt) || 0; } catch { lastGenerated = 0; }
+  // A last date more than an hour ahead of the clock is a clock fault, not a date to honour: following it
+  // would freeze the registry until real time caught up (audit r4, rule 53).
+  const MAX_AHEAD_MS = 60 * 60 * 1000;
   const nextGeneratedAt = () => {
-    lastGenerated = Math.max(now().getTime(), lastGenerated + 1);
+    const current = now().getTime();
+    if (lastGenerated - current > MAX_AHEAD_MS) {
+      console.warn(`[registry] last index generatedAt ${new Date(lastGenerated).toISOString()} is more than 1 h ahead of the clock; dating the index now`);
+      lastGenerated = 0;
+    }
+    lastGenerated = Math.max(current, lastGenerated + 1);
     return new Date(lastGenerated).toISOString();
   };
 
@@ -62,6 +70,30 @@ function createRegistryStore({ db, dir, privateKey, now = () => new Date() }) {
     writeAtomic(path.join(dir, 'index.json'), bytes);
     writeAtomic(path.join(dir, 'index.json.sig'), `${crypto.sign(null, bytes, privateKey).toString('base64')}\n`);
     return bytes;
+  }
+
+  /**
+   * Puts the package under its final name without ever overwriting a file: the name is created with
+   * `link`, which fails when it exists, so a concurrent upload of the same version cannot replace the
+   * bytes the signed index describes (audit r4, rule 53). A file with no row is an orphan of an
+   * earlier failure and is replaced. → true when this call created the file.
+   */
+  function placePackage(source, fileName, id, version) {
+    const dest = path.join(dir, fileName);
+    const staged = `${dest}.${process.pid}.${crypto.randomBytes(4).toString('hex')}.tmp`;
+    fs.copyFileSync(source, staged);
+    try {
+      try {
+        fs.linkSync(staged, dest);
+      } catch (err) {
+        if (err.code !== 'EEXIST') throw err;
+        if (getStmt.get(id, version)) throw httpError(409, 'DUPLICATE_VERSION', `${id} ${version} est déjà publié.`);
+        fs.renameSync(staged, dest);
+      }
+      return true;
+    } finally {
+      fs.rmSync(staged, { force: true });
+    }
   }
 
   /** Rule 8 — validate one uploaded package and publish it. → the published row */
@@ -84,8 +116,13 @@ function createRegistryStore({ db, dir, privateKey, now = () => new Date() }) {
         throw httpError(422, 'INVALID_PACKAGE', `${fileName} refusé : ${why}`);
       }
       const sha256 = crypto.createHash('sha256').update(buffer).digest('hex');
-      fs.copyFileSync(tgz, path.join(dir, fileName));
-      insertStmt.run(id, version, sha256, buffer.length, JSON.stringify(manifest), now().toISOString());
+      const created = placePackage(tgz, fileName, id, version);
+      try {
+        insertStmt.run(id, version, sha256, buffer.length, JSON.stringify(manifest), now().toISOString());
+      } catch (err) {
+        if (created) fs.rmSync(path.join(dir, fileName), { force: true });
+        throw err;
+      }
       sign();
       return rows().find((r) => r.id === id && r.version === version);
     } finally {

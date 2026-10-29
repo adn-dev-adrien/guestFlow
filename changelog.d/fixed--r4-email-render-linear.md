@@ -1,0 +1,1 @@
+- Email templates: rendering is no longer quadratic on a long run of spaces, and a subject (300 characters) and a body (20 000) are capped in the editor, the texts screen and the CSV import.

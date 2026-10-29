@@ -256,6 +256,8 @@ The operator can:
     before. *Why: the final review of 2026-10-18 (N5) saw « Bonjour Ical, » / « Hello Ical, » in 24
     previews of 22281, whose placeholder the boot pass had renamed « Ical Airbnb ».*
 
+20. **Rendering is linear, and a text has a length cap** (audit r4, R4-1, 2026-10-29). The renderer no longer matches the leading spaces of a name token with a `[ \t]*` prefix in the pattern (quadratic on a long run of spaces: 250 000 spaces took 32 s); it walks back from the match, with the same output (rule 19). A template's subject (and `subjectEn`) is capped at 300 characters and its body (and `bodyEn`) at 20 000: the editor answers 422 `{ field, message: « 300 caractères au plus » }`, and the texts screen, its save and its CSV import apply the same caps (a refused row names the limit). Test: `email-template-redos.unit.test.js`.
+
 ---
 
 ## 4. Architecture
