@@ -450,6 +450,17 @@ signed-off releases over HTTPS, when the operator asks for it.
     release's `plugins-dist/SHA256SUMS` lives in the same mutable release, and the release public key is
     deliberately not committed (the signing key is held off GitHub, rule 41), so CI cannot verify a
     signature; a verified reuse would need that public key committed, which is a decision of its own. Test: `plugin-packages-release.unit.test.js`.
+49. **The "own tarball" check compares canonical URLs, not a string prefix** (audit r3 R3-1, 2026-10-29). Rule
+    46's prefix match ran on the raw `resolved` string, but npm parses it with `new URL()`, which collapses
+    `..`: `…/better-sqlite3/-/../../evil/-/evil-1.0.0.tgz` passed and npm fetched `/evil/-/evil-1.0.0.tgz`.
+    `resolved` must now equal its own `new URL().href` (no dot segment, no `%2e`, no backslash, no
+    upper-case host), have origin exactly `https://registry.npmjs.org`, no query and no fragment, and its
+    pathname must be exactly `/<name>/-/<unscoped name>-<version>.tgz`. The real lockfile passes. **The npm
+    cache prune is safe without a lock** (audit r3, unverified item): `pruneNpmCache` only runs inside
+    `installDependencies`, and two installs never overlap on one cache directory — a space's cache is next to
+    its own releases directory and updates are single-flight (409 `UPDATE_IN_PROGRESS`); the console's cache
+    is next to its releases directory and `releases.install` refuses a second install while one runs
+    (`BUSY`). Test: `release-install-isolation.unit.test.js`.
 
 **Edge cases**
 
