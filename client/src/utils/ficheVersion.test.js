@@ -23,7 +23,7 @@ describe('versionAfterOwnWrite', () => {
   });
 });
 
-describe('versionAfterOwnWrite — writes from outside the stay (rule 6)', () => {
+describe('versionAfterOwnWrite — writes from outside the stay (rule 8)', () => {
   const stays = (...list) => ({ stays: list });
 
   it('adopts the version of the fiche stay in the list, ignoring the others', () => {

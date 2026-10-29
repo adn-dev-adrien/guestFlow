@@ -1,5 +1,5 @@
 /**
- * Which stays THIS request wrote (specs/reservation-fiche-concurrency.md rule 6).
+ * Which stays THIS request wrote (specs/reservation-fiche-concurrency.md rule 8).
  *
  * A TEMP trigger records every change of `reservations.updatedAt` (id, before, after). The statements that
  * update `reservations` are wrapped so the rows are drained right after each `run()` — synchronously, so the

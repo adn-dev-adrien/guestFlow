@@ -9,7 +9,7 @@
  * @param {number|string} reservationId  the stay the fiche shows
  * @param {string|null} held             the `updatedAt` the fiche was built on
  * @param {{reservationId:number,before:string,after:string}|{stays:Array}|null} detail  a `stays` list
- *   (writes from outside the stay, rule 6) is searched for the fiche's stay
+ *   (writes from outside the stay, rule 8) is searched for the fiche's stay
  * @returns {string|null} the version to hold from now on
  */
 export function versionAfterOwnWrite(reservationId, held, detail) {

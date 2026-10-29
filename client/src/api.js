@@ -44,7 +44,7 @@ function ficheVersionOf(path, res) {
   const after = header('X-Fiche-Version-After');
   if (match && before !== null && after !== null) return { reservationId: Number(match[1]), before, after };
   // A write from outside the stay (bank reconciliation, payment poll) lists the stays it moved
-  // (specs/reservation-fiche-concurrency.md rule 6).
+  // (specs/reservation-fiche-concurrency.md rule 8).
   const trail = header('X-Stay-Versions');
   if (!trail) return null;
   try {

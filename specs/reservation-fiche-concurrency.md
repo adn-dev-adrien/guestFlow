@@ -53,7 +53,17 @@ silently reverting what an import, a mail or another tab wrote meanwhile.
    « Recharger » (re-runs the page load), « Enregistrer quand même » (an explicit overwrite: that one save
    goes without `loadedUpdatedAt`, then the fiche holds the new version) and « Annuler » (closes the dialog;
    the draft stays on screen, the next save is refused again).
-6. **A write from outside the stay is the fiche's own too (audit R2, 2026-10-29).** A bank
+6. **A sync that writes nothing leaves `updatedAt` alone** _(added 2026-10-29, audit R2)_. The iCal sync
+   re-stamps a mapped stay's `sourceIcalEventUid` on every pass; that statement now carries
+   `AND ifnull(sourceIcalEventUid, '') != ?`, so an unchanged stay keeps its version and a fiche left open
+   across the 5-minute pass is not refused as stale. Only a real write (a new UID, a date or detail change, a
+   takeover, an approved drift) moves the version. The Google Calendar, Neat and Google Vacation Rentals
+   handlers never write `reservations.updatedAt`.
+7. **The check is repeated right before the write** _(added 2026-10-29, audit R2)_. `update` judges
+   `loadedUpdatedAt` first, then may await the payment provider (stale-link payment check). A foreign write
+   landing during that await answers `409 STALE_FICHE` too: the check runs again, synchronously, just before
+   `performUpdate`.
+8. **A write from outside the stay is the fiche's own too (audit R2, 2026-10-29).** A bank
    reconciliation (`POST/DELETE /api/payments/reconciliation/...`) and a payment poll (`POST
    /api/payments/poll`) write the stay's payment marks, hence `updatedAt`, without going through
    `/api/reservations/:id`. Every non-read request under `/api/payments` answers with `X-Stay-Versions`,
@@ -64,7 +74,7 @@ silently reverting what an import, a mail or another tab wrote meanwhile.
    `api.js` puts `{ stays }` on the data-changed event and `versionAfterOwnWrite` applies the rule 4
    chain to the entry of the fiche's stay: a confirmed link, an undo or a poll no longer makes the next
    save fail with a false `STALE_FICHE`, while a foreign write that landed earlier still breaks the chain.
-7. **A refused or failed overwrite does not leave the overwrite armed (audit R2, 2026-10-29).**
+9. **A refused or failed overwrite does not leave the overwrite armed (audit R2, 2026-10-29).**
    « Enregistrer quand même » skips the version check for that one save only: the flag is cleared on every
    exit path of the save (error alert, cancelled confirmation, network failure), not only on success.
 
@@ -86,7 +96,7 @@ silently reverting what an import, a mail or another tab wrote meanwhile.
 | `controllers/` | `reservationsController.js` | T | `staleFicheRefusal` — compares `loadedUpdatedAt` with the stored row, before `update` does anything |
 | `models/` | `reservationsModel.js` | — | unchanged (`getRow`, `getByIdWithDetails` already return `updatedAt`) |
 | `middleware/` | `ficheVersionHeaders.js` | C | The two version headers on every write to `/api/reservations/:id/...` |
-| `middleware/` | `stayVersionsTrail.js` | C | `X-Stay-Versions` on every write under `/api/payments` (rule 6) |
+| `middleware/` | `stayVersionsTrail.js` | C | `X-Stay-Versions` on every write under `/api/payments` (rule 8) |
 | `utils/` | `stayWriteTrail.js` | C | The TEMP trigger + request-scoped collector of the stays a request wrote |
 | `routes/` | `reservations.js` | T | Mounts the middleware on `/:id` |
 
@@ -119,8 +129,8 @@ The dialog of rule 5, on desktop and mobile alike (the shared confirm dialog is 
 - [x] `tests/fiche-stale-save.unit.test.js` (3): rule 2 — a stale version is refused and writes nothing,
   the matching version / none / blank / unknown stay is not refused; rule 3 — the read carries the version.
 - [x] `tests/fiche-version-headers.unit.test.js`: rule 4 — the before / after headers on a write, none on a read.
-- [x] Client: `utils/ficheVersion.test.js` (6) and `__tests__/api.fiche-version.test.js` (3): rules 4 and 6.
-- [x] `tests/fiche-stay-versions-trail.unit.test.js` (3): rule 6, including a foreign write during an awaiting handler.
+- [x] Client: `utils/ficheVersion.test.js` (6) and `__tests__/api.fiche-version.test.js` (3): rules 4 and 8.
+- [x] `tests/fiche-stay-versions-trail.unit.test.js` (3): rule 8, including a foreign write during an awaiting handler.
 - [x] Real-data check on the shadow (prod data of 22/10): the audit's `lost-update.sh` scenario answers 409
   and the intake's fill survives.
 

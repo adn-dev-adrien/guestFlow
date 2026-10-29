@@ -28,7 +28,9 @@ const { answeredFlag, withoutPending } = require('../utils/propertyFacts');
 const propertyArticle = require('../utils/propertyArticle');
 const { resolvePoolSeason, poolSeasonModeOf } = require('../utils/poolSeason');
 const { PROPERTY_LIMITS, parseBoundedNumber } = require('../utils/inputLimits');
-const { carriesMoney, idsOfOwner, withConvertedDevis, PROPERTY_MONEY_MESSAGE } = require('../utils/deletionGuard');
+const {
+  carriesMoney, historyBlocker, idsOfOwner, withConvertedDevis, PROPERTY_MONEY_MESSAGE,
+} = require('../utils/deletionGuard');
 
 // Multipart/FormData sends every field as a string, and "false"/"0" are truthy — so booleans must be
 // coerced explicitly to a 0/1 bit for INTEGER columns.
@@ -699,7 +701,9 @@ function createPropertiesModel(database) {
 
     // THE delete guard for a property (utils/deletionGuard): the delete cascades every stay and devis.
     deletionBlocker(id) {
-      return carriesMoney(database, idsOfOwner(database, 'propertyId', id)) ? PROPERTY_MONEY_MESSAGE : null;
+      const ids = idsOfOwner(database, 'propertyId', id);
+      if (carriesMoney(database, ids)) return PROPERTY_MONEY_MESSAGE;
+      return historyBlocker(database, ids, 'property');
     },
 
     // The delete the controller runs after its provider awaits: judged again, in the same transaction.

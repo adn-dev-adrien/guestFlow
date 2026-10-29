@@ -2,6 +2,7 @@
 
 const model = require('../models/propertiesModel');
 const { deactivateOpenLinksBeforeDelete } = require('../utils/paymentLinkDeactivation');
+const { isHistoryMessage } = require('../utils/deletionGuard');
 const { buildProgressivePreview } = require('../utils/pricing');
 const { ADMIN, RECEPTION, userHasRole } = require('../constants/roles');
 const { toReceptionPropertyList } = require('../utils/receptionView');
@@ -124,16 +125,18 @@ async function update(req, res) {
   }
 }
 
+const propertyBlockerCode = (message) => (isHistoryMessage(message) ? 'PROPERTY_KEEPS_HISTORY' : 'PROPERTY_CARRIES_MONEY');
+
 async function remove(req, res) {
   const blocker = model.deletionBlocker(req.params.id);
-  if (blocker) return res.status(409).json({ error: blocker, code: 'PROPERTY_CARRIES_MONEY' });
+  if (blocker) return res.status(409).json({ error: blocker, code: propertyBlockerCode(blocker) });
   try {
     await deactivateOpenLinksBeforeDelete(model.rowIdsToDelete(req.params.id), { paymentLinksModel: require('../models/paymentLinksModel') });
   } catch (err) {
     return res.status((err && err.httpStatus) || 500).json({ error: (err && err.message) || 'Suppression impossible.', code: (err && err.error) || 'DELETE_FAILED' });
   }
   const outcome = model.removeGuarded(req.params.id);
-  if (outcome.blocker) return res.status(409).json({ error: outcome.blocker, code: 'PROPERTY_CARRIES_MONEY' });
+  if (outcome.blocker) return res.status(409).json({ error: outcome.blocker, code: propertyBlockerCode(outcome.blocker) });
   return res.json(outcome);
 }
 

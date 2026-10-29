@@ -5,6 +5,7 @@
  *
  * Props: open, onClose, title, children, maxWidth ('sm'), fullWidth (true),
  *        cancelLabel ('Annuler'), submitLabel ('Enregistrer'), onSubmit, submitDisabled, submitColor,
+ *        hideSubmit (informational dialog: only the close button remains),
  *        submitBusy (true while the submit is in flight: the button is disabled and spins, so a
  *        double click cannot send twice),
  *        secondaryAction (ReactNode, start-aligned in the actions row — e.g. a « Supprimer » button).
@@ -27,6 +28,7 @@ export default function FormDialog({
   submitDisabled,
   submitColor,
   submitBusy = false,
+  hideSubmit = false,
   secondaryAction,
 }) {
   const theme = useTheme();
@@ -49,10 +51,12 @@ export default function FormDialog({
         {secondaryAction}
         {secondaryAction && <Box sx={{ flex: 1, display: { xs: 'none', sm: 'block' } }} />}
         <Button onClick={onClose}>{cancelLabel}</Button>
-        <Button variant="contained" color={submitColor} onClick={onSubmit} disabled={submitDisabled || submitBusy}
-          startIcon={submitBusy ? <CircularProgress size={16} color="inherit" /> : undefined}>
-          {submitLabel}
-        </Button>
+        {!hideSubmit && (
+          <Button variant="contained" color={submitColor} onClick={onSubmit} disabled={submitDisabled || submitBusy}
+            startIcon={submitBusy ? <CircularProgress size={16} color="inherit" /> : undefined}>
+            {submitLabel}
+          </Button>
+        )}
       </DialogActions>
     </Dialog>
   );

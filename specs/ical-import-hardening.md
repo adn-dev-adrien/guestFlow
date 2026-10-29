@@ -147,6 +147,15 @@ nothing, and the platforms tab says in one short line what the last sync did.
     ends more than 1 095 days from now, or lasts more than 366 nights. `parseIcsEvents(ics, { now })` takes the
     reference day for the tests. Test: `server/src/tests/ical-import-dates-bounds.unit.test.js`.
 
+18. **A redirect response is drained before the next hop** _(added 2026-10-29, audit R2)_. `safeFeedFetch`
+    cancels the body of a 3xx response before following `location`; closing the connection pool waits for an
+    unread body, so a large redirect body used to hold the feed until the 20 s timeout.
+19. **Overlap checks judge the nights a stay really takes** _(added 2026-10-29, audit R2)_. The Booking
+    cover test, the overlap test of a new or moved stay (rule 3) and the drift approval
+    (`icalDateDriftModel.overlapsTakenNights`) read each GuestFlow stay through `utils/occupancy.effectiveRange`
+    (early check-in takes the night before, late check-out the night after), exactly as the iCal export
+    publishes them. A platform stay on the extra night of a late check-out is flagged, not created unflagged.
+
 **Edge cases:**
 - A stay arriving on another stay's departure day shares no night: no conflict (rule 3).
 - A feed that times out resets the empty-feed streak like any failed fetch

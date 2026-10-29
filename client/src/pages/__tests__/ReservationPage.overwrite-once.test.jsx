@@ -1,4 +1,4 @@
-// specs/reservation-fiche-concurrency.md rule 7 — « Enregistrer quand même » skips the version check for ONE
+// specs/reservation-fiche-concurrency.md rule 9 — « Enregistrer quand même » skips the version check for ONE
 // save: when that save fails, the next save carries the version again and a foreign write is still refused.
 import React from 'react';
 import { vi } from 'vitest';
@@ -43,7 +43,7 @@ const FICHE = {
   updatedAt: '2099-01-01 10:00:00', options: [], resources: [], ledger: { rows: [], closing: null, remaining: 0 },
 };
 
-test('rule 7 — a failed « Enregistrer quand même » does not leave the next save without its version', async () => {
+test('rule 9 — a failed « Enregistrer quand même » does not leave the next save without its version', async () => {
   api.calculatePrice.mockResolvedValue({ optionLines: [], resourceLines: [] });
   api.getReservation.mockResolvedValue(FICHE);
   api.getProperties.mockResolvedValue([{ id: 1, name: 'Granja', singleBeds: 2, doubleBeds: 2 }]);

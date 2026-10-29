@@ -28,7 +28,7 @@ test('rule 4: the event carries nothing when the server sent no version', async 
   expect(await writeAndCatch({})).toEqual([null]);
 });
 
-test('rule 6: a write from outside the stay puts the moved stays on the event', async () => {
+test('rule 8: a write from outside the stay puts the moved stays on the event', async () => {
   vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({
     ok: true, status: 200, json: () => Promise.resolve({}),
     headers: { get: (n) => (n === 'X-Stay-Versions' ? JSON.stringify([{ id: 9, before: 'v1', after: 'v2' }]) : null) },

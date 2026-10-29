@@ -1,4 +1,4 @@
-// specs/reservation-fiche-concurrency.md rule 6 — a write that reaches stays from outside
+// specs/reservation-fiche-concurrency.md rule 8 — a write that reaches stays from outside
 // /api/reservations/:id (bank reconciliation, payment poll) answers with the stays THIS request wrote, and
 // never with a foreign write that landed while the handler awaited.
 const test = require('node:test');
@@ -25,7 +25,7 @@ async function serve(db, routes) {
 
 const set = (db, id, at) => db.prepare('UPDATE reservations SET updatedAt = ? WHERE id = ?').run(at, id);
 
-test('rule 6 — the stays this request wrote are listed with their version before and after', async () => {
+test('rule 8 — the stays this request wrote are listed with their version before and after', async () => {
   const db = fresh();
   const { base, close } = await serve(db, (app) => app.post('/api/payments/links', (req, res) => { set(db, 1, 'v1'); set(db, 3, 'x1'); set(db, 1, 'v2'); res.json({}); }));
   const res = await fetch(`${base}/api/payments/links`, { method: 'POST' });
@@ -33,7 +33,7 @@ test('rule 6 — the stays this request wrote are listed with their version befo
   assert.deepEqual(JSON.parse(res.headers.get(HEADER)), [{ id: 1, before: 'v0', after: 'v2' }, { id: 3, before: 'x0', after: 'x1' }]);
 });
 
-test('rule 6 — a foreign write during an awaiting handler is not reported as this request\'s own', async () => {
+test('rule 8 — a foreign write during an awaiting handler is not reported as this request\'s own', async () => {
   const db = fresh();
   const { base, close } = await serve(db, (app) => {
     app.post('/api/payments/poll', async (req, res) => { await new Promise((r) => setTimeout(r, 200)); set(db, 2, 'w1'); res.json({}); });
@@ -47,7 +47,7 @@ test('rule 6 — a foreign write during an awaiting handler is not reported as t
   assert.deepEqual(JSON.parse(res.headers.get(HEADER)), [{ id: 2, before: 'w0', after: 'w1' }]);
 });
 
-test('rule 6 — a write that moved no stay, and a read, carry no header', async () => {
+test('rule 8 — a write that moved no stay, and a read, carry no header', async () => {
   const db = fresh();
   const { base, close } = await serve(db, (app) => {
     app.post('/api/payments/noop', (req, res) => res.json({}));
@@ -58,7 +58,7 @@ test('rule 6 — a write that moved no stay, and a read, carry no header', async
   close();
 });
 
-test('rule 6 — two writes of one request with a foreign write between them drop the stay (broken chain)', async () => {
+test('rule 8 — two writes of one request with a foreign write between them drop the stay (broken chain)', async () => {
   const db = fresh();
   const { base, close } = await serve(db, (app) => {
     app.post('/api/payments/emails', async (req, res) => { set(db, 1, 'v1'); await new Promise((r) => setTimeout(r, 200)); set(db, 1, 'v3'); set(db, 2, 'w1'); res.json({}); });
@@ -72,7 +72,7 @@ test('rule 6 — two writes of one request with a foreign write between them dro
   assert.deepEqual(JSON.parse(res.headers.get(HEADER)), [{ id: 2, before: 'w0', after: 'w1' }]);
 });
 
-test('rule 6 — a write rolled back with its transaction is never reported, a committed one is', async () => {
+test('rule 8 — a write rolled back with its transaction is never reported, a committed one is', async () => {
   const db = fresh();
   const { base, close } = await serve(db, (app) => app.post('/api/payments/tx', (req, res) => {
     try { db.transaction(() => { set(db, 1, 'v1'); throw new Error('boom'); })(); } catch { /* rolled back */ }

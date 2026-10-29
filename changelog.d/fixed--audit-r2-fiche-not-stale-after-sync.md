@@ -1,0 +1,1 @@
+- An iCal sync that changes nothing no longer moves a stay's version, so a fiche left open across the 5-minute pass is not refused as stale; the stale check is also repeated right before the write, after the payment-provider wait.
