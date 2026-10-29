@@ -484,7 +484,8 @@ function gate(base) {
     try { before = git(['show', `${mb}:${file}`]); } catch { return new Set(); }
     return new Set(parseCitations(before, knownSpecNames()).map((c) => `${c.spec}:${c.rule}`));
   };
-  const orphans = newOrphans(buildCoverage(readSpecs(), readCitations(knownSpecNames())).orphans, changedFiles, citedAtBase);
+  const orphans = [...new Map(newOrphans(buildCoverage(readSpecs(), readCitations(knownSpecNames())).orphans, changedFiles, citedAtBase)
+    .map((o) => [`${o.file}|${o.spec}|${o.rule}`, o])).values()];
   if (orphans.length) {
     for (const o of orphans) console.error(`✗ ${o.file} cite specs/${o.spec}.md règle ${o.rule} (${o.why}).`);
     console.error('\n  Une citation doit retomber sur une règle : corrigez le numéro, ou nommez la bonne spec sur la ligne.');

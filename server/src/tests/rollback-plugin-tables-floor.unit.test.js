@@ -1,6 +1,7 @@
-// specs/plugin-removal-resilience.md rule 19 — only the tables of the plugins a tree ships are compared.
 // specs/self-update-and-releases.md rule 44 — the tables the plugins of v3.18.0 own keep every column on
 // a current install (the core floor of rule 39 excludes them: a fresh core install does not have them).
+//
+// specs/plugin-removal-resilience.md rule 19: only the tables of the plugins a tree ships are compared.
 process.env.DB_PATH = ':memory:';
 const test = require('node:test');
 const assert = require('node:assert/strict');
