@@ -99,7 +99,7 @@ function buildModel(database) {
   // changed must not work after.
   function voidResetLinks(userId) {
     if (!tableExists('password_reset_tokens')) return;
-    database.prepare("UPDATE password_reset_tokens SET usedAt = datetime('now') WHERE userId = ? AND usedAt IS NULL").run(Number(userId));
+    database.prepare("UPDATE password_reset_tokens SET usedAt = ? WHERE userId = ? AND usedAt IS NULL").run(new Date().toISOString(), Number(userId));
   }
 
   // specs/pwa-push-notifications.md rule 13 — devices of an account that is no longer an active admin.
@@ -393,6 +393,7 @@ function buildModel(database) {
         if (existing) {
           resetPasswordStmt.run(hash, existing.id);
           clearEmailChangedStmt.run(existing.id);
+          voidResetLinks(existing.id);
           setRoles(existing.id, [ADMIN]);
           return;
         }
@@ -409,6 +410,7 @@ function buildModel(database) {
           // surface the verification banner on first login.
           clearEmailChangedStmt.run(fallbackAdmin.id);
           resetPasswordStmt.run(hash, fallbackAdmin.id);
+          voidResetLinks(fallbackAdmin.id);
           setRoles(fallbackAdmin.id, [ADMIN]);
           return;
         }

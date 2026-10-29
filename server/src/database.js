@@ -2722,6 +2722,7 @@ db.exec(`
 // Reset links, second step, backup codes, account history, support access and its log, and the
 // disabled « Support GuestFlow » user. Additive, idempotent.
 require('./utils/accountSecuritySchema').applyAccountSecuritySchema(db);
+require('./utils/pushSubscriptionsCleanup').pruneIneligiblePushSubscriptions(db);
 
 // ---------- iCal PLACEHOLDER CLIENTS (specs/ical-import-hardening.md rule 1) ----------
 // Before 2026-10-18 every iCal stay without a guest name shared one placeholder client per feed, so a

@@ -44,3 +44,12 @@ test('rule 63 — an administrator\'s reset voids the open reset links', () => {
   assert.equal(w.usable('hash-user'), false);
   assert.equal(w.usable('hash-other'), true);
 });
+
+test('rule 63 — the reset-admin recovery voids the open reset links, and writes usedAt in ISO', () => {
+  const w = withOpenLink();
+  w.users.resetAdminToDefault();
+  const admin = w.db.prepare("SELECT id FROM users WHERE email = 'admin@guestflow.local'").get() || { id: w.user.id };
+  assert.equal(w.db.prepare('SELECT COUNT(*) AS n FROM password_reset_tokens WHERE userId = ? AND usedAt IS NULL').get(admin.id).n, 0);
+  const used = w.db.prepare('SELECT usedAt FROM password_reset_tokens WHERE userId = ?').get(admin.id).usedAt;
+  assert.match(used, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+});

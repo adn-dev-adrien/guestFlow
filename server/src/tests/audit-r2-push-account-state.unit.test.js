@@ -83,3 +83,19 @@ test('rule 13 — revoking a support access deletes the support account\'s devic
   assert.equal(w.supportAccessModel.revoke(id, admin.id, '2026-10-08T10:00:00.000Z'), true);
   assert.deepEqual(w.db.prepare('SELECT endpoint FROM push_subscriptions').all().map((r) => r.endpoint), ['https://push/admin']);
 });
+
+test('rule 13 — the boot cleanup deletes the devices of an ineligible owner, once', () => {
+  const { pruneIneligiblePushSubscriptions } = require('../utils/pushSubscriptionsCleanup');
+  const w = world();
+  const admin = w.addUser('a@x.invalid');
+  const gone = w.addUser('gone@x.invalid');
+  const desk = w.addUser('desk@x.invalid', { roles: ['reception'] });
+  [admin, gone, desk].forEach((u) => w.push.subscribe(u.id, w.sub(`https://push/${u.id}`)));
+  w.push.subscribe(w.support, w.sub('https://push/support'));
+  w.db.prepare('UPDATE users SET isActive = 0 WHERE id = ?').run(gone.id);
+  assert.equal(pruneIneligiblePushSubscriptions(w.db), 3);
+  assert.deepEqual(w.db.prepare('SELECT endpoint FROM push_subscriptions').all().map((r) => r.endpoint), [`https://push/${admin.id}`]);
+  w.db.prepare('UPDATE users SET isActive = 1 WHERE id = ?').run(gone.id);
+  assert.equal(w.db.prepare('SELECT COUNT(*) AS n FROM push_subscriptions WHERE userId = ?').get(gone.id).n, 0, 'reactivation brings nothing back');
+  assert.equal(pruneIneligiblePushSubscriptions(w.db), 0);
+});
