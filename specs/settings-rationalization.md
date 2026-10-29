@@ -340,6 +340,8 @@ one place.
     console's disk probe measures the whole instance directory. Photos, logo and favicon stay in
     the public tree: the WordPress site, the emails and the login page link them.
 
+33. **One linear email check** (audit R2 N2, 2026-10-29). `utils/emailAddress.isValidEmailAddress` (length ≤ 254 checked first, one `indexOf`, no overlapping quantifiers) is the single shape check of the server — settings, users, emails, client payloads and the plugins through `settingsValidation.validateEmail`; the client mirrors it. A 195 KB address is refused in under 50 ms. Public booking: an address over 254 characters is `tooLong`, not `emailInvalid`. Test: `tests/audit-r2-email-linear.unit.test.js`, `website-booking/tests/guest-email-linear.unit.test.js`.
+
 **Edge cases**
 - A page with unsaved changes and a click on another settings entry → the existing dirty-form guard.
 - (rule 28) The address changes to another provider after a host was saved → the saved host wins;

@@ -30,9 +30,10 @@ const { MIN_PASSWORD_LENGTH, DEFAULT_ADMIN_EMAIL } = require('../constants/authD
 const { quotaRefusal } = require('../utils/planQuota');
 const { ROLE_PLUGINS } = require('../constants/plugins');
 const { sendError } = require('../utils/httpError');
+const { isValidEmailAddress } = require('../utils/emailAddress');
 
 function isValidEmail(value) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
+  return isValidEmailAddress(value);
 }
 
 function asInt(value) {

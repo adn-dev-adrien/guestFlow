@@ -36,7 +36,7 @@ const SITE_DEVIS_DIGEST = 'site-devis';
 // line of an operator e-mail: a line break would forge lines of its own (a fake instruction, a fake link).
 // The mails here are plain text; control characters and Unicode line separators become a space.
 function oneLine(value) {
-  return String(value == null ? '' : value).replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]+/g, ' ').replace(/ {2,}/g, ' ').trim();
+  return String(value == null ? '' : value).replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]+/g, ' ').replace(/\p{Cf}/gu, '').replace(/ {2,}/g, ' ').trim();
 }
 
 function euro(n) {

@@ -83,6 +83,7 @@ function airbnbUrl(text, pathRe) {
 }
 
 const countLines = (lines, re) => lines.filter((l) => l.length <= MAX_LINE && re.test(l.trim())).length;
+const shortLines = (block) => block.split('\n').filter((l) => l.length <= MAX_LINE).join('\n');
 const lineIndex = (lines, re) => lines.findIndex((l) => l.length <= MAX_LINE && re.test(l.trim()));
 
 function parseAirbnbMail({ subject, text, sentAt }) {
@@ -117,9 +118,10 @@ function parseAirbnbMail({ subject, text, sentAt }) {
   const urlCode = ((airbnbUrl(head, '/hosting/reservations/details/') || '').match(/details\/([A-Z0-9]+)$/) || [])[1];
   if (urlCode !== code) return fail('Le code de confirmation ne correspond pas au lien de la réservation');
 
-  const fullName = ((normalizeSpaces(subject).match(/:\s*(.+?)\s+arrive le/i) || [])[1] || '').trim();
+  const subjectLine = normalizeSpaces(subject);
+  const fullName = ((subjectLine.length <= MAX_LINE ? subjectLine.match(/:\s*(\S[^\n]*?)\s+arrive le/i) : null) || [])[1]?.trim() || '';
   if (!fullName) return fail('Nom du voyageur introuvable');
-  const heading = (head.match(/CONFIRMÉE\s*!\s*(.+?)\s+ARRIVERA/i) || [])[1] || '';
+  const heading = (shortLines(head).match(/CONFIRMÉE\s*!\s*(\S[^\n]*?)\s+ARRIVERA/i) || [])[1] || '';
   const firstWords = heading.trim().split(/\s+/).length || 1;
   const words = fullName.split(/\s+/);
   const firstName = titleCase(words.slice(0, firstWords).join(' '));

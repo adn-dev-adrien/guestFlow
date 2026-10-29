@@ -3,7 +3,7 @@
 // (propertyIcalModel) builds on these.
 
 const crypto = require('crypto');
-const { sentenceCase } = require('./textFormatters');
+const { sentenceCase, stripFormatChars } = require('./textFormatters');
 const { resolveServerTimezone } = require('./serverTimezone');
 
 function normalizePlatformKey(value) {
@@ -155,7 +155,7 @@ function parseGuestName(summary, description) {
 }
 
 function resolveIcalClientIdentity(guestName, platformLabel) {
-  const fallbackPlatformLabel = String(platformLabel || '').trim() || 'Plateforme';
+  const fallbackPlatformLabel = stripFormatChars(platformLabel).trim() || 'Plateforme';
 
   if (guestName?.isFallback) {
     return {
@@ -165,8 +165,8 @@ function resolveIcalClientIdentity(guestName, platformLabel) {
   }
 
   return {
-    firstName: sentenceCase(guestName?.firstName || 'Ical'),
-    lastName: sentenceCase(guestName?.lastName || 'iCal'),
+    firstName: sentenceCase(stripFormatChars(guestName?.firstName).trim() || 'Ical'),
+    lastName: sentenceCase(stripFormatChars(guestName?.lastName).trim() || 'iCal'),
   };
 }
 
