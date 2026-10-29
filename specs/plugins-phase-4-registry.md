@@ -380,7 +380,7 @@ below are the recommended ones; each is reversible in a later spec.
     requirements** (audit round 2, N4, 2026-10-29). In `reviveDependants`, a migration failure after
     `registerLive` marks the plugin failed (nothing of it runs; its routes answer `PLUGIN_INACTIVE`), as
     a migration failing at boot does. An enabled dependant is revived only when each requirement is
-    enabled too (rule 37), not merely loaded. Test: `plugin-revive-failures.unit.test.js`.
+    enabled too (rule 37), not merely loaded. `POST /:id/activate` (cascade included) runs the same revive once the requirements are on, so a dependant left unloaded comes up in that operation. Test: `plugin-revive-failures.unit.test.js`.
 47. **The registry key falls back to the licence key — still, on purpose** (audit round 2, F7,
     2026-10-29; restates rules 9, 40 and 42). `GUESTFLOW_REGISTRY_PUBLIC_KEY` unset, the instance verifies
     the index with `GUESTFLOW_LICENCE_PUBLIC_KEY`. Whoever holds the signing key (the registry key, or the

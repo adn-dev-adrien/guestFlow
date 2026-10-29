@@ -41,3 +41,29 @@ test('rule 46: an enabled dependant is not revived while another requirement is 
   assert.equal(s.model.get('sas').enabled, false);
   assert.equal(s.state.incompatible['google-vacation-rentals'].code, 'REQUIREMENT_MISSING');
 });
+
+test('rule 46: switching a requirement on revives the dependants left unloaded, in the same operation', async () => {
+  delete globalThis.__activated;
+  const s = h.realSetup([R, { id: 'google-vacation-rentals', requires: [{ id: 'website-booking', range: '^1.0.0' }] }]);
+  await h.call(s.ctrl.install, { params: { id: 'website-booking' } });
+  await h.call(s.ctrl.deactivate, { params: { id: 'website-booking' } });
+  leaveUnloaded(s, 'google-vacation-rentals');
+  s.model.setEnabled('google-vacation-rentals', false);
+  const res = await h.call(s.ctrl.activate, { params: { id: 'website-booking' } });
+  assert.equal(res.statusCode, 200);
+  assert.equal(s.state.incompatible['google-vacation-rentals'], undefined);
+  assert.ok(s.state.loaded['google-vacation-rentals']);
+  assert.ok(registry.get('google-vacation-rentals') && !registry.get('google-vacation-rentals').failed);
+});
+
+test('rule 46: the revive on activate marks a dependant failed when its migration throws', async () => {
+  const s = h.realSetup([R, D]);
+  await h.call(s.ctrl.install, { params: { id: 'website-booking' } });
+  await h.call(s.ctrl.deactivate, { params: { id: 'website-booking' } });
+  leaveUnloaded(s, 'google-vacation-rentals');
+  s.model.setEnabled('google-vacation-rentals', false);
+  const res = await h.call(s.ctrl.activate, { params: { id: 'website-booking' } });
+  assert.equal(res.statusCode, 200);
+  assert.ok(registry.get('google-vacation-rentals').failed);
+  assert.equal(s.state.loaded['google-vacation-rentals'], undefined);
+});

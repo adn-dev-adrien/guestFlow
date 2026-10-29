@@ -676,7 +676,7 @@ function createController(model = defaultModel, deps = {}) {
         const left = state.incompatible[row.id];
         const needs = (row.manifest && row.manifest.requires) || [];
         // An enabled dependant needs its requirements enabled too (rule 37), not only loaded.
-        const ready = left && left.code === 'REQUIREMENT_MISSING'
+        const ready = left && (left.code === 'REQUIREMENT_MISSING' || left.code === 'REQUIREMENT_INACTIVE')
           && needs.every((r) => state.loaded[r.id] && satisfies(state.loaded[r.id], r.range)
             && (!row.enabled || (model.get(r.id) && model.get(r.id).enabled)));
         if (ready) {
@@ -984,6 +984,8 @@ function createController(model = defaultModel, deps = {}) {
         }
       }
       activated.forEach((id) => loader().runActivateHooks(id));
+      // A dependant left unloaded for want of this requirement comes up in the same operation (no await inside).
+      reviveDependants();
       return res.json(view(entry));
     },
 
