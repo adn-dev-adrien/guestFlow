@@ -176,6 +176,7 @@ server/certs/*.pem
 # Playwright E2E suite (specs/e2e-playwright-smoke-suite.md §4.3)
 e2e/.auth/
 playwright-report/
+playwright-server.log
 test-results/
 .last-run.json
 

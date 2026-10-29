@@ -133,6 +133,13 @@ or mutable state.
     The layout lives in `e2e/projects.js` (no dependency, so a server unit test reads it). The serial projects
     must depend on `chromium`: a dependency is the only way Playwright orders projects, so a failure of the main
     project skips them.
+21. **The server log is an artifact** (2026-10-29 audit R3). The `webServer` of the main project sends the
+    server's stdout/stderr to `playwright-server.log` (`GUESTFLOW_E2E_SERVER_LOG` overrides the path) instead of
+    a pipe nobody reads, and the failure upload of `e2e.yml` ships it with `playwright-report/`, so a screenshot
+    showing a blank fiche can be read against what the server said.
+22. **A spec is repeatable** (`--repeat-each`): what it creates carries a per-repetition name
+    (`booking-intake` builds its property name from `testInfo.repeatEachIndex`), because a duplicate label breaks a
+    strict locator on the second run.
 
 ### 3.4 Test coverage — one or more specs per implemented `/specs/` feature
 
