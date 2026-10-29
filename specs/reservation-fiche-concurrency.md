@@ -87,10 +87,25 @@ silently reverting what an import, a mail or another tab wrote meanwhile.
    the fiche holds a version older than the stored one and its next save is refused. A request that did not
    write the stay, or whose own writes a foreign one interleaved, carries no header and the fiche keeps its
    version. Test: `fiche-version-headers-await.unit.test.js`.
+11. **The devis editor is versioned the same way** _(added 2026-10-29, audit R4)_. `PUT /api/devis/:id` takes
+   `loadedUpdatedAt` and answers `409 STALE_FICHE` when it differs from the stored `updatedAt` (rules 1, 2
+   and 5 apply unchanged: a body without it is not checked, and the editor offers « Recharger » /
+   « Enregistrer quand même » / « Annuler »). The devis editor lives in `ReservationPage`
+   (`?mode=devis&devisId=`), which keeps the loaded version in the same ref and sends it on its save.
+   Rule 4 applies too: `ficheVersionHeaders` is mounted on `/api/devis/:id` and `api.js` reads
+   `/devis/:id` like `/reservations/:id`, so the editor's own writes (save, status, extension) are
+   adopted and a foreign one is not. The two background writers of a devis, `appendPublicMessage` and
+   `updateFromPublicRequest` (a guest sending the same stay again), both set `updatedAt`. Test:
+   `plugins/website-booking/tests/devis-stale-save.unit.test.js`; client
+   `ReservationPage.devis-conflict.test.jsx`.
 
 **Edge cases:**
 - The version check runs first in `update`, so a stale save on a cancelled or superseded stay answers `STALE_FICHE` before the read-only guard (`RESERVATION_CANCELLED`) would; a stay already read-only has nothing to overwrite, and the reload then shows it.
-- A devis save (`PUT /api/devis/:id`) is unchanged: nothing writes a devis in the background.
+- ~~A devis save (`PUT /api/devis/:id`) is unchanged: nothing writes a devis in the background.~~ **Corrected
+  2026-10-29 (audit R4):** the premise was wrong. A guest who sends the same stay again from the site
+  appends a message to the devis' notes, raises « modifiée après envoi » and, with a guest payment link,
+  re-prices it in place (`appendPublicMessage`, `updateFromPublicRequest`); a stale operator save erased
+  all of it. The devis is versioned too: rule 11.
 
 ---
 
@@ -136,6 +151,7 @@ The dialog of rule 5, on desktop and mobile alike (the shared confirm dialog is 
 ## 7. Test plan
 
 ### Server unit tests
+- [x] `plugins/website-booking/tests/devis-stale-save.unit.test.js` (5): rule 11 — the read carries the version, a stale save is refused and writes nothing, no version sent = not checked, a current save goes through, both background writers move the version.
 - [x] `tests/fiche-stale-save.unit.test.js` (3): rule 2 — a stale version is refused and writes nothing,
   the matching version / none / blank / unknown stay is not refused; rule 3 — the read carries the version.
 - [x] `tests/fiche-version-headers-await.unit.test.js` (3): rule 10 — a foreign write during an awaited provider call is not adopted, an own write keeps its pair, another stay's write carries no header.
@@ -153,7 +169,6 @@ The dialog of rule 5, on desktop and mobile alike (the shared confirm dialog is 
 ## 8. Out of scope
 
 - A three-way merge of the draft and the stored stay.
-- Versioning the devis editor.
 
 ## 9. Open questions
 

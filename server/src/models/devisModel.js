@@ -646,6 +646,11 @@ function createModel(database) {
     return row ? enrichDevis(row) : null;
   }
 
+  function storedVersion(id) {
+    const row = database.prepare("SELECT updatedAt FROM reservations WHERE id = ? AND kind = 'devis'").get(Number(id));
+    return row ? row.updatedAt : null;
+  }
+
   function getHistory(id) {
     const devis = database.prepare("SELECT id FROM reservations WHERE id = ? AND kind = 'devis'").get(Number(id));
     if (!devis) return null;
@@ -1294,6 +1299,7 @@ function createModel(database) {
     markOperatorSeen,
     purgePublicRequest,
     findById,
+    storedVersion,
     recomputeQuote,
     getHistory,
     updateStatus,

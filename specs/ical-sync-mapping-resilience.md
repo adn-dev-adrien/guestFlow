@@ -63,6 +63,13 @@ rebuild its mappings from the UIDs already stored on the reservations themselves
    the event's summary, so the legacy content fallback keeps working for pre-column rows.
 6. **No behavior change** for: sources with 0 mappings (first import of an empty feed is fine),
    past-stay alert carve-out, cross-source dedup, UID-reissue heuristic (step ③bis), locked flows.
+7. **One sync per source at a time** _(added 2026-10-29, audit R4)_. Rules 3-4 trust an empty feed on
+   the second consecutive empty fetch; two overlapping syncs of one source (the 5-minute pass,
+   « Synchroniser », « Synchroniser tout ») would read one degenerate answer twice and confirm it.
+   `syncSourceAndRecord` — the single entry of `syncOne`, `syncMany` and `syncAllForProperty` — is
+   single-flight per source id: a caller arriving while that source syncs joins the running promise
+   (same result, same error) and the entry is released when it settles, so two sequential syncs still
+   count two observations. A prefetched feed passed by `syncMany` to a joining call is simply unused.
 
 **Edge cases:**
 - Feed legitimately empties (last booking cancelled) → one error-status sync, then normal processing
@@ -136,6 +143,13 @@ Responsive: n/a (no client change). PageActionBar: n/a.
 Existing suites adapted: the 7 pre-existing tests that emptied a feed in one sync now go through a
 `syncEmptyConfirmed` double-sync helper (first sync asserts the guarded error), and the sync test
 fixtures gained the `emptyFeedStreak` column + a persisted `ical_sources` row.
+
+### Server unit tests (`tests/ical-sync-single-flight.unit.test.js` — 5 tests)
+- [x] Rule 7 — two overlapping syncs of one empty answer: streak 1, mappings kept, no alert, next good feed intact.
+- [x] Rule 7 — the second caller gets the first caller's promise; one fetch.
+- [x] Rule 7 — the lock is released: two sequential empty answers still confirm.
+- [x] Rule 7 — `syncOne` racing `syncAllForProperty` share one run.
+- [x] Rule 7 — a failed sync releases the source.
 
 ### Manual UI verification
 - [ ] « État » cell shows the new error message after a simulated empty feed (dev: point a source at a static empty ICS).
