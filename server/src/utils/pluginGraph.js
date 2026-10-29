@@ -16,8 +16,6 @@
  * one (null when `ok`).
  */
 
-const { satisfies, floorLabel } = require('./semverRange');
-
 const LABELS = Object.freeze({
   inactive: 'inactif',
   missing: 'non installé',
@@ -50,6 +48,8 @@ function createGraph({
   const ids = Object.keys(manifests);
 
   function edge(req) {
+    // Loaded here: the CI script reads the cycles only, and runs with no node_modules.
+    const { satisfies, floorLabel } = require('./semverRange');
     const name = nameOf(req.id);
     const base = { id: req.id, name, range: req.range, installedVersion: versions[req.id] || null };
     if (!installed(req.id)) {

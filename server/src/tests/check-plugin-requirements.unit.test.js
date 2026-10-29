@@ -68,3 +68,44 @@ test('rule 20: the other implicit links stay undeclared — the only edges shipp
   const edges = PLUGIN_CATALOG.flatMap((p) => (p.requires || []).map((r) => `${p.id}>${r.id}`)).sort();
   assert.deepEqual(edges, ['google-vacation-rentals>website-booking', 'weather-alerts>sas']);
 });
+
+test('rule 16: the check reads ranges without a dependency, and agrees with semver on the forms manifests use', async () => {
+  const { satisfiesSimple } = await load();
+  const { satisfies } = require('../utils/semverRange');
+  const cases = [
+    ['1.8.3', '^1.7.1'], ['1.7.1', '^1.7.1'], ['1.7.0', '^1.7.1'], ['2.0.0', '^1.7.1'], ['1.99.9', '^1.0.0'],
+    ['0.3.5', '^0.3.1'], ['0.4.0', '^0.3.1'], ['0.0.3', '^0.0.3'], ['0.0.4', '^0.0.3'],
+    ['3.10.0', '>=3.10.0'], ['3.9.9', '>=3.10.0'], ['4.0.0', '>=3.10.0'],
+  ];
+  cases.forEach(([version, range]) => assert.equal(satisfiesSimple(version, range), satisfies(version, range), `${version} ${range}`));
+  assert.equal(satisfiesSimple('1.0.0', '~1.0.0'), null, 'a form it does not read is said, not guessed');
+});
+
+test('rule 16: a range the check does not read is a violation naming it', async () => {
+  const { requirementViolations } = await load();
+  assert.deepEqual(
+    requirementViolations({ aa: m('aa', '1.0.0', [need('bb', '~1.0.0')]), bb: m('bb', '1.0.1') }),
+    ['aa requires bb with a range this check does not read: ~1.0.0'],
+  );
+});
+
+test('rule 16: the script runs where no node_modules is installed', () => {
+  const { execFileSync } = require('child_process');
+  const os = require('os');
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gf-nodeps-'));
+  fs.mkdirSync(path.join(tmp, 'scripts'));
+  fs.copyFileSync(path.join(ROOT, 'scripts', 'check-plugin-versions.mjs'), path.join(tmp, 'scripts', 'check-plugin-versions.mjs'));
+  fs.cpSync(path.join(ROOT, 'server', 'src', 'utils'), path.join(tmp, 'server', 'src', 'utils'), { recursive: true });
+  fs.mkdirSync(path.join(tmp, 'server', 'src', 'plugins', 'aa'), { recursive: true });
+  fs.writeFileSync(path.join(tmp, 'server', 'src', 'plugins', 'aa', 'manifest.json'), JSON.stringify(m('aa', '1.0.0', [need('aa', '^1.0.0')])));
+  execFileSync('git', ['init', '-q'], { cwd: tmp });
+  let out = '';
+  try {
+    execFileSync('node', ['scripts/check-plugin-versions.mjs', '--base', 'HEAD'], { cwd: tmp, stdio: ['ignore', 'pipe', 'pipe'] });
+  } catch (err) {
+    out = String(err.stderr);
+  }
+  assert.match(out, /aa requires itself/);
+  assert.doesNotMatch(out, /Cannot find module/);
+  fs.rmSync(tmp, { recursive: true, force: true });
+});

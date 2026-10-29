@@ -102,13 +102,30 @@ export function coreRemovals(before, after, { sdkBefore = null, sdkAfter = null 
   return hostRemovals(before, after);
 }
 
+const triple = (v) => String(v).split('-')[0].split('.').map(Number);
+const cmp = (a, b) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
+
+/**
+ * A range check with no dependency (this script runs in CI with no node_modules), for the forms a
+ * manifest's `requires` uses: `^x.y.z` and `>=x.y.z`. → true | false | null (a form it does not read).
+ */
+export function satisfiesSimple(version, range) {
+  const v = triple(version);
+  const m = String(range).trim().match(/^(\^|>=)\s*(\d+\.\d+\.\d+)$/);
+  if (!m || v.length !== 3 || v.some(Number.isNaN)) return null;
+  const floor = triple(m[2]);
+  if (cmp(v, floor) < 0) return false;
+  if (m[1] === '>=') return true;
+  const ceiling = floor[0] > 0 ? [floor[0] + 1, 0, 0] : floor[1] > 0 ? [0, floor[1] + 1, 0] : [0, 0, floor[2] + 1];
+  return cmp(v, ceiling) < 0;
+}
+
 /**
  * Rule 16 — what is wrong with the `requires` of the shipped manifests (id → manifest): a requirement
  * that is not shipped, a plugin requiring itself, a range the shipped version does not satisfy, a
  * cycle. → ['message', …], in English, one per violation.
  */
 export function requirementViolations(manifests) {
-  const { satisfies } = require('../server/src/utils/semverRange');
   const { createGraph } = require('../server/src/utils/pluginGraph');
   const out = [];
   for (const id of Object.keys(manifests).sort()) {
@@ -116,7 +133,8 @@ export function requirementViolations(manifests) {
       const target = manifests[req.id];
       if (req.id === id) out.push(`${id} requires itself`);
       else if (!target) out.push(`${id} requires ${req.id}, which is not shipped`);
-      else if (!satisfies(target.version, req.range)) out.push(`${id} requires ${req.id} ${req.range}, shipped ${target.version}`);
+      else if (satisfiesSimple(target.version, req.range) === null) out.push(`${id} requires ${req.id} with a range this check does not read: ${req.range}`);
+      else if (!satisfiesSimple(target.version, req.range)) out.push(`${id} requires ${req.id} ${req.range}, shipped ${target.version}`);
     }
   }
   createGraph({ manifests }).cycles().filter((cycle) => cycle.length > 1)
