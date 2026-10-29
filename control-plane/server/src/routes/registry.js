@@ -1,4 +1,5 @@
 const express = require('express');
+const { httpError } = require('../utils/httpError');
 
 /**
  * specs/plugins-phase-4-registry.md rules 7–8.
@@ -30,7 +31,12 @@ function registryRoutes(ctx) {
   };
   router.get('/', (req, res) => res.json(ctx.registry.list()));
   router.post('/packages', express.raw({ type: 'application/octet-stream', limit: '50mb' }), async (req, res) => {
-    const name = decodeURIComponent(String(req.get('x-file-name') || ''));
+    let name;
+    try {
+      name = decodeURIComponent(String(req.get('x-file-name') || ''));
+    } catch {
+      throw httpError(400, 'BAD_FILE_NAME', 'Nom de fichier illisible : un paquet s’appelle <plugin>-<version>.tgz.');
+    }
     const row = await ctx.registry.publish(Buffer.isBuffer(req.body) ? req.body : null, name);
     audit(req, `Plugin ${row.id} ${row.version} publié`);
     res.status(201).json(row);

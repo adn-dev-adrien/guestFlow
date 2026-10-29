@@ -460,6 +460,8 @@ below are the recommended ones; each is reversible in a later spec.
     (rule 54 applies the same refusals as an update). Tests: `plugin-switched-off-at-update.unit.test.js`,
     `PluginsSwitchedOffAlert.test.jsx`.
 
+53. **A package file always matches its signed hash, and the index date follows the clock** (audit r4, R4-1, 2026-10-29). `publish` never overwrites: the file is copied to a temporary name and put under `<id>-<version>.tgz` with `link`, which fails when the name exists, so two concurrent uploads of one version leave the first one's bytes, and the loser answers `DUPLICATE_VERSION`. A failed `INSERT` removes only the file this call created; a file with no row (an orphan of an earlier failure) is replaced. Separately, when the last index's `generatedAt` is more than 24 h ahead of the console clock, a warning is logged and the next index is dated now, so one clock fault no longer freezes the registry for days. The bound is the instances' own future tolerance (`FUTURE_TOLERANCE_MS` of `registryClient.js`, shared by the console through `utils/gf.js`): an instance accepts and remembers a date up to 24 h ahead, so a smaller bound would reset the console below a date the instances already hold and they would refuse the next index as stale (review of #869, 2026-10-29); a date beyond 24 h is refused by the instances and never remembered, so resetting it is safe. An `x-file-name` that is not valid percent-encoding answers 400 `BAD_FILE_NAME` (it used to throw a 500). Test: `registry-race.unit.test.js`, `registry-upload-header.unit.test.js`.
+
 ---
 
 ## 4. Architecture

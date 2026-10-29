@@ -596,6 +596,8 @@ every change still writes the journal, the secret still never leaves the server 
     `req.session.user` is refreshed, as on « Mon compte ». Unlike « Mon compte », no notice is sent to the
     old address: there it is only the bootstrap login, never a mailbox the owner reads. Test:
     `onboarding-login-opt-in.unit.test.js`.
+65. **The assistant's answer is truthful when the revoke fails** (added 2026-10-29, audit r4). Once `useAsLogin` has written the email, a failure of `revokeOtherSessionsForUser` is logged and the response still says `loginChanged: true` with the new login (it used to say `false`). Test: `onboarding-login-opt-in.unit.test.js`.
+66. **The support journal labels only real sections** (added 2026-10-29, audit r4, R4-2). The first path segment is looked up with `Object.hasOwn`: `/api/constructor` or `/api/__proto__/12/x` read « Consultation » / « Modification », never a function's source or `undefined`. Test: `support-log-labels-prototype-keys.unit.test.js`.
 
 ---
 

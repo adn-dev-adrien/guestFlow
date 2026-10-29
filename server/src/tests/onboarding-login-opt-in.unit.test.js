@@ -22,13 +22,13 @@ function call(handler, req) {
   });
 }
 
-function onboarding(h) {
+function onboarding(h, sessionsOverride) {
   const db = freshDb();
   applyProductisationSchema(db);
   db.prepare('INSERT INTO app_settings (id) VALUES (1)').run();
   let row = {};
   const settingsModel = { read: () => row, upsert: (p) => { row = { ...row, ...p }; } };
-  return buildController({ database: db, settingsModel, propertiesModel: {}, plugins: { list: (q, r) => r.json([]) }, usersModel: h.users, sessionsModel: sessionsModel.buildModel(h.db), reauthenticate: h.twoFactor.reauthenticateForChange });
+  return buildController({ database: db, settingsModel, propertiesModel: {}, plugins: { list: (q, r) => r.json([]) }, usersModel: h.users, sessionsModel: { ...sessionsModel.buildModel(h.db), ...sessionsOverride }, reauthenticate: h.twoFactor.reauthenticateForChange });
 }
 
 const COMPANY = { name: 'Les Cabanes du Lac', email: 'contact@cabanes-du-lac.fr', phone: '', address: '', siret: '' };
@@ -103,4 +103,24 @@ test('rule 64: without the opt-in no session is touched', async () => {
   h.db.prepare('INSERT INTO sessions (sid, sess, expire) VALUES (?, ?, ?)').run('elsewhere', JSON.stringify({ user: { id: admin.id } }), '2099-01-01');
   await call(onboarding(h).saveCompany, { body: COMPANY, user: admin, session: { user: admin }, sessionID: 'here' });
   assert.equal(h.db.prepare('SELECT COUNT(*) AS n FROM sessions').get().n, 1);
+});
+
+test('rule 65: a failed revoke after the email was written still answers loginChanged: true, and logs it', async () => {
+  const h = setup();
+  const admin = h.addUser(DEFAULT_ADMIN_EMAIL);
+  const ctrl = onboarding(h, { revokeOtherSessionsForUser() { throw new Error('disk I/O error'); } });
+  const logged = [];
+  const error = console.error;
+  console.error = (...args) => logged.push(args.join(' '));
+  try {
+    const session = { user: admin };
+    const res = await call(ctrl.saveCompany, {
+      body: { ...COMPANY, useAsLogin: true, currentPassword: 'correct horse battery' }, user: admin, session, sessionID: 'here',
+    });
+    assert.equal(res.status, 200);
+    assert.deepEqual([res.body.loginEmail, res.body.loginChanged], [COMPANY.email, true]);
+    assert.equal(h.users.findById(admin.id).email, COMPANY.email);
+    assert.equal(session.user.email, COMPANY.email);
+    assert.ok(logged.some((l) => /disk I\/O error/.test(l)), 'the revoke failure is logged');
+  } finally { console.error = error; }
 });

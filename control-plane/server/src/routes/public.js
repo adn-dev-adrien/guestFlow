@@ -7,7 +7,12 @@ const REMEMBER_MS = 90 * 24 * 60 * 60 * 1000;
 
 function readCookie(req, name) {
   const pair = String(req.headers.cookie || '').split(';').map((p) => p.trim()).find((p) => p.startsWith(`${name}=`));
-  return pair ? decodeURIComponent(pair.slice(name.length + 1)) : null;
+  if (!pair) return null;
+  try {
+    return decodeURIComponent(pair.slice(name.length + 1));
+  } catch {
+    return null;
+  }
 }
 
 // The shared login page on `app.<domain>` (specs/control-plane-plans-and-access.md rules 24, 25, 27).

@@ -51,6 +51,18 @@ function coerceEnabled(v) {
   return Boolean(v);
 }
 
+// A subject is a line, a body a letter: past these a text is a paste gone wrong, and every render pays for it.
+const MAX_LENGTHS = { subject: 300, subjectEn: 300, body: 20000, bodyEn: 20000 };
+
+function lengthRefusal(payload) {
+  for (const [field, max] of Object.entries(MAX_LENGTHS)) {
+    if (payload && payload[field] !== undefined && String(payload[field] || '').length > max) {
+      return { field, message: `${max} caractères au plus` };
+    }
+  }
+  return null;
+}
+
 function validateForCreate(payload) {
   const errors = [];
   if (!payload || typeof payload !== 'object') return ['INVALID_PAYLOAD'];
@@ -200,6 +212,8 @@ function buildController(model, settingsModel, deps = {}) {
     req.body = read.body;
     const errors = validateForCreate(req.body);
     if (errors.length > 0) return res.status(400).json({ error: 'INVALID_PAYLOAD', fields: errors });
+    const tooLong = lengthRefusal(req.body);
+    if (tooLong) return res.status(422).json(tooLong);
     const unknown = templateTokenError(req.body);
     if (unknown) return res.status(422).json(unknown);
     const row = model.insert({
@@ -229,6 +243,8 @@ function buildController(model, settingsModel, deps = {}) {
     if (PAYMENT_STABLE_KEYS.includes(existing.stableKey) && String(req.body.sendMode || '').toLowerCase() === 'auto') {
       return res.status(409).json({ error: 'PAYMENT_TEMPLATE_STAYS_MANUAL', message: 'Un email qui demande de l’argent ne part jamais tout seul : il reste en validation manuelle.' });
     }
+    const tooLong = lengthRefusal(req.body);
+    if (tooLong) return res.status(422).json(tooLong);
     const unknown = templateTokenError(req.body);
     if (unknown) return res.status(422).json(unknown);
     const row = model.update(req.params.id, {
