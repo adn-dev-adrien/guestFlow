@@ -225,12 +225,13 @@ async function processPaidLink({ database, devisModel, paymentLinksModel, link, 
   // The day the guest paid, as the provider says, in Paris time — not the day we noticed.
   const paidDate = require('./stayPaymentRecorder').paidDayOf(p.paidAt);
   // A full link paid while the acompte was collected another way: the acompte part is paid twice.
-  const afterDeposit = fullAfterDeposit(database, link);
+  const rebooked = bookIfAmountChanged({ database, link, paidDate, recordPayment });
+  const afterDeposit = rebooked ? null : fullAfterDeposit(database, link);
   if (afterDeposit) (recordPayment || recordOn(database))({ reservationId: afterDeposit.stayId, bucket: 'balance', paidDate });
-  const effect = afterDeposit
-    ? { effect: 'double-payment', duplicateLink: true, duplicateCents: afterDeposit.duplicateCents, reservationId: afterDeposit.stayId, conflict: false }
-    : bookIfAmountChanged({ database, link, paidDate, recordPayment })
-      || applyPaidEffect({ database, devisModel, link, checkConflict, paidDate, recordPayment });
+  const effect = rebooked
+    || (afterDeposit
+      ? { effect: 'double-payment', duplicateLink: true, duplicateCents: afterDeposit.duplicateCents, reservationId: afterDeposit.stayId, conflict: false }
+      : applyPaidEffect({ database, devisModel, link, checkConflict, paidDate, recordPayment }));
   // The link that just paid settles its bucket: every other open link of it is retired now, not at the next poll.
   if (typeof paymentLinksModel.retireSettled === 'function') paymentLinksModel.retireSettled();
   if (effect.effect === 'double-payment') {
@@ -288,9 +289,9 @@ function retryPendingCancellations(deps) {
   return run;
 }
 
-async function retryPendingCancellationsOnce({ paymentLinksModel, provider, notifyPaidAfterCancel, database, devisModel, recordPayment, checkConflict, notifyConflict, emitPluginEvent }) {
+async function retryPendingCancellationsOnce({ only = null, paymentLinksModel, provider, notifyPaidAfterCancel, database, devisModel, recordPayment, checkConflict, notifyConflict, emitPluginEvent }) {
   const results = [];
-  for (const link of paymentLinksModel.listRemoteCancelPending()) {
+  for (const link of paymentLinksModel.listRemoteCancelPending().filter((l) => only == null || Number(l.id) === Number(only))) {
     if (link.provider !== provider.id || !link.providerLinkId) continue;
     try {
       const pay = await provider.getPayment(link.providerLinkId, { origin: 'cancel-link' });
@@ -461,7 +462,10 @@ async function runPaymentPoll({ database, paymentLinksModel, provider, devisMode
   let checked = 0;
   let stoppedBy = null;
 
-  for (const link of pollable) {
+  for (const polled of pollable) {
+    // A payment earlier in this pass may have retired it: the retry of owed deactivations owns it now.
+    const link = paymentLinksModel.findById(polled.id);
+    if (!link || link.status !== 'open') continue;
     checked += 1;
     if (!link.providerLinkId) { results.push({ id: link.id, status: 'skipped-no-remote-id' }); continue; }
     try {

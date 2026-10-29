@@ -17,7 +17,7 @@ const paymentLinksModel = require('../../models/paymentLinksModel');
 const paymentProviders = require('../../utils/paymentProviders');
 const { retireOpenLink } = require('../../utils/paymentLinkDeactivation');
 const { ensurePaymentLink } = require('../../utils/paymentRequestService');
-const { processPaidLink } = require('../../utils/paymentPollRunner');
+const { processPaidLink, retryPendingCancellations } = require('../../utils/paymentPollRunner');
 const { buildPaymentEffectDeps } = require('../../utils/paymentEffectDeps');
 const { fullPaymentCents, fullPaymentComponents } = require('../../utils/devisQuote');
 const { resolvePublicPaymentMode, depositPaymentCents, depositPaymentComponents } = require('../../utils/publicPaymentMode');
@@ -211,6 +211,13 @@ async function status(req, res) {
         return ok(res, { status: 'paid' });
       }
     } catch (e) { /* best-effort — fall through to pending */ }
+  }
+  // A link retired by the stay's own payment may have been paid anyway (the guest still holds its URL).
+  if (provider) {
+    try {
+      const owed = paymentLinksModel.listForReservation(id).filter((l) => l.status === 'cancelled' && l.remoteCancelPendingAt && l.providerLinkId && l.provider === provider.id);
+      for (const l of owed) await retryPendingCancellations({ ...buildPaymentEffectDeps(), provider, only: l.id });
+    } catch (e) { /* best-effort — the poll retries */ }
   }
   return ok(res, { status: 'pending' });
 }

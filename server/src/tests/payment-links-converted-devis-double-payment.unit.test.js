@@ -137,7 +137,50 @@ test('rule 31: a solde link paid after a full link already paid on the stay is a
   assert.equal(s.refunds(), 1);
 });
 
-test('rule 30: listForStay (the installments plan guard's source) sees the converted devis open links', () => {
+test('rule 30: listForStay (the installments plan guard source) sees the converted devis open links', () => {
   const { links, rid, F } = seed();
   assert.deepEqual(links.listForStay(rid).filter((l) => l.status === 'open').map((l) => l.id), [F.id]);
+});
+
+test('rule 33: retryPendingCancellations with `only` settles that link and no other', async () => {
+  const s = seed();
+  const F2 = s.links.create({ reservationId: s.rid, type: 'full', amountCents: 45536, provider: 'qonto', providerLinkId: 'F2', url: 'u2', status: 'open' });
+  await s.pay(F2.id);
+  const seen = [];
+  const provider = { id: 'qonto', async getPayment(id) { seen.push(id); return { paid: true, paymentId: 'x', paidAt: '2027-04-01T12:00:00Z' }; }, async cancelLink() {} };
+  const { results } = await retryPendingCancellations({ ...s.common, provider, only: 999 });
+  assert.deepEqual(results, []);
+  assert.deepEqual(seen, []);
+  const r = await retryPendingCancellations({ ...s.common, provider, only: s.F.id });
+  assert.equal(r.results[0].effect, 'double-payment');
+});
+
+test('rule 34: a link retired during the pass is not overwritten by the provider status', async () => {
+  const s = seed();
+  const F2 = s.links.create({ reservationId: s.rid, type: 'full', amountCents: 45536, provider: 'qonto', providerLinkId: 'F2', url: 'u2', status: 'open' });
+  const { runPaymentPoll } = require('../utils/paymentPollRunner');
+  const provider = {
+    id: 'qonto', async getPayment(pid) {
+      if (pid === 'F2') { await s.pay(F2.id); return { paid: false }; }
+      return { paid: false };
+    },
+    async getLinkStatus() { return 'expired'; }, async cancelLink() {},
+  };
+  const links = s.links;
+  // F is listed first; paying F2 retires it before its turn.
+  const orig = links.listPollable;
+  links.listPollable = (o) => orig(o).sort((a, b) => (a.id === F2.id ? -1 : 1));
+  await runPaymentPoll({ ...s.common, provider, force: true });
+  links.listPollable = orig;
+  assert.equal(links.findById(s.F.id).status, 'cancelled');
+  assert.ok(links.findById(s.F.id).remoteCancelPendingAt);
+});
+
+test('rule 35: a stale full link paid after the acompte still books its shortfall', async () => {
+  const s = seed();
+  s.db.prepare('UPDATE reservations SET depositPaid = 1 WHERE id = ?').run(s.rid);
+  s.db.prepare('UPDATE reservations SET finalPrice = 500, balanceAmount = 400 WHERE id = ?').run(s.rid);
+  const stale = s.links.create({ reservationId: s.rid, type: 'full', amountCents: 45536, provider: 'qonto', providerLinkId: 'S', url: 'us', status: 'open' });
+  const out = await s.payLive(stale.id);
+  assert.notEqual(out.effect, 'double-payment', 'the amount-change booking comes first');
 });

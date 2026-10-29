@@ -379,6 +379,14 @@ Other facts the design rests on:
     link no longer waits for the 8 h poll.
 32. **A payment-link type is an own key (2026-10-29, audit R3-2).** `constructor`, `__proto__` and `toString` are
     refused with the ordinary 400 `INVALID_TYPE` (`Object.hasOwn` on the type maps), never a 502.
+33. **A payment on a retired link is settled at once (2026-10-29, audit R3 review).** The webhook and the public
+    `/status` send a cancelled link that still owes its deactivation through the single-link retry
+    (`retryPendingCancellations({ only })`), so a double payment is flagged when it happens, not at the 8 h poll.
+34. **The poll skips a link retired during the pass (2026-10-29).** `runPaymentPoll` re-reads each link before
+    asking the provider, so a link retired mid-pass keeps its `cancelled` status and its deactivation marker.
+35. **The amount-change booking comes before the full-after-acompte check (2026-10-29).** A stale full link
+    paid after the acompte books what was received (the shortfall reaches the complement) before being tested
+    as a double payment.
 
 ## 4. Architecture
 

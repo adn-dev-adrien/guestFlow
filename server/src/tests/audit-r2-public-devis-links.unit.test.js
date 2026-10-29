@@ -32,6 +32,8 @@ function convertedDevis(stayId, { type = 'full', amountCents = 100 } = {}) {
 }
 const fullCents = (stayId) => { const r = rowOf(stayId); return Math.round((r.depositAmount + r.balanceAmount) * 100); };
 
+// retireSettled is off on purpose: these cases pay two still-open links, the race of two webhooks. The
+// retired-link path is covered by payment-links-converted-devis-double-payment.unit.test.js (payRetired).
 async function pay(link, extra = {}) {
   const calls = [];
   const out = await processPaidLink({

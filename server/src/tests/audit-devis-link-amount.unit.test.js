@@ -31,6 +31,8 @@ function seed({ deposit = 100, balance = 355.36 } = {}) {
 
 const reprice = (db, id, deposit, balance) => db.prepare('UPDATE reservations SET depositAmount = ?, balanceAmount = ?, finalPrice = ? WHERE id = ?').run(deposit, balance, deposit + balance, id);
 
+// retireSettled is off on purpose: these cases pay two still-open links, the race of two webhooks. The
+// retired-link path is covered by payment-links-converted-devis-double-payment.unit.test.js (payRetired).
 async function pay(db, links, link, extra = {}) {
   const alerts = [];
   const confirmations = [];

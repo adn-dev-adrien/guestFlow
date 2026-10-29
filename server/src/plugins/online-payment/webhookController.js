@@ -22,10 +22,11 @@ const { SIGNATURE_HEADER, verifySignature, extractPaymentLinkId } = sdk.coreModu
 /**
  * @param {object} deps { provider, settings? (store), paymentLinksModel?, processPaidLink?, effectDeps? }
  */
-function createWebhookController({ provider, settings, paymentLinksModel, processPaidLink, effectDeps } = {}) {
+function createWebhookController({ provider, settings, paymentLinksModel, processPaidLink, retryPendingCancellations, effectDeps } = {}) {
   const store = () => settings || require('./settingsStore').current();
   const links = () => paymentLinksModel || sdk.coreModule('paymentLinksModel');
   const process = (args) => (processPaidLink || sdk.coreModule('paymentPollRunner').processPaidLink)(args);
+  const retryOne = (args) => (retryPendingCancellations || sdk.coreModule('paymentPollRunner').retryPendingCancellations)(args);
   const deps = () => (effectDeps ? effectDeps() : sdk.coreModule('paymentEffectDeps').buildPaymentEffectDeps());
 
   async function handleWebhook(req, res) {
@@ -50,6 +51,9 @@ function createWebhookController({ provider, settings, paymentLinksModel, proces
       if (link && (link.status === 'open' || link.status === 'expired') && link.providerLinkId) {
         const pay = await provider.getPayment(link.providerLinkId, { origin: 'webhook' });
         if (pay.paid) await process({ ...deps(), link, paidPayment: pay });
+      } else if (link && link.status === 'cancelled' && link.remoteCancelPendingAt && link.providerLinkId) {
+        // Retired by GuestFlow, deactivation still owed: if the guest paid it anyway, settle it now.
+        await retryOne({ ...deps(), provider, only: link.id });
       }
     } catch (err) {
       // Never make Qonto retry on our internal hiccup — the poll fallback will reconcile.

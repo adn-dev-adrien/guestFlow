@@ -27,6 +27,8 @@ function seed({ deposit = 100, balance = 455 } = {}) {
   return { db, id, links: paymentLinksModel.buildModel(db), model: devisModel.buildModel(db) };
 }
 
+// retireSettled is off on purpose: these cases pay two still-open links, the race of two webhooks. The
+// retired-link path is covered by payment-links-converted-devis-double-payment.unit.test.js (payRetired).
 async function pay(db, links, model, link, paidAt = '2027-04-01T10:00:00Z') {
   const alerts = [];
   const confirmations = [];
