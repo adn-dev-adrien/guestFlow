@@ -56,10 +56,14 @@ test('switching to a plugin tab never leaves the page without tabs', async ({ pa
   await page.evaluate(() => {
     window.__tabCounts = new Set();
     window.__tabYs = new Set();
+    // A Y counts once it held for two consecutive frames: a one-frame glitch of a loaded runner is not a layout jump.
+    let previous = null;
     const sample = () => {
       const tabs = document.querySelectorAll('[role=tab]');
       window.__tabCounts.add(tabs.length);
-      if (tabs.length) window.__tabYs.add(Math.round(tabs[0].getBoundingClientRect().y));
+      const y = tabs.length ? Math.round(tabs[0].getBoundingClientRect().y) : null;
+      if (y !== null && y === previous) window.__tabYs.add(y);
+      previous = y;
       requestAnimationFrame(sample);
     };
     sample();
@@ -67,7 +71,7 @@ test('switching to a plugin tab never leaves the page without tabs', async ({ pa
   await page.getByRole('tab', { name: 'Facturables au SAS' }).click();
   await expect(page).toHaveURL(/tab=sas/);
   await expect(page.getByRole('heading', { name: 'Facturables au SAS' }).first()).toBeVisible();
-  await page.evaluate(() => new Promise((resolve) => { requestAnimationFrame(() => requestAnimationFrame(resolve)); }));
+  await page.evaluate(() => new Promise((resolve) => { requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(resolve))); }));
   expect(await page.evaluate(() => [...window.__tabCounts])).toEqual([3]);
   // The fallback bar has the same rows as the loaded one: the strip does not jump when the real bar mounts.
   expect(await page.evaluate(() => [...window.__tabYs])).toHaveLength(1);

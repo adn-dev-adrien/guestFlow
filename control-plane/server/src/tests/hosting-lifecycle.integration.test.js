@@ -37,6 +37,7 @@ async function version(port) {
 
 test('integration — create, answer, stop, restart, update and roll back, back up and restore, erase', { timeout: 170000 }, async () => {
   const base = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-h1-'));
+  fs.chownSync(base, process.getuid(), process.getgid());
   const instancesRoot = path.join(base, 'instances');
   const releasesDir = path.join(base, 'releases');
   const dataDir = path.join(base, 'console');

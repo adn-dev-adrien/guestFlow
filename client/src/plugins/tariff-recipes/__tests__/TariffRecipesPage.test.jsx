@@ -76,8 +76,7 @@ test('expanding a recipe fetches and shows its document', async () => {
   });
   api.getTariffRecipe.mockResolvedValue({ recipe: { id: 'r', seasons: [{ key: 'low' }] } });
   renderPage();
-  await waitFor(() => expect(api.getTariffRecipes).toHaveBeenCalled());
-  fireEvent.click(screen.getByLabelText('Document r'));
+  fireEvent.click(await screen.findByLabelText('Document r'));
   await waitFor(() => expect(api.getTariffRecipe).toHaveBeenCalledWith('r'));
   await waitFor(() => expect(screen.getByText(/"key": "low"/)).toBeInTheDocument());
 });

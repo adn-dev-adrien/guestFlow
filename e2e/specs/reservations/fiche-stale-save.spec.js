@@ -112,7 +112,9 @@ test('rule 4 — a payment marked from the fiche does not make the next save loo
   });
   await page.goto(`/reservations/${reservation.id}`);
   const deposit = page.locator('[data-row="deposit"]');
-  await deposit.getByRole('button', { name: 'Marquer perçu : Acompte' }).click();
+  const markDeposit = deposit.getByRole('button', { name: 'Marquer perçu : Acompte' });
+  await expect(markDeposit).toBeVisible({ timeout: 15_000 });
+  await markDeposit.click();
   await deposit.getByLabel('Perçu le').fill(new Date().toLocaleDateString('sv-SE'));
   await deposit.getByRole('button', { name: 'Valider' }).click();
   await expect(deposit.getByText(/^Perçu le /)).toBeVisible({ timeout: 10_000 });

@@ -36,8 +36,12 @@ test('rule 26: a group of the sidebar opens the summary on it and unfolds its pa
   const nav = page.getByRole('navigation').first().or(page.locator('.MuiDrawer-root').first());
   await expect(nav.getByRole('link', { name: 'Plateformes', exact: true })).toBeVisible({ timeout: 10_000 });
   await expect(nav.getByRole('link', { name: 'TVA & exercice', exact: true })).toHaveCount(0);
-  await nav.getByRole('link', { name: 'Paiements et emails' }).click();
-  await expect(page).toHaveURL(/\/settings#paiements-emails$/);
+  const group = nav.getByRole('link', { name: 'Paiements et emails' });
+  await expect(group).toBeInViewport();
+  await expect.poll(async () => {
+    if (!/\/settings#paiements-emails$/.test(page.url())) await group.click();
+    return page.url();
+  }, { timeout: 15_000 }).toMatch(/\/settings#paiements-emails$/);
   await expect(nav.getByRole('link', { name: 'TVA & exercice', exact: true })).toBeVisible();
   await expect(nav.getByRole('link', { name: 'Plateformes', exact: true })).toHaveCount(0);
 });

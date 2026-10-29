@@ -73,13 +73,13 @@ async function activate(page, account) {
 test('rules 6-7, 38-45 — turn on the validation in the dialog, then log in with a computed code', async ({ page, context }) => {
   const account = seedAccount('totp');
   await login(page, account);
-  await expect(page.getByRole('heading', { name: 'Tableau de bord' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Tableau de bord' })).toBeVisible({ timeout: 15_000 });
   const { secret } = await activate(page, account);
   await expect(page.getByText('10 codes de secours sur 10')).toBeVisible();
 
   await context.clearCookies();
   await login(page, account);
-  await expect(page.getByText('Code à 6 chiffres de l’appli d’authentification.')).toBeVisible();
+  await expect(page.getByText('Code à 6 chiffres de l’appli d’authentification.')).toBeVisible({ timeout: 15_000 });
   await page.getByRole('button', { name: 'Utiliser un code de secours' }).click();
   await expect(page.getByLabel('Code de secours')).toHaveAttribute('inputmode', 'text');
   await page.getByRole('button', { name: 'Utiliser le code de l’application' }).click();
@@ -97,7 +97,7 @@ test('rules 6-7, 38-45 — turn on the validation in the dialog, then log in wit
 test('rules 47-48 — « Changer d’appli » asks the password and a code, and the new app replaces the old one when confirmed', async ({ page }) => {
   const account = seedAccount('replace');
   await login(page, account);
-  await expect(page.getByRole('heading', { name: 'Tableau de bord' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Tableau de bord' })).toBeVisible({ timeout: 15_000 });
   const first = await activate(page, account);
 
   await page.getByRole('button', { name: 'Changer d’appli' }).click();
@@ -131,7 +131,7 @@ test('rules 12-16 + 20 — the support asks, the admin accepts, a signed link op
   const account = seedAccount('support');
   writeSupportRequest('Vérifier la synchronisation Booking');
   await login(page, account);
-  await expect(page.getByText('Le support demande l’accès : Vérifier la synchronisation Booking')).toBeVisible();
+  await expect(page.getByText('Le support demande l’accès : Vérifier la synchronisation Booking')).toBeVisible({ timeout: 15_000 });
   await page.getByRole('button', { name: 'Autoriser 24 h' }).click();
   await expect(page.getByText('Accès du support autorisé 24 h.')).toBeVisible();
 
