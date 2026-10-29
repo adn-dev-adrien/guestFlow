@@ -150,6 +150,7 @@ final class GF_Blocks
                 'confirmingPayment' => __('Confirmation de votre paiement en cours…', 'guestflow-booking'),
                 'paymentConfirmed' => __('Paiement confirmé — votre réservation est validée !', 'guestflow-booking'),
                 'paymentPending'  => __('Paiement en attente. Si vous venez de payer, patientez quelques instants.', 'guestflow-booking'),
+                'paymentCancelled' => __('Cette réservation est annulée.', 'guestflow-booking'),
                 'paymentConflict' => __('Paiement reçu et réservation enregistrée. Nous revenons vers vous très vite pour confirmer les détails.', 'guestflow-booking'),
                 'stayRecap'       => __('Votre séjour', 'guestflow-booking'),
                 // Online-deposit flow (specs/public-online-deposit.md)

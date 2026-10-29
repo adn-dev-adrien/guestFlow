@@ -268,6 +268,11 @@ remaining the single source of truth for prices, availability, and validation.
   transient cache, so no duplicate upstream calls within the TTL.
 
 32. **Format characters are stripped from names** (audit R2 external N2, 2026-10-29). U+202A–202E, U+2066–2069, zero-width space, BOM and other `\p{Cf}` characters are removed from a public guest name, from the stored client name (`personNameCase`) from operator mail lines and from the iCal placeholder clients (`resolveIcalClientIdentity`); the joiners U+200C/U+200D stay for Persian and Indic names. Test: `website-booking/tests/guest-email-linear.unit.test.js`.
+33. **The payment return page stops on a cancelled stay** (2026-10-29, plugin 1.18.1,
+    [public-online-payment.md](public-online-payment.md) rule 16). When the status answers `cancelled`
+    (the stay the request became was cancelled), the block stops polling and reads « Cette réservation
+    est annulée. » (`paymentCancelled`, English « This booking has been cancelled. »). Against a
+    GuestFlow that never answers `cancelled` nothing changes.
 
 ---
 

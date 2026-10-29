@@ -64,6 +64,17 @@ function resolveRequestType(row, requested = null) {
   return Number((row && row.depositAmount) || 0) > 0 ? 'deposit' : 'full';
 }
 
+const PAID_FLAGS = { deposit: ['depositPaid'], balance: ['balancePaid'], full: ['depositPaid', 'balancePaid'] };
+// The paid flags are read from the database, and from the stay a devis became (its own flags stay 0 after
+// the conversion). Read again after a provider round trip: the bucket may have been collected meanwhile.
+function assertBucketOpen(database, id, type) {
+  const own = database.prepare('SELECT depositPaid, balancePaid, convertedReservationId FROM reservations WHERE id = ?').get(id) || {};
+  const stay = own.convertedReservationId
+    ? database.prepare('SELECT depositPaid, balancePaid FROM reservations WHERE id = ?').get(own.convertedReservationId) : null;
+  const paid = PAID_FLAGS[type].some((flag) => Number(own[flag] || 0) === 1 || Number(stay && stay[flag] || 0) === 1);
+  if (paid) throw { httpStatus: 409, error: 'ALREADY_PAID', message: 'Cette échéance est déjà perçue : aucun lien à créer.' };
+}
+
 // Resolve a usable payment link for (reservation, type): reuse the current open one or create it.
 //   deps: { database, paymentLinksModel, resolveAmountCents, provider (utils/paymentProviders),
 //           resolveItems?(id, type, row) → { components, vatRatePercent } | null, deactivateLinks?(links) }
@@ -92,9 +103,7 @@ async function mintPaymentLink(deps, id, type) {
   if (closed) throw { httpStatus: closed.status, error: closed.body.code, message: closed.body.error };
   // An échéance already collected is never billed twice (fixed at the 2026-10-27 spec review): the link
   // of a paid acompte or solde — or a full payment once either is in — is refused before any provider call.
-  const paidBucket = { deposit: ['depositPaid'], balance: ['balancePaid'], full: ['depositPaid', 'balancePaid'] }[type]
-    .some((flag) => Number(r[flag] || 0) === 1);
-  if (paidBucket) throw { httpStatus: 409, error: 'ALREADY_PAID', message: 'Cette échéance est déjà perçue : aucun lien à créer.' };
+  assertBucketOpen(database, id, type);
   const amountCents = resolveAmountCents(id, type, r);
   if (amountCents <= 0) throw { httpStatus: 400, error: 'ZERO_AMOUNT', message: 'Montant nul pour ce type : devis ou réservation à vérifier.' };
 
@@ -107,8 +116,8 @@ async function mintPaymentLink(deps, id, type) {
     if (Number(existing.amountCents) === Number(amountCents)) {
       return { id: existing.id, type, amountCents: existing.amountCents, url: existing.url, status: existing.status, providerLinkId: existing.providerLinkId, reused: true };
     }
-    await require('./paymentLinkDeactivation').assertNotPaid(existing, provider);
-    await deactivateLinks([paymentLinksModel.updateStatus(existing.id, 'cancelled')]);
+    await require('./paymentLinkDeactivation').retireOpenLink(existing, { paymentLinksModel, provider, deactivate: deactivateLinks });
+    assertBucketOpen(database, id, type);
   }
 
   // Build the VAT basket when the caller can split the amount; only trust it when the components sum to
@@ -134,6 +143,19 @@ async function mintPaymentLink(deps, id, type) {
   }
   if (deps.redirectUrl) linkArgs.redirectUrl = deps.redirectUrl;
   const link = await provider.createLink(linkArgs, { origin: deps.origin || 'manual-link' });
+  // An acompte link and a full link settle the same acompte: only one of them stays payable. The other is
+  // retired once the new one exists, so a refused or failed mint never cancels a valid link.
+  const otherType = { deposit: 'full', full: 'deposit' }[type];
+  const otherOpen = otherType ? paymentLinksModel.findOpenForReservation(id, otherType) : null;
+  if (otherOpen && otherOpen.url) {
+    try {
+      await require('./paymentLinkDeactivation').retireOpenLink(otherOpen, { paymentLinksModel, provider, deactivate: deactivateLinks });
+      assertBucketOpen(database, id, type);
+    } catch (refusal) {
+      try { await provider.cancelLink(link.id); } catch { /* nothing references it: at worst a stray link */ }
+      throw refusal;
+    }
+  }
   const row = paymentLinksModel.create({
     reservationId: id, type, amountCents,
     provider: provider.id, providerLinkId: link.id, url: link.url, status: link.status, expiresAt: link.expiresAt || null,
@@ -182,8 +204,7 @@ async function mintInstallmentLink(deps, id, installmentId) {
     if (Number(existing.amountCents) === amountCents) {
       return { id: existing.id, type: 'installment', amountCents, url: existing.url, status: existing.status, providerLinkId: existing.providerLinkId, reused: true };
     }
-    await require('./paymentLinkDeactivation').assertNotPaid(existing, provider);
-    await deactivateLinks([paymentLinksModel.updateStatus(existing.id, 'cancelled')]);
+    await require('./paymentLinkDeactivation').retireOpenLink(existing, { paymentLinksModel, provider, deactivate: deactivateLinks });
   }
 
   const plan = installmentsModel.listFor(id);
