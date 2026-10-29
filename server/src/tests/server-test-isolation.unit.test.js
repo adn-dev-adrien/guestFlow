@@ -43,3 +43,12 @@ test('rule 2: opening the default path (or its wal / shm) throws, :memory: and t
   `);
   assert.deepEqual(out, { def: 'blocked', wal: 'blocked', memory: 'opened', temp: 'opened' });
 });
+
+test('rule 1: the temp folder is removed when the process exits', () => {
+  const out = inChild(`
+    const Database = require('better-sqlite3');
+    new Database(process.env.DB_PATH).close();
+    console.log(JSON.stringify(require('path').dirname(process.env.DB_PATH)));
+  `);
+  assert.equal(require('fs').existsSync(out), false);
+});

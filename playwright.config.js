@@ -2,6 +2,7 @@
 const { defineConfig, devices } = require('@playwright/test');
 const path = require('path');
 const { CLIENT_PORT, CLIENT_URL, SERVER_PORT } = require('./e2e/clientUrl');
+const { PROJECTS } = require('./e2e/projects');
 const { OUTBOX, SUPPORT_PUBLIC_KEY } = require('./e2e/fixtures/accountSecurity');
 
 // E2E configuration for the smoke suite (specs/e2e-playwright-smoke-suite.md §3 + §4).
@@ -31,12 +32,6 @@ const E2E_ENCRYPTION_KEY = 'ZTJlZml4ZWRlbmNyeXB0aW9ua2V5MTIzNDU2Nzg5MGE='; // ba
 process.env.TZ = 'Europe/Paris';
 
 const isCI = Boolean(process.env.CI);
-
-// Specs that rewrite the global VAT regime / rate, in the order they run (see the projects below).
-// The laundry-days spec rewrites the global laundry schedule (Tuesday + Thursday for a while): a spec that
-// places an extra trip on a « free » Thursday (laundry-extra-trip) would be refused if it ran meanwhile.
-const LAUNDRY_SCHEDULE_SPEC = /laundry-days\.spec\.js$/;
-const VAT_STATE_SPECS = [/vat-regime-switch\.spec\.js$/, /vat-franchise\.spec\.js$/, /vat-roundtrip\.spec\.js$/];
 
 module.exports = defineConfig({
   testDir: path.join(__dirname, 'e2e', 'specs'),
@@ -110,45 +105,5 @@ module.exports = defineConfig({
       stderr: 'pipe',
     },
   ],
-  projects: [
-    {
-      name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
-      // The bank reconciliation spec seeds a stored Qonto connection into the shared database: it runs in
-      // its own project, after the others, so it never overlaps a spec that expects Qonto to be absent.
-      // The three VAT specs rewrite the global VAT regime and rate (specs/vat-optional-mode.md): they run
-      // one after the other, once everything else is done, so no spec ever reads a regime in flux.
-      testIgnore: [/reconciliation-assisted-matching\.spec\.js$/, LAUNDRY_SCHEDULE_SPEC, ...VAT_STATE_SPECS],
-    },
-    {
-      name: 'bank-reconciliation',
-      use: { ...devices['Desktop Chrome'] },
-      testMatch: /reconciliation-assisted-matching\.spec\.js$/,
-      dependencies: ['chromium'],
-    },
-    {
-      name: 'laundry-schedule',
-      use: { ...devices['Desktop Chrome'] },
-      testMatch: LAUNDRY_SCHEDULE_SPEC,
-      dependencies: ['chromium'],
-    },
-    {
-      name: 'vat-regime',
-      use: { ...devices['Desktop Chrome'] },
-      testMatch: VAT_STATE_SPECS[0],
-      dependencies: ['chromium'],
-    },
-    {
-      name: 'vat-franchise',
-      use: { ...devices['Desktop Chrome'] },
-      testMatch: VAT_STATE_SPECS[1],
-      dependencies: ['vat-regime'],
-    },
-    {
-      name: 'vat-rate',
-      use: { ...devices['Desktop Chrome'] },
-      testMatch: VAT_STATE_SPECS[2],
-      dependencies: ['vat-franchise'],
-    },
-  ],
+  projects: PROJECTS.map((project) => ({ ...project, use: { ...devices['Desktop Chrome'] } })),
 });

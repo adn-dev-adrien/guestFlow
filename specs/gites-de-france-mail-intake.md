@@ -44,7 +44,7 @@ Gîte 309700 | Domaine Solio
 du 13/11/2026 à partir de 16h00      au 15/11/2026 avant 10h00 (2 nuits)
 Réservation effectuée par : RENARD Lucie
 8 adultes, 2 enfants et 2 bébés      Pas de chien, pas de chat
-lucie.roux@example.com                 0743338633
+lucie.renard@example.com                 0700000001
 Détail des suppléments    Forfait ménage ( 1 ) x 1    80.00 €
 Montant net de la location 454.00 €  Total des options 80.00 €   Total net : 534.00 €
 une taxe de séjour d'un montant de 19.20 € … Nous la reverserons directement à votre mairie
@@ -97,7 +97,7 @@ choice in one click.
 5. **Internal consistency is checked before anything else:** net location + total options = total net,
    and the sum of supplement lines = total options, to the cent. A mismatch → `status = error`, nothing
    applied.
-6. Phone normalised to the French spaced form (`0743338633` → `07 00 00 00 01`); name in title case
+6. Phone normalised to the French spaced form (`0700000001` → `07 00 00 00 01`); name in title case
    (`RENARD Lucie` → Lucie Renard); e-mail language `fr`.
 
 ### 3.3 The gross rent — the one figure the mail does not give

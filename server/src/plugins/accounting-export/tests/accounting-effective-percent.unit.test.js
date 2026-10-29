@@ -271,7 +271,7 @@ test('BRUT convention (Daniel Nicolas) — the entered deposit/balance is the cl
   // that stored amount; the « net perçu » (owner take = the fiche summary Acompte/Solde line) =
   // gross − the échéance commission. Damien's guest pays 126,38 per échéance (= Adrien's 122,97 net
   // take + 3,41 Lodgify commission), split evenly deposit = balance → CA 126,38 / net 122,97 each.
-  // This is the SAME convention as Thomas (deposit = gross): it locks that a per-échéance-commission
+  // This is the SAME convention as Berg (deposit = gross): it locks that a per-échéance-commission
   // reservation entered as gross never gets its CA grossed a second time.
   const db = createDb();
   insertThomas(db, {

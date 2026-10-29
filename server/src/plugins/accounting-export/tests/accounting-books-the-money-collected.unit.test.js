@@ -41,13 +41,13 @@ function perLine({ options = 0, resources = 0, destinations }) {
   return { hasContribs: false, optionsTtc: options, resourcesTtc: resources, destinations };
 }
 
-// ── Carrier #22275 — a bain nordique sold DURING the stay ───────────────────────────────────────────
+// ── Marchand #22275 — a bain nordique sold DURING the stay ───────────────────────────────────────────
 // Abracadaroom bills 720,82 and wires 573,77 (147,05 of commission). The stay also collects a 132 €
 // arrival complement and a 30 € checkout complement. The 30 € used to be missing from the gross-up
 // denominator, inflating every entry by 3,5 %: the solde debited the client 599,24 € against a 573,77 €
 // transfer, and credited 113,63 € HT of extras it had not collected.
-const CARRIER = baseRow({
-  id: 22275, lastName: 'Carrier', platform: 'Abracadaroom',
+const MARCHAND = baseRow({
+  id: 22275, lastName: 'Marchand', platform: 'Abracadaroom',
   finalPrice: 865.82, totalPrice: 865.82, touristTaxTotal: 13.05,
   balanceAmount: 720.82, balancePaid: 1, balancePaidDate: '2026-08-10',
   complementAmount: 132, complementPaid: 1, complementPaidDate: '2026-08-19',
@@ -55,18 +55,18 @@ const CARRIER = baseRow({
   endOfStayComplementAmount: 30,
   platformCommissionAmount: 147.05,
 });
-const CARRIER_LINES = perLine({
+const MARCHAND_LINES = perLine({
   options: 115, resources: 30,
   destinations: { preArrivalOptions: 0, preArrivalResources: 0, complementOptions: 115, complementResources: 0 },
 });
 
-test('Carrier: the solde debits the client the exact transfer and credits accommodation only', () => {
-  const entry = buildEntry(CARRIER, 'balance', CARRIER_LINES, COMMISSION_CONTEXT, { collectedOnArrival: true });
+test('Marchand: the solde debits the client the exact transfer and credits accommodation only', () => {
+  const entry = buildEntry(MARCHAND, 'balance', MARCHAND_LINES, COMMISSION_CONTEXT, { collectedOnArrival: true });
   assert.equal(round2(entry.encaissementTtc), 720.82, 'no gross-up: the stored solde IS the money');
   assert.equal(round2(entry.encaissementNetTtc), 573.77, 'the Abracadaroom transfer, to the cent');
 
   const rows = rowsByAccount(entry);
-  assert.equal(round2(rows.get('CCARRIE').debit), 573.77);
+  assert.equal(round2(rows.get('CMARCHA').debit), 573.77);
   assert.equal(round2(rows.get('622600').debit), 147.05);
   assert.equal(round2(rows.get('70600000').credit), 655.29, 'accommodation HT');
   assert.equal(round2(rows.get('44571100').credit), 65.53);
@@ -74,18 +74,18 @@ test('Carrier: the solde debits the client the exact transfer and credits accomm
   assert.ok(!rows.has('70601000'), 'the checkout extras are NOT credited here');
 });
 
-test('Carrier: the arrival complement keeps the ventilation the fiche stored', () => {
-  const entry = buildEntry(CARRIER, 'complement', CARRIER_LINES, COMMISSION_CONTEXT, { collectedOnArrival: true });
+test('Marchand: the arrival complement keeps the ventilation the fiche stored', () => {
+  const entry = buildEntry(MARCHAND, 'complement', MARCHAND_LINES, COMMISSION_CONTEXT, { collectedOnArrival: true });
   const rows = rowsByAccount(entry);
-  assert.equal(round2(rows.get('CCARRIE').debit), 132, 'the amount announced to the guest');
+  assert.equal(round2(rows.get('CMARCHA').debit), 132, 'the amount announced to the guest');
   assert.equal(round2(rows.get('70600010').credit), 108.14);
   assert.equal(round2(rows.get('46710000').credit), 13.05, 'tourist tax on the pass-through');
   assert.ok(!rows.has('70600000'), 'a complement never credits accommodation');
 });
 
-test('Carrier: the bain nordique sold mid-stay is booked as a resource, not a prestation', () => {
+test('Marchand: the bain nordique sold mid-stay is booked as a resource, not a prestation', () => {
   const entry = buildEndOfStayEntry({
-    ...CARRIER,
+    ...MARCHAND,
     endOfStayComplementPaidDate: '2026-08-22',
     endOfStayComplementDetail: '[{"label":"Bain nordique","amount":30,"source":"midStayExtra","key":"res:2"}]',
   }, 10);
@@ -98,7 +98,7 @@ test('Carrier: the bain nordique sold mid-stay is booked as a resource, not a pr
 test('an end-of-stay complement without mid-stay lines stays on the prestations account', () => {
   // The departure SAS's own lines (ménage, linge manquant) are services, not resources.
   const entry = buildEndOfStayEntry({
-    ...CARRIER,
+    ...MARCHAND,
     endOfStayComplementAmount: 45,
     endOfStayComplementDetail: '[{"label":"Ménage","amount":45}]',
   }, 10);

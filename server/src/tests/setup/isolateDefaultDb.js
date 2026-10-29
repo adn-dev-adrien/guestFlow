@@ -10,7 +10,9 @@ const path = require('path');
 
 const DEFAULT_DB = path.resolve(__dirname, '..', '..', '..', 'guestflow.db');
 
-process.env.DB_PATH = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'gf-test-')), 'guestflow.db');
+const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gf-test-'));
+process.env.DB_PATH = path.join(tempDir, 'guestflow.db');
+process.on('exit', () => { try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch { /* already gone */ } });
 delete process.env.PERSISTENT_DB;
 
 const isForbidden = (file) => {

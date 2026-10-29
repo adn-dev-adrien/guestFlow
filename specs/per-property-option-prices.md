@@ -71,9 +71,12 @@ option's base price is used, exactly as today.
     option unit price it **displays** now matches the per-property price the engine computes — previously
     it fell back to `GET /options` (the base price), so the displayed unit price could disagree with the
     quoted line total.
-11. **Options list shows the overrides (2026-06-20).** On the Options page list, the « Prix » cell shows
-    the base price plus one line per property that overrides it (« Logement : X € »), via a generic
-    `renderPriceCell` slot on `PricedItemsPage`.
+11. **Options list shows the overrides (2026-06-20; rewritten 2026-10-28).** The Options catalogue row
+    (`OptionRow`, fed by `GET /api/options/catalogue-view`, `specs/options-resources-ux.md` rule 9) shows one
+    server-computed price summary: the single price when every logement shares it, « min – max » with the
+    note « selon logement » when the overrides differ (an override at 0 counts). The slot
+    `renderPriceCell` of the former `PricedItemsPage` no longer exists. Pinned by
+    `options-catalogue-view.unit.test.js` and `OptionRow.dom-nesting.test.jsx`.
 12. **The phone card stays valid HTML (fixed at the 2026-10-27 spec review).** On `xs` the price of
     an option's card — the block of rule 11 when an option has overrides (now `OptionRow`, which
     replaced `PricedItemsPage`) — and its caption line render without a block inside a `<p>`: React

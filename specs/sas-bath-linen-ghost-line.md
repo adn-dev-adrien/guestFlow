@@ -12,7 +12,7 @@
 
 ## 1. Context
 
-Reported in production on reservation #10 (Chloé Vallée, 01→15/08/2026): « Linge de toilette » is
+Reported in production on reservation #10 (Clémence Vernet, 01→15/08/2026): « Linge de toilette » is
 billed **twice** in the « Complément de fin de séjour » card while the fiche carries the option only
 once.
 

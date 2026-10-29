@@ -130,6 +130,9 @@ or mutable state.
     laundry schedule) are each their own Playwright project, run after the main `chromium` project (the VAT
     ones one after the other) so that a spec reading « TVA 10 % » or placing an extra trip on a free Thursday
     never meets a state in flux. `vat-roundtrip` puts the rate back to 10 % when done.
+    The layout lives in `e2e/projects.js` (no dependency, so a server unit test reads it). The serial projects
+    must depend on `chromium`: a dependency is the only way Playwright orders projects, so a failure of the main
+    project skips them.
 
 ### 3.4 Test coverage — one or more specs per implemented `/specs/` feature
 

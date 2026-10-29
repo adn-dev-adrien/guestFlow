@@ -13,7 +13,7 @@
 ## 1. Context
 
 Coherence audit of the whole dev copy of prod (7 months, 40 entries), run 2026-08-24 while checking
-réservation #22275 (Julie Carrier, Abracadaroom). The structure is sound — every entry balances, no
+réservation #22275 (Jade Marchand, Abracadaroom). The structure is sound — every entry balances, no
 negative line, no collected money missing from the export — but **the amounts on three quarters of the
 entries are not the money that moved**.
 
@@ -26,14 +26,14 @@ Two independent defects, both in `accountingModel.buildEntry`.
 schedule shapes (the « solde = net » era and the `clientGrossAmount` era). Its own comment states the
 ratio « is 1 for every reservation written by the current engine ». That is false in two situations:
 
-- **A stay with a mid-stay / end-of-stay complement.** The bain nordique sold during Carrier's stay
+- **A stay with a mid-stay / end-of-stay complement.** The bain nordique sold during Marchand's stay
   (30 €) is revenue inside `finalPrice`, but its amount is carved *out* of the three échéances. The
   denominator is therefore 30 € short and every entry of that reservation is inflated by 3,5 %.
 - **A stay whose stored schedule drifted from the total** (a fiche edited after collection). Nicolas
   #22226 has a schedule 28 € above its total, Van Berg #22224 21 € above: their entries are
   *deflated* by 9 % and 12 %.
 
-Measured consequence on Carrier, once the money is marked collected (simulated on a throwaway copy):
+Measured consequence on Marchand, once the money is marked collected (simulated on a throwaway copy):
 
 | | Reality | Books today |
 |---|---|---|
@@ -52,7 +52,7 @@ the export (correct) but re-injected into the solde entry by the ratio (wrong).
 
 In the stored-money path each entry credits *the whole reservation's* buckets scaled by
 `fraction = revenue / finalPrice`. So the solde entry credits a share of option and resource revenue it
-did not collect, and the complement entry credits a share of accommodation. On Carrier's solde — which
+did not collect, and the complement entry credits a share of accommodation. On Marchand's solde — which
 collects pure accommodation — the books credit 90,12 € of « prestations » and 23,51 € of « activités »
 that belong to the arrival complement and to the checkout.
 
@@ -108,7 +108,7 @@ options and resources appear once, at their real amount, only when they were rea
    - the mid-stay share → **complément de fin de séjour**.
 6. **Acompte and solde** credit `[hébergement, options pré-arrivée, ressources pré-arrivée]`, pro-rated
    by that encaissement's share of the pre-arrival revenue. Hébergement = `finalPrice − toutes les
-   options − toutes les ressources`. On Carrier every extra is in the complement, so the solde credits
+   options − toutes les ressources`. On Marchand every extra is in the complement, so the solde credits
    pure accommodation — 655,29 € HT + 65,53 € de TVA, and nothing else.
 7. **The arrival complement** credits `[options complément, ressources complément]` plus the tourist tax
    on 46710000. No accommodation, ever. When the operator adjusted the complement, the fiche's stored
@@ -116,7 +116,7 @@ options and resources appear once, at their real amount, only when they were rea
 8. **The complément de fin de séjour is ventilated by line**, from its stored detail: a line keyed
    `res:*` credits the resources account (70601000), everything else — SAS lines (ménage, linge
    manquant) included — credits the options account (70600010). Today the whole amount lands on the
-   options account, so Carrier's bain nordique was booked as a prestation.
+   options account, so Marchand's bain nordique was booked as a prestation.
 9. **Options and resources keep their own accounts** (decision 2026-08-24): 70600010 « prestations
    complémentaires » and 70601000 « activités diverses » stay separate, with corrected amounts. The
    « one line » Adrien asked for is one line **per nature**, carrying the real total.
@@ -211,7 +211,7 @@ options and resources appear once, at their real amount, only when they were rea
 | `utils/` | `accountingExport.js` | — | (none) — the row layout, the accounts and the residue absorption are unchanged. |
 | `constants/` | `accounting.js` | — | (none) — same chart of accounts (rule 9). |
 | `database.js` | — | — | (none) — no schema change, no migration. |
-| `tests/` | `accounting-books-the-money-collected.unit.test.js` | C | The five measured reservations as regressions: Carrier (ratio 1 + pure-accommodation solde + resource on 70601000), Fabre (cash complement stays out), Nicolas (drift → the bank amount), Perrin (legacy gross-up preserved), and a mid-stay-free control. |
+| `tests/` | `accounting-books-the-money-collected.unit.test.js` | C | The five measured reservations as regressions: Marchand (ratio 1 + pure-accommodation solde + resource on 70601000), Fabre (cash complement stays out), Nicolas (drift → the bank amount), Perrin (legacy gross-up preserved), and a mid-stay-free control. |
 | `tests/` | `accounting-gross-up-ignores-contribs.unit.test.js` | C | Rule 12: #13's shape with and without contribs books the same entry at 10 % VAT; a ratio-1 entry keeps its contribs; end to end through the payment controller. |
 | `plugins/accounting-export/` | `accountingModel.js` | T | Rule 13: `computeTaxTtcForKind` books the solde's frozen tax and the later rise on the complement. Rule 14: `buildInstallmentEntry` books the stored `paidSplit`. |
 | `utils/` | `installmentPaidSplit.js` (C), `installmentPayment.js` | C/T | Rule 14: the split computed and stored when an installment is collected. |
@@ -247,7 +247,7 @@ become the money that actually moved. No new string, no responsive impact, no ac
 ## 7. Test plan
 
 ### Server unit tests
-- [x] `accounting-books-the-money-collected.unit.test.js` (9, new) — Carrier: ratio 1, client debit
+- [x] `accounting-books-the-money-collected.unit.test.js` (9, new) — Marchand: ratio 1, client debit
       573,77 €, solde crediting accommodation only, bain nordique on 70601000, complement carrying the
       fiche's ventilation; Fabre: the 6,50 € cash complement never reaches the books; Nicolas: the
       drifted schedule books the 126,38 € actually banked; Perrin: the legacy gross-up still books
@@ -272,7 +272,7 @@ become the money that actually moved. No new string, no responsive impact, no ac
       the money actually collected** (7 before the fix, all real). The 5 rows still flagged as
       « commission ≠ fiche » are the legacy `clientGrossAmount` shape, where the commission is derived
       rather than entered: expected, not a defect.
-- [x] Carrier replayed end to end on a throwaway copy: client debits 735,77 € = the money that moves
+- [x] Marchand replayed end to end on a throwaway copy: client debits 735,77 € = the money that moves
       (573,77 transfer + 132 arrival + 30 checkout), against 761,24 € before.
 
 ### Manual UI verification

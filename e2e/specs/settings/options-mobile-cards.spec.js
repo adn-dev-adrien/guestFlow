@@ -25,8 +25,9 @@ test('/options at 390px: sections and rows, a row opens a full-width sheet, no h
   expect(box.width).toBeGreaterThanOrEqual(388);
   expect(box.height).toBeGreaterThan(700);
   await expect(sheet.getByRole('button', { name: 'Fermer' })).toBeVisible();
-  // 43.999996 under load: sub-pixel layout, not a smaller target.
-  expect((await sheet.getByRole('button', { name: 'Fermer' }).boundingBox()).height).toBeGreaterThanOrEqual(43.5);
+  // The sheet slides in: a box read mid-transform carries float noise (43.99999). Wait for it to settle,
+  // the target itself stays at least 44 px.
+  await expect.poll(async () => (await sheet.getByRole('button', { name: 'Fermer' }).boundingBox()).height).toBeGreaterThanOrEqual(44);
   expect(await overflow()).toBeLessThanOrEqual(0);
 
   await sheet.getByRole('button', { name: 'Fermer' }).click();

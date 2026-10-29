@@ -47,7 +47,7 @@ Two aggravating findings from the same investigation:
   ([financeModel.js:840](../server/src/models/financeModel.js#L840)). Fabre's line reads « 24,73 €/occupant/nuit »
   next to « 21,00 € », and 24,73 € yields 20,40 €. The line cannot be re-entered anywhere.
 - **The occupant count differs from the office's.** GuestFlow divides by `adults + children + teens +
-  babies`; the office's form was filled with 4 occupants on Carrier (22275) where GuestFlow counts 5,
+  babies`; the office's form was filled with 4 occupants on Marchand (22275) where GuestFlow counts 5,
   the fifth being a baby. Dividing by more occupants lowers the tax, so every stay with a cot is
   under-billed.
 
@@ -168,7 +168,7 @@ Nothing the guest has already paid moves. What is still to be collected is corre
     ([tourist-tax-freeze-past-with-refresh.md](tourist-tax-freeze-past-with-refresh.md) rule 1) — is
     **retired**. It was a proxy for « already declared », and a poor one: it pins stays that were
     never collected and therefore never appeared in a declaration, which is exactly what stopped
-    Carrier (22275) from being corrected. Rules 10 and 11 replace it with the two events that
+    Marchand (22275) from being corrected. Rules 10 and 11 replace it with the two events that
     actually matter. The « Recalculer la taxe de séjour » button keeps its role, and now shows on any
     frozen reservation rather than on any past one.
 
@@ -185,7 +185,7 @@ Nothing the guest has already paid moves. What is still to be collected is corre
     the instalment carrying the tax is paid, or the line is marked « Déclarée » — writing
     `touristTaxFrozenAt` and the base reconstructed from the stored amount (rule 14). Every other
     booking, already made but not yet collected, re-prices under the new rules so the guest is billed
-    the right amount: on the production copy that is Carrier (22275) 13,05 € → 21,33 € and
+    the right amount: on the production copy that is Marchand (22275) 13,05 € → 21,33 € and
     Maillard (22211) 2,16 € → 3,36 €, and nothing else.
 
 14. **Reconstructing a legacy base.** From the stored `touristTaxTotal`, inverting the engine's
@@ -214,7 +214,7 @@ Nothing the guest has already paid moves. What is still to be collected is corre
   amount, because the brut no longer covers it. If the brut was not corrected at the same time, the
   entry is inconsistent; rule 7 floors the result and rule 16 surfaces it.
 - Stay with only babies besides the adults → divisor = adults, as the office's form.
-- **A past stay declared to the office by hand, outside the page.** Carrier (22275) is the known one:
+- **A past stay declared to the office by hand, outside the page.** Marchand (22275) is the known one:
   13,05 € were filed for August although nothing is collected on it, so the « Suivi taxe de séjour »
   page never listed it. Rule 13 re-prices it to 21,33 €, and it will enter the declaration of the
   month it is finally collected in — 21,33 €, on top of the 13,05 € already filed. The double must be
@@ -374,7 +374,7 @@ Server 3868 pass, client 1199 pass.
 
 - [ ] Fabre (22269) and Estrada (22209) are unchanged after the migration — same amount, and now a
       base that reproduces it in the office's form (381,82 € and 217,45 € HT).
-- [ ] Carrier (22275) and Maillard (22211), booked but uncollected, re-price to 21,33 € and
+- [ ] Marchand (22275) and Maillard (22211), booked but uncollected, re-price to 21,33 € and
       3,36 € and stay re-priceable until collected.
 - [ ] A new Lodgify booking: entering the brut moves the tax; collecting the balance freezes it;
       changing the brut afterwards does not.
@@ -391,9 +391,9 @@ Server 3868 pass, client 1199 pass.
 ## 8. Out of scope
 
 - Any change to which stays the « Suivi taxe de séjour » page lists (the attribution month, the
-  payment gate, the platform routing). Carrier (22275) is absent from August because nothing is
+  payment gate, the platform routing). Marchand (22275) is absent from August because nothing is
   collected on it — that stays a data issue to settle on the fiche, not a rule to bend here.
-- Reconciling the 13,05 € already filed by hand for Carrier with the amount its collection will
+- Reconciling the 13,05 € already filed by hand for Marchand with the amount its collection will
   eventually declare (see the edge case in §3).
 - The three-way per-platform routing itself.
 - The VAT rate used to go from TTC to HT (10 %, `app_settings.vatRate`).
@@ -403,7 +403,7 @@ Server 3868 pass, client 1199 pass.
 ## 9. Open questions
 
 - Q: Does the office count a baby among the occupants of its « Nombre d'occupants » field?
-  - A: **Resolved 2026-09-01** — no. The Carrier declaration was filed with 4 occupants for 3 adults
+  - A: **Resolved 2026-09-01** — no. The Marchand declaration was filed with 4 occupants for 3 adults
     + 1 child + 1 baby, and the operator confirms babies are out. Rule 8.
 - Q: On a platform booking, does « Montant du séjour HT » mean what the guest paid the platform, or
   the tariff of our own grid?

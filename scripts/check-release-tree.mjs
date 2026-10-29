@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Refuses a release staging tree that carries a secret or a runtime file
- * (specs/self-update-and-releases.md rule 39). `release.sh` runs it on the tree it is about to
+ * (specs/self-update-and-releases.md rule 40). `release.sh` runs it on the tree it is about to
  * archive: whatever sits in a developer's checkout (`server/.env.local`, a database and its WAL,
  * `licence.jws`, a TLS key, uploaded photos) must never reach a published archive.
  *

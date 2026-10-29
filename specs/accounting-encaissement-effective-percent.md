@@ -56,7 +56,7 @@ Decisions taken with Adrien on 2026-07-15 (AskUserQuestion):
 - The percent applied to the buckets is the **effective percent of the reservation**
   (= what the money says), not the property's raw `depositPercent`. When the deposit was computed
   automatically, the effective percent *equals* the property setting; when it was overridden
-  (Thomas: 67,13 → 51,14 %), the entry stays balanced and matches the real payment.
+  (Berg: 67,13 → 51,14 %), the entry stays balanced and matches the real payment.
 - Tourist tax keeps riding **entirely on the solde** (`specs/tourist-tax-on-solde.md` unchanged):
   no tax line on the deposit entry; the deposit card has exactly 5 lines (client, commission,
   gîte, options, TVA).
@@ -75,12 +75,12 @@ Decisions taken with Adrien on 2026-07-15 (AskUserQuestion):
    - direct / no commission data: ratio = 1.
 2. **CA per échéance** (`encaissementTtc`, the card header, « Revenu brut », the table column):
    `round2(storedAmount × ratio)` where storedAmount ∈ {`depositAmount`, `balanceAmount`,
-   `complementAmount`}. Thomas deposit → **67,13**.
+   `complementAmount`}. Berg deposit → **67,13**.
 3. **Commission per échéance** (unchanged allocation): deposit → `acompteCommissionAmount`,
    balance → total commission − acompte share, complement → 0. VAT-on-commission split
-   (`hasVatOnCommission` → HT + 44566000 line at `vatRateCommission`) unchanged. Thomas → **1,93**.
+   (`hasVatOnCommission` → HT + 44566000 line at `vatRateCommission`) unchanged. Berg → **1,93**.
 4. **Net perçu** (`encaissementNetTtc`, CCLIENT debit, « Net perçu » column):
-   `CA − commission_échéance`. Thomas deposit → **65,20** — equal to the fiche résa summary
+   `CA − commission_échéance`. Berg deposit → **65,20** — equal to the fiche résa summary
    « Acompte » line (`depositAmount − acompteCommissionAmount`).
 5. **Tourist tax per échéance** — unchanged (`computeTaxTtcForKind`): 0 on deposit; full tax
    (clamped to the CA) on balance; complement carries it only when routed there. The balance card
@@ -92,11 +92,11 @@ Decisions taken with Adrien on 2026-07-15 (AskUserQuestion):
    - `resourcesTtc` = Σ `reservation_resources.totalPrice`,
    - `accommodationTtc` = `finalPrice − optionsTtc − resourcesTtc` (clamped ≥ 0).
 7. **Effective percent per échéance**: `pct = (CA − tax_échéance) / finalPrice`.
-   Thomas: deposit 67,13/131,28 = 51,14 %, balance (67,13 − 2,98)/131,28 = 48,86 %.
+   Berg: deposit 67,13/131,28 = 51,14 %, balance (67,13 − 2,98)/131,28 = 48,86 %.
 8. **Credit lines**: each bucket credits `HT × pct` where `HT = bucketTtc / (1 + vatRate/100)`;
    the VAT credit = Σ over buckets of `bucketTtc × pct × vatRate/(100 + vatRate)`, grouped by rate.
    `vatRate` is the single global rate (`app_settings.vatRate`, `specs/single-vat-rate.md`) — there
-   is no per-property VAT. Thomas deposit → gîte **40,11**, options **20,92**, TVA **6,10**;
+   is no per-property VAT. Berg deposit → gîte **40,11**, options **20,92**, TVA **6,10**;
    balance → 38,33 / 19,99 / 5,83 + taxe 2,98.
 9. **Balance guarantee**: Σ credits = CA = Σ debits (CCLIENT net + commission lines); the ≤ 2-cent
    rounding residue is still absorbed by the last credit line (existing `entryToRows` mechanism).
@@ -165,13 +165,13 @@ No schema change. No migration. Read-only over existing rows.
 ## 6. UI / UX
 
 No visual change — same cards, table, CSV layout; corrected numbers only. Responsive behavior
-untouched. (Deposit card for Thomas now reads: header 67,13 € / « 51 % du séjour (131,28 €) »;
+untouched. (Deposit card for Berg now reads: header 67,13 € / « 51 % du séjour (131,28 €) »;
 info strip Revenu brut 67,13 · Commission − 1,93 · Net perçu 65,20; lines CVANDEN 65,20 D,
 622600 1,93 D, 70600000 40,11 C, 70600010 20,92 C, 44571100 6,10 C.)
 
 ## 7. Test plan
 
-### Server unit tests — non-regression, one per reported problem (fixture = Thomas's shape:
+### Server unit tests — non-regression, one per reported problem (fixture = Berg's shape:
 platform reservation, deposit+balance both 50 % of gross, tax 2,98, per-échéance commissions 1,93)
 
 New file `tests/accounting-effective-percent.unit.test.js` (12 tests, all passing):
@@ -204,12 +204,12 @@ taxContext)` + stored-bucket values at the single global VAT rate):
 Full server suite: 2005/2005 passing.
 
 ### Manual UI verification (done 2026-07-16, headless Playwright on the prod-import DB)
-- [x] Juin 2026 (prod data): Thomas's two cards show the §6 figures; « Tout équilibré » chip green.
+- [x] Juin 2026 (prod data): Berg's two cards show the §6 figures; « Tout équilibré » chip green.
 - [x] Every June entry balanced (10/10); totals row = Σ CA.
 - [x] CSV = cards guaranteed structurally (`entryToStructured` wraps the same `entryToRows` walk;
       pinned by `accounting-csv-solio-format` + P-tests on `entryToRows`).
 - [x] « Encaissements du mois » table: Revenu brut / Commission / Net perçu columns per rules 2–4
-      (Thomas rows: 67,13 / −1,93 / 65,20).
+      (Berg rows: 67,13 / −1,93 / 65,20).
 - [x] Mobile (`xs`, 390px): cards + table render as before (no layout change).
 - [x] Client suites: `cd client && npx vitest run` (639/639) + `npm run test:e2e` (30 passed,
       1 skipped).
@@ -226,7 +226,7 @@ Full server suite: 2005/2005 passing.
 
 - Q: Bucket percent = property `depositPercent` or effective percent of the reservation?
   - **A (2026-07-15):** effective percent of the reservation (equals the property % when the
-    deposit is automatic; stays balanced when overridden — Thomas 51,14 %).
+    deposit is automatic; stays balanced when overridden — Berg 51,14 %).
 - Q: Tourist tax share on the deposit entry (Lodgify collects 50/50 physically)?
   - **A (2026-07-15):** keep `tourist-tax-on-solde.md` — tax 100 % on the solde entry; the deposit
     card has exactly the 5 lines Adrien listed (no tax line).

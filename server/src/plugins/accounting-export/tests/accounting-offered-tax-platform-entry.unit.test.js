@@ -19,7 +19,7 @@ const { entryToRows } = require('../accountingExport');
 //   CRÉDIT 44571100    66,63   (TVA collectée 10 %)
 //   Σ débits = Σ crédits = 733,00
 
-const GRIMAUD_ROW = {
+const OFFERED_TAX_ROW = {
   id: 22225, firstName: 'Stéphane', lastName: 'Girard', propertyName: 'Domaine Solio',
   platform: 'GitesDeFrance',
   finalPrice: 733, totalPrice: 733,
@@ -49,7 +49,7 @@ const COMMISSION_CONTEXT = {
 
 function round2(n) { return Math.round(n * 100) / 100; }
 function entryRows() {
-  return entryToRows(buildEntry(GRIMAUD_ROW, 'balance', PER_LINE_DATA, COMMISSION_CONTEXT, { collectedOnArrival: false }));
+  return entryToRows(buildEntry(OFFERED_TAX_ROW, 'balance', PER_LINE_DATA, COMMISSION_CONTEXT, { collectedOnArrival: false }));
 }
 
 test('Girard #22225: the journal entry matches the accountant’s expected lines to the cent', () => {
@@ -84,7 +84,7 @@ test('the same booking with hasVatOnCommission = 0 books the commission flat (Bo
     ...COMMISSION_CONTEXT,
     platformByName: new Map([['gitesdefrance', { commissionAccountNumber: '', hasVatOnCommission: 0 }]]),
   };
-  const rows = entryToRows(buildEntry(GRIMAUD_ROW, 'balance', PER_LINE_DATA, context, { collectedOnArrival: false }));
+  const rows = entryToRows(buildEntry(OFFERED_TAX_ROW, 'balance', PER_LINE_DATA, context, { collectedOnArrival: false }));
   const byAccount = new Map(rows.map((r) => [r[6], { debit: r[7], credit: r[8] }]));
   assert.equal(round2(byAccount.get('622600').debit), 65, 'whole commission as HT');
   assert.ok(!byAccount.has('44566000'), 'no deductible-VAT line');

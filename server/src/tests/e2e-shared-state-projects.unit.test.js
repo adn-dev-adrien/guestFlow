@@ -4,8 +4,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
 
-const config = require(path.join(__dirname, '..', '..', '..', 'playwright.config.js'));
-const project = (name) => config.projects.find((p) => p.name === name);
+const { PROJECTS } = require(path.join(__dirname, '..', '..', '..', 'e2e', 'projects.js'));
+const project = (name) => PROJECTS.find((p) => p.name === name);
 const matches = (re, file) => (Array.isArray(re) ? re : [re]).some((r) => r.test(file));
 
 test('rule 20: the main project ignores every spec that rewrites global state', () => {

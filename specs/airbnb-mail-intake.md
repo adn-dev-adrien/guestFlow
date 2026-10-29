@@ -28,7 +28,7 @@ part, condensed (guest replaced by a fictitious one in the test fixture, trackin
 
 ```
 NOUVELLE RÉSERVATION CONFIRMÉE ! LOUIS ARRIVERA LE 26 DÉC.
-https://www.airbnb.fr/hosting/reservations/details/HMN2HQHJAQ?isPending=true&…   Louis Tardy
+https://www.airbnb.fr/hosting/reservations/details/HMN2HQHJAQ?isPending=true&…   Lucas Delmas
 Identité vérifiée · 1 commentaire
 Sur Airbnb depuis 2024
 <guest's message, free text, several lines>
@@ -375,7 +375,7 @@ horizontal scroll at 390 px. No page added, so no new `PageActionBar`.
 - [x] Suites on 2026-10-25: server 4 943 ✓, client 1 467 ✓ (one flaky `TariffRecipeCard` timing test on
   a first run, green alone twice and on the rerun), build ✓, E2E 89 ✓ (+1 skipped).
 - [x] Manual, on a copy of production of 2026-10-25 with the real mail injected in place of IMAP: fiche
-  22326 filled — Louis Tardy (own client; « Reserved Ical » untouched), 5/6/2, beds 4 doubles +
+  22326 filled — Lucas Delmas (own client; « Reserved Ical » untouched), 5/6/2, beds 4 doubles +
   5 simples + 2 cots, HMN2HQHJAQ, message in the notes, brut 1 236,26, taxe 28,86, virement 1 028,44,
   commission 178,96, « Net perçu 1 028,44 € ✓ cohérent avec le virement »; a second pass writes nothing;
   green banner with « Voir sur Airbnb » (desktop and 390 px, no horizontal scroll); settings card at

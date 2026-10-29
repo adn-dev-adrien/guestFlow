@@ -387,7 +387,7 @@ declared to the commune. The reference stay of §1 (3 nuits, 2 adultes, 359,79 �
       already wraps, and one Switch that renders disabled.
 
 ### Manual verification — Suivi financier → Taxe de séjour (rules 14-16)
-- [x] Août 2026, Lodge: la ligne Julie Carrier (#22275, 19→22/08, 3 adultes + 1 enfant + 1 bébé) lit
+- [x] Août 2026, Lodge: la ligne Jade Marchand (#22275, 19→22/08, 3 adultes + 1 enfant + 1 bébé) lit
       **26,45 € de nuit HT/occupant, 13,05 € de taxe, 396,78 € d'hébergement HT**.
 - [x] La fiche de cette même réservation lit **13,05 €** et
       « (132.26EUR HT/nuit ÷ 5 occupants) x 5.00% + 10.00% dep = 1.45EUR/adulte/nuit ». Avant le

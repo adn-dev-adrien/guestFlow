@@ -990,8 +990,8 @@ app.addEventListener('click',e=>{
 const U={open:true,unlocked:false};
 function renderUnlockDemo(){
  const el=document.getElementById('unlockDemo');if(!el)return;
- if(!U.open){el.innerHTML=`<div class="small muted">Vous avez quitté la fiche : le verrou s'est remis tout seul.</div><button class="btn sm" data-u="reopen" style="margin-top:6px">Rouvrir la fiche Carrier</button>`;return}
- el.innerHTML=`<div class="small"><b>Carrier · 12 → 19 août</b></div>`+(U.unlocked
+ if(!U.open){el.innerHTML=`<div class="small muted">Vous avez quitté la fiche : le verrou s'est remis tout seul.</div><button class="btn sm" data-u="reopen" style="margin-top:6px">Rouvrir la fiche Marchand</button>`;return}
+ el.innerHTML=`<div class="small"><b>Marchand · 12 → 19 août</b></div>`+(U.unlocked
   ?`<div class="alert warn" style="margin:6px 0">Déverrouillée pour cette fiche : dates, logement et suppression modifiables.</div><div class="row2"><div class="fld" style="margin:4px 0"><label>Arrivée</label><input value="2026-08-12"></div><div class="fld" style="margin:4px 0"><label>Départ</label><input value="2026-08-19"></div></div><button class="btn sm" data-u="leave">Quitter la fiche</button>`
   :`<div class="alert info" style="margin:6px 0">🔒 Séjour passé : seuls le client, les prix et les paiements sont modifiables.</div><div class="row2"><div class="fld" style="margin:4px 0"><label>Arrivée</label><input value="2026-08-12" disabled></div><div class="fld" style="margin:4px 0"><label>Départ</label><input value="2026-08-19" disabled></div></div><button class="btn sm fill" data-u="unlock">Déverrouiller cette fiche</button>`);
 }
