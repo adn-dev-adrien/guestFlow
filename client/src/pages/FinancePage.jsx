@@ -279,7 +279,7 @@ export default function FinancePage() {
               />
             ) : (
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1, mb: 2 }}>
-                Cliquez sur une tuile pour afficher le tableau correspondant.
+                Une tuile ouvre le tableau correspondant.
               </Typography>
             )}
 

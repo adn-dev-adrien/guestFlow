@@ -103,6 +103,10 @@ when it is broken.
     authorisation.
 16. Reading and writing these settings requires an authenticated operator, like every other
     `/api/payments/**` route.
+17. **A failed load says so (audit R3, 2026-10-29).** When `GET /api/payments/settings` fails, the page
+    shows an `ErrorAlert` (« Impossible de charger les paramètres de paiement. ») with « Réessayer »
+    instead of an endless spinner. « Réessayer » asks for the settings again, without reloading the page.
+
 
 **Edge cases:**
 

@@ -32,7 +32,7 @@ test('rule 27 — typing a goal sends the whole goals object with the typed text
 
 test('rule 27 — an invalid amount shows its message and blocks the save', () => {
   render(<SettingsFiscalYearSection values={{ revenueGoals: { 2026: '-5' } }} onChange={vi.fn()} goalContext={CONTEXT} />);
-  expect(screen.getByText("L'objectif doit être supérieur à 0 €. Laissez vide pour ne pas en fixer.")).toBeInTheDocument();
+  expect(screen.getByText("L'objectif doit être supérieur à 0 €. Vide : aucun objectif.")).toBeInTheDocument();
   expect(hasInvalidRevenueGoal({ 2026: '-5' })).toBe(true);
   expect(hasInvalidRevenueGoal({ 2026: 'abc' })).toBe(true);
   expect(hasInvalidRevenueGoal({ 2026: '85 000,50', 2027: '' })).toBe(false);

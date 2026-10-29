@@ -144,7 +144,7 @@ test('departure recap: offering the end-of-stay ménage drops the total and tags
   clickBtn('Pas OK');
   await screen.findByText(/serviettes et les draps sont-ils tous là/);
   clickBtn('Oui');
-  await screen.findByText(/récupéré les clés/);
+  await screen.findByText(/Clés du logement récupérées/);
   clickBtn('Oui');
   await screen.findByText(/bon état/i);
   clickBtn('Oui');
@@ -187,7 +187,7 @@ test('departure recap: a recalled arrival line is offerable, the taxe de séjour
   clickBtn('Commencer');
   await screen.findByText(/serviettes et les draps sont-ils tous là/);
   clickBtn('Oui');
-  await screen.findByText(/récupéré les clés/);
+  await screen.findByText(/Clés du logement récupérées/);
   clickBtn('Oui');
   await screen.findByText(/bon état/i);
   clickBtn('Oui');
@@ -227,7 +227,7 @@ test('departure recap: an arrival complement worth 0 € claims no authority ove
   clickBtn('Commencer');
   await screen.findByText(/serviettes et les draps sont-ils tous là/);
   clickBtn('Oui');
-  await screen.findByText(/récupéré les clés/);
+  await screen.findByText(/Clés du logement récupérées/);
   clickBtn('Oui');
   await screen.findByText(/bon état/i);
   clickBtn('Oui');

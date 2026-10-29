@@ -53,7 +53,7 @@ export default function SettingsQuoteSection({
             multiline
             minRows={4}
             disabled={disabled}
-            helperText="Laissez vide pour utiliser le message par défaut (bienveillant et commercial)."
+            helperText="Vide : message par défaut (bienveillant et commercial)."
           />
 
           <TextField

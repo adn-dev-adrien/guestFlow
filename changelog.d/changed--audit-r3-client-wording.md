@@ -1,0 +1,1 @@
+- **Wording** (audit R3, spec `ui-review-2026-10-19-operations.md` rule 36). Confirmations, alerts, empty states and tooltips drop « Veuillez », « Voulez-vous », « Êtes-vous » and « votre » : « Supprimer cette réservation ? », « Forcer l'enregistrement ? », « Aucune saison. ». +1 client test.

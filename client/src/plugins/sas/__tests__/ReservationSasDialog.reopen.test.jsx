@@ -37,7 +37,7 @@ async function walkToKeys() {
   clickBtn('Commencer');
   await screen.findByText(/serviettes et les draps sont-ils tous là/);
   clickBtn('Oui');
-  await screen.findByText(/récupéré les clés/);
+  await screen.findByText(/Clés du logement récupérées/);
   clickBtn('Oui');
 }
 

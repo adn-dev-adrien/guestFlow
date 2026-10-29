@@ -18,6 +18,7 @@ import VatRegimeSwitchDialog from '../../components/VatRegimeSwitchDialog';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import { useToast } from '../../components/DialogProvider';
 import { VAT_TEXTS, showsFranchiseField } from '../../constants/vatRegime';
+import ErrorAlert from '../../components/ErrorAlert';
 import Slot from '../../plugins/sdk/Slot';
 
 export default function VatFiscalSettingsPage() {
@@ -52,6 +53,7 @@ export default function VatFiscalSettingsPage() {
 
   return (
     <SettingsFormPage title="TVA & exercice" form={form} saveBlocked={hasInvalidRevenueGoal(form.draft.accounting?.revenueGoals) || rateBlank || thresholdInvalid}>
+      {vat.error && <ErrorAlert message="Impossible de charger le régime de TVA." onRetry={vat.reload} />}
       <SettingsVatSection
         values={form.draft.vat}
         errors={rateBlank ? { ...form.errors, vatRate: VAT_TEXTS.rateRequired } : form.errors}

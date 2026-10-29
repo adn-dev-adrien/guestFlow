@@ -426,10 +426,10 @@ function renderTable({ users, me, openEdit, openReset, openDelete, handleToggleA
                   <TableCell align="right">
                     <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'flex-end' }}>
                       <Tooltip title="Modifier">
-                        <span><IconButton size="small" onClick={() => openEdit(u)} disabled={busy}><EditIcon fontSize="small" /></IconButton></span>
+                        <span><IconButton size="small" onClick={() => openEdit(u)} disabled={busy} aria-label="Modifier"><EditIcon fontSize="small" /></IconButton></span>
                       </Tooltip>
-                      <Tooltip title={isSelf ? 'Utilisez la page Mot de passe pour modifier le vôtre.' : 'Réinitialiser le mot de passe'}>
-                        <span><IconButton size="small" onClick={() => openReset(u)} disabled={busy || isSelf}><VpnKeyIcon fontSize="small" /></IconButton></span>
+                      <Tooltip title={isSelf ? 'Mot de passe personnel : page Mot de passe.' : 'Réinitialiser le mot de passe'}>
+                        <span><IconButton size="small" onClick={() => openReset(u)} disabled={busy || isSelf} aria-label="Réinitialiser le mot de passe"><VpnKeyIcon fontSize="small" /></IconButton></span>
                       </Tooltip>
                       <TwoFactorOffButton user={u} isSelf={isSelf} busy={busy} onClick={openTwoFactor} small />
                       <Tooltip title={u.isActive ? 'Désactiver' : 'Réactiver'}>
@@ -438,6 +438,7 @@ function renderTable({ users, me, openEdit, openReset, openDelete, handleToggleA
                             size="small"
                             onClick={() => handleToggleActive(u)}
                             disabled={busy || isSelfAdmin}
+                            aria-label={u.isActive ? 'Désactiver' : 'Réactiver'}
                           >
                             {u.isActive ? <ToggleOnIcon fontSize="small" color="success" /> : <ToggleOffIcon fontSize="small" />}
                           </IconButton>
@@ -445,7 +446,7 @@ function renderTable({ users, me, openEdit, openReset, openDelete, handleToggleA
                       </Tooltip>
                       <Tooltip title={
                         isSelf
-                          ? 'Vous ne pouvez pas vous supprimer.'
+                          ? 'Suppression de son propre compte impossible.'
                           : eligibleHard
                             ? 'Désactiver / Supprimer définitivement'
                             : 'Désactiver'
@@ -456,6 +457,7 @@ function renderTable({ users, me, openEdit, openReset, openDelete, handleToggleA
                             onClick={() => openDelete(u)}
                             disabled={busy || isSelf}
                             color="error"
+                            aria-label="Supprimer l'utilisateur"
                           >
                             <DeleteOutlineIcon fontSize="small" />
                           </IconButton>
@@ -500,22 +502,22 @@ function renderMobileCards({ users, me, openEdit, openReset, openDelete, handleT
                 <Typography variant="body2"><strong>Dernière connexion :</strong> {formatLastLogin(u.lastLoginAt)}</Typography>
                 <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'flex-end' }}>
                   <Tooltip title="Modifier">
-                    <span><IconButton size="small" onClick={() => openEdit(u)} disabled={busy}><EditIcon /></IconButton></span>
+                    <span><IconButton size="small" onClick={() => openEdit(u)} disabled={busy} aria-label="Modifier"><EditIcon /></IconButton></span>
                   </Tooltip>
-                  <Tooltip title={isSelf ? 'Utilisez la page Mot de passe pour modifier le vôtre.' : 'Réinitialiser le mot de passe'}>
-                    <span><IconButton size="small" onClick={() => openReset(u)} disabled={busy || isSelf}><VpnKeyIcon /></IconButton></span>
+                  <Tooltip title={isSelf ? 'Mot de passe personnel : page Mot de passe.' : 'Réinitialiser le mot de passe'}>
+                    <span><IconButton size="small" onClick={() => openReset(u)} disabled={busy || isSelf} aria-label="Réinitialiser le mot de passe"><VpnKeyIcon /></IconButton></span>
                   </Tooltip>
                   <TwoFactorOffButton user={u} isSelf={isSelf} busy={busy} onClick={openTwoFactor} />
                   <Tooltip title={u.isActive ? 'Désactiver' : 'Réactiver'}>
                     <span>
-                      <IconButton size="small" onClick={() => handleToggleActive(u)} disabled={busy || isSelfAdmin}>
+                      <IconButton size="small" onClick={() => handleToggleActive(u)} disabled={busy || isSelfAdmin} aria-label={u.isActive ? 'Désactiver' : 'Réactiver'}>
                         {u.isActive ? <ToggleOnIcon color="success" /> : <ToggleOffIcon />}
                       </IconButton>
                     </span>
                   </Tooltip>
-                  <Tooltip title={isSelf ? 'Vous ne pouvez pas vous supprimer.' : 'Désactiver / supprimer'}>
+                  <Tooltip title={isSelf ? 'Suppression de son propre compte impossible.' : 'Désactiver / supprimer'}>
                     <span>
-                      <IconButton size="small" onClick={() => openDelete(u)} disabled={busy || isSelf} color="error">
+                      <IconButton size="small" onClick={() => openDelete(u)} disabled={busy || isSelf} color="error" aria-label="Supprimer l'utilisateur">
                         <DeleteOutlineIcon />
                       </IconButton>
                     </span>

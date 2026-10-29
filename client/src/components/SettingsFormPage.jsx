@@ -43,7 +43,7 @@ export default function SettingsFormPage({ title, form, onSave, onCancel, dirty,
         tabs={tabs}
         onSave={onSave || (() => form.save())}
         saveDisabled={!isDirty || busy || saveBlocked}
-        saveTooltip={saveBlocked ? 'Corrigez les champs en rouge avant d’enregistrer' : undefined}
+        saveTooltip={saveBlocked ? 'Champs en rouge à corriger avant d’enregistrer' : undefined}
         saveBusy={form.saving}
         onCancel={onCancel || form.cancel}
         cancelDisabled={!isDirty || busy}

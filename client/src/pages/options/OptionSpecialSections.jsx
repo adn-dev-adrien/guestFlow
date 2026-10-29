@@ -130,7 +130,7 @@ export function PlanningCardSection({ form, setForm }) {
           ) : (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
               <FormHelperText sx={{ m: 0 }}>
-                Un créneau = une carte par jour. Ajoutez plusieurs créneaux pour les repas (ex. 08:00 · 12:30 · 19:30).
+                Un créneau = une carte par jour. Plusieurs créneaux pour les repas (ex. 08:00 · 12:30 · 19:30).
               </FormHelperText>
               {times.map((t, idx) => (
                 // eslint-disable-next-line react/no-array-index-key
@@ -359,10 +359,10 @@ export function BathMatPerPropertyField({ form, setForm, properties }) {
         Nombre de tapis de bain par logement
       </Typography>
       <FormHelperText sx={{ mb: 1, mt: 0 }}>
-        Nombre de tapis emmenés à la blanchisserie pour une location. Indiquez 0 si ce logement ne fournit pas de tapis de bain.
+        Nombre de tapis emmenés à la blanchisserie pour une location. 0 si ce logement ne fournit pas de tapis de bain.
       </FormHelperText>
       {applicable.length === 0 ? (
-        <FormHelperText sx={{ m: 0 }}>Sélectionnez au moins un logement pour définir une quantité.</FormHelperText>
+        <FormHelperText sx={{ m: 0 }}>Au moins un logement à sélectionner pour définir une quantité.</FormHelperText>
       ) : (
         <Stack spacing={1.5}>
           {applicable.map((p) => (

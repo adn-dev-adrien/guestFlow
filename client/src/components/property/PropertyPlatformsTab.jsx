@@ -221,7 +221,7 @@ export default function PropertyPlatformsTab({ propertyId, propertyName, canMana
                       </Button>
                     )}
                     {row.url && row.sourceId && !isStopped(row) && (
-                      <Tooltip title={row.disabled ? 'Réactivez le calendrier pour le synchroniser' : ''}>
+                      <Tooltip title={row.disabled ? 'Calendrier à réactiver pour le synchroniser' : ''}>
                         <span>
                           <Button size="small" variant="outlined" startIcon={<SyncIcon />} onClick={() => run(row.platformKey, () => api.syncPropertyIcalSource(propertyId, row.sourceId), 'Calendrier synchronisé.')} disabled={!canManage || busy || row.disabled}>
                             Synchroniser

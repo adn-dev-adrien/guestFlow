@@ -1401,7 +1401,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
                             Quantité&nbsp;: <strong>{sale ? sale.units : '—'}</strong>
                             {sale && sale.moments > 0 && o.perPerson ? ` (${sale.moments} × ${sale.servedPersons} pers. servies)` : ''} = {amount}
                           </span>
-                        ) : 'Choisissez les moments servis'}
+                        ) : 'Moments servis à choisir'}
                       />
                       {/* specs/card-option-served-persons.md §3.3 — le nombre de couverts, quand les
                           enfants ne mangent pas. Affiché dès qu'un moment est coché. */}
@@ -1449,7 +1449,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
       case 'keys':
         return (
           <Stack spacing={1}>
-            <Typography variant="body1">Avez-vous récupéré les clés du logement ?</Typography>
+            <Typography variant="body1">Clés du logement récupérées ?</Typography>
             {keysReceived === false && <Chip label="Clés non récupérées" color="warning" sx={{ alignSelf: 'flex-start' }} />}
           </Stack>
         );
@@ -1466,7 +1466,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           <Stack spacing={1.5} sx={{ alignItems: 'center' }}>
             <Typography variant="body1" sx={{ textAlign: 'center', fontWeight: 700, fontSize: '1.15rem' }}>L'extincteur est-il en bon état ?</Typography>
             <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>
-              Si non, vous pourrez ajouter les frais (plomb manquant, utilisation) au complément de fin de séjour.
+              Si non, les frais (plomb manquant, utilisation) peuvent s'ajouter au complément de fin de séjour.
             </Typography>
           </Stack>
         );

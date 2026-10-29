@@ -165,9 +165,9 @@ export default function MiniDayPlanner({
   }
 
   const selectionState = !selectedStart
-    ? 'Cliquez pour choisir l\'heure de début'
+    ? 'Heure de début à choisir'
     : !selectedEnd
-      ? `Début : ${selectedStart} — Cliquez pour l'heure de fin (min ${minimumDuration} min)`
+      ? `Début : ${selectedStart} — heure de fin à choisir (min ${minimumDuration} min)`
       : `${selectedStart} → ${selectedEnd}`;
 
   return (

@@ -105,11 +105,11 @@ test('"Vérifier maintenant" polls GitHub and refreshes the card', async () => {
 test('a throttled check surfaces the server message instead of failing silently', async () => {
   const user = userEvent.setup();
   api.getSystemVersion.mockResolvedValue(versionInfo());
-  api.checkSystemVersion.mockRejectedValue(new Error('Patientez 7 s avant de relancer une vérification.'));
+  api.checkSystemVersion.mockRejectedValue(new Error('Nouvelle vérification possible dans 7 s.'));
   render(<SettingsSystemUpdateSection />);
 
   await user.click(await screen.findByRole('button', { name: 'Vérifier maintenant' }));
-  expect(await screen.findByText(/Patientez 7 s/)).toBeInTheDocument();
+  expect(await screen.findByText(/dans 7 s/)).toBeInTheDocument();
 });
 
 test('the history lists the last outcomes, rollbacks included', async () => {

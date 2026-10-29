@@ -36,8 +36,8 @@ test('Enregistrer refuses a missing name and file, then uploads once both are gi
   render(<PropertyDocumentsTab propertyId="5" documents={DOCS} canManage onChanged={onChanged} />);
   fireEvent.click(screen.getByRole('button', { name: 'Ajouter un document' }));
   fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
-  expect(screen.getByText('Donnez un nom au document.')).toBeInTheDocument();
-  expect(screen.getByText('Choisissez le fichier sur votre ordinateur.')).toBeInTheDocument();
+  expect(screen.getByText('Nom du document à saisir.')).toBeInTheDocument();
+  expect(screen.getByText('Fichier à choisir.')).toBeInTheDocument();
   expect(api.uploadDocument).not.toHaveBeenCalled();
 
   fireEvent.change(screen.getByLabelText('Nom'), { target: { value: 'Règlement 2027' } });

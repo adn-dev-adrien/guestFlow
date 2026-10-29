@@ -86,7 +86,7 @@ function createController(model) {
     const hasLinks = impact.reservationsCount > 0 || impact.devisCount > 0;
     if (hasLinks && !force) {
       return res.status(409).json({
-        error: 'Ce client est lié à des réservations ou des devis. Utilisez la suppression forcée pour tout supprimer.',
+        error: 'Ce client est lié à des réservations ou des devis. Suppression forcée requise pour tout supprimer.',
         code: 'CLIENT_IN_USE',
         client: impact.client,
         reservationsCount: impact.reservationsCount,

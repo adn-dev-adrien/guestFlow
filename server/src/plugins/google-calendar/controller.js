@@ -166,7 +166,7 @@ function buildController({
   function notConnectedResponse(res) {
     return res.status(400).json({
       error: 'GOOGLE_NOT_CONNECTED',
-      message: 'Connectez votre compte Google avant de choisir un agenda.',
+      message: 'Compte Google à connecter avant de choisir un agenda.',
     });
   }
 
@@ -190,7 +190,7 @@ function buildController({
     if (!settings.googleConnected()) return notConnectedResponse(res);
     const calendarId = String((req.body && req.body.calendarId) || '').trim();
     if (!calendarId) {
-      return res.status(400).json({ error: 'INVALID_CALENDAR', message: 'Choisissez un agenda dans la liste.' });
+      return res.status(400).json({ error: 'INVALID_CALENDAR', message: 'Agenda à choisir dans la liste.' });
     }
     try {
       // Single calendarList.get instead of re-fetching the whole paginated list: validates
@@ -231,7 +231,7 @@ function buildController({
     if (!sync.isActive()) {
       return res.status(400).json({
         error: 'GOOGLE_SYNC_INACTIVE',
-        message: 'Connectez votre compte Google et choisissez un agenda avant de synchroniser.',
+        message: 'Compte Google à connecter et agenda à choisir avant de synchroniser.',
       });
     }
     try {

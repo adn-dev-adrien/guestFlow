@@ -107,7 +107,12 @@ export default function PaymentsSettingsPage() {
     return data.qonto;
   }, []);
 
-  useEffect(() => { load().catch(() => setLoadError(true)); }, [load]);
+  const loadSettings = useCallback(() => {
+    setLoadError(false);
+    load().catch(() => setLoadError(true));
+  }, [load]);
+
+  useEffect(() => { loadSettings(); }, [loadSettings]);
 
   // OAuth callback feedback.
   useEffect(() => {
@@ -219,7 +224,13 @@ export default function PaymentsSettingsPage() {
     return (
       <Box>
         <PageActionBar title="Paiements en ligne" />
-        <Box sx={{ display: 'flex', justifyContent: 'center', p: 6 }}><CircularProgress /></Box>
+        {loadError ? (
+          <Box sx={{ p: { xs: 1.5, sm: 3 }, maxWidth: 900, mx: 'auto' }}>
+            <ErrorAlert message="Impossible de charger les paramètres de paiement." onRetry={loadSettings} />
+          </Box>
+        ) : (
+          <Box sx={{ display: 'flex', justifyContent: 'center', p: 6 }}><CircularProgress /></Box>
+        )}
       </Box>
     );
   }
@@ -248,8 +259,6 @@ export default function PaymentsSettingsPage() {
         cancelDisabled={!isDirty || saving}
       />
       <Box sx={{ p: { xs: 1.5, sm: 3 }, display: 'flex', flexDirection: 'column', gap: 2, maxWidth: 900, mx: 'auto' }}>
-        {loadError && <ErrorAlert message="Impossible de charger les paramètres de paiement." onRetry={() => window.location.reload()} />}
-
         {health.lastError && (
           <ErrorAlert
             message={`Dernier échec Qonto — ${health.lastError.code}${health.lastError.message ? ` : ${health.lastError.message}` : ''} (${ORIGIN_LABELS[health.lastError.origin] || health.lastError.origin}, le ${formatStamp(health.lastError.at)})`}

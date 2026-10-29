@@ -20,6 +20,7 @@ import { usePlugin } from '../hooks/usePlugins';
 import { WEBSITE_BOOKING } from '../constants/plugins';
 import { displayDate, formatCurrency } from '../utils/formatters';
 import { visuallyHidden } from '../utils/visuallyHidden';
+import { touchHitArea } from '../utils/touchHitArea';
 
 const STATUS_LABELS = {
   draft: 'Brouillon',
@@ -161,6 +162,7 @@ export default function DevisPage() {
           display: 'inline-flex',
           alignItems: 'center',
           minHeight: { xs: 44, md: 'auto' },
+          ...touchHitArea,
           '&:hover': { textDecoration: 'underline' },
           '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: 2 },
         }}

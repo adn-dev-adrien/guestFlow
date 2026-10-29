@@ -13,7 +13,7 @@
  *   onOpen    (client) => void
  */
 import React, { useId } from 'react';
-import { Box, ButtonBase, IconButton, Typography } from '@mui/material';
+import { Box, ButtonBase, IconButton, Link, Typography } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import PhoneIcon from '@mui/icons-material/PhoneOutlined';
 import PlatformChip from './PlatformChip';
@@ -31,10 +31,20 @@ function initialsOf(client) {
 
 const chipSx = { flex: 'none', height: 20, fontSize: '0.6875rem' };
 
+// On touch the phone number is not a link: the call button (44 px) is the way to call, and the
+// e-mail link is 44 px tall. The row keeps its height.
+const contactBoxSx = { minWidth: 0, maxWidth: '100%' };
+const phoneBoxSx = { ...contactBoxSx, '@media (pointer: coarse)': { display: 'none' } };
+const contactListSx = (hasCallButton) => ({
+  minWidth: 0, display: { xs: 'none', md: 'flex' }, flexDirection: 'column', alignItems: 'flex-end',
+  '@media (pointer: coarse)': hasCallButton ? { paddingRight: '52px' } : {},
+});
+
 const contactLinkSx = {
-  ...ellipsis, display: 'inline-block', maxWidth: '100%', verticalAlign: 'top', color: 'text.secondary', textDecoration: 'none', fontSize: '0.8125rem',
+  display: 'inline-block', maxWidth: '100%', verticalAlign: 'top', color: 'text.secondary', textDecoration: 'none', fontSize: '0.8125rem',
   position: 'relative', zIndex: 1, '&:hover': { color: 'primary.main', textDecoration: 'underline' },
   '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: 2, borderRadius: 0.5 },
+  '@media (pointer: coarse)': { display: 'flex', alignItems: 'center', minHeight: 44, '&::after': { display: 'none' } },
 };
 
 export default function ClientDirectoryRow({ client, onOpen }) {
@@ -112,9 +122,9 @@ export default function ClientDirectoryRow({ client, onOpen }) {
         </Box>
       )}
 
-      <Box sx={{ minWidth: 0, textAlign: 'right', gridColumn: { md: stay ? 'auto' : '3 / span 2' }, display: { xs: 'none', md: 'block' } }}>
-        {client.email && <Box sx={{ minWidth: 0 }}><Box component="a" href={`mailto:${client.email}`} title={client.email} sx={contactLinkSx}>{client.email}</Box></Box>}
-        {client.phone && <Box sx={{ minWidth: 0 }}><Box component="a" href={`tel:${client.phone}`} title={client.phone} sx={contactLinkSx}>{client.phone}</Box></Box>}
+      <Box sx={{ ...contactListSx(Boolean(client.phone)), gridColumn: { md: stay ? 4 : '3 / span 2' }, gridRow: { md: 1 } }}>
+        {client.email && <Box sx={contactBoxSx}><Link href={`mailto:${client.email}`} title={client.email} underline="none" sx={contactLinkSx}><Box component="span" sx={{ ...ellipsis, display: 'block' }}>{client.email}</Box></Link></Box>}
+        {client.phone && <Box sx={phoneBoxSx}><Link href={`tel:${client.phone}`} title={client.phone} underline="none" sx={contactLinkSx}><Box component="span" sx={{ ...ellipsis, display: 'block' }}>{client.phone}</Box></Link></Box>}
       </Box>
 
       {client.phone && (
@@ -124,6 +134,8 @@ export default function ClientDirectoryRow({ client, onOpen }) {
           aria-label={TEXTS.callLabel(fullName)}
           sx={{
             display: { xs: 'inline-flex', md: 'none' }, gridColumn: 3, gridRow: '1 / span 3', width: 44, height: 44,
+            // On a touch tablet the call button replaces the phone link, at the end of the contact column.
+            '@media (pointer: coarse)': { display: 'inline-flex', gridColumn: { md: 4 }, gridRow: { md: 1 }, justifySelf: { md: 'end' }, alignSelf: { md: 'center' } },
             border: '1px solid', borderColor: 'divider', borderRadius: '12px', color: 'primary.main', position: 'relative', zIndex: 1,
           }}
         >

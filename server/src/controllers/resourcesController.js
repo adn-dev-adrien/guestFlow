@@ -151,7 +151,7 @@ function createController(model, {
     const inUse = impact.reservationsCount > 0 || impact.bookingsCount > 0;
     if (inUse && !force) {
       return res.status(409).json({
-        error: 'Cette ressource est utilisée par des réservations ou des créneaux. Utilisez la suppression forcée.',
+        error: 'Cette ressource est utilisée par des réservations ou des créneaux. Suppression forcée requise.',
         code: 'RESOURCE_IN_USE',
         resource: impact.resource,
         reservationsCount: impact.reservationsCount,

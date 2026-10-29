@@ -207,7 +207,7 @@ export default function PlatformAccountsPage() {
           }
         }
         setErrors(next);
-        showError('Vérifiez les champs en erreur.');
+        showError('Champs en erreur à vérifier.');
       } else {
         showError(err?.message || 'Échec de l\'enregistrement.');
       }

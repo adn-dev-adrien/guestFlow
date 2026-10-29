@@ -418,7 +418,7 @@ test('arrival SAS: a card option is taken by its switch, which opens (and clears
   fireEvent.click(mealSwitch);
   expect(screen.getAllByText('19:30').length).toBeGreaterThan(0);
   // Nothing is pre-selected — a meal is picked moment by moment, and the caption says so.
-  expect(screen.getByText('Choisissez les moments servis')).toBeInTheDocument();
+  expect(screen.getByText('Moments servis à choisir')).toBeInTheDocument();
   expect(await screen.findByText(/Total restauration : 0,00 €/)).toBeInTheDocument();
 
   fireEvent.click(screen.getAllByText('19:30')[0]);

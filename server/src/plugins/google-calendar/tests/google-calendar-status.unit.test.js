@@ -131,13 +131,13 @@ test('status: last sync failed → Échec de la dernière synchro', () => {
     calendarId: 'cal-1',
     calendarSummary: 'Agenda pro',
     lastSyncOk: false,
-    lastSyncDetail: 'Connexion Google expirée ou révoquée. Reconnectez votre compte.',
+    lastSyncDetail: 'Connexion Google expirée ou révoquée. Compte à reconnecter.',
   };
   const c = buildController(makeDeps({ googleStatus }));
   const res = fakeRes();
   c.status({}, res);
   assert.equal(res.body.statusLabel, STATUS_LABELS.failed);
-  assert.match(res.body.lastSyncDetail, /Reconnectez/);
+  assert.match(res.body.lastSyncDetail, /reconnecter/);
 });
 
 // --- sync-now gate ---
@@ -150,7 +150,7 @@ test('sync-now: 400 with a French message when sync is inactive', async () => {
   await c.syncNow({}, res);
   assert.equal(res.statusCode, 400);
   assert.equal(res.body.error, 'GOOGLE_SYNC_INACTIVE');
-  assert.match(res.body.message, /Connectez votre compte Google/);
+  assert.match(res.body.message, /Compte Google à connecter/);
 });
 
 test('sync-now: returns the reconcile counters + server-built detail; 409 when already running', async () => {

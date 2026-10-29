@@ -18,6 +18,7 @@
 
 import React, { useState } from 'react';
 import { Box, Popover, Tooltip, Typography, TextField } from '@mui/material';
+import { touchHitArea } from '../utils/touchHitArea';
 
 // A curated palette: the built-in platform colours (each readable on the calendar, with white or ink text) +
 // a few more accents that pass the same check. Operators pick from here for one-click consistency, or use
@@ -72,10 +73,7 @@ export default function PlatformColorPicker({ color, onChange, disabled = false,
         '&:hover': disabled ? {} : { boxShadow: 1 },
         // A finger gets a 44 × 44 hit area around the small swatch, without moving the layout
         // (specs/ds-components.md rule 21).
-        '@media (pointer: coarse)': {
-          position: 'relative',
-          '&::after': { content: '""', position: 'absolute', inset: Math.min(0, (size - 44) / 2) },
-        },
+        ...touchHitArea,
       }}
     />
   );

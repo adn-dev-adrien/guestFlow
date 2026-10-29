@@ -133,7 +133,7 @@ export default function AccountPage() {
               <Box>
                 <Typography variant="sectionHeader">Mon mot de passe</Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                  Choisissez un nouveau mot de passe d'au moins 10 caractères.
+                  Nouveau mot de passe d'au moins 10 caractères.
                   {wasMustChange && (
                     <>{' '}Reconnexion ensuite avec le nouveau mot de passe.</>
                   )}

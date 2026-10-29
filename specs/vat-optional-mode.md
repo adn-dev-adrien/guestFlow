@@ -416,6 +416,11 @@ Appended, never renumbered; each narrows or completes a rule above.
     in force, `GET /api/finance/vat-franchise` answers `{ applies: false }`, the settings payload
     carries the new keys with `applies: false`, the home attention payload is byte-identical, and the
     Suivi financier renders exactly as before.
+45. **A failed regime load is shown (audit R3, 2026-10-29).** When `GET /api/settings/vat-regime` fails,
+    « TVA & exercice » shows an `ErrorAlert` (« Impossible de charger le régime de TVA. ») with
+    « Réessayer » at the top of the page; the regime badge, the switch card and the periods are not
+    silently absent. A successful retry removes the alert.
+
 
 **Edge cases:**
 - Switch to « Sans TVA » on 1 March: the year's figure still counts January–February (HT, rule 37b) —

@@ -44,7 +44,7 @@ test('every departure yes/no page reads « Non | Oui »', async () => {
   expect(answers()).toEqual(['Non', 'Oui']);
   clickBtn('Oui');
 
-  await screen.findByText(/récupéré les clés/);
+  await screen.findByText(/Clés du logement récupérées/);
   expect(answers()).toEqual(['Non', 'Oui']);
   clickBtn('Oui');
 

@@ -17,7 +17,7 @@ function mapGoogleError(error) {
   if (status === 401 || status === 400) {
     return {
       code: 'INVALID_CREDENTIALS',
-      error: 'Connexion Google expirée ou révoquée. Reconnectez votre compte.',
+      error: 'Connexion Google expirée ou révoquée. Compte à reconnecter.',
     };
   }
   if (status === 403) {
@@ -34,8 +34,8 @@ function mapGoogleError(error) {
       return {
         code: 'API_DISABLED',
         error: `L'API Google Calendar n'est pas activée dans le projet Google Cloud${project ? ` n° ${project}` : ''}. `
-          + 'Activez-la (console Google → API et services → Bibliothèque → Google Calendar API), '
-          + 'patientez quelques minutes, puis réessayez.',
+          + 'À activer dans la console Google (API et services → Bibliothèque → Google Calendar API), '
+          + 'puis nouvel essai après quelques minutes.',
       };
     }
     return {
@@ -46,7 +46,7 @@ function mapGoogleError(error) {
   if (status === 404) {
     return {
       code: 'CALENDAR_NOT_FOUND',
-      error: "Agenda introuvable. Choisissez un autre agenda cible.",
+      error: "Agenda introuvable. Autre agenda cible à choisir.",
     };
   }
   const message = (error && error.response && error.response.data && error.response.data.error && error.response.data.error.message)
@@ -60,7 +60,7 @@ async function testConnection(config, { calendarApi } = {}) {
     return {
       ok: false,
       code: 'NOT_CONFIGURED',
-      error: "Connectez votre compte Google et choisissez un agenda avant de tester.",
+      error: "Compte Google à connecter et agenda à choisir avant de tester.",
     };
   }
 
@@ -68,7 +68,7 @@ async function testConnection(config, { calendarApi } = {}) {
     return {
       ok: false,
       code: 'NOT_CONFIGURED',
-      error: "Connexion Google absente. Reconnectez votre compte.",
+      error: "Connexion Google absente. Compte à reconnecter.",
     };
   }
 

@@ -34,7 +34,7 @@ const LANGS = [
 ];
 
 function publishTooltip(overview, dirty) {
-  if (dirty) return 'Enregistrez d’abord le brouillon';
+  if (dirty) return 'Brouillon à enregistrer d’abord';
   if (!overview.canPublish) return overview.publishBlockedReason;
   return `Publier la version ${overview.nextVersion}`;
 }

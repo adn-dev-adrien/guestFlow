@@ -4,7 +4,7 @@
  * (specs/guest-email-sequence.md §6.2).
  */
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Box, TableRow, TableCell, Typography, Stack, FormControl, InputLabel,
   Select, MenuItem, Button, TextField, IconButton, Tooltip,
@@ -48,8 +48,12 @@ export default function EmailHistoryPage() {
   const [reservationIdFilter, setReservationIdFilter] = useState('');
   const [viewing, setViewing] = useState(null);
   const [resending, setResending] = useState(null);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const latestRequest = useRef(0);
 
   const reload = useCallback(async () => {
+    latestRequest.current += 1;
+    const mine = latestRequest.current;
     setLoading(true);
     try {
       const params = { limit: PAGE_SIZE, offset: page * PAGE_SIZE };
@@ -57,10 +61,15 @@ export default function EmailHistoryPage() {
       if (templateFilter) params.templateId = templateFilter;
       if (reservationIdFilter) params.reservationId = reservationIdFilter;
       const res = await api.getEmailHistory(params);
+      if (mine !== latestRequest.current) return;
       setRows(res.rows || []);
       setTotal(res.total || 0);
+      setLoadFailed(false);
+    } catch {
+      if (mine !== latestRequest.current) return;
+      setLoadFailed(true);
     } finally {
-      setLoading(false);
+      if (mine === latestRequest.current) setLoading(false);
     }
   }, [page, statusFilter, templateFilter, reservationIdFilter]);
 
@@ -151,6 +160,8 @@ export default function EmailHistoryPage() {
             </Box>
           </Box>
         )}
+        error={loadFailed ? "Impossible de charger l'historique des emails." : false}
+        onRetry={reload}
         minWidth={920}
         head={(
           <TableRow>

@@ -341,6 +341,7 @@ one place.
     the public tree: the WordPress site, the emails and the login page link them.
 
 33. **One linear email check** (audit R2 N2, 2026-10-29). `utils/emailAddress.isValidEmailAddress` (length ≤ 254 checked first, one `indexOf`, no overlapping quantifiers) is the single shape check of the server — settings, users, emails, client payloads and the plugins through `settingsValidation.validateEmail`; the client mirrors it. A 195 KB address is refused in under 50 ms. Public booking: an address over 254 characters is `tooLong`, not `emailInvalid`. Test: `tests/audit-r2-email-linear.unit.test.js`, `website-booking/tests/guest-email-linear.unit.test.js`.
+34. **The user actions are named (audit R3, 2026-10-29).** In « Utilisateurs », the table and the cards give each icon button its own accessible name — « Modifier », « Réinitialiser le mot de passe », « Désactiver » / « Réactiver », « Supprimer l'utilisateur » — instead of leaving the name on the tooltip's wrapping `span`. The tooltips of the disabled self actions read « Mot de passe personnel : page Mot de passe. » and « Suppression de son propre compte impossible. ». Test: `pages/__tests__/UserManagementPage.accessible-names.test.jsx`.
 
 **Edge cases**
 - A page with unsaved changes and a click on another settings entry → the existing dirty-form guard.

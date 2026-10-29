@@ -86,7 +86,7 @@ export default function LoginPage() {
       // specs/hosting-h2-account-security.md rule 62 — the code mail is limited: the refusal says when.
       if (err?.error === 'RESEND_TOO_SOON' && err.retryInSeconds) setWait(err.retryInSeconds);
       setError(err?.error === 'TOO_MANY_ATTEMPTS'
-        ? 'Trop de tentatives. Réessayez plus tard.'
+        ? 'Trop de tentatives. Nouvel essai plus tard.'
         : ['LOCKED', 'RESEND_TOO_SOON', 'TOO_MANY_SENDS'].includes(err?.error) ? err.message : 'Identifiants invalides.');
       setBusy(false);
     }
@@ -104,7 +104,7 @@ export default function LoginPage() {
   }
 
   return (
-    <AuthCard subtitle="Connectez-vous pour continuer.">
+    <AuthCard subtitle="Se connecter pour continuer.">
       <Box component="form" onSubmit={submit}>
         <Stack spacing={2}>
           {notice && <Alert severity={notice.severity} onClose={() => setNotice(null)}>{notice.text}</Alert>}

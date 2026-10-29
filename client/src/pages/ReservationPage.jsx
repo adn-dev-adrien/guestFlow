@@ -1993,7 +1993,7 @@ export default function ReservationPage() {
 
   const handleSaveClient = async () => {
     if (newClientEmailError || newClientPhoneError) {
-      await alert({ title: 'Client invalide', message: 'Veuillez corriger le format du mail ou du téléphone.' });
+      await alert({ title: 'Client invalide', message: 'Format du mail ou du téléphone à corriger.' });
       return;
     }
 
@@ -2141,7 +2141,7 @@ export default function ReservationPage() {
       if (newCheckInHour < availableFrom) {
         const availH = String(Math.floor(availableFrom)).padStart(2, '0');
         const availM = availableFrom % 1 >= 0.5 ? '30' : '00';
-        const message = `Impossible : le logement n'est disponible qu'à partir de ${availH}:${availM} (départ ${prevRes.checkOutTime || '10:00'} + ${cleaning}h de ménage). Veuillez choisir une heure d'arrivée à partir de ${availH}:${availM}.`;
+        const message = `Impossible : le logement n'est disponible qu'à partir de ${availH}:${availM} (départ ${prevRes.checkOutTime || '10:00'} + ${cleaning}h de ménage). Heure d'arrivée possible à partir de ${availH}:${availM}.`;
         return { arrivalMessage: message, departureMessage: '', message };
       }
     }
@@ -2180,8 +2180,8 @@ export default function ReservationPage() {
     const proceed = await confirm({
       title: 'Actualiser les tarifs',
       message: isDevisMode
-        ? 'Voulez-vous recalculer ce devis avec les derniers tarifs en vigueur ? Le prix saisi manuellement sera réinitialisé.'
-        : 'Voulez-vous recalculer cette réservation avec les derniers tarifs en vigueur ? Tant que vous n\'enregistrez pas, les anciens prix restent conservés.',
+        ? 'Recalculer ce devis avec les derniers tarifs en vigueur ? Le prix saisi manuellement sera réinitialisé.'
+        : 'Recalculer cette réservation avec les derniers tarifs en vigueur ? Les anciens prix restent conservés tant que la fiche n\'est pas enregistrée.',
       confirmLabel: 'Actualiser',
       cancelLabel: 'Annuler',
       confirmColor: 'warning',
@@ -2241,17 +2241,17 @@ export default function ReservationPage() {
     const safeAfterSaveAction = typeof afterSaveAction === 'function' ? afterSaveAction : null;
     
     if (!selectedProp) {
-      await alert({ title: 'Erreur', message: 'Veuillez sélectionner un logement.' });
+      await alert({ title: 'Erreur', message: 'Logement à sélectionner.' });
       return false;
     }
 
     if (!form.startDate || !form.endDate) {
-      await alert({ title: 'Erreur', message: 'Veuillez sélectionner les dates.' });
+      await alert({ title: 'Erreur', message: 'Dates à sélectionner.' });
       return false;
     }
 
     if (!form.clientId && !pendingClient) {
-      await alert({ title: 'Erreur', message: 'Veuillez sélectionner un client.' });
+      await alert({ title: 'Erreur', message: 'Client à sélectionner.' });
       return false;
     }
 
@@ -2295,7 +2295,7 @@ export default function ReservationPage() {
       if (exceedsBabiesCapacity) capacityParts.push(`bébés: ${babiesCount}/${maxBabiesAllowed}`);
       const proceed = await confirm({
         title: 'Capacité du logement dépassée',
-        message: `Le nombre de personnes dépasse la capacité configurée (${capacityParts.join(' • ')}). Voulez-vous forcer l'enregistrement ?`,
+        message: `Le nombre de personnes dépasse la capacité configurée (${capacityParts.join(' • ')}). Forcer l'enregistrement ?`,
         confirmLabel: 'Forcer l\'enregistrement',
         cancelLabel: 'Annuler',
         confirmColor: 'warning',
@@ -2367,7 +2367,7 @@ export default function ReservationPage() {
       if (quote.minNightsBreached && !forceMinNights) {
         const proceed = await confirm({
           title: 'Durée minimale non respectée',
-          message: `Cette réservation contient ${quote.nights} nuit(s), inférieur au minimum requis de ${quote.requiredMinNights} nuit(s). Voulez-vous forcer l'enregistrement ?`,
+          message: `Cette réservation contient ${quote.nights} nuit(s), inférieur au minimum requis de ${quote.requiredMinNights} nuit(s). Forcer l'enregistrement ?`,
           confirmLabel: 'Forcer l\'enregistrement',
           cancelLabel: 'Annuler',
           confirmColor: 'warning',
@@ -2384,7 +2384,7 @@ export default function ReservationPage() {
         if (quote.changeoverDepartureBreached) parts.push(`un départ le ${quote.requiredDepartureDayLabel}`);
         const proceed = await confirm({
           title: 'Jour de changement non respecté',
-          message: `Ces dates imposent ${parts.join(' et ')}. Voulez-vous forcer l'enregistrement ?`,
+          message: `Ces dates imposent ${parts.join(' et ')}. Forcer l'enregistrement ?`,
           confirmLabel: 'Forcer l\'enregistrement',
           cancelLabel: 'Annuler',
           confirmColor: 'warning',
@@ -2397,7 +2397,7 @@ export default function ReservationPage() {
       if (quote.maxNightsBreached && !forceMaxNights) {
         const proceed = await confirm({
           title: 'Durée maximale dépassée',
-          message: `Cette réservation contient ${quote.nights} nuit(s), au-delà du maximum autorisé de ${quote.requiredMaxNights} nuit(s). Voulez-vous forcer l'enregistrement ?`,
+          message: `Cette réservation contient ${quote.nights} nuit(s), au-delà du maximum autorisé de ${quote.requiredMaxNights} nuit(s). Forcer l'enregistrement ?`,
           confirmLabel: 'Forcer l\'enregistrement',
           cancelLabel: 'Annuler',
           confirmColor: 'warning',
@@ -2630,7 +2630,7 @@ export default function ReservationPage() {
       if (err?.code === 'MIN_NIGHTS' && !forceMinNights) {
         const proceed = await confirm({
           title: 'Durée minimale non respectée',
-          message: err.message || 'La durée minimale configurée pour cette saison n\'est pas respectée. Voulez-vous forcer l\'enregistrement ?',
+          message: err.message || 'La durée minimale configurée pour cette saison n\'est pas respectée. Forcer l\'enregistrement ?',
           confirmLabel: 'Forcer l\'enregistrement',
           cancelLabel: 'Annuler',
           confirmColor: 'warning',
@@ -2643,7 +2643,7 @@ export default function ReservationPage() {
       if (err?.code === 'CHANGEOVER' && !forceChangeover) {
         const proceed = await confirm({
           title: 'Jour de changement non respecté',
-          message: err.message || 'Le jour d\'arrivée ou de départ imposé pour ces dates n\'est pas respecté. Voulez-vous forcer l\'enregistrement ?',
+          message: err.message || 'Le jour d\'arrivée ou de départ imposé pour ces dates n\'est pas respecté. Forcer l\'enregistrement ?',
           confirmLabel: 'Forcer l\'enregistrement',
           cancelLabel: 'Annuler',
           confirmColor: 'warning',
@@ -2672,7 +2672,7 @@ export default function ReservationPage() {
       if (err?.code === 'MAX_NIGHTS' && !forceMaxNights) {
         const proceed = await confirm({
           title: 'Durée maximale dépassée',
-          message: err.message || 'La durée maximale configurée pour cette saison est dépassée. Voulez-vous forcer l\'enregistrement ?',
+          message: err.message || 'La durée maximale configurée pour cette saison est dépassée. Forcer l\'enregistrement ?',
           confirmLabel: 'Forcer l\'enregistrement',
           cancelLabel: 'Annuler',
           confirmColor: 'warning',
@@ -2723,7 +2723,7 @@ export default function ReservationPage() {
     }
     const ok = await confirm({
       title: 'Confirmer la suppression',
-      message: 'Êtes-vous sûr de vouloir supprimer cette réservation ? Cette action est irréversible.',
+      message: 'Supprimer cette réservation ? Cette action est irréversible.',
       confirmLabel: 'Supprimer',
       confirmColor: 'error',
     });
@@ -3068,7 +3068,7 @@ export default function ReservationPage() {
     if (!editingReservationId) return;
     const ok = await confirm({
       title: 'Transformer en devis',
-      message: 'Voulez-vous créer un devis à partir de cette réservation ? La réservation actuelle ne sera pas modifiée.',
+      message: 'Créer un devis à partir de cette réservation ? La réservation actuelle ne sera pas modifiée.',
       confirmLabel: 'Créer le devis',
       confirmColor: 'info',
     });
@@ -3110,7 +3110,7 @@ export default function ReservationPage() {
     if (nextStatus === 'accepted' && editingDevisId) {
       const ok = await confirm({
         title: 'Accepter le devis',
-        message: 'En acceptant ce devis, il sera enregistré puis converti en réservation (les dates seront bloquées). Voulez-vous continuer ?',
+        message: 'En acceptant ce devis, il sera enregistré puis converti en réservation (les dates seront bloquées). Continuer ?',
         confirmLabel: 'Convertir en réservation',
         cancelLabel: 'Annuler',
         confirmColor: 'warning',
@@ -3206,7 +3206,7 @@ export default function ReservationPage() {
     if (!editingDevisId) return;
     const ok = await confirm({
       title: 'Supprimer le devis',
-      message: 'Êtes-vous sûr de vouloir supprimer ce devis ? Cette action est irréversible.',
+      message: 'Supprimer ce devis ? Cette action est irréversible.',
       confirmLabel: 'Supprimer',
       confirmColor: 'error',
     });
@@ -3724,7 +3724,7 @@ export default function ReservationPage() {
         )}
         {pastUnlocked && (
           <Alert severity="warning" sx={{ mb: 1 }}>
-            Fiche déverrouillée : dates, logement et suppression sont modifiables. Le verrou revient dès que vous quittez la fiche.
+            Fiche déverrouillée : dates, logement et suppression sont modifiables. Le verrou revient dès la sortie de la fiche.
           </Alert>
         )}
         {pastNewReservation && isAdmin && !pastUnlocked && (
