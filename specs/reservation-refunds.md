@@ -318,6 +318,17 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
     carries no flag: a commercial gesture is not capped by it (the money collected still is).
     The dialog opened from a `409 OVERPAID` takes the body's `overpaymentMethod` (`internal` or null) as its
     default means, like the GET's refund prefill.
+43. **The refund dialog opened by « Enregistrer et rembourser » shows the lines as saved (audit R3 N4,
+    2026-10-29).** `reloadReservationFinance` also replaces the refund register (`refunds`, `refundableLines`,
+    `refundTotals`, `collectedTtc`) with the fiche payload it re-reads, so the per-line caps are those of the
+    stay after the save, not of the loaded fiche. Nothing is computed in React.
+44. **A sold-line refund never settles the trop-perçu; « + Nouveau remboursement » only warns (audit R3 N2,
+    Adrien's decision 2026-10-29: « avertir seulement »).** Rule 42 is unchanged: the stored trop-perçu counts
+    free « Trop-perçu » refunds only, a refund of a sold line stays independent and does not reduce it. While the
+    ledger carries an open « Trop-perçu » row (its amount comes from the server, `ledger.rows`), the dialog opened
+    from « + Nouveau remboursement » shows « Un trop-perçu de X € est ouvert. » with « Rembourser le trop-perçu »,
+    which reopens the dialog on the trop-perçu prefill (the `fromOverpayment` flow). No warning when no trop-perçu
+    is open or when the dialog was opened on it. No server change.
 
 ---
 
