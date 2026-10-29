@@ -214,3 +214,52 @@ describe('ClientsPage — the confirmation dialog closes when asked (2026-09-25 
     expect(api.deleteClient).toHaveBeenCalledTimes(1);
   });
 });
+
+// specs/clients.md rule 16 — cancelled and set-aside stays are listed with a badge, and a delete the
+// server will refuse shows its refusal instead of the confirmation lists.
+describe('ClientsPage — protected history (clients.md rule 16)', () => {
+  const stay = (over) => ({
+    id: 1, clientId: 42, propertyId: 1, propertyName: 'Gîte', startDate: '2099-06-01', endDate: '2099-06-04',
+    nights: 3, platform: 'Direct', finalPrice: 300, adults: 2, children: 0, teens: 0, babies: 0, kind: 'reservation', ...over,
+  });
+
+  test('the sheet badges a cancelled and a set-aside stay, and not a live one', async () => {
+    api.getClientDeleteImpact.mockResolvedValue({
+      client: SAMPLE_CLIENT,
+      reservationsCount: 3,
+      reservations: [stay({ id: 1 }), stay({ id: 2, kind: 'cancelled' }), stay({ id: 3, kind: 'superseded' })],
+      devisCount: 0, devis: [], blocker: null,
+    });
+    renderAt('/clients?clientId=42');
+    await screen.findByText('Modifier le client');
+
+    expect(await screen.findByText('Annulée')).toBeInTheDocument();
+    expect(screen.getByText('Écartée')).toBeInTheDocument();
+    expect(screen.getAllByText('Gîte')).toHaveLength(3);
+  });
+
+  test('a delete the server refuses shows a neutral « Suppression impossible » dialog with only the refusal and « Fermer »', async () => {
+    const user = userEvent.setup();
+    api.getClientDeleteImpact.mockResolvedValue({
+      client: SAMPLE_CLIENT,
+      reservationsCount: 1,
+      reservations: [stay({ id: 2, kind: 'cancelled' })],
+      devisCount: 0, devis: [], blocker: 'Ce client a une réservation annulée.',
+    });
+    renderAt('/clients');
+    fireEvent.click(await screen.findByRole('button', { name: /Dupont/ }));
+    await screen.findByText('Modifier le client');
+    await user.click(screen.getByRole('button', { name: 'Supprimer' }));
+    await screen.findByText('Suppression impossible');
+
+    const dialog = screen.getByRole('dialog');
+    expect(await within(dialog).findByText('Ce client a une réservation annulée.')).toBeInTheDocument();
+    expect(within(dialog).getByText('Suppression impossible')).toBeInTheDocument();
+    expect(within(dialog).queryByText(/Confirmer la suppression du client/)).not.toBeInTheDocument();
+    expect(within(dialog).queryByText(/supprimera aussi toutes ses réservations/)).not.toBeInTheDocument();
+    expect(within(dialog).queryByText(/Réservations qui seront supprimées/)).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole('button', { name: 'Confirmer la suppression' })).not.toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Fermer' })).toBeInTheDocument();
+    expect(api.deleteClient).not.toHaveBeenCalled();
+  });
+});

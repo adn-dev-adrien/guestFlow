@@ -1549,6 +1549,8 @@ async function update(req, res) {
         });
       }
     }
+    const staleAfterAwait = staleFicheRefusal(id, req.body);
+    if (staleAfterAwait) return res.status(staleAfterAwait.status).json(staleAfterAwait.body);
     const result = performUpdate(id, req.body, { unlockPast });
     if (result.status === 200 && stale.length > 0) await retireStaleLinks(id);
     return res.status(result.status).json(result.body);

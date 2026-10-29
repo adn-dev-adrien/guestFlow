@@ -1,0 +1,1 @@
+- Deleting a client (forced or not) or a property now refuses, like the per-row routes, when it would remove a cancelled or set-aside stay or the CGV acceptance proof of a converted devis; the client delete preview lists cancelled stays too.
