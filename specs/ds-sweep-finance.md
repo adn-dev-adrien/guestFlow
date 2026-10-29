@@ -170,6 +170,13 @@ headings, tokens-only colors, blessed spacing — with no change to any computed
     tile of the Suivi taxe de séjour is the figure declared to the commune, so it uses `formatCurrency`
     (5,95 €), never `formatCurrencyRounded` (6 €). Supersedes the last sentence of rule 1.
 
+24. **The tourist-tax period cannot be set past the current month (audit R4, 2026-10-29).** With
+    `maxMonth`, `MonthYearPicker` offers no year after its year, and a year change that would land past
+    it (December of last year, then this year) clamps the month to `maxMonth`: the page no longer asks
+    the server for a future month, which refused it and left a load error that « Réessayer » could not
+    clear. The server stays the authority on the range.
+    Test: `MonthYearPicker.max-month.test.jsx`.
+
 ---
 
 ## 4. Architecture

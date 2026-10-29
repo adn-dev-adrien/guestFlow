@@ -233,6 +233,15 @@ business behavior, figure, or calendar geometry**.
     platform badge and the alert caption still wrap after it.
     > **Sans test** — line wrapping is CSS; jsdom computes no layout, so it is checked visually at 390 px.
 
+31. **The resource planning never draws a booking under the wrong resource or week, nor reads « libre » for
+    a week it does not know yet (audit R4, 2026-10-29, review 2026-10-30; reinforces rule 9).** The answer is
+    kept with the `resourceId|week` it belongs to. An answer for a week or a resource already left is dropped,
+    and so is its failure. From the change of resource or week until the answer of the one on screen lands,
+    the grid is dimmed (`aria-busy`), draws no booking and ignores clicks on its slots (same after a failed
+    load, whose error stays above it); a reload of the same week after a save keeps its bookings drawn.
+    Plugin `hourly-resources` 1.3.2.
+    Test: `ResourcePlanningPage.stale-bookings.test.jsx`.
+
 **Edge cases:**
 - No computed figure, occupancy math, drag-and-drop behavior, or calendar geometry changes.
 - `calendar-platform-colors.test.js` guard (no direct `PLATFORM_COLORS[…]` outside

@@ -39,6 +39,8 @@ const ACCOUNTANT_MATCHERS = [
   { method: 'GET', re: /^\/accounting\/cancellation-compensations$/ },
   // specs/vat-optional-mode.md §4.3 — the VAT regime in force is read-only for the accountant.
   { method: 'GET', re: /^\/settings\/vat-regime$/ },
+  // Platform badge colours and names (non-sensitive display config, same entry as the reception role): the shell loads them for every role.
+  { method: 'GET', re: /^\/properties\/platform-colors$/ },
 ];
 
 // specs/reception-role-checkin-only.md §3.6 rule 11 — the exact method+path allowlist for the

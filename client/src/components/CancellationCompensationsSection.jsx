@@ -13,7 +13,7 @@
  * Props: month (1-12), year, canEdit. The page's « Ajouter » opens the create dialog through the
  * ref: `ref.current.openCreate()`.
  */
-import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useState } from 'react';
+import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import {
   Box, Card, CardContent, Stack, Typography, Button, TableCell, TableRow, Link,
 } from '@mui/material';
@@ -42,16 +42,24 @@ const CancellationCompensationsSection = forwardRef(function CancellationCompens
   const [busy, setBusy] = useState(false);
   const [dialog, setDialog] = useState(null); // { mode, compensation }
 
+  // A slow answer for a month already left must not replace the month on screen.
+  const latestRequest = useRef(0);
+
   const refresh = useCallback(async () => {
+    latestRequest.current += 1;
+    const mine = latestRequest.current;
     setLoading(true);
     try {
-      setData(await api.getCancellationCompensations(month, year));
+      const result = await api.getCancellationCompensations(month, year);
+      if (mine !== latestRequest.current) return;
+      setData(result);
       setLoadFailed(false);
     } catch {
+      if (mine !== latestRequest.current) return;
       setData(null);
       setLoadFailed(true);
     } finally {
-      setLoading(false);
+      if (mine === latestRequest.current) setLoading(false);
     }
   }, [month, year]);
 

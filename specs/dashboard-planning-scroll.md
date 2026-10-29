@@ -263,6 +263,15 @@ any more.
     and a window that brings nothing to draw ends the chain (rules 26, 30 N = 1); the hook's own
     scrolls (rule 25) are not gestures.
 
+33. **« Aujourd'hui » reaches today even when its window is released on the way (audit R4,
+    2026-10-29; root cause of the flaky E2E `timeline-scroll`).** A request of an edge, made just before
+    or during the smooth scroll, can release window 0 (ninth window): the scroll then lost its target and
+    the button stayed enabled with today gone from the page. While the scroll runs the page remembers the
+    wish; if window 0 is released it reopens the timeline on today (rule 12). Any wheel, touch or key by
+    the operator cancels the wish. The enabled state of the button is also recomputed when the page's
+    size changes, not only on scroll events.
+    Test: `PlanningPage.today-released.test.jsx`; E2E `planning/timeline-scroll.spec.js`.
+
 **Edge cases:**
 - Several arrivals on the next arrival day → all listed (rule 2), one row each.
 - The next arrival is next year → `label` carries the year.

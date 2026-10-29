@@ -15,8 +15,9 @@ import { MONTH_LABELS } from '../constants/months';
  *   description  optional ReactNode shown next to the fields (a short caption explaining what the
  *                period feeds: CSV ventes, extraction taxe, etc.)
  *   yearsRange   number of selectable years (default 5, current + previous 3 + next 1)
- *   maxMonth     'YYYY-MM' string — when set, options whose (year, month) > max are hidden
- *                (used by Tourist Tax which only allows fully-past months)
+ *   maxMonth     'YYYY-MM' string — when set, months past it are disabled, years after its year are
+ *                not offered, and a year change that would land past it clamps the month to it
+ *                (used by Tourist Tax which only allows months up to the current one)
  *   helperText   optional helper text shown under the Mois field
  */
 
@@ -33,18 +34,26 @@ export default function MonthYearPicker({
   maxMonth,
   helperText,
 }) {
-  const years = useMemo(() => {
-    const current = new Date().getFullYear();
-    // current + 1 down to current - (range - 2). E.g. range=5 → [+1, 0, -1, -2, -3].
-    return Array.from({ length: yearsRange }, (_, i) => current + 1 - i);
-  }, [yearsRange]);
-
   const [maxYear, maxMonthNumber] = useMemo(() => {
     if (!maxMonth) return [null, null];
     const m = String(maxMonth).match(/^(\d{4})-(\d{2})$/);
     if (!m) return [null, null];
     return [Number(m[1]), Number(m[2])];
   }, [maxMonth]);
+
+  const years = useMemo(() => {
+    const current = new Date().getFullYear();
+    // current + 1 down to current - (range - 2). E.g. range=5 → [+1, 0, -1, -2, -3].
+    const all = Array.from({ length: yearsRange }, (_, i) => current + 1 - i);
+    return maxYear ? all.filter((y) => y <= maxYear) : all;
+  }, [yearsRange, maxYear]);
+
+  const handleYearChange = (nextYear) => {
+    const clamped = maxYear && nextYear === maxYear && maxMonthNumber && month > maxMonthNumber
+      ? maxMonthNumber
+      : month;
+    onChange({ month: clamped, year: nextYear });
+  };
 
   const isMonthAvailable = (m) => {
     if (!maxYear || !maxMonthNumber) return true;
@@ -84,7 +93,7 @@ export default function MonthYearPicker({
             select
             label="Année"
             value={year}
-            onChange={(e) => onChange({ month, year: Number(e.target.value) })}
+            onChange={(e) => handleYearChange(Number(e.target.value))}
             fullWidth
             sx={{ maxWidth: { xs: '100%', sm: 180 } }}
           >
