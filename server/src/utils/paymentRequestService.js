@@ -60,7 +60,7 @@ function resolveRequestType(row, requested = null) {
   const asked = String(requested || '').trim().toLowerCase();
   // An explicit type is honoured — and an explicit UNKNOWN one is refused (null → 400) rather than
   // silently turned into a request for something else.
-  if (asked) return LINK_TYPES[asked] ? asked : null;
+  if (asked) return Object.hasOwn(LINK_TYPES, asked) ? asked : null;
   return Number((row && row.depositAmount) || 0) > 0 ? 'deposit' : 'full';
 }
 
@@ -91,7 +91,7 @@ async function mintPaymentLink(deps, id, type) {
   const { database, paymentLinksModel, resolveAmountCents, provider, resolveItems } = deps;
   const deactivateLinks = deps.deactivateLinks
     || ((links) => require('./paymentLinkDeactivation').deactivateAbandonedLinks(links, { paymentLinksModel, providerFor: () => provider }));
-  if (!LINK_TYPES[type]) throw { httpStatus: 400, error: 'INVALID_TYPE', message: 'Type de lien invalide (deposit/balance/full).' };
+  if (!Object.hasOwn(LINK_TYPES, type)) throw { httpStatus: 400, error: 'INVALID_TYPE', message: 'Type de lien invalide (deposit/balance/full).' };
 
   // touristTaxTotal is carried so the full-payment amount resolver has the tax even on the fallback row
   // (specs/public-online-payment.md — avoids a silent tax-free undercharge if the devis lookup misses).
@@ -111,7 +111,7 @@ async function mintPaymentLink(deps, id, type) {
   // ONLY if it still bills the current amount. If the devis was edited between two `pay` calls the stored
   // amount drifts; reusing the stale link would charge the old total yet book the stay as fully paid at
   // the new total. Retire the stale link and mint a fresh one at the correct amount.
-  const existing = paymentLinksModel.findOpenForReservation(id, type);
+  const existing = paymentLinksModel.findOpenForStay(id, type);
   if (existing && existing.url) {
     if (Number(existing.amountCents) === Number(amountCents)) {
       return { id: existing.id, type, amountCents: existing.amountCents, url: existing.url, status: existing.status, providerLinkId: existing.providerLinkId, reused: true };
@@ -146,7 +146,7 @@ async function mintPaymentLink(deps, id, type) {
   // An acompte link and a full link settle the same acompte: only one of them stays payable. The other is
   // retired once the new one exists, so a refused or failed mint never cancels a valid link.
   const otherType = { deposit: 'full', full: 'deposit' }[type];
-  const otherOpen = otherType ? paymentLinksModel.findOpenForReservation(id, otherType) : null;
+  const otherOpen = otherType ? paymentLinksModel.findOpenForStay(id, otherType) : null;
   if (otherOpen && otherOpen.url) {
     try {
       await require('./paymentLinkDeactivation').retireOpenLink(otherOpen, { paymentLinksModel, provider, deactivate: deactivateLinks });
@@ -302,7 +302,7 @@ async function sendPaymentRequest(deps, id, requestedType) {
   if (closed) return { httpStatus: closed.status, body: { error: closed.body.code, message: closed.body.error } };
 
   const type = resolveRequestType(row, requestedType);
-  const stableKey = REQUEST_TEMPLATES[type];
+  const stableKey = Object.hasOwn(REQUEST_TEMPLATES, type) ? REQUEST_TEMPLATES[type] : null;
   if (!stableKey) return { httpStatus: 400, body: { error: 'INVALID_TYPE', message: 'Type de demande invalide (deposit/balance/full).' } };
 
   const refused = englishMissingRefusal(deps, id, stableKey);

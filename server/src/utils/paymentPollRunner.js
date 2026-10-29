@@ -31,6 +31,7 @@ function recordOn(database) {
 }
 
 const { linkAmountCents, bookPaidAfterAmountChange } = require('./ledgerLinks');
+const { withConvertedDevis } = require('./deletionGuard');
 
 // Apply the business consequence of a PAID link. A deposit OR a full payment on a devis converts it to a
 // reservation; a full payment marks it fully settled (deposit + balance). On conversion the dates are
@@ -97,6 +98,24 @@ function applyPaidEffect({ database, devisModel, link, checkConflict, paidDate =
     return { effect, reservationId, conflict };
   }
 
+  // A link minted on the stay itself, paid after another link of the same stay (its own or the devis it
+  // came from) already took the money: a refund to make, like two links of one devis.
+  if ((isDeposit || isFull) && row.kind === 'reservation') {
+    const second = secondPaidLink(database, link, row.id, isFull);
+    if (second) {
+      if (second.duplicateCents != null) recordPayment({ reservationId: row.id, bucket: 'balance', paidDate });
+      return { effect: 'double-payment', duplicateLink: true, duplicateCents: second.duplicateCents, reservationId: row.id, conflict: false };
+    }
+  }
+
+  if (link.type === 'balance' && row.kind === 'reservation' && Number(row.balancePaid || 0) === 1) {
+    const owners = withConvertedDevis(database, [Number(row.id)]);
+    const earlier = database.prepare(
+      `SELECT 1 FROM payment_links WHERE reservationId IN (${owners.map(() => '?').join(',')}) AND type IN ('balance', 'full') AND status = 'paid' AND id <> ? LIMIT 1`,
+    ).get(...owners, Number(link.id));
+    if (earlier) return { effect: 'double-payment', duplicateLink: true, duplicateCents: null, reservationId: row.id, conflict: false };
+  }
+
   if (isDeposit) {
     recordPayment({ reservationId: link.reservationId, bucket: 'deposit', paidDate });
     return { effect: 'deposit-marked' };
@@ -114,10 +133,12 @@ function applyPaidEffect({ database, devisModel, link, checkConflict, paidDate =
 
 // Two live links of one quote both paid (a retried request minted twice): the second money is a refund
 // to make, not a second payment to record or a second confirmation to send.
+// The links of the stay and of the devis it came from count together: a devis link keeps the devis id.
 function secondPaidLink(database, link, reservationId, isFull) {
+  const owners = withConvertedDevis(database, [Number(reservationId), Number(link.reservationId)]);
   const others = database.prepare(
-    "SELECT type, amountCents FROM payment_links WHERE reservationId = ? AND type IN ('deposit', 'full') AND status = 'paid' AND id <> ?",
-  ).all(Number(link.reservationId), Number(link.id));
+    `SELECT type, amountCents FROM payment_links WHERE reservationId IN (${owners.map(() => '?').join(',')}) AND type IN ('deposit', 'full') AND status = 'paid' AND id <> ?`,
+  ).all(...owners, Number(link.id));
   if (others.length === 0) return null;
   const flags = database.prepare('SELECT depositPaid, balancePaid FROM reservations WHERE id = ?').get(Number(reservationId));
   if (!flags) return null;
@@ -203,8 +224,16 @@ async function processPaidLink({ database, devisModel, paymentLinksModel, link, 
   }
   // The day the guest paid, as the provider says, in Paris time — not the day we noticed.
   const paidDate = require('./stayPaymentRecorder').paidDayOf(p.paidAt);
-  const effect = bookIfAmountChanged({ database, link, paidDate, recordPayment })
-    || applyPaidEffect({ database, devisModel, link, checkConflict, paidDate, recordPayment });
+  // A full link paid while the acompte was collected another way: the acompte part is paid twice.
+  const rebooked = bookIfAmountChanged({ database, link, paidDate, recordPayment });
+  const afterDeposit = rebooked ? null : fullAfterDeposit(database, link);
+  if (afterDeposit) (recordPayment || recordOn(database))({ reservationId: afterDeposit.stayId, bucket: 'balance', paidDate });
+  const effect = rebooked
+    || (afterDeposit
+      ? { effect: 'double-payment', duplicateLink: true, duplicateCents: afterDeposit.duplicateCents, reservationId: afterDeposit.stayId, conflict: false }
+      : applyPaidEffect({ database, devisModel, link, checkConflict, paidDate, recordPayment }));
+  // The link that just paid settles its bucket: every other open link of it is retired now, not at the next poll.
+  if (typeof paymentLinksModel.retireSettled === 'function') paymentLinksModel.retireSettled();
   if (effect.effect === 'double-payment') {
     // Two live links of one devis both paid: the second money is a refund, kept on the fiche's history.
     if (effect.duplicateLink) {
@@ -251,18 +280,23 @@ async function processPaidLink({ database, devisModel, paymentLinksModel, link, 
 // retired for an amount change, booked at its amount (specs/reservation-payment-ledger.md rule 31): the admin is told,
 // the payment's id stays on the row for the refund. Returns the per-link results, and whether a rate
 // limit stopped the retries.
-const retryInFlight = new WeakMap();
+// A run for the same scope (all links, or one `only`) is shared; runs of different scopes are chained, never
+// concurrent and never answered with another scope's result.
+const retryState = new WeakMap();
 function retryPendingCancellations(deps) {
-  const running = retryInFlight.get(deps.paymentLinksModel);
-  if (running) return running;
-  const run = retryPendingCancellationsOnce(deps).finally(() => retryInFlight.delete(deps.paymentLinksModel));
-  retryInFlight.set(deps.paymentLinksModel, run);
+  let state = retryState.get(deps.paymentLinksModel);
+  if (!state) { state = { tail: Promise.resolve(), running: new Map() }; retryState.set(deps.paymentLinksModel, state); }
+  const scope = deps.only == null ? 'all' : String(deps.only);
+  if (state.running.has(scope)) return state.running.get(scope);
+  const run = state.tail.then(() => retryPendingCancellationsOnce(deps)).finally(() => state.running.delete(scope));
+  state.running.set(scope, run);
+  state.tail = run.catch(() => {});
   return run;
 }
 
-async function retryPendingCancellationsOnce({ paymentLinksModel, provider, notifyPaidAfterCancel, database, devisModel, recordPayment, checkConflict, notifyConflict, emitPluginEvent }) {
+async function retryPendingCancellationsOnce({ only = null, paymentLinksModel, provider, notifyPaidAfterCancel, database, devisModel, recordPayment, checkConflict, notifyConflict, emitPluginEvent }) {
   const results = [];
-  for (const link of paymentLinksModel.listRemoteCancelPending()) {
+  for (const link of paymentLinksModel.listRemoteCancelPending().filter((l) => only == null || Number(l.id) === Number(only))) {
     if (link.provider !== provider.id || !link.providerLinkId) continue;
     try {
       const pay = await provider.getPayment(link.providerLinkId, { origin: 'cancel-link' });
@@ -433,7 +467,10 @@ async function runPaymentPoll({ database, paymentLinksModel, provider, devisMode
   let checked = 0;
   let stoppedBy = null;
 
-  for (const link of pollable) {
+  for (const polled of pollable) {
+    // A payment earlier in this pass may have retired it: the retry of owed deactivations owns it now.
+    const link = paymentLinksModel.findById(polled.id);
+    if (!link || link.status !== 'open') continue;
     checked += 1;
     if (!link.providerLinkId) { results.push({ id: link.id, status: 'skipped-no-remote-id' }); continue; }
     try {

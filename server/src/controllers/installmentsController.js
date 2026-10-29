@@ -124,7 +124,7 @@ function buildController({
     return null;
   }
 
-  const openLinksOf = (reservationId, types) => paymentLinksModel.listForReservation(reservationId)
+  const openLinksOf = (reservationId, types) => paymentLinksModel.listForStay(reservationId)
     .filter((l) => l.status === 'open' && types.includes(l.type));
 
   // Rule 35 — the acompte / solde / full links of the stay die with the buckets they billed.

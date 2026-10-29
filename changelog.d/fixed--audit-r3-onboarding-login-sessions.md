@@ -1,0 +1,1 @@
+- **Security: adopting the company email as login in the start assistant ends the account's other sessions** (specs/hosting-h2-account-security.md rule 64), as changing the email in « Mon compte » already did.

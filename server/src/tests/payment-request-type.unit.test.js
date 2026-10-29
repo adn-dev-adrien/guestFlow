@@ -27,7 +27,7 @@ function deps(db, sent, amountCents = 30000) {
   return {
     database: db,
     paymentLinksModel: {
-      findOpenForReservation: () => null,
+      findOpenForStay: () => null,
       create: (row) => ({ id: 1, ...row }),
       updateStatus: () => {},
     },

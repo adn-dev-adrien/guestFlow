@@ -237,7 +237,7 @@ async function sendDepositRequestFor(id) {
 // Every payment link of a reservation/devis (newest first) — the status the UI renders. Stored data:
 // readable with the provider disconnected, when the links waiting for deactivation matter most.
 const listReservationPaymentLinks = (req, res) => res.json({
-  links: paymentLinksModel.listForReservation(Number(req.params.id)).map((link) => ({
+  links: paymentLinksModel.listForStay(Number(req.params.id)).map((link) => ({
     ...link,
     remoteCancelPending: Boolean(link.remoteCancelPendingAt),
   })),
