@@ -18,14 +18,15 @@ const CATALOGUE = [
 function setup({
   reservations = [PLACEHOLDER],
   mails = [{ messageId: '<m1@gdf07>', receivedAt: '2026-10-14T16:32:00.000Z', text: BOOKING_MAIL }],
-  rate = 10, autoApply = true, updateStatus = 200, today = '2026-10-15', findReservations = null,
+  rate = 10, autoApply = true, updateStatus = 200, today = '2026-10-15', findReservations = null, parserVersion = null, existingDb = null,
 } = {}) {
-  const db = new Database(':memory:');
+  const db = existingDb || new Database(':memory:');
   db.exec(TABLE_SQL);
   const intakes = buildModel(db);
   const calls = { updates: [], clients: [], mailsSent: 0 };
   const service = createIntakeService({
     intakes,
+    parserVersion,
     settings: {
       mailbox: () => ({ host: 'imap.test', port: 993, user: 'contact@test', password: 'x' }),
       sender: () => 'resa@gdf07.com',

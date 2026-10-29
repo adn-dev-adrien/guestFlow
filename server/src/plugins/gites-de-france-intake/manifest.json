@@ -59,6 +59,7 @@
     "1.4.1": [
       "Chaque champ est lu sur sa propre ligne : le nom du client ne peut plus changer le groupe ni les montants. Dates impossibles, départ avant l’arrivée ou séjour démesuré : mail refusé.",
       "Une fiche annulée n’est plus jamais choisie. Un mail non signé ne rattache plus un séjour à un client existant, et un mail illisible n’est plus relu à chaque passage.",
+      "Un mail HTML est lu comme dans un navigateur ; un mail illisible est relu après une mise à jour du plugin.",
       "Compatible avec le SDK 2.13 de GuestFlow."
     ]
   }

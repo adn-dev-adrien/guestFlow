@@ -6,7 +6,7 @@
 
 const express = require('express');
 const sdk = require('../sdk');
-const { buildModel, TABLE_SQL, addSenderVerifiedColumn } = require('./intakesModel');
+const { buildModel, TABLE_SQL, addSenderVerifiedColumn, addParserVersionColumn } = require('./intakesModel');
 const { createIntakeService } = require('./intakeService');
 
 const id = 'gites-de-france-intake';
@@ -31,6 +31,7 @@ function register(ctx) {
   ctx.migrations([
     { name: 'intakes_table_v1', up: (db) => db.exec(TABLE_SQL) },
     { name: 'intakes_sender_verified_v2', up: addSenderVerifiedColumn },
+    { name: 'intakes_parser_version_v3', up: addParserVersionColumn },
   ]);
 
   ctx.settings.declare([
@@ -57,6 +58,7 @@ function register(ctx) {
 
   const service = () => createIntakeService({
     intakes: intakes(),
+    parserVersion: require('./manifest.json').version,
     settings: {
       mailbox: mailboxConfig,
       sender: () => ctx.settings.get('senderAddress'),
@@ -64,7 +66,7 @@ function register(ctx) {
       giteNumbers: () => JSON.parse(ctx.settings.get('giteNumbers') || '{}'),
       autoApply: () => String(ctx.settings.get('autoApply')) !== '0',
     },
-    readMails: (cfg) => sdk.mailbox.readMailsFrom(cfg),
+    readMails: (cfg) => sdk.mailbox.readMailsFrom({ ...cfg, log: (line) => ctx.log.warn(line) }),
     findReservations: ({ propertyIds, startDate, endDate }) => ctx.db.prepare(`
       SELECT id, propertyId, platform, kind, sourceType, icalSyncLocked, platformGrossAmount, cancelledAt FROM reservations
       WHERE propertyId IN (${propertyIds.map(() => '?').join(',')}) AND startDate = ? AND endDate = ?`)

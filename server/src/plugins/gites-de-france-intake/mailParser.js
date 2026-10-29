@@ -96,14 +96,23 @@ function parseGitesDeFranceMail(text) {
 
   // The party, the contact and the money come after the name, each on a line of its own.
   const rest = lines.slice(guestAt + 1);
-  const partyLine = (rest.find((l) => new RegExp(`^${PREFIX}\\d+\\s+adultes?\\b`, 'i').test(l)) || '');
+  const detailAt = rest.findIndex((l) => /^Détail des (?:suppléments|crédits)/i.test(l));
+  const contact = detailAt < 0 ? rest : rest.slice(0, detailAt);
+  const adultsRe = new RegExp(`^${PREFIX}\\d+\\s+adultes?\\b`, 'i');
+  // Rule 27 — the party is the « picto personnes » line, or the line right after the name; a second party line or a
+  // second e-mail line in the block (a name carrying a line break) makes the mail ambiguous.
+  if (contact.filter((l) => adultsRe.test(l)).length > 1) return fail('Mail ambigu : plusieurs lignes de groupe');
+  const partyLine = contact.find((l) => /^picto\s+personnes\b/i.test(l) && adultsRe.test(l)) || (adultsRe.test(contact[0] || '') ? contact[0] : '');
   const count = (re) => { const m = partyLine.match(re); return m ? Number(m[1]) : 0; };
   const adults = count(/(\d+)\s+adultes?/i);
   if (adults < 1) return fail('Nombre d’adultes introuvable');
-  const detailAt = rest.findIndex((l) => /^Détail des (?:suppléments|crédits)/i.test(l));
-  const contact = detailAt < 0 ? rest : rest.slice(0, detailAt);
-  const email = (contact.map((l) => l.match(new RegExp(`^${PREFIX}([\\w.+-]+@[\\w-]+(?:\\.[\\w-]+)+)$`))).find(Boolean) || [])[1] || '';
-  const phone = (contact.map((l) => l.match(new RegExp(`^${PREFIX}((?:\\+33|0033|0)\\s*[1-9](?:[\\s.]*\\d{2}){4})$`))).find(Boolean) || [])[1] || '';
+  const emailRe = new RegExp(`^${PREFIX}([\\w.+-]+@[\\w-]+(?:\\.[\\w-]+)+)$`);
+  const phoneRe = new RegExp(`^${PREFIX}((?:\\+33|0033|0)\\s*[1-9](?:[\\s.]*\\d{2}){4})$`);
+  const emails = contact.map((l) => l.match(emailRe)).filter(Boolean);
+  const phones = contact.map((l) => l.match(phoneRe)).filter(Boolean);
+  if (emails.length > 1 || phones.length > 1) return fail('Mail ambigu : plusieurs lignes de contact');
+  const email = emails.length ? emails[0][1] : '';
+  const phone = phones.length ? phones[0][1] : '';
 
   const supplementsAt = lines.findIndex((l) => /^Détail des suppléments/i.test(l));
   const creditsAt = lines.findIndex((l) => /^Détail des crédits/i.test(l));

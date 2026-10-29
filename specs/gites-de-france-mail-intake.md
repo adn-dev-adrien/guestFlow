@@ -240,6 +240,17 @@ choice in one click.
     `ctx.core.reservations.update`, SDK 2.13.0); an unverified proposal the operator applies by hand gets a
     client of its own. The client payload also goes through the SDK validation (SDK rule 28). Test:
     `gites-de-france-intake/tests/mail-injection.unit.test.js`.
+27. *(Added 2026-10-28, review of PR #849.)* **A real HTML-only mail reads like the plain-text fixture.** `htmlToText`
+    renders as a browser does: entities are decoded, whitespace of the source is one space inside a text run, and only
+    block tags (`tr`, `td`, `th`, `br`, `p`, `div`, `li`, headings, lists) start a line, so a label and its value split
+    over source lines, a `<tr>` per line, a `<br>` per line or every cell in one row give the same result. The party
+    is the « picto personnes » line, or the line right after the name; a second « N adultes » line, e-mail line
+    or phone line in the contact block refuses the mail (a name carrying a line break, raw or `&#10;`). Tests:
+    `gites-de-france-intake/tests/html-layouts.unit.test.js`.
+28. *(Added 2026-10-28, review of PR #849.)* **A refused mail is read again after a plugin update.** A parse failure
+    (`parsed` empty, status `error` or `ignored`) is stamped with the plugin version in `parserVersion`; when the
+    version differs, the row is dropped and the mail read again, so a later parser fix recovers it. An intake that
+    parsed but failed to apply is never re-read. Same in `airbnb-intake`. Test: same file.
 
 ---
 

@@ -21,7 +21,7 @@ const frDate = (iso) => { const d = new Date(iso); return `${String(d.getDate())
 const localDay = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 function createIntakeService(deps) {
-  const { intakes, settings, readMails, findReservations, commissionPercent, propertyOptions, getReservation, core, now = () => new Date() } = deps;
+  const { intakes, settings, readMails, findReservations, commissionPercent, propertyOptions, getReservation, core, parserVersion = null, now = () => new Date() } = deps;
   // The accommodations' day: the process runs in their time zone (utils/localDate.js).
   const today = deps.today || (() => localDay(now()));
 
@@ -203,7 +203,7 @@ function createIntakeService(deps) {
     const mails = await readMails({ ...mailbox, sender: settings.sender(), ...(settings.authentication ? settings.authentication() : {}) });
     let read = 0;
     for (const mail of mails) {
-      if (intakes.has(mail.messageId)) continue;
+      if (intakes.has(mail.messageId, parserVersion)) continue;
       const senderVerified = mail.authenticated === true;
       read += 1;
       const parsed = parseGitesDeFranceMail(mail.text);
@@ -212,7 +212,7 @@ function createIntakeService(deps) {
         if (!/nouvelle réservation/i.test(`${mail.subject || ''} ${mail.text}`)) continue;
         // Rule 25 — an unauthenticated mail that does not parse is remembered (`ignored`, out of every list)
         // so the next pass does not parse it again.
-        intakes.insert({ messageId: mail.messageId, receivedAt: mail.receivedAt, status: senderVerified ? 'error' : 'ignored', error: parsed.error, senderVerified });
+        intakes.insert({ messageId: mail.messageId, receivedAt: mail.receivedAt, status: senderVerified ? 'error' : 'ignored', error: parsed.error, senderVerified, parserVersion });
         continue;
       }
       intakes.insert({ messageId: mail.messageId, receivedAt: mail.receivedAt, dossierNumber: parsed.booking.dossierNumber, parsed: parsed.booking, status: 'pending', senderVerified });
