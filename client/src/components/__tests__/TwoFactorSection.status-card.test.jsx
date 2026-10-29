@@ -3,7 +3,7 @@
 // server worded, a warning with « Nouveaux codes » from 3 backup codes left, the history folded.
 import React from 'react';
 import { vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { apiMock, media, STATUS_OFF, STATUS_ON } from './twoFactorFixtures';
 
 vi.mock('../../api', () => apiMock());
@@ -76,7 +76,7 @@ test('rule 51: startOpen opens the activation once the status says it is off, an
   const handled = vi.fn();
   render(<TwoFactorSection account="marie@x.fr" startOpen onStartHandled={handled} />);
   expect(await screen.findByText('Étape 1 sur 3')).toBeInTheDocument();
-  expect(handled).toHaveBeenCalled();
+  await waitFor(() => expect(handled).toHaveBeenCalled());
 });
 
 test('rule 51: startOpen on an account already protected opens nothing', async () => {
@@ -85,5 +85,5 @@ test('rule 51: startOpen on an account already protected opens nothing', async (
   render(<TwoFactorSection account="marie@x.fr" startOpen onStartHandled={handled} />);
   await screen.findByText('Activée');
   expect(screen.queryByText('Étape 1 sur 3')).toBeNull();
-  expect(handled).toHaveBeenCalled();
+  await waitFor(() => expect(handled).toHaveBeenCalled());
 });

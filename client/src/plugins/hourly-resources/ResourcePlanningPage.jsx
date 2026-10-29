@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router';
 import {
   Box, Typography, Button, IconButton, Select, MenuItem,
@@ -62,7 +62,8 @@ export default function ResourcePlanningPage() {
   // the server (specs/hourly-resource-quantity-and-sas-scheduling.md §3.5 rule 29). This page used to
   // fetch the two separately and merge them here — a second definition of « occupied », which the
   // conflict check on the write side did not share.
-  const [bookings, setBookings] = useState([]);
+  // The answer and the resource|week it belongs to: never drawn under another key.
+  const [loaded, setLoaded] = useState(null);
   const [loadError, setLoadError] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingBooking, setEditingBooking] = useState(null);
@@ -88,12 +89,21 @@ export default function ResourcePlanningPage() {
 
   // Load bookings when resource or week changes. A failed load must SURFACE (an empty grid would
   // read as « libre » and invite double-booking) — specs/ds-sweep-planning.md rule 9.
+  // An answer for a week or a resource already left is dropped, and until the answer for the one on
+  // screen lands the grid is dimmed and inert: the previous bookings are never drawn under another
+  // resource, nor an empty week read as « libre » (rule 9).
+  const bookingsKey = `${selectedResourceId}|${monday}`;
+  const latestBookingsRequest = useRef(0);
   const loadBookings = useCallback(() => {
     if (!selectedResourceId) return;
+    latestBookingsRequest.current += 1;
+    const mine = latestBookingsRequest.current;
+    const key = `${selectedResourceId}|${monday}`;
     setLoadError(false);
+    setLoaded((prev) => (prev && prev.key === key && !prev.failed ? prev : null));
     api.getResourceBookings({ resourceId: selectedResourceId, weekStart: monday })
-      .then(setBookings)
-      .catch(() => { setBookings([]); setLoadError(true); });
+      .then((rows) => { if (mine === latestBookingsRequest.current) setLoaded({ key, rows }); })
+      .catch(() => { if (mine === latestBookingsRequest.current) { setLoaded({ key, rows: [], failed: true }); setLoadError(true); } });
   }, [selectedResourceId, monday]);
 
   useEffect(() => { loadBookings(); }, [loadBookings]);
@@ -137,6 +147,10 @@ export default function ResourcePlanningPage() {
     return markers;
   }, [openMin, closeMin]);
 
+  const bookings = loaded && loaded.key === bookingsKey ? loaded.rows : [];
+  const gridBusy = Boolean(selectedResourceId) && (!loaded || loaded.key !== bookingsKey);
+  const gridLocked = gridBusy || Boolean(loaded && loaded.failed);
+
   function getBookingsForDate(date) {
     return bookings.filter((b) => b.date === date);
   }
@@ -151,6 +165,7 @@ export default function ResourcePlanningPage() {
   }
 
   function handleGridClick(date, clientY, rect) {
+    if (gridLocked) return;
     const clickY = clientY - rect.top;
     const rawMinutes = openMin + clickY / PIXELS_PER_MINUTE;
     const snapped = Math.floor(rawMinutes / BOOKING_STEP_MINUTES) * BOOKING_STEP_MINUTES;
@@ -331,7 +346,15 @@ export default function ResourcePlanningPage() {
           {/* Calendar grid — intrinsically a wide+tall 2D panel: contained scroll is the documented
               exemption (specs/ds-sweep-planning.md rule 7); the page itself flows normally so the
               sticky bar survives. */}
-          <Box sx={{ maxHeight: { xs: '70vh', md: 'calc(100vh - 300px)' }, overflowY: 'auto', overflowX: 'auto' }}>
+          <Box
+            aria-busy={gridBusy}
+            data-testid="resource-planning-grid"
+            sx={{
+              maxHeight: { xs: '70vh', md: 'calc(100vh - 300px)' }, overflowY: 'auto', overflowX: 'auto',
+              opacity: gridBusy ? 0.45 : 1, pointerEvents: gridLocked ? 'none' : 'auto', transition: 'opacity 150ms ease-out',
+              '@media (prefers-reduced-motion: reduce)': { transition: 'none' },
+            }}
+          >
             <Box sx={{ display: 'flex', minWidth: 600 }}>
               {/* Hour label column */}
               <Box sx={{ width: HOUR_COL_WIDTH, flexShrink: 0, position: 'relative', pt: '40px' }}>

@@ -39,22 +39,23 @@ export default function ReservationSearchBox({ onSelect, placeholder = 'Recherch
   const [inputValue, setInputValue] = useState('');
   const [options, setOptions] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [failed, setFailed] = useState(false);
   const debounceRef = useRef(null);
   const reqIdRef = useRef(0);
 
   useEffect(() => {
     const term = inputValue.trim();
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (!term) { setOptions([]); setLoading(false); return undefined; }
+    if (!term) { setOptions([]); setFailed(false); setLoading(false); return undefined; }
     setLoading(true);
     debounceRef.current = setTimeout(async () => {
       const reqId = (reqIdRef.current += 1);
       try {
         const rows = await api.searchReservations(term);
         // Ignore stale responses (a newer keystroke already fired).
-        if (reqId === reqIdRef.current) setOptions(Array.isArray(rows) ? rows : []);
+        if (reqId === reqIdRef.current) { setOptions(Array.isArray(rows) ? rows : []); setFailed(false); }
       } catch {
-        if (reqId === reqIdRef.current) setOptions([]);
+        if (reqId === reqIdRef.current) { setOptions([]); setFailed(true); }
       } finally {
         if (reqId === reqIdRef.current) setLoading(false);
       }
@@ -83,7 +84,7 @@ export default function ReservationSearchBox({ onSelect, placeholder = 'Recherch
       }}
       getOptionLabel={(o) => (o && (o.reservationNumber || o.clientFullName)) || ''}
       isOptionEqualToValue={(o, v) => o.id === v.id}
-      noOptionsText={inputValue.trim() ? 'Aucune réservation' : 'Numéro ou nom à saisir…'}
+      noOptionsText={failed ? 'Recherche indisponible.' : (inputValue.trim() ? 'Aucune réservation' : 'Numéro ou nom à saisir…')}
       loadingText="Recherche…"
       renderOption={(props, option) => {
         // React 19 + MUI v9: `key` is part of `props`; extract it so it isn't spread (spreading a

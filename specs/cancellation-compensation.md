@@ -191,6 +191,12 @@ quoi elle apparaît dans l'aperçu du journal et dans le CSV des ventes du **moi
     (« Impossible de charger les indemnités. ») with « Réessayer » in place of the two lists: no
     « Total : 0,00 € », no « Aucune indemnité… ». « Réessayer » reloads the same month.
 
+31. **A slow answer for a month already left never replaces the month on screen (audit R4,
+    2026-10-29).** The card keeps the order of its requests (as the e-mail history does): only the
+    latest answer, success or failure, writes the lists, the totals and the error. Without it, August's
+    53,10 € read 0,00 € under the August heading once September's late answer landed.
+    Test: `CancellationCompensationsSection.stale-month.test.jsx`.
+
 ---
 
 ## 4. Architecture
