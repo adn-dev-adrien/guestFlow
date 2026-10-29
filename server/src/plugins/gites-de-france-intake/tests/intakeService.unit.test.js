@@ -88,7 +88,7 @@ test('rule 18: a gîte number tied to no property waits (pending), shown on the 
   const service = createIntakeService({
     intakes: buildModel(db),
     settings: { mailbox: () => ({ host: 'h', user: 'u', password: 'p' }), sender: () => 's', giteNumbers: () => ({ 2: '400100' }), autoApply: () => true },
-    readMails: async () => [{ messageId: '<x>', receivedAt: '2026-10-14T16:32:00.000Z', text: BOOKING_MAIL }],
+    readMails: async () => [{ messageId: '<x>', receivedAt: '2026-10-14T16:32:00.000Z', text: BOOKING_MAIL, authenticated: true }],
     findReservations: () => [], commissionPercent: () => 10, propertyOptions: () => [], getReservation: () => null,
     core: {}, now: () => new Date('2026-10-16T10:00:00Z'),
   });
@@ -111,7 +111,7 @@ test('rule 16: no property tied to a gîte yet → the mailbox is not even read'
 });
 
 test('rule 3: the same Message-ID is read once; a second mail of the same dossier is ignored', async () => {
-  const mails = [{ messageId: '<m1>', receivedAt: '2026-10-14T16:32:00.000Z', text: BOOKING_MAIL }];
+  const mails = [{ messageId: '<m1>', receivedAt: '2026-10-14T16:32:00.000Z', text: BOOKING_MAIL, authenticated: true }];
   const { service, calls, intakes } = setup({ mails });
   await service.runPass();
   await service.runPass();

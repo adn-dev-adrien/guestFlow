@@ -3,7 +3,8 @@
  * rule 12), at the top of the reservation page (slot `reservation.banners`).
  *
  * States, all decided server-side: `applied` (dismissible), `needs_rent` (two rents fit the net: one button
- * each, with the commission it gives), `proposed` (the fiche was already edited: Appliquer / Ignorer),
+ * each, with the commission it gives), `proposed` (the fiche was already edited, its e-mail or phone is set, or the sender is not
+ * authenticated: Appliquer / Ignorer),
  * `error`. Renders nothing otherwise.
  *
  * Props:
@@ -60,7 +61,9 @@ export default function IntakeBanner({ reservationId, onReservationChanged }) {
   if (intake.status === 'proposed') {
     return (
       <Banner
-        severity="info"
+        severity={intake.senderUnverified ? 'warning' : 'info'}
+        title={intake.senderUnverified ? 'Expéditeur non vérifié' : undefined}
+        notes={[intake.reason]}
         busy={busy}
         error={error}
         actions={[
@@ -68,7 +71,9 @@ export default function IntakeBanner({ reservationId, onReservationChanged }) {
           { key: 'ignore', label: 'Ignorer', onClick: dismiss },
         ]}
       >
-        Le {mail} (dossier {intake.dossierNumber}) concerne cette fiche, déjà modifiée à la main.
+        {intake.senderUnverified
+          ? `Le ${mail} (dossier ${intake.dossierNumber}) n’est pas signé par la centrale. Rien n’est rempli tant qu’il n’est pas appliqué.`
+          : `Le ${mail} (dossier ${intake.dossierNumber}) concerne cette fiche${intake.reason ? '.' : ', déjà modifiée à la main.'}`}
       </Banner>
     );
   }

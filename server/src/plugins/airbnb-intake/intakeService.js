@@ -149,7 +149,8 @@ function createIntakeService(deps) {
     const m = match(intake.parsed);
     if (m.error) { intakes.setStatus(intake.id, { status: 'error', error: m.error }); return 'error'; }
     if (!m.reservation) return 'pending';
-    if (!settings.autoApply() || !isUntouched(m.reservation)) {
+    // Rule 22 — a mail whose sender is not authenticated is never applied on its own.
+    if (!intake.senderVerified || !settings.autoApply() || !isUntouched(m.reservation)) {
       intakes.setStatus(intake.id, { status: 'proposed', reservationId: m.reservation.id });
       return 'proposed';
     }
@@ -163,19 +164,22 @@ function createIntakeService(deps) {
     if (settings.listings().length === 0) {
       return { skipped: 'Aucun logement relié à une annonce Airbnb' };
     }
-    const mails = await readMails({ ...mailbox, sender: settings.sender() });
+    const mails = await readMails({ ...mailbox, sender: settings.sender(), ...(settings.authentication ? settings.authentication() : {}) });
     let read = 0;
     for (const mail of mails) {
       if (intakes.has(mail.messageId)) continue;
+      const senderVerified = mail.authenticated === true;
       // Rule 2 — messages, reminders, payouts and reviews from the same sender are not intakes at all.
       if (!isBookingMail(mail.subject, mail.text)) continue;
       read += 1;
       const parsed = parseAirbnbMail({ subject: mail.subject, text: mail.text, sentAt: mail.sentAt || mail.receivedAt });
       if (!parsed.ok) {
-        intakes.insert({ messageId: mail.messageId, receivedAt: mail.receivedAt, status: 'error', error: parsed.error });
+        // A forged mail that does not even parse is noise, not something for the operator to chase.
+        if (!senderVerified) continue;
+        intakes.insert({ messageId: mail.messageId, receivedAt: mail.receivedAt, status: 'error', error: parsed.error, senderVerified });
         continue;
       }
-      intakes.insert({ messageId: mail.messageId, receivedAt: mail.receivedAt, confirmationCode: parsed.booking.code, parsed: parsed.booking, status: 'pending' });
+      intakes.insert({ messageId: mail.messageId, receivedAt: mail.receivedAt, confirmationCode: parsed.booking.code, parsed: parsed.booking, status: 'pending', senderVerified });
     }
     const outcome = {};
     for (const intake of intakes.listOpen()) {
@@ -204,6 +208,7 @@ function createIntakeService(deps) {
       error: intake.error,
       receivedLabel: frDate(intake.receivedAt),
       code: intake.confirmationCode,
+      senderUnverified: !intake.senderVerified,
       airbnbUrl: booking.reservationUrl || null,
       taxLeftEmpty: intake.status === 'applied' && booking.code ? (() => {
         const r = getReservation(reservationId) || {};
@@ -217,6 +222,7 @@ function createIntakeService(deps) {
     return intakes.listAttention(now().toISOString()).map((intake) => {
       const booking = intake.parsed || {};
       let text = intake.error;
+      if (intake.status === 'proposed') text = 'Expéditeur non vérifié';
       if (intake.status === 'pending') {
         text = propertyIdsForListing(booking.listingId).length === 0
           ? `Annonce inconnue : ${booking.listingTitle || 'sans titre'} (${booking.listingId})`

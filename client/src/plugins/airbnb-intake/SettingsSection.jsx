@@ -26,7 +26,7 @@ function describePass(r) {
   if (r.error) parts.push(`${r.error} à vérifier`);
   return `${parts.join(', ')}.`;
 }
-const FIELDS = ['senderAddress', 'imapHost', 'imapPort', 'pollEveryHours', 'listings', 'autoApply'];
+const FIELDS = ['senderAddress', 'imapHost', 'imapPort', 'pollEveryHours', 'listings', 'autoApply', 'senderDomains', 'trustedAuthservId'];
 
 function SettingsSection({ onDirtyChange }, ref) {
   const [saved, setSaved] = useState(null);
@@ -107,11 +107,20 @@ function SettingsSection({ onDirtyChange }, ref) {
               label="Serveur IMAP"
               value={draft.imapHost || ''}
               onChange={set('imapHost')}
-              helperText={`Vide : déduit du serveur d’envoi${mailbox && mailbox.defaultHost ? ` (${mailbox.defaultHost})` : ''}.`}
+              error={Boolean(errors.imapHost)}
+              helperText={errors.imapHost || `Vide : déduit du serveur d’envoi.${mailbox && mailbox.host ? ` Utilisé : ${mailbox.host}.` : ''}`}
               fullWidth
             />
             <TextField label="Port IMAP" type="number" value={draft.imapPort || ''} onChange={set('imapPort')} helperText=" " sx={{ minWidth: { sm: 140 } }} />
           </Stack>
+
+          <Box>
+            <Typography variant="subtitle2" sx={{ mb: 1 }}>Avancé</Typography>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+              <TextField label="Domaines d’envoi acceptés" value={draft.senderDomains || ''} onChange={set('senderDomains')} helperText="Vide : celui de l’expéditeur." fullWidth />
+              <TextField label="Serveur de réception" value={draft.trustedAuthservId || ''} onChange={set('trustedAuthservId')} helperText=" " fullWidth />
+            </Stack>
+          </Box>
 
           <Box>
             <Typography variant="subtitle2">Annonce Airbnb de chaque logement</Typography>
