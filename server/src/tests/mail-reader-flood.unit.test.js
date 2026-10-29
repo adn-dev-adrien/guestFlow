@@ -37,7 +37,7 @@ const read = (count, stats, extra) => readMailsFrom({
   host: 'imap.example.com', user: 'u', password: 'p', sender: SENDER, trustedAuthservId: 'mx.example', smtpHostOf: () => 'smtp.example.com', ImapClient: fakeImap(count, stats), ...extra,
 });
 
-test('rule 30: a known Message-ID is never downloaded', async () => {
+test('plugins-phase-1-sdk.md rule 30: a known Message-ID is never downloaded', async () => {
   const stats = { downloads: 0 };
   const delivered = [];
   await read(50, stats, { seen: (id) => id !== '<m7@x>', onMail: (m) => { delivered.push(m.messageId); } });
@@ -45,7 +45,7 @@ test('rule 30: a known Message-ID is never downloaded', async () => {
   assert.deepEqual(delivered, ['<m7@x>']);
 });
 
-test('rule 30: a pass downloads at most `limit` mails, the newest first', async () => {
+test('plugins-phase-1-sdk.md rule 30: a pass downloads at most `limit` mails, the newest first', async () => {
   const stats = { downloads: 0 };
   const delivered = [];
   await read(1000, stats, { limit: 5, onMail: (m) => { delivered.push(m.messageId); } });
@@ -89,7 +89,7 @@ test('rule 30: an oversized part is handed over as a skipped mail, so the caller
 });
 
 // specs/gites-de-france-mail-intake.md rule 31, specs/airbnb-mail-intake.md rule 31 (review of PR #865).
-test('rule 31: a DKIM-verified mail older than 300 forgeries is delivered in the first pass, outside the cap', async () => {
+test('plugins-phase-1-sdk.md rule 32: a DKIM-verified mail older than 300 forgeries is delivered in the first pass, outside the cap', async () => {
   const stats = { downloads: 0, verified: new Set([1]) };
   const delivered = [];
   await read(300, stats, { onMail: (m) => { delivered.push([m.messageId, m.authenticated]); } });
@@ -118,7 +118,7 @@ test('rule 31: reaching the cap logs a warning with the number of mails left', a
   assert.match(logged[0], /150 .*not read/);
 });
 
-test('rule 31: the envelopes are fetched in bulk — the request count stays bounded', async () => {
+test('plugins-phase-1-sdk.md rule 32: the envelopes are fetched in bulk — the request count stays bounded', async () => {
   const stats = { downloads: 0 };
   await read(5000, stats, { seen: () => true, onMail: () => {} });
   assert.equal(stats.downloads, 0);

@@ -26,11 +26,14 @@ test('rule 52: no server file of a plugin requires a manifest.json', () => {
 });
 
 for (const id of ['gites-de-france-intake', 'airbnb-intake']) {
-  test(`rule 52: ${id}, loaded from its built package, answers the fiche block`, async () => {
-    const { buildPackage } = await import(pathToFileURL(path.join(ROOT, 'scripts', 'build-plugin-packages.mjs')).href);
+  test(`plugins-phase-1-sdk.md rule 31 and phase-4 rule 52: ${id}, loaded from its built package, answers the fiche block`, async () => {
+    // The server half of the package only: the client half needs vite, which the server CI job does not install.
+    const { buildServer } = await import(pathToFileURL(path.join(ROOT, 'scripts', 'build-plugin-packages.mjs')).href);
     const out = fs.mkdtempSync(path.join(os.tmpdir(), 'gf-built-'));
-    await buildPackage(id, out);
     const dir = path.join(out, id);
+    fs.mkdirSync(dir, { recursive: true });
+    fs.copyFileSync(path.join(SRC_PLUGINS, id, 'manifest.json'), path.join(dir, 'manifest.json'));
+    assert.deepEqual(buildServer(id, path.join(dir, 'server')), []);
     assert.ok(fs.existsSync(path.join(dir, 'manifest.json')) && !fs.existsSync(path.join(dir, 'server', 'manifest.json')));
     const { requirePackage } = require('../plugins/loader');
     const registry = require('../plugins/sdk/registry');
@@ -58,7 +61,7 @@ for (const id of ['gites-de-france-intake', 'airbnb-intake']) {
   });
 }
 
-test('rule 52: manifestVersion is cached per folder, and names the folder when there is no manifest', () => {
+test('plugins-phase-1-sdk.md rule 32 (manifestVersion) and phase-4 rule 52: manifestVersion is cached per folder, and names the folder when there is no manifest', () => {
   const sdk = require('../plugins/sdk');
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gf-mv-'));
   assert.throws(() => sdk.manifestVersion(path.join(dir, 'server')), /no manifest\.json in .*server/);
