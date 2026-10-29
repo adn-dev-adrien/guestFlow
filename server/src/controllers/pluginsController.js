@@ -148,10 +148,11 @@ function createController(model = defaultModel, deps = {}) {
   // specs/plugin-dependencies.md rule 2 — the graph of the plugins in play: an installed plugin is read
   // by its own row's manifest (a registry version may have changed its `requires`), the others by the
   // catalogue's.
-  function graph() {
+  function graph(substitute = {}) {
     const rows = model.list();
     const manifests = Object.fromEntries(catalogue().map((entry) => [entry.id, entry]));
     rows.forEach((r) => { manifests[r.id] = r.manifest || manifests[r.id] || bareEntry(r.id); });
+    Object.assign(manifests, substitute);
     return createGraph({
       manifests,
       states: Object.fromEntries(rows.map((r) => [r.id, r.enabled ? 'active' : 'inactive'])),
@@ -261,6 +262,20 @@ function createController(model = defaultModel, deps = {}) {
   // A development tree installs from its sources (rule 10): the offer is the source manifest's.
   const sourceOffer = (entry) => offerOf(entry.id, entry, entry.version);
 
+  // Rule 54 — the cycle the target manifest would close, with the others as they are installed.
+  function cycleRefusal(id, manifest) {
+    const cycle = graph({ [id]: manifest }).cycleOf(id);
+    return cycle ? { code: 'REQUIREMENT_CYCLE', message: `Dépendance circulaire : ${cycleLabel(cycle, nameOf)}.` } : null;
+  }
+
+  // Rule 54 — an active plugin never moves onto a requirement that is installed but off (rule 37).
+  function inactiveRefusal(row, manifest) {
+    if (!row.enabled) return null;
+    const { plan } = requirementPlan(manifest, planCtx());
+    const off = plan.filter((p) => p.op === 'activate');
+    return off.length ? { code: 'REQUIREMENT_INACTIVE', message: `Nécessite ${off.map((p) => p.name).join(', ')} : à activer d’abord.` } : null;
+  }
+
   function updateView(row, target) {
     const { plan, refusal } = requirementPlan(target.manifest, planCtx());
     const toInstall = plan.filter((p) => p.op === 'install');
@@ -268,7 +283,7 @@ function createController(model = defaultModel, deps = {}) {
     return {
       version: target.version,
       changelog: changelogBetween(target.manifest, row.version, target.version),
-      refusal: refusal || missing,
+      refusal: cycleRefusal(row.id, target.manifest) || refusal || missing || inactiveRefusal(row, target.manifest),
     };
   }
 
@@ -312,6 +327,13 @@ function createController(model = defaultModel, deps = {}) {
 
   // Rule 23 — the cycle that stops `id` from coming up: its own, or one it would have to switch on.
   const cycleAround = (g, id) => [id, ...g.requirementClosure(id)].map((member) => g.cycleOf(member)).find(Boolean) || null;
+
+  // Rule 55 — a dependant inside the plugin's own strongly connected group does not block its removal:
+  // that is how an installed cycle is taken apart.
+  const outsideGroup = (g, id, ids) => {
+    const group = g.groupOf(id);
+    return ids.filter((other) => !group.includes(other));
+  };
 
   // Rule 8 — every refusal a card can predict, said before the click.
   function actionsView(entry, row, g, blocker) {
@@ -358,7 +380,7 @@ function createController(model = defaultModel, deps = {}) {
         },
       };
     }
-    const users = g.dependantsOf(id);
+    const users = outsideGroup(g, id, g.dependantsOf(id));
     const uninstallBlockedBy = users.length ? `Utilisé par ${namesOf(users)} : à désinstaller d’abord.` : (blocker && blocker.message) || null;
     return { activate, deactivate, uninstall: { allowed: !uninstallBlockedBy, blockedBy: uninstallBlockedBy } };
   }
@@ -814,7 +836,7 @@ function createController(model = defaultModel, deps = {}) {
     const g = graph();
     const dependents = activeOnly
       ? g.dependantsOf(entry.id, { activeOnly: true })
-      : g.dependantsOf(entry.id).filter((id) => !reconciling || allows(id));
+      : outsideGroup(g, entry.id, g.dependantsOf(entry.id)).filter((id) => !reconciling || allows(id));
     if (!dependents.length) return false;
     const step = activeOnly ? 'désactiver' : 'désinstaller';
     res.status(409).json({
@@ -943,8 +965,11 @@ function createController(model = defaultModel, deps = {}) {
       if (!row) return res.status(409).json({ error: 'NOT_INSTALLED' });
       if (refuseUpdateConditions(res)) return undefined;
       if (!rollbackView(row)) return res.status(409).json({ error: 'NO_ROLLBACK', message: MESSAGES.NO_ROLLBACK });
+      const older = previousManifest(row);
+      const refusal = cycleRefusal(row.id, older) || inactiveRefusal(row, older);
+      if (refusal) return res.status(409).json({ error: refusal.code, message: refusal.message });
       return underLock(res, async (restart) => {
-        const manifest = previousManifest(row);
+        const manifest = older;
         if (row.previousSource === 'registry') host().store().setCurrent(row.id, row.previousVersion);
         model.rollBack(row.id, manifest);
         return restart({ version: row.previousVersion });

@@ -419,6 +419,27 @@ below are the recommended ones; each is reversible in a later spec.
     (SDK 2.15.0: the manifest beside `index.js` in the source tree, beside `server/` in a package).
     `airbnb-intake` 1.1.3 and `gites-de-france-intake` 1.4.5 use it. Test:
     `plugin-built-package-manifest.unit.test.js` builds the packages and loads them from the extracted layout.
+53. **The plugins that rest on a hardening of the core are discovered, not listed** (audit r4, N-R4-1,
+    2026-10-29; extends rule 51). `online-payment` 1.4.4 declares `sdk ^2.15.0`: its webhook scopes the
+    cancellation retry with `retryPendingCancellations({ only })` and relies on the Qonto request timeout, both
+    core code of SDK 2.15.0. `plugin-core-hardening-floor.unit.test.js` no longer carries a hard-coded list: a
+    table maps each core feature (recognised by the call that reaches it: `validateEmail`,
+    `mailbox.readMailsFrom` / `manifestVersion`, `retryPendingCancellations`, `coreModule('qonto')`) to the SDK
+    that shipped it, scans every plugin's server sources, and requires every plugin that reaches one to floor
+    at that SDK. A new hardening adds one line to the table.
+54. **An update, an update-all, a rollback and the bundled-row sync are held to the requirement checks**
+    (audit r4, N-R4-2, 2026-10-29). Before the switch: the target manifest is substituted in the graph and a
+    cycle through the plugin refuses with `REQUIREMENT_CYCLE` (« Dépendance circulaire : … »); an ACTIVE
+    plugin whose target manifest requires an installed but OFF plugin is refused with `REQUIREMENT_INACTIVE`
+    (« Nécessite X : à activer d’abord. », mirror of rule 37; an inactive plugin may still update). The
+    card's `update.refusal` says it before the click, update-all skips such a plugin, and the rollback applies
+    both checks to the older manifest. `syncBundled` at boot (`host.housekeeping`) leaves a row on its
+    current manifest and logs `REQUIREMENT_CYCLE` when the shipped manifest would close a cycle. Test:
+    `plugin-update-requirements.unit.test.js`.
+55. **An installed cycle can be dismantled** (audit r4, N-R4-2, 2026-10-29). The uninstall checks (the card's
+    `actions.uninstall` and the endpoint's `REQUIRED_BY`) ignore the dependants that sit in the plugin's own
+    strongly connected group (`graph.groupOf`), so two plugins that require each other can be uninstalled one
+    after the other. A dependant outside the group still blocks. Test: `plugin-update-requirements.unit.test.js`.
 
 ---
 

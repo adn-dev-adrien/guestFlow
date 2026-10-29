@@ -85,18 +85,27 @@ function runningCopy(id) {
   }
 }
 
+// Rule 54 — a release never rewrites a row with a manifest that would close a dependency cycle.
+function syncClosesCycle(model, id, manifest) {
+  const manifests = Object.fromEntries(model.list().map((r) => [r.id, r.manifest || { id: r.id, requires: [] }]));
+  manifests[id] = manifest;
+  return Boolean(require('../utils/pluginGraph').createGraph({ manifests }).cycleOf(id));
+}
+
 /**
  * Before the modules register: `bundled` rows follow the copy this release ships, an expired
  * rollback window forgets its older copy (rule 16), and the package directories of plugins no
  * longer installed are removed. Returns the rows as they are after that.
  */
-function housekeeping({ model, ids, now = new Date() }) {
+function housekeeping({ model, ids, now = new Date(), copyOf = runningCopy }) {
   const s = ensure();
   ids.forEach((id) => {
     const row = model.get(id);
     if (row && row.source === 'bundled') {
-      const copy = runningCopy(id);
-      if (copy) model.syncBundled(id, copy.manifest, copy.sha256);
+      const copy = copyOf(id);
+      if (copy && syncClosesCycle(model, id, copy.manifest)) {
+        console.error(`[plugins] ${id} ${copy.manifest.version} not synced: REQUIREMENT_CYCLE`); // eslint-disable-line no-console
+      } else if (copy) model.syncBundled(id, copy.manifest, copy.sha256);
     }
     if (row && row.rollbackUntil && Date.parse(row.rollbackUntil) <= now.getTime()) model.expireRollback(id);
     if (s.mode !== 'packages') return;
