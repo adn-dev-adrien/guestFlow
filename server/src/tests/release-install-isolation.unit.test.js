@@ -45,7 +45,8 @@ test('the real lockfile of this repository passes the provenance check (rule 40)
 
 test('every lockfile entry that is not a registry package with an integrity hash is refused (rule 40)', () => {
   assert.deepEqual(lockfileViolations(clean()), []);
-  assert.deepEqual(lockfileViolations(clean({ 'node_modules/b': { inBundle: true, version: '1.0.0' } })), [], 'a bundled copy has no URL of its own');
+  assert.equal(lockfileViolations(clean({ 'node_modules/b': { inBundle: true, version: '1.0.0', resolved: 'git+ssh://git@github.com/evil/repo.git#abc' } })).length, 1, 'inBundle exempts nothing');
+  assert.equal(lockfileViolations(clean({ 'node_modules/b': { inBundle: true, version: '1.0.0' } })).length, 1);
   const refused = {
     'git (prepare would run)': { version: '1.0.0', resolved: 'git+ssh://git@github.com/evil/repo.git#abcdef', integrity: 'sha512-x' },
     'git over https': { version: '1.0.0', resolved: 'git+https://github.com/evil/repo.git#abcdef' },
@@ -143,5 +144,21 @@ test('a shrinkwrap or an .npmrc in the release is refused: npm would read them i
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
     }
+  }
+});
+
+test('a release shipping its own .install-home is refused, and the home is recreated empty (rule 40)', async () => {
+  const { root, releaseDir } = writeRelease(clean());
+  fs.mkdirSync(path.join(releaseDir, '.install-home'));
+  fs.writeFileSync(path.join(releaseDir, '.install-home', '.npmrc'), 'ignore-scripts=false\n');
+  const calls = [];
+  try {
+    await assert.rejects(installDependencies({ releaseDir, execFileImpl: async (...a) => { calls.push(a); } }), /^Error: LOCKFILE_UNTRUSTED:.*\.install-home/);
+    assert.deepEqual(calls, []);
+    // Even if the guard were bypassed, the home is emptied before npm sees it.
+    fs.rmSync(path.join(releaseDir, '.install-home'), { recursive: true });
+    await installDependencies({ releaseDir, execFileImpl: async (cmd, args, options) => { assert.deepEqual(fs.readdirSync(options.env.HOME), []); } });
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
   }
 });

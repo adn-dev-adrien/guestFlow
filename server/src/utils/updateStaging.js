@@ -206,6 +206,7 @@ async function installDependencies({ releaseDir, execFileImpl = execFileAsync })
   assertLockfileProvenance(serverDir);
   const homeDir = path.join(releaseDir, '.install-home');
   const cacheDir = path.join(path.dirname(releaseDir), '.npm-cache');
+  fs.rmSync(homeDir, { recursive: true, force: true });
   fs.mkdirSync(homeDir, { recursive: true });
   fs.mkdirSync(cacheDir, { recursive: true, mode: 0o700 });
   const options = { cwd: serverDir, timeout: NPM_TIMEOUT_MS, maxBuffer: 32 * 1024 * 1024, env: installEnv(homeDir, cacheDir) };

@@ -2,7 +2,8 @@
  * Provenance check of a release's `server/package-lock.json`, run before any `npm ci`
  * (specs/self-update-and-releases.md rule 40). `--ignore-scripts` does not stop a git dependency's
  * `prepare`; a lockfile in which every entry comes from the public npm registry with an integrity hash
- * does. A release carrying an `npm-shrinkwrap.json` or an `.npmrc` is refused outright.
+ * does, with no exemption (an `inBundle` entry is checked like any other). A release carrying an
+ * `npm-shrinkwrap.json`, an `.npmrc` or its own `.install-home` is refused outright.
  */
 
 const fs = require('fs');
@@ -19,7 +20,6 @@ function lockfileViolations(lock) {
     if (key === '') continue;
     if (!entry || typeof entry !== 'object') { out.push([key, 'unreadable entry']); continue; }
     if (entry.link) { out.push([key, 'link dependency']); continue; }
-    if (entry.inBundle) continue;
     if (typeof entry.resolved !== 'string' || !entry.resolved.startsWith(REGISTRY_PREFIX)) {
       out.push([key, `not resolved from ${REGISTRY_PREFIX}`]);
     } else if (typeof entry.integrity !== 'string' || !entry.integrity) {
@@ -31,7 +31,7 @@ function lockfileViolations(lock) {
 
 // Files npm would honour in place of, or on top of, the lockfile we check: a shrinkwrap wins over
 // package-lock.json, and a project .npmrc can re-enable scripts or point at another registry.
-const FORBIDDEN_FILES = [['server', 'npm-shrinkwrap.json'], ['server', '.npmrc'], ['release root', '.npmrc']];
+const FORBIDDEN_FILES = [['server', 'npm-shrinkwrap.json'], ['server', '.npmrc'], ['release root', '.npmrc'], ['release root', '.install-home']];
 
 /** Throws `LOCKFILE_UNTRUSTED:<first offender>` when the release's lockfile is missing or not clean. */
 function assertLockfileProvenance(serverDir) {
