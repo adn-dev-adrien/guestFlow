@@ -40,6 +40,7 @@ function fakeRelease(version, { badHash = false } = {}) {
       ok: true, status: 200, headers: { get: (h) => (h === 'content-length' ? String(body.length) : null) },
       body: require('stream').Readable.toWeb(require('stream').Readable.from([body])),
       text: async () => body.toString('utf8'),
+      arrayBuffer: async () => body.buffer.slice(body.byteOffset, body.byteOffset + body.length),
     };
   };
   const release = { version, archive: { name: `guestflow-${version}.tar.gz`, url: `${BASE}/guestflow-${version}.tar.gz` }, checksums: { url: `${BASE}/SHA256SUMS` } };

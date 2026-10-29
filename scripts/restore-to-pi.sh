@@ -4,7 +4,7 @@
 # Order of operations matters: the app code must already be installed (the published release
 # archive of the version named in the backup's manifest, laid out as `current -> releases/<v>`)
 # BEFORE restoring data, because that install creates `current/` and the symlinks that point it
-# at `data/guestflow.db`, `data/.env.local` and `data/uploads`.
+# at `data/guestflow.db`, `data/.env.local`, `data/uploads` and `data/private-documents`.
 #
 # Full disaster-recovery sequence on a fresh host — see specs/backup-restore.md §4.4:
 #   1. Reinstall the OS + node + pm2 (no CI runner: production makes outbound calls only).
@@ -106,6 +106,13 @@ if [ -d "$FROM/uploads" ]; then
   echo "  · restoring uploads…"
   ssh "$SSH_HOST" "mkdir -p '$REMOTE_DIR/current/server/uploads'"
   rsync -aq "$FROM/uploads/" "$SSH_HOST:$REMOTE_DIR/current/server/uploads/"
+fi
+
+# Property documents sit beside uploads/, outside the public tree (specs/settings-rationalization.md rule 32).
+if [ -d "$FROM/private-documents" ]; then
+  echo "  · restoring property documents…"
+  ssh "$SSH_HOST" "mkdir -p '$REMOTE_DIR/data/private-documents'"
+  rsync -aq "$FROM/private-documents/" "$SSH_HOST:$REMOTE_DIR/data/private-documents/"
 fi
 
 # A release links current/server/{guestflow.db,.env.local} → data/ (releaseLinks.js, rule 25b). On a

@@ -24,6 +24,7 @@ function readProvisioning(db) {
   return {
     rows,
     appliedLicenceIssuedAt: meta.appliedLicenceIssuedAt || null,
+    capabilities: parse(meta.capabilities || 'null'),
     erasedOrders: Object.keys(meta).filter((k) => k.startsWith('erase:')).map((k) => k.slice('erase:'.length)),
     moduleFacts: Object.fromEntries(Object.keys(meta).filter((k) => k.startsWith('facts:')).map((k) => [k.slice('facts:'.length), parse(meta[k])])),
   };

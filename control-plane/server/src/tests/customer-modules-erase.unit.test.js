@@ -104,7 +104,7 @@ test('rule 14: an inactive module that still holds data reads « données conser
   assert.equal(lineOf(env.ctx.controllers.modules.view(env.id), 'linen').detail, 'données conservées');
   env.ctx.controllers.modules.toggle(env.id, 'weather-alerts', false, 'op');
   env.ctx.controllers.modules.toggle(env.id, 'sas', false, 'op');
-  writeSpace(env, { inactive: ['linen', 'sas'], applied: writtenAt(env), facts: FACTS });
+  writeSpace(env, { inactive: ['linen', 'sas'], applied: writtenAt(env), facts: { ...FACTS, sas: { setup: null, erasable: false, data: [] } } });
   assert.equal(lineOf(env.ctx.controllers.modules.view(env.id), 'sas').detail, null);
   env.cleanup();
 });

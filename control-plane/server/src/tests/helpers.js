@@ -215,7 +215,7 @@ function licencePayload(token) {
   return JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf8'));
 }
 
-function makeContext({ at = '2026-09-29T10:00:00Z', firstAdmin, qonto, versions = ['3.9.0'], hostingEnv = {}, pluginInstaller = null } = {}) {
+function makeContext({ at = '2026-09-29T10:00:00Z', firstAdmin, qonto, versions = ['3.9.0'], hostingEnv = {}, pluginInstaller = null, registryPrivateKey = null } = {}) {
   const base = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-host-'));
   const root = path.join(base, 'instances');
   const releasesDir = path.join(base, 'releases');
@@ -233,6 +233,7 @@ function makeContext({ at = '2026-09-29T10:00:00Z', firstAdmin, qonto, versions 
     mailer,
     secrets: createSecrets(crypto.randomBytes(32)),
     privateKey,
+    registryPrivateKey,
     instancesRoot: root,
     dataDir,
     domain: 'guestflow.test',

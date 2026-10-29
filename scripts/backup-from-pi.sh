@@ -103,6 +103,10 @@ rsync -aq --exclude '_guestflow_uploads_backup' \
   "$SSH_HOST:$REMOTE_DIR/current/server/uploads/" "$DEST/uploads/" \
   || echo "  ! no uploads directory on the Pi — skipped"
 
+# Property documents live beside uploads/, outside the public tree (specs/settings-rationalization.md rule 32).
+rsync -aq "$SSH_HOST:$REMOTE_DIR/data/private-documents/" "$DEST/private-documents/" \
+  || echo "  ! no private-documents directory on the Pi — skipped"
+
 # 3. Manifest: what the restore side needs to know about this snapshot.
 {
   echo "GuestFlow backup"

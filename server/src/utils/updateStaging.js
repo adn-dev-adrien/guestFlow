@@ -18,6 +18,8 @@ const { promisify } = require('util');
 const { isAllowedDownloadUrl, parseSha256Sums } = require('./releaseClient');
 const { isValidVersion } = require('./semver');
 const { linkPersistentPaths } = require('./releaseLinks');
+const { assertSumsSigned, releasePublicKeyFromEnv } = require('./releaseSignature');
+const { assertLockfileProvenance } = require('./lockfileProvenance');
 
 const execFileAsync = promisify(execFile);
 
@@ -81,6 +83,12 @@ async function downloadToFile({ url, destFile, maxBytes = MAX_ARCHIVE_BYTES, fet
 async function fetchText({ url, fetchImpl = fetch }) {
   const res = await fetchAllowed(url, { fetchImpl });
   return res.text();
+}
+
+/** Fetch a small asset as raw bytes (what a signature is checked against). */
+async function fetchBuffer({ url, fetchImpl = fetch }) {
+  const res = await fetchAllowed(url, { fetchImpl });
+  return Buffer.from(await res.arrayBuffer());
 }
 
 async function sha256File(file) {
@@ -160,22 +168,54 @@ function assertReleaseLayout(releaseDir, expectedVersion) {
   return true;
 }
 
+// Not secrets: how to reach the registry from behind a proxy.
+const PASS_THROUGH_ENV = ['HTTPS_PROXY', 'HTTP_PROXY', 'NO_PROXY', 'https_proxy', 'http_proxy', 'no_proxy', 'NODE_EXTRA_CA_CERTS'];
+
+/**
+ * The environment of every npm / node child of an install: nothing of the parent's but PATH and the
+ * proxy settings, so no secret (`CP_*`, `GUESTFLOW_*`, session or encryption keys) reaches a lifecycle
+ * script of the release. The npm cache is `cacheDir`, outside the release, so updates stay warm.
+ */
+function installEnv(homeDir, cacheDir) {
+  const env = {
+    PATH: process.env.PATH || '/usr/local/bin:/usr/bin:/bin',
+    HOME: homeDir,
+    npm_config_cache: cacheDir,
+    npm_config_update_notifier: 'false',
+    npm_config_fund: 'false',
+    npm_config_audit: 'false',
+  };
+  for (const name of PASS_THROUGH_ENV) if (process.env[name]) env[name] = process.env[name];
+  return env;
+}
+
 /**
  * Install production dependencies and make sure the native module actually loads.
  *
- * `npm ci --omit=dev` first (plain, so `sharp` keeps its prebuilt binary), then a from-source
- * rebuild of `better-sqlite3` alone so its ABI matches the Node that will run it — the same
- * two-step the deploy workflow used, for the same reason.
+ * Guarantees (rule 40), and their limit. Before anything runs, the lockfile must resolve every package
+ * from the public npm registry with an integrity hash (`assertLockfileProvenance`): no git, file, link
+ * or http dependency, so no `prepare` script and no look-alike `sharp`. Then `npm ci --omit=dev
+ * --ignore-scripts` runs with a minimal environment (`installEnv`). Packages from the registry can
+ * still ship install scripts of their own, but none runs: scripts are skipped, and `better-sqlite3`
+ * (N-API prebuilds) and `sharp` (prebuilt optional packages) need none. What this does NOT do: the
+ * install still runs as the installer's own user, so it is not a sandbox against a compromised
+ * registry package's *code at load time*, only against install-time execution.
  */
 async function installDependencies({ releaseDir, execFileImpl = execFileAsync }) {
   const serverDir = path.join(releaseDir, 'server');
-  const options = { cwd: serverDir, timeout: NPM_TIMEOUT_MS, maxBuffer: 32 * 1024 * 1024 };
-  await execFileImpl('npm', ['ci', '--omit=dev'], options);
-  await execFileImpl('npm', ['rebuild', 'better-sqlite3'], {
-    ...options,
-    env: { ...process.env, npm_config_build_from_source: 'true' },
-  });
-  await execFileImpl(process.execPath, ['-e', "require('better-sqlite3')"], options);
+  assertLockfileProvenance(serverDir);
+  const homeDir = path.join(releaseDir, '.install-home');
+  const cacheDir = path.join(path.dirname(releaseDir), '.npm-cache');
+  fs.rmSync(homeDir, { recursive: true, force: true });
+  fs.mkdirSync(homeDir, { recursive: true });
+  fs.mkdirSync(cacheDir, { recursive: true, mode: 0o700 });
+  const options = { cwd: serverDir, timeout: NPM_TIMEOUT_MS, maxBuffer: 32 * 1024 * 1024, env: installEnv(homeDir, cacheDir) };
+  try {
+    await execFileImpl('npm', ['ci', '--omit=dev', '--ignore-scripts'], options);
+    await execFileImpl(process.execPath, ['-e', "require('better-sqlite3')"], options);
+  } finally {
+    fs.rmSync(homeDir, { recursive: true, force: true });
+  }
 }
 
 /**
@@ -188,6 +228,7 @@ async function stageRelease({
   onPhase = () => {},
   fetchImpl = fetch,
   installImpl = installDependencies,
+  releasePublicKey = releasePublicKeyFromEnv(),
 }) {
   if (!isValidVersion(release.version)) throw new Error('INVALID_VERSION');
   const { version } = release;
@@ -205,7 +246,14 @@ async function stageRelease({
     await downloadToFile({ url: release.archive.url, destFile: tmpArchive, fetchImpl });
 
     onPhase('verifying');
-    const sums = parseSha256Sums(await fetchText({ url: release.checksums.url, fetchImpl }));
+    const sumsBytes = await fetchBuffer({ url: release.checksums.url, fetchImpl });
+    await assertSumsSigned({
+      sums: sumsBytes,
+      signature: release.checksumsSignature,
+      publicKey: releasePublicKey,
+      fetchSignature: (asset) => fetchText({ url: asset.url, fetchImpl }),
+    });
+    const sums = parseSha256Sums(sumsBytes.toString('utf8'));
     const expected = sums[release.archive.name];
     if (!expected) throw new Error('CHECKSUM_MISSING');
     const actual = await sha256File(tmpArchive);
@@ -265,6 +313,7 @@ module.exports = {
   fetchAllowed,
   downloadToFile,
   fetchText,
+  fetchBuffer,
   sha256File,
   assertArchiveMembers,
   assertMemberPaths,

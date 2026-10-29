@@ -25,7 +25,9 @@ test('rule 15 — the fleet row carries the version, the process, the last backu
   const h = await oneCustomer();
   try {
     h.host.certs.aulnes = '2027-01-02T10:00:00.000Z';
-    fs.writeFileSync(path.join(h.root, 'aulnes', 'uploads', 'photo.jpg'), Buffer.alloc(3 * 1048576));
+    fs.writeFileSync(path.join(h.root, 'aulnes', 'uploads', 'photo.jpg'), Buffer.alloc(2 * 1048576));
+    fs.mkdirSync(path.join(h.root, 'aulnes', 'private-documents'), { recursive: true });
+    fs.writeFileSync(path.join(h.root, 'aulnes', 'private-documents', 'contrat.pdf'), Buffer.alloc(1048576));
     h.ctx.models.hosting.set(h.c.id, { last_backup_verified_at: '2026-10-04T03:00:00.000Z' });
     h.host.replicas.get(`c${h.c.id}`).stalled = true;
     h.now.set('2026-10-08T08:02:00Z');

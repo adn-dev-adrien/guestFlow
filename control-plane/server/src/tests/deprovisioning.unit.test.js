@@ -18,6 +18,8 @@ async function archivedCustomer() {
   makeInstance(h.root, 'aulnes', { installed: ['sas'] });
   fs.mkdirSync(path.join(h.root, 'aulnes', 'uploads'), { recursive: true });
   fs.writeFileSync(path.join(h.root, 'aulnes', 'uploads', 'logo.png'), 'png');
+  fs.mkdirSync(path.join(h.root, 'aulnes', 'private-documents'), { recursive: true });
+  fs.writeFileSync(path.join(h.root, 'aulnes', 'private-documents', 'contrat.pdf'), 'pdf');
   const c = await h.ctx.controllers.customers.create(NEW_CUSTOMER, 'op');
   return { ...h, c };
 }
@@ -40,7 +42,7 @@ test('rule 20 — export, email, stop step, archived, erasure date — in that o
   const exp = ctx.models.provisioning.getExport(token);
   assert.equal(exp.expiresAt, '2026-10-29');
   const listing = execFileSync('tar', ['-tzf', exp.path], { encoding: 'utf8' });
-  for (const f of ['guestflow.db', 'reservations.csv', 'clients.csv', 'uploads/logo.png']) assert.match(listing, new RegExp(f.replace('.', '\\.')));
+  for (const f of ['guestflow.db', 'reservations.csv', 'clients.csv', 'uploads/logo.png', 'private-documents/contrat.pdf']) assert.match(listing, new RegExp(f.replace('.', '\\.')));
   const out = path.join(dataDir, 'x');
   fs.mkdirSync(out);
   execFileSync('tar', ['-xzf', exp.path, '-C', out]);

@@ -163,7 +163,8 @@ function describe({ method, path, summary }) {
   }
   const status = Number(summary);
   const refused = Number.isInteger(status) && status >= 400;
-  const outcomeLabel = refused ? 'Refusé' : method === 'GET' ? '' : 'Effectué';
+  // Rule 60 — the client left before the answer: the write may or may not have gone through.
+  const outcomeLabel = summary === 'aborted' ? 'Interrompu' : refused ? 'Refusé' : method === 'GET' ? '' : 'Effectué';
   return { label: requestLabel(method, path), outcomeLabel };
 }
 

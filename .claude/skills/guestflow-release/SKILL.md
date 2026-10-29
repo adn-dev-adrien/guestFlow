@@ -298,6 +298,25 @@ CLAUDE.md §5.2 ban on force-pushing branches still stands.
 
 ---
 
+## Step 8b — Sign the release (only when a signing key exists)
+
+Rule 41 of `specs/self-update-and-releases.md`. Skip silently unless `GUESTFLOW_RELEASE_SIGNING_KEY`
+(the path of the maintainer's private key, held off GitHub) is set in the environment. When it is:
+
+```bash
+node scripts/sign-release.mjs sign "$GUESTFLOW_RELEASE_SIGNING_KEY" vX.Y.Z
+```
+
+The script downloads `SHA256SUMS` and the archive, refuses to sign unless the sums list the archive's
+real hash, prints the sums, signs them and uploads `SHA256SUMS.sig`. Compare the printed sums with the
+`package` job's log. An installer that has `GUESTFLOW_RELEASE_PUBLIC_KEY` set refuses any release without
+this asset, so on a signed setup the release is **not installable until this step has run** — say so in
+the report.
+
+> **CHECK** (key present only): `gh release view vX.Y.Z` also lists `SHA256SUMS.sig`.
+
+---
+
 ## Step 9 — Report
 
 ```
