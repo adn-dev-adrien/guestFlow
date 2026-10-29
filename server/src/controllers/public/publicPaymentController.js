@@ -175,6 +175,18 @@ function recap(reservationRow) {
   return out;
 }
 
+// A link retired by the stay's own payment may have been paid anyway (the guest still holds its URL):
+// settle it now, so the double payment is flagged while the guest is on the page.
+async function settleOwedRetiredLinks(devisId) {
+  const provider = paymentProviders.declared();
+  if (!provider) return;
+  try {
+    const owed = paymentLinksModel.listForReservation(devisId)
+      .filter((l) => l.status === 'cancelled' && l.remoteCancelPendingAt && l.providerLinkId && l.provider === provider.id);
+    for (const l of owed) await retryPendingCancellations({ ...buildPaymentEffectDeps(), provider, only: l.id });
+  } catch (e) { /* best-effort — the poll retries */ }
+}
+
 async function status(req, res) {
   const id = Number(req.params.id);
   const token = req.query && req.query.token;
@@ -188,7 +200,10 @@ async function status(req, res) {
     return ok(res, { status: r && r.bookingConflictAt ? 'conflict' : 'confirmed', ...recap(r) });
   };
   // Already confirmed (by the webhook / a prior poll)? loadPublicDevis tags it `already_converted`.
-  if (error === 'already_converted') return asConfirmed(row.convertedReservationId);
+  if (error === 'already_converted') {
+    await settleOwedRetiredLinks(id);
+    return asConfirmed(row.convertedReservationId);
+  }
 
   // On-demand reconciliation: if the devis's open link (deposit OR full, per the property's mode) is paid
   // at Qonto but not yet processed, process it now (best-effort) so the success page sees `confirmed`
@@ -212,13 +227,7 @@ async function status(req, res) {
       }
     } catch (e) { /* best-effort — fall through to pending */ }
   }
-  // A link retired by the stay's own payment may have been paid anyway (the guest still holds its URL).
-  if (provider) {
-    try {
-      const owed = paymentLinksModel.listForReservation(id).filter((l) => l.status === 'cancelled' && l.remoteCancelPendingAt && l.providerLinkId && l.provider === provider.id);
-      for (const l of owed) await retryPendingCancellations({ ...buildPaymentEffectDeps(), provider, only: l.id });
-    } catch (e) { /* best-effort — the poll retries */ }
-  }
+  await settleOwedRetiredLinks(id);
   return ok(res, { status: 'pending' });
 }
 
