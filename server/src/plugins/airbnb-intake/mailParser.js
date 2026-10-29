@@ -95,14 +95,14 @@ function parseAirbnbMail({ subject, text, sentAt }) {
   const allLines = plain.split(/\r?\n/);
   const messageEnd = allLines.map((l) => l.length <= MAX_LINE && /^Envoyer un message à/i.test(l.trim())).lastIndexOf(true);
   // A confirmation without a guest message has no « Envoyer un message à » line. Nothing the guest typed may then
-  // sit above the structured part: right after « Sur Airbnb depuis … » comes the thread or rooms link, or the
+  // sit above the structured part: right after « Sur Airbnb depuis … » comes the thread link, or the
   // mail is refused (rule 27).
   let from = 0;
   if (messageEnd < 0) {
     const since = lineIndex(allLines, /^Sur Airbnb depuis/i);
     const first = since < 0 ? -1 : allLines.findIndex((l, i) => i > since && l.trim());
     const link = first < 0 ? '' : allLines[first].trim().replace(/^\[/, '');
-    if (!/^https:/.test(link) || !airbnbUrl(link, '/(?:rooms|hosting/thread)/')) return fail('Partie structurée du mail introuvable');
+    if (!/^https:/.test(link) || !airbnbUrl(link, '/hosting/thread/')) return fail('Partie structurée du mail introuvable');
     from = first;
   }
   const lines = messageEnd < 0 ? allLines.slice(from) : allLines.slice(messageEnd);
@@ -126,7 +126,8 @@ function parseAirbnbMail({ subject, text, sentAt }) {
   const lastName = titleCase(words.slice(firstWords).join(' '));
   if (!lastName) return fail('Nom du voyageur incomplet');
 
-  const listingId = (airbnbUrl(structured, '/rooms/') || '').match(/\/rooms\/(\d+)/)?.[1];
+  const arrivalLine = lineIndex(lines, HEADER_RES.arrival);
+  const listingId = (airbnbUrl(arrivalLine < 0 ? structured : lines.slice(0, arrivalLine).join('\n'), '/rooms/') || '').match(/\/rooms\/(\d+)/)?.[1];
   if (!listingId) return fail('Annonce introuvable');
   const roomsLine = lines.findIndex((l) => /\/rooms\/\d+/.test(l));
   const titleLine = lines.slice(roomsLine + 1).find((l) => l.trim() && !/^\[?https?:/.test(l.trim()));

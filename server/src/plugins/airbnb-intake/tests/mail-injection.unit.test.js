@@ -70,20 +70,22 @@ test('rule 24: a key header repeated in the structured part is refused', () => {
 });
 
 test('rule 27: a confirmation without guest message (no « Envoyer un message à » line) is read whole', () => {
-  const mail = bookingMail().replace(/(Sur Airbnb depuis 2024\n\n)[\s\S]*?(?=https:\/\/www\.airbnb\.fr\/rooms)/, '$1');
+  const mail = bookingMail().replace(/(Sur Airbnb depuis 2024\n\n)[\s\S]*?(\[https:\/\/www\.airbnb\.fr\/hosting\/thread[^\n]*\n)/, '$1$2');
   assert.ok(!/Envoyer un message/.test(mail));
   const r = parse(mail);
   assert.equal(r.ok, true, r.error);
   assert.deepEqual([r.booking.code, r.booking.startDate, r.booking.adults, r.booking.message], ['HMTEST1234', '2026-12-26', 5, '']);
 });
 
-test('rule 27: without the end-of-message line, guest text above the links refuses the mail and decides nothing', () => {
-  const noEnd = (text) => text.replace(/(Sur Airbnb depuis 2024\n\n)[\s\S]*?(?=https:\/\/www\.airbnb\.fr\/rooms)/, `$1${'$$TEXT'}\n\n`);
-  const base = bookingMail();
-  const forged = noEnd(base).replace('$TEXT', 'Bonjour\nhttps://www.airbnb.fr/rooms/999');
-  const r = parse(forged);
-  assert.equal(r.ok, false);
-  assert.equal(parse(noEnd(base).replace('$TEXT', '')).ok, true);
+test('rule 27: without the end-of-message line, guest text or a rooms link above the thread link decides nothing', () => {
+  const noEnd = (first) => bookingMail().replace(/(Sur Airbnb depuis 2024\n\n)[\s\S]*?(\[https:\/\/www\.airbnb\.fr\/hosting\/thread[^\n]*\n)/, `$1${first}$2`);
+  assert.equal(parse(noEnd('Bonjour\nhttps://www.airbnb.fr/rooms/999\n\n')).ok, false);
+  assert.equal(parse(noEnd('https://www.airbnb.fr/rooms/999\n\n')).ok, false, 'a rooms link first is not the thread link');
+  const ok = parse(noEnd(''));
+  assert.equal(ok.ok, true, ok.error);
+  assert.equal(ok.booking.listingId, '1234567890123456789');
+  const late = parse(noEnd('').replace('Arrivée        Départ', 'https://www.airbnb.fr/rooms/999\n\nArrivée        Départ'));
+  assert.equal(late.ok && late.booking.listingId, '1234567890123456789', 'the first rooms link after the thread link wins');
 });
 
 test('rule 27: an arrival on the « 1er » of a month is read in the subject and in the body', () => {
