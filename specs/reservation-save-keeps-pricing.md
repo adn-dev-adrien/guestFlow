@@ -99,7 +99,11 @@ changed something the price depends on; money collected beyond the total is repo
    dialog opens on that means (`defaultMethod`), so nothing is booked in the accounts; the operator can change
    it. A refund by transfer is booked on the poste of its lines (70600010 for options), an internal one nowhere.
    Once the save has run the stored lines already carry the lower tax, so the tax a collected complement
-   held is read back from the history (the value before its first change since the collection).
+   held is **stamped when it is collected**: `reservations.complementCollectedTax`, written by a trigger in
+   the very statement that flips `complementPaid` 0 → 1 (every payment path, a plugin included), cleared when
+   it flips back. A row collected before the column existed (NULL) reads the history instead (the value
+   before the tax's first change since the collection); with neither stamp nor history the unexplained rest
+   falls on the options, then the resources, then the accommodation.
    The poste of the excess is taken from what left the complement: the lines the stored complement carries
    beyond what the stay's complement now carries (options, resources, **tourist tax → 46710000**); what the
    stored lines cannot explain falls on the options, then the resources, then the accommodation.
@@ -168,7 +172,8 @@ changed something the price depends on; money collected beyond the total is repo
 
 ## 5. Data model
 
-None.
+`reservations.complementCollectedTax REAL NULL` and its three triggers (`database.js`, idempotent): the tourist tax
+as stored when the arrival complement was collected. Legacy rows stay NULL.
 
 ## 6. UI / UX
 
@@ -187,9 +192,10 @@ An amber alert above the platform price alert, one per notice, 44 px action targ
 - [x] `reservation-engine-input-parity.unit.test.js` (1) — rule 3: the auditor's repro (12 adults, extra guest
       price raised 25 → 40): the plan splits the stay total, the restamp goes back to it.
 - [x] `frozen-complement-excess-is-trop-percu.unit.test.js` (4) — rule 4, platform stays included.
-- [x] `fiche-shows-collected-complement-excess.unit.test.js` (8) — rule 4: the preview announces it; the
+- [x] `fiche-shows-collected-complement-excess.unit.test.js` (12) — rule 4: the preview announces it; the
       GET ledger of a locked fiche carries the row and its prefill; no false row when the replay prices a
-      paid stay lower (#14); caisse interne default; options / tax poste, through the 409 and after the save.
+      paid stay lower (#14); caisse interne default; options / tax poste, through the 409 and after the save; the stamp (same-day edit, edits around midnight,
+      un-collecting) and the legacy fallback.
 - [x] `plugins/accounting-export/tests/accounting-complement-excess-refund.unit.test.js` (2) — the excess
       refunded by transfer is booked on 70600010, by caisse interne nowhere.
 - [x] `fiche-pricing-notices.unit.test.js` (6) — rules 5-6; client `PricingNotices.test.jsx` (3).

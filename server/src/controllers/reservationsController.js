@@ -434,10 +434,13 @@ function complementLeftOf(reservationId, quote, row = model.getRow(reservationId
   return left;
 }
 
-// The tourist tax a collected complement held: the amount the tax had before its first change since the
-// complement was collected (null when it never changed, or the complement is not collected).
+// The tourist tax a collected complement held: the amount stamped when it was collected; for a row collected
+// before the stamp, the amount the tax had before its first change since (null when it never changed).
 function touristTaxCollectedInComplement(reservationId, row) {
   if (!row || Number(row.complementPaid || 0) !== 1) return null;
+  // Stamped in the statement that collected it (`complementCollectedTax`); the history only serves the rows
+  // collected before the stamp existed.
+  if (row.complementCollectedTax != null) return Number(row.complementCollectedTax);
   const paidDate = String(row.complementPaidDate || '').slice(0, 10);
   const entries = db.prepare("SELECT changedFields, createdAt FROM reservation_history WHERE reservationId = ? AND eventType = 'update' ORDER BY id").all(Number(reservationId));
   for (const entry of entries) {

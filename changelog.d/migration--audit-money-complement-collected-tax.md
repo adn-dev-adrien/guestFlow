@@ -1,0 +1,1 @@
+- **Migration** — `reservations.complementCollectedTax` (nullable) and three triggers record the tourist tax as stored the moment the arrival complement is collected, so the trop-perçu of a tax that falls afterwards is refunded on the tax poste. Added idempotently at boot; rows collected before this version stay NULL and read the history as before. No existing data is rewritten.
