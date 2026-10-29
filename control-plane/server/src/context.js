@@ -48,8 +48,10 @@ const { createSupportController } = require('./controllers/supportController');
 // with no environment fallback: Qonto is configured from the Paiements page only (rule 32).
 // The hosting (specs/hosting-h1-fleet-runtime.md) adds the host drivers, the shared releases and the
 // fetch used by the health checks; the tests pass fakes, index.js builds them from the environment.
+const publicKeyOf = (key) => (key ? crypto.createPublicKey(key).export({ format: 'der', type: 'spki' }).toString('base64') : null);
+
 function createContext({
-  db, now, mailer, secrets, privateKey, instancesRoot, dataDir, domain, consoleUrl, runFirstAdmin, qonto, directoryKey,
+  db, now, mailer, secrets, privateKey, registryPrivateKey = null, instancesRoot, dataDir, domain, consoleUrl, runFirstAdmin, qonto, directoryKey,
   drivers, releasesDir, hostingEnv = {}, fetchImpl = fetch, releasesFetch, installRelease, pluginInstaller = null, isPortFree, diskRatio, consoleDbFile = null,
 }) {
   const publicUrl = consoleUrl || `https://console.${domain}`;
@@ -89,7 +91,7 @@ function createContext({
     consoleDbFile,
     consoleBackupDir: path.join(dataDir, 'backups'),
     // specs/plugins-phase-4-registry.md P23 — the plugin registry, signed with the licence key.
-    registry: createRegistryStore({ db, dir: path.join(dataDir, 'registry'), privateKey, now }),
+    registry: createRegistryStore({ db, dir: path.join(dataDir, 'registry'), privateKey: registryPrivateKey || privateKey, now }),
   };
 
   // --- Hosting H1 ---
@@ -123,7 +125,8 @@ function createContext({
     healthTimeoutMs,
     publicUrlOf: (slug) => `https://${slug}.${domain}`,
     registryUrl: `${publicUrl.replace(/\/+$/, '')}/registry/v1`,
-    licencePublicKey: privateKey ? crypto.createPublicKey(privateKey).export({ format: 'der', type: 'spki' }).toString('base64') : null,
+    licencePublicKey: publicKeyOf(privateKey),
+    registryPublicKey: publicKeyOf(registryPrivateKey || privateKey),
     hooks: {
       licence: (id) => ctx.controllers.customers.issueLicence(id),
       admin: (id) => ctx.controllers.customers.adminStep(id),

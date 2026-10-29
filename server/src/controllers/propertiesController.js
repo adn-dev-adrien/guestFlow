@@ -177,6 +177,13 @@ function addDocument(req, res) {
   respond(res, model.addDocument(req.params.id, req.file, req.body));
 }
 
+function downloadDocument(req, res) {
+  const doc = model.getDocument(req.params.id, req.params.docId);
+  const file = doc && require('../utils/propertyDocumentFiles').resolveDocumentFile(doc.filePath);
+  if (!file) return res.status(404).json({ error: 'Document introuvable' });
+  return res.download(file, require('../utils/propertyDocumentFiles').downloadName(doc.name, file));
+}
+
 function deleteDocument(req, res) {
   respond(res, model.deleteDocument(req.params.id, req.params.docId));
 }
@@ -191,5 +198,5 @@ module.exports = {
   list, getOne, limits, articleLabels, platformColors, emailHooks, saveEmailHooks, progressivePreview,
   create, update, remove,
   addPricing, updatePricing, deletePricing, applyPricing, assignPricingDateRange, platformPrices,
-  addDocument, deleteDocument, setOptions,
+  addDocument, deleteDocument, downloadDocument, setOptions,
 };

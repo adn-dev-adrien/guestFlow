@@ -46,7 +46,9 @@ db.prepare("INSERT INTO ical_sources (propertyId, name, url, platformKey, platfo
 
 // Prod-shaped: one true duplicate on a direct stay, nine isolated past stays.
 stay(14, 1, '2026-04-13', '2026-04-16', { platform: 'direct' });
-stay(22279, 1, '2026-04-13', '2026-04-17', { platform: 'Lodgify' });
+// The real copy ended one night after its keeper (13→17 against 13→16) and is now flagged instead (rule 26);
+// the fixture keeps the copy inside its keeper.
+stay(22279, 1, '2026-04-13', '2026-04-16', { platform: 'Lodgify' });
 const ISOLATED = [22201, 22224, 22226, 22227, 22229, 22242, 22269, 22271, 22272];
 ISOLATED.forEach((id, i) => stay(id, 1, `2026-0${1 + (i % 3)}-${String(2 + i * 3).padStart(2, '0')}`, `2026-0${1 + (i % 3)}-${String(4 + i * 3).padStart(2, '0')}`, { platform: 'Lodgify' }));
 // Estiva: three direct stays, no hidden one.
@@ -140,8 +142,18 @@ test('rule 26 — a hidden stay LONGER than the visible one it overlaps is not s
   assert.ok(db.prepare('SELECT bookingConflictAt FROM reservations WHERE id = 80').get().bookingConflictAt);
 });
 
-test('rule 26 — within the keeper dates ±1 day it is a copy; the keeper is the earliest overlap, by date not by id', () => {
-  stay(70, 1, '2026-12-01', '2026-12-04', { platform: 'Lodgify' });
+test('rule 26 — a hidden stay one night longer than its keeper is flagged, never set aside (audit 2026-10-28)', () => {
+  stay(90, 1, '2026-09-13', '2026-09-16', { platform: 'direct' });
+  stay(91, 1, '2026-09-13', '2026-09-17', { platform: 'Lodgify' });
+  stay(92, 1, '2026-09-12', '2026-09-16', { platform: 'Lodgify' });
+  const found = findCandidates(db);
+  assert.ok(found.conflicts.some((c) => c.id === 91 && c.otherId === 90 && c.why === 'longer'), 'one night after');
+  assert.ok(found.conflicts.some((c) => c.id === 92 && c.otherId === 90 && c.why === 'longer'), 'one night before');
+  assert.deepEqual(found.superseded.filter((s) => s.id === 91 || s.id === 92), []);
+});
+
+test('rule 26 — fully inside the keeper dates it is a copy; the keeper is the earliest overlap, by date not by id', () => {
+  stay(70, 1, '2026-12-02', '2026-12-03', { platform: 'Lodgify' });
   stay(72, 1, '2026-12-01', '2026-12-03', { platform: 'direct' });
   stay(71, 1, '2026-12-02', '2026-12-04', { platform: 'direct' });
   const found = findCandidates(db);

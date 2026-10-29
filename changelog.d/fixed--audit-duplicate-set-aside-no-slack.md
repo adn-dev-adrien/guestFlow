@@ -1,0 +1,1 @@
+- **A duplicate is set aside only when its nights sit inside its keeper's** (`calendar-property-parity.md` rule 26): a hidden copy one night longer than the visible stay used to be set aside and freed that night for sale; it is now flagged as a date conflict instead.

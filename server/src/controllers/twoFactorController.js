@@ -207,6 +207,14 @@ function createTwoFactorController({
     assertCurrentCode(user, row, code);
   }
 
+  // Rule 59 — the guard of a change to the account's own identity: the password, then a current code
+  // when the second step is on. Same limits as the other re-authentications (rules 8, 47, 49).
+  function reauthenticateForChange(user, { password, code } = {}) {
+    assertPassword(user, password);
+    const row = model.get(user.id);
+    if (row && row.enabledAt) assertCurrentCode(user, row, code);
+  }
+
   // Why a mail slot was refused — the 60 s gap, the enrolment's 5 sends, the hour's mails.
   function assertMayResend(row, enrolment, login = false) {
     if (enrolment && row.pendingSends >= MAX_SENDS) {
@@ -398,17 +406,23 @@ function createTwoFactorController({
   async function beginLogin(user) {
     const row = model.get(user.id);
     assertNotLocked(row);
+    // Rule 62 — the login mail takes a slot like every code mail (rule 55). Over the limit no mail leaves:
+    // with a live login code the step is shown on it, without one the refusal says when to retry.
+    let mailed = false;
     if (row.method === 'email') {
-      await sendEmailCode(user, 'login');
-      model.markCodeSent(user.id, nowIso());
+      try {
+        reserveMailSlot(user.id, { login: true });
+        mailed = true;
+      } catch (err) {
+        const liveCode = Boolean(row.emailCodeHash && row.emailCodeExpiresAt && row.emailCodeExpiresAt > nowIso());
+        if (!(err && err.status === 429) || !liveCode) throw err;
+      }
+      if (mailed) await sendEmailCode(user, 'login');
     }
-    return {
-      step: 'second-factor',
-      method: row.method,
-      message: row.method === 'totp'
-        ? 'Code à 6 chiffres de l’appli d’authentification.'
-        : `Code envoyé à ${maskEmail(user.email)}, valable ${EMAIL_CODE_MINUTES} minutes.`,
-    };
+    let message = `Code envoyé à ${maskEmail(user.email)}, valable ${EMAIL_CODE_MINUTES} minutes.`;
+    if (row.method === 'totp') message = 'Code à 6 chiffres de l’appli d’authentification.';
+    else if (!mailed) message = `Code déjà envoyé à ${maskEmail(user.email)}.`;
+    return { step: 'second-factor', method: row.method, message };
   }
 
   const activeUser = (userId) => {
@@ -466,7 +480,7 @@ function createTwoFactorController({
 
   return {
     status, start, sendCode, cancel, confirm, disable, regenerate, disableFor, snooze,
-    isRequired, beginLogin, verifyLogin, resendLogin, issueTrust,
+    isRequired, beginLogin, verifyLogin, resendLogin, issueTrust, reauthenticateForChange,
     MAX_FAILURES, LOCK_MINUTES, EVENT_LABELS,
   };
 }

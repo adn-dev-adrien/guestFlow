@@ -26,6 +26,8 @@ const loginLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   skipSuccessfulRequests: true, // only failed logins count toward the limit
+  // A right password met by the code mail limit (rule 62) is not a failed login.
+  requestWasSuccessful: (req, res) => res.statusCode < 400 || res.locals.codeMailLimited === true,
   message: { error: 'TOO_MANY_ATTEMPTS' },
 });
 

@@ -11,6 +11,7 @@ import {
 import { useTheme, alpha } from '@mui/material/styles';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EventBusyIcon from '@mui/icons-material/EventBusy';
+import SearchOffIcon from '@mui/icons-material/SearchOff';
 import DescriptionIcon from '@mui/icons-material/Description';
 import MailOutlineIcon from '@mui/icons-material/MailOutlined';
 import PointOfSaleIcon from '@mui/icons-material/PointOfSale';
@@ -51,7 +52,7 @@ import api from '../api';
 import { expandOptionGroups } from '../utils/optionGroups';
 import { getRangeOccupancyConflictInfo, isPlacementUnchanged } from '../utils/reservationConflicts';
 import { isValidEmail, isValidPhone } from '../utils/validation';
-import { getFromParam, navigateBack, navigateBackWithFrom } from '../utils/navigation';
+import { DEFAULT_BACK_PATH, getFromParam, navigateBack, navigateBackWithFrom } from '../utils/navigation';
 import { applyQuoteToForm as applyQuoteToFormPure } from '../utils/applyQuoteToForm';
 import { resolvePlatformTouristTaxPrefill } from '../utils/platformTouristTaxPrefill';
 import { COARSE_POINTER, TOUCH_TARGET } from '../utils/touchHitArea';
@@ -72,6 +73,7 @@ import {
 import { formatCurrency, displayDate } from '../utils/formatters';
 import LoadingState from '../components/LoadingState';
 import ErrorAlert from '../components/ErrorAlert';
+import EmptyState from '../components/EmptyState';
 import { useAuth } from '../hooks/useAuth';
 import { ADMIN, userHasRole } from '../constants/roles';
 import { optionLineKey, resourceLineKey } from '../utils/arrivalLineKey';
@@ -156,6 +158,13 @@ const EMPTY_CLIENT = {
   emailLanguage: 'fr',
 };
 
+// Only the 404 of the fiche or quote being opened means « introuvable »; a 404 on a side lookup (the
+// property of a new stay) is an ordinary load failure.
+function markMissingLookup(err) {
+  if (err && err.status === 404) err.missingLookup = true;
+  throw err;
+}
+
 export default function ReservationPage() {
   const { reservationId } = useParams();
   const { user: currentUser } = useAuth();
@@ -193,6 +202,7 @@ export default function ReservationPage() {
 
   const [loading, setLoading] = useState(true);
   const [initError, setInitError] = useState(false);
+  const [notFound, setNotFound] = useState(false);
   const [saving, setSaving] = useState(false);
   const [properties, setProperties] = useState([]);
   const [selectedProp, setSelectedProp] = useState('');
@@ -797,6 +807,7 @@ export default function ReservationPage() {
     const initPage = async () => {
       try {
         setLoading(true);
+        setNotFound(false);
         const props = await api.getProperties();
         setProperties(props);
 
@@ -836,7 +847,7 @@ export default function ReservationPage() {
         
         // Load reservation details if editing
         if (reservationId) {
-          const res = await api.getReservation(reservationId);
+          const res = await api.getReservation(reservationId).catch(markMissingLookup);
           loadedUpdatedAtRef.current = res.updatedAt || null;
           setExistingReservationLocked(Boolean(res.editLock?.locked));
           setEditLock(res.editLock || null);
@@ -870,9 +881,9 @@ export default function ReservationPage() {
             teens: res.teens || 0,
             babies: res.babies || 0,
             platform: res.platform || 'direct',
-            singleBeds: res.singleBeds || '',
-            doubleBeds: res.doubleBeds || '',
-            babyBeds: res.babyBeds || '',
+            singleBeds: res.singleBeds ?? '',
+            doubleBeds: res.doubleBeds ?? '',
+            babyBeds: res.babyBeds ?? '',
             breakfastTime: res.breakfastTime || '',
             extraGuestSurchargeOffered: Boolean(res.extraGuestSurchargeOffered),
             totalPrice: importedBlankPrice ? '' : res.totalPrice || 0,
@@ -990,7 +1001,7 @@ export default function ReservationPage() {
           await loadResourcesAvailability(res.startDate, res.endDate, res.propertyId, res.id);
           await loadBabyBedAvailability(res.startDate, res.endDate, res.propertyId, res.id);
         } else if (editingDevisId) {
-          const devis = await api.getDevisById(editingDevisId);
+          const devis = await api.getDevisById(editingDevisId).catch(markMissingLookup);
           setCgvBlock(devis.cgv || null);
           setOnlinePayment(devis.onlinePayment || null);
           const loaded = await loadPropertyContext(devis.propertyId, props);
@@ -1020,9 +1031,9 @@ export default function ReservationPage() {
             babies: devis.babies || 0,
             platform: devis.platform || 'direct',
             status: devis.status || 'draft',
-            singleBeds: devis.singleBeds || '',
-            doubleBeds: devis.doubleBeds || '',
-            babyBeds: devis.babyBeds || '',
+            singleBeds: devis.singleBeds ?? '',
+            doubleBeds: devis.doubleBeds ?? '',
+            babyBeds: devis.babyBeds ?? '',
             breakfastTime: devis.breakfastTime || '',
             extraGuestSurchargeOffered: Boolean(devis.extraGuestSurchargeOffered),
             totalPrice: devis.totalPrice || 0,
@@ -1219,7 +1230,8 @@ export default function ReservationPage() {
 
         setLoading(false);
       } catch (err) {
-        setInitError(true);
+        if (err && err.status === 404 && err.missingLookup) setNotFound(true);
+        else setInitError(true);
         setLoading(false);
       }
     };
@@ -2953,6 +2965,21 @@ export default function ReservationPage() {
     }
     setHistoryOpen((prev) => !prev);
   };
+
+  if (notFound) {
+    return (
+      <Box>
+        <PageActionBar title={isDevisMode ? 'Devis' : 'Réservation'} onBack={() => navigateBack(navigate, isDevisMode ? '/devis' : DEFAULT_BACK_PATH)} />
+        <EmptyState
+          icon={<SearchOffIcon />}
+          title={isDevisMode ? 'Devis introuvable.' : 'Réservation introuvable.'}
+          message="Le lien est périmé ou la fiche a été supprimée."
+          actionLabel={isDevisMode ? 'Retour aux devis' : 'Retour au planning'}
+          onAction={() => navigate(isDevisMode ? '/devis' : DEFAULT_BACK_PATH, { replace: true })}
+        />
+      </Box>
+    );
+  }
 
   if (initError) {
     return (

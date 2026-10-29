@@ -61,7 +61,7 @@ function addDaysIso(day, n) {
 
 function createProvisioner({
   models, drivers, releases, instances, now, fetchImpl = fetch, hooks,
-  portRange = '4400-4499', healthTimeoutMs = 60000, licencePublicKey = null, isPortFree = portIsFree, today,
+  portRange = '4400-4499', healthTimeoutMs = 60000, licencePublicKey = null, registryPublicKey = licencePublicKey, isPortFree = portIsFree, today,
   publicUrlOf = () => null, registryUrl = null,
 }) {
   const { customers, provisioning, hosting } = models;
@@ -96,6 +96,7 @@ function createProvisioner({
       releasesDir: releases.dir,
       secrets,
       licencePublicKey,
+      registryPublicKey,
       publicUrl: publicUrlOf(inst.slug),
       registryUrl,
       extra: { ...drivers.proxy.instanceEnv(), ...drivers.mail.envFor(inst), GUESTFLOW_PROXY_SECRET: proxySecret },
@@ -140,7 +141,7 @@ function createProvisioner({
   const RUNNERS = {
     async dir(c) {
       const inst = instanceOf(c);
-      for (const sub of ['data', 'uploads', 'logs']) fs.mkdirSync(path.join(inst.dir, sub), { recursive: true });
+      for (const sub of ['data', 'uploads', 'private-documents', 'logs']) fs.mkdirSync(path.join(inst.dir, sub), { recursive: true });
       hosting.ensure(c.id);
       syncEnv(c);
       // specs/control-plane-plans-and-access.md rule 38 — no host path on the customer page.

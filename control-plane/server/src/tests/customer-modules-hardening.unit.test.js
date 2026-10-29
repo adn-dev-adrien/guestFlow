@@ -6,7 +6,10 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { customerWithSpace, writeSpace, lineOf, writtenAt, licenceOf } = require('./moduleFixture');
 
-const DATA = { 'website-booking': { setup: null, erasable: true, data: [{ label: '2 clés', count: 2 }] } };
+const DATA = {
+  'website-booking': { setup: null, erasable: true, data: [{ label: '2 clés', count: 2 }] },
+  'google-vacation-rentals': { setup: null, erasable: false, data: [] },
+};
 
 async function unseeded() {
   const env = await customerWithSpace({ planCode: 'premium' });
@@ -135,7 +138,7 @@ test('rule 38: a data erase keeps its wording, and cancelling a removal says so'
   const { modules } = env.ctx.controllers;
   env.ctx.models.customers.addGrandfathered(env.id, 'google-vacation-rentals', '2026-09-29');
   modules.toggle(env.id, 'google-vacation-rentals', false, 'op');
-  writeSpace(env, { inactive: ['google-vacation-rentals'], applied: writtenAt(env) });
+  writeSpace(env, { inactive: ['google-vacation-rentals'], applied: writtenAt(env), facts: { 'google-vacation-rentals': DATA['google-vacation-rentals'] } });
   modules.erase(env.id, 'google-vacation-rentals', env.slug, 'op');
   modules.toggle(env.id, 'google-vacation-rentals', true, 'op');
   const journal = () => env.ctx.models.audit.forCustomer(env.id).filter((a) => a.kind === 'module').map((a) => a.text);

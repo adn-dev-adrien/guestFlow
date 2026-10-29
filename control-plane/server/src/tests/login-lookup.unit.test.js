@@ -43,3 +43,36 @@ test('rule 24 — a suspended space is still a match, and the redirect carries t
     h.cleanup();
   }
 });
+
+// specs/control-plane-plans-and-access.md rule 41 (audit 2026-10-28, L2): a customer's recorded contact
+// address is listed for that customer only; another space declaring it among its users does not claim it.
+test('rule 41 — a space cannot list itself next to another customer\'s contact address', async () => {
+  const h = makeContext({ at: '2026-10-01T08:00:00Z' });
+  try {
+    makeInstance(h.root, 'aulnes', { users: [{ email: 'claire@aulnes.fr' }] });
+    makeInstance(h.root, 'moulin', { users: [{ email: 'Claire@Aulnes.fr' }, { email: 'jo@moulin.fr' }, { email: 'compta@lamy.fr' }] });
+    await h.ctx.controllers.customers.create(NEW_CUSTOMER, 'op');
+    await h.ctx.controllers.customers.create({ ...NEW_CUSTOMER, slug: 'moulin', companyName: 'Le Moulin', contactEmail: 'jo@moulin.fr', billing: 'monthly', length: 1, startsAt: '2026-06-01' }, 'op');
+    h.ctx.controllers.login.readDirectory();
+    const login = h.ctx.controllers.login;
+    assert.deepEqual(login.lookup('claire@aulnes.fr').spaces.map((s) => s.slug), ['aulnes']);
+    assert.deepEqual(login.lookup('jo@moulin.fr').spaces.map((s) => s.slug), ['moulin']);
+    assert.deepEqual(login.lookup('compta@lamy.fr').spaces.map((s) => s.slug), ['moulin'], 'other addresses keep being listed');
+  } finally {
+    h.cleanup();
+  }
+});
+
+test('rule 41 — one contact address recorded on two customers is listed for both (rule 24 several spaces)', async () => {
+  const h = makeContext({ at: '2026-10-01T08:00:00Z' });
+  try {
+    makeInstance(h.root, 'aulnes', { users: [{ email: 'compta@lamy.fr' }] });
+    makeInstance(h.root, 'moulin', { users: [{ email: 'compta@lamy.fr' }] });
+    await h.ctx.controllers.customers.create({ ...NEW_CUSTOMER, contactEmail: 'compta@lamy.fr' }, 'op');
+    await h.ctx.controllers.customers.create({ ...NEW_CUSTOMER, slug: 'moulin', companyName: 'Le Moulin', contactEmail: 'Compta@Lamy.fr', billing: 'monthly', length: 1, startsAt: '2026-06-01' }, 'op');
+    h.ctx.controllers.login.readDirectory();
+    assert.deepEqual(h.ctx.controllers.login.lookup('compta@lamy.fr').spaces.map((s) => s.slug), ['aulnes', 'moulin']);
+  } finally {
+    h.cleanup();
+  }
+});
