@@ -107,7 +107,7 @@ test('rule 2 — « Recalculer » (refreshTouristTax) re-prices an untouched sta
   assert.equal(row(db, id).touristTaxTotal, 6, '2 adults x 3 nights x 1 €');
 });
 
-test('rule 1 — an unpriced save still applies the bed invariant on the lines it stored (bed-config-in-linen-card rules 7, 12)', () => {
+test('rule 1 — an unpriced save still applies the bed invariant on the lines it stored (the bed-config-in-linen-card invariant)', () => {
   const { db, controller, id, body } = fixture();
   db.prepare('UPDATE reservations SET singleBeds = 2, doubleBeds = 1 WHERE id = ?').run(id);
   const custom = db.prepare('SELECT id FROM reservation_custom_options WHERE reservationId = ?').get(id);

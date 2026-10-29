@@ -678,6 +678,8 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
     address the operator never recorded, is accepted: the page then shows a company name, no
     credential is exposed (each space checks its own passwords).
 
+42. **`create-first-admin.js` reads its arguments strictly** (audit R2 N4, 2026-10-29). `util.parseArgs` in strict mode: a value that looks like a flag (`--name --probe`) or an unknown flag exits 2 before any database is opened. The console's call (`--name ''`, `--establishment <json>`) is unchanged; a name or company starting with `-` is passed by the console as `--name=-x` / `--company=-x` (only then; an older release's script ignores that form), so it is accepted. Test: `tests/audit-r2-first-admin-args.unit.test.js`.
+
 ## 4. Architecture
 
 A new application, the **control plane**, lives next to the GuestFlow application: a top-level

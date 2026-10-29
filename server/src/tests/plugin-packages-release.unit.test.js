@@ -218,7 +218,7 @@ test('rule 27: the package archive is reproducible â€” same files, same bytes â€
   assert.ok(names.includes('server/index.js') && names.includes(`client/chunks/${long}`));
 });
 
-test('rule 43 (withdraws the reuse of rule 27): a rebuild that differs from the published package fails, and the published one is never shipped again', async () => {
+test('rule 49 (withdraws the reuse of rule 27): a rebuild that differs from the published package fails, and the published one is never shipped again', async () => {
   const { execFileSync, spawnSync } = require('child_process');
   const work = fs.mkdtempSync(path.join(os.tmpdir(), 'gf-reuse-'));
   const pack = (dir, contentHash, file = 'index.js') => {

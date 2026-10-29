@@ -35,13 +35,22 @@ test('rule 42: every kind of secret or runtime file is found', async (t) => {
   ]);
 });
 
-test('rule 42: a clean tree passes — certs/README, .gitkeep, .env.example and node_modules are fine', async (t) => {
+test('rule 42: a clean tree passes — certs/README, .gitkeep and .env.example are fine', async (t) => {
   const { findForbiddenFiles } = await load();
   const dir = tree([
     'server/src/index.js', 'server/certs/README.md', 'server/certs/.gitkeep', 'server/uploads/.gitkeep',
-    'server/.env.example', 'server/node_modules/x/.env', 'client/build/index.html', 'package.json',
+    'server/.env.example', 'client/build/index.html', 'package.json',
   ], t);
   assert.deepEqual(findForbiddenFiles(dir), []);
+});
+
+test('rule 42: any node_modules directory fails the check, at the root or in server/', async (t) => {
+  const { findForbiddenFiles } = await load();
+  const dir = tree(['server/src/index.js', 'server/node_modules/x/index.js', 'node_modules/better-sqlite3/index.js'], t);
+  assert.deepEqual(findForbiddenFiles(dir), ['node_modules/', 'server/node_modules/']);
+  const r = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'check-release-tree.mjs'), dir], { encoding: 'utf8' });
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /server\/node_modules\//);
 });
 
 test('rule 42: the CLI exits 1 and names the file', (t) => {

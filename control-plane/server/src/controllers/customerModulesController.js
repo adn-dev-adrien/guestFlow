@@ -65,17 +65,23 @@ function createCustomerModulesController(ctx, customersController) {
     return on ? g.requirementClosure(id).filter((r) => !chosen.has(r)) : g.activeDependantClosure(id);
   }
 
+  // specs/plugin-dependencies.md rule 22 — the flag is the list of ids the operator saw; a different
+  // closure now is refused, never taken along unseen.
+  const confirmedIds = (given) => (Array.isArray(given) ? given : null);
+
   function refusal(allowed, chosen, id, on, { withRequirements, withDependents }) {
     const along = followers(allowed, chosen, id, on);
     if (!along.length) return null;
+    const given = confirmedIds(on ? withRequirements : withDependents);
     if (on) {
       const unlicensed = along.filter((r) => !allowed.has(r));
       if (unlicensed.length) return httpError(422, 'REQUIREMENT_OFF', `Nécessite ${names(unlicensed)}, hors forfait.`);
-      if (!withRequirements) return httpError(422, 'REQUIREMENT_OFF', `Nécessite ${names(along)} : à activer d’abord.`);
-      return null;
+      if (!given) return httpError(422, 'REQUIREMENT_OFF', `Nécessite ${names(along)} : à activer d’abord.`);
+    } else if (!given) {
+      return httpError(422, 'REQUIRED_BY', `Nécessaire à ${names(along)} : à désactiver d’abord.`);
     }
-    if (!withDependents) return httpError(422, 'REQUIRED_BY', `Nécessaire à ${names(along)} : à désactiver d’abord.`);
-    return null;
+    const same = given.length === along.length && along.every((r) => given.includes(r));
+    return same ? null : httpError(422, 'CONFIRMATION_STALE', 'La liste a changé : relire, puis confirmer à nouveau.');
   }
 
   // Rule 25 — the licence carries the choice only once it has been seeded.

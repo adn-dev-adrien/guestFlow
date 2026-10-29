@@ -391,7 +391,8 @@ signed-off releases over HTTPS, when the operator asks for it.
     database and its WAL, `licence.jws`, TLS keys, uploaded photos) that a manual run would have shipped.
     `scripts/check-release-tree.mjs` then scans the staging tree and fails the script before `tar` when it
     finds a `.env*` (but `.env.example`), a database file, `licence.jws`, a key / certificate, `update-state.json`,
-    a log, or any file under `uploads/` other than `.gitkeep` (a README there is refused too).
+    a log, any file under `uploads/` other than `.gitkeep` (a README there is refused too), or any `node_modules`
+    directory (2026-10-29, review of PR #855: the installer refuses such an archive, rule 46, and CI must fail first).
 43. **A rollback does not queue the installment request (2026-10-29, round-2 audit).** v3.18.0's
     `emailLogModel.listPending` excludes only its own five event keys and lists any enabled manual template
     whose anchor is `start`; the `installment_request` row, seeded at the first boot of the new release,
@@ -446,8 +447,9 @@ signed-off releases over HTTPS, when the operator asks for it.
     as if CI had built it. `--previous-tag` is gone. Every action of every workflow is pinned by its full
     commit SHA, the exact tag in a trailing comment (`# v7.0.1`). Step 8b's and step 7's CHECK in the release skill list the
     real assets (plugin `.tgz` packages included). Safe reuse was considered and not done: the previous
-    release's `plugins-dist/SHA256SUMS` lives in the same mutable release, and no public key is committed
-    for CI to verify its signature against, so a "verified" reuse would verify nothing. Test: `plugin-packages-release.unit.test.js`.
+    release's `plugins-dist/SHA256SUMS` lives in the same mutable release, and the release public key is
+    deliberately not committed (the signing key is held off GitHub, rule 41), so CI cannot verify a
+    signature; a verified reuse would need that public key committed, which is a decision of its own. Test: `plugin-packages-release.unit.test.js`.
 
 **Edge cases**
 

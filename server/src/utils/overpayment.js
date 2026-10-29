@@ -32,6 +32,17 @@ function collectedOnSchedule(row = {}, captured = {}) {
 }
 
 /**
+ * The excess the ENGINE finds on a priced stay, before refunds and never clamped by them: what the paid
+ * buckets hold beyond what the stay now owes, or what the engine kept frozen above it. The unit the live
+ * ledger compares a posted fiche and the stored stay in (a delta must not mix refund bases).
+ */
+function engineExcessOf({ row = {}, captured = {}, depositAmount, balanceAmount, engineOverTtc = 0 }) {
+  const pick = (given, stored) => Number((given === undefined ? stored : given) || 0);
+  const due = pick(depositAmount, row.depositAmount) + pick(balanceAmount, row.balanceAmount);
+  return round2(Math.max(collectedOnSchedule(row, captured) - due, Number(engineOverTtc) || 0));
+}
+
+/**
  * @param {object} args
  * @param {object} args.row            the reservation as stored (its payment flags and amounts)
  * @param {object} args.captured       Σ contribs per bucket (see collectedOnSchedule)
@@ -52,6 +63,41 @@ function overpaymentOf({ row = {}, captured = {}, refundedTtc = 0, depositAmount
   // above what the smaller stay now owes: the two ways a reduction leaves money received in excess.
   const excess = Math.max(collectedOnSchedule(row, captured) - due, Number(engineOverTtc) || 0);
   return Math.max(0, round2(excess - Number(refundedTtc || 0)));
+}
+
+/**
+ * The trop-perçu of a stay read from what is STORED (reservation-save-keeps-pricing.md rule 8): what was
+ * collected beyond the stored stay total (`finalPrice` + tourist tax), net of the free « Trop-perçu » refunds.
+ * Today's engine is never consulted for the amount, so a drift between the engine and the price the stay
+ * was sold at is not a trop-perçu, and one the operator confirmed (a reduction after the solde was paid)
+ * is still there after the reload.
+ *
+ * Collected = each paid bucket at the larger of what its contribs captured and its stored amount (removing a
+ * paid line drops its contrib; the guest still paid it), the paid installments, the paid arrival complement
+ * and what the mid-stay extras collected (they are inside `finalPrice`). A complement the operator adjusted is
+ * left out of BOTH sides: the engine's automatic one is what the total carries. Only free refund lines reduce
+ * the excess; the refund of a sold line takes its price off both sides.
+ *
+ * @param {object} args row (stored), captured (Σ contribs per bucket), freeRefundedTtc, installmentsPaidTtc,
+ *   midStayCollectedTtc, autoComplementTtc (the engine's complement without the adjustment)
+ * @returns {number} ≥ 0
+ */
+function storedOverpaymentOf({
+  row = {}, captured = {}, freeRefundedTtc = 0, installmentsPaidTtc = 0, midStayCollectedTtc = 0, autoComplementTtc = 0,
+}) {
+  if (!isDirectChannel(row.platform)) return 0;
+  const sums = captured || {};
+  const bucket = (paid, cash, capturedSum, stored) => (
+    Number(paid || 0) === 1 || Number(cash || 0) === 1 ? Math.max(Number(capturedSum || 0), Number(stored || 0)) : 0
+  );
+  const schedule = bucket(row.depositPaid, row.depositPaidCash, sums.deposit, row.depositAmount)
+    + bucket(row.balancePaid, row.balancePaidCash, sums.balance, row.balanceAmount);
+  const adjusted = row.complementAmountOverride != null && row.complementAmountOverride !== '';
+  const complementPaid = Number(row.complementPaid || 0) === 1 || Number(row.complementPaidCash || 0) === 1;
+  const complement = complementPaid && !adjusted ? Number(row.complementAmount || 0) : 0;
+  const collected = schedule + Number(installmentsPaidTtc || 0) + complement + Number(midStayCollectedTtc || 0);
+  const owed = Number(row.finalPrice || 0) + Number(row.touristTaxTotal || 0) - (adjusted && complementPaid ? Number(autoComplementTtc || 0) : 0);
+  return Math.max(0, round2(collected - owed - Number(freeRefundedTtc || 0)));
 }
 
 // The postes a refund line is booked on (specs/reservation-refunds.md §3.5), in display order.
@@ -96,7 +142,7 @@ function currentByPoste(quote = {}) {
  *   complement carried on each poste beyond what the stay's complement now carries
  * @returns {Array<{ bucket, label, amountTtc, collectedTtc, dueTtc }>} one line per poste in excess
  */
-function overpaymentLinesOf({ row = {}, capturedByPoste = {}, quote = {}, overpaymentTtc = 0, complementLeft = {} }) {
+function overpaymentLinesOf({ row = {}, capturedByPoste = {}, quote = {}, overpaymentTtc = 0, complementLeft = {}, leftover = {} }) {
   const total = round2(overpaymentTtc);
   if (!(total > 0)) return [];
   // What a collected complement holds above the stay (reservation-save-keeps-pricing.md rule 4) has no
@@ -106,14 +152,14 @@ function overpaymentLinesOf({ row = {}, capturedByPoste = {}, quote = {}, overpa
   const complementExcess = Math.min(total, round2(quote.complementCollectedExcessTtc));
   if (complementExcess > 0) {
     const rest = round2(total - complementExcess);
-    const lines = rest > 0 ? scheduleLines({ row, capturedByPoste, quote, total: rest }) : [];
+    const lines = rest > 0 ? scheduleLines({ row, capturedByPoste, quote, total: rest, leftover }) : [];
     let remaining = complementExcess;
     const add = (poste, amount) => {
       const part = Math.min(remaining, round2(amount));
       if (!(part > 0)) return;
       const existing = lines.find((l) => l.bucket === poste.bucket);
       if (existing) existing.amountTtc = round2(existing.amountTtc + part);
-      else lines.push({ ...poste, amountTtc: part, collectedTtc: part, dueTtc: 0 });
+      else lines.push({ ...poste, amountTtc: part, collectedTtc: part, dueTtc: 0, excessOnly: true });
       remaining = round2(remaining - part);
     };
     // What the edit took out of the complement, poste by poste (the tourist tax included), when the stored
@@ -124,7 +170,7 @@ function overpaymentLinesOf({ row = {}, capturedByPoste = {}, quote = {}, overpa
     add(complementExcessPoste(quote), remaining);
     return lines;
   }
-  return scheduleLines({ row, capturedByPoste, quote, total });
+  return scheduleLines({ row, capturedByPoste, quote, total, leftover });
 }
 
 function complementExcessPoste(quote) {
@@ -133,7 +179,7 @@ function complementExcessPoste(quote) {
   return { bucket: 'accommodation', label: POSTES[0].label };
 }
 
-function scheduleLines({ row, capturedByPoste, quote, total }) {
+function scheduleLines({ row, capturedByPoste, quote, total, leftover = {} }) {
   const paid = (flag, cash) => Number(flag || 0) === 1 || Number(cash || 0) === 1;
   const sources = [
     paid(row.depositPaid, row.depositPaidCash) ? (capturedByPoste || {}).deposit : null,
@@ -146,8 +192,19 @@ function scheduleLines({ row, capturedByPoste, quote, total }) {
   });
   const excessTotal = round2(lines.reduce((sum, l) => sum + l.excess, 0));
   if (!(excessTotal > 0)) {
-    const accommodation = lines[0];
-    return [{ bucket: 'accommodation', label: accommodation.label, amountTtc: total, collectedTtc: accommodation.collectedTtc, dueTtc: accommodation.dueTtc }];
+    // No captured split to read: the excess is what LEFT the stay since it was collected — the tourist tax
+    // first, then the options, the resources — and what nothing explains falls on the accommodation. Each line
+    // says what it is: an amount collected in excess.
+    let remaining = total;
+    const split = [];
+    for (const [bucket, hint] of [['touristTax', leftover.touristTax], ['options', leftover.options], ['resources', leftover.resources]]) {
+      const part = Math.min(remaining, round2(hint));
+      if (!(part > 0)) continue;
+      split.push({ bucket, label: POSTES.find((p) => p.bucket === bucket).label, amountTtc: part, collectedTtc: part, dueTtc: 0, excessOnly: true });
+      remaining = round2(remaining - part);
+    }
+    if (remaining > 0) split.push({ bucket: 'accommodation', label: POSTES[0].label, amountTtc: remaining, collectedTtc: remaining, dueTtc: 0, excessOnly: true });
+    return split;
   }
   const inExcess = lines.filter((l) => l.excess > 0);
   const shares = inExcess.map((l) => ({ ...l, amountTtc: round2((total * l.excess) / excessTotal) }));
@@ -161,4 +218,4 @@ function scheduleLines({ row, capturedByPoste, quote, total }) {
     .map(({ bucket, label, amountTtc, collectedTtc, dueTtc }) => ({ bucket, label, amountTtc, collectedTtc, dueTtc }));
 }
 
-module.exports = { collectedOnSchedule, overpaymentOf, overpaymentLinesOf, currentByPoste };
+module.exports = { collectedOnSchedule, overpaymentOf, engineExcessOf, storedOverpaymentOf, overpaymentLinesOf, currentByPoste };

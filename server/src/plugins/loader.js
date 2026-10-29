@@ -32,6 +32,7 @@ const { createContext } = require('./sdk/createContext');
 const { runPluginMigrations } = require('./sdk/pluginMigrations');
 const requirePlugin = require('../middleware/requirePlugin');
 const { whenPluginActive } = require('../utils/pluginScheduling');
+const { postOrder } = require('../utils/pluginGraph');
 
 const defaultSettingsModel = () => require('../models/pluginSettingsModel');
 const defaultIsInstalled = (id) => Boolean(require('../models/pluginsModel').get(id));
@@ -105,12 +106,24 @@ function migrate(db, id) {
   return runPluginMigrations(db, id, record.migrations);
 }
 
+// A hook that never settles must not hold the plugin-operation lock for ever: past this it is logged and
+// given up on (it may still finish in the background), like a hook that throws.
+let hookTimeoutMs = 120000;
+
+function withHookTimeout(promise) {
+  let timer;
+  const limit = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`hook did not settle within ${hookTimeoutMs} ms`)), hookTimeoutMs);
+  });
+  return Promise.race([promise, limit]).finally(() => clearTimeout(timer));
+}
+
 async function runInstallHooks(id) {
   const record = registry.get(id);
   if (!record) return;
   for (const hook of record.onInstall) {
     try {
-      await hook();
+      await withHookTimeout(new Promise((resolve) => { resolve(hook()); }));
     } catch (err) {
       // eslint-disable-next-line no-console
       console.error(`[plugin:${id}] install hook failed:`, err && err.message ? err.message : err);
@@ -132,7 +145,7 @@ function runActivateHooks(id) {
   wasLive.set(id, true);
   return Promise.all(record.onActivate.map(async (hook) => {
     try {
-      await hook();
+      await withHookTimeout(new Promise((resolve) => { resolve(hook()); }));
     } catch (err) {
       // eslint-disable-next-line no-console
       console.error(`[plugin:${id}] activation hook failed:`, err && err.message ? err.message : err);
@@ -181,18 +194,23 @@ function syncLiveTransitions() {
  * their activation hooks, once; the marker is cleared even if a hook fails (hooks never block).
  */
 async function runPendingInstallHooks(model) {
-  for (const id of model.pendingHooks()) {
+  const pending = model.pendingHooks();
+  const requires = Object.fromEntries(model.list().map((row) => [row.id, ((row.manifest && row.manifest.requires) || []).map((r) => r.id)]));
+  // Requirements first (specs/plugin-dependencies.md rule 4), not the table's id order.
+  for (const id of postOrder(pending, (other) => requires[other] || [], pending)) {
     const kind = model.hooksPendingKind(id);
     model.clearHooksPending(id);
     if (!registry.get(id)) continue;
+    // `syncLiveTransitions` has already announced every live plugin at this boot: forget it, or the hooks owed are skipped.
+    announced.delete(id);
     // A plugin only switched on (specs/plugin-dependencies.md rule 9) owes its activation hooks, not its install hooks.
-    if (kind === 'install') {
-      announced.delete(id);
-      await runInstallHooks(id); // eslint-disable-line no-await-in-loop
-    }
+    if (kind === 'install') await runInstallHooks(id); // eslint-disable-line no-await-in-loop
     runActivateHooks(id);
   }
 }
+
+/** Test-only: shorten the limit a hook gets before it is given up on. */
+function setHookTimeoutForTests(ms) { hookTimeoutMs = ms; }
 
 /** Test-only: forget every recorded transition so a suite starts from a clean boot. */
 function resetLiveTransitionsForTests() {
@@ -345,11 +363,11 @@ function loadPackages({ store, rows, order, env, nameOf = (id) => id }) {
   // specs/plugin-dependencies.md rule 5 — a dependency cycle leaves every member unloaded: neither could
   // be switched on first.
   const { createGraph, cycleLabel } = require('../utils/pluginGraph');
-  createGraph({ manifests, nameOf }).cycles().forEach((cycle) => {
-    cycle.forEach((id) => {
-      incompatible[id] = { code: 'REQUIREMENT_CYCLE', message: `Dépendance circulaire : ${cycleLabel(cycle, nameOf)}.` };
-      delete manifests[id];
-    });
+  const graph = createGraph({ manifests, nameOf });
+  // Every member of a strongly connected group, not only those on the reported path.
+  Object.keys(manifests).map((id) => [id, graph.cycleOf(id)]).filter(([, cycle]) => cycle).forEach(([id, cycle]) => {
+    incompatible[id] = { code: 'REQUIREMENT_CYCLE', message: `Dépendance circulaire : ${cycleLabel(cycle, nameOf)}.` };
+    delete manifests[id];
   });
   // A requirement must itself be loadable, at a version its range accepts — repeated until stable.
   const { satisfies } = require('../utils/semverRange');
@@ -428,6 +446,7 @@ module.exports = {
   beginInstall,
   endInstall,
   resetLiveTransitionsForTests,
+  setHookTimeoutForTests,
   mountPublic,
   mountApi,
   startJobs,

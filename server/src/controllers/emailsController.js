@@ -35,6 +35,7 @@ function failureLabel(stored) {
   return sendFailureMessage({ message: text, code: /^[A-Z_]+$/.test(text) ? text : '' });
 }
 const { renderTemplate } = require('../utils/emailTemplateRenderer');
+const { isValidEmailAddress } = require('../utils/emailAddress');
 const { buildContext }   = require('../utils/emailContextBuilder');
 const { emailContext: pluginEmailContext } = require('../plugins/sdk/eventBus');
 const paymentProviders = require('../utils/paymentProviders');
@@ -195,7 +196,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
   // Basic shape check — the authoritative guard before we store an operator-typed address
   // on the client record / hand it to the SMTP transport.
   function isValidEmail(value) {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
+    return isValidEmailAddress(value);
   }
 
   // Persist an operator-typed recipient onto a client that had no email on file

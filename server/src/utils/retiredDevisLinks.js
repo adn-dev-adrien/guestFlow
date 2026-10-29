@@ -10,16 +10,19 @@
  *         checkConflict?, notifyConflict?, recordPayment? }
  */
 
-const { findPaidStaleLink } = require('./ledgerLinks');
+const { inspectStaleLinks } = require('./ledgerLinks');
 const { deactivateAbandonedLinks } = require('./paymentLinkDeactivation');
 
 async function settleRetiredDevisLinks(retired, deps) {
   const { paymentLinksModel, provider, providerFor } = deps;
   const toDeactivate = [];
   let anyPaid = false;
+  let unreadable = 0;
   for (const link of retired || []) {
-    const paid = await findPaidStaleLink([link], provider);
-    if (paid) anyPaid = true;
+    const inspected = await inspectStaleLinks([link], provider);
+    if (inspected.paid) anyPaid = true;
+    // The provider could not say whether it was paid: the marker stays, the poll's retry decides.
+    else if (inspected.unreadable.length) unreadable += 1;
     else toDeactivate.push(link);
   }
   if (toDeactivate.length) await deactivateAbandonedLinks(toDeactivate, { paymentLinksModel, ...(providerFor ? { providerFor } : {}) });
@@ -31,7 +34,7 @@ async function settleRetiredDevisLinks(retired, deps) {
       checkConflict: deps.checkConflict, notifyConflict: deps.notifyConflict,
     });
   }
-  return { paid: anyPaid, deactivated: toDeactivate.length };
+  return { paid: anyPaid, deactivated: toDeactivate.length, unreadable };
 }
 
 module.exports = { settleRetiredDevisLinks };

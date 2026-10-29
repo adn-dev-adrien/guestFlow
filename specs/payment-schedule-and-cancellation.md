@@ -432,6 +432,17 @@ acompte is kept as an indemnity, and the books say so correctly.
       `utils/cancelReservation` does, so a hard-deleted platform stay leaves no payable link either;
     - the **iCal sync** never deletes a stay (it raises a cancellation alert, then the previous bullet): its
       unused `DELETE FROM reservations` statement was removed.
+53. **A forced client or property delete never wipes protected history** _(added 2026-10-29, audit R2)_. The
+    per-row routes refuse to delete a cancelled or set-aside stay (rule 25) and a devis that carries the CGV
+    acceptance of the stay it became (`specs/terms-acceptance-record.md` rule 29). The client delete (forced
+    or not) and the property delete apply the same refusals to every row they would cascade
+    (`deletionGuard.removesProtectedHistory`, judged again inside `removeGuarded`): `409 CLIENT_KEEPS_HISTORY` /
+    `409 PROPERTY_KEEPS_HISTORY`, one short message per cause (« Ce client a une réservation annulée. »,
+    « Ce client a une réservation écartée. », « Ce client a accepté des CGV. », and the same three for a
+    property (« Ce logement a… », « …des CGV acceptées. »)). Money (rule 52) is judged first. The refusal is answered by the first, non-forced client
+    delete too, and the delete preview carries it as `blocker` (specs/clients.md rule 16). The client delete preview
+    (`GET /api/clients/:id/delete-impact`) lists and counts what would really go, cancelled and set-aside
+    stays included (each row carries its `kind`).
 
 
 ---

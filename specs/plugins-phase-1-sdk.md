@@ -404,6 +404,11 @@ Optional: a plugin that declares nothing reads « Actif ».
     e-mail (the Gîtes de France intake sets it from the sender check). The core's and the client's `isValidEmail` are stricter for
     the same reason (client test `validation.single-email.test.js`). The mailbox reader logs one line (message id and bytes read) for each part it skips over 256 KB. Test: `server/src/tests/plugin-client-validation.unit.test.js`.
 
+29. *(Added 2026-10-29, audit round 2, N2, SDK 2.14.0.)* **The client SDK exports `Contribution`.** A plugin
+    component that mounts another plugin's contributed `Component` itself (the SAS dialog's plugin steps) wraps
+    it in `<Contribution pluginId>`: the same error boundary and `Suspense` as `<Slot>` (phase 4 rule 39, 44).
+    The `sas` plugin needs it, so its manifest asks for `sdk ^2.14.0`. Test: `Contribution.isolation.test.jsx`.
+
 **Edge cases:**
 - **A plugin throws during `register`.** Rule 4 applies: the other plugins and the core boot. The Plugins
   page shows « Échec du démarrage. » and offers only Désinstaller (« Activer » did nothing, 2026-10-04).
