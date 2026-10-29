@@ -1,7 +1,7 @@
 {
   "id": "airbnb-intake",
   "name": "Saisie Airbnb",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Remplit les fiches Airbnb depuis le mail « Réservation confirmée ».",
   "icon": "mail",
   "surfaces": [
@@ -30,6 +30,12 @@
       "Un mail dont l’expéditeur n’est pas signé par son domaine n’est plus appliqué seul : il devient une proposition « Expéditeur non vérifié », aussi signalée sur l’accueil. Gmail est reconnu seul ; ailleurs, le « Serveur de réception » se règle dans les paramètres avancés.",
       "Seuls les mails dont l’adresse d’expéditeur est exactement celle des réglages sont lus ; un faux nom d’affichage ne passe plus.",
       "Le mot de passe de la boîte n’est jamais envoyé en clair (TLS obligatoire) ni à un serveur IMAP d’un autre domaine que le serveur d’envoi, et le support ne peut ni modifier ces réglages ni revenir à une version précédente du plugin (SDK 2.12 de GuestFlow)."
+    ],
+    "1.1.1": [
+      "Seule la partie structurée du mail est lue, après « Envoyer un message à » : le message du voyageur ne peut plus changer le code, les dates, l’annonce, le groupe ni les montants. Le code doit être celui du lien de la réservation et l’arrivée celle de l’objet du mail.",
+      "Un mail où un intitulé clé apparaît deux fois est refusé. Le lien « Voir sur Airbnb » n’accepte plus que les adresses airbnb.",
+      "Un mail non signé et illisible n’est plus relu à chaque passage.",
+      "Compatible avec le SDK 2.12 de GuestFlow."
     ]
   }
 }

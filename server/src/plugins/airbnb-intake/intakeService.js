@@ -174,9 +174,9 @@ function createIntakeService(deps) {
       read += 1;
       const parsed = parseAirbnbMail({ subject: mail.subject, text: mail.text, sentAt: mail.sentAt || mail.receivedAt });
       if (!parsed.ok) {
-        // A forged mail that does not even parse is noise, not something for the operator to chase.
-        if (!senderVerified) continue;
-        intakes.insert({ messageId: mail.messageId, receivedAt: mail.receivedAt, status: 'error', error: parsed.error, senderVerified });
+        // Rule 26 — a forged mail that does not parse is noise for the operator, but it is remembered
+        // (`ignored`, out of every list) so the next pass does not read it again.
+        intakes.insert({ messageId: mail.messageId, receivedAt: mail.receivedAt, status: senderVerified ? 'error' : 'ignored', error: parsed.error, senderVerified });
         continue;
       }
       intakes.insert({ messageId: mail.messageId, receivedAt: mail.receivedAt, confirmationCode: parsed.booking.code, parsed: parsed.booking, status: 'pending', senderVerified });

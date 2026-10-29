@@ -76,11 +76,13 @@ test('rule 22: the operator can apply a proposal from the banner', async () => {
   assert.equal(calls.updates.length, 1);
 });
 
-test('rule 22: a forged mail that does not parse leaves no row, the same mail from a verified sender is recorded as an error', async () => {
+test('rule 22 (amended by rule 26): a forged mail that does not parse is kept as an ignored row, the same mail from a verified sender is recorded as an error', async () => {
   const unreadable = mail({ text: 'Code de confirmation : illisible. Vous gagnez : rien.' });
   const forged = setup([{ ...unreadable, authenticated: false }]);
   assert.deepEqual(await forged.service.runPass(), { read: 1 });
-  assert.equal(forged.intakes.count(), 0);
+  assert.equal(forged.intakes.count(), 1);
+  assert.equal(forged.intakes.get(1).status, 'ignored');
+  assert.deepEqual(forged.service.attention(), []);
   const verified = setup([{ ...unreadable, authenticated: true }]);
   await verified.service.runPass();
   assert.equal(verified.intakes.count(), 1, 'the branch under test is reached: a parse failure of a verified mail is kept');

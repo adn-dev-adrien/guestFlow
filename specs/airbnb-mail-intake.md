@@ -230,7 +230,7 @@ add the phone and e-mail from Airbnb. When the mail cannot be applied, the fiche
     (rule 15 / 14) so it never sits unseen — whose banner is
     « Expéditeur non vérifié » — it is never auto-applied, whatever `autoApply` says; the operator can still
     apply it by hand. A forged proposal never counts as « already handled » for rule 8's dedup, so it cannot
-    shadow the genuine mail, and an unauthenticated mail that does not parse leaves no row. Tests:
+    shadow the genuine mail, and an unauthenticated mail that does not parse is kept as an `ignored` row (rule 26; it used to leave no row). Tests:
     `server/src/tests/mail-sender-authentication.unit.test.js`, `airbnb-intake/tests/sender-verification.unit.test.js`,
     `IntakeBanner.sender-verification.test.jsx`.
 23. *(Added 2026-10-28, audit finding H1 of authz.)* **The mailbox password has one destination.** The reader
@@ -243,6 +243,31 @@ add the phone and e-mail from Airbnb. When the mail cannot be applied, the fiche
     refused to a support session when changed (`specs/hosting-h2-account-security.md` rule 18, which also refuses a
     plugin rollback). Test:
     `server/src/tests/mail-intake-credential-destination.unit.test.js`.
+
+24. *(Added 2026-10-28, audit finding F1.)* **Only the structured part of the mail decides.** The guest's free
+    message is printed before the rooms link, the dates, « Voyageurs », the code and both money columns, and the
+    parser used to take the first match of each, so a message could choose the code, the dates, the listing, the
+    party and the amounts of the fiche written (reproduced end to end: another guest's placeholder filled with
+    the attacker's identity and figures). Now: (a) every field is read after the **last** « Envoyer un message à »
+    line, the end of the guest block; (b) « Arrivée / Départ », « Voyageurs » and the code are anchored to
+    their header line (the code is the next non-blank line after « CODE DE CONFIRMATION »); (c) the code must
+    equal the code in the `/hosting/reservations/details/<CODE>` link at the top of the mail, and the arrival
+    must be the subject's « arrive le <j> <mois> » (error rows « Le code de confirmation ne correspond pas au
+    lien de la réservation » / « L’arrivée du mail ne correspond pas à son objet »); (d) a mail in which a key
+    header line (« CODE DE CONFIRMATION », « LE VOYAGEUR A PAYÉ », « VERSEMENT DE L'HÔTE », « VOUS GAGNEZ »,
+    « VOYAGEURS », « Arrivée   Départ ») appears more than once is refused (« Mail ambigu ») and nothing is
+    written. A harmless message such as « Arrivée possible ven. 25 déc. » parses as before. Test:
+    `airbnb-intake/tests/mail-injection.unit.test.js`.
+25. *(Added 2026-10-28, audit finding F7.)* **The « Voir sur Airbnb » link is an Airbnb link.** Reservation, thread
+    and rooms links are accepted only over `https` on an exact `airbnb.<tld>` or `www.airbnb.<tld>` host
+    (`www.airbnb.fr.secure.example` is not one); a lookalike gives no link. Test: same file.
+26. *(Added 2026-10-28, audit finding F2.)* **A hostile mail costs milliseconds and is read once.** The SDK reader
+    never reads a part past 256 KB (the mail is skipped) and turns HTML into text in linear time; the parser
+    ignores lines over 300 characters for its headers and caps the guest message at 4 000 characters, so 1 MB of
+    filler parses (or is refused) in under 200 ms. An unauthenticated mail that does not parse used to leave no
+    row, so it was re-read and re-parsed at every pass for 30 days; it is now stored as `ignored` (never open,
+    never on the dashboard), and an authenticated one stays an `error` row. Tests:
+    `airbnb-intake/tests/mail-injection.unit.test.js`, `server/src/tests/mail-reader-limits.unit.test.js`.
 
 **Edge cases:**
 - Same mail twice → `Message-ID` dedup; a second mail with the same confirmation code → ignored once the
