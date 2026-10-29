@@ -1,4 +1,4 @@
-// specs/plugins-phase-3a-online-payment.md rules 41 and 42 (audit R4 Q3, Q4): a full link whose acompte was collected
+// specs/plugins-phase-3a-online-payment.md rules 41, 42 and 44 (audit R4 Q3, Q4, R2: the alert reads the solde): a full link whose acompte was collected
 // another way is judged against the stay it pays — a re-priced stay books what was received, a same-day
 // tick is the same money, and only a real second acompte is a refund.
 
@@ -55,7 +55,15 @@ for (const [balance, label] of [[455.36, 'grown'], [255.36, 'shrunk']]) {
     s.reprice(balance);
     const out = await s.payRetired('2027-03-01T15:00:00Z');
     assert.equal(out.status, 'paid');
-    assert.deepEqual(out.amountMismatch, { expectedCents: Math.round((100 + balance) * 100), receivedCents: 45536 });
+    assert.deepEqual(out.amountMismatch, { expectedCents: Math.round(balance * 100), receivedCents: 45536 }, 'compared with the solde the link was booked as');
+    const { buildPaidAfterCancelEmail } = require('../utils/notificationService').__test;
+    const text = buildPaidAfterCancelEmail({ id: 1 }, s.links.findById(s.F.id), '', { amountMismatch: out.amountMismatch }).text;
+    if (balance > 455) assert.doesNotMatch(text, /à percevoir|à rembourser/, 'grown: nothing to chase');
+    else assert.match(text, /Trop-perçu de 200,00/, 'shrunk: the true excess');
+    const stay = s.db.prepare('SELECT * FROM reservations WHERE id = ?').get(s.rid);
+    const { storedOverpaymentOf } = require('../utils/overpayment');
+    const stored = storedOverpaymentOf({ row: stay, captured: {} });
+    assert.equal(stored, balance > 455 ? 0 : 200, 'the fiche refund block reads the same excess');
     assert.equal(s.refunds().length, 0, 'no fixed « acompte payé deux fois » row');
     assert.equal(s.stay().balancePaid, 1);
     assert.equal(s.stay().balanceAmount, 455.36, 'the solde is what the link brought in');
@@ -79,7 +87,7 @@ test('rule 41: a devis-owned open full link paid on a re-priced stay is not the 
   s.reprice(255.36);
   const out = await s.payLive();
   assert.equal(out.status, 'paid');
-  assert.deepEqual(out.amountMismatch, { expectedCents: 35536, receivedCents: 45536 });
+  assert.deepEqual(out.amountMismatch, { expectedCents: 25536, receivedCents: 45536 });
   assert.equal(s.refunds().length, 0);
 });
 

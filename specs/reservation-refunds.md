@@ -329,10 +329,10 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
     from « + Nouveau remboursement » shows « Un trop-perçu de X € est ouvert. » with « Rembourser le trop-perçu »,
     which reopens the dialog on the trop-perçu prefill (the `fromOverpayment` flow). No warning when no trop-perçu
     is open or when the dialog was opened on it. No server change.
-45. **Switching a paid direct stay to a platform asks for no refund (Adrien, 2026-10-29, audit R4 N6).** The channel
-    change freezes the acompte and the solde that were received (`reservation-save-keeps-pricing.md` rule 19): no
-    `OVERPAID` 409, no trop-perçu row, no refund prompt from the switch itself. Rule 38 is unchanged for a stay that
-    is already on a platform.
+45. **Withdrawn (2026-10-29).** Superseded by rule 46.
+46. **A paid direct stay cannot switch to a platform (Adrien, 2026-10-29, audit R4 N6).** The channel change is refused
+    while the acompte or the solde is ticked (`reservation-save-keeps-pricing.md` rule 20), so it never produces a
+    trop-perçu, a frozen solde or a refund prompt. Rule 38 is unchanged for a stay already on a platform.
 
 ---
 

@@ -194,14 +194,16 @@ changed something the price depends on; money collected beyond the total is repo
     option dropped from an unpaid or already refunded solde therefore no longer takes the excess of a removed complement
     activity (X1, X2). A signature written before the flag existed carries none: its lines count in both windows, which
     is why rule 17's overflow correction stays.
-19. **A paid direct stay can switch to a platform; what was received stays as received (Adrien, 2026-10-29: « Autoriser,
-    figer le payé », audit R4 N6).** The save (and the preview) of a stay stored on a direct channel with an acompte or
-    a solde ticked, posted on a platform, prices with `keepPaidAmounts`: the paid acompte and solde keep the stored
-    amounts instead of following the platform statement (reservation-refunds rule 38), so the books keep what was really
-    collected. The 409 `OVERPAID` and the live preview judge the posted channel like the save does: a platform sale
-    announces no trop-perçu, and the channel change alone never asks for a refund. The freeze is the switching
-    save's: a later save that moves no price keeps it (rule 1), a re-pricing follows the platform amount as any
-    platform stay does.
+19. **Withdrawn (2026-10-29).** « Autoriser, figer le payé » (`keepPaidAmounts`) was superseded the same day by rule 20:
+    the freeze did not survive the next re-pricing save and left the collected tourist tax undeclared.
+20. **A direct stay with a ticked acompte or solde cannot change to a platform channel (Adrien, 2026-10-29: « Refuser,
+    décocher d'abord », audit R4 N6).** A direct stay never really becomes a platform stay (a payment cannot be
+    collected on a platform's behalf): changing the channel only corrects a badly entered fiche, and a direct payment
+    ticked on it is part of the same mistake. While the acompte or the solde is ticked as received (cash included),
+    `PUT /reservations/:id` answers `409 DIRECT_PAYMENT_RECORDED` « Paiement direct enregistré : le décocher avant de
+    changer de canal. », which the fiche shows in its ordinary error alert. Once the operator unticks it (the journal
+    reverses), the switch is an ordinary platform fiche. Platform → platform and platform → direct are unaffected.
+    The live preview of such a switch reports no trop-perçu. Nothing is computed in React.
 
 **Edge cases:**
 - In the extras window of a started fiche a custom line is keyed by its text (end-of-stay complement,

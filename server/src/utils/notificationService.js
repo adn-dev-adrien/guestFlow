@@ -465,11 +465,15 @@ function buildNotificationService({
       ]
       : amountMismatch
       ? [
-        `Un lien de paiement a été payé ${amount} alors que le devis demande aujourd’hui ${eurosFr(amountMismatch.expectedCents)}.`,
+        Number(amountMismatch.expectedCents) === Number(link.amountCents || 0)
+          ? `Un lien de paiement a été payé ${amount} après un nouveau calcul du séjour.`
+          : `Un lien de paiement a été payé ${amount} alors que le devis demande aujourd’hui ${eurosFr(amountMismatch.expectedCents)}.`,
         'Le séjour est enregistré au montant réellement reçu. Aucun e-mail de confirmation n’a été envoyé au client.',
         Number(amountMismatch.expectedCents) > Number(link.amountCents || 0)
           ? `Le reste (${eurosFr(Number(amountMismatch.expectedCents) - Number(link.amountCents || 0))}) est à percevoir : il est porté sur le complément d’arrivée.`
-          : `Trop-perçu de ${eurosFr(Number(link.amountCents || 0) - Number(amountMismatch.expectedCents))} à rembourser.`,
+          : Number(amountMismatch.expectedCents) === Number(link.amountCents || 0)
+            ? 'Le montant reçu couvre ce que le séjour demande.'
+            : `Trop-perçu de ${eurosFr(Number(link.amountCents || 0) - Number(amountMismatch.expectedCents))} à rembourser.`,
         'À vérifier : envoyer la confirmation au client une fois la différence réglée.',
       ]
       : settledOn

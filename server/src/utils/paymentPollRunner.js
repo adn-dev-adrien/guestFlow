@@ -95,7 +95,7 @@ function applyPaidEffect({ database, devisModel, link, checkConflict, paidDate =
     const expectedCents = hasSplit ? linkAmountCents(link.type, priced) : null;
     if (expectedCents != null && link.amountCents != null && Number(link.amountCents) !== expectedCents) {
       const booked = bookPaidAfterAmountChange({ database, recordPayment }, link, { paidDay: paidDate });
-      return { effect: booked.effect, reservationId, conflict, justConverted: effect === 'converted', amountMismatch: { expectedCents, receivedCents: Number(link.amountCents) } };
+      return { effect: booked.effect, reservationId, conflict, justConverted: effect === 'converted', amountMismatch: { expectedCents: alertExpectedCents(link, priced), receivedCents: Number(link.amountCents) } };
     }
     recordPayment({ reservationId, bucket: isFull ? 'full' : 'deposit', paidDate });
     return { effect, reservationId, conflict };
@@ -147,6 +147,19 @@ function bucketAlreadySettled(stay, type) {
   return false;
 }
 
+// Rule 44 — what the alert compares the payment with: a full link paid on a stay whose acompte is already
+// collected is booked as the solde, so the amount to chase or refund is read against the solde alone.
+function alertExpectedCents(link, stay) {
+  const depositCollected = Number(stay.depositPaid || 0) === 1 && Number(stay.depositAmount || 0) > 0;
+  return String(link.type) === 'full' && depositCollected && Number(stay.balancePaid || 0) !== 1
+    ? linkAmountCents('balance', stay) : linkAmountCents(link.type, stay);
+}
+
+// Rule 43 — a bucket collected at the door is never the link's money, so rule 24's same-day reading does not apply.
+function atArrival(paymentLinksModel, link) {
+  return typeof paymentLinksModel.settledAtArrival === 'function' && paymentLinksModel.settledAtArrival(link);
+}
+
 // Two live links of one quote both paid (a retried request minted twice): the second money is a refund
 // to make, not a second payment to record or a second confirmation to send.
 // The links of the stay and of the devis it came from count together: a devis link keeps the devis id.
@@ -186,10 +199,10 @@ function fullAfterDeposit(database, link, paidDay = null) {
   const expectedCents = linkAmountCents('full', stay);
   const found = { stayId: stay.id, duplicateCents: 0, mismatch: null, sameDay: false };
   if (stay.balanceAmount != null && linkCents !== expectedCents) {
-    found.mismatch = { expectedCents, receivedCents: linkCents };
+    found.mismatch = { expectedCents: alertExpectedCents(link, stay), receivedCents: linkCents };
     return found;
   }
-  if (paidDay && stay.depositPaidDate && String(stay.depositPaidDate).slice(0, 10) >= paidDay && !hasOtherPaidAcompteLink(database, link, stay)) {
+  if (paidDay && stay.depositPaidDate && String(stay.depositPaidDate).slice(0, 10) >= paidDay && Number(stay.depositPaidAtArrival || 0) !== 1 && !hasOtherPaidAcompteLink(database, link, stay)) {
     found.sameDay = true;
     return found;
   }
@@ -286,7 +299,7 @@ async function processPaidLink({ database, devisModel, paymentLinksModel, link, 
     // The bucket was settled another way. Settled the very day of the payment (or after), it is the same
     // money ticked by hand; settled on an earlier day, it may be a second one (ledger rule 24).
     const settledOn = typeof paymentLinksModel.settledBucketDateOf === 'function' ? paymentLinksModel.settledBucketDateOf(link) : null;
-    if (settledOn && paidDate && settledOn < paidDate) {
+    if (settledOn && paidDate && (settledOn < paidDate || atArrival(paymentLinksModel, link))) {
       if (notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link, { settledOn }); } catch { /* best effort */ } }
       return { id: link.id, reservationId: link.reservationId, type: link.type, status: 'paid-after-settled', settledOn, ...effect };
     }
@@ -383,7 +396,7 @@ async function settleRetiredPaidLink({ paymentLinksModel, notifyPaidAfterCancel,
   const paidAt = pay.paidAt || new Date().toISOString();
   const paidDay = paidDayOf(paidAt);
   const settledOn = paymentLinksModel.settledBucketDateOf(link);
-  if (settledOn && paidDay && settledOn < paidDay) {
+  if (settledOn && paidDay && (settledOn < paidDay || atArrival(paymentLinksModel, link))) {
     paymentLinksModel.clearRemoteCancelPending(link.id, { providerPaymentId: pay.paymentId || null, paidAt });
     if (notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link, { settledOn }); } catch { /* best effort */ } }
     return { id: link.id, reservationId: link.reservationId, type: link.type, status: 'paid-after-settled', settledOn };
@@ -455,7 +468,7 @@ async function bookClaimedAmountChangedLink({ paymentLinksModel, notifyPaidAfter
     : (stay && stay.kind === 'devis' && stay.convertedReservationId
       ? database.prepare('SELECT * FROM reservations WHERE id = ?').get(Number(stay.convertedReservationId)) : stay);
   const expectedCents = target && target.kind === 'reservation' && ['deposit', 'balance', 'full'].includes(String(link.type))
-    ? linkAmountCents(link.type, target) : null;
+    ? alertExpectedCents(link, target) : null;
   const mismatch = expectedCents != null ? { expectedCents, receivedCents: Number(link.amountCents) } : null;
   const booked = bookPaidAfterAmountChange(
     { database, recordPayment: recordPayment || recordOn(database) },

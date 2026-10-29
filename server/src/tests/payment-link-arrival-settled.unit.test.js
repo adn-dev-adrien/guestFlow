@@ -59,9 +59,10 @@ test('rule 39: a link paid on an earlier-collected bucket alerts when the arriva
   assert.ok(!s.calls.some((c) => c[0] === 'confirm'));
 });
 
-test('rule 39: a link paid the very day the bucket was collected stays silent and sends no confirmation', async () => {
+test('rule 39: a link paid the very day the solde was ticked by hand stays silent and sends no confirmation', async () => {
   const s = seed();
-  s.model.settleArrivalBuckets(s.rid, { mode: 'card', date: '2027-05-11' });
+  s.db.prepare("UPDATE reservations SET balancePaid = 1, balancePaidDate = '2027-05-11' WHERE id = ?").run(s.rid);
+  s.links.retireSettled();
   s.db.prepare("UPDATE payment_links SET status = 'open', remoteCancelPendingAt = NULL, cancelReason = NULL WHERE id = ?").run(s.B.id);
   const out = await s.payLive(s.links.findById(s.B.id), '2027-05-11T10:00:00Z');
   assert.equal(out.status, 'paid');
@@ -84,4 +85,27 @@ test('rule 39: the SAS arrival collection retires the open link of the stay it c
   s.model.commitArrivalSas(s.rid, { stayPaid: true, stayPaidCash: false });
   assert.equal(s.db.prepare('SELECT balancePaid FROM reservations WHERE id = ?').get(s.rid).balancePaid, 1);
   assert.equal(s.links.findById(s.B.id).status, 'cancelled');
+});
+
+// specs/plugins-phase-3a-online-payment.md rule 43 (audit R4 R1): the money of a payment at the door is never
+// the link's, so the same day is no reason to stay silent.
+test('rule 43: a card payment at the door, then the link paid the same day, alerts (retry path)', async () => {
+  const s = seed();
+  s.model.settleArrivalBuckets(s.rid, { mode: 'card', date: '2027-05-10' });
+  const provider = { id: 'qonto', async getPayment() { return { paid: true, paymentId: 'pB', paidAt: '2027-05-10T18:00:00Z' }; }, async cancelLink() {} };
+  const { results } = await require('../utils/paymentPollRunner').retryPendingCancellations({
+    database: s.db, devisModel: devisModel.buildModel(s.db), paymentLinksModel: s.links, provider, only: s.B.id,
+    notifyPaidAfterCancel: async (l, o) => s.calls.push(['alert', l.id, o]),
+  });
+  assert.equal(results[0].status, 'paid-after-settled');
+  assert.ok(s.calls.some((c) => c[0] === 'alert' && c[2].settledOn === '2027-05-10'));
+});
+
+test('rule 43: the same on the live path, and for a cash payment', async () => {
+  const s = seed();
+  s.model.settleArrivalBuckets(s.rid, { mode: 'cash', date: '2027-05-10' });
+  s.db.prepare("UPDATE payment_links SET status = 'open', remoteCancelPendingAt = NULL, cancelReason = NULL WHERE id = ?").run(s.B.id);
+  const out = await s.payLive(s.links.findById(s.B.id), '2027-05-10T18:00:00Z');
+  assert.equal(out.status, 'paid-after-settled');
+  assert.ok(s.calls.some((c) => c[0] === 'alert'));
 });

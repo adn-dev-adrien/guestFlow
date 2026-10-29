@@ -1,1 +1,1 @@
-- Reservations: a direct stay with a ticked acompte or solde can switch to a platform channel; what was received stays as received, and the switch alone asks for no refund (no « Trop-perçu » alert).
+- Reservations: a direct stay with a ticked acompte or solde can no longer be switched to a platform channel (« Paiement direct enregistré : le décocher avant de changer de canal. »); once unticked, the switch is an ordinary platform fiche.

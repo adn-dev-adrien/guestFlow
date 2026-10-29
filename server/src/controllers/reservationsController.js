@@ -349,11 +349,14 @@ function refuseSessionConflict(res, resources, reservationId = null) {
   return false;
 }
 
-// specs/reservation-save-keeps-pricing.md rule 19 (Adrien, 2026-10-29: « Autoriser, figer le payé ») — the save
-// that moves a direct stay with a ticked acompte or solde onto a platform: the amounts received stay as received.
-function channelSwitchKeepsPaid(stored, postedPlatform) {
-  return Boolean(stored) && isDirectChannel(stored.platform) && !isDirectChannel(postedPlatform)
-    && (Number(stored.depositPaid || 0) === 1 || Number(stored.balancePaid || 0) === 1);
+// specs/reservation-save-keeps-pricing.md rule 20 (Adrien, 2026-10-29: « Refuser, décocher d'abord ») — a direct
+// stay never really becomes a platform stay: with an acompte or a solde ticked as received, the channel change is
+// refused until the operator unticks it.
+function directPaymentBlocksChannelSwitch(stored, postedPlatform) {
+  const ticked = (flag, cash) => Number(stored[flag] || 0) === 1 || Number(stored[cash] || 0) === 1;
+  return Boolean(stored) && postedPlatform != null && postedPlatform !== ''
+    && isDirectChannel(stored.platform) && !isDirectChannel(postedPlatform)
+    && (ticked('depositPaid', 'depositPaidCash') || ticked('balancePaid', 'balancePaidCash'));
 }
 
 // specs/reservation-refunds.md rule 34 — a save that brings the stay below what the guest already paid
@@ -364,9 +367,6 @@ function channelSwitchKeepsPaid(stored, postedPlatform) {
 function overpaymentIntroducedBy(reservationId, quote, overrides = {}) {
   const row = model.getRow(reservationId);
   if (!row) return null;
-  // The save prices the posted channel: a platform sale has no trop-perçu to give back (reservation-refunds rule 38),
-  // and the switch itself freezes what was received (reservation-save-keeps-pricing rule 19).
-  if (quote.platformSale) return null;
   const captured = model.capturedScheduleContribs(reservationId);
   const refundedTtc = refundsModel.totalsByReservation(Number(reservationId)).withCash;
   // The stay as stored, re-priced: what it already held in excess before this save.
@@ -1165,7 +1165,6 @@ async function calculatePrice(req, res) {
     const stored = model.getRow(reservationId);
     if (stored && Number(stored.depositPaid || 0) === 1 && engineInput.depositPaid) engineInput.depositAmount = stored.depositAmount;
     if (stored && Number(stored.balancePaid || 0) === 1 && engineInput.balancePaid) engineInput.balanceAmount = stored.balanceAmount;
-    engineInput.keepPaidAmounts = channelSwitchKeepsPaid(stored, engineInput.platform);
   }
   if (!gateInsurance(res, engineInput, reservationId > 0 ? reservationId : devisId)) return;
   let quote = calculateReservationQuote(engineInput);
@@ -1881,7 +1880,6 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
     // other branch, so it corrects even a frozen complement.
     complementAmountOverride: req.body.complementAmountOverride,
     balanceAmount: effectiveBalancePaid ? storedPaymentForQuote.balanceAmount : req.body.balanceAmount,
-    keepPaidAmounts: channelSwitchKeepsPaid(storedPaymentForQuote, req.body.platform),
     complementAmount: frozenComplementAmount,
     offeredOptionIds: updateOfferedOptionIds,
     lockedNightlyBreakdown: lockedPricing.lockedNightlyBreakdown,
@@ -2036,6 +2034,9 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
   }
   if (quote.changeoverBreached && !forceChangeover && !pastReservationLocked) {
     return res.status(409).json(changeoverErrorPayload(quote));
+  }
+  if (directPaymentBlocksChannelSwitch(storedPaymentForQuote, req.body.platform)) {
+    return res.status(409).json({ error: 'Paiement direct enregistré : le décocher avant de changer de canal.', code: 'DIRECT_PAYMENT_RECORDED' });
   }
   if (!req.body.forceOverpayment) {
     const overpaid = overpaymentIntroducedBy(id, quote, windowEngineInputs);

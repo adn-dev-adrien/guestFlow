@@ -419,6 +419,15 @@ Other facts the design rests on:
     reasoning): the solde is recorded, no « acompte payé deux fois » row and no alert. An acompte paid on an earlier
     day, or by a paid link, is still a second acompte.
 
+43. **A bucket collected at the door is never the link's money (audit R4 R1, 2026-10-29).** Rule 24's same-day
+    reading holds for a tick by hand, not for the single arrival payment or the check-in
+    (`balancePaidAtArrival`, `depositPaidAtArrival`, `complementPaidAtArrival`; `paymentLinksModel.settledAtArrival`):
+    a link paid on such a bucket alerts (`paid-after-settled`) whatever the day, on the retry path and on the live
+    path, and an acompte collected at the door is never absorbed by rule 42.
+44. **The amount alert reads the solde when the acompte is collected (audit R4 R2, 2026-10-29).** A full link paid on a
+    stay whose acompte is collected is booked as the solde, so `amountMismatch.expectedCents` is the solde, on the retry
+    path and the live path: re-priced up, the alert says the amount covers the stay (no « à percevoir »); re-priced down,
+    it states the true trop-perçu.
 
 ## 4. Architecture
 
