@@ -58,3 +58,12 @@ test('rule 33: the iCal reservation e-mail is a single line per field too', () =
   const labelled = text.split('\n').filter((l) => /^(Plateforme|Logement|Client) :/.test(l));
   assert.equal(labelled.length, 3, text);
 });
+
+test('rule 33: bidi overrides and zero-width characters are dropped from an operator e-mail line', () => {
+  const { text } = mailer().buildDevisEmail({
+    id: 7, firstName: 'Cl​aire', lastName: 'Gar‮nier', clientEmail: 'z@example.invalid', clientPhone: '0600000000',
+    propertyName: 'Gîte', startDate: '2026-12-01', endDate: '2026-12-04', adults: 2, options: [], resources: [],
+  }, 'https://app.example.com');
+  assert.ok(!/[​‮]/.test(text), text);
+  assert.match(text, /Claire Garnier/);
+});

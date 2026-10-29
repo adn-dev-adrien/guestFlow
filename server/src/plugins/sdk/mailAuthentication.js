@@ -81,7 +81,7 @@ function parseAuthenticationResults(value) {
   return { authservId, results };
 }
 
-const signingDomain = ({ properties }) => lower(properties['header.d'] || properties.d || domainOf(properties['header.i'] || ''));
+const signingDomain = ({ properties }) => lower(properties['header.d'] || domainOf(properties['header.i'] || ''));
 
 // The server name a provider writes in the Authentication-Results of the mail it receives. Anywhere else
 // the operator names it; with neither, nothing is trusted.
@@ -106,7 +106,10 @@ function verifyDkim(headerBlock, { domains, trustedAuthservId = '' } = {}) {
   if (headers.length === 0) return { ok: false, reason: 'no-authentication-results' };
   const header = headers.find((h) => h.authservId === trusted);
   if (!header) return { ok: false, reason: 'untrusted-authserv-id' };
-  const dkim = header.results.filter((r) => r.method === 'dkim');
+  // Only the results written before the first `smtp.*` one count: whatever the server echoes of the
+  // envelope (a MAIL FROM it failed to quote) comes after the dkim verdicts.
+  const echoAt = header.results.findIndex((r) => Object.keys(r.properties).some((k) => k.startsWith('smtp.')));
+  const dkim = (echoAt < 0 ? header.results : header.results.slice(0, echoAt)).filter((r) => r.method === 'dkim');
   if (dkim.length === 0) return { ok: false, reason: 'no-dkim-result' };
   const passed = dkim.filter((r) => r.result === 'pass');
   if (passed.length === 0) return { ok: false, reason: 'dkim-not-pass' };

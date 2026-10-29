@@ -6,7 +6,10 @@
  * an empty value is acceptable for a given field.
  */
 
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const { isValidEmailAddress, MAX_EMAIL_LENGTH } = require('./emailAddress');
+
+const MAX_DISPLAY_NAME_LENGTH = 120;
+
 const TVA_REGEX = /^[A-Z]{2}\d+$/;
 const BIC_REGEX = /^[A-Z]{4}[A-Z]{2}[A-Z0-9]{2}([A-Z0-9]{3})?$/;
 // An RFC 5322 header value is one unfolded line: a C0 control character or DEL smuggled into a
@@ -37,15 +40,24 @@ function validateHeaderSafeText(value) {
   return null;
 }
 
+// A display name that ends up in a From header (`smtpFromName`, `companyName`): header-safe and short.
+function validateDisplayName(value) {
+  const v = trimOrEmpty(value);
+  if (v.length > MAX_DISPLAY_NAME_LENGTH) return `Au plus ${MAX_DISPLAY_NAME_LENGTH} caractères.`;
+  return validateHeaderSafeText(v);
+}
+
 function validateEmail(value) {
   const v = trimOrEmpty(value);
   if (v === '') return null;
+  // Length first: nothing scans a string longer than an address can be.
+  if (v.length > MAX_EMAIL_LENGTH) return 'Email invalide.';
   // Runs before the pattern check so a control character gets its own actionable message instead
   // of a generic « Email invalide. » — `\s` in EMAIL_REGEX already rejects CR/LF, but NUL and DEL
   // slip through it.
   const headerError = validateHeaderSafeText(v);
   if (headerError) return headerError;
-  if (!EMAIL_REGEX.test(v)) return 'Email invalide.';
+  if (!isValidEmailAddress(v)) return 'Email invalide.';
   return null;
 }
 
@@ -159,6 +171,7 @@ function validateMonthDay(value) {
 module.exports = {
   validateEmail,
   validateHeaderSafeText,
+  validateDisplayName,
   validateSiret,
   validateTvaIntracom,
   validateIban,

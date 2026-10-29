@@ -289,6 +289,9 @@ add the phone and e-mail from Airbnb. When the mail cannot be applied, the fiche
   « Annonce inconnue : <titre> (<id>) », so the id can be pasted as an override.
 - IMAP down → logged, retried at the next pass; the iCal flow is unaffected.
 
+28. **Subject and heading are read on bounded lines** (audit R2 N3 + external N1, 2026-10-29). A subject over 300 characters is refused; the heading is read from lines of at most 300 characters; no `.+?\s+` backtracking. A 200 KB heading or a 3 KB subject costs milliseconds. Test: `airbnb-intake/tests/mail-parser-linear.unit.test.js`.
+29. **DKIM counts only the verdicts before the first `smtp.*` result** of the trusted header; the non-standard `d` alias is no signing domain (audit R2 external N3, 2026-10-29). A sender-written header under another name is never trusted; when the receiving server wrote none, a header forged under its own name cannot be told apart (accepted residual). Test: `tests/mail-sender-authentication.unit.test.js`.
+
 ---
 
 ## 4. Architecture

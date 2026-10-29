@@ -267,6 +267,8 @@ remaining the single source of truth for prices, availability, and validation.
 - Multiple blocks on one page → each block instance fetches independently; shared reads hit the same
   transient cache, so no duplicate upstream calls within the TTL.
 
+32. **Format characters are stripped from names** (audit R2 external N2, 2026-10-29). U+202A–202E, U+2066–2069, zero-width space, BOM and other `\p{Cf}` characters are removed from a public guest name, from the stored client name (`personNameCase`) and from operator mail lines; the joiners U+200C/U+200D stay for Persian and Indic names. Test: `website-booking/tests/guest-email-linear.unit.test.js`.
+
 ---
 
 ## 4. Architecture

@@ -252,6 +252,8 @@ choice in one click.
     version differs, the row is dropped and the mail read again, so a later parser fix recovers it. An intake that
     parsed but failed to apply is never re-read, nor is a row the operator dismissed. Same in `airbnb-intake`. Test: same file.
 
+29. **The mail must open with the centrale's sentence** (audit R2 external N4, 2026-10-29). « Une nouvelle réservation a été effectuée pour votre logement N » within the first three non-empty lines; a « nouvelle réservation » block elsewhere is refused. The subject template is not checked (unknown wording, open decision). Test: `gites-de-france-intake/tests/opening-line.unit.test.js`.
+
 ---
 
 ## 4. Architecture

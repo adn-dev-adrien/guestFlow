@@ -68,7 +68,8 @@ function parseGitesDeFranceMail(text) {
   const startsWith = (re) => lines.map((l, i) => (re.test(l) ? i : -1)).filter((i) => i >= 0);
   const find = (re) => { const i = lines.findIndex((l) => re.test(l)); return i < 0 ? null : lines[i].match(re); };
 
-  if (!/nouvelle réservation/i.test(lines.join(' '))) return fail('Ce mail n’est pas une nouvelle réservation');
+  // The centrale's mail opens with this sentence (after the greeting); a relayed guest text does not.
+  if (!lines.slice(0, 3).some((l) => /^Une nouvelle réservation a été effectuée pour votre logement\s+\d+/i.test(l))) return fail('Ce mail n’est pas une nouvelle réservation');
 
   const LABELS = [`^${PREFIX}Réservation effectuée par`, '^Détail des suppléments', '^Détail des crédits', '^Montant net de la location',
     '^Total des options', '^Total net\\s*:', '^Réservation n°', `^${PREFIX}du\\s+\\d\\d/\\d\\d/\\d{4}\\s+à partir de`, `^${PREFIX}au\\s+\\d\\d/\\d\\d/\\d{4}\\s+avant`];

@@ -7,7 +7,7 @@
  */
 
 const { validateClientPayload } = require('../utils/clientValidation');
-const { parseAddressBlock, extractEmail, extractPhone } = require('../utils/contactParsing');
+const { parseAddressBlock, extractEmail, extractPhone, MAX_RAW_LENGTH } = require('../utils/contactParsing');
 const { clientExistsRefusal } = require('../utils/clientDuplicates');
 const { deactivateOpenLinksBeforeDelete } = require('../utils/paymentLinkDeactivation');
 
@@ -109,6 +109,7 @@ function createController(model) {
     const body = req.body || {};
     const requested = Object.keys(CONTACT_PARSERS).filter((key) => typeof body[key] === 'string');
     if (requested.length === 0) return res.status(400).json({ error: 'INVALID_PAYLOAD' });
+    if (requested.some((key) => body[key].length > MAX_RAW_LENGTH)) return res.status(400).json({ error: 'PAYLOAD_TOO_LONG' });
 
     const parsed = {};
     for (const key of requested) parsed[key] = CONTACT_PARSERS[key](body[key]);

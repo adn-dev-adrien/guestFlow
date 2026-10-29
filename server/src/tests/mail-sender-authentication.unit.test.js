@@ -13,7 +13,8 @@ const OPTS = { domains: 'gdf07.com', trustedAuthservId: 'mx.example' };
 test('a valid DKIM pass for the sender domain, in the trusted server header, is accepted', () => {
   assert.deepEqual(verifyDkim(ar('mx.example; dkim=pass header.i=@gdf07.com header.s=k1 header.b=abc; spf=pass smtp.mailfrom=gdf07.com'), OPTS), { ok: true, reason: 'dkim-pass' });
   assert.equal(verifyDkim(ar('mx.example; dkim=pass header.d=GDF07.com'), OPTS).ok, true);
-  assert.equal(verifyDkim(ar('mx.example; dkim=pass (good signature) d=gdf07.com'), OPTS).ok, true);
+  assert.equal(verifyDkim(ar('mx.example; dkim=pass (good signature) header.d=gdf07.com'), OPTS).ok, true);
+  assert.equal(verifyDkim(ar('mx.example; dkim=pass d=gdf07.com'), OPTS).ok, false, 'the non-standard `d` alias is not a signing domain');
   assert.equal(verifyDkim(ar('mx.example; dkim=pass header.d="gdf07.com"'), OPTS).ok, true);
   assert.equal(verifyDkim(Buffer.from(ar('mx.example; dkim=pass header.d=gdf07.com')), OPTS).ok, true);
 });
@@ -158,4 +159,18 @@ test('the reader honours the configured signing domains and trusted server name,
   assert.equal((await viaGmail({}))[0].authenticated, true, 'Gmail: mx.google.com is the default server name');
   const unknown = await reader([message(1, 'resa@gdf07.com', '', google)], { trustedAuthservId: '', smtpHostOf: () => 'ssl0.ovh.net' });
   assert.equal(unknown[0].authenticated, false, 'unknown provider and empty setting: nothing is authenticated');
+});
+
+// specs/airbnb-mail-intake.md rule 29 (audit R2, finding N3) — only the dkim results written before the first
+// `smtp.*` one count: an unquoted echo of the envelope cannot add a verdict.
+test('rule 29: a dkim=pass written after the first smtp.* result is not counted', () => {
+  const echoed = ar('mx.example; spf=pass smtp.mailfrom=a@evil.test; dkim=pass header.d=gdf07.com');
+  assert.deepEqual(verifyDkim(echoed, OPTS), { ok: false, reason: 'no-dkim-result' });
+  const honest = ar('mx.example; dkim=pass header.d=gdf07.com; spf=pass smtp.mailfrom=a@evil.test');
+  assert.equal(verifyDkim(honest, OPTS).ok, true);
+});
+
+test('rule 29: a header written under another server name is never trusted', () => {
+  const noneFromServer = ar('forger.tld; dkim=pass header.d=gdf07.com');
+  assert.equal(verifyDkim(noneFromServer, OPTS).reason, 'untrusted-authserv-id');
 });

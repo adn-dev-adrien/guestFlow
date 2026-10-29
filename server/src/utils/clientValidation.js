@@ -1,7 +1,9 @@
+const { isValidEmailAddress } = require('./emailAddress');
+
 function isValidEmail(value) {
   const trimmed = String(value || '').trim();
   if (!trimmed) return true;
-  return /^[^\s@,;<>"]+@[^\s@,;<>"]+\.[^\s@,;<>"]+$/.test(trimmed);
+  return isValidEmailAddress(trimmed);
 }
 
 function isValidPhone(value) {
