@@ -349,18 +349,6 @@ function refuseSessionConflict(res, resources, reservationId = null) {
   return false;
 }
 
-// specs/reservation-save-keeps-pricing.md rule 19 (Adrien, 2026-10-29: « Refuser, décocher d'abord ») — a direct
-// stay never really becomes a platform stay: with an acompte or a solde ticked as received, the channel change is
-// refused until the operator unticks it.
-const DIRECT_PAYMENT_RECORDED_MESSAGE = 'Paiement direct enregistré : le décocher avant de changer de canal.';
-
-function directPaymentBlocksChannelSwitch(stored, postedPlatform) {
-  const ticked = (flag, cash) => Number(stored[flag] || 0) === 1 || Number(stored[cash] || 0) === 1;
-  return Boolean(stored) && postedPlatform != null && postedPlatform !== ''
-    && isDirectChannel(stored.platform) && !isDirectChannel(postedPlatform)
-    && (ticked('depositPaid', 'depositPaidCash') || ticked('balancePaid', 'balancePaidCash'));
-}
-
 // specs/reservation-refunds.md rule 34 — a save that brings the stay below what the guest already paid
 // on the acompte and the solde is a trop-perçu: refused with its amount (409 `OVERPAID`) until the
 // operator confirms (`forceOverpayment`), so the money received and the sale never diverge silently.
@@ -407,7 +395,6 @@ function liveOverpayment(reservationId, engineInput) {
   const none = { overpaymentTtc: 0, overpaymentLines: [] };
   const row = model.getRow(reservationId);
   if (!row) return none;
-  if (!isDirectChannel(engineInput.platform)) return none;
   const depositDisabled = Boolean(engineInput.depositDisabled);
   const savedInput = {
     ...engineInput,
@@ -1005,9 +992,6 @@ function pricingNoticesOf({ quote, body, storedRow }) {
   const notices = [];
   const stale = touristTaxStale({ quote, storedRow });
   if (stale) notices.push(stale);
-  if (storedRow && directPaymentBlocksChannelSwitch(storedRow, body.platform)) {
-    notices.push({ code: 'DIRECT_PAYMENT_RECORDED', text: DIRECT_PAYMENT_RECORDED_MESSAGE });
-  }
   const platform = String(body.platform || '');
   if (platform && platform.toLowerCase() !== 'direct') {
     const configured = db.prepare('SELECT name, commissionPercent FROM platforms WHERE lower(name) = lower(?)').get(platform) || {};
@@ -2039,9 +2023,6 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
   }
   if (quote.changeoverBreached && !forceChangeover && !pastReservationLocked) {
     return res.status(409).json(changeoverErrorPayload(quote));
-  }
-  if (directPaymentBlocksChannelSwitch(storedPaymentForQuote, req.body.platform)) {
-    return res.status(409).json({ error: DIRECT_PAYMENT_RECORDED_MESSAGE, code: 'DIRECT_PAYMENT_RECORDED' });
   }
   if (!req.body.forceOverpayment) {
     const overpaid = overpaymentIntroducedBy(id, quote, windowEngineInputs);

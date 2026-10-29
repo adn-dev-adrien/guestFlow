@@ -329,9 +329,6 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
     from « + Nouveau remboursement » shows « Un trop-perçu de X € est ouvert. » with « Rembourser le trop-perçu »,
     which reopens the dialog on the trop-perçu prefill (the `fromOverpayment` flow). No warning when no trop-perçu
     is open or when the dialog was opened on it. No server change.
-45. **A paid direct stay cannot switch to a platform (Adrien, 2026-10-29, audit R4 N6).** The channel change is refused
-    while the acompte or the solde is ticked (`reservation-save-keeps-pricing.md` rule 19), so it never produces a
-    trop-perçu, a frozen solde or a refund prompt. Rule 38 is unchanged for a stay already on a platform.
 
 ---
 
@@ -582,6 +579,7 @@ like « Nouvelle note », not a page-level one).
   records it. Only the bookkeeping is in scope.
 - **Reissuing the devis/facture PDF** with the avoir on it.
 - **Refunds initiated from the SAS de départ** (decision 2026-08-10: fiche only for now).
+- **Switching a paid direct stay to a platform** — not a supported use case (decision 2026-10-29): see `reservation-save-keeps-pricing.md` §8.
 - **A month-close lock** preventing the deletion of a refund already exported.
 - **Refund of a platform commission** or any platform-side money flow.
 - **Refunding accommodation does not change the declared « Montant hébergement HT »** (the tax base of

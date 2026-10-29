@@ -100,12 +100,6 @@ display name, so a GreenGo guest's J+1 reads « GreenGo » (the brand's spelling
     the display name of rule 12 (`formatPlatformLabel`), like Paramètres › Plateformes — never the stored
     key (« GitesDeFrance », « BookingCom », « direct »). Test:
     `components/property/__tests__/PropertyPlatformsTab.display-names.test.jsx`.
-15. **A channel stops counting as a direct sale only once no stay of it carries a direct payment (Adrien, 2026-10-29,
-    audit R4).** `PUT /api/platforms/settings` answers `409 DIRECT_PAYMENTS_RECORDED` « Paiements directs enregistrés sur
-    ce canal : les décocher avant de le passer en plateforme. (N fiches) » and writes nothing when a row unticks
-    `countsAsDirect` while a live stay of that channel has an acompte or a solde ticked, cash included
-    (`reservation-save-keeps-pricing.md` rules 19-20). Ticking it on, or unticking with no such stay, is unaffected.
-    The page shows the message in its error toast.
 
 **Edge cases:**
 - A platform counted as a direct sale after being ticked relay → not a relay, no switch shown.

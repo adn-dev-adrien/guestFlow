@@ -1,2 +1,0 @@
-- Reservations: a direct stay with a ticked acompte or solde can no longer be switched to a platform channel (« Paiement direct enregistré : le décocher avant de changer de canal. »); once unticked, the switch is an ordinary platform fiche.
-- Platforms: « Compté comme vente directe » cannot be unticked while a stay of the channel has an acompte or a solde ticked, and an iCal resync no longer turns such a stay into a platform stay.

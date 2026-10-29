@@ -23,7 +23,7 @@ const icalDateDriftModel = require('./icalDateDriftModel');
 const platformsModel = require('./platformsModel');
 const { DEFAULT_PAYOUT_DUE_DAYS } = require('../utils/platformPayout');
 const { addDaysToIsoDate } = require('../utils/devisHelpers');
-const { formatPlatformName, isDirectChannel } = require('../utils/platformNameFormat');
+const { formatPlatformName } = require('../utils/platformNameFormat');
 const { getTodayIsoDate } = require('../utils/reservationHelpers');
 const { assignReservationNumberIfMissing } = require('../utils/reservationNumber');
 const { calculateReservationQuote } = require('../utils/pricing');
@@ -583,20 +583,6 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
           WHERE id = ?
         `);
 
-        const getPaymentState = (() => {
-          try {
-            return database.prepare('SELECT platform, depositPaid, depositPaidCash, balancePaid, balancePaidCash FROM reservations WHERE id = ?');
-          } catch {
-            return database.prepare('SELECT platform, depositPaid, balancePaid FROM reservations WHERE id = ?');
-          }
-        })();
-        const platformAfterResync = (reservationId, incoming) => {
-          const stay = getPaymentState.get(reservationId);
-          const ticked = stay && (Number(stay.depositPaid || 0) === 1 || Number(stay.depositPaidCash || 0) === 1
-            || Number(stay.balancePaid || 0) === 1 || Number(stay.balancePaidCash || 0) === 1);
-          return ticked && isDirectChannel(stay.platform) && !isDirectChannel(incoming) ? stay.platform : incoming;
-        };
-
         // specs/lodgify-decommission.md §3 rules 1-4 — a channel's native feed takes over the stays
         // that another source (the Lodgify relay) imported for it. Guarded: a minimal test schema
         // without `kind` or `ical_superseded_events` simply has no takeover step.
@@ -991,8 +977,6 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
               continue;
             }
 
-            // specs/ical-sync-override-locked-dates.md rule 12 — a direct stay with an acompte or a solde ticked as
-            // received keeps its channel: the resync must not turn it into a platform stay.
             // Resync never touches `notes` — the operator may have written their own note on the
             // booking and a re-sync must not clobber it.
             updateReservation.run(
@@ -1001,7 +985,7 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
               event.adults,
               property.defaultCheckIn || '15:00',
               property.defaultCheckOut || '10:00',
-              platformAfterResync(mapping.reservationId, platformName),
+              platformName,
               event.uid,
               // Rule 8 — the payout deadline is derived from the departure, so a drift moves it too.
               // Only pristine (never-edited) reservations reach this path; a locked one is diverted

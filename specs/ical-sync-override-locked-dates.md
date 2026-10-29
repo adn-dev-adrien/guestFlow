@@ -126,10 +126,6 @@ edit is preserved).
     of a platform stay (`balanceDueDate` = new departure + the platform's `payoutDueDays`,
     `specs/platform-payout-due-date.md` rule 8). The price, capacity and payment fields stay untouched
     (rule 7).
-12. **A resync keeps the direct channel of a paid stay (Adrien, 2026-10-29, audit R4).** The resync of a never-edited
-    stay rewrites its platform to the source's; when the stay is on a direct channel with an acompte or a solde ticked
-    (cash included) and the source's platform is not direct, the platform is kept and the rest of the sync (dates,
-    guests, payout deadline) still applies (`reservation-save-keeps-pricing.md` rules 19-20).
 
 **Edge cases:**
 - **Locked reservation, new UID alongside the date change** (Booking sometimes does this): the

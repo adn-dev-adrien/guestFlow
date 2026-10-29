@@ -194,20 +194,6 @@ changed something the price depends on; money collected beyond the total is repo
     option dropped from an unpaid or already refunded solde therefore no longer takes the excess of a removed complement
     activity (X1, X2). A signature written before the flag existed carries none: its lines count in both windows, which
     is why rule 17's overflow correction stays.
-19. **A direct stay with a ticked acompte or solde cannot change to a platform channel (Adrien, 2026-10-29: « Refuser,
-    décocher d'abord », audit R4 N6).** A direct stay never really becomes a platform stay (a payment cannot be
-    collected on a platform's behalf): changing the channel only corrects a badly entered fiche, and a direct payment
-    ticked on it is part of the same mistake. While the acompte or the solde is ticked as received (cash included),
-    `PUT /reservations/:id` answers `409 DIRECT_PAYMENT_RECORDED` « Paiement direct enregistré : le décocher avant de
-    changer de canal. », which the fiche shows in its ordinary error alert. Once the operator unticks it (the journal
-    reverses), the switch is an ordinary platform fiche. Platform → platform and platform → direct are unaffected.
-    The live preview of such a switch reports no trop-perçu. Nothing is computed in React.
-20. **The other ways to change a direct stay's channel obey rule 19 (Adrien, 2026-10-29, audit R4 re-review).** Unticking
-    « Compté comme vente directe » on a channel is refused while a stay of it has an acompte or a solde ticked
-    (`platform-settings-relay-and-review.md` rule 15), and the iCal resync of a never-edited stay keeps the platform of a
-    direct stay with a ticked payment (`ical-sync-override-locked-dates.md` rule 12). The live preview of a refused
-    switch carries the same sentence as a `DIRECT_PAYMENT_RECORDED` notice (`quote.notices`, rendered by the existing
-    pricing notices block).
 
 **Edge cases:**
 - In the extras window of a started fiche a custom line is keyed by its text (end-of-stay complement,
@@ -300,6 +286,10 @@ An amber alert above the platform price alert, one per notice, 44 px action targ
 
 - Rewriting the 19 stays whose replay differs from their row, #22201's commission, the four 2027 taxes.
 - Client finding 2 of the audit (bed counts `0` → `null`): another branch.
+- **Switching a paid direct stay to a platform (decision 2026-10-29, Adrien).** A platform stay never carries a direct
+  payment (a payment cannot be collected on a platform's behalf), so a direct stay with a ticked acompte or solde that
+  becomes a platform stay is not a supported use case. The audit finding N6 (trop-perçu prompt, rewritten solde,
+  tourist tax) is not to be reported again, and no guard, refusal or freeze exists for it.
 
 ## 9. Open questions
 
