@@ -280,12 +280,17 @@ async function processPaidLink({ database, devisModel, paymentLinksModel, link, 
 // retired for an amount change, booked at its amount (specs/reservation-payment-ledger.md rule 31): the admin is told,
 // the payment's id stays on the row for the refund. Returns the per-link results, and whether a rate
 // limit stopped the retries.
-const retryInFlight = new WeakMap();
+// A run for the same scope (all links, or one `only`) is shared; runs of different scopes are chained, never
+// concurrent and never answered with another scope's result.
+const retryState = new WeakMap();
 function retryPendingCancellations(deps) {
-  const running = retryInFlight.get(deps.paymentLinksModel);
-  if (running) return running;
-  const run = retryPendingCancellationsOnce(deps).finally(() => retryInFlight.delete(deps.paymentLinksModel));
-  retryInFlight.set(deps.paymentLinksModel, run);
+  let state = retryState.get(deps.paymentLinksModel);
+  if (!state) { state = { tail: Promise.resolve(), running: new Map() }; retryState.set(deps.paymentLinksModel, state); }
+  const scope = deps.only == null ? 'all' : String(deps.only);
+  if (state.running.has(scope)) return state.running.get(scope);
+  const run = state.tail.then(() => retryPendingCancellationsOnce(deps)).finally(() => state.running.delete(scope));
+  state.running.set(scope, run);
+  state.tail = run.catch(() => {});
   return run;
 }
 

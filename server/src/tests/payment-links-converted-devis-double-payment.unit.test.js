@@ -184,3 +184,20 @@ test('rule 35: a stale full link paid after the acompte still books its shortfal
   const out = await s.payLive(stale.id);
   assert.notEqual(out.effect, 'double-payment', 'the amount-change booking comes first');
 });
+
+test('rule 37: two targeted retries at once each settle their own link', async () => {
+  const s = seed();
+  const F2 = s.links.create({ reservationId: s.rid, type: 'full', amountCents: 45536, provider: 'qonto', providerLinkId: 'F2', url: 'u2', status: 'open' });
+  const G = s.links.create({ reservationId: s.rid, type: 'full', amountCents: 45536, provider: 'qonto', providerLinkId: 'G', url: 'ug', status: 'open' });
+  await s.pay(F2.id);
+  assert.equal(s.links.findById(s.F.id).status, 'cancelled');
+  assert.equal(s.links.findById(G.id).status, 'cancelled');
+  const provider = { id: 'qonto', async getPayment() { await new Promise((r) => setImmediate(r)); return { paid: true, paymentId: 'x', paidAt: '2027-04-01T12:00:00Z' }; }, async cancelLink() {} };
+  const [a, b] = await Promise.all([
+    retryPendingCancellations({ ...s.common, provider, only: s.F.id }),
+    retryPendingCancellations({ ...s.common, provider, only: G.id }),
+  ]);
+  assert.deepEqual(a.results.map((r) => r.id), [s.F.id]);
+  assert.deepEqual(b.results.map((r) => r.id), [G.id]);
+  assert.equal(s.links.findById(G.id).status, 'paid');
+});

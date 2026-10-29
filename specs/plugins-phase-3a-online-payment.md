@@ -387,6 +387,15 @@ Other facts the design rests on:
 35. **The amount-change booking comes before the full-after-acompte check (2026-10-29).** A stale full link
     paid after the acompte books what was received (the shortfall reaches the complement) before being tested
     as a double payment.
+36. **`/status` spares the provider (2026-10-29, audit R3 re-review).** The public status settles an owed retired
+    link at most once per 5 minutes per link (`lastPolledAt` is stamped before the call; the page polls every few
+    seconds and the webhook covers the rest) and stops at a rate limit, so an outage or an abusive client cannot
+    spend the fair-use budget the cron needs.
+37. **Retries of different scopes never share a result (2026-10-29).** `retryPendingCancellations` shares a run
+    only with a call of the same scope (all links, or one `only`); different scopes are chained. A webhook for
+    link Y during the retry of X settles Y, and a cron tick during a targeted retry still runs its list.
+38. **`/status` answers the stay (`confirmed`, or `conflict`) when its own retry converted the devis (2026-10-29).** The row is re-read after
+    the owed links are settled.
 
 ## 4. Architecture
 
