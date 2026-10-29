@@ -19,7 +19,7 @@
  *   rollBack(id)            → the previous package becomes the running one, and no rollback is left
  *   expireRollback(id)      → forgets the previous package (its window is over)
  *   syncBundled(id, manifest, sha256) → a `bundled` row follows the copy the running release ships
- *   markHooksPending(id) / pendingHooks() / clearHooksPending(id) → an install that needed a restart owes its hooks
+ *   markHooksPending(id, kind) / hooksPendingKind(id) / pendingHooks() / clearHooksPending(id) → an install that needed a restart owes its hooks
  *   setEnabled(id, enabled) → flips the flag
  *   uninstall(id)           → deletes the row (the plugin's data is kept, rule 6)
  *   isActive(id)            → boolean
@@ -97,8 +97,15 @@ function buildModel(database) {
     syncBundled(id, manifest, sha256 = null) {
       return syncBundledStmt.run({ id, version: manifest.version, manifest: JSON.stringify(manifest), sha256 }).changes > 0;
     },
-    markHooksPending(id) { database.prepare('UPDATE plugins SET hooks_pending = 1 WHERE id = ?').run(id); },
-    pendingHooks: () => database.prepare('SELECT id FROM plugins WHERE hooks_pending = 1 ORDER BY id').all().map((r) => r.id),
+    // 1 = install and activation hooks owed (the value #844 wrote), 2 = activation hooks only (a plugin switched on, not installed).
+    markHooksPending(id, kind = 'install') {
+      database.prepare('UPDATE plugins SET hooks_pending = CASE WHEN hooks_pending = 1 THEN 1 ELSE ? END WHERE id = ?').run(kind === 'activate' ? 2 : 1, id);
+    },
+    hooksPendingKind(id) {
+      const r = database.prepare('SELECT hooks_pending AS p FROM plugins WHERE id = ?').get(id);
+      return !r || !r.p ? null : (r.p === 1 ? 'install' : 'activate');
+    },
+    pendingHooks: () => database.prepare('SELECT id FROM plugins WHERE hooks_pending > 0 ORDER BY id').all().map((r) => r.id),
     clearHooksPending(id) { database.prepare('UPDATE plugins SET hooks_pending = 0 WHERE id = ?').run(id); },
     setEnabled(id, enabled) { setEnabledStmt.run(enabled ? 1 : 0, id); },
     uninstall(id) { deleteStmt.run(id); },

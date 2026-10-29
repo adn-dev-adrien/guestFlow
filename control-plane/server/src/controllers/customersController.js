@@ -603,6 +603,8 @@ function createCustomersController(ctx) {
     const requested = Array.isArray(body.addons) ? [...new Set(body.addons)] : [];
     const { unknown, addons } = planRow ? keepSellableAddons(requested, planRow.code) : { unknown: false, addons: [] };
     if (unknown) errors.addons = 'Option inconnue.';
+    const incoherent = planRow && !unknown ? modules().refuseComposition(planRow.code, addons) : null;
+    if (incoherent) errors.addons = incoherent.message;
     const billingIdentity = readBilling(body, errors);
     const moduleChoice = modules().creationChoices({ planCode: planRow && planRow.code, addons, requested: body.modules, errors });
     const trial = Boolean(body.trial);
@@ -829,6 +831,8 @@ function createCustomersController(ctx) {
     if (!billing) throw httpError(400, 'INVALID', 'Facturation mensuelle ou annuelle.');
     const { unknown, addons } = keepSellableAddons(Array.isArray(body.addons) ? [...new Set(body.addons)] : [], planRow.code);
     if (unknown) throw httpError(400, 'INVALID', 'Option inconnue.');
+    const incoherent = modules().refuseComposition(planRow.code, addons);
+    if (incoherent) throw incoherent;
     const before = catalogue.plan(c.planCode).name;
     customers.changePlan({
       id: c.id, planCode: planRow.code, billing, periodMonths: billing === 'yearly' ? 12 : 1,

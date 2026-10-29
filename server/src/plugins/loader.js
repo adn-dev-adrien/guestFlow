@@ -182,10 +182,14 @@ function syncLiveTransitions() {
  */
 async function runPendingInstallHooks(model) {
   for (const id of model.pendingHooks()) {
+    const kind = model.hooksPendingKind(id);
     model.clearHooksPending(id);
     if (!registry.get(id)) continue;
-    announced.delete(id);
-    await runInstallHooks(id); // eslint-disable-line no-await-in-loop
+    // A plugin only switched on (specs/plugin-dependencies.md rule 9) owes its activation hooks, not its install hooks.
+    if (kind === 'install') {
+      announced.delete(id);
+      await runInstallHooks(id); // eslint-disable-line no-await-in-loop
+    }
     runActivateHooks(id);
   }
 }
@@ -337,6 +341,15 @@ function loadPackages({ store, rows, order, env, nameOf = (id) => id }) {
     }
     manifests[id] = manifest;
     dirs[id] = dir;
+  });
+  // specs/plugin-dependencies.md rule 5 — a dependency cycle leaves every member unloaded: neither could
+  // be switched on first.
+  const { createGraph, cycleLabel } = require('../utils/pluginGraph');
+  createGraph({ manifests, nameOf }).cycles().forEach((cycle) => {
+    cycle.forEach((id) => {
+      incompatible[id] = { code: 'REQUIREMENT_CYCLE', message: `Dépendance circulaire : ${cycleLabel(cycle, nameOf)}.` };
+      delete manifests[id];
+    });
   });
   // A requirement must itself be loadable, at a version its range accepts — repeated until stable.
   const { satisfies } = require('../utils/semverRange');

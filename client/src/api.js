@@ -166,8 +166,8 @@ const api = {
   updatePlugin: (id, { version } = {}) => request(`/plugins/${encodeURIComponent(id)}/update`, { method: 'POST', body: version ? { version } : {} }),
   updateAllPlugins: () => request('/plugins/update-all', { method: 'POST' }),
   rollbackPlugin: (id) => request(`/plugins/${encodeURIComponent(id)}/rollback`, { method: 'POST' }),
-  activatePlugin: (id) => request(`/plugins/${encodeURIComponent(id)}/activate`, { method: 'POST' }),
-  deactivatePlugin: (id) => request(`/plugins/${encodeURIComponent(id)}/deactivate`, { method: 'POST' }),
+  activatePlugin: (id, { withRequirements = false } = {}) => request(`/plugins/${encodeURIComponent(id)}/activate`, { method: 'POST', body: { withRequirements } }),
+  deactivatePlugin: (id, { withDependents = false } = {}) => request(`/plugins/${encodeURIComponent(id)}/deactivate`, { method: 'POST', body: { withDependents } }),
   // `purge` also erases a plugin module's data (specs/plugins-phase-1-sdk.md rules 12, 21).
   uninstallPlugin: (id, { purge = false } = {}) => request(`/plugins/${encodeURIComponent(id)}${purge ? '?purge=1' : ''}`, { method: 'DELETE' }),
   // A plugin module's own settings (specs/plugins-phase-1-sdk.md rule 7): a secret reads `<key>Set`.

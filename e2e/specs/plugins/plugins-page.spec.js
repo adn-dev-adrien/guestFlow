@@ -67,7 +67,8 @@ test('uninstall takes two clicks, moves the plugin to « Disponibles », and it 
 
 test('the SAS cannot be deactivated while a reception account is active', async ({ page }) => {
   await page.goto('/parametres/plugins');
-  const sas = page.locator('.MuiCard-root').filter({ hasText: 'Arrivée et départ guidés' });
+  // The weather card now reads « Nécessite Arrivée et départ guidés »: match the card by its title.
+  const sas = page.locator('.MuiCard-root').filter({ has: page.getByRole('heading', { name: /^Arrivée et départ guidés/ }) });
   // The refusal is said before the click, and the menu item it would refuse is disabled.
   await expect(sas.getByText('Actif', { exact: true })).toBeVisible();
   await sas.getByRole('button', { name: /Plus d’actions/ }).click();
@@ -134,8 +135,8 @@ test('uninstalling Météo with « Effacer aussi ses données » erases its key;
   expect(await saved.json()).toEqual({ apiKeySet: true });
 
   await page.goto('/parametres/plugins');
-  const weather = page.locator('.MuiCard-root').filter({ hasText: 'Vigilance Météo-France' });
-  await weather.getByText('Vigilance Météo-France').click();
+  const weather = page.locator('.MuiCard-root').filter({ has: page.getByRole('heading', { name: /^Vigilance Météo-France/ }) });
+  await weather.getByRole('heading', { name: /^Vigilance Météo-France/ }).click();
   await weather.getByRole('checkbox', { name: 'Effacer aussi ses données' }).check();
   await expect(weather.getByText('Seront effacés : la clé Météo-France. C’est définitif.')).toBeVisible();
   await weather.getByRole('button', { name: 'Désinstaller' }).click();

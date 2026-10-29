@@ -11,6 +11,7 @@
 
 const { plugins: gfPlugins } = require('../utils/gf');
 const { httpError } = require('../utils/httpError');
+const { compositionRefusal } = require('./customerModulesController');
 const { euros, eurosText, parseEuros } = require('../utils/money');
 const { frDay } = require('../utils/days');
 
@@ -75,6 +76,15 @@ function createCatalogueController(ctx, customersController) {
     };
   }
 
+  // specs/plugin-dependencies.md rule 19 — a plan may not include a plugin without the ones it requires.
+  function refuseIncoherent(lowest, plans) {
+    const { rank } = planIndex(plans);
+    for (const plan of plans) {
+      const refused = compositionRefusal(gfPlugins.PLUGIN_IDS.filter((id) => lowest[id] && rank(lowest[id]) <= plan.rank));
+      if (refused) throw refused;
+    }
+  }
+
   // One click in the matrix (rule 2).
   function toggle({ lowest: draft, pluginId, planCode }) {
     const plans = catalogue.plans();
@@ -100,6 +110,7 @@ function createCatalogueController(ctx, customersController) {
         ? `${name} descend en ${target.name}.`
         : `${name} ajouté à ${target.name}${higher ? ' et, par emboîtement, aux forfaits au-dessus' : ''}.`;
     }
+    refuseIncoherent(lowest, plans);
     return { lowest, matrix: matrix(lowest, plans), message };
   }
 
@@ -211,6 +222,7 @@ function createCatalogueController(ctx, customersController) {
     if (!reason) throw httpError(400, 'REASON_REQUIRED', 'Le motif du changement est obligatoire.');
     const plansNow = catalogue.plans();
     const lowest = validateLowest(body.lowest || catalogue.lowest(), plansNow);
+    refuseIncoherent(lowest, plansNow);
     const plans = validatePlans(body.plans, plansNow);
     const addons = validateAddons(body.addons);
     const { lines, grandfather } = analyse(lowest);

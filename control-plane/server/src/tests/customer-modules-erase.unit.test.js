@@ -30,6 +30,8 @@ test('rule 22: an active module, a module without data and a module the space no
   const { modules } = env.ctx.controllers;
   writeSpace(env, { active: ['linen', 'sas'], applied: writtenAt(env), facts: FACTS });
   assert.equal(lineOf(modules.view(env.id), 'linen').canErase, false, 'active');
+  // Vigilance Météo-France requires the SAS (specs/plugin-dependencies.md rule 20): it goes first.
+  modules.toggle(env.id, 'weather-alerts', false, 'op');
   modules.toggle(env.id, 'sas', false, 'op');
   writeSpace(env, { inactive: ['sas'], active: ['linen'], applied: writtenAt(env), facts: { sas: { setup: null, erasable: false, data: [] } } });
   assert.equal(lineOf(modules.view(env.id), 'sas').canErase, false, 'nothing to erase');
@@ -100,6 +102,7 @@ test('rule 22: an order is refused on an archived customer or one whose space wa
 test('rule 14: an inactive module that still holds data reads « données conservées »; one without data does not', async () => {
   const env = await linenOffWithData();
   assert.equal(lineOf(env.ctx.controllers.modules.view(env.id), 'linen').detail, 'données conservées');
+  env.ctx.controllers.modules.toggle(env.id, 'weather-alerts', false, 'op');
   env.ctx.controllers.modules.toggle(env.id, 'sas', false, 'op');
   writeSpace(env, { inactive: ['linen', 'sas'], applied: writtenAt(env), facts: { ...FACTS, sas: { setup: null, erasable: false, data: [] } } });
   assert.equal(lineOf(env.ctx.controllers.modules.view(env.id), 'sas').detail, null);

@@ -13,6 +13,7 @@
 
 const { capture } = require('./captureHandler');
 const { desiredPlugins, pendingEraseOrders } = require('./pluginGovernance');
+const { postOrder } = require('./pluginGraph');
 
 const BLOCKED_RETRY_MS = 60 * 60 * 1000;
 // How far ahead of the space's own clock a licence may be dated and still count as the newest (rule 33).
@@ -27,24 +28,12 @@ const TRANSIENT_CODES = new Set(['UPDATE_IN_PROGRESS', 'RESTART_PENDING']);
 function planSteps({ desired, states, requires, order }) {
   const wanted = new Set(desired);
   const requiresOf = (id) => (requires[id] || []).filter((r) => order.includes(r));
-  const visit = (ids, next) => {
-    const seen = new Set();
-    const out = [];
-    const walk = (id) => {
-      if (seen.has(id)) return;
-      seen.add(id);
-      next(id).filter((n) => ids.includes(n)).forEach(walk);
-      out.push(id);
-    };
-    ids.forEach(walk);
-    return out;
-  };
   const off = order.filter((id) => states[id] === 'active' && !wanted.has(id));
   const on = order.filter((id) => wanted.has(id) && states[id] !== 'active');
   const dependantsOf = (id) => off.filter((o) => requiresOf(o).includes(id));
   return [
-    ...visit(off, dependantsOf).map((id) => ({ op: 'deactivate', id })),
-    ...visit(on, requiresOf).map((id) => ({ op: states[id] ? 'activate' : 'install', id })),
+    ...postOrder(off, dependantsOf, off).map((id) => ({ op: 'deactivate', id })),
+    ...postOrder(on, requiresOf, on).map((id) => ({ op: states[id] ? 'activate' : 'install', id })),
   ];
 }
 
