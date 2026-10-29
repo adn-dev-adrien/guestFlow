@@ -244,6 +244,7 @@ app.use('/api/calendar-notes', require('./routes/calendarNotes'));
 app.use('/api/ical', require('./routes/ical'));
 app.use('/api/settings', require('./routes/settings'));
 app.use('/api/push', require('./routes/push'));
+app.use('/api/payments', require('./middleware/stayVersionsTrail').stayVersionsTrail());
 app.use('/api/payments', require('./routes/payments'));
 app.use('/api/translations', require('./routes/translations'));
 app.use('/api/devis', require('./routes/devis'));

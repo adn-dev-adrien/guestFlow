@@ -27,3 +27,15 @@ test('rule 4: the event carries the stay and its versions on a write to /reserva
 test('rule 4: the event carries nothing when the server sent no version', async () => {
   expect(await writeAndCatch({})).toEqual([null]);
 });
+
+test('rule 6: a write from outside the stay puts the moved stays on the event', async () => {
+  vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({
+    ok: true, status: 200, json: () => Promise.resolve({}),
+    headers: { get: (n) => (n === 'X-Stay-Versions' ? JSON.stringify([{ id: 9, before: 'v1', after: 'v2' }]) : null) },
+  })));
+  const seen = [];
+  const listener = (e) => seen.push(e.detail);
+  window.addEventListener(DATA_CHANGED_EVENT, listener);
+  try { await api.undoReconciliation('tx-1'); } finally { window.removeEventListener(DATA_CHANGED_EVENT, listener); }
+  expect(seen).toEqual([{ stays: [{ reservationId: 9, before: 'v1', after: 'v2' }] }]);
+});

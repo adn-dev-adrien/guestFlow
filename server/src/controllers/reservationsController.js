@@ -2473,3 +2473,4 @@ module.exports = {
 
 // Test surface: the guard of a payment mark, exercised without an HTTP round-trip.
 module.exports.__test = { paymentMarkRefusal, staleFicheRefusal };
+module.exports.storedOverpayment = storedOverpayment;

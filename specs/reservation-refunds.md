@@ -301,6 +301,20 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
     with 150 of trop-perçu); corrected to 700 → solde 520 (it asked 100 at arrival). The same holds
     on a counts-as-direct channel whose platform amount is entered (plugins-phase-p-productisation.md
     rule 45).
+41. **A free line with an amount and no label is refused, never dropped (audit R2, 2026-10-29).** The
+    dialog flags the « Libellé » field, shows « Libellé manquant. » above the save button and disables it,
+    so the total shown is always the total posted. A blank line left empty is ignored. The server already
+    refused it (`REFUND_INVALID_LINE`, rule 9) and answers the recorded `totalTtc`; the dialog's own sum
+    stays a display of the lines it is about to post.
+42. **A refund made from the fiche refreshes the stored ledger, and a trop-perçu is refunded once (audit R2,
+    2026-10-29).** After `POST` and `DELETE /refunds` the fiche re-reads the stored finance
+    (`reloadReservationFinance`, which moves the clean baseline with it, so the fiche stays clean): the
+    « Trop-perçu » row and its button no longer outlive the refund. The refund dialog opened on a
+    trop-perçu sends `fromOverpayment: true`; the server then refuses the free lines beyond what is still
+    over-collected on the stored stay: `409 REFUND_EXCEEDS_OVERPAYMENT`, « Le trop-perçu est déjà
+    remboursé. ». A free line not flagged (a commercial gesture) is not capped by it.
+    The dialog opened from a `409 OVERPAID` takes the body's `overpaymentMethod` (`internal` or null) as its
+    default means, like the GET's refund prefill.
 
 ---
 

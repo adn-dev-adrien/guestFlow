@@ -1,0 +1,1 @@
+- **Refund from the fiche: the trop-perçu can no longer be refunded twice** (spec `reservation-refunds.md` rule 42, audit R2, 2026-10-29). The fiche re-reads its stored ledger after a refund is created or deleted, and the server refuses (409) a trop-perçu refund beyond what is still over-collected. +3 server tests, +2 client tests.

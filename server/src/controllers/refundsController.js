@@ -33,6 +33,11 @@ function nightsBetween(startDate, endDate) {
 function createRefundsController(deps = {}) {
   const refundsModel = deps.refundsModel || defaultRefundsModel;
   const reservationsModel = deps.reservationsModel || defaultReservationsModel;
+  // Required lazily: the reservations controller requires this one.
+  const storedOverpaymentTtc = deps.storedOverpaymentTtc || ((id) => {
+    const over = require('./reservationsController').storedOverpayment(id);
+    return over ? Number(over.overpaymentTtc || 0) : 0;
+  });
   const vatRateOf = deps.vatRateOf || ((reservation) => vatRegimeModel.rateForRow(database, reservation));
 
   // The whole read side of the feature: register + still-refundable lines + both total readings.
@@ -94,6 +99,15 @@ function createRefundsController(deps = {}) {
       });
       if (validated.error) {
         return res.status(validated.status || 400).json({ error: validated.error, code: validated.code });
+      }
+
+      // A refund of the trop-perçu (rule 42) cannot exceed what is still over-collected: a double click or a
+      // stale tab would otherwise give the same money back twice.
+      if (req.body && req.body.fromOverpayment === true) {
+        const asked = validated.refund.lines.filter((l) => !l.lineKey).reduce((sum, l) => sum + l.amountTtc, 0);
+        if (Math.round(asked * 100) > Math.round(storedOverpaymentTtc(id) * 100)) {
+          return res.status(409).json({ error: 'Le trop-perçu est déjà remboursé.', code: 'REFUND_EXCEEDS_OVERPAYMENT' });
+        }
       }
 
       const refundId = refundsModel.create(id, validated.refund);

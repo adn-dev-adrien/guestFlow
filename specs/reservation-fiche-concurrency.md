@@ -53,6 +53,17 @@ silently reverting what an import, a mail or another tab wrote meanwhile.
    « Recharger » (re-runs the page load), « Enregistrer quand même » (an explicit overwrite: that one save
    goes without `loadedUpdatedAt`, then the fiche holds the new version) and « Annuler » (closes the dialog;
    the draft stays on screen, the next save is refused again).
+6. **A write from outside the stay is the fiche's own too (audit R2, 2026-10-29).** A bank
+   reconciliation (`POST/DELETE /api/payments/reconciliation/...`) and a payment poll (`POST
+   /api/payments/poll`) write the stay's payment marks, hence `updatedAt`, without going through
+   `/api/reservations/:id`. Every non-read request under `/api/payments` answers with `X-Stay-Versions`,
+   a JSON list `{ id, before, after }` of the stays whose `updatedAt` moved during the request.
+   `api.js` puts `{ stays }` on the data-changed event and `versionAfterOwnWrite` applies the rule 4
+   chain to the entry of the fiche's stay: a confirmed link, an undo or a poll no longer makes the next
+   save fail with a false `STALE_FICHE`, while a foreign write that landed earlier still breaks the chain.
+7. **A refused or failed overwrite does not leave the overwrite armed (audit R2, 2026-10-29).**
+   « Enregistrer quand même » skips the version check for that one save only: the flag is cleared on every
+   exit path of the save (error alert, cancelled confirmation, network failure), not only on success.
 
 **Edge cases:**
 - The version check runs first in `update`, so a stale save on a cancelled or superseded stay answers `STALE_FICHE` before the read-only guard (`RESERVATION_CANCELLED`) would; a stay already read-only has nothing to overwrite, and the reload then shows it.
@@ -72,6 +83,7 @@ silently reverting what an import, a mail or another tab wrote meanwhile.
 | `controllers/` | `reservationsController.js` | T | `staleFicheRefusal` — compares `loadedUpdatedAt` with the stored row, before `update` does anything |
 | `models/` | `reservationsModel.js` | — | unchanged (`getRow`, `getByIdWithDetails` already return `updatedAt`) |
 | `middleware/` | `ficheVersionHeaders.js` | C | The two version headers on every write to `/api/reservations/:id/...` |
+| `middleware/` | `stayVersionsTrail.js` | C | `X-Stay-Versions` on every write under `/api/payments` (rule 6) |
 | `routes/` | `reservations.js` | T | Mounts the middleware on `/:id` |
 
 ### 4.2 Client side (`client/src/`)
@@ -103,7 +115,8 @@ The dialog of rule 5, on desktop and mobile alike (the shared confirm dialog is 
 - [x] `tests/fiche-stale-save.unit.test.js` (3): rule 2 — a stale version is refused and writes nothing,
   the matching version / none / blank / unknown stay is not refused; rule 3 — the read carries the version.
 - [x] `tests/fiche-version-headers.unit.test.js`: rule 4 — the before / after headers on a write, none on a read.
-- [x] Client: `utils/ficheVersion.test.js` (4) and `__tests__/api.fiche-version.test.js` (2): rule 4.
+- [x] Client: `utils/ficheVersion.test.js` (6) and `__tests__/api.fiche-version.test.js` (3): rules 4 and 6.
+- [x] `tests/fiche-stay-versions-trail.unit.test.js` (2): rule 6.
 - [x] Real-data check on the shadow (prod data of 22/10): the audit's `lost-update.sh` scenario answers 409
   and the intake's fill survives.
 
