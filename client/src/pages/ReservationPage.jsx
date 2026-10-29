@@ -662,11 +662,12 @@ export default function ReservationPage() {
     // The baseline takes what the quote wrote into the form, and nothing else: whatever the operator typed
     // while the quote was on its way (a note) stays an edit, so Enregistrer lights up.
     setInitialSnapshot((prevSnapshot) => {
-      if (!prevSnapshot) return formSnapshot;
+      // Not frozen yet: the baseline is still derived from the loaded form and the quote, which is right.
+      if (!prevSnapshot) return prevSnapshot;
       try {
         const snap = JSON.parse(prevSnapshot);
         return JSON.stringify({ ...snap, form: applyQuoteToFormPure(snap.form, pricingQuote, { preserveBlankPrice: false }) });
-      } catch { return formSnapshot; }
+      } catch { return prevSnapshot; }
     });
   }, [pricingQuote, formSnapshot]);
   const miniVisibleDays = downSm ? 5 : downMd ? 6 : downLg ? 7 : 8;
@@ -2857,13 +2858,17 @@ export default function ReservationPage() {
     setForm((prev) => ({ ...prev, ...serverWritten }));
     // Review of #727 (H2) — what the server just wrote is not an edit of the operator: the clean
     // baseline moves with it, so a mark never makes the fiche « modified ».
-    setInitialSnapshot((prevSnapshot) => {
+    // Both baselines: the frozen one (once the first quote has landed) and the loaded form the baseline is
+    // derived from before that — whichever is current moves with what the server wrote.
+    const withServerWritten = (prevSnapshot) => {
       if (!prevSnapshot) return prevSnapshot;
       try {
         const snap = JSON.parse(prevSnapshot);
         return JSON.stringify({ ...snap, form: { ...snap.form, ...serverWritten } });
       } catch { return prevSnapshot; }
-    });
+    };
+    setInitialSnapshot(withServerWritten);
+    setLoadedSnapshot(withServerWritten);
     // Le devis live dépend de l'état serveur qu'on vient de changer (report du complément, note
     // encaissée / ajustée) : sans ce rafraîchissement, le panneau de droite garderait l'ancien split
     // pendant que la carte affiche déjà le nouveau (specs/defer-arrival-complement-to-checkout.md

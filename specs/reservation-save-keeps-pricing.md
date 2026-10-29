@@ -123,8 +123,9 @@ changed something the price depends on; money collected beyond the total is repo
    #22282, #22301 and #22304 are re-saved by the operator.
 7. **The fiche's Enregistrer is disabled on a clean form** (and stays enabled once « Recalculer » is
    requested). The clean baseline of a loaded fiche is **the form as loaded**, plus what the quote writes
-   into it (`applyQuoteToForm` on the baseline, never on the live form); a payment mark re-baselines the same
-   way, and a reload (STALE_FICHE included) takes it again. Until the first quote lands the baseline is the
+   into it (`applyQuoteToForm` on the baseline, never on the live form); a payment mark (and its undo, a refund, a ledger link, the SAS: every server-written update goes through one
+   reload) moves whichever baseline is current, the loaded form before the first quote and the frozen one
+   after, and re-baselines the same way, and a reload (STALE_FICHE included) takes it again. Until the first quote lands the baseline is the
    loaded form itself, so an edit typed meanwhile is already an edit: it can be saved, and leaving asks first
    (« Modifications non enregistrées »). The baseline is derived in the render that applies the quote (not in an
    effect), so a clean fiche with drifted stored figures never flashes « modified » when the quote lands.
@@ -203,7 +204,8 @@ An amber alert above the platform price alert, one per notice, 44 px action targ
       refunded by transfer is booked on 70600010, by caisse interne nowhere.
 - [x] Client `ReservationPage.baseline-before-quote.test.jsx` (1) — rule 7: a note typed before the first quote
       resolves (deferred mock) enables Enregistrer, shows the unsaved-changes dialog on leaving, and is sent;
-      `ReservationPage.baseline-drift.test.jsx` (1) — a drifted clean fiche never enables Enregistrer, not for a frame;
+      `ReservationPage.baseline-server-writes.test.jsx` (2) — a mark and an undo before the first quote leave the
+      fiche clean, before and after the quote; `ReservationPage.baseline-drift.test.jsx` (1) — a drifted clean fiche never enables Enregistrer, not for a frame;
       `ReservationPage.bed-counts-zero.test.jsx` (3) — rule 7: a user edit then Enregistrer on a loaded fiche.
 - [x] `fiche-pricing-notices.unit.test.js` (6) — rules 5-6; client `PricingNotices.test.jsx` (3).
 - [x] Client `RefundDialog.overpayment.test.jsx` (5, `defaultMethod`) and `FinanceSection.refunds.test.jsx`
