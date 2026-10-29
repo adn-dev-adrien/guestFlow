@@ -5,7 +5,7 @@ import { renderFinance as renderLedger, dueRow, naRow, editable, ledgerOf } from
 // specs/accounting-platform-commission-and-no-deposit.md §3.8 rule 21 + §7.3 — a platform without
 // acompte reads « Sans objet » on the acompte row (the server's words, specs/reservation-payment-ledger.md
 // rule 6); its statement fields (brut, per-échéance commissions — specs/platform-per-echeance-commission.md,
-// specs/platform-payment-entry.md) open from the payout row's amount (ledger rule 25).
+// specs/platform-payment-entry.md) open from the payout row's amount (ledger).
 
 vi.mock('../../../api', () => ({ __esModule: true, default: { markPayment: vi.fn(), computePlatformCommission: vi.fn() } }));
 import api from '../../../api';
@@ -138,7 +138,7 @@ test('« Calculer la commission »: the engine\'s tax estimate is never sent (pl
   await calculate(ctx);
 });
 
-test('the Grimaud case: 733 facturé and 668 viré go to the server', async () => {
+test('the Girard case: 733 facturé and 668 viré go to the server', async () => {
   const ctx = renderFinance({
     form: { platform: 'GitesDeFrance', platformGrossAmount: 733, platformPayoutAmount: 668 },
     pricingQuote: { touristTaxOfferedByPlatform: true, touristTaxOriginalTotal: 14.4 },

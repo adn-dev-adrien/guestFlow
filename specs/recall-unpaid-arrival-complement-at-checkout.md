@@ -107,7 +107,7 @@ the complement), the arrival complement silently stays unpaid and is never recal
      de séjour » au lieu de « Total à percevoir ». Sans ça, l'opérateur réclame au client une somme
      déjà payée.
 
-   **Constaté en production** sur la réservation 22281 (Harmen Van Dijk), et **rejoué à l'identique en
+   **Constaté en production** sur la réservation 22281 (Hans Van Dyke), et **rejoué à l'identique en
    dev** le 2026-08-31 avant correction : même ligne d'historique « Complément de fin de séjour
    encaissé : oui → non », groupe promettant 281,98 € dont une moitié redevenue due, et deux écritures
    en comptabilité au lieu d'une carte.

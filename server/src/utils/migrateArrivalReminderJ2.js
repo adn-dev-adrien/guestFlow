@@ -29,19 +29,27 @@ function runArrivalReminderJ2Migration(db) {
 
   // Guard the EN columns: older schemas may predate the bilingual feature. Only write them when present.
   const hasEn = cols.includes('subjectEn') && cols.includes('bodyEn');
+  // Written only when a column actually differs: a re-run must not move `updatedAt`.
+  const params = hasEn
+    ? [def.name, def.subject, def.body, def.subjectEn || '', def.bodyEn || '', Number(def.dayOffset)]
+    : [def.name, def.subject, def.body, Number(def.dayOffset)];
   const info = hasEn
     ? db.prepare(`
       UPDATE email_templates
          SET name = ?, subject = ?, body = ?, subjectEn = ?, bodyEn = ?, dayOffset = ?, updatedAt = datetime('now')
        WHERE stableKey = 'arrival_reminder_1d'
-    `).run(def.name, def.subject, def.body, def.subjectEn || '', def.bodyEn || '', Number(def.dayOffset))
+         AND (name IS NOT ? OR subject IS NOT ? OR body IS NOT ? OR subjectEn IS NOT ? OR bodyEn IS NOT ? OR dayOffset IS NOT ?)
+    `).run(...params, ...params)
     : db.prepare(`
       UPDATE email_templates
          SET name = ?, subject = ?, body = ?, dayOffset = ?, updatedAt = datetime('now')
        WHERE stableKey = 'arrival_reminder_1d'
-    `).run(def.name, def.subject, def.body, Number(def.dayOffset));
+         AND (name IS NOT ? OR subject IS NOT ? OR body IS NOT ? OR dayOffset IS NOT ?)
+    `).run(...params, ...params);
 
-  return { action: Number(info.changes) > 0 ? 'updated' : 'not_found' };
+  if (Number(info.changes) > 0) return { action: 'updated' };
+  const exists = db.prepare("SELECT 1 FROM email_templates WHERE stableKey = 'arrival_reminder_1d'").get();
+  return { action: exists ? 'unchanged' : 'not_found' };
 }
 
 module.exports = { runArrivalReminderJ2Migration };

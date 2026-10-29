@@ -3516,7 +3516,7 @@ export default function ReservationPage() {
     },
   };
 
-  // « Prénom Nom · N° 6646665983 · 07/08 → 13/08 » — the bar's identity line below lg (rule 12).
+  // « Prénom Nom · N° 6600000002 · 07/08 → 13/08 » — the bar's identity line below lg (rule 12).
   const stayIdentity = [
     `${selectedClient?.firstName || ''} ${selectedClient?.lastName || ''}`.trim(),
     form.reservationNumber ? `N° ${form.reservationNumber}` : '',

@@ -8,7 +8,7 @@ import { makeMockContext } from './mockReservationForm';
 // Every plugin active — the Solio configuration these tests describe (specs/plugins-phase-0-foundation.md).
 vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: () => true }));
 
-// specs/force-extras-complement-on-platform.md §3 rule 1bis + §7.2.
+// specs/force-extras-complement-on-platform.md §3 update 2026-06-20 (1bis) + §7.2.
 // On non-direct platform reservations, the per-line "Forcer en complément" small Switches for
 // operator-added extras (regular option + custom option + resource) STAY visible so a line can be
 // pulled back out of Complément; a muted caption explains the default. Only the engine-derived

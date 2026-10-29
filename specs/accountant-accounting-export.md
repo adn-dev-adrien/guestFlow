@@ -282,7 +282,7 @@ standard).
     **1 October 2026** (`SPLIT_TTC_FROM`); an earlier payment keeps HT and VAT prorated separately, as
     it was exported. *Why:* the final review of 2026-10-18 (N4) re-exported February–October 2026 and
     found three entries one cent off what the accountant may already have imported — April
-    (Nouville 624,54 / 62,46), July (Nicolet 40,34 / 11,23), September (Van Dijk 117,28 / 11,72).
+    (Noailles 624,54 / 62,46), July (Nicolas 40,34 / 11,23), September (Van Dyke 117,28 / 11,72).
     Re-exporting a closed month must give the same file. *(2026-10-19: the fixed 1 October cutoff is
     replaced by rule 35 — production exports October before this version is installed.)*
 34. **A trop-perçu refunded is counted once** (2026-10-18, final review N1; the rule lives in

@@ -4,5 +4,5 @@
   rules read a platform setting, « Sans corvées de départ » (`platforms.forbidsGuestChores`, Paramètres ›
   Plateformes), and the cleaning-fee computation moved into the `tariff-recipes` plugin. Plugins `sas`
   1.6.0 and `tariff-recipes` 1.3.0.
-- plugin:sas Sur une plateforme « Sans corvées de départ », le sas ne rappelle plus la vaisselle ni les poubelles, et le ménage non fait n’est plus facturé au départ.
-- plugin:tariff-recipes Une recette peut déclarer les frais de ménage facturés par une plateforme ; l’aperçu d’application les signale.
+- plugin:sas On a « Sans corvées de départ » platform, the SAS no longer reminds about the dishes or the bins, and cleaning not done is no longer billed at departure.
+- plugin:tariff-recipes A recipe can declare the cleaning fee a platform charges; the application preview reports it.

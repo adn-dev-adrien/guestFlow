@@ -31,7 +31,7 @@ function renderSummary(quote, form = FORM) {
 }
 
 // The cascade's figures come shaped by the server (`summaryCascade`, specs/ui-review-2026-10-19-
-// operations.md rule 32) — the fixtures carry them as the engine would.
+// operations.md) — the fixtures carry them as the engine would.
 const QUOTE = { finalPrice: 250, totalStayPrice: 250, nights: 2, optionLines: [], resourceLines: [], touristTaxTotal: 0, touristTaxOriginalTotal: 0, platformSale: true };
 const cascade = (grossTotal, offeredTaxDeduction, onSiteTotal, commissionBase) => ({
   summaryCascade: { grossTotal, offeredTaxDeduction, onSiteTotal, commissionBase },
@@ -142,7 +142,7 @@ test('non-offered platform → NO « Taxe de séjour (plateforme) » deduction l
 
 // specs/platform-per-echeance-commission.md — the Acompte / Solde lines show the GROSS the guest pays
 // (the stored amount), under the labels « Montant acompte/solde payé par le client ». The commission +
-// net « Versement plateforme » live in the cascade above. Resolved 2026-07-16 (Damien Nicolet): a
+// net « Versement plateforme » live in the cascade above. Resolved 2026-07-16 (Daniel Nicolas): a
 // « payé par le client » figure must NOT have the commission silently subtracted.
 test('Acompte / Solde lines show the client-paid GROSS under the « payé par le client » labels', () => {
   render(
@@ -163,10 +163,10 @@ test('Acompte / Solde lines show the client-paid GROSS under the « payé par le
   expect(screen.queryByText(/net de la commission solde/i)).toBeNull();
 });
 
-// Damien Nicolet regression (2026-07-16): the entered deposit/balance is the client-paid GROSS, shown
+// Daniel Nicolas regression (2026-07-16): the entered deposit/balance is the client-paid GROSS, shown
 // as-is under the « payé par le client » label. Guest pays 126,38 per échéance (= Adrien's 122,97 net
 // take + 3,41 Lodgify commission) → both lines show 126,38. Locks the reported prod scenario.
-test('Acompte / Solde show the client-paid gross — Damien Nicolet BRUT case', () => {
+test('Acompte / Solde show the client-paid gross — Daniel Nicolas BRUT case', () => {
   render(
     <PricingSummary
       quote={{ ...QUOTE, finalPrice: 252.76, totalStayPrice: 252.76, acompteCommissionAmount: 3.41, platformCommissionAmount: 3.41, totalPlatformCommission: 6.82, platformNetReceivedAmount: 245.94 }}

@@ -179,7 +179,7 @@ test('rule 21 — the field accepts « 12,5 », « 100+20 », rounds a third dec
 });
 
 // specs/editable-deposit-amount.md rule 4 (amended) — refused above the accommodation, not clamped.
-test('rule 21 — the save re-validates: a crafted acompte above H gets the same refusal (400)', async () => {
+test('rule 4 (amended) — the save re-validates: a crafted acompte above H gets the same refusal (400)', async () => {
   const id = createStay();
   const res = await save(id, { depositAmountOverride: 400 });
   assert.equal(res.statusCode, 400);

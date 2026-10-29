@@ -10,7 +10,7 @@ const FULL_ITEM = {
   reservationId: 42,
   date: '2026-07-19',
   time: '09:00',
-  clientName: 'Sarah Arnaud',
+  clientName: 'Sara Aubert',
   propertyName: 'Aventura lodge',
   breakfastPersons: 4,
   coffee: 2,
@@ -38,7 +38,7 @@ test('shows header (time, client · property, day), persons line and ONLY non-ze
   renderDialog(FULL_ITEM);
   expect(screen.getByText('Petit déjeuner')).toBeInTheDocument();
   expect(screen.getByText('09:00')).toBeInTheDocument();
-  expect(screen.getByText(/Sarah Arnaud · Aventura lodge — dimanche 19 juillet/)).toBeInTheDocument();
+  expect(screen.getByText(/Sara Aubert · Aventura lodge — dimanche 19 juillet/)).toBeInTheDocument();
   expect(screen.getByText('4 petits déjeuners')).toBeInTheDocument();
 
   expect(screen.getByText('Café')).toBeInTheDocument();

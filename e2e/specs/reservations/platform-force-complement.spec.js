@@ -3,7 +3,7 @@
 // behaviour: on a non-direct platform reservation, the Extras section shows the muted caption
 // "Réservation plateforme — les extras sont placés en paiement complémentaire par défaut
 // (modifiable par ligne)." The per-line "Forcer en complément" Switches now STAY visible on
-// operator-added extras (spec rule 1bis) — we don't seed any extras here (the e2e catalog is empty),
+// operator-added extras (spec update 2026-06-20, 1bis) — we don't seed any extras here (the e2e catalog is empty),
 // so the switch count is trivially 0; the editable-switch behaviour is covered by the Vitest unit
 // test `ExtrasSection.platform-force-complement.test.js`.
 import { test, expect } from '@playwright/test';

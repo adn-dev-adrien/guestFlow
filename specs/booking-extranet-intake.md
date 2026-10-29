@@ -34,7 +34,7 @@ Commission (GuestFlow)  = brut − payout − tourist tax       (accepted gap, o
 The Gîtes de France plugin (`gites-de-france-intake`) automates the same work because the centrale
 e-mails a full recap. **Booking does not**:
 
-- its e-mails are no recap: the one received for 6392081711 on 2026-10-15 notified a guest message
+- its e-mails are no recap: the one received for 6300000001 on 2026-10-15 notified a guest message
   (number, name, dates, headcount — no contact, ages or amount), and is sent only when the guest
   writes;
 - its API is reserved to certified channel managers;
@@ -232,7 +232,7 @@ automatic e-mails of those stays then went to the wrong guest (review 2026-10-18
 
 ### 3.7 The page as Booking really serves it (2026-10-22)
 
-Measured on the gîte's reservation 6669322709, the first intake ever applied in production (the eight
+Measured on the gîte's reservation 6600000001, the first intake ever applied in production (the eight
 attempts since 2026-10-16 were all refused « Sous-total introuvable »).
 
 29. **The script opens every collapsed room accordion before reading the page.** Booking shows the
@@ -248,7 +248,7 @@ attempts since 2026-10-16 were all refused « Sous-total introuvable »).
     line of the guest block (rule 8); a number in the middle of a sentence is not taken.
 31. **The tourist tax is « retenue » only when Booking keeps it.** « Commission et frais » on the page
     is Booking's commission alone (16,44 % of the Sous-total, measured on three settled stays and on
-    6669322709: 113,44 € = 16,44 % × 690 €), so the payout (rule 15) still holds the tax. Whether that
+    6600000001: 113,44 € = 16,44 % × 690 €), so the payout (rule 15) still holds the tax. Whether that
     tax is ours depends on the Booking platform's tourist-tax mode
     (specs/per-platform-tourist-tax-three-way.md):
     - `platform` (Booking collects **and** remits to the commune): `platformTouristTaxAmount` = Taxe de
@@ -256,7 +256,7 @@ attempts since 2026-10-16 were all refused « Sous-total introuvable »).
     - `platform_reversed` (Booking collects and reverses it to us — the setting since 2026-10-16) or
       `owner`: `platformTouristTaxAmount` stays **empty** and the commission = brut − payout, i.e.
       « Commission et frais ». Writing the tax there made the fiche's reconciliation show an écart
-      equal to it (20,02 € on 6669322709).
+      equal to it (20,02 € on 6600000001).
     A filled fiche carrying a withheld tax that the mode no longer explains gets a proposal to clear it
     (rule 17); an empty tax on both sides is not a difference. The mode is read through
     `ctx.core.reservations.platformWithholdsTouristTax(propertyId, 'booking')`.
@@ -435,7 +435,7 @@ full-width on `xs`; banner buttons likewise; settings card follows `StatusCard`.
 
 None.
 
-**Implementation notes (2026-10-22):** rules 29–31 from the first production intake (6669322709): the
+**Implementation notes (2026-10-22):** rules 29–31 from the first production intake (6600000001): the
 script v3 was tested by the operator in Safari before the change; the shadow run on a production copy
 is recorded in the PR.
 On `master` these rules are numbered 27–29 and the shared-client rules 25–26; `inte/plugins`

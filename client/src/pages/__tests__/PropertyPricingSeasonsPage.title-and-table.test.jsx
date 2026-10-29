@@ -1,4 +1,4 @@
-// specs/pricing-min-nights-per-range.md §6 (2026-10-27 audit) — at 1280 the bar title read
+// specs/pricing-min-nights-per-range.md §6 rule 10 (2026-10-27 audit) — at 1280 the bar title read
 // « Gestion tarifaire - La Granja — gîte… » (cut, two kinds of dash) and the seasons table overflowed
 // its card by 36 px, clipping « Supprimer ». The name is now a caption beside the title, the amounts
 // align right, and the table's floor fits the 1280 content column.

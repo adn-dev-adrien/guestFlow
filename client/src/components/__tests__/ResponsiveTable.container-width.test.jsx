@@ -5,7 +5,7 @@ import { afterEach, vi } from 'vitest';
 
 import ResponsiveTable from '../ResponsiveTable';
 
-// specs/ds-components.md §3.1 (2026-10-27 audit) — on the Dashboard at 900 and 1280 px the arrivals
+// specs/ds-components.md rule 26 (2026-10-27 audit) — on the Dashboard at 900 and 1280 px the arrivals
 // table (min 1080 px) sat next to the drawer and hid Note / Paiements / Caution in a scroller nobody
 // noticed. `cardsBelowWidth` switches to cards when the CONTAINER is too narrow, whatever the viewport.
 

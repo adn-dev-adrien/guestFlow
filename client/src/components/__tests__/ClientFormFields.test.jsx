@@ -61,14 +61,14 @@ test('dropping a mailto link on Email sends the raw payload and writes the clean
 });
 
 test('dropping a tel link on Téléphone writes the number returned by the server', async () => {
-  api.parseClientContact.mockResolvedValue({ phone: '0627753922' });
+  api.parseClientContact.mockResolvedValue({ phone: '0600000001' });
   render(<Harness />);
 
   const phone = screen.getByLabelText('Téléphone');
-  fireDrop(phone, 'tel:+33627753922');
+  fireDrop(phone, 'tel:+33600000001');
 
-  await waitFor(() => expect(phone).toHaveValue('0627753922'));
-  expect(api.parseClientContact).toHaveBeenCalledWith({ phone: 'tel:+33627753922' });
+  await waitFor(() => expect(phone).toHaveValue('0600000001'));
+  expect(api.parseClientContact).toHaveBeenCalledWith({ phone: 'tel:+33600000001' });
 });
 
 test('a dropped uri-list wins over the plain-text flavour', async () => {

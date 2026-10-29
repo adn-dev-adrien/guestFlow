@@ -17,7 +17,7 @@ reservations, 43 accounting entries, February → August 2026. The books came ou
 balances, total debits equal total credits to the cent (20 541,49 €), the CSV and the JSON preview
 carry the same lines, and the ventilation per account matches the fiche's own lines.
 
-**One reservation disagrees with its own books: #7 (Yann Parreton, Gîtes de France, mai 2026).**
+**One reservation disagrees with its own books: #7 (Yves Perrin, Gîtes de France, mai 2026).**
 
 | | Amount |
 |---|---|

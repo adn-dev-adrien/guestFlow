@@ -3,6 +3,8 @@ const assert = require('node:assert/strict');
 
 const { computePaymentStatus } = require('../utils/paymentStatus');
 
+// specs/finance-operational-remaining-to-pay.md rule 7 — `remainingDue` is `remainingToPay`: the unpaid
+// buckets (tourist tax inside the solde, a line routed to the arrival complement), never negative.
 const TODAY = '2026-05-28';
 
 test('nothing paid → remainingDue equals finalPrice, not complete', () => {

@@ -44,7 +44,7 @@ test('rule 26: the group the sidebar unfolds — the open page’s, or the summa
 });
 
 // Intégrations takes its words from its plugins' contributions (specs/integrations-tab-per-plugin.md rule 8).
-test('rule 27: every page of the summary has its words', () => {
+test('every page of the summary has its words', () => {
   visibleSettingsGroups(all, all, { withExtras: true }).flatMap((g) => g.entries)
     .filter((e) => e.path !== INTEGRATIONS_PATH)
     .forEach((e) => {

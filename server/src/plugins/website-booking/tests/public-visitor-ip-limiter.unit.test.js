@@ -60,6 +60,8 @@ function book({ visitorIp, key = API_KEY, ua } = {}) {
   return fetch(`${baseUrl}/public/v1/booking-requests`, { method: 'POST', headers, body: '{}' });
 }
 
+// specs/public-request-abuse-and-grouping.md rules 6 + 8 — the per-visitor limit stays and is the only
+// one: a visitor's budget is its own, never a counter shared by every visitor behind the proxy.
 test('rule 24 — two visitors through the one proxy address get separate booking budgets', async () => {
   assert.equal((await book({ visitorIp: '203.0.113.1' })).status, 201);
   assert.equal((await book({ visitorIp: '203.0.113.1' })).status, 201);

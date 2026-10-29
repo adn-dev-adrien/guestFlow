@@ -3,7 +3,7 @@
 export const APPLIED = {
   id: 4,
   status: 'applied',
-  resId: '6392081711',
+  resId: '6300000001',
   appliedLabel: '15/10 à 15:52',
   differences: [],
   guestMessagePending: false,
@@ -12,7 +12,7 @@ export const APPLIED = {
 export const PROPOSED = {
   id: 5,
   status: 'proposed',
-  resId: '6392081711',
+  resId: '6300000001',
   appliedLabel: '15/10 à 15:52',
   differences: [
     { field: 'adults', label: 'Adultes', from: 8, to: 10 },

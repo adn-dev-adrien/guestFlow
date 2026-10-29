@@ -126,7 +126,7 @@ test('rule 28 — the core runs a stay: reservation, quote PDF, planning, iCal f
   const fiche = await page.locator('main').first().innerText();
   expect(fiche.match(PLUGIN_WORDS), 'the fiche names a plugin').toBeNull();
   expect(fiche).not.toMatch(/conditions générales acceptées/i);
-  // specs/normalize-platform-names.md rule 21 — the channel menu shows the label, not the stored value.
+  // specs/normalize-platform-names.md (21) — the channel menu shows the label, not the stored value.
   await expect(page.getByRole('combobox', { name: 'Plateforme' })).toHaveText('Direct');
 
   // A quote, saved, and its PDF downloaded through the bar.

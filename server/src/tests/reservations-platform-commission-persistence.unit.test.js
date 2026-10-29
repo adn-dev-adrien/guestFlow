@@ -125,7 +125,7 @@ test('platform: an empty withheld tax → NULL (the tax-excluded brut convention
 });
 
 test('platform: an explicit 0 is stored as 0, not as NULL', () => {
-  // Rule 15 — the two states compute alike but mean different things, and the pre-fill tells them apart.
+  // Pre-fill — the two states compute alike but mean different things, and the pre-fill tells them apart.
   const { db, model } = freshModel();
   const id = model.insertReservation(basePayload({ platform: 'Airbnb', platformGrossAmount: 500, platformTouristTaxAmount: 0 }), QUOTE, NIGHT_BLOCKS);
   assert.equal(readWithheld(db, id), 0);

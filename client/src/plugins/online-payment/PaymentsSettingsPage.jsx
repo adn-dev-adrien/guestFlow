@@ -54,7 +54,7 @@ const formatStamp = (iso) => {
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? '' : d.toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
 };
-// Normalise a phone to E.164, tolerating the French national form (e.g. "06 28 05 60 66" → "+33628056066").
+// Normalise a phone to E.164, tolerating the French national form (e.g. "06 00 00 00 02" → "+33600000002").
 // Mirrors the server's paymentProviderValidation.normalizePhone so the button-enable check matches.
 const normalizeFrPhone = (raw) => {
   const p = String(raw || '').replace(/[\s().-]/g, '');

@@ -63,7 +63,7 @@ test('rule 25: « Actif · à connecter » + « Configurer » while the plugin l
   assert.deepEqual(card.setup, { needed: false, label: 'Actif', path: '/settings/integrations?tab=google-calendar', action: 'Réglages' });
 });
 
-test('rule 25: an inactive plugin offers no settings action; the SAS opens its « Facturables » tab', () => {
+test('rules 25 + 32: an inactive plugin offers no settings action; the SAS opens its « Facturables » tab', () => {
   const ctrl = controllerWith({ neat: { enabled: 0 }, sas: { enabled: 1 } }, { neat: { setupStatus: () => 'identifiants manquants' } });
   const views = ctrl.views();
   assert.equal(views.find((p) => p.id === 'neat').setup.action, null);

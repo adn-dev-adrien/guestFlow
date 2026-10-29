@@ -150,7 +150,7 @@ export default function SidePanel({
           <Typography id={titleId} variant="sectionHeader" component="h2" sx={{ flex: 1, minWidth: 0, fontSize: '1.15rem', overflowWrap: 'anywhere' }}>
             {title}
           </Typography>
-          <IconButton aria-label={closeLabel} onClick={requestClose} sx={{ width: 44, height: 44 }}><CloseIcon /></IconButton>
+          <IconButton aria-label={closeLabel} onClick={requestClose} sx={{ width: 44, height: 44, minWidth: 44, minHeight: 44, flexShrink: 0 }}><CloseIcon /></IconButton>
         </Box>
 
         {sections.length > 0 && (

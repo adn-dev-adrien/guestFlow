@@ -88,6 +88,8 @@ function review(platform, lang, googleReviewUrl) {
   }).vars.reviewParagraph;
 }
 
+// specs/platform-settings-relay-and-review.md rule 7 and specs/guest-email-sequence.md rule 35 — proof of
+// identity of the J+1 paragraph.
 test('J+1: after the migration, the paragraphs Solio sends are byte-identical to the hard-coded ones', () => {
   const mem = legacyDb(['GitesDeFrance', 'Airbnb', 'Booking']);
   runPlatformGuestContactMigration(mem);

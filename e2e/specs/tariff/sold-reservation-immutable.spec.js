@@ -1,5 +1,5 @@
 // @ts-check
-// specs/tariff-recipes/spec.md §3.2 rules 12bis-12ter — A SOLD RESERVATION NEVER MOVES.
+// specs/tariff-recipes/spec.md §3.2 items 12bis-12ter — A SOLD RESERVATION NEVER MOVES.
 //
 // The rule the owner stated plainly: « une résa faite ne doit jamais bouger suite à un changement
 // de recette tarifaire ». Options, prices, supplement — nothing.

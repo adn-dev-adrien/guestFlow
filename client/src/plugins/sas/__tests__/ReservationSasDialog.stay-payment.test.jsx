@@ -171,8 +171,8 @@ test('arrival SAS: a re-opened SAS pre-selects the mode it recorded, and can und
 // Superseded on 2026-08-30 by specs/single-payment-at-check-in.md: when BOTH sides are collectible
 // the recap now asks once, because that is what happens at the door. The two independent settlements
 // this spec introduced are still there — one tap away, behind « Régler séparément » — because the
-// case rule 22 was written for (one side collected, the other deferred) is real.
-// specs/collect-stay-payment-at-check-in.md rules 21 + 22 + 23 — le séjour et le complément gardent
+// case the independent settlements were written for (one side collected, the other deferred) is real.
+// specs/collect-stay-payment-at-check-in.md rules 21-23 — le séjour et le complément gardent
 // chacun leur bloc, et le récap porte le total combiné à percevoir à l'arrivée.
 test('arrival SAS recap: both sides listed, and « Régler séparément » restores the two settlements', async () => {
   api.getReservationSas.mockResolvedValue(sasPayload({

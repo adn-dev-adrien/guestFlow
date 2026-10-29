@@ -749,7 +749,7 @@ function buildEntry(row, kind, perLineData, commissionContext, taxContext) {
     // finalPrice + tourist tax — what the current engine stores); the commission is operator-entered
     // per échéance. `grossRatio` grosses the stored amounts up to what the guest actually paid:
     // (finalPrice + touristTaxTotal) / storedSum. For every current-model reservation that's exactly
-    // 1 → stored amounts pass through UNSCALED. Prod bug 2026-07-15 (resa #22224, Thomas): the old
+    // 1 → stored amounts pass through UNSCALED. Prod bug 2026-07-15 (resa #22224, Berg): the old
     // numerator was bare `finalPrice`, so a tax-in-schedule reservation had ratio 131,28/134,26 and
     // its 67,13 € acompte displayed as 65,64 €. Rows from the « solde = net » era (sum = finalPrice −
     // commission, e.g. prod #7) keep a ratio > 1 and gross up to the guest-paid total, as before.
@@ -765,7 +765,7 @@ function buildEntry(row, kind, perLineData, commissionContext, taxContext) {
       : (Number(row.complementAmount) || 0);
     // specs/accounting-books-the-money-collected.md rules 1-2 — the end-of-stay complement is scheduled
     // money too. Leaving it out made the denominator short by whatever was sold mid-stay, so every entry
-    // of such a stay was grossed up by that amount (Carpier #22275: +29,42 € of CA, +25,47 € on the
+    // of such a stay was grossed up by that amount (Marchand #22275: +29,42 € of CA, +25,47 € on the
     // client's debit) and cash-settled complements leaked back into the books through the same ratio.
     const scheduledTotal = round2((Number(row.depositAmount) || 0) + (Number(row.balanceAmount) || 0)
       + scheduledComplement + (Number(row.endOfStayComplementAmount) || 0));
@@ -997,7 +997,7 @@ function buildEntry(row, kind, perLineData, commissionContext, taxContext) {
 // (specs/cash-complement-and-endofstay-finance.md §3.1 + Q1). Returns null when there's nothing to book.
 //
 // specs/accounting-books-the-money-collected.md rule 8 — ventilated by stored detail line: a `res:*` key
-// is a resource (70601000), everything else a prestation (70600010). Carpier's bain nordique, sold
+// is a resource (70601000), everything else a prestation (70600010). Marchand's bain nordique, sold
 // mid-stay, was landing on the prestations account.
 function buildEndOfStayEntry(row, vatRate) {
   const ttc = round2(Number(row.endOfStayComplementAmount || 0));

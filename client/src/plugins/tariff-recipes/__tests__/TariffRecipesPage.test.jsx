@@ -6,7 +6,7 @@ import { vi } from 'vitest';
 import TariffRecipesPage from '../TariffRecipesPage';
 import api from '../../../api';
 
-// specs/tariff-recipes/spec.md §3.5 rules 26-28 — the read-only browser distinguishes bundled,
+// specs/tariff-recipes/spec.md §3.5 items 26-28 — the read-only browser distinguishes bundled,
 // local-override and invalid recipes, and lists the properties using each.
 
 vi.mock('../../../api', () => ({

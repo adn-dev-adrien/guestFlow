@@ -1,5 +1,6 @@
 // Registry of default email templates — discipline checks.
 // See specs/email-automation.md §3 rule 6.
+// specs/email-language-fr-en.md rule 5 — the shipped arrival reminders carry their English translation.
 //
 // The point of the registry is "one place to add a default template". These tests guard the
 // invariants that make AI-assisted additions safe:

@@ -1,5 +1,6 @@
 // Cron pass — iterates enabled auto templates × matching reservations.
-// See specs/email-automation.md §3 rule 7.
+// See specs/email-automation.md §3 rule 7. Rule 2 (send modes): only `auto` templates are sent by the
+// pass; rule 12 (EMAIL_NOT_CONFIGURED): a send that cannot leave logs `failed` with that marker.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');

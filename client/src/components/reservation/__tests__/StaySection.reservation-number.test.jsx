@@ -16,8 +16,8 @@ const renderStay = (overrides) => render(
 );
 
 test('a fiche carrying a number says it is editable, without « généré »', () => {
-  renderStay({ form: { reservationNumber: '6392081711' } });
-  expect(screen.getByLabelText('Numéro de réservation')).toHaveValue('6392081711');
+  renderStay({ form: { reservationNumber: '6300000001' } });
+  expect(screen.getByLabelText('Numéro de réservation')).toHaveValue('6300000001');
   expect(screen.getByText('Modifiable')).toBeInTheDocument();
   expect(screen.queryByText(/Généré automatiquement/)).toBeNull();
 });

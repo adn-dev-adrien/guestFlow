@@ -292,7 +292,7 @@ test('platform badge — absent when the reservation has no platform', () => {
   expect(screen.queryByText('Airbnb')).toBeNull();
 });
 
-// Bed-linen alert (specs/planning-arrival-alerts.md §3 rule 14) — server-computed `bedLinenAlert`.
+// Bed-linen alert (specs/planning-arrival-alerts.md §3 bed-linen alert) — server-computed `bedLinenAlert`.
 test('bed-linen alert — "non pris" when bedLinenAlert.type is no_linen', () => {
   render(<ReservationCard reservation={{ ...BASE, bedLinenAlert: { type: 'no_linen' } }} onToggleReady={noop} />);
   expect(screen.getByText('Linge de lit non pris')).toBeInTheDocument();

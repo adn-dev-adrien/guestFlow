@@ -1,5 +1,6 @@
 // Persistence + validation of the `pdfLanguage` column on devis rows.
-// See specs/devis-english-language.md §3 rule 1 + §4.3.
+// See specs/devis-english-language.md §3 rule 1 + §4.3, and rule 12 — the devis row alone decides the
+// language of its PDF (an update that omits `pdfLanguage` preserves it).
 //
 // Schema mirrors `tests/devis-model-create.unit.test.js` (same pricing tables the engine reads),
 // extended with the new `pdfLanguage` column.

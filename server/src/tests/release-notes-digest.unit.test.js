@@ -4,7 +4,7 @@ const path = require('node:path');
 
 const { parseReleaseNotes, splitSummary } = require('../utils/releaseClient');
 
-// specs/self-update-and-releases.md §6.2 rule 20c — a release carries a short operator digest, and
+// specs/self-update-and-releases.md §6.2 (20c) — a release carries a short operator digest, and
 // that block alone is what the update dialog shows. Everything else is published but folded.
 
 const WITH_DIGEST = [

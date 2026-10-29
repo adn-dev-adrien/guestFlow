@@ -1,7 +1,7 @@
 {
   "id": "gites-de-france-intake",
   "name": "Saisie Gîtes de France",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "Remplit les fiches Gîtes de France depuis le mail de réservation de la centrale.",
   "icon": "mail",
   "surfaces": [
@@ -55,6 +55,9 @@
       "Un mail authentifié ne remplace jamais l’e-mail ou le téléphone déjà présents sur la fiche : il reste une proposition.",
       "Seuls les mails dont l’adresse d’expéditeur est exactement celle des réglages sont lus ; un faux nom d’affichage ne passe plus.",
       "Le mot de passe de la boîte n’est jamais envoyé en clair (TLS obligatoire) ni à un serveur IMAP d’un autre domaine que le serveur d’envoi, et le support ne peut ni modifier ces réglages ni revenir à une version précédente du plugin (SDK 2.12 de GuestFlow)."
+    ],
+    "1.4.1": [
+      "Exemple du commentaire du lecteur de mails rendu anonyme (SDK 2 inchangé)."
     ]
   }
 }

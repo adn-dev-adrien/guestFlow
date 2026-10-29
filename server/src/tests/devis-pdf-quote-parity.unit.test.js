@@ -225,7 +225,7 @@ test('expired devis: the PDF prints the prices it was sold at, not today’s tar
   raiseTariffs(db);
   db.prepare("UPDATE reservations SET validUntil = '2020-01-01' WHERE id = ?").run(devis.id);
 
-  // Once expired the replay legitimately unlocks and re-prices (rule 14 of the price-lock spec)…
+  // Once expired the replay legitimately unlocks and re-prices (devis-extras-parity-and-price-lock, validUntil rule)…
   const stale = model.findById(devis.id);
   const quote = model.recomputeQuote(devis.id);
   assert.ok(quote.finalPrice > stale.finalPrice);

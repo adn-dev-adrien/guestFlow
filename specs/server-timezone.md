@@ -134,7 +134,7 @@ No screen changes. The user-visible effect is that the notification
 ### Manual verification
 - [x] The real runner replayed against reservation 13's data (arrival `2026-09-25` `16:00`) at the
       instant the guests arrived, on a process forced to `TZ=UTC`: no notification without the fix,
-      « Arrivée 16:00 — Françoise Dausque · Granja » with it.
+      « Arrivée 16:00 — Françoise Dumas · Granja » with it.
 - [ ] After the release is installed: the boot marker in `pm2 logs guestflow` reads
       `timezone Europe/Paris`, and the next arrival notifies at its check-in time.
 

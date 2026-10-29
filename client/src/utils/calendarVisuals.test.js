@@ -76,6 +76,7 @@ describe('calendarVisuals', () => {
   });
 
   describe('MONTH_SHORT_NAMES', () => {
+    // specs/calendar-page-decomposition.md rule 10 — the month badge reads the French abbreviation.
     it('reads the French abbreviation, and June is not July', () => {
       expect(MONTH_SHORT_NAMES[9]).toBe('Oct.');
       expect(MONTH_SHORT_NAMES[10]).toBe('Nov.');
