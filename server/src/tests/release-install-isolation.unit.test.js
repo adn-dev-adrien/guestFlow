@@ -8,7 +8,7 @@ const { execFileSync } = require('node:child_process');
 const { installDependencies } = require('../utils/updateStaging');
 const { lockfileViolations, assertLockfileProvenance } = require('../utils/lockfileProvenance');
 
-// specs/self-update-and-releases.md rule 39: before an install, the release's lockfile must resolve every
+// specs/self-update-and-releases.md rule 40: before an install, the release's lockfile must resolve every
 // package from the npm registry with an integrity hash; the install then runs with --ignore-scripts and a
 // minimal environment. The sentinels play the part of the console's licence key, session secret and
 // encryption key.
@@ -39,11 +39,11 @@ const clean = (extra = {}) => ({
   },
 });
 
-test('the real lockfile of this repository passes the provenance check (rule 39)', () => {
+test('the real lockfile of this repository passes the provenance check (rule 40)', () => {
   assert.deepEqual(lockfileViolations(require('../../package-lock.json')), []);
 });
 
-test('every lockfile entry that is not a registry package with an integrity hash is refused (rule 39)', () => {
+test('every lockfile entry that is not a registry package with an integrity hash is refused (rule 40)', () => {
   assert.deepEqual(lockfileViolations(clean()), []);
   assert.deepEqual(lockfileViolations(clean({ 'node_modules/b': { inBundle: true, version: '1.0.0' } })), [], 'a bundled copy has no URL of its own');
   const refused = {
@@ -77,7 +77,7 @@ function writeRelease(lock) {
   return { root, releaseDir };
 }
 
-test('a release with an untrusted lockfile is refused before npm runs at all (rule 39)', async () => {
+test('a release with an untrusted lockfile is refused before npm runs at all (rule 40)', async () => {
   for (const lock of [
     clean({ 'node_modules/sharp': { version: '1.0.0', resolved: 'git+ssh://git@github.com/evil/repo.git#abc', integrity: 'sha512-x' } }),
     clean({ 'node_modules/better-sqlite3': { version: '1.0.0', resolved: 'file:./better-sqlite3-1.0.0.tgz', integrity: 'sha512-x' } }),
@@ -95,7 +95,7 @@ test('a release with an untrusted lockfile is refused before npm runs at all (ru
   }
 });
 
-test('npm ci of a clean release runs none of its lifecycle scripts, whatever the environment holds (rule 39)', withEnv(SECRETS, async () => {
+test('npm ci of a clean release runs none of its lifecycle scripts, whatever the environment holds (rule 40)', withEnv(SECRETS, async () => {
   const { root, releaseDir } = writeRelease({ lockfileVersion: 3, name: 'hostile', version: '1.0.0', packages: { '': { name: 'hostile', version: '1.0.0' } } });
   try {
     await installDependencies({
@@ -113,7 +113,7 @@ test('npm ci of a clean release runs none of its lifecycle scripts, whatever the
   }
 }));
 
-test('every child of the install gets a minimal environment, the proxy settings and a cache outside the release (rule 39)', withEnv({ ...SECRETS, HTTPS_PROXY: 'http://proxy.test:3128', NO_PROXY: 'localhost' }, async () => {
+test('every child of the install gets a minimal environment, the proxy settings and a cache outside the release (rule 40)', withEnv({ ...SECRETS, HTTPS_PROXY: 'http://proxy.test:3128', NO_PROXY: 'localhost' }, async () => {
   const { root, releaseDir } = writeRelease(clean());
   const calls = [];
   try {
@@ -132,7 +132,7 @@ test('every child of the install gets a minimal environment, the proxy settings 
   }
 }));
 
-test('a shrinkwrap or an .npmrc in the release is refused: npm would read them instead of the checked lockfile (rule 39)', async () => {
+test('a shrinkwrap or an .npmrc in the release is refused: npm would read them instead of the checked lockfile (rule 40)', async () => {
   for (const [file, where] of [['npm-shrinkwrap.json', 'server'], ['.npmrc', 'server'], ['.npmrc', '.']]) {
     const { root, releaseDir } = writeRelease(clean());
     fs.writeFileSync(path.join(releaseDir, where, file), file === '.npmrc' ? 'ignore-scripts=false\n' : JSON.stringify({ lockfileVersion: 3, packages: { '': {}, 'node_modules/x': { resolved: 'git+ssh://git@github.com/evil/repo.git#abc' } } }));

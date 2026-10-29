@@ -1,0 +1,1 @@
+- **Boot log of paid payment links left without a stay** (`plugins-phase-3a-online-payment.md` rule 27): `[integrity] N lien(s) de paiement payé(s) sans séjour`, nothing deleted. The refusal to delete a stay carrying money is part of the reservations fixes.

@@ -1,5 +1,5 @@
 /**
- * Detached Ed25519 signature over a release's `SHA256SUMS` (specs/self-update-and-releases.md rule 40).
+ * Detached Ed25519 signature over a release's `SHA256SUMS` (specs/self-update-and-releases.md rule 41).
  *
  * The signing key is held by the maintainer, never by GitHub; the installer is configured with the
  * matching public key (`GUESTFLOW_RELEASE_PUBLIC_KEY`, base64 DER SPKI, same encoding as the licence

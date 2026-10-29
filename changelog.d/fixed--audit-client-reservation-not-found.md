@@ -1,0 +1,1 @@
+- A reservation link that points to nothing now shows "Réservation introuvable." with a way back, instead of an error with a "Réessayer" button that could never work.

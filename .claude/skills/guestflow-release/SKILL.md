@@ -300,7 +300,7 @@ CLAUDE.md §5.2 ban on force-pushing branches still stands.
 
 ## Step 8b — Sign the release (only when a signing key exists)
 
-Rule 40 of `specs/self-update-and-releases.md`. Skip silently unless `GUESTFLOW_RELEASE_SIGNING_KEY`
+Rule 41 of `specs/self-update-and-releases.md`. Skip silently unless `GUESTFLOW_RELEASE_SIGNING_KEY`
 (the path of the maintainer's private key, held off GitHub) is set in the environment. When it is:
 
 ```bash

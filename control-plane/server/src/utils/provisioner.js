@@ -141,7 +141,7 @@ function createProvisioner({
   const RUNNERS = {
     async dir(c) {
       const inst = instanceOf(c);
-      for (const sub of ['data', 'uploads', 'logs']) fs.mkdirSync(path.join(inst.dir, sub), { recursive: true });
+      for (const sub of ['data', 'uploads', 'private-documents', 'logs']) fs.mkdirSync(path.join(inst.dir, sub), { recursive: true });
       hosting.ensure(c.id);
       syncEnv(c);
       // specs/control-plane-plans-and-access.md rule 38 — no host path on the customer page.

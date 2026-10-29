@@ -7,16 +7,15 @@ export function withFrom(path, from) {
 export function getFromParam(searchSource) {
   if (!searchSource) return '';
 
+  let raw = '';
   if (typeof searchSource.get === 'function') {
-    return searchSource.get('from') || '';
+    raw = searchSource.get('from') || '';
+  } else if (typeof searchSource === 'string') {
+    const query = searchSource.startsWith('?') ? searchSource.slice(1) : searchSource;
+    raw = new URLSearchParams(query).get('from') || '';
   }
 
-  if (typeof searchSource === 'string') {
-    const raw = searchSource.startsWith('?') ? searchSource.slice(1) : searchSource;
-    return new URLSearchParams(raw).get('from') || '';
-  }
-
-  return '';
+  return isInAppPath(raw) ? raw : '';
 }
 
 // Where a page opened directly goes back to: the planning (specs/ui-review-2026-10-19-operations.md
@@ -39,7 +38,21 @@ export function navigateBack(navigate, fallback = DEFAULT_BACK_PATH) {
   else navigate(fallback, { replace: true });
 }
 
+/**
+ * An in-app path. URL parsers drop tab, LF and CR and read `\` as `/`, so `/\t/host` or `/\\host` point to
+ * another origin: control characters and backslashes are refused, and the target must resolve to our origin.
+ */
+export function isInAppPath(target) {
+  if (typeof target !== 'string' || !target.startsWith('/') || target.startsWith('//')) return false;
+  if (/[\u0000-\u001F\\]/.test(target)) return false;
+  try {
+    return new URL(target, window.location.origin).origin === window.location.origin;
+  } catch {
+    return false;
+  }
+}
+
 export function navigateBackWithFrom(navigate, from, fallback = DEFAULT_BACK_PATH) {
-  if (from) navigate(from);
+  if (isInAppPath(from)) navigate(from);
   else navigateBack(navigate, fallback);
 }

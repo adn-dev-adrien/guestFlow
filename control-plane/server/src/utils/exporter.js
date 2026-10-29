@@ -49,8 +49,10 @@ function exportInstance({ instances, slug, exportsDir, stamp }) {
     } finally {
       copy.close();
     }
-    const uploads = path.join(instances.dirOf(slug), 'uploads');
-    if (fs.existsSync(uploads)) fs.cpSync(uploads, path.join(work, 'uploads'), { recursive: true });
+    for (const folder of ['uploads', 'private-documents']) {
+      const source = path.join(instances.dirOf(slug), folder);
+      if (fs.existsSync(source)) fs.cpSync(source, path.join(work, folder), { recursive: true });
+    }
     fs.mkdirSync(exportsDir, { recursive: true });
     const file = path.join(exportsDir, `${slug}-${stamp}.tar.gz`);
     execFileSync('tar', ['-czf', file, '-C', work, '.']);

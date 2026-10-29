@@ -33,6 +33,7 @@ router.get('/:id/platform-prices', ctrl.platformPrices);
 
 // Documents
 router.post('/:id/documents', handleDocumentUpload, ctrl.addDocument);
+router.get('/:id/documents/:docId/file', ctrl.downloadDocument);
 router.delete('/:id/documents/:docId', ctrl.deleteDocument);
 
 // Property ↔ options linkage

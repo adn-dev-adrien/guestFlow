@@ -300,7 +300,8 @@ signed-off releases over HTTPS, when the operator asks for it.
     for health again, and record the status `rolled_back` with the last 50 log lines. The database
     is **not** auto-restored — migrations are additive-only (CLAUDE.md §8), so the previous code
     runs fine against the migrated schema, and auto-restoring would destroy every write made since
-    the backup. The backup stays on disk for a manual restore.
+    the backup. The backup stays on disk for a manual restore. (That premise was not true of the
+    payment-link rename until 2026-10-28; rule 39 makes it true and keeps it so.)
 32. The helper writes every transition to `data/update-status.json` (survives the restart, read
     back by the new process) and a full log to `logs/update-X.Y.Z-<timestamp>.log`.
 33. After a successful update, the helper prunes old releases, keeping the **3 most recent**
@@ -321,7 +322,23 @@ signed-off releases over HTTPS, when the operator asks for it.
     `rolled_back`, plus a French human-readable label, the target version, and — on failure — the
     error and the log tail.
 38. The last 5 update outcomes are kept and shown in the settings section (version, date, result).
-39. **A release's install runs no script and starts from a trusted lockfile** (audit 2026-10-28, H1).
+39. **A migration only adds (2026-10-28, database audit).** Rule 31 restores no database, so the release
+    it rolls back to must run on the migrated schema: a migration may add tables and columns, never
+    rename or drop one the previous release reads. `payment_links.qontoPaymentLinkId` / `qontoPaymentId`
+    had been renamed to `providerLinkId` / `providerPaymentId`, which broke every payment-link path of
+    v3.18 after a rollback (no cancellation, no webhook booking, no poll). They are now twin columns:
+    both exist, `syncLegacyQontoColumns` keeps each pair equal in both directions (triggers, re-created
+    after every rebuild of the table) and copies at boot the rows the previous release wrote. The legacy
+    names stay for at least one release after the last release that reads them. A test
+    (`rollback-additive-schema.unit.test.js`) fails when any column of the v3.18.0 schema
+    (`fixtures/rollback-floor-v3.18.0-schema.json`) disappears from a current install: when a release
+    ships, the floor moves to that release's schema. The floor covers the **core tables** only: a table
+    a plugin owns is absent from a fresh core install and is re-created by v3.18 when missing. When one
+    UPDATE changes both names of a pair the neutral column wins. **Accepted exception:** the boot move
+    of property documents out of `/uploads` (settings-rationalization.md rule 32) rewrites
+    `documents.filePath`, which v3.18 cannot follow; the production instance holds no document, and an
+    instance that does must restore the pre-update backup to roll back.
+40. **A release's install runs no script and starts from a trusted lockfile** (audit 2026-10-28, H1).
     Before any `npm` runs, `server/package-lock.json` must exist and every entry must resolve from
     `https://registry.npmjs.org/` with an `integrity` hash: a git, file, link or http dependency, another
     host, or a missing hash refuses the release (`LOCKFILE_UNTRUSTED`). A release carrying `server/npm-shrinkwrap.json` (npm would use it instead of the checked
@@ -341,7 +358,7 @@ signed-off releases over HTTPS, when the operator asks for it.
     (a root wrapper in the style of `guestflow-systemctl` running `npm ci` and the smoke test as an
     unprivileged `gf-build` user, with the release directory handed over and back, a sudoers line and
     bootstrap changes — not testable off the host, so not done).
-40. **Optional release signature** (audit 2026-10-28, H1). When `GUESTFLOW_RELEASE_PUBLIC_KEY` (base64 DER
+41. **Optional release signature** (audit 2026-10-28, H1). When `GUESTFLOW_RELEASE_PUBLIC_KEY` (base64 DER
     SPKI Ed25519) is configured on the installer, the release must carry a `SHA256SUMS.sig` asset — the
     base64 Ed25519 signature of the exact `SHA256SUMS` bytes — and an unsigned release, a signature that
     does not verify or an unreadable key is refused (`SIGNATURE_MISSING`, `SIGNATURE_INVALID`,
@@ -878,7 +895,7 @@ Resolved 2026-08-20 with the user before writing this spec:
   GitHub was offered and declined for now; it remains the natural hardening step if the threat
   model changes. **Amended 2026-10-28:** the threat
   model did change — the fleet console installs releases in the process that holds the licence key —
-  so rules 39 (install scripts isolated from secrets) and 40 (optional Ed25519 signature of
+  so rules 40 (install scripts isolated from secrets) and 41 (optional Ed25519 signature of
   `SHA256SUMS`, enforced once a public key is configured) were added.
 - **Q: Release channel?**
   A: **Tag `vX.Y.Z` on `master` via a `release/vX.Y.Z` PR**, sowel-style. The permanent `release`

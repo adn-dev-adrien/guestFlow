@@ -7,7 +7,7 @@
  * those stays visible again — which is right for the isolated ones (real past stays) and wrong for a
  * duplicate that sits on another stay. A hidden stay is a duplicate only when a visible stay of the same
  * logement overlaps its nights: nothing else can prove it is the copy. A candidate carrying money is never
- * touched, nor is one that is longer than its keeper: both are flagged for the operator. Pure SQL on the
+ * touched, nor is one that is longer than its keeper (even by one night): both are flagged for the operator. Pure SQL on the
  * database it is given, so it runs at boot (before any read) and in tests.
  */
 
@@ -27,15 +27,12 @@ const CARRIES_MONEY = `
    OR EXISTS (SELECT 1 FROM reservation_installments i WHERE i.reservationId = r.id AND i.paid = 1)
    OR EXISTS (SELECT 1 FROM payment_links l WHERE l.reservationId = r.id AND (l.status = 'paid' OR l.paidAt IS NOT NULL)))`;
 
-const DAY_MS = 86400000;
-const addDays = (iso, n) => new Date(Date.parse(`${iso}T12:00:00Z`) + n * DAY_MS).toISOString().slice(0, 10);
-
 /**
- * A hidden stay is the copy of a visible one only when it sits within the keeper's dates, a day of slack
- * either side (a platform's departure day often differs by one): a longer stay would free nights for sale
- * once set aside.
+ * A hidden stay is the copy of a visible one only when its nights sit fully inside the keeper's: a stay
+ * that starts earlier or ends later would free nights for sale once set aside (audit 2026-10-28, a copy
+ * one night longer than its keeper used to be set aside).
  */
-const sitsWithin = (stay, keeper) => stay.startDate >= addDays(keeper.startDate, -1) && stay.endDate <= addDays(keeper.endDate, 1);
+const sitsWithin = (stay, keeper) => stay.startDate >= keeper.startDate && stay.endDate <= keeper.endDate;
 
 /**
  * @returns {{

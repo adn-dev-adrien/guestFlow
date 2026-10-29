@@ -1,4 +1,4 @@
-// specs/self-update-and-releases.md rule 40 (applied by specs/hosting-h1-fleet-runtime.md rule 8): the
+// specs/self-update-and-releases.md rule 41 (applied by specs/hosting-h1-fleet-runtime.md rule 8): the
 // console installs a fleet release only if it is signed by the configured key, once a key is configured.
 
 const test = require('node:test');
@@ -65,11 +65,11 @@ async function attempt(signature, key) {
   }
 }
 
-test('rule 40 — with no key configured an unsigned release installs as before', async () => {
+test('rule 41 — with no key configured an unsigned release installs as before', async () => {
   assert.equal(await attempt('none', null), true);
 });
 
-test('rule 40 — with a key configured: signed installs, unsigned and forged are refused in French', async () => {
+test('rule 41 — with a key configured: signed installs, unsigned and forged are refused in French', async () => {
   assert.equal(await attempt('good', publicKey), true);
   await assert.rejects(attempt('none', publicKey), (e) => e.code === 'SIGNATURE_MISSING' && /pas signée/.test(e.message));
   await assert.rejects(attempt('bad', publicKey), (e) => e.code === 'SIGNATURE_INVALID');

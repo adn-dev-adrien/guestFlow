@@ -11,18 +11,18 @@ const { stageRelease, sha256File } = require('../utils/updateStaging');
 const { normaliseRelease } = require('../utils/releaseClient');
 const { resolvePaths } = require('../utils/deploymentPaths');
 
-// specs/self-update-and-releases.md rule 40: SHA256SUMS.sig, enforced only when a public key is configured.
+// specs/self-update-and-releases.md rule 41: SHA256SUMS.sig, enforced only when a public key is configured.
 
 const pair = crypto.generateKeyPairSync('ed25519');
 const publicKey = pair.publicKey.export({ format: 'der', type: 'spki' }).toString('base64');
 const SUMS = 'abc  guestflow-1.0.0.tar.gz\n';
 const sigAsset = { name: 'SHA256SUMS.sig', url: 'https://github.com/x/SHA256SUMS.sig' };
 
-test('no public key configured: nothing is checked (rule 40)', async () => {
+test('no public key configured: nothing is checked (rule 41)', async () => {
   assert.equal(await assertSumsSigned({ sums: SUMS, signature: null, publicKey: null, fetchSignature: () => assert.fail('no fetch') }), false);
 });
 
-test('a valid signature passes, a missing, forged or garbled one is refused (rule 40)', async () => {
+test('a valid signature passes, a missing, forged or garbled one is refused (rule 41)', async () => {
   const good = signSums(SUMS, pair.privateKey);
   assert.equal(await assertSumsSigned({ sums: SUMS, signature: sigAsset, publicKey, fetchSignature: async () => `${good}\n` }), true);
   await assert.rejects(assertSumsSigned({ sums: SUMS, signature: null, publicKey, fetchSignature: async () => good }), /SIGNATURE_MISSING/);
@@ -33,12 +33,12 @@ test('a valid signature passes, a missing, forged or garbled one is refused (rul
   await assert.rejects(assertSumsSigned({ sums: SUMS, signature: sigAsset, publicKey: 'garbage', fetchSignature: async () => good }), /SIGNATURE_KEY_INVALID/);
 });
 
-test('the key comes from GUESTFLOW_RELEASE_PUBLIC_KEY (rule 40)', () => {
+test('the key comes from GUESTFLOW_RELEASE_PUBLIC_KEY (rule 41)', () => {
   assert.equal(releasePublicKeyFromEnv({}), null);
   assert.equal(releasePublicKeyFromEnv({ GUESTFLOW_RELEASE_PUBLIC_KEY: ' k ' }), 'k');
 });
 
-test('normaliseRelease carries the SHA256SUMS.sig asset when published (rule 40)', () => {
+test('normaliseRelease carries the SHA256SUMS.sig asset when published (rule 41)', () => {
   const asset = (name) => ({ name, browser_download_url: `https://github.com/adn-dev-adrien/guestFlow/releases/download/v1.0.0/${name}`, size: 1 });
   const base = { tag_name: 'v1.0.0', assets: [asset('guestflow-1.0.0.tar.gz'), asset('SHA256SUMS')] };
   assert.equal(normaliseRelease(base).checksumsSignature, null);
@@ -78,19 +78,19 @@ async function stage({ key, sign }) {
   }
 }
 
-test('stageRelease: unsigned releases still install with no key, and are refused once a key is configured (rule 40)', async () => {
+test('stageRelease: unsigned releases still install with no key, and are refused once a key is configured (rule 41)', async () => {
   await stage({ key: null, sign: null });
   await assert.rejects(stage({ key: publicKey, sign: null }), /SIGNATURE_MISSING/);
   await assert.rejects(stage({ key: publicKey, sign: false }), /SIGNATURE_INVALID/);
   await stage({ key: publicKey, sign: true });
 });
 
-test('a public key that is not Ed25519 is refused as unusable (rule 40)', async () => {
+test('a public key that is not Ed25519 is refused as unusable (rule 41)', async () => {
   const rsa = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 }).publicKey.export({ format: 'der', type: 'spki' }).toString('base64');
   await assert.rejects(assertSumsSigned({ sums: SUMS, signature: sigAsset, publicKey: rsa, fetchSignature: async () => 'x' }), /SIGNATURE_KEY_INVALID/);
 });
 
-test('the signature is checked over the raw bytes, not over a decoded string (rule 40)', async () => {
+test('the signature is checked over the raw bytes, not over a decoded string (rule 41)', async () => {
   const bytes = Buffer.from([0x61, 0xff, 0xfe, 0x0a]);
   const sig = crypto.sign(null, bytes, pair.privateKey).toString('base64');
   assert.equal(await assertSumsSigned({ sums: bytes, signature: sigAsset, publicKey, fetchSignature: async () => sig }), true);

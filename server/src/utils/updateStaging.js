@@ -192,7 +192,7 @@ function installEnv(homeDir, cacheDir) {
 /**
  * Install production dependencies and make sure the native module actually loads.
  *
- * Guarantees (rule 39), and their limit. Before anything runs, the lockfile must resolve every package
+ * Guarantees (rule 40), and their limit. Before anything runs, the lockfile must resolve every package
  * from the public npm registry with an integrity hash (`assertLockfileProvenance`): no git, file, link
  * or http dependency, so no `prepare` script and no look-alike `sharp`. Then `npm ci --omit=dev
  * --ignore-scripts` runs with a minimal environment (`installEnv`). Packages from the registry can

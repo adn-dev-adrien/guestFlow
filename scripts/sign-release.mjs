@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Release signing (specs/self-update-and-releases.md rule 40). Run by the maintainer, off GitHub.
+ * Release signing (specs/self-update-and-releases.md rule 41). Run by the maintainer, off GitHub.
  *
  *   node scripts/sign-release.mjs keygen <private-key-file>       writes the private key (PEM, mode 0600), prints the public key
  *   node scripts/sign-release.mjs sign <private-key-file> vX.Y.Z  downloads SHA256SUMS, signs it, uploads SHA256SUMS.sig

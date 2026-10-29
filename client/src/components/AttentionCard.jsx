@@ -22,6 +22,7 @@ import { Box, Button, Stack, Typography } from '@mui/material';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutlineOutlined';
 import PendingActionsIcon from '@mui/icons-material/PendingActionsOutlined';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
+import { visuallyHidden } from '../utils/visuallyHidden';
 
 /** The palette colour of each severity. */
 export const SEVERITY_COLOR = { urgent: 'error', todo: 'warning', info: 'info' };
@@ -31,10 +32,6 @@ const SEVERITY_ICON = { urgent: ErrorOutlineIcon, todo: PendingActionsIcon, info
 export const AttentionLayoutContext = createContext('card');
 
 const colorOf = (severity) => SEVERITY_COLOR[severity] || 'info';
-
-const visuallyHidden = {
-  position: 'absolute', width: 1, height: 1, p: 0, m: -1, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap', border: 0,
-};
 
 /** The severity mark: an icon on the severity's soft background, named for screen readers. */
 export function SeverityGlyph({ severity }) {
