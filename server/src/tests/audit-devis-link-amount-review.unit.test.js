@@ -156,7 +156,7 @@ test('review 4 — the mismatch alert says no confirmation went out and where th
   assert.match(short, /Aucun e-mail de confirmation/);
   assert.match(short, /9,64.*complément d’arrivée/);
   const over = buildPaidAfterCancelEmail(resa, { amountCents: 56000 }, '', { amountMismatch: { expectedCents: 55500 } }).text;
-  assert.match(over, /trop-perçu/);
+  assert.match(over, /Trop-perçu de .* à rembourser/);
 });
 
 test('review 7 — two overlapping retry passes find the same paid link: one books it, no false refund alert', async () => {

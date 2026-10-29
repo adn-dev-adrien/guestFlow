@@ -185,7 +185,8 @@ test('money A — a devis link paid above what the converted stay owes shows the
   assert.equal((await liveQuote(stayId)).overpaymentTtc, 10.35);
   const { buildPaidAfterCancelEmail } = notificationService.__test;
   const mail = buildPaidAfterCancelEmail({ id: 1, devisNumber: 'D-1' }, { amountCents: owed + 1035 }, '', { amountMismatch: out.amountMismatch });
-  assert.match(mail.text, /trop-perçu \(10,35.€\) figure sur la fiche/);
+  assert.match(mail.text, /Trop-perçu de 10,35.€ à rembourser\./);
+  assert.equal(rowOf(stayId).balanceAmount, (owed + 1035) / 100, 'the solde records what was received, for the stored trop-perçu measure');
   assert.doesNotMatch(mail.text, /est à percevoir/);
 });
 
@@ -302,4 +303,35 @@ test('R4 — the public status of a devis whose converted stay was cancelled ans
   const res = { statusCode: 200, status(c) { this.statusCode = c; return this; }, json(b) { this.body = b; return this; } };
   await publicPayment.status({ params: { id: String(devisId) }, query: { token: 'tok' }, headers: {} }, res);
   assert.equal(res.body.status || (res.body.data && res.body.data.status), 'cancelled');
+});
+
+// Review of PR #851, S1 — the full link retired as settled once the acompte is paid, then paid anyway.
+for (const kind of ['devis', 'reservation']) {
+  test(`S1 — ${kind}: a full link retired as settled by the acompte and paid anyway is refund-flagged for the acompte part`, async () => {
+    const stayId = createStay();
+    const stay = rowOf(stayId);
+    const depositCents = Math.round(stay.depositAmount * 100);
+    const ownerId = kind === 'devis' ? convertedDevis(stayId).devisId : stayId;
+    const deposit = links.create({ reservationId: ownerId, type: 'deposit', amountCents: depositCents, providerLinkId: `SD${kind}`, url: 'u', status: 'open' });
+    const full = links.create({ reservationId: ownerId, type: 'full', amountCents: fullCents(stayId), providerLinkId: `SF${kind}`, url: 'u', status: 'open' });
+    await pay(deposit);
+    assert.ok(links.retireSettled().some((l) => l.id === full.id && l.cancelReason === 'settled'));
+    const alerts = [];
+    const provider = { id: 'qonto', getPayment: async (pid) => (pid === `SF${kind}` ? { paid: true, paymentId: 'pS', paidAt: '2027-04-02T10:00:00Z' } : { paid: false }), cancelLink: async () => {} };
+    await retryPendingCancellations({
+      paymentLinksModel: links, provider, database: db, devisModel: dm, emitPluginEvent: () => {},
+      notifyPaidAfterCancel: async (l, o) => alerts.push([l.id, o]),
+    });
+    assert.deepEqual(alerts.find(([id]) => id === full.id)[1], { doublePaid: true, duplicateCents: depositCents });
+    assert.equal(rowOf(stayId).balancePaid, 1);
+    const refund = db.prepare("SELECT changedFields FROM reservation_history WHERE reservationId = ? AND changedFields LIKE '%refundOwed%'").all(stayId);
+    assert.ok(refund.length >= 1, 'a « Remboursement à faire » row is kept');
+  });
+}
+
+test('S3 — the partial double-payment alert asks to refund « cette part »', () => {
+  const { buildPaidAfterCancelEmail } = notificationService.__test;
+  const mail = buildPaidAfterCancelEmail({ id: 1 }, { amountCents: 45536 }, '', { doublePaid: true, duplicateCents: 10000 });
+  assert.match(mail.text, /rembourser cette part/);
+  assert.match(mail.subject, /100,00/);
 });

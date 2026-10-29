@@ -459,7 +459,9 @@ function buildNotificationService({
         duplicateCents != null
           ? `Seule la part de l’acompte (${amount}) est payée deux fois ; le reste est enregistré comme solde.`
           : 'Le second paiement n’est pas enregistré une seconde fois sur le séjour.',
-        'Action requise : rembourser ce paiement depuis l’espace du prestataire de paiement.',
+        duplicateCents != null
+          ? 'Action requise : rembourser cette part depuis l’espace du prestataire de paiement.'
+          : 'Action requise : rembourser ce paiement depuis l’espace du prestataire de paiement.',
       ]
       : amountMismatch
       ? [
@@ -467,7 +469,7 @@ function buildNotificationService({
         'Le séjour est enregistré au montant réellement reçu. Aucun e-mail de confirmation n’a été envoyé au client.',
         Number(amountMismatch.expectedCents) > Number(link.amountCents || 0)
           ? `Le reste (${eurosFr(Number(amountMismatch.expectedCents) - Number(link.amountCents || 0))}) est à percevoir : il est porté sur le complément d’arrivée.`
-          : `Le trop-perçu (${eurosFr(Number(link.amountCents || 0) - Number(amountMismatch.expectedCents))}) figure sur la fiche : à rembourser depuis l’espace du prestataire de paiement.`,
+          : `Trop-perçu de ${eurosFr(Number(link.amountCents || 0) - Number(amountMismatch.expectedCents))} à rembourser.`,
         'À vérifier : envoyer la confirmation au client une fois la différence réglée.',
       ]
       : settledOn

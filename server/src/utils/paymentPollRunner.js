@@ -133,6 +133,18 @@ function secondPaidLink(database, link, reservationId, isFull) {
   return Number(flags.depositPaid || 0) === 1 && (!isFull || Number(flags.balancePaid || 0) === 1) ? { duplicateCents: null } : null;
 }
 
+// The stay a `full` link pays on when its acompte is already collected and its solde is not.
+function fullAfterDeposit(database, link) {
+  if (String(link.type) !== 'full') return null;
+  const own = database.prepare('SELECT * FROM reservations WHERE id = ?').get(Number(link.reservationId));
+  if (!own) return null;
+  const stay = own.kind === 'devis' && own.convertedReservationId
+    ? database.prepare('SELECT * FROM reservations WHERE id = ?').get(Number(own.convertedReservationId)) : own;
+  if (!stay || stay.kind !== 'reservation') return null;
+  if (Number(stay.depositPaid || 0) !== 1 || Number(stay.balancePaid || 0) === 1 || !(Number(stay.depositAmount || 0) > 0)) return null;
+  return { stayId: stay.id, duplicateCents: Math.min(Math.round(Number(stay.depositAmount) * 100), Number(link.amountCents || 0)) };
+}
+
 function recordRefundOwed(database, reservationId, link, duplicateCents = null) {
   const amount = require('./reservationLedger').formatEuros(Number(duplicateCents == null ? link.amountCents || 0 : duplicateCents) / 100);
   database.prepare("INSERT INTO reservation_history (reservationId, eventType, changedFields) VALUES (?, 'update', ?)")
@@ -302,6 +314,15 @@ async function settleRetiredPaidLink({ paymentLinksModel, notifyPaidAfterCancel,
   }
   paymentLinksModel.markRetiredLinkPaid(link.id, { providerPaymentId: pay.paymentId || null, paidAt });
   if (!database) return { id: link.id, reservationId: link.reservationId, type: link.type, status: 'paid', effect: 'settled-elsewhere' };
+  // A full link retired because the acompte was paid, paid anyway: the acompte part is paid twice, the
+  // rest is the solde (same as a live second link, see applyPaidEffect).
+  const duplicate = fullAfterDeposit(database, link);
+  if (duplicate) {
+    (recordPayment || recordOn(database))({ reservationId: duplicate.stayId, bucket: 'balance', paidDate: paidDay });
+    recordRefundOwed(database, duplicate.stayId, link, duplicate.duplicateCents);
+    if (notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link, { doublePaid: true, duplicateCents: duplicate.duplicateCents }); } catch { /* best effort */ } }
+    return { id: link.id, reservationId: link.reservationId, type: link.type, status: 'paid-after-cancel', effect: 'double-payment', duplicateLink: true, duplicateCents: duplicate.duplicateCents };
+  }
   const effect = applyPaidEffect({ database, devisModel, link, paidDate: paidDay, recordPayment: recordPayment || recordOn(database), settledAlready: true });
   if ((effect.effect === 'reservation-cancelled' || effect.effect === 'installment-unallocated') && notifyPaidAfterCancel) {
     try { await notifyPaidAfterCancel(link); } catch { /* best effort */ }
