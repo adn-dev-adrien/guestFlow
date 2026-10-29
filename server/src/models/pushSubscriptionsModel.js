@@ -10,11 +10,17 @@
  */
 
 const db = require('../database');
+const { ADMIN } = require('../constants/roles');
 
 const PREF_KEYS = ['newReservation', 'arrivals', 'departures', 'breakfast'];
 const DEFAULT_PREFS = { newReservation: true, arrivals: true, departures: true, breakfast: true };
 // A plugin channel key, as `ctx.pushChannel` accepts it.
 const CHANNEL_KEY = /^[a-z][a-z0-9-]{0,39}$/;
+// specs/pwa-push-notifications.md rule 13 — a device receives guest data only while its owner is an
+// active, non-support administrator.
+const ELIGIBLE_OWNER = `
+  JOIN users u ON u.id = s.userId AND u.isActive = 1 AND u.isSupportAccount = 0
+  JOIN user_roles ur ON ur.userId = u.id AND ur.role = '${ADMIN}'`;
 const isChannelKey = (key) => !PREF_KEYS.includes(key) && CHANNEL_KEY.test(String(key || ''));
 
 function createPushSubscriptionsModel(database) {
@@ -25,7 +31,8 @@ function createPushSubscriptionsModel(database) {
       ON CONFLICT(endpoint) DO UPDATE SET userId = excluded.userId, p256dh = excluded.p256dh, auth = excluded.auth
     `),
     removeByEndpoint: database.prepare('DELETE FROM push_subscriptions WHERE endpoint = ?'),
-    listByUser: database.prepare('SELECT id, endpoint, p256dh, auth FROM push_subscriptions WHERE userId = ? ORDER BY id'),
+    listByUser: database.prepare(`SELECT s.id, s.endpoint, s.p256dh, s.auth FROM push_subscriptions s ${ELIGIBLE_OWNER} WHERE s.userId = ? ORDER BY s.id`),
+    removeByUser: database.prepare('DELETE FROM push_subscriptions WHERE userId = ?'),
     readPrefs: database.prepare('SELECT newReservation, arrivals, departures, breakfast FROM user_push_prefs WHERE userId = ?'),
     upsertPrefs: database.prepare(`
       INSERT INTO user_push_prefs (userId, newReservation, arrivals, departures, breakfast)
@@ -59,6 +66,7 @@ function createPushSubscriptionsModel(database) {
       return channelStmt('subs', `
         SELECT s.id, s.endpoint, s.p256dh, s.auth
         FROM push_subscriptions s
+        ${ELIGIBLE_OWNER}
         LEFT JOIN user_push_channel_prefs c ON c.userId = s.userId AND c.channel = ?
         WHERE COALESCE(c.enabled, 1) = 1
         ORDER BY s.id
@@ -68,6 +76,7 @@ function createPushSubscriptionsModel(database) {
     const sql = `
       SELECT s.id, s.endpoint, s.p256dh, s.auth
       FROM push_subscriptions s
+      ${ELIGIBLE_OWNER}
       LEFT JOIN user_push_prefs p ON p.userId = s.userId
       WHERE COALESCE(p.${prefKey}, 1) = 1
       ORDER BY s.id
@@ -97,6 +106,11 @@ function createPushSubscriptionsModel(database) {
       if (endpoint) stmts.removeByEndpoint.run(String(endpoint));
     },
 
+    removeByUser(userId) {
+      return stmts.removeByUser.run(Number(userId)).changes;
+    },
+
+    // Eligible devices only (see ELIGIBLE_OWNER).
     listByUser(userId) {
       return stmts.listByUser.all(Number(userId));
     },
