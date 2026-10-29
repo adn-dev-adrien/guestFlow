@@ -51,8 +51,8 @@ test('rule 33: several candidates are refused, nothing is written', () => {
 });
 
 test('rule 34: the e-mail of the page is one address — a list or an angle address is not read', () => {
-  const email = (line) => parseBookingPage(replaceOnce(PAGE_6300000001, 'cgarnier.123456@guest.booking.com', line), { resId: '6300000001' });
-  assert.equal(email('cgarnier.123456@guest.booking.com').booking.guest.email, 'cgarnier.123456@guest.booking.com');
+  const email = (line) => parseBookingPage(replaceOnce(PAGE_6300000001, 'csierra.123456@guest.booking.com', line), { resId: '6300000001' });
+  assert.equal(email('csierra.123456@guest.booking.com').booking.guest.email, 'csierra.123456@guest.booking.com');
   for (const bad of ['a@x.test,b@evil.test', 'a@x.test;b@evil.test', '<a@x.test>']) {
     const r = email(bad);
     assert.notEqual(r.ok && r.booking.guest.email, bad, bad);

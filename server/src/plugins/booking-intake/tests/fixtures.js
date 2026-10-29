@@ -32,7 +32,7 @@ Nom du client :
 
 Camille Sierra
  fr
-cgarnier.123456@guest.booking.com
+csierra.123456@guest.booking.com
 
 Contactez vos clients ! Indiquez-leur l'heure à laquelle vous souhaitez les accueillir ou l'endroit où ils récupéreront leurs clés. Un simple appel suffit : 
 +33 6 12 34 56 78
