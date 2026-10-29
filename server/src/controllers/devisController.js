@@ -101,9 +101,18 @@ function createController(model, {
     return res.status(result.status).json(result.body);
   }
 
+  // specs/reservation-fiche-concurrency.md rule 11 — the editor sends the `updatedAt` it loaded; a save
+  // built on an older version would rewrite every column and erase what a guest's new request wrote.
   function update(req, res) {
     const error = financeError(req.body);
     if (error) return res.status(400).json({ error });
+    const loaded = req.body && req.body.loadedUpdatedAt;
+    if (loaded != null && loaded !== '') {
+      const stored = model.storedVersion(req.params.id);
+      if (stored != null && String(stored) !== String(loaded)) {
+        return res.status(409).json({ error: 'Fiche modifiée entre-temps.', code: 'STALE_FICHE' });
+      }
+    }
     return respond(res, model.update(req.params.id, req.body));
   }
 

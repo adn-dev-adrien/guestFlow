@@ -1,7 +1,9 @@
 const router = require('express').Router();
 const controller = require('../controllers/devisController');
+const { ficheVersionHeaders } = require('../middleware/ficheVersionHeaders');
 
 router.get('/', controller.list);
+router.use('/:id', ficheVersionHeaders());
 router.get('/:id', controller.getOne);
 router.patch('/:id/status', controller.updateStatus);
 router.get('/:id/history', controller.history);
