@@ -9,7 +9,7 @@ const STALE_BUNDLE = /dynamically imported module|Importing a module script fail
  * route's error screen. A bundle that no longer exists (the plugin was updated in another tab)
  * shows a small « Recharger » prompt instead.
  */
-class ContributionBoundary extends React.Component {
+export class ContributionBoundary extends React.Component {
   constructor(props) {
     super(props);
     this.state = { error: null };
@@ -38,6 +38,25 @@ class ContributionBoundary extends React.Component {
 }
 
 /**
+ * Contribution — mounts ONE plugin component (a `useSlot` entry's `Component`) the way `<Slot>` does:
+ * lazy-loaded behind `Suspense`, inside its own error boundary. Every site that renders a plugin
+ * `Component` itself, instead of through `<Slot>`, goes through this wrapper
+ * (specs/plugins-phase-4-registry.md rule 44).
+ *
+ * Props:
+ *   pluginId  string     the contributing plugin, named in the log
+ *   fallback  ReactNode  shown while the chunk loads (default nothing)
+ *   children  the `<Component … />` element
+ */
+export function Contribution({ pluginId, fallback = null, children }) {
+  return (
+    <ContributionBoundary pluginId={pluginId}>
+      <Suspense fallback={fallback}>{children}</Suspense>
+    </ContributionBoundary>
+  );
+}
+
+/**
  * Slot — renders, in place, what active plugins contributed to a named slot
  * (specs/plugins-phase-1-sdk.md rules 13-14). Each contribution is a lazily loaded component: a
  * plugin's code reaches the browser only when one of its slots renders. An inactive plugin leaves
@@ -54,11 +73,9 @@ export default function Slot({ name, ...props }) {
   return (
     <>
       {contributions.map(({ key, pluginId, Component }) => (
-        <ContributionBoundary key={`${pluginId}:${key}`} pluginId={pluginId}>
-          <Suspense fallback={null}>
-            <Component {...props} />
-          </Suspense>
-        </ContributionBoundary>
+        <Contribution key={`${pluginId}:${key}`} pluginId={pluginId}>
+          <Component {...props} />
+        </Contribution>
       ))}
     </>
   );

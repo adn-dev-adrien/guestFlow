@@ -351,6 +351,42 @@ below are the recommended ones; each is reversible in a later spec.
     index and is the registry key, as before. Rolling it out: set the variable, restart the console, let the
     next sync rewrite each instance's environment (a fleet update does), then restart the instances; in
     between, instances see an index they cannot verify and ignore it.
+43. **Activate, deactivate and uninstall wait for the plugin-operation lock** (audit round 2, N1,
+    2026-10-29). `POST /:id/activate`, `POST /:id/deactivate` and `DELETE /:id` answer 409
+    `UPDATE_IN_PROGRESS` (« Mise à jour déjà en cours. ») while `state.updating` is set, like install,
+    update and rollback (rule 29): an install awaiting its package has not written its dependant's row
+    yet, so rules 12, 36 and 37 would read a graph that is about to change (a requirement switched off or
+    uninstalled under a dependant that then goes live). The reconciler already treats the code as
+    transient. Test: `plugin-operation-lock.unit.test.js`.
+44. **Rule 39's isolation covers every site that mounts a plugin component** (audit round 2, N2,
+    2026-10-29). `client/src/plugins/sdk/Slot.jsx` exports `ContributionBoundary` and `Contribution`
+    (boundary + `Suspense`, with an optional `fallback`; also exported by the client SDK, 2.14.0).
+    Every host that renders a `useSlot` entry's `Component` itself goes through `Contribution`:
+    `AttentionInbox` (the home's pinned and legacy alerts), `ExtrasSection` and `OptionRow` (the fiche),
+    `PlanningPage` (day cards, bar buttons), the SAS dialog's plugin steps, `SeasonsClosuresPage`,
+    `OptionsResourcesPage`, `ResourceEditorPanel` and the integrations settings sections. A throwing
+    contribution, or a lazy chunk gone after an update in another tab, no longer takes the route to its
+    error screen. Tests: `Contribution.isolation.test.jsx`, `AttentionInbox.isolation.test.jsx`,
+    `ExtrasSection.isolation.test.jsx`, `PlanningPage.isolation.test.jsx`,
+    `SeasonsClosuresPage.isolation.test.jsx`, `OptionsResourcesPage.isolation.test.jsx`.
+45. **A restart-needing dependency plan owes every activation hook, and the boot runs them**
+    (audit round 2, N3, 2026-10-29). `loader.runPendingInstallHooks` forgets the plugin's `announced`
+    mark for both kinds of marker: `syncLiveTransitions` runs first at boot and announces every live
+    plugin, which silently skipped the activation-only kind (rule 41, kind 2). In the plan, a requirement
+    installed live before the restart is marked `hooks_pending = 2` too (its install hooks already ran).
+    Test: `plugin-pending-activate-boot.unit.test.js` (the production boot order) and test 3 of
+    `plugin-install-hooks-after-restart.unit.test.js`, which now reproduces it.
+46. **A dependant revived live is failed when its migration throws, and waits for enabled
+    requirements** (audit round 2, N4, 2026-10-29). In `reviveDependants`, a migration failure after
+    `registerLive` marks the plugin failed (nothing of it runs; its routes answer `PLUGIN_INACTIVE`), as
+    a migration failing at boot does. An enabled dependant is revived only when each requirement is
+    enabled too (rule 37), not merely loaded. Test: `plugin-revive-failures.unit.test.js`.
+47. **The registry key falls back to the licence key — still, on purpose** (audit round 2, F7,
+    2026-10-29; restates rules 9, 40 and 42). `GUESTFLOW_REGISTRY_PUBLIC_KEY` unset, the instance verifies
+    the index with `GUESTFLOW_LICENCE_PUBLIC_KEY`. Whoever holds the signing key (the registry key, or the
+    licence key while it falls back) is the sole root of trust: it can run arbitrary code on every
+    instance that installs or updates. No behaviour change.
+    **Sans test** — a statement of the trust model, not a behaviour.
 
 ---
 

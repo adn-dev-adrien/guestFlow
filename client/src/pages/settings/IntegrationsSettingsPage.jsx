@@ -11,7 +11,7 @@
  * card with a draft (Neat, Météo) has no Save of its own: the bar saves every dirty card, tab by
  * tab, and stops on the first refusal, which opens its tab.
  */
-import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { Box } from '@mui/material';
 import useSettingsForm from '../../hooks/useSettingsForm';
@@ -19,6 +19,7 @@ import SettingsFormPage from '../../components/SettingsFormPage';
 import PageTabs from '../../components/PageTabs';
 import TabDot from '../../components/TabDot';
 import { useSlot } from '../../plugins/sdk/useSlot';
+import { Contribution } from '../../plugins/sdk/Slot';
 import { GOOGLE_CALENDAR } from '../../constants/plugins';
 import api from '../../api';
 
@@ -181,9 +182,9 @@ export default function IntegrationsSettingsPage() {
           }}
         >
           {t.sections.map(({ key, Component }) => (
-            <Suspense key={key} fallback={null}>
+            <Contribution key={key} pluginId={t.pluginId}>
               <Component {...bindCard(`${t.pluginId}:${key}`)} />
-            </Suspense>
+            </Contribution>
           ))}
         </Box>
       ))}

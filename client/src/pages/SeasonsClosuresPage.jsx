@@ -11,12 +11,13 @@
  * (specs/plugins-phase-0-foundation.md rule 16).
  */
 
-import React, { Suspense, useState } from 'react';
+import React, { useState } from 'react';
 import { Box } from '@mui/material';
 import PageTabs from '../components/PageTabs';
 import PageBarFallback from '../components/PageBarFallback';
 import EstablishmentClosuresPage from './EstablishmentClosuresPage';
 import { useSlot } from '../plugins/sdk/useSlot';
+import { Contribution } from '../plugins/sdk/Slot';
 
 const CLOSURES = { value: 'closures', label: 'Fermetures' };
 
@@ -33,7 +34,7 @@ export default function SeasonsClosuresPage() {
   return (
     <Box>
       {pluginTab
-        ? <Suspense fallback={<PageBarFallback title={pluginTab.label} tabs={barTabs} />}><pluginTab.Component barTabs={barTabs} /></Suspense>
+        ? <Contribution pluginId={pluginTab.pluginId} fallback={<PageBarFallback title={pluginTab.label} tabs={barTabs} />}><pluginTab.Component barTabs={barTabs} /></Contribution>
         : <EstablishmentClosuresPage barTabs={barTabs} />}
     </Box>
   );

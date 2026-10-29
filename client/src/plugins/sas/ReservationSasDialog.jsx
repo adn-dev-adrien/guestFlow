@@ -11,7 +11,7 @@
  * Other plugins add read-only pages through `sas.arrival.steps` / `sas.departure.steps` (rule 10).
  */
 
-import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Dialog, DialogContent, DialogActions, Button, Box, Typography, Stack,
   CircularProgress, TextField, Link, Divider, Chip, Switch, useMediaQuery,
@@ -49,7 +49,7 @@ import { useNavigate } from 'react-router';
 import {
   api, getPlatformColor, formatPlatformLabel, ConfirmDialog, OccurrenceGrid, LoadingState, ErrorAlert,
   useToast, SasKeypadCode, formatCurrency, displayDate, displayDateLong, PRICE_TYPE_LABELS,
-  sasLockTitle, sasLockMessage, Slot, useSlot, WheatIcon, BaguetteIcon, StatusBadge,
+  sasLockTitle, sasLockMessage, Slot, Contribution, useSlot, WheatIcon, BaguetteIcon, StatusBadge,
 } from '../sdk';
 import OfferableLine from './OfferableLine';
 import buildArrivalDraft from './arrivalDraft';
@@ -1674,14 +1674,14 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         if (!step) return null;
         const { Component } = step;
         return (
-          <Suspense fallback={null}>
+          <Contribution pluginId={step.pluginId}>
             <Component
               data={stepDataFor(step)}
               value={pluginStepValues[stepKey]}
               onChange={setPluginStepValue(stepKey)}
               reservationId={r.id}
             />
-          </Suspense>
+          </Contribution>
         );
       }
     }
