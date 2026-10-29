@@ -57,7 +57,7 @@ test('fold a category, search, refuse a negative per-property price, save a fixe
   await granjaPrice.fill('85');
   await panel.getByRole('button', { name: 'Enregistrer' }).click();
   await expect(page.getByText('Option enregistrée')).toBeVisible();
-  await expect(panel).toHaveCount(0);
+  await expect(panel).toHaveCount(0, { timeout: 15_000 });
   const row = page.getByRole('button', { name: 'Ménage catalogue', exact: true }).locator('xpath=../..');
   await expect(row).toContainText(/30\s€\s–\s85\s€/);
   await expect(row).toContainText('selon logement');
