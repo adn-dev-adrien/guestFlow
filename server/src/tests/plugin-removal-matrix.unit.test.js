@@ -1,4 +1,4 @@
-// specs/plugin-removal-resilience.md rules 3, 4, 5, 13, 14 — the removal matrix builds itself from the
+// specs/plugin-removal-resilience.md rules 3, 4, 5, 13, 14, 19, 20 — the removal matrix builds itself from the
 // folders, every plugin can be taken out of the tree, and no core test needs a plugin it does not name.
 
 const test = require('node:test');
@@ -135,6 +135,63 @@ test('rules 3, 4: a test or fixture that reads a plugin folder loads it with opt
   assert.deepEqual(violations, []);
 });
 
+// What names a plugin without a path: a fake package or manifest that carries a shipped id
+// (`{ id: 'linen', serverCode … }`, which the controller only installs while the catalogue lists that id), an
+// array of shipped ids that a loop walks, or a path built from a variable (`plugins/${id}`, `readSourceManifest(id)`,
+// `path.join(SRC_PLUGINS, id)`). A bare id in a message, a settings key or a fixture row is not matched: a test that
+// merely mentions a plugin runs whatever the tree holds. A guard with a variable (`skipWithout([id])`) covers the
+// loop that names the variable.
+function pluginsNamedByIdentity(source, ids) {
+  const code = source.split('\n').filter((line) => !/^\s*(\/\/|\*|\/\*)/.test(line)).join('\n');
+  const quoted = (id) => new RegExp(`['"\`]${id.replace(/-/g, '\\-')}['"\`]`);
+  const named = new Set();
+  if (/pluginPackagesFixture/.test(code)) ids.filter((id) => new RegExp(`\\bid:\\s*${quoted(id).source}`).test(code)).forEach((id) => named.add(id));
+  const LOADS = /(?<![`'"])require\(|readSourceManifest|applyPluginSchema|registerAll|realSetup|path\.join|copyFileSync/;
+  const walked = [...code.matchAll(/\bof\s*\[([^\]]*)\]|\[([^\]]*)\]\s*\.(?:forEach|map|flatMap)\(/g)]
+    .filter((m) => LOADS.test(code.slice(m.index, m.index + 400))).map((m) => m[1] || m[2]);
+  [...code.matchAll(/\bconst\s+(\w+)\s*=\s*\[([^\]]*)\]/g)].forEach((m) => {
+    const use = new RegExp(`\\bof\\s+${m[1]}\\b|\\b${m[1]}\\s*\\.\\s*(?:forEach|map|flatMap)\\(`).exec(code);
+    if (use && LOADS.test(code.slice(use.index, use.index + 400))) walked.push(m[2]);
+  });
+  walked.forEach((list) => ids.filter((id) => quoted(id).test(list)).forEach((id) => named.add(id)));
+  return [...named];
+}
+
+const dynamicPluginLoad = (source) => /plugins\/\$\{|SRC_PLUGINS,\s*\w+\s*[,)]|SERVER_PLUGINS,\s*\w+\s*[,)]/.test(source);
+const guardsAVariable = (source) => /(?:requirePlugins|missingPlugins|skipWithout)\(\[?\s*(?!')[a-z]\w*/.test(source);
+
+test('rule 19 (rules 3, 4): a core test that names a shipped plugin by its id — fake package, loop over ids, path built from a variable — is guarded', () => {
+  const ids = listPlugins();
+  const violations = [];
+  testFiles(path.join(SERVER_PLUGINS, '..', 'tests')).forEach((file) => {
+    const source = fs.readFileSync(file, 'utf8');
+    if (path.basename(file) === path.basename(__filename)) return;
+    const guarded = guardedIn(source);
+    pluginsNamedByIdentity(source, ids).filter((id) => !guarded.includes(id) && !guardsAVariable(source))
+      .forEach((id) => violations.push(`${path.relative(ROOT, file)} → ${id}`));
+    if (dynamicPluginLoad(source) && !guarded.length && !guardsAVariable(source)) violations.push(`${path.relative(ROOT, file)} → a plugin folder named by a variable`);
+  });
+  assert.deepEqual(violations, []);
+});
+
+test('rule 19: the identity guard sees fake packages, loops over ids and variable paths, and leaves synthetic manifests of test-only ids alone', () => {
+  const ids = ['linen', 'sas'];
+  assert.deepEqual(pluginsNamedByIdentity("const h = require('./pluginPackagesFixture');\nconst D = { id: 'linen', serverCode: 'x' };", ids), ['linen']);
+  assert.deepEqual(pluginsNamedByIdentity("const ROWS = [{ id: 'linen' }];", ids), []);
+  assert.deepEqual(pluginsNamedByIdentity("const RELYING = ['linen', 'sas'];\nfor (const id of RELYING) readSourceManifest(id);", ids), ['linen', 'sas']);
+  assert.deepEqual(pluginsNamedByIdentity("for (const fact of ['linen']) assert.ok(readiness(fact));", ids), []);
+  assert.deepEqual(pluginsNamedByIdentity("const KEPT = ['linen'];\nassert.deepEqual(got, KEPT);", ids), []);
+  assert.deepEqual(pluginsNamedByIdentity("for (const id of ['sas', 'x']) { applyPluginSchema(db, id); }", ids), ['sas']);
+  assert.deepEqual(pluginsNamedByIdentity("['linen', 'sas'].forEach((id) => require(`./x/${id}`));", ids), ['linen', 'sas']);
+  assert.deepEqual(pluginsNamedByIdentity("const R = { id: 'fx-linen' }; assert.equal(row.channel, 'sas');", ids), []);
+  assert.deepEqual(pluginsNamedByIdentity("// { id: 'linen' }\nconst m = h.manifest('fx-sas', '1.0.0');", ids), []);
+  assert.equal(dynamicPluginLoad('require(`../plugins/${id}`)'), true);
+  assert.equal(dynamicPluginLoad("path.join(SRC_PLUGINS, id, 'manifest.json')"), true);
+  assert.equal(dynamicPluginLoad("require('../plugins/linen')"), false);
+  assert.equal(guardsAVariable('{ skip: skipWithout([id]) }'), true);
+  assert.equal(guardsAVariable("{ skip: skipWithout(['linen']) }"), false);
+});
+
 // An optionalPlugin load lets a file load without the plugin; the tests that then fail must say so, or the
 // file would be green with a plugin that is absent only because nothing exercised it.
 test('rules 3, 4: a file that loads a plugin with optionalPlugin marks the tests that need it', () => {
@@ -162,4 +219,11 @@ test('rule 4: a missing plugin is named, a shipped one is not', () => {
   assert.deepEqual(missingPlugins(listPlugins()), []);
   assert.equal(skipWithout([present]), false);
   assert.equal(skipWithout([present, 'not-a-plugin']), 'requires not-a-plugin');
+});
+
+test('rule 20: the snapshot server port is a flag of the cell, port + 2 by default', () => {
+  const source = fs.readFileSync(path.join(ROOT, 'scripts', 'plugin-removal.mjs'), 'utf8');
+  assert.match(source, /const snapshotPort = Number\(flag\('--snapshot-port', String\(port \+ 2\)\)\)/);
+  assert.match(source, /SNAPSHOT_PORT: String\(snapshotPort\)/);
+  assert.doesNotMatch(source, /SNAPSHOT_PORT: String\(port \+ 2\)/);
 });

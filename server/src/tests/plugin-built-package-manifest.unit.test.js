@@ -10,6 +10,7 @@ const http = require('http');
 const express = require('express');
 const Database = require('better-sqlite3');
 const { pathToFileURL } = require('url');
+const { skipWithout } = require('../plugins/sdk/testing');
 
 const ROOT = path.resolve(__dirname, '..', '..', '..');
 const SRC_PLUGINS = path.join(ROOT, 'server', 'src', 'plugins');
@@ -26,7 +27,7 @@ test('rule 52: no server file of a plugin requires a manifest.json', () => {
 });
 
 for (const id of ['gites-de-france-intake', 'airbnb-intake']) {
-  test(`plugins-phase-1-sdk.md rule 31 and phase-4 rule 52: ${id}, loaded from its built package, answers the fiche block`, async () => {
+  test(`plugins-phase-1-sdk.md rule 31 and phase-4 rule 52: ${id}, loaded from its built package, answers the fiche block`, { skip: skipWithout([id]) }, async () => {
     // The server half of the package only: the client half needs vite, which the server CI job does not install.
     const { buildServer } = await import(pathToFileURL(path.join(ROOT, 'scripts', 'build-plugin-packages.mjs')).href);
     const out = fs.mkdtempSync(path.join(os.tmpdir(), 'gf-built-'));

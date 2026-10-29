@@ -7,6 +7,7 @@ const assert = require('node:assert/strict');
 const { readSourceManifest } = require('../plugins/manifest');
 const { SDK_VERSION } = require('../plugins/sdk/version');
 const { satisfies } = require('../utils/semverRange');
+const { skipWithout } = require('../plugins/sdk/testing');
 
 const HARDENED_AT = '2.15.0';
 const RELYING = ['website-booking', 'booking-intake', 'airbnb-intake', 'gites-de-france-intake'];
@@ -16,7 +17,7 @@ test('rule 51: the SDK that ships the hardenings is at least 2.15.0', () => {
 });
 
 for (const id of RELYING) {
-  test(`rule 51: ${id} refuses a core whose SDK predates the hardenings, and loads on this one`, () => {
+  test(`rule 51: ${id} refuses a core whose SDK predates the hardenings, and loads on this one`, { skip: skipWithout([id]) }, () => {
     const m = readSourceManifest(id);
     assert.equal(satisfies('2.14.0', m.sdk), false, `${id} ${m.sdk} still loads on SDK 2.14.0`);
     assert.equal(satisfies(HARDENED_AT, m.sdk), true, `${id} ${m.sdk}`);
