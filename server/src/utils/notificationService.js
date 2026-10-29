@@ -32,6 +32,13 @@ function platformNameOf(resa) {
 // for the first of a 15-minute window; the following ones wait for one summary.
 const SITE_DEVIS_DIGEST = 'site-devis';
 
+// specs/public-request-abuse-and-grouping.md rule 33 — a value typed by a visitor or read from a feed is one
+// line of an operator e-mail: a line break would forge lines of its own (a fake instruction, a fake link).
+// The mails here are plain text; control characters and Unicode line separators become a space.
+function oneLine(value) {
+  return String(value == null ? '' : value).replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]+/g, ' ').replace(/ {2,}/g, ' ').trim();
+}
+
 function euro(n) {
   return `${(Math.round((Number(n) || 0) * 100) / 100).toFixed(2).replace('.', ',')} €`;
 }
@@ -124,14 +131,14 @@ function buildNotificationService({
   }
 
   function lineLabel(name, totalPrice, offered) {
-    const label = String(name || 'Élément');
+    const label = oneLine(name) || 'Élément';
     return `  - ${label} : ${Number(offered) === 1 ? 'offert (0 €)' : euro(totalPrice)}`;
   }
 
   function buildDevisEmail(devis, publicUrl, { updated = false, messageDropped = false } = {}) {
-    const client = `${String(devis.firstName || '').trim()} ${String(devis.lastName || '').trim()}`.trim();
-    const ref = devis.devisNumber ? ` #${devis.devisNumber}` : '';
-    const subject = `${updated ? 'Demande de devis mise à jour' : 'Nouvelle demande de devis'}${ref} — ${devis.propertyName || ''}`.trim();
+    const client = oneLine(`${devis.firstName || ''} ${devis.lastName || ''}`);
+    const ref = devis.devisNumber ? ` #${oneLine(devis.devisNumber)}` : '';
+    const subject = `${updated ? 'Demande de devis mise à jour' : 'Nouvelle demande de devis'}${ref} — ${oneLine(devis.propertyName)}`.trim();
 
     const lines = [
       updated
@@ -140,10 +147,10 @@ function buildNotificationService({
       // specs/public-request-abuse-and-grouping.md rule 22.
       ...(messageDropped ? ['Son message n’a pas été ajouté : 10 messages déjà ajoutés à ce devis.'] : []),
       '',
-      `Logement : ${devis.propertyName || ''}`,
+      `Logement : ${oneLine(devis.propertyName)}`,
       `Client : ${client || '—'}`,
-      `Email : ${devis.clientEmail || '—'}`,
-      `Téléphone : ${devis.clientPhone || '—'}`,
+      `Email : ${oneLine(devis.clientEmail) || '—'}`,
+      `Téléphone : ${oneLine(devis.clientPhone) || '—'}`,
       `Séjour : du ${frDate(devis.startDate)} au ${frDate(devis.endDate)}`,
       `Voyageurs : ${Number(devis.adults || 0)} adulte(s), ${Number(devis.teens || 0)} ado(s), ${Number(devis.children || 0)} enfant(s), ${Number(devis.babies || 0)} bébé(s)`,
     ];
@@ -156,7 +163,7 @@ function buildNotificationService({
     const toSchedule = (devis.options || []).filter((o) => o.showsPlanningCard);
     if (toSchedule.length) {
       lines.push('', 'À planifier avec le client (horaire à convenir) :');
-      for (const o of toSchedule) lines.push(`- ${o.title} ×${Number(o.quantity || 1)}`);
+      for (const o of toSchedule) lines.push(`- ${oneLine(o.title)} ×${Number(o.quantity || 1)}`);
     }
     if (devis.resources && devis.resources.length) {
       lines.push('', 'Ressources :');
@@ -183,16 +190,15 @@ function buildNotificationService({
   }
 
   function buildReservationEmail(resa, publicUrl) {
-    const guest = String(resa.icalOriginalSummary || '').trim()
-      || `${String(resa.firstName || '').trim()} ${String(resa.lastName || '').trim()}`.trim();
-    const platform = platformNameOf(resa);
-    const subject = `Nouvelle réservation ${platform} — ${resa.propertyName || ''}`.trim();
+    const guest = oneLine(resa.icalOriginalSummary) || oneLine(`${resa.firstName || ''} ${resa.lastName || ''}`);
+    const platform = oneLine(platformNameOf(resa));
+    const subject = `Nouvelle réservation ${platform} — ${oneLine(resa.propertyName)}`.trim();
     const nights = nightsBetween(resa.startDate, resa.endDate);
     const lines = [
       'Nouvelle réservation importée via iCal.',
       '',
       `Plateforme : ${platform || '—'}`,
-      `Logement : ${resa.propertyName || ''}`,
+      `Logement : ${oneLine(resa.propertyName)}`,
       `Client : ${guest || '—'}`,
       `Séjour : du ${resa.startDate} au ${resa.endDate}${nights ? ` (${nightsLabel(nights)})` : ''}`,
     ];
@@ -282,9 +288,9 @@ function buildNotificationService({
       const devis = group.refId ? loadDevis(group.refId) : null;
       const tag = digestTag(group);
       if (!devis) { lines.push(`- (${tag}) demande supprimée depuis`); return; }
-      const client = `${String(devis.firstName || '').trim()} ${String(devis.lastName || '').trim()}`.trim() || '—';
+      const client = oneLine(`${devis.firstName || ''} ${devis.lastName || ''}`) || '—';
       const ref = devis.devisNumber ? `#${devis.devisNumber} ` : '';
-      lines.push(`- ${ref}(${tag}) ${client} — ${devis.propertyName || ''}, du ${frDate(devis.startDate)} au ${frDate(devis.endDate)}, ${euro(devis.finalPrice)}`);
+      lines.push(`- ${ref}(${tag}) ${client} — ${oneLine(devis.propertyName)}, du ${frDate(devis.startDate)} au ${frDate(devis.endDate)}, ${euro(devis.finalPrice)}`);
     });
     const link = joinUrl(publicUrl, '/devis');
     if (link) lines.push('', `Voir les devis : ${link}`);
@@ -394,12 +400,12 @@ function buildNotificationService({
 
   function buildConflictEmail(resa, publicUrl, origin = 'payment') {
     const copy = conflictCopy(resa, origin);
-    const guest = `${String(resa.firstName || '').trim()} ${String(resa.lastName || '').trim()}`.trim();
-    const subject = `⚠️ ${copy.title} (${resa.propertyName || ''})`;
+    const guest = oneLine(`${resa.firstName || ''} ${resa.lastName || ''}`);
+    const subject = `⚠️ ${copy.title} (${oneLine(resa.propertyName)})`;
     const lines = [
       ...copy.lines,
       '',
-      `Logement : ${resa.propertyName || ''}`,
+      `Logement : ${oneLine(resa.propertyName)}`,
       `Client : ${guest || '—'}`,
       `Séjour : du ${resa.startDate} au ${resa.endDate}`,
     ];

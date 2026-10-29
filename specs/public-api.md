@@ -203,6 +203,11 @@ or **[CREATE]** (genuinely new logic).
     `reason: 'tooLong'` (« Texte trop long. » / « Text too long. »). A name of 40 000 characters used to be
     stored and flow into every e-mail, PDF and CSV. The WordPress block sets the matching `maxlength`.
     Covered by `plugins/website-booking/tests/public-guest-field-errors.unit.test.js`.
+21. **The phone is a phone number** (audit 2026-10-28, F5). `guest.phone` must be 8-15 digits with an optional
+    `+` and spaces, dots, dashes or brackets as separators (the client dialog's rule), otherwise `422` with
+    `reason: 'phoneInvalid'` (« Numéro de téléphone invalide. » / « Invalid phone number. »); a phone with a line
+    break used to be stored and printed on its own line of the owner's e-mail. `guest.email` is one address (no
+    comma, semicolon, angle bracket). Covered by `plugins/website-booking/tests/public-request-line-injection.unit.test.js`.
 
 **Edge cases:**
 
