@@ -23,6 +23,7 @@ import { usePlugin } from '../../hooks/usePlugins';
 import { HOURLY_RESOURCES } from '../../constants/plugins';
 import { RESOURCE_PRICE_TYPES, TEXTS, UNIT_BY_PRICE_TYPE } from '../../constants/optionsResourcesTexts';
 import { useSlot } from '../../plugins/sdk';
+import { Contribution } from '../../plugins/sdk/Slot';
 import {
   emptyResource, formFromResource, toResourcePayload, validateResourceForm, withScope,
 } from './resourceForm';
@@ -247,9 +248,9 @@ export default function ResourceEditorPanel({ open, resourceId, properties, onCl
         {contributions.length > 0 && (
           <SidePanelSection id="hours" title="Horaires">
             {contributions.map(({ key, pluginId, Component }) => (
-              <React.Suspense key={`${pluginId}:${key}`} fallback={null}>
+              <Contribution key={`${pluginId}:${key}`} pluginId={pluginId}>
                 <Component draft={form} onChange={(patch) => setForm({ ...form, ...patch })} />
-              </React.Suspense>
+              </Contribution>
             ))}
             {hourErrors.map((field) => (
               <FormHelperText key={field} error>{errors[field]}</FormHelperText>

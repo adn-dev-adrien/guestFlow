@@ -609,7 +609,7 @@ test('rule 12: installing a plugin whose requirement is missing asks first, then
   assert.equal(first.statusCode, 409);
   assert.equal(first.body.error, 'REQUIREMENTS');
   assert.deepEqual(first.body.requirements.map((r) => r.id), ['linen']);
-  const second = await call(ctrl.install, { params: { id: 'sas' }, body: { withRequirements: true } });
+  const second = await call(ctrl.install, { params: { id: 'sas' }, body: { withRequirements: ['linen'] } });
   assert.equal(second.statusCode, 200);
   assert.ok(model.get('linen') && model.get('sas'));
   const refused = await call(ctrl.uninstall, { params: { id: 'linen' } });
@@ -722,7 +722,7 @@ test('rule 29: a requirement installed for a plugin whose install fails is unins
     coreVersion: () => '3.9.0',
     loader: () => ({ ...fakeLoader(), registerLive: (mod) => mod.id !== 'sas' }),
   });
-  const res = await call(failing.install, { params: { id: 'sas' }, body: { withRequirements: true } });
+  const res = await call(failing.install, { params: { id: 'sas' }, body: { withRequirements: ['linen'] } });
   assert.equal(res.statusCode, 500);
   assert.equal(model.get('linen'), null);
   assert.equal(model.get('sas'), null);
@@ -741,7 +741,7 @@ test('rule 29: a requirement downloaded from the registry and undone leaves no `
     registry, host: () => host, db: () => freshDb(), licence: () => allowAll, coreVersion: () => '3.9.0',
     loader: () => ({ ...fakeLoader(), registerLive: (mod) => mod.id !== 'sas' }),
   });
-  assert.equal((await call(failing.install, { params: { id: 'sas' }, body: { withRequirements: true } })).statusCode, 500);
+  assert.equal((await call(failing.install, { params: { id: 'sas' }, body: { withRequirements: ['linen'] } })).statusCode, 500);
   assert.equal(host.store().readCurrent('linen'), null);
   assert.equal(model.get('linen'), null);
 });
@@ -896,11 +896,11 @@ test('rule 17: a requirement undone with its dependant never ran its activation 
     registry, host: () => host, db: () => freshDb(), licence: () => allowAll, coreVersion: () => '3.9.0', loader: () => loader,
   });
   const failedCalls = [];
-  const failed = await call(run({ ...fakeLoader(failedCalls), registerLive: (mod) => mod.id !== 'sas' }).install, { params: { id: 'sas' }, body: { withRequirements: true } });
+  const failed = await call(run({ ...fakeLoader(failedCalls), registerLive: (mod) => mod.id !== 'sas' }).install, { params: { id: 'sas' }, body: { withRequirements: ['linen'] } });
   assert.equal(failed.statusCode, 500);
   assert.deepEqual(failedCalls.filter(([k]) => k === 'activate'), []);
   const okCalls = [];
-  const ok = await call(run(fakeLoader(okCalls)).install, { params: { id: 'sas' }, body: { withRequirements: true } });
+  const ok = await call(run(fakeLoader(okCalls)).install, { params: { id: 'sas' }, body: { withRequirements: ['linen'] } });
   assert.equal(ok.statusCode, 200);
   assert.deepEqual(okCalls.filter(([k]) => k === 'activate').map(([, id]) => id), ['linen', 'sas']);
 });
@@ -926,7 +926,7 @@ test('rule 17: a live-set pass inside the install never announces a requirement 
     markInactive: realLoader.markInactive,
   };
   const ctrl = createController(model, { registry, host: () => host, db: () => freshDb(), licence: () => allowAll, coreVersion: () => '3.9.0', loader: () => hooked });
-  const res = await call(ctrl.install, { params: { id: 'sas' }, body: { withRequirements: true } });
+  const res = await call(ctrl.install, { params: { id: 'sas' }, body: { withRequirements: ['linen'] } });
   assert.equal(res.statusCode, 500);
   await realLoader.syncLiveTransitions();
   assert.deepEqual(fired, [], 'rolled back: zero fires');

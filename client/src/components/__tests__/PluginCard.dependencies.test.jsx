@@ -75,7 +75,7 @@ test('rules 12–13: deactivating a plugin an active plugin uses names the follo
   await userEvent.click(screen.getByRole('menuitem', { name: /Désactiver/ }));
   expect(screen.getByText('Désactive aussi : Google Vacation Rentals. Réglages et données gardés. À réactiver ensuite un par un.')).toBeTruthy();
   await userEvent.click(screen.getByRole('button', { name: 'Tout désactiver' }));
-  expect(onAction).toHaveBeenCalledWith('deactivate', { withDependents: true });
+  expect(onAction).toHaveBeenCalledWith('deactivate', { withDependents: ['g'] });
 });
 
 test('rule 12: without followers the confirmation is the usual one and no flag is sent', async () => {
@@ -98,7 +98,7 @@ test('rule 11: activating on a requirement that is off proposes « Tout activer 
   expect(screen.getByText('Active aussi : Réservation depuis le site.')).toBeTruthy();
   expect(onAction).not.toHaveBeenCalled();
   await userEvent.click(screen.getByRole('button', { name: 'Tout activer' }));
-  expect(onAction).toHaveBeenCalledWith('activate', { withRequirements: true });
+  expect(onAction).toHaveBeenCalledWith('activate', { withRequirements: [site.id] });
 });
 
 test('rule 11: « Activer » is disabled with the reason when a requirement is not installed', () => {
@@ -130,7 +130,7 @@ test('rule 9: installing lists what is installed and what is switched on, one co
   await userEvent.click(screen.getByRole('button', { name: 'Installer' }));
   expect(screen.getByText('Installe aussi Réservation depuis le site 1.8.3. Active aussi Arrivée et départ guidés.')).toBeTruthy();
   await userEvent.click(screen.getByRole('button', { name: 'Tout installer' }));
-  expect(onAction).toHaveBeenCalledWith('install', { withRequirements: true });
+  expect(onAction).toHaveBeenCalledWith('install', { withRequirements: [site.id, 'sas'] });
 });
 
 test('one line, not three: a plugin left unloaded for a missing requirement shows « Nécessite … non installé » and not the server’s repeat', () => {

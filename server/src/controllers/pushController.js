@@ -24,6 +24,7 @@ function getPublicKey(req, res) {
 function subscribe(req, res) {
   const userId = req.user && req.user.id;
   if (!userId) return res.status(401).json({ error: 'NOT_AUTHENTICATED' });
+  if (req.user.isSupport) return res.status(403).json({ error: 'SUPPORT_FORBIDDEN', message: 'Action réservée au compte du client.' });
   const result = model.subscribe(userId, req.body && req.body.subscription);
   if (result.error) return res.status(400).json({ error: result.error });
   return res.json({ ok: true });

@@ -283,7 +283,7 @@ export default function PluginCard({
       <ConfirmDialog
         open={confirmOff}
         onClose={() => setConfirmOff(false)}
-        onConfirm={() => { setConfirmOff(false); act('deactivate', cascades ? { withDependents: true } : undefined); }}
+        onConfirm={() => { setConfirmOff(false); act('deactivate', cascades ? { withDependents: actions.deactivate.alsoDeactivates.map((d) => d.id) } : undefined); }}
         title={deactivateConfirm ? deactivateConfirm.title : `Désactiver ${plugin.name} ?`}
         message={deactivateConfirm ? deactivateConfirm.message : 'Ce qu’il ajoute s’arrête. Ses réglages et ses données sont gardés : le réactiver remet tout en place.'}
         confirmLabel={deactivateConfirm ? deactivateConfirm.label : 'Désactiver'}
@@ -304,7 +304,7 @@ export default function PluginCard({
       <ConfirmDialog
         open={confirmActivate}
         onClose={() => setConfirmActivate(false)}
-        onConfirm={() => { setConfirmActivate(false); act('activate', { withRequirements: true }); }}
+        onConfirm={() => { setConfirmActivate(false); act('activate', { withRequirements: actions.activate.alsoActivates.map((a) => a.id) }); }}
         title={activateConfirm ? activateConfirm.title : ''}
         message={activateConfirm ? activateConfirm.message : ''}
         confirmLabel={activateConfirm ? activateConfirm.label : ''}
@@ -313,7 +313,7 @@ export default function PluginCard({
       <ConfirmDialog
         open={confirmRequirements}
         onClose={() => setConfirmRequirements(false)}
-        onConfirm={() => { setConfirmRequirements(false); act('install', { withRequirements: true }); }}
+        onConfirm={() => { setConfirmRequirements(false); act('install', { withRequirements: requirements.map((r) => r.id) }); }}
         title={offer && offer.confirm ? offer.confirm.title : ''}
         message={offer && offer.confirm ? offer.confirm.message : ''}
         confirmLabel={offer && offer.confirm ? offer.confirm.label : ''}

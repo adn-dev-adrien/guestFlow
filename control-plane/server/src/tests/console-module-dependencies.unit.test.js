@@ -71,7 +71,7 @@ test('rule 18: switching on with withRequirements switches the requirement on fi
   modules.toggle(env.id, 'sas', false, 'op');
   const before = moduleLines(env).length;
   env.now.set('2026-09-29T11:00:00Z');
-  const view = modules.toggle(env.id, 'weather-alerts', true, 'adrien@adn-dev.fr', { withRequirements: true });
+  const view = modules.toggle(env.id, 'weather-alerts', true, 'adrien@adn-dev.fr', { withRequirements: ['sas'] });
   assert.equal(lineOf(view, 'sas').on && lineOf(view, 'weather-alerts').on, true);
   const added = moduleLines(env).slice(0, moduleLines(env).length - before);
   assert.deepEqual(added.sort(), [`${name('weather-alerts')} activé`, `${name('sas')} activé`].sort());
@@ -85,7 +85,7 @@ test('rule 18: switching off with withDependents switches the dependants off fir
   const env = await essentiel();
   const { modules } = env.ctx.controllers;
   const before = moduleLines(env).length;
-  const view = modules.toggle(env.id, 'sas', false, 'op', { withDependents: true });
+  const view = modules.toggle(env.id, 'sas', false, 'op', { withDependents: ['weather-alerts'] });
   assert.equal(lineOf(view, 'sas').on || lineOf(view, 'weather-alerts').on, false);
   const lines = moduleLines(env);
   assert.equal(lines.length - before, 2);
@@ -97,7 +97,7 @@ test('rule 18: switching off with withDependents switches the dependants off fir
 test('rule 18: a flag changes nothing when there is nothing to take along', async () => {
   const env = await essentiel();
   const { modules } = env.ctx.controllers;
-  const view = modules.toggle(env.id, 'school-holidays', false, 'op', { withDependents: true, withRequirements: true });
+  const view = modules.toggle(env.id, 'school-holidays', false, 'op', { withDependents: ['x'], withRequirements: ['y'] });
   assert.equal(lineOf(view, 'school-holidays').on, false);
   assert.equal(moduleLines(env).filter((t) => t.endsWith('désactivé')).length, 1);
   env.cleanup();
@@ -187,7 +187,7 @@ test('rule 18: the flags travel in the body of the switch route, and only a lite
     await call('/api/auth/verify', { code });
     const url = `/api/customers/${env.id}/modules/sas`;
     assert.equal((await call(url, { on: false, withDependents: 'true' })).status, 422);
-    const done = await call(url, { on: false, withDependents: true });
+    const done = await call(url, { on: false, withDependents: ['weather-alerts'] });
     assert.equal(done.status, 200);
     assert.equal(lineOf(done.body, 'weather-alerts').on, false);
   } finally {
@@ -235,6 +235,17 @@ test('rule 19: a requirement the plan does not license is never offered in « Ac
   assert.deepEqual(line.alsoOn, []);
   assert.equal(line.confirm, null);
   assert.equal(line.switchBlockedBy, `Nécessite ${name('sas')}, hors forfait.`);
-  assert.throws(() => modules.toggle(env.id, 'weather-alerts', true, 'op', { withRequirements: true }), (e) => e.status === 422);
+  assert.throws(() => modules.toggle(env.id, 'weather-alerts', true, 'op', { withRequirements: ['sas'] }), (e) => e.status === 422);
+  env.cleanup();
+});
+
+test('rule 22: the confirmed ids must be the closure now — a different list, or a bare flag, takes nobody along', async () => {
+  const env = await essentiel();
+  const { modules } = env.ctx.controllers;
+  for (const given of [['sas', 'school-holidays'], [], true, 'sas']) {
+    assert.throws(() => modules.toggle(env.id, 'sas', false, 'op', { withDependents: given }), (e) => e.status === 422 && /weather-alerts|Nécessaire|La liste a changé/.test(e.message), JSON.stringify(given));
+  }
+  assert.throws(() => modules.toggle(env.id, 'sas', false, 'op', { withDependents: ['school-holidays'] }), (e) => e.status === 422 && e.body.error === 'CONFIRMATION_STALE');
+  assert.equal(moduleLines(env).filter((t) => t.endsWith('désactivé')).length, 0);
   env.cleanup();
 });

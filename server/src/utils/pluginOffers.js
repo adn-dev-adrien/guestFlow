@@ -22,6 +22,7 @@ const MESSAGES = Object.freeze({
   PACKAGE_REJECTED: 'Le paquet reçu ne correspond pas à sa signature — rien n’a été modifié.',
   DOWNLOAD_FAILED: 'Téléchargement impossible — rien n’a été modifié.',
   UPDATE_IN_PROGRESS: 'Mise à jour déjà en cours.',
+  CONFIRMATION_STALE: 'La liste a changé : relire, puis confirmer à nouveau.',
   RESTART_UNAVAILABLE: 'Redémarrage automatique indisponible sur cette installation : rien n’a été modifié.',
   NO_UPDATE: 'Aucune mise à jour disponible.',
   NO_ROLLBACK: 'Aucune version précédente à restaurer.',

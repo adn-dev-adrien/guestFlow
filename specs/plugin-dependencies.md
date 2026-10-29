@@ -153,14 +153,14 @@ explicit confirmation, or says why it is refused *before* the click.
     under the same confirmation. A requirement absent from the tree is refused `REQUIREMENT_MISSING`.
     The views of available plugins carry the same `offer.requirements` there, so the card asks the
     same question in both modes.
-11. **Activate pulls inactive requirements** (Q3, same answer as rule 9). `POST /:id/activate` with `withRequirements: true`
+11. **Activate pulls inactive requirements** (Q3, same answer as rule 9). `POST /:id/activate` with `withRequirements` (the confirmed ids, rule 22)
     activates the closure of inactive requirements first, then the plugin. Without the flag, and with
     a requirement off, the answer stays 409 `REQUIREMENT_INACTIVE` (rule 37) and now carries
     `requirements: [{ id, name }]`. A requirement **not installed** is refused (`REQUIREMENT_MISSING`,
     « Nécessite X : à installer d'abord. »): installing is the card's « Installer », never a side
     effect of « Activer ».
 12. **Deactivate takes the active dependants along — with explicit confirmation** (Q1).
-    `POST /:id/deactivate` with `withDependents: true` deactivates the closure of **active**
+    `POST /:id/deactivate` with `withDependents` (the confirmed ids, rule 22) deactivates the closure of **active**
     dependants first (deepest first), then the plugin. All or nothing: if one of them is refused by
     a business blocker (`blockerFor`), nothing moves and the answer names that plugin and its reason.
     Without the flag the answer stays 409 `REQUIRED_BY` (rule 36) with `dependents: [{ id, name }]` —
@@ -192,9 +192,9 @@ explicit confirmation, or says why it is refused *before* the click.
     come from the console's own choice and the plan (« éteint » for an off module, not an `outOfRange`:
     the space does not report versions to the console).
 18. **The console's switches take the linked modules along, with confirmation.** Switching on a module
-    whose requirement is off opens « Activer aussi X ? » and sends `{ on: true, withRequirements: true }`;
+    whose requirement is off opens « Activer aussi X ? » and sends `{ on: true, withRequirements: [ids] }` (rule 22);
     switching off a module that switched-on modules require lists them in the existing switch-off
-    dialog and sends `{ on: false, withDependents: true }`. Without the flag the 422s stay as today.
+    dialog and sends `{ on: false, withDependents: [ids] }` (rule 22). Without the flag the 422s stay as today.
     One audit line per module moved, one licence issued. The reconciler then applies the licence in
     graph order (unchanged `planSteps`).
 19. **The console refuses an incoherent plan** (closes H4, Q6). A plan or add-on composition
@@ -212,6 +212,25 @@ explicit confirmation, or says why it is refused *before* the click.
     guidés. ». The CHANGELOG fragment (`changed`) says that a space with weather-alerts and without
     the SAS sees it « Nécessite Arrivée et départ guidés » after the update, data kept. The other
     implicit links of §1.4 stay undeclared (Q7).
+
+### 3.F Audit round 2 (2026-10-29)
+
+21. **`cycleOf` answers for every member of a strongly connected group.** `cycles()` still reports one
+    cycle per group (from its smallest id), but `cycleOf(id)` returns that cycle when `id` is on it and
+    otherwise the shortest cycle through `id` inside its group. The loader marks every member of a
+    group `REQUIREMENT_CYCLE` (« Dépendance circulaire »), not only those on the reported path, and
+    `activate` / the card's `blockedBy` refuse every member. Test: `plugin-graph-scc.unit.test.js`
+    (including a brute-force property test over random graphs).
+22. **A cascade carries the ids the operator confirmed.** `withRequirements` (install, activate) and
+    `withDependents` (deactivate) are lists of plugin ids, taken from what the card showed
+    (`offer.requirements`, `actions.activate.alsoActivates`, `actions.deactivate.alsoDeactivates`). The
+    server recomputes the closure and compares the sets: equal, it goes ahead; different (a plugin
+    changed state between the GET and the click), or a bare boolean, it answers 409 `CONFIRMATION_STALE`
+    (« La liste a changé : relire, puis confirmer à nouveau. ») with the current `requirements`, and
+    moves nothing. No list is still the proposal (rules 9, 11, 12). The Plugins page re-reads the list
+    after a stale refusal. The console's switch (rule 18) does the same with its own closure and a 422
+    `CONFIRMATION_STALE`. Tests: `plugin-confirmed-ids.unit.test.js`,
+    `console-module-dependencies.unit.test.js`, `PluginsPage.stale-confirmation.test.jsx`.
 
 **Edge cases:**
 - A requirement installed from the registry at a newer version whose own manifest changed its
@@ -283,11 +302,11 @@ explicit confirmation, or says why it is refused *before* the click.
 | Method | Endpoint | Request body | Response | Notes |
 |---|---|---|---|---|
 | GET | `/api/plugins` | — | each view + `dependencies: { requires: [{ id, name, range, status, label, updateAvailable }], usedBy: [{ id, name, state }] }`, `actions: { activate, deactivate, uninstall }` each `{ allowed, blockedBy, alsoActivates?: [{id,name}], alsoDeactivates?: [{id,name}] }` | Additive. Managed space: unchanged minimal list. |
-| POST | `/api/plugins/:id/install` | `{ withRequirements? }` | view, `reload` | 409 `REQUIREMENTS` lines gain `op: 'install' \| 'activate'`; 409 `REQUIREMENT_CYCLE`. |
-| POST | `/api/plugins/:id/activate` | `{ withRequirements? }` | view | 409 `REQUIREMENT_INACTIVE` + `requirements`; 409 `REQUIREMENT_MISSING`. |
-| POST | `/api/plugins/:id/deactivate` | `{ withDependents? }` | view | 409 `REQUIRED_BY` + `dependents`; 409 `PLUGIN_BLOCKED` naming the dependant on a cascade. |
+| POST | `/api/plugins/:id/install` | `{ withRequirements?: string[] }` | view, `reload` | 409 `REQUIREMENTS` lines gain `op: 'install' \| 'activate'`; 409 `REQUIREMENT_CYCLE`. |
+| POST | `/api/plugins/:id/activate` | `{ withRequirements?: string[] }` | view | 409 `CONFIRMATION_STALE`; 409 `REQUIREMENT_INACTIVE` + `requirements`; 409 `REQUIREMENT_MISSING`. |
+| POST | `/api/plugins/:id/deactivate` | `{ withDependents?: string[] }` | view | 409 `CONFIRMATION_STALE`; 409 `REQUIRED_BY` + `dependents`; 409 `PLUGIN_BLOCKED` naming the dependant on a cascade. |
 | DELETE | `/api/plugins/:id` | — | unchanged | Refusal unchanged, now announced by `actions.uninstall`. |
-| POST | console `/api/customers/:id/modules/:pluginId` | `{ on, withRequirements?, withDependents? }` | the GET payload | 422s unchanged without the flag. |
+| POST | console `/api/customers/:id/modules/:pluginId` | `{ on, withRequirements?: string[], withDependents?: string[] }` | the GET payload | 422s unchanged without the flag. |
 | PUT | console plan / add-on composition | unchanged | unchanged | 422 `REQUIREMENT_NOT_IN_PLAN`. |
 
 All admin-only, as today.
