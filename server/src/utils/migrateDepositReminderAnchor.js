@@ -34,17 +34,24 @@ function runDepositReminderAnchorMigration(db) {
     ? `UPDATE email_templates
           SET name = ?, subject = ?, body = ?, subjectEn = ?, bodyEn = ?,
               anchor = ?, dayOffset = ?, sendMode = ?, updatedAt = datetime('now')
-        WHERE stableKey = 'deposit_reminder'`
+        WHERE stableKey = 'deposit_reminder'
+          AND (name IS NOT ? OR subject IS NOT ? OR body IS NOT ? OR subjectEn IS NOT ? OR bodyEn IS NOT ?
+               OR anchor IS NOT ? OR dayOffset IS NOT ? OR sendMode IS NOT ?)`
     : `UPDATE email_templates
           SET name = ?, subject = ?, body = ?,
               anchor = ?, dayOffset = ?, sendMode = ?, updatedAt = datetime('now')
-        WHERE stableKey = 'deposit_reminder'`;
+        WHERE stableKey = 'deposit_reminder'
+          AND (name IS NOT ? OR subject IS NOT ? OR body IS NOT ?
+               OR anchor IS NOT ? OR dayOffset IS NOT ? OR sendMode IS NOT ?)`;
   const params = hasEn
     ? [def.name, def.subject, def.body, def.subjectEn || '', def.bodyEn || '', def.anchor, Number(def.dayOffset), def.sendMode]
     : [def.name, def.subject, def.body, def.anchor, Number(def.dayOffset), def.sendMode];
 
-  const info = db.prepare(sql).run(...params);
-  return { action: Number(info.changes) > 0 ? 'updated' : 'not_found' };
+  // Written only when a column actually differs: a re-run must not move `updatedAt`.
+  const info = db.prepare(sql).run(...params, ...params);
+  if (Number(info.changes) > 0) return { action: 'updated' };
+  const exists = db.prepare("SELECT 1 FROM email_templates WHERE stableKey = 'deposit_reminder'").get();
+  return { action: exists ? 'unchanged' : 'not_found' };
 }
 
 module.exports = { runDepositReminderAnchorMigration };
