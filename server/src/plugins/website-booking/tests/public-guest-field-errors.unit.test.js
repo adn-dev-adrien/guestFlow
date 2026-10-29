@@ -29,7 +29,7 @@ test('an empty e-mail is a missing field, not a malformed one — and its issue 
 });
 
 test('the sentences exist in English too, and the summary message is impersonal in both', () => {
-  assert.deepEqual(labels('en').fieldErrors, { required: 'Required.', emailInvalid: 'Incomplete email address.' });
+  assert.deepEqual(labels('en').fieldErrors, { required: 'Required.', emailInvalid: 'Incomplete email address.', tooLong: 'Text too long.' });
   assert.equal(labels('fr').errors.clientInvalid, 'Coordonnées incomplètes ou invalides.');
   assert.equal(labels('en').errors.clientInvalid, 'Contact details incomplete or invalid.');
 });
@@ -90,4 +90,18 @@ test('POST /booking-requests: 422 with one message per refused field, in the pag
   assert.deepEqual(en.body.error.details, [
     { field: 'guest.firstName', issue: 'required', reason: 'required', message: 'Required.' },
   ]);
+});
+
+// specs/public-api.md rule 20 (audit 2026-10-28, injection finding 2) — a name or phone of 40 000 characters used to be stored and
+// flow into every e-mail, PDF and CSV: refused at the boundary, field by field.
+test('a first name, last name, phone or e-mail past its cap is refused with its own field error', () => {
+  const ok = validateGuest({ firstName: 'a'.repeat(100), lastName: 'b'.repeat(100), email: 'a@b.fr', phone: '6'.repeat(40) });
+  assert.equal(ok.ok, true, 'the caps themselves are accepted');
+  const bad = validateGuest({ firstName: 'a'.repeat(101), lastName: 'b'.repeat(40009), email: 'a@b.fr', phone: '6'.repeat(41) });
+  assert.deepEqual(bad.errors.map((e) => [e.field, e.reason]), [
+    ['guest.firstName', 'tooLong'], ['guest.lastName', 'tooLong'], ['guest.phone', 'tooLong'],
+  ]);
+  const out = withFieldMessages(bad.errors, labels('fr').fieldErrors);
+  assert.equal(out[0].message, 'Texte trop long.');
+  assert.equal(validateGuest({ firstName: 'A', lastName: 'B', email: `${'a'.repeat(250)}@b.fr`, phone: '06' }).errors[0].reason, 'tooLong');
 });

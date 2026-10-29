@@ -72,7 +72,11 @@ function resolveRequestType(row, requested = null) {
 // When resolveItems yields components, the link is created as a VAT basket (specs/payment-links-vat.md):
 // Qonto shows the real TVA while the charged total stays exactly amountCents. Absent/mismatched → the
 // legacy single 0 %-VAT line (total-only) is used, so the charged amount is never at risk.
-async function ensurePaymentLink(deps, id, type) {
+function ensurePaymentLink(deps, id, type) {
+  return withLinkLock(`reservation:${Number(id)}:${type}`, () => mintPaymentLink(deps, id, type));
+}
+
+async function mintPaymentLink(deps, id, type) {
   const { database, paymentLinksModel, resolveAmountCents, provider, resolveItems } = deps;
   const deactivateLinks = deps.deactivateLinks
     || ((links) => require('./paymentLinkDeactivation').deactivateAbandonedLinks(links, { paymentLinksModel, providerFor: () => provider }));
@@ -141,19 +145,19 @@ async function ensurePaymentLink(deps, id, type) {
 // that installment is reused while it bills the current amount; a stale one is retired and deactivated at
 // the provider before the new one is minted, so the old URL can no longer be paid.
 //   deps: ensurePaymentLink deps + { installmentsModel }
-// Rule 40 — one installment is asked for at a time: two clicks (or a click and a queue entry) on the same
+// Rule 40 — one installment (and, for a reservation or devis, one link of a type) is asked for at a time: two clicks (or a click and a queue entry) on the same
 // installment run one after the other, so the second finds the first's link and mints nothing.
-const installmentLocks = new Map();
-async function withInstallmentLock(installmentId, work) {
-  const previous = installmentLocks.get(installmentId) || Promise.resolve();
+const linkLocks = new Map();
+async function withLinkLock(key, work) {
+  const previous = linkLocks.get(key) || Promise.resolve();
   const run = previous.catch(() => {}).then(work);
   const tail = run.catch(() => {});
-  installmentLocks.set(installmentId, tail);
-  try { return await run; } finally { if (installmentLocks.get(installmentId) === tail) installmentLocks.delete(installmentId); }
+  linkLocks.set(key, tail);
+  try { return await run; } finally { if (linkLocks.get(key) === tail) linkLocks.delete(key); }
 }
 
 function ensureInstallmentLink(deps, id, installmentId) {
-  return withInstallmentLock(Number(installmentId), () => mintInstallmentLink(deps, id, installmentId));
+  return withLinkLock(`installment:${Number(installmentId)}`, () => mintInstallmentLink(deps, id, installmentId));
 }
 
 async function mintInstallmentLink(deps, id, installmentId) {

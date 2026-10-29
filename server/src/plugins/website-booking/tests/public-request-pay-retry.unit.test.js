@@ -2,8 +2,8 @@ require('./isolatedDb');
 // specs/public-request-abuse-and-grouping.md rule 27 (re-review of PR #805) — a guest who opened the
 // payment page, came back, changed the party and pays again must pay the new stay: the payment link
 // the guest's own drawer made does not make the quote « touched » for the holder of its token. The
-// quote is updated and re-priced, and the next payment retires the old link at the provider before a
-// new one is minted at the new amount.
+// quote is updated and re-priced, and the update retires the old link (deactivated at the provider after the commit);
+// the next payment mints a new one at the new amount.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
@@ -63,10 +63,14 @@ test('rule 27: back from the payment page with a new party, the token holder\'s 
   assert.ok(cents(id) > firstCents, 're-priced');
   assert.equal(Math.round(d.finalPrice * 100), cents(id), 'the answer carries the new price');
 
-  // The next payment: the old link is cancelled at the provider, a new one minted at the new amount.
+  // Audit 2026-10-28 — the update itself retires the old link (it cannot be paid at the old price
+  // while the quote asks the new one); the next payment only mints a link at the new amount.
+  const retired = paymentLinksModel.findById(oldLink.id);
+  assert.equal(retired.status, 'cancelled');
+  assert.equal(retired.cancelReason, 'amount-changed');
   const newLink = await ensurePaymentLink(deps, id, 'full');
   assert.equal(newLink.amountCents, cents(id));
-  assert.deepEqual(calls, [['create', firstCents], ['cancel', firstCents], ['create', cents(id)]]);
+  assert.deepEqual(calls, [['create', firstCents], ['create', cents(id)]]);
 });
 
 test('rule 27: without the token, the same quote with a guest link is not changed (rule 21 stands)', async () => {

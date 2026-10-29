@@ -1,7 +1,7 @@
 {
   "id": "booking-intake",
   "name": "Saisie Booking",
-  "version": "1.3.4",
+  "version": "1.3.5",
   "description": "Remplit les fiches Booking depuis la page de la réservation, ouverte dans l’extranet.",
   "icon": "bookmark",
   "surfaces": [
@@ -50,6 +50,10 @@
     ],
     "1.3.4": [
       "Une fiche refusée par GuestFlow ne laisse plus de fiche client derrière elle : le client du voyageur est créé dans la même opération que la mise à jour de la fiche (SDK 2.7 de GuestFlow)."
+    ],
+    "1.3.5": [
+      "Lecture des montants de la page Booking plus rapide sur une ligne démesurée.",
+      "Compatible avec le SDK 2.7 de GuestFlow."
     ]
   }
 }

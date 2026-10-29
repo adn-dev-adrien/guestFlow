@@ -10,6 +10,7 @@
  *   markErased(orderId, at)             → remembers it
  *   appliedLicence() / setAppliedLicence(issuedAt)
  *   highestIssuedAt() / setHighestIssuedAt(issuedAt)   the newest licence ever acted on (rule 33)
+ *   setCapabilities(obj)                → what this core understands (rule 40): { removalOrders, coreVersion }
  *   setFacts(id, facts | null)          → what the console cannot compute itself: the setup a plugin still
  *                                         lacks and the data lines it would erase (rules 14, 22)
  */
@@ -41,6 +42,11 @@ function buildModel(database) {
     setAppliedLicence: (issuedAt) => { metaSet.run('appliedLicenceIssuedAt', issuedAt); },
     highestIssuedAt: () => (metaGet.get('highestIssuedAt') || {}).value || null,
     setHighestIssuedAt: (issuedAt) => { metaSet.run('highestIssuedAt', issuedAt); },
+    setCapabilities(capabilities) {
+      const value = JSON.stringify(capabilities);
+      const current = metaGet.get('capabilities');
+      if (!current || current.value !== value) metaSet.run('capabilities', value);
+    },
     setFacts(id, facts) {
       const key = `facts:${id}`;
       if (facts === null) { metaDelete.run(key); return; }

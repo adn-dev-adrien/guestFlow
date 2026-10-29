@@ -149,7 +149,7 @@ function guestMessagePending(lines) {
 function findAmount(lines, labelRe) {
   const line = lines.find((l) => labelRe.test(l));
   if (!line) return null;
-  const all = [...line.matchAll(/€\s*[\d .,]+|[\d .,]+\s*€/g)];
+  const all = [...line.matchAll(/€\s{0,3}[\d .,]{1,24}|[\d .,]{1,24}\s{0,3}€/g)];
   return all.length ? parseAmount(all[all.length - 1][0]) : null;
 }
 

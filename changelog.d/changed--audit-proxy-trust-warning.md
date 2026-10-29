@@ -1,0 +1,1 @@
+- **`X-Forwarded-For` trust documented** (spec `hosting-h1-fleet-runtime.md` rule 35, audit 2026-10-28): `TRUST_PROXY_HOPS` without `GUESTFLOW_PROXY_SECRET` logs a `[security]` warning at boot. Behaviour and production defaults unchanged.
