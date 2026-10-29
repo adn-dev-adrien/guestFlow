@@ -253,6 +253,14 @@ choice in one click.
     parsed but failed to apply is never re-read, nor is a row the operator dismissed. Same in `airbnb-intake`. Test: same file.
 
 29. **The mail must open with the centrale's sentence** (audit R2 external N4, 2026-10-29). « Une nouvelle réservation a été effectuée pour votre logement N » as the FIRST line naming a « nouvelle réservation », before the « Réservation n° » line (a relayed text sits after it); a mail with another first line is refused. Same delivery assumption as airbnb-mail-intake rule 29: auto-apply needs direct delivery to the trusted server, and is tested on Gmail only. The subject template is not checked (unknown wording, open decision). Test: `gites-de-france-intake/tests/opening-line.unit.test.js`.
+30. **A pass downloads each mail once, and holds none** (audit r3, external N5, 2026-10-29; amends rules 3 and
+    25). The reader (SDK 2.15.0) takes `seen(messageId)` — a known Message-ID is skipped before its body is
+    downloaded — `onMail(mail)` — each mail is handed over as it is read, none is kept — and `limit` (the service
+    passes 200: a pass downloads at most 200 bodies, newest first). A mail of another kind from the centrale
+    (« Autre type de mail ») and a part over 256 KB (`skipped: 'tooLarge'`, « Mail trop volumineux ») are
+    remembered as `ignored` rows, out of every list, and read again when the plugin's version changes (rule 25).
+    Heap and downloads are bounded however many mails were forged. Tests: `tests/mail-reader-flood.unit.test.js`,
+    `gites-de-france-intake/tests/mail-flood.unit.test.js`.
 
 ---
 

@@ -4,7 +4,10 @@
  * mailbox is opened with `readOnly`, nothing is flagged, moved or deleted — the operator's mail client
  * still sees every message as it was.
  *
- * Returns `[{ messageId, receivedAt, sentAt, subject, text, authenticated, authReason }]`, the text being
+ * Rule 30 (audit r3, external N5): the caller may pass `seen(messageId)` — a known mail is skipped before its
+ * body is downloaded —, `onMail(mail)` — each mail is handed over as it is read and none is kept, the
+ * function then returns `[]` — and `limit` (default 200) — at most that many bodies per pass, newest first.
+ * Without `onMail` it returns `[{ messageId, receivedAt, sentAt, subject, text, authenticated, authReason }]`, the text being
  * the plain-text part, or the HTML part reduced to text when the mail has no plain part.
  *
  * A mail is returned only when its header From address IS the sender (the IMAP search is a
@@ -132,9 +135,13 @@ function resolveImapHost(smtpHost, configured) {
 
 const coreSmtpHost = () => require('./coreServices').settings.mailbox().host;
 
+// Rule 30 (audit r3, external N5) — a pass downloads at most this many bodies, newest first.
+const MAX_MAILS_PER_PASS = 200;
+
 async function readMailsFrom({
   host, port = 993, user, password, sender, allowedDomains = null, trustedAuthservId = '',
   sinceDays = 30, now = new Date(), ImapClient = ImapFlow, smtpHostOf = coreSmtpHost, log = () => {},
+  seen = () => false, onMail = null, limit = MAX_MAILS_PER_PASS,
 }) {
   const smtpHost = smtpHostOf();
   const domains = toList(allowedDomains).length ? allowedDomains : domainOf(sender);
@@ -148,26 +155,34 @@ async function readMailsFrom({
     const since = new Date(now.getTime() - sinceDays * 24 * 3600 * 1000);
     const uids = await client.search({ from: sender, since }, { uid: true });
     const out = [];
-    for (const uid of uids || []) {
+    // `onMail` receives each mail as it is read and the reader keeps none; without it the mails are
+    // returned in one array. An oversized part is handed over as `{ skipped: 'tooLarge', text: '' }` so the
+    // caller can remember it; the array leaves it out.
+    const deliver = onMail || ((mail) => { if (!mail.skipped) out.push(mail); });
+    let delivered = 0;
+    for (const uid of [...(uids || [])].reverse()) {
+      if (delivered >= limit) break;
       const msg = await client.fetchOne(String(uid), { envelope: true, bodyStructure: true, internalDate: true, headers: ['authentication-results'] }, { uid: true });
       if (!msg || !addressMatches(msg.envelope, sender)) continue;
+      const messageId = (msg.envelope && msg.envelope.messageId) || `uid:${uid}`;
+      if (seen(messageId)) continue;
+      delivered += 1;
       const auth = verifyDkim(msg.headers, { domains, trustedAuthservId: trusted });
       const plainPart = findPart(msg.bodyStructure, 'text/plain');
       const htmlPart = plainPart ? null : findPart(msg.bodyStructure, 'text/html');
       const partId = plainPart || htmlPart;
       const raw = partId ? await readPart(client, uid, partId) : '';
-      if (raw && raw.tooLarge) {
-        log(`mail intake: ${(msg.envelope && msg.envelope.messageId) || `uid:${uid}`} skipped, its text part is over ${MAX_PART_BYTES} bytes (read ${raw.tooLarge}+)`);
-        continue;
-      }
-      out.push({
-        messageId: (msg.envelope && msg.envelope.messageId) || `uid:${uid}`,
+      const tooLarge = Boolean(raw && raw.tooLarge);
+      if (tooLarge) log(`mail intake: ${messageId} skipped, its text part is over ${MAX_PART_BYTES} bytes (read ${raw.tooLarge}+)`);
+      await deliver({ // eslint-disable-line no-await-in-loop
+        messageId,
         receivedAt: new Date(msg.internalDate || (msg.envelope && msg.envelope.date) || now).toISOString(),
         sentAt: new Date((msg.envelope && msg.envelope.date) || msg.internalDate || now).toISOString(),
         subject: (msg.envelope && msg.envelope.subject) || '',
-        text: plainPart ? raw : htmlToText(raw),
+        text: tooLarge ? '' : (plainPart ? raw : htmlToText(raw)),
         authenticated: auth.ok,
         authReason: auth.reason,
+        ...(tooLarge ? { skipped: 'tooLarge' } : {}),
       });
     }
     return out;
@@ -195,4 +210,4 @@ async function testConnection({ host, port = 993, user, password, ImapClient = n
   }
 }
 
-module.exports = { MAX_PART_BYTES, readPart, readMailsFrom, testConnection, htmlToText, imapHostFor, resolveImapHost, connectionOptions };
+module.exports = { MAX_PART_BYTES, MAX_MAILS_PER_PASS, readPart, readMailsFrom, testConnection, htmlToText, imapHostFor, resolveImapHost, connectionOptions };

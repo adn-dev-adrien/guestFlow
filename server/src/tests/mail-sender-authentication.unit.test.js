@@ -141,10 +141,10 @@ test('the reader drops a display-name spoof, flags a missing or failing signatur
   ];
   const mails = await reader(messages);
   assert.deepEqual(mails.map((m) => [m.messageId, m.authenticated, m.authReason]), [
-    ['<1@test>', true, 'dkim-pass'],
-    ['<3@test>', false, 'no-authentication-results'],
-    ['<4@test>', false, 'dkim-not-pass'],
     ['<5@test>', false, 'dkim-domain-mismatch'],
+    ['<4@test>', false, 'dkim-not-pass'],
+    ['<3@test>', false, 'no-authentication-results'],
+    ['<1@test>', true, 'dkim-pass'],
   ]);
 });
 

@@ -34,7 +34,7 @@ function setup({
       giteNumbers: () => ({ 1: '309700' }),
       autoApply: () => autoApply,
     },
-    readMails: async (cfg) => { calls.readWith = cfg; return mails.map((m) => ({ authenticated: true, ...m })); },
+    readMails: async (cfg, h) => { calls.readWith = cfg; calls.handlers = h; for (const m of mails) if (!h.seen(m.messageId)) await h.onMail({ authenticated: true, ...m }); },
     findReservations: findReservations || (({ propertyIds, startDate, endDate }) => reservations
       .filter((r) => propertyIds.includes(r.propertyId) && startDate === '2026-11-13' && endDate === '2026-11-15')),
     commissionPercent: () => rate,

@@ -408,6 +408,16 @@ Optional: a plugin that declares nothing reads « Actif ».
     component that mounts another plugin's contributed `Component` itself (the SAS dialog's plugin steps) wraps
     it in `<Contribution pluginId>`: the same error boundary and `Suspense` as `<Slot>` (phase 4 rule 39, 44).
     The `sas` plugin needs it, so its manifest asks for `sdk ^2.14.0`. Test: `Contribution.isolation.test.jsx`.
+30. *(Added 2026-10-29, audit round 3, external N5, SDK 2.15.0.)* **`sdk.mailbox.readMailsFrom` takes `seen`,
+    `onMail` and `limit`.** Additive options (a MINOR bump): `seen(messageId)` skips a known mail before its
+    body is downloaded, `onMail(mail)` receives each mail as it is read (the function then returns `[]`) and an
+    oversized part arrives as `{ skipped: 'tooLarge', text: '' }`, `limit` (default 200) caps the bodies
+    downloaded per call, newest first — the returned array is newest first too. Without `onMail` the array is
+    returned as before, the oversized mail left out. The injected `readMails` of the intake plugins therefore takes
+    `(config, { seen, onMail, limit })`. Tests: `tests/mail-reader-flood.unit.test.js`.
+31. *(Added 2026-10-29, audit round 3, N-0, SDK 2.15.0.)* **`sdk.manifestVersion(__dirname)`** returns the
+    running plugin's version, from the manifest in the plugin folder (source tree) or one level up (package).
+    Test: `plugin-built-package-manifest.unit.test.js`.
 
 **Edge cases:**
 - **A plugin throws during `register`.** Rule 4 applies: the other plugins and the core boot. The Plugins

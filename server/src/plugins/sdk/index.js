@@ -133,6 +133,14 @@ module.exports = Object.freeze({
   calendar: Object.freeze({
     frenchPublicHolidays: (...args) => require('../../utils/frenchHolidays').getFrenchPublicHolidays(...args),
   }),
+  // The version of the running plugin (audit r3, N-0): its manifest sits next to `server/` in a package and
+  // next to `index.js` in the source tree; `dir` is the plugin's `__dirname`.
+  manifestVersion: (dir) => {
+    const fs = require('fs');
+    const path = require('path');
+    const at = [path.join(dir, 'manifest.json'), path.join(dir, '..', 'manifest.json')].find((f) => fs.existsSync(f));
+    return JSON.parse(fs.readFileSync(at, 'utf8')).version;
+  },
   // Read-only IMAP for the plugins that read booking mails (specs/airbnb-mail-intake.md rule 4).
   mailbox: Object.freeze({
     readMailsFrom: (...args) => require('./mailboxReader').readMailsFrom(...args),

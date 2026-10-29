@@ -25,7 +25,7 @@ function setup(mails) {
       listings: () => [[1, '1234567890123456789']],
       autoApply: () => true,
     },
-    readMails: async (cfg) => { calls.readWith = cfg; return mails; },
+    readMails: async (cfg, h) => { calls.readWith = cfg; for (const m of mails) if (!h.seen(m.messageId)) await h.onMail(m); },
     findReservations: () => [PLACEHOLDER],
     propertyOptions: () => [],
     getReservation: () => ({ ...PLACEHOLDER, notes: '', options: [] }),

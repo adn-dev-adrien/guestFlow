@@ -1,7 +1,7 @@
 {
   "id": "website-booking",
   "name": "Réservation depuis le site",
-  "version": "1.8.5",
+  "version": "1.8.6",
   "description": "Le moteur de réservation du site WordPress.",
   "icon": "language",
   "surfaces": [
@@ -13,7 +13,7 @@
   ],
   "requires": [],
   "guestflow": ">=3.10.0 <4.0.0",
-  "sdk": "^2.5.0",
+  "sdk": "^2.15.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
@@ -108,6 +108,10 @@
     "1.8.5": [
       "Une demande de réservation avec une adresse e-mail démesurée est refusée aussitôt sans bloquer le serveur ; les caractères invisibles sont retirés des noms.",
       "Compatible avec le SDK 2.5 de GuestFlow."
+    ],
+    "1.8.6": [
+      "Une adresse e-mail démesurée ou en plusieurs adresses est refusée par le contrôle rapide du cœur de GuestFlow : le paquet exige désormais un GuestFlow qui l’embarque.",
+      "Compatible avec le SDK 2.15 de GuestFlow."
     ]
   }
 }

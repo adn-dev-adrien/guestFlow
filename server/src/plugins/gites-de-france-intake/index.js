@@ -58,7 +58,7 @@ function register(ctx) {
 
   const service = () => createIntakeService({
     intakes: intakes(),
-    parserVersion: require('./manifest.json').version,
+    parserVersion: sdk.manifestVersion(__dirname),
     settings: {
       mailbox: mailboxConfig,
       sender: () => ctx.settings.get('senderAddress'),
@@ -66,7 +66,7 @@ function register(ctx) {
       giteNumbers: () => JSON.parse(ctx.settings.get('giteNumbers') || '{}'),
       autoApply: () => String(ctx.settings.get('autoApply')) !== '0',
     },
-    readMails: (cfg) => sdk.mailbox.readMailsFrom({ ...cfg, log: (line) => ctx.log.warn(line) }),
+    readMails: (cfg, handlers) => sdk.mailbox.readMailsFrom({ ...cfg, ...handlers, log: (line) => ctx.log.warn(line) }),
     findReservations: ({ propertyIds, startDate, endDate }) => ctx.db.prepare(`
       SELECT id, propertyId, platform, kind, sourceType, icalSyncLocked, platformGrossAmount, cancelledAt FROM reservations
       WHERE propertyId IN (${propertyIds.map(() => '?').join(',')}) AND startDate = ? AND endDate = ?`)

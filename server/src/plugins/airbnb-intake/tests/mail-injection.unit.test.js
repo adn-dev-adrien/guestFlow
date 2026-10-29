@@ -105,7 +105,7 @@ function service(text, { authenticated = true } = {}) {
   const svc = createIntakeService({
     intakes,
     settings: { mailbox: () => ({ host: 'h', user: 'u', password: 'p' }), sender: () => 's', listings: () => [[1, '1234567890123456789']], autoApply: () => true },
-    readMails: async () => [{ messageId: '<x>', receivedAt: SENT_AT, sentAt: SENT_AT, subject: SUBJECT, authenticated, text }],
+    readMails: async (cfg, h) => { if (!h.seen('<x>')) await h.onMail({ messageId: '<x>', receivedAt: SENT_AT, sentAt: SENT_AT, subject: SUBJECT, authenticated, text }); },
     findReservations: ({ startDate, endDate }) => rows.filter((r) => r.startDate === startDate && r.endDate === endDate),
     propertyOptions: () => [],
     getReservation: (id) => ({ ...rows.find((r) => r.id === id), notes: '', options: [] }),

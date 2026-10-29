@@ -398,6 +398,27 @@ below are the recommended ones; each is reversible in a later spec.
     difference under the same version (« Bump the version »); it never copies a downloaded package into
     `plugins-dist/` or `SHA256SUMS`. Test: `plugin-packages-release.unit.test.js`; see
     `self-update-and-releases.md` rule 48.
+50. **A restart owed by a step makes every later install of the plan wait for the boot** (audit r3,
+    N-R3-4, 2026-10-29). Once a step of `installFromPackages` needs the restart (a requirement loaded at
+    another version), each later `install` step only writes its row and its package and marks
+    `hooks_pending`: it is not registered live and its install hook does not run now, so a dependant's
+    `onInstall` never runs against the old requirement code (rules 4 and 48). Test:
+    `plugin-restart-requirements-first.unit.test.js`.
+51. **A plugin that rests on a hardening of the core asks for the SDK that ships it** (audit r3, N-R3-1,
+    2026-10-29). `website-booking` 1.8.6, `booking-intake` 1.3.8, `airbnb-intake` 1.1.3 and
+    `gites-de-france-intake` 1.4.5 declare `sdk ^2.15.0` (the linear e-mail check of `settingsValidation`,
+    the DKIM « en-tête douteux » refusal, the mailbox reader's caps), so an older core refuses the package
+    (`CORE_INCOMPATIBLE`, « Incompatible avec cette version ») instead of running without them. The floor is
+    the SDK, not `guestflow >=3.19.0`: it exists on the integration branch before the core release it will
+    ride, so it loads in development and in CI, and it names the feature actually needed. Test:
+    `plugin-core-hardening-floor.unit.test.js`.
+52. **A plugin never `require`s its own `manifest.json`** (audit r3, N-0, 2026-10-29; a regression of
+    round 1). In a built package the code sits under `server/` and the manifest at the package root, so
+    `require('./manifest.json')` threw `MODULE_NOT_FOUND` there: the mail intakes' pass, attention line and
+    fiche block (500) all broke in production. A plugin reads its version with `sdk.manifestVersion(__dirname)`
+    (SDK 2.15.0: the manifest beside `index.js` in the source tree, beside `server/` in a package).
+    `airbnb-intake` 1.1.3 and `gites-de-france-intake` 1.4.5 use it. Test:
+    `plugin-built-package-manifest.unit.test.js` builds the packages and loads them from the extracted layout.
 
 ---
 
