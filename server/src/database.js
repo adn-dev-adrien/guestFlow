@@ -45,6 +45,15 @@ try {
   );
 }
 
+// The tourist tax as stored the moment the arrival complement was collected (specs/reservation-save-keeps-pricing.md rule 4):
+// stamped by the triggers of schema.sql in the statement that flips `complementPaid`. The column must exist
+// before any boot migration touches `complementPaid`, so an upgraded database gets it right after the
+// baseline pass (a fresh one already has it). NULL on rows collected before it existed.
+if (!db.prepare('PRAGMA table_info(reservations)').all().some((c) => c.name === 'complementCollectedTax')) {
+  db.exec('ALTER TABLE reservations ADD COLUMN complementCollectedTax REAL');
+}
+
+
 // ---------- CALENDAR NOTES ----------
 db.exec(`
   CREATE TABLE IF NOT EXISTS calendar_notes (
@@ -2103,26 +2112,6 @@ db.prepare("UPDATE repair_amounts SET label = 'Plomb manquant' WHERE repairKey =
   if (!rcols.includes('touristTaxFrozenBaseHt')) db.exec('ALTER TABLE reservations ADD COLUMN touristTaxFrozenBaseHt REAL');
   if (!rcols.includes('touristTaxFrozenOccupants')) db.exec('ALTER TABLE reservations ADD COLUMN touristTaxFrozenOccupants INTEGER');
   if (!rcols.includes('touristTaxFrozenUnitAmount')) db.exec('ALTER TABLE reservations ADD COLUMN touristTaxFrozenUnitAmount REAL');
-  // The tourist tax as stored the moment the arrival complement was collected (specs/reservation-save-keeps-pricing.md
-  // rule 4): a tax that falls afterwards leaves the complement above the stay total, and the refund of that
-  // excess belongs on the tax poste. Stamped by a trigger, so every payment path — the fiche, the SAS, the
-  // payments page, a plugin — writes it in the very statement that flips `complementPaid`. NULL on a row
-  // collected before the column existed (it falls back to the history) and on an uncollected one.
-  if (!rcols.includes('complementCollectedTax')) db.exec('ALTER TABLE reservations ADD COLUMN complementCollectedTax REAL');
-  db.exec(`
-    CREATE TRIGGER IF NOT EXISTS reservations_stamp_complement_collected_tax
-    AFTER UPDATE OF complementPaid ON reservations
-    WHEN NEW.complementPaid = 1 AND COALESCE(OLD.complementPaid, 0) = 0
-    BEGIN UPDATE reservations SET complementCollectedTax = NEW.touristTaxTotal WHERE id = NEW.id; END;
-    CREATE TRIGGER IF NOT EXISTS reservations_stamp_complement_collected_tax_insert
-    AFTER INSERT ON reservations
-    WHEN NEW.complementPaid = 1
-    BEGIN UPDATE reservations SET complementCollectedTax = NEW.touristTaxTotal WHERE id = NEW.id; END;
-    CREATE TRIGGER IF NOT EXISTS reservations_clear_complement_collected_tax
-    AFTER UPDATE OF complementPaid ON reservations
-    WHEN COALESCE(NEW.complementPaid, 0) = 0 AND OLD.complementPaid = 1
-    BEGIN UPDATE reservations SET complementCollectedTax = NULL WHERE id = NEW.id; END;
-  `);
   // SAS completion markers (specs/arrival-departure-sas.md §3.0): set on commit so the planning
   // card disables the SAS button once done (no accidental re-run).
   if (!rcols.includes('arrivalSasDoneAt')) db.exec("ALTER TABLE reservations ADD COLUMN arrivalSasDoneAt TEXT");

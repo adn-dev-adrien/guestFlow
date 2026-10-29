@@ -172,7 +172,7 @@ changed something the price depends on; money collected beyond the total is repo
 
 ## 5. Data model
 
-`reservations.complementCollectedTax REAL NULL` and its three triggers (`database.js`, idempotent): the tourist tax
+`reservations.complementCollectedTax REAL NULL` and its three triggers (`schema.sql`; `database.js` adds the column to an upgraded database right after the baseline pass): the tourist tax
 as stored when the arrival complement was collected. Legacy rows stay NULL.
 
 ## 6. UI / UX
