@@ -590,6 +590,10 @@ every change still writes the journal, the secret still never leaves the server 
     (`updatePassword`, and the administrator's `resetUserPassword`), every unused `password_reset_tokens` row
     of that user is voided (`usedAt` set). A link mailed to the old address stops working the moment the
     address or the password changes.
+64. **The assistant's login change ends the other sessions too** (added 2026-10-29, audit r3 L1). Rule 59's
+    « the user's OTHER sessions end » also applies when `PUT /api/onboarding/company` with `useAsLogin: true`
+    rewrites the login email: the other sessions are revoked (`revokeOtherSessionsForUser`) and
+    `req.session.user` is refreshed, exactly as on « Mon compte ». Test: `onboarding-login-opt-in.unit.test.js`.
 
 ---
 
