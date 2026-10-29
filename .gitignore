@@ -148,6 +148,7 @@ control-plane/server/data/
 *.db-wal
 *.bak
 server/uploads/
+server/private-documents/
 
 # Self-update engine state (specs/self-update-and-releases.md §5). In production these live in
 # ~/guestflow/data/; in a dev tree the data directory IS server/, so they land here.
