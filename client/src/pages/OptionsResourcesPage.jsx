@@ -12,7 +12,7 @@
  * tabs) stays drawn (specs/ds-tabs.md rule 12).
  */
 
-import React, { Suspense } from 'react';
+import React from 'react';
 import { useSearchParams } from 'react-router';
 import { Box } from '@mui/material';
 import PageTabs from '../components/PageTabs';
@@ -20,6 +20,7 @@ import PageBarFallback from '../components/PageBarFallback';
 import OptionsPage from './OptionsPage';
 import ResourcesPage from './ResourcesPage';
 import { useSlot } from '../plugins/sdk/useSlot';
+import { Contribution } from '../plugins/sdk/Slot';
 
 const CORE_ITEMS = [
   { value: 'options', label: 'Options' },
@@ -47,7 +48,7 @@ export default function OptionsResourcesPage() {
     <Box>
       {tab === 'options' && <OptionsPage barTabs={barTabs} />}
       {tab === 'resources' && <ResourcesPage barTabs={barTabs} />}
-      {Contributed && <Suspense fallback={<PageBarFallback title={active.label} tabs={barTabs} withSave />}><Contributed barTabs={barTabs} /></Suspense>}
+      {Contributed && <Contribution pluginId={active.pluginId} fallback={<PageBarFallback title={active.label} tabs={barTabs} withSave />}><Contributed barTabs={barTabs} /></Contribution>}
     </Box>
   );
 }

@@ -153,7 +153,7 @@ test('rule 11: withRequirements switches the requirements on first, then the plu
   const order = [];
   const real = model.setEnabled;
   model.setEnabled = (id, on) => { if (on) order.push(id); return real(id, on); };
-  const res = await h.call(ctrl.activate, { params: { id: GVR }, body: { withRequirements: true } });
+  const res = await h.call(ctrl.activate, { params: { id: GVR }, body: { withRequirements: [WB] } });
   assert.equal(res.statusCode, 200);
   assert.deepEqual(order, [WB, GVR]);
   assert.equal(model.get(WB).enabled, true);
@@ -171,7 +171,7 @@ test('rule 11: the cascade is transitive and ordered, deepest requirement first'
   ['sas', WEATHER, WB].forEach((id) => ctx.model.setEnabled(id, false));
   const real = ctx.model.setEnabled;
   ctx.model.setEnabled = (id, on) => { if (on) order.push(id); return real(id, on); };
-  const res = await h.call(ctx.ctrl.activate, { params: { id: WEATHER }, body: { withRequirements: true } });
+  const res = await h.call(ctx.ctrl.activate, { params: { id: WEATHER }, body: { withRequirements: [WB, SAS] } });
   assert.equal(res.statusCode, 200);
   assert.deepEqual(order, [WB, SAS, WEATHER]);
 });
@@ -179,7 +179,7 @@ test('rule 11: the cascade is transitive and ordered, deepest requirement first'
 test('rule 11: a requirement not installed is never installed by « Activer », flag or not', async () => {
   const { ctrl, model } = release({ installed: [row(GVR, '1.0.2', { manifest: feed() })] });
   model.setEnabled(GVR, false);
-  const res = await h.call(ctrl.activate, { params: { id: GVR }, body: { withRequirements: true } });
+  const res = await h.call(ctrl.activate, { params: { id: GVR }, body: { withRequirements: [WB] } });
   assert.equal(res.statusCode, 409);
   assert.equal(res.body.error, 'REQUIREMENT_MISSING');
   assert.match(res.body.message, /^Nécessite .+ : à installer d’abord\.$/);
@@ -195,7 +195,7 @@ test('rule 11: a requirement the licence does not allow stops the cascade and no
   });
   ctx.model.setEnabled(GVR, false);
   ctx.model.setEnabled(WB, false);
-  const res = await h.call(ctrl.activate, { params: { id: GVR }, body: { withRequirements: true } });
+  const res = await h.call(ctrl.activate, { params: { id: GVR }, body: { withRequirements: [WB] } });
   assert.equal(res.statusCode, 409);
   assert.equal(res.body.error, 'REQUIREMENT_OUT_OF_PLAN');
   assert.equal(ctx.model.get(WB).enabled, false);
@@ -221,7 +221,7 @@ test('rule 11: all or nothing — a migration that fails switches back what the 
   ctx.model.setEnabled(WB, false);
   const quiet = console.error;
   console.error = () => {};
-  const res = await h.call(ctrl.activate, { params: { id: GVR }, body: { withRequirements: true } });
+  const res = await h.call(ctrl.activate, { params: { id: GVR }, body: { withRequirements: [WB] } });
   console.error = quiet;
   assert.equal(res.statusCode, 500);
   assert.equal(res.body.error, 'PLUGIN_MIGRATION_FAILED');
@@ -250,7 +250,7 @@ test('rule 12: withDependents switches the active dependants off first, deepest 
   const order = [];
   const real = ctx.model.setEnabled;
   ctx.model.setEnabled = (id, on) => { if (!on) order.push(id); return real(id, on); };
-  const res = await h.call(ctx.ctrl.deactivate, { params: { id: WB }, body: { withDependents: true } });
+  const res = await h.call(ctx.ctrl.deactivate, { params: { id: WB }, body: { withDependents: [SAS, WEATHER] } });
   assert.equal(res.statusCode, 200);
   assert.deepEqual(order, [WEATHER, SAS, WB]);
   assert.deepEqual([WB, SAS, WEATHER].map((id) => ctx.model.get(id).enabled), [false, false, false]);
@@ -260,7 +260,7 @@ test('rule 12: all or nothing — a business blocker on a dependant refuses the 
   const pay = h.manifest(PAY, '1.0.0', { requires: req('^1.7.1') });
   const ctx = release({ installed: [row(WB, '1.8.3', { manifest: site() }), row(GVR, '1.0.2', { manifest: feed() }), row(PAY, '1.0.0', { manifest: pay })], bundled: [site(), feed(), pay] });
   ctx.db.prepare("INSERT INTO payment_links (status) VALUES ('open'), ('open')").run();
-  const res = await h.call(ctx.ctrl.deactivate, { params: { id: WB }, body: { withDependents: true } });
+  const res = await h.call(ctx.ctrl.deactivate, { params: { id: WB }, body: { withDependents: [GVR, PAY] } });
   assert.equal(res.statusCode, 409);
   assert.equal(res.body.error, 'PLUGIN_BLOCKED');
   assert.equal(res.body.plugin, PAY);
@@ -271,7 +271,7 @@ test('rule 12: all or nothing — a business blocker on a dependant refuses the 
 test('rule 12: the reconciler never passes the flag — its deactivation keeps the 409', async () => {
   const { ctrl, model } = release({ installed: both });
   const res = { statusCode: 200, status(c) { this.statusCode = c; return this; }, json(b) { this.body = b; return this; } };
-  ctrl.deactivate({ params: { id: WB }, body: { withDependents: true }, query: {}, reconciling: true }, res);
+  ctrl.deactivate({ params: { id: WB }, body: { withDependents: [GVR] }, query: {}, reconciling: true }, res);
   assert.equal(res.statusCode, 409);
   assert.equal(res.body.error, 'REQUIRED_BY');
   assert.equal(model.get(GVR).enabled, true);
@@ -290,7 +290,7 @@ test('rule 12: a dependant out of plan is not live, so it neither blocks nor fol
 
 test('rule 13: after a cascade the dependants stay off — activating the requirement again re-activates no one', async () => {
   const { ctrl, model } = release({ installed: both });
-  await h.call(ctrl.deactivate, { params: { id: WB }, body: { withDependents: true } });
+  await h.call(ctrl.deactivate, { params: { id: WB }, body: { withDependents: [GVR] } });
   assert.equal(model.get(GVR).enabled, false);
   const res = await h.call(ctrl.activate, { params: { id: WB } });
   assert.equal(res.statusCode, 200);

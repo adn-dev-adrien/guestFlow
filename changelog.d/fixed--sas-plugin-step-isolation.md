@@ -1,0 +1,1 @@
+- plugin:sas A plugin step that throws no longer stops the arrival and departure sas (1.7.3, needs SDK 2.14).

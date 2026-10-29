@@ -84,10 +84,13 @@ export default function ModulesSection({ customerId, slug, onChanged }) {
     setBusy(true);
     setBusyId(line.id);
     try {
-      setView(await api.toggleModule(customerId, line.id, on, ...(along.length ? [on ? { withRequirements: true } : { withDependents: true }] : [])));
+      setView(await api.toggleModule(customerId, line.id, on, ...(along.length ? [on ? { withRequirements: along.map((a) => a.id) } : { withDependents: along.map((a) => a.id) }] : [])));
       if (onChanged) onChanged();
     } catch (err) {
-      if (err.status === 422) setRefusal({ id: line.id, message: err.message });
+      if (err.status === 422) {
+        setRefusal({ id: line.id, message: err.message });
+        load();
+      }
       else showError(err.message);
     } finally {
       setOptimistic((o) => { const next = { ...o }; delete next[line.id]; return next; });

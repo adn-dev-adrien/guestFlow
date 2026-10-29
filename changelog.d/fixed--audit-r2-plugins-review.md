@@ -1,0 +1,1 @@
+- **Plugins**: switching a plugin on brings up the plugins that were waiting for it and reloads the page; a plugin still waiting names the requirement still missing; the hooks owed after a restart run requirements first; an install or activation hook that never settles is given up on after 120 s instead of holding the plugin lock.
