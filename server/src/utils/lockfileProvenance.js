@@ -1,8 +1,8 @@
 /**
  * Provenance check of a release's `server/package-lock.json`, run before any `npm ci`
  * (specs/self-update-and-releases.md rule 39). `--ignore-scripts` does not stop a git dependency's
- * `prepare`, nor the explicit rebuild of a package merely *named* `sharp` or `better-sqlite3`; a
- * lockfile in which every entry comes from the public npm registry with an integrity hash does.
+ * `prepare`; a lockfile in which every entry comes from the public npm registry with an integrity hash
+ * does. A release carrying an `npm-shrinkwrap.json` or an `.npmrc` is refused outright.
  */
 
 const fs = require('fs');
@@ -29,8 +29,16 @@ function lockfileViolations(lock) {
   return out;
 }
 
+// Files npm would honour in place of, or on top of, the lockfile we check: a shrinkwrap wins over
+// package-lock.json, and a project .npmrc can re-enable scripts or point at another registry.
+const FORBIDDEN_FILES = [['server', 'npm-shrinkwrap.json'], ['server', '.npmrc'], ['release root', '.npmrc']];
+
 /** Throws `LOCKFILE_UNTRUSTED:<first offender>` when the release's lockfile is missing or not clean. */
 function assertLockfileProvenance(serverDir) {
+  FORBIDDEN_FILES.forEach(([where, name]) => {
+    const dir = where === 'server' ? serverDir : path.dirname(serverDir);
+    if (fs.existsSync(path.join(dir, name))) throw new Error(`LOCKFILE_UNTRUSTED:${where === 'server' ? 'server/' : ''}${name} present`);
+  });
   let lock;
   try {
     lock = JSON.parse(fs.readFileSync(path.join(serverDir, 'package-lock.json'), 'utf8'));

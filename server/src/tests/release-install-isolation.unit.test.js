@@ -131,3 +131,17 @@ test('every child of the install gets a minimal environment, the proxy settings 
     fs.rmSync(root, { recursive: true, force: true });
   }
 }));
+
+test('a shrinkwrap or an .npmrc in the release is refused: npm would read them instead of the checked lockfile (rule 39)', async () => {
+  for (const [file, where] of [['npm-shrinkwrap.json', 'server'], ['.npmrc', 'server'], ['.npmrc', '.']]) {
+    const { root, releaseDir } = writeRelease(clean());
+    fs.writeFileSync(path.join(releaseDir, where, file), file === '.npmrc' ? 'ignore-scripts=false\n' : JSON.stringify({ lockfileVersion: 3, packages: { '': {}, 'node_modules/x': { resolved: 'git+ssh://git@github.com/evil/repo.git#abc' } } }));
+    const calls = [];
+    try {
+      await assert.rejects(installDependencies({ releaseDir, execFileImpl: async (...a) => { calls.push(a); } }), new RegExp(`^Error: LOCKFILE_UNTRUSTED:.*${file.replace('.', '\\.')}`));
+      assert.deepEqual(calls, []);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  }
+});

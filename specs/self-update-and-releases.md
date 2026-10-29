@@ -324,7 +324,9 @@ signed-off releases over HTTPS, when the operator asks for it.
 39. **A release's install runs no script and starts from a trusted lockfile** (audit 2026-10-28, H1).
     Before any `npm` runs, `server/package-lock.json` must exist and every entry must resolve from
     `https://registry.npmjs.org/` with an `integrity` hash: a git, file, link or http dependency, another
-    host, or a missing hash refuses the release (`LOCKFILE_UNTRUSTED`). That closes what `--ignore-scripts`
+    host, or a missing hash refuses the release (`LOCKFILE_UNTRUSTED`). A release carrying `server/npm-shrinkwrap.json` (npm would use it instead of the checked
+    lockfile) or an `.npmrc` in `server/` or at the release root (it could re-enable scripts or change the
+    registry) is refused the same way. That closes what `--ignore-scripts`
     leaves open — a git dependency's `prepare`, and a look-alike package named `sharp` or `better-sqlite3`.
     The install is then `npm ci --omit=dev --ignore-scripts` with a minimal environment: `PATH`, the proxy
     variables (`HTTPS_PROXY`, `HTTP_PROXY`, `NO_PROXY`, `NODE_EXTRA_CA_CERTS`), a throw-away `HOME` inside the
