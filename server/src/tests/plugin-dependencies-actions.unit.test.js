@@ -4,6 +4,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const h = require('./pluginPackagesFixture');
+const { skipWithout } = require('../plugins/sdk/testing');
 const { createController } = require('../controllers/pluginsController');
 const { findPlugin } = require('../constants/plugins');
 
@@ -108,7 +109,8 @@ test('rule 8: deactivate lists the active dependants it takes along; an inactive
   assert.deepEqual((await views())[WB].actions.deactivate.alsoDeactivates, []);
 });
 
-test('rule 8: deactivate is refused up front when a plugin it would take along has a business blocker', async () => {
+// specs/plugin-removal-resilience.md rule 18 — reaches online-payment's blocker through the controller, so it skips without it.
+test('rule 8: deactivate is refused up front when a plugin it would take along has a business blocker', { skip: skipWithout([PAY]) }, async () => {
   const pay = h.manifest(PAY, '1.0.0', { requires: req('^1.7.1') });
   const { views, db } = release({ installed: [row(WB, '1.8.3', { manifest: site() }), row(PAY, '1.0.0', { manifest: pay })], bundled: [site(), pay] });
   db.prepare("INSERT INTO payment_links (status) VALUES ('open')").run();
@@ -256,7 +258,8 @@ test('rule 12: withDependents switches the active dependants off first, deepest 
   assert.deepEqual([WB, SAS, WEATHER].map((id) => ctx.model.get(id).enabled), [false, false, false]);
 });
 
-test('rule 12: all or nothing — a business blocker on a dependant refuses the whole cascade and names it', async () => {
+// specs/plugin-removal-resilience.md rule 18
+test('rule 12: all or nothing — a business blocker on a dependant refuses the whole cascade and names it', { skip: skipWithout([PAY]) }, async () => {
   const pay = h.manifest(PAY, '1.0.0', { requires: req('^1.7.1') });
   const ctx = release({ installed: [row(WB, '1.8.3', { manifest: site() }), row(GVR, '1.0.2', { manifest: feed() }), row(PAY, '1.0.0', { manifest: pay })], bundled: [site(), feed(), pay] });
   ctx.db.prepare("INSERT INTO payment_links (status) VALUES ('open'), ('open')").run();

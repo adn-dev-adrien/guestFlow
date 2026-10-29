@@ -60,8 +60,7 @@ engine then subtracts its own estimate of the tax (6 adults × 2 nuits × 1,20 �
 
 The entry still balances, which is why nothing ever flagged it: it is wrong by 14,40 € on both sides.
 
-Booking makes the same subtraction unsafe for a second reason. Its guest-side breakdown for Lydianne
-Romeo (17–19 July 2026) reads `Sous-total 1 267,32` + `Taxe de séjour 4.4 % = 16,02` =
+Booking makes the same subtraction unsafe for a second reason. Its guest-side breakdown for Mireille Garnier (17–19 July 2026) reads `Sous-total 1 267,32` + `Taxe de séjour 4.4 % = 16,02` =
 `1 283,34`. GuestFlow's own estimate for that stay is 19,20 € (8 adultes × 2 nuits × 1,20 €). Even
 when a platform's total *does* include the tax, our estimate is not the platform's number, so
 subtracting it can never reconcile. The measured impact across the dev copy of prod: 13 reservations,
