@@ -1,0 +1,1 @@
+- **iCal feed import is bounded and public-only** (spec `ical-import-hardening.md` rule 17). Feeds over 5 MB are refused; loopback, private and link-local addresses (literal, resolved or reached by redirect) are refused unless `GUESTFLOW_ICAL_ALLOW_PRIVATE=1` is set for a dev box.

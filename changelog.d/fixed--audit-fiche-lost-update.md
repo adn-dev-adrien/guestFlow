@@ -1,0 +1,1 @@
+- **The fiche no longer overwrites a background change** (spec `reservation-fiche-concurrency.md`). Saving a fiche opened before an import, a mail intake or another tab changed the stay is refused with « Fiche modifiée entre-temps » and a choice to reload or keep the draft.

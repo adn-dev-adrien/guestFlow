@@ -1,0 +1,1 @@
+- **A new stay's own night blocks count against closures** (spec `establishment-closures.md` rule 17). A check-out at 17:00 or later the day a closure starts (or a check-in at 10:00 or earlier the day it ends) is now refused.

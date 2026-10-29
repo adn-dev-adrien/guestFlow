@@ -1,4 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { DATA_CHANGED_EVENT } from '../constants/appEvents';
+import { versionAfterOwnWrite } from '../utils/ficheVersion';
 import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router';
 import {
   Box, TextField, Autocomplete, Button, FormControl, InputLabel, Select,
@@ -235,6 +237,19 @@ export default function ReservationPage() {
   const [pluginBlocks, setPluginBlocks] = useState({});
   // Bumped by a plugin banner that changed the reservation server-side: re-runs the page load.
   const [reloadToken, setReloadToken] = useState(0);
+  // The `updatedAt` this fiche was built on, sent back on save: the server refuses a save made on an
+  // older version instead of reverting what an import, a mail or another tab wrote meanwhile.
+  const loadedUpdatedAtRef = useRef(null);
+  // « Enregistrer quand même » : the one save that goes without the version, an explicit overwrite.
+  const overwriteOnceRef = useRef(false);
+  useEffect(() => {
+    if (!reservationId) return undefined;
+    const adoptOwnWrites = (event) => {
+      loadedUpdatedAtRef.current = versionAfterOwnWrite(reservationId, loadedUpdatedAtRef.current, event.detail);
+    };
+    window.addEventListener(DATA_CHANGED_EVENT, adoptOwnWrites);
+    return () => window.removeEventListener(DATA_CHANGED_EVENT, adoptOwnWrites);
+  }, [reservationId]);
   const [restoring, setRestoring] = useState(false);
   // Where a cancelled fiche keeps its « Nouveau remboursement » button, outside the disabled fieldset.
   const [refundHost, setRefundHost] = useState(null);
@@ -833,6 +848,7 @@ export default function ReservationPage() {
         // Load reservation details if editing
         if (reservationId) {
           const res = await api.getReservation(reservationId).catch(markMissingLookup);
+          loadedUpdatedAtRef.current = res.updatedAt || null;
           setExistingReservationLocked(Boolean(res.editLock?.locked));
           setEditLock(res.editLock || null);
           setPastUnlocked(false);
@@ -2437,6 +2453,7 @@ export default function ReservationPage() {
       } else if (reservationId) {
         await api.updateReservation(reservationId, {
           ...unlockPayload,
+          loadedUpdatedAt: overwriteOnceRef.current ? undefined : (loadedUpdatedAtRef.current || undefined),
           propertyId: Number(selectedProp),
           clientId: form.clientId,
           // '' = keep the existing number; a non-empty value is an override (unique-checked server-side).
@@ -2505,9 +2522,11 @@ export default function ReservationPage() {
           resources: quote.resourceLines,
         });
         setInitialSnapshot(formSnapshot);
+        const overwritten = overwriteOnceRef.current;
+        overwriteOnceRef.current = false;
         ledgerEditMarkerRef.current = null;
         // Rule 7 — the stored ledger is what the fiche shows once clean again: re-read it after a save.
-        api.getReservation(reservationId).then((r) => { setStoredLedger(r.ledger || null); setStoredHeadline(r.storedHeadline || null); setStoredSummary(r.storedSummary || null); setInstallmentPlan(r.installmentPlan || null); }).catch(() => {});
+        api.getReservation(reservationId).then((r) => { if (overwritten) loadedUpdatedAtRef.current = r.updatedAt || null; setStoredLedger(r.ledger || null); setStoredHeadline(r.storedHeadline || null); setStoredSummary(r.storedSummary || null); setInstallmentPlan(r.installmentPlan || null); }).catch(() => {});
         if (safeAfterSaveAction) {
           safeAfterSaveAction();
           // The page stays open: refetch so the server's `editLock` (floors, window) is fresh. Only on a
@@ -2635,6 +2654,23 @@ export default function ReservationPage() {
         });
         if (proceed) {
           return await handleSaveReservation(safeAfterSaveAction, forceMinNights, forceCapacity, forceChangeover, true, forceOverpayment);
+        }
+        return false;
+      }
+      if (err?.code === 'STALE_FICHE') {
+        overwriteOnceRef.current = false;
+        const choice = await confirm({
+          title: 'Fiche modifiée entre-temps',
+          message: 'Recharger efface la saisie en cours. Enregistrer écrase la version à jour.',
+          confirmLabel: 'Recharger',
+          secondaryLabel: 'Enregistrer quand même',
+          cancelLabel: 'Annuler',
+          confirmColor: 'warning',
+        });
+        if (choice === true) setReloadToken((token) => token + 1);
+        if (choice === 'secondary') {
+          overwriteOnceRef.current = true;
+          return await handleSaveReservation(safeAfterSaveAction, forceMinNights, forceCapacity, forceChangeover, forceMaxNights, forceOverpayment);
         }
         return false;
       }

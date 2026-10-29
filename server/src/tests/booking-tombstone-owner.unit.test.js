@@ -7,6 +7,7 @@ const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
 const propertyIcalModel = require('../models/propertyIcalModel');
+const { globalFetch } = require('./icalFetchFixture');
 const icalExportRangesModel = require('../models/icalExportRangesModel');
 const icalCancellationModel = require('../models/icalCancellationModel');
 const { mergePlatformDuplicates } = require('../utils/platformMerge');
@@ -84,7 +85,7 @@ function fresh() {
   db.prepare("INSERT INTO properties (id, name, defaultCheckIn, defaultCheckOut, defaultCautionAmount) VALUES (1, 'Gite', '15:00', '10:00', 0)").run();
   const insertSource = db.prepare('INSERT INTO ical_sources (id, propertyId, name, platformKey, platformLabel) VALUES (?, 1, ?, ?, ?)');
   for (const s of [BOOKING, GREENGO, LODGIFY]) insertSource.run(s.id, s.name, s.platformKey, s.platformLabel);
-  return { db, model: propertyIcalModel.buildModel(db), ranges: icalExportRangesModel.create(db) };
+  return { db, model: propertyIcalModel.buildModel(db, { fetchImpl: globalFetch }), ranges: icalExportRangesModel.create(db) };
 }
 const stayOn = (db, startDate) => db.prepare("SELECT * FROM reservations WHERE startDate = ? AND kind = 'reservation'").all(startDate);
 
@@ -127,7 +128,6 @@ test('rule 14 — the incident: a cancelled Booking stay re-booked with the same
 
   stubFetch([ANCHOR, STAY]);
   const r = await model.syncSource(BOOKING);
-  assert.equal(r.echoSkippedCount, 0);
   assert.equal(r.createdCount, 1);
   const [resa] = stayOn(db, '2026-11-06');
   assert.equal(resa.sourceIcalSourceId, 12);
@@ -141,11 +141,10 @@ test('rule 14 — re-booked under a new UID, it is created too', async () => {
 
   stubFetch([ANCHOR, closed('new-uid@booking.com', '20261106', '20261108')]);
   const r = await model.syncSource(BOOKING);
-  assert.equal(r.echoSkippedCount, 0);
   assert.equal(stayOn(db, '2026-11-06').length, 1);
 });
 
-test('rule 14 — non-regression: a cancelled GreenGo stay still covers the Booking echo for 72 h', async () => {
+test('rule 14 — a cancelled GreenGo stay still covers the dates for 72 h: the Booking stay is created and flagged', async () => {
   const { db, model, ranges } = fresh();
   db.prepare("INSERT INTO reservations (id, propertyId, startDate, endDate, platform, sourceType, sourceIcalSourceId) VALUES (50, 1, '2026-11-06', '2026-11-08', 'Greengo', 'ical', 7)").run();
   ranges.refresh(1);
@@ -153,11 +152,11 @@ test('rule 14 — non-regression: a cancelled GreenGo stay still covers the Book
 
   stubFetch([closed('ghost@booking.com', '20261106', '20261108')]);
   const r = await model.syncSource(BOOKING);
-  assert.equal(r.echoSkippedCount, 1);
-  assert.equal(stayOn(db, '2026-11-06').length, 0);
+  assert.equal(r.createdCount, 1);
+  assert.equal(r.conflictReservationIds.length, 1);
 });
 
-test('rule 14 — non-regression: a deleted hand-entered stay (no owner) still covers the Booking echo', async () => {
+test('rule 14 — a deleted hand-entered stay (no owner) still covers the dates: created and flagged', async () => {
   const { db, model, ranges } = fresh();
   db.prepare("INSERT INTO reservations (id, propertyId, startDate, endDate, platform, sourceType) VALUES (51, 1, '2026-11-06', '2026-11-08', 'Direct', 'manual')").run();
   ranges.refresh(1);
@@ -165,7 +164,8 @@ test('rule 14 — non-regression: a deleted hand-entered stay (no owner) still c
 
   stubFetch([closed('ghost@booking.com', '20261106', '20261108')]);
   const r = await model.syncSource(BOOKING);
-  assert.equal(r.echoSkippedCount, 1);
+  assert.equal(r.createdCount, 1);
+  assert.equal(r.conflictReservationIds.length, 1);
 });
 
 test('rule 14 — a tombstone written before the upgrade (no owner) keeps covering, as before', async () => {
@@ -174,8 +174,8 @@ test('rule 14 — a tombstone written before the upgrade (no owner) keeps coveri
 
   stubFetch([STAY]);
   const r = await model.syncSource(BOOKING);
-  assert.equal(r.echoSkippedCount, 1);
-  assert.equal(stayOn(db, '2026-11-06').length, 0);
+  assert.equal(r.createdCount, 1);
+  assert.equal(r.conflictReservationIds.length, 1);
 });
 
 test('rule 14 — a stay taken over by Booking then cancelled leaves a tombstone under Booking, even before the export is served again', async () => {
@@ -200,7 +200,6 @@ test('rule 14 — a stay taken over by Booking then cancelled leaves a tombstone
 
   stubFetch([ANCHOR, STAY]);
   const back = await model.syncSource(BOOKING);
-  assert.equal(back.echoSkippedCount, 0);
   assert.equal(stayOn(db, '2026-11-06').length, 1);
 });
 

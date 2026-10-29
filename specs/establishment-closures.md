@@ -69,6 +69,13 @@ UI redesign: replace `DataPageScaffold` with the shared `PageActionBar` (sticky 
 14. The reservation routes (`POST /api/reservations` and `PUT /api/reservations/:id`) **must reject** reservations that fall on a covered period. This requires a small addition to the existing reservation creation/update validation. Returns `409 CLOSURE_COVERS_DATE` with a French message naming the closure label + range. (Today this validation does NOT exist because the closures feature itself never ran.)
 15. The `getOccupiedDates` endpoint (`GET /api/reservations/occupied-dates/:propertyId`) **is extended** to include dates covered by an applicable closure (global or per-property targeting the queried property). Shape kept as `string[]` for backward compatibility — closure dates are appended like reservation-occupied dates. The Calendar uses this to block drag-create on those dates.
 16. The Calendar page (`/calendar`) renders closures as **gray striped bands** spanning the closure range, visually distinct from reservation bands. The user sees at a glance that those dates are off-limits. Loaded via a new filterable `GET /api/establishment-closures?propertyId=X&from=Y&to=Z` query so the Calendar only fetches what it needs for the visible month.
+17. **The reservation check reads the stay's own night blocks** _(fixed 2026-10-28, audit)_. Rule 14's
+    covering-closure test of a new or moved stay used the bare `startDate` / `endDate`, while the overlap
+    with other stays and closure creation (rule 8) use the effective range. A stay checking out at 17:00 or
+    later the day a closure starts took the closure's first night and passed; a check-in at 10:00 or
+    earlier the day a closure ends likewise. `validateAvailability` now passes the effective range
+    (early check-in → previous night, late check-out → next night) to `findCoveringClosure`. Test:
+    `tests/reservation-closure-night-blocks.unit.test.js`.
 
 ## 4. Architecture
 

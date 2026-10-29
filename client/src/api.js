@@ -35,6 +35,15 @@ function request(path, options = {}) {
   return shared.promise.then((body) => (first || body == null ? body : structuredClone(body)));
 }
 
+// The stay a write touched and its version before / after (specs/reservation-fiche-concurrency.md rule 4),
+// so an open fiche can tell its own writes from a foreign one.
+function ficheVersionOf(path, res) {
+  const match = /^\/reservations\/(\d+)(?:[/?]|$)/.exec(path);
+  const before = res.headers && res.headers.get ? res.headers.get('X-Fiche-Version-Before') : null;
+  const after = res.headers && res.headers.get ? res.headers.get('X-Fiche-Version-After') : null;
+  return match && before !== null && after !== null ? { reservationId: Number(match[1]), before, after } : null;
+}
+
 async function send(path, options = {}) {
   const res = await fetch(`${API}${path}`, {
     headers: options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' },
@@ -65,7 +74,9 @@ async function send(path, options = {}) {
   // its « À traiter » (specs/shell-and-home-day-first.md rule 11).
   // A POST that writes nothing (`readOnly`, e.g. the SAS arrival preview) moves no count.
   const method = String(options.method || 'GET').toUpperCase();
-  if (method !== 'GET' && method !== 'HEAD' && !options.readOnly) window.dispatchEvent(new CustomEvent(DATA_CHANGED_EVENT));
+  if (method !== 'GET' && method !== 'HEAD' && !options.readOnly) {
+    window.dispatchEvent(new CustomEvent(DATA_CHANGED_EVENT, { detail: ficheVersionOf(path, res) }));
+  }
   if (res.status === 204) return null;
   return res.json();
 }

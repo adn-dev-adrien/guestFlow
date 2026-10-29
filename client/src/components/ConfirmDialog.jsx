@@ -11,6 +11,9 @@ import React from 'react';
 import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Typography, useMediaQuery } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 
+// Touch targets are at least 44 px (CLAUDE.md, responsive rules).
+const TOUCH_TARGET = { minHeight: 44 };
+
 export default function ConfirmDialog({
   open,
   onClose,
@@ -39,11 +42,11 @@ export default function ConfirmDialog({
           '& > :not(style) ~ :not(style)': { ml: { xs: 0, sm: 1 } },
         } : undefined}
       >
-        <Button onClick={onClose}>{cancelLabel}</Button>
+        <Button onClick={onClose} sx={TOUCH_TARGET}>{cancelLabel}</Button>
         {secondaryLabel && onSecondary && (
-          <Button variant="outlined" color="inherit" onClick={onSecondary}>{secondaryLabel}</Button>
+          <Button variant="outlined" color="inherit" onClick={onSecondary} sx={TOUCH_TARGET}>{secondaryLabel}</Button>
         )}
-        <Button variant="contained" color={confirmColor} onClick={onConfirm}>{confirmLabel}</Button>
+        <Button variant="contained" color={confirmColor} onClick={onConfirm} sx={TOUCH_TARGET}>{confirmLabel}</Button>
       </DialogActions>
     </Dialog>
   );

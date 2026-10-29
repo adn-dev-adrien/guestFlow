@@ -50,6 +50,7 @@ const bookingLinesModel = require('./bookingLinesModel');
 // reconstruction, like « Ménage »). specs/sas-bath-linen-upsell.md §3.1 rule 4.
 const BATH_LINEN_LABEL = 'Linge de toilette';
 const establishmentClosuresModel = require('./establishmentClosuresModel');
+const { carriesMoney, withConvertedDevis, MONEY_MESSAGE } = require('../utils/deletionGuard');
 const { buildHistoryNameContext } = require('./historyNamesModel');
 const { dropBathLinenGhost } = require('../utils/bathLinenGhostLine');
 
@@ -1211,7 +1212,18 @@ function createReservationsModel(database) {
     },
 
     getForArchiveCheck(reservationId) {
-      return database.prepare('SELECT id, endDate FROM reservations WHERE id = ?').get(reservationId);
+      return database.prepare('SELECT id, endDate, kind FROM reservations WHERE id = ?').get(reservationId);
+    },
+
+    // Why a stay may not be deleted (utils/deletionGuard): anything that carries money, on the stay or on
+    // a devis converted into it, is accounting history and the cascade would wipe it with the row.
+    // The stay and the devis converted into it: the rows whose payment links a delete must deactivate.
+    rowIdsToDelete(reservationId) {
+      return withConvertedDevis(database, [reservationId]);
+    },
+
+    deletionBlocker(reservationId) {
+      return carriesMoney(database, [reservationId]) ? MONEY_MESSAGE : null;
     },
 
     getBasic(reservationId) {
@@ -1484,7 +1496,7 @@ function createReservationsModel(database) {
         }
       }
 
-      const coveringClosure = establishmentClosuresModel.findCoveringClosure(propertyId, startDate, endDate);
+      const coveringClosure = establishmentClosuresModel.findCoveringClosure(propertyId, newEffStart, newEffEnd);
       if (coveringClosure) {
         return {
           error: `Fermeture en place sur cette période : « ${coveringClosure.label} » du ${coveringClosure.startDate} au ${coveringClosure.endDate}.`,
@@ -2012,6 +2024,20 @@ function createReservationsModel(database) {
 
     remove(reservationId) {
       database.prepare('DELETE FROM reservations WHERE id = ?').run(reservationId);
+    },
+
+    // The delete the controller runs AFTER its provider awaits: the kind and the money are judged again,
+    // synchronously, in the same transaction as the DELETE — the payment poll may have marked a link paid
+    // while the links were being deactivated. Returns `{ ok }`, `{ gone }`, `{ kind }` or `{ blocker }`.
+    removeGuarded(reservationId) {
+      return database.transaction(() => {
+        const row = database.prepare('SELECT kind FROM reservations WHERE id = ?').get(Number(reservationId));
+        if (!row) return { gone: true };
+        if (row.kind !== 'reservation') return { kind: row.kind };
+        if (carriesMoney(database, [reservationId])) return { blocker: MONEY_MESSAGE };
+        database.prepare('DELETE FROM reservations WHERE id = ?').run(Number(reservationId));
+        return { ok: true };
+      })();
     },
 
     // ── Payment deadlines & cancellation (specs/payment-schedule-and-cancellation.md) ──────────

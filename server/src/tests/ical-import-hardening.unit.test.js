@@ -2,6 +2,8 @@
 // clients per stay (rule 1), stopped sources (rule 2), overlap conflicts on every feed (rule 3), bounded
 // fetches (rule 4), truncated feeds (rule 5), repeated UIDs (rule 6), UTC instants (rule 7), placeholder
 // names (rule 8), the status line (rule 9) and the `disabled` flag (rule 10).
+// The fetch tests use a loopback server and fake hostnames: the private-address guard (rule 17) has its own file.
+process.env.GUESTFLOW_ICAL_ALLOW_PRIVATE = '1';
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const http = require('node:http');
@@ -10,6 +12,7 @@ const path = require('node:path');
 const Database = require('better-sqlite3');
 
 const propertyIcalModel = require('../models/propertyIcalModel');
+const { globalFetch } = require('./icalFetchFixture');
 const platformsModel = require('../models/platformsModel');
 const notificationService = require('../utils/notificationService');
 const { parseIcsEvents, parseIcalDate, parseGuestName, resolveIcalClientIdentity, isCompleteIcs } = require('../utils/icalParser');
@@ -99,7 +102,7 @@ function fresh(options) {
   db.prepare("INSERT INTO properties (id, name, defaultCheckIn, defaultCheckOut, defaultCautionAmount) VALUES (1, 'Gite', '15:00', '10:00', 0)").run();
   const insertSource = db.prepare('INSERT INTO ical_sources (id, propertyId, name, url, platformKey, platformLabel) VALUES (?, 1, ?, ?, ?, ?)');
   for (const s of [BOOKING, AIRBNB, LODGIFY]) insertSource.run(s.id, s.name, s.url, s.platformKey, s.platformLabel);
-  return { db, model: propertyIcalModel.buildModel(db, options) };
+  return { db, model: propertyIcalModel.buildModel(db, { ...options, fetchImpl: globalFetch }) };
 }
 const source = (db, id) => db.prepare('SELECT * FROM ical_sources WHERE id = ?').get(id);
 const all = (db) => db.prepare('SELECT r.*, c.firstName, c.lastName FROM reservations r LEFT JOIN clients c ON c.id = r.clientId ORDER BY r.id').all();
@@ -187,7 +190,7 @@ test('rule 2: the platforms payload says a source is stopped', () => {
   const db = new Database(':memory:');
   db.exec(fs.readFileSync(path.join(__dirname, '..', 'schema.sql'), 'utf8'));
   db.prepare("INSERT INTO properties (id, name) VALUES (1, 'Gite')").run();
-  const pim = propertyIcalModel.buildModel(db);
+  const pim = propertyIcalModel.buildModel(db, { fetchImpl: globalFetch });
   pim.createSource(1, { platformKey: 'airbnb', platformLabel: 'Airbnb', url: AIRBNB.url, isActive: false });
   pim.createSource(1, { platformKey: 'booking', platformLabel: 'Booking', url: BOOKING.url });
   const rows = platformsModel.create(db).listForProperty(1);

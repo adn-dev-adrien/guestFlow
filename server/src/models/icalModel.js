@@ -16,6 +16,7 @@ const crypto = require('crypto');
 const db = require('../database');
 const establishmentClosuresModel = require('./establishmentClosuresModel');
 const icalExportRangesModel = require('./icalExportRangesModel');
+const { effectiveRange, timeColumnsOf } = require('../utils/occupancy');
 
 const DEFAULT_CLOSURE_LABEL = 'Fermeture établissement';
 // specs/ical-export-guest-privacy.md rule 1 — the same word for every stay, whoever the guest is.
@@ -31,7 +32,30 @@ function formatIcalDate(date) {
 
 function escapeIcalText(text) {
   if (!text) return '';
-  return text.replace(/\n/g, '\\n').replace(/,/g, '\\,').replace(/;/g, '\\;');
+  return String(text)
+    .replace(/\\/g, '\\\\')
+    .replace(/\r\n|\r|\n/g, '\\n')
+    .replace(/,/g, '\\,')
+    .replace(/;/g, '\\;');
+}
+
+// RFC 5545 §3.1: a content line is at most 75 octets; the rest continues on lines starting with a
+// space. Never cuts inside a multi-byte character.
+function foldLine(line) {
+  if (Buffer.byteLength(line, 'utf8') <= 75) return line;
+  const parts = [];
+  let current = '';
+  let limit = 75;
+  for (const char of line) {
+    if (Buffer.byteLength(current + char, 'utf8') > limit) {
+      parts.push(current);
+      current = '';
+      limit = 74;
+    }
+    current += char;
+  }
+  parts.push(current);
+  return parts.join('\r\n ');
 }
 
 // The platform displays SUMMARY as-is in its own calendar, next to real guests: the prefix is what
@@ -134,12 +158,14 @@ function createIcalModel(database) {
       if (!property) return null;
 
       // Only what the event needs: the guest's columns never leave the database (privacy rule 2).
+      // The nights published are the ones GuestFlow itself refuses: an early check-in takes the night
+      // before, a late check-out the night after (the times are read, never exported).
       const reservations = database.prepare(`
-        SELECT id, startDate, endDate
+        SELECT ${['id', 'startDate', 'endDate', ...timeColumnsOf(database)].join(', ')}
         FROM reservations
         WHERE propertyId = ? AND kind = 'reservation'
         ORDER BY startDate
-      `).all(propertyId);
+      `).all(propertyId).map((r) => ({ id: r.id, ...effectiveRange(r) }));
 
       const lines = [
         'BEGIN:VCALENDAR',
@@ -166,7 +192,7 @@ function createIcalModel(database) {
       } catch (err) {
         console.warn(`[ical-export] export snapshot not refreshed for property ${propertyId}: ${err.message}`);
       }
-      return lines.join('\r\n');
+      return `${lines.map(foldLine).join('\r\n')}\r\n`;
     },
   };
 
@@ -175,6 +201,6 @@ function createIcalModel(database) {
 
 const defaultModel = createIcalModel(db);
 defaultModel.buildModel = createIcalModel;
-defaultModel.__test = { escapeIcalText, formatIcalDate, formatIcalStamp, eventDateLines, RESERVATION_SUMMARY };
+defaultModel.__test = { escapeIcalText, foldLine, formatIcalDate, formatIcalStamp, eventDateLines, RESERVATION_SUMMARY };
 
 module.exports = defaultModel;
