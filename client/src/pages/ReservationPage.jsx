@@ -405,7 +405,7 @@ export default function ReservationPage() {
   const [historyEntries, setHistoryEntries] = useState([]);
   const [initialSnapshot, setInitialSnapshot] = useState(null);
   // The form exactly as loaded (before any quote or edit): the clean baseline of an existing record starts here.
-  const loadedSnapshotRef = useRef(null);
+  const [loadedSnapshot, setLoadedSnapshot] = useState(null);
   const [miniCalendarStart, setMiniCalendarStart] = useState(formatDate(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()));
   const [miniSelectionAnchor, setMiniSelectionAnchor] = useState('');
   const [occupiedDates, setOccupiedDates] = useState([]);
@@ -628,9 +628,26 @@ export default function ReservationPage() {
     // « Recalculer » flips it (via `touristTaxRefreshRequested`), and without it here the memo
     // stays stale, the live-preview effect never re-fires, and the tax only recomputes after a save.
   }), [selectedProp, form.startDate, form.endDate, form.checkInTime, form.checkOutTime, form.adults, form.children, form.teens, form.babies, form.babyBeds, form.extraGuestSurchargeOffered, form.discountPercent, form.customPrice, form.depositPaid, form.balancePaid, form.depositAmount, form.balanceAmount, form.depositAmountOverride, form.complementAmountOverride, form.selectedOptions, form.customOptions, form.selectedResources, propertyOptions, offeredOptionIds, form.platform, form.depositDisabled, form.touristTaxInComplement, form.autoOptionsInComplement, form.platformCommissionAmount, form.acompteCommissionAmount, form.platformGrossAmount, form.platformTouristTaxAmount, refreshTouristTax]);
-  // Until the first quote lands the clean baseline is the form as loaded: an edit typed in that window is
-  // already an edit (it can be saved, and leaving asks first).
-  const cleanBaseline = initialSnapshot !== null ? initialSnapshot : loadedSnapshotRef.current;
+  // The clean baseline of the unsaved-changes guard, derived in the render that needs it — never in an effect,
+  // which would leave a render comparing the quoted form with no baseline (a flash of « modified »).
+  // For an existing record it is the form AS LOADED, with what the quote writes into it once the quote is
+  // there (the server recalc reshapes the loaded form once on mount: offered flags, derived amounts); never
+  // the live form, so whatever the operator typed meanwhile stays an edit. New records snapshot at once.
+  // Once the quote is in it is frozen into `initialSnapshot`; a save or a payment mark moves it from there.
+  if (!loading && loadedSnapshot === null) setLoadedSnapshot(formSnapshot);
+  let cleanBaseline = initialSnapshot;
+  if (cleanBaseline === null && !loading) {
+    const isExistingRecord = Boolean(editingReservationId || editingDevisId);
+    cleanBaseline = loadedSnapshot !== null ? loadedSnapshot : formSnapshot;
+    if (isExistingRecord && pricingQuote) {
+      try {
+        const loaded = JSON.parse(cleanBaseline);
+        const preserveBlankPrice = isIcalImportedBlankPrice && loaded.form.customPrice === '' && loaded.form.totalPrice === '';
+        cleanBaseline = JSON.stringify({ ...loaded, form: applyQuoteToFormPure(loaded.form, pricingQuote, { preserveBlankPrice }) });
+      } catch { /* the loaded form stands */ }
+    }
+    if (!isExistingRecord || pricingQuote) setInitialSnapshot(cleanBaseline);
+  }
   const isDirty = cleanBaseline !== null && formSnapshot !== cleanBaseline;
   // Review of #727 (H2) — a mark re-reads what the server wrote, then the quote re-prices the form on
   // that state: neither is an edit. A fiche that was clean takes its baseline again once that quote has
@@ -720,31 +737,6 @@ export default function ReservationPage() {
       checkOutTime: selectedProperty?.defaultCheckOut || '10:00',
     });
   };
-
-  // Establish the "clean" baseline for the unsaved-changes guard. For an existing reservation/devis the
-  // server recalc reshapes the loaded form once on mount (offered flags, derived amounts) with no user
-  // action — so we wait until that first quote has applied before snapshotting. Otherwise a freshly
-  // loaded (or just-converted) record would be wrongly flagged dirty and prompt on leave. New/prefilled
-  // records snapshot immediately.
-  useEffect(() => {
-    if (!loading && loadedSnapshotRef.current === null) loadedSnapshotRef.current = formSnapshot;
-  }, [loading, formSnapshot]);
-  useEffect(() => {
-    if (loading || initialSnapshot !== null) return;
-    const isExistingRecord = Boolean(editingReservationId || editingDevisId);
-    if (isExistingRecord && !pricingQuote) return;
-    // The baseline of an existing record is the LOADED form with what the quote writes into it, never the
-    // live form: whatever the operator typed before the quote landed stays an edit.
-    if (isExistingRecord && loadedSnapshotRef.current) {
-      try {
-        const loaded = JSON.parse(loadedSnapshotRef.current);
-        const preserveBlankPrice = isIcalImportedBlankPrice && loaded.form.customPrice === '' && loaded.form.totalPrice === '';
-        setInitialSnapshot(JSON.stringify({ ...loaded, form: applyQuoteToFormPure(loaded.form, pricingQuote, { preserveBlankPrice }) }));
-        return;
-      } catch { /* the live form stands */ }
-    }
-    setInitialSnapshot(formSnapshot);
-  }, [loading, initialSnapshot, formSnapshot, editingReservationId, editingDevisId, pricingQuote, isIcalImportedBlankPrice]);
 
   useEffect(() => {
     if (!isDirty) return;
@@ -836,7 +828,8 @@ export default function ReservationPage() {
         setLoading(true);
         // A (re)load takes its clean baseline again, from what it loads (see the baseline effect).
         setInitialSnapshot(null);
-        loadedSnapshotRef.current = null;
+        setLoadedSnapshot(null);
+        setPricingQuote(null);
         resnapshotAfterQuoteRef.current = null;
         setNotFound(false);
         const props = await api.getProperties();

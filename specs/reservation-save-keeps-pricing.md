@@ -126,7 +126,8 @@ changed something the price depends on; money collected beyond the total is repo
    into it (`applyQuoteToForm` on the baseline, never on the live form); a payment mark re-baselines the same
    way, and a reload (STALE_FICHE included) takes it again. Until the first quote lands the baseline is the
    loaded form itself, so an edit typed meanwhile is already an edit: it can be saved, and leaving asks first
-   (« Modifications non enregistrées »).
+   (« Modifications non enregistrées »). The baseline is derived in the render that applies the quote (not in an
+   effect), so a clean fiche with drifted stored figures never flashes « modified » when the quote lands.
 
 **Edge cases:**
 - In the extras window of a started fiche a custom line is keyed by its text (end-of-stay complement,
@@ -202,6 +203,7 @@ An amber alert above the platform price alert, one per notice, 44 px action targ
       refunded by transfer is booked on 70600010, by caisse interne nowhere.
 - [x] Client `ReservationPage.baseline-before-quote.test.jsx` (1) — rule 7: a note typed before the first quote
       resolves (deferred mock) enables Enregistrer, shows the unsaved-changes dialog on leaving, and is sent;
+      `ReservationPage.baseline-drift.test.jsx` (1) — a drifted clean fiche never enables Enregistrer, not for a frame;
       `ReservationPage.bed-counts-zero.test.jsx` (3) — rule 7: a user edit then Enregistrer on a loaded fiche.
 - [x] `fiche-pricing-notices.unit.test.js` (6) — rules 5-6; client `PricingNotices.test.jsx` (3).
 - [x] Client `RefundDialog.overpayment.test.jsx` (5, `defaultMethod`) and `FinanceSection.refunds.test.jsx`
