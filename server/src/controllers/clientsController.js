@@ -98,7 +98,8 @@ function createController(model) {
     } catch (err) {
       return res.status((err && err.httpStatus) || 500).json({ error: (err && err.message) || 'Suppression impossible.', code: (err && err.error) || 'DELETE_FAILED' });
     }
-    model.remove(id);
+    const outcome = model.removeGuarded(id);
+    if (outcome.blocker) return res.status(409).json({ error: outcome.blocker, code: 'CLIENT_CARRIES_MONEY' });
     return res.json({ ok: true });
   }
 

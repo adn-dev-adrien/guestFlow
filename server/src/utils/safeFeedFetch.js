@@ -1,5 +1,5 @@
 /**
- * Bounded, public-only fetch of an operator-configured iCal feed (specs/ical-import-hardening.md rule 26).
+ * Bounded, public-only fetch of an operator-configured iCal feed (specs/ical-import-hardening.md rule 17).
  *
  * The URL is operator input, but the server reads it from inside the LAN, next to the database host and
  * the other containers: a feed URL must not be able to reach a loopback, private or link-local address,
@@ -7,11 +7,13 @@
  * or broken endpoint cannot fill the memory. `GUESTFLOW_ICAL_ALLOW_PRIVATE=1` lifts the address check
  * for a dev box whose test feed lives on localhost.
  */
-const dns = require('dns').promises;
+const dns = require('dns');
 const net = require('net');
+const undici = require('undici');
 
 const MAX_FEED_BYTES = 5 * 1024 * 1024;
 const MAX_REDIRECTS = 3;
+const PRIVATE_MESSAGE = 'Adresse du flux non autorisée (réseau privé).';
 
 class FeedFetchError extends Error {}
 
@@ -25,34 +27,74 @@ function isPrivateIpv4(parts) {
     || a >= 224;
 }
 
+// The 16 bytes of an IPv6 address, or null. The URL parser rewrites `::ffff:127.0.0.1` as `::ffff:7f00:1`,
+// so the classification works on bytes, never on the textual form.
+function ipv6Bytes(address) {
+  let text = String(address).split('%')[0].toLowerCase();
+  const tail = text.match(/^(.*:)(\d+\.\d+\.\d+\.\d+)$/);
+  if (tail) {
+    const v4 = tail[2].split('.').map(Number);
+    if (v4.some((n) => !(n >= 0 && n <= 255))) return null;
+    text = `${tail[1]}${((v4[0] << 8) | v4[1]).toString(16)}:${((v4[2] << 8) | v4[3]).toString(16)}`;
+  }
+  const halves = text.split('::');
+  if (halves.length > 2) return null;
+  const parse = (part) => (part === '' ? [] : part.split(':'));
+  const head = parse(halves[0]);
+  const rest = halves.length === 2 ? parse(halves[1]) : [];
+  const missing = 8 - head.length - rest.length;
+  if (halves.length === 1 ? head.length !== 8 : missing < 1) return null;
+  const groups = halves.length === 1 ? head : [...head, ...Array(missing).fill('0'), ...rest];
+  const bytes = [];
+  for (const g of groups) {
+    if (!/^[0-9a-f]{1,4}$/.test(g)) return null;
+    const n = parseInt(g, 16);
+    bytes.push(n >> 8, n & 255);
+  }
+  return bytes;
+}
+
 function isPrivateAddress(address) {
   const family = net.isIP(address);
   if (family === 4) return isPrivateIpv4(address.split('.').map(Number));
-  if (family === 6) {
-    const lower = address.toLowerCase();
-    const mapped = lower.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
-    if (mapped) return isPrivateIpv4(mapped[1].split('.').map(Number));
-    return lower === '::' || lower === '::1' || /^f[cd]/.test(lower) || /^fe[89ab]/.test(lower);
-  }
-  return false;
+  if (family !== 6) return true;
+  const bytes = ipv6Bytes(address);
+  if (!bytes) return true;
+  const zeros = (from, to) => bytes.slice(from, to).every((b) => b === 0);
+  if (zeros(0, 10) && bytes[10] === 255 && bytes[11] === 255) return isPrivateIpv4(bytes.slice(12));
+  if (zeros(0, 12)) return true; // ::/96: unspecified, loopback, deprecated IPv4-compatible
+  if (bytes[0] === 0x00 && bytes[1] === 0x64 && bytes[2] === 0xff && bytes[3] === 0x9b) return true; // 64:ff9b::/16 NAT64
+  if (bytes[0] === 0x20 && bytes[1] === 0x02) return isPrivateIpv4(bytes.slice(2, 6)); // 6to4
+  return (bytes[0] & 0xfe) === 0xfc || (bytes[0] === 0xfe && (bytes[1] & 0xc0) === 0x80) || bytes[0] === 0xff;
 }
 
-async function assertPublicHost(hostname, { lookup = (host) => dns.lookup(host, { all: true }), env = process.env } = {}) {
-  if (env.GUESTFLOW_ICAL_ALLOW_PRIVATE === '1') return;
+const allowPrivate = (env) => env.GUESTFLOW_ICAL_ALLOW_PRIVATE === '1';
+
+// A literal address or `localhost` is judged on the spot; a name is judged where it is dialled (guardedLookup).
+function assertPublicHost(hostname, { env = process.env } = {}) {
+  if (allowPrivate(env)) return;
   const host = hostname.replace(/^\[|\]$/g, '');
-  const refuse = () => new FeedFetchError('Adresse du flux non autorisée (réseau privé).');
-  if (net.isIP(host)) {
-    if (isPrivateAddress(host)) throw refuse();
-    return;
-  }
-  if (host.toLowerCase() === 'localhost') throw refuse();
-  let records;
-  try {
-    records = await lookup(host);
-  } catch {
-    return;
-  }
-  if ((records || []).some((r) => isPrivateAddress(r.address))) throw refuse();
+  if (host.toLowerCase() === 'localhost' || host.toLowerCase().endsWith('.localhost')) throw new FeedFetchError(PRIVATE_MESSAGE);
+  if (net.isIP(host) && isPrivateAddress(host)) throw new FeedFetchError(PRIVATE_MESSAGE);
+}
+
+/**
+ * The `lookup` of the connection itself: the address validated is the address dialled, so a name that
+ * answers a public address to a check and a private one to the connection (DNS rebinding) is refused, on
+ * every hop. A failed lookup is a refusal.
+ */
+function guardedLookup({ resolve = (host, cb) => dns.lookup(host, { all: true }, cb), env = process.env } = {}) {
+  return (hostname, options, callback) => {
+    const done = typeof options === 'function' ? options : callback;
+    const wantsAll = typeof options === 'object' && options && options.all;
+    resolve(hostname, (error, records) => {
+      if (error) return done(error);
+      const list = [].concat(records || []).map((r) => (typeof r === 'string' ? { address: r, family: net.isIP(r) } : r));
+      if (list.length === 0) return done(new FeedFetchError('Adresse du flux introuvable.'));
+      if (!allowPrivate(env) && list.some((r) => isPrivateAddress(r.address))) return done(new FeedFetchError(PRIVATE_MESSAGE));
+      return wantsAll ? done(null, list) : done(null, list[0].address, list[0].family);
+    });
+  };
 }
 
 async function readCapped(response, maxBytes) {
@@ -80,18 +122,32 @@ async function readCapped(response, maxBytes) {
   return text;
 }
 
+// Tests stub `global.fetch`; in production the request goes through undici's own fetch so the Agent that
+// pins the dialled address is of the same version as the client.
+const nativeFetch = globalThis.fetch;
+const defaultFetch = (url, options) => (globalThis.fetch === nativeFetch ? undici.fetch(url, options) : globalThis.fetch(url, options));
+
 /**
- * GET `url`, following at most MAX_REDIRECTS redirects, each hop checked. Resolves to the final
- * response; the caller reads the body with `readCapped`.
+ * GET `url`, following at most MAX_REDIRECTS redirects by hand. Every hop is checked (literal address,
+ * localhost) and every connection is dialled through `guardedLookup`. Resolves to the final response; the
+ * caller reads the body with `readCapped`.
  */
-async function fetchPublic(url, { signal, fetchImpl = (...args) => fetch(...args), lookup, env } = {}) {
+async function fetchPublic(url, { signal, fetchImpl = defaultFetch, resolve, env = process.env } = {}) {
+  const dispatcher = new undici.Agent({ connect: { lookup: guardedLookup({ resolve, env }) }, keepAliveTimeout: 1000 });
   let current = url;
   for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {
     let parsed;
     try { parsed = new URL(current); } catch { throw new FeedFetchError('Adresse du flux invalide.'); }
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') throw new FeedFetchError('Adresse du flux invalide.');
-    await assertPublicHost(parsed.hostname, { lookup, env });
-    const response = await fetchImpl(current, { method: 'GET', signal, redirect: 'manual' });
+    assertPublicHost(parsed.hostname, { env });
+    let response;
+    try {
+      response = await fetchImpl(current, { method: 'GET', signal, redirect: 'manual', dispatcher });
+    } catch (error) {
+      // The refusal of the connection's own lookup surfaces as the cause of « fetch failed ».
+      if (error && error.cause instanceof FeedFetchError) throw error.cause;
+      throw error;
+    }
     const location = response.status >= 300 && response.status < 400 && response.headers && response.headers.get && response.headers.get('location');
     if (!location) return response;
     current = new URL(location, current).toString();
@@ -99,4 +155,6 @@ async function fetchPublic(url, { signal, fetchImpl = (...args) => fetch(...args
   throw new FeedFetchError('Trop de redirections.');
 }
 
-module.exports = { fetchPublic, readCapped, assertPublicHost, isPrivateAddress, MAX_FEED_BYTES, FeedFetchError };
+module.exports = {
+  fetchPublic, readCapped, assertPublicHost, guardedLookup, isPrivateAddress, MAX_FEED_BYTES, FeedFetchError,
+};

@@ -129,11 +129,15 @@ nothing, and the platforms tab says in one short line what the last sync did.
     fetched from inside the LAN (next to the database host and the other containers): the import now
     refuses, with « Adresse du flux non autorisée (réseau privé). », a loopback, private (RFC 1918),
     carrier-grade, link-local (`169.254.x.x`, cloud metadata), unique-local or multicast address — written
-    as a literal, reached through a name that resolves to one, or reached through a redirect (redirects are
-    followed by hand, at most 3, each hop checked). The body is capped at 5 MB, by `Content-Length` and
+    as a literal (IPv4-mapped IPv6 included: the URL parser rewrites `::ffff:127.0.0.1` as
+    `::ffff:7f00:1`, so addresses are classified on their bytes; `64:ff9b::/16` NAT64 and `2002::/16` 6to4 are
+    refused), reached through a name that resolves to one, or reached through a redirect (redirects are
+    followed by hand, at most 3, each hop checked). The address checked is the address **dialled**: the
+    connection goes through an undici `Agent` whose `lookup` validates what it resolves, on every hop, so a
+    name that answers a public address to a check and a private one to the connection (DNS rebinding) is
+    refused; a failed lookup is a refusal. The body is capped at 5 MB, by `Content-Length` and
     while streaming (« Flux iCal trop volumineux. »). `GUESTFLOW_ICAL_ALLOW_PRIVATE=1` lifts the address
-    check for a development box whose test feed lives on localhost; it is not set in production. A name
-    that does not resolve is left to the fetch (it fails as « Plateforme injoignable »).
+    check for a development box whose test feed lives on localhost; it is not set in production.
 
 **Edge cases:**
 - A stay arriving on another stay's departure day shares no night: no conflict (rule 3).

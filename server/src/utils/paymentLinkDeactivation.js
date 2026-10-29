@@ -57,7 +57,6 @@ async function deactivateAbandonedLinks(links, { paymentLinksModel, providerFor 
     if (!link || !link.providerLinkId) continue;
     const provider = providerFor(link.provider || 'qonto');
     try {
-      if (!provider) throw new Error('payment provider unavailable');
       await provider.cancelLink(link.providerLinkId);
       paymentLinksModel.cancel(link.id);
     } catch (err) {
@@ -79,38 +78,46 @@ async function deactivateAbandonedLinks(links, { paymentLinksModel, providerFor 
  * the devis converted into it, whose links keep the devis id) is deactivated at its provider, or
  * the delete is refused. A link left payable would take a guest's money into a row that no longer
  * exists. Throws `{ httpStatus, error, message }` (the shape `assertNotPaid` uses) and changes nothing
- * locally unless every deactivation succeeded.
+ * locally unless every deactivation succeeded. With no provider available the links are marked
+ * `remoteCancelPending` and the delete proceeds.
  */
 async function deactivateOpenLinksBeforeDelete(reservationIds, { paymentLinksModel, providerFor = defaultProviderFor }) {
   const open = [].concat(reservationIds)
     .flatMap((id) => paymentLinksModel.listForReservation(id))
     .filter((link) => link.status === 'open');
   const done = [];
+  const noProvider = [];
+  const settle = () => {
+    done.forEach((l) => paymentLinksModel.cancel(l.id));
+    noProvider.forEach((l) => paymentLinksModel.cancel(l.id, { remotePending: true }));
+  };
   for (const link of open) {
     if (!link.providerLinkId) { done.push(link); continue; }
     const provider = providerFor(link.provider || 'qonto');
+    // No provider at all (plugin off): nothing can be asked now, the link is marked for the poll's retry
+    // and the delete goes on (specs/plugins-phase-3a-online-payment.md rule 8).
+    if (!provider) { noProvider.push(link); continue; }
     try {
       await assertNotPaid(link, provider);
     } catch (err) {
-      done.forEach((l) => paymentLinksModel.cancel(l.id));
+      settle();
       if (err && err.error === 'LINK_ALREADY_PAID') {
         throw { httpStatus: 409, error: 'LINK_ALREADY_PAID', message: 'Un lien de paiement vient d’être payé : suppression refusée.' };
       }
       throw err;
     }
     try {
-      if (!provider) throw new Error('payment provider unavailable');
       await provider.cancelLink(link.providerLinkId);
     } catch (err) {
       if (!(await alreadyInactive(provider, link.providerLinkId))) {
-        done.forEach((l) => paymentLinksModel.cancel(l.id));
+        settle();
         throw { httpStatus: 502, error: 'LINK_NOT_DEACTIVATED', message: 'Un lien de paiement en cours n’a pas pu être désactivé chez le prestataire : suppression refusée, réessayer.' };
       }
     }
     done.push(link);
   }
-  done.forEach((l) => paymentLinksModel.cancel(l.id));
-  return { deactivated: done.length };
+  settle();
+  return { deactivated: done.length, pendingRemote: noProvider.length };
 }
 
 module.exports = { deactivateAbandonedLinks, deactivateOpenLinksBeforeDelete, assertNotPaid, alreadyInactive };

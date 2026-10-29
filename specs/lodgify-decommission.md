@@ -44,10 +44,11 @@ Three facts shape the work:
    reservation**: GuestFlow would never know about them, and its export would leave those dates open
    on every other channel — an overbooking machine.
 
-The Booking feed also **echoes back** what it imported from GuestFlow's export: a GreenGo stay
-exported to Booking returns as a `CLOSED - Not available` event on the same dates. Treating every
-Booking event as a reservation would therefore turn every other channel's booking into a phantom
-Booking one.
+The Booking feed was thought to **echo back** what it imported from GuestFlow's export: a GreenGo stay
+exported to Booking returning as a `CLOSED - Not available` event on the same dates, which would turn every
+other channel's booking into a phantom Booking one. _(Amended 2026-10-28, rule 18: measured on the gîte
+(rule 14), Booking's feed carries its own reservations only. A wholly covered event is a conflict to
+flag, not an echo to drop; only a closure's own echo is still skipped, rule 17.)_
 
 ## 2. Goal
 
@@ -80,8 +81,9 @@ no duplicate, no lost Booking reservation, no phantom — before the Lodgify sub
    Lodgify is a real Booking booking, not an echo, and must be claimed by the native Booking feed.
 4. A reservation whose platform is still `Lodgify` but which really came from a channel is **not**
    claimed — the platform equality is the safety. The runbook (§10 step 3) has the operator relabel
-   those before the switch. On a Booking feed such a stay is covered, hence skipped as an echo (no
-   duplicate, but no link either); on Airbnb or Abritel it is created next to the old one.
+   those before the switch. On a Booking feed such a stay holds the nights, so the Booking event is
+   created and flagged in conflict (rule 18, amended 2026-10-28 — it used to be skipped as an echo); on
+   Airbnb or Abritel it is created next to the old one.
 4bis. **Booking re-issuing a UID.** The Booking feed has no guest name, so the summary fallbacks are
    blind there. A Booking event with no mapping re-claims this source's own stay with the exact same
    dates when that stay's UID has left the feed and it is the only one. The summary-based re-claim of

@@ -158,3 +158,70 @@ test('rule 52 — approving an iCal cancellation never deletes a stay carrying m
 test('the messages point at the way out', () => {
   assert.equal(MONEY_MESSAGE, 'Un paiement est enregistré sur ce séjour : l’annuler plutôt que le supprimer.');
 });
+
+test('rule 52 — a link marked paid during the provider await refuses the client delete and the property delete', async () => {
+  for (const which of ['client', 'property']) {
+    const { db, stay } = seed();
+    const links = paymentLinksModel.buildModel(db);
+    const link = links.create({ reservationId: stay, type: 'deposit', amountCents: 100, providerLinkId: 'ql_race', url: 'u', status: 'open' });
+    const util = require('../utils/paymentLinkDeactivation');
+    const provider = {
+      async getPayment() { return { paid: false }; },
+      async getLinkStatus() { return 'open'; },
+      async cancelLink() { db.prepare("UPDATE payment_links SET status = 'paid', paidAt = '2099-05-01T10:00:00Z' WHERE id = ?").run(link.id); },
+    };
+    const origRequire = Module.prototype.require;
+    const cm = clientsModel.create(db);
+    const pm = propertiesModel.buildModel(db);
+    Module.prototype.require = function patched(id) {
+      if (id === '../models/propertiesModel') return pm;
+      if (id === '../models/paymentLinksModel') return links;
+      if (id === '../utils/paymentLinkDeactivation') {
+        return { ...util, deactivateOpenLinksBeforeDelete: (ids, deps) => util.deactivateOpenLinksBeforeDelete(ids, { ...deps, paymentLinksModel: links, providerFor: () => provider }) };
+      }
+      return origRequire.call(this, id);
+    };
+    let controller;
+    try {
+      const target = which === 'client' ? '../controllers/clientsController' : '../controllers/propertiesController';
+      delete require.cache[require.resolve(target)];
+      controller = which === 'client' ? require(target).buildController(cm) : require(target);
+    } finally {
+      Module.prototype.require = origRequire;
+    }
+    const res = fakeRes();
+    await controller.remove({ params: { id: '1' }, query: { force: 'true' } }, res);
+    assert.equal(res.statusCode, 409, which);
+    assert.equal(count(db, which === 'client' ? 'clients' : 'properties'), 1, which);
+    assert.equal(count(db, 'reservations'), 1, which);
+  }
+});
+
+test('rule 52 — an approved cancellation abandons the stay\'s open links (retry marker) and returns them for deactivation after the commit', () => {
+  for (const withMoney of [false, true]) {
+    const { db, stay } = seed();
+    if (withMoney) db.prepare("INSERT INTO reservation_refunds (reservationId, refundDate, totalTtc) VALUES (?, '2099-05-01', 30)").run(stay);
+    const links = paymentLinksModel.buildModel(db);
+    const link = links.create({ reservationId: stay, type: 'deposit', amountCents: 100, providerLinkId: 'ql_i', url: 'u', status: 'open' });
+    const result = icalCancellationModel.buildModel(db).approve(pendingCancellation(db, stay));
+    assert.deepEqual(result.cancelledLinks.map((l) => l.id), [link.id], String(withMoney));
+    const row = links.findById(link.id);
+    assert.equal(row.status, 'cancelled');
+    assert.ok(row.remoteCancelPendingAt, 'the poll retries it if the provider call fails');
+  }
+});
+
+test('rule 52 — the dashboard controller deactivates those links after the response', async () => {
+  const { buildController } = require('../controllers/dashboardController');
+  const deactivated = [];
+  const controller = buildController({
+    icalCancellationModel: { approve: () => ({ ok: true, outcome: 'approved_kept', reservationId: 7, compensationId: null, cancelledLinks: [{ id: 3 }] }) },
+    emitPluginEvent: () => {},
+    deactivateLinks: async (links) => { deactivated.push(...links); },
+  });
+  const res = fakeRes();
+  controller.approveIcalCancellation({ params: { id: '1' }, body: {} }, res);
+  assert.equal(res.body.outcome, 'approved_kept');
+  await Promise.resolve();
+  assert.deepEqual(deactivated, [{ id: 3 }]);
+});

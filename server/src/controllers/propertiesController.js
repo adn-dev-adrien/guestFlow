@@ -132,7 +132,9 @@ async function remove(req, res) {
   } catch (err) {
     return res.status((err && err.httpStatus) || 500).json({ error: (err && err.message) || 'Suppression impossible.', code: (err && err.error) || 'DELETE_FAILED' });
   }
-  return res.json(model.remove(req.params.id));
+  const outcome = model.removeGuarded(req.params.id);
+  if (outcome.blocker) return res.status(409).json({ error: outcome.blocker, code: 'PROPERTY_CARRIES_MONEY' });
+  return res.json(outcome);
 }
 
 // specs/google-vacation-rentals-feed.md rule 12 — a write that succeeded announces itself; a refusal

@@ -314,6 +314,16 @@ function createModel(database) {
     return withConvertedDevis(database, idsOfOwner(database, 'clientId', id));
   }
 
+  // The delete the controller runs after its provider awaits: judged again, in the same transaction.
+  function removeGuarded(id) {
+    return database.transaction(() => {
+      const blocker = deletionBlocker(id);
+      if (blocker) return { blocker };
+      database.prepare('DELETE FROM clients WHERE id = ?').run(Number(id));
+      return { ok: true };
+    })();
+  }
+
   function remove(id) {
     // FK cascade removes the client's reservations + devis and all their child rows.
     database.prepare('DELETE FROM clients WHERE id = ?').run(Number(id));
@@ -439,6 +449,7 @@ function createModel(database) {
     update,
     remove,
     deletionBlocker,
+    removeGuarded,
     rowIdsToDelete,
     listReservationsForClient,
     listDevisForClient,

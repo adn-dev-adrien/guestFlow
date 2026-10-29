@@ -701,6 +701,15 @@ function createPropertiesModel(database) {
       return carriesMoney(database, idsOfOwner(database, 'propertyId', id)) ? PROPERTY_MONEY_MESSAGE : null;
     },
 
+    // The delete the controller runs after its provider awaits: judged again, in the same transaction.
+    removeGuarded(id) {
+      return database.transaction(() => {
+        const blocker = this.deletionBlocker(id);
+        if (blocker) return { blocker };
+        return this.remove(id);
+      })();
+    },
+
     rowIdsToDelete(id) {
       return withConvertedDevis(database, idsOfOwner(database, 'propertyId', id));
     },

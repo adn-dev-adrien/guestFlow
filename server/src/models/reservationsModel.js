@@ -2026,6 +2026,20 @@ function createReservationsModel(database) {
       database.prepare('DELETE FROM reservations WHERE id = ?').run(reservationId);
     },
 
+    // The delete the controller runs AFTER its provider awaits: the kind and the money are judged again,
+    // synchronously, in the same transaction as the DELETE — the payment poll may have marked a link paid
+    // while the links were being deactivated. Returns `{ ok }`, `{ gone }`, `{ kind }` or `{ blocker }`.
+    removeGuarded(reservationId) {
+      return database.transaction(() => {
+        const row = database.prepare('SELECT kind FROM reservations WHERE id = ?').get(Number(reservationId));
+        if (!row) return { gone: true };
+        if (row.kind !== 'reservation') return { kind: row.kind };
+        if (carriesMoney(database, [reservationId])) return { blocker: MONEY_MESSAGE };
+        database.prepare('DELETE FROM reservations WHERE id = ?').run(Number(reservationId));
+        return { ok: true };
+      })();
+    },
+
     // ── Payment deadlines & cancellation (specs/payment-schedule-and-cancellation.md) ──────────
     // Everything the deadline card could possibly be about: a reservation with an unpaid acompte or
     // solde — platform bookings included since specs/platform-payout-due-date.md, whose payout

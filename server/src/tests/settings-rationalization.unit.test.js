@@ -268,7 +268,7 @@ function reservationsControllerWith(stored, captures) {
     if (id === '../models/reservationsModel') {
       return new Proxy({}, { get: (_, key) => {
         if (key === 'getForArchiveCheck') return () => stored;
-        if (key === 'remove') return (rid) => { captures.removed = rid; };
+        if (key === 'removeGuarded') return (rid) => { captures.removed = rid; return { ok: true }; };
         return () => null;
       } });
     }
@@ -304,7 +304,7 @@ test('rule 17a: an admin who unlocked the fiche can delete it', async () => {
   const res = fakeRes();
   await reservationsControllerWith(ENDED, captures).remove({ params: { id: '9' }, query: { unlockPast: '1' }, user: admin }, res);
   assert.equal(res.statusCode, 200);
-  assert.equal(captures.removed, '9');
+  assert.equal(captures.removed, 9);
 });
 
 test('rule 17a: the unlock flag means nothing coming from another role', async () => {

@@ -9,6 +9,7 @@ function fakeModel(overrides = {}) {
   let nextId = 1;
   const base = {
     deletionBlocker: () => null,
+    removeGuarded(id) { this.remove(id); return { ok: true }; },
     rowIdsToDelete: () => [],
     list: () => [...store.values()],
     findById: (id) => store.get(Number(id)),

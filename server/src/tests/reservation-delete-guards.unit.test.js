@@ -208,3 +208,43 @@ test('rule 50 — an open link left on the converted devis is deactivated before
   assert.deepEqual(provider.calls, ['ql_dv']);
   assert.equal(links.findById(link.id).status, 'cancelled');
 });
+
+// ---- rule 50 — the poll can mark a link paid while the links are being deactivated ----
+
+test('rule 50 — a link marked paid during the provider await refuses the stay delete, and stays paid', async () => {
+  const { db, id } = seed();
+  const links = paymentLinksModel.buildModel(db);
+  const link = links.create({ reservationId: id, type: 'deposit', amountCents: 9000, providerLinkId: 'ql_race', url: 'u', status: 'open' });
+  const provider = fakeProvider();
+  provider.cancelLink = async () => {
+    db.prepare("UPDATE payment_links SET status = 'paid', paidAt = '2099-05-01T10:00:00Z' WHERE id = ?").run(link.id);
+  };
+  const res = await remove(controllerFor(db, provider), id);
+  assert.equal(res.statusCode, 409);
+  assert.equal(res.body.code, 'RESERVATION_CARRIES_MONEY');
+  assert.equal(exists(db, id), true);
+  assert.equal(links.findById(link.id).status, 'paid', 'cancel never overwrites a paid link');
+});
+
+test('rule 50 — a stay cancelled during the provider await is no longer deletable', async () => {
+  const { db, id } = seed();
+  paymentLinksModel.buildModel(db).create({ reservationId: id, type: 'deposit', amountCents: 9000, providerLinkId: 'ql_k', url: 'u', status: 'open' });
+  const provider = fakeProvider();
+  provider.cancelLink = async () => { db.prepare("UPDATE reservations SET kind = 'cancelled' WHERE id = ?").run(id); };
+  const res = await remove(controllerFor(db, provider), id);
+  assert.equal(res.statusCode, 409);
+  assert.equal(res.body.code, 'RESERVATION_NOT_DELETABLE');
+  assert.equal(exists(db, id), true);
+});
+
+test('rule 50 — with no payment provider the open link is marked for the poll\'s retry and the delete goes on', async () => {
+  const { db, id } = seed();
+  const links = paymentLinksModel.buildModel(db);
+  const link = links.create({ reservationId: id, type: 'deposit', amountCents: 9000, providerLinkId: 'ql_np', url: 'u', status: 'open' });
+  const res = await remove(controllerFor(db, null), id);
+  assert.equal(res.statusCode, 200);
+  assert.equal(exists(db, id), false);
+  const row = links.findById(link.id);
+  assert.equal(row.status, 'cancelled');
+  assert.ok(row.remoteCancelPendingAt, 'the poll deactivates it when a provider is back');
+});

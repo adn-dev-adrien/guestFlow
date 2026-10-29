@@ -85,6 +85,8 @@ iCal feed, with no per-channel manual re-declaration.
     `X-WR-CALNAME` escape the backslash first, then CR/LF/CRLF (to `\n`), comma and semicolon, so an
     operator label can neither end a line nor open another property or event. Every content line is folded
     at 75 octets (continuation lines start with one space), never inside a multi-byte character (§3.1).
+    The feed ends with a CRLF after `END:VCALENDAR` (§3.1: every content line, the last included, is
+    terminated).
 
 
 **Edge cases:**

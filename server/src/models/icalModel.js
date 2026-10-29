@@ -192,7 +192,7 @@ function createIcalModel(database) {
       } catch (err) {
         console.warn(`[ical-export] export snapshot not refreshed for property ${propertyId}: ${err.message}`);
       }
-      return lines.map(foldLine).join('\r\n');
+      return `${lines.map(foldLine).join('\r\n')}\r\n`;
     },
   };
 

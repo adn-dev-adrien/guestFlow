@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DATA_CHANGED_EVENT } from '../constants/appEvents';
+import { versionAfterOwnWrite } from '../utils/ficheVersion';
 import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router';
 import {
   Box, TextField, Autocomplete, Button, FormControl, InputLabel, Select,
@@ -229,10 +230,12 @@ export default function ReservationPage() {
   // The `updatedAt` this fiche was built on, sent back on save: the server refuses a save made on an
   // older version instead of reverting what an import, a mail or another tab wrote meanwhile.
   const loadedUpdatedAtRef = useRef(null);
+  // « Enregistrer quand même » : the one save that goes without the version, an explicit overwrite.
+  const overwriteOnceRef = useRef(false);
   useEffect(() => {
     if (!reservationId) return undefined;
-    const adoptOwnWrites = () => {
-      api.getReservation(reservationId).then((r) => { loadedUpdatedAtRef.current = r.updatedAt || null; }).catch(() => {});
+    const adoptOwnWrites = (event) => {
+      loadedUpdatedAtRef.current = versionAfterOwnWrite(reservationId, loadedUpdatedAtRef.current, event.detail);
     };
     window.addEventListener(DATA_CHANGED_EVENT, adoptOwnWrites);
     return () => window.removeEventListener(DATA_CHANGED_EVENT, adoptOwnWrites);
@@ -2438,7 +2441,7 @@ export default function ReservationPage() {
       } else if (reservationId) {
         await api.updateReservation(reservationId, {
           ...unlockPayload,
-          loadedUpdatedAt: loadedUpdatedAtRef.current || undefined,
+          loadedUpdatedAt: overwriteOnceRef.current ? undefined : (loadedUpdatedAtRef.current || undefined),
           propertyId: Number(selectedProp),
           clientId: form.clientId,
           // '' = keep the existing number; a non-empty value is an override (unique-checked server-side).
@@ -2507,9 +2510,11 @@ export default function ReservationPage() {
           resources: quote.resourceLines,
         });
         setInitialSnapshot(formSnapshot);
+        const overwritten = overwriteOnceRef.current;
+        overwriteOnceRef.current = false;
         ledgerEditMarkerRef.current = null;
         // Rule 7 — the stored ledger is what the fiche shows once clean again: re-read it after a save.
-        api.getReservation(reservationId).then((r) => { loadedUpdatedAtRef.current = r.updatedAt || null; setStoredLedger(r.ledger || null); setStoredHeadline(r.storedHeadline || null); setStoredSummary(r.storedSummary || null); setInstallmentPlan(r.installmentPlan || null); }).catch(() => {});
+        api.getReservation(reservationId).then((r) => { if (overwritten) loadedUpdatedAtRef.current = r.updatedAt || null; setStoredLedger(r.ledger || null); setStoredHeadline(r.storedHeadline || null); setStoredSummary(r.storedSummary || null); setInstallmentPlan(r.installmentPlan || null); }).catch(() => {});
         if (safeAfterSaveAction) {
           safeAfterSaveAction();
           // The page stays open: refetch so the server's `editLock` (floors, window) is fresh. Only on a
@@ -2641,14 +2646,20 @@ export default function ReservationPage() {
         return false;
       }
       if (err?.code === 'STALE_FICHE') {
-        const reload = await confirm({
+        overwriteOnceRef.current = false;
+        const choice = await confirm({
           title: 'Fiche modifiée entre-temps',
-          message: 'La fiche a changé depuis son ouverture (import, e-mail, autre onglet). Recharger remplace les modifications non enregistrées par la version à jour.',
+          message: 'Recharger efface la saisie en cours. Enregistrer écrase la version à jour.',
           confirmLabel: 'Recharger',
-          cancelLabel: 'Garder ma saisie',
+          secondaryLabel: 'Enregistrer quand même',
+          cancelLabel: 'Annuler',
           confirmColor: 'warning',
         });
-        if (reload) setReloadToken((token) => token + 1);
+        if (choice === true) setReloadToken((token) => token + 1);
+        if (choice === 'secondary') {
+          overwriteOnceRef.current = true;
+          return await handleSaveReservation(safeAfterSaveAction, forceMinNights, forceCapacity, forceChangeover, forceMaxNights, forceOverpayment);
+        }
         return false;
       }
       await alert({ title: 'Erreur', message: err.message });

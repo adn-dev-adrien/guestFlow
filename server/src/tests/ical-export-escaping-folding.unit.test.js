@@ -63,3 +63,17 @@ test('the exported feed of a closure with a hostile label is well formed and rea
   const [event] = parseIcsEvents(ics);
   assert.ok(event.startDate === '2099-11-01' && event.endDate === '2099-11-08');
 });
+
+test('rule 13 — the feed ends with a CRLF after END:VCALENDAR', () => {
+  const db = new Database(':memory:');
+  db.exec(`
+    CREATE TABLE properties (id INTEGER PRIMARY KEY, name TEXT);
+    CREATE TABLE reservations (id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT DEFAULT 'reservation', propertyId INTEGER, startDate TEXT, endDate TEXT);
+    CREATE TABLE ical_tokens (propertyId INTEGER, token TEXT);
+    CREATE TABLE establishment_closures (id INTEGER PRIMARY KEY AUTOINCREMENT, propertyId INTEGER, label TEXT, startDate TEXT, endDate TEXT, createdAt TEXT, updatedAt TEXT);
+    INSERT INTO properties (id, name) VALUES (1, 'La Granja');
+  `);
+  const ics = icalModel.buildModel(db).exportProperty(1);
+  assert.ok(ics.endsWith('END:VCALENDAR\r\n'));
+  assert.equal(ics.endsWith('\r\n\r\n'), false);
+});

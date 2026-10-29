@@ -398,6 +398,13 @@ acompte is kept as an indemnity, and the books say so correctly.
     (`deactivateOpenLinksBeforeDelete`) and marked `cancelled`. A link paid meanwhile answers
     `409 LINK_ALREADY_PAID`; a provider that cannot deactivate it (down, plugin off) answers
     `502 LINK_NOT_DEACTIVATED` and **nothing is deleted** (the links already deactivated stay cancelled).
+    With **no provider at all** (plugin off) nothing can be asked: the links are marked
+    `remoteCancelPendingAt` for the poll's retry (`specs/plugins-phase-3a-online-payment.md` rule 8) and the
+    delete goes on. **The guard is judged again after the awaits:** the poll can mark a link paid while the
+    provider is being called, so the kind and `carriesMoney` are re-run synchronously, in the same
+    transaction as the `DELETE` (`removeGuarded` on the reservations, clients and properties models); a stay
+    that became cancelled or carries money by then answers 409 and keeps its rows. `paymentLinksModel.cancel`
+    never overwrites a `paid` link, which is what the re-check relies on.
     The devis route runs its own refusals (CGV proof) before touching any link.
 51. **Orphan open links are logged at boot** _(added 2026-10-28, audit)_. An open link whose reservation
     row no longer exists (deleted before rule 50) is still payable at the provider and has nothing to
@@ -412,9 +419,13 @@ acompte is kept as an indemnity, and the books say so correctly.
     - a **devis** carrying a paid link, installment or refund is kept (`409 DEVIS_CARRIES_MONEY`,
       « Un paiement est enregistré sur ce devis : le conserver plutôt que le supprimer. »);
     - **iCal cancellation approval**: a stay without money is deleted as before; a stay that carries money
-      (refund, penalty, compensation, paid link…) is **never hard-deleted**: it becomes `kind = 'cancelled'`
-      (reason « Annulation iCal approuvée »), its mappings are dropped so the sync cannot resurrect it, the
-      alert closes as `approved` and the endpoint answers outcome `approved_kept`;
+      (refund, penalty, compensation, paid link…) is **never hard-deleted**: it goes through
+      `reservationsModel.markCancelled` (reason « Annulation iCal approuvée »), its mappings are dropped so the
+      sync cannot resurrect it, the alert closes as `approved` and the endpoint answers outcome
+      `approved_kept` (the client reads no outcome). In both branches the open payment links of the stay and of
+      its converted devis are abandoned in the transaction (with the retry marker) and returned as
+      `cancelledLinks`; the controller deactivates them at the provider after the commit, as
+      `utils/cancelReservation` does, so a hard-deleted platform stay leaves no payable link either;
     - the **iCal sync** never deletes a stay (it raises a cancellation alert, then the previous bullet): its
       unused `DELETE FROM reservations` statement was removed.
 

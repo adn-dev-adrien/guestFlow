@@ -2401,7 +2401,10 @@ async function remove(req, res) {
   } catch (err) {
     return res.status((err && err.httpStatus) || 500).json({ error: (err && err.message) || 'Suppression impossible.', code: (err && err.error) || 'DELETE_FAILED' });
   }
-  model.remove(req.params.id);
+  const outcome = model.removeGuarded(existing.id);
+  if (outcome.kind) return res.status(409).json({ error: NOT_DELETABLE[outcome.kind] || NOT_DELETABLE.cancelled, code: 'RESERVATION_NOT_DELETABLE' });
+  if (outcome.blocker) return res.status(409).json({ error: outcome.blocker, code: 'RESERVATION_CARRIES_MONEY' });
+  if (outcome.gone) return res.status(404).json({ error: 'Réservation non trouvée' });
   res.json({ ok: true });
   emitPluginEvent('reservation.deleted', { reservationId: Number(req.params.id) });
 }

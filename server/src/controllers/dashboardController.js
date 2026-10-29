@@ -21,6 +21,9 @@ function buildController({
   icalDateDriftModel: injectedIcalDateDriftModel = icalDateDriftModel,
   icalCancellationModel: injectedIcalCancellationModel = icalCancellationModel,
   emitPluginEvent = defaultEmitPluginEvent,
+  // Links abandoned by an approved cancellation are deactivated at the provider after the commit; a failure
+  // leaves their retry marker (specs/plugins-phase-3a-online-payment.md rule 8).
+  deactivateLinks = (links) => require('../utils/paymentLinkDeactivation').deactivateAbandonedLinks(links, { paymentLinksModel: require('../models/paymentLinksModel') }),
   notifyBookingConflict = (id, options) => require('../utils/notificationService').notifyBookingConflict(id, options),
   // Injected so the deadline endpoints stay testable without Qonto/SMTP: production wires the real
   // payments controller lazily (it pulls the Qonto client, which must not load with the dashboard).
@@ -125,6 +128,7 @@ function buildController({
       // Approved cancellation → plugins react after the response (specs/plugins-phase-1-sdk.md
       // rule 9). Also fired on 'reservation_gone': a Google event may still exist as an orphan.
       if (result.reservationId) emitPluginEvent('reservation.cancelled', { reservationId: result.reservationId });
+      if (result.cancelledLinks && result.cancelledLinks.length > 0) Promise.resolve(deactivateLinks(result.cancelledLinks)).catch(() => {});
       return undefined;
     },
 

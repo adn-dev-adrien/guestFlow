@@ -35,23 +35,27 @@ silently reverting what an import, a mail or another tab wrote meanwhile.
    before anything is read or written. A body without `loadedUpdatedAt` (a script) is not checked: the
    guard protects the fiche, not the API contract. Plugins and the sync call `performUpdate` / their own
    SQL directly and are not affected.
-3. **Every background writer bumps `updatedAt`.** `performUpdate` (plugins, SAS, the fiche) and the iCal
-   sync's update statements set `updatedAt = datetime('now')`, as do the payment, caution, complement and
-   SAS statements of `reservationsModel`. The version has a one-second resolution: two writes in the same
-   second are not told apart (accepted, a human cannot race a background write at that scale).
-4. **The fiche follows its own writes.** The fiche adopts the stored `updatedAt` after its own save and
-   after any write made from this tab (the `DATA_CHANGED_EVENT` every successful non-GET request fires,
-   e.g. a payment mark, a refund, the SAS), so the operator is not told off for what they just did. A
-   foreign write that lands between the load and such an own write is therefore adopted along with it:
-   the guard narrows the lost-update window, it does not close it (accepted residual risk).
-5. **The refusal offers the reload and keeps the draft.** On `STALE_FICHE` the fiche opens a confirm
-   dialog « Fiche modifiée entre-temps » — « La fiche a changé depuis son ouverture (import, e-mail,
-   autre onglet). Recharger remplace les modifications non enregistrées par la version à jour. » — with
-   « Recharger » (re-runs the page load) and « Garder ma saisie » (closes the dialog; the draft stays on
-   screen untouched, and the next save is refused again until the fiche is reloaded).
+3. **The writers a fiche can race with bump `updatedAt`.** `performUpdate` (plugins, SAS, the fiche) and the
+   iCal sync's update statements set `updatedAt = datetime('now')`, as do the payment, caution, complement
+   and SAS statements of `reservationsModel`. **Exceptions, on purpose:** boot migrations and repairs, the
+   tariff / VAT snapshot stamps, and the attribution stamps of a website request at its creation — none of
+   them runs against an open fiche. The version has a one-second resolution: two writes in the same second
+   are not told apart (accepted, a human cannot race a background write at that scale).
+4. **The fiche follows its own writes, and only those.** A write to `/api/reservations/:id/...` answers
+   with `X-Fiche-Version-Before` (the stay's `updatedAt` before the handler) and `X-Fiche-Version-After`
+   (when the answer leaves); `api.js` puts `{ reservationId, before, after }` on the data-changed event.
+   The fiche adopts `after` only when `before` equals the version it holds
+   (`utils/ficheVersion.versionAfterOwnWrite`). A foreign write that landed in between makes `before`
+   differ: the held version stays, and the next save is still refused. The page never re-reads the stay to
+   learn a version, except after an explicit overwrite (rule 5).
+5. **The refusal offers a way out.** On `STALE_FICHE` the fiche opens a confirm dialog « Fiche modifiée
+   entre-temps » — « Recharger efface la saisie en cours. Enregistrer écrase la version à jour. » — with
+   « Recharger » (re-runs the page load), « Enregistrer quand même » (an explicit overwrite: that one save
+   goes without `loadedUpdatedAt`, then the fiche holds the new version) and « Annuler » (closes the dialog;
+   the draft stays on screen, the next save is refused again).
 
 **Edge cases:**
-- Cancelled / superseded stays are refused by their read-only guard first (`RESERVATION_CANCELLED`).
+- The version check runs first in `update`, so a stale save on a cancelled or superseded stay answers `STALE_FICHE` before the read-only guard (`RESERVATION_CANCELLED`) would; a stay already read-only has nothing to overwrite, and the reload then shows it.
 - A devis save (`PUT /api/devis/:id`) is unchanged: nothing writes a devis in the background.
 
 ---
@@ -67,14 +71,18 @@ silently reverting what an import, a mail or another tab wrote meanwhile.
 |---|---|---|---|
 | `controllers/` | `reservationsController.js` | T | `staleFicheRefusal` — compares `loadedUpdatedAt` with the stored row, before `update` does anything |
 | `models/` | `reservationsModel.js` | — | unchanged (`getRow`, `getByIdWithDetails` already return `updatedAt`) |
+| `middleware/` | `ficheVersionHeaders.js` | C | The two version headers on every write to `/api/reservations/:id/...` |
+| `routes/` | `reservations.js` | T | Mounts the middleware on `/:id` |
 
 ### 4.2 Client side (`client/src/`)
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
-| `pages/` | `ReservationPage.jsx` | T | Keeps the loaded `updatedAt` in a ref (set on load, after a save, on `DATA_CHANGED_EVENT`), sends it, shows the reload dialog on `STALE_FICHE` |
+| `pages/` | `ReservationPage.jsx` | T | Keeps the loaded `updatedAt` in a ref (set on load, advanced by its own writes), sends it, shows the three-way dialog on `STALE_FICHE` |
+| `utils/` | `ficheVersion.js` | C | `versionAfterOwnWrite`: adopt a new version only for the fiche's own writes |
+| `api.js` | `api.js` | T | Puts the stay and its versions (from the response headers) on the data-changed event |
 
-**Component reuse declaration:** the existing `confirm` dialog; no new component.
+**Component reuse declaration:** the existing `confirm` dialog with its `secondaryLabel` third action; no new component.
 
 ### 4.3 API contract
 
@@ -94,13 +102,15 @@ The dialog of rule 5, on desktop and mobile alike (the shared confirm dialog is 
 ### Server unit tests
 - [x] `tests/fiche-stale-save.unit.test.js` (3): rule 2 — a stale version is refused and writes nothing,
   the matching version / none / blank / unknown stay is not refused; rule 3 — the read carries the version.
+- [x] `tests/fiche-version-headers.unit.test.js`: rule 4 — the before / after headers on a write, none on a read.
+- [x] Client: `utils/ficheVersion.test.js` (4) and `__tests__/api.fiche-version.test.js` (2): rule 4.
 - [x] Real-data check on the shadow (prod data of 22/10): the audit's `lost-update.sh` scenario answers 409
   and the intake's fill survives.
 
 ### Manual UI verification
-- [x] Open a fiche, write to the stay from outside (API), edit a field, Enregistrer → dialog; « Garder ma
-  saisie » keeps the draft; « Recharger » shows the outside write.
-- [ ] Mobile (`xs`): the dialog fits.
+- [x] Open a fiche, write to the stay from outside (API), edit a field, Enregistrer → dialog; « Annuler »
+  keeps the draft; « Enregistrer quand même » overwrites; « Recharger » shows the outside write.
+- [x] Mobile (`xs`, 390 px, shadow, 2026-10-28): the dialog is full-screen, its actions are reachable, no horizontal scroll.
 
 ## 8. Out of scope
 
