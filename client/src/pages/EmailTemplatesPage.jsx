@@ -142,7 +142,7 @@ export default function EmailTemplatesPage() {
 
   const handleSaveFixClient = async () => {
     if (!fixClient || !isValidEmail(fixClient.email)) {
-      await alert({ title: 'Email invalide', message: 'Veuillez saisir une adresse email valide.' });
+      await alert({ title: 'Email invalide', message: 'Adresse email invalide.' });
       return;
     }
     const payload = {

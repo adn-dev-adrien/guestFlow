@@ -1109,7 +1109,7 @@ export default function PropertyPricingSeasonsPage() {
                   </CardContent>
                 </Card>
               ))}
-              {seasons.length === 0 && <EmptyState message="Aucune saison. Créez votre première saison." py={4} />}
+              {seasons.length === 0 && <EmptyState message="Aucune saison." py={4} />}
             </Box>
           ) : (
           // 860, not 980: at 1280 next to the drawer the 980 floor overflowed by 36 px and cut
@@ -1148,7 +1148,7 @@ export default function PropertyPricingSeasonsPage() {
                 {seasons.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={6} sx={{ p: 0, border: 0 }}>
-                      <EmptyState message="Aucune saison. Créez votre première saison." py={4} />
+                      <EmptyState message="Aucune saison." py={4} />
                     </TableCell>
                   </TableRow>
                 )}

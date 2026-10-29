@@ -621,7 +621,7 @@ export default function PropertyDetail() {
         onClose={() => setDeleteOpen(false)}
         onConfirm={handleDeleteProperty}
         title="Supprimer le logement"
-        message={`Voulez-vous vraiment supprimer "${property.name}" ?`}
+        message={`Supprimer « ${property.name} » ?`}
         confirmLabel="Supprimer"
       />}
     </Box>

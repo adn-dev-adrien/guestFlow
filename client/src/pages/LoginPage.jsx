@@ -104,7 +104,7 @@ export default function LoginPage() {
   }
 
   return (
-    <AuthCard subtitle="Connectez-vous pour continuer.">
+    <AuthCard subtitle="Connexion pour continuer.">
       <Box component="form" onSubmit={submit}>
         <Stack spacing={2}>
           {notice && <Alert severity={notice.severity} onClose={() => setNotice(null)}>{notice.text}</Alert>}

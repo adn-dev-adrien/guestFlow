@@ -131,7 +131,7 @@ test('departure SAS: a bath-linen line deferred at arrival is shown and counted 
   clickBtn('Pas OK'); // +80 end-of-stay
   await screen.findByText(/serviettes et les draps sont-ils tous là/);
   clickBtn('Oui');
-  await screen.findByText(/récupéré les clés/);
+  await screen.findByText(/Clés du logement récupérées/);
   clickBtn('Oui');
   await screen.findByText(/bon état/i);
   clickBtn('Oui');
@@ -166,7 +166,7 @@ test('departure SAS: the ménage page is dropped when the cleaning is already so
   await screen.findByText(/serviettes et les draps sont-ils tous là/);
   expect(screen.queryByText(/fait correctement/)).toBeNull();
   clickBtn('Oui');
-  await screen.findByText(/récupéré les clés/);
+  await screen.findByText(/Clés du logement récupérées/);
   clickBtn('Oui');
   await screen.findByText(/bon état/i);
   clickBtn('Oui');
@@ -199,7 +199,7 @@ test('departure SAS re-open: a cleaning line billed before the ménage was sold 
   clickBtn('Commencer');
   await screen.findByText(/serviettes et les draps sont-ils tous là/);
   clickBtn('Oui');
-  await screen.findByText(/récupéré les clés/);
+  await screen.findByText(/Clés du logement récupérées/);
   clickBtn('Oui');
   await screen.findByText(/bon état/i);
   clickBtn('Oui');
@@ -234,7 +234,7 @@ test('departure SAS re-open: an offered preserved line comes back with its real 
   clickBtn('Commencer');
   await screen.findByText(/serviettes et les draps sont-ils tous là/);
   clickBtn('Oui');
-  await screen.findByText(/récupéré les clés/);
+  await screen.findByText(/Clés du logement récupérées/);
   clickBtn('Oui');
   await screen.findByText(/bon état/i);
   clickBtn('Oui');

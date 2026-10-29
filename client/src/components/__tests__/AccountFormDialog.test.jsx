@@ -60,7 +60,7 @@ describe('AccountFormDialog', () => {
     await user.click(screen.getByLabelText(/Rôles/));
     // The admin option must show the protection caption and be disabled.
     await waitFor(() => expect(
-      screen.getByText(/Vous ne pouvez pas retirer votre propre rôle admin/)
+      screen.getByText(/Le rôle admin de son propre compte ne peut pas être retiré/)
     ).toBeInTheDocument());
   });
 

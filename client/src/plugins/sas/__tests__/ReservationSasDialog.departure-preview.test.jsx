@@ -48,7 +48,7 @@ async function openRecap(props = {}) {
   clickBtn('Pas OK');
   await screen.findByText(/serviettes et les draps sont-ils tous là/);
   clickBtn('Oui');
-  await screen.findByText(/récupéré les clés/);
+  await screen.findByText(/Clés du logement récupérées/);
   clickBtn('Oui');
   await screen.findByText(/bon état/i);
   clickBtn('Oui');
@@ -122,7 +122,7 @@ test('before any answer, a failing server replaces the list with the same panel'
   clickBtn('OK');
   await screen.findByText(/serviettes et les draps sont-ils tous là/);
   clickBtn('Oui');
-  await screen.findByText(/récupéré les clés/);
+  await screen.findByText(/Clés du logement récupérées/);
   clickBtn('Oui');
   await screen.findByText(/bon état/i);
   clickBtn('Oui');
@@ -139,7 +139,7 @@ test('the extinguisher page shows the server’s subtotal, « — » until it an
   clickBtn('OK');
   await screen.findByText(/serviettes et les draps sont-ils tous là/);
   clickBtn('Oui');
-  await screen.findByText(/récupéré les clés/);
+  await screen.findByText(/Clés du logement récupérées/);
   clickBtn('Oui');
   await screen.findByText(/bon état/i);
   clickBtn('Non');
@@ -178,7 +178,7 @@ test('an adjusted end-of-stay total says so under the total, and the Ajustement 
   clickBtn('Pas OK');
   await screen.findByText(/serviettes et les draps sont-ils tous là/);
   clickBtn('Oui');
-  await screen.findByText(/récupéré les clés/);
+  await screen.findByText(/Clés du logement récupérées/);
   clickBtn('Oui');
   await screen.findByText(/bon état/i);
   clickBtn('Oui');
@@ -208,7 +208,7 @@ test('a stored line’s key follows the last answer: « Offrir » still reaches 
   clickBtn('Commencer');
   await screen.findByText(/serviettes et les draps sont-ils tous là/);
   clickBtn('Oui');
-  await screen.findByText(/récupéré les clés/);
+  await screen.findByText(/Clés du logement récupérées/);
   clickBtn('Oui');
   await screen.findByText(/bon état/i);
   clickBtn('Oui');
@@ -240,7 +240,7 @@ test('lines the server seeds on a never-committed departure come back in the dra
   clickBtn('Non');
   await screen.findByText('Éléments manquants');
   clickBtn('Suivant');
-  await screen.findByText(/récupéré les clés/);
+  await screen.findByText(/Clés du logement récupérées/);
   clickBtn('Oui');
   await screen.findByText(/bon état/i);
   clickBtn('Oui');

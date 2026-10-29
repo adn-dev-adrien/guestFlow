@@ -143,7 +143,7 @@ export default function AccountFormDialog({
                   <Checkbox checked={checked} disabled={lockedSelfAdmin} />
                   <ListItemText
                     primary={ROLE_LABELS[role] || role}
-                    secondary={lockedSelfAdmin ? 'Vous ne pouvez pas retirer votre propre rôle admin.' : null}
+                    secondary={lockedSelfAdmin ? 'Le rôle admin de son propre compte ne peut pas être retiré.' : null}
                   />
                 </MenuItem>
               );

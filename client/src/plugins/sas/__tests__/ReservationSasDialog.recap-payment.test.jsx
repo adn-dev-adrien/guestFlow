@@ -111,7 +111,7 @@ test('departure recap: « Payé en liquide » settles into caisse interne; no «
   clickBtn('Pas OK'); // +80 end-of-stay
   await screen.findByText(/serviettes et les draps sont-ils tous là/);
   clickBtn('Oui');
-  await screen.findByText(/récupéré les clés/);
+  await screen.findByText(/Clés du logement récupérées/);
   clickBtn('Oui');
   await screen.findByText(/bon état/i);
   clickBtn('Oui');

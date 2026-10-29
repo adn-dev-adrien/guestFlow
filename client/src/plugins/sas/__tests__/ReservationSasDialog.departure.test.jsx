@@ -66,7 +66,7 @@ test('departure SAS: cleaning page asks « fait correctement » (not the arrival
   clickBtn('Oui');
 
   // keys → Oui
-  await screen.findByText(/récupéré les clés/);
+  await screen.findByText(/Clés du logement récupérées/);
   clickBtn('Oui');
 
   // extinguisher → « Oui » = bon état (no charge)
@@ -111,7 +111,7 @@ test('departure SAS: an UNSETTLED arrival complement is recalled — detail + co
   clickBtn('Pas OK'); // +80 end-of-stay
   await screen.findByText(/serviettes et les draps sont-ils tous là/);
   clickBtn('Oui');
-  await screen.findByText(/récupéré les clés/);
+  await screen.findByText(/Clés du logement récupérées/);
   clickBtn('Oui');
   await screen.findByText(/bon état/i);
   clickBtn('Oui');
@@ -153,7 +153,7 @@ test('departure SAS: a PAID arrival complement is NOT recalled', async () => {
   clickBtn('Pas OK');
   await screen.findByText(/serviettes et les draps sont-ils tous là/);
   clickBtn('Oui');
-  await screen.findByText(/récupéré les clés/);
+  await screen.findByText(/Clés du logement récupérées/);
   clickBtn('Oui');
   await screen.findByText(/bon état/i);
   clickBtn('Oui');
@@ -177,7 +177,7 @@ test('departure SAS: an unpaid arrival complement ALONE (no end-of-stay compleme
   clickBtn('OK'); // ménage fait → NO end-of-stay charge
   await screen.findByText(/serviettes et les draps sont-ils tous là/);
   clickBtn('Oui');
-  await screen.findByText(/récupéré les clés/);
+  await screen.findByText(/Clés du logement récupérées/);
   clickBtn('Oui');
   await screen.findByText(/bon état/i);
   clickBtn('Oui');
@@ -206,7 +206,7 @@ test('departure SAS: extinguisher not in good condition opens the tariff page; q
   clickBtn('OK'); // cleaning OK → no cleaning charge
   await screen.findByText(/serviettes et les draps sont-ils tous là/);
   clickBtn('Oui');
-  await screen.findByText(/récupéré les clés/);
+  await screen.findByText(/Clés du logement récupérées/);
   clickBtn('Oui');
 
   // extinguisher: « Non » = pas en bon état → opens the tariff-quantity page

@@ -1,7 +1,7 @@
 {
   "id": "sas",
   "name": "Arrivée et départ guidés",
-  "version": "1.7.3",
+  "version": "1.7.4",
   "description": "Le sas pas à pas de l’accueil et du départ.",
   "icon": "door",
   "surfaces": [
@@ -78,6 +78,9 @@
     "1.7.3": [
       "Une étape ajoutée par un autre module qui plante n’arrête plus le sas.",
       "Compatible avec le SDK 2 de GuestFlow."
+    ],
+    "1.7.4": [
+      "Questions des clés et de l’extincteur sans « vous »."
     ]
   }
 }

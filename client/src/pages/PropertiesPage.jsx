@@ -111,7 +111,7 @@ export default function PropertiesPage() {
         onClose={() => setDeleteTarget(null)}
         onConfirm={handleDeleteProperty}
         title="Supprimer le logement"
-        message={deleteTarget ? `Voulez-vous vraiment supprimer "${deleteTarget.name}" ?` : ''}
+        message={deleteTarget ? `Supprimer « ${deleteTarget.name} » ?` : ''}
         confirmLabel="Supprimer"
       />
     </Box>
