@@ -96,14 +96,15 @@ test('rules 4, 10 — the module declares Qonto as the payment provider, ready o
 test('rules 11, 12 — the routes and the webhook answer at the URLs Qonto and the page know, only while live', { skip: skipWithout(['google-vacation-rentals']) }, async () => {
   const db = v38Db();
   const off = boot(db, { active: false });
-  assert.equal(loader.isWebhook('POST', '/payments/qonto/webhook'), true);
-  assert.equal(loader.isWebhook('GET', '/payments/qonto/webhook'), false);
+  assert.equal(loader.isWebhook('POST', '/payments/qonto/webhook'), false, 'a plugin that is not live exempts nothing (specs/plugins-phase-2-hosts.md rule 33)');
   const inactive = await request(off.app, 'POST', '/api/payments/qonto/webhook', { data: { payment_link_id: 'x' } });
   assert.equal(inactive.status, 404);
   assert.equal(inactive.body.error, 'PLUGIN_INACTIVE');
   assert.equal((await request(off.app, 'GET', '/api/payments/settings')).status, 404);
 
   const on = boot(db);
+  assert.equal(loader.isWebhook('POST', '/payments/qonto/webhook'), true);
+  assert.equal(loader.isWebhook('GET', '/payments/qonto/webhook'), false);
   const unsigned = await request(on.app, 'POST', '/api/payments/qonto/webhook', { data: { payment_link_id: 'x' } });
   assert.equal(unsigned.status, 401, 'the plugin authenticates its webhook itself');
   const settings = await request(on.app, 'GET', '/api/payments/settings');

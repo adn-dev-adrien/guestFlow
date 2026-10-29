@@ -209,9 +209,12 @@ test('rule 5: a public mount is refused outside /public/, a plain mount outside 
   assert.throws(() => ctx.mount('/x', express.Router()), /\/api\//);
 });
 
-test('rule 5: plugin reception entries join the role guard; inactive, the route still ends in 404', { skip: skipWithout(['gate-access', 'weather-alerts']) }, () => {
+test('rule 5: plugin reception entries join the role guard while the plugin is live, and only then', { skip: skipWithout(['gate-access', 'weather-alerts']) }, () => {
+  const off = freshDb();
+  boot(off, { installed: [] });
+  assert.deepEqual(loader.receptionMatchers(), []);
   const db = freshDb();
-  boot(db, { installed: [] });
+  boot(db, { installed: ['gate-access', 'weather-alerts'] });
   const matchers = loader.receptionMatchers().map((m) => `${m.method} ${m.re.source}`);
   assert.ok(matchers.some((m) => m.includes('weather-alerts')));
   assert.ok(matchers.some((m) => m.includes('gate-access')));

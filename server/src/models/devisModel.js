@@ -937,7 +937,48 @@ function createModel(database) {
       else if (changes.length > 0) addHistoryEntry(numId, 'update', changes);
     });
     tx();
-    return { ok: true, data: findById(numId) };
+    const retiredLinks = retireStaleLinks(numId);
+    return { ok: true, data: { ...findById(numId), ...(retiredLinks.length ? { retiredPaymentLinks: retiredLinks.length } : {}) } };
+  }
+
+  /**
+   * Whatever path re-priced the devis (the operator's save, a guest's request sent again), an open payment
+   * link that bills another amount than the quote now asks is abandoned at once and deactivated at its
+   * provider after the commit; the poll retries a refusal and books the link at its own amount if the guest
+   * paid it anyway (specs/public-online-payment.md rule 14, specs/reservation-payment-ledger.md rules 29-31).
+   */
+  function retireStaleLinks(devisId) {
+    const exists = database.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'payment_links'").get();
+    if (!exists) return [];
+    const { staleLinks } = require('../utils/ledgerLinks');
+    const row = database.prepare("SELECT depositAmount, balanceAmount FROM reservations WHERE id = ? AND kind = 'devis'").get(devisId);
+    const open = database.prepare("SELECT * FROM payment_links WHERE reservationId = ? AND status = 'open' ORDER BY id").all(devisId);
+    const hasSplit = row && row.depositAmount != null && row.balanceAmount != null;
+    const stale = hasSplit ? staleLinks(open, row) : [];
+    if (stale.length === 0) return [];
+    const at = new Date().toISOString();
+    const retire = database.prepare("UPDATE payment_links SET status = 'cancelled', remoteCancelPendingAt = ?, cancelReason = 'amount-changed' WHERE id = ? AND status = 'open'");
+    const fmt = (cents) => require('../utils/reservationLedger').formatEuros(Number(cents || 0) / 100);
+    const retired = database.transaction(() => stale
+      .filter((link) => retire.run(link.providerLinkId ? at : null, link.id).changes > 0)
+      .map((link) => {
+        addHistoryEntry(devisId, 'update', [{ field: 'paymentLinkRetired', label: 'Lien de paiement', from: fmt(link.amountCents), to: 'retiré : montant du devis modifié' }]);
+        return { ...link, status: 'cancelled', remoteCancelPendingAt: link.providerLinkId ? at : null, cancelReason: 'amount-changed' };
+      }))();
+    if (retired.length === 0) return [];
+    setImmediate(() => {
+      const paymentLinksModel = require('./paymentLinksModel').buildModel(database);
+      const paymentProviders = require('../utils/paymentProviders');
+      const notificationService = require('../utils/notificationService');
+      const { checkConflict } = require('../utils/paymentEffectDeps');
+      require('../utils/retiredDevisLinks').settleRetiredDevisLinks(retired, {
+        database, paymentLinksModel, devisModel: createModel(database), provider: paymentProviders.active(),
+        notifyPaidAfterCancel: (link, options) => notificationService.notifyPaidAfterCancel(link, options),
+        notifyConflict: (id) => notificationService.notifyBookingConflict(id),
+        checkConflict,
+      }).catch((err) => console.error('[devis] link deactivation:', err && err.message ? err.message : err));
+    });
+    return retired;
   }
 
   /**
@@ -1247,6 +1288,7 @@ function createModel(database) {
     resolvePaymentSchedule,
     list,
     updateFromPublicRequest,
+    __retireStaleLinks: retireStaleLinks,
     appendPublicMessage,
     markOperatorSeen,
     purgePublicRequest,
