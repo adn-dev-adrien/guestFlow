@@ -182,9 +182,11 @@ changed something the price depends on; money collected beyond the total is repo
     history's options / resources signatures since `complementPaidDate` (like the tax part, rule 15), the
     larger of that and the stored-vs-quote difference: a removed activity is refunded on « Activités », not on
     « Prestations complémentaires ».
-    The complement's window overlaps the schedule's: what the schedule share already took from a poste (its
-    leftover hints) is subtracted from the complement's before it is spread, so a solde option removed in the
-    window is not counted twice. A paid complement with no paid date reads no history.
+    The complement's window overlaps the schedule's, so the hints can add up to more than the complement lost:
+    only that overflow (Σ hints − `complementCollectedExcessTtc`) is taken back, from the options and resources
+    the schedule share already covers on that poste, whatever the way it was split (leftover hints or captured
+    contribs). A solde option removed in the window is thus not counted twice, and a drop that belongs to the
+    complement is never cut. A paid complement with no paid date reads no history.
 
 **Edge cases:**
 - In the extras window of a started fiche a custom line is keyed by its text (end-of-stay complement,

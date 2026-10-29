@@ -155,9 +155,16 @@ function overpaymentLinesOf({ row = {}, capturedByPoste = {}, quote = {}, overpa
     const rest = round2(total - complementExcess);
     const lines = rest > 0 ? scheduleLines({ row, capturedByPoste, quote, total: rest, leftover }) : [];
     let remaining = complementExcess;
-    // The history window of the complement overlaps the schedule's: what the schedule share already took
-    // from a poste is not taken again from the complement's.
-    const taken = (poste) => round2(lines.filter((l) => l.bucket === poste.bucket && l.excessOnly).reduce((t, l) => t + l.amountTtc, 0));
+    // The history window of the complement overlaps the schedule's: the hints can add up to more than the
+    // complement lost. Only that overflow is taken back, from the postes the schedule share already covers
+    // (whatever the way it was split), so a drop that really belongs to the complement is never cut.
+    let overflow = Math.max(0, round2(['touristTax', 'options', 'resources'].reduce((t, k) => t + Number(complementLeft[k] || 0), 0) - complementExcess));
+    const taken = (poste) => {
+      const share = round2(lines.filter((l) => l.bucket === poste.bucket).reduce((t, l) => t + l.amountTtc, 0));
+      const cut = Math.min(overflow, share);
+      overflow = round2(overflow - cut);
+      return cut;
+    };
     const add = (poste, amount, alreadyTaken = 0) => {
       const part = Math.min(remaining, Math.max(0, round2(amount - alreadyTaken)));
       if (!(part > 0)) return;
