@@ -14,7 +14,7 @@ const { entryToRows } = require('../accountingExport');
 // commission splits at 20 % because the GdF platform row carries hasVatOnCommission = 1.
 //
 // Expected entry (verbatim from the accountant):
-//   DÉBIT  CGOLF    668,00   (montant net propriétaire = the bank movement)
+//   DÉBIT  CVICTOR    668,00   (montant net propriétaire = the bank movement)
 //   DÉBIT  622600      54,17   (commission HT)
 //   DÉBIT  44566000    10,83   (TVA déductible 20 % sur commission)
 //   CRÉDIT 70600000   593,64   (location gîte HT)
@@ -60,7 +60,7 @@ test('Victor #22225: the journal entry matches the accountant’s expected lines
   // [day, month, year, journal, piece, libellé, compte, débit, crédit, …platform info]
   const byAccount = new Map(rows.map((r) => [r[6], { debit: r[7], credit: r[8] }]));
 
-  assert.equal(round2(byAccount.get('CGOLF').debit), 668, 'net propriétaire = 733 − 65');
+  assert.equal(round2(byAccount.get('CVICTOR').debit), 668, 'net propriétaire = 733 − 65');
   assert.equal(round2(byAccount.get('622600').debit), 54.17, 'commission HT');
   assert.equal(round2(byAccount.get('44566000').debit), 10.83, 'TVA déductible 20 % sur commission');
   assert.equal(round2(byAccount.get('70600000').credit), 593.64, 'location gîte HT (653 TTC)');

@@ -374,7 +374,7 @@ Server 3868 pass, client 1199 pass.
 
 - [ ] Papa (22269) and Oscar (22209) are unchanged after the migration — same amount, and now a
       base that reproduces it in the office's form (381,82 € and 217,45 € HT).
-- [ ] Marchand (22275) and Maillard (22211), booked but uncollected, re-price to 21,33 € and
+- [ ] Marchand (22275) and Zeta (22211), booked but uncollected, re-price to 21,33 € and
       3,36 € and stay re-priceable until collected.
 - [ ] A new Lodgify booking: entering the brut moves the tax; collecting the balance freezes it;
       changing the brut afterwards does not.

@@ -20,7 +20,7 @@ the commission. Her worked example — Stéphane Victor, réservation #22225, G�
 
 | Line | GuestFlow | Expected |
 |---|---|---|
-| Client (CGOLF) — debit | 668,00 | 668,00 |
+| Client (CVICTOR) — debit | 668,00 | 668,00 |
 | 622600 commission HT — debit | 50,60 | **54,17** |
 | 44566000 TVA déductible/commission — debit | *(absent)* | **10,83** |
 | 70600000 location gîte — credit | 580,55 | **593,64** |

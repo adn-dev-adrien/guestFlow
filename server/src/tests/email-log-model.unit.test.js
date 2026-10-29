@@ -186,7 +186,7 @@ test('listPending: a post-stay email (positive dayOffset) is kept even after arr
 
 test('listPending: a validUntil-anchored reminder surfaces for an open, deposit-unpaid devis; converted/paid excluded', () => {
   const { db, model } = fresh();
-  db.prepare("INSERT INTO clients (id, firstName, lastName, email) VALUES (1, 'Tom', 'Baz', 'tom@b.fr')").run();
+  db.prepare("INSERT INTO clients (id, firstName, lastName, email) VALUES (1, 'Psi', 'Baz', 'tom@b.fr')").run();
   db.prepare("INSERT INTO properties (id, name) VALUES (1, 'Villa A')").run();
   // deposit_reminder anchored on validUntil, dayOffset -3.
   db.prepare("INSERT INTO email_templates (id, stableKey, name, subject, body, dayOffset, sendMode, enabled, anchor) VALUES (40, 'deposit_reminder', 'Relance', 'S', 'B', -3, 'manual', 1, 'validUntil')").run();

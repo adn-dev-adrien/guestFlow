@@ -232,7 +232,7 @@ options and resources appear once, at their real amount, only when they were rea
 | `utils/` | `accountingExport.js` | — | (none) — the row layout, the accounts and the residue absorption are unchanged. |
 | `constants/` | `accounting.js` | — | (none) — same chart of accounts (rule 9). |
 | `database.js` | — | — | (none) — no schema change, no migration. |
-| `tests/` | `accounting-books-the-money-collected.unit.test.js` | C | The five measured reservations as regressions: Marchand (ratio 1 + pure-accommodation solde + resource on 70601000), Fabre (cash complement stays out), Nicolas (drift → the bank amount), Perrin (legacy gross-up preserved), and a mid-stay-free control. |
+| `tests/` | `accounting-books-the-money-collected.unit.test.js` | C | The five measured reservations as regressions: Marchand (ratio 1 + pure-accommodation solde + resource on 70601000), Papa (cash complement stays out), Sigma (drift → the bank amount), Gamma (legacy gross-up preserved), and a mid-stay-free control. |
 | `tests/` | `accounting-gross-up-ignores-contribs.unit.test.js` | C | Rule 12: #13's shape with and without contribs books the same entry at 10 % VAT; a ratio-1 entry keeps its contribs; end to end through the payment controller. |
 | `plugins/accounting-export/` | `accountingModel.js` | T | Rule 13: `computeTaxTtcForKind` books the solde's frozen tax and the later rise on the complement. Rule 14: `buildInstallmentEntry` books the stored `paidSplit`. |
 | `utils/` | `installmentPaidSplit.js` (C), `installmentPayment.js` | C/T | Rule 14: the split computed and stored when an installment is collected. |

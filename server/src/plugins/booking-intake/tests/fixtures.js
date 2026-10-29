@@ -30,7 +30,7 @@ Montant total
 
 Nom du client :
 
-Camille Garnier
+Camille Sierra
  fr
 cgarnier.123456@guest.booking.com
 
@@ -95,7 +95,7 @@ Maison 4 Chambres (Domaine Solio - gite confort, nature, animaux)
 
 Nom du client
 
-Camille Garnier
+Camille Sierra
 
 Occupation réservée
 
