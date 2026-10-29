@@ -10,8 +10,8 @@ async function customerWithSpace({ at, ...custom } = {}) {
   return { ...env, id: created.id, slug: created.slug };
 }
 
-// Rewrites the space's plugin rows and provisioning tables: { active, inactive, versions, rows, applied, facts, erased }.
-function writeSpace(env, { active = [], inactive = [], versions = {}, rows = [], applied = null, facts = {}, erased = [], provisioning = true }) {
+// Rewrites the space's plugin rows and provisioning tables: { active, inactive, versions, rows, applied, facts, erased, capabilities }.
+function writeSpace(env, { active = [], inactive = [], versions = {}, rows = [], applied = null, facts = {}, erased = [], provisioning = true, capabilities = { removalOrders: true, coreVersion: '3.19.0' } }) {
   const db = new Database(path.join(env.root, env.slug, 'data', 'guestflow.db'));
   db.exec('DROP TABLE IF EXISTS plugins; CREATE TABLE plugins (id TEXT PRIMARY KEY, enabled INTEGER NOT NULL DEFAULT 1, source TEXT, version TEXT)');
   const insert = db.prepare('INSERT INTO plugins (id, enabled, source, version) VALUES (?, ?, ?, ?)');
@@ -26,6 +26,7 @@ function writeSpace(env, { active = [], inactive = [], versions = {}, rows = [],
       .run(r.pluginId, r.desired, r.outcome, r.code || null, r.message || null, r.licenceIssuedAt, null, r.at || r.licenceIssuedAt));
     const meta = db.prepare('INSERT INTO plugin_provisioning_meta VALUES (?, ?)');
     if (applied) meta.run('appliedLicenceIssuedAt', applied);
+    if (capabilities) meta.run('capabilities', JSON.stringify(capabilities));
     Object.entries(facts).forEach(([id, f]) => meta.run(`facts:${id}`, JSON.stringify(f)));
     erased.forEach((order) => meta.run(`erase:${order}`, '2026-10-01T00:00:00Z'));
   }

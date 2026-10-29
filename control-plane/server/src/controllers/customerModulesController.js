@@ -12,6 +12,7 @@ const { plugins: gfPlugins } = require('../utils/gf');
 
 const OUT_OF_PLAN = 'Hors forfait : à ajouter au forfait ou en option d’abord.';
 const UNREADABLE = 'Espace illisible : modules non relevés.';
+const DATA_UNKNOWN = 'Données non relevées : ni effacement ni désinstallation.';
 const TOO_OLD = 'Espace à mettre à jour : modules non relevés.';
 
 const entryOf = (id) => gfPlugins.findPlugin(id);
@@ -48,7 +49,7 @@ function createCustomerModulesController(ctx, customersController) {
     if (!c.pluginsSeededAt) return null;
     return {
       chosen: customerPlugins.chosen(c.id),
-      eraseOrders: customerPlugins.pendingOrders(c.id).map((o) => ({ order: o.orderId, id: o.pluginId })),
+      eraseOrders: customerPlugins.pendingOrders(c.id).map((o) => ({ order: o.orderId, id: o.pluginId, ...(o.removal ? { removal: true } : {}) })),
     };
   }
 
@@ -66,6 +67,7 @@ function createCustomerModulesController(ctx, customersController) {
   }
 
   const keptData = (state, eraseLines) => (state.state === 'inactive' && eraseLines.length ? 'données conservées' : null);
+  const installedOn = (facts, id) => Boolean(facts) && facts.installed.includes(id);
 
   function lineOf(c, id, { allowed, chosen, facts, writtenAt, erasing }) {
     const entry = entryOf(id);
@@ -79,20 +81,25 @@ function createCustomerModulesController(ctx, customersController) {
     const state = moduleState({ id, on, facts, licenceWrittenAt: writtenAt, now: now() });
     // Rule 22 — only an inactive module with something to erase, and not while an order is on its way.
     const reported = facts && facts.provisioning ? facts.provisioning.moduleFacts[id] : null;
-    // The plugin's own lines are { label, count, warning? }: a warning says what stays, not what goes.
-    const dataLines = reported && reported.erasable ? reported.data || [] : [];
-    const eraseLines = dataLines.filter((l) => !l.warning).map((l) => l.label);
+    // The plugin's own lines are { label, count, warning? }. A warning with a zero count is a note on what
+    // stays; any other line — a warning on money included — is data the purge erases (rule 41).
+    const dataLines = reported && reported.erasable && Array.isArray(reported.data) ? reported.data : [];
+    const isNote = (l) => l.warning && l.count === 0;
+    const eraseLines = dataLines.filter((l) => !isNote(l)).map((l) => l.label);
+    // Rule 41 — a space that cannot say what the module holds gives no action: unknown is not « nothing ».
+    const unknown = installedOn(facts, id) && (!reported || reported.dataUnknown === true || (reported.erasable && !Array.isArray(reported.data)));
     // Rules 31, 38 — a module that is off can be wiped (it holds data) or removed (it holds none) unless an installed plugin needs it.
     const idle = !on && state.state === 'inactive' && !erasing.has(id);
-    const installed = Boolean(facts) && facts.installed.includes(id);
-    const dependants = idle && (eraseLines.length > 0 || installed) ? erasureDependants(id, allowed, facts) : [];
-    const canErase = idle && eraseLines.length > 0 && dependants.length === 0;
-    const canUninstall = idle && eraseLines.length === 0 && installed && dependants.length === 0;
+    const installed = installedOn(facts, id);
+    const dependants = idle && !unknown && (eraseLines.length > 0 || installed) ? erasureDependants(id, allowed, facts) : [];
+    const canErase = idle && !unknown && eraseLines.length > 0 && dependants.length === 0;
+    const removalOrders = Boolean(facts && facts.provisioning && facts.provisioning.capabilities && facts.provisioning.capabilities.removalOrders === true);
+    const canUninstall = idle && !unknown && removalOrders && eraseLines.length === 0 && installed && dependants.length === 0;
     const blockedBy = dependants.length ? `Nécessaire à ${dependants.map(nameOf).join(', ')} : à désinstaller d’abord.` : null;
     return {
       id, name: entry.name, on, switchable: true, ...state,
-      detail: erasing.has(id) ? erasureIssue(id, facts, writtenAt, erasing.get(id)) || (erasing.get(id) ? 'Désinstallation en cours.' : 'Effacement des données en cours.') : blockedBy || state.detail || keptData(state, eraseLines),
-      canErase, canUninstall, blockedBy, eraseLines: canErase ? eraseLines : [], eraseWarnings: canErase ? dataLines.filter((l) => l.warning).map((l) => l.label) : [], planChip: null,
+      detail: erasing.has(id) ? erasureIssue(id, facts, writtenAt, erasing.get(id)) || (erasing.get(id) ? 'Désinstallation en cours.' : 'Effacement des données en cours.') : blockedBy || state.detail || (idle && unknown ? DATA_UNKNOWN : keptData(state, eraseLines)),
+      canErase, canUninstall, blockedBy, eraseLines: canErase ? eraseLines : [], eraseWarnings: canErase ? dataLines.filter(isNote).map((l) => l.label) : [], planChip: null,
     };
   }
 
@@ -135,6 +142,21 @@ function createCustomerModulesController(ctx, customersController) {
     };
   }
 
+  // An order still on its way must not fire the next time the module is switched off — unless the space
+  // already ran it: then the journal says so instead of « annulé » (audit 2026-10-28, L1).
+  function cancelPendingOrders(c, pluginId, operator) {
+    const facts = instances.readFacts(customersController.servedSlug(c));
+    const ran = new Set(facts && facts.provisioning ? facts.provisioning.erasedOrders : []);
+    customerPlugins.pendingOrders(c.id).filter((o) => o.pluginId === pluginId).forEach((o) => {
+      customerPlugins.acknowledge(o.orderId, now().toISOString());
+      const done = ran.has(o.orderId);
+      const text = o.removal
+        ? (done ? `${nameOf(pluginId)} déjà désinstallé` : `Désinstallation de ${nameOf(pluginId)} annulée`)
+        : (done ? `Données de ${nameOf(pluginId)} déjà effacées` : `Effacement des données de ${nameOf(pluginId)} annulé`);
+      customersController.journal(c.id, operator, 'module', text);
+    });
+  }
+
   function toggle(customerId, pluginId, on, operator) {
     const c = customersController.mustGet(customerId);
     if (typeof on !== 'boolean') throw httpError(400, 'INVALID', 'Module : allumé ou éteint.');
@@ -149,11 +171,7 @@ function createCustomerModulesController(ctx, customersController) {
     if (refused) throw refused;
     if (on) {
       customerPlugins.add(c.id, pluginId, day(), operator);
-      const removal = customerPlugins.pendingOrders(c.id).some((o) => o.pluginId === pluginId && o.removal);
-      // An order still on its way must not fire the next time the module is switched off.
-      if (customerPlugins.cancelOrdersOf(c.id, pluginId, now().toISOString())) {
-        customersController.journal(c.id, operator, 'module', removal ? `Désinstallation de ${nameOf(pluginId)} annulée` : `Effacement des données de ${nameOf(pluginId)} annulé`);
-      }
+      cancelPendingOrders(c, pluginId, operator);
     } else {
       customerPlugins.remove(c.id, pluginId);
     }

@@ -662,6 +662,21 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
     any client address in `X-Forwarded-For` past the IP limiters (`trust proxy 1`). `npm run dev`
     sets `NODE_ENV=development`. `utils/bootConfig.js` decides; `bootstrap-host.sh` already writes
     both secrets.
+40. **A renewal invoice Qonto does not hold yet follows the customer's current plan** (added 2026-10-28,
+    audit M1; refines rule 34's « A plan change while an invoice is open leaves that invoice as
+    issued »). While an invoice is `pending` with no `providerRef`, each attempt (the daily run and
+    « Réessayer la facture ») recomputes its amount, total, months and period end from the plan and
+    billing the customer has now, stores them and journals « Facture en préparation recalculée sur
+    l’offre actuelle : X → Y TTC » before calling Qonto, so the expected total sent to Qonto is never
+    stale and `AMOUNT_MISMATCH` cannot loop (each loop burned a numbered Qonto invoice). An invoice
+    Qonto already holds is untouched.
+41. **The shared login directory does not trust a space's claim on a known address** (added 2026-10-28,
+    audit L2). Spaces declare their users' emails and nothing proves them (a customer administrator
+    creates users without confirmation). The address recorded as a customer's contact is a known
+    identity: it is put in the directory for the space(s) of the customer(s) it is recorded on only
+    (two customers may share one), whatever another space declares. Other addresses are listed as before (rule 26) — the residual risk, a space claiming an
+    address the operator never recorded, is accepted: the page then shows a company name, no
+    credential is exposed (each space checks its own passwords).
 
 ## 4. Architecture
 

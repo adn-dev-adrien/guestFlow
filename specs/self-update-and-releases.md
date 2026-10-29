@@ -338,6 +338,42 @@ signed-off releases over HTTPS, when the operator asks for it.
     of property documents out of `/uploads` (settings-rationalization.md rule 32) rewrites
     `documents.filePath`, which v3.18 cannot follow; the production instance holds no document, and an
     instance that does must restore the pre-update backup to roll back.
+40. **A release's install runs no script and starts from a trusted lockfile** (audit 2026-10-28, H1).
+    Before any `npm` runs, `server/package-lock.json` must exist and every entry must resolve from
+    `https://registry.npmjs.org/` with an `integrity` hash: a git, file, link or http dependency, another
+    host, or a missing hash refuses the release (`LOCKFILE_UNTRUSTED`); no entry is exempt, an `inBundle`
+    one included (it would otherwise let a git dependency's `prepare` run). A release carrying `server/npm-shrinkwrap.json` (npm would use it instead of the checked
+    lockfile) or an `.npmrc` in `server/` or at the release root (it could re-enable scripts or change the
+    registry) is refused the same way, as is a release that ships its own `.install-home` (the throw-away `HOME`, where
+    npm reads the user `.npmrc`); the install deletes and recreates that directory empty before npm runs. That closes what `--ignore-scripts`
+    leaves open — a git dependency's `prepare`, and a look-alike package named `sharp` or `better-sqlite3`.
+    The install is then `npm ci --omit=dev --ignore-scripts` with a minimal environment: `PATH`, the proxy
+    variables (`HTTPS_PROXY`, `HTTP_PROXY`, `NO_PROXY`, `NODE_EXTRA_CA_CERTS`), a throw-away `HOME` inside the
+    release and an npm cache next to the releases directory (warm across updates); no `CP_*`/`GUESTFLOW_*`
+    variable is inherited. No lifecycle script runs and no rebuild is attempted: `better-sqlite3` ships
+    N-API prebuilds and `sharp` its prebuilt optional packages, and a final `require('better-sqlite3')`
+    proves the module loads. Both the self-update and the fleet console (which holds the licence key) use
+    this one function. **What is guaranteed**: no install-time code of the release or of a dependency runs.
+    **What is not**: the install and that final `require` still run as the installer's own unix user, so
+    code of an integrity-checked registry package that executes at load time can read what that user reads
+    (on the console host: `console/env` and `envs/`). Closing that needs the install to run as another user
+    (a root wrapper in the style of `guestflow-systemctl` running `npm ci` and the smoke test as an
+    unprivileged `gf-build` user, with the release directory handed over and back, a sudoers line and
+    bootstrap changes — not testable off the host, so not done).
+41. **Optional release signature** (audit 2026-10-28, H1). When `GUESTFLOW_RELEASE_PUBLIC_KEY` (base64 DER
+    SPKI Ed25519) is configured on the installer, the release must carry a `SHA256SUMS.sig` asset — the
+    base64 Ed25519 signature of the exact `SHA256SUMS` bytes — and an unsigned release, a signature that
+    does not verify or an unreadable key is refused (`SIGNATURE_MISSING`, `SIGNATURE_INVALID`,
+    `SIGNATURE_KEY_INVALID`) before the archive is trusted. With no key configured nothing changes. The
+    signing key is held by the maintainer, never by GitHub: after the release workflow has published,
+    `node scripts/sign-release.mjs sign <private-key-file> vX.Y.Z` signs the published `SHA256SUMS` and
+    uploads `SHA256SUMS.sig` after checking that the sums list the downloaded archive's real hash and
+    printing them for comparison with the CI log; `keygen <private-key-file>` creates the key pair and
+    prints the public key to configure. The `/guestflow-release` skill runs that signing (step 8b) when
+    `GUESTFLOW_RELEASE_SIGNING_KEY` is set. The key must be Ed25519 and the signature is checked over the
+    raw bytes of `SHA256SUMS`. The check sits in the only two install paths (`stageRelease` for a space,
+    `releases.install` for the console); a version already installed is not re-verified. Once the key is
+    configured a release is not installable until it has been signed.
 
 **Edge cases**
 
@@ -859,7 +895,10 @@ Resolved 2026-08-20 with the user before writing this spec:
   truncated download and CDN-level tampering, **not** against someone who has taken over the
   GitHub account and publishes a malicious release. Minisign signing with a key held outside
   GitHub was offered and declined for now; it remains the natural hardening step if the threat
-  model changes.
+  model changes. **Amended 2026-10-28:** the threat
+  model did change — the fleet console installs releases in the process that holds the licence key —
+  so rules 40 (install scripts isolated from secrets) and 41 (optional Ed25519 signature of
+  `SHA256SUMS`, enforced once a public key is configured) were added.
 - **Q: Release channel?**
   A: **Tag `vX.Y.Z` on `master` via a `release/vX.Y.Z` PR**, sowel-style. The permanent `release`
   branch disappears.

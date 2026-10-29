@@ -102,8 +102,12 @@ SSH `REPO_URL`.)
 What bootstrap writes into `/srv/guestflow/console/env` by itself:
 - the session and proxy secrets;
 - **the licence key pair** (H1 rule 26): an Ed25519 private key in base64 DER (PKCS8) in
-  `CP_LICENCE_PRIVATE_KEY`, generated when it is empty. It prints the public key for the record;
+  `CP_LICENCE_PRIVATE_KEY`, generated when it is empty (an optional `CP_REGISTRY_PRIVATE_KEY`, same format, signs the plugin registry's index instead — specs/plugins-phase-4-registry.md rule 42). It prints the public key for the record;
   nothing has to be done with it — the console writes it into every instance's environment;
+- **optional release signing** (self-update rule 41): `GUESTFLOW_RELEASE_PUBLIC_KEY` in the console env makes the
+  console refuse any fleet release without a valid `SHA256SUMS.sig`. Bootstrap never sets it; the maintainer
+  generates the key pair off the host (`node scripts/sign-release.mjs keygen <file>`) and signs each release
+  (`... sign <file> vX.Y.Z`). Set it only once the next release is signed;
 - **the object storage, typed once** (H1 rule 27): `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY`
   become `LITESTREAM_ACCESS_KEY_ID` / `LITESTREAM_SECRET_ACCESS_KEY`, and `BACKUP_URL`,
   `BACKUP_ENDPOINT`, `BACKUP_REGION` (optional) replace the example's Scaleway target. The console's
