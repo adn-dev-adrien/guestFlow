@@ -166,8 +166,11 @@ function createGraph({
     return reported.includes(id) ? reported : cycleThrough(group, id, next);
   }
 
+  /** Every member of the strongly connected group `id` belongs to (itself included), or an empty list. */
+  const groupOf = (id) => cyclicGroups().groups.find((g) => g.includes(id)) || [];
+
   return {
-    requirementsOf, dependantsOf, usedBy, requirementClosure, activeDependantClosure, cycles, cycleOf, nameOf,
+    requirementsOf, dependantsOf, usedBy, requirementClosure, activeDependantClosure, cycles, cycleOf, groupOf, nameOf,
   };
 }
 

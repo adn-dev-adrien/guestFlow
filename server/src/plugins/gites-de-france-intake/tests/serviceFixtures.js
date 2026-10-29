@@ -18,7 +18,7 @@ const CATALOGUE = [
 function setup({
   reservations = [PLACEHOLDER],
   mails = [{ messageId: '<m1@gdf07>', receivedAt: '2026-10-14T16:32:00.000Z', text: BOOKING_MAIL }],
-  rate = 10, autoApply = true, updateStatus = 200, today = '2026-10-15', findReservations = null, parserVersion = null, existingDb = null, slowRead = false,
+  rate = 10, autoApply = true, updateStatus = 200, today = '2026-10-15', findReservations = null, parserVersion = null, existingDb = null, slowRead = false, capped = null,
 } = {}) {
   const db = existingDb || new Database(':memory:');
   db.exec(TABLE_SQL);
@@ -34,7 +34,7 @@ function setup({
       giteNumbers: () => ({ 1: '309700' }),
       autoApply: () => autoApply,
     },
-    readMails: async (cfg, h) => { calls.readWith = cfg; calls.handlers = h; for (const m of mails) if (!h.seen(m.messageId)) { if (slowRead) await new Promise((resolve) => { setImmediate(resolve); }); await h.onMail({ authenticated: true, ...m }); } },
+    readMails: async (cfg, h) => { calls.readWith = cfg; calls.handlers = h; if (capped && h.onCap) h.onCap(capped); for (const m of mails) if (!h.seen(m.messageId)) { if (slowRead) await new Promise((resolve) => { setImmediate(resolve); }); await h.onMail({ authenticated: true, ...m }); } },
     findReservations: findReservations || (({ propertyIds, startDate, endDate }) => reservations
       .filter((r) => propertyIds.includes(r.propertyId) && startDate === '2026-11-13' && endDate === '2026-11-15')),
     commissionPercent: () => rate,

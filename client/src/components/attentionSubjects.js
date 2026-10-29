@@ -10,6 +10,7 @@ import NewReservationsAlert from './NewReservationsAlert';
 import EmailPendingAlert from './EmailPendingAlert';
 import UpdateAvailableAlert from './UpdateAvailableAlert';
 import VatFranchiseAlert from './VatFranchiseAlert';
+import PluginsSwitchedOffAlert from './PluginsSwitchedOffAlert';
 import TwoFactorNudgeCard from './TwoFactorNudgeCard';
 
 export const CORE_ATTENTION_SUBJECTS = Object.freeze({
@@ -23,5 +24,6 @@ export const CORE_ATTENTION_SUBJECTS = Object.freeze({
   'email-pending': EmailPendingAlert,
   'update-available': UpdateAvailableAlert,
   'vat-franchise': VatFranchiseAlert,
+  'plugins-switched-off': PluginsSwitchedOffAlert,
   'two-factor': TwoFactorNudgeCard,
 });
