@@ -11,6 +11,7 @@ const { readSourceManifest } = require('../plugins/manifest');
 const { buildModel } = require('../models/pluginsModel');
 const { switchedOffNotices } = require('../controllers/pluginsAttentionController');
 const { CORE_SUMMARIES } = require('../utils/dashboardAttention');
+const { skipWithout } = require('../plugins/sdk/testing');
 
 const req = (id) => ({ id, range: '^1.0.0' });
 const row = (m) => ({ id: m.id, version: m.version, source: 'bundled', manifest: m });
@@ -27,7 +28,7 @@ function weatherOverOffSas() {
   return { model, shipped, sas };
 }
 
-test('rule 57: weather-alerts 1.3.0 over an installed but OFF SAS is switched off at boot, the SAS stays off', () => {
+test('rule 57: weather-alerts 1.3.0 over an installed but OFF SAS is switched off at boot, the SAS stays off', { skip: skipWithout(['weather-alerts', 'sas']) }, () => {
   const { model, shipped, sas } = weatherOverOffSas();
   assert.ok(shipped.requires.some((r) => r.id === 'sas'));
   const copies = { 'weather-alerts': shipped, sas };
@@ -61,7 +62,7 @@ test('rule 57: an active requirement leaves the dependant on, and the dependants
   assert.equal(offModel.get('xc').offReason, 'xb');
 });
 
-test('rule 57: switching the dependant back on clears the notice', () => {
+test('rule 57: switching the dependant back on clears the notice', { skip: skipWithout(['weather-alerts', 'sas']) }, () => {
   const { model, shipped, sas } = weatherOverOffSas();
   const copies = { 'weather-alerts': shipped, sas };
   host.housekeeping({ model, ids: ['weather-alerts', 'sas'], copyOf: (id) => ({ manifest: copies[id], sha256: null }) });
@@ -71,7 +72,7 @@ test('rule 57: switching the dependant back on clears the notice', () => {
   assert.deepEqual(switchedOffNotices(model), []);
 });
 
-test('rule 58: the home line names the plugin and what it needs, in short impersonal French', () => {
+test('rule 58: the home line names the plugin and what it needs, in short impersonal French', { skip: skipWithout(['weather-alerts', 'sas']) }, () => {
   const { model, shipped, sas } = weatherOverOffSas();
   const copies = { 'weather-alerts': shipped, sas };
   host.housekeeping({ model, ids: ['weather-alerts', 'sas'], copyOf: (id) => ({ manifest: copies[id], sha256: null }) });

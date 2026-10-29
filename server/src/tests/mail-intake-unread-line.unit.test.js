@@ -10,12 +10,12 @@ const registry = require('../plugins/sdk/registry');
 const settingsModel = require('../models/settingsModel');
 const mailboxReader = require('../plugins/sdk/mailboxReader');
 const { createContext } = require('../plugins/sdk/createContext');
-const { applyPluginSchema } = require('../plugins/sdk/testing');
+const { applyPluginSchema, skipWithout } = require('../plugins/sdk/testing');
 
 const SETTINGS = { 'gites-de-france-intake': { giteNumbers: '{"1":"309700"}' }, 'airbnb-intake': { listings: '{"1":"1234567890123456789"}' } };
 
 for (const id of Object.keys(SETTINGS)) {
-  test(`rule 32(b): ${id} — the line needs two capped passes in a row and clears otherwise`, async () => {
+  test(`rule 32(b): ${id} — the line needs two capped passes in a row and clears otherwise`, { skip: skipWithout([id]) }, async () => {
     const db = new Database(':memory:');
     db.exec('CREATE TABLE ical_sources (propertyId INTEGER, url TEXT, isActive INTEGER, disabled INTEGER)');
     applyPluginSchema(db, id);
