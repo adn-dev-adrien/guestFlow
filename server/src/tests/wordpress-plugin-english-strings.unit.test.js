@@ -122,8 +122,8 @@ test('the terms link follows the language of the page (rule 48)', () => {
   );
 });
 
-// specs/wordpress-plugin.md rule 32 — the return page stops on a cancelled stay and says so, in both languages.
-test('specs/wordpress-plugin.md rule 32 — a cancelled status stops the polling and has an English string', () => {
+// specs/wordpress-plugin.md rule 33 — the return page stops on a cancelled stay and says so, in both languages.
+test('specs/wordpress-plugin.md rule 33 — a cancelled status stops the polling and has an English string', () => {
   assert.match(view, /d\.status === 'cancelled'[\s\S]{0,200}GF\.t\('paymentCancelled'\)[\s\S]{0,40}return;/);
   assert.match(blocks, /'paymentCancelled'\s*=>\s*__\('Cette réservation est annulée\.'/);
   assert.equal(catalogue()['Cette réservation est annulée.'], 'This booking has been cancelled.');
