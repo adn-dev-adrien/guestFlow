@@ -27,6 +27,8 @@ module.exports = {
   // specs/plugins-phase-4-registry.md rule 8 — the registry checks a package with the instance's own
   // checks: its members, its layout and its manifest.
   packages: require(path.join(GF_SERVER, 'src', 'plugins', 'packageStore')),
+  // The tolerance the instances apply to an index date (rule 53): the console never dates beyond it.
+  registryClient: require(path.join(GF_SERVER, 'src', 'plugins', 'registryClient')),
   qontoClient: qonto.qontoClient,
   qontoConfig: qonto.qontoConfig,
   qontoService: qonto.qontoService,

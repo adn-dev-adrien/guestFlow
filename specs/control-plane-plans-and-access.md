@@ -680,6 +680,7 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
 
 42. **`create-first-admin.js` reads its arguments strictly** (audit R2 N4, 2026-10-29). `util.parseArgs` in strict mode: a value that looks like a flag (`--name --probe`) or an unknown flag exits 2 before any database is opened. The console's call (`--name ''`, `--establishment <json>`) is unchanged; a name or company starting with `-` is passed by the console as `--name=-x` / `--company=-x` (only then; an older release's script ignores that form), so it is accepted. Test: `tests/audit-r2-first-admin-args.unit.test.js`.
 43. **The contact email gets the same `--opt=value` treatment** (audit R3, 2026-10-29). `--email` is passed as `--email=-x` when it starts with `-` (RFC 5321 allows it; the console's check accepts it), so the strict parser no longer makes provisioning and reissue fail for that address. Test: `tests/audit-r2-first-admin-runner.unit.test.js`.
+44. **A malformed `gf_space` cookie is an absent one** (audit r4, 2026-10-29). A value `decodeURIComponent` cannot decode (`%E0%A4%A`) made the login page answer 500; it now shows the form. Test: `tests/login-page.unit.test.js`.
 
 ## 4. Architecture
 

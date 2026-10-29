@@ -1,0 +1,1 @@
+- Plugin registry: two simultaneous uploads of one version can no longer leave a package file that does not match its signed hash, and an index date no longer stays frozen after a clock jump of more than a day (the instances' own tolerance); an unreadable file name on upload answers 400 instead of 500.

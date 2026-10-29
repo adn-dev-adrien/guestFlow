@@ -140,9 +140,9 @@ test('rules 8, 30: each signed index is dated after the previous one, even when 
     h.ctx.registry.withdraw('linen', '1.0.1');
     const second = read();
     assert.ok(Date.parse(second) > Date.parse(first), `${second} after ${first}`);
-    h.now.set('2026-01-01T00:00:00Z');
+    h.now.set('2026-09-29T09:30:00Z');
     h.ctx.registry.sign();
-    assert.ok(Date.parse(read()) > Date.parse(second), 'a clock stepping back does not date it back');
+    assert.ok(Date.parse(read()) > Date.parse(second), 'a clock stepping back by less than an hour does not date it back (a larger jump: rule 53)');
   } finally {
     h.cleanup();
   }

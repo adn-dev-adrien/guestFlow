@@ -8,9 +8,12 @@
 
 const fs = require('fs');
 const path = require('path');
+const semver = require('semver');
 
 const REGISTRY_ORIGIN = 'https://registry.npmjs.org';
 const REGISTRY_PREFIX = `${REGISTRY_ORIGIN}/`;
+// Legacy upper-case names exist on npm; `%` and `/` beyond the scope separator never do.
+const NPM_NAME_RE = /^(?:@[a-z0-9~][a-z0-9._~-]*\/)?[a-zA-Z0-9~][a-zA-Z0-9._~-]*$/;
 const SERVER_PACKAGE_NAME = 'guestflow-server';
 
 /**
@@ -19,6 +22,7 @@ const SERVER_PACKAGE_NAME = 'guestflow-server';
  * the canonical one, so what is checked is what is fetched.
  */
 function isOwnTarball(resolved, name, version) {
+  if (!NPM_NAME_RE.test(name) || typeof version !== 'string' || semver.valid(version) !== version) return false;
   let url;
   try {
     url = new URL(resolved);

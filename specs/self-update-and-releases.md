@@ -484,6 +484,8 @@ signed-off releases over HTTPS, when the operator asks for it.
   the update button is hidden behind an explanatory tooltip.
 - Disk full during extraction → abort, staging directory removed, status `failed`.
 
+50. **The lockfile's `version` and package name are validated before they build the tarball path** (audit r4, 2026-10-29). `isOwnTarball` requires `semver.valid(version) === version` and an npm package-name pattern (no `%`, one optional `@scope/`), so an encoded path such as `1.0.0%2F..%2Fevil%2F-%2Fevil-1.0.0` cannot ride in a URL that is byte-for-byte canonical. The real `server/package-lock.json` still has 0 violations. Test: `lockfile-provenance-names.unit.test.js`.
+
 ---
 
 ## 4. Architecture

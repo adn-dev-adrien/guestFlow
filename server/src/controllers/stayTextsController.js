@@ -11,7 +11,7 @@
 
 const { CATALOGUE, entryOf } = require('../utils/stayTextCatalogue');
 // Rule 4, and specs/guest-email-texts-made-simple.md rule 11: one validation for every editor.
-const { tokenError } = require('../utils/templateTokens');
+const { tokenError, lengthError } = require('../utils/templateTokens');
 const stayTextsModel = require('../models/stayTextsModel');
 
 function buildController({ database }) {
@@ -60,7 +60,7 @@ function buildController({ database }) {
     const fr = body.fr == null ? '' : String(body.fr);
     const en = body.en == null ? '' : String(body.en);
     const allowed = { tokens: entry.tokens, flags: entry.flags };
-    const error = tokenError('fr', fr, allowed) || tokenError('en', en, allowed);
+    const error = tokenError('fr', fr, allowed) || tokenError('en', en, allowed) || lengthError('fr', fr) || lengthError('en', en);
     if (error) return res.status(422).json(error);
     model().save(entry.key, { fr, en }, propertyId);
     return res.json({ key: entry.key, fr, en, propertyId });
