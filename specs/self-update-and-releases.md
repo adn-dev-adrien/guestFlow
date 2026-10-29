@@ -399,7 +399,7 @@ signed-off releases over HTTPS, when the operator asks for it.
 44. **The plugin-owned tables have a floor too (2026-10-29, round-2 audit).** Rule 39's floor covered the
     core tables only, so a plugin migration renaming or dropping a column of its own table would have gone
     unseen. `fixtures/rollback-floor-v3.18.0-plugin-tables.json` lists the 16 tables the v3.18.0 plugins own
-    (columns read from a database booted by v3.18.0); `rollback-additive-schema.unit.test.js` runs every
+    (columns read from a database booted by v3.18.0); `rollback-plugin-tables-floor.unit.test.js` runs every
     bundled plugin's migrations on a current install and fails when a column of that floor is missing. A
     plugin table born after v3.18.0 is outside it. The floor moves with the core one when a release ships.
 45. **Qonto tokens after a rollback (2026-10-29, round-2 audit; known limit, no code).** A refresh by the
