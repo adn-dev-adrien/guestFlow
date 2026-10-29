@@ -136,6 +136,14 @@ no test?** » — and prevent a **new** rule from being delivered without its te
     announces on top (about twenty citations in 18 test files were credited to the wrong spec, which
     produced phantom coverage and two orphan citations).
 
+16. **`--changed` fails on a new orphan citation** (added 2026-10-29, audit R4). A citation that lands on
+    no rule (unknown spec, rule that does not exist), in a test file this PR changes and that the file
+    did not already carry at the base, fails the gate with the file, the spec and the rule. An orphan
+    already present at the base stays a line of the report (see the edge cases): the gate only refuses
+    what the PR brings. The case it closes: a header reordered in `booking-intake.spec.js` made the
+    smoke-suite spec the file's primary, credited its ten bare « Rule N » to the wrong spec and left one
+    orphan nobody saw.
+
 **Edge cases:**
 
 - A spec without a `## 3.` section → no rules, absent from the report (the case of framing specs and
@@ -218,6 +226,8 @@ And for the gate, on a PR:
       gate: an added rule without a citation fails, with a citation passes, a modified rule warns
       without failing.
 - [x] `tests/spec-rule-coverage.unit.test.js` — rule 15: `<spec> rule N` without `specs/` goes to the named spec when it exists, to the file's spec otherwise.
+- [x] `tests/spec-rule-coverage-orphans.unit.test.js` (3) — rule 16: a new orphan citation in a changed file fails the gate; one already
+      there, or in an untouched file, does not.
 - [x] `tests/spec-rule-coverage-superseded.unit.test.js` (2) — rule 13: the Status line decides; a
       superseded spec has no rules, neither in the report nor at the gate.
 
