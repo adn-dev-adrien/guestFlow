@@ -130,6 +130,12 @@ no test?** » — and prevent a **new** rule from being delivered without its te
     code is delivered (status never updated). They stay checked as before while they remain Approved;
     the PR that moves them to « Implemented » will have to cover or declare all their rules.
 
+15. **A citation may name its spec without the `specs/` prefix** (added 2026-10-29, audit R2). « reservation-refunds.md
+    rule 38 », « public-online-payment rule 12 » or « defer-arrival-complement-to-checkout §3.3 règle 16 »
+    is credited to the spec it names — when that name is an existing spec — instead of the one the file
+    announces on top (about twenty citations in 18 test files were credited to the wrong spec, which
+    produced phantom coverage and two orphan citations).
+
 **Edge cases:**
 
 - A spec without a `## 3.` section → no rules, absent from the report (the case of framing specs and
@@ -211,6 +217,7 @@ And for the gate, on a PR:
       attachment to the closest spec above; the `> **Sans test**` exemption; orphan citations; and the
       gate: an added rule without a citation fails, with a citation passes, a modified rule warns
       without failing.
+- [x] `tests/spec-rule-coverage.unit.test.js` — rule 15: `<spec> rule N` without `specs/` goes to the named spec when it exists, to the file's spec otherwise.
 - [x] `tests/spec-rule-coverage-superseded.unit.test.js` (2) — rule 13: the Status line decides; a
       superseded spec has no rules, neither in the report nor at the gate.
 
