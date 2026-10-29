@@ -54,6 +54,27 @@ function overpaymentOf({ row = {}, captured = {}, refundedTtc = 0, depositAmount
   return Math.max(0, round2(excess - Number(refundedTtc || 0)));
 }
 
+/**
+ * The trop-perçu of a stay read from what is STORED (reservation-save-keeps-pricing.md rule 8): what was
+ * collected — the paid acompte and solde, the paid arrival complement — beyond the stored stay total
+ * (`finalPrice` + tourist tax), net of what was given back. Today's engine is never consulted, so a drift
+ * between the engine and the price the stay was sold at is not a trop-perçu, and one the operator confirmed
+ * (a reduction after the solde was paid) is still there after the reload. A complement the operator adjusted
+ * himself is left out of both sides.
+ *
+ * @param {object} args  row (stored), captured (Σ contribs per bucket), refundedTtc
+ * @returns {number} ≥ 0
+ */
+function storedOverpaymentOf({ row = {}, captured = {}, refundedTtc = 0 }) {
+  if (!isDirectChannel(row.platform)) return 0;
+  const adjusted = row.complementAmountOverride != null && row.complementAmountOverride !== '';
+  const complementPaid = Number(row.complementPaid || 0) === 1 || Number(row.complementPaidCash || 0) === 1;
+  const complement = complementPaid ? Number(row.complementAmount || 0) : 0;
+  const collected = collectedOnSchedule(row, captured) + (adjusted ? 0 : complement);
+  const owed = Number(row.finalPrice || 0) + Number(row.touristTaxTotal || 0) - (adjusted ? complement : 0);
+  return Math.max(0, round2(collected - owed - Number(refundedTtc || 0)));
+}
+
 // The postes a refund line is booked on (specs/reservation-refunds.md §3.5), in display order.
 const POSTES = [
   { bucket: 'accommodation', label: 'Hébergement' },
@@ -113,7 +134,7 @@ function overpaymentLinesOf({ row = {}, capturedByPoste = {}, quote = {}, overpa
       if (!(part > 0)) return;
       const existing = lines.find((l) => l.bucket === poste.bucket);
       if (existing) existing.amountTtc = round2(existing.amountTtc + part);
-      else lines.push({ ...poste, amountTtc: part, collectedTtc: part, dueTtc: 0 });
+      else lines.push({ ...poste, amountTtc: part, collectedTtc: part, dueTtc: 0, excessOnly: true });
       remaining = round2(remaining - part);
     };
     // What the edit took out of the complement, poste by poste (the tourist tax included), when the stored
@@ -161,4 +182,4 @@ function scheduleLines({ row, capturedByPoste, quote, total }) {
     .map(({ bucket, label, amountTtc, collectedTtc, dueTtc }) => ({ bucket, label, amountTtc, collectedTtc, dueTtc }));
 }
 
-module.exports = { collectedOnSchedule, overpaymentOf, overpaymentLinesOf, currentByPoste };
+module.exports = { collectedOnSchedule, overpaymentOf, storedOverpaymentOf, overpaymentLinesOf, currentByPoste };

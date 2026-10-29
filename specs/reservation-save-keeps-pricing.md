@@ -130,6 +130,24 @@ changed something the price depends on; money collected beyond the total is repo
    (« Modifications non enregistrées »). The baseline is derived in the render that applies the quote (not in an
    effect), so a clean fiche with drifted stored figures never flashes « modified » when the quote lands.
 
+8. **The stored trop-perçu is measured against the stored price** (round 2 of the money audit, 2026-10-29).
+   On the GET, the trop-perçu of a direct stay is what was collected — the paid acompte and solde (their
+   captured contribs when they exist) and the paid arrival complement — beyond the stored `finalPrice` plus
+   tourist tax, net of refunds (`storedOverpaymentOf`). It no longer depends on the stored acompte and solde,
+   which a save rewrites: a reduction confirmed after the solde was paid (#22306: 2 301,60 € paid, -10 % →
+   176,30 €) still shows after the reload, on a locked fiche too. Drift between today's engine and the price
+   the stay was sold at is not an excess (#14: 807,20 € paid at 807,20 €, replayed at 777,70 € → none);
+   #22224 and #22226 keep 21 € and 28 €. A complement the operator adjusted is left out of both sides, and a
+   platform stay has none (the platform refunds its guest). The engine only splits the amount by poste.
+9. **The live ledger reports the stored figure plus what the edit adds.** `liveOverpayment` no longer reports
+   the drift of today's engine: it is the stored trop-perçu (rule 8) plus the excess the posted fiche adds over
+   what the engine already found on the stored stay. A note typed on an unlocked past fiche shows nothing new.
+10. **The 409 OVERPAID carries the refund means** (`overpaymentMethod`, `internal` when the excess sits on a
+    complement collected « caisse interne »), like the GET's `refundPrefill` and the live ledger.
+11. **The detail line of an excess carried by a collected complement** reads « <poste> : <amount> encaissés
+    en trop », never « 0,00 € dus »: the stay still owes its prestations, the line only says what was taken
+    in excess.
+
 **Edge cases:**
 - In the extras window of a started fiche a custom line is keyed by its text (end-of-stay complement,
   arrival baseline): a rename there is refused with « Une prestation ajoutée une fois le séjour commencé ne
@@ -207,6 +225,9 @@ An amber alert above the platform price alert, one per notice, 44 px action targ
       `ReservationPage.baseline-server-writes.test.jsx` (2) — a mark and an undo before the first quote leave the
       fiche clean, before and after the quote; `ReservationPage.baseline-drift.test.jsx` (1) — a drifted clean fiche never enables Enregistrer, not for a frame;
       `ReservationPage.bed-counts-zero.test.jsx` (3) — rule 7: a user edit then Enregistrer on a loaded fiche.
+- [x] `trop-percu-stored-measure.unit.test.js` (7) — rules 8-11: a confirmed trop-perçu
+      survives the reload and shows locked (#22306 shape), no drift excess (#14 shape), platform none, the live
+      ledger adds only the edit's change, the 409 means, the detail wording.
 - [x] `fiche-pricing-notices.unit.test.js` (6) — rules 5-6; client `PricingNotices.test.jsx` (3).
 - [x] Client `RefundDialog.overpayment.test.jsx` (5, `defaultMethod`) and `FinanceSection.refunds.test.jsx`
       (7, the row's own prefill).

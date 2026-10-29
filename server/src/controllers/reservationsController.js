@@ -77,7 +77,7 @@ function gateInsurance(res, engineInput, bookingId) {
   return true;
 }
 const refundsModel = require('../models/refundsModel');
-const { overpaymentOf, overpaymentLinesOf } = require('../utils/overpayment');
+const { overpaymentOf, overpaymentLinesOf, storedOverpaymentOf } = require('../utils/overpayment');
 const { firstSessionConflict, conflictError: sessionConflictError, sessionKey } = require('../utils/resourceSessionConflicts');
 const resourceOtherUsesModel = require('../models/resourceOtherUsesModel');
 const { formatCurrency } = require('../utils/devisHelpers');
@@ -377,7 +377,7 @@ function overpaymentIntroducedBy(reservationId, quote, overrides = {}) {
     error: `Trop-perçu : ${formatCurrency(after)} déjà encaissés au-delà du nouveau total.`,
     code: 'OVERPAID',
     overpaymentTtc: after,
-    // Rule 35 — the same amount split by poste, for the refund the fiche opens next.
+    overpaymentMethod: refundMeansOf(row, round2(quote.complementCollectedExcessTtc), after),
     overpaymentLines: overpaymentLinesOf({
       row, capturedByPoste: model.capturedScheduleContribsByPoste(reservationId), quote, overpaymentTtc: after,
       // Computed before the write: the stored lines are still the ones the complement collected.
@@ -414,7 +414,21 @@ function liveOverpayment(reservationId, engineInput) {
     engineInput: savedInput, quote: calculateReservationQuote(savedInput), calculate: calculateReservationQuote,
   });
   if (!asSaved || asSaved.error) return none;
-  return overpaymentOfQuote(reservationId, row, asSaved);
+  // The posted fiche priced by today's engine counts the drift since the stay was sold as excess: report the
+  // stored figure, plus only what this edit adds on top of what the stored stay already held (rule 9).
+  const afterEngine = overpaymentOfQuote(reservationId, row, asSaved);
+  let beforeEngine = 0;
+  try {
+    const replay = quoteStoredReservation(db, row);
+    beforeEngine = replay && !replay.error ? overpaymentOfQuote(reservationId, row, replay).overpaymentTtc : 0;
+  } catch {
+    beforeEngine = 0;
+  }
+  const storedTtc = storedOverpaymentOf({
+    row, captured: model.capturedScheduleContribs(reservationId), refundedTtc: refundsModel.totalsByReservation(Number(reservationId)).withCash,
+  });
+  const reported = round2(storedTtc + Math.max(0, afterEngine.overpaymentTtc - beforeEngine));
+  return overpaymentResultOf(reservationId, row, asSaved, reported);
 }
 
 // What the stored arrival complement carries on each poste beyond what the stay's complement now carries:
@@ -453,39 +467,51 @@ function touristTaxCollectedInComplement(reservationId, row) {
   return null;
 }
 
-// The trop-perçu of a stay and its split by poste, from the quote of the stay as it would be saved.
-// `storedSchedule`: measure the acompte and the solde against the STORED figures (a fiche read from the
-// database), never against today's engine, which also counts the drift since the stay was priced.
-function overpaymentOfQuote(reservationId, row, asSaved, { storedSchedule = false } = {}) {
-  const complementExcess = round2(asSaved.complementCollectedExcessTtc);
-  const overpaymentTtc = overpaymentOf({
-    row,
-    captured: model.capturedScheduleContribs(reservationId),
-    refundedTtc: refundsModel.totalsByReservation(Number(reservationId)).withCash,
-    depositAmount: storedSchedule ? row.depositAmount : asSaved.depositAmount,
-    balanceAmount: storedSchedule ? row.balanceAmount : asSaved.balanceAmount,
-    engineOverTtc: storedSchedule ? complementExcess : asSaved.overCollectedTtc,
-  });
-  // Money a complement took « caisse interne » is off the books: the refund of its excess defaults to the
-  // same means, so nothing is booked in the accounts (Adrien, 2026-10-29). The operator can change it.
-  const onlyComplementInCash = complementExcess > 0 && Number(row.complementPaidCash || 0) === 1 && overpaymentTtc <= complementExcess;
+// The means a refund of this excess defaults to. Money a complement took « caisse interne » is off the books:
+// the refund of its excess goes back the same way, so nothing is booked in the accounts (Adrien, 2026-10-29);
+// the operator can change it.
+function refundMeansOf(row, complementExcess, overpaymentTtc) {
+  return complementExcess > 0 && Number(row.complementPaidCash || 0) === 1 && overpaymentTtc <= complementExcess ? 'internal' : null;
+}
+
+// The trop-perçu `overpaymentTtc` of a stay, with its refund means and its split by poste, the quote being
+// the stay as it would be saved (or as it is stored).
+function overpaymentResultOf(reservationId, row, quote, overpaymentTtc) {
+  const complementExcess = round2(quote.complementCollectedExcessTtc);
   return {
     overpaymentTtc,
-    overpaymentMethod: onlyComplementInCash ? 'internal' : null,
+    overpaymentMethod: refundMeansOf(row, complementExcess, overpaymentTtc),
     overpaymentLines: overpaymentLinesOf({
-      row, capturedByPoste: model.capturedScheduleContribsByPoste(reservationId), quote: asSaved, overpaymentTtc,
-      complementLeft: complementExcess > 0 ? complementLeftOf(reservationId, asSaved, row) : {},
+      row, capturedByPoste: model.capturedScheduleContribsByPoste(reservationId), quote, overpaymentTtc,
+      complementLeft: complementExcess > 0 && overpaymentTtc > 0 ? complementLeftOf(reservationId, quote, row) : {},
     }),
   };
 }
 
-// The same, for a fiche read from the database (a locked fiche shows the stored ledger).
+// The trop-perçu of the stay as the engine would save it (rule 34).
+function overpaymentOfQuote(reservationId, row, asSaved) {
+  const overpaymentTtc = overpaymentOf({
+    row,
+    captured: model.capturedScheduleContribs(reservationId),
+    refundedTtc: refundsModel.totalsByReservation(Number(reservationId)).withCash,
+    depositAmount: asSaved.depositAmount,
+    balanceAmount: asSaved.balanceAmount,
+    engineOverTtc: asSaved.overCollectedTtc,
+  });
+  return overpaymentResultOf(reservationId, row, asSaved, overpaymentTtc);
+}
+
+// The same, for a fiche read from the database (a locked fiche shows the stored ledger): measured against
+// the STORED price and what was collected (rule 8), the engine only splitting it by poste.
 function storedOverpayment(reservationId) {
   const row = model.getRow(reservationId);
   if (!row || row.kind !== 'reservation') return null;
   const quote = quoteStoredReservation(db, row);
   if (!quote || quote.error) return null;
-  return overpaymentOfQuote(reservationId, row, quote, { storedSchedule: true });
+  const overpaymentTtc = storedOverpaymentOf({
+    row, captured: model.capturedScheduleContribs(reservationId), refundedTtc: refundsModel.totalsByReservation(Number(reservationId)).withCash,
+  });
+  return overpaymentResultOf(reservationId, row, quote, overpaymentTtc);
 }
 
 // A refusal raised inside the creation transaction: thrown to roll the whole write back, then answered
