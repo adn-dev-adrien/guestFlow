@@ -1,4 +1,4 @@
-// specs/public-request-abuse-and-grouping.md rule 33, specs/public-api.md (audit 2026-10-28, F5) — the public
+// specs/public-request-abuse-and-grouping.md rule 33, specs/public-api.md rule 21 (audit 2026-10-28, F5) — the public form's phone is validated at the boundary, and a value with a line break cannot forge a line of the
 // form's phone is validated at the boundary, and a value with a line break cannot forge a line of the
 // owner's notification e-mail.
 const test = require('node:test');
