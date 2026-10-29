@@ -66,7 +66,7 @@ function register(ctx) {
     },
     readMails: (cfg) => sdk.mailbox.readMailsFrom(cfg),
     findReservations: ({ propertyIds, startDate, endDate }) => ctx.db.prepare(`
-      SELECT id, propertyId, platform, kind, sourceType, icalSyncLocked, platformGrossAmount FROM reservations
+      SELECT id, propertyId, platform, kind, sourceType, icalSyncLocked, platformGrossAmount, cancelledAt FROM reservations
       WHERE propertyId IN (${propertyIds.map(() => '?').join(',')}) AND startDate = ? AND endDate = ?`)
       .all(...propertyIds, startDate, endDate),
     commissionPercent: (platform) => Number((platforms().findByName(platform) || {}).commissionPercent || 0),

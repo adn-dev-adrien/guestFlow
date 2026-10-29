@@ -31,10 +31,11 @@ test('rule 4: the real layout gives every field', () => {
   });
 });
 
-test('rule 4: line breaks and spacing do not matter (HTML flattened to one line)', () => {
-  const r = parseGitesDeFranceMail(BOOKING_MAIL.replace(/\n+/g, ' ').replace(/\t/g, '   '));
-  assert.equal(r.ok, true, r.error);
-  assert.equal(r.booking.totalNet, 534);
+test('rule 4 (amended by rule 23): spacing and tabs do not matter, but every label opens its own line', () => {
+  const spaced = parseGitesDeFranceMail(BOOKING_MAIL.replace(/\n/g, '\n\n').replace(/\t/g, '   ').replace(/^/gm, '  '));
+  assert.equal(spaced.ok, true, spaced.error);
+  assert.equal(spaced.booking.totalNet, 534);
+  assert.equal(parseGitesDeFranceMail(BOOKING_MAIL.replace(/\n+/g, ' ')).ok, false);
 });
 
 test('rule 4: a stay with towels, no children, compound names, thousands', () => {
