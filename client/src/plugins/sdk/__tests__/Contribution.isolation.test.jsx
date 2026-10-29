@@ -1,4 +1,4 @@
-// specs/plugins-phase-4-registry.md rule 44 — a host that mounts a plugin `Component` itself (not through
+// specs/plugins-phase-1-sdk.md rule 29 and specs/plugins-phase-4-registry.md rule 44 — a host that mounts a plugin `Component` itself (not through
 // `<Slot>`) wraps it in `<Contribution>`: a throwing one renders nothing and is logged, a stale lazy chunk
 // shows « Recharger », and the page around it stays up.
 import React, { lazy } from 'react';
