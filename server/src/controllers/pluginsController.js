@@ -14,7 +14,7 @@ const {
   PLUGIN_CATALOG, PLUGIN_DISPLAY_NAMES, PLUGIN_SETTINGS_PLACES, findPlugin, pluginsOfPage, ONLINE_PAYMENT, SAS, ACCOUNTING_EXPORT,
 } = require('../constants/plugins');
 const { RECEPTION, ACCOUNTANT } = require('../constants/roles');
-const { compare } = require('../utils/semverRange');
+const { compare, satisfies } = require('../utils/semverRange');
 const {
   MESSAGES, rangeRefusal, bestCandidate, bestRefusal, requirementPlan, changelogBetween,
 } = require('../utils/pluginOffers');
@@ -232,7 +232,7 @@ function createController(model = defaultModel, deps = {}) {
         const refusal = bestRefusal(entry.id, src, env()) || { code: 'UNAVAILABLE', message: 'Indisponible.' };
         return { update: null, incompatible: null, rollback: null, offer: { version: null, requirements: [], refusal } };
       }
-      return { update: null, incompatible: null, rollback: null, offer: offerOf(offer.manifest, offer.version) };
+      return { update: null, incompatible: null, rollback: null, offer: offerOf(entry.id, offer.manifest, offer.version) };
     }
     if (incompatible) {
       const target = bestCandidate(entry.id, src, env(), { except: row.version });
@@ -250,13 +250,16 @@ function createController(model = defaultModel, deps = {}) {
   // Rules 9–10 — what an install takes along: the requirements to install or switch on first, in order.
   const stepView = ({ id, name, version, op }) => ({ id, name, version, op });
 
-  function offerOf(manifest, version) {
+  const planLine = (p) => (p.op === 'activate' ? `Active aussi ${p.name}.` : `Installe aussi ${p.name} ${p.version}.`);
+
+  function offerOf(id, manifest, version) {
     const { plan, refusal } = requirementPlan(manifest, planCtx());
-    return { version, requirements: plan.map(stepView), refusal };
+    const confirm = plan.length ? { title: `Installer ${nameOf(id)}`, message: plan.map(planLine).join(' '), label: 'Tout installer' } : null;
+    return { version, requirements: plan.map(stepView), refusal, confirm };
   }
 
   // A development tree installs from its sources (rule 10): the offer is the source manifest's.
-  const sourceOffer = (entry) => offerOf(entry, entry.version);
+  const sourceOffer = (entry) => offerOf(entry.id, entry, entry.version);
 
   function updateView(row, target) {
     const { plan, refusal } = requirementPlan(target.manifest, planCtx());
@@ -310,10 +313,10 @@ function createController(model = defaultModel, deps = {}) {
   // Rule 8 — every refusal a card can predict, said before the click.
   function actionsView(entry, row, g, blocker) {
     const none = { allowed: false, blockedBy: null };
-    if (!row) return { activate: { ...none, alsoActivates: [] }, deactivate: { ...none, alsoDeactivates: [] }, uninstall: none };
+    if (!row) return { activate: { ...none, alsoActivates: [], confirm: null }, deactivate: { ...none, alsoDeactivates: [], confirm: null }, uninstall: none };
     const id = entry.id;
     const cycle = g.cycleOf(id);
-    let activate = { ...none, alsoActivates: [] };
+    let activate = { ...none, alsoActivates: [], confirm: null };
     if (!row.enabled) {
       const needed = g.requirementClosure(id);
       const missing = needed.filter((n) => !model.get(n));
@@ -323,16 +326,34 @@ function createController(model = defaultModel, deps = {}) {
       if (cycle) blockedBy = `Dépendance circulaire : ${cycleLabel(cycle, nameOf)}.`;
       else if (missing.length) blockedBy = `Nécessite ${namesOf(missing)} : à installer d’abord.`;
       else if (unlicensed.length) blockedBy = `Nécessite ${namesOf(unlicensed)}, hors forfait.`;
-      activate = { allowed: !blockedBy, blockedBy, alsoActivates: blockedBy ? [] : refs(off) };
+      const also = blockedBy ? [] : refs(off);
+      activate = {
+        allowed: !blockedBy,
+        blockedBy,
+        alsoActivates: also,
+        confirm: also.length ? { title: `Activer ${nameOf(id)}`, message: `Active aussi : ${namesOf(also.map((a) => a.id))}.`, label: 'Tout activer' } : null,
+      };
     }
-    let deactivate = { ...none, alsoDeactivates: [] };
+    let deactivate = { ...none, alsoDeactivates: [], confirm: null };
     if (row.enabled) {
       const followers = g.activeDependantClosure(id);
       const stuck = followers.find((n) => blockerFor(n, model));
       let blockedBy = null;
       if (blocker) blockedBy = blocker.message;
       else if (stuck) blockedBy = `${nameOf(stuck)} ne peut pas être désactivé : ${reasonOf(blockerFor(stuck, model))}.`;
-      deactivate = { allowed: !blockedBy, blockedBy, alsoDeactivates: blockedBy ? [] : refs(followers) };
+      const also = blockedBy ? [] : refs(followers);
+      deactivate = {
+        allowed: !blockedBy,
+        blockedBy,
+        alsoDeactivates: also,
+        confirm: {
+          title: `Désactiver ${nameOf(id)} ?`,
+          message: also.length
+            ? `Désactive aussi : ${namesOf(also.map((a) => a.id))}. Réglages et données gardés. À réactiver ensuite un par un.`
+            : 'Ce qu’il ajoute s’arrête. Ses réglages et ses données sont gardés : le réactiver remet tout en place.',
+          label: also.length ? 'Tout désactiver' : 'Désactiver',
+        },
+      };
     }
     const users = g.dependantsOf(id);
     const uninstallBlockedBy = users.length ? `Utilisé par ${namesOf(users)} : à désinstaller d’abord.` : (blocker && blocker.message) || null;
@@ -621,6 +642,32 @@ function createController(model = defaultModel, deps = {}) {
     return { restart: false };
   }
 
+  // A plugin left unloaded at boot because its requirement was missing is registered as soon as the
+  // requirement is live, so installing it does not call for a restart.
+  async function reviveDependants() {
+    const state = host().state();
+    for (const row of model.list()) {
+      const left = state.incompatible[row.id];
+      const needs = (row.manifest && row.manifest.requires) || [];
+      const ready = left && left.code === 'REQUIREMENT_MISSING'
+        && needs.every((r) => state.loaded[r.id] && satisfies(state.loaded[r.id], r.range));
+      if (ready) {
+        try {
+          const dir = host().store().packageDirFor(row.id, row);
+          const mod = loader().requirePackage(row.id, dir);
+          if (loader().registerLive(mod, { db: getDb() })) {
+            host().setLoaded(row.id, row.version, row.manifest.contentHash);
+            loader().migrate(getDb(), row.id);
+            delete state.incompatible[row.id];
+            if (row.enabled) loader().runActivateHooks(row.id);
+          }
+        } catch (err) {
+          console.error(`[plugin:${row.id}] late registration failed:`, err && err.message ? err.message : err);
+        }
+      }
+    }
+  }
+
   // POST /api/plugins/:id/install in a release (rules 10–13): the requirements first when the
   // confirmation included them (`withRequirements`), then the plugin itself.
   async function installFromPackages(entry, req, res) {
@@ -678,8 +725,13 @@ function createController(model = defaultModel, deps = {}) {
           }
           restartWanted = restartWanted || result.restart;
         }
-        if (restartWanted) return restart({ version: offer.version });
+        if (restartWanted) {
+          // The switched-on requirements ran no activation hook either (rule 41 of phase 4): they owe them at boot.
+          steps.filter((st) => st.op === 'activate').forEach((st) => model.markHooksPending(st.id));
+          return restart({ version: offer.version });
+        }
         [...activated, ...installed].forEach((id) => loader().runActivateHooks(id));
+        await reviveDependants();
         // The browser loads the new bundle at its next page load (rule 18): the page reloads.
         return res.json({ ...view(entry), reload: true });
       } finally {
@@ -871,15 +923,15 @@ function createController(model = defaultModel, deps = {}) {
         });
       }
       const off = needed.filter((id) => !model.get(id).enabled);
-      if (off.length && !(req.body && req.body.withRequirements)) {
-        return res.status(409).json({
-          error: 'REQUIREMENT_INACTIVE', requires: off, requirements: refs(off), message: `Nécessite ${namesOf(off)} : à activer d’abord.`,
-        });
-      }
       const unlicensed = off.filter((id) => !allows(id));
       if (unlicensed.length) {
         return res.status(409).json({
           error: 'REQUIREMENT_OUT_OF_PLAN', requires: unlicensed, requirements: refs(unlicensed), message: `Nécessite ${namesOf(unlicensed)}, hors forfait.`,
+        });
+      }
+      if (off.length && !(req.body && req.body.withRequirements)) {
+        return res.status(409).json({
+          error: 'REQUIREMENT_INACTIVE', requires: off, requirements: refs(off), message: `Nécessite ${namesOf(off)} : à activer d’abord.`,
         });
       }
       const undo = [];

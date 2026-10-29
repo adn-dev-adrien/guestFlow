@@ -181,7 +181,8 @@ test('rules 12, 21: an available plugin shows its version; a missing requirement
   api.getPlugins.mockResolvedValue([plugin('sas', 'Arrivée et départ guidés', 'available', {
     version: '1.1.0',
     dependencies: { requires: [{ id: 'linen', name: 'Linge et blanchisserie', status: 'missing', label: 'non installé', updateAvailable: false }], usedBy: [] },
-    offer: { version: '1.1.0', requirements: [{ id: 'linen', name: 'Linge et blanchisserie', version: '1.0.0', op: 'install' }], refusal: null },
+    offer: { version: '1.1.0', requirements: [{ id: 'linen', name: 'Linge et blanchisserie', version: '1.0.0', op: 'install' }], refusal: null,
+      confirm: { title: 'Installer Arrivée et départ guidés', message: 'Installe aussi Linge et blanchisserie 1.0.0.', label: 'Tout installer' } },
   })]);
   api.installPlugin.mockResolvedValue({ reload: true });
   renderPage();

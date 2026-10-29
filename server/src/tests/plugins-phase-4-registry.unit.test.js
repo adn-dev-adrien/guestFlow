@@ -479,7 +479,7 @@ test('rule 21: an available plugin is listed with the version it would install',
   const { ctrl } = setup({ bundled: [manifest('neat', '1.0.0')] });
   const neat = (await call(ctrl.list)).body.find((p) => p.id === 'neat');
   assert.equal(neat.state, 'available');
-  assert.deepEqual(neat.offer, { version: '1.0.0', requirements: [], refusal: null });
+  assert.deepEqual(neat.offer, { version: '1.0.0', requirements: [], refusal: null, confirm: null });
 });
 
 test('rules 11, 13, 16: an update verifies, switches, keeps the previous copy for 7 days and restarts', async () => {

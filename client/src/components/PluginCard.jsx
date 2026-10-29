@@ -19,7 +19,8 @@
  *             updateAvailable }], usedBy: [{ id, name, state, label }] }) is printed under the
  *             description; `actions` ({ activate, deactivate, uninstall }, each { allowed, blockedBy,
  *             alsoActivates?, alsoDeactivates? }) says what the buttons would refuse before the click
- *             and which plugins a confirmed action takes along.
+ *             and which plugins a confirmed action takes along; `confirm` ({ title, message, label }) is
+ *             the server's text for the confirmation dialogs (also `offer.confirm` for an install).
  *   onAction  (action: 'install'|'activate'|'deactivate'|'uninstall'|'update'|'rollback',
  *             options?: { purge, withRequirements, withDependents, version }) => void
  *   onOpenUpdate () => void  the « Mise à jour x.y.z » chip: opens the update dialog (rule 20)
@@ -102,12 +103,12 @@ export default function PluginCard({
   const requires = (plugin.dependencies && plugin.dependencies.requires) || [];
   const usedBy = (plugin.dependencies && plugin.dependencies.usedBy) || [];
   const activateBlockedBy = (actions.activate && actions.activate.blockedBy) || null;
-  const alsoActivates = (actions.activate && actions.activate.alsoActivates) || [];
+  const activateConfirm = (actions.activate && actions.activate.confirm) || null;
   const deactivateBlockedBy = (actions.deactivate && actions.deactivate.blockedBy) || (plugin.blocker && plugin.blocker.message) || null;
-  const alsoDeactivates = (actions.deactivate && actions.deactivate.alsoDeactivates) || [];
+  const deactivateConfirm = (actions.deactivate && actions.deactivate.confirm) || null;
+  const cascades = Boolean(actions.deactivate && actions.deactivate.alsoDeactivates && actions.deactivate.alsoDeactivates.length);
   const uninstallBlockedBy = (actions.uninstall && actions.uninstall.blockedBy) || (plugin.blocker && plugin.blocker.message) || null;
   const blocked = Boolean(deactivateBlockedBy);
-  const names = (list) => list.map((p) => p.name).join(', ');
   const active = plugin.state === 'active' && !failed && !incompatible;
   const setup = plugin.setup || {};
   // Rule 25 — an active plugin's useful action is its settings; switching it off waits in ⋯.
@@ -171,7 +172,7 @@ export default function PluginCard({
                 {bundleFailed && plugin.state !== 'failed' ? 'Échec du chargement.' : 'Échec du démarrage.'}
               </Typography>
             )}
-            {incompatible && plugin.incompatible && plugin.incompatible.message !== 'Incompatible avec cette version.' && (
+            {incompatible && plugin.incompatible && plugin.incompatible.code !== 'REQUIREMENT_MISSING' && plugin.incompatible.message !== 'Incompatible avec cette version.' && (
               <Typography variant="body2" color="error" sx={{ mt: 0.5 }}>{plugin.incompatible.message}</Typography>
             )}
             {offerRefusal && !outOfPlan && (
@@ -190,7 +191,7 @@ export default function PluginCard({
                 ))}
                 {usedBy.length > 0 && (
                   <Typography variant="caption" color="text.secondary">
-                    Utilisé par {usedBy.map((u, i) => <React.Fragment key={u.id}>{i > 0 && ', '}<b>{u.name}</b>{u.state === 'active' ? '' : ' (inactif)'}</React.Fragment>)}
+                    Utilisé par {usedBy.map((u) => u.label).join(', ')}
                   </Typography>
                 )}
               </Box>
@@ -255,7 +256,7 @@ export default function PluginCard({
             disabled={busy || (primary.action === 'install' && Boolean(offerRefusal)) || (primary.action === 'activate' && Boolean(activateBlockedBy))}
             onClick={() => {
               if (primary.action === 'install' && requirements.length) setConfirmRequirements(true);
-              else if (primary.action === 'activate' && alsoActivates.length) setConfirmActivate(true);
+              else if (primary.action === 'activate' && activateConfirm) setConfirmActivate(true);
               else act(primary.action);
             }}
             sx={{ minHeight: 44, flex: 'none', width: { xs: '100%', sm: 'auto' } }}
@@ -282,12 +283,10 @@ export default function PluginCard({
       <ConfirmDialog
         open={confirmOff}
         onClose={() => setConfirmOff(false)}
-        onConfirm={() => { setConfirmOff(false); act('deactivate', alsoDeactivates.length ? { withDependents: true } : undefined); }}
-        title={`Désactiver ${plugin.name} ?`}
-        message={alsoDeactivates.length
-          ? `Désactive aussi : ${names(alsoDeactivates)}. Réglages et données gardés. À réactiver ensuite un par un.`
-          : 'Ce qu’il ajoute s’arrête. Ses réglages et ses données sont gardés : le réactiver remet tout en place.'}
-        confirmLabel={alsoDeactivates.length ? 'Tout désactiver' : 'Désactiver'}
+        onConfirm={() => { setConfirmOff(false); act('deactivate', cascades ? { withDependents: true } : undefined); }}
+        title={deactivateConfirm ? deactivateConfirm.title : `Désactiver ${plugin.name} ?`}
+        message={deactivateConfirm ? deactivateConfirm.message : 'Ce qu’il ajoute s’arrête. Ses réglages et ses données sont gardés : le réactiver remet tout en place.'}
+        confirmLabel={deactivateConfirm ? deactivateConfirm.label : 'Désactiver'}
         cancelLabel="Garder"
         confirmColor="error"
       />
@@ -306,18 +305,18 @@ export default function PluginCard({
         open={confirmActivate}
         onClose={() => setConfirmActivate(false)}
         onConfirm={() => { setConfirmActivate(false); act('activate', { withRequirements: true }); }}
-        title={`Activer ${plugin.name}`}
-        message={`Active aussi : ${names(alsoActivates)}.`}
-        confirmLabel="Tout activer"
+        title={activateConfirm ? activateConfirm.title : ''}
+        message={activateConfirm ? activateConfirm.message : ''}
+        confirmLabel={activateConfirm ? activateConfirm.label : ''}
         confirmColor="primary"
       />
       <ConfirmDialog
         open={confirmRequirements}
         onClose={() => setConfirmRequirements(false)}
         onConfirm={() => { setConfirmRequirements(false); act('install', { withRequirements: true }); }}
-        title={`Installer ${plugin.name}`}
-        message={requirements.map((r) => (r.op === 'activate' ? `Active aussi ${r.name}.` : `Installe aussi ${r.name} ${r.version}.`)).join(' ')}
-        confirmLabel="Tout installer"
+        title={offer && offer.confirm ? offer.confirm.title : ''}
+        message={offer && offer.confirm ? offer.confirm.message : ''}
+        confirmLabel={offer && offer.confirm ? offer.confirm.label : ''}
         confirmColor="primary"
       />
       {error && (

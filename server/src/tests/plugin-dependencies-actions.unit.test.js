@@ -319,3 +319,36 @@ test('rule 15: an installed requirement below the range is refused with its vers
   assert.equal(res.body.error, 'REQUIREMENT_TOO_OLD');
   assert.equal(res.body.message, `Nécessite ${nm(WB)} 1.7.1 ou plus récent (installé : 1.6.0).`);
 });
+
+test('rule 8: the confirmation texts come from the server — activate, deactivate with and without followers', async () => {
+  const { views, model } = release({ installed: both });
+  const all = await views();
+  assert.deepEqual(all[WB].actions.deactivate.confirm, {
+    title: `Désactiver ${nm(WB)} ?`,
+    message: `Désactive aussi : ${nm(GVR)}. Réglages et données gardés. À réactiver ensuite un par un.`,
+    label: 'Tout désactiver',
+  });
+  assert.equal(all[GVR].actions.deactivate.confirm.label, 'Désactiver');
+  assert.match(all[GVR].actions.deactivate.confirm.message, /^Ce qu’il ajoute s’arrête\./);
+  model.setEnabled(GVR, false);
+  model.setEnabled(WB, false);
+  assert.deepEqual((await views())[GVR].actions.activate.confirm, { title: `Activer ${nm(GVR)}`, message: `Active aussi : ${nm(WB)}.`, label: 'Tout activer' });
+  assert.equal((await views())[WB].actions.activate.confirm, null, 'nothing to take along, the usual button');
+});
+
+test('rule 9: the offer carries the install confirmation, lines in order', async () => {
+  const { views } = release();
+  assert.deepEqual((await views())[GVR].offer.confirm, { title: `Installer ${nm(GVR)}`, message: 'Installe aussi Plugin website-booking 1.8.3.'.replace('Plugin website-booking', nm(WB)), label: 'Tout installer' });
+});
+
+test('rule 11: out of plan is said before « à activer d’abord », flag or not', async () => {
+  const ctx = h.setup({ bundled: [site(), feed()], installed: both });
+  const ctrl = createController(ctx.model, {
+    registry: h.registry, host: () => ctx.host, db: () => ctx.db, loader: () => ({ migrate() {}, markInactive() {}, runActivateHooks() {} }),
+    licence: () => ({ allowsPlugin: (id) => id !== WB, planFor: () => null }), coreVersion: () => '3.9.0',
+  });
+  ctx.model.setEnabled(GVR, false);
+  ctx.model.setEnabled(WB, false);
+  const res = await h.call(ctrl.activate, { params: { id: GVR } });
+  assert.equal(res.body.error, 'REQUIREMENT_OUT_OF_PLAN');
+});

@@ -107,7 +107,7 @@ function createCustomerModulesController(ctx, customersController) {
     const entry = entryOf(id);
     if (!allowed.has(id)) {
       return {
-        requires: [], usedBy: [], alsoOn: [], alsoOff: [],
+        requires: [], usedBy: [], alsoOn: [], alsoOff: [], switchBlockedBy: null, confirm: null,
         id, name: entry.name, on: false, switchable: false, state: 'outOfPlan', stateLabel: null, detail: null, setupLabel: null, stale: false, needsSetup: false,
         canRetry: false, canErase: false, canUninstall: false, blockedBy: null, eraseLines: [], eraseWarnings: [], planChip: planChip(id),
       };
@@ -132,11 +132,24 @@ function createCustomerModulesController(ctx, customersController) {
     const canUninstall = idle && !unknown && removalOrders && eraseLines.length === 0 && installed && dependants.length === 0;
     const blockedBy = dependants.length ? `Nécessaire à ${dependants.map(nameOf).join(', ')} : à désinstaller d’abord.` : null;
     const g = graphOf(allowed, chosen);
+    // A requirement the plan does not license cannot be switched on: said before the click, not after a confirmation.
+    const along = followers(allowed, chosen, id, !on);
+    const unlicensed = on ? [] : along.filter((r) => !allowed.has(r));
+    const switchBlockedBy = unlicensed.length ? `Nécessite ${names(unlicensed)}, hors forfait.` : null;
+    const confirm = on
+      ? {
+        title: `Désactiver ${entry.name} ?`,
+        message: `${along.length ? `Désactive aussi : ${names(along)}. ` : ''}Ses pages disparaissent de l’espace ; ses données sont conservées.`,
+        label: along.length ? 'Tout désactiver' : 'Désactiver',
+      }
+      : (along.length && !switchBlockedBy ? { title: `Activer ${entry.name} ?`, message: `Active aussi : ${names(along)}.`, label: 'Tout activer' } : null);
     return {
       requires: g.requirementsOf(id).map(({ id: rid, name, status, label }) => ({ id: rid, name, status, label })),
       usedBy: g.usedBy(id).map((d) => ({ ...d, label: d.state === 'active' ? d.name : `${d.name} (éteint)` })),
-      alsoOn: on ? [] : refs(followers(allowed, chosen, id, true)),
-      alsoOff: on ? refs(followers(allowed, chosen, id, false)) : [],
+      alsoOn: switchBlockedBy || on ? [] : refs(along),
+      alsoOff: on ? refs(along) : [],
+      switchBlockedBy,
+      confirm,
       id, name: entry.name, on, switchable: true, ...state,
       detail: erasing.has(id) ? erasureIssue(id, facts, writtenAt, erasing.get(id)) || (erasing.get(id) ? 'Désinstallation en cours.' : 'Effacement des données en cours.') : blockedBy || state.detail || (idle && unknown ? DATA_UNKNOWN : keptData(state, eraseLines)),
       canErase, canUninstall, blockedBy, eraseLines: canErase ? eraseLines : [], eraseWarnings: canErase ? dataLines.filter(isNote).map((l) => l.label) : [], planChip: null,
@@ -338,12 +351,14 @@ function createCustomerModulesController(ctx, customersController) {
       customerPlugins.remove(c.id, id);
       customersController.journal(c.id, operator, 'module', `${nameOf(id)} retiré (hors forfait)`);
     });
+    // Only what lost its requirement in THIS change follows it: a choice that was already incoherent
+    // keeps running, its line says « Nécessite … · éteint ».
     let left = customerPlugins.chosen(c.id);
     for (;;) {
-      const orphan = left.find((id) => requiresOf(id).some((r) => !left.includes(r)));
+      const orphan = left.find((id) => requiresOf(id).some((r) => dropped.includes(r)));
       if (!orphan) break;
       customerPlugins.remove(c.id, orphan);
-      customersController.journal(c.id, operator, 'module', `${nameOf(orphan)} retiré (nécessite ${names(requiresOf(orphan).filter((r) => !left.includes(r)))})`);
+      customersController.journal(c.id, operator, 'module', `${nameOf(orphan)} retiré (nécessite ${names(requiresOf(orphan).filter((r) => dropped.includes(r)))})`);
       dropped.push(orphan);
       left = left.filter((id) => id !== orphan);
     }

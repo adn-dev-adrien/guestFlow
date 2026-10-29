@@ -45,7 +45,7 @@ test('rule 6: an unmet requirement carries its status, and its own update when t
 test('rule 7: the requirement reads « Utilisé par », an inactive dependant suffixed', () => {
   renderCard(plugin({
     id: 'website-booking', name: 'Réservation depuis le site',
-    dependencies: { requires: [], usedBy: [{ id: 'a', name: 'Google Vacation Rentals', state: 'active' }, { id: 'b', name: 'Autre', state: 'inactive' }] },
+    dependencies: { requires: [], usedBy: [{ id: 'a', name: 'Google Vacation Rentals', state: 'active', label: 'Google Vacation Rentals' }, { id: 'b', name: 'Autre', state: 'inactive', label: 'Autre (inactif)' }] },
   }));
   expect(screen.getByText(/^Utilisé par/).textContent).toBe('Utilisé par Google Vacation Rentals, Autre (inactif)');
 });
@@ -60,7 +60,16 @@ test('rule 8: a deactivation refused by a dependant’s blocker is disabled in t
 test('rules 12–13: deactivating a plugin an active plugin uses names the followers and sends withDependents', async () => {
   const onAction = renderCard(plugin({
     id: 'website-booking', name: 'Réservation depuis le site',
-    actions: actions({ deactivate: allowed({ alsoDeactivates: [{ id: 'g', name: 'Google Vacation Rentals' }] }) }),
+    actions: actions({
+      deactivate: allowed({
+        alsoDeactivates: [{ id: 'g', name: 'Google Vacation Rentals' }],
+        confirm: {
+          title: 'Désactiver Réservation depuis le site ?',
+          message: 'Désactive aussi : Google Vacation Rentals. Réglages et données gardés. À réactiver ensuite un par un.',
+          label: 'Tout désactiver',
+        },
+      }),
+    }),
   }));
   await userEvent.click(screen.getByRole('button', { name: /Plus d’actions/ }));
   await userEvent.click(screen.getByRole('menuitem', { name: /Désactiver/ }));
@@ -79,7 +88,11 @@ test('rule 12: without followers the confirmation is the usual one and no flag i
 
 test('rule 11: activating on a requirement that is off proposes « Tout activer » and sends withRequirements', async () => {
   const onAction = renderCard(plugin({
-    state: 'inactive', actions: actions({ activate: allowed({ alsoActivates: [site] }), deactivate: { allowed: false, blockedBy: null, alsoDeactivates: [] } }),
+    state: 'inactive',
+    actions: actions({
+      activate: allowed({ alsoActivates: [site], confirm: { title: 'Activer Google Vacation Rentals', message: 'Active aussi : Réservation depuis le site.', label: 'Tout activer' } }),
+      deactivate: { allowed: false, blockedBy: null, alsoDeactivates: [] },
+    }),
   }));
   await userEvent.click(screen.getByRole('button', { name: 'Activer' }));
   expect(screen.getByText('Active aussi : Réservation depuis le site.')).toBeTruthy();
@@ -106,11 +119,26 @@ test('rule 14: « Désinstaller » is disabled while a plugin uses it, with « U
 test('rule 9: installing lists what is installed and what is switched on, one confirmation', async () => {
   const onAction = renderCard(plugin({
     state: 'available', dependencies: { requires: [{ ...site, status: 'missing', label: 'non installé', updateAvailable: false }], usedBy: [] },
-    offer: { version: '1.0.2', refusal: null, requirements: [{ ...site, version: '1.8.3', op: 'install' }, { id: 'sas', name: 'Arrivée et départ guidés', version: '1.7.2', op: 'activate' }] },
+    offer: {
+      version: '1.0.2',
+      refusal: null,
+      requirements: [{ ...site, version: '1.8.3', op: 'install' }, { id: 'sas', name: 'Arrivée et départ guidés', version: '1.7.2', op: 'activate' }],
+      confirm: { title: 'Installer Google Vacation Rentals', message: 'Installe aussi Réservation depuis le site 1.8.3. Active aussi Arrivée et départ guidés.', label: 'Tout installer' },
+    },
   }));
   expect(screen.getByText('non installé')).toBeTruthy();
   await userEvent.click(screen.getByRole('button', { name: 'Installer' }));
   expect(screen.getByText('Installe aussi Réservation depuis le site 1.8.3. Active aussi Arrivée et départ guidés.')).toBeTruthy();
   await userEvent.click(screen.getByRole('button', { name: 'Tout installer' }));
   expect(onAction).toHaveBeenCalledWith('install', { withRequirements: true });
+});
+
+test('one line, not three: a plugin left unloaded for a missing requirement shows « Nécessite … non installé » and not the server’s repeat', () => {
+  renderCard(plugin({
+    state: 'incompatible',
+    incompatible: { code: 'REQUIREMENT_MISSING', message: 'Nécessite Réservation depuis le site.' },
+    dependencies: { requires: [{ ...site, status: 'missing', label: 'non installé', updateAvailable: false }], usedBy: [] },
+  }));
+  expect(screen.getByText('non installé')).toBeTruthy();
+  expect(screen.queryByText('Nécessite Réservation depuis le site.')).toBeNull();
 });

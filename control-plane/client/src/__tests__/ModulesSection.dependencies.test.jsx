@@ -19,11 +19,15 @@ function view({ sasOn = true, weatherOn = true } = {}) {
         ...SAS, on: sasOn, state: sasOn ? 'active' : 'inactive',
         usedBy: [{ ...WEATHER, state: weatherOn ? 'active' : 'inactive', label: weatherOn ? WEATHER.name : `${WEATHER.name} (éteint)` }],
         alsoOff: sasOn && weatherOn ? [WEATHER] : [],
+        ...(sasOn && weatherOn ? {
+          confirm: { title: 'Désactiver Arrivée et départ guidés ?', message: 'Désactive aussi : Vigilance Météo-France. Ses pages disparaissent de l’espace ; ses données sont conservées.', label: 'Tout désactiver' },
+        } : {}),
       }),
       line({
         ...WEATHER, on: weatherOn, state: weatherOn ? 'active' : 'inactive',
         requires: [{ ...SAS, status: sasOn ? 'ok' : 'inactive', label: sasOn ? null : 'éteint' }],
         alsoOn: !weatherOn && !sasOn ? [SAS] : [],
+        confirm: !weatherOn && !sasOn ? { title: 'Activer Vigilance Météo-France ?', message: 'Active aussi : Arrivée et départ guidés.', label: 'Tout activer' } : null,
       }),
     ],
     outOfPlan: [],
@@ -79,4 +83,14 @@ it('rule 18 — a cancelled confirmation changes nothing', async () => {
   fireEvent.click(await screen.findByRole('switch', { name: 'Arrivée et départ guidés' }));
   fireEvent.click(await screen.findByRole('button', { name: 'Annuler' }));
   expect(api.toggleModule).not.toHaveBeenCalled();
+});
+
+it('rule 19 — a module whose requirement the plan does not license has a disabled switch and says why before any click', async () => {
+  api.customerModules.mockResolvedValue(modulesView({
+    included: [line({ ...WEATHER, on: false, state: 'inactive', switchBlockedBy: 'Nécessite Arrivée et départ guidés, hors forfait.' })],
+    outOfPlan: [],
+  }));
+  open();
+  expect(await screen.findByText('Nécessite Arrivée et départ guidés, hors forfait.')).toBeInTheDocument();
+  expect(screen.getByRole('switch', { name: 'Vigilance Météo-France' })).toBeDisabled();
 });

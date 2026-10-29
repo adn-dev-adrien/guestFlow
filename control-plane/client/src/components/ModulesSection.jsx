@@ -70,12 +70,11 @@ export default function ModulesSection({ customerId, slug, onChanged }) {
   async function change(line, on) {
     if (busyId) return;
     const along = on ? line.alsoOn : line.alsoOff;
-    const names = along.map((m) => m.name).join(', ');
-    if (!on || along.length) {
+    if (line.confirm) {
       const ok = await confirm({
-        title: on ? `Activer ${line.name} ?` : `Désactiver ${line.name} ?`,
-        message: on ? `Active aussi : ${names}.` : `${along.length ? `Désactive aussi : ${names}. ` : ''}Ses pages disparaissent de l’espace ; ses données sont conservées.`,
-        confirmLabel: on ? 'Tout activer' : along.length ? 'Tout désactiver' : 'Désactiver',
+        title: line.confirm.title,
+        message: line.confirm.message,
+        confirmLabel: line.confirm.label,
         confirmColor: 'primary',
       });
       if (!ok) return;
@@ -168,11 +167,12 @@ export default function ModulesSection({ customerId, slug, onChanged }) {
               ))}
               {line.usedBy.length > 0 && (
                 <Typography variant="caption" sx={{ color: 'text.secondary', overflowWrap: 'anywhere' }}>
-                  Utilisé par {line.usedBy.map((u, i) => <React.Fragment key={u.id}>{i > 0 && ', '}<b>{u.name}</b>{u.state === 'active' ? '' : ' (éteint)'}</React.Fragment>)}
+                  Utilisé par {line.usedBy.map((u) => u.label).join(', ')}
                 </Typography>
               )}
             </Box>
           )}
+          {line.switchBlockedBy && <Typography variant="caption" sx={{ display: 'block', mt: 0.5, color: 'warning.dark' }}>{line.switchBlockedBy}</Typography>}
           {refused && <Typography id={`module-${line.id}-refusal`} variant="caption" role="alert" sx={{ display: 'block', mt: 0.5, color: 'error.main' }}>{refused}</Typography>}
         </Box>
         {(line.canErase || line.canUninstall) && (
@@ -181,7 +181,7 @@ export default function ModulesSection({ customerId, slug, onChanged }) {
           </IconButton>
         )}
         {line.switchable && (
-          <Switch checked={checked} disabled={Boolean(busyId) && busyId !== line.id} onChange={(e) => change(line, e.target.checked)}
+          <Switch checked={checked} disabled={(Boolean(busyId) && busyId !== line.id) || Boolean(line.switchBlockedBy)} onChange={(e) => change(line, e.target.checked)}
             slotProps={{ input: { 'aria-label': line.name, 'aria-describedby': describedBy, 'aria-busy': busyId === line.id } }} sx={SWITCH_SX} />
         )}
       </Box>

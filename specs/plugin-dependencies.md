@@ -186,7 +186,9 @@ explicit confirmation, or says why it is refused *before* the click.
     English, one per violation, e.g. `google-vacation-rentals requires website-booking ^2.0.0, shipped 1.8.3`.
 17. **The console reads the same graph.** `control-plane/server/src/utils/gf.js` exposes
     `pluginGraph`; `customerModulesController.lineOf` adds `requires` and `usedBy` lines (rules 6–7),
-    plus `alsoOn` / `alsoOff` (the modules a switch would take along, for the confirmation). Statuses
+    plus `alsoOn` / `alsoOff` (the modules a switch would take along), `confirm` (`{ title, message, label }`,
+    the server's confirmation text) and `switchBlockedBy` (a requirement the plan does not license: the
+    switch is disabled and says why before the click; `alsoOn` never lists it). Statuses
     come from the console's own choice and the plan (« éteint » for an off module, not an `outOfRange`:
     the space does not report versions to the console).
 18. **The console's switches take the linked modules along, with confirmation.** Switching on a module
@@ -199,7 +201,8 @@ explicit confirmation, or says why it is refused *before* the click.
     (`PlanMatrix`, option add-ons) that allows a plugin without allowing its requirements is refused
     422 « Google Vacation Rentals nécessite Réservation depuis le site : à inclure aussi. »; a plan
     change on a customer that would leave a chosen dependant without its requirement drops the
-    dependant with it, with one audit line each (« … retiré (nécessite …) »).
+    dependant with it, with one audit line each (« … retiré (nécessite …) »). Only what lost its requirement
+    in THIS change follows: a choice that was already incoherent keeps running and its line reads « Nécessite … · éteint ».
 
 ### 3.E The shipped graph
 
@@ -223,6 +226,10 @@ explicit confirmation, or says why it is refused *before* the click.
 - A cascade interrupted by a business blocker on a dependant → nothing moves, the message names the
   dependant: « Google Vacation Rentals ne peut pas être désactivé : <raison>. »
 - A requirement and its dependant both in one « Tout mettre à jour » → unchanged (one switch, one restart).
+- A dependant left unloaded at boot (`REQUIREMENT_MISSING`) is registered live as soon as an install makes its
+  requirement live, with its activation hook: no restart. An install plan that switches a requirement on and
+  then needs a restart marks that requirement `hooks_pending` (rule 41 of phase 4), so it gets its hooks at boot.
+- `activate` checks the licence before the switch-off: a requirement out of plan is `REQUIREMENT_OUT_OF_PLAN`, not « à activer d'abord ».
 
 ---
 
@@ -259,8 +266,8 @@ explicit confirmation, or says why it is refused *before* the click.
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
-| `components/` | `PluginCard.jsx` | T | Renders `dependencies.requires` / `usedBy` lines; disables refused actions with `actions.*.blockedBy`; ConfirmDialog texts from `actions.*.also*`; sends `withRequirements` / `withDependents`. |
-| `pages/` | `PluginsPage.jsx` | T | Passes the flags through `onAction`; reloads the list after a cascade (several cards changed). |
+| `components/` | `PluginCard.jsx` | T | Renders `dependencies.requires` / `usedBy` lines (the server's `label`); disables refused actions with `actions.*.blockedBy`; ConfirmDialog texts from `actions.*.confirm` / `offer.confirm` (`{ title, message, label }`, server-written); sends `withRequirements` / `withDependents`. A plugin left unloaded for a missing requirement shows the one dependency line, not the loader's repeat. |
+| `pages/` | `PluginsPage.jsx` | — | Unchanged: `onAction(action, options)` already passes the flags, and `load()` after every action reloads the list (several cards changed). |
 | `api.js` | `api.js` | T | `activatePlugin(id, { withRequirements })`, `deactivatePlugin(id, { withDependents })`. |
 
 **Component reuse declaration:**
@@ -333,11 +340,13 @@ is new, the switch-off one gains the list.
 - [x] `control-plane/client/src/__tests__/ModulesSection.dependencies.test.jsx` — console lines and confirmations (17–18).
 
 ### Manual UI verification
-- [ ] Happy path: GVR card shows « Nécessite Réservation depuis le site »; website-booking shows « Utilisé par Google Vacation Rentals ».
-- [ ] Désactiver website-booking with GVR on → « Tout désactiver » → both off; Activer GVR → « Tout activer » → both on.
-- [ ] Désinstaller website-booking → disabled with the reason.
-- [ ] Mobile (390 px): captions wrap, dialogs full-screen, no horizontal scroll.
-- [ ] Console: same scenario on a test customer; PlanMatrix refusal.
+Run on a copy of real data (sources mode), headless Playwright, by the dev and again by the reviewer.
+- [x] Happy path: GVR card shows « Nécessite Réservation depuis le site »; website-booking shows « Utilisé par Google Vacation Rentals ».
+- [x] Désactiver website-booking with GVR on → « Tout désactiver » → both off; Activer GVR → « Tout activer » → both on.
+- [x] Désinstaller website-booking → disabled with the reason.
+- [x] Mobile (390 px): captions wrap, no horizontal scroll (also 900 and 1280). Full-screen dialogs are `ConfirmDialog`'s own behaviour, unchanged.
+- [x] Console (reviewer): lines, « Active aussi » / « Désactive aussi » confirmations, flags, on a test customer.
+- [ ] Console PlanMatrix refusal: not exercised in a browser; covered by `console-module-dependencies.unit.test.js` (matrix click, catalogue save, creation, plan change).
 
 ## 8. Out of scope
 

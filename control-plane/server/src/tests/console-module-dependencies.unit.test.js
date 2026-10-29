@@ -195,3 +195,46 @@ test('rule 18: the flags travel in the body of the switch route, and only a lite
     env.cleanup();
   }
 });
+
+test('rule 19: a plan change leaves a legacy incoherent choice alone — only what lost its requirement in THIS change follows it', async () => {
+  const env = await essentiel();
+  const { modules } = env.ctx.controllers;
+  // Legacy: the weather module runs while the SAS is off (a space seeded from what it ran).
+  env.ctx.models.customerPlugins.remove(env.id, 'sas');
+  assert.equal(env.ctx.models.customerPlugins.chosen(env.id).includes('weather-alerts'), true);
+  const dropped = modules.dropNotAllowed(env.id, 'op');
+  assert.deepEqual(dropped, []);
+  assert.equal(env.ctx.models.customerPlugins.chosen(env.id).includes('weather-alerts'), true, 'still switched on');
+  assert.deepEqual(lineOf(modules.view(env.id), 'weather-alerts').requires.map((r) => r.label), ['éteint']);
+  env.cleanup();
+});
+
+test('rule 18: the line carries the server’s confirmation texts, for a switch that follows and for one that does not', async () => {
+  const env = await essentiel();
+  const { modules } = env.ctx.controllers;
+  assert.deepEqual(lineOf(modules.view(env.id), 'sas').confirm, {
+    title: `Désactiver ${name('sas')} ?`,
+    message: `Désactive aussi : ${name('weather-alerts')}. Ses pages disparaissent de l’espace ; ses données sont conservées.`,
+    label: 'Tout désactiver',
+  });
+  assert.equal(lineOf(modules.view(env.id), 'school-holidays').confirm.label, 'Désactiver');
+  modules.toggle(env.id, 'weather-alerts', false, 'op');
+  modules.toggle(env.id, 'sas', false, 'op');
+  assert.deepEqual(lineOf(modules.view(env.id), 'weather-alerts').confirm, { title: `Activer ${name('weather-alerts')} ?`, message: `Active aussi : ${name('sas')}.`, label: 'Tout activer' });
+  assert.equal(lineOf(modules.view(env.id), 'school-holidays').confirm.label, 'Désactiver');
+  env.cleanup();
+});
+
+test('rule 19: a requirement the plan does not license is never offered in « Active aussi » — the line says why before the click', async () => {
+  const env = await essentiel();
+  const { modules } = env.ctx.controllers;
+  modules.toggle(env.id, 'weather-alerts', false, 'op');
+  modules.toggle(env.id, 'sas', false, 'op');
+  env.ctx.db.prepare("DELETE FROM plan_plugins WHERE pluginId = 'sas'").run();
+  const line = lineOf(modules.view(env.id), 'weather-alerts');
+  assert.deepEqual(line.alsoOn, []);
+  assert.equal(line.confirm, null);
+  assert.equal(line.switchBlockedBy, `Nécessite ${name('sas')}, hors forfait.`);
+  assert.throws(() => modules.toggle(env.id, 'weather-alerts', true, 'op', { withRequirements: true }), (e) => e.status === 422);
+  env.cleanup();
+});

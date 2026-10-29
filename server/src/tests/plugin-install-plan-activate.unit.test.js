@@ -274,3 +274,34 @@ test('rule 10: all or nothing in a development tree — a failed migration of th
   assert.equal(model.get(WB), null);
   assert.equal(model.get(GVR), null);
 });
+
+test('rule 9: an install plan that switches a requirement on and then needs a restart leaves that requirement owing its hooks', skip, async () => {
+  const ctx = h.setup({ bundled: [wb(), gvr()], installed: [row(WB, '1.8.3', wb())], loaded: { [GVR]: '0.9.0' } });
+  ctx.model.setEnabled(WB, false);
+  const res = await h.call(ctx.ctrl.install, { params: { id: GVR }, body: { withRequirements: true } });
+  assert.equal(res.statusCode, 202);
+  assert.deepEqual(ctx.model.pendingHooks(), [GVR, WB].sort());
+});
+
+test('rule 9: installing a requirement registers, without a restart, the dependant left unloaded at boot', skip, async () => {
+  const sasM = h.manifest(SAS, '1.7.2');
+  const weather = h.manifest(WEATHER, '1.3.0', { requires: [need(SAS, '^1.7.0')] });
+  const ctx = h.setup({ bundled: [sasM, weather], installed: [row(WEATHER, '1.3.0', weather)] });
+  ctx.host.state().incompatible[WEATHER] = { code: 'REQUIREMENT_MISSING', message: 'Nécessite X.' };
+  const res = await h.call(ctx.ctrl.install, { params: { id: SAS } });
+  assert.equal(res.statusCode, 200);
+  assert.ok(ctx.calls.some(([k, id]) => k === 'live' && id === WEATHER), 'registered live');
+  assert.equal(ctx.host.state().incompatible[WEATHER], undefined);
+  assert.equal(ctx.host.state().loaded[WEATHER], '1.3.0');
+  assert.ok(ctx.calls.some(([k, id]) => k === 'activate' && id === WEATHER), 'its activation hook ran');
+});
+
+test('rule 9: a dependant incompatible for another reason is left alone', skip, async () => {
+  const sasM = h.manifest(SAS, '1.7.2');
+  const weather = h.manifest(WEATHER, '1.3.0', { requires: [need(SAS, '^1.7.0')] });
+  const ctx = h.setup({ bundled: [sasM, weather], installed: [row(WEATHER, '1.3.0', weather)] });
+  ctx.host.state().incompatible[WEATHER] = { code: 'CORE_TOO_OLD', message: 'Incompatible avec cette version.' };
+  await h.call(ctx.ctrl.install, { params: { id: SAS } });
+  assert.equal(ctx.calls.some(([k, id]) => k === 'live' && id === WEATHER), false);
+  assert.equal(ctx.host.state().incompatible[WEATHER].code, 'CORE_TOO_OLD');
+});

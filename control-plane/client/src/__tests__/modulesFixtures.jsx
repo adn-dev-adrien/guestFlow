@@ -1,9 +1,17 @@
 // A « Modules » payload as the server sends it (ModulesSection suites).
-export const line = (over = {}) => ({
-  id: 'linen', name: 'Linge et blanchisserie', on: true, switchable: true, state: 'active', stateLabel: 'Actif · 1.2.0', detail: null,
-  canRetry: false, needsSetup: false, setupLabel: null, stale: false, canErase: false, canUninstall: false, blockedBy: null, eraseLines: [], eraseWarnings: [], planChip: null,
-  requires: [], usedBy: [], alsoOn: [], alsoOff: [], ...over,
-});
+export const line = (over = {}) => {
+  const base = {
+    id: 'linen', name: 'Linge et blanchisserie', on: true, switchable: true, state: 'active', stateLabel: 'Actif · 1.2.0', detail: null,
+    canRetry: false, needsSetup: false, setupLabel: null, stale: false, canErase: false, canUninstall: false, blockedBy: null, eraseLines: [], eraseWarnings: [], planChip: null,
+    requires: [], usedBy: [], alsoOn: [], alsoOff: [], switchBlockedBy: null, ...over,
+  };
+  return {
+    confirm: base.on
+      ? { title: `Désactiver ${base.name} ?`, message: 'Ses pages disparaissent de l’espace ; ses données sont conservées.', label: 'Désactiver' }
+      : null,
+    ...base,
+  };
+};
 
 export const modulesView = (over = {}) => {
   const view = {
