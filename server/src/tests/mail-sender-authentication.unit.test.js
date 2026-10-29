@@ -174,3 +174,17 @@ test('rule 29: a header written under another server name is never trusted', () 
   const noneFromServer = ar('forger.tld; dkim=pass header.d=gdf07.com');
   assert.equal(verifyDkim(noneFromServer, OPTS).reason, 'untrusted-authserv-id');
 });
+
+// specs/airbnb-mail-intake.md rule 29 (review of PR 859) — a bare value inside a result is an unquoted echo.
+test('rule 29: a header with a bare token in a result is not believed, and the genuine layouts still pass', () => {
+  const echoed = ar('mx.example; dkim=pass header.d=gdf07.com x@evil.test; spf=pass smtp.mailfrom=a@b.c');
+  assert.deepEqual(verifyDkim(echoed, OPTS), { ok: false, reason: 'malformed-authentication-results' });
+  const gmail = ar('mx.example; dkim=pass header.i=@gdf07.com header.s=s1 header.b=abc; spf=pass (domain of x@gdf07.com designates 1.2.3.4) smtp.mailfrom=x@gdf07.com; dmarc=pass (p=REJECT) header.from=gdf07.com');
+  assert.equal(verifyDkim(gmail, OPTS).ok, true);
+  assert.equal(verifyDkim(ar('mx.example; none'), OPTS).reason, 'no-dkim-result');
+});
+
+test('rule 29: auto-apply is tested on a header that puts dkim before spf (Gmail); the other order is only proposed', () => {
+  const spfFirst = ar('mx.example; spf=pass smtp.mailfrom=gdf07.com; dkim=pass header.d=gdf07.com');
+  assert.equal(verifyDkim(spfFirst, OPTS).ok, false);
+});

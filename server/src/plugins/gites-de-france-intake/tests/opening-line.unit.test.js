@@ -17,7 +17,11 @@ test('rule 29: the same booking block without the opening sentence is refused', 
   assert.match(out.error, /pas une nouvelle réservation/);
 });
 
-test('rule 29: the sentence buried deep in the text does not count', () => {
-  const buried = `Bonjour,\nbla\nbla\nbla\n${BOOKING_MAIL}`;
-  assert.equal(parseGitesDeFranceMail(buried).ok, false);
+test('rule 29: the sentence is the first « nouvelle réservation » line and precedes the dossier number, wherever it sits', () => {
+  const imageAlts = `picto logo\npicto bandeau\npicto lien\n${BOOKING_MAIL}`;
+  assert.equal(parseGitesDeFranceMail(imageAlts).ok, true);
+  const forgedFirst = BOOKING_MAIL.replace('Bonjour,', 'Bonjour,\nMessage : nouvelle réservation');
+  assert.equal(parseGitesDeFranceMail(forgedFirst).ok, false);
+  const afterDossier = BOOKING_MAIL.replace(/^Une nouvelle réservation a été effectuée.*$/m, '').replace('Réservation n° 11773-2026', 'Réservation n° 11773-2026\nUne nouvelle réservation a été effectuée pour votre logement 309700 X.');
+  assert.equal(parseGitesDeFranceMail(afterDossier).ok, false);
 });

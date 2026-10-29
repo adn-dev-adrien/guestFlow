@@ -76,9 +76,9 @@ function parseAuthenticationResults(value) {
       const i = prop.indexOf('=');
       if (i > 0) properties[lower(prop.slice(0, i))] = prop.slice(i + 1);
     }
-    return { method: lower(name), result: lower(result), properties };
+    return { method: lower(name), result: lower(result), properties, bare: props.some((prop) => prop.indexOf('=') < 1) };
   });
-  return { authservId, results };
+  return { authservId, results, malformed: results.some((r) => r.bare) };
 }
 
 const signingDomain = ({ properties }) => lower(properties['header.d'] || domainOf(properties['header.i'] || ''));
@@ -106,6 +106,9 @@ function verifyDkim(headerBlock, { domains, trustedAuthservId = '' } = {}) {
   if (headers.length === 0) return { ok: false, reason: 'no-authentication-results' };
   const header = headers.find((h) => h.authservId === trusted);
   if (!header) return { ok: false, reason: 'untrusted-authserv-id' };
+  // A value without `name=` inside a result is what an unquoted echo of an address leaves behind
+  // (`dkim=pass header.d=… x@evil.test`): the whole header is then not believed.
+  if (header.malformed) return { ok: false, reason: 'malformed-authentication-results' };
   // Only the results written before the first `smtp.*` one count: whatever the server echoes of the
   // envelope (a MAIL FROM it failed to quote) comes after the dkim verdicts.
   const echoAt = header.results.findIndex((r) => Object.keys(r.properties).some((k) => k.startsWith('smtp.')));

@@ -67,6 +67,7 @@
     ],
     "1.4.3": [
       "Le mail doit s’ouvrir par la phrase « Une nouvelle réservation a été effectuée pour votre logement » pour être pris en compte.",
+      "La phrase d’ouverture du mail est repérée avant le numéro de réservation, où qu’elle soit ; l’aide du « Serveur de réception » précise : Gmail, courrier reçu directement.",
       "Compatible avec le SDK 2.13 de GuestFlow."
     ]
   }

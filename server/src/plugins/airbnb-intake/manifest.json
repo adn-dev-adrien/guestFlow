@@ -40,6 +40,7 @@
     ],
     "1.1.2": [
       "Un mail piégé (objet ou ligne de titre démesurés) ne bloque plus le serveur : l’objet et le titre sont lus sur des lignes courtes.",
+      "La vérification automatique refuse un en-tête d’authentification douteux ; l’aide du « Serveur de réception » précise : Gmail, courrier reçu directement.",
       "Compatible avec le SDK 2.12 de GuestFlow."
     ]
   }
