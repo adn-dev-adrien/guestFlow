@@ -280,13 +280,15 @@ guessing; and the quote the guest receives looks like the house that sends it.
     server-built « Vous percevez » headline label of a platform stay, which keeps its own wording. Test:
     `__tests__/operator-wording.impersonal.test.js` (no « Veuillez », « Voulez-vous » or « Êtes-vous » left
     in the client's sources).
+    Imperatives of the 2nd person plural are rewritten the same way (« Nom du document à saisir. », « Deux dates à choisir. », « Se connecter pour continuer. »).
 37. **Touch leftovers (audit R3, 2026-10-29).** On a finger-driven screen: the `mailto:` / `tel:` links of
     the Clients directory: the e-mail is a MUI `Link` 44 px tall; on a coarse pointer the phone number
     is no longer a link and calling goes through the row's 44 px call button, placed at the end of the
     contact column (decided by Adrien 2026-10-29, « Bouton d'appel seul »: the row keeps its height, about
-    73 px; the mouse layout keeps both text links); the devis number link and the clickable sentences of the e-mail preview
-    (« Modifier : objet ») use `touchHitArea`; « Changer la couleur » uses it too (the swatch's border made
-    its old hit area 42 px); the laundry weekday toggles are 44 px wide from 388 px (the row bleeds 8 px
+    73 px; the mouse layout keeps both text links); the devis number link uses `touchHitArea`; in the e-mail preview only the one-line subject sentence
+    (« Modifier : objet ») is 44 px (`min-height`): a hit area around a multi-line body sentence covered the
+    end of the sentence before it and sent the tap to the wrong editor (0 misdirected at 390, 900, 1024); « Changer la couleur » uses it too (the swatch's border made
+    its old hit area 42 px); the laundry weekday toggles are 44 px wide from 388 px, and the « Jours » label sits above the row below `md` so the row is never clipped (checked from 320 to 1280) (the row bleeds 8 px
     into the card's padding, 4 + 3 below). The default-hour field of a single-slot option grid is named
     « Heure par défaut ». Measured with Playwright at 390 and 900 (coarse pointer). Test:
     `components/__tests__/OccurrenceGrid.time-label.test.jsx`.

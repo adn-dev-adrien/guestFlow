@@ -19,7 +19,7 @@ import { Box, MenuItem, TextField, ToggleButton, ToggleButtonGroup, Typography }
 
 const DEFAULT_LABELS = { fy: 'Exercice', month: 'Mois', custom: 'Personnalisée' };
 export const PERIOD_MESSAGES = {
-  missingDates: 'Choisissez deux dates.',
+  missingDates: 'Deux dates à choisir.',
   reversed: 'La date de début doit précéder la date de fin.',
 };
 

@@ -69,7 +69,7 @@ export default function SettingsGoogleCalendarSection() {
     const g = params.get('google');
     if (!g) return;
     if (g === 'connected') showSuccess('Compte Google connecté ✓');
-    else if (g === 'invalid_state') showError('Connexion Google invalide (state). Réessayez depuis cette page.');
+    else if (g === 'invalid_state') showError('Connexion Google invalide (state). À réessayer depuis cette page.');
     else showError('Échec de la connexion Google — vérifiez les identifiants et les logs serveur.');
     params.delete('google');
     navigate({ pathname: location.pathname, search: params.toString() }, { replace: true });

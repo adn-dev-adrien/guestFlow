@@ -259,7 +259,7 @@ export default function PaymentsSettingsPage() {
         cancelDisabled={!isDirty || saving}
       />
       <Box sx={{ p: { xs: 1.5, sm: 3 }, display: 'flex', flexDirection: 'column', gap: 2, maxWidth: 900, mx: 'auto' }}>
-                {health.lastError && (
+        {health.lastError && (
           <ErrorAlert
             message={`Dernier échec Qonto — ${health.lastError.code}${health.lastError.message ? ` : ${health.lastError.message}` : ''} (${ORIGIN_LABELS[health.lastError.origin] || health.lastError.origin}, le ${formatStamp(health.lastError.at)})`}
           />

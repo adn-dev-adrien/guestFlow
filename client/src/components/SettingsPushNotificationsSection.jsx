@@ -66,7 +66,7 @@ export default function SettingsPushNotificationsSection() {
     try {
       const r = await api.sendPushTest();
       if (r?.skipped === 'no_vapid') setError('Notifications indisponibles sur ce serveur.');
-      else if (r?.skipped === 'no_subscription') setError("Aucun appareil abonné. Activez d'abord les notifications.");
+      else if (r?.skipped === 'no_subscription') setError("Aucun appareil abonné. Notifications à activer d'abord.");
       else if ((r?.sent || 0) === 0) setError("Échec de l'envoi (voir les logs serveur).");
       else setNotice(`Notification envoyée à ${r.sent} appareil(s) du compte. Verrouillez l'écran ou passez en arrière-plan pour la voir.`);
     } catch (err) {

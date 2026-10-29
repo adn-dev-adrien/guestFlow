@@ -40,7 +40,7 @@ beforeEach(() => {
 });
 
 const renderPage = () => render(<MemoryRouter><VatFiscalSettingsPage /></MemoryRouter>);
-const save = () => screen.getByRole('button', { name: /Enregistrer|Corrigez les champs/ });
+const save = () => screen.getByRole('button', { name: /Enregistrer|Champs en rouge/ });
 const field = () => screen.getByLabelText('Seuil de franchise (€)');
 const pickMention = async (name) => {
   fireEvent.mouseDown(screen.getByRole('combobox', { name: 'Mention légale' }));

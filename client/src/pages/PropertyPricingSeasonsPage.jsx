@@ -1387,7 +1387,7 @@ export default function PropertyPricingSeasonsPage() {
                         );
                       })}
                       {progressivePreview.rows.length <= 1 && (
-                        <TableRow><TableCell colSpan={4} align="center" sx={{ py: 3, color: 'text.secondary' }}>Aucun palier. Utilisez le bouton de pré-remplissage.</TableCell></TableRow>
+                        <TableRow><TableCell colSpan={4} align="center" sx={{ py: 3, color: 'text.secondary' }}>Aucun palier. Pré-remplissage disponible.</TableCell></TableRow>
                       )}
                     </TableBody>
                   </Table>

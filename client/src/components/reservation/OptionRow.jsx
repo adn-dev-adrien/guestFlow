@@ -41,7 +41,7 @@ function OptionCardOccurrences({ opt }) {
   if (grid.length === 0) {
     return (
       <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-        Renseignez les dates du séjour pour configurer les occurrences.
+        Dates du séjour à renseigner pour configurer les occurrences.
       </Typography>
     );
   }

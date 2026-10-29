@@ -83,7 +83,7 @@ export default function ReservationSearchBox({ onSelect, placeholder = 'Recherch
       }}
       getOptionLabel={(o) => (o && (o.reservationNumber || o.clientFullName)) || ''}
       isOptionEqualToValue={(o, v) => o.id === v.id}
-      noOptionsText={inputValue.trim() ? 'Aucune réservation' : 'Tapez un numéro ou un nom…'}
+      noOptionsText={inputValue.trim() ? 'Aucune réservation' : 'Numéro ou nom à saisir…'}
       loadingText="Recherche…"
       renderOption={(props, option) => {
         // React 19 + MUI v9: `key` is part of `props`; extract it so it isn't spread (spreading a

@@ -53,8 +53,8 @@ function nudge(element) {
 
 function FieldRow({ id, label, children }) {
   return (
-    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '150px 1fr' }, columnGap: 2, rowGap: 1, alignItems: 'start', mb: 1.5 }}>
-      <Typography id={id} variant="body2" color="text.secondary" component="label" sx={{ pt: { sm: 1.4 } }}>{label}</Typography>
+    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '150px 1fr' }, columnGap: 2, rowGap: 1, alignItems: 'start', mb: 1.5 }}>
+      <Typography id={id} variant="body2" color="text.secondary" component="label" sx={{ pt: { md: 1.4 } }}>{label}</Typography>
       <Box>{children}</Box>
     </Box>
   );

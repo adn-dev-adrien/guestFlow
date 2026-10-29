@@ -37,7 +37,7 @@ export default function PropertyDocumentsTab({ propertyId, documents = [], canMa
 
   const save = async () => {
     const next = {};
-    if (!draft.name.trim()) next.name = 'Donnez un nom au document.';
+    if (!draft.name.trim()) next.name = 'Nom du document à saisir.';
     if (!draft.file) next.file = 'Fichier à choisir.';
     setErrors(next);
     if (Object.keys(next).length) return;

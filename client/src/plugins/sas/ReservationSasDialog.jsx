@@ -1401,7 +1401,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
                             Quantité&nbsp;: <strong>{sale ? sale.units : '—'}</strong>
                             {sale && sale.moments > 0 && o.perPerson ? ` (${sale.moments} × ${sale.servedPersons} pers. servies)` : ''} = {amount}
                           </span>
-                        ) : 'Choisissez les moments servis'}
+                        ) : 'Moments servis à choisir'}
                       />
                       {/* specs/card-option-served-persons.md §3.3 — le nombre de couverts, quand les
                           enfants ne mangent pas. Affiché dès qu'un moment est coché. */}

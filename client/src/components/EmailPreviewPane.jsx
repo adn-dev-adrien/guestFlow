@@ -33,12 +33,13 @@ import {
   Stack, ToggleButton, ToggleButtonGroup, Typography,
 } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
-import { touchHitArea } from '../utils/touchHitArea';
 
 export const SAMPLE = 'sample';
 
-const sentenceSx = (active) => ({
-  ...touchHitArea,
+// A body sentence wraps over several lines: a hit area around it would cover the end of the sentence
+// before it, so only the one-line subject grows to 44 px on touch.
+const sentenceSx = (active, tall) => ({
+  ...(tall ? { '@media (pointer: coarse)': { display: 'inline-flex', alignItems: 'center', minHeight: 44 } } : {}),
   borderRadius: 0.5,
   cursor: 'pointer',
   boxDecorationBreak: 'clone',
@@ -50,7 +51,7 @@ const sentenceSx = (active) => ({
   '@media (prefers-reduced-motion: reduce)': { transition: 'none' },
 });
 
-function Sentence({ text, active, label, title, onOpen }) {
+function Sentence({ text, active, label, title, onOpen, tall = false }) {
   return (
     <Box
       component="span"
@@ -61,7 +62,7 @@ function Sentence({ text, active, label, title, onOpen }) {
       data-active={active ? 'true' : undefined}
       onClick={onOpen}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(); } }}
-      sx={sentenceSx(active)}
+      sx={sentenceSx(active, tall)}
     >
       {text}
     </Box>
@@ -127,7 +128,7 @@ export default function EmailPreviewPane({
           <Box data-testid="email-preview" sx={{ bgcolor: 'background.default', borderRadius: 1, p: { xs: 1.5, sm: 2 }, opacity: loading || stale ? 0.6 : 1 }}>
             <Typography variant="subtitle2" sx={{ mb: 1.5, overflowWrap: 'anywhere' }}>
               {clickable && subjectKey
-                ? <Sentence text={subject} active={activeKey === subjectKey} label="Modifier : objet" onOpen={() => onSegmentClick(subjectKey)} />
+                ? <Sentence text={subject} active={activeKey === subjectKey} label="Modifier : objet" tall onOpen={() => onSegmentClick(subjectKey)} />
                 : subject}
             </Typography>
             {showHtml ? (

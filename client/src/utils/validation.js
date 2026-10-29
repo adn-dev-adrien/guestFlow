@@ -34,7 +34,7 @@ export function revenueGoalInputError(value) {
   if (value == null || typeof value === 'number') return '';
   const text = String(value).replace(/[\s  ]/g, '').replace(',', '.');
   if (text === '') return '';
-  if (/^-/.test(text) || /^0+(\.0*)?$/.test(text)) return "L'objectif doit être supérieur à 0 €. Laissez vide pour ne pas en fixer.";
+  if (/^-/.test(text) || /^0+(\.0*)?$/.test(text)) return "L'objectif doit être supérieur à 0 €. Vide : aucun objectif.";
   if (!/^\d+(\.\d+)?$/.test(text)) return 'Un montant en euros, sans lettres (ex. 85 000).';
   if (text.includes('.') && text.split('.')[1].length > 2) return 'Deux décimales au plus.';
   if (Number(text) > 10000000) return 'Montant trop élevé : 10 000 000 € au plus.';

@@ -401,7 +401,7 @@ export default function ResourceBookingDialog({
             ) : (
               <Box sx={{ px: 1.5, py: 1, borderRadius: 1, bgcolor: 'action.hover' }}>
                 <Typography variant="caption" color="text.secondary">
-                  Sélectionnez un créneau dans le planning
+                  Créneau à sélectionner dans le planning
                 </Typography>
               </Box>
             )}

@@ -6,7 +6,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const ROOT = path.resolve(__dirname, '..');
-const FORBIDDEN = /\b(Veuillez|Voulez-vous|Êtes-vous)\b/;
+// `\b` does not see « Ê » as a word character, so the boundaries are spelled with Unicode letters.
+const FORBIDDEN = /(^|[^\p{L}])(Veuillez|Voulez-vous|Êtes-vous)(?![\p{L}])/u;
+// Text a guest reads is not operator text (rule 36).
+const GUEST_FACING = ['plugins/gate-access/SasGateAccessStep.jsx'];
 
 function sources(dir) {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
@@ -16,7 +19,14 @@ function sources(dir) {
   });
 }
 
+test('rule 36 — the guard matches the three phrases, accents included', () => {
+  ['Êtes-vous sûr ?', 'Voulez-vous continuer ?', 'Veuillez saisir.', '« Veuillez »'].forEach((text) => expect(text).toMatch(FORBIDDEN));
+  ['Veuillezz', 'Pouvez-vous', 'Voulez-vousx'].forEach((text) => expect(text).not.toMatch(FORBIDDEN));
+});
+
 test('rule 36 — no formal address in the operator-facing sources', () => {
-  const offenders = sources(ROOT).filter((file) => FORBIDDEN.test(fs.readFileSync(file, 'utf8')));
+  const offenders = sources(ROOT)
+    .filter((file) => !GUEST_FACING.includes(path.relative(ROOT, file).split(path.sep).join('/')))
+    .filter((file) => FORBIDDEN.test(fs.readFileSync(file, 'utf8')));
   expect(offenders.map((f) => path.relative(ROOT, f))).toEqual([]);
 });

@@ -226,7 +226,7 @@ export default function EstablishmentClosuresPage({ barTabs }) {
             value={form.propertyId}
             onChange={(e) => setForm((prev) => ({ ...prev, propertyId: e.target.value }))}
             fullWidth
-            helperText="Sélectionnez « Tous les logements » pour une fermeture globale."
+            helperText="« Tous les logements » pour une fermeture globale."
           >
             <MenuItem value={ALL_PROPERTIES}>Tous les logements</MenuItem>
             {properties.map((p) => (

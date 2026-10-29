@@ -334,7 +334,7 @@ export default function MiniPlanningStrip({
         </Box>
 
         <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-          Cliquez une date d'arrivée puis une date de départ.
+          Date d'arrivée puis date de départ à cliquer.
         </Typography>
       </CardContent>
     </Card>
