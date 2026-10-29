@@ -176,6 +176,7 @@ function createIntakeService(deps) {
     }
     intakes.purgeIgnored(new Date(now().getTime() - (SINCE_DAYS + 1) * 24 * 3600 * 1000).toISOString());
     let read = 0;
+    let unread = 0;
     // Rule 30 — mails arrive one by one: known ones are never downloaded, the others are all remembered
     // (an intake, or `ignored`), and a pass reads at most MAX_MAILS_PER_PASS of them, newest first.
     const take = (mail) => {
@@ -197,7 +198,7 @@ function createIntakeService(deps) {
     };
     await readMails(
       { ...mailbox, sender: settings.sender(), ...(settings.authentication ? settings.authentication() : {}) },
-      { seen: (messageId) => intakes.has(messageId, parserVersion), onMail: take, limit: MAX_MAILS_PER_PASS },
+      { seen: (messageId) => intakes.has(messageId, parserVersion), onMail: take, limit: MAX_MAILS_PER_PASS, onCap: ({ notRead }) => { unread = notRead; } },
     );
     const outcome = {};
     for (const intake of intakes.listOpen()) {
@@ -212,7 +213,7 @@ function createIntakeService(deps) {
       }
       outcome[status] = (outcome[status] || 0) + 1;
     }
-    return { read, ...outcome };
+    return { read, ...(unread ? { unread } : {}), ...outcome };
   }
 
   // What the fiche's banner renders (rule 14) — ready to display.
