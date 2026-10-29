@@ -98,6 +98,7 @@ function pollDb(row) {
   db.exec(`CREATE TABLE reservations (id INTEGER PRIMARY KEY, kind TEXT, convertedReservationId INTEGER,
     depositAmount REAL, balanceAmount REAL, finalPrice REAL, depositPaid INTEGER DEFAULT 0, balancePaid INTEGER DEFAULT 0,
     complementAmount REAL DEFAULT 0, platform TEXT DEFAULT 'direct')`);
+  db.exec('CREATE TABLE payment_links (id INTEGER PRIMARY KEY, reservationId INTEGER, type TEXT, amountCents INTEGER, status TEXT)');
   db.prepare(`INSERT INTO reservations (id, kind, depositAmount, balanceAmount, finalPrice)
     VALUES (1, 'reservation', @depositAmount, @balanceAmount, @finalPrice)`).run(row);
   return db;

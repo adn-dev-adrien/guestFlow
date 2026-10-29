@@ -106,6 +106,12 @@ double-processing a payment.
     a webhook that never arrived, which is a question of hours, not of minutes. The tick is
     environment-configurable through `PAYMENT_POLL_TICK_MINUTES`, default `480`, with the same
     "missing, non-numeric or non-positive falls back to the default" reading as rule 9.
+12. **One Qonto request is bounded in time (2026-10-29, audit R3).** The client gives each request (headers and
+    body) 20 s (`QONTO_REQUEST_TIMEOUT_MS`, or `timeoutMs` in the client config), then aborts it and fails with a
+    `timeout` error carrying `code: 'ETIMEDOUT'` and no HTTP status. That is a network failure: it is not retried
+    (rule 6 retries only 429/5xx) and the health check reads it as « unreachable ». 20 s is far above Qonto's usual
+    second or two, and keeps three attempts with their waits under about a minute, where a hung socket held a poll
+    or retry run, and the retry queue behind it, for about 300 s.
 
 **Edge cases:**
 

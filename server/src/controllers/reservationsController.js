@@ -121,7 +121,7 @@ function ledgerFor({ row, quote = null, live = {}, propertyId = null, overpaymen
   let refunds = [];
   let penalties = [];
   if (id) {
-    try { links = require('../models/paymentLinksModel').listForReservation(id); } catch { links = []; }
+    try { links = require('../models/paymentLinksModel').listForStay(id); } catch { links = []; }
     try { refunds = refundsModel.listByReservation(id); } catch { refunds = []; }
     try { penalties = require('../models/platformPenaltiesModel').listFor(id); } catch { penalties = []; }
   }

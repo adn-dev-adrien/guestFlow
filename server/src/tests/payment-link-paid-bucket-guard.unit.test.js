@@ -25,7 +25,7 @@ function seed() {
 // Minimal in-memory payment_links model — just what the service touches.
 function fakeLinksModel(db) {
   return {
-    findOpenForReservation: (id, type) =>
+    findOpenForStay: (id, type) =>
       db.prepare("SELECT * FROM payment_links WHERE reservationId = ? AND type = ? AND status = 'open' ORDER BY id DESC LIMIT 1").get(id, type),
     create: (row) => {
       const info = db.prepare(`INSERT INTO payment_links (reservationId, type, amountCents, provider, providerLinkId, url, status, expiresAt)

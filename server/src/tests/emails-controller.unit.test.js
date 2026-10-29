@@ -125,7 +125,7 @@ test('preview: deposit_reminder injects the open deposit link as {{paymentLink}}
   const { db, templatesModel, logModel, settingsModel } = makeFixture();
   db.prepare("INSERT INTO email_templates (id, stableKey, name, subject, body, dayOffset, sendMode, enabled, anchor) VALUES (20, 'deposit_reminder', 'Relance', 'Devis', '{{#if hasPaymentLink}}Lien : {{paymentLink}}{{else}}Aucun lien{{/if}}', -3, 'manual', 1, 'validUntil')").run();
   db.prepare("INSERT INTO reservations (id, kind, clientId, propertyId, startDate, endDate, validUntil, devisStatus) VALUES (300, 'devis', 1, 1, '2026-08-10', '2026-08-12', '2026-07-04', 'sent')").run();
-  const paymentLinksModel = { findOpenForReservation: (id, type) => (id === 300 && type === 'deposit' ? { url: 'https://pay.qonto/pl_X' } : null) };
+  const paymentLinksModel = { findOpenForStay: (id, type) => (id === 300 && type === 'deposit' ? { url: 'https://pay.qonto/pl_X' } : null) };
   registry.reset();
   registry.configure({ isActive: () => true, allows: () => true });
   registry.ensure('online-payment').paymentProvider = { id: 'fixture', isReady: () => true };
@@ -141,7 +141,7 @@ test('preview: deposit_reminder with no open link falls back to the no-link bran
   const { db, templatesModel, logModel, settingsModel } = makeFixture();
   db.prepare("INSERT INTO email_templates (id, stableKey, name, subject, body, dayOffset, sendMode, enabled, anchor) VALUES (20, 'deposit_reminder', 'Relance', 'Devis', '{{#if hasPaymentLink}}Lien : {{paymentLink}}{{else}}Aucun lien{{/if}}', -3, 'manual', 1, 'validUntil')").run();
   db.prepare("INSERT INTO reservations (id, kind, clientId, propertyId, startDate, endDate, validUntil, devisStatus) VALUES (300, 'devis', 1, 1, '2026-08-10', '2026-08-12', '2026-07-04', 'sent')").run();
-  const paymentLinksModel = { findOpenForReservation: () => null };
+  const paymentLinksModel = { findOpenForStay: () => null };
 
   const ctl = buildController({ database: db, templatesModel, logModel, settingsModel, paymentLinksModel, emailServiceFactory: fakeEmailService() });
   const r = res();

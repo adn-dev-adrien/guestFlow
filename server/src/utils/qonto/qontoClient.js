@@ -76,6 +76,11 @@ function buildQontoClient(config = {}) {
     throw new Error('qontoClient: no fetch implementation (Node 18+ global fetch or inject config.fetchImpl)');
   }
 
+  // One request (headers and body) gets this long. Qonto answers in a second or two; 20 s leaves room for a
+  // slow network while keeping 3 attempts (429/5xx only) under about a minute instead of the ~300 s a hung
+  // socket held a poll or retry run. A timeout is a network failure: not retried, the caller sees it at once.
+  const timeoutMs = Number(config.timeoutMs) > 0 ? Number(config.timeoutMs)
+    : (Number.isInteger(Number(env.QONTO_REQUEST_TIMEOUT_MS)) && Number(env.QONTO_REQUEST_TIMEOUT_MS) > 0 ? Number(env.QONTO_REQUEST_TIMEOUT_MS) : 20000);
   const retryOptions = { ...resolveRetryOptions(env), ...(config.retry || {}) };
   const stagingHeader = () => (sandbox && stagingToken ? { 'X-Qonto-Staging-Token': stagingToken } : {});
 
@@ -103,9 +108,27 @@ function buildQontoClient(config = {}) {
 
   // The same `init` (headers included) is replayed on every attempt, which is what keeps an
   // idempotency key stable across the retries of one call.
+  async function requestWithTimeout(url, init, context) {
+    const controller = new AbortController();
+    let timer;
+    const timedOut = new Promise((_, reject) => {
+      timer = setTimeout(() => {
+        const err = new Error(`Qonto ${context} timeout: no answer within ${Math.round(timeoutMs / 1000)} s`);
+        err.code = 'ETIMEDOUT';
+        controller.abort();
+        reject(err);
+      }, timeoutMs);
+    });
+    try {
+      return await Promise.race([(async () => readBody(await fetchImpl(url, { ...init, signal: controller.signal }), context))(), timedOut]);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   async function send(url, init, context) {
     try {
-      return await withRetry(async () => readBody(await fetchImpl(url, init), context), {
+      return await withRetry(() => requestWithTimeout(url, init, context), {
         onRetry: ({ attempt, delayMs, error }) => {
           // eslint-disable-next-line no-console
           console.warn(`[qonto] ${context} HTTP ${error.status}: retry ${attempt + 1}/${retryOptions.maxAttempts} in ${delayMs} ms`);
