@@ -116,10 +116,11 @@ Let a website visitor **pay their full stay online** and have the reservation co
      conversion when the link is paid, so it gets its own `paymentStatusLimiter` (default 120 / 5 min /
      IP) — enough for a legit success page (polls every 3 s for ~1 min) but caps a Qonto-quota / cost DoS.
      Resolves §9 Q3.
-   - **`trust proxy`.** The Node app is exposed **directly** (its own TLS, no reverse proxy today), so
+   - **`trust proxy`.** The Node app can be exposed **directly** (its own TLS), so
      `trust proxy` defaults to **`false`** — otherwise any direct caller to `:4000` could spoof
      `X-Forwarded-For` and defeat the IP rate limiters. When a reverse proxy is put in front (WordPress
-     prod), set `TRUST_PROXY_HOPS` to the exact trusted-hop count. _(The plugin's API client does not
+     prod), set `TRUST_PROXY_HOPS` to the exact trusted-hop count
+     ([hosting-h1-fleet-runtime.md](hosting-h1-fleet-runtime.md) rule 35). _(The plugin's API client does not
      forward the visitor IP, so public-route limiting is per-proxy-IP regardless.)_
    - **Charged amount.** `fullPaymentCents`'s fallback row now carries `touristTaxTotal`, so a missed devis
      lookup can never silently charge tax-free.
@@ -168,6 +169,41 @@ Let a website visitor **pay their full stay online** and have the reservation co
     paid yet, so the refusal is clean; the availability re-check also sees a neighbour's late
     check-out and early check-in (public-api.md rule 15). Covered by
     `plugins/website-booking/tests/public-stay-rules.unit.test.js`.
+
+### A link is paid for the amount it billed (audit 2026-10-28)
+
+14. **A re-priced devis retires its open links; a link paid for another amount is booked at what was
+    received.** (a) Whatever re-prices a devis (`devisModel.update`: the operator's save, a guest's
+    request sent again — [public-request-abuse-and-grouping.md](public-request-abuse-and-grouping.md)
+    rule 27), every open link whose amount no longer matches the quote (`ledgerLinks.staleLinks`) is
+    abandoned at once (`cancelReason 'amount-changed'`, remote-deactivation marker), a history row
+    « Lien de paiement retiré : montant du devis modifié » is written on the devis, and the save answers
+    `retiredPaymentLinks: <n>` (the devis page then says the link is withdrawn). A devis stored without
+    its acompte/solde split (both NULL) is never compared. After the commit
+    (`utils/retiredDevisLinks.js`) the provider is asked FIRST whether each link was already paid (ledger
+    rule 30): an unpaid link is deactivated; a paid one is left to the poll's retry of owed
+    deactivations, which converts the devis and books the link at the amount received
+    (`bookAmountChangedPaidLink`: shortfall on the arrival complement, « Paiement reçu d'un autre montant
+    que le devis » alert) — a payment that could not be booked is reported `paid-after-cancel`, never
+    `paid`. (b) Defence in depth in `applyPaidEffect`: when a paid link on a devis bills another amount
+    than the devis asks for its type (`deposit`, or `full` = acompte + solde), the devis is converted
+    and the money goes through `bookPaidAfterAmountChange` — the amount received is the one booked, the
+    shortfall is left due on the arrival complement. The alert (`notifyPaidAfterCancel`,
+    `amountMismatch`) says no confirmation e-mail was sent and what remains due (or the excess to
+    refund); no e-mail says « payé ». If the bucket was already settled another way (the operator
+    converted and ticked by hand), the ledger's rule 24 reading applies: ticked the day of the payment
+    or after = the same money, no alert; ticked on an earlier day = « Paiement à vérifier ». This also
+    covers the `full` links minted before the tourist tax joined the amount (rule 18 of
+    deposit-blocks-the-dates.md). Two overlapping retry passes never book the same link twice: the pass
+    that clears the owed-deactivation marker (`claimRemoteCancelPending`) owns it, and the retry runs
+    one at a time per process. A paid link is never turned back into `cancelled`. Covered by
+    `tests/audit-devis-link-amount.unit.test.js` and `tests/audit-devis-link-amount-review.unit.test.js`.
+15. **One live link per devis and type.** `ensurePaymentLink` runs one at a time per reservation and
+    type (the lock of the installments, rule 40 of direct-installments.md): two concurrent `pay` calls
+    mint one provider link. Should two links of one devis be paid anyway, the second payment is not
+    recorded again and sends no confirmation: the admin gets the « Devis payé deux fois » alert to
+    refund it, and a « Remboursement à faire » row on the converted stay's history keeps the debt
+    after the alert is gone. Covered by `tests/audit-devis-link-amount.unit.test.js`.
 
 ## 4. Architecture
 
@@ -310,6 +346,10 @@ the status poll. The proxy (`class-gf-rest-proxy.php`) forwards `token` from the
 - Auto-refund on conflict (manual admin resolution only).
 
 ## 9. Open questions
+
+- Q: A « Renvoyer la demande » on the devis page after its payment link was withdrawn (rule 14)? — Open
+  (Adrien, 2026-10-29): no operator-side payment request exists for a devis today; it needs its own spec
+  and an interactive mockup.
 
 1. **Qonto return URL** — confirm the payment-link API accepts a redirect/success URL and the exact field
    name (sandbox check). If unsupported → ship "status polled only" (the site provides its own return

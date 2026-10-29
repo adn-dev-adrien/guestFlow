@@ -1,0 +1,1 @@
+- **Security: property documents are no longer reachable without signing in** (`settings-rationalization.md` rule 32): they are stored in `private-documents`, outside the public `/uploads` tree, and downloaded through an authenticated route; files uploaded earlier are moved at boot, and « Retirer » deletes the file. Photos, logo and favicon stay public.

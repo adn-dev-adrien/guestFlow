@@ -138,5 +138,6 @@ module.exports = Object.freeze({
     readMailsFrom: (...args) => require('./mailboxReader').readMailsFrom(...args),
     testConnection: (...args) => require('./mailboxReader').testConnection(...args),
     imapHostFor: (...args) => require('./mailboxReader').imapHostFor(...args),
+    resolveImapHost: (...args) => require('./mailboxReader').resolveImapHost(...args),
   }),
 });

@@ -1,0 +1,1 @@
+- Intake plugins `airbnb_intakes` and `gdf_intakes` gain `senderVerified INTEGER NOT NULL DEFAULT 0` (idempotent): rows already applied are set to `1`, rows still open stay `0` and are proposed with the warning at the next pass.

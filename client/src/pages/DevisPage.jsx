@@ -19,6 +19,7 @@ import api from '../api';
 import { usePlugin } from '../hooks/usePlugins';
 import { WEBSITE_BOOKING } from '../constants/plugins';
 import { displayDate, formatCurrency } from '../utils/formatters';
+import { visuallyHidden } from '../utils/visuallyHidden';
 
 const STATUS_LABELS = {
   draft: 'Brouillon',
@@ -233,7 +234,7 @@ export default function DevisPage() {
       <TableCell sx={{ fontWeight: 700 }}>Séjour</TableCell>
       <TableCell sx={{ fontWeight: 700, whiteSpace: 'nowrap' }} align="right">{notSubject ? 'Montant' : 'Montant TTC'}</TableCell>
       <TableCell sx={{ width: 104, position: 'relative' }} align="right">
-        <Box component="span" sx={{ position: 'absolute', width: '1px', height: '1px', overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap' }}>Actions</Box>
+        <Box component="span" sx={visuallyHidden}>Actions</Box>
       </TableCell>
     </TableRow>
   );

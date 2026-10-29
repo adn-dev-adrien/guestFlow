@@ -1,0 +1,1 @@
+- The trailing-punctuation trim of a link in the guest e-mail HTML is linear (10 000 closing parentheses after a link used to cost ~0.5 s, 40 000 about 9 s).

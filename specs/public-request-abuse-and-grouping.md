@@ -188,8 +188,10 @@ someone else is attacking. One guest asking twice for the same stay gets one quo
 27. **Paying again after changing the stay** (re-review of PR #805). A payment link on a quote the
     operator never touched (draft, never opened, sent, edited or e-mailed) can only come from the
     guest's own drawer. For a request that carries the quote's token, such links do not make it
-    « touched »: the quote is updated and re-priced (rule 13), and the next payment retires the old link
-    at the provider before minting one at the new amount (`ensurePaymentLink`, unchanged). Without the
+    « touched »: the quote is updated and re-priced (rule 13), and the update itself retires the old link
+    (amended 2026-10-28, audit: it stayed payable at the old price until the next payment;
+    [public-online-payment.md](public-online-payment.md) rule 14), deactivated at the provider after the
+    commit; the next payment mints one at the new amount. Without the
     token, or once the operator touched it, rule 21 applies. The drawer never starts a payment on a
     `messageAdded` answer.
 28. **The summary is pushed even without e-mail** (re-review). Like the immediate notification, the

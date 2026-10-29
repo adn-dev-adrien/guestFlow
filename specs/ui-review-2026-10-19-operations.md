@@ -259,6 +259,18 @@ guessing; and the quote the guest receives looks like the house that sends it.
     (plateforme) » deduction is the withheld amount only (an estimate is no longer added then taken
     back); `onSiteTotal` = arrival + end-of-stay complements + mid-stay notes; `commissionBase` = the
     pre-arrival amount.
+33. **`?from=` is followed only when it is an in-app path (audit 2026-10-28).** `getFromParam` and
+    `navigateBackWithFrom` accept a value that starts with `/`, holds no control character (tab, LF, CR are stripped by URL parsers) or backslash, and resolves to the app's own origin; a URL,
+    `javascript:` or a bare word is ignored and the default target applies (rule 22). React Router used
+    to throw « External navigation is not allowed » on such a value and « Retour » did nothing.
+34. **A reservation that does not exist says so (audit 2026-10-28).** `/reservations/:id` answering 404
+    (a deleted stay, a devis id typed there) shows an `EmptyState` « Réservation introuvable. » (« Devis
+    introuvable. » in devis mode) with « Retour au planning » (« Retour aux devis »), not « Réessayer »,
+    which can never succeed; the back arrow of that state falls back to `/devis` in devis mode. Only the 404 of the fiche or quote being opened counts: a 404 on a side lookup (the property of `/reservations/new?propertyId=…`) and any other failure (403, network, 5xx) keep the error and its « Réessayer ».
+35. **Screen-reader-only text is a 1px box (audit 2026-10-28).** MUI `sx` reads `width: 1` as 100% and
+    `margin: -1` as -8px, so the hidden live regions of `BoundedNumberField`, `AttentionCard` and
+    `TwoFactorSetupDialog` were as wide as the viewport and gave Réglages → Plateformes a horizontal
+    scroll at 1280 px. They share `utils/visuallyHidden.js` (explicit `1px` / `-1px`).
 
 ---
 
@@ -405,6 +417,11 @@ step numbering are shown in `docs/specs/2026-10-19-ui-review-operations.html`.
 `pages/__tests__/DevisPage.keyboard.test.jsx` (5: the link at 1280 and 390 opens with Entrée, a
 converted quote links to its reservation, the mini planning arrows, the 44 px link on a phone),
 `components/__tests__/SegmentedSelect.phone-wrap.test.jsx` (2).
+
+**Client audit (2026-10-28)** — rules 33–35: `utils/__tests__/navigation.from-target.test.js` (12),
+`pages/__tests__/ReservationPage.not-found.test.jsx` (7, rule 34),
+`components/__tests__/visuallyHidden.sizes.test.jsx` (4, rule 35); rule 13 of
+`bed-config-in-linen-card.md` is covered by `pages/__tests__/ReservationPage.bed-counts-zero.test.jsx` (3).
 
 **Every alphabet in the quote PDF (owner decision 2026-10-20)** — rules 27–30:
 `server/src/tests/devis-pdf-font-coverage.unit.test.js` (8: the font dictionary of a quote naming

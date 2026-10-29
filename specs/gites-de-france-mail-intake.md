@@ -184,6 +184,38 @@ choice in one click.
     { label, client })` (SDK 2.7.0) instead of calling `ctx.core.clients.findOrCreate` first. A fiche the core
     refuses for any reason (capacity, validation, a race with the start of the stay) rolls the client back:
     no orphan client holds the guest's personal data. Test: `tests/plugin-intake-client-in-update-transaction.unit.test.js`.
+20. *(Added 2026-10-28, audit findings F2 and injection #1.)* **The sender is proven, not read.** IMAP `SEARCH FROM` is a substring
+    match over the whole From field, display name included; the SDK reader (`mailAuthentication.js`) therefore
+    keeps a mail only when its header From address **equals** the configured sender
+    (case-insensitive), and flags it `authenticated` only when the `Authentication-Results` header written by the
+    mailbox's own server reports `dkim=pass` with a signing domain (`header.d`, or the domain of `header.i`) equal
+    to the sender's domain or listed in the `senderDomains` setting. Only one such header is trusted: the one
+    whose `authserv-id` is the `trustedAuthservId` setting (« Serveur de réception »), or, when empty, the provider's
+    known name (`smtp.gmail.com` → `mx.google.com`); for any other provider with the setting empty, no mail is
+    authenticated, so every one is a proposal. The header is read with an RFC 8601 tokenizer (quoted strings and
+    nested comments never split a result) and only the `dkim` result's `header.d` / `header.i` count. A mail that
+    fails is stored (`senderVerified = 0`) and, once matched, becomes a **proposal** — also listed on the dashboard
+    (rule 15 / 14) so it never sits unseen — whose banner is
+    « Expéditeur non vérifié » — it is never auto-applied, whatever `autoApply` says; the operator can still
+    apply it by hand. A forged proposal never counts as « already handled » for rule 8's dossier dedup, so it cannot
+    shadow the genuine mail, and an unauthenticated mail that does not parse leaves no row. Tests:
+    `server/src/tests/mail-sender-authentication.unit.test.js`, `gites-de-france-intake/tests/sender-verification.unit.test.js`,
+    `IntakeBanner.sender-verification.test.jsx`.
+21. *(Added 2026-10-28, audit injection #1.)* **An authenticated mail never swaps contact details.** When the
+    fiche's current client already has an e-mail or a phone (the iCal placeholder has none), the mail is not
+    auto-applied: it becomes a proposal whose banner says « E-mail ou téléphone déjà renseigné sur la fiche »,
+    since applying would replace the guest's address with the one in the mail (the later payment and portal mails
+    go there). The operator can apply it by hand. Test: `gites-de-france-intake/tests/sender-verification.unit.test.js`.
+22. *(Added 2026-10-28, audit finding H1 of authz.)* **The mailbox password has one destination.** The reader
+    connects over implicit TLS on 993 and requires STARTTLS on any other port (never plaintext); **the SDK pins the
+    host itself** (`sdk.mailbox.resolveImapHost`, applied inside `readMailsFrom` / `testConnection` against the core's
+    SMTP host, whatever the caller passes — so it holds for any plugin version): the SMTP server's own host, its
+    `imap.` counterpart, or a host one label away under the same parent (never two labels, a public suffix or an
+    IP), a configured host elsewhere being refused at save and ignored at use. The card shows the host used.
+    `imapHost`, `imapPort`, `senderAddress`, `senderDomains` and `trustedAuthservId` are declared `supportLocked`:
+    refused to a support session when changed (`specs/hosting-h2-account-security.md` rule 18, which also refuses a
+    plugin rollback). Test:
+    `server/src/tests/mail-intake-credential-destination.unit.test.js`.
 
 ---
 
@@ -317,6 +349,7 @@ Responsive: on `xs` the rent buttons stack full width and every button keeps 44 
 - [x] Guards updated: catalogue count (13), module lists, job intervals (`plugins-phase-0`,
   `plugins-phase-1-sdk`, client `registry.test.jsx`), E2E `plugins-page.spec.js` (Installés (13)).
 - [x] Client `IntakeBanner.rent.test.jsx` (1) and `IntakeBanner.states.test.jsx` (4).
+- [x] 2026-10-28 audit fix (rules 20–22): `server/src/tests/mail-sender-authentication.unit.test.js`, `mail-intake-credential-destination.unit.test.js`, `gites-de-france-intake/tests/sender-verification.unit.test.js` (9), client `IntakeBanner.sender-verification` (2). Plugin 1.4.0, SDK 2.12.0.
 - [x] Suites on 2026-10-15: server 4945 ✓, client 1538 ✓, E2E 98 ✓ (+1 skipped),
   `check-spec-coverage` 0 missing.
 - [x] Manual, real browser on a copy of the dev base (IMAP stubbed with the fixture mail): settings card →

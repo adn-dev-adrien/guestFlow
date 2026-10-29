@@ -152,8 +152,8 @@ test('specs/plugins-phase-2-hosts.md rule 3 — the accountant reaches the expor
 
   const off = boot(db, { installed: true, active: false, user: accountant });
   const sales = await request(off.app, 'GET', '/api/accounting/sales?month=9&year=2026');
-  assert.equal(sales.status, 404);
-  assert.equal(sales.body.error, 'PLUGIN_INACTIVE');
+  assert.equal(sales.status, 403, 'an inactive plugin contributes no allowlist entry (specs/plugins-phase-2-hosts.md rule 33)');
+  assert.equal(sales.body.error, 'FORBIDDEN_ROLE');
   const read = await request(off.app, 'GET', '/api/accounting/cancellation-compensations?month=9&year=2026');
   assert.notEqual(read.status, 403, 'the compensations read is a core entry of the accountant');
   assert.notEqual(read.status, 404);
