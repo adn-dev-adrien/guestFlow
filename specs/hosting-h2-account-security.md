@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Implemented (rules 1–37) · Implemented (rules 38–53, UX review of 2026-10-28, owner decisions of 2026-10-28) · Implemented (rules 59–62, authz audit of 2026-10-28; rule 18 widened) |
+| **Status** | Implemented (rules 1–37) · Implemented (rules 38–53, UX review of 2026-10-28, owner decisions of 2026-10-28) · Implemented (rules 59–62, authz audit of 2026-10-28; rule 18 widened) · Implemented (rule 63, authz audit R2 of 2026-10-29) |
 | **Branch** | `feature/hosting-h2-account-security` (from `inte/plugins`) |
 | **Created** | 2026-10-08 |
 | **Author** | Adrien |
@@ -585,6 +585,11 @@ every change still writes the journal, the secret still never leaves the server 
     still live (`emailCodeHash` set, not expired), the code step is shown on it (« Code déjà envoyé à … »);
     otherwise the login is refused 429 — `RESEND_TOO_SOON` with `retryInSeconds` (« Nouvel envoi possible dans
     N s. ») or `TOO_MANY_SENDS` — and the login page counts the wait down on its button. That 429 follows a RIGHT password, so the per-IP login limiter does not count it as a failure (`hosting-h2-login-mail-limit-ip-limiter.unit.test.js`).
+63. **A reset link does not outlive the change of address or password** (added 2026-10-29, audit R2 finding
+    N2). In the same transaction as an email change (`updateUser`) and as a password change
+    (`updatePassword`, and the administrator's `resetUserPassword`), every unused `password_reset_tokens` row
+    of that user is voided (`usedAt` set). A link mailed to the old address stops working the moment the
+    address or the password changes.
 
 ---
 
@@ -609,7 +614,8 @@ every change still writes the journal, the secret still never leaves the server 
 | `routes/` | `supportAccess.js`, `users.js` | C/T | Paramètres › Accès du support (`buildRouter` for tests; a support session is flagged by its marker); `DELETE /api/users/:id/two-factor` (rule 9) |
 | `middleware/` | `enforceSubscription.js` | T | Support decisions and the admin's « turn off » stay allowed when read-only |
 | `scripts/` | `reset-admin.js` | T | `--disable-2fa`; never restores the support account (rule 21, through `usersModel.resetAdminToDefault`) |
-| `models/` | `usersModel.js` | T | Rule 21: `isSupport` from `isSupportAccount`, `findSupportAccount()`, every write refuses the support row |
+| `models/` | `usersModel.js` | T | Rule 21: `isSupport` from `isSupportAccount`, `findSupportAccount()`, every write refuses the support row. Rule 63: `voidResetLinks` runs in the transaction of an email change, a password change, an admin reset and the `reset-admin` recovery; `softDelete` and the role write also drop the user's push devices (pwa-push rule 13) |
+| `models/` | `supportAccessModel.js` | C | `revoke` also deletes the support account's push devices (pwa-push rule 13) |
 | `utils/` | `licence.js` | T | Rule 22: `slug()`, the instance's slug as the verified licence names it |
 
 **Rules 38–53 (2026-10-28), server:**
@@ -782,6 +788,8 @@ with low codes, « Changer d’appli » and « Désactiver » with password + co
 ## 7. Test plan
 
 **Server unit tests:**
+- `audit-r2-reset-links-void.unit.test.js` (5 tests, rule 63): an email change, a password change, an admin reset and the `reset-admin` recovery void the user's open reset links and only theirs; `usedAt` is ISO; a save that keeps the email leaves the link alone;
+- `audit-r2-push-account-state.unit.test.js` (6 tests, pwa-push rule 13): revoking an access deletes the support account's devices;
 - the same answer whether the address exists or not;
 - token single use and expiry;
 - older links invalidated;
