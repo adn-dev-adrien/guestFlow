@@ -17,6 +17,7 @@ const platformCommission = lazy('../../utils/platformCommission');
 const clients = lazy('../../models/clientsModel');
 const database = lazy('../../database');
 const pricing = lazy('../../utils/pricing');
+const clientValidation = lazy('../../utils/clientValidation');
 
 // specs/gites-de-france-mail-intake.md §4.1 — a plugin changes a reservation the way the operator's
 // « Enregistrer » does: the stored state rebuilt as the fiche's PUT body, the patch on top, then the very
@@ -43,16 +44,27 @@ function applyReservationUpdate(id, patch, label) {
   return result;
 }
 
-function updateReservation(id, patch, { label, client } = {}) {
+// specs/plugins-phase-1-sdk.md rule 28 — a plugin's client goes through the same
+// validation as the client dialog: one e-mail address, a phone number of a sane shape.
+const invalidClient = (message) => Object.assign(new Error(message), { code: 'INVALID_CLIENT' });
+function assertValidClient(payload) {
+  const message = clientValidation().validateClientPayload(payload);
+  if (message) throw invalidClient(message);
+}
+
+// `reuseByEmail: false` — the mail the client comes from is not proven (specs/gites-de-france-mail-intake.md
+// rule 26): an address typed by an unverified sender never attaches a stay to a client who already holds it.
+function updateReservation(id, patch, { label, client, reuseByEmail = true } = {}) {
   if (!client) return applyReservationUpdate(id, patch, label);
   let result = null;
   try {
     database().transaction(() => {
-      const own = findOrCreateClient(client);
+      const own = findOrCreateClient(client, { reuseByEmail });
       result = { ...applyReservationUpdate(id, { ...patch, clientId: own.id }, label), clientId: own.id };
       if (result.status !== 200) throw ROLLBACK;
     })();
   } catch (err) {
+    if (err && err.code === 'INVALID_CLIENT') return { status: 400, body: { error: err.message, code: 'INVALID_CLIENT' } };
     if (err !== ROLLBACK) throw err;
     delete result.clientId;
   }
@@ -66,8 +78,9 @@ function suggestBeds(propertyId, { adults, children, teens }) {
   });
 }
 
-function findOrCreateClient(payload) {
-  return clients().findByEmail(payload.email) || clients().insert(payload);
+function findOrCreateClient(payload, { reuseByEmail = true } = {}) {
+  assertValidClient(payload);
+  return (reuseByEmail && clients().findByEmail(payload.email)) || clients().insert(payload);
 }
 
 // specs/booking-extranet-intake.md §4.1 — a patch on a client, through the same normalisation as the
@@ -75,6 +88,7 @@ function findOrCreateClient(payload) {
 function updateClient(id, patch) {
   const current = clients().findById(Number(id));
   if (!current) return null;
+  assertValidClient(patch);
   return clients().update(Number(id), { ...current, ...patch });
 }
 

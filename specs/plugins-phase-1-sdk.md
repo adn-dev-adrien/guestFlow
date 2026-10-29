@@ -395,6 +395,15 @@ Optional: a plugin that declares nothing reads « Actif ».
       the typed ones. A period already imported is updated in place and adopts nothing: a leftover
       manual row stays, for the operator to delete.
 
+28. *(Added 2026-10-28, audit finding F8, SDK 2.13.0.)* **A plugin's client is validated like the client
+    dialog's.** `ctx.core.clients.findOrCreate` / `update` and the `client` of `ctx.core.reservations.update`
+    apply `validateClientPayload`: one e-mail address (no comma, semicolon, angle bracket or quote), a phone of
+    8-15 digits. An invalid payload throws an error with `code: 'INVALID_CLIENT'`; inside `reservations.update`
+    it rolls the transaction back and answers `{ status: 400, body: { error, code: 'INVALID_CLIENT' } }`. The new
+    option `reuseByEmail` (default `true`) lets a plugin refuse to attach to an existing client holding the
+    e-mail (the Gîtes de France intake sets it from the sender check). The core's `isValidEmail` is stricter for
+    the same reason. Test: `server/src/tests/plugin-client-validation.unit.test.js`.
+
 **Edge cases:**
 - **A plugin throws during `register`.** Rule 4 applies: the other plugins and the core boot. The Plugins
   page shows « Échec du démarrage. » and offers only Désinstaller (« Activer » did nothing, 2026-10-04).
