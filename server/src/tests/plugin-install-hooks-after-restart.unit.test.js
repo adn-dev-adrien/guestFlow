@@ -48,7 +48,9 @@ test('rule 41 + specs/plugin-dependencies.md rule 9: a plugin only switched on o
   s.model.markHooksPending('linen', 'activate');
   assert.equal(s.model.hooksPendingKind('linen'), 'activate');
   s.model.markHooksPending('linen', 'activate');
+  // The production boot order (index.js): the live set is recorded, then the pending hooks run.
   loader.resetLiveTransitionsForTests();
+  await loader.syncLiveTransitions();
   await loader.runPendingInstallHooks(s.model);
   assert.deepEqual(globalThis.__hooks, ['activate']);
   assert.deepEqual(s.model.pendingHooks(), []);

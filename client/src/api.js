@@ -158,16 +158,17 @@ const api = {
   getPlugins: () => request('/plugins'),
   // specs/plugins-phase-p-productisation.md rule 40 — which plugin an address belongs to.
   getPluginPage: (path) => request(`/plugins/page?path=${encodeURIComponent(path)}`),
-  // `withRequirements` installs the plugins it requires first (specs/plugins-phase-4-registry.md rule 12).
-  installPlugin: (id, { withRequirements = false } = {}) => request(`/plugins/${encodeURIComponent(id)}/install`, { method: 'POST', body: { withRequirements } }),
+  // `withRequirements` / `withDependents` are the ids the operator confirmed; the server refuses when the
+  // closure has changed since (specs/plugin-dependencies.md rule 22).
+  installPlugin: (id, { withRequirements = [] } = {}) => request(`/plugins/${encodeURIComponent(id)}/install`, { method: 'POST', body: { withRequirements } }),
   // specs/plugins-phase-4-registry.md rules 9, 13, 16, 20 — versions, updates, rollback.
   getPluginsStatus: () => request('/plugins/status'),
   refreshPlugins: () => request('/plugins/refresh', { method: 'POST' }),
   updatePlugin: (id, { version } = {}) => request(`/plugins/${encodeURIComponent(id)}/update`, { method: 'POST', body: version ? { version } : {} }),
   updateAllPlugins: () => request('/plugins/update-all', { method: 'POST' }),
   rollbackPlugin: (id) => request(`/plugins/${encodeURIComponent(id)}/rollback`, { method: 'POST' }),
-  activatePlugin: (id, { withRequirements = false } = {}) => request(`/plugins/${encodeURIComponent(id)}/activate`, { method: 'POST', body: { withRequirements } }),
-  deactivatePlugin: (id, { withDependents = false } = {}) => request(`/plugins/${encodeURIComponent(id)}/deactivate`, { method: 'POST', body: { withDependents } }),
+  activatePlugin: (id, { withRequirements = [] } = {}) => request(`/plugins/${encodeURIComponent(id)}/activate`, { method: 'POST', body: { withRequirements } }),
+  deactivatePlugin: (id, { withDependents = [] } = {}) => request(`/plugins/${encodeURIComponent(id)}/deactivate`, { method: 'POST', body: { withDependents } }),
   // `purge` also erases a plugin module's data (specs/plugins-phase-1-sdk.md rules 12, 21).
   uninstallPlugin: (id, { purge = false } = {}) => request(`/plugins/${encodeURIComponent(id)}${purge ? '?purge=1' : ''}`, { method: 'DELETE' }),
   // A plugin module's own settings (specs/plugins-phase-1-sdk.md rule 7): a secret reads `<key>Set`.

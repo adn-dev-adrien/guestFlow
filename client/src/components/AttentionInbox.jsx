@@ -16,30 +16,33 @@
  * unfolds; an unknown key still shows the server's detail. The only state kept here is which rows
  * are open.
  */
-import React, { Suspense, useId, useMemo, useState } from 'react';
+import React, { useId, useMemo, useState } from 'react';
 import { Box, ButtonBase, Collapse, Typography, useMediaQuery } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import AttentionCard, { AttentionLayoutContext, CountChip, SeverityGlyph } from './AttentionCard';
 import { CORE_ATTENTION_SUBJECTS } from './attentionSubjects';
 import { useSlot } from '../plugins/sdk/useSlot';
+import { Contribution } from '../plugins/sdk/Slot';
 
 function useSubjectComponents() {
   const urgent = useSlot('dashboard.alerts.urgent');
   const others = useSlot('dashboard.alerts');
   return useMemo(() => {
-    const map = { ...CORE_ATTENTION_SUBJECTS };
-    [...urgent, ...others].forEach(({ key, Component }) => { map[key] = Component; });
+    const map = Object.fromEntries(Object.entries(CORE_ATTENTION_SUBJECTS).map(([key, Component]) => [key, { Component, pluginId: null }]));
+    [...urgent, ...others].forEach(({ key, pluginId, Component }) => { map[key] = { Component, pluginId }; });
     return map;
   }, [urgent, others]);
 }
 
 function SubjectContent({ subject, components }) {
-  const Component = components[subject.key];
-  if (!Component) return <AttentionCard attention={subject} />;
+  const entry = components[subject.key];
+  if (!entry) return <AttentionCard attention={subject} />;
+  const { Component, pluginId } = entry;
+  if (!pluginId) return <Component attention={subject} />;
   return (
-    <Suspense fallback={null}>
+    <Contribution pluginId={pluginId}>
       <Component attention={subject} />
-    </Suspense>
+    </Contribution>
   );
 }
 
@@ -52,9 +55,9 @@ export function LegacyPluginAlerts({ declared }) {
   return (
     <Box data-testid="attention-legacy">
       {legacy.map(({ key, pluginId, Component }) => (
-        <Suspense key={`${pluginId}:${key}`} fallback={null}>
+        <Contribution key={`${pluginId}:${key}`} pluginId={pluginId}>
           <Component />
-        </Suspense>
+        </Contribution>
       ))}
     </Box>
   );

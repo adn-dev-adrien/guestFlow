@@ -1,0 +1,1 @@
+- Mail intakes: Airbnb subject and heading are read on bounded lines, DKIM counts only verdicts before the echoed envelope, the Gîtes de France mail must open with the centrale's sentence, and invisible Unicode format characters are stripped from guest names.

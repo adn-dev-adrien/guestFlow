@@ -1,0 +1,1 @@
+- Rolling back to v3.18.0 no longer lists the installment request as a pending email for every arriving stay: the template is seeded with an anchor that release ignores, and an existing row is moved by a one-shot migration (`specs/self-update-and-releases.md` rule 43).

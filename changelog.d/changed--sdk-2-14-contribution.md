@@ -1,0 +1,1 @@
+- **SDK 2.14.0**: the client SDK exports `Contribution` (error boundary and `Suspense` around one plugin component, the same as `<Slot>` does), and every host that mounts a plugin component itself uses it. The `sas` plugin is 1.7.3 and asks for `sdk ^2.14.0`.

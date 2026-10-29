@@ -1,7 +1,19 @@
+// Mirrors server/src/utils/emailAddress.js (the server stays the authority): the length first, then
+// no overlapping quantifiers — a long dotted string must never stall the tab.
+const MAX_EMAIL_LENGTH = 254;
+const FORBIDDEN_EMAIL_CHARS = /[\s@,;<>"]/;
+
 export function isValidEmail(value) {
   const trimmed = String(value || '').trim();
   if (!trimmed) return true;
-  return /^[^\s@,;<>"]+@[^\s@,;<>"]+\.[^\s@,;<>"]+$/.test(trimmed);
+  if (trimmed.length < 5 || trimmed.length > MAX_EMAIL_LENGTH) return false;
+  const at = trimmed.indexOf('@');
+  if (at < 1) return false;
+  const local = trimmed.slice(0, at);
+  const domain = trimmed.slice(at + 1);
+  if (FORBIDDEN_EMAIL_CHARS.test(local) || FORBIDDEN_EMAIL_CHARS.test(domain)) return false;
+  const dot = domain.lastIndexOf('.');
+  return dot >= 1 && dot <= domain.length - 2;
 }
 
 export function isValidPhone(value) {

@@ -74,8 +74,7 @@ function createEmailService(settings, {
   }
 
   function fromHeader() {
-    // RFC 5322: "Display Name" <user@host>. Quote the display name to tolerate punctuation.
-    return `"${fromName.replace(/"/g, '\\"')}" <${fromEmail}>`;
+    return { name: fromName, address: fromEmail };
   }
 
   // `html` is the optional HTML alternative of a guest email (utils/guestEmailHtml.js): given, the

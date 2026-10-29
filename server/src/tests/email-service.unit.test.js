@@ -75,7 +75,7 @@ test('send builds the transport lazily and forwards from/to/subject/text correct
   });
   assert.equal(calls.sendMail.length, 1);
   assert.deepEqual(calls.sendMail[0], {
-    from: '"GuestFlow Team" <noreply@example.com>',
+    from: { name: 'GuestFlow Team', address: 'noreply@example.com' },
     to: 'marie@example.org',
     subject: 'Bienvenue',
     text: 'Hello',
@@ -89,7 +89,7 @@ test('fromName defaults to "GuestFlow" when missing', async () => {
     fromEmail: 'a@b.c',
   }, { transportFactory });
   await svc.send({ to: 'x@y.z', subject: 's', text: 't' });
-  assert.equal(calls.sendMail[0].from, '"GuestFlow" <a@b.c>');
+  assert.deepEqual(calls.sendMail[0].from, { name: 'GuestFlow', address: 'a@b.c' });
 });
 
 test('sendTest uses the testEmailBody template and lands as a normal send call', async () => {

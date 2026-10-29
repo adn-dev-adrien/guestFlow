@@ -16,8 +16,12 @@ function createFirstAdminRunner({ serverDir = GF_SERVER } = {}) {
   // script of an older release ignores them.
   return function runFirstAdmin({ dbPath, email, name, company, establishment, reissue, serverDir: release }) {
     const dir = release || serverDir;
-    const args = [path.join(dir, 'scripts', 'create-first-admin.js'), '--email', email, '--name', name || ''];
-    if (company) args.push('--company', company);
+    const args = [path.join(dir, 'scripts', 'create-first-admin.js'), '--email', email];
+    // `--opt=value` only for a value starting with `-` (the strict parser refuses it as a separate argument);
+    // an older release's script does not read that form.
+    const option = (flag, value) => (String(value).startsWith('-') ? [`${flag}=${value}`] : [flag, value]);
+    args.push(...option('--name', name || ''));
+    if (company) args.push(...option('--company', company));
     if (establishment) args.push('--establishment', JSON.stringify(establishment));
     if (reissue && reissue !== 'never') args.push('--reissue', reissue);
     return new Promise((resolve, reject) => {

@@ -23,7 +23,7 @@ export { default as IntakeBanner } from '../../components/IntakeBanner';
 export { displayDate } from '../../utils/formatters';
 // sas — what the guided arrival/departure dialog and its « Facturables » tab render with
 // (specs/plugins-phase-2-hosts.md rule 8). The steps of other plugins reach it through the slots.
-export { default as Slot } from './Slot';
+export { default as Slot, Contribution } from './Slot';
 export { useSlot } from './useSlot';
 export { default as OccurrenceGrid } from '../../components/OccurrenceGrid';
 export { default as SlotPickerGrid } from '../../components/SlotPickerGrid';

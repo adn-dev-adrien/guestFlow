@@ -26,6 +26,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
+const { parseArgs } = require('util');
 const Database = require('better-sqlite3');
 
 function schemaOf(file) {
@@ -66,18 +67,35 @@ function pendingChanges(dbPath) {
   }
 }
 
-function arg(name) {
-  const i = process.argv.indexOf(`--${name}`);
-  return i > 0 ? process.argv[i + 1] : undefined;
+// Strict: a value that looks like a flag (`--name --probe`) is refused, never read as the flag.
+let options;
+try {
+  ({ values: options } = parseArgs({
+    args: process.argv.slice(2),
+    strict: true,
+    allowPositionals: false,
+    options: {
+      email: { type: 'string' },
+      name: { type: 'string' },
+      company: { type: 'string' },
+      establishment: { type: 'string' },
+      reissue: { type: 'string' },
+      probe: { type: 'boolean' },
+    },
+  }));
+} catch (err) {
+  console.error(`Arguments refusés : ${err.message}`);
+  process.exit(2);
 }
+const arg = (name) => options[name];
 
 const email = arg('email');
-if (!process.argv.includes('--probe') && (!email || !process.env.DB_PATH)) {
+if (!options.probe && (!email || !process.env.DB_PATH)) {
   console.error('usage: DB_PATH=… node scripts/create-first-admin.js --email <email> [--name <name>]');
   process.exit(2);
 }
 
-if (process.argv.includes('--probe')) {
+if (options.probe) {
   require('../src/database');
   process.exit(0);
 }
