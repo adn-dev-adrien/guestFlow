@@ -4,6 +4,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
+const sessionsModel = require('../models/sessionsModel');
 const { setup } = require('./accountSecurityFixture');
 const { buildController } = require('../controllers/onboardingController');
 const { freshDb } = require('./guestEmailSequenceFixtures');
@@ -27,7 +28,7 @@ function onboarding(h) {
   db.prepare('INSERT INTO app_settings (id) VALUES (1)').run();
   let row = {};
   const settingsModel = { read: () => row, upsert: (p) => { row = { ...row, ...p }; } };
-  return buildController({ database: db, settingsModel, propertiesModel: {}, plugins: { list: (q, r) => r.json([]) }, usersModel: h.users, reauthenticate: h.twoFactor.reauthenticateForChange });
+  return buildController({ database: db, settingsModel, propertiesModel: {}, plugins: { list: (q, r) => r.json([]) }, usersModel: h.users, sessionsModel: sessionsModel.buildModel(h.db), reauthenticate: h.twoFactor.reauthenticateForChange });
 }
 
 const COMPANY = { name: 'Les Cabanes du Lac', email: 'contact@cabanes-du-lac.fr', phone: '', address: '', siret: '' };
@@ -77,4 +78,29 @@ test('rule 59: without the opt-in the password is not asked', async () => {
   const h = setup();
   const admin = h.addUser(DEFAULT_ADMIN_EMAIL);
   assert.equal((await call(onboarding(h).saveCompany, { body: COMPANY, user: admin })).status, 200);
+});
+
+test('rule 64: adopting the company email as login ends the other sessions and keeps this one', async () => {
+  const h = setup();
+  const admin = h.addUser(DEFAULT_ADMIN_EMAIL);
+  const other = h.addUser('claire@exemple.fr');
+  const insert = h.db.prepare('INSERT INTO sessions (sid, sess, expire) VALUES (?, ?, ?)');
+  insert.run('here', JSON.stringify({ user: { id: admin.id } }), '2099-01-01');
+  insert.run('elsewhere', JSON.stringify({ user: { id: admin.id } }), '2099-01-01');
+  insert.run('claire', JSON.stringify({ user: { id: other.id } }), '2099-01-01');
+  const session = { user: admin };
+  const res = await call(onboarding(h).saveCompany, {
+    body: { ...COMPANY, useAsLogin: true, currentPassword: 'correct horse battery' }, user: admin, session, sessionID: 'here',
+  });
+  assert.equal(res.body.loginChanged, true);
+  assert.deepEqual(h.db.prepare('SELECT sid FROM sessions ORDER BY sid').all().map((r) => r.sid), ['claire', 'here']);
+  assert.equal(session.user.email, COMPANY.email);
+});
+
+test('rule 64: without the opt-in no session is touched', async () => {
+  const h = setup();
+  const admin = h.addUser(DEFAULT_ADMIN_EMAIL);
+  h.db.prepare('INSERT INTO sessions (sid, sess, expire) VALUES (?, ?, ?)').run('elsewhere', JSON.stringify({ user: { id: admin.id } }), '2099-01-01');
+  await call(onboarding(h).saveCompany, { body: COMPANY, user: admin, session: { user: admin }, sessionID: 'here' });
+  assert.equal(h.db.prepare('SELECT COUNT(*) AS n FROM sessions').get().n, 1);
 });

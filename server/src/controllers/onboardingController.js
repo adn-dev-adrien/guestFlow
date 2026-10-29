@@ -64,6 +64,7 @@ function activeSummary(count) {
 
 function buildController({
   database, settingsModel, propertiesModel, plugins, usersModel = null, ensureVapid = () => {}, pluginStep = () => true,
+  sessionsModel = require('../models/sessionsModel'),
   reauthenticate = (user, credentials) => require('../utils/accountSecurityServices').twoFactor.reauthenticateForChange(user, credentials),
 }) {
   const model = () => onboardingModel.buildModel(database);
@@ -282,7 +283,8 @@ function buildController({
    * connecter » (`useAsLogin`, off by default), and only over the bootstrap login: never implicitly,
    * since an operator who kept typing the old login was locked out. Returns the login after the step.
    */
-  function adoptLoginEmail(user, email, useAsLogin) {
+  function adoptLoginEmail(req, email, useAsLogin) {
+    const user = req.user;
     const kept = (row) => ({ loginEmail: row && row.email ? row.email : null, loginChanged: false });
     if (!usersModel || !user || !user.id) return kept(user);
     const current = usersModel.findById(user.id);
@@ -290,7 +292,11 @@ function buildController({
     const holder = usersModel.findByEmail(email);
     if (holder && Number(holder.id) !== Number(current.id)) return kept(current);
     try {
-      return { loginEmail: usersModel.updateUser(current.id, { email }).email, loginChanged: true };
+      const updated = usersModel.updateUser(current.id, { email });
+      // Rule 59 — like « Mon compte »: the other devices must sign in again with the new address.
+      if (req.session) req.session.user = updated;
+      sessionsModel.revokeOtherSessionsForUser(current.id, req.sessionID);
+      return { loginEmail: updated.email, loginChanged: true };
     } catch {
       return kept(current);
     }
@@ -322,7 +328,7 @@ function buildController({
       companyAddress: company.address, companySiret: company.siret,
     });
     ensureVapid(settingsModel.read());
-    return res.json({ company, ...adoptLoginEmail(req.user, company.email, b.useAsLogin === true) });
+    return res.json({ company, ...adoptLoginEmail(req, company.email, b.useAsLogin === true) });
   }
 
   async function saveProperty(req, res) {

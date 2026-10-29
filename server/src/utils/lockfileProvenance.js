@@ -9,8 +9,26 @@
 const fs = require('fs');
 const path = require('path');
 
-const REGISTRY_PREFIX = 'https://registry.npmjs.org/';
+const REGISTRY_ORIGIN = 'https://registry.npmjs.org';
+const REGISTRY_PREFIX = `${REGISTRY_ORIGIN}/`;
 const SERVER_PACKAGE_NAME = 'guestflow-server';
+
+/**
+ * npm parses `resolved` with `new URL()` before fetching, which collapses `..` segments: a raw prefix
+ * check lets `…/better-sqlite3/-/../../evil/-/evil-1.0.0.tgz` through. The only accepted spelling is
+ * the canonical one, so what is checked is what is fetched.
+ */
+function isOwnTarball(resolved, name, version) {
+  let url;
+  try {
+    url = new URL(resolved);
+  } catch {
+    return false;
+  }
+  const base = name.slice(name.lastIndexOf('/') + 1);
+  return url.href === resolved && url.origin === REGISTRY_ORIGIN && !url.search && !url.hash
+    && url.pathname === `/${name}/-/${base}-${version}.tgz`;
+}
 
 /** → the offending entries as `[path, reason]`; empty when the lockfile is clean. */
 function lockfileViolations(lock) {
@@ -26,7 +44,7 @@ function lockfileViolations(lock) {
       out.push([key, `not resolved from ${REGISTRY_PREFIX}`]);
     } else if (typeof entry.name === 'string' && entry.name !== name) {
       out.push([key, `aliased to ${entry.name}`]);
-    } else if (!entry.resolved.startsWith(`${REGISTRY_PREFIX}${name}/-/`)) {
+    } else if (!isOwnTarball(entry.resolved, name, entry.version)) {
       out.push([key, `tarball is not ${name}'s own`]);
     } else if (typeof entry.integrity !== 'string' || !entry.integrity) {
       out.push([key, 'no integrity hash']);

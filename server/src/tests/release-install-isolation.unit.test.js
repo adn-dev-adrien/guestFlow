@@ -179,6 +179,34 @@ test('an npm alias or a tarball that is not the package\'s own is refused (rule 
   })), []);
 });
 
+test('a resolved URL that npm would normalise into another package is refused (rule 49)', () => {
+  const good = `${REG}better-sqlite3/-/better-sqlite3-1.0.0.tgz`;
+  const entry = (resolved) => ({ version: '1.0.0', resolved, integrity: 'sha512-x' });
+  const refused = {
+    'dot dot': `${REG}better-sqlite3/-/../../evil/-/evil-1.0.0.tgz`,
+    'encoded dot dot': `${REG}better-sqlite3/-/%2e%2e/%2e%2e/evil/-/evil-1.0.0.tgz`,
+    'single dot': `${REG}better-sqlite3/-/./better-sqlite3-1.0.0.tgz`,
+    query: `${good}?x=1`,
+    fragment: `${good}#x`,
+    'upper-case host': 'https://REGISTRY.npmjs.org/better-sqlite3/-/better-sqlite3-1.0.0.tgz',
+    'default port': 'https://registry.npmjs.org:443/better-sqlite3/-/better-sqlite3-1.0.0.tgz',
+    backslash: `${REG}better-sqlite3/-/..\\..\\evil/-/evil-1.0.0.tgz`,
+    'other tarball of the same package': `${REG}better-sqlite3/-/better-sqlite3-9.9.9.tgz`,
+    'userinfo host': 'https://registry.npmjs.org@evil.example/better-sqlite3/-/better-sqlite3-1.0.0.tgz',
+    'not a URL': 'better-sqlite3',
+  };
+  assert.deepEqual(lockfileViolations(clean({ 'node_modules/better-sqlite3': entry(good) })), []);
+  for (const [label, resolved] of Object.entries(refused)) {
+    assert.equal(lockfileViolations(clean({ 'node_modules/better-sqlite3': entry(resolved) })).length, 1, label);
+  }
+  assert.equal(lockfileViolations(clean({
+    'node_modules/@scope/pkg': entry(`${REG}@scope/pkg/-/pkg-1.0.0.tgz`),
+  })).length, 0);
+  assert.equal(lockfileViolations(clean({
+    'node_modules/@scope/pkg': entry(`${REG}@scope/pkg/-/@scope/pkg-1.0.0.tgz`),
+  })).length, 1);
+});
+
 test('a release declaring npm workspaces is refused, and npm is told not to look for a workspace root (rule 46)', async () => {
   for (const where of ['.', 'server']) {
     const { root, releaseDir } = writeRelease(clean());
