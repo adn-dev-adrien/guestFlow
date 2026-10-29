@@ -4,6 +4,7 @@ const fs = require('fs');
 
 // DB_PATH env var lets CI/CD point to a persistent location outside the deployment folder.
 // PERSISTENT_DB is used by deployment scripts. Falls back to the traditional location so existing dev setups are unaffected.
+require('./utils/testProcessIsolation').isolate();
 const dbPath = process.env.DB_PATH || process.env.PERSISTENT_DB || path.join(__dirname, '..', 'guestflow.db');
 const db = new Database(dbPath);
 // Exposed so index.js can surface it in the single boot banner without a second computation.

@@ -52,3 +52,34 @@ test('rule 1: the temp folder is removed when the process exits', () => {
   `);
   assert.equal(require('fs').existsSync(out), false);
 });
+
+function snapshot(file) {
+  const fs = require('fs');
+  return fs.existsSync(file) ? `${fs.statSync(file).mtimeMs}:${fs.statSync(file).size}` : null;
+}
+
+test('rule 4: a single file run with no preload never creates or touches the checkout state', () => {
+  const touched = ['guestflow.db', 'guestflow.db-wal', 'guestflow.db-shm', '.env.local', 'uploads'].map((n) => path.join(SERVER_ROOT, n));
+  const before = touched.map(snapshot);
+  const env = { ...process.env };
+  for (const k of ['DB_PATH', 'PERSISTENT_DB', 'GUESTFLOW_LOCAL_ENV', 'GUESTFLOW_UPLOADS_DIR', 'NODE_TEST_CONTEXT']) delete env[k];
+  const r = spawnSync(process.execPath, ['--test', path.join('src', 'tests', 'settings-model.unit.test.js')], { cwd: SERVER_ROOT, env, encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.deepEqual(touched.map(snapshot), before);
+});
+
+test('rule 4: under the test runner, database.js, the secrets file and the uploads folder default to a temp directory', () => {
+  const env = { ...process.env, NODE_TEST_CONTEXT: 'child-v8' };
+  for (const k of ['DB_PATH', 'PERSISTENT_DB', 'GUESTFLOW_LOCAL_ENV', 'GUESTFLOW_UPLOADS_DIR']) delete env[k];
+  const r = spawnSync(process.execPath, ['-e', `
+    const db = require('./src/database');
+    const ip = require('./src/utils/instancePaths');
+    console.log(JSON.stringify({ db: db.dbPath, env: ip.localEnvPath(), up: ip.uploadsDir(), tmp: require('os').tmpdir() }));
+  `], { cwd: SERVER_ROOT, env, encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stderr);
+  const out = JSON.parse(r.stdout.trim().split('\n').pop());
+  const tmp = require('fs').realpathSync(require('os').tmpdir());
+  for (const p of Object.values(out)) assert.ok(path.resolve(p).startsWith(tmp) || path.resolve(p).startsWith(require('os').tmpdir()), p);
+  assert.equal(path.dirname(out.tmp), path.dirname(path.dirname(out.db)), 'os.tmpdir() is inside the private directory');
+  assert.equal(require('fs').existsSync(path.dirname(path.dirname(out.db))), false, 'removed on exit');
+});
