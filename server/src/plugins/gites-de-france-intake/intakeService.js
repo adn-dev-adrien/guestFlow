@@ -216,19 +216,20 @@ function createIntakeService(deps) {
     // (an intake, or `ignored`), and a pass reads at most MAX_MAILS_PER_PASS of them, newest first.
     const take = (mail) => {
       const senderVerified = mail.authenticated === true;
-      const remember = (error) => intakes.insert({ messageId: mail.messageId, receivedAt: mail.receivedAt, status: 'ignored', error, senderVerified, parserVersion });
+      // A pass counts the rows it really wrote: a mail another pass stored first is not read twice.
+      const add = (row, counts = true) => { if (intakes.insert(row) !== null && counts) read += 1; };
+      const remember = (error, counts = false) => add({ messageId: mail.messageId, receivedAt: mail.receivedAt, status: 'ignored', error, senderVerified, parserVersion }, counts);
       if (mail.skipped) { remember('Mail trop volumineux'); return; }
-      read += 1;
       const parsed = parseGitesDeFranceMail(mail.text);
       if (!parsed.ok) {
         // Another kind of mail from the centrale (invoice, newsletter) is not an intake at all.
-        if (!/nouvelle réservation/i.test(`${mail.subject || ''} ${mail.text}`)) { remember('Autre type de mail'); return; }
+        if (!/nouvelle réservation/i.test(`${mail.subject || ''} ${mail.text}`)) { remember('Autre type de mail', true); return; }
         // Rule 25 — an unauthenticated mail that does not parse is remembered (`ignored`, out of every list)
         // so the next pass does not parse it again.
-        intakes.insert({ messageId: mail.messageId, receivedAt: mail.receivedAt, status: senderVerified ? 'error' : 'ignored', error: parsed.error, senderVerified, parserVersion });
+        add({ messageId: mail.messageId, receivedAt: mail.receivedAt, status: senderVerified ? 'error' : 'ignored', error: parsed.error, senderVerified, parserVersion });
         return;
       }
-      intakes.insert({ messageId: mail.messageId, receivedAt: mail.receivedAt, dossierNumber: parsed.booking.dossierNumber, parsed: parsed.booking, status: 'pending', senderVerified });
+      add({ messageId: mail.messageId, receivedAt: mail.receivedAt, dossierNumber: parsed.booking.dossierNumber, parsed: parsed.booking, status: 'pending', senderVerified });
     };
     await readMails(
       { ...mailbox, sender: settings.sender(), ...(settings.authentication ? settings.authentication() : {}) },

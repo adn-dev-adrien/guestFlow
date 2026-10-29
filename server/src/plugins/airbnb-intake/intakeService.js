@@ -180,19 +180,20 @@ function createIntakeService(deps) {
     // (an intake, or `ignored`), and a pass reads at most MAX_MAILS_PER_PASS of them, newest first.
     const take = (mail) => {
       const senderVerified = mail.authenticated === true;
-      const remember = (error) => intakes.insert({ messageId: mail.messageId, receivedAt: mail.receivedAt, status: 'ignored', error, senderVerified, parserVersion });
+      // A pass counts the rows it really wrote: a mail another pass stored first is not read twice.
+      const add = (row, counts = true) => { if (intakes.insert(row) !== null && counts) read += 1; };
+      const remember = (error, counts = false) => add({ messageId: mail.messageId, receivedAt: mail.receivedAt, status: 'ignored', error, senderVerified, parserVersion }, counts);
       if (mail.skipped) { remember('Mail trop volumineux'); return; }
       // Rule 2 — messages, reminders, payouts and reviews from the same sender are not intakes at all.
       if (!isBookingMail(mail.subject, mail.text)) { remember('Autre type de mail'); return; }
-      read += 1;
       const parsed = parseAirbnbMail({ subject: mail.subject, text: mail.text, sentAt: mail.sentAt || mail.receivedAt });
       if (!parsed.ok) {
         // Rule 26 — a forged mail that does not parse is noise for the operator, but it is remembered
         // (`ignored`, out of every list) so the next pass does not read it again.
-        intakes.insert({ messageId: mail.messageId, receivedAt: mail.receivedAt, status: senderVerified ? 'error' : 'ignored', error: parsed.error, senderVerified, parserVersion });
+        add({ messageId: mail.messageId, receivedAt: mail.receivedAt, status: senderVerified ? 'error' : 'ignored', error: parsed.error, senderVerified, parserVersion });
         return;
       }
-      intakes.insert({ messageId: mail.messageId, receivedAt: mail.receivedAt, confirmationCode: parsed.booking.code, parsed: parsed.booking, status: 'pending', senderVerified });
+      add({ messageId: mail.messageId, receivedAt: mail.receivedAt, confirmationCode: parsed.booking.code, parsed: parsed.booking, status: 'pending', senderVerified });
     };
     await readMails(
       { ...mailbox, sender: settings.sender(), ...(settings.authentication ? settings.authentication() : {}) },

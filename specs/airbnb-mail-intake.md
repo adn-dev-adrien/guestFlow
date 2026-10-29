@@ -304,8 +304,11 @@ add the phone and e-mail from Airbnb. When the mail cannot be applied, the fiche
     is read whatever the cap, in a first phase (the verdict comes from the headers, known before any body), so a
     forged flood cannot push a genuine booking out of the 30-day window; reaching the cap logs how many were left.
     (b) The envelopes and the authentication header are fetched in bulk, 500 UIDs per request, instead of one
-    request per mail. (c) A pass is single-flight: the job tick and « Lire maintenant » share the running pass,
-    and `insert` is `ON CONFLICT(messageId) DO NOTHING`. (d) `count()` (« N mails … lus ») leaves out `ignored`
+    request per mail. (c) A pass is single-flight: the running promise lives at `register()` scope of the plugin's
+    `index.js` (each call builds its own service), so the job tick and « Lire maintenant » share one IMAP pass and
+    one result; the service keeps its own guard too. `insert` is `ON CONFLICT(messageId) DO NOTHING`, returns
+    `null` when nothing was written, and a pass counts as `read` only the rows it wrote. Test:
+    `tests/mail-intake-single-flight.unit.test.js`. (d) `count()` (« N mails … lus ») leaves out `ignored`
     rows, and an `ignored` row older than the 30-day window plus one day is purged at the start of a pass.
     Tests: `tests/mail-reader-flood.unit.test.js`, `airbnb-intake/tests/mail-flood.unit.test.js`.
 

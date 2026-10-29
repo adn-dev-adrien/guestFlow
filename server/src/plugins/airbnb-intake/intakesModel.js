@@ -60,7 +60,7 @@ function buildModel(db) {
     insert({ messageId, receivedAt, confirmationCode = null, parsed = null, status, error = null, senderVerified = true, parserVersion = null }) {
       const r = db.prepare(`INSERT INTO airbnb_intakes (messageId, receivedAt, confirmationCode, parsed, status, error, senderVerified, parserVersion)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(messageId) DO NOTHING`).run(messageId, receivedAt, confirmationCode, parsed ? JSON.stringify(parsed) : null, status, error, senderVerified ? 1 : 0, parserVersion);
-      return Number(r.lastInsertRowid);
+      return r.changes ? Number(r.lastInsertRowid) : null;
     },
     get(id) {
       return hydrate(db.prepare('SELECT * FROM airbnb_intakes WHERE id = ?').get(Number(id)));

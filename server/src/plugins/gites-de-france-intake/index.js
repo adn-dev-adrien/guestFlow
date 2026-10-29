@@ -80,10 +80,17 @@ function register(ctx) {
     },
   });
 
-  async function runPass() {
-    const result = await service().runPass();
-    ctx.settings.set('lastRunAt', new Date().toISOString());
-    return result;
+  // Rule 31(c) — one pass at a time across the job tick and « Lire maintenant »: a second caller joins it.
+  let running = null;
+  function runPass() {
+    if (!running) {
+      running = (async () => {
+        const result = await service().runPass();
+        ctx.settings.set('lastRunAt', new Date().toISOString());
+        return result;
+      })().finally(() => { running = null; });
+    }
+    return running;
   }
 
   // Rule 2 — every `pollEveryHours` (3 by default). The job ticks every 15 minutes and only reads the

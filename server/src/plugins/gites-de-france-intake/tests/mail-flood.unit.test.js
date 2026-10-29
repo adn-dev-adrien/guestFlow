@@ -59,3 +59,10 @@ test('rule 31: ignored rows are not counted as read mails, and are purged after 
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM gdf_intakes').get().n, 1, 'old ignored row purged, then the unseen mail ignored again');
   assert.equal(db.prepare("SELECT receivedAt FROM gdf_intakes").get().receivedAt, INVOICE.receivedAt);
 });
+
+test('rule 31: inserting a Message-ID already stored writes nothing, returns null, and is not counted as read', async () => {
+  const { intakes } = setup({ mails: [] });
+  const row = { messageId: '<dup@gdf07>', receivedAt: '2026-10-14T16:00:00.000Z', status: 'ignored' };
+  assert.ok(intakes.insert(row) > 0);
+  assert.equal(intakes.insert(row), null);
+});
