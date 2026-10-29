@@ -33,7 +33,7 @@ function recordInstallmentPayment({ db, emit }, { installmentId, paidDate, metho
     if (flipped && differs) rebalanceStored(db, row.reservationId);
     // Rule 47 — the books read this split, never a live one: a later save cannot move the entry.
     if (flipped) model.setPaidSplit(installmentId, computeInstallmentPaidSplit(db, installmentId));
-  })();
+  }).immediate();
   if (flipped) {
     buildLinksModel(db).retireSettled();
     if (emit) emit('reservation.paid', { reservationId: row.reservationId, bucket: 'installment' });

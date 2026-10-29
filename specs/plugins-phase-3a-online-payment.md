@@ -354,6 +354,11 @@ Other facts the design rests on:
     deletes nothing. The refusal to delete a stay or devis carrying money is the reservations rules
     (`RESERVATION_CARRIES_MONEY`, fix/audit-reservations), not this spec; no foreign key was added (a
     rebuild of a table other code reads).
+28. **Money write transactions take the write lock up front (2026-10-29, audit R2).** A deferred SQLite
+    transaction that reads then writes fails at once with `SQLITE_BUSY_SNAPSHOT` ("database is locked") when
+    another connection commits in between, without waiting for the busy timeout (5 s, better-sqlite3's
+    default). `recordStayPayment` and the other read-then-write money transactions (installments, refunds,
+    cancellation, platform penalties) therefore run `.immediate()`: a concurrent writer makes them wait.
 
 ## 4. Architecture
 
@@ -462,6 +467,8 @@ the moved page. No behaviour change.
 - **Mobile:** the address card stacks the field over a full-width button at 375 px; nothing else moves.
 
 ## 7. Test plan
+
+- [x] `money-transactions-immediate.unit.test.js` (rule 28): a second process holds the write lock; `recordStayPayment` waits and succeeds, a deferred read-then-write fails.
 
 ### Server — new tests (25)
 

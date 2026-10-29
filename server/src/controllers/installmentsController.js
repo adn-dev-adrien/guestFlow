@@ -196,7 +196,7 @@ function buildController({
     }
     database.transaction(() => {
       for (const changed of changes) installmentsModel.updateRow(changed.id, { dueDate: changed.dueDate, dateEdited: 1 });
-    })();
+    }).immediate();
     return null;
   }
 
@@ -217,7 +217,7 @@ function buildController({
       database.transaction(() => {
         installmentsModel.updateRow(current[index].id, { amountCents: checked.cents, amountEdited: 1 });
         installmentsModel.applyAmounts(row.id, new Map(checked.others.map((o, k) => [o.number, shares[k]])), {});
-      })();
+      }).immediate();
     }
     return null;
   }

@@ -116,7 +116,7 @@ function cancelReservation(deps, reservationId, { reason = '', cancelledBy = nul
     for (const link of paymentLinksModel.listForReservation(id)) {
       if (String(link.status) === 'open') cancelledLinks.push(paymentLinksModel.updateStatus(link.id, 'cancelled'));
     }
-  })();
+  }).immediate();
 
   return {
     ok: true,

@@ -187,7 +187,7 @@ function buildController({ database, penaltiesModel, reservationsModel, todayOf,
         reservationsModel.addHistoryEntry(Number(reservationId), 'update', [{
           field: 'platformPenalty', label: 'Pénalité plateforme', from: null, to: `${eur(plan.amountCents / 100)} · ${plan.reason}`,
         }]);
-      })();
+      }).immediate();
       emit('platform-penalty.changed', { reservationId: Number(reservationId) });
       const after = stay(reservationId);
       return {
@@ -226,7 +226,7 @@ function buildController({ database, penaltiesModel, reservationsModel, todayOf,
         reservationsModel.addHistoryEntry(Number(reservationId), 'update', [{
           field: 'platformPenalty', label: 'Pénalité plateforme', from: `${eur(penalty.amount)} · ${penalty.reason}`, to: 'supprimée',
         }]);
-      })();
+      }).immediate();
       emit('platform-penalty.changed', { reservationId: Number(reservationId) });
       return {
         status: 200,
