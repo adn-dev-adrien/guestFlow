@@ -440,6 +440,19 @@ below are the recommended ones; each is reversible in a later spec.
     `actions.uninstall` and the endpoint's `REQUIRED_BY`) ignore the dependants that sit in the plugin's own
     strongly connected group (`graph.groupOf`), so two plugins that require each other can be uninstalled one
     after the other. A dependant outside the group still blocks. Test: `plugin-update-requirements.unit.test.js`.
+56. **A core update that makes an active plugin require an OFF plugin switches the dependant off** (audit r4,
+    N-R4-2 case A, 2026-10-29; decision of Adrien: « Éteindre le dépendant »). When `host.housekeeping`
+    syncs a `bundled` row whose shipped manifest now requires an installed but OFF plugin (weather-alerts 1.3.0
+    over an off SAS), it switches the dependant off at boot, then the active dependants of that one, and records
+    `plugins.off_reason` (the id of the off requirement; idempotent column). It NEVER switches the requirement on.
+    Any later `setEnabled` clears the reason. Test: `plugin-switched-off-at-update.unit.test.js`.
+57. **The home says which plugins were switched off, and a rollback needs its requirements installed** (same
+    decision, 2026-10-29). Core attention subject `plugins-switched-off` (rank 45): one plugin reads
+    « Vigilance Météo-France éteint : nécessite Arrivée et départ guidés. », several read « Plugins éteints : N »,
+    with « À réactiver depuis la page Plugins » and a « Voir les plugins » button; it ends once the plugin is back
+    on. A rollback to a version whose requirement is not installed is refused with `REQUIREMENT_MISSING`
+    (rule 54 applies the same refusals as an update). Tests: `plugin-switched-off-at-update.unit.test.js`,
+    `PluginsSwitchedOffAlert.test.jsx`.
 
 ---
 

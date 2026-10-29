@@ -93,19 +93,46 @@ function syncClosesCycle(model, id, manifest) {
 }
 
 /**
+ * Rule 56 — a release whose manifest makes an ACTIVE plugin require an installed but OFF plugin switches the
+ * dependant off (and its active dependants), never the requirement on: the home says so.
+ */
+function switchOffOverInactive(model, ids) {
+  const rows = model.list();
+  const byId = Object.fromEntries(rows.map((r) => [r.id, r]));
+  const graph = require('../utils/pluginGraph').createGraph({
+    manifests: Object.fromEntries(rows.map((r) => [r.id, r.manifest || { id: r.id, requires: [] }])),
+    states: Object.fromEntries(rows.map((r) => [r.id, r.enabled ? 'active' : 'inactive'])),
+  });
+  const off = new Set();
+  const requiresOff = (id, isOff) => ((byId[id].manifest || {}).requires || []).find((r) => byId[r.id] && isOff(r.id));
+  ids.filter((id) => byId[id] && byId[id].enabled).forEach((id) => {
+    const missing = requiresOff(id, (other) => !byId[other].enabled);
+    if (!missing) return;
+    model.switchOff(id, missing.id);
+    off.add(id);
+    graph.activeDependantClosure(id).filter((f) => !off.has(f)).forEach((f) => {
+      model.switchOff(f, requiresOff(f, (other) => off.has(other) || other === id).id);
+      off.add(f);
+    });
+    console.error(`[plugins] ${id} switched off: ${missing.id} is installed but off`); // eslint-disable-line no-console
+  });
+}
+
+/**
  * Before the modules register: `bundled` rows follow the copy this release ships, an expired
  * rollback window forgets its older copy (rule 16), and the package directories of plugins no
  * longer installed are removed. Returns the rows as they are after that.
  */
 function housekeeping({ model, ids, now = new Date(), copyOf = runningCopy }) {
   const s = ensure();
+  const synced = [];
   ids.forEach((id) => {
     const row = model.get(id);
     if (row && row.source === 'bundled') {
       const copy = copyOf(id);
       if (copy && syncClosesCycle(model, id, copy.manifest)) {
         console.error(`[plugins] ${id} ${copy.manifest.version} not synced: REQUIREMENT_CYCLE`); // eslint-disable-line no-console
-      } else if (copy) model.syncBundled(id, copy.manifest, copy.sha256);
+      } else if (copy && model.syncBundled(id, copy.manifest, copy.sha256)) synced.push(id);
     }
     if (row && row.rollbackUntil && Date.parse(row.rollbackUntil) <= now.getTime()) model.expireRollback(id);
     if (s.mode !== 'packages') return;
@@ -118,6 +145,7 @@ function housekeeping({ model, ids, now = new Date(), copyOf = runningCopy }) {
       try { s.store.setCurrent(id, fresh.version); } catch { /* the loader reports the package missing */ }
     }
   });
+  switchOffOverInactive(model, synced);
   return model.list();
 }
 

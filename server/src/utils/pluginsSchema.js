@@ -54,6 +54,8 @@ const PACKAGE_COLUMNS = [
   ['rollback_until', 'TEXT'],
   // 1 while an install that needed a restart still owes its install and activation hooks (rule 41).
   ['hooks_pending', 'INTEGER NOT NULL DEFAULT 0'],
+  // The id of the requirement a core update found OFF under an active plugin, which was then switched off (rule 56).
+  ['off_reason', 'TEXT'],
 ];
 
 function ensurePackageColumns(db) {

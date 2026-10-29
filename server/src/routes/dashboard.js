@@ -63,6 +63,7 @@ function coreAttentionSources() {
     { key: 'new-reservations', rank: 10, handler: controller.newReservations },
     { key: 'email-pending', rank: 30, handler: require('./emails').controller.pending },
     { key: 'update-available', rank: 40, handler: require('../controllers/systemController').getVersion },
+    { key: 'plugins-switched-off', rank: 45, handler: require('../controllers/pluginsAttentionController').handler(require('../models/pluginsModel')) },
     {
       key: 'two-factor',
       rank: 50,

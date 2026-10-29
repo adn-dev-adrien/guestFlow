@@ -116,6 +116,16 @@ const CORE_SUMMARIES = {
     if (info.dismissedVersion && info.dismissedVersion === info.latest) return null;
     return { count: 1, title: `GuestFlow ${info.latest} disponible`, detail: `Version installée : ${info.current}`, severity: 'info' };
   },
+  'plugins-switched-off': (payload) => {
+    const items = listOf(payload, 'items');
+    if (!items.length) return null;
+    return {
+      count: items.length,
+      title: items.length === 1 ? `${items[0].name} éteint : nécessite ${items[0].requires}.` : `Plugins éteints : ${items.length}`,
+      detail: 'À réactiver depuis la page Plugins',
+      severity: 'todo',
+    };
+  },
   'two-factor': (status) => (status && status.nudge
     ? { count: 1, title: 'Validation en deux étapes', detail: 'Compte protégé par le seul mot de passe.', severity: 'info' }
     : null),

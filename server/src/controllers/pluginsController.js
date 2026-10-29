@@ -276,14 +276,19 @@ function createController(model = defaultModel, deps = {}) {
     return off.length ? { code: 'REQUIREMENT_INACTIVE', message: `Nécessite ${off.map((p) => p.name).join(', ')} : à activer d’abord.` } : null;
   }
 
-  function updateView(row, target) {
-    const { plan, refusal } = requirementPlan(target.manifest, planCtx());
+  // Rules 54 and 57 — every refusal of moving `row` onto `manifest` (an update, or a rollback to an older one).
+  function movingRefusal(row, manifest) {
+    const { plan, refusal } = requirementPlan(manifest, planCtx());
     const toInstall = plan.filter((p) => p.op === 'install');
     const missing = toInstall.length ? { code: 'REQUIREMENT_MISSING', message: `Nécessite ${toInstall.map((p) => p.name).join(', ')} : à installer d’abord.` } : null;
+    return cycleRefusal(row.id, manifest) || refusal || missing || inactiveRefusal(row, manifest);
+  }
+
+  function updateView(row, target) {
     return {
       version: target.version,
       changelog: changelogBetween(target.manifest, row.version, target.version),
-      refusal: cycleRefusal(row.id, target.manifest) || refusal || missing || inactiveRefusal(row, target.manifest),
+      refusal: movingRefusal(row, target.manifest),
     };
   }
 
@@ -966,7 +971,7 @@ function createController(model = defaultModel, deps = {}) {
       if (refuseUpdateConditions(res)) return undefined;
       if (!rollbackView(row)) return res.status(409).json({ error: 'NO_ROLLBACK', message: MESSAGES.NO_ROLLBACK });
       const older = previousManifest(row);
-      const refusal = cycleRefusal(row.id, older) || inactiveRefusal(row, older);
+      const refusal = movingRefusal(row, older);
       if (refusal) return res.status(409).json({ error: refusal.code, message: refusal.message });
       return underLock(res, async (restart) => {
         const manifest = older;
