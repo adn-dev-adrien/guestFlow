@@ -1,0 +1,1 @@
+- Start assistant: adopting the company email as login now reports the change even when ending the other sessions fails, and logs the failure.

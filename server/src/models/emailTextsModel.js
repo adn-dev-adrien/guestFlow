@@ -49,6 +49,10 @@ function isLive(pluginId) {
   try { return require('../plugins/sdk/registry').isLive(pluginId); } catch { return false; }
 }
 
+// Every text is capped (audit r4, R4-1): a subject is a line, the rest a paragraph or a letter.
+const SUBJECT_MAX_LENGTH = 300;
+const TEXT_MAX_LENGTH = 20000;
+
 function buildModel(database) {
   const stayTexts = stayTextsModel.buildModel(database);
   const mentionsModel = emailMentionsModel.buildModel(database);
@@ -285,8 +289,9 @@ function buildModel(database) {
       if (value === undefined) continue;
       const error = tokenError(lang, value, item.allowed);
       if (error) return error;
-      if (item.maxLength && String(value).length > item.maxLength) {
-        return { field: lang, message: `${item.maxLength} caractères au plus` };
+      const maxLength = item.maxLength || (item.kind === 'subject' ? SUBJECT_MAX_LENGTH : TEXT_MAX_LENGTH);
+      if (String(value).length > maxLength) {
+        return { field: lang, message: `${maxLength} caractères au plus` };
       }
     }
     if (item.required && fr !== undefined && !String(fr).trim()) return { field: 'fr', message: 'Texte obligatoire' };

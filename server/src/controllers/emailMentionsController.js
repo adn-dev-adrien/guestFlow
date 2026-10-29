@@ -19,7 +19,7 @@ const emailMentionsModel = require('../models/emailMentionsModel');
 const { loadStayFacts } = require('../models/stayFactsModel');
 const { buildStayContent } = require('../utils/stayContentContext');
 const { MENTION_OFFER, MENTION_BOOKED } = require('../utils/stayTextCatalogue');
-const { tokenError } = require('../utils/templateTokens');
+const { tokenError, lengthError } = require('../utils/templateTokens');
 
 const SECTIONS = ['local', 'extras', 'kids'];
 const PRICE_SOURCES = ['min', 'option'];
@@ -46,7 +46,8 @@ function validate(body, optionExists) {
   const error = tokenError('offerFr', mention.offerFr, MENTION_OFFER)
     || tokenError('offerEn', mention.offerEn, MENTION_OFFER)
     || tokenError('bookedFr', mention.bookedFr, MENTION_BOOKED)
-    || tokenError('bookedEn', mention.bookedEn, MENTION_BOOKED);
+    || tokenError('bookedEn', mention.bookedEn, MENTION_BOOKED)
+    || ['offerFr', 'offerEn', 'bookedFr', 'bookedEn'].map((field) => lengthError(field, mention[field])).find(Boolean);
   if (error) return { status: 422, error };
   return { mention };
 }
