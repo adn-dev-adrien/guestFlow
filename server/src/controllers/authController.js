@@ -93,7 +93,11 @@ function createAuthController(users, {
     if (!twoFactor || !twoFactor.isRequired(user, trustTokenOf(req, user.id))) {
       return freshSession(req, (err) => (err ? next(err) : finishLogin(req, res, user)));
     }
-    return secondStepOrLogin(req, res, user).catch((err) => sendError(res, err, next));
+    return secondStepOrLogin(req, res, user).catch((err) => {
+      // Rule 62 — the password was right; only the code mail is limited. Not a failure for the IP limiter.
+      if (err && err.body && ['RESEND_TOO_SOON', 'TOO_MANY_SENDS'].includes(err.body.error)) res.locals.codeMailLimited = true;
+      return sendError(res, err, next);
+    });
   }
 
   function pendingUserId(req) {

@@ -1,0 +1,1 @@
+- **A support session can no longer change the keypad code, the notification recipient or the IBAN/BIC printed on devis**; a value sent back unchanged still passes. Rule 18 amended (audit M3).

@@ -17,6 +17,7 @@ import {
 import api from '../api';
 import { useAuth } from '../hooks/useAuth';
 import StepperPage from '../components/StepperPage';
+import PasswordField from '../components/PasswordField';
 import LoadingState from '../components/LoadingState';
 import ErrorAlert from '../components/ErrorAlert';
 import OnboardingEmailsStep from '../components/OnboardingEmailsStep';
@@ -72,6 +73,7 @@ export default function OnboardingPage({ onFullLoad = loadPage }) {
   // the box is offered only over the bootstrap login (the server says which).
   const [canAdoptLogin, setCanAdoptLogin] = useState(false);
   const [useAsLogin, setUseAsLogin] = useState(false);
+  const [loginPassword, setLoginPassword] = useState('');
   const [pluginsSummary, setPluginsSummary] = useState('');
   const [pluginStep, setPluginStep] = useState(true);
   const steps = ALL_STEPS.filter((s) => pluginStep || s.key !== 'plugins');
@@ -190,7 +192,11 @@ export default function OnboardingPage({ onFullLoad = loadPage }) {
       if (currentKey === 'company') {
         // specs/hosting-h2-account-security.md rules 27, 37 — the company email becomes the login of
         // the bootstrap account only when the box is ticked; the step says so once.
-        const saved = await api.saveOnboardingCompany({ ...company, useAsLogin: canAdoptLogin && useAsLogin });
+        const saved = await api.saveOnboardingCompany({
+          ...company,
+          useAsLogin: canAdoptLogin && useAsLogin,
+          ...(canAdoptLogin && useAsLogin ? { currentPassword: loginPassword } : {}),
+        });
         if (saved && saved.loginChanged) {
           setLoginEmail(saved.loginEmail);
           setCanAdoptLogin(false);
@@ -272,6 +278,16 @@ export default function OnboardingPage({ onFullLoad = loadPage }) {
               sx={{ mt: -1, mb: 2, minHeight: 44 }}
               control={<Checkbox checked={useAsLogin} onChange={(e) => setUseAsLogin(e.target.checked)} />}
               label="Utiliser aussi cette adresse pour se connecter"
+            />
+          )}
+          {canAdoptLogin && useAsLogin && (
+            <PasswordField
+              label="Mot de passe actuel (confirmation)"
+              value={loginPassword}
+              onChange={(e) => setLoginPassword(e.target.value)}
+              autoComplete="current-password"
+              helperText="Demandé pour changer l’adresse de connexion."
+              sx={{ mt: -1 }}
             />
           )}
           <TextField label="Téléphone" {...field(company, setCompany, 'phone')} />
