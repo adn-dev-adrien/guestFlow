@@ -404,6 +404,8 @@ export default function ReservationPage() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyEntries, setHistoryEntries] = useState([]);
   const [initialSnapshot, setInitialSnapshot] = useState(null);
+  // The form exactly as loaded (before any quote or edit): the clean baseline of an existing record starts here.
+  const loadedSnapshotRef = useRef(null);
   const [miniCalendarStart, setMiniCalendarStart] = useState(formatDate(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()));
   const [miniSelectionAnchor, setMiniSelectionAnchor] = useState('');
   const [occupiedDates, setOccupiedDates] = useState([]);
@@ -722,11 +724,24 @@ export default function ReservationPage() {
   // loaded (or just-converted) record would be wrongly flagged dirty and prompt on leave. New/prefilled
   // records snapshot immediately.
   useEffect(() => {
+    if (!loading && loadedSnapshotRef.current === null) loadedSnapshotRef.current = formSnapshot;
+  }, [loading, formSnapshot]);
+  useEffect(() => {
     if (loading || initialSnapshot !== null) return;
     const isExistingRecord = Boolean(editingReservationId || editingDevisId);
     if (isExistingRecord && !pricingQuote) return;
+    // The baseline of an existing record is the LOADED form with what the quote writes into it, never the
+    // live form: whatever the operator typed before the quote landed stays an edit.
+    if (isExistingRecord && loadedSnapshotRef.current) {
+      try {
+        const loaded = JSON.parse(loadedSnapshotRef.current);
+        const preserveBlankPrice = isIcalImportedBlankPrice && loaded.form.customPrice === '' && loaded.form.totalPrice === '';
+        setInitialSnapshot(JSON.stringify({ ...loaded, form: applyQuoteToFormPure(loaded.form, pricingQuote, { preserveBlankPrice }) }));
+        return;
+      } catch { /* the live form stands */ }
+    }
     setInitialSnapshot(formSnapshot);
-  }, [loading, initialSnapshot, formSnapshot, editingReservationId, editingDevisId, pricingQuote]);
+  }, [loading, initialSnapshot, formSnapshot, editingReservationId, editingDevisId, pricingQuote, isIcalImportedBlankPrice]);
 
   useEffect(() => {
     if (!isDirty) return;
@@ -816,6 +831,10 @@ export default function ReservationPage() {
     const initPage = async () => {
       try {
         setLoading(true);
+        // A (re)load takes its clean baseline again, from what it loads (see the baseline effect).
+        setInitialSnapshot(null);
+        loadedSnapshotRef.current = null;
+        resnapshotAfterQuoteRef.current = null;
         setNotFound(false);
         const props = await api.getProperties();
         setProperties(props);
