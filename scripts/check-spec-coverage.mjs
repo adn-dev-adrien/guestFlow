@@ -484,7 +484,7 @@ function gate(base) {
     console.log(addedRules.length
       ? `✓ ${addedRules.length} règle(s) ajoutée(s) : ${addedRules.length - declared} citée(s) par un test`
         + `${declared ? `, ${declared} déclarée(s) sans test` : ''}.`
-      : '✓ Aucune règle ajoutée par cette PR.');
+      : '✓ Aucune règle ajoutée par cette PR. (Compare le HEAD commité à --base, par défaut origin/master : sur une branche inte, passer --base origin/inte/plugins.)');
     return 0;
   }
   for (const f of verdict.failures) {

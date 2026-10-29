@@ -2812,6 +2812,13 @@ export default function ReservationPage() {
     if (!editingReservationId) return;
     const res = await api.getReservation(editingReservationId);
     setStoredLedger(res.ledger || null);
+    // The sold lines moved with the write (specs/reservation-refunds.md rule 43): the refund dialog reads them.
+    setRefundRegister({
+      refunds: res.refunds || [],
+      refundableLines: res.refundableLines || [],
+      refundTotals: res.refundTotals || { book: 0, withCash: 0 },
+      collectedTtc: Number(res.collectedTtc || 0),
+    });
     // specs/qonto-bank-reconciliation.md rule 39 — the plugins' blocks follow a write that moved the money.
     setPluginBlocks(res.pluginBlocks || {});
     setStoredHeadline(res.storedHeadline || null);
