@@ -74,7 +74,8 @@
       "Exemple de téléphone d’un commentaire rendu anonyme (SDK 2 inchangé)."
     ],
     "1.4.2": [
-      "Si les paramètres de paiement ne se chargent pas, la page l’indique avec « Réessayer » au lieu de tourner sans fin."
+      "Si les paramètres de paiement ne se chargent pas, la page l’indique avec « Réessayer » au lieu de tourner sans fin.",
+      "Compatible avec le SDK 2 de GuestFlow."
     ]
   }
 }

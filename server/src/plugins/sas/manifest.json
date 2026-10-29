@@ -80,7 +80,8 @@
       "Compatible avec le SDK 2 de GuestFlow."
     ],
     "1.7.4": [
-      "Questions des clés et de l’extincteur sans « vous »."
+      "Questions des clés et de l’extincteur sans « vous ».",
+      "Compatible avec le SDK 2 de GuestFlow."
     ]
   }
 }
