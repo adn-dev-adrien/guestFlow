@@ -192,3 +192,22 @@ test('rule 1 — an adjusted complement is not an edit: a past stay carrying one
   assert.equal(saved.status, 200, JSON.stringify(saved.body));
   assert.equal(row(db, id).complementAmountOverride, 50);
 });
+
+test('rule 2 — in the extras window of a started fiche a rename is refused with its own message, not « ni retirée ni réduite »', () => {
+  const { db, controller, id, body } = fixture();
+  db.prepare("UPDATE reservations SET startDate = '2000-04-01', endDate = '2000-04-04', arrivalExtrasBaseline = NULL WHERE id = ?").run(id);
+  require('../models/reservationsModel').captureArrivalExtrasBaseline(id);
+  const idOf = (description) => db.prepare('SELECT id FROM reservation_custom_options WHERE reservationId = ? AND description = ?').get(id, description).id;
+  const line = (lineId, description, amount) => ({ customKey: String(lineId), customOptionId: lineId, description, amount, offered: false });
+  const send = (lines) => controller.performUpdate(id, body({ startDate: '2000-04-01', endDate: '2000-04-04', customOptions: lines }));
+  const added = send([line(idOf('Panier'), 'Panier', 20), { customKey: 'new', description: 'Bouquet', amount: 15, offered: false }]);
+  assert.equal(added.status, 200, JSON.stringify(added.body));
+
+  for (const [target, renamed] of [['Panier', 'Panier garni'], ['Bouquet', 'Bouquet de saison']]) {
+    const lines = [line(idOf('Panier'), 'Panier', 20), line(idOf('Bouquet'), 'Bouquet', 15)].map((l) => (l.description === target ? { ...l, description: renamed } : l));
+    const refused = send(lines);
+    assert.equal(refused.status, 400, target);
+    assert.equal(refused.body.code, 'ARRIVAL_LINE_RENAME');
+    assert.match(refused.body.error, /ne peut pas être renommée/);
+  }
+});

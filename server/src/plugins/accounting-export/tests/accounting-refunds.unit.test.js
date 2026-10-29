@@ -2,6 +2,9 @@
 // One avoir per non-internal refund, dated at the transfer, mirroring an encaissement: credit on the
 // client auxiliary account, debits on the revenue accounts + VAT + the tourist-tax pass-through.
 
+// Keeps the default models off the real database file: parallel files would race on its migration.
+process.env.DB_PATH = ':memory:';
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');

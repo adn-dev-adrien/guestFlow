@@ -7,6 +7,9 @@
  * taxe de séjour : écriture équilibrée, taxe fausse.
  */
 
+// Keeps the default models off the real database file: parallel files would race on its migration.
+process.env.DB_PATH = ':memory:';
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 

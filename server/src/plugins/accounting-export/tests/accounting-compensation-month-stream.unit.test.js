@@ -2,6 +2,9 @@
 // chronologique — CSV et aperçu JSON compris (specs/cancellation-compensation.md §3.3 rule 15).
 // Building the stream in the controller is what keeps the two outputs from drifting apart.
 
+// Keeps the default models off the real database file: parallel files would race on its migration.
+process.env.DB_PATH = ':memory:';
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 

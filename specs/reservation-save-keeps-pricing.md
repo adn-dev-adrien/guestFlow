@@ -89,6 +89,18 @@ changed something the price depends on; money collected beyond the total is repo
    captured split: it is booked on the prestations the stay still sells — options first, then resources,
    then the accommodation — so bed linen moved out of the complement is refunded on the options account
    (70600010), not on the accommodation (70600000).
+   The stored ledger measures the acompte and the solde against the STORED figures, never against today's
+   engine (a stay paid in full at 807,20 € that the engine now prices at 777,70 € holds no trop-perçu: #14);
+   only the collected complement's excess (`complementCollectedExcessTtc`) and a schedule excess measured on
+   stored amounts show there. Swept over the 57 stays of the Solio base, only #22224 (21 €) and #22226 (28 €)
+   carry the row.
+   **Caisse interne by default** (Adrien, 2026-10-29): when the excess sits on a complement collected
+   « caisse interne » (`complementPaidCash`), the `refundPrefill` carries `method: 'internal'` and the refund
+   dialog opens on that means (`defaultMethod`), so nothing is booked in the accounts; the operator can change
+   it. A refund by transfer is booked on the poste of its lines (70600010 for options), an internal one nowhere.
+   The poste of the excess is taken from what left the complement: the lines the stored complement carries
+   beyond what the stay's complement now carries (options, resources, **tourist tax → 46710000**); what the
+   stored lines cannot explain falls on the options, then the resources, then the accommodation.
    On a direct channel the fiche preview (`liveOverpayment`) prices the stay with the collected complement
    at its stored amount, so the trop-perçu reaches the fiche and the refund dialog. Lodgify, a direct channel on Solio, is covered
    (#22224, #22226). #22209 (+0,60 €, Abracadaroom) is a platform stay: out.
@@ -109,6 +121,9 @@ changed something the price depends on; money collected beyond the total is repo
    > disabled until a field changes).
 
 **Edge cases:**
+- In the extras window of a started fiche a custom line is keyed by its text (end-of-stay complement,
+  arrival baseline): a rename there is refused with « Une prestation ajoutée une fois le séjour commencé ne
+  peut pas être renommée. » (`ARRIVAL_LINE_RENAME`), not with the « ni retirée ni réduite » message.
 - A custom line's `customKey` is the browser's handle, not part of its price: ignored by the comparison.
 - The audit snapshot read from the database now carries `complementAmountOverride` and
   `endOfStayComplementAmountOverride`: an adjusted stay saved untouched is no longer read as an edit (#22275

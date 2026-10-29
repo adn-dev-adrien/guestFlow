@@ -2,6 +2,9 @@
 // export: today's numbers by default, validated, the CSV byte-identical with the defaults, and every
 // line on the plan's numbers once changed.
 
+// Keeps the default models off the real database file: parallel files would race on its migration.
+process.env.DB_PATH = ':memory:';
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 

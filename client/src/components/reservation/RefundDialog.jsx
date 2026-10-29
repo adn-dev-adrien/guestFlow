@@ -32,6 +32,8 @@ import { evaluateArithmetic } from '../../utils/arithmetic';
  *  - `overpaymentLines` — the same amount split by poste by the server (rule 35,
  *    `[{ bucket, label, amountTtc }]`): one « Trop-perçu » line per poste, so a tax paid too much is
  *    refunded on the tax. Wins over `overpaymentTtc` when present.
+ *  - `defaultMethod` — the means the dialog opens on (`transfer` by default; `internal` for a trop-perçu
+ *    taken « caisse interne »), which the operator can change.
  *  - `onSubmit(payload)` — throws an Error carrying the server message when the API refuses.
  *
  * Amounts are typed as text (« 12,5 » accepted, rule 37): a typed amount that is a whole number of
@@ -71,7 +73,7 @@ const wholeUnits = (amount, unitPrice) => {
 const DECIMAL_INPUT = { htmlInput: { inputMode: 'decimal' } };
 
 export default function RefundDialog({
-  open, onClose, refundableLines = [], collectedTtc = 0, overpaymentTtc = 0, overpaymentLines = null, onSubmit,
+  open, onClose, refundableLines = [], collectedTtc = 0, overpaymentTtc = 0, overpaymentLines = null, defaultMethod = 'transfer', onSubmit,
 }) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -94,11 +96,11 @@ export default function RefundDialog({
       setFreeLines(overpaymentTtc > 0 ? [{ label: 'Trop-perçu', bucket: 'accommodation', amount: amountText(overpaymentTtc) }] : []);
     }
     setRefundDate(todayIso());
-    setMethod('transfer');
+    setMethod(defaultMethod);
     setReason('');
     setError('');
     setBusy(false);
-  }, [open, overpaymentTtc, overpaymentLines]);
+  }, [open, overpaymentTtc, overpaymentLines, defaultMethod]);
 
   const toggleLine = (line, checked) => {
     setSelected((prev) => {

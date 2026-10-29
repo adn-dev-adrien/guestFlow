@@ -415,32 +415,50 @@ function liveOverpayment(reservationId, engineInput) {
   return overpaymentOfQuote(reservationId, row, asSaved);
 }
 
+// What the stored arrival complement carries on each poste beyond what the stay's complement now carries:
+// the lines an edit took out of it (bed linen, a tourist tax that fell).
+function complementLeftOf(reservationId, quote) {
+  const stored = { options: 0, resources: 0, touristTax: 0 };
+  const live = { options: 0, resources: 0, touristTax: 0 };
+  const key = { option: 'options', resource: 'resources', tax: 'touristTax' };
+  for (const line of model.buildArrivalComplementDetail(reservationId).detail || []) if (key[line.kind]) stored[key[line.kind]] += Number(line.amount || 0);
+  for (const line of quote.complementDetailLines || []) if (key[line.kind]) live[key[line.kind]] += Number(line.amount || 0);
+  return Object.fromEntries(Object.keys(stored).map((poste) => [poste, round2(Math.max(0, stored[poste] - live[poste]))]));
+}
+
 // The trop-perçu of a stay and its split by poste, from the quote of the stay as it would be saved.
-function overpaymentOfQuote(reservationId, row, asSaved) {
+// `storedSchedule`: measure the acompte and the solde against the STORED figures (a fiche read from the
+// database), never against today's engine, which also counts the drift since the stay was priced.
+function overpaymentOfQuote(reservationId, row, asSaved, { storedSchedule = false } = {}) {
+  const complementExcess = round2(asSaved.complementCollectedExcessTtc);
   const overpaymentTtc = overpaymentOf({
     row,
     captured: model.capturedScheduleContribs(reservationId),
     refundedTtc: refundsModel.totalsByReservation(Number(reservationId)).withCash,
-    depositAmount: asSaved.depositAmount,
-    balanceAmount: asSaved.balanceAmount,
-    engineOverTtc: asSaved.overCollectedTtc,
+    depositAmount: storedSchedule ? row.depositAmount : asSaved.depositAmount,
+    balanceAmount: storedSchedule ? row.balanceAmount : asSaved.balanceAmount,
+    engineOverTtc: storedSchedule ? complementExcess : asSaved.overCollectedTtc,
   });
+  // Money a complement took « caisse interne » is off the books: the refund of its excess defaults to the
+  // same means, so nothing is booked in the accounts (Adrien, 2026-10-29). The operator can change it.
+  const onlyComplementInCash = complementExcess > 0 && Number(row.complementPaidCash || 0) === 1 && overpaymentTtc <= complementExcess;
   return {
     overpaymentTtc,
+    overpaymentMethod: onlyComplementInCash ? 'internal' : null,
     overpaymentLines: overpaymentLinesOf({
       row, capturedByPoste: model.capturedScheduleContribsByPoste(reservationId), quote: asSaved, overpaymentTtc,
+      complementLeft: complementExcess > 0 ? complementLeftOf(reservationId, asSaved) : {},
     }),
   };
 }
 
-// The same, for a fiche read from the database (a locked fiche shows the stored ledger): the stored stay
-// priced as its fiche prices it.
+// The same, for a fiche read from the database (a locked fiche shows the stored ledger).
 function storedOverpayment(reservationId) {
   const row = model.getRow(reservationId);
   if (!row || row.kind !== 'reservation') return null;
   const quote = quoteStoredReservation(db, row);
   if (!quote || quote.error) return null;
-  return overpaymentOfQuote(reservationId, row, quote);
+  return overpaymentOfQuote(reservationId, row, quote, { storedSchedule: true });
 }
 
 // A refusal raised inside the creation transaction: thrown to roll the whole write back, then answered
@@ -751,7 +769,7 @@ function getById(req, res) {
     // specs/reservation-payment-ledger.md rule 1 — the payments ledger, ready to render.
     ledger: ledgerFor({
       row: { ...model.getRow(reservation.id), cautionAmount: reservation.cautionAmount },
-      overpayment: (() => { const over = storedOverpayment(reservation.id); return over ? { ttc: over.overpaymentTtc, lines: over.overpaymentLines } : null; })(),
+      overpayment: (() => { const over = storedOverpayment(reservation.id); return over ? { ttc: over.overpaymentTtc, lines: over.overpaymentLines, method: over.overpaymentMethod } : null; })(),
     }),
     // Rule 39 — the headline of the sticky total bar, from the stored row: what the fiche shows while it
     // shows the stored ledger (rule 7), so the two never disagree.
@@ -805,6 +823,7 @@ function sameStayAsSold(stored, body) {
 
 // The custom lines of a fiche whose NAME alone differs from the stored one: [{ id, from, to }].
 function customTextChangesOf(reservationId, postedLines) {
+  if (!Array.isArray(postedLines) || postedLines.length === 0) return [];
   const stored = new Map(model.customOptionTexts(reservationId).map((line) => [Number(line.id), String(line.description || '')]));
   return (Array.isArray(postedLines) ? postedLines : [])
     .filter((line) => line && stored.has(Number(line.customOptionId)))
@@ -1035,7 +1054,7 @@ async function calculatePrice(req, res) {
       quote,
       live,
       propertyId,
-      overpayment: { ttc: quote.overpaymentTtc, lines: quote.overpaymentLines },
+      overpayment: { ttc: quote.overpaymentTtc, lines: quote.overpaymentLines, method: quote.overpaymentMethod },
     });
     // Rule 21 — the amount editor asks; the server answers the refusal or the consequence.
     const edit = req.body.ledgerEdit;
@@ -1468,6 +1487,7 @@ function performUpdate(reservationId, body, { unlockPast = false, dryRun = false
   return preview;
 }
 
+const ARRIVAL_LINE_RENAME_MESSAGE = 'Une prestation ajoutée une fois le séjour commencé ne peut pas être renommée.';
 const ARRIVAL_EXTRAS_FROZEN_MESSAGE = 'Une prestation vendue à l\'arrivée ne peut être ni retirée ni réduite.';
 const MID_STAY_EXTRAS_CLOSED_MESSAGE = 'Complément de fin de séjour déjà encaissé : décocher « payé » ou déverrouiller la fiche.';
 
@@ -1742,7 +1762,13 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
     && pricingUnchangedFromStored(db, storedPaymentForQuote, quote, windowEngineInputs);
   if (keepPricing) quote = pinStoredPricing(quote, storedPaymentForQuote);
   // Adrien, 2026-10-29: a custom line renamed alone saves its text, nothing is re-priced.
-  const customTextChanges = keepPricing ? customTextChangesOf(id, reservationCustomOptions) : [];
+  const renamedLines = customTextChangesOf(id, reservationCustomOptions);
+  const customTextChanges = keepPricing ? renamedLines : [];
+  // In the extras window of a started fiche the lines are keyed by their text in the end-of-stay
+  // complement and the arrival baseline: a rename there is refused, with its own message.
+  if (midStayWindow && renamedLines.length > 0) {
+    return res.status(400).json({ error: ARRIVAL_LINE_RENAME_MESSAGE, code: 'ARRIVAL_LINE_RENAME' });
+  }
 
   // specs/platform-payout-due-date.md §3.5 rule 38 — a started or finished stay keeps the solde
   // deadline it was stored with. « Existing rows re-derive on their next save » (§3.0 arbitrage) can
