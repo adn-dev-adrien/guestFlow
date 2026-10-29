@@ -7,6 +7,7 @@ const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
 const propertyIcalModel = require('../models/propertyIcalModel');
+const { globalFetch } = require('./icalFetchFixture');
 const icalExportRangesModel = require('../models/icalExportRangesModel');
 const icalCancellationModel = require('../models/icalCancellationModel');
 const { mergePlatformDuplicates } = require('../utils/platformMerge');
@@ -84,7 +85,7 @@ function fresh() {
   db.prepare("INSERT INTO properties (id, name, defaultCheckIn, defaultCheckOut, defaultCautionAmount) VALUES (1, 'Gite', '15:00', '10:00', 0)").run();
   const insertSource = db.prepare('INSERT INTO ical_sources (id, propertyId, name, platformKey, platformLabel) VALUES (?, 1, ?, ?, ?)');
   for (const s of [BOOKING, GREENGO, LODGIFY]) insertSource.run(s.id, s.name, s.platformKey, s.platformLabel);
-  return { db, model: propertyIcalModel.buildModel(db), ranges: icalExportRangesModel.create(db) };
+  return { db, model: propertyIcalModel.buildModel(db, { fetchImpl: globalFetch }), ranges: icalExportRangesModel.create(db) };
 }
 const stayOn = (db, startDate) => db.prepare("SELECT * FROM reservations WHERE startDate = ? AND kind = 'reservation'").all(startDate);
 

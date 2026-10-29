@@ -130,11 +130,13 @@ function buildModel(database) {
     ).all();
   }
 
-  // Open links whose reservation row no longer exists: still payable at the provider, nothing to land on.
+  // Links whose reservation row no longer exists and that may still be payable at the provider: open ones,
+  // and cancelled ones whose deactivation is still owed (`remoteCancelPendingAt`), which nobody retries
+  // while the payment plugin is off.
   function listOrphanOpen() {
     return database.prepare(`
-      SELECT l.id, l.reservationId, l.type, l.amountCents, l.createdAt FROM payment_links l
-       WHERE l.status = 'open' AND NOT EXISTS (SELECT 1 FROM reservations r WHERE r.id = l.reservationId)
+      SELECT l.id, l.reservationId, l.type, l.amountCents, l.createdAt, l.status FROM payment_links l
+       WHERE (l.status = 'open' OR (l.status = 'cancelled' AND l.remoteCancelPendingAt IS NOT NULL)) AND NOT EXISTS (SELECT 1 FROM reservations r WHERE r.id = l.reservationId)
        ORDER BY l.id
     `).all();
   }

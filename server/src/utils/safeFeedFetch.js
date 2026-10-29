@@ -122,37 +122,43 @@ async function readCapped(response, maxBytes) {
   return text;
 }
 
-// Tests stub `global.fetch`; in production the request goes through undici's own fetch so the Agent that
-// pins the dialled address is of the same version as the client.
-const nativeFetch = globalThis.fetch;
-const defaultFetch = (url, options) => (globalThis.fetch === nativeFetch ? undici.fetch(url, options) : globalThis.fetch(url, options));
-
 /**
  * GET `url`, following at most MAX_REDIRECTS redirects by hand. Every hop is checked (literal address,
- * localhost) and every connection is dialled through `guardedLookup`. Resolves to the final response; the
- * caller reads the body with `readCapped`.
+ * localhost) and every connection is dialled through `guardedLookup`. Resolves to the final response with a
+ * `release()` that closes the connection pool once the body is read (or abandoned); the caller reads the
+ * body with `readCapped`. `fetchImpl` is injected by tests; production always uses undici's own fetch so the
+ * pinning Agent is of the same version as the client.
  */
-async function fetchPublic(url, { signal, fetchImpl = defaultFetch, resolve, env = process.env } = {}) {
+async function fetchPublic(url, { signal, fetchImpl = undici.fetch, resolve, env = process.env } = {}) {
   const dispatcher = new undici.Agent({ connect: { lookup: guardedLookup({ resolve, env }) }, keepAliveTimeout: 1000 });
-  let current = url;
-  for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {
-    let parsed;
-    try { parsed = new URL(current); } catch { throw new FeedFetchError('Adresse du flux invalide.'); }
-    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') throw new FeedFetchError('Adresse du flux invalide.');
-    assertPublicHost(parsed.hostname, { env });
-    let response;
-    try {
-      response = await fetchImpl(current, { method: 'GET', signal, redirect: 'manual', dispatcher });
-    } catch (error) {
-      // The refusal of the connection's own lookup surfaces as the cause of « fetch failed ».
-      if (error && error.cause instanceof FeedFetchError) throw error.cause;
-      throw error;
+  const release = () => dispatcher.close().catch(() => {});
+  try {
+    let current = url;
+    for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {
+      let parsed;
+      try { parsed = new URL(current); } catch { throw new FeedFetchError('Adresse du flux invalide.'); }
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') throw new FeedFetchError('Adresse du flux invalide.');
+      assertPublicHost(parsed.hostname, { env });
+      let response;
+      try {
+        response = await fetchImpl(current, { method: 'GET', signal, redirect: 'manual', dispatcher });
+      } catch (error) {
+        // The refusal of the connection's own lookup surfaces as the cause of « fetch failed ».
+        if (error && error.cause instanceof FeedFetchError) throw error.cause;
+        throw error;
+      }
+      const location = response.status >= 300 && response.status < 400 && response.headers && response.headers.get && response.headers.get('location');
+      if (!location) {
+        response.release = release;
+        return response;
+      }
+      current = new URL(location, current).toString();
     }
-    const location = response.status >= 300 && response.status < 400 && response.headers && response.headers.get && response.headers.get('location');
-    if (!location) return response;
-    current = new URL(location, current).toString();
+    throw new FeedFetchError('Trop de redirections.');
+  } catch (error) {
+    await release();
+    throw error;
   }
-  throw new FeedFetchError('Trop de redirections.');
 }
 
 module.exports = {

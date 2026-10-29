@@ -404,12 +404,16 @@ acompte is kept as an indemnity, and the books say so correctly.
     provider is being called, so the kind and `carriesMoney` are re-run synchronously, in the same
     transaction as the `DELETE` (`removeGuarded` on the reservations, clients and properties models); a stay
     that became cancelled or carries money by then answers 409 and keeps its rows. `paymentLinksModel.cancel`
-    never overwrites a `paid` link, which is what the re-check relies on.
+    never overwrites a `paid` link, which is what the re-check relies on. When `removeGuarded` refuses
+    after links were already deactivated, the stay survives with those links cancelled: the operator
+    re-sends a link.
     The devis route runs its own refusals (CGV proof) before touching any link.
 51. **Orphan open links are logged at boot** _(added 2026-10-28, audit)_. An open link whose reservation
     row no longer exists (deleted before rule 50) is still payable at the provider and has nothing to
-    land on. The server logs one warning at startup naming each (`link->reservation`); no data is
-    changed, the operator deactivates them by hand.
+    land on; so is a cancelled link whose remote deactivation is still owed (`remoteCancelPendingAt`) for a
+    reservation that is gone, which nobody retries while the payment plugin is off. The server logs one
+    warning at startup naming each (`link->reservation`); no data is changed, the operator deactivates them
+    by hand.
 52. **Every cascade is guarded** _(added 2026-10-28, PR review)_. The rest of the delete paths that could
     drop a stay with its money go through the same check (`carriesMoney`, rule 49):
     - **forced client delete** (`DELETE /api/clients/:id?force=true`, FK cascade) and **property delete**:

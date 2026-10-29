@@ -6,6 +6,7 @@ const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
 const propertyIcalModel = require('../models/propertyIcalModel');
+const { globalFetch } = require('./icalFetchFixture');
 const icalExportRangesModel = require('../models/icalExportRangesModel');
 const { classifyBookingEvent } = require('../utils/icalBookingEcho');
 const notificationService = require('../utils/notificationService');
@@ -79,7 +80,7 @@ function fresh() {
   db.prepare("INSERT INTO properties (id, name, defaultCheckIn, defaultCheckOut, defaultCautionAmount) VALUES (1, 'Gite', '15:00', '10:00', 0)").run();
   const insertSource = db.prepare('INSERT INTO ical_sources (id, propertyId, name, platformKey, platformLabel) VALUES (?, 1, ?, ?, ?)');
   for (const s of [LODGIFY, BOOKING, GREENGO, AIRBNB]) insertSource.run(s.id, s.name, s.platformKey, s.platformLabel);
-  return { db, model: propertyIcalModel.buildModel(db) };
+  return { db, model: propertyIcalModel.buildModel(db, { fetchImpl: globalFetch }) };
 }
 const all = (db) => db.prepare('SELECT * FROM reservations ORDER BY id').all();
 

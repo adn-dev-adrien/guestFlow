@@ -8,7 +8,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const db = require('../database');
-const model = require('../models/propertyIcalModel');
+const { globalFetch } = require('./icalFetchFixture');
+const model = require('../models/propertyIcalModel').buildModel(require('../database'), { fetchImpl: globalFetch });
 
 function ics(events) {
   const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0'];

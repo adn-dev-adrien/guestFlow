@@ -81,7 +81,7 @@ function touristTaxCollectionString(collects, remitted) {
   return Number(remitted) === 0 ? 'platform_reversed' : 'platform';
 }
 
-function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS } = {}) {
+function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, fetchImpl } = {}) {
   // Bind the drift + cancellation models to the SAME database instance so prod and unit
   // tests share one consistent SQLite handle (the default exports are bound to the
   // production DB; tests build a fresh property-ical model on `:memory:`, and they need
@@ -272,7 +272,7 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS }
     async fetchFeed(source) {
       let response;
       try {
-        response = await fetchPublic(source.url, { signal: AbortSignal.timeout(fetchTimeoutMs) });
+        response = await fetchPublic(source.url, { signal: AbortSignal.timeout(fetchTimeoutMs), ...(fetchImpl ? { fetchImpl } : {}) });
       } catch (error) {
         if (error instanceof FeedFetchError) throw error;
         if (error && (error.name === 'TimeoutError' || error.name === 'AbortError')) {
@@ -280,23 +280,27 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS }
         }
         throw new Error('Plateforme injoignable.');
       }
-      if (!response.ok) {
-        throw new Error(`Impossible de lire le flux iCal (${response.status}).`);
-      }
-      let icsText;
       try {
-        icsText = await readCapped(response, MAX_FEED_BYTES);
-      } catch (error) {
-        if (error instanceof FeedFetchError) throw error;
-        throw new Error(error && error.name === 'TimeoutError' ? 'Plateforme injoignable (délai dépassé).' : 'Flux iCal interrompu.');
+        if (!response.ok) {
+          throw new Error(`Impossible de lire le flux iCal (${response.status}).`);
+        }
+        let icsText;
+        try {
+          icsText = await readCapped(response, MAX_FEED_BYTES);
+        } catch (error) {
+          if (error instanceof FeedFetchError) throw error;
+          throw new Error(error && error.name === 'TimeoutError' ? 'Plateforme injoignable (délai dépassé).' : 'Flux iCal interrompu.');
+        }
+        if (!isWellFormedIcs(icsText)) {
+          throw new Error('Réponse iCal invalide (contenu non ICS).');
+        }
+        if (!isCompleteIcs(icsText)) {
+          throw new Error('Flux iCal incomplet — synchronisation ignorée.');
+        }
+        return icsText;
+      } finally {
+        if (typeof response.release === 'function') await response.release();
       }
-      if (!isWellFormedIcs(icsText)) {
-        throw new Error('Réponse iCal invalide (contenu non ICS).');
-      }
-      if (!isCompleteIcs(icsText)) {
-        throw new Error('Flux iCal incomplet — synchronisation ignorée.');
-      }
-      return icsText;
     },
 
     syncSource(source, { prefetched = null } = {}) {

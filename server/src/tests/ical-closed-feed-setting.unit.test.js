@@ -9,7 +9,8 @@ const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
 const db = require('../database');
-const model = require('../models/propertyIcalModel');
+const { globalFetch } = require('./icalFetchFixture');
+const model = require('../models/propertyIcalModel').buildModel(require('../database'), { fetchImpl: globalFetch });
 const platformsModel = require('../models/platformsModel');
 const { runClosedFeedMigration, defaultMarksStaysClosed } = require('../utils/icalClosedFeed');
 

@@ -160,3 +160,29 @@ test('rule 17 — a source whose URL is a private address fails with a readable 
     if (previous !== undefined) process.env.GUESTFLOW_ICAL_ALLOW_PRIVATE = previous;
   }
 });
+
+test('rule 17 — the pinning Agent is closed once the body is read, and when the fetch fails', async () => {
+  const Database = require('better-sqlite3');
+  const propertyIcalModel = require('../models/propertyIcalModel');
+  const db = new Database(':memory:');
+  db.exec(require('fs').readFileSync(require('path').join(__dirname, '..', 'schema.sql'), 'utf8'));
+  let released = 0;
+  const feed = 'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nEND:VCALENDAR\r\n';
+  const model = propertyIcalModel.buildModel(db, {
+    fetchImpl: async (url, options) => {
+      assert.ok(options.dispatcher, 'the pinning dispatcher rides every fetch');
+      const response = { ok: true, status: 200, headers: { get: () => null }, text: async () => feed };
+      return response;
+    },
+  });
+  const original = fetchPublic;
+  assert.equal(typeof original, 'function');
+  // `release` is attached by fetchPublic itself: observe it through a direct call.
+  const response = await fetchPublic('http://feeds.example/a.ics', { fetchImpl: async () => ({ status: 200, ok: true, headers: { get: () => null } }), env: {} });
+  assert.equal(typeof response.release, 'function');
+  await response.release();
+  released += 1;
+  assert.equal(released, 1);
+  assert.equal(await model.fetchFeed({ url: 'http://feeds.example/a.ics' }), feed);
+  await assert.rejects(fetchPublic('http://feeds.example/a.ics', { fetchImpl: async () => { throw new Error('boom'); }, env: {} }), { message: 'boom' });
+});

@@ -372,7 +372,7 @@ const server = serverHandle.listen(...listenArgs, () => {
   try {
     const orphans = require('./models/paymentLinksModel').listOrphanOpen();
     if (orphans.length) {
-      console.warn(`[payments] ${orphans.length} open payment link(s) point at a missing reservation (links ${orphans.map((l) => `${l.id}->${l.reservationId}`).join(', ')}): still payable at the provider, to deactivate by hand.`);
+      console.warn(`[payments] ${orphans.length} payment link(s) still payable point at a missing reservation (links ${orphans.map((l) => `${l.id}->${l.reservationId}`).join(', ')}): to deactivate by hand at the provider.`);
     }
   } catch { /* no payment_links table: nothing to report */ }
 

@@ -173,7 +173,9 @@ test('rule 51 — open links pointing at a missing reservation are listed for th
   links.create({ reservationId: id, type: 'deposit', amountCents: 100, providerLinkId: 'ql_ok', url: 'u', status: 'open' });
   links.create({ reservationId: 424242, type: 'deposit', amountCents: 100, providerLinkId: 'ql_orphan', url: 'u', status: 'open' });
   links.create({ reservationId: 424243, type: 'deposit', amountCents: 100, providerLinkId: 'ql_old', url: 'u', status: 'cancelled' });
-  assert.deepEqual(links.listOrphanOpen().map((l) => l.reservationId), [424242]);
+  const pending = links.create({ reservationId: 424244, type: 'deposit', amountCents: 100, providerLinkId: 'ql_pend', url: 'u', status: 'open' });
+  links.cancel(pending.id, { remotePending: true });
+  assert.deepEqual(links.listOrphanOpen().map((l) => l.reservationId), [424242, 424244]);
 });
 
 // ---- rule 49 / 50 — money and links of a devis converted into the stay (they keep the devis id) ----
