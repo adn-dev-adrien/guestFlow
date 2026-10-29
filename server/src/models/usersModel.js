@@ -28,6 +28,7 @@
  *     listed and never the target of the admin recovery.
  */
 
+const crypto = require('crypto');
 const db = require('../database');
 const { hashPassword, verifyPassword } = require('../utils/passwordHash');
 const { DEFAULT_ADMIN_EMAIL, DEFAULT_ADMIN_PASSWORD } = require('../constants/authDefaults');
@@ -36,6 +37,8 @@ const { isKnownRole, ADMIN } = require('../constants/roles');
 function normalizeEmail(value) {
   return String(value || '').trim().toLowerCase();
 }
+
+const DUMMY_PASSWORD_HASH = hashPassword(crypto.randomBytes(16).toString('hex'));
 
 function buildModel(database) {
   // ----- prepared statements (built once per model instance) -----
@@ -164,8 +167,10 @@ function buildModel(database) {
 
     verifyCredentials(email, password) {
       const row = findByEmailStmt.get(normalizeEmail(email));
-      if (!row || Number(row.isActive) !== 1 || Number(row.isSupportAccount) === 1) return null;
-      if (!verifyPassword(String(password || ''), row.passwordHash)) return null;
+      // One scrypt run whatever the account: an unknown, inactive or support account answers in the
+      // time of a wrong password (specs/hosting-h2-account-security.md rule 61).
+      const passwordOk = verifyPassword(String(password || ''), row ? row.passwordHash : DUMMY_PASSWORD_HASH);
+      if (!row || !passwordOk || Number(row.isActive) !== 1 || Number(row.isSupportAccount) === 1) return null;
       return toSafeUser(row);
     },
 

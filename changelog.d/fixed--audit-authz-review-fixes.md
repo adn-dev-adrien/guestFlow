@@ -1,0 +1,1 @@
+- **Support cannot redirect notifications through the company email** (the resolved recipient is guarded on `PUT /settings` and `PUT /onboarding/company`), **the start assistant asks the password to adopt the login email**, **other sessions end after an email change**, and **a refused login code mail says when to retry** (rules 18, 59, 62).

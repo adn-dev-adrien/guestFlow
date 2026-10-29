@@ -1,4 +1,4 @@
-// specs/self-update-and-releases.md rule 40 — a release archive is built from tracked files only and is
+// specs/self-update-and-releases.md rule 42 — a release archive is built from tracked files only and is
 // refused when a secret or a runtime file reached its staging tree.
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -20,7 +20,7 @@ function tree(files) {
   return dir;
 }
 
-test('rule 40: every kind of secret or runtime file is found', async () => {
+test('rule 42: every kind of secret or runtime file is found', async () => {
   const { findForbiddenFiles } = await load();
   const dir = tree([
     'server/.env.local', 'server/.env', 'server/guestflow.db', 'server/guestflow.db-wal', 'server/guestflow.db-shm',
@@ -34,7 +34,7 @@ test('rule 40: every kind of secret or runtime file is found', async () => {
   ]);
 });
 
-test('rule 40: a clean tree passes — certs/README, .gitkeep, .env.example and node_modules are fine', async () => {
+test('rule 42: a clean tree passes — certs/README, .gitkeep, .env.example and node_modules are fine', async () => {
   const { findForbiddenFiles } = await load();
   const dir = tree([
     'server/src/index.js', 'server/certs/README.md', 'server/certs/.gitkeep', 'server/uploads/.gitkeep',
@@ -43,14 +43,14 @@ test('rule 40: a clean tree passes — certs/README, .gitkeep, .env.example and 
   assert.deepEqual(findForbiddenFiles(dir), []);
 });
 
-test('rule 40: the CLI exits 1 and names the file', () => {
+test('rule 42: the CLI exits 1 and names the file', () => {
   const dir = tree(['server/.env.local']);
   const r = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'check-release-tree.mjs'), dir], { encoding: 'utf8' });
   assert.equal(r.status, 1);
   assert.match(r.stderr, /server\/\.env\.local/);
 });
 
-test('rule 40: release.sh copies the tracked server files only and runs the check before the archive', () => {
+test('rule 42: release.sh copies the tracked server files only and runs the check before the archive', () => {
   assert.match(RELEASE, /git ls-files server \| rsync -a --files-from=-/);
   assert.doesNotMatch(RELEASE, /cp -r server\/uploads/);
   assert.ok(RELEASE.indexOf('check-release-tree.mjs') < RELEASE.indexOf('tar -czf'), 'the check runs before the archive is made');

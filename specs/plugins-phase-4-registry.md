@@ -343,6 +343,14 @@ below are the recommended ones; each is reversible in a later spec.
     then the activation hooks of each such plugin, clears the marker first (a failing hook is logged,
     never repeated or blocking). School-holidays' first sync and Google Vacation Rentals' catch-up no
     longer wait for something else to trigger them. Test: `plugin-install-hooks-after-restart.unit.test.js`.
+42. **Amendment of the registry-key fallback (rule 40's « it still falls back to the licence key »)**
+    (audit 2026-10-28). The fallback is now optional: `CP_REGISTRY_PRIVATE_KEY` (Ed25519, base64 DER PKCS8,
+    same format as `CP_LICENCE_PRIVATE_KEY`) signs the index when set, and the console writes its public half
+    to every instance as `GUESTFLOW_REGISTRY_PUBLIC_KEY` (rewritten at each environment sync); the instance
+    already read that variable separately from the licence key (rule 6). Unset, the licence key signs the
+    index and is the registry key, as before. Rolling it out: set the variable, restart the console, let the
+    next sync rewrite each instance's environment (a fleet update does), then restart the instances; in
+    between, instances see an index they cannot verify and ignore it.
 
 ---
 

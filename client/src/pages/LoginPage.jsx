@@ -47,6 +47,13 @@ export default function LoginPage() {
   const [notice, setNotice] = useState(null);
   const [step, setStep] = useState(null);
   const [forgotAvailable, setForgotAvailable] = useState(false);
+  const [wait, setWait] = useState(0);
+
+  useEffect(() => {
+    if (wait <= 0) return undefined;
+    const t = setTimeout(() => setWait((n) => n - 1), 1000);
+    return () => clearTimeout(t);
+  }, [wait]);
 
   useEffect(() => {
     const reason = REASONS[searchParams.get('reason')];
@@ -76,9 +83,11 @@ export default function LoginPage() {
         setBusy(false);
       }
     } catch (err) {
+      // specs/hosting-h2-account-security.md rule 62 — the code mail is limited: the refusal says when.
+      if (err?.error === 'RESEND_TOO_SOON' && err.retryInSeconds) setWait(err.retryInSeconds);
       setError(err?.error === 'TOO_MANY_ATTEMPTS'
         ? 'Trop de tentatives. Réessayez plus tard.'
-        : err?.error === 'LOCKED' ? err.message : 'Identifiants invalides.');
+        : ['LOCKED', 'RESEND_TOO_SOON', 'TOO_MANY_SENDS'].includes(err?.error) ? err.message : 'Identifiants invalides.');
       setBusy(false);
     }
   };
@@ -99,7 +108,7 @@ export default function LoginPage() {
       <Box component="form" onSubmit={submit}>
         <Stack spacing={2}>
           {notice && <Alert severity={notice.severity} onClose={() => setNotice(null)}>{notice.text}</Alert>}
-          {error && <Alert severity="error">{error}</Alert>}
+          {error && <Alert severity="error">{wait > 0 ? `Nouvel envoi du code possible dans ${wait} s.` : error}</Alert>}
           <TextField
             label="Email"
             type="email"
@@ -124,7 +133,7 @@ export default function LoginPage() {
             type="submit"
             variant="contained"
             size="large"
-            disabled={busy}
+            disabled={busy || wait > 0}
             startIcon={busy ? <CircularProgress size={18} color="inherit" /> : null}
           >
             Se connecter

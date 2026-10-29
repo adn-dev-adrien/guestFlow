@@ -144,6 +144,8 @@ function buildSubject({ usersModel, settingsModel, emailService = makeFakeEmailS
     passwordGenerator,
     // Every plugin live: the roles a plugin brings are covered by plugin-role-refusal.unit.test.js.
     isPluginLive: () => true,
+    // The password / code check of an email change is covered by hosting-h2-self-email-change.unit.test.js.
+    twoFactor: { reauthenticateForChange() {} },
   });
 }
 

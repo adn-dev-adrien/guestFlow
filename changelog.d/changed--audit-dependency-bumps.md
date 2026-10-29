@@ -1,0 +1,1 @@
+- Dependencies: control-plane server (body-parser, nodemailer, qs), control-plane client (undici, vitest mocker) and server (ip-address) bumped to their fixed versions; `npm audit` reports 0 vulnerabilities everywhere.

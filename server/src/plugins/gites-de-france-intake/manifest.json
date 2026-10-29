@@ -57,7 +57,7 @@
       "Le mot de passe de la boîte n’est jamais envoyé en clair (TLS obligatoire) ni à un serveur IMAP d’un autre domaine que le serveur d’envoi, et le support ne peut ni modifier ces réglages ni revenir à une version précédente du plugin (SDK 2.12 de GuestFlow)."
     ],
     "1.4.1": [
-      "Exemple du commentaire du lecteur de mails rendu anonyme."
+      "Exemple du commentaire du lecteur de mails rendu anonyme (SDK 2 inchangé)."
     ]
   }
 }

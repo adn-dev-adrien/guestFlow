@@ -53,9 +53,11 @@ test('rule 37: ticked, the step asks the server to make it the login', async () 
   api.saveOnboardingCompany.mockResolvedValue({ loginEmail: 'contact@cabanes.fr', loginChanged: true });
   await start();
   fireEvent.click(screen.getByLabelText(BOX));
+  fireEvent.change(screen.getByLabelText(/Mot de passe actuel/), { target: { value: 'correct horse battery' } });
   next();
   await waitFor(() => expect(api.saveOnboardingCompany).toHaveBeenCalled());
   expect(api.saveOnboardingCompany.mock.calls[0][0].useAsLogin).toBe(true);
+  expect(api.saveOnboardingCompany.mock.calls[0][0].currentPassword).toBe('correct horse battery');
   expect(await screen.findByText('Connexion désormais avec contact@cabanes.fr.')).toBeInTheDocument();
 });
 
@@ -63,4 +65,16 @@ test('rule 37: a login the owner chose is not offered to change', async () => {
   onboarding(false);
   await start();
   expect(screen.queryByLabelText(BOX)).not.toBeInTheDocument();
+});
+
+test('rule 59: the password field only exists once the box is ticked, and a refusal stays on the step', async () => {
+  onboarding(true);
+  api.saveOnboardingCompany.mockRejectedValue({ error: 'BAD_PASSWORD', message: 'Mot de passe incorrect.' });
+  await start();
+  expect(screen.queryByLabelText(/Mot de passe actuel/)).not.toBeInTheDocument();
+  fireEvent.click(screen.getByLabelText(BOX));
+  fireEvent.change(screen.getByLabelText(/Mot de passe actuel/), { target: { value: 'nope' } });
+  next();
+  expect(await screen.findByText('Mot de passe incorrect.')).toBeInTheDocument();
+  expect(screen.getByText('Étape 1 sur 5')).toBeInTheDocument();
 });

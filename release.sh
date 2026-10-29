@@ -50,7 +50,7 @@ fi
 # Copy server: the files Git tracks, never the working directory. A developer's checkout holds
 # `server/.env.local` (encryption key, session secret, VAPID private key), the SQLite database with its
 # -wal/-shm, `licence.jws`, TLS keys and uploaded photos — none of them tracked, none of them shippable
-# (specs/self-update-and-releases.md rule 40). `check-release-tree.mjs` below refuses the archive if one
+# (specs/self-update-and-releases.md rule 42). `check-release-tree.mjs` below refuses the archive if one
 # slipped through anyway.
 git ls-files server | rsync -a --files-from=- --exclude='node_modules' --exclude='*.log' \
   --exclude='/server/plugins' --exclude='/server/plugin-data' . "$RELEASE_DIR/"
