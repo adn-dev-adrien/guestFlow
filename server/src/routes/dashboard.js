@@ -39,6 +39,7 @@ router.post('/payment-deadlines/:id/remind', guardReadOnly(db, { cancelled: true
 // « À traiter » and the pinned cards of the home (specs/shell-and-home-day-first.md §3.B). Each core
 // subject is read through the handler of its own card; the plugins add theirs with ctx.attention.
 function coreAttentionSources() {
+  const { ADMIN, userHasRole } = require('../constants/roles');
   const today = new Date();
   return [
     { key: 'payment-deadlines', rank: 20, handler: controller.paymentDeadlines },
@@ -63,6 +64,13 @@ function coreAttentionSources() {
     { key: 'new-reservations', rank: 10, handler: controller.newReservations },
     { key: 'email-pending', rank: 30, handler: require('./emails').controller.pending },
     { key: 'update-available', rank: 40, handler: require('../controllers/systemController').getVersion },
+    {
+      key: 'plugins-switched-off',
+      rank: 45,
+      handler: require('../controllers/pluginsAttentionController').handler(require('../models/pluginsModel'), require('../utils/pluginGovernance').isOperatorManaged),
+      // Whoever cannot switch a plugin on has nothing to do with this line.
+      skip: (req) => !userHasRole(req.user, ADMIN),
+    },
     {
       key: 'two-factor',
       rank: 50,

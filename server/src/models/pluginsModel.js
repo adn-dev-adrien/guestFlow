@@ -20,7 +20,8 @@
  *   expireRollback(id)      → forgets the previous package (its window is over)
  *   syncBundled(id, manifest, sha256) → a `bundled` row follows the copy the running release ships
  *   markHooksPending(id, kind) / hooksPendingKind(id) / pendingHooks() / clearHooksPending(id) → an install that needed a restart owes its hooks
- *   setEnabled(id, enabled) → flips the flag
+ *   setEnabled(id, enabled) → flips the flag (and forgets a system switch-off)
+ *   switchOff(id, reason)   → off, with the id of the off requirement that caused it (`offReason`)
  *   uninstall(id)           → deletes the row (the plugin's data is kept, rule 6)
  *   isActive(id)            → boolean
  *   listActiveIds()         → [id]
@@ -30,7 +31,7 @@
 function buildModel(database) {
   const COLUMNS = `id, enabled, source, version, manifest, pinned_sha256 AS pinnedSha256,
     previous_version AS previousVersion, previous_source AS previousSource, previous_sha256 AS previousSha256,
-    rollback_until AS rollbackUntil, installed_at AS installedAt, updated_at AS updatedAt`;
+    rollback_until AS rollbackUntil, off_reason AS offReason, installed_at AS installedAt, updated_at AS updatedAt`;
   const listStmt = database.prepare(`SELECT ${COLUMNS} FROM plugins ORDER BY id`);
   const getStmt = database.prepare(`SELECT ${COLUMNS} FROM plugins WHERE id = ?`);
   const insertStmt = database.prepare(`INSERT INTO plugins (id, enabled, source, version, manifest, pinned_sha256)
@@ -50,7 +51,8 @@ function buildModel(database) {
   const syncBundledStmt = database.prepare(`UPDATE plugins SET version = @version, manifest = @manifest, pinned_sha256 = @sha256
     WHERE id = @id AND source = 'bundled'
       AND (version IS NOT @version OR manifest IS NOT @manifest OR pinned_sha256 IS NOT @sha256)`);
-  const setEnabledStmt = database.prepare("UPDATE plugins SET enabled = ?, updated_at = datetime('now') WHERE id = ?");
+  const setEnabledStmt = database.prepare("UPDATE plugins SET enabled = ?, off_reason = NULL, updated_at = datetime('now') WHERE id = ?");
+  const switchOffStmt = database.prepare("UPDATE plugins SET enabled = 0, off_reason = ?, updated_at = datetime('now') WHERE id = ?");
   const deleteStmt = database.prepare('DELETE FROM plugins WHERE id = ?');
   const activeStmt = database.prepare('SELECT id FROM plugins WHERE enabled = 1 ORDER BY id');
   const isActiveStmt = database.prepare('SELECT 1 FROM plugins WHERE id = ? AND enabled = 1');
@@ -88,6 +90,7 @@ function buildModel(database) {
   });
 
   return {
+    transaction: (fn) => database.transaction(fn)(),
     list: () => listStmt.all().map(toRow),
     get: (id) => toRow(getStmt.get(id)),
     install(id, pkg) { insertStmt.run(pkgParams(id, pkg)); },
@@ -108,6 +111,8 @@ function buildModel(database) {
     pendingHooks: () => database.prepare('SELECT id FROM plugins WHERE hooks_pending > 0 ORDER BY id').all().map((r) => r.id),
     clearHooksPending(id) { database.prepare('UPDATE plugins SET hooks_pending = 0 WHERE id = ?').run(id); },
     setEnabled(id, enabled) { setEnabledStmt.run(enabled ? 1 : 0, id); },
+    // Rule 57 — switched off by the system because the requirement `reason` is off; any later switch clears the notice.
+    switchOff(id, reason) { switchOffStmt.run(reason, id); },
     uninstall(id) { deleteStmt.run(id); },
     isActive: (id) => Boolean(isActiveStmt.get(id)),
     listActiveIds: () => activeStmt.all().map((r) => r.id),

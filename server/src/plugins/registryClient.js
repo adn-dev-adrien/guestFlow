@@ -186,4 +186,4 @@ function fromEnv(env = process.env, opts = {}) {
   });
 }
 
-module.exports = { createRegistryClient, fromEnv, parseIndex, verifyIndex, signIndex, POLL_MS };
+module.exports = { createRegistryClient, fromEnv, parseIndex, verifyIndex, signIndex, POLL_MS, FUTURE_TOLERANCE_MS };

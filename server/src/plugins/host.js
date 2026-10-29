@@ -85,19 +85,75 @@ function runningCopy(id) {
   }
 }
 
+const refusedSyncs = new Set();
+
+// Rule 55 — a release never rewrites a row with a manifest that would close a dependency cycle.
+function syncClosesCycle(model, id, manifest) {
+  const manifests = Object.fromEntries(model.list().map((r) => [r.id, r.manifest || { id: r.id, requires: [] }]));
+  manifests[id] = manifest;
+  return Boolean(require('../utils/pluginGraph').createGraph({ manifests }).cycleOf(id));
+}
+
+/**
+ * Rule 57 — a release whose manifest makes an ACTIVE plugin require an installed but OFF plugin switches the
+ * dependant off (and its active dependants), never the requirement on: the home says so.
+ */
+function switchOffOverInactive(model, ids) {
+  const rows = model.list();
+  const byId = Object.fromEntries(rows.map((r) => [r.id, r]));
+  const graph = require('../utils/pluginGraph').createGraph({
+    manifests: Object.fromEntries(rows.map((r) => [r.id, r.manifest || { id: r.id, requires: [] }])),
+    states: Object.fromEntries(rows.map((r) => [r.id, r.enabled ? 'active' : 'inactive'])),
+  });
+  const off = new Set();
+  const requiresOff = (id, isOff) => ((byId[id].manifest || {}).requires || []).find((r) => byId[r.id] && isOff(r.id));
+  ids.filter((id) => byId[id] && byId[id].enabled).forEach((id) => {
+    const missing = requiresOff(id, (other) => !byId[other].enabled);
+    if (!missing) return;
+    model.switchOff(id, missing.id);
+    off.add(id);
+    // Nearest dependant first (the closure lists the deepest first), so the requirement that caused each is already off.
+    [...graph.activeDependantClosure(id)].reverse().filter((f) => !off.has(f)).forEach((f) => {
+      const cause = requiresOff(f, (other) => off.has(other) || other === id);
+      model.switchOff(f, cause ? cause.id : id);
+      off.add(f);
+    });
+    console.error(`[plugins] ${id} switched off: ${missing.id} is installed but off`); // eslint-disable-line no-console
+  });
+}
+
 /**
  * Before the modules register: `bundled` rows follow the copy this release ships, an expired
  * rollback window forgets its older copy (rule 16), and the package directories of plugins no
  * longer installed are removed. Returns the rows as they are after that.
  */
-function housekeeping({ model, ids, now = new Date() }) {
+function housekeeping({ model, ids, now = new Date(), copyOf = runningCopy }) {
   const s = ensure();
+  // The sync of the bundled rows and the switch-offs it calls for are ONE transaction (rule 57): a failure saves
+  // nothing, so the next boot finds the same rows to sync and retries, and never leaves a dependant on over a
+  // requirement that was switched off. The boot goes on either way: the plugins then stay as they were.
+  try {
+    model.transaction(() => {
+      const synced = [];
+      ids.forEach((id) => {
+        const row = model.get(id);
+        if (!row || row.source !== 'bundled') return;
+        const copy = copyOf(id);
+        if (copy && syncClosesCycle(model, id, copy.manifest)) {
+          const key = `${id}@${copy.manifest.version}`;
+          if (!refusedSyncs.has(key)) { // once per release, not at every hourly pass
+            refusedSyncs.add(key);
+            console.error(`[plugins] ${key} not synced: REQUIREMENT_CYCLE`); // eslint-disable-line no-console
+          }
+        } else if (copy && model.syncBundled(id, copy.manifest, copy.sha256)) synced.push(id);
+      });
+      switchOffOverInactive(model, synced);
+    });
+  } catch (err) {
+    console.error('[plugins] syncing the bundled rows failed, nothing was saved:', err.message); // eslint-disable-line no-console
+  }
   ids.forEach((id) => {
     const row = model.get(id);
-    if (row && row.source === 'bundled') {
-      const copy = runningCopy(id);
-      if (copy) model.syncBundled(id, copy.manifest, copy.sha256);
-    }
     if (row && row.rollbackUntil && Date.parse(row.rollbackUntil) <= now.getTime()) model.expireRollback(id);
     if (s.mode !== 'packages') return;
     const fresh = model.get(id);

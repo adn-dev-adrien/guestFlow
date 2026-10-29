@@ -45,7 +45,7 @@ function mountReconciliation(ctx, { store }) {
         withQonto: qonto, model: transactions, settings: ctx.settings,
         startDate: String(ctx.settings.get('reconciliationStartDate') || getTodayIsoDate()),
       }),
-      core: { buildLedger, parseGroup, listLinks: (id) => { try { return links.listForReservation(id); } catch { return []; } }, listInstallments: (id) => installments.listFor(id), platformDisplay, todayIso: getTodayIsoDate },
+      core: { buildLedger, parseGroup, listLinks: (id) => { try { return links.listForStay(id); } catch { return []; } }, listInstallments: (id) => installments.listFor(id), platformDisplay, todayIso: getTodayIsoDate },
     });
     return controller;
   };

@@ -14,6 +14,7 @@
  *   retireExpired({ now })                  → flips open links past a known expiresAt to 'expired'; returns them
  *   retireSettled()                         → cancels the open links whose bucket the stay already settled; returns them
  *   settledBucketDateOf(link)               → the day the stay recorded that link's bucket as paid, or null
+ *   settledAtArrival(link)                  → whether that bucket was collected at the door (arrival payment, check-in)
  *   markRetiredLinkPaid(id, { providerPaymentId, paidAt, reason? }) → a link retired by retireSettled (or, with
  *                                           reason 'amount-changed', by retireForAmountChange) was paid: cancelled→paid
  *   retireForAmountChange(reservationId, type, newAmountCents, installmentId?) → cancels the open links of that type whose amount
@@ -219,6 +220,23 @@ function buildModel(database) {
     return stay && Number(stay.paid) === 1 && stay.paidDate ? String(stay.paidDate).slice(0, 10) : null;
   }
 
+  // Rule 43 — whether that bucket was collected at the door (the single arrival payment or the check-in): the
+  // money of a payment at the door is never the link's, whatever the day.
+  function settledAtArrival(link) {
+    const col = { deposit: 'depositPaidAtArrival', balance: 'balancePaidAtArrival', full: 'balancePaidAtArrival', complement: 'complementPaidAtArrival' }[link && link.type];
+    if (!col) return false;
+    const row = database.prepare(`
+      SELECT COALESCE(c.id, r.id) AS id FROM reservations r
+        LEFT JOIN reservations c ON c.id = r.convertedReservationId
+       WHERE r.id = ?
+    `).get(Number(link.reservationId));
+    if (!row) return false;
+    try {
+      const stay = database.prepare(`SELECT ${col} AS atArrival FROM reservations WHERE id = ?`).get(row.id);
+      return Boolean(stay) && Number(stay.atArrival) === 1;
+    } catch { return false; }
+  }
+
   // Rule 24 — a link retired by rule 23 that the guest had paid IS the payment that settled the bucket:
   // it becomes `paid` with the provider's payment, and its deactivation is no longer owed.
   function markRetiredLinkPaid(id, { providerPaymentId = null, paidAt = null, reason = 'settled' } = {}) {
@@ -390,6 +408,7 @@ function buildModel(database) {
     retireExpired,
     retireSettled,
     settledBucketDateOf,
+    settledAtArrival,
     markRetiredLinkPaid,
     retireForAmountChange,
     listPollable,

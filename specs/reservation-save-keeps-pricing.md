@@ -187,6 +187,13 @@ changed something the price depends on; money collected beyond the total is repo
     the schedule share already covers on that poste, whatever the way it was split (leftover hints or captured
     contribs). A solde option removed in the window is thus not counted twice, and a drop that belongs to the
     complement is never cut. A paid complement with no paid date reads no history.
+18. **The complement's history window reads only the complement's lines (audit R4 N5, 2026-10-29).** `droppedSince`
+    filters the signature parts by their `cN` flag (`reservationAudit.js` `getOptionsSignature` /
+    `getResourcesSignature`): the complement window (`complementLeftOf`) counts the `c1` lines only, the schedule
+    window (`leftOfStayOf`) the `c0` lines only, and a line that only moved from one to the other is not a drop. An
+    option dropped from an unpaid or already refunded solde therefore no longer takes the excess of a removed complement
+    activity (X1, X2). A signature written before the flag existed carries none: its lines count in both windows, which
+    is why rule 17's overflow correction stays.
 
 **Edge cases:**
 - In the extras window of a started fiche a custom line is keyed by its text (end-of-stay complement,
@@ -279,6 +286,10 @@ An amber alert above the platform price alert, one per notice, 44 px action targ
 
 - Rewriting the 19 stays whose replay differs from their row, #22201's commission, the four 2027 taxes.
 - Client finding 2 of the audit (bed counts `0` → `null`): another branch.
+- **Switching a paid direct stay to a platform (decision 2026-10-29, Adrien).** A platform stay never carries a direct
+  payment (a payment cannot be collected on a platform's behalf), so a direct stay with a ticked acompte or solde that
+  becomes a platform stay is not a supported use case. The audit finding N6 (trop-perçu prompt, rewritten solde,
+  tourist tax) is not to be reported again, and no guard, refusal or freeze exists for it.
 
 ## 9. Open questions
 

@@ -419,6 +419,48 @@ below are the recommended ones; each is reversible in a later spec.
     (SDK 2.15.0: the manifest beside `index.js` in the source tree, beside `server/` in a package).
     `airbnb-intake` 1.1.3 and `gites-de-france-intake` 1.4.5 use it. Test:
     `plugin-built-package-manifest.unit.test.js` builds the packages and loads them from the extracted layout.
+53. **A package file always matches its signed hash, and the index date follows the clock** (audit r4, R4-1, 2026-10-29). `publish` never overwrites: the file is copied to a temporary name and put under `<id>-<version>.tgz` with `link`, which fails when the name exists, so two concurrent uploads of one version leave the first one's bytes, and the loser answers `DUPLICATE_VERSION`. A failed `INSERT` removes only the file this call created; a file with no row (an orphan of an earlier failure) is replaced. Separately, when the last index's `generatedAt` is more than 24 h ahead of the console clock, a warning is logged and the next index is dated now, so one clock fault no longer freezes the registry for days. The bound is the instances' own future tolerance (`FUTURE_TOLERANCE_MS` of `registryClient.js`, shared by the console through `utils/gf.js`): an instance accepts and remembers a date up to 24 h ahead, so a smaller bound would reset the console below a date the instances already hold and they would refuse the next index as stale (review of #869, 2026-10-29); a date beyond 24 h is refused by the instances and never remembered, so resetting it is safe. An `x-file-name` that is not valid percent-encoding answers 400 `BAD_FILE_NAME` (it used to throw a 500). Test: `registry-race.unit.test.js`, `registry-upload-header.unit.test.js`.
+54. **The plugins that rest on a hardening of the core are discovered, not listed** (audit r4, N-R4-1,
+    2026-10-29; extends rule 51). `online-payment` 1.4.4 declares `sdk ^2.15.0`: its webhook scopes the
+    cancellation retry with `retryPendingCancellations({ only })` and relies on the Qonto request timeout, both
+    core code of SDK 2.15.0. `plugin-core-hardening-floor.unit.test.js` no longer carries a hard-coded list: a
+    table maps each core feature (recognised by the call that reaches it: `validateEmail`,
+    `mailbox.readMailsFrom` / `manifestVersion`, `onCap` (SDK 2.16.0), `retryPendingCancellations`, `coreModule('qonto')`) to the SDK
+    that shipped it (quote-agnostic, a bare `readMailsFrom` call counts), scans every plugin's server sources, and
+    requires every plugin that reaches one to floor at that SDK. A hardening nobody listed is not known: shipping
+    one adds a line to the table (a reviewer's check), and a module name built at run time is not seen.
+55. **An update, an update-all, a rollback and the bundled-row sync are held to the requirement checks**
+    (audit r4, N-R4-2, 2026-10-29). Before the switch: the target manifest is substituted in the graph and a
+    cycle through the plugin refuses with `REQUIREMENT_CYCLE` (« Dépendance circulaire : … »); an ACTIVE
+    plugin whose target manifest requires an installed but OFF plugin is refused with `REQUIREMENT_INACTIVE`
+    (« Nécessite X : à activer d’abord. », mirror of rule 37; an inactive plugin may still update). The
+    card's `update.refusal` says it before the click, update-all skips such a plugin, and the rollback applies
+    both checks to the older manifest. `syncBundled` at boot (`host.housekeeping`) leaves a row on its
+    current manifest and logs `REQUIREMENT_CYCLE` when the shipped manifest would close a cycle. Test:
+    `plugin-update-requirements.unit.test.js`.
+56. **An installed cycle can be dismantled** (audit r4, N-R4-2, 2026-10-29). The uninstall checks (the card's
+    `actions.uninstall` and the endpoint's `REQUIRED_BY`) ignore the dependants that sit in the plugin's own
+    strongly connected group (`graph.groupOf`), so two plugins that require each other can be uninstalled one
+    after the other. A dependant outside the group still blocks, for every member: a plugin that needs the cycle through one
+    member blocks the removal of all of them. Test: `plugin-update-requirements.unit.test.js`.
+57. **A core update that makes an active plugin require an OFF plugin switches the dependant off** (audit r4,
+    N-R4-2 case A, 2026-10-29; decision of Adrien: « Éteindre le dépendant »). When `host.housekeeping`
+    syncs a `bundled` row whose shipped manifest now requires an installed but OFF plugin (weather-alerts 1.3.0
+    over an off SAS), it switches the dependant off at boot, then the active dependants of that one (nearest
+    first, whatever the depth), and records
+    `plugins.off_reason` (the id of the off requirement; idempotent column). It NEVER switches the requirement on.
+    Any later `setEnabled` clears the reason. The sync of the bundled rows and the switch-offs are one transaction: an error saves nothing, so the next
+    boot retries, and it is logged and never stops the boot; a bundled
+    sync refused for a cycle is logged once per release. Test: `plugin-switched-off-at-update.unit.test.js`.
+58. **The home says which plugins were switched off, and a rollback needs its requirements installed** (same
+    decision, 2026-10-29). Core attention subject `plugins-switched-off` (rank 45): one plugin reads
+    « Vigilance Météo-France éteint : nécessite Arrivée et départ guidés. », several read « Plugins éteints : N »,
+    with « À réactiver depuis la page Plugins » and a « Voir les plugins » button; it ends once the plugin is back
+    on. The subject is skipped for whoever is not an administrator; on a managed space the detail reads « À
+    réactiver par l’exploitant » and the button is absent (the Plugins page does not exist there). A rollback to a version whose requirement is not installed is refused with `REQUIREMENT_MISSING`
+    (rule 55 applies the same refusals as an update). Tests: `plugin-switched-off-at-update.unit.test.js`,
+    `PluginsSwitchedOffAlert.test.jsx`.
+
 
 ---
 

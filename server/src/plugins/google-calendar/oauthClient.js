@@ -43,6 +43,9 @@ function isInvalidGrant(error) {
   return /invalid_grant/i.test(String((error && error.message) || ''));
 }
 
+// Same bound as the Qonto calls: a stalled Google answer must not hold a reservation's queue for Node's 300 s.
+const REQUEST_TIMEOUT_MS = 20000;
+
 function buildGoogleOAuthClient({
   env = process.env,
   settings,
@@ -69,7 +72,10 @@ function buildGoogleOAuthClient({
   function makeOAuth2() {
     // eslint-disable-next-line global-require
     const Ctor = OAuth2 || require('googleapis').google.auth.OAuth2;
-    return new Ctor(clientId(), clientSecret(), resolveRedirectUri());
+    const client = new Ctor(clientId(), clientSecret(), resolveRedirectUri());
+    // The token refresh goes through its own transporter: it gets the same bound as the calendar calls.
+    if (client.transporter) client.transporter.defaults = { ...(client.transporter.defaults || {}), timeout: REQUEST_TIMEOUT_MS };
+    return client;
   }
 
   return {
@@ -123,12 +129,13 @@ function buildGoogleOAuthClient({
       const { google } = require('googleapis');
       const auth = makeOAuth2();
       auth.setCredentials({ refresh_token: refreshToken });
-      return google.calendar({ version: 'v3', auth });
+      return google.calendar({ version: 'v3', auth, timeout: REQUEST_TIMEOUT_MS });
     },
   };
 }
 
 module.exports = {
+  REQUEST_TIMEOUT_MS,
   buildGoogleOAuthClient,
   emailFromIdToken,
   isInvalidGrant,

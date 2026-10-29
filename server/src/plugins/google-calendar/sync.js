@@ -211,15 +211,28 @@ function createGoogleCalendarSync({
     }
   }
 
+  // One reservation's pushes and deletes run in the order they were scheduled: a delete answered while a
+  // push is between its update (404) and its insert would find nothing, then the insert would create the
+  // event of a cancelled stay. Different reservations stay parallel.
+  const tails = new Map();
+  function inOrder(reservationId, task) {
+    const previous = tails.get(reservationId) || Promise.resolve();
+    const run = previous.then(task);
+    const tail = run.catch(() => {});
+    tails.set(reservationId, tail);
+    tail.then(() => { if (tails.get(reservationId) === tail) tails.delete(reservationId); });
+    return run;
+  }
+
   function schedulePush(reservationId) {
-    Promise.resolve().then(() => pushReservation(reservationId)).catch((error) => {
+    inOrder(reservationId, () => pushReservation(reservationId)).catch((error) => {
       if (isInvalidGrant(error)) settings.recordGoogleSyncResult({ ok: false, detail: INVALID_GRANT_DETAIL });
       log('[googleCalendarSync.schedulePush]', reservationId, (error && error.response && error.response.data) || error);
     });
   }
 
   function scheduleDelete(reservationId) {
-    Promise.resolve().then(() => deleteReservationEvent(reservationId)).catch((error) => {
+    inOrder(reservationId, () => deleteReservationEvent(reservationId)).catch((error) => {
       if (isInvalidGrant(error)) settings.recordGoogleSyncResult({ ok: false, detail: INVALID_GRANT_DETAIL });
       log('[googleCalendarSync.scheduleDelete]', reservationId, (error && error.response && error.response.data) || error);
     });

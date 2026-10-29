@@ -336,6 +336,14 @@ function tokenError(field, text, allowed) {
   return suggestion ? { field, message, unknown: name, suggestion } : { field, message, unknown: name };
 }
 
+/** The cap of a stored sentence (email-automation rule 20): past it a text is a paste gone wrong. */
+const TEXT_MAX_LENGTH = 20000;
+
+/** → the 422 body `{ field, message }` when `text` is longer than `max`, else null. */
+function lengthError(field, text, max = TEXT_MAX_LENGTH) {
+  return String(text == null ? '' : text).length > max ? { field, message: `${max} caractères au plus` } : null;
+}
+
 const normalised = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
 
 function distance(a, b) {
@@ -392,6 +400,8 @@ module.exports = {
   chipsForSubject,
   chipsForText,
   tokenError,
+  lengthError,
+  TEXT_MAX_LENGTH,
   closestVariable,
   namesUsed,
   namesUsedBy,

@@ -87,6 +87,7 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
   // tests share one consistent SQLite handle (the default exports are bound to the
   // production DB; tests build a fresh property-ical model on `:memory:`, and they need
   // matching companion models).
+  const syncsInFlight = new Map();
   const driftModel = icalDateDriftModel.buildModel(database);
   const cancellationModel = icalCancellationModel.buildModel(database);
   // 2026-06-06 — same DB-binding rationale for the closure model: tests build a fresh
@@ -1098,7 +1099,19 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
 
     // Sync + persist the source status row (DRYs the formerly triplicated UPDATE block:
     // the /sync route, /sync-all route, and scheduledTasks.performAutoSync all use this).
-    async syncSourceAndRecord(source, { prefetched = null } = {}) {
+    // specs/ical-sync-mapping-resilience.md rule 7 — one run per source at a time: a caller arriving while
+    // the source is syncing joins that run, so one degenerate answer is never counted as two observations.
+    syncSourceAndRecord(source, options = {}) {
+      const running = syncsInFlight.get(source.id);
+      if (running) return running;
+      const run = model.runSourceSync(source, options);
+      syncsInFlight.set(source.id, run);
+      const release = () => syncsInFlight.delete(source.id);
+      run.then(release, release);
+      return run;
+    },
+
+    async runSourceSync(source, { prefetched = null } = {}) {
       // specs/platforms-and-ical-rework.md §3 rule 7 / edge case — a platform with no URL iCal is
       // manual-entry only: never fetch, never touch its sync status. Central guard so every caller
       // (syncOne, syncAllForProperty, scheduledTasks.performAutoSync) skips it identically.

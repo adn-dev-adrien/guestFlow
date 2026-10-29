@@ -4,6 +4,10 @@
  * mailbox is opened with `readOnly`, nothing is flagged, moved or deleted — the operator's mail client
  * still sees every message as it was.
  *
+ * Rule 33 (audit r4, external N1/N2, SDK 2.16.0): `onCap({ notRead, limit })` is called when the cap left unauthenticated mails
+ * unread; with no trusted server the cap reads half the newest and half the OLDEST unread mails, so a flood delays a mail
+ * without starving it; a batch of envelopes gives the event loop a turn every few mails.
+ *
  * Rule 30 (audit r3, external N5): the caller may pass `seen(messageId)` — a known mail is skipped before its
  * body is downloaded —, `onMail(mail)` — each mail is handed over as it is read and none is kept, the
  * function then returns `[]` — and `limit` (default 200) — at most that many UNAUTHENTICATED bodies per pass, newest first (rule 31: a mail with
@@ -139,11 +143,28 @@ const coreSmtpHost = () => require('./coreServices').settings.mailbox().host;
 // Rule 30 (audit r3, external N5) — a pass downloads at most this many bodies, newest first.
 const MAX_MAILS_PER_PASS = 200;
 const ENVELOPE_CHUNK = 500;
+const YIELD_EVERY = 25;
+
+/**
+ * Rule 32 — which unauthenticated mails a pass reads when there are more than `limit`, newest first in `mails`.
+ * With a trusted server (`verifiable`) the newest `limit`. With none, nothing can tell a forged mail from a genuine
+ * one, so the newest half of the cap is read as before and the other half is the OLDEST unread mails: the front
+ * of the backlog moves by half a cap every pass whatever arrives behind it, so every mail of the window is read
+ * within `rank / (limit / 2)` passes. That is a delay, not a guarantee against loss: under a sustained flood of `r` > limit
+ * forged mails per pass mails start to age out of the window after about 30 + 3000 / (r - limit) days.
+ */
+function capUnverified(mails, limit, verifiable) {
+  if (mails.length <= limit) return mails;
+  if (verifiable) return mails.slice(0, limit);
+  const newest = Math.floor(limit / 2);
+  const oldest = limit - newest;
+  return [...mails.slice(0, newest), ...mails.slice(mails.length - oldest)];
+}
 
 async function readMailsFrom({
   host, port = 993, user, password, sender, allowedDomains = null, trustedAuthservId = '',
   sinceDays = 30, now = new Date(), ImapClient = ImapFlow, smtpHostOf = coreSmtpHost, log = () => {},
-  seen = () => false, onMail = null, limit = MAX_MAILS_PER_PASS,
+  seen = () => false, onMail = null, onCap = null, limit = MAX_MAILS_PER_PASS,
 }) {
   const smtpHost = smtpHostOf();
   const domains = toList(allowedDomains).length ? allowedDomains : domainOf(sender);
@@ -166,26 +187,33 @@ async function readMailsFrom({
     // bounds the unauthenticated ones, which can never auto-apply anyway.
     const verified = [];
     const unverified = [];
-    let notRead = 0;
     const ordered = [...(uids || [])].reverse();
     for (let at = 0; at < ordered.length; at += ENVELOPE_CHUNK) {
       const batch = [];
       // eslint-disable-next-line no-await-in-loop
       for await (const msg of client.fetch(ordered.slice(at, at + ENVELOPE_CHUNK).join(','), { envelope: true, bodyStructure: true, internalDate: true, headers: ['authentication-results'] }, { uid: true })) batch.push(msg);
-      batch.sort((x, y) => y.uid - x.uid).forEach((msg) => {
-        if (!msg || !addressMatches(msg.envelope, sender)) return;
+      batch.sort((x, y) => y.uid - x.uid);
+      for (let i = 0; i < batch.length; i += 1) {
+        // Rule 32 — a batch is up to 500 attacker-written header blocks: give the event loop a turn every few mails.
+        if (i > 0 && i % YIELD_EVERY === 0) await new Promise((resolve) => setImmediate(resolve)); // eslint-disable-line no-await-in-loop
+        const msg = batch[i];
+        if (!msg || !addressMatches(msg.envelope, sender)) continue; // eslint-disable-line no-continue
         const messageId = (msg.envelope && msg.envelope.messageId) || `uid:${msg.uid}`;
-        if (seen(messageId)) return;
+        if (seen(messageId)) continue; // eslint-disable-line no-continue
         const auth = verifyDkim(msg.headers, { domains, trustedAuthservId: trusted });
-        if (!auth.ok && unverified.length >= limit) { notRead += 1; return; }
         const plainPart = findPart(msg.bodyStructure, 'text/plain');
         (auth.ok ? verified : unverified).push({
           uid: msg.uid, messageId, auth, plainPart, partId: plainPart || findPart(msg.bodyStructure, 'text/html'), envelope: msg.envelope, internalDate: msg.internalDate,
         });
-      });
+      }
     }
-    if (notRead) log(`mail intake: ${notRead} unauthenticated mails not read in this pass (cap ${limit}); the newest were read first`);
-    for (const { uid, messageId, auth, plainPart, partId, envelope, internalDate } of [...verified, ...unverified]) {
+    const chosen = capUnverified(unverified, limit, Boolean(trusted));
+    const notRead = unverified.length - chosen.length;
+    if (notRead) {
+      log(`mail intake: ${notRead} unauthenticated mails not read in this pass (cap ${limit})`);
+      if (onCap) onCap({ notRead, limit });
+    }
+    for (const { uid, messageId, auth, plainPart, partId, envelope, internalDate } of [...verified, ...chosen]) {
       const raw = partId ? await readPart(client, uid, partId) : ''; // eslint-disable-line no-await-in-loop
       const tooLarge = Boolean(raw && raw.tooLarge);
       if (tooLarge) log(`mail intake: ${messageId} skipped, its text part is over ${MAX_PART_BYTES} bytes (read ${raw.tooLarge}+)`);

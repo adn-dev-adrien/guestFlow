@@ -1,0 +1,1 @@
+- Console login page: a malformed remembered-space cookie no longer causes a server error.
