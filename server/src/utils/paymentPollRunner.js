@@ -41,6 +41,10 @@ function applyPaidEffect({ database, devisModel, link, checkConflict, paidDate =
   if (!row) return { effect: 'no-reservation' };
   // A payment that lands after the stay was cancelled is money to refund, never a paid stay.
   if (row.kind === 'cancelled') return { effect: 'reservation-cancelled' };
+  // A devis link keeps the devis id once the devis is converted: the stay it became is the one that counts.
+  const convertedRow = row.kind === 'devis' && row.convertedReservationId
+    ? database.prepare('SELECT * FROM reservations WHERE id = ?').get(Number(row.convertedReservationId)) : null;
+  if (convertedRow && convertedRow.kind === 'cancelled') return { effect: 'reservation-cancelled' };
 
   // specs/direct-installments.md rule 15 — a paid link of an installment marks that installment paid.
   if (link.type === 'installment') {
@@ -69,15 +73,22 @@ function applyPaidEffect({ database, devisModel, link, checkConflict, paidDate =
       reservationId = conv.data.reservationId;
       effect = 'converted';
     }
-    if (effect === 'already-converted' && secondPaidLink(database, link, reservationId, isFull)) {
-      return { effect: 'double-payment', duplicateLink: true, reservationId, conflict: false };
+    if (effect === 'already-converted') {
+      const second = secondPaidLink(database, link, reservationId, isFull);
+      if (second) {
+        // Acompte paid, then the full link: only the acompte part is paid twice, the rest is the solde.
+        if (second.duplicateCents != null) recordPayment({ reservationId, bucket: 'balance', paidDate });
+        return { effect: 'double-payment', duplicateLink: true, duplicateCents: second.duplicateCents, reservationId, conflict: false };
+      }
     }
     const conflict = flagConflictIfAny({ database, checkConflict, reservationId });
     // The quote can be re-priced after its link was minted, and a link older than the tourist-tax rule
     // charges less than the quote asks: what the guest paid is booked, never the quote's amount.
     // A legacy devis stored without its split (both NULL) has no amount to compare with.
-    const hasSplit = row.depositAmount != null && row.balanceAmount != null;
-    const expectedCents = hasSplit ? linkAmountCents(link.type, row) : null;
+    // An already converted devis is compared with the stay it became, which the fiche may have re-priced.
+    const priced = effect === 'already-converted' && convertedRow && convertedRow.kind === 'reservation' ? convertedRow : row;
+    const hasSplit = priced.depositAmount != null && priced.balanceAmount != null;
+    const expectedCents = hasSplit ? linkAmountCents(link.type, priced) : null;
     if (expectedCents != null && link.amountCents != null && Number(link.amountCents) !== expectedCents) {
       const booked = bookPaidAfterAmountChange({ database, recordPayment }, link, { paidDay: paidDate });
       return { effect: booked.effect, reservationId, conflict, justConverted: effect === 'converted', amountMismatch: { expectedCents, receivedCents: Number(link.amountCents) } };
@@ -104,16 +115,38 @@ function applyPaidEffect({ database, devisModel, link, checkConflict, paidDate =
 // Two live links of one quote both paid (a retried request minted twice): the second money is a refund
 // to make, not a second payment to record or a second confirmation to send.
 function secondPaidLink(database, link, reservationId, isFull) {
-  const other = database.prepare(
-    "SELECT 1 FROM payment_links WHERE reservationId = ? AND type = ? AND status = 'paid' AND id <> ? LIMIT 1",
-  ).get(Number(link.reservationId), String(link.type), Number(link.id));
-  if (!other) return false;
+  const others = database.prepare(
+    "SELECT type, amountCents FROM payment_links WHERE reservationId = ? AND type IN ('deposit', 'full') AND status = 'paid' AND id <> ?",
+  ).all(Number(link.reservationId), Number(link.id));
+  if (others.length === 0) return null;
   const flags = database.prepare('SELECT depositPaid, balancePaid FROM reservations WHERE id = ?').get(Number(reservationId));
-  return Boolean(flags) && Number(flags.depositPaid || 0) === 1 && (!isFull || Number(flags.balancePaid || 0) === 1);
+  if (!flags) return null;
+  // An acompte link and a full link both settle the acompte. Acompte first, then the full link: the
+  // acompte part is the only duplicate, the surplus is the solde (only while the solde is still open).
+  const deposit = others.find((o) => o.type === 'deposit');
+  if (isFull && deposit && Number(flags.depositPaid || 0) === 1) {
+    if (Number(flags.balancePaid || 0) === 1) return { duplicateCents: null };
+    return { duplicateCents: Math.min(Number(deposit.amountCents || 0), Number(link.amountCents || 0)) };
+  }
+  if (others.some((o) => o.type !== link.type)) return Number(flags.depositPaid || 0) === 1 ? { duplicateCents: null } : null;
+  if (!others.some((o) => o.type === link.type)) return null;
+  return Number(flags.depositPaid || 0) === 1 && (!isFull || Number(flags.balancePaid || 0) === 1) ? { duplicateCents: null } : null;
 }
 
-function recordRefundOwed(database, reservationId, link) {
-  const amount = require('./reservationLedger').formatEuros(Number(link.amountCents || 0) / 100);
+// The stay a `full` link pays on when its acompte is already collected and its solde is not.
+function fullAfterDeposit(database, link) {
+  if (String(link.type) !== 'full') return null;
+  const own = database.prepare('SELECT * FROM reservations WHERE id = ?').get(Number(link.reservationId));
+  if (!own) return null;
+  const stay = own.kind === 'devis' && own.convertedReservationId
+    ? database.prepare('SELECT * FROM reservations WHERE id = ?').get(Number(own.convertedReservationId)) : own;
+  if (!stay || stay.kind !== 'reservation') return null;
+  if (Number(stay.depositPaid || 0) !== 1 || Number(stay.balancePaid || 0) === 1 || !(Number(stay.depositAmount || 0) > 0)) return null;
+  return { stayId: stay.id, duplicateCents: Math.min(Math.round(Number(stay.depositAmount) * 100), Number(link.amountCents || 0)) };
+}
+
+function recordRefundOwed(database, reservationId, link, duplicateCents = null) {
+  const amount = require('./reservationLedger').formatEuros(Number(duplicateCents == null ? link.amountCents || 0 : duplicateCents) / 100);
   database.prepare("INSERT INTO reservation_history (reservationId, eventType, changedFields) VALUES (?, 'update', ?)")
     .run(Number(reservationId), JSON.stringify([{
       field: 'refundOwed', label: 'Remboursement à faire', from: '', to: `${amount} payés deux fois (lien ${link.id}) : à rembourser depuis l’espace du prestataire`,
@@ -175,8 +208,8 @@ async function processPaidLink({ database, devisModel, paymentLinksModel, link, 
   if (effect.effect === 'double-payment') {
     // Two live links of one devis both paid: the second money is a refund, kept on the fiche's history.
     if (effect.duplicateLink) {
-      recordRefundOwed(database, effect.reservationId, link);
-      if (notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link, { doublePaid: true }); } catch { /* best effort */ } }
+      recordRefundOwed(database, effect.reservationId, link, effect.duplicateCents);
+      if (notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link, { doublePaid: true, ...(effect.duplicateCents != null ? { duplicateCents: effect.duplicateCents } : {}) }); } catch { /* best effort */ } }
       return { id: link.id, reservationId: link.reservationId, type: link.type, status: 'paid-after-cancel', ...effect };
     }
     // The bucket was settled another way. Settled the very day of the payment (or after), it is the same
@@ -281,7 +314,21 @@ async function settleRetiredPaidLink({ paymentLinksModel, notifyPaidAfterCancel,
   }
   paymentLinksModel.markRetiredLinkPaid(link.id, { providerPaymentId: pay.paymentId || null, paidAt });
   if (!database) return { id: link.id, reservationId: link.reservationId, type: link.type, status: 'paid', effect: 'settled-elsewhere' };
+  // A full link retired because the acompte was paid, paid anyway: the acompte part is paid twice, the
+  // rest is the solde (same as a live second link, see applyPaidEffect).
+  const duplicate = fullAfterDeposit(database, link);
+  if (duplicate) {
+    (recordPayment || recordOn(database))({ reservationId: duplicate.stayId, bucket: 'balance', paidDate: paidDay });
+    recordRefundOwed(database, duplicate.stayId, link, duplicate.duplicateCents);
+    if (notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link, { doublePaid: true, duplicateCents: duplicate.duplicateCents }); } catch { /* best effort */ } }
+    return { id: link.id, reservationId: link.reservationId, type: link.type, status: 'paid-after-cancel', effect: 'double-payment', duplicateLink: true, duplicateCents: duplicate.duplicateCents };
+  }
   const effect = applyPaidEffect({ database, devisModel, link, paidDate: paidDay, recordPayment: recordPayment || recordOn(database), settledAlready: true });
+  if (effect.effect === 'double-payment' && effect.duplicateLink) {
+    recordRefundOwed(database, effect.reservationId, link, effect.duplicateCents);
+    if (notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link, { doublePaid: true, ...(effect.duplicateCents != null ? { duplicateCents: effect.duplicateCents } : {}) }); } catch { /* best effort */ } }
+    return { id: link.id, reservationId: link.reservationId, type: link.type, status: 'paid-after-cancel', ...effect };
+  }
   if ((effect.effect === 'reservation-cancelled' || effect.effect === 'installment-unallocated') && notifyPaidAfterCancel) {
     try { await notifyPaidAfterCancel(link); } catch { /* best effort */ }
   }
@@ -312,15 +359,19 @@ async function bookClaimedAmountChangedLink({ paymentLinksModel, notifyPaidAfter
   // A link retired from a devis the guest paid before it was deactivated: the money is real, so the devis
   // becomes the stay first (the payment is what confirms it) and the link is booked at what was received.
   const stay = database.prepare('SELECT * FROM reservations WHERE id = ?').get(Number(link.reservationId));
-  let mismatch = null;
   let converted = null;
   if (stay && stay.kind === 'devis' && !stay.convertedReservationId && devisModel && typeof devisModel.convertToReservation === 'function') {
-    const conv = devisModel.convertToReservation(link.reservationId);
-    if (conv && !conv.error && conv.data) {
-      converted = conv.data.reservationId;
-      mismatch = { expectedCents: linkAmountCents(link.type, stay), receivedCents: Number(link.amountCents) };
-    }
+    const conv = devisModel.convertToReservation(link.reservationId, { allowConflict: true });
+    if (conv && !conv.error && conv.data) converted = conv.data.reservationId;
   }
+  // What the stay asks, read before the booking rewrites it: the alert states the real direction.
+  const target = converted
+    ? database.prepare('SELECT * FROM reservations WHERE id = ?').get(Number(converted))
+    : (stay && stay.kind === 'devis' && stay.convertedReservationId
+      ? database.prepare('SELECT * FROM reservations WHERE id = ?').get(Number(stay.convertedReservationId)) : stay);
+  const expectedCents = target && target.kind === 'reservation' && ['deposit', 'balance', 'full'].includes(String(link.type))
+    ? linkAmountCents(link.type, target) : null;
+  const mismatch = expectedCents != null ? { expectedCents, receivedCents: Number(link.amountCents) } : null;
   const booked = bookPaidAfterAmountChange(
     { database, recordPayment: recordPayment || recordOn(database) },
     link,

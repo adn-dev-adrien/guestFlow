@@ -1,4 +1,4 @@
-import React, { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { Box, Typography } from '@mui/material';
 import TodayIcon from '@mui/icons-material/Today';
@@ -23,6 +23,7 @@ import api from '../api';
 import { usePlugin } from '../hooks/usePlugins';
 import { SAS } from '../constants/plugins';
 import { useSlot } from '../plugins/sdk/useSlot';
+import { Contribution } from '../plugins/sdk/Slot';
 import useServerToday from '../hooks/useServerToday';
 import useInfiniteEdgeScroll from '../hooks/useInfiniteEdgeScroll';
 import usePlanningTimeline, { contributionId } from '../hooks/usePlanningTimeline';
@@ -270,9 +271,9 @@ export default function PlanningPage() {
 
   // Buttons plugins add to the bar (slot `planning.actions`); `reload()` reloads that plugin's day cards.
   const actionNodes = actionContributions.map((c) => (
-    <Suspense key={contributionId(c)} fallback={null}>
+    <Contribution key={contributionId(c)} pluginId={c.pluginId}>
       <c.Component reload={() => reloadContributions(dayContributions.filter((d) => d.pluginId === c.pluginId))} />
-    </Suspense>
+    </Contribution>
   ));
 
   // Every card of the day as an orderable entry `{ key, time, node }`, sorted into one chronological
@@ -351,14 +352,14 @@ export default function PlanningPage() {
           time: card.time || null,
           rank: c.rank,
           node: (
-            <Suspense fallback={null}>
+            <Contribution pluginId={c.pluginId}>
               <c.Component
                 date={day.date}
                 entry={card}
                 reload={() => reloadContributions([c])}
                 onOpenReservation={receptionMode ? undefined : openReservation}
               />
-            </Suspense>
+            </Contribution>
           ),
         }));
         return;
@@ -368,9 +369,9 @@ export default function PlanningPage() {
         time: null,
         rank: c.rank,
         node: (
-          <Suspense fallback={null}>
+          <Contribution pluginId={c.pluginId}>
             <c.Component date={day.date} entry={entry} reload={() => reloadContributions([c])} />
-          </Suspense>
+          </Contribution>
         ),
       });
     });

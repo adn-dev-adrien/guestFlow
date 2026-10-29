@@ -77,7 +77,7 @@ function gateInsurance(res, engineInput, bookingId) {
   return true;
 }
 const refundsModel = require('../models/refundsModel');
-const { overpaymentOf, overpaymentLinesOf } = require('../utils/overpayment');
+const { overpaymentOf, overpaymentLinesOf, engineExcessOf, storedOverpaymentOf } = require('../utils/overpayment');
 const { firstSessionConflict, conflictError: sessionConflictError, sessionKey } = require('../utils/resourceSessionConflicts');
 const resourceOtherUsesModel = require('../models/resourceOtherUsesModel');
 const { formatCurrency } = require('../utils/devisHelpers');
@@ -377,11 +377,12 @@ function overpaymentIntroducedBy(reservationId, quote, overrides = {}) {
     error: `Trop-perçu : ${formatCurrency(after)} déjà encaissés au-delà du nouveau total.`,
     code: 'OVERPAID',
     overpaymentTtc: after,
-    // Rule 35 — the same amount split by poste, for the refund the fiche opens next.
+    overpaymentMethod: refundMeansOf(row, round2(quote.complementCollectedExcessTtc), after),
     overpaymentLines: overpaymentLinesOf({
       row, capturedByPoste: model.capturedScheduleContribsByPoste(reservationId), quote, overpaymentTtc: after,
       // Computed before the write: the stored lines are still the ones the complement collected.
       complementLeft: Number(quote.complementCollectedExcessTtc) > 0 ? complementLeftOf(reservationId, quote, row) : {},
+      leftover: leftOfStayOf(reservationId, row, quote),
     }),
   };
 }
@@ -414,7 +415,26 @@ function liveOverpayment(reservationId, engineInput) {
     engineInput: savedInput, quote: calculateReservationQuote(savedInput), calculate: calculateReservationQuote,
   });
   if (!asSaved || asSaved.error) return none;
-  return overpaymentOfQuote(reservationId, row, asSaved);
+  // The posted fiche priced by today's engine counts the drift since the stay was sold as excess: report the
+  // stored figure, plus only what this edit adds on top of what the stored stay already held (rule 9).
+  const captured = model.capturedScheduleContribs(reservationId);
+  const excessOf = (quote) => engineExcessOf({
+    row, captured, depositAmount: quote.depositAmount, balanceAmount: quote.balanceAmount, engineOverTtc: quote.overCollectedTtc,
+  });
+  const afterRaw = excessOf(asSaved);
+  let beforeRaw = 0;
+  let replayQuote = null;
+  try {
+    replayQuote = quoteStoredReservation(db, row);
+    beforeRaw = replayQuote && !replayQuote.error ? excessOf(replayQuote) : 0;
+  } catch {
+    beforeRaw = 0;
+  }
+  const storedTtc = storedOverpaymentOf(storedOverpaymentInputs(reservationId, row, replayQuote));
+  // Stored and delta on ONE basis — the stored figure is net of the free refunds, the two engine excesses
+  // are raw and compared with each other; the floor applies to the sum (rule 14).
+  const reported = Math.max(0, round2(storedTtc + afterRaw - beforeRaw));
+  return overpaymentResultOf(reservationId, row, asSaved, reported);
 }
 
 // What the stored arrival complement carries on each poste beyond what the stay's complement now carries:
@@ -453,39 +473,117 @@ function touristTaxCollectedInComplement(reservationId, row) {
   return null;
 }
 
-// The trop-perçu of a stay and its split by poste, from the quote of the stay as it would be saved.
-// `storedSchedule`: measure the acompte and the solde against the STORED figures (a fiche read from the
-// database), never against today's engine, which also counts the drift since the stay was priced.
-function overpaymentOfQuote(reservationId, row, asSaved, { storedSchedule = false } = {}) {
-  const complementExcess = round2(asSaved.complementCollectedExcessTtc);
-  const overpaymentTtc = overpaymentOf({
-    row,
-    captured: model.capturedScheduleContribs(reservationId),
-    refundedTtc: refundsModel.totalsByReservation(Number(reservationId)).withCash,
-    depositAmount: storedSchedule ? row.depositAmount : asSaved.depositAmount,
-    balanceAmount: storedSchedule ? row.balanceAmount : asSaved.balanceAmount,
-    engineOverTtc: storedSchedule ? complementExcess : asSaved.overCollectedTtc,
-  });
-  // Money a complement took « caisse interne » is off the books: the refund of its excess defaults to the
-  // same means, so nothing is booked in the accounts (Adrien, 2026-10-29). The operator can change it.
-  const onlyComplementInCash = complementExcess > 0 && Number(row.complementPaidCash || 0) === 1 && overpaymentTtc <= complementExcess;
+// The means a refund of this excess defaults to. Money a complement took « caisse interne » is off the books:
+// the refund of its excess goes back the same way, so nothing is booked in the accounts (Adrien, 2026-10-29);
+// the operator can change it.
+function refundMeansOf(row, complementExcess, overpaymentTtc) {
+  return complementExcess > 0 && Number(row.complementPaidCash || 0) === 1 && overpaymentTtc <= complementExcess ? 'internal' : null;
+}
+
+// The trop-perçu `overpaymentTtc` of a stay, with its refund means and its split by poste, the quote being
+// the stay as it would be saved (or as it is stored).
+function overpaymentResultOf(reservationId, row, quote, overpaymentTtc, { storedOnly = false } = {}) {
+  const complementExcess = round2(quote.complementCollectedExcessTtc);
   return {
     overpaymentTtc,
-    overpaymentMethod: onlyComplementInCash ? 'internal' : null,
+    overpaymentMethod: refundMeansOf(row, complementExcess, overpaymentTtc),
     overpaymentLines: overpaymentLinesOf({
-      row, capturedByPoste: model.capturedScheduleContribsByPoste(reservationId), quote: asSaved, overpaymentTtc,
-      complementLeft: complementExcess > 0 ? complementLeftOf(reservationId, asSaved, row) : {},
+      row, capturedByPoste: model.capturedScheduleContribsByPoste(reservationId), quote, overpaymentTtc,
+      complementLeft: complementExcess > 0 && overpaymentTtc > 0 ? complementLeftOf(reservationId, quote, row) : {},
+      leftover: overpaymentTtc > 0 ? leftOfStayOf(reservationId, row, quote, { storedOnly }) : {},
     }),
   };
 }
 
-// The same, for a fiche read from the database (a locked fiche shows the stored ledger).
+// What left the stay since its money was collected, per poste: the stored lines against the quote's (before
+// a save writes them) and the history (after it has), the larger of the two. The tax a fall of
+// `touristTaxTotal` took out, the options and resources a removal or a reduction took out.
+function leftOfStayOf(reservationId, row, quote, { storedOnly = false } = {}) {
+  const sum = (lines) => (lines || []).filter((l) => !Number(l.offered || 0)).reduce((t, l) => t + Number(l.totalPrice || 0), 0);
+  const storedOptions = db.prepare('SELECT totalPrice, offered FROM reservation_options WHERE reservationId = ?').all(Number(reservationId));
+  const storedResources = db.prepare('SELECT totalPrice, offered FROM reservation_resources WHERE reservationId = ?').all(Number(reservationId));
+  const storedCustom = db.prepare('SELECT amount AS totalPrice, offered FROM reservation_custom_options WHERE reservationId = ?').all(Number(reservationId));
+  const live = {
+    options: Math.max(0, sum(storedOptions) + sum(storedCustom) - sum(quote.optionLines)),
+    resources: Math.max(0, sum(storedResources) - sum(quote.resourceLines)),
+    touristTax: Math.max(0, Number(row.touristTaxTotal || 0) - Number(quote.touristTaxTotal || 0)),
+  };
+  const history = droppedSinceCollection(reservationId, row);
+  // A stored stay is read against its own history only: today's engine may price a line differently without
+  // any edit, which is no excess.
+  return Object.fromEntries(Object.keys(live).map((poste) => [poste, round2(storedOnly ? history[poste] : Math.max(live[poste], history[poste]))]));
+}
+
+// The NET drops the history recorded since the first money was actually collected (an acompte or a solde paid
+// date, or the first paid installment): the tourist tax, the options and the resources (their signatures carry
+// each line's total). Increases inside the window are netted, so a line removed then restored counts for nothing.
+function droppedSinceCollection(reservationId, row) {
+  const dates = [row.depositPaid && row.depositPaidDate, row.balancePaid && row.balancePaidDate].filter(Boolean).map((d) => String(d).slice(0, 10));
+  try {
+    const first = db.prepare('SELECT MIN(paidDate) AS d FROM reservation_installments WHERE reservationId = ? AND paid = 1 AND paidDate IS NOT NULL').get(Number(reservationId));
+    if (first && first.d) dates.push(String(first.d).slice(0, 10));
+  } catch { /* no installments table */ }
+  const since = dates.sort()[0] || '';
+  const total = (signature) => String(signature || '').split('|').filter(Boolean).reduce((t, part) => t + (Number(part.split(':')[2]) || 0), 0);
+  const net = { options: 0, resources: 0, touristTax: 0 };
+  const entries = db.prepare("SELECT changedFields, createdAt FROM reservation_history WHERE reservationId = ? AND eventType = 'update' ORDER BY id").all(Number(reservationId));
+  for (const entry of entries) {
+    if (since && String(entry.createdAt || '').slice(0, 10) < since) continue;
+    let changes = [];
+    try { changes = JSON.parse(entry.changedFields || '[]'); } catch { changes = []; }
+    for (const change of changes) {
+      if (!change) continue;
+      if (change.field === 'touristTaxTotal') net.touristTax += Number(change.from || 0) - Number(change.to || 0);
+      if (change.field === 'optionsSignature') net.options += total(change.from) - total(change.to);
+      if (change.field === 'resourcesSignature') net.resources += total(change.from) - total(change.to);
+    }
+  }
+  return Object.fromEntries(Object.entries(net).map(([poste, value]) => [poste, Math.max(0, value)]));
+}
+
+// The trop-perçu of the stay as the engine would save it (rule 34).
+function overpaymentOfQuote(reservationId, row, asSaved) {
+  const overpaymentTtc = overpaymentOf({
+    row,
+    captured: model.capturedScheduleContribs(reservationId),
+    refundedTtc: refundsModel.totalsByReservation(Number(reservationId)).withCash,
+    depositAmount: asSaved.depositAmount,
+    balanceAmount: asSaved.balanceAmount,
+    engineOverTtc: asSaved.overCollectedTtc,
+  });
+  return overpaymentResultOf(reservationId, row, asSaved, overpaymentTtc);
+}
+
+// The stored figures the stored measure reads besides the row: free refunds, paid installments, what the
+// mid-stay extras collected, the engine's automatic complement.
+function storedOverpaymentInputs(reservationId, row, replay) {
+  let installmentsPaidTtc = 0;
+  try {
+    installmentsPaidTtc = Number(db.prepare('SELECT COALESCE(SUM(amountCents), 0) AS cents FROM reservation_installments WHERE reservationId = ? AND paid = 1').get(Number(reservationId)).cents) / 100;
+  } catch { installmentsPaidTtc = 0; }
+  const eosPaid = Number(row.endOfStayComplementPaid || 0) === 1 || Number(row.endOfStayComplementPaidCash || 0) === 1;
+  let midStayCollectedTtc = eosPaid ? storedMidStayLines(row.endOfStayComplementDetail).reduce((sum, l) => sum + (Number(l.amount) || 0), 0) : 0;
+  try {
+    midStayCollectedTtc += (JSON.parse(row.midStaySettledNotes || '[]') || []).reduce((sum, note) => sum + (Number(note && note.total) || 0), 0);
+  } catch { /* no settled note */ }
+  return {
+    row,
+    captured: model.capturedScheduleContribs(reservationId),
+    freeRefundedTtc: refundsModel.freeLinesTotal(Number(reservationId)),
+    installmentsPaidTtc: round2(installmentsPaidTtc),
+    midStayCollectedTtc: round2(midStayCollectedTtc),
+    autoComplementTtc: replay ? Number(replay.complementRoutedAmount || 0) : 0,
+  };
+}
+
+// The same, for a fiche read from the database (a locked fiche shows the stored ledger): measured against
+// the STORED price and what was collected (rule 8), the engine only splitting it by poste.
 function storedOverpayment(reservationId) {
   const row = model.getRow(reservationId);
   if (!row || row.kind !== 'reservation') return null;
   const quote = quoteStoredReservation(db, row);
   if (!quote || quote.error) return null;
-  return overpaymentOfQuote(reservationId, row, quote, { storedSchedule: true });
+  return overpaymentResultOf(reservationId, row, quote, storedOverpaymentOf(storedOverpaymentInputs(reservationId, row, quote)), { storedOnly: true });
 }
 
 // A refusal raised inside the creation transaction: thrown to roll the whole write back, then answered
@@ -1461,9 +1559,15 @@ async function update(req, res) {
   }
 }
 
+function linkOwnerIds(reservationId) {
+  return require('../utils/deletionGuard').withConvertedDevis(db, [Number(reservationId)]);
+}
+
 function openPaymentLinks(reservationId) {
   try {
-    return require('../models/paymentLinksModel').listForReservation(Number(reservationId))
+    const paymentLinksModel = require('../models/paymentLinksModel');
+    // The links of the devis converted into the stay keep the devis id.
+    return linkOwnerIds(reservationId).flatMap((ownerId) => paymentLinksModel.listForReservation(ownerId))
       .filter((l) => l.status === 'open');
   } catch {
     return [];
@@ -1478,7 +1582,7 @@ async function retireStaleLinks(reservationId) {
   if (!row) return;
   const retired = [];
   for (const link of ledgerLinks.staleLinks(openPaymentLinks(reservationId), row)) {
-    retired.push(...paymentLinksModel.retireForAmountChange(reservationId, link.type, ledgerLinks.linkAmountCents(link.type, row)));
+    retired.push(...paymentLinksModel.retireForAmountChange(link.reservationId, link.type, ledgerLinks.linkAmountCents(link.type, row)));
   }
   if (retired.length === 0) return;
   try {

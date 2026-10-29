@@ -124,6 +124,8 @@ export default function PluginsPage({ onReload = reloadPage, pollMs = RESTART_PO
       await Promise.all([load(), refresh()]);
     } catch (e) {
       const message = e.message || 'L’action a échoué.';
+      // A confirmation the server found stale: show the list as it is now, for the next click.
+      if (options && (options.withRequirements || options.withDependents)) load();
       if (inDialog) setDialogError(message);
       else setErrors((prev) => ({ ...prev, [plugin.id]: message }));
     } finally {

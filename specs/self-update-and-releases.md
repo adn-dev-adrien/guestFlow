@@ -332,12 +332,18 @@ signed-off releases over HTTPS, when the operator asks for it.
     names stay for at least one release after the last release that reads them. A test
     (`rollback-additive-schema.unit.test.js`) fails when any column of the v3.18.0 schema
     (`fixtures/rollback-floor-v3.18.0-schema.json`) disappears from a current install: when a release
-    ships, the floor moves to that release's schema. The floor covers the **core tables** only: a table
-    a plugin owns is absent from a fresh core install and is re-created by v3.18 when missing. When one
+    ships, the floor moves to that release's schema. The core floor covers the **core tables**; the tables
+    a plugin owns have their own floor (rule 44). When one
     UPDATE changes both names of a pair the neutral column wins. **Accepted exception:** the boot move
     of property documents out of `/uploads` (settings-rationalization.md rule 32) rewrites
-    `documents.filePath`, which v3.18 cannot follow; the production instance holds no document, and an
-    instance that does must restore the pre-update backup to roll back.
+    `documents.filePath` and unlinks the source file, which v3.18 cannot follow; the production instance
+    holds no document. An instance that does rolls back in **two** steps, not one (amended 2026-10-29,
+    round-2 audit: restoring the backup alone leaves every row pointing at `/uploads/<name>` while the
+    file is gone): restore the pre-update database backup **and** move `data/private-documents/*` back into
+    `data/uploads/` (same file names; an aliased `<id>-<name>` file goes back under the name its row held
+    in the backup). Nothing does this automatically: rule 31 restores no database, so no code path
+    performs the file move, and a roll-forward repairs the row again because the boot move recognises a
+    file already in place.
 40. **A release's install runs no script and starts from a trusted lockfile** (audit 2026-10-28, H1).
     Before any `npm` runs, `server/package-lock.json` must exist and every entry must resolve from
     `https://registry.npmjs.org/` with an `integrity` hash: a git, file, link or http dependency, another
@@ -381,6 +387,30 @@ signed-off releases over HTTPS, when the operator asks for it.
     `scripts/check-release-tree.mjs` then scans the staging tree and fails the script before `tar` when it
     finds a `.env*` (but `.env.example`), a database file, `licence.jws`, a key / certificate, `update-state.json`,
     a log, or any file under `uploads/` other than `.gitkeep` (a README there is refused too).
+43. **A rollback does not queue the installment request (2026-10-29, round-2 audit).** v3.18.0's
+    `emailLogModel.listPending` excludes only its own five event keys and lists any enabled manual template
+    whose anchor is `start`; the `installment_request` row, seeded at the first boot of the new release,
+    would have appeared as a pending email for every arriving stay, and sending it would have mailed an
+    installment request with every placeholder empty. The template is therefore seeded with the anchor
+    `installmentDueDate`, which v3.18.0 ignores (inte's own installment branch of the queue never reads
+    `anchor`: it selects by `stableKey`), and the one-shot migration `installment_template_anchor_v1`
+    (`utils/migrateInstallmentTemplateAnchor.js`) moves an existing row off `start`, writing only when the
+    value differs. The anchor is not editable: `templateWhen` keeps the fixed sentence of the key.
+44. **The plugin-owned tables have a floor too (2026-10-29, round-2 audit).** Rule 39's floor covered the
+    core tables only, so a plugin migration renaming or dropping a column of its own table would have gone
+    unseen. `fixtures/rollback-floor-v3.18.0-plugin-tables.json` lists the 16 tables the v3.18.0 plugins own
+    (columns read from a database booted by v3.18.0); `rollback-plugin-tables-floor.unit.test.js` runs every
+    bundled plugin's migrations on a current install and fails when a column of that floor is missing. A
+    plugin table born after v3.18.0 is outside it. The floor moves with the core one when a release ships.
+45. **Qonto tokens after a rollback (2026-10-29, round-2 audit; known limit, no code).** A refresh by the
+    current release is written to `plugin_settings` only; v3.18.0 reads `app_settings`, which holds the
+    tokens as they were at the one-time copy (the reverse direction is carried by `resyncAfterRollback`).
+    If Qonto rotates refresh tokens, the copy v3.18.0 holds may have been consumed, and the connection
+    shows as expired after a rollback. Mirroring the token into `app_settings` was refused: it would make
+    a plugin write a core table and it would have to be kept in step with `legacy_settings_seen`, for a
+    behaviour of Qonto that cannot be verified without calling its API. The remedy is to reconnect Qonto
+    from the Paiements en ligne settings after a rollback; no payment link already issued is affected.
+    > **Sans test** — documented limit of a third-party behaviour, nothing to execute.
 
 **Edge cases**
 

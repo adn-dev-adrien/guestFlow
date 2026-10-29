@@ -172,6 +172,12 @@
           recap(d);
           return;
         }
+        // The stay was cancelled after the request: nothing more will confirm, so the polling stops.
+        if (d.status === 'cancelled') {
+          box.innerHTML = '';
+          box.appendChild(GF.el('div', { class: 'gf-inline-warn' }, GF.t('paymentCancelled')));
+          return;
+        }
         waiting();
         tries++;
         if (tries < MAX_TRIES) { setTimeout(poll, 3000); return; }

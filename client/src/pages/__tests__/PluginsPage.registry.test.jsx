@@ -193,7 +193,7 @@ test('rules 12, 21: an available plugin shows its version; a missing requirement
   const dialog = await screen.findByRole('dialog');
   expect(dialog).toHaveTextContent('Installe aussi Linge et blanchisserie 1.0.0.');
   await userEvent.click(within(dialog).getByRole('button', { name: 'Tout installer' }));
-  expect(api.installPlugin).toHaveBeenCalledWith('sas', { withRequirements: true });
+  expect(api.installPlugin).toHaveBeenCalledWith('sas', { withRequirements: ['linen'] });
   await waitFor(() => expect(onReload).toHaveBeenCalled());
 });
 

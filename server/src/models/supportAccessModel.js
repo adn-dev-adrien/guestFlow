@@ -32,6 +32,8 @@ function buildModel(db) {
   const addLogStmt = db.prepare('INSERT INTO support_access_log (accessId, at, method, path, summary) VALUES (?, ?, ?, ?, ?)');
   const logsStmt = db.prepare('SELECT at, method, path, summary FROM support_access_log WHERE accessId = ? ORDER BY at DESC, id DESC LIMIT 500');
 
+  const hasTable = (name) => Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(name));
+
   return {
     get: (id) => byIdStmt.get(Number(id)) || null,
     pending: () => pendingStmt.get() || null,
@@ -50,7 +52,15 @@ function buildModel(db) {
 
     // false when the request was already decided.
     decide: (id, { decision, userId, nowIso, expiresAt }) => decideStmt.run(decision, Number(userId), nowIso, expiresAt || null, Number(id)).changes === 1,
-    revoke: (id, userId, nowIso) => revokeStmt.run(nowIso, Number(userId), Number(id)).changes === 1,
+    // Ending an access also removes the push devices the support account registered (rule 18 of
+    // specs/hosting-h2-account-security.md, rule 13 of specs/pwa-push-notifications.md).
+    revoke: db.transaction((id, userId, nowIso) => {
+      const revoked = revokeStmt.run(nowIso, Number(userId), Number(id)).changes === 1;
+      if (revoked && hasTable('push_subscriptions')) {
+        db.prepare('DELETE FROM push_subscriptions WHERE userId IN (SELECT id FROM users WHERE isSupportAccount = 1)').run();
+      }
+      return revoked;
+    }),
 
     // A sign-in link works once: false when its `jti` was already used.
     useLink: (jti, accessId, nowIso) => useLinkStmt.run(String(jti), Number(accessId), nowIso).changes === 1,

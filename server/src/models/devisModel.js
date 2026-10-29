@@ -1236,6 +1236,7 @@ function createModel(database) {
       for (const entry of database.prepare('SELECT id, eventType, changedFields, createdAt FROM reservation_history WHERE reservationId = ? ORDER BY createdAt ASC').all(numId)) {
         insertHistory.run(reservationId, entry.eventType, entry.changedFields, entry.createdAt);
       }
+      require('../utils/staleLinksOfStay').retireStaleLinksOfStay(database, reservationId);
       return reservationId;
     });
     const reservationId = tx();

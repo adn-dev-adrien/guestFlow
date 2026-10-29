@@ -46,6 +46,24 @@ async function assertNotPaid(link, provider) {
 }
 
 /**
+ * Replaces an open link: refuses when it is paid (before or while this runs), cancels it only if it is
+ * still open, then deactivates it at the provider. `deactivate(links)` defaults to `deactivateAbandonedLinks`.
+ * Throws `{ httpStatus, error, message }`.
+ */
+async function retireOpenLink(link, { paymentLinksModel, provider, deactivate = null }) {
+  await assertNotPaid(link, provider);
+  const retired = paymentLinksModel.cancelIfOpen(link.id);
+  if (!retired) {
+    const now = paymentLinksModel.findById(link.id);
+    if (now && now.status === 'paid') {
+      throw { httpStatus: 409, error: 'LINK_ALREADY_PAID', message: 'Le lien en cours vient d’être payé : aucun nouveau lien créé.' };
+    }
+    return;
+  }
+  await (deactivate || ((links) => deactivateAbandonedLinks(links, { paymentLinksModel, providerFor: () => provider })))([retired]);
+}
+
+/**
  * Deactivate links already cancelled locally.
  * @param {object[]} links payment_links rows
  * @param {object} deps { paymentLinksModel, providerFor? }
@@ -120,4 +138,4 @@ async function deactivateOpenLinksBeforeDelete(reservationIds, { paymentLinksMod
   return { deactivated: done.length, pendingRemote: noProvider.length };
 }
 
-module.exports = { deactivateAbandonedLinks, deactivateOpenLinksBeforeDelete, assertNotPaid, alreadyInactive };
+module.exports = { retireOpenLink, deactivateAbandonedLinks, deactivateOpenLinksBeforeDelete, assertNotPaid, alreadyInactive };

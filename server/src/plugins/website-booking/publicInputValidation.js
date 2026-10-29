@@ -10,15 +10,18 @@
  * NOT checked here (that needs the property row) — only shape/range/coherence.
  */
 
+const sdk = require('../sdk');
+
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const ISO_TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
-const EMAIL = /^[^\s@,;<>"]+@[^\s@,;<>"]+\.[^\s@,;<>"]+$/;
 // Same shape as the client dialog's (utils/clientValidation.isValidPhone): 8–15 digits, an optional leading +,
 // spaces, dots, dashes and brackets as separators — and nothing else, so no line break reaches an operator e-mail.
 const isValidPhone = (value) => {
   const normalized = String(value || '').trim().replace(/[ ().-]/g, '');
   return normalized.startsWith('+') ? /^\+[0-9]{8,15}$/.test(normalized) : /^[0-9]{10,15}$/.test(normalized);
 };
+// The length is checked before the shape (core `validateEmail`, linear): a 195 KB address once froze the instance for 35 s.
+const isValidGuestEmail = (value) => value !== '' && sdk.coreModule('settingsValidation').validateEmail(value) === null;
 const MAX_AVAILABILITY_DAYS = 365;
 // Bounds on a public stay (specs/public-api.md rule 8). The engine walks the stay night by night,
 // synchronously: an unbounded endDate (9999-12-31) is millions of iterations that block the server.
@@ -221,15 +224,18 @@ function validateStayInput(body = {}, { todayIso } = {}) {
  */
 const GUEST_MAX = Object.freeze({ firstName: 100, lastName: 100, phone: 40, email: 254 });
 
+// Bidi overrides and zero-width characters let a name read backwards or pass for another; the joiners stay for Persian/Indic names.
+const withoutFormatChars = (v) => String(v || '').replace(/(?![\u200C\u200D])\p{Cf}/gu, '').trim();
+
 function validateGuest(guest = {}) {
   const errors = [];
-  const firstName = String(guest.firstName || '').trim();
-  const lastName = String(guest.lastName || '').trim();
+  const firstName = withoutFormatChars(guest.firstName);
+  const lastName = withoutFormatChars(guest.lastName);
   const email = String(guest.email || '').trim();
   const phone = String(guest.phone || '').trim();
   if (!firstName) errors.push({ field: 'guest.firstName', issue: 'required', reason: 'required' });
   if (!lastName) errors.push({ field: 'guest.lastName', issue: 'required', reason: 'required' });
-  if (!EMAIL.test(email)) {
+  if (email.length <= GUEST_MAX.email && !isValidGuestEmail(email)) {
     errors.push({ field: 'guest.email', issue: 'must be a valid email', reason: email ? 'emailInvalid' : 'required' });
   }
   if (!phone) errors.push({ field: 'guest.phone', issue: 'required', reason: 'required' });

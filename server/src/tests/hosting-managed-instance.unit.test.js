@@ -128,7 +128,7 @@ test('rule 18 — no own SMTP on a managed instance: the platform sends, in the 
     await svc.send({ to: 'guest@example.fr', subject: 'Bienvenue', text: 'Bonjour' });
     assert.equal(t.options().host, 'smtp.platform.test');
     assert.deepEqual(t.options().auth, { user: 'relay', pass: 'secret' });
-    assert.equal(t.sent[0].from, '"Gîte des Aulnes" <noreply@guestflow.test>');
+    assert.deepEqual(t.sent[0].from, { name: 'Gîte des Aulnes', address: 'noreply@guestflow.test' });
     assert.equal(t.sent[0].replyTo, 'claire@aulnes.fr');
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
@@ -158,7 +158,7 @@ test('rule 19 — a configured SMTP always wins over the platform', async () => 
   assert.equal(svc.viaPlatform, false);
   await svc.send({ to: 'g@example.fr', subject: 'S', text: 'T' });
   assert.equal(t.options().host, 'smtp.aulnes.fr');
-  assert.equal(t.sent[0].from, '"Aulnes" <claire@aulnes.fr>');
+  assert.deepEqual(t.sent[0].from, { name: 'Aulnes', address: 'claire@aulnes.fr' });
   assert.equal(t.sent[0].replyTo, undefined);
 });
 
@@ -268,7 +268,7 @@ test('rule 19 — « M’envoyer un test » and the account emails go through th
       await mailer.send({ to: 'claire@aulnes.fr', subject: '[Test] Votre arrivée', text: 'Bonjour' });
       const [file] = fs.readdirSync(path.join(dir, 'outbox'));
       const msg = JSON.parse(fs.readFileSync(path.join(dir, 'outbox', file), 'utf8'));
-      assert.equal(msg.from, '"Gîte des Aulnes" <noreply@guestflow.test>');
+      assert.deepEqual(msg.from, { name: 'Gîte des Aulnes', address: 'noreply@guestflow.test' });
       assert.equal(msg.replyTo, 'claire@aulnes.fr');
       assert.equal(msg.subject, '[Test] Votre arrivée');
       assert.equal(platformMail.readCount({ file: path.join(dir, 'platform-mail.json') }), 1, 'counted in the day’s quota');

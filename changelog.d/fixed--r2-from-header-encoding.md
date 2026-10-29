@@ -1,0 +1,1 @@
+- Mail From display names are encoded by the mail library, never quoted by hand: a crafted name can no longer rewrite the sender or envelope; names are limited to 120 characters.

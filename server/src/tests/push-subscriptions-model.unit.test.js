@@ -21,7 +21,10 @@ function freshModel() {
       neat INTEGER NOT NULL DEFAULT 1
     );
   `);
-  db.exec('CREATE TABLE users (id INTEGER PRIMARY KEY); INSERT INTO users (id) VALUES (1), (2);');
+  db.exec(`CREATE TABLE users (id INTEGER PRIMARY KEY, isActive INTEGER NOT NULL DEFAULT 1, isSupportAccount INTEGER NOT NULL DEFAULT 0);
+    CREATE TABLE user_roles (userId INTEGER NOT NULL, role TEXT NOT NULL);
+    INSERT INTO users (id) VALUES (1), (2);
+    INSERT INTO user_roles (userId, role) VALUES (1, 'admin'), (2, 'admin');`);
   applyPushChannelPrefsSchema(db);
   return { db, model: createModel(db) };
 }

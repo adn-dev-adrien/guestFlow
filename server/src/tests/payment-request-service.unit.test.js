@@ -35,6 +35,11 @@ function fakeLinksModel(db) {
       db.prepare('UPDATE payment_links SET status = ? WHERE id = ?').run(status, id);
       return db.prepare('SELECT * FROM payment_links WHERE id = ?').get(id);
     },
+    cancelIfOpen: (id) => {
+      const info = db.prepare("UPDATE payment_links SET status = 'cancelled' WHERE id = ? AND status = 'open'").run(id);
+      return info.changes > 0 ? db.prepare('SELECT * FROM payment_links WHERE id = ?').get(id) : null;
+    },
+    findById: (id) => db.prepare('SELECT * FROM payment_links WHERE id = ?').get(id),
   };
 }
 
