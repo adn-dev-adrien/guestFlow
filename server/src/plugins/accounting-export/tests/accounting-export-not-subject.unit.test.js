@@ -4,6 +4,9 @@
 // (whatever hasVatOnCommission says), a cancellation compensation and a refund carry 0 %, a month may
 // mix both, every entry stays balanced, and the plugin being on or off changes no VAT.
 
+// Keeps the default models off the real database file: parallel files would race on its migration.
+process.env.DB_PATH = ':memory:';
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 

@@ -1,6 +1,9 @@
 // specs/plugins-phase-2-hosts.md §3.E — the accounting export becomes a plugin module: its routes
 // answer only while it is live, the accountant reaches them only through it, its four settings live in
 // plugin_settings, and its erasure resets configuration without touching a single accounting fact.
+// Keeps the default models off the real database file: parallel files would race on its migration.
+process.env.DB_PATH = ':memory:';
+
 const test = require('node:test');
 const { skipWithout } = require('../../sdk/testing');
 const assert = require('node:assert/strict');

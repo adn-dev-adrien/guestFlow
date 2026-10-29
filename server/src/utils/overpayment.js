@@ -92,11 +92,48 @@ function currentByPoste(quote = {}) {
  *   per paid bucket, the contribs it captured on each poste ({ accommodation, options, resources, touristTax })
  * @param {object} args.quote      the engine's quote of the stay as it now stands
  * @param {number} args.overpaymentTtc the trop-perçu (overpaymentOf)
+ * @param {{touristTax?: number, options?: number, resources?: number}} [args.complementLeft] what the stored
+ *   complement carried on each poste beyond what the stay's complement now carries
  * @returns {Array<{ bucket, label, amountTtc, collectedTtc, dueTtc }>} one line per poste in excess
  */
-function overpaymentLinesOf({ row = {}, capturedByPoste = {}, quote = {}, overpaymentTtc = 0 }) {
+function overpaymentLinesOf({ row = {}, capturedByPoste = {}, quote = {}, overpaymentTtc = 0, complementLeft = {} }) {
   const total = round2(overpaymentTtc);
   if (!(total > 0)) return [];
+  // What a collected complement holds above the stay (reservation-save-keeps-pricing.md rule 4) has no
+  // captured split. A complement carries options, resources and the tax, never the accommodation: the
+  // excess is what an option or a resource moved out of it (the bed linen), so it is booked on the
+  // prestations the stay still sells — options first.
+  const complementExcess = Math.min(total, round2(quote.complementCollectedExcessTtc));
+  if (complementExcess > 0) {
+    const rest = round2(total - complementExcess);
+    const lines = rest > 0 ? scheduleLines({ row, capturedByPoste, quote, total: rest }) : [];
+    let remaining = complementExcess;
+    const add = (poste, amount) => {
+      const part = Math.min(remaining, round2(amount));
+      if (!(part > 0)) return;
+      const existing = lines.find((l) => l.bucket === poste.bucket);
+      if (existing) existing.amountTtc = round2(existing.amountTtc + part);
+      else lines.push({ ...poste, amountTtc: part, collectedTtc: part, dueTtc: 0 });
+      remaining = round2(remaining - part);
+    };
+    // What the edit took out of the complement, poste by poste (the tourist tax included), when the stored
+    // lines say so; the unexplained rest falls on the prestations the stay still sells.
+    add(POSTES[3], complementLeft.touristTax);
+    add(POSTES[1], complementLeft.options);
+    add(POSTES[2], complementLeft.resources);
+    add(complementExcessPoste(quote), remaining);
+    return lines;
+  }
+  return scheduleLines({ row, capturedByPoste, quote, total });
+}
+
+function complementExcessPoste(quote) {
+  if (round2(quote.optionsTotal) > 0) return { bucket: 'options', label: POSTES[1].label };
+  if (round2(quote.resourcesTotal) > 0) return { bucket: 'resources', label: POSTES[2].label };
+  return { bucket: 'accommodation', label: POSTES[0].label };
+}
+
+function scheduleLines({ row, capturedByPoste, quote, total }) {
   const paid = (flag, cash) => Number(flag || 0) === 1 || Number(cash || 0) === 1;
   const sources = [
     paid(row.depositPaid, row.depositPaidCash) ? (capturedByPoste || {}).deposit : null,

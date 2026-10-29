@@ -25,8 +25,7 @@
  * capture + flip succeed or fail atomically.
  */
 
-const { calculateReservationQuote } = require('./pricing');
-const { buildReservationEngineInput } = require('./reservationEngineInput');
+const { quoteStoredReservation } = require('./storedReservationQuote');
 
 const CONSERVATION_TOLERANCE_EUR = 0.01;
 
@@ -59,8 +58,7 @@ function captureContribsOnFlip({ db, reservation, bucket }) {
     throw new Error(`Unknown bucket: ${bucket}`);
   }
 
-  const input = buildReservationEngineInput(db, reservation);
-  const quote = calculateReservationQuote(input);
+  const quote = quoteStoredReservation(db, reservation);
   if (quote.error) {
     throw new Error(`Engine error during contrib capture: ${quote.error}`);
   }
@@ -306,7 +304,7 @@ function applyBalanceContribsToDb(db, reservation, contribs) {
 function captureStoredSplit({ db, reservation, bucket }) {
   let routedToComplement = Boolean(Number(reservation.touristTaxInComplement || 0));
   try {
-    const quote = calculateReservationQuote(buildReservationEngineInput(db, reservation));
+    const quote = quoteStoredReservation(db, reservation);
     routedToComplement = Boolean(quote.touristTaxCollectedOnArrival || quote.touristTaxInComplement);
   } catch { /* the stored flag decides */ }
   const isDeposit = bucket === 'deposit';

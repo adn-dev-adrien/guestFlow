@@ -455,7 +455,7 @@ export default function FinanceSection() {
     const action = row.action || {};
     if (action.kind === 'mark') { setPanel({ key: row.key, kind: 'mark' }); return; }
     if (action.kind === 'refund') {
-      setRefundDialogOpen({ overpaymentTtc: refundOverpaymentTtc, overpaymentLines: refundOverpaymentLines });
+      setRefundDialogOpen(row.refundPrefill || { overpaymentTtc: refundOverpaymentTtc, overpaymentLines: refundOverpaymentLines });
       return;
     }
     if (action.kind === 'deleteRefund') {
@@ -938,6 +938,7 @@ export default function FinanceSection() {
             collectedTtc={refundCollectedTtc}
             overpaymentTtc={refundDialogOpen && refundDialogOpen.overpaymentTtc ? refundDialogOpen.overpaymentTtc : 0}
             overpaymentLines={refundDialogOpen && refundDialogOpen.overpaymentLines ? refundDialogOpen.overpaymentLines : null}
+            defaultMethod={(refundDialogOpen && refundDialogOpen.method) || 'transfer'}
             onSubmit={createRefund}
           />
         )}

@@ -1,7 +1,7 @@
 {
   "id": "accounting-export",
   "name": "Export comptable",
-  "version": "1.0.18",
+  "version": "1.0.19",
   "description": "Écritures, plan comptable et export pour le cabinet comptable.",
   "icon": "book",
   "surfaces": [
@@ -81,6 +81,10 @@
     ],
     "1.0.18": [
       "Cas de référence des commentaires rendus anonymes (SDK 2 inchangé)."
+    ],
+    "1.0.19": [
+      "Une écriture dont les montants saisis par ligne ne couvrent pas l’encaissement est ventilée au prorata : plus de TVA gonflée (octobre 2026 : −182,91 € de TVA).",
+      "Compatible avec le SDK 2 de GuestFlow."
     ]
   }
 }

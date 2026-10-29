@@ -2,6 +2,9 @@
 // Money comes IN like an encaissement, but against no séjour: one debit on the client account, one
 // credit on the configured produit account, and a VAT line only if the operator made it taxable.
 
+// Keeps the default models off the real database file: parallel files would race on its migration.
+process.env.DB_PATH = ':memory:';
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');

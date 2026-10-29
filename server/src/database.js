@@ -45,6 +45,15 @@ try {
   );
 }
 
+// The tourist tax as stored the moment the arrival complement was collected (specs/reservation-save-keeps-pricing.md rule 4):
+// stamped by the triggers of schema.sql in the statement that flips `complementPaid`. The column must exist
+// before any boot migration touches `complementPaid`, so an upgraded database gets it right after the
+// baseline pass (a fresh one already has it). NULL on rows collected before it existed.
+if (!db.prepare('PRAGMA table_info(reservations)').all().some((c) => c.name === 'complementCollectedTax')) {
+  db.exec('ALTER TABLE reservations ADD COLUMN complementCollectedTax REAL');
+}
+
+
 // ---------- CALENDAR NOTES ----------
 db.exec(`
   CREATE TABLE IF NOT EXISTS calendar_notes (

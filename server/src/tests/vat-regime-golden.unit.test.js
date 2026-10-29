@@ -1,7 +1,8 @@
 // specs/vat-optional-mode.md rule 23 — a VAT-registered install sees no difference. Every artefact a
 // VAT reader feeds (quotes, fiche payloads, devis PDF, payment-link baskets, accounting journal, finance
 // payloads, tourist-tax page, cancellation) on the Solio-shaped fixture, byte for byte as captured on
-// the code before the regime existed. `GOLDEN_UPDATE=1` rewrites the capture, which is only ever
+// the code before the regime existed — except the `quote/*` family, regenerated on 2026-10-28 when the replay of
+// a stored stay became the fiche's own (specs/reservation-save-keeps-pricing.md rule 3). `GOLDEN_UPDATE=1` rewrites the capture, which is only ever
 // legitimate on that code (Lot 0).
 
 const test = require('node:test');

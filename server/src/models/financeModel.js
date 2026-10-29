@@ -3,9 +3,7 @@
 
 const { todayIso: localTodayIso } = require('../utils/localDate');
 const db = require('../database');
-const { calculateReservationQuote } = require('../utils/pricing');
-const { buildReservationEngineInput } = require('../utils/reservationEngineInput');
-const { isTouristTaxFrozen } = require('../utils/touristTaxFreeze');
+const { quoteStoredReservation } = require('../utils/storedReservationQuote');
 const { computePaymentStatus, round2 } = require('../utils/paymentStatus');
 const { getMonthBounds } = require('../utils/financeCalcs');
 
@@ -949,10 +947,7 @@ function createFinanceModel(database) {
           const adults = Number(row.adults || 0);
           const children = Number(row.children || 0);
           const teens = Number(row.teens || 0);
-          const quote = calculateReservationQuote({
-            ...buildReservationEngineInput(database, stored),
-            freezeTouristTax: isTouristTaxFrozen(database, stored),
-          });
+          const quote = quoteStoredReservation(database, stored);
           const isPercentageMode = String(row.touristTaxMode || '').startsWith('percentage');
 
           // specs/reservation-refunds.md §3.5 rules 29–31 — a refunded tourist tax is a night the guest

@@ -57,3 +57,14 @@ test('ouverte sans trop-perçu, la fenêtre n’a aucune ligne libre', () => {
   render(<RefundDialog open onClose={vi.fn()} refundableLines={[]} collectedTtc={100} onSubmit={vi.fn()} />);
   expect(screen.queryByDisplayValue('Trop-perçu')).not.toBeInTheDocument();
 });
+
+test('le moyen par défaut est le virement ; un trop-perçu pris « caisse interne » ouvre sur ce moyen, modifiable (2026-10-29)', async () => {
+  const props = { open: true, onClose: vi.fn(), refundableLines: [], collectedTtc: 100, overpaymentTtc: 21, onSubmit: vi.fn() };
+  const { unmount } = render(<RefundDialog {...props} />);
+  expect(screen.getByRole('radio', { name: /Virement/ })).toBeChecked();
+  unmount();
+  render(<RefundDialog {...props} defaultMethod="internal" />);
+  expect(screen.getByRole('radio', { name: /Caisse interne/ })).toBeChecked();
+  await userEvent.click(screen.getByRole('radio', { name: /Virement/ }));
+  expect(screen.getByRole('radio', { name: /Virement/ })).toBeChecked();
+});

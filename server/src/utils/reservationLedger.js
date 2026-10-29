@@ -487,6 +487,8 @@ function buildLedger({
       stateLabel: 'À rembourser',
       action: canAct ? { kind: 'refund', label: 'Rembourser' } : null,
       amountEdit: { editable: false, mode: 'none', min: null, max: null, reason: null },
+      // What the refund dialog opens on, so a fiche that shows only the stored ledger still prefills it.
+      refundPrefill: { overpaymentTtc: round2(overpayment.ttc), overpaymentLines: overpayment.lines || [], method: overpayment.method || null },
       detail: {
         lines: (overpayment.lines || []).filter((l) => Number(l.collectedTtc) > 0)
           .map((l) => `${l.label} : ${formatEuros(l.collectedTtc)} encaissés, ${formatEuros(l.dueTtc)} dus`),

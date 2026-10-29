@@ -1145,6 +1145,10 @@ function createReservationsModel(database) {
         // no deadline, whatever a row stored before rule 10 still holds.
         depositDueDate: round2(row.depositAmount) > 0 ? (row.depositDueDate || null) : null,
         depositAmountOverride: row.depositAmountOverride == null ? null : Number(row.depositAmountOverride),
+        // The two adjusted complements the payload side carries: without them the stored value read as « none »
+        // and every untouched save of an adjusted stay looked like an operator edit (refused on a past stay).
+        complementAmountOverride: row.complementAmountOverride == null ? null : Number(row.complementAmountOverride),
+        endOfStayComplementAmountOverride: row.endOfStayComplementAmountOverride == null ? null : Number(row.endOfStayComplementAmountOverride),
         depositPaidDate: row.depositPaidDate || null,
         balanceAmount: Number(row.balanceAmount || 0),
         balanceDueDate: row.balanceDueDate || null,
@@ -1878,7 +1882,7 @@ function createReservationsModel(database) {
       return run();
     },
 
-    updateReservation(reservationId, payload, quote, nightBlocks, nextIcalSyncLocked) {
+    updateReservation(reservationId, payload, quote, nightBlocks, nextIcalSyncLocked, { keepPricing = false } = {}) {
       const { propertyId, clientId, startDate, endDate, adults, children, teens, babies,
         singleBeds, doubleBeds, babyBeds, checkInTime, checkOutTime, platform, customPrice,
         depositDueDate, depositPaid, depositPaidDate, balanceDueDate, balancePaid, balancePaidDate, notes,
@@ -1958,13 +1962,13 @@ function createReservationsModel(database) {
         reservationId,
       );
       persistBreakfastTime(reservationId, payload);
-      persistExtraGuestComplement(reservationId, quote, { complementPaid: Boolean(complementPaid) });
+      if (!keepPricing) persistExtraGuestComplement(reservationId, quote, { complementPaid: Boolean(complementPaid) });
       persistReservationNumber(reservationId, payload);
       persistEmailLanguage(reservationId, payload);
       persistComplementOverrides(reservationId, { complementAmountOverride, endOfStayComplementAmountOverride });
       // Rule 12 — written AFTER the payment flags above, so a save that collects the instalment
       // carrying the tax stamps the freeze in the same breath.
-      writeTouristTaxSnapshot(database, reservationId, quote);
+      if (!keepPricing) writeTouristTaxSnapshot(database, reservationId, quote);
       if (Number(beforeStay.depositPaid || 0) !== (depositPaid ? 1 : 0)) model.releaseStayBucket(reservationId, 'deposit');
       if (Number(beforeStay.balancePaid || 0) !== (balancePaid ? 1 : 0)) model.releaseStayBucket(reservationId, 'balance');
       // Same ownership release for the complement (specs/single-payment-at-check-in.md rules 8-9):
@@ -1988,6 +1992,17 @@ function createReservationsModel(database) {
 
     insertOptions(reservationId, optionLines, sasOriginIds = []) {
       bookingLines.insertOptions(reservationId, optionLines, sasOriginIds);
+    },
+
+    // The stored custom lines as { id, description }: what a text-only save compares the posted names to.
+    customOptionTexts(reservationId) {
+      return database.prepare('SELECT id, description FROM reservation_custom_options WHERE reservationId = ?').all(reservationId);
+    },
+
+    // A text-only save: the new names, nothing else on the lines moves (ids and amounts stay).
+    renameCustomOptions(reservationId, renames) {
+      const rename = database.prepare('UPDATE reservation_custom_options SET description = ? WHERE id = ? AND reservationId = ?');
+      for (const { id, to } of renames) rename.run(to, id, reservationId);
     },
 
     deleteCustomOptions(reservationId) {
@@ -2700,6 +2715,15 @@ function createReservationsModel(database) {
     // the pre-sale state pinned right now — else the sale would have no baseline to stand above and
     // its money would never reach the end-of-stay complement
     // (specs/sas-breakfast-and-catering-upsell.md §3.4). Idempotent: an existing baseline is kept.
+    // What `captureArrivalExtrasBaseline` would store, without writing it: the stored baseline, else the
+    // one the extras carried now would pin.
+    peekArrivalExtrasBaseline(reservationId) {
+      if (!HAS_ARRIVAL_EXTRAS_BASELINE) return null;
+      const row = database.prepare('SELECT arrivalExtrasBaseline FROM reservations WHERE id = ?').get(reservationId);
+      if (!row) return null;
+      return row.arrivalExtrasBaseline || JSON.stringify(buildExtrasBaseline(model.readExtraLines(reservationId)));
+    },
+
     captureArrivalExtrasBaseline(reservationId) {
       if (!HAS_ARRIVAL_EXTRAS_BASELINE) return null;
       const row = database.prepare('SELECT arrivalExtrasBaseline FROM reservations WHERE id = ?').get(reservationId);

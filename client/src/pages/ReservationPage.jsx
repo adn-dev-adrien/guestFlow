@@ -29,6 +29,7 @@ import EmailManualSendDialog from '../components/EmailManualSendDialog';
 import PricingSummary from '../components/PricingSummary';
 import StickyTotalBar from '../components/StickyTotalBar';
 import PlatformPriceAlert from '../components/reservation/PlatformPriceAlert';
+import PricingNotices from '../components/reservation/PricingNotices';
 import DevisValidityChip from '../components/reservation/DevisValidityChip';
 import DevisExtensionSummary from '../components/reservation/DevisExtensionSummary';
 import ClientFormFields from '../components/ClientFormFields';
@@ -403,6 +404,8 @@ export default function ReservationPage() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyEntries, setHistoryEntries] = useState([]);
   const [initialSnapshot, setInitialSnapshot] = useState(null);
+  // The form exactly as loaded (before any quote or edit): the clean baseline of an existing record starts here.
+  const [loadedSnapshot, setLoadedSnapshot] = useState(null);
   const [miniCalendarStart, setMiniCalendarStart] = useState(formatDate(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()));
   const [miniSelectionAnchor, setMiniSelectionAnchor] = useState('');
   const [occupiedDates, setOccupiedDates] = useState([]);
@@ -625,7 +628,27 @@ export default function ReservationPage() {
     // « Recalculer » flips it (via `touristTaxRefreshRequested`), and without it here the memo
     // stays stale, the live-preview effect never re-fires, and the tax only recomputes after a save.
   }), [selectedProp, form.startDate, form.endDate, form.checkInTime, form.checkOutTime, form.adults, form.children, form.teens, form.babies, form.babyBeds, form.extraGuestSurchargeOffered, form.discountPercent, form.customPrice, form.depositPaid, form.balancePaid, form.depositAmount, form.balanceAmount, form.depositAmountOverride, form.complementAmountOverride, form.selectedOptions, form.customOptions, form.selectedResources, propertyOptions, offeredOptionIds, form.platform, form.depositDisabled, form.touristTaxInComplement, form.autoOptionsInComplement, form.platformCommissionAmount, form.acompteCommissionAmount, form.platformGrossAmount, form.platformTouristTaxAmount, refreshTouristTax]);
-  const isDirty = initialSnapshot !== null && formSnapshot !== initialSnapshot;
+  // The clean baseline of the unsaved-changes guard, derived in the render that needs it — never in an effect,
+  // which would leave a render comparing the quoted form with no baseline (a flash of « modified »).
+  // For an existing record it is the form AS LOADED, with what the quote writes into it once the quote is
+  // there (the server recalc reshapes the loaded form once on mount: offered flags, derived amounts); never
+  // the live form, so whatever the operator typed meanwhile stays an edit. New records snapshot at once.
+  // Once the quote is in it is frozen into `initialSnapshot`; a save or a payment mark moves it from there.
+  if (!loading && loadedSnapshot === null) setLoadedSnapshot(formSnapshot);
+  let cleanBaseline = initialSnapshot;
+  if (cleanBaseline === null && !loading) {
+    const isExistingRecord = Boolean(editingReservationId || editingDevisId);
+    cleanBaseline = loadedSnapshot !== null ? loadedSnapshot : formSnapshot;
+    if (isExistingRecord && pricingQuote) {
+      try {
+        const loaded = JSON.parse(cleanBaseline);
+        const preserveBlankPrice = isIcalImportedBlankPrice && loaded.form.customPrice === '' && loaded.form.totalPrice === '';
+        cleanBaseline = JSON.stringify({ ...loaded, form: applyQuoteToFormPure(loaded.form, pricingQuote, { preserveBlankPrice }) });
+      } catch { /* the loaded form stands */ }
+    }
+    if (!isExistingRecord || pricingQuote) setInitialSnapshot(cleanBaseline);
+  }
+  const isDirty = cleanBaseline !== null && formSnapshot !== cleanBaseline;
   // Review of #727 (H2) — a mark re-reads what the server wrote, then the quote re-prices the form on
   // that state: neither is an edit. A fiche that was clean takes its baseline again once that quote has
   // landed.
@@ -636,7 +659,16 @@ export default function ReservationPage() {
     if (!resnapshotAfterQuoteRef.current || !pricingQuote) return;
     if (pricingQuote === resnapshotAfterQuoteRef.current.quote) return;
     resnapshotAfterQuoteRef.current = null;
-    setInitialSnapshot(formSnapshot);
+    // The baseline takes what the quote wrote into the form, and nothing else: whatever the operator typed
+    // while the quote was on its way (a note) stays an edit, so Enregistrer lights up.
+    setInitialSnapshot((prevSnapshot) => {
+      // Not frozen yet: the baseline is still derived from the loaded form and the quote, which is right.
+      if (!prevSnapshot) return prevSnapshot;
+      try {
+        const snap = JSON.parse(prevSnapshot);
+        return JSON.stringify({ ...snap, form: applyQuoteToFormPure(snap.form, pricingQuote, { preserveBlankPrice: false }) });
+      } catch { return prevSnapshot; }
+    });
   }, [pricingQuote, formSnapshot]);
   const miniVisibleDays = downSm ? 5 : downMd ? 6 : downLg ? 7 : 8;
   // A saved booking keeps the prices it was sold at as long as its placement doesn't move. For a devis
@@ -706,18 +738,6 @@ export default function ReservationPage() {
       checkOutTime: selectedProperty?.defaultCheckOut || '10:00',
     });
   };
-
-  // Establish the "clean" baseline for the unsaved-changes guard. For an existing reservation/devis the
-  // server recalc reshapes the loaded form once on mount (offered flags, derived amounts) with no user
-  // action — so we wait until that first quote has applied before snapshotting. Otherwise a freshly
-  // loaded (or just-converted) record would be wrongly flagged dirty and prompt on leave. New/prefilled
-  // records snapshot immediately.
-  useEffect(() => {
-    if (loading || initialSnapshot !== null) return;
-    const isExistingRecord = Boolean(editingReservationId || editingDevisId);
-    if (isExistingRecord && !pricingQuote) return;
-    setInitialSnapshot(formSnapshot);
-  }, [loading, initialSnapshot, formSnapshot, editingReservationId, editingDevisId, pricingQuote]);
 
   useEffect(() => {
     if (!isDirty) return;
@@ -807,6 +827,11 @@ export default function ReservationPage() {
     const initPage = async () => {
       try {
         setLoading(true);
+        // A (re)load takes its clean baseline again, from what it loads (see the baseline effect).
+        setInitialSnapshot(null);
+        setLoadedSnapshot(null);
+        setPricingQuote(null);
+        resnapshotAfterQuoteRef.current = null;
         setNotFound(false);
         const props = await api.getProperties();
         setProperties(props);
@@ -2833,13 +2858,17 @@ export default function ReservationPage() {
     setForm((prev) => ({ ...prev, ...serverWritten }));
     // Review of #727 (H2) — what the server just wrote is not an edit of the operator: the clean
     // baseline moves with it, so a mark never makes the fiche « modified ».
-    setInitialSnapshot((prevSnapshot) => {
+    // Both baselines: the frozen one (once the first quote has landed) and the loaded form the baseline is
+    // derived from before that — whichever is current moves with what the server wrote.
+    const withServerWritten = (prevSnapshot) => {
       if (!prevSnapshot) return prevSnapshot;
       try {
         const snap = JSON.parse(prevSnapshot);
         return JSON.stringify({ ...snap, form: { ...snap.form, ...serverWritten } });
       } catch { return prevSnapshot; }
-    });
+    };
+    setInitialSnapshot(withServerWritten);
+    setLoadedSnapshot(withServerWritten);
     // Le devis live dépend de l'état serveur qu'on vient de changer (report du complément, note
     // encaissée / ajustée) : sans ce rafraîchissement, le panneau de droite garderait l'ancien split
     // pendant que la carte affiche déjà le nouveau (specs/defer-arrival-complement-to-checkout.md
@@ -3527,7 +3556,12 @@ export default function ReservationPage() {
   const pricingSummary = (
     <PricingSummary
       mode={showStoredSummary ? 'stored' : 'live'}
-      topNotice={<PlatformPriceAlert check={pricingQuote?.platformPriceCheck} />}
+      topNotice={(
+        <>
+          <PricingNotices notices={pricingQuote?.notices} onAction={(action) => { if (action === 'refreshTouristTax') setTouristTaxRefreshRequested(true); }} />
+          <PlatformPriceAlert check={pricingQuote?.platformPriceCheck} />
+        </>
+      )}
       quote={showStoredSummary ? storedSummary : pricingQuote}
       form={showStoredSummary ? {
         ...form,
@@ -3603,7 +3637,7 @@ export default function ReservationPage() {
         actionsBefore={actionBarBefore}
         onSave={isClosedFiche ? undefined : handleSaveClick}
         saveTooltip={isDevisMode ? 'Enregistrer le devis' : 'Enregistrer'}
-        saveDisabled={saving}
+        saveDisabled={saving || !(isDirty || touristTaxRefreshRequested)}
         saveBusy={saving}
         onCancel={goBackToOrigin}
         actionsAfter={actionBarAfter}

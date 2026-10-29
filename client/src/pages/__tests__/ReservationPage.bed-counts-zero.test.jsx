@@ -53,6 +53,12 @@ function open(fiche) {
   );
 }
 
+// Enregistrer is disabled on a clean fiche (specs/reservation-save-keeps-pricing.md rule 7): touch a note first,
+// as a user would, as soon as the field is there.
+async function makeDirty() {
+  fireEvent.change(await screen.findByLabelText(/^Notes/i), { target: { value: 'Arrivée tardive' } });
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   api.getProperties.mockResolvedValue([{ id: 1, name: 'Granja', singleBeds: 2, doubleBeds: 2 }]);
@@ -63,6 +69,7 @@ beforeEach(() => {
 
 test('rule 13 — saving a fiche whose bed counts are 0 sends 0, never null', async () => {
   open(FICHE);
+  await makeDirty();
   fireEvent.click(await screen.findByRole('button', { name: 'Enregistrer' }));
   await waitFor(() => expect(api.updateReservation).toHaveBeenCalled());
   const payload = api.updateReservation.mock.calls[0][1];
@@ -73,6 +80,7 @@ test('rule 13 — saving a fiche whose bed counts are 0 sends 0, never null', as
 
 test('rule 13 — a bed count the server never stored (null) stays empty, so it is still sent as null', async () => {
   open({ ...FICHE, singleBeds: null, doubleBeds: null, babyBeds: null });
+  await makeDirty();
   fireEvent.click(await screen.findByRole('button', { name: 'Enregistrer' }));
   await waitFor(() => expect(api.updateReservation).toHaveBeenCalled());
   const payload = api.updateReservation.mock.calls[0][1];
