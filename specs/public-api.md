@@ -198,6 +198,11 @@ or **[CREATE]** (genuinely new logic).
 19. **The quote checks the capacity** (same review). `POST /quote` refuses a party over the property's
     public capacity exactly as the booking request does (`publicGuestCap`, babies over `maxBabies`):
     `409 OVER_CAPACITY`. It used to answer `available: true` for a party the request would refuse.
+20. **Contact fields are capped** (audit 2026-10-28). `guest.firstName` and `guest.lastName` take at most 100
+    characters, `guest.phone` 40, `guest.email` 254; past it the request is refused `422` with a field error
+    `reason: 'tooLong'` (« Texte trop long. » / « Text too long. »). A name of 40 000 characters used to be
+    stored and flow into every e-mail, PDF and CSV. The WordPress block sets the matching `maxlength`.
+    Covered by `plugins/website-booking/tests/public-guest-field-errors.unit.test.js`.
 
 **Edge cases:**
 
