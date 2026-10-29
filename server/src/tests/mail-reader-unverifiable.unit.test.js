@@ -1,4 +1,4 @@
-// specs/gites-de-france-mail-intake.md rule 32, specs/airbnb-mail-intake.md rule 32 (audit r4, external N1 and N2) —
+// specs/plugins-phase-1-sdk.md rule 33, specs/gites-de-france-mail-intake.md rule 32, specs/airbnb-mail-intake.md rule 32 (audit r4, external N1 and N2) —
 // on a mailbox where no DKIM verdict can be had (no trusted authserv-id), a sustained forged flood cannot starve a
 // genuine mail for good, a pass that hits the cap says how many mails it left, and reading a batch of envelopes
 // never blocks the event loop.
