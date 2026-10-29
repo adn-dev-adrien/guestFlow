@@ -82,6 +82,9 @@ function applyPaidEffect({ database, devisModel, link, checkConflict, paidDate =
         return { effect: 'double-payment', duplicateLink: true, duplicateCents: second.duplicateCents, reservationId, conflict: false };
       }
     }
+    if (!settledAlready && effect === 'already-converted' && bucketAlreadySettled(convertedRow, link.type)) {
+      return { effect: 'double-payment', reservationId, conflict: false };
+    }
     const conflict = flagConflictIfAny({ database, checkConflict, reservationId });
     // The quote can be re-priced after its link was minted, and a link older than the tourist-tax rule
     // charges less than the quote asks: what the guest paid is booked, never the quote's amount.
@@ -116,6 +119,10 @@ function applyPaidEffect({ database, devisModel, link, checkConflict, paidDate =
     if (earlier) return { effect: 'double-payment', duplicateLink: true, duplicateCents: null, reservationId: row.id, conflict: false };
   }
 
+  if (!settledAlready && bucketAlreadySettled(row, link.type)) {
+    return { effect: 'double-payment', reservationId: row.id, conflict: false };
+  }
+
   if (isDeposit) {
     recordPayment({ reservationId: link.reservationId, bucket: 'deposit', paidDate });
     return { effect: 'deposit-marked' };
@@ -129,6 +136,15 @@ function applyPaidEffect({ database, devisModel, link, checkConflict, paidDate =
     return { effect: 'balance-marked' };
   }
   return { effect: 'noop' };
+}
+
+// Rule 39 — the bucket a link pays was already collected another way (the arrival payment, a tick by hand):
+// the payment is neither recorded nor confirmed again, and `processPaidLink` compares the two days (rule 24).
+function bucketAlreadySettled(stay, type) {
+  if (!stay || stay.kind !== 'reservation') return false;
+  if (type === 'deposit') return Number(stay.depositPaid || 0) === 1 || Number(stay.depositPaidCash || 0) === 1;
+  if (type === 'balance' || type === 'full') return Number(stay.balancePaid || 0) === 1 || Number(stay.balancePaidCash || 0) === 1;
+  return false;
 }
 
 // Two live links of one quote both paid (a retried request minted twice): the second money is a refund
@@ -154,8 +170,11 @@ function secondPaidLink(database, link, reservationId, isFull) {
   return Number(flags.depositPaid || 0) === 1 && (!isFull || Number(flags.balancePaid || 0) === 1) ? { duplicateCents: null } : null;
 }
 
-// The stay a `full` link pays on when its acompte is already collected and its solde is not.
-function fullAfterDeposit(database, link) {
+// The stay a `full` link pays on when its acompte is already collected and its solde is not. The duplicate is
+// what the link brought beyond the solde still owed (rule 41); a link whose amount no longer matches the stay
+// carries `mismatch` instead, and is booked at what it brought. An acompte ticked the day of the payment, with
+// no paid acompte or full link behind it, is the money the operator saw arrive (rule 42): `sameDay`.
+function fullAfterDeposit(database, link, paidDay = null) {
   if (String(link.type) !== 'full') return null;
   const own = database.prepare('SELECT * FROM reservations WHERE id = ?').get(Number(link.reservationId));
   if (!own) return null;
@@ -163,7 +182,26 @@ function fullAfterDeposit(database, link) {
     ? database.prepare('SELECT * FROM reservations WHERE id = ?').get(Number(own.convertedReservationId)) : own;
   if (!stay || stay.kind !== 'reservation') return null;
   if (Number(stay.depositPaid || 0) !== 1 || Number(stay.balancePaid || 0) === 1 || !(Number(stay.depositAmount || 0) > 0)) return null;
-  return { stayId: stay.id, duplicateCents: Math.min(Math.round(Number(stay.depositAmount) * 100), Number(link.amountCents || 0)) };
+  const linkCents = Number(link.amountCents || 0);
+  const expectedCents = linkAmountCents('full', stay);
+  const found = { stayId: stay.id, duplicateCents: 0, mismatch: null, sameDay: false };
+  if (stay.balanceAmount != null && linkCents !== expectedCents) {
+    found.mismatch = { expectedCents, receivedCents: linkCents };
+    return found;
+  }
+  if (paidDay && stay.depositPaidDate && String(stay.depositPaidDate).slice(0, 10) >= paidDay && !hasOtherPaidAcompteLink(database, link, stay)) {
+    found.sameDay = true;
+    return found;
+  }
+  found.duplicateCents = Math.max(0, linkCents - Math.round(Number(stay.balanceAmount || 0) * 100));
+  return found;
+}
+
+function hasOtherPaidAcompteLink(database, link, stay) {
+  const owners = withConvertedDevis(database, [Number(stay.id), Number(link.reservationId)]);
+  return Boolean(database.prepare(
+    `SELECT 1 FROM payment_links WHERE reservationId IN (${owners.map(() => '?').join(',')}) AND type IN ('deposit', 'full') AND status = 'paid' AND id <> ? LIMIT 1`,
+  ).get(...owners, Number(link.id)));
 }
 
 function recordRefundOwed(database, reservationId, link, duplicateCents = null) {
@@ -226,12 +264,16 @@ async function processPaidLink({ database, devisModel, paymentLinksModel, link, 
   const paidDate = require('./stayPaymentRecorder').paidDayOf(p.paidAt);
   // A full link paid while the acompte was collected another way: the acompte part is paid twice.
   const rebooked = bookIfAmountChanged({ database, link, paidDate, recordPayment });
-  const afterDeposit = rebooked ? null : fullAfterDeposit(database, link);
+  // A devis link on a re-priced stay is compared with the stay by applyPaidEffect (rule 41).
+  const found = rebooked ? null : fullAfterDeposit(database, link, paidDate);
+  const afterDeposit = found && !found.mismatch ? found : null;
   if (afterDeposit) (recordPayment || recordOn(database))({ reservationId: afterDeposit.stayId, bucket: 'balance', paidDate });
   const effect = rebooked
-    || (afterDeposit
-      ? { effect: 'double-payment', duplicateLink: true, duplicateCents: afterDeposit.duplicateCents, reservationId: afterDeposit.stayId, conflict: false }
-      : applyPaidEffect({ database, devisModel, link, checkConflict, paidDate, recordPayment }));
+    || (afterDeposit && afterDeposit.sameDay
+      ? { effect: 'settled-elsewhere', reservationId: afterDeposit.stayId, conflict: false }
+      : afterDeposit
+        ? { effect: 'double-payment', duplicateLink: true, duplicateCents: afterDeposit.duplicateCents, reservationId: afterDeposit.stayId, conflict: false }
+        : applyPaidEffect({ database, devisModel, link, checkConflict, paidDate, recordPayment }));
   // The link that just paid settles its bucket: every other open link of it is retired now, not at the next poll.
   if (typeof paymentLinksModel.retireSettled === 'function') paymentLinksModel.retireSettled();
   if (effect.effect === 'double-payment') {
@@ -350,7 +392,16 @@ async function settleRetiredPaidLink({ paymentLinksModel, notifyPaidAfterCancel,
   if (!database) return { id: link.id, reservationId: link.reservationId, type: link.type, status: 'paid', effect: 'settled-elsewhere' };
   // A full link retired because the acompte was paid, paid anyway: the acompte part is paid twice, the
   // rest is the solde (same as a live second link, see applyPaidEffect).
-  const duplicate = fullAfterDeposit(database, link);
+  const duplicate = fullAfterDeposit(database, link, paidDay);
+  if (duplicate && duplicate.mismatch) {
+    const booked = bookPaidAfterAmountChange({ database, recordPayment: recordPayment || recordOn(database) }, link, { paidDay });
+    if (notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link, { amountMismatch: duplicate.mismatch }); } catch { /* best effort */ } }
+    return { id: link.id, reservationId: link.reservationId, type: link.type, status: 'paid', ...booked, amountMismatch: duplicate.mismatch };
+  }
+  if (duplicate && duplicate.sameDay) {
+    (recordPayment || recordOn(database))({ reservationId: duplicate.stayId, bucket: 'balance', paidDate: paidDay });
+    return { id: link.id, reservationId: link.reservationId, type: link.type, status: 'paid', effect: 'settled-elsewhere' };
+  }
   if (duplicate) {
     (recordPayment || recordOn(database))({ reservationId: duplicate.stayId, bucket: 'balance', paidDate: paidDay });
     recordRefundOwed(database, duplicate.stayId, link, duplicate.duplicateCents);

@@ -1354,6 +1354,9 @@ function calculateReservationQuote({
   selectedResources,
   depositPaid,
   balancePaid,
+  // specs/reservation-save-keeps-pricing.md rule 19 — the save that moves a paid direct stay onto a platform:
+  // what was received stays as received, whatever the platform statement now says.
+  keepPaidAmounts,
   complementPaid,
   depositAmount,
   balanceAmount,
@@ -2623,6 +2626,8 @@ function calculateReservationQuote({
   // specs/reservation-payment-ledger.md rule 36 — with no acompte to share the stay with, a paid solde
   // also keeps what it collected when the stay costs MORE: raising it would book money never received
   // (a link paid at its old amount, rule 31). The difference is owed as the arrival complement below.
+  if (keepPaidAmounts && depositPaid) resolvedDepositAmount = roundMoney(depositAmount);
+  if (keepPaidAmounts && balancePaid) resolvedBalanceAmount = paidBalanceAmount;
   const noDepositToShare = !depositPaid && roundMoney(resolvedDepositAmount) === 0;
   if (balancePaid && !paidSoldeFollowsStatement && noDepositToShare && Number(balanceAmount) > 0) {
     resolvedBalanceAmount = paidBalanceAmount;

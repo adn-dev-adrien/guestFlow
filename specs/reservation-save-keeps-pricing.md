@@ -187,6 +187,21 @@ changed something the price depends on; money collected beyond the total is repo
     the schedule share already covers on that poste, whatever the way it was split (leftover hints or captured
     contribs). A solde option removed in the window is thus not counted twice, and a drop that belongs to the
     complement is never cut. A paid complement with no paid date reads no history.
+18. **The complement's history window reads only the complement's lines (audit R4 N5, 2026-10-29).** `droppedSince`
+    filters the signature parts by their `cN` flag (`reservationAudit.js` `getOptionsSignature` /
+    `getResourcesSignature`): the complement window (`complementLeftOf`) counts the `c1` lines only, the schedule
+    window (`leftOfStayOf`) the `c0` lines only, and a line that only moved from one to the other is not a drop. An
+    option dropped from an unpaid or already refunded solde therefore no longer takes the excess of a removed complement
+    activity (X1, X2). A signature written before the flag existed carries none: its lines count in both windows, which
+    is why rule 17's overflow correction stays.
+19. **A paid direct stay can switch to a platform; what was received stays as received (Adrien, 2026-10-29: « Autoriser,
+    figer le payé », audit R4 N6).** The save (and the preview) of a stay stored on a direct channel with an acompte or
+    a solde ticked, posted on a platform, prices with `keepPaidAmounts`: the paid acompte and solde keep the stored
+    amounts instead of following the platform statement (reservation-refunds rule 38), so the books keep what was really
+    collected. The 409 `OVERPAID` and the live preview judge the posted channel like the save does: a platform sale
+    announces no trop-perçu, and the channel change alone never asks for a refund. The freeze is the switching
+    save's: a later save that moves no price keeps it (rule 1), a re-pricing follows the platform amount as any
+    platform stay does.
 
 **Edge cases:**
 - In the extras window of a started fiche a custom line is keyed by its text (end-of-stay complement,

@@ -1,0 +1,3 @@
+- Payment links: a bucket collected at arrival (the fiche's single payment or the check-in) retires its open link at once, and a link paid after that never silently re-marks the bucket or sends a second confirmation (it alerts when the arrival was dated earlier).
+- Payment links: a full link retired because the acompte was ticked, paid after the stay was re-priced, books what was received with the amount-mismatch alert instead of a fixed « acompte paid twice » refund; an acompte ticked the very day of the payment is the same money and raises no refund.
+- Bank reconciliation: a stay paid through the payment link of its devis is expected as a link receipt, so the Qonto payout is proposed.
