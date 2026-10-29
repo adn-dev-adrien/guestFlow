@@ -1,3 +1,10 @@
+// specs/server-test-isolation.md rule 3 — this file sets its own temporary database.
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+
+process.env.DB_PATH = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'gf-commission-')), 'guestflow.db');
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 

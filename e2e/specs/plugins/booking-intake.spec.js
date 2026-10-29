@@ -8,15 +8,15 @@ import { createClient, createProperty, createReservation } from '../../fixtures/
 import { setPublicUrl, markIcalImported, setPlatformPayout } from '../../fixtures/dbSeed.js';
 import { CLIENT_URL, SERVER_PORT } from '../../clientUrl.js';
 
-const { PAGE_6392081711, replaceOnce } = require('../../../server/src/plugins/booking-intake/tests/fixtures.js');
+const { PAGE_6300000001, replaceOnce } = require('../../../server/src/plugins/booking-intake/tests/fixtures.js');
 
 const HOTEL_ID = '14407976';
-const RES_ID = '6392081711';
+const RES_ID = '6300000001';
 const START = '2099-10-05';
 const END = '2099-10-07';
 const BACKEND = `http://127.0.0.1:${SERVER_PORT}`;
 
-const pageText = () => replaceOnce(replaceOnce(PAGE_6392081711, 'ven. 6 nov. 2026', 'lun. 5 oct. 2099'), 'dim. 8 nov. 2026', 'mer. 7 oct. 2099');
+const pageText = () => replaceOnce(replaceOnce(PAGE_6300000001, 'ven. 6 nov. 2026', 'lun. 5 oct. 2099'), 'dim. 8 nov. 2026', 'mer. 7 oct. 2099');
 
 // The seed installs every plugin active (server/scripts/seed-e2e.js): the Plugins page switches it.
 const bookingCard = (page) => page.locator('.MuiCard-root').filter({ hasText: 'Saisie Booking' });

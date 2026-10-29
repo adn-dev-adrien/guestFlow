@@ -1,6 +1,7 @@
 /**
  * EmailHistoryPage — paginated log of sends / failures / acknowledged-skips with filters.
- * See specs/email-automation.md §6.5.
+ * See specs/email-automation.md §6.5 and rule 11 (the history page: most recent first, status badge,
+ * subject, per-row view dialog).
  */
 
 import React from 'react';

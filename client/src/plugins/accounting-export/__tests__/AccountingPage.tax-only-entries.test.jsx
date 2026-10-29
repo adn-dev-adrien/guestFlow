@@ -36,9 +36,9 @@ function renderPage() {
 }
 
 test('rule 43 — a tax-only entry is announced with its client and amount', async () => {
-  api.getAccountingSales.mockResolvedValue(sales([{ reservationId: 22224, kind: 'balance', libelle: 'THOMAS VANDEN WILDENBERG', paidDate: '2026-06-19', amount: 67.13 }]));
+  api.getAccountingSales.mockResolvedValue(sales([{ reservationId: 22224, kind: 'balance', libelle: 'TOM VAN BERG', paidDate: '2026-06-19', amount: 67.13 }]));
   renderPage();
-  expect(await screen.findByText(/Une écriture porte tout leur montant sur la taxe de séjour/)).toHaveTextContent('THOMAS VANDEN WILDENBERG (67,13 €)');
+  expect(await screen.findByText(/Une écriture porte tout leur montant sur la taxe de séjour/)).toHaveTextContent('TOM VAN BERG (67,13 €)');
 });
 
 test('rule 43 — nothing is announced when every entry carries revenue', async () => {

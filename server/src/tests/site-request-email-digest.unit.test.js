@@ -90,7 +90,7 @@ test('rule 9: after a quiet window the next request is mailed at once again; an 
 
 // Review of PR #805 — a summary is removed only once it left: a failed send waits for the next flush,
 // and a sent one never leaves twice.
-test('rule 9: a failed summary stays for the next flush, then goes once', async () => {
+test('rules 9 + 26: a failed summary stays for the next flush, then goes once', async () => {
   const db = seedDb();
   const sent = [];
   let failing = true;
@@ -118,7 +118,7 @@ test('rule 9: a failed summary stays for the next flush, then goes once', async 
 });
 
 // Re-review of PR #805 — an operator who reads pushes only (e-mail off) still gets the summary.
-test('rule 9: with e-mail off, the summary is still pushed, once', async () => {
+test('rules 9 + 28: with e-mail off, the summary is still pushed, once', async () => {
   const db = seedDb();
   const pushes = [];
   const clock = { now: Date.parse('2027-03-01T10:00:00Z') };

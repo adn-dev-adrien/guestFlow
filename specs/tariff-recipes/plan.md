@@ -2,7 +2,7 @@
 
 Companion to [spec.md](spec.md) and [architecture.md](architecture.md). Rule numbers refer to spec §3.
 
-**Status:** awaiting validation
+**Status:** validated and implemented (2026-10; see `spec.md` for the delivered rules and `architecture.md` for the code map)
 **Surface:** 8 new server files (incl. the recipe itself), 8 touched · 2 new client files, 4 touched ·
 1 script · 12 new test files.
 

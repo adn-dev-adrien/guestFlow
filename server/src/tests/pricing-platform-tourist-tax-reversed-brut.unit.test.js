@@ -128,7 +128,7 @@ test('offered tax (case 2) with a brut: the brut is ALREADY net of the tax → n
   db.close();
 });
 
-test('Gîtes de France (the accountant’s Grimaud case): the whole brut is revenue, commission intact', () => {
+test('Gîtes de France (the accountant’s Girard case): the whole brut is revenue, commission intact', () => {
   // specs/platform-brut-excludes-offered-tourist-tax.md §1 — verbatim from the GdF contract n°9290:
   // prix location 653 + forfait ménage 80 = 733 billed to us, taxe de séjour 14,40 collected AND
   // remitted by the centrale, montant net propriétaire 668. Before the fix the engine subtracted its own

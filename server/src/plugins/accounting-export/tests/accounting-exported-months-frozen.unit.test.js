@@ -4,17 +4,17 @@ const Database = require('better-sqlite3');
 
 // specs/accountant-accounting-export.md rules 33 and 35 — a month the accountant may already have
 // imported keeps its cents. Final review 2026-10-18, N4: the rule 32 split moved one cent on April
-// (Nouville 624,54 / 62,46), July (Nicolet 40,34 / 11,23) and September 2026 (Van Dijk 117,28 / 11,72).
+// (Noailles 624,54 / 62,46), July (Nicolas 40,34 / 11,23) and September 2026 (Van Dyke 117,28 / 11,72).
 // Second pass (minor 3): a cutoff fixed at 1 October 2026 would still move October, which production
 // may export before this version is installed — the split starts the month after installation.
 const { buildRows } = require('../accountingExport');
 const { firstOfNextMonth, readTtcSplitFrom, storeTtcSplitFrom, TTC_SPLIT_FALLBACK } = require('../settings');
 
 function entry(paidDate) {
-  // 129,00 € of a 150,07 € stay at 10 %, the Van Dijk shape.
+  // 129,00 € of a 150,07 € stay at 10 %, the Van Dyke shape.
   return {
     reservationId: 1, kind: 'balance', paidDate,
-    client: { firstName: 'Anna', lastName: 'Van Dijk' },
+    client: { firstName: 'Anna', lastName: 'Van Dyke' },
     platform: 'direct', clientGrossAmount: null,
     finalPrice: 150.07, encaissementTtc: 129, taxTtc: 0, fraction: 0.859599,
     buckets: [{ name: 'accommodation', ht: 136.43, vat: 13.64, ratePercent: 10 }],

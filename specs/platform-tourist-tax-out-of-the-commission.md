@@ -18,7 +18,7 @@ On a platform that collects the tourist tax from the guest **and** remits it to 
 the platform's statement and only two of them are ours:
 
 ```
-Gîtes de France — Grimaud #22225, 26–28 June 2026
+Gîtes de France — Girard #22225, 26–28 June 2026
   Prix location                653,00
   Options / forfait ménage      80,00
   Taxe de séjour                14,40   ← collectée ET reversée par la centrale
@@ -98,7 +98,7 @@ counted.
    `accommodation = max(0, brut − extraGuestSurcharge − pre-arrival options/resources − withheldTax)`.
    So `finalPrice = brut − withheldTax`, and the revenue (accommodation + options) excludes the tax.
    An empty box makes the term `0`, leaving the back-solve byte-identical to today.
-   Grimaud: brut 747,40, withheld 14,40 → `finalPrice` 733,00, accommodation 653,00, options 80,00.
+   Girard: brut 747,40, withheld 14,40 → `finalPrice` 733,00, accommodation 653,00, options 80,00.
 
 6bis. **The declared tax base drops the withheld tax too — no tax on the tax.** Since
    [tourist-tax-matches-the-office-calculation.md](tourist-tax-matches-the-office-calculation.md)
@@ -131,7 +131,7 @@ counted.
 10. **« Calculer la commission » subtracts the withheld tax**:
     `commission solde = max(0, brut − virement reçu − withheldTax − commission acompte)`.
     An empty box reproduces the August formula (`brut − virement − commission acompte`) exactly.
-    Grimaud: 747,40 − 668,00 − 14,40 − 0 = **65,00**, where today's formula on the guest-paid total
+    Girard: 747,40 − 668,00 − 14,40 − 0 = **65,00**, where today's formula on the guest-paid total
     would give 79,40.
 
 11. **« Net perçu » and the écart reconcile with no new code.** `preArrivalAmount = finalPrice =
@@ -401,7 +401,7 @@ cancel, PDF/sync/delete slots) untouched.
 - [x] `components/reservation/__tests__/FinanceSection.platform-tourist-tax.test.jsx` (new) — rules
   1, 4, 5, 10, 12, 14, 15: the box renders in mode `platform` only; pre-filled on a new fiche and not
   rewritten once touched; « Reprendre le calcul » fills it; « Calculer la commission » gives 65,00 on
-  the Grimaud numbers and the August value when the box is empty; the tax-excluded caption; the brut
+  the Girard numbers and the August value when the box is empty; the tax-excluded caption; the brut
   label.
 - [x] `components/__tests__/PricingSummary.platform-tourist-tax.test.jsx` (new) — rule 13: the amount
   is struck through with the « Plateforme » tag, and the cascade deducts the withheld amount.

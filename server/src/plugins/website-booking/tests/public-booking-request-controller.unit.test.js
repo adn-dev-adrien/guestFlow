@@ -112,6 +112,7 @@ function validBody(over = {}) {
   };
 }
 
+// specs/public-request-abuse-and-grouping.md rule 6 — the honeypot stays.
 test('honeypot filled → 201 fake success, NOTHING persisted', () => {
   const captures = {};
   const controller = buildController({ captures });

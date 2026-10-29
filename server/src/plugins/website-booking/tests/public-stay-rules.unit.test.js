@@ -1,5 +1,5 @@
 require('./isolatedDb');
-// specs/tariff-recipes/spec.md §3.4 rule 23 + specs/public-api.md rule 12 (2026-10-27 audit) — the
+// specs/tariff-recipes/spec.md §3.4 item 23 + specs/public-api.md rule 12 (2026-10-27 audit) — the
 // public path enforces the maximum stay and the changeover days like the minimum stay: the booking
 // request refuses them (409 MAX_NIGHTS / CHANGEOVER), the quote says so first, the calendar offers no
 // arrival they refuse, and /pay re-checks them before any money moves.
@@ -73,6 +73,7 @@ test('the quote exposes the maximum, both breaches and the sentence the site pri
   assert.equal(week.stayRefusal, null);
 });
 
+// specs/booking-drawer-friction.md rule 22 — an arrival is offered only when a stay from it passes every rule.
 test('the calendar offers Saturdays only, each with a Saturday departure', () => {
   const r = res();
   catalogCtl.getAvailability({ params: { id: pid }, query: { from: '2027-09-01', to: '2027-09-30' }, headers: {} }, r);
@@ -85,6 +86,7 @@ test('the calendar offers Saturdays only, each with a Saturday departure', () =>
   assert.deepEqual(arrivals[0], { ...arrivals[0], date: '2027-09-04', earliestDeparture: '2027-09-11' });
 });
 
+// specs/public-online-payment.md rule 13 — `pay` re-checks the stay rules after availability.
 test('/pay re-checks the rules on the saved devis: a tariff tightened since the request refuses it', async () => {
   const created = request('2027-10-02', '2027-10-09');
   assert.equal(created.statusCode, 201);

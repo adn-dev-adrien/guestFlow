@@ -31,19 +31,19 @@ function forwardTax(baseHt, nights, occupants, adults) {
 // The Lodge stays carrying a tax in the production copy on 2026-09-01, with the occupant count in
 // force when each amount was computed (babies included — rule 8 only applies from now on).
 const PRODUCTION_STAYS = [
-  { name: 'Vigier', total: 5.79, nights: 1, adults: 3, occupants: 3 },
+  { name: 'Vidal', total: 5.79, nights: 1, adults: 3, occupants: 3 },
   { name: 'France', total: 5.4, nights: 2, adults: 2, occupants: 4 },
-  { name: 'Vanden wildenberg', total: 2.98, nights: 1, adults: 2, occupants: 3 },
-  { name: 'Nicolet', total: 2.94, nights: 1, adults: 2, occupants: 4 },
-  { name: 'Esteve', total: 11.96, nights: 2, adults: 2, occupants: 2 },
-  { name: 'Foulon', total: 21, nights: 3, adults: 5, occupants: 5 },
-  { name: 'Noviant', total: 8.44, nights: 2, adults: 2, occupants: 4 },
-  { name: 'Trufflet', total: 5.96, nights: 2, adults: 2, occupants: 5 },
-  { name: 'Staiano', total: 6.36, nights: 1, adults: 3, occupants: 4 },
-  { name: 'Carpier', total: 13.05, nights: 3, adults: 3, occupants: 5 },
+  { name: 'Van Berg', total: 2.98, nights: 1, adults: 2, occupants: 3 },
+  { name: 'Nicolas', total: 2.94, nights: 1, adults: 2, occupants: 4 },
+  { name: 'Estrada', total: 11.96, nights: 2, adults: 2, occupants: 2 },
+  { name: 'Fabre', total: 21, nights: 3, adults: 5, occupants: 5 },
+  { name: 'Noirot', total: 8.44, nights: 2, adults: 2, occupants: 4 },
+  { name: 'Tremblay', total: 5.96, nights: 2, adults: 2, occupants: 5 },
+  { name: 'Stanis', total: 6.36, nights: 1, adults: 3, occupants: 4 },
+  { name: 'Marchand', total: 13.05, nights: 3, adults: 3, occupants: 5 },
   { name: 'Van dijk', total: 5.95, nights: 1, adults: 1, occupants: 1 },
-  { name: 'Maisonnette', total: 2.16, nights: 1, adults: 2, occupants: 4 },
-  { name: 'Oriol', total: 9.64, nights: 2, adults: 2, occupants: 4 },
+  { name: 'Maillard', total: 2.16, nights: 1, adults: 2, occupants: 4 },
+  { name: 'Olivier', total: 9.64, nights: 2, adults: 2, occupants: 4 },
 ];
 
 test('every production amount round-trips through the reconstructed base', () => {
@@ -56,15 +56,15 @@ test('every production amount round-trips through the reconstructed base', () =>
 });
 
 test('the two stays the operator checked rebuild the base he typed into the office form', () => {
-  // Foulon: he entered 380,92 € by trial and error to land back on the 21,00 € collected.
-  const foulon = reconstructFrozenBase({ touristTaxTotal: 21, nights: 3, adults: 5, occupants: 5, ...LODGE });
-  assert.equal(foulon.touristTaxFrozenBaseHt, 381.82);
-  assert.equal(foulon.touristTaxFrozenUnitAmount, 1.4);
+  // Fabre: he entered 380,92 € by trial and error to land back on the 21,00 € collected.
+  const fabre = reconstructFrozenBase({ touristTaxTotal: 21, nights: 3, adults: 5, occupants: 5, ...LODGE });
+  assert.equal(fabre.touristTaxFrozenBaseHt, 381.82);
+  assert.equal(fabre.touristTaxFrozenUnitAmount, 1.4);
 
-  // Esteve: 54,38 €/occupant/night → 217,52 € for the stay.
-  const esteve = reconstructFrozenBase({ touristTaxTotal: 11.96, nights: 2, adults: 2, occupants: 2, ...LODGE });
-  assert.equal(esteve.touristTaxFrozenBaseHt, 217.45);
-  assert.equal(esteve.touristTaxFrozenUnitAmount, 2.99);
+  // Estrada: 54,38 €/occupant/night → 217,52 € for the stay.
+  const estrada = reconstructFrozenBase({ touristTaxTotal: 11.96, nights: 2, adults: 2, occupants: 2, ...LODGE });
+  assert.equal(estrada.touristTaxFrozenBaseHt, 217.45);
+  assert.equal(estrada.touristTaxFrozenUnitAmount, 2.99);
 });
 
 test('the inversion declines what it cannot rebuild', () => {

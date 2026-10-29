@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Approved |
+| **Status** | Implemented |
 | **Branch** | `feature/email-automation` _(Claude-managed)_ |
 | **Created** | 2026-06-07 |
 | **Author** | Adrien |
@@ -713,7 +713,7 @@ inline property form just above the capacity fields. The value is stored on
 
 ### Server unit tests (target ~25 new cases)
 
-- [ ] `tests/email-template-renderer.unit.test.js` — variable substitution (multi-token,
+- [x] `tests/email-template-renderer.unit.test.js` — variable substitution (multi-token,
       missing, repeated); conditional `{{#if}}…{{/if}}`; `{{else}}` branch; nested blocks
       pass-through warning; malformed `{{#if}}` left verbatim; subject + body both
       rendered.
@@ -733,18 +733,18 @@ inline property form just above the capacity fields. The value is stored on
       `nights`, `totalGuests`, `bedConfig`
       formatting (omits zero counts), `optionsList` sort, `hasBedLinenOption` truthy/falsy,
       `cautionNotBanked` truthy/falsy, missing client email → empty string + flag.
-- [ ] `tests/date-fr.unit.test.js` — `formatDateLong('2026-06-15')` → `'15 juin 2026'`;
+- [x] `tests/date-fr.unit.test.js` — `formatDateLong('2026-06-15')` → `'15 juin 2026'`;
       empty → `''`; malformed → `''`.
-- [ ] `tests/default-email-templates-seed.unit.test.js` — fresh DB seeds every registry
+- [x] `tests/default-email-templates-seed.unit.test.js` — fresh DB seeds every registry
       entry (currently one); pre-existing rows with matching `stableKey` are skipped;
       operator edits to a registry row are NEVER overwritten by re-seeding; a deleted
       registry row gets re-inserted on next boot; idempotent on consecutive runs.
-- [ ] `tests/default-email-templates-registry.unit.test.js` — every registry entry has
+- [x] `tests/default-email-templates-registry.unit.test.js` — every registry entry has
       a non-empty `stableKey` + unique across the array; each entry's `subject` + `body`
       reference at least one supported variable (lint-ish check to catch typos).
-- [ ] `tests/email-templates-model.unit.test.js` — CRUD; `listEnabled()` returns
+- [x] `tests/email-templates-model.unit.test.js` — CRUD; `listEnabled()` returns
       `enabled=1` only.
-- [ ] `tests/email-templates-controller.unit.test.js` — `400` on bad sendMode / out-of-range
+- [x] `tests/email-templates-controller.unit.test.js` — `400` on bad sendMode / out-of-range
       dayOffset / missing subject / missing body; `404` on missing id; happy paths.
 - [x] `tests/email-log-model.unit.test.js` — insert; `existsFor` matches by status set;
       pagination; history filters; **past-arrival guard (§3 rule 8):** a before-arrival J-2
@@ -867,3 +867,12 @@ Remaining unresolved:
   pick a recipient other than the client email (e.g. an internal owner address)?
   - A: Deferred. Today the recipient is always the client email. If a co-host scenario
     appears, add a small recipient override field in the manual send dialog.
+
+---
+
+## Implementation progress
+
+- **2026-10-28 — Implemented** (status was left on Approved after the merge). Templates, send modes, the
+  daily pass, the manual queue and dialog, the history page and the `EMAIL_NOT_CONFIGURED` handling are in
+  the code; later specs (guest-email-sequence, no-automatic-email-without-approval, email-texts) amend them.
+  Left unticked in §7: the pure-UI manual walkthroughs.

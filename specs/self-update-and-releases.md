@@ -374,6 +374,13 @@ signed-off releases over HTTPS, when the operator asks for it.
     raw bytes of `SHA256SUMS`. The check sits in the only two install paths (`stageRelease` for a space,
     `releases.install` for the console); a version already installed is not re-verified. Once the key is
     configured a release is not installable until it has been signed.
+42. **The archive is built from tracked files, and refused if it carries a secret** (2026-10-28 audit).
+    `release.sh` copies `server/` from `git ls-files`, never from the working directory, and no longer
+    copies `server/uploads`: a developer's checkout holds untracked secrets (`server/.env.local`, the
+    database and its WAL, `licence.jws`, TLS keys, uploaded photos) that a manual run would have shipped.
+    `scripts/check-release-tree.mjs` then scans the staging tree and fails the script before `tar` when it
+    finds a `.env*` (but `.env.example`), a database file, `licence.jws`, a key / certificate, `update-state.json`,
+    a log, or any file under `uploads/` other than `.gitkeep` (a README there is refused too).
 
 **Edge cases**
 

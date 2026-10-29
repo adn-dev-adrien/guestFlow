@@ -1,5 +1,5 @@
 // @ts-check
-// specs/email-history-rolling-window.md — the email history is a rolling window: it shows sends only
+// specs/email-history-rolling-window.md rules 1 + 7 — the email history is a rolling window: it shows sends only
 // for reservations whose stay hasn't passed arrival + 3 days, and is reachable from the sidebar.
 import { test, expect } from '@playwright/test';
 import { createClient, createProperty, createReservation } from '../../fixtures/apiSeed.js';

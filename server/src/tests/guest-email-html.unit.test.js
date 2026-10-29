@@ -38,11 +38,11 @@ test('rule 38: everything the text says is escaped — no tag, attribute or enti
 });
 
 test('rule 38: only web, email and phone addresses become links, each showing its own text', () => {
-  const body = textToHtmlBody('Payer : https://pay.example.com/l/1?a=1&b="2".\nOu javascript:alert(1) et data:text/html,x.\nÉcrire à hote@domaine.fr, appeler le 06 15 73 93 37 ou +33 6 15 73 93 37.');
+  const body = textToHtmlBody('Payer : https://pay.example.com/l/1?a=1&b="2".\nOu javascript:alert(1) et data:text/html,x.\nÉcrire à hote@domaine.fr, appeler le 06 00 00 00 03 ou +33 6 00 00 00 03.');
   assert.match(body, /<a href="https:\/\/pay\.example\.com\/l\/1\?a=1&amp;b=" style="[^"]*">https:\/\/pay\.example\.com\/l\/1\?a=1&amp;b=<\/a>&quot;2&quot;\./);
   assert.match(body, /<a href="mailto:hote@domaine\.fr"[^>]*>hote@domaine\.fr<\/a>,/);
-  assert.match(body, /<a href="tel:0615739337"[^>]*white-space:nowrap[^>]*>06 15 73 93 37<\/a>/);
-  assert.match(body, /<a href="tel:\+33615739337"[^>]*>\+33 6 15 73 93 37<\/a>\./);
+  assert.match(body, /<a href="tel:0600000003"[^>]*white-space:nowrap[^>]*>06 00 00 00 03<\/a>/);
+  assert.match(body, /<a href="tel:\+33600000003"[^>]*>\+33 6 00 00 00 03<\/a>\./);
   assert.doesNotMatch(body, /href="(javascript|data):/);
   assert.equal((body.match(/<a /g) || []).length, 4);
 });

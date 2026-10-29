@@ -9,7 +9,7 @@ const round2 = (n) => Math.round(Number(n) * 100) / 100;
 
 // Non-regression suite for specs/accounting-encaissement-effective-percent.md — one test per
 // problem (P1..P7) Adrien reported on the Comptabilité page (2026-07-15), pinned on the exact
-// prod reference: reservation #22224 (Thomas Vanden wildenberg, Lodgify, Aventura lodge).
+// prod reference: reservation #22224 (Tom Van Berg, Lodgify, Aventura lodge).
 //
 //   Stored money: finalPrice 131,28 (accommodation 86,28 + options 21 + 24), tourist tax 2,98,
 //   depositAmount = balanceAmount = 67,13 (Lodgify charged 50 % of the 134,26 gross),
@@ -51,7 +51,7 @@ function createDb() {
   db.prepare('INSERT INTO app_settings (id, vatRate) VALUES (1, 10)').run();
   db.prepare("INSERT INTO properties (id, name, depositPercent) VALUES (1, 'Aventura lodge', 30)").run();
   db.prepare('INSERT INTO pricing_rules (id, propertyId, pricePerNight) VALUES (1, 1, 110)').run();
-  db.prepare("INSERT INTO clients (id, firstName, lastName) VALUES (1, 'Thomas', 'Vanden wildenberg')").run();
+  db.prepare("INSERT INTO clients (id, firstName, lastName) VALUES (1, 'Tom', 'Van Berg')").run();
   // Lodgify collects the tax from the guest and reverses it to us → the tax is a real charge
   // in the schedule (rides the solde), never a check-in complement.
   db.prepare("INSERT INTO platforms (name, collectsTouristTax, touristTaxRemittedByPlatform) VALUES ('Lodgify', 1, 0)").run();
@@ -265,13 +265,13 @@ test('direct reservation with automatic deposit — effective % equals the prope
   }
 });
 
-test('BRUT convention (Damien Nicolet) — the entered deposit/balance is the client-paid GROSS → CA = gross, net perçu = gross − commission', () => {
+test('BRUT convention (Daniel Nicolas) — the entered deposit/balance is the client-paid GROSS → CA = gross, net perçu = gross − commission', () => {
   // Resolved with Adrien 2026-07-16 (prod investigation on résa #22226, Lodgify). The amount the
   // operator enters for a platform échéance is the GROSS (what the guest pays). The accounting CA =
   // that stored amount; the « net perçu » (owner take = the fiche summary Acompte/Solde line) =
   // gross − the échéance commission. Damien's guest pays 126,38 per échéance (= Adrien's 122,97 net
   // take + 3,41 Lodgify commission), split evenly deposit = balance → CA 126,38 / net 122,97 each.
-  // This is the SAME convention as Thomas (deposit = gross): it locks that a per-échéance-commission
+  // This is the SAME convention as Berg (deposit = gross): it locks that a per-échéance-commission
   // reservation entered as gross never gets its CA grossed a second time.
   const db = createDb();
   insertThomas(db, {

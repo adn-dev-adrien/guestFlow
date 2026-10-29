@@ -1,4 +1,4 @@
-// specs/pricing-min-nights-per-range.md §6 (2026-10-27 audit) — on a 390 px phone the tariff page
+// specs/pricing-min-nights-per-range.md §6 rule 10 (2026-10-27 audit) — on a 390 px phone the tariff page
 // stacked twelve month grids (~4000 px) above the recipe card and the price grid. Below `sm` the year
 // shows one month, browsed with « Mois précédent / Mois suivant ».
 import React from 'react';

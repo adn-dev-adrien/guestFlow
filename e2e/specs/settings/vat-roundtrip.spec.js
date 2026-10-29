@@ -3,6 +3,10 @@
 // the VAT rate, save, reload, assert the change persisted. Pins `single-vat-rate` +
 // `settings`.
 import { test, expect } from '@playwright/test';
+import { resetVatRegime } from '../../fixtures/dbSeed.js';
+
+// The rate is global state shared with the other VAT specs: leave it at 10 % when done.
+test.afterAll(() => { resetVatRegime(); });
 
 test('VAT rate round-trip via Paramètres → TVA & exercice', async ({ page }) => {
   // Paramètres → TVA & exercice (specs/settings-rationalization.md rule 2).

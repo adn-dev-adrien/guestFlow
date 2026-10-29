@@ -95,7 +95,7 @@ test('the tax is computed on the dry night — 359,79 € minus the 60 € of in
   db.close();
 });
 
-// Rule 3 — the whole point of the forfait. The former rule 48 deducted 7 €/pers and 8 €/pers on the
+// Rule 3 — the whole point of the forfait. The former per-person deduction deducted 7 €/pers and 8 €/pers on the
 // REAL party, so a family of six declared a smaller base than a couple in the same night.
 test('the deduction is a per-stay forfait — identical for 2 and for 6 occupants', () => {
   const db = createDb();

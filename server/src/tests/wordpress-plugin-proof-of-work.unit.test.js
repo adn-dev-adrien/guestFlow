@@ -1,5 +1,5 @@
 /**
- * specs/public-request-abuse-and-grouping.md rules 2 and 13 — the WordPress plugin side of the proof
+ * specs/public-request-abuse-and-grouping.md rules 2 and 13, specs/wordpress-plugin.md rule 31 — the WordPress plugin side of the proof
  * of work. The solver (assets/pow.js) is plain browser JavaScript with no DOM: it runs here, in a VM,
  * and what it finds must pass GuestFlow's own check. The rest is the shape that makes the rules true:
  * a fixed proxy route for the challenge, never cached; the worker; the drawer starting the work when

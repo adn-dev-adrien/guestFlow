@@ -12,7 +12,7 @@ vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: () => true }));
 // A quote shows the guest ONE total, not a payment plan: on a devis every extra starts inside the
 // acompte/solde split, even on a non-direct platform where a reservation would default the line into
 // the Complément (specs/force-extras-complement-on-platform.md §3 rule 1). The toggle stays available
-// — an explicit ON is the operator's call and is carried into the reservation at conversion (rule 18).
+// — an explicit ON is the operator's call and is carried into the reservation at conversion (force-extras spec, devis rule).
 
 function renderExtras({ platform, isDevisMode, lineOverrides = {} }) {
   const ctx = makeMockContext({

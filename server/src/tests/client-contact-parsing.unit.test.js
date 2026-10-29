@@ -125,19 +125,19 @@ test('email: nothing email-shaped → empty string', () => {
 // ---------------------------------------------------------------------------------------------
 
 test('phone: tel: link with the French prefix becomes a national number', () => {
-  assert.equal(extractPhone('tel:+33627753922'), '0627753922');
+  assert.equal(extractPhone('tel:+33600000001'), '0600000001');
 });
 
 test('phone: spaced French international form', () => {
-  assert.equal(extractPhone('+33 6 27 75 39 22'), '0627753922');
+  assert.equal(extractPhone('+33 6 00 00 00 01'), '0600000001');
 });
 
 test('phone: 0033 is the same as +33', () => {
-  assert.equal(extractPhone('0033627753922'), '0627753922');
+  assert.equal(extractPhone('0033600000001'), '0600000001');
 });
 
 test('phone: "+33 (0)6 …" does not produce a doubled trunk zero', () => {
-  assert.equal(extractPhone('+33 (0)6 27 75 39 22'), '0627753922');
+  assert.equal(extractPhone('+33 (0)6 00 00 00 01'), '0600000001');
 });
 
 test('phone: a French number with dots is compacted', () => {
@@ -206,12 +206,12 @@ test('parse-contact: handles the three keys at once', () => {
   const c = clientsController.buildController({});
   const res = fakeRes();
   c.parseContact({
-    body: { address: '12 rue des Lilas 07000 Privas', email: 'A@B.FR', phone: 'tel:+33627753922' },
+    body: { address: '12 rue des Lilas 07000 Privas', email: 'A@B.FR', phone: 'tel:+33600000001' },
   }, res);
   assert.deepEqual(res.body, {
     address: { streetNumber: '12', street: 'Rue des lilas', postalCode: '07000', city: 'Privas' },
     email: 'a@b.fr',
-    phone: '0627753922',
+    phone: '0600000001',
   });
 });
 

@@ -6,7 +6,7 @@ import { vi } from 'vitest';
 import PlatformPriceCard from '../PlatformPriceCard';
 import api from '../../api';
 
-// specs/platform-price-from-commission.md + specs/tariff-recipes/spec.md §3.6 rules 31-34 —
+// specs/platform-price-from-commission.md + specs/tariff-recipes/spec.md §3.6 items 31-34 —
 // the « Prix plateformes » grid: one row per channel (Direct first), whole-euro prices per season,
 // extra-guest column. The commission % is read-only here: it is edited on Paramètres → Plateformes
 // (specs/settings-rationalization.md rule 19).

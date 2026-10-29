@@ -47,14 +47,13 @@ else
   (cd client && npm run build)
 fi
 
-# Copy server (excluding dev files and node_modules)
-rsync -av --exclude='node_modules' --exclude='*.log' --exclude='guestflow.db' --exclude='uploads' \
-  --exclude='/server/plugins' --exclude='/server/plugin-data' server "$RELEASE_DIR/"
-
-# Copy uploads (if you want to include existing docs/photos)
-if [ -d server/uploads ]; then
-  cp -r server/uploads "$RELEASE_DIR/server/"
-fi
+# Copy server: the files Git tracks, never the working directory. A developer's checkout holds
+# `server/.env.local` (encryption key, session secret, VAPID private key), the SQLite database with its
+# -wal/-shm, `licence.jws`, TLS keys and uploaded photos — none of them tracked, none of them shippable
+# (specs/self-update-and-releases.md rule 42). `check-release-tree.mjs` below refuses the archive if one
+# slipped through anyway.
+git ls-files server | rsync -a --files-from=- --exclude='node_modules' --exclude='*.log' \
+  --exclude='/server/plugins' --exclude='/server/plugin-data' . "$RELEASE_DIR/"
 
 # Copy client build (must be built before running this script).
 # The Pi PM2 entry expects the bundle at `current/client/build` (legacy CRA name) so we
@@ -97,6 +96,9 @@ cp -R plugins-dist "$RELEASE_DIR/plugins-dist"
 # carries it. Without this, the very script that makes a host self-updatable has to be copied over
 # by hand (which is exactly what had to be done for the first 2.0.0 install).
 rsync -a --exclude='__pycache__' scripts "$RELEASE_DIR/"
+
+# Refuse the archive if a secret or a runtime file reached the staging tree.
+node scripts/check-release-tree.mjs "$RELEASE_DIR"
 
 # Create the archive.
 #

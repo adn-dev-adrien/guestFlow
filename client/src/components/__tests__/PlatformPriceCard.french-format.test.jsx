@@ -6,7 +6,7 @@ import { vi } from 'vitest';
 import PlatformPriceCard from '../PlatformPriceCard';
 import api from '../../api';
 
-// specs/platform-price-from-commission.md (2026-10-27 audit) — the grid printed « 1075 € » split on
+// specs/platform-price-from-commission.md rule 7 (2026-10-27 audit) — the grid printed « 1075 € » split on
 // two lines, « 15.5 % », and the stored lowercase « direct »: French whole-euro grouping, a comma
 // decimal, the display label, and money cells that never wrap.
 

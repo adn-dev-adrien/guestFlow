@@ -25,13 +25,13 @@ async function serve({ live = true, perMinute = 100, secret = () => SECRET, hand
   return { post, close: () => new Promise((resolve) => server.close(resolve)) };
 }
 
-const PAGE = { v: 1, hotelId: '14407976', resId: '6392081711', text: 'Numéro de réservation' };
+const PAGE = { v: 1, hotelId: '14407976', resId: '6300000001', text: 'Numéro de réservation' };
 
 test('specs/booking-extranet-intake.md rule 7: the right secret reaches the handler and its answer comes back', async () => {
   const s = await serve({ handlePage: (page) => ({ status: 'applied', message: `fiche pour ${page.resId}` }) });
   const res = await s.post(PAGE);
   assert.equal(res.status, 200);
-  assert.deepEqual(await res.json(), { status: 'applied', message: 'fiche pour 6392081711' });
+  assert.deepEqual(await res.json(), { status: 'applied', message: 'fiche pour 6300000001' });
   await s.close();
 });
 

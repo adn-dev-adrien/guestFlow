@@ -122,6 +122,7 @@ function MonthBlock({ year, month, data, todayStr, isMobile, onReservationClick,
               {week.days.map((day) => (
                 <Box
                   key={day.date}
+                  data-date={day.date}
                   onClick={() => onCreateReservation && onCreateReservation(day.date)}
                   sx={{
                     // Today is framed with a thicker primary border (specs/cumulative-month-calendar.md §6).

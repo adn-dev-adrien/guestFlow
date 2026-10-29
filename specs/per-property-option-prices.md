@@ -71,14 +71,17 @@ option's base price is used, exactly as today.
     option unit price it **displays** now matches the per-property price the engine computes — previously
     it fell back to `GET /options` (the base price), so the displayed unit price could disagree with the
     quoted line total.
-11. **Options list shows the overrides (2026-06-20).** On the Options page list, the « Prix » cell shows
-    the base price plus one line per property that overrides it (« Logement : X € »), via a generic
-    `renderPriceCell` slot on `PricedItemsPage`.
+11. **Options list shows the overrides (2026-06-20; rewritten 2026-10-28).** The Options catalogue row
+    (`OptionRow`, fed by `GET /api/options/catalogue-view`, `specs/options-resources-ux.md` rule 9) shows one
+    server-computed price summary: the single price when every logement shares it, « min – max » with the
+    note « selon logement » when the overrides differ (an override at 0 counts). The slot
+    `renderPriceCell` of the former `PricedItemsPage` no longer exists. Pinned by
+    `options-catalogue-view.unit.test.js` and `OptionRow.dom-nesting.test.jsx`.
 12. **The phone card stays valid HTML (fixed at the 2026-10-27 spec review).** On `xs` the price of
-    `PricedItemsPage`'s card — the block of rule 11 when an option has overrides — and its extra
-    caption lines render in a `div`, not a `<p>`: a block inside a paragraph made React log
-    DOM-nesting warnings on the Options page at 390 px. Pinned by
-    `components/__tests__/PricedItemsPage.mobile-nesting.test.jsx`.
+    an option's card — the block of rule 11 when an option has overrides (now `OptionRow`, which
+    replaced `PricedItemsPage`) — and its caption line render without a block inside a `<p>`: React
+    logged DOM-nesting warnings on the Options page at 390 px. Pinned by
+    `pages/options/__tests__/OptionRow.dom-nesting.test.jsx`.
 
 **Edge cases:**
 - Override = 0 with a non-free priceType → a genuine **0 €** for that property (an explicit row is

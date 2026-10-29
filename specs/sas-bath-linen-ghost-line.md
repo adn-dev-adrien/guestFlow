@@ -12,7 +12,7 @@
 
 ## 1. Context
 
-Reported in production on reservation #10 (Chloé Vallée, 01→15/08/2026): « Linge de toilette » is
+Reported in production on reservation #10 (Clémence Vernet, 01→15/08/2026): « Linge de toilette » is
 billed **twice** in the « Complément de fin de séjour » card while the fiche carries the option only
 once.
 
@@ -192,7 +192,7 @@ Responsive behavior unchanged. `PageActionBar` untouched.
 
 - **The general two-bucket deduplication** (any service present in both the arrival complement and the
   end-of-stay one). Deliberately narrowed to the SAS bath-linen case — decision 2026-08-07.
-- **Reservation #22269 (Carole Foulon).** Same symptom, different cause: « Blonde du Pilat » 6,50 € sold
+- **Reservation #22269 (Carla Fabre).** Same symptom, different cause: « Blonde du Pilat » 6,50 € sold
   mid-stay on 06/08 sits both in `complementAmount` (30,50 €, frozen as **paid** by the arrival SAS on
   05/08 when it should have been 24 €) and in the end-of-stay complement as a `midStayExtra` line. The
   guest is not over-charged at the door (24 + 6,50 = the right total) but the arrival complement is

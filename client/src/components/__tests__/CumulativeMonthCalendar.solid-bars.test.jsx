@@ -39,6 +39,7 @@ describe('CumulativeMonthCalendar — solid bars and closures', () => {
     expect(style.color).toBe('rgb(255, 255, 255)');
   });
 
+  // specs/ui-review-2026-10-19-operations.md rule 14 (live part) — a past stay keeps the soft tint and ink text.
   it('rule 8 — a past stay is a 14 % tint with a stripe of its colour, ink text, no opacity', async () => {
     api.getCalendar.mockResolvedValue(payload([stay(1, '2026-07-02', '2026-07-04', { past: true })]));
     const { container } = renderCal();
@@ -61,6 +62,17 @@ describe('CumulativeMonthCalendar — solid bars and closures', () => {
     expect(bar).toHaveAttribute('aria-label', 'Gite fermé — Travaux, 20 juillet → 21 juillet');
     fireEvent.click(bar);
     expect(onReservationClick).not.toHaveBeenCalled();
+  });
+
+  // specs/ui-review-2026-10-19-operations.md rule 13 (live part) — a closure of every logement is not a lane:
+  // it hatches whole day columns and carries one label « Tout fermé ».
+  it('a closure of every logement hatches the day columns and is labelled « Tout fermé », with no bar', async () => {
+    api.getCalendar.mockResolvedValue(payload([], [{ id: 5, propertyId: null, propertyName: null, global: true, label: 'Hiver', startDate: '2026-07-20', endDate: '2026-07-22' }]));
+    const { container } = renderCal();
+    await waitFor(() => expect(screen.getAllByText(/Tout fermé/).length).toBeGreaterThan(0));
+    expect(container.querySelector('[data-closure-bar="c5"]')).toBeNull();
+    const hatched = [...container.querySelectorAll('[data-date]')].filter((el) => getComputedStyle(el).backgroundImage.includes('repeating-linear-gradient'));
+    expect(hatched.map((el) => el.getAttribute('data-date')).sort()).toEqual(['2026-07-20', '2026-07-21']);
   });
 
   it('rule 9 — a closure of one logement sits on a lane of the week, not under it', async () => {

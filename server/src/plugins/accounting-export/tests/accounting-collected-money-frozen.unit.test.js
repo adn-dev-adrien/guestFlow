@@ -1,5 +1,5 @@
 // specs/accounting-books-the-money-collected.md rules 13-14 (spec review of 2026-10-27, agent 3 F1-F2) —
-// an entry for money already collected never moves (accountant-accounting-export.md rule 33):
+// an entry for money already collected never moves (specs/accountant-accounting-export.md rule 33):
 //   - a tourist tax that rises after the solde was paid is booked with the arrival complement that
 //     collects it, never by rewriting the solde entry;
 //   - an installment books the split frozen when it was collected, whatever the fiche becomes.

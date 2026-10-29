@@ -23,6 +23,7 @@ function renderGuests(overrides) {
   return ctx;
 }
 
+// specs/reservation-form-sections.md rule 7 — the age range is the field's helper text, not its label.
 test('renders the 4 guest count inputs', () => {
   renderGuests();
   expect(screen.getByLabelText(/Adultes/)).toBeInTheDocument();

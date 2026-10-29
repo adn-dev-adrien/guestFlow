@@ -1,4 +1,5 @@
-// specs/platform-settings-relay-and-review.md rule 8 — a plugin brings its own push toggle
+// specs/platform-settings-relay-and-review.md rule 8 and specs/plugins-phase-3b-neat.md rule 25 (the core
+// names no Neat) — a plugin brings its own push toggle
 // (`ctx.pushChannel`): the core lists it with the plugin's label while the plugin is live and never names
 // it; the « Souscriptions Neat » choices of the former `neat` column survive the move (audit 2026-10-27).
 const path = require('path');

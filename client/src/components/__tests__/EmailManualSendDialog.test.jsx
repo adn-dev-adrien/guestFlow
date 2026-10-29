@@ -1,6 +1,7 @@
 /**
  * EmailManualSendDialog — preview + send a template against a reservation.
- * See specs/email-automation.md §6.4.
+ * See specs/email-automation.md §6.4 and rule 10 (the manual send dialog: enabled templates sorted by
+ * dayOffset, preview of subject + body + recipient, editable fields, send).
  */
 
 import React from 'react';

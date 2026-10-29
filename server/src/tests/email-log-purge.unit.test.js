@@ -1,5 +1,6 @@
 // emailLogModel.purgeRealizedStays — rolling-window cleanup.
-// See specs/email-history-rolling-window.md §3 rule 3.
+// See specs/email-history-rolling-window.md §3 rule 3 — the single cutoff of rule 1 (arrival + 3 days,
+// computed in SQLite, never trusted from the client) is what these tests pin.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
