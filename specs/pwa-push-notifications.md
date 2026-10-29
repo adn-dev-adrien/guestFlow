@@ -133,6 +133,13 @@ reservation's **check-out time** is reached (departure) — only to the users (a
     whose time is **already in the past today** are stamped as notified **without** sending (so a restart at
     14:00 doesn't blast every morning arrival). Only events crossing their time **while the server is
     running** notify. (Decision — avoids a restart spamming the day's past events.)
+13. **A device receives guest data only while its owner is an active, non-support administrator** (added
+    2026-10-29, audit R2 finding N1). The fan-out (`subscriptionsForPref`, `sendToUser`) joins `users` and
+    `user_roles` and keeps only devices whose owner is `isActive = 1`, `isSupportAccount = 0` and holds the
+    `admin` role. `POST /api/push/subscribe` is refused 403 `SUPPORT_FORBIDDEN` in a support session. A
+    user's subscriptions are deleted when the account is deactivated, when the `admin` role is removed, and
+    when a support access is revoked (the support account's rows); an access that merely expires leaves rows
+    that the fan-out filter never selects.
 
 **Edge cases:**
 - User denies the browser permission → the device isn't subscribed; the UI reflects "non activées".
@@ -157,8 +164,10 @@ reservation's **check-out time** is reached (departure) — only to the users (a
 | deps | `server/package.json` | T | Add `web-push`. |
 | `utils/` | `vapid.js` | C | Load/generate the VAPID keypair from `.env.local` (`web-push.generateVAPIDKeys()` on first run); expose `{ publicKey, configured }` + configure `web-push`. The `sub` subject must be a routable URL/mailto, resolved `VAPID_SUBJECT` → `vapidSubject` setting → company e-mail → SMTP sender, else push off (phase-P rule 18) — see rule 3.ter. |
 | `utils/` | `pushService.js` | C | `sendToPref(prefKey, payload)`: gather subscriptions of users whose `prefKey` is ON, `web-push.sendNotification` each, prune 404/410, count `failed`. `sendToUser(userId, payload)`: same fan-out to one user's own devices (test push). Both injectable for tests, never throw. |
-| `models/` | `pushSubscriptionsModel.js` | C | CRUD on `push_subscriptions` (add/list-by-user/list-for-pref/remove-by-endpoint/prune); per-user prefs read/write (`user_push_prefs`). |
-| `controllers/` | `pushController.js` | C | `getPublicKey`, `subscribe`, `unsubscribe`, `getPreferences`, `updatePreferences` (all scoped to `req.user`). |
+| `models/` | `pushSubscriptionsModel.js` | C | CRUD on `push_subscriptions` (add/list-by-user/list-for-pref/remove-by-endpoint/`removeByUser`/prune); per-user prefs read/write (`user_push_prefs`). `subscriptionsForPref` and `listByUser` join `users`/`user_roles` through `ELIGIBLE_OWNER` (active, non-support, `admin`) — rule 13. |
+| `utils/` | `pushSubscriptionsCleanup.js` | C | Boot cleanup (called from `database.js`): deletes the devices of an ineligible owner, idempotent — rule 13. |
+| `models/` | `usersModel.js`, `supportAccessModel.js` | T | Rule 13: `softDelete`, the role write and `supportAccessModel.revoke` delete the devices concerned. |
+| `controllers/` | `pushController.js` | C | `getPublicKey`, `subscribe` (403 `SUPPORT_FORBIDDEN` in a support session, rule 13), `unsubscribe`, `getPreferences`, `updatePreferences` (all scoped to `req.user`). |
 | `routes/` | `push.js` | C | `GET /push/public-key`, `POST/DELETE /push/subscribe`, `GET/PUT /push/preferences`, `POST /push/test`. Mounted under `/api/push` (auth-required). |
 | `utils/` | `notificationService.js` | T | After the email send in `notifyNewIcalReservation` / `notifyNewSiteDevis`, also `pushService.sendToPref('newReservation', …)`, in a contained try/catch so a push failure can't affect the email path or the caller. The new-reservation push body includes the **client / guest name + property name** (rule 11). |
 | `scheduledTasks.js` | `scheduledTasks.js` | T | New per-minute job: detect today's arrivals (check-in reached) + departures (check-out reached) not yet notified → `sendToPref('arrivals'/'departures', …)` + stamp. First-run back-stamp guard (§3.4). |
@@ -246,6 +255,8 @@ all-ON (read returns defaults).
 ## 7. Test plan
 
 ### Server unit tests (suite 1531 green)
+- [x] `audit-r2-push-account-state.unit.test.js` (6 tests, rule 13) — fan-out and `sendToUser` skip support, inactive and non-admin owners; subscribe refused in a support session; devices deleted on deactivation, loss of the admin role and support revoke; boot cleanup deletes ineligible rows once.
+- [x] `audit-r2-reset-links-void.unit.test.js` (5 tests, hosting-h2 rule 63) — see that spec.
 - [x] `push-subscriptions-model.unit.test.js` — subscribe (upsert by endpoint) / unsubscribe / remove;
       `subscriptionsForPref` gates on the pref (default ON when no row); prefs default all-ON, partial update.
 - [x] `push-service.unit.test.js` — `sendToPref` sends to exactly the opted-in subscribers (injected

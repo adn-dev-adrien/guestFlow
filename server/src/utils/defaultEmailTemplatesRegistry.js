@@ -528,6 +528,7 @@ const DEFAULT_TEMPLATES = Object.freeze([
     body:      INSTALLMENT_REQUEST_BODY,
     subjectEn: 'Instalment {{installmentNumber}}/{{installmentCount}} for your stay at {{propertyWithArticle}}',
     bodyEn:    INSTALLMENT_REQUEST_BODY_EN,
+    anchor:    'installmentDueDate', // never 'start': v3.18.0's queue would list this row for every arriving stay after a rollback
     dayOffset: 0,          // sentinel — one queue entry per due installment (emailLogModel.listPending)
     sendMode:  'manual',   // rule 18 — a request for money is never sent by a cron
     enabled:   true,
