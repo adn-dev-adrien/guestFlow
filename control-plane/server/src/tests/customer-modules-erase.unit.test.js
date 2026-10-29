@@ -44,9 +44,9 @@ test('rule 22: an active module, a module without data and a module the space no
 test('rule 22: the erase is refused while the module is on (409), and without the exact slug (400)', async () => {
   const env = await linenOffWithData();
   const { modules } = env.ctx.controllers;
-  assert.throws(() => modules.erase(env.id, 'sas', env.slug, 'op'), (err) => err.status === 409 && err.body.error === 'MODULE_ACTIVE');
-  assert.throws(() => modules.erase(env.id, 'linen', 'autre', 'op'), (err) => err.status === 400 && err.body.error === 'SLUG_MISMATCH' && err.body.message === `Tapez exactement « ${env.slug} » pour confirmer.`);
-  assert.throws(() => modules.erase(env.id, 'linen', '', 'op'), (err) => err.status === 400);
+  assert.throws(() => modules.erase(env.id, 'sas', env.slug, 'op', 'erase'), (err) => err.status === 409 && err.body.error === 'MODULE_ACTIVE');
+  assert.throws(() => modules.erase(env.id, 'linen', 'autre', 'op', 'erase'), (err) => err.status === 400 && err.body.error === 'SLUG_MISMATCH' && err.body.message === `Tapez exactement « ${env.slug} » pour confirmer.`);
+  assert.throws(() => modules.erase(env.id, 'linen', '', 'op', 'erase'), (err) => err.status === 400);
   assert.deepEqual(licenceOf(env).eraseOrders, []);
   env.cleanup();
 });
@@ -54,8 +54,8 @@ test('rule 22: the erase is refused while the module is on (409), and without th
 test('rule 22, 23: a confirmed erase writes an audit line and puts one order in the licence — once, however many clicks', async () => {
   const env = await linenOffWithData();
   const { modules } = env.ctx.controllers;
-  modules.erase(env.id, 'linen', env.slug, 'adrien@adn-dev.fr');
-  modules.erase(env.id, 'linen', env.slug, 'adrien@adn-dev.fr');
+  modules.erase(env.id, 'linen', env.slug, 'adrien@adn-dev.fr', 'erase');
+  modules.erase(env.id, 'linen', env.slug, 'adrien@adn-dev.fr', 'erase');
   const orders = licenceOf(env).eraseOrders;
   assert.equal(orders.length, 1);
   assert.equal(orders[0].id, 'linen');
@@ -70,7 +70,7 @@ test('rule 22, 23: a confirmed erase writes an audit line and puts one order in 
 test('rule 23: once the space reports the order executed, it leaves the licence and the journal says so', async () => {
   const env = await linenOffWithData();
   const { modules } = env.ctx.controllers;
-  modules.erase(env.id, 'linen', env.slug, 'op');
+  modules.erase(env.id, 'linen', env.slug, 'op', 'erase');
   const [{ order }] = licenceOf(env).eraseOrders;
   assert.equal(modules.acknowledgeErasures(), 0, 'not before the space says so');
   writeSpace(env, { active: [], applied: writtenAt(env), facts: {}, erased: [order] });
@@ -85,7 +85,7 @@ test('rule 23: once the space reports the order executed, it leaves the licence 
 test('rule 27: switching the module back on cancels an order still on its way', async () => {
   const env = await linenOffWithData();
   const { modules } = env.ctx.controllers;
-  modules.erase(env.id, 'linen', env.slug, 'op');
+  modules.erase(env.id, 'linen', env.slug, 'op', 'erase');
   modules.toggle(env.id, 'linen', true, 'op');
   assert.deepEqual(licenceOf(env).eraseOrders, []);
   assert.ok(env.ctx.models.audit.forCustomer(env.id).some((a) => /^Effacement des données de .+ annulé$/.test(a.text)));
@@ -95,7 +95,7 @@ test('rule 27: switching the module back on cancels an order still on its way', 
 test('rule 22: an order is refused on an archived customer or one whose space was never read', async () => {
   const env = await linenOffWithData();
   env.ctx.db.prepare('UPDATE customers SET pluginsSeededAt = NULL WHERE id = ?').run(env.id);
-  assert.throws(() => env.ctx.controllers.modules.erase(env.id, 'linen', env.slug, 'op'), (err) => err.body.error === 'NOT_SEEDED');
+  assert.throws(() => env.ctx.controllers.modules.erase(env.id, 'linen', env.slug, 'op', 'erase'), (err) => err.body.error === 'NOT_SEEDED');
   env.cleanup();
 });
 

@@ -56,7 +56,7 @@ it('rule 22 — confirming sends the typed address and shows the order on its wa
   fireEvent.click(await screen.findByRole('menuitem', { name: 'Effacer les données…' }));
   fireEvent.change(await screen.findByLabelText('Pour confirmer, tapez « moulin »'), { target: { value: 'moulin' } });
   fireEvent.click(screen.getByRole('button', { name: 'Effacer' }));
-  await waitFor(() => expect(api.eraseModule).toHaveBeenCalledWith(3, 'linen', 'moulin'));
+  await waitFor(() => expect(api.eraseModule).toHaveBeenCalledWith(3, 'linen', 'erase', 'moulin'));
   await waitFor(() => expect(screen.queryByText('Effacer les données de Linge et blanchisserie ?')).not.toBeInTheDocument());
   expect(screen.queryByRole('button', { name: /Plus d’actions/ })).not.toBeInTheDocument();
   expect(screen.getByText('Effacement des données en cours.')).toBeInTheDocument();
@@ -76,7 +76,7 @@ it('rule 38 — a module installed without data is removed through « Désinstal
   expect(await screen.findByText('Désinstaller Google Vacation Rentals ?')).toBeInTheDocument();
   expect(screen.queryByLabelText(/Pour confirmer/)).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Désinstaller' }));
-  await waitFor(() => expect(api.eraseModule).toHaveBeenCalledWith(3, 'google-vacation-rentals', 'moulin'));
+  await waitFor(() => expect(api.eraseModule).toHaveBeenCalledWith(3, 'google-vacation-rentals', 'uninstall'));
   expect(await screen.findByText('Désinstallation en cours.')).toBeInTheDocument();
 });
 

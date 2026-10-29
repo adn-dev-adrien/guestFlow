@@ -100,7 +100,7 @@ export default function ModulesSection({ customerId, slug, onChanged }) {
     if (busy || typed !== slug) return;
     setBusy(true);
     try {
-      setView(await api.eraseModule(customerId, erasing.id, typed));
+      setView(await api.eraseModule(customerId, erasing.id, 'erase', typed));
       setErasing(null);
       if (onChanged) onChanged();
     } catch (err) {
@@ -120,7 +120,7 @@ export default function ModulesSection({ customerId, slug, onChanged }) {
     if (!ok) return;
     setBusy(true);
     try {
-      setView(await api.eraseModule(customerId, line.id, slug));
+      setView(await api.eraseModule(customerId, line.id, 'uninstall'));
       if (onChanged) onChanged();
     } catch (err) {
       showError(err.message);

@@ -103,7 +103,7 @@ it('rule 22 — the erase dialog focuses the slug field, and Enter erases once t
   expect(api.eraseModule).not.toHaveBeenCalled();
   fireEvent.change(field, { target: { value: 'moulin' } });
   fireEvent.keyDown(field, { key: 'Enter' });
-  await waitFor(() => expect(api.eraseModule).toHaveBeenCalledWith(3, 'linen', 'moulin'));
+  await waitFor(() => expect(api.eraseModule).toHaveBeenCalledWith(3, 'linen', 'erase', 'moulin'));
 });
 
 it('rule 10 — the « Hors forfait » group opens without animation under « reduce motion »', async () => {

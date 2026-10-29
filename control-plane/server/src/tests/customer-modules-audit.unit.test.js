@@ -44,18 +44,18 @@ test('rule 41: a space that cannot count the data (dataUnknown, null data, no fa
     assert.equal(line.canErase, false);
     assert.equal(line.canUninstall, false);
     assert.equal(line.detail, 'Données non relevées : ni effacement ni désinstallation.');
-    assert.throws(() => env.ctx.controllers.modules.erase(env.id, 'hourly-resources', env.slug, 'op'), (e) => e.body.error === 'NOTHING_TO_ERASE');
+    assert.throws(() => env.ctx.controllers.modules.erase(env.id, 'hourly-resources', env.slug, 'op', 'erase'), (e) => e.body.error === 'NOTHING_TO_ERASE');
     env.cleanup();
   }
 });
 
 test('rule 42: the licence carries removal:true for an uninstall and nothing for a data erase', async () => {
   let env = await offWith({ 'hourly-resources': { setup: null, erasable: false, data: [] } });
-  env.ctx.controllers.modules.erase(env.id, 'hourly-resources', env.slug, 'op');
+  env.ctx.controllers.modules.erase(env.id, 'hourly-resources', env.slug, 'op', 'uninstall');
   assert.deepEqual(licenceOf(env).eraseOrders.map((o) => [o.id, o.removal]), [['hourly-resources', true]]);
   env.cleanup();
   env = await offWith({ 'hourly-resources': { setup: null, erasable: true, data: [PAID] } });
-  env.ctx.controllers.modules.erase(env.id, 'hourly-resources', env.slug, 'op');
+  env.ctx.controllers.modules.erase(env.id, 'hourly-resources', env.slug, 'op', 'erase');
   assert.deepEqual(licenceOf(env).eraseOrders.map((o) => [o.id, o.removal]), [['hourly-resources', undefined]]);
   env.cleanup();
 });
@@ -63,7 +63,7 @@ test('rule 42: the licence carries removal:true for an uninstall and nothing for
 test('rule 42 (L1): switching a module on after the space ran its order says so instead of « annulé »', async () => {
   const env = await offWith({ 'hourly-resources': { setup: null, erasable: true, data: [PAID] } });
   const { modules } = env.ctx.controllers;
-  modules.erase(env.id, 'hourly-resources', env.slug, 'op');
+  modules.erase(env.id, 'hourly-resources', env.slug, 'op', 'erase');
   const [{ order }] = licenceOf(env).eraseOrders;
   writeSpace(env, { active: [], applied: writtenAt(env), facts: {}, erased: [order] });
   modules.toggle(env.id, 'hourly-resources', true, 'op');
@@ -77,7 +77,7 @@ test('rule 42 (L1): switching a module on after the space ran its order says so 
 test('rule 42 (L1): an order the space has not run is still reported cancelled', async () => {
   const env = await offWith({ 'hourly-resources': { setup: null, erasable: true, data: [PAID] } });
   const { modules } = env.ctx.controllers;
-  modules.erase(env.id, 'hourly-resources', env.slug, 'op');
+  modules.erase(env.id, 'hourly-resources', env.slug, 'op', 'erase');
   modules.toggle(env.id, 'hourly-resources', true, 'op');
   assert.ok(env.ctx.models.audit.forCustomer(env.id).some((a) => /^Effacement des données de .+ annulé$/.test(a.text)));
   env.cleanup();
@@ -89,11 +89,38 @@ test('rule 41: « Désinstaller » is offered only to a space that declares remo
     const env = await offWith(noData, { capabilities });
     const line = lineOf(env.ctx.controllers.modules.view(env.id), 'hourly-resources');
     assert.equal(line.canUninstall, false, JSON.stringify(capabilities));
-    assert.throws(() => env.ctx.controllers.modules.erase(env.id, 'hourly-resources', env.slug, 'op'), (e) => e.body.error === 'NOTHING_TO_ERASE');
+    assert.throws(() => env.ctx.controllers.modules.erase(env.id, 'hourly-resources', env.slug, 'op', 'erase'), (e) => e.body.error === 'NOTHING_TO_ERASE');
     assert.deepEqual(licenceOf(env).eraseOrders, [], 'no removal order is ever sent to an old core');
     env.cleanup();
   }
   const env = await offWith({ 'hourly-resources': { setup: null, erasable: true, data: [PAID] } }, { capabilities: null });
   assert.equal(lineOf(env.ctx.controllers.modules.view(env.id), 'hourly-resources').canErase, true);
+  env.cleanup();
+});
+
+test('rule 43 (audit r2 N3): the request names the action; a stale « Désinstaller » click never becomes a purge', async () => {
+  const empty = { 'hourly-resources': { setup: null, erasable: true, data: [] } };
+  const env = await offWith(empty);
+  const { modules } = env.ctx.controllers;
+  assert.equal(lineOf(modules.view(env.id), 'hourly-resources').canUninstall, true);
+  writeSpace(env, { inactive: ['hourly-resources'], applied: writtenAt(env), facts: { 'hourly-resources': { setup: null, erasable: true, data: [PAID] } } });
+  assert.throws(() => modules.erase(env.id, 'hourly-resources', env.slug, 'op', 'uninstall'), (e) => e.status === 409 && e.body.error === 'ACTION_CHANGED');
+  assert.deepEqual(licenceOf(env).eraseOrders, []);
+  writeSpace(env, { inactive: ['hourly-resources'], applied: writtenAt(env), facts: empty });
+  assert.throws(() => modules.erase(env.id, 'hourly-resources', env.slug, 'op', 'erase'), (e) => e.status === 409 && e.body.error === 'ACTION_CHANGED');
+  assert.deepEqual(licenceOf(env).eraseOrders, []);
+  env.cleanup();
+});
+
+test('rule 43 (audit r2 N3): an erase without the typed slug is refused, and the action is mandatory', async () => {
+  const env = await offWith({ 'hourly-resources': { setup: null, erasable: true, data: [PAID] } });
+  const { modules } = env.ctx.controllers;
+  for (const slug of [undefined, '', 'autre']) {
+    assert.throws(() => modules.erase(env.id, 'hourly-resources', slug, 'op', 'erase'), (e) => e.status === 400 && e.body.error === 'SLUG_MISMATCH');
+  }
+  for (const action of [undefined, 'purge', '']) {
+    assert.throws(() => modules.erase(env.id, 'hourly-resources', env.slug, 'op', action), (e) => e.status === 400 && e.body.error === 'INVALID');
+  }
+  assert.deepEqual(licenceOf(env).eraseOrders, []);
   env.cleanup();
 });
