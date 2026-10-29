@@ -93,7 +93,7 @@ function createGraph({
   ).filter((other) => other !== id);
 
   // Rule 5 — one cycle per strongly connected group of two or more plugins (or a plugin requiring itself).
-  function cycles() {
+  function cyclicGroups() {
     const next = (id) => requiresOf(id).map((r) => r.id).filter((n) => manifests[n]);
     const index = new Map();
     const low = new Map();
@@ -126,29 +126,45 @@ function createGraph({
       groups.push(group);
     };
     [...ids].sort().forEach((id) => { if (!index.has(id)) connect(id); });
+    return {
+      next,
+      groups: groups.filter((group) => group.length > 1 || next(group[0]).includes(group[0])),
+    };
+  }
+
+  // The shortest path leaving `start` and coming back to it inside its group.
+  function cycleThrough(group, start, next) {
+    const parent = new Map([[start, null]]);
+    const queue = [start];
+    let last = null;
+    while (queue.length && last === null) {
+      const id = queue.shift();
+      next(id).filter((n) => group.includes(n)).forEach((n) => {
+        if (n === start && last === null) last = id;
+        else if (!parent.has(n)) { parent.set(n, id); queue.push(n); }
+      });
+    }
+    const path = [];
+    for (let id = last; id !== null; id = parent.get(id)) path.unshift(id);
+    return path;
+  }
+
+  // Rule 5 — one cycle per strongly connected group (reported from its smallest id).
+  function cycles() {
+    const { next, groups } = cyclicGroups();
     return groups
-      .filter((group) => group.length > 1 || next(group[0]).includes(group[0]))
-      .map((group) => {
-        const start = [...group].sort()[0];
-        const parent = new Map([[start, null]]);
-        const queue = [start];
-        let last = null;
-        while (queue.length && last === null) {
-          const id = queue.shift();
-          next(id).filter((n) => group.includes(n)).forEach((n) => {
-            if (n === start && last === null) last = id;
-            else if (!parent.has(n)) { parent.set(n, id); queue.push(n); }
-          });
-        }
-        const path = [];
-        for (let id = last; id !== null; id = parent.get(id)) path.unshift(id);
-        return path;
-      })
+      .map((group) => cycleThrough(group, [...group].sort()[0], next))
       .sort((a, b) => a[0].localeCompare(b[0]));
   }
 
-  /** The cycle `id` belongs to, or null. */
-  const cycleOf = (id) => cycles().find((cycle) => cycle.includes(id)) || null;
+  /** A cycle through `id` (every member of a strongly connected group has one), or null. */
+  function cycleOf(id) {
+    const { next, groups } = cyclicGroups();
+    const group = groups.find((g) => g.includes(id));
+    if (!group) return null;
+    const reported = cycleThrough(group, [...group].sort()[0], next);
+    return reported.includes(id) ? reported : cycleThrough(group, id, next);
+  }
 
   return {
     requirementsOf, dependantsOf, usedBy, requirementClosure, activeDependantClosure, cycles, cycleOf, nameOf,

@@ -537,9 +537,15 @@ function createController(model = defaultModel, deps = {}) {
     return bestCandidate(row.id, src, env(), { above: row.version });
   }
 
+  function refuseIfBusy(res) {
+    if (!host().state().updating) return false;
+    res.status(409).json({ error: 'UPDATE_IN_PROGRESS', message: MESSAGES.UPDATE_IN_PROGRESS });
+    return true;
+  }
+
   function refuseUpdateConditions(res) {
     if (!packages()) { res.status(409).json({ error: 'NO_UPDATE', message: MESSAGES.NO_UPDATE }); return true; }
-    if (host().state().updating) { res.status(409).json({ error: 'UPDATE_IN_PROGRESS', message: MESSAGES.UPDATE_IN_PROGRESS }); return true; }
+    if (refuseIfBusy(res)) return true;
     if (!host().state().restart.supervised) { res.status(412).json({ error: 'RESTART_UNAVAILABLE', message: MESSAGES.RESTART_UNAVAILABLE }); return true; }
     return false;
   }
@@ -581,10 +587,26 @@ function createController(model = defaultModel, deps = {}) {
     return { restart: false };
   }
 
+  // specs/plugin-dependencies.md rule 44 — the confirmation carries the ids the operator saw. 'none': nothing
+  // confirmed (the plan is only proposed); 'ok': the same set; 'stale': the closure moved since the click.
+  function confirmation(given, expected) {
+    if (!Array.isArray(given) ? !given : !given.length) return 'none';
+    const same = Array.isArray(given) && given.length === expected.length && expected.every((id) => given.includes(id));
+    return same ? 'ok' : 'stale';
+  }
+
+  function refuseStale(res, expected) {
+    res.status(409).json({ error: 'CONFIRMATION_STALE', message: MESSAGES.CONFIRMATION_STALE, requirements: refs(expected) });
+    return true;
+  }
+
   // Rule 9 — without `withRequirements` the plan is only proposed: the card sends the flag once the operator
   // confirmed the lines. A plan of switch-ons alone keeps rule 38's answer; one with installs says REQUIREMENTS.
   function refuseIfUnconfirmed(plan, req, res) {
-    if (!plan.length || (req.body && req.body.withRequirements)) return false;
+    const ids = plan.map((p) => p.id);
+    const confirmed = confirmation(req.body && req.body.withRequirements, ids);
+    if (confirmed === 'stale' && plan.length) return refuseStale(res, ids);
+    if (!plan.length || confirmed === 'ok') return false;
     if (plan.every((p) => p.op === 'activate')) {
       res.status(409).json({
         error: 'REQUIREMENT_INACTIVE', requires: plan.map((p) => p.id), requirements: plan.map(stepView), message: `Nécessite ${namesOf(plan.map((p) => p.id))} : à activer d’abord.`,
@@ -653,14 +675,21 @@ function createController(model = defaultModel, deps = {}) {
       for (const row of model.list()) {
         const left = state.incompatible[row.id];
         const needs = (row.manifest && row.manifest.requires) || [];
+        // An enabled dependant needs its requirements enabled too (rule 37), not only loaded.
         const ready = left && left.code === 'REQUIREMENT_MISSING'
-          && needs.every((r) => state.loaded[r.id] && satisfies(state.loaded[r.id], r.range));
+          && needs.every((r) => state.loaded[r.id] && satisfies(state.loaded[r.id], r.range)
+            && (!row.enabled || (model.get(r.id) && model.get(r.id).enabled)));
         if (ready) {
           try {
             const mod = loader().requirePackage(row.id, host().store().packageDirFor(row.id, row));
             if (loader().registerLive(mod, { db: getDb() })) {
-              // Marked loaded only once its migrations ran: a failure leaves it unloaded until the next restart.
-              loader().migrate(getDb(), row.id);
+              try {
+                loader().migrate(getDb(), row.id);
+              } catch (err) {
+                // Registered, mounted and scheduled already: failed, like a migration failing at boot, so nothing of it runs.
+                reg.markFailed(row.id, err);
+                throw err;
+              }
               host().setLoaded(row.id, row.version, row.manifest.contentHash);
               delete state.incompatible[row.id];
               if (row.enabled) loader().runActivateHooks(row.id);
@@ -732,8 +761,9 @@ function createController(model = defaultModel, deps = {}) {
           restartWanted = restartWanted || result.restart;
         }
         if (restartWanted) {
-          // The switched-on requirements ran no activation hook either (rule 41 of phase 4): they owe them at boot.
-          steps.filter((st) => st.op === 'activate').forEach((st) => model.markHooksPending(st.id, 'activate'));
+          // The switched-on requirements ran no activation hook either (rule 41 of phase 4), nor did those
+          // installed live earlier in the plan: they owe them at boot.
+          [...steps.filter((st) => st.op === 'activate').map((st) => st.id), ...installed].forEach((id) => model.markHooksPending(id, 'activate'));
           return restart({ version: offer.version });
         }
         [...activated, ...installed].forEach((id) => loader().runActivateHooks(id));
@@ -916,6 +946,8 @@ function createController(model = defaultModel, deps = {}) {
     activate(req, res) {
       const entry = resolve(req, res);
       if (!entry) return undefined;
+      // Rules 12, 36 and 37 read the rows an install in flight is still writing: wait for it.
+      if (refuseIfBusy(res)) return undefined;
       if (!model.get(entry.id)) return res.status(409).json({ error: 'NOT_INSTALLED' });
       if (refuseIfOutOfPlan(entry, res)) return undefined;
       const g = graph();
@@ -935,7 +967,9 @@ function createController(model = defaultModel, deps = {}) {
           error: 'REQUIREMENT_OUT_OF_PLAN', requires: unlicensed, requirements: refs(unlicensed), message: `Nécessite ${namesOf(unlicensed)}, hors forfait.`,
         });
       }
-      if (off.length && !(req.body && req.body.withRequirements)) {
+      const confirmed = confirmation(req.body && req.body.withRequirements, off);
+      if (confirmed === 'stale' && off.length) return refuseStale(res, off);
+      if (off.length && confirmed !== 'ok') {
         return res.status(409).json({
           error: 'REQUIREMENT_INACTIVE', requires: off, requirements: refs(off), message: `Nécessite ${namesOf(off)} : à activer d’abord.`,
         });
@@ -959,11 +993,16 @@ function createController(model = defaultModel, deps = {}) {
     deactivate(req, res) {
       const entry = resolve(req, res);
       if (!entry) return undefined;
+      // Rules 12, 36 and 37 read the rows an install in flight is still writing: wait for it.
+      if (refuseIfBusy(res)) return undefined;
       if (!model.get(entry.id)) return res.status(409).json({ error: 'NOT_INSTALLED' });
       const reconciling = Boolean(req.reconciling);
-      const cascade = !reconciling && Boolean(req.body && req.body.withDependents);
+      const closure = graph().activeDependantClosure(entry.id);
+      const confirmed = reconciling ? 'none' : confirmation(req.body && req.body.withDependents, closure);
+      if (confirmed === 'stale' && closure.length) return refuseStale(res, closure);
+      const cascade = confirmed === 'ok';
       if (!cascade && refuseIfRequiredBy(entry, res, { activeOnly: true, reconciling })) return undefined;
-      const followers = cascade ? graph().activeDependantClosure(entry.id) : [];
+      const followers = cascade ? closure : [];
       const stuck = followers.find((id) => blockerFor(id, model));
       if (stuck) {
         const blocker = blockerFor(stuck, model);
@@ -984,6 +1023,8 @@ function createController(model = defaultModel, deps = {}) {
     uninstall(req, res) {
       const entry = resolve(req, res);
       if (!entry) return undefined;
+      // Rules 12, 36 and 37 read the rows an install in flight is still writing: wait for it.
+      if (refuseIfBusy(res)) return undefined;
       if (!model.get(entry.id)) return res.status(409).json({ error: 'NOT_INSTALLED' });
       const wantsPurge = req.query && (req.query.purge === '1' || req.query.purge === 'true');
       if (wantsPurge && !erasable(entry.id)) return res.status(409).json({ error: 'NOT_ERASABLE' });
