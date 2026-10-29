@@ -1,0 +1,1 @@
+- **iCal import** rejects impossible dates (`20270231`, `20271399`) and absurd ranges: an event starting more than 730 days ahead, ending more than 1 095 days ahead or lasting more than 366 nights is dropped, so `DTEND:99991231` can no longer create a placeholder blocking every later night.

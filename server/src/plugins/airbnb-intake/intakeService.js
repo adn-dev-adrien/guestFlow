@@ -20,7 +20,7 @@ const frDay = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 const localDay = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
 function createIntakeService(deps) {
-  const { intakes, settings, readMails, findReservations, propertyOptions, getReservation, core, now = () => new Date() } = deps;
+  const { intakes, settings, readMails, findReservations, propertyOptions, getReservation, core, parserVersion = null, now = () => new Date() } = deps;
   // The accommodations' day: the process runs in their time zone (utils/localDate.js).
   const today = deps.today || (() => localDay(now()));
 
@@ -167,16 +167,16 @@ function createIntakeService(deps) {
     const mails = await readMails({ ...mailbox, sender: settings.sender(), ...(settings.authentication ? settings.authentication() : {}) });
     let read = 0;
     for (const mail of mails) {
-      if (intakes.has(mail.messageId)) continue;
+      if (intakes.has(mail.messageId, parserVersion)) continue;
       const senderVerified = mail.authenticated === true;
       // Rule 2 — messages, reminders, payouts and reviews from the same sender are not intakes at all.
       if (!isBookingMail(mail.subject, mail.text)) continue;
       read += 1;
       const parsed = parseAirbnbMail({ subject: mail.subject, text: mail.text, sentAt: mail.sentAt || mail.receivedAt });
       if (!parsed.ok) {
-        // A forged mail that does not even parse is noise, not something for the operator to chase.
-        if (!senderVerified) continue;
-        intakes.insert({ messageId: mail.messageId, receivedAt: mail.receivedAt, status: 'error', error: parsed.error, senderVerified });
+        // Rule 26 — a forged mail that does not parse is noise for the operator, but it is remembered
+        // (`ignored`, out of every list) so the next pass does not read it again.
+        intakes.insert({ messageId: mail.messageId, receivedAt: mail.receivedAt, status: senderVerified ? 'error' : 'ignored', error: parsed.error, senderVerified, parserVersion });
         continue;
       }
       intakes.insert({ messageId: mail.messageId, receivedAt: mail.receivedAt, confirmationCode: parsed.booking.code, parsed: parsed.booking, status: 'pending', senderVerified });
@@ -209,7 +209,7 @@ function createIntakeService(deps) {
       receivedLabel: frDate(intake.receivedAt),
       code: intake.confirmationCode,
       senderUnverified: !intake.senderVerified,
-      airbnbUrl: booking.reservationUrl || null,
+      airbnbUrl: intake.senderVerified ? booking.reservationUrl || null : null,
       taxLeftEmpty: intake.status === 'applied' && booking.code ? (() => {
         const r = getReservation(reservationId) || {};
         return !core.withholdsTouristTax(r.propertyId, r.platform);

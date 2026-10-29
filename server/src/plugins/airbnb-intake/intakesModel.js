@@ -16,6 +16,7 @@ const TABLE_SQL = `
     appliedAt     TEXT,
     dismissedAt   TEXT,
     senderVerified INTEGER NOT NULL DEFAULT 0,
+    parserVersion TEXT,
     createdAt     TEXT DEFAULT CURRENT_TIMESTAMP
   );
   CREATE INDEX IF NOT EXISTS idx_airbnb_intakes_reservation ON airbnb_intakes(reservationId);
@@ -31,6 +32,13 @@ function addSenderVerifiedColumn(db) {
   db.exec('UPDATE airbnb_intakes SET senderVerified = 1 WHERE appliedAt IS NOT NULL');
 }
 
+// A parse failure is stamped with the plugin version that read it (`parserVersion`), so a later parser fix reads
+// the mail again (`has`). Rows from before the stamp have none and are read again once.
+function addParserVersionColumn(db) {
+  const has = db.prepare(`PRAGMA table_info(airbnb_intakes)`).all().some((c) => c.name === 'parserVersion');
+  if (!has) db.exec('ALTER TABLE airbnb_intakes ADD COLUMN parserVersion TEXT');
+}
+
 function hydrate(row) {
   if (!row) return null;
   return { ...row, parsed: row.parsed ? JSON.parse(row.parsed) : null, senderVerified: Number(row.senderVerified) !== 0 };
@@ -38,12 +46,20 @@ function hydrate(row) {
 
 function buildModel(db) {
   return {
-    has(messageId) {
-      return Boolean(db.prepare('SELECT 1 FROM airbnb_intakes WHERE messageId = ?').get(messageId));
+    // With `parserVersion`: a mail whose parse failed under another version is forgotten, so it is read again —
+    // unless the operator dismissed it, which stays final.
+    has(messageId, parserVersion = null) {
+      const row = db.prepare('SELECT id, status, parsed, parserVersion, dismissedAt FROM airbnb_intakes WHERE messageId = ?').get(messageId);
+      if (!row) return false;
+      if (parserVersion && !row.dismissedAt && row.parsed == null && ['error', 'ignored'].includes(row.status) && row.parserVersion !== parserVersion) {
+        db.prepare('DELETE FROM airbnb_intakes WHERE id = ?').run(row.id);
+        return false;
+      }
+      return true;
     },
-    insert({ messageId, receivedAt, confirmationCode = null, parsed = null, status, error = null, senderVerified = true }) {
-      const r = db.prepare(`INSERT INTO airbnb_intakes (messageId, receivedAt, confirmationCode, parsed, status, error, senderVerified)
-        VALUES (?, ?, ?, ?, ?, ?, ?)`).run(messageId, receivedAt, confirmationCode, parsed ? JSON.stringify(parsed) : null, status, error, senderVerified ? 1 : 0);
+    insert({ messageId, receivedAt, confirmationCode = null, parsed = null, status, error = null, senderVerified = true, parserVersion = null }) {
+      const r = db.prepare(`INSERT INTO airbnb_intakes (messageId, receivedAt, confirmationCode, parsed, status, error, senderVerified, parserVersion)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(messageId, receivedAt, confirmationCode, parsed ? JSON.stringify(parsed) : null, status, error, senderVerified ? 1 : 0, parserVersion);
       return Number(r.lastInsertRowid);
     },
     get(id) {
@@ -85,4 +101,4 @@ function buildModel(db) {
   };
 }
 
-module.exports = { buildModel, TABLE_SQL, addSenderVerifiedColumn };
+module.exports = { buildModel, TABLE_SQL, addSenderVerifiedColumn, addParserVersionColumn };

@@ -24,12 +24,12 @@ test('an empty field reads « Champ requis. », a malformed address « Adresse e
 });
 
 test('an empty e-mail is a missing field, not a malformed one — and its issue keeps its old wording', () => {
-  const bad = validateGuest({ firstName: 'A', lastName: 'B', email: '   ', phone: '06' });
+  const bad = validateGuest({ firstName: 'A', lastName: 'B', email: '   ', phone: '0612345678' });
   assert.deepEqual(bad.errors, [{ field: 'guest.email', issue: 'must be a valid email', reason: 'required' }]);
 });
 
 test('the sentences exist in English too, and the summary message is impersonal in both', () => {
-  assert.deepEqual(labels('en').fieldErrors, { required: 'Required.', emailInvalid: 'Incomplete email address.', tooLong: 'Text too long.' });
+  assert.deepEqual(labels('en').fieldErrors, { required: 'Required.', emailInvalid: 'Incomplete email address.', phoneInvalid: 'Invalid phone number.', tooLong: 'Text too long.' });
   assert.equal(labels('fr').errors.clientInvalid, 'Coordonnées incomplètes ou invalides.');
   assert.equal(labels('en').errors.clientInvalid, 'Contact details incomplete or invalid.');
 });
@@ -77,7 +77,7 @@ function call(body, query = {}) {
 const stay = { propertyId: 1, startDate: '2026-09-10', endDate: '2026-09-13', adults: 2 };
 
 test('POST /booking-requests: 422 with one message per refused field, in the page language', () => {
-  const fr = call({ ...stay, guest: { firstName: 'Jo', lastName: 'Martin', email: 'jo@', phone: '0612' } });
+  const fr = call({ ...stay, guest: { firstName: 'Jo', lastName: 'Martin', email: 'jo@', phone: '0612345678' } });
   assert.equal(fr.statusCode, 422);
   assert.equal(fr.body.error.code, 'VALIDATION_FAILED');
   assert.equal(fr.body.error.message, 'Coordonnées incomplètes ou invalides.');
@@ -85,7 +85,7 @@ test('POST /booking-requests: 422 with one message per refused field, in the pag
     { field: 'guest.email', issue: 'must be a valid email', reason: 'emailInvalid', message: 'Adresse e-mail incomplète.' },
   ]);
 
-  const en = call({ ...stay, guest: { firstName: '', lastName: 'Martin', email: 'jo@example.com', phone: '0612' } }, { lang: 'en' });
+  const en = call({ ...stay, guest: { firstName: '', lastName: 'Martin', email: 'jo@example.com', phone: '0612345678' } }, { lang: 'en' });
   assert.equal(en.body.error.message, 'Contact details incomplete or invalid.');
   assert.deepEqual(en.body.error.details, [
     { field: 'guest.firstName', issue: 'required', reason: 'required', message: 'Required.' },
@@ -95,13 +95,13 @@ test('POST /booking-requests: 422 with one message per refused field, in the pag
 // specs/public-api.md rule 20 (audit 2026-10-28, injection finding 2) — a name or phone of 40 000 characters used to be stored and
 // flow into every e-mail, PDF and CSV: refused at the boundary, field by field.
 test('a first name, last name, phone or e-mail past its cap is refused with its own field error', () => {
-  const ok = validateGuest({ firstName: 'a'.repeat(100), lastName: 'b'.repeat(100), email: 'a@b.fr', phone: '6'.repeat(40) });
+  const ok = validateGuest({ firstName: 'a'.repeat(100), lastName: 'b'.repeat(100), email: 'a@b.fr', phone: `+33612345678${' '.repeat(28)}` });
   assert.equal(ok.ok, true, 'the caps themselves are accepted');
-  const bad = validateGuest({ firstName: 'a'.repeat(101), lastName: 'b'.repeat(40009), email: 'a@b.fr', phone: '6'.repeat(41) });
+  const bad = validateGuest({ firstName: 'a'.repeat(101), lastName: 'b'.repeat(40009), email: 'a@b.fr', phone: `+33612345678${' '.repeat(29)}1` });
   assert.deepEqual(bad.errors.map((e) => [e.field, e.reason]), [
     ['guest.firstName', 'tooLong'], ['guest.lastName', 'tooLong'], ['guest.phone', 'tooLong'],
   ]);
   const out = withFieldMessages(bad.errors, labels('fr').fieldErrors);
   assert.equal(out[0].message, 'Texte trop long.');
-  assert.equal(validateGuest({ firstName: 'A', lastName: 'B', email: `${'a'.repeat(250)}@b.fr`, phone: '06' }).errors[0].reason, 'tooLong');
+  assert.equal(validateGuest({ firstName: 'A', lastName: 'B', email: `${'a'.repeat(250)}@b.fr`, phone: '0612345678' }).errors[0].reason, 'tooLong');
 });

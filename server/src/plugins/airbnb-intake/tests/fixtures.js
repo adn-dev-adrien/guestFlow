@@ -8,6 +8,9 @@ const NNB = ' ';
 const SUBJECT = 'Réservation confirmée : Camille Martin arrive le 26 déc.';
 const SENT_AT = '2026-10-24T16:44:00.000Z';
 
+// The subject names the arrival day (« arrive le 26 déc. »): a mail whose dates say otherwise is refused.
+const subjectFor = (dates) => (dates ? SUBJECT.replace(/arrive le .*$/, `arrive le ${dates[0].replace(/^\S+\s+/, '')}`) : SUBJECT);
+
 function bookingMail({
   guestColumn = [`288,65${NB}€ x 4${NB}nuits   1${NNB}154,60${NB}€`, `Frais de service voyageur   0,00${NB}€`, `Taxes   81,66${NB}€`],
   total = `1${NNB}236,26${NB}€`,
@@ -86,4 +89,4 @@ const WITH_CLEANING = {
   party: `10${NB}adultes`,
 };
 
-module.exports = { SUBJECT, SENT_AT, bookingMail, WITH_CLEANING, NB, NNB };
+module.exports = { subjectFor, SUBJECT, SENT_AT, bookingMail, WITH_CLEANING, NB, NNB };

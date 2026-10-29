@@ -138,6 +138,7 @@ const FR = Object.freeze({
   fieldErrors: Object.freeze({
     required: 'Champ requis.',
     emailInvalid: 'Adresse e-mail incomplète.',
+    phoneInvalid: 'Numéro de téléphone invalide.',
     tooLong: 'Texte trop long.',
   }),
 });
@@ -235,6 +236,7 @@ const EN = Object.freeze({
   fieldErrors: Object.freeze({
     required: 'Required.',
     emailInvalid: 'Incomplete email address.',
+    phoneInvalid: 'Invalid phone number.',
     tooLong: 'Text too long.',
   }),
 });

@@ -60,7 +60,7 @@ test('the exported feed of a closure with a hostile label is well formed and rea
   const ics = icalModel.buildModel(db).exportProperty(1);
   ics.split('\r\n').forEach((l) => assert.ok(Buffer.byteLength(l, 'utf8') <= 75, l));
   assert.equal(ics.split('\r\n').filter((l) => l === 'BEGIN:VEVENT').length, 1, 'a CR/LF in a label cannot open another event');
-  const [event] = parseIcsEvents(ics);
+  const [event] = parseIcsEvents(ics, { now: new Date('2099-01-01T00:00:00Z') });
   assert.ok(event.startDate === '2099-11-01' && event.endDate === '2099-11-08');
 });
 

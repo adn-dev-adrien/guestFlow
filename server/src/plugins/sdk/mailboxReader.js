@@ -22,20 +22,56 @@
 const { ImapFlow } = require('imapflow');
 const { addressMatches, verifyDkim, defaultAuthservId, domainOf, toList } = require('./mailAuthentication');
 
+// Rendered the way a browser shows the HTML (specs/gites-de-france-mail-intake.md rule 27): whitespace of the
+// source is one space inside a text run, and only block-level tags (tr, td, br, p, div, li…) start a new line, so a
+// label and its value split over source lines, or every cell in one row, read the same. Linear in the size of the
+// mail: tags are cut with indexOf, never with a pattern that backtracks across `>` (airbnb-mail-intake rule 26).
+// The `alt` of an image is kept, the rest of the tag dropped.
+const ALT_RE = /\balt="([^"]{0,500})"/i;
+const STYLE_END = /<\/style/gi;
+const MAX_TAG = 2000;
+const BLOCK = new Set(['tr', 'td', 'th', 'br', 'p', 'div', 'li', 'ul', 'ol', 'table', 'tbody', 'thead', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6']);
+const ENTITIES = { nbsp: '\u00a0', eacute: 'é', egrave: 'è', ecirc: 'ê', agrave: 'à', acirc: 'â', ccedil: 'ç', icirc: 'î', ocirc: 'ô', ugrave: 'ù', euro: '€', amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", rsquo: '’', laquo: '«', raquo: '»' };
+
+const decodeEntities = (text) => text.replace(/&(?:#(\d{1,7})|#x([0-9a-f]{1,6})|([a-z]{2,8}));/gi, (m, dec, hex, name) => {
+  if (name) return ENTITIES[name.toLowerCase()] ?? m;
+  const code = dec ? Number(dec) : parseInt(hex, 16);
+  return code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : m;
+});
+
+function stripTags(html) {
+  let out = '';
+  let i = 0;
+  // The next `>` is the same for every `<` before it: looked up once, so a flood of `<` stays linear.
+  let gtAt = -2;
+  const nextGt = (from) => { if (gtAt !== -1 && gtAt < from) gtAt = html.indexOf('>', from); return gtAt; };
+  const text = (run) => { out += decodeEntities(run).replace(/[ \t\r\n\f]+/g, ' '); };
+  while (i < html.length) {
+    const lt = html.indexOf('<', i);
+    if (lt < 0) { text(html.slice(i)); break; }
+    text(html.slice(i, lt));
+    const gt = nextGt(lt);
+    if (gt < 0) { text(html.slice(lt)); break; }
+    if (gt - lt > MAX_TAG) { out += '<'; i = lt + 1; continue; }
+    const tag = html.slice(lt + 1, gt);
+    const lower = ((/^\/?([a-z][a-z0-9]*)/i.exec(tag) || [])[1] || '').toLowerCase();
+    if (lower === 'style' && tag[0] !== '/') {
+      STYLE_END.lastIndex = gt;
+      const close = STYLE_END.exec(html);
+      i = close ? (html.indexOf('>', close.index) + 1 || html.length) : html.length;
+      continue;
+    }
+    if (lower === 'img') {
+      const alt = ALT_RE.exec(tag);
+      if (alt) out += ` ${alt[1]} `;
+    } else if (BLOCK.has(lower)) out += '\n';
+    i = gt + 1;
+  }
+  return out;
+}
+
 function htmlToText(html) {
-  return String(html || '')
-    .replace(/<img[^>]*alt="([^"]*)"[^>]*>/gi, ' $1 ')
-    .replace(/<(br|\/p|\/div|\/tr|\/h\d|\/li)[^>]*>/gi, '\n')
-    .replace(/<\/t[dh]>/gi, '\t')
-    .replace(/<style[\s\S]*?<\/style>/gi, '')
-    .replace(/<[^>]+>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&eacute;/g, 'é')
-    .replace(/&egrave;/g, 'è')
-    .replace(/&agrave;/g, 'à')
-    .replace(/&euro;/g, '€')
-    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
-    .replace(/&amp;/g, '&');
+  return stripTags(String(html || '')).split('\n').map((l) => l.replace(/[ \u00a0]+/g, ' ').trim()).filter(Boolean).join('\n');
 }
 
 function findPart(node, type) {
@@ -49,10 +85,19 @@ function findPart(node, type) {
   return null;
 }
 
-async function readPart(client, uid, part) {
+// Rule 26 — a part past this size is not read: no genuine booking mail comes near it, and a forged one must not
+// cost the server memory or time. Returns `{ tooLarge: <bytes read so far> }` for an oversized part.
+const MAX_PART_BYTES = 256 * 1024;
+
+async function readPart(client, uid, part, maxBytes = MAX_PART_BYTES) {
   const { content } = await client.download(String(uid), part, { uid: true });
   const chunks = [];
-  for await (const chunk of content) chunks.push(chunk);
+  let size = 0;
+  for await (const chunk of content) {
+    size += chunk.length;
+    if (size > maxBytes) { if (typeof content.destroy === 'function') content.destroy(); return { tooLarge: size }; }
+    chunks.push(chunk);
+  }
   return Buffer.concat(chunks).toString('utf8');
 }
 
@@ -89,7 +134,7 @@ const coreSmtpHost = () => require('./coreServices').settings.mailbox().host;
 
 async function readMailsFrom({
   host, port = 993, user, password, sender, allowedDomains = null, trustedAuthservId = '',
-  sinceDays = 30, now = new Date(), ImapClient = ImapFlow, smtpHostOf = coreSmtpHost,
+  sinceDays = 30, now = new Date(), ImapClient = ImapFlow, smtpHostOf = coreSmtpHost, log = () => {},
 }) {
   const smtpHost = smtpHostOf();
   const domains = toList(allowedDomains).length ? allowedDomains : domainOf(sender);
@@ -109,7 +154,12 @@ async function readMailsFrom({
       const auth = verifyDkim(msg.headers, { domains, trustedAuthservId: trusted });
       const plainPart = findPart(msg.bodyStructure, 'text/plain');
       const htmlPart = plainPart ? null : findPart(msg.bodyStructure, 'text/html');
-      const raw = plainPart ? await readPart(client, uid, plainPart) : htmlPart ? await readPart(client, uid, htmlPart) : '';
+      const partId = plainPart || htmlPart;
+      const raw = partId ? await readPart(client, uid, partId) : '';
+      if (raw && raw.tooLarge) {
+        log(`mail intake: ${(msg.envelope && msg.envelope.messageId) || `uid:${uid}`} skipped, its text part is over ${MAX_PART_BYTES} bytes (read ${raw.tooLarge}+)`);
+        continue;
+      }
       out.push({
         messageId: (msg.envelope && msg.envelope.messageId) || `uid:${uid}`,
         receivedAt: new Date(msg.internalDate || (msg.envelope && msg.envelope.date) || now).toISOString(),
@@ -145,4 +195,4 @@ async function testConnection({ host, port = 993, user, password, ImapClient = n
   }
 }
 
-module.exports = { readMailsFrom, testConnection, htmlToText, imapHostFor, resolveImapHost, connectionOptions };
+module.exports = { MAX_PART_BYTES, readPart, readMailsFrom, testConnection, htmlToText, imapHostFor, resolveImapHost, connectionOptions };

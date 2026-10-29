@@ -9,6 +9,7 @@ const crypto = require('crypto');
 const { buildModel, TABLE_SQL } = require('./intakesModel');
 const { createIntakeService } = require('./intakeService');
 const { listPending } = require('./pendingFiches');
+const { findFiches } = require('./ficheFinder');
 const { buildUserscript } = require('./userscript');
 const { publicRouter, adminRouter } = require('./routes');
 
@@ -52,9 +53,7 @@ function register(ctx) {
     intakes: intakes(),
     hotelIds,
     today: todayIso,
-    findReservations: ({ propertyId, startDate, endDate }) => ctx.db
-      .prepare("SELECT id FROM reservations WHERE kind = 'reservation' AND propertyId = ? AND startDate = ? AND endDate = ?")
-      .all(propertyId, startDate, endDate),
+    findReservations: findFiches(ctx.db),
     getReservation: (reservationId) => ctx.core.reservations.getByIdWithDetails(reservationId),
     // Rule 27 — does a reservation other than this one use the client?
     clientShared: (clientId, reservationId) => Boolean(ctx.db

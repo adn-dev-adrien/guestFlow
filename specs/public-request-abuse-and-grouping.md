@@ -235,6 +235,14 @@ someone else is attacking. One guest asking twice for the same stay gets one quo
     12, 14, 16 bits, and a second tab whose challenge predates the first tab's send passes on its retry.
     Spent-before-judged: a challenge sent twice still reads `used`.
 
+33. **A value on a « label : value » line of an operator e-mail is one line** (audit 2026-10-28, F5). The
+    notification e-mails (new/updated site devis, the digest, an imported iCal reservation, a booking conflict)
+    replace control characters and Unicode line separators in every interpolated value (names, e-mail, phone,
+    property, platform, option and resource titles, iCal summary) by a space, so a visitor cannot forge a line
+    (« IMPORTANT : le client a déjà payé : <link> ») above « Ouvrir le devis ». The mails are plain text, so there
+    is nothing to HTML-escape. The phone is also validated at the boundary (`specs/public-api.md` rule 21). Test:
+    `plugins/website-booking/tests/public-request-line-injection.unit.test.js`.
+
 ## 4. Architecture
 
 ### 4.1 Server side (`server/src/`)

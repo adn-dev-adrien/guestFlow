@@ -139,6 +139,14 @@ nothing, and the platforms tab says in one short line what the last sync did.
     while streaming (« Flux iCal trop volumineux. »). `GUESTFLOW_ICAL_ALLOW_PRIVATE=1` lifts the address
     check for a development box whose test feed lives on localhost; it is not set in production.
 
+17. *(Added 2026-10-28, audit finding F9.)* **A date is a day of the calendar, and a stay is bounded.** `20270231`
+    and `20271399` used to import as `2027-02-31` / `2027-14-00`, and `DTEND:99991231` as a placeholder blocking
+    every later night. An impossible date (also inside a UTC instant) now parses to nothing, so the event is
+    dropped (an invalid `DTEND` is not turned into a one-night stay; a missing one still is, and a departure not
+    after the arrival is still one night). An event is also dropped when it starts more than 730 days from now,
+    ends more than 1 095 days from now, or lasts more than 366 nights. `parseIcsEvents(ics, { now })` takes the
+    reference day for the tests. Test: `server/src/tests/ical-import-dates-bounds.unit.test.js`.
+
 **Edge cases:**
 - A stay arriving on another stay's departure day shares no night: no conflict (rule 3).
 - A feed that times out resets the empty-feed streak like any failed fetch

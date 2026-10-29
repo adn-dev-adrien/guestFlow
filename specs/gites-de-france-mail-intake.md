@@ -90,7 +90,7 @@ choice in one click.
 
 ### 3.2 Parsing (pure, unit-tested)
 
-4. Extracted fields: dossier number (`11773` from `11773-2026`), gîte number, arrival/departure date +
+4. *(Amended 2026-10-28 by rule 23: values are read per line, not from a flattened text.)* Extracted fields: dossier number (`11773` from `11773-2026`), gîte number, arrival/departure date +
    time, guest « NOM Prénom » → last/first name, adults / children / babies, e-mail, phone, each
    supplement line (label, quantity, amount), « Montant net de la location », « Total des options »,
    « Total net », tourist tax.
@@ -216,6 +216,41 @@ choice in one click.
     refused to a support session when changed (`specs/hosting-h2-account-security.md` rule 18, which also refuses a
     plugin rollback). Test:
     `server/src/tests/mail-intake-credential-destination.unit.test.js`.
+23. *(Added 2026-10-28, audit finding F4.)* **Field by field, never first match in the text.** The guest types his
+    own name, which comes before the party, the contact and the money lines: a name « DUPONT Claire 1 adulte »
+    gave 1 adult, and a name carrying « Montant net de la location … Total net … » chose the amounts. The parser
+    (amending rule 4, whose « line breaks do not matter » test is replaced) now reads each value on the line its
+    label opens (the « picto … » alt texts may prefix it): the name after « Réservation effectuée par : » (at most
+    80 characters, no digit, `€`, `@`, `:` or angle bracket), the party on the first « N adultes » line after it,
+    the e-mail and phone on a line of their own, the supplements between « Détail des suppléments » and
+    « Détail des crédits », and every amount **after** « Détail des crédits ». A label that opens two lines makes
+    the mail ambiguous (« Mail ambigu : un libellé apparaît plusieurs fois »). Dates must be real calendar dates,
+    the departure after the arrival, the stay at most 120 nights (« Dates du séjour invalides »). A mail flattened
+    to a single line is refused. Test: `gites-de-france-intake/tests/mail-injection.unit.test.js`.
+24. *(Added 2026-10-28, audit finding F6.)* **A cancelled fiche is never matched.** The match (rule 9) excludes
+    `cancelledAt` (the plugin's query now selects it); a cancelled fiche plus its rebooking no longer reads
+    « Plusieurs fiches », and a cancelled fiche alone is no longer written to. Test: same file.
+25. *(Added 2026-10-28, audit finding F2.)* **A hostile mail costs milliseconds and is read once.** Mail text over
+    256 KB is refused, the supplements are cut after each « € » (no pattern backtracks across the mail), the SDK
+    reader skips parts over 256 KB and reduces HTML in linear time. An unauthenticated mail that does not parse
+    is stored as `ignored` (never open, never on the dashboard) instead of leaving no row, so it is not parsed
+    again at each pass (rule 20 amended). Tests: same file, `server/src/tests/mail-reader-limits.unit.test.js`.
+26. *(Added 2026-10-28, audit finding F8.)* **An unverified mail never attaches a stay to an existing client.**
+    The guest's client is found by e-mail only when the sender was verified (`reuseByEmail: senderVerified` on
+    `ctx.core.reservations.update`, SDK 2.13.0); an unverified proposal the operator applies by hand gets a
+    client of its own. The client payload also goes through the SDK validation (SDK rule 28). Test:
+    `gites-de-france-intake/tests/mail-injection.unit.test.js`.
+27. *(Added 2026-10-28, review of PR #849.)* **A real HTML-only mail reads like the plain-text fixture.** `htmlToText`
+    renders as a browser does: entities are decoded, whitespace of the source is one space inside a text run, and only
+    block tags (`tr`, `td`, `th`, `br`, `p`, `div`, `li`, headings, lists) start a line, so a label and its value split
+    over source lines, a `<tr>` per line, a `<br>` per line or every cell in one row give the same result. The party
+    is the « picto personnes » line, or the line right after the name; a second « N adultes » line, e-mail line
+    or phone line in the contact block refuses the mail (a name carrying a line break, raw or `&#10;`). Tests:
+    `gites-de-france-intake/tests/html-layouts.unit.test.js`.
+28. *(Added 2026-10-28, review of PR #849.)* **A refused mail is read again after a plugin update.** A parse failure
+    (`parsed` empty, status `error` or `ignored`) is stamped with the plugin version in `parserVersion`; when the
+    version differs, the row is dropped and the mail read again, so a later parser fix recovers it. An intake that
+    parsed but failed to apply is never re-read, nor is a row the operator dismissed. Same in `airbnb-intake`. Test: same file.
 
 ---
 

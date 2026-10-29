@@ -50,7 +50,7 @@ test('the stamp is the generation instant in UTC', () => {
 });
 
 test('the importer reads the feed back to the same dates', () => {
-  const parsed = parseIcsEvents(feed(), { keepUnavailable: true });
+  const parsed = parseIcsEvents(feed(), { keepUnavailable: true, now: new Date('2099-01-01T00:00:00Z') });
   const dates = parsed.map((e) => [e.startDate, e.endDate]).sort();
   assert.deepEqual(dates, [['2099-07-10', '2099-07-13'], ['2099-11-01', '2100-03-01']]);
 });

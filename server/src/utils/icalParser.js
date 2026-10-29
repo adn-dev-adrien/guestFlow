@@ -19,7 +19,18 @@ function toIsoDate(year, month, day) {
   return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
+// specs/ical-import-hardening.md rule 17 — a date is a day of the calendar: `20270231` and `20271399` are not.
+function isRealDate(iso) {
+  const date = new Date(`${iso}T00:00:00Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === iso;
+}
+
 function parseIcalDate(rawValue, isDateOnly) {
+  const parsed = parseIcalDateUnchecked(rawValue, isDateOnly);
+  return isRealDate(parsed) ? parsed : '';
+}
+
+function parseIcalDateUnchecked(rawValue, isDateOnly) {
   const value = String(rawValue || '').trim();
   if (!value) return '';
 
@@ -41,6 +52,7 @@ function parseIcalDate(rawValue, isDateOnly) {
     const hh = Number(compact.slice(9, 11));
     const mm = Number(compact.slice(11, 13));
     const ss = Number(compact.slice(13, 15));
+    if (!isRealDate(toIsoDate(y, m, d)) || hh > 23 || mm > 59 || ss > 60) return '';
     const date = new Date(Date.UTC(y, m - 1, d, hh, mm, ss));
     const timeZone = resolveServerTimezone(process.env.GUESTFLOW_TZ).timezone;
     return new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
@@ -208,7 +220,20 @@ function isCompleteIcs(icsText) {
   return opened === closed;
 }
 
-function parseIcsEvents(icsText, { keepUnavailable = false } = {}) {
+// Rule 17 — a stay starts at most two years from now, ends at most three, and lasts at most a year:
+// `DTEND:99991231` is a corrupted or hostile feed, and it would block every later night.
+const MAX_START_AHEAD_DAYS = 730;
+const MAX_END_AHEAD_DAYS = 1095;
+const MAX_STAY_DAYS = 366;
+
+function isWithinHorizon({ startDate, endDate }, today) {
+  const dayDiff = (a, b) => Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86400000);
+  return dayDiff(today, startDate) <= MAX_START_AHEAD_DAYS && dayDiff(today, endDate) <= MAX_END_AHEAD_DAYS
+    && dayDiff(startDate, endDate) <= MAX_STAY_DAYS;
+}
+
+function parseIcsEvents(icsText, { keepUnavailable = false, now = new Date() } = {}) {
+  const today = now.toISOString().slice(0, 10);
   const lines = unfoldIcsLines(icsText);
   const events = [];
   let current = null;
@@ -250,7 +275,7 @@ function parseIcsEvents(icsText, { keepUnavailable = false } = {}) {
       if (!endDate && event.DURATION) {
         endDate = endDateFromDuration(startDate, dtStartRaw, event.DTSTART?.params?.VALUE === 'DATE', event.DURATION.value);
       }
-      if (!endDate && startDate) endDate = addIsoDays(startDate, 1);
+      if (!endDate && startDate && !event.DTEND?.value) endDate = addIsoDays(startDate, 1);
       if (startDate && endDate && endDate <= startDate) endDate = addIsoDays(startDate, 1);
 
       const summary = unescapeIcalText(event.SUMMARY?.value || '');
@@ -273,7 +298,7 @@ function parseIcsEvents(icsText, { keepUnavailable = false } = {}) {
     })
     // `keepUnavailable` — Booking.com labels every taken date « CLOSED - Not available », real
     // reservations included, so its feed must not lose them here (specs/lodgify-decommission.md §3 rule 5).
-    .filter((event) => event.startDate && event.endDate && event.status !== 'CANCELLED'
+    .filter((event) => event.startDate && event.endDate && event.status !== 'CANCELLED' && isWithinHorizon(event, today)
       && (keepUnavailable || !isUnavailableIcalEvent(event.summary, event.description)));
   return disambiguateRepeatedUids(parsed);
 }
