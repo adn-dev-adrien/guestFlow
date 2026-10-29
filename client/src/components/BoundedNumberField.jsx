@@ -31,12 +31,10 @@
  */
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Box, InputAdornment, TextField } from '@mui/material';
+import { visuallyHidden } from '../utils/visuallyHidden';
 import { parseLocaleNumber, rangeError, stripMinus, toDisplay } from '../utils/numberInput';
 
 const FLASH_MS = 2000;
-const VISUALLY_HIDDEN = {
-  position: 'absolute', width: 1, height: 1, margin: -1, padding: 0, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap', border: 0,
-};
 
 export default function BoundedNumberField({
   value,
@@ -158,7 +156,7 @@ export default function BoundedNumberField({
           },
         }}
       />
-      <Box component="span" role="status" aria-live="polite" sx={VISUALLY_HIDDEN}>{flash}</Box>
+      <Box component="span" role="status" aria-live="polite" sx={visuallyHidden}>{flash}</Box>
     </>
   );
 }
