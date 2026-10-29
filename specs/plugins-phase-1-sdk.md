@@ -401,8 +401,8 @@ Optional: a plugin that declares nothing reads « Actif ».
     8-15 digits. An invalid payload throws an error with `code: 'INVALID_CLIENT'`; inside `reservations.update`
     it rolls the transaction back and answers `{ status: 400, body: { error, code: 'INVALID_CLIENT' } }`. The new
     option `reuseByEmail` (default `true`) lets a plugin refuse to attach to an existing client holding the
-    e-mail (the Gîtes de France intake sets it from the sender check). The core's `isValidEmail` is stricter for
-    the same reason. Test: `server/src/tests/plugin-client-validation.unit.test.js`.
+    e-mail (the Gîtes de France intake sets it from the sender check). The core's and the client's `isValidEmail` are stricter for
+    the same reason (client test `validation.single-email.test.js`). The mailbox reader logs one line (message id and bytes read) for each part it skips over 256 KB. Test: `server/src/tests/plugin-client-validation.unit.test.js`.
 
 **Edge cases:**
 - **A plugin throws during `register`.** Rule 4 applies: the other plugins and the core boot. The Plugins

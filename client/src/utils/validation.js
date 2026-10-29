@@ -1,7 +1,7 @@
 export function isValidEmail(value) {
   const trimmed = String(value || '').trim();
   if (!trimmed) return true;
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed);
+  return /^[^\s@,;<>"]+@[^\s@,;<>"]+\.[^\s@,;<>"]+$/.test(trimmed);
 }
 
 export function isValidPhone(value) {

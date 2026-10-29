@@ -503,3 +503,6 @@ shared-client rules at 27–28 and appended these three as 29–31.
     guards against is no longer created; rules 27–28 stay as the guard and the repair path.
   - Tests: `pending-fiches.unit.test.js` +1 (stopped Lodgify relay), `engine.unit.test.js` and the client
     `SettingsSection.test.jsx` follow the removed setting.
+- 2026-10-28 — audit `external` (PR #849), manifest `1.3.6`: rules 33–34. The fiche query moves to
+  `booking-intake/ficheFinder.js` (cancelled and other-platform fiches excluded, several candidates refused with
+  `AMBIGUOUS_FICHE`) and the page's e-mail must be one address. Tests: `fiche-matching.unit.test.js` (4).
