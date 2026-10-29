@@ -491,7 +491,9 @@ function buildLedger({
       refundPrefill: { overpaymentTtc: round2(overpayment.ttc), overpaymentLines: overpayment.lines || [], method: overpayment.method || null },
       detail: {
         lines: (overpayment.lines || []).filter((l) => Number(l.collectedTtc) > 0)
-          .map((l) => `${l.label} : ${formatEuros(l.collectedTtc)} encaissés, ${formatEuros(l.dueTtc)} dus`),
+          .map((l) => (l.excessOnly
+            ? `${l.label} : ${formatEuros(l.collectedTtc)} encaissés en trop`
+            : `${l.label} : ${formatEuros(l.collectedTtc)} encaissés, ${formatEuros(l.dueTtc)} dus`)),
       },
     });
   }
