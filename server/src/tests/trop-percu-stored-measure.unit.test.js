@@ -162,3 +162,37 @@ test('rule 13 — the live ledger goes down when the edit absorbs the stored exc
   const live = await preview(controller, id, body({ discountPercent: 0 }));
   assert.equal(live.overpaymentTtc, 0);
 });
+
+// ── Re-review of the fix (rules 14-15) ──────────────────────────────────────────────────────────────────
+test('rule 14 — the live figure goes down on one refund basis: line refunds and free refunds do not distort the delta (#22306)', async () => {
+  const { db, controller, id, body } = await stay();
+  db.prepare('UPDATE reservations SET balancePaid = 1, balanceAmount = finalPrice + touristTaxTotal WHERE id = ?').run(id);
+  assert.equal(controller.performUpdate(id, body({ discountPercent: 10, forceOverpayment: true })).status, 200);
+  const stored = overpaymentRow(await get(controller, id)).amount;
+  const refunds = require('../models/refundsModel');
+  refunds.create(id, { refundDate: '2099-01-01', method: 'transfer', reason: '', totalTtc: 80, lines: [{ lineKey: 'opt:7', label: 'Ménage', bucket: 'options', quantity: 1, unitPrice: 80, amountTtc: 80, vatRate: 10 }] });
+  refunds.create(id, { refundDate: '2099-01-02', method: 'transfer', reason: '', totalTtc: 10, lines: [{ lineKey: null, label: 'Trop-perçu', bucket: 'accommodation', quantity: null, unitPrice: null, amountTtc: 10, vatRate: 10 }] });
+  const open = stored - 10;
+  assert.equal((await preview(controller, id, body({ discountPercent: 10, notes: 'n' }))).overpaymentTtc, open, 'unchanged price: the stored figure');
+  assert.equal((await preview(controller, id, body({ discountPercent: 0 }))).overpaymentTtc, 0, 'fully absorbed');
+  const half = (await preview(controller, id, body({ discountPercent: 5 }))).overpaymentTtc;
+  assert.ok(half > 0 && half < open, `partly absorbed: ${half}`);
+});
+
+test('rule 15 — with no captured split the excess is split by what left since the collection: a removed prestation on the options, a fallen tax on the tax', async () => {
+  const { db, controller, id, body } = await stay({ customOptions: [{ customKey: 'a', description: 'Panier', amount: 80, offered: false }] });
+  db.prepare('UPDATE reservations SET balancePaid = 1, balanceAmount = finalPrice + touristTaxTotal WHERE id = ?').run(id);
+  const refused = controller.performUpdate(id, body({ customOptions: [] }));
+  assert.equal(refused.status, 409, JSON.stringify(refused.body));
+  assert.deepEqual(refused.body.overpaymentLines.map((l) => [l.bucket, l.amountTtc]), [['options', 80]], 'on the 409');
+  assert.equal(controller.performUpdate(id, body({ customOptions: [], forceOverpayment: true })).status, 200);
+  const row = overpaymentRow(await get(controller, id));
+  assert.deepEqual(row.refundPrefill.overpaymentLines.map((l) => [l.bucket, l.amountTtc]), [['options', 80]], 'after the reload');
+  for (const line of row.detail.lines) assert.match(line, /^[^:]+ : [\d\s.,  ]+€ encaissés en trop$/);
+
+  const taxed = await stay();
+  taxed.db.prepare('UPDATE reservations SET balancePaid = 1, balanceAmount = finalPrice + touristTaxTotal WHERE id = ?').run(taxed.id);
+  assert.equal(taxed.controller.performUpdate(taxed.id, taxed.body({ adults: 1, forceOverpayment: true })).status, 200);
+  const taxRow = overpaymentRow(await get(taxed.controller, taxed.id));
+  assert.deepEqual(taxRow.refundPrefill.overpaymentLines.map((l) => [l.bucket, l.amountTtc]), [['touristTax', 3]]);
+});

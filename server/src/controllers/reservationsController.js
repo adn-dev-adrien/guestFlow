@@ -77,7 +77,7 @@ function gateInsurance(res, engineInput, bookingId) {
   return true;
 }
 const refundsModel = require('../models/refundsModel');
-const { overpaymentOf, overpaymentLinesOf, storedOverpaymentOf } = require('../utils/overpayment');
+const { overpaymentOf, overpaymentLinesOf, engineExcessOf, storedOverpaymentOf } = require('../utils/overpayment');
 const { firstSessionConflict, conflictError: sessionConflictError, sessionKey } = require('../utils/resourceSessionConflicts');
 const resourceOtherUsesModel = require('../models/resourceOtherUsesModel');
 const { formatCurrency } = require('../utils/devisHelpers');
@@ -382,6 +382,7 @@ function overpaymentIntroducedBy(reservationId, quote, overrides = {}) {
       row, capturedByPoste: model.capturedScheduleContribsByPoste(reservationId), quote, overpaymentTtc: after,
       // Computed before the write: the stored lines are still the ones the complement collected.
       complementLeft: Number(quote.complementCollectedExcessTtc) > 0 ? complementLeftOf(reservationId, quote, row) : {},
+      leftover: leftOfStayOf(reservationId, row, quote),
     }),
   };
 }
@@ -416,19 +417,23 @@ function liveOverpayment(reservationId, engineInput) {
   if (!asSaved || asSaved.error) return none;
   // The posted fiche priced by today's engine counts the drift since the stay was sold as excess: report the
   // stored figure, plus only what this edit adds on top of what the stored stay already held (rule 9).
-  const afterEngine = overpaymentOfQuote(reservationId, row, asSaved);
-  let beforeEngine = 0;
-  try {
-    const replay = quoteStoredReservation(db, row);
-    beforeEngine = replay && !replay.error ? overpaymentOfQuote(reservationId, row, replay).overpaymentTtc : 0;
-  } catch {
-    beforeEngine = 0;
-  }
+  const captured = model.capturedScheduleContribs(reservationId);
+  const excessOf = (quote) => engineExcessOf({
+    row, captured, depositAmount: quote.depositAmount, balanceAmount: quote.balanceAmount, engineOverTtc: quote.overCollectedTtc,
+  });
+  const afterRaw = excessOf(asSaved);
+  let beforeRaw = 0;
   let replayQuote = null;
-  try { replayQuote = quoteStoredReservation(db, row); } catch { replayQuote = null; }
+  try {
+    replayQuote = quoteStoredReservation(db, row);
+    beforeRaw = replayQuote && !replayQuote.error ? excessOf(replayQuote) : 0;
+  } catch {
+    beforeRaw = 0;
+  }
   const storedTtc = storedOverpaymentOf(storedOverpaymentInputs(reservationId, row, replayQuote));
-  // The stored figure moves with the edit, both ways: an edit that absorbs the excess takes it down.
-  const reported = Math.max(0, round2(storedTtc + afterEngine.overpaymentTtc - beforeEngine));
+  // Stored and delta on ONE basis — the stored figure is net of the free refunds, the two engine excesses
+  // are raw and compared with each other; the floor applies to the sum (rule 14).
+  const reported = Math.max(0, round2(storedTtc + afterRaw - beforeRaw));
   return overpaymentResultOf(reservationId, row, asSaved, reported);
 }
 
@@ -485,8 +490,48 @@ function overpaymentResultOf(reservationId, row, quote, overpaymentTtc) {
     overpaymentLines: overpaymentLinesOf({
       row, capturedByPoste: model.capturedScheduleContribsByPoste(reservationId), quote, overpaymentTtc,
       complementLeft: complementExcess > 0 && overpaymentTtc > 0 ? complementLeftOf(reservationId, quote, row) : {},
+      leftover: overpaymentTtc > 0 ? leftOfStayOf(reservationId, row, quote) : {},
     }),
   };
+}
+
+// What left the stay since its money was collected, per poste: the stored lines against the quote's (before
+// a save writes them) and the history (after it has), the larger of the two. The tax a fall of
+// `touristTaxTotal` took out, the options and resources a removal or a reduction took out.
+function leftOfStayOf(reservationId, row, quote) {
+  const sum = (lines) => (lines || []).filter((l) => !Number(l.offered || 0)).reduce((t, l) => t + Number(l.totalPrice || 0), 0);
+  const storedOptions = db.prepare('SELECT totalPrice, offered FROM reservation_options WHERE reservationId = ?').all(Number(reservationId));
+  const storedResources = db.prepare('SELECT totalPrice, offered FROM reservation_resources WHERE reservationId = ?').all(Number(reservationId));
+  const storedCustom = db.prepare('SELECT amount AS totalPrice, offered FROM reservation_custom_options WHERE reservationId = ?').all(Number(reservationId));
+  const live = {
+    options: Math.max(0, sum(storedOptions) + sum(storedCustom) - sum(quote.optionLines)),
+    resources: Math.max(0, sum(storedResources) - sum(quote.resourceLines)),
+    touristTax: Math.max(0, Number(row.touristTaxTotal || 0) - Number(quote.touristTaxTotal || 0)),
+  };
+  const history = droppedSinceCollection(reservationId, row);
+  return Object.fromEntries(Object.keys(live).map((poste) => [poste, round2(Math.max(live[poste], history[poste]))]));
+}
+
+// The drops the history recorded since the first paid bucket was collected: the tourist tax, the options and
+// the resources (their signatures carry each line's total).
+function droppedSinceCollection(reservationId, row) {
+  const dates = [row.depositPaid && row.depositPaidDate, row.balancePaid && row.balancePaidDate].filter(Boolean).map((d) => String(d).slice(0, 10)).sort();
+  const since = dates[0] || '';
+  const total = (signature) => String(signature || '').split('|').filter(Boolean).reduce((t, part) => t + (Number(part.split(':')[2]) || 0), 0);
+  const dropped = { options: 0, resources: 0, touristTax: 0 };
+  const entries = db.prepare("SELECT changedFields, createdAt FROM reservation_history WHERE reservationId = ? AND eventType = 'update' ORDER BY id").all(Number(reservationId));
+  for (const entry of entries) {
+    if (since && String(entry.createdAt || '').slice(0, 10) < since) continue;
+    let changes = [];
+    try { changes = JSON.parse(entry.changedFields || '[]'); } catch { changes = []; }
+    for (const change of changes) {
+      if (!change) continue;
+      if (change.field === 'touristTaxTotal') dropped.touristTax += Math.max(0, Number(change.from || 0) - Number(change.to || 0));
+      if (change.field === 'optionsSignature') dropped.options += Math.max(0, total(change.from) - total(change.to));
+      if (change.field === 'resourcesSignature') dropped.resources += Math.max(0, total(change.from) - total(change.to));
+    }
+  }
+  return dropped;
 }
 
 // The trop-perçu of the stay as the engine would save it (rule 34).
