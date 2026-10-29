@@ -247,7 +247,10 @@ describe('ClientsPage — protected history (clients.md rule 16)', () => {
       devisCount: 0, devis: [], blocker: 'Ce client a une réservation annulée.',
     });
     renderAt('/clients');
-    await openDeleteDialogFromSheet(user);
+    fireEvent.click(await screen.findByRole('button', { name: /Dupont/ }));
+    await screen.findByText('Modifier le client');
+    await user.click(screen.getByRole('button', { name: 'Supprimer' }));
+    await screen.findByText('Suppression impossible');
 
     const dialog = screen.getByRole('dialog');
     expect(await within(dialog).findByText('Ce client a une réservation annulée.')).toBeInTheDocument();
