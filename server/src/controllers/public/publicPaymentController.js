@@ -15,7 +15,7 @@ const db = require('../../database');
 const devisModel = require('../../models/devisModel');
 const paymentLinksModel = require('../../models/paymentLinksModel');
 const paymentProviders = require('../../utils/paymentProviders');
-const { deactivateAbandonedLinks, assertNotPaid } = require('../../utils/paymentLinkDeactivation');
+const { retireOpenLink } = require('../../utils/paymentLinkDeactivation');
 const { ensurePaymentLink } = require('../../utils/paymentRequestService');
 const { processPaidLink } = require('../../utils/paymentPollRunner');
 const { buildPaymentEffectDeps } = require('../../utils/paymentEffectDeps');
@@ -110,11 +110,10 @@ async function pay(req, res) {
   const stale = paymentLinksModel.findOpenForReservation(id, linkType === 'deposit' ? 'full' : 'deposit');
   if (stale && stale.url) {
     try {
-      await assertNotPaid(stale, provider);
+      await retireOpenLink(stale, { paymentLinksModel, provider });
     } catch (refusal) {
       return res.status(refusal.httpStatus || 409).json({ error: refusal.error, message: refusal.message });
     }
-    await deactivateAbandonedLinks([paymentLinksModel.updateStatus(stale.id, 'cancelled')], { paymentLinksModel, providerFor: () => provider });
   }
 
   const redirectUrl = buildReturnUrl(req.body && req.body.returnPath);

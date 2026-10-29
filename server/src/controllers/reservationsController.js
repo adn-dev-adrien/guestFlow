@@ -1461,9 +1461,15 @@ async function update(req, res) {
   }
 }
 
+function linkOwnerIds(reservationId) {
+  return require('../utils/deletionGuard').withConvertedDevis(db, [Number(reservationId)]);
+}
+
 function openPaymentLinks(reservationId) {
   try {
-    return require('../models/paymentLinksModel').listForReservation(Number(reservationId))
+    const paymentLinksModel = require('../models/paymentLinksModel');
+    // The links of the devis converted into the stay keep the devis id.
+    return linkOwnerIds(reservationId).flatMap((ownerId) => paymentLinksModel.listForReservation(ownerId))
       .filter((l) => l.status === 'open');
   } catch {
     return [];
@@ -1478,7 +1484,7 @@ async function retireStaleLinks(reservationId) {
   if (!row) return;
   const retired = [];
   for (const link of ledgerLinks.staleLinks(openPaymentLinks(reservationId), row)) {
-    retired.push(...paymentLinksModel.retireForAmountChange(reservationId, link.type, ledgerLinks.linkAmountCents(link.type, row)));
+    retired.push(...paymentLinksModel.retireForAmountChange(link.reservationId, link.type, ledgerLinks.linkAmountCents(link.type, row)));
   }
   if (retired.length === 0) return;
   try {

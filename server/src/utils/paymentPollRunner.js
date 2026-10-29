@@ -41,6 +41,10 @@ function applyPaidEffect({ database, devisModel, link, checkConflict, paidDate =
   if (!row) return { effect: 'no-reservation' };
   // A payment that lands after the stay was cancelled is money to refund, never a paid stay.
   if (row.kind === 'cancelled') return { effect: 'reservation-cancelled' };
+  // A devis link keeps the devis id once the devis is converted: the stay it became is the one that counts.
+  const convertedRow = row.kind === 'devis' && row.convertedReservationId
+    ? database.prepare('SELECT * FROM reservations WHERE id = ?').get(Number(row.convertedReservationId)) : null;
+  if (convertedRow && convertedRow.kind === 'cancelled') return { effect: 'reservation-cancelled' };
 
   // specs/direct-installments.md rule 15 — a paid link of an installment marks that installment paid.
   if (link.type === 'installment') {
@@ -76,8 +80,10 @@ function applyPaidEffect({ database, devisModel, link, checkConflict, paidDate =
     // The quote can be re-priced after its link was minted, and a link older than the tourist-tax rule
     // charges less than the quote asks: what the guest paid is booked, never the quote's amount.
     // A legacy devis stored without its split (both NULL) has no amount to compare with.
-    const hasSplit = row.depositAmount != null && row.balanceAmount != null;
-    const expectedCents = hasSplit ? linkAmountCents(link.type, row) : null;
+    // An already converted devis is compared with the stay it became, which the fiche may have re-priced.
+    const priced = effect === 'already-converted' && convertedRow && convertedRow.kind === 'reservation' ? convertedRow : row;
+    const hasSplit = priced.depositAmount != null && priced.balanceAmount != null;
+    const expectedCents = hasSplit ? linkAmountCents(link.type, priced) : null;
     if (expectedCents != null && link.amountCents != null && Number(link.amountCents) !== expectedCents) {
       const booked = bookPaidAfterAmountChange({ database, recordPayment }, link, { paidDay: paidDate });
       return { effect: booked.effect, reservationId, conflict, justConverted: effect === 'converted', amountMismatch: { expectedCents, receivedCents: Number(link.amountCents) } };
@@ -104,11 +110,14 @@ function applyPaidEffect({ database, devisModel, link, checkConflict, paidDate =
 // Two live links of one quote both paid (a retried request minted twice): the second money is a refund
 // to make, not a second payment to record or a second confirmation to send.
 function secondPaidLink(database, link, reservationId, isFull) {
-  const other = database.prepare(
-    "SELECT 1 FROM payment_links WHERE reservationId = ? AND type = ? AND status = 'paid' AND id <> ? LIMIT 1",
-  ).get(Number(link.reservationId), String(link.type), Number(link.id));
-  if (!other) return false;
+  const others = database.prepare(
+    "SELECT type FROM payment_links WHERE reservationId = ? AND type IN ('deposit', 'full') AND status = 'paid' AND id <> ?",
+  ).all(Number(link.reservationId), Number(link.id));
+  if (others.length === 0) return false;
   const flags = database.prepare('SELECT depositPaid, balancePaid FROM reservations WHERE id = ?').get(Number(reservationId));
+  // An acompte link and a full link both settle the acompte: the second one paid is the same money twice.
+  if (others.some((o) => o.type !== link.type)) return Boolean(flags) && Number(flags.depositPaid || 0) === 1;
+  if (!others.some((o) => o.type === link.type)) return false;
   return Boolean(flags) && Number(flags.depositPaid || 0) === 1 && (!isFull || Number(flags.balancePaid || 0) === 1);
 }
 
@@ -315,7 +324,7 @@ async function bookClaimedAmountChangedLink({ paymentLinksModel, notifyPaidAfter
   let mismatch = null;
   let converted = null;
   if (stay && stay.kind === 'devis' && !stay.convertedReservationId && devisModel && typeof devisModel.convertToReservation === 'function') {
-    const conv = devisModel.convertToReservation(link.reservationId);
+    const conv = devisModel.convertToReservation(link.reservationId, { allowConflict: true });
     if (conv && !conv.error && conv.data) {
       converted = conv.data.reservationId;
       mismatch = { expectedCents: linkAmountCents(link.type, stay), receivedCents: Number(link.amountCents) };

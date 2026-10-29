@@ -27,6 +27,7 @@
  *   findByProviderLinkId(provider, linkId)  → the row a provider id names (webhook, retries)
  *   markPaid(id, { providerPaymentId, paidAt }) → flips open|expired→paid (idempotent: a paid/cancelled row is untouched)
  *   updateStatus(id, status)                → 'open'|'paid'|'expired'|'cancelled'
+ *   cancelIfOpen(id)                        → cancels a still-open link and returns it; null when it is no longer open
  *   cancel(id, { remotePending })           → 'cancelled', with the remote-deactivation marker when pending
  *   listRemoteCancelPending()               → cancelled rows whose deactivation at the provider is owed
  *   clearRemoteCancelPending(id, { providerPaymentId?, paidAt? }) → the provider settled it (deactivated, or paid)
@@ -318,6 +319,13 @@ function buildModel(database) {
     return findById(id);
   }
 
+  // Retires a link only while it is still `open`: null when it moved meanwhile (paid by a webhook that
+  // ran during an awaited provider call), so a payment is never overwritten by a later cancellation.
+  function cancelIfOpen(id) {
+    const info = database.prepare("UPDATE payment_links SET status = 'cancelled' WHERE id = ? AND status = 'open'").run(Number(id));
+    return Number(info.changes) > 0 ? findById(id) : null;
+  }
+
   // specs/plugins-phase-3a-online-payment.md rule 7 — the row is abandoned locally at once; when the
   // provider could not deactivate it, the marker keeps it on the poll's retry list (rule 8).
   function cancel(id, { remotePending = false } = {}) {
@@ -377,6 +385,7 @@ function buildModel(database) {
     markPaid,
     updateStatus,
     cancel,
+    cancelIfOpen,
     claimRemoteCancelPending,
     restoreRemoteCancelPending,
     listRemoteCancelPending,
