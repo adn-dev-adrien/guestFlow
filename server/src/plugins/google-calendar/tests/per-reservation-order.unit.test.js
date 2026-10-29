@@ -28,7 +28,7 @@ function slowCalendar(latency = 15) {
   };
 }
 
-function engineFor(calendar, { cancelled = new Set(), opTimeoutMs } = {}) {
+function engineFor(calendar, { cancelled = new Set() } = {}) {
   const stay = (id) => ({
     id, propertyId: 1, propertyName: 'Villa', clientLastName: 'Doe', clientFirstName: 'Jane',
     startDate: '2026-06-01', endDate: '2026-06-03', checkInTime: '15:00', checkOutTime: '10:00',
@@ -43,7 +43,6 @@ function engineFor(calendar, { cancelled = new Set(), opTimeoutMs } = {}) {
     model: { getReservationForSync: (id) => (cancelled.has(Number(id)) ? null : stay(Number(id))), listReservationsForSync: () => [] },
     getCalendar: () => calendar,
     log: () => {},
-    ...(opTimeoutMs ? { opTimeoutMs } : {}),
   });
 }
 
@@ -98,26 +97,43 @@ test('a failing operation does not block the next one of the same reservation', 
   assert.equal(calendar.store.size, 1);
 });
 
-test('rule 27: a call that never answers is abandoned after the bound and the next queued op runs', async () => {
+test('rule 27: slow calls, each under its own bound, never let a delete slip between update and insert', async () => {
+  // Scaled from 20 s: update 25 ms + insert 28 ms are each fine, together longer than any whole-push bound.
+  const calendar = slowCalendar(0);
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  const { update, insert, delete: del } = calendar.events;
+  calendar.events.update = async (a) => { await wait(25); return update(a); };
+  calendar.events.insert = async (a) => { await wait(28); return insert(a); };
+  calendar.events.delete = async (a) => { await wait(2); return del(a); };
+  const cancelled = new Set();
+  const engine = engineFor(calendar, { cancelled });
+  engine.schedulePush(9);
+  await tick(5);
+  cancelled.add(9);
+  engine.scheduleDelete(9);
+  await tick(200);
+  assert.equal(calendar.store.size, 0, JSON.stringify(calendar.log));
+});
+
+test('rule 27: a call aborted at its HTTP bound stops the push before the insert, and the queue goes on', async () => {
   const calendar = slowCalendar(2);
-  const logged = [];
-  let hang = true;
+  const timedOut = Object.assign(new Error('timeout of 20000ms exceeded'), { code: 'ETIMEDOUT' });
   const realUpdate = calendar.events.update;
-  calendar.events.update = (args) => (hang ? new Promise(() => {}) : realUpdate(args));
+  let first = true;
+  calendar.events.update = (args) => { if (first) { first = false; return Promise.reject(timedOut); } return realUpdate(args); };
+  const logged = [];
   const engine = create({
     settings: { googleConnected: () => true, googleCalendarSelection: () => ({ calendarId: 'cal-1' }), recordGoogleSyncResult: () => {} },
     model: { getReservationForSync: (id) => ({ id, propertyId: 1, propertyName: 'V', clientLastName: 'D', clientFirstName: 'J', startDate: '2026-06-01', endDate: '2026-06-03', checkInTime: '15:00', checkOutTime: '10:00', adults: 2, children: 0, teens: 0, babies: 0, singleBeds: 0, doubleBeds: 1, babyBeds: 0, options: [] }) },
     getCalendar: () => calendar,
     log: (...a) => logged.push(a.join(' ')),
-    opTimeoutMs: 40,
   });
   engine.schedulePush(7);
   engine.schedulePush(7);
-  await tick(20);
-  hang = false;
   await settle(calendar);
-  assert.equal(calendar.store.size, 1, 'the second push ran after the first was abandoned');
-  assert.ok(logged.some((l) => /schedulePush/.test(l) && /ne répond pas/.test(l)), logged.join('|'));
+  assert.equal(calendar.log.filter((l) => l === 'insert:start').length, 1, 'the aborted push sent no insert');
+  assert.equal(calendar.store.size, 1, 'the next queued push ran');
+  assert.ok(logged.some((l) => /schedulePush/.test(l)), logged.join('|'));
 });
 
 test('rule 27: the HTTP bound is 20 s on the calendar client and the token transporter', () => {
