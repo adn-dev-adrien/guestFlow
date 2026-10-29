@@ -43,7 +43,7 @@ silently reverting what an import, a mail or another tab wrote meanwhile.
    are not told apart (accepted, a human cannot race a background write at that scale).
 4. **The fiche follows its own writes, and only those.** A write to `/api/reservations/:id/...` answers
    with `X-Fiche-Version-Before` (the stay's `updatedAt` before the handler) and `X-Fiche-Version-After`
-   (when the answer leaves); `api.js` puts `{ reservationId, before, after }` on the data-changed event.
+   (when the answer leaves; since audit R3 both come from the request's own writes, see rule 10); `api.js` puts `{ reservationId, before, after }` on the data-changed event.
    The fiche adopts `after` only when `before` equals the version it holds
    (`utils/ficheVersion.versionAfterOwnWrite`). A foreign write that landed in between makes `before`
    differ: the held version stays, and the next save is still refused. The page never re-reads the stay to
@@ -138,7 +138,8 @@ The dialog of rule 5, on desktop and mobile alike (the shared confirm dialog is 
 ### Server unit tests
 - [x] `tests/fiche-stale-save.unit.test.js` (3): rule 2 — a stale version is refused and writes nothing,
   the matching version / none / blank / unknown stay is not refused; rule 3 — the read carries the version.
-- [x] `tests/fiche-version-headers.unit.test.js`: rule 4 — the before / after headers on a write, none on a read.
+- [x] `tests/fiche-version-headers-await.unit.test.js` (3): rule 10 — a foreign write during an awaited provider call is not adopted, an own write keeps its pair, another stay's write carries no header.
+- [x] `tests/fiche-version-headers.unit.test.js` (2): rule 4 — the before / after headers on a write, none on a read.
 - [x] Client: `utils/ficheVersion.test.js` (6) and `__tests__/api.fiche-version.test.js` (3): rules 4 and 8.
 - [x] `tests/fiche-stay-versions-trail.unit.test.js` (3): rule 8, including a foreign write during an awaiting handler.
 - [x] Real-data check on the shadow (prod data of 22/10): the audit's `lost-update.sh` scenario answers 409

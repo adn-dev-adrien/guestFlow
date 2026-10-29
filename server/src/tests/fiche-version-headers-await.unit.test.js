@@ -20,13 +20,16 @@ async function serve(handler) {
 }
 
 const set = (db, id, at, note = '') => db.prepare('UPDATE reservations SET updatedAt = ?, note = ? WHERE id = ?').run(at, note, id);
-const pause = (ms) => new Promise((ok) => setTimeout(ok, ms));
+const deferred = () => { let resolve; const promise = new Promise((ok) => { resolve = ok; }); return { promise, resolve }; };
 
 test('rule 10 — a foreign write during an awaited provider call is not adopted: the next save is refused', async () => {
-  const { db, base, close } = await serve(async (d, req, res) => { set(d, 1, 'v1'); await pause(150); res.json({}); });
+  const ownWritten = deferred();
+  const foreignWritten = deferred();
+  const { db, base, close } = await serve(async (d, req, res) => { set(d, 1, 'v1'); ownWritten.resolve(); await foreignWritten.promise; res.json({}); });
   const pending = fetch(`${base}/1`, { method: 'PUT' });
-  await pause(40);
+  await ownWritten.promise;
   set(db, 1, 'v2', 'intake fill');
+  foreignWritten.resolve();
   const res = await pending;
   close();
   assert.equal(res.headers.get(BEFORE), 'v0');
@@ -35,7 +38,7 @@ test('rule 10 — a foreign write during an awaited provider call is not adopted
 });
 
 test('rule 10 — an own write followed by an await with no foreign write still carries its pair', async () => {
-  const { base, close } = await serve(async (d, req, res) => { set(d, 1, 'v1'); await pause(50); res.json({}); });
+  const { base, close } = await serve(async (d, req, res) => { set(d, 1, 'v1'); await Promise.resolve(); res.json({}); });
   const res = await fetch(`${base}/1`, { method: 'PUT' });
   close();
   assert.equal(res.headers.get(BEFORE), 'v0');
