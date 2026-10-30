@@ -13,7 +13,7 @@ const paymentLinks = require('../../../models/paymentLinksModel');
 
 test.beforeEach(() => { reset(); });
 
-test('rule 47: the receipt of a stay paid by its devis link is a link receipt', () => {
+test('qonto-bank-reconciliation rule 47: the receipt of a stay paid by its devis link is a link receipt', () => {
   const devis = addReservation({ kind: 'devis', finalPrice: 463.12, balanceAmount: 463.12 });
   const stay = addReservation({ finalPrice: 463.12, balanceAmount: 463.12, balancePaid: 1, balancePaidDate: '2026-10-12' });
   db.prepare('UPDATE reservations SET convertedReservationId = ? WHERE id = ?').run(stay, devis);
@@ -28,7 +28,7 @@ test('rule 47: the receipt of a stay paid by its devis link is a link receipt', 
   assert.equal(balance.linkPaidAt, '2026-10-12');
 });
 
-test('rule 47: the plugin reads the links of the stay and of the devis it came from', () => {
+test('qonto-bank-reconciliation rule 47: the plugin reads the links of the stay and of the devis it came from', () => {
   const source = fs.readFileSync(path.join(__dirname, '..', 'reconciliation', 'index.js'), 'utf8');
   assert.match(source, /listLinks: \(id\) => \{ try \{ return links\.listForStay\(id\)/);
   assert.doesNotMatch(source, /links\.listForReservation/);

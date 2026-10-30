@@ -54,7 +54,7 @@ test('rule 16: the manifests this tree ships pass the check', async () => {
 });
 
 test('rule 20: weather-alerts requires sas ^1.7.0, in 1.3.0, with its French changelog line', { skip: skipWithout(['weather-alerts', 'sas']) }, () => {
-  const read = (id) => JSON.parse(fs.readFileSync(path.join(ROOT, 'server', 'src', 'plugins', id, 'manifest.json'), 'utf8'));
+  const { readSourceManifest: read } = require('../plugins/manifest');
   const weather = read('weather-alerts');
   assert.deepEqual(weather.requires, [{ id: 'sas', range: '^1.7.0' }]);
   assert.equal(weather.version, '1.3.0');

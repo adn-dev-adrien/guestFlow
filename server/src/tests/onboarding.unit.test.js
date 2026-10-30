@@ -9,6 +9,7 @@ const { freshDb } = require('./guestEmailSequenceFixtures');
 const { applyProductisationSchema } = require('../utils/productisationMigration');
 const { buildController } = require('../controllers/onboardingController');
 const authController = require('../controllers/authController');
+const { skipWithout } = require('../plugins/sdk/testing');
 
 function call(handler, req) {
   return new Promise((resolve) => {
@@ -89,7 +90,7 @@ test('rule 21, step 2: beds cover the capacity, 1 to 50 guests, a price ≥ 0', 
   assert.equal(created[0].defaultCheckIn, '16:00');
 });
 
-test('rule 21, step 3 (rule 43): the plan-allowed plugins of each « oui » go through, a failure is named', async () => {
+test('rule 21, step 3 (rule 43): the plan-allowed plugins of each « oui » go through, a failure is named', { skip: skipWithout(['online-payment']) }, async () => {
   const { controller, installed } = setup({ failing: ['website-booking'] });
   const list = (await call(controller.get, {})).body.plugins;
   assert.deepEqual(list.filter((p) => p.recommended).map((p) => p.id).sort(), ['sas', 'website-booking']);

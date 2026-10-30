@@ -89,7 +89,7 @@ test('rule 15 — the same accountant lands on Mon compte when the export is not
   expect(window.location.pathname).toBe('/mon-compte');
 });
 
-test('rule 34 — the accountant\'s shell loads the platform colours but not the property list', async () => {
+test('plugins-phase-2-hosts rule 34 — the accountant\'s shell loads the platform colours but not the property list', async () => {
   signIn(['accountant'], '/mon-compte');
   render(<App />);
   await waitFor(() => expect(api.getPlatformColors).toHaveBeenCalled());
@@ -102,7 +102,7 @@ test('rule 15 — the reception shell still reads the property list', async () =
   await waitFor(() => expect(api.getProperties).toHaveBeenCalled());
 });
 
-test('rule 17 — the reservation search is offered to the administrator only', async () => {
+test('reservation-number-and-search rule 17 — the reservation search is offered to the administrator only', async () => {
   signIn(['admin'], '/');
   const admin = render(<App />);
   expect(await screen.findByPlaceholderText(/Rechercher une réservation/)).toBeInTheDocument();
@@ -113,7 +113,7 @@ test('rule 17 — the reservation search is offered to the administrator only', 
   expect(screen.queryByPlaceholderText(/Rechercher une réservation/)).toBeNull();
 });
 
-test('rule 17 — on a phone, the search icon is absent for reception and present for the administrator', async () => {
+test('reservation-number-and-search rule 17 — on a phone, the search icon is absent for reception and present for the administrator', async () => {
   emulate(true);
   signIn(['reception'], '/');
   const reception = render(<App />);

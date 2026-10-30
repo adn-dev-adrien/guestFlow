@@ -50,7 +50,7 @@ test('rule 25: every catalogued plugin has a declared settings place (or none, s
   });
 });
 
-test('rule 25: « Actif · à connecter » + « Configurer » while the plugin lacks something, « Réglages » once set up', () => {
+test('rule 25: « Actif · à connecter » + « Configurer » while the plugin lacks something, « Réglages » once set up', { skip: skipWithout(['google-calendar']) }, () => {
   let connected = false;
   const records = { 'google-calendar': { setupStatus: () => (connected ? null : 'à connecter') } };
   const ctrl = controllerWith({ 'google-calendar': { enabled: 1 } }, records);
@@ -63,7 +63,7 @@ test('rule 25: « Actif · à connecter » + « Configurer » while the plugin l
   assert.deepEqual(card.setup, { needed: false, label: 'Actif', path: '/settings/integrations?tab=google-calendar', action: 'Réglages' });
 });
 
-test('rules 25 + 32: an inactive plugin offers no settings action; the SAS opens its « Facturables » tab', () => {
+test('rules 25 + 32: an inactive plugin offers no settings action; the SAS opens its « Facturables » tab', { skip: skipWithout(['neat', 'sas']) }, () => {
   const ctrl = controllerWith({ neat: { enabled: 0 }, sas: { enabled: 1 } }, { neat: { setupStatus: () => 'identifiants manquants' } });
   const views = ctrl.views();
   assert.equal(views.find((p) => p.id === 'neat').setup.action, null);

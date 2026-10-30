@@ -64,7 +64,8 @@ test('rule 54: the discovery sees double quotes, a destructured readMailsFrom an
 
 test('rule 54: the discovery finds the plugins audit r3 and r4 named', () => {
   const named = ['website-booking', 'booking-intake', 'airbnb-intake', 'gites-de-france-intake', 'online-payment'];
-  for (const id of named.filter((p) => !missingPlugins([p]).length)) {
+  for (const id of named) {
+    if (missingPlugins([id]).length) continue;
     assert.ok(relying.has(id), `${id} is not discovered as relying on a core hardening`);
   }
 });

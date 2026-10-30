@@ -145,37 +145,64 @@ function pluginsNamedByIdentity(source, ids) {
   const code = source.split('\n').filter((line) => !/^\s*(\/\/|\*|\/\*)/.test(line)).join('\n');
   const quoted = (id) => new RegExp(`['"\`]${id.replace(/-/g, '\\-')}['"\`]`);
   const named = new Set();
+  const add = (list) => ids.filter((id) => quoted(id).test(list)).forEach((id) => named.add(id));
   if (/pluginPackagesFixture/.test(code)) ids.filter((id) => new RegExp(`\\bid:\\s*${quoted(id).source}`).test(code)).forEach((id) => named.add(id));
-  const LOADS = /(?<![`'"])require\(|readSourceManifest|applyPluginSchema|registerAll|realSetup|path\.join|copyFileSync/;
-  const walked = [...code.matchAll(/\bof\s*\[([^\]]*)\]|\[([^\]]*)\]\s*\.(?:forEach|map|flatMap)\(/g)]
-    .filter((m) => LOADS.test(code.slice(m.index, m.index + 400))).map((m) => m[1] || m[2]);
-  [...code.matchAll(/\bconst\s+(\w+)\s*=\s*\[([^\]]*)\]/g)].forEach((m) => {
-    const use = new RegExp(`\\bof\\s+${m[1]}\\b|\\b${m[1]}\\s*\\.\\s*(?:forEach|map|flatMap)\\(`).exec(code);
-    if (use && LOADS.test(code.slice(use.index, use.index + 400))) walked.push(m[2]);
+  const modVars = [...code.matchAll(/(?:const|let)\s+(\w+)\s*=\s*require\(\s*['"]\.\.?\/plugins['"]\s*\)/g)].map((m) => m[1]);
+  const receiver = `(?:require\\(\\s*['"]\\.\\.?/plugins['"]\\s*\\)${modVars.map((v) => `|\\b${v}`).join('')})`;
+  ids.forEach((id) => {
+    const q = quoted(id).source;
+    if (new RegExp(`${receiver}\\s*\\.find\\(\\s*\\(?(\\w+)\\)?\\s*=>\\s*\\1\\.id\\s*===?\\s*${q}`).test(code)
+      || new RegExp(`\\.find\\(\\s*\\(?(\\w+)\\)?\\s*=>\\s*\\1\\.id\\s*===?\\s*${q}\\s*\\)\\s*[.\\[]`).test(code)
+      || new RegExp(`\\bfindPlugin\\(\\s*${q}`).test(code)
+      || new RegExp(`\\bapplyPluginSchema\\(\\s*\\w+\\s*,\\s*${q}`).test(code)) named.add(id);
   });
-  walked.forEach((list) => ids.filter((id) => quoted(id).test(list)).forEach((id) => named.add(id)));
-  return [...named];
+  return [...named, ...loopsOver(code, ids).filter((l) => !l.guarded).flatMap((l) => l.ids)].filter((id, i, all) => all.indexOf(id) === i);
 }
 
-const dynamicPluginLoad = (source) => /plugins\/\$\{|SRC_PLUGINS,\s*\w+\s*[,)]|SERVER_PLUGINS,\s*\w+\s*[,)]/.test(source);
-const guardsAVariable = (source) => /(?:requirePlugins|missingPlugins|skipWithout)\(\[?\s*(?!')[a-z]\w*/.test(source);
+// Loops that walk a list of shipped ids into something that loads a plugin; `guarded` when the loop's own body
+// guards its variable (`skipWithout([id])`), not when the file guards some other loop.
+const LOADS = /(?<![`'"])require\(|readSourceManifest|applyPluginSchema|registerAll|realSetup|path\.join|copyFileSync/;
+function loopsOver(code, ids) {
+  const quoted = (id) => new RegExp(`['"\`]${id.replace(/-/g, '\\-')}['"\`]`);
+  const lists = [];
+  for (const m of code.matchAll(/(?:const|let)\s+(\w+)\s+of\s*\[([^\]]*)\]|\[([^\]]*)\]\s*\.(?:forEach|map|flatMap)\(\s*\(?\s*\[?(\w+)/g)) {
+    lists.push({ at: m.index, list: m[2] || m[3], variable: m[1] || m[4] });
+  }
+  for (const c of code.matchAll(/\b(?:const|let)\s+(\w+)\s*=\s*\[([^\]]*)\]/g)) {
+    const use = new RegExp(`(?:(?:const|let)\\s+(\\w+)\\s+of\\s+${c[1]}\\b|\\b${c[1]}\\s*\\.\\s*(?:filter|forEach|map|flatMap)\\(\\s*\\(?\\s*\\[?(\\w+))`).exec(code);
+    if (use) lists.push({ at: use.index, list: c[2], variable: use[1] || use[2] });
+  }
+  return lists.filter((l) => LOADS.test(code.slice(l.at, l.at + 400))).map((l) => ({
+    ids: ids.filter((id) => quoted(id).test(l.list)),
+    guarded: Boolean(l.variable) && new RegExp(`(?:requirePlugins|missingPlugins|skipWithout)\\(\\[?\\s*${l.variable}\\b`).test(code.slice(l.at, l.at + 1500)),
+  })).filter((l) => l.ids.length);
+}
 
-test('rule 19 (rules 3, 4): a core test that names a shipped plugin by its id — fake package, loop over ids, path built from a variable — is guarded', () => {
+// A path built from a variable names a plugin folder; it is guarded when that same variable is handed to a guard.
+function dynamicLoadVariables(source) {
+  const code = source.split('\n').filter((line) => !/^\s*(\/\/|\*|\/\*)/.test(line)).join('\n');
+  return [...code.matchAll(/plugins\/\$\{(\w+)\}|path\.join\(\s*(?:SRC_PLUGINS|SERVER_PLUGINS),\s*(\w+)\s*[,)]|'plugins',\s*([A-Za-z_]\w*)\s*[,)]/g)]
+    .map((m) => m[1] || m[2] || m[3]).filter((v) => !/^[A-Z_]*DIR$/.test(v))
+    .filter((v) => !new RegExp(`(?:requirePlugins|missingPlugins|skipWithout)\\(\\[?\\s*${v}\\b`).test(code));
+}
+const dynamicPluginLoad = (source) => dynamicLoadVariables(source).length > 0;
+
+test('rule 19 (rules 3, 4): a core test that names a shipped plugin by its id — fake package, loop over ids, lookup, path built from a variable — is guarded', () => {
   const ids = listPlugins();
   const violations = [];
   testFiles(path.join(SERVER_PLUGINS, '..', 'tests')).forEach((file) => {
     const source = fs.readFileSync(file, 'utf8');
     if (path.basename(file) === path.basename(__filename)) return;
     const guarded = guardedIn(source);
-    pluginsNamedByIdentity(source, ids).filter((id) => !guarded.includes(id) && !guardsAVariable(source))
+    pluginsNamedByIdentity(source, ids).filter((id) => !guarded.includes(id))
       .forEach((id) => violations.push(`${path.relative(ROOT, file)} → ${id}`));
-    if (dynamicPluginLoad(source) && !guarded.length && !guardsAVariable(source)) violations.push(`${path.relative(ROOT, file)} → a plugin folder named by a variable`);
+    if (dynamicPluginLoad(source)) violations.push(`${path.relative(ROOT, file)} → a plugin folder named by a variable`);
   });
   assert.deepEqual(violations, []);
 });
 
-test('rule 19: the identity guard sees fake packages, loops over ids and variable paths, and leaves synthetic manifests of test-only ids alone', () => {
-  const ids = ['linen', 'sas'];
+test('rule 19: the identity guard sees fake packages, loops, lookups and variable paths, ties a variable guard to its own loop, and leaves synthetic manifests of test-only ids alone', () => {
+  const ids = ['linen', 'sas', 'neat'];
   assert.deepEqual(pluginsNamedByIdentity("const h = require('./pluginPackagesFixture');\nconst D = { id: 'linen', serverCode: 'x' };", ids), ['linen']);
   assert.deepEqual(pluginsNamedByIdentity("const ROWS = [{ id: 'linen' }];", ids), []);
   assert.deepEqual(pluginsNamedByIdentity("const RELYING = ['linen', 'sas'];\nfor (const id of RELYING) readSourceManifest(id);", ids), ['linen', 'sas']);
@@ -185,11 +212,22 @@ test('rule 19: the identity guard sees fake packages, loops over ids and variabl
   assert.deepEqual(pluginsNamedByIdentity("['linen', 'sas'].forEach((id) => require(`./x/${id}`));", ids), ['linen', 'sas']);
   assert.deepEqual(pluginsNamedByIdentity("const R = { id: 'fx-linen' }; assert.equal(row.channel, 'sas');", ids), []);
   assert.deepEqual(pluginsNamedByIdentity("// { id: 'linen' }\nconst m = h.manifest('fx-sas', '1.0.0');", ids), []);
-  assert.equal(dynamicPluginLoad('require(`../plugins/${id}`)'), true);
-  assert.equal(dynamicPluginLoad("path.join(SRC_PLUGINS, id, 'manifest.json')"), true);
-  assert.equal(dynamicPluginLoad("require('../plugins/linen')"), false);
-  assert.equal(guardsAVariable('{ skip: skipWithout([id]) }'), true);
-  assert.equal(guardsAVariable("{ skip: skipWithout(['linen']) }"), false);
+  // the reviewer's probes: each must be flagged
+  assert.deepEqual(pluginsNamedByIdentity("for (const p of ['neat']) test(p, { skip: skipWithout([p]) }, () => { require(`../plugins/${p}`); });\nconst h = require('./pluginPackagesFixture');\nconst F = { id: 'linen', serverCode: 'x' };", ids), ['linen']);
+  assert.deepEqual(pluginsNamedByIdentity("require('../plugins').find((m) => m.id === 'linen');", ids), ['linen']);
+  assert.deepEqual(pluginsNamedByIdentity("const m = findPlugin('sas').manifest;", ids), ['sas']);
+  assert.deepEqual(pluginsNamedByIdentity("applyPluginSchema(db, 'neat');", ids), ['neat']);
+  assert.deepEqual(pluginsNamedByIdentity("const IDS = ['linen', 'sas'];\nIDS.filter((id) => id !== 'x').forEach(load);\nfunction load(id) {}", ids), []);
+  assert.deepEqual(pluginsNamedByIdentity("const IDS = ['linen', 'sas'];\nIDS.filter((id) => id !== 'x').forEach((id) => require(`./x/${id}`));", ids), ['linen', 'sas']);
+  assert.deepEqual(pluginsNamedByIdentity("const items = list.find((i) => i.id === 'linen');", ids), []);
+  assert.deepEqual(pluginsNamedByIdentity("expect(list.find((p) => p.id === 'neat').plan).toBe(1); const x = list.find((p) => p.id === 'sas');", ids), ['neat']);
+  assert.deepEqual(pluginsNamedByIdentity("const MODULES = require('../plugins');\nMODULES.find((m) => m.id === 'sas'); body.find((p) => p.id === 'neat');", ids), ['sas']);
+  assert.deepEqual(dynamicLoadVariables("test('a', { skip: skipWithout(['neat']) }, () => {});\nrequire(`../plugins/${id}`);"), ['id']);
+  assert.deepEqual(dynamicLoadVariables("const ID = 'linen';\nrequire(path.join(__dirname, '..', 'plugins', ID, 'x'));"), ['ID']);
+  assert.deepEqual(dynamicLoadVariables("for (const id of L) { test('a', { skip: skipWithout([id]) }, () => { require(`../plugins/${id}`); }); }"), []);
+  assert.deepEqual(dynamicLoadVariables("path.join(SRC_PLUGINS, id, 'manifest.json')"), ['id']);
+  assert.deepEqual(dynamicLoadVariables(["require('../plugins/", "linen')"].join('')), []);
+  assert.deepEqual(dynamicLoadVariables('path.relative(SRC_PLUGINS, full)'), []);
 });
 
 // An optionalPlugin load lets a file load without the plugin; the tests that then fail must say so, or the

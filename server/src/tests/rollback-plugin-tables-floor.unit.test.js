@@ -9,6 +9,7 @@ const assert = require('node:assert/strict');
 const db = require('../database');
 const pluginFloor = require('./fixtures/rollback-floor-v3.18.0-plugin-tables.json');
 const { applyPluginSchema, listPlugins } = require('../plugins/sdk/testing');
+const { CATALOG_ORDER } = require('../constants/plugins');
 
 // The plugin that creates each table of the floor: a tree without a plugin (specs/plugin-removal-resilience.md
 // rules 4, 5) has no such table to keep, so its tables leave the comparison.
@@ -50,4 +51,5 @@ test('rule 44 - the floor lists the 16 plugin tables of v3.18.0', () => {
 
 test('rule 44 - every table of the floor has an owning plugin', () => {
   assert.deepEqual(Object.keys(pluginFloor).filter((table) => !OWNER[table]), []);
+  assert.deepEqual([...new Set(Object.values(OWNER))].filter((id) => !CATALOG_ORDER.includes(id)), [], 'an owner that is not a catalogue id would silently drop its tables');
 });
