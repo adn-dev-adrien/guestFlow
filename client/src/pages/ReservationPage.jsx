@@ -3148,7 +3148,7 @@ export default function ReservationPage() {
   // (specs/deposit-blocks-the-dates.md rules 10 + 12).
   const handleSendPaymentRequest = async () => {
     if (!editingDevisId) {
-      await alert({ title: 'Devis à enregistrer', message: 'Devis à enregistrer avant de générer une demande de paiement.' });
+      await alert({ title: 'Devis à enregistrer', message: 'Enregistrement requis avant la demande de paiement.' });
       return;
     }
     try {
@@ -3202,7 +3202,7 @@ export default function ReservationPage() {
       } else if (conv) {
         await alert({ title: paidTitle, message: 'Le paiement est enregistré.' });
       } else {
-        await alert({ title: 'Pas encore payé', message: 'Aucun paiement détecté pour ce devis. Lien de paiement à régler d’abord.' });
+        await alert({ title: 'Pas encore payé', message: 'Aucun paiement détecté pour ce devis. Lien pas encore réglé.' });
       }
     } catch (e) {
       await alert({ title: 'Erreur', message: e.message || 'Vérification impossible.' });

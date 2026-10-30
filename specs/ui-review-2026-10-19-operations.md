@@ -292,14 +292,19 @@ guessing; and the quote the guest receives looks like the house that sends it.
     into the card's padding, 4 + 3 below). The default-hour field of a single-slot option grid is named
     « Heure par défaut ». Measured with Playwright at 390 and 900 (coarse pointer). Test:
     `components/__tests__/OccurrenceGrid.time-label.test.jsx`.
-38. **No 2nd-person-singular imperative in operator text (audit R5, 2026-10-30).** Rule 36 also covers
-    « tu » forms: « Devis à enregistrer d'abord. », « Une fois payé : « Vérifier le paiement ». »,
-    « Connexion Qonto à vérifier (logs). », « Champs signalés à corriger. », « Option regroupée dans un
-    menu dépliant ». The guard `__tests__/operator-wording.impersonal.test.js` reads the string
-    literals of the client (comments stripped) and fails on a listed imperative (« Enregistre »,
-    « Clique », « Vérifie », « Sélectionne »…) at the start of a sentence or after a dash, and on
-    « clique / vérifie / corrige… » followed by a guillemet or an article. Plugins whose texts changed
-    are bumped (`neat` 1.3.1, `online-payment` 1.4.6).
+38. **No 2nd-person-singular imperative or pronoun in operator text (audit R5, 2026-10-30).** Rule 36 also
+    covers « tu » forms: « Enregistrement requis avant la demande de paiement. », « Une fois payé :
+    « Vérifier le paiement ». », « Connexion Qonto à vérifier (logs). », « Champs signalés à corriger. »,
+    « Regroupement dans un menu dépliant (vide : aucun). », « Envoi d'un « Email de test… » ».
+    The guard `__tests__/operator-wording.impersonal.test.js` reads the string literals of the client
+    (comments stripped) and fails on: the pronouns tu / ton / ta / tes / toi as words; an imperative
+    of the unambiguous list (« Enregistre », « Clique », « Remplis », « Mets », « Fais », « Reviens »,
+    « Patiente », « Reconnecte »…) at the start of a sentence or after `. ! ? : ; , (` or a dash; an
+    imperative that is also a noun or adjective (« Copie », « Active », « Ferme »…) only when an
+    article or preposition follows; and « clique / vérifie / corrige… » mid-sentence before a guillemet,
+    an article, « sur », « ici », « pour » or « à ». A 3rd-person « « Connexion » autorise… » is not
+    flagged. The test holds a table of 36 probe sentences. Plugins whose texts changed are bumped
+    (`neat` 1.3.1, `online-payment` 1.4.6).
 39. **Only the latest request is shown (audit R5, 2026-10-30).** A screen whose data depends on a
     filter, a tab, a tile or a period ignores the answer of a request that has been superseded
     (`hooks/useLatestRequest.js`: `begin()` returns `current()`, checked before every `set…` of the
