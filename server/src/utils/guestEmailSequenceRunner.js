@@ -17,6 +17,7 @@ const {
   __test: { addDays },
 } = require('./guestEmailSequence');
 const { todayIso } = require('./localDate');
+const { bookingDayOf } = require('./vatRegime');
 
 const CATCH_UP_DAYS = 2;
 const STALE_CLAIM_MINUTES = 60;
@@ -95,7 +96,7 @@ function planWindow({ database, ledger, from, to, startDate }) {
         entry.reason = entry.status === 'to-check' ? 'Envoi commencé puis interrompu : à vérifier, jamais renvoyé automatiquement' : 'Envoi en cours';
       } else {
         entry.status = 'already-sent';
-        entry.reason = row.status === 'skipped' ? 'Ignoré par l\'opérateur' : `Déjà envoyé le ${String(row.sentAt || '').slice(0, 10)}`;
+        entry.reason = row.status === 'skipped' ? 'Ignoré par l\'opérateur' : `Déjà envoyé le ${bookingDayOf(row.sentAt) || ''}`;
       }
       continue;
     }

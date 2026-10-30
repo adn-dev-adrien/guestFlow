@@ -278,6 +278,10 @@ its due date, after the operator validates it.
     *Why:* `financeModel.overdueOf` only knew the acompte, the solde and the payout, so a stay paid
     through a plan was never late on Finance while the fiche and the payment deadlines said it was
     (`specs/finance-dashboard-redesign.md` rule 49).
+49. **« Demandée le … » is the operator's day** (2026-10-30, audit R9). `requestedAt` is a UTC ISO stamp
+    (`paymentRequestService`); the label prints its local day (`vatRegime.bookingDayOf`,
+    `specs/finance-dashboard-redesign.md` rule 50). *Why:* a request sent between 00:00 and 01:00 / 02:00
+    in Paris was labelled with the day before.
 
 ---
 
@@ -492,6 +496,7 @@ Baseline 6 264 → **6 373** (+109 net, all green; 5 cron tests of money templat
 - [x] `plugins/accounting-export/tests/accounting-collected-money-frozen.unit.test.js` (2 of 5) — rule 47: an October installment unchanged after a later save; the stored split adds up and keeps the plan's tax share
 - [x] `tests/finance-late-installments.unit.test.js` (3) — rule 48: two late installments as elements, the three-day grace, a covered plan never late
 - [x] `client/src/pages/__tests__/FinancePage.settle-late-installment.test.jsx` (1) — rule 48: « Marquer payé » records each late installment through its endpoint
+- [x] `tests/utc-timestamp-paris-day-labels.unit.test.js` (1 of 3, 2026-10-30) — rule 49: a request stamped 23:30 UTC reads « Demandée le » on its Paris day
 
 ### Client tests
 Baseline 2 153 → **2 176** (+23, all green).

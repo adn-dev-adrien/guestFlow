@@ -658,6 +658,12 @@ tariff would fire on every platform stay (the brut is grossed up by the commissi
     Finances section's « Actualiser tarifs » (`refreshToCurrentPricing`, confirmation, chip « Tarifs
     actuels appliqués (non sauvegardé) ») stays the one deliberate way to re-price a direct fiche. A
     platform stay has nothing to apply: its price is the brut.
+65. **The booking date of rule 61 is the operator's day** (2026-10-30, audit R9-1). The day the journal
+    is compared with is the local day of the stay's `createdAt` (`vatRegime.bookingDayOf`,
+    `specs/finance-dashboard-redesign.md` rule 50), never its first ten characters: `createdAt` is UTC,
+    while `tariffChangeJournalModel.hasEventAfter` reads `date(occurredAt, 'localtime')`. *Why:* a stay
+    booked at 00:30 Paris read as booked the day before, so a tariff change made at 00:10 that same day,
+    before the booking, counted as « after » and silenced the alert.
 
 **Edge cases (amendment):**
 - Only a due date or the tourist tax differs from today (the 4 Booking stays of 2027) → the stored card,
@@ -937,6 +943,9 @@ summary page (normal direct · normal platform · misconfigured platform, panel 
   journal event after the booking date (and not null with the same event when the snapshot is replayed); rule 63 — `calculate-price` returns the object and
   omits it for a reception-only user. _The "eight channel totals of tariff recipes rule 54" were not
   replayed through the engine: the real-data pass on the shadow copy (§7 manual) stands in for them._
+- [x] **Audit R9-1 (2026-10-30)** `tests/utc-timestamp-paris-day-labels.unit.test.js` (1 of 3): rule 65 — a
+  stay booked at 00:30 Paris and a tariff change at 00:10 that day still raise the alert; a change on the
+  next Paris day still silences it.
   The `properties-platform-prices` case planned for `gridCellOf` is dropped with the extraction.
 
 ### Client (Vitest)

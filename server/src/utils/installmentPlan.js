@@ -14,6 +14,7 @@
 
 const { daysBetween } = require('./paymentSchedule');
 const { addDaysToIsoDate } = require('./devisHelpers');
+const { bookingDayOf } = require('./vatRegime');
 
 const MIN_COUNT = 2;
 const MAX_COUNT = 12;
@@ -203,7 +204,7 @@ function statusLabel(installment, status) {
       return `Payée le ${frShort(installment.paidDate)}${method ? ` · ${method}` : ''}`;
     }
     case 'late': return 'En retard';
-    case 'requested': return `Demandée le ${frShort(String(installment.requestedAt).slice(0, 10))}`;
+    case 'requested': return `Demandée le ${frShort(bookingDayOf(installment.requestedAt))}`;
     case 'toRequest': return 'À demander';
     default: return 'À venir';
   }
