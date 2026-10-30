@@ -409,6 +409,9 @@ This phase moves the fixed behaviour into the plugin; it does not fix it again.
     check-in on arrival day and up to the check-out on departure day, the bounds the SAS uses. Starts
     and ends outside that window are greyed out in the pickers. With no slot left, the button is
     disabled. The fiche passes `checkInTime` and `checkOutTime` in the picker's `stay`.
+32. **The occupied slots belong to the date on screen** (audit r6, 2026-10-30). The booking dialog drops the late
+    answer of the date it just left: a free day is never drawn as booked, nor a booked day as free. Test:
+    `ResourceBookingDialog.stale-slots.test.jsx`.
 
 ## 4. Architecture
 

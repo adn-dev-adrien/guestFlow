@@ -163,13 +163,16 @@ export default function ResourceBookingDialog({
   // Load occupied slots when date changes
   useEffect(() => {
     if (!open || !date || !resource?.id) return;
+    let current = true;
     api.getOccupiedSlots(resource.id, date)
       .then((result) => {
+        if (!current) return;
         const slots = result.occupiedSlots || [];
         const filtered = booking?.id ? slots.filter((slot) => Number(slot.id) !== Number(booking.id)) : slots;
         setOccupiedSlots(filtered);
       })
-      .catch(() => setOccupiedSlots([]));
+      .catch(() => { if (current) setOccupiedSlots([]); });
+    return () => { current = false; };
   }, [open, date, resource?.id, booking?.id]);
 
   useEffect(() => {

@@ -59,6 +59,6 @@ test('rule 61: the home line for a requirement that is ON but out of range says 
   assert.equal(items[0].need, 'compatible avec ^1.0.0');
   const summary = CORE_SUMMARIES['plugins-switched-off']({ items });
   assert.equal(summary.title, 'Plugin xb éteint : nécessite Plugin xa compatible avec ^1.0.0.');
-  assert.equal(summary.detail, 'À mettre à jour depuis la page Plugins');
-  assert.equal(CORE_SUMMARIES['plugins-switched-off']({ items, managed: true }).detail, 'À mettre à jour par l’exploitant');
+  assert.equal(summary.detail, 'À mettre à jour puis réactiver depuis la page Plugins');
+  assert.equal(CORE_SUMMARIES['plugins-switched-off']({ items, managed: true }).detail, 'À mettre à jour puis réactiver par l’exploitant');
 });
