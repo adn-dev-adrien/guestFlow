@@ -124,7 +124,9 @@ const CORE_SUMMARIES = {
       title: items.length === 1
         ? `${items[0].name} éteint : nécessite ${items[0].requires}${items[0].need ? ` ${items[0].need}` : ''}.`
         : `Plugins éteints : ${items.length}`,
-      detail: `${items.every((i) => i.need) ? 'À mettre à jour' : 'À réactiver'} ${payload.managed ? 'par l’exploitant' : 'depuis la page Plugins'}`,
+      detail: items.every((i) => i.need)
+        ? `À mettre à jour puis réactiver ${payload.managed ? 'par l’exploitant' : 'depuis la page Plugins'}.`
+        : `À réactiver ${payload.managed ? 'par l’exploitant' : 'depuis la page Plugins'}`,
       severity: 'todo',
     };
   },

@@ -490,8 +490,9 @@ below are the recommended ones; each is reversible in a later spec.
     unrelated sync never switches off a plugin over another requirement that was already off. The dependant is
     switched off with `off_reason` = the requirement. When that requirement is ON but outside the range, the notice
     carries `need` (« compatible avec ^1.7.0 », « 1.7 ou plus récent ») and the home line reads « X éteint :
-    nécessite Y compatible avec ^1.7.0. » with « À mettre à jour depuis la page Plugins » (« par l’exploitant » on a
-    managed space) in place of « À réactiver … ».
+    nécessite Y compatible avec ^1.7.0. » with « À mettre à jour puis réactiver depuis la page Plugins. » (« … puis réactiver par l’exploitant. » on a
+    managed space) in place of « À réactiver … » — the plugin stays off after the update, so the line says so
+    (audit r6, 2026-10-30).
     Tests: `plugin-requirement-moves.unit.test.js`, `plugin-switched-off-out-of-range.unit.test.js`,
     `plugin-switched-off-stale.unit.test.js`.
 
