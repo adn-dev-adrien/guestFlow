@@ -7,7 +7,7 @@
     "start": "node src/index.js",
     "dev": "NODE_ENV=development node --watch src/index.js",
     "create-operator": "node scripts/create-operator.js",
-    "test": "node --test --test-concurrency=1 \"src/tests/**/*.test.js\""
+    "test": "node --test --test-concurrency=1 --test-timeout=180000 \"src/tests/**/*.test.js\""
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",
