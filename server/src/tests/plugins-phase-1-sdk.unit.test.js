@@ -2,6 +2,7 @@
 // jobs, event handlers, email variables and SAS data; the core only asks the registry. Covers the
 // loader, isolation, migrations, settings, jobs, events, email variables, erasure and the gate paths
 // that used to run while the plugin was off.
+const { listenLocal } = require('./listenLocal');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
@@ -60,11 +61,12 @@ function boot(db, { installed = [], active = installed, modules = MODULES } = {}
 }
 
 async function request(app, method, url) {
-  const server = app.listen(0);
+  const server = await listenLocal(app);
   try {
-    const res = await fetch(`http://127.0.0.1:${server.address().port}${url}`, { method });
+    const res = await fetch(`http://127.0.0.1:${server.address().port}${url}`, { method, signal: AbortSignal.timeout(10_000) });
     return { status: res.status, body: await res.json().catch(() => null) };
   } finally {
+    server.closeAllConnections();
     server.close();
   }
 }

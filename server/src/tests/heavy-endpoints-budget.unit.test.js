@@ -1,5 +1,6 @@
 // specs/inte-performance.md rule 5 — the heavy endpoints do not grow with the data: the same number of
 // SQL statements on 20 reservations as on 2 000, and each answers within its time budget.
+const { listenLocal } = require('./listenLocal');
 const { test, after } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -92,7 +93,7 @@ let measured = null;
 function measureBoth() {
   if (!measured) {
     measured = (async () => {
-      const server = buildApp().listen(0);
+      const server = await listenLocal(buildApp());
       const base = `http://127.0.0.1:${server.address().port}`;
       try {
         seed({ reservations: 20, clients: 15 });
@@ -105,6 +106,7 @@ function measureBoth() {
         for (const endpoint of endpoints()) large.push(await measure(base, endpoint));
         return { small, large };
       } finally {
+        server.closeAllConnections();
         server.close();
       }
     })();

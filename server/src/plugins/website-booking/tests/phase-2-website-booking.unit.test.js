@@ -8,6 +8,7 @@ process.env.DB_PATH = ':memory:';
 process.env.PUBLIC_API_KEY = 'phase-2-website-key';
 process.env.PUBLIC_API_RATELIMIT_MAX = '50';
 
+const { listenLocal } = require('../../../tests/listenLocal');
 const test = require('node:test');
 const { skipWithout } = require('../../sdk/testing');
 const assert = require('node:assert/strict');
@@ -53,15 +54,17 @@ function boot({ installed = [], modules = [gateAccess, websiteBooking].filter((m
 }
 
 async function call(app, method, url, { headers = {}, body } = {}) {
-  const server = app.listen(0);
+  const server = await listenLocal(app);
   try {
     const res = await fetch(`http://127.0.0.1:${server.address().port}${url}`, {
+      signal: AbortSignal.timeout(10_000),
       method,
       headers: { ...(body ? { 'content-type': 'application/json' } : {}), ...headers },
       body: body ? JSON.stringify(body) : undefined,
     });
     return { status: res.status, headers: res.headers, body: await res.json().catch(() => null) };
   } finally {
+    server.closeAllConnections();
     server.close();
   }
 }

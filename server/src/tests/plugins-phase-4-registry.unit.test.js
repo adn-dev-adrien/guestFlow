@@ -2,6 +2,7 @@
 // rollback from the Plugins page. Covers the manifest, the SDK version, the package store, the
 // registry client, the offers and their refusals, the loader's package path, the controller flows
 // and the migration of an existing install (Solio: twelve `builtin` rows → `bundled`).
+const { listenLocal } = require('./listenLocal');
 const test = require('node:test');
 const { skipWithout } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
@@ -416,13 +417,14 @@ test('rule 13: an install registers live — its routes answer without a restart
   loader.mountApi(app);
   app.use('/api', (req, res) => res.status(404).json({ error: 'API route not found' }));
   const mod = { id: 'school-holidays', register(ctx) { const r = express.Router(); r.get('/', (req, res) => res.json({ ok: true })); ctx.mount('/api/school-holidays', r); } };
-  const server = app.listen(0);
+  const server = await listenLocal(app);
   try {
     const url = `http://127.0.0.1:${server.address().port}/api/school-holidays`;
     assert.equal((await fetch(url)).status, 404);
     assert.equal(loader.registerLive(mod, { db: null }), true);
     assert.deepEqual(await (await fetch(url)).json(), { ok: true });
   } finally {
+    server.closeAllConnections();
     server.close();
     registry.reset();
   }
@@ -811,7 +813,7 @@ test('rule 31: a write under /api from another site is refused; webhooks and non
   app.set('trust proxy', false);
   app.use('/api', createSameOriginWrites({ allowedOrigins: ['http://localhost:3000'], isExempt: (req) => req.path === '/payments/qonto/webhook' }));
   app.all(/^\/api\/.*/, (req, res) => res.json({ ok: true }));
-  const server = app.listen(0);
+  const server = await listenLocal(app);
   const base = `http://127.0.0.1:${server.address().port}`;
   const post = (url, headers = {}) => fetch(base + url, { method: 'POST', headers }).then((r) => r.status);
   try {
@@ -824,6 +826,7 @@ test('rule 31: a write under /api from another site is refused; webhooks and non
     assert.equal(await post('/api/payments/qonto/webhook', { origin: 'https://qonto.example' }), 200);
     assert.equal((await fetch(`${base}/api/plugins`, { headers: { origin: 'https://evil.example' } })).status, 200);
   } finally {
+    server.closeAllConnections();
     server.close();
   }
 });
@@ -874,13 +877,14 @@ test('rule 31: same origin means same host AND port', async () => {
   const app = express();
   app.use('/api', createSameOriginWrites({ allowedOrigins: [] }));
   app.post(/^\/api\/.*/, (req, res) => res.json({ ok: true }));
-  const server = app.listen(0);
+  const server = await listenLocal(app);
   const port = server.address().port;
   const post = (origin) => fetch(`http://127.0.0.1:${port}/api/x`, { method: 'POST', headers: { origin } }).then((r) => r.status);
   try {
     assert.equal(await post(`http://127.0.0.1:${port}`), 200);
     assert.equal(await post(`http://127.0.0.1:${port + 1}`), 403);
   } finally {
+    server.closeAllConnections();
     server.close();
   }
   const index = fs.readFileSync(path.join(__dirname, '..', 'index.js'), 'utf8');

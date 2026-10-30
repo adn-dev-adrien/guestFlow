@@ -1,3 +1,4 @@
+const { listenLocal } = require('./listenLocal');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -17,10 +18,11 @@ async function withClient(run) {
   const app = express();
   app.use('/assets', hashedAssets(dir));
   app.use(express.static(dir));
-  const server = app.listen(0);
+  const server = await listenLocal(app);
   try {
     await run(`http://127.0.0.1:${server.address().port}`);
   } finally {
+    server.closeAllConnections();
     server.close();
     fs.rmSync(dir, { recursive: true, force: true });
   }

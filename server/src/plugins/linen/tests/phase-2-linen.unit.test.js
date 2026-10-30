@@ -1,6 +1,7 @@
 // specs/plugins-phase-2-hosts.md §3.B, §3.D, §3.G — linen & laundry as a plugin module: its planning
 // endpoints and the shortage alert behind the plugin, the bed-linen alert computed only while it is
 // live, its erasure, and its settings copied from app_settings once.
+const { listenLocal } = require('../../../tests/listenLocal');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
@@ -57,11 +58,12 @@ function boot(db, { installed = [] } = {}) {
 }
 
 async function request(app, method, url) {
-  const server = app.listen(0);
+  const server = await listenLocal(app);
   try {
-    const res = await fetch(`http://127.0.0.1:${server.address().port}${url}`, { method });
+    const res = await fetch(`http://127.0.0.1:${server.address().port}${url}`, { method, signal: AbortSignal.timeout(10_000) });
     return { status: res.status, body: await res.json().catch(() => null) };
   } finally {
+    server.closeAllConnections();
     server.close();
   }
 }

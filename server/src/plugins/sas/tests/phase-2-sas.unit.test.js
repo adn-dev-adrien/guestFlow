@@ -2,6 +2,7 @@
 // answer only while it is live (gap 3), its payload and commit leave the linen steps to `linen`
 // (gap 5), the arrival/departure push opens it only while it is live (gap 6), and it has nothing to
 // erase (rule 14). The commit itself stays in the core and keeps its own suites.
+const { listenLocal } = require('../../../tests/listenLocal');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
@@ -70,15 +71,20 @@ function bootRoutes() {
 }
 
 async function request(app, method, url, body) {
-  const server = app.listen(0);
+  const server = await listenLocal(app);
   try {
     const res = await fetch(`http://127.0.0.1:${server.address().port}${url}`, {
+      signal: AbortSignal.timeout(10_000),
       method,
       headers: body ? { 'Content-Type': 'application/json' } : undefined,
       body: body ? JSON.stringify(body) : undefined,
     });
-    return { status: res.status, body: await res.json().catch(() => null) };
+    const text = await res.text();
+    let json = null;
+    try { json = JSON.parse(text); } catch { json = null; }
+    return { status: res.status, body: json, text };
   } finally {
+    server.closeAllConnections();
     server.close();
   }
 }

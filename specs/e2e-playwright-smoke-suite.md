@@ -145,6 +145,9 @@ or mutable state.
     (`booking-intake` builds its property name from `testInfo.repeatEachIndex`), because a duplicate label breaks a
     strict locator on the second run. Repeatable means `--repeat-each N --workers=1` only: repeats in parallel
     workers share one database and race on its state (CI runs one worker).
+23. **Rule 21 is pinned by a unit test** (2026-10-30, audit R5): `e2e-server-log-artifact.unit.test.js` asserts that the
+    three playwright configs write the server log to a file and that `e2e.yml` uploads the three logs, so the rule
+    no longer depends on a stray citation to count as covered.
 
 ### 3.4 Test coverage — one or more specs per implemented `/specs/` feature
 

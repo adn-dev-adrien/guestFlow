@@ -1,6 +1,7 @@
 // specs/plugin-removal-resilience.md rule 5 — the plugin engine (mount, gate, jobs, settings, secrets,
 // erasure) proved on a module of its own, so it is exercised whichever shipped plugins a cell removed.
 
+const { listenLocal } = require('./listenLocal');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const express = require('express');
@@ -56,11 +57,12 @@ function boot({ active = true, installed = true } = {}) {
 }
 
 async function get(app, url) {
-  const server = app.listen(0);
+  const server = await listenLocal(app);
   try {
-    const res = await fetch(`http://127.0.0.1:${server.address().port}${url}`);
+    const res = await fetch(`http://127.0.0.1:${server.address().port}${url}`, { signal: AbortSignal.timeout(10_000) });
     return { status: res.status, body: await res.json().catch(() => null) };
   } finally {
+    server.closeAllConnections();
     server.close();
   }
 }
