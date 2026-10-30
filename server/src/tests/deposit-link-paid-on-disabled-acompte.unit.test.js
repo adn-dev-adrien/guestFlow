@@ -8,7 +8,7 @@ const assert = require('node:assert/strict');
 const f = require('./reservationSaveFixture');
 const { skipWithout } = require('../plugins/sdk/testing');
 const ns = require('../utils/notificationService');
-const { stayWithDisabledAcompte, pay, journalEntries } = require('./disabledAcompteLinkFixture');
+const { PAID_DATE, stayWithDisabledAcompte, pay, journalEntries } = require('./disabledAcompteLinkFixture');
 
 const depositEntries = (id) => journalEntries(id, 'deposit');
 
@@ -20,7 +20,7 @@ for (const path of ['live', 'retry']) {
     const row = f.rowOf(s.id);
     assert.equal(row.depositDisabled, 0, 'the acompte is re-enabled');
     assert.equal(row.depositPaid, 1);
-    assert.equal(row.depositPaidDate, '2027-03-01');
+    assert.equal(row.depositPaidDate, PAID_DATE);
     assert.equal(row.depositAmount, s.deposit);
     assert.equal(Math.round(row.balanceAmount * 100), Math.round((s.preArrival - s.deposit) * 100), 'the solde drops by the acompte');
     const lines = f.history(s.id).flatMap((h) => h.changes);
@@ -54,7 +54,7 @@ for (const path of ['live', 'retry']) {
     const row = f.rowOf(s.id);
     assert.equal(row.depositDisabled, 0);
     assert.equal(row.depositPaid, 1, 'the save keeps the acompte paid');
-    assert.equal(row.depositPaidDate, '2027-03-01');
+    assert.equal(row.depositPaidDate, PAID_DATE);
     assert.equal(row.depositAmount, s.deposit);
     const after = ledgerDeposit(f.getFiche(s.id));
     assert.notEqual(after.state, 'na');
@@ -64,7 +64,7 @@ for (const path of ['live', 'retry']) {
   test(`${path}: the journal books the acompte and keeps it after a save`, { skip: skipWithout(['accounting-export']) }, async () => {
     const s = stayWithDisabledAcompte(path);
     await pay(path, s);
-    assert.equal(depositEntries(s.id).length, 1, 'the acompte entry is in the March journal');
+    assert.equal(depositEntries(s.id).length, 1, 'the acompte entry is in the journal of the month it was paid');
     await f.save(s.id);
     const entries = depositEntries(s.id);
     assert.equal(entries.length, 1, 'still there after the save');

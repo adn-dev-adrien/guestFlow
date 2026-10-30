@@ -9,7 +9,7 @@ const assert = require('node:assert/strict');
 const f = require('./reservationSaveFixture');
 const { skipWithout } = require('../plugins/sdk/testing');
 const paymentLinksModel = require('../models/paymentLinksModel');
-const { stayWithDisabledAcompte, pay, journalEntries, ledgerRow } = require('./disabledAcompteLinkFixture');
+const { PAID_DATE, inDays, stayWithDisabledAcompte, pay, journalEntries, ledgerRow } = require('./disabledAcompteLinkFixture');
 
 const call = (fn, req) => new Promise((resolve) => fn(req, { status() { return this; }, json: resolve }));
 
@@ -25,7 +25,7 @@ function assertAcompteKept(s, res) {
   const row = f.rowOf(s.id);
   assert.equal(row.depositDisabled, 0, 'the acompte stays enabled');
   assert.equal(row.depositPaid, 1, 'the acompte stays paid');
-  assert.equal(row.depositPaidDate, '2027-03-01');
+  assert.equal(row.depositPaidDate, PAID_DATE);
   assert.equal(row.depositAmount, s.deposit);
   const deposit = ledgerRow(s.id, 'deposit');
   assert.notEqual(deposit.state, 'na', JSON.stringify(deposit));
@@ -61,7 +61,7 @@ for (const path of ['live', 'retry']) {
     assert.equal(booked.depositDueDate, null);
     const historyBefore = f.history(s.id).length;
     // The tab still holds the cleared override and the deadline it showed before the switch.
-    assertAcompteKept(s, await saveHeld(s.id, held, { depositAmountOverride: null, depositDueDate: '2027-02-15' }));
+    assertAcompteKept(s, await saveHeld(s.id, held, { depositAmountOverride: null, depositDueDate: inDays(3) }));
     const row = f.rowOf(s.id);
     assert.equal(row.depositAmountOverride, s.deposit);
     assert.equal(row.depositDueDate, null);
@@ -76,7 +76,7 @@ for (const path of ['live', 'retry']) {
     await pay(path, s);
     await saveHeld(s.id, held);
     const entries = journalEntries(s.id, 'deposit');
-    assert.equal(entries.length, 1, 'the acompte entry is still in the March journal');
+    assert.equal(entries.length, 1, 'the acompte entry is still in the journal of the month it was paid');
     assert.equal(entries[0].encaissementTtc, s.deposit);
   });
 }
@@ -95,10 +95,10 @@ test('the live quote on « Sans acompte » keeps an acompte a link collected', a
 });
 
 test('an acompte ticked by hand, with no paid link, can still be switched off', async () => {
-  const id = f.createStay({ startDate: '2027-11-02', endDate: '2027-11-05' });
+  const id = f.createStay({ startDate: inDays(300), endDate: inDays(303) });
   const before = f.rowOf(id);
   assert.ok(before.depositAmount > 0);
-  f.db.prepare("UPDATE reservations SET depositPaid = 1, depositPaidDate = '2027-10-01' WHERE id = ?").run(id);
+  f.db.prepare('UPDATE reservations SET depositPaid = 1, depositPaidDate = ? WHERE id = ?').run(inDays(0), id);
   // A link that was never paid does not hold the acompte.
   paymentLinksModel.buildModel(f.db).create({
     reservationId: id, type: 'deposit', amountCents: Math.round(before.depositAmount * 100),
@@ -127,7 +127,7 @@ test('the fiche and the live quote say why « Sans acompte » is locked once a l
 });
 
 test('an acompte ticked by hand, with no paid link, leaves « Sans acompte » unlocked', () => {
-  const id = f.createStay({ startDate: '2027-11-09', endDate: '2027-11-12' });
-  f.db.prepare("UPDATE reservations SET depositPaid = 1, depositPaidDate = '2027-10-01' WHERE id = ?").run(id);
+  const id = f.createStay({ startDate: inDays(307), endDate: inDays(310) });
+  f.db.prepare('UPDATE reservations SET depositPaid = 1, depositPaidDate = ? WHERE id = ?').run(inDays(0), id);
   assert.equal(f.getFiche(id).depositDisabledLockedReason, null);
 });

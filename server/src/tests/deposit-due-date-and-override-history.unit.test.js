@@ -7,9 +7,14 @@ process.env.DB_PATH = ':memory:';
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const f = require('./reservationSaveFixture');
+const { todayIso } = require('../utils/localDate');
+const { addDaysToIsoDate } = require('../utils/devisHelpers');
+
+// Every stay starts beyond the acompte window, whatever today is (specs/server-test-isolation.md rule 6).
+const inDays = (days) => addDaysToIsoDate(todayIso(), days);
 
 test('switching the acompte off clears its deadline', async () => {
-  const id = f.createStay({ startDate: '2027-10-01', endDate: '2027-10-04' });
+  const id = f.createStay({ startDate: inDays(200), endDate: inDays(203) });
   assert.ok(f.rowOf(id).depositDueDate);
   assert.equal((await f.save(id, { depositDisabled: 1 })).statusCode, 200);
   const row = f.rowOf(id);
@@ -20,12 +25,12 @@ test('switching the acompte off clears its deadline', async () => {
 });
 
 test('an acompte created at 0 € stores no deadline', () => {
-  const id = f.createStay({ startDate: '2027-10-10', endDate: '2027-10-13', depositDisabled: 1, depositDueDate: '2026-11-03' });
+  const id = f.createStay({ startDate: inDays(210), endDate: inDays(213), depositDisabled: 1, depositDueDate: inDays(7) });
   assert.equal(f.rowOf(id).depositDueDate, null);
 });
 
 test('setting then clearing the typed acompte each leave an « Acompte saisi » row', async () => {
-  const id = f.createStay({ startDate: '2027-10-20', endDate: '2027-10-23' });
+  const id = f.createStay({ startDate: inDays(220), endDate: inDays(223) });
   assert.equal((await f.save(id, { depositAmountOverride: 50 })).statusCode, 200);
   assert.equal((await f.save(id, { depositAmountOverride: '' })).statusCode, 200);
   const rows = f.history(id).flatMap((h) => h.changes).filter((c) => c.field === 'depositAmountOverride');
@@ -33,14 +38,14 @@ test('setting then clearing the typed acompte each leave an « Acompte saisi » 
 });
 
 test('a plain re-save writes no « Acompte saisi » row', async () => {
-  const id = f.createStay({ startDate: '2027-11-01', endDate: '2027-11-03', depositAmountOverride: 40 });
+  const id = f.createStay({ startDate: inDays(230), endDate: inDays(232), depositAmountOverride: 40 });
   assert.equal((await f.save(id, { notes: 'x' })).statusCode, 200);
   const rows = f.history(id).flatMap((h) => h.changes).filter((c) => c.field === 'depositAmountOverride');
   assert.equal(rows.length, 0);
 });
 
 test('a negative acompte is refused with a French message and the code', async () => {
-  const id = f.createStay({ startDate: '2027-11-10', endDate: '2027-11-12' });
+  const id = f.createStay({ startDate: inDays(240), endDate: inDays(242) });
   const res = await f.save(id, { depositAmountOverride: -10 });
   assert.equal(res.statusCode, 400);
   assert.equal(res.body.code, 'NEGATIVE_AMOUNT');

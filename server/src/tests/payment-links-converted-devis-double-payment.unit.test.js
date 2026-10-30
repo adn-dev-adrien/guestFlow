@@ -11,6 +11,15 @@ const paymentLinksModel = require('../models/paymentLinksModel');
 const devisModel = require('../models/devisModel');
 const { processPaidLink, retryPendingCancellations } = require('../utils/paymentPollRunner');
 const { ensurePaymentLink, resolveRequestType, sendPaymentRequest } = require('../utils/paymentRequestService');
+const { todayIso } = require('../utils/localDate');
+const { addDaysToIsoDate } = require('../utils/devisHelpers');
+
+// Every date hangs on today (specs/server-test-isolation.md rule 6): the devis stay is six months out, and
+// both links are paid on the same day, five days from now, the second two hours after the first.
+const inDays = (days) => addDaysToIsoDate(todayIso(), days);
+const PAY_DAY = inDays(5);
+const FIRST_PAID_AT = `${PAY_DAY}T10:00:00Z`;
+const SECOND_PAID_AT = `${PAY_DAY}T12:00:00Z`;
 
 const SCHEMA = fs.readFileSync(path.join(__dirname, '..', 'schema.sql'), 'utf8');
 
@@ -20,7 +29,7 @@ function seed() {
   db.prepare("INSERT INTO properties (id, name) VALUES (1, 'Gite')").run();
   db.prepare("INSERT INTO clients (id, firstName, lastName, email) VALUES (1, 'J', 'D', 'j@x.fr')").run();
   const dv = Number(db.prepare(`INSERT INTO reservations (kind, propertyId, clientId, startDate, endDate, adults, finalPrice, depositAmount, balanceAmount, devisStatus)
-    VALUES ('devis', 1, 1, '2027-05-10', '2027-05-14', 1, 455.36, 100, 355.36, 'draft')`).run().lastInsertRowid);
+    VALUES ('devis', 1, 1, ?, ?, 1, 455.36, 100, 355.36, 'draft')`).run(inDays(190), inDays(194)).lastInsertRowid);
   const links = paymentLinksModel.buildModel(db);
   const dm = devisModel.buildModel(db);
   // Valid for 30 more hours: reusable (specs/payment-link-lifecycle.md rule 8).
@@ -33,14 +42,14 @@ function seed() {
   const common = { database: db, devisModel: dm, paymentLinksModel: links, sendConfirmation: async (id) => calls.push(['confirm', id]),
     notifyPaidAfterCancel: async (x, o) => calls.push(['alert', x.id, o]), emitPluginEvent: () => {} };
   const deps = { database: db, paymentLinksModel: links, provider, resolveAmountCents };
-  const pay = (id, at = '2027-04-01T10:00:00Z') => processPaidLink({ ...common, link: links.findById(id), paidPayment: { paid: true, paymentId: `p${id}`, paidAt: at } });
+  const pay = (id, at = FIRST_PAID_AT) => processPaidLink({ ...common, link: links.findById(id), paidPayment: { paid: true, paymentId: `p${id}`, paidAt: at } });
   // Both links still open: the webhook of the second arrives before any retirement (live path).
-  const payLive = (id, at = '2027-04-01T12:00:00Z') => processPaidLink({
+  const payLive = (id, at = SECOND_PAID_AT) => processPaidLink({
     ...common, paymentLinksModel: Object.assign(Object.create(links), { retireSettled: () => [] }),
     link: links.findById(id), paidPayment: { paid: true, paymentId: `p${id}`, paidAt: at },
   });
   // The second link was retired by the first payment; the provider reports it paid.
-  const payRetired = async (id, at = '2027-04-01T12:00:00Z') => {
+  const payRetired = async (id, at = SECOND_PAID_AT) => {
     const provider = { id: 'qonto', async getPayment() { return { paid: true, paymentId: `p${id}`, paidAt: at }; }, async cancelLink() {} };
     const { results } = await retryPendingCancellations({ ...common, provider });
     return results.find((x) => x.id === id);
@@ -68,7 +77,7 @@ for (const [mode, label] of [['payLive', 'both links open (webhook before the po
   test(`rule 31: main repro, devis full link paid after a stay full link, ${label}`, async () => {
     const s = seed();
     const F2 = s.links.create({ reservationId: s.rid, type: 'full', amountCents: 45536, provider: 'qonto', providerLinkId: 'F2', url: 'u2', status: 'open' });
-    const first = await (mode === 'payLive' ? s.payLive : s.pay)(F2.id, '2027-04-01T10:00:00Z');
+    const first = await (mode === 'payLive' ? s.payLive : s.pay)(F2.id, FIRST_PAID_AT);
     assert.equal(first.effect, 'balance-marked');
     const second = await s[mode](s.F.id);
     assert.equal(second.effect, 'double-payment');
@@ -79,7 +88,7 @@ for (const [mode, label] of [['payLive', 'both links open (webhook before the po
   test(`rule 31: reverse order, stay full link paid after the devis full link, ${label}`, async () => {
     const s = seed();
     const F2 = s.links.create({ reservationId: s.rid, type: 'full', amountCents: 45536, provider: 'qonto', providerLinkId: 'F2', url: 'u2', status: 'open' });
-    await (mode === 'payLive' ? s.payLive : s.pay)(s.F.id, '2027-04-01T10:00:00Z');
+    await (mode === 'payLive' ? s.payLive : s.pay)(s.F.id, FIRST_PAID_AT);
     const second = await s[mode](F2.id);
     assert.equal(second.effect, 'double-payment');
     assert.equal(s.refunds(), 1);
@@ -89,7 +98,7 @@ for (const [mode, label] of [['payLive', 'both links open (webhook before the po
   test(`rule 31: acompte variant, the devis full link paid after the stay acompte link, ${label}`, async () => {
     const s = seed();
     const D = s.links.create({ reservationId: s.rid, type: 'deposit', amountCents: 10000, provider: 'qonto', providerLinkId: 'D', url: 'ud', status: 'open' });
-    await (mode === 'payLive' ? s.payLive : s.pay)(D.id, '2027-04-01T10:00:00Z');
+    await (mode === 'payLive' ? s.payLive : s.pay)(D.id, FIRST_PAID_AT);
     const second = await s[mode](s.F.id);
     assert.equal(second.effect, 'double-payment');
     assert.equal(second.duplicateCents, 10000);
@@ -108,9 +117,9 @@ test('rule 31: a paid link retires the other open link at once', async () => {
 test('rule 31: same-day variant, the retired devis link paid after the poll is a double payment', async () => {
   const s = seed();
   const F2 = s.links.create({ reservationId: s.rid, type: 'full', amountCents: 45536, provider: 'qonto', providerLinkId: 'F2', url: 'u2', status: 'open' });
-  await s.pay(F2.id, '2027-04-01T10:00:00Z');
+  await s.pay(F2.id, FIRST_PAID_AT);
   assert.equal(s.links.findById(s.F.id).status, 'cancelled');
-  const provider = { id: 'qonto', async getPayment() { return { paid: true, paymentId: 'pF', paidAt: '2027-04-01T12:00:00Z' }; }, async cancelLink() {} };
+  const provider = { id: 'qonto', async getPayment() { return { paid: true, paymentId: 'pF', paidAt: SECOND_PAID_AT }; }, async cancelLink() {} };
   const { results } = await retryPendingCancellations({ ...s.common, provider });
   const r = results.find((x) => x.id === s.F.id);
   assert.equal(r.effect, 'double-payment');
@@ -148,7 +157,7 @@ test('rule 33: retryPendingCancellations with `only` settles that link and no ot
   const F2 = s.links.create({ reservationId: s.rid, type: 'full', amountCents: 45536, provider: 'qonto', providerLinkId: 'F2', url: 'u2', status: 'open' });
   await s.pay(F2.id);
   const seen = [];
-  const provider = { id: 'qonto', async getPayment(id) { seen.push(id); return { paid: true, paymentId: 'x', paidAt: '2027-04-01T12:00:00Z' }; }, async cancelLink() {} };
+  const provider = { id: 'qonto', async getPayment(id) { seen.push(id); return { paid: true, paymentId: 'x', paidAt: SECOND_PAID_AT }; }, async cancelLink() {} };
   const { results } = await retryPendingCancellations({ ...s.common, provider, only: 999 });
   assert.deepEqual(results, []);
   assert.deepEqual(seen, []);
@@ -193,7 +202,7 @@ test('rule 37: two targeted retries at once each settle their own link', async (
   await s.pay(F2.id);
   assert.equal(s.links.findById(s.F.id).status, 'cancelled');
   assert.equal(s.links.findById(G.id).status, 'cancelled');
-  const provider = { id: 'qonto', async getPayment() { await new Promise((r) => setImmediate(r)); return { paid: true, paymentId: 'x', paidAt: '2027-04-01T12:00:00Z' }; }, async cancelLink() {} };
+  const provider = { id: 'qonto', async getPayment() { await new Promise((r) => setImmediate(r)); return { paid: true, paymentId: 'x', paidAt: SECOND_PAID_AT }; }, async cancelLink() {} };
   const [a, b] = await Promise.all([
     retryPendingCancellations({ ...s.common, provider, only: s.F.id }),
     retryPendingCancellations({ ...s.common, provider, only: G.id }),
