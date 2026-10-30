@@ -172,10 +172,12 @@ test('the shipped recipe derives the 2026 and 2027 calendars to the day', () => 
   assert.deepEqual(plan2026.peak, [
     r('2026-07-11', '2026-07-13'), r('2026-07-14', '2026-08-14', 4),
     r('2026-08-15', '2026-08-15'), r('2026-08-16', '2026-08-21', 4),
+    // 25 December, out of Noël since 3.7.0: Très haute price, but the 2 nights its period declares
+    // and not the season's 4 — the holiday modifier must not fold the season minimum back in.
+    r('2026-12-25', '2026-12-25', 2),
   ]);
-  // The two peaks: only the nights that carry the premium. 25 December is split off by its own
-  // holiday minimum, not by a price change — both Christmas nights bill the same 930 €.
-  assert.deepEqual(plan2026.christmas, [r('2026-12-24', '2026-12-25')]);
+  // The two peaks: only the nights that carry the premium. Since 3.7.0 Noël is the 24th alone.
+  assert.deepEqual(plan2026.christmas, [r('2026-12-24', '2026-12-24')]);
   assert.deepEqual(plan2026['new-year'], [r('2026-12-31', '2026-12-31')]);
 
   // 2027 — the year the grid is written for, derived from the same rules, nothing painted.
@@ -188,9 +190,9 @@ test('the shipped recipe derives the 2026 and 2027 calendars to the day', () => 
     r('2027-10-30', '2027-10-30'),
     r('2027-12-19', '2027-12-23'), r('2027-12-26', '2027-12-26'), r('2027-12-30', '2027-12-30'),
   ]);
-  assert.deepEqual(plan2027.peak, [r('2027-07-10', '2027-08-20', 4)]);
-  // 2027: 25 December is a Saturday, so no holiday minimum splits the pair — one range, not two.
-  assert.deepEqual(plan2027.christmas, [r('2027-12-24', '2027-12-25')]);
+  // 2027: 25 December is a Saturday, a one-night « block » — the period's 2 nights stand alone.
+  assert.deepEqual(plan2027.peak, [r('2027-07-10', '2027-08-20', 4), r('2027-12-25', '2027-12-25', 2)]);
+  assert.deepEqual(plan2027.christmas, [r('2027-12-24', '2027-12-24')]);
   assert.deepEqual(plan2027['new-year'], [r('2027-12-31', '2027-12-31')]);
   assert.deepEqual(plan2027.mid, [
     r('2027-01-02', '2027-01-02'), r('2027-03-27', '2027-03-28'),
@@ -207,14 +209,12 @@ test('the shipped recipe derives the 2026 and 2027 calendars to the day', () => 
 test('a holiday raise stops at Haute, and never demotes a night above it', () => {
   const recipe = loadShippedRecipe();
   const plan = buildYearPlan(recipe, 2026, materializeClosures(recipe, 2025, 2026));
-  // 25 December is a public holiday and it sits in Noël, ABOVE the cap: it keeps its 973 € and takes
-  // only the block's minimum. 26 December, the bridge day, would climb to Très haute without the cap
-  // and is held at Haute — the two halves of the rule, one block, one assertion each.
-  // Both are already at their season's 2-night minimum, so neither records an override — the point
-  // being that the cap did not raise them, not that they carry a number.
-  assert.ok(plan.christmas.some((x) => x.startDate === '2026-12-24' && x.endDate === '2026-12-25'));
+  // 25 December is a public holiday and it sits in Très haute, ABOVE the cap: it keeps its price and
+  // its period's 2-night minimum. 26 December, the bridge day, would climb to Très haute without the
+  // cap and is held at Haute — the two halves of the rule, one block, one assertion each.
+  assert.ok(plan.peak.some((x) => x.startDate === '2026-12-25' && x.endDate === '2026-12-25' && x.minNights === 2));
   assert.ok(plan.high.some((x) => x.startDate === '2026-12-26' && x.endDate === '2026-12-26'));
-  assert.equal(plan.peak.some((x) => x.startDate.startsWith('2026-12')), false);
+  assert.equal(plan.peak.some((x) => x.startDate === '2026-12-26'), false);
   // 14 juillet sits in Très haute, ABOVE the cap. It keeps its price and takes a minimum; a cap
   // implemented as min(cap, rank + 1) would have moved these three nights down to Haute.
   // The minimum is 4, not the block's own 3: a holiday block may RAISE a season's minimum, never
@@ -313,10 +313,12 @@ test('applied to a property, the shipped recipe quotes the control cases to the 
     // Straddles the peak/high boundary: 5 nights in Très haute then 2 in Haute, the discount tier
     // being taken from the position in the STAY and the price from the season of each night.
     ['G6 · à cheval sur la fin du cœur d\'été', 7, '2026-08-17', '2026-08-24', 1743.20],
-    // The two premium nights alone: the 2025 Christmas RENTAL (1 514 €, the contract's 1 550 € less
-    // 16 € of tourist tax and the 20 € dog supplement) plus 20 %, to the whole euro.
-    ['G7 · Noël, les deux nuits', 9, '2026-12-24', '2026-12-26', 1944.00],
-    ['G7b · Noël, du 23 au 26', 9, '2026-12-23', '2026-12-26', 2319.00],
+    // Since 3.7.0 only the 24th carries the Noël premium; the 25th is a Très haute night, billed at
+    // its position in the stay — full price as the 2nd night, the 60 % tier as the 3rd. The first
+    // case is the owner's own devis of 2026-10-29 (n° 2026-10-008), to the cent.
+    ['G7 · Noël, les deux nuits', 9, '2026-12-24', '2026-12-26', 1423.00],
+    ['G7b · Noël, du 23 au 26', 9, '2026-12-23', '2026-12-26', 1527.40],
+    ['G7d · Noël 2027, les deux nuits', 9, '2027-12-24', '2027-12-26', 1423.00],
     // The lull the owner asked for: 27-29 December a rank down, in Moyenne.
     ['G7c · le creux entre les fêtes', 6, '2026-12-27', '2026-12-30', 801.60],
     // The réveillon is the night of the 31st and nothing else; 30 December and 1 January fall back
@@ -325,7 +327,7 @@ test('applied to a property, the shipped recipe quotes the control cases to the 
     ['G8 · réveillon, arrivée le 31 (la référence 2025)', 10, '2026-12-31', '2027-01-03', 1412.60],
     ['G8b · réveillon, du 30 au 2', 10, '2026-12-30', '2027-01-02', 1429.00],
     // Whoever books the whole festive run pays the two peaks and nothing else out of the ordinary.
-    ['G8c · toutes les fêtes, du 23 au 2', 10, '2026-12-23', '2027-01-02', 4202.38],
+    ['G8c · toutes les fêtes, du 23 au 2', 10, '2026-12-23', '2027-01-02', 3410.78],
     // 14 juillet keeps its Très haute price despite the cap at Haute.
     ['G9 · le bloc du 14 juillet', 4, '2026-07-11', '2026-07-14', 1082.40],
     // 2027, derived and never painted by anyone.

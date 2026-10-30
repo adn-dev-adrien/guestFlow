@@ -1,0 +1,1 @@
+- Gîte recipe `gite-2027` 3.7.0: 25 December leaves the flat Noël rate for Très haute with a 2-night minimum, in 2026 and 2027; only the night of the 24th keeps the Noël premium (`specs/tariff-recipe-gite/spec.md` rule 14bis).

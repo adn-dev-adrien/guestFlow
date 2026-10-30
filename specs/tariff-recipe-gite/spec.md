@@ -5,7 +5,7 @@
 | **Status** | Implemented |
 | **Branch** | `feature/tariff-recipe-gite` |
 | **Created** | 2026-08-24 |
-| **Arbitrated** | 2026-08-25 (Q1, Q3, Q4) · 2026-08-28 (Q6 festive peaks, Q2 commission, Q7 the pivot rebuilt on the Gîtes-de-France net, Q5 answered by measurement, L'Ardéchoise added) |
+| **Arbitrated** | 2026-08-25 (Q1, Q3, Q4) · 2026-08-28 (Q6 festive peaks, Q2 commission, Q7 the pivot rebuilt on the Gîtes-de-France net, Q5 answered by measurement, L'Ardéchoise added) · 2026-10-30 (25 December moved out of Noël, rule 14bis) |
 | **Author** | Adrien |
 | **Companion** | [etude.md](etude.md) — the analysis this spec rests on |
 | **Builds on** | [tariff-recipes](../tariff-recipes/spec.md) (the recipe engine), [platform-price-from-commission](../platform-price-from-commission.md) (the channel grid) |
@@ -256,7 +256,8 @@ only form Lodgify, Booking, GreenGo and Abracadaroom accept:
    | 4 | the last whole Saturday-to-Saturday week of August (7 nights) | Haute |
    | 5 | everything between rules 3 and 4 | Très haute |
    | 6 | 19 December → 1 January | Haute |
-   | 7 | 24 → 25 December | Noël |
+   | 7 | 24 December | Noël |
+   | 7bis | 25 December | Très haute, minimum 2 nights |
    | 8 | 27 → 29 December | Moyenne |
    | 9 | 31 December | Nouvel An |
    | event | L'Ardéchoise, dates declared year by year | Haute |
@@ -285,7 +286,8 @@ only form Lodgify, Booking, GreenGo and Abracadaroom accept:
     | Nights | Season | Rate |
     |---|---|---:|
     | 19 → 23 December | Haute | 382 € |
-    | **24 – 25 December** | **Noël** | **908 €**, flat |
+    | **24 December** | **Noël** | **908 €**, flat |
+    | 25 December | Très haute, min. 2 nights (rule 14bis) | 451 € as the 2nd night, progressive |
     | 26 December | Haute | 382 € |
     | 27 – 29 December | Moyenne | 326 € |
     | 30 December | Haute | 382 € |
@@ -325,6 +327,16 @@ only form Lodgify, Booking, GreenGo and Abracadaroom accept:
 13quater. **The rest of the year-end block is unchanged.** 19 → 29 December stays Haute, Christmas
     included; the recipe adds the réveillon on top rather than redrawing the fêtes.
 14. **No recurring closure.** The Gîte is open all year, unlike the Lodge.
+14bis. **25 December is a Très haute night, not a Noël one** (recipe 3.7.0). _(Owner's call,
+    2026-10-30, after changing 25/12/2026 by hand in production the day before: « très haute saison
+    avec 2 nuits minimum », to be carried into Noël 2027.)_ Only the night of the 24th keeps the
+    flat Noël premium. The 25th takes the Très haute price **and its degressivity** — full price as
+    the 2nd night of a 24 → 26 stay (972 + 451 = **1 423 €**, the owner's own devis n° 2026-10-008),
+    the 60 % tier as the 3rd night of a 23 → 26 stay (375 + 972 + 180,40 = **1 527,40 €**). Its
+    minimum is **2 nights**, declared on the `christmas-day` period and not the season's 4; the 25th
+    being a public holiday, this needed the engine to stop folding the season minimum back in over a
+    period's own ([tariff-recipes §3.3 rule 19bis](../tariff-recipes/spec.md)). The figures in rule
+    13ter are those of the 2026-08-28 version — the recipe file is the source for current prices.
 
 ### 3.4 Stay constraints
 
@@ -440,13 +452,17 @@ shows the diff before writing. Both screens already exist and are already respon
       (rules 1-3).
 - [x] — the 2026 and 2027 calendars are derived to the day (rules 9-11).
 - [x] — 2026, 2027 and 2028 are covered day for day, with no gap and no double-paint (365/366 days).
-- [x] — a holiday raise stops at Haute and never demotes a night above it: 25 December stays Haute
-      with its 2-night minimum, the 14 juillet block keeps its Très haute price (rules 13, 13bis).
-- [x] — applied to a property, 10 control cases quote to the cent, including a « pont », Christmas,
+- [x] — a holiday raise stops at Haute and never demotes a night above it: 25 December keeps its
+      Très haute price and its period's 2-night minimum, 26 December is held at Haute, the 14 juillet
+      block keeps its Très haute price (rules 13, 13bis, 14bis).
+- [x] — applied to a property, 16 control cases quote to the cent, including a « pont », Christmas
+      2026 and 2027 (rule 14bis),
       the réveillon, a stay straddling the peak/high boundary and the 2027 peak week; minimum
       2 nights, 3 on the 14 juillet block, no ceiling (rules 15-17).
 - [x] `tests/season-plan-generator.unit.test.js` — the cap itself, on a synthetic five-rank grid
       ([tariff-recipes §3.3 rules 15bis-15ter](../tariff-recipes/spec.md)).
+- [x] `tests/season-plan-period-min-under-holiday.unit.test.js` — a period minimum below its season's
+      survives a public holiday, and the block still raises it (rule 14bis, tariff-recipes rule 19bis).
 
 ### Applied against a copy of the production data
 - [x] **The first apply adopts all five existing seasons and creates only Nouvel An** — no obstacle,
