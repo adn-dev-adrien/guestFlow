@@ -1,3 +1,3 @@
 - The email send dialog no longer keeps the previous row's template: opened from the pending queue or from the history « Renvoyer », it starts clean for each row, so two quick sends can no longer leave the wrong email. A preview that answers late for a template just left is dropped, and « Envoyer » waits for the preview of the template picked.
 - The hourly-resources booking dialog drops the late occupied-slots answer of the date it just left (hourly-resources 1.3.3).
-- The home line for a plugin switched off because a requirement is out of range now reads « À mettre à jour puis réactiver depuis la page Plugins. », since the plugin stays off after the update.
+- The home line for a plugin switched off because a requirement is out of range now reads « À mettre à jour puis réactiver depuis la page Plugins », since the plugin stays off after the update.

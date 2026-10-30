@@ -96,3 +96,11 @@ test('« Envoyer » stays disabled from the moment another template is picked un
   await screen.findByDisplayValue('Sujet 13');
   expect(screen.getByRole('button', { name: /^Envoyer$/ })).toBeEnabled();
 });
+
+test('a failed preview offers « Réessayer » for the same template (rule 22)', async () => {
+  api.previewEmail.mockRejectedValueOnce(new Error('offline'));
+  render(<EmailManualSendDialog reservationId={5} open defaultTemplateId={1} onClose={() => {}} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Réessayer' }));
+  await screen.findByDisplayValue('Sujet 1');
+  expect(screen.queryByRole('button', { name: 'Réessayer' })).not.toBeInTheDocument();
+});

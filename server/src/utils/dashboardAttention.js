@@ -125,7 +125,7 @@ const CORE_SUMMARIES = {
         ? `${items[0].name} éteint : nécessite ${items[0].requires}${items[0].need ? ` ${items[0].need}` : ''}.`
         : `Plugins éteints : ${items.length}`,
       detail: items.every((i) => i.need)
-        ? `À mettre à jour puis réactiver ${payload.managed ? 'par l’exploitant' : 'depuis la page Plugins'}.`
+        ? `À mettre à jour puis réactiver ${payload.managed ? 'par l’exploitant' : 'depuis la page Plugins'}`
         : `À réactiver ${payload.managed ? 'par l’exploitant' : 'depuis la page Plugins'}`,
       severity: 'todo',
     };
