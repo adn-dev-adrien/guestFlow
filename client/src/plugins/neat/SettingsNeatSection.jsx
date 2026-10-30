@@ -375,7 +375,7 @@ function SettingsNeatSection({ onDirtyChange }, ref) {
                           {paymentMethods.length === 0 ? (
                             <Alert severity="error">
                               Ce canal ne propose pas de mode de paiement à la charge de
-                              l'établissement — contacte Neat.
+                              l'établissement — à voir avec Neat.
                             </Alert>
                           ) : (
                             <FormControl fullWidth size="small">

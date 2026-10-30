@@ -137,7 +137,7 @@ export default function SettingsPushNotificationsSection() {
                   Envoyer une notification de test
                 </Button>
                 <Typography variant="caption" color="text.secondary">
-                  Envoie une notification de test aux appareils abonnés.
+                  Envoi d’une notification de test aux appareils abonnés.
                 </Typography>
               </Box>
 

@@ -303,8 +303,10 @@ guessing; and the quote the guest receives looks like the house that sends it.
     imperative that is also a noun or adjective (« Copie », « Active », « Ferme »…) only when an
     article or preposition follows; and « clique / vérifie / corrige… » mid-sentence before a guillemet,
     an article, « sur », « ici », « pour » or « à ». A 3rd-person « « Connexion » autorise… » is not
-    flagged. The test holds a table of 36 probe sentences. Plugins whose texts changed are bumped
-    (`neat` 1.3.1, `online-payment` 1.4.7).
+    flagged. JSX text between tags is read too, but only at its start and after a dash (a 3rd-person
+    « Une tuile ouvre le tableau… » is spared); « N'oublie pas », « N'hésite pas », « Lis », « Écris »,
+    « Prends » and « Va dans » are listed. The test holds a table of probe sentences for both sides.
+    Plugins whose texts changed are bumped (`neat` 1.3.2, `online-payment` 1.4.7).
 39. **Only the latest request is shown (audit R5, 2026-10-30).** A screen whose data depends on a
     filter, a tab, a tile or a period ignores the answer of a request that has been superseded
     (`hooks/useLatestRequest.js`: `begin()` returns `current()`, checked before every `set…` of the
