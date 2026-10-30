@@ -1,5 +1,6 @@
 // specs/hosting-h1-fleet-runtime.md rule 38 — an archived customer is never served again by a step
-// retry, a rename, a restore or a second deprovision (audit R7 F2, F3, F3b; review of PR #892 R1, H2).
+// retry, a rename, a restore or a second deprovision (audit R7 F2, F3, F3b; review of PR #892 R1, H2,
+// R2).
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -198,5 +199,56 @@ test('rule 38 — a restore sent while a deprovision is running is refused, the 
     assert.equal(h.host.named('backup.restore').length, 0);
     assert.ok(h.ctx.models.customers.get(c.id).archivedAt);
     assertClosed(h, c);
+  } finally { h.cleanup(); }
+});
+
+for (const renameFails of [true, false]) {
+  test(`rule 38 — a deprovision sent while a rename waits for the lock is refused (rename ${renameFails ? 'fails' : 'succeeds'})`, async () => {
+    const h = makeContext({ versions: ['3.9.0'] });
+    try {
+      const { customers, billing } = h.ctx.controllers;
+      const c = await customers.create(NEW_CUSTOMER, 'op');
+      let release;
+      const gate = new Promise((r) => { release = r; });
+      h.ctx.provisioner.exclusive(c.id, () => gate);
+      if (renameFails) h.host.failNext['proxy.writeSite'] = new Error('caddy reload failed');
+      const rename = customers.rename(c.id, { slug: 'nouveau-nom', checked: ALL_CHECKED }, 'op');
+      rename.catch(() => {});
+      await tick();
+      const deprov = billing.deprovision(c.id, { confirmSlug: 'nouveau-nom' }, 'op');
+      deprov.catch(() => {});
+      await tick();
+      release();
+      const [, d] = await Promise.allSettled([rename, deprov]);
+      assert.equal(d.status, 'rejected');
+      assert.equal(d.reason.status, 409);
+      assert.equal(d.reason.body.error, 'RENAME_PENDING');
+      assert.equal(h.ctx.models.customers.get(c.id).archivedAt, null);
+      assert.equal(h.ctx.models.provisioning.exportsOf(c.id).length, 0);
+      const old = h.host.drivers.proxy.route(c.slug);
+      if (!renameFails) assert.equal(old.kind, 'redirect');
+    } finally { h.cleanup(); }
+  });
+}
+
+test('rule 38 — the erase removes the route of every old address still reserved, even one a failed rename left serving', async () => {
+  const h = makeContext({ versions: ['3.9.0'] });
+  try {
+    const { customers, billing } = h.ctx.controllers;
+    const c = await customers.create(NEW_CUSTOMER, 'op');
+    const port = h.ctx.models.hosting.get(c.id).port;
+    h.host.failNext['proxy.writeSite'] = new Error('caddy reload failed');
+    await customers.rename(c.id, { slug: 'nouveau-nom', checked: ALL_CHECKED }, 'op').catch(() => {});
+    assert.equal(h.ctx.models.provisioning.get(c.id, 'rename').status, 'failed');
+    assert.equal(h.host.drivers.proxy.route(c.slug).kind, 'site');
+    // Stands in for a state the guards no longer let through: closed and erased with that route left.
+    h.ctx.models.provisioning.set(c.id, 'rename', 'ok', 'Dossier renommé.', h.now().toISOString());
+    await billing.deprovision(c.id, { confirmSlug: 'nouveau-nom' }, 'op');
+    await customers.eraseNow(c.id, { confirmSlug: 'nouveau-nom' }, 'op');
+    assert.ok(!h.host.drivers.proxy.route(c.slug));
+    assert.ok(!h.host.drivers.proxy.route('nouveau-nom'));
+    const other = await customers.create({ ...NEW_CUSTOMER, companyName: 'Autre', contactEmail: 'contact@autre.test', slug: 'autre' }, 'op');
+    assert.equal(h.ctx.models.hosting.get(other.id).port, port);
+    assert.ok(!h.host.drivers.proxy.route(c.slug));
   } finally { h.cleanup(); }
 });

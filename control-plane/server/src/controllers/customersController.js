@@ -80,7 +80,17 @@ function createCustomersController(ctx) {
 
   // Rule 22: until « Dossier renommé… » is done (H1 rule 5 runs it at once), the instance still runs
   // from its old directory and answers at its old address.
+  // H1 rule 38: the « rename » row is written only once the rename holds the customer's lock, so a
+  // rename still waiting behind a fleet item is tracked here. A count, since two may overlap.
+  const renaming = new Map();
+  const markRenaming = (id) => renaming.set(id, (renaming.get(id) || 0) + 1);
+  const unmarkRenaming = (id) => {
+    const n = renaming.get(id) - 1;
+    if (n > 0) renaming.set(id, n); else renaming.delete(id);
+  };
+
   function renamePending(c) {
+    if (renaming.has(c.id)) return true;
     const row = provisioning.get(c.id, 'rename');
     return Boolean(row && row.status !== 'ok');
   }
@@ -705,7 +715,10 @@ function createCustomersController(ctx) {
     else if (step === 'process-restart') run = host().restartProcess(c.id);
     else if (step === 'rename') {
       const previous = directory.aliasesOf(c.id, today())[0];
-      run = host().rename(c.id, previous ? previous.slug : c.slug).then((ok) => { if (ok) refresh(c.id, operator); return ok; });
+      markRenaming(c.id);
+      run = host().rename(c.id, previous ? previous.slug : c.slug)
+        .finally(() => unmarkRenaming(c.id))
+        .then((ok) => { if (ok) refresh(c.id, operator); return ok; });
     } else if (step === 'deprov-email') run = sendExportLink(c.id);
     else if (step === 'deprov-export') return deprovision(c.id, { confirmSlug: c.slug, retry: true }, operator);
     if (!background) await run;
@@ -785,11 +798,16 @@ function createCustomersController(ctx) {
     if (missing.length) throw httpError(400, 'CHECKLIST', `À cocher d’abord : ${missing.map((i) => i.label).join(' ; ')}.`);
     const until = addMonths(today(), ALIAS_MONTHS);
     const redirectUntil = addDays(today(), host().REDIRECT_DAYS);
-    customers.setSlug(c.id, slug);
-    directory.addAlias(c.slug, c.id, until);
-    journal(c.id, operator, 'rename', `Adresse : ${c.slug} → ${slug} ; l’ancienne redirige jusqu’au ${frDay(redirectUntil)} et reste réservée jusqu’au ${frDay(until)}`);
-    // H1 rule 5: the directory moves, the unit and the site follow, the old address redirects.
-    await host().rename(c.id, c.slug);
+    markRenaming(c.id);
+    try {
+      customers.setSlug(c.id, slug);
+      directory.addAlias(c.slug, c.id, until);
+      journal(c.id, operator, 'rename', `Adresse : ${c.slug} → ${slug} ; l’ancienne redirige jusqu’au ${frDay(redirectUntil)} et reste réservée jusqu’au ${frDay(until)}`);
+      // H1 rule 5: the directory moves, the unit and the site follow, the old address redirects.
+      await host().rename(c.id, c.slug);
+    } finally {
+      unmarkRenaming(c.id);
+    }
     refresh(c.id, operator);
     return view(c.id);
   }
