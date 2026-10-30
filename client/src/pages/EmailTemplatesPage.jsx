@@ -457,6 +457,7 @@ export default function EmailTemplatesPage() {
       </Card>
 
       <EmailManualSendDialog
+        key={sending ? `${sending.templateId}-${sending.reservationId}-${sending.occurrenceKey}` : 'closed'}
         open={!!sending}
         reservationId={sending?.reservationId}
         reservationStartDate={sending?.reservationStartDate}

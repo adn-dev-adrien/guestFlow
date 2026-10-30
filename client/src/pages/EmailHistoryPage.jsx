@@ -242,6 +242,7 @@ export default function EmailHistoryPage() {
       />
 
       <EmailManualSendDialog
+        key={resending ? `${resending.id}` : 'closed'}
         open={!!resending}
         reservationId={resending?.reservationId}
         reservationStartDate={resending?.reservationStartDate}

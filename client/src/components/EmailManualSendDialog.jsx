@@ -17,6 +17,7 @@ import api from '../api';
 import ConfirmDialog from './ConfirmDialog';
 import LanguageBadge from './LanguageBadge';
 import { displayDateTime } from '../utils/formatters';
+import useLatestRequest from '../hooks/useLatestRequest';
 import { ENGLISH_MISSING, ENGLISH_MISSING_TAG, NO_RECIPIENT, sendErrorMessage } from '../constants/emailSendErrors';
 
 function offsetLabel(n) {
@@ -36,7 +37,22 @@ function formatTargetDate(startDateIso, dayOffset) {
   } catch { return ''; }
 }
 
-export default function EmailManualSendDialog({
+/**
+ * One dialog serves many rows (pending queue, history): every opening starts from a fresh state, so
+ * nothing of the previous row — template, edits, recipient, language — can leave in the next email
+ * (specs/email-automation.md rule 39).
+ */
+export default function EmailManualSendDialog(props) {
+  const [wasOpen, setWasOpen] = useState(Boolean(props.open));
+  const [opening, setOpening] = useState(0);
+  if (props.open !== wasOpen) {
+    setWasOpen(Boolean(props.open));
+    if (props.open) setOpening(opening + 1);
+  }
+  return <EmailManualSendForm key={opening} {...props} />;
+}
+
+function EmailManualSendForm({
   open, reservationId, reservationStartDate, defaultTemplateId, occurrenceKey, onClose, onSent,
 }) {
   // Full screen on a phone, like every dialog (specs/ds-components.md rule 22).
@@ -47,6 +63,10 @@ export default function EmailManualSendDialog({
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
   const [to, setTo] = useState('');
+  // The template the subject / body on screen were rendered for: « Envoyer » waits until it is the one
+  // picked (specs/email-automation.md rule 40).
+  const [previewedTemplateId, setPreviewedTemplateId] = useState(null);
+  const beginPreview = useLatestRequest();
   const [manualEmail, setManualEmail] = useState(''); // operator-typed recipient when the client has none
   const [missingVariables, setMissingVariables] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -91,10 +111,14 @@ export default function EmailManualSendDialog({
 
   const refreshPreview = useCallback(async () => {
     if (!templateId || !reservationId) return;
+    const current = beginPreview();
     setLoading(true);
     setError('');
+    setPreviewedTemplateId(null);
     try {
       const res = await api.previewEmail({ reservationId, templateId, lang: langOverride || undefined, occurrenceKey });
+      if (!current()) return;
+      setPreviewedTemplateId(templateId);
       setSubject(res.subject || '');
       setBody(res.body || '');
       setTo(res.to || '');
@@ -102,12 +126,13 @@ export default function EmailManualSendDialog({
       setEnglishMissing(Boolean(res.englishMissing));
       setMissingVariables(res.missingVariables || []);
     } catch (e) {
+      if (!current()) return;
       setError(e?.message || 'Impossible de générer l\'aperçu.');
       setSubject(''); setBody(''); setTo(''); setMissingVariables([]); setEnglishMissing(false);
     } finally {
-      setLoading(false);
+      if (current()) setLoading(false);
     }
-  }, [templateId, reservationId, langOverride, occurrenceKey]);
+  }, [templateId, reservationId, langOverride, occurrenceKey, beginPreview]);
 
   useEffect(() => { if (open) refreshPreview(); }, [open, refreshPreview]);
 
@@ -151,7 +176,7 @@ export default function EmailManualSendDialog({
   };
 
   const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient);
-  const sendDisabled = sending || loading || !templateId || !emailValid || englishMissing;
+  const sendDisabled = sending || loading || !templateId || previewedTemplateId !== templateId || !emailValid || englishMissing;
 
   return (
     <Dialog open={open} onClose={sending ? undefined : onClose} maxWidth="md" fullWidth fullScreen={fullScreen}>
