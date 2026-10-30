@@ -423,6 +423,8 @@ function buildContext({ reservation, client, property, options = [], resources =
       // Online payment link — empty by default; the sender injects the real URL per-send via
       // `extraContext` (the link is created on demand, it is not a reservation column).
       paymentLink:     '',
+      // specs/payment-link-lifecycle.md rule 36 — the end of validity of that link, filled with it.
+      paymentLinkValidUntil: '',
       // specs/deposit-blocks-the-dates.md rule 11 — what THIS request asks the guest to pay: the
       // acompte when there is one, the solde otherwise (a last-minute stay owes a single payment, tourist
       // tax included and arrival complement excluded — rule 18). The sender overrides it per-send with the

@@ -159,7 +159,11 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
    guard applies) and a fresh one is minted. So every e-mail that leaves with a link gives the guest at
    least 24 h, whatever the delay between the mint and the operator's send. The retired link **lapses**
    (`expired`, `validity`, rule 1), it is not withdrawn; it is deactivated at once and gets its last look
-   (rule 19). Its `expiresAt` becomes the moment it lapsed, so its ledger row never names a future end
+   (rule 19). An acompte request and a full request started at the same moment for one stay end with a
+   single open link: the mints of a stay run one after the other, whatever their type, under one lock
+   `reservation:<id>` shared by a devis and the reservation it became (re-review of #897: retiring an older
+   link waits on the provider, and a per-type lock let the other mint slip in, leaving two links open, or
+   a full request reusing a link being retired; test `payment-link-concurrent-types`). Its `expiresAt` becomes the moment it lapsed, so its ledger row never names a future end
    (review of #894; the same for a stay-started lapse). A link with no known end (Qonto's sentinel) cannot promise 24 h and is never reused; a link
    whose amount drifted is withdrawn as before (`cancelled`, no reason) (readings recorded at
    implementation, 2026-10-30).
@@ -317,6 +321,27 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     `ensureInstallmentLink`, so rule 8 guarantees ≥ 24 h left. A preview rendered earlier may show an
     older URL: the preview of a request template prints « (lien de paiement créé à l'envoi) » in place
     of `{{paymentLink}}` when no open link has ≥ 24 h left.
+    Readings recorded at implementation (2026-10-30): a request template sent from the e-mail dialog or
+    the « à valider » queue (`emailsController.send`) resolves its link the same way, through
+    `paymentRequests.ensureLink` (`utils/paymentRequests.js`), before the send — so the placeholder
+    always tells the truth, and a mint refusal (bucket already paid, provider error) refuses the send
+    with the service's own message, nothing sent. The placeholder appears only while a provider is
+    connected (the send can mint); without one the template's no-link branch shows, and a provider
+    declared but not connected still re-offers an open link that has 24 h left (no mint, no provider
+    call). `{{paymentLinkValidUntil}}` previews as « (36 h après l'envoi) » beside the placeholder. An
+    installment request follows the same rule with its own open link.
+    Review of #897 (2026-10-30): the e-mail dialog posts the **rendered** preview as `overrides`, so the
+    send fills it, not the template: the placeholders, and any URL of the stay's links the preview showed
+    (read before the send may retire it), become the resolved link, with its own end in place of the old
+    one. A placeholder still present after rendering refuses the send (409 `PAYMENT_LINK_PLACEHOLDER`,
+    « Lien de paiement indisponible : l'e-mail n'est pas envoyé. », nothing mailed, nothing logged as
+    sent); a text that will be given a minted link but carries none (a preview of the no-link branch, a
+    deleted link) is refused before the mint (409 `PAYMENT_LINK_MISSING`, « Le lien de paiement manque
+    dans le texte : l'e-mail n'est pas envoyé. », worded for a stale preview and a deliberate removal alike). `deposit_request`, `balance_request` and `full_request`
+    print their link outside any condition: with no link resolved (no connected provider, no open link
+    with 24 h left) they are refused, 409 `NO_PAYMENT_PROVIDER` with the fiche's wording; the acompte
+    reminder keeps its no-link branch. A send that cannot leave — no address, an invalid typed one, SMTP
+    not configured (logged as failed) — is refused before any link is minted.
 27. **Reminders.** `deposit_reminder` gets its link at send time (rule 35). `balance_reminder` never
     gets a link (unchanged).
 28. **A link already in an inbox that lapses.** The guest who opens it after the deactivation sees the
@@ -337,6 +362,17 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     a expiré. Refaire la réservation depuis la page du logement. » (FR / EN keys `paymentExpired`).
     An older plugin treats the unknown value as `pending` and ends on « paymentPending » after its 20
     tries: degraded, not broken — a **Y** change, not an X (§5.6 of CLAUDE.md).
+    Readings recorded at implementation (2026-10-30): no lapse timestamp is stored; the moment a link
+    lapsed is its `expiresAt` (rule 8 writes the lapse moment there), else, for a `stay-started` lapse,
+    00:00 Paris on the devis's `startDate`. The read is a `getPayment` only (the deactivation stays the
+    lifecycle pass's), counted through `lastPolledAt` like the retired-link read. « Latest » is the
+    devis's own newest link: a withdrawn (`cancelled`) newest link answers `pending` as before. « Unpaid »
+    is established only once no look is owed: while its `lastLookAt` or `remoteCancelPendingAt` is set (a
+    payment in flight at the deadline may still land), `status` answers `pending`, and `expired` once both
+    are cleared (review of #897: the guest coming back from the provider is exactly the one who may have
+    just paid). Plugin
+    1.19.0, English « This payment link has expired. Please book again from the accommodation's page. »
+    ([wordpress-plugin.md](wordpress-plugin.md) rule 34).
 
 ### 3.K Decisions of 2026-10-30 (appended; rule numbers are identities)
 
@@ -386,6 +422,10 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     refused — 409 `DATES_UNAVAILABLE`, « Dates déjà prises par une autre réservation : relance non
     envoyée. » — and rule 43 tells the guest, the operators and the dashboard (decided 2026-10-30,
     §9 Q12). The preview shows « (lien de paiement créé à l'envoi) » as in rule 26.
+    Readings recorded at implementation (2026-10-30, PR3, the mint part; the refusal on taken dates comes
+    with rule 11): the reminder's link is minted only while a provider is connected; without one the
+    reminder leaves on its « Contactez-nous » branch, never with a stored link nobody reconciles. The
+    template stays Manual: only its content and the link it carries change.
 36. **`{{paymentLinkValidUntil}}`** (decided 2026-10-30, §9 Q7). A new template token (`templateTokens.js`,
     group `payment`), filled with the `expiresAt` of the link the send carries, in the guest's language
     and Paris time (« lundi 2 novembre à 18 h 00 » / « Monday 2 November at 6:00 pm »), empty with no link.
@@ -395,6 +435,18 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     {{paymentLinkValidUntil}}. », inside `{{#if hasPaymentLink}}` where the template has it. Content
     migration on untouched default templates only (the `email-language-fr-en` rule 6 pattern); an
     operator-edited template keeps its text and can use the token.
+    Readings recorded at implementation (2026-10-30): the sentence sits on the line right after the link.
+    « Untouched » is judged per side: a French `body` or English `bodyEn` equal, to the character, to one
+    of the defaults GuestFlow ever shipped for that template (recognised by SHA-256, every version of the
+    registry up to this change) gets the sentence inserted after its link, and nothing else changes
+    (`payment_link_valid_until_sentence_v1`, `utils/migrateValidUntilSentence.js`). The defaults evolved
+    without rewriting stored rows: on the shadow copy of 22/10 four of the five templates still held an
+    older default (never edited), which a comparison with today's default alone would have skipped; all ten
+    sides are recognised there. Any other text is the operator's: left as it is and named in the boot log. The formatter is `dateFr.formatMomentLong` (no year: a link lives 36 h; « 1er » on the
+    first of the month; English 12-hour clock, « 12:15 am » after midnight). The money and the date travel
+    the same way: `sendTemplate` hands the instant (`extraContext.dates`), the sender writes it in the
+    guest's language. A template that prints the token outside `{{#if hasPaymentLink}}` is never chosen
+    as the no-provider draft (`paymentRequestDraft`, like `{{paymentLink}}`).
 
 ### 3.L Decisions of 2026-10-30, second round (Q9–Q12)
 
@@ -598,7 +650,13 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
 | `controllers/` | `reservationsController.js` | T | « Rétablir » (`restore`) calls `withdrawLinksOverlapping`; every caller of rule 32 deactivates the returned links after the commit |
 | `models/` | `pluginsModel.js` | T | Uninstall guard counts `expired` rows with the marker (rule 23) |
 | `controllers/` | `public/publicPaymentController.js` | T | `status`: lapsed-link read and `expired` answer (rule 30) |
-| `controllers/` | `emailsController.js` | T | Preview placeholder « (lien de paiement créé à l'envoi) » (rule 26); `deposit_reminder` mints at send, refused on taken dates (rule 35); fills `paymentLinkValidUntil` (rule 36) |
+| `controllers/` | `emailsController.js` | T | Preview placeholder « (lien de paiement créé à l'envoi) » (rule 26); `deposit_reminder` and the request templates resolve their link at send (`SEND_TIME_LINKS`, rules 26, 35), refused on taken dates (rule 35); fills `paymentLinkValidUntil` (rule 36) |
+| `utils/` | `paymentRequests.js` | C | `createPaymentRequests()`: `available()`, `ensureLink(reservationId, type)` for the emails controller (rules 26, 35), the counterpart of `installmentRequests.js` |
+| `utils/` | `installmentRequests.js` | T | `resolve` returns `openLink { url, expiresAt }`; the controller decides whether the send would reuse it (rule 26) |
+| `controllers/` | `paymentsController.js` | T | `ensurePaymentLinkFor(id, type)` beside `ensureInstallmentLinkFor`; `sendTemplate` hands `expiresAt` as `extraContext.dates.paymentLinkValidUntil` (rule 36) |
+| `utils/` | `reservationEmailSender.js`, `dateFr.js` | T | `extraContext.dates` written in the guest's language by `formatMomentLong` (rule 36) |
+| `utils/` | `paymentRequestDraft.js`, `emailContextBuilder.js` | T | The no-link draft refuses a template printing the validity outside its condition; the token's default `''` (rule 36) |
+| `utils/` | `migrateValidUntilSentence.js` | C | Rule 36's content migration, untouched sides only, called from `database.js` |
 | `controllers/` | `establishmentClosuresController.js` | T | `RESERVATION_OVERLAP` reworded + `reservations[]`; new `OPEN_PAYMENT_REQUEST` + `requests[]`; `conflicts` handler (rules 40-41) |
 | `models/` | `establishmentClosuresModel.js` | T | `findReservationOverlaps` (all, not the first), `findOpenPaymentRequests(propertyId, start, end)`, `findDevisWithoutLink` (rule 49) |
 | `models/` | `devisModel.js` (create / update) | T | 409 `DATES_HELD` on held dates (rule 46); `datesTaken` marker in the devis payloads (rule 48) |
@@ -629,7 +687,8 @@ No new dependency.
 | others | — | — | (none) |
 
 **WordPress plugin** (`integrations/wordpress/guestflow-booking`): `blocks/booking/view.js` handles
-`status: 'expired'`; i18n keys `paymentExpired` (FR / EN); version bump (minor).
+`status: 'expired'`; i18n keys `paymentExpired` (FR / EN, `.po` and `.mo`); plugin 1.19.0 (header,
+`GF_BOOKING_VERSION`, readme stable tag and changelog).
 
 **Component reuse declaration:**
 
@@ -646,7 +705,8 @@ No new dependency.
 | GET | `/api/payments/reservations/:id/payment-links` | Rows carry `expiresAt` (already a column), the new `cancelReason` values, `remoteCancelPending` now also on `expired` rows. Additive. |
 | POST | `/api/payments/reservations/:id/payment-links`, `/payment-emails` | New refusal 409 `{ error: 'DATES_UNAVAILABLE', message }` on an unpaid devis or reservation whose nights are taken; a reused link always has ≥ 24 h left. |
 | GET | ledger payload (fiche) | `link.label` wording (rule 24). |
-| POST | `/api/emails/send` (`deposit_reminder`) | Mints the link at send; new refusal 409 `DATES_UNAVAILABLE` (rule 35). |
+| POST | `/api/emails/send` (`deposit_reminder`, `deposit_request`, `balance_request`, `full_request`, `installment_request`) | Resolves the link at send (reuse with ≥ 24 h, else mint) and fills the posted preview with it; a mint refusal answers the service's `{ error, message }` and nothing is sent; 409 `PAYMENT_LINK_MISSING`, `PAYMENT_LINK_PLACEHOLDER`, `NO_PAYMENT_PROVIDER` (requests only) (rule 26); new refusal 409 `DATES_UNAVAILABLE` (rule 35). |
+| GET | `/api/emails/preview` | `paymentLink` / `paymentLinkValidUntil` print « (lien de paiement créé à l'envoi) » / « (36 h après l'envoi) » when only the send will create the link (rule 26). |
 | GET | `/public/v1/booking-requests/:id/status` | New `status: 'expired'` (additive). |
 | POST | `/public/v1/booking-requests/:id/pay` | Unchanged contract. |
 | POST / PUT | `/api/establishment-closures` | 409 `RESERVATION_OVERLAP` `{ error, code, reservations[] }` (reworded); new 409 `OPEN_PAYMENT_REQUEST` `{ error, code, requests[] }`. |
@@ -718,8 +778,8 @@ refused).
 - [ ] `tests/payment-link-dates-taken.unit.test.js` — rules 10-11, 31-32: overlap by iCal import (Adrien's case a), by the conversion of another devis (case b), by manual creation, re-date, logement change, « Rétablir »; the row itself and its own converted stay never count; a row with an acompte paid keeps its links; two unpaid reservations both withdrawn; mint refused 409.
 - [ ] `tests/payment-link-dates-taken-paid.unit.test.js` — rule 33: paid in flight on a devis (converted with `bookingConflictAt`, no confirmation, alert) and on a reservation (bucket recorded, conflict, alert).
 - [x] `tests/payment-link-validity-backfill.unit.test.js` — rule 34: grace from the install, idempotent, logged.
-- [ ] `tests/deposit-reminder-mints-link.unit.test.js` — rule 35: fresh link at send, reuse with ≥ 24 h, refusal on taken dates, preview placeholder.
-- [ ] `tests/payment-link-valid-until-token.unit.test.js` — rule 36: FR / EN wording in Paris time, empty without a link, content migration only on untouched templates.
+- [x] `tests/deposit-reminder-mints-link.unit.test.js` — rules 27, 35: fresh link at send, reuse with ≥ 24 h, a fresh one below, English wording, mint refusal sends nothing, no provider → no link, declared-unready re-offers only, the solde reminder never gets a link, still Manual (9). The refusal on taken dates joins it with rule 11 (PR5/PR6).
+- [x] `tests/payment-link-valid-until-token.unit.test.js` — rule 36: FR / EN wording in Paris time (DST), empty without a link, catalogue entry, sentence in every default, both request paths hand `expiresAt`, content migration on every shipped version (an older default keeps the rest of its text), never on an edited side, idempotent, no-link draft (15).
 - [ ] Amend `superseded-duplicates` tests for the moved `carriesMoney`.
 - [ ] `tests/stay-holds-dates.unit.test.js` — rule 37: acompte paid holds, solde open still holds, platform holds, unpaid direct and devis do not, cancelled frees; two unpaid devis both keep their links, first paid withdraws the other's (Q11).
 - [ ] `tests/ical-overbooking-held-dates.unit.test.js` — rules 38-39: import on held dates recorded + conflict + held-dates wording; drift approval warning.
@@ -734,11 +794,18 @@ refused).
 - [x] `tests/payment-link-lifecycle-ledger.unit.test.js` — rule 24 labels and `resend`.
 - [x] `tests/payment-link-lifecycle-pass.unit.test.js` — rules 1, 2, 13, 16, 22: withdrawn first, one transaction, only `open` rows move, the poll opens with the pass.
 - [x] `plugins/online-payment/tests/payment-link-lifecycle-job.unit.test.js` — rules 16, 22, 23: 15-min job, shared in-progress flag, nothing while Qonto is not connected; SDK 2.18 contract.
-- [ ] `tests/public-payment-status-expired.unit.test.js` — rule 30.
-- [ ] `tests/payment-link-request-preview.unit.test.js` — rule 26 placeholder.
+- [x] `tests/public-payment-status-expired.unit.test.js` — rule 30: `expired` answer, paid lapsed link booked → `confirmed`, once per 5 min, no read past 24 h unless a last look is pending, stay-started lapse, an open link or a withdrawn latest link stays `pending`, a pending last look or owed deactivation answers `pending` (11). Rule 28 is cited by the token suite (the e-mail states the end).
+- [x] `tests/payment-link-request-preview.unit.test.js` — rule 26: reusable link shown with its end, placeholder below 24 h / no known end / no link, the reminder's link branch, installment requests, no provider → no placeholder, a request sent from the dialog mints (8).
+- [x] `tests/public-payment-pay-after-expiry.unit.test.js` — rule 29: « Payer » after the lapse mints a fresh 36 h link, the lapsed one stays lapsed, a second click reuses the fresh one (2).
+- [x] `tests/payment-link-dialog-send.unit.test.js` — rule 26 (review of #897): preview → send with the preview as `overrides` for the five link templates, FR and EN, carries the minted link and its end; a stale preview's lapsed URL and end never leave; a text without a link refused before the mint; a placeholder left refuses the send; an operator edit survives (14).
+- [x] `tests/payment-link-send-refusals.unit.test.js` — rule 26: the three requests refused without a link, a declared-unready provider's reusable link still sent, the reminder not refused, no address / invalid address / no SMTP refused before any mint (8).
+- [x] `tests/payment-link-concurrent-types.unit.test.js` — rule 8: an acompte and a full request at the same moment end with one open link, with or without an older full link to retire (20 h and 30 h left), across 60 interleavings each (4).
+- [x] `tests/wordpress-payment-expired.unit.test.js` — rule 30: the key, the `.po` / `.mo` English string, plugin 1.19.0 everywhere (3).
+- [x] Amended `direct-installments-emails` (the preview's placeholder before the mint), `emails-controller` and `plugin-removal-fixes` (a re-offered link has 24 h left).
 - [x] Amend `payment-poll-fair-use.unit.test.js` (retireExpired now sets the marker) and `plugins-phase-0` uninstall guard (rule 23).
 
 ### Client
+- [x] `client/src/__tests__/wordpress-booking-view.payment-expired.test.js` — rule 30: the return page stops on `expired` with its message, after a `pending` too; `confirmed` still wins (3).
 - [ ] `client/src/components/reservation/__tests__/FinanceSection.link-lifecycle.test.jsx` — prints the new labels, offers « Renvoyer la demande » on expired, not on dates-taken; « Retirer le lien » asks for confirmation.
 - [ ] `client/src/pages/__tests__/EstablishmentClosuresPage.conflicts.test.jsx` — warning list with links, 409 lists rendered.
 - [ ] `client/src/components/__tests__/ConflictList.test.jsx`.
@@ -857,7 +924,23 @@ Six sequential PRs into `inte/plugins` (plan validated 2026-10-30).
   lapsed link first (`payment-link-validity` 14); amended `payment-poll-fair-use`, `plugins-phase-0`,
   `plugins-phase-1-sdk`, `payment-link-orphan-alert`, `payment-request-service`,
   `payment-links-converted-devis-double-payment`, `payment-links-model`.
-- [ ] PR3 — validity in request e-mails, acompte reminder mints at send, public `expired` status (rules 26-30, 35, 36).
+- [x] **PR3 — validity in request e-mails, acompte reminder mints at send, public `expired` status**
+  (rules 26-30, 35 mint part, 36). `emailsController` resolves the link of `deposit_reminder` and of the
+  request templates at send (`SEND_TIME_LINKS`, `utils/paymentRequests.js` →
+  `paymentsController.ensurePaymentLinkFor`) and previews « (lien de paiement créé à l'envoi) » when no
+  open link has 24 h left; token `paymentLinkValidUntil` (`templateTokens`, `emailContextBuilder`,
+  `dateFr.formatMomentLong`, `extraContext.dates` in `reservationEmailSender`, `expiresAt` through both
+  request paths); the sentence in the five default templates FR / EN and migration
+  `payment_link_valid_until_sentence_v1` on untouched sides (any shipped version, by SHA-256); `paymentRequestDraft` treats the token like
+  the link; public `status` reads the latest lapsed link and answers `expired`; WordPress plugin 1.19.0
+  (`paymentExpired`). Tests: `payment-link-valid-until-token` (15), `deposit-reminder-mints-link` (9),
+  `payment-link-request-preview` (8), `public-payment-status-expired` (11), `public-payment-pay-after-expiry`
+  (2), `wordpress-payment-expired` (3), `payment-link-dialog-send` (14), `payment-link-send-refusals` (8),
+  `payment-link-concurrent-types` (4) — review of #897 (and one per-stay mint lock at the re-review): the dialog's rendered preview is filled at the
+  send, placeholder guard, requests refused without a link, refusals before the mint, `pending` while a
+  look is owed; client `wordpress-booking-view.payment-expired` (3); amended `direct-installments-emails`,
+  `emails-controller`, `plugin-removal-fixes`, `emails-controller-sequence-ledger` (its payment e-mail is now
+  the reminder: a request without a provider is refused).
 - [ ] PR4 — closures refused over open payment requests, « Retirer le lien » (rules 40-42, 49).
 - [ ] PR5 — held dates and dates-taken withdrawal (rules 10-12, 16, 24, 25, 31-33, 37-39, 46, 48).
 - [ ] PR6 — dates-taken guest notice (rules 35, 43-45, 47); status → Implemented.

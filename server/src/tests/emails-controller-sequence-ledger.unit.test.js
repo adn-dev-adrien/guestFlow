@@ -79,7 +79,8 @@ test('« Ignorer » and « Marquer envoyé » close the key: the sequence never 
 
 test('payment emails keep their own rules: no ledger key, sent again on demand', async () => {
   const { controller, db, mail, reservationId, templateId } = setup();
-  const body = { reservationId, templateId: templateId('deposit_request') };
+  // The acompte reminder: a request without a provider is refused (specs/payment-link-lifecycle.md rule 26).
+  const body = { reservationId, templateId: templateId('deposit_reminder') };
   assert.equal((await call(controller.send, { body })).status, 200);
   assert.equal((await call(controller.send, { body })).status, 200);
   assert.equal(mail.sent.length, 2);

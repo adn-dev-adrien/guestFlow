@@ -56,7 +56,7 @@ function requestServiceDeps(provider) {
     installmentsModel,
     resolveInstallmentItems: (id, installment, plan) => resolveInstallmentComponents(id, installment, plan),
     englishMissing: ({ reservationId, stableKey }) => requestEnglishMissing(reservationId, stableKey),
-    sendTemplate: ({ reservationId, stableKey, paymentLink, amountCents, installment = null }) => sendReservationTemplateEmail({
+    sendTemplate: ({ reservationId, stableKey, paymentLink, amountCents, expiresAt = null, installment = null }) => sendReservationTemplateEmail({
       database, templatesModel: emailTemplatesModel, logModel: emailLogModel,
       settingsModel, emailServiceFactory: createEmailService,
       reservationId, stableKey,
@@ -67,6 +67,8 @@ function requestServiceDeps(provider) {
       extraContext: {
         vars: { paymentLink },
         amounts: { paymentAmount: Number(amountCents || 0) / 100 },
+        // specs/payment-link-lifecycle.md rule 36 — the end of THIS link, written in the guest's language.
+        dates: { paymentLinkValidUntil: expiresAt },
         flags: { hasPaymentLink: true },
       },
     }),
@@ -252,22 +254,28 @@ const pollPaymentsNow = withProvider(async (req, res, provider) => {
   } catch (err) { return sendError(res, err, provider); }
 });
 
-// The link of one installment, for the request email sent from the « à valider » queue (rule 19). Throws the
-// same `{ httpStatus, error, message }` as the service; without a provider, a 409.
-async function ensureInstallmentLinkFor(id, installmentId) {
+// A link minted for an e-mail sent from the e-mail dialog or the « à valider » queue. Throws the service's
+// `{ httpStatus, error, message }`; without a provider, a 409; a provider failure, a 502 that names it.
+async function withProviderLink(mint) {
   const provider = paymentProviders.active();
   if (!provider) throw { httpStatus: 409, ...paymentProviders.NO_PROVIDER };
   try {
-    return await paymentRequestService.ensureInstallmentLink(requestServiceDeps(provider), Number(id), Number(installmentId));
+    return await mint(requestServiceDeps(provider));
   } catch (err) {
     if (err && err.httpStatus) throw err;
     throw { httpStatus: 502, error: provider.errorCode, message: `Erreur de l'API ${provider.label} : à réessayer, détail dans les journaux.` };
   }
 }
 
+// The link of one installment, for its request email (specs/direct-installments.md rule 19).
+const ensureInstallmentLinkFor = (id, installmentId) => withProviderLink((deps) => paymentRequestService.ensureInstallmentLink(deps, Number(id), Number(installmentId)));
+
+// The stay's link of a type, for a request or the acompte reminder sent by hand (specs/payment-link-lifecycle.md rules 26, 35).
+const ensurePaymentLinkFor = (id, type) => withProviderLink((deps) => paymentRequestService.ensurePaymentLink(deps, Number(id), type));
+
 module.exports = {
   createReservationPaymentLink, listReservationPaymentLinks, sendPaymentRequestEmail, pollPaymentsNow,
-  sendBalanceRequestFor, sendDepositRequestFor, ensureInstallmentLinkFor,
+  sendBalanceRequestFor, sendDepositRequestFor, ensureInstallmentLinkFor, ensurePaymentLinkFor,
 };
 
 // The two money resolvers, with their quote source injectable (specs/payment-link-quote-parity.md §7):

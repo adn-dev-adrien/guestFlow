@@ -273,6 +273,12 @@ remaining the single source of truth for prices, availability, and validation.
     (the stay the request became was cancelled), the block stops polling and reads « Cette réservation
     est annulée. » (`paymentCancelled`, English « This booking has been cancelled. »). Against a
     GuestFlow that never answers `cancelled` nothing changes.
+34. **The payment return page stops on an expired link** (2026-10-30, plugin 1.19.0,
+    [payment-link-lifecycle.md](payment-link-lifecycle.md) rule 30). When the status answers `expired`
+    (the link lapsed unpaid, none open), the block stops polling and reads « Ce lien de paiement a
+    expiré. Refaire la réservation depuis la page du logement. » (`paymentExpired`, English « This
+    payment link has expired. Please book again from the accommodation's page. »). Against a GuestFlow
+    that never answers `expired` nothing changes.
 
 ---
 

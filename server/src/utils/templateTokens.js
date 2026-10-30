@@ -85,6 +85,7 @@ const VARIABLES = Object.freeze([
   { name: 'cancelOnDate', label: 'Date d’annulation si impayé', in: ['payment', 'cancellation'] },
   { name: 'retainedDepositAmount', label: 'Acompte conservé', in: ['payment', 'cancellation'] },
   { name: 'paymentLink', label: 'Lien de paiement', in: ['payment'] },
+  { name: 'paymentLinkValidUntil', label: 'Fin de validité du lien', in: ['payment'] },
   { name: 'paymentAmount', label: 'Montant demandé', in: ['payment'] },
   { name: 'installmentNumber', label: 'N° de l’échéance', in: ['payment'] },
   { name: 'installmentCount', label: 'Nombre d’échéances', in: ['payment'] },
