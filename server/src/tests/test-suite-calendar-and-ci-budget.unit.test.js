@@ -49,6 +49,7 @@ test('rule 6: the suites the audits found, and every suite of the reservation-sa
     `${TESTS}/baby-bed-line-stored-on-create.unit.test.js`,
     `${TESTS}/ical-nameless-summary-matching.unit.test.js`,
     `${TESTS}/lodgify-decommission-native-feeds.unit.test.js`,
+    `${TESTS}/ical-cancelled-stay-dropped.unit.test.js`,
     `${TESTS}/ledgerFixture.js`,
     ...LEDGER_FIXTURE_SUITES,
   ])].map((f) => asAdded(f, read(f)));
@@ -205,6 +206,8 @@ test('rule 7: a pin in a helper covers the tests that call it, a test.each callb
   ]);
   const hook = "test.beforeEach(() => { vi.setSystemTime(new Date('2027-06-15T10:00:00')); });\ntest('a', () => { label('2027-06-16'); });"; // date-literal-ok: guard input
   assert.deepEqual(findDateBombs({ files: [asAdded('server/src/tests/y.unit.test.js', hook)], today: '2026-10-30' }), [], 'a top-level hook pins the file'); // date-literal-ok: guard input
+  const asyncHook = "beforeEach(async () => { vi.setSystemTime(new Date('2027-06-15T10:00:00')); });\ntest('a', () => { label('2027-06-16'); });"; // date-literal-ok: guard input
+  assert.deepEqual(findDateBombs({ files: [asAdded('server/src/tests/z.unit.test.js', asyncHook)], today: '2026-10-30' }), [], 'an async top-level hook pins the file too'); // date-literal-ok: guard input
 });
 
 test('rule 9: a line whose file and text already exist on a known branch is not named', async () => {
@@ -218,6 +221,73 @@ test('rule 9: a line whose file and text already exist on a known branch is not 
     { file: 'server/src/tests/a.unit.test.js', content: '', added: [{ line: 4, text: "  createStay({ startDate: '2027-02-12' });" }] }, // date-literal-ok: guard input
     { file: 'server/src/tests/b.unit.test.js', content: '', added: [{ line: 1, text: "createStay({ startDate: '2027-01-24' });" }] }, // date-literal-ok: guard input
   ]);
+});
+
+test('rule 7: a quoted compact iCal date (YYYYMMDD, alone or opening a timestamp) is named like a dashed one', async () => {
+  const { findDateBombs } = await load();
+  const content = [
+    "feed([{ uid: 'G1', start: '20271105', end: '20271110' }]);", // date-literal-ok: guard input
+    "const stamp = '20280301T090000Z';", // date-literal-ok: guard input
+    "const old = '20261029';", // date-literal-ok: guard input
+    'const line = `DTSTART;VALUE=DATE:20271105`;', // date-literal-ok: guard input
+    "const n = '202711051';", // date-literal-ok: guard input
+    "const far = '20990601';", // date-literal-ok: guard input
+  ].join('\n');
+  assert.deepEqual(findDateBombs({ files: [asAdded('server/src/tests/x.unit.test.js', content)], today: '2026-10-30' }).map((b) => [b.line, b.literal]), [ // date-literal-ok: guard input
+    [1, '20271105'], [1, '20271110'], [2, '20280301'], // date-literal-ok: guard output
+  ]);
+});
+
+test('rule 7: a pin inside an object or class method covers the method and its callers, not the file', async () => {
+  const { findDateBombs } = await load();
+  const content = [
+    'const h = {',
+    '  freeze(t) { t.mock.timers.enable({ now: 0 }); },',
+    '  thaw: (t) => { t.mock.timers.reset(); },',
+    '};',
+    'class Clock {',
+    "  static pin() { vi.setSystemTime(new Date('2027-01-01T10:00:00Z')); }", // date-literal-ok: guard input
+    '}',
+    "test('frozen', (t) => { h.freeze(t); assert.ok(due('2027-05-10')); });", // date-literal-ok: guard input
+    "test('pinned', () => { Clock.pin(); assert.ok(due('2027-05-12')); });", // date-literal-ok: guard input
+    "test('free', () => { createStay({ startDate: '2027-05-11' }); });", // date-literal-ok: guard input
+    'if (ready) { createStay({ startDate: "2027-05-13" }); }', // date-literal-ok: guard input
+  ].join('\n');
+  assert.deepEqual(findDateBombs({ files: [asAdded('server/src/tests/x.unit.test.js', content)], today: '2026-10-30' }).map((b) => [b.line, b.literal]), [ // date-literal-ok: guard input
+    [10, '2027-05-11'], [11, '2027-05-13'], // date-literal-ok: guard output
+  ]);
+});
+
+test('rule 9: a known line copied again into its own file is named — counts are compared, not presence', async () => {
+  const { dropKnownLines } = await load();
+  const line = "  createStay({ startDate: '2027-07-20' });"; // date-literal-ok: guard input
+  const known = () => [`test('a', (t) => {\n  t.mock.timers.enable({ now });\n${line}\n});`, `${line}\n${line}`];
+  const head = (n) => [`test('a', (t) => {`, '  t.mock.timers.enable({ now });', ...Array(n).fill(line), '});'].join('\n');
+  const twice = { file: 'server/src/tests/a.unit.test.js', content: head(2), added: [{ line: 4, text: line }] };
+  assert.deepEqual(dropKnownLines([twice], known)[0].added, [], 'two copies, two on the richest known ref');
+  const thrice = { file: 'server/src/tests/a.unit.test.js', content: head(3), added: [{ line: 5, text: line }] };
+  assert.deepEqual(dropKnownLines([thrice], known)[0].added, [{ line: 5, text: line }], 'a third copy is new');
+});
+
+test('rule 9: a line copied from a pinned test into an unpinned one of the same file is named, even with --known', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'check-test-dates-'));
+  const sh = (...args) => execFileSync('git', args, { cwd: dir, encoding: 'utf8' });
+  const write = (rel, text) => { fs.mkdirSync(path.dirname(path.join(dir, rel)), { recursive: true }); fs.writeFileSync(path.join(dir, rel), text); };
+  const commit = (msg) => { sh('add', '.'); sh('-c', 'user.name=t', '-c', 'user.email=t@example.test', 'commit', '-qm', msg); };
+  const pinned = "test('a', (t) => {\n  t.mock.timers.enable({ now: 0 });\n  createStay({ startDate: '2027-07-20' });\n});\n"; // date-literal-ok: guard input
+  try {
+    sh('init', '-q', '-b', 'inte');
+    write('server/src/tests/a.unit.test.js', pinned);
+    commit('pinned test on inte');
+    sh('checkout', '-qb', 'feature');
+    write('server/src/tests/a.unit.test.js', `${pinned}test('b', () => {\n  createStay({ startDate: '2027-07-20' });\n});\n`); // date-literal-ok: guard input
+    commit('feature');
+    const r = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'check-test-dates.mjs'), '--today', '2026-10-30', '--strict', '--base', 'inte', '--head', 'feature', '--known', 'inte'], { cwd: dir, encoding: 'utf8' }); // date-literal-ok: guard input
+    assert.equal(r.status, 1, r.stdout);
+    assert.match(r.stderr, /a\.unit\.test\.js:6 {2}2027-07-20/); // date-literal-ok: guard output
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test('rule 9: an integration or sync PR is not blocked by lines merged on the other branch; a new line still is', () => {

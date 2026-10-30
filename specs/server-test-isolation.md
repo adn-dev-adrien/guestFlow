@@ -106,12 +106,17 @@ hangs on a test that does not settle (rule 5). A suite does not go red because t
    clock shift — SQLite's `datetime('now')` and a `Date` captured before the shift disagree with the shifted
    `Date`: `public-request-purge` ×2, `booking-pace` §5, `revenueByChannel`, `payment-poll-runner` and
    `reservation-number` ×2 — the same seven the reviews saw from the first shifted date (2026-12-01), green on
-   the real calendar.
+   the real calendar. The final review (2026-10-30) found one fuse past that last date: `ical-cancelled-stay-
+   dropped`, red from 2027-11-11, whose feed held compact iCal dates (`'20271105'`) the guard did not read.
+   Its feed now hangs on today too (`icalDay(n)`), it joins the rule 6 test, and rule 7 reads the compact
+   form. The 78 compact literals of five other iCal suites (`ical-import-hardening` holds 54), green through
+   2028-03-01, are left as they are: rule 7 reads only added lines,
+   and rule 9 sets aside the unchanged ones an integration or sync PR carries.
 
 7. **A PR adding a literal date to a test is told so, on the line** (added 2026-10-30, audit R8 M-1, the guard
    audit R7 proposed). `scripts/check-test-dates.mjs --base <ref>` reads only the test lines a PR adds (files of
    a `tests/`, `__tests__/` or `e2e/` folder, and every `*.test.*` / `*.spec.*`), and names a quoted
-   `YYYY-MM-DD`, a template opening on a year (`` `2028-${m}-10` ``), or a `Date.UTC(YYYY, …)` /
+   `YYYY-MM-DD`, a quoted iCal `YYYYMMDD` (alone or opening a `…T090000Z` timestamp), a template opening on a year (`` `2028-${m}-10` ``), or a `Date.UTC(YYYY, …)` /
    `new Date(YYYY, …)` year, from today to ten years out. Not named: comment lines; a line carrying
    `date-literal-ok`, or under one (« `// date-literal-ok: <why>` », for a date nothing compares with today,
    such as the input of a pure function or a « now » the test hands to the code); the lines of a test that
@@ -123,7 +128,8 @@ hangs on a test that does not settle (rule 5). A suite does not go red because t
    …`, not a local `const todayIso = …` helper), a `NOW` constant, or a `now:` handed to the code — unless it
    is the real clock (`new Date()`, `Date.now()`). A pin inside a `test` / `it` / `describe` call, a
    `test.each(…)(…)` callback included, exempts that call only, not the file's other tests; a pin in a named
-   helper (`function freeze(t)`, `const freeze = (t) => …`) exempts the helper and the calls that use it; a pin
+   helper (`function freeze(t)`, `const freeze = (t) => …`, an object or class method `freeze(t) {…}` /
+   `freeze: (t) => {…}`) exempts the helper and the calls that use it (`h.freeze(t)` for a method); a pin
    outside all of them (top level, a `beforeEach` / `test.beforeEach` hook at top level) exempts the file.
    Calls written inside strings and comments are not read as pins.
    The `spec rules` job of `unit-tests.yml` runs it with **`--strict`: a named line fails the PR** — the line
@@ -156,10 +162,13 @@ hangs on a test that does not settle (rule 5). A suite does not go red because t
    inte/plugins → master integration PR named 2 183 lines in 300 files, and every master → inte sync 6 to 25,
    all of them merged — and checked by this guard — on the other branch; marking them would mean editing that
    branch's content inside a merge PR. A ref that does not resolve (a branch removed) sets nothing aside, with
-   a warning, and the check still runs. A feature PR that copies a known line into the same file verbatim is
-   not named either: the line was accepted once, and its file is the one already holding it. Test:
-   `test-suite-calendar-and-ci-budget.unit.test.js` (the pure filter, a real git repository replaying an
-   integration PR and a feature PR, and the workflow step).
+   a warning, and the check still runs. Lines are counted, not just looked up: an added line is set aside only
+   while the head file holds it no more often than the known ref that holds it most. A feature PR that copies a
+   known line into the same file is named — the original was accepted in its context (a pinned test, a marker
+   on the line above), which the copy does not inherit; a review of 2026-10-30 probed exactly that, a line of a
+   pinned test copied into an unpinned one and hidden by a presence check. Test:
+   `test-suite-calendar-and-ci-budget.unit.test.js` (the pure filter and its counts, a real git repository
+   replaying an integration PR, a feature PR and a copy out of a pinned test, and the workflow step).
 
 **Edge cases:**
 - A targeted `node --test <file>` used to open and migrate `server/guestflow.db` for 389 test files (audit R2,

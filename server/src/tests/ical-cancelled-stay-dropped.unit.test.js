@@ -21,6 +21,11 @@ function ics(events) {
   lines.push('END:VCALENDAR');
   return lines.join('\r\n');
 }
+const icalDay = (n) => {
+  const d = new Date();
+  d.setDate(d.getDate() + n);
+  return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+};
 const feed = (events) => { global.fetch = async () => ({ ok: true, status: 200, text: async () => ics(events) }); };
 const origFetch = global.fetch;
 test.afterEach(() => { global.fetch = origFetch; });
@@ -29,7 +34,7 @@ async function cancelledStayWithRefund() {
   const propertyId = Number(db.prepare("INSERT INTO properties (name, defaultCheckIn, defaultCheckOut) VALUES ('Gîte', '16:00', '10:00')").run().lastInsertRowid);
   const sourceId = db.prepare("INSERT INTO ical_sources (propertyId, name, url, platformKey, platformLabel, isActive) VALUES (?, 'Monsite', 'http://x.test/f.ics', 'monsite', 'Monsite', 1)").run(propertyId).lastInsertRowid;
   const source = db.prepare('SELECT * FROM ical_sources WHERE id = ?').get(sourceId);
-  feed([{ uid: 'M1', start: '20271105', end: '20271110', summary: 'Jean Dupont' }]);
+  feed([{ uid: 'M1', start: icalDay(370), end: icalDay(375), summary: 'Jean Dupont' }]);
   await model.syncSourceAndRecord(source);
   const id = db.prepare('SELECT id FROM reservations WHERE propertyId = ?').get(propertyId).id;
   reservationsModel.markCancelled(id, { reason: 'test' });
@@ -39,7 +44,7 @@ async function cancelledStayWithRefund() {
 
 test('a stay cancelled in GuestFlow that leaves its feed raises no cancellation alert', async () => {
   const { id, source } = await cancelledStayWithRefund();
-  feed([{ uid: 'OTHER', start: '20271201', end: '20271203', summary: 'Paul Durand' }]);
+  feed([{ uid: 'OTHER', start: icalDay(396), end: icalDay(398), summary: 'Paul Durand' }]);
   const r = await model.syncSourceAndRecord(source);
   assert.equal(r.removedCount, 0);
   assert.equal(db.prepare('SELECT COUNT(*) c FROM ical_cancellation_alerts WHERE reservationId = ?').get(id).c, 0);
@@ -65,9 +70,9 @@ test('a live stay leaving its feed still goes to the cancellation approval', asy
   const propertyId = Number(db.prepare("INSERT INTO properties (name) VALUES ('Tente')").run().lastInsertRowid);
   const sourceId = db.prepare("INSERT INTO ical_sources (propertyId, name, url, platformKey, platformLabel, isActive) VALUES (?, 'Greengo', 'http://y.test/f.ics', 'greengo', 'Greengo', 1)").run(propertyId).lastInsertRowid;
   const source = db.prepare('SELECT * FROM ical_sources WHERE id = ?').get(sourceId);
-  feed([{ uid: 'G1', start: '20271105', end: '20271110', summary: 'Jean Dupont' }]);
+  feed([{ uid: 'G1', start: icalDay(370), end: icalDay(375), summary: 'Jean Dupont' }]);
   await model.syncSourceAndRecord(source);
-  feed([{ uid: 'G2', start: '20271201', end: '20271203', summary: 'Paul Durand' }]);
+  feed([{ uid: 'G2', start: icalDay(396), end: icalDay(398), summary: 'Paul Durand' }]);
   const r = await model.syncSourceAndRecord(source);
   assert.equal(r.removedCount, 1);
 });

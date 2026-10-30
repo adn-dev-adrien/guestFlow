@@ -21,7 +21,7 @@
  * the 40 PRs merged into inte/plugins before 2026-10-30, it named lines in about half of them, many of them
  * dates a test hands to the code as its « now »: those take the marker below, one comment each.
  *
- * Read: on a line that is not a comment, a quoted `YYYY-MM-DD` (alone or as the start of a timestamp), a template
+ * Read: on a line that is not a comment, a quoted `YYYY-MM-DD` or iCal `YYYYMMDD` (alone or as the start of a timestamp), a template
  * opening on a year (`` `2028-${m}-10` ``), and `Date.UTC(YYYY, …)` / `new Date(YYYY, …)` from the current year on. Test files are the `.js/.jsx/.mjs/.cjs/.ts/.tsx` files of
  * a `tests/`, `__tests__/` or `e2e/` folder, and every `*.test.*` / `*.spec.*` file.
  *
@@ -32,11 +32,12 @@
  *     with `'Date'` in its `toFake` or no `toFake`, `mock.timers.enable(` with `'Date'` in its `apis` or no `apis`)
  *     or injects its own (a replaced `getTodayIsoDate` / `todayIso`, a `NOW` constant, a `now:` handed to the
  *     code, the real clock aside): that test decides what today is. A pin inside a `test` / `it` / `describe`
- *     (a `test.each` callback included) covers that block only; a pin in a named helper covers the helper and
+ *     (a `test.each` callback included) covers that block only; a pin in a named helper (an object or class
+ *     method included) covers the helper and
  *     the blocks that call it; a pin outside all of them (top level, a top-level hook) covers the file.
  *
- * `--known <ref>,<ref>` sets aside an added line whose file already holds the same text on one of those refs
- * (rule 9): the inte/plugins → master integration PR and the master ↔ inte syncs carry thousands of lines that
+ * `--known <ref>,<ref>` sets aside an added line whose file already holds the same text on one of those refs, as
+ * many times as the head file does (rule 9): the inte/plugins → master integration PR and the master ↔ inte syncs carry thousands of lines that
  * were merged, and checked, on the other branch. A ref that does not resolve sets nothing aside, with a warning.
  *
  * The decision is a pure function, exported for the unit suite.
@@ -139,7 +140,12 @@ function testBlocks(code) {
   return blocks;
 }
 
-/** The named functions — `function name(…) {…}` and `const name = (…) => …` — as `{ name, start, end }`. */
+const NOT_METHODS = new Set(['if', 'for', 'while', 'switch', 'catch', 'with', 'function']);
+
+/**
+ * The named functions — `function name(…) {…}`, `const name = (…) => …`, and the object or class methods
+ * `name(…) {…}`, `name: (…) => {…}`, `name: function (…) {…}` — as `{ name, start, end, method }`.
+ */
 function namedFunctions(code) {
   const fns = [];
   for (const m of code.matchAll(/\bfunction\s+([\w$]+)\s*\(/g)) {
@@ -151,6 +157,12 @@ function namedFunctions(code) {
     const body = m.index + m[0].length;
     const eol = code.indexOf('\n', body);
     fns.push({ name: m[1], start: m.index, end: code[body] === '{' ? closing(code, body) : (eol < 0 ? code.length : eol) });
+  }
+  for (const m of code.matchAll(/(?<![\w$.])([\w$]+)\s*(?:\([^()]*\)|:\s*(?:async\s*)?(?:function\s*[\w$]*\s*\([^()]*\)|(?:\([^()]*\)|[\w$]+)\s*=>))\s*\{/g)) {
+    if (NOT_METHODS.has(m[1]) || /\bfunction\s*$/.test(code.slice(0, m.index))) continue;
+    if (!/(?:^|[{,;]|\b(?:static|async|get|set))\s*$/.test(code.slice(Math.max(0, m.index - 40), m.index))) continue;
+    const body = m.index + m[0].length - 1;
+    fns.push({ name: m[1], start: m.index, end: closing(code, body), method: true });
   }
   return fns;
 }
@@ -207,7 +219,7 @@ export function pinnedRanges(content) {
     if (!fn) { ranges.push({ from: 1, to: Infinity }); return; }
     if (depth > 3) return;
     ranges.push({ from: lineAt(content, fn.start), to: lineAt(content, fn.end) });
-    for (const call of code.matchAll(new RegExp(`(?<![\\w$.])${fn.name.replace(/\$/g, '\\$')}\\s*\\(`, 'g'))) {
+    for (const call of code.matchAll(new RegExp(`(?<![\\w$${fn.method ? '' : '.'}])${fn.name.replace(/\$/g, '\\$')}\\s*\\(`, 'g'))) {
       if (call.index >= fn.start && call.index <= fn.end) continue;
       cover(call.index, depth + 1);
     }
@@ -232,6 +244,10 @@ export function futureDates(text, today) {
   const found = [];
   for (const m of text.matchAll(/(['"`])(20\d\d-[01]\d-[0-3]\d)(?=[T\s'"`])/g)) {
     if (m[2] >= today && m[2] <= horizon) found.push({ date: m[2], literal: m[2] });
+  }
+  for (const m of text.matchAll(/(['"`])(20\d\d)([01]\d)([0-3]\d)(?=T\d|['"`])/g)) {
+    const date = `${m[2]}-${m[3]}-${m[4]}`;
+    if (date >= today && date <= horizon) found.push({ date, literal: `${m[2]}${m[3]}${m[4]}` });
   }
   for (const m of text.matchAll(/`(20\d\d)-\$\{/g)) {
     const y = Number(m[1]);
@@ -263,15 +279,29 @@ export function findDateBombs({ files, today }) {
   return out;
 }
 
+const countLines = (content) => {
+  const counts = new Map();
+  for (const l of content.split('\n')) counts.set(l.trim(), (counts.get(l.trim()) || 0) + 1);
+  return counts;
+};
+
 /**
  * `files` without the added lines whose file already holds the same text (spaces around it aside) on a known
- * branch: those lines were merged and checked there, and an integration or sync PR only carries them over
- * (specs/server-test-isolation.md rule 9). `known(file)` → the file's contents on the known branches.
+ * branch, as many times as the head file does: those lines were merged and checked there, and an integration
+ * or sync PR only carries them over (specs/server-test-isolation.md rule 9). A line the head file holds more
+ * often than every known ref is a new copy, and every added copy of it is read. `known(file)` → the file's
+ * contents on the known branches; `content` is the file at the head.
  */
 export function dropKnownLines(files, known) {
   return files.map((f) => {
-    const seen = new Set(known(f.file).flatMap((content) => content.split('\n').map((l) => l.trim())));
-    return { ...f, added: f.added.filter(({ text }) => !seen.has(text.trim())) };
+    const onKnown = known(f.file).map(countLines);
+    const onHead = countLines(f.content);
+    const covered = (text) => {
+      const t = text.trim();
+      const most = Math.max(0, ...onKnown.map((c) => c.get(t) || 0));
+      return most > 0 && (onHead.get(t) || 0) <= most;
+    };
+    return { ...f, added: f.added.filter(({ text }) => !covered(text)) };
   });
 }
 
@@ -335,10 +365,10 @@ function main() {
   const mergeBase = git(['merge-base', base, head]).trim();
   const diff = git(['diff', '--unified=0', '--no-renames', '--diff-filter=AM', mergeBase, head]);
   const added = parseAddedLines(diff).filter((f) => isTestFile(f.file));
+  const onHead = contentsOn([head], added.map((f) => f.file));
   const onKnown = contentsOn(known, added.map((f) => f.file));
-  const files = dropKnownLines(added, (file) => onKnown.get(file))
-    .filter((f) => f.added.length > 0)
-    .map((f) => ({ ...f, content: git(['show', `${head}:${f.file}`]) }));
+  const files = dropKnownLines(added.map((f) => ({ ...f, content: onHead.get(f.file)[0] })), (file) => onKnown.get(file))
+    .filter((f) => f.added.length > 0);
   const bombs = findDateBombs({ files, today });
   if (bombs.length === 0) {
     console.log(`✓ No literal date from ${today} on in the test lines added since ${base}.`);
