@@ -3,7 +3,7 @@
  * A test line added by a PR carries no literal date the calendar will pass (specs/server-test-isolation.md
  * rule 7).
  *
- *   node scripts/check-test-dates.mjs --base origin/inte/plugins --strict
+ *   node scripts/check-test-dates.mjs --base origin/inte/plugins --known origin/master,origin/inte/plugins --strict
  *                                                                      # every PR on CI: names the lines it
  *                                                                      # adds, exit 1 when one is named
  *   node scripts/check-test-dates.mjs --base origin/inte/plugins       # the same list, as warnings (exit 0)
@@ -28,9 +28,16 @@
  * Not named:
  *   - a line carrying `date-literal-ok`, or whose previous line does: the date is an input of a pure
  *     function, or a value nothing compares with today. Say why after the marker;
- *   - a line of a test that pins the clock (`vi.setSystemTime(`, `mock.timers.setTime(`, `vi.useFakeTimers({ now })`,
- *     `mock.timers.enable(` with `'Date'` in its `apis` or no `apis`): that test decides what today is. A pin
- *     inside a `test` / `it` / `describe` covers that block only; a pin outside every block covers the file.
+ *   - a line of a test that pins the clock (`vi.setSystemTime(`, `mock.timers.setTime(`, `vi.useFakeTimers({ now })`
+ *     with `'Date'` in its `toFake` or no `toFake`, `mock.timers.enable(` with `'Date'` in its `apis` or no `apis`)
+ *     or injects its own (a replaced `getTodayIsoDate` / `todayIso`, a `NOW` constant, a `now:` handed to the
+ *     code, the real clock aside): that test decides what today is. A pin inside a `test` / `it` / `describe`
+ *     (a `test.each` callback included) covers that block only; a pin in a named helper covers the helper and
+ *     the blocks that call it; a pin outside all of them (top level, a top-level hook) covers the file.
+ *
+ * `--known <ref>,<ref>` sets aside an added line whose file already holds the same text on one of those refs
+ * (rule 9): the inte/plugins → master integration PR and the master ↔ inte syncs carry thousands of lines that
+ * were merged, and checked, on the other branch. A ref that does not resolve sets nothing aside, with a warning.
  *
  * The decision is a pure function, exported for the unit suite.
  */
@@ -38,10 +45,12 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const MARKER = 'date-literal-ok';
 
-const git = (args) => execFileSync('git', args, { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 256 * 1024 * 1024 });
+/** `git <args>`: its output as text, or as a Buffer when `input` is fed to it. */
+const git = (args, input) => execFileSync('git', args, {
+  ...(input === undefined ? { encoding: 'utf8' } : { input: Buffer.from(input) }), stdio: ['pipe', 'pipe', 'ignore'], maxBuffer: 256 * 1024 * 1024,
+});
 
 /** Whether `file` is a test source this check reads. */
 export function isTestFile(file) {
@@ -94,45 +103,117 @@ export function codeOnly(content) {
   return out.join('');
 }
 
-/** Offset of the `)` closing the `(` at `open`, in code blanked by `codeOnly`. */
-function closingParen(code, open) {
+/** Offset of the bracket closing the one at `open` (`(` or `{`), in code blanked by `codeOnly`. */
+function closing(code, open) {
+  const [o, c] = code[open] === '{' ? ['{', '}'] : ['(', ')'];
   let depth = 0;
   for (let k = open; k < code.length; k += 1) {
-    if (code[k] === '(') depth += 1;
-    else if (code[k] === ')') { depth -= 1; if (depth === 0) return k; }
+    if (code[k] === o) depth += 1;
+    else if (code[k] === c) { depth -= 1; if (depth === 0) return k; }
   }
   return code.length - 1;
 }
 
+const nextCode = (code, from) => { let k = from; while (k < code.length && /\s/.test(code[k])) k += 1; return k; };
+
 const lineAt = (content, offset) => content.slice(0, offset).split('\n').length;
 
 /**
+ * The `test` / `it` / `describe` / `suite` calls, as `{ start, end }` offsets. `test.each([...])('…', fn)` and
+ * `` test.each`…`('…', fn) `` run to the end of the call that holds the callback; `test.beforeEach(…)` and the
+ * other hooks are not blocks (a hook outside every block covers the file).
+ */
+function testBlocks(code) {
+  const blocks = [];
+  for (const m of code.matchAll(/(^|[^.\w$])(test|it|describe|suite)((?:\.\w+)*)\s*([(`])/g)) {
+    if (/\.(before|after)/i.test(m[3])) continue;
+    let open = m.index + m[0].length - 1;
+    if (code[open] === '`') {
+      open = nextCode(code, code.indexOf('`', open + 1) + 1);
+      if (code[open] !== '(') continue;
+    }
+    let end = closing(code, open);
+    for (let k = nextCode(code, end + 1); code[k] === '('; k = nextCode(code, end + 1)) end = closing(code, k);
+    blocks.push({ start: open, end });
+  }
+  return blocks;
+}
+
+/** The named functions — `function name(…) {…}` and `const name = (…) => …` — as `{ name, start, end }`. */
+function namedFunctions(code) {
+  const fns = [];
+  for (const m of code.matchAll(/\bfunction\s+([\w$]+)\s*\(/g)) {
+    const params = m.index + m[0].length - 1;
+    const body = nextCode(code, closing(code, params) + 1);
+    if (code[body] === '{') fns.push({ name: m[1], start: m.index, end: closing(code, body) });
+  }
+  for (const m of code.matchAll(/\b(?:const|let|var)\s+([\w$]+)\s*=\s*(?:async\s*)?(?:\([^()]*\)|[\w$]+)\s*=>\s*/g)) {
+    const body = m.index + m[0].length;
+    const eol = code.indexOf('\n', body);
+    fns.push({ name: m[1], start: m.index, end: code[body] === '{' ? closing(code, body) : (eol < 0 ? code.length : eol) });
+  }
+  return fns;
+}
+
+const REAL_NOW = /^(new Date\(\s*\)|Date\.now\(\s*\))/;
+
+/**
+ * → offsets where the clock is pinned. A pin is `vi.setSystemTime(`, `mock.timers.setTime(`,
+ * `vi.useFakeTimers({ now })` whose `toFake` (when given) includes `'Date'`, `mock.timers.enable(` whose `apis`
+ * include `'Date'` or are left out (the default mocks Date); or a clock the test injects: a replaced
+ * `getTodayIsoDate` / `todayIso` (`helpers.getTodayIsoDate = () => …`, not a local `const todayIso = …`), a
+ * `NOW` constant, or a `now:` handed to the code — unless it is the real clock (`new Date()`, `Date.now()`).
+ */
+function pinOffsets(content, code) {
+  const out = [];
+  const timerArgs = [];
+  for (const m of code.matchAll(/\b(setSystemTime|mock\.timers\.setTime|mock\.timers\.enable|useFakeTimers)\s*\(/g)) {
+    const open = m.index + m[0].length - 1;
+    const close = closing(code, open);
+    timerArgs.push([open, close]);
+    const args = content.slice(open + 1, close);
+    if (m[1] === 'mock.timers.enable' && /\bapis\s*:/.test(args) && !/\bapis\s*:\s*\[[^\]]*(['"`])Date\1/.test(args)) continue;
+    if (m[1] === 'useFakeTimers' && !/\bnow\s*[:,}]/.test(args)) continue;
+    if (m[1] === 'useFakeTimers' && /\btoFake\s*:/.test(args) && !/\btoFake\s*:\s*\[[^\]]*(['"`])Date\1/.test(args)) continue;
+    out.push(m.index);
+  }
+  const inTimer = (k) => timerArgs.some(([a, b]) => a < k && k < b);
+  for (const m of code.matchAll(/(?<!\b(?:const|let|var)\s+)(?<![\w$])(getTodayIsoDate|todayIso)\s*=(?![=>])/g)) out.push(m.index);
+  for (const m of code.matchAll(/\b(?:const|let|var)\s+NOW\s*=\s*/g)) {
+    if (!REAL_NOW.test(code.slice(m.index + m[0].length))) out.push(m.index);
+  }
+  for (const m of code.matchAll(/[{,]\s*now\s*:\s*/g)) {
+    if (!inTimer(m.index) && !REAL_NOW.test(code.slice(m.index + m[0].length))) out.push(m.index);
+  }
+  return out;
+}
+
+/**
  * → [{ from, to }] — the 1-based line ranges where the clock is pinned; `{ from: 1, to: Infinity }` when it is
- * pinned outside any `test` / `it` / `describe` block. A pin is `vi.setSystemTime(`, `mock.timers.setTime(`,
- * `vi.useFakeTimers({ now })`, or `mock.timers.enable(` whose `apis` include `'Date'` or are left out (the
- * default mocks Date): a timer mock that leaves Date alone decides nothing about today. Inside a block, the pin
- * covers the innermost `test` / `it` / `describe` call that holds it, and nothing else.
+ * pinned outside any `test` / `it` / `describe` block. Inside a block, the pin covers the innermost block that
+ * holds it, and nothing else. Inside a named helper outside every block, it covers the helper and the blocks
+ * that call it (and the whole file when a call sits outside every block, a top-level hook for one).
  */
 export function pinnedRanges(content) {
   const code = codeOnly(content);
-  const blocks = [];
-  for (const m of code.matchAll(/(^|[^.\w$])(test|it|describe|suite)(\.\w+)?\s*\(/g)) {
-    const open = m.index + m[0].length - 1;
-    blocks.push({ start: open, end: closingParen(code, open) });
-  }
+  const blocks = testBlocks(code);
+  const fns = namedFunctions(code);
+  const innermost = (list, k) => list.filter((b) => b.start < k && k < b.end).sort((a, b) => (a.end - a.start) - (b.end - b.start))[0];
   const ranges = [];
-  for (const m of code.matchAll(/\b(setSystemTime|mock\.timers\.setTime|mock\.timers\.enable|useFakeTimers)\s*\(/g)) {
-    const open = m.index + m[0].length - 1;
-    const args = content.slice(open + 1, closingParen(code, open));
-    if (m[1] === 'mock.timers.enable' && /\bapis\s*:/.test(args) && !/\bapis\s*:\s*\[[^\]]*(['"`])Date\1/.test(args)) continue;
-    if (m[1] === 'useFakeTimers' && !/\bnow\s*:/.test(args)) continue;
-    const holder = blocks
-      .filter((b) => b.start < m.index && m.index < b.end)
-      .sort((a, b) => (a.end - a.start) - (b.end - b.start))[0];
-    if (!holder) return [{ from: 1, to: Infinity }];
-    ranges.push({ from: lineAt(content, holder.start), to: lineAt(content, holder.end) });
-  }
-  return ranges;
+  const cover = (k, depth) => {
+    const block = innermost(blocks, k);
+    if (block) { ranges.push({ from: lineAt(content, block.start), to: lineAt(content, block.end) }); return; }
+    const fn = innermost(fns, k);
+    if (!fn) { ranges.push({ from: 1, to: Infinity }); return; }
+    if (depth > 3) return;
+    ranges.push({ from: lineAt(content, fn.start), to: lineAt(content, fn.end) });
+    for (const call of code.matchAll(new RegExp(`(?<![\\w$.])${fn.name.replace(/\$/g, '\\$')}\\s*\\(`, 'g'))) {
+      if (call.index >= fn.start && call.index <= fn.end) continue;
+      cover(call.index, depth + 1);
+    }
+  };
+  for (const k of pinOffsets(content, code)) cover(k, 0);
+  return ranges.some((r) => r.to === Infinity) ? [{ from: 1, to: Infinity }] : ranges;
 }
 
 const pad = (n) => String(n).padStart(2, '0');
@@ -182,6 +263,37 @@ export function findDateBombs({ files, today }) {
   return out;
 }
 
+/**
+ * `files` without the added lines whose file already holds the same text (spaces around it aside) on a known
+ * branch: those lines were merged and checked there, and an integration or sync PR only carries them over
+ * (specs/server-test-isolation.md rule 9). `known(file)` → the file's contents on the known branches.
+ */
+export function dropKnownLines(files, known) {
+  return files.map((f) => {
+    const seen = new Set(known(f.file).flatMap((content) => content.split('\n').map((l) => l.trim())));
+    return { ...f, added: f.added.filter(({ text }) => !seen.has(text.trim())) };
+  });
+}
+
+/** → Map(file → [content on each ref that has it]), read in one `git cat-file --batch`. */
+function contentsOn(refs, files) {
+  const keys = refs.flatMap((ref) => files.map((file) => ({ ref, file })));
+  const map = new Map(files.map((file) => [file, []]));
+  if (keys.length === 0) return map;
+  const out = git(['cat-file', '--batch'], `${keys.map(({ ref, file }) => `${ref}:${file}`).join('\n')}\n`);
+  let at = 0;
+  for (const { file } of keys) {
+    const eol = out.indexOf(10, at);
+    const header = out.subarray(at, eol).toString('utf8');
+    at = eol + 1;
+    const size = header.match(/ blob (\d+)$/);
+    if (!size) continue;
+    map.get(file).push(out.subarray(at, at + Number(size[1])).toString('utf8'));
+    at += Number(size[1]) + 1;
+  }
+  return map;
+}
+
 /** → [{ file, added: [{ line, text }] }] from a `git diff --unified=0` output. */
 export function parseAddedLines(diff) {
   const files = [];
@@ -211,13 +323,21 @@ function main() {
   const today = opt('--today') || localToday();
   const strict = args.includes('--strict');
   if (!base) {
-    console.error('Usage: node scripts/check-test-dates.mjs --base <ref> [--head <ref>] [--today YYYY-MM-DD]');
+    console.error('Usage: node scripts/check-test-dates.mjs --base <ref> [--head <ref>] [--known <ref>,<ref>] [--today YYYY-MM-DD] [--strict]');
     process.exit(2);
   }
+  const known = (opt('--known') || '').split(',').filter(Boolean).filter((ref) => {
+    try { git(['rev-parse', '--verify', '--quiet', `${ref}^{commit}`]); return true; } catch {
+      console.error(`⚠ --known ${ref} does not resolve: its lines are not set aside.`);
+      return false;
+    }
+  });
   const mergeBase = git(['merge-base', base, head]).trim();
   const diff = git(['diff', '--unified=0', '--no-renames', '--diff-filter=AM', mergeBase, head]);
-  const files = parseAddedLines(diff)
-    .filter((f) => isTestFile(f.file))
+  const added = parseAddedLines(diff).filter((f) => isTestFile(f.file));
+  const onKnown = contentsOn(known, added.map((f) => f.file));
+  const files = dropKnownLines(added, (file) => onKnown.get(file))
+    .filter((f) => f.added.length > 0)
     .map((f) => ({ ...f, content: git(['show', `${head}:${f.file}`]) }));
   const bombs = findDateBombs({ files, today });
   if (bombs.length === 0) {

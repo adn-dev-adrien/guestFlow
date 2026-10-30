@@ -6,6 +6,8 @@
 
 const db = require('../database');
 const controller = require('../controllers/reservationsController');
+const { todayIso } = require('../utils/localDate');
+const { addDaysToIsoDate } = require('../utils/devisHelpers');
 
 function respond() {
   return { statusCode: 200, body: null, status(c) { this.statusCode = c; return this; }, json(b) { this.body = b; return this; } };
@@ -36,10 +38,13 @@ function seed() {
   db.prepare("INSERT INTO clients (id, firstName, lastName) VALUES (1, 'Camille', 'Registre')").run();
 }
 
+/** `YYYY-MM-DD`, `days` after today: every stay date of these suites hangs on it (specs/server-test-isolation.md rule 6). */
+const inDays = (days) => addDaysToIsoDate(todayIso(), days);
+
 /** The fiche's save body for a 3-night stay of two adults, far enough ahead to carry an acompte. */
 function stayBody(over = {}) {
   return {
-    propertyId: 1, clientId: 1, startDate: '2027-07-20', endDate: '2027-07-23',
+    propertyId: 1, clientId: 1, startDate: inDays(270), endDate: inDays(273),
     checkInTime: '16:00', checkOutTime: '10:00', platform: 'direct',
     adults: 2, children: 0, teens: 0, babies: 0, singleBeds: 0, doubleBeds: 0, babyBeds: 0,
     depositDisabled: 0, options: [], selectedOptions: [], customPrice: '', discountPercent: 0,
@@ -51,10 +56,9 @@ function stayBody(over = {}) {
 // Each stay gets its own week, so the suites never collide on availability.
 let slot = 0;
 function nextWeek() {
-  const start = new Date(Date.UTC(2027, 6, 5 + 7 * slot));
+  const offset = 255 + 7 * slot;
   slot += 1;
-  const end = new Date(start.getTime() + 3 * 86400000);
-  return { startDate: start.toISOString().slice(0, 10), endDate: end.toISOString().slice(0, 10) };
+  return { startDate: inDays(offset), endDate: inDays(offset + 3) };
 }
 
 function createStay(over = {}) {
@@ -103,4 +107,4 @@ function mark(id, body) {
   return res;
 }
 
-module.exports = { db, controller, respond, seed, stayBody, createStay, rowOf, liveQuote, save, mark, ADMIN };
+module.exports = { db, controller, respond, inDays, seed, stayBody, createStay, rowOf, liveQuote, save, mark, ADMIN };

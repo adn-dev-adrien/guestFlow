@@ -7,7 +7,7 @@ process.env.DB_PATH = ':memory:';
 const test = require('node:test');
 const { skipWithout } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
-const { db, createStay, rowOf, liveQuote, save, mark } = require('./ledgerFixture');
+const { db, inDays, createStay, rowOf, liveQuote, save, mark } = require('./ledgerFixture');
 const { getTodayIsoDate } = require('../utils/reservationHelpers');
 
 const rowIn = (quote, key) => quote.ledger.rows.find((r) => r.key === key);
@@ -444,7 +444,8 @@ test('rule 44 — the fiche carries the stored money figures of the pricing summ
 // stored, and the live quote says it differs (so the fiche never mixes the two).
 test('rule 45 — on a drifted stay every figure and date of the stored summary is the stored one', async () => {
   const id = createStay();
-  db.prepare("UPDATE reservations SET finalPrice = 330, balanceAmount = round(balanceAmount + 30, 2), balanceDueDate = '2027-01-15' WHERE id = ?").run(id);
+  const drifted = inDays(77);
+  db.prepare('UPDATE reservations SET finalPrice = 330, balanceAmount = round(balanceAmount + 30, 2), balanceDueDate = ? WHERE id = ?').run(drifted, id);
   const row = rowOf(id);
   const res = { statusCode: 200, body: null, status(c) { this.statusCode = c; return this; }, json(b) { this.body = b; return this; } };
   require('../controllers/reservationsController').getById({ params: { id: String(id) }, user: { role: 'admin' } }, res);
@@ -458,7 +459,7 @@ test('rule 45 — on a drifted stay every figure and date of the stored summary 
   assert.equal(s.totalVatAmount, 30, '10 % of 330 TTC');
   assert.equal(s.totalNetPrice, 300);
   assert.equal(s.depositDueDate, row.depositDueDate);
-  assert.equal(s.balanceDueDate, '2027-01-15');
+  assert.equal(s.balanceDueDate, drifted);
   const live = await liveQuote(id);
   assert.equal(live.storedDrift, true, 'today\'s quote differs: the fiche shows the stored summary whole');
   const clean = createStay();

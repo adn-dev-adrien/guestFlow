@@ -75,8 +75,14 @@ jobs:
       - name: 📅 Une date écrite en dur dans un test ajouté ?
         # specs/server-test-isolation.md rule 7 — a literal date the calendar will pass, on a test line the PR
         # adds, fails the job with the line named. A date nothing compares with today (a pure function's
-        # input, a « now » the test hands to the code) carries `// date-literal-ok: <why>`.
-        run: node scripts/check-test-dates.mjs --base "origin/${{ github.base_ref }}" --strict
+        # input) carries `// date-literal-ok: <why>`. Rule 9 — a line already on master or inte/plugins was
+        # checked there: the integration PR and the syncs only carry it over. A branch that is gone sets
+        # nothing aside, and the check still runs.
+        run: |
+          for branch in master inte/plugins; do
+            git fetch --no-tags origin "$branch" || echo "::warning::origin/$branch introuvable : ses lignes ne sont pas écartées."
+          done
+          node scripts/check-test-dates.mjs --base "origin/${{ github.base_ref }}" --known origin/master,origin/inte/plugins --strict
 
   server:
     name: server (node --test)

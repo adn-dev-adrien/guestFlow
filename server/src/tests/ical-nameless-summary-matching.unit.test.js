@@ -12,6 +12,14 @@ const db = require('../database');
 const { globalFetch } = require('./icalFetchFixture');
 const model = require('../models/propertyIcalModel').buildModel(require('../database'), { fetchImpl: globalFetch });
 const icalModel = require('../models/icalModel');
+const { todayIso } = require('../utils/localDate');
+const { addDaysToIsoDate } = require('../utils/devisHelpers');
+
+// Every stay hangs on a day 248 days out (specs/server-test-isolation.md rule 6): `day(n)` is n days after it,
+// `compact(n)` the same day as an iCal DATE.
+const FIRST = addDaysToIsoDate(todayIso(), 248);
+const day = (n) => addDaysToIsoDate(FIRST, n);
+const compact = (n) => day(n).replace(/-/g, '');
 
 function ics(events) {
   const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0'];
@@ -40,16 +48,16 @@ for (const [key, label, summary] of [['airbnb', 'Airbnb', 'Reserved'], ['gites-d
   test(`${label} « ${summary} » — a cancelled stay never hands its fiche to a new one arriving in the same sync`, async () => {
     const propertyId = property();
     const src = source(propertyId, key, label);
-    feed([{ uid: 'A', start: '20270705', end: '20270710', summary }, { uid: 'C', start: '20270801', end: '20270803', summary }]);
+    feed([{ uid: 'A', start: compact(0), end: compact(5), summary }, { uid: 'C', start: compact(27), end: compact(29), summary }]);
     await model.syncSourceAndRecord(src);
-    const idA = stays(propertyId).find((s) => s.startDate === '2027-07-05').id;
+    const idA = stays(propertyId).find((s) => s.startDate === day(0)).id;
 
-    feed([{ uid: 'B', start: '20270720', end: '20270725', summary }, { uid: 'C', start: '20270801', end: '20270803', summary }]);
+    feed([{ uid: 'B', start: compact(15), end: compact(20), summary }, { uid: 'C', start: compact(27), end: compact(29), summary }]);
     const r = await model.syncSourceAndRecord(src);
     assert.equal(r.createdCount, 1, 'B is a new stay');
     assert.equal(r.updatedCount, 0);
     const a = db.prepare('SELECT startDate, endDate FROM reservations WHERE id = ?').get(idA);
-    assert.deepEqual(a, { startDate: '2027-07-05', endDate: '2027-07-10' }, 'A keeps its own dates');
+    assert.deepEqual(a, { startDate: day(0), endDate: day(5) }, 'A keeps its own dates');
     assert.equal(pendingCancellations(idA), 1, 'A goes to the cancellation approval');
   });
 }
@@ -57,40 +65,40 @@ for (const [key, label, summary] of [['airbnb', 'Airbnb', 'Reserved'], ['gites-d
 test('a locked nameless stay: the new booking is created and exported, no misleading drift alert', async () => {
   const propertyId = property();
   const src = source(propertyId, 'airbnb', 'Airbnb');
-  feed([{ uid: 'A', start: '20270705', end: '20270710', summary: 'Reserved' }]);
+  feed([{ uid: 'A', start: compact(0), end: compact(5), summary: 'Reserved' }]);
   await model.syncSourceAndRecord(src);
   db.prepare('UPDATE reservations SET icalSyncLocked = 1 WHERE propertyId = ?').run(propertyId);
 
-  feed([{ uid: 'B', start: '20270720', end: '20270725', summary: 'Reserved' }]);
+  feed([{ uid: 'B', start: compact(15), end: compact(20), summary: 'Reserved' }]);
   const r = await model.syncSourceAndRecord(src);
   assert.equal(r.createdCount, 1);
   assert.equal(r.lockedCount, 0);
   assert.equal(stays(propertyId).length, 2);
   const ids = stays(propertyId).map((s) => s.id);
   assert.equal(db.prepare(`SELECT COUNT(*) c FROM ical_date_drift_alerts WHERE reservationId IN (${ids.join(',')})`).get().c, 0);
-  assert.match(icalModel.exportProperty(propertyId), /DTSTART[^\r\n]*:20270720/, 'B blocks its nights for the other channels');
+  assert.match(icalModel.exportProperty(propertyId), new RegExp(`DTSTART[^\\r\\n]*:${compact(15)}`), 'B blocks its nights for the other channels');
 });
 
 test('a summary naming a guest still re-claims a stay moved under a new UID (step 3.5 unchanged)', async () => {
   const propertyId = property();
   const src = source(propertyId, 'abracadaroom', 'Abracadaroom');
-  feed([{ uid: 'X1', start: '20270705', end: '20270710', summary: 'Jean Dupont' }]);
+  feed([{ uid: 'X1', start: compact(0), end: compact(5), summary: 'Jean Dupont' }]);
   await model.syncSourceAndRecord(src);
   const [before] = stays(propertyId);
-  feed([{ uid: 'X2', start: '20270712', end: '20270717', summary: 'Jean Dupont' }]);
+  feed([{ uid: 'X2', start: compact(7), end: compact(12), summary: 'Jean Dupont' }]);
   const r = await model.syncSourceAndRecord(src);
   assert.equal(r.createdCount, 0);
   assert.equal(r.updatedCount, 1);
-  assert.deepEqual(stays(propertyId).map((s) => [s.id, s.startDate]), [[before.id, '2027-07-12']]);
+  assert.deepEqual(stays(propertyId).map((s) => [s.id, s.startDate]), [[before.id, day(7)]]);
 });
 
 test('two platforms\' nameless stays on the same dates are two stays, flagged in conflict', async () => {
   const propertyId = property();
   const airbnb = source(propertyId, 'airbnb', 'Airbnb');
   const abritel = source(propertyId, 'abritel', 'Abritel');
-  feed([{ uid: 'airbnb-HM1', start: '20270705', end: '20270710', summary: 'Reserved' }]);
+  feed([{ uid: 'airbnb-HM1', start: compact(0), end: compact(5), summary: 'Reserved' }]);
   await model.syncSourceAndRecord(airbnb);
-  feed([{ uid: 'abritel-HA9', start: '20270705', end: '20270710', summary: 'Reserved' }]);
+  feed([{ uid: 'abritel-HA9', start: compact(0), end: compact(5), summary: 'Reserved' }]);
   const r = await model.syncSourceAndRecord(abritel);
   assert.equal(r.createdCount, 1);
   const rows = stays(propertyId);
@@ -104,9 +112,9 @@ test('the same guest named on two platforms on the same dates is still one stay 
   const propertyId = property();
   const lodgify = source(propertyId, 'lodgify', 'Lodgify');
   const greengo = source(propertyId, 'greengo', 'Greengo');
-  feed([{ uid: 'L1', start: '20270705', end: '20270710', summary: 'Marie Martin' }]);
+  feed([{ uid: 'L1', start: compact(0), end: compact(5), summary: 'Marie Martin' }]);
   await model.syncSourceAndRecord(lodgify);
-  feed([{ uid: 'G1', start: '20270705', end: '20270710', summary: 'Marie Martin' }]);
+  feed([{ uid: 'G1', start: compact(0), end: compact(5), summary: 'Marie Martin' }]);
   const r = await model.syncSourceAndRecord(greengo);
   assert.equal(r.createdCount, 0);
   assert.equal(stays(propertyId).length, 1);

@@ -13,6 +13,8 @@ const clientsModel = require('../models/clientsModel');
 const clientsController = require('../controllers/clientsController');
 const reservationsController = require('../controllers/reservationsController');
 const { saveWithDraftClient } = require('../utils/draftClient');
+const { todayIso } = require('../utils/localDate');
+const { addDaysToIsoDate } = require('../utils/devisHelpers');
 
 const fakeRes = () => ({ statusCode: 200, body: null, status(c) { this.statusCode = c; return this; }, json(b) { this.body = b; return this; } });
 const countClients = () => db.prepare('SELECT COUNT(*) AS n FROM clients').get().n;
@@ -58,8 +60,11 @@ test('rule 12 — GET /clients/duplicate answers the client the record would dup
   assert.deepEqual(miss.body, { client: null });
 });
 
+/** `YYYY-MM-DD`, `days` after today (specs/server-test-isolation.md rule 6). */
+const inDays = (days) => addDaysToIsoDate(todayIso(), days);
+
 const stay = (over = {}) => ({
-  propertyId: 1, startDate: '2027-03-10', endDate: '2027-03-13',
+  propertyId: 1, startDate: inDays(130), endDate: inDays(133),
   checkInTime: '16:00', checkOutTime: '10:00', platform: 'direct',
   adults: 2, children: 0, teens: 0, babies: 0, singleBeds: 0, doubleBeds: 0, babyBeds: 0,
   ...over,
@@ -88,7 +93,7 @@ test('rule 13 — a typed client that duplicates a known one is refused before a
   const before = countClients();
   const reservationsBefore = db.prepare('SELECT COUNT(*) AS n FROM reservations').get().n;
   const res = fakeRes();
-  reservationsController.create({ body: stay({ startDate: '2027-04-10', endDate: '2027-04-13', newClient: { firstName: 'C', lastName: 'R', email: 'camille@example.fr' } }), user: { role: 'admin' } }, res);
+  reservationsController.create({ body: stay({ startDate: inDays(161), endDate: inDays(164), newClient: { firstName: 'C', lastName: 'R', email: 'camille@example.fr' } }), user: { role: 'admin' } }, res);
   assert.equal(res.statusCode, 409);
   assert.equal(res.body.code, 'CLIENT_EXISTS');
   assert.equal(countClients(), before);

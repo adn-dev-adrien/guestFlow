@@ -1,10 +1,12 @@
-// specs/server-test-isolation.md rules 6, 7 and 8, and specs/self-update-and-releases.md rule 52 (audit R8,
-// 2026-10-30) — no test goes red with the calendar, a PR adding a literal date to a test is told so, and the
-// unit suites fit their CI time budget.
+// specs/server-test-isolation.md rules 6, 7, 8 and 9, and specs/self-update-and-releases.md rule 52 (audit R8,
+// 2026-10-30) — no test goes red with the calendar, a PR adding a literal date to a test is told so (but not
+// for a line already merged on a long-lived branch), and the unit suites fit their CI time budget.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const os = require('node:os');
+const { execFileSync, spawnSync } = require('node:child_process');
 const { pathToFileURL } = require('node:url');
 
 const ROOT = path.join(__dirname, '..', '..', '..');
@@ -13,13 +15,16 @@ const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 const asAdded = (file, content) => ({ file, content, added: content.split('\n').map((text, i) => ({ line: i + 1, text })) });
 
 const TESTS = 'server/src/tests';
-const SAVE_FIXTURE_SUITES = fs.readdirSync(path.join(ROOT, TESTS))
-  .filter((f) => f.endsWith('.test.js') && /^const \w+ = require\('\.\/reservationSaveFixture'\);$/m.test(read(`${TESTS}/${f}`)))
+const suitesOf = (fixture) => fs.readdirSync(path.join(ROOT, TESTS))
+  .filter((f) => f.endsWith('.test.js') && new RegExp(`require\\('\\./${fixture}'\\)`).test(read(`${TESTS}/${f}`)))
   .map((f) => `${TESTS}/${f}`);
+const SAVE_FIXTURE_SUITES = suitesOf('reservationSaveFixture');
+const LEDGER_FIXTURE_SUITES = suitesOf('ledgerFixture');
 
-test('rule 6: the suites the audits found, and every suite of the reservation-save fixture, carry no date the calendar will pass', async () => {
+test('rule 6: the suites the audits found, and every suite of the reservation-save and ledger fixtures, carry no date the calendar will pass', async () => {
   const { findDateBombs, localToday } = await load();
   assert.ok(SAVE_FIXTURE_SUITES.length >= 17, SAVE_FIXTURE_SUITES.join(', '));
+  assert.ok(LEDGER_FIXTURE_SUITES.length >= 9, LEDGER_FIXTURE_SUITES.join(', '));
   const files = [...new Set([
     `${TESTS}/disabledAcompteLinkFixture.js`,
     `${TESTS}/deposit-collected-by-link-kept-on-save.unit.test.js`,
@@ -36,6 +41,16 @@ test('rule 6: the suites the audits found, and every suite of the reservation-sa
     `${TESTS}/platform-paid-solde-follows-statement.unit.test.js`,
     `${TESTS}/reservationSaveFixture.js`,
     ...SAVE_FIXTURE_SUITES,
+    `${TESTS}/clients-no-duplicate-and-draft.unit.test.js`,
+    `${TESTS}/reservation-overpayment-by-poste.unit.test.js`,
+    `${TESTS}/calendar-parity-superseded.unit.test.js`,
+    `${TESTS}/clients-duplicate-created-from-the-fiche.unit.test.js`,
+    'server/src/plugins/accounting-export/tests/stay-payment-split-fallback.unit.test.js',
+    `${TESTS}/baby-bed-line-stored-on-create.unit.test.js`,
+    `${TESTS}/ical-nameless-summary-matching.unit.test.js`,
+    `${TESTS}/lodgify-decommission-native-feeds.unit.test.js`,
+    `${TESTS}/ledgerFixture.js`,
+    ...LEDGER_FIXTURE_SUITES,
   ])].map((f) => asAdded(f, read(f)));
   assert.deepEqual(findDateBombs({ files, today: localToday() }), []);
 });
@@ -140,10 +155,112 @@ test('rule 7: a clock pinned inside one test exempts that test, not its neighbou
   ]);
 });
 
+test('rule 7: a clock the test injects — a replaced getTodayIsoDate / todayIso, a NOW constant, a now: handed to the code — exempts its block', async () => {
+  const { findDateBombs } = await load();
+  const content = [
+    "test('stubbed today', () => {",
+    "  reservationHelpers.getTodayIsoDate = () => '2027-01-01';", // date-literal-ok: guard input
+    "  assert.equal(stale('2027-01-02'), false);", // date-literal-ok: guard input
+    '});',
+    "test('injected now', () => {",
+    "  const NOW = new Date('2027-03-01T10:00:00Z');", // date-literal-ok: guard input
+    "  assert.equal(validUntil({ now: NOW, stay: '2027-03-05' }), true);", // date-literal-ok: guard input
+    '});',
+    "test('a now handed in place', () => {",
+    "  run({ id: 1, now: () => Date.parse('2027-04-01T10:00:00Z') }, '2027-04-03');", // date-literal-ok: guard input
+    '});',
+    "test('free', () => {",
+    "  createStay({ startDate: '2027-01-24' });", // date-literal-ok: guard input
+    "  const NOW = new Date();",
+    "  run({ now: new Date(), at: '2027-01-25' });", // date-literal-ok: guard input
+    "  const todayIso = () => '2027-01-26';", // date-literal-ok: guard input
+    '});',
+  ].join('\n');
+  assert.deepEqual(findDateBombs({ files: [asAdded('server/src/tests/x.unit.test.js', content)], today: '2026-10-30' }).map((b) => [b.line, b.literal]), [ // date-literal-ok: guard input
+    [13, '2027-01-24'], [15, '2027-01-25'], [16, '2027-01-26'], // date-literal-ok: guard output
+  ]);
+  const fileWide = "dateUtils.todayIso = () => '2027-06-01';\ntest('a', () => { assert.ok(open('2027-06-02')); });"; // date-literal-ok: guard input
+  assert.deepEqual(findDateBombs({ files: [asAdded('server/src/tests/y.unit.test.js', fileWide)], today: '2026-10-30' }), []); // date-literal-ok: guard input
+});
+
+test('rule 7: a pin in a helper covers the tests that call it, a test.each callback holds its own pin, a fake timer that leaves Date real pins nothing', async () => {
+  const { findDateBombs } = await load();
+  const content = [
+    "function freeze(t) { t.mock.timers.enable({ apis: ['Date'], now: new Date('2027-02-01T10:00:00Z') }); }", // date-literal-ok: guard input
+    "const freezeArrow = (t) => { t.mock.timers.enable({ apis: ['Date'], now: 0 }); };",
+    "test('frozen', (t) => { freeze(t); assert.ok(due('2027-02-02')); });", // date-literal-ok: guard input
+    "test('free', () => { createStay({ startDate: '2027-02-03' }); });", // date-literal-ok: guard input
+    "test.each([[1], [2]])('each %s', (n) => {",
+    "  vi.setSystemTime(new Date('2027-03-01T10:00:00Z'));", // date-literal-ok: guard input
+    "  expect(label('2027-03-02')).toBe('demain');", // date-literal-ok: guard input
+    '});',
+    "it('timeouts only', () => {",
+    "  vi.useFakeTimers({ toFake: ['setTimeout'], now: new Date('2027-04-01T10:00:00Z') });", // date-literal-ok: guard input
+    "  createStay({ startDate: '2027-04-02' });", // date-literal-ok: guard input
+    '});',
+    "it('arrow helper', (t) => { freezeArrow(t); assert.ok(due('2027-05-02')); });", // date-literal-ok: guard input
+  ].join('\n');
+  assert.deepEqual(findDateBombs({ files: [asAdded('server/src/tests/x.unit.test.js', content)], today: '2026-10-30' }).map((b) => [b.line, b.literal]), [ // date-literal-ok: guard input
+    [4, '2027-02-03'], [10, '2027-04-01'], [11, '2027-04-02'], // date-literal-ok: guard output
+  ]);
+  const hook = "test.beforeEach(() => { vi.setSystemTime(new Date('2027-06-15T10:00:00')); });\ntest('a', () => { label('2027-06-16'); });"; // date-literal-ok: guard input
+  assert.deepEqual(findDateBombs({ files: [asAdded('server/src/tests/y.unit.test.js', hook)], today: '2026-10-30' }), [], 'a top-level hook pins the file'); // date-literal-ok: guard input
+});
+
+test('rule 9: a line whose file and text already exist on a known branch is not named', async () => {
+  const { dropKnownLines } = await load();
+  const files = [
+    { file: 'server/src/tests/a.unit.test.js', content: '', added: [{ line: 3, text: "  createStay({ startDate: '2027-01-24' });" }, { line: 4, text: "  createStay({ startDate: '2027-02-12' });" }] }, // date-literal-ok: guard input
+    { file: 'server/src/tests/b.unit.test.js', content: '', added: [{ line: 1, text: "createStay({ startDate: '2027-01-24' });" }] }, // date-literal-ok: guard input
+  ];
+  const known = (file) => (file === 'server/src/tests/a.unit.test.js' ? ["test('x', () => {\ncreateStay({ startDate: '2027-01-24' });\n});"] : []); // date-literal-ok: guard input
+  assert.deepEqual(dropKnownLines(files, known), [
+    { file: 'server/src/tests/a.unit.test.js', content: '', added: [{ line: 4, text: "  createStay({ startDate: '2027-02-12' });" }] }, // date-literal-ok: guard input
+    { file: 'server/src/tests/b.unit.test.js', content: '', added: [{ line: 1, text: "createStay({ startDate: '2027-01-24' });" }] }, // date-literal-ok: guard input
+  ]);
+});
+
+test('rule 9: an integration or sync PR is not blocked by lines merged on the other branch; a new line still is', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'check-test-dates-'));
+  const sh = (...args) => execFileSync('git', args, { cwd: dir, encoding: 'utf8' });
+  const write = (rel, text) => { fs.mkdirSync(path.dirname(path.join(dir, rel)), { recursive: true }); fs.writeFileSync(path.join(dir, rel), text); };
+  const commit = (msg) => { sh('add', '.'); sh('-c', 'user.name=t', '-c', 'user.email=t@example.test', 'commit', '-qm', msg); };
+  try {
+    sh('init', '-q', '-b', 'master');
+    write('server/src/tests/a.unit.test.js', "test('a', () => {});\n");
+    commit('base');
+    sh('checkout', '-qb', 'inte');
+    write('server/src/tests/a.unit.test.js', "test('a', () => {});\ncreateStay({ startDate: '2027-01-24' });\n"); // date-literal-ok: guard input
+    commit('merged on inte');
+    sh('checkout', '-qb', 'feature');
+    write('server/src/tests/a.unit.test.js', "test('a', () => {});\ncreateStay({ startDate: '2027-01-24' });\ncreateStay({ startDate: '2027-02-12' });\n"); // date-literal-ok: guard input
+    commit('feature');
+    const run = (...args) => spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'check-test-dates.mjs'), '--today', '2026-10-30', '--strict', ...args], { cwd: dir, encoding: 'utf8' }); // date-literal-ok: guard input
+    const integration = run('--base', 'master', '--head', 'inte', '--known', 'master,inte');
+    assert.equal(integration.status, 0, integration.stderr);
+    const unknownRef = run('--base', 'master', '--head', 'inte', '--known', 'master,gone');
+    assert.equal(unknownRef.status, 1, 'a known ref that does not resolve drops nothing');
+    assert.match(unknownRef.stderr, /a\.unit\.test\.js:2 {2}2027-01-24/); // date-literal-ok: guard output
+    const feature = run('--base', 'master', '--head', 'feature', '--known', 'master,inte');
+    assert.equal(feature.status, 1);
+    assert.match(feature.stderr, /a\.unit\.test\.js:3 {2}2027-02-12/); // date-literal-ok: guard output
+    assert.doesNotMatch(feature.stderr, /:2 {2}/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('rule 7: the PR job fails on a literal date in the lines it adds', () => {
   const workflow = read('.github/workflows/unit-tests.yml');
   const job = workflow.slice(workflow.indexOf('  spec-rules:'), workflow.indexOf('  server:'));
-  assert.match(job, /node scripts\/check-test-dates\.mjs --base "origin\/\$\{\{ github\.base_ref \}\}" --strict\n/);
+  assert.match(job, /node scripts\/check-test-dates\.mjs --base "origin\/\$\{\{ github\.base_ref \}\}" --known origin\/master,origin\/inte\/plugins --strict\n/);
+});
+
+test('rule 9: the PR job fetches the long-lived branches it checks against', () => {
+  const workflow = read('.github/workflows/unit-tests.yml');
+  const job = workflow.slice(workflow.indexOf('  spec-rules:'), workflow.indexOf('  server:'));
+  const step = job.slice(job.indexOf('check-test-dates') - 600, job.indexOf('check-test-dates'));
+  assert.match(step, /for branch in master inte\/plugins; do\n\s+git fetch --no-tags origin "\$branch"/);
 });
 
 const jobBlock = (workflow, name) => {
