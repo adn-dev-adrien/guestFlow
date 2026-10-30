@@ -38,6 +38,7 @@ const vatRegimeModel = require('../models/vatRegimeModel');
 const termsController = require('./termsController');
 const quotePostProcessors = require('../utils/quotePostProcessors');
 const insuranceOffer = require('../utils/insuranceOffer');
+const { bookingDayOf } = require('../utils/vatRegime');
 const resourceOffer = require('../utils/resourceOffer');
 const { reservationBlocks } = require('../utils/pluginReservationBlocks');
 
@@ -473,7 +474,7 @@ function touristTaxCollectedInComplement(reservationId, row) {
   const paidDate = String(row.complementPaidDate || '').slice(0, 10);
   const entries = db.prepare("SELECT changedFields, createdAt FROM reservation_history WHERE reservationId = ? AND eventType = 'update' ORDER BY id").all(Number(reservationId));
   for (const entry of entries) {
-    if (paidDate && String(entry.createdAt || '').slice(0, 10) < paidDate) continue;
+    if (paidDate && bookingDayOf(entry.createdAt) < paidDate) continue;
     let changes = [];
     try { changes = JSON.parse(entry.changedFields || '[]'); } catch { changes = []; }
     const taxChange = changes.find((c) => c && c.field === 'touristTaxTotal');
@@ -559,7 +560,7 @@ function droppedSince(reservationId, since, scope = null) {
   const net = { options: 0, resources: 0, touristTax: 0 };
   const entries = db.prepare("SELECT changedFields, createdAt FROM reservation_history WHERE reservationId = ? AND eventType = 'update' ORDER BY id").all(Number(reservationId));
   for (const entry of entries) {
-    if (since && String(entry.createdAt || '').slice(0, 10) < since) continue;
+    if (since && bookingDayOf(entry.createdAt) < since) continue;
     let changes = [];
     try { changes = JSON.parse(entry.changedFields || '[]'); } catch { changes = []; }
     for (const change of changes) {
@@ -790,7 +791,7 @@ function buildArrivalPaymentView(row) {
       total: Math.round(collectible.reduce((sum, b) => sum + b.amount, 0) * 100) / 100,
       buckets: collectible,
       // The earliest date the operator may pick — the collection cannot predate the booking.
-      bookedAt: String(row.createdAt || '').slice(0, 10) || null,
+      bookedAt: bookingDayOf(row.createdAt),
     },
   };
 }
@@ -845,7 +846,7 @@ function settleArrivalPayment(req, res) {
   if (mode !== 'undo') {
     const checked = validateArrivalPaymentDate(req.body?.date, {
       today: getTodayIsoDate(),
-      bookedAt: String(row.createdAt || '').slice(0, 10),
+      bookedAt: bookingDayOf(row.createdAt),
     });
     if (!checked.ok) return res.status(400).json({ error: checked.reason });
     date = checked.date;

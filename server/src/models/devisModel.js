@@ -27,6 +27,8 @@ const { isDirectChannel } = require('../utils/platformNameFormat');
 const { originDisplay } = require('../utils/attributionChannel');
 const { devisListRow } = require('../utils/devisListRow');
 const { getTodayIsoDate } = require('../utils/reservationHelpers');
+const { todayIso } = require('../utils/localDate');
+const { bookingDayOf } = require('../utils/vatRegime');
 const { carriesMoney } = require('../utils/deletionGuard');
 
 // Helpers shared between create + convertFromReservation
@@ -43,12 +45,19 @@ const resourceOffer = require('../utils/resourceOffer');
 const { provenComplementAmount } = require('../utils/createdComplementRepair');
 
 /**
- * Today as `YYYY-MM-DD HH:MM:SS` matching SQLite's `datetime('now')` format. Used as
+ * Now, in UTC, as `YYYY-MM-DD HH:MM:SS` matching SQLite's `datetime('now')` format. Used as
  * the explicit `createdAt` binding for INSERTs that should never end up with an empty
- * value (specs/devis-pdf-and-tourist-tax-fixes.md §3.1 rule 1).
+ * value (specs/devis-pdf-and-tourist-tax-fixes.md §3.1 rule 1). A stored timestamp only: the
+ * day a devis is dated or expires is the operator's, `todayIso()` / `createdDayOf()` (rule 23).
  */
 function sqliteNow() {
   return new Date().toISOString().slice(0, 19).replace('T', ' ');
+}
+
+// The operator's calendar day a stored UTC `createdAt` fell on; a blank one is a devis created now
+// (specs/devis-pdf-and-tourist-tax-fixes.md rule 23).
+function createdDayOf(createdAt) {
+  return bookingDayOf(createdAt) || todayIso();
 }
 
 // A JSON column read back as text → the array the client expects. Anything unparseable reads empty.
@@ -208,9 +217,9 @@ function createModel(database) {
     // Validity state, decided here so the fiche only renders it (specs/devis-extras-parity-and-price-lock.md
     // §3 rule 16). `validUntil` is resolved rather than echoed: a legacy row stored NULL, and the
     // operator still deserves to see the date their quote would carry.
-    const today = sqliteNow().slice(0, 10);
+    const today = todayIso();
     const resolvedValidUntil = row.validUntil || computeValidUntil({
-      createdAtIsoDate: String(row.createdAt || sqliteNow()).slice(0, 10),
+      createdAtIsoDate: createdDayOf(row.createdAt),
       startDateIso: row.startDate,
       quoteValidityDays: readQuoteValidityDays(),
     }) || null;
@@ -308,7 +317,7 @@ function createModel(database) {
   function resolveLockedPricing(body, existing) {
     if (!existing || !existing.id) return {};
     if (body.refreshPricingToCurrent) return {};
-    if (isDevisExpired(existing.validUntil, sqliteNow().slice(0, 10))) return {};
+    if (isDevisExpired(existing.validUntil, todayIso())) return {};
     // Changing the logement or the stay range invalidates the snapshot: those lines priced something
     // else. Mirrors `isExistingReservationPricingLocked` on the fiche.
     const samePlacement = Number(body.propertyId || existing.propertyId) === Number(existing.propertyId)
@@ -415,7 +424,7 @@ function createModel(database) {
       // and a last-minute quote comes out due on its issue day while the document says it stands until
       // its validity date (specs/deposit-blocks-the-dates.md rule 7).
       validUntil: body.validUntil || existing?.validUntil || computeValidUntil({
-        createdAtIsoDate: String(existing?.createdAt || sqliteNow()).slice(0, 10),
+        createdAtIsoDate: createdDayOf(existing?.createdAt),
         startDateIso: body.startDate || existing?.startDate,
         quoteValidityDays: readQuoteValidityDays(),
       }) || null,
@@ -514,7 +523,7 @@ function createModel(database) {
   // announces run the very same computation.
   function extensionPayload(existing) {
     const full = enrichDevis(existing);
-    const today = sqliteNow().slice(0, 10);
+    const today = todayIso();
     return {
       ...engineInputFromPersistedDevis(full),
       clientId: existing.clientId,
@@ -544,7 +553,7 @@ function createModel(database) {
   function loadExtendable(id) {
     const existing = database.prepare("SELECT * FROM reservations WHERE id = ? AND kind = 'devis'").get(Number(id));
     if (!existing) return { error: 'Devis non trouvé', status: 404 };
-    if (!isDevisExtendable(existing, sqliteNow().slice(0, 10))) {
+    if (!isDevisExtendable(existing, todayIso())) {
       return existing.devisStatus === 'converted'
         ? { error: 'Devis converti en réservation : sa validité ne se prolonge pas.', status: 409, code: 'DEVIS_CONVERTED' }
         : { error: 'Ce devis ne se prolonge pas : il est encore valable, ou déjà accepté.', status: 409, code: 'DEVIS_NOT_EXTENDABLE' };
@@ -634,7 +643,7 @@ function createModel(database) {
     sql += ' ORDER BY d.createdAt DESC';
     // specs/ui-review-2026-10-19-operations.md rules 5, 9, 21 — total, origin and validity shaped for
     // the list.
-    const today = sqliteNow().slice(0, 10);
+    const today = todayIso();
     const listed = database.prepare(sql).all(...params).map((row) => ({ ...devisListRow(row, today), vatRegimeKind: vatRegimeModel.forRow(database, row).regime }));
     // Rule 12 (a): the « TTC » wording stays while one quote of the list is under VAT — decided here, not in the page.
     const showTtc = listed.length === 0 || listed.some((row) => row.vatRegimeKind === 'subject');
@@ -736,7 +745,7 @@ function createModel(database) {
     // MIN(createdAt + quoteValidityDays, startDate - 2 days). The operator's optional
     // `payload.validUntil` override wins (rare; the form doesn't expose it today).
     const createdAt = sqliteNow();
-    const createdAtDate = createdAt.slice(0, 10);
+    const createdAtDate = todayIso();
     const quoteValidityDays = readQuoteValidityDays();
     const validUntil = payload.validUntil
       || computeValidUntil({ createdAtIsoDate: createdAtDate, startDateIso: payloadWithDefaults.startDate, quoteValidityDays })
@@ -858,9 +867,9 @@ function createModel(database) {
       if (payload.validUntil !== undefined && payload.validUntil !== null) return payload.validUntil;
       const quoteValidityDays = readQuoteValidityDays();
       const startDateIso = payload.startDate || existing.startDate;
-      const today = sqliteNow().slice(0, 10);
+      const today = todayIso();
       if (existing.validUntil && !isDevisExpired(existing.validUntil, today)) return existing.validUntil;
-      const createdAtIsoDate = existing.validUntil ? today : String(existing.createdAt || sqliteNow()).slice(0, 10);
+      const createdAtIsoDate = existing.validUntil ? today : createdDayOf(existing.createdAt);
       return computeValidUntil({ createdAtIsoDate, startDateIso, quoteValidityDays }) || null;
     })();
     // specs/deposit-blocks-the-dates.md rule 17 — the quote's due dates hang off the validity
@@ -1257,7 +1266,7 @@ function createModel(database) {
 
     // §3.1 + §3.2 — populate createdAt + validUntil on the new devis row (rules 2 + 8).
     const createdAt = sqliteNow();
-    const createdAtDate = createdAt.slice(0, 10);
+    const createdAtDate = todayIso();
     const quoteValidityDays = readQuoteValidityDays();
     const validUntil = computeValidUntil({ createdAtIsoDate: createdAtDate, startDateIso: reservation.startDate, quoteValidityDays }) || null;
 

@@ -22,6 +22,7 @@ const { addDaysToIsoDate } = require('../utils/devisHelpers');
 const { exerciseMonths } = require('../utils/exerciseOverview');
 const installmentPlan = require('../utils/installmentPlan');
 const vatRegimeModel = require('./vatRegimeModel');
+const { bookingDayOf } = require('../utils/vatRegime');
 
 const UPCOMING_PER_PROPERTY = 5;
 
@@ -312,13 +313,13 @@ function createFinanceModel(database) {
         WHERE r.kind ${hasCancelledAt ? "IN ('reservation', 'cancelled')" : "= 'reservation'"}${scope.sql}
       `).all(...scope.params);
       const stays = rows.map((r) => {
-        const cancelledOn = hasCancelledAt && r.kind === 'cancelled' ? String(r.cancelledAt || '').slice(0, 10) || null : null;
+        const cancelledOn = hasCancelledAt && r.kind === 'cancelled' ? bookingDayOf(r.cancelledAt) : null;
         return {
           propertyId: r.propertyId,
           startDate: r.startDate,
           endDate: r.endDate,
           totalSejour: totalSejour(cancelledOn ? { ...r, refundsBookTtc: 0 } : r),
-          bookedOn: String(r.createdAt || '').slice(0, 10) || null,
+          bookedOn: bookingDayOf(r.createdAt),
           cancelledOn,
         };
       });
@@ -332,8 +333,8 @@ function createFinanceModel(database) {
             startDate: l.startDate,
             endDate: l.endDate,
             totalSejour: Number(l.totalSejour || 0),
-            bookedOn: String(l.reservationCreatedAt || '').slice(0, 10) || null,
-            cancelledOn: String(l.cancelledAt || '').slice(0, 10) || null,
+            bookedOn: bookingDayOf(l.reservationCreatedAt),
+            cancelledOn: bookingDayOf(l.cancelledAt),
           }));
       }
       return stays;
