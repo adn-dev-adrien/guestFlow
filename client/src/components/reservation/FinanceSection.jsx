@@ -279,7 +279,7 @@ export default function FinanceSection() {
     // (specs/calendar-property-parity.md rule 25): the button goes through a portal to a node outside it.
     refundHost = null,
     // specs/reservation-payment-ledger.md — the ledger and its three server round-trips.
-    ledger = null, checkLedgerEdit, applyLedgerPatch, markFromLedger, resendPaymentRequest,
+    ledger = null, checkLedgerEdit, applyLedgerPatch, markFromLedger, resendPaymentRequest, withdrawPaymentLink,
     // specs/direct-installments.md — the plan of a direct reservation and its setter.
     installmentPlan = null, setInstallmentPlan, fichePristine = true,
     // specs/disable-deposit-per-reservation.md rule 13 — why « Sans acompte » cannot be ticked, from the server.
@@ -527,6 +527,18 @@ export default function FinanceSection() {
     } catch (err) { showError(err?.message || 'Suppression impossible.'); }
   };
 
+  // specs/payment-link-lifecycle.md rule 42 — the server words the confirmation; the page withdraws and re-reads.
+  const askWithdraw = async (withdraw) => {
+    const ok = await confirm({
+      title: withdraw.confirmTitle,
+      message: withdraw.confirmMessage,
+      confirmLabel: withdraw.confirmLabel,
+      cancelLabel: 'Annuler',
+      confirmColor: 'error',
+    });
+    if (ok) await withdrawPaymentLink(withdraw.linkId);
+  };
+
   const renderDetail = (row) => {
     const d = row.detail || {};
     const bits = [];
@@ -541,7 +553,7 @@ export default function FinanceSection() {
     const foldable = Boolean(slot) || row.state === 'paid-group';
     const groupFirst = row.state === 'paid-group' && rows.find((r) => r.state === 'paid-group')?.key === row.key;
     const hasFold = slot || (groupFirst && form.arrivalPayment?.covers);
-    if (bits.length === 0 && warnings.length === 0 && lines.length === 0 && penaltyLines.length === 0 && !row.penaltyAction && !d.reconciliation && !d.note && !hasFold && !d.link?.resend) return null;
+    if (bits.length === 0 && warnings.length === 0 && lines.length === 0 && penaltyLines.length === 0 && !row.penaltyAction && !d.reconciliation && !d.note && !hasFold && !d.link?.resend && !d.link?.withdraw) return null;
     const open = folds.has(row.key);
     return (
       <Box sx={{ mt: 0.5 }}>
@@ -550,6 +562,11 @@ export default function FinanceSection() {
           {d.link?.resend && !isReservationLocked && (
             <Button size="small" variant="text" onClick={() => resendPaymentRequest(d.link.resend.type)} sx={{ minHeight: 44, textTransform: 'none' }}>
               {d.link.resend.label}
+            </Button>
+          )}
+          {d.link?.withdraw && withdrawPaymentLink && (
+            <Button size="small" variant="text" onClick={() => askWithdraw(d.link.withdraw)} sx={{ minHeight: 44, textTransform: 'none' }}>
+              {d.link.withdraw.label}
             </Button>
           )}
           {d.reconciliation && <StatusBadge status={d.reconciliation.tone === 'done' ? 'success' : 'warning'} label={d.reconciliation.label} />}

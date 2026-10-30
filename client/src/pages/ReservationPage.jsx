@@ -2952,6 +2952,20 @@ export default function ReservationPage() {
     }
   };
 
+  // specs/payment-link-lifecycle.md rule 42 — « Retirer le lien ». The fiche re-reads its finance; a devis
+  // re-runs its quote, whose ledger carries the links. A link just paid was booked by the server: re-read too.
+  const withdrawPaymentLink = async (linkId) => {
+    const reread = () => (editingReservationId ? reloadReservationFinance() : setRefundsVersion((v) => v + 1));
+    try {
+      await api.withdrawPaymentLink(linkId);
+      showSuccess('Lien retiré.');
+      await reread();
+    } catch (e) {
+      showError(e.message || 'Retrait impossible.');
+      if (isLinkAlreadyPaid(e)) await reread();
+    }
+  };
+
   // specs/reservation-refunds.md §4.3 — the two mutations. Both replace the whole register with the
   // server's answer and bump `refundsVersion` so the quote (and thus the fiche's « total de séjour »)
   // is recomputed. `createRefund` lets the API error bubble up: the dialog renders it inline.
@@ -3564,7 +3578,7 @@ export default function ReservationPage() {
     // Rule 7 (review of #727) — the stored ledger by default, the live one only once the operator has
     // changed the fiche, never on a locked one; a fiche never saved has only the live one.
     ledger: showLiveMoney ? (pricingQuote?.ledger || storedLedger) : storedLedger,
-    checkLedgerEdit, applyLedgerPatch, markFromLedger, resendPaymentRequest,
+    checkLedgerEdit, applyLedgerPatch, markFromLedger, resendPaymentRequest, withdrawPaymentLink,
     installmentPlan, setInstallmentPlan, fichePristine: !isDirty,
     // The live quote reads the stored payments afresh; the GET answers until it arrives.
     depositDisabledLockedReason: pricingQuote && pricingQuote.depositDisabledLockedReason !== undefined

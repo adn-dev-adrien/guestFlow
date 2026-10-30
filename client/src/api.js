@@ -536,6 +536,8 @@ const api = {
   sendBalanceRequestEmail: (id) => request(`/payments/reservations/${id}/payment-emails`, { method: 'POST', body: { type: 'balance' } }),
   // specs/reservation-payment-ledger.md rule 28 — « Renvoyer la demande » of a ledger row.
   sendPaymentRequestOfType: (id, type) => request(`/payments/reservations/${id}/payment-emails`, { method: 'POST', body: { type } }),
+  // specs/payment-link-lifecycle.md rule 42 — « Retirer le lien »; answers `{ link }`, 409 LINK_ALREADY_PAID / STAY_READ_ONLY.
+  withdrawPaymentLink: (linkId) => request(`/payments/links/${linkId}/withdraw`, { method: 'POST', body: {} }),
   // Échéancier d'une réservation directe (specs/direct-installments.md §4.3). Each answers `{ installmentPlan }`.
   putInstallments: (id, body) => request(`/reservations/${id}/installments`, { method: 'PUT', body }),
   deleteInstallments: (id) => request(`/reservations/${id}/installments`, { method: 'DELETE' }),
@@ -790,6 +792,11 @@ const api = {
       .reduce((acc, [k, v]) => { acc[k] = String(v); return acc; }, {});
     const qs = new URLSearchParams(filtered).toString();
     return request(`/establishment-closures${qs ? `?${qs}` : ''}`);
+  },
+  // specs/payment-link-lifecycle.md rules 41, 49 — what a closure would meet: `{ reservations, requests, devis }`.
+  getClosureConflicts: ({ propertyId = null, startDate, endDate }) => {
+    const qs = new URLSearchParams({ ...(propertyId != null ? { propertyId: String(propertyId) } : {}), startDate, endDate }).toString();
+    return request(`/establishment-closures/conflicts?${qs}`);
   },
   createEstablishmentClosure: (data) => request('/establishment-closures', { method: 'POST', body: data }),
   updateEstablishmentClosure: (id, data) => request(`/establishment-closures/${id}`, { method: 'PUT', body: data }),

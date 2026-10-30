@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Box, IconButton, TextField, TableHead, TableBody, TableRow, TableCell,
   Tooltip, MenuItem, Alert, Typography, Button, useMediaQuery,
@@ -17,6 +17,7 @@ import FormDialog from '../components/FormDialog';
 import LoadingState from '../components/LoadingState';
 import EmptyState from '../components/EmptyState';
 import ErrorAlert from '../components/ErrorAlert';
+import ConflictList from '../components/ConflictList';
 import { useAppDialogs } from '../components/DialogProvider';
 import api from '../api';
 import { displayDate } from '../utils/formatters';
@@ -31,6 +32,16 @@ function dayjsToIso(d) {
 }
 
 const ALL_PROPERTIES = 'ALL';
+
+// specs/payment-link-lifecycle.md rules 40, 41, 49 — the headlines of the dialog's conflict lines.
+const CONFLICT_TITLES = {
+  reservations: 'Réservation sur ces dates : fermeture impossible.',
+  requests: 'Demande de paiement en cours sur ces dates.',
+  devis: 'Devis en cours sur ces dates.',
+};
+const NO_CONFLICTS = { reservations: [], requests: [], devis: [] };
+// The refusals of a save that come with their list: the list is the message.
+const LISTED_REFUSALS = { RESERVATION_OVERLAP: 'reservations', OPEN_PAYMENT_REQUEST: 'requests' };
 
 const EMPTY_FORM = {
   propertyId: ALL_PROPERTIES,
@@ -52,6 +63,11 @@ export default function EstablishmentClosuresPage({ barTabs }) {
   const [endDateOpen, setEndDateOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
+  const [conflicts, setConflicts] = useState(NO_CONFLICTS);
+  // The save refused for open requests: their line then says what to do (rule 41).
+  const [requestsRefusal, setRequestsRefusal] = useState('');
+  const [conflictsToken, setConflictsToken] = useState(0);
+  const conflictsSeq = useRef(0);
 
   const load = async () => {
     setLoading(true);
@@ -71,6 +87,37 @@ export default function EstablishmentClosuresPage({ barTabs }) {
   };
 
   useEffect(() => { load(); }, []);
+
+  // Rules 41, 49 — as soon as the logement and both dates are set, the server says what the closure would
+  // meet. Asked again when the operator comes back to this tab (a request withdrawn on the devis meanwhile).
+  const rangeSet = Boolean(form.startDate && form.endDate && form.startDate < form.endDate);
+  useEffect(() => {
+    setRequestsRefusal('');
+    if (!dialogOpen || !rangeSet) { setConflicts(NO_CONFLICTS); return undefined; }
+    const seq = ++conflictsSeq.current;
+    api.getClosureConflicts({
+      propertyId: form.propertyId === ALL_PROPERTIES ? null : Number(form.propertyId),
+      startDate: form.startDate,
+      endDate: form.endDate,
+    }).then((answer) => {
+      if (seq === conflictsSeq.current) setConflicts({ ...NO_CONFLICTS, ...(answer || {}) });
+    }).catch(() => {
+      // The save is the judge: a failed look only leaves the lines out.
+      if (seq === conflictsSeq.current) setConflicts(NO_CONFLICTS);
+    });
+    return undefined;
+  }, [dialogOpen, rangeSet, form.propertyId, form.startDate, form.endDate, conflictsToken]);
+
+  useEffect(() => {
+    if (!dialogOpen) return undefined;
+    const again = () => { if (document.visibilityState !== 'hidden') setConflictsToken((t) => t + 1); };
+    window.addEventListener('focus', again);
+    document.addEventListener('visibilitychange', again);
+    return () => {
+      window.removeEventListener('focus', again);
+      document.removeEventListener('visibilitychange', again);
+    };
+  }, [dialogOpen]);
 
   const openCreate = () => {
     setEditId(null);
@@ -113,7 +160,13 @@ export default function EstablishmentClosuresPage({ barTabs }) {
       setDialogOpen(false);
       await load();
     } catch (err) {
-      setDialogError(err.error || err.message || "Impossible d'enregistrer cette fermeture.");
+      const listed = err && LISTED_REFUSALS[err.code];
+      if (listed && Array.isArray(err[listed])) {
+        setConflicts((prev) => ({ ...prev, [listed]: err[listed] }));
+        if (listed === 'requests') setRequestsRefusal(err.error || '');
+      } else {
+        setDialogError(err.error || err.message || "Impossible d'enregistrer cette fermeture.");
+      }
     } finally {
       setSaving(false);
     }
@@ -282,6 +335,20 @@ export default function EstablishmentClosuresPage({ barTabs }) {
               }}
             />
           </LocalizationProvider>
+          <ConflictList
+            severity="error"
+            title={CONFLICT_TITLES.reservations}
+            items={conflicts.reservations.map((r) => ({ ...r, key: `r${r.id}` }))}
+            newTab={!phone}
+          />
+          <ConflictList
+            severity="warning"
+            groups={[
+              { title: requestsRefusal || CONFLICT_TITLES.requests, items: conflicts.requests.map((r) => ({ ...r, key: `l${r.linkId}` })) },
+              { title: CONFLICT_TITLES.devis, items: conflicts.devis.map((d) => ({ ...d, key: `d${d.reservationId}` })) },
+            ]}
+            newTab={!phone}
+          />
         </Box>
       </FormDialog>
     </Box>
