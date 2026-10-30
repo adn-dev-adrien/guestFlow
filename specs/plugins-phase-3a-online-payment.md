@@ -461,6 +461,14 @@ Other facts the design rests on:
       an excess. When `false`, the acompte wording ends with « Aucun e-mail de confirmation n’a été envoyé au
       client. À vérifier : envoyer la confirmation au client. »
     - **Wording.** On a link owned by the stay the alert says « le séjour demande », not « le devis ».
+48. **An acompte link paid on a stay switched to « Sans acompte » re-enables the acompte (audit R7 M1, 2026-10-30,
+    Adrien's call).** The link was retired as stale when the acompte was turned off (rule 29) but paid anyway: on the
+    live path (`bookIfAmountChanged`) and on the `amount-changed` retry (`bookClaimedAmountChangedLink`), the booking
+    sets `depositDisabled = 0` and records the acompte at the amount received, the solde dropping by as much
+    ([disable-deposit-per-reservation.md](disable-deposit-per-reservation.md) rule 12). `mismatchOf` carries
+    `depositReenabled: true` with `balanceCents`, and the alert reads « Un lien d’acompte a été payé X alors que le
+    séjour était passé sans acompte. Acompte réactivé : payé par un lien retiré. Acompte enregistré à X ; solde porté
+    à Z. » instead of « (0,00 € demandés) ». Confirmation and excess lines follow rule 47.
 
 ## 4. Architecture
 
@@ -581,6 +589,7 @@ the moved page. No behaviour change.
 | `payment-link-deactivation.unit.test.js` | 7 | Rules 7–9: deactivated; refused → marked; stale link; retry; paid after cancel; failing retry; admin email |
 | `plugins/online-payment/tests/phase-3a-online-payment.unit.test.js` | 7 | Rules 4, 10–16, 21: provider; routes and webhook at their URLs; settings copy and secrets; poll job; erase keeps payments; open-link blocker; a new customer has no provider |
 | `payment-link-same-day-repriced.unit.test.js` (2026-10-30) | 9 | Rules 45, 46: grown / shrunk × live / `settled` retry / `amount-changed` retry give the stay of the webhook-first order, the alert reads the whole amount; earlier tick and paid acompte link unchanged; the e-mail wording |
+| `deposit-link-paid-on-disabled-acompte.unit.test.js` (2026-10-30) | 8 | Rule 48: live and `amount-changed` retry re-enable the acompte; the alert wording; ledger and save keep the acompte; journal keeps its entry |
 | `payment-link-retired-then-paid.unit.test.js` (2026-10-18) | 6 | Rule 24: ticked on seeing the money → `paid`, no alert, recorder once; the recorder keeps the operator's date; settled an earlier day → kept for refund, « à vérifier »; other cancellations keep rule 8; the email wording; the `cancelReason` upgrade |
 
 ### Moved and updated tests

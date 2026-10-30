@@ -163,6 +163,7 @@ function alertExpectedCents(link, stay, database = null, paidDay = null) {
 // acompte (an acompte link, or a full link short of the acompte) records the acompte at what was received and
 // lets the solde absorb the gap (pre-arrival total unchanged): it carries the resulting solde (`balanceCents`),
 // and `excessCents` when the payment exceeds the whole pre-arrival total. Read on the stay before the booking.
+// Rule 48 — an acompte link paid on a stay switched to « Sans acompte » re-enables it: `depositReenabled`.
 function mismatchOf(link, stay, database, paidDay) {
   const receivedCents = Number(link.amountCents);
   const depositCents = Math.round(Number(stay.depositAmount || 0) * 100);
@@ -175,6 +176,7 @@ function mismatchOf(link, stay, database, paidDay) {
     return {
       expectedCents: depositCents, receivedCents,
       balanceCents: Math.max(0, preArrival - receivedCents),
+      ...(String(link.type) === 'deposit' && Number(stay.depositDisabled || 0) === 1 ? { depositReenabled: true } : {}),
       ...(receivedCents > preArrival ? { excessCents: receivedCents - preArrival } : {}),
     };
   }

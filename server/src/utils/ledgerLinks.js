@@ -155,16 +155,23 @@ function bookPaidAfterAmountChange({ database, recordPayment, reservationsModel 
 
   if (bucket === 'deposit') {
     // The acompte is the link's amount; the solde absorbs the difference (pre-arrival unchanged).
+    // On a stay switched to « Sans acompte » the money re-enables the acompte, or the ledger would hide
+    // it and the next save would erase it (specs/disable-deposit-per-reservation.md rule 12).
     const preArrival = round2(Number(row.depositAmount || 0) + Number(row.balanceAmount || 0));
+    const reenable = Number(row.depositDisabled || 0) === 1;
     database.transaction(() => {
       database.prepare(`UPDATE reservations SET depositAmountOverride = ?, depositAmount = ?, balanceAmount = ?,
-        updatedAt = datetime('now') WHERE id = ?`)
+        depositDisabled = 0, updatedAt = datetime('now') WHERE id = ?`)
         .run(paidAmount, paidAmount, round2(Math.max(0, preArrival - paidAmount)), row.id);
+      const changes = [
+        ...(reenable ? [{ field: 'depositDisabled', label: 'Acompte réactivé', from: 1, to: 0, fromText: null, toText: 'payé par un lien retiré' }] : []),
+        { field: 'ledgerDepositAmount', label: 'Acompte', from: fmt(row.depositAmount), to: `${fmt(paidAmount)} (payé par un lien retiré)` },
+      ];
       database.prepare("INSERT INTO reservation_history (reservationId, eventType, changedFields) VALUES (?, 'update', ?)")
-        .run(row.id, JSON.stringify([{ field: 'ledgerDepositAmount', label: 'Acompte', from: fmt(row.depositAmount), to: `${fmt(paidAmount)} (payé par un lien retiré)` }]));
+        .run(row.id, JSON.stringify(changes));
       recordPayment({ reservationId: row.id, bucket: 'deposit', paidDate: paidDay });
     })();
-    return { effect: 'deposit-booked', amount: paidAmount };
+    return { effect: 'deposit-booked', amount: paidAmount, ...(reenable ? { depositReenabled: true } : {}) };
   }
   if (bucket === 'balance') {
     // The solde is what the guest paid. Short of the new solde, the rest is owed as the arrival

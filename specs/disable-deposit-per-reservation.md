@@ -80,6 +80,20 @@ For each reservation, Adrien can flip a single switch in the reservation page to
     NULL` on reservations (not devis) whose acompte rounds to 0 and on which nothing was ever paid
     (`depositPaid = 0`, no `depositPaidDate`), logging the count. It also stops `computePaymentStatus`
     reading an overdue acompte of 0 €.
+12. **Fixed at audit R7 M1 (2026-10-30, Adrien's call) — an acompte link paid after « Sans acompte » re-enables
+    the acompte.** Turning the acompte off retires its open link as stale
+    ([plugins-phase-3a-online-payment.md](plugins-phase-3a-online-payment.md) rules 29-30), but the guest can
+    still pay it: the Qonto deactivation failed (the rule 8 retry finds it paid) or the payment landed between the
+    check and the deactivation (the live path). The booking (`utils/ledgerLinks.js`
+    `bookPaidAfterAmountChange`) wrote `depositPaid = 1` on a `depositDisabled = 1` stay: the ledger showed the
+    acompte « Sans objet », and the next save forced `depositPaid = 0` and dropped the deposit entry from the
+    journal — money really collected vanished from GuestFlow. Now, inside the booking transaction, the acompte is
+    re-enabled: `depositDisabled = 0`, the acompte recorded at the amount received (`depositAmount`,
+    `depositAmountOverride`, `depositPaid`, `depositPaidDate`), the solde lowered by as much (pre-arrival total
+    unchanged), and the history line « Acompte réactivé : payé par un lien retiré ». The ledger then shows the
+    acompte collected, a save of the fiche (which posts back `depositDisabled = 0`) keeps it, and the journal keeps
+    its deposit entry. The admin alert says so (online-payment rule 48). The invariant « `depositPaid` stays at 0
+    whenever `depositDisabled = 1` » holds: it is the flag that moves, not the payment.
 
 **Edge cases:**
 
@@ -215,6 +229,7 @@ No empty / loading / error states unique to this section — handled by the pare
 ---
 - Spec review 2026-10-27 (rule 10): `server/src/tests/deposit-due-date-and-override-history.unit.test.js` — deadline cleared on save and at creation.
 - Adversarial review of the 2026-10-27 fixes (rule 11): `server/src/tests/zero-deposit-deadline-legacy-rows.unit.test.js` (3 tests — past locked fiche with a legacy deadline saves, no phantom history row, boot cleanup limited to unpaid 0 € acomptes and idempotent).
+- Audit R7 M1, 2026-10-30 (rule 12): `server/src/tests/deposit-link-paid-on-disabled-acompte.unit.test.js` (8 tests — live and `amount-changed` retry paths × acompte re-enabled with the history line; the alert wording; ledger collected and `depositPaid` kept by a save; journal entry kept after a save).
 
 ## 8. Out of scope
 

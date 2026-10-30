@@ -467,8 +467,16 @@ function buildNotificationService({
       ]
       : amountMismatch && amountMismatch.balanceCents != null
       ? [
-        `Un lien de paiement a été payé ${amount} alors que ${owner} demande aujourd’hui ${eurosFr(amountMismatch.expectedCents)}.`,
-        `Acompte enregistré à ${eurosFr(amountMismatch.receivedCents)} (${eurosFr(amountMismatch.expectedCents)} demandés) ; solde porté à ${eurosFr(amountMismatch.balanceCents)}.`,
+        ...(amountMismatch.depositReenabled
+          ? [
+            `Un lien d’acompte a été payé ${amount} alors que le séjour était passé sans acompte.`,
+            'Acompte réactivé : payé par un lien retiré.',
+            `Acompte enregistré à ${eurosFr(amountMismatch.receivedCents)} ; solde porté à ${eurosFr(amountMismatch.balanceCents)}.`,
+          ]
+          : [
+            `Un lien de paiement a été payé ${amount} alors que ${owner} demande aujourd’hui ${eurosFr(amountMismatch.expectedCents)}.`,
+            `Acompte enregistré à ${eurosFr(amountMismatch.receivedCents)} (${eurosFr(amountMismatch.expectedCents)} demandés) ; solde porté à ${eurosFr(amountMismatch.balanceCents)}.`,
+          ]),
         ...(amountMismatch.excessCents ? [`Trop-perçu de ${eurosFr(amountMismatch.excessCents)} à rembourser.`] : []),
         ...(confirmationSent === false
           ? ['Aucun e-mail de confirmation n’a été envoyé au client. À vérifier : envoyer la confirmation au client.']
