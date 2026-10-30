@@ -152,7 +152,8 @@ or mutable state.
     rule 51) and no school-holidays sync (specs/school-holidays.md rule 27). Before, every run read
     `data.education.gouv.fr` and the GitHub releases API, so the holiday table and the update state differed
     between the specs that ran before and after the 60 s mark, and an outage or a rate limit could change a CI
-    run. `NODE_ENV=test` alone does not imply it: unit tests drive both code paths with stubbed fetches. Test:
+    run. `NODE_ENV=test` alone does not imply it: unit tests drive both code paths with stubbed fetches. The
+    reverse holds too: the flag is honoured only under `NODE_ENV=test`, which every E2E server sets. Test:
     `e2e-no-outbound.unit.test.js`.
 
 ### 3.4 Test coverage — one or more specs per implemented `/specs/` feature

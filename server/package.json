@@ -7,7 +7,7 @@
     "dev": "npm run dev:clean && npm run dev:watch",
     "start": "node src/index.js",
     "reset-admin": "node scripts/reset-admin.js",
-    "test": "node --test --test-concurrency=1 --test-timeout=60000 --require ./src/tests/setup/isolateDefaultDb.js \"src/tests/**/*.test.js\" \"src/plugins/**/tests/*.test.js\""
+    "test": "node --test --test-concurrency=1 --test-timeout=60000 --test-force-exit --require ./src/tests/setup/isolateDefaultDb.js \"src/tests/**/*.test.js\" \"src/plugins/**/tests/*.test.js\""
   },
   "devDependencies": {
     "nodemon": "^3.1.7"

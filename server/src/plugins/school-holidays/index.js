@@ -61,8 +61,9 @@ function register(ctx) {
 
   let inProgress = false;
   async function performSync(reason) {
-    // Rule 27 — an instance started with GUESTFLOW_DISABLE_OUTBOUND=1 (the E2E servers) calls no one.
-    if (process.env.GUESTFLOW_DISABLE_OUTBOUND === '1') return { ok: false, error: 'Synchronisation désactivée sur cette instance.' };
+    // Rule 27 — a test instance started with GUESTFLOW_DISABLE_OUTBOUND=1 (the E2E servers) calls no one;
+    // outside NODE_ENV=test the flag is ignored, so a production instance never stops syncing silently.
+    if (process.env.GUESTFLOW_DISABLE_OUTBOUND === '1' && process.env.NODE_ENV === 'test') return { ok: false, error: 'Synchronisation désactivée sur cette instance.' };
     if (inProgress) return { ok: false, error: 'Synchronisation déjà en cours.' };
     inProgress = true;
     try {

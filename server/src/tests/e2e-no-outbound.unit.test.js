@@ -1,5 +1,5 @@
-// specs/self-update-and-releases.md rule 51 — GUESTFLOW_DISABLE_OUTBOUND=1 skips the release check, so
-// an E2E server never reads the GitHub releases API.
+// specs/self-update-and-releases.md rule 51 — GUESTFLOW_DISABLE_OUTBOUND=1 under NODE_ENV=test skips the
+// release check, so an E2E server never reads the GitHub releases API; anywhere else the flag is ignored.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -22,7 +22,7 @@ test('rule 51: with outbound disabled the release check calls no one and writes 
   const model = fakeModel();
   const out = await runVersionCheck({
     model,
-    env: { GUESTFLOW_DISABLE_OUTBOUND: '1' },
+    env: { GUESTFLOW_DISABLE_OUTBOUND: '1', NODE_ENV: 'test' },
     fetchImpl: async (url) => { calls.push(String(url)); return { ok: false, status: 503 }; },
   });
   assert.equal(out, null);
@@ -40,6 +40,21 @@ test('rule 51: without the flag the same check does read the releases API', asyn
   assert.equal(calls.length, 1);
   assert.match(calls[0], /^https:\/\/api\.github\.com\//);
 });
+
+for (const NODE_ENV of ['production', undefined]) {
+  test(`rule 51: the flag is ignored under NODE_ENV=${NODE_ENV} — the check still reads the releases API`, async () => {
+    const calls = [];
+    const env = { GUESTFLOW_DISABLE_OUTBOUND: '1' };
+    if (NODE_ENV) env.NODE_ENV = NODE_ENV;
+    await runVersionCheck({
+      model: fakeModel(),
+      env,
+      fetchImpl: async (url) => { calls.push(String(url)); return { ok: false, status: 503 }; },
+    });
+    assert.equal(calls.length, 1);
+    assert.match(calls[0], /^https:\/\/api\.github\.com\//);
+  });
+}
 
 // specs/e2e-playwright-smoke-suite.md rule 23 — every server an E2E suite starts carries the flag.
 const root = path.join(__dirname, '..', '..', '..');
