@@ -14,7 +14,7 @@ const { buildVatItems } = require('./paymentLinkItems');
 const { refusalForKind } = require('./reservationReadOnly');
 const { buildStayLineLabel } = require('./paymentLinkLabel');
 const { ENGLISH_VERSION_MISSING, ENGLISH_VERSION_MISSING_PAYMENT_ACTION } = require('./emailTemplateLanguage');
-const { validityOf, validityEnd } = require('./paymentLinkLifecycle');
+const { validityOf, validityEnd, lapsesAtArrival } = require('./paymentLinkLifecycle');
 const { LINK_REASONS } = require('../constants/paymentLinks');
 
 // Enrich the stay line's title + description with the booking reference, guest name, property and
@@ -124,16 +124,18 @@ async function mintPaymentLink(deps, id, type) {
   // amount drifts; reusing the stale link would charge the old total yet book the stay as fully paid at
   // the new total. Retire the stale link and mint a fresh one at the correct amount.
   // specs/payment-link-lifecycle.md rule 8 — nor once it has less than 24 hours left: it lapses (reason
-  // `validity`) and the guest gets a fresh link with its full 36 hours.
+  // `validity`) and the guest gets a fresh link with its full 36 hours. Rule 51 — nor when the stay has begun
+  // and rule 9 lapses it at the next pass (reason `stay-started`).
   const now = mintClock(deps);
   const existing = paymentLinksModel.findOpenForStay(id, type);
   if (existing && existing.url) {
     const sameAmount = Number(existing.amountCents) === Number(amountCents);
     const validity = validityOf(existing, now);
-    if (sameAmount && validity.reusable) {
+    const arrived = lapsesAtArrival(database, existing, now);
+    if (sameAmount && validity.reusable && !arrived) {
       return { id: existing.id, type, amountCents: existing.amountCents, url: existing.url, status: existing.status, providerLinkId: existing.providerLinkId, expiresAt: validity.expiresAt, reused: true };
     }
-    await retireOrBook(deps, existing, { paymentLinksModel, provider, deactivate: deactivateLinks, now, ...(sameAmount ? { reason: LINK_REASONS.VALIDITY } : {}) });
+    await retireOrBook(deps, existing, { paymentLinksModel, provider, deactivate: deactivateLinks, now, ...lapseReason(sameAmount, arrived) });
     assertBucketOpen(database, id, type);
   } else {
     const owners = require('./deletionGuard').withConvertedDevis(database, [Number(id)]);
@@ -187,6 +189,12 @@ async function mintPaymentLink(deps, id, type) {
 // `createdAt` is written like SQLite's datetime('now') (UTC, no zone), `expiresAt` as an ISO instant.
 function validityStamps(createdAt = new Date()) {
   return { createdAt: createdAt.toISOString().replace('T', ' ').slice(0, 19), expiresAt: validityEnd(createdAt) };
+}
+
+// A same-amount link that cannot be reused lapses (rules 8, 51); one whose amount drifted is withdrawn.
+function lapseReason(sameAmount, arrived) {
+  if (!sameAmount) return {};
+  return { reason: arrived ? LINK_REASONS.STAY_STARTED : LINK_REASONS.VALIDITY };
 }
 
 const mintClock = (deps) => (typeof deps.now === 'function' ? deps.now() : new Date());
@@ -273,10 +281,11 @@ async function mintInstallmentLink(deps, id, installmentId) {
   if (existing && existing.url) {
     const sameAmount = Number(existing.amountCents) === amountCents;
     const validity = validityOf(existing, now);
-    if (sameAmount && validity.reusable) {
+    const arrived = lapsesAtArrival(database, existing, now);
+    if (sameAmount && validity.reusable && !arrived) {
       return { id: existing.id, type: 'installment', amountCents, url: existing.url, status: existing.status, providerLinkId: existing.providerLinkId, expiresAt: validity.expiresAt, reused: true };
     }
-    await retireOrBook(deps, existing, { paymentLinksModel, provider, deactivate: deactivateLinks, now, ...(sameAmount ? { reason: LINK_REASONS.VALIDITY } : {}) });
+    await retireOrBook(deps, existing, { paymentLinksModel, provider, deactivate: deactivateLinks, now, ...lapseReason(sameAmount, arrived) });
   } else {
     await bookOwedLapsedPayment(deps, "type = 'installment' AND installmentId = ?", [Number(installmentId)]);
   }
