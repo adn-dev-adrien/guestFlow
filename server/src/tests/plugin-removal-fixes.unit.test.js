@@ -181,7 +181,8 @@ function emailsFixture() {
     smtpConfigured: () => true,
     decryptedSmtpSettings: () => ({}),
   };
-  const paymentLinksModel = { findOpenForStay: () => ({ url: 'https://pay.example/pl_X' }) };
+  // specs/payment-link-lifecycle.md rule 26 — a link the send would reuse (24 h left at least).
+  const paymentLinksModel = { findOpenForStay: () => ({ url: 'https://pay.example/pl_X', expiresAt: new Date(Date.now() + 30 * 60 * 60 * 1000).toISOString() }) };
   return buildController({
     database: db,
     templatesModel: buildTemplatesModel(db),

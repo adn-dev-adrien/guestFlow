@@ -32,6 +32,13 @@ const ARRIVAL_REMINDER_1D_BODY_EN = SEQUENCE.J2_BODY_EN;
 const RESERVATION_CONFIRMATION_BODY = SEQUENCE.CONFIRMATION_BODY;
 const RESERVATION_CONFIRMATION_BODY_EN = SEQUENCE.CONFIRMATION_BODY_EN;
 
+// specs/payment-link-lifecycle.md rule 36 — every link a guest receives is valid 36 hours: the e-mail says
+// until when, on the line right after the link (inside its {{#if hasPaymentLink}} where the template has one).
+const VALID_UNTIL_SENTENCE = Object.freeze({
+  fr: 'Ce lien est valable jusqu\'au {{paymentLinkValidUntil}}.',
+  en: 'This link is valid until {{paymentLinkValidUntil}}.',
+});
+
 // Deposit request — ACTION-triggered (sent by paymentsController.sendPaymentRequestEmail when the host
 // clicks « Envoyer la demande d'acompte »). The payment link is injected per-send as {{paymentLink}}
 // (extraContext); like the confirmation it is kept out of the manual queue + the auto cron.
@@ -51,6 +58,7 @@ const DEPOSIT_REQUEST_BODY = [
   'Acompte à régler maintenant : {{depositAmount}}',
   '',
   'Payer l\'acompte en ligne : {{paymentLink}}',
+  VALID_UNTIL_SENTENCE.fr,
   '',
   'Important : le règlement de l\'acompte bloque vos dates. Tant qu\'il n\'est pas payé, les dates restent disponibles et peuvent être réservées par un autre client.',
   '',
@@ -76,6 +84,7 @@ const DEPOSIT_REQUEST_BODY_EN = [
   'Deposit to pay now: {{depositAmount}}',
   '',
   'Pay the deposit online: {{paymentLink}}',
+  VALID_UNTIL_SENTENCE.en,
   '',
   'Important: paying the deposit secures your dates. Until it is paid, the dates remain available and may be booked by another guest.',
   '',
@@ -103,6 +112,7 @@ const BALANCE_REQUEST_BODY = [
   'Solde à régler : {{balanceAmount}} (avant le {{balanceDueDate}})',
   '',
   'Payer le solde en ligne : {{paymentLink}}',
+  VALID_UNTIL_SENTENCE.fr,
   '',
   'Pour toute question, répondez simplement à cet email{{#if hasCompanyPhone}} ou appelez-nous au {{companyPhone}}{{/if}}.',
   '',
@@ -125,6 +135,7 @@ const BALANCE_REQUEST_BODY_EN = [
   'Balance to pay: {{balanceAmount}} (before {{balanceDueDate}})',
   '',
   'Pay the balance online: {{paymentLink}}',
+  VALID_UNTIL_SENTENCE.en,
   '',
   'For any question, simply reply to this email{{#if hasCompanyPhone}} or call us at {{companyPhone}}{{/if}}.',
   '',
@@ -153,7 +164,7 @@ const DEPOSIT_REMINDER_BODY = [
   '',
   'Acompte à régler : {{depositAmount}}',
   '',
-  '{{#if hasPaymentLink}}Régler l\'acompte en ligne : {{paymentLink}}{{else}}Contactez-nous pour le règlement.{{/if}}',
+  `{{#if hasPaymentLink}}Régler l'acompte en ligne : {{paymentLink}}\n${VALID_UNTIL_SENTENCE.fr}{{else}}Contactez-nous pour le règlement.{{/if}}`,
   '',
   'Sans règlement de votre part, nous serons contraints de remettre vos dates à la vente.',
   '',
@@ -179,7 +190,7 @@ const DEPOSIT_REMINDER_BODY_EN = [
   '',
   'Deposit to pay: {{depositAmount}}',
   '',
-  '{{#if hasPaymentLink}}Pay the deposit online: {{paymentLink}}{{else}}Contact us to arrange payment.{{/if}}',
+  `{{#if hasPaymentLink}}Pay the deposit online: {{paymentLink}}\n${VALID_UNTIL_SENTENCE.en}{{else}}Contact us to arrange payment.{{/if}}`,
   '',
   'Without your payment we will have to put your dates back on sale.',
   '',
@@ -310,6 +321,7 @@ const FULL_REQUEST_BODY = [
   'Montant à régler : {{paymentAmount}}',
   '',
   'Payer en ligne : {{paymentLink}}',
+  VALID_UNTIL_SENTENCE.fr,
   '',
   'Important : le règlement bloque vos dates. Tant qu\'il n\'est pas payé, les dates restent disponibles et peuvent être réservées par un autre client.',
   '',
@@ -334,6 +346,7 @@ const FULL_REQUEST_BODY_EN = [
   'Amount to pay: {{paymentAmount}}',
   '',
   'Pay online: {{paymentLink}}',
+  VALID_UNTIL_SENTENCE.en,
   '',
   'Important: paying secures your dates. Until it is paid, they remain available and may be booked by another guest.',
   '',
@@ -353,7 +366,7 @@ const INSTALLMENT_REQUEST_BODY = [
   '',
   '{{installmentSchedule}}',
   '',
-  '{{#if hasPaymentLink}}Payer {{installmentAmount}} en ligne : {{paymentLink}}{{else}}Contactez-nous pour le règlement.{{/if}}',
+  `{{#if hasPaymentLink}}Payer {{installmentAmount}} en ligne : {{paymentLink}}\n${VALID_UNTIL_SENTENCE.fr}{{else}}Contactez-nous pour le règlement.{{/if}}`,
   '',
   'Pour toute question, répondez simplement à cet email{{#if hasCompanyPhone}} ou appelez-nous au {{companyPhone}}{{/if}}.',
   '',
@@ -368,7 +381,7 @@ const INSTALLMENT_REQUEST_BODY_EN = [
   '',
   '{{installmentSchedule}}',
   '',
-  '{{#if hasPaymentLink}}Pay {{installmentAmount}} online: {{paymentLink}}{{else}}Please contact us to arrange payment.{{/if}}',
+  `{{#if hasPaymentLink}}Pay {{installmentAmount}} online: {{paymentLink}}\n${VALID_UNTIL_SENTENCE.en}{{else}}Please contact us to arrange payment.{{/if}}`,
   '',
   'For any question, simply reply to this email{{#if hasCompanyPhone}} or call us at {{companyPhone}}{{/if}}.',
   '',
@@ -563,6 +576,7 @@ module.exports = {
   PLUGIN_OF_TEMPLATE,
   EVENT_TRIGGERED_STABLE_KEYS,
   PAYMENT_STABLE_KEYS,
+  VALID_UNTIL_SENTENCE,
   // Exposed verbatim for tests that need the same body string the seed inserts.
   ARRIVAL_REMINDER_7D_BODY,
   ARRIVAL_REMINDER_1D_BODY,

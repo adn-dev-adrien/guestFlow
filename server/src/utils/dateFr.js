@@ -58,8 +58,30 @@ function weekdayLabel(isoDate, currentYear = null) {
   return `${FR_WEEKDAYS[day.getUTCDay()]} ${d === 1 ? '1er' : d} ${FR_MONTHS[m - 1]}${year}`;
 }
 
+const EN_WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const PARIS_PARTS = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'Europe/Paris', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', hourCycle: 'h23',
+});
+
+// An instant (ISO, UTC) as a guest reads it in an e-mail, Paris time, without the year: « lundi 2 novembre
+// à 18 h 00 » / « Monday 2 November at 6:00 pm » (specs/payment-link-lifecycle.md rule 36). Empty for no
+// instant, an unreadable one or Qonto's zero-time sentinel (anything at or before the Unix epoch).
+function formatMomentLong(instant, lang = 'fr') {
+  const ms = instant ? Date.parse(String(instant)) : NaN;
+  if (!Number.isFinite(ms) || ms <= 0) return '';
+  const part = Object.fromEntries(PARIS_PARTS.formatToParts(new Date(ms)).map((p) => [p.type, Number(p.value)]));
+  const weekday = new Date(Date.UTC(part.year, part.month - 1, part.day)).getUTCDay();
+  const minutes = String(part.minute).padStart(2, '0');
+  if (lang === 'en') {
+    const hour12 = part.hour % 12 === 0 ? 12 : part.hour % 12;
+    return `${EN_WEEKDAYS[weekday]} ${part.day} ${EN_MONTHS[part.month - 1]} at ${hour12}:${minutes} ${part.hour < 12 ? 'am' : 'pm'}`;
+  }
+  return `${FR_WEEKDAYS[weekday]} ${part.day === 1 ? '1er' : part.day} ${FR_MONTHS[part.month - 1]} à ${part.hour} h ${minutes}`;
+}
+
 module.exports = {
   formatDateLong,
+  formatMomentLong,
   weekdayLabel,
   formatTimeShort,
   FR_MONTHS,

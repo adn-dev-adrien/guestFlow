@@ -305,6 +305,10 @@ msgid "Cette réservation est annulée."
 msgstr "This booking has been cancelled."
 
 #: includes/class-gf-blocks.php:128
+msgid "Ce lien de paiement a expiré. Refaire la réservation depuis la page du logement."
+msgstr "This payment link has expired. Please book again from the accommodation's page."
+
+#: includes/class-gf-blocks.php:128
 msgid "Paiement reçu et réservation enregistrée. Nous revenons vers vous très vite pour confirmer les détails."
 msgstr "Payment received and booking recorded. We will come back to you very shortly to confirm the details."
 

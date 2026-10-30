@@ -3,7 +3,8 @@
  * routes (the WordPress proxy calls them with the public API key):
  *   - `pay`    : create/reuse the FULL (or deposit) link for a public devis (availability re-checked,
  *                engine amount, return URL allowlisted) → { paymentUrl, amountCents }.
- *   - `status` : on-demand poll of the devis's link → pending | paid | confirmed | conflict (+ recap).
+ *   - `status` : on-demand poll of the devis's link → pending | paid | confirmed | conflict | cancelled |
+ *                expired (+ recap).
  *
  * Confirmation itself (convert devis → block dates → confirmation email) is the shared `processPaidLink`
  * effect, driven primarily by the provider's webhook and reconciled here on demand. The link comes from
@@ -196,6 +197,45 @@ async function settleOwedRetiredLinks(devisId) {
   } catch (e) { /* best-effort — the poll retries */ }
 }
 
+// specs/payment-link-lifecycle.md rule 30 — a lapsed link may still have been paid (a payment in flight at
+// its deadline): while its last look is pending, or for 24 h after it lapsed, the page reads it once per
+// OWED_RETRY_MINUTES. No lapse timestamp is stored: a lapse writes its moment into `expiresAt` (rule 8);
+// a stay-started lapse without one counts from 00:00 Paris on the arrival day (rule 9).
+const LAPSED_READ_HOURS = 24;
+function lapsedAtMs(link, devisRow) {
+  const end = paymentLinksModel.knownExpiryMs(link.expiresAt);
+  if (end != null) return end;
+  if (link.cancelReason === 'stay-started' && devisRow.startDate) return new Date(`${String(devisRow.startDate).slice(0, 10)}T00:00:00`).getTime();
+  return null;
+}
+
+function lapsedReadDue(link, devisRow, nowMs) {
+  if (Date.parse(link.lastPolledAt) > nowMs - OWED_RETRY_MINUTES * 60 * 1000) return false;
+  const { lastLookAt } = db.prepare('SELECT lastLookAt FROM payment_links WHERE id = ?').get(link.id) || {};
+  if (lastLookAt) return true;
+  const lapsedMs = lapsedAtMs(link, devisRow);
+  return lapsedMs != null && nowMs - lapsedMs < LAPSED_READ_HOURS * 60 * 60 * 1000;
+}
+
+function lookOwed(link) {
+  const row = db.prepare('SELECT lastLookAt, remoteCancelPendingAt FROM payment_links WHERE id = ?').get(link.id) || {};
+  return Boolean(row.lastLookAt || row.remoteCancelPendingAt);
+}
+
+// The devis's latest link, when it lapsed: booked here if the provider says it was paid.
+async function readLapsedLink(devisRow) {
+  const latest = paymentLinksModel.listForReservation(devisRow.id)[0];
+  if (!latest || latest.status !== 'expired') return null;
+  const provider = paymentProviders.declared();
+  if (!provider || !latest.providerLinkId || latest.provider !== provider.id || !lapsedReadDue(latest, devisRow, Date.now())) return latest;
+  try {
+    paymentLinksModel.touchPolled(latest.id);
+    const pay = await provider.getPayment(latest.providerLinkId, { origin: 'public-payment' });
+    if (pay.paid) await processPaidLink({ ...buildPaymentEffectDeps(), link: latest, paidPayment: pay });
+  } catch (e) { /* best-effort — the lifecycle pass reads it too */ }
+  return paymentLinksModel.findById(latest.id);
+}
+
 async function status(req, res) {
   const id = Number(req.params.id);
   const token = req.query && req.query.token;
@@ -236,9 +276,15 @@ async function status(req, res) {
       }
     } catch (e) { /* best-effort — fall through to pending */ }
   }
+  const lapsed = link ? null : await readLapsedLink(row);
   await settleOwedRetiredLinks(id);
   const converted = db.prepare('SELECT convertedReservationId FROM reservations WHERE id = ?').get(id);
   if (converted && converted.convertedReservationId) return asConfirmed(converted.convertedReservationId);
+  // Rule 30 — nothing open and the latest link lapsed unpaid: the page stops waiting (additive value). Unpaid
+  // is established only once no look is owed: while the deactivation or the last look is pending, a payment
+  // in flight at the deadline may still land, so the page keeps waiting (review of #897).
+  if (lapsed && lapsed.status === 'expired') return ok(res, { status: lookOwed(lapsed) ? 'pending' : 'expired' });
+  if (lapsed && lapsed.status === 'paid') return ok(res, { status: 'paid' });
   return ok(res, { status: 'pending' });
 }
 
