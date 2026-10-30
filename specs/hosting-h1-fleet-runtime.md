@@ -281,6 +281,8 @@ These are the recommended options, taken under the owner's instruction to run th
 
 36. **From is encoded by the mail library, never quoted by hand** (audit R2 N1, 2026-10-29). Both the platform sender and the operator SMTP pass `from: { name, address }`; a display name cannot rewrite the From address or the envelope sender. `smtpFromName` and `companyName` are refused above 120 characters or with a control character. Test: `tests/audit-r2-mail-from.unit.test.js`.
 
+37. **A fleet update never revives a customer closed after it started, and the destructive steps take the customer's lock** (audit R6 F1, 2026-10-30). `eligible()` chooses the targets once; `updateOne` therefore re-reads the customer and its hosting row inside the customer's sequence lock. A customer archived, erased or without a port any more is marked `skipped` (« Client archivé entre-temps. ») and the fleet carries on (a plugin push goes through the same function). The deprovision export and the erasure run inside `provisioner.exclusive(customerId)`, so they cannot overlap a snapshot or a rollback of that instance; the deprovision stop stays outside the lock because it takes the same lock. Test: `tests/audit-r6-fleet-lifecycle-race.unit.test.js`.
+
 ---
 
 ## 4. Architecture

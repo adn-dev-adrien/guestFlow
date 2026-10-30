@@ -1,0 +1,1 @@
+- Console: a fleet update no longer restarts a customer deprovisioned or erased after it started (the item is skipped), and the deprovision export and the erasure no longer overlap an update's snapshot or rollback.

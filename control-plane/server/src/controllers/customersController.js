@@ -885,22 +885,11 @@ function createCustomersController(ctx) {
     if (renamePending(c)) throw httpError(409, 'RENAME_PENDING', 'Changement d’adresse à terminer d’abord.');
     if (String(body.confirmSlug || '') !== c.slug) throw httpError(400, 'CONFIRM_SLUG', `Tapez exactement « ${c.slug} » pour confirmer.`);
 
-    // 1. The export. A failure stops here: nothing is archived without its data safe.
-    let token = null;
-    if (!instances.hasDatabase(c.slug)) {
-      provisioning.set(c.id, 'deprov-export', 'skipped', 'Aucune donnée : l’instance n’a jamais été créée.', stamp());
-    } else {
-      try {
-        const { file, bytes } = exportInstance({ instances, slug: c.slug, exportsDir, stamp: today() });
-        token = crypto.randomBytes(24).toString('base64url');
-        provisioning.addExport({ token, customerId: c.id, path: file, createdAt: stamp(), expiresAt: addDays(today(), EXPORT_LINK_DAYS) });
-        provisioning.set(c.id, 'deprov-export', 'ok', `Archive de ${(bytes / 1048576).toFixed(1).replace('.', ',')} Mo.`, stamp());
-      } catch (err) {
-        provisioning.set(c.id, 'deprov-export', 'failed', `Échec : ${err.message}`, stamp());
-        journal(c.id, operator, 'deprovision', `Déprovisionnement interrompu : l’export a échoué (${err.message})`);
-        return view(c.id);
-      }
-    }
+    // 1. The export. A failure stops here: nothing is archived without its data safe. It runs inside
+    // the customer's sequence lock, so never alongside a fleet update's snapshot or rollback; the stop
+    // below stays outside it (it takes the same lock).
+    const exported = await host().exclusive(c.id, () => exportForDeprovision(c, operator));
+    if (exported.failed) return view(c.id);
     // 2. The link to the contact.
     await sendExportLink(c.id);
     // 3. The process and the route stop; the address serves « Cet espace a été fermé » (H1 rule 3).
@@ -908,9 +897,27 @@ function createCustomersController(ctx) {
     // 4. Archived; 5. erased after 90 days.
     const eraseAt = addDays(today(), ERASE_AFTER_DAYS);
     customers.archive(c.id, stamp(), eraseAt);
-    journal(c.id, operator, 'deprovision', `Déprovisionné : export ${token ? 'produit' : 'sans objet'}, effacement prévu le ${frDay(eraseAt)}`);
+    journal(c.id, operator, 'deprovision', `Déprovisionné : export ${exported.token ? 'produit' : 'sans objet'}, effacement prévu le ${frDay(eraseAt)}`);
     refresh(c.id, operator);
     return view(c.id);
+  }
+
+  function exportForDeprovision(c, operator) {
+    if (!instances.hasDatabase(c.slug)) {
+      provisioning.set(c.id, 'deprov-export', 'skipped', 'Aucune donnée : l’instance n’a jamais été créée.', stamp());
+      return { token: null };
+    }
+    try {
+      const { file, bytes } = exportInstance({ instances, slug: c.slug, exportsDir, stamp: today() });
+      const token = crypto.randomBytes(24).toString('base64url');
+      provisioning.addExport({ token, customerId: c.id, path: file, createdAt: stamp(), expiresAt: addDays(today(), EXPORT_LINK_DAYS) });
+      provisioning.set(c.id, 'deprov-export', 'ok', `Archive de ${(bytes / 1048576).toFixed(1).replace('.', ',')} Mo.`, stamp());
+      return { token };
+    } catch (err) {
+      provisioning.set(c.id, 'deprov-export', 'failed', `Échec : ${err.message}`, stamp());
+      journal(c.id, operator, 'deprovision', `Déprovisionnement interrompu : l’export a échoué (${err.message})`);
+      return { failed: true };
+    }
   }
 
   async function reactivate(id, operator) {
@@ -965,16 +972,19 @@ function createCustomersController(ctx) {
     return erase(c.id, operator);
   }
 
-  async function erase(id, operator) {
+  // Inside the customer's sequence lock: never alongside a fleet update's snapshot or rollback.
+  function erase(id, operator) {
     const c = customers.get(id);
-    // H1 rule 6: the unit, the site, the replica and the environment file go too.
-    await host().erase(c.id);
-    eraseInstance({ instances, slug: c.slug });
-    dropExports(c.id);
-    customers.markErased(c.id, stamp());
-    directory.removeCustomer(c.id);
-    journal(c.id, operator, 'erase', 'Données, dossier de l’instance, sauvegardes et archive d’export effacés ; l’adresse est de nouveau libre');
-    return { erased: true, id: c.id };
+    return host().exclusive(c.id, async () => {
+      // H1 rule 6: the unit, the site, the replica and the environment file go too.
+      await host().erase(c.id);
+      eraseInstance({ instances, slug: c.slug });
+      dropExports(c.id);
+      customers.markErased(c.id, stamp());
+      directory.removeCustomer(c.id);
+      journal(c.id, operator, 'erase', 'Données, dossier de l’instance, sauvegardes et archive d’export effacés ; l’adresse est de nouveau libre');
+      return { erased: true, id: c.id };
+    });
   }
 
   // A customer whose process is not marked stopped waits, and the alerts say so.

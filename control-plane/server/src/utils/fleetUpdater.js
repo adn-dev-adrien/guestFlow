@@ -102,6 +102,12 @@ function createFleetUpdater({
     const kind = KINDS[update.kind];
     const c = customers.get(item.customer_id);
     const set = (state, phase, detail = '', snap = null) => hosting.setItem(update.id, c.id, { state, phase, detail, snapshot: snap });
+    // Read again under the lock: the customer may have been deprovisioned or erased since `eligible`.
+    const row = c && !c.archivedAt && !c.erasedAt ? hosting.get(c.id) : null;
+    if (!row || !row.port) {
+      if (c) hosting.setItem(update.id, c.id, { state: 'skipped', phase: null, detail: 'Client archivé entre-temps.', snapshot: null });
+      return { ok: true };
+    }
     set('running', 'snapshot', PHASES.snapshot);
     const before = provisioner.instanceOf(c);
     let snap;
