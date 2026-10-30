@@ -1579,3 +1579,26 @@ Après la déconnexion, le calendrier de la tente affiche une fenêtre sans bout
 « Nous avons besoin de plus d'informations sur votre annonce. Veuillez nous contacter. », et
 l'annonce est « Expirée – aucun abonnement actif ». Rien ne se règle depuis la console : il faut
 écrire au support (la tente est à 9 999 €/nuit tant qu'elle n'est pas reprise).
+
+## Changer UNE nuit sur les cinq canaux — relevé du 2026-10-30
+
+Exercice : le 25 décembre du gîte quitte Noël (prix à plat, protégé de la dégressivité) pour la Très
+haute, 2 nuits minimum, en 2026 et 2027. Ce qui a servi, canal par canal :
+
+| Canal | Le geste | Le piège |
+|---|---|---|
+| Airbnb | `edit-selected-dates/<j>/<j>/nightly-price` ; garde sur le titre `getByRole('heading', { name: '25 déc.', exact: true })` | un filtre `h3` contenant « déc » attrape l'en-tête du mois |
+| Booking | **un clic sur la cellule du plan de base ouvre un champ de prix EN LIGNE** (`[data-test-id="cell-<j>"] input`), Entrée enregistre ; la case « Restrictions » affiche les minimums par plan | le libellé de date du `#bulk-popover` contient une espace insécable : normaliser avant de comparer |
+| GreenGo | `?startDate=<j>&endDate=<j>`, clic réel sur `button.btn-invisible:has-text("Prix par nuit")` pour matérialiser `#priceOfNight` ; l'ensemble de règles est un `<select>` natif (`noCustomRulesSet` = « Aucun ») qui **s'enregistre à la sélection** | — |
+| Abracadaroom | `calendar/create-many`, **une date par soumission** ; lecture par l'appel `domains/<destId>/calendar?start=…` que déclenche le champ « Aller à » | la page défile dans une fenêtre interne : un clic calculé après `window.scrollTo` tombe sur le grand calendrier. Repartir d'un formulaire rechargé plutôt que d'ajouter une deuxième période |
+| Abritel | `p/calendar/731.<annonce>.<id>/rail/ratesAndDiscounts?selectionStart=<j>&selectionEnd=<j>` ouvre directement le formulaire sur la date | `/p/calendar` sans clé ouvre **la tente** ; le gîte est `731.2577203.2754136` |
+
+**Une protection posée à la main peut disparaître sans bruit.** Les cinq plans dérivés de Booking,
+fermés sur le 24 décembre le 2026-08-29, étaient tous **ouverts** le 2026-10-30 (cause inconnue,
+peut-être la coupure Lodgify). Avant de toucher une nuit voisine, relire la protection des nuits de
+fête sur chaque canal — sur Booking, en rouvrant chaque cellule, puisque le calendrier n'affiche pas
+l'état fermé.
+
+**Lire un devis voyageur contre un séjour témoin.** Airbnb et Abritel ajoutent ménage, taxe et frais
+de service au total affiché. Plutôt que de décomposer le détail, quoter un séjour voisin inchangé
+(21→23 décembre) : la différence entre les deux totaux isole les nuits modifiées.
