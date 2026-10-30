@@ -82,6 +82,18 @@ function requireProvider(req, res, next) {
   return res.status(404).json({ error: 'PLUGIN_INACTIVE', plugin: 'online-payment' });
 }
 
+// specs/payment-link-lifecycle.md rule 54 — GuestFlow's own refusals on the link path are operator sentences:
+// the visitor reads them in the site's language. A link paid meanwhile means the booking is (being) confirmed.
+const VISITOR_REFUSALS = {
+  LINK_ALREADY_PAID: [409, 'ALREADY_CONFIRMED', 'alreadyConfirmed'],
+  PROVIDER_UNREACHABLE: [502, 'PROVIDER_UNREACHABLE', 'paymentProviderError'],
+};
+
+function visitorRefusal(res, req, err) {
+  const mapped = err && VISITOR_REFUSALS[err.error];
+  return mapped ? failT(res, req, ...mapped) : null;
+}
+
 async function pay(req, res) {
   const id = Number(req.params.id);
   const provider = paymentProviders.declared();
@@ -113,7 +125,7 @@ async function pay(req, res) {
     try {
       await retireOpenLink(stale, { paymentLinksModel, provider });
     } catch (refusal) {
-      return res.status(refusal.httpStatus || 409).json({ error: refusal.error, message: refusal.message });
+      return visitorRefusal(res, req, refusal) || res.status(refusal.httpStatus || 409).json({ error: refusal.error, message: refusal.message });
     }
   }
 
@@ -140,6 +152,8 @@ async function pay(req, res) {
   } catch (err) {
     // The provider's own wording is passed through untranslated — it is a diagnostic string, not a
     // sentence we wrote. Only OUR fallback follows the visitor's language.
+    const mapped = visitorRefusal(res, req, err);
+    if (mapped) return mapped;
     if (err && err.httpStatus) {
       return err.message
         ? fail(res, err.httpStatus, err.error || 'PAYMENT_LINK_FAILED', err.message)
