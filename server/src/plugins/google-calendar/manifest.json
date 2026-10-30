@@ -1,14 +1,14 @@
 {
   "id": "google-calendar",
   "name": "Google Agenda",
-  "version": "1.2.5",
+  "version": "1.2.6",
   "description": "Copie les séjours dans un agenda Google.",
   "icon": "event",
   "surfaces": [
     "Intégrations › Google Agenda"
   ],
   "requires": [],
-  "guestflow": ">=3.10.0 <4.0.0",
+  "guestflow": ">=3.18.0 <4.0.0",
   "sdk": "^2.17.0",
   "changelog": {
     "1.0.0": [
@@ -47,6 +47,10 @@
     ],
     "1.2.5": [
       "Les informations de connexion et de synchronisation (compte, calendrier, dernière synchro) ne peuvent plus être modifiées depuis les réglages (SDK 2.17 de GuestFlow)."
+    ],
+    "1.2.6": [
+      "La déconnexion de Google Agenda n’attend plus indéfiniment quand Google ne répond pas : elle s’arrête au bout de 20 s.",
+      "Compatible avec le SDK 2.17 de GuestFlow."
     ]
   }
 }

@@ -6,7 +6,7 @@
  * tests (which inject a fake `OAuth2` constructor or a fake calendar API) never load it.
  *
  * Exports:
- *   buildGoogleOAuthClient({ env, settings, OAuth2, fetchImpl }) → factory (fully injectable)
+ *   buildGoogleOAuthClient({ env, settings, OAuth2, fetchImpl, requestTimeoutMs }) → factory (fully injectable)
  *   emailFromIdToken(idToken)   → pure: email claim from a Google id_token
  *   isInvalidGrant(error)       → true when Google reports a revoked/expired refresh token
  *   CALLBACK_PATH               → '/api/google-calendar/oauth/callback'
@@ -51,6 +51,7 @@ function buildGoogleOAuthClient({
   settings,
   OAuth2 = null,
   fetchImpl = null,
+  requestTimeoutMs = REQUEST_TIMEOUT_MS,
 } = {}) {
   const clientId = () => String(env.GOOGLE_OAUTH_CLIENT_ID || '').trim();
   const clientSecret = () => String(env.GOOGLE_OAUTH_CLIENT_SECRET || '').trim();
@@ -74,7 +75,7 @@ function buildGoogleOAuthClient({
     const Ctor = OAuth2 || require('googleapis').google.auth.OAuth2;
     const client = new Ctor(clientId(), clientSecret(), resolveRedirectUri());
     // The token refresh goes through its own transporter: it gets the same bound as the calendar calls.
-    if (client.transporter) client.transporter.defaults = { ...(client.transporter.defaults || {}), timeout: REQUEST_TIMEOUT_MS };
+    if (client.transporter) client.transporter.defaults = { ...(client.transporter.defaults || {}), timeout: requestTimeoutMs };
     return client;
   }
 
@@ -114,6 +115,7 @@ function buildGoogleOAuthClient({
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
           body: new URLSearchParams({ token }).toString(),
+          signal: AbortSignal.timeout(requestTimeoutMs),
         });
       } catch (err) {
         console.error('[googleOAuthClient.revokeToken]', (err && err.message) || err);
@@ -129,7 +131,7 @@ function buildGoogleOAuthClient({
       const { google } = require('googleapis');
       const auth = makeOAuth2();
       auth.setCredentials({ refresh_token: refreshToken });
-      return google.calendar({ version: 'v3', auth, timeout: REQUEST_TIMEOUT_MS });
+      return google.calendar({ version: 'v3', auth, timeout: requestTimeoutMs });
     },
   };
 }

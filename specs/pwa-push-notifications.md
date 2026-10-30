@@ -140,6 +140,17 @@ reservation's **check-out time** is reached (departure) — only to the users (a
     user's subscriptions are deleted when the account is deactivated, when the `admin` role is removed, and
     when a support access is revoked (the support account's rows); an access that merely expires leaves rows
     that the fan-out filter never selects.
+14. **Every push send is bounded** (added 2026-10-30, audit R7 finding N7). Rule 10 isolated throws, not
+    hangs: a push endpoint that accepts the connection and never answers kept `sendToPref` pending for good,
+    and several callers await it inside a guarded pass (the online-payment poll holds `inProgress` through
+    `notifyPaidAfterCancel` / `notifyConflict`, the Qonto webhook awaits `processPaidLink`, the Neat pass
+    holds `passLock`, the arrival / departure / breakfast runners, gate-access `pushToAdmins`). Each send now
+    passes `{ timeout: 10000 }` to web-push (idle-socket timeout) and is raced against the same 10 s
+    (`SEND_TIMEOUT_MS`), since a peer trickling bytes keeps an idle timeout alive. A send past the bound
+    counts as `failed` (logged, the subscription is kept, as any transient error). Sends run in parallel, so
+    a whole fan-out takes 10 s at most whatever the number of devices. The TTL stays web-push's default
+    (4 weeks): it only says how long the push service keeps a message for an offline device. Test:
+    `audit-r7-push-send-timeout.unit.test.js`.
 
 **Edge cases:**
 - User denies the browser permission → the device isn't subscribed; the UI reflects "non activées".
@@ -257,6 +268,7 @@ all-ON (read returns defaults).
 ### Server unit tests (suite 1531 green)
 - [x] `audit-r2-push-account-state.unit.test.js` (6 tests, rule 13) — fan-out and `sendToUser` skip support, inactive and non-admin owners; subscribe refused in a support session; devices deleted on deactivation, loss of the admin role and support revoke; boot cleanup deletes ineligible rows once.
 - [x] `audit-r2-reset-links-void.unit.test.js` (5 tests, hosting-h2 rule 63) — see that spec.
+- [x] `audit-r7-push-send-timeout.unit.test.js` (4 tests, rule 14) — the 10 s bound is passed to web-push; a send that never settles counts failed at the bound; one silent endpoint does not hold the others (`sendToPref` and `sendToUser`); the real web-push against a local TCP endpoint that never answers resolves `{ failed: 1 }`.
 - [x] `push-subscriptions-model.unit.test.js` — subscribe (upsert by endpoint) / unsubscribe / remove;
       `subscriptionsForPref` gates on the pref (default ON when no row); prefs default all-ON, partial update.
 - [x] `push-service.unit.test.js` — `sendToPref` sends to exactly the opted-in subscribers (injected
