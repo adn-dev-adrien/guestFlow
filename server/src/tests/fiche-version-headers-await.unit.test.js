@@ -1,5 +1,6 @@
 // specs/reservation-fiche-concurrency.md rule 10 — the fiche's version pair is this request's own writes,
 // never a snapshot around the handler: a foreign write landing during a provider await is not adopted.
+const { listenLocal } = require('./listenLocal');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const express = require('express');
@@ -15,8 +16,8 @@ async function serve(handler) {
   router.use('/:id', ficheVersionHeaders(db));
   router.put('/:id', (req, res) => handler(db, req, res));
   app.use('/api/reservations', router);
-  const server = await new Promise((ok) => { const s = app.listen(0, () => ok(s)); });
-  return { db, base: `http://127.0.0.1:${server.address().port}/api/reservations`, close: () => server.close() };
+  const server = await listenLocal(app);
+  return { db, base: `http://127.0.0.1:${server.address().port}/api/reservations`, close: () => { server.closeAllConnections(); server.close(); } };
 }
 
 const set = (db, id, at, note = '') => db.prepare('UPDATE reservations SET updatedAt = ?, note = ? WHERE id = ?').run(at, note, id);

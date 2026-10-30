@@ -1,5 +1,6 @@
 // specs/plugins-phase-4-registry.md rule 39 — a plugin whose live `register` failed is registered
 // afresh by the next install: it comes up whole, or the install answers the error again.
+const { listenLocal } = require('./listenLocal');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { requirePlugins } = require('../plugins/sdk/testing');
@@ -16,11 +17,16 @@ const flaky = (flag) => ({
   serverCode: `module.exports = { id: 'linen', register(ctx) { if (globalThis.${flag}) throw new Error('transient'); ctx.route('get', '/api/linen-probe', (req, res) => res.json({ ok: true })); } };`,
 });
 
-const get = (app, path) => new Promise((resolve, reject) => {
-  const server = app.listen(0, () => {
-    fetch(`http://127.0.0.1:${server.address().port}${path}`).then((r) => r.json()).then(resolve, reject).finally(() => server.close());
-  });
-});
+const get = async (app, path) => {
+  const server = await listenLocal(app);
+  try {
+    const res = await fetch(`http://127.0.0.1:${server.address().port}${path}`, { signal: AbortSignal.timeout(10_000) });
+    return await res.json();
+  } finally {
+    server.closeAllConnections();
+    server.close();
+  }
+};
 
 const silently = async (fn) => {
   const original = console.error;

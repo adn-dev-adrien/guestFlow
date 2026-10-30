@@ -3,6 +3,7 @@
 // controller itself; what it may not change (users, credentials); and the trace of what it reads,
 // worded for the customer.
 
+const { listenLocal } = require('./listenLocal');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const express = require('express');
@@ -62,20 +63,21 @@ function app(h, { audit = true } = {}) {
   return a;
 }
 
-function call(a, method, path, body) {
-  return new Promise((resolve, reject) => {
-    const server = a.listen(0, async () => {
-      try {
-        const res = await fetch(`http://127.0.0.1:${server.address().port}${path}`, {
-          method,
-          headers: body ? { 'content-type': 'application/json' } : {},
-          body: body ? JSON.stringify(body) : undefined,
-        });
-        const json = await res.json().catch(() => null);
-        server.close(() => resolve({ status: res.status, body: json }));
-      } catch (e) { server.close(() => reject(e)); }
+async function call(a, method, path, body) {
+  const server = await listenLocal(a);
+  try {
+    const res = await fetch(`http://127.0.0.1:${server.address().port}${path}`, {
+      method,
+      headers: body ? { 'content-type': 'application/json' } : {},
+      body: body ? JSON.stringify(body) : undefined,
+      signal: AbortSignal.timeout(10_000),
     });
-  });
+    const json = await res.json().catch(() => null);
+    return { status: res.status, body: json };
+  } finally {
+    server.closeAllConnections();
+    server.close();
+  }
 }
 
 test('rule 15 — the guard judges the path Express routes: odd casing, trailing slash, doubled slashes', () => {

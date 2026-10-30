@@ -1,6 +1,7 @@
 // specs/reservation-fiche-concurrency.md rule 8 — a write that reaches stays from outside
 // /api/reservations/:id (bank reconciliation, payment poll) answers with the stays THIS request wrote, and
 // never with a foreign write that landed while the handler awaited.
+const { listenLocal } = require('./listenLocal');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const express = require('express');
@@ -19,8 +20,8 @@ async function serve(db, routes) {
   const app = express();
   app.use('/api/payments', stayVersionsTrail(db));
   routes(app);
-  const server = await new Promise((resolve) => { const s = app.listen(0, () => resolve(s)); });
-  return { base: `http://127.0.0.1:${server.address().port}`, close: () => server.close() };
+  const server = await listenLocal(app);
+  return { base: `http://127.0.0.1:${server.address().port}`, close: () => { server.closeAllConnections(); server.close(); } };
 }
 
 const set = (db, id, at) => db.prepare('UPDATE reservations SET updatedAt = ? WHERE id = ?').run(at, id);
