@@ -10,9 +10,9 @@ name: Release
 # `workflow_dispatch` path builds and checks everything but never publishes: it is there to rehearse
 # the packaging without burning a version number.
 #
-# Job order: verify → (tests ‖ e2e) → package → publish. `verify` is first and everything depends on
-# it, so a release whose version bumps or changelog entry are missing fails in ~20 s, before a single
-# dependency is installed and long before an artefact could exist.
+# Job order: verify → (server tests ‖ 3 client test shards ‖ e2e) → package → publish. `verify` is first
+# and everything depends on it, so a release whose version bumps or changelog entry are missing fails in
+# ~20 s, before a single dependency is installed and long before an artefact could exist.
 
 on:
   push:
@@ -120,8 +120,11 @@ jobs:
         run: node scripts/check-plugin-versions.mjs
 
   # ── Unit suites ──────────────────────────────────────────────────────────────────────────────
-  tests:
-    name: tests (server + client)
+  # specs/server-test-isolation.md rule 8 — the server suite and three client shards run side by side. In one
+  # job, one after the other, the suites of inte/plugins add up to 1030–1310 s against a 1200 s cap (audit R8
+  # M-2): a release cancelled at its limit publishes nothing. `package` needs every one of them.
+  server-tests:
+    name: tests (server)
     needs: verify
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -134,9 +137,7 @@ jobs:
           node-version: '24'
 
       - name: 📚 Install deps
-        run: |
-          cd server && npm ci
-          cd ../client && npm ci
+        run: cd server && npm ci
 
       - name: ⚛️ Build native modules against the runtime Node
         run: cd server && env npm_config_build_from_source=true npm rebuild better-sqlite3
@@ -144,10 +145,29 @@ jobs:
       - name: 🧪 Server unit suite
         run: cd server && npm test
 
-      - name: 🧪 Client unit suite
-        run: cd client && npm test
+  client-tests:
+    name: tests (client ${{ matrix.shard }}/3)
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+
+      - name: 📚 Install deps
+        run: cd client && npm ci
+
+      - name: 🧪 Client unit suite (shard ${{ matrix.shard }}/3)
+        run: cd client && npm test -- --shard=${{ matrix.shard }}/3
 
       - name: 🏗️ Client production build
+        if: matrix.shard == 1
         run: cd client && npm run build
 
   # ── End-to-end suite ─────────────────────────────────────────────────────────────────────────
@@ -191,7 +211,7 @@ jobs:
   # ── Build the artefacts the updater will download ────────────────────────────────────────────
   package:
     name: package
-    needs: [verify, tests, e2e]
+    needs: [verify, server-tests, client-tests, e2e]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:

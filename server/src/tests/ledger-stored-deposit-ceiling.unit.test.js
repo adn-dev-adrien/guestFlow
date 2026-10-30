@@ -7,6 +7,11 @@ process.env.DB_PATH = ':memory:';
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { todayIso } = require('../utils/localDate');
+const { addDaysToIsoDate } = require('../utils/devisHelpers');
+
+// The stays hang on today: a literal date becomes a stay in the past.
+const inDays = (days) => addDaysToIsoDate(todayIso(), days);
 
 const db = require('../database');
 const controller = require('../controllers/reservationsController');
@@ -23,7 +28,7 @@ test('rule 16 â€” the stored acompte row carries max = the accommodation (500 â‚
   const created = fakeRes();
   controller.create({
     body: {
-      propertyId: 1, clientId: 1, startDate: '2027-03-10', endDate: '2027-03-15', checkInTime: '15:00', checkOutTime: '10:00',
+      propertyId: 1, clientId: 1, startDate: inDays(130), endDate: inDays(135), checkInTime: '15:00', checkOutTime: '10:00',
       platform: 'direct', adults: 2, children: 0, teens: 0, babies: 0, singleBeds: 0, doubleBeds: 0, babyBeds: 0,
     },
     user: { role: 'admin' },

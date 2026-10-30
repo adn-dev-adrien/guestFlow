@@ -71,11 +71,14 @@ test('rule 35 — paid, then 2 → 1 adult: the refusal, the live fiche and the 
   const db = require('../database');
   const controller = require('../controllers/reservationsController');
   const { recordStayPayment, depsFor } = require('../utils/stayPaymentRecorder');
+  const { todayIso } = require('../utils/localDate');
+  const { addDaysToIsoDate } = require('../utils/devisHelpers');
+  const start = addDaysToIsoDate(todayIso(), 145);
   db.prepare("INSERT INTO properties (id, name, maxGuests, touristTaxMode, touristTaxPerDayPerPerson) VALUES (7, 'Lodge', 8, 'per_day_per_person', 1.2)").run();
   db.prepare("INSERT INTO pricing_rules (propertyId, label, pricePerNight) VALUES (7, 'Standard', 100)").run();
   db.prepare("INSERT INTO clients (id, firstName, lastName) VALUES (7, 'Camille', 'Poste')").run();
   const body = (adults, extra = {}) => ({
-    propertyId: 7, clientId: 7, startDate: '2027-03-24', endDate: '2027-03-27',
+    propertyId: 7, clientId: 7, startDate: start, endDate: addDaysToIsoDate(start, 3),
     checkInTime: '16:00', checkOutTime: '10:00', platform: 'direct',
     adults, children: 0, teens: 0, babies: 0, singleBeds: 0, doubleBeds: 0, babyBeds: 0, ...extra,
   });

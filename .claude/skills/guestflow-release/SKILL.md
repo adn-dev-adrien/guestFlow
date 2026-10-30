@@ -282,7 +282,7 @@ gh run watch <run-id> --interval 20 --exit-status
 gh run view <run-id> --log-failed    # if it fails
 ```
 
-Job order: `verify` → (`tests` ‖ `e2e`) → `package` → `publish`.
+Job order: `verify` → (`server-tests` ‖ `client-tests` ×3 shards ‖ `e2e`) → `package` → `publish`.
 
 Recovery when `verify` fails (missing changelog section, missing or over-long digest, version
 mismatch): fix on master through a normal PR, then re-point the tag:

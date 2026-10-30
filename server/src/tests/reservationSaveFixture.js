@@ -6,6 +6,8 @@
 
 const db = require('../database');
 const controller = require('../controllers/reservationsController');
+const { todayIso } = require('../utils/localDate');
+const { addDaysToIsoDate } = require('../utils/devisHelpers');
 
 const ADMIN = { role: 'admin' };
 
@@ -31,9 +33,12 @@ function seed() {
   db.prepare("INSERT INTO clients (id, firstName, lastName) VALUES (1, 'Camille', 'Fiche')").run();
 }
 
+/** `YYYY-MM-DD`, `days` after today: every stay date of these suites hangs on it (specs/server-test-isolation.md rule 6). */
+const inDays = (days) => addDaysToIsoDate(todayIso(), days);
+
 function stayBody(over = {}) {
   return {
-    propertyId: 1, clientId: 1, startDate: '2027-07-20', endDate: '2027-07-23',
+    propertyId: 1, clientId: 1, startDate: inDays(270), endDate: inDays(273),
     checkInTime: '16:00', checkOutTime: '11:00', platform: 'direct',
     adults: 2, children: 0, teens: 0, babies: 0, singleBeds: 0, doubleBeds: 0, babyBeds: 0,
     depositDisabled: 0, options: [], customPrice: '', discountPercent: 0, depositAmountOverride: '',
@@ -88,4 +93,4 @@ function history(id) {
     .map((h) => ({ eventType: h.eventType, changes: JSON.parse(h.changedFields || '[]') }));
 }
 
-module.exports = { db, controller, respond, seed, stayBody, create, createStay, rowOf, getFiche, ficheBody, save, history, ADMIN };
+module.exports = { db, controller, respond, inDays, seed, stayBody, create, createStay, rowOf, getFiche, ficheBody, save, history, ADMIN };

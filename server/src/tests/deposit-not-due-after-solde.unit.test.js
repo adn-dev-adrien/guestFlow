@@ -10,13 +10,14 @@ const f = require('./reservationSaveFixture');
 const isoDay = (offset) => new Date(Date.now() + offset * 86400000).toISOString().slice(0, 10);
 
 test('a fresh acompte deadline is capped at the solde deadline', () => {
+  // date-literal-ok: inputs and outputs of a pure function, never compared with today
   assert.equal(resolveDepositDueDate({ bookingDate: '2026-10-27', depositDueDays: 7, notAfter: '2026-10-29' }), '2026-10-29');
-  assert.equal(resolveDepositDueDate({ bookingDate: '2026-10-27', depositDueDays: 7, notAfter: '2026-12-01' }), '2026-11-03');
-  assert.equal(resolveDepositDueDate({ bookingDate: '2026-10-27', depositDueDays: 7 }), '2026-11-03');
+  assert.equal(resolveDepositDueDate({ bookingDate: '2026-10-27', depositDueDays: 7, notAfter: '2026-12-01' }), '2026-11-03'); // date-literal-ok: pure function
+  assert.equal(resolveDepositDueDate({ bookingDate: '2026-10-27', depositDueDays: 7 }), '2026-11-03'); // date-literal-ok: pure function
 });
 
 test('a stored acompte deadline is never moved by the cap', () => {
-  assert.equal(resolveDepositDueDate({ existingDepositDueDate: '2026-11-03', notAfter: '2026-10-29' }), '2026-11-03');
+  assert.equal(resolveDepositDueDate({ existingDepositDueDate: '2026-11-03', notAfter: '2026-10-29' }), '2026-11-03'); // date-literal-ok: pure function
 });
 
 test('a stay booked 32 days ahead owes its acompte no later than its solde', () => {

@@ -19,9 +19,13 @@ const reservationsModelFactory = require('../models/reservationsModel');
 const devisModelFactory = require('../models/devisModel');
 const propertyIcalModel = require('../models/propertyIcalModel');
 const { globalFetch } = require('./icalFetchFixture');
+const { todayIso } = require('../utils/localDate');
+const { addDaysToIsoDate } = require('../utils/devisHelpers');
 
 const SCHEMA = fs.readFileSync(path.join(__dirname, '..', 'schema.sql'), 'utf8');
 const PREFIX = monthPrefix(new Date());
+/** `YYYY-MM-DD`, `days` after today: a stay the controller creates is never in the past (specs/server-test-isolation.md rule 6). */
+const inDays = (days) => addDaysToIsoDate(todayIso(), days);
 
 function realSchemaDb() {
   const db = new Database(':memory:');
@@ -175,7 +179,7 @@ test('rule 13 — create after a cancellation answers 200 with the next number (
   const controller = loadController();
   const db = bootDb();
   const created = [];
-  for (const dates of [['2027-07-01', '2027-07-04'], ['2027-07-10', '2027-07-13']]) {
+  for (const dates of [[inDays(244), inDays(247)], [inDays(253), inDays(256)]]) {
     const res = fakeRes();
     controller.create({ body: { ...BODY, startDate: dates[0], endDate: dates[1] }, user: { role: 'admin' } }, res);
     assert.equal(res.statusCode, 200, JSON.stringify(res.body));
@@ -184,7 +188,7 @@ test('rule 13 — create after a cancellation answers 200 with the next number (
   db.prepare("UPDATE reservations SET kind = 'cancelled' WHERE id = ?").run(created[1].id);
 
   const res = fakeRes();
-  controller.create({ body: { ...BODY, startDate: '2027-07-20', endDate: '2027-07-23' }, user: { role: 'admin' } }, res);
+  controller.create({ body: { ...BODY, startDate: inDays(263), endDate: inDays(266) }, user: { role: 'admin' } }, res);
   assert.equal(res.statusCode, 200, JSON.stringify(res.body));
   const last = Number(String(created[1].reservationNumber).slice(6));
   assert.equal(res.body.reservationNumber, `${PREFIX}${String(last + 1).padStart(3, '0')}`);
@@ -199,7 +203,7 @@ test('rule 13 — a creation that fails half-way leaves no stay behind', () => {
   reservationsModel.insertNights = () => { throw new Error('disk full'); };
   try {
     assert.throws(() => controller.create(
-      { body: { ...BODY, startDate: '2027-08-01', endDate: '2027-08-04' }, user: { role: 'admin' } }, fakeRes(),
+      { body: { ...BODY, startDate: inDays(275), endDate: inDays(278) }, user: { role: 'admin' } }, fakeRes(),
     ), /disk full/);
   } finally {
     reservationsModel.insertNights = original;

@@ -11,8 +11,17 @@ const paymentLinksModel = require('../models/paymentLinksModel');
 const devisModel = require('../models/devisModel');
 const { processPaidLink, retryPendingCancellations } = require('../utils/paymentPollRunner');
 const { create: createAccountingModel } = optionalPlugin(() => require('../plugins/accounting-export/accountingModel'));
+const { todayIso } = require('../utils/localDate');
+const { addDaysToIsoDate } = require('../utils/devisHelpers');
 
-const PAID_AT = '2027-03-01T09:00:00Z';
+// Every date hangs on today (specs/server-test-isolation.md rule 6): the stays start 60 days out and more,
+// beyond the acompte window; the solde was ticked eight days ago and the link paid the day after, both past.
+const TODAY = todayIso();
+const PAID_DATE = addDaysToIsoDate(TODAY, -7);
+const PAID_AT = `${PAID_DATE}T09:00:00Z`;
+const SOLDE_PAID_DATE = addDaysToIsoDate(TODAY, -8);
+/** `YYYY-MM-DD`, `days` after today. */
+const inDays = (days) => addDaysToIsoDate(TODAY, days);
 let nextWeek = 1;
 
 /**
@@ -22,7 +31,7 @@ let nextWeek = 1;
  */
 function stayWithDisabledAcompte(path, { soldePaid = false } = {}) {
   const week = nextWeek++;
-  const day = (offset) => new Date(Date.UTC(2027, 5, 1 + week * 7 + offset)).toISOString().slice(0, 10);
+  const day = (offset) => inDays(60 + week * 7 + offset);
   const id = f.createStay({ startDate: day(0), endDate: day(3) });
   const before = f.rowOf(id);
   assert.ok(before.depositAmount > 0, 'a split stay to start with');
@@ -33,7 +42,7 @@ function stayWithDisabledAcompte(path, { soldePaid = false } = {}) {
   });
   f.db.prepare('UPDATE reservations SET depositDisabled = 1, depositAmount = 0, depositAmountOverride = NULL, balanceAmount = ?, depositDueDate = NULL WHERE id = ?')
     .run(Math.round((before.depositAmount + before.balanceAmount) * 100) / 100, id);
-  if (soldePaid) f.db.prepare("UPDATE reservations SET balancePaid = 1, balancePaidDate = '2027-02-20' WHERE id = ?").run(id);
+  if (soldePaid) f.db.prepare("UPDATE reservations SET balancePaid = 1, balancePaidDate = ? WHERE id = ?").run(SOLDE_PAID_DATE, id);
   if (path === 'retry') {
     f.db.prepare("UPDATE payment_links SET status = 'cancelled', cancelReason = 'amount-changed', remoteCancelPendingAt = datetime('now') WHERE id = ?").run(link.id);
   }
@@ -61,10 +70,11 @@ async function pay(path, s) {
   return { out, calls };
 }
 
-/** The March 2027 journal entries of `kind` for the stay (needs the accounting-export plugin). */
-const journalEntries = (id, kind) => createAccountingModel(f.db).encaissementsByMonth({ month: 3, year: 2027 })
+/** The journal entries of `kind` for the stay, in the month the link was paid (needs the accounting-export plugin). */
+const journalEntries = (id, kind) => createAccountingModel(f.db)
+  .encaissementsByMonth({ month: Number(PAID_DATE.slice(5, 7)), year: Number(PAID_DATE.slice(0, 4)) })
   .filter((e) => Number(e.reservationId) === Number(id) && e.kind === kind);
 
 const ledgerRow = (id, key) => f.getFiche(id).ledger.rows.find((r) => r.key === key);
 
-module.exports = { PAID_AT, stayWithDisabledAcompte, pay, journalEntries, ledgerRow };
+module.exports = { PAID_AT, PAID_DATE, inDays, stayWithDisabledAcompte, pay, journalEntries, ledgerRow };

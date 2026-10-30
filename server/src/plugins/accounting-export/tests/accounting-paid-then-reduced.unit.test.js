@@ -12,6 +12,11 @@ const assert = require('node:assert/strict');
 
 const { __test: { buildEntry }, create: createAccountingModel } = require('../accountingModel');
 const { entryToStructured } = require('../accountingExport');
+const { todayIso } = require('../../../utils/localDate');
+const { addDaysToIsoDate } = require('../../../utils/devisHelpers');
+
+// The stay hangs on today: a literal date becomes a stay in the past.
+const inDays = (days) => addDaysToIsoDate(todayIso(), days);
 
 const round2 = (n) => Math.round(Number(n) * 100) / 100;
 const linesOf = (structured) => structured.lines.map((l) => `${l.compte} ${l.debit != null && l.debit !== '' ? `D${l.debit}` : `C${l.credit}`}`);
@@ -86,7 +91,7 @@ test('rule 11 — online payment, then a reduced party: the journal stays positi
   db.prepare("INSERT INTO clients (id, firstName, lastName) VALUES (1, 'Camille', 'Revue')").run();
 
   const body = (adults) => ({
-    propertyId: 1, clientId: 1, startDate: '2027-01-24', endDate: '2027-01-27',
+    propertyId: 1, clientId: 1, startDate: inDays(90), endDate: inDays(93),
     checkInTime: '16:00', checkOutTime: '10:00', platform: 'direct',
     adults, children: 0, teens: 0, babies: 0, singleBeds: 0, doubleBeds: 0, babyBeds: 0,
     depositDisabled: 1, options: [{ optionId, quantity: 1 }],

@@ -16,8 +16,7 @@ const snap = (id) => JSON.parse(f.rowOf(id).tariffSnapshot);
 let month = 0;
 const stay = (options) => {
   month += 1;
-  const m = String(month).padStart(2, '0');
-  return f.createStay({ startDate: `2028-${m}-10`, endDate: `2028-${m}-13`, options });
+  return f.createStay({ startDate: f.inDays(60 + month * 30), endDate: f.inDays(63 + month * 30), options });
 };
 
 test('removing the option then re-adding it keeps the grant (300 €, never 380 €)', async () => {

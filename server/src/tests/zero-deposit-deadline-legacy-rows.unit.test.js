@@ -25,7 +25,7 @@ test('a PAST locked fiche with a legacy 0 € acompte deadline still saves', asy
 });
 
 test('an unlocked fiche writes no « Date acompte … → — » history row', async () => {
-  const id = legacyZeroAcompte({ startDate: '2027-09-01', endDate: '2027-09-04' });
+  const id = legacyZeroAcompte({ startDate: f.inDays(300), endDate: f.inDays(303) });
   const before = f.history(id).length;
   assert.equal((await f.save(id, {})).statusCode, 200);
   const fields = f.history(id).slice(before).flatMap((h) => h.changes.map((c) => c.field));
@@ -33,10 +33,10 @@ test('an unlocked fiche writes no « Date acompte … → — » history row', a
 });
 
 test('the boot cleanup clears the deadline of unpaid 0 € acomptes only', () => {
-  const zero = legacyZeroAcompte({ startDate: '2027-11-01', endDate: '2027-11-04' });
-  const paidZero = legacyZeroAcompte({ startDate: '2027-11-10', endDate: '2027-11-13' });
-  f.db.prepare("UPDATE reservations SET depositPaid = 1, depositPaidDate = '2027-08-01' WHERE id = ?").run(paidZero);
-  const withAcompte = f.createStay({ startDate: '2027-11-20', endDate: '2027-11-23' });
+  const zero = legacyZeroAcompte({ startDate: f.inDays(361), endDate: f.inDays(364) });
+  const paidZero = legacyZeroAcompte({ startDate: f.inDays(370), endDate: f.inDays(373) });
+  f.db.prepare('UPDATE reservations SET depositPaid = 1, depositPaidDate = ? WHERE id = ?').run(f.inDays(-7), paidZero);
+  const withAcompte = f.createStay({ startDate: f.inDays(380), endDate: f.inDays(383) });
   const deadline = f.rowOf(withAcompte).depositDueDate;
   assert.ok(deadline);
 

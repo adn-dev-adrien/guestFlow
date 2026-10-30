@@ -10,6 +10,8 @@ const assert = require('node:assert/strict');
 const db = require('../database');
 const clientsModel = require('../models/clientsModel');
 const reservationsController = require('../controllers/reservationsController');
+const { todayIso } = require('../utils/localDate');
+const { addDaysToIsoDate } = require('../utils/devisHelpers');
 
 const fakeRes = () => ({ statusCode: 200, body: null, status(c) { this.statusCode = c; return this; }, json(b) { this.body = b; return this; } });
 
@@ -17,8 +19,11 @@ db.prepare("INSERT INTO properties (id, name, maxGuests) VALUES (1, 'Gîte', 8)"
 db.prepare("INSERT INTO pricing_rules (propertyId, label, pricePerNight) VALUES (1, 'Standard', 100)").run();
 const known = clientsModel.insert({ firstName: 'Camille', lastName: 'Revue', phone: '06 12 34 56 78' });
 
+/** `YYYY-MM-DD`, `days` after today (specs/server-test-isolation.md rule 6). */
+const inDays = (days) => addDaysToIsoDate(todayIso(), days);
+
 const stay = (over = {}) => ({
-  propertyId: 1, startDate: '2027-05-10', endDate: '2027-05-13',
+  propertyId: 1, startDate: inDays(192), endDate: inDays(195),
   checkInTime: '16:00', checkOutTime: '10:00', platform: 'direct',
   adults: 2, children: 0, teens: 0, babies: 0, singleBeds: 0, doubleBeds: 0, babyBeds: 0,
   ...over,

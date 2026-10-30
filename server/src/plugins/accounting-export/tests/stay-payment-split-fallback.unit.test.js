@@ -16,6 +16,7 @@ const { create: createAccountingModel } = require('../accountingModel');
 const { create: createAccountingController } = require('../controller');
 const { captureBucketSplit } = require('../../../utils/forceItemContribsCapture');
 const { getTodayIsoDate } = require('../../../utils/reservationHelpers');
+const { addDaysToIsoDate } = require('../../../utils/devisHelpers');
 
 const TODAY = getTodayIsoDate();
 const ADMIN = { role: 'admin' };
@@ -34,13 +35,12 @@ db.prepare("INSERT INTO clients (id, firstName, lastName) VALUES (1, 'Camille', 
 
 let slot = 0;
 function createStay() {
-  const start = new Date(Date.UTC(2027, 6, 5 + 7 * slot));
+  const startDate = addDaysToIsoDate(TODAY, 255 + 7 * slot);
   slot += 1;
-  const end = new Date(start.getTime() + 3 * 86400000);
   const res = respond();
   controller.create({
     body: {
-      propertyId: 1, clientId: 1, startDate: start.toISOString().slice(0, 10), endDate: end.toISOString().slice(0, 10),
+      propertyId: 1, clientId: 1, startDate, endDate: addDaysToIsoDate(startDate, 3),
       checkInTime: '16:00', checkOutTime: '10:00', platform: 'direct',
       adults: 2, children: 0, teens: 0, babies: 0, singleBeds: 0, doubleBeds: 0, babyBeds: 0,
       depositDisabled: 0, options: [], selectedOptions: [], customPrice: '', discountPercent: 0,

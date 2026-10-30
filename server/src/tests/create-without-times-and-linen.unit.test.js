@@ -9,7 +9,7 @@ const assert = require('node:assert/strict');
 const f = require('./reservationSaveFixture');
 
 test('POST without times stores the property defaults (16:00 / 11:00)', () => {
-  const body = f.stayBody({ startDate: '2027-04-01', endDate: '2027-04-03' });
+  const body = f.stayBody({ startDate: f.inDays(150), endDate: f.inDays(152) });
   delete body.checkInTime; delete body.checkOutTime;
   const res = f.create(body);
   assert.equal(res.statusCode, 200, JSON.stringify(res.body));
@@ -19,7 +19,7 @@ test('POST without times stores the property defaults (16:00 / 11:00)', () => {
 });
 
 test('…so its first re-save bills no « Arrivée anticipée »', async () => {
-  const body = f.stayBody({ startDate: '2027-04-05', endDate: '2027-04-07' });
+  const body = f.stayBody({ startDate: f.inDays(154), endDate: f.inDays(156) });
   delete body.checkInTime; delete body.checkOutTime;
   const id = f.create(body).body.id;
   const before = f.rowOf(id).finalPrice;
@@ -28,7 +28,7 @@ test('…so its first re-save bills no « Arrivée anticipée »', async () => {
 });
 
 test('a linen option the property does not offer leaves no bed counts behind', () => {
-  const id = f.createStay({ startDate: '2027-04-10', endDate: '2027-04-12', options: [{ optionId: 52, quantity: 1 }], singleBeds: 1, doubleBeds: 1 });
+  const id = f.createStay({ startDate: f.inDays(159), endDate: f.inDays(161), options: [{ optionId: 52, quantity: 1 }], singleBeds: 1, doubleBeds: 1 });
   const row = f.rowOf(id);
   assert.equal(f.db.prepare('SELECT COUNT(*) AS n FROM reservation_options WHERE reservationId = ? AND optionId = 52').get(id).n, 0);
   assert.equal(row.singleBeds, 0);
@@ -36,7 +36,7 @@ test('a linen option the property does not offer leaves no bed counts behind', (
 });
 
 test('an offered linen option keeps the bed counts', () => {
-  const id = f.createStay({ startDate: '2027-04-15', endDate: '2027-04-17', options: [{ optionId: 51, quantity: 1 }], singleBeds: 1, doubleBeds: 1 });
+  const id = f.createStay({ startDate: f.inDays(164), endDate: f.inDays(166), options: [{ optionId: 51, quantity: 1 }], singleBeds: 1, doubleBeds: 1 });
   const row = f.rowOf(id);
   assert.equal(row.singleBeds, 1);
   assert.equal(row.doubleBeds, 1);

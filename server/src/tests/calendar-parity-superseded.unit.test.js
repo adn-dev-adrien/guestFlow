@@ -17,6 +17,14 @@ const propertyIcalModel = require('../models/propertyIcalModel').buildModel(requ
 const accountingModelFactory = optionalPlugin(() => require('../plugins/accounting-export/accountingModel'));
 const reservationsController = require('../controllers/reservationsController');
 const { findCandidates, setAsideDuplicates, REASON } = require('../utils/supersededDuplicates');
+const { todayIso } = require('../utils/localDate');
+const { addDaysToIsoDate } = require('../utils/devisHelpers');
+
+// The future stays hang on a day 370 days out (specs/server-test-isolation.md rule 6): `day(n)` is n days after
+// it, `compact(n)` the same day as an iCal DATE.
+const FIRST = addDaysToIsoDate(todayIso(), 370);
+const day = (n) => addDaysToIsoDate(FIRST, n);
+const compact = (n) => day(n).replace(/-/g, '');
 
 function stay(id, propertyId, startDate, endDate, { platform = 'direct', balancePaid = 0 } = {}) {
   db.prepare(`INSERT INTO reservations (id, kind, clientId, propertyId, startDate, endDate, platform, adults, finalPrice, totalPrice, balancePaid, reservationNumber)
@@ -56,7 +64,9 @@ stay(30, 2, '2026-05-01', '2026-05-04');
 stay(31, 2, '2026-05-10', '2026-05-12');
 stay(32, 2, '2026-06-01', '2026-06-03');
 
-const allSet = (propertyId) => ids(calendarModel.listRange({ from: '2026-01-01', to: '2026-12-31', propertyId }).stays);
+// The fixture's year, as a calendar window: nothing compares it with today.
+const YEAR = { from: '2026-01-01', to: '2026-12-31' }; // date-literal-ok: the fixture's calendar year, a fixed window
+const allSet = (propertyId) => ids(calendarModel.listRange({ from: YEAR.from, to: YEAR.to, propertyId }).stays);
 
 test('rule 23 — the old filter hides 10 Granja stays; only the one overlapping a visible stay is a duplicate', () => {
   const found = findCandidates(db);
@@ -66,7 +76,7 @@ test('rule 23 — the old filter hides 10 Granja stays; only the one overlapping
 });
 
 test('rule 23-24 — the migration sets the duplicate aside, names its keeper, and audits it', () => {
-  const before = { granja: allSet(1), all: ids(calendarModel.listRange({ from: '2026-01-01', to: '2026-12-31' }).stays) };
+  const before = { granja: allSet(1), all: ids(calendarModel.listRange({ from: YEAR.from, to: YEAR.to }).stays) };
   assert.equal(before.granja.length, 11, 'the new calendar already shows everything, the duplicate included');
   const found = setAsideDuplicates(db);
   assert.deepEqual(found.superseded.map((s) => s.id), [22279]);
@@ -87,7 +97,7 @@ test('rule 23-24 — the migration sets the duplicate aside, names its keeper, a
 test('rule 23 — prod-shaped fixture: every calendar shows today\'s set plus the isolated stays, minus the duplicate', () => {
   assert.deepEqual(allSet(1), [14, ...ISOLATED].sort((a, b) => a - b), 'Granja: the direct stay + the 9 isolated, not 22279');
   assert.deepEqual(allSet(2), [30, 31, 32]);
-  const general = ids(calendarModel.listRange({ from: '2026-01-01', to: '2026-12-31' }).stays);
+  const general = ids(calendarModel.listRange({ from: YEAR.from, to: YEAR.to }).stays);
   assert.deepEqual(general, [...allSet(1), ...allSet(2)].sort((a, b) => a - b), 'both calendars agree');
 });
 
@@ -123,8 +133,8 @@ test('rule 23 — a paid payment link or a paid installment also counts as money
 });
 
 test('rule 26 — two hidden stays on the same nights are not set aside: both are flagged, never both silently visible', () => {
-  stay(60, 1, '2026-11-01', '2026-11-06', { platform: 'Lodgify' });
-  stay(61, 1, '2026-11-04', '2026-11-08', { platform: 'Lodgify' });
+  stay(60, 1, '2026-11-01', '2026-11-06', { platform: 'Lodgify' }); // date-literal-ok: a past-shaped stay, nothing compares it with today
+  stay(61, 1, '2026-11-04', '2026-11-08', { platform: 'Lodgify' }); // date-literal-ok: a past-shaped stay, nothing compares it with today
   const found = setAsideDuplicates(db);
   assert.ok(found.conflicts.some((c) => c.why === 'hidden-overlap'));
   assert.ok(found.flagged.includes(60) && found.flagged.includes(61));
@@ -153,9 +163,9 @@ test('rule 26 — a hidden stay one night longer than its keeper is flagged, nev
 });
 
 test('rule 26 — fully inside the keeper dates it is a copy; the keeper is the earliest overlap, by date not by id', () => {
-  stay(70, 1, '2026-12-02', '2026-12-03', { platform: 'Lodgify' });
-  stay(72, 1, '2026-12-01', '2026-12-03', { platform: 'direct' });
-  stay(71, 1, '2026-12-02', '2026-12-04', { platform: 'direct' });
+  stay(70, 1, '2026-12-02', '2026-12-03', { platform: 'Lodgify' }); // date-literal-ok: a past-shaped stay, nothing compares it with today
+  stay(72, 1, '2026-12-01', '2026-12-03', { platform: 'direct' }); // date-literal-ok: a past-shaped stay, nothing compares it with today
+  stay(71, 1, '2026-12-02', '2026-12-04', { platform: 'direct' }); // date-literal-ok: a past-shaped stay, nothing compares it with today
   const found = findCandidates(db);
   assert.deepEqual(found.superseded.find((s) => s.id === 70), { id: 70, byReservationId: 72 });
 });
@@ -163,7 +173,7 @@ test('rule 26 — fully inside the keeper dates it is a copy; the keeper is the 
 test('rule 22 — a stay set aside is absent from the calendar, the lists, the availability and the books; search flags it', { skip: skipWithout(['accounting-export']) }, () => {
   assert.ok(!allSet(1).includes(22279));
   assert.ok(!rm.list({ propertyId: 1 }).some((r) => r.id === 22279));
-  assert.equal(rm.validateAvailability(1, '2027-04-16', '2027-04-17', '15:00', '10:00', null), null, 'a free night is free');
+  assert.equal(rm.validateAvailability(1, day(-200), day(-199), '15:00', '10:00', null), null, 'a free night is free');
   assert.equal(rm.getOccupiedReservations(1, '2026-04-01', '2026-04-30').some((r) => r.id === 22279), false);
   const found = rm.search({ q: 'Camille' });
   assert.equal(found.find((r) => r.id === 22279).superseded, true);
@@ -213,24 +223,24 @@ test('rule 22 — the iCal sync never updates, re-imports nor resurrects a stay 
     const propertyId = Number(db.prepare("INSERT INTO properties (name, defaultCheckIn, defaultCheckOut) VALUES ('Tente', '16:00', '10:00')").run().lastInsertRowid);
     const sourceId = db.prepare("INSERT INTO ical_sources (propertyId, name, url, platformKey, platformLabel, isActive) VALUES (?, 'Greengo', 'http://x.test/f.ics', 'greengo', 'Greengo', 1)").run(propertyId).lastInsertRowid;
     const source = db.prepare('SELECT * FROM ical_sources WHERE id = ?').get(sourceId);
-    feed('20271105', '20271110');
+    feed(compact(0), compact(5));
     await propertyIcalModel.syncSourceAndRecord(source);
     const id = db.prepare('SELECT id FROM reservations WHERE propertyId = ?').get(propertyId).id;
     db.prepare("UPDATE reservations SET kind = 'superseded' WHERE id = ?").run(id);
     const dates = () => db.prepare('SELECT startDate, endDate, kind FROM reservations WHERE propertyId = ?').all(propertyId);
 
-    feed('20271106', '20271112');
+    feed(compact(1), compact(7));
     const moved = await propertyIcalModel.syncSourceAndRecord(source);
     assert.equal(moved.updatedCount, 0);
     assert.equal(moved.createdCount, 0);
-    assert.deepEqual(dates(), [{ startDate: '2027-11-05', endDate: '2027-11-10', kind: 'superseded' }], 'untouched, no copy');
+    assert.deepEqual(dates(), [{ startDate: day(0), endDate: day(5), kind: 'superseded' }], 'untouched, no copy');
 
     db.prepare('DELETE FROM ical_import_events WHERE reservationId = ?').run(id);
     const lost = await propertyIcalModel.syncSourceAndRecord(source);
     assert.equal(lost.createdCount, 0, 'with the mapping memory lost, the UID still finds the row');
     assert.equal(dates().length, 1);
 
-    feed('20271201', '20271203', 'OTHER');
+    feed(compact(26), compact(28), 'OTHER');
     const dropped = await propertyIcalModel.syncSourceAndRecord(source);
     assert.equal(dropped.removedCount, 0, 'leaving the feed raises no cancellation alert');
     assert.equal(kindOf(id), 'superseded');

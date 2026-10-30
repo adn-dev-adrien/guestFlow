@@ -7,7 +7,11 @@ process.env.DB_PATH = ':memory:';
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { db, createStay, rowOf, save } = require('./ledgerFixture');
+const { db, inDays, createStay, rowOf, save } = require('./ledgerFixture');
+const { todayIso } = require('../utils/localDate');
+
+// The links are paid a week ago: a paid date is never ahead of now (specs/server-test-isolation.md rule 6).
+const PAID_AT = `${inDays(-7)}T10:00:00Z`;
 const paymentLinksModel = require('../models/paymentLinksModel');
 const devisModel = require('../models/devisModel');
 const reservationsModelFactory = require('../models/reservationsModel');
@@ -38,7 +42,7 @@ async function pay(link, extra = {}) {
   const calls = [];
   const out = await processPaidLink({
     database: db, devisModel: dm, paymentLinksModel: Object.assign(Object.create(links), { retireSettled: () => [] }), link: links.findById(link.id),
-    paidPayment: { paid: true, paymentId: `pay${link.id}`, paidAt: '2027-04-01T10:00:00Z' },
+    paidPayment: { paid: true, paymentId: `pay${link.id}`, paidAt: PAID_AT },
     sendConfirmation: async (r) => calls.push(['confirm', r]),
     notifyPaidAfterCancel: async (l, o) => calls.push(['alert', o || {}]),
     notifyConflict: async (r) => calls.push(['conflict', r]),
@@ -54,7 +58,7 @@ test('specs/public-online-payment.md rule 16 — N1 cancelling a stay abandons t
     database: db, reservationsModel: reservationsModelFactory.create(db), refundsModel: refundsModelFactory.createModel(db),
     compensationsModel: compensationsModelFactory.buildModel(db), paymentLinksModel: links,
   };
-  const res = cancelReservation(deps, stayId, { today: '2027-01-01', vatRate: 10, reason: 'Test' });
+  const res = cancelReservation(deps, stayId, { today: todayIso(), vatRate: 10, reason: 'Test' });
   assert.equal(res.ok, true);
   assert.equal(links.findById(link.id).status, 'cancelled');
 });
@@ -163,7 +167,7 @@ test('A — a retired devis link paid after its dates were taken still converts 
     .run(stay.propertyId, stay.startDate, stay.endDate, stay.finalPrice, stay.depositAmount, stay.balanceAmount).lastInsertRowid);
   const link = links.create({ reservationId: devisId, type: 'full', amountCents: 10000, providerLinkId: 'RA', url: 'u', status: 'open' });
   links.retireForAmountChange(devisId, 'full', 99999);
-  const provider = { id: 'qonto', getPayment: async () => ({ paid: true, paymentId: 'payA', paidAt: '2027-04-01T10:00:00Z' }), cancelLink: async () => {} };
+  const provider = { id: 'qonto', getPayment: async () => ({ paid: true, paymentId: 'payA', paidAt: PAID_AT }), cancelLink: async () => {} };
   await retryPendingCancellations({
     paymentLinksModel: links, provider, database: db, devisModel: dm, notifyPaidAfterCancel: async () => {},
     notifyConflict: async () => {}, checkConflict: () => true, emitPluginEvent: () => {},
@@ -212,7 +216,7 @@ test('money A — retireForAmountChange on a stay also retires its devis links; 
   const stay = rowOf(other);
   const devisId = Number(db.prepare(`INSERT INTO reservations (kind, propertyId, clientId, startDate, endDate, adults, finalPrice,
       depositAmount, balanceAmount, devisStatus) VALUES ('devis', ?, 1, ?, ?, 2, ?, ?, ?, 'draft')`)
-    .run(stay.propertyId, '2029-01-10', '2029-01-13', stay.finalPrice, stay.depositAmount, stay.balanceAmount).lastInsertRowid);
+    .run(stay.propertyId, inDays(800), inDays(803), stay.finalPrice, stay.depositAmount, stay.balanceAmount).lastInsertRowid);
   const stale = links.create({ reservationId: devisId, type: 'full', amountCents: 1234, providerLinkId: 'CV', url: 'u', status: 'open' });
   const conv = dm.convertToReservation(devisId, { allowConflict: true });
   assert.ok(conv.ok, JSON.stringify(conv));
@@ -244,7 +248,7 @@ test('R1 — the retry of a retired link on an already converted devis alerts wi
   const [retired] = links.retireForAmountChange(link.reservationId, 'full', owed);
   assert.equal(retired.id, link.id);
   const alerts = [];
-  const provider = { id: 'qonto', getPayment: async () => ({ paid: true, paymentId: 'pr1', paidAt: '2027-04-01T10:00:00Z' }), cancelLink: async () => {} };
+  const provider = { id: 'qonto', getPayment: async () => ({ paid: true, paymentId: 'pr1', paidAt: PAID_AT }), cancelLink: async () => {} };
   await retryPendingCancellations({
     paymentLinksModel: links, provider, database: db, devisModel: dm, emitPluginEvent: () => {},
     notifyPaidAfterCancel: async (l, o) => alerts.push([l.id, o]),
@@ -319,7 +323,7 @@ for (const kind of ['devis', 'reservation']) {
     await pay(deposit);
     assert.ok(links.retireSettled().some((l) => l.id === full.id && l.cancelReason === 'settled'));
     const alerts = [];
-    const provider = { id: 'qonto', getPayment: async (pid) => (pid === `SF${kind}` ? { paid: true, paymentId: 'pS', paidAt: '2027-04-02T10:00:00Z' } : { paid: false }), cancelLink: async () => {} };
+    const provider = { id: 'qonto', getPayment: async (pid) => (pid === `SF${kind}` ? { paid: true, paymentId: 'pS', paidAt: PAID_AT } : { paid: false }), cancelLink: async () => {} };
     await retryPendingCancellations({
       paymentLinksModel: links, provider, database: db, devisModel: dm, emitPluginEvent: () => {},
       notifyPaidAfterCancel: async (l, o) => alerts.push([l.id, o]),
@@ -348,7 +352,7 @@ for (const type of ['full', 'deposit']) {
     await pay(first);
     assert.ok(links.retireSettled().some((l) => l.id === second.id && l.cancelReason === 'settled'));
     const alerts = [];
-    const provider = { id: 'qonto', getPayment: async (pid) => (pid === `T1${type}` ? { paid: true, paymentId: 'pT', paidAt: '2027-04-01T15:00:00Z' } : { paid: false }), cancelLink: async () => {} };
+    const provider = { id: 'qonto', getPayment: async (pid) => (pid === `T1${type}` ? { paid: true, paymentId: 'pT', paidAt: PAID_AT } : { paid: false }), cancelLink: async () => {} };
     const out = await retryPendingCancellations({
       paymentLinksModel: links, provider, database: db, devisModel: dm, emitPluginEvent: () => {},
       notifyPaidAfterCancel: async (l, o) => alerts.push([l.id, o]),

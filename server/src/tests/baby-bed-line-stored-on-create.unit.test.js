@@ -52,10 +52,13 @@ test('the cot line the price includes is stored with the reservation', () => {
     return require(p);
   });
 
+  const { todayIso } = require('../utils/localDate');
+  const { addDaysToIsoDate } = require('../utils/devisHelpers');
+  const start = addDaysToIsoDate(todayIso(), 237);
   const res = fakeRes();
   controller.create({
     body: {
-      propertyId: 1, clientId: 1, startDate: '2027-06-24', endDate: '2027-06-27',
+      propertyId: 1, clientId: 1, startDate: start, endDate: addDaysToIsoDate(start, 3),
       adults: 2, children: 0, teens: 0, babies: 2, babyBeds: 2, singleBeds: 0, doubleBeds: 0,
       checkInTime: '16:00', checkOutTime: '10:00', platform: 'direct', reservationOptions: [],
     },

@@ -5,7 +5,7 @@ process.env.DB_PATH = ':memory:';
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { db, controller, respond, seed, createStay, liveQuote, stayBody, ADMIN } = require('./ledgerFixture');
+const { db, controller, respond, inDays, seed, createStay, liveQuote, stayBody, ADMIN } = require('./ledgerFixture');
 const {
   platformPriceCheck, BELOW_PERCENT, ABOVE_PERCENT, MIN_GAP_EUR,
 } = require('../utils/platformPriceCheck');
@@ -50,7 +50,7 @@ test('rule 60 — the object carries what the card prints, in euros and one deci
 });
 
 test('rule 60 — the 30 € floor keeps a short stay from alerting on a few euros', async () => {
-  const oneNight = { startDate: '2027-08-01', endDate: '2027-08-02' };
+  const oneNight = { startDate: inDays(275), endDate: inDays(276) };
   assert.equal(await checkOf({ platform: 'Booking', ...oneNight, platformGrossAmount: 94 }), null, '-20 % but -24 €');
   assert.ok(await checkOf({ platform: 'Booking', ...oneNight, platformGrossAmount: 85 }), '-28 %, -33 €');
 });
@@ -66,7 +66,7 @@ test('rule 59 — the channel cleaning fee is part of the expected price, grosse
   const fee = Math.ceil(122 / (1 - 0.155));
   const expected = 3 * Math.ceil(100 / (1 - 0.155)) + fee;
   assert.equal(await checkOf({ platform: 'Airbnb', platformGrossAmount: expected }), null);
-  const missing = await checkOf({ platform: 'Airbnb', startDate: '2027-08-01', endDate: '2027-08-03', platformGrossAmount: 2 * 119 });
+  const missing = await checkOf({ platform: 'Airbnb', startDate: inDays(275), endDate: inDays(277), platformGrossAmount: 2 * 119 });
   assert.equal(missing.expected, 2 * 119 + fee, 'two nights without the fee paid: -18 %, -145 €');
   assert.equal(missing.direction, 'below');
 });
@@ -85,7 +85,7 @@ function util(over = {}) {
       platformGrossAmount: 354, accommodationAdjustedPrice: 354, extraGuestInBrutSurcharge: 0, unpricedNights: [],
       nightlyBreakdown: [night(1, 100), night(2, 100), night(3, 100)], ...quoteOver,
     },
-    stay: { kind: 'reservation', startDate: '2027-09-01', endDate: '2027-09-04', platform: 'Booking', propertyId: 7, ...stayOver },
+    stay: { kind: 'reservation', startDate: '2027-09-01', endDate: '2027-09-04', platform: 'Booking', propertyId: 7, ...stayOver }, // date-literal-ok: input of the pure check, judged against its injected today
     nightsReplayed: true,
     today: '2026-10-28',
     loadContext: () => ({ rules: RULES, property: {}, grid: GRID, tariffChangedSinceBooking: false }),
@@ -125,7 +125,7 @@ test('rule 61 — nothing is judged without a brut, on an unknown platform, a 10
   assert.equal(util({ quote: { ...far, platformGrossAmount: null } }), null);
   assert.equal(util({ quote: far, stay: { platform: 'Inconnue' } }), null);
   assert.equal(util({ quote: far, loadContext: () => ({ rules: RULES, grid: { ...GRID, platforms: [{ id: 5, name: 'Booking', commissionPercent: 100 }] }, tariffChangedSinceBooking: false }) }), null);
-  assert.equal(util({ quote: { ...far, unpricedNights: ['2027-09-02'] } }), null);
+  assert.equal(util({ quote: { ...far, unpricedNights: ['2027-09-02'] } }), null); // date-literal-ok: input of the pure check, judged against its injected today
 });
 
 test('rule 61 — today’s nights + a tariff change after the booking date: no check; the same with the nights replayed: checked', () => {
@@ -167,8 +167,9 @@ test('rule 61 — a devis never raises it', async () => {
   const q = await liveQuote(null, { platform: 'Booking', platformGrossAmount: 150, devisId: 0 });
   assert.ok(q.platformPriceCheck, 'sanity: a new reservation alerts');
   const res = respond();
-  const row = db.prepare("INSERT INTO reservations (propertyId, clientId, startDate, endDate, kind, platform) VALUES (1, 1, '2027-11-01', '2027-11-04', 'devis', 'Booking')").run();
-  await controller.calculatePrice({ body: { ...stayBody({ platform: 'Booking', startDate: '2027-11-01', endDate: '2027-11-04' }), devisId: row.lastInsertRowid, platformGrossAmount: 150 }, user: ADMIN }, res);
+  const [start, end] = [inDays(367), inDays(370)];
+  const row = db.prepare("INSERT INTO reservations (propertyId, clientId, startDate, endDate, kind, platform) VALUES (1, 1, ?, ?, 'devis', 'Booking')").run(start, end);
+  await controller.calculatePrice({ body: { ...stayBody({ platform: 'Booking', startDate: start, endDate: end }), devisId: row.lastInsertRowid, platformGrossAmount: 150 }, user: ADMIN }, res);
   assert.equal(res.body.platformPriceCheck, null);
 });
 

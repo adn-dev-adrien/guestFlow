@@ -8,6 +8,11 @@ process.env.DB_PATH = ':memory:';
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { todayIso } = require('../utils/localDate');
+const { addDaysToIsoDate } = require('../utils/devisHelpers');
+
+// The stays hang on today: a literal date becomes a stay in the past.
+const inDays = (days) => addDaysToIsoDate(todayIso(), days);
 
 const { overpaymentOf } = require('../utils/overpayment');
 
@@ -20,7 +25,7 @@ test('rule 38 — Abracadaroom 600 € paid, corrected to 450 €: solde 450 €
   db.prepare("INSERT INTO pricing_rules (propertyId, label, pricePerNight) VALUES (1, 'Standard', 100)").run();
   db.prepare("INSERT INTO clients (id, firstName, lastName) VALUES (1, 'Lou', 'Plateforme')").run();
   const body = (customPrice) => ({
-    propertyId: 1, clientId: 1, startDate: '2027-02-10', endDate: '2027-02-13',
+    propertyId: 1, clientId: 1, startDate: inDays(100), endDate: inDays(103),
     checkInTime: '16:00', checkOutTime: '10:00', platform: 'Abracadaroom',
     adults: 2, children: 0, teens: 0, babies: 0, singleBeds: 0, doubleBeds: 0, babyBeds: 0,
     depositDisabled: 1, customPrice,
@@ -49,7 +54,7 @@ test('rule 38 — the engine keeps a direct paid solde, never a platform one', (
   const { calculateReservationQuote } = require('../utils/pricing');
   const db = require('../database');
   const quote = (platform) => calculateReservationQuote({
-    db, propertyId: 1, startDate: '2027-03-10', endDate: '2027-03-13', adults: 2, children: 0, teens: 0, babies: 0,
+    db, propertyId: 1, startDate: inDays(128), endDate: inDays(131), adults: 2, children: 0, teens: 0, babies: 0,
     platform, depositDisabled: true, customPrice: 450, balancePaid: true, balanceAmount: 600,
   });
   const direct = quote('direct');

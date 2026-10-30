@@ -7,7 +7,7 @@ const f = require('./reservationSaveFixture');
 
 test('POST /reservations without clientId answers 400 CLIENT_REQUIRED and writes nothing', () => {
   const before = f.db.prepare('SELECT COUNT(*) AS n FROM reservations').get().n;
-  const body = f.stayBody({ startDate: '2027-05-01', endDate: '2027-05-03' });
+  const body = f.stayBody({ startDate: f.inDays(180), endDate: f.inDays(182) });
   delete body.clientId;
   const res = f.create(body);
   assert.equal(res.statusCode, 400, JSON.stringify(res.body));
