@@ -10,6 +10,11 @@
  * once and retries, then fails normally. Endpoints + shapes from docs.neat.eu (2026-09).
  */
 
+// Below the WordPress plugin's own 8 s give-up, so a quote answers (at the fallback price) before it does.
+const DEFAULT_TIMEOUT_MS = 5000;
+// Neat's token slides over 7 days; renewing a day early keeps a cached client from presenting a stale one.
+const TOKEN_MAX_AGE_MS = 6 * 24 * 60 * 60 * 1000;
+
 const BASE_URLS = {
   production: 'https://api.neat.eu',
   staging: 'https://api.staging.neat.eu',
@@ -27,7 +32,11 @@ function buildNeatClient(config = {}) {
     throw new Error('neatClient: no fetch implementation (Node 18+ global fetch or inject config.fetchImpl)');
   }
 
+  const timeoutMs = Number.isFinite(Number(config.timeoutMs)) && Number(config.timeoutMs) > 0
+    ? Number(config.timeoutMs) : DEFAULT_TIMEOUT_MS;
+
   let token = null;
+  let tokenAt = 0;
   let serviceAccountId = null;
 
   async function readBody(res, context) {
@@ -48,14 +57,44 @@ function buildNeatClient(config = {}) {
     return body || {};
   }
 
-  async function auth() {
-    const res = await fetchImpl(`${baseUrl}/service-accounts/auth`, {
-      method: 'POST',
-      headers: { accept: 'application/json', 'content-type': 'application/json' },
-      body: JSON.stringify({ clientId, clientSecret }),
+  // One budget per public call, shared by auth, the request and the 401 retry: each exchange gets
+  // what is left of it, so a call never outlasts `timeoutMs` (the WordPress plugin gives up at 8 s).
+  // It covers the headers AND the body read; an unanswering Neat rejects with a clean 504 instead
+  // of holding the quote for undici's 300 s default.
+  const newDeadline = () => Date.now() + timeoutMs;
+
+  async function timed(context, deadline, exchange) {
+    const controller = new AbortController();
+    const remaining = deadline - Date.now();
+    const timer = setTimeout(() => controller.abort(), Math.max(remaining, 0));
+    try {
+      if (remaining <= 0) controller.abort();
+      return await exchange(controller.signal);
+    } catch (err) {
+      if (controller.signal.aborted) {
+        const timeoutErr = new Error(`Neat ${context} timed out after ${timeoutMs} ms`);
+        timeoutErr.status = 504;
+        timeoutErr.code = 'NEAT_TIMEOUT';
+        throw timeoutErr;
+      }
+      throw err;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  async function auth(deadline = newDeadline()) {
+    const json = await timed('auth', deadline, async (signal) => {
+      const res = await fetchImpl(`${baseUrl}/service-accounts/auth`, {
+        method: 'POST',
+        headers: { accept: 'application/json', 'content-type': 'application/json' },
+        body: JSON.stringify({ clientId, clientSecret }),
+        signal,
+      });
+      return readBody(res, 'auth');
     });
-    const json = await readBody(res, 'auth');
     token = json.token || null;
+    tokenAt = Date.now();
     serviceAccountId = (json.serviceAccount && json.serviceAccount.id) || null;
     if (!token) {
       const err = new Error('Neat auth returned no token');
@@ -67,22 +106,28 @@ function buildNeatClient(config = {}) {
 
   // Every API call goes through here: auth on first use, one re-auth + retry on 401, then the
   // failure propagates. `retried` guards against an auth loop when the credentials are wrong.
-  async function request(method, path, { body, context, retried = false } = {}) {
-    if (!token) await auth();
-    const res = await fetchImpl(`${baseUrl}${path}`, {
-      method,
-      headers: {
-        accept: 'application/json',
-        'content-type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+  async function request(method, path, { body, context, retried = false, deadline = newDeadline() } = {}) {
+    if (!token || Date.now() - tokenAt > TOKEN_MAX_AGE_MS) await auth(deadline);
+    const label = context || `${method} ${path}`;
+    const answer = await timed(label, deadline, async (signal) => {
+      const res = await fetchImpl(`${baseUrl}${path}`, {
+        method,
+        headers: {
+          accept: 'application/json',
+          'content-type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+        signal,
+      });
+      if (res.status === 401 && !retried) return { unauthorized: true };
+      return { json: await readBody(res, label) };
     });
-    if (res.status === 401 && !retried) {
+    if (answer.unauthorized) {
       token = null;
-      return request(method, path, { body, context, retried: true });
+      return request(method, path, { body, context, retried: true, deadline });
     }
-    return readBody(res, context || `${method} ${path}`);
+    return answer.json;
   }
 
   return {
@@ -98,8 +143,9 @@ function buildNeatClient(config = {}) {
     // Discovery step 1 — the stores this service account can sell for (each carries its sales
     // channels). Tolerates both `[...]` and `{ stores: [...] }` shapes.
     async getStores() {
-      if (!serviceAccountId) await auth();
-      const json = await request('GET', `/service-accounts/${encodeURIComponent(serviceAccountId)}/stores`, { context: 'get stores' });
+      const deadline = newDeadline();
+      if (!serviceAccountId) await auth(deadline);
+      const json = await request('GET', `/service-accounts/${encodeURIComponent(serviceAccountId)}/stores`, { context: 'get stores', deadline });
       return Array.isArray(json) ? json : (json.stores || []);
     },
 
@@ -155,4 +201,4 @@ function buildNeatClient(config = {}) {
   };
 }
 
-module.exports = { buildNeatClient, BASE_URLS };
+module.exports = { buildNeatClient, BASE_URLS, DEFAULT_TIMEOUT_MS, TOKEN_MAX_AGE_MS };

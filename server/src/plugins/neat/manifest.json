@@ -1,7 +1,7 @@
 {
   "id": "neat",
   "name": "Assurance annulation Neat",
-  "version": "1.3.2",
+  "version": "1.3.3",
   "description": "Souscription automatique de l’assurance annulation.",
   "icon": "umbrella",
   "surfaces": [
@@ -48,6 +48,9 @@
     "1.3.2": [
       "Message du canal sans mode de paiement à la forme impersonnelle.",
       "Compatible avec le SDK 2.6 de GuestFlow."
+    ],
+    "1.3.3": [
+      "Un Neat qui ne répond pas n’immobilise plus le devis : l’échange entier est limité à 5 secondes, puis le tarif en cache ou le tarif de base s’applique ; une panne de Neat n’est pas rappelée pendant une minute, et la session Neat est réutilisée d’un devis à l’autre. Compatible avec le SDK 2.6 de GuestFlow."
     ]
   }
 }
