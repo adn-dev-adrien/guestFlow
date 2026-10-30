@@ -109,3 +109,14 @@ test('rule 12 — a refused request that wrote a stay still lists it', async () 
   assert.equal(res.status, 409);
   assert.deepEqual(JSON.parse(res.headers.get(HEADER)), [{ id: 1, before: 'v0', after: 'v1' }]);
 });
+
+// Rule 12 — a request e-mail sent from the dialog books the same payment through /api/emails/send
+// (payment-link-lifecycle rule 26 resolves its link at send): that route carries the trail too.
+test('rule 12 — the trail is mounted before the e-mail routes as well as the payment routes', () => {
+  const src = require('fs').readFileSync(require('path').join(__dirname, '..', 'index.js'), 'utf8');
+  for (const base of ['/api/payments', '/api/emails']) {
+    const trail = src.search(new RegExp(`app\\.use\\('${base}',\\s*require\\('\\./middleware/stayVersionsTrail'\\)\\.stayVersionsTrail\\(\\)\\)`));
+    const routes = src.search(new RegExp(`app\\.use\\('${base}',\\s*require\\('\\./routes/`));
+    assert.ok(trail > 0 && trail < routes, `${base}: trail before its routes`);
+  }
+});

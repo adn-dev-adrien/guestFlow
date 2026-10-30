@@ -34,7 +34,7 @@ function renderCard(onMoney) {
 beforeEach(() => { vi.clearAllMocks(); });
 
 test('rule 50 — refused as already paid: the message shows and the fiche money is re-read', async () => {
-  api.sendInstallmentRequest.mockRejectedValue(Object.assign(new Error(PAID_BOOKED), { code: 'LINK_ALREADY_PAID', status: 409 }));
+  api.sendInstallmentRequest.mockRejectedValue(Object.assign(new Error(PAID_BOOKED), { error: 'LINK_ALREADY_PAID', status: 409 }));
   const onMoney = vi.fn();
   renderCard(onMoney);
   await userEvent.setup().click(within(screen.getByTestId('installment-1')).getByRole('button', { name: 'Envoyer la demande' }));
@@ -43,7 +43,7 @@ test('rule 50 — refused as already paid: the message shows and the fiche money
 });
 
 test('rule 50 — another refusal re-reads nothing', async () => {
-  api.sendInstallmentRequest.mockRejectedValue(Object.assign(new Error('Prestataire de paiement injoignable : réessayer.'), { code: 'PROVIDER_UNREACHABLE', status: 502 }));
+  api.sendInstallmentRequest.mockRejectedValue(Object.assign(new Error('Prestataire de paiement injoignable : réessayer.'), { error: 'PROVIDER_UNREACHABLE', status: 502 }));
   const onMoney = vi.fn();
   renderCard(onMoney);
   await userEvent.setup().click(within(screen.getByTestId('installment-1')).getByRole('button', { name: 'Envoyer la demande' }));

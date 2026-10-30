@@ -36,7 +36,7 @@ import PaymentMarkForm from './PaymentMarkForm';
 import { useToast } from '../DialogProvider';
 import { formatAmountInput, formatCurrency, displayDate } from '../../utils/formatters';
 import * as t from '../../constants/installmentStrings';
-import { LINK_ALREADY_PAID } from '../../constants/paymentLinks';
+import { isLinkAlreadyPaid } from '../../constants/paymentLinks';
 
 const COUNT_DEBOUNCE_MS = 300;
 const DEFAULT_COUNT = 3;
@@ -313,7 +313,7 @@ export default function InstallmentPlanCard({ reservationId, plan, today, disabl
     } catch (error) {
       fail(error);
       // specs/payment-link-lifecycle.md rule 50 — the refusal booked the installment's payment on the server.
-      if (error && error.code === LINK_ALREADY_PAID && onMoneyChanged) await onMoneyChanged();
+      if (isLinkAlreadyPaid(error) && onMoneyChanged) await onMoneyChanged();
     } finally { setBusy(false); }
   };
 

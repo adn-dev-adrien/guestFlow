@@ -256,6 +256,7 @@ app.use('/api/today', require('./routes/today'));
 app.use('/api/dashboard', require('./routes/dashboard'));
 // specs/email-automation.md — template library + send / preview / pending / acknowledge / history.
 app.use('/api/email-templates', require('./routes/emailTemplates'));
+app.use('/api/emails', require('./middleware/stayVersionsTrail').stayVersionsTrail());
 app.use('/api/emails',          require('./routes/emails'));
 app.use('/api/email-sequence',  require('./routes/emailSequence'));
 // specs/plugins-phase-p-productisation.md — the wording of the guest emails as data. Admin-only.

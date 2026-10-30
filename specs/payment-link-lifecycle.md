@@ -623,11 +623,15 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     `LINK_ALREADY_PAID` of rule 18 means the server has just booked the payment. Every sender of the fiche and
     of the devis then re-reads the money it shows, after the refusal is displayed: « Renvoyer la demande »
     (ledger) and « Envoyer la demande de solde » (action bar) re-read the fiche's finance
-    (`reloadReservationFinance`), the installment card's « Envoyer la demande » calls `onMoneyChanged`, and the
-    devis « Envoyer la demande de paiement » re-reads the devis. Any other refusal re-reads nothing. The fiche
+    (`reloadReservationFinance`), the installment card's « Envoyer la demande » calls `onMoneyChanged`, the
+    devis « Envoyer la demande de paiement » re-reads the devis, and a request template sent from the fiche's
+    e-mail dialog (`EmailManualSendDialog`, rule 26) keeps the refusal on screen and calls the page's
+    `onMoneyChanged` (`reloadReservationFinance`); `onSent` stays for a mail that left. Any other refusal
+    re-reads nothing. The payment and e-mail routes answer `{ error: 'LINK_ALREADY_PAID', message }`: the
+    client reads the code in `error` (`isLinkAlreadyPaid`, `constants/paymentLinks.js`). The fiche
     therefore drops the request button and shows the payment. The booking moved the stay's `updatedAt`: the
-    409 carries it like any `/api/payments` write (specs/reservation-fiche-concurrency.md rule 12), so the next
-    save of the fiche is not refused as `STALE_FICHE`.
+    409 carries it like any `/api/payments` or `/api/emails` write (specs/reservation-fiche-concurrency.md
+    rule 12), so the next save of the fiche is not refused as `STALE_FICHE`.
 51. **A request never reuses a link that rule 9 lapses at the next pass** (audit R8-M1). On or after the
     arrival day (00:00 Europe/Paris on the converted stay's `startDate`, else the row's own), an open
     pre-arrival link (`deposit`, `balance`, `full`, `installment`) minted on an earlier Paris day is lapsed by
@@ -735,7 +739,8 @@ No new dependency.
 | `services/` / `api.js` | `api.js` | T | `getClosureConflicts`, `withdrawPaymentLink`, `getDatesTakenAlerts`, `acknowledgeDatesTaken` |
 | `pages/` | `ReservationPage.jsx` | T | The 409 `DATES_UNAVAILABLE` message reaches the existing error dialog; on 409 `LINK_ALREADY_PAID` the resend, solde and devis senders re-read the fiche / the devis (rule 50) |
 | `components/` | `reservation/InstallmentPlanCard.jsx` | T | « Envoyer la demande » refused `LINK_ALREADY_PAID` → `onMoneyChanged` (rule 50) |
-| `constants/` | `paymentLinks.js` | C | `LINK_ALREADY_PAID` (rule 50) |
+| `constants/` | `paymentLinks.js` | C | `LINK_ALREADY_PAID`, `isLinkAlreadyPaid` (rule 50) |
+| `components/` | `EmailManualSendDialog.jsx` | T | Optional `onMoneyChanged`, called on `LINK_ALREADY_PAID` (rule 50); the fiche passes `reloadReservationFinance` |
 | `services/` | `api.js` | T | A refused write that moved a stay dispatches its versions (rule 50, reservation-fiche-concurrency rule 12) |
 | others | — | — | (none) |
 
@@ -862,7 +867,8 @@ refused).
 
 ### Client
 - [x] `client/src/__tests__/wordpress-booking-view.payment-expired.test.js` — rule 30: the return page stops on `expired` with its message, after a `pending` too; `confirmed` still wins (3).
-- [x] `client/src/pages/__tests__/ReservationPage.link-already-paid.test.jsx` — rule 50: resend, solde and devis senders re-read on `LINK_ALREADY_PAID`, another refusal re-reads nothing (4).
+- [x] `client/src/pages/__tests__/ReservationPage.link-already-paid.test.jsx` — rule 50: resend, solde, devis and e-mail-dialog senders re-read on `LINK_ALREADY_PAID`, another refusal re-reads nothing (5).
+- [x] `client/src/components/__tests__/EmailManualSendDialog.link-already-paid.test.jsx` — rule 50: the refusal stays on screen, `onMoneyChanged` once, not `onSent`; another refusal re-reads nothing (2).
 - [x] `client/src/components/reservation/__tests__/InstallmentPlanCard.link-already-paid.test.jsx` — rule 50 (2).
 - [ ] `client/src/components/reservation/__tests__/FinanceSection.link-lifecycle.test.jsx` — prints the new labels, offers « Renvoyer la demande » on expired, not on dates-taken; « Retirer le lien » asks for confirmation.
 - [ ] `client/src/pages/__tests__/EstablishmentClosuresPage.conflicts.test.jsx` — warning list with links, 409 lists rendered.
@@ -1004,9 +1010,10 @@ Six sequential PRs into `inte/plugins` (plan validated 2026-10-30).
   `LINKS_LAST_LOOK_PENDING` (52); the backfill repairs unknown ends at every boot (53); public `pay` maps our
   refusals to visitor keys (54). Tests: `payment-link-stay-started` (13), `payment-link-request-preview` (9),
   `plugins-phase-0` (+1), `payment-link-validity-backfill` (7), `public-payment-pay-visitor-refusals` (4); client
-  `ReservationPage.link-already-paid` (4), `InstallmentPlanCard.link-already-paid` (2),
+  `ReservationPage.link-already-paid` (5), `InstallmentPlanCard.link-already-paid` (2),
+  `EmailManualSendDialog.link-already-paid` (2),
   `FinanceSection.deposit-held-by-link` (+1, specs/disable-deposit-per-reservation.md rule 14),
-  `api.refused-write-version` (2) and server `fiche-stay-versions-trail` (+1) for
+  `api.refused-write-version` (2) and server `fiche-stay-versions-trail` (+2) for
   specs/reservation-fiche-concurrency.md rule 12. Shadow N=6 at 1280 / 390: the resend re-reads, the button
   goes, the next save answers 200; « Sans acompte » ticked under the lock unticks, then locks.
 - [ ] PR4 — closures refused over open payment requests, « Retirer le lien » (rules 40-42, 49).

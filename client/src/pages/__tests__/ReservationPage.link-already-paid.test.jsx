@@ -41,7 +41,8 @@ import api from '../../api';
 import ReservationPage from '../ReservationPage';
 
 const PAID_BOOKED = 'Le lien en cours vient d’être payé : paiement enregistré, aucun nouveau lien créé.';
-const paidBooked = () => Object.assign(new Error(PAID_BOOKED), { code: 'LINK_ALREADY_PAID', status: 409 });
+// What api.js throws for the payment routes' 409: their body is { error, message }, with no `code`.
+const paidBooked = () => Object.assign(new Error(PAID_BOOKED), { error: 'LINK_ALREADY_PAID', status: 409 });
 
 const NONE = { editable: false, mode: 'none', min: null, max: null, reason: null };
 const LEDGER = {
@@ -98,7 +99,7 @@ test('rule 50 — « Renvoyer la demande » refused as already paid re-reads the
 });
 
 test('rule 50 — any other refusal of « Renvoyer la demande » re-reads nothing', async () => {
-  api.sendPaymentRequestOfType.mockRejectedValue(Object.assign(new Error('Prestataire de paiement injoignable : réessayer.'), { code: 'PROVIDER_UNREACHABLE', status: 502 }));
+  api.sendPaymentRequestOfType.mockRejectedValue(Object.assign(new Error('Prestataire de paiement injoignable : réessayer.'), { error: 'PROVIDER_UNREACHABLE', status: 502 }));
   openAt('/reservations/22303', '/reservations/:reservationId');
   const resend = await screen.findByRole('button', { name: 'Renvoyer la demande' });
   const reads = api.getReservation.mock.calls.length;
@@ -124,4 +125,17 @@ test('rule 50 — the devis payment request refused as already paid re-reads the
   fireEvent.click(await screen.findByRole('button', { name: 'Envoyer la demande de paiement' }));
   await waitFor(() => expect(dialogs.alert).toHaveBeenCalledWith(expect.objectContaining({ message: PAID_BOOKED })));
   await waitFor(() => expect(api.getDevisById.mock.calls.length).toBeGreaterThan(reads));
+});
+
+test('rule 50 — a request e-mail sent from the fiche dialog and refused as already paid re-reads the fiche finance', async () => {
+  api.getEmailTemplates.mockResolvedValue([{ id: 30, name: 'Demande de solde', enabled: 1 }]);
+  api.previewEmail.mockResolvedValue({ to: 'guest@example.test', subject: 'Votre solde', body: 'Bonjour', missingVariables: [] });
+  api.sendEmail.mockRejectedValue(paidBooked());
+  openAt('/reservations/22303', '/reservations/:reservationId');
+  fireEvent.click(await screen.findByRole('button', { name: 'Envoyer un email' }));
+  await screen.findByDisplayValue('Votre solde');
+  const reads = api.getReservation.mock.calls.length;
+  fireEvent.click(screen.getByRole('button', { name: /^Envoyer$/ }));
+  await waitFor(() => expect(api.sendEmail).toHaveBeenCalled());
+  await waitFor(() => expect(api.getReservation.mock.calls.length).toBeGreaterThan(reads));
 });
