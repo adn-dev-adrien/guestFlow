@@ -23,7 +23,7 @@ const MAX_MAILS_PER_PASS = 200;
 const SINCE_DAYS = 30;
 
 function createIntakeService(deps) {
-  const { intakes, settings, readMails, findReservations, propertyOptions, getReservation, core, parserVersion = null, now = () => new Date() } = deps;
+  const { intakes, settings, readMails, findReservations, propertyOptions, getReservation, core, parserVersion = null, now = () => new Date(), log = () => {} } = deps;
   // The accommodations' day: the process runs in their time zone (utils/localDate.js).
   const today = deps.today || (() => localDay(now()));
 
@@ -196,13 +196,24 @@ function createIntakeService(deps) {
       }
       add({ messageId: mail.messageId, receivedAt: mail.receivedAt, confirmationCode: parsed.booking.code, parsed: parsed.booking, status: 'pending', senderVerified });
     };
-    // One mail that makes the intake step throw is remembered as `ignored` with its reason, never stopping the pass:
-    // it would otherwise come first on every later pass.
+    // One mail that makes the intake step throw never stops the pass. A database error (SQLITE_BUSY…) is transient:
+    // nothing is stored, so the next pass reads the mail again. Any other error is remembered like a mail that does not
+    // parse (rule 26 / 25): `error` for a verified mail, which shows on the home and is read again after a parser fix,
+    // `ignored` otherwise.
     const isolate = (fn) => (mail) => {
       try {
         fn(mail);
       } catch (err) {
-        intakes.insert({ messageId: mail.messageId, receivedAt: mail.receivedAt, status: 'ignored', error: `Erreur de lecture : ${err.message}`, senderVerified: mail.authenticated === true, parserVersion });
+        if (String(err && err.code).startsWith('SQLITE_')) {
+          log(`mail intake: ${mail.messageId} not stored (${err.code}), retried on the next pass`);
+          return;
+        }
+        const verified = mail.authenticated === true;
+        try {
+          intakes.insert({ messageId: mail.messageId, receivedAt: mail.receivedAt, status: verified ? 'error' : 'ignored', error: `Erreur de lecture : ${err.message}`, senderVerified: verified, parserVersion });
+        } catch (storeErr) {
+          log(`mail intake: ${mail.messageId} not stored (${storeErr.message})`);
+        }
       }
     };
     await readMails(

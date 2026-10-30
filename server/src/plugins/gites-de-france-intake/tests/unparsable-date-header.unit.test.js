@@ -78,3 +78,56 @@ test('rule 34: a mail that makes the intake step throw is remembered as ignored 
   assert.match(row.error, /db busy/);
   assert.ok(db.prepare("SELECT 1 FROM gdf_intakes WHERE messageId = '<genuine@gdf07>'").get());
 });
+
+test('rule 34: a verified genuine mail whose insert fails once with SQLITE_BUSY is stored nothing and applied by the next pass', async () => {
+  const db = new Database(':memory:');
+  db.exec(TABLE_SQL);
+  const model = buildModel(db);
+  let failed = false;
+  const mails = [{ id: '<genuine@gdf07>', text: BOOKING_MAIL, auth: GMAIL, date: new Date('2026-10-14T16:00:00Z') }];
+  const build = () => createIntakeService({
+    intakes: { ...model, insert: (row) => { if (!failed) { failed = true; throw Object.assign(new Error('database is locked'), { code: 'SQLITE_BUSY' }); } return model.insert(row); } },
+    parserVersion: '1.4.7',
+    now: () => NOW,
+    settings: { mailbox: () => ({ host: 'imap.x', port: 993, user: 'u', password: 'p' }), sender: () => 'resa@gdf07.com', authentication: () => ({ allowedDomains: 'gdf07.com', trustedAuthservId: '' }), giteNumbers: () => ({ 1: '309700' }), autoApply: () => true },
+    readMails: (cfg, h) => readMailsFrom({ ...cfg, ...h, ImapClient: imap(mails), smtpHostOf: () => 'smtp.gmail.com', now: NOW }),
+    findReservations: ({ startDate, endDate }) => (startDate === '2026-11-13' && endDate === '2026-11-15' ? [PH] : []),
+    commissionPercent: () => 10,
+    propertyOptions: () => [],
+    getReservation: () => ({ ...PH, options: [] }),
+    today: () => '2026-10-15',
+    core: { updateReservation: () => ({ status: 200, clientId: 1, body: { ok: true } }), suggestBeds: () => ({ singleBeds: 2, doubleBeds: 4 }) },
+  });
+  await build().runPass();
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM gdf_intakes').get().n, 0, 'nothing stored: the mail stays unseen');
+  await build().runPass();
+  assert.notEqual(db.prepare("SELECT status FROM gdf_intakes WHERE messageId = '<genuine@gdf07>'").get().status, 'pending');
+});
+
+test('rule 34: another error on a verified mail is stored as error, on an unverified one as ignored', async () => {
+  const db = new Database(':memory:');
+  db.exec(TABLE_SQL);
+  const model = buildModel(db);
+  const mails = [
+    { id: '<v@x>', text: 'x', auth: GMAIL, date: new Date('2026-10-14T16:00:00Z') },
+    { id: '<u@x>', text: 'x', auth: '', date: new Date('2026-10-14T15:00:00Z') },
+  ];
+  const seen = new Set();
+  const svc = createIntakeService({
+    intakes: { ...model, insert: (row) => { if (!seen.has(row.messageId)) { seen.add(row.messageId); throw new Error('boom'); } return model.insert(row); } },
+    parserVersion: '1.4.7',
+    now: () => NOW,
+    settings: { mailbox: () => ({ host: 'imap.x', port: 993, user: 'u', password: 'p' }), sender: () => 'resa@gdf07.com', authentication: () => ({ allowedDomains: 'gdf07.com', trustedAuthservId: '' }), giteNumbers: () => ({ 1: '309700' }), autoApply: () => true },
+    readMails: (cfg, h) => readMailsFrom({ ...cfg, ...h, ImapClient: imap(mails), smtpHostOf: () => 'smtp.gmail.com', now: NOW }),
+    findReservations: () => [],
+    commissionPercent: () => 10,
+    propertyOptions: () => [],
+    getReservation: () => null,
+    today: () => '2026-10-15',
+    core: {},
+  });
+  await svc.runPass();
+  const status = (id) => db.prepare('SELECT status FROM gdf_intakes WHERE messageId = ?').get(id).status;
+  assert.equal(status('<v@x>'), 'error');
+  assert.equal(status('<u@x>'), 'ignored');
+});

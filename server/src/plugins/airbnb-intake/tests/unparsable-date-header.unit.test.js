@@ -61,3 +61,15 @@ test('rule 34: a mail that makes the intake step throw is remembered as ignored 
   assert.match(boom.error, /db busy/);
   assert.ok(db.prepare("SELECT 1 FROM airbnb_intakes WHERE messageId = '<next@x>'").get());
 });
+
+test('rule 34: an insert that fails once with SQLITE_BUSY stores nothing and the next pass reads the mail again', async () => {
+  let failed = false;
+  const { service, db } = build(
+    [{ id: '<busy@x>', text: 'Bonjour', date: new Date('2026-10-25T09:00:00Z') }],
+    (insert) => (row) => { if (!failed) { failed = true; throw Object.assign(new Error('database is locked'), { code: 'SQLITE_BUSY' }); } return insert(row); },
+  );
+  await service.runPass();
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM airbnb_intakes').get().n, 0);
+  await service.runPass();
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM airbnb_intakes').get().n, 1);
+});

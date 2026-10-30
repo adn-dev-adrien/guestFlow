@@ -306,7 +306,7 @@ choice in one click.
     Gîtes de France 1.4.7 asks for `sdk ^2.17.0`.
 34. **An unparsable Date header or a throwing mail never stops a pass** (audit r5, review of PR #874, R1): see
     `airbnb-mail-intake.md` rule 34. The genuine booking is applied beside a forged `Date: not a date` or 32 KB Date,
-    with and without a trusted server. Test: `tests/unparsable-date-header.unit.test.js`.
+    with and without a trusted server. A database error (`SQLITE_*`) on a mail stores nothing and the next pass retries it (R2); any other error is stored `error` for a verified mail, `ignored` otherwise. Test: `tests/unparsable-date-header.unit.test.js`.
 
 ---
 

@@ -59,6 +59,7 @@ function register(ctx) {
   };
 
   const service = () => createIntakeService({
+    log: (line) => ctx.log.warn(line),
     intakes: intakes(),
     parserVersion: sdk.manifestVersion(__dirname),
     settings: {

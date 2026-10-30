@@ -350,9 +350,11 @@ add the phone and e-mail from Airbnb. When the mail cannot be applied, the fiche
 34. **An unparsable Date header or a throwing mail never stops a pass** (audit r5, review of PR #874, R1, 2026-10-30).
     imapflow hands a Date header it cannot parse over as the raw string; `new Date(raw).toISOString()` threw and one
     forged mail blocked every pass for 30 days (on Gmail a verified booking stayed `pending`). The reader now keeps a
-    date only if it parses (otherwise the other date, then `now`, is used) and the service isolates each mail: one
-    that makes the intake step throw is stored as `ignored` with « Erreur de lecture : <reason> », as rule 19
-    isolates the apply step. Tests: `airbnb-intake/tests/unparsable-date-header.unit.test.js`.
+    date only if it parses (otherwise the other date, then `now`, is used) and the service isolates each mail. One that
+    makes the intake step throw never stops the pass: a database error (`err.code` starting with `SQLITE_`) stores
+    nothing, is logged, and the mail is read again by the next pass (review of PR #874, R2: storing it would lose a
+    verified genuine mail for good); any other error is stored like a mail that does not parse (rule 26): `error` with
+    « Erreur de lecture : <reason> » for a verified mail, `ignored` otherwise. Tests: `airbnb-intake/tests/unparsable-date-header.unit.test.js`.
 
 ---
 

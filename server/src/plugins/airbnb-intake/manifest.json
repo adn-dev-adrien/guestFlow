@@ -58,7 +58,7 @@
     "1.1.5": [
       "Les compteurs internes (mails non lus, dernière relève) ne peuvent plus être modifiés depuis les réglages (SDK 2.17 de GuestFlow).",
       "La lecture du courrier ne garde plus en mémoire les en-têtes des mails non lus : mémoire bornée en cas d’afflux.",
-      "Un mail dont la date est illisible, ou qui provoque une erreur, ne bloque plus la lecture des suivants : il est ignoré avec son motif."
+      "Un mail dont la date est illisible, ou qui provoque une erreur, ne bloque plus la lecture des suivants ; une erreur passagère de la base le fait relire à la passe suivante."
     ]
   }
 }
