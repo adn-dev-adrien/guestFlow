@@ -6,16 +6,33 @@
  * ignoring preferences — used by the "send a test notification" action. Dead endpoints (404/410) are
  * pruned. The whole operation is fully isolated: it NEVER throws — a misconfigured VAPID, a missing
  * subscription, or a browser-endpoint error can't propagate to the caller (iCal sync / booking /
- * scheduled tick stay intact). This is a correctness guarantee, covered by tests.
+ * scheduled tick stay intact). This is a correctness guarantee, covered by tests. Each send is bounded by
+ * `sendTimeoutMs` (rule 14): a push endpoint that never answers counts as failed instead of holding the
+ * caller, which may be awaiting it inside a guarded pass (payment poll, Qonto webhook, Neat pass).
  *
- * Injectable (`webpush` / `model` / `vapid` / `logger`) for unit tests.
+ * Injectable (`webpush` / `model` / `vapid` / `logger` / `sendTimeoutMs`) for unit tests.
  */
 
 const realWebpush = require('web-push');
 const realModel = require('../models/pushSubscriptionsModel');
 const realVapid = require('./vapid');
 
-function buildPushService({ webpush = realWebpush, model = realModel, vapid = realVapid, logger = console } = {}) {
+const SEND_TIMEOUT_MS = 10_000;
+
+// web-push's `timeout` is an idle-socket timeout: a peer that trickles bytes would keep it alive, so the
+// send is also raced against the same bound.
+function boundedSend(webpush, subscription, body, timeoutMs) {
+  let timer;
+  const deadline = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`push send timeout after ${timeoutMs} ms`)), timeoutMs);
+  });
+  return Promise.race([webpush.sendNotification(subscription, body, { timeout: timeoutMs }), deadline])
+    .finally(() => clearTimeout(timer));
+}
+
+function buildPushService({
+  webpush = realWebpush, model = realModel, vapid = realVapid, logger = console, sendTimeoutMs = SEND_TIMEOUT_MS,
+} = {}) {
   // Push `payload` (an object → JSON) to the given subscriptions. Prunes 404/410, counts transient
   // failures, never throws. Resolves to `{ sent, pruned, failed }`.
   async function sendToSubscriptions(subs, payload) {
@@ -26,7 +43,7 @@ function buildPushService({ webpush = realWebpush, model = realModel, vapid = re
     await Promise.all(subs.map(async (s) => {
       const subscription = { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } };
       try {
-        await webpush.sendNotification(subscription, body);
+        await boundedSend(webpush, subscription, body, sendTimeoutMs);
         sent += 1;
       } catch (err) {
         const code = err && (err.statusCode || err.status);
@@ -78,5 +95,6 @@ function buildPushService({ webpush = realWebpush, model = realModel, vapid = re
 
 const defaultService = buildPushService();
 defaultService.buildPushService = buildPushService;
+defaultService.SEND_TIMEOUT_MS = SEND_TIMEOUT_MS;
 
 module.exports = defaultService;
