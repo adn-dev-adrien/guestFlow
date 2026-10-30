@@ -19,6 +19,7 @@ import LanguageBadge from './LanguageBadge';
 import { displayDateTime } from '../utils/formatters';
 import useLatestRequest from '../hooks/useLatestRequest';
 import { ENGLISH_MISSING, ENGLISH_MISSING_TAG, NO_RECIPIENT, sendErrorMessage } from '../constants/emailSendErrors';
+import { isLinkAlreadyPaid } from '../constants/paymentLinks';
 
 function offsetLabel(n) {
   const num = Number(n);
@@ -41,6 +42,8 @@ function formatTargetDate(startDateIso, dayOffset) {
  * One dialog serves many rows (pending queue, history): every opening starts from a fresh state, so
  * nothing of the previous row — template, edits, recipient, language — can leave in the next email
  * (specs/email-automation.md rule 21).
+ * `onMoneyChanged` (optional): a refusal booked the stay's payment (409 LINK_ALREADY_PAID,
+ * specs/payment-link-lifecycle.md rule 50): the page re-reads its money; `onSent` stays for a mail that left.
  */
 export default function EmailManualSendDialog(props) {
   const [wasOpen, setWasOpen] = useState(Boolean(props.open));
@@ -53,7 +56,7 @@ export default function EmailManualSendDialog(props) {
 }
 
 function EmailManualSendForm({
-  open, reservationId, reservationStartDate, defaultTemplateId, occurrenceKey, onClose, onSent,
+  open, reservationId, reservationStartDate, defaultTemplateId, occurrenceKey, onClose, onSent, onMoneyChanged,
 }) {
   // Full screen on a phone, like every dialog (specs/ds-components.md rule 22).
   const theme = useTheme();
@@ -172,6 +175,7 @@ function EmailManualSendForm({
         setAlreadySentAt(e.sentAtLabel || (e.sentAt ? displayDateTime(e.sentAt) : ''));
       } else {
         setError(sendErrorMessage(e));
+        if (isLinkAlreadyPaid(e) && onMoneyChanged) await onMoneyChanged();
       }
     } finally {
       setSending(false);

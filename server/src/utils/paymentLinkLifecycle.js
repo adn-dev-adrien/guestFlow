@@ -9,6 +9,7 @@
  *   validityOf(link, now)                          → { expiresAt, remainingMs, lapsed, reusable } (rules 7, 8)
  *   retireLapsedAndWithdrawn(database, { now, paymentLinksModel? }) → the links it moved out of `open` (rule 16)
  *   listLastLookDue(database, { now })             → the lapsed links whose last look is due (rule 19)
+ *   lapsesAtArrival(database, link, now)           → whether rule 9 lapses this open link at the next pass (rule 51)
  *   lastLookAfter(now)                             → when the last look of a link deactivated at `now` is due
  */
 
@@ -68,9 +69,7 @@ function withdrawGoneOrCancelled(database, links, now) {
 // Rule 9 — from 00:00 Paris on the arrival day, the pre-arrival links of the stay (and of the devis it
 // came from) lapse; a link minted on or after that day keeps its 36 hours. SQL selects the stays that
 // began; the minting day is read in Paris time here, which SQLite cannot do.
-function lapseStarted(database, links, now) {
-  const today = localIsoDate(now);
-  const rows = database.prepare(`
+const ARRIVED_SQL = `
     SELECT l.id, l.createdAt, COALESCE(c.startDate, r.startDate) AS startDate
       FROM payment_links l
       JOIN reservations r ON r.id = l.reservationId
@@ -78,17 +77,26 @@ function lapseStarted(database, links, now) {
      WHERE l.status = 'open'
        AND l.type IN (${PRE_ARRIVAL_TYPES.map(() => '?').join(', ')})
        AND COALESCE(c.kind, r.kind) IN ('reservation', 'devis')
-       AND COALESCE(c.startDate, r.startDate) <= ?
-     ORDER BY l.id
-  `).all(...PRE_ARRIVAL_TYPES, today);
-  const { parseTimestampMs } = model();
-  return rows
-    .filter((row) => {
-      const createdMs = parseTimestampMs(row.createdAt);
-      return createdMs == null || localIsoDate(new Date(createdMs)) < String(row.startDate).slice(0, 10);
-    })
+       AND COALESCE(c.startDate, r.startDate) <= ?`;
+
+function mintedBeforeArrival(row) {
+  const createdMs = model().parseTimestampMs(row.createdAt);
+  return createdMs == null || localIsoDate(new Date(createdMs)) < String(row.startDate).slice(0, 10);
+}
+
+function lapseStarted(database, links, now) {
+  return database.prepare(`${ARRIVED_SQL} ORDER BY l.id`).all(...PRE_ARRIVAL_TYPES, localIsoDate(now))
+    .filter(mintedBeforeArrival)
     .map((row) => links.lapseIfOpen(row.id, { reason: LINK_REASONS.STAY_STARTED, now }))
     .filter(Boolean);
+}
+
+// Rule 51 — the mint asks the same question of the one link it would reuse: a link the next pass lapses
+// cannot be handed to the guest as valid.
+function lapsesAtArrival(database, link, now = new Date()) {
+  if (!link || link.id == null) return false;
+  const row = database.prepare(`${ARRIVED_SQL} AND l.id = ?`).get(...PRE_ARRIVAL_TYPES, localIsoDate(now), link.id);
+  return Boolean(row && mintedBeforeArrival(row));
 }
 
 // Rule 16 — one pass, one transaction; every move is conditional on `open`, so a webhook that paid the
@@ -114,4 +122,4 @@ function listLastLookDue(database, { now = new Date() } = {}) {
     .map((row) => links.findById(row.id));
 }
 
-module.exports = { validityEnd, validityOf, lastLookAfter, retireLapsedAndWithdrawn, listLastLookDue };
+module.exports = { validityEnd, validityOf, lastLookAfter, retireLapsedAndWithdrawn, listLastLookDue, lapsesAtArrival };

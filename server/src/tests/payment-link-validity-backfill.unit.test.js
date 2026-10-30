@@ -57,17 +57,16 @@ test('rule 34 — paid, cancelled and expired rows are never touched', () => {
   rows.forEach((l) => assert.equal(links.findById(l.id).expiresAt, null));
 });
 
-test('rule 34 — runs once: a second boot changes nothing and logs nothing', () => {
+test('rule 34 — runs once: a second boot never pushes a known end back, and logs nothing', () => {
   const { db, links, stay, lines, logger } = setup();
   const link = addLink(links, db, stay);
   runPaymentLinkValidityBackfill(db, { now: INSTALL, logger });
   lines.length = 0;
-  db.prepare('UPDATE payment_links SET expiresAt = NULL WHERE id = ?').run(link.id);
 
   const second = runPaymentLinkValidityBackfill(db, { now: new Date('2026-11-10T09:00:00Z'), logger });
 
   assert.equal(second.ran, false);
-  assert.equal(links.findById(link.id).expiresAt, null);
+  assert.equal(links.findById(link.id).expiresAt, GRACE);
   assert.deepEqual(lines, []);
   assert.ok(db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(MIGRATION_NAME));
 });
@@ -87,4 +86,26 @@ test('rule 34 — database.js runs the backfill at boot, after the orphans are w
   const orphans = src.indexOf('runOrphanPaymentLinksMigration(db)');
   const backfill = src.indexOf('runPaymentLinkValidityBackfill(db)');
   assert.ok(orphans > 0 && backfill > orphans);
+});
+
+// Rule 53 (audit R8 database N1) — a release before this one, run during a rollback window, mints links with
+// Qonto's sentinel. The roll-forward finds the marker set; the boot still gives those rows their 36 h, and
+// only those: a known expiry is never pushed back.
+test('rule 53 — at every boot, an open link with no known end gets 36 h from that boot', () => {
+  const { db, links, stay, lines, logger } = setup();
+  runPaymentLinkValidityBackfill(db, { now: INSTALL, logger });
+  lines.length = 0;
+  const rolledBack = links.create({ reservationId: stay, type: 'full', amountCents: 30000, providerLinkId: 'pl_old', url: 'u1', expiresAt: '0001-01-01T00:00:00Z', createdAt: '2026-11-06 10:00:00' });
+  const complement = links.create({ reservationId: stay, type: 'complement', amountCents: 2000, providerLinkId: 'pl_old2', url: 'u2', createdAt: '2026-11-06 11:00:00' });
+  db.prepare('UPDATE payment_links SET expiresAt = NULL WHERE id = ?').run(complement.id);
+  const known = addLink(links, db, stay, { createdAt: new Date('2026-11-07T08:00:00Z'), expiresAt: new Date('2026-11-08T20:00:00Z') });
+
+  const boot = runPaymentLinkValidityBackfill(db, { now: new Date('2026-11-08T09:00:00Z'), logger });
+
+  assert.deepEqual(boot.backfilled.map((l) => l.id), [rolledBack.id, complement.id]);
+  assert.equal(links.findById(rolledBack.id).expiresAt, '2026-11-09T21:00:00.000Z');
+  assert.equal(links.findById(complement.id).expiresAt, '2026-11-09T21:00:00.000Z');
+  assert.equal(links.findById(known.id).expiresAt, '2026-11-08T20:00:00.000Z', 'a known end stays');
+  assert.equal(lines.length, 2);
+  assert.equal(runPaymentLinkValidityBackfill(db, { now: new Date('2026-11-09T09:00:00Z'), logger }).backfilled.length, 0, 'repaired once');
 });
