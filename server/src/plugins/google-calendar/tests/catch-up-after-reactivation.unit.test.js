@@ -39,7 +39,7 @@ test('rule 17 — a stay changed and a stay added while the plugin was off are p
   };
   // Google still holds stay 1 as it was; the database now holds it with another name, and a second stay.
   const reservations = [stay({ clientLastName: 'Nouveau' }), stay({ id: 2 })];
-  const sync = create({ settings, model: { listReservationsForSync: () => reservations, getReservationForSync: () => null }, getCalendar: () => calendar, log: () => {} });
+  const sync = create({ settings, model: { listReservationsForSync: () => reservations, getReservationForSync: (id) => reservations.find((r) => Number(r.id) === Number(id)) || null }, getCalendar: () => calendar, log: () => {} });
   const out = await sync.reconcile();
   assert.equal(out.ok, true);
   assert.equal(out.pushed, 2, 'the change and the addition both reach Google');

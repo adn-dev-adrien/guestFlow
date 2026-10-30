@@ -428,6 +428,20 @@ Other facts the design rests on:
     stay whose acompte is collected is booked as the solde, so `amountMismatch.expectedCents` is the solde, on the retry
     path and the live path: re-priced up, the alert says the amount covers the stay (no « à percevoir »); re-priced down,
     it states the true trop-perçu.
+45. **The same-day tick holds on a re-priced stay (audit R5 M1, 2026-10-30).** Rule 42's reasoning is applied before
+    the amount check (`acompteIsLinkMoney`, `ledgerLinks.js`): a `full` link paid on or before the day the acompte was
+    ticked, not at the door, with no other paid acompte or full link, is the link's own money even when
+    its amount no longer equals acompte + solde. `bookPaidAfterAmountChange` then books it like an unsettled acompte
+    (`fullOverDeposit`): acompte unchanged, solde = link - acompte, a shortfall to the complement, an excess to the
+    trop-perçu. The outcome therefore does not depend on whether the tick or the webhook comes first, on the live path,
+    the `settled` retry and the `amount-changed` retry alike. Rule 44 is amended for this case only:
+    `amountMismatch.expectedCents` is the whole acompte + solde (the link is compared with the whole amount), not the
+    solde. E.g. a 455,36 link, acompte 100 ticked the same day: stay re-priced to 555,36 gives acompte 100 + solde
+    355,36 + complement 100 owed; re-priced to 355,36 gives a trop-perçu of 100 (an acompte ticked on an *earlier* day
+    stays rule 41: the trop-perçu is then 200, the acompte being a second payment).
+46. **The mismatch alert does not wait for a difference that is not there (audit R5, 2026-10-30).** When the amount
+    received equals what the stay asks, the « autre montant » e-mail ends with « À vérifier : envoyer la confirmation
+    au client. », without « une fois la différence réglée ».
 
 ## 4. Architecture
 
@@ -547,6 +561,7 @@ the moved page. No behaviour change.
 | `payment-provider-interface.unit.test.js` | 6 | Rules 4–6, 20: missing member; one provider; `active()`; 409 on the endpoints; dashboard; the upgrade migration |
 | `payment-link-deactivation.unit.test.js` | 7 | Rules 7–9: deactivated; refused → marked; stale link; retry; paid after cancel; failing retry; admin email |
 | `plugins/online-payment/tests/phase-3a-online-payment.unit.test.js` | 7 | Rules 4, 10–16, 21: provider; routes and webhook at their URLs; settings copy and secrets; poll job; erase keeps payments; open-link blocker; a new customer has no provider |
+| `payment-link-same-day-repriced.unit.test.js` (2026-10-30) | 9 | Rules 45, 46: grown / shrunk × live / `settled` retry / `amount-changed` retry give the stay of the webhook-first order, the alert reads the whole amount; earlier tick and paid acompte link unchanged; the e-mail wording |
 | `payment-link-retired-then-paid.unit.test.js` (2026-10-18) | 6 | Rule 24: ticked on seeing the money → `paid`, no alert, recorder once; the recorder keeps the operator's date; settled an earlier day → kept for refund, « à vérifier »; other cancellations keep rule 8; the email wording; the `cancelReason` upgrade |
 
 ### Moved and updated tests

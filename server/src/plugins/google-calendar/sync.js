@@ -144,20 +144,24 @@ function createGoogleCalendarSync({
       const reservations = model.listReservationsForSync();
       const knownIds = new Set(reservations.map((r) => Number(r.id)));
 
-      for (const reservation of reservations) {
+      for (const listed of reservations) {
         try {
-          const remote = remoteByReservationId.get(Number(reservation.id));
-          const desired = buildGoogleEventPayload(reservation, reservation.options);
-          if (remote && !eventDiffers(remote, desired)) {
-            skipped += 1;
-            continue;
-          }
-          await upsertReservationEvent(calendar, calendarId, reservation, reservation.options, desired);
-          pushed += 1;
+          const outcome = await inOrder(listed.id, async () => {
+            // The list is a snapshot; the stay may have been cancelled or edited while earlier ones were pushed.
+            const reservation = model.getReservationForSync(listed.id);
+            if (!reservation) return 'skipped';
+            const remote = remoteByReservationId.get(Number(reservation.id));
+            const desired = buildGoogleEventPayload(reservation, reservation.options);
+            if (remote && !eventDiffers(remote, desired)) return 'skipped';
+            await upsertReservationEvent(calendar, calendarId, reservation, reservation.options, desired);
+            return 'pushed';
+          });
+          if (outcome === 'pushed') pushed += 1;
+          else skipped += 1;
         } catch (error) {
           if (isInvalidGrant(error)) throw error;
           errors += 1;
-          log('[googleCalendarSync.reconcile] reservation', reservation.id, (error && error.response && error.response.data) || error);
+          log('[googleCalendarSync.reconcile] reservation', listed.id, (error && error.response && error.response.data) || error);
         }
       }
 

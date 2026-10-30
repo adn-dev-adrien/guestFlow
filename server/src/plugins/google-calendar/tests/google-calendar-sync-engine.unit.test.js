@@ -86,7 +86,8 @@ function makeEngine({ settings, calendar, reservations = [], single = null }) {
     settings,
     model: {
       listReservationsForSync: () => reservations,
-      getReservationForSync: (id) => (single && Number(single.id) === Number(id) ? single : null),
+      getReservationForSync: (id) => (single && Number(single.id) === Number(id) ? single : null)
+        || reservations.find((r) => Number(r.id) === Number(id)) || null,
     },
     getCalendar: () => calendar,
     log: () => {},

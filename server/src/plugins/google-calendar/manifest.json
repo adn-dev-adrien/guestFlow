@@ -1,7 +1,7 @@
 {
   "id": "google-calendar",
   "name": "Google Agenda",
-  "version": "1.2.4",
+  "version": "1.2.5",
   "description": "Copie les séjours dans un agenda Google.",
   "icon": "event",
   "surfaces": [
@@ -42,6 +42,10 @@
       "Compatible avec le SDK 2 de GuestFlow."
     ],
     "1.2.4": [
+      "Un séjour annulé pendant la synchronisation complète ne laisse plus d’événement dans l’agenda, et un séjour modifié n’y est plus remis aux anciennes dates.",
+      "Compatible avec le SDK 2 de GuestFlow."
+    ],
+    "1.2.5": [
       "Les informations de connexion et de synchronisation (compte, calendrier, dernière synchro) ne peuvent plus être modifiées depuis les réglages (SDK 2.17 de GuestFlow)."
     ]
   }

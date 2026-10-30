@@ -30,7 +30,7 @@ function recordOn(database) {
   };
 }
 
-const { linkAmountCents, bookPaidAfterAmountChange } = require('./ledgerLinks');
+const { linkAmountCents, acompteIsLinkMoney, bookPaidAfterAmountChange } = require('./ledgerLinks');
 const { withConvertedDevis } = require('./deletionGuard');
 
 // Apply the business consequence of a PAID link. A deposit OR a full payment on a devis converts it to a
@@ -95,7 +95,7 @@ function applyPaidEffect({ database, devisModel, link, checkConflict, paidDate =
     const expectedCents = hasSplit ? linkAmountCents(link.type, priced) : null;
     if (expectedCents != null && link.amountCents != null && Number(link.amountCents) !== expectedCents) {
       const booked = bookPaidAfterAmountChange({ database, recordPayment }, link, { paidDay: paidDate });
-      return { effect: booked.effect, reservationId, conflict, justConverted: effect === 'converted', amountMismatch: { expectedCents: alertExpectedCents(link, priced), receivedCents: Number(link.amountCents) } };
+      return { effect: booked.effect, reservationId, conflict, justConverted: effect === 'converted', amountMismatch: { expectedCents: alertExpectedCents(link, priced, database, paidDate), receivedCents: Number(link.amountCents) } };
     }
     recordPayment({ reservationId, bucket: isFull ? 'full' : 'deposit', paidDate });
     return { effect, reservationId, conflict };
@@ -149,9 +149,12 @@ function bucketAlreadySettled(stay, type) {
 
 // Rule 44 — what the alert compares the payment with: a full link paid on a stay whose acompte is already
 // collected is booked as the solde, so the amount to chase or refund is read against the solde alone.
-function alertExpectedCents(link, stay) {
+// Rule 45 — unless that acompte was ticked the day of the payment: it is then the link's own money, booked
+// with the solde, and the link is compared with the whole amount.
+function alertExpectedCents(link, stay, database = null, paidDay = null) {
   const depositCollected = Number(stay.depositPaid || 0) === 1 && Number(stay.depositAmount || 0) > 0;
   return String(link.type) === 'full' && depositCollected && Number(stay.balancePaid || 0) !== 1
+    && !(database && acompteIsLinkMoney(database, link, stay, paidDay))
     ? linkAmountCents('balance', stay) : linkAmountCents(link.type, stay);
 }
 
@@ -197,24 +200,14 @@ function fullAfterDeposit(database, link, paidDay = null) {
   if (Number(stay.depositPaid || 0) !== 1 || Number(stay.balancePaid || 0) === 1 || !(Number(stay.depositAmount || 0) > 0)) return null;
   const linkCents = Number(link.amountCents || 0);
   const expectedCents = linkAmountCents('full', stay);
-  const found = { stayId: stay.id, duplicateCents: 0, mismatch: null, sameDay: false };
+  const found = { stayId: stay.id, duplicateCents: 0, mismatch: null, sameDay: acompteIsLinkMoney(database, link, stay, paidDay) };
   if (stay.balanceAmount != null && linkCents !== expectedCents) {
-    found.mismatch = { expectedCents: alertExpectedCents(link, stay), receivedCents: linkCents };
+    found.mismatch = { expectedCents: alertExpectedCents(link, stay, database, paidDay), receivedCents: linkCents };
     return found;
   }
-  if (paidDay && stay.depositPaidDate && String(stay.depositPaidDate).slice(0, 10) >= paidDay && Number(stay.depositPaidAtArrival || 0) !== 1 && !hasOtherPaidAcompteLink(database, link, stay)) {
-    found.sameDay = true;
-    return found;
-  }
+  if (found.sameDay) return found;
   found.duplicateCents = Math.max(0, linkCents - Math.round(Number(stay.balanceAmount || 0) * 100));
   return found;
-}
-
-function hasOtherPaidAcompteLink(database, link, stay) {
-  const owners = withConvertedDevis(database, [Number(stay.id), Number(link.reservationId)]);
-  return Boolean(database.prepare(
-    `SELECT 1 FROM payment_links WHERE reservationId IN (${owners.map(() => '?').join(',')}) AND type IN ('deposit', 'full') AND status = 'paid' AND id <> ? LIMIT 1`,
-  ).get(...owners, Number(link.id)));
 }
 
 function recordRefundOwed(database, reservationId, link, duplicateCents = null) {
@@ -468,7 +461,7 @@ async function bookClaimedAmountChangedLink({ paymentLinksModel, notifyPaidAfter
     : (stay && stay.kind === 'devis' && stay.convertedReservationId
       ? database.prepare('SELECT * FROM reservations WHERE id = ?').get(Number(stay.convertedReservationId)) : stay);
   const expectedCents = target && target.kind === 'reservation' && ['deposit', 'balance', 'full'].includes(String(link.type))
-    ? alertExpectedCents(link, target) : null;
+    ? alertExpectedCents(link, target, database, paidDayOf(paidAt)) : null;
   const mismatch = expectedCents != null ? { expectedCents, receivedCents: Number(link.amountCents) } : null;
   const booked = bookPaidAfterAmountChange(
     { database, recordPayment: recordPayment || recordOn(database) },

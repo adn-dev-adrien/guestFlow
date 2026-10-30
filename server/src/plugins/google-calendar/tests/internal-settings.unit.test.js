@@ -1,4 +1,4 @@
-// specs/google-calendar-oauth-rework.md rule 28 (audit r5) — the connection and last-sync stamps are the plugin's own state:
+// specs/google-calendar-oauth-rework.md rule 29 (audit r5) — the connection and last-sync stamps are the plugin's own state:
 // the generic settings PUT refuses them, the plugin still writes them, and no client form round-trips them.
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -19,7 +19,7 @@ const { ensurePluginsTable, ensurePluginSettingsTable } = require('../../../util
 
 const STAMPS = ['connectedEmail', 'connectedAt', 'calendarSummary', 'lastSyncAt', 'lastSyncOk', 'lastSyncDetail'];
 
-test('rule 28: every stamp is refused by the PUT, hidden from the GET, and still written by the plugin', () => {
+test('rule 29: every stamp is refused by the PUT, hidden from the GET, and still written by the plugin', () => {
   const db = new Database(':memory:');
   db.exec(fs.readFileSync(path.join(__dirname, '..', '..', '..', 'schema.sql'), 'utf8'));
   ensurePluginsTable(db);
