@@ -474,7 +474,9 @@ function buildNotificationService({
           : Number(amountMismatch.expectedCents) === Number(link.amountCents || 0)
             ? 'Le montant reçu couvre ce que le séjour demande.'
             : `Trop-perçu de ${eurosFr(Number(link.amountCents || 0) - Number(amountMismatch.expectedCents))} à rembourser.`,
-        'À vérifier : envoyer la confirmation au client une fois la différence réglée.',
+        Number(amountMismatch.expectedCents) === Number(link.amountCents || 0)
+          ? 'À vérifier : envoyer la confirmation au client.'
+          : 'À vérifier : envoyer la confirmation au client une fois la différence réglée.',
       ]
       : settledOn
       ? [
