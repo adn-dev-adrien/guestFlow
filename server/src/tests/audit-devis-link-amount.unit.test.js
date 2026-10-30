@@ -147,6 +147,7 @@ test('the admin alert names the amounts for a mismatch and the double payment', 
 // at what was received and the solde absorbs the gap; the alert says so, owes no complement nor trop-perçu, and the
 // confirmation goes out.
 for (const [deposit, balance, label] of [[120, 335.36, 'grown'], [80, 375.36, 'shrunk']]) {
+  // specs/plugins-phase-3a-online-payment.md rule 47
   test(`rule 47 — devis acompte link, acompte ${label}: the alert states the booking, the confirmation is sent`, async () => {
     const { db, id, links } = seed({ deposit: 100, balance: 355.36 });
     const link = links.create({ reservationId: id, type: 'deposit', amountCents: 10000, providerLinkId: 'old', url: 'u', status: 'open' });
