@@ -5,6 +5,7 @@
  */
 
 const { todayIso: localTodayIso } = require('./localDate');
+const { bookingDayOf } = require('./vatRegime');
 const path = require("path");
 const fs = require("fs");
 const PDFDocument = require("pdfkit");
@@ -418,31 +419,7 @@ function generateDevisPdf(full, settings, quote) {
   // ── Devis meta ────────────────────────────────────────────────────────────
   const META_TOP = Math.max(cy, ccy) + 18;
 
-  // §3.1 + §3.2 — Date du devis + Valable jusqu'au.
-  //
-  // `createdAt` is normally populated by the model (§3.1 rule 1 binds it explicitly on INSERT).
-  // The fallback to "today" below is a legacy guard for the handful of pre-fix rows persisted
-  // with an empty value (devis #12102, #12097 etc. in the prod-copy DB) — without it those
-  // legacy PDFs show an empty "Date du devis" pill.
-  const todayIsoDate = localTodayIso();
-  const createdAtIsoDate = full.createdAt
-    ? String(full.createdAt).slice(0, 10)
-    : todayIsoDate;
-
-  // `validUntil` is normally persisted by the model (§3.2 rule 6) as
-  // MIN(createdAt + quoteValidityDays, startDate - 2). The fallback below recomputes the
-  // same formula from `createdAt` for legacy rows where `validUntil` is NULL — these are
-  // the same rows the spec §3.2 rule 9 calls out as the forward-only safety net.
-  const validUntilIso = (() => {
-    if (full.validUntil) return String(full.validUntil);
-    const days = Number(settings && settings.quoteValidityDays) || 30;
-    let iso = addDaysToIsoDate(createdAtIsoDate, days) || '';
-    const startDateIso = String(full.startDate || '');
-    if (startDateIso && iso && iso > startDateIso) {
-      iso = addDaysToIsoDate(startDateIso, -2) || iso;
-    }
-    return iso;
-  })();
+  const { createdAtIsoDate, validUntilIso } = resolveDevisDates(full, settings);
 
   // Meta pills
   const metaItems = [
@@ -1067,6 +1044,30 @@ function summarySchedule(full, L) {
   return lines;
 }
 
+// §3.1 + §3.2 — Date du devis + Valable jusqu'au.
+//
+// `createdAt` is normally populated by the model (§3.1 rule 1 binds it explicitly on INSERT), as a
+// UTC timestamp: the date printed is the operator's day it fell on (rule 23), not its first ten
+// characters. The fallback to "today" is a legacy guard for the handful of pre-fix rows persisted
+// with an empty value (devis #12102, #12097 etc. in the prod-copy DB) — without it those legacy
+// PDFs show an empty "Date du devis" pill.
+//
+// `validUntil` is normally persisted by the model (§3.2 rule 6) as
+// MIN(createdAt + quoteValidityDays, startDate - 2). The fallback recomputes the same formula from
+// `createdAt` for legacy rows where `validUntil` is NULL — the rows §3.2 rule 9 calls out as the
+// forward-only safety net. Exported under `__test`.
+function resolveDevisDates(full, settings) {
+  const createdAtIsoDate = bookingDayOf(full.createdAt) || localTodayIso();
+  if (full.validUntil) return { createdAtIsoDate, validUntilIso: String(full.validUntil) };
+  const days = Number(settings && settings.quoteValidityDays) || 30;
+  let validUntilIso = addDaysToIsoDate(createdAtIsoDate, days) || '';
+  const startDateIso = String(full.startDate || '');
+  if (startDateIso && validUntilIso && validUntilIso > startDateIso) {
+    validUntilIso = addDaysToIsoDate(startDateIso, -2) || validUntilIso;
+  }
+  return { createdAtIsoDate, validUntilIso };
+}
+
 // HT of one table row: its TTC net of the line's VAT, rounded like the column prints it.
 function rowHt(totalTtc, vatRate) {
   const rate = Number(vatRate || 0);
@@ -1076,6 +1077,7 @@ function rowHt(totalTtc, vatRate) {
 module.exports = {
   generateDevisPdf,
   __test: {
+    resolveDevisDates,
     showsStruckOriginal,
     groupOffered,
     summarySchedule,
