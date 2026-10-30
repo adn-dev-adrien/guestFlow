@@ -195,3 +195,26 @@ test('rule 8: a normal syncMany pass applies every source', async () => {
   assert.deepEqual(res.map((r) => r.ok), [true, true]);
   assert.ok(!res[1].skipped);
 });
+
+test('rule 8: a stale prefetch that failed neither resets the streak nor writes an error status', async () => {
+  const { db, model } = freshModel();
+  const stay = { start: isoOffset(30).compact, end: isoOffset(33).compact };
+  const good = icsFeed([{ uid: 'GDF1', start: stay.start, end: stay.end, summary: 'BOOKED' }]);
+  stubFetchBody(good);
+  await model.syncSourceAndRecord(gdfSource(db));
+  global.fetch = async (url) => {
+    if (String(url).includes('slow')) { await wait(300); return { ok: true, text: async () => icsFeed([]) }; }
+    return { ok: false, status: 503, text: async () => '' };
+  };
+  const auto = model.syncMany(allSources(db));
+  await wait(20);
+  stubFetchBody(EMPTY);
+  const op = await model.syncOne(1, 2);
+  assert.ok(op.error);
+  assert.equal(streakOf(db), 1);
+  const before = db.prepare('SELECT lastSyncStatus, lastSyncMessage FROM ical_sources WHERE id = 2').get();
+  const res = await auto;
+  assert.equal(res[1].skipped, 'newer sync applied');
+  assert.equal(streakOf(db), 1, 'the stale failure reset the streak');
+  assert.deepEqual(db.prepare('SELECT lastSyncStatus, lastSyncMessage FROM ical_sources WHERE id = 2').get(), before);
+});

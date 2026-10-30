@@ -74,7 +74,7 @@ rebuild its mappings from the UIDs already stored on the reservations themselves
    fetches every feed at t0 and applies them one after the other, so a feed can reach its turn after a
    fresher sync of the same source (the operator's « Synchroniser »). Each fetch is therefore stamped
    with its start and completion time (`observeFeed`). Inside the single-flight: (a) an observation
-   whose fetch started before the last one consumed for that source is dropped — `syncSource` returns
+   whose fetch started before the last one consumed for that source is dropped, whether it answered or failed (a stale failure neither resets the streak nor writes an error status) — `syncSource` returns
    `skipped: 'newer sync applied'` and `runSourceSync` records nothing (it would otherwise read the new
    stays as cancelled, or revert a date change for one pass); (b) an empty answer counts toward the
    streak only if its fetch started after the previous counted empty answer completed, otherwise it is
@@ -161,9 +161,10 @@ fixtures gained the `emptyFeedStreak` column + a persisted `ical_sources` row.
 - [x] Rule 7 — `syncOne` racing `syncAllForProperty` share one run.
 - [x] Rule 7 — a failed sync releases the source.
 
-### Server unit tests (`tests/ical-sync-prefetch-staleness.unit.test.js` — 5 tests)
+### Server unit tests (`tests/ical-sync-prefetch-staleness.unit.test.js` — 6 tests)
 - [x] Rule 8 — R5a: a feed prefetched during an outage is not a second empty observation after the operator's sync saw it.
 - [x] Rule 8 — R5b: an older prefetched feed does not raise a cancellation alert for a stay the operator's sync just created.
+- [x] Rule 8 — a stale prefetch that failed neither resets the streak nor writes an error status.
 - [x] Rule 8 — a skipped stale observation leaves the source status row untouched.
 - [x] Rule 8 — two sequential empty answers still confirm each other.
 - [x] Rule 8 — a normal `syncMany` pass applies every source.

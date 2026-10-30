@@ -329,23 +329,25 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
         let icsText;
         // A feed fetched ahead by syncMany (rule 4) arrives as an observation; otherwise fetch it now.
         const observation = prefetched || model.observeFeed(source);
+        // Rule 8 — a feed fetched before the one we last consumed is older news, whether it answered or
+        // failed: applying it would revert that sync (dates), read its fresh stays as cancelled, or reset
+        // its empty-feed streak.
+        const staleResult = () => ({
+          scannedEvents: 0, createdCount: 0, createdReservationIds: [], updatedCount: 0, unchangedCount: 0,
+          lockedCount: 0, removedCount: 0, skippedClosureCount: 0, takenOverCount: 0,
+          conflictReservationIds: [], movedIntoConflictIds: [], skipped: 'newer sync applied',
+        });
+        const isStale = () => observation.startedAt < (lastObservedStart.get(source.id) ?? -Infinity);
         try {
           icsText = await observation.promise;
         } catch (fetchError) {
+          if (isStale()) return staleResult();
           // A fetch/parse failure is not an "empty feed" observation — reset the streak so two
           // empties separated by an outage never confirm each other (§3 rule 4).
           setEmptyFeedStreak.run(0, source.id);
           throw fetchError;
         }
-        // Rule 8 — a feed fetched before the one we last consumed is older news: applying it would revert
-        // that sync (dates) or read its fresh stays as cancelled.
-        if (observation.startedAt < (lastObservedStart.get(source.id) ?? -Infinity)) {
-          return {
-            scannedEvents: 0, createdCount: 0, createdReservationIds: [], updatedCount: 0, unchangedCount: 0,
-            lockedCount: 0, removedCount: 0, skippedClosureCount: 0, takenOverCount: 0,
-            conflictReservationIds: [], movedIntoConflictIds: [], skipped: 'newer sync applied',
-          };
-        }
+        if (isStale()) return staleResult();
         lastObservedStart.set(source.id, observation.startedAt);
         // specs/lodgify-decommission.md §3 rule 5 — Booking.com's feed calls every taken night
         // « CLOSED - Not available », real reservations included: keep them, the cover check flags the overlaps.
