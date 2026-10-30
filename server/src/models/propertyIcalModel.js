@@ -260,6 +260,12 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
         WHERE id = ? AND propertyId = ?
       `).run(input.name, input.url, input.normalizedPlatformKey, input.platformLabel, input.platformColor, isActive, tax.collectsTouristTax, tax.touristTaxRemittedByPlatform, input.disabled, sourceId, propertyId);
       writeClosedFlag(sourceId, input.feedMarksStaysClosed);
+      // ical-import-hardening rule 20 — an empty answer from the old URL must never confirm one from the new.
+      if (input.url !== existing.url) {
+        database.prepare('UPDATE ical_sources SET emptyFeedStreak = 0 WHERE id = ?').run(sourceId);
+        lastObservedStart.delete(sourceId);
+        lastEmptyCompletedAt.delete(sourceId);
+      }
       // §3.1 rule 2 — if the user renamed the platform, the previous row stays as a "ghost"
       // (see spec Q8); the new name lands on the page on next reload.
       platformsModel.upsertByName(input.platformLabel);
@@ -1251,7 +1257,14 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
         return { error: 'Calendrier arrêté.', status: 409 };
       }
       try {
-        return { data: await model.syncSourceAndRecord(source) };
+        let data = await model.syncSourceAndRecord(source);
+        // Rule 20 — a click that joined a run which skipped the source (changed, or stale) fetched nothing for itself.
+        if (typeof data.skipped === 'string') {
+          const fresh = model.getSource(propertyId, sourceId);
+          if (!fresh || Number(fresh.isActive) === 0) return { error: 'Calendrier arrêté.', status: 409 };
+          data = await model.syncSourceAndRecord(fresh);
+        }
+        return { data };
       } catch (error) {
         return { error: String(error.message || 'Erreur de synchronisation iCal'), status: 400 };
       }

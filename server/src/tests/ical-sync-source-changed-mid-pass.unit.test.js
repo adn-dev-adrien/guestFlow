@@ -169,3 +169,44 @@ test('rule 20: an untouched active source is still applied by the pass', async (
   await model.syncMany(allSources(db));
   assert.equal(resCount(db), 1);
 });
+
+test('rule 20: « Synchroniser » that joins a pass which skips the source runs a real sync', async () => {
+  const { db, model } = freshModel();
+  const a = isoOffset(30), b = isoOffset(33);
+  const fetched = [];
+  global.fetch = async (url) => {
+    fetched.push(String(url));
+    if (String(url).includes('slow')) { await wait(300); return { ok: true, text: async () => icsFeed([]) }; }
+    if (String(url).includes('wrong')) { await wait(600); return { ok: true, text: async () => icsFeed([]) }; }
+    return { ok: true, text: async () => icsFeed([{ uid: 'N', start: a.compact, end: b.compact, summary: 'New feed guest' }]) };
+  };
+  db.prepare("UPDATE ical_sources SET url='http://wrong.test/ical' WHERE id=2").run();
+  const pass = model.syncMany(allSources(db));
+  await wait(50);
+  db.prepare("UPDATE ical_sources SET url='http://feed.test/ical' WHERE id=2").run();
+  await wait(300);
+  const clicked = await model.syncOne(1, 2);
+  await pass;
+  assert.ok(!clicked.error);
+  assert.ok(!clicked.data.skipped, 'the click is answered by a real sync');
+  assert.equal(clicked.data.createdCount, 1);
+  assert.ok(fetched.some((u) => u.includes('feed.test')));
+});
+
+test('rule 20: changing a source URL resets its empty-feed streak and rule 8 stamps', async () => {
+  const { db, model } = freshModel();
+  db.exec('ALTER TABLE ical_sources ADD COLUMN collectsTouristTax INTEGER; ALTER TABLE ical_sources ADD COLUMN touristTaxRemittedByPlatform INTEGER; ALTER TABLE ical_sources ADD COLUMN disabled INTEGER DEFAULT 0;');
+  const a = isoOffset(30), b = isoOffset(33);
+  stubFetch([{ uid: 'A', start: a.compact, end: b.compact, summary: 'Alpha' }]);
+  await model.syncSourceAndRecord(gdfSource(db));
+  stubFetchBody('BEGIN:VCALENDAR\r\nEND:VCALENDAR');
+  await assert.rejects(model.syncSourceAndRecord(gdfSource(db)), /Flux vide/);
+  const streakOf = () => db.prepare('SELECT emptyFeedStreak s FROM ical_sources WHERE id = 2').get().s;
+  assert.equal(streakOf(), 1);
+  const res = model.updateSource(1, 2, { url: 'http://other.test/ical' });
+  assert.ok(!res.error, res.error);
+  assert.equal(streakOf(), 0);
+  await assert.rejects(model.syncSourceAndRecord(gdfSource(db)), /Flux vide/);
+  assert.equal(streakOf(), 1, 'the first empty answer of the new URL is not confirmed by the old URL one');
+  assert.equal(resCount(db), 1);
+});

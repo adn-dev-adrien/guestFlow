@@ -162,6 +162,11 @@ nothing, and the platforms tab says in one short line what the last sync did.
     no status row is written. A stay the operator deleted after stopping a source (the Lodgify clean-up) does
     not come back as a fresh import with a notification, and the feed of a wrong URL is not applied once more
     after the fix. Rule 8 (staleness) is evaluated after this check and is unchanged.
+    Two companions: (a) « Synchroniser » (`syncOne`) that joined a run answering `skipped` (source changed, or
+    stale under rule 8 of `ical-sync-mapping-resilience`) runs one more sync on the freshly read row, so the
+    click really fetches (a source stopped meanwhile answers 409); (b) saving a source with a different URL
+    resets its `emptyFeedStreak` and its rule-8 stamps, so an empty answer from the old URL and one from the
+    new URL are never counted together.
 
 **Edge cases:**
 - A stay arriving on another stay's departure day shares no night: no conflict (rule 3).
@@ -256,6 +261,12 @@ shared placeholder clients are split at boot, idempotently; nothing is deleted, 
 - Updated: `properties-ical.unit.test.js` (UTC instant now in Paris), `platforms-and-ical-rework.unit.test.js`
   (`disabled: false`), `lodgify-decommission-native-feeds.unit.test.js` (the conflict mail names the
   platform it is given).
+
+### Server unit tests — 2026-10-30 audit R6
+
+- `server/src/tests/ical-sync-source-changed-mid-pass.unit.test.js` (6 cases, rule 20): stopped, re-pointed
+  and deleted mid-pass are skipped without a status write; an untouched source is still applied; a click
+  joining a skipped run does a real sync; a URL change resets the empty-feed streak.
 
 ### Server unit tests — 2026-10-27 audit
 
