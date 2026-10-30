@@ -549,11 +549,12 @@ export default function FinanceSection() {
     const warnings = d.warnings || [];
     const lines = d.lines || [];
     const penaltyLines = d.penalties || [];
+    const otherLinks = d.otherLinks || [];
     const slot = d.slot;
     const foldable = Boolean(slot) || row.state === 'paid-group';
     const groupFirst = row.state === 'paid-group' && rows.find((r) => r.state === 'paid-group')?.key === row.key;
     const hasFold = slot || (groupFirst && form.arrivalPayment?.covers);
-    if (bits.length === 0 && warnings.length === 0 && lines.length === 0 && penaltyLines.length === 0 && !row.penaltyAction && !d.reconciliation && !d.note && !hasFold && !d.link?.resend && !d.link?.withdraw) return null;
+    if (bits.length === 0 && warnings.length === 0 && lines.length === 0 && penaltyLines.length === 0 && !row.penaltyAction && !d.reconciliation && !d.note && !hasFold && !d.link?.resend && !d.link?.withdraw && otherLinks.length === 0) return null;
     const open = folds.has(row.key);
     return (
       <Box sx={{ mt: 0.5 }}>
@@ -577,6 +578,16 @@ export default function FinanceSection() {
             </Button>
           )}
         </Box>
+        {otherLinks.map((l) => (
+          <Box key={l.withdraw ? l.withdraw.linkId : l.label} sx={{ display: 'flex', flexWrap: 'wrap', columnGap: 1.25, alignItems: 'center', color: 'text.secondary', fontSize: '0.8125rem' }}>
+            <span>{l.label}</span>
+            {l.withdraw && withdrawPaymentLink && (
+              <Button size="small" variant="text" onClick={() => askWithdraw(l.withdraw)} sx={{ minHeight: 44, textTransform: 'none' }}>
+                {l.withdraw.label}
+              </Button>
+            )}
+          </Box>
+        ))}
         {lines.map((l) => <Typography key={l} variant="body2" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>{l}</Typography>)}
         {penaltyLines.map((p) => (
           <Stack key={p.id} direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between' }}>

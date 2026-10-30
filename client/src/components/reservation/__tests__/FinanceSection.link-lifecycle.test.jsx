@@ -60,3 +60,18 @@ test('rule 42: on a devis too — the button only needs the server’s action', 
   await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Retirer' }));
   expect(ctx.withdrawPaymentLink).toHaveBeenCalledWith(41);
 });
+
+test('rule 42 (review of #902, L5): a second open link of the row prints too, each with its own « Retirer le lien »', async () => {
+  const user = userEvent.setup();
+  const other = { status: 'open', label: 'Lien envoyé le 29/10 · 300,00 € · valable jusqu’au 31/10 à 12:00', withdraw: { ...WITHDRAW, linkId: 40 } };
+  const { ctx } = renderFinance({
+    editingReservationId: 7,
+    ledger: ledgerOf([dueRow('balance', 'Solde', 210, { detail: { link: openLink(), otherLinks: [other] } })]),
+  });
+  expect(within(rowEl('balance')).getByText(other.label)).toBeInTheDocument();
+  const buttons = within(rowEl('balance')).getAllByRole('button', { name: 'Retirer le lien' });
+  expect(buttons).toHaveLength(2);
+  await user.click(buttons[1]);
+  await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Retirer' }));
+  expect(ctx.withdrawPaymentLink).toHaveBeenCalledWith(40);
+});

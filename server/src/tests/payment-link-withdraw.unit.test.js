@@ -142,3 +142,72 @@ test('rule 42: a link withdrawn by hand reads « Lien retiré le {jour} » and o
   assert.deepEqual(l.resend, { type: 'deposit', label: 'Renvoyer la demande' });
   assert.equal(l.withdraw, undefined);
 });
+
+// Review of #902 — the withdrawal and its later reads agree with the connected path.
+const { retryPendingCancellations } = require('../utils/paymentPollRunner');
+const devisModel = require('../models/devisModel');
+const { spies } = require('./paymentLinkLifecycleFixture');
+
+test('rule 42 (L2): a link found paid is read once, and the payment of that read is the one booked', async () => {
+  const { link, provider, booked, deps } = setup({ provider: fakeProvider({ paid: true }) });
+  await assert.rejects(withdrawPaymentLink(link.id, deps), (err) => err.error === 'LINK_ALREADY_PAID');
+  assert.deepEqual(provider.calls.map((c) => c[0]), ['getPayment']);
+  assert.deepEqual(booked, [[link.id, `pay_${link.providerLinkId}`]]);
+});
+
+test('rule 42 (L3): a disconnected provider is named in the log, not « Cannot read properties of null »', async () => {
+  const { link, deps } = setup();
+  const warned = [];
+  const orig = console.warn;
+  console.warn = (m) => warned.push(String(m));
+  try { await withdrawPaymentLink(link.id, { ...deps, provider: null }); } finally { console.warn = orig; }
+  assert.equal(warned.length, 1);
+  assert.doesNotMatch(warned[0], /Cannot read properties/);
+  assert.match(warned[0], new RegExp(`link ${link.id} .*no connected payment provider`));
+});
+
+async function withdrawnWhileDisconnected(paidAt) {
+  const { db, links, link, deps } = setup({ kind: 'reservation' });
+  const withdrawnAt = new Date();
+  await withdrawPaymentLink(link.id, { ...deps, provider: null, now: withdrawnAt });
+  const provider = fakeProvider({ paid: true, paidAt: paidAt(withdrawnAt) });
+  const s = spies();
+  const { results } = await retryPendingCancellations({ paymentLinksModel: links, provider, database: db, devisModel: devisModel.buildModel(db), logger: { log() {}, warn() {} }, ...s });
+  return { db, links, link, provider, s, result: results.find((r) => r.id === link.id) };
+}
+
+test('rule 42 (L1): paid before a withdrawal made while disconnected → the poll books it like the connected path', async () => {
+  const { db, links, link, provider, s, result } = await withdrawnWhileDisconnected((at) => new Date(at.getTime() - 60 * 1000).toISOString());
+  const row = links.findById(link.id);
+  assert.equal(row.status, 'paid');
+  assert.equal(row.remoteCancelPendingAt, null);
+  assert.equal(result.status, 'paid');
+  assert.equal(db.prepare('SELECT depositPaid FROM reservations WHERE id = ?').get(link.reservationId).depositPaid, 1);
+  assert.deepEqual(s.confirmed, [link.reservationId]);
+  assert.deepEqual(s.notified, []);
+  assert.ok(!provider.calls.some((c) => c[0] === 'cancelLink'));
+});
+
+test('rule 42 (L1): paid after the withdrawal → nothing booked, the admin is alerted (rule 8)', async () => {
+  const { db, links, link, s, result } = await withdrawnWhileDisconnected((at) => new Date(at.getTime() + 60 * 1000).toISOString());
+  assert.equal(links.findById(link.id).status, 'cancelled');
+  assert.equal(result.status, 'paid-after-cancel');
+  assert.equal(db.prepare('SELECT depositPaid FROM reservations WHERE id = ?').get(link.reservationId).depositPaid, 0);
+  assert.equal(s.notified.length, 1);
+  assert.deepEqual(s.confirmed, []);
+});
+
+test('rule 42 (L5): a solde link and a full link open together each offer « Retirer le lien »', async () => {
+  const { db, links } = seedDb();
+  const id = addStay(db, { startDate: inDays(40), endDate: inDays(43) });
+  const provider = fakeProvider();
+  const { ensurePaymentLink } = require('../utils/paymentRequestService');
+  const mintDeps = { database: db, paymentLinksModel: links, provider, resolveAmountCents: (_, type) => (type === 'full' ? 30000 : 21000) };
+  const full = await ensurePaymentLink(mintDeps, id, 'full');
+  const balance = await ensurePaymentLink(mintDeps, id, 'balance');
+  assert.deepEqual(links.listForReservation(id).filter((l) => l.status === 'open').map((l) => l.id).sort(), [full.id, balance.id].sort());
+  const row = buildLedger({ row: ledgerRow({ id }), links: links.listForReservation(id), canRequest: true, today: inDays(0) })
+    .rows.find((r) => r.key === 'balance');
+  const offered = [row.detail.link, ...(row.detail.otherLinks || [])].map((l) => l.withdraw && l.withdraw.linkId).sort();
+  assert.deepEqual(offered, [full.id, balance.id].sort());
+});

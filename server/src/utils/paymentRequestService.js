@@ -16,6 +16,7 @@ const { buildStayLineLabel } = require('./paymentLinkLabel');
 const { ENGLISH_VERSION_MISSING, ENGLISH_VERSION_MISSING_PAYMENT_ACTION } = require('./emailTemplateLanguage');
 const { validityOf, validityEnd, lapsesAtArrival } = require('./paymentLinkLifecycle');
 const { LINK_REASONS } = require('../constants/paymentLinks');
+const { closedDatesRefusal } = require('./closedStayDates');
 
 // Enrich the stay line's title + description with the booking reference, guest name, property and
 // dates so the payment is identifiable in Qonto (specs/qonto-payment-link-reference.md). Text only —
@@ -116,6 +117,9 @@ async function mintPaymentLink(deps, id, type) {
   // An échéance already collected is never billed twice (fixed at the 2026-10-27 spec review): the link
   // of a paid acompte or solde — or a full payment once either is in — is refused before any provider call.
   assertBucketOpen(database, id, type);
+  // specs/payment-link-lifecycle.md rule 55 — no link, new or reused, on nights the establishment is closed.
+  const closedNights = closedDatesRefusal(database, id);
+  if (closedNights) throw closedNights;
   const amountCents = resolveAmountCents(id, type, r);
   if (amountCents <= 0) throw { httpStatus: 400, error: 'ZERO_AMOUNT', message: 'Montant nul pour ce type : devis ou réservation à vérifier.' };
 
@@ -273,6 +277,8 @@ async function mintInstallmentLink(deps, id, installmentId) {
   if (!reservation || reservation.kind !== 'reservation') {
     throw { httpStatus: 404, error: 'RESERVATION_NOT_FOUND', message: 'Réservation introuvable.' };
   }
+  const closedNights = closedDatesRefusal(database, id);
+  if (closedNights) throw closedNights;
   const amountCents = Number(installment.amountCents);
   if (amountCents <= 0) throw { httpStatus: 400, error: 'ZERO_AMOUNT', message: 'Montant nul pour cette échéance.' };
 

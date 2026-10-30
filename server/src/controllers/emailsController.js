@@ -13,6 +13,7 @@
  */
 
 const { todayIso: localTodayIso } = require('../utils/localDate');
+const { closedDatesRefusal } = require('../utils/closedStayDates');
 const { sendFailureMessage } = require('../utils/sendFailure');
 const { parisDateTimeLabel } = require('../utils/parisDateTime');
 
@@ -298,6 +299,11 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
     const isInstallment = Boolean(wanted && wanted.stableKey === INSTALLMENT_STABLE_KEY && installmentRequests);
     const linkType = wanted ? SEND_TIME_LINKS[wanted.stableKey] : null;
 
+    // specs/payment-link-lifecycle.md rule 55 — a request or reminder on closed nights is refused before any mint.
+    if (isInstallment || linkType) {
+      const closedNights = closedDatesRefusal(database, Number(reservationId));
+      if (closedNights) return res.status(closedNights.httpStatus).json({ error: closedNights.error, message: closedNights.message });
+    }
     // A send that cannot leave is refused before a payment link is minted for it (review of #897).
     if ((isInstallment || linkType) && wantedGraph) {
       const early = String(wantedGraph.client?.email || '').trim() || overrideTo;

@@ -77,14 +77,14 @@ test('rule 41: a save refused for open requests shows the refusal on their line,
   api.getClosureConflicts.mockResolvedValue(NONE);
   api.updateEstablishmentClosure.mockRejectedValue(Object.assign(new Error('x'), {
     code: 'OPEN_PAYMENT_REQUEST',
-    error: "Demande de paiement en cours sur ces dates : la retirer avant d'enregistrer la fermeture.",
+    error: 'Demande de paiement en cours sur ces dates : la retirer avant d’enregistrer la fermeture.',
     requests: [REQUEST],
   }));
   const dialog = await openClosure();
   await waitFor(() => expect(api.getClosureConflicts).toHaveBeenCalled());
   await userEvent.click(within(dialog).getByRole('button', { name: 'Enregistrer' }));
   const amber = await within(dialog).findByRole('status');
-  expect(within(amber).getByText("Demande de paiement en cours sur ces dates : la retirer avant d'enregistrer la fermeture.")).toBeInTheDocument();
+  expect(within(amber).getByText('Demande de paiement en cours sur ces dates : la retirer avant d’enregistrer la fermeture.')).toBeInTheDocument();
   expect(within(amber).getByRole('link', { name: `Ouvrir : ${REQUEST.label}` })).toBeInTheDocument();
   expect(screen.getByRole('dialog')).toBeInTheDocument();
 });

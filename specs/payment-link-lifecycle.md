@@ -494,10 +494,10 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
 41. **A closure cannot be saved over an open payment request; it warns first.** An open payment request
     is a devis (or a fiche) with an `open` link on nights the closure covers (one logement, or every
     logement for an establishment-wide closure). Save is refused: 409 `OPEN_PAYMENT_REQUEST`,
-    « Demande de paiement en cours sur ces dates : la retirer avant d'enregistrer la fermeture. », with
+    « Demande de paiement en cours sur ces dates : la retirer avant d’enregistrer la fermeture. », with
     `requests: [{ reservationId, kind, label, amountLabel, validUntilLabel, url }]` (`label` like
     « Devis D-2026-118 · Marie Dupont », `amountLabel` « 840,00 € », `validUntilLabel` « lien valable
-    jusqu'au 01/11 à 06:00 »). The dialog shows the same list **before** Save, as soon as the logement
+    jusqu’au 01/11 à 06:00 »). The dialog shows the same list **before** Save, as soon as the logement
     and both dates are set: `GET /api/establishment-closures/conflicts?propertyId&startDate&endDate`
     (`{ reservations: [...], requests: [...] }`, the same server checks, read-only), with the warning
     « Demande de paiement en cours sur ces dates. » and one « Ouvrir » link per row. Save stays enabled
@@ -526,11 +526,17 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     the open link of the acompte, solde and complement rows of a stored fiche or devis; an installment's link
     keeps its own card. The withdrawal also ends the link's `expiresAt` at that moment, the day the label
     names (`paymentLinksModel.cancelIfOpen(…, { endsAt })`). The declared provider is asked only while it is
-    connected: without one, or disconnected, the link is withdrawn with the deactivation marker, and the poll
-    reads its payment before deactivating it (plugins-phase-3a rule 8). When the provider reports the link paid,
-    the payment is booked at once on the poll's path (`processPaidLink`) and the answer is 409
-    `LINK_ALREADY_PAID` « Ce lien vient d’être payé : paiement enregistré. », after which the fiche re-reads
-    its money (rule 50); an unreadable provider refuses (502) and changes nothing. A cancelled or set-aside
+    connected: without one, or disconnected, the link is withdrawn with the deactivation marker (the log names
+    the missing provider), and the poll reads its payment before deactivating it (plugins-phase-3a rule 8); a
+    payment made before the withdrawal (`paidAt` ≤ its stamped end) is then booked exactly as the connected path
+    books it (`processPaidLink` with `retiredReason: 'operator'`: `cancelled → paid`, effect, confirmation), one
+    made after it is the alert of rule 8 (review of #902, L1). When the provider reports the link paid, the payment
+    of that single read (carried by the refusal of `assertNotPaid`) is booked at once on the poll's path and the
+    answer is 409 `LINK_ALREADY_PAID` « Ce lien vient d’être payé : paiement enregistré. », after which the fiche
+    re-reads its money (rule 50); an unreadable provider refuses (502) and changes nothing. A solde link and a
+    full link can be open together (a full request, then a solde request): the solde row shows the one rule 28
+    picks in `detail.link` and every other open link of the row in `detail.otherLinks`, each with its own
+    « Retirer le lien » (review of #902, L5). A cancelled or set-aside
     stay (or the stay a converted devis became, when it is one) answers 409 `STAY_READ_ONLY`; a link already
     lapsed or withdrawn is answered as it is (a second click changes nothing). Withdrawing by hand never sends
     the guest anything (rule 43). The service is `utils/paymentLinkWithdrawal.js`.
@@ -697,6 +703,21 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     the retirement of a link of the other mode. The provider's own diagnostic strings still pass through
     untranslated. No change to the WordPress plugin: it prints the `message` it receives.
 
+### 3.O Review of PR #902 (2026-10-30; appended, rule numbers are identities)
+
+55. **No payment link on closed nights** (decided by Adrien 2026-10-30, review of #902 finding 1). Rule 49 lets a
+    closure save over a devis without a link because the guest holds nothing payable on closed nights; that
+    holds only if no link can be created afterwards. So when an establishment closure covers at least one night
+    of the stay (its logement, or every logement for an establishment-wide closure: `startDate < stay end` and
+    `endDate > stay start`), a payment link is neither minted nor handed out again: `mintPaymentLink` (acompte,
+    solde, séjour) and `mintInstallmentLink` refuse 409 `CLOSED_DATES` « Logement fermé sur ces dates : aucun lien
+    créé. » before any provider call, an open link included. The e-mail send refuses the same 409 for a request
+    template, the acompte reminder and an installment request, before any mint and before the address and SMTP
+    checks (`emailsController.send`); a mail that carries no link still leaves. One helper,
+    `utils/closedStayDates.closedDatesRefusal(database, stayId)` (on `establishmentClosuresModel.findCoveringClosure`).
+    The public `pay` already refuses closed nights (`DATES_UNAVAILABLE`, `computeBlockedDates`). A devis created
+    or converted on closed nights is out of this rule: the held-dates rules of PR5 (46) handle `devisModel`.
+
 ---
 
 ## 4. Architecture
@@ -743,6 +764,7 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
 | `utils/` | `migrateValidUntilSentence.js` | C | Rule 36's content migration, untouched sides only, called from `database.js` |
 | `controllers/` | `establishmentClosuresController.js` | T | `RESERVATION_OVERLAP` reworded + `reservations[]`; new `OPEN_PAYMENT_REQUEST` + `requests[]`; `conflicts` handler (rules 40-41); built by `buildController({ database, model })` so a test drives it on the baseline schema |
 | `utils/` | `closureConflicts.js` | C | `closureConflicts(model, range)` shapes the three lists (labels, `detail`, `url`) and holds the two refusal messages (rules 40, 41, 49) |
+| `utils/` | `closedStayDates.js` | C | `closedDatesRefusal(database, stayId)`: 409 `CLOSED_DATES` when a closure covers a night of the stay; read by both mints of `paymentRequestService` and by `emailsController.send` (rule 55) |
 | `utils/` | `paymentLinkWithdrawal.js` | C | `withdrawPaymentLink(linkId, deps)`: the refusals of rule 42, `retireOpenLink(…, { reason: 'operator' })`, a payment found on the way booked at once |
 | `utils/` | `paymentLinkDeactivation.js`, `models/paymentLinksModel.js` | T | `retireOpenLink` with `operator` ends the link now (`cancelIfOpen(…, { endsAt })`) (rule 42) |
 | `utils/` | `reservationLedger.js` | T | `detail.link.withdraw` on an open link of a stay that is not read-only; « Lien retiré le {jour} » (rule 42) |
@@ -878,9 +900,10 @@ refused).
 - [ ] `tests/stay-holds-dates.unit.test.js` — rule 37: acompte paid holds, solde open still holds, platform holds, unpaid direct and devis do not, cancelled frees; two unpaid devis both keep their links, first paid withdraws the other's (Q11).
 - [ ] `tests/ical-overbooking-held-dates.unit.test.js` — rules 38-39: import on held dates recorded + conflict + held-dates wording; drift approval warning.
 - [x] `tests/closure-open-payment-request.unit.test.js` (11) — rules 40-41: refusal order, codes, `reservations[]` / `requests[]` shapes, establishment-wide closure, `conflicts` endpoint, a blocking stay listed once, `findReservationOverlap` kept.
-- [x] `tests/payment-link-withdraw.unit.test.js` (12) — rule 42: withdrawn + deactivated, refused when paid (payment booked), marker on provider failure, without a provider or with a disconnected one, read-only stays refused, the ledger's action and label.
+- [x] `tests/payment-link-withdraw.unit.test.js` (17) — rule 42: withdrawn + deactivated, refused when paid (payment booked), marker on provider failure, without a provider or with a disconnected one, read-only stays refused, the ledger's action and label.
 - [ ] `tests/devis-held-dates.unit.test.js` — rule 46: create / re-date onto held dates refused with `stays[]`; onto an unpaid row allowed; other edits of a devis already on held dates allowed; `datesTaken` marker (rule 48).
 - [x] `tests/closure-devis-without-link.unit.test.js` (4) — rule 49: warning listed, save accepted.
+- [x] `tests/payment-link-closed-dates.unit.test.js` (9) — rule 55: mint and installment refused before any provider call, an open link not handed out, one night or an establishment-wide closure enough, another logement or the departure day free, request and reminder e-mails refused before any mint, a mail without a link still leaves.
 - [ ] `tests/dates-taken-notice.unit.test.js` — rules 43-45: sent at the `dates-taken` withdrawal (overlap, first paid, iCal), not for expiry, a started stay or « Retirer le lien »; a later refused reminder sends nothing more; e-mail sent once with its `email_log` row, push, dashboard row, every fail-closed case, reminder never queued on taken dates, `AUTO_SEND_EXCEPTIONS` holds exactly one key and `autoSendPolicy` still refuses every other template.
 - [ ] `tests/payment-link-superseded.unit.test.js` — rule 12.
 - [x] `tests/payment-link-deadline-race.unit.test.js` — rules 14, 15, 18, 19, 21, 22: paid before deactivation (webhook), paid found after deactivation, paid found at the last look, webhook replay, two concurrent runs.
@@ -904,7 +927,7 @@ refused).
 - [x] `client/src/pages/__tests__/ReservationPage.link-already-paid.test.jsx` — rule 50: resend, solde, devis and e-mail-dialog senders re-read on `LINK_ALREADY_PAID`, another refusal re-reads nothing (5).
 - [x] `client/src/components/__tests__/EmailManualSendDialog.link-already-paid.test.jsx` — rule 50: the refusal stays on screen, `onMoneyChanged` once, not `onSent`; another refusal re-reads nothing (2).
 - [x] `client/src/components/reservation/__tests__/InstallmentPlanCard.link-already-paid.test.jsx` — rule 50 (2).
-- [x] `client/src/components/reservation/__tests__/FinanceSection.link-lifecycle.test.jsx` (5) — prints the new labels, offers « Renvoyer la demande » on expired, not on dates-taken; « Retirer le lien » asks for confirmation.
+- [x] `client/src/components/reservation/__tests__/FinanceSection.link-lifecycle.test.jsx` (6) — prints the new labels, offers « Renvoyer la demande » on expired, not on dates-taken; « Retirer le lien » asks for confirmation.
 - [x] `client/src/pages/__tests__/EstablishmentClosuresPage.conflicts.test.jsx` (6) — warning list with links, 409 lists rendered, asked again on focus, same tab on a phone.
 - [x] `client/src/components/__tests__/ConflictList.test.jsx` (5).
 
@@ -1061,6 +1084,10 @@ Six sequential PRs into `inte/plugins` (plan validated 2026-10-30).
   through `ConfirmDialog`, `ReservationPage.withdrawPaymentLink`, `api.getClosureConflicts` /
   `api.withdrawPaymentLink`. Tests: server `closure-open-payment-request` (11), `closure-devis-without-link` (4),
   `payment-link-withdraw` (12); client `ConflictList` (5), `EstablishmentClosuresPage.conflicts` (6),
-  `FinanceSection.link-lifecycle` (5).
+  `FinanceSection.link-lifecycle` (5). Review of #902: rule 55 (`utils/closedStayDates.js`, the two mints,
+  `emailsController.send`; `payment-link-closed-dates` 9); L1 the poll books an `operator` link paid before its
+  withdrawal (`processPaidLink({ retiredReason })`); L2 one provider read on withdrawal; L3 no provider → a clear
+  log line in `deactivateAbandonedLinks`; L4 typographic apostrophes; L5 `detail.otherLinks`
+  (`payment-link-withdraw` 17, `FinanceSection.link-lifecycle` 6).
 - [ ] PR5 — held dates and dates-taken withdrawal (rules 10-12, 16, 24, 25, 31-33, 37-39, 46, 48).
 - [ ] PR6 — dates-taken guest notice (rules 35, 43-45, 47); status → Implemented.

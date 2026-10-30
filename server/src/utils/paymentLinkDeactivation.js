@@ -41,7 +41,7 @@ async function paidPaymentOf(provider, link) {
 /**
  * Refuses to retire an open link the guest has already paid: the payment would otherwise land on a
  * cancelled row and be lost or flagged for a refund (rule 7). Unreadable → refused too: a new link
- * needs the provider anyway.
+ * needs the provider anyway. The refusal carries the provider's `payment`.
  */
 async function assertNotPaid(link, provider) {
   if (!link || !link.providerLinkId || !provider || typeof provider.getPayment !== 'function') return;
@@ -52,7 +52,8 @@ async function assertNotPaid(link, provider) {
     throw { httpStatus: 502, error: 'PROVIDER_UNREACHABLE', message: 'Prestataire de paiement injoignable : réessayer.' };
   }
   if (pay && pay.paid) {
-    throw { httpStatus: 409, error: 'LINK_ALREADY_PAID', message: 'Le lien en cours vient d’être payé : aucun nouveau lien créé.' };
+    // The payment travels with the refusal, so a caller books what this read saw without asking again.
+    throw { httpStatus: 409, error: 'LINK_ALREADY_PAID', message: 'Le lien en cours vient d’être payé : aucun nouveau lien créé.', payment: pay };
   }
 }
 
@@ -103,6 +104,14 @@ async function deactivateAbandonedLinks(links, { paymentLinksModel, providerFor 
   for (const link of links || []) {
     if (!link || !link.providerLinkId) continue;
     const provider = providerFor(link.provider || 'qonto');
+    if (!provider) {
+      // eslint-disable-next-line no-console
+      console.warn(`[payments] link ${link.id} not deactivated: no connected payment provider, the poll retries it`);
+      if (link.status === 'expired') paymentLinksModel.restoreRemoteCancelPending(link.id);
+      else paymentLinksModel.cancel(link.id, { remotePending: true });
+      notDeactivated += 1;
+      continue;
+    }
     try {
       await provider.cancelLink(link.providerLinkId);
       settled(link);

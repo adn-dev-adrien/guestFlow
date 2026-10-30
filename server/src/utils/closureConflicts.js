@@ -25,7 +25,7 @@ function validUntilLabel(expiresAt, year) {
   const ms = Date.parse(String(expiresAt || ''));
   if (!(ms > 0)) return null;
   const at = new Date(ms);
-  return `lien valable jusqu'au ${shortDate(localIsoDate(at), year)} à ${localHourMinute(at)}`;
+  return `lien valable jusqu’au ${shortDate(localIsoDate(at), year)} à ${localHourMinute(at)}`;
 }
 
 function closureConflicts(model, { propertyId = null, startDate, endDate }) {
@@ -68,7 +68,7 @@ function closureConflicts(model, { propertyId = null, startDate, endDate }) {
 
 const MESSAGES = Object.freeze({
   RESERVATION_OVERLAP: 'Réservation sur ces dates : fermeture impossible.',
-  OPEN_PAYMENT_REQUEST: "Demande de paiement en cours sur ces dates : la retirer avant d'enregistrer la fermeture.",
+  OPEN_PAYMENT_REQUEST: 'Demande de paiement en cours sur ces dates : la retirer avant d’enregistrer la fermeture.',
 });
 
 module.exports = { closureConflicts, MESSAGES };

@@ -67,6 +67,15 @@ function pickLink(links, rowKey) {
   return byNewest.find((l) => l.status === 'open') || byNewest[0];
 }
 
+// Review of #902 (L5) — a solde link and a full link can both be open (a full request, then a solde request): the
+// row shows the one `pickLink` chose, and every other open link of the row, so each can be withdrawn by hand.
+function otherOpenLinks(links, rowKey, shown) {
+  const types = LINK_TYPES_BY_ROW[rowKey] || [];
+  return (links || [])
+    .filter((l) => types.includes(String(l.type)) && l.status === 'open' && (!shown || l.id !== shown.id))
+    .sort((a, b) => Number(b.id || 0) - Number(a.id || 0));
+}
+
 // specs/payment-link-lifecycle.md rule 24 — the moment a link stops, in the operator's day and hour (the
 // process runs in Europe/Paris). A sentinel or missing date (Qonto's `0001-01-01…`) is no moment.
 function linkEnd(link, stayYear) {
@@ -307,9 +316,12 @@ function buildLedger({
         action: null, amountEdit: { editable: false, mode: 'none', min: null, max: null, reason: null }, detail: null,
       });
     } else {
-      const link = linkDetail(pickLink(links, 'deposit'), { stayYear, due: !paid.deposit, canRequest, canWithdraw, providerLabel });
+      const shown = pickLink(links, 'deposit');
+      const link = linkDetail(shown, { stayYear, due: !paid.deposit, canRequest, canWithdraw, providerLabel });
       const detail = { warnings: [] };
       if (link) detail.link = link;
+      const others = otherOpenLinks(links, 'deposit', shown).map((l) => linkDetail(l, { stayYear, due: false, canRequest, canWithdraw, providerLabel }));
+      if (others.length > 0) detail.otherLinks = others;
       if (isPlatform && acompteCommission > 0) {
         detail.commission = `Commission ${formatEuros(acompteCommission)} · net ${formatEuros(depositAmount - acompteCommission)}`;
       }
@@ -367,9 +379,12 @@ function buildLedger({
   // ── Solde / Versement de la plateforme (rules 4, 15, 17-19, 24-26) ───────
   if (!planRows) {
     const label = ota ? `Versement ${platformName}` : 'Solde';
-    const link = linkDetail(pickLink(links, 'balance'), { stayYear, due: !paid.balance, canRequest, canWithdraw, providerLabel });
+    const shown = pickLink(links, 'balance');
+    const link = linkDetail(shown, { stayYear, due: !paid.balance, canRequest, canWithdraw, providerLabel });
     const detail = { warnings: [] };
     if (link) detail.link = link;
+    const others = otherOpenLinks(links, 'balance', shown).map((l) => linkDetail(l, { stayYear, due: false, canRequest, canWithdraw, providerLabel }));
+    if (others.length > 0) detail.otherLinks = others;
     const depositRow = rows[0];
     const depositApplies = depositRow.state !== 'na';
     let base;

@@ -30,14 +30,14 @@ test('rule 41: an open link on a devis refuses the closure with its request list
   const res = call(controller.create, { body: closure(41, 42) });
   assert.equal(res.statusCode, 409);
   assert.equal(res.body.code, 'OPEN_PAYMENT_REQUEST');
-  assert.equal(res.body.error, "Demande de paiement en cours sur ces dates : la retirer avant d'enregistrer la fermeture.");
+  assert.equal(res.body.error, 'Demande de paiement en cours sur ces dates : la retirer avant d’enregistrer la fermeture.');
   const [request] = res.body.requests;
   assert.equal(request.reservationId, devis);
   assert.equal(request.linkId, link.id);
   assert.equal(request.kind, 'devis');
   assert.equal(request.label, 'Devis D-2026-118 · Ana Test');
   assert.equal(request.amountLabel, '840,00\u00a0€');
-  assert.match(request.validUntilLabel, /^lien valable jusqu'au \d{2}\/\d{2}(\/\d{4})? à \d{2}:\d{2}$/);
+  assert.match(request.validUntilLabel, /^lien valable jusqu’au \d{2}\/\d{2}(\/\d{4})? à \d{2}:\d{2}$/);
   assert.equal(request.detail, `840,00\u00a0€ · ${request.validUntilLabel}`);
   assert.equal(request.url, `/reservations/new?mode=devis&devisId=${devis}`);
 });

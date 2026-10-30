@@ -35,6 +35,7 @@ function recordOn(database) {
 
 const { linkAmountCents, acompteIsLinkMoney, bookPaidAfterAmountChange } = require('./ledgerLinks');
 const { withConvertedDevis } = require('./deletionGuard');
+const { LINK_REASONS } = require('../constants/paymentLinks');
 
 // Apply the business consequence of a PAID link. A deposit OR a full payment on a devis converts it to a
 // reservation; a full payment marks it fully settled (deposit + balance). On conversion the dates are
@@ -299,14 +300,17 @@ const CONFIRMING_EFFECTS = new Set(['converted', 'already-converted', 'deposit-m
 // `emitPluginEvent` is injectable like every other dep; by default the webhook, the on-demand poll
 // and the cron all announce a freshly converted reservation to the plugins (Google pushes it at
 // once — specs/plugins-phase-1-sdk.md rule 9).
-async function processPaidLink({ database, devisModel, paymentLinksModel, link, paidPayment, sendConfirmation, checkConflict, notifyConflict, notifyPaidAfterCancel, recordPayment, emitPluginEvent = require('../plugins/sdk/eventBus').emit }) {
+// `retiredReason` books a withdrawn link instead (cancelled → paid, only while it still carries that reason).
+async function processPaidLink({ database, devisModel, paymentLinksModel, link, paidPayment, sendConfirmation, checkConflict, notifyConflict, notifyPaidAfterCancel, recordPayment, emitPluginEvent = require('../plugins/sdk/eventBus').emit, retiredReason = null }) {
   const p = paidPayment || {};
   // markPaid is atomic (UPDATE … WHERE status='open') and reports whether THIS call flipped the link.
   // The webhook, the on-demand /status poll and the cron can all observe the same paid link at once;
   // only the caller that actually flips it runs the effect + confirmation email, so the guest never
   // gets a duplicate email and the admin never gets a duplicate conflict alert.
   const paidAt = p.paidAt || new Date().toISOString();
-  const { flipped } = paymentLinksModel.markPaid(link.id, { providerPaymentId: p.paymentId || null, paidAt });
+  const { flipped } = retiredReason
+    ? paymentLinksModel.markRetiredLinkPaid(link.id, { providerPaymentId: p.paymentId || null, paidAt, reason: retiredReason })
+    : paymentLinksModel.markPaid(link.id, { providerPaymentId: p.paymentId || null, paidAt });
   if (!flipped) {
     return { id: link.id, reservationId: link.reservationId, type: link.type, status: 'paid', effect: 'already-processed' };
   }
@@ -426,6 +430,12 @@ async function retryPendingCancellationsOnce({ only = null, paymentLinksModel, p
         results.push(await book({ paymentLinksModel, notifyPaidAfterCancel, database, devisModel, recordPayment, checkConflict, notifyConflict, emitPluginEvent, link, pay }));
         continue;
       }
+      // specs/payment-link-lifecycle.md rule 42 — a link withdrawn by hand while the provider could not be read,
+      // paid before that withdrawal, is the guest's money for the stay: booked as the connected path books it.
+      if (pay.paid && link.cancelReason === LINK_REASONS.OPERATOR && paidBeforeWithdrawal(link, pay)) {
+        results.push(await processPaidLink({ database, devisModel, paymentLinksModel, link, paidPayment: pay, sendConfirmation, checkConflict, notifyConflict, notifyPaidAfterCancel, recordPayment, emitPluginEvent, retiredReason: LINK_REASONS.OPERATOR }));
+        continue;
+      }
       if (pay.paid) {
         paymentLinksModel.clearRemoteCancelPending(link.id, { providerPaymentId: pay.paymentId || null, paidAt: pay.paidAt || new Date().toISOString() });
         if (notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link); } catch { /* best effort */ } }
@@ -449,6 +459,13 @@ async function retryPendingCancellationsOnce({ only = null, paymentLinksModel, p
     }
   }
   return { results, stoppedBy: null };
+}
+
+// A withdrawal by hand ends the link at its moment (`expiresAt`); a payment with no known date is not before it.
+function paidBeforeWithdrawal(link, pay) {
+  const paidMs = Date.parse(String((pay && pay.paidAt) || ''));
+  const endMs = Date.parse(String(link.expiresAt || ''));
+  return paidMs > 0 && endMs > 0 && paidMs <= endMs;
 }
 
 const linkResult = (link, extra) => ({ id: link.id, reservationId: link.reservationId, type: link.type, ...extra });
