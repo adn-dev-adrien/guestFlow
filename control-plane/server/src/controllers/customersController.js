@@ -719,7 +719,10 @@ function createCustomersController(ctx) {
       run = host().rename(c.id, previous ? previous.slug : c.slug)
         .finally(() => unmarkRenaming(c.id))
         .then((ok) => { if (ok) refresh(c.id, operator); return ok; });
-    } else if (step === 'deprov-email') run = sendExportLink(c.id);
+    } else if (step === 'deprov-email') {
+      assertNotErasing(c.id);
+      run = host().exclusive(c.id, () => resendExportLink(c.id, operator));
+    }
     else if (step === 'deprov-export') return deprovision(c.id, { confirmSlug: c.slug, retry: true }, operator);
     if (!background) await run;
     return view(c.id);
@@ -889,7 +892,7 @@ function createCustomersController(ctx) {
         text: [
           `Bonjour${c.contactName ? ` ${c.contactName}` : ''},`,
           '',
-          `Votre espace ${urlOf(c.slug)} a été fermé. Toutes vos données sont dans cette archive, téléchargeable pendant ${EXPORT_LINK_DAYS} jours :`,
+          `Votre espace ${urlOf(c.slug)} a été fermé. Toutes vos données sont dans cette archive, téléchargeable jusqu’au ${frDay(link.expiresAt)} inclus :`,
           `${consoleUrl}/exports/${link.token}`,
           '',
           'Elle contient la base complète, vos photos et deux fichiers CSV (réservations et clients).',
@@ -899,6 +902,30 @@ function createCustomersController(ctx) {
     } catch (err) {
       provisioning.set(id, 'deprov-email', 'failed', `Échec de l’envoi : ${err.message}`, stamp());
     }
+  }
+
+  // H1 rule 40: inside the customer's lock. An erasure accepted meanwhile deletes the archive next,
+  // and a link that expired or lost its file is replaced by a fresh export while the database is there.
+  async function resendExportLink(id, operator) {
+    const c = customers.get(id);
+    if (!c || c.erasedAt) return;
+    if (erasing.has(id)) {
+      provisioning.set(id, 'deprov-email', 'failed', 'Effacement en cours : aucun lien envoyé.', stamp());
+      return;
+    }
+    const link = provisioning.latestExport(id);
+    if (link && (link.expiresAt < today() || !fs.existsSync(link.path))) {
+      if (!instances.hasDatabase(c.slug)) {
+        provisioning.set(id, 'deprov-email', 'failed', 'Lien expiré et base introuvable : aucun export à envoyer.', stamp());
+        return;
+      }
+      if (exportForDeprovision(c, operator).failed) {
+        provisioning.set(id, 'deprov-email', 'failed', 'Nouvel export en échec : aucun lien envoyé.', stamp());
+        return;
+      }
+      journal(id, operator, 'deprovision', 'Nouvel export produit : l’ancien lien avait expiré');
+    }
+    await sendExportLink(id);
   }
 
   // H1 rule 38: a customer is archived only after its stop, so a second request (another tab, or one
