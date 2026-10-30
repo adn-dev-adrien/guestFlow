@@ -471,12 +471,24 @@ below are the recommended ones; each is reversible in a later spec.
     status label of an unmet range no longer says « plus récente » to a version above the range: « version 2.0.0 —
     compatible avec ^1.0.0 requise ». Test: `plugin-requirement-moves.unit.test.js`.
 60. **The switched-off notice checks itself** (audit r5, database N1, 2026-10-30). `plugins.off_at` (idempotent
-    column, backfilled from `updated_at` for rows already switched off) is stamped with `updated_at` by the
+    column, never backfilled: no shipped core wrote `off_reason`, and a backfill would revive a stale reason) is stamped with `updated_at` by the
     switch-off of rule 57 and cleared by `setEnabled`. The home shows the notice only while
     `enabled = 0 AND off_reason IS NOT NULL AND off_at = updated_at`: a core older than the column toggles the row
     through its own `setEnabled`, which moves `updated_at` and ends the notice, so a rollback followed by manual
     toggles no longer leaves a false line on a roll-forward. An update or rollback of the switched-off plugin also
     ends it. Test: `plugin-switched-off-stale.unit.test.js`.
+61. **Review follow-ups of rule 59** (audit r5 review of #875, 2026-10-30). (a) Activating an inactive plugin
+    (card `actions.activate`, endpoint `activate`) is refused with `REQUIREMENT_TOO_OLD` when it, or a requirement it
+    would switch on, is installed at a version outside a declared range: « Nécessite X compatible avec ^1.0.0
+    (installé : 2.0.0). »; the install plan's `REQUIREMENT_TOO_OLD` uses the same `rangeNeed` wording. (b) When
+    update-all refuses every target, it answers the first refusal (code and message) instead of « Aucune mise à
+    jour disponible. ». (c) A refused rollback says « … : à remettre à sa version précédente ou à désactiver
+    d’abord. » (updating the dependant does not help there); an update keeps « à mettre à jour d’abord ». (d) The
+    boot switch-off of rule 57 also covers a requirement installed at a version a dependant's range refuses: the
+    candidates are the synced rows AND their active dependants (a registry-installed dependant is not synced), the
+    dependant is switched off with `off_reason` = the requirement, and the home line of rule 58 reads the same.
+    Tests: `plugin-requirement-moves.unit.test.js`, `plugin-switched-off-out-of-range.unit.test.js`,
+    `plugin-switched-off-stale.unit.test.js`.
 
 
 ---

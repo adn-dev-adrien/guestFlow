@@ -66,7 +66,6 @@ function ensurePackageColumns(db) {
   PACKAGE_COLUMNS.forEach(([name, type]) => {
     if (!cols.has(name)) db.exec(`ALTER TABLE plugins ADD COLUMN ${name} ${type}`);
   });
-  if (!cols.has('off_at')) db.exec('UPDATE plugins SET off_at = updated_at WHERE off_reason IS NOT NULL AND enabled = 0');
   db.prepare("UPDATE plugins SET source = 'bundled' WHERE source = 'builtin'").run();
 }
 

@@ -37,10 +37,10 @@ const isBelow = (version, range) => isVersion(version) && isRange(range) && semv
 
 /**
  * What an installed `version` lacks against `range`, as the operator reads it: « 1.7 ou plus récente » when it is
- * too old, « compatible avec ^1.0.0 » when it is past the upper bound (a floor alone would call it « plus récente »).
+ * too old (« récent » when `of` is not a version: « Nécessite X 1.7 ou plus récent »), « compatible avec ^1.0.0 » when it is past the upper bound (a floor alone would call it « plus récente »).
  */
-function rangeNeed(range, version) {
-  if (isBelow(version, range)) return `${floorLabel(range) || range} ou plus récente`;
+function rangeNeed(range, version, { of = 'version' } = {}) {
+  if (isBelow(version, range)) return `${floorLabel(range) || range} ou plus ${of === 'version' ? 'récente' : 'récent'}`;
   return `compatible avec ${range}`;
 }
 

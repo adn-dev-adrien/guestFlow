@@ -41,13 +41,13 @@ test('rule 60: setEnabled clears the reason and the stamp', () => {
   assert.equal(model.get('xb').offAt, null);
 });
 
-test('rule 60: the migration is idempotent and backfills a row already switched off', () => {
+test('rule 60: the migration is idempotent and does not revive a reason no shipped core wrote', () => {
   const db = h.freshDb();
   db.exec('ALTER TABLE plugins DROP COLUMN off_at');
   db.prepare("INSERT INTO plugins (id, enabled, source, off_reason, updated_at) VALUES ('xb', 0, 'bundled', 'xa', '2026-10-01 10:00:00')").run();
   ensurePackageColumns(db);
   ensurePackageColumns(db);
   const model = buildModel(db);
-  assert.equal(model.get('xb').offAt, '2026-10-01 10:00:00');
-  assert.deepEqual(switchedOffNotices(model).map((n) => n.id), ['xb']);
+  assert.equal(model.get('xb').offAt, null);
+  assert.deepEqual(switchedOffNotices(model), []);
 });
