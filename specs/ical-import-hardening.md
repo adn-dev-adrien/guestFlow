@@ -155,6 +155,13 @@ nothing, and the platforms tab says in one short line what the last sync did.
     (`icalDateDriftModel.overlapsTakenNights`) read each GuestFlow stay through `utils/occupancy.effectiveRange`
     (early check-in takes the night before, late check-out the night after), exactly as the iCal export
     publishes them. A platform stay on the extra night of a late check-out is flagged, not created unflagged.
+20. **A pass in flight honours a stop or a correction made since it started** _(added 2026-10-30, audit R6-1)_.
+    Rule 2 holds for the pass that is already running, not only for the next one. Once a feed is back, and
+    before anything is applied, `syncSource` reads the source row again: if it is gone, inactive
+    (`isActive = 0`), or its `url` is no longer the one the observation fetched, the result is `skipped` and
+    no status row is written. A stay the operator deleted after stopping a source (the Lodgify clean-up) does
+    not come back as a fresh import with a notification, and the feed of a wrong URL is not applied once more
+    after the fix. Rule 8 (staleness) is evaluated after this check and is unchanged.
 
 **Edge cases:**
 - A stay arriving on another stay's departure day shares no night: no conflict (rule 3).

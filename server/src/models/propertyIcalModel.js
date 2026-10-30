@@ -312,7 +312,7 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
     // A fetch stamped with its start and end times, so the sync can tell how an observation orders against
     // the other ones of the same source (rule 8).
     observeFeed(source) {
-      const observation = { startedAt: performance.now(), completedAt: null };
+      const observation = { url: source.url, startedAt: performance.now(), completedAt: null };
       observation.promise = model.fetchFeed(source).finally(() => { observation.completedAt = performance.now(); });
       observation.promise.catch(() => {});
       return observation;
@@ -338,15 +338,23 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
           conflictReservationIds: [], movedIntoConflictIds: [], skipped: 'newer sync applied',
         });
         const isStale = () => observation.startedAt < (lastObservedStart.get(source.id) ?? -Infinity);
+        // ical-import-hardening rule 20 — the row is read again once the feed is back: a source stopped,
+        // deleted or re-pointed while the pass was waiting must not receive what was fetched for the old state.
+        const isSuperseded = () => {
+          const row = database.prepare('SELECT isActive, url FROM ical_sources WHERE id = ?').get(source.id);
+          return !row || Number(row.isActive) === 0 || row.url !== observation.url;
+        };
         try {
           icsText = await observation.promise;
         } catch (fetchError) {
+          if (isSuperseded()) return { ...staleResult(), skipped: 'source changed' };
           if (isStale()) return staleResult();
           // A fetch/parse failure is not an "empty feed" observation — reset the streak so two
           // empties separated by an outage never confirm each other (§3 rule 4).
           setEmptyFeedStreak.run(0, source.id);
           throw fetchError;
         }
+        if (isSuperseded()) return { ...staleResult(), skipped: 'source changed' };
         if (isStale()) return staleResult();
         lastObservedStart.set(source.id, observation.startedAt);
         // specs/lodgify-decommission.md §3 rule 5 — Booking.com's feed calls every taken night

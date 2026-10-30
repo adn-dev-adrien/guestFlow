@@ -84,6 +84,7 @@ function freshModel() {
   const db = new Database(':memory:');
   db.exec(DDL);
   db.prepare("INSERT INTO properties (id, name, defaultCheckIn, defaultCheckOut, defaultCautionAmount) VALUES (1, 'Gîte', '15:00', '10:00', 500)").run();
+  db.prepare("INSERT INTO ical_sources (id, propertyId, name, url, platformKey, platformLabel) VALUES (1, 1, 'Airbnb', 'http://feed.test/ical', 'airbnb', 'Airbnb')").run();
   const model = propertyIcalModel.buildModel(db, { fetchImpl: globalFetch });
   const source = { id: 1, propertyId: 1, url: 'http://feed.test/ical', platformKey: 'airbnb', platformLabel: 'Airbnb', name: 'Airbnb' };
   return { db, model, source };

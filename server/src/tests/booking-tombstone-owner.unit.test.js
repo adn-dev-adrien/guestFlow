@@ -26,7 +26,7 @@ const DDL = `
     notes TEXT, cautionAmount REAL, icalOriginalSummary TEXT, updatedAt TEXT,
     kind TEXT NOT NULL DEFAULT 'reservation', bookingConflictAt TEXT
   );
-  CREATE TABLE ical_sources (id INTEGER PRIMARY KEY, propertyId INTEGER, name TEXT, platformKey TEXT, platformLabel TEXT, emptyFeedStreak INTEGER NOT NULL DEFAULT 0);
+  CREATE TABLE ical_sources (id INTEGER PRIMARY KEY, propertyId INTEGER, name TEXT, url TEXT, isActive INTEGER DEFAULT 1, platformKey TEXT, platformLabel TEXT, emptyFeedStreak INTEGER NOT NULL DEFAULT 0);
   CREATE TABLE ical_import_events (
     sourceId INTEGER, eventUid TEXT, reservationId INTEGER, eventHash TEXT,
     startDate TEXT, endDate TEXT, summaryNormalized TEXT, lastSeenAt TEXT,
@@ -83,8 +83,8 @@ function fresh() {
   const db = new Database(':memory:');
   db.exec(DDL);
   db.prepare("INSERT INTO properties (id, name, defaultCheckIn, defaultCheckOut, defaultCautionAmount) VALUES (1, 'Gite', '15:00', '10:00', 0)").run();
-  const insertSource = db.prepare('INSERT INTO ical_sources (id, propertyId, name, platformKey, platformLabel) VALUES (?, 1, ?, ?, ?)');
-  for (const s of [BOOKING, GREENGO, LODGIFY]) insertSource.run(s.id, s.name, s.platformKey, s.platformLabel);
+  const insertSource = db.prepare('INSERT INTO ical_sources (id, propertyId, name, url, platformKey, platformLabel) VALUES (?, 1, ?, ?, ?, ?)');
+  for (const s of [BOOKING, GREENGO, LODGIFY]) insertSource.run(s.id, s.name, s.url, s.platformKey, s.platformLabel);
   return { db, model: propertyIcalModel.buildModel(db, { fetchImpl: globalFetch }), ranges: icalExportRangesModel.create(db) };
 }
 const stayOn = (db, startDate) => db.prepare("SELECT * FROM reservations WHERE startDate = ? AND kind = 'reservation'").all(startDate);
