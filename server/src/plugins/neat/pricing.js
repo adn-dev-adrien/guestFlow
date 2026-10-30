@@ -18,10 +18,10 @@ const CACHE_FRESH_MS = 24 * 60 * 60 * 1000;
 const BREAKER_MS = 60 * 1000;
 const breakerOpenUntil = new Map();
 
-// Only an outage opens the breaker: a timeout, a network error (no HTTP status) or a 5xx. A 4xx — Neat
-// refusing the fields of one particular stay — says nothing about the next stay.
+// Only an outage opens the breaker: a timeout, a network error (no HTTP status), a 429 (rate limit) or a
+// 5xx. Any other 4xx — Neat refusing the fields of one particular stay — says nothing about the next stay.
 function isOutage(err) {
-  return !err || err.status === undefined || err.status >= 500;
+  return !err || err.status === undefined || err.status === 429 || err.status >= 500;
 }
 
 function resetPriceBreaker() { breakerOpenUntil.clear(); }

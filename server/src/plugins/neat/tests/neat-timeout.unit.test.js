@@ -262,6 +262,11 @@ test('rule 17 — a 5xx opens the breaker', async () => {
   try { assert.equal(await secondQuoteSkipped(server), true); } finally { await server.stop(); }
 });
 
+test('rule 17 — a 429 rate limit opens the breaker', async () => {
+  const server = await slowNeat({ priceStatus: 429 });
+  try { assert.equal(await secondQuoteSkipped(server), true); } finally { await server.stop(); }
+});
+
 test('rule 17 — a network error opens the breaker', async () => {
   const closed = await listenLocal(http.createServer());
   const baseUrl = `http://127.0.0.1:${closed.address().port}`;

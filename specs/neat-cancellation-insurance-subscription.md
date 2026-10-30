@@ -187,10 +187,10 @@ through.
       secret, so its token is reused and a normal quote is a single exchange. The client renews a
       token after 6 days (Neat's sliding validity is 7) and, as before, once on a 401.
     - **Breaker.** After a failed live price caused by an **outage** (timeout, network error, HTTP
-      5xx), guest pricing does not call Neat again for 60 s (per environment and service account)
+      429 rate limit, HTTP 5xx), guest pricing does not call Neat again for 60 s (per environment and service account)
       and goes straight to the ladder; the first success closes it and the call is retried once the
-      window has elapsed. A 4xx (Neat refusing one stay's fields) or a non-amount answer never opens
-      it: it says nothing about the next stay.
+      window has elapsed. Any other 4xx (Neat refusing one stay's fields) or a non-amount answer never
+      opens it: it says nothing about the next stay.
     - The subscription pass is not behind the breaker: a timeout there is an ordinary `unavailable`
       failure on the job (rule 10 schedule).
     Test: `neat-timeout.unit.test.js`.
