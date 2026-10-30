@@ -18,6 +18,12 @@ const CACHE_FRESH_MS = 24 * 60 * 60 * 1000;
 const BREAKER_MS = 60 * 1000;
 const breakerOpenUntil = new Map();
 
+// Only an outage opens the breaker: a timeout, a network error (no HTTP status) or a 5xx. A 4xx — Neat
+// refusing the fields of one particular stay — says nothing about the next stay.
+function isOutage(err) {
+  return !err || err.status === undefined || err.status >= 500;
+}
+
 function resetPriceBreaker() { breakerOpenUntil.clear(); }
 
 // Whole-euro ceil: 17.50 € premium + 30 % → 22.75 → 23. A 0 % margin still ceils (17.50 → 18);
@@ -99,13 +105,15 @@ async function resolveInsurancePricing(deps, staySnapshot) {
   try {
     const client = buildClient({ environment: cfg.environment, clientId: cfg.clientId, clientSecret: cfg.clientSecret });
     const { amount } = await client.price(cfg.contractId, { serviceFieldValues, quantity: 1 });
-    if (!Number.isFinite(amount) || amount < 0) throw new Error(`Neat price returned a non-amount: ${amount}`);
+    if (!Number.isFinite(amount) || amount < 0) {
+      throw Object.assign(new Error(`Neat price returned a non-amount: ${amount}`), { status: 422 });
+    }
     breakerOpenUntil.delete(breakerKey);
     cacheModel.storePremium(cfg.environment, cfg.contractId, fieldsHash, amount, new Date(nowMs).toISOString());
     return finish(amount, 'live');
   } catch (err) {
     // Stale cache beats no price; no cache at all → null and the static tariff applies (rule 13).
-    breakerOpenUntil.set(breakerKey, nowMs + BREAKER_MS);
+    if (isOutage(err)) breakerOpenUntil.set(breakerKey, nowMs + BREAKER_MS);
     logger.warn(`[neat] price failed (${err.message}); ${cached ? 'serving stale cache' : 'falling back to static tariff'}`);
     if (cached) return finish(cached.premium, 'stale-cache');
     return null;
@@ -136,13 +144,20 @@ function resolveInsurancePricingSync(deps, staySnapshot) {
  * Neat and warms the cache (previews). `isReady` = guest pricing fully configured, margin included.
  */
 function createInsuranceProcessor({ settings, cacheModel, buildClient, now, logger }) {
+  // One client per account, so its token is reused and a normal quote is a single exchange.
+  const clients = new Map();
+  const sharedClient = (cfg) => {
+    const key = `${cfg.environment}:${cfg.clientId}:${hashFieldValues(cfg.clientSecret)}`;
+    if (!clients.has(key)) clients.set(key, buildClient(cfg));
+    return clients.get(key);
+  };
   const answer = (pricing) => (pricing ? { cancellationInsurancePrice: pricing.unitPrice } : null);
   return {
     id: 'neat',
     isReady: () => isNeatPricingActive(settings),
     priceSync: (snapshot) => answer(resolveInsurancePricingSync({ settingsModel: settings, cacheModel: cacheModel() }, snapshot)),
     priceLive: async (snapshot) => answer(await resolveInsurancePricing({
-      settingsModel: settings, cacheModel: cacheModel(), buildClient, now, logger,
+      settingsModel: settings, cacheModel: cacheModel(), buildClient: sharedClient, now, logger,
     }, snapshot)),
   };
 }

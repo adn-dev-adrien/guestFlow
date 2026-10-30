@@ -12,6 +12,8 @@
 
 // Below the WordPress plugin's own 8 s give-up, so a quote answers (at the fallback price) before it does.
 const DEFAULT_TIMEOUT_MS = 5000;
+// Neat's token slides over 7 days; renewing a day early keeps a cached client from presenting a stale one.
+const TOKEN_MAX_AGE_MS = 6 * 24 * 60 * 60 * 1000;
 
 const BASE_URLS = {
   production: 'https://api.neat.eu',
@@ -34,6 +36,7 @@ function buildNeatClient(config = {}) {
     ? Number(config.timeoutMs) : DEFAULT_TIMEOUT_MS;
 
   let token = null;
+  let tokenAt = 0;
   let serviceAccountId = null;
 
   async function readBody(res, context) {
@@ -54,12 +57,18 @@ function buildNeatClient(config = {}) {
     return body || {};
   }
 
-  // One deadline per HTTP exchange, covering the headers AND the body read: an unanswering Neat
-  // rejects with a clean 504 instead of holding the quote for undici's 300 s default.
-  async function timed(context, exchange) {
+  // One budget per public call, shared by auth, the request and the 401 retry: each exchange gets
+  // what is left of it, so a call never outlasts `timeoutMs` (the WordPress plugin gives up at 8 s).
+  // It covers the headers AND the body read; an unanswering Neat rejects with a clean 504 instead
+  // of holding the quote for undici's 300 s default.
+  const newDeadline = () => Date.now() + timeoutMs;
+
+  async function timed(context, deadline, exchange) {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const remaining = deadline - Date.now();
+    const timer = setTimeout(() => controller.abort(), Math.max(remaining, 0));
     try {
+      if (remaining <= 0) controller.abort();
       return await exchange(controller.signal);
     } catch (err) {
       if (controller.signal.aborted) {
@@ -74,8 +83,8 @@ function buildNeatClient(config = {}) {
     }
   }
 
-  async function auth() {
-    const json = await timed('auth', async (signal) => {
+  async function auth(deadline = newDeadline()) {
+    const json = await timed('auth', deadline, async (signal) => {
       const res = await fetchImpl(`${baseUrl}/service-accounts/auth`, {
         method: 'POST',
         headers: { accept: 'application/json', 'content-type': 'application/json' },
@@ -85,6 +94,7 @@ function buildNeatClient(config = {}) {
       return readBody(res, 'auth');
     });
     token = json.token || null;
+    tokenAt = Date.now();
     serviceAccountId = (json.serviceAccount && json.serviceAccount.id) || null;
     if (!token) {
       const err = new Error('Neat auth returned no token');
@@ -96,10 +106,10 @@ function buildNeatClient(config = {}) {
 
   // Every API call goes through here: auth on first use, one re-auth + retry on 401, then the
   // failure propagates. `retried` guards against an auth loop when the credentials are wrong.
-  async function request(method, path, { body, context, retried = false } = {}) {
-    if (!token) await auth();
+  async function request(method, path, { body, context, retried = false, deadline = newDeadline() } = {}) {
+    if (!token || Date.now() - tokenAt > TOKEN_MAX_AGE_MS) await auth(deadline);
     const label = context || `${method} ${path}`;
-    const answer = await timed(label, async (signal) => {
+    const answer = await timed(label, deadline, async (signal) => {
       const res = await fetchImpl(`${baseUrl}${path}`, {
         method,
         headers: {
@@ -115,7 +125,7 @@ function buildNeatClient(config = {}) {
     });
     if (answer.unauthorized) {
       token = null;
-      return request(method, path, { body, context, retried: true });
+      return request(method, path, { body, context, retried: true, deadline });
     }
     return answer.json;
   }
@@ -133,8 +143,9 @@ function buildNeatClient(config = {}) {
     // Discovery step 1 — the stores this service account can sell for (each carries its sales
     // channels). Tolerates both `[...]` and `{ stores: [...] }` shapes.
     async getStores() {
-      if (!serviceAccountId) await auth();
-      const json = await request('GET', `/service-accounts/${encodeURIComponent(serviceAccountId)}/stores`, { context: 'get stores' });
+      const deadline = newDeadline();
+      if (!serviceAccountId) await auth(deadline);
+      const json = await request('GET', `/service-accounts/${encodeURIComponent(serviceAccountId)}/stores`, { context: 'get stores', deadline });
       return Array.isArray(json) ? json : (json.stores || []);
     },
 
@@ -190,4 +201,4 @@ function buildNeatClient(config = {}) {
   };
 }
 
-module.exports = { buildNeatClient, BASE_URLS, DEFAULT_TIMEOUT_MS };
+module.exports = { buildNeatClient, BASE_URLS, DEFAULT_TIMEOUT_MS, TOKEN_MAX_AGE_MS };
