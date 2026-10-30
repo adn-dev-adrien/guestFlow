@@ -894,7 +894,8 @@ export default function FinanceSection() {
                             // specs/disable-deposit-per-reservation.md — the server enforces the same.
                             ...(e.target.checked ? { depositPaid: false, depositPaidDate: '' } : {}),
                           })}
-                          disabled={(isReservationLocked && !editingReservationId) || Boolean(depositDisabledLockedReason)}
+                          // disable-deposit-per-reservation.md rule 14 — a lock never freezes the switch ON: it may be unticked, never ticked.
+                          disabled={(isReservationLocked && !editingReservationId) || (Boolean(depositDisabledLockedReason) && !form.depositDisabled)}
                           slotProps={{ input: { 'aria-describedby': depositDisabledLockReason ? 'deposit-disabled-lock-reason' : undefined } }}
                         />
                       )}

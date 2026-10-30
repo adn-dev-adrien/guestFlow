@@ -39,6 +39,7 @@ import StaySection from '../components/reservation/StaySection';
 import GuestsBedsSection from '../components/reservation/GuestsBedsSection';
 import ExtrasSection from '../components/reservation/ExtrasSection';
 import FinanceSection from '../components/reservation/FinanceSection';
+import { LINK_ALREADY_PAID } from '../constants/paymentLinks';
 import Slot from '../plugins/sdk/Slot';
 import ReservationHistoryPanel from '../components/reservation/ReservationHistoryPanel';
 import TermsAcceptanceLine from '../components/reservation/TermsAcceptanceLine';
@@ -2937,7 +2938,9 @@ export default function ReservationPage() {
     Promise.resolve(handleSaveReservation(action)).then((saved) => { if (saved === false) resolve({ ok: false }); });
   });
 
-  // Rule 28 — « Renvoyer la demande » on a still-due row whose link was retired.
+  // Rule 28 — « Renvoyer la demande » on a still-due row whose link was retired. On LINK_ALREADY_PAID the
+  // server booked the payment (specs/payment-link-lifecycle.md rule 50): the fiche re-reads its money, like the
+  // solde and devis senders below.
   const resendPaymentRequest = async (type) => {
     try {
       const r = await api.sendPaymentRequestOfType(editingReservationId, type);
@@ -2945,6 +2948,7 @@ export default function ReservationPage() {
       await reloadReservationFinance();
     } catch (e) {
       showError(e.message || 'Envoi impossible.');
+      if (e?.code === LINK_ALREADY_PAID) await reloadReservationFinance();
     }
   };
 
@@ -3174,6 +3178,7 @@ export default function ReservationPage() {
       if (check) await handleCheckDepositPayment();
     } catch (e) {
       await alert({ title: 'Erreur', message: e.message || `Impossible d’envoyer la demande de paiement (${onlinePayment?.label || 'paiement en ligne'} connecté ? email client renseigné ?).` });
+      if (e?.code === LINK_ALREADY_PAID) setReloadToken((token) => token + 1);
     }
   };
 
@@ -3190,6 +3195,7 @@ export default function ReservationPage() {
       showSuccess(`Demande de solde envoyée — email avec le lien de paiement (${euros}) envoyé à ${r.recipientEmail || 'le client'}.`);
     } catch (e) {
       await alert({ title: 'Erreur', message: e.message || `Impossible d’envoyer la demande de solde (${onlinePayment?.label || 'paiement en ligne'} connecté ? email client renseigné ?).` });
+      if (e?.code === LINK_ALREADY_PAID) await reloadReservationFinance();
     }
   };
 
