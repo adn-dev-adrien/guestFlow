@@ -126,7 +126,9 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
      (`reservationId`, « séjour supprimé ») — **no link to a fiche** (there is none);
    - action line: « Action requise : retrouver le client et rembourser ce paiement depuis votre espace
      du prestataire de paiement. »
-   The push carries no `url`. Best-effort, like every admin notification.
+   The push carries no `url`. Best-effort, like every admin notification. The payment's id and date
+   reach the notifier in the options (`{ orphan: true, paidAt, providerPaymentId }`): the link handed to
+   it is the row read before the payment was stamped (implementation reading, 2026-10-30).
 5. **At the first boot of this version, the open orphans are withdrawn once.** An idempotent migration
    (`migrations.name = 'orphan_payment_links_withdrawn_v1'`) sets every **open** link whose stay row is
    missing to `cancelled`, `cancelReason = 'orphan'`, `remoteCancelPendingAt = now` (when it has a
@@ -135,7 +137,9 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
    No network call at boot (database.js is synchronous). The first poll pass (110 s after boot) reads
    each one's payment, then deactivates it (rule 8); its result is logged per link —
    `[payments] orphan link #13 deactivated at qonto` or, if it had been paid meanwhile, the rule-4 alert
-   is sent. The boot `console.warn` of `index.js` stays, for the cancelled-with-marker orphans still
+   is sent. An open orphan without a `providerLinkId` (never reached the provider) is withdrawn without the
+   marker and logged `… withdrawn: no provider link to deactivate` (reading recorded at implementation,
+   2026-10-30). The boot `console.warn` of `index.js` stays, for the cancelled-with-marker orphans still
    owed while the plugin is off.
 
 ### 3.C Validity — 36 hours (decision 2c)
@@ -668,8 +672,8 @@ refused).
 ## 7. Test plan
 
 ### Server unit tests (one file per subject)
-- [ ] `tests/payment-link-orphan-alert.unit.test.js` — rules 3-4: live path and retry path, `no-reservation` → link `paid`, nothing booked, no confirmation, alert with link id + amount and no URL.
-- [ ] `tests/payment-link-orphan-migration.unit.test.js` — rule 5: open orphans withdrawn once, paid / cancelled ones untouched, log lines, second boot does nothing.
+- [x] `tests/payment-link-orphan-alert.unit.test.js` — rules 3-4: live path and retry path, `no-reservation` → link `paid`, nothing booked, no confirmation, alert with link id + amount and no URL.
+- [x] `tests/payment-link-orphan-migration.unit.test.js` — rule 5: open orphans withdrawn once, paid / cancelled ones untouched, log lines, second boot does nothing.
 - [ ] `tests/payment-link-validity.unit.test.js` — rules 6-8: `expiresAt` at mint, lapse at 36 h, reuse below 24 h left mints a new link, reuse above keeps it, a reused link paid meanwhile refuses.
 - [ ] `tests/payment-link-stay-started.unit.test.js` — rule 9: lapse at 00:00 Paris (DST days included), `complement` untouched, link minted on the arrival day exempt, converted-devis links included.
 - [ ] `tests/payment-link-dates-taken.unit.test.js` — rules 10-11, 31-32: overlap by iCal import (Adrien's case a), by the conversion of another devis (case b), by manual creation, re-date, logement change, « Rétablir »; the row itself and its own converted stay never count; a row with an acompte paid keeps its links; two unpaid reservations both withdrawn; mint refused 409.
@@ -778,3 +782,21 @@ refused).
 - **Q8 — Qonto behaviour to confirm in sandbox** (a check, not a decision; still open 2026-10-30): the
   page a guest sees on a deactivated link, and whether a 3-D Secure payment in flight completes after
   `deactivate`. Rules 14, 19 and 33 hold either way.
+
+## 10. Implementation progress
+
+Six sequential PRs into `inte/plugins` (plan validated 2026-10-30).
+
+- [x] **PR1 — orphan links** (rules 3, 4, 5; rule 2 for the `orphan` reason).
+  `constants/paymentLinks.js` (new: durations of rules 6, 8, 19, 20 and the reason names);
+  `paymentPollRunner` — `no-reservation` on the live path and an up-front « stay row missing » check
+  before every branch of `retryPendingCancellationsOnce` (settled, amount-changed, installment, plain
+  cancelled, orphan), plus the stay vanishing during an amount-changed claim, all ending on
+  `notifyPaidAfterCancel(link, { orphan: true, … })`; `notificationService` orphan e-mail / push with no
+  URL; `utils/orphanPaymentLinksMigration.js` called from `database.js`
+  (`orphan_payment_links_withdrawn_v1`). Tests: `payment-link-orphan-alert` (13), `payment-link-orphan-migration` (4).
+- [ ] PR2 — 36 h validity, lifecycle pass, deactivate-then-read (rules 1, 6-9, 13, 14, 16-24, 34).
+- [ ] PR3 — validity in request e-mails, acompte reminder mints at send, public `expired` status (rules 26-30, 35, 36).
+- [ ] PR4 — closures refused over open payment requests, « Retirer le lien » (rules 40-42, 49).
+- [ ] PR5 — held dates and dates-taken withdrawal (rules 10-12, 16, 24, 25, 31-33, 37-39, 46, 48).
+- [ ] PR6 — dates-taken guest notice (rules 35, 43-45, 47); status → Implemented.

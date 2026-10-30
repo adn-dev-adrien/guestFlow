@@ -16,7 +16,8 @@
  *   - checkConflict?    : ({ reservationId }) => boolean — dates no longer free at conversion
  *   - notifyConflict?   : (reservationId) => notify the admin of an over-booked paid booking (best-effort)
  *   - notifyPaidAfterCancel? : (link, { settledOn }?) => tell the admin a cancelled link was paid (best-effort,
- *                              rule 8; `settledOn` = the bucket was settled another way before, rule 24)
+ *                              rule 8; `settledOn` = the bucket was settled another way before, rule 24;
+ *                              `orphan` = the stay row is gone, specs/payment-link-lifecycle.md rule 3)
  *
  * Idempotent: a link already `paid` is never re-listed by the poll; converting an already-converted devis
  * only records the bucket again, which the recorder ignores; a webhook replay re-runs the same no-ops.
@@ -246,6 +247,9 @@ function bookIfAmountChanged({ database, link, paidDate, recordPayment }) {
   return booked.effect === 'double-payment' ? null : booked;
 }
 
+const stayIsMissing = (database, link) => Boolean(database) && !database.prepare('SELECT 1 FROM reservations WHERE id = ?').get(Number(link.reservationId));
+const orphanAlert = (pay) => ({ orphan: true, paidAt: (pay && pay.paidAt) || null, providerPaymentId: (pay && pay.paymentId) || null });
+
 // A paid link confirms the stay (→ confirmation email) for the deposit (use case 1) and full-payment
 // (use case 2) flows; a balance payment is a later top-up, not the initial confirmation.
 const CONFIRMING_TYPES = new Set(['deposit', 'full']);
@@ -308,6 +312,12 @@ async function processPaidLink({ database, devisModel, paymentLinksModel, link, 
     if (notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link); } catch { /* best effort */ } }
     return { id: link.id, reservationId: link.reservationId, type: link.type, status: 'paid', ...effect };
   }
+  // specs/payment-link-lifecycle.md rule 3 — the stay row is gone: the money stays on the link, nothing is
+  // booked or confirmed, the admin refunds it.
+  if (effect.effect === 'no-reservation') {
+    if (notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link, orphanAlert(p)); } catch { /* best effort */ } }
+    return { id: link.id, reservationId: link.reservationId, type: link.type, status: 'paid', ...effect };
+  }
 
   // Devis→reservation conversion is the only paid effect that changes the calendar event set
   // (deposit/balance flags are not event-visible fields).
@@ -342,12 +352,21 @@ function retryPendingCancellations(deps) {
   return run;
 }
 
-async function retryPendingCancellationsOnce({ only = null, paymentLinksModel, provider, notifyPaidAfterCancel, database, devisModel, recordPayment, checkConflict, notifyConflict, emitPluginEvent }) {
+async function retryPendingCancellationsOnce({ only = null, paymentLinksModel, provider, notifyPaidAfterCancel, database, devisModel, recordPayment, checkConflict, notifyConflict, emitPluginEvent, logger = console }) {
   const results = [];
   for (const link of paymentLinksModel.listRemoteCancelPending().filter((l) => only == null || Number(l.id) === Number(only))) {
     if (link.provider !== provider.id || !link.providerLinkId) continue;
     try {
       const pay = await provider.getPayment(link.providerLinkId, { origin: 'cancel-link' });
+      // specs/payment-link-lifecycle.md rule 3 — checked before every reason's branch: with no stay row
+      // there is nothing to settle, book or convert, whatever the link was withdrawn for.
+      const orphan = stayIsMissing(database, link);
+      if (pay.paid && orphan) {
+        paymentLinksModel.clearRemoteCancelPending(link.id, { providerPaymentId: pay.paymentId || null, paidAt: pay.paidAt || new Date().toISOString() });
+        if (notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link, orphanAlert(pay)); } catch { /* best effort */ } }
+        results.push({ id: link.id, reservationId: link.reservationId, type: link.type, status: 'paid-after-cancel', effect: 'no-reservation' });
+        continue;
+      }
       if (pay.paid && link.cancelReason === 'settled') {
         results.push(await settleRetiredPaidLink({ paymentLinksModel, notifyPaidAfterCancel, database, devisModel, recordPayment, link, pay }));
         continue;
@@ -365,10 +384,13 @@ async function retryPendingCancellationsOnce({ only = null, paymentLinksModel, p
       }
       await provider.cancelLink(link.providerLinkId);
       paymentLinksModel.clearRemoteCancelPending(link.id);
+      // Rule 5 — the outcome of each orphan withdrawn at the upgrade is logged.
+      if (orphan) logger.log(`[payments] orphan link #${link.id} deactivated at ${link.provider}`);
       results.push({ id: link.id, reservationId: link.reservationId, type: link.type, status: 'deactivated' });
     } catch (err) {
       if (await require('./paymentLinkDeactivation').alreadyInactive(provider, link.providerLinkId)) {
         paymentLinksModel.clearRemoteCancelPending(link.id);
+        if (stayIsMissing(database, link)) logger.log(`[payments] orphan link #${link.id} already inactive at ${link.provider}`);
         results.push({ id: link.id, reservationId: link.reservationId, type: link.type, status: 'already-inactive' });
         continue;
       }
@@ -480,7 +502,8 @@ async function bookClaimedAmountChangedLink({ paymentLinksModel, notifyPaidAfter
     if (conflict && notifyConflict) { try { await notifyConflict(converted); } catch { /* best effort */ } }
   }
   if (notifyPaidAfterCancel) {
-    try { await notifyPaidAfterCancel(link, mismatch && !unbooked ? { amountMismatch: mismatch } : {}); } catch { /* best effort */ }
+    const options = booked.effect === 'no-reservation' ? orphanAlert(pay) : (mismatch && !unbooked ? { amountMismatch: mismatch } : {});
+    try { await notifyPaidAfterCancel(link, options); } catch { /* best effort */ }
   }
   return { id: link.id, reservationId: link.reservationId, type: link.type, status: unbooked ? 'paid-after-cancel' : 'paid', ...booked };
 }
