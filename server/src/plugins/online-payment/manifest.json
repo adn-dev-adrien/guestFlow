@@ -1,7 +1,7 @@
 {
   "id": "online-payment",
   "name": "Paiement en ligne (Qonto)",
-  "version": "1.4.6",
+  "version": "1.4.7",
   "description": "Liens de paiement envoyés aux voyageurs, et rapprochement des virements du compte Qonto avec les fiches.",
   "icon": "payments",
   "surfaces": [
@@ -89,6 +89,11 @@
       "Compatible avec le SDK 2.15 de GuestFlow."
     ],
     "1.4.6": [
+      "Ancien lien de paiement réglé le jour où l’acompte est coché, après un nouveau calcul du séjour : le séjour est enregistré de la même façon quel que soit l’ordre, et l’alerte compare avec le montant total.",
+      "Alerte « autre montant » : plus de « une fois la différence réglée » quand le montant reçu couvre le séjour.",
+      "Compatible avec le SDK 2.15 de GuestFlow."
+    ],
+    "1.4.7": [
       "Textes de la connexion Qonto sans tutoiement.",
       "Compatible avec le SDK 2.15 de GuestFlow."
     ]
