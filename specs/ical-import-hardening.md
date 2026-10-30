@@ -155,6 +155,19 @@ nothing, and the platforms tab says in one short line what the last sync did.
     (`icalDateDriftModel.overlapsTakenNights`) read each GuestFlow stay through `utils/occupancy.effectiveRange`
     (early check-in takes the night before, late check-out the night after), exactly as the iCal export
     publishes them. A platform stay on the extra night of a late check-out is flagged, not created unflagged.
+20. **A pass in flight honours a stop or a correction made since it started** _(added 2026-10-30, audit R6-1)_.
+    Rule 2 holds for the pass that is already running, not only for the next one. Once a feed is back, and
+    before anything is applied, `syncSource` reads the source row again: if it is gone, inactive
+    (`isActive = 0`), or its `url` is no longer the one the observation fetched, the result is `skipped` and
+    no status row is written. A stay the operator deleted after stopping a source (the Lodgify clean-up) does
+    not come back as a fresh import with a notification, and the feed of a wrong URL is not applied once more
+    after the fix. Rule 8 (staleness) is evaluated after this check and is unchanged.
+    Two companions: (a) « Synchroniser » (`syncOne`) that joined a run answering `skipped` (source changed, or
+    stale under rule 8 of `ical-sync-mapping-resilience`) runs one more sync on the freshly read row, so the
+    click really fetches (a source stopped meanwhile answers 409); (b) saving a source with a different URL
+    resets its `emptyFeedStreak` and its rule-8 empty-answer stamp (`lastEmptyCompletedAt`), so an empty answer from the old URL and one from the
+    new URL are never counted together. The start stamp of rule 8 (`lastObservedStart`) is kept: clearing it would
+    let an older prefetch of URL A revert an operator sync after an A→B→A edit inside one pass.
 
 **Edge cases:**
 - A stay arriving on another stay's departure day shares no night: no conflict (rule 3).
@@ -249,6 +262,12 @@ shared placeholder clients are split at boot, idempotently; nothing is deleted, 
 - Updated: `properties-ical.unit.test.js` (UTC instant now in Paris), `platforms-and-ical-rework.unit.test.js`
   (`disabled: false`), `lodgify-decommission-native-feeds.unit.test.js` (the conflict mail names the
   platform it is given).
+
+### Server unit tests — 2026-10-30 audit R6
+
+- `server/src/tests/ical-sync-source-changed-mid-pass.unit.test.js` (7 cases, rule 20): stopped, re-pointed
+  and deleted mid-pass are skipped without a status write; an untouched source is still applied; a click
+  joining a skipped run does a real sync; a URL change resets the empty-feed streak but not the rule-8 start stamp.
 
 ### Server unit tests — 2026-10-27 audit
 
