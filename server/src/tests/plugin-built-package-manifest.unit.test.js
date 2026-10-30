@@ -1,6 +1,7 @@
 // specs/plugins-phase-4-registry.md rule 52 (audit r3, N-0) — a plugin never reads its own manifest with a
 // relative `require`: in a built package the code sits under `server/` and `manifest.json` at the root. The
 // two mail intakes are built, loaded from the extracted package layout, and asked for their fiche block.
+const { listenLocal } = require('./listenLocal');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
@@ -49,12 +50,13 @@ for (const id of ['gites-de-france-intake', 'airbnb-intake']) {
     const app = express();
     app.use(mount.path, mount.router);
     const server = http.createServer(app);
-    await new Promise((resolve) => server.listen(0, resolve));
+    await listenLocal(server);
     try {
-      const res = await fetch(`http://127.0.0.1:${server.address().port}${mount.path}/reservation/1`);
+      const res = await fetch(`http://127.0.0.1:${server.address().port}${mount.path}/reservation/1`, { signal: AbortSignal.timeout(10_000) });
       assert.equal(res.status, 200);
       assert.deepEqual(await res.json(), { intake: null });
     } finally {
+      server.closeAllConnections();
       server.close();
       registry.discard(id);
       fs.rmSync(out, { recursive: true, force: true });

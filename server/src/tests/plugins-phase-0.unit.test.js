@@ -1,6 +1,7 @@
 // specs/plugins-phase-0-foundation.md — plugin catalogue, seed, states, refusals, route/job gating,
 // and the active list carried by /me and /login.
 
+const { listenLocal } = require('./listenLocal');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
@@ -298,7 +299,7 @@ test('requirePlugin over HTTP: a mounted router disappears and comes back with i
   const router = express.Router();
   router.get('/ping', (req, res) => res.json({ ok: true }));
   app.use('/public/v1', requirePlugin('website-booking', { isActive: model.isActive }), router);
-  const server = app.listen(0);
+  const server = await listenLocal(app);
   try {
     const url = `http://127.0.0.1:${server.address().port}/public/v1/ping`;
     let res = await fetch(url);
@@ -308,6 +309,7 @@ test('requirePlugin over HTTP: a mounted router disappears and comes back with i
     res = await fetch(url);
     assert.equal(res.status, 200);
   } finally {
+    server.closeAllConnections();
     server.close();
   }
 });

@@ -2,6 +2,7 @@
 // plugins router): on an operator-managed space a support session gets the byte-identical unknown-route
 // 404 on every lifecycle route and leaves no entry in the support log; on an unmanaged space the audit
 // still refuses uninstalling and turning off with its 403. The Paramètres summary has no plugins line.
+const { listenLocal } = require('./listenLocal');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const http = require('node:http');
@@ -35,18 +36,18 @@ async function serve({ managed }) {
   app.use('/api', createSupportAudit({ controller: h.supportAccess, isHidden }));
   app.use('/api/plugins', require('../routes/plugins'));
   app.use('/api', (req, res) => res.status(404).json({ ...UNKNOWN }));
-  const server = await new Promise((resolve) => { const s = http.createServer(app).listen(0, () => resolve(s)); });
+  const server = await listenLocal(http.createServer(app));
   const base = `http://127.0.0.1:${server.address().port}`;
   const ask = async (method, path) => {
-    const res = await fetch(`${base}/api${path}`, { method, headers: { 'content-type': 'application/json' }, body: method === 'GET' || method === 'DELETE' ? undefined : '{}' });
+    const res = await fetch(`${base}/api${path}`, { signal: AbortSignal.timeout(10_000), method, headers: { 'content-type': 'application/json' }, body: method === 'GET' || method === 'DELETE' ? undefined : '{}' });
     return { status: res.status, text: await res.text() };
   };
   return {
     ask, logged,
-    close: () => new Promise((resolve) => server.close(() => {
+    close: () => new Promise((resolve) => { server.closeAllConnections(); server.close(() => {
       if (previous === undefined) delete process.env.GUESTFLOW_MANAGED; else process.env.GUESTFLOW_MANAGED = previous;
       resolve();
-    })),
+    }); }),
   };
 }
 

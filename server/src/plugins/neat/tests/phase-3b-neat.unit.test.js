@@ -2,6 +2,7 @@
 // through the core's post-processor, mounts its routes at the URLs the card knows, runs its pass as a job
 // woken by the core's events, keeps its settings in plugin_settings and its two tables, adds its block
 // to the fiche, and its erasure warns about the subscriptions that live on at Neat.
+const { listenLocal } = require('../../../tests/listenLocal');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
@@ -67,11 +68,12 @@ function boot(db, { installed = true, active = installed } = {}) {
 }
 
 async function request(app, method, url) {
-  const server = app.listen(0);
+  const server = await listenLocal(app);
   try {
-    const res = await fetch(`http://127.0.0.1:${server.address().port}${url}`, { method });
+    const res = await fetch(`http://127.0.0.1:${server.address().port}${url}`, { method, signal: AbortSignal.timeout(10_000) });
     return { status: res.status, body: await res.json().catch(() => null) };
   } finally {
+    server.closeAllConnections();
     server.close();
   }
 }

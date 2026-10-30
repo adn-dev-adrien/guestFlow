@@ -2,6 +2,7 @@
 // licence (rules 9, 10, 29, 30), plugins outside the plan (rules 11, 12), quotas (rule 13), the
 // read-only path (rules 14, 16), the banner payload (§4.3) and the host-only session cookie (rule 23).
 
+const { listenLocal } = require('./listenLocal');
 const test = require('node:test');
 const { skipWithout } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
@@ -347,10 +348,11 @@ async function withApp(readOnly, run) {
   app.use('/api', enforceSubscription({ isReadOnly: () => readOnly, isWebhook: (m, p) => m === 'POST' && p === '/payments/qonto/webhook' }));
   app.use('/public/v1/booking-requests', closedWhenReadOnly({ isReadOnly: () => readOnly }));
   app.all(/.*/, (req, res) => res.json({ ok: true }));
-  const server = app.listen(0);
+  const server = await listenLocal(app);
   try {
     await run(`http://127.0.0.1:${server.address().port}`);
   } finally {
+    server.closeAllConnections();
     server.close();
   }
 }

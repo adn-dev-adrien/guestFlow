@@ -3,6 +3,7 @@
 // subscriptions, its setup state and its data. Real loader, real database in memory.
 process.env.DB_PATH = ':memory:';
 
+const { listenLocal } = require('../../../tests/listenLocal');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const express = require('express');
@@ -42,13 +43,15 @@ function boot({ installed = [ID] } = {}) {
 }
 
 async function call(app, method, url, body) {
-  const server = app.listen(0);
+  const server = await listenLocal(app);
   try {
     const res = await fetch(`http://127.0.0.1:${server.address().port}${url}`, {
+      signal: AbortSignal.timeout(10_000),
       method, headers: body ? { 'content-type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined,
     });
     return { status: res.status, body: await res.json().catch(() => null) };
   } finally {
+    server.closeAllConnections();
     server.close();
   }
 }

@@ -2,6 +2,7 @@
 // does not exist (the exact unknown-route 404, for every role, a support session included), the list
 // is narrowed to what a feature needs, the assistant has no plugin step; an unmanaged space (Solio,
 // development, E2E) is unchanged.
+const { listenLocal } = require('./listenLocal');
 const test = require('node:test');
 const { skipWithout } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
@@ -35,18 +36,18 @@ async function serve(userOf, { managed = true } = {}) {
   app.use('/api', enforceRoleAccess);
   app.use('/api/plugins', require('../routes/plugins'));
   app.use('/api', (req, res) => res.status(404).json({ ...UNKNOWN }));
-  const server = await new Promise((resolve) => { const s = http.createServer(app).listen(0, () => resolve(s)); });
+  const server = await listenLocal(http.createServer(app));
   const base = `http://127.0.0.1:${server.address().port}`;
   const ask = async (method, path) => {
-    const res = await fetch(`${base}/api/plugins${path}`, { method, headers: { 'content-type': 'application/json' }, body: method === 'GET' || method === 'DELETE' ? undefined : '{}' });
+    const res = await fetch(`${base}/api/plugins${path}`, { signal: AbortSignal.timeout(10_000), method, headers: { 'content-type': 'application/json' }, body: method === 'GET' || method === 'DELETE' ? undefined : '{}' });
     return { status: res.status, text: await res.text() };
   };
   return {
     ask,
-    close: () => new Promise((resolve) => server.close(() => {
+    close: () => new Promise((resolve) => { server.closeAllConnections(); server.close(() => {
       if (previous === undefined) delete process.env.GUESTFLOW_MANAGED; else process.env.GUESTFLOW_MANAGED = previous;
       resolve();
-    })),
+    }); }),
   };
 }
 

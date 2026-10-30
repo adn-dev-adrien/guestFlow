@@ -1,5 +1,6 @@
 // specs/express-5-upgrade.md rule 7 (spec review 2026-10-27) — a body the JSON parser refuses is a
 // 400 with a French message, not « Erreur interne du serveur » logged as a crash.
+const { listenLocal } = require('./listenLocal');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const express = require('express');
@@ -20,18 +21,17 @@ function appWith(logs) {
   return app;
 }
 
-function post(app, body) {
-  return new Promise((resolve, reject) => {
-    const server = app.listen(0, async () => {
-      try {
-        const res = await fetch(`http://127.0.0.1:${server.address().port}/api/x`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' }, body,
-        });
-        const json = await res.json();
-        server.close(() => resolve({ status: res.status, json }));
-      } catch (e) { server.close(() => reject(e)); }
+async function post(app, body) {
+  const server = await listenLocal(app);
+  try {
+    const res = await fetch(`http://127.0.0.1:${server.address().port}/api/x`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body, signal: AbortSignal.timeout(10_000),
     });
-  });
+    return { status: res.status, json: await res.json() };
+  } finally {
+    server.closeAllConnections();
+    server.close();
+  }
 }
 
 test('a malformed JSON body answers 400 INVALID_JSON in French, and is not logged as a crash', async () => {

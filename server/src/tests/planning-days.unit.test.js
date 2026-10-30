@@ -1,3 +1,4 @@
+const { listenLocal } = require('./listenLocal');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
@@ -159,7 +160,7 @@ test('rule 10 — /alerts and /option-cards are gone, breakfast and the option-c
   app.use(express.json());
   app.use('/api/planning', router);
   const server = http.createServer(app);
-  await new Promise((resolve) => server.listen(0, resolve));
+  await listenLocal(server);
   const base = `http://127.0.0.1:${server.address().port}/api/planning`;
   try {
     assert.equal((await fetch(`${base}/alerts?from=2026-10-01&to=2026-10-02`)).status, 404);
@@ -169,6 +170,7 @@ test('rule 10 — /alerts and /option-cards are gone, breakfast and the option-c
       method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
     })).status, 400);
   } finally {
+    server.closeAllConnections();
     await new Promise((resolve) => server.close(resolve));
   }
 });

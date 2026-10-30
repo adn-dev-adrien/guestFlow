@@ -1,5 +1,6 @@
 // specs/linen-laundry-days.md §4.1 + §4.3 — the schedule routes as the loader mounts them behind the
 // `linen` plugin: answered only while it is active, backed by the migrated table.
+const { listenLocal } = require('../../../tests/listenLocal');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
@@ -44,15 +45,17 @@ function boot({ installed }) {
 test.afterEach(() => registry.reset());
 
 async function request(app, method, url, body) {
-  const server = app.listen(0);
+  const server = await listenLocal(app);
   try {
     const res = await fetch(`http://127.0.0.1:${server.address().port}${url}`, {
+      signal: AbortSignal.timeout(10_000),
       method,
       headers: { 'content-type': 'application/json' },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
     return { status: res.status, body: await res.json() };
   } finally {
+    server.closeAllConnections();
     server.close();
   }
 }

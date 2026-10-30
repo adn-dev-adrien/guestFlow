@@ -1,6 +1,7 @@
 // The outcomes Sowel posts back, and the alerts they raise — specs/gate-access-sowel-connector.md
 // §3.2 and §3.3.
 
+const { listenLocal } = require('../../../tests/listenLocal');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const crypto = require('crypto');
@@ -238,7 +239,7 @@ test('over HTTP: a signed read stamps lastReadAt, a refused one stamps nothing, 
   router.get('/keys', controller.keys);
   router.post('/results', controller.results);
   app.use('/public/v1/gate', router);
-  const server = app.listen(0);
+  const server = await listenLocal(app);
   const base = `http://127.0.0.1:${server.address().port}`;
 
   const signed = (method, url, body = '', secret = 's') => ({
@@ -272,6 +273,7 @@ test('over HTTP: a signed read stamps lastReadAt, a refused one stamps nothing, 
     assert.deepEqual(JSON.parse(postedRaw.toString('utf8')), { stored: 1 });
     assert.equal(model.get(stay.id).code, '4K7M-9QT2');
   } finally {
+    server.closeAllConnections();
     server.close();
   }
 });

@@ -1,4 +1,4 @@
-const { todayIso: localTodayIso } = require('../utils/localDate');
+const { todayIso: localTodayIso, localIsoDate } = require('../utils/localDate');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
@@ -32,7 +32,7 @@ const DDL = `
 function iso(daysFromToday) {
   const d = new Date();
   d.setDate(d.getDate() + daysFromToday);
-  return d.toISOString().split('T')[0];
+  return localIsoDate(d);
 }
 const TODAY = localTodayIso();
 const round2 = (n) => Math.round(n * 100) / 100;

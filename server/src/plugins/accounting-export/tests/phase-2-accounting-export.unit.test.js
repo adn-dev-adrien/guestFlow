@@ -4,6 +4,7 @@
 // Keeps the default models off the real database file: parallel files would race on its migration.
 process.env.DB_PATH = ':memory:';
 
+const { listenLocal } = require('../../../tests/listenLocal');
 const test = require('node:test');
 const { skipWithout } = require('../../sdk/testing');
 const assert = require('node:assert/strict');
@@ -84,9 +85,10 @@ function boot(db, { installed = true, active = installed, user = null } = {}) {
 }
 
 async function request(app, method, url, body) {
-  const server = app.listen(0);
+  const server = await listenLocal(app);
   try {
     const res = await fetch(`http://127.0.0.1:${server.address().port}${url}`, {
+      signal: AbortSignal.timeout(10_000),
       method,
       headers: body ? { 'Content-Type': 'application/json' } : {},
       body: body ? JSON.stringify(body) : undefined,
@@ -96,6 +98,7 @@ async function request(app, method, url, body) {
     try { json = JSON.parse(text); } catch { json = null; }
     return { status: res.status, body: json, text };
   } finally {
+    server.closeAllConnections();
     server.close();
   }
 }
@@ -276,7 +279,11 @@ test('specs/plugins-phase-2-hosts.md rules 20 + 22 — the plugin writes the pla
   const db = freshDb();
   bankCompensation(db);
   const before = boot(db, { installed: true });
-  const journal = async (app) => (await request(app, 'GET', '/api/accounting/sales?month=9&year=2026')).body;
+  const journal = async (app) => {
+    const res = await request(app, 'GET', '/api/accounting/sales?month=9&year=2026');
+    assert.equal(res.status, 200, `journal answered ${res.status}: ${res.text}`);
+    return res.body;
+  };
   const reference = await journal(before.app);
   assert.equal(reference.totals.entriesCount, 2, 'the deposit and the indemnity');
 

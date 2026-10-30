@@ -4,6 +4,7 @@
 // inputs to the very same hex. Changing the canonical string here while the plugin keeps its own
 // would make Sowel refuse every list with both suites green.
 
+const { listenLocal } = require('../../../tests/listenLocal');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const crypto = require('crypto');
@@ -26,19 +27,19 @@ test('pinned vector: secret "s3cret", request signature "abc", body {"ok":true}'
   );
 });
 
-function serve(routes) {
+async function serve(routes) {
   const app = express();
   const router = express.Router();
   router.use(buildSignGateResponse({ env: { GATE_SIGNING_SECRET: 's3cret' } }));
   routes(router);
   app.use('/public/v1/gate', router);
-  const server = app.listen(0);
+  const server = await listenLocal(app);
   return { server, base: `http://127.0.0.1:${server.address().port}/public/v1/gate` };
 }
 
 // specs/gate-access-sowel-connector.md §3.4 rules 22b + 22c — the exact bytes sent are the bytes signed.
 test('a 2xx answer is signed over the exact bytes it carries, bound to the request signature', async () => {
-  const { server, base } = serve((r) => {
+  const { server, base } = await serve((r) => {
     r.get('/json', (_req, res) => res.json({ keys: [{ label: 'Gîte · R1 · Zoé' }], now: 'x' }));
     r.get('/text', (_req, res) => res.send('{"ok":true}'));
   });
@@ -62,13 +63,14 @@ test('a 2xx answer is signed over the exact bytes it carries, bound to the reque
     const other = await fetch(`${base}/text`, { headers: { 'x-gate-signature': 'abd' } });
     assert.notEqual(other.headers.get('x-gate-response-signature'), text.headers.get('x-gate-response-signature'));
   } finally {
+    server.closeAllConnections();
     server.close();
   }
 });
 
 // specs/gate-access-sowel-connector.md §3.4 rule 22d — errors need no signature, and get none.
 test('an error answer is not signed', async () => {
-  const { server, base } = serve((r) => {
+  const { server, base } = await serve((r) => {
     r.post('/results', (_req, res) => res.status(413).json({ error: { code: 'TOO_MANY' } }));
   });
   try {
@@ -76,6 +78,7 @@ test('an error answer is not signed', async () => {
     assert.equal(response.status, 413);
     assert.equal(response.headers.get('x-gate-response-signature'), null);
   } finally {
+    server.closeAllConnections();
     server.close();
   }
 });

@@ -1,6 +1,7 @@
 // specs/plugins-phase-3a-online-payment.md §3.C, §3.E — Qonto becomes the online-payment plugin: it
 // declares the payment provider, mounts its routes and its webhook at the URLs Qonto knows, runs the
 // poll as its job, keeps its settings in plugin_settings, and its erasure keeps every payment.
+const { listenLocal } = require('../../../tests/listenLocal');
 const test = require('node:test');
 const { skipWithout } = require('../../sdk/testing');
 const assert = require('node:assert/strict');
@@ -63,9 +64,10 @@ function boot(db, { installed = true, active = installed } = {}) {
 }
 
 async function request(app, method, url, body) {
-  const server = app.listen(0);
+  const server = await listenLocal(app);
   try {
     const res = await fetch(`http://127.0.0.1:${server.address().port}${url}`, {
+      signal: AbortSignal.timeout(10_000),
       method, headers: body ? { 'Content-Type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined,
     });
     const text = await res.text();
@@ -73,6 +75,7 @@ async function request(app, method, url, body) {
     try { json = JSON.parse(text); } catch { json = null; }
     return { status: res.status, body: json };
   } finally {
+    server.closeAllConnections();
     server.close();
   }
 }

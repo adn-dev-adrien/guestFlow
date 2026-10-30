@@ -6,6 +6,7 @@
 // the cancellation e-mails stay possible.
 process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';
+const { listenLocal } = require('./listenLocal');
 const test = require('node:test');
 const { optionalPlugin, skipWithout } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
@@ -37,13 +38,13 @@ for (const [suffix, handler] of [['arrival', 'commitArrival'], ['arrival/preview
 let server;
 let base;
 test.before(async () => {
-  await new Promise((resolve) => { server = app.listen(0, resolve); });
+  server = await listenLocal(app);
   base = `http://127.0.0.1:${server.address().port}`;
 });
-test.after(() => server.close());
+test.after(() => { server.closeAllConnections(); server.close(); });
 
 const call = async (method, path, body) => {
-  const res = await fetch(`${base}${path}`, { method, headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+  const res = await fetch(`${base}${path}`, { signal: AbortSignal.timeout(10_000), method, headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
   return { status: res.status, body: await res.json().catch(() => ({})) };
 };
 const writes = () => JSON.stringify(db.prepare('SELECT id, checkInDone, checkOutDone, arrivalSasDoneAt, departureSasDoneAt, balancePaid, depositPaid, updatedAt FROM reservations ORDER BY id').all());
