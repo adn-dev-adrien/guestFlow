@@ -23,23 +23,28 @@ const run = (rel) => new Function(read(rel))(); // eslint-disable-line no-new-fu
 // ends would fire after jsdom is torn down ("document is not defined"), so the timers a block schedules
 // are tracked and cleared after each test of every suite that imports this module.
 const pendingTimers = new Set();
-const realSetTimeout = globalThis.setTimeout;
-const realClearTimeout = globalThis.clearTimeout;
+let saved = null;
 
+// Reads the timer functions at call time and skips the wrapping under vi.useFakeTimers(), so a suite
+// that fakes the clock keeps vitest's own setTimeout.
 function trackTimers() {
+  if (saved || vi.isFakeTimers()) return;
+  saved = { set: globalThis.setTimeout, clear: globalThis.clearTimeout };
   globalThis.setTimeout = (fn, ms, ...args) => {
-    const id = realSetTimeout((...a) => { pendingTimers.delete(id); return fn(...a); }, ms, ...args);
+    const id = saved.set((...a) => { pendingTimers.delete(id); return fn(...a); }, ms, ...args);
     pendingTimers.add(id);
     return id;
   };
-  globalThis.clearTimeout = (id) => { pendingTimers.delete(id); realClearTimeout(id); };
+  globalThis.clearTimeout = (id) => { pendingTimers.delete(id); saved.clear(id); };
 }
 
 afterEach(() => {
-  pendingTimers.forEach((id) => realClearTimeout(id));
+  if (!saved) return;
+  pendingTimers.forEach((id) => saved.clear(id));
   pendingTimers.clear();
-  globalThis.setTimeout = realSetTimeout;
-  globalThis.clearTimeout = realClearTimeout;
+  globalThis.setTimeout = saved.set;
+  globalThis.clearTimeout = saved.clear;
+  saved = null;
 });
 
 /**
