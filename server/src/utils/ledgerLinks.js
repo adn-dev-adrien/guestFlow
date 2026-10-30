@@ -34,6 +34,22 @@ function linkAmountCents(type, row = {}) {
   }
 }
 
+/**
+ * Rule 45 (and plugins-phase-3a rule 42) — a `full` link paid while the stay's acompte is already ticked:
+ * is that tick the link's own money? True when the acompte was ticked on the day of the payment or later,
+ * not at the door, with no other paid acompte or full link behind it and the solde still open — the
+ * operator saw the money arrive and ticked it before the webhook did. `stay` is a reservation row.
+ */
+function acompteIsLinkMoney(database, link, stay, paidDay) {
+  if (!paidDay || !stay || String(link.type) !== 'full') return false;
+  if (Number(stay.depositPaid || 0) !== 1 || Number(stay.balancePaid || 0) === 1 || !(Number(stay.depositAmount || 0) > 0)) return false;
+  if (!stay.depositPaidDate || String(stay.depositPaidDate).slice(0, 10) < paidDay || Number(stay.depositPaidAtArrival || 0) === 1) return false;
+  const owners = require('./deletionGuard').withConvertedDevis(database, [Number(stay.id), Number(link.reservationId)]);
+  return !database.prepare(
+    `SELECT 1 FROM payment_links WHERE reservationId IN (${owners.map(() => '?').join(',')}) AND type IN ('deposit', 'full') AND status = 'paid' AND id <> ? LIMIT 1`,
+  ).get(...owners, Number(link.id));
+}
+
 /** Rule 29 — the open links whose amount differs from the row's amount in cents. */
 function staleLinks(openLinks, row) {
   return (openLinks || []).filter((link) => {
@@ -101,7 +117,9 @@ function bookPaidAfterAmountChange({ database, recordPayment, reservationsModel 
 
   // The stay grew an acompte after a `full` link was minted (moved out of the last-minute window): the
   // single payment covers the acompte first. Not even the acompte → it is booked as an acompte.
-  const fullOverDeposit = type === 'full' && !settled.deposit && Number(row.depositDisabled || 0) !== 1
+  // An acompte ticked the day the link was paid is the link's own money (rule 45): it is booked like an unsettled one.
+  const depositIsLinkMoney = type === 'full' && settled.deposit && acompteIsLinkMoney(database, link, row, paidDay);
+  const fullOverDeposit = type === 'full' && (!settled.deposit || depositIsLinkMoney) && Number(row.depositDisabled || 0) !== 1
     && round2(row.depositAmount) > 0;
   if (fullOverDeposit && paidAmount <= round2(row.depositAmount)) bucket = 'deposit';
   else if (fullOverDeposit) {
@@ -195,4 +213,4 @@ function bookPaidAfterAmountChange({ database, recordPayment, reservationsModel 
   return { effect: 'complement-booked', amount: paidAmount };
 }
 
-module.exports = { linkAmountCents, staleLinks, findPaidStaleLink, inspectStaleLinks, bookPaidAfterAmountChange };
+module.exports = { linkAmountCents, acompteIsLinkMoney, staleLinks, findPaidStaleLink, inspectStaleLinks, bookPaidAfterAmountChange };
