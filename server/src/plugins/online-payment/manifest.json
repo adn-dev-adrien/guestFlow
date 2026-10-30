@@ -89,7 +89,8 @@
       "Compatible avec le SDK 2.15 de GuestFlow."
     ],
     "1.4.6": [
-      "Textes de la connexion Qonto sans tutoiement."
+      "Textes de la connexion Qonto sans tutoiement.",
+      "Compatible avec le SDK 2.15 de GuestFlow."
     ]
   }
 }
