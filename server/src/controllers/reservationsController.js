@@ -145,6 +145,7 @@ function ledgerFor({ row, quote = null, live = {}, propertyId = null, overpaymen
     installmentPlan: id ? installments.planFor(id) : null,
     storedAccommodationPreArrival: quote ? null : storedAccommodationPreArrivalOf(row),
     canRequest: Boolean(paymentProviders.summary()),
+    providerLabel: (paymentProviders.declared() || {}).label || null,
     today: getTodayIsoDate(),
   });
 }

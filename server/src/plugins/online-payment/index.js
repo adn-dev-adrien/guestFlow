@@ -13,6 +13,7 @@ const { mountReconciliation } = require('./reconciliation');
 const { createQontoProvider } = require('./provider');
 const { createWebhookController } = require('./webhookController');
 const { resolvePaymentPollTickMs } = require('./paymentPollSchedule');
+const { createPaymentJobs } = require('./paymentJobs');
 
 // The Qonto library is core code (specs/plugins-phase-3a-online-payment.md rule 22), shared with the
 // control plane: the plugin wires it to the instance's settings and routes.
@@ -78,31 +79,21 @@ function register(ctx) {
   const webhook = createWebhookController({ provider, settings: store });
   ctx.webhook('/api/payments/qonto/webhook', webhook.handleWebhook);
 
-  // Rule 14 — the reconciliation pass, behind the webhook and the guest's own success page.
-  let inProgress = false;
-  ctx.jobs.every({
-    name: 'payment-poll',
-    intervalMs: resolvePaymentPollTickMs(),
-    bootDelayMs: 110 * 1000,
-    run: async () => {
-      if (inProgress || !store.qontoConnected()) return;
-      inProgress = true;
-      try {
-        // The subscription is part of the safety net (specs/settings-one-save-and-automatic-webhook.md
-        // rule 11): free once recorded, and it never throws.
-        await ensureWebhookSubscription({ settings: store });
-        const { runPaymentPoll } = sdk.coreModule('paymentPollRunner');
-        const summary = await runPaymentPoll({ ...sdk.coreModule('paymentEffectDeps').buildPaymentEffectDeps(), provider });
-        if (summary.retired > 0) ctx.log.info(`${summary.retired} expired link(s) retired without a Qonto call`);
-        if (summary.stoppedBy) ctx.log.warn(`pass stopped by ${summary.stoppedBy} after ${summary.checked} link(s); the rest wait for the next tick`);
-        if (summary.paid > 0) ctx.log.info(`${summary.paid} paid / ${summary.checked} checked`);
-      } catch (err) {
-        ctx.log.error('poll pass error:', err && err.message ? err.message : err);
-      } finally {
-        inProgress = false;
-      }
+  // Rule 14 — the reconciliation pass, behind the webhook and the guest's own success page; and the
+  // lifecycle pass every 15 minutes (specs/payment-link-lifecycle.md rule 16), never at the same time.
+  const effectDeps = () => ({ ...sdk.coreModule('paymentEffectDeps').buildPaymentEffectDeps(), provider });
+  createPaymentJobs({
+    isConnected: () => store.qontoConnected(),
+    pollIntervalMs: resolvePaymentPollTickMs(),
+    log: ctx.log,
+    runPoll: async () => {
+      // The subscription is part of the safety net (specs/settings-one-save-and-automatic-webhook.md
+      // rule 11): free once recorded, and it never throws.
+      await ensureWebhookSubscription({ settings: store });
+      return sdk.coreModule('paymentPollRunner').runPaymentPoll(effectDeps());
     },
-  });
+    runLifecycle: () => sdk.coreModule('paymentPollRunner').runLinkLifecycle(effectDeps()),
+  }).forEach((job) => ctx.jobs.every(job));
 
   // specs/qonto-bank-reconciliation.md — the credits read from the account, the operator's decisions.
   const reconciliation = mountReconciliation(ctx, { store });

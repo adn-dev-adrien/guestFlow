@@ -241,6 +241,24 @@ test('online payment: an open payment link blocks deactivate and uninstall', { s
   assert.equal(call('deactivate', 'online-payment').body.state, 'inactive');
 });
 
+// specs/payment-link-lifecycle.md rule 23 — a lapsed link whose deactivation is still owed is payable at the
+// provider: it blocks like a withdrawn one; once paid (markPaid clears the marker) it no longer does.
+test('online payment: a lapsed link still owed at the provider blocks deactivate and uninstall until it is paid', { skip: skipWithout(['online-payment']) }, () => {
+  const { db, call } = setup();
+  const linksDdl = fs.readFileSync(path.join(__dirname, '..', 'schema.sql'), 'utf8').match(/CREATE TABLE IF NOT EXISTS payment_links \([\s\S]*?\n {2}\);/)[0];
+  db.exec(`DROP TABLE payment_links; ${linksDdl}`);
+  call('install', 'online-payment');
+  db.prepare("INSERT INTO payment_links (id, reservationId, type, status, providerLinkId, remoteCancelPendingAt) VALUES (1, 5, 'deposit', 'expired', 'pl_1', '2026-11-03T20:00:00Z')").run();
+  for (const handler of ['deactivate', 'uninstall']) {
+    const res = call(handler, 'online-payment');
+    assert.equal(res.statusCode, 409);
+    assert.equal(res.body.code, 'LINKS_PENDING_DEACTIVATION');
+    assert.equal(res.body.message, '1 lien retiré ou expiré encore actif chez le prestataire : désactivation en cours, réessayer plus tard.');
+  }
+  assert.equal(require('../models/paymentLinksModel').buildModel(db).markPaid(1, { providerPaymentId: 'pay_1' }).flipped, true);
+  assert.equal(call('deactivate', 'online-payment').body.state, 'inactive');
+});
+
 test('sas: an active reception-only user blocks it; admins and inactive users do not', { skip: skipWithout(['sas']) }, () => {
   const { db, call } = setup();
   call('install', 'sas');

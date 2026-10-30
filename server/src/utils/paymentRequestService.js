@@ -14,6 +14,8 @@ const { buildVatItems } = require('./paymentLinkItems');
 const { refusalForKind } = require('./reservationReadOnly');
 const { buildStayLineLabel } = require('./paymentLinkLabel');
 const { ENGLISH_VERSION_MISSING, ENGLISH_VERSION_MISSING_PAYMENT_ACTION } = require('./emailTemplateLanguage');
+const { validityOf, validityEnd } = require('./paymentLinkLifecycle');
+const { LINK_REASONS } = require('../constants/paymentLinks');
 
 // Enrich the stay line's title + description with the booking reference, guest name, property and
 // dates so the payment is identifiable in Qonto (specs/qonto-payment-link-reference.md). Text only —
@@ -77,7 +79,8 @@ function assertBucketOpen(database, id, type) {
 
 // Resolve a usable payment link for (reservation, type): reuse the current open one or create it.
 //   deps: { database, paymentLinksModel, resolveAmountCents, provider (utils/paymentProviders),
-//           resolveItems?(id, type, row) → { components, vatRatePercent } | null, deactivateLinks?(links) }
+//           resolveItems?(id, type, row) → { components, vatRatePercent } | null, deactivateLinks?(links), now?() → Date,
+//           paymentEffect?() → the processPaidLink deps (utils/paymentEffectDeps by default) }
 // `provider.createLink` returns { id, url, status, expiresAt }; a stale link is deactivated at the
 // provider, not only closed here (specs/plugins-phase-3a-online-payment.md rule 7).
 // When resolveItems yields components, the link is created as a VAT basket (specs/payment-links-vat.md):
@@ -111,13 +114,21 @@ async function mintPaymentLink(deps, id, type) {
   // ONLY if it still bills the current amount. If the devis was edited between two `pay` calls the stored
   // amount drifts; reusing the stale link would charge the old total yet book the stay as fully paid at
   // the new total. Retire the stale link and mint a fresh one at the correct amount.
+  // specs/payment-link-lifecycle.md rule 8 — nor once it has less than 24 hours left: it lapses (reason
+  // `validity`) and the guest gets a fresh link with its full 36 hours.
+  const now = mintClock(deps);
   const existing = paymentLinksModel.findOpenForStay(id, type);
   if (existing && existing.url) {
-    if (Number(existing.amountCents) === Number(amountCents)) {
-      return { id: existing.id, type, amountCents: existing.amountCents, url: existing.url, status: existing.status, providerLinkId: existing.providerLinkId, reused: true };
+    const sameAmount = Number(existing.amountCents) === Number(amountCents);
+    const validity = validityOf(existing, now);
+    if (sameAmount && validity.reusable) {
+      return { id: existing.id, type, amountCents: existing.amountCents, url: existing.url, status: existing.status, providerLinkId: existing.providerLinkId, expiresAt: validity.expiresAt, reused: true };
     }
-    await require('./paymentLinkDeactivation').retireOpenLink(existing, { paymentLinksModel, provider, deactivate: deactivateLinks });
+    await retireOrBook(deps, existing, { paymentLinksModel, provider, deactivate: deactivateLinks, now, ...(sameAmount ? { reason: LINK_REASONS.VALIDITY } : {}) });
     assertBucketOpen(database, id, type);
+  } else {
+    const owners = require('./deletionGuard').withConvertedDevis(database, [Number(id)]);
+    await bookOwedLapsedPayment(deps, `reservationId IN (${owners.map(() => '?').join(', ')}) AND type IN (${SETTLED_BY[type].map(() => '?').join(', ')})`, [...owners, ...SETTLED_BY[type]]);
   }
 
   // Build the VAT basket when the caller can split the amount; only trust it when the components sum to
@@ -158,9 +169,58 @@ async function mintPaymentLink(deps, id, type) {
   }
   const row = paymentLinksModel.create({
     reservationId: id, type, amountCents,
-    provider: provider.id, providerLinkId: link.id, url: link.url, status: link.status, expiresAt: link.expiresAt || null,
+    provider: provider.id, providerLinkId: link.id, url: link.url, status: link.status, ...validityStamps(mintClock(deps)),
   });
-  return { id: row.id, type, amountCents, url: link.url, status: link.status, providerLinkId: link.id, reused: false };
+  return { id: row.id, type, amountCents, url: link.url, status: link.status, providerLinkId: link.id, expiresAt: row.expiresAt, reused: false };
+}
+
+// Rule 6 — the 36 hours run from the row's creation, whatever the provider answers about its own expiry.
+// `createdAt` is written like SQLite's datetime('now') (UTC, no zone), `expiresAt` as an ISO instant.
+function validityStamps(createdAt = new Date()) {
+  return { createdAt: createdAt.toISOString().replace('T', ' ').slice(0, 19), expiresAt: validityEnd(createdAt) };
+}
+
+const mintClock = (deps) => (typeof deps.now === 'function' ? deps.now() : new Date());
+
+// specs/payment-link-lifecycle.md rule 18 — a lapsed link the provider would not deactivate and reports paid
+// is the guest's payment: booked here, on the path the lifecycle pass uses, and the request is refused. The
+// fiche then reloads as paid, so a second click cannot mint a request for money already received.
+const PAID_BOOKED = { httpStatus: 409, error: 'LINK_ALREADY_PAID', message: 'Le lien en cours vient d’être payé : paiement enregistré, aucun nouveau lien créé.' };
+// The links whose payment settles the requested bucket (a full link pays the acompte and the solde).
+const SETTLED_BY = { deposit: ['deposit', 'full'], balance: ['balance', 'full'], full: ['deposit', 'balance', 'full'] };
+
+async function bookLapsedPayment(deps, link, payment) {
+  const { processPaidLink } = require('./paymentPollRunner');
+  const effect = typeof deps.paymentEffect === 'function' ? deps.paymentEffect() : require('./paymentEffectDeps').buildPaymentEffectDeps();
+  await processPaidLink({ ...effect, database: deps.database, paymentLinksModel: deps.paymentLinksModel, link: deps.paymentLinksModel.findById(link.id) || link, paidPayment: payment });
+  throw { ...PAID_BOOKED };
+}
+
+async function retireOrBook(deps, link, options) {
+  try {
+    await require('./paymentLinkDeactivation').retireOpenLink(link, options);
+  } catch (err) {
+    if (err && err.paidLapsed) await bookLapsedPayment(deps, err.paidLapsed.link, err.paidLapsed.payment);
+    throw err;
+  }
+}
+
+// A re-click before the lifecycle pass: the bucket's newest lapsed link still owed its deactivation is read
+// first. Unreadable → refused like any replacement (a new link needs the provider anyway).
+async function bookOwedLapsedPayment(deps, where, params) {
+  const owed = deps.database.prepare(`
+    SELECT * FROM payment_links
+     WHERE ${where} AND status = 'expired' AND remoteCancelPendingAt IS NOT NULL AND providerLinkId IS NOT NULL
+     ORDER BY id DESC LIMIT 1
+  `).get(...params);
+  if (!owed) return;
+  let pay;
+  try {
+    pay = await deps.provider.getPayment(owed.providerLinkId, { origin: 'replace-link' });
+  } catch {
+    throw { httpStatus: 502, error: 'PROVIDER_UNREACHABLE', message: 'Prestataire de paiement injoignable : réessayer.' };
+  }
+  if (pay && pay.paid) await bookLapsedPayment(deps, owed, pay);
 }
 
 // specs/direct-installments.md rule 17 — the link of ONE installment, at its exact amount. The open link of
@@ -199,12 +259,17 @@ async function mintInstallmentLink(deps, id, installmentId) {
   const amountCents = Number(installment.amountCents);
   if (amountCents <= 0) throw { httpStatus: 400, error: 'ZERO_AMOUNT', message: 'Montant nul pour cette échéance.' };
 
+  const now = mintClock(deps);
   const existing = paymentLinksModel.findOpenForInstallment(installmentId);
   if (existing && existing.url) {
-    if (Number(existing.amountCents) === amountCents) {
-      return { id: existing.id, type: 'installment', amountCents, url: existing.url, status: existing.status, providerLinkId: existing.providerLinkId, reused: true };
+    const sameAmount = Number(existing.amountCents) === amountCents;
+    const validity = validityOf(existing, now);
+    if (sameAmount && validity.reusable) {
+      return { id: existing.id, type: 'installment', amountCents, url: existing.url, status: existing.status, providerLinkId: existing.providerLinkId, expiresAt: validity.expiresAt, reused: true };
     }
-    await require('./paymentLinkDeactivation').retireOpenLink(existing, { paymentLinksModel, provider, deactivate: deactivateLinks });
+    await retireOrBook(deps, existing, { paymentLinksModel, provider, deactivate: deactivateLinks, now, ...(sameAmount ? { reason: LINK_REASONS.VALIDITY } : {}) });
+  } else {
+    await bookOwedLapsedPayment(deps, "type = 'installment' AND installmentId = ?", [Number(installmentId)]);
   }
 
   const plan = installmentsModel.listFor(id);
@@ -238,9 +303,9 @@ async function mintInstallmentLink(deps, id, installmentId) {
   }
   const row = paymentLinksModel.create({
     reservationId: id, type: 'installment', installmentId: Number(installmentId), amountCents,
-    provider: provider.id, providerLinkId: link.id, url: link.url, status: link.status, expiresAt: link.expiresAt || null,
+    provider: provider.id, providerLinkId: link.id, url: link.url, status: link.status, ...validityStamps(mintClock(deps)),
   });
-  return { id: row.id, type: 'installment', amountCents, url: link.url, status: link.status, providerLinkId: link.id, reused: false };
+  return { id: row.id, type: 'installment', amountCents, url: link.url, status: link.status, providerLinkId: link.id, expiresAt: row.expiresAt, reused: false };
 }
 
 // Create/reuse the installment's link AND email the `installment_request` template with it (rule 20: the
