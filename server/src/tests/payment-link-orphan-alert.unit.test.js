@@ -26,12 +26,12 @@ function seed() {
   return { db, links };
 }
 
-function provider({ paid = true } = {}) {
+function provider({ paid = true, paidAt = PAID_AT } = {}) {
   const calls = [];
   return {
     calls,
     id: 'qonto',
-    getPayment: async (linkId, opts) => { calls.push(['getPayment', linkId, opts && opts.origin]); return paid ? { paid: true, paymentId: 'pay_orphan', paidAt: PAID_AT } : { paid: false }; },
+    getPayment: async (linkId, opts) => { calls.push(['getPayment', linkId, opts && opts.origin]); return paid ? { paid: true, paymentId: 'pay_orphan', paidAt } : { paid: false }; },
     getLinkStatus: async () => 'open',
     cancelLink: async (linkId) => { calls.push(['cancelLink', linkId]); },
   };
@@ -234,4 +234,18 @@ test('rule 4 — best-effort: notifications off still pushes, never throws', asy
   const out = await svc.notifyPaidAfterCancel(ORPHAN_LINK, { orphan: true });
   assert.deepEqual(out, { sent: false, skipped: 'disabled' });
   assert.equal(pushes.length, 1);
+});
+
+test('rule 4 — a provider answering paid without paid_at: the alert carries the same « Payé le » the row was stamped with', async () => {
+  for (const retry of [false, true]) {
+    const { db, links } = seed();
+    const link = links.create({ reservationId: FORMER_STAY, type: 'full', amountCents: 76280, providerLinkId: 'pl_full' });
+    if (retry) db.prepare("UPDATE payment_links SET status = 'cancelled', cancelReason = 'orphan', remoteCancelPendingAt = ? WHERE id = ?").run(PAID_AT, link.id);
+    const s = spies();
+    await runPaymentPoll({ database: db, paymentLinksModel: links, provider: provider({ paidAt: null }), devisModel: devisModel.buildModel(db), force: true, ...s });
+    const row = links.findById(link.id);
+    assert.ok(row.paidAt, `${retry ? 'retry' : 'live'}: the row is stamped`);
+    assert.equal(s.notified.length, 1);
+    assert.equal(s.notified[0][1].paidAt, row.paidAt, `${retry ? 'retry' : 'live'}: the alert states the stamped day`);
+  }
 });

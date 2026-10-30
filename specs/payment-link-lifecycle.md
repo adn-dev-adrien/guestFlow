@@ -672,7 +672,7 @@ refused).
 ## 7. Test plan
 
 ### Server unit tests (one file per subject)
-- [x] `tests/payment-link-orphan-alert.unit.test.js` — rules 3-4: live path and retry path, `no-reservation` → link `paid`, nothing booked, no confirmation, alert with link id + amount and no URL.
+- [x] `tests/payment-link-orphan-alert.unit.test.js` — rules 3-4: live path (link `paid`) and retry path (link stays `cancelled` with its payment), `no-reservation`, nothing booked, no confirmation, alert with link id + amount and no URL.
 - [x] `tests/payment-link-orphan-migration.unit.test.js` — rule 5: open orphans withdrawn once, paid / cancelled ones untouched, log lines, second boot does nothing.
 - [ ] `tests/payment-link-validity.unit.test.js` — rules 6-8: `expiresAt` at mint, lapse at 36 h, reuse below 24 h left mints a new link, reuse above keeps it, a reused link paid meanwhile refuses.
 - [ ] `tests/payment-link-stay-started.unit.test.js` — rule 9: lapse at 00:00 Paris (DST days included), `complement` untouched, link minted on the arrival day exempt, converted-devis links included.
@@ -709,7 +709,7 @@ refused).
 - [ ] Send an acompte reminder 2 days after the request: the e-mail carries a new link and its end of validity.
 - [ ] Two devis on the same nights; pay the first; let the second's acompte reminder fall due: not proposed, guest notice in the e-mail history, push, dashboard card.
 - [ ] Closure over a devis with an open link: warning with « Ouvrir », « Retirer le lien », closure saved; mobile 390 px.
-- [ ] Copy of prod: boot logs the 3 orphans; fake provider records 3 `cancelLink`.
+- [x] Copy of prod: boot logs the 3 orphans; fake provider records 3 `cancelLink`. _(review of #890, 2026-10-30: #13, #14, #16 withdrawn; nothing else changed by this migration)_
 - [ ] Mobile (390 px): ledger row wraps, button ≥ 44 px.
 - [ ] WordPress return page with `status: 'expired'`.
 - [ ] Sandbox only, by Adrien: what Qonto shows on a deactivated link, and whether a payment in flight completes after `deactivate` (§9 Q8).
@@ -794,7 +794,7 @@ Six sequential PRs into `inte/plugins` (plan validated 2026-10-30).
   cancelled, orphan), plus the stay vanishing during an amount-changed claim, all ending on
   `notifyPaidAfterCancel(link, { orphan: true, … })`; `notificationService` orphan e-mail / push with no
   URL; `utils/orphanPaymentLinksMigration.js` called from `database.js`
-  (`orphan_payment_links_withdrawn_v1`). Tests: `payment-link-orphan-alert` (13), `payment-link-orphan-migration` (4).
+  (`orphan_payment_links_withdrawn_v1`). Tests: `payment-link-orphan-alert` (14), `payment-link-orphan-migration` (4).
 - [ ] PR2 — 36 h validity, lifecycle pass, deactivate-then-read (rules 1, 6-9, 13, 14, 16-24, 34).
 - [ ] PR3 — validity in request e-mails, acompte reminder mints at send, public `expired` status (rules 26-30, 35, 36).
 - [ ] PR4 — closures refused over open payment requests, « Retirer le lien » (rules 40-42, 49).

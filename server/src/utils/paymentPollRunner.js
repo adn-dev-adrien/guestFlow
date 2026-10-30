@@ -277,7 +277,7 @@ function bookIfAmountChanged({ database, link, paidDate, recordPayment }) {
 }
 
 const stayIsMissing = (database, link) => Boolean(database) && !database.prepare('SELECT 1 FROM reservations WHERE id = ?').get(Number(link.reservationId));
-const orphanAlert = (pay) => ({ orphan: true, paidAt: (pay && pay.paidAt) || null, providerPaymentId: (pay && pay.paymentId) || null });
+const orphanAlert = (pay, paidAt) => ({ orphan: true, paidAt: paidAt || (pay && pay.paidAt) || null, providerPaymentId: (pay && pay.paymentId) || null });
 
 // A paid link confirms the stay (→ confirmation email) for the deposit (use case 1) and full-payment
 // (use case 2) flows; a balance payment is a later top-up, not the initial confirmation.
@@ -295,7 +295,8 @@ async function processPaidLink({ database, devisModel, paymentLinksModel, link, 
   // The webhook, the on-demand /status poll and the cron can all observe the same paid link at once;
   // only the caller that actually flips it runs the effect + confirmation email, so the guest never
   // gets a duplicate email and the admin never gets a duplicate conflict alert.
-  const { flipped } = paymentLinksModel.markPaid(link.id, { providerPaymentId: p.paymentId || null, paidAt: p.paidAt || new Date().toISOString() });
+  const paidAt = p.paidAt || new Date().toISOString();
+  const { flipped } = paymentLinksModel.markPaid(link.id, { providerPaymentId: p.paymentId || null, paidAt });
   if (!flipped) {
     return { id: link.id, reservationId: link.reservationId, type: link.type, status: 'paid', effect: 'already-processed' };
   }
@@ -347,7 +348,7 @@ async function processPaidLink({ database, devisModel, paymentLinksModel, link, 
   // specs/payment-link-lifecycle.md rule 3 — the stay row is gone: the money stays on the link, nothing is
   // booked or confirmed, the admin refunds it.
   if (effect.effect === 'no-reservation') {
-    if (notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link, orphanAlert(p)); } catch { /* best effort */ } }
+    if (notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link, orphanAlert(p, paidAt)); } catch { /* best effort */ } }
     return { id: link.id, reservationId: link.reservationId, type: link.type, status: 'paid', ...effect };
   }
 
@@ -394,8 +395,9 @@ async function retryPendingCancellationsOnce({ only = null, paymentLinksModel, p
       // there is nothing to settle, book or convert, whatever the link was withdrawn for.
       const orphan = stayIsMissing(database, link);
       if (pay.paid && orphan) {
-        paymentLinksModel.clearRemoteCancelPending(link.id, { providerPaymentId: pay.paymentId || null, paidAt: pay.paidAt || new Date().toISOString() });
-        if (notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link, orphanAlert(pay)); } catch { /* best effort */ } }
+        const paidAt = pay.paidAt || new Date().toISOString();
+        paymentLinksModel.clearRemoteCancelPending(link.id, { providerPaymentId: pay.paymentId || null, paidAt });
+        if (notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link, orphanAlert(pay, paidAt)); } catch { /* best effort */ } }
         results.push({ id: link.id, reservationId: link.reservationId, type: link.type, status: 'paid-after-cancel', effect: 'no-reservation' });
         continue;
       }
@@ -533,7 +535,7 @@ async function bookClaimedAmountChangedLink({ paymentLinksModel, notifyPaidAfter
     if (conflict && notifyConflict) { try { await notifyConflict(converted); } catch { /* best effort */ } }
   }
   if (notifyPaidAfterCancel) {
-    const options = booked.effect === 'no-reservation' ? orphanAlert(pay) : (mismatch && !unbooked ? alertOptions(mismatch, false) : {});
+    const options = booked.effect === 'no-reservation' ? orphanAlert(pay, paidAt) : (mismatch && !unbooked ? alertOptions(mismatch, false) : {});
     try { await notifyPaidAfterCancel(link, options); } catch { /* best effort */ }
   }
   return { id: link.id, reservationId: link.reservationId, type: link.type, status: unbooked ? 'paid-after-cancel' : 'paid', ...booked };
