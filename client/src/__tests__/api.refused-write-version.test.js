@@ -10,7 +10,7 @@ afterEach(() => { vi.unstubAllGlobals(); });
 async function refusedAndCaught(headers) {
   vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({
     ok: false, status: 409, statusText: 'Conflict', headers: { get: (n) => headers[n] ?? null },
-    json: () => Promise.resolve({ error: 'LINK_ALREADY_PAID', code: 'LINK_ALREADY_PAID', message: 'paiement enregistré' }),
+    json: () => Promise.resolve({ error: 'LINK_ALREADY_PAID', message: 'paiement enregistré' }),
   })));
   const seen = [];
   const listener = (e) => seen.push(e.detail);
@@ -23,7 +23,7 @@ async function refusedAndCaught(headers) {
 test('rule 12: the stays a refused request moved reach the fiche, and the error still reaches the caller', async () => {
   const { seen, err } = await refusedAndCaught({ 'X-Stay-Versions': JSON.stringify([{ id: 9, before: 'v1', after: 'v2' }]) });
   expect(seen).toEqual([{ stays: [{ reservationId: 9, before: 'v1', after: 'v2' }] }]);
-  expect(err).toMatchObject({ code: 'LINK_ALREADY_PAID', status: 409 });
+  expect(err).toMatchObject({ error: 'LINK_ALREADY_PAID', status: 409 });
 });
 
 test('rule 12: a refusal that wrote nothing dispatches nothing', async () => {
