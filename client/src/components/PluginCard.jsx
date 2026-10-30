@@ -11,7 +11,7 @@
  *             — and since specs/plugins-phase-4-registry.md: `version`, `update` ({ version,
  *             changelog, refusal } | null), `offer` ({ version, requirements, refusal } for an available
  *             plugin), `incompatible` ({ message, compatibleVersion } | null), `rollback` ({ version,
- *             label } | null)
+ *             label, refusal } | null)
  *   busy      boolean   an action on this card is running
  *   error     string?   refusal or failure message, shown in red under the card
  *   bundleFailed boolean the browser could not load this plugin's bundle (rule 18)
@@ -334,13 +334,13 @@ export default function PluginCard({
             <Box sx={{ mb: 1.5 }}>
               <Button
                 variant="outlined"
-                disabled={busy}
+                disabled={busy || Boolean(plugin.rollback.refusal)}
                 onClick={() => setConfirmRollback(true)}
                 sx={{ minHeight: 44, width: { xs: '100%', sm: 'auto' } }}
               >
                 Revenir à la version précédente
               </Button>
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>{plugin.rollback.label}</Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>{plugin.rollback.refusal ? plugin.rollback.refusal.message : plugin.rollback.label}</Typography>
             </Box>
           )}
           {installed && (

@@ -1,0 +1,2 @@
+- Plugins: an update or rollback of a plugin is refused when an active plugin that needs it declares a version range the new version does not satisfy (`REQUIRED_BY_RANGE`), on the card, the endpoints and « Tout mettre à jour » (which now judges cycles and ranges with every target applied). The unmet-range label no longer calls a version above the range « plus récente ».
+- Plugins: the home's « plugin éteint » notice ends as soon as the plugin row is touched after the switch-off, so a core rollback followed by manual toggles no longer leaves a false alert.

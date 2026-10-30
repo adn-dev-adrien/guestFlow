@@ -56,6 +56,9 @@ const PACKAGE_COLUMNS = [
   ['hooks_pending', 'INTEGER NOT NULL DEFAULT 0'],
   // The id of the requirement a core update found OFF under an active plugin, which was then switched off (rule 57).
   ['off_reason', 'TEXT'],
+  // The stamp of that switch-off, equal to `updated_at` at that moment: any later toggle, even by a core that
+  // does not know the column, moves `updated_at` and ends the notice (audit r5, database N1).
+  ['off_at', 'TEXT'],
 ];
 
 function ensurePackageColumns(db) {
@@ -63,6 +66,7 @@ function ensurePackageColumns(db) {
   PACKAGE_COLUMNS.forEach(([name, type]) => {
     if (!cols.has(name)) db.exec(`ALTER TABLE plugins ADD COLUMN ${name} ${type}`);
   });
+  if (!cols.has('off_at')) db.exec('UPDATE plugins SET off_at = updated_at WHERE off_reason IS NOT NULL AND enabled = 0');
   db.prepare("UPDATE plugins SET source = 'bundled' WHERE source = 'builtin'").run();
 }
 

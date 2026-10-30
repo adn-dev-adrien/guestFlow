@@ -1,0 +1,1 @@
+- `plugins.off_at` (nullable, idempotent `ADD COLUMN`) stamps a system switch-off; rows already switched off are backfilled from `updated_at`.
