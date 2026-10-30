@@ -137,6 +137,9 @@ overdue event notifies the host (dashboard + email) and the guest (confirmation 
     "contactez-nous" line). _Decision (2026-06-29):_ kept manual on the user's explicit request — only
     the template + the validity-date trigger were built; no auto-send cron, no abandonment yet (rule 12
     still deferred).
+    > Amended 2026-10-30 by [payment-link-lifecycle.md](payment-link-lifecycle.md) rule 35: the link is no
+    > longer re-offered read-only — the send resolves the acompte link (reused while it has 24 h left,
+    > else minted) and the e-mail states its end of validity (rule 36). Still sent by hand.
 12. **Deposit overdue → devis abandoned + client email.** At the configured offset after the deposit
     due date (default **J+1**) with the deposit still unpaid, the **devis is switched to "abandoned"**
     (it never became a reservation; no dates were blocked), a **dashboard message** + **host email**

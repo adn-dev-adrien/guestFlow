@@ -199,12 +199,15 @@ test('rule 19 — the preview of an entry shows its amount and, once minted, its
   f.controller.preview({ query: { reservationId: f.reservationId, templateId: f.templateId, occurrenceKey: key } }, before);
   assert.match(before.body.subject, /Échéance 3\/3/);
   assert.match(before.body.body, /333,50/);
-  assert.match(before.body.body, /Contactez-nous pour le règlement/, 'no link yet: the no-link branch');
-  f.paymentLinksModel.create({ reservationId: f.reservationId, type: 'installment', installmentId: f.rows[2].id, amountCents: 33350, url: 'https://pay.example/known', providerLinkId: 'ql' });
+  // specs/payment-link-lifecycle.md rule 26 — no link yet, and the send can mint one: the placeholder.
+  assert.match(before.body.body, /\(lien de paiement créé à l'envoi\)/, 'no link yet: created at the send');
+  // A link the send would reuse: 24 h left at least (rule 8 of the same spec).
+  const expiresAt = new Date(Date.now() + 30 * 60 * 60 * 1000).toISOString();
+  f.paymentLinksModel.create({ reservationId: f.reservationId, type: 'installment', installmentId: f.rows[2].id, amountCents: 33350, url: 'https://pay.example/known', providerLinkId: 'ql', expiresAt });
   const withoutProvider = reply();
   f.controller.preview({ query: { reservationId: f.reservationId, templateId: f.templateId, occurrenceKey: key } }, withoutProvider);
   // specs/plugin-removal-resilience.md rule 6 — the stored link is not offered while no provider is live.
-  assert.match(withoutProvider.body.body, /Contactez-nous pour le règlement/);
+  assert.doesNotMatch(withoutProvider.body.body, /https:\/\/pay.example\/known/);
   const after = reply();
   registry.reset();
   registry.configure({ isActive: () => true, allows: () => true });
