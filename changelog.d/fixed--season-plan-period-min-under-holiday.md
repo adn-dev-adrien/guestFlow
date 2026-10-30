@@ -1,1 +1,0 @@
-- Tariff recipes: a minimum stay declared on a period no longer reverts to its season's minimum when the night is a public holiday (`specs/tariff-recipes/spec.md` §3.3 rule 19bis).
