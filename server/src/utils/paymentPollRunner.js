@@ -229,7 +229,7 @@ function fullAfterDeposit(database, link, paidDay = null) {
   const expectedCents = linkAmountCents('full', stay);
   const found = { stayId: stay.id, duplicateCents: 0, mismatch: null, sameDay: acompteIsLinkMoney(database, link, stay, paidDay) };
   if (stay.balanceAmount != null && linkCents !== expectedCents) {
-    found.mismatch = { expectedCents: alertExpectedCents(link, stay, database, paidDay), receivedCents: linkCents };
+    found.mismatch = mismatchOf(link, stay, database, paidDay);
     return found;
   }
   if (found.sameDay) return found;
@@ -433,7 +433,7 @@ async function settleRetiredPaidLink({ paymentLinksModel, notifyPaidAfterCancel,
   const duplicate = fullAfterDeposit(database, link, paidDay);
   if (duplicate && duplicate.mismatch) {
     const booked = bookPaidAfterAmountChange({ database, recordPayment: recordPayment || recordOn(database) }, link, { paidDay });
-    if (notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link, { amountMismatch: duplicate.mismatch }); } catch { /* best effort */ } }
+    if (notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link, alertOptions(duplicate.mismatch, false)); } catch { /* best effort */ } }
     return { id: link.id, reservationId: link.reservationId, type: link.type, status: 'paid', ...booked, amountMismatch: duplicate.mismatch };
   }
   if (duplicate && duplicate.sameDay) {

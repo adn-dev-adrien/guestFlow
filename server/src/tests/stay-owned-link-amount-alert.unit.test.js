@@ -155,3 +155,22 @@ test('rule 47 (B3): a full link paid below the acompte is worded as an acompte, 
   assert.doesNotMatch(text, /complément d’arrivée/);
   assert.doesNotMatch(text, /Aucun e-mail de confirmation/);
 });
+
+test('rule 47 (F1): the `settled` retry of a full link paid below the acompte is worded as an acompte too', async () => {
+  const { retryPendingCancellations } = require('../utils/paymentPollRunner');
+  const s = seedDeposit({ asDevis: false });
+  s.db.prepare("UPDATE payment_links SET type = 'full', amountCents = 8000 WHERE id = ?").run(s.D.id);
+  s.db.prepare('UPDATE reservations SET depositPaid = 1, depositPaidDate = ? WHERE id = ?').run(DAY, s.rid);
+  const links = paymentLinksModel.buildModel(s.db);
+  links.retireSettled();
+  const calls = [];
+  const provider = { id: 'qonto', async getPayment() { return { paid: true, paymentId: 'pD', paidAt: `${DAY}T09:00:00Z` }; }, async cancelLink() {} };
+  await retryPendingCancellations({
+    database: s.db, devisModel: devisModel.buildModel(s.db), paymentLinksModel: links, provider,
+    sendConfirmation: async () => {}, notifyPaidAfterCancel: async (l, o) => calls.push(o), emitPluginEvent: () => {},
+  });
+  assert.equal(calls.length, 1);
+  const text = s.text(s.D.reservationId, calls[0]);
+  assert.match(text, /Acompte enregistré à 80,00\s€ \(100,00\s€ demandés\) ; solde porté à 375,36\s€\./);
+  assert.doesNotMatch(text, /complément d’arrivée/);
+});
