@@ -2811,6 +2811,11 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   }
 }
 
+// ---------- OPEN ORPHAN PAYMENT LINKS WITHDRAWN (specs/payment-link-lifecycle.md rule 5) ----------
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  require('./utils/orphanPaymentLinksMigration').runOrphanPaymentLinksMigration(db);
+}
+
 // ---------- HISTORY OUTLIVES THE STAY (specs/ical-cancellation-approval.md rules 11, 14) ----------
 // `reservation_history` no longer cascades with `reservations`: the audit trail of a deleted stay —
 // the « Suppression iCal approuvée » row first — must survive the delete. Table rebuild, every row kept.

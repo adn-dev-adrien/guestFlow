@@ -21,6 +21,7 @@ const { createEmailService } = require('./emailService');
 const realPushService = require('./pushService');
 const { buildNotificationDigest } = require('./notificationDigest');
 const { platformDisplay } = require('./platformDisplay');
+const { parisDateTimeLabel } = require('./parisDateTime');
 
 // The iCal source's own name, else the platform as every page writes it (« GreenGo », « Gîtes de
 // France »), never the stored key (2026-10-27 spec review).
@@ -512,10 +513,44 @@ function buildNotificationService({
     return { subject, text: lines.join('\n') };
   }
 
+  // specs/payment-link-lifecycle.md rule 4 — a payment on a link whose stay row is gone. There is no fiche
+  // to open, so the mail names everything the refund needs and carries no link at all.
+  const ORPHAN_PAID_TITLE = 'Paiement reçu sur un lien sans séjour';
+  const LINK_TYPE_LABELS = { deposit: 'acompte', balance: 'solde', full: 'séjour', installment: 'échéance', complement: 'complément' };
+  const parisDay = (value) => (value ? parisDateTimeLabel(value).split(' ')[0] : '');
+  function buildOrphanPaidEmail(link, { paidAt = null, providerPaymentId = null } = {}) {
+    const amount = eurosFr(link.amountCents);
+    const subject = `${ORPHAN_PAID_TITLE} — ${amount}`;
+    const lines = [
+      'Un client a payé un lien de paiement dont le séjour n’existe plus dans GuestFlow.',
+      'Le paiement n’est enregistré sur aucun séjour et aucun e-mail de confirmation n’a été envoyé.',
+      'Action requise : retrouver le client et rembourser ce paiement depuis votre espace du prestataire de paiement.',
+      '',
+      `Lien : #${Number(link.id)}`,
+      `Type : ${LINK_TYPE_LABELS[link.type] || oneLine(link.type)}`,
+      `Montant : ${amount}`,
+      `Créé le : ${parisDay(link.createdAt)}`,
+      `Payé le : ${parisDay(paidAt || link.paidAt)}`,
+      `Prestataire : ${oneLine(link.provider)}`,
+      `Identifiant du lien chez le prestataire : ${oneLine(link.providerLinkId)}`,
+      `Identifiant du paiement : ${oneLine(providerPaymentId || link.providerPaymentId)}`,
+      `Ancien séjour : ${Number(link.reservationId)} (séjour supprimé)`,
+    ];
+    return { subject, text: lines.join('\n') };
+  }
+
+  async function notifyOrphanPaid(link, options) {
+    const email = buildOrphanPaidEmail(link, options);
+    await pushNewReservation({ title: ORPHAN_PAID_TITLE, body: email.subject.slice(`${ORPHAN_PAID_TITLE} — `.length) });
+    const ctx = resolveContext();
+    if (ctx.skip) return { sent: false, skipped: ctx.skip };
+    return await deliver({ recipient: ctx.recipient, subject: email.subject, text: email.text });
+  }
+
   async function notifyPaidAfterCancel(link, options = {}) {
     try {
-      const resa = loadReservation(link.reservationId);
-      if (!resa) return { sent: false, skipped: 'not_found' };
+      const resa = options.orphan ? null : loadReservation(link.reservationId);
+      if (!resa) return await notifyOrphanPaid(link, options);
       const { subject } = buildPaidAfterCancelEmail(resa, link, '', options);
       const title = subject.split(' — ')[0];
       await pushNewReservation({ title, body: subject.slice(`${title} — `.length), url: `/reservations/${Number(resa.id)}` });
@@ -529,7 +564,7 @@ function buildNotificationService({
     }
   }
 
-  return { notifyNewSiteDevis, flushDueDigests, notifyNewIcalReservation, notifyBookingConflict, notifyPaidAfterCancel, __test: { buildDevisEmail, buildSiteDigestEmail, buildReservationEmail, buildConflictEmail, buildPaidAfterCancelEmail } };
+  return { notifyNewSiteDevis, flushDueDigests, notifyNewIcalReservation, notifyBookingConflict, notifyPaidAfterCancel, __test: { buildDevisEmail, buildSiteDigestEmail, buildReservationEmail, buildConflictEmail, buildPaidAfterCancelEmail, buildOrphanPaidEmail } };
 }
 
 const defaultService = buildNotificationService();
