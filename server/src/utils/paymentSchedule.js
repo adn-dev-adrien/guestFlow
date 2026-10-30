@@ -20,13 +20,15 @@
 const { addDaysToIsoDate } = require('./devisHelpers');
 const { isDirectChannel } = require('./platformNameFormat');
 const { DEFAULT_PAYOUT_DUE_DAYS, normalizePayoutDueDays } = require('./platformPayout');
+const { bookingDayOf } = require('./vatRegime');
 
 const isIsoDate = (value) => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
 
-// A stored date may carry a time part (`createdAt` is a datetime); only the day matters here.
+// A stored date may carry a time part: `createdAt` is a UTC timestamp, whose day is the operator's
+// calendar day it fell on, as the VAT regime reads it (rule 54) — not its first ten characters.
 function toIsoDay(value) {
   if (!value) return null;
-  const day = String(value).slice(0, 10);
+  const day = bookingDayOf(value);
   return isIsoDate(day) ? day : null;
 }
 

@@ -215,6 +215,16 @@ each of these lives on the server — no UI-side calculation.
 22. **The pricing table's HT column is named for what it holds**, the line total: « Total HT »
     (« Total excl. VAT »). *Why:* « Hébergement — Qté 3 — Prix HT 272,73 € » read as 3 × 272,73.
 
+**Audit fix (2026-10-30, audit R8-1)**
+
+23. **A devis is dated on the operator's day, not the UTC one.** `createdAt` stays a UTC timestamp
+    (rule 1), but the day it stands for is its local calendar day (`vatRegime.bookingDayOf`, the
+    process's time zone, Europe/Paris by default): the PDF's « Date du devis », and the start of the
+    validity window of rules 6-8 on create, convert-from-reservation and the legacy backfill. *Why:*
+    a devis created between 00:00 and 01:00 / 02:00 in Paris printed the previous day and carried one
+    day less than `quoteValidityDays`, while the rest of the server already read the local day
+    (`utils/localDate.js`, specs/finance-dashboard-redesign.md rule 37).
+
 ---
 
 ## 4. Architecture
@@ -278,6 +288,7 @@ No UI change beyond the PDF output itself. The user sees:
 | `tests/devis-model-property-defaults.unit.test.js` (C) | (1) `create` merges property default options not in the payload. (2) Default option already present in the payload → no duplicate. (3) No property defaults configured → behaviour unchanged. (4) Default offered flag is propagated. | Rules 11–13. |
 | `tests/reservations-controller-property-defaults.unit.test.js` (C) | Same shape as the devis test, for the reservation path. Pins rule 13. | Rule 13. |
 | `tests/devis-pdf-date-and-validity.unit.test.js` (C) | (1) Empty `full.createdAt` → "Date du devis" defaults to today. (2) Empty `full.validUntil` → recomputed from `createdAt + quoteValidityDays`. (3) `validUntil` capped at `startDate - 2`. (4) Both populated → strings round-trip via `formatDateFR`. | Rules 4 + 9 + cap. |
+| `tests/devis-local-day.unit.test.js` (2026-10-30, audit R8-1) | Clock frozen at 2026-10-30T23:30Z under Europe/Paris: create, convert-from-reservation and the legacy backfill open the window on 31/10; the PDF dates a UTC `createdAt` on its Paris day (`__test.resolveDevisDates`). Shared with specs/devis-extras-parity-and-price-lock.md rule 21. 10 cases. | Rule 23. |
 | `tests/devis-pdf-date-validity-tax.unit.test.js` (C) | (1) `computeValidUntil` helper unit cases (rules 6 + 9 + cap). (2) PDF render smoke per scenario (rules 4, 9, 16, 18) — assert the magic header + a non-trivial buffer size. (3) **Consistency invariant** via `resolveLiveTaxTotals(full, quote)`: live tax total + grand total mirror `quote.touristTaxTotal` / `quote.finalPrice` when provided, fall back to row values otherwise, treat `touristTaxTotal = 0` in the quote as "engine didn't compute" (row wins), honour `quote.finalPrice = 0` (offered stay). | Rules 4, 6, 9, 15–18, **20**. |
 
 These tests focus on the model + the utility — not the live PDF render (PDFs are

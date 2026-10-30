@@ -3,6 +3,8 @@
  * (specs/clients-upcoming-past-directory.md rule 14). Pure and French, so the page renders it as is.
  */
 
+const { bookingDayOf } = require('./vatRegime');
+
 const MS_PER_DAY = 86400000;
 const DEVIS_STATUS_LABEL = {
   draft: 'brouillon', sent: 'envoyé', accepted: 'accepté', converted: 'converti',
@@ -36,7 +38,8 @@ function noStayLabel(latestDevis, createdAt) {
     const number = latestDevis.number || `#${latestDevis.id}`;
     return `Devis ${number}${status ? ` · ${status}` : ''}`;
   }
-  return createdAt ? `Créé le ${longDate(String(createdAt).slice(0, 10))}` : '';
+  const createdOn = bookingDayOf(createdAt);
+  return createdOn ? `Créé le ${longDate(createdOn)}` : '';
 }
 
 /**

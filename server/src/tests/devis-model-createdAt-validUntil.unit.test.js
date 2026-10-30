@@ -56,6 +56,11 @@ function freshModel({ quoteValidityDays = 30 } = {}) {
 const todayDate = () => new Date().toISOString().slice(0, 10);
 // A stay far enough ahead that today + validity never reaches the rule 6 cap (start - 2 days).
 const inDays = (n) => new Date(Date.now() + n * 86400000).toISOString().slice(0, 10);
+// The validity window opens on the operator's day, not the UTC one (rule 23).
+const { addDaysToIsoDate } = require('../utils/devisHelpers');
+const { todayIso } = require('../utils/localDate');
+const { bookingDayOf } = require('../utils/vatRegime');
+const localInDays = (n) => addDaysToIsoDate(todayIso(), n);
 
 test('create persists a non-empty createdAt (rule 1, never blank)', () => {
   const { model, db } = freshModel();
@@ -73,7 +78,7 @@ test('create persists validUntil = createdAt + quoteValidityDays (rule 6)', () =
     propertyId: 1, clientId: 1, startDate: inDays(60), endDate: inDays(62), adults: 2,
   });
   const row = db.prepare('SELECT validUntil FROM reservations WHERE id = ?').get(result.data.id);
-  const expected = new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10);
+  const expected = localInDays(14);
   assert.equal(row.validUntil, expected);
 });
 
@@ -102,7 +107,7 @@ test('update fills missing validUntil on a legacy row (rule 7)', () => {
   const row = db.prepare('SELECT validUntil FROM reservations WHERE id = ?').get(created.data.id);
   // The update path recomputes from existing.createdAt + quoteValidityDays.
   const createdAt = db.prepare('SELECT createdAt FROM reservations WHERE id = ?').get(created.data.id).createdAt;
-  const expected = new Date(new Date(createdAt.slice(0, 10) + 'T00:00:00Z').getTime() + 21 * 86400000).toISOString().slice(0, 10);
+  const expected = addDaysToIsoDate(bookingDayOf(createdAt), 21);
   assert.equal(row.validUntil, expected);
 });
 
@@ -133,6 +138,6 @@ test('convertFromReservation persists createdAt + validUntil on the new devis ro
   const row = db.prepare('SELECT createdAt, validUntil FROM reservations WHERE id = ?').get(result.data.id);
   assert.ok(row.createdAt && row.createdAt.length > 0);
   assert.equal(row.createdAt.slice(0, 10), todayDate());
-  const expected = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
+  const expected = localInDays(30);
   assert.equal(row.validUntil, expected);
 });

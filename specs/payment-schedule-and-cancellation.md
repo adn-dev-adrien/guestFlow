@@ -443,6 +443,17 @@ acompte is kept as an indemnity, and the books say so correctly.
     delete too, and the delete preview carries it as `blocker` (specs/clients.md rule 16). The client delete preview
     (`GET /api/clients/:id/delete-impact`) lists and counts what would really go, cancelled and set-aside
     stays included (each row carries its `kind`).
+54. **The schedule reads the booking day on the operator's calendar** _(added 2026-10-30, review of PR #899)_.
+    `paymentSchedule.toIsoDay` keeps a date-only value as it is and reads a datetime through
+    `vatRegime.bookingDayOf`: `createdAt` is a UTC timestamp, and its day is the local calendar day it fell
+    on (Europe/Paris by default), the day the VAT regime and « today » already read
+    (`specs/devis-pdf-and-tourist-tax-fixes.md` rule 23, `specs/finance-dashboard-redesign.md` rule 37).
+    It covers every reader of a booking date in the schedule (acompte deadline, solde clamp, last-minute
+    threshold of `specs/deposit-blocks-the-dates.md` rule 4) on the devis and the reservation paths at
+    once. *Why:* between 00:00 and 01:00 / 02:00 in Paris the first ten characters of `createdAt` are
+    still yesterday. A devis created then (local day) flipped at its first unchanged save (UTC day): a stay
+    booked 30 days out was sold as one single payment, then re-saved with a 30 % acompte and a solde due
+    before it. A reservation's fiche showed the same acompte the save had not stored.
 
 
 ---
@@ -625,6 +636,7 @@ One line per reservation:
 ## 7. Test plan
 
 ### Server unit tests — **53 new, suite at 3157 green**
+- [x] `tests/payment-schedule-local-booking-day.unit.test.js` (7, 2026-10-30) — rule 54: `toIsoDay` on a date-only value, a UTC datetime and garbage; the last-minute threshold and the acompte deadline from a 00:30 timestamp; clock frozen at 31/10 00:30 Paris, a devis and a reservation (real controller, fiche preview included) keep their schedule across an unchanged save
 - [x] `tests/reservation-cancellation.unit.test.js` — rule 48: the « acompte never collected » case now expects `unpaid_deposit` (spec review 2026-10-27)
 - [x] `tests/payment-schedule.unit.test.js` (9) — deposit due = booking + N and frozen across
       recomputes; devis → `validUntil`; balance = `max(start − 30, booking)`; late booking clamps to
