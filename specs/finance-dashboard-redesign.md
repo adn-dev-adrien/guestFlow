@@ -348,6 +348,17 @@ without losing anything today's page shows.
     still holds: « Marquer payé » ticks exactly the listed elements — the flags through the payment
     endpoint, each installment through its own.
 
+50. **A stored UTC timestamp read as a day is the operator's day** (2026-10-30, review of PR #899). Where
+    the server turns a `createdAt` into a calendar day, it reads it through `vatRegime.bookingDayOf` (the
+    local day, rule 37), never its first ten characters: the pace's `bookedOn`
+    (`financeModel.getPaceStays`), the earliest date of the arrival payment (`bookedAt`, view and
+    refusal, `specs/single-payment-from-the-fiche.md`) and the Clients line « Créé le … »
+    (`utils/clientWhenLabel`). The payment schedule follows the same rule
+    (`specs/payment-schedule-and-cancellation.md` rule 54). *Why:* a row created between 00:00 and
+    01:00 / 02:00 in Paris was booked, counted and dated on the day before.
+    > Not covered yet: `requestedOn` of the website request (`plugins/website-booking`), which needs the
+    > helper exposed through the plugin SDK; and the pace's `cancelledOn`, read from `cancelledAt`.
+
 ---
 
 ## 4. Architecture
@@ -512,6 +523,7 @@ par mois » and « Taux d'occupation » side by side.
 ## 7. Test plan
 
 ### Server unit tests (one file per subject)
+- [x] `tests/utc-timestamp-local-day.unit.test.js` (4, 2026-10-30) — rule 50: « Créé le » on the Paris day, the pace's `bookedOn`, the arrival payment refused before the Paris booking day and its earliest date on the fiche
 - [x] `tests/finance-late-installments.unit.test.js` (3, spec review 2026-10-27) — rule 49; client `FinancePage.settle-late-installment.test.jsx` (1)
 - [x] `finance-window.unit.test.js` (4) — rules 1-2: the three window kinds, refusals.
 - [x] `finance-occupancy.unit.test.js` (5) — rules 24-25: closures (global, per logement, exclusive end),

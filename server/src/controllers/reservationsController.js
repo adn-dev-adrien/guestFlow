@@ -38,6 +38,7 @@ const vatRegimeModel = require('../models/vatRegimeModel');
 const termsController = require('./termsController');
 const quotePostProcessors = require('../utils/quotePostProcessors');
 const insuranceOffer = require('../utils/insuranceOffer');
+const { bookingDayOf } = require('../utils/vatRegime');
 const resourceOffer = require('../utils/resourceOffer');
 const { reservationBlocks } = require('../utils/pluginReservationBlocks');
 
@@ -790,7 +791,7 @@ function buildArrivalPaymentView(row) {
       total: Math.round(collectible.reduce((sum, b) => sum + b.amount, 0) * 100) / 100,
       buckets: collectible,
       // The earliest date the operator may pick — the collection cannot predate the booking.
-      bookedAt: String(row.createdAt || '').slice(0, 10) || null,
+      bookedAt: bookingDayOf(row.createdAt),
     },
   };
 }
@@ -845,7 +846,7 @@ function settleArrivalPayment(req, res) {
   if (mode !== 'undo') {
     const checked = validateArrivalPaymentDate(req.body?.date, {
       today: getTodayIsoDate(),
-      bookedAt: String(row.createdAt || '').slice(0, 10),
+      bookedAt: bookingDayOf(row.createdAt),
     });
     if (!checked.ok) return res.status(400).json({ error: checked.reason });
     date = checked.date;
