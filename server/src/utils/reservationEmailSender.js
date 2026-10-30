@@ -18,6 +18,7 @@ const { sendSequenceMail } = require('./guestEmailSequenceRunner');
 const { emailContext: pluginEmailContext } = require('../plugins/sdk/eventBus');
 const { guestEmailMessage } = require('./guestEmailHtml');
 const { emailAmount } = require('./emailMoney');
+const { formatMomentLong } = require('./dateFr');
 
 // `installment` (the plan context of utils/installmentPlan.requestContext) and `occurrenceKey` make this the
 // request of ONE installment (specs/direct-installments.md rules 19-21).
@@ -65,10 +66,13 @@ async function sendReservationTemplateEmail({ database, templatesModel, logModel
   // built context's vars/flags so callers can inject values without touching emailContextBuilder.
   // `amounts` carries euros, written here like every other amount of the mail, in the guest's language
   // (specs/email-language-fr-en.md rule 10): a caller never pre-formats money.
+  // `dates` carries instants (ISO), written the same way: « lundi 2 novembre à 18 h 00 » / « Monday 2 November
+  // at 6:00 pm », Paris time (specs/payment-link-lifecycle.md rule 36).
   const extra = extraContext || {};
   const amounts = Object.fromEntries(Object.entries(extra.amounts || {}).map(([k, v]) => [k, emailAmount(Number(v || 0), lang)]));
+  const dates = Object.fromEntries(Object.entries(extra.dates || {}).map(([k, v]) => [k, formatMomentLong(v, lang)]));
   const merged = {
-    vars:  { ...context.vars,  ...(extra.vars || {}), ...amounts },
+    vars:  { ...context.vars,  ...(extra.vars || {}), ...amounts, ...dates },
     flags: { ...context.flags, ...(extra.flags || {}) },
   };
   const side = pickTemplateSide(template, lang);

@@ -341,6 +341,7 @@ async function doSendInstallmentRequest(deps, id, installmentId) {
     stableKey: REQUEST_TEMPLATES.installment,
     paymentLink: link.url,
     amountCents: link.amountCents,
+    expiresAt: link.expiresAt,
     installment,
   });
   if (!result.sent) {
@@ -357,7 +358,7 @@ async function doSendInstallmentRequest(deps, id, installmentId) {
 }
 
 // Create/reuse the link AND email the matching `<type>_request` template to the guest.
-//   deps: ensurePaymentLink deps + { sendTemplate({ reservationId, stableKey, paymentLink, amountCents }) → senderResult }
+//   deps: ensurePaymentLink deps + { sendTemplate({ reservationId, stableKey, paymentLink, amountCents, expiresAt }) → senderResult }
 // `requestedType` may be omitted: the type is then resolved from the record (rule 10). The resolved
 // type travels back in the body so the UI can name what it actually sent.
 async function sendPaymentRequest(deps, id, requestedType) {
@@ -373,7 +374,7 @@ async function sendPaymentRequest(deps, id, requestedType) {
   const refused = englishMissingRefusal(deps, id, stableKey);
   if (refused) return refused;
   const link = await ensurePaymentLink(deps, id, type); // {httpStatus} throw bubbles to the controller
-  const result = await deps.sendTemplate({ reservationId: id, stableKey, paymentLink: link.url, amountCents: link.amountCents });
+  const result = await deps.sendTemplate({ reservationId: id, stableKey, paymentLink: link.url, amountCents: link.amountCents, expiresAt: link.expiresAt });
 
   if (!result.sent) {
     const map = {

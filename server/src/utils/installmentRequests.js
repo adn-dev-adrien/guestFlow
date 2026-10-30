@@ -23,6 +23,7 @@ function createInstallmentRequests({
 
     // The installment an entry names — `installment:<id>` — or, without a key (the template queued by
     // hand), the first one still to pay. Null when it does not belong to the reservation or is paid.
+    // `openLink` is its open link as stored; the controller decides whether the send would reuse it.
     resolve(reservationId, occurrenceKey) {
       const rows = installmentsModel.listFor(reservationId);
       const wanted = KEY.exec(String(occurrenceKey || ''));
@@ -35,7 +36,7 @@ function createInstallmentRequests({
         id: row.id,
         occurrenceKey: `installment:${row.id}`,
         context: requestContext(row, rows),
-        openLinkUrl: open && open.url ? open.url : '',
+        openLink: open && open.url ? { url: open.url, expiresAt: open.expiresAt } : null,
       };
     },
 

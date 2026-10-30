@@ -22,6 +22,7 @@ const controller = buildController({
   ledger,
   preferences,
   installmentRequests: require('../utils/installmentRequests').createInstallmentRequests(),
+  paymentRequests: require('../utils/paymentRequests').createPaymentRequests(),
   testMailer: require('../utils/accountMailer').createAccountMailer({ settingsModel }),
 });
 

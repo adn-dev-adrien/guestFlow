@@ -50,9 +50,16 @@ const { resolveEmailIdentity } = require('../utils/emailIdentity');
 const { buildDraftPreview } = require('../utils/emailDraftPreview');
 const { guestEmailMessage } = require('../utils/guestEmailHtml');
 const { displayNameOf } = require('../utils/emailTimeline');
+const { validityOf } = require('../utils/paymentLinkLifecycle');
+const { formatMomentLong } = require('../utils/dateFr');
 
-// Templates that re-offer an existing payment link (injected read-only at preview/send time).
-const PAYMENT_LINK_TEMPLATES = { deposit_reminder: 'deposit' };
+// specs/payment-link-lifecycle.md rules 26, 35 — the templates whose link is resolved when they are sent
+// (an open link reused while it has 24 h left, else a fresh one): the requests and the acompte reminder.
+// `balance_reminder` never carries a link (rule 27).
+const SEND_TIME_LINKS = Object.freeze({ deposit_request: 'deposit', balance_request: 'balance', full_request: 'full', deposit_reminder: 'deposit' });
+// What a preview shows in place of a link that only the send will create (rule 26).
+const LINK_AT_SEND = "(lien de paiement créé à l'envoi)";
+const VALID_UNTIL_AT_SEND = "(36 h après l'envoi)";
 
 // specs/direct-installments.md rules 19-21 — the request of one installment: it carries the plan in its
 // variables and its own link, and is sent once per installment (the occurrence key).
@@ -60,9 +67,11 @@ const INSTALLMENT_STABLE_KEY = 'installment_request';
 
 // `installmentRequests` (utils/installmentRequests.js) is what this controller knows of the plan:
 //   available() → a payment provider can mint links;  resolve(reservationId, occurrenceKey) → the installment
-//   to ask for ({ id, occurrenceKey, context, openLinkUrl }) or null;  ensureLink(reservationId, installmentId);
+//   to ask for ({ id, occurrenceKey, context, openLink }) or null;  ensureLink(reservationId, installmentId);
 //   markRequested(installmentId).
-function buildController({ database, templatesModel, logModel, settingsModel, emailServiceFactory, manualQueueModel, paymentLinksModel, ledger, preferences, installmentRequests = null, testMailer = null }) {
+// `paymentRequests` (utils/paymentRequests.js), the same for the stay's own links:
+//   available() → a payment provider can mint links;  ensureLink(reservationId, type) → { url, expiresAt }.
+function buildController({ database, templatesModel, logModel, settingsModel, emailServiceFactory, manualQueueModel, paymentLinksModel, ledger, preferences, installmentRequests = null, paymentRequests = null, testMailer = null, now = () => new Date() }) {
   // specs/guest-email-sequence.md rules 12-13bis — the ledger key a sequence email is sent under
   // from this controller. Null for every other template (payment emails keep their own rules).
   // A season email sent by hand counts for the season that just passed or is coming.
@@ -109,6 +118,22 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
     return normaliseLang(lang || graph.client?.emailLanguage || graph.reservation.emailLanguage);
   }
 
+  // specs/payment-link-lifecycle.md rules 8, 26 — a stored open link is shown only when the send would reuse
+  // it: 24 h left at least. A link with no known end is never reused, so never shown.
+  function reusableLink(link) {
+    if (!link || !link.url) return null;
+    const validity = validityOf(link, now());
+    return validity.reusable ? { url: link.url, expiresAt: validity.expiresAt } : null;
+  }
+
+  // The link variables of a payment e-mail: the link it carries and its end (rule 36), the placeholder when
+  // only the send will create it, nothing when no link can be had (the template's no-link branch).
+  function linkVariables(link, mintable, lang) {
+    if (link) return { url: link.url, validUntil: formatMomentLong(link.expiresAt, lang) };
+    if (mintable) return { url: LINK_AT_SEND, validUntil: VALID_UNTIL_AT_SEND };
+    return { url: '', validUntil: '' };
+  }
+
   function buildPreview(reservationId, templateId, overrides = {}, lang, extra = {}) {
     const settings = { ...readSettings(), ...(extra.settings || {}) };
     const template = templatesModel.findById(templateId);
@@ -146,21 +171,18 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
     });
 
     // specs/plugin-removal-resilience.md rule 6 — a stored open link is re-offered only while a payment
-    // provider is live: nobody polls or reconciles it otherwise.
+    // provider is live: nobody polls or reconciles it otherwise. The send hands the link it resolved.
     const providerLive = Boolean(paymentProviders.declared());
-    if (installmentRef) {
-      const url = extra.paymentLink || (providerLive ? installmentRef.openLinkUrl : '') || '';
+    const linkType = SEND_TIME_LINKS[template.stableKey];
+    if (installmentRef || linkType) {
+      const stored = installmentRef
+        ? installmentRef.openLink
+        : paymentLinksModel && typeof paymentLinksModel.findOpenForStay === 'function' && paymentLinksModel.findOpenForStay(Number(reservationId), linkType);
+      const mintable = Boolean(installmentRef ? installmentRequests.available() : paymentRequests && paymentRequests.available());
+      const link = extra.paymentLink || (providerLive ? reusableLink(stored) : null);
+      const { url, validUntil } = linkVariables(link, mintable, useLang);
       context.vars.paymentLink = url;
-      context.flags.hasPaymentLink = Boolean(url);
-    }
-
-    // Payment-link templates (e.g. deposit_reminder) re-offer the existing OPEN link for the devis —
-    // read-only, no Qonto write. Empty when there is none → the body falls back via {{#if hasPaymentLink}}.
-    const linkType = PAYMENT_LINK_TEMPLATES[template.stableKey];
-    if (linkType && providerLive && paymentLinksModel && typeof paymentLinksModel.findOpenForStay === 'function') {
-      const openLink = paymentLinksModel.findOpenForStay(Number(reservationId), linkType);
-      const url = openLink && openLink.url ? openLink.url : '';
-      context.vars.paymentLink = url;
+      context.vars.paymentLinkValidUntil = validUntil;
       context.flags.hasPaymentLink = Boolean(url);
     }
 
@@ -242,16 +264,22 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
     if (wantedGraph && englishMissing(wanted, guestLangOf(wantedGraph, lang))) {
       return res.status(422).json({ error: ENGLISH_VERSION_MISSING, message: ENGLISH_VERSION_MISSING_ACTION });
     }
-    // An installment request goes out with its own link, minted (or reused) at its exact amount.
+    // An installment request goes out with its own link, minted (or reused) at its exact amount; a request
+    // or the acompte reminder with the stay's link, resolved now (specs/payment-link-lifecycle.md rules 26, 35).
     let paymentLink = null;
-    if (wanted && wanted.stableKey === INSTALLMENT_STABLE_KEY && installmentRequests) {
-      const target = installmentRequests.resolve(Number(reservationId), occurrenceKey);
-      if (!target) return res.status(404).json({ error: 'INSTALLMENT_NOT_FOUND', message: 'Aucune échéance à demander.' });
-      try {
-        paymentLink = (await installmentRequests.ensureLink(Number(reservationId), target.id)).url;
-      } catch (err) {
-        return res.status(err.httpStatus || 502).json({ error: err.error || 'PAYMENT_LINK_FAILED', message: err.message || 'Lien de paiement impossible.' });
+    const linkType = wanted ? SEND_TIME_LINKS[wanted.stableKey] : null;
+    try {
+      if (wanted && wanted.stableKey === INSTALLMENT_STABLE_KEY && installmentRequests) {
+        const target = installmentRequests.resolve(Number(reservationId), occurrenceKey);
+        if (!target) return res.status(404).json({ error: 'INSTALLMENT_NOT_FOUND', message: 'Aucune échéance à demander.' });
+        const link = await installmentRequests.ensureLink(Number(reservationId), target.id);
+        paymentLink = { url: link.url, expiresAt: link.expiresAt };
+      } else if (linkType && paymentRequests && paymentRequests.available()) {
+        const link = await paymentRequests.ensureLink(Number(reservationId), linkType);
+        paymentLink = { url: link.url, expiresAt: link.expiresAt };
       }
+    } catch (err) {
+      return res.status(err.httpStatus || 502).json({ error: err.error || 'PAYMENT_LINK_FAILED', message: err.message || 'Lien de paiement impossible.' });
     }
     const result = buildPreview(Number(reservationId), Number(templateId), overrides || {}, lang, { occurrenceKey, paymentLink });
     if (result.error) return res.status(result.status).json({ error: result.error });

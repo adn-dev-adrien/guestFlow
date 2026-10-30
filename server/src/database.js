@@ -2822,6 +2822,12 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   require('./utils/paymentLinkValidityBackfill').runPaymentLinkValidityBackfill(db);
 }
 
+// ---------- REQUEST E-MAILS STATE THE LINK'S END (specs/payment-link-lifecycle.md rule 36) ----------
+// Untouched default templates only; an edited side keeps its text.
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  require('./utils/migrateValidUntilSentence').runValidUntilSentenceMigration(db);
+}
+
 // ---------- HISTORY OUTLIVES THE STAY (specs/ical-cancellation-approval.md rules 11, 14) ----------
 // `reservation_history` no longer cascades with `reservations`: the audit trail of a deleted stay —
 // the « Suppression iCal approuvée » row first — must survive the delete. Table rebuild, every row kept.
