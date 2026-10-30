@@ -110,12 +110,16 @@ function switchOffOverInactive(model, ids) {
   const requiresOff = (id, isOff) => ((byId[id].manifest || {}).requires || []).find((r) => byId[r.id] && isOff(r.id));
   // A requirement installed at a version the dependant's range refuses is as good as off (it would be unloaded at this boot).
   const refused = (r) => byId[r.id] && isVersion(byId[r.id].version) && !satisfies(byId[r.id].version, r.range);
-  const unmet = (id) => ((byId[id].manifest || {}).requires || []).find((r) => byId[r.id] && (!byId[r.id].enabled || refused(r)));
-  // The rows just synced, and the active plugins that need them: a requirement moving can strand a dependant it did not sync.
+  const requirementsOf = (id) => (byId[id].manifest || {}).requires || [];
+  // A synced row is judged on all its requirements; a dependant it did not sync only on the edge to the row that moved.
+  const unmetBy = (id, moved) => requirementsOf(id).find((r) => byId[r.id]
+    && (moved ? r.id === moved && refused(r) : !byId[r.id].enabled || refused(r)));
+  const synced = new Set(ids);
   const candidates = [...new Set(ids.flatMap((id) => [id, ...graph.dependantsOf(id, { activeOnly: true })]))];
   candidates.filter((id) => byId[id] && byId[id].enabled).forEach((id) => {
     if (off.has(id)) return;
-    const missing = unmet(id);
+    const moved = synced.has(id) ? null : ids.find((m) => requirementsOf(id).some((r) => r.id === m && refused(r)));
+    const missing = synced.has(id) || moved ? unmetBy(id, moved) : null;
     if (!missing) return;
     model.switchOff(id, missing.id);
     off.add(id);

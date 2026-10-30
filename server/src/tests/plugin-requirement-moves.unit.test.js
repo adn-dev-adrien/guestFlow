@@ -123,7 +123,7 @@ test('rule 59 (review): activating an inactive dependant whose requirement left 
   assert.match(card.actions.activate.blockedBy, /^Nécessite .* compatible avec \^1\.0\.0 \(installé : 2\.0\.0\)\.$/);
   const res = await h.call(ctrl.activate, { params: { id: 'xb' }, body: {} });
   assert.equal(res.statusCode, 409);
-  assert.equal(res.body.error, 'REQUIREMENT_TOO_OLD');
+  assert.equal(res.body.error, 'REQUIREMENT_OUT_OF_RANGE');
   assert.equal(model.get('xb').enabled, false);
 });
 

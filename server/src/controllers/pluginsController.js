@@ -1045,7 +1045,7 @@ function createController(model = defaultModel, deps = {}) {
         });
       }
       const stale = outOfRangeEdge(g, [entry.id, ...needed]);
-      if (stale) return res.status(409).json({ error: 'REQUIREMENT_TOO_OLD', requires: [stale.id], message: staleMessage(stale) });
+      if (stale) return res.status(409).json({ error: 'REQUIREMENT_OUT_OF_RANGE', requires: [stale.id], message: staleMessage(stale) });
       const off = needed.filter((id) => !model.get(id).enabled);
       const unlicensed = off.filter((id) => !allows(id));
       if (unlicensed.length) {

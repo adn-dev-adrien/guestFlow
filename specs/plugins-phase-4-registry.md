@@ -478,15 +478,20 @@ below are the recommended ones; each is reversible in a later spec.
     toggles no longer leaves a false line on a roll-forward. An update or rollback of the switched-off plugin also
     ends it. Test: `plugin-switched-off-stale.unit.test.js`.
 61. **Review follow-ups of rule 59** (audit r5 review of #875, 2026-10-30). (a) Activating an inactive plugin
-    (card `actions.activate`, endpoint `activate`) is refused with `REQUIREMENT_TOO_OLD` when it, or a requirement it
+    (card `actions.activate`, endpoint `activate`) is refused with `REQUIREMENT_OUT_OF_RANGE` (too old or too new; the install plan keeps `REQUIREMENT_TOO_OLD`) when it, or a requirement it
     would switch on, is installed at a version outside a declared range: « Nécessite X compatible avec ^1.0.0
     (installé : 2.0.0). »; the install plan's `REQUIREMENT_TOO_OLD` uses the same `rangeNeed` wording. (b) When
     update-all refuses every target, it answers the first refusal (code and message) instead of « Aucune mise à
     jour disponible. ». (c) A refused rollback says « … : à remettre à sa version précédente ou à désactiver
     d’abord. » (updating the dependant does not help there); an update keeps « à mettre à jour d’abord ». (d) The
     boot switch-off of rule 57 also covers a requirement installed at a version a dependant's range refuses: the
-    candidates are the synced rows AND their active dependants (a registry-installed dependant is not synced), the
-    dependant is switched off with `off_reason` = the requirement, and the home line of rule 58 reads the same.
+    candidates are the synced rows (judged on all their requirements) AND their active dependants (a
+    registry-installed dependant is not synced), the latter judged only on the edge to the row that moved, so an
+    unrelated sync never switches off a plugin over another requirement that was already off. The dependant is
+    switched off with `off_reason` = the requirement. When that requirement is ON but outside the range, the notice
+    carries `need` (« compatible avec ^1.7.0 », « 1.7 ou plus récent ») and the home line reads « X éteint :
+    nécessite Y compatible avec ^1.7.0. » with « À mettre à jour depuis la page Plugins » (« par l’exploitant » on a
+    managed space) in place of « À réactiver … ».
     Tests: `plugin-requirement-moves.unit.test.js`, `plugin-switched-off-out-of-range.unit.test.js`,
     `plugin-switched-off-stale.unit.test.js`.
 
