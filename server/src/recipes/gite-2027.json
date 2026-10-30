@@ -1,6 +1,6 @@
 {
   "id": "gite-2027",
-  "version": "3.6.0",
+  "version": "3.7.0",
   "label": "Gîte — grille automatique 2027",
   "description": "Pivot net ancré sur ce que Gîtes de France paie réellement, ajusté sur 15 séjours ; le prix direct est aligné sur le canal le moins cher via le levier `welcomePack.cost`, si bien que le direct rapporte 16 € de plus par nuit ; la semaine vaut quatre nuits ; deux pointes de fin d'année facturées à plat, calibrées sur le net 2025 majoré de 20 % ; ponts fériés montés d'un cran et plafonnés à la haute saison ; L'Ardéchoise déclarée année par année.",
   "horizonYears": 2,
@@ -171,14 +171,25 @@
         }
       },
       {
-        "_comment": "Les deux nuits de Noël, creusées dans le bloc des fêtes. Le 23 et le 26 restent en Haute.",
+        "_comment": "La nuit du réveillon de Noël, seule, creusée dans le bloc des fêtes. Le 23 et le 26 restent en Haute. Jusqu'en 3.6.0 la pointe couvrait aussi le 25 ; voir la période suivante.",
         "id": "christmas",
         "season": "christmas",
         "anchor": {
           "type": "fixed_dates",
           "from": "12-24",
-          "to": "12-25"
+          "to": "12-24"
         }
+      },
+      {
+        "_comment": "La nuit du 25 décembre, sortie de la pointe de Noël et passée en Très haute avec 2 nuits minimum au lieu des 4 de la saison. Adrien l'a saisi à la main sur 2026 le 2026-10-29 et a demandé de l'inscrire dans la recette pour 2027 : la nuit garde le tarif progressif de la Très haute, si bien qu'un séjour 24 → 26 paie la pointe du 24 puis le 25 en deuxième nuit.",
+        "id": "christmas-day",
+        "season": "peak",
+        "anchor": {
+          "type": "fixed_dates",
+          "from": "12-25",
+          "to": "12-25"
+        },
+        "minNights": 2
       },
       {
         "_comment": "Le creux entre Noël et le réveillon, redescendu en moyenne saison. Adrien, 2026-08-28 : « entre le 27 et le 30 on doit être en moyenne saison » — lu comme 27, 28 et 29, parce que la même phrase met explicitement le 30 en haute saison avec le 1er janvier. Trois nuits, pas quatre.",

@@ -210,8 +210,9 @@ all-inclusive pricing as the first such recipe.
     (an integer forces a fixed value; absent imposes nothing, which is what a recipe without the
     setting keeps).
 16quater. **A block minimum RAISES a season's, it never lowers it.** The minimum written on a raised
-    night is `max(block length, period override, the night's own season minimum)`, and it is recorded
-    only when it exceeds what the season already demands — otherwise every raised night would split
+    night is `max(block length, period override — or, when the period declares none, the night's own
+    season minimum)` (rule 19bis), and it is recorded only when it exceeds what the season already
+    demands — otherwise every raised night would split
     its range for a constraint that already applied. Found on the Gîte the day Très haute went to a
     4-night minimum: the 3-night 14-juillet block sat inside it and wrote its own 3 over the season's
     4, making those three days the only ones in the entire summer where a shorter stay was bookable.
@@ -239,6 +240,12 @@ all-inclusive pricing as the first such recipe.
     a working Monday, and the Saturday before it is an ordinary weekend night. _(Owner's call,
     2026-08-12.)_ A holiday on a **Wednesday** likewise forms no block — left as is, nobody has
     asked for it.
+19bis. **A minimum declared on a PERIOD replaces its season's, even downwards, holiday or not.** It is
+    the operator's word for those exact nights. The season minimum only stands in when the period
+    declares none, and the block may still raise either. Found on the Gîte's 25 December
+    (2026-10-30): a Très haute night (season minimum 4) declared with 2 nights; the modifier folded
+    the season's 4 back in because the 25th is a public holiday, and the declared 2 vanished from the
+    plan. A period minimum that differs from the season's is always recorded, even when lower.
 
 ### 3.4 Minimum nights and changeover day
 

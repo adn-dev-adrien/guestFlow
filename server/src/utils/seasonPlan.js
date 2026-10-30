@@ -248,8 +248,13 @@ function buildYearPlan(recipe, year, closureRows = []) {
         // the block. Without it a 3-night « pont » landing inside a season that demands 4 wrote a
         // minimum of 3 over it, and those three days became the only ones in the whole season where
         // a short stay was allowed — found on the Gîte the day Très haute went to 4 nights.
+        // A minimum the PERIOD declares is the operator's word for those nights and replaces the
+        // season's, even downwards: 25 December sits in Très haute (4 nights) with a declared 2, and
+        // folding the season minimum back in here silently restored the 4 on the one night that asked
+        // otherwise. The block can still raise it.
         const seasonMin = Number(minNightsBySeason.get(raisedKey) || 0);
-        const minNights = Math.max(blockMinNights, Number(kept.minNights || 0), seasonMin);
+        const periodMin = Number(kept.minNights || 0);
+        const minNights = Math.max(blockMinNights, periodMin || seasonMin);
         // Only a minimum STRONGER than what already applies is worth recording. The season's own
         // minimum needs no override — writing it would split the range around every raised night for
         // nothing — and a minimum of one night is the default, not a constraint (a one-night Saturday
@@ -257,7 +262,7 @@ function buildYearPlan(recipe, year, closureRows = []) {
         // « pont » from licensing short stays inside a season that demands 4.
         const floor = Math.max(1, seasonMin);
         let override = null;
-        if (minNights > floor) {
+        if (minNights > floor || (periodMin && minNights !== seasonMin)) {
           override = { ...kept, minNights };
         } else if (Object.keys(kept).length) {
           // Drop the KEY, never set it to undefined: an explicit `minNights: undefined` travels into
