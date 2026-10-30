@@ -98,7 +98,7 @@
       "Compatible avec le SDK 2.15 de GuestFlow."
     ],
     "1.4.8": [
-      "Un lien ouvert du séjour payé après un changement de prix prévient désormais l’administrateur, sans envoyer de confirmation.",
+      "Un lien ouvert du séjour payé après un changement de prix prévient désormais l’administrateur ; pour un acompte, l’alerte dit ce qui a été enregistré.",
       "Compatible avec le SDK 2.15 de GuestFlow."
     ]
   }

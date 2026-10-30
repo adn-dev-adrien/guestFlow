@@ -1,1 +1,1 @@
-- **A payment link opened on a stay, then paid after the stay was re-priced, now alerts the admin** (« autre montant ») and sends no confirmation, like the same case on a quote. The money was already booked correctly.
+- **A payment link paid after the stay was re-priced now alerts the admin** (« autre montant »). For an acompte link the alert says what was booked (« Acompte enregistré à X ; solde porté à Z ») instead of a false trop-perçu, and the confirmation is still sent; it says « le séjour » rather than « le devis » on a stay's own link.

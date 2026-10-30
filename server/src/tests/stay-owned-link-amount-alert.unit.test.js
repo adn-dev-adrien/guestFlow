@@ -73,3 +73,60 @@ test('rule 47: a stay-owned link whose amount still matches keeps the normal con
   assert.equal(out.amountMismatch, undefined);
   assert.deepEqual(s.calls, [['confirm', s.rid]]);
 });
+
+// Rule 47, acompte links: the booking records the acompte at the link amount and the solde absorbs the
+// difference, so the alert states that and neither a complement nor a trop-perçu; the confirmation goes out.
+const { __test: { buildPaidAfterCancelEmail } } = require('../utils/notificationService');
+
+function seedDeposit({ asDevis }) {
+  const db = new Database(':memory:');
+  db.exec(SCHEMA);
+  db.prepare("INSERT INTO properties (id, name) VALUES (1, 'Gite')").run();
+  db.prepare("INSERT INTO clients (id, firstName, lastName, email) VALUES (1, 'J', 'D', 'j@x.fr')").run();
+  const id = Number(db.prepare(`INSERT INTO reservations (kind, propertyId, clientId, startDate, endDate, adults, finalPrice, depositAmount, balanceAmount, devisStatus)
+    VALUES (?, 1, 1, '2027-05-10', '2027-05-14', 1, 455.36, 100, 355.36, ?)`).run(asDevis ? 'devis' : 'reservation', asDevis ? 'draft' : null).lastInsertRowid);
+  const links = paymentLinksModel.buildModel(db);
+  const dm = devisModel.buildModel(db);
+  const D = links.create({ reservationId: id, type: 'deposit', amountCents: 10000, provider: 'qonto', providerLinkId: 'D', url: 'u', status: 'open' });
+  const rid = asDevis ? dm.convertToReservation(id).data.reservationId : id;
+  const calls = [];
+  const common = {
+    database: db, devisModel: dm, paymentLinksModel: Object.assign(Object.create(links), { retireSettled: () => [] }),
+    sendConfirmation: async (x) => calls.push(['confirm', x]), notifyPaidAfterCancel: async (l, o) => calls.push(['alert', l.id, o]), emitPluginEvent: () => {},
+  };
+  return {
+    db, rid, calls, D,
+    reprice: (deposit, balance) => db.prepare('UPDATE reservations SET depositAmount = ?, balanceAmount = ?, finalPrice = ? WHERE id = ?').run(deposit, balance, deposit + balance, rid),
+    pay: () => processPaidLink({ ...common, link: links.findById(D.id), paidPayment: { paid: true, paymentId: 'pD', paidAt: `${DAY}T09:00:00Z` } }),
+    text: (resaId, alert) => buildPaidAfterCancelEmail(db.prepare('SELECT * FROM reservations WHERE id = ?').get(resaId), links.findById(D.id), '', alert).text,
+  };
+}
+
+for (const asDevis of [false, true]) {
+  for (const [deposit, balance, solde, label] of [[120, 335.36, '355,36', 'grown'], [80, 375.36, '355,36', 'shrunk']]) {
+    test(`rule 47: ${asDevis ? 'devis' : 'stay'}-owned acompte link, acompte ${label} — says what was booked, no complement nor trop-perçu, confirmation sent`, async () => {
+      const s = seedDeposit({ asDevis });
+      s.reprice(deposit, balance);
+      await s.pay();
+      const kinds = s.calls.map((c) => c[0]).sort();
+      assert.deepEqual(kinds, ['alert', 'confirm']);
+      const alert = s.calls.find((c) => c[0] === 'alert')[2];
+      const text = s.text(s.D.reservationId, alert);
+      assert.match(text, new RegExp(`Acompte enregistré à 100,00\\s€ \\(${deposit},00\\s€ demandés\\) ; solde porté à ${solde}\\s€\\.`));
+      assert.doesNotMatch(text, /Trop-perçu|complément d’arrivée|une fois la différence réglée/);
+      assert.doesNotMatch(text, /Aucun e-mail de confirmation/);
+      assert.match(text, asDevis ? /le devis demande/ : /le séjour demande/);
+      const row = s.db.prepare('SELECT * FROM reservations WHERE kind = ? ORDER BY id DESC').get('reservation');
+      assert.equal(row.depositAmount, 100);
+      assert.equal(row.balanceAmount, 355.36);
+      assert.equal(row.complementAmount || 0, 0);
+    });
+  }
+}
+
+test('rule 47: a stay-owned full link alert says « le séjour », not « le devis »', () => {
+  const link = { id: 1, amountCents: 45536 };
+  const mismatch = { expectedCents: 55536, receivedCents: 45536 };
+  assert.match(buildPaidAfterCancelEmail({ id: 1, kind: 'reservation' }, link, '', { amountMismatch: mismatch }).text, /alors que le séjour demande aujourd’hui/);
+  assert.match(buildPaidAfterCancelEmail({ id: 1, kind: 'devis' }, link, '', { amountMismatch: mismatch }).text, /alors que le devis demande aujourd’hui/);
+});

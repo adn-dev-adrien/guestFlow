@@ -95,7 +95,7 @@ function applyPaidEffect({ database, devisModel, link, checkConflict, paidDate =
     const expectedCents = hasSplit ? linkAmountCents(link.type, priced) : null;
     if (expectedCents != null && link.amountCents != null && Number(link.amountCents) !== expectedCents) {
       const booked = bookPaidAfterAmountChange({ database, recordPayment }, link, { paidDay: paidDate });
-      return { effect: booked.effect, reservationId, conflict, justConverted: effect === 'converted', amountMismatch: { expectedCents: alertExpectedCents(link, priced, database, paidDate), receivedCents: Number(link.amountCents) } };
+      return { effect: booked.effect, reservationId, conflict, justConverted: effect === 'converted', amountMismatch: mismatchOf(link, priced, database, paidDate) };
     }
     recordPayment({ reservationId, bucket: isFull ? 'full' : 'deposit', paidDate });
     return { effect, reservationId, conflict };
@@ -156,6 +156,18 @@ function alertExpectedCents(link, stay, database = null, paidDay = null) {
   return String(link.type) === 'full' && depositCollected && Number(stay.balancePaid || 0) !== 1
     && !(database && acompteIsLinkMoney(database, link, stay, paidDay))
     ? linkAmountCents('balance', stay) : linkAmountCents(link.type, stay);
+}
+
+// Online-payment rule 47 — what the admin is told about a link paid for another amount. An acompte link books the
+// acompte at what was received and lets the solde absorb the gap (pre-arrival total unchanged): it carries the
+// resulting solde (`balanceCents`) and no complement or trop-perçu is owed. Read on the stay before the booking.
+function mismatchOf(link, stay, database, paidDay) {
+  const receivedCents = Number(link.amountCents);
+  if (String(link.type) === 'deposit') {
+    const preArrival = Math.round(Number(stay.depositAmount || 0) * 100) + Math.round(Number(stay.balanceAmount || 0) * 100);
+    return { expectedCents: linkAmountCents('deposit', stay), receivedCents, balanceCents: Math.max(0, preArrival - receivedCents) };
+  }
+  return { expectedCents: alertExpectedCents(link, stay, database, paidDay), receivedCents };
 }
 
 // Rule 43 — a bucket collected at the door is never the link's money, so rule 24's same-day reading does not apply.
@@ -243,9 +255,9 @@ function bookIfAmountChanged({ database, link, paidDate, recordPayment }) {
   if (row[column] == null) return null;
   const expected = linkAmountCents(link.type, row);
   if (expected == null || Number(link.amountCents) === expected) return null;
-  const alertCents = alertExpectedCents(link, row, database, paidDate);
+  const amountMismatch = mismatchOf(link, row, database, paidDate);
   const booked = bookPaidAfterAmountChange({ database, recordPayment: recordPayment || recordOn(database) }, link, { paidDay: paidDate });
-  return booked.effect === 'double-payment' ? null : { ...booked, amountMismatch: { expectedCents: alertCents, receivedCents: Number(link.amountCents) } };
+  return booked.effect === 'double-payment' ? null : { ...booked, amountMismatch };
 }
 
 // A paid link confirms the stay (→ confirmation email) for the deposit (use case 1) and full-payment
@@ -300,7 +312,10 @@ async function processPaidLink({ database, devisModel, paymentLinksModel, link, 
     }
     return { id: link.id, reservationId: link.reservationId, type: link.type, status: 'paid', ...effect, effect: 'settled-elsewhere' };
   }
-  if (effect.amountMismatch) {
+  if (effect.amountMismatch && effect.amountMismatch.balanceCents != null) {
+    if (effect.justConverted) emitPluginEvent('reservation.created', { reservationId: effect.reservationId });
+    if (notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link, { amountMismatch: effect.amountMismatch }); } catch { /* best effort */ } }
+  } else if (effect.amountMismatch) {
     if (effect.justConverted) emitPluginEvent('reservation.created', { reservationId: effect.reservationId });
     if (notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link, { amountMismatch: effect.amountMismatch }); } catch { /* best effort */ } }
     if (effect.conflict && notifyConflict) { try { await notifyConflict(effect.reservationId); } catch { /* best effort */ } }
@@ -462,9 +477,8 @@ async function bookClaimedAmountChangedLink({ paymentLinksModel, notifyPaidAfter
     ? database.prepare('SELECT * FROM reservations WHERE id = ?').get(Number(converted))
     : (stay && stay.kind === 'devis' && stay.convertedReservationId
       ? database.prepare('SELECT * FROM reservations WHERE id = ?').get(Number(stay.convertedReservationId)) : stay);
-  const expectedCents = target && target.kind === 'reservation' && ['deposit', 'balance', 'full'].includes(String(link.type))
-    ? alertExpectedCents(link, target, database, paidDayOf(paidAt)) : null;
-  const mismatch = expectedCents != null ? { expectedCents, receivedCents: Number(link.amountCents) } : null;
+  const mismatch = target && target.kind === 'reservation' && ['deposit', 'balance', 'full'].includes(String(link.type))
+    ? mismatchOf(link, target, database, paidDayOf(paidAt)) : null;
   const booked = bookPaidAfterAmountChange(
     { database, recordPayment: recordPayment || recordOn(database) },
     link,
