@@ -88,6 +88,15 @@ A user opens `/school-holidays` and sees a Gantt-style annual timeline (one stac
     - `Horizon de mise à jour (mois)` — min 1, max 60, default 24.
     - Save button validates client-side (range, integer) and submits to `PUT /api/school-holidays/sync-settings`.
     - On server `400 INVALID_SYNC_SETTINGS`, surface the message in an `Alert` inside the dialog.
+27. **No sync on an instance started without outbound access** (added 2026-10-30, audit R7 L-1). When the
+    server runs with `GUESTFLOW_DISABLE_OUTBOUND=1` **and** `NODE_ENV=test` — both set by every E2E server
+    (specs/e2e-playwright-smoke-suite.md rule 23) — the scheduled sync, the sync of a fresh install and the
+    manual trigger all return `{ ok: false, error: 'Synchronisation désactivée sur cette instance.' }` without
+    calling `data.education.gouv.fr` and without touching the sync state, so an E2E run never depends on the
+    live dataset. Unset (every real install), nothing changes. Outside `NODE_ENV=test` the flag is ignored
+    (fail-closed, PR #896 review R-2), so a production instance that inherited it by mistake keeps its
+    holidays fresh. Plugin 1.0.4. Test:
+    `school-holidays-no-outbound.unit.test.js`.
 
 **Edge cases:**
 - Empty list, no sync ever ran → empty state `Aucune période configurée. La prochaine synchronisation automatique se chargera de remplir le calendrier.` + manual sync button.

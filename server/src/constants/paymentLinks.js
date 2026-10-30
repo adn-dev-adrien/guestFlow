@@ -22,10 +22,18 @@ const LINK_REASONS = Object.freeze({
   STAY_STARTED: 'stay-started',
 });
 
+// Rule 1 — the reasons of a lapsed link (`status = 'expired'`); every other reason withdraws it.
+const LAPSED_REASONS = new Set([LINK_REASONS.VALIDITY, LINK_REASONS.STAY_STARTED]);
+
+// Rule 9 — the types that pay the stay before it begins; a `complement` is paid on site.
+const PRE_ARRIVAL_TYPES = Object.freeze(['deposit', 'balance', 'full', 'installment']);
+
 module.exports = {
   PAYMENT_LINK_VALIDITY_HOURS,
   PAYMENT_LINK_MIN_REMAINING_HOURS,
   LAST_LOOK_DELAY_MINUTES,
   DEACTIVATION_ALERT_AFTER_HOURS,
   LINK_REASONS,
+  LAPSED_REASONS,
+  PRE_ARRIVAL_TYPES,
 };

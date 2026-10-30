@@ -77,8 +77,9 @@ what is installed and active. A new customer starts with none; Solio keeps all t
    - `online-payment` while a payment link is still `open` → « 1 lien de paiement en attente : à payer
      ou annuler d'abord. » (plural: « N liens de paiement en attente : … »); and, since 2026-10-04,
      while a link cancelled here is still payable at the provider (`remoteCancelPendingAt`) → « 1 lien
-     annulé encore payable chez le prestataire : à désactiver d'abord. » (code
-     `LINKS_PENDING_DEACTIVATION`)
+     retiré ou expiré encore actif chez le prestataire : désactivation en cours, réessayer plus tard. »
+     (code `LINKS_PENDING_DEACTIVATION`; reworded 2026-10-30 by specs/payment-link-lifecycle.md rule 23:
+     a lapsed link owed its deactivation blocks too, and GuestFlow deactivates it by itself)
    - `sas` while an active user holds the reception role without admin → « 1 compte Accueil actif :
      changer son rôle dans Utilisateurs d'abord. » (plural: « N comptes Accueil actifs : changer leur
      rôle … »)

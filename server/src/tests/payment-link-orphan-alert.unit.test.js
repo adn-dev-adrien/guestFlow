@@ -50,14 +50,17 @@ function spies() {
   };
 }
 
-test('rule 3 — live path: an open orphan link found paid by the poll is marked paid, books nothing, confirms nothing, alerts', async () => {
+// The poll opens with the lifecycle pass (specs/payment-link-lifecycle.md rules 13, 16): an open orphan is
+// withdrawn there, so the poll finds its payment on the retry path.
+test('rule 3 — poll: an open orphan link paid at the provider is withdrawn, keeps the payment, books nothing, confirms nothing, alerts', async () => {
   const { db, links } = seed();
   const link = links.create({ reservationId: FORMER_STAY, type: 'full', amountCents: 76280, providerLinkId: 'pl_full' });
   const s = spies();
   const summary = await runPaymentPoll({ database: db, paymentLinksModel: links, provider: provider(), devisModel: devisModel.buildModel(db), force: true, ...s });
 
   const row = links.findById(link.id);
-  assert.equal(row.status, 'paid', 'the money record stays on the link');
+  assert.equal(row.status, 'cancelled', 'withdrawn as an orphan; the money record stays on the link');
+  assert.equal(row.cancelReason, 'orphan');
   assert.equal(row.providerPaymentId, 'pay_orphan');
   assert.equal(row.paidAt, PAID_AT);
   assert.deepEqual(s.confirmed, [], 'no confirmation');

@@ -22,6 +22,7 @@ const realPushService = require('./pushService');
 const { buildNotificationDigest } = require('./notificationDigest');
 const { platformDisplay } = require('./platformDisplay');
 const { parisDateTimeLabel } = require('./parisDateTime');
+const { DEACTIVATION_ALERT_AFTER_HOURS } = require('../constants/paymentLinks');
 
 // The iCal source's own name, else the platform as every page writes it (« GreenGo », « Gîtes de
 // France »), never the stored key (2026-10-27 spec review).
@@ -564,7 +565,43 @@ function buildNotificationService({
     }
   }
 
-  return { notifyNewSiteDevis, flushDueDigests, notifyNewIcalReservation, notifyBookingConflict, notifyPaidAfterCancel, __test: { buildDevisEmail, buildSiteDigestEmail, buildReservationEmail, buildConflictEmail, buildPaidAfterCancelEmail, buildOrphanPaidEmail } };
+  // specs/payment-link-lifecycle.md rule 20 — a lapsed link GuestFlow could not deactivate for 24 hours is
+  // still payable at the provider: the admin deactivates it by hand (plugins-phase-3a rule 9 wording). A
+  // payment on it would still be booked (rule 14), so this is a chore, not a money alert.
+  function buildDeactivationStuckEmail(resa, link, publicUrl, providerLabel) {
+    const amount = eurosFr(link.amountCents);
+    const action = `Lien de paiement encore actif chez ${providerLabel} : à désactiver depuis ${providerLabel}.`;
+    const lines = [
+      action,
+      `GuestFlow n’a pas pu désactiver ce lien expiré depuis plus de ${DEACTIVATION_ALERT_AFTER_HOURS} heures. Un paiement reçu dessus reste enregistré sur le séjour.`,
+      '',
+      `Lien : #${Number(link.id)} (${LINK_TYPE_LABELS[link.type] || oneLine(link.type)}, ${amount})`,
+      `Identifiant du lien chez le prestataire : ${oneLine(link.providerLinkId)}`,
+    ];
+    if (resa) {
+      lines.push(`Réservation : ${resa.devisNumber || `#${Number(resa.id)}`}`, `Logement : ${oneLine(resa.propertyName)}`);
+      const url = joinUrl(publicUrl, `/reservations/${Number(resa.id)}`);
+      if (url) lines.push('', `Ouvrir la réservation : ${url}`);
+    }
+    return { subject: `Lien de paiement encore actif chez ${providerLabel} — ${amount}`, text: lines.join('\n'), action };
+  }
+
+  async function notifyDeactivationStuck(link, { providerLabel = 'le prestataire de paiement' } = {}) {
+    try {
+      const resa = loadReservation(link.reservationId);
+      const { action } = buildDeactivationStuckEmail(resa, link, '', providerLabel);
+      await pushNewReservation({ title: 'Lien de paiement encore actif', body: action, ...(resa ? { url: `/reservations/${Number(resa.id)}` } : {}) });
+      const ctx = resolveContext();
+      if (ctx.skip) return { sent: false, skipped: ctx.skip };
+      const email = buildDeactivationStuckEmail(resa, link, ctx.publicUrl, providerLabel);
+      return await deliver({ recipient: ctx.recipient, subject: email.subject, text: email.text });
+    } catch (err) {
+      logger.warn('[notificationService.notifyDeactivationStuck]', err && err.message ? err.message : err);
+      return { sent: false, skipped: 'error' };
+    }
+  }
+
+  return { notifyNewSiteDevis, flushDueDigests, notifyNewIcalReservation, notifyBookingConflict, notifyPaidAfterCancel, notifyDeactivationStuck, __test: { buildDevisEmail, buildSiteDigestEmail, buildReservationEmail, buildConflictEmail, buildPaidAfterCancelEmail, buildOrphanPaidEmail, buildDeactivationStuckEmail } };
 }
 
 const defaultService = buildNotificationService();

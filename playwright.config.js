@@ -84,6 +84,9 @@ module.exports = defineConfig({
         // ~140 specs a slow CI runner crossed the default 3 000 API requests and got 429s. The limiter
         // keeps its own unit tests; here it would only make the suite's size a failure.
         + ' API_RATELIMIT_MAX=100000'
+        // specs/e2e-playwright-smoke-suite.md rule 23 — no release check, no school-holidays sync: the
+        // suite never reads GitHub or data.education.gouv.fr, so its state does not depend on them.
+        + ' GUESTFLOW_DISABLE_OUTBOUND=1'
         + ` node src/index.js > "${SERVER_LOG}" 2>&1`,
       url: `http://127.0.0.1:${SERVER_PORT}/api/version`,
       // Always start fresh — see the "DB wipe at config-eval time" comment above. Reusing a

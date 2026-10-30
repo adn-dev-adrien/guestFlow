@@ -24,6 +24,8 @@ const DDL = `
     paidAt TEXT,
     expiresAt TEXT,
     lastPolledAt TEXT,
+    lastLookAt TEXT,
+    deactivationAlertedAt TEXT,
     CHECK (type IN ('deposit', 'balance', 'full', 'complement')),
     CHECK (status IN ('open', 'paid', 'expired', 'cancelled'))
   );

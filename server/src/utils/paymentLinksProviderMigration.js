@@ -71,4 +71,16 @@ function syncLegacyQontoColumns(db) {
   }
 }
 
-module.exports = { migratePaymentLinksToProviders, syncLegacyQontoColumns };
+/**
+ * specs/payment-link-lifecycle.md rules 19, 20 — when a lapsed link's last payment read is due, and when
+ * the admin was told its deactivation keeps failing. Additive and idempotent; runs after the installments
+ * rebuild of `payment_links`, which only copies the columns it knows.
+ */
+function migrateLinkLifecycleColumns(db) {
+  const cols = columnsOf(db);
+  if (cols.length === 0) return;
+  if (!cols.includes('lastLookAt')) db.exec('ALTER TABLE payment_links ADD COLUMN lastLookAt TEXT');
+  if (!cols.includes('deactivationAlertedAt')) db.exec('ALTER TABLE payment_links ADD COLUMN deactivationAlertedAt TEXT');
+}
+
+module.exports = { migratePaymentLinksToProviders, syncLegacyQontoColumns, migrateLinkLifecycleColumns };

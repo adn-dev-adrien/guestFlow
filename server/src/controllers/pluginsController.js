@@ -55,8 +55,8 @@ function blockerFor(id, model) {
       return {
         code: 'LINKS_PENDING_DEACTIVATION',
         message: pending > 1
-          ? `${pending} liens annulés encore payables chez le prestataire : à désactiver d’abord.`
-          : '1 lien annulé encore payable chez le prestataire : à désactiver d’abord.',
+          ? `${pending} liens retirés ou expirés encore actifs chez le prestataire : désactivation en cours, réessayer plus tard.`
+          : '1 lien retiré ou expiré encore actif chez le prestataire : désactivation en cours, réessayer plus tard.',
       };
     }
   }

@@ -146,6 +146,16 @@ or mutable state.
     strict locator on the second run. Repeatable means `--repeat-each N --workers=1` only: repeats in parallel
     workers share one database and race on its state (CI runs one worker).
 
+23. **The E2E servers reach no external service** (added 2026-10-30, audit R7 L-1). The main `webServer`
+    command (`playwright.config.js`, which the bare suite reuses), `e2e/prod/serve.js` and `e2e/removal/serve.js`
+    start the server with `GUESTFLOW_DISABLE_OUTBOUND=1`: no release check (specs/self-update-and-releases.md
+    rule 51) and no school-holidays sync (specs/school-holidays.md rule 27). Before, every run read
+    `data.education.gouv.fr` and the GitHub releases API, so the holiday table and the update state differed
+    between the specs that ran before and after the 60 s mark, and an outage or a rate limit could change a CI
+    run. `NODE_ENV=test` alone does not imply it: unit tests drive both code paths with stubbed fetches. The
+    reverse holds too: the flag is honoured only under `NODE_ENV=test`, which every E2E server sets. Test:
+    `e2e-no-outbound.unit.test.js`.
+
 ### 3.4 Test coverage — one or more specs per implemented `/specs/` feature
 
 | # | Spec area | Test file | Covers `/specs/` feature(s) |

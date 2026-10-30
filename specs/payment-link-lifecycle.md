@@ -157,7 +157,12 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
    open link only while it has at least `PAYMENT_LINK_MIN_REMAINING_HOURS = 24` hours left; otherwise it
    is retired (`retireOpenLink`, reason `validity`, so the existing « paid meanwhile → refused »
    guard applies) and a fresh one is minted. So every e-mail that leaves with a link gives the guest at
-   least 24 h, whatever the delay between the mint and the operator's send.
+   least 24 h, whatever the delay between the mint and the operator's send. The retired link **lapses**
+   (`expired`, `validity`, rule 1), it is not withdrawn; it is deactivated at once and gets its last look
+   (rule 19). Its `expiresAt` becomes the moment it lapsed, so its ledger row never names a future end
+   (review of #894; the same for a stay-started lapse). A link with no known end (Qonto's sentinel) cannot promise 24 h and is never reused; a link
+   whose amount drifted is withdrawn as before (`cancelled`, no reason) (readings recorded at
+   implementation, 2026-10-30).
 
 ### 3.D The stay's own life (decisions 2a, 2b)
 
@@ -167,7 +172,9 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
    site). A link **minted on or after** the arrival day (the operator sends the solde to a guest who
    arrived without paying) is not lapsed by this rule; only its 36 h apply. « Séjour passé » means
    exactly this: 00:00 Europe/Paris on the arrival day, not the check-in hour, not the departure
-   (decided 2026-10-30, §9 Q3).
+   (decided 2026-10-30, §9 Q3). The arrival day is the converted stay's when the devis was converted
+   (a re-dated stay counts at its new date), the devis's own otherwise: a devis whose dates have
+   arrived lapses its request too (reading recorded at implementation, 2026-10-30).
 10. **An unpaid stay whose dates are taken withdraws its links** (decided 2026-10-30, §9 Q4). Every open
     link of an **unpaid** row (rule 31), whether a devis not converted or a reservation, is withdrawn
     (`cancelReason = 'dates-taken'`) as soon as **a stay that holds the dates** (rule 37) overlaps one of
@@ -215,9 +222,12 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
 ### 3.F The lifecycle pass
 
 16. **One pass applies rules 7, 9, 10, 12, 13.** `utils/paymentLinkLifecycle.js` `retireLapsedAndWithdrawn(database, { now })`
-    selects, in SQL only, every `open` link that crossed a trigger, moves it in one transaction
+    selects, in SQL, every `open` link that crossed a trigger, moves it in one transaction
     (`UPDATE … WHERE id = ? AND status = 'open'`, so a webhook that paid it meanwhile wins), and returns
-    the moved rows. It runs:
+    the moved rows. Two refinements are read in JS on the rows SQL selected: Qonto's zero-time sentinel
+    (no expiry) and the Paris day a link was minted (rule 9), which SQLite cannot compute. Order inside
+    the pass: a cancelled or missing stay first (rule 13), then the validity (rule 7), then the arrival
+    (rule 9) — a link past several triggers carries the first one's reason. It runs:
     - at the start of every poll pass (`runPaymentPoll`, before `retryPendingCancellations`);
     - from a dedicated plugin job `payment-link-lifecycle` every **15 minutes**, so a validity ends
       within 15 minutes of its 36 h rather than at the next 8-hour poll tick. The job makes provider
@@ -231,19 +241,34 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     `getPayment`:
     - paid → `processPaidLink` (booked as a payment, rule 14), marker cleared;
     - not paid → marker cleared, `lastLookAt` set to now + 1 h (rule 19);
-    - `cancelLink` fails → `alreadyInactive` check as today; otherwise the marker stays for the next
-      pass, a `RATE_LIMITED` stops the pass.
+    - `cancelLink` fails → `alreadyInactive` check as today (a link already dead at the provider is then
+      read as above); otherwise the marker stays for the next pass, a `RATE_LIMITED` stops the pass
+      without the status call; a `getPayment` that fails after the deactivation keeps the marker too
+      (both calls are made again next pass). A refused deactivation (other than a rate limit) still
+      reads the payment: a provider refuses to deactivate a link already paid, whose webhook may be lost;
+      paid → rule 14, unpaid → the marker stays (review of #894). On the rule-8 path
+      (`deactivateAbandonedLinks`), such a refused link found paid is booked at once through
+      `processPaidLink` (this rule's path) and the request is refused: 409 `LINK_ALREADY_PAID`, « Le lien
+      en cours vient d’être payé : paiement enregistré, aucun nouveau lien créé. ». The fiche reloads as
+      paid. A later request on the same bucket (acompte: acompte or full links; solde: solde or full; full:
+      all three; an échéance: its own links) first reads its newest lapsed link still owed a deactivation:
+      paid → booked and refused the same way, unreadable → 502 `PROVIDER_UNREACHABLE`, unpaid → minted as
+      usual (re-review of #894).
     For a **cancelled** row the existing order (read, then deactivate) and branches are kept, plus the
     orphan branch of rule 3 and the dates-taken branch of rule 33.
 19. **One last look.** The first lifecycle pass after `lastLookAt` reads the payment once more
     (`getPayment`, origin `last-look`); paid → rule 14; then `lastLookAt` is cleared for good. Cost: one
-    call per lapsed link, once.
+    call per lapsed link, once. The pass claims the look (clears `lastLookAt`) before the call, so two
+    passes at once read it once; a call that fails puts it back for the next pass.
 20. **When a deactivation keeps failing.** The marker keeps the link on the retry list (unchanged rule
     8); the ledger row reads « Lien expiré · désactivation en attente chez {Prestataire} » (rule 24).
     After **24 h** of failures the admin gets one notification per link, « Lien de paiement encore actif
     chez {Prestataire} : à désactiver depuis {Prestataire}. » (the plugins-phase-3a rule 9 wording),
     stamped in `deactivationAlertedAt` so it is sent once. A lapsed link still payable is not a money
-    risk (rule 14 books it); a withdrawn one is caught by rule 8 as today.
+    risk (rule 14 books it); a withdrawn one is caught by rule 8 as today. Reading recorded at
+    implementation (2026-10-30): the alert concerns **lapsed** links only; it is sent by a pass whose
+    deactivation attempt failed, when the marker (stamped at the lapse) is 24 h old or more; push and
+    e-mail (`notifyDeactivationStuck`), with the fiche link when the stay exists.
 
 ### 3.G Fair use and idempotency
 
@@ -256,11 +281,18 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     migration is keyed in `migrations`; the job shares the `retryPendingCancellations` chain (no two
     runs of the same scope at once) and skips while a poll pass runs; `cancelLink` on an already
     inactive link is absorbed by `alreadyInactive`; a webhook replay finds the link `paid` and does
-    nothing (`markPaid` flips once).
+    nothing (`markPaid` flips once); a due last look is claimed before it is read (rule 19). Only the
+    lifecycle job skips: a poll tick that meets a running lifecycle pass waits for it, then runs.
 23. **The plugin off.** Without a provider nothing is deactivated nor read: the lifecycle job is the
     plugin's, so it does not run, and links keep their state. When the plugin comes back the first run
     catches up (rules 16, 18). The existing uninstall guard on `remoteCancelPendingAt` rows
-    (`pluginsModel`) now counts `expired` rows with the marker too.
+    (`pluginsModel`) now counts `expired` rows with the marker too. It already counted every row with
+    the marker, whatever its status; what had to change is `markPaid`, which now clears the marker and
+    `lastLookAt` of the link it flips — otherwise a lapsed link paid by the webhook kept its marker and
+    blocked the uninstall for good (reading recorded at implementation, 2026-10-30). « Qonto not
+    connected » counts as off: neither the poll nor the lifecycle job runs. The refusal reads « 1 lien
+    retiré ou expiré encore actif chez le prestataire : désactivation en cours, réessayer plus tard. »
+    (plural « N liens retirés ou expirés encore actifs … »; review of #894).
 
 ### 3.H What the operator sees
 
@@ -344,6 +376,9 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     An idempotent migration (`migrations.name = 'payment_link_validity_backfill_v1'`) sets, on every
     `open` link, `expiresAt = max(createdAt + 36 h, installedAt + 36 h)`, `installedAt` being the
     migration's own run time, and logs one line per link (`[migration:link-validity] link #… expires …`).
+    Every open link was created before the install, so this is `installedAt + 36 h` in practice; it
+    covers every type, `complement` links and those still carrying Qonto's `0001-…` sentinel included
+    (reading recorded at implementation, 2026-10-30).
 35. **The acompte reminder mints its link at send time, if the dates are still free** (decided
     2026-10-30, §9 Q6). `deposit_reminder` leaves `PAYMENT_LINK_TEMPLATES`'s read-only re-offer: its send
     (`emailsController.send`) resolves the acompte link through `ensurePaymentLink` like the requests
@@ -548,14 +583,17 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
 | `utils/` | `defaultEmailTemplatesRegistry.js`, `defaultEmailTemplatesSeed.js` | T | Template `dates_unavailable_notice` FR / EN (rule 45) |
 | `utils/` | `notificationService.js` (conflict) | T | `notifyBookingConflict` wording when the overlapped stay holds the dates (rule 39) |
 | `utils/` | guest-email pass that fills « Emails à envoyer » | T | Never proposes a `deposit_reminder` on taken dates; calls `notifyDatesTaken` (rule 43) |
-| `utils/` | `paymentPollRunner.js` | T | Lifecycle pass at the start of `runPaymentPoll`; `no-reservation` → orphan alert (rule 3); expired rows in the retry loop, deactivate-then-read (rule 18); last look (rule 19); `dates-taken` paid → booked in conflict (rule 33) |
+| `utils/` | `paymentPollRunner.js` | T | `runLinkLifecycle` (rule 16), run at the start of `runPaymentPoll` and by the plugin job; `no-reservation` → orphan alert (rule 3); expired rows in the retry loop, deactivate-then-read (rule 18); last look (rule 19); stuck-deactivation alert (rule 20); `dates-taken` paid → booked in conflict (rule 33) |
 | `utils/` | `paymentLinkDeactivation.js` | T | `deactivateAbandonedLinks` keeps the row's status (`expired` stays `expired`) and stamps the outcome |
 | `utils/` | `notificationService.js` | T | `notifyPaidAfterCancel` orphan branch (rule 4), no fiche URL; `datesTaken` wording « déplacer ou rembourser » (rule 33); `notifyDeactivationStuck` (rule 20) |
 | `utils/` | `reservationLedger.js` | T | Labels of rule 24; no `resend` on `dates-taken` |
 | `utils/` | `supersededDuplicates.js` | T | Withdraws the links of a row it sets aside (rule 12); reads `stayMoney.carriesMoney` |
 | `utils/` | `templateTokens.js`, `defaultEmailTemplatesRegistry.js` | T | Token `paymentLinkValidUntil` and the default FR / EN sentence (rule 36) |
-| `utils/` | `paymentLinksProviderMigration.js` | T | Columns `lastLookAt`, `deactivationAlertedAt` (idempotent `ADD COLUMN`) |
-| `models/` | `paymentLinksModel.js` | T | `retireExpired` → reason + marker (rule 17); `listRemoteCancelPending` includes `expired`; `setLastLook` / `clearLastLook`; `markPaid` unchanged (`open | expired`) |
+| `utils/` | `paymentLinksProviderMigration.js` | T | `migrateLinkLifecycleColumns`: columns `lastLookAt`, `deactivationAlertedAt` (idempotent `ADD COLUMN`, run after the installments rebuild of `payment_links`; also in `schema.sql`) |
+| `utils/` | `paymentLinkValidityBackfill.js` | C | Rule 34's one-shot migration, called from `database.js` |
+| `utils/` | `localDate.js` | T | `localHourMinute` for the ledger's « à {hh:mm} » (rule 24) |
+| `utils/` | `paymentEffectDeps.js` | T | Carries `notifyDeactivationStuck` (rule 20) |
+| `models/` | `paymentLinksModel.js` | T | `create` takes `createdAt`; `retireExpired` → reason + marker (rule 17) through `lapseIfOpen`; `cancelIfOpen` takes a reason; `listRemoteCancelPending` / `restoreRemoteCancelPending` include `expired`; `setLastLook` / `claimLastLook` (rule 19); `claimDeactivationAlert` (rule 20); `markPaid` (`open | expired`) clears the marker and `lastLookAt` (rule 23) |
 | `models/` | `reservationsModel.js`, `devisModel.js`, `propertyIcalModel.js` | T | Call `withdrawLinksOverlapping` in the write's transaction: create / `performUpdate` (manual, SAS, intakes), `convertToReservation`, iCal insert / re-date (rule 32) |
 | `controllers/` | `reservationsController.js` | T | « Rétablir » (`restore`) calls `withdrawLinksOverlapping`; every caller of rule 32 deactivates the returned links after the commit |
 | `models/` | `pluginsModel.js` | T | Uninstall guard counts `expired` rows with the marker (rule 23) |
@@ -569,7 +607,8 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
 | `controllers/` | `paymentsController.js` | T | `withdrawLink` (rule 42) |
 | `controllers/` | `dashboardController.js` | T | Dates-taken card list / acknowledge (rule 43) |
 | `models/` | `icalDateDriftModel.js` | T | The approval answer carries the held-dates warning (rule 39) |
-| `plugins/online-payment/` | `index.js` | T | Job `payment-link-lifecycle` every 15 min, `inProgress` shared with `payment-poll` (rules 16, 22) |
+| `plugins/online-payment/` | `index.js`, `paymentJobs.js` (C) | T | Job `payment-link-lifecycle` every 15 min (first run 15 min after boot), `inProgress` shared with `payment-poll` (rules 16, 22); `paymentJobs.createPaymentJobs` builds both jobs; plugin 1.5.0, `sdk ^2.18.0` |
+| `plugins/sdk/` | `version.js`, `coreModules.json`, `coreModuleHistory.json` | T | SDK 2.18.0: `paymentPollRunner.runLinkLifecycle` (specs/plugins-phase-1-sdk.md rule 35) |
 | `middleware/` | — | — | (none) |
 | `database.js` | `database.js` | T | Table `dates_taken_notices` (rule 43); migrations `orphan_payment_links_withdrawn_v1` (rule 5), `payment_link_validity_backfill_v1` (rule 34), the default-template sentence on untouched templates (rule 36) |
 | `tests/` | see §7 | C | One file per subject |
@@ -674,11 +713,11 @@ refused).
 ### Server unit tests (one file per subject)
 - [x] `tests/payment-link-orphan-alert.unit.test.js` — rules 3-4: live path (link `paid`) and retry path (link stays `cancelled` with its payment), `no-reservation`, nothing booked, no confirmation, alert with link id + amount and no URL.
 - [x] `tests/payment-link-orphan-migration.unit.test.js` — rule 5: open orphans withdrawn once, paid / cancelled ones untouched, log lines, second boot does nothing.
-- [ ] `tests/payment-link-validity.unit.test.js` — rules 6-8: `expiresAt` at mint, lapse at 36 h, reuse below 24 h left mints a new link, reuse above keeps it, a reused link paid meanwhile refuses.
-- [ ] `tests/payment-link-stay-started.unit.test.js` — rule 9: lapse at 00:00 Paris (DST days included), `complement` untouched, link minted on the arrival day exempt, converted-devis links included.
+- [x] `tests/payment-link-validity.unit.test.js` — rules 6-8, 17: `expiresAt` at mint, lapse at 36 h, reuse below 24 h left mints a new link, reuse above keeps it, a reused link paid meanwhile refuses.
+- [x] `tests/payment-link-stay-started.unit.test.js` — rule 9: lapse at 00:00 Paris (DST days included), `complement` untouched, link minted on the arrival day exempt, converted-devis links included.
 - [ ] `tests/payment-link-dates-taken.unit.test.js` — rules 10-11, 31-32: overlap by iCal import (Adrien's case a), by the conversion of another devis (case b), by manual creation, re-date, logement change, « Rétablir »; the row itself and its own converted stay never count; a row with an acompte paid keeps its links; two unpaid reservations both withdrawn; mint refused 409.
 - [ ] `tests/payment-link-dates-taken-paid.unit.test.js` — rule 33: paid in flight on a devis (converted with `bookingConflictAt`, no confirmation, alert) and on a reservation (bucket recorded, conflict, alert).
-- [ ] `tests/payment-link-validity-backfill.unit.test.js` — rule 34: grace from the install, idempotent, logged.
+- [x] `tests/payment-link-validity-backfill.unit.test.js` — rule 34: grace from the install, idempotent, logged.
 - [ ] `tests/deposit-reminder-mints-link.unit.test.js` — rule 35: fresh link at send, reuse with ≥ 24 h, refusal on taken dates, preview placeholder.
 - [ ] `tests/payment-link-valid-until-token.unit.test.js` — rule 36: FR / EN wording in Paris time, empty without a link, content migration only on untouched templates.
 - [ ] Amend `superseded-duplicates` tests for the moved `carriesMoney`.
@@ -690,12 +729,14 @@ refused).
 - [ ] `tests/closure-devis-without-link.unit.test.js` — rule 49: warning listed, save accepted.
 - [ ] `tests/dates-taken-notice.unit.test.js` — rules 43-45: sent at the `dates-taken` withdrawal (overlap, first paid, iCal), not for expiry, a started stay or « Retirer le lien »; a later refused reminder sends nothing more; e-mail sent once with its `email_log` row, push, dashboard row, every fail-closed case, reminder never queued on taken dates, `AUTO_SEND_EXCEPTIONS` holds exactly one key and `autoSendPolicy` still refuses every other template.
 - [ ] `tests/payment-link-superseded.unit.test.js` — rule 12.
-- [ ] `tests/payment-link-deadline-race.unit.test.js` — rules 14, 18, 19: paid before deactivation (webhook), paid found after deactivation, paid found at the last look, webhook replay, two concurrent runs.
-- [ ] `tests/payment-link-deactivation-stuck.unit.test.js` — rule 20: marker kept, one alert after 24 h, rate limit stops the job.
-- [ ] `tests/payment-link-lifecycle-ledger.unit.test.js` — rule 24 labels and `resend`.
+- [x] `tests/payment-link-deadline-race.unit.test.js` — rules 14, 15, 18, 19, 21, 22: paid before deactivation (webhook), paid found after deactivation, paid found at the last look, webhook replay, two concurrent runs.
+- [x] `tests/payment-link-deactivation-stuck.unit.test.js` — rules 18, 20, 21: marker kept, one alert after 24 h, rate limit stops the job.
+- [x] `tests/payment-link-lifecycle-ledger.unit.test.js` — rule 24 labels and `resend`.
+- [x] `tests/payment-link-lifecycle-pass.unit.test.js` — rules 1, 2, 13, 16, 22: withdrawn first, one transaction, only `open` rows move, the poll opens with the pass.
+- [x] `plugins/online-payment/tests/payment-link-lifecycle-job.unit.test.js` — rules 16, 22, 23: 15-min job, shared in-progress flag, nothing while Qonto is not connected; SDK 2.18 contract.
 - [ ] `tests/public-payment-status-expired.unit.test.js` — rule 30.
 - [ ] `tests/payment-link-request-preview.unit.test.js` — rule 26 placeholder.
-- [ ] Amend `payment-poll-fair-use.unit.test.js` (retireExpired now sets the marker) and `plugins-phase-0` uninstall guard.
+- [x] Amend `payment-poll-fair-use.unit.test.js` (retireExpired now sets the marker) and `plugins-phase-0` uninstall guard (rule 23).
 
 ### Client
 - [ ] `client/src/components/reservation/__tests__/FinanceSection.link-lifecycle.test.jsx` — prints the new labels, offers « Renvoyer la demande » on expired, not on dates-taken; « Retirer le lien » asks for confirmation.
@@ -795,7 +836,27 @@ Six sequential PRs into `inte/plugins` (plan validated 2026-10-30).
   `notifyPaidAfterCancel(link, { orphan: true, … })`; `notificationService` orphan e-mail / push with no
   URL; `utils/orphanPaymentLinksMigration.js` called from `database.js`
   (`orphan_payment_links_withdrawn_v1`). Tests: `payment-link-orphan-alert` (14), `payment-link-orphan-migration` (4).
-- [ ] PR2 — 36 h validity, lifecycle pass, deactivate-then-read (rules 1, 6-9, 13, 14, 16-24, 34).
+- [x] **PR2 — 36 h validity, lifecycle pass, deactivate-then-read** (rules 1, 6-9, 13, 14, 16-24, 34).
+  `utils/paymentLinkLifecycle.js` (new: `validityEnd`, `validityOf`, `retireLapsedAndWithdrawn` — cancelled
+  or missing stay, validity, arrival —, `listLastLookDue`); `paymentRequestService` stores
+  `createdAt` / `expiresAt = createdAt + 36 h` and reuses only with ≥ 24 h left (the old link lapses for
+  `validity`); `paymentPollRunner.runLinkLifecycle` (lifecycle pass, deactivate-then-read of expired
+  rows, last look, stuck alert) at the start of `runPaymentPoll`; `paymentLinkDeactivation` keeps an
+  expired row expired; `markPaid` clears the marker and `lastLookAt`; ledger labels of rule 24 (the
+  `dates-taken`, `superseded` labels and the « no resend on dates taken » ready for PR5);
+  `notifyDeactivationStuck`; columns `lastLookAt`, `deactivationAlertedAt`; migration
+  `payment_link_validity_backfill_v1`; plugin job `payment-link-lifecycle` (online-payment 1.5.0, SDK
+  2.18.0). The poll's open orphans are now withdrawn by the pass (rule 13) before they are read: the
+  PR1 « poll » test reads its payment on the retry path. Tests: `payment-link-validity` (10),
+  `payment-link-stay-started` (9), `payment-link-lifecycle-pass` (10), `payment-link-deadline-race` (10),
+  `payment-link-deactivation-stuck` (6), `payment-link-validity-backfill` (6), `payment-link-lifecycle-ledger`
+  (8), `payment-link-lifecycle-job` (6); review of #894: a refused deactivation still reads the payment,
+  a lapse ends `expiresAt` now, the poll waits for a running lifecycle pass, uninstall refusal reworded
+  (+5 tests: `payment-link-deadline-race` 13, `payment-link-validity` 11, `payment-link-lifecycle-job` 7);
+  re-review: a lapsed link found paid on the mint path is booked at once, and a re-click reads the owed
+  lapsed link first (`payment-link-validity` 14); amended `payment-poll-fair-use`, `plugins-phase-0`,
+  `plugins-phase-1-sdk`, `payment-link-orphan-alert`, `payment-request-service`,
+  `payment-links-converted-devis-double-payment`, `payment-links-model`.
 - [ ] PR3 — validity in request e-mails, acompte reminder mints at send, public `expired` status (rules 26-30, 35, 36).
 - [ ] PR4 — closures refused over open payment requests, « Retirer le lien » (rules 40-42, 49).
 - [ ] PR5 — held dates and dates-taken withdrawal (rules 10-12, 16, 24, 25, 31-33, 37-39, 46, 48).
