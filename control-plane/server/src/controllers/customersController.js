@@ -776,6 +776,7 @@ function createCustomersController(ctx) {
   async function rename(id, body, operator) {
     const c = mustGet(id);
     if (c.archivedAt) throw httpError(409, 'ARCHIVED', 'Client archivé : réactivez-le d’abord.');
+    assertNotDeprovisioning(c.id);
     const slug = String(body.slug || '').trim();
     const { error } = renamePreview(id, { slug });
     if (!slug || error) throw httpError(400, 'INVALID', error || 'Nouvelle adresse obligatoire.');
@@ -885,6 +886,11 @@ function createCustomersController(ctx) {
   // H1 rule 38: a customer is archived only after its stop, so a second request (another tab, or one
   // queued behind a fleet item holding the lock) would pass the check above and export and mail again.
   const deprovisioning = new Set();
+
+  // Rule 38: a rename or a restore would otherwise run between the export and the stop, or after it.
+  function assertNotDeprovisioning(id) {
+    if (deprovisioning.has(id)) throw httpError(409, 'DEPROVISIONING', 'Fermeture en cours.');
+  }
 
   async function deprovision(id, body, operator) {
     const c = mustGet(id);
@@ -1038,6 +1044,7 @@ function createCustomersController(ctx) {
     restartProcess,
     applyPayment,
     mustGet,
+    assertNotDeprovisioning,
     refresh,
     reissueAll,
     view,

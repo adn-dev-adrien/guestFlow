@@ -1,5 +1,5 @@
 // specs/hosting-h1-fleet-runtime.md rule 38 — an archived customer is never served again by a step
-// retry, a restore or a second deprovision (audit R7 F2, F3, F3b).
+// retry, a rename, a restore or a second deprovision (audit R7 F2, F3, F3b; review of PR #892 R1, H2).
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -88,17 +88,15 @@ test('rule 38 — a restore that reaches the lock after the deprovision stop is 
     const c = await h.ctx.controllers.customers.create(NEW_CUSTOMER, 'op');
     let release;
     const gate = new Promise((r) => { release = r; });
-    const send = h.mailer.send.bind(h.mailer);
     let hold = true;
     const window = h.host.drivers.backup.window;
-    h.host.drivers.backup.window = async (i) => { await tick(150); return window(i); };
-    h.mailer.send = async (m) => { if (hold && /fermé/.test(JSON.stringify(m))) { hold = false; await gate; } return send(m); };
-    const deprov = h.ctx.controllers.billing.deprovision(c.id, { confirmSlug: c.slug }, 'op');
-    await tick();
+    h.host.drivers.backup.window = async (i) => { if (hold) { hold = false; await gate; } return window(i); };
     const restore = h.ctx.controllers.fleet.restore(c.id, { at: '2026-10-11T02:00:00Z' }, 'op');
     await tick();
+    const deprov = h.ctx.controllers.billing.deprovision(c.id, { confirmSlug: c.slug }, 'op');
+    const d = await Promise.allSettled([deprov]).then(([x]) => x);
     release();
-    const [d, r] = await Promise.allSettled([deprov, restore]);
+    const [r] = await Promise.allSettled([restore]);
     assert.equal(d.status, 'fulfilled');
     assert.equal(r.status, 'rejected');
     assert.equal(r.reason.body.error, 'ARCHIVED');
@@ -130,5 +128,75 @@ test('rule 38 — two deprovisions while the customer lock is held export and ma
     assert.equal(h.mailer.sent.filter((m) => /fermé/.test(JSON.stringify(m))).length, 1);
     assert.ok(h.ctx.models.customers.get(b.id).archivedAt);
     assert.equal(h.host.procs.get('moulin').running, false);
+  } finally { h.cleanup(); }
+});
+
+const ALL_CHECKED = ['wordpress', 'ical', 'oauth', 'push'];
+
+test('rule 38 — a rename sent while a deprovision is running is refused, the closed space keeps its address', async () => {
+  const h = makeContext({ versions: ['3.9.0'] });
+  try {
+    const { customers, billing } = h.ctx.controllers;
+    const c = await customers.create(NEW_CUSTOMER, 'op');
+    let release;
+    const gate = new Promise((r) => { release = r; });
+    const disableNow = h.host.drivers.process.disableNow;
+    h.host.drivers.process.disableNow = async (i) => { await gate; return disableNow(i); };
+    const deprov = billing.deprovision(c.id, { confirmSlug: c.slug }, 'op');
+    await tick();
+    const rename = customers.rename(c.id, { slug: 'nouveau-nom', checked: ALL_CHECKED }, 'op');
+    rename.catch(() => {});
+    await tick();
+    release();
+    const [d, r] = await Promise.allSettled([deprov, rename]);
+    assert.equal(d.status, 'fulfilled');
+    assert.equal(r.status, 'rejected');
+    assert.equal(r.reason.status, 409);
+    assert.equal(r.reason.body.error, 'DEPROVISIONING');
+    const now = h.ctx.models.customers.get(c.id);
+    assert.ok(now.archivedAt);
+    assert.equal(now.slug, c.slug);
+    assertClosed(h, c);
+    assert.ok(!h.host.drivers.proxy.route('nouveau-nom'));
+    assert.equal(h.host.procs.has('nouveau-nom'), false);
+  } finally { h.cleanup(); }
+});
+
+test('rule 38 — the provisioner itself never moves an archived customer to a new address', async () => {
+  const { h, c } = await archivedWithFailedRestart();
+  try {
+    const replicas = h.host.named('backup.addReplica').length;
+    h.ctx.models.customers.setSlug(c.id, 'nouveau-nom');
+    assert.equal(await h.ctx.provisioner.rename(c.id, c.slug), false);
+    assertClosed(h, c);
+    assert.equal(h.host.procs.has('nouveau-nom'), false);
+    assert.ok(!h.host.drivers.proxy.route('nouveau-nom'));
+    assert.equal(h.host.named('backup.addReplica').length, replicas);
+  } finally { h.cleanup(); }
+});
+
+test('rule 38 — a restore sent while a deprovision is running is refused, the export stays the database on disk', async () => {
+  const h = makeContext({ at: '2026-10-11T03:00:00Z' });
+  try {
+    const c = await h.ctx.controllers.customers.create(NEW_CUSTOMER, 'op');
+    let release;
+    const gate = new Promise((r) => { release = r; });
+    const send = h.mailer.send.bind(h.mailer);
+    let hold = true;
+    h.mailer.send = async (m) => { if (hold && /fermé/.test(JSON.stringify(m))) { hold = false; await gate; } return send(m); };
+    const deprov = h.ctx.controllers.billing.deprovision(c.id, { confirmSlug: c.slug }, 'op');
+    await tick();
+    const restore = h.ctx.controllers.fleet.restore(c.id, { at: '2026-10-11T02:00:00Z' }, 'op');
+    restore.catch(() => {});
+    await tick(100);
+    release();
+    const [d, r] = await Promise.allSettled([deprov, restore]);
+    assert.equal(d.status, 'fulfilled');
+    assert.equal(r.status, 'rejected');
+    assert.equal(r.reason.status, 409);
+    assert.equal(r.reason.body.error, 'DEPROVISIONING');
+    assert.equal(h.host.named('backup.restore').length, 0);
+    assert.ok(h.ctx.models.customers.get(c.id).archivedAt);
+    assertClosed(h, c);
   } finally { h.cleanup(); }
 });

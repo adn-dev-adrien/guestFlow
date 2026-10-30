@@ -333,6 +333,7 @@ function createProvisioner({
   function rename(customerId, oldSlug) {
     return exclusive(customerId, async () => {
       const c = customers.get(customerId);
+      if (!c || c.erasedAt || c.archivedAt) return false;
       return runStep(c, RENAME, async () => {
         const from = instanceOf(c, oldSlug);
         const to = instanceOf(c);
