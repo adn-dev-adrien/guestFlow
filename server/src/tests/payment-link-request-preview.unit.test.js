@@ -84,3 +84,11 @@ test('rule 26 — a request sent from the e-mail dialog resolves its link at sen
   assert.ok(f.sent[0].text.includes(`Payer le solde en ligne : ${fresh.url}\nCe lien est valable jusqu'au mardi 3 novembre à 21 h 00.`));
   assert.ok(!f.sent[0].text.includes(AT_SEND), 'the placeholder never reaches a guest');
 });
+
+test('rule 51 — on the arrival day a link minted the day before previews as the placeholder: the send replaces it', () => {
+  const f = emailsFixture({ stay: { startDate: '2026-11-02', endDate: '2026-11-05' } });
+  const old = f.openLink({ createdAt: new Date('2026-11-01T20:00:00Z'), expiresAt: new Date('2026-11-03T08:00:00Z') });
+  const { body } = f.preview('deposit_request').body;
+  assert.ok(body.includes(`Payer l'acompte en ligne : ${AT_SEND}`), body);
+  assert.ok(!body.includes(old.url));
+});

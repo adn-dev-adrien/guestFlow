@@ -59,6 +59,16 @@ function blockerFor(id, model) {
           : '1 lien retiré ou expiré encore actif chez le prestataire : désactivation en cours, réessayer plus tard.',
       };
     }
+    // specs/payment-link-lifecycle.md rule 52 — the last look of a lapsed link is still owed.
+    const looks = model.countPendingLastLooks ? model.countPendingLastLooks() : 0;
+    if (looks > 0) {
+      return {
+        code: 'LINKS_LAST_LOOK_PENDING',
+        message: looks > 1
+          ? `${looks} liens expirés dont le paiement reste à vérifier : réessayer plus tard.`
+          : '1 lien expiré dont le paiement reste à vérifier : réessayer plus tard.',
+      };
+    }
   }
   if (id === SAS) {
     const n = model.countOnlyRoleUsers(RECEPTION);

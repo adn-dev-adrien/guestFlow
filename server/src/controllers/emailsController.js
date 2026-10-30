@@ -50,7 +50,7 @@ const { resolveEmailIdentity } = require('../utils/emailIdentity');
 const { buildDraftPreview } = require('../utils/emailDraftPreview');
 const { guestEmailMessage } = require('../utils/guestEmailHtml');
 const { displayNameOf } = require('../utils/emailTimeline');
-const { validityOf } = require('../utils/paymentLinkLifecycle');
+const { validityOf, lapsesAtArrival } = require('../utils/paymentLinkLifecycle');
 const { formatMomentLong } = require('../utils/dateFr');
 
 // specs/payment-link-lifecycle.md rules 26, 35 — the templates whose link is resolved when they are sent
@@ -123,11 +123,12 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
   }
 
   // specs/payment-link-lifecycle.md rules 8, 26 — a stored open link is shown only when the send would reuse
-  // it: 24 h left at least. A link with no known end is never reused, so never shown.
+  // it: 24 h left at least, and not lapsing at the arrival (rule 51). A link with no known end is never reused,
+  // so never shown.
   function reusableLink(link) {
     if (!link || !link.url) return null;
     const validity = validityOf(link, now());
-    return validity.reusable ? { url: link.url, expiresAt: validity.expiresAt } : null;
+    return validity.reusable && !lapsesAtArrival(database, link, now()) ? { url: link.url, expiresAt: validity.expiresAt } : null;
   }
 
   // The link variables of a payment e-mail: the link it carries and its end (rule 36), the placeholder when

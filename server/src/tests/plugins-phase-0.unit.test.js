@@ -259,6 +259,27 @@ test('online payment: a lapsed link still owed at the provider blocks deactivate
   assert.equal(call('deactivate', 'online-payment').body.state, 'inactive');
 });
 
+// specs/payment-link-lifecycle.md rule 52 (audit R8 plugins L-1) — a lapsed link deactivated unpaid still owes
+// its one last look (rule 19): the payment it may catch is never booked once the plugin is gone, so the
+// look blocks like the marker; once taken (lastLookAt cleared) nothing does.
+test('online payment: a pending last look blocks deactivate and uninstall until it is taken', { skip: skipWithout(['online-payment']) }, () => {
+  const { db, call } = setup();
+  const linksDdl = fs.readFileSync(path.join(__dirname, '..', 'schema.sql'), 'utf8').match(/CREATE TABLE IF NOT EXISTS payment_links \([\s\S]*?\n {2}\);/)[0];
+  db.exec(`DROP TABLE payment_links; ${linksDdl}`);
+  call('install', 'online-payment');
+  db.prepare("INSERT INTO payment_links (id, reservationId, type, status, providerLinkId, lastLookAt) VALUES (1, 5, 'deposit', 'expired', 'pl_1', '2026-11-03T21:00:00Z'), (2, 5, 'balance', 'expired', 'pl_2', '2026-11-03T21:05:00Z')").run();
+  for (const handler of ['deactivate', 'uninstall']) {
+    const res = call(handler, 'online-payment');
+    assert.equal(res.statusCode, 409);
+    assert.equal(res.body.code, 'LINKS_LAST_LOOK_PENDING');
+    assert.equal(res.body.message, '2 liens expirés dont le paiement reste à vérifier : réessayer plus tard.');
+  }
+  db.prepare('UPDATE payment_links SET lastLookAt = NULL WHERE id = 2').run();
+  assert.equal(call('uninstall', 'online-payment').body.message, '1 lien expiré dont le paiement reste à vérifier : réessayer plus tard.');
+  db.prepare('UPDATE payment_links SET lastLookAt = NULL').run();
+  assert.equal(call('deactivate', 'online-payment').body.state, 'inactive');
+});
+
 test('sas: an active reception-only user blocks it; admins and inactive users do not', { skip: skipWithout(['sas']) }, () => {
   const { db, call } = setup();
   call('install', 'sas');
