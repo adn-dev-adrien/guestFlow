@@ -18,7 +18,7 @@ function withStoredTiers(id, tiers) {
 }
 
 test('a legacy null tier table stays null through a save', async () => {
-  const id = f.createStay({ startDate: '2027-05-01', endDate: '2027-05-04' });
+  const id = f.createStay({ startDate: f.inDays(180), endDate: f.inDays(183) });
   withStoredTiers(id, null);
   assert.equal((await f.save(id, { notes: 'y' })).statusCode, 200);
   assert.equal(tiersOf(id).t, 'null');
@@ -27,12 +27,12 @@ test('a legacy null tier table stays null through a save', async () => {
 });
 
 test('an explicit [] and a sold table are kept as they were', async () => {
-  const empty = f.createStay({ startDate: '2027-05-10', endDate: '2027-05-13' });
+  const empty = f.createStay({ startDate: f.inDays(189), endDate: f.inDays(192) });
   assert.equal(tiersOf(empty).v, '[]');
   await f.save(empty, { notes: 'x' });
   assert.equal(tiersOf(empty).v, '[]');
 
-  const sold = f.createStay({ startDate: '2027-05-20', endDate: '2027-05-23' });
+  const sold = f.createStay({ startDate: f.inDays(199), endDate: f.inDays(202) });
   const table = [{ fromNight: 1, price: 15 }, { fromNight: 2, price: 8 }];
   withStoredTiers(sold, table);
   await f.save(sold, { notes: 'x' });

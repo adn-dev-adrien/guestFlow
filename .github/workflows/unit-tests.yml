@@ -74,9 +74,9 @@ jobs:
 
       - name: 📅 Une date écrite en dur dans un test ajouté ?
         # specs/server-test-isolation.md rule 7 — a literal date the calendar will pass, on a test line the PR
-        # adds, is annotated on that line. A warning, not a failure: the rule names dates a test hands to the
-        # code as its « now » too, and only the author can tell the two apart.
-        run: node scripts/check-test-dates.mjs --base "origin/${{ github.base_ref }}"
+        # adds, fails the job with the line named. A date nothing compares with today (a pure function's
+        # input, a « now » the test hands to the code) carries `// date-literal-ok: <why>`.
+        run: node scripts/check-test-dates.mjs --base "origin/${{ github.base_ref }}" --strict
 
   server:
     name: server (node --test)

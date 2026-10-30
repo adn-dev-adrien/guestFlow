@@ -73,27 +73,46 @@ hangs on a test that does not settle (rule 5). A suite does not go red because t
    year is the subject. The four suites PR #893 added (`disabledAcompteLinkFixture.js` and the three
    `deposit-*` suites that use it) wrote June and November 2027 stays and a March 2027 payment: 3 tests red from
    2027-05-09, 26 from 2027-10-05, the CI server job and the release `tests` job failing with them. Their stays
-   now start 60 days out and more (beyond the acompte window), the link is paid a week from now and the journal
-   month is the one it was paid in. The same holds for `payment-links-converted-devis-double-payment` (rule 34
-   red from 2027-05-10, a devis stay now 190 days out) and `deposit-due-date-and-override-history` (stays in
-   October 2027, red from 2027-09-05, found by the same sweep). All six files were proven red at their bomb
-   date with a clock-shift preload and green after, swept to 2030-01-02, under Europe/Paris, UTC and
-   America/Los_Angeles.
+   now start 60 days out and more (beyond the acompte window), the solde is ticked eight days ago and the link
+   paid seven days ago (a paid date is never ahead of now), and the journal month is the one it was paid in.
+   The same holds for `payment-links-converted-devis-double-payment` (rule 34 red from 2027-05-10, a devis stay
+   now 190 days out) and `deposit-due-date-and-override-history` (stays in October 2027, red from 2027-09-05,
+   found by the same sweep). All six files were proven red at their bomb date with a clock-shift preload and
+   green after, swept to 2030-01-02, under Europe/Paris, UTC and America/Los_Angeles.
+   The review of that fix found older fuses still burning (2026-10-30): stays of January to May 2027 in
+   `reservation-overpayment`, `kept-money-priced-closes-trop-percu`, `trop-percu-refund-books`, the
+   accounting-export plugin's `accounting-paid-then-reduced` (all red from 2027-01-24), `hourly-session-overlap`,
+   `reservation-time-change-overlap`, `ledger-stored-deposit-ceiling`, `platform-paid-solde-follows-statement`
+   (red from 2027-02-12), and the `reservationSaveFixture.js` family — its default stay of 2027-07-20 and 2027 or
+   2028 stays in its suites, 20 tests red at 2027-05-25 and 27 at 2027-07-21. Their stays now hang on today the
+   same way (`inDays(n)`, the fixture's default 270 days out, `f.inDays` exported to its suites), each keeping
+   the gaps between its stays. A date handed to a pure function (the session-overlap check and its French
+   message, `resolveDepositDueDate`) stays literal under the rule 7 marker. Every suite of the fixture is read
+   by the rule 6 test, found by its `require`, so a new one is held to the rule without being listed.
 
 7. **A PR adding a literal date to a test is told so, on the line** (added 2026-10-30, audit R8 M-1, the guard
    audit R7 proposed). `scripts/check-test-dates.mjs --base <ref>` reads only the test lines a PR adds (files of
    a `tests/`, `__tests__/` or `e2e/` folder, and every `*.test.*` / `*.spec.*`), and names a quoted
-   `YYYY-MM-DD` — or a `Date.UTC(YYYY, …)` / `new Date(YYYY, …)` year — from today to ten years out. Not
-   named: comment lines; a line carrying `date-literal-ok`, or under one (« `// date-literal-ok: <why>` », for
-   a date nothing compares with today, such as the input of a pure function); every line of a file that pins
-   the clock (`setSystemTime(`, `mock.timers.enable(` / `setTime(`); and a date further out, a deliberate far
-   future (`2099-06-01`). The `spec rules` job of `unit-tests.yml` runs it on every PR **as a warning** — a
-   GitHub annotation on the line, the list in the log — and `--strict` makes it fail. Why a warning: replayed
-   on the 40 PRs merged into inte/plugins before 2026-10-30, it named lines in about half of them, many being a
-   date the test hands to the code as its « now » (`const MINTED = new Date('2026-11-02T08:00:00Z')`), which
-   only the author can tell from a bomb. A clock-shift run of the changed files was weighed and rejected: at
-   +400 days the whole server suite has 157 red tests, most of them dates of 2027 that are bombs with a longer
-   fuse, and every PR touching one of those files would go red for a date it did not write. Test:
+   `YYYY-MM-DD`, a template opening on a year (`` `2028-${m}-10` ``), or a `Date.UTC(YYYY, …)` /
+   `new Date(YYYY, …)` year, from today to ten years out. Not named: comment lines; a line carrying
+   `date-literal-ok`, or under one (« `// date-literal-ok: <why>` », for a date nothing compares with today,
+   such as the input of a pure function or a « now » the test hands to the code); the lines of a test that
+   pins the clock; and a date further out, a deliberate far future (`2099-06-01`). A pin is
+   `vi.setSystemTime(`, `mock.timers.setTime(`, `vi.useFakeTimers({ now })`, or `mock.timers.enable(` whose
+   `apis` include `'Date'` or are left out — `{ apis: ['setTimeout'] }` leaves `Date` real and pins nothing. A
+   pin inside a `test` / `it` / `describe` call exempts that call only, not the file's other tests; a pin
+   outside every such call (top level, a top-level hook) exempts the file. Calls written inside strings and
+   comments are not read as pins.
+   The `spec rules` job of `unit-tests.yml` runs it with **`--strict`: a named line fails the PR** — the line
+   annotated on GitHub, the list in the log. Resolved 2026-10-30 (Adrien): blocking, with the marker as the
+   escape. A warning reached nobody — PRs are merged on their check buckets — and #893, replayed, would have
+   merged with its 13 named lines. Replayed on the 40 PRs merged into inte/plugins before 2026-10-30, it named
+   lines in about half of them, many being a date the test hands to the code as its « now »
+   (`const MINTED = new Date('2026-11-02T08:00:00Z')`): those take the marker, one comment each. A clock-shift
+   run of the changed files was weighed and rejected: at +400 days the whole server suite had 157 red tests,
+   and every PR touching one of those files would go red for a date it did not write. Those 157 are not all
+   « bombs with a longer fuse »: the review of 2026-10-30 found the first of them red from 2027-01-24, and
+   rule 6 defused every one it named; the rest of the suite was not swept file by file. Test:
    `test-suite-calendar-and-ci-budget.unit.test.js`.
 
 8. **The client unit suite runs in three shards** (added 2026-10-30, audit R8 M-2). The `client` job of
@@ -130,8 +149,11 @@ hangs on a test that does not settle (rule 5). A suite does not go red because t
 | `control-plane/server/package.json` | `test` script | T | `--test-timeout=180000 --test-force-exit` (rule 5). |
 | `tests/` | `node-suite-test-timeout.unit.test.js` | C | Pins rule 5: both values, force-exit in both scripts, and that a hanging test fails within its limit on Node 22 and 24. |
 | `tests/` | `disabledAcompteLinkFixture.js`, `deposit-collected-by-link-kept-on-save`, `deposit-link-paid-on-disabled-acompte`, `deposit-due-date-and-override-history`, `payment-links-converted-devis-double-payment` | T | Rule 6: dates built from today. |
-| `scripts/` (repo root) | `check-test-dates.mjs` | C | Rule 7: names the literal dates of the test lines a PR adds; warns, `--strict` fails. |
-| `.github/workflows/` | `unit-tests.yml` | T | Rule 7: a `spec rules` step runs the check. Rule 8: the `client` job is a 3-shard matrix; build and bundle budget in shard 1. |
+| `tests/` | `reservation-overpayment`, `kept-money-priced-closes-trop-percu`, `trop-percu-refund-books`, `hourly-session-overlap`, `ledger-stored-deposit-ceiling`, `platform-paid-solde-follows-statement` | T | Rule 6: stays built from today (`inDays`). |
+| `tests/` | `reservationSaveFixture.js` and its 17 suites | T | Rule 6: default stay `inDays(270)`, `inDays` exported; every suite's stays built from it. |
+| `plugins/accounting-export/tests/` | `accounting-paid-then-reduced.unit.test.js` | T | Rule 6: stay built from today (test only, no plugin version bump). |
+| `scripts/` (repo root) | `check-test-dates.mjs` | C | Rule 7: names the literal dates of the test lines a PR adds; a clock pin exempts its own test; `--strict` fails. |
+| `.github/workflows/` | `unit-tests.yml` | T | Rule 7: a `spec rules` step runs the check with `--strict`. Rule 8: the `client` job is a 3-shard matrix; build and bundle budget in shard 1. |
 | `.github/workflows/` | `release.yml` | T | Rule 8 / self-update rule 52: `tests` split into `server-tests` and a 3-shard `client-tests`. |
 | `tests/` | `test-suite-calendar-and-ci-budget.unit.test.js` | C | Pins rules 6-8 and self-update rule 52. |
 
@@ -146,7 +168,8 @@ None. API, data model and UI are unchanged.
 - [x] Rule 3: the three tests, run alone with `server/guestflow.db` removed, leave no file behind.
 - [x] Rule 5: `node-suite-test-timeout.unit.test.js` (2 tests) reads both scripts (timeouts + `--test-force-exit`) and runs a hanging file under a 300 ms limit with force-exit; passes on Node 22.22.2 and 24.22.2.
 - [x] Rule 6: the six files carry no literal date the calendar will pass (`findDateBombs` over their whole content); with the R7 clock-shift preload they were red before the change (3 tests at 2027-05-09, 16 at 2027-06-08, 26 at 2027-10-05, rule 34 from 2027-05-10, 1 of the due-date file at 2027-09-05) and are 48/48 green at 2026-10-30 09:30Z and 23:30Z, 2027-05-09, 06-08, 09-05, 10-05, 12-31 22:30Z, 2028-02-29 and 2030-01-02.
-- [x] Rule 7: `test-suite-calendar-and-ci-budget.unit.test.js` — a quoted date and a `Date.UTC` year are named with file and line; only added lines are read, numbered as the diff numbers them; the marker, a pinned clock, a comment, the far future and non-test files are not named; the PR job runs it without `--strict`.
+- [x] Rule 6 (second pass): the rule 6 test also reads the eight suites above and the whole `reservationSaveFixture` family (17 suites, found by their `require`). Clock-shift sweep of those 26 files (117 tests) under Europe/Paris and America/Los_Angeles: before, 0 / 4 / 8 / 20 / 27 red at 2026-10-30, 2027-01-24, 2027-02-12, 2027-05-25, 2027-07-21; after, 117/117 at each, and at 2027-10-05, 2028-02-29 and 2030-01-02.
+- [x] Rule 7: `test-suite-calendar-and-ci-budget.unit.test.js` — a quoted date, a template opening on a year and a `Date.UTC` year are named with file and line; only added lines are read, numbered as the diff numbers them; the marker, a pinned clock, a comment, the far future and non-test files are not named; a timer mock without `'Date'` pins nothing and `mock.timers.enable()` with no `apis` does; a pin exempts its own `test` / `describe` only, and a call written in a string is not a pin; the PR job runs it with `--strict`. The five new cases fail on the previous script and workflow. The PR itself passes `--strict` against inte/plugins.
 - [x] Rule 8: the same file reads the `client` job (3 shards, `fail-fast: false`, budget in shard 1) and the release jobs (self-update rule 52). The three shards locally: 209 / 208 / 208 files, 1 026 + 1 029 + 1 033 = 3 088 tests, the full suite's count.
 
 ## 8. Out of scope

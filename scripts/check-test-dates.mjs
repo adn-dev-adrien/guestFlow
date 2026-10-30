@@ -3,10 +3,10 @@
  * A test line added by a PR carries no literal date the calendar will pass (specs/server-test-isolation.md
  * rule 7).
  *
- *   node scripts/check-test-dates.mjs --base origin/inte/plugins       # every PR: names the lines it adds,
- *                                                                      # as warnings (exit 0)
  *   node scripts/check-test-dates.mjs --base origin/inte/plugins --strict
- *                                                                      # the same, exit 1 when one is named
+ *                                                                      # every PR on CI: names the lines it
+ *                                                                      # adds, exit 1 when one is named
+ *   node scripts/check-test-dates.mjs --base origin/inte/plugins       # the same list, as warnings (exit 0)
  *   node scripts/check-test-dates.mjs --base <ref> --head <ref> --today YYYY-MM-DD
  *                                                                      # replay a past diff on its own day
  *
@@ -16,19 +16,21 @@
  * existing suites block nobody, and only dates from today to ten years out are named: a date already in
  * the past cannot be passed again, and one further out (`2099-06-01`) is a deliberate far future.
  *
- * On CI the step only warns (an annotation on the line, a list in the job summary): replayed on the 40
- * PRs merged into inte/plugins before 2026-10-30, it named lines in about half of them, many of them
- * dates a test hands to the code as its « now ». `--strict` fails instead.
+ * On CI the step runs `--strict` and blocks the PR (decided 2026-10-30): a warning reaches nobody, since
+ * PRs are merged on their check buckets, and #893 would have merged with its 13 named lines. Replayed on
+ * the 40 PRs merged into inte/plugins before 2026-10-30, it named lines in about half of them, many of them
+ * dates a test hands to the code as its « now »: those take the marker below, one comment each.
  *
- * Read: on a line that is not a comment, a quoted `YYYY-MM-DD` (alone or as the start of a timestamp), and `Date.UTC(YYYY, …)` /
- * `new Date(YYYY, …)` from the current year on. Test files are the `.js/.jsx/.mjs/.cjs/.ts/.tsx` files of
+ * Read: on a line that is not a comment, a quoted `YYYY-MM-DD` (alone or as the start of a timestamp), a template
+ * opening on a year (`` `2028-${m}-10` ``), and `Date.UTC(YYYY, …)` / `new Date(YYYY, …)` from the current year on. Test files are the `.js/.jsx/.mjs/.cjs/.ts/.tsx` files of
  * a `tests/`, `__tests__/` or `e2e/` folder, and every `*.test.*` / `*.spec.*` file.
  *
  * Not named:
  *   - a line carrying `date-literal-ok`, or whose previous line does: the date is an input of a pure
  *     function, or a value nothing compares with today. Say why after the marker;
- *   - every line of a file that pins the clock (`vi.setSystemTime(`, `mock.timers.enable(`,
- *     `mock.timers.setTime(`): the test decides what today is.
+ *   - a line of a test that pins the clock (`vi.setSystemTime(`, `mock.timers.setTime(`, `vi.useFakeTimers({ now })`,
+ *     `mock.timers.enable(` with `'Date'` in its `apis` or no `apis`): that test decides what today is. A pin
+ *     inside a `test` / `it` / `describe` covers that block only; a pin outside every block covers the file.
  *
  * The decision is a pure function, exported for the unit suite.
  */
@@ -48,8 +50,90 @@ export function isTestFile(file) {
   return /(^|\/)(tests|__tests__|e2e)\//.test(file) || /\.(test|spec)\.(c|m)?[jt]sx?$/.test(file);
 }
 
-/** Whether the file decides what today is. */
-export const pinsTheClock = (content) => /\bsetSystemTime\s*\(|\bmock\.timers\.(enable|setTime)\s*\(/.test(content);
+const REGEX_BEFORE = new Set('(,=:[!&|?{};+-*%~^'.split(''));
+
+/**
+ * `content` with the inside of every string, template, regex literal and comment blanked to spaces, the
+ * newlines kept: offsets and line numbers still match, and a `(` or a call written in a string is not code.
+ */
+export function codeOnly(content) {
+  const out = content.split('');
+  const blank = (from, to) => { for (let k = from; k < to; k += 1) if (out[k] !== '\n') out[k] = ' '; };
+  let prev = '';
+  let i = 0;
+  while (i < content.length) {
+    const c = content[i];
+    const n = content[i + 1];
+    if (c === '/' && n === '/') {
+      const end = content.indexOf('\n', i);
+      const stop = end < 0 ? content.length : end;
+      blank(i, stop); i = stop; continue;
+    }
+    if (c === '/' && n === '*') {
+      const end = content.indexOf('*/', i + 2);
+      const stop = end < 0 ? content.length : end + 2;
+      blank(i, stop); i = stop; continue;
+    }
+    if (c === '"' || c === "'" || c === '`' || (c === '/' && (prev === '' || REGEX_BEFORE.has(prev)))) {
+      let j = i + 1;
+      let inClass = false;
+      while (j < content.length) {
+        const d = content[j];
+        if (d === '\\') { j += 2; continue; }
+        if (c === '/' && d === '[') inClass = true;
+        else if (c === '/' && d === ']') inClass = false;
+        else if (d === c && !inClass) break;
+        else if (d === '\n' && c !== '`') break;
+        j += 1;
+      }
+      blank(i + 1, j); i = j + 1; prev = c; continue;
+    }
+    if (!/\s/.test(c)) prev = c;
+    i += 1;
+  }
+  return out.join('');
+}
+
+/** Offset of the `)` closing the `(` at `open`, in code blanked by `codeOnly`. */
+function closingParen(code, open) {
+  let depth = 0;
+  for (let k = open; k < code.length; k += 1) {
+    if (code[k] === '(') depth += 1;
+    else if (code[k] === ')') { depth -= 1; if (depth === 0) return k; }
+  }
+  return code.length - 1;
+}
+
+const lineAt = (content, offset) => content.slice(0, offset).split('\n').length;
+
+/**
+ * → [{ from, to }] — the 1-based line ranges where the clock is pinned; `{ from: 1, to: Infinity }` when it is
+ * pinned outside any `test` / `it` / `describe` block. A pin is `vi.setSystemTime(`, `mock.timers.setTime(`,
+ * `vi.useFakeTimers({ now })`, or `mock.timers.enable(` whose `apis` include `'Date'` or are left out (the
+ * default mocks Date): a timer mock that leaves Date alone decides nothing about today. Inside a block, the pin
+ * covers the innermost `test` / `it` / `describe` call that holds it, and nothing else.
+ */
+export function pinnedRanges(content) {
+  const code = codeOnly(content);
+  const blocks = [];
+  for (const m of code.matchAll(/(^|[^.\w$])(test|it|describe|suite)(\.\w+)?\s*\(/g)) {
+    const open = m.index + m[0].length - 1;
+    blocks.push({ start: open, end: closingParen(code, open) });
+  }
+  const ranges = [];
+  for (const m of code.matchAll(/\b(setSystemTime|mock\.timers\.setTime|mock\.timers\.enable|useFakeTimers)\s*\(/g)) {
+    const open = m.index + m[0].length - 1;
+    const args = content.slice(open + 1, closingParen(code, open));
+    if (m[1] === 'mock.timers.enable' && /\bapis\s*:/.test(args) && !/\bapis\s*:\s*\[[^\]]*(['"`])Date\1/.test(args)) continue;
+    if (m[1] === 'useFakeTimers' && !/\bnow\s*:/.test(args)) continue;
+    const holder = blocks
+      .filter((b) => b.start < m.index && m.index < b.end)
+      .sort((a, b) => (a.end - a.start) - (b.end - b.start))[0];
+    if (!holder) return [{ from: 1, to: Infinity }];
+    ranges.push({ from: lineAt(content, holder.start), to: lineAt(content, holder.end) });
+  }
+  return ranges;
+}
 
 const pad = (n) => String(n).padStart(2, '0');
 
@@ -68,6 +152,10 @@ export function futureDates(text, today) {
   for (const m of text.matchAll(/(['"`])(20\d\d-[01]\d-[0-3]\d)(?=[T\s'"`])/g)) {
     if (m[2] >= today && m[2] <= horizon) found.push({ date: m[2], literal: m[2] });
   }
+  for (const m of text.matchAll(/`(20\d\d)-\$\{/g)) {
+    const y = Number(m[1]);
+    if (y >= year && y <= year + HORIZON_YEARS) found.push({ date: m[1], literal: `\`${m[1]}-\${…}\`` });
+  }
   for (const m of text.matchAll(/\b(Date\.UTC|new Date)\(\s*(20\d\d)\s*,/g)) {
     const y = Number(m[2]);
     if (y >= year && y <= year + HORIZON_YEARS) found.push({ date: m[2], literal: `${m[1]}(${m[2]}, …)` });
@@ -82,10 +170,12 @@ export function futureDates(text, today) {
 export function findDateBombs({ files, today }) {
   const out = [];
   for (const { file, content, added } of files) {
-    if (!isTestFile(file) || pinsTheClock(content)) continue;
+    if (!isTestFile(file)) continue;
+    const pinned = pinnedRanges(content);
     const lines = content.split('\n');
     for (const { line, text } of added) {
       if (text.includes(MARKER) || (lines[line - 2] || '').includes(MARKER)) continue;
+      if (pinned.some((r) => r.from <= line && line <= r.to)) continue;
       for (const { literal } of futureDates(text, today)) out.push({ file, line, literal });
     }
   }

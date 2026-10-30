@@ -7,6 +7,11 @@ process.env.DB_PATH = ':memory:';
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { todayIso } = require('../utils/localDate');
+const { addDaysToIsoDate } = require('../utils/devisHelpers');
+
+// The stays hang on today: a literal date becomes a stay in the past.
+const inDays = (days) => addDaysToIsoDate(todayIso(), days);
 
 const { collectedOnSchedule, overpaymentOf } = require('../utils/overpayment');
 
@@ -49,7 +54,7 @@ function fixture() {
   db.prepare('INSERT INTO property_options (propertyId, optionId) VALUES (1, ?)').run(optionId);
   db.prepare("INSERT INTO clients (id, firstName, lastName) VALUES (1, 'Camille', 'Revue')").run();
   const body = (adults) => ({
-    propertyId: 1, clientId: 1, startDate: '2027-01-24', endDate: '2027-01-27',
+    propertyId: 1, clientId: 1, startDate: inDays(90), endDate: inDays(93),
     checkInTime: '16:00', checkOutTime: '10:00', platform: 'direct',
     adults, children: 0, teens: 0, babies: 0, singleBeds: 0, doubleBeds: 0, babyBeds: 0,
     depositDisabled: 1, options: [{ optionId, quantity: 1 }],
@@ -112,7 +117,7 @@ test('rule 34 — acompte and solde paid, then the stay reduced: the frozen exce
   db.prepare("INSERT OR IGNORE INTO properties (id, name, maxGuests, touristTaxMode, touristTaxPerDayPerPerson) VALUES (2, 'Lodge', 8, 'per_day_per_person', 1.2)").run();
   db.prepare("INSERT INTO pricing_rules (propertyId, label, pricePerNight) VALUES (2, 'Standard', 100)").run();
   const body = (adults, extra = {}) => ({
-    propertyId: 2, clientId: 1, startDate: '2027-02-24', endDate: '2027-02-27',
+    propertyId: 2, clientId: 1, startDate: inDays(121), endDate: inDays(124),
     checkInTime: '16:00', checkOutTime: '10:00', platform: 'direct',
     adults, children: 0, teens: 0, babies: 0, singleBeds: 0, doubleBeds: 0, babyBeds: 0, ...extra,
   });

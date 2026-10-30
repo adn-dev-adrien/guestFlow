@@ -15,7 +15,7 @@ function markBalancePaid(id) {
 test('a notes-only save after the rate went up keeps the collected tax', async () => {
   f.seed();
   f.db.prepare("UPDATE properties SET touristTaxMode = 'per_day_per_person', touristTaxPerDayPerPerson = 1.5 WHERE id = 1").run();
-  const id = f.createStay({ startDate: '2027-08-01', endDate: '2027-08-04' });
+  const id = f.createStay({ startDate: f.inDays(250), endDate: f.inDays(253) });
   const collected = f.rowOf(id).touristTaxTotal;
   assert.equal(collected, 9);
   markBalancePaid(id);
@@ -27,7 +27,7 @@ test('a notes-only save after the rate went up keeps the collected tax', async (
 });
 
 test('« Recalculer la taxe de séjour » still re-prices it on purpose', async () => {
-  const id = f.createStay({ startDate: '2027-08-10', endDate: '2027-08-13' });
+  const id = f.createStay({ startDate: f.inDays(259), endDate: f.inDays(262) });
   markBalancePaid(id);
   f.db.prepare('UPDATE properties SET touristTaxPerDayPerPerson = 3 WHERE id = 1').run();
   const res = await f.save(id, { refreshTouristTax: true });

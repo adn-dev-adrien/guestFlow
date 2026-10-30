@@ -15,11 +15,11 @@ const { todayIso } = require('../utils/localDate');
 const { addDaysToIsoDate } = require('../utils/devisHelpers');
 
 // Every date hangs on today (specs/server-test-isolation.md rule 6): the stays start 60 days out and more,
-// beyond the acompte window, and the link is paid a week from now, before them.
+// beyond the acompte window; the solde was ticked eight days ago and the link paid the day after, both past.
 const TODAY = todayIso();
-const PAID_DATE = addDaysToIsoDate(TODAY, 7);
+const PAID_DATE = addDaysToIsoDate(TODAY, -7);
 const PAID_AT = `${PAID_DATE}T09:00:00Z`;
-const SOLDE_PAID_DATE = addDaysToIsoDate(TODAY, 1);
+const SOLDE_PAID_DATE = addDaysToIsoDate(TODAY, -8);
 /** `YYYY-MM-DD`, `days` after today. */
 const inDays = (days) => addDaysToIsoDate(TODAY, days);
 let nextWeek = 1;

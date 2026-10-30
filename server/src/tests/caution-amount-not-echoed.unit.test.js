@@ -19,7 +19,7 @@ test('a started stay saves unchanged after the property caution moved', async ()
 });
 
 test('the first save of a stay created without caution writes no « Caution 0 € → 500 € »', async () => {
-  const id = f.createStay({ startDate: '2027-09-01', endDate: '2027-09-03' });
+  const id = f.createStay({ startDate: f.inDays(300), endDate: f.inDays(302) });
   assert.equal(f.rowOf(id).cautionAmount, 0);
   assert.equal(f.getFiche(id).cautionAmount, 500);
   assert.equal((await f.save(id, { notes: 'Vu' })).statusCode, 200);

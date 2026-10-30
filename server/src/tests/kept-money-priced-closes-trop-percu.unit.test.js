@@ -6,6 +6,11 @@ process.env.DB_PATH = ':memory:';
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { todayIso } = require('../utils/localDate');
+const { addDaysToIsoDate } = require('../utils/devisHelpers');
+
+// The stays hang on today: a literal date becomes a stay in the past.
+const inDays = (days) => addDaysToIsoDate(todayIso(), days);
 
 test('rule 39 — 465,60 € paid, 6 → 2 adults, breakfasts kept as a free line: only the tax is owed back', () => {
   const db = require('../database');
@@ -19,7 +24,7 @@ test('rule 39 — 465,60 € paid, 6 → 2 adults, breakfasts kept as a free lin
   db.prepare('INSERT INTO property_options (propertyId, optionId) VALUES (1, ?)').run(optionId);
   db.prepare("INSERT INTO clients (id, firstName, lastName) VALUES (1, 'Camille', 'Garde')").run();
   const body = (adults, customOptions = []) => ({
-    propertyId: 1, clientId: 1, startDate: '2027-01-24', endDate: '2027-01-27',
+    propertyId: 1, clientId: 1, startDate: inDays(90), endDate: inDays(93),
     checkInTime: '16:00', checkOutTime: '10:00', platform: 'direct',
     adults, children: 0, teens: 0, babies: 0, singleBeds: 0, doubleBeds: 0, babyBeds: 0,
     depositDisabled: 1, options: [{ optionId, quantity: 1 }], selectedOptions: [{ optionId, quantity: 1 }], customOptions,
