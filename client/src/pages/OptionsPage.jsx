@@ -12,6 +12,7 @@ import AddIcon from '@mui/icons-material/Add';
 import InventoryIcon from '@mui/icons-material/Inventory2Outlined';
 import SearchOffIcon from '@mui/icons-material/SearchOff';
 import api from '../api';
+import useLatestRequest from '../hooks/useLatestRequest';
 import PageActionBar from '../components/PageActionBar';
 import SearchField from '../components/SearchField';
 import SegmentedSelect from '../components/SegmentedSelect';
@@ -53,18 +54,20 @@ export default function OptionsPage({ barTabs }) {
   const [restoring, setRestoring] = useState(false);
   const flashTimer = useRef(null);
 
+  const beginLoad = useLatestRequest();
+
   const load = useCallback(async (filter) => {
+    const current = beginLoad();
     setRefreshing(true);
     try {
       const data = await api.getOptionsCatalogueView(filter === ALL ? undefined : filter);
-      setView(data);
-      setError(false);
+      if (current()) { setView(data); setError(false); }
     } catch {
-      setError(true);
+      if (current()) setError(true);
     } finally {
-      setRefreshing(false);
+      if (current()) setRefreshing(false);
     }
-  }, []);
+  }, [beginLoad]);
 
   useEffect(() => {
     api.getProperties().then(setProperties).catch(() => setProperties([]));

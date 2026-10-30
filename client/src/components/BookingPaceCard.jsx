@@ -17,6 +17,7 @@ import PaceMonthChart, { paceMonthLines } from './PaceMonthChart';
 import PickupCurveChart from './PickupCurveChart';
 import { formatCurrencyRounded } from '../utils/formatters';
 import api from '../api';
+import useLatestRequest from '../hooks/useLatestRequest';
 import { chart } from '../utils/chartColors';
 
 const METRICS = [
@@ -70,26 +71,37 @@ function LegendItem({ swatch, label }) {
 
 export default function BookingPaceCard({ propertyId, refreshKey }) {
   const [metric, setMetric] = useState('reservations');
-  const [pace, setPace] = useState(null);
+  const [paceAnswer, setPaceAnswer] = useState(null);
   const [error, setError] = useState(null);
   const [selected, setSelected] = useState(null);
-  const [curve, setCurve] = useState({ data: null, error: false });
+  const [curveAnswer, setCurveAnswer] = useState({ key: null, data: null, error: false });
+  const beginPace = useLatestRequest();
+  const beginCurve = useLatestRequest();
+
+  const paceKey = `${propertyId}|${metric}`;
+  const curveKey = `${selected}|${paceKey}`;
+  const pace = paceAnswer && paceAnswer.key === paceKey ? paceAnswer.data : null;
+  const curve = curveAnswer.key === curveKey ? curveAnswer : { data: null, error: false };
 
   const load = useCallback(async () => {
+    const current = beginPace();
     try {
       setError(null);
-      setPace(await api.getFinancePace({ propertyId, metric }));
+      const data = await api.getFinancePace({ propertyId, metric });
+      if (current()) setPaceAnswer({ key: paceKey, data });
     } catch (err) {
-      setError((err && err.error) || 'Impossible de charger les réservations à date.');
+      if (current()) setError((err && err.error) || 'Impossible de charger les réservations à date.');
     }
   }, [propertyId, metric, refreshKey]);
 
   const loadCurve = useCallback(async () => {
+    const current = beginCurve();
     if (!selected) return;
     try {
-      setCurve({ data: await api.getFinancePaceMonth(selected, { propertyId, metric }), error: false });
+      const data = await api.getFinancePaceMonth(selected, { propertyId, metric });
+      if (current()) setCurveAnswer({ key: curveKey, data, error: false });
     } catch {
-      setCurve({ data: null, error: true });
+      if (current()) setCurveAnswer({ key: curveKey, data: null, error: true });
     }
   }, [selected, propertyId, metric, refreshKey]);
 
@@ -99,7 +111,7 @@ export default function BookingPaceCard({ propertyId, refreshKey }) {
   const { formatValue, formatShort } = paceFormatters(metric);
   const openMonth = pace && selected ? pace.months.find((m) => m.month === selected) : null;
   const selectMonth = (month) => {
-    setCurve({ data: null, error: false });
+    setCurveAnswer({ key: null, data: null, error: false });
     setSelected((current) => (current === month ? null : month));
   };
 

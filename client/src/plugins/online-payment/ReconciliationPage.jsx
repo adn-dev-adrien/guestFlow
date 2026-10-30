@@ -100,10 +100,13 @@ export default function ReconciliationPage() {
 
   const refresh = async () => {
     setReading(true);
+    latest.current += 1;
+    const ticket = latest.current;
     try {
-      setData(await api.readReconciliation(view, filter));
-      setError(null);
+      const answer = await api.readReconciliation(view, filter);
+      if (ticket === latest.current) { setData(answer); setError(null); }
     } catch (err) {
+      if (ticket !== latest.current) return;
       if (err && err.code === 'READ_TOO_SOON') await load(view, filter); else setError(err);
     } finally {
       setReading(false);

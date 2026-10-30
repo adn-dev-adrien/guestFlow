@@ -1,0 +1,2 @@
+- Suivi financier: switching KPI tiles quickly no longer crashes the page, and a slow answer for a logement already left no longer takes over; the same guard protects the booking-pace card (no more wrong units), the Rapprochement « Actualiser », the Devis and Options filters and the e-mail sequence simulation.
+- Operator texts: the remaining « tu » imperatives are rewritten in the short impersonal style, and the wording guard now catches them.

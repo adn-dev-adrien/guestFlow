@@ -13,6 +13,7 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import DataPageScaffold from './DataPageScaffold';
 import StatusBadge from './StatusBadge';
 import api from '../api';
+import useLatestRequest from '../hooks/useLatestRequest';
 import { displayDate } from '../utils/formatters';
 
 const STATUS = {
@@ -36,17 +37,21 @@ export default function EmailSequenceSimulation({ tabs }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  const beginLoad = useLatestRequest();
+
   const load = useCallback(async () => {
+    const current = beginLoad();
     setLoading(true);
     setError('');
     try {
-      setResult(await api.getEmailSequenceSimulation({ from, to }));
+      const answer = await api.getEmailSequenceSimulation({ from, to });
+      if (current()) setResult(answer);
     } catch (err) {
-      setError(err.error === 'INVALID_RANGE' ? 'Période invalide (400 jours au plus, fin après début).' : 'La simulation n\'a pas pu être calculée.');
+      if (current()) setError(err.error === 'INVALID_RANGE' ? 'Période invalide (400 jours au plus, fin après début).' : 'La simulation n\'a pas pu être calculée.');
     } finally {
-      setLoading(false);
+      if (current()) setLoading(false);
     }
-  }, [from, to]);
+  }, [from, to, beginLoad]);
 
   useEffect(() => { load(); }, [load]);
 
