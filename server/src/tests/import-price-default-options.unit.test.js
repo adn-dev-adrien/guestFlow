@@ -97,6 +97,7 @@ function buildDb() {
   db.exec(DDL);
   db.prepare("INSERT INTO properties (id, name, defaultCheckIn, defaultCheckOut, defaultCautionAmount) VALUES (1, 'Logement', '15:00', '10:00', 500)").run();
   db.prepare('INSERT INTO app_settings (id, vatRate) VALUES (1, 10)').run();
+  db.prepare("INSERT INTO ical_sources (id, propertyId, name, url, platformKey, platformLabel) VALUES (1, 1, 'Airbnb', 'http://feed.test/ical', 'airbnb', 'Airbnb')").run();
   db.prepare('INSERT INTO pricing_rules (id, propertyId, pricePerNight, minNights) VALUES (1, 1, 100, 1)').run();
   // Paid default « obligatoire mais payante »: Ménage, per_stay, base 40, per-property override 60, offered = 0.
   db.prepare("INSERT INTO options (id, title, priceType, price) VALUES (10, 'Ménage', 'per_stay', 40)").run();
