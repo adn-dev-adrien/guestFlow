@@ -142,3 +142,47 @@ test('the admin alert names the amounts for a mismatch and the double payment', 
   assert.match(mismatch.text, /610,12/);
   assert.match(buildPaidAfterCancelEmail(resa, { amountCents: 100 }, '', { doublePaid: true }).subject, /deux fois/);
 });
+
+// specs/plugins-phase-3a-online-payment.md rule 47 (audit R6 D1): an acompte link paid at another amount books the acompte
+// at what was received and the solde absorbs the gap; the alert says so, owes no complement nor trop-perçu, and the
+// confirmation goes out.
+for (const [deposit, balance, label] of [[120, 335.36, 'grown'], [80, 375.36, 'shrunk']]) {
+  // specs/plugins-phase-3a-online-payment.md rule 47
+  test(`rule 47 — devis acompte link, acompte ${label}: the alert states the booking, the confirmation is sent`, async () => {
+    const { db, id, links } = seed({ deposit: 100, balance: 355.36 });
+    const link = links.create({ reservationId: id, type: 'deposit', amountCents: 10000, providerLinkId: 'old', url: 'u', status: 'open' });
+    reprice(db, id, deposit, balance);
+
+    const { out, alerts, confirmations } = await pay(db, links, link);
+    const resa = db.prepare('SELECT depositAmount, balanceAmount, complementAmount FROM reservations WHERE id = ?').get(out.reservationId);
+    assert.equal(Number(resa.depositAmount), 100);
+    assert.equal(Number(resa.balanceAmount), 355.36);
+    assert.equal(Number(resa.complementAmount || 0), 0);
+    assert.equal(confirmations.length, 1);
+    assert.equal(alerts.length, 1);
+    const { text } = notificationService.__test.buildPaidAfterCancelEmail(db.prepare('SELECT * FROM reservations WHERE id = ?').get(id), links.findById(link.id), '', alerts[0]);
+    assert.match(text, new RegExp(`Acompte enregistré à 100,00\\s€ \\(${deposit},00\\s€ demandés\\) ; solde porté à 355,36\\s€\\.`));
+    assert.doesNotMatch(text, /Trop-perçu|complément d’arrivée/);
+  });
+}
+
+// specs/plugins-phase-3a-online-payment.md rule 47 (audit R6 E2)
+test('rule 47 (E2): a retired acompte link of a devis paid after a re-price tells the operator no confirmation was sent', async () => {
+  const { db, id, links } = seed({ deposit: 100, balance: 355.36 });
+  const link = links.create({ reservationId: id, type: 'deposit', amountCents: 10000, provider: 'qonto', providerLinkId: 'old', url: 'u', status: 'open' });
+  reprice(db, id, 120, 335.36);
+  links.retireForAmountChange(id, 'deposit', 12000);
+  const alerts = [];
+  const confirmations = [];
+  const provider = { id: 'qonto', async getPayment() { return { paid: true, paymentId: 'pOld', paidAt: '2027-04-01T12:00:00Z' }; }, async cancelLink() {} };
+  const { retryPendingCancellations } = require('../utils/paymentPollRunner');
+  await retryPendingCancellations({
+    database: db, devisModel: devisModel.buildModel(db), paymentLinksModel: links, provider,
+    sendConfirmation: async (rid) => confirmations.push(rid), notifyPaidAfterCancel: async (l, o) => alerts.push(o), emitPluginEvent: () => {},
+  });
+  assert.equal(confirmations.length, 0);
+  assert.equal(alerts.length, 1);
+  const { text } = notificationService.__test.buildPaidAfterCancelEmail(db.prepare('SELECT * FROM reservations WHERE id = ?').get(id), links.findById(link.id), '', alerts[0]);
+  assert.match(text, /Acompte enregistré à 100,00\s€ \(120,00\s€ demandés\) ; solde porté à 355,36\s€\./);
+  assert.match(text, /Aucun e-mail de confirmation n’a été envoyé au client\. À vérifier : envoyer la confirmation au client\./s);
+});
