@@ -88,6 +88,10 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
   // production DB; tests build a fresh property-ical model on `:memory:`, and they need
   // matching companion models).
   const syncsInFlight = new Map();
+  // specs/ical-sync-mapping-resilience.md rule 8 — per source: when the fetch behind the last observation
+  // we consumed started, and when the last empty answer we counted finished.
+  const lastObservedStart = new Map();
+  const lastEmptyCompletedAt = new Map();
   const driftModel = icalDateDriftModel.buildModel(database);
   const cancellationModel = icalCancellationModel.buildModel(database);
   // 2026-06-06 — same DB-binding rationale for the closure model: tests build a fresh
@@ -305,6 +309,15 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
       }
     },
 
+    // A fetch stamped with its start and end times, so the sync can tell how an observation orders against
+    // the other ones of the same source (rule 8).
+    observeFeed(source) {
+      const observation = { startedAt: performance.now(), completedAt: null };
+      observation.promise = model.fetchFeed(source).finally(() => { observation.completedAt = performance.now(); });
+      observation.promise.catch(() => {});
+      return observation;
+    },
+
     syncSource(source, { prefetched = null } = {}) {
       return (async () => {
         const property = database.prepare('SELECT id, defaultCheckIn, defaultCheckOut, defaultCautionAmount FROM properties WHERE id = ?').get(source.propertyId);
@@ -314,15 +327,26 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
 
         const setEmptyFeedStreak = database.prepare('UPDATE ical_sources SET emptyFeedStreak = ? WHERE id = ?');
         let icsText;
+        // A feed fetched ahead by syncMany (rule 4) arrives as an observation; otherwise fetch it now.
+        const observation = prefetched || model.observeFeed(source);
         try {
-          // A feed fetched ahead by syncMany (rule 4) arrives as a promise; otherwise fetch it now.
-          icsText = await (prefetched || model.fetchFeed(source));
+          icsText = await observation.promise;
         } catch (fetchError) {
           // A fetch/parse failure is not an "empty feed" observation — reset the streak so two
           // empties separated by an outage never confirm each other (§3 rule 4).
           setEmptyFeedStreak.run(0, source.id);
           throw fetchError;
         }
+        // Rule 8 — a feed fetched before the one we last consumed is older news: applying it would revert
+        // that sync (dates) or read its fresh stays as cancelled.
+        if (observation.startedAt < (lastObservedStart.get(source.id) ?? -Infinity)) {
+          return {
+            scannedEvents: 0, createdCount: 0, createdReservationIds: [], updatedCount: 0, unchangedCount: 0,
+            lockedCount: 0, removedCount: 0, skippedClosureCount: 0, takenOverCount: 0,
+            conflictReservationIds: [], movedIntoConflictIds: [], skipped: 'newer sync applied',
+          };
+        }
+        lastObservedStart.set(source.id, observation.startedAt);
         // specs/lodgify-decommission.md §3 rule 5 — Booking.com's feed calls every taken night
         // « CLOSED - Not available », real reservations included: keep them, the cover check flags the overlaps.
         // Rule 16 — which feed does so is the source's own setting, not the slug `booking`: under
@@ -338,7 +362,10 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
         // the in-memory source row: some callers load sources with a fixed column list).
         if (events.length === 0) {
           const prevStreak = Number(database.prepare('SELECT emptyFeedStreak FROM ical_sources WHERE id = ?').get(source.id)?.emptyFeedStreak || 0);
-          const streak = prevStreak + 1;
+          // Rule 8 — an empty answer fetched before the previous empty one completed saw the same outage.
+          const isNewObservation = observation.startedAt >= (lastEmptyCompletedAt.get(source.id) ?? -Infinity);
+          const streak = isNewObservation ? prevStreak + 1 : Math.max(prevStreak, 1);
+          lastEmptyCompletedAt.set(source.id, observation.completedAt);
           setEmptyFeedStreak.run(streak, source.id);
           const mappingCount = database.prepare('SELECT COUNT(*) c FROM ical_import_events WHERE sourceId = ?').get(source.id).c;
           if (mappingCount > 0 && streak < 2) {
@@ -1124,6 +1151,7 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
       }
       try {
         const result = await model.syncSource(source, { prefetched });
+        if (result.skipped) return result;
         // specs/platforms-and-ical-rework.md §6 — persist the per-category counts (JSON) for the
         // visual "État" cell, alongside the legacy free-text message (kept as a hover fallback).
         const syncCounts = JSON.stringify({
@@ -1224,9 +1252,7 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
     // and the takeover / cross-source matching keeps seeing the sources in the same order.
     async syncMany(sources) {
       const feeds = new Map(sources.filter((s) => String(s.url || '').trim()).map((s) => {
-        const feed = model.fetchFeed(s);
-        feed.catch(() => {});
-        return [s.id, feed];
+        return [s.id, model.observeFeed(s)];
       }));
       const results = [];
       for (const source of sources) {
