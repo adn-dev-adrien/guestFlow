@@ -247,8 +247,13 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
       (both calls are made again next pass). A refused deactivation (other than a rate limit) still
       reads the payment: a provider refuses to deactivate a link already paid, whose webhook may be lost;
       paid → rule 14, unpaid → the marker stays (review of #894). On the rule-8 path
-      (`deactivateAbandonedLinks`), such a refused link found paid refuses the new request (409
-      `LINK_ALREADY_PAID`) and keeps its marker for this rule.
+      (`deactivateAbandonedLinks`), such a refused link found paid is booked at once through
+      `processPaidLink` (this rule's path) and the request is refused: 409 `LINK_ALREADY_PAID`, « Le lien
+      en cours vient d’être payé : paiement enregistré, aucun nouveau lien créé. ». The fiche reloads as
+      paid. A later request on the same bucket (acompte: acompte or full links; solde: solde or full; full:
+      all three; an échéance: its own links) first reads its newest lapsed link still owed a deactivation:
+      paid → booked and refused the same way, unreadable → 502 `PROVIDER_UNREACHABLE`, unpaid → minted as
+      usual (re-review of #894).
     For a **cancelled** row the existing order (read, then deactivate) and branches are kept, plus the
     orphan branch of rule 3 and the dates-taken branch of rule 33.
 19. **One last look.** The first lifecycle pass after `lastLookAt` reads the payment once more
@@ -847,7 +852,9 @@ Six sequential PRs into `inte/plugins` (plan validated 2026-10-30).
   `payment-link-deactivation-stuck` (6), `payment-link-validity-backfill` (6), `payment-link-lifecycle-ledger`
   (8), `payment-link-lifecycle-job` (6); review of #894: a refused deactivation still reads the payment,
   a lapse ends `expiresAt` now, the poll waits for a running lifecycle pass, uninstall refusal reworded
-  (+5 tests: `payment-link-deadline-race` 13, `payment-link-validity` 11, `payment-link-lifecycle-job` 7); amended `payment-poll-fair-use`, `plugins-phase-0`,
+  (+5 tests: `payment-link-deadline-race` 13, `payment-link-validity` 11, `payment-link-lifecycle-job` 7);
+  re-review: a lapsed link found paid on the mint path is booked at once, and a re-click reads the owed
+  lapsed link first (`payment-link-validity` 14); amended `payment-poll-fair-use`, `plugins-phase-0`,
   `plugins-phase-1-sdk`, `payment-link-orphan-alert`, `payment-request-service`,
   `payment-links-converted-devis-double-payment`, `payment-links-model`.
 - [ ] PR3 — validity in request e-mails, acompte reminder mints at send, public `expired` status (rules 26-30, 35, 36).

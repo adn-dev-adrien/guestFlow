@@ -153,21 +153,76 @@ test('rule 8 — validityOf reads the remaining time against the injected clock'
   assert.equal(validityOf(link, at(30)).remainingMs, 6 * HOUR);
 });
 
-// Review of #894, item 1 — on the rule-8 path, a refused deactivation of a link paid meanwhile refuses the
-// new request; the lapsed link keeps its marker and the lifecycle pass books it.
-test('rule 8 — a lapsing link found paid when its deactivation is refused: no new link, booked by the next pass', async () => {
+// Review of #894 — on the rule-8 path, a refused deactivation of a link paid meanwhile books that payment at
+// once (the lifecycle pass's own path, rule 14) and refuses the new request: the fiche reloads as paid.
+const PAID_BOOKED = 'Le lien en cours vient d’être payé : paiement enregistré, aucun nouveau lien créé.';
+const effect = (devis, confirmed = []) => () => ({ devisModel: devis, sendConfirmation: async (rid) => { confirmed.push(rid); }, emitPluginEvent: () => {} });
+const depositPaid = (db, id) => db.prepare('SELECT depositPaid FROM reservations WHERE id = ?').get(id).depositPaid;
+
+test('rule 18 — a lapsing link found paid when its deactivation is refused is booked at once; no new link', async () => {
   const { db, links, devis } = seedDb();
   const id = addStay(db);
   const first = await ensurePaymentLink(requestDeps(db, links, fakeProvider(), MINTED), id, 'deposit');
   const provider = fakeProvider({ paid: (_id, origin) => origin !== 'replace-link', failCancel: new Error('422 paid'), linkStatus: 'paid' });
+  const confirmed = [];
 
-  await assert.rejects(ensurePaymentLink(requestDeps(db, links, provider, at(20)), id, 'deposit'), (err) => err.error === 'LINK_ALREADY_PAID');
+  await assert.rejects(
+    ensurePaymentLink({ ...requestDeps(db, links, provider, at(20)), paymentEffect: effect(devis, confirmed) }, id, 'deposit'),
+    (err) => err.httpStatus === 409 && err.error === 'LINK_ALREADY_PAID' && err.message === PAID_BOOKED,
+  );
 
   assert.equal(provider.calls.filter((c) => c[0] === 'createLink').length, 0);
   const old = links.findById(first.id);
-  assert.equal(old.status, 'expired');
-  assert.ok(old.remoteCancelPendingAt, 'left to the retry of rule 18');
-  const { runLinkLifecycle } = require('../utils/paymentPollRunner');
-  await runLinkLifecycle({ database: db, paymentLinksModel: links, provider, devisModel: devis, now: at(20.1), sendConfirmation: async () => {}, emitPluginEvent: () => {} });
+  assert.equal(old.status, 'paid');
+  assert.equal(old.remoteCancelPendingAt, null);
+  assert.equal(depositPaid(db, id), 1, 'the fiche reloads as paid');
+  assert.deepEqual(confirmed, [id]);
+});
+
+test('rule 18 — a re-click on a bucket whose lapsed link is still owed its deactivation reads it: paid → booked, refused', async () => {
+  const { db, links, devis } = seedDb();
+  const id = addStay(db);
+  const first = await ensurePaymentLink(requestDeps(db, links, fakeProvider(), MINTED), id, 'deposit');
+  links.lapseIfOpen(first.id, { reason: 'validity', now: at(20) });
+  const provider = fakeProvider({ paid: true });
+
+  await assert.rejects(
+    ensurePaymentLink({ ...requestDeps(db, links, provider, at(20.05)), paymentEffect: effect(devis) }, id, 'deposit'),
+    (err) => err.error === 'LINK_ALREADY_PAID' && err.message === PAID_BOOKED,
+  );
+
+  assert.deepEqual(provider.calls.map((c) => c[0]), ['getPayment'], 'read once, nothing minted');
+  assert.equal(links.findById(first.id).status, 'paid');
+  assert.equal(depositPaid(db, id), 1);
+});
+
+test('rule 18 — a re-click on a bucket whose lapsed, owed link is unpaid mints as usual', async () => {
+  const { db, links, devis } = seedDb();
+  const id = addStay(db);
+  const first = await ensurePaymentLink(requestDeps(db, links, fakeProvider(), MINTED), id, 'deposit');
+  links.lapseIfOpen(first.id, { reason: 'validity', now: at(20) });
+  const provider = fakeProvider();
+  const fresh = await ensurePaymentLink({ ...requestDeps(db, links, provider, at(20.05)), paymentEffect: effect(devis) }, id, 'deposit');
+  assert.equal(fresh.reused, false);
+  assert.deepEqual(provider.calls.map((c) => c[0]), ['getPayment', 'createLink']);
+  assert.equal(links.findById(first.id).status, 'expired');
+});
+
+test('rule 18 — the same re-click guard on an installment', async () => {
+  const { db, links, devis } = seedDb();
+  const id = addStay(db);
+  const installment = { id: 41, reservationId: id, number: 1, amountCents: 15000, paid: 0 };
+  const installmentsModel = { findById: () => installment, listFor: () => [installment] };
+  const first = await ensureInstallmentLink({ ...requestDeps(db, links, fakeProvider(), MINTED), installmentsModel }, id, 41);
+  links.lapseIfOpen(first.id, { reason: 'validity', now: at(20) });
+  const provider = fakeProvider({ paid: true });
+  const booked = [];
+  const paymentEffect = () => ({ devisModel: devis, emitPluginEvent: () => {}, recordPayment: (p) => booked.push(p) });
+
+  await assert.rejects(
+    ensureInstallmentLink({ ...requestDeps(db, links, provider, at(20.05)), installmentsModel, paymentEffect }, id, 41),
+    (err) => err.error === 'LINK_ALREADY_PAID' && err.message === PAID_BOOKED,
+  );
+  assert.equal(provider.calls.filter((c) => c[0] === 'createLink').length, 0);
   assert.equal(links.findById(first.id).status, 'paid');
 });
