@@ -261,7 +261,7 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
       `).run(input.name, input.url, input.normalizedPlatformKey, input.platformLabel, input.platformColor, isActive, tax.collectsTouristTax, tax.touristTaxRemittedByPlatform, input.disabled, sourceId, propertyId);
       writeClosedFlag(sourceId, input.feedMarksStaysClosed);
       // ical-import-hardening rule 20 — an empty answer from the old URL must never confirm one from the new.
-      if (input.url !== existing.url) {
+      if (String(existing.url || '').trim() && input.url !== existing.url) {
         database.prepare('UPDATE ical_sources SET emptyFeedStreak = 0 WHERE id = ?').run(sourceId);
         lastObservedStart.delete(sourceId);
         lastEmptyCompletedAt.delete(sourceId);
