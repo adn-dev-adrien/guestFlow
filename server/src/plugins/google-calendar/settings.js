@@ -8,12 +8,12 @@
 const DECLARED = [
   { key: 'refreshToken', secret: true },
   { key: 'calendarId', secret: true },
-  { key: 'connectedEmail' },
-  { key: 'connectedAt' },
-  { key: 'calendarSummary' },
-  { key: 'lastSyncAt' },
-  { key: 'lastSyncOk' },
-  { key: 'lastSyncDetail' },
+  { key: 'connectedEmail', internal: true },
+  { key: 'connectedAt', internal: true },
+  { key: 'calendarSummary', internal: true },
+  { key: 'lastSyncAt', internal: true },
+  { key: 'lastSyncOk', internal: true },
+  { key: 'lastSyncDetail', internal: true },
 ];
 
 // store: ctx.settings ({ get, set, raw }); publicUrl: () => string.

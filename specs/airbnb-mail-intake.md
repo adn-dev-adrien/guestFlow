@@ -347,6 +347,12 @@ add the phone and e-mail from Airbnb. When the mail cannot be applied, the fiche
     is not kept alive); the Message-ID is also the `*_intakes` row key, now bounded. Test:
     `tests/mail-reader-envelope-retention.unit.test.js` (child process with `--expose-gc`). Airbnb 1.1.5 and
     Gîtes de France 1.4.7 ask for `sdk ^2.17.0` (also the `internal` counters, `plugins-phase-1-sdk.md` rule 34).
+34. **An unparsable Date header or a throwing mail never stops a pass** (audit r5, review of PR #874, R1, 2026-10-30).
+    imapflow hands a Date header it cannot parse over as the raw string; `new Date(raw).toISOString()` threw and one
+    forged mail blocked every pass for 30 days (on Gmail a verified booking stayed `pending`). The reader now keeps a
+    date only if it parses (otherwise the other date, then `now`, is used) and the service isolates each mail: one
+    that makes the intake step throw is stored as `ignored` with « Erreur de lecture : <reason> », as rule 19
+    isolates the apply step. Tests: `airbnb-intake/tests/unparsable-date-header.unit.test.js`.
 
 ---
 

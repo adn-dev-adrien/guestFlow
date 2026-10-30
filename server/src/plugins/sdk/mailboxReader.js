@@ -146,6 +146,12 @@ const ENVELOPE_CHUNK = 500;
 const YIELD_EVERY = 25;
 const MAX_HEADER_VALUE = 998;
 // A copy, not a slice: a V8 slice keeps the whole sender-written string alive.
+// imapflow hands a Date header it cannot parse over as the raw string: only a date that parses is kept.
+const validDate = (value) => {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
 const capHeader = (value) => Buffer.from(String(value || '').slice(0, MAX_HEADER_VALUE)).toString();
 
 /**
@@ -206,8 +212,8 @@ async function readMailsFrom({
         const auth = verifyDkim(msg.headers, { domains, trustedAuthservId: trusted });
         const plainPart = findPart(msg.bodyStructure, 'text/plain');
         (auth.ok ? verified : unverified).push({
-          uid: msg.uid, messageId, auth, plainPart, partId: plainPart || findPart(msg.bodyStructure, 'text/html'), internalDate: msg.internalDate,
-          sentDate: msg.envelope && msg.envelope.date, subject: capHeader(msg.envelope && msg.envelope.subject),
+          uid: msg.uid, messageId, auth, plainPart, partId: plainPart || findPart(msg.bodyStructure, 'text/html'), internalDate: validDate(msg.internalDate),
+          sentDate: validDate(msg.envelope && msg.envelope.date), subject: capHeader(msg.envelope && msg.envelope.subject),
         });
       }
     }

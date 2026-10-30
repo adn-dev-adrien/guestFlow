@@ -232,9 +232,18 @@ function createIntakeService(deps) {
       }
       add({ messageId: mail.messageId, receivedAt: mail.receivedAt, dossierNumber: parsed.booking.dossierNumber, parsed: parsed.booking, status: 'pending', senderVerified });
     };
+    // One mail that makes the intake step throw is remembered as `ignored` with its reason, never stopping the pass:
+    // it would otherwise come first on every later pass.
+    const isolate = (fn) => (mail) => {
+      try {
+        fn(mail);
+      } catch (err) {
+        intakes.insert({ messageId: mail.messageId, receivedAt: mail.receivedAt, status: 'ignored', error: `Erreur de lecture : ${err.message}`, senderVerified: mail.authenticated === true, parserVersion });
+      }
+    };
     await readMails(
       { ...mailbox, sender: settings.sender(), ...(settings.authentication ? settings.authentication() : {}) },
-      { seen: (messageId) => intakes.has(messageId, parserVersion), onMail: take, limit: MAX_MAILS_PER_PASS, onCap: ({ notRead }) => { unread = notRead; } },
+      { seen: (messageId) => intakes.has(messageId, parserVersion), onMail: isolate(take), limit: MAX_MAILS_PER_PASS, onCap: ({ notRead }) => { unread = notRead; } },
     );
     const outcome = {};
     for (const intake of intakes.listOpen()) {

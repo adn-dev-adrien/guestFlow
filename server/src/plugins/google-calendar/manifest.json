@@ -1,7 +1,7 @@
 {
   "id": "google-calendar",
   "name": "Google Agenda",
-  "version": "1.2.3",
+  "version": "1.2.4",
   "description": "Copie les séjours dans un agenda Google.",
   "icon": "event",
   "surfaces": [
@@ -9,7 +9,7 @@
   ],
   "requires": [],
   "guestflow": ">=3.10.0 <4.0.0",
-  "sdk": "^2.0.0",
+  "sdk": "^2.17.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
@@ -40,6 +40,9 @@
       "Un séjour annulé ne laisse plus d’événement dans l’agenda quand l’annulation arrive pendant l’envoi du séjour.",
       "Un appel à Google qui ne répond pas est interrompu au bout de 20 s et repris à la synchronisation suivante.",
       "Compatible avec le SDK 2 de GuestFlow."
+    ],
+    "1.2.4": [
+      "Les informations de connexion et de synchronisation (compte, calendrier, dernière synchro) ne peuvent plus être modifiées depuis les réglages (SDK 2.17 de GuestFlow)."
     ]
   }
 }

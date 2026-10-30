@@ -6,10 +6,10 @@
 
 const DECLARED = [
   { key: 'requireTermsAcceptance', default: '1' },
-  { key: 'lastSeenPluginVersion' },
+  { key: 'lastSeenPluginVersion', internal: true },
   // specs/public-request-abuse-and-grouping.md rule 24 — when the site first reported a plugin that
   // solves the proof of work. Once set, the proof stays required; nothing resets it.
-  { key: 'proofEnforcedSince' },
+  { key: 'proofEnforcedSince', internal: true },
 ];
 
 // The app_settings columns the values lived in until v3.8; they stay in place, unread.
