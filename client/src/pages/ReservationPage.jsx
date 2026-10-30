@@ -427,6 +427,8 @@ export default function ReservationPage() {
   const [storedLedger, setStoredLedger] = useState(null);
   const [storedHeadline, setStoredHeadline] = useState(null);
   const [storedSummary, setStoredSummary] = useState(null);
+  // specs/disable-deposit-per-reservation.md rule 13 — why « Sans acompte » is locked, as the GET last said.
+  const [storedDepositDisabledLockedReason, setStoredDepositDisabledLockedReason] = useState(null);
   // specs/direct-installments.md — the plan of a direct reservation, as the server last sent it.
   const [installmentPlan, setInstallmentPlan] = useState(null);
   const ledgerEditMarkerRef = useRef(null);
@@ -1005,6 +1007,7 @@ export default function ReservationPage() {
           setStoredLedger(res.ledger || null);
           setStoredHeadline(res.storedHeadline || null);
           setStoredSummary(res.storedSummary || null);
+          setStoredDepositDisabledLockedReason(res.depositDisabledLockedReason || null);
           setInstallmentPlan(res.installmentPlan || null);
           setPricingQuote(null);
           setIsIcalImportedBlankPrice(importedBlankPrice);
@@ -2558,7 +2561,7 @@ export default function ReservationPage() {
         overwriteOnceRef.current = false;
         ledgerEditMarkerRef.current = null;
         // Rule 7 — the stored ledger is what the fiche shows once clean again: re-read it after a save.
-        api.getReservation(reservationId).then((r) => { if (overwritten) loadedUpdatedAtRef.current = r.updatedAt || null; setStoredLedger(r.ledger || null); setStoredHeadline(r.storedHeadline || null); setStoredSummary(r.storedSummary || null); setInstallmentPlan(r.installmentPlan || null); }).catch(() => {});
+        api.getReservation(reservationId).then((r) => { if (overwritten) loadedUpdatedAtRef.current = r.updatedAt || null; setStoredLedger(r.ledger || null); setStoredHeadline(r.storedHeadline || null); setStoredSummary(r.storedSummary || null); setStoredDepositDisabledLockedReason(r.depositDisabledLockedReason || null); setInstallmentPlan(r.installmentPlan || null); }).catch(() => {});
         if (safeAfterSaveAction) {
           safeAfterSaveAction();
           // The page stays open: refetch so the server's `editLock` (floors, window) is fresh. Only on a
@@ -2830,6 +2833,7 @@ export default function ReservationPage() {
     setPluginBlocks(res.pluginBlocks || {});
     setStoredHeadline(res.storedHeadline || null);
     setStoredSummary(res.storedSummary || null);
+    setStoredDepositDisabledLockedReason(res.depositDisabledLockedReason || null);
     setInstallmentPlan(res.installmentPlan || null);
     const serverWritten = {
       // L'état d'encaissement du complément d'arrivée est écrit par le serveur (les boutons de la
@@ -3556,6 +3560,9 @@ export default function ReservationPage() {
     ledger: showLiveMoney ? (pricingQuote?.ledger || storedLedger) : storedLedger,
     checkLedgerEdit, applyLedgerPatch, markFromLedger, resendPaymentRequest,
     installmentPlan, setInstallmentPlan, fichePristine: !isDirty,
+    // The live quote reads the stored payments afresh; the GET answers until it arrives.
+    depositDisabledLockedReason: pricingQuote && pricingQuote.depositDisabledLockedReason !== undefined
+      ? pricingQuote.depositDisabledLockedReason : storedDepositDisabledLockedReason,
     // specs/plugins-phase-3b-neat.md rule 16 — what plugins draw under an option line: their block,
     // its setter, and what they may need to know about the stay.
     pluginBlocks, setPluginBlock,

@@ -260,6 +260,10 @@ const EDITOR_LABELS = { deposit: "Montant de l'acompte (€)", balance: 'Montant
  * server (`ledger`); this component keeps only which panel is open and the drafts. Reads everything
  * from the reservation form context — no props.
  */
+const DEPOSIT_DISABLED_LOCK_REASONS = {
+  'collected-by-link': 'Acompte perçu par un lien de paiement : remboursement pour l’annuler.',
+};
+
 export default function FinanceSection() {
   const {
     formSectionCardSx, formSectionContentSx, sectionGridSx,
@@ -278,7 +282,10 @@ export default function FinanceSection() {
     ledger = null, checkLedgerEdit, applyLedgerPatch, markFromLedger, resendPaymentRequest,
     // specs/direct-installments.md — the plan of a direct reservation and its setter.
     installmentPlan = null, setInstallmentPlan, fichePristine = true,
+    // specs/disable-deposit-per-reservation.md rule 13 — why « Sans acompte » cannot be ticked, from the server.
+    depositDisabledLockedReason = null,
   } = useReservationForm();
+  const depositDisabledLockReason = DEPOSIT_DISABLED_LOCK_REASONS[depositDisabledLockedReason] || null;
   const { confirm } = useAppDialogs();
   const { showError, showSuccess } = useToast();
   const [penaltyOpen, setPenaltyOpen] = useState(false);
@@ -875,23 +882,31 @@ export default function FinanceSection() {
 
             {/* The split settings of the stay: they move money between the rows above. */}
             {(!isPlatform || Boolean(pricingQuote?.platformTakesDeposit) || (Number(pricingQuote?.touristTaxTotal || 0) > 0 && !pricingQuote?.touristTaxCollectedOnArrival)) && (
-              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={{ xs: 0, sm: 2 }} sx={{ flexWrap: 'wrap' }}>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={{ xs: 0, sm: 2 }} useFlexGap sx={{ flexWrap: 'wrap' }}>
                 {(!isPlatform || Boolean(pricingQuote?.platformTakesDeposit)) && !hasInstallmentPlan && (
-                  <FormControlLabel
-                    control={(
-                      <Switch
-                        checked={Boolean(form.depositDisabled)}
-                        onChange={(e) => updateForm({
-                          depositDisabled: e.target.checked,
-                          // specs/disable-deposit-per-reservation.md — the server enforces the same.
-                          ...(e.target.checked ? { depositPaid: false, depositPaidDate: '' } : {}),
-                        })}
-                        disabled={isReservationLocked && !editingReservationId}
-                      />
+                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', maxWidth: { sm: 340 } }}>
+                    <FormControlLabel
+                      control={(
+                        <Switch
+                          checked={Boolean(form.depositDisabled)}
+                          onChange={(e) => updateForm({
+                            depositDisabled: e.target.checked,
+                            // specs/disable-deposit-per-reservation.md — the server enforces the same.
+                            ...(e.target.checked ? { depositPaid: false, depositPaidDate: '' } : {}),
+                          })}
+                          disabled={(isReservationLocked && !editingReservationId) || Boolean(depositDisabledLockedReason)}
+                          slotProps={{ input: { 'aria-describedby': depositDisabledLockReason ? 'deposit-disabled-lock-reason' : undefined } }}
+                        />
+                      )}
+                      label={<Typography variant="body2">Sans acompte</Typography>}
+                      sx={{ minHeight: 44, m: 0 }}
+                    />
+                    {depositDisabledLockReason && (
+                      <Typography id="deposit-disabled-lock-reason" variant="caption" color="text.secondary" sx={{ mt: -0.5, mb: 1, lineHeight: 1.4 }}>
+                        {depositDisabledLockReason}
+                      </Typography>
                     )}
-                    label={<Typography variant="body2">Sans acompte</Typography>}
-                    sx={{ minHeight: 44, m: 0 }}
-                  />
+                  </Box>
                 )}
                 {/* Per-item routing for the tourist tax (spec force-item-to-complement.md §6.4). */}
                 {Number(pricingQuote?.touristTaxTotal || 0) > 0 && !pricingQuote?.touristTaxCollectedOnArrival && (
