@@ -30,6 +30,7 @@ const { linkAmountCents } = require('../utils/ledgerLinks');
 // ----- Payment links on a reservation/devis (specs/online-payments-qonto.md §3.2 / §3.4) -----
 
 const paymentRequestService = require('../utils/paymentRequestService');
+const { withdrawPaymentLink } = require('../utils/paymentLinkWithdrawal');
 const { LINK_TYPES, LINK_TITLES } = paymentRequestService;
 
 // specs/email-language-fr-en.md rule 12 — the request template this guest would receive has no English
@@ -254,6 +255,22 @@ const pollPaymentsNow = withProvider(async (req, res, provider) => {
   } catch (err) { return sendError(res, err, provider); }
 });
 
+// POST /links/:id/withdraw — « Retirer le lien » (specs/payment-link-lifecycle.md rule 42). The declared provider:
+// the service asks it only while it is connected, and a deactivation it cannot do leaves the marker for the poll.
+const withdrawLink = async (req, res) => {
+  const provider = paymentProviders.declared();
+  try {
+    return res.json(await withdrawPaymentLink(Number(req.params.id), {
+      database,
+      paymentLinksModel,
+      provider,
+      bookPaid: (link, payment) => require('../utils/paymentPollRunner').processPaidLink({
+        ...buildPaymentEffectDeps(), database, paymentLinksModel, link, paidPayment: payment,
+      }),
+    }));
+  } catch (err) { return sendError(res, err, provider); }
+};
+
 // A link minted for an e-mail sent from the e-mail dialog or the « à valider » queue. Throws the service's
 // `{ httpStatus, error, message }`; without a provider, a 409; a provider failure, a 502 that names it.
 async function withProviderLink(mint) {
@@ -275,7 +292,7 @@ const ensurePaymentLinkFor = (id, type) => withProviderLink((deps) => paymentReq
 
 module.exports = {
   createReservationPaymentLink, listReservationPaymentLinks, sendPaymentRequestEmail, pollPaymentsNow,
-  sendBalanceRequestFor, sendDepositRequestFor, ensureInstallmentLinkFor, ensurePaymentLinkFor,
+  sendBalanceRequestFor, sendDepositRequestFor, ensureInstallmentLinkFor, ensurePaymentLinkFor, withdrawLink,
 };
 
 // The two money resolvers, with their quote source injectable (specs/payment-link-quote-parity.md §7):

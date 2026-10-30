@@ -9,7 +9,7 @@
  */
 
 const paymentProviders = require('./paymentProviders');
-const { LAPSED_REASONS } = require('../constants/paymentLinks');
+const { LAPSED_REASONS, LINK_REASONS } = require('../constants/paymentLinks');
 
 const defaultProviderFor = (providerId) => {
   const provider = paymentProviders.declared();
@@ -60,13 +60,13 @@ async function assertNotPaid(link, provider) {
  * Replaces an open link: refuses when it is paid (before or while this runs), retires it only if it is
  * still open, then deactivates it at the provider. `deactivate(links)` defaults to `deactivateAbandonedLinks`.
  * `reason` is the `cancelReason`: a lapsed one (`validity`, specs/payment-link-lifecycle.md rule 8) makes the
- * link `expired`, any other withdraws it (`cancelled`). Throws `{ httpStatus, error, message }`.
+ * link `expired`, any other withdraws it (`cancelled`); `operator` (rule 42) also ends it `now`. Throws `{ httpStatus, error, message }`.
  */
 async function retireOpenLink(link, { paymentLinksModel, provider, deactivate = null, reason = null, now = new Date() }) {
   await assertNotPaid(link, provider);
   const retired = LAPSED_REASONS.has(reason)
     ? paymentLinksModel.lapseIfOpen(link.id, { reason, now })
-    : paymentLinksModel.cancelIfOpen(link.id, { reason });
+    : paymentLinksModel.cancelIfOpen(link.id, { reason, ...(reason === LINK_REASONS.OPERATOR ? { endsAt: now } : {}) });
   if (!retired) {
     const now = paymentLinksModel.findById(link.id);
     if (now && now.status === 'paid') {

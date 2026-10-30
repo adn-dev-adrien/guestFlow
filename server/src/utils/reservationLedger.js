@@ -89,7 +89,13 @@ function lapsedLabel(link, stayYear, providerLabel) {
   return link.remoteCancelPendingAt ? `${label} · désactivation en attente chez ${providerLabel || 'le prestataire de paiement'}` : label;
 }
 
-function linkDetail(link, { stayYear, due, canRequest, providerLabel = null }) {
+// Rule 42 — « Lien retiré le {jour} »: a link withdrawn by hand ends at its withdrawal.
+function operatorLabel(link, stayYear) {
+  const ms = Date.parse(String(link.expiresAt || ''));
+  return ms > 0 ? `Lien retiré le ${shortDate(localIsoDate(new Date(ms)), stayYear)}` : 'Lien retiré';
+}
+
+function linkDetail(link, { stayYear, due, canRequest, canWithdraw = false, providerLabel = null }) {
   if (!link) return null;
   const created = shortDate(link.createdAt, stayYear);
   const paidOn = shortDate(link.paidAt, stayYear);
@@ -103,6 +109,7 @@ function linkDetail(link, { stayYear, due, canRequest, providerLabel = null }) {
       ? `Payé par lien le ${paidOn} (ancien montant)`
       : `Payé par lien le ${paidOn}`;
   } else if (link.status === 'expired') label = lapsedLabel(link, stayYear, providerLabel);
+  else if (link.cancelReason === 'operator') label = operatorLabel(link, stayYear);
   else label = WITHDRAWN_LABELS[link.cancelReason] || 'Lien retiré';
   // « Renvoyer la demande » only while the row is still due, and only once the previous link is gone
   // (rule 28): an open link is still the request, a paid one settled it. Dates taken by another stay
@@ -114,6 +121,16 @@ function linkDetail(link, { stayYear, due, canRequest, providerLabel = null }) {
     status: link.status,
     label,
     ...(resendable ? { resend: { type: String(link.type), label: 'Renvoyer la demande' } } : {}),
+    // specs/payment-link-lifecycle.md rule 42 — an open link of a stay that is not read-only.
+    ...(canWithdraw && link.status === 'open' ? {
+      withdraw: {
+        linkId: Number(link.id),
+        label: 'Retirer le lien',
+        confirmTitle: 'Retirer ce lien ?',
+        confirmMessage: 'Il ne pourra plus être payé.',
+        confirmLabel: 'Retirer',
+      },
+    } : {}),
   };
 }
 
@@ -163,6 +180,8 @@ function buildLedger({
   const cancelled = kind === 'cancelled';
   const stored = Boolean(row && row.id);
   const canAct = stored && !isDevis && !cancelled;
+  // A cancelled stay and a duplicate set aside are read-only: their links are never withdrawn by hand.
+  const canWithdraw = stored && !cancelled && kind !== 'superseded';
   const stayYear = isoDay(r.startDate || (quote && quote.startDate) || live.startDate)?.slice(0, 4) || null;
   // Rule 24 — the engine's own split (specs/plugins-phase-p-productisation.md rule 45): a named
   // channel carries a platform amount and commissions; only a platform SALE drops the acompte and is
@@ -288,7 +307,7 @@ function buildLedger({
         action: null, amountEdit: { editable: false, mode: 'none', min: null, max: null, reason: null }, detail: null,
       });
     } else {
-      const link = linkDetail(pickLink(links, 'deposit'), { stayYear, due: !paid.deposit, canRequest, providerLabel });
+      const link = linkDetail(pickLink(links, 'deposit'), { stayYear, due: !paid.deposit, canRequest, canWithdraw, providerLabel });
       const detail = { warnings: [] };
       if (link) detail.link = link;
       if (isPlatform && acompteCommission > 0) {
@@ -348,7 +367,7 @@ function buildLedger({
   // ── Solde / Versement de la plateforme (rules 4, 15, 17-19, 24-26) ───────
   if (!planRows) {
     const label = ota ? `Versement ${platformName}` : 'Solde';
-    const link = linkDetail(pickLink(links, 'balance'), { stayYear, due: !paid.balance, canRequest, providerLabel });
+    const link = linkDetail(pickLink(links, 'balance'), { stayYear, due: !paid.balance, canRequest, canWithdraw, providerLabel });
     const detail = { warnings: [] };
     if (link) detail.link = link;
     const depositRow = rows[0];
@@ -440,7 +459,7 @@ function buildLedger({
     const detail = { warnings: [], slot };
     const link = bucket === 'complement' ? pickLink(links, 'complement') : null;
     if (link) {
-      detail.link = linkDetail(link, { stayYear, due: !isPaid, canRequest: false, providerLabel });
+      detail.link = linkDetail(link, { stayYear, due: !isPaid, canRequest: false, canWithdraw, providerLabel });
       // Rule 31 — a retired link paid at its old amount: the operator settles the gap.
       if (link.status === 'paid' && link.cancelReason === 'amount-changed' && cents(amount) !== Number(link.amountCents || 0)) {
         detail.warnings.push(warn(`Payé ${formatEuros(Number(link.amountCents) / 100)} par un lien retiré, ${formatEuros(amount)} attendus`));
