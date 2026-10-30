@@ -158,16 +158,31 @@ function alertExpectedCents(link, stay, database = null, paidDay = null) {
     ? linkAmountCents('balance', stay) : linkAmountCents(link.type, stay);
 }
 
-// Online-payment rule 47 — what the admin is told about a link paid for another amount. An acompte link books the
-// acompte at what was received and lets the solde absorb the gap (pre-arrival total unchanged): it carries the
-// resulting solde (`balanceCents`) and no complement or trop-perçu is owed. Read on the stay before the booking.
+// Online-payment rule 47 — what the admin is told about a link paid for another amount. A payment booked as the
+// acompte (an acompte link, or a full link short of the acompte) records the acompte at what was received and
+// lets the solde absorb the gap (pre-arrival total unchanged): it carries the resulting solde (`balanceCents`),
+// and `excessCents` when the payment exceeds the whole pre-arrival total. Read on the stay before the booking.
 function mismatchOf(link, stay, database, paidDay) {
   const receivedCents = Number(link.amountCents);
-  if (String(link.type) === 'deposit') {
-    const preArrival = Math.round(Number(stay.depositAmount || 0) * 100) + Math.round(Number(stay.balanceAmount || 0) * 100);
-    return { expectedCents: linkAmountCents('deposit', stay), receivedCents, balanceCents: Math.max(0, preArrival - receivedCents) };
+  const depositCents = Math.round(Number(stay.depositAmount || 0) * 100);
+  const depositSettled = Number(stay.depositPaid || 0) === 1 || Number(stay.depositPaidCash || 0) === 1;
+  const bookedAsDeposit = String(link.type) === 'deposit'
+    || (String(link.type) === 'full' && (!depositSettled || acompteIsLinkMoney(database, link, stay, paidDay))
+      && Number(stay.depositDisabled || 0) !== 1 && depositCents > 0 && receivedCents <= depositCents);
+  if (bookedAsDeposit) {
+    const preArrival = depositCents + Math.round(Number(stay.balanceAmount || 0) * 100);
+    return {
+      expectedCents: depositCents, receivedCents,
+      balanceCents: Math.max(0, preArrival - receivedCents),
+      ...(receivedCents > preArrival ? { excessCents: receivedCents - preArrival } : {}),
+    };
   }
   return { expectedCents: alertExpectedCents(link, stay, database, paidDay), receivedCents };
+}
+
+// Only the acompte wording says whether the confirmation went out; the other alerts always state it is held.
+function alertOptions(amountMismatch, confirmationSent) {
+  return amountMismatch.balanceCents != null ? { amountMismatch, confirmationSent } : { amountMismatch };
 }
 
 // Rule 43 — a bucket collected at the door is never the link's money, so rule 24's same-day reading does not apply.
@@ -312,12 +327,12 @@ async function processPaidLink({ database, devisModel, paymentLinksModel, link, 
     }
     return { id: link.id, reservationId: link.reservationId, type: link.type, status: 'paid', ...effect, effect: 'settled-elsewhere' };
   }
-  if (effect.amountMismatch && effect.amountMismatch.balanceCents != null) {
+  if (effect.amountMismatch && effect.amountMismatch.balanceCents != null && !effect.amountMismatch.excessCents) {
     if (effect.justConverted) emitPluginEvent('reservation.created', { reservationId: effect.reservationId });
-    if (notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link, { amountMismatch: effect.amountMismatch }); } catch { /* best effort */ } }
+    if (notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link, alertOptions(effect.amountMismatch, true)); } catch { /* best effort */ } }
   } else if (effect.amountMismatch) {
     if (effect.justConverted) emitPluginEvent('reservation.created', { reservationId: effect.reservationId });
-    if (notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link, { amountMismatch: effect.amountMismatch }); } catch { /* best effort */ } }
+    if (notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link, alertOptions(effect.amountMismatch, false)); } catch { /* best effort */ } }
     if (effect.conflict && notifyConflict) { try { await notifyConflict(effect.reservationId); } catch { /* best effort */ } }
     return { id: link.id, reservationId: link.reservationId, type: link.type, status: 'paid', ...effect };
   }
@@ -496,7 +511,7 @@ async function bookClaimedAmountChangedLink({ paymentLinksModel, notifyPaidAfter
     if (conflict && notifyConflict) { try { await notifyConflict(converted); } catch { /* best effort */ } }
   }
   if (notifyPaidAfterCancel) {
-    try { await notifyPaidAfterCancel(link, mismatch && !unbooked ? { amountMismatch: mismatch } : {}); } catch { /* best effort */ }
+    try { await notifyPaidAfterCancel(link, mismatch && !unbooked ? alertOptions(mismatch, false) : {}); } catch { /* best effort */ }
   }
   return { id: link.id, reservationId: link.reservationId, type: link.type, status: unbooked ? 'paid-after-cancel' : 'paid', ...booked };
 }

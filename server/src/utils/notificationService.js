@@ -448,7 +448,7 @@ function buildNotificationService({
   const PAID_TWICE_TITLE = '⚠️ Devis payé deux fois';
   const PAID_OTHER_AMOUNT_TITLE = '⚠️ Paiement reçu d’un autre montant que le devis';
   const eurosFr = (cents) => (Number(cents || 0) / 100).toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' });
-  function buildPaidAfterCancelEmail(resa, link, publicUrl, { settledOn = null, amountMismatch = null, doublePaid = false, duplicateCents = null } = {}) {
+  function buildPaidAfterCancelEmail(resa, link, publicUrl, { settledOn = null, amountMismatch = null, doublePaid = false, duplicateCents = null, confirmationSent = true } = {}) {
     const amount = eurosFr(doublePaid && duplicateCents != null ? duplicateCents : link.amountCents);
     const owner = String(resa.kind) === 'devis' ? 'le devis' : 'le séjour';
     const ref = resa.devisNumber || `#${Number(resa.id)}`;
@@ -466,8 +466,12 @@ function buildNotificationService({
       ]
       : amountMismatch && amountMismatch.balanceCents != null
       ? [
-        `Un lien d’acompte a été payé ${amount} alors que ${owner} demande aujourd’hui ${eurosFr(amountMismatch.expectedCents)}.`,
+        `Un lien de paiement a été payé ${amount} alors que ${owner} demande aujourd’hui ${eurosFr(amountMismatch.expectedCents)}.`,
         `Acompte enregistré à ${eurosFr(amountMismatch.receivedCents)} (${eurosFr(amountMismatch.expectedCents)} demandés) ; solde porté à ${eurosFr(amountMismatch.balanceCents)}.`,
+        ...(amountMismatch.excessCents ? [`Trop-perçu de ${eurosFr(amountMismatch.excessCents)} à rembourser.`] : []),
+        ...(confirmationSent === false
+          ? ['Aucun e-mail de confirmation n’a été envoyé au client. À vérifier : envoyer la confirmation au client.']
+          : []),
       ]
       : amountMismatch
       ? [

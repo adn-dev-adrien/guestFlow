@@ -130,3 +130,28 @@ test('rule 47: a stay-owned full link alert says « le séjour », not « le dev
   assert.match(buildPaidAfterCancelEmail({ id: 1, kind: 'reservation' }, link, '', { amountMismatch: mismatch }).text, /alors que le séjour demande aujourd’hui/);
   assert.match(buildPaidAfterCancelEmail({ id: 1, kind: 'devis' }, link, '', { amountMismatch: mismatch }).text, /alors que le devis demande aujourd’hui/);
 });
+
+const { storedOverpaymentOf } = require('../utils/overpayment');
+
+test('rule 47 (E1): an acompte link paid above the whole pre-arrival total names the trop-perçu and holds the confirmation', async () => {
+  const s = seedDeposit({ asDevis: false });
+  s.reprice(30, 50);
+  await s.pay();
+  assert.deepEqual(s.calls.map((c) => c[0]), ['alert']);
+  const text = s.text(s.D.reservationId, s.calls[0][2]);
+  assert.match(text, /Acompte enregistré à 100,00\s€ \(30,00\s€ demandés\) ; solde porté à 0,00\s€\./);
+  assert.match(text, /Trop-perçu de 20,00\s€ à rembourser\./);
+  assert.match(text, /Aucun e-mail de confirmation n’a été envoyé au client\./);
+  assert.equal(storedOverpaymentOf({ row: s.db.prepare('SELECT * FROM reservations WHERE id = ?').get(s.rid), captured: {} }), 20);
+});
+
+test('rule 47 (B3): a full link paid below the acompte is worded as an acompte, not as a complement', async () => {
+  const s = seedDeposit({ asDevis: false });
+  s.db.prepare("UPDATE payment_links SET type = 'full', amountCents = 8000 WHERE id = ?").run(s.D.id);
+  await s.pay();
+  assert.deepEqual(s.calls.map((c) => c[0]).sort(), ['alert', 'confirm']);
+  const text = s.text(s.D.reservationId, s.calls.find((c) => c[0] === 'alert')[2]);
+  assert.match(text, /Acompte enregistré à 80,00\s€ \(100,00\s€ demandés\) ; solde porté à 375,36\s€\./);
+  assert.doesNotMatch(text, /complément d’arrivée/);
+  assert.doesNotMatch(text, /Aucun e-mail de confirmation/);
+});
