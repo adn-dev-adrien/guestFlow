@@ -19,6 +19,29 @@ export function frenchStrings() {
 
 const run = (rel) => new Function(read(rel))(); // eslint-disable-line no-new-func
 
+// The scripts debounce with setTimeout (quote recompute, poll, slices). One still pending when a test
+// ends would fire after jsdom is torn down ("document is not defined"), so the timers a block schedules
+// are tracked and cleared after each test of every suite that imports this module.
+const pendingTimers = new Set();
+const realSetTimeout = globalThis.setTimeout;
+const realClearTimeout = globalThis.clearTimeout;
+
+function trackTimers() {
+  globalThis.setTimeout = (fn, ms, ...args) => {
+    const id = realSetTimeout((...a) => { pendingTimers.delete(id); return fn(...a); }, ms, ...args);
+    pendingTimers.add(id);
+    return id;
+  };
+  globalThis.clearTimeout = (id) => { pendingTimers.delete(id); realClearTimeout(id); };
+}
+
+afterEach(() => {
+  pendingTimers.forEach((id) => realClearTimeout(id));
+  pendingTimers.clear();
+  globalThis.setTimeout = realSetTimeout;
+  globalThis.clearTimeout = realClearTimeout;
+});
+
 /**
  * Loads the runtime, then the block script `view`, for the containers already in the document.
  * `routes` answers the fake proxy: (method, path, body) → { status, body }.
@@ -29,6 +52,7 @@ export function loadBlock(view, { routes, locale = 'fr-FR', lang = 'fr', configu
     restUrl: '/wp-json/guestflow/v1', nonce: 'n', configured, locale, lang,
     cgvPageUrl: 'https://site.example/cgv/', bookingPageUrl: '', i18n: frenchStrings(),
   };
+  trackTimers();
   run('assets/runtime.js');
   window.GFBooking.api = (method, p, body) => {
     calls.push({ method, path: p, body });
