@@ -17,7 +17,7 @@ function serve(handler) {
 }
 
 const post = (server) => new Promise((resolve) => {
-  const req = http.request({ host: '127.0.0.1', port: server.address().port, method: 'POST', path: '/api/auth/login' }, (res) => {
+  const req = http.request({ host: '127.0.0.1', signal: AbortSignal.timeout(10_000), port: server.address().port, method: 'POST', path: '/api/auth/login' }, (res) => {
     let body = '';
     res.on('data', (c) => { body += c; });
     res.on('end', () => resolve({ status: res.statusCode, body: JSON.parse(body) }));

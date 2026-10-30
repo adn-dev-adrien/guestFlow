@@ -24,7 +24,7 @@ async function start() {
   function call(method, url, { form, origin } = {}) {
     const body = form ? new URLSearchParams(form).toString() : '';
     return new Promise((resolve, reject) => {
-      const req = http.request({ host: '127.0.0.1', port, timeout: REQUEST_TIMEOUT_MS, method, path: url, headers: {
+      const req = http.request({ host: '127.0.0.1', port, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS), method, path: url, headers: {
         host: APP, 'content-type': 'application/x-www-form-urlencoded', 'content-length': Buffer.byteLength(body),
         ...(origin ? { origin } : {}),
       } }, (res) => {

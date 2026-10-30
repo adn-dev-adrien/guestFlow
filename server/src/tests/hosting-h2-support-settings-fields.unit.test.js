@@ -67,7 +67,7 @@ test('rule 18 — the refusal is answered 403, never reaches the handler, and is
   t.after(() => server.close());
   const send = (body) => new Promise((resolve) => {
     const payload = JSON.stringify(body);
-    const req = http.request({ host: '127.0.0.1', port: server.address().port, method: 'PUT', path: '/api/settings', headers: { 'content-type': 'application/json', 'content-length': Buffer.byteLength(payload) } }, (res) => { res.resume(); res.on('end', () => resolve(res.statusCode)); });
+    const req = http.request({ host: '127.0.0.1', signal: AbortSignal.timeout(10_000), port: server.address().port, method: 'PUT', path: '/api/settings', headers: { 'content-type': 'application/json', 'content-length': Buffer.byteLength(payload) } }, (res) => { res.resume(); res.on('end', () => resolve(res.statusCode)); });
     req.end(payload);
   });
   assert.equal(await send({ company: { portalCode: 'AUDIT-0000' } }), 403);
