@@ -1,7 +1,7 @@
 {
   "id": "school-holidays",
   "name": "Vacances scolaires",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Zones A, B, C récupérées sur education.gouv.fr.",
   "icon": "school",
   "surfaces": [
@@ -9,7 +9,7 @@
     "Les bandes de zones du calendrier"
   ],
   "requires": [],
-  "guestflow": ">=3.9.0 <4.0.0",
+  "guestflow": ">=3.18.0 <4.0.0",
   "sdk": "^2.0.0",
   "changelog": {
     "1.0.0": [
@@ -23,6 +23,9 @@
     ],
     "1.0.3": [
       "Compatible avec le SDK 2 de GuestFlow."
+    ],
+    "1.0.4": [
+      "Aucune synchronisation sur une instance de test lancée sans accès extérieur. Compatible avec le SDK 2 de GuestFlow."
     ]
   }
 }

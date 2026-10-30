@@ -8,6 +8,10 @@ const { parseGitesDeFranceMail } = require('../mailParser');
 const { BOOKING_MAIL } = require('./fixtures');
 const { setup, PLACEHOLDER } = require('./serviceFixtures');
 
+// Relative to the clock: an ignored mail older than the reader's window is forgotten (rule 31), so a
+// literal date would make the second pass read it again once that window has passed.
+const RECEIVED_AT = new Date(Date.now() - 14 * 24 * 3600 * 1000).toISOString();
+
 const withName = (name) => BOOKING_MAIL.replace('DUPONT Claire', name);
 
 test('rule 23: a party typed in the name does not decide the party', () => {
@@ -57,7 +61,7 @@ test('rule 25: a supplements section of 250 KB without a closing parenthesis is 
 });
 
 test('rule 25: an unauthenticated mail that does not parse is stored once, out of every list, and not parsed again', async () => {
-  const bad = { messageId: '<bad@x>', receivedAt: '2026-10-14T16:32:00.000Z', text: 'Une nouvelle réservation\nrien d’autre', authenticated: false };
+  const bad = { messageId: '<bad@x>', receivedAt: RECEIVED_AT, text: 'Une nouvelle réservation\nrien d’autre', authenticated: false };
   const { service, intakes, calls } = setup({ mails: [bad] });
   assert.deepEqual(await service.runPass(), { read: 1 });
   assert.equal(intakes.has('<bad@x>'), true);
@@ -83,7 +87,7 @@ test('rule 26: a client is reused by e-mail only for a verified mail; an operato
   await verified.service.runPass();
   assert.equal(verified.calls.updates[0].opts.reuseByEmail, true);
 
-  const mail = { messageId: '<u@x>', receivedAt: '2026-10-14T16:32:00.000Z', text: BOOKING_MAIL, authenticated: false };
+  const mail = { messageId: '<u@x>', receivedAt: RECEIVED_AT, text: BOOKING_MAIL, authenticated: false };
   const unverified = setup({ mails: [mail] });
   assert.deepEqual(await unverified.service.runPass(), { read: 1, proposed: 1 });
   assert.deepEqual(unverified.calls.updates, []);

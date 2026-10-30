@@ -80,7 +80,11 @@ function createRestoreVerifier({ models, drivers, provisioner, fleetUpdater, now
     });
   }
 
-  async function swap(c, when, operator) {
+  // Rule 38: the customer is read again inside the lock — a deprovision stop queued before it has
+  // closed the instance since the route checked it.
+  async function swap(stale, when, operator) {
+    const c = customers.get(stale.id);
+    if (!c || c.erasedAt || c.archivedAt) throw httpError(409, 'ARCHIVED', 'Client archivé : réactivez-le d’abord.');
     const inst = provisioner.instanceOf(c);
     const suffix = `.before-restore-${stamp().replace(/[:.]/g, '-')}`;
     const restored = `${inst.dbPath}.restoring`;

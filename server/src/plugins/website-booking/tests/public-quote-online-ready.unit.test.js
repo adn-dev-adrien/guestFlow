@@ -6,6 +6,7 @@ require('./isolatedDb');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Module = require('module');
+const { localIsoDate } = require('../../../utils/localDate');
 
 function withMocks(modules, fn) {
   const origRequire = Module.prototype.require;
@@ -46,7 +47,9 @@ function controller(provider) {
   });
 }
 
-const BODY = { propertyId: 1, startDate: '2026-11-06', endDate: '2026-11-09', adults: 2 };
+// Relative to the clock: the controller refuses a past arrival, so a literal date turns this red.
+const inDays = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return localIsoDate(d); };
+const BODY = { propertyId: 1, startDate: inDays(30), endDate: inDays(33), adults: 2 };
 
 test('rule 12: a connected provider → payment.onlineReady true, the mode untouched', async () => {
   const res = fakeRes();

@@ -165,6 +165,8 @@ function alertExpectedCents(link, stay, database = null, paidDay = null) {
 // acompte (an acompte link, or a full link short of the acompte) records the acompte at what was received and
 // lets the solde absorb the gap (pre-arrival total unchanged): it carries the resulting solde (`balanceCents`),
 // and `excessCents` when the payment exceeds the whole pre-arrival total. Read on the stay before the booking.
+// Rule 48 — an acompte link paid on a stay switched to « Sans acompte » re-enables it: `depositReenabled`.
+// Rule 49 — on a solde already collected, `balanceSettled`, `balanceCents` is that solde, the excess `excessCents`.
 function mismatchOf(link, stay, database, paidDay) {
   const receivedCents = Number(link.amountCents);
   const depositCents = Math.round(Number(stay.depositAmount || 0) * 100);
@@ -173,11 +175,17 @@ function mismatchOf(link, stay, database, paidDay) {
     || (String(link.type) === 'full' && (!depositSettled || acompteIsLinkMoney(database, link, stay, paidDay))
       && Number(stay.depositDisabled || 0) !== 1 && depositCents > 0 && receivedCents <= depositCents);
   if (bookedAsDeposit) {
-    const preArrival = depositCents + Math.round(Number(stay.balanceAmount || 0) * 100);
+    const storedBalanceCents = Math.round(Number(stay.balanceAmount || 0) * 100);
+    const preArrival = depositCents + storedBalanceCents;
+    // Rule 49 — a solde already collected keeps its amount: the acompte lands on top of it.
+    const balanceSettled = Number(stay.balancePaid || 0) === 1 || Number(stay.balancePaidCash || 0) === 1;
+    const balanceCents = balanceSettled ? storedBalanceCents : Math.max(0, preArrival - receivedCents);
+    const excessCents = receivedCents + balanceCents - preArrival;
     return {
-      expectedCents: depositCents, receivedCents,
-      balanceCents: Math.max(0, preArrival - receivedCents),
-      ...(receivedCents > preArrival ? { excessCents: receivedCents - preArrival } : {}),
+      expectedCents: depositCents, receivedCents, balanceCents,
+      ...(balanceSettled ? { balanceSettled: true } : {}),
+      ...(String(link.type) === 'deposit' && Number(stay.depositDisabled || 0) === 1 ? { depositReenabled: true } : {}),
+      ...(excessCents > 0 ? { excessCents } : {}),
     };
   }
   return { expectedCents: alertExpectedCents(link, stay, database, paidDay), receivedCents };

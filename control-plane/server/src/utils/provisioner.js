@@ -64,7 +64,7 @@ function createProvisioner({
   portRange = '4400-4499', healthTimeoutMs = 60000, licencePublicKey = null, registryPublicKey = licencePublicKey, isPortFree = portIsFree, today,
   publicUrlOf = () => null, registryUrl = null,
 }) {
-  const { customers, provisioning, hosting } = models;
+  const { customers, provisioning, hosting, directory } = models;
   const [portLo, portHi] = parseRange(portRange);
   const runs = new Map();
   const stamp = () => now().toISOString();
@@ -281,10 +281,12 @@ function createProvisioner({
     });
   }
 
-  // Rule 4: the unit again, the site again, the replica again — then the health check.
+  // Rule 4: the unit again, the site again, the replica again — then the health check. Rule 38: an
+  // archived customer is left as it is (a reactivation unarchives before calling this).
   function restart(customerId) {
     return exclusive(customerId, async () => {
       const c = customers.get(customerId);
+      if (!c || c.erasedAt || c.archivedAt) return false;
       return runStep(c, RESTART, async () => {
         const inst = instanceOf(c);
         if (!fs.existsSync(inst.dir) || !inst.port) {
@@ -308,6 +310,7 @@ function createProvisioner({
   function restartProcess(customerId) {
     return exclusive(customerId, async () => {
       const c = customers.get(customerId);
+      if (!c || c.erasedAt || c.archivedAt) return false;
       return runStep(c, PROCESS_RESTART, async () => {
         const inst = instanceOf(c);
         if (!fs.existsSync(inst.dir) || !inst.port) throw new Error('Aucune instance à redémarrer.');
@@ -330,6 +333,7 @@ function createProvisioner({
   function rename(customerId, oldSlug) {
     return exclusive(customerId, async () => {
       const c = customers.get(customerId);
+      if (!c || c.erasedAt || c.archivedAt) return false;
       return runStep(c, RENAME, async () => {
         const from = instanceOf(c, oldSlug);
         const to = instanceOf(c);
@@ -370,6 +374,9 @@ function createProvisioner({
       await drivers.proxy.remove(r.slug);
       hosting.dropRedirect(r.slug);
     }
+    // H1 rule 38: a rename that failed before its redirect leaves the old address routed to this
+    // port, which the next customer gets. An address still reserved is nobody else's yet.
+    for (const a of directory.aliasesOf(c.id, today())) await drivers.proxy.remove(a.slug);
     await drivers.backup.purge(inst);
     fs.rmSync(inst.envFile, { force: true });
     fs.rmSync(path.join(inst.dir, LEGACY_ENV_FILE), { force: true });

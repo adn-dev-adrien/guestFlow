@@ -48,6 +48,8 @@ const RENAME_STEPS = [{ ...HOST_RENAME, kind: 'auto' }];
 // H1 rule 29: « Redémarrer » on a process that failed.
 const PROCESS_RESTART_STEPS = [{ step: 'process-restart', label: 'Processus redémarré', kind: 'auto' }];
 const ALL_STEPS = [...CREATE_STEPS, ...DEPROVISION_STEPS, ...REACTIVATE_STEPS, ...RENAME_STEPS, ...PROCESS_RESTART_STEPS];
+// H1 rule 38: the steps that serve the instance again; never retried on an archived customer.
+const SERVING_STEPS = new Set([HOST_RESTART.step, HOST_RENAME.step, 'process-restart']);
 // Rule 22: what must be redone when the address changes, each item ticked before it runs.
 const RENAME_CHECKLIST = [
   { key: 'wordpress', label: 'Réglage du plugin WordPress (adresse de l’API)' },
@@ -78,7 +80,17 @@ function createCustomersController(ctx) {
 
   // Rule 22: until « Dossier renommé… » is done (H1 rule 5 runs it at once), the instance still runs
   // from its old directory and answers at its old address.
+  // H1 rule 38: the « rename » row is written only once the rename holds the customer's lock, so a
+  // rename still waiting behind a fleet item is tracked here. A count, since two may overlap.
+  const renaming = new Map();
+  const markRenaming = (id) => renaming.set(id, (renaming.get(id) || 0) + 1);
+  const unmarkRenaming = (id) => {
+    const n = renaming.get(id) - 1;
+    if (n > 0) renaming.set(id, n); else renaming.delete(id);
+  };
+
   function renamePending(c) {
+    if (renaming.has(c.id)) return true;
     const row = provisioning.get(c.id, 'rename');
     return Boolean(row && row.status !== 'ok');
   }
@@ -356,7 +368,7 @@ function createCustomersController(ctx) {
         status: r.status,
         detail: stepDetail(r),
         // H1 rule 2: a failed creation step resumes the sequence from itself.
-        action: r.status !== 'failed' ? null : (CREATE_STEPS.some((x) => x.step === d.step) ? 'resume' : 'retry'),
+        action: r.status !== 'failed' || (c.archivedAt && SERVING_STEPS.has(d.step)) ? null : (CREATE_STEPS.some((x) => x.step === d.step) ? 'resume' : 'retry'),
       };
     });
   }
@@ -693,6 +705,7 @@ function createCustomersController(ctx) {
     if (!def || !row) throw httpError(404, 'NOT_FOUND', 'Étape inconnue.');
     if (action !== 'resume' && action !== 'retry') throw httpError(400, 'INVALID', 'Action inconnue.');
     if (row.status !== 'failed') throw httpError(409, 'NOT_FAILED', 'Cette étape n’est pas en échec.');
+    if (c.archivedAt && SERVING_STEPS.has(step)) throw httpError(409, 'ARCHIVED', 'Client archivé : réactivez-le d’abord.');
     let run;
     if (CREATE_STEPS.some((s) => s.step === step)) {
       journal(c.id, operator, 'step', `Création reprise à l’étape « ${def.label} »`);
@@ -702,7 +715,10 @@ function createCustomersController(ctx) {
     else if (step === 'process-restart') run = host().restartProcess(c.id);
     else if (step === 'rename') {
       const previous = directory.aliasesOf(c.id, today())[0];
-      run = host().rename(c.id, previous ? previous.slug : c.slug).then((ok) => { if (ok) refresh(c.id, operator); return ok; });
+      markRenaming(c.id);
+      run = host().rename(c.id, previous ? previous.slug : c.slug)
+        .finally(() => unmarkRenaming(c.id))
+        .then((ok) => { if (ok) refresh(c.id, operator); return ok; });
     } else if (step === 'deprov-email') run = sendExportLink(c.id);
     else if (step === 'deprov-export') return deprovision(c.id, { confirmSlug: c.slug, retry: true }, operator);
     if (!background) await run;
@@ -773,6 +789,7 @@ function createCustomersController(ctx) {
   async function rename(id, body, operator) {
     const c = mustGet(id);
     if (c.archivedAt) throw httpError(409, 'ARCHIVED', 'Client archivé : réactivez-le d’abord.');
+    assertNotDeprovisioning(c.id);
     const slug = String(body.slug || '').trim();
     const { error } = renamePreview(id, { slug });
     if (!slug || error) throw httpError(400, 'INVALID', error || 'Nouvelle adresse obligatoire.');
@@ -781,11 +798,16 @@ function createCustomersController(ctx) {
     if (missing.length) throw httpError(400, 'CHECKLIST', `À cocher d’abord : ${missing.map((i) => i.label).join(' ; ')}.`);
     const until = addMonths(today(), ALIAS_MONTHS);
     const redirectUntil = addDays(today(), host().REDIRECT_DAYS);
-    customers.setSlug(c.id, slug);
-    directory.addAlias(c.slug, c.id, until);
-    journal(c.id, operator, 'rename', `Adresse : ${c.slug} → ${slug} ; l’ancienne redirige jusqu’au ${frDay(redirectUntil)} et reste réservée jusqu’au ${frDay(until)}`);
-    // H1 rule 5: the directory moves, the unit and the site follow, the old address redirects.
-    await host().rename(c.id, c.slug);
+    markRenaming(c.id);
+    try {
+      customers.setSlug(c.id, slug);
+      directory.addAlias(c.slug, c.id, until);
+      journal(c.id, operator, 'rename', `Adresse : ${c.slug} → ${slug} ; l’ancienne redirige jusqu’au ${frDay(redirectUntil)} et reste réservée jusqu’au ${frDay(until)}`);
+      // H1 rule 5: the directory moves, the unit and the site follow, the old address redirects.
+      await host().rename(c.id, c.slug);
+    } finally {
+      unmarkRenaming(c.id);
+    }
     refresh(c.id, operator);
     return view(c.id);
   }
@@ -879,11 +901,30 @@ function createCustomersController(ctx) {
     }
   }
 
+  // H1 rule 38: a customer is archived only after its stop, so a second request (another tab, or one
+  // queued behind a fleet item holding the lock) would pass the check above and export and mail again.
+  const deprovisioning = new Set();
+
+  // Rule 38: a rename or a restore would otherwise run between the export and the stop, or after it.
+  function assertNotDeprovisioning(id) {
+    if (deprovisioning.has(id)) throw httpError(409, 'DEPROVISIONING', 'Fermeture en cours.');
+  }
+
   async function deprovision(id, body, operator) {
     const c = mustGet(id);
     if (c.archivedAt) throw httpError(409, 'ARCHIVED', 'Client déjà archivé.');
     if (renamePending(c)) throw httpError(409, 'RENAME_PENDING', 'Changement d’adresse à terminer d’abord.');
     if (String(body.confirmSlug || '') !== c.slug) throw httpError(400, 'CONFIRM_SLUG', `Tapez exactement « ${c.slug} » pour confirmer.`);
+    if (deprovisioning.has(c.id)) return view(c.id);
+    deprovisioning.add(c.id);
+    try {
+      return await runDeprovision(c, operator);
+    } finally {
+      deprovisioning.delete(c.id);
+    }
+  }
+
+  async function runDeprovision(c, operator) {
 
     // 1. The export. A failure stops here: nothing is archived without its data safe. It runs inside
     // the customer's sequence lock, so never alongside a fleet update's snapshot or rollback; the stop
@@ -1021,6 +1062,7 @@ function createCustomersController(ctx) {
     restartProcess,
     applyPayment,
     mustGet,
+    assertNotDeprovisioning,
     refresh,
     reissueAll,
     view,

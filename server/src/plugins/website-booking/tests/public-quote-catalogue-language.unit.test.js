@@ -16,6 +16,7 @@ require('./isolatedDb');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Module = require('module');
+const { localIsoDate } = require('../../../utils/localDate');
 
 const { toPublicQuote } = require('../publicProjections');
 
@@ -157,8 +158,10 @@ function buildController({ captures, insurance = null, options = [{ id: 7 }] }) 
   });
 }
 
+// Relative to the clock: the controller refuses a past arrival, so a literal date turns this red.
+const inDays = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return localIsoDate(d); };
 const STAY = {
-  propertyId: 1, startDate: '2026-11-10', endDate: '2026-11-13', adults: 2,
+  propertyId: 1, startDate: inDays(30), endDate: inDays(33), adults: 2,
   options: [{ optionId: 7, quantity: 6 }], resources: [{ resourceId: 3, quantity: 2 }],
 };
 

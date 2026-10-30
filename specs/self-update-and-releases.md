@@ -486,6 +486,17 @@ signed-off releases over HTTPS, when the operator asks for it.
 
 50. **The lockfile's `version` and package name are validated before they build the tarball path** (audit r4, 2026-10-29). `isOwnTarball` requires `semver.valid(version) === version` and an npm package-name pattern (no `%`, one optional `@scope/`), so an encoded path such as `1.0.0%2F..%2Fevil%2F-%2Fevil-1.0.0` cannot ride in a URL that is byte-for-byte canonical. The real `server/package-lock.json` still has 0 violations. Test: `lockfile-provenance-names.unit.test.js`.
 
+51. **No release check on an instance started without outbound access** (added 2026-10-30, audit R7
+    L-1). With `GUESTFLOW_DISABLE_OUTBOUND=1` **and** `NODE_ENV=test` — both set by every E2E server
+    (specs/e2e-playwright-smoke-suite.md rule 23) — `runVersionCheck` returns `null` before any request,
+    as a managed instance does: neither the boot check of rule 12, nor the hourly one, nor « Vérifier
+    maintenant » reads the GitHub releases API, and `update-state.json` is not written. Before, an E2E
+    run wrote ~112 KB of live release data 60 s after boot and depended on GitHub's unauthenticated rate
+    limit. Unset, rule 12 is unchanged. The flag is honoured under `NODE_ENV=test` only (fail-closed, PR
+    #896 review R-2): a production instance (`NODE_ENV=production`, or no `NODE_ENV`) that inherited it by
+    mistake — a copy-pasted command, a stray env file — still checks, instead of silently never offering an
+    update again. Test: `e2e-no-outbound.unit.test.js`.
+
 ---
 
 ## 4. Architecture

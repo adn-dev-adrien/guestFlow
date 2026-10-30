@@ -461,6 +461,25 @@ Other facts the design rests on:
       an excess. When `false`, the acompte wording ends with « Aucun e-mail de confirmation n’a été envoyé au
       client. À vérifier : envoyer la confirmation au client. »
     - **Wording.** On a link owned by the stay the alert says « le séjour demande », not « le devis ».
+48. **An acompte link paid on a stay switched to « Sans acompte » re-enables the acompte (audit R7 M1, 2026-10-30,
+    Adrien's call).** The link was retired as stale when the acompte was turned off (rule 29) but paid anyway: on the
+    live path (`bookIfAmountChanged`) and on the `amount-changed` retry (`bookClaimedAmountChangedLink`), the booking
+    sets `depositDisabled = 0` and records the acompte at the amount received, the solde dropping by as much
+    ([disable-deposit-per-reservation.md](disable-deposit-per-reservation.md) rule 12). `mismatchOf` carries
+    `depositReenabled: true` with `balanceCents`, and the alert reads « Un lien d’acompte a été payé X alors que le
+    séjour était passé sans acompte. Acompte réactivé : payé par un lien retiré. Acompte enregistré à X ; solde porté
+    à Z. » instead of « (0,00 € demandés) ». Confirmation and excess lines follow rule 47.
+49. **An acompte link paid on a stay whose solde is already collected books the acompte on top (review of PR #893,
+    RC2, 2026-10-30).** The acompte branch of `bookPaidAfterAmountChange` split the pre-arrival total as acompte =
+    received, solde = the rest, even on a paid solde: on a « Sans acompte » stay whose solde was ticked, a retired
+    acompte link paid afterwards lowered the PAID solde and the link's money vanished (300 collected instead of
+    390, no trop-perçu). Now, when the solde is settled (`balancePaid` or `balancePaidCash`), `balanceAmount` is
+    never touched (reservation-refunds rule 36): the acompte is recorded at what was received, the excess over the
+    pre-arrival total is the trop-perçu (`storedOverpayment`, reservation-refunds rule 34) — the round-6 E1 model —
+    and a shortfall goes to the open arrival complement. `mismatchOf` mirrors it: `balanceSettled: true`,
+    `balanceCents` = the paid solde, `excessCents` = the excess. The alert reads « Acompte enregistré à X ; solde
+    déjà perçu (Z). Trop-perçu de Y à rembourser. » and, as for every excess (rule 47 E1), no confirmation is sent,
+    on the live path and on the retry.
 
 ## 4. Architecture
 
@@ -581,6 +600,8 @@ the moved page. No behaviour change.
 | `payment-link-deactivation.unit.test.js` | 7 | Rules 7–9: deactivated; refused → marked; stale link; retry; paid after cancel; failing retry; admin email |
 | `plugins/online-payment/tests/phase-3a-online-payment.unit.test.js` | 7 | Rules 4, 10–16, 21: provider; routes and webhook at their URLs; settings copy and secrets; poll job; erase keeps payments; open-link blocker; a new customer has no provider |
 | `payment-link-same-day-repriced.unit.test.js` (2026-10-30) | 9 | Rules 45, 46: grown / shrunk × live / `settled` retry / `amount-changed` retry give the stay of the webhook-first order, the alert reads the whole amount; earlier tick and paid acompte link unchanged; the e-mail wording |
+| `deposit-link-paid-on-disabled-acompte.unit.test.js` (2026-10-30) | 8 | Rule 48: live and `amount-changed` retry re-enable the acompte; the alert wording; ledger and save keep the acompte; journal keeps its entry |
+| `deposit-link-paid-on-paid-solde.unit.test.js` (2026-10-30) | 6 | Rule 49: live and `amount-changed` retry × the paid solde kept and the acompte booked on top with the excess as trop-perçu; the alert (« solde déjà perçu », « Trop-perçu de X à rembourser. », no confirmation); a later save keeps both payments |
 | `payment-link-retired-then-paid.unit.test.js` (2026-10-18) | 6 | Rule 24: ticked on seeing the money → `paid`, no alert, recorder once; the recorder keeps the operator's date; settled an earlier day → kept for refund, « à vérifier »; other cancellations keep rule 8; the email wording; the `cancelReason` upgrade |
 
 ### Moved and updated tests

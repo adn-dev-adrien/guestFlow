@@ -283,6 +283,8 @@ These are the recommended options, taken under the owner's instruction to run th
 
 37. **A fleet update never revives a customer closed after it started, and the destructive steps take the customer's lock** (audit R6 F1, 2026-10-30). `eligible()` chooses the targets once; `updateOne` therefore re-reads the customer and its hosting row inside the customer's sequence lock. A customer archived, erased or without a port any more is marked `skipped` (« Client archivé entre-temps. ») and the fleet carries on (a plugin push goes through the same function). The deprovision export and the erasure run inside `provisioner.exclusive(customerId)`, so they cannot overlap a snapshot or a rollback of that instance; the deprovision stop stays outside the lock because it takes the same lock. Test: `tests/audit-r6-fleet-lifecycle-race.unit.test.js`.
 
+38. **An archived customer is never served again by a retry, a rename, a restore or a second deprovision** (audit R7 F2, F3, F3b, 2026-10-30; review of PR #892 R1, H2, R2, 2026-10-30). The steps that serve the instance again — « Processus et route relancés depuis le dossier » (`restart`), « Processus redémarré » (`process-restart`) and the rename — offer no « Réessayer » on an archived customer, and the route refuses them with 409 `ARCHIVED`; inside the lock, `provisioner.restart`, `restartProcess` and `rename` re-read the customer and leave an archived or erased one untouched (a reactivation unarchives before it restarts, so it is unaffected). « Restaurer à une date » re-reads the customer once it holds the lock and refuses with 409 `ARCHIVED` when a deprovision stop queued before it has closed the instance: nothing is restored, started or replicated. A second deprovision of the same customer while one is running (another tab, or both queued behind a fleet item holding the lock) returns the page as it is: one export, one closing mail. While a deprovision of the customer is running — from its export to its stop, before `archivedAt` is set — « Changer l’adresse » and « Restaurer à une date » are refused with 409 `DEPROVISIONING` « Fermeture en cours. », before anything is written: a rename would otherwise move the closed space to a new address served with its full app, and a restore would replace the database the closing mail has just exported. Conversely, while a rename of the customer is in flight — from the moment « Changer l’adresse » or its « Réessayer » is accepted, including while it waits for the lock behind a fleet item and before its « rename » row exists — « Fermer l’espace » is refused with 409 `RENAME_PENDING` « Changement d’adresse à terminer d’abord. »: a rename that then failed would leave the old address routed to the closed customer's port, and that port goes to the next customer created. As a second line of defence, the erasure removes the route of every old address still reserved for the customer (`directory.aliasesOf`), not only the ones that hold a 301, so an erased customer's old address never serves another customer's space. Test: `tests/audit-r7-console-lifecycle.unit.test.js`.
+
 ---
 
 ## 4. Architecture
@@ -400,6 +402,10 @@ Mobile: the fleet table becomes cards, and the step list stays vertical.
   derived rclone remote (26–27), failed release not the default (28), process restart and alert
   links (29), plugin push with health check and rollback (11), never a downgrade (30), failed
   plugin version not the default (31).
+- (2026-10-30) a fleet update skips a customer closed after it started (37); no retry, rename, restore or
+  second deprovision serves an archived customer again, no rename or restore runs during a
+  deprovision, no deprovision runs during a rename, and the erasure removes every reserved old
+  address's route (38).
 
 **Instance unit tests:**
 - 403 on a managed instance;
