@@ -20,7 +20,8 @@ that file is often a copy of production, so running a branch's suite applied tha
 ## 2. Goal
 
 Running `npm test` can never create, open or migrate the checkout's own `server/guestflow.db`, and never
-hangs on a test that does not settle (rule 5). A suite does not go red because the calendar moved
+hangs on a test that does not settle (rule 5), and never reports green with tests of a file left unrun
+(rule 10). A suite does not go red because the calendar moved
 (rules 6-7, 9), and the unit suites fit their CI time budget (rule 8).
 
 ## 3. Functional rules
@@ -51,17 +52,31 @@ hangs on a test that does not settle (rule 5). A suite does not go red because t
 5. **A test that never settles fails, it does not stall the job** (added 2026-10-30, audit R7 L-2; amended the
    same day after the CI run of PR #896). The `test` scripts of `server/package.json` and
    `control-plane/server/package.json` pass `--test-timeout` — 60 000 ms for the server, 180 000 ms for the
-   control plane, whose lifecycle integration test gives itself 170 s — and `--test-force-exit`.
+   control plane, whose lifecycle integration test gives itself 170 s — and preload the exit watchdog
+   `scripts/test-runner/test-exit-watchdog.cjs` (`--require`). `--test-force-exit` is withdrawn (2026-10-30,
+   audit R9 M-1): see the last point and rule 10.
    - **What the limit applies to depends on Node.** Node 22 applies it to each test FILE as a whole under
      process isolation (the report names the file, « test timed out after … »). Node ≥ 24 — the CI's
      `node-version: '24'` — applies it to each TEST (nodejs/node#57672) and the report names the test. Both
      values therefore stay above the slowest file: on 2026-10-30 the whole server suite (8 672 tests) passed
      under them on Node 22 on a loaded machine, slowest file 8.1 s; the control plane (312) passed in 28 s.
      On CI the slowest single test was 4.4 s.
-   - **`--test-force-exit` ends the child.** On Node 24 a timed-out test is reported, but the handle it left
+   - **The exit watchdog ends the child.** On Node 24 a timed-out test is reported, but the handle it left
      open (a listening server, an interval) keeps its file's process alive, so the run still stalled until
-     the CI cancelled the job. With force-exit the runner ends the process once its tests are reported: the
-     hanging file fails within its limit on both Node 22 and Node 24.
+     the CI cancelled the job. The watchdog, registered as a root `after` hook in every test file's child
+     process, gives that process 30 s to exit once its last test is reported; past it, it writes
+     « <file> is still running 30000 ms after its last test: a handle it left open … keeps it alive » and
+     exits 1. The hanging file fails within its limit plus 30 s on Node 24, within its limit on Node 22 (whose
+     file timeout fires first), and a file whose tests all pass but which leaves a handle open fails too,
+     named, instead of stalling. `GUESTFLOW_TEST_EXIT_GRACE_MS` shortens the grace for the rule's own test.
+   - **Why not `--test-force-exit`** (amended 2026-10-30, audit R9 M-1). It did the same job from 2026-10-30
+     until the audit caught it ending a file's process before its last tests: under load the runner reached
+     its « every known test finished » point with top-level tests still queued, exited 0, and the run
+     reported only the tests that had run. On GitHub CI, unit-tests run 41098351686 reported 8 898 tests
+     green where the identical tree reported 8 910 — the last 12 tests of `sas-commit.unit.test.js` never
+     ran. Locally, 7 of 20 parallel runs of two files were cut short with force-exit, 0 of 20 without. The
+     watchdog only acts 30 s after that point, so a file whose tail is still running is left to finish, and
+     rule 10 fails the run if a process ever ends early anyway.
    Before, a regression in a « server that never answers » test (neat-timeout, reproduced by the audit) hung
    `npm test` for over 16 minutes and the CI cancelled the job at its 15-minute limit without naming the
    culprit. Vitest (client suites) already has its own 5 s per-test default. Test:
@@ -170,6 +185,21 @@ hangs on a test that does not settle (rule 5). A suite does not go red because t
    `test-suite-calendar-and-ci-budget.unit.test.js` (the pure filter and its counts, a real git repository
    replaying an integration PR, a feature PR and a copy out of a pinned test, and the workflow step).
 
+10. **A suite never reports green with tests of a file left unrun** (added 2026-10-30, audit R9 M-1). The
+   `test` scripts of `server/package.json` and `control-plane/server/package.json` keep the `spec` report on
+   stdout and add `scripts/test-runner/test-completeness-reporter.mjs` on stderr. Per test file, every
+   top-level test the file declared (the runner's `test:enqueue`) must be reported (`test:pass` — skips and
+   todos included — or `test:fail`); a gap prints « ✖ <file>: N of M tests never reported — the file's
+   process ended before them: » with each missing test named, and sets the exit code to 1. A file whose
+   process ended before reporting any test (the runner then reports the file itself as one passing test)
+   fails the same way (« no test reported »). Names are matched, not counts: the runner also enqueues one
+   synthetic test per file, named after the file. Why: a child process that ends early is reported by
+   `node --test` as a green, shorter run — that is how 12 tests went missing from a green CI job (rule 5),
+   and the bucket-only merge gates (`merge-when-green.sh`, the release skill) only see the job's colour. The
+   guard covers whatever ends a file early, not only force-exit: a test calling `process.exit(0)`, a native
+   crash reported as exit 0. Replayed with `--test-force-exit` under load (two files, 40 parallel runs), it
+   failed each of the 6 truncated runs and named the missing tests. Test: `node-suite-completeness.unit.test.js`.
+
 **Edge cases:**
 - A targeted `node --test <file>` used to open and migrate `server/guestflow.db` for 389 test files (audit R2,
   2026-10-29); rule 4 closes that. Rule 3 stays as the explicit guard of the three first offenders.
@@ -190,9 +220,13 @@ hangs on a test that does not settle (rule 5). A suite does not go red because t
 | `database.js`, `utils/instancePaths.js` | | T | Call it before reading the environment. |
 | `tests/` | `server-test-isolation.unit.test.js` | C | Pins rules 1-2 in a child process. |
 | `tests/`, `plugins/hourly-resources/tests/` | the three offenders | T | Rule 3. |
-| `package.json` | `test` script | T | `--require ./src/tests/setup/isolateDefaultDb.js`; `--test-timeout=60000 --test-force-exit` (rule 5). |
-| `control-plane/server/package.json` | `test` script | T | `--test-timeout=180000 --test-force-exit` (rule 5). |
-| `tests/` | `node-suite-test-timeout.unit.test.js` | C | Pins rule 5: both values, force-exit in both scripts, and that a hanging test fails within its limit on Node 22 and 24. |
+| `package.json` | `test` script | T | `--require ./src/tests/setup/isolateDefaultDb.js`; `--test-timeout=60000` and the exit watchdog (rule 5); the `spec` and completeness reporters (rule 10). |
+| `control-plane/server/package.json` | `test` script | T | `--test-timeout=180000` and the exit watchdog (rule 5); the `spec` and completeness reporters (rule 10). |
+| `scripts/test-runner/` (repo root) | `test-exit-watchdog.cjs` | C | Rule 5: in each test file's child, exits 1 naming the file when it is still alive 30 s after its last test. |
+| `scripts/test-runner/` (repo root) | `test-completeness-reporter.mjs` | C | Rule 10: fails the run and names the tests a file declared but never reported. |
+| `tests/` | `node-suite-test-timeout.unit.test.js` | C | Pins rule 5: both values, the watchdog and no force-exit in both scripts, and under each script's own flags that a hanging test, and a passing file left with an open handle, fail named within their limit on Node 22 and 24. |
+| `tests/` | `node-suite-completeness.unit.test.js` | C | Pins rule 10: both reporters in both scripts; under each script's flags a file ending early, or before any report, fails naming what never ran; a complete file is judged on its tests only. |
+| `tests/` | `nodeSuiteScriptFixture.js` | C | Runs a throw-away test file with the exact flags of a package's `test` script (rules 5 and 10). |
 | `tests/` | `disabledAcompteLinkFixture.js`, `deposit-collected-by-link-kept-on-save`, `deposit-link-paid-on-disabled-acompte`, `deposit-due-date-and-override-history`, `payment-links-converted-devis-double-payment` | T | Rule 6: dates built from today. |
 | `tests/` | `reservation-overpayment`, `kept-money-priced-closes-trop-percu`, `trop-percu-refund-books`, `hourly-session-overlap`, `ledger-stored-deposit-ceiling`, `platform-paid-solde-follows-statement` | T | Rule 6: stays built from today (`inDays`). |
 | `tests/` | `reservationSaveFixture.js` and its 17 suites | T | Rule 6: default stay `inDays(270)`, `inDays` exported; every suite's stays built from it. |
@@ -214,6 +248,8 @@ None. API, data model and UI are unchanged.
 - [x] Rule 4: a single file run (`settings-model`) without preload leaves `guestflow.db` / `.env.local` / `uploads` untouched; under `NODE_TEST_CONTEXT` the three defaults are in the temp dir.
 - [x] Rule 3: the three tests, run alone with `server/guestflow.db` removed, leave no file behind.
 - [x] Rule 5: `node-suite-test-timeout.unit.test.js` (2 tests) reads both scripts (timeouts + `--test-force-exit`) and runs a hanging file under a 300 ms limit with force-exit; passes on Node 22.22.2 and 24.22.2.
+- [x] Rule 5 (amended 2026-10-30, audit R9 M-1): the same file (6 tests) reads both scripts (timeouts, the watchdog, no `--test-force-exit`) and, under each script's own flags (timeout 300 ms, grace 300 ms), runs a test that never settles and a passing test that leaves an interval open: both fail, named, in under 20 s, on Node 22.22.2 and 24.22.2. Before the change the open-handle case was green under force-exit (3 of the 4 new cases red on Node 24, all 4 on Node 22).
+- [x] Rule 10: `node-suite-completeness.unit.test.js` (8 tests) — both reporters in both scripts; plain `node --test` reports a file that calls `process.exit(0)` in its second test as green with 1 test (the hole); under each script's flags the same file fails naming the 3 tests never reported, a file exiting before any report fails with « no test reported », and a complete file with a skip, a todo, a suite and a failure is judged on its tests only. 5 of the 8 were red before the change, on Node 22.22.2 and 24.22.2. Under load (two files, 20 parallel runs per batch): with `--test-force-exit` and the reporter, 6 of 40 runs truncated, all 6 failed and named; with the new flags, 60 of 60 runs complete, 91 tests each.
 - [x] Rule 6: the six files carry no literal date the calendar will pass (`findDateBombs` over their whole content); with the R7 clock-shift preload they were red before the change (3 tests at 2027-05-09, 16 at 2027-06-08, 26 at 2027-10-05, rule 34 from 2027-05-10, 1 of the due-date file at 2027-09-05) and are 48/48 green at 2026-10-30 09:30Z and 23:30Z, 2027-05-09, 06-08, 09-05, 10-05, 12-31 22:30Z, 2028-02-29 and 2030-01-02.
 - [x] Rule 6 (second pass): the rule 6 test also reads the eight suites above and the whole `reservationSaveFixture` family (17 suites, found by their `require`). Clock-shift sweep of those 26 files (117 tests) under Europe/Paris and America/Los_Angeles: before, 0 / 4 / 8 / 20 / 27 red at 2026-10-30, 2027-01-24, 2027-02-12, 2027-05-25, 2027-07-21; after, 117/117 at each, and at 2027-10-05, 2028-02-29 and 2030-01-02.
 - [x] Rule 7: `test-suite-calendar-and-ci-budget.unit.test.js` — a quoted date, a template opening on a year and a `Date.UTC` year are named with file and line; only added lines are read, numbered as the diff numbers them; the marker, a pinned clock, a comment, the far future and non-test files are not named; a timer mock without `'Date'` pins nothing and `mock.timers.enable()` with no `apis` does; a pin exempts its own `test` / `describe` only, and a call written in a string is not a pin; the PR job runs it with `--strict`. The five new cases fail on the previous script and workflow. The PR itself passes `--strict` against inte/plugins.
