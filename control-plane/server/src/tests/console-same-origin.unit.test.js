@@ -8,16 +8,17 @@ const session = require('express-session');
 const { passwordHash } = require('../utils/gf');
 const { createApp } = require('../app');
 const { makeContext } = require('./helpers');
+const { listenLocal, closeServer, fetchLocal } = require('./listenLocal');
 
 async function start() {
   const h = makeContext();
   h.ctx.models.operators.create({ email: 'adrien@adn-dev.fr', name: 'Adrien', passwordHash: passwordHash.hashPassword('correct horse battery') });
   const app = createApp(h.ctx, { sessionSecret: 'test', sessionStore: new session.MemoryStore() });
-  const server = await new Promise((resolve) => { const s = app.listen(0, () => resolve(s)); });
+  const server = await listenLocal(app);
   const base = `http://127.0.0.1:${server.address().port}`;
   let cookie = '';
   async function call(method, url, body, headers = {}) {
-    const res = await fetch(base + url, {
+    const res = await fetchLocal(base + url, {
       method,
       headers: { 'content-type': 'application/json', ...(cookie ? { cookie } : {}), ...headers },
       body: body === undefined ? undefined : JSON.stringify(body),
@@ -32,7 +33,7 @@ async function start() {
     const code = /Votre code : (\d{6})/.exec(h.mailer.sent[h.mailer.sent.length - 1].text)[1];
     return call('POST', '/api/auth/verify', { code });
   }
-  return { ...h, base, call, signIn, close: () => new Promise((r) => server.close(r)) };
+  return { ...h, base, call, signIn, close: () => closeServer(server) };
 }
 
 test('rule 36 — a signed-in operator\'s write from another host is refused, from the console itself it passes', async () => {

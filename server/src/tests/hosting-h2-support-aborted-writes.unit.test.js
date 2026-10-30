@@ -7,8 +7,9 @@ const assert = require('node:assert/strict');
 const http = require('http');
 const express = require('express');
 const { createSupportAudit } = require('../middleware/supportAudit');
+const { listenLocal } = require('./listenLocal');
 
-function serve(handler) {
+async function serve(handler) {
   const log = [];
   const controller = { sessionAccess: () => ({ id: 1 }), record: (id, entry) => log.push(entry) };
   const app = express();
@@ -16,9 +17,8 @@ function serve(handler) {
   app.use((req, res, next) => { req.session = { supportAccessId: 1, user: { isSupport: true } }; next(); });
   app.use('/api', createSupportAudit({ controller, isSecretSetting: () => false }));
   app.post('/api/reservations/1/cancel', handler);
-  return new Promise((resolve) => {
-    const server = app.listen(0, () => resolve({ server, log, port: server.address().port }));
-  });
+  const server = await listenLocal(app);
+  return { server, log, port: server.address().port };
 }
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -31,7 +31,7 @@ test('rule 60 — a write whose client hangs up before the answer is still logge
     await wait(200);
     res.json({ ok: true });
   });
-  const req = http.request({ port, method: 'POST', path: '/api/reservations/1/cancel', headers: { 'content-type': 'application/json' } });
+  const req = http.request({ host: '127.0.0.1', port, method: 'POST', path: '/api/reservations/1/cancel', headers: { 'content-type': 'application/json' } });
   req.on('error', () => {});
   req.end('{}');
   await wait(50);
@@ -47,7 +47,7 @@ test('rule 60 — a normal answer is logged once, with its status, and not as ab
   const { server, log, port } = await serve((req, res) => res.status(201).json({ ok: true }));
   t.after(() => server.close());
   await new Promise((resolve) => {
-    const req = http.request({ port, method: 'POST', path: '/api/reservations/1/cancel', headers: { 'content-type': 'application/json' } }, (res) => { res.resume(); res.on('end', resolve); });
+    const req = http.request({ host: '127.0.0.1', port, method: 'POST', path: '/api/reservations/1/cancel', headers: { 'content-type': 'application/json' } }, (res) => { res.resume(); res.on('end', resolve); });
     req.end('{}');
   });
   await wait(100);

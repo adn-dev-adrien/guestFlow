@@ -7,16 +7,17 @@ const assert = require('node:assert/strict');
 const http = require('http');
 const express = require('express');
 const { loginLimiter } = require('../middleware/rateLimiters');
+const { listenLocal } = require('./listenLocal');
 
 function serve(handler) {
   const app = express();
   app.use(express.json());
   app.post('/api/auth/login', loginLimiter, handler);
-  return new Promise((resolve) => { const server = app.listen(0, () => resolve(server)); });
+  return listenLocal(app);
 }
 
 const post = (server) => new Promise((resolve) => {
-  const req = http.request({ port: server.address().port, method: 'POST', path: '/api/auth/login' }, (res) => {
+  const req = http.request({ host: '127.0.0.1', port: server.address().port, method: 'POST', path: '/api/auth/login' }, (res) => {
     let body = '';
     res.on('data', (c) => { body += c; });
     res.on('end', () => resolve({ status: res.statusCode, body: JSON.parse(body) }));

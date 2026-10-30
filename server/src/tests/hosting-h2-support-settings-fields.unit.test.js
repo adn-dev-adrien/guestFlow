@@ -5,6 +5,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { forbiddenReason } = require('../utils/supportSessionPolicy');
+const { listenLocal } = require('./listenLocal');
 
 const stored = { portalCode: '4821', companyIban: 'FR7612345678901234567890123', companyBic: 'BNPAFRPP', notificationRecipientEmail: 'resa@domaine-ombre.fr' };
 const deps = { isSecretSetting: () => false, isSecretRoute: () => false, currentSettings: () => stored };
@@ -62,11 +63,11 @@ test('rule 18 — the refusal is answered 403, never reaches the handler, and is
   app.use((req, res, next) => { req.session = { supportAccessId: 1, user: { isSupport: true } }; next(); });
   app.use('/api', createSupportAudit({ controller, isSecretSetting: () => false, currentSettings: () => stored }));
   app.put('/api/settings', (req, res) => { reached.push(req.body); res.json({ ok: true }); });
-  const server = await new Promise((resolve) => { const s = app.listen(0, () => resolve(s)); });
+  const server = await listenLocal(app);
   t.after(() => server.close());
   const send = (body) => new Promise((resolve) => {
     const payload = JSON.stringify(body);
-    const req = http.request({ port: server.address().port, method: 'PUT', path: '/api/settings', headers: { 'content-type': 'application/json', 'content-length': Buffer.byteLength(payload) } }, (res) => { res.resume(); res.on('end', () => resolve(res.statusCode)); });
+    const req = http.request({ host: '127.0.0.1', port: server.address().port, method: 'PUT', path: '/api/settings', headers: { 'content-type': 'application/json', 'content-length': Buffer.byteLength(payload) } }, (res) => { res.resume(); res.on('end', () => resolve(res.statusCode)); });
     req.end(payload);
   });
   assert.equal(await send({ company: { portalCode: 'AUDIT-0000' } }), 403);

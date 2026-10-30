@@ -8,6 +8,7 @@ const http = require('http');
 const session = require('express-session');
 const { createApp } = require('../app');
 const { makeContext, makeInstance, NEW_CUSTOMER } = require('./helpers');
+const { listenLocal, closeServer, REQUEST_TIMEOUT_MS } = require('./listenLocal');
 
 const APP = 'app.guestflow.test';
 
@@ -19,12 +20,12 @@ async function start() {
   const moulin = await h.ctx.controllers.customers.create({ ...NEW_CUSTOMER, slug: 'moulin', companyName: 'Le Moulin', contactEmail: 'jo@moulin.fr' }, 'op');
   h.ctx.controllers.login.readDirectory();
   const app = createApp(h.ctx, { sessionSecret: 'test', sessionStore: new session.MemoryStore(), appHost: APP });
-  const server = await new Promise((resolve) => { const s = app.listen(0, () => resolve(s)); });
+  const server = await listenLocal(app);
   const port = server.address().port;
   function call(method, url, { host = APP, form, cookie } = {}) {
     const body = form ? new URLSearchParams(form).toString() : undefined;
     return new Promise((resolve, reject) => {
-      const req = http.request({ port, method, path: url, headers: {
+      const req = http.request({ host: '127.0.0.1', port, timeout: REQUEST_TIMEOUT_MS, method, path: url, headers: {
         host, ...(body ? { 'content-type': 'application/x-www-form-urlencoded', 'content-length': Buffer.byteLength(body) } : {}), ...(cookie ? { cookie } : {}),
       } }, (res) => {
         let text = '';
@@ -36,7 +37,7 @@ async function start() {
       req.end();
     });
   }
-  return { ...h, moulin, call, close: () => new Promise((r) => server.close(r)) };
+  return { ...h, moulin, call, close: () => closeServer(server) };
 }
 
 test('rules 24, 25 — the form has no password field; one space is a 303 with the hint and the cookie', async () => {

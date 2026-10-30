@@ -9,6 +9,7 @@ const session = require('express-session');
 const { passwordHash, qontoService } = require('../utils/gf');
 const { createApp } = require('../app');
 const { makeContext, makeFakeQonto, makeInstance, NEW_CUSTOMER } = require('./helpers');
+const { listenLocal, closeServer, fetchLocal } = require('./listenLocal');
 
 test('rule 32 — the console’s settings speak GuestFlow’s settings interface, secrets encrypted and masked', () => {
   const h = makeContext();
@@ -36,12 +37,12 @@ async function start({ qonto } = {}) {
   const h = makeContext({ at: '2026-10-01T08:00:00Z', qonto });
   h.ctx.models.operators.create({ email: 'adrien@adn-dev.fr', name: 'Adrien', passwordHash: passwordHash.hashPassword('correct horse battery') });
   const app = createApp(h.ctx, { sessionSecret: 'test', sessionStore: new session.MemoryStore() });
-  const server = await new Promise((resolve) => { const s = app.listen(0, () => resolve(s)); });
+  const server = await listenLocal(app);
   const base = `http://127.0.0.1:${server.address().port}`;
   let cookie = '';
   async function call(method, url, body, headers = {}) {
     const raw = body === undefined ? undefined : (typeof body === 'string' ? body : JSON.stringify(body));
-    const res = await fetch(base + url, { method, redirect: 'manual', headers: { 'content-type': 'application/json', ...(cookie ? { cookie } : {}), ...headers }, body: raw });
+    const res = await fetchLocal(base + url, { method, redirect: 'manual', headers: { 'content-type': 'application/json', ...(cookie ? { cookie } : {}), ...headers }, body: raw });
     const set = res.headers.get('set-cookie');
     if (set) cookie = set.split(';')[0];
     const type = res.headers.get('content-type') || '';
@@ -52,7 +53,7 @@ async function start({ qonto } = {}) {
     const code = /Votre code : (\d{6})/.exec(h.mailer.sent[h.mailer.sent.length - 1].text)[1];
     return call('POST', '/api/auth/verify', { code });
   }
-  return { ...h, call, signIn, close: () => new Promise((r) => server.close(r)) };
+  return { ...h, call, signIn, close: () => closeServer(server) };
 }
 
 test('rule 32 — the Paiements routes answer an operator only; authorize asks the console’s scopes', async () => {
