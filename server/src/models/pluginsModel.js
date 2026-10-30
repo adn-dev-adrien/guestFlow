@@ -25,7 +25,7 @@
  *   uninstall(id)           → deletes the row (the plugin's data is kept, rule 6)
  *   isActive(id)            → boolean
  *   listActiveIds()         → [id]
- *   countOpenPaymentLinks() / countPendingDeactivations() / countOnlyRoleUsers(role) → blocker counts (rule 8)
+ *   countOpenPaymentLinks() / countPendingDeactivations() / countPendingLastLooks() / countOnlyRoleUsers(role) → blocker counts (rule 8)
  */
 
 function buildModel(database) {
@@ -63,6 +63,15 @@ function buildModel(database) {
   const countPendingDeactivations = () => {
     try {
       return database.prepare('SELECT COUNT(*) AS n FROM payment_links WHERE remoteCancelPendingAt IS NOT NULL').get().n;
+    } catch {
+      return 0;
+    }
+  };
+  // specs/payment-link-lifecycle.md rule 52 — a lapsed link deactivated unpaid still owes its one last read of
+  // the payment (rule 19); only the plugin's lifecycle job takes it.
+  const countPendingLastLooks = () => {
+    try {
+      return database.prepare("SELECT COUNT(*) AS n FROM payment_links WHERE status = 'expired' AND lastLookAt IS NOT NULL AND remoteCancelPendingAt IS NULL").get().n;
     } catch {
       return 0;
     }
@@ -118,6 +127,7 @@ function buildModel(database) {
     listActiveIds: () => activeStmt.all().map((r) => r.id),
     countOpenPaymentLinks: () => openLinksStmt.get().n,
     countPendingDeactivations,
+    countPendingLastLooks,
     countOnlyRoleUsers: (role) => onlyRoleStmt.get(role).n,
   };
 }
