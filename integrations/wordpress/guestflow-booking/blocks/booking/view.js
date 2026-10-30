@@ -178,6 +178,12 @@
           box.appendChild(GF.el('div', { class: 'gf-inline-warn' }, GF.t('paymentCancelled')));
           return;
         }
+        // The link lapsed unpaid and none replaced it: nothing more will confirm, so the polling stops.
+        if (d.status === 'expired') {
+          box.innerHTML = '';
+          box.appendChild(GF.el('div', { class: 'gf-inline-warn' }, GF.t('paymentExpired')));
+          return;
+        }
         waiting();
         tries++;
         if (tries < MAX_TRIES) { setTimeout(poll, 3000); return; }
