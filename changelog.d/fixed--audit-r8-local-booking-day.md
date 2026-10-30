@@ -3,5 +3,6 @@
   day as the first ten characters of the UTC `createdAt`: a devis created between 00:00 and 01:00 / 02:00
   in Paris, 30 days before arrival, was sold as one single payment and flipped to a 30 % acompte with the
   solde due before it at its first unchanged save; a reservation's fiche showed that acompte too. The
-  schedule, the pace's booking day, the earliest arrival-payment date and the Clients « Créé le » now read
-  the local day. +11 server tests.
+  schedule, the pace's booking and cancellation days (iCal ledger included), the history window of a
+  collected complement, the earliest arrival-payment date and the Clients « Créé le » now read the local
+  day. +14 server tests.

@@ -24,6 +24,25 @@ test('rule 50 — the pace counts a stay booked at 00:30 on its Paris day', () =
   assert.deepEqual(finance.getPaceStays({}).map((s) => s.bookedOn), ['2026-10-31']);
 });
 
+// The ledger of an approved iCal cancellation (`booking_pace_cancellations`) and a manually cancelled row
+// both carry UTC datetimes: the stay keeps its Paris booking day and is cancelled on its Paris day.
+test('rule 50 — an iCal and a manual cancellation at 23:30Z land on the Paris day', () => {
+  const { db, finance } = freshDb();
+  db.exec('ALTER TABLE reservations ADD COLUMN cancelledAt TEXT');
+  db.exec(`CREATE TABLE booking_pace_cancellations (id INTEGER PRIMARY KEY, reservationId INTEGER, propertyId INTEGER,
+    startDate TEXT, endDate TEXT, totalSejour REAL, reservationCreatedAt TEXT, cancelledAt TEXT NOT NULL DEFAULT (datetime('now')))`);
+  insert(db, {
+    kind: 'cancelled', startDate: '2027-07-05', endDate: '2027-07-08', finalPrice: 450, balanceAmount: 450,
+    createdAt: AT_HALF_PAST_MIDNIGHT, cancelledAt: '2026-11-04 23:15:00',
+  });
+  db.prepare(`INSERT INTO booking_pace_cancellations (reservationId, propertyId, startDate, endDate, totalSejour, reservationCreatedAt, cancelledAt)
+              VALUES (99, 1, '2027-06-14', '2027-06-17', 600, ?, '2026-11-04 23:15:00')`).run(AT_HALF_PAST_MIDNIGHT);
+  assert.deepEqual(finance.getPaceStays({}).map((s) => [s.bookedOn, s.cancelledOn]), [
+    ['2026-10-31', '2026-11-05'],
+    ['2026-10-31', '2026-11-05'],
+  ]);
+});
+
 function withMocks(modules, fn) {
   const origRequire = Module.prototype.require;
   Module.prototype.require = function patched(id) {

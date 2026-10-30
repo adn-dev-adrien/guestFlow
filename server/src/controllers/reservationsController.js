@@ -474,7 +474,7 @@ function touristTaxCollectedInComplement(reservationId, row) {
   const paidDate = String(row.complementPaidDate || '').slice(0, 10);
   const entries = db.prepare("SELECT changedFields, createdAt FROM reservation_history WHERE reservationId = ? AND eventType = 'update' ORDER BY id").all(Number(reservationId));
   for (const entry of entries) {
-    if (paidDate && String(entry.createdAt || '').slice(0, 10) < paidDate) continue;
+    if (paidDate && bookingDayOf(entry.createdAt) < paidDate) continue;
     let changes = [];
     try { changes = JSON.parse(entry.changedFields || '[]'); } catch { changes = []; }
     const taxChange = changes.find((c) => c && c.field === 'touristTaxTotal');
@@ -560,7 +560,7 @@ function droppedSince(reservationId, since, scope = null) {
   const net = { options: 0, resources: 0, touristTax: 0 };
   const entries = db.prepare("SELECT changedFields, createdAt FROM reservation_history WHERE reservationId = ? AND eventType = 'update' ORDER BY id").all(Number(reservationId));
   for (const entry of entries) {
-    if (since && String(entry.createdAt || '').slice(0, 10) < since) continue;
+    if (since && bookingDayOf(entry.createdAt) < since) continue;
     let changes = [];
     try { changes = JSON.parse(entry.changedFields || '[]'); } catch { changes = []; }
     for (const change of changes) {
