@@ -10,6 +10,9 @@
  * once and retries, then fails normally. Endpoints + shapes from docs.neat.eu (2026-09).
  */
 
+// Below the WordPress plugin's own 8 s give-up, so a quote answers (at the fallback price) before it does.
+const DEFAULT_TIMEOUT_MS = 5000;
+
 const BASE_URLS = {
   production: 'https://api.neat.eu',
   staging: 'https://api.staging.neat.eu',
@@ -26,6 +29,9 @@ function buildNeatClient(config = {}) {
   if (typeof fetchImpl !== 'function') {
     throw new Error('neatClient: no fetch implementation (Node 18+ global fetch or inject config.fetchImpl)');
   }
+
+  const timeoutMs = Number.isFinite(Number(config.timeoutMs)) && Number(config.timeoutMs) > 0
+    ? Number(config.timeoutMs) : DEFAULT_TIMEOUT_MS;
 
   let token = null;
   let serviceAccountId = null;
@@ -48,13 +54,36 @@ function buildNeatClient(config = {}) {
     return body || {};
   }
 
+  // One deadline per HTTP exchange, covering the headers AND the body read: an unanswering Neat
+  // rejects with a clean 504 instead of holding the quote for undici's 300 s default.
+  async function timed(context, exchange) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      return await exchange(controller.signal);
+    } catch (err) {
+      if (controller.signal.aborted) {
+        const timeoutErr = new Error(`Neat ${context} timed out after ${timeoutMs} ms`);
+        timeoutErr.status = 504;
+        timeoutErr.code = 'NEAT_TIMEOUT';
+        throw timeoutErr;
+      }
+      throw err;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   async function auth() {
-    const res = await fetchImpl(`${baseUrl}/service-accounts/auth`, {
-      method: 'POST',
-      headers: { accept: 'application/json', 'content-type': 'application/json' },
-      body: JSON.stringify({ clientId, clientSecret }),
+    const json = await timed('auth', async (signal) => {
+      const res = await fetchImpl(`${baseUrl}/service-accounts/auth`, {
+        method: 'POST',
+        headers: { accept: 'application/json', 'content-type': 'application/json' },
+        body: JSON.stringify({ clientId, clientSecret }),
+        signal,
+      });
+      return readBody(res, 'auth');
     });
-    const json = await readBody(res, 'auth');
     token = json.token || null;
     serviceAccountId = (json.serviceAccount && json.serviceAccount.id) || null;
     if (!token) {
@@ -69,20 +98,26 @@ function buildNeatClient(config = {}) {
   // failure propagates. `retried` guards against an auth loop when the credentials are wrong.
   async function request(method, path, { body, context, retried = false } = {}) {
     if (!token) await auth();
-    const res = await fetchImpl(`${baseUrl}${path}`, {
-      method,
-      headers: {
-        accept: 'application/json',
-        'content-type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    const label = context || `${method} ${path}`;
+    const answer = await timed(label, async (signal) => {
+      const res = await fetchImpl(`${baseUrl}${path}`, {
+        method,
+        headers: {
+          accept: 'application/json',
+          'content-type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+        signal,
+      });
+      if (res.status === 401 && !retried) return { unauthorized: true };
+      return { json: await readBody(res, label) };
     });
-    if (res.status === 401 && !retried) {
+    if (answer.unauthorized) {
       token = null;
       return request(method, path, { body, context, retried: true });
     }
-    return readBody(res, context || `${method} ${path}`);
+    return answer.json;
   }
 
   return {
@@ -155,4 +190,4 @@ function buildNeatClient(config = {}) {
   };
 }
 
-module.exports = { buildNeatClient, BASE_URLS };
+module.exports = { buildNeatClient, BASE_URLS, DEFAULT_TIMEOUT_MS };

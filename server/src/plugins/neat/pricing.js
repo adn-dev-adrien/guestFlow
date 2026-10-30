@@ -13,6 +13,12 @@ const crypto = require('crypto');
 const { parseMappingJson, validateMapping, buildServiceFieldValues } = require('./fieldMapping');
 
 const CACHE_FRESH_MS = 24 * 60 * 60 * 1000;
+// After a failed live call Neat is not asked again for this long: an outage costs one bounded wait,
+// not one per quote. Guest pricing only — the subscription pass keeps its own retry schedule.
+const BREAKER_MS = 60 * 1000;
+const breakerOpenUntil = new Map();
+
+function resetPriceBreaker() { breakerOpenUntil.clear(); }
 
 // Whole-euro ceil: 17.50 € premium + 30 % → 22.75 → 23. A 0 % margin still ceils (17.50 → 18);
 // an ABSENT margin (null/'') means Neat pricing is inactive — null, never a 0 % default.
@@ -85,14 +91,21 @@ async function resolveInsurancePricing(deps, staySnapshot) {
 
   if (cached && cacheAge < CACHE_FRESH_MS) return finish(cached.premium, 'cache');
 
+  const breakerKey = `${cfg.environment}:${cfg.clientId}`;
+  if ((breakerOpenUntil.get(breakerKey) || 0) > nowMs) {
+    return cached ? finish(cached.premium, 'stale-cache') : null;
+  }
+
   try {
     const client = buildClient({ environment: cfg.environment, clientId: cfg.clientId, clientSecret: cfg.clientSecret });
     const { amount } = await client.price(cfg.contractId, { serviceFieldValues, quantity: 1 });
     if (!Number.isFinite(amount) || amount < 0) throw new Error(`Neat price returned a non-amount: ${amount}`);
+    breakerOpenUntil.delete(breakerKey);
     cacheModel.storePremium(cfg.environment, cfg.contractId, fieldsHash, amount, new Date(nowMs).toISOString());
     return finish(amount, 'live');
   } catch (err) {
     // Stale cache beats no price; no cache at all → null and the static tariff applies (rule 13).
+    breakerOpenUntil.set(breakerKey, nowMs + BREAKER_MS);
     logger.warn(`[neat] price failed (${err.message}); ${cached ? 'serving stale cache' : 'falling back to static tariff'}`);
     if (cached) return finish(cached.premium, 'stale-cache');
     return null;
@@ -150,4 +163,6 @@ module.exports = {
   pricingConfig,
   hashFieldValues,
   CACHE_FRESH_MS,
+  BREAKER_MS,
+  resetPriceBreaker,
 };

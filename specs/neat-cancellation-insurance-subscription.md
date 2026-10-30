@@ -177,6 +177,17 @@ through.
     > down then a cancellation let the retry price and subscribe a paid policy for a stay that no
     > longer wanted it (`neat-failed-job-disqualified.unit.test.js`).
 
+17. **Neat calls are bounded** (2026-10-30, round-6 audit N6). Every HTTP exchange of the Neat client
+    (auth and API calls, headers and body read) carries a deadline, `timeoutMs`, 5 s by default —
+    below the WordPress plugin's 8 s give-up. A Neat that does not answer rejects with a 504
+    `NEAT_TIMEOUT` error instead of holding the quote for undici's 300 s. Rule 13's fallback ladder
+    therefore really runs inside the bound: stale cache, then the static tariff. After a failed live
+    price call, guest pricing does not call Neat again for 60 s (per environment and service
+    account) and goes straight to the ladder; the first success closes the breaker, and the call is
+    retried once the window has elapsed. The subscription pass is not behind the breaker: a timeout
+    there is an ordinary `unavailable` failure on the job (rule 10 schedule). Test:
+    `neat-timeout.unit.test.js`.
+
 **Edge cases:**
 
 - Deposit paid then un-paid (operator correction) → an already `active` subscription stays active
