@@ -448,25 +448,26 @@ const errorText = (err) => String((err && err.message) || err);
 
 // specs/payment-link-lifecycle.md rule 18 — a LAPSED link is deactivated first and its payment read after,
 // so no payment can start after the read: paid → booked like any payment of the stay (rule 14); not paid →
-// the deactivation is done and one last look is due in an hour (rule 19). A refused deactivation keeps the
-// marker, unless the link is already dead at the provider (its payment is then read all the same).
+// the deactivation is done and one last look is due in an hour (rule 19). A refused deactivation (other than
+// a rate limit) still reads the payment: a provider refuses to deactivate a link already paid, and that
+// payment must be booked; unpaid, the marker stays for the next pass.
 async function deactivateThenRead({ link, provider, paymentLinksModel, now, ...effect }) {
+  let refused = null;
   try {
     await provider.cancelLink(link.providerLinkId);
   } catch (err) {
     // A rate limit is not asked about again (rule 21): the pass stops here.
-    const rateLimited = Boolean(err && err.code === 'RATE_LIMITED');
-    if (rateLimited || !(await require('./paymentLinkDeactivation').alreadyInactive(provider, link.providerLinkId))) {
-      return { result: linkResult(link, { status: 'deactivation-pending', error: errorText(err) }), rateLimited };
-    }
+    if (err && err.code === 'RATE_LIMITED') return { result: linkResult(link, { status: 'deactivation-pending', error: errorText(err) }), rateLimited: true };
+    if (!(await require('./paymentLinkDeactivation').alreadyInactive(provider, link.providerLinkId))) refused = err;
   }
   let pay;
   try {
     pay = await provider.getPayment(link.providerLinkId, { origin: 'lapsed-link' });
   } catch (err) {
-    return { result: linkResult(link, { status: 'deactivation-pending', error: errorText(err) }), rateLimited: Boolean(err && err.code === 'RATE_LIMITED') };
+    return { result: linkResult(link, { status: 'deactivation-pending', error: errorText(refused || err) }), rateLimited: Boolean(err && err.code === 'RATE_LIMITED') };
   }
   if (pay.paid) return { result: await processPaidLink({ ...effect, paymentLinksModel, link, paidPayment: pay }) };
+  if (refused) return { result: linkResult(link, { status: 'deactivation-pending', error: errorText(refused) }) };
   paymentLinksModel.clearRemoteCancelPending(link.id);
   paymentLinksModel.setLastLook(link.id, require('./paymentLinkLifecycle').lastLookAfter(now));
   return { result: linkResult(link, { status: 'deactivated' }) };

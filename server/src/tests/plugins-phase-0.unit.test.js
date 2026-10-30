@@ -253,6 +253,7 @@ test('online payment: a lapsed link still owed at the provider blocks deactivate
     const res = call(handler, 'online-payment');
     assert.equal(res.statusCode, 409);
     assert.equal(res.body.code, 'LINKS_PENDING_DEACTIVATION');
+    assert.equal(res.body.message, '1 lien retiré ou expiré encore actif chez le prestataire : désactivation en cours, réessayer plus tard.');
   }
   assert.equal(require('../models/paymentLinksModel').buildModel(db).markPaid(1, { providerPaymentId: 'pay_1' }).flipped, true);
   assert.equal(call('deactivate', 'online-payment').body.state, 'inactive');

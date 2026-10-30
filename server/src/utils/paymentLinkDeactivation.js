@@ -28,6 +28,15 @@ async function alreadyInactive(provider, linkId) {
   }
 }
 
+async function readsPaid(provider, link) {
+  try {
+    const pay = await provider.getPayment(link.providerLinkId, { origin: 'lapsed-link' });
+    return Boolean(pay && pay.paid);
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Refuses to retire an open link the guest has already paid: the payment would otherwise land on a
  * cancelled row and be lost or flagged for a refund (rule 7). Unreadable → refused too: a new link
@@ -64,7 +73,12 @@ async function retireOpenLink(link, { paymentLinksModel, provider, deactivate = 
     }
     return;
   }
-  await (deactivate || ((links) => deactivateAbandonedLinks(links, { paymentLinksModel, providerFor: () => provider })))([retired]);
+  const outcome = await (deactivate || ((links) => deactivateAbandonedLinks(links, { paymentLinksModel, providerFor: () => provider, now })))([retired]);
+  // specs/payment-link-lifecycle.md rule 18 — the provider refused to deactivate a lapsing link it reports
+  // paid: no new link; the link keeps its marker and the lifecycle pass books the payment.
+  if (outcome && Array.isArray(outcome.paid) && outcome.paid.includes(retired.id)) {
+    throw { httpStatus: 409, error: 'LINK_ALREADY_PAID', message: 'Le lien en cours vient d’être payé : aucun nouveau lien créé.' };
+  }
 }
 
 /**
@@ -73,10 +87,12 @@ async function retireOpenLink(link, { paymentLinksModel, provider, deactivate = 
  * scheduled (rule 19: the payment was read before this deactivation, not after).
  * @param {object[]} links payment_links rows
  * @param {object} deps { paymentLinksModel, providerFor?, now? }
- * @returns {Promise<{ notDeactivated: number }>}
+ * @returns {Promise<{ notDeactivated: number, paid: number[] }>} `paid`: lapsed links whose deactivation was
+ *          refused and whose payment the provider reports (they keep their marker; rule 18 books them)
  */
 async function deactivateAbandonedLinks(links, { paymentLinksModel, providerFor = defaultProviderFor, now = new Date() }) {
   let notDeactivated = 0;
+  const paid = [];
   const settled = (link) => {
     if (link.status !== 'expired') { paymentLinksModel.cancel(link.id); return; }
     paymentLinksModel.clearRemoteCancelPending(link.id);
@@ -95,12 +111,15 @@ async function deactivateAbandonedLinks(links, { paymentLinksModel, providerFor 
       }
       // eslint-disable-next-line no-console
       console.warn(`[payments] link ${link.id} could not be deactivated at ${link.provider || 'the provider'}: ${(err && err.message) || err}`);
-      if (link.status === 'expired') paymentLinksModel.restoreRemoteCancelPending(link.id);
-      else paymentLinksModel.cancel(link.id, { remotePending: true });
+      if (link.status === 'expired') {
+        paymentLinksModel.restoreRemoteCancelPending(link.id);
+        // Rule 18 — a refusal may mean the link is paid: read it (not after a rate limit).
+        if (!(err && err.code === 'RATE_LIMITED') && await readsPaid(provider, link)) paid.push(link.id);
+      } else paymentLinksModel.cancel(link.id, { remotePending: true });
       notDeactivated += 1;
     }
   }
-  return { notDeactivated };
+  return { notDeactivated, paid };
 }
 
 /**

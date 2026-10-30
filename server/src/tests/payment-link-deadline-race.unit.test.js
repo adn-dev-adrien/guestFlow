@@ -158,3 +158,44 @@ test('rule 15 — a new link minted while the old one was paid at the deadline: 
   assert.equal(second.status, 'cancelled');
   assert.equal(second.cancelReason, 'settled', 'the existing double-payment guard (plugins-phase-3a rule 23)');
 });
+
+// Review of #894, item 1 — a lapsed link Qonto refuses to deactivate because it is already paid (webhook
+// lost): rule 18 still reads the payment, so the money is booked (rule 14) instead of retried forever.
+test('rule 18 — a deactivation refused on a link already paid still reads the payment: booked on the first pass', async () => {
+  const { db, links, stay, link, s, run } = setup();
+  const provider = fakeProvider({ paid: true, failCancel: new Error('422 payment link cannot be deactivated'), linkStatus: 'paid' });
+
+  const summary = await run(provider, at(0.1));
+
+  assert.equal(summary.results.find((r) => r.id === link.id).effect, 'deposit-marked');
+  assert.equal(links.findById(link.id).status, 'paid');
+  assert.equal(links.findById(link.id).remoteCancelPendingAt, null);
+  assert.equal(depositPaid(db, stay), 1);
+  assert.deepEqual(s.confirmed, [stay]);
+  assert.deepEqual(s.stuck, []);
+});
+
+test('rule 18 — a deactivation refused on an unpaid link keeps the marker and schedules no last look', async () => {
+  const { db, links, link, run } = setup();
+  const provider = fakeProvider({ failCancel: new Error('500'), linkStatus: 'open' });
+  const summary = await run(provider, at(0.1));
+  assert.equal(summary.results[0].status, 'deactivation-pending');
+  assert.ok(links.findById(link.id).remoteCancelPendingAt);
+  assert.equal(lastLookOf(db, link.id), null);
+  assert.deepEqual(provider.calls.map((c) => c[0]), ['cancelLink', 'getLinkStatus', 'getPayment']);
+});
+
+// Review of #894, item 5 — with two due last looks, the second pass lists link 2 while the first is still
+// reading link 1: only the claim stops link 2 from being read twice.
+test('rule 19 — two passes on two due last looks read each link once', async () => {
+  const { db, links, devis, stay, s } = setup();
+  const second = addLink(links, db, stay, { type: 'balance', createdAt: MINTED, expiresAt: EXPIRES });
+  const run = (provider, now) => runLinkLifecycle({ database: db, paymentLinksModel: links, provider, devisModel: devis, now, ...s });
+  await run(fakeProvider(), at(0.1));
+  assert.ok(lastLookOf(db, second.id));
+  const provider = fakeProvider();
+  await Promise.all([run(provider, at(2)), run(provider, at(2))]);
+  const reads = provider.calls.filter((c) => c[2] === 'last-look').map((c) => c[1]).sort();
+  assert.equal(reads.length, 2, `each link read once, got ${reads.join(', ')}`);
+  assert.equal(new Set(reads).size, 2);
+});

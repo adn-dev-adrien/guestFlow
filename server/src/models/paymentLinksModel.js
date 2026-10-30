@@ -175,14 +175,20 @@ function buildModel(database) {
   }
 
   // open → expired with its reason; the marker only when the provider holds the link (nothing to
-  // deactivate otherwise). A webhook that paid it meanwhile wins: the UPDATE filters `open`.
+  // deactivate otherwise). A webhook that paid it meanwhile wins: the UPDATE filters `open`. A link that
+  // lapses before its end (rules 8, 9) ends now: `expiresAt` never names a future moment once expired.
   function lapseIfOpen(id, { reason, now = new Date() } = {}) {
+    const at = now.toISOString();
+    const link = findById(id);
+    if (!link) return null;
+    const endMs = knownExpiryMs(link.expiresAt);
+    const expiresAt = endMs != null && endMs <= now.getTime() ? link.expiresAt : at;
     const info = database.prepare(`
       UPDATE payment_links
-         SET status = 'expired', cancelReason = ?,
+         SET status = 'expired', cancelReason = ?, expiresAt = ?,
              remoteCancelPendingAt = CASE WHEN providerLinkId IS NULL OR providerLinkId = '' THEN NULL ELSE ? END
        WHERE id = ? AND status = 'open'
-    `).run(reason == null ? null : String(reason), now.toISOString(), Number(id));
+    `).run(reason == null ? null : String(reason), expiresAt, at, Number(id));
     return Number(info.changes) > 0 ? findById(id) : null;
   }
 

@@ -37,7 +37,7 @@ test('rule 16 — the lifecycle job runs every 15 minutes, first at 15 minutes; 
   assert.equal(byName['payment-poll'].bootDelayMs, 110 * 1000);
 });
 
-test('rule 22 — the lifecycle job skips while a poll pass runs, and the poll skips while the lifecycle job runs', async () => {
+test('rule 22 — the lifecycle job skips while a poll pass runs', async () => {
   let release;
   const held = new Promise((resolve) => { release = resolve; });
   const calls = [];
@@ -52,6 +52,25 @@ test('rule 22 — the lifecycle job skips while a poll pass runs, and the poll s
   await running;
   await byName['payment-link-lifecycle'].run();
   assert.deepEqual(calls, ['poll', 'lifecycle']);
+});
+
+// Review of #894, item 3 — rule 22 lets only the lifecycle job skip: a poll tick that meets a running
+// lifecycle pass waits for it, then runs, instead of losing 8 hours.
+test('rule 22 — the poll waits for a running lifecycle pass, then runs', async () => {
+  let release;
+  const held = new Promise((resolve) => { release = resolve; });
+  const calls = [];
+  const { byName } = jobs({
+    poll: async () => { calls.push('poll'); return { retired: 0, paid: 0, checked: 0, stoppedBy: null }; },
+    lifecycle: async () => { calls.push('lifecycle'); await held; return { moved: [], results: [], stoppedBy: null }; },
+  });
+  const lifecycle = byName['payment-link-lifecycle'].run();
+  const poll = byName['payment-poll'].run();
+  await Promise.resolve();
+  assert.deepEqual(calls, ['lifecycle'], 'the poll does not overlap the pass');
+  release();
+  await Promise.all([lifecycle, poll]);
+  assert.deepEqual(calls, ['lifecycle', 'poll']);
 });
 
 test('rule 22 — a failing pass releases the flag and is logged; the next run goes ahead', async () => {

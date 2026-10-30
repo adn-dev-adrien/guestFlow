@@ -103,6 +103,7 @@ test('rule 8 — exactly 24 h left still reuses; 23 h 59 left mints a fresh link
   const old = links.findById(first.id);
   assert.equal(old.status, 'expired', 'lapsed, not withdrawn');
   assert.equal(old.cancelReason, 'validity');
+  assert.equal(old.expiresAt, now.toISOString(), 'it ended now, not at its former end (review of #894, item 2)');
   assert.equal(old.remoteCancelPendingAt, null, 'deactivated at once');
   assert.deepEqual(provider.calls.map((c) => c[0]), ['getPayment', 'cancelLink', 'createLink'], 'read, deactivate, then mint');
   assert.ok(db.prepare('SELECT lastLookAt FROM payment_links WHERE id = ?').get(first.id).lastLookAt, 'one last look owed (rule 19)');
@@ -150,4 +151,23 @@ test('rule 8 — validityOf reads the remaining time against the injected clock'
   assert.equal(validityOf(link, at(36)).lapsed, true);
   assert.equal(validityOf(link, at(35)).lapsed, false);
   assert.equal(validityOf(link, at(30)).remainingMs, 6 * HOUR);
+});
+
+// Review of #894, item 1 — on the rule-8 path, a refused deactivation of a link paid meanwhile refuses the
+// new request; the lapsed link keeps its marker and the lifecycle pass books it.
+test('rule 8 — a lapsing link found paid when its deactivation is refused: no new link, booked by the next pass', async () => {
+  const { db, links, devis } = seedDb();
+  const id = addStay(db);
+  const first = await ensurePaymentLink(requestDeps(db, links, fakeProvider(), MINTED), id, 'deposit');
+  const provider = fakeProvider({ paid: (_id, origin) => origin !== 'replace-link', failCancel: new Error('422 paid'), linkStatus: 'paid' });
+
+  await assert.rejects(ensurePaymentLink(requestDeps(db, links, provider, at(20)), id, 'deposit'), (err) => err.error === 'LINK_ALREADY_PAID');
+
+  assert.equal(provider.calls.filter((c) => c[0] === 'createLink').length, 0);
+  const old = links.findById(first.id);
+  assert.equal(old.status, 'expired');
+  assert.ok(old.remoteCancelPendingAt, 'left to the retry of rule 18');
+  const { runLinkLifecycle } = require('../utils/paymentPollRunner');
+  await runLinkLifecycle({ database: db, paymentLinksModel: links, provider, devisModel: devis, now: at(20.1), sendConfirmation: async () => {}, emitPluginEvent: () => {} });
+  assert.equal(links.findById(first.id).status, 'paid');
 });

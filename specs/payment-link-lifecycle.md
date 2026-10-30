@@ -159,7 +159,8 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
    guard applies) and a fresh one is minted. So every e-mail that leaves with a link gives the guest at
    least 24 h, whatever the delay between the mint and the operator's send. The retired link **lapses**
    (`expired`, `validity`, rule 1), it is not withdrawn; it is deactivated at once and gets its last look
-   (rule 19). A link with no known end (Qonto's sentinel) cannot promise 24 h and is never reused; a link
+   (rule 19). Its `expiresAt` becomes the moment it lapsed, so its ledger row never names a future end
+   (review of #894; the same for a stay-started lapse). A link with no known end (Qonto's sentinel) cannot promise 24 h and is never reused; a link
    whose amount drifted is withdrawn as before (`cancelled`, no reason) (readings recorded at
    implementation, 2026-10-30).
 
@@ -243,7 +244,11 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     - `cancelLink` fails → `alreadyInactive` check as today (a link already dead at the provider is then
       read as above); otherwise the marker stays for the next pass, a `RATE_LIMITED` stops the pass
       without the status call; a `getPayment` that fails after the deactivation keeps the marker too
-      (both calls are made again next pass).
+      (both calls are made again next pass). A refused deactivation (other than a rate limit) still
+      reads the payment: a provider refuses to deactivate a link already paid, whose webhook may be lost;
+      paid → rule 14, unpaid → the marker stays (review of #894). On the rule-8 path
+      (`deactivateAbandonedLinks`), such a refused link found paid refuses the new request (409
+      `LINK_ALREADY_PAID`) and keeps its marker for this rule.
     For a **cancelled** row the existing order (read, then deactivate) and branches are kept, plus the
     orphan branch of rule 3 and the dates-taken branch of rule 33.
 19. **One last look.** The first lifecycle pass after `lastLookAt` reads the payment once more
@@ -271,7 +276,8 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     migration is keyed in `migrations`; the job shares the `retryPendingCancellations` chain (no two
     runs of the same scope at once) and skips while a poll pass runs; `cancelLink` on an already
     inactive link is absorbed by `alreadyInactive`; a webhook replay finds the link `paid` and does
-    nothing (`markPaid` flips once); a due last look is claimed before it is read (rule 19).
+    nothing (`markPaid` flips once); a due last look is claimed before it is read (rule 19). Only the
+    lifecycle job skips: a poll tick that meets a running lifecycle pass waits for it, then runs.
 23. **The plugin off.** Without a provider nothing is deactivated nor read: the lifecycle job is the
     plugin's, so it does not run, and links keep their state. When the plugin comes back the first run
     catches up (rules 16, 18). The existing uninstall guard on `remoteCancelPendingAt` rows
@@ -279,7 +285,9 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     the marker, whatever its status; what had to change is `markPaid`, which now clears the marker and
     `lastLookAt` of the link it flips — otherwise a lapsed link paid by the webhook kept its marker and
     blocked the uninstall for good (reading recorded at implementation, 2026-10-30). « Qonto not
-    connected » counts as off: neither the poll nor the lifecycle job runs.
+    connected » counts as off: neither the poll nor the lifecycle job runs. The refusal reads « 1 lien
+    retiré ou expiré encore actif chez le prestataire : désactivation en cours, réessayer plus tard. »
+    (plural « N liens retirés ou expirés encore actifs … »; review of #894).
 
 ### 3.H What the operator sees
 
@@ -837,7 +845,9 @@ Six sequential PRs into `inte/plugins` (plan validated 2026-10-30).
   PR1 « poll » test reads its payment on the retry path. Tests: `payment-link-validity` (10),
   `payment-link-stay-started` (9), `payment-link-lifecycle-pass` (10), `payment-link-deadline-race` (10),
   `payment-link-deactivation-stuck` (6), `payment-link-validity-backfill` (6), `payment-link-lifecycle-ledger`
-  (8), `payment-link-lifecycle-job` (6); amended `payment-poll-fair-use`, `plugins-phase-0`,
+  (8), `payment-link-lifecycle-job` (6); review of #894: a refused deactivation still reads the payment,
+  a lapse ends `expiresAt` now, the poll waits for a running lifecycle pass, uninstall refusal reworded
+  (+5 tests: `payment-link-deadline-race` 13, `payment-link-validity` 11, `payment-link-lifecycle-job` 7); amended `payment-poll-fair-use`, `plugins-phase-0`,
   `plugins-phase-1-sdk`, `payment-link-orphan-alert`, `payment-request-service`,
   `payment-links-converted-devis-double-payment`, `payment-links-model`.
 - [ ] PR3 — validity in request e-mails, acompte reminder mints at send, public `expired` status (rules 26-30, 35, 36).

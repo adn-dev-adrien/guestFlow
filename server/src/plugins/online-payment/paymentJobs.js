@@ -5,8 +5,9 @@
  * - `payment-poll`: the reconciliation pass, three times a day (it opens with the lifecycle pass);
  * - `payment-link-lifecycle`: the lifecycle pass alone every 15 minutes, so a link lapses within 15
  *   minutes of its 36 hours instead of at the next poll.
- * Both share ONE in-progress flag: the lifecycle job skips while a poll pass runs, and the other way
- * round. Neither runs while the provider is not connected (rule 23: nothing is deactivated nor read).
+ * They never run at the same time: the lifecycle job skips while a pass runs (rule 22); the poll waits for a
+ * running lifecycle pass, then runs. Neither runs while the provider is not connected (rule 23: nothing is
+ * deactivated nor read).
  *
  * @param {object} deps
  * @param {() => boolean} deps.isConnected
@@ -21,17 +22,23 @@ const LIFECYCLE_INTERVAL_MS = 15 * 60 * 1000;
 const POLL_BOOT_DELAY_MS = 110 * 1000;
 
 function createPaymentJobs({ isConnected, runPoll, runLifecycle, log, pollIntervalMs }) {
-  let inProgress = false;
-  const exclusive = (work, label) => async () => {
-    if (inProgress || !isConnected()) return;
-    inProgress = true;
-    try {
-      await work();
-    } catch (err) {
-      log.error(`${label} error:`, err && err.message ? err.message : err);
-    } finally {
-      inProgress = false;
+  let running = null;
+  // `wait`: a tick that meets a running pass runs after it instead of skipping (the 8-hour poll would
+  // otherwise lose a whole tick); the 15-minute lifecycle job just skips.
+  const exclusive = (work, label, { wait }) => async () => {
+    while (running) {
+      if (!wait) return;
+      await running;
     }
+    if (!isConnected()) return;
+    running = (async () => {
+      try {
+        await work();
+      } catch (err) {
+        log.error(`${label} error:`, err && err.message ? err.message : err);
+      }
+    })();
+    try { await running; } finally { running = null; }
   };
 
   const poll = async () => {
@@ -48,8 +55,8 @@ function createPaymentJobs({ isConnected, runPoll, runLifecycle, log, pollInterv
   };
 
   return [
-    { name: 'payment-poll', intervalMs: pollIntervalMs, bootDelayMs: POLL_BOOT_DELAY_MS, run: exclusive(poll, 'poll pass') },
-    { name: 'payment-link-lifecycle', intervalMs: LIFECYCLE_INTERVAL_MS, bootDelayMs: LIFECYCLE_INTERVAL_MS, run: exclusive(lifecycle, 'lifecycle pass') },
+    { name: 'payment-poll', intervalMs: pollIntervalMs, bootDelayMs: POLL_BOOT_DELAY_MS, run: exclusive(poll, 'poll pass', { wait: true }) },
+    { name: 'payment-link-lifecycle', intervalMs: LIFECYCLE_INTERVAL_MS, bootDelayMs: LIFECYCLE_INTERVAL_MS, run: exclusive(lifecycle, 'lifecycle pass', { wait: false }) },
   ];
 }
 
