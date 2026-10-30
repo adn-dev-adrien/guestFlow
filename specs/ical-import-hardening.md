@@ -165,8 +165,9 @@ nothing, and the platforms tab says in one short line what the last sync did.
     Two companions: (a) « Synchroniser » (`syncOne`) that joined a run answering `skipped` (source changed, or
     stale under rule 8 of `ical-sync-mapping-resilience`) runs one more sync on the freshly read row, so the
     click really fetches (a source stopped meanwhile answers 409); (b) saving a source with a different URL
-    resets its `emptyFeedStreak` and its rule-8 stamps, so an empty answer from the old URL and one from the
-    new URL are never counted together.
+    resets its `emptyFeedStreak` and its rule-8 empty-answer stamp (`lastEmptyCompletedAt`), so an empty answer from the old URL and one from the
+    new URL are never counted together. The start stamp of rule 8 (`lastObservedStart`) is kept: clearing it would
+    let an older prefetch of URL A revert an operator sync after an A→B→A edit inside one pass.
 
 **Edge cases:**
 - A stay arriving on another stay's departure day shares no night: no conflict (rule 3).
@@ -264,9 +265,9 @@ shared placeholder clients are split at boot, idempotently; nothing is deleted, 
 
 ### Server unit tests — 2026-10-30 audit R6
 
-- `server/src/tests/ical-sync-source-changed-mid-pass.unit.test.js` (6 cases, rule 20): stopped, re-pointed
+- `server/src/tests/ical-sync-source-changed-mid-pass.unit.test.js` (7 cases, rule 20): stopped, re-pointed
   and deleted mid-pass are skipped without a status write; an untouched source is still applied; a click
-  joining a skipped run does a real sync; a URL change resets the empty-feed streak.
+  joining a skipped run does a real sync; a URL change resets the empty-feed streak but not the rule-8 start stamp.
 
 ### Server unit tests — 2026-10-27 audit
 

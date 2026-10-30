@@ -263,7 +263,6 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
       // ical-import-hardening rule 20 — an empty answer from the old URL must never confirm one from the new.
       if (String(existing.url || '').trim() && input.url !== existing.url) {
         database.prepare('UPDATE ical_sources SET emptyFeedStreak = 0 WHERE id = ?').run(sourceId);
-        lastObservedStart.delete(sourceId);
         lastEmptyCompletedAt.delete(sourceId);
       }
       // §3.1 rule 2 — if the user renamed the platform, the previous row stays as a "ghost"

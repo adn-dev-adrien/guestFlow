@@ -193,7 +193,7 @@ test('rule 20: « Synchroniser » that joins a pass which skips the source runs 
   assert.ok(fetched.some((u) => u.includes('feed.test')));
 });
 
-test('rule 20: changing a source URL resets its empty-feed streak and rule 8 stamps', async () => {
+test('rule 20: changing a source URL resets its empty-feed streak but keeps the rule 8 start stamp', async () => {
   const { db, model } = freshModel();
   db.exec('ALTER TABLE ical_sources ADD COLUMN collectsTouristTax INTEGER; ALTER TABLE ical_sources ADD COLUMN touristTaxRemittedByPlatform INTEGER; ALTER TABLE ical_sources ADD COLUMN disabled INTEGER DEFAULT 0;');
   const a = isoOffset(30), b = isoOffset(33);
@@ -209,4 +209,26 @@ test('rule 20: changing a source URL resets its empty-feed streak and rule 8 sta
   await assert.rejects(model.syncSourceAndRecord(gdfSource(db)), /Flux vide/);
   assert.equal(streakOf(), 1, 'the first empty answer of the new URL is not confirmed by the old URL one');
   assert.equal(resCount(db), 1);
+});
+
+test('rule 20: an A to B to A URL edit does not let an older prefetch of A revert a newer sync', async () => {
+  const { db, model } = freshModel();
+  db.exec('ALTER TABLE ical_sources ADD COLUMN collectsTouristTax INTEGER; ALTER TABLE ical_sources ADD COLUMN touristTaxRemittedByPlatform INTEGER; ALTER TABLE ical_sources ADD COLUMN disabled INTEGER DEFAULT 0;');
+  const a = isoOffset(30), b = isoOffset(33);
+  let feedCalls = 0;
+  global.fetch = async (url) => {
+    if (String(url).includes('slow')) { await wait(300); return { ok: true, text: async () => icsFeed([]) }; }
+    feedCalls += 1;
+    if (feedCalls === 1) { await wait(600); return { ok: true, text: async () => icsFeed([{ uid: 'OLD', start: a.compact, end: b.compact, summary: 'Old' }]) }; }
+    return { ok: true, text: async () => icsFeed([{ uid: 'NEW', start: a.compact, end: b.compact, summary: 'New' }]) };
+  };
+  const pass = model.syncMany(allSources(db));
+  await wait(50);
+  await model.syncSourceAndRecord(gdfSource(db));
+  model.updateSource(1, 2, { url: 'http://other.test/ical' });
+  model.updateSource(1, 2, { url: 'http://feed.test/ical' });
+  assert.equal(resCount(db), 1);
+  const results = await pass;
+  assert.ok(results.find((r) => r.sourceId === 2).skipped, 'the older prefetch is dropped as stale');
+  assert.deepEqual(db.prepare('SELECT eventUid FROM ical_import_events WHERE sourceId = 2').all().map((r) => r.eventUid), ['NEW']);
 });
