@@ -48,6 +48,8 @@ const RENAME_STEPS = [{ ...HOST_RENAME, kind: 'auto' }];
 // H1 rule 29: « Redémarrer » on a process that failed.
 const PROCESS_RESTART_STEPS = [{ step: 'process-restart', label: 'Processus redémarré', kind: 'auto' }];
 const ALL_STEPS = [...CREATE_STEPS, ...DEPROVISION_STEPS, ...REACTIVATE_STEPS, ...RENAME_STEPS, ...PROCESS_RESTART_STEPS];
+// H1 rule 38: the steps that serve the instance again; never retried on an archived customer.
+const SERVING_STEPS = new Set([HOST_RESTART.step, HOST_RENAME.step, 'process-restart']);
 // Rule 22: what must be redone when the address changes, each item ticked before it runs.
 const RENAME_CHECKLIST = [
   { key: 'wordpress', label: 'Réglage du plugin WordPress (adresse de l’API)' },
@@ -356,7 +358,7 @@ function createCustomersController(ctx) {
         status: r.status,
         detail: stepDetail(r),
         // H1 rule 2: a failed creation step resumes the sequence from itself.
-        action: r.status !== 'failed' ? null : (CREATE_STEPS.some((x) => x.step === d.step) ? 'resume' : 'retry'),
+        action: r.status !== 'failed' || (c.archivedAt && SERVING_STEPS.has(d.step)) ? null : (CREATE_STEPS.some((x) => x.step === d.step) ? 'resume' : 'retry'),
       };
     });
   }
@@ -693,6 +695,7 @@ function createCustomersController(ctx) {
     if (!def || !row) throw httpError(404, 'NOT_FOUND', 'Étape inconnue.');
     if (action !== 'resume' && action !== 'retry') throw httpError(400, 'INVALID', 'Action inconnue.');
     if (row.status !== 'failed') throw httpError(409, 'NOT_FAILED', 'Cette étape n’est pas en échec.');
+    if (c.archivedAt && SERVING_STEPS.has(step)) throw httpError(409, 'ARCHIVED', 'Client archivé : réactivez-le d’abord.');
     let run;
     if (CREATE_STEPS.some((s) => s.step === step)) {
       journal(c.id, operator, 'step', `Création reprise à l’étape « ${def.label} »`);
@@ -879,11 +882,25 @@ function createCustomersController(ctx) {
     }
   }
 
+  // H1 rule 38: a customer is archived only after its stop, so a second request (another tab, or one
+  // queued behind a fleet item holding the lock) would pass the check above and export and mail again.
+  const deprovisioning = new Set();
+
   async function deprovision(id, body, operator) {
     const c = mustGet(id);
     if (c.archivedAt) throw httpError(409, 'ARCHIVED', 'Client déjà archivé.');
     if (renamePending(c)) throw httpError(409, 'RENAME_PENDING', 'Changement d’adresse à terminer d’abord.');
     if (String(body.confirmSlug || '') !== c.slug) throw httpError(400, 'CONFIRM_SLUG', `Tapez exactement « ${c.slug} » pour confirmer.`);
+    if (deprovisioning.has(c.id)) return view(c.id);
+    deprovisioning.add(c.id);
+    try {
+      return await runDeprovision(c, operator);
+    } finally {
+      deprovisioning.delete(c.id);
+    }
+  }
+
+  async function runDeprovision(c, operator) {
 
     // 1. The export. A failure stops here: nothing is archived without its data safe. It runs inside
     // the customer's sequence lock, so never alongside a fleet update's snapshot or rollback; the stop

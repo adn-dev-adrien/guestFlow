@@ -281,10 +281,12 @@ function createProvisioner({
     });
   }
 
-  // Rule 4: the unit again, the site again, the replica again — then the health check.
+  // Rule 4: the unit again, the site again, the replica again — then the health check. Rule 38: an
+  // archived customer is left as it is (a reactivation unarchives before calling this).
   function restart(customerId) {
     return exclusive(customerId, async () => {
       const c = customers.get(customerId);
+      if (!c || c.erasedAt || c.archivedAt) return false;
       return runStep(c, RESTART, async () => {
         const inst = instanceOf(c);
         if (!fs.existsSync(inst.dir) || !inst.port) {
@@ -308,6 +310,7 @@ function createProvisioner({
   function restartProcess(customerId) {
     return exclusive(customerId, async () => {
       const c = customers.get(customerId);
+      if (!c || c.erasedAt || c.archivedAt) return false;
       return runStep(c, PROCESS_RESTART, async () => {
         const inst = instanceOf(c);
         if (!fs.existsSync(inst.dir) || !inst.port) throw new Error('Aucune instance à redémarrer.');
