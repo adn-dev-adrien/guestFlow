@@ -497,6 +497,16 @@ signed-off releases over HTTPS, when the operator asks for it.
     mistake — a copy-pasted command, a stray env file — still checks, instead of silently never offering an
     update again. Test: `e2e-no-outbound.unit.test.js`.
 
+52. **The release's unit suites run side by side** (added 2026-10-30, audit R8 M-2). `release.yml` runs the server
+    suite in its own `server-tests` job (20-minute cap) and the client suite in a 3-shard `client-tests` matrix
+    (15-minute cap each, `vitest run --shard=N/3`, the production build in shard 1), both after `verify` and
+    beside `e2e`; `package` needs `[verify, server-tests, client-tests, e2e]`, so a single red shard still
+    publishes nothing. Before, one `tests` job ran install, server suite, client suite and build one after the
+    other under a 20-minute cap: at the size of inte/plugins (1 134 server and 625 client test files) the CI
+    step times add up to 1 030–1 310 s, and the first release after the integration had a real chance of being
+    cancelled at its limit with nothing published. Same split as the PR workflow
+    (specs/server-test-isolation.md rule 8). Test: `test-suite-calendar-and-ci-budget.unit.test.js`.
+
 ---
 
 ## 4. Architecture
@@ -593,7 +603,7 @@ Errors follow the existing shape (`{ error: 'CODE', message: '…' }`), messages
 
 | File | T/C | Responsibility |
 |---|---|---|
-| `.github/workflows/release.yml` | C | Tag-triggered, GitHub-hosted: `verify` → `test` → `package` → `publish` |
+| `.github/workflows/release.yml` | C | Tag-triggered, GitHub-hosted: `verify` → (`server-tests` ‖ `client-tests` ×3 ‖ `e2e`) → `package` → `publish` (rule 52) |
 | `.github/workflows/deploy.yml` | **D** | Deleted with the self-hosted runner |
 | `release.sh` | T | Produces `guestflow-X.Y.Z.tar.gz` (was `.zip`), plus the SHA-256; drops the CRA-era `dist`→`build` rename? **no** — keeps it (the PM2 layout still expects `client/build`) |
 | `scripts/build-changelog.mjs` | T | `--release X.Y.Z` now scaffolds the `### Summary` digest as a TODO; the new `--check-digest X.Y.Z` judges it (present, non-empty, no leftover TODO, at most 6 lines of at most 160 characters) and is what the workflow's verify job runs |

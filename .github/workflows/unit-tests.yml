@@ -72,6 +72,12 @@ jobs:
         # release PR only touches the three package.json files and the changelog fold.
         run: node scripts/check-plugin-versions.mjs --base "origin/${{ github.base_ref }}"
 
+      - name: 📅 Une date écrite en dur dans un test ajouté ?
+        # specs/server-test-isolation.md rule 7 — a literal date the calendar will pass, on a test line the PR
+        # adds, is annotated on that line. A warning, not a failure: the rule names dates a test hands to the
+        # code as its « now » too, and only the author can tell the two apart.
+        run: node scripts/check-test-dates.mjs --base "origin/${{ github.base_ref }}"
+
   server:
     name: server (node --test)
     runs-on: ubuntu-latest
@@ -112,10 +118,18 @@ jobs:
       - name: 🧪 Run the server unit suite
         run: cd server && npm test
 
+  # specs/server-test-isolation.md rule 8 — three shards. Every test file pays its own fork, jsdom and imports
+  # (~1.1 s on the runner), and the one-file-per-subject rule took the suite from 220 files to 625 in a week:
+  # in one job it reached 711–798 s of its 900 s cap (audit R8 M-2). Vitest splits the FILES, so each shard
+  # keeps per-file isolation and its own `vi.mock` hoisting. The build and the bundle budget run once.
   client:
-    name: client (vitest)
+    name: client (vitest ${{ matrix.shard }}/3)
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
 
     steps:
       - name: 📥 Checkout code
@@ -142,10 +156,11 @@ jobs:
       - name: 📚 Install client deps
         run: cd client && npm ci
 
-      - name: 🧪 Run the client unit suite
-        run: cd client && npm test
+      - name: 🧪 Run the client unit suite (shard ${{ matrix.shard }}/3)
+        run: cd client && npm test -- --shard=${{ matrix.shard }}/3
 
       - name: 📦 Initial JavaScript within its budget
+        if: matrix.shard == 1
         # specs/inte-performance.md rule 4 — a heavy import in the shell, or a page imported eagerly
         # again, fails here with the chunks named, instead of reaching the operator as a slow app.
         run: |
