@@ -455,6 +455,9 @@ function buildNotificationService({
     const ref = resa.devisNumber || `#${Number(resa.id)}`;
     const title = doublePaid ? PAID_TWICE_TITLE : amountMismatch ? PAID_OTHER_AMOUNT_TITLE : (settledOn ? PAID_AFTER_SETTLED_TITLE : PAID_AFTER_CANCEL_TITLE);
     const subject = `${title} — ${ref} · ${amount}`;
+    const soldeLine = amountMismatch && amountMismatch.balanceSettled
+      ? `solde déjà perçu (${eurosFr(amountMismatch.balanceCents)})`
+      : amountMismatch && `solde porté à ${eurosFr(amountMismatch.balanceCents)}`;
     const intro = doublePaid
       ? [
         'Deux liens de paiement du même devis ont été payés.',
@@ -471,11 +474,11 @@ function buildNotificationService({
           ? [
             `Un lien d’acompte a été payé ${amount} alors que le séjour était passé sans acompte.`,
             'Acompte réactivé : payé par un lien retiré.',
-            `Acompte enregistré à ${eurosFr(amountMismatch.receivedCents)} ; solde porté à ${eurosFr(amountMismatch.balanceCents)}.`,
+            `Acompte enregistré à ${eurosFr(amountMismatch.receivedCents)} ; ${soldeLine}.`,
           ]
           : [
             `Un lien de paiement a été payé ${amount} alors que ${owner} demande aujourd’hui ${eurosFr(amountMismatch.expectedCents)}.`,
-            `Acompte enregistré à ${eurosFr(amountMismatch.receivedCents)} (${eurosFr(amountMismatch.expectedCents)} demandés) ; solde porté à ${eurosFr(amountMismatch.balanceCents)}.`,
+            `Acompte enregistré à ${eurosFr(amountMismatch.receivedCents)} (${eurosFr(amountMismatch.expectedCents)} demandés) ; ${soldeLine}.`,
           ]),
         ...(amountMismatch.excessCents ? [`Trop-perçu de ${eurosFr(amountMismatch.excessCents)} à rembourser.`] : []),
         ...(confirmationSent === false

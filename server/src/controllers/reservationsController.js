@@ -1029,6 +1029,13 @@ function platformPriceCheckOf({ quote, body, propertyId, storedRow, devisId, nig
   });
 }
 
+// specs/disable-deposit-per-reservation.md rule 13 — « Sans acompte » as the save and the live quote apply it on
+// a stored reservation: refused (0) when the stored acompte was collected by a payment link.
+function depositDisabledOf(reservationId, requested) {
+  if (!requested) return 0;
+  return Number(reservationId) > 0 && ledgerLinks.acompteHeldByLink(db, reservationId) ? 0 : 1;
+}
+
 async function calculatePrice(req, res) {
   const financeError = validateFinanceInputs({
     customPrice: { value: req.body.customPrice, kind: 'money' },
@@ -1104,7 +1111,7 @@ async function calculatePrice(req, res) {
     depositAmountOverride: req.body.depositAmountOverride,
     // specs/reservation-payment-ledger.md rule 7 — the live quote prices the per-reservation opt-out
     // like the save does, so the ledger's solde is the one « Enregistrer » will store.
-    depositDisabled: req.body.depositDisabled ? 1 : 0,
+    depositDisabled: depositDisabledOf(reservationId, req.body.depositDisabled),
     // specs/adjustable-complement-amounts.md §3.2 rule 13 — applied last by the engine, over every
     // other branch, so it corrects even a frozen complement.
     complementAmountOverride: req.body.complementAmountOverride,
@@ -1179,7 +1186,7 @@ async function calculatePrice(req, res) {
     const storedRow = storedId > 0 ? model.getRow(storedId) : null;
     const live = {
       platform: req.body.platform,
-      depositDisabled: req.body.depositDisabled,
+      depositDisabled: engineInput.depositDisabled,
       depositAmountOverride: req.body.depositAmountOverride,
       platformPayoutAmount: req.body.platformPayoutAmount,
       startDate: req.body.startDate,
@@ -1824,8 +1831,10 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
   // Per-reservation opt-out of the deposit/balance split. When ON, force-zero the deposit-
   // paid fields too so the accounting export emits a single journal entry. The pricing
   // engine reads depositDisabled directly to short-circuit the deposit math.
-  // See specs/disable-deposit-per-reservation.md.
-  const depositDisabledFlag = req.body.depositDisabled ? 1 : 0;
+  // See specs/disable-deposit-per-reservation.md. Rule 13: an acompte a link collected stays, whatever the
+  // flag the fiche still holds, and the row is written with the flag the save applied.
+  const depositDisabledFlag = depositDisabledOf(id, req.body.depositDisabled);
+  req.body.depositDisabled = depositDisabledFlag;
   // The stored state is the truth for the three payment flags (see `modelPayload` below): the quote
   // is priced on it too, so the frozen-schedule branches of the engine and the row that is about to
   // be written can never disagree.

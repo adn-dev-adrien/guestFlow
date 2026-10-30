@@ -94,6 +94,18 @@ For each reservation, Adrien can flip a single switch in the reservation page to
     acompte collected, a save of the fiche (which posts back `depositDisabled = 0`) keeps it, and the journal keeps
     its deposit entry. The admin alert says so (online-payment rule 48). The invariant « `depositPaid` stays at 0
     whenever `depositDisabled = 1` » holds: it is the flag that moves, not the payment.
+13. **Fixed at the review of PR #893 (RC1, 2026-10-30) — an acompte a payment link collected cannot be switched
+    off.** Rule 12 re-enabled the acompte, but the save still trusted the fiche's flag: a tab loaded before the
+    booking and still holding « Sans acompte » erased it again — sent without its version (« Enregistrer quand
+    même », a script) or in the same second as the booking (the live race lands milliseconds after the save, below
+    the one-second resolution of the stale-fiche guard). Now, when the stored acompte is paid (`depositPaid = 1`)
+    and a paid `deposit` or `full` payment link exists on the stay or on the devis converted into it
+    (`utils/ledgerLinks.js` `acompteHeldByLink`), the save (`performUpdate`) and the live quote
+    (`POST /calculate-price` with a `reservationId`) ignore `depositDisabled = 1`: the engine, the ledger and the
+    stored row keep the acompte, its payment and its journal entry, and the row is written with
+    `depositDisabled = 0`. The deliberate case of rule 3 stays: an acompte ticked by hand with no paid link behind
+    it (the platform took it) is still zeroed by « Sans acompte ». Giving the link's money back goes through the
+    refund (specs/reservation-refunds.md rule 34), never through the switch.
 
 **Edge cases:**
 
@@ -230,6 +242,7 @@ No empty / loading / error states unique to this section — handled by the pare
 - Spec review 2026-10-27 (rule 10): `server/src/tests/deposit-due-date-and-override-history.unit.test.js` — deadline cleared on save and at creation.
 - Adversarial review of the 2026-10-27 fixes (rule 11): `server/src/tests/zero-deposit-deadline-legacy-rows.unit.test.js` (3 tests — past locked fiche with a legacy deadline saves, no phantom history row, boot cleanup limited to unpaid 0 € acomptes and idempotent).
 - Audit R7 M1, 2026-10-30 (rule 12): `server/src/tests/deposit-link-paid-on-disabled-acompte.unit.test.js` (8 tests — live and `amount-changed` retry paths × acompte re-enabled with the history line; the alert wording; ledger collected and `depositPaid` kept by a save; journal entry kept after a save).
+- Review of PR #893, RC1, 2026-10-30 (rule 13): `server/src/tests/deposit-collected-by-link-kept-on-save.unit.test.js` (8 tests — live and retry paths × a « Sans acompte » save without its version, the same in the same second, the journal entry kept; the live quote keeps the acompte; a hand-ticked acompte with no paid link is still switched off). Shared setup: `server/src/tests/disabledAcompteLinkFixture.js`.
 
 ## 8. Out of scope
 
