@@ -49,7 +49,7 @@ function createGraph({
 
   function edge(req) {
     // Loaded here: the CI script reads the cycles only, and runs with no node_modules.
-    const { satisfies, floorLabel } = require('./semverRange');
+    const { satisfies, rangeNeed } = require('./semverRange');
     const name = nameOf(req.id);
     const base = { id: req.id, name, range: req.range, installedVersion: versions[req.id] || null };
     if (!installed(req.id)) {
@@ -60,7 +60,7 @@ function createGraph({
     if (!allows(req.id)) return { ...base, status: 'outOfPlan', label: words.outOfPlan };
     const version = versions[req.id];
     if (version && !satisfies(version, req.range)) {
-      return { ...base, status: 'outOfRange', label: `version ${version} — ${floorLabel(req.range) || req.range} ou plus récente requise` };
+      return { ...base, status: 'outOfRange', label: `version ${version} — ${rangeNeed(req.range, version)} requise` };
     }
     if (states[req.id] !== 'active') return { ...base, status: 'inactive', label: words.inactive };
     return { ...base, status: 'ok', label: null };

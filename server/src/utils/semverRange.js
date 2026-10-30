@@ -32,6 +32,18 @@ function floorLabel(range) {
   return min.patch === 0 ? `${min.major}.${min.minor}` : min.version;
 }
 
+/** Whether `version` is below every version `range` accepts. */
+const isBelow = (version, range) => isVersion(version) && isRange(range) && semver.ltr(version, range);
+
+/**
+ * What an installed `version` lacks against `range`, as the operator reads it: « 1.7 ou plus récente » when it is
+ * too old (« récent » when `of` is not a version: « Nécessite X 1.7 ou plus récent »), « compatible avec ^1.0.0 » when it is past the upper bound (a floor alone would call it « plus récente »).
+ */
+function rangeNeed(range, version, { of = 'version' } = {}) {
+  if (isBelow(version, range)) return `${floorLabel(range) || range} ou plus ${of === 'version' ? 'récente' : 'récent'}`;
+  return `compatible avec ${range}`;
+}
+
 /**
  * Whether a range stops below some future major (`>=3.9.0 <4.0.0`, `^1.2.0`): an open range
  * (`>=3.9.0`) would accept a core that renamed what the plugin calls (specs/plugins-phase-4-registry.md
@@ -52,4 +64,4 @@ function boundedRange(range) {
   return min ? `${range} <${min.major + 1}.0.0` : range;
 }
 
-module.exports = { isVersion, isRange, satisfies, compare, highest, floorLabel, hasUpperBound, boundedRange };
+module.exports = { isVersion, isRange, satisfies, compare, highest, floorLabel, rangeNeed, hasUpperBound, boundedRange };

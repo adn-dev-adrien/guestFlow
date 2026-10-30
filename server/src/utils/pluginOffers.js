@@ -10,7 +10,7 @@
  * a refusal but a proposal (« installer aussi … », same confirmation).
  */
 
-const { satisfies, compare, highest, floorLabel, isVersion, boundedRange } = require('./semverRange');
+const { satisfies, compare, highest, floorLabel, rangeNeed, isVersion, boundedRange } = require('./semverRange');
 const { cycleLabel } = require('./pluginGraph');
 
 // A development tree reads `0.0.0-dev` (utils/appVersion.js): it runs whatever its sources are.
@@ -110,7 +110,7 @@ function requirementPlan(manifest, ctx, seen = new Set([manifest.id]), path = [m
     }
     if (installed[req.id]) {
       if (!satisfies(installed[req.id], req.range)) {
-        return refuse('REQUIREMENT_TOO_OLD', req.id, `Nécessite ${name} ${floorLabel(req.range) || req.range} ou plus récent (installé : ${installed[req.id]}).`);
+        return refuse('REQUIREMENT_TOO_OLD', req.id, `Nécessite ${name} ${rangeNeed(req.range, installed[req.id], { of: 'plugin' })} (installé : ${installed[req.id]}).`);
       }
       if (!inactive.includes(req.id) || seen.has(req.id)) continue;
       if (!allows(req.id)) return refuse('REQUIREMENT_OUT_OF_PLAN', req.id, `Nécessite ${name}, hors forfait.`);

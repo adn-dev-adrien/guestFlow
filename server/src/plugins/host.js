@@ -101,14 +101,25 @@ function syncClosesCycle(model, id, manifest) {
 function switchOffOverInactive(model, ids) {
   const rows = model.list();
   const byId = Object.fromEntries(rows.map((r) => [r.id, r]));
+  const { isVersion, satisfies } = require('../utils/semverRange');
   const graph = require('../utils/pluginGraph').createGraph({
     manifests: Object.fromEntries(rows.map((r) => [r.id, r.manifest || { id: r.id, requires: [] }])),
     states: Object.fromEntries(rows.map((r) => [r.id, r.enabled ? 'active' : 'inactive'])),
   });
   const off = new Set();
   const requiresOff = (id, isOff) => ((byId[id].manifest || {}).requires || []).find((r) => byId[r.id] && isOff(r.id));
-  ids.filter((id) => byId[id] && byId[id].enabled).forEach((id) => {
-    const missing = requiresOff(id, (other) => !byId[other].enabled);
+  // A requirement installed at a version the dependant's range refuses is as good as off (it would be unloaded at this boot).
+  const refused = (r) => byId[r.id] && isVersion(byId[r.id].version) && !satisfies(byId[r.id].version, r.range);
+  const requirementsOf = (id) => (byId[id].manifest || {}).requires || [];
+  // A synced row is judged on all its requirements; a dependant it did not sync only on the edge to the row that moved.
+  const unmetBy = (id, moved) => requirementsOf(id).find((r) => byId[r.id]
+    && (moved ? r.id === moved && refused(r) : !byId[r.id].enabled || refused(r)));
+  const synced = new Set(ids);
+  const candidates = [...new Set(ids.flatMap((id) => [id, ...graph.dependantsOf(id, { activeOnly: true })]))];
+  candidates.filter((id) => byId[id] && byId[id].enabled).forEach((id) => {
+    if (off.has(id)) return;
+    const moved = synced.has(id) ? null : ids.find((m) => requirementsOf(id).some((r) => r.id === m && refused(r)));
+    const missing = synced.has(id) || moved ? unmetBy(id, moved) : null;
     if (!missing) return;
     model.switchOff(id, missing.id);
     off.add(id);
@@ -118,7 +129,7 @@ function switchOffOverInactive(model, ids) {
       model.switchOff(f, cause ? cause.id : id);
       off.add(f);
     });
-    console.error(`[plugins] ${id} switched off: ${missing.id} is installed but off`); // eslint-disable-line no-console
+    console.error(`[plugins] ${id} switched off: ${missing.id} is ${byId[missing.id].enabled ? 'installed at a version it refuses' : 'installed but off'}`); // eslint-disable-line no-console
   });
 }
 

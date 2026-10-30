@@ -460,6 +460,40 @@ below are the recommended ones; each is reversible in a later spec.
     réactiver par l’exploitant » and the button is absent (the Plugins page does not exist there). A rollback to a version whose requirement is not installed is refused with `REQUIREMENT_MISSING`
     (rule 55 applies the same refusals as an update). Tests: `plugin-switched-off-at-update.unit.test.js`,
     `PluginsSwitchedOffAlert.test.jsx`.
+59. **An update or a rollback of a requirement is held to the ranges its active dependants declare** (audit r5,
+    N-R5-1, 2026-10-30; mirror of rules 37 and 55 seen from the requirement). `movingRefusal` also refuses when an
+    installed, active, licensed dependant requires the moving plugin with a range the target version does not
+    satisfy: `REQUIRED_BY_RANGE`, « Vigilance Météo-France nécessite Arrivée et départ guidés 1.7 ou plus récente :
+    à mettre à jour d’abord. » (or « … compatible avec ^1.0.0 » when the target is past the upper bound). It shows
+    in the card's `update.refusal` and in a new `rollback.refusal` (the card disables « Revenir à la version
+    précédente » and prints the message instead of the label). `update-all` judges every target (cycle, dependant
+    ranges) on the graph with ALL the targets substituted, dropping the refused ones until the set is stable. The
+    status label of an unmet range no longer says « plus récente » to a version above the range: « version 2.0.0 —
+    compatible avec ^1.0.0 requise ». Test: `plugin-requirement-moves.unit.test.js`.
+60. **The switched-off notice checks itself** (audit r5, database N1, 2026-10-30). `plugins.off_at` (idempotent
+    column, never backfilled: no shipped core wrote `off_reason`, and a backfill would revive a stale reason) is stamped with `updated_at` by the
+    switch-off of rule 57 and cleared by `setEnabled`. The home shows the notice only while
+    `enabled = 0 AND off_reason IS NOT NULL AND off_at = updated_at`: a core older than the column toggles the row
+    through its own `setEnabled`, which moves `updated_at` and ends the notice, so a rollback followed by manual
+    toggles no longer leaves a false line on a roll-forward. An update or rollback of the switched-off plugin also
+    ends it. Test: `plugin-switched-off-stale.unit.test.js`.
+61. **Review follow-ups of rule 59** (audit r5 review of #875, 2026-10-30). (a) Activating an inactive plugin
+    (card `actions.activate`, endpoint `activate`) is refused with `REQUIREMENT_OUT_OF_RANGE` (too old or too new; the install plan keeps `REQUIREMENT_TOO_OLD`) when it, or a requirement it
+    would switch on, is installed at a version outside a declared range: « Nécessite X compatible avec ^1.0.0
+    (installé : 2.0.0). »; the install plan's `REQUIREMENT_TOO_OLD` uses the same `rangeNeed` wording. (b) When
+    update-all refuses every target, it answers the first refusal (code and message) instead of « Aucune mise à
+    jour disponible. ». (c) A refused rollback says « … : à remettre à sa version précédente ou à désactiver
+    d’abord. » (updating the dependant does not help there); an update keeps « à mettre à jour d’abord ». (d) The
+    boot switch-off of rule 57 also covers a requirement installed at a version a dependant's range refuses: the
+    candidates are the synced rows (judged on all their requirements) AND their active dependants (a
+    registry-installed dependant is not synced), the latter judged only on the edge to the row that moved, so an
+    unrelated sync never switches off a plugin over another requirement that was already off. The dependant is
+    switched off with `off_reason` = the requirement. When that requirement is ON but outside the range, the notice
+    carries `need` (« compatible avec ^1.7.0 », « 1.7 ou plus récent ») and the home line reads « X éteint :
+    nécessite Y compatible avec ^1.7.0. » with « À mettre à jour depuis la page Plugins » (« par l’exploitant » on a
+    managed space) in place of « À réactiver … ».
+    Tests: `plugin-requirement-moves.unit.test.js`, `plugin-switched-off-out-of-range.unit.test.js`,
+    `plugin-switched-off-stale.unit.test.js`.
 
 
 ---

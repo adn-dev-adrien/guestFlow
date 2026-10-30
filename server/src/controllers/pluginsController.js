@@ -14,7 +14,7 @@ const {
   PLUGIN_CATALOG, PLUGIN_DISPLAY_NAMES, PLUGIN_SETTINGS_PLACES, findPlugin, pluginsOfPage, ONLINE_PAYMENT, SAS, ACCOUNTING_EXPORT,
 } = require('../constants/plugins');
 const { RECEPTION, ACCOUNTANT } = require('../constants/roles');
-const { compare, satisfies } = require('../utils/semverRange');
+const { compare, satisfies, rangeNeed } = require('../utils/semverRange');
 const {
   MESSAGES, rangeRefusal, bestCandidate, bestRefusal, requirementPlan, changelogBetween,
 } = require('../utils/pluginOffers');
@@ -135,10 +135,11 @@ function createController(model = defaultModel, deps = {}) {
     const row = model.get(id);
     return (row && row.manifest) || entryFor(id);
   };
-  const planCtx = () => ({
+  // `substitute` (id → manifest) are the versions moving in the same pass: the plan sees them as installed.
+  const planCtx = (substitute = {}) => ({
     sources: sources(),
     env: env(),
-    installed: installedVersions(),
+    installed: { ...installedVersions(), ...Object.fromEntries(Object.entries(substitute).map(([id, m]) => [id, m.version])) },
     inactive: model.list().filter((r) => !r.enabled).map((r) => r.id),
     installedManifest: manifestOfInstalled,
     nameOf,
@@ -202,8 +203,14 @@ function createController(model = defaultModel, deps = {}) {
   function rollbackView(row) {
     if (!packages() || !row || !row.previousVersion || !row.rollbackUntil) return null;
     if (Date.parse(row.rollbackUntil) <= now().getTime()) return null;
-    if (!previousManifest(row)) return null;
-    return { version: row.previousVersion, until: row.rollbackUntil, label: `Version ${row.previousVersion}, possible jusqu’au ${frDay(row.rollbackUntil)}.` };
+    const older = previousManifest(row);
+    if (!older) return null;
+    return {
+      version: row.previousVersion,
+      until: row.rollbackUntil,
+      label: `Version ${row.previousVersion}, possible jusqu’au ${frDay(row.rollbackUntil)}.`,
+      refusal: movingRefusal(row, older, {}, true),
+    };
   }
 
   function previousManifest(row) {
@@ -263,8 +270,8 @@ function createController(model = defaultModel, deps = {}) {
   const sourceOffer = (entry) => offerOf(entry.id, entry, entry.version);
 
   // Rule 55 — the cycle the target manifest would close, with the others as they are installed.
-  function cycleRefusal(id, manifest) {
-    const cycle = graph({ [id]: manifest }).cycleOf(id);
+  function cycleRefusal(id, manifest, substitute = {}) {
+    const cycle = graph({ ...substitute, [id]: manifest }).cycleOf(id);
     return cycle ? { code: 'REQUIREMENT_CYCLE', message: `Dépendance circulaire : ${cycleLabel(cycle, nameOf)}.` } : null;
   }
 
@@ -276,12 +283,27 @@ function createController(model = defaultModel, deps = {}) {
     return off.length ? { code: 'REQUIREMENT_INACTIVE', message: `Nécessite ${off.map((p) => p.name).join(', ')} : à activer d’abord.` } : null;
   }
 
+  // Mirror of rule 37 seen from the requirement: an active dependant never stays on a requirement whose new
+  // version its declared range refuses, or it would be unloaded at the next boot.
+  function dependantRangeRefusal(row, manifest, substitute = {}, rollback = false) {
+    const g = graph({ ...substitute, [row.id]: manifest });
+    for (const d of g.dependantsOf(row.id, { activeOnly: true })) {
+      const edge = g.requirementsOf(d).find((e) => e.id === row.id);
+      if (edge && !satisfies(manifest.version, edge.range)) {
+        return { code: 'REQUIRED_BY_RANGE', message: `${nameOf(d)} nécessite ${nameOf(row.id)} ${rangeNeed(edge.range, manifest.version)} : ${rollback ? 'à remettre à sa version précédente ou à désactiver' : 'à mettre à jour'} d’abord.` };
+      }
+    }
+    return null;
+  }
+
   // Rules 55 and 58 — every refusal of moving `row` onto `manifest` (an update, or a rollback to an older one).
-  function movingRefusal(row, manifest) {
-    const { plan, refusal } = requirementPlan(manifest, planCtx());
+  // `substitute` holds the other manifests moving in the same pass (update-all).
+  function movingRefusal(row, manifest, substitute = {}, rollback = false) {
+    const { plan, refusal } = requirementPlan(manifest, planCtx(substitute));
     const toInstall = plan.filter((p) => p.op === 'install');
     const missing = toInstall.length ? { code: 'REQUIREMENT_MISSING', message: `Nécessite ${toInstall.map((p) => p.name).join(', ')} : à installer d’abord.` } : null;
-    return cycleRefusal(row.id, manifest) || refusal || missing || inactiveRefusal(row, manifest);
+    return cycleRefusal(row.id, manifest, substitute) || refusal || missing || inactiveRefusal(row, manifest)
+      || dependantRangeRefusal(row, manifest, substitute, rollback);
   }
 
   function updateView(row, target) {
@@ -343,6 +365,10 @@ function createController(model = defaultModel, deps = {}) {
   };
 
   // Rule 8 — every refusal a card can predict, said before the click.
+  // Rule 37 for the ranges: a plugin does not come up over a requirement installed at a version it refuses.
+  const outOfRangeEdge = (g, ids) => ids.flatMap((id) => g.requirementsOf(id)).find((e) => e.status === 'outOfRange');
+  const staleMessage = (e) => `Nécessite ${e.name} ${rangeNeed(e.range, e.installedVersion, { of: 'plugin' })} (installé : ${e.installedVersion}).`;
+
   function actionsView(entry, row, g, blocker) {
     const none = { allowed: false, blockedBy: null };
     if (!row) return { activate: { ...none, alsoActivates: [], confirm: null }, deactivate: { ...none, alsoDeactivates: [], confirm: null }, uninstall: none };
@@ -354,9 +380,11 @@ function createController(model = defaultModel, deps = {}) {
       const missing = needed.filter((n) => !model.get(n));
       const off = needed.filter((n) => model.get(n) && !model.get(n).enabled);
       const unlicensed = off.filter((n) => !allows(n));
+      const stale = outOfRangeEdge(g, [id, ...needed]);
       let blockedBy = null;
       if (cycle) blockedBy = `Dépendance circulaire : ${cycleLabel(cycle, nameOf)}.`;
       else if (missing.length) blockedBy = `Nécessite ${namesOf(missing)} : à installer d’abord.`;
+      else if (stale) blockedBy = staleMessage(stale);
       else if (unlicensed.length) blockedBy = `Nécessite ${namesOf(unlicensed)}, hors forfait.`;
       const also = blockedBy ? [] : refs(off);
       activate = {
@@ -945,13 +973,27 @@ function createController(model = defaultModel, deps = {}) {
     // switch and one restart. A refused package leaves every plugin as it was.
     async updateAll(req, res) {
       if (refuseUpdateConditions(res)) return undefined;
-      const targets = catalogue().map((entry) => {
+      let targets = catalogue().map((entry) => {
         const row = model.get(entry.id);
         if (!row || host().state().incompatible[entry.id] || !licence().allowsPlugin(entry.id)) return null;
         const target = updateTarget(row, null);
-        return target && !updateView(row, target).refusal ? { row, target } : null;
+        return target ? { row, target } : null;
       }).filter(Boolean);
-      if (!targets.length) return res.status(409).json({ error: 'NO_UPDATE', message: MESSAGES.NO_UPDATE });
+      // Each target is judged on the graph with every target substituted; dropping one can change another's verdict.
+      let firstRefusal = null;
+      for (;;) {
+        const substitute = Object.fromEntries(targets.map((t) => [t.row.id, t.target.manifest]));
+        const kept = targets.filter((t) => {
+          const refusal = movingRefusal(t.row, t.target.manifest, substitute);
+          firstRefusal = firstRefusal || refusal;
+          return !refusal;
+        });
+        if (kept.length === targets.length) break;
+        targets = kept;
+      }
+      if (!targets.length) {
+        return res.status(409).json(firstRefusal ? { error: firstRefusal.code, message: firstRefusal.message } : { error: 'NO_UPDATE', message: MESSAGES.NO_UPDATE });
+      }
       return underLock(res, async (restart) => {
         const acquired = [];
         try {
@@ -973,7 +1015,7 @@ function createController(model = defaultModel, deps = {}) {
       if (refuseUpdateConditions(res)) return undefined;
       if (!rollbackView(row)) return res.status(409).json({ error: 'NO_ROLLBACK', message: MESSAGES.NO_ROLLBACK });
       const older = previousManifest(row);
-      const refusal = movingRefusal(row, older);
+      const refusal = movingRefusal(row, older, {}, true);
       if (refusal) return res.status(409).json({ error: refusal.code, message: refusal.message });
       return underLock(res, async (restart) => {
         const manifest = older;
@@ -1002,6 +1044,8 @@ function createController(model = defaultModel, deps = {}) {
           error: 'REQUIREMENT_MISSING', requires: missing, requirements: refs(missing), message: `Nécessite ${namesOf(missing)} : à installer d’abord.`,
         });
       }
+      const stale = outOfRangeEdge(g, [entry.id, ...needed]);
+      if (stale) return res.status(409).json({ error: 'REQUIREMENT_OUT_OF_RANGE', requires: [stale.id], message: staleMessage(stale) });
       const off = needed.filter((id) => !model.get(id).enabled);
       const unlicensed = off.filter((id) => !allows(id));
       if (unlicensed.length) {

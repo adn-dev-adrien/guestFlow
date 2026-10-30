@@ -121,8 +121,10 @@ const CORE_SUMMARIES = {
     if (!items.length) return null;
     return {
       count: items.length,
-      title: items.length === 1 ? `${items[0].name} éteint : nécessite ${items[0].requires}.` : `Plugins éteints : ${items.length}`,
-      detail: payload.managed ? 'À réactiver par l’exploitant' : 'À réactiver depuis la page Plugins',
+      title: items.length === 1
+        ? `${items[0].name} éteint : nécessite ${items[0].requires}${items[0].need ? ` ${items[0].need}` : ''}.`
+        : `Plugins éteints : ${items.length}`,
+      detail: `${items.every((i) => i.need) ? 'À mettre à jour' : 'À réactiver'} ${payload.managed ? 'par l’exploitant' : 'depuis la page Plugins'}`,
       severity: 'todo',
     };
   },

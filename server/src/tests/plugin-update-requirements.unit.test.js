@@ -29,7 +29,7 @@ test('rule 55: an update that adds a requirement installed but OFF is refused wh
   assert.equal(model.get('xb').enabled, false);
   const all = await h.call(ctrl.updateAll, {});
   assert.equal(all.statusCode, 409);
-  assert.equal(all.body.error, 'NO_UPDATE');
+  assert.equal(all.body.error, 'REQUIREMENT_INACTIVE');
   assert.equal(model.get('xa').version, '1.0.0');
 });
 
