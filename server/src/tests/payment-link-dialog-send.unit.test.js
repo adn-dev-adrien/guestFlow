@@ -70,7 +70,7 @@ test('rule 26 — an installment preview made without a link (« Contactez-nous 
   const r = await f.send('installment_request', { ...extra, overrides: { subject: 'Échéance', body: 'Bonjour,\nContactez-nous pour le règlement.' } });
   assert.equal(r.statusCode, 409);
   assert.equal(r.body.error, 'PAYMENT_LINK_MISSING');
-  assert.equal(r.body.message, "Le lien de paiement manque dans le texte : rafraîchir l'aperçu.");
+  assert.equal(r.body.message, "Le lien de paiement manque dans le texte : l'e-mail n'est pas envoyé.");
   assert.deepEqual(f.minted, [], 'nothing minted');
   assert.equal(f.sent.length, 0);
 });

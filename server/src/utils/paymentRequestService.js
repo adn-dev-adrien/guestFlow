@@ -86,8 +86,17 @@ function assertBucketOpen(database, id, type) {
 // When resolveItems yields components, the link is created as a VAT basket (specs/payment-links-vat.md):
 // Qonto shows the real TVA while the charged total stays exactly amountCents. Absent/mismatched → the
 // legacy single 0 %-VAT line (total-only) is used, so the charged amount is never at risk.
+// specs/payment-link-lifecycle.md rule 8 (re-review of #897) — one lock per stay, whatever the type: an acompte
+// link and a full link settle the same acompte, and each retires the other while waiting on the provider, so
+// two of them minted side by side could both stay open. A devis and the reservation it became share the key.
+function stayLockKey(database, id) {
+  let row = null;
+  try { row = database.prepare('SELECT convertedReservationId FROM reservations WHERE id = ?').get(Number(id)); } catch { row = null; }
+  return `reservation:${Number((row && row.convertedReservationId) || id)}`;
+}
+
 function ensurePaymentLink(deps, id, type) {
-  return withLinkLock(`reservation:${Number(id)}:${type}`, () => mintPaymentLink(deps, id, type));
+  return withLinkLock(stayLockKey(deps.database, id), () => mintPaymentLink(deps, id, type));
 }
 
 async function mintPaymentLink(deps, id, type) {
@@ -227,7 +236,7 @@ async function bookOwedLapsedPayment(deps, where, params) {
 // that installment is reused while it bills the current amount; a stale one is retired and deactivated at
 // the provider before the new one is minted, so the old URL can no longer be paid.
 //   deps: ensurePaymentLink deps + { installmentsModel }
-// Rule 40 — one installment (and, for a reservation or devis, one link of a type) is asked for at a time: two clicks (or a click and a queue entry) on the same
+// Rule 40 — one installment (and, for a reservation or devis, one link of the stay) is asked for at a time: two clicks (or a click and a queue entry) on the same
 // installment run one after the other, so the second finds the first's link and mints nothing.
 const linkLocks = new Map();
 async function withLinkLock(key, work) {

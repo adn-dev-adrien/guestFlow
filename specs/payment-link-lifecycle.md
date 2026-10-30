@@ -160,9 +160,10 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
    least 24 h, whatever the delay between the mint and the operator's send. The retired link **lapses**
    (`expired`, `validity`, rule 1), it is not withdrawn; it is deactivated at once and gets its last look
    (rule 19). An acompte request and a full request started at the same moment for one stay end with a
-   single open link: each mint retires the other type's open link right after its own `createLink`, with
-   no wait between that check and its insert (test `payment-link-concurrent-types`, review of #897; no
-   per-stay lock needed). Its `expiresAt` becomes the moment it lapsed, so its ledger row never names a future end
+   single open link: the mints of a stay run one after the other, whatever their type, under one lock
+   `reservation:<id>` shared by a devis and the reservation it became (re-review of #897: retiring an older
+   link waits on the provider, and a per-type lock let the other mint slip in, leaving two links open, or
+   a full request reusing a link being retired; test `payment-link-concurrent-types`). Its `expiresAt` becomes the moment it lapsed, so its ledger row never names a future end
    (review of #894; the same for a stay-started lapse). A link with no known end (Qonto's sentinel) cannot promise 24 h and is never reused; a link
    whose amount drifted is withdrawn as before (`cancelled`, no reason) (readings recorded at
    implementation, 2026-10-30).
@@ -336,7 +337,7 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     « Lien de paiement indisponible : l'e-mail n'est pas envoyé. », nothing mailed, nothing logged as
     sent); a text that will be given a minted link but carries none (a preview of the no-link branch, a
     deleted link) is refused before the mint (409 `PAYMENT_LINK_MISSING`, « Le lien de paiement manque
-    dans le texte : rafraîchir l'aperçu. »). `deposit_request`, `balance_request` and `full_request`
+    dans le texte : l'e-mail n'est pas envoyé. », worded for a stale preview and a deliberate removal alike). `deposit_request`, `balance_request` and `full_request`
     print their link outside any condition: with no link resolved (no connected provider, no open link
     with 24 h left) they are refused, 409 `NO_PAYMENT_PROVIDER` with the fiche's wording; the acompte
     reminder keeps its no-link branch. A send that cannot leave — no address, an invalid typed one, SMTP
@@ -798,7 +799,7 @@ refused).
 - [x] `tests/public-payment-pay-after-expiry.unit.test.js` — rule 29: « Payer » after the lapse mints a fresh 36 h link, the lapsed one stays lapsed, a second click reuses the fresh one (2).
 - [x] `tests/payment-link-dialog-send.unit.test.js` — rule 26 (review of #897): preview → send with the preview as `overrides` for the five link templates, FR and EN, carries the minted link and its end; a stale preview's lapsed URL and end never leave; a text without a link refused before the mint; a placeholder left refuses the send; an operator edit survives (14).
 - [x] `tests/payment-link-send-refusals.unit.test.js` — rule 26: the three requests refused without a link, a declared-unready provider's reusable link still sent, the reminder not refused, no address / invalid address / no SMTP refused before any mint (8).
-- [x] `tests/payment-link-concurrent-types.unit.test.js` — rule 8: an acompte and a full request at the same moment end with one open link, both interleavings (2).
+- [x] `tests/payment-link-concurrent-types.unit.test.js` — rule 8: an acompte and a full request at the same moment end with one open link, with or without an older full link to retire (20 h and 30 h left), across 60 interleavings each (4).
 - [x] `tests/wordpress-payment-expired.unit.test.js` — rule 30: the key, the `.po` / `.mo` English string, plugin 1.19.0 everywhere (3).
 - [x] Amended `direct-installments-emails` (the preview's placeholder before the mint), `emails-controller` and `plugin-removal-fixes` (a re-offered link has 24 h left).
 - [x] Amend `payment-poll-fair-use.unit.test.js` (retireExpired now sets the marker) and `plugins-phase-0` uninstall guard (rule 23).
@@ -935,7 +936,7 @@ Six sequential PRs into `inte/plugins` (plan validated 2026-10-30).
   (`paymentExpired`). Tests: `payment-link-valid-until-token` (15), `deposit-reminder-mints-link` (9),
   `payment-link-request-preview` (8), `public-payment-status-expired` (11), `public-payment-pay-after-expiry`
   (2), `wordpress-payment-expired` (3), `payment-link-dialog-send` (14), `payment-link-send-refusals` (8),
-  `payment-link-concurrent-types` (2) — review of #897: the dialog's rendered preview is filled at the
+  `payment-link-concurrent-types` (4) — review of #897 (and one per-stay mint lock at the re-review): the dialog's rendered preview is filled at the
   send, placeholder guard, requests refused without a link, refusals before the mint, `pending` while a
   look is owed; client `wordpress-booking-view.payment-expired` (3); amended `direct-installments-emails`,
   `emails-controller`, `plugin-removal-fixes`, `emails-controller-sequence-ledger` (its payment e-mail is now

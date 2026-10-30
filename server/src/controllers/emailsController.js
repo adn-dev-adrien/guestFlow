@@ -62,7 +62,7 @@ const LINK_AT_SEND = "(lien de paiement créé à l'envoi)";
 const VALID_UNTIL_AT_SEND = "(36 h après l'envoi)";
 // The request templates print their link outside any condition: without a link they are not sent.
 const LINK_REQUIRED = new Set(['deposit_request', 'balance_request', 'full_request']);
-const LINK_MISSING = { error: 'PAYMENT_LINK_MISSING', message: "Le lien de paiement manque dans le texte : rafraîchir l'aperçu." };
+const LINK_MISSING = { error: 'PAYMENT_LINK_MISSING', message: "Le lien de paiement manque dans le texte : l'e-mail n'est pas envoyé." };
 const PLACEHOLDER_LEFT = { error: 'PAYMENT_LINK_PLACEHOLDER', message: "Lien de paiement indisponible : l'e-mail n'est pas envoyé." };
 
 // specs/direct-installments.md rules 19-21 — the request of one installment: it carries the plan in its
