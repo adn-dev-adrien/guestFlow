@@ -149,6 +149,15 @@
         "vatRegimeModel"
       ],
       "names": {}
+    },
+    {
+      "version": "2.18.0",
+      "modules": [],
+      "names": {
+        "paymentPollRunner": [
+          "runLinkLifecycle"
+        ]
+      }
     }
   ]
 }

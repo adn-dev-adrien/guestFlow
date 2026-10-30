@@ -19,4 +19,9 @@ function todayIso() {
   return localIsoDate(new Date());
 }
 
-module.exports = { localIsoDate, todayIso };
+/** `HH:MM` of `date` in the process's local time zone. */
+function localHourMinute(date) {
+  return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+module.exports = { localIsoDate, todayIso, localHourMinute };

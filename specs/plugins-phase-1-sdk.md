@@ -437,6 +437,12 @@ Optional: a plugin that declares nothing reads « Actif ».
     `gites-de-france-intake` declare `lastRunAt`, `unreadMails` and `unreadStreak` that way: an operator
     (or a script holding an admin session) could set the unread counter shown on the home. Test:
     `plugin-internal-settings.unit.test.js`.
+35. *(Added 2026-10-30, specs/payment-link-lifecycle.md rule 16, SDK 2.18.0.)* **`paymentPollRunner` exports
+    `runLinkLifecycle`.** The lifecycle pass of the payment links (lapse, withdraw, deactivate-then-read, last
+    look) is core code; the `online-payment` plugin runs it from its `payment-link-lifecycle` job every 15
+    minutes. A MINOR bump (a name added to `coreModules.json`, recorded under 2.18.0 in
+    `coreModuleHistory.json`); `online-payment` 1.5.0 asks for `sdk ^2.18.0`. Test:
+    `plugins/online-payment/tests/payment-link-lifecycle-job.unit.test.js`.
 
 **Edge cases:**
 - **A plugin throws during `register`.** Rule 4 applies: the other plugins and the core boot. The Plugins

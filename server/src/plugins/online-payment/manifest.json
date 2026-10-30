@@ -1,7 +1,7 @@
 {
   "id": "online-payment",
   "name": "Paiement en ligne (Qonto)",
-  "version": "1.4.8",
+  "version": "1.5.0",
   "description": "Liens de paiement envoyés aux voyageurs, et rapprochement des virements du compte Qonto avec les fiches.",
   "icon": "payments",
   "surfaces": [
@@ -12,7 +12,7 @@
   ],
   "requires": [],
   "guestflow": ">=3.18.0 <4.0.0",
-  "sdk": "^2.15.0",
+  "sdk": "^2.18.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
@@ -100,6 +100,9 @@
     "1.4.8": [
       "Un lien ouvert du séjour payé après un changement de prix prévient désormais l’administrateur ; pour un acompte, l’alerte dit ce qui a été enregistré.",
       "Compatible avec le SDK 2.15 de GuestFlow."
+    ],
+    "1.5.0": [
+      "Un lien de paiement expire 36 heures après sa création, ou le jour d’arrivée : il est désactivé chez Qonto dans les 15 minutes, et un paiement fait juste avant reste enregistré. Compatible avec le SDK 2.18 de GuestFlow."
     ]
   }
 }

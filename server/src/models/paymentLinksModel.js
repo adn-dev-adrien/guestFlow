@@ -9,9 +9,11 @@
  * are the trace of what was asked and paid online, and outlive the provider's plugin.
  *
  * API:
- *   create({ reservationId, type, amountCents, currency?, provider?, providerLinkId?, url?, status?, expiresAt? }) → row
+ *   create({ reservationId, type, amountCents, currency?, provider?, providerLinkId?, url?, status?, createdAt?, expiresAt? }) → row
  *   listOpen()                              → all status='open' rows
- *   retireExpired({ now })                  → flips open links past a known expiresAt to 'expired'; returns them
+ *   retireExpired({ now })                  → lapses open links past a known expiresAt: 'expired', reason 'validity',
+ *                                           deactivation marker (specs/payment-link-lifecycle.md rules 7, 17); returns them
+ *   lapseIfOpen(id, { reason, now })        → open→expired with that reason and the marker; null when no longer open
  *   retireSettled()                         → cancels the open links whose bucket the stay already settled; returns them
  *   settledBucketDateOf(link)               → the day the stay recorded that link's bucket as paid, or null
  *   settledAtArrival(link)                  → whether that bucket was collected at the door (arrival payment, check-in)
@@ -30,16 +32,21 @@
  *   findByProviderLinkId(provider, linkId)  → the row a provider id names (webhook, retries)
  *   markPaid(id, { providerPaymentId, paidAt }) → flips open|expired→paid (idempotent: a paid/cancelled row is untouched)
  *   updateStatus(id, status)                → 'open'|'paid'|'expired'|'cancelled'
- *   cancelIfOpen(id)                        → cancels a still-open link and returns it; null when it is no longer open
+ *   cancelIfOpen(id, { reason? })           → cancels a still-open link and returns it; null when it is no longer open
  *   cancel(id, { remotePending })           → 'cancelled', with the remote-deactivation marker when pending
- *   listRemoteCancelPending()               → cancelled rows whose deactivation at the provider is owed
+ *   listRemoteCancelPending()               → cancelled and expired rows whose deactivation at the provider is owed
  *   clearRemoteCancelPending(id, { providerPaymentId?, paidAt? }) → the provider settled it (deactivated, or paid)
+ *   setLastLook(id, at) / claimLastLook(id) → the one last payment read of a lapsed link (specs/payment-link-lifecycle.md rule 19);
+ *                                           the claim clears it and says whether this caller owns the read
+ *   claimDeactivationAlert(id, at)          → stamps deactivationAlertedAt once (rule 20); false when already stamped
  *   findById(id)
  *
  * Poll cadence (specs/payment-polling-fair-use.md rules 1, 3, 4, 9): a link is due every pass while
  * younger than `freshHours`, at most every `warmIntervalMinutes` until `warmDays`, then at most every
  * `coldIntervalMinutes` — measured from its persisted `lastPolledAt`, so a restart resets nothing.
  */
+
+const { LINK_REASONS: { VALIDITY } } = require('../constants/paymentLinks');
 
 const VALID_TYPES = new Set(['deposit', 'balance', 'full', 'complement', 'installment']);
 const VALID_STATUSES = new Set(['open', 'paid', 'expired', 'cancelled']);
@@ -99,9 +106,9 @@ function buildModel(database) {
 
   const insertStmt = database.prepare(`
     INSERT INTO payment_links
-      (reservationId, type, provider, providerLinkId, url, amountCents, currency, status, expiresAt, installmentId)
+      (reservationId, type, provider, providerLinkId, url, amountCents, currency, status, createdAt, expiresAt, installmentId)
     VALUES
-      (@reservationId, @type, @provider, @providerLinkId, @url, @amountCents, @currency, @status, @expiresAt, @installmentId)
+      (@reservationId, @type, @provider, @providerLinkId, @url, @amountCents, @currency, @status, COALESCE(@createdAt, datetime('now')), @expiresAt, @installmentId)
   `);
 
   function findById(id) {
@@ -122,6 +129,7 @@ function buildModel(database) {
       amountCents: Math.round(Number(payload.amountCents || 0)),
       currency: String(payload.currency || 'EUR'),
       status,
+      createdAt: payload.createdAt == null ? null : String(payload.createdAt),
       expiresAt: payload.expiresAt == null ? null : String(payload.expiresAt),
       installmentId: payload.installmentId == null ? null : Number(payload.installmentId),
     });
@@ -145,7 +153,8 @@ function buildModel(database) {
     `).all();
   }
 
-  // Rule 1: no provider call — the expiry is already in our record.
+  // specs/payment-link-lifecycle.md rules 7, 17 — the expiry is decided without a provider call (the date
+  // is in our record); the link then owes its deactivation, which the retry of rule 18 makes.
   function retireExpired({ now = new Date() } = {}) {
     const nowMs = now.getTime();
     const candidates = database.prepare(
@@ -155,14 +164,26 @@ function buildModel(database) {
       const expiryMs = knownExpiryMs(link.expiresAt);
       return expiryMs != null && expiryMs <= nowMs;
     });
-    const retire = database.prepare("UPDATE payment_links SET status = 'expired' WHERE id = ? AND status = 'open'");
     const retired = [];
     database.transaction(() => {
       for (const link of due) {
-        if (Number(retire.run(link.id).changes) > 0) retired.push({ ...link, status: 'expired' });
+        const row = lapseIfOpen(link.id, { reason: VALIDITY, now });
+        if (row) retired.push(row);
       }
     })();
     return retired;
+  }
+
+  // open → expired with its reason; the marker only when the provider holds the link (nothing to
+  // deactivate otherwise). A webhook that paid it meanwhile wins: the UPDATE filters `open`.
+  function lapseIfOpen(id, { reason, now = new Date() } = {}) {
+    const info = database.prepare(`
+      UPDATE payment_links
+         SET status = 'expired', cancelReason = ?,
+             remoteCancelPendingAt = CASE WHEN providerLinkId IS NULL OR providerLinkId = '' THEN NULL ELSE ? END
+       WHERE id = ? AND status = 'open'
+    `).run(reason == null ? null : String(reason), now.toISOString(), Number(id));
+    return Number(info.changes) > 0 ? findById(id) : null;
   }
 
   // specs/plugins-phase-3a-online-payment.md rule 23 — a link whose bucket the stay settled another
@@ -336,12 +357,16 @@ function buildModel(database) {
   // rule 1 retires links on our own clock, and a payment in flight at that moment must still be
   // processed once. A late/duplicate call on an already-paid (or cancelled) row changes nothing and
   // reports it didn't flip — so the polling pass never double-processes a payment.
+  // A paid link owes no deactivation and no last look (specs/payment-link-lifecycle.md rule 23: a marker
+  // left on it would block the plugin's uninstall for good).
   function markPaid(id, { providerPaymentId, paidAt } = {}) {
     const info = database.prepare(`
       UPDATE payment_links
          SET status = 'paid',
              providerPaymentId = COALESCE(?, providerPaymentId),
-             paidAt = COALESCE(?, datetime('now'))
+             paidAt = COALESCE(?, datetime('now')),
+             remoteCancelPendingAt = NULL,
+             lastLookAt = NULL
        WHERE id = ? AND status IN ('open', 'expired')
     `).run(providerPaymentId == null ? null : String(providerPaymentId), paidAt == null ? null : String(paidAt), Number(id));
     return { flipped: Number(info.changes) > 0, row: findById(id) };
@@ -356,8 +381,9 @@ function buildModel(database) {
 
   // Retires a link only while it is still `open`: null when it moved meanwhile (paid by a webhook that
   // ran during an awaited provider call), so a payment is never overwritten by a later cancellation.
-  function cancelIfOpen(id) {
-    const info = database.prepare("UPDATE payment_links SET status = 'cancelled' WHERE id = ? AND status = 'open'").run(Number(id));
+  function cancelIfOpen(id, { reason = null } = {}) {
+    const info = database.prepare("UPDATE payment_links SET status = 'cancelled', cancelReason = COALESCE(?, cancelReason) WHERE id = ? AND status = 'open'")
+      .run(reason == null ? null : String(reason), Number(id));
     return Number(info.changes) > 0 ? findById(id) : null;
   }
 
@@ -377,14 +403,31 @@ function buildModel(database) {
   }
 
   function restoreRemoteCancelPending(id) {
-    database.prepare("UPDATE payment_links SET remoteCancelPendingAt = ? WHERE id = ? AND status = 'cancelled'")
+    database.prepare("UPDATE payment_links SET remoteCancelPendingAt = ? WHERE id = ? AND status IN ('cancelled', 'expired')")
       .run(new Date().toISOString(), Number(id));
   }
 
+  // specs/payment-link-lifecycle.md rule 18 — a lapsed link owes its deactivation like a withdrawn one.
   function listRemoteCancelPending() {
     return database.prepare(
-      `SELECT ${SELECT_COLS} FROM payment_links WHERE status = 'cancelled' AND remoteCancelPendingAt IS NOT NULL ORDER BY id`
+      `SELECT ${SELECT_COLS} FROM payment_links WHERE status IN ('cancelled', 'expired') AND remoteCancelPendingAt IS NOT NULL ORDER BY id`
     ).all();
+  }
+
+  // Rule 19 — one more payment read, `at`, for a payment the provider completed after the read of rule 18.
+  function setLastLook(id, at) {
+    database.prepare("UPDATE payment_links SET lastLookAt = ? WHERE id = ? AND status = 'expired'").run(at.toISOString(), Number(id));
+  }
+
+  // Two passes at once (the job and a manual « poll now ») read a due last look once: the one that clears it.
+  function claimLastLook(id) {
+    return Number(database.prepare('UPDATE payment_links SET lastLookAt = NULL WHERE id = ? AND lastLookAt IS NOT NULL').run(Number(id)).changes) === 1;
+  }
+
+  // Rule 20 — the stuck-deactivation alert is sent once per link: only the caller that stamps it sends.
+  function claimDeactivationAlert(id, at = new Date()) {
+    return Number(database.prepare('UPDATE payment_links SET deactivationAlertedAt = ? WHERE id = ? AND deactivationAlertedAt IS NULL')
+      .run(at.toISOString(), Number(id)).changes) === 1;
   }
 
   // The provider settled a pending deactivation: deactivated, or — rule 8 — paid after all, in which
@@ -406,6 +449,7 @@ function buildModel(database) {
     listOpen,
     listOrphanOpen,
     retireExpired,
+    lapseIfOpen,
     retireSettled,
     settledBucketDateOf,
     settledAtArrival,
@@ -428,6 +472,9 @@ function buildModel(database) {
     restoreRemoteCancelPending,
     listRemoteCancelPending,
     clearRemoteCancelPending,
+    setLastLook,
+    claimLastLook,
+    claimDeactivationAlert,
   };
 }
 
@@ -439,7 +486,7 @@ const defaultModel = (() => {
   }
 })();
 
-const statics = { buildModel, resolvePollCadence, isPollDue, knownExpiryMs, POLL_CADENCE_DEFAULTS };
+const statics = { buildModel, resolvePollCadence, isPollDue, knownExpiryMs, parseTimestampMs, POLL_CADENCE_DEFAULTS };
 
 if (defaultModel) {
   Object.assign(defaultModel, statics);

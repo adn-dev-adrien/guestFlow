@@ -9,6 +9,7 @@
  */
 
 const paymentProviders = require('./paymentProviders');
+const { LAPSED_REASONS } = require('../constants/paymentLinks');
 
 const defaultProviderFor = (providerId) => {
   const provider = paymentProviders.declared();
@@ -46,13 +47,16 @@ async function assertNotPaid(link, provider) {
 }
 
 /**
- * Replaces an open link: refuses when it is paid (before or while this runs), cancels it only if it is
+ * Replaces an open link: refuses when it is paid (before or while this runs), retires it only if it is
  * still open, then deactivates it at the provider. `deactivate(links)` defaults to `deactivateAbandonedLinks`.
- * Throws `{ httpStatus, error, message }`.
+ * `reason` is the `cancelReason`: a lapsed one (`validity`, specs/payment-link-lifecycle.md rule 8) makes the
+ * link `expired`, any other withdraws it (`cancelled`). Throws `{ httpStatus, error, message }`.
  */
-async function retireOpenLink(link, { paymentLinksModel, provider, deactivate = null }) {
+async function retireOpenLink(link, { paymentLinksModel, provider, deactivate = null, reason = null, now = new Date() }) {
   await assertNotPaid(link, provider);
-  const retired = paymentLinksModel.cancelIfOpen(link.id);
+  const retired = LAPSED_REASONS.has(reason)
+    ? paymentLinksModel.lapseIfOpen(link.id, { reason, now })
+    : paymentLinksModel.cancelIfOpen(link.id, { reason });
   if (!retired) {
     const now = paymentLinksModel.findById(link.id);
     if (now && now.status === 'paid') {
@@ -64,27 +68,35 @@ async function retireOpenLink(link, { paymentLinksModel, provider, deactivate = 
 }
 
 /**
- * Deactivate links already cancelled locally.
+ * Deactivate links already retired locally. A withdrawn link stays `cancelled`; a lapsed one stays
+ * `expired` (specs/payment-link-lifecycle.md rule 1), its marker cleared once deactivated and its last look
+ * scheduled (rule 19: the payment was read before this deactivation, not after).
  * @param {object[]} links payment_links rows
- * @param {object} deps { paymentLinksModel, providerFor? }
+ * @param {object} deps { paymentLinksModel, providerFor?, now? }
  * @returns {Promise<{ notDeactivated: number }>}
  */
-async function deactivateAbandonedLinks(links, { paymentLinksModel, providerFor = defaultProviderFor }) {
+async function deactivateAbandonedLinks(links, { paymentLinksModel, providerFor = defaultProviderFor, now = new Date() }) {
   let notDeactivated = 0;
+  const settled = (link) => {
+    if (link.status !== 'expired') { paymentLinksModel.cancel(link.id); return; }
+    paymentLinksModel.clearRemoteCancelPending(link.id);
+    paymentLinksModel.setLastLook(link.id, require('./paymentLinkLifecycle').lastLookAfter(now));
+  };
   for (const link of links || []) {
     if (!link || !link.providerLinkId) continue;
     const provider = providerFor(link.provider || 'qonto');
     try {
       await provider.cancelLink(link.providerLinkId);
-      paymentLinksModel.cancel(link.id);
+      settled(link);
     } catch (err) {
       if (await alreadyInactive(provider, link.providerLinkId)) {
-        paymentLinksModel.cancel(link.id);
+        settled(link);
         continue;
       }
       // eslint-disable-next-line no-console
       console.warn(`[payments] link ${link.id} could not be deactivated at ${link.provider || 'the provider'}: ${(err && err.message) || err}`);
-      paymentLinksModel.cancel(link.id, { remotePending: true });
+      if (link.status === 'expired') paymentLinksModel.restoreRemoteCancelPending(link.id);
+      else paymentLinksModel.cancel(link.id, { remotePending: true });
       notDeactivated += 1;
     }
   }

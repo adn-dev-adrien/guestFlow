@@ -1710,6 +1710,7 @@ require('./utils/installmentsMigration').migrateInstallmentsSchema(db);
 // After the rebuild above (it drops the triggers): the v3.18 column names stay in step (rule 31 of
 // specs/self-update-and-releases.md — an automatic rollback runs the previous code on this schema).
 require('./utils/paymentLinksProviderMigration').syncLegacyQontoColumns(db);
+require('./utils/paymentLinksProviderMigration').migrateLinkLifecycleColumns(db);
 
 // payment_links has no foreign key (a rebuild of a table other code reads is not worth it): surface the
 // paid links whose stay was deleted, which are money records without a stay. Nothing is deleted.
@@ -2814,6 +2815,11 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
 // ---------- OPEN ORPHAN PAYMENT LINKS WITHDRAWN (specs/payment-link-lifecycle.md rule 5) ----------
 if (process.env.SKIP_MIGRATIONS !== 'true') {
   require('./utils/orphanPaymentLinksMigration').runOrphanPaymentLinksMigration(db);
+}
+
+// ---------- OPEN LINKS GET 36 H FROM THE INSTALL (specs/payment-link-lifecycle.md rule 34) ----------
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  require('./utils/paymentLinkValidityBackfill').runPaymentLinkValidityBackfill(db);
 }
 
 // ---------- HISTORY OUTLIVES THE STAY (specs/ical-cancellation-approval.md rules 11, 14) ----------

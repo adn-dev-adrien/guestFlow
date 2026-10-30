@@ -689,6 +689,7 @@
     "applyPaidEffect",
     "processPaidLink",
     "retryPendingCancellations",
+    "runLinkLifecycle",
     "runPaymentPoll"
   ],
   "paymentEffectDeps": [
