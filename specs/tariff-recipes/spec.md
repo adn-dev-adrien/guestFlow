@@ -212,7 +212,7 @@ all-inclusive pricing as the first such recipe.
 16quater. **A block minimum RAISES a season's, it never lowers it.** The minimum written on a raised
     night is `max(block length, period override — or, when the period declares none, the night's own
     season minimum)` (rule 19bis), and it is recorded only when it exceeds what the season already
-    demands — otherwise every raised night would split
+    demands, or when a period declares its own (rule 19bis) — otherwise every raised night would split
     its range for a constraint that already applied. Found on the Gîte the day Très haute went to a
     4-night minimum: the 3-night 14-juillet block sat inside it and wrote its own 3 over the season's
     4, making those three days the only ones in the entire summer where a shorter stay was bookable.
