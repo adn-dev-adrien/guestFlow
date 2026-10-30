@@ -4,3 +4,4 @@
 - **Payments — links minted by an older release during a rollback get their 36 h at the next boot** (rule 53): the validity backfill now repairs, at every boot, the open links with no known end.
 - **Website booking — the pay endpoint no longer shows operator sentences to visitors** (rule 54): a link paid meanwhile answers « already confirmed » and an unreachable provider the provider-error wording, in the visitor's language.
 - **Reservation — « Sans acompte » can be unticked when the acompte-held lock arrives on a ticked switch** (`disable-deposit-per-reservation.md` rule 14).
+- **Reservation — a refused request that booked a payment no longer makes the next save stale** (`reservation-fiche-concurrency.md` rule 12): the client adopts the versions a refused `/api/payments` write moved.

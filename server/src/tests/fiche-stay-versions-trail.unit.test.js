@@ -95,3 +95,17 @@ test('rule 8 — a row left by a commit the wrapper did not see is never attribu
   close();
   assert.deepEqual(JSON.parse(res.headers.get(HEADER)), [{ id: 2, before: 'w0', after: 'w1' }]);
 });
+
+// Rule 12 (audit R8 client N1) — a refusal that still wrote the stay (409 LINK_ALREADY_PAID books the payment
+// before refusing the new link) lists that stay too, so the open fiche keeps its version chain.
+test('rule 12 — a refused request that wrote a stay still lists it', async () => {
+  const db = fresh();
+  const { base, close } = await serve(db, (app) => app.post('/api/payments/reservations/1/payment-emails', (req, res) => {
+    set(db, 1, 'v1');
+    res.status(409).json({ error: 'LINK_ALREADY_PAID' });
+  }));
+  const res = await fetch(`${base}/api/payments/reservations/1/payment-emails`, { method: 'POST' });
+  close();
+  assert.equal(res.status, 409);
+  assert.deepEqual(JSON.parse(res.headers.get(HEADER)), [{ id: 1, before: 'v0', after: 'v1' }]);
+});

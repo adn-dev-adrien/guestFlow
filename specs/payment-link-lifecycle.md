@@ -625,8 +625,9 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     (ledger) and « Envoyer la demande de solde » (action bar) re-read the fiche's finance
     (`reloadReservationFinance`), the installment card's « Envoyer la demande » calls `onMoneyChanged`, and the
     devis « Envoyer la demande de paiement » re-reads the devis. Any other refusal re-reads nothing. The fiche
-    therefore drops the request button and shows the payment, and the next save carries the new version
-    instead of meeting `STALE_FICHE`.
+    therefore drops the request button and shows the payment. The booking moved the stay's `updatedAt`: the
+    409 carries it like any `/api/payments` write (specs/reservation-fiche-concurrency.md rule 12), so the next
+    save of the fiche is not refused as `STALE_FICHE`.
 51. **A request never reuses a link that rule 9 lapses at the next pass** (audit R8-M1). On or after the
     arrival day (00:00 Europe/Paris on the converted stay's `startDate`, else the row's own), an open
     pre-arrival link (`deposit`, `balance`, `full`, `installment`) minted on an earlier Paris day is lapsed by
@@ -735,6 +736,7 @@ No new dependency.
 | `pages/` | `ReservationPage.jsx` | T | The 409 `DATES_UNAVAILABLE` message reaches the existing error dialog; on 409 `LINK_ALREADY_PAID` the resend, solde and devis senders re-read the fiche / the devis (rule 50) |
 | `components/` | `reservation/InstallmentPlanCard.jsx` | T | « Envoyer la demande » refused `LINK_ALREADY_PAID` → `onMoneyChanged` (rule 50) |
 | `constants/` | `paymentLinks.js` | C | `LINK_ALREADY_PAID` (rule 50) |
+| `services/` | `api.js` | T | A refused write that moved a stay dispatches its versions (rule 50, reservation-fiche-concurrency rule 12) |
 | others | — | — | (none) |
 
 **WordPress plugin** (`integrations/wordpress/guestflow-booking`): `blocks/booking/view.js` handles
@@ -1003,7 +1005,10 @@ Six sequential PRs into `inte/plugins` (plan validated 2026-10-30).
   refusals to visitor keys (54). Tests: `payment-link-stay-started` (13), `payment-link-request-preview` (9),
   `plugins-phase-0` (+1), `payment-link-validity-backfill` (7), `public-payment-pay-visitor-refusals` (4); client
   `ReservationPage.link-already-paid` (4), `InstallmentPlanCard.link-already-paid` (2),
-  `FinanceSection.deposit-held-by-link` (+1, specs/disable-deposit-per-reservation.md rule 14).
+  `FinanceSection.deposit-held-by-link` (+1, specs/disable-deposit-per-reservation.md rule 14),
+  `api.refused-write-version` (2) and server `fiche-stay-versions-trail` (+1) for
+  specs/reservation-fiche-concurrency.md rule 12. Shadow N=6 at 1280 / 390: the resend re-reads, the button
+  goes, the next save answers 200; « Sans acompte » ticked under the lock unticks, then locks.
 - [ ] PR4 — closures refused over open payment requests, « Retirer le lien » (rules 40-42, 49).
 - [ ] PR5 — held dates and dates-taken withdrawal (rules 10-12, 16, 24, 25, 31-33, 37-39, 46, 48).
 - [ ] PR6 — dates-taken guest notice (rules 35, 43-45, 47); status → Implemented.

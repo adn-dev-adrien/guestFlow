@@ -98,6 +98,14 @@ silently reverting what an import, a mail or another tab wrote meanwhile.
    `updateFromPublicRequest` (a guest sending the same stay again), both set `updatedAt`. Test:
    `plugins/website-booking/tests/devis-stale-save.unit.test.js`; client
    `ReservationPage.devis-conflict.test.jsx`.
+12. **A refusal that wrote the stay is the fiche's own write too** _(added 2026-10-30, audit R8 client N1)_. A
+   payment request can book a payment and still refuse: 409 `LINK_ALREADY_PAID`
+   (specs/payment-link-lifecycle.md rules 18, 50) records the bucket, hence `updatedAt`, then refuses the new
+   link. The `/api/payments` trail of rule 8 already lists that write on the 409 answer; `api.js` now puts it
+   on the data-changed event for a refused request as well as a successful one, so the fiche (and the devis
+   editor) adopt the version through the rule 4 chain and the next save is not refused as stale. A refusal
+   that wrote nothing carries no header and dispatches nothing. Tests: `fiche-stay-versions-trail.unit.test.js`
+   (the 409 lists the stay), client `api.refused-write-version.test.js`.
 
 **Edge cases:**
 - The version check runs first in `update`, so a stale save on a cancelled or superseded stay answers `STALE_FICHE` before the read-only guard (`RESERVATION_CANCELLED`) would; a stay already read-only has nothing to overwrite, and the reload then shows it.
