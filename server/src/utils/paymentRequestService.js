@@ -234,14 +234,38 @@ async function bookOwedLapsedPayment(deps, where, params) {
      WHERE ${where} AND status = 'expired' AND remoteCancelPendingAt IS NOT NULL AND providerLinkId IS NOT NULL
      ORDER BY id DESC LIMIT 1
   `).get(...params);
-  if (!owed) return;
-  let pay;
-  try {
-    pay = await deps.provider.getPayment(owed.providerLinkId, { origin: 'replace-link' });
-  } catch {
-    throw { httpStatus: 502, error: 'PROVIDER_UNREACHABLE', message: 'Prestataire de paiement injoignable : réessayer.' };
+  if (owed) {
+    let pay;
+    try {
+      pay = await deps.provider.getPayment(owed.providerLinkId, { origin: 'replace-link' });
+    } catch {
+      throw { httpStatus: 502, error: 'PROVIDER_UNREACHABLE', message: 'Prestataire de paiement injoignable : réessayer.' };
+    }
+    if (pay && pay.paid) await bookLapsedPayment(deps, owed, pay);
   }
-  if (pay && pay.paid) await bookLapsedPayment(deps, owed, pay);
+  await settleOwedOperatorLinks(deps, where, params);
+}
+
+// specs/payment-link-lifecycle.md rule 42 (re-review of #902, L6) — a link withdrawn by hand while the provider
+// could not be read still owes its read: it goes through the poll's retry (booked when paid before its
+// withdrawal, the rule-8 alert when paid after, deactivated when unpaid) before a new link of its bucket.
+async function settleOwedOperatorLinks(deps, where, params) {
+  const owed = deps.database.prepare(`
+    SELECT id FROM payment_links
+     WHERE ${where} AND status = 'cancelled' AND cancelReason = ? AND remoteCancelPendingAt IS NOT NULL AND providerLinkId IS NOT NULL
+     ORDER BY id DESC
+  `).all(...params, LINK_REASONS.OPERATOR);
+  if (owed.length === 0) return;
+  const { retryPendingCancellations } = require('./paymentPollRunner');
+  const effect = typeof deps.paymentEffect === 'function' ? deps.paymentEffect() : require('./paymentEffectDeps').buildPaymentEffectDeps();
+  for (const { id } of owed) {
+    const { results } = await retryPendingCancellations({ ...effect, only: id, database: deps.database, paymentLinksModel: deps.paymentLinksModel, provider: deps.provider });
+    const outcome = results.find((r) => Number(r.id) === Number(id));
+    if (outcome && outcome.status === 'paid') throw { ...PAID_BOOKED };
+    if (outcome && outcome.status === 'deactivation-pending') {
+      throw { httpStatus: 502, error: 'PROVIDER_UNREACHABLE', message: 'Prestataire de paiement injoignable : réessayer.' };
+    }
+  }
 }
 
 // specs/direct-installments.md rule 17 — the link of ONE installment, at its exact amount. The open link of

@@ -530,7 +530,15 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     the missing provider), and the poll reads its payment before deactivating it (plugins-phase-3a rule 8); a
     payment made before the withdrawal (`paidAt` ≤ its stamped end) is then booked exactly as the connected path
     books it (`processPaidLink` with `retiredReason: 'operator'`: `cancelled → paid`, effect, confirmation), one
-    made after it is the alert of rule 8 (review of #902, L1). When the provider reports the link paid, the payment
+    made after it is the alert of rule 8 (review of #902, L1). When that late booking lands on nights that are no
+    longer sellable — closed since the withdrawal (rule 55) or in date conflict with another stay — the money is
+    still booked but the guest gets no confirmation, and the admin is told « Paiement reçu sur des dates fermées »
+    / « … déjà prises » with « Action requise : déplacer le séjour ou le rembourser. » (plus the conflict alert):
+    the treatment of rule 33, decided 2026-10-30 (Q5, « Enregistrer + alerte »; re-review of #902, R1). Before a
+    new link of the same bucket is minted, such a withdrawn link still owing its deactivation is read through the
+    same retry (booked and the request refused 409 `LINK_ALREADY_PAID` when paid before, deactivated when
+    unpaid), so a « Renvoyer la demande » after the provider reconnects never mints beside an unread link
+    (`paymentRequestService.settleOwedOperatorLinks`, re-review of #902, L6). When the provider reports the link paid, the payment
     of that single read (carried by the refusal of `assertNotPaid`) is booked at once on the poll's path and the
     answer is 409 `LINK_ALREADY_PAID` « Ce lien vient d’être payé : paiement enregistré. », after which the fiche
     re-reads its money (rule 50); an unreadable provider refuses (502) and changes nothing. A solde link and a
@@ -900,9 +908,10 @@ refused).
 - [ ] `tests/stay-holds-dates.unit.test.js` — rule 37: acompte paid holds, solde open still holds, platform holds, unpaid direct and devis do not, cancelled frees; two unpaid devis both keep their links, first paid withdraws the other's (Q11).
 - [ ] `tests/ical-overbooking-held-dates.unit.test.js` — rules 38-39: import on held dates recorded + conflict + held-dates wording; drift approval warning.
 - [x] `tests/closure-open-payment-request.unit.test.js` (11) — rules 40-41: refusal order, codes, `reservations[]` / `requests[]` shapes, establishment-wide closure, `conflicts` endpoint, a blocking stay listed once, `findReservationOverlap` kept.
-- [x] `tests/payment-link-withdraw.unit.test.js` (17) — rule 42: withdrawn + deactivated, refused when paid (payment booked), marker on provider failure, without a provider or with a disconnected one, read-only stays refused, the ledger's action and label.
+- [x] `tests/payment-link-withdraw.unit.test.js` (21) — rule 42: withdrawn + deactivated, refused when paid (payment booked), marker on provider failure, without a provider or with a disconnected one, read-only stays refused, the ledger's action and label.
 - [ ] `tests/devis-held-dates.unit.test.js` — rule 46: create / re-date onto held dates refused with `stays[]`; onto an unpaid row allowed; other edits of a devis already on held dates allowed; `datesTaken` marker (rule 48).
 - [x] `tests/closure-devis-without-link.unit.test.js` (4) — rule 49: warning listed, save accepted.
+- [x] `tests/payment-link-operator-owed-read.unit.test.js` (2) — rule 42 (L6): an operator-withdrawn link owing its read is read before a new mint: paid before → booked, request refused; unpaid → minted.
 - [x] `tests/payment-link-closed-dates.unit.test.js` (9) — rule 55: mint and installment refused before any provider call, an open link not handed out, one night or an establishment-wide closure enough, another logement or the departure day free, request and reminder e-mails refused before any mint, a mail without a link still leaves.
 - [ ] `tests/dates-taken-notice.unit.test.js` — rules 43-45: sent at the `dates-taken` withdrawal (overlap, first paid, iCal), not for expiry, a started stay or « Retirer le lien »; a later refused reminder sends nothing more; e-mail sent once with its `email_log` row, push, dashboard row, every fail-closed case, reminder never queued on taken dates, `AUTO_SEND_EXCEPTIONS` holds exactly one key and `autoSendPolicy` still refuses every other template.
 - [ ] `tests/payment-link-superseded.unit.test.js` — rule 12.
@@ -1088,6 +1097,9 @@ Six sequential PRs into `inte/plugins` (plan validated 2026-10-30).
   `emailsController.send`; `payment-link-closed-dates` 9); L1 the poll books an `operator` link paid before its
   withdrawal (`processPaidLink({ retiredReason })`); L2 one provider read on withdrawal; L3 no provider → a clear
   log line in `deactivateAbandonedLinks`; L4 typographic apostrophes; L5 `detail.otherLinks`
-  (`payment-link-withdraw` 17, `FinanceSection.link-lifecycle` 6).
+  (`payment-link-withdraw` 17, `FinanceSection.link-lifecycle` 6). Re-review: R1 a late booking on closed or
+  taken nights sends no confirmation and alerts « déplacer ou rembourser » (`processPaidLink({ quietOnConflict })`,
+  `notifyPaidAfterCancel(link, { nightsUnavailable })`); L6 `settleOwedOperatorLinks` before a mint
+  (`payment-link-withdraw` 21, `payment-link-operator-owed-read` 2).
 - [ ] PR5 — held dates and dates-taken withdrawal (rules 10-12, 16, 24, 25, 31-33, 37-39, 46, 48).
 - [ ] PR6 — dates-taken guest notice (rules 35, 43-45, 47); status → Implemented.

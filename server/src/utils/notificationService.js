@@ -450,16 +450,28 @@ function buildNotificationService({
   const PAID_TWICE_TITLE = '⚠️ Devis payé deux fois';
   const PAID_OTHER_AMOUNT_TITLE = '⚠️ Paiement reçu d’un autre montant que le devis';
   const eurosFr = (cents) => (Number(cents || 0) / 100).toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' });
-  function buildPaidAfterCancelEmail(resa, link, publicUrl, { settledOn = null, amountMismatch = null, doublePaid = false, duplicateCents = null, confirmationSent = true } = {}) {
+  // specs/payment-link-lifecycle.md rule 42 (re-review of #902, R1) — a link withdrawn by hand, paid before, booked
+  // later on nights closed since (`closed`) or taken by another stay (`taken`): the treatment of rule 33.
+  const PAID_UNAVAILABLE_TITLES = { closed: '⚠️ Paiement reçu sur des dates fermées', taken: '⚠️ Paiement reçu sur des dates déjà prises' };
+  function buildPaidAfterCancelEmail(resa, link, publicUrl, { settledOn = null, amountMismatch = null, doublePaid = false, duplicateCents = null, confirmationSent = true, nightsUnavailable = null } = {}) {
     const amount = eurosFr(doublePaid && duplicateCents != null ? duplicateCents : link.amountCents);
     const owner = String(resa.kind) === 'devis' ? 'le devis' : 'le séjour';
     const ref = resa.devisNumber || `#${Number(resa.id)}`;
-    const title = doublePaid ? PAID_TWICE_TITLE : amountMismatch ? PAID_OTHER_AMOUNT_TITLE : (settledOn ? PAID_AFTER_SETTLED_TITLE : PAID_AFTER_CANCEL_TITLE);
+    const title = PAID_UNAVAILABLE_TITLES[nightsUnavailable]
+      || (doublePaid ? PAID_TWICE_TITLE : amountMismatch ? PAID_OTHER_AMOUNT_TITLE : (settledOn ? PAID_AFTER_SETTLED_TITLE : PAID_AFTER_CANCEL_TITLE));
     const subject = `${title} — ${ref} · ${amount}`;
     const soldeLine = amountMismatch && amountMismatch.balanceSettled
       ? `solde déjà perçu (${eurosFr(amountMismatch.balanceCents)})`
       : amountMismatch && `solde porté à ${eurosFr(amountMismatch.balanceCents)}`;
-    const intro = doublePaid
+    const intro = PAID_UNAVAILABLE_TITLES[nightsUnavailable]
+      ? [
+        nightsUnavailable === 'closed'
+          ? 'Un lien retiré à la main avait été payé avant son retrait ; le logement est depuis fermé sur ces dates.'
+          : 'Un lien retiré à la main avait été payé avant son retrait ; ces dates sont depuis réservées par un autre séjour.',
+        'Le paiement est enregistré sur le séjour. Aucun e-mail de confirmation n’a été envoyé au client.',
+        'Action requise : déplacer le séjour ou le rembourser.',
+      ]
+      : doublePaid
       ? [
         'Deux liens de paiement du même devis ont été payés.',
         duplicateCents != null

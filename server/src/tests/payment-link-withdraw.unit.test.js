@@ -211,3 +211,67 @@ test('rule 42 (L5): a solde link and a full link open together each offer « Ret
   const offered = [row.detail.link, ...(row.detail.otherLinks || [])].map((l) => l.withdraw && l.withdraw.linkId).sort();
   assert.deepEqual(offered, [full.id, balance.id].sort());
 });
+
+// Re-review of #902 (R1) — a late booking of rule 42 never confirms a stay whose nights are no longer sellable:
+// closed since the withdrawal (rule 55), or taken by another stay (conflict). The money is booked, the guest
+// gets no confirmation, the admin is told to move or refund (the treatment of rule 33).
+async function lateBooking({ kind = 'reservation', type = 'deposit', closeAfter = false, conflict = false }) {
+  const { db, links } = seedDb();
+  const stayId = addStay(db, { kind, startDate: inDays(40), endDate: inDays(43) });
+  // The amount the stay asks (acompte 90 + solde 210 for a full link): the alert tested is the dates', not an amount's.
+  const link = addLink(links, db, stayId, { type, amountCents: type === 'full' ? 30000 : 9000 });
+  const withdrawnAt = new Date();
+  await withdrawPaymentLink(link.id, { database: db, paymentLinksModel: links, provider: null, bookPaid: async () => {}, now: withdrawnAt });
+  if (closeAfter) {
+    db.prepare("INSERT INTO establishment_closures (propertyId, label, startDate, endDate) VALUES (1, 'Travaux', ?, ?)").run(inDays(41), inDays(42));
+  }
+  const provider = fakeProvider({ paid: true, paidAt: new Date(withdrawnAt.getTime() - 60 * 1000).toISOString() });
+  const s = spies();
+  const conflicts = [];
+  const { results } = await retryPendingCancellations({
+    paymentLinksModel: links, provider, database: db, devisModel: devisModel.buildModel(db), logger: { log() {}, warn() {} },
+    checkConflict: () => conflict, notifyConflict: async (id) => { conflicts.push(id); }, ...s,
+  });
+  return { db, links, link, s, conflicts, result: results.find((r) => r.id === link.id) };
+}
+
+test('rule 42 (R1): nights closed after the withdrawal → booked, no guest confirmation, alert « déplacer ou rembourser »', async () => {
+  const { db, links, link, s, result } = await lateBooking({ closeAfter: true });
+  assert.equal(links.findById(link.id).status, 'paid');
+  assert.equal(result.status, 'paid');
+  assert.equal(db.prepare('SELECT depositPaid FROM reservations WHERE id = ?').get(link.reservationId).depositPaid, 1);
+  assert.deepEqual(s.confirmed, []);
+  assert.deepEqual(s.notified, [[link.id, { nightsUnavailable: 'closed' }]]);
+});
+
+test('rule 42 (R1): a devis converted in date conflict → booked, no guest confirmation, conflict and « déplacer ou rembourser » alerts', async () => {
+  const { db, link, s, conflicts, result } = await lateBooking({ kind: 'devis', type: 'full', conflict: true });
+  assert.equal(result.status, 'paid');
+  const stay = db.prepare('SELECT convertedReservationId FROM reservations WHERE id = ?').get(link.reservationId).convertedReservationId;
+  assert.ok(stay);
+  assert.equal(result.reservationId, stay);
+  assert.ok(db.prepare('SELECT bookingConflictAt FROM reservations WHERE id = ?').get(stay).bookingConflictAt);
+  assert.deepEqual(s.confirmed, []);
+  assert.deepEqual(conflicts, [result.reservationId]);
+  assert.deepEqual(s.notified, [[link.id, { nightsUnavailable: 'taken' }]]);
+});
+
+test('rule 42 (R1): sellable nights → the late booking confirms like the connected path, no alert', async () => {
+  const { link, s } = await lateBooking({});
+  assert.deepEqual(s.confirmed, [link.reservationId]);
+  assert.deepEqual(s.notified, []);
+});
+
+test('rule 55 (R1): the admin alert names the closed or taken nights and the action', () => {
+  const { buildNotificationService } = require('../utils/notificationService');
+  const { buildPaidAfterCancelEmail } = buildNotificationService().__test;
+  const resa = { id: 9, kind: 'reservation', devisNumber: null, propertyName: 'Gite', startDate: inDays(40), endDate: inDays(43) };
+  const link = { id: 3, amountCents: 9000 };
+  const closed = buildPaidAfterCancelEmail(resa, link, '', { nightsUnavailable: 'closed' });
+  assert.match(closed.subject, /^⚠️ Paiement reçu sur des dates fermées — /);
+  assert.match(closed.text, /Aucun e-mail de confirmation n’a été envoyé au client\./);
+  assert.match(closed.text, /Action requise : déplacer le séjour ou le rembourser\./);
+  const taken = buildPaidAfterCancelEmail(resa, link, '', { nightsUnavailable: 'taken' });
+  assert.match(taken.subject, /^⚠️ Paiement reçu sur des dates déjà prises — /);
+  assert.match(taken.text, /Action requise : déplacer le séjour ou le rembourser\./);
+});

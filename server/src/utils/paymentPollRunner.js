@@ -36,6 +36,7 @@ function recordOn(database) {
 const { linkAmountCents, acompteIsLinkMoney, bookPaidAfterAmountChange } = require('./ledgerLinks');
 const { withConvertedDevis } = require('./deletionGuard');
 const { LINK_REASONS } = require('../constants/paymentLinks');
+const { closedDatesRefusal } = require('./closedStayDates');
 
 // Apply the business consequence of a PAID link. A deposit OR a full payment on a devis converts it to a
 // reservation; a full payment marks it fully settled (deposit + balance). On conversion the dates are
@@ -301,7 +302,8 @@ const CONFIRMING_EFFECTS = new Set(['converted', 'already-converted', 'deposit-m
 // and the cron all announce a freshly converted reservation to the plugins (Google pushes it at
 // once — specs/plugins-phase-1-sdk.md rule 9).
 // `retiredReason` books a withdrawn link instead (cancelled → paid, only while it still carries that reason).
-async function processPaidLink({ database, devisModel, paymentLinksModel, link, paidPayment, sendConfirmation, checkConflict, notifyConflict, notifyPaidAfterCancel, recordPayment, emitPluginEvent = require('../plugins/sdk/eventBus').emit, retiredReason = null }) {
+// `quietOnConflict`: a booking that lands in date conflict sends the guest no confirmation.
+async function processPaidLink({ database, devisModel, paymentLinksModel, link, paidPayment, sendConfirmation, checkConflict, notifyConflict, notifyPaidAfterCancel, recordPayment, emitPluginEvent = require('../plugins/sdk/eventBus').emit, retiredReason = null, quietOnConflict = false }) {
   const p = paidPayment || {};
   // markPaid is atomic (UPDATE … WHERE status='open') and reports whether THIS call flipped the link.
   // The webhook, the on-demand /status poll and the cron can all observe the same paid link at once;
@@ -374,7 +376,7 @@ async function processPaidLink({ database, devisModel, paymentLinksModel, link, 
 
   if (CONFIRMING_TYPES.has(link.type) && CONFIRMING_EFFECTS.has(effect.effect)) {
     const confirmedId = effect.reservationId || link.reservationId;
-    if (sendConfirmation) { try { await sendConfirmation(confirmedId); } catch (e) { /* logged inside the sender */ } }
+    if (sendConfirmation && !(quietOnConflict && effect.conflict)) { try { await sendConfirmation(confirmedId); } catch (e) { /* logged inside the sender */ } }
     if (effect.conflict && notifyConflict) { try { await notifyConflict(confirmedId); } catch (e) { /* best effort */ } }
   }
   return { id: link.id, reservationId: link.reservationId, type: link.type, status: 'paid', ...effect };
@@ -432,8 +434,17 @@ async function retryPendingCancellationsOnce({ only = null, paymentLinksModel, p
       }
       // specs/payment-link-lifecycle.md rule 42 — a link withdrawn by hand while the provider could not be read,
       // paid before that withdrawal, is the guest's money for the stay: booked as the connected path books it.
+      // Re-review of #902 (R1): nights closed since the withdrawal (rule 55) or taken by another stay are booked
+      // like rule 33's — the money recorded, no guest confirmation, the admin told to move or refund.
       if (pay.paid && link.cancelReason === LINK_REASONS.OPERATOR && paidBeforeWithdrawal(link, pay)) {
-        results.push(await processPaidLink({ database, devisModel, paymentLinksModel, link, paidPayment: pay, sendConfirmation, checkConflict, notifyConflict, notifyPaidAfterCancel, recordPayment, emitPluginEvent, retiredReason: LINK_REASONS.OPERATOR }));
+        const closed = Boolean(closedDatesRefusal(database, link.reservationId));
+        const outcome = await processPaidLink({
+          database, devisModel, paymentLinksModel, link, paidPayment: pay, checkConflict, notifyConflict, notifyPaidAfterCancel, recordPayment, emitPluginEvent,
+          sendConfirmation: closed ? null : sendConfirmation, quietOnConflict: true, retiredReason: LINK_REASONS.OPERATOR,
+        });
+        const unavailable = outcome.effect === 'already-processed' ? null : closed ? 'closed' : outcome.conflict ? 'taken' : null;
+        if (unavailable && notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link, { nightsUnavailable: unavailable }); } catch { /* best effort */ } }
+        results.push(outcome);
         continue;
       }
       if (pay.paid) {
