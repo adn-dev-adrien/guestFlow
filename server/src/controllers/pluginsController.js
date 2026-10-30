@@ -1119,6 +1119,8 @@ function createController(model = defaultModel, deps = {}) {
       const body = req.body && typeof req.body === 'object' ? req.body : {};
       const unknown = Object.keys(body).filter((key) => !record.settings.some((k) => k.key === key));
       if (unknown.length) return res.status(400).json({ error: 'UNKNOWN_SETTING', keys: unknown });
+      const internal = record.settings.filter((k) => k.internal && Object.prototype.hasOwnProperty.call(body, k.key)).map((k) => k.key);
+      if (internal.length) return res.status(400).json({ error: 'INTERNAL_SETTING', keys: internal });
       // A declared `validate(value, body) → message | null` refuses the whole write (specs/plugins-phase-2-hosts.md
       // rule 15: the linen stock and laundry day keep the checks the core settings form had). `body` is
       // the whole write, for a key that depends on another one sent with it

@@ -25,6 +25,7 @@ const HARDENINGS = [
   { feature: 'mailbox reader caps and parser version', sdk: HARDENED_AT, pattern: /\breadMailsFrom\b|\bmanifestVersion\(/ },
   { feature: 'scoped cancellation retry', sdk: HARDENED_AT, pattern: /retryPendingCancellations/ },
   { feature: 'mail cap report and unverifiable-mailbox reading', sdk: '2.16.0', pattern: /\bonCap\b/ },
+  { feature: 'internal settings refused by the PUT', sdk: '2.17.0', pattern: /\binternal:\s*true\b/ },
   { feature: 'Qonto request timeout', sdk: HARDENED_AT, pattern: /coreModule\(\s*['"`]qonto['"`]\s*[,)]/ },
 ];
 

@@ -274,6 +274,11 @@ attempts since 2026-10-16 were all refused « Sous-total introuvable »).
 34. *(Added 2026-10-28, audit finding F8.)* **The e-mail read on the page is one address:** a line with a comma,
     semicolon or angle bracket is not an e-mail (mailer libraries split a list and send to every address), and the
     client the SDK creates goes through its validation (SDK rule 28). Test: same file.
+35. **The webhook secret cannot be set by the generic settings route** (audit r5, authz review of PR #874, 2026-10-30).
+    `PUT /api/plugins/booking-intake/settings` naming `key` is refused (400 `INVALID_SETTING`, « Le secret se crée avec
+    « Créer le secret ». »): an admin could replace the generated secret with a guessable one (rule 25: created by an
+    explicit POST only). `key` stays `secret: true`, so `keySet` still reads and the create and regenerate routes keep
+    writing through `ctx.settings`. Plugin 1.3.9. Test: `tests/settings-key-refused.unit.test.js`.
 
 ---
 

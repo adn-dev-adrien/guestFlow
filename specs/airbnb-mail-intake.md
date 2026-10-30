@@ -340,6 +340,21 @@ add the phone and e-mail from Airbnb. When the mail cannot be applied, the fiche
     gives the event loop a turn (`setImmediate`) every 25 mails, so 500 mails of 64 KB headers no longer block the
     server for a second. Airbnb 1.1.4 asks for `sdk ^2.16.0`. Tests: `tests/mail-reader-unverifiable.unit.test.js`,
     `airbnb-intake/tests/mail-unread-attention.unit.test.js`.
+33. **The reader keeps small records, never the envelopes** (audit r5, external N3, 2026-10-30). Rule 32 kept the
+    whole envelope of every unseen unauthenticated mail until the cap was applied (+200 MB for 6 000 forged
+    32 KB subjects). A pass now keeps per mail only the uid, the verdict, the part ids, the dates, a subject
+    truncated to 998 characters and a Message-ID truncated to 998 characters (copied, so the sender-written string
+    is not kept alive); the Message-ID is also the `*_intakes` row key, now bounded. Test:
+    `tests/mail-reader-envelope-retention.unit.test.js` (child process with `--expose-gc`). Airbnb 1.1.5 and
+    Gîtes de France 1.4.7 ask for `sdk ^2.17.0` (also the `internal` counters, `plugins-phase-1-sdk.md` rule 34).
+34. **An unparsable Date header or a throwing mail never stops a pass** (audit r5, review of PR #874, R1, 2026-10-30).
+    imapflow hands a Date header it cannot parse over as the raw string; `new Date(raw).toISOString()` threw and one
+    forged mail blocked every pass for 30 days (on Gmail a verified booking stayed `pending`). The reader now keeps a
+    date only if it parses (otherwise the other date, then `now`, is used) and the service isolates each mail. One that
+    makes the intake step throw never stops the pass: a database error (`err.code` starting with `SQLITE_`) stores
+    nothing, is logged, and the mail is read again by the next pass (review of PR #874, R2: storing it would lose a
+    verified genuine mail for good); any other error is stored like a mail that does not parse (rule 26): `error` with
+    « Erreur de lecture : <reason> » for a verified mail, `ignored` otherwise. Tests: `airbnb-intake/tests/unparsable-date-header.unit.test.js`.
 
 ---
 

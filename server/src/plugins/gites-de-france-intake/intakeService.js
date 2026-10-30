@@ -24,7 +24,7 @@ const MAX_MAILS_PER_PASS = 200;
 const SINCE_DAYS = 30;
 
 function createIntakeService(deps) {
-  const { intakes, settings, readMails, findReservations, commissionPercent, propertyOptions, getReservation, core, parserVersion = null, now = () => new Date() } = deps;
+  const { intakes, settings, readMails, findReservations, commissionPercent, propertyOptions, getReservation, core, parserVersion = null, now = () => new Date(), log = () => {} } = deps;
   // The accommodations' day: the process runs in their time zone (utils/localDate.js).
   const today = deps.today || (() => localDay(now()));
 
@@ -232,9 +232,29 @@ function createIntakeService(deps) {
       }
       add({ messageId: mail.messageId, receivedAt: mail.receivedAt, dossierNumber: parsed.booking.dossierNumber, parsed: parsed.booking, status: 'pending', senderVerified });
     };
+    // One mail that makes the intake step throw never stops the pass. A database error (SQLITE_BUSY…) is transient:
+    // nothing is stored, so the next pass reads the mail again. Any other error is remembered like a mail that does not
+    // parse (rule 26 / 25): `error` for a verified mail, which shows on the home and is read again after a parser fix,
+    // `ignored` otherwise.
+    const isolate = (fn) => (mail) => {
+      try {
+        fn(mail);
+      } catch (err) {
+        if (String(err && err.code).startsWith('SQLITE_')) {
+          log(`mail intake: ${mail.messageId} not stored (${err.code}), retried on the next pass`);
+          return;
+        }
+        const verified = mail.authenticated === true;
+        try {
+          intakes.insert({ messageId: mail.messageId, receivedAt: mail.receivedAt, status: verified ? 'error' : 'ignored', error: `Erreur de lecture : ${err.message}`, senderVerified: verified, parserVersion });
+        } catch (storeErr) {
+          log(`mail intake: ${mail.messageId} not stored (${storeErr.message})`);
+        }
+      }
+    };
     await readMails(
       { ...mailbox, sender: settings.sender(), ...(settings.authentication ? settings.authentication() : {}) },
-      { seen: (messageId) => intakes.has(messageId, parserVersion), onMail: take, limit: MAX_MAILS_PER_PASS, onCap: ({ notRead }) => { unread = notRead; } },
+      { seen: (messageId) => intakes.has(messageId, parserVersion), onMail: isolate(take), limit: MAX_MAILS_PER_PASS, onCap: ({ notRead }) => { unread = notRead; } },
     );
     const outcome = {};
     for (const intake of intakes.listOpen()) {

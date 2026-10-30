@@ -49,7 +49,8 @@ function buildModel(database) {
 
   function httpView(pluginId, declared) {
     const out = {};
-    declared.forEach(({ key, secret, default: def }) => {
+    declared.forEach(({ key, secret, internal, default: def }) => {
+      if (internal) return;
       if (secret) out[`${key}Set`] = Boolean(raw(pluginId, key));
       else out[key] = raw(pluginId, key) || (def === undefined ? '' : def);
     });

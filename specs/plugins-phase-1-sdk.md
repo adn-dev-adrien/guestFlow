@@ -429,6 +429,14 @@ Optional: a plugin that declares nothing reads « Actif ».
     `airbnb-mail-intake.md` rule 32). `verifyDkim` lets the FIRST `Authentication-Results` header of the trusted `authserv-id` decide, tokenizes
     only it and refuses the verification when it is over 4 KB (`oversized-authentication-results`, never falling
     through to a header below); the envelope batch yields to the event loop every 25 mails. Tests: `mail-reader-unverifiable.unit.test.js`.
+34. *(Added 2026-10-30, audit round 5, SDK 2.17.0.)* **A setting can be declared `internal`.**
+    `{ key, internal: true }` is the plugin's own bookkeeping (a counter, a last-run stamp): `PUT
+    /api/plugins/:id/settings` refuses a body naming it with 400 `{ error: 'INTERNAL_SETTING', keys }` and writes
+    nothing of that request, `GET` leaves it out, and the plugin still reads and writes it through `ctx.settings`
+    (a MINOR bump; a plugin that declares one asks for `sdk ^2.17.0`). `airbnb-intake` and
+    `gites-de-france-intake` declare `lastRunAt`, `unreadMails` and `unreadStreak` that way: an operator
+    (or a script holding an admin session) could set the unread counter shown on the home. Test:
+    `plugin-internal-settings.unit.test.js`.
 
 **Edge cases:**
 - **A plugin throws during `register`.** Rule 4 applies: the other plugins and the core boot. The Plugins

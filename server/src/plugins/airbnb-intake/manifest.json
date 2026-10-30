@@ -1,7 +1,7 @@
 {
   "id": "airbnb-intake",
   "name": "Saisie Airbnb",
-  "version": "1.1.4",
+  "version": "1.1.5",
   "description": "Remplit les fiches Airbnb depuis le mail « Réservation confirmée ».",
   "icon": "mail",
   "surfaces": [
@@ -11,7 +11,7 @@
   ],
   "requires": [],
   "guestflow": ">=3.18.0 <4.0.0",
-  "sdk": "^2.16.0",
+  "sdk": "^2.17.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet, pour le SDK 2 de GuestFlow : le mail « Réservation confirmée » d’Airbnb remplit la fiche iCal (voyageur, groupe, code de confirmation, message et « Paiement plateforme »).",
@@ -54,6 +54,11 @@
       "Sans serveur de réception reconnu, une passe lit aussi les mails les plus anciens non lus : chaque mail est lu au plus tard au bout de quelques passes tant que la rafale reste modérée, et la page d’accueil prévient quand le plafond est atteint plusieurs passes de suite.",
       "Les en-têtes d’authentification démesurés sont ignorés et la lecture d’un lot ne fige plus le serveur.",
       "Compatible avec le SDK 2.16 de GuestFlow."
+    ],
+    "1.1.5": [
+      "Les compteurs internes (mails non lus, dernière relève) ne peuvent plus être modifiés depuis les réglages (SDK 2.17 de GuestFlow).",
+      "La lecture du courrier ne garde plus en mémoire les en-têtes des mails non lus : mémoire bornée en cas d’afflux.",
+      "Un mail dont la date est illisible, ou qui provoque une erreur, ne bloque plus la lecture des suivants ; une erreur passagère de la base le fait relire à la passe suivante."
     ]
   }
 }

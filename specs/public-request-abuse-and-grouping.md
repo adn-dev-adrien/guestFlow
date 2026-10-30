@@ -242,6 +242,10 @@ someone else is attacking. One guest asking twice for the same stay gets one quo
     (« IMPORTANT : le client a déjà payé : <link> ») above « Ouvrir le devis ». The mails are plain text, so there
     is nothing to HTML-escape. The phone is also validated at the boundary (`specs/public-api.md` rule 21). Test:
     `plugins/website-booking/tests/public-request-line-injection.unit.test.js`.
+34. **`proofEnforcedSince` and `lastSeenPluginVersion` are internal settings** (audit r5, authz review of PR #874,
+    2026-10-30; `website-booking` 1.8.7, SDK 2.17.0). Rule 24 says nothing resets the proof-of-work latch, yet a settings PUT
+    with `null` did. Both keys are now refused by `PUT /api/plugins/website-booking/settings` and left out of the GET; the
+    plugin still writes them and the online-booking card reads its own endpoint. Test: `tests/internal-settings.unit.test.js`.
 
 ## 4. Architecture
 
