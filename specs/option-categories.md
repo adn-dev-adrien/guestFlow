@@ -467,8 +467,8 @@ page-level action.
 ### 6.2 Admin catalogue — `OptionsPage`
 
 - New form field « Catégorie »: free-solo `Autocomplete` seeded with the distinct categories already
-  in the catalogue. Helper text: « Regroupe l'option dans un menu dépliant sur la fiche réservation
-  et le site (laisser vide pour aucun regroupement). »
+  in the catalogue. Helper text: « Regroupement dans un menu dépliant sur la fiche réservation
+  et le site (vide : aucun). »
 - Placed under the title / English-title block, before the price section.
 - Below it, a « Toujours visible » checkbox — shown **only once a category is set**, since an
   ungrouped option is never folded. Caption: « L'option reste affichée même quand le menu est replié

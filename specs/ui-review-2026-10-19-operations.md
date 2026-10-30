@@ -292,6 +292,31 @@ guessing; and the quote the guest receives looks like the house that sends it.
     into the card's padding, 4 + 3 below). The default-hour field of a single-slot option grid is named
     « Heure par défaut ». Measured with Playwright at 390 and 900 (coarse pointer). Test:
     `components/__tests__/OccurrenceGrid.time-label.test.jsx`.
+38. **No 2nd-person-singular imperative or pronoun in operator text (audit R5, 2026-10-30).** Rule 36 also
+    covers « tu » forms: « Enregistrement requis avant la demande de paiement. », « Une fois payé :
+    « Vérifier le paiement ». », « Connexion Qonto à vérifier (logs). », « Champs signalés à corriger. »,
+    « Regroupement dans un menu dépliant (vide : aucun). », « Envoi d'un « Email de test… » ».
+    The guard `__tests__/operator-wording.impersonal.test.js` reads the string literals of the client
+    (comments stripped) and fails on: the pronouns tu / ton / ta / tes / toi as words; an imperative
+    of the unambiguous list (« Enregistre », « Clique », « Remplis », « Mets », « Fais », « Reviens »,
+    « Patiente », « Reconnecte »…) at the start of a sentence or after `. ! ? : ; , (` or a dash; an
+    imperative that is also a noun or adjective (« Copie », « Active », « Ferme »…) only when an
+    article or preposition follows; and « clique / vérifie / corrige… » mid-sentence before a guillemet,
+    an article, « sur », « ici », « pour » or « à ». A 3rd-person « « Connexion » autorise… » is not
+    flagged. JSX text between tags is read too, but only at its start and after a dash (a 3rd-person
+    « Une tuile ouvre le tableau… » is spared); « N'oublie pas », « N'hésite pas », « Lis », « Écris »,
+    « Prends » and « Va dans » are listed. The test holds a table of probe sentences for both sides.
+    Plugins whose texts changed are bumped (`neat` 1.3.2, `online-payment` 1.4.7).
+39. **Only the latest request is shown (audit R5, 2026-10-30).** A screen whose data depends on a
+    filter, a tab, a tile or a period ignores the answer of a request that has been superseded
+    (`hooks/useLatestRequest.js`: `begin()` returns `current()`, checked before every `set…` of the
+    request, `finally` included). Suivi financier: a late dashboard answer for a logement already
+    left, and a late detail answer for a tile already left (which crashed `ChannelsTable`), are
+    dropped, and the detail panel renders only data whose key (tile, window, logement, scope, date)
+    is the current one. Rapprochement « Actualiser », Devis (status and origin), Options (logement)
+    and the e-mail sequence simulation (from, to) follow the same rule. Tests:
+    `pages/__tests__/FinancePage.stale-answers.test.jsx`, `ReconciliationPage.stale-refresh`,
+    `DevisPage.stale-filter`, `OptionsPage.stale-filter`, `EmailSequenceSimulation.stale-range`.
 
 ---
 

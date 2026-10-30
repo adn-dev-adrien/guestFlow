@@ -69,7 +69,7 @@ export default function ClientCleanupDialog({ open, orphans, onClose, onConfirm,
       <DialogTitle sx={{ pb: 0.5 }}>
         Nettoyer la base clients
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-          Sélectionne les clients à supprimer. Seuls les clients sans réservation ni devis apparaissent ici.
+          Seuls les clients sans réservation ni devis apparaissent ici.
         </Typography>
       </DialogTitle>
       <DialogContent dividers>

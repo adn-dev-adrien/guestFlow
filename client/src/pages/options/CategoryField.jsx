@@ -21,7 +21,7 @@ export default function CategoryField({ form, setForm, suggestions = [] }) {
         fullWidth
         value={form.category || ''}
         onChange={(e) => setForm({ ...form, category: e.target.value })}
-        helperText="Regroupe l’option dans un menu dépliant (vide : aucun regroupement)."
+        helperText="Regroupement dans un menu dépliant (vide : aucun)."
       />
       {suggestions.length > 0 && (
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, mt: 1 }} role="group" aria-label="Catégories existantes">

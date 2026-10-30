@@ -3148,7 +3148,7 @@ export default function ReservationPage() {
   // (specs/deposit-blocks-the-dates.md rules 10 + 12).
   const handleSendPaymentRequest = async () => {
     if (!editingDevisId) {
-      await alert({ title: 'Enregistre d’abord', message: 'Enregistre le devis avant de générer une demande de paiement.' });
+      await alert({ title: 'Devis à enregistrer', message: 'Enregistrement requis avant la demande de paiement.' });
       return;
     }
     try {
@@ -3162,7 +3162,7 @@ export default function ReservationPage() {
       const isDeposit = r.type === 'deposit';
       const check = await confirm({
         title: isDeposit ? 'Demande d’acompte envoyée ✓' : 'Demande de paiement envoyée ✓',
-        message: `Un email avec le lien de paiement ${isDeposit ? 'de l’acompte' : 'du séjour'} (${euros}) a été envoyé à ${r.recipientEmail}. Le règlement bloquera les dates. Une fois payé, clique « Vérifier le paiement ».`,
+        message: `Un email avec le lien de paiement ${isDeposit ? 'de l’acompte' : 'du séjour'} (${euros}) a été envoyé à ${r.recipientEmail}. Le règlement bloquera les dates. Une fois payé : « Vérifier le paiement ».`,
         confirmLabel: 'Vérifier le paiement',
         cancelLabel: 'Fermer',
         confirmColor: 'primary',
@@ -3202,7 +3202,7 @@ export default function ReservationPage() {
       } else if (conv) {
         await alert({ title: paidTitle, message: 'Le paiement est enregistré.' });
       } else {
-        await alert({ title: 'Pas encore payé', message: 'Aucun paiement détecté pour ce devis. Réessaie après avoir réglé le lien.' });
+        await alert({ title: 'Pas encore payé', message: 'Aucun paiement détecté pour ce devis. Lien pas encore réglé.' });
       }
     } catch (e) {
       await alert({ title: 'Erreur', message: e.message || 'Vérification impossible.' });

@@ -16,6 +16,7 @@ import RowActionsMenu from '../components/RowActionsMenu';
 import StatusBadge from '../components/StatusBadge';
 import { useAppDialogs, useToast } from '../components/DialogProvider';
 import api from '../api';
+import useLatestRequest from '../hooks/useLatestRequest';
 import { usePlugin } from '../hooks/usePlugins';
 import { WEBSITE_BOOKING } from '../constants/plugins';
 import { displayDate, formatCurrency } from '../utils/formatters';
@@ -65,7 +66,10 @@ export default function DevisPage() {
 
   const handleEditDevis = (devis) => navigate(editPathOf(devis));
 
+  const beginLoad = useLatestRequest();
+
   const load = useCallback(async () => {
+    const current = beginLoad();
     setLoading(true);
     setLoadError(false);
     try {
@@ -73,11 +77,11 @@ export default function DevisPage() {
       if (statusFilter) params.status = statusFilter;
       if (originFilter) params.requestOrigin = originFilter;
       const data = await api.getDevis(params);
-      setDevisList(data || []);
+      if (current()) setDevisList(data || []);
     } catch (e) {
-      setLoadError(true);
+      if (current()) setLoadError(true);
     } finally {
-      setLoading(false);
+      if (current()) setLoading(false);
     }
   }, [statusFilter, originFilter]);
 

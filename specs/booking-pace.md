@@ -161,6 +161,12 @@ behind.
     dernier à la même date » legend entry follows it. Bars use the chart tokens
     (`finance-dashboard-redesign.md` rule 45): the same-date sand bar is outlined, the ghost dashes in
     `#8E8470`, the « aujourd'hui » marker in miel profond.
+16. **A figure is formatted with its own measure (audit R5, 2026-10-30).** The card keeps the answer with
+    the `logement|measure` key it was asked for and draws it only while that key is the current one;
+    in between (a click on another measure or logement) it shows the loading state, never the previous
+    figures in the new unit (« +1 € » for one booking). Only the latest request counts: a late answer
+    for a measure already left is dropped, for the summary and for the month curve alike
+    (`hooks/useLatestRequest.js`). Test: `components/__tests__/BookingPaceCard.stale-answers.test.jsx`.
 
 ---
 

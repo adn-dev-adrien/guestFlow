@@ -22,6 +22,7 @@ import BookingPaceCard from '../components/BookingPaceCard';
 import { seriesColor } from '../utils/chartColors';
 import { formatCurrencyRounded, plural } from '../utils/formatters';
 import api from '../api';
+import useLatestRequest from '../hooks/useLatestRequest';
 import { localIsoToday } from '../utils/isoDay';
 
 const DETAIL_ID = 'finance-detail';
@@ -64,28 +65,35 @@ export default function FinancePage() {
   const [dashboard, setDashboard] = useState(null);
   const [loadError, setLoadError] = useState(null);
   const [tile, setTile] = useState(null);
-  const [detail, setDetail] = useState({ data: null, loading: false, error: false });
+  const [detail, setDetail] = useState({ key: null, data: null, loading: false, error: false });
   const [staysScope, setStaysScope] = useState('window');
   // Empty until the operator picks a date: the server's default (today + 1 month) applies.
   const [until, setUntil] = useState('');
 
+  const beginDashboard = useLatestRequest();
+  const beginDetail = useLatestRequest();
+
   const loadDashboard = useCallback(async () => {
+    const current = beginDashboard();
     try {
       setLoadError(null);
-      setDashboard(await api.getFinanceDashboard(params));
+      const answer = await api.getFinanceDashboard(params);
+      if (current()) setDashboard(answer);
     } catch (err) {
-      setLoadError((err && err.error) || 'Impossible de charger les données financières.');
+      if (current()) setLoadError((err && err.error) || 'Impossible de charger les données financières.');
     }
   }, [paramsKey]);
 
+  const detailKey = `${tile}|${paramsKey}|${until}|${staysScope}`;
   const loadDetail = useCallback(async () => {
+    const current = beginDetail();
     if (!tile) return;
-    setDetail((d) => ({ ...d, loading: true, error: false }));
+    setDetail((d) => ({ key: detailKey, data: d.key === detailKey ? d.data : null, loading: true, error: false }));
     try {
       const data = await api.getFinanceDashboardDetail(tile, { ...params, ...(until ? { until } : {}), scope: staysScope });
-      setDetail({ data, loading: false, error: false });
+      if (current()) setDetail({ key: detailKey, data, loading: false, error: false });
     } catch {
-      setDetail({ data: null, loading: false, error: true });
+      if (current()) setDetail({ key: detailKey, data: null, loading: false, error: true });
     }
   }, [tile, paramsKey, until, staysScope]);
 
@@ -107,7 +115,7 @@ export default function FinancePage() {
   };
 
   const openTile = (key) => {
-    setDetail({ data: null, loading: false, error: false });
+    setDetail({ key: null, data: null, loading: false, error: false });
     setTile((current) => (current === key ? null : key));
   };
 
@@ -229,7 +237,7 @@ export default function FinancePage() {
                       title={i.title}
                       text={i.text}
                       actionLabel={i.action ? i.action.label : undefined}
-                      onAction={i.action ? () => { setStaysScope(i.action.scope); setDetail({ data: null, loading: false, error: false }); setTile(i.action.tile); } : undefined}
+                      onAction={i.action ? () => { setStaysScope(i.action.scope); setDetail({ key: null, data: null, loading: false, error: false }); setTile(i.action.tile); } : undefined}
                     />
                   </Box>
                 ))}
@@ -261,9 +269,9 @@ export default function FinancePage() {
               <FinanceDetailPanel
                 id={DETAIL_ID}
                 tile={tile}
-                data={detail.data}
-                loading={detail.loading}
-                error={detail.error}
+                data={detail.key === detailKey ? detail.data : null}
+                loading={detail.key === detailKey ? detail.loading : true}
+                error={detail.key === detailKey && detail.error}
                 onRetry={loadDetail}
                 windowLabel={d.window.label}
                 staysScope={staysScope}

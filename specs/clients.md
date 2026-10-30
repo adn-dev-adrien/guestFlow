@@ -252,7 +252,7 @@ drop is irreversible.
   it is ever long enough to be useful.
 - **Cleanup orphans (2026-06-06):** clicking **Cleanup clients** opens `<ClientCleanupDialog>`:
   - Title: "Nettoyer la base clients".
-  - Subtitle (caption): "Sélectionne les clients à supprimer. Seuls les clients sans réservation ni
+  - Subtitle (caption): "Seuls les clients sans réservation ni
     devis apparaissent ici."
   - Empty state: "Aucun client à supprimer — tous les clients ont au moins une réservation ou un devis."
   - List: one row per orphan, layout `[checkbox] Nom Prénom · email · phone`. Master "Tout cocher /

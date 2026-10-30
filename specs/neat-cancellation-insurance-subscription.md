@@ -337,7 +337,7 @@ insurance is never sold nor subscribed once the stay began, mirroring
 - Summary lines (`SummaryItem`): canal, contrat, « Champs requis mappés : 4/4 », « Souscriptions :
   2 en attente · 1 en échec ».
 - Copy for errors: « Connexion Neat impossible : <message> », « Champ requis non mappé : <name> »,
-  « Ce canal ne propose pas de mode de paiement à la charge de l'établissement — contacte Neat. »
+  « Ce canal ne propose pas de mode de paiement à la charge de l'établissement — à voir avec Neat. »
 - **Responsive:** the mapping table becomes stacked rows on `xs` (label above select, full-width);
   the card follows the existing settings column layout. No horizontal scroll.
 - **Sticky action bar:** unchanged — `SettingsPage` keeps its existing `PageActionBar` (global

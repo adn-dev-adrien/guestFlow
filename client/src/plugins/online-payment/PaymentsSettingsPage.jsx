@@ -171,7 +171,7 @@ export default function PaymentsSettingsPage() {
         setTestResult(null);
         setQonto(await api.getQontoStatus());
         messages.push(res.tokensCleared
-          ? 'Identifiants enregistrés — clique « Connexion » pour autoriser la nouvelle application'
+          ? 'Identifiants enregistrés. « Connexion » autorise la nouvelle application'
           : 'Identifiants Qonto enregistrés');
       }
 
@@ -307,7 +307,7 @@ export default function PaymentsSettingsPage() {
                   </Select>
                 </FormControl>
                 {bankAccounts && bankAccounts.length === 0 && (
-                  <Typography variant="caption" color="error">Aucun compte récupéré — vérifie la connexion Qonto (logs).</Typography>
+                  <Typography variant="caption" color="error">Aucun compte récupéré. Connexion Qonto à vérifier (logs).</Typography>
                 )}
                 <TextField label="Téléphone (format international, ex. +33612345678)" value={providerForm.phone} onChange={(e) => setProviderField('phone', e.target.value)} fullWidth size="small" />
                 <TextField label="Site web" value={providerForm.websiteUrl} onChange={(e) => setProviderField('websiteUrl', e.target.value)} fullWidth size="small" />
