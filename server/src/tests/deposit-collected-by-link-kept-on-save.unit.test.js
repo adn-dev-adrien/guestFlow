@@ -52,6 +52,24 @@ for (const path of ['live', 'retry']) {
     assertAcompteKept(s, await saveHeld(s.id, held, { loadedUpdatedAt: version }));
   });
 
+  test(`${path}: the refused « Sans acompte » keeps the acompte's stored amount and due date, with no history line`, async () => {
+    const s = stayWithDisabledAcompte(path);
+    const held = f.ficheBody(s.id);
+    await pay(path, s);
+    const booked = f.rowOf(s.id);
+    assert.equal(booked.depositAmountOverride, s.deposit, 'the booking records the amount received');
+    assert.equal(booked.depositDueDate, null);
+    const historyBefore = f.history(s.id).length;
+    // The tab still holds the cleared override and the deadline it showed before the switch.
+    assertAcompteKept(s, await saveHeld(s.id, held, { depositAmountOverride: null, depositDueDate: '2027-02-15' }));
+    const row = f.rowOf(s.id);
+    assert.equal(row.depositAmountOverride, s.deposit);
+    assert.equal(row.depositDueDate, null);
+    const labels = f.history(s.id).slice(historyBefore).flatMap((h) => h.changes.map((c) => c.label));
+    assert.ok(!labels.includes('Acompte saisi'), JSON.stringify(labels));
+    assert.ok(!labels.includes('Date acompte'), JSON.stringify(labels));
+  });
+
   test(`${path}: the journal keeps the acompte entry after the « Sans acompte » save`, { skip: skipWithout(['accounting-export']) }, async () => {
     const s = stayWithDisabledAcompte(path);
     const held = f.ficheBody(s.id);
@@ -94,4 +112,22 @@ test('an acompte ticked by hand, with no paid link, can still be switched off', 
   assert.equal(row.depositPaidDate, null);
   assert.equal(row.depositAmount, 0);
   assert.equal(ledgerRow(id, 'deposit').state, 'na');
+});
+
+test('the fiche and the live quote say why « Sans acompte » is locked once a link collected the acompte', async () => {
+  const s = stayWithDisabledAcompte('retry');
+  assert.equal(f.getFiche(s.id).depositDisabledLockedReason, null, 'nothing collected yet: the switch is free');
+  await pay('retry', s);
+  assert.equal(f.getFiche(s.id).depositDisabledLockedReason, 'collected-by-link');
+  const live = await call(f.controller.calculatePrice, {
+    body: { ...f.ficheBody(s.id), reservationId: s.id, selectedOptions: [], selectedResources: [] },
+    user: f.ADMIN,
+  });
+  assert.equal(live.depositDisabledLockedReason, 'collected-by-link');
+});
+
+test('an acompte ticked by hand, with no paid link, leaves « Sans acompte » unlocked', () => {
+  const id = f.createStay({ startDate: '2027-11-09', endDate: '2027-11-12' });
+  f.db.prepare("UPDATE reservations SET depositPaid = 1, depositPaidDate = '2027-10-01' WHERE id = ?").run(id);
+  assert.equal(f.getFiche(id).depositDisabledLockedReason, null);
 });

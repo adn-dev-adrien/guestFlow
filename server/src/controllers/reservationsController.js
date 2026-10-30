@@ -932,6 +932,8 @@ function getById(req, res) {
     storedHeadline: storedHeadlineOf(model.getRow(reservation.id)),
     // Rule 44 — the money figures of the pricing summary, stored, for the same switch.
     storedSummary: storedSummaryOf(model.getRow(reservation.id)),
+    // specs/disable-deposit-per-reservation.md rule 13 — null while « Sans acompte » can be ticked.
+    depositDisabledLockedReason: depositDisabledLockedReasonOf(reservation.id),
     // specs/plugins-phase-3b-neat.md rule 12 — what live plugins show on this stay (Neat: the
     // subscription chip and its actions), keyed by block, each shaped for display.
     pluginBlocks: reservationBlocks(reservation),
@@ -1034,7 +1036,12 @@ function platformPriceCheckOf({ quote, body, propertyId, storedRow, devisId, nig
 // a stored reservation: refused (0) when the stored acompte was collected by a payment link.
 function depositDisabledOf(reservationId, requested) {
   if (!requested) return 0;
-  return Number(reservationId) > 0 && ledgerLinks.acompteHeldByLink(db, reservationId) ? 0 : 1;
+  return depositDisabledLockedReasonOf(reservationId) ? 0 : 1;
+}
+
+// Rule 13 — why the fiche cannot offer « Sans acompte »: the fiche greys the switch and says so.
+function depositDisabledLockedReasonOf(reservationId) {
+  return Number(reservationId) > 0 && ledgerLinks.acompteHeldByLink(db, reservationId) ? 'collected-by-link' : null;
 }
 
 async function calculatePrice(req, res) {
@@ -1203,6 +1210,7 @@ async function calculatePrice(req, res) {
         || String(quote.balanceDueDate || '') !== String(storedRow.balanceDueDate || '');
     }
     quote.notices = pricingNoticesOf({ quote, body: req.body, storedRow });
+    quote.depositDisabledLockedReason = depositDisabledLockedReasonOf(reservationId);
     quote.platformPriceCheck = platformPriceCheckOf({
       quote,
       body: req.body,
@@ -1835,11 +1843,16 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
   // See specs/disable-deposit-per-reservation.md. Rule 13: an acompte a link collected stays, whatever the
   // flag the fiche still holds, and the row is written with the flag the save applied.
   const depositDisabledFlag = depositDisabledOf(id, req.body.depositDisabled);
-  req.body.depositDisabled = depositDisabledFlag;
   // The stored state is the truth for the three payment flags (see `modelPayload` below): the quote
   // is priced on it too, so the frozen-schedule branches of the engine and the row that is about to
   // be written can never disagree.
   const storedPaymentForQuote = model.getRow(id) || {};
+  if (req.body.depositDisabled && !depositDisabledFlag) {
+    // The refused switch also drops what the fiche cleared along with it: the acompte keeps its amount and deadline.
+    req.body.depositAmountOverride = storedPaymentForQuote.depositAmountOverride ?? null;
+    req.body.depositDueDate = storedPaymentForQuote.depositDueDate ?? null;
+  }
+  req.body.depositDisabled = depositDisabledFlag;
   const effectiveDepositPaid = depositDisabledFlag ? false : Number(storedPaymentForQuote.depositPaid || 0) === 1;
   const effectiveDepositPaidDate = depositDisabledFlag ? null : (storedPaymentForQuote.depositPaidDate || null);
   const effectiveBalancePaid = Number(storedPaymentForQuote.balancePaid || 0) === 1;
