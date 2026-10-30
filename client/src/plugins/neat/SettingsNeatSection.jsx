@@ -207,8 +207,8 @@ function SettingsNeatSection({ onDirtyChange }, ref) {
         } catch (e) {
           if (e.code === 'MAPPING_INVALID' && Array.isArray(e.errors)) {
             setMappingErrors(Object.fromEntries(e.errors.map((err) => [err.fieldId, MAPPING_ERROR_LABELS[err.error] || err.error])));
-            setActionResult({ severity: 'error', message: 'Mappage incomplet — corrige les champs signalés.' });
-            throw new Error('Mappage Neat incomplet — corrige les champs signalés.');
+            setActionResult({ severity: 'error', message: 'Mappage incomplet. Champs signalés à corriger.' });
+            throw new Error('Mappage Neat incomplet. Champs signalés à corriger.');
           }
           throw new Error(e.message || 'Neat : enregistrement du mappage impossible.');
         }

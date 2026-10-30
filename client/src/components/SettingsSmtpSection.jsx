@@ -172,7 +172,7 @@ export default function SettingsSmtpSection({
           Envoyer un mail de test
         </Button>
         <Typography variant="caption" color="text.secondary">
-          {canTest || !testMissing ? 'Envoie « Email de test GuestFlow » à l’adresse du compte connecté.' : testMissing}
+          {canTest || !testMissing ? 'Envoi de « Email de test GuestFlow » à l’adresse du compte connecté.' : testMissing}
         </Typography>
         {testResult && (
           <Alert severity={testResult.severity} onClose={testResult.onClose}>

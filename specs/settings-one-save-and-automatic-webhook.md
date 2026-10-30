@@ -248,7 +248,7 @@ is not migrated either (rule 5 acts on save).
 - « Connexion » replaces « Connecter Qonto » / « Reconnecter Qonto » — one label whatever the state,
   because the button does the same thing either way. « Test » replaces « Tester la connexion ».
 - Both actions are `disabled` while the page is dirty, wrapped in a `<span>` so the tooltip still fires:
-  « Enregistre d'abord tes modifications. » When the credentials are missing, « Connexion » stays
+  « Modifications à enregistrer d'abord. » When the credentials are missing, « Connexion » stays
   disabled with its existing reason.
 - The page's `PageActionBar title="Paiements" backTo="/settings"` keeps its Save, which now writes the
   credentials **and** the timings.

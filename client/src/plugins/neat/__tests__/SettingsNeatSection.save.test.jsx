@@ -142,7 +142,7 @@ test('rule 3: a 422 on the mapping is reported per field and leaves the typed va
   });
 
   expect(await screen.findByText('Champ requis non mappé.')).toBeInTheDocument();
-  expect(screen.getByText('Mappage incomplet — corrige les champs signalés.')).toBeInTheDocument();
+  expect(screen.getByText('Mappage incomplet. Champs signalés à corriger.')).toBeInTheDocument();
   // Rule 3: the block that was accepted before the refusal was written.
   expect(api.updateNeatSettings).toHaveBeenCalledTimes(1);
 });
