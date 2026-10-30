@@ -34,7 +34,8 @@ const DDL = `
 function iso(daysFromToday) {
   const d = new Date();
   d.setDate(d.getDate() + daysFromToday);
-  return d.toISOString().split('T')[0];
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
 function freshModel() {
