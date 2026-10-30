@@ -165,6 +165,7 @@ for (const [deposit, balance, label] of [[120, 335.36, 'grown'], [80, 375.36, 's
   });
 }
 
+// specs/plugins-phase-3a-online-payment.md rule 47 (audit R6 E2)
 test('rule 47 (E2): a retired acompte link of a devis paid after a re-price tells the operator no confirmation was sent', async () => {
   const { db, id, links } = seed({ deposit: 100, balance: 355.36 });
   const link = links.create({ reservationId: id, type: 'deposit', amountCents: 10000, provider: 'qonto', providerLinkId: 'old', url: 'u', status: 'open' });
