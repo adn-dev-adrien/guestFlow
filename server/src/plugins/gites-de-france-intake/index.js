@@ -43,9 +43,9 @@ function register(ctx) {
     { key: 'autoApply', default: '1' },
     { key: 'senderDomains', supportLocked: true, default: '' },
     { key: 'trustedAuthservId', supportLocked: true, default: '' },
-    { key: 'lastRunAt', default: '' },
-    { key: 'unreadMails', default: '0' },
-    { key: 'unreadStreak', default: '0' },
+    { key: 'lastRunAt', internal: true, default: '' },
+    { key: 'unreadMails', internal: true, default: '0' },
+    { key: 'unreadStreak', internal: true, default: '0' },
   ]);
 
   let model = null;

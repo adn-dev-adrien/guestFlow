@@ -22,9 +22,10 @@ function createContext(id, { db, settingsModel, dataDir = null } = {}) {
   const prefix = `[plugin:${id}]`;
 
   const settings = {
-    // [{ key, secret?, supportLocked?, default?, validate?, afterSave? }] — `supportLocked`: readable, but refused
+    // [{ key, secret?, internal?, supportLocked?, default?, validate?, afterSave? }] — `supportLocked`: readable, but refused
     // to a support session like a secret (rule 18) — the keys `GET/PUT /api/plugins/:id/settings`
     // accept (rule 7); `validate(value)` returns a French message to refuse a write, or null;
+    // `internal`: the plugin's own bookkeeping, refused by the PUT and left out of the GET (SDK 2.17.0);
     // `afterSave(value)` runs once the value is stored (specs/plugins-phase-p-productisation.md rule 16).
     declare(keys) { record.settings.push(...keys); },
     get(key) {

@@ -144,6 +144,9 @@ const coreSmtpHost = () => require('./coreServices').settings.mailbox().host;
 const MAX_MAILS_PER_PASS = 200;
 const ENVELOPE_CHUNK = 500;
 const YIELD_EVERY = 25;
+const MAX_HEADER_VALUE = 998;
+// A copy, not a slice: a V8 slice keeps the whole sender-written string alive.
+const capHeader = (value) => Buffer.from(String(value || '').slice(0, MAX_HEADER_VALUE)).toString();
 
 /**
  * Rule 32 — which unauthenticated mails a pass reads when there are more than `limit`, newest first in `mails`.
@@ -198,12 +201,13 @@ async function readMailsFrom({
         if (i > 0 && i % YIELD_EVERY === 0) await new Promise((resolve) => setImmediate(resolve)); // eslint-disable-line no-await-in-loop
         const msg = batch[i];
         if (!msg || !addressMatches(msg.envelope, sender)) continue; // eslint-disable-line no-continue
-        const messageId = (msg.envelope && msg.envelope.messageId) || `uid:${msg.uid}`;
+        const messageId = capHeader((msg.envelope && msg.envelope.messageId) || `uid:${msg.uid}`);
         if (seen(messageId)) continue; // eslint-disable-line no-continue
         const auth = verifyDkim(msg.headers, { domains, trustedAuthservId: trusted });
         const plainPart = findPart(msg.bodyStructure, 'text/plain');
         (auth.ok ? verified : unverified).push({
-          uid: msg.uid, messageId, auth, plainPart, partId: plainPart || findPart(msg.bodyStructure, 'text/html'), envelope: msg.envelope, internalDate: msg.internalDate,
+          uid: msg.uid, messageId, auth, plainPart, partId: plainPart || findPart(msg.bodyStructure, 'text/html'), internalDate: msg.internalDate,
+          sentDate: msg.envelope && msg.envelope.date, subject: capHeader(msg.envelope && msg.envelope.subject),
         });
       }
     }
@@ -213,15 +217,15 @@ async function readMailsFrom({
       log(`mail intake: ${notRead} unauthenticated mails not read in this pass (cap ${limit})`);
       if (onCap) onCap({ notRead, limit });
     }
-    for (const { uid, messageId, auth, plainPart, partId, envelope, internalDate } of [...verified, ...chosen]) {
+    for (const { uid, messageId, auth, plainPart, partId, sentDate, subject, internalDate } of [...verified, ...chosen]) {
       const raw = partId ? await readPart(client, uid, partId) : ''; // eslint-disable-line no-await-in-loop
       const tooLarge = Boolean(raw && raw.tooLarge);
       if (tooLarge) log(`mail intake: ${messageId} skipped, its text part is over ${MAX_PART_BYTES} bytes (read ${raw.tooLarge}+)`);
       await deliver({ // eslint-disable-line no-await-in-loop
         messageId,
-        receivedAt: new Date(internalDate || (envelope && envelope.date) || now).toISOString(),
-        sentAt: new Date((envelope && envelope.date) || internalDate || now).toISOString(),
-        subject: (envelope && envelope.subject) || '',
+        receivedAt: new Date(internalDate || sentDate || now).toISOString(),
+        sentAt: new Date(sentDate || internalDate || now).toISOString(),
+        subject,
         text: tooLarge ? '' : (plainPart ? raw : htmlToText(raw)),
         authenticated: auth.ok,
         authReason: auth.reason,

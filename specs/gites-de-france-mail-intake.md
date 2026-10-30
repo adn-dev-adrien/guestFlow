@@ -301,6 +301,9 @@ choice in one click.
     gives the event loop a turn (`setImmediate`) every 25 mails, so 500 mails of 64 KB headers no longer block the
     server for a second. Gîtes de France 1.4.6 asks for `sdk ^2.16.0`. Tests: `tests/mail-reader-unverifiable.unit.test.js`,
     `gites-de-france-intake/tests/mail-unread-attention.unit.test.js`.
+33. **The reader keeps small records** (audit r5, N3, 2026-10-30): see `airbnb-mail-intake.md` rule 33; the
+    counters `lastRunAt`, `unreadMails`, `unreadStreak` are `internal` settings (`plugins-phase-1-sdk.md` rule 34).
+    Gîtes de France 1.4.7 asks for `sdk ^2.17.0`.
 
 ---
 
