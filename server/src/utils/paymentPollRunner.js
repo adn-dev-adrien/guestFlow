@@ -232,7 +232,8 @@ function flagConflictIfAny({ database, checkConflict, reservationId }) {
 // longer asks for. The HTTP save retires such a link (rule 29), but a stay re-priced through
 // `performUpdate` (plugins, SAS, arrival payment) keeps it open; ticking the bucket would then record
 // the new amount as received. The money is booked at the link's amount instead, exactly as for a
-// retired link (rule 31). Null when the amounts agree, for a devis, or when the bucket was already
+// retired link (rule 31), and the admin is told like for that one (online-payment rule 47: `amountMismatch`,
+// read on the row before the booking rewrites it, so no confirmation goes out). Null when the amounts agree, for a devis, or when the bucket was already
 // perceived another way (the idempotent recorder below then records nothing, as before).
 function bookIfAmountChanged({ database, link, paidDate, recordPayment }) {
   if (!database || !['deposit', 'balance', 'full'].includes(String(link.type))) return null;
@@ -242,8 +243,9 @@ function bookIfAmountChanged({ database, link, paidDate, recordPayment }) {
   if (row[column] == null) return null;
   const expected = linkAmountCents(link.type, row);
   if (expected == null || Number(link.amountCents) === expected) return null;
+  const alertCents = alertExpectedCents(link, row, database, paidDate);
   const booked = bookPaidAfterAmountChange({ database, recordPayment: recordPayment || recordOn(database) }, link, { paidDay: paidDate });
-  return booked.effect === 'double-payment' ? null : booked;
+  return booked.effect === 'double-payment' ? null : { ...booked, amountMismatch: { expectedCents: alertCents, receivedCents: Number(link.amountCents) } };
 }
 
 // A paid link confirms the stay (→ confirmation email) for the deposit (use case 1) and full-payment

@@ -1,7 +1,7 @@
 {
   "id": "online-payment",
   "name": "Paiement en ligne (Qonto)",
-  "version": "1.4.7",
+  "version": "1.4.8",
   "description": "Liens de paiement envoyés aux voyageurs, et rapprochement des virements du compte Qonto avec les fiches.",
   "icon": "payments",
   "surfaces": [
@@ -95,6 +95,10 @@
     ],
     "1.4.7": [
       "Textes de la connexion Qonto sans tutoiement.",
+      "Compatible avec le SDK 2.15 de GuestFlow."
+    ],
+    "1.4.8": [
+      "Un lien ouvert du séjour payé après un changement de prix prévient désormais l’administrateur, sans envoyer de confirmation.",
       "Compatible avec le SDK 2.15 de GuestFlow."
     ]
   }
