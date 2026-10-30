@@ -2,7 +2,7 @@
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
-import { vi } from 'vitest';
+import { afterEach, beforeEach, vi } from 'vitest';
 
 vi.mock('../../../api', () => ({ default: { getLinenShortageAlert: vi.fn() } }));
 vi.mock('../../../components/AttentionCard', () => ({ default: ({ children }) => <div>{children}</div> }));
@@ -17,6 +17,11 @@ const payload = (over = {}) => ({
     maxMissing: 2, impactedReservations: [], ...over,
   }],
 });
+
+// Only Date is faked, so waitFor keeps its real timers. Pinned before the fixtures' June 2026: a date of
+// another year says its year (rule 18), so on the real clock these labels grew « 2026 » from 2027 on.
+beforeEach(() => { vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2026-06-20T10:00:00')); });
+afterEach(() => vi.useRealTimers());
 
 const renderAlert = () => render(<MemoryRouter><LinenShortageAlert attention={{}} /></MemoryRouter>);
 const lineOf = async () => {

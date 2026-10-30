@@ -54,6 +54,8 @@ function freshModel({ quoteValidityDays = 30 } = {}) {
 }
 
 const todayDate = () => new Date().toISOString().slice(0, 10);
+// A stay far enough ahead that today + validity never reaches the rule 6 cap (start - 2 days).
+const inDays = (n) => new Date(Date.now() + n * 86400000).toISOString().slice(0, 10);
 
 test('create persists a non-empty createdAt (rule 1, never blank)', () => {
   const { model, db } = freshModel();
@@ -68,7 +70,7 @@ test('create persists a non-empty createdAt (rule 1, never blank)', () => {
 test('create persists validUntil = createdAt + quoteValidityDays (rule 6)', () => {
   const { model, db } = freshModel({ quoteValidityDays: 14 });
   const result = model.create({
-    propertyId: 1, clientId: 1, startDate: '2026-12-10', endDate: '2026-12-12', adults: 2,
+    propertyId: 1, clientId: 1, startDate: inDays(60), endDate: inDays(62), adults: 2,
   });
   const row = db.prepare('SELECT validUntil FROM reservations WHERE id = ?').get(result.data.id);
   const expected = new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10);
@@ -89,13 +91,13 @@ test('create caps validUntil at startDate - 2 days (rule 6 cap)', () => {
 test('update fills missing validUntil on a legacy row (rule 7)', () => {
   const { model, db } = freshModel({ quoteValidityDays: 21 });
   const created = model.create({
-    propertyId: 1, clientId: 1, startDate: '2027-01-15', endDate: '2027-01-17', adults: 2,
+    propertyId: 1, clientId: 1, startDate: inDays(90), endDate: inDays(92), adults: 2,
   });
   // Simulate a legacy row whose validUntil column was never set.
   db.prepare('UPDATE reservations SET validUntil = NULL WHERE id = ?').run(created.data.id);
 
   model.update(created.data.id, {
-    propertyId: 1, clientId: 1, startDate: '2027-01-15', endDate: '2027-01-17', adults: 2,
+    propertyId: 1, clientId: 1, startDate: inDays(90), endDate: inDays(92), adults: 2,
   });
   const row = db.prepare('SELECT validUntil FROM reservations WHERE id = ?').get(created.data.id);
   // The update path recomputes from existing.createdAt + quoteValidityDays.

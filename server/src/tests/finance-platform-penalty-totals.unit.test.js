@@ -3,6 +3,11 @@
 // the invariant collected + remaining = total kept. Same stay with and without a penalty.
 const test = require('node:test');
 const assert = require('node:assert/strict');
+
+// Pinned to mid-June, before the fixture reads TODAY: on the real clock, from January to February the
+// stays of 40 to 60 days ago fall in the previous exercise and the revenue read 0.
+test.mock.timers.enable({ apis: ['Date'], now: new Date('2026-06-15T10:00:00Z') });
+
 const { freshDb, insert, TODAY } = require('./financeDashboardFixture');
 const { addDaysToIsoDate } = require('../utils/devisHelpers');
 
