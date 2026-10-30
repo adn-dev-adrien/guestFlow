@@ -87,3 +87,73 @@ test('rule 9 — a stay that starts later keeps its links; the 36 h are the only
   assert.deepEqual(pass(db, links, '2026-11-01T20:00:00Z'), []);
   assert.deepEqual(stateOf(links, link.id), ['open', null]);
 });
+
+// Rule 51 (audit R8-M1) — a request on or after the arrival day never reuses a link that rule 9 lapses: the
+// pass would kill it within 15 minutes of the e-mail. It lapses as `stay-started` and a fresh link, minted on
+// the arrival day and so spared by rule 9, leaves instead.
+const { ensurePaymentLink, ensureInstallmentLink } = require('../utils/paymentRequestService');
+const { fakeProvider, HOUR } = require('./paymentLinkLifecycleFixture');
+
+const mintDeps = (db, links, provider, now, amountCents) => ({
+  database: db, paymentLinksModel: links, provider, resolveAmountCents: () => amountCents, now: () => now,
+});
+
+test('rule 51 — at 00:05 Paris on the arrival day, the solde link minted the evening before is not reused', async () => {
+  const { db, links } = seedDb();
+  const stay = addStay(db, { startDate: '2027-07-10', endDate: '2027-07-14' });
+  const minted = new Date('2027-07-09T21:00:00Z');
+  const old = addLink(links, db, stay, { type: 'balance', amountCents: 21000, createdAt: minted, expiresAt: new Date(minted.getTime() + 36 * HOUR) });
+  const provider = fakeProvider();
+  const now = new Date('2027-07-09T22:05:00Z');
+
+  const out = await ensurePaymentLink(mintDeps(db, links, provider, now, 21000), stay, 'balance');
+
+  assert.equal(out.reused, false);
+  assert.notEqual(out.id, old.id);
+  assert.deepEqual(stateOf(links, old.id), ['expired', 'stay-started']);
+  assert.deepEqual(provider.calls.map((c) => c[0]), ['getPayment', 'cancelLink', 'createLink'], 'read, deactivated at once, then the fresh mint');
+  assert.deepEqual(pass(db, links, '2027-07-09T22:15:00Z'), [], 'the fresh link survives the next pass');
+  assert.deepEqual(stateOf(links, out.id), ['open', null]);
+});
+
+test('rule 51 — a stay re-dated to today: the acompte link of the old dates is replaced, not reused', async () => {
+  const { db, links } = seedDb();
+  const stay = addStay(db, { startDate: '2027-08-20', endDate: '2027-08-24' });
+  const minted = new Date('2027-07-09T20:00:00Z');
+  const old = addLink(links, db, stay, { type: 'deposit', amountCents: 9000, createdAt: minted, expiresAt: new Date(minted.getTime() + 36 * HOUR) });
+  db.prepare("UPDATE reservations SET startDate = '2027-07-10', endDate = '2027-07-13' WHERE id = ?").run(stay);
+
+  const out = await ensurePaymentLink(mintDeps(db, links, fakeProvider(), new Date('2027-07-10T06:00:00Z'), 9000), stay, 'deposit');
+
+  assert.equal(out.reused, false);
+  assert.deepEqual(stateOf(links, old.id), ['expired', 'stay-started']);
+  assert.deepEqual(pass(db, links, '2027-07-10T06:15:00Z'), []);
+});
+
+test('rule 51 — a link minted on the arrival day is still reused on that day', async () => {
+  const { db, links } = seedDb();
+  const stay = addStay(db, { startDate: '2027-07-10', endDate: '2027-07-14' });
+  const minted = new Date('2027-07-09T22:30:00Z');
+  const sameDay = addLink(links, db, stay, { type: 'balance', amountCents: 21000, createdAt: minted, expiresAt: new Date(minted.getTime() + 36 * HOUR) });
+  const provider = fakeProvider();
+
+  const out = await ensurePaymentLink(mintDeps(db, links, provider, new Date('2027-07-10T08:00:00Z'), 21000), stay, 'balance');
+
+  assert.equal(out.reused, true);
+  assert.equal(out.id, sameDay.id);
+  assert.deepEqual(provider.calls, []);
+});
+
+test('rule 51 — an installment link of the day before is not reused on the arrival day', async () => {
+  const { db, links } = seedDb();
+  const stay = addStay(db, { startDate: '2027-07-10', endDate: '2027-07-14' });
+  const installment = { id: 41, reservationId: stay, number: 1, amountCents: 15000, paid: 0 };
+  const installmentsModel = { findById: () => installment, listFor: () => [installment] };
+  const minted = new Date('2027-07-09T21:00:00Z');
+  const old = addLink(links, db, stay, { type: 'installment', installmentId: 41, amountCents: 15000, createdAt: minted, expiresAt: new Date(minted.getTime() + 36 * HOUR) });
+
+  const out = await ensureInstallmentLink({ ...mintDeps(db, links, fakeProvider(), new Date('2027-07-10T07:00:00Z'), 15000), installmentsModel }, stay, 41);
+
+  assert.equal(out.reused, false);
+  assert.deepEqual(stateOf(links, old.id), ['expired', 'stay-started']);
+});

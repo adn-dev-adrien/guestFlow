@@ -961,8 +961,21 @@ function createCustomersController(ctx) {
     }
   }
 
+  // Rule 39: from the moment an erasure is accepted until it ends, including while it waits for the
+  // customer's lock; a count, so two overlapping erasures cannot clear each other.
+  const erasing = new Map();
+  const markErasing = (id) => erasing.set(id, (erasing.get(id) || 0) + 1);
+  const unmarkErasing = (id) => {
+    const n = erasing.get(id) - 1;
+    if (n > 0) erasing.set(id, n); else erasing.delete(id);
+  };
+  function assertNotErasing(id) {
+    if (erasing.has(id)) throw httpError(409, 'ERASING', 'Effacement en cours.');
+  }
+
   async function reactivate(id, operator) {
     const c = mustGet(id);
+    assertNotErasing(c.id);
     if (!c.archivedAt) throw httpError(409, 'NOT_ARCHIVED', 'Ce client n’est pas archivé.');
     customers.unarchive(c.id);
     dropExports(c.id);
@@ -976,6 +989,7 @@ function createCustomersController(ctx) {
 
   function cancelErase(id, operator) {
     const c = mustGet(id);
+    assertNotErasing(c.id);
     if (!c.archivedAt || !c.eraseAt) throw httpError(409, 'NOTHING_SCHEDULED', 'Aucun effacement prévu.');
     customers.setEraseAt(c.id, null);
     journal(c.id, operator, 'erase', 'Effacement annulé');
@@ -1010,22 +1024,36 @@ function createCustomersController(ctx) {
     if (!c.archivedAt) throw httpError(409, 'NOT_ARCHIVED', 'Seul un client archivé peut être effacé.');
     if (!stopped(c)) throw httpError(409, 'NOT_STOPPED', '« Processus et route arrêtés » en échec : à relancer d’abord.');
     if (String(body.confirmSlug || '') !== c.slug) throw httpError(400, 'CONFIRM_SLUG', `Tapez exactement « ${c.slug} » pour confirmer.`);
-    return erase(c.id, operator);
+    const result = await erase(c.id, operator);
+    if (result.erased) return result;
+    // Rule 39: a second click queued behind the first finds the customer erased by it.
+    if (customers.get(c.id)?.erasedAt) return { erased: true, id: c.id };
+    throw httpError(409, 'NOT_ARCHIVED', 'Seul un client archivé peut être effacé.');
   }
 
   // Inside the customer's sequence lock: never alongside a fleet update's snapshot or rollback.
-  function erase(id, operator) {
+  // Rule 39: the customer is read again once the lock is held; a scheduled erasure also requires
+  // its date to still be due.
+  async function erase(id, operator, { scheduled = false } = {}) {
+    markErasing(id);
+    try {
+      return await host().exclusive(id, () => runErase(id, operator, scheduled));
+    } finally {
+      unmarkErasing(id);
+    }
+  }
+
+  async function runErase(id, operator, scheduled) {
     const c = customers.get(id);
-    return host().exclusive(c.id, async () => {
-      // H1 rule 6: the unit, the site, the replica and the environment file go too.
-      await host().erase(c.id);
-      eraseInstance({ instances, slug: c.slug });
-      dropExports(c.id);
-      customers.markErased(c.id, stamp());
-      directory.removeCustomer(c.id);
-      journal(c.id, operator, 'erase', 'Données, dossier de l’instance, sauvegardes et archive d’export effacés ; l’adresse est de nouveau libre');
-      return { erased: true, id: c.id };
-    });
+    if (!c || c.erasedAt || !c.archivedAt || (scheduled && !(c.eraseAt && c.eraseAt <= today()))) return { erased: false, id };
+    // H1 rule 6: the unit, the site, the replica and the environment file go too.
+    await host().erase(c.id);
+    eraseInstance({ instances, slug: c.slug });
+    dropExports(c.id);
+    customers.markErased(c.id, stamp());
+    directory.removeCustomer(c.id);
+    journal(c.id, operator, 'erase', 'Données, dossier de l’instance, sauvegardes et archive d’export effacés ; l’adresse est de nouveau libre');
+    return { erased: true, id: c.id };
   }
 
   // A customer whose process is not marked stopped waits, and the alerts say so.
@@ -1035,7 +1063,8 @@ function createCustomersController(ctx) {
     for (const id of customers.dueForErasure(today()).filter((x) => stopped(customers.get(x)))) {
       const c = customers.get(id);
       try {
-        done.push(await erase(id, operator));
+        const result = await erase(id, operator, { scheduled: true });
+        if (result.erased) done.push(result);
         if (ctx.hostAlerts) ctx.hostAlerts.close(`erase:${id}`);
       } catch (err) {
         log(`[erase] ${c.slug}: ${err.message}`);

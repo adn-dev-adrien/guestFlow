@@ -77,6 +77,10 @@ async function send(path, options = {}) {
     if (res.status === 402 && err.error === 'SUBSCRIPTION_READ_ONLY') {
       window.dispatchEvent(new CustomEvent('guestflow:read-only', { detail: { message: err.message } }));
     }
+    // specs/reservation-fiche-concurrency.md rule 12 — a refusal that still wrote a stay (409 LINK_ALREADY_PAID
+    // booked the payment) hands the open fiche the versions it moved.
+    const moved = ficheVersionOf(path, res);
+    if (moved) window.dispatchEvent(new CustomEvent(DATA_CHANGED_EVENT, { detail: moved }));
     throw apiError;
   }
   // Every write that succeeded tells the open pages their counts may have moved: the home re-reads

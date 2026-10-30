@@ -120,6 +120,14 @@ For each reservation, Adrien can flip a single switch in the reservation page to
       the GET's until the first quote arrives. On mobile (`xs`) the switches stack, and the caption wraps under its
       switch at full width. From `sm` up it stays under the switch, at most 340 px wide; the tourist-tax switch then
       wraps to the next line, aligned on the left edge (the row spaces its switches with a flex gap).
+14. **Fixed at audit R8 (client N2, 2026-10-30) — the lock never freezes « Sans acompte » ON.** The reason of
+    rule 13 can arrive while the fiche already ticks the switch: the acompte was paid by its link while the
+    operator edited, or he ticked it after the GET and the live quote then answered `'collected-by-link'`. Rule 13
+    disabled the switch whatever its state, so it stayed checked and greyed: the caption pointed back to the
+    acompte while the only ways out were « Annuler » on the whole fiche or a save the server silently corrected.
+    Now the reason disables the switch **only while it is off**: a ticked switch stays enabled, with the same
+    caption under it, so the operator can untick it; once off, it is locked again and cannot be ticked. The
+    server's refusal of rule 13 is unchanged (a save that still sends `depositDisabled = 1` keeps the acompte).
 
 **Edge cases:**
 
@@ -222,6 +230,14 @@ Le bloc Solde reste identique dans les deux états ; quand ON, son montant est j
 ```
 [ ⬜ ] Sans acompte          ← Switch OFF, disabled
 Acompte perçu par un lien de paiement : remboursement pour l’annuler.   ← caption, text.secondary
+```
+
+When the reason arrives on a fiche that already ticks the switch (rule 14), the switch stays **ON and enabled**
+with the same caption: unticking it is allowed, and it is disabled again once off.
+
+```
+[ ⬛ ] Sans acompte          ← Switch ON, enabled (can only be unticked)
+Acompte perçu par un lien de paiement : remboursement pour l’annuler.
 ```
 
 ### Responsive behavior
