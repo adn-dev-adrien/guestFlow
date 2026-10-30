@@ -173,6 +173,7 @@ function createFleetController(ctx, customersController) {
   async function restore(id, body, operator) {
     const c = customersController.mustGet(id);
     if (c.archivedAt) throw httpError(409, 'ARCHIVED', 'Client archivé : réactivez-le d’abord.');
+    customersController.assertNotDeprovisioning(c.id);
     const out = await restoreVerifier.restoreAt(c, body.at, operator);
     return { ...customersController.view(c.id), notice: `Base restaurée (${out.reservations} réservation(s)).` };
   }
