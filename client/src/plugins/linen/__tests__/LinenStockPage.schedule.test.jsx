@@ -3,7 +3,7 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
-import { vi } from 'vitest';
+import { afterEach, beforeEach, vi } from 'vitest';
 
 const toast = { showSuccess: vi.fn(), showError: vi.fn() };
 vi.mock('../../../components/DialogProvider', () => ({ useToast: () => toast }));
@@ -41,7 +41,15 @@ const loaded = () => waitFor(() => expect(screen.queryByTestId('laundry-cycle-sk
 const save = () => screen.getByRole('button', { name: 'Enregistrer' });
 const cancel = () => screen.getByRole('button', { name: 'Annuler' });
 
-beforeEach(() => { vi.clearAllMocks(); });
+// Only Date is faked, so waitFor keeps its real timers. Pinned to the eve of the fixtures' « tomorrow »:
+// a date of another year says its year (rule 18), so on the real clock the captions grew « 2026 » from
+// 2027 on.
+beforeEach(() => {
+  vi.clearAllMocks();
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2026-10-28T10:00:00'));
+});
+afterEach(() => vi.useRealTimers());
 
 test('specs/linen-laundry-days.md §3.4 rule 19: the page loads the schedule next to the stock, nothing to save yet', async () => {
   setup();

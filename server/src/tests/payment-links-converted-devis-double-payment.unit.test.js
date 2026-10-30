@@ -23,7 +23,8 @@ function seed() {
     VALUES ('devis', 1, 1, '2027-05-10', '2027-05-14', 1, 455.36, 100, 355.36, 'draft')`).run().lastInsertRowid);
   const links = paymentLinksModel.buildModel(db);
   const dm = devisModel.buildModel(db);
-  const F = links.create({ reservationId: dv, type: 'full', amountCents: 45536, provider: 'qonto', providerLinkId: 'F', url: 'u', status: 'open' });
+  // Valid for 30 more hours: reusable (specs/payment-link-lifecycle.md rule 8).
+  const F = links.create({ reservationId: dv, type: 'full', amountCents: 45536, provider: 'qonto', providerLinkId: 'F', url: 'u', status: 'open', expiresAt: new Date(Date.now() + 30 * 3600 * 1000).toISOString() });
   const rid = dm.convertToReservation(dv).data.reservationId;
   let n = 0;
   const provider = { id: 'qonto', async createLink() { n += 1; return { id: `N${n}`, url: `un${n}`, status: 'open' }; }, async getPayment() { return { paid: false }; }, async cancelLink() {} };

@@ -52,7 +52,7 @@ function countingQonto({ paid = false, linkStatus = 'open' } = {}) {
       return paid ? { paid: true, paymentId: 'pay_1', paidAt: '2026-09-15T11:59:00Z' } : { paid: false };
     },
     getLinkStatus: async (id) => { calls.push(['link', id]); return linkStatus; },
-    cancelLink: async () => {},
+    cancelLink: async (id) => { calls.push(['deactivate', id]); },
   };
 }
 
@@ -67,7 +67,9 @@ const pollDeps = (db, links, qonto, extra = {}) => ({
 
 const statusOf = (db, id) => db.prepare('SELECT status FROM payment_links WHERE id = ?').get(id).status;
 
-test('rule 1: an open link past its expiresAt is retired with zero provider calls, and its reservation is untouched', async () => {
+// Amended by specs/payment-link-lifecycle.md rule 17: the expiry is decided without a call, the
+// deactivation then costs one, and the payment is read after it (rule 18).
+test('rule 1: an open link past its expiresAt lapses without a provider call to decide it, is then deactivated, and its reservation is untouched', async () => {
   const { db, links, devisId } = seed();
   const id = addLink(db, links, devisId, { qontoId: 'ql_old', createdAgoMs: 30 * 24 * HOUR, expiresAt: isoAt(NOW.getTime() - HOUR) });
   const before = db.prepare('SELECT * FROM reservations WHERE id = ?').get(devisId);
@@ -75,12 +77,12 @@ test('rule 1: an open link past its expiresAt is retired with zero provider call
 
   const summary = await runPaymentPoll(pollDeps(db, links, qonto));
 
-  assert.deepEqual(qonto.calls, [], 'no provider call at all');
+  assert.deepEqual(qonto.calls, [['deactivate', 'ql_old'], ['payments', 'ql_old']], 'no status call; the deactivation, then the payment read');
   assert.equal(statusOf(db, id), 'expired');
   assert.equal(summary.retired, 1);
   assert.equal(summary.checked, 0);
   assert.equal(summary.stoppedBy, null);
-  assert.deepEqual(summary.results, [{ id, reservationId: devisId, type: 'deposit', status: 'expired', effect: 'retired-locally' }]);
+  assert.deepEqual(summary.results, [{ id, reservationId: devisId, type: 'deposit', status: 'deactivated' }]);
   assert.deepEqual(db.prepare('SELECT * FROM reservations WHERE id = ?').get(devisId), before, 'the reservation row is unchanged');
 });
 
@@ -126,9 +128,11 @@ test('rule 5: with a known future expiry the status call is skipped; with none i
 test('rule 2: markPaid flips an expired link once and is a no-op on a paid or cancelled one', () => {
   const { links } = seed();
   const expired = links.create({ reservationId: 1, type: 'deposit', amountCents: 100, status: 'expired' });
+  links.restoreRemoteCancelPending(expired.id);
   const first = links.markPaid(expired.id, { providerPaymentId: 'pay_late' });
   assert.equal(first.flipped, true);
   assert.equal(first.row.status, 'paid');
+  assert.equal(first.row.remoteCancelPendingAt, null, 'a paid link owes no deactivation (payment-link-lifecycle rule 23)');
   assert.equal(links.markPaid(expired.id, { providerPaymentId: 'pay_late' }).flipped, false, 'a paid link stays final');
 
   const cancelled = links.create({ reservationId: 1, type: 'deposit', amountCents: 100, status: 'cancelled' });

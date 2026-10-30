@@ -27,6 +27,8 @@ const HARDENINGS = [
   { feature: 'mail cap report and unverifiable-mailbox reading', sdk: '2.16.0', pattern: /\bonCap\b/ },
   { feature: 'internal settings refused by the PUT', sdk: '2.17.0', pattern: /\binternal:\s*true\b/ },
   { feature: 'Qonto request timeout', sdk: HARDENED_AT, pattern: /coreModule\(\s*['"`]qonto['"`]\s*[,)]/ },
+  // specs/plugins-phase-1-sdk.md rule 35 (specs/payment-link-lifecycle.md rule 16).
+  { feature: 'payment link lifecycle pass', sdk: '2.18.0', pattern: /\brunLinkLifecycle\b/ },
 ];
 
 function sourceFiles(dir) {

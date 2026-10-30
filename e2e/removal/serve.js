@@ -29,6 +29,8 @@ const serverEnv = {
   GUESTFLOW_CLIENT_DIR: path.join(ROOT, 'client', 'dist'),
   GUESTFLOW_SUPERVISED: '1',
   GUESTFLOW_SMTP_DETECT: 'off',
+  // specs/e2e-playwright-smoke-suite.md rule 23 — no release check, no school-holidays sync.
+  GUESTFLOW_DISABLE_OUTBOUND: '1',
   GUESTFLOW_SESSION_SECRET: 'e2e-removal-fixed-session-secret-not-for-prod-32b',
   GUESTFLOW_ENCRYPTION_KEY: 'ZTJlZml4ZWRlbmNyeXB0aW9ua2V5MTIzNDU2Nzg5MGE=',
   CORS_ORIGINS: `http://localhost:${PORT},http://127.0.0.1:${PORT}`,

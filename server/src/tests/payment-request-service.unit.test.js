@@ -79,7 +79,8 @@ test('ensurePaymentLink: creates a link via createLink + persists it', async () 
 
 test('ensurePaymentLink: reuses an open link without calling createLink', async () => {
   const { db, devisId } = seed();
-  fakeLinksModel(db).create({ reservationId: devisId, type: 'deposit', amountCents: 9000, providerLinkId: 'ql_open', url: 'https://pay/open', status: 'open', expiresAt: null });
+  // specs/payment-link-lifecycle.md rule 8 — reused only while it has 24 hours left.
+  fakeLinksModel(db).create({ reservationId: devisId, type: 'deposit', amountCents: 9000, providerLinkId: 'ql_open', url: 'https://pay/open', status: 'open', expiresAt: new Date(Date.now() + 30 * 3600 * 1000).toISOString() });
   let createCalls = 0;
   const deps = baseDeps(db, { createLink: async () => { createCalls++; return {}; } });
   const link = await ensurePaymentLink(deps, devisId, 'deposit');

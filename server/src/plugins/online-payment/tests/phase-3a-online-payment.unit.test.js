@@ -183,7 +183,7 @@ test('rule 16 — deactivating is refused while a cancelled link is still payabl
   createController(plugins, { registry, db: () => db }).deactivate({ params: { id: ID } }, res);
   assert.equal(res.statusCode, 409);
   assert.equal(res.body.code, 'LINKS_PENDING_DEACTIVATION');
-  assert.equal(res.body.message, '1 lien annulé encore payable chez le prestataire : à désactiver d’abord.');
+  assert.equal(res.body.message, '1 lien retiré ou expiré encore actif chez le prestataire : désactivation en cours, réessayer plus tard.');
 });
 
 test('specs/plugins-phase-3a-online-payment.md rule 21 — a new customer starts without the plugin: no provider, nothing to ask for', async () => {

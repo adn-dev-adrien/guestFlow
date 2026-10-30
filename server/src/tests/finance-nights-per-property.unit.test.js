@@ -90,7 +90,10 @@ test('a 0-night stay (same start and end date) contributes nothing to the nights
   assert.equal(summary.revenueByProperty.find((p) => p.propertyName === 'Gite').revenue, 120);
 });
 
-test('the three windows each carry their own nights: period, exercise-to-date, whole exercise', () => {
+test('the three windows each carry their own nights: period, exercise-to-date, whole exercise', (t) => {
+  // Pinned to mid-June: on the real clock, the first days of January are not yet past and the last
+  // days of December no longer to come, and this test turned red every year around New Year.
+  t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-06-15T10:00:00Z') });
   const { db, model } = freshModel();
   const Y = new Date().getFullYear();
   // Closing month is December here, so the exercise IS the calendar year.

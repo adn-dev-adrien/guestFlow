@@ -36,6 +36,9 @@ let lastManualCheckAt = 0;
 // console; the instance shows its version and nothing to press.
 const MANAGED_LABEL = 'Mises à jour gérées par l’hébergeur';
 const isManaged = (env = process.env) => env.GUESTFLOW_MANAGED === '1';
+// specs/self-update-and-releases.md rule 51 — the E2E servers read no release feed. Honoured under
+// NODE_ENV=test only: a production instance that inherits the flag by mistake keeps checking.
+const outboundDisabled = (env = process.env) => env.GUESTFLOW_DISABLE_OUTBOUND === '1' && env.NODE_ENV === 'test';
 
 function healthUrl(env = process.env) {
   const protocol = shouldEnforceHttps(env) ? 'https' : 'http';
@@ -183,7 +186,7 @@ function finishInProcess(model, phase, errorCode, message) {
  * install the one they were already being offered.
  */
 async function runVersionCheck({ model = updateStateModel, fetchImpl = fetch, env = process.env } = {}) {
-  if (isManaged(env)) return null;
+  if (isManaged(env) || outboundDisabled(env)) return null;
   const feed = await fetchReleaseFeed({ fetchImpl });
   const previous = model.readState().latestVersion;
   if (!feed || !feed.release) {

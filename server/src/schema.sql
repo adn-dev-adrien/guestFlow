@@ -253,6 +253,8 @@ CREATE TABLE IF NOT EXISTS payment_links (
     remoteCancelPendingAt TEXT,
     cancelReason TEXT,
     installmentId INTEGER,
+    lastLookAt TEXT,
+    deactivationAlertedAt TEXT,
     CHECK (type IN ('deposit', 'balance', 'full', 'complement', 'installment')),
     CHECK (status IN ('open', 'paid', 'expired', 'cancelled'))
   );

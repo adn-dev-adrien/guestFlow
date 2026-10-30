@@ -1,7 +1,13 @@
 // specs/linen-laundry-days.md §3.4 rules 19-20 and 22 — the draft helpers of the Linge page.
+import { afterEach, beforeEach, vi } from 'vitest';
 import {
   parseTurnaround, draftFromSchedule, isDraftValid, scheduleBody, sameDraft, effectiveCaption,
 } from '../laundryScheduleDraft';
+
+// Pinned to the eve of the fixtures' « tomorrow »: a date of another year says its year (rule 18), so
+// on the real clock these captions grew « 2026 » from 2027 on.
+beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-28T10:00:00')); });
+afterEach(() => vi.useRealTimers());
 
 const version = (weekdays, turnaroundDays, effectiveFrom = '0001-01-01') => ({ effectiveFrom, weekdays, turnaroundDays });
 const view = (current, pending = null) => ({ current, pending, tomorrow: '2026-10-29' });
