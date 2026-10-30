@@ -215,6 +215,18 @@ export function gateVerdict({ addedRules = [], modifiedRules = [], citedAfter = 
   return { ok: failures.length === 0, failures, warnings };
 }
 
+/**
+ * Règle 16 — les citations orphelines que cette PR introduit : celles d'un fichier modifié, absentes
+ * de ce même fichier à la base. Une orpheline déjà là reste un signal du rapport, pas un échec.
+ *
+ * @param {Array<{file, spec, rule, why}>} orphans
+ * @param {Set<string>} changedFiles
+ * @param {(file: string) => Set<string>} citedAtBase  `spec:rule` cités par le fichier à la base
+ */
+export function newOrphans(orphans, changedFiles, citedAtBase) {
+  return orphans.filter((o) => changedFiles.has(o.file) && !citedAtBase(o.file).has(`${o.spec}:${o.rule}`));
+}
+
 // ── CLI ──────────────────────────────────────────────────────────────────────
 
 function listFiles(dir, match, acc = []) {
@@ -465,6 +477,20 @@ function gate(base) {
   const { addedRules, modifiedRules, exempt, codeCitations } = changedRules(base);
   const citedAfter = new Set(readCitations(knownSpecNames()).map((c) => `${c.spec}:${c.rule}`));
   const verdict = gateVerdict({ addedRules, modifiedRules, citedAfter });
+  const mb = git(['merge-base', base, 'HEAD']).trim();
+  const changedFiles = new Set(git(['diff', '--name-only', `${mb}..HEAD`]).split('\n').filter(Boolean));
+  const citedAtBase = (file) => {
+    let before = '';
+    try { before = git(['show', `${mb}:${file}`]); } catch { return new Set(); }
+    return new Set(parseCitations(before, knownSpecNames()).map((c) => `${c.spec}:${c.rule}`));
+  };
+  const orphans = [...new Map(newOrphans(buildCoverage(readSpecs(), readCitations(knownSpecNames())).orphans, changedFiles, citedAtBase)
+    .map((o) => [`${o.file}|${o.spec}|${o.rule}`, o])).values()];
+  if (orphans.length) {
+    for (const o of orphans) console.error(`✗ ${o.file} cite specs/${o.spec}.md règle ${o.rule} (${o.why}).`);
+    console.error('\n  Une citation doit retomber sur une règle : corrigez le numéro, ou nommez la bonne spec sur la ligne.');
+    return 1;
+  }
   for (const spec of exempt) console.log(`… specs/${spec}.md : pas encore livrée (Draft / Approved), règles différées (règle 14).`);
   if (codeCitations.length) {
     for (const c of codeCitations) {

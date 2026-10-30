@@ -14,6 +14,9 @@ const PAY = 'online-payment';
 const SAS = 'sas';
 const WEATHER = 'weather-alerts';
 
+// Those tests read the website-booking and google-vacation-rentals cards, which the catalogue only lists while the folders ship.
+const SITE_AND_FEED = { skip: skipWithout([WB, GVR]) };
+
 const nm = (id) => findPlugin(id).name;
 const req = (range) => [{ id: WB, range }];
 const site = (version = '1.8.3') => h.manifest(WB, version);
@@ -28,7 +31,7 @@ function release({ installed = [], bundled = [site(), feed()], regEntries = [] }
 
 const both = [row(WB, '1.8.3', { manifest: site() }), row(GVR, '1.0.2', { manifest: feed() })];
 
-test('rule 6: the dependant lists what it needs, with the status and the French label of an unmet one', async () => {
+test('rule 6: the dependant lists what it needs, with the status and the French label of an unmet one', SITE_AND_FEED, async () => {
   const { views, model } = release({ installed: both });
   assert.deepEqual((await views())[GVR].dependencies.requires.map(({ id, status, label }) => ({ id, status, label })), [{ id: WB, status: 'ok', label: null }]);
   model.setEnabled(WB, false);
@@ -36,7 +39,7 @@ test('rule 6: the dependant lists what it needs, with the status and the French 
   assert.deepEqual([off.status, off.label, off.name], ['inactive', 'inactif', nm(WB)]);
 });
 
-test('rule 6: a requirement not installed reads « non installé » on an available plugin; the range is shown only when unmet', async () => {
+test('rule 6: a requirement not installed reads « non installé » on an available plugin; the range is shown only when unmet', SITE_AND_FEED, async () => {
   const { views } = release();
   const line = (await views())[GVR].dependencies.requires[0];
   assert.deepEqual([line.status, line.label], ['missing', 'non installé']);
@@ -65,7 +68,7 @@ test('rule 6: a requirement below the range says the version it has, and points 
   assert.equal((await fixable.views())[GVR].dependencies.requires[0].updateAvailable, true, 'rule 15');
 });
 
-test('rule 7: the requirement lists who uses it, an inactive dependant suffixed; an available plugin lists no one', async () => {
+test('rule 7: the requirement lists who uses it, an inactive dependant suffixed; an available plugin lists no one', SITE_AND_FEED, async () => {
   const { views, model } = release({ installed: both });
   assert.deepEqual((await views())[WB].dependencies.usedBy.map((u) => u.label), [nm(GVR)]);
   model.setEnabled(GVR, false);
@@ -89,7 +92,7 @@ test('rule 7: an orphan installed plugin still appears in used-by under its stor
   assert.deepEqual((await views())[WB].dependencies.usedBy.map((u) => u.name), ['Ancien extra']);
 });
 
-test('rule 8: activate is allowed with the requirements it would switch on listed, and refused up front when one is not installed', async () => {
+test('rule 8: activate is allowed with the requirements it would switch on listed, and refused up front when one is not installed', SITE_AND_FEED, async () => {
   const { views, model } = release({ installed: both });
   model.setEnabled(GVR, false);
   model.setEnabled(WB, false);
@@ -120,7 +123,7 @@ test('rule 8: deactivate is refused up front when a plugin it would take along h
   assert.equal(all[PAY].actions.deactivate.blockedBy, '1 lien de paiement en attente : à payer ou annuler d’abord.');
 });
 
-test('rule 8, 14: uninstall is refused up front while an installed plugin uses the plugin, even an inactive one', async () => {
+test('rule 8, 14: uninstall is refused up front while an installed plugin uses the plugin, even an inactive one', SITE_AND_FEED, async () => {
   const { views, model } = release({ installed: both });
   const all = await views();
   assert.deepEqual(all[WB].actions.uninstall, { allowed: false, blockedBy: `Utilisé par ${nm(GVR)} : à désinstaller d’abord.` });
@@ -129,7 +132,7 @@ test('rule 8, 14: uninstall is refused up front while an installed plugin uses t
   assert.equal((await views())[WB].actions.uninstall.allowed, false);
 });
 
-test('rule 8: an available plugin has nothing to activate, deactivate or uninstall', async () => {
+test('rule 8: an available plugin has nothing to activate, deactivate or uninstall', SITE_AND_FEED, async () => {
   const { views } = release();
   const { actions } = (await views())[GVR];
   assert.deepEqual([actions.activate.allowed, actions.deactivate.allowed, actions.uninstall.allowed], [false, false, false]);
@@ -232,7 +235,7 @@ test('rule 11: all or nothing — a migration that fails switches back what the 
   assert.deepEqual(down, [WB]);
 });
 
-test('rule 12: deactivate without the flag is still refused 409 REQUIRED_BY, now with the dependants to take along', async () => {
+test('rule 12: deactivate without the flag is still refused 409 REQUIRED_BY, now with the dependants to take along', SITE_AND_FEED, async () => {
   const { ctrl, model } = release({ installed: both });
   const res = await h.call(ctrl.deactivate, { params: { id: WB } });
   assert.equal(res.statusCode, 409);
@@ -314,7 +317,7 @@ test('rule 14: uninstall never cascades — refused while a plugin uses it, with
   assert.equal((await h.call(ctrl.uninstall, { params: { id: WB } })).statusCode, 200);
 });
 
-test('rule 15: an installed requirement below the range is refused with its version, pointing at the fix', async () => {
+test('rule 15: an installed requirement below the range is refused with its version, pointing at the fix', SITE_AND_FEED, async () => {
   const wb16 = h.manifest(WB, '1.6.0');
   const { ctrl } = release({ installed: [row(WB, '1.6.0', { manifest: wb16 })], bundled: [wb16, feed()] });
   const res = await h.call(ctrl.install, { params: { id: GVR } });
@@ -323,7 +326,7 @@ test('rule 15: an installed requirement below the range is refused with its vers
   assert.equal(res.body.message, `Nécessite ${nm(WB)} 1.7.1 ou plus récent (installé : 1.6.0).`);
 });
 
-test('rule 8: the confirmation texts come from the server — activate, deactivate with and without followers', async () => {
+test('rule 8: the confirmation texts come from the server — activate, deactivate with and without followers', SITE_AND_FEED, async () => {
   const { views, model } = release({ installed: both });
   const all = await views();
   assert.deepEqual(all[WB].actions.deactivate.confirm, {
@@ -339,7 +342,7 @@ test('rule 8: the confirmation texts come from the server — activate, deactiva
   assert.equal((await views())[WB].actions.activate.confirm, null, 'nothing to take along, the usual button');
 });
 
-test('rule 9: the offer carries the install confirmation, lines in order', async () => {
+test('rule 9: the offer carries the install confirmation, lines in order', SITE_AND_FEED, async () => {
   const { views } = release();
   assert.deepEqual((await views())[GVR].offer.confirm, { title: `Installer ${nm(GVR)}`, message: 'Installe aussi Plugin website-booking 1.8.3.'.replace('Plugin website-booking', nm(WB)), label: 'Tout installer' });
 });

@@ -3,6 +3,11 @@
 // rules 12, 36 and 37 never read rows the install is still writing.
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { requirePlugins } = require('../plugins/sdk/testing');
+
+// specs/plugin-removal-resilience.md rules 4, 5 — the controller installs only the ids of the shipped catalogue, so these
+// tests borrow shipped plugins' ids: a tree without one has nothing to prove.
+if (!requirePlugins(['website-booking', 'google-vacation-rentals'])) return;
 const h = require('./pluginPackagesFixture');
 
 const wb = h.manifest('website-booking', '1.8.2');

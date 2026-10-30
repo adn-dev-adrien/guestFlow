@@ -178,6 +178,7 @@ e2e/.auth/
 playwright-report/
 playwright-server.log
 playwright-server-bare.log
+playwright-server-prod.log
 test-results/
 .last-run.json
 

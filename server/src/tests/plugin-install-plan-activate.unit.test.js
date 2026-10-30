@@ -17,7 +17,7 @@ const WEATHER = 'weather-alerts';
 const nm = (id) => findPlugin(id).name;
 const need = (id, range = '^1.0.0') => ({ id, range });
 const row = (id, version, manifest) => ({ id, version, source: 'bundled', manifest });
-const skip = { skip: skipWithout([WB, GVR]) };
+const skip = { skip: skipWithout([WB, GVR, SAS, WEATHER]) };
 
 const ENV = { coreVersion: '3.9.0', sdkVersion: '2.0.0' };
 function planCtx(manifests, { installed = {}, inactive = [], allows = () => true } = {}) {
@@ -157,7 +157,7 @@ test('phase 4 install 409 kept: without the flag, a plan of switch-ons alone is 
   assert.equal(model.get(GVR), null);
 });
 
-test('rule 5: installing a plugin in a cycle is refused 409 REQUIREMENT_CYCLE', async () => {
+test('rule 5: installing a plugin in a cycle is refused 409 REQUIREMENT_CYCLE', skip, async () => {
   const weather = h.manifest(WEATHER, '1.3.0', { requires: [need(SAS, '^1.7.0')] });
   const sasM = h.manifest(SAS, '1.7.2', { requires: [need(WEATHER, '^1.3.0')] });
   const { ctrl, model } = h.setup({ bundled: [weather, sasM] });

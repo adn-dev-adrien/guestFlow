@@ -1,0 +1,1 @@
+- Plugin removal matrix: every cell is green again. Core tests that need a shipped plugin now skip without it, the guard that catches them also sees fake packages carrying a shipped id, loops over ids and plugin paths built from a variable, and `plugin-removal.mjs cell` takes `--snapshot-port`. Test and CI tooling only; the production-build E2E job now uploads its server log.

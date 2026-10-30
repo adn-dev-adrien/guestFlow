@@ -137,7 +137,10 @@ or mutable state.
     server's stdout/stderr to `playwright-server.log` (`GUESTFLOW_E2E_SERVER_LOG` overrides the path) instead of
     a pipe nobody reads, and the failure upload of `e2e.yml` ships it with `playwright-report/`, so a screenshot
     showing a blank fiche can be read against what the server said. Boot errors therefore go to that file, not
-    the console. The bare project writes `playwright-server-bare.log`, uploaded by its own job.
+    the console. The bare project writes `playwright-server-bare.log`, uploaded by its own job; since 2026-10-29 (audit R4) the
+    production-build project writes `playwright-server-prod.log` (`playwright.prod.config.js`), uploaded by the
+    `production-build` job beside `playwright-report-prod/`: a packages-mode failure is where the server's
+    word matters most.
 22. **A spec is repeatable** (`--repeat-each`): what it creates carries a per-repetition name
     (`booking-intake` builds its property name from `testInfo.repeatEachIndex`), because a duplicate label breaks a
     strict locator on the second run. Repeatable means `--repeat-each N --workers=1` only: repeats in parallel

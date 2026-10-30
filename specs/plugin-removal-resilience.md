@@ -302,6 +302,33 @@ including the ones added later.
     extended to infer it: the plugin is reached by table name or catalogue id, which no cheap scan separates from
     the synthetic manifests those files build on purpose.
 
+19. **The guard also sees a plugin named by its id, and every cell of the matrix is green** (audit R4, 2026-10-29).
+    Round 4 ran the 10 cells of the plugins changed since 46beac96 and 7 were red in the server-suite step: 17
+    core test files needed a shipped plugin without saying so, because the guard of rules 3-4 only reads path
+    literals. Three ways of naming a plugin are now caught in a core test file, unless a `requirePlugins` /
+    `skipWithout` names the id (or, for a loop, a variable): (a) a fake package that carries a shipped id
+    (`{ id: 'linen', serverCode … }` in a file built on `pluginPackagesFixture`); (b) an array of shipped ids that a
+    loop walks into a `require`, `readSourceManifest`, `applyPluginSchema`, `path.join`…; (c) a path built from a
+    variable (`` `../plugins/${id}` ``, `path.join(SRC_PLUGINS, id)`). A bare id in a message, a URL, a settings
+    key or a fixture row is not matched: a test that only mentions a plugin runs whatever the tree holds. The fix of
+    the 17 files: the loops over the real intakes and the hardening floor skip per id; the suites that install a
+    real id through `pluginsController` open with `requirePlugins` (the controller installs only an id of the
+    catalogue, which lists the manifests that exist, so a test-only id cannot be installed through it and the
+    engine fixtures of rule 5 keep installing their own row); the 10 tests of `plugin-dependencies-actions` that
+    read the website-booking and google-vacation-rentals cards skip without them; rule 44 of
+    `self-update-and-releases` compares only the tables whose owning plugin is shipped (the floor now has an owner
+    per table, pinned by a test). The cell of a plugin that was never changed is therefore as green as the others.
+    Amended 2026-10-30 (PR #873 review): a variable guard (`skipWithout([p])`) only covers the loop that carries
+    `p`, and a path built from a variable is guarded only by a guard on that same variable; a guard elsewhere in
+    the file silences neither. The guard also sees `require('../plugins').find((m) => m.id === '<id>')`,
+    `findPlugin('<id>')`, `applyPluginSchema(db, '<id>')` and a `.find(…id === '<id>').prop` that would throw
+    without the plugin. **The guard is heuristic** (regexes, a 400-character window): the matrix of rule 7 is the
+    net, and a cell going red on a test the guard missed is a reason to widen the guard, not to skip the cell. The
+    owners of rule 44's floor must be catalogue ids (a misspelled owner would silently drop its tables).
+20. **The snapshot server's port is a flag** (audit R4, 2026-10-29). `plugin-removal.mjs cell <id>` took the
+    seed-time snapshot server's port as `--port` + 2, which collided with another process or another cell run on the
+    same machine. `--snapshot-port` sets it; without it the port is still `--port` + 2.
+
 **Edge cases:**
 - A plugin folder exists on one side only (server without client, or the reverse) → rule 13's guard
   fails with the id and the missing side.
@@ -403,11 +430,11 @@ checks every page at 390 px as well as 1280 px.
 
 ## 7. Test plan
 
-Every new rule (1–18) is cited by at least one test (spec-rules CI).
+Every new rule (1–20) is cited by at least one test (spec-rules CI).
 
 ### 7.1 Server unit tests
 - [x] `tests/plugin-removal-fixes.unit.test.js` — rules 1, 2, 6 (10 cases; rule 6 also in `emails-controller` and `direct-installments-emails`).
-- [x] `tests/plugin-removal-matrix.unit.test.js` — rules 3, 4, 13, 14 (6 cases: the matrix is the folders, every plugin has its seed, removal leaves parseable lists for each of the 16 plugins, the requirement cascade, the static guard on unguarded plugin imports, the helpers).
+- [x] `tests/plugin-removal-matrix.unit.test.js` — rules 3, 4, 13, 14, 19, 20 (9 cases: the matrix is the folders, every plugin has its seed, removal leaves parseable lists for each of the 16 plugins, the requirement cascade, the static guard on unguarded plugin imports, the identity guard on fake packages, loops and variable paths with its own cases, the helpers; rule 20 pins `--snapshot-port` in the script usage).
 - [x] `tests/plugin-removal-workflow.unit.test.js` — rules 7, 18 (4 cases).
 - [x] `tests/plugin-engine-fixture.unit.test.js` — rule 5 (4 cases on a module of its own).
 - [x] The 12 suites that probed `isLive` without a module register a fixture record (Q3: 12 cases in 8 files).

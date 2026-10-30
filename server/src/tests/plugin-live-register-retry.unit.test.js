@@ -2,6 +2,11 @@
 // afresh by the next install: it comes up whole, or the install answers the error again.
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { requirePlugins } = require('../plugins/sdk/testing');
+
+// specs/plugin-removal-resilience.md rules 4, 5 — the controller installs only the ids of the shipped catalogue, so these
+// tests borrow shipped plugins' ids: a tree without one has nothing to prove.
+if (!requirePlugins(['linen'])) return;
 const express = require('express');
 const h = require('./pluginPackagesFixture');
 const loader = require('../plugins/loader');

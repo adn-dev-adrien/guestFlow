@@ -9,6 +9,9 @@ const path = require('path');
 const PORT = process.env.E2E_PROD_PORT || '4300';
 const REGISTRY_PORT = process.env.E2E_REGISTRY_PORT || '4301';
 const isCI = Boolean(process.env.CI);
+// The server's output goes to a file, not a pipe nobody reads: a failed run keeps what the server said (CI uploads it
+// with the report). A packages-mode failure is the case where this log matters most.
+const SERVER_LOG = process.env.GUESTFLOW_E2E_SERVER_LOG || path.join(__dirname, 'playwright-server-prod.log');
 
 module.exports = defineConfig({
   testDir: path.join(__dirname, 'e2e', 'prod'),
@@ -27,7 +30,7 @@ module.exports = defineConfig({
   },
   globalSetup: require.resolve('./e2e/prod/global-setup.js'),
   webServer: {
-    command: `E2E_PROD_PORT=${PORT} E2E_REGISTRY_PORT=${REGISTRY_PORT} node e2e/prod/serve.js`,
+    command: `E2E_PROD_PORT=${PORT} E2E_REGISTRY_PORT=${REGISTRY_PORT} node e2e/prod/serve.js > "${SERVER_LOG}" 2>&1`,
     url: `http://127.0.0.1:${PORT}/api/version`,
     reuseExistingServer: false,
     timeout: 240_000,

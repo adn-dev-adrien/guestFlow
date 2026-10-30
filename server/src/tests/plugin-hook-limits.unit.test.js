@@ -5,13 +5,14 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const h = require('./pluginPackagesFixture');
 const loader = require('../plugins/loader');
+const { skipWithout } = require('../plugins/sdk/testing');
 
 const hookOf = (id, tag, requires = []) => ({
   id, requires,
   serverCode: `module.exports = { id: '${id}', register(ctx) { ctx.onActivate(() => { globalThis.__order.push('${tag}'); }); } };`,
 });
 
-test('rule 48: pending activation hooks run requirements first', async () => {
+test('rule 48: pending activation hooks run requirements first', { skip: skipWithout(['website-booking', 'google-vacation-rentals']) }, async () => {
   globalThis.__order = [];
   const s = h.realSetup([hookOf('website-booking', 'R'), hookOf('google-vacation-rentals', 'D', [{ id: 'website-booking', range: '^1.0.0' }])]);
   await h.call(s.ctrl.install, { params: { id: 'website-booking' } });
@@ -25,7 +26,7 @@ test('rule 48: pending activation hooks run requirements first', async () => {
   delete globalThis.__order;
 });
 
-test('rule 48: an install hook that never settles is given up on and the install goes on', async () => {
+test('rule 48: an install hook that never settles is given up on and the install goes on', { skip: skipWithout(['linen']) }, async () => {
   const errors = [];
   const real = console.error;
   console.error = (...a) => errors.push(a.join(' '));

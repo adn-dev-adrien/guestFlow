@@ -3,6 +3,11 @@
 // set, then the pending hooks): for a requirement switched on by the plan AND for one installed live in it.
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { requirePlugins } = require('../plugins/sdk/testing');
+
+// specs/plugin-removal-resilience.md rules 4, 5 — the controller installs only the ids of the shipped catalogue, so these
+// tests borrow shipped plugins' ids: a tree without one has nothing to prove.
+if (!requirePlugins(['website-booking', 'google-vacation-rentals'])) return;
 const h = require('./pluginPackagesFixture');
 const loader = require('../plugins/loader');
 const registry = require('../plugins/sdk/registry');

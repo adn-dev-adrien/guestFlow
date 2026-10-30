@@ -6,7 +6,7 @@
  *   remove <id> [--root dir]          delete a plugin — and the plugins that require it — from the tree:
  *                                     both folders and its line in both module lists; prints the ids
  *   routes <id>                       the API paths the plugin registers, as JSON
- *   cell <id> [--in-place] [--sandbox dir] [--only a,b]
+ *   cell <id> [--in-place] [--sandbox dir] [--only a,b] [--port n] [--snapshot-port n]
  *                                     one cell of the matrix: seed every plugin's data, remove the plugin,
  *                                     run the server suite, build the client and the packages, run the
  *                                     removal E2E. It works on a copy of the tree (`--sandbox`, default
@@ -15,7 +15,8 @@
  *                                     reinstall every plugin of the shard on one server
  *
  * Every step is run even after a failure, so a cell reports all it can. Ports: --port (default 4400),
- * the Vite-less production server of the removal E2E listens there. Exit code 1 when a step failed.
+ * the Vite-less production server of the removal E2E listens there; the seed-time snapshot server
+ * listens on --snapshot-port (default: port + 2). Exit code 1 when a step failed.
  */
 import fs from 'node:fs';
 import os from 'node:os';
@@ -152,6 +153,7 @@ function cell(id) {
   const sandbox = inPlace ? null : path.resolve(flag('--sandbox', path.join(tmp, `gf-removal-sandbox-${id}`)));
   const root = sandbox || source;
   const port = Number(flag('--port', '4400'));
+  const snapshotPort = Number(flag('--snapshot-port', String(port + 2)));
   if (sandbox) {
     fs.rmSync(root, { recursive: true, force: true });
     copyTree(source, root);
@@ -172,7 +174,7 @@ function cell(id) {
   const baseEnv = { TMPDIR: work, DB_PATH: dbPath, GUESTFLOW_SMTP_DETECT: 'off', REMOVAL_WORK: work };
   step('seed', process.execPath, ['server/scripts/seed-e2e.js'], { env: { ...baseEnv, E2E_ADMIN_EMAIL: 'e2e@guestflow.test', E2E_ADMIN_PASSWORD: 'e2e-secret-1234' } });
   step('seed-data', process.execPath, ['server/scripts/seed-plugin-data.js'], { env: { ...baseEnv, REMOVAL_SEED_OUT: path.join(work, 'seed.json') } });
-  step('snapshot', process.execPath, ['e2e/removal/snapshot.js'], { env: { ...baseEnv, SNAPSHOT_PORT: String(port + 2) } });
+  step('snapshot', process.execPath, ['e2e/removal/snapshot.js'], { env: { ...baseEnv, SNAPSHOT_PORT: String(snapshotPort) } });
   const removed = removalSet(root, id);
   fs.writeFileSync(path.join(work, 'routes.json'), JSON.stringify(Object.fromEntries(removed.map((p) => [p, routesOf(root, p)]))));
   removePlugin(root, id);
