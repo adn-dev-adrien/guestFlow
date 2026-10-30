@@ -114,7 +114,8 @@ test('rule 39 — inside the lock, an erasure leaves a customer no longer archiv
     await tick();
     h.ctx.models.customers.unarchive(c.id);
     release();
-    assert.equal((await erase).erased, false);
+    await assert.rejects(erase, (err) => err.status === 409 && err.body.error === 'NOT_ARCHIVED'
+      && err.body.message === 'Seul un client archivé peut être effacé.');
     const row = h.ctx.models.customers.get(c.id);
     assert.equal(row.erasedAt, null);
     assert.ok(fs.existsSync(path.join(h.root, c.slug)), 'the instance folder is kept');
@@ -137,7 +138,7 @@ test('rule 39 — inside the lock, the scheduled erasure skips a customer whose 
   } finally { h.cleanup(); }
 });
 
-test('rule 39 — a second erasure queued behind the first finds the customer erased and does nothing', async () => {
+test('rule 39 — a second « Effacer maintenant » queued behind the first does nothing and still answers erased', async () => {
   const { h, c, customers } = await archived();
   try {
     const release = hold(h, c, 'queued');
@@ -145,8 +146,40 @@ test('rule 39 — a second erasure queued behind the first finds the customer er
     const second = customers.eraseNow(c.id, { confirmSlug: c.slug }, 'op');
     await tick();
     release();
-    assert.equal((await first).erased, true);
-    assert.equal((await second).erased, false, 'the second one finds the customer erased and does nothing');
-    assert.equal(h.host.named('backup.purge').length, 1);
+    assert.deepEqual(await first, { erased: true, id: c.id });
+    assert.deepEqual(await second, { erased: true, id: c.id }, 'the page goes home, as for the first one');
+    assert.equal(h.host.named('backup.purge').length, 1, 'the second one erases nothing');
+  } finally { h.cleanup(); }
+});
+
+test('rule 39 — the scheduled erasure skips a customer whose date was moved later meanwhile', async () => {
+  const h = makeContext({ versions: ['3.9.0'] });
+  try {
+    const { customers, billing } = h.ctx.controllers;
+    const a = await customers.create(NEW_CUSTOMER, 'op');
+    const b = await customers.create({ ...NEW_CUSTOMER, companyName: 'Les Tilleuls', slug: 'tilleuls', email: 'b@example.test' }, 'op');
+    await billing.deprovision(a.id, { confirmSlug: a.slug }, 'op');
+    await billing.deprovision(b.id, { confirmSlug: 'tilleuls' }, 'op');
+    h.now.set('2026-12-28T10:00:00Z');
+    let release;
+    const gate = new Promise((r) => { release = r; });
+    const purge = h.host.drivers.backup.purge;
+    let first = true;
+    h.host.drivers.backup.purge = async (...args) => {
+      if (first) { first = false; await gate; }
+      return purge.apply(h.host.drivers.backup, args);
+    };
+    const due = customers.eraseDue('système', () => {});
+    await tick();
+    await customers.reactivate(b.id, 'op');
+    await billing.deprovision(b.id, { confirmSlug: 'tilleuls' }, 'op');
+    const later = h.ctx.models.customers.get(b.id).eraseAt;
+    assert.ok(later > '2026-12-28', 'the new closing moved the date later');
+    release();
+    assert.deepEqual((await due).map((r) => r.id), [a.id]);
+    const row = h.ctx.models.customers.get(b.id);
+    assert.equal(row.erasedAt, null);
+    assert.equal(row.eraseAt, later);
+    assert.ok(h.ctx.models.provisioning.exportsOf(b.id).some((e) => fs.existsSync(e.path)), 'the fresh export is kept');
   } finally { h.cleanup(); }
 });
