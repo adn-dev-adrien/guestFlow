@@ -217,6 +217,11 @@ function lapsedReadDue(link, devisRow, nowMs) {
   return lapsedMs != null && nowMs - lapsedMs < LAPSED_READ_HOURS * 60 * 60 * 1000;
 }
 
+function lookOwed(link) {
+  const row = db.prepare('SELECT lastLookAt, remoteCancelPendingAt FROM payment_links WHERE id = ?').get(link.id) || {};
+  return Boolean(row.lastLookAt || row.remoteCancelPendingAt);
+}
+
 // The devis's latest link, when it lapsed: booked here if the provider says it was paid.
 async function readLapsedLink(devisRow) {
   const latest = paymentLinksModel.listForReservation(devisRow.id)[0];
@@ -275,8 +280,10 @@ async function status(req, res) {
   await settleOwedRetiredLinks(id);
   const converted = db.prepare('SELECT convertedReservationId FROM reservations WHERE id = ?').get(id);
   if (converted && converted.convertedReservationId) return asConfirmed(converted.convertedReservationId);
-  // Rule 30 — nothing open and the latest link lapsed unpaid: the page stops waiting (additive value).
-  if (lapsed && lapsed.status === 'expired') return ok(res, { status: 'expired' });
+  // Rule 30 — nothing open and the latest link lapsed unpaid: the page stops waiting (additive value). Unpaid
+  // is established only once no look is owed: while the deactivation or the last look is pending, a payment
+  // in flight at the deadline may still land, so the page keeps waiting (review of #897).
+  if (lapsed && lapsed.status === 'expired') return ok(res, { status: lookOwed(lapsed) ? 'pending' : 'expired' });
   if (lapsed && lapsed.status === 'paid') return ok(res, { status: 'paid' });
   return ok(res, { status: 'pending' });
 }

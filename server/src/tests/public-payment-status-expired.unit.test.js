@@ -123,3 +123,21 @@ test('rule 30 — a devis that never had a link stays pending', async () => {
   const devis = mkDevis();
   assert.equal((await call(devis, provider())).status, 'pending');
 });
+
+// Review of #897 — « lapsed and unpaid » is established only once no look is owed: while the last look is
+// pending (a payment in flight at the deadline) or the deactivation is still owed, the page keeps waiting.
+test('rule 30 — the lifecycle pass just read the link and a last look is pending: pending, not expired', async () => {
+  const devis = mkDevis();
+  const link = lapsedLink(devis.id, { lapsedHoursAgo: 0.05, lastLookAt: new Date(Date.now() + HOUR).toISOString() });
+  links.touchPolled(link.id);
+  const fake = provider();
+  assert.equal((await call(devis, fake)).status, 'pending');
+  assert.equal(fake.calls.length, 0, 'the 5-minute throttle still holds');
+});
+
+test('rule 30 — a deactivation still owed: pending, not expired', async () => {
+  const devis = mkDevis();
+  const link = lapsedLink(devis.id);
+  db.prepare('UPDATE payment_links SET remoteCancelPendingAt = ? WHERE id = ?').run(new Date().toISOString(), link.id);
+  assert.equal((await call(devis, provider())).status, 'pending');
+});

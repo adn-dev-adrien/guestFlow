@@ -14,11 +14,11 @@ const { seedDb, addStay, addLink, fakeProvider, HOUR } = require('./paymentLinkL
 
 const NOW = new Date('2026-11-02T08:00:00Z');
 
-const settingsModel = {
-  read: () => ({ companyName: 'Demo', smtpHost: 'smtp.example.test', smtpFromEmail: 'from@example.test' }),
-  smtpConfigured: () => true,
+const settingsFor = (smtp) => ({
+  read: () => ({ companyName: 'Demo', smtpHost: smtp ? 'smtp.example.test' : '', smtpFromEmail: 'from@example.test' }),
+  smtpConfigured: () => smtp,
   decryptedSmtpSettings: () => ({}),
-};
+});
 
 function res() {
   return {
@@ -35,18 +35,19 @@ function declareProvider(state, provider) {
   if (state) registry.ensure('online-payment').paymentProvider = { ...provider, isReady: () => state === 'ready' };
 }
 
-function emailsFixture({ provider: state = 'ready', lang = 'fr', now = NOW, stay = {} } = {}) {
+function emailsFixture({ provider: state = 'ready', lang = 'fr', now = NOW, stay = {}, smtp = true } = {}) {
   const { db, links } = seedDb();
   // The language columns come from database.js's migrations, not from the baseline schema.
   db.exec('ALTER TABLE clients ADD COLUMN emailLanguage TEXT; ALTER TABLE email_templates ADD COLUMN subjectEn TEXT; ALTER TABLE email_templates ADD COLUMN bodyEn TEXT;');
   ensureDefaultEmailTemplates(db, { logger: { log: () => {}, warn: () => {} } });
   db.prepare('UPDATE clients SET emailLanguage = ? WHERE id = 1').run(lang);
   const id = addStay(db, { depositAmount: 90, balanceAmount: 210, ...stay });
+  let clock = now;
   const provider = fakeProvider();
   declareProvider(state, provider);
   const sent = [];
   const minted = [];
-  const linkDeps = { database: db, paymentLinksModel: links, provider, now: () => now, installmentsModel: installmentsModel.buildModel(db) };
+  const linkDeps = { database: db, paymentLinksModel: links, provider, now: () => clock, installmentsModel: installmentsModel.buildModel(db) };
   const paymentRequests = {
     available: () => state === 'ready',
     ensureLink: async (reservationId, type) => {
@@ -65,13 +66,14 @@ function emailsFixture({ provider: state = 'ready', lang = 'fr', now = NOW, stay
   });
   const templatesModel = buildTemplatesModel(db);
   const ctl = buildController({
-    database: db, templatesModel, logModel: buildLogModel(db), settingsModel,
-    paymentLinksModel: links, paymentRequests, installmentRequests, now: () => now,
+    database: db, templatesModel, logModel: buildLogModel(db), settingsModel: settingsFor(smtp),
+    paymentLinksModel: links, paymentRequests, installmentRequests, now: () => clock,
     emailServiceFactory: () => ({ isConfigured: true, send: async (m) => { sent.push(m); }, sendTest: async () => ({}) }),
   });
   const templateId = (stableKey) => templatesModel.findByStableKey(stableKey).id;
   return {
     db, links, id, provider, ctl, sent, minted, templateId,
+    setNow: (date) => { clock = date; },
     async send(stableKey, body = {}) {
       const r = res();
       await ctl.send({ body: { reservationId: id, templateId: templateId(stableKey), ...body } }, r);
