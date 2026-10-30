@@ -5,6 +5,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { customerWithSpace, lineOf, writtenAt, licenceOf } = require('./moduleFixture');
 const { NEW_CUSTOMER, makeContext } = require('./helpers');
+const { listenLocal, closeServer, fetchLocal } = require('./listenLocal');
 const { plugins: gfPlugins } = require('../utils/gf');
 
 const name = (id) => gfPlugins.findPlugin(id).name;
@@ -171,10 +172,10 @@ test('rule 18: the flags travel in the body of the switch route, and only a lite
   const env = await essentiel();
   env.ctx.models.operators.create({ email: 'adrien@adn-dev.fr', name: 'Adrien', passwordHash: passwordHash.hashPassword('correct horse battery') });
   const app = createApp(env.ctx, { sessionSecret: 'test', sessionStore: new session.MemoryStore() });
-  const server = await new Promise((resolve) => { const s = app.listen(0, () => resolve(s)); });
+  const server = await listenLocal(app);
   let cookie = '';
   const call = async (url, body) => {
-    const res = await fetch(`http://127.0.0.1:${server.address().port}${url}`, {
+    const res = await fetchLocal(`http://127.0.0.1:${server.address().port}${url}`, {
       method: 'POST', headers: { 'content-type': 'application/json', ...(cookie ? { cookie } : {}) }, body: JSON.stringify(body),
     });
     const set = res.headers.get('set-cookie');
@@ -191,7 +192,7 @@ test('rule 18: the flags travel in the body of the switch route, and only a lite
     assert.equal(done.status, 200);
     assert.equal(lineOf(done.body, 'weather-alerts').on, false);
   } finally {
-    await new Promise((r) => server.close(r));
+    await closeServer(server);
     env.cleanup();
   }
 });

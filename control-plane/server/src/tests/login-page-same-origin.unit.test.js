@@ -9,6 +9,7 @@ const http = require('http');
 const session = require('express-session');
 const { createApp } = require('../app');
 const { makeContext, makeInstance, NEW_CUSTOMER } = require('./helpers');
+const { listenLocal, closeServer, REQUEST_TIMEOUT_MS } = require('./listenLocal');
 
 const APP = 'app.guestflow.test';
 
@@ -18,12 +19,12 @@ async function start() {
   await h.ctx.controllers.customers.create(NEW_CUSTOMER, 'op');
   h.ctx.controllers.login.readDirectory();
   const app = createApp(h.ctx, { sessionSecret: 'test', sessionStore: new session.MemoryStore(), appHost: APP });
-  const server = await new Promise((resolve) => { const s = app.listen(0, () => resolve(s)); });
+  const server = await listenLocal(app);
   const port = server.address().port;
   function call(method, url, { form, origin } = {}) {
     const body = form ? new URLSearchParams(form).toString() : '';
     return new Promise((resolve, reject) => {
-      const req = http.request({ port, method, path: url, headers: {
+      const req = http.request({ host: '127.0.0.1', port, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS), method, path: url, headers: {
         host: APP, 'content-type': 'application/x-www-form-urlencoded', 'content-length': Buffer.byteLength(body),
         ...(origin ? { origin } : {}),
       } }, (res) => {
@@ -35,7 +36,7 @@ async function start() {
       req.end(body);
     });
   }
-  return { call, close: () => new Promise((r) => server.close(r)) };
+  return { call, close: () => closeServer(server) };
 }
 
 test('rule 36 — the login page sends Referrer-Policy: same-origin, on every answer', async () => {

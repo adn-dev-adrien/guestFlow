@@ -11,6 +11,7 @@ const { createApp } = require('../app');
 const { PENDING_MS } = require('../routes/auth');
 const { readBootConfig, DEV_SESSION_SECRET } = require('../utils/bootConfig');
 const { makeContext } = require('./helpers');
+const { listenLocal, closeServer, fetchLocal } = require('./listenLocal');
 
 const EMAIL = 'adrien@adn-dev.fr';
 const PASSWORD = 'correct horse battery';
@@ -24,11 +25,11 @@ function setup() {
 async function start() {
   const h = setup();
   const app = createApp(h.ctx, { sessionSecret: 'test', sessionStore: new session.MemoryStore() });
-  const server = await new Promise((resolve) => { const s = app.listen(0, () => resolve(s)); });
+  const server = await listenLocal(app);
   const base = `http://127.0.0.1:${server.address().port}`;
   let cookie = '';
   async function call(method, url, body) {
-    const res = await fetch(base + url, {
+    const res = await fetchLocal(base + url, {
       method,
       headers: { 'content-type': 'application/json', ...(cookie ? { cookie } : {}) },
       body: body === undefined ? undefined : JSON.stringify(body),
@@ -42,7 +43,7 @@ async function start() {
     await call('POST', '/api/auth/login', { email: EMAIL, password: PASSWORD });
     return call('POST', '/api/auth/verify', { code: lastCode() });
   }
-  return { ...h, call, signIn, lastCode, close: () => new Promise((r) => server.close(r)) };
+  return { ...h, call, signIn, lastCode, close: () => closeServer(server) };
 }
 
 test('rule 31 — inside a session, five wrong passwords on « change the method » lock the account', async () => {

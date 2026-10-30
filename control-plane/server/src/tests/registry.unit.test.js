@@ -13,6 +13,7 @@ const session = require('express-session');
 const { passwordHash, GF_SERVER } = require('../utils/gf');
 const { createApp } = require('../app');
 const { makeContext } = require('./helpers');
+const { listenLocal, closeServer, fetchLocal } = require('./listenLocal');
 
 const { createRegistryClient } = require(path.join(GF_SERVER, 'src', 'plugins', 'registryClient'));
 
@@ -106,8 +107,8 @@ test('rule 8: a withdrawn version leaves the index; its file stays for the insta
 async function serve(h) {
   h.ctx.models.operators.create({ email: 'adrien@adn-dev.fr', name: 'Adrien', passwordHash: passwordHash.hashPassword('correct horse battery') });
   const app = createApp(h.ctx, { sessionSecret: 'test', sessionStore: new session.MemoryStore() });
-  const server = await new Promise((resolve) => { const srv = app.listen(0, () => resolve(srv)); });
-  return { port: server.address().port, close: () => new Promise((r) => server.close(r)) };
+  const server = await listenLocal(app);
+  return { port: server.address().port, close: () => closeServer(server) };
 }
 
 test('rule 7: the registry answers without authentication; uploading needs an operator', async () => {
@@ -116,15 +117,15 @@ test('rule 7: the registry answers without authentication; uploading needs an op
   const base = `http://127.0.0.1:${s.port}`;
   try {
     const buf = makePackage(manifest('linen', '1.0.1'));
-    const anonymous = await fetch(`${base}/api/registry/packages`, { method: 'POST', headers: { 'content-type': 'application/octet-stream', 'x-file-name': 'linen-1.0.1.tgz' }, body: buf });
+    const anonymous = await fetchLocal(`${base}/api/registry/packages`, { method: 'POST', headers: { 'content-type': 'application/octet-stream', 'x-file-name': 'linen-1.0.1.tgz' }, body: buf });
     assert.equal(anonymous.status, 401);
     await h.ctx.registry.publish(buf, 'linen-1.0.1.tgz');
-    assert.equal((await fetch(`${base}/registry/v1/index.json`)).status, 200);
-    assert.equal((await fetch(`${base}/registry/v1/index.json.sig`)).status, 200);
-    const pkg = await fetch(`${base}/registry/v1/packages/linen-1.0.1.tgz`);
+    assert.equal((await fetchLocal(`${base}/registry/v1/index.json`)).status, 200);
+    assert.equal((await fetchLocal(`${base}/registry/v1/index.json.sig`)).status, 200);
+    const pkg = await fetchLocal(`${base}/registry/v1/packages/linen-1.0.1.tgz`);
     assert.equal(pkg.status, 200);
     assert.equal(Buffer.from(await pkg.arrayBuffer()).length, buf.length);
-    assert.equal((await fetch(`${base}/registry/v1/packages/..%2Fcontrol-plane.db`)).status, 404);
+    assert.equal((await fetchLocal(`${base}/registry/v1/packages/..%2Fcontrol-plane.db`)).status, 404);
   } finally {
     await s.close();
     h.cleanup();
