@@ -1,0 +1,1 @@
+- iCal: a sync pass already running no longer imports into a calendar stopped, deleted or re-pointed since the pass began; the pass skips it and writes no status.

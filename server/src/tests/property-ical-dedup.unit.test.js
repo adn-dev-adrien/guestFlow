@@ -27,7 +27,7 @@ const DDL = `
   CREATE TABLE ical_export_ranges (propertyId INTEGER, startDate TEXT, endDate TEXT, sourceIcalSourceId INTEGER, PRIMARY KEY (propertyId, startDate, endDate));
   CREATE TABLE ical_export_tombstones (id INTEGER PRIMARY KEY AUTOINCREMENT, propertyId INTEGER, startDate TEXT, endDate TEXT, removedAt TEXT NOT NULL DEFAULT (datetime('now')), sourceIcalSourceId INTEGER);
   CREATE TABLE ical_superseded_events (sourceId INTEGER, eventUid TEXT, reservationId INTEGER, supersededBySourceId INTEGER, createdAt TEXT DEFAULT (datetime('now')), PRIMARY KEY (sourceId, eventUid));
-  CREATE TABLE ical_sources (id INTEGER PRIMARY KEY, propertyId INTEGER, name TEXT, platformKey TEXT, platformLabel TEXT, emptyFeedStreak INTEGER NOT NULL DEFAULT 0);
+  CREATE TABLE ical_sources (id INTEGER PRIMARY KEY, propertyId INTEGER, name TEXT, url TEXT, isActive INTEGER DEFAULT 1, platformKey TEXT, platformLabel TEXT, emptyFeedStreak INTEGER NOT NULL DEFAULT 0);
   CREATE TABLE ical_import_events (
     sourceId INTEGER, eventUid TEXT, reservationId INTEGER, eventHash TEXT,
     startDate TEXT, endDate TEXT, summaryNormalized TEXT, lastSeenAt TEXT,
@@ -83,7 +83,7 @@ function fresh() {
   const db = new Database(':memory:');
   db.exec(DDL);
   db.prepare("INSERT INTO properties (id, defaultCheckIn, defaultCheckOut, defaultCautionAmount) VALUES (1, '15:00', '10:00', 500)").run();
-  db.prepare("INSERT INTO ical_sources (id, propertyId, name, platformKey, platformLabel) VALUES (1, 1, 'Airbnb', 'airbnb', 'Airbnb'), (2, 1, 'Booking', 'booking', 'Booking')").run();
+  db.prepare("INSERT INTO ical_sources (id, propertyId, name, url, platformKey, platformLabel) VALUES (1, 1, 'Airbnb', 'http://airbnb/ical', 'airbnb', 'Airbnb'), (2, 1, 'Booking', 'http://booking/ical', 'booking', 'Booking')").run();
   return { db, model: propertyIcalModel.buildModel(db, { fetchImpl: globalFetch }) };
 }
 const resCount = (db) => db.prepare('SELECT COUNT(*) c FROM reservations').get().c;

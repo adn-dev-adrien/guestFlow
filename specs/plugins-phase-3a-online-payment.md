@@ -442,6 +442,25 @@ Other facts the design rests on:
 46. **The mismatch alert does not wait for a difference that is not there (audit R5, 2026-10-30).** When the amount
     received equals what the stay asks, the « autre montant » e-mail ends with « À vérifier : envoyer la confirmation
     au client. », without « une fois la différence réglée ».
+47. **A stay-owned open link paid after a re-price raises the alert too (audit R6 N1, D1, 2026-10-30).** An open link
+    minted on the stay itself, paid after `performUpdate` re-priced the stay, was booked at what was received
+    (ledger rule 47) but went to the normal confirmation with no alert. `bookIfAmountChanged` now returns
+    `amountMismatch`, read on the row before the booking rewrites it (rules 44, 45), so `processPaidLink` takes
+    the same branch as the devis-owned twin: the « autre montant » alert, no confirmation. Grown, shrunk, with
+    or without a same-day acompte tick. Orphan links (no reservation) are out of this rule.
+    - **Acompte links (D1).** The booking records the acompte at the link amount and the solde absorbs the gap
+      (pre-arrival total unchanged): no complement, no trop-perçu. A `full` link paid below the acompte is booked
+      the same way and worded the same way. On the three paths (`bookIfAmountChanged`, `applyPaidEffect` devis
+      acompte, `bookClaimedAmountChangedLink`) the mismatch carries `balanceCents` and the alert reads
+      « Acompte enregistré à X (Y demandés) ; solde porté à Z. », with no complement or trop-perçu line. Nothing
+      beyond the normal solde is outstanding, so the normal confirmation is sent on the live paths.
+    - **Above the whole pre-arrival total (E1).** The mismatch carries `excessCents`; the alert adds
+      « Trop-perçu de X à rembourser. » and, as for full links, no confirmation is sent.
+    - **Confirmation not sent (E2).** The alert options carry `confirmationSent`: `true` from `processPaidLink`,
+      `false` from the retired-link retry (it has no confirmation dependency, as for every retired link) and for
+      an excess. When `false`, the acompte wording ends with « Aucun e-mail de confirmation n’a été envoyé au
+      client. À vérifier : envoyer la confirmation au client. »
+    - **Wording.** On a link owned by the stay the alert says « le séjour demande », not « le devis ».
 
 ## 4. Architecture
 
