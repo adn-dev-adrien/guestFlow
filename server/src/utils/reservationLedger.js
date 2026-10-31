@@ -100,6 +100,7 @@ function lapsedLabel(link, stayYear, providerLabel) {
   return link.remoteCancelPendingAt ? `${label} · désactivation en attente chez ${providerLabel || 'le prestataire de paiement'}` : label;
 }
 
+const BUCKET_LINK_TYPES = new Set(['deposit', 'balance', 'full']);
 // specs/payment-link-lifecycle.md rule 56 — paid after its withdrawal by hand, not settled yet.
 const unsettledPayment = (link) => link.status === 'cancelled' && link.cancelReason === 'operator' && Boolean(link.paidAt);
 // Review of #902 (O2, O3) — the amount in both confirmations; « Enregistrer » says what it does (a devis becomes a
@@ -498,6 +499,8 @@ function buildLedger({
     rows.push({ key: 'balance', label, amount: balanceAmount, ...base, ...(penaltyAction ? { penaltyAction } : {}), detail: tidyDetail(detail) });
   }
 
+  const afterBuckets = rows.length;
+
   // ── Compléments + notes en séjour (rules 2, 22, Q5) ──────────────────────
   const deferred = flag(has('complementDeferredToCheckout') ? live.complementDeferredToCheckout : r.complementDeferredToCheckout);
   const arrivalAdjusted = r.complementAmountOverride != null && r.complementAmountOverride !== '';
@@ -603,6 +606,40 @@ function buildLedger({
         ...(refund.reason ? { note: `« ${refund.reason} »` } : {}),
       },
     });
+  }
+
+  // ── Paiements après retrait (specs/payment-link-lifecycle.md rule 63) ──────
+  // A payment to settle that no row above shows — an installment plan replaces the acompte and solde rows —
+  // gets a row of its own, right after the buckets, so « Marquer remboursé » stays reachable. Beside a plan, an
+  // acompte / solde / séjour payment is refunded only (Adrien, 2026-10-31): the plan holds the pre-arrival money.
+  if (settleContext) {
+    const shown = new Set(rows.flatMap((x) => [x.detail?.link, ...(x.detail?.otherLinks || [])])
+      .filter((l) => l && l.settle).map((l) => l.settle.linkId));
+    const waiting = (links || []).filter((l) => unsettledPayment(l) && !shown.has(Number(l.id)))
+      .sort((a, b) => Number(b.id || 0) - Number(a.id || 0));
+    if (waiting.length > 0) {
+      const heldByPlan = (l) => Boolean(planRows) && BUCKET_LINK_TYPES.has(String(l.type));
+      const details = waiting.map((l) => linkDetail(l, {
+        stayYear, due: false, canRequest: false, canWithdraw, providerLabel,
+        settleContext: heldByPlan(l) ? { ...settleContext, readOnly: true } : settleContext,
+      }));
+      const [first, ...rest] = details;
+      rows.splice(afterBuckets, 0, {
+        key: 'withdrawnPayments',
+        label: waiting.length > 1 ? 'Paiements après retrait' : 'Paiement après retrait',
+        amount: waiting.reduce((sum, l) => sum + Number(l.amountCents || 0), 0) / 100,
+        state: 'due', tone: 'warning', stateLabel: 'À traiter',
+        action: null,
+        amountEdit: { editable: false, mode: 'none', min: null, max: null, reason: null },
+        detail: tidyDetail({
+          link: first,
+          ...(rest.length > 0 ? { otherLinks: rest } : {}),
+          // Only while the plan can still be deleted: an échéance paid freezes it (direct-installments rule 35).
+          ...(!settleContext.readOnly && waiting.some(heldByPlan) && !planRows.some((i) => i.status === 'paid')
+            ? { note: 'Supprimer l’échéancier pour l’enregistrer sur le séjour.' } : {}),
+        }),
+      });
+    }
   }
 
   // ── Caution (rules 6, 12) ─────────────────────────────────────────────────
