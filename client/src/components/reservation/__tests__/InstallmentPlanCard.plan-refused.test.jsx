@@ -14,6 +14,7 @@ import api from '../../../api';
 const PENDING = 'Ancien lien de paiement pas encore désactivé : échéancier non créé.';
 const EMPTY = {
   eligible: true, canCreate: true, reason: null, countLocked: false, frozen: false,
+  // date-literal-ok: the card compares with its `today` prop (pinned below), never with the clock.
   total: 0, paid: 0, remaining: 0, gap: 0, minCount: 2, maxCount: 12, count: 0, canRequest: true, arrivalDate: '2027-06-14',
   installments: [],
 };
