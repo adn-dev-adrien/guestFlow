@@ -1,6 +1,7 @@
-// specs/payment-link-lifecycle.md rule 63 (audit R10-M1, 2026-10-31) — a payment received on a link withdrawn by hand,
-// after its withdrawal (rule 56), is settled before an installment plan is made or resized, and an existing plan never
-// hides the ledger row that settles it.
+// specs/payment-link-lifecycle.md rule 63 (audit R10-M1, 2026-10-31; Adrien's decision of 2026-10-31 on the review of
+// #911) — once a stay has an installment plan, the only payment that can arrive is an échéance, booked on that échéance.
+// No plan is made or resized while an acompte / solde / séjour link is not known dead at the provider or carries a
+// payment to settle; an existing plan never hides the ledger row that settles one, which then offers the refund only.
 
 process.env.TZ = 'Europe/Paris';
 
@@ -11,6 +12,10 @@ const { createHarness, call, TODAY } = require('./directInstallmentsFixtures');
 const { buildLedger } = require('../utils/reservationLedger');
 const { settleWithdrawnPayment } = require('../utils/withdrawnPayments');
 const { addDaysToIsoDate } = require('../utils/devisHelpers');
+const { buildController } = require('../controllers/installmentsController');
+const { bookWithdrawnPaid } = require('../utils/paymentPollRunner');
+const devisModel = require('../models/devisModel');
+const { spies } = require('./paymentLinkLifecycleFixture');
 
 const MESSAGE = 'Paiement reçu sur un lien retiré : à traiter avant toute nouvelle demande.';
 const PAID_AT = '2026-10-26T09:15:00Z';
@@ -76,7 +81,7 @@ const ledgerOf = (h, installmentPlan, extra = {}) => buildLedger({
 const settleIds = (rows) => rows.flatMap((r) => [r.detail?.link, ...(r.detail?.otherLinks || [])])
   .filter((l) => l && l.settle).map((l) => l.settle.linkId);
 
-test('rule 63: with a plan, the unsettled acompte / solde / séjour payments get a row of their own with both settle actions', () => {
+test('rule 63: with a plan, the unsettled acompte / solde / séjour payments get a row of their own — refund only, and why', () => {
   const h = createHarness();
   const deposit = addUnsettledLink(h, { type: 'deposit', amountCents: 30000 });
   const full = addUnsettledLink(h, { type: 'full', amountCents: 100150 });
@@ -91,9 +96,10 @@ test('rule 63: with a plan, the unsettled acompte / solde / séjour payments get
   assert.equal(row.action, null);
   assert.equal(row.amountEdit.mode, 'none');
   assert.equal(row.detail.link.settle.linkId, full.id);
-  assert.deepEqual(Object.keys(row.detail.link.settle), ['linkId', 'stay', 'refunded']);
-  assert.match(row.detail.link.label, /^1 001,50 € payés le \d{2}\/\d{2}(\/\d{4})? après retrait : à traiter$/);
-  assert.deepEqual(row.detail.otherLinks.map((l) => l.settle.linkId), [deposit.id]);
+  assert.deepEqual(Object.keys(row.detail.link.settle), ['linkId', 'refunded']);
+  assert.match(row.detail.link.label, /^1\u00a0001,50\u00a0€ payés le \d{2}\/\d{2}(\/\d{4})? après retrait : à traiter$/);
+  assert.deepEqual(row.detail.otherLinks.map((l) => [l.settle.linkId, Object.keys(l.settle)]), [[deposit.id, ['linkId', 'refunded']]]);
+  assert.equal(row.detail.note, 'Supprimer l’échéancier pour l’enregistrer sur le séjour.');
   assert.deepEqual(settleIds(rows), [full.id, deposit.id]);
 });
 
@@ -104,7 +110,9 @@ test('rule 63: one payment reads in the singular; an unsettled échéance link o
   assert.equal(row.label, 'Paiement après retrait');
   assert.equal(row.amount, 500);
   assert.equal(row.detail.link.settle.linkId, link.id);
+  assert.deepEqual(Object.keys(row.detail.link.settle), ['linkId', 'stay', 'refunded']);
   assert.equal(row.detail.otherLinks, undefined);
+  assert.equal(row.detail.note, undefined);
 });
 
 test('rule 63: a read-only stay offers « Marquer remboursé » only on that row', () => {
@@ -112,6 +120,7 @@ test('rule 63: a read-only stay offers « Marquer remboursé » only on that row
   addUnsettledLink(h);
   const row = ledgerOf(h, plan, { stayReadOnly: true }).rows.find((r) => r.key === 'withdrawnPayments');
   assert.deepEqual(Object.keys(row.detail.link.settle), ['linkId', 'refunded']);
+  assert.equal(row.detail.note, undefined, 'deleting the plan would not bring « Enregistrer » back on a read-only stay');
 });
 
 test('rule 63: without a plan the acompte row keeps the payment — no row of its own, never twice', () => {
@@ -127,4 +136,158 @@ test('rule 63: once settled, the row is gone', async () => {
   const link = addUnsettledLink(h);
   await settleWithdrawnPayment(link.id, { database: h.db, paymentLinksModel: h.paymentLinksModel, outcome: 'refunded', bookPaid: async () => {} });
   assert.equal(ledgerOf(h, plan).rows.some((r) => r.key === 'withdrawnPayments'), false);
+});
+
+test('rule 63 (review of #911, m2): with no plan, an acompte « Sans objet » and a complement behind a newer link still show their payment', () => {
+  const h = createHarness({ stay: { complementAmount: 40 } });
+  const deposit = addUnsettledLink(h, { type: 'deposit', amountCents: 9000 });
+  const complement = addUnsettledLink(h, { type: 'complement', amountCents: 4000 });
+  h.paymentLinksModel.create({ reservationId: h.reservationId, type: 'complement', amountCents: 4000, providerLinkId: 'pl_newer', url: 'u' });
+  const { rows } = ledgerOf(h, null);
+  assert.equal(rows.find((r) => r.key === 'deposit').state, 'na');
+  assert.equal(rows.find((r) => r.key === 'complement').detail.link.status, 'open');
+  const row = rows.find((r) => r.key === 'withdrawnPayments');
+  assert.deepEqual([row.detail.link.settle.linkId, ...row.detail.otherLinks.map((l) => l.settle.linkId)], [complement.id, deposit.id]);
+  assert.deepEqual(Object.keys(row.detail.link.settle), ['linkId', 'stay', 'refunded'], 'no plan: recorded on the stay as usual');
+  assert.equal(row.detail.note, undefined);
+});
+
+// ── Plan creation and resize: only once every acompte / solde / séjour link is known dead ───────────────
+const DEACTIVATION_CREATE = 'Ancien lien de paiement pas encore désactivé : échéancier non créé.';
+const DEACTIVATION_RESIZE = 'Ancien lien de paiement pas encore désactivé : échéancier inchangé.';
+
+// Withdrawn by hand while the provider could not be reached: the deactivation (and the read) are still owed.
+function addOwedLink(h, { type = 'deposit', status = 'cancelled', marker = true, lastLook = false } = {}) {
+  const row = h.paymentLinksModel.create({ reservationId: h.reservationId, type, amountCents: 30000, providerLinkId: `pl_owed_${type}_${status}`, url: 'u' });
+  h.db.prepare(`UPDATE payment_links SET status = ?, cancelReason = ?, remoteCancelPendingAt = ?, lastLookAt = ? WHERE id = ?`)
+    .run(status, status === 'expired' ? 'validity' : 'operator', marker ? '2026-10-26 09:00:00' : null, lastLook ? '2026-10-26T10:00:00.000Z' : null, row.id);
+  return h.paymentLinksModel.findById(row.id);
+}
+
+for (const [name, fields] of [
+  ['withdrawn by hand, its deactivation owed', { status: 'cancelled', marker: true }],
+  ['lapsed, its deactivation owed', { status: 'expired', marker: true }],
+  ['lapsed, its last look owed', { status: 'expired', marker: false, lastLook: true }],
+]) {
+  test(`rule 63: a plan is refused while a link is ${name} — 409, the card says why, nothing read`, async () => {
+    const h = createHarness();
+    addOwedLink(h, fields);
+    const r = await put(h, { count: 3 });
+    assert.equal(r.status, 409);
+    assert.deepEqual(r.body, { error: 'LINK_DEACTIVATION_PENDING', message: DEACTIVATION_CREATE });
+    assert.equal(h.installmentsModel.listFor(h.reservationId).length, 0);
+    assert.deepEqual(h.state.deactivated, []);
+    const card = h.controller.planFor(h.reservationId);
+    assert.deepEqual([card.canCreate, card.reason], [false, DEACTIVATION_CREATE]);
+  });
+}
+
+test('rule 63: an open acompte link whose deactivation fails leaves no plan; once deactivated, the plan is made', async () => {
+  const h = createHarness();
+  const open = h.paymentLinksModel.create({ reservationId: h.reservationId, type: 'deposit', amountCents: 30000, providerLinkId: 'ql_dep', url: 'u' });
+  h.state.deactivationFails = true;
+  const refused = await put(h, { count: 3 });
+  assert.equal(refused.status, 409);
+  assert.equal(refused.body.error, 'LINK_DEACTIVATION_PENDING');
+  assert.equal(h.installmentsModel.listFor(h.reservationId).length, 0);
+  const link = h.paymentLinksModel.findById(open.id);
+  assert.equal(link.status, 'cancelled');
+  assert.ok(link.remoteCancelPendingAt, 'withdrawn, the poll owes its deactivation');
+  h.paymentLinksModel.clearRemoteCancelPending(open.id);
+  h.state.deactivationFails = false;
+  assert.equal((await put(h, { count: 3 })).status, 200);
+});
+
+test('rule 63: a resize is refused while an acompte link still owes its deactivation', async () => {
+  const h = createHarness();
+  assert.equal((await put(h, { count: 3 })).status, 200);
+  addOwedLink(h);
+  const r = await put(h, { count: 2 });
+  assert.deepEqual([r.status, r.body.error, r.body.message], [409, 'LINK_DEACTIVATION_PENDING', DEACTIVATION_RESIZE]);
+  assert.equal(h.installmentsModel.listFor(h.reservationId).length, 3);
+});
+
+// A controller on the harness's database whose provider reads are spied on (and can stand for a poll pass).
+function spiedController(h, { duringRead = () => {} } = {}) {
+  const seen = { read: [], deactivated: [] };
+  const controller = buildController({
+    database: h.db, installmentsModel: h.installmentsModel, paymentLinksModel: h.paymentLinksModel,
+    quoteOf: () => h.state.quote, providerReady: () => true, todayOf: () => h.state.today,
+    deactivateLinks: async (links) => { seen.deactivated.push(...links.map((l) => l.id)); links.forEach((l) => h.paymentLinksModel.clearRemoteCancelPending(l.id)); },
+    assertLinkNotPaid: async (link) => { seen.read.push(link.id); duringRead(link); },
+  });
+  return { controller, seen, put: (body) => call(controller.put, { params: { id: h.reservationId }, body }) };
+}
+
+test('rule 63 (review of #911, m2): the refusal comes before any provider read or withdrawal', async () => {
+  const h = createHarness();
+  const open = h.paymentLinksModel.create({ reservationId: h.reservationId, type: 'balance', amountCents: 70000, providerLinkId: 'ql_bal', url: 'u' });
+  addUnsettledLink(h);
+  const s = spiedController(h);
+  const r = await s.put({ count: 3 });
+  assert.equal(r.body.error, 'UNSETTLED_WITHDRAWN_PAYMENT');
+  assert.deepEqual(s.seen, { read: [], deactivated: [] });
+  assert.equal(h.paymentLinksModel.findById(open.id).status, 'open');
+});
+
+test('rule 63 (review of #911, m1): a payment found by the poll during the provider read refuses the plan', async () => {
+  const h = createHarness();
+  const open = h.paymentLinksModel.create({ reservationId: h.reservationId, type: 'deposit', amountCents: 30000, providerLinkId: 'ql_dep', url: 'u' });
+  const other = h.paymentLinksModel.create({ reservationId: h.reservationId, type: 'balance', amountCents: 70000, providerLinkId: 'ql_old', url: 'u' });
+  h.db.prepare("UPDATE payment_links SET status = 'cancelled', cancelReason = 'operator' WHERE id = ?").run(other.id);
+  const s = spiedController(h, {
+    duringRead: () => h.db.prepare('UPDATE payment_links SET paidAt = ? WHERE id = ?').run(PAID_AT, other.id),
+  });
+  const r = await s.put({ count: 3 });
+  assert.equal(r.status, 409);
+  assert.equal(r.body.error, 'UNSETTLED_WITHDRAWN_PAYMENT');
+  assert.deepEqual(s.seen.read, [open.id]);
+  assert.equal(h.installmentsModel.listFor(h.reservationId).length, 0);
+});
+
+test('rule 63 (review of #911, m2): the dates and amounts of a plan stay editable while a payment waits', async () => {
+  const h = createHarness();
+  assert.equal((await put(h, { count: 3 })).status, 200);
+  addUnsettledLink(h, { type: 'balance' });
+  const [first] = h.installmentsModel.listFor(h.reservationId);
+  const dates = await put(h, { dates: [{ id: first.id, dueDate: addDaysToIsoDate(TODAY, 20) }] });
+  assert.equal(dates.status, 200);
+  const amounts = await put(h, { amounts: [{ id: first.id, amount: 300 }] });
+  assert.equal(amounts.status, 200);
+  assert.equal(h.installmentsModel.findById(first.id).amountCents, 30000);
+});
+
+// ── Settling beside a plan (Adrien, 2026-10-31): the échéance takes its own payment, the buckets are refunded ──
+const bookThrough = (h, s) => (l, pay) => bookWithdrawnPaid({ database: h.db, devisModel: devisModel.buildModel(h.db), paymentLinksModel: h.paymentLinksModel, link: l, pay, ...s });
+
+for (const [type, amountCents] of [['deposit', 9000], ['full', 100150], ['balance', 21000]]) {
+  test(`rule 63 (review of #911, M1): beside a plan, « Enregistrer sur le séjour » of a ${type} payment is refused; the refund works`, async () => {
+    const h = createHarness();
+    assert.equal((await put(h, { count: 2 })).status, 200);
+    const link = addUnsettledLink(h, { type, amountCents });
+    const s = spies();
+    const deps = { database: h.db, paymentLinksModel: h.paymentLinksModel, bookPaid: bookThrough(h, s) };
+    await assert.rejects(settleWithdrawnPayment(link.id, { ...deps, outcome: 'stay' }), (err) => err.httpStatus === 409
+      && err.error === 'INSTALLMENT_PLAN_IN_PLACE' && err.message === 'Échéancier en place : rembourser, ou supprimer l’échéancier d’abord.');
+    const row = h.db.prepare('SELECT depositPaid, balancePaid FROM reservations WHERE id = ?').get(h.reservationId);
+    assert.deepEqual([row.depositPaid, row.balancePaid], [0, 0]);
+    assert.deepEqual(h.installmentsModel.listFor(h.reservationId).map((i) => i.paid), [0, 0]);
+    assert.equal(h.paymentLinksModel.findById(link.id).status, 'cancelled');
+    assert.deepEqual(s.confirmed, []);
+    const { link: after } = await settleWithdrawnPayment(link.id, { ...deps, outcome: 'refunded' });
+    assert.equal(after.cancelReason, 'refunded');
+  });
+}
+
+test('rule 63: an échéance paid after its withdrawal keeps « Enregistrer sur le séjour », which marks that échéance paid', async () => {
+  const h = createHarness();
+  assert.equal((await put(h, { count: 2 })).status, 200);
+  const [, second] = h.installmentsModel.listFor(h.reservationId);
+  const link = addUnsettledLink(h, { type: 'installment', amountCents: second.amountCents, installmentId: second.id });
+  const s = spies();
+  await settleWithdrawnPayment(link.id, { database: h.db, paymentLinksModel: h.paymentLinksModel, outcome: 'stay', bookPaid: bookThrough(h, s) });
+  assert.equal(h.paymentLinksModel.findById(link.id).status, 'paid');
+  assert.deepEqual(h.installmentsModel.listFor(h.reservationId).map((i) => i.paid), [0, 1]);
+  const row = h.db.prepare('SELECT depositPaid, balancePaid FROM reservations WHERE id = ?').get(h.reservationId);
+  assert.deepEqual([row.depositPaid, row.balancePaid], [0, 0]);
 });

@@ -28,6 +28,8 @@
  *   findOpenForReservation(reservationId, type) → the current open link of that type, or undefined
  *   listForStay(id) / findOpenForStay(id, type) → the same, over the stay AND the devis converted into it
  *                                           (a devis link keeps the devis id after the conversion)
+ *   hasLiveLinkForStay(id, types, { openToo }) → a link of those types (stay + converted devis) whose deactivation or
+ *                                           last look is owed, or still open with `openToo` (rule 63)
  *   findOpenForInstallment(installmentId)   → the current open link of that installment, or undefined
  *   findByProviderLinkId(provider, linkId)  → the row a provider id names (webhook, retries)
  *   markPaid(id, { providerPaymentId, paidAt }) → flips open|expired→paid (idempotent: a paid/cancelled row is untouched)
@@ -341,6 +343,18 @@ function buildModel(database) {
     return ownersOf(id).flatMap((owner) => listForReservation(owner)).sort((a, b) => b.id - a.id);
   }
 
+  // specs/payment-link-lifecycle.md rule 63 — a link of these types the provider may still take a payment on: its
+  // deactivation or its last look still owed, or (`openToo`) still open.
+  function hasLiveLinkForStay(id, types, { openToo = false } = {}) {
+    const owners = ownersOf(id);
+    if (owners.length === 0 || types.length === 0) return false;
+    return Boolean(database.prepare(`
+      SELECT 1 FROM payment_links
+       WHERE reservationId IN (${owners.map(() => '?').join(', ')}) AND type IN (${types.map(() => '?').join(', ')})
+         AND (remoteCancelPendingAt IS NOT NULL OR (status = 'expired' AND lastLookAt IS NOT NULL)${openToo ? " OR status = 'open'" : ''})
+       LIMIT 1`).get(...owners, ...types));
+  }
+
   function findOpenForStay(id, type) {
     return ownersOf(id).map((owner) => findOpenForReservation(owner, type)).filter(Boolean).sort((a, b) => b.id - a.id)[0];
   }
@@ -470,6 +484,7 @@ function buildModel(database) {
     listForReservation,
     findOpenForReservation,
     listForStay,
+    hasLiveLinkForStay,
     findOpenForStay,
     findOpenForInstallment,
     findByProviderLinkId,
