@@ -785,6 +785,18 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     `utils/closedStayDates.closedDatesRefusal(database, stayId)` (on `establishmentClosuresModel.findCoveringClosure`).
     The public `pay` already refuses closed nights (`DATES_UNAVAILABLE`, `computeBlockedDates`). A devis created
     or converted on closed nights is out of this rule: the held-dates rules of PR5 (46) handle `devisModel`.
+    Reading recorded 2026-10-31 (audit R10-1, decided by Adrien: refuse) — the sentence above is superseded: rule 46
+    covers nights held by stays only, so a devis holding an open link could be moved onto a closure, its link stayed
+    payable, and its payment confirmed the guest on closed nights. A devis is therefore never written on nights a
+    closure covers: `devisModel.create`, and `devisModel.update` when the dates or the logement change (operator and
+    website sources alike), refuse 409 `CLOSED_DATES` « Logement fermé sur ces dates : devis non enregistré. » with
+    `closures: [{ id, label, url }]` (« {libellé} · {du} → {au} », `/establishment-closures`), checked before rule 46;
+    the devis fiche shows it like `DATES_HELD` (« Logement fermé », a `ConflictList`). A devis already on closed nights
+    keeps its other edits (a notes edit saves). Defence in depth: a devis link paid anyway is converted and booked, but
+    when the converted stay's nights are closed (`closedStayDates.closedDatesRefusal`) the guest gets no confirmation
+    and the admin is told « Paiement reçu sur des dates fermées … Action requise : déplacer le séjour ou le
+    rembourser. » (`notifyPaidAfterCancel(link, { nightsUnavailable: 'closed', livePayment: true })`, beside the
+    conflict alert); a withdrawn link booked late keeps the alert of its own path (`bookWithdrawnPaid`, rule 33).
 56. **A payment received on a link withdrawn by hand, after its withdrawal, is settled before any new request**
     (decided by Adrien 2026-10-31, re-review of #902 L8). Such a payment (the poll's rule-8 alert: the link stays
     `cancelled` / `operator` with the provider's `paidAt` and payment id, nothing booked) is money the stay does not
@@ -1090,6 +1102,7 @@ refused).
 - [x] `tests/payment-link-closed-dates.unit.test.js` (9) — rule 55: mint and installment refused before any provider call, an open link not handed out, one night or an establishment-wide closure enough, another logement or the departure day free, request and reminder e-mails refused before any mint, a mail without a link still leaves.
 - [ ] `tests/dates-taken-notice.unit.test.js` — rules 43-45: sent at the `dates-taken` withdrawal (overlap, first paid, iCal), not for expiry, a started stay or « Retirer le lien »; a later refused reminder sends nothing more; e-mail sent once with its `email_log` row, push, dashboard row, every fail-closed case, reminder never queued on taken dates, `AUTO_SEND_EXCEPTIONS` holds exactly one key and `autoSendPolicy` still refuses every other template.
 - [x] `tests/payment-link-superseded.unit.test.js` (4) — rule 12; rule 31 in `supersededDuplicates`.
+- [x] `tests/devis-closed-dates.unit.test.js` (9) — rule 55 (audit R10-1): create and move onto closed nights refused with the closure, an establishment-wide closure, the departure day free, the website source, a notes edit on closed nights saved, the controller's body, a paid devis link on closed nights converted without confirmation and alerted, open nights still confirmed, the alert wording.
 - [x] `tests/dates-taken-upgrade-migration.unit.test.js` (2) — rule 61: withdrawn once, one `not-sent` / `upgrade` row per stay, money and free nights untouched, no guest name in the log, a second boot does nothing, an existing row never replaced.
 - [x] `tests/payment-link-deadline-race.unit.test.js` — rules 14, 15, 18, 19, 21, 22: paid before deactivation (webhook), paid found after deactivation, paid found at the last look, webhook replay, two concurrent runs.
 - [x] `tests/payment-link-deactivation-stuck.unit.test.js` — rules 18, 20, 21: marker kept, one alert after 24 h, rate limit stops the job.
@@ -1125,7 +1138,7 @@ refused).
 - [x] `client/src/components/__tests__/DatesTakenBadge.test.jsx` (3) — rule 48.
 - [x] `client/src/components/__tests__/IcalDateDriftAlert.held-dates.test.jsx` (3) — rule 39: the card line, the dialog's stays, « Annuler » and « Approuver quand même », a free drift at once.
 - [x] `client/src/components/__tests__/DialogProvider.details.test.jsx` (1) — rule 46.
-- [x] `client/src/pages/__tests__/ReservationPage.dates-held.test.jsx` (3) — rules 46, 48; a devis on an unpaid reservation's nights reaches the server.
+- [x] `client/src/pages/__tests__/ReservationPage.dates-held.test.jsx` (4) — rules 46, 48, 55; a devis on an unpaid reservation's nights reaches the server; `CLOSED_DATES` shows the closure.
 - [x] `client/src/pages/__tests__/DevisPage.dates-taken.test.jsx` (2) — rule 48.
 
 ### Manual verification (fake provider in dev, never the production Qonto)
@@ -1322,5 +1335,7 @@ Six sequential PRs into `inte/plugins` (plan validated 2026-10-30).
   `payment-link-dates-taken-paid` (4), `payment-link-superseded` (4), `stay-holds-dates` (6),
   `ical-overbooking-held-dates` (4), `devis-held-dates` (7), `dates-taken-upgrade-migration` (2); client
   `DatesTakenBadge` (3), `IcalDateDriftAlert.held-dates` (3), `DialogProvider.details` (1),
-  `ReservationPage.dates-held` (3), `DevisPage.dates-taken` (2). No guest e-mail is sent by this PR (PR6).
+  `ReservationPage.dates-held` (4), `DevisPage.dates-taken` (2). Audit R10-1 (rule 55 reading): `devisModel` 409
+  `CLOSED_DATES` with `closures[]`, `applyPaidEffect` flags `closed` and `processPaidLink` skips the confirmation and
+  alerts (`devis-closed-dates` 9). No guest e-mail is sent by this PR (PR6).
 - [ ] PR6 — dates-taken guest notice (rules 35, 43-45, 47); status → Implemented.

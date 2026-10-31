@@ -484,7 +484,7 @@ function buildNotificationService({
   // specs/payment-link-lifecycle.md rule 42 (re-review of #902, R1) — a link withdrawn by hand, paid before, booked
   // later on nights closed since (`closed`) or taken by another stay (`taken`): the treatment of rule 33.
   const PAID_UNAVAILABLE_TITLES = { closed: '⚠️ Paiement reçu sur des dates fermées', taken: '⚠️ Paiement reçu sur des dates déjà prises' };
-  function buildPaidAfterCancelEmail(resa, link, publicUrl, { settledOn = null, amountMismatch = null, doublePaid = false, duplicateCents = null, confirmationSent = true, nightsUnavailable = null, datesTaken = false, takenBy = null } = {}) {
+  function buildPaidAfterCancelEmail(resa, link, publicUrl, { settledOn = null, amountMismatch = null, doublePaid = false, duplicateCents = null, confirmationSent = true, nightsUnavailable = null, datesTaken = false, takenBy = null, livePayment = false } = {}) {
     const amount = eurosFr(doublePaid && duplicateCents != null ? duplicateCents : link.amountCents);
     const owner = String(resa.kind) === 'devis' ? 'le devis' : 'le séjour';
     const ref = resa.devisNumber || `#${Number(resa.id)}`;
@@ -500,6 +500,12 @@ function buildNotificationService({
       ? [
         `Un lien retiré parce que ces dates venaient d’être réservées${takenBy ? ` (${oneLine(takenBy)})` : ''} a été payé avant sa désactivation.`,
         'Le paiement est enregistré sur le séjour, en conflit de dates. Aucun e-mail de confirmation n’a été envoyé au client.',
+        'Action requise : déplacer le séjour ou le rembourser.',
+      ]
+      : livePayment && nightsUnavailable === 'closed'
+      ? [
+        'Un lien de paiement a été payé pour des nuits où le logement est fermé.',
+        'Le paiement est enregistré sur le séjour. Aucun e-mail de confirmation n’a été envoyé au client.',
         'Action requise : déplacer le séjour ou le rembourser.',
       ]
       : PAID_UNAVAILABLE_TITLES[nightsUnavailable]

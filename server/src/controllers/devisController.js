@@ -28,8 +28,8 @@ function createController(model, {
   frozenOptions = (devisId) => require('../utils/insuranceOffer').frozenOptions(require('../database'), devisId),
   frozenResources = (devisId) => require('../utils/resourceOffer').frozenResources(require('../database'), devisId),
 } = {}) {
-  // A refusal's body: its code, and the stays it names (specs/payment-link-lifecycle.md rule 46, DATES_HELD).
-  const errorBody = (result) => ({ error: result.error, ...(result.code ? { code: result.code } : {}), ...(result.stays ? { stays: result.stays } : {}) });
+  // A refusal's body: its code, and the stays or closures it names (specs/payment-link-lifecycle.md rules 46, 55).
+  const errorBody = (result) => ({ error: result.error, ...(result.code ? { code: result.code } : {}), ...(result.stays ? { stays: result.stays } : {}), ...(result.closures ? { closures: result.closures } : {}) });
 
   // Maps a model result ({ ok, status?, data } | { error, status }) to an HTTP response.
   function respond(res, result) {

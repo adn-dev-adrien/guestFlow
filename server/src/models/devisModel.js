@@ -635,6 +635,25 @@ function createModel(database) {
     };
   }
 
+  // specs/payment-link-lifecycle.md rule 55 (audit R10-1, decided 2026-10-31) — a devis is never written on nights a
+  // closure covers: its link could be paid there and confirm the guest on closed nights. The closure to open rides
+  // the refusal, ConflictList-shaped. A minimal schema without closures has none.
+  function closedDatesRefusal({ propertyId, startDate, endDate }) {
+    if (!database.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'establishment_closures'").get()) return null;
+    const closure = require('./establishmentClosuresModel').create(database).findCoveringClosure(propertyId, startDate, endDate);
+    if (!closure) return null;
+    const { shortDate } = require('../utils/reservationLedger');
+    const year = String(startDate).slice(0, 4);
+    return {
+      error: 'Logement fermé sur ces dates : devis non enregistré.', status: 409, code: 'CLOSED_DATES',
+      closures: [{
+        id: Number(closure.id),
+        label: [closure.label, `${shortDate(closure.startDate, year)} → ${shortDate(closure.endDate, year)}`].filter(Boolean).join(' · '),
+        url: '/establishment-closures',
+      }],
+    };
+  }
+
   // Rule 48 — a devis whose nights another stay took since stays as it is, marked « Dates prises ».
   const withDatesTaken = (row) => (row ? { ...row, datesTaken: require('../utils/datesTaken').datesTakenMarker(database, row) } : row);
 
@@ -753,8 +772,9 @@ function createModel(database) {
     const property = database.prepare('SELECT * FROM properties WHERE id = ?').get(Number(payload.propertyId));
     if (!property) return { error: 'Logement introuvable', status: 404 };
 
-    const held = heldDatesRefusal({ propertyId: payload.propertyId, startDate: payload.startDate, endDate: payload.endDate });
-    if (held) return held;
+    const range = { propertyId: payload.propertyId, startDate: payload.startDate, endDate: payload.endDate };
+    const refused = closedDatesRefusal(range) || heldDatesRefusal(range);
+    if (refused) return refused;
 
     const payloadWithDefaults = withCreationDefaults(payload);
 
@@ -861,9 +881,10 @@ function createModel(database) {
       endDate: payload.endDate || existing.endDate,
     };
     const moved = next.propertyId !== Number(existing.propertyId) || next.startDate !== existing.startDate || next.endDate !== existing.endDate;
-    if (moved && source === 'operator') {
-      const held = heldDatesRefusal({ ...next, excludeIds: [numId] });
-      if (held) return held;
+    // Rule 55 (R10-1) — a move onto closed nights, whatever the source; rule 46 — onto held nights, by the operator.
+    if (moved) {
+      const refused = closedDatesRefusal(next) || (source === 'operator' ? heldDatesRefusal({ ...next, excludeIds: [numId] }) : null);
+      if (refused) return refused;
     }
 
     // specs/tourist-tax-included-services-deduction.md rules 4-5 — a service included in the rate

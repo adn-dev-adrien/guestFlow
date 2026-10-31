@@ -91,6 +91,9 @@ function applyPaidEffect({ database, devisModel, link, checkConflict, paidDate =
       return { effect: 'double-payment', reservationId, conflict: false };
     }
     const conflict = flagConflictIfAny({ database, checkConflict, reservationId });
+    // specs/payment-link-lifecycle.md rule 55 (audit R10-1) — defence in depth: a devis that reached closed nights
+    // anyway is booked, but its guest is never confirmed there.
+    const closed = closedNightsOf(database, reservationId);
     // The quote can be re-priced after its link was minted, and a link older than the tourist-tax rule
     // charges less than the quote asks: what the guest paid is booked, never the quote's amount.
     // A legacy devis stored without its split (both NULL) has no amount to compare with.
@@ -100,10 +103,10 @@ function applyPaidEffect({ database, devisModel, link, checkConflict, paidDate =
     const expectedCents = hasSplit ? linkAmountCents(link.type, priced) : null;
     if (expectedCents != null && link.amountCents != null && Number(link.amountCents) !== expectedCents) {
       const booked = bookPaidAfterAmountChange({ database, recordPayment }, link, { paidDay: paidDate });
-      return { effect: booked.effect, reservationId, conflict, justConverted: effect === 'converted', amountMismatch: mismatchOf(link, priced, database, paidDate) };
+      return { effect: booked.effect, reservationId, conflict, closed, justConverted: effect === 'converted', amountMismatch: mismatchOf(link, priced, database, paidDate) };
     }
     recordPayment({ reservationId, bucket: isFull ? 'full' : 'deposit', paidDate });
-    return { effect, reservationId, conflict };
+    return { effect, reservationId, conflict, closed };
   }
 
   // A link minted on the stay itself, paid after another link of the same stay (its own or the devis it
@@ -141,6 +144,13 @@ function applyPaidEffect({ database, devisModel, link, checkConflict, paidDate =
     return { effect: 'balance-marked' };
   }
   return { effect: 'noop' };
+}
+
+// A minimal schema (a unit suite's) without closures or logements has no closed nights.
+function closedNightsOf(database, stayId) {
+  const hasClosures = database.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'establishment_closures'").get();
+  const hasProperty = database.prepare('PRAGMA table_info(reservations)').all().some((c) => c.name === 'propertyId');
+  return Boolean(hasClosures && hasProperty && require('./closedStayDates').closedDatesRefusal(database, stayId));
 }
 
 // Rule 39 — the bucket a link pays was already collected another way (the arrival payment, a tick by hand):
@@ -350,7 +360,7 @@ async function processPaidLink({ database, devisModel, paymentLinksModel, link, 
   }
   if (effect.amountMismatch && effect.amountMismatch.balanceCents != null && !effect.amountMismatch.excessCents) {
     if (effect.justConverted) emitPluginEvent('reservation.created', { reservationId: effect.reservationId });
-    if (notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link, alertOptions(effect.amountMismatch, true)); } catch { /* best effort */ } }
+    if (notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link, alertOptions(effect.amountMismatch, !effect.closed)); } catch { /* best effort */ } }
   } else if (effect.amountMismatch) {
     if (effect.justConverted) emitPluginEvent('reservation.created', { reservationId: effect.reservationId });
     if (notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link, alertOptions(effect.amountMismatch, false)); } catch { /* best effort */ } }
@@ -376,7 +386,10 @@ async function processPaidLink({ database, devisModel, paymentLinksModel, link, 
 
   if (CONFIRMING_TYPES.has(link.type) && CONFIRMING_EFFECTS.has(effect.effect)) {
     const confirmedId = effect.reservationId || link.reservationId;
-    if (sendConfirmation && !(quietOnConflict && effect.conflict)) { try { await sendConfirmation(confirmedId); } catch (e) { /* logged inside the sender */ } }
+    if (sendConfirmation && !(quietOnConflict && effect.conflict) && !effect.closed) { try { await sendConfirmation(confirmedId); } catch (e) { /* logged inside the sender */ } }
+    // Rule 55 (R10-1) — paid for closed nights: the admin moves or refunds it. A withdrawn link booked late is told by
+    // its own caller (bookWithdrawnPaid, bookDatesTakenPaid).
+    if (effect.closed && !retiredReason && notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link, { nightsUnavailable: 'closed', livePayment: true }); } catch { /* best effort */ } }
     if (effect.conflict && notifyConflict) { try { await notifyConflict(confirmedId); } catch (e) { /* best effort */ } }
   }
   return { id: link.id, reservationId: link.reservationId, type: link.type, status: 'paid', ...effect };

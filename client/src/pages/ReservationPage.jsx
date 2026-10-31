@@ -2722,12 +2722,14 @@ export default function ReservationPage() {
         }
         return false;
       }
-      // specs/payment-link-lifecycle.md rule 46 — a devis moved onto held nights: the stays that hold them, each to open.
-      if (err?.code === 'DATES_HELD') {
+      // specs/payment-link-lifecycle.md rules 46, 55 — a devis moved onto held or closed nights: the stays that hold
+      // them, or the closure, each to open.
+      if (err?.code === 'DATES_HELD' || err?.code === 'CLOSED_DATES') {
+        const records = err.code === 'DATES_HELD' ? err.stays : err.closures;
         await alert({
-          title: 'Dates déjà réservées',
+          title: err.code === 'DATES_HELD' ? 'Dates déjà réservées' : 'Logement fermé',
           message: err.message,
-          details: <ConflictList severity="error" items={(err.stays || []).map((stay) => ({ key: stay.id, label: stay.label, url: stay.url }))} newTab={!downSm} />,
+          details: <ConflictList severity="error" items={(records || []).map((row) => ({ key: row.id, label: row.label, url: row.url }))} newTab={!downSm} />,
         });
         return false;
       }

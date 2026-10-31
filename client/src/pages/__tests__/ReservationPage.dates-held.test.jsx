@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rule 46 — a devis saved onto held nights is refused DATES_HELD: the fiche shows
+// specs/payment-link-lifecycle.md rules 46, 55 — a devis saved onto held (or closed) nights is refused DATES_HELD (CLOSED_DATES): the fiche shows
 // the server's message and the stays that hold the nights, each to open (ConflictList). Rule 48: a devis whose nights
 // another stay took shows « Dates prises » in its action bar.
 import React from 'react';
@@ -87,4 +87,17 @@ test('a devis on the nights of another reservation goes to the server, which jud
   fireEvent.click(await screen.findByRole('button', { name: 'Enregistrer le devis' }));
   await waitFor(() => expect(api.updateDevis).toHaveBeenCalledTimes(1));
   expect(dialogs.alert).not.toHaveBeenCalled();
+});
+
+test('rule 55: CLOSED_DATES shows the refusal with the closure to open', async () => {
+  const closure = { id: 3, label: 'Travaux · 14/11 → 16/11', url: '/establishment-closures' };
+  api.updateDevis.mockRejectedValue(Object.assign(new Error('Logement fermé sur ces dates : devis non enregistré.'), { code: 'CLOSED_DATES', status: 409, closures: [closure] }));
+  openDevis();
+  fireEvent.change(await screen.findByLabelText(/^Notes/i), { target: { value: 'typed' } });
+  fireEvent.click(await screen.findByRole('button', { name: 'Enregistrer le devis' }));
+  await waitFor(() => expect(dialogs.alert).toHaveBeenCalledTimes(1));
+  const shown = dialogs.alert.mock.calls[0][0];
+  expect(shown).toMatchObject({ title: 'Logement fermé', message: 'Logement fermé sur ces dates : devis non enregistré.' });
+  render(<MemoryRouter>{shown.details}</MemoryRouter>);
+  expect(screen.getByRole('link', { name: `Ouvrir : ${closure.label}` })).toHaveAttribute('href', '/establishment-closures');
 });
