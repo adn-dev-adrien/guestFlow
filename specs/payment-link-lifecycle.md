@@ -915,6 +915,11 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     `database.js` is still being evaluated, so their path loads no model (plain `SELECT`s; `rangeHasBlockedNight`
     lives in `occupancy.js`): a model required then would keep the half-built database module for the life of the
     process, and the first boot after the install served 500s.
+62. **The closure dialog's lines only describe the dates it shows** (audit R10-C1, 2026-10-31). A conflicts look
+    (rules 41, 49) still in flight when the dialog closes, reopens, or its range stops being valid (a date
+    missing, reopening ≤ start) is dropped: its answer never paints a red or amber line over a fresh « Ajouter une
+    fermeture » or over dates the server was not asked about. Only the answer to the latest look of the open dialog
+    is shown; the save stays the judge.
 
 ---
 
@@ -1164,6 +1169,7 @@ refused).
 - [x] `client/src/components/__tests__/DialogProvider.details.test.jsx` (1) — rule 46.
 - [x] `client/src/pages/__tests__/ReservationPage.dates-held.test.jsx` (4) — rules 46, 48, 55; a devis on an unpaid reservation's nights reaches the server; `CLOSED_DATES` shows the closure.
 - [x] `client/src/pages/__tests__/DevisPage.dates-taken.test.jsx` (2) — rule 48.
+- [x] `client/src/pages/__tests__/EstablishmentClosuresPage.stale-conflicts.test.jsx` (2) — rule 62: a late answer after close/reopen, or after the range turned invalid, is dropped.
 
 ### Manual verification (fake provider in dev, never the production Qonto)
 - [ ] Mint a link, move the clock 36 h (injected `now` / env), run the job: row « Lien expiré le … », « Renvoyer la demande » mints a new link.
@@ -1343,6 +1349,9 @@ Six sequential PRs into `inte/plugins` (plan validated 2026-10-30).
   (`payment-link-valid-until-rollback` 10, `payment-link-valid-until-token` +1). Review of #906: rule 57's preview
   sentence corrected (R1); rule 60 the preview's `refusal` and the dialog's alert (`payment-link-preview-refusal` 4,
   `EmailManualSendDialog.payment-refusal` 2).
+  Audit round 10 (2026-10-31): rule 62 the closure dialog drops a stale conflicts answer
+  (`EstablishmentClosuresPage`'s conflicts effect bumps its look sequence in its cleanup; client
+  `EstablishmentClosuresPage.stale-conflicts` 2).
 - [x] **PR5 — held dates and dates-taken withdrawal** (rules 10-12, 16, 24, 25, 31-33, 37-39, 46, 48, 61).
   `utils/stayMoney.js` (`carriesMoneySql`, `carriesMoney`, `holdsDates`; `supersededDuplicates` reads it and withdraws
   the links of a copy it sets aside); `utils/datesTaken.js` (`heldOverlaps`, `datesTakenRefusal`, `datesTakenMarker`,

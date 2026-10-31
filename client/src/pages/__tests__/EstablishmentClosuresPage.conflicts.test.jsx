@@ -6,7 +6,6 @@ import { vi } from 'vitest';
 import { render, screen, within, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
-import dayjs from 'dayjs';
 import DialogProvider from '../../components/DialogProvider';
 
 vi.mock('../../api', () => ({
@@ -22,18 +21,12 @@ vi.mock('../../api', () => ({
 
 import api from '../../api';
 import EstablishmentClosuresPage from '../EstablishmentClosuresPage';
+import { CLOSURE, NONE, media } from './establishmentClosuresFixtures';
 
-const inDays = (n) => dayjs().add(n, 'day').format('YYYY-MM-DD');
-const CLOSURE = { id: 5, propertyId: 1, propertyName: 'Gîte', label: 'Travaux', startDate: inDays(30), endDate: inDays(33) };
 const REQUEST = { reservationId: 12, linkId: 41, kind: 'devis', label: 'Devis D-2026-118 · Ana Test', detail: '840,00 € · lien valable jusqu’au 01/11 à 06:00', url: '/reservations/new?mode=devis&devisId=12' };
 const DEVIS = { reservationId: 13, label: 'Devis D-2026-121 · Bo Test', detail: 'Gîte · 14/11 → 16/11 · aucun lien en cours', url: '/reservations/new?mode=devis&devisId=13' };
 const RESA = { id: 7, label: '22341 · Cy Test · 02/11 → 05/11', detail: 'Gîte', url: '/reservations/7' };
-const NONE = { reservations: [], requests: [], devis: [] };
 
-const media = (matches) => (query) => ({
-  matches, media: query, onchange: null,
-  addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {}, dispatchEvent() { return false; },
-});
 let orig;
 beforeEach(() => {
   vi.clearAllMocks();
