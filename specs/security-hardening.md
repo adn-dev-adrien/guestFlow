@@ -118,6 +118,19 @@ uploads, and authoritative money validation at every write boundary.
     browser; with `connect-src 'self'` the production CSP blocked it, so the city list stayed empty
     (review 2026-10-18, F7). The origin is exact (scheme + host, no wildcard).
 
+**Added 2026-10-31**
+13. **A dev dependency's advisory is closed in the existing lockfile, never by recreating it.** When
+    `npm audit` names a package that only a devDependency pulls in and the parent's range blocks the fix,
+    `package.json` gets an `overrides` entry scoped to that parent, and `npm install` updates the
+    existing `package-lock.json`; `npm ci` must then pass on it. `npm audit fix --force` (which downgrades
+    the parent) and a regenerated lockfile are refused. First case (audit R10 L-1): `nodemon` 3.1.14
+    pins `minimatch ^10.2.1`, and every 10.x matches GHSA-g3hv-75wg-m249 (DoS via globparts
+    amplification, fixed in 11.0.1); the server takes `"overrides": { "nodemon": { "minimatch":
+    "^11.0.1" } }`, which locks minimatch 11.0.3 and adds its new dependency
+    `@isaacs/nonrecursive-glob-match` 1.0.3 (both dev only, same maintainer). `npm run dev:watch`
+    still restarts on a `.js` / `.json` change. The override is dropped once a nodemon release accepts
+    minimatch 11. Production is unaffected either way: `npm audit --omit=dev` already reported 0.
+
 **Edge cases**
 - Legitimate burst (saving a reservation with many sub-requests) stays well under 3000/15min.
   _(Corrected 2026-10-27: read « 300/15min », contradicting rule 6.)_
@@ -148,6 +161,9 @@ uploads, and authoritative money validation at every write boundary.
 | `utils/` | `uploadSafety.js` | C | Pure helpers: `isAllowedUpload(ext, mime, kind)`, `safeUploadPath(uploadsDir, name)`. Unit-tested. |
 
 **New dependencies:** `helmet`, `express-rate-limit`.
+
+Rule 13 (2026-10-31): `server/package.json` (T) gains `overrides.nodemon.minimatch`; `server/package-lock.json`
+(T) is updated in place; `tests/dev-dependency-advisories.unit.test.js` (C) pins both.
 
 ### 4.2 Client side (`client/`)
 
@@ -189,6 +205,9 @@ No new screens. Existing flows must keep working under the new CSP and limits:
       the route-level enforcement is verified by curl (negative amount / >100% → `400`), consistent with
       the codebase's no-HTTP-harness testing style.
 - [ ] Existing suite stays green.
+- [x] Rule 13: `tests/dev-dependency-advisories.unit.test.js` (2 tests) — every locked `minimatch` is 11.0.1 or
+      later; the override is scoped to nodemon and nodemon stays ^3 / 3.1.14. Both red before the change.
+      `npm ci` passes on the updated lock and `npm audit` reports 0 in `server/`.
 
 ### Manual verification
 - [ ] **Production build** (`cd client && npm run build`, run server with the build): app loads, no CSP
