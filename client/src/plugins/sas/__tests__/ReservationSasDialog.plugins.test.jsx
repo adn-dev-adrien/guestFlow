@@ -82,8 +82,9 @@ test.skipIf(lacksPlugins(['weather-alerts']))('rule 13: active and alerting, the
   renderDialog({ mode: 'arrival' });
   await screen.findByText('Commencer');
   // The step loads in the background; it is part of the wizard once its data is in.
+  // Its data lands after the call: the step is counted once it is in (specs/server-test-isolation.md rule 11).
   await waitFor(() => expect(api.getReservationWeatherAlerts).toHaveBeenCalledWith(1));
-  await act(async () => {});
+  expect(await screen.findByText('1 sur 3')).toBeTruthy();
   clickBtn('Commencer');
   expect(await screen.findByText('Risque d’orages')).toBeTruthy();
 });

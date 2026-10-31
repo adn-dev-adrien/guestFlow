@@ -2,7 +2,7 @@
 // once, then shows « Page indisponible. » with « Recharger ».
 import React, { lazy } from 'react';
 import { vi } from 'vitest';
-import { render, screen, act, fireEvent } from '@testing-library/react';
+import { render, screen, act, fireEvent, waitFor } from '@testing-library/react';
 import LazyPage, { lazyPage } from '../LazyPage';
 
 const reload = vi.fn();
@@ -67,7 +67,8 @@ test('rule 18: the route that renders clears its own reload flag, so a later rel
   const Clients = lazyPage(() => Promise.resolve({ default: Page }));
   render(<Shell><Clients title="Clients" /></Shell>);
   expect(await screen.findByRole('heading', { name: 'Clients' })).toBeInTheDocument();
-  expect(sessionStorage.getItem('guestflow.chunkReloaded')).toBeNull();
+  // The flag is cleared by an effect of the page that rendered (specs/server-test-isolation.md rule 11).
+  await waitFor(() => expect(sessionStorage.getItem('guestflow.chunkReloaded')).toBeNull());
 });
 
 test('rule 3: a plugin route goes through the same boundary', async () => {

@@ -71,8 +71,7 @@ beforeEach(() => {
 
 test('renders the default account + every platform row from the GET payload', async () => {
   renderPage();
-  await screen.findByText('Plan comptable');
-  expect(screen.getByLabelText('Commission par défaut')).toHaveValue('622600');
+  expect(await screen.findByLabelText('Commission par défaut')).toHaveValue('622600');
   // Each platform name appears as a row label.
   expect(await screen.findByText('Airbnb')).toBeInTheDocument();
   expect(screen.getByText('Gitedefrance')).toBeInTheDocument();

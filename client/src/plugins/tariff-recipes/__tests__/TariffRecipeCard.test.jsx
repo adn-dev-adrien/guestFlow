@@ -81,9 +81,8 @@ test('the particularities panel states the recipe deal in plain French', async (
 test('shows the applied version and the recipe select', async () => {
   api.getTariffRecipes.mockResolvedValue(RECIPES);
   render(<TariffRecipeCard propertyId={1} activeRecipeId="aventura-lodge-2026" appliedVersion="1.0.0" />);
-  await waitFor(() => expect(api.getTariffRecipes).toHaveBeenCalled());
+  expect(await screen.findByText('Appliquer la recette…')).toBeInTheDocument();
   expect(screen.getByText('v1.0.0 appliquée')).toBeInTheDocument();
-  expect(screen.getByText('Appliquer la recette…')).toBeInTheDocument();
 });
 
 test('warns when the recipe file has a newer version than the applied one', async () => {
@@ -91,8 +90,7 @@ test('warns when the recipe file has a newer version than the applied one', asyn
     recipes: [{ ...RECIPES.recipes[0], version: '1.1.0' }],
   });
   render(<TariffRecipeCard propertyId={1} activeRecipeId="aventura-lodge-2026" appliedVersion="1.0.0" />);
-  await waitFor(() => expect(api.getTariffRecipes).toHaveBeenCalled());
-  expect(screen.getByText(/Version 1.1.0 disponible/)).toBeInTheDocument();
+  expect(await screen.findByText(/Version 1.1.0 disponible/)).toBeInTheDocument();
 });
 
 test('preview lists created / removed seasons and closures, and applies only on confirm', async () => {
@@ -124,8 +122,7 @@ test('a blocking preview shows the warning and disables Appliquer', async () => 
     ...PREVIEW, blocking: true, warnings: ['La plage 2026-06-01 → 2026-06-30 chevauche la saison manuelle « Peinte ».'],
   });
   render(<TariffRecipeCard propertyId={1} activeRecipeId="aventura-lodge-2026" appliedVersion="1.0.0" />);
-  await waitFor(() => expect(api.getTariffRecipes).toHaveBeenCalled());
-  fireEvent.click(screen.getByText('Appliquer la recette…'));
+  fireEvent.click(await screen.findByText('Appliquer la recette…'));
   await waitFor(() => expect(screen.getByText(/chevauche la saison manuelle/)).toBeInTheDocument());
   expect(screen.getByRole('button', { name: 'Appliquer' })).toBeDisabled();
 });
