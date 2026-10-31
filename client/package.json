@@ -7,7 +7,8 @@
     "start": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:slow-scheduler": "vitest run --config vitest.slow-scheduler.config.js"
   },
   "dependencies": {
     "@emotion/react": "^11.11.0",

@@ -177,5 +177,6 @@ test('a regime already in place (422) is not a dead end: a notice, and the page\
   const preview = vi.fn().mockRejectedValue(refusal({ regime: 'Régime déjà en vigueur' }));
   const { onStale } = draw({ preview });
   expect(await screen.findByText('Le régime a changé entre-temps. Écran mis à jour.')).toBeInTheDocument();
-  expect(onStale).toHaveBeenCalled();
+  // onStale runs in a passive effect, flushed after the commit that shows the notice (specs/server-test-isolation.md rule 11).
+  await waitFor(() => expect(onStale).toHaveBeenCalled());
 });
