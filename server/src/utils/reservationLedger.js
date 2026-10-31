@@ -202,13 +202,15 @@ function dueState(deadline, today, stayYear, { platformPayout = false } = {}) {
  *                                  (specs/payment-link-lifecycle.md rule 24)
  * @param {boolean} [p.nightsUnavailable] the stay's nights are closed or taken today: « Enregistrer sur le séjour »
  *                                  of a payment to settle confirms nobody (specs/payment-link-lifecycle.md rule 56)
+ * @param {boolean} [p.stayReadOnly] the stay the links answer for is read-only (a devis converted into a cancelled
+ *                                  stay): no withdrawal, a payment to settle is refunded only (rule 56, O4)
  * @param {string} p.today          `YYYY-MM-DD`
  * @returns {{ rows: object[], remaining: number, remainingLabel: string, settled: boolean }}
  */
 function buildLedger({
   row = null, quote = null, live = {}, links = [], refunds = [], overpayment = null,
   midStayNotes = [], cautionAmount = 0, canRequest = false, installmentPlan = null, today,
-  storedAccommodationPreArrival = null, penalties = [], providerLabel = null, nightsUnavailable = false,
+  storedAccommodationPreArrival = null, penalties = [], providerLabel = null, nightsUnavailable = false, stayReadOnly = false,
 } = {}) {
   const r = row || {};
   const has = (k) => Object.prototype.hasOwnProperty.call(live, k) && live[k] !== undefined;
@@ -219,7 +221,7 @@ function buildLedger({
   const stored = Boolean(row && row.id);
   const canAct = stored && !isDevis && !cancelled;
   // A cancelled stay and a duplicate set aside are read-only: their links are never withdrawn by hand.
-  const canWithdraw = stored && !cancelled && kind !== 'superseded';
+  const canWithdraw = stored && !cancelled && kind !== 'superseded' && !stayReadOnly;
   // Rule 56 — a payment received after a withdrawal by hand is settled on any stored stay (refund only when read-only).
   const settleContext = stored ? { readOnly: !canWithdraw, isDevis, nightsUnavailable: Boolean(nightsUnavailable) } : null;
   const stayYear = isoDay(r.startDate || (quote && quote.startDate) || live.startDate)?.slice(0, 4) || null;

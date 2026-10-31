@@ -34,14 +34,19 @@ function unsettledWithdrawnRefusal(database, stayId) {
 
 const isUnsettled = (link) => Boolean(link) && link.status === 'cancelled' && link.cancelReason === LINK_REASONS.OPERATOR && Boolean(link.paidAt);
 
+// The stay the link answers for is cancelled or set aside (a devis converted into one included): refund only (O2, O4).
+function stayIsReadOnly(database, stayId) {
+  const { stayKindOf, READ_ONLY_KINDS } = require('./paymentLinkWithdrawal');
+  return READ_ONLY_KINDS.has(stayKindOf(database, stayId));
+}
+
 async function settleWithdrawnPayment(linkId, { database, paymentLinksModel, outcome, bookPaid }) {
   if (!OUTCOMES.has(outcome)) throw { httpStatus: 400, error: 'INVALID_OUTCOME', message: 'Issue invalide (stay/refunded).' };
   const link = paymentLinksModel.findById(Number(linkId));
   if (!link) throw { httpStatus: 404, error: 'LINK_NOT_FOUND', message: 'Lien de paiement introuvable.' };
   if (!isUnsettled(link)) throw { httpStatus: 409, error: 'NOTHING_TO_SETTLE', message: 'Aucun paiement à traiter sur ce lien.' };
   // Review of #902 (O2) — a cancelled or set-aside stay can record the refund, never take the money as its own.
-  const { stayKindOf, READ_ONLY_KINDS } = require('./paymentLinkWithdrawal');
-  if (outcome === 'stay' && READ_ONLY_KINDS.has(stayKindOf(database, link.reservationId))) {
+  if (outcome === 'stay' && stayIsReadOnly(database, link.reservationId)) {
     throw { httpStatus: 409, error: 'STAY_READ_ONLY', message: 'Séjour en lecture seule : paiement à rembourser.' };
   }
   if (outcome === 'refunded') {
@@ -54,4 +59,4 @@ async function settleWithdrawnPayment(linkId, { database, paymentLinksModel, out
   return { link: paymentLinksModel.findById(link.id) };
 }
 
-module.exports = { unsettledWithdrawnRefusal, settleWithdrawnPayment, isUnsettled, UNSETTLED };
+module.exports = { unsettledWithdrawnRefusal, settleWithdrawnPayment, isUnsettled, stayIsReadOnly, UNSETTLED };

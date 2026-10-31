@@ -146,6 +146,7 @@ function ledgerFor({ row, quote = null, live = {}, propertyId = null, overpaymen
     storedAccommodationPreArrival: quote ? null : storedAccommodationPreArrivalOf(row),
     canRequest: Boolean(paymentProviders.summary()),
     nightsUnavailable: id ? settleNightsUnavailable(id, links) : false,
+    stayReadOnly: id ? require('../utils/withdrawnPayments').stayIsReadOnly(db, id) : false,
     providerLabel: (paymentProviders.declared() || {}).label || null,
     today: getTodayIsoDate(),
   });
@@ -156,9 +157,8 @@ function ledgerFor({ row, quote = null, live = {}, propertyId = null, overpaymen
 function settleNightsUnavailable(id, links) {
   const { isUnsettled } = require('../utils/withdrawnPayments');
   if (!links.some(isUnsettled)) return false;
-  const { closedDatesRefusal } = require('../utils/closedStayDates');
-  if (closedDatesRefusal(db, id)) return true;
-  try { return Boolean(require('../utils/paymentEffectDeps').checkConflict({ reservationId: id })); } catch { return false; }
+  const { unavailableNights } = require('../utils/closedStayDates');
+  return Boolean(unavailableNights(db, id, { checkConflict: require('../utils/paymentEffectDeps').checkConflict }));
 }
 
 // specs/reservation-payment-ledger.md rule 16 — the accommodation of the stored pre-arrival schedule:

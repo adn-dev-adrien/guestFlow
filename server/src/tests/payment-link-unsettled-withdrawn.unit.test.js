@@ -179,3 +179,69 @@ test('rule 56 (O3): a reservation on unavailable nights — counted as received,
     .rows.find((r) => r.key === 'deposit').detail.link.settle.stay;
   assert.equal(stay.confirmMessage, 'Le montant est compté comme perçu, sans confirmation au client : dates fermées ou prises.');
 });
+
+// Final check of #902 (M1) — one decision, « closed or taken », for the ledger's message, « Enregistrer sur le
+// séjour » and the poll's late booking, on the stay the link answers for: a FICHE whose nights another stay took
+// gets no confirmation and the « déplacer ou rembourser » alert, like a devis in conflict.
+const { conflictCheckerFor } = require('../utils/paymentEffectDeps');
+const { unavailableNights } = require('../utils/closedStayDates');
+
+function takeNights(db, stayId) {
+  const s = db.prepare('SELECT propertyId, startDate, endDate FROM reservations WHERE id = ?').get(stayId);
+  return Number(db.prepare(`INSERT INTO reservations (kind, propertyId, clientId, startDate, endDate, adults, finalPrice, depositAmount, balanceAmount)
+    VALUES ('reservation', ?, 1, ?, ?, 2, 300, 90, 210)`).run(s.propertyId, s.startDate, s.endDate).lastInsertRowid);
+}
+
+test('rule 56 (M1): the shared decision — free, taken by another stay, closed', async () => {
+  const { db, id } = await setup();
+  const checkConflict = conflictCheckerFor(db);
+  assert.equal(unavailableNights(db, id, { checkConflict }), null);
+  takeNights(db, id);
+  assert.equal(unavailableNights(db, id, { checkConflict }), 'taken');
+  db.prepare("INSERT INTO establishment_closures (propertyId, label, startDate, endDate) SELECT propertyId, 'Travaux', startDate, endDate FROM reservations WHERE id = ?").run(id);
+  assert.equal(unavailableNights(db, id, { checkConflict }), 'closed');
+});
+
+test('rule 56 (M1): « Enregistrer sur le séjour » on a fiche whose nights were taken — booked, no confirmation, alert', async () => {
+  const { db, links, id, link } = await setup();
+  takeNights(db, id);
+  const { bookWithdrawnPaid } = require('../utils/paymentPollRunner');
+  const s = spies();
+  await settleWithdrawnPayment(link.id, {
+    database: db, paymentLinksModel: links, outcome: 'stay',
+    bookPaid: (l, pay) => bookWithdrawnPaid({ database: db, devisModel: devisModel.buildModel(db), paymentLinksModel: links, link: l, pay, checkConflict: conflictCheckerFor(db), ...s }),
+  });
+  assert.equal(db.prepare('SELECT depositPaid FROM reservations WHERE id = ?').get(id).depositPaid, 1);
+  assert.deepEqual(s.confirmed, []);
+  assert.deepEqual(s.notified, [[link.id, { nightsUnavailable: 'taken' }]]);
+});
+
+test('rule 42 (M1): the poll’s late booking on a fiche whose nights were taken — booked, no confirmation, alert', async () => {
+  const { db, links } = seedDb();
+  const id = addStay(db, { startDate: inDays(40), endDate: inDays(43) });
+  const link = addLink(links, db, id, { type: 'deposit' });
+  const at = new Date();
+  await withdrawPaymentLink(link.id, { database: db, paymentLinksModel: links, provider: null, bookPaid: async () => {}, now: at });
+  takeNights(db, id);
+  const s = spies();
+  const provider = fakeProvider({ paid: true, paidAt: new Date(at.getTime() - 60 * 1000).toISOString() });
+  await retryPendingCancellations({ paymentLinksModel: links, provider, database: db, devisModel: devisModel.buildModel(db), checkConflict: conflictCheckerFor(db), logger: { log() {}, warn() {} }, ...s });
+  assert.equal(links.findById(link.id).status, 'paid');
+  assert.deepEqual(s.confirmed, []);
+  assert.deepEqual(s.notified, [[link.id, { nightsUnavailable: 'taken' }]]);
+});
+
+// Final check of #902 (O4) — a devis converted into a reservation since cancelled answers as that stay: refund only.
+test('rule 56 (O4): the stay the link answers for decides read-only; the ledger then offers « Marquer remboursé » only', async () => {
+  const { db, links } = seedDb();
+  const devisId = addStay(db, { kind: 'devis', startDate: inDays(40), endDate: inDays(43) });
+  await paidAfterWithdrawal(db, links, devisId);
+  const resa = addStay(db, { kind: 'cancelled', startDate: inDays(40), endDate: inDays(43) });
+  db.prepare("UPDATE reservations SET devisStatus = 'converted', convertedReservationId = ? WHERE id = ?").run(resa, devisId);
+  const { stayIsReadOnly } = require('../utils/withdrawnPayments');
+  assert.equal(stayIsReadOnly(db, devisId), true);
+  const settle = buildLedger({ row: { ...db.prepare('SELECT * FROM reservations WHERE id = ?').get(devisId) }, links: links.listForReservation(devisId), canRequest: true, today: inDays(0), stayReadOnly: true })
+    .rows.find((r) => r.key === 'deposit').detail.link.settle;
+  assert.equal(settle.stay, undefined);
+  assert.equal(settle.refunded.label, 'Marquer remboursé');
+});

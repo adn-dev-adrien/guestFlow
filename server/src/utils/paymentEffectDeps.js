@@ -29,14 +29,18 @@ const sendConfirmation = buildGatedConfirmationSender({
 
 // Dates no longer free for a just-confirmed reservation? Re-uses the authoritative availability check,
 // excluding the reservation itself; `allowPastDates` so only the OVERLAP rule (not the past guard) flags.
-function checkConflict({ reservationId }) {
-  const r = database.prepare('SELECT propertyId, startDate, endDate, checkInTime, checkOutTime FROM reservations WHERE id = ?').get(Number(reservationId));
-  if (!r) return false;
-  const res = reservationsModel.validateAvailability(
-    r.propertyId, r.startDate, r.endDate, r.checkInTime, r.checkOutTime, Number(reservationId), {}, { allowPastDates: true },
-  );
-  return Boolean(res && res.error);
+// `conflictCheckerFor(db)` builds the same check on another database (the unit suites' in-memory one).
+function conflictCheckerFor(db, model = reservationsModel.create(db)) {
+  return function check({ reservationId }) {
+    const r = db.prepare('SELECT propertyId, startDate, endDate, checkInTime, checkOutTime FROM reservations WHERE id = ?').get(Number(reservationId));
+    if (!r) return false;
+    const res = model.validateAvailability(
+      r.propertyId, r.startDate, r.endDate, r.checkInTime, r.checkOutTime, Number(reservationId), {}, { allowPastDates: true },
+    );
+    return Boolean(res && res.error);
+  };
 }
+const checkConflict = conflictCheckerFor(database, reservationsModel);
 
 function buildPaymentEffectDeps() {
   return {
@@ -51,4 +55,4 @@ function buildPaymentEffectDeps() {
   };
 }
 
-module.exports = { buildPaymentEffectDeps, checkConflict };
+module.exports = { buildPaymentEffectDeps, checkConflict, conflictCheckerFor };

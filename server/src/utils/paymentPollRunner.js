@@ -36,7 +36,7 @@ function recordOn(database) {
 const { linkAmountCents, acompteIsLinkMoney, bookPaidAfterAmountChange } = require('./ledgerLinks');
 const { withConvertedDevis } = require('./deletionGuard');
 const { LINK_REASONS } = require('../constants/paymentLinks');
-const { closedDatesRefusal } = require('./closedStayDates');
+const { unavailableNights } = require('./closedStayDates');
 
 // Apply the business consequence of a PAID link. A deposit OR a full payment on a devis converts it to a
 // reservation; a full payment marks it fully settled (deposit + balance). On conversion the dates are
@@ -469,12 +469,13 @@ async function retryPendingCancellationsOnce({ only = null, paymentLinksModel, p
 // paid`): by the poll when paid before its withdrawal, or by the operator's « Enregistrer sur le séjour ». Nights
 // closed since (rule 55) or taken by another stay get no guest confirmation and the « déplacer ou rembourser » alert.
 async function bookWithdrawnPaid({ database, link, pay, sendConfirmation, notifyPaidAfterCancel, ...effect }) {
-  const closed = Boolean(closedDatesRefusal(database, link.reservationId));
+  // Final check of #902 (M1) — decided before the booking, on the stay the link answers for (a fiche included).
+  const before = unavailableNights(database, link.reservationId, { checkConflict: effect.checkConflict });
   const outcome = await processPaidLink({
     ...effect, database, link, paidPayment: pay, notifyPaidAfterCancel,
-    sendConfirmation: closed ? null : sendConfirmation, quietOnConflict: true, retiredReason: LINK_REASONS.OPERATOR,
+    sendConfirmation: before ? null : sendConfirmation, quietOnConflict: true, retiredReason: LINK_REASONS.OPERATOR,
   });
-  const unavailable = outcome.effect === 'already-processed' ? null : closed ? 'closed' : outcome.conflict ? 'taken' : null;
+  const unavailable = outcome.effect === 'already-processed' ? null : before || (outcome.conflict ? 'taken' : null);
   if (unavailable && notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link, { nightsUnavailable: unavailable }); } catch { /* best effort */ } }
   return outcome;
 }

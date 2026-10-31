@@ -19,4 +19,18 @@ function closedDatesRefusal(database, stayId) {
   return closure ? { ...CLOSED_DATES } : null;
 }
 
-module.exports = { closedDatesRefusal, CLOSED_DATES };
+/**
+ * Whether the nights of the stay a link answers for can still be sold to it (specs/payment-link-lifecycle.md
+ * rules 42, 56; final check of #902, M1): 'closed' (rule 55), 'taken' (another stay holds them: `checkConflict`,
+ * the poll's availability check), or null. A devis converted since answers as the reservation it became. The one
+ * decision behind the ledger's « Enregistrer » message, « Enregistrer sur le séjour » and the poll's late booking.
+ */
+function unavailableNights(database, stayId, { checkConflict = null } = {}) {
+  const row = database.prepare('SELECT convertedReservationId FROM reservations WHERE id = ?').get(Number(stayId));
+  const answering = Number((row && row.convertedReservationId) || stayId);
+  if (closedDatesRefusal(database, answering)) return 'closed';
+  if (typeof checkConflict !== 'function') return null;
+  try { return checkConflict({ reservationId: answering }) ? 'taken' : null; } catch { return null; }
+}
+
+module.exports = { closedDatesRefusal, unavailableNights, CLOSED_DATES };
