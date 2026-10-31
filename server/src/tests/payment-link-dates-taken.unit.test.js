@@ -7,7 +7,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const { db, inDays, freshProperty, addStay, addLink, linkOf, bookingFeed } = require('./datesTakenFixture');
-const { ensurePaymentLink } = require('../utils/paymentRequestService');
+const { ensurePaymentLink, sendPaymentRequest } = require('../utils/paymentRequestService');
 const { recordStayPayment, depsFor } = require('../utils/stayPaymentRecorder');
 const { withdrawLinksOverlapping } = require('../utils/paymentLinkLifecycle');
 const paymentLinksModel = require('../models/paymentLinksModel');
@@ -224,4 +224,16 @@ test('rule 11: an overlap with another unpaid row refuses nothing; a row carryin
   const paidStay = addStay({ propertyId, start: inDays(270), end: inDays(274), depositPaid: 1 });
   addStay({ propertyId, platform: 'Booking', start: inDays(271), end: inDays(272) });
   assert.equal((await ensurePaymentLink(deps, paidStay, 'balance')).reused, false);
+});
+
+test('rule 25: « Demander le paiement » after its link lapsed mints anew; on taken dates the request is refused, nothing sent', async () => {
+  const propertyId = freshProperty();
+  const devisId = addStay({ propertyId, kind: 'devis', start: inDays(280), end: inDays(284) });
+  db.prepare("UPDATE payment_links SET status = 'expired' WHERE id = ?").run(addLink(devisId, { type: 'deposit' }));
+  const sent = [];
+  const deps = { database: db, paymentLinksModel, provider: provider(), resolveAmountCents: () => 12000, sendTemplate: async (m) => { sent.push(m); return { sent: true }; } };
+  assert.equal((await sendPaymentRequest(deps, devisId, 'deposit')).httpStatus, 200);
+  addStay({ propertyId, platform: 'Booking', start: inDays(281), end: inDays(283) });
+  await assert.rejects(sendPaymentRequest(deps, devisId, 'deposit'), (err) => err.httpStatus === 409 && err.error === 'DATES_UNAVAILABLE');
+  assert.equal(sent.length, 1, 'the refused request sends nothing');
 });

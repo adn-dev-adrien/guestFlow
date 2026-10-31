@@ -1073,7 +1073,7 @@ refused).
 - [x] `tests/payment-link-orphan-migration.unit.test.js` — rule 5: open orphans withdrawn once, paid / cancelled ones untouched, log lines, second boot does nothing.
 - [x] `tests/payment-link-validity.unit.test.js` — rules 6-8, 17: `expiresAt` at mint, lapse at 36 h, reuse below 24 h left mints a new link, reuse above keeps it, a reused link paid meanwhile refuses.
 - [x] `tests/payment-link-stay-started.unit.test.js` — rule 9: lapse at 00:00 Paris (DST days included), `complement` untouched, link minted on the arrival day exempt, converted-devis links included; rule 51: no reuse at 00:05 on the arrival day nor after a re-date to today, a same-day link still reused, the installment variant (13).
-- [x] `tests/payment-link-dates-taken.unit.test.js` (16) — rules 10-11, 31-32: overlap by iCal import (Adrien's case a), by the conversion of another devis (case b), by manual creation, re-date, logement change, « Rétablir »; the row itself and its own converted stay never count; a row with an acompte paid keeps its links; two unpaid reservations both withdrawn; mint refused 409.
+- [x] `tests/payment-link-dates-taken.unit.test.js` (17) — rules 10-11, 25, 31-32: overlap by iCal import (Adrien's case a), by the conversion of another devis (case b), by manual creation, re-date, logement change, « Rétablir »; the row itself and its own converted stay never count; a row with an acompte paid keeps its links; two unpaid reservations both withdrawn; mint refused 409.
 - [x] `tests/payment-link-dates-taken-paid.unit.test.js` (4) — rule 33: paid in flight on a devis (converted with `bookingConflictAt`, no confirmation, alert) and on a reservation (bucket recorded, conflict, alert).
 - [x] `tests/payment-link-validity-backfill.unit.test.js` — rule 34: grace from the install, idempotent, logged; rule 53: an open link with no known end written after the marker gets 36 h at the next boot, a known end never moves (7).
 - [x] `tests/deposit-reminder-mints-link.unit.test.js` — rules 27, 35: fresh link at send, reuse with ≥ 24 h, a fresh one below, English wording, mint refusal sends nothing, no provider → no link, declared-unready re-offers only, the solde reminder never gets a link, still Manual (9). The refusal on taken dates joins it with rule 11 (PR5/PR6).
@@ -1318,7 +1318,7 @@ Six sequential PRs into `inte/plugins` (plan validated 2026-10-30).
   reservation payload); table `dates_taken_notices` and rule 61's migration. Client: `DatesTakenBadge` (new, generic),
   `DialogProvider` / `ConfirmDialog` `details`, `ReservationPage` (badge, `DATES_HELD` dialog), `DevisPage` (badge),
   `IcalDateDriftAlert` (line + confirmation). Rule 24's labels and rule 25's refusal path were already in place (PR2,
-  and the existing error toast of the devis action bar). Tests: server `payment-link-dates-taken` (16),
+  and the existing error toast of the devis action bar). Tests: server `payment-link-dates-taken` (17),
   `payment-link-dates-taken-paid` (4), `payment-link-superseded` (4), `stay-holds-dates` (6),
   `ical-overbooking-held-dates` (4), `devis-held-dates` (7), `dates-taken-upgrade-migration` (2); client
   `DatesTakenBadge` (3), `IcalDateDriftAlert.held-dates` (3), `DialogProvider.details` (1),
