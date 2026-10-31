@@ -19,7 +19,7 @@
  * factory for tests.
  */
 
-const { templateAutoSends } = require('../utils/autoSendPolicy');
+const { templateAutoSends, sendModeLocked } = require('../utils/autoSendPolicy');
 const { SEQUENCE_STABLE_KEYS } = require('../utils/guestEmailSequence');
 const { todayIso } = require('../utils/localDate');
 const { PLUGIN_OF_TEMPLATE, PAYMENT_STABLE_KEYS } = require('../utils/defaultEmailTemplatesRegistry');
@@ -124,6 +124,8 @@ function buildController(model, settingsModel, deps = {}) {
     displayName: displayNameOf(row),
     shipped: Boolean(row.stableKey),
     hasEnglish: hasEnglishVersion(row),
+    // specs/payment-link-lifecycle.md rule 45 — the one exception to the validation rule: its mode is shown, never edited.
+    ...(sendModeLocked(row.stableKey) ? { sendModeLocked: true, sendModeLabel: 'Automatique (exception)' } : {}),
   });
 
   const withoutBodies = ({ body, bodyEn, ...rest }) => rest; // eslint-disable-line no-unused-vars
@@ -242,6 +244,9 @@ function buildController(model, settingsModel, deps = {}) {
     // specs/payment-schedule-and-cancellation.md rule 44 — a template that asks for money is never « auto ».
     if (PAYMENT_STABLE_KEYS.includes(existing.stableKey) && String(req.body.sendMode || '').toLowerCase() === 'auto') {
       return res.status(409).json({ error: 'PAYMENT_TEMPLATE_STAYS_MANUAL', message: 'Un email qui demande de l’argent ne part jamais tout seul : il reste en validation manuelle.' });
+    }
+    if (sendModeLocked(existing.stableKey) && req.body.sendMode !== undefined && String(req.body.sendMode).toLowerCase() !== 'manual') {
+      return res.status(409).json({ error: 'SEND_MODE_LOCKED', message: 'Mode d’envoi fixe : cet email part seul quand les dates sont prises.' });
     }
     const tooLong = lengthRefusal(req.body);
     if (tooLong) return res.status(422).json(tooLong);

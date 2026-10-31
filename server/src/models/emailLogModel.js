@@ -14,7 +14,8 @@
  *   listPending({ today, lookbackDays })
  *                               → « manual » candidates not yet acted on (joins reservation + client
  *                                 + property). « auto » templates leave on their own and are never
- *                                 proposed (specs/settings-rationalization.md rule 17b).
+ *                                 proposed (specs/settings-rationalization.md rule 17b), nor is the acompte
+ *                                 reminder of a stay whose dates were taken (specs/payment-link-lifecycle.md rule 64).
  *   history({ limit, offset, reservationId?, templateId?, status? }) → { rows, total }
  */
 
@@ -194,7 +195,7 @@ function buildModel(database) {
     //   • 'balanceDueDate' → reservations whose solde is still unpaid, same shape.
     // The two payment anchors only ever match a reservation that still owes the money: a paid échéance
     // drops out of the queue on its own, without relying on the email_log dedup.
-    return database.prepare(`
+    const rows = database.prepare(`
       SELECT
         t.id   AS templateId,
         t.name AS templateName,
@@ -285,6 +286,19 @@ function buildModel(database) {
       // …and the installment branch: its due-date cut-off, then the stay still running.
       String(today), String(today),
     );
+    return withoutRemindersOnTakenDates(rows);
+  }
+
+  // specs/payment-link-lifecycle.md rule 64 — the acompte reminder of a stay whose nights another stay took is never
+  // proposed: its send would be refused (rule 35), and the guest is told by the notice of rule 43 instead.
+  function withoutRemindersOnTakenDates(rows) {
+    const reminder = database.prepare("SELECT id FROM email_templates WHERE stableKey = 'deposit_reminder'").get();
+    if (!reminder || !rows.some((row) => Number(row.templateId) === Number(reminder.id))) return rows;
+    // A minimal schema (a unit suite's) without the stay kind or conversion holds no dates.
+    const columns = new Set(database.prepare('PRAGMA table_info(reservations)').all().map((c) => c.name));
+    if (!['kind', 'platform', 'propertyId', 'convertedReservationId'].every((name) => columns.has(name))) return rows;
+    const { takenByOf } = require('../utils/datesTaken');
+    return rows.filter((row) => Number(row.templateId) !== Number(reminder.id) || !takenByOf(database, row.reservationId));
   }
 
   // Rolling-window history (specs/email-history-rolling-window.md §3 rule 2): only rows whose reservation
@@ -310,7 +324,7 @@ function buildModel(database) {
     const rows = database.prepare(`
       SELECT
         l.id, l.templateId, l.reservationId, l.sentAt, l.status, l.channel, l.errorMessage,
-        l.renderedSubject, l.renderedBody, l.recipientEmail,
+        l.renderedSubject, l.renderedBody, l.recipientEmail, l.occurrenceKey,
         COALESCE(t.name, '') AS templateName,
         TRIM(COALESCE(c.firstName, '') || ' ' || COALESCE(c.lastName, '')) AS clientFullName,
         COALESCE(p.name, '') AS propertyName,

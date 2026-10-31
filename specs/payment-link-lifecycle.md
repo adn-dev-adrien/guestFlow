@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Approved |
+| **Status** | Implemented |
 | **Branch** | `feature/payment-link-lifecycle` _(base `inte/plugins`)_ |
 | **Created** | 2026-10-30 |
 | **Author** | Adrien |
@@ -623,6 +623,12 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
       /api/dashboard/dates-taken` and acknowledged by `POST /api/dashboard/dates-taken/:id/acknowledge`.
     The refused reminder is logged in `email_log` as `acknowledged-skip` with `errorMessage =
     'DATES_UNAVAILABLE'` and leaves the queue.
+    Readings recorded at implementation (2026-10-31, PR6): the notice follows the provider's read of the withdrawn
+    link (rule 63), so a link paid in flight is rule 33's and never told « dates prises »; it is sent by a core
+    scheduled pass (`scheduledTasks.runDatesTakenNoticePass`, every minute), never from a GET. `notifyDatesTaken(stayId)`
+    takes the stay alone: the stay holding the nights is read at the send (`datesTaken.takenByOf`). The push body
+    names it « la réservation {n°} »; the card is rule 65. The refused reminder asks `notifyDatesTaken` too, which
+    only sends for a stay whose link was withdrawn for taken dates (a stay that never held a link is told nothing).
 44. **The one guest e-mail that leaves without validation.** Adrien's standing rule is that no guest e-mail
     leaves without his validation (every template in « Manuel » `sendMode`, `autoSendPolicy` failing
     closed, specs/no-automatic-email-without-approval.md). **`dates_unavailable_notice` is an explicit
@@ -641,6 +647,13 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
       and the card say « client non prévenu » with the reason.
     - It is sent once per stay (rule 43), even if several links are withdrawn or reminders refused.
     - It carries no link and no amount request.
+    Readings recorded at implementation (2026-10-31, PR6): `utils/datesTakenNotice.js` is the only module that
+    reads `AUTO_SEND_EXCEPTIONS` (besides its definition; a test scans `server/src`); it refuses to send when the key
+    is not in it. `templateAutoSends` answers `false` for the key whatever its stored mode, and the template is in
+    `EVENT_TRIGGERED_STABLE_KEYS` (never in the queue nor the cron). The history label is a server field of
+    `GET /api/emails/history` (`statusLabel`, on a `sent` row whose `occurrenceKey` starts `dates-taken:`). The
+    reasons the push and the card write: « modèle désactivé », « pas d’adresse e-mail », « version anglaise
+    manquante », « SMTP non configuré », « échec de l’envoi », and « lien retiré à la mise à jour » (rules 61, 63).
 45. **The `dates_unavailable_notice` template** (`defaultEmailTemplatesRegistry.js`, `sendMode` shown as
     « Automatique (exception) » and not editable, text editable; seeded FR and EN; tone of
     `guest-email-tone`: warm, short, never selling):
@@ -661,6 +674,12 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
       We are sorry we could not hold them for you. If other dates suit you, simply reply to this message.
       See you soon,
       {{senderName}} »
+    Readings recorded at implementation (2026-10-31, PR6): each paragraph is one line (the mail client wraps it);
+    the name everywhere is « Dates plus disponibles », in the moment « À la réservation », its « Quand » « quand les
+    dates sont prises »; it is not tied to a plugin (listed with or without online-payment). Its mode shows as a
+    badge in Emails › Modèles and as a read-only line in its editor (« Part seul, une fois, quand les dates sont
+    prises par une autre réservation. »), the menu has no mode item, and `PUT /api/email-templates/:id` refuses any
+    `sendMode` but `manual` on it (409 `SEND_MODE_LOCKED`); its subject and body stay editable.
 
 ### 3.M Decisions of 2026-10-30, third round (Q13–Q16)
 
@@ -916,6 +935,34 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     lives in `occupancy.js`): a model required then would keep the half-built database module for the life of the
     process, and the first boot after the install served 500s.
 
+### 3.R Guest notice (PR6, 2026-10-31; appended, rule numbers are identities)
+
+63. **The notice waits for the provider's read, and never follows an older withdrawal.** A stay is due its notice
+    when a link of it (or of the devis it came from) is `cancelled` / `dates-taken`, its deactivation no longer owed,
+    with no payment on it (`paidAt`, `providerPaymentId` empty), and no other `dates-taken` link of the stay is still
+    unread or paid. Before claiming its `dates_taken_notices` row the notice re-checks that the stay is an open devis
+    (draft, sent, accepted, not converted) or a reservation, carries no money, starts after today (Paris), and that a
+    stay holding its dates still covers its nights (`takenByOf`); a stay that fails is not claimed and nothing is
+    sent. The claim (`INSERT … ON CONFLICT(reservationId) DO NOTHING`) comes before the send; only its inserter sends.
+    Without a connected provider the marker waits, and so does the notice. At the first boot of this version,
+    `dates_taken_notice_backlog_v1` seeds a `not-sent` / `upgrade` row for every stay already holding a `dates-taken`
+    link without a row, so no guest is mailed for a withdrawal made before the notice existed (rule 61's decision (a)).
+64. **The acompte reminder on taken dates is never proposed, and refused first.** `emailLogModel.listPending` leaves
+    out a `deposit_reminder` whose stay `takenByOf` finds taken; the send and the preview answer rule 35's refusal
+    after rules 55-57 (platform stay, closed nights, payment to settle) and before any link is minted, provider or
+    not; the preview carries it as `refusal` (rule 60). The send's refusal logs one `acknowledged-skip` row
+    (`errorMessage = 'DATES_UNAVAILABLE'`, a second refusal logs nothing more), removes a hand-queued entry, and asks
+    for the notice (rule 43), which leaves once at most.
+65. **The card « Dates prises ».** `GET /api/dashboard/dates-taken` answers `{ alerts: [{ id, reservationId, url,
+    title, notice: { sent, label }, detail, takenBy: { id, url } | null }] }`: `title` « {client} · {logement} ·
+    {JJ/MM} → {JJ/MM} », `notice.label` « client prévenu » / « client non prévenu », `detail` « Prises par la
+    réservation {n°} · {client}. » followed, when not told, by « Client non prévenu : {raison}. ». A row stays until
+    « Vu » (`POST …/:id/acknowledge`, 404 once seen or unknown, 400 on a bad id), and leaves on its own when the stay
+    is over, cancelled, set aside or deleted. Newest first. The home names the subject « Dates prises », « {n}
+    séjour(s) · {m} client(s) non prévenu(s) » (« client(s) prévenu(s) » when all were told), severity « À faire ».
+    The card (`DatesTakenAlert`) shows each row's title, a status badge (green told, amber not told), the detail, and
+    « Ouvrir » / « Vu » (44 px); it renders nothing on an empty or unreadable list.
+
 ---
 
 ## 4. Architecture
@@ -935,11 +982,16 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
 | `utils/` | `datesTaken.js` | C | `heldOverlaps` (the stays holding a night of a range), `takenByOf`, `datesTakenRefusal` (rule 11), `datesTakenMarker` (rule 48), `stayRefs` (ConflictList rows, rule 46), `withdrawForStay` (rule 32's entry point, deactivation after the commit) |
 | `utils/` | `datesTakenUpgradeMigration.js` | C | Rule 61: `dates_taken_links_withdrawn_v1`, the links on taken dates at the upgrade withdrawn once, their stays seeded `not-sent` / `upgrade` |
 | `utils/` | `stayPaymentRecorder.js` | T | A ticked bucket calls `withdrawForStay` (rule 32: first paid wins) |
-| `utils/` | `datesTakenNotice.js` | C | `notifyDatesTaken(reservationId, { takenByReservationId })`: guest notice, operator push, dashboard row, once per stay; called after every `dates-taken` withdrawal (rules 10, 32) and from the refused reminder (rules 43-44) |
+| `utils/` | `datesTakenNotice.js` | C | `buildDatesTakenNotice` → `runDueNotices` (the scheduled pass) and `notifyDatesTaken(stayId)`: guest notice, operator push, dashboard row, once per stay, after the provider read the withdrawn link unpaid (rules 43, 44, 63); `datesTakenCard` / `acknowledgeDatesTaken` (rule 65) |
 | `utils/` | `autoSendPolicy.js` | T | `AUTO_SEND_EXCEPTIONS = ['dates_unavailable_notice']`, documented; the policy itself unchanged (rule 44) |
 | `utils/` | `defaultEmailTemplatesRegistry.js`, `defaultEmailTemplatesSeed.js` | T | Template `dates_unavailable_notice` FR / EN (rule 45) |
 | `utils/` | `notificationService.js` (conflict) | T | `notifyBookingConflict` wording when the overlapped stay holds the dates (rule 39) |
-| `utils/` | guest-email pass that fills « Emails à envoyer » | T | Never proposes a `deposit_reminder` on taken dates; calls `notifyDatesTaken` (rule 43) |
+| `models/` | `emailLogModel.js` | T | `listPending` never proposes a `deposit_reminder` on taken dates (rule 64); `history` returns `occurrenceKey` |
+| `scheduledTasks.js` | `scheduledTasks.js` | T | `runDatesTakenNoticePass` every minute, first run 115 s after boot (rules 43, 63) |
+| `utils/` | `datesTakenUpgradeMigration.js` | T | `runDatesTakenNoticeBacklog` (`dates_taken_notice_backlog_v1`, rule 63) |
+| `controllers/` | `emailTemplatesController.js` | T | `sendModeLocked` / `sendModeLabel` on the exception, 409 `SEND_MODE_LOCKED` (rule 45) |
+| `utils/` | `emailTimeline.js`, `templateWhen.js` | T | The notice's name, moment and « Quand » (rule 45) |
+| `utils/` | `dashboardAttention.js`; `routes/dashboard.js` | T | The `dates-taken` subject and its summary (rule 65) |
 | `utils/` | `paymentPollRunner.js` | T | `runLinkLifecycle` (rule 16), run at the start of `runPaymentPoll` and by the plugin job; `no-reservation` → orphan alert (rule 3); expired rows in the retry loop, deactivate-then-read (rule 18); last look (rule 19); stuck-deactivation alert (rule 20); `dates-taken` paid → booked in conflict (rule 33) |
 | `utils/` | `paymentLinkDeactivation.js` | T | `deactivateAbandonedLinks` keeps the row's status (`expired` stays `expired`) and stamps the outcome |
 | `utils/` | `notificationService.js` | T | `notifyPaidAfterCancel` orphan branch (rule 4), no fiche URL; `datesTaken` wording « déplacer ou rembourser » (rule 33); `notifyDeactivationStuck` (rule 20) |
@@ -956,6 +1008,7 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
 | `models/` | `pluginsModel.js` | T | Uninstall guard counts `expired` rows with the marker (rule 23); `countPendingLastLooks` (rule 52) |
 | `controllers/` | `pluginsController.js` | T | `LINKS_LAST_LOOK_PENDING` refusal (rule 52) |
 | `controllers/` | `public/publicPaymentController.js` | T | `status`: lapsed-link read and `expired` answer (rule 30); `pay` maps `LINK_ALREADY_PAID` / `PROVIDER_UNREACHABLE` to visitor keys (rule 54) |
+| `controllers/` | `emailsController.js` (PR6) | T | `deposit_reminder` refused on taken dates in send and preview, `acknowledged-skip`, asks the notice (rules 35, 64); history `statusLabel` (rule 44) |
 | `controllers/` | `emailsController.js` | T | Preview placeholder « (lien de paiement créé à l'envoi) » (rule 26), also for a link rule 9 lapses (rule 51); `deposit_reminder` and the request templates resolve their link at send (`SEND_TIME_LINKS`, rules 26, 35), refused on taken dates (rule 35); fills `paymentLinkValidUntil` (rule 36) |
 | `utils/` | `paymentRequests.js` | C | `createPaymentRequests()`: `available()`, `ensureLink(reservationId, type)` for the emails controller (rules 26, 35), the counterpart of `installmentRequests.js` |
 | `utils/` | `installmentRequests.js` | T | `resolve` returns `openLink { url, expiresAt }`; the controller decides whether the send would reuse it (rule 26) |
@@ -993,7 +1046,9 @@ No new dependency.
 |---|---|---|---|
 | `components/` | `reservation/FinanceSection.jsx` | T | Prints `d.link.label`, `d.link.resend` and the new server-shaped `d.link.withdraw` action « Retirer le lien » with its confirmation (rule 42) |
 | `pages/` | `EstablishmentClosuresPage.jsx` | T | Live `conflicts` check when logement + dates are set; warning list with « Ouvrir » links in the `FormDialog`; renders the 409 lists (rules 40-41) |
-| `pages/` | `Dashboard.jsx` | T | « Dates prises » card (rule 43), built like the existing alert cards |
+| `components/` | `DatesTakenAlert.jsx`, `attentionSubjects.js` | C / T | « Dates prises » card (rules 43, 65), built like `RepairedReservationNumbersAlert` on `AttentionCard`; `Dashboard.jsx` unchanged (the home draws its subjects) |
+| `pages/` | `EmailTemplatesPage.jsx` | T | The exception's mode as a badge and a read-only line, no mode menu item (rule 45) |
+| `pages/` | `EmailHistoryPage.jsx` | T | Prints the server's `statusLabel` (rule 44) |
 | `pages/` | `ReservationPage.jsx`, `DevisPage.jsx` | T | « Dates prises » chip (rule 48); `DATES_HELD` refusal with its `ConflictList` (rule 46) |
 | `components/` | `DatesTakenBadge.jsx` | C | Generic « Dates prises » badge from the server's marker, linking the stay that took the dates (rule 48) |
 | `components/` | `DialogProvider.jsx`, `ConfirmDialog.jsx` | T | Optional `details` node under the message (a `ConflictList`) for `alert` and `confirm` (rules 39, 46) |
@@ -1039,7 +1094,10 @@ No new dependency.
 | POST | `/api/payments/links/:id/settle` | `{ outcome: 'stay' \| 'refunded' }` → `{ link }`; 409 `NOTHING_TO_SETTLE`, 400 `INVALID_OUTCOME`, 404 (rule 56). Mints and request sends answer 409 `UNSETTLED_WITHDRAWN_PAYMENT` while such a payment waits. |
 | POST | `/api/payments/links/:id/withdraw` | `{ link }`; 409 `LINK_ALREADY_PAID` (the payment is booked), 409 `STAY_READ_ONLY`; 404 `LINK_NOT_FOUND`; 502 when the provider cannot be read. |
 | POST / PUT | `/api/devis` (operator create / update) | New 409 `DATES_HELD` `{ error, code, stays[] }` (rule 46); devis payloads gain `datesTaken` (rule 48). |
-| GET / POST | `/api/dashboard/dates-taken`, `/api/dashboard/dates-taken/:id/acknowledge` | Card rows / « Vu ». |
+| GET / POST | `/api/dashboard/dates-taken`, `/api/dashboard/dates-taken/:id/acknowledge` | Card rows / « Vu » (rule 65). |
+| PUT | `/api/email-templates/:id` | 409 `SEND_MODE_LOCKED` on the exception (rule 45); list rows gain `sendModeLocked`, `sendModeLabel` there. |
+| GET | `/api/emails/history` | Rows gain `occurrenceKey` and, for the notice, `statusLabel` (rule 44). |
+| POST / GET | `/api/emails/send`, `/api/emails/preview` (`deposit_reminder`) | 409 / `refusal` `DATES_UNAVAILABLE` « … relance non envoyée. » on taken dates (rules 35, 64). |
 
 ---
 
@@ -1058,6 +1116,8 @@ No new dependency.
 - New default template `dates_unavailable_notice` FR / EN, seeded (rule 45).
 - `dates_taken_notices` is created by PR5 (`database.js`, `schema.sql`) for rule 61's seed; PR6 sends from it.
 - Migration `dates_taken_links_withdrawn_v1` (rule 61).
+- Migration `dates_taken_notice_backlog_v1` (rule 63): `not-sent` / `upgrade` rows for the stays already withdrawn
+  before this version; no other column, no table.
 
 **Data impact:** no row is deleted; no paid row is touched (every `UPDATE` filters `status = 'open'`).
 The 3 prod orphans move to `cancelled` / `orphan`. Every link open at upgrade lapses 36 h after the
@@ -1121,7 +1181,11 @@ refused).
 - [x] `tests/payment-link-operator-owed-read.unit.test.js` (4) — rule 42 (L6): an operator-withdrawn link owing its read is read before a new mint: paid before → booked, request refused; unpaid → minted; (R2) a concurrent pass that booked it, or paid the échéance, while the mint waited → 409, nothing created.
 - [x] `tests/payment-link-unsettled-withdrawn.unit.test.js` (17) — rule 56: requests of every bucket, the échéance and the e-mail refused before any mint; « remboursé » and « enregistrer sur le séjour » settle it (stubbed and real booking); only such a payment settles, once; the ledger label and actions; (O1) an open link not reused; (O2) read-only stays refund only; (O3) amounts and the devis / unavailable-nights messages; (M1) the shared decision, and a fiche on taken nights through the settle and the poll paths; (O4) a devis converted into a cancelled stay refunds only. `public-payment-pay-visitor-refusals` (+2): the visitor's FR / EN sentence (G1).
 - [x] `tests/payment-link-closed-dates.unit.test.js` (9) — rule 55: mint and installment refused before any provider call, an open link not handed out, one night or an establishment-wide closure enough, another logement or the departure day free, request and reminder e-mails refused before any mint, a mail without a link still leaves.
-- [ ] `tests/dates-taken-notice.unit.test.js` — rules 43-45: sent at the `dates-taken` withdrawal (overlap, first paid, iCal), not for expiry, a started stay or « Retirer le lien »; a later refused reminder sends nothing more; e-mail sent once with its `email_log` row, push, dashboard row, every fail-closed case, reminder never queued on taken dates, `AUTO_SEND_EXCEPTIONS` holds exactly one key and `autoSendPolicy` still refuses every other template.
+- [x] `tests/dates-taken-notice.unit.test.js` (10) — rules 43, 44, 47, 63: sent after the withdrawal once the provider read the link unpaid (iCal over a devis), nothing before; two links, one notice after both reads; a link paid (rule 33) or a payment kept on the cancelled row → no notice; not for a lapse, a started stay or « Retirer le lien »; the upgrade rows never mailed; re-checks (begun, paid, freed); every fail-closed case with the push's reason, told once; English; racing passes send once.
+- [x] `tests/dates-taken-notice-reminder.unit.test.js` (4) — rules 35, 43, 64: the reminder never proposed on taken dates (still on free ones), refused before any mint, one `acknowledged-skip`, the notice once; the preview's refusal; a stay without a link claims nothing.
+- [x] `tests/dates-taken-notice-template.unit.test.js` (6) — rules 44, 45: `AUTO_SEND_EXCEPTIONS` one key, read by its sender alone (source scan); the policy refuses it and every manual template; seeded FR / EN, Manual, event-triggered, no link nor amount; the spec's texts; editor lock (409 `SEND_MODE_LOCKED`, text editable); the history label.
+- [x] `tests/dates-taken-dashboard.unit.test.js` (4) — rules 43, 61, 65: the card's rows and words, the upgrade reason, « Vu », over / cancelled stays left out, 404 / 400; the home's summary.
+- [x] `tests/dates-taken-notice-backlog.unit.test.js` (1) — rule 63: a withdrawal before this version seeded once, never mailed, an existing row kept.
 - [x] `tests/payment-link-superseded.unit.test.js` (4) — rule 12; rule 31 in `supersededDuplicates`.
 - [x] `tests/devis-closed-dates.unit.test.js` (9) — rule 55 (audit R10-1): create and move onto closed nights refused with the closure, an establishment-wide closure, the departure day free, the website source, a notes edit on closed nights saved, the controller's body, a paid devis link on closed nights converted without confirmation and alerted, open nights still confirmed, the alert wording.
 - [x] `tests/dates-taken-boot-models.unit.test.js` (1) — rules 12, 61 (review of #907, B1): booted in a child process on a file holding links on taken nights and a set-aside copy, every model still works, no circular-dependency warning.
@@ -1164,13 +1228,16 @@ refused).
 - [x] `client/src/components/__tests__/DialogProvider.details.test.jsx` (1) — rule 46.
 - [x] `client/src/pages/__tests__/ReservationPage.dates-held.test.jsx` (4) — rules 46, 48, 55; a devis on an unpaid reservation's nights reaches the server; `CLOSED_DATES` shows the closure.
 - [x] `client/src/pages/__tests__/DevisPage.dates-taken.test.jsx` (2) — rule 48.
+- [x] `client/src/components/__tests__/DatesTakenAlert.test.jsx` (4) — rules 43, 65: rows told / not told, « Ouvrir », « Vu », a refused « Vu » re-reads, nothing when empty or unreadable.
+- [x] `client/src/pages/__tests__/EmailTemplatesPage.locked-mode.test.jsx` (2) — rule 45.
+- [x] `client/src/pages/__tests__/EmailHistoryPage.dates-taken-label.test.jsx` (1) — rule 44.
 
 ### Manual verification (fake provider in dev, never the production Qonto)
 - [ ] Mint a link, move the clock 36 h (injected `now` / env), run the job: row « Lien expiré le … », « Renvoyer la demande » mints a new link.
 - [ ] Devis with a link, then an iCal import on its dates (fake feed): « Lien retiré · dates prises », « Demander le paiement » refused.
 - [ ] Two devis on the same nights, pay the first (fake provider): the second's link is withdrawn.
 - [ ] Send an acompte reminder 2 days after the request: the e-mail carries a new link and its end of validity.
-- [ ] Two devis on the same nights; pay the first; let the second's acompte reminder fall due: not proposed, guest notice in the e-mail history, push, dashboard card.
+- [x] A stay created on the nights of two devis holding links (shadow, PR6): guest notice in the outbox and the e-mail history, dashboard card (told / not told), « Vu ». The reminder falling due on taken dates is covered by `dates-taken-notice-reminder` (no unpaid reservation with a due reminder on the shadow copy).
 - [ ] Closure over a devis with an open link: warning with « Ouvrir », « Retirer le lien », closure saved; mobile 390 px.
 - [x] Copy of prod: boot logs the 3 orphans; fake provider records 3 `cancelLink`. _(review of #890, 2026-10-30: #13, #14, #16 withdrawn; nothing else changed by this migration)_
 - [ ] Mobile (390 px): ledger row wraps, button ≥ 44 px.
@@ -1366,4 +1433,25 @@ Six sequential PRs into `inte/plugins` (plan validated 2026-10-30).
   re-check the nights before storing (`payment-link-mint-nights-taken-meanwhile` 4), m2 the pass's order
   (`payment-link-dates-taken` 18), m3 rule 38 read as iCal-only, m4 the badge's hit area (`DatesTakenBadge` 4), n1
   (`devis-held-dates` 8), n2 « Devis non enregistré ». No guest e-mail is sent by this PR (PR6).
-- [ ] PR6 — dates-taken guest notice (rules 35, 43-45, 47); status → Implemented.
+- [x] **PR6 — dates-taken guest notice, the single auto-send exception** (rules 35 refusal, 43-45, 47; new 63-65).
+  Decisions recorded 2026-10-31 (Adrien, Q12, Q14, Q15, decision (a)): the notice is the explicit exception to « no
+  guest e-mail without validation »; it follows a withdrawal for taken dates only, once per stay, never for a lapse,
+  a started stay or a manual withdrawal; the devis stays as it is, marked « Dates prises »; the upgrade rows feed the
+  card only. `utils/datesTakenNotice.js` (new: `buildDatesTakenNotice` → `runDueNotices` / `notifyDatesTaken`,
+  `datesTakenCard`, `acknowledgeDatesTaken`), run by `scheduledTasks.runDatesTakenNoticePass` every minute, after the
+  provider read the link unpaid (rule 63); `autoSendPolicy.AUTO_SEND_EXCEPTIONS` + `sendModeLocked`; template
+  `dates_unavailable_notice` FR / EN (registry, `EVENT_TRIGGERED_STABLE_KEYS`, name, moment, « Quand », the client
+  mirror `constants/emailNames.js`); `emailTemplatesController` 409 `SEND_MODE_LOCKED` and the locked mode fields;
+  `emailsController` reminder refusal on taken dates (send and preview, `acknowledged-skip`, the notice asked) and the
+  history `statusLabel`; `emailLogModel.listPending` filter (rule 64); `dashboardController.datesTaken` /
+  `acknowledgeDatesTaken`, routes, attention subject `dates-taken` (rule 65); migration `dates_taken_notice_backlog_v1`
+  (rule 63). Client: `DatesTakenAlert` (new), `attentionSubjects`, `api.getDatesTakenAlerts` / `acknowledgeDatesTaken`,
+  `EmailTemplatesPage` (badge, read-only mode, no mode item), `EmailHistoryPage` (`statusLabel`). Tests: server
+  `dates-taken-notice` (10), `dates-taken-notice-reminder` (4), `dates-taken-notice-template` (6),
+  `dates-taken-dashboard` (4), `dates-taken-notice-backlog` (1); amended `payment-dunning-emails` (a paid stay of the
+  fixture moved to another logement: on the same nights it now holds them, rule 64); client `DatesTakenAlert` (4),
+  `EmailTemplatesPage.locked-mode` (2), `EmailHistoryPage.dates-taken-label` (1). Shadow N=6 (copy of 22/10, mails to
+  the outbox, Qonto dead) at 1280 / 900 / 390: a Booking stay created on two made-up devis withdrew both links; the
+  pass mailed the guest with an address (FR, outbox) and recorded « client non prévenu : pas d’adresse e-mail » for
+  the other; an English guest got the English text; the card, « Vu », the locked mode (409 on `auto`) and the history
+  label shown, no horizontal scroll. Status → Implemented.

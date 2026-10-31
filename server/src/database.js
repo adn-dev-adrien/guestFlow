@@ -2840,6 +2840,8 @@ db.exec(`
 `);
 if (process.env.SKIP_MIGRATIONS !== 'true') {
   require('./utils/datesTakenUpgradeMigration').runDatesTakenUpgradeMigration(db);
+  // Rule 63 — the guest notice never follows a withdrawal older than this version.
+  require('./utils/datesTakenUpgradeMigration').runDatesTakenNoticeBacklog(db);
 }
 
 // ---------- REQUEST E-MAILS STATE THE LINK'S END (specs/payment-link-lifecycle.md rule 36) ----------

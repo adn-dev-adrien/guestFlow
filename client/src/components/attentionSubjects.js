@@ -5,6 +5,7 @@ import IcalDateDriftAlert from './IcalDateDriftAlert';
 import IcalCancellationAlert from './IcalCancellationAlert';
 import CancellationCompensationsPendingAlert from './CancellationCompensationsPendingAlert';
 import RepairedReservationNumbersAlert from './RepairedReservationNumbersAlert';
+import DatesTakenAlert from './DatesTakenAlert';
 import EmailReadinessAlert from './EmailReadinessAlert';
 import NewReservationsAlert from './NewReservationsAlert';
 import EmailPendingAlert from './EmailPendingAlert';
@@ -19,6 +20,7 @@ export const CORE_ATTENTION_SUBJECTS = Object.freeze({
   'ical-cancellation': IcalCancellationAlert,
   'cancellation-compensations': CancellationCompensationsPendingAlert,
   'repaired-reservation-numbers': RepairedReservationNumbersAlert,
+  'dates-taken': DatesTakenAlert,
   'email-readiness': EmailReadinessAlert,
   'new-reservations': NewReservationsAlert,
   'email-pending': EmailPendingAlert,
