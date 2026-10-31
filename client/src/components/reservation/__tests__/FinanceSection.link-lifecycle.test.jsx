@@ -103,3 +103,27 @@ test('rule 56: a payment to settle listed beside the row’s link offers its two
   expect(within(rowEl('balance')).getByRole('button', { name: 'Enregistrer sur le séjour' })).toBeInTheDocument();
   expect(within(rowEl('balance')).getByRole('button', { name: 'Marquer remboursé' })).toBeInTheDocument();
 });
+
+test('rule 56 (review of #902, O2): on a read-only stay only « Marquer remboursé » is offered', () => {
+  renderFinance({ editingReservationId: 7, ledger: ledgerOf([dueRow('deposit', 'Acompte', 90, { detail: { link: { ...unsettled, settle: { linkId: 44, refunded: SETTLE.refunded } } } })]) });
+  expect(within(rowEl('deposit')).getByRole('button', { name: 'Marquer remboursé' })).toBeInTheDocument();
+  expect(within(rowEl('deposit')).queryByRole('button', { name: 'Enregistrer sur le séjour' })).toBeNull();
+});
+
+test('rule 56 (O2): on a closed fiche (disabled fieldset) « Marquer remboursé » is drawn outside it, and works', async () => {
+  const user = userEvent.setup();
+  const host = document.createElement('div');
+  document.body.appendChild(host);
+  const { ctx } = renderFinance({
+    editingReservationId: 7,
+    closedActionsHost: host,
+    ledger: ledgerOf([dueRow('deposit', 'Acompte', 90, { detail: { link: { ...unsettled, settle: { linkId: 44, refunded: SETTLE.refunded } } } })]),
+  });
+  const button = within(host).getByRole('button', { name: 'Marquer remboursé' });
+  expect(within(host).getByText(unsettled.label)).toBeInTheDocument();
+  expect(within(rowEl('deposit')).queryByRole('button', { name: 'Marquer remboursé' })).toBeNull();
+  await user.click(button);
+  await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: SETTLE.refunded.confirmLabel }));
+  expect(ctx.settlePaymentLink).toHaveBeenCalledWith(44, 'refunded');
+  host.remove();
+});

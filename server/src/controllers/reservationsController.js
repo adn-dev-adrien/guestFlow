@@ -145,9 +145,20 @@ function ledgerFor({ row, quote = null, live = {}, propertyId = null, overpaymen
     installmentPlan: id ? installments.planFor(id) : null,
     storedAccommodationPreArrival: quote ? null : storedAccommodationPreArrivalOf(row),
     canRequest: Boolean(paymentProviders.summary()),
+    nightsUnavailable: id ? settleNightsUnavailable(id, links) : false,
     providerLabel: (paymentProviders.declared() || {}).label || null,
     today: getTodayIsoDate(),
   });
+}
+
+// specs/payment-link-lifecycle.md rule 56 (review of #902, O3) — whether booking a payment to settle would land on
+// closed or taken nights (the late booking then confirms nobody); asked only when such a payment exists.
+function settleNightsUnavailable(id, links) {
+  const { isUnsettled } = require('../utils/withdrawnPayments');
+  if (!links.some(isUnsettled)) return false;
+  const { closedDatesRefusal } = require('../utils/closedStayDates');
+  if (closedDatesRefusal(db, id)) return true;
+  try { return Boolean(require('../utils/paymentEffectDeps').checkConflict({ reservationId: id })); } catch { return false; }
 }
 
 // specs/reservation-payment-ledger.md rule 16 — the accommodation of the stored pre-arrival schedule:

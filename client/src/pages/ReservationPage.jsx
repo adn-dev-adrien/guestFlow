@@ -3536,6 +3536,7 @@ export default function ReservationPage() {
     liveTimeConflictState, liveTimeConflictMessage, defaultCheckInTime, defaultCheckOutTime,
     isReservationLocked, extrasWindowOpen, arrivalLines, frozenCustomOptionIds,
     refundHost: isCancelledReservation ? refundHost : null,
+    closedActionsHost: isClosedFiche ? refundHost : null,
     // guests / beds
     maxGuestsAllowed, maxBabiesAllowed, maxSingleBeds, maxDoubleBeds,
     exceedsGuestsCapacity, exceedsBabiesCapacity,
@@ -3938,7 +3939,8 @@ export default function ReservationPage() {
         </Box>
         </ReservationFormProvider>
         </Box>
-        {isCancelledReservation && <Box ref={setRefundHost} sx={{ mt: 1 }} />}
+        {/* Outside the disabled fieldset of a closed fiche: its refunds (cancelled) and rule 56's « Marquer remboursé ». */}
+        {isClosedFiche && <Box ref={setRefundHost} sx={{ mt: 1 }} />}
         </Box>
 
         {/* Panneau latéral droit : Résumé des prix */}

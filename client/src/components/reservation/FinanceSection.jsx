@@ -278,6 +278,8 @@ export default function FinanceSection() {
     // A cancelled fiche is a disabled fieldset, yet a refund is still its legitimate write
     // (specs/calendar-property-parity.md rule 25): the button goes through a portal to a node outside it.
     refundHost = null,
+    // specs/payment-link-lifecycle.md rule 56 (O2) — on a closed fiche, where « Marquer remboursé » is drawn instead.
+    closedActionsHost = null,
     // specs/reservation-payment-ledger.md — the ledger and its three server round-trips.
     ledger = null, checkLedgerEdit, applyLedgerPatch, markFromLedger, resendPaymentRequest, withdrawPaymentLink, settlePaymentLink,
     // specs/direct-installments.md — the plan of a direct reservation and its setter.
@@ -559,7 +561,7 @@ export default function FinanceSection() {
           {link.withdraw.label}
         </Button>
       )}
-      {link.settle && settlePaymentLink && ['stay', 'refunded'].map((outcome) => (
+      {link.settle && settlePaymentLink && !closedActionsHost && ['stay', 'refunded'].filter((outcome) => link.settle[outcome]).map((outcome) => (
         <Button key={outcome} size="small" variant="text" onClick={() => askSettle(link.settle.linkId, outcome, link.settle[outcome])} sx={{ minHeight: 44, textTransform: 'none' }}>
           {link.settle[outcome].label}
         </Button>
@@ -779,8 +781,27 @@ export default function FinanceSection() {
     </Stack>
   );
 
+  // Rule 56 (O2) — a closed fiche is a disabled fieldset: the refund of a payment to settle is drawn outside it.
+  const toSettle = closedActionsHost
+    ? rows.flatMap((r) => [r.detail?.link, ...(r.detail?.otherLinks || [])]).filter((l) => l && l.settle && l.settle.refunded)
+    : [];
+  const closedActions = toSettle.length > 0 && settlePaymentLink && createPortal(
+    <Stack spacing={0.5}>
+      {toSettle.map((l) => (
+        <Box key={l.settle.linkId} sx={{ display: 'flex', flexWrap: 'wrap', columnGap: 1.25, alignItems: 'center', color: 'text.secondary', fontSize: '0.8125rem' }}>
+          <span>{l.label}</span>
+          <Button size="small" variant="text" onClick={() => askSettle(l.settle.linkId, 'refunded', l.settle.refunded)} sx={{ minHeight: 44, textTransform: 'none' }}>
+            {l.settle.refunded.label}
+          </Button>
+        </Box>
+      ))}
+    </Stack>,
+    closedActionsHost,
+  );
+
   return (
     <Card variant="outlined" sx={formSectionCardSx}>
+      {closedActions}
       <CardContent sx={formSectionContentSx}>
         <Box sx={{ position: 'relative', zIndex: 10 }}>
           <Stack spacing={2}>

@@ -57,4 +57,4 @@ async function withdrawPaymentLink(linkId, { database, paymentLinksModel, provid
   return { link: paymentLinksModel.findById(link.id) };
 }
 
-module.exports = { withdrawPaymentLink };
+module.exports = { withdrawPaymentLink, stayKindOf, READ_ONLY_KINDS };

@@ -109,12 +109,13 @@ test('rule 56: the ledger names the payment and offers both ways to settle it; o
     .rows.find((r) => r.key === 'deposit').detail.link;
   const day = localIsoDate(new Date(link.paidAt));
   const shown = ledgerOf();
-  assert.match(shown.label, new RegExp(`^Payé le ${day.slice(8, 10)}/${day.slice(5, 7)}(/\\d{4})? après retrait : à traiter$`));
+  // Review of #902 (O3) — the amount is on the row and in both confirmations.
+  assert.match(shown.label, new RegExp(`^90,00\u00a0€ payés le ${day.slice(8, 10)}/${day.slice(5, 7)}(/\\d{4})? après retrait : à traiter$`));
   assert.equal(shown.resend, undefined);
   assert.deepEqual(shown.settle, {
     linkId: link.id,
-    stay: { label: 'Enregistrer sur le séjour', confirmTitle: 'Enregistrer ce paiement sur le séjour ?', confirmMessage: 'Le montant est compté comme perçu.', confirmLabel: 'Enregistrer' },
-    refunded: { label: 'Marquer remboursé', confirmTitle: 'Paiement remboursé ?', confirmMessage: 'À confirmer une fois le remboursement fait chez le prestataire.', confirmLabel: 'Remboursé' },
+    stay: { label: 'Enregistrer sur le séjour', confirmTitle: 'Enregistrer 90,00\u00a0€ sur le séjour ?', confirmMessage: 'Le montant est compté comme perçu ; confirmation envoyée au client.', confirmLabel: 'Enregistrer' },
+    refunded: { label: 'Marquer remboursé', confirmTitle: '90,00\u00a0€ remboursés ?', confirmMessage: 'À confirmer une fois le remboursement fait chez le prestataire.', confirmLabel: 'Remboursé' },
   });
   await settleWithdrawnPayment(link.id, { database: db, paymentLinksModel: links, outcome: 'refunded', bookPaid: async () => {} });
   const after = ledgerOf();
@@ -134,4 +135,47 @@ test('rule 56: « enregistrer sur le séjour » through the real late booking ma
   assert.equal(links.findById(link.id).status, 'paid');
   assert.equal(db.prepare('SELECT depositPaid FROM reservations WHERE id = ?').get(id).depositPaid, 1);
   assert.deepEqual(s.confirmed, [id]);
+});
+
+// Review of #902 (O1) — the open link of the bucket is not handed out again while the payment waits.
+test('rule 56 (O1): an open link is not reused while a payment received after a withdrawal is unsettled', async () => {
+  const { db, links, id, provider, deps } = await setup();
+  addLink(links, db, id, { type: 'balance', amountCents: 21000, expiresAt: new Date(Date.now() + 30 * 3600 * 1000) });
+  await assert.rejects(ensurePaymentLink(deps, id, 'balance'), refused);
+  assert.deepEqual(provider.calls, []);
+});
+
+// Review of #902 (O2) — a read-only stay can still record the refund, never take the money as its own.
+for (const kind of ['cancelled', 'superseded']) {
+  test(`rule 56 (O2): on a ${kind} stay « Marquer remboursé » stays offered and works; « stay » is refused STAY_READ_ONLY`, async () => {
+    const { db, links, id, link } = await setup();
+    db.prepare('UPDATE reservations SET kind = ? WHERE id = ?').run(kind, id);
+    const settle = buildLedger({ row: { ...db.prepare('SELECT * FROM reservations WHERE id = ?').get(id) }, links: links.listForReservation(id), canRequest: true, today: inDays(0) })
+      .rows.find((r) => r.key === 'deposit').detail.link.settle;
+    assert.equal(settle.linkId, link.id);
+    assert.equal(settle.stay, undefined);
+    assert.equal(settle.refunded.label, 'Marquer remboursé');
+    const deps = { database: db, paymentLinksModel: links, bookPaid: async () => { throw new Error('never booked'); } };
+    await assert.rejects(settleWithdrawnPayment(link.id, { ...deps, outcome: 'stay' }), (err) => err.httpStatus === 409 && err.error === 'STAY_READ_ONLY');
+    assert.equal((await settleWithdrawnPayment(link.id, { ...deps, outcome: 'refunded' })).link.cancelReason, 'refunded');
+  });
+}
+
+// Review of #902 (O3) — on a devis the confirmation says what « Enregistrer » does: the conversion, and whether
+// the guest is told (not when the nights are closed or taken).
+test('rule 56 (O3): a devis — converted and confirmed; on unavailable nights, converted without confirmation', async () => {
+  const { db, links } = seedDb();
+  const id = addStay(db, { kind: 'devis', startDate: inDays(40), endDate: inDays(43) });
+  await paidAfterWithdrawal(db, links, id);
+  const stayOf = (nightsUnavailable) => buildLedger({ row: { ...db.prepare('SELECT * FROM reservations WHERE id = ?').get(id) }, links: links.listForReservation(id), canRequest: true, today: inDays(0), nightsUnavailable })
+    .rows.find((r) => r.key === 'deposit').detail.link.settle.stay;
+  assert.equal(stayOf(false).confirmMessage, 'Le devis devient une réservation ; confirmation envoyée au client.');
+  assert.equal(stayOf(true).confirmMessage, 'Le devis devient une réservation, sans confirmation au client : dates fermées ou prises.');
+});
+
+test('rule 56 (O3): a reservation on unavailable nights — counted as received, without confirmation', async () => {
+  const { db, links, id } = await setup();
+  const stay = buildLedger({ row: { ...db.prepare('SELECT * FROM reservations WHERE id = ?').get(id) }, links: links.listForReservation(id), canRequest: true, today: inDays(0), nightsUnavailable: true })
+    .rows.find((r) => r.key === 'deposit').detail.link.settle.stay;
+  assert.equal(stay.confirmMessage, 'Le montant est compté comme perçu, sans confirmation au client : dates fermées ou prises.');
 });
