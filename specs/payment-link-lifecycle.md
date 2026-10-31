@@ -6,7 +6,7 @@
 | **Branch** | `feature/payment-link-lifecycle` _(base `inte/plugins`)_ |
 | **Created** | 2026-10-30 |
 | **Author** | Adrien |
-| **Related PR** | (link once opened) |
+| **Related PR** | PR6: [#912](https://github.com/adn-dev-adrien/guestFlow/pull/912) |
 | **Summary to validate** | [docs/specs/2026-10-30-payment-link-lifecycle.html](../docs/specs/2026-10-30-payment-link-lifecycle.html) |
 
 ---
