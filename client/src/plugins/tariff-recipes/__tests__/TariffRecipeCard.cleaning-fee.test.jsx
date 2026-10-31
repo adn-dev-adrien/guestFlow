@@ -1,7 +1,7 @@
 // specs/tariff-recipe-platform-cleaning-fee.md rule 11 — a cleaning-fee change is a change: the apply
 // dialog lists it and never says « Rien à modifier » while one differs.
 import React from 'react';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { vi } from 'vitest';
 
 import TariffRecipeCard from '../TariffRecipeCard';
@@ -33,8 +33,7 @@ async function openPreview(preview) {
   api.getTariffRecipes.mockResolvedValue(RECIPES);
   api.previewTariffRecipe.mockResolvedValue(preview);
   render(<TariffRecipeCard propertyId={1} activeRecipeId="gite-2027" appliedVersion="3.5.0" />);
-  await waitFor(() => expect(api.getTariffRecipes).toHaveBeenCalled());
-  fireEvent.click(screen.getByText('Appliquer la recette…'));
+  fireEvent.click(await screen.findByText('Appliquer la recette…'));
   await screen.findByText('Aperçu des modifications');
 }
 

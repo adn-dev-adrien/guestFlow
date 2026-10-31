@@ -76,6 +76,9 @@ test('rule 31 — a late failure of a week already left does not raise the error
   fireEvent.click(screen.getAllByRole('button', { name: 'Semaine suivante' })[0]);
   fireEvent.click(screen.getAllByRole('button', { name: 'Semaine précédente' })[0]);
   await waitFor(() => expect(calls).toHaveLength(3));
+  // The week on screen paints after its call returns: the late failure must find it painted
+  // (specs/server-test-isolation.md rule 11).
+  await firstPaint();
   await act(async () => { rejectNext(new Error('boom')); });
   expect(screen.getAllByText(/SENTINEL/).length).toBeGreaterThan(0);
   expect(screen.queryByText(/Impossible de charger/)).toBeNull();

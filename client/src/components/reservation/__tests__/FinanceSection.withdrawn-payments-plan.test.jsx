@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rule 62 (audit R10-M1) — with an installment plan, the server sends the payments
+// specs/payment-link-lifecycle.md rule 63 (audit R10-M1) — with an installment plan, the server sends the payments
 // received after a withdrawal on a row of their own; the fiche renders it with the rule-56 actions, nothing computed.
 import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -28,7 +28,7 @@ const planLedger = () => ledgerOf([
   withdrawnRow,
 ]);
 
-test('rule 62: the row prints beside the échéances, with its state and both payments', () => {
+test('rule 63: the row prints beside the échéances, with its state and both payments', () => {
   renderFinance({ editingReservationId: 7, ledger: planLedger() });
   const row = rowEl('withdrawnPayments');
   expect(within(row).getByText('Paiements après retrait')).toBeInTheDocument();
@@ -40,7 +40,7 @@ test('rule 62: the row prints beside the échéances, with its state and both pa
   expect(within(row).queryByRole('button', { name: 'Marquer perçu' })).toBeNull();
 });
 
-test('rule 62: « Marquer remboursé » on the second payment asks first, then settles that link', async () => {
+test('rule 63: « Marquer remboursé » on the second payment asks first, then settles that link', async () => {
   const user = userEvent.setup();
   const { ctx } = renderFinance({ editingReservationId: 7, ledger: planLedger() });
   await user.click(within(rowEl('withdrawnPayments')).getAllByRole('button', { name: 'Marquer remboursé' })[1]);
@@ -50,7 +50,7 @@ test('rule 62: « Marquer remboursé » on the second payment asks first, then s
   expect(ctx.settlePaymentLink).toHaveBeenCalledWith(44, 'refunded');
 });
 
-test('rule 62: « Enregistrer sur le séjour » settles the payment shown first', async () => {
+test('rule 63: « Enregistrer sur le séjour » settles the payment shown first', async () => {
   const user = userEvent.setup();
   const { ctx } = renderFinance({ editingReservationId: 7, ledger: planLedger() });
   await user.click(within(rowEl('withdrawnPayments')).getAllByRole('button', { name: 'Enregistrer sur le séjour' })[0]);

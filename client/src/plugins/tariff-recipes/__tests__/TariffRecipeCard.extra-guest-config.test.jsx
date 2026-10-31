@@ -1,7 +1,7 @@
 // specs/tariff-recipes/spec.md rule 64 (spec review 2026-10-27) — the supplement unit and included
 // guests the recipe writes are listed in the apply preview, and count as a change.
 import React from 'react';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { vi } from 'vitest';
 
 import TariffRecipeCard from '../TariffRecipeCard';
@@ -34,8 +34,7 @@ async function openPreview(preview) {
   api.getTariffRecipes.mockResolvedValue(RECIPES);
   api.previewTariffRecipe.mockResolvedValue(preview);
   render(<TariffRecipeCard propertyId={1} activeRecipeId="aventura-lodge-2026" appliedVersion="1.1.0" />);
-  await waitFor(() => expect(api.getTariffRecipes).toHaveBeenCalled());
-  fireEvent.click(screen.getByText('Appliquer la recette…'));
+  fireEvent.click(await screen.findByText('Appliquer la recette…'));
   await screen.findByText('Aperçu des modifications');
 }
 

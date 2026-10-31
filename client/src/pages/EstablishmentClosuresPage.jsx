@@ -105,7 +105,8 @@ export default function EstablishmentClosuresPage({ barTabs }) {
       // The save is the judge: a failed look only leaves the lines out.
       if (seq === conflictsSeq.current) setConflicts(NO_CONFLICTS);
     });
-    return undefined;
+    // Rule 62 — an answer still in flight belongs to dates the dialog no longer shows.
+    return () => { conflictsSeq.current += 1; };
   }, [dialogOpen, rangeSet, form.propertyId, form.startDate, form.endDate, conflictsToken]);
 
   useEffect(() => {

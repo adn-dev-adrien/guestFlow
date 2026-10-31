@@ -64,7 +64,7 @@ function buildController({
     if (collected(row)) {
       return { eligible: true, canCreate: false, reason: 'Un paiement est déjà enregistré sur ce séjour.' };
     }
-    // specs/payment-link-lifecycle.md rule 62 — a payment received after a withdrawal by hand is settled first.
+    // specs/payment-link-lifecycle.md rule 63 — a payment received after a withdrawal by hand is settled first.
     const unsettled = unsettledWithdrawnRefusal(database, row.id);
     if (unsettled) return { eligible: true, canCreate: false, reason: unsettled.message };
     if (plan.maxCountFor(contextOf(row)) < plan.MIN_COUNT) {

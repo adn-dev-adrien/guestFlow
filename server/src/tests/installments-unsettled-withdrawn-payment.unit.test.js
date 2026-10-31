@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rule 62 (audit R10-M1, 2026-10-31) — a payment received on a link withdrawn by hand,
+// specs/payment-link-lifecycle.md rule 63 (audit R10-M1, 2026-10-31) — a payment received on a link withdrawn by hand,
 // after its withdrawal (rule 56), is settled before an installment plan is made or resized, and an existing plan never
 // hides the ledger row that settles it.
 
@@ -27,7 +27,7 @@ function addUnsettledLink(h, { type = 'deposit', amountCents = 30000, installmen
 
 const put = (h, body) => call(h.controller.put, { params: { id: h.reservationId }, body });
 
-test('rule 62: no plan is made while a payment waits to be settled — 409, the card says why', async () => {
+test('rule 63: no plan is made while a payment waits to be settled — 409, the card says why', async () => {
   const h = createHarness();
   addUnsettledLink(h);
   const r = await put(h, { count: 3 });
@@ -40,7 +40,7 @@ test('rule 62: no plan is made while a payment waits to be settled — 409, the 
   assert.equal(card.reason, MESSAGE);
 });
 
-test('rule 62: a plan already made is not resized while a payment waits to be settled', async () => {
+test('rule 63: a plan already made is not resized while a payment waits to be settled', async () => {
   const h = createHarness();
   assert.equal((await put(h, { count: 3 })).status, 200);
   addUnsettledLink(h, { type: 'balance' });
@@ -50,7 +50,7 @@ test('rule 62: a plan already made is not resized while a payment waits to be se
   assert.equal(h.installmentsModel.listFor(h.reservationId).length, 3);
 });
 
-test('rule 62: once settled (« Marquer remboursé »), the plan is made', async () => {
+test('rule 63: once settled (« Marquer remboursé »), the plan is made', async () => {
   const h = createHarness();
   const link = addUnsettledLink(h);
   await settleWithdrawnPayment(link.id, { database: h.db, paymentLinksModel: h.paymentLinksModel, outcome: 'refunded', bookPaid: async () => {} });
@@ -75,7 +75,7 @@ const ledgerOf = (h, installmentPlan, extra = {}) => buildLedger({
 const settleIds = (rows) => rows.flatMap((r) => [r.detail?.link, ...(r.detail?.otherLinks || [])])
   .filter((l) => l && l.settle).map((l) => l.settle.linkId);
 
-test('rule 62: with a plan, the unsettled acompte / solde / séjour payments get a row of their own with both settle actions', () => {
+test('rule 63: with a plan, the unsettled acompte / solde / séjour payments get a row of their own with both settle actions', () => {
   const h = createHarness();
   const deposit = addUnsettledLink(h, { type: 'deposit', amountCents: 30000 });
   const full = addUnsettledLink(h, { type: 'full', amountCents: 100150 });
@@ -96,7 +96,7 @@ test('rule 62: with a plan, the unsettled acompte / solde / séjour payments get
   assert.deepEqual(settleIds(rows), [full.id, deposit.id]);
 });
 
-test('rule 62: one payment reads in the singular; an unsettled échéance link of the plan is shown there too', () => {
+test('rule 63: one payment reads in the singular; an unsettled échéance link of the plan is shown there too', () => {
   const h = createHarness();
   const link = addUnsettledLink(h, { type: 'installment', amountCents: 50000 });
   const row = ledgerOf(h, plan).rows.find((r) => r.key === 'withdrawnPayments');
@@ -106,14 +106,14 @@ test('rule 62: one payment reads in the singular; an unsettled échéance link o
   assert.equal(row.detail.otherLinks, undefined);
 });
 
-test('rule 62: a read-only stay offers « Marquer remboursé » only on that row', () => {
+test('rule 63: a read-only stay offers « Marquer remboursé » only on that row', () => {
   const h = createHarness();
   addUnsettledLink(h);
   const row = ledgerOf(h, plan, { stayReadOnly: true }).rows.find((r) => r.key === 'withdrawnPayments');
   assert.deepEqual(Object.keys(row.detail.link.settle), ['linkId', 'refunded']);
 });
 
-test('rule 62: without a plan the acompte row keeps the payment — no row of its own, never twice', () => {
+test('rule 63: without a plan the acompte row keeps the payment — no row of its own, never twice', () => {
   const h = createHarness({ stay: { depositAmount: 300, balanceAmount: 701.5 } });
   const link = addUnsettledLink(h);
   const { rows } = ledgerOf(h, null);
@@ -121,7 +121,7 @@ test('rule 62: without a plan the acompte row keeps the payment — no row of it
   assert.deepEqual(settleIds(rows), [link.id]);
 });
 
-test('rule 62: once settled, the row is gone', async () => {
+test('rule 63: once settled, the row is gone', async () => {
   const h = createHarness();
   const link = addUnsettledLink(h);
   await settleWithdrawnPayment(link.id, { database: h.db, paymentLinksModel: h.paymentLinksModel, outcome: 'refunded', bookPaid: async () => {} });

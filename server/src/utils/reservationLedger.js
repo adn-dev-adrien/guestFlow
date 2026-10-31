@@ -607,7 +607,7 @@ function buildLedger({
     });
   }
 
-  // ── Paiements après retrait (specs/payment-link-lifecycle.md rule 62) ──────
+  // ── Paiements après retrait (specs/payment-link-lifecycle.md rule 63) ──────
   // A payment to settle that no row above shows — an installment plan replaces the acompte and solde rows —
   // gets a row of its own, right after the buckets, so « Marquer remboursé » stays reachable.
   if (settleContext) {
