@@ -125,9 +125,13 @@ function withdrawForStay(database, stayId, { deactivate = scheduleDeactivation, 
   // Review of #907 (M1) — a side concern: a throw here never rolls back the caller (the iCal import, a save that
   // succeeded). Its own savepoint undoes a half-done withdrawal; the lifecycle pass (rule 16) catches it later.
   let links;
+  const wasInTx = database.inTransaction;
   try {
     links = database.transaction(() => require('./paymentLinkLifecycle').withdrawLinksOverlapping(database, { ...stay, causeId: stay.id, now }))();
   } catch (err) {
+    // Re-review of #907 (N1) — SQLite aborted the caller's whole transaction (disk full, I/O): going on would run
+    // the rest of the caller in autocommit. The caller fails as a whole instead.
+    if (wasInTx && !database.inTransaction) throw err;
     console.warn(`[payments] dates-taken withdrawal for stay ${stay.id} skipped, left to the lifecycle pass: ${(err && err.message) || err}`);
     return [];
   }

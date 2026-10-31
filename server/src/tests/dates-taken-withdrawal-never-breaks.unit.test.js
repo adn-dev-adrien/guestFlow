@@ -1,6 +1,8 @@
 // specs/payment-link-lifecycle.md rule 32 (review of #907, M1) — withdrawing the links of a stay whose nights were
 // taken is a side concern: a throw there never rolls back the iCal import (the over-booking record GuestFlow exists
 // to keep) nor turns a successful creation or save into a 500. It is logged and left to the lifecycle pass (rule 16).
+// Re-review of #907 (N1): an error that made SQLite abort the caller's whole transaction (disk full, I/O) is not
+// swallowed — the caller must not go on in autocommit and commit half a sync.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -52,4 +54,24 @@ test('rule 16: the lifecycle pass is the safety net for a withdrawal that never 
   addStay({ propertyId, platform: 'Booking', start: inDays(81), end: inDays(82) });
   retireLapsedAndWithdrawn(db, { now: new Date() });
   assert.equal(linkOf(link).cancelReason, 'dates-taken');
+});
+
+test('rule 32 (N1): an error that aborted the caller transaction propagates; the caller writes nothing, before or after', (t) => {
+  const { seedDb, addStay: addFixtureStay } = require('./paymentLinkLifecycleFixture');
+  const { withdrawForStay } = require('../utils/datesTaken');
+  const { db: own } = seedDb();
+  const stay = addFixtureStay(own, { startDate: inDays(90), endDate: inDays(92) });
+  own.exec('CREATE TABLE probe (x)');
+  const real = lifecycle.withdrawLinksOverlapping;
+  lifecycle.withdrawLinksOverlapping = (database) => { database.prepare('INSERT INTO probe VALUES (randomblob(200000))').run(); return []; };
+  t.after(() => { lifecycle.withdrawLinksOverlapping = real; });
+  const pages = own.pragma('page_count', { simple: true });
+  own.pragma(`max_page_count = ${pages + 2}`);
+  assert.throws(() => own.transaction(() => {
+    own.prepare("INSERT INTO probe VALUES ('before')").run();
+    withdrawForStay(own, stay, { deactivate: null });
+    own.prepare("INSERT INTO probe VALUES ('after')").run();
+  })(), /full/i);
+  own.pragma(`max_page_count = ${pages + 1000}`);
+  assert.deepEqual(own.prepare("SELECT x FROM probe WHERE typeof(x) = 'text'").all(), [], 'neither outer write survives');
 });

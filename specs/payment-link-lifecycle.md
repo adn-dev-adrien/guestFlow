@@ -434,7 +434,9 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     Reading recorded 2026-10-31 (review of #907, M1): the withdrawal is a side concern. It runs in its own savepoint,
     and a throw there is logged (« dates-taken withdrawal for stay … skipped, left to the lifecycle pass ») and never
     rolls back the iCal import, which must keep its over-booking record, nor turns a creation or a save that succeeded
-    into a 500; the lifecycle pass (rule 16) withdraws the link at its next run.
+    into a 500; the lifecycle pass (rule 16) withdraws the link at its next run. Re-review of #907 (N1): an error that made
+    SQLite abort the caller's whole transaction (disk full, I/O error) is rethrown, never swallowed, so the caller
+    fails as a whole instead of running its remaining writes in autocommit (a torn iCal sync).
 33. **A `dates-taken` link found paid is recorded on the fiche, in date conflict** (decided 2026-10-30,
     §9 Q5). When the deactivation lost the race (payment in flight, webhook, retry, last look), the money
     is booked like a live payment of that link: `markRetiredLinkPaid(id, { reason: 'dates-taken' })`
@@ -1123,7 +1125,7 @@ refused).
 - [x] `tests/payment-link-superseded.unit.test.js` (4) — rule 12; rule 31 in `supersededDuplicates`.
 - [x] `tests/devis-closed-dates.unit.test.js` (9) — rule 55 (audit R10-1): create and move onto closed nights refused with the closure, an establishment-wide closure, the departure day free, the website source, a notes edit on closed nights saved, the controller's body, a paid devis link on closed nights converted without confirmation and alerted, open nights still confirmed, the alert wording.
 - [x] `tests/dates-taken-boot-models.unit.test.js` (1) — rules 12, 61 (review of #907, B1): booted in a child process on a file holding links on taken nights and a set-aside copy, every model still works, no circular-dependency warning.
-- [x] `tests/dates-taken-withdrawal-never-breaks.unit.test.js` (3) — rules 32, 16 (M1): a failing withdrawal keeps the iCal booking and its mapping, a creation still answers, the pass withdraws later.
+- [x] `tests/dates-taken-withdrawal-never-breaks.unit.test.js` (4) — rules 32, 16 (M1): a failing withdrawal keeps the iCal booking and its mapping, a creation still answers, the pass withdraws later; (N1) an error that aborted the caller's transaction propagates and nothing of the caller is written.
 - [x] `tests/payment-link-mint-nights-taken-meanwhile.unit.test.js` (4) — rules 11, 55 (m1): nights taken or closed during the provider call refuse the mint, the fresh link withdrawn and deactivated (marker on failure), the échéance too, nothing changed → stored open.
 - [x] `tests/dates-taken-upgrade-migration.unit.test.js` (2) — rule 61: withdrawn once, one `not-sent` / `upgrade` row per stay, money and free nights untouched, no guest name in the log, a second boot does nothing, an existing row never replaced.
 - [x] `tests/payment-link-deadline-race.unit.test.js` — rules 14, 15, 18, 19, 21, 22: paid before deactivation (webhook), paid found after deactivation, paid found at the last look, webhook replay, two concurrent runs.
@@ -1360,7 +1362,7 @@ Six sequential PRs into `inte/plugins` (plan validated 2026-10-30).
   `ReservationPage.dates-held` (4), `DevisPage.dates-taken` (2). Audit R10-1 (rule 55 reading): `devisModel` 409
   `CLOSED_DATES` with `closures[]`, `applyPaidEffect` flags `closed` and `processPaidLink` skips the confirmation and
   alerts (`devis-closed-dates` 9). Review of #907: B1 the boot one-shots load no model (`dates-taken-boot-models` 1),
-  M1 a failing withdrawal is logged and left to the pass (`dates-taken-withdrawal-never-breaks` 3), m1 the mints
+  M1 a failing withdrawal is logged and left to the pass, an aborted outer transaction rethrown (N1) (`dates-taken-withdrawal-never-breaks` 4), m1 the mints
   re-check the nights before storing (`payment-link-mint-nights-taken-meanwhile` 4), m2 the pass's order
   (`payment-link-dates-taken` 18), m3 rule 38 read as iCal-only, m4 the badge's hit area (`DatesTakenBadge` 4), n1
   (`devis-held-dates` 8), n2 « Devis non enregistré ». No guest e-mail is sent by this PR (PR6).
