@@ -25,6 +25,8 @@ import OriginBadge from '../components/OriginBadge';
 import StatusBadge from '../components/StatusBadge';
 import LanguageBadge from '../components/LanguageBadge';
 import ReservationConflictBadge from '../components/ReservationConflictBadge';
+import DatesTakenBadge from '../components/DatesTakenBadge';
+import ConflictList from '../components/ConflictList';
 import EmailManualSendDialog from '../components/EmailManualSendDialog';
 import PricingSummary from '../components/PricingSummary';
 import StickyTotalBar from '../components/StickyTotalBar';
@@ -393,6 +395,8 @@ export default function ReservationPage() {
   // Validity state of the devis being edited, straight from the server (`validUntil` + `expired`).
   // Drives the action-bar chip and the price lock — the fiche decides nothing here.
   const [devisValidity, setDevisValidity] = useState({ validUntil: null, expired: false, extendable: false, converted: false });
+  // specs/payment-link-lifecycle.md rule 48 — the server's « Dates prises » marker of this devis or unpaid stay.
+  const [datesTaken, setDatesTaken] = useState(null);
 
   const [babyBedAvailability, setBabyBedAvailability] = useState({ totalQuantity: 0, reserved: 0, available: null });
   const [existingReservationLocked, setExistingReservationLocked] = useState(false);
@@ -878,6 +882,7 @@ export default function ReservationPage() {
         if (reservationId) {
           const res = await api.getReservation(reservationId).catch(markMissingLookup);
           loadedUpdatedAtRef.current = res.updatedAt || null;
+          setDatesTaken(res.datesTaken || null);
           setExistingReservationLocked(Boolean(res.editLock?.locked));
           setEditLock(res.editLock || null);
           setPastUnlocked(false);
@@ -1141,6 +1146,7 @@ export default function ReservationPage() {
             extendable: Boolean(devis.extendable),
             converted: devis.status === 'converted',
           });
+          setDatesTaken(devis.datesTaken || null);
           frozenOptionUnitByQuantityRef.current = frozenUnitPrices(devis.options, 'optionId');
           frozenResourceUnitByQuantityRef.current = frozenUnitPrices(devis.resources, 'resourceId');
           initialPricingContextRef.current = {
@@ -2281,7 +2287,9 @@ export default function ReservationPage() {
       && Number(loadedForm.teens || 0) === Number(form.teens || 0)
       && Number(loadedForm.babies || 0) === Number(form.babies || 0));
 
-    if (!placementUnchanged) {
+    // specs/payment-link-lifecycle.md rule 46 — a devis blocks nothing and is refused only on nights a stay holds,
+    // which the server judges (409 DATES_HELD with the stays): the fiche's occupancy check is for reservations.
+    if (!placementUnchanged && !isDevisMode) {
       const dateRangeConflictInfo = getDateRangeConflictInfo(form.startDate, form.endDate);
       if (dateRangeConflictInfo) {
         await alert({ title: 'Conflit de réservation', message: dateRangeConflictInfo.message });
@@ -2712,6 +2720,15 @@ export default function ReservationPage() {
             overwriteOnceRef.current = false;
           }
         }
+        return false;
+      }
+      // specs/payment-link-lifecycle.md rule 46 — a devis moved onto held nights: the stays that hold them, each to open.
+      if (err?.code === 'DATES_HELD') {
+        await alert({
+          title: 'Dates déjà réservées',
+          message: err.message,
+          details: <ConflictList severity="error" items={(err.stays || []).map((stay) => ({ key: stay.id, label: stay.label, url: stay.url }))} newTab={!downSm} />,
+        });
         return false;
       }
       await alert({ title: 'Erreur', message: err.message });
@@ -3666,7 +3683,7 @@ export default function ReservationPage() {
       <PageActionBar
         title={computedTitle}
         onBack={goBackToOrigin}
-        subtitle={(useCurrentPricing || form.bookingConflictAt || devisValidityChip || isCancelledReservation)
+        subtitle={(useCurrentPricing || form.bookingConflictAt || devisValidityChip || isCancelledReservation || datesTaken)
           ? (
             <>
               {isCancelledReservation && (
@@ -3674,6 +3691,7 @@ export default function ReservationPage() {
               )}
               {useCurrentPricing && <Chip size="small" color="warning" variant="outlined" label="Tarifs actuels appliqués (non sauvegardé)" />}
               {devisValidityChip}
+              <DatesTakenBadge datesTaken={datesTaken} />
               <ReservationConflictBadge conflictAt={form.bookingConflictAt} />
             </>
           )
