@@ -37,4 +37,63 @@ function runDatesTakenUpgradeMigration(database, { now = new Date(), logger = co
   return { ran: true, withdrawn, seeded };
 }
 
-module.exports = { runDatesTakenUpgradeMigration, MIGRATION_NAME };
+// Rule 64 — the guest notice (rule 43) ships after the withdrawal it follows: a stay whose link was withdrawn for taken
+// dates before this boot is never mailed for it. Each such stay without a row gets one `not-sent` / `upgrade` row
+// (the dashboard card only). Plain SQL and utils, no model (review of #907, B1). Idempotent via `migrations`.
+const BACKLOG_MIGRATION_NAME = 'dates_taken_notice_backlog_v1';
+
+function runDatesTakenNoticeBacklog(database, { now = new Date(), logger = console } = {}) {
+  if (database.prepare('SELECT 1 FROM migrations WHERE name = ?').get(BACKLOG_MIGRATION_NAME)) return { ran: false, seeded: 0 };
+  const { takenByOf } = require('./datesTaken');
+  const stays = database.prepare(`
+    SELECT DISTINCT COALESCE(r.convertedReservationId, r.id) AS stayId
+      FROM payment_links l JOIN reservations r ON r.id = l.reservationId
+     WHERE l.cancelReason = 'dates-taken'
+       AND NOT EXISTS (SELECT 1 FROM dates_taken_notices n WHERE n.reservationId = COALESCE(r.convertedReservationId, r.id))
+     ORDER BY stayId
+  `).all().map((row) => Number(row.stayId));
+  const seed = database.prepare(`
+    INSERT INTO dates_taken_notices (reservationId, takenByReservationId, noticeStatus, noticeReason, createdAt)
+    VALUES (?, ?, 'not-sent', 'upgrade', ?)
+    ON CONFLICT(reservationId) DO NOTHING
+  `);
+  const seeded = database.transaction(() => {
+    let count = 0;
+    for (const stayId of stays) {
+      const holder = takenByOf(database, stayId);
+      count += Number(seed.run(stayId, holder ? Number(holder.id) : null, now.toISOString()).changes);
+    }
+    database.prepare('INSERT INTO migrations (name) VALUES (?)').run(BACKLOG_MIGRATION_NAME);
+    return count;
+  })();
+  logger.log(`[migration:dates-taken-notice] ${seeded} stay(s) withdrawn before this version: no guest notice (not-sent, upgrade)`);
+  return { ran: true, seeded };
+}
+
+// Rule 64 (review of #912, m1) — the claim is `sending` until SMTP accepts. A table created with the earlier CHECK (`sent`,
+// `not-sent`) is copied into one that allows it, rows and ids kept. Idempotent: reads the stored DDL.
+function widenNoticeStatuses(database) {
+  const ddl = database.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'dates_taken_notices'").get();
+  if (!ddl || String(ddl.sql).includes("'sending'")) return false;
+  database.transaction(() => {
+    database.exec(`
+      CREATE TABLE dates_taken_notices_v2 (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        reservationId INTEGER NOT NULL UNIQUE,
+        takenByReservationId INTEGER,
+        emailLogId INTEGER,
+        noticeStatus TEXT NOT NULL CHECK (noticeStatus IN ('sending', 'sent', 'not-sent')),
+        noticeReason TEXT,
+        createdAt TEXT NOT NULL DEFAULT (datetime('now')),
+        acknowledgedAt TEXT
+      );
+      INSERT INTO dates_taken_notices_v2 (id, reservationId, takenByReservationId, emailLogId, noticeStatus, noticeReason, createdAt, acknowledgedAt)
+        SELECT id, reservationId, takenByReservationId, emailLogId, noticeStatus, noticeReason, createdAt, acknowledgedAt FROM dates_taken_notices;
+      DROP TABLE dates_taken_notices;
+      ALTER TABLE dates_taken_notices_v2 RENAME TO dates_taken_notices;
+    `);
+  })();
+  return true;
+}
+
+module.exports = { runDatesTakenUpgradeMigration, runDatesTakenNoticeBacklog, widenNoticeStatuses, MIGRATION_NAME, BACKLOG_MIGRATION_NAME };

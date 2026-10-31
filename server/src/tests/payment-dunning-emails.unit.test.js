@@ -81,12 +81,12 @@ function markRequestSent(db, reservationId, type) {
 }
 
 function addReservation(db, { id, depositDueDate = null, depositPaid = 0, depositAmount = 274,
-  balanceDueDate = null, balancePaid = 0, balanceAmount = 640, kind = 'reservation', platform = 'direct' }) {
+  balanceDueDate = null, balancePaid = 0, balanceAmount = 640, kind = 'reservation', platform = 'direct', propertyId = 1 }) {
   db.prepare(`INSERT INTO reservations
     (id, kind, clientId, propertyId, startDate, endDate, finalPrice,
      depositAmount, depositDueDate, depositPaid, balanceAmount, balanceDueDate, balancePaid, platform)
-    VALUES (?, ?, 1, 1, '2026-09-18', '2026-09-25', 914, ?, ?, ?, ?, ?, ?, ?)`)
-    .run(id, kind, depositAmount, depositDueDate, depositPaid, balanceAmount, balanceDueDate, balancePaid, platform);
+    VALUES (?, ?, 1, ?, '2026-09-18', '2026-09-25', 914, ?, ?, ?, ?, ?, ?, ?)`)
+    .run(id, kind, propertyId, depositAmount, depositDueDate, depositPaid, balanceAmount, balanceDueDate, balancePaid, platform);
 }
 
 const emailServiceFactory = (sent) => () => ({
@@ -141,7 +141,8 @@ test('manual mode: the same anchors drive the pending queue', () => {
   const db = fixture({ sendMode: 'manual' });
   addReservation(db, { id: 100, depositDueDate: TODAY });
   addReservation(db, { id: 101, balanceDueDate: '2026-08-16' });
-  addReservation(db, { id: 102, depositDueDate: TODAY, depositPaid: 1 }); // paid → out
+  // Another logement: a paid stay on the same nights would hold them (specs/payment-link-lifecycle.md rule 65).
+  addReservation(db, { id: 102, depositDueDate: TODAY, depositPaid: 1, propertyId: 2 }); // paid → out
   markRequestSent(db, 100, 'deposit');
   markRequestSent(db, 101, 'balance');
   markRequestSent(db, 102, 'deposit');

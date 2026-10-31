@@ -286,6 +286,30 @@ const CANCELLATION_NOTICE_BODY = [
   '{{senderName}}',
 ].join('\n');
 
+// specs/payment-link-lifecycle.md rules 44-45 — the guest whose payment request lost its dates to another stay is told
+// at once, by its one sender (utils/datesTakenNotice.js): warm and short, no link, no amount, nothing to sell.
+const DATES_UNAVAILABLE_NOTICE_BODY = [
+  'Bonjour {{clientFirstName}},',
+  '',
+  'Les dates que nous vous avions proposées {{propertyWithArticle}}, du {{arrivalDateLabel}} au {{departureDateLabel}}, viennent d\'être réservées et ne sont plus disponibles. Le lien de paiement que vous avez reçu ne fonctionne plus, et rien ne vous a été prélevé.',
+  '',
+  'Nous sommes désolés de ne pas avoir pu les garder pour vous. Si d\'autres dates vous conviennent, répondez simplement à ce message.',
+  '',
+  'À bientôt,',
+  '{{senderName}}',
+].join('\n');
+
+const DATES_UNAVAILABLE_NOTICE_BODY_EN = [
+  'Hello {{clientFirstName}},',
+  '',
+  'The dates we offered you at {{propertyName}}, from {{arrivalDateLabel}} to {{departureDateLabel}}, have just been booked and are no longer available. The payment link you received no longer works, and nothing has been charged.',
+  '',
+  'We are sorry we could not hold them for you. If other dates suit you, simply reply to this message.',
+  '',
+  'See you soon,',
+  '{{senderName}}',
+].join('\n');
+
 const CANCELLATION_NOTICE_BODY_EN = [
   'Hello {{clientFirstName}},',
   '',
@@ -548,6 +572,17 @@ const DEFAULT_TEMPLATES = Object.freeze([
     sendMode:  'manual',   // rule 18 — a request for money is never sent by a cron
     enabled:   true,
   }),
+  Object.freeze({
+    stableKey: 'dates_unavailable_notice',
+    name:      'Dates plus disponibles',
+    subject:   'Vos dates {{propertyWithArticle}} ne sont plus disponibles',
+    body:      DATES_UNAVAILABLE_NOTICE_BODY,
+    subjectEn: 'Your dates at {{propertyName}} are no longer available',
+    bodyEn:    DATES_UNAVAILABLE_NOTICE_BODY_EN,
+    dayOffset: 0,          // sentinel — sent when a stay's link is withdrawn because its dates were taken
+    sendMode:  'manual',   // stored Manual; its sender is the one exception of utils/autoSendPolicy (rule 44)
+    enabled:   true,
+  }),
   // ───────────────────────────────────────────────────────────────────────────────
   // Add new default templates below. One object per template; follow the contract
   // documented at the top of this file. Re-uses any of the variables / flags listed in
@@ -559,7 +594,7 @@ const DEFAULT_TEMPLATES = Object.freeze([
 // Templates sent programmatically (on a payment event) or by an explicit host action — NOT by the
 // date-driven manual queue (emailLogModel.listPending) nor the `auto` cron. Single source of truth so
 // the model's exclusion and the senders stay in sync.
-const EVENT_TRIGGERED_STABLE_KEYS = Object.freeze(['reservation_confirmation', 'deposit_request', 'balance_request', 'full_request', 'installment_request', 'cancellation_notice']);
+const EVENT_TRIGGERED_STABLE_KEYS = Object.freeze(['reservation_confirmation', 'deposit_request', 'balance_request', 'full_request', 'installment_request', 'cancellation_notice', 'dates_unavailable_notice']);
 
 // Every template that asks a guest for money (specs/payment-schedule-and-cancellation.md §1 amendment,
 // rule 44). None of them may ever carry `sendMode: 'auto'`: a dunning email is a commercial act the

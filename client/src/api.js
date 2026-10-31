@@ -735,6 +735,9 @@ const api = {
   // Stays numbered by the boot repair, listed until checked (specs/reservation-number-and-search.md rule 15).
   getRepairedReservationNumbers: () => request('/dashboard/repaired-reservation-numbers'),
   acknowledgeRepairedReservationNumber: (id) => request(`/dashboard/repaired-reservation-numbers/${id}/acknowledge`, { method: 'POST' }),
+  // Stays whose dates another stay took, told or not, until « Vu » (specs/payment-link-lifecycle.md rule 43).
+  getDatesTakenAlerts: () => request('/dashboard/dates-taken'),
+  acknowledgeDatesTaken: (id) => request(`/dashboard/dates-taken/${id}/acknowledge`, { method: 'POST' }),
 
   // Échéances de paiement (specs/payment-schedule-and-cancellation.md §3.4 / §3.5). Rows arrive
   // ready to render — the client decides nothing about states, amounts or available actions.

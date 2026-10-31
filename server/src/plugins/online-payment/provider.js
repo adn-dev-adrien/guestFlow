@@ -9,6 +9,14 @@ const sdk = require('../sdk');
 
 const { withQonto } = sdk.coreModule('qonto').qontoService;
 
+// The payment statuses after which no money can arrive on that payment.
+const SETTLED_UNPAID = new Set(['failed', 'canceled', 'cancelled', 'expired', 'declined', 'refused']);
+
+// A payment neither paid nor known to have failed (processing, pending, a status this adapter does not know) may still
+// complete (specs/payment-link-lifecycle.md rule 64): fails closed, an unknown status is in flight.
+const hasPaymentInFlight = (payments) => (payments || [])
+  .some((p) => { const status = String((p && p.status) || '').toLowerCase(); return status !== 'paid' && !SETTLED_UNPAID.has(status); });
+
 /**
  * @param {object} [deps]
  * @param {object} [deps.settings] the settings store (defaults to the instance's, see settingsStore)
@@ -42,11 +50,11 @@ function createQontoProvider({ settings, env = process.env } = {}) {
     },
 
     // The authoritative paid signal is the link's payments sub-resource: its top-level status only goes
-    // open → processing in sandbox (specs/online-payments-qonto.md §3.3).
+    // open → processing in sandbox (specs/online-payments-qonto.md §3.3). `pending`: a payment still in flight.
     async getPayment(linkId, { origin = 'poll' } = {}) {
       const pay = await call(origin, (client, accessToken) => client.getPaymentLinkPayments({ accessToken, id: linkId }));
       const paid = pay.paidPayment || {};
-      return { paid: Boolean(pay.paid), paymentId: paid.id || null, paidAt: paid.paid_at || null };
+      return { paid: Boolean(pay.paid), pending: !pay.paid && hasPaymentInFlight(pay.payments), paymentId: paid.id || null, paidAt: paid.paid_at || null };
     },
 
     async getLinkStatus(linkId) {
@@ -60,4 +68,4 @@ function createQontoProvider({ settings, env = process.env } = {}) {
   };
 }
 
-module.exports = { createQontoProvider };
+module.exports = { createQontoProvider, hasPaymentInFlight };
