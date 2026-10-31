@@ -4,7 +4,7 @@
 // write refused for the subscription always ends in the error toast.
 import React from 'react';
 import { vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 
 vi.mock('../../api', () => ({
   __esModule: true,
@@ -54,7 +54,6 @@ test('active or unmanaged: nothing shows', async () => {
     api.getSubscription.mockResolvedValue(s);
     const { container, unmount } = render(<SubscriptionBanner />);
     await act(() => api.getSubscription.mock.results.at(-1).value);
-    expect(api.getSubscription).toHaveBeenCalled();
     expect(container.textContent).toBe('');
     unmount();
   }

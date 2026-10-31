@@ -58,7 +58,6 @@ test('renders nothing when no update is running', async () => {
   api.getUpdateStatus.mockResolvedValue(status({ phase: 'idle', terminal: true, label: 'Aucune mise à jour en cours' }));
   const { container } = render(<UpdateProgressOverlay />);
   await act(() => api.getUpdateStatus.mock.results.at(-1).value);
-  expect(api.getUpdateStatus).toHaveBeenCalled();
   expect(container.firstChild).toBeNull();
 });
 
@@ -73,7 +72,6 @@ test('an unreachable status endpoint on mount stays silent', async () => {
   api.getUpdateStatus.mockRejectedValue(new Error('Failed to fetch'));
   const { container } = render(<UpdateProgressOverlay />);
   await act(() => api.getUpdateStatus.mock.results.at(-1).value.catch(() => {}));
-  expect(api.getUpdateStatus).toHaveBeenCalled();
   expect(container.firstChild).toBeNull();
 });
 

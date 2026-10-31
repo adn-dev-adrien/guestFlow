@@ -75,7 +75,6 @@ test('stays silent without a subject (up to date, postponed or running — the s
   api.getSystemVersion.mockResolvedValue(versionInfo({ updateAvailable: false }));
   const { container } = render(<UpdateAvailableAlert attention={null} />);
   await act(() => api.getSystemVersion.mock.results.at(-1).value);
-  expect(api.getSystemVersion).toHaveBeenCalled();
   expect(container.firstChild).toBeNull();
 });
 

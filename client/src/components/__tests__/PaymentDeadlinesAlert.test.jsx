@@ -119,7 +119,6 @@ beforeEach(() => {
 test('renders nothing when no deadline is missed', async () => {
   const { container } = renderCard();
   await act(() => api.getPaymentDeadlines.mock.results.at(-1).value);
-  expect(api.getPaymentDeadlines).toHaveBeenCalled();
   expect(container.textContent).toBe('');
 });
 

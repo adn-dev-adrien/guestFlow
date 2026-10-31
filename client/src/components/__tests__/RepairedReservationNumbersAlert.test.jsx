@@ -1,3 +1,4 @@
+// server-test-isolation.md rule 11 — a « nothing shown » check first waits for the answer that could show it.
 import React from 'react';
 import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -29,7 +30,6 @@ test('rien à vérifier : la carte ne s’affiche pas', async () => {
   api.getRepairedReservationNumbers.mockResolvedValue({ alerts: [] });
   const { container } = render(<RepairedReservationNumbersAlert attention={ATTENTION} />);
   await act(() => api.getRepairedReservationNumbers.mock.results.at(-1).value);
-  expect(api.getRepairedReservationNumbers).toHaveBeenCalled();
   expect(container).toBeEmptyDOMElement();
 });
 
@@ -49,6 +49,5 @@ test('une erreur de chargement n’affiche rien', async () => {
   api.getRepairedReservationNumbers.mockRejectedValue(new Error('boom'));
   const { container } = render(<RepairedReservationNumbersAlert attention={ATTENTION} />);
   await act(() => api.getRepairedReservationNumbers.mock.results.at(-1).value.catch(() => {}));
-  expect(api.getRepairedReservationNumbers).toHaveBeenCalled();
   expect(container).toBeEmptyDOMElement();
 });

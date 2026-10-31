@@ -7,7 +7,7 @@
 
 import React from 'react';
 import { vi } from 'vitest';
-import { render, screen, waitFor, act } from '@testing-library/react';
+import { render, screen, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 vi.mock('../../api', () => ({
@@ -50,7 +50,6 @@ test('renders nothing when no reservation arrived in the last 24 hours', async (
   api.getNewReservations.mockResolvedValue({ alerts: [] });
   const { container } = render(<NewReservationsAlert attention={ATTENTION} />);
   await act(() => api.getNewReservations.mock.results.at(-1).value);
-  expect(api.getNewReservations).toHaveBeenCalled();
   expect(container.firstChild).toBeNull();
 });
 
@@ -58,7 +57,6 @@ test('renders nothing on API error (never breaks the dashboard)', async () => {
   api.getNewReservations.mockRejectedValue(new Error('boom'));
   const { container } = render(<NewReservationsAlert attention={ATTENTION} />);
   await act(() => api.getNewReservations.mock.results.at(-1).value.catch(() => {}));
-  expect(api.getNewReservations).toHaveBeenCalled();
   expect(container.firstChild).toBeNull();
 });
 

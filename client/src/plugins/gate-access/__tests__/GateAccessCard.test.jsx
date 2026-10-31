@@ -1,5 +1,6 @@
+// server-test-isolation.md rule 11 — a « nothing shown » check first waits for the answer that could show it.
 import React from 'react';
-import { render, screen, waitFor, act } from '@testing-library/react';
+import { render, screen, act } from '@testing-library/react';
 import { vi } from 'vitest';
 
 import GateAccessCard from '../GateAccessCard';
@@ -43,7 +44,6 @@ test('shows nothing either when the read fails — a fiche does not break for th
   api.getReservationGateAccess.mockRejectedValue(new Error('403'));
   const { container } = render(<GateAccessCard reservationId={42} />);
   await act(() => api.getReservationGateAccess.mock.results.at(-1).value.catch(() => {}));
-  expect(api.getReservationGateAccess).toHaveBeenCalled();
   expect(container.textContent).toBe('');
 });
 

@@ -44,6 +44,5 @@ test('no intake, or one still pending: nothing at all', async () => {
   api.getGdfIntakeForReservation.mockResolvedValue({ intake: { ...BASE, status: 'pending' } });
   const { container } = render(<IntakeBanner reservationId={22308} />);
   await act(() => api.getGdfIntakeForReservation.mock.results.at(-1).value);
-  expect(api.getGdfIntakeForReservation).toHaveBeenCalled();
   expect(container).toBeEmptyDOMElement();
 });

@@ -64,7 +64,6 @@ test('specs/shell-and-home-day-first.md rule 16: up to date, the top bar shows n
   api.getSystemVersion.mockResolvedValue(versionInfo({ updateAvailable: false, latest: '1.0.0' }));
   const { container } = render(<AppVersionBadge />);
   await act(() => api.getSystemVersion.mock.results.at(-1).value);
-  expect(api.getSystemVersion).toHaveBeenCalled();
   expect(container.firstChild).toBeNull();
   expect(screen.queryByText(/v1\.0\.0/)).not.toBeInTheDocument();
 });

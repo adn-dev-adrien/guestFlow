@@ -1,5 +1,6 @@
+// server-test-isolation.md rule 11 — a « nothing shown » check first waits for the answer that could show it.
 import React from 'react';
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import { vi } from 'vitest';
 
 // specs/gate-access-sowel-connector.md §3.3 rules 13 + 17 — the dashboard alert of the Sowel
@@ -41,7 +42,6 @@ test('renders nothing when no key failed and Sowel reads', async () => {
   api.getGateKeysAlerts.mockResolvedValue({ failures: [], stale: false, lastReadAt: '2026-09-27T16:00:00.000Z' });
   const { container } = render(<GateKeysAlert attention={ATTENTION} />);
   await act(() => api.getGateKeysAlerts.mock.results.at(-1).value);
-  expect(api.getGateKeysAlerts).toHaveBeenCalled();
   expect(container).toBeEmptyDOMElement();
 });
 

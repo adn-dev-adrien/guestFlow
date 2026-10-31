@@ -1,5 +1,6 @@
+// server-test-isolation.md rule 11 — a « nothing shown » check first waits for the answer that could show it.
 import React from 'react';
-import { render, screen, waitFor, act } from '@testing-library/react';
+import { render, screen, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
 
@@ -105,6 +106,5 @@ test('stays silent when the server does not answer', async () => {
   api.getGateConnector.mockRejectedValue(new Error('boom'));
   const { container } = render(<SettingsGateAccessSection />);
   await act(() => api.getGateConnector.mock.results.at(-1).value.catch(() => {}));
-  expect(api.getGateConnector).toHaveBeenCalled();
   expect(container.textContent).toBe('');
 });

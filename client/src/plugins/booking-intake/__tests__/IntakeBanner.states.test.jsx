@@ -68,6 +68,5 @@ test('specs/booking-extranet-intake.md rule 18: nothing to say, nothing rendered
   api.getBookingIntakeForReservation.mockResolvedValue({ intake: null });
   const { container } = render(<IntakeBanner reservationId={22309} />);
   await act(() => api.getBookingIntakeForReservation.mock.results.at(-1).value);
-  expect(api.getBookingIntakeForReservation).toHaveBeenCalled();
   expect(container).toBeEmptyDOMElement();
 });

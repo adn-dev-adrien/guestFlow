@@ -1,5 +1,6 @@
+// server-test-isolation.md rule 11 — a « nothing shown » check first waits for the answer that could show it.
 import React from 'react';
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import { vi } from 'vitest';
 
 // specs/tariff-recipes/spec.md §3.2 rule 12 + specs/tariff-events-and-extra-guest-tiers §3.3 rule 17
@@ -29,7 +30,6 @@ test('renders nothing when there is neither a run nor a missing event year', asy
   api.getTariffRecipeRuns.mockResolvedValue({ runs: [], missingEvents: [] });
   const { container } = render(<TariffRecipeRunsAlert attention={ATTENTION} />);
   await act(() => api.getTariffRecipeRuns.mock.results.at(-1).value);
-  expect(api.getTariffRecipeRuns).toHaveBeenCalled();
   expect(container).toBeEmptyDOMElement();
 });
 

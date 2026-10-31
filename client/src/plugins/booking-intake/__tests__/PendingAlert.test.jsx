@@ -58,6 +58,5 @@ test('specs/booking-extranet-intake.md rule 22: nothing to fill, nothing rendere
   api.getBookingIntakePending.mockResolvedValue([]);
   const { container } = renderIn(<PendingAlert attention={ATTENTION} />);
   await act(() => api.getBookingIntakePending.mock.results.at(-1).value);
-  expect(api.getBookingIntakePending).toHaveBeenCalled();
   expect(container).toBeEmptyDOMElement();
 });
