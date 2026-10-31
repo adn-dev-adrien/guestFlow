@@ -22,6 +22,7 @@ const { syncAfterTotalChange } = require('../utils/installmentSync');
 const { recordInstallmentPayment } = require('../utils/installmentPayment');
 const { validateCollectionDate } = require('../utils/arrivalPaymentDate');
 const { addDaysToIsoDate } = require('../utils/devisHelpers');
+const { unsettledWithdrawnRefusal } = require('../utils/withdrawnPayments');
 
 const MANUAL_METHODS = ['transfer', 'cash', 'cheque', 'card', 'other'];
 
@@ -63,6 +64,9 @@ function buildController({
     if (collected(row)) {
       return { eligible: true, canCreate: false, reason: 'Un paiement est déjà enregistré sur ce séjour.' };
     }
+    // specs/payment-link-lifecycle.md rule 62 — a payment received after a withdrawal by hand is settled first.
+    const unsettled = unsettledWithdrawnRefusal(database, row.id);
+    if (unsettled) return { eligible: true, canCreate: false, reason: unsettled.message };
     if (plan.maxCountFor(contextOf(row)) < plan.MIN_COUNT) {
       return { eligible: true, canCreate: false, reason: 'Trop près de l’arrivée pour étaler le paiement.' };
     }
@@ -155,6 +159,8 @@ function buildController({
     if (rows.some((r) => Number(r.paid) === 1) || collected(row)) {
       return fail(409, 'INSTALLMENTS_LOCKED', 'Un paiement est enregistré : le nombre d’échéances est figé.');
     }
+    const unsettled = unsettledWithdrawnRefusal(database, row.id);
+    if (unsettled) return fail(unsettled.httpStatus, unsettled.error, unsettled.message);
     const stalePaid = await paidLinkRefusal(rows.length > 0
       ? openLinksOf(row.id, ['installment'])
       : openLinksOf(row.id, ['deposit', 'balance', 'full']));

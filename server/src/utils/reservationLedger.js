@@ -498,6 +498,8 @@ function buildLedger({
     rows.push({ key: 'balance', label, amount: balanceAmount, ...base, ...(penaltyAction ? { penaltyAction } : {}), detail: tidyDetail(detail) });
   }
 
+  const afterBuckets = rows.length;
+
   // ── Compléments + notes en séjour (rules 2, 22, Q5) ──────────────────────
   const deferred = flag(has('complementDeferredToCheckout') ? live.complementDeferredToCheckout : r.complementDeferredToCheckout);
   const arrivalAdjusted = r.complementAmountOverride != null && r.complementAmountOverride !== '';
@@ -603,6 +605,28 @@ function buildLedger({
         ...(refund.reason ? { note: `« ${refund.reason} »` } : {}),
       },
     });
+  }
+
+  // ── Paiements après retrait (specs/payment-link-lifecycle.md rule 62) ──────
+  // A payment to settle that no row above shows — an installment plan replaces the acompte and solde rows —
+  // gets a row of its own, right after the buckets, so « Marquer remboursé » stays reachable.
+  if (settleContext) {
+    const shown = new Set(rows.flatMap((x) => [x.detail?.link, ...(x.detail?.otherLinks || [])])
+      .filter((l) => l && l.settle).map((l) => l.settle.linkId));
+    const waiting = (links || []).filter((l) => unsettledPayment(l) && !shown.has(Number(l.id)))
+      .sort((a, b) => Number(b.id || 0) - Number(a.id || 0));
+    if (waiting.length > 0) {
+      const [first, ...rest] = waiting.map((l) => linkDetail(l, { stayYear, due: false, canRequest: false, canWithdraw, providerLabel, settleContext }));
+      rows.splice(afterBuckets, 0, {
+        key: 'withdrawnPayments',
+        label: waiting.length > 1 ? 'Paiements après retrait' : 'Paiement après retrait',
+        amount: waiting.reduce((sum, l) => sum + Number(l.amountCents || 0), 0) / 100,
+        state: 'due', tone: 'warning', stateLabel: 'À traiter',
+        action: null,
+        amountEdit: { editable: false, mode: 'none', min: null, max: null, reason: null },
+        detail: tidyDetail({ link: first, ...(rest.length > 0 ? { otherLinks: rest } : {}) }),
+      });
+    }
   }
 
   // ── Caution (rules 6, 12) ─────────────────────────────────────────────────

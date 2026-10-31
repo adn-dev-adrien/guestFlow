@@ -916,6 +916,27 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     lives in `occupancy.js`): a model required then would keep the half-built database module for the life of the
     process, and the first boot after the install served 500s.
 
+### 3.R Audit round 10 (2026-10-31; appended, rule numbers are identities)
+
+62. **An installment plan never hides a payment to settle** (audit R10-M1). Rule 56 refuses every échéance request
+    while a payment received after a withdrawal by hand waits, but the plan replaced the acompte and solde rows, the
+    only ones that carried `settle`: the fiche said « à traiter » and offered nothing to treat it with, short of
+    deleting the plan. Two halves, both on the server:
+    - **No plan is made or resized meanwhile.** `installmentsController.createOrResize` (`PUT …/installments
+      { count }`) refuses 409 `UNSETTLED_WITHDRAWN_PAYMENT` with rule 56's message, after the eligibility and
+      `INSTALLMENTS_LOCKED` checks and before any link is read or retired; `eligibilityOf` answers `canCreate: false`
+      with the same sentence as `reason`, so the card says why. Dates and amounts of an existing plan stay editable
+      (they request nothing). Once the payment is settled, the plan is made as usual.
+    - **A payment to settle that no row shows gets a row of its own.** After the buckets (the échéances, or the
+      acompte and solde) and before the compléments, `buildLedger` emits `withdrawnPayments` « Paiement après
+      retrait » (« Paiements après retrait » for several), the sum of their amounts, tone `warning`, « À traiter »,
+      no action, amount not editable; `detail.link` is the newest such link and `detail.otherLinks` the others,
+      each with its rule-56 label and `settle` (refund only on a read-only stay). « Shown » is read from the rows
+      themselves (a `settle.linkId` already in a row's `link` or `otherLinks`), so a payment is never listed twice:
+      without a plan the acompte / solde rows keep theirs, and the row also catches the link types no other row
+      lists (an échéance link withdrawn through the API). `FinanceSection` renders it through `LedgerList` and the
+      existing `linkActions`, and the closed-fiche portal of rule 56 (O2) picks it up unchanged.
+
 ---
 
 ## 4. Architecture
@@ -972,6 +993,8 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
 | `utils/` | `paymentLinkWithdrawal.js` | C | `withdrawPaymentLink(linkId, deps)`: the refusals of rule 42, `retireOpenLink(…, { reason: 'operator' })`, a payment found on the way booked at once |
 | `utils/` | `paymentLinkDeactivation.js`, `models/paymentLinksModel.js` | T | `retireOpenLink` with `operator` ends the link now (`cancelIfOpen(…, { endsAt })`) (rule 42) |
 | `utils/` | `reservationLedger.js` | T | `detail.link.withdraw` on an open link of a stay that is not read-only; « Lien retiré le {jour} » (rule 42) |
+| `utils/` | `reservationLedger.js` | T | Row `withdrawnPayments` for the payments to settle no other row shows (rule 62) |
+| `controllers/` | `installmentsController.js` | T | `createOrResize` and `eligibilityOf` read `unsettledWithdrawnRefusal` (rule 62) |
 | `models/` | `establishmentClosuresModel.js` | T | `findReservationOverlaps` (all, not the first), `findOpenPaymentRequests(propertyId, start, end)`, `findDevisWithoutLink` (rule 49) |
 | `models/` | `devisModel.js` (create / update) | T | 409 `DATES_HELD` on held dates (rule 46); `datesTaken` marker in the devis payloads (rule 48) |
 | `controllers/` | `devisController.js` | T | Relays `DATES_HELD` with `stays[]` |
@@ -1120,6 +1143,7 @@ refused).
 - [x] `tests/closure-devis-without-link.unit.test.js` (4) — rule 49: warning listed, save accepted.
 - [x] `tests/payment-link-operator-owed-read.unit.test.js` (4) — rule 42 (L6): an operator-withdrawn link owing its read is read before a new mint: paid before → booked, request refused; unpaid → minted; (R2) a concurrent pass that booked it, or paid the échéance, while the mint waited → 409, nothing created.
 - [x] `tests/payment-link-unsettled-withdrawn.unit.test.js` (17) — rule 56: requests of every bucket, the échéance and the e-mail refused before any mint; « remboursé » and « enregistrer sur le séjour » settle it (stubbed and real booking); only such a payment settles, once; the ledger label and actions; (O1) an open link not reused; (O2) read-only stays refund only; (O3) amounts and the devis / unavailable-nights messages; (M1) the shared decision, and a fiche on taken nights through the settle and the poll paths; (O4) a devis converted into a cancelled stay refunds only. `public-payment-pay-visitor-refusals` (+2): the visitor's FR / EN sentence (G1).
+- [x] `tests/installments-unsettled-withdrawn-payment.unit.test.js` (8) — rule 62: creation and resize refused 409 with the card's reason, made once refunded; with a plan the acompte / séjour payments on a row of their own (link + `otherLinks`, both actions), an échéance link too, refund only on a read-only stay, no row without a plan nor once settled.
 - [x] `tests/payment-link-closed-dates.unit.test.js` (9) — rule 55: mint and installment refused before any provider call, an open link not handed out, one night or an establishment-wide closure enough, another logement or the departure day free, request and reminder e-mails refused before any mint, a mail without a link still leaves.
 - [ ] `tests/dates-taken-notice.unit.test.js` — rules 43-45: sent at the `dates-taken` withdrawal (overlap, first paid, iCal), not for expiry, a started stay or « Retirer le lien »; a later refused reminder sends nothing more; e-mail sent once with its `email_log` row, push, dashboard row, every fail-closed case, reminder never queued on taken dates, `AUTO_SEND_EXCEPTIONS` holds exactly one key and `autoSendPolicy` still refuses every other template.
 - [x] `tests/payment-link-superseded.unit.test.js` (4) — rule 12; rule 31 in `supersededDuplicates`.
@@ -1157,6 +1181,7 @@ refused).
 - [x] `client/src/components/__tests__/EmailManualSendDialog.payment-refusal.test.jsx` — rule 60: the info alert and « Envoyer » disabled; nothing without a refusal (2).
 - [x] `client/src/components/__tests__/PaymentDeadlinesAlert.link-already-paid.test.jsx` — rule 50 (R9-C1): « Relancer » refused as paid re-reads the rows, a sent request too, another refusal does not, the draft dialog's refusal re-reads (4).
 - [x] `client/src/components/reservation/__tests__/FinanceSection.link-lifecycle.test.jsx` (11) — prints the new labels, offers « Renvoyer la demande » on expired, not on dates-taken; « Retirer le lien » asks for confirmation.
+- [x] `client/src/components/reservation/__tests__/FinanceSection.withdrawn-payments-plan.test.jsx` (3) — rule 62: the row beside the échéances with both payments and their actions, each settling its own link.
 - [x] `client/src/pages/__tests__/EstablishmentClosuresPage.conflicts.test.jsx` (6) — warning list with links, 409 lists rendered, asked again on focus, same tab on a phone.
 - [x] `client/src/components/__tests__/ConflictList.test.jsx` (5).
 - [x] `client/src/components/__tests__/DatesTakenBadge.test.jsx` (4) — rule 48; the 44 px hit area (m4).
@@ -1343,6 +1368,9 @@ Six sequential PRs into `inte/plugins` (plan validated 2026-10-30).
   (`payment-link-valid-until-rollback` 10, `payment-link-valid-until-token` +1). Review of #906: rule 57's preview
   sentence corrected (R1); rule 60 the preview's `refusal` and the dialog's alert (`payment-link-preview-refusal` 4,
   `EmailManualSendDialog.payment-refusal` 2).
+  Audit round 10 (2026-10-31): rule 62 `installmentsController` refuses a plan while a payment waits to be settled,
+  `buildLedger` row `withdrawnPayments` (`installments-unsettled-withdrawn-payment` 8, client
+  `FinanceSection.withdrawn-payments-plan` 3; no client code change).
 - [x] **PR5 — held dates and dates-taken withdrawal** (rules 10-12, 16, 24, 25, 31-33, 37-39, 46, 48, 61).
   `utils/stayMoney.js` (`carriesMoneySql`, `carriesMoney`, `holdsDates`; `supersededDuplicates` reads it and withdraws
   the links of a copy it sets aside); `utils/datesTaken.js` (`heldOverlaps`, `datesTakenRefusal`, `datesTakenMarker`,
