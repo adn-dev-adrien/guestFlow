@@ -79,3 +79,27 @@ for (const [lang, providerError, confirmed] of [
     assert.equal(res.body.error.message, confirmed);
   });
 }
+
+// specs/payment-link-lifecycle.md rule 56 (review of #902, G1) — a payment received on a link withdrawn by hand
+// waits for the operator: the visitor reads a sentence of the site in their language, never the operator's text.
+for (const [lang, message] of [
+  ['en', 'A payment is being checked: please contact the property.'],
+  ['fr', 'Un paiement est en cours de vérification : contacter l’établissement.'],
+]) {
+  test(`rule 56 — an unsettled payment on a withdrawn link: the visitor's ${lang} sentence, nothing minted`, async () => {
+    const devisId = freshDevis();
+    links.create({
+      reservationId: devisId, type: 'full', amountCents: 40000, provider: 'qonto', providerLinkId: `withdrawn_${devisId}`,
+      url: 'https://pay.example.test/old', status: 'cancelled',
+    });
+    db.prepare("UPDATE payment_links SET cancelReason = 'operator', paidAt = ?, providerPaymentId = 'pp_late' WHERE reservationId = ?")
+      .run(new Date().toISOString(), devisId);
+    const minted = [];
+    const fake = { ...provider({ getPayment: async () => ({ paid: false }) }), async createLink() { minted.push(devisId); return { id: 'x', url: 'https://pay.example.test/x', status: 'open' }; } };
+    const res = await callPay(devisId, fake, lang);
+    assert.equal(res.statusCode, 409);
+    assert.equal(res.body.error.code, 'PAYMENT_UNDER_REVIEW');
+    assert.equal(res.body.error.message, message);
+    assert.deepEqual(minted, []);
+  });
+}

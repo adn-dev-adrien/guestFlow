@@ -13,6 +13,8 @@
  */
 
 const { todayIso: localTodayIso } = require('../utils/localDate');
+const { closedDatesRefusal } = require('../utils/closedStayDates');
+const { unsettledWithdrawnRefusal } = require('../utils/withdrawnPayments');
 const { sendFailureMessage } = require('../utils/sendFailure');
 const { parisDateTimeLabel } = require('../utils/parisDateTime');
 
@@ -298,6 +300,12 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
     const isInstallment = Boolean(wanted && wanted.stableKey === INSTALLMENT_STABLE_KEY && installmentRequests);
     const linkType = wanted ? SEND_TIME_LINKS[wanted.stableKey] : null;
 
+    // specs/payment-link-lifecycle.md rule 55 — a request or reminder on closed nights is refused before any mint.
+    if (isInstallment || linkType) {
+      // Rule 56 — and none while a payment received on a link withdrawn by hand waits to be settled.
+      const refusal = closedDatesRefusal(database, Number(reservationId)) || unsettledWithdrawnRefusal(database, Number(reservationId));
+      if (refusal) return res.status(refusal.httpStatus).json({ error: refusal.error, message: refusal.message });
+    }
     // A send that cannot leave is refused before a payment link is minted for it (review of #897).
     if ((isInstallment || linkType) && wantedGraph) {
       const early = String(wantedGraph.client?.email || '').trim() || overrideTo;

@@ -22,5 +22,9 @@ router.post('/reservations/:id/payment-links', noWriteOnClosedStay, ctrl.createR
 router.get('/reservations/:id/payment-links', ctrl.listReservationPaymentLinks);
 router.post('/reservations/:id/payment-emails', noWriteOnClosedStay, ctrl.sendPaymentRequestEmail);
 router.post('/poll', ctrl.pollPaymentsNow);
+// « Retirer le lien » by hand (specs/payment-link-lifecycle.md rule 42); the read-only stays are refused by the service.
+router.post('/links/:id/withdraw', ctrl.withdrawLink);
+// A payment received on a link withdrawn by hand, after its withdrawal: refunded or recorded on the stay (rule 56).
+router.post('/links/:id/settle', ctrl.settleLink);
 
 module.exports = router;

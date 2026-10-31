@@ -9,7 +9,7 @@
  */
 
 const paymentProviders = require('./paymentProviders');
-const { LAPSED_REASONS } = require('../constants/paymentLinks');
+const { LAPSED_REASONS, LINK_REASONS } = require('../constants/paymentLinks');
 
 const defaultProviderFor = (providerId) => {
   const provider = paymentProviders.declared();
@@ -41,7 +41,7 @@ async function paidPaymentOf(provider, link) {
 /**
  * Refuses to retire an open link the guest has already paid: the payment would otherwise land on a
  * cancelled row and be lost or flagged for a refund (rule 7). Unreadable → refused too: a new link
- * needs the provider anyway.
+ * needs the provider anyway. The refusal carries the provider's `payment`.
  */
 async function assertNotPaid(link, provider) {
   if (!link || !link.providerLinkId || !provider || typeof provider.getPayment !== 'function') return;
@@ -52,7 +52,8 @@ async function assertNotPaid(link, provider) {
     throw { httpStatus: 502, error: 'PROVIDER_UNREACHABLE', message: 'Prestataire de paiement injoignable : réessayer.' };
   }
   if (pay && pay.paid) {
-    throw { httpStatus: 409, error: 'LINK_ALREADY_PAID', message: 'Le lien en cours vient d’être payé : aucun nouveau lien créé.' };
+    // The payment travels with the refusal, so a caller books what this read saw without asking again.
+    throw { httpStatus: 409, error: 'LINK_ALREADY_PAID', message: 'Le lien en cours vient d’être payé : aucun nouveau lien créé.', payment: pay };
   }
 }
 
@@ -60,13 +61,13 @@ async function assertNotPaid(link, provider) {
  * Replaces an open link: refuses when it is paid (before or while this runs), retires it only if it is
  * still open, then deactivates it at the provider. `deactivate(links)` defaults to `deactivateAbandonedLinks`.
  * `reason` is the `cancelReason`: a lapsed one (`validity`, specs/payment-link-lifecycle.md rule 8) makes the
- * link `expired`, any other withdraws it (`cancelled`). Throws `{ httpStatus, error, message }`.
+ * link `expired`, any other withdraws it (`cancelled`); `operator` (rule 42) also ends it `now`. Throws `{ httpStatus, error, message }`.
  */
 async function retireOpenLink(link, { paymentLinksModel, provider, deactivate = null, reason = null, now = new Date() }) {
   await assertNotPaid(link, provider);
   const retired = LAPSED_REASONS.has(reason)
     ? paymentLinksModel.lapseIfOpen(link.id, { reason, now })
-    : paymentLinksModel.cancelIfOpen(link.id, { reason });
+    : paymentLinksModel.cancelIfOpen(link.id, { reason, ...(reason === LINK_REASONS.OPERATOR ? { endsAt: now } : {}) });
   if (!retired) {
     const now = paymentLinksModel.findById(link.id);
     if (now && now.status === 'paid') {
@@ -103,6 +104,14 @@ async function deactivateAbandonedLinks(links, { paymentLinksModel, providerFor 
   for (const link of links || []) {
     if (!link || !link.providerLinkId) continue;
     const provider = providerFor(link.provider || 'qonto');
+    if (!provider) {
+      // eslint-disable-next-line no-console
+      console.warn(`[payments] link ${link.id} not deactivated: no connected payment provider, the poll retries it`);
+      if (link.status === 'expired') paymentLinksModel.restoreRemoteCancelPending(link.id);
+      else paymentLinksModel.cancel(link.id, { remotePending: true });
+      notDeactivated += 1;
+      continue;
+    }
     try {
       await provider.cancelLink(link.providerLinkId);
       settled(link);

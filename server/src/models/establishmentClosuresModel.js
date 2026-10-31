@@ -120,6 +120,74 @@ function createModel(database) {
   }
 
   /**
+   * Every reservation the closure would cover (specs/payment-link-lifecycle.md rule 40): the same
+   * night-block expansion as `findReservationOverlap`, which the tariff-recipes plugin keeps calling.
+   */
+  function findReservationOverlaps(propertyId, startDate, endDate) {
+    let sql = `
+      SELECT r.id, r.propertyId, r.startDate, r.endDate, r.reservationNumber, p.name AS propertyName,
+             c.firstName, c.lastName
+      FROM reservations r
+      JOIN properties p ON p.id = r.propertyId
+      LEFT JOIN clients c ON c.id = r.clientId
+      WHERE r.kind = 'reservation'
+        AND (CASE WHEN CAST(SUBSTR(COALESCE(r.checkInTime, '15:00'), 1, 2) AS INTEGER) <= ?
+                  THEN date(r.startDate, '-1 day') ELSE r.startDate END) < ?
+        AND (CASE WHEN CAST(SUBSTR(COALESCE(r.checkOutTime, '10:00'), 1, 2) AS INTEGER) >= ?
+                  THEN date(r.endDate, '+1 day') ELSE r.endDate END) > ?
+    `;
+    const params = [EARLY_CHECKIN_BLOCK_HOUR, endDate, LATE_CHECKOUT_BLOCK_HOUR, startDate];
+    if (propertyId != null) {
+      sql += ' AND r.propertyId = ?';
+      params.push(Number(propertyId));
+    }
+    sql += ' ORDER BY r.startDate ASC, r.id ASC';
+    return database.prepare(sql).all(...params);
+  }
+
+  // A devis or a fiche whose nights meet the closure's, on its logement (every logement when global).
+  const STAY_ON_NIGHTS = 'r.startDate < ? AND r.endDate > ? AND (? IS NULL OR r.propertyId = ?)';
+  const stayParams = (propertyId, startDate, endDate) => {
+    const pid = propertyId == null ? null : Number(propertyId);
+    return [endDate, startDate, pid, pid];
+  };
+
+  /**
+   * The open payment links of the devis and fiches on the closure's nights (rule 41), one row per link.
+   * A converted devis is left out: the reservation it became answers for its nights (rule 40).
+   */
+  function findOpenPaymentRequests(propertyId, startDate, endDate) {
+    return database.prepare(`
+      SELECT l.id AS linkId, l.type, l.amountCents, l.expiresAt,
+             r.id AS reservationId, r.kind, r.devisNumber, r.reservationNumber, r.startDate, r.endDate,
+             p.name AS propertyName, c.firstName, c.lastName
+      FROM payment_links l
+      JOIN reservations r ON r.id = l.reservationId
+      JOIN properties p ON p.id = r.propertyId
+      LEFT JOIN clients c ON c.id = r.clientId
+      WHERE l.status = 'open'
+        AND (r.kind = 'reservation' OR (r.kind = 'devis' AND COALESCE(r.devisStatus, '') != 'converted'))
+        AND ${STAY_ON_NIGHTS}
+      ORDER BY r.startDate ASC, r.id ASC, l.id ASC
+    `).all(...stayParams(propertyId, startDate, endDate));
+  }
+
+  /** The devis on the closure's nights that hold no open link (rule 49): they warn, never block. */
+  function findDevisWithoutLink(propertyId, startDate, endDate) {
+    return database.prepare(`
+      SELECT r.id AS reservationId, r.devisNumber, r.startDate, r.endDate,
+             p.name AS propertyName, c.firstName, c.lastName
+      FROM reservations r
+      JOIN properties p ON p.id = r.propertyId
+      LEFT JOIN clients c ON c.id = r.clientId
+      WHERE r.kind = 'devis' AND COALESCE(r.devisStatus, '') != 'converted'
+        AND ${STAY_ON_NIGHTS}
+        AND NOT EXISTS (SELECT 1 FROM payment_links l WHERE l.reservationId = r.id AND l.status = 'open')
+      ORDER BY r.startDate ASC, r.id ASC
+    `).all(...stayParams(propertyId, startDate, endDate));
+  }
+
+  /**
    * Finds an existing closure that conflicts with the proposed one.
    *
    * Conflict semantics:
@@ -193,6 +261,9 @@ function createModel(database) {
     update,
     delete: remove,
     findReservationOverlap,
+    findReservationOverlaps,
+    findOpenPaymentRequests,
+    findDevisWithoutLink,
     findClosureOverlap,
     findCoveringClosure,
     expandClosuresToDates,

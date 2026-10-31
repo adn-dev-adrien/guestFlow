@@ -2,6 +2,7 @@ const router = require('express').Router();
 const ctrl = require('../controllers/establishmentClosuresController');
 
 router.get('/', ctrl.list);
+router.get('/conflicts', ctrl.conflicts);
 router.post('/', ctrl.create);
 router.put('/:id', ctrl.update);
 router.delete('/:id', ctrl.delete);

@@ -67,6 +67,16 @@ function pickLink(links, rowKey) {
   return byNewest.find((l) => l.status === 'open') || byNewest[0];
 }
 
+// Review of #902 (L5) — a solde link and a full link can both be open (a full request, then a solde request): the
+// row shows the one `pickLink` chose, and every other open link of the row, so each can be withdrawn by hand —
+// and every payment of the row still to settle (rule 56).
+function otherOpenLinks(links, rowKey, shown) {
+  const types = LINK_TYPES_BY_ROW[rowKey] || [];
+  return (links || [])
+    .filter((l) => types.includes(String(l.type)) && (l.status === 'open' || unsettledPayment(l)) && (!shown || l.id !== shown.id))
+    .sort((a, b) => Number(b.id || 0) - Number(a.id || 0));
+}
+
 // specs/payment-link-lifecycle.md rule 24 — the moment a link stops, in the operator's day and hour (the
 // process runs in Europe/Paris). A sentinel or missing date (Qonto's `0001-01-01…`) is no moment.
 function linkEnd(link, stayYear) {
@@ -77,6 +87,7 @@ function linkEnd(link, stayYear) {
 }
 
 const WITHDRAWN_LABELS = {
+  refunded: 'Lien retiré · paiement remboursé',
   'amount-changed': 'Lien retiré · montant modifié',
   settled: 'Lien retiré · perçu autrement',
   'dates-taken': 'Lien retiré · dates prises',
@@ -89,7 +100,35 @@ function lapsedLabel(link, stayYear, providerLabel) {
   return link.remoteCancelPendingAt ? `${label} · désactivation en attente chez ${providerLabel || 'le prestataire de paiement'}` : label;
 }
 
-function linkDetail(link, { stayYear, due, canRequest, providerLabel = null }) {
+// specs/payment-link-lifecycle.md rule 56 — paid after its withdrawal by hand, not settled yet.
+const unsettledPayment = (link) => link.status === 'cancelled' && link.cancelReason === 'operator' && Boolean(link.paidAt);
+// Review of #902 (O2, O3) — the amount in both confirmations; « Enregistrer » says what it does (a devis becomes a
+// reservation; the guest is confirmed unless the nights are closed or taken) and is not offered on a read-only stay.
+const CONFIRMING_LINK_TYPES = new Set(['deposit', 'full']);
+function stayConfirmMessage(link, { isDevis, nightsUnavailable }) {
+  const unavailable = 'sans confirmation au client : dates fermées ou prises.';
+  if (isDevis) return nightsUnavailable ? `Le devis devient une réservation, ${unavailable}` : 'Le devis devient une réservation ; confirmation envoyée au client.';
+  if (nightsUnavailable) return `Le montant est compté comme perçu, ${unavailable}`;
+  return CONFIRMING_LINK_TYPES.has(String(link.type)) ? 'Le montant est compté comme perçu ; confirmation envoyée au client.' : 'Le montant est compté comme perçu.';
+}
+function settleActions(link, { readOnly, isDevis, nightsUnavailable }) {
+  const amount = formatEuros(Number(link.amountCents || 0) / 100);
+  return {
+    linkId: Number(link.id),
+    ...(readOnly ? {} : {
+      stay: { label: 'Enregistrer sur le séjour', confirmTitle: `Enregistrer ${amount} sur le séjour ?`, confirmMessage: stayConfirmMessage(link, { isDevis, nightsUnavailable }), confirmLabel: 'Enregistrer' },
+    }),
+    refunded: { label: 'Marquer remboursé', confirmTitle: `${amount} remboursés ?`, confirmMessage: 'À confirmer une fois le remboursement fait chez le prestataire.', confirmLabel: 'Remboursé' },
+  };
+}
+
+// Rule 42 — « Lien retiré le {jour} »: a link withdrawn by hand ends at its withdrawal.
+function operatorLabel(link, stayYear) {
+  const ms = Date.parse(String(link.expiresAt || ''));
+  return ms > 0 ? `Lien retiré le ${shortDate(localIsoDate(new Date(ms)), stayYear)}` : 'Lien retiré';
+}
+
+function linkDetail(link, { stayYear, due, canRequest, canWithdraw = false, providerLabel = null, settleContext = null }) {
   if (!link) return null;
   const created = shortDate(link.createdAt, stayYear);
   const paidOn = shortDate(link.paidAt, stayYear);
@@ -103,17 +142,31 @@ function linkDetail(link, { stayYear, due, canRequest, providerLabel = null }) {
       ? `Payé par lien le ${paidOn} (ancien montant)`
       : `Payé par lien le ${paidOn}`;
   } else if (link.status === 'expired') label = lapsedLabel(link, stayYear, providerLabel);
+  else if (unsettledPayment(link)) label = `${amount} payés le ${shortDate(localIsoDate(new Date(Date.parse(link.paidAt))), stayYear)} après retrait : à traiter`;
+  else if (link.cancelReason === 'operator') label = operatorLabel(link, stayYear);
   else label = WITHDRAWN_LABELS[link.cancelReason] || 'Lien retiré';
   // « Renvoyer la demande » only while the row is still due, and only once the previous link is gone
   // (rule 28): an open link is still the request, a paid one settled it. Dates taken by another stay
   // refuse any new link (specs/payment-link-lifecycle.md rule 11): nothing to offer.
   const resendable = due && canRequest && link.status !== 'open' && link.status !== 'paid'
-    && link.cancelReason !== 'dates-taken'
+    && link.cancelReason !== 'dates-taken' && !unsettledPayment(link)
     && ['deposit', 'balance', 'full'].includes(String(link.type));
   return {
     status: link.status,
     label,
     ...(resendable ? { resend: { type: String(link.type), label: 'Renvoyer la demande' } } : {}),
+    // specs/payment-link-lifecycle.md rule 42 — an open link of a stay that is not read-only.
+    ...(canWithdraw && link.status === 'open' ? {
+      withdraw: {
+        linkId: Number(link.id),
+        label: 'Retirer le lien',
+        confirmTitle: 'Retirer ce lien ?',
+        confirmMessage: 'Il ne pourra plus être payé.',
+        confirmLabel: 'Retirer',
+      },
+    } : {}),
+    // Rule 56 — a payment received after a withdrawal by hand: the operator refunds it or records it on the stay.
+    ...(settleContext && unsettledPayment(link) ? { settle: settleActions(link, settleContext) } : {}),
   };
 }
 
@@ -147,13 +200,17 @@ function dueState(deadline, today, stayYear, { platformPayout = false } = {}) {
  * @param {boolean} [p.canRequest]  a payment provider is ready (« Renvoyer la demande »)
  * @param {string|null} [p.providerLabel] the declared payment provider's name, for a deactivation still owed
  *                                  (specs/payment-link-lifecycle.md rule 24)
+ * @param {boolean} [p.nightsUnavailable] the stay's nights are closed or taken today: « Enregistrer sur le séjour »
+ *                                  of a payment to settle confirms nobody (specs/payment-link-lifecycle.md rule 56)
+ * @param {boolean} [p.stayReadOnly] the stay the links answer for is read-only (a devis converted into a cancelled
+ *                                  stay): no withdrawal, a payment to settle is refunded only (rule 56, O4)
  * @param {string} p.today          `YYYY-MM-DD`
  * @returns {{ rows: object[], remaining: number, remainingLabel: string, settled: boolean }}
  */
 function buildLedger({
   row = null, quote = null, live = {}, links = [], refunds = [], overpayment = null,
   midStayNotes = [], cautionAmount = 0, canRequest = false, installmentPlan = null, today,
-  storedAccommodationPreArrival = null, penalties = [], providerLabel = null,
+  storedAccommodationPreArrival = null, penalties = [], providerLabel = null, nightsUnavailable = false, stayReadOnly = false,
 } = {}) {
   const r = row || {};
   const has = (k) => Object.prototype.hasOwnProperty.call(live, k) && live[k] !== undefined;
@@ -163,6 +220,10 @@ function buildLedger({
   const cancelled = kind === 'cancelled';
   const stored = Boolean(row && row.id);
   const canAct = stored && !isDevis && !cancelled;
+  // A cancelled stay and a duplicate set aside are read-only: their links are never withdrawn by hand.
+  const canWithdraw = stored && !cancelled && kind !== 'superseded' && !stayReadOnly;
+  // Rule 56 — a payment received after a withdrawal by hand is settled on any stored stay (refund only when read-only).
+  const settleContext = stored ? { readOnly: !canWithdraw, isDevis, nightsUnavailable: Boolean(nightsUnavailable) } : null;
   const stayYear = isoDay(r.startDate || (quote && quote.startDate) || live.startDate)?.slice(0, 4) || null;
   // Rule 24 — the engine's own split (specs/plugins-phase-p-productisation.md rule 45): a named
   // channel carries a platform amount and commissions; only a platform SALE drops the acompte and is
@@ -288,9 +349,12 @@ function buildLedger({
         action: null, amountEdit: { editable: false, mode: 'none', min: null, max: null, reason: null }, detail: null,
       });
     } else {
-      const link = linkDetail(pickLink(links, 'deposit'), { stayYear, due: !paid.deposit, canRequest, providerLabel });
+      const shown = pickLink(links, 'deposit');
+      const link = linkDetail(shown, { stayYear, due: !paid.deposit, canRequest, canWithdraw, providerLabel, settleContext });
       const detail = { warnings: [] };
       if (link) detail.link = link;
+      const others = otherOpenLinks(links, 'deposit', shown).map((l) => linkDetail(l, { stayYear, due: false, canRequest, canWithdraw, providerLabel, settleContext }));
+      if (others.length > 0) detail.otherLinks = others;
       if (isPlatform && acompteCommission > 0) {
         detail.commission = `Commission ${formatEuros(acompteCommission)} · net ${formatEuros(depositAmount - acompteCommission)}`;
       }
@@ -348,9 +412,12 @@ function buildLedger({
   // ── Solde / Versement de la plateforme (rules 4, 15, 17-19, 24-26) ───────
   if (!planRows) {
     const label = ota ? `Versement ${platformName}` : 'Solde';
-    const link = linkDetail(pickLink(links, 'balance'), { stayYear, due: !paid.balance, canRequest, providerLabel });
+    const shown = pickLink(links, 'balance');
+    const link = linkDetail(shown, { stayYear, due: !paid.balance, canRequest, canWithdraw, providerLabel, settleContext });
     const detail = { warnings: [] };
     if (link) detail.link = link;
+    const others = otherOpenLinks(links, 'balance', shown).map((l) => linkDetail(l, { stayYear, due: false, canRequest, canWithdraw, providerLabel, settleContext }));
+    if (others.length > 0) detail.otherLinks = others;
     const depositRow = rows[0];
     const depositApplies = depositRow.state !== 'na';
     let base;
@@ -440,7 +507,7 @@ function buildLedger({
     const detail = { warnings: [], slot };
     const link = bucket === 'complement' ? pickLink(links, 'complement') : null;
     if (link) {
-      detail.link = linkDetail(link, { stayYear, due: !isPaid, canRequest: false, providerLabel });
+      detail.link = linkDetail(link, { stayYear, due: !isPaid, canRequest: false, canWithdraw, providerLabel, settleContext });
       // Rule 31 — a retired link paid at its old amount: the operator settles the gap.
       if (link.status === 'paid' && link.cancelReason === 'amount-changed' && cents(amount) !== Number(link.amountCents || 0)) {
         detail.warnings.push(warn(`Payé ${formatEuros(Number(link.amountCents) / 100)} par un lien retiré, ${formatEuros(amount)} attendus`));

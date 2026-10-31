@@ -87,6 +87,8 @@ function requireProvider(req, res, next) {
 const VISITOR_REFUSALS = {
   LINK_ALREADY_PAID: [409, 'ALREADY_CONFIRMED', 'alreadyConfirmed'],
   PROVIDER_UNREACHABLE: [502, 'PROVIDER_UNREACHABLE', 'paymentProviderError'],
+  // Rule 56 — a payment received on a link withdrawn by hand waits for the operator.
+  UNSETTLED_WITHDRAWN_PAYMENT: [409, 'PAYMENT_UNDER_REVIEW', 'paymentUnderReview'],
 };
 
 function visitorRefusal(res, req, err) {

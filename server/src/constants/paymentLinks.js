@@ -16,6 +16,8 @@ const LINK_REASONS = Object.freeze({
   SUPERSEDED: 'superseded',
   DATES_TAKEN: 'dates-taken',
   OPERATOR: 'operator',
+  // Rule 56 — a payment received on an `operator` link after its withdrawal, refunded by the operator.
+  REFUNDED: 'refunded',
   SETTLED: 'settled',
   AMOUNT_CHANGED: 'amount-changed',
   VALIDITY: 'validity',

@@ -35,6 +35,8 @@ function recordOn(database) {
 
 const { linkAmountCents, acompteIsLinkMoney, bookPaidAfterAmountChange } = require('./ledgerLinks');
 const { withConvertedDevis } = require('./deletionGuard');
+const { LINK_REASONS } = require('../constants/paymentLinks');
+const { unavailableNights } = require('./closedStayDates');
 
 // Apply the business consequence of a PAID link. A deposit OR a full payment on a devis converts it to a
 // reservation; a full payment marks it fully settled (deposit + balance). On conversion the dates are
@@ -299,14 +301,18 @@ const CONFIRMING_EFFECTS = new Set(['converted', 'already-converted', 'deposit-m
 // `emitPluginEvent` is injectable like every other dep; by default the webhook, the on-demand poll
 // and the cron all announce a freshly converted reservation to the plugins (Google pushes it at
 // once — specs/plugins-phase-1-sdk.md rule 9).
-async function processPaidLink({ database, devisModel, paymentLinksModel, link, paidPayment, sendConfirmation, checkConflict, notifyConflict, notifyPaidAfterCancel, recordPayment, emitPluginEvent = require('../plugins/sdk/eventBus').emit }) {
+// `retiredReason` books a withdrawn link instead (cancelled → paid, only while it still carries that reason).
+// `quietOnConflict`: a booking that lands in date conflict sends the guest no confirmation.
+async function processPaidLink({ database, devisModel, paymentLinksModel, link, paidPayment, sendConfirmation, checkConflict, notifyConflict, notifyPaidAfterCancel, recordPayment, emitPluginEvent = require('../plugins/sdk/eventBus').emit, retiredReason = null, quietOnConflict = false }) {
   const p = paidPayment || {};
   // markPaid is atomic (UPDATE … WHERE status='open') and reports whether THIS call flipped the link.
   // The webhook, the on-demand /status poll and the cron can all observe the same paid link at once;
   // only the caller that actually flips it runs the effect + confirmation email, so the guest never
   // gets a duplicate email and the admin never gets a duplicate conflict alert.
   const paidAt = p.paidAt || new Date().toISOString();
-  const { flipped } = paymentLinksModel.markPaid(link.id, { providerPaymentId: p.paymentId || null, paidAt });
+  const { flipped } = retiredReason
+    ? paymentLinksModel.markRetiredLinkPaid(link.id, { providerPaymentId: p.paymentId || null, paidAt, reason: retiredReason })
+    : paymentLinksModel.markPaid(link.id, { providerPaymentId: p.paymentId || null, paidAt });
   if (!flipped) {
     return { id: link.id, reservationId: link.reservationId, type: link.type, status: 'paid', effect: 'already-processed' };
   }
@@ -370,7 +376,7 @@ async function processPaidLink({ database, devisModel, paymentLinksModel, link, 
 
   if (CONFIRMING_TYPES.has(link.type) && CONFIRMING_EFFECTS.has(effect.effect)) {
     const confirmedId = effect.reservationId || link.reservationId;
-    if (sendConfirmation) { try { await sendConfirmation(confirmedId); } catch (e) { /* logged inside the sender */ } }
+    if (sendConfirmation && !(quietOnConflict && effect.conflict)) { try { await sendConfirmation(confirmedId); } catch (e) { /* logged inside the sender */ } }
     if (effect.conflict && notifyConflict) { try { await notifyConflict(confirmedId); } catch (e) { /* best effort */ } }
   }
   return { id: link.id, reservationId: link.reservationId, type: link.type, status: 'paid', ...effect };
@@ -426,6 +432,14 @@ async function retryPendingCancellationsOnce({ only = null, paymentLinksModel, p
         results.push(await book({ paymentLinksModel, notifyPaidAfterCancel, database, devisModel, recordPayment, checkConflict, notifyConflict, emitPluginEvent, link, pay }));
         continue;
       }
+      // specs/payment-link-lifecycle.md rule 42 — a link withdrawn by hand while the provider could not be read,
+      // paid before that withdrawal, is the guest's money for the stay: booked as the connected path books it.
+      // Re-review of #902 (R1): nights closed since the withdrawal (rule 55) or taken by another stay are booked
+      // like rule 33's — the money recorded, no guest confirmation, the admin told to move or refund.
+      if (pay.paid && link.cancelReason === LINK_REASONS.OPERATOR && paidBeforeWithdrawal(link, pay)) {
+        results.push(await bookWithdrawnPaid({ database, devisModel, paymentLinksModel, link, pay, sendConfirmation, checkConflict, notifyConflict, notifyPaidAfterCancel, recordPayment, emitPluginEvent }));
+        continue;
+      }
       if (pay.paid) {
         paymentLinksModel.clearRemoteCancelPending(link.id, { providerPaymentId: pay.paymentId || null, paidAt: pay.paidAt || new Date().toISOString() });
         if (notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link); } catch { /* best effort */ } }
@@ -449,6 +463,28 @@ async function retryPendingCancellationsOnce({ only = null, paymentLinksModel, p
     }
   }
   return { results, stoppedBy: null };
+}
+
+// specs/payment-link-lifecycle.md rules 42 and 56 — a link withdrawn by hand booked as the stay's money (`cancelled →
+// paid`): by the poll when paid before its withdrawal, or by the operator's « Enregistrer sur le séjour ». Nights
+// closed since (rule 55) or taken by another stay get no guest confirmation and the « déplacer ou rembourser » alert.
+async function bookWithdrawnPaid({ database, link, pay, sendConfirmation, notifyPaidAfterCancel, ...effect }) {
+  // Final check of #902 (M1) — decided before the booking, on the stay the link answers for (a fiche included).
+  const before = unavailableNights(database, link.reservationId, { checkConflict: effect.checkConflict });
+  const outcome = await processPaidLink({
+    ...effect, database, link, paidPayment: pay, notifyPaidAfterCancel,
+    sendConfirmation: before ? null : sendConfirmation, quietOnConflict: true, retiredReason: LINK_REASONS.OPERATOR,
+  });
+  const unavailable = outcome.effect === 'already-processed' ? null : before || (outcome.conflict ? 'taken' : null);
+  if (unavailable && notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link, { nightsUnavailable: unavailable }); } catch { /* best effort */ } }
+  return outcome;
+}
+
+// A withdrawal by hand ends the link at its moment (`expiresAt`); a payment with no known date is not before it.
+function paidBeforeWithdrawal(link, pay) {
+  const paidMs = Date.parse(String((pay && pay.paidAt) || ''));
+  const endMs = Date.parse(String(link.expiresAt || ''));
+  return paidMs > 0 && endMs > 0 && paidMs <= endMs;
 }
 
 const linkResult = (link, extra) => ({ id: link.id, reservationId: link.reservationId, type: link.type, ...extra });
@@ -725,4 +761,4 @@ async function runPaymentPoll({ database, paymentLinksModel, provider, devisMode
   return { checked, paid: results.filter((r) => r.status === 'paid').length, retired, settled: settled.length, stoppedBy, results };
 }
 
-module.exports = { runPaymentPoll, runLinkLifecycle, processPaidLink, applyPaidEffect, retryPendingCancellations };
+module.exports = { runPaymentPoll, runLinkLifecycle, processPaidLink, applyPaidEffect, retryPendingCancellations, bookWithdrawnPaid };

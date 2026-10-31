@@ -32,7 +32,7 @@
  *   findByProviderLinkId(provider, linkId)  → the row a provider id names (webhook, retries)
  *   markPaid(id, { providerPaymentId, paidAt }) → flips open|expired→paid (idempotent: a paid/cancelled row is untouched)
  *   updateStatus(id, status)                → 'open'|'paid'|'expired'|'cancelled'
- *   cancelIfOpen(id, { reason? })           → cancels a still-open link and returns it; null when it is no longer open
+ *   cancelIfOpen(id, { reason?, endsAt? })  → cancels a still-open link and returns it; null when it is no longer open
  *   cancel(id, { remotePending })           → 'cancelled', with the remote-deactivation marker when pending
  *   listRemoteCancelPending()               → cancelled and expired rows whose deactivation at the provider is owed
  *   clearRemoteCancelPending(id, { providerPaymentId?, paidAt? }) → the provider settled it (deactivated, or paid)
@@ -387,9 +387,12 @@ function buildModel(database) {
 
   // Retires a link only while it is still `open`: null when it moved meanwhile (paid by a webhook that
   // ran during an awaited provider call), so a payment is never overwritten by a later cancellation.
-  function cancelIfOpen(id, { reason = null } = {}) {
-    const info = database.prepare("UPDATE payment_links SET status = 'cancelled', cancelReason = COALESCE(?, cancelReason) WHERE id = ? AND status = 'open'")
-      .run(reason == null ? null : String(reason), Number(id));
+  // `endsAt` (an instant) also ends the link's validity at that moment: the ledger names the day a link was
+  // withdrawn by hand (specs/payment-link-lifecycle.md rule 42).
+  function cancelIfOpen(id, { reason = null, endsAt = null } = {}) {
+    const end = endsAt ? new Date(endsAt).toISOString() : null;
+    const info = database.prepare("UPDATE payment_links SET status = 'cancelled', cancelReason = COALESCE(?, cancelReason), expiresAt = COALESCE(?, expiresAt) WHERE id = ? AND status = 'open'")
+      .run(reason == null ? null : String(reason), end, Number(id));
     return Number(info.changes) > 0 ? findById(id) : null;
   }
 

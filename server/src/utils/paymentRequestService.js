@@ -16,6 +16,8 @@ const { buildStayLineLabel } = require('./paymentLinkLabel');
 const { ENGLISH_VERSION_MISSING, ENGLISH_VERSION_MISSING_PAYMENT_ACTION } = require('./emailTemplateLanguage');
 const { validityOf, validityEnd, lapsesAtArrival } = require('./paymentLinkLifecycle');
 const { LINK_REASONS } = require('../constants/paymentLinks');
+const { closedDatesRefusal } = require('./closedStayDates');
+const { unsettledWithdrawnRefusal } = require('./withdrawnPayments');
 
 // Enrich the stay line's title + description with the booking reference, guest name, property and
 // dates so the payment is identifiable in Qonto (specs/qonto-payment-link-reference.md). Text only —
@@ -89,6 +91,11 @@ function assertBucketOpen(database, id, type) {
 // specs/payment-link-lifecycle.md rule 8 (re-review of #897) — one lock per stay, whatever the type: an acompte
 // link and a full link settle the same acompte, and each retires the other while waiting on the provider, so
 // two of them minted side by side could both stay open. A devis and the reservation it became share the key.
+function assertNoUnsettledPayment(database, id) {
+  const unsettled = unsettledWithdrawnRefusal(database, id);
+  if (unsettled) throw unsettled;
+}
+
 function stayLockKey(database, id) {
   let row = null;
   try { row = database.prepare('SELECT convertedReservationId FROM reservations WHERE id = ?').get(Number(id)); } catch { row = null; }
@@ -116,6 +123,11 @@ async function mintPaymentLink(deps, id, type) {
   // An échéance already collected is never billed twice (fixed at the 2026-10-27 spec review): the link
   // of a paid acompte or solde — or a full payment once either is in — is refused before any provider call.
   assertBucketOpen(database, id, type);
+  // specs/payment-link-lifecycle.md rule 55 — no link, new or reused, on nights the establishment is closed.
+  const closedNights = closedDatesRefusal(database, id);
+  if (closedNights) throw closedNights;
+  // Rule 56 — a payment received on a link withdrawn by hand is settled before any new request.
+  assertNoUnsettledPayment(database, id);
   const amountCents = resolveAmountCents(id, type, r);
   if (amountCents <= 0) throw { httpStatus: 400, error: 'ZERO_AMOUNT', message: 'Montant nul pour ce type : devis ou réservation à vérifier.' };
 
@@ -140,6 +152,10 @@ async function mintPaymentLink(deps, id, type) {
   } else {
     const owners = require('./deletionGuard').withConvertedDevis(database, [Number(id)]);
     await bookOwedLapsedPayment(deps, `reservationId IN (${owners.map(() => '?').join(', ')}) AND type IN (${SETTLED_BY[type].map(() => '?').join(', ')})`, [...owners, ...SETTLED_BY[type]]);
+    // Review of #902 (R2) — the reads above may have waited behind a pass that settled the bucket, and may have
+    // found a withdrawn link paid after its withdrawal (rule 56).
+    assertBucketOpen(database, id, type);
+    assertNoUnsettledPayment(database, id);
   }
 
   // Build the VAT basket when the caller can split the amount; only trust it when the components sum to
@@ -230,14 +246,40 @@ async function bookOwedLapsedPayment(deps, where, params) {
      WHERE ${where} AND status = 'expired' AND remoteCancelPendingAt IS NOT NULL AND providerLinkId IS NOT NULL
      ORDER BY id DESC LIMIT 1
   `).get(...params);
-  if (!owed) return;
-  let pay;
-  try {
-    pay = await deps.provider.getPayment(owed.providerLinkId, { origin: 'replace-link' });
-  } catch {
-    throw { httpStatus: 502, error: 'PROVIDER_UNREACHABLE', message: 'Prestataire de paiement injoignable : réessayer.' };
+  if (owed) {
+    let pay;
+    try {
+      pay = await deps.provider.getPayment(owed.providerLinkId, { origin: 'replace-link' });
+    } catch {
+      throw { httpStatus: 502, error: 'PROVIDER_UNREACHABLE', message: 'Prestataire de paiement injoignable : réessayer.' };
+    }
+    if (pay && pay.paid) await bookLapsedPayment(deps, owed, pay);
   }
-  if (pay && pay.paid) await bookLapsedPayment(deps, owed, pay);
+  await settleOwedOperatorLinks(deps, where, params);
+}
+
+// specs/payment-link-lifecycle.md rule 42 (re-review of #902, L6) — a link withdrawn by hand while the provider
+// could not be read still owes its read: it goes through the poll's retry (booked when paid before its
+// withdrawal, the rule-8 alert when paid after, deactivated when unpaid) before a new link of its bucket.
+async function settleOwedOperatorLinks(deps, where, params) {
+  const owed = deps.database.prepare(`
+    SELECT id FROM payment_links
+     WHERE ${where} AND status = 'cancelled' AND cancelReason = ? AND remoteCancelPendingAt IS NOT NULL AND providerLinkId IS NOT NULL
+     ORDER BY id DESC
+  `).all(...params, LINK_REASONS.OPERATOR);
+  if (owed.length === 0) return;
+  const { retryPendingCancellations } = require('./paymentPollRunner');
+  const effect = typeof deps.paymentEffect === 'function' ? deps.paymentEffect() : require('./paymentEffectDeps').buildPaymentEffectDeps();
+  for (const { id } of owed) {
+    const { results } = await retryPendingCancellations({ ...effect, only: id, database: deps.database, paymentLinksModel: deps.paymentLinksModel, provider: deps.provider });
+    const outcome = results.find((r) => Number(r.id) === Number(id));
+    // Re-review of #902 (R2) — the row decides: the cron's pass may have booked it while this run waited behind it.
+    const now = deps.paymentLinksModel.findById(id);
+    if ((outcome && outcome.status === 'paid') || (now && now.status === 'paid')) throw { ...PAID_BOOKED };
+    if (outcome && outcome.status === 'deactivation-pending') {
+      throw { httpStatus: 502, error: 'PROVIDER_UNREACHABLE', message: 'Prestataire de paiement injoignable : réessayer.' };
+    }
+  }
 }
 
 // specs/direct-installments.md rule 17 — the link of ONE installment, at its exact amount. The open link of
@@ -273,6 +315,9 @@ async function mintInstallmentLink(deps, id, installmentId) {
   if (!reservation || reservation.kind !== 'reservation') {
     throw { httpStatus: 404, error: 'RESERVATION_NOT_FOUND', message: 'Réservation introuvable.' };
   }
+  const closedNights = closedDatesRefusal(database, id);
+  if (closedNights) throw closedNights;
+  assertNoUnsettledPayment(database, id);
   const amountCents = Number(installment.amountCents);
   if (amountCents <= 0) throw { httpStatus: 400, error: 'ZERO_AMOUNT', message: 'Montant nul pour cette échéance.' };
 
@@ -288,6 +333,9 @@ async function mintInstallmentLink(deps, id, installmentId) {
     await retireOrBook(deps, existing, { paymentLinksModel, provider, deactivate: deactivateLinks, now, ...lapseReason(sameAmount, arrived) });
   } else {
     await bookOwedLapsedPayment(deps, "type = 'installment' AND installmentId = ?", [Number(installmentId)]);
+    const fresh = installmentsModel.findById(installmentId);
+    if (fresh && Number(fresh.paid) === 1) throw { httpStatus: 409, error: 'INSTALLMENT_PAID', message: 'Cette échéance est déjà payée.' };
+    assertNoUnsettledPayment(database, id);
   }
 
   const plan = installmentsModel.listFor(id);
