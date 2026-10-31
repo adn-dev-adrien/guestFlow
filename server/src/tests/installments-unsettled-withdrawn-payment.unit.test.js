@@ -10,6 +10,7 @@ const assert = require('node:assert/strict');
 const { createHarness, call, TODAY } = require('./directInstallmentsFixtures');
 const { buildLedger } = require('../utils/reservationLedger');
 const { settleWithdrawnPayment } = require('../utils/withdrawnPayments');
+const { addDaysToIsoDate } = require('../utils/devisHelpers');
 
 const MESSAGE = 'Paiement reçu sur un lien retiré : à traiter avant toute nouvelle demande.';
 const PAID_AT = '2026-10-26T09:15:00Z';
@@ -63,8 +64,8 @@ test('rule 63: once settled (« Marquer remboursé »), the plan is made', async
 // ── The ledger: a plan replaces the acompte and solde rows, never the way to settle their payment ──────────
 const plan = {
   installments: [
-    { number: 1, amount: 500, status: 'toRequest', dueDate: '2026-11-05', statusLabel: 'À demander' },
-    { number: 2, amount: 501.5, status: 'upcoming', dueDate: '2027-05-15', statusLabel: 'À venir' },
+    { number: 1, amount: 500, status: 'toRequest', dueDate: addDaysToIsoDate(TODAY, 9), statusLabel: 'À demander' },
+    { number: 2, amount: 501.5, status: 'upcoming', dueDate: addDaysToIsoDate(TODAY, 200), statusLabel: 'À venir' },
   ],
   gap: 0,
 };
