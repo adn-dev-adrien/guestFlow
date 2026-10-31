@@ -93,12 +93,7 @@ export default function EstablishmentClosuresPage({ barTabs }) {
   const rangeSet = Boolean(form.startDate && form.endDate && form.startDate < form.endDate);
   useEffect(() => {
     setRequestsRefusal('');
-    if (!dialogOpen || !rangeSet) {
-      // Rule 61 — an answer still in flight belongs to dates the dialog no longer shows.
-      conflictsSeq.current += 1;
-      setConflicts(NO_CONFLICTS);
-      return undefined;
-    }
+    if (!dialogOpen || !rangeSet) { setConflicts(NO_CONFLICTS); return undefined; }
     const seq = ++conflictsSeq.current;
     api.getClosureConflicts({
       propertyId: form.propertyId === ALL_PROPERTIES ? null : Number(form.propertyId),
@@ -110,7 +105,8 @@ export default function EstablishmentClosuresPage({ barTabs }) {
       // The save is the judge: a failed look only leaves the lines out.
       if (seq === conflictsSeq.current) setConflicts(NO_CONFLICTS);
     });
-    return undefined;
+    // Rule 62 — an answer still in flight belongs to dates the dialog no longer shows.
+    return () => { conflictsSeq.current += 1; };
   }, [dialogOpen, rangeSet, form.propertyId, form.startDate, form.endDate, conflictsToken]);
 
   useEffect(() => {
