@@ -14,7 +14,7 @@
  *                                     appeared on nights or moved onto them; their deactivation follows the commit
  */
 
-const { buildOccupiedDatesFromReservations, addIsoDays, timeColumnsOf } = require('./occupancy');
+const { buildOccupiedDatesFromReservations, addIsoDays, timeColumnsOf, rangeHasBlockedNight } = require('./occupancy');
 const { holdsDates, carriesMoney } = require('./stayMoney');
 
 const DATES_UNAVAILABLE = Object.freeze({
@@ -35,8 +35,6 @@ function readsHolds(database) {
 
 function heldOverlaps(database, { propertyId, startDate, endDate, excludeIds = [] }) {
   if (propertyId == null || !startDate || !endDate || !readsHolds(database)) return [];
-  // Lazy: blockedDates loads the reservation models, which load this module.
-  const { rangeHasBlockedNight } = require('./blockedDates');
   const excluded = excludeIds.filter((id) => id != null).map(Number);
   const columns = ['id', 'kind', 'platform', 'propertyId', 'startDate', 'endDate', ...timeColumnsOf(database)];
   const rows = database.prepare(`
@@ -91,9 +89,13 @@ function stayRefs(database, rows, year = null) {
   });
 }
 
+// Review of #907 (n1) — only a devis still open (draft, sent, accepted) and a stay not over yet are marked.
+const OPEN_DEVIS_STATUSES = new Set(['draft', 'sent', 'accepted']);
+
 function datesTakenMarker(database, row) {
   if (!row || row.id == null) return null;
-  if (String(row.kind) === 'devis' && row.convertedReservationId) return null;
+  if (String(row.kind) === 'devis' && (row.convertedReservationId || !OPEN_DEVIS_STATUSES.has(String(row.devisStatus || 'draft')))) return null;
+  if (row.endDate && String(row.endDate).slice(0, 10) <= require('./localDate').localIsoDate(new Date())) return null;
   const holder = takenByOf(database, row.id);
   if (!holder) return null;
   const [takenBy] = stayRefs(database, [holder], String(row.startDate || '').slice(0, 4));
@@ -120,8 +122,15 @@ function scheduleDeactivation(database, links) {
 function withdrawForStay(database, stayId, { deactivate = scheduleDeactivation, now = new Date() } = {}) {
   const stay = database.prepare('SELECT id, propertyId, startDate, endDate FROM reservations WHERE id = ?').get(Number(stayId));
   if (!stay) return [];
-  const { withdrawLinksOverlapping } = require('./paymentLinkLifecycle');
-  const links = withdrawLinksOverlapping(database, { ...stay, causeId: stay.id, now });
+  // Review of #907 (M1) — a side concern: a throw here never rolls back the caller (the iCal import, a save that
+  // succeeded). Its own savepoint undoes a half-done withdrawal; the lifecycle pass (rule 16) catches it later.
+  let links;
+  try {
+    links = database.transaction(() => require('./paymentLinkLifecycle').withdrawLinksOverlapping(database, { ...stay, causeId: stay.id, now }))();
+  } catch (err) {
+    console.warn(`[payments] dates-taken withdrawal for stay ${stay.id} skipped, left to the lifecycle pass: ${(err && err.message) || err}`);
+    return [];
+  }
   if (links.length > 0 && typeof deactivate === 'function') deactivate(database, links);
   return links;
 }

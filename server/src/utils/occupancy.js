@@ -71,7 +71,19 @@ function buildOccupiedDatesFromReservations(reservations) {
   return Array.from(occupiedDates).filter(Boolean).sort();
 }
 
+/** True iff any night in [start, end) is blocked. Pure given the blocked set. */
+function rangeHasBlockedNight(start, end, blockedDates) {
+  const set = blockedDates instanceof Set ? blockedDates : new Set(blockedDates || []);
+  let cursor = start;
+  while (cursor && cursor < end) {
+    if (set.has(cursor)) return true;
+    cursor = addIsoDays(cursor, 1);
+  }
+  return false;
+}
+
 module.exports = {
+  rangeHasBlockedNight,
   LATE_CHECKOUT_BLOCK_HOUR,
   EARLY_CHECKIN_BLOCK_HOUR,
   timeToHour,

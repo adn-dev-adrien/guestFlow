@@ -23,3 +23,11 @@ test('no marker, no badge', () => {
   const { container } = render(<MemoryRouter><DatesTakenBadge datesTaken={null} /></MemoryRouter>);
   expect(container).toBeEmptyDOMElement();
 });
+
+test('review of #907 (m4): the linked badge carries the 44 px touch hit area', () => {
+  render(<MemoryRouter><DatesTakenBadge datesTaken={MARKER} /></MemoryRouter>);
+  const link = screen.getByRole('link');
+  const rules = Array.from(document.styleSheets).flatMap((sheet) => Array.from(sheet.cssRules || [])).map((r) => r.cssText).join('\n');
+  expect(link.className).toMatch(/MuiChip/);
+  expect(rules).toMatch(/pointer:\s*coarse/);
+});

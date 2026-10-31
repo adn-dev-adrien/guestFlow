@@ -7,7 +7,7 @@ import DialogProvider, { useAppDialogs } from '../DialogProvider';
 
 function Probe() {
   const { alert } = useAppDialogs();
-  return <button type="button" onClick={() => alert({ title: 'Dates déjà réservées', message: 'Dates déjà réservées : devis non enregistré.', details: <p>T41 · Ana Test</p> })}>ouvrir</button>;
+  return <button type="button" onClick={() => alert({ title: 'Devis non enregistré', message: 'Dates déjà réservées : devis non enregistré.', details: <p>T41 · Ana Test</p> })}>ouvrir</button>;
 }
 
 test('the details are drawn under the message', async () => {

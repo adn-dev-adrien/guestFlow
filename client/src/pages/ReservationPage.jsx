@@ -2727,7 +2727,7 @@ export default function ReservationPage() {
       if (err?.code === 'DATES_HELD' || err?.code === 'CLOSED_DATES') {
         const records = err.code === 'DATES_HELD' ? err.stays : err.closures;
         await alert({
-          title: err.code === 'DATES_HELD' ? 'Dates déjà réservées' : 'Logement fermé',
+          title: 'Devis non enregistré',
           message: err.message,
           details: <ConflictList severity="error" items={(records || []).map((row) => ({ key: row.id, label: row.label, url: row.url }))} newTab={!downSm} />,
         });

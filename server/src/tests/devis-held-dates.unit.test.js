@@ -88,3 +88,18 @@ test('rule 48: an unpaid reservation on taken nights carries the marker; a paid 
   assert.equal(datesTakenMarker(db, row(unpaid)).label, 'Dates prises');
   assert.equal(datesTakenMarker(db, row(paid)), null);
 });
+
+test('rule 48 (review of #907, n1): no marker on a devis no longer open, nor on a stay already over', () => {
+  const { datesTakenMarker } = require('../utils/datesTaken');
+  const propertyId = freshProperty();
+  addStay({ propertyId, platform: 'Booking', start: inDays(140), end: inDays(150) });
+  const row = (id) => db.prepare('SELECT * FROM reservations WHERE id = ?').get(id);
+  const open = addStay({ propertyId, kind: 'devis', start: inDays(141), end: inDays(143) });
+  assert.ok(datesTakenMarker(db, row(open)));
+  const closedOut = addStay({ propertyId, kind: 'devis', start: inDays(143), end: inDays(145), extra: { devisStatus: 'archived' } });
+  assert.equal(datesTakenMarker(db, row(closedOut)), null);
+  const pastProperty = freshProperty();
+  addStay({ propertyId: pastProperty, platform: 'Booking', start: inDays(-10), end: inDays(-2) });
+  const past = addStay({ propertyId: pastProperty, kind: 'devis', start: inDays(-8), end: inDays(-5) });
+  assert.equal(datesTakenMarker(db, row(past)), null);
+});

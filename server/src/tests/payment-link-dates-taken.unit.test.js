@@ -237,3 +237,24 @@ test('rule 25: « Demander le paiement » after its link lapsed mints anew; on t
   await assert.rejects(sendPaymentRequest(deps, devisId, 'deposit'), (err) => err.httpStatus === 409 && err.error === 'DATES_UNAVAILABLE');
   assert.equal(sent.length, 1, 'the refused request sends nothing');
 });
+
+test('rule 16: the pass withdraws an overlap no caller saw, after a cancelled or set-aside stay, before the validity', () => {
+  const { retireLapsedAndWithdrawn } = require('../utils/paymentLinkLifecycle');
+  const propertyId = freshProperty();
+  // Written straight into the table, as a boot migration (devisFusionMigration) would: no rule-32 caller ran.
+  addStay({ propertyId, platform: 'Booking', start: inDays(300), end: inDays(310) });
+  const plain = addLink(addStay({ propertyId, kind: 'devis', start: inDays(301), end: inDays(303) }));
+  const lapsed = addLink(addStay({ propertyId, kind: 'devis', start: inDays(303), end: inDays(305) }));
+  db.prepare('UPDATE payment_links SET expiresAt = ? WHERE id = ?').run(new Date(Date.now() - 3600 * 1000).toISOString(), lapsed);
+  const cancelled = addLink(addStay({ propertyId, kind: 'cancelled', start: inDays(305), end: inDays(307) }));
+  const setAside = addLink(addStay({ propertyId, kind: 'superseded', start: inDays(307), end: inDays(309) }));
+  const moved = retireLapsedAndWithdrawn(db, { now: new Date() });
+  const reasonOf = (id) => linkOf(id).cancelReason;
+  assert.equal(reasonOf(plain), 'dates-taken');
+  assert.equal(linkOf(lapsed).status, 'cancelled', 'taken before it lapsed: withdrawn, not expired');
+  assert.equal(reasonOf(lapsed), 'dates-taken');
+  assert.equal(reasonOf(cancelled), null, 'a cancelled stay goes first, with its own reason');
+  assert.equal(reasonOf(setAside), 'superseded');
+  const order = moved.map((l) => l.id);
+  assert.ok(order.indexOf(cancelled) < order.indexOf(plain) && order.indexOf(setAside) < order.indexOf(plain));
+});

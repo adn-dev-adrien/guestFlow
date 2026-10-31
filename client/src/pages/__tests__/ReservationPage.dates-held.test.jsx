@@ -69,7 +69,7 @@ test('DATES_HELD shows the refusal with the stays that hold the nights', async (
   fireEvent.click(await screen.findByRole('button', { name: 'Enregistrer le devis' }));
   await waitFor(() => expect(dialogs.alert).toHaveBeenCalledTimes(1));
   const shown = dialogs.alert.mock.calls[0][0];
-  expect(shown).toMatchObject({ title: 'Dates déjà réservées', message: 'Dates déjà réservées : devis non enregistré.' });
+  expect(shown).toMatchObject({ title: 'Devis non enregistré', message: 'Dates déjà réservées : devis non enregistré.' });
   render(<MemoryRouter>{shown.details}</MemoryRouter>);
   expect(screen.getByRole('link', { name: `Ouvrir : ${STAY.label}` })).toHaveAttribute('href', '/reservations/41');
   expect(screen.getByLabelText(/^Notes/i)).toHaveValue('typed');
@@ -97,7 +97,7 @@ test('rule 55: CLOSED_DATES shows the refusal with the closure to open', async (
   fireEvent.click(await screen.findByRole('button', { name: 'Enregistrer le devis' }));
   await waitFor(() => expect(dialogs.alert).toHaveBeenCalledTimes(1));
   const shown = dialogs.alert.mock.calls[0][0];
-  expect(shown).toMatchObject({ title: 'Logement fermé', message: 'Logement fermé sur ces dates : devis non enregistré.' });
+  expect(shown).toMatchObject({ title: 'Devis non enregistré', message: 'Logement fermé sur ces dates : devis non enregistré.' });
   render(<MemoryRouter>{shown.details}</MemoryRouter>);
   expect(screen.getByRole('link', { name: `Ouvrir : ${closure.label}` })).toHaveAttribute('href', '/establishment-closures');
 });

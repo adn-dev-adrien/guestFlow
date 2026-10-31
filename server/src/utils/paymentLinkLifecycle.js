@@ -74,13 +74,17 @@ function withdrawGoneOrCancelled(database, links, now) {
 
 const hasTable = (database, name) => Boolean(database.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(name));
 
+// The boot one-shots (rules 12, 61) run while database.js is still evaluated: no model may load then, so the
+// withdrawn rows are read with a plain SELECT (review of #907, B1).
+const linkRow = (database, id) => database.prepare('SELECT * FROM payment_links WHERE id = ?').get(Number(id));
+
 // Rule 12 — `supersededDuplicates` sets a stay aside: its open links go with it, the deactivation owed (marker).
 function withdrawSupersededLinks(database, stayId, { now = new Date() } = {}) {
   if (!hasTable(database, 'payment_links')) return [];
   const withdraw = withdrawStatement(database);
   return database.prepare("SELECT id FROM payment_links WHERE reservationId = ? AND status = 'open' ORDER BY id").all(Number(stayId))
     .filter((row) => Number(withdraw.run(LINK_REASONS.SUPERSEDED, now.toISOString(), row.id).changes) > 0)
-    .map((row) => model().buildModel(database).findById(row.id));
+    .map((row) => linkRow(database, row.id));
 }
 
 // Rules 10, 31, 32 — every open link of an unpaid devis or reservation whose nights a stay holding its dates
@@ -121,7 +125,6 @@ function withdrawLinksOverlapping(database, { propertyId = null, startDate = nul
     const row = numbered ? database.prepare('SELECT reservationNumber FROM reservations WHERE id = ?').get(Number(id)) : null;
     return (row && row.reservationNumber) || `#${id}`;
   };
-  const links = model().buildModel(database);
   const withdrawn = [];
   for (const [rowId, linkIds] of byRow) {
     const found = answeringStay(database, rowId);
@@ -134,7 +137,7 @@ function withdrawLinksOverlapping(database, { propertyId = null, startDate = nul
     if (history) history.run(Number(rowId), JSON.stringify([{
       field: 'paymentLinkRetired', label: 'Lien de paiement', from: null, to: `retiré : dates prises par la réservation ${numberOf(takenBy)}`,
     }]));
-    withdrawn.push(...moved.map((id) => ({ ...links.findById(id), stayId: Number(found.stay.id), takenByReservationId: Number(takenBy) })));
+    withdrawn.push(...moved.map((id) => ({ ...linkRow(database, id), stayId: Number(found.stay.id), takenByReservationId: Number(takenBy) })));
   }
   return withdrawn;
 }

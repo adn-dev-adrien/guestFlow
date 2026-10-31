@@ -12,6 +12,7 @@ import { Chip, Tooltip } from '@mui/material';
 import EventBusyIcon from '@mui/icons-material/EventBusy';
 import { Link as RouterLink, useInRouterContext } from 'react-router';
 import { softChipSx } from './StatusBadge';
+import { touchHitArea } from '../utils/touchHitArea';
 
 export default function DatesTakenBadge({ datesTaken, linked = true }) {
   const inRouter = useInRouterContext();
@@ -26,7 +27,8 @@ export default function DatesTakenBadge({ datesTaken, linked = true }) {
       label={datesTaken.label}
       aria-label={takenBy ? `${datesTaken.label} par ${takenBy.label}` : datesTaken.label}
       {...nav}
-      sx={[softChipSx('warning'), { fontWeight: 600 }]}
+      // A link in the action bar: a 44 px hit area on a finger-driven screen (review of #907, m4).
+      sx={[softChipSx('warning'), { fontWeight: 600 }, asLink ? touchHitArea : {}]}
     />
   );
   return takenBy ? <Tooltip title={`Par ${takenBy.label}`}><span style={{ display: 'inline-flex' }}>{chip}</span></Tooltip> : chip;
