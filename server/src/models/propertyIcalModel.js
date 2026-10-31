@@ -29,6 +29,7 @@ const { assignReservationNumberIfMissing } = require('../utils/reservationNumber
 const { calculateReservationQuote } = require('../utils/pricing');
 const icalCancellationModel = require('./icalCancellationModel');
 const icalExportRangesModel = require('./icalExportRangesModel');
+const { withdrawForStay } = require('../utils/datesTaken');
 const { classifyBookingEvent } = require('../utils/icalBookingEcho');
 const { effectiveRange, timeColumnsOf } = require('../utils/occupancy');
 const notificationService = require('../utils/notificationService');
@@ -718,6 +719,8 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
         // email notification post-commit (specs/site-booking-notifications.md §3 rule 7). Not a
         // "created today" query, so a re-sync of already-known rows never re-notifies.
         const createdReservationIds = [];
+        // specs/payment-link-lifecycle.md rule 32 — stays known before this run whose dates the feed moved.
+        const redatedReservationIds = [];
 
         const syncTx = database.transaction((eventList) => {
           const seenUids = new Set(eventList.map((event) => event.uid));
@@ -1048,6 +1051,7 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
             upsertMapping.run(source.id, event.uid, mapping.reservationId, eventHash, event.startDate, event.endDate, summaryNormalized);
             // Rule 3 — a date change that lands on nights another stay holds is flagged once.
             const datesMoved = String(mappedReservation.startDate) !== event.startDate || String(mappedReservation.endDate) !== event.endDate;
+            if (datesMoved) redatedReservationIds.push(Number(mapping.reservationId));
             if (datesMoved && markConflict) {
               const overlaps = overlapsOtherStay(event, mapping.reservationId);
               const flagged = Boolean(isFlagged.get(mapping.reservationId));
@@ -1105,6 +1109,11 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
               }
             }
           });
+
+          // specs/payment-link-lifecycle.md rules 10, 32 — a platform stay holds its nights: the unpaid devis and
+          // reservations it now covers lose their payment links, in this transaction; their deactivation follows
+          // the commit.
+          [...createdReservationIds, ...redatedReservationIds].forEach((id) => withdrawForStay(database, id));
 
           // Cleanup orphan clients created by iCal imports.
           database.prepare(`

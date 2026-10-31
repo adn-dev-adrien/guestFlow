@@ -21,11 +21,9 @@ const HIDDEN_BY_OLD_FILTER = `
        AND (lower(s.platformLabel) = lower(r.platform) OR lower(s.platformKey) = lower(r.platform))
   )`;
 
-const CARRIES_MONEY = `
-  (COALESCE(r.depositPaid, 0) = 1 OR COALESCE(r.balancePaid, 0) = 1
-   OR COALESCE(r.complementPaid, 0) = 1 OR COALESCE(r.endOfStayComplementPaid, 0) = 1
-   OR EXISTS (SELECT 1 FROM reservation_installments i WHERE i.reservationId = r.id AND i.paid = 1)
-   OR EXISTS (SELECT 1 FROM payment_links l WHERE l.reservationId = r.id AND (l.status = 'paid' OR l.paidAt IS NOT NULL)))`;
+// specs/payment-link-lifecycle.md rule 31 — one reading of « carries money », shared with the held dates.
+const { carriesMoneySql } = require('./stayMoney');
+const { withdrawSupersededLinks } = require('./paymentLinkLifecycle');
 
 /**
  * A hidden stay is the copy of a visible one only when its nights sit fully inside the keeper's: a stay
@@ -44,7 +42,7 @@ const sitsWithin = (stay, keeper) => stay.startDate >= keeper.startDate && stay.
  */
 function findCandidates(db) {
   const hidden = db.prepare(`
-    SELECT r.id, r.propertyId, r.startDate, r.endDate, ${CARRIES_MONEY} AS carriesMoney
+    SELECT r.id, r.propertyId, r.startDate, r.endDate, ${carriesMoneySql(db, 'r')} AS carriesMoney
       FROM reservations r
      WHERE r.kind = 'reservation' AND ${HIDDEN_BY_OLD_FILTER}
      ORDER BY r.id
@@ -105,8 +103,9 @@ const CONFLICT_WHY = {
 
 /**
  * Sets the true copies aside, each with its audit entry, and stamps the ambiguous cases with
- * `bookingConflictAt` so the existing conflict alert shows them — all in one transaction. Returns what
- * the boot log prints.
+ * `bookingConflictAt` so the existing conflict alert shows them — all in one transaction. The open payment
+ * links of a copy set aside are withdrawn (specs/payment-link-lifecycle.md rule 12, `superseded`), their
+ * deactivation owed to the poll. Returns what the boot log prints.
  */
 function setAsideDuplicates(db) {
   const found = findCandidates(db);
@@ -121,7 +120,7 @@ function setAsideDuplicates(db) {
   const now = new Date().toISOString();
   db.transaction(() => {
     for (const { id, byReservationId } of found.superseded) {
-      mark.run(byReservationId, REASON, id);
+      if (mark.run(byReservationId, REASON, id).changes > 0) withdrawSupersededLinks(db, id);
       audit.run(id, 'superseded', JSON.stringify(supersededHistory(db, byReservationId)));
     }
     for (const { id, otherId, why } of found.conflicts) {

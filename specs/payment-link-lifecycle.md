@@ -197,13 +197,28 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     The check runs synchronously after every write that makes a reservation appear on nights or move
     onto them (rule 32), the deactivation following the commit; and in the lifecycle pass (rule 16) as
     the safety net for any path rule 32 would miss.
+    Readings recorded at implementation (2026-10-31, PR5): SQL picks the open links of the devis and
+    reservations near the stay's nights (one day wider each side), and the overlap is read in JS with
+    `buildOccupiedDatesFromReservations` + `rangeHasBlockedNight` on each holder (`utils/datesTaken.heldOverlaps`),
+    so a neighbour leaving on the arrival day frees the night and a late check-out takes it. « Unpaid » is read on
+    the stay a devis became when it was converted. Every open link of the row goes, whatever its type; the row's
+    history says « retiré : dates prises par la réservation {n°} », and the withdrawn link carries the stay that took
+    the nights (`takenByReservationId`, the cause when it is one of the holders). The deactivation marker is set on the
+    link (`remoteCancelPendingAt`), so the poll's read-then-deactivate of plugins-phase-3a rule 8 always runs on it.
 11. **No link is minted on an unpaid row whose dates are taken.** `mintPaymentLink` and
     `mintInstallmentLink` refuse before any provider call when a stay that holds the dates (rule 37)
     overlaps: 409 `DATES_UNAVAILABLE`, « Dates déjà prises par une autre réservation : aucun lien
     créé. » (the public `pay` keeps its own check and wording). An overlap with another **unpaid** row
     refuses nothing (rule 10, first paid wins).
+    Reading recorded 2026-10-31 (review of #907, m1): the nights can be taken or closed while the provider creates
+    the link, and no withdrawal can see a link not stored yet. Both mints check rule 55 and this rule again just
+    before storing it; on a refusal the fresh link is stored withdrawn (`dates-taken` for taken nights) and
+    deactivated at once, the marker kept for the poll when that fails, and the request is refused.
 12. **A stay set aside (`superseded`) withdraws its links** (`cancelReason = 'superseded'`), in the
     lifecycle pass and in `supersededDuplicates` when it sets the row aside.
+    Reading recorded at implementation (2026-10-31, PR5): the pass reads the set-aside kind on the row and on the
+    stay its devis became, like a cancellation (rule 13); both paths set the deactivation marker, and a link that
+    never reached the provider is withdrawn without it.
 13. **Cancelled and deleted stays keep their current behaviour** (§1.2): immediate deactivation, delete
     refused when it fails. The lifecycle pass also catches any open link whose stay is `cancelled` or
     missing (defence in depth: `cancelReason` `NULL` resp. `orphan`).
@@ -233,7 +248,9 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     the moved rows. Two refinements are read in JS on the rows SQL selected: Qonto's zero-time sentinel
     (no expiry) and the Paris day a link was minted (rule 9), which SQLite cannot compute. Order inside
     the pass: a cancelled or missing stay first (rule 13), then the validity (rule 7), then the arrival
-    (rule 9) — a link past several triggers carries the first one's reason. It runs:
+    (rule 9) — a link past several triggers carries the first one's reason. Within « a stay withdrawn », a missing,
+    cancelled or set-aside stay (rules 12, 13) goes before dates taken (rule 10) (reading recorded at
+    implementation, 2026-10-31, PR5). It runs:
     - at the start of every poll pass (`runPaymentPoll`, before `retryPendingCancellations`);
     - from a dedicated plugin job `payment-link-lifecycle` every **15 minutes**, so a validity ends
       within 15 minutes of its 36 h rather than at the next 8-hour poll tick. The job makes provider
@@ -387,6 +404,10 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     therefore **not** unpaid: it keeps its solde / installment links, and its dates are held (rule 37);
     an iCal booking that lands on them is an over-booking (rule 39) (decided 2026-10-30, §9 Q9).
     A platform reservation is concerned only if it carries a link (it normally carries none).
+    Readings recorded at implementation (2026-10-31, PR5): `utils/stayMoney.js` holds `carriesMoneySql(database,
+    alias)` (shared with `supersededDuplicates`, so its one-shot now also counts the cash twins) and `carriesMoney`,
+    read on the stay a devis became when it was converted; a devis's own money is its paid links. deletionGuard keeps
+    its own reading (plan assumption 4). A minimal schema missing a column or a table simply has no such money.
 32. **Every way an overlapping reservation can appear calls rule 10.** One helper,
     `withdrawLinksOverlapping(database, { propertyId, startDate, endDate, causeId })` (in
     `utils/paymentLinkLifecycle.js`), withdraws in the caller's transaction and returns the links for the
@@ -402,6 +423,20 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     | Boot migrations that create or re-date reservations (`devisFusionMigration`) | — | caught by the lifecycle pass (rule 16) |
     Establishment closures never withdraw links: a closure cannot be saved over an open payment request
     (rule 41, decided 2026-10-30, §9 Q10).
+    Readings recorded at implementation (2026-10-31, PR5): one entry point, `utils/datesTaken.withdrawForStay(database,
+    stayId)`, called inside the iCal sync's transaction (new stays and stays the feed re-dated), inside
+    `convertToReservation`'s, `icalDateDriftModel.approve`'s (rule 32 extends to it, plan assumption 3) and « Rétablir »'s,
+    right after the commit of `createStay` and of a `performUpdate` that answered 200 (never on a dry run), and after
+    `stayPaymentRecorder` ticked a bucket — the acompte recorded by hand or by a link is what makes an unpaid stay hold
+    its nights, « first paid wins ». It does nothing unless the stay holds its dates (rule 37). After the commit, when a
+    provider is connected, each withdrawn link goes through the poll's retry of owed deactivations (`only: id`): read,
+    then deactivated, or rule 33 when paid; without one the marker waits for the next pass.
+    Reading recorded 2026-10-31 (review of #907, M1): the withdrawal is a side concern. It runs in its own savepoint,
+    and a throw there is logged (« dates-taken withdrawal for stay … skipped, left to the lifecycle pass ») and never
+    rolls back the iCal import, which must keep its over-booking record, nor turns a creation or a save that succeeded
+    into a 500; the lifecycle pass (rule 16) withdraws the link at its next run. Re-review of #907 (N1): an error that made
+    SQLite abort the caller's whole transaction (disk full, I/O error) is rethrown, never swallowed, so the caller
+    fails as a whole instead of running its remaining writes in autocommit (a torn iCal sync).
 33. **A `dates-taken` link found paid is recorded on the fiche, in date conflict** (decided 2026-10-30,
     §9 Q5). When the deactivation lost the race (payment in flight, webhook, retry, last look), the money
     is booked like a live payment of that link: `markRetiredLinkPaid(id, { reason: 'dates-taken' })`
@@ -411,6 +446,12 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     déjà prises — {montant} », with the fiche link, the overlapping reservation, and the action line
     « Action requise : déplacer le séjour ou le rembourser. » (`notifyPaidAfterCancel(link, { datesTaken })`
     and `notifyConflict`).
+    Readings recorded at implementation (2026-10-31, PR5): the poll's retry (`bookDatesTakenPaid`) books it through
+    `processPaidLink({ retiredReason: 'dates-taken', quietOnConflict })` with no confirmation sender; the stay the link
+    answers for is stamped `bookingConflictAt` (and `notifyConflict` sent) while another stay still holds its nights,
+    by the poll's own availability check — a taker cancelled meanwhile leaves no phantom conflict. The alert always
+    leaves: « Paiement reçu sur des dates déjà prises — {réf} · {montant} », the stay that took the dates (« Dates prises
+    par : … »), « Aucun e-mail de confirmation » and the action line. A stay cancelled meanwhile is rule 8's alert only.
 34. **Links already open at the upgrade get 36 h of grace from the install** (decided 2026-10-30, §9 Q2).
     An idempotent migration (`migrations.name = 'payment_link_validity_backfill_v1'`) sets, on every
     `open` link, `expiresAt = max(createdAt + 36 h, installedAt + 36 h)`, `installedAt` being the
@@ -463,6 +504,8 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     'cancelled'` is never counted). One predicate, `stayMoney.holdsDates(row)`, says it everywhere. A
     devis never holds dates; an unpaid direct reservation keeps today's behaviour (it blocks the
     calendar, rule 38, but does not withdraw anyone's links, rule 10).
+    Reading recorded at implementation (2026-10-31, PR5): `holdsDates(database, row)` in `utils/stayMoney.js`; an own
+    channel « Compté comme vente directe » is direct (`isDirectChannel`), so it holds only once paid.
 38. **Where the hold is enforced — what the code does today and what changes.** Availability already
     counts every `kind = 'reservation'` row, paid or not (`reservationsModel.validateAvailability`,
     `getOccupiedReservations`), so the hold is already enforced on every path GuestFlow decides:
@@ -477,6 +520,10 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     | « Rétablir » a duplicate | `reservationsController.restore` → `validateAvailability` | none |
     | Platform intakes | fiche save path | none |
     | **iCal import / re-dated iCal booking** | inserted **without** `validateAvailability` (`propertyIcalModel`), `bookingConflictAt` + `notifyBookingConflict(…, { origin: 'ical' })`; a date drift on a locked iCal fiche waits for approval (`icalDateDriftModel`) | rule 39 |
+    Reading recorded 2026-10-31 (review of #907, m3): the « dates réservées » wording of rule 39 is the iCal imports'
+    only (`origin: 'ical'`). A devis converted by a paid link onto taken nights keeps the payment-origin conflict
+    alert (« Conflit de dates — paiement en ligne »), and a withdrawn link paid in flight has rule 33's own alert; the
+    row « Devis conversion by a paid link » above is read that way.
 39. **A platform booking on held dates is an over-booking alert.** The platform is the authority on its
     own booking, so the import still records it (unchanged), stamped `bookingConflictAt`. When the stay
     it overlaps holds the dates (rule 37), `notifyBookingConflict` says so: push + e-mail « Surbooking :
@@ -484,6 +531,13 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     de {réservation}. Annuler l'une des deux réservations. », and the dashboard's existing conflict
     card shows the same wording. Approving an iCal date drift onto held dates shows the same warning in
     the approval dialog before it applies. Nothing is cancelled automatically.
+    Readings recorded at implementation (2026-10-31, PR5): there is no dashboard conflict card to reword — the
+    conflict shows on the fiche (« Conflit de dates » badge) and in this alert; the held wording applies to the `ical`
+    origin. A stay holding by money reads « Dates réservées par l’acompte de {n° · client · dates} », one holding as a
+    platform stay « Dates réservées par la réservation {plateforme} {…} »; the e-mail links both fiches. The pending
+    drift row carries `heldDates: { title, message, stays[] }` (`icalDateDriftModel.listPending`): the card says « Sur
+    des dates réservées par un autre séjour », and « Approuver » first asks (« Approuver quand même » / « Annuler »)
+    with the stays in a `ConflictList`; a drift onto free nights is approved at once, as before.
 40. **A closure cannot be saved over a reservation** (decided 2026-10-30, §9 Q10). Unchanged in substance
     (`establishmentClosuresController` 409 `RESERVATION_OVERLAP`), reworded short and impersonal:
     « Réservation sur ces dates : fermeture impossible. », and the answer now lists the stays
@@ -618,12 +672,28 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     held dates (text, options, price) are not refused, only a move onto them. An unpaid reservation or
     another devis on the nights refuses nothing (first paid wins, rule 10). The website booking request
     keeps its own `DATES_UNAVAILABLE` check (rule 38).
+    Readings recorded at implementation (2026-10-31, PR5): `create` refuses whatever its caller (the website request
+    is refused earlier by its own, wider check); `update` refuses a move — dates or logement — of the operator's save,
+    the devis itself left out; the overlap is rule 10's (`heldOverlaps`). Each stay is `{ id, label, url }`, `label`
+    « {n° de réservation} · {client} · {du} → {au} » (the year when it is not the devis's). The fiche shows the message
+    and the stays in its information dialog (`alert({ details })`, a `ConflictList`), and the draft stays as typed. The
+    dialog's title is « Devis non enregistré », so its first line does not repeat it (review of #907, n2). The
+    devis fiche no longer refuses a save by its own occupancy check (which counted every reservation, unpaid ones
+    included, and blocked even a notes edit on a devis already overlapped): the server is the judge of a devis's
+    nights; the red line under the dates stays as information.
 47. **The notice's trigger is the withdrawal for taken dates** (decided 2026-10-30, §9 Q14) — written in
     rule 43, which it amends.
 48. **A devis whose dates were taken stays as it is** (decided 2026-10-30, §9 Q15). Nothing changes on it
     automatically: it stays in the devis list and its fiche, with a « Dates prises » chip in the action
     bar and on the list row (server-shaped `datesTaken: { label, takenBy: { id, label, url } }`). The
     operator decides to offer other dates (a date change, which rule 46 checks) or to archive it.
+    Readings recorded at implementation (2026-10-31, PR5): the marker is read live — a devis not converted, or an
+    unpaid reservation, whose nights a stay holding its dates covers (`datesTaken.datesTakenMarker`, rule 10's test),
+    whether or not it ever had a link — on `GET /api/devis/:id`, every row of `GET /api/devis`, and
+    `GET /api/reservations/:id`. `DatesTakenBadge` prints it beside the action bar's other chips and opens the stay that
+    took the dates; on the list row it is a plain badge (the row opens the devis). Review of #907: only a devis still
+    open (draft, sent, accepted) and a stay not over yet are marked (n1); the badge, a link, gets a 44 px hit area on a
+    finger-driven screen (m4).
 49. **A closure over a devis without an open link warns, and saves** (decided 2026-10-30, §9 Q16). The
     closure dialog shows the same kind of amber warning line, « Devis en cours sur ces dates. », with
     « Ouvrir » per devis (the `conflicts` answer gains `devis: [{ reservationId, label, url }]`). Save stays
@@ -732,6 +802,18 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     `utils/closedStayDates.closedDatesRefusal(database, stayId)` (on `establishmentClosuresModel.findCoveringClosure`).
     The public `pay` already refuses closed nights (`DATES_UNAVAILABLE`, `computeBlockedDates`). A devis created
     or converted on closed nights is out of this rule: the held-dates rules of PR5 (46) handle `devisModel`.
+    Reading recorded 2026-10-31 (audit R10-1, decided by Adrien: refuse) — the sentence above is superseded: rule 46
+    covers nights held by stays only, so a devis holding an open link could be moved onto a closure, its link stayed
+    payable, and its payment confirmed the guest on closed nights. A devis is therefore never written on nights a
+    closure covers: `devisModel.create`, and `devisModel.update` when the dates or the logement change (operator and
+    website sources alike), refuse 409 `CLOSED_DATES` « Logement fermé sur ces dates : devis non enregistré. » with
+    `closures: [{ id, label, url }]` (« {libellé} · {du} → {au} », `/establishment-closures`), checked before rule 46;
+    the devis fiche shows it like `DATES_HELD` (title « Devis non enregistré », a `ConflictList`). A devis already on closed nights
+    keeps its other edits (a notes edit saves). Defence in depth: a devis link paid anyway is converted and booked, but
+    when the converted stay's nights are closed (`closedStayDates.closedDatesRefusal`) the guest gets no confirmation
+    and the admin is told « Paiement reçu sur des dates fermées … Action requise : déplacer le séjour ou le
+    rembourser. » (`notifyPaidAfterCancel(link, { nightsUnavailable: 'closed', livePayment: true })`, beside the
+    conflict alert); a withdrawn link booked late keeps the alert of its own path (`bookWithdrawnPaid`, rule 33).
 56. **A payment received on a link withdrawn by hand, after its withdrawal, is settled before any new request**
     (decided by Adrien 2026-10-31, re-review of #902 L8). Such a payment (the poll's rule-8 alert: the link stays
     `cancelled` / `operator` with the provider's `paidAt` and payment id, nothing booked) is money the stay does not
@@ -818,6 +900,21 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     text then carries no link and no placeholder. `EmailManualSendDialog` shows the message in an info alert above
     the subject and keeps « Envoyer » disabled, so a « Payer le solde en ligne : » with nothing after it is never one
     click from a refusal. The server decides; the dialog only renders it. The send keeps its own refusal.
+
+### 3.Q Upgrade (plan decision (a), Adrien 2026-10-30; appended, rule numbers are identities)
+
+61. **Links already on taken dates at the upgrade are withdrawn once, without telling the guest.** At the first boot
+    of this version, `dates_taken_links_withdrawn_v1` (`utils/datesTakenUpgradeMigration.js`) runs rule 10 over every
+    open link (no network call: the deactivation is owed, so the first poll pass reads each payment, then deactivates
+    it — rule 33 when it was paid), logs one line per link (`[migration:dates-taken-links] link #… (type, montant, stay
+    …) withdrawn: dates taken by stay …; deactivation owed at qonto`) and a total, and seeds one `dates_taken_notices`
+    row per stay, `noticeStatus = 'not-sent'`, `noticeReason = 'upgrade'`. Those rows feed the dashboard card « Dates
+    prises » only (« client non prévenu »): the guest notice of rule 43 claims a stay's row before it sends and finds
+    this one taken, so no e-mail ever leaves for them. A row already there is never replaced. Idempotent via `migrations`.
+    Reading recorded 2026-10-31 (review of #907, B1): this one-shot and rule 12's in `supersededDuplicates` run while
+    `database.js` is still being evaluated, so their path loads no model (plain `SELECT`s; `rangeHasBlockedNight`
+    lives in `occupancy.js`): a model required then would keep the half-built database module for the life of the
+    process, and the first boot after the install served 500s.
 62. **The closure dialog's lines only describe the dates it shows** (audit R10-C1, 2026-10-31). A conflicts look
     (rules 41, 49) still in flight when the dialog closes, reopens, or its range stops being valid (a date
     missing, reopening ≤ start) is dropped: its answer never paints a red or amber line over a fresh « Ajouter une
@@ -839,7 +936,10 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
 | `constants/` | `paymentLinks.js` | C | `PAYMENT_LINK_VALIDITY_HOURS = 36`, `PAYMENT_LINK_MIN_REMAINING_HOURS = 24`, `LAST_LOOK_DELAY_MINUTES = 60`, `DEACTIVATION_ALERT_AFTER_HOURS = 24`, reason names |
 | `utils/` | `paymentLinkLifecycle.js` | C | `retireLapsedAndWithdrawn(database, { now })` (rule 16: SQL selection + transitions), `withdrawLinksOverlapping` (rules 10, 32), `validityOf(link, now)` (rule 8), `listLastLookDue` (rule 19), `lapsesAtArrival` (rule 51); pure, injected `now` |
 | `utils/` | `paymentRequestService.js` | T | `expiresAt` at mint (rule 6); reuse only with ≥ 24 h left (rule 8) and never a link rule 9 lapses (rule 51); `DATES_UNAVAILABLE` on an unpaid row whose nights are taken (rule 11) |
-| `utils/` | `stayMoney.js` | C | `carriesMoney(database, rowId)` (rule 31, moved out of `supersededDuplicates.js`) and `holdsDates(database, row)` (rule 37) |
+| `utils/` | `stayMoney.js` | C | `carriesMoneySql(database, alias)` / `carriesMoney(database, rowId)` (rule 31, moved out of `supersededDuplicates.js`) and `holdsDates(database, row)` (rule 37) |
+| `utils/` | `datesTaken.js` | C | `heldOverlaps` (the stays holding a night of a range), `takenByOf`, `datesTakenRefusal` (rule 11), `datesTakenMarker` (rule 48), `stayRefs` (ConflictList rows, rule 46), `withdrawForStay` (rule 32's entry point, deactivation after the commit) |
+| `utils/` | `datesTakenUpgradeMigration.js` | C | Rule 61: `dates_taken_links_withdrawn_v1`, the links on taken dates at the upgrade withdrawn once, their stays seeded `not-sent` / `upgrade` |
+| `utils/` | `stayPaymentRecorder.js` | T | A ticked bucket calls `withdrawForStay` (rule 32: first paid wins) |
 | `utils/` | `datesTakenNotice.js` | C | `notifyDatesTaken(reservationId, { takenByReservationId })`: guest notice, operator push, dashboard row, once per stay; called after every `dates-taken` withdrawal (rules 10, 32) and from the refused reminder (rules 43-44) |
 | `utils/` | `autoSendPolicy.js` | T | `AUTO_SEND_EXCEPTIONS = ['dates_unavailable_notice']`, documented; the policy itself unchanged (rule 44) |
 | `utils/` | `defaultEmailTemplatesRegistry.js`, `defaultEmailTemplatesSeed.js` | T | Template `dates_unavailable_notice` FR / EN (rule 45) |
@@ -883,7 +983,7 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
 | `routes/` | `establishmentClosures.js`, `payments.js`, `dashboard.js` | T | `GET /establishment-closures/conflicts`, `POST /payments/links/:id/withdraw`, `GET/POST /dashboard/dates-taken` |
 | `controllers/` | `paymentsController.js` | T | `withdrawLink` (rule 42) |
 | `controllers/` | `dashboardController.js` | T | Dates-taken card list / acknowledge (rule 43); `remindPaymentDeadline` passes a service refusal through with its status and code (rule 50) |
-| `models/` | `icalDateDriftModel.js` | T | The approval answer carries the held-dates warning (rule 39) |
+| `models/` | `icalDateDriftModel.js` | T | `listPending` rows carry `heldDates` (rule 39); `approve` calls `withdrawForStay` (rule 32) |
 | `plugins/online-payment/` | `index.js`, `paymentJobs.js` (C) | T | Job `payment-link-lifecycle` every 15 min (first run 15 min after boot), `inProgress` shared with `payment-poll` (rules 16, 22); `paymentJobs.createPaymentJobs` builds both jobs; plugin 1.5.0, `sdk ^2.18.0` |
 | `plugins/sdk/` | `version.js`, `coreModules.json`, `coreModuleHistory.json` | T | SDK 2.18.0: `paymentPollRunner.runLinkLifecycle` (specs/plugins-phase-1-sdk.md rule 35) |
 | `middleware/` | — | — | (none) |
@@ -900,6 +1000,9 @@ No new dependency.
 | `pages/` | `EstablishmentClosuresPage.jsx` | T | Live `conflicts` check when logement + dates are set; warning list with « Ouvrir » links in the `FormDialog`; renders the 409 lists (rules 40-41) |
 | `pages/` | `Dashboard.jsx` | T | « Dates prises » card (rule 43), built like the existing alert cards |
 | `pages/` | `ReservationPage.jsx`, `DevisPage.jsx` | T | « Dates prises » chip (rule 48); `DATES_HELD` refusal with its `ConflictList` (rule 46) |
+| `components/` | `DatesTakenBadge.jsx` | C | Generic « Dates prises » badge from the server's marker, linking the stay that took the dates (rule 48) |
+| `components/` | `DialogProvider.jsx`, `ConfirmDialog.jsx` | T | Optional `details` node under the message (a `ConflictList`) for `alert` and `confirm` (rules 39, 46) |
+| `components/` | `IcalDateDriftAlert.jsx` | T | « Sur des dates réservées par un autre séjour » and the confirmation before approving onto held nights (rule 39) |
 | `components/` | `ConflictList.jsx` | C | Generic « label · detail · Ouvrir » list for a refusal or warning that names records; used by the closure dialog now, reusable by any 409 that names stays |
 | `services/` / `api.js` | `api.js` | T | `getClosureConflicts`, `withdrawPaymentLink`, `getDatesTakenAlerts`, `acknowledgeDatesTaken` |
 | `pages/` | `ReservationPage.jsx` | T | The 409 `DATES_UNAVAILABLE` message reaches the existing error dialog; on 409 `LINK_ALREADY_PAID` the resend, solde and devis senders re-read the fiche / the devis (rule 50) |
@@ -920,7 +1023,7 @@ No new dependency.
 | Category | Components | Notes |
 |---|---|---|
 | **Consumed (existing generic)** | `FinanceSection` ledger rows, `FormDialog`, `ConfirmDialog` / `useAppDialogs`, `ErrorAlert`, `PageActionBar`, the dashboard alert-card pattern | |
-| **Created (new generic)** | `ConflictList` | A refusal that names records with a link to each is not closure-specific (reservation delete refusals, iCal conflicts could use it) |
+| **Created (new generic)** | `ConflictList`, `DatesTakenBadge` | A refusal that names records with a link to each is not closure-specific (reservation delete refusals, iCal conflicts could use it) |
 | **Specific (kept feature-local)** | — | |
 
 ### 4.3 API contract
@@ -958,6 +1061,8 @@ No new dependency.
 - `cancelReason = 'dates-taken'` rows may later become `paid` (rule 33, via `markRetiredLinkPaid`).
 - New table `dates_taken_notices` (`id`, `reservationId` UNIQUE, `takenByReservationId`, `emailLogId`, `noticeStatus` `sent | not-sent`, `noticeReason`, `createdAt`, `acknowledgedAt`) (rule 43).
 - New default template `dates_unavailable_notice` FR / EN, seeded (rule 45).
+- `dates_taken_notices` is created by PR5 (`database.js`, `schema.sql`) for rule 61's seed; PR6 sends from it.
+- Migration `dates_taken_links_withdrawn_v1` (rule 61).
 
 **Data impact:** no row is deleted; no paid row is touched (every `UPDATE` filters `status = 'open'`).
 The 3 prod orphans move to `cancelled` / `orphan`. Every link open at upgrade lapses 36 h after the
@@ -1006,23 +1111,28 @@ refused).
 - [x] `tests/payment-link-orphan-migration.unit.test.js` — rule 5: open orphans withdrawn once, paid / cancelled ones untouched, log lines, second boot does nothing.
 - [x] `tests/payment-link-validity.unit.test.js` — rules 6-8, 17: `expiresAt` at mint, lapse at 36 h, reuse below 24 h left mints a new link, reuse above keeps it, a reused link paid meanwhile refuses.
 - [x] `tests/payment-link-stay-started.unit.test.js` — rule 9: lapse at 00:00 Paris (DST days included), `complement` untouched, link minted on the arrival day exempt, converted-devis links included; rule 51: no reuse at 00:05 on the arrival day nor after a re-date to today, a same-day link still reused, the installment variant (13).
-- [ ] `tests/payment-link-dates-taken.unit.test.js` — rules 10-11, 31-32: overlap by iCal import (Adrien's case a), by the conversion of another devis (case b), by manual creation, re-date, logement change, « Rétablir »; the row itself and its own converted stay never count; a row with an acompte paid keeps its links; two unpaid reservations both withdrawn; mint refused 409.
-- [ ] `tests/payment-link-dates-taken-paid.unit.test.js` — rule 33: paid in flight on a devis (converted with `bookingConflictAt`, no confirmation, alert) and on a reservation (bucket recorded, conflict, alert).
+- [x] `tests/payment-link-dates-taken.unit.test.js` (18) — rules 10-11, 16 (the pass's order, m2), 25, 31-32: overlap by iCal import (Adrien's case a), by the conversion of another devis (case b), by manual creation, re-date, logement change, « Rétablir »; the row itself and its own converted stay never count; a row with an acompte paid keeps its links; two unpaid reservations both withdrawn; mint refused 409.
+- [x] `tests/payment-link-dates-taken-paid.unit.test.js` (4) — rule 33: paid in flight on a devis (converted with `bookingConflictAt`, no confirmation, alert) and on a reservation (bucket recorded, conflict, alert).
 - [x] `tests/payment-link-validity-backfill.unit.test.js` — rule 34: grace from the install, idempotent, logged; rule 53: an open link with no known end written after the marker gets 36 h at the next boot, a known end never moves (7).
 - [x] `tests/deposit-reminder-mints-link.unit.test.js` — rules 27, 35: fresh link at send, reuse with ≥ 24 h, a fresh one below, English wording, mint refusal sends nothing, no provider → no link, declared-unready re-offers only, the solde reminder never gets a link, still Manual (9). The refusal on taken dates joins it with rule 11 (PR5/PR6).
 - [x] `tests/payment-link-valid-until-token.unit.test.js` — rule 36: FR / EN wording in Paris time (DST), empty without a link, catalogue entry, sentence in every default, both request paths hand `expiresAt`, content migration on every shipped version (an older default keeps the rest of its text), never on an edited side, idempotent, no-link draft (15).
-- [ ] Amend `superseded-duplicates` tests for the moved `carriesMoney`.
-- [ ] `tests/stay-holds-dates.unit.test.js` — rule 37: acompte paid holds, solde open still holds, platform holds, unpaid direct and devis do not, cancelled frees; two unpaid devis both keep their links, first paid withdraws the other's (Q11).
-- [ ] `tests/ical-overbooking-held-dates.unit.test.js` — rules 38-39: import on held dates recorded + conflict + held-dates wording; drift approval warning.
+- [x] The moved `carriesMoney` is asserted in `payment-link-superseded` (a copy paid in cash is flagged, never set aside) rather than appended to `calendar-parity-superseded` (CLAUDE.md §9, one file per subject); that suite passes unchanged.
+- [x] `tests/stay-holds-dates.unit.test.js` (6) — rule 37: acompte paid holds, solde open still holds, platform holds, unpaid direct and devis do not, cancelled frees; two unpaid devis both keep their links, first paid withdraws the other's (Q11).
+- [x] `tests/ical-overbooking-held-dates.unit.test.js` (4) — rules 38-39: import on held dates recorded + conflict + held-dates wording; drift approval warning.
 - [x] `tests/closure-open-payment-request.unit.test.js` (11) — rules 40-41: refusal order, codes, `reservations[]` / `requests[]` shapes, establishment-wide closure, `conflicts` endpoint, a blocking stay listed once, `findReservationOverlap` kept.
 - [x] `tests/payment-link-withdraw.unit.test.js` (21) — rule 42: withdrawn + deactivated, refused when paid (payment booked), marker on provider failure, without a provider or with a disconnected one, read-only stays refused, the ledger's action and label.
-- [ ] `tests/devis-held-dates.unit.test.js` — rule 46: create / re-date onto held dates refused with `stays[]`; onto an unpaid row allowed; other edits of a devis already on held dates allowed; `datesTaken` marker (rule 48).
+- [x] `tests/devis-held-dates.unit.test.js` (8) — rule 46 (n1: no marker on a devis no longer open or a stay over): create / re-date onto held dates refused with `stays[]`; onto an unpaid row allowed; other edits of a devis already on held dates allowed; `datesTaken` marker (rule 48).
 - [x] `tests/closure-devis-without-link.unit.test.js` (4) — rule 49: warning listed, save accepted.
 - [x] `tests/payment-link-operator-owed-read.unit.test.js` (4) — rule 42 (L6): an operator-withdrawn link owing its read is read before a new mint: paid before → booked, request refused; unpaid → minted; (R2) a concurrent pass that booked it, or paid the échéance, while the mint waited → 409, nothing created.
 - [x] `tests/payment-link-unsettled-withdrawn.unit.test.js` (17) — rule 56: requests of every bucket, the échéance and the e-mail refused before any mint; « remboursé » and « enregistrer sur le séjour » settle it (stubbed and real booking); only such a payment settles, once; the ledger label and actions; (O1) an open link not reused; (O2) read-only stays refund only; (O3) amounts and the devis / unavailable-nights messages; (M1) the shared decision, and a fiche on taken nights through the settle and the poll paths; (O4) a devis converted into a cancelled stay refunds only. `public-payment-pay-visitor-refusals` (+2): the visitor's FR / EN sentence (G1).
 - [x] `tests/payment-link-closed-dates.unit.test.js` (9) — rule 55: mint and installment refused before any provider call, an open link not handed out, one night or an establishment-wide closure enough, another logement or the departure day free, request and reminder e-mails refused before any mint, a mail without a link still leaves.
 - [ ] `tests/dates-taken-notice.unit.test.js` — rules 43-45: sent at the `dates-taken` withdrawal (overlap, first paid, iCal), not for expiry, a started stay or « Retirer le lien »; a later refused reminder sends nothing more; e-mail sent once with its `email_log` row, push, dashboard row, every fail-closed case, reminder never queued on taken dates, `AUTO_SEND_EXCEPTIONS` holds exactly one key and `autoSendPolicy` still refuses every other template.
-- [ ] `tests/payment-link-superseded.unit.test.js` — rule 12.
+- [x] `tests/payment-link-superseded.unit.test.js` (4) — rule 12; rule 31 in `supersededDuplicates`.
+- [x] `tests/devis-closed-dates.unit.test.js` (9) — rule 55 (audit R10-1): create and move onto closed nights refused with the closure, an establishment-wide closure, the departure day free, the website source, a notes edit on closed nights saved, the controller's body, a paid devis link on closed nights converted without confirmation and alerted, open nights still confirmed, the alert wording.
+- [x] `tests/dates-taken-boot-models.unit.test.js` (1) — rules 12, 61 (review of #907, B1): booted in a child process on a file holding links on taken nights and a set-aside copy, every model still works, no circular-dependency warning.
+- [x] `tests/dates-taken-withdrawal-never-breaks.unit.test.js` (4) — rules 32, 16 (M1): a failing withdrawal keeps the iCal booking and its mapping, a creation still answers, the pass withdraws later; (N1) an error that aborted the caller's transaction propagates and nothing of the caller is written.
+- [x] `tests/payment-link-mint-nights-taken-meanwhile.unit.test.js` (4) — rules 11, 55 (m1): nights taken or closed during the provider call refuse the mint, the fresh link withdrawn and deactivated (marker on failure), the échéance too, nothing changed → stored open.
+- [x] `tests/dates-taken-upgrade-migration.unit.test.js` (2) — rule 61: withdrawn once, one `not-sent` / `upgrade` row per stay, money and free nights untouched, no guest name in the log, a second boot does nothing, an existing row never replaced.
 - [x] `tests/payment-link-deadline-race.unit.test.js` — rules 14, 15, 18, 19, 21, 22: paid before deactivation (webhook), paid found after deactivation, paid found at the last look, webhook replay, two concurrent runs.
 - [x] `tests/payment-link-deactivation-stuck.unit.test.js` — rules 18, 20, 21: marker kept, one alert after 24 h, rate limit stops the job.
 - [x] `tests/payment-link-lifecycle-ledger.unit.test.js` — rule 24 labels and `resend`.
@@ -1054,6 +1164,11 @@ refused).
 - [x] `client/src/components/reservation/__tests__/FinanceSection.link-lifecycle.test.jsx` (11) — prints the new labels, offers « Renvoyer la demande » on expired, not on dates-taken; « Retirer le lien » asks for confirmation.
 - [x] `client/src/pages/__tests__/EstablishmentClosuresPage.conflicts.test.jsx` (6) — warning list with links, 409 lists rendered, asked again on focus, same tab on a phone.
 - [x] `client/src/components/__tests__/ConflictList.test.jsx` (5).
+- [x] `client/src/components/__tests__/DatesTakenBadge.test.jsx` (4) — rule 48; the 44 px hit area (m4).
+- [x] `client/src/components/__tests__/IcalDateDriftAlert.held-dates.test.jsx` (3) — rule 39: the card line, the dialog's stays, « Annuler » and « Approuver quand même », a free drift at once.
+- [x] `client/src/components/__tests__/DialogProvider.details.test.jsx` (1) — rule 46.
+- [x] `client/src/pages/__tests__/ReservationPage.dates-held.test.jsx` (4) — rules 46, 48, 55; a devis on an unpaid reservation's nights reaches the server; `CLOSED_DATES` shows the closure.
+- [x] `client/src/pages/__tests__/DevisPage.dates-taken.test.jsx` (2) — rule 48.
 - [x] `client/src/pages/__tests__/EstablishmentClosuresPage.stale-conflicts.test.jsx` (2) — rule 62: a late answer after close/reopen, or after the range turned invalid, is dropped.
 
 ### Manual verification (fake provider in dev, never the production Qonto)
@@ -1237,5 +1352,27 @@ Six sequential PRs into `inte/plugins` (plan validated 2026-10-30).
   Audit round 10 (2026-10-31): rule 62 the closure dialog drops a stale conflicts answer
   (`EstablishmentClosuresPage`'s conflicts effect bumps its look sequence in its cleanup; client
   `EstablishmentClosuresPage.stale-conflicts` 2).
-- [ ] PR5 — held dates and dates-taken withdrawal (rules 10-12, 16, 24, 25, 31-33, 37-39, 46, 48).
+- [x] **PR5 — held dates and dates-taken withdrawal** (rules 10-12, 16, 24, 25, 31-33, 37-39, 46, 48, 61).
+  `utils/stayMoney.js` (`carriesMoneySql`, `carriesMoney`, `holdsDates`; `supersededDuplicates` reads it and withdraws
+  the links of a copy it sets aside); `utils/datesTaken.js` (`heldOverlaps`, `datesTakenRefusal`, `datesTakenMarker`,
+  `stayRefs`, `withdrawForStay`); `paymentLinkLifecycle.withdrawLinksOverlapping` / `withdrawSupersededLinks`, the pass
+  withdrawing set-aside and taken stays; callers of rule 32 (`propertyIcalModel` sync, `reservationsController`
+  create / `performUpdate` / « Rétablir », `devisModel.convertToReservation`, `icalDateDriftModel.approve`,
+  `stayPaymentRecorder`); both mints refuse 409 `DATES_UNAVAILABLE`; the poll's retry books a paid `dates-taken` link
+  in conflict (`bookDatesTakenPaid`); `notificationService` « Surbooking … sur des dates réservées » and the rule-33
+  wording; `devisModel` 409 `DATES_HELD` with `stays[]` and the `datesTaken` marker (devis payloads, list rows, the
+  reservation payload); table `dates_taken_notices` and rule 61's migration. Client: `DatesTakenBadge` (new, generic),
+  `DialogProvider` / `ConfirmDialog` `details`, `ReservationPage` (badge, `DATES_HELD` dialog), `DevisPage` (badge),
+  `IcalDateDriftAlert` (line + confirmation). Rule 24's labels and rule 25's refusal path were already in place (PR2,
+  and the existing error toast of the devis action bar). Tests: server `payment-link-dates-taken` (18),
+  `payment-link-dates-taken-paid` (4), `payment-link-superseded` (4), `stay-holds-dates` (6),
+  `ical-overbooking-held-dates` (4), `devis-held-dates` (8), `dates-taken-upgrade-migration` (2); client
+  `DatesTakenBadge` (4), `IcalDateDriftAlert.held-dates` (3), `DialogProvider.details` (1),
+  `ReservationPage.dates-held` (4), `DevisPage.dates-taken` (2). Audit R10-1 (rule 55 reading): `devisModel` 409
+  `CLOSED_DATES` with `closures[]`, `applyPaidEffect` flags `closed` and `processPaidLink` skips the confirmation and
+  alerts (`devis-closed-dates` 9). Review of #907: B1 the boot one-shots load no model (`dates-taken-boot-models` 1),
+  M1 a failing withdrawal is logged and left to the pass, an aborted outer transaction rethrown (N1) (`dates-taken-withdrawal-never-breaks` 4), m1 the mints
+  re-check the nights before storing (`payment-link-mint-nights-taken-meanwhile` 4), m2 the pass's order
+  (`payment-link-dates-taken` 18), m3 rule 38 read as iCal-only, m4 the badge's hit area (`DatesTakenBadge` 4), n1
+  (`devis-held-dates` 8), n2 « Devis non enregistré ». No guest e-mail is sent by this PR (PR6).
 - [ ] PR6 — dates-taken guest notice (rules 35, 43-45, 47); status → Implemented.

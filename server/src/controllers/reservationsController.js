@@ -19,6 +19,7 @@ const { parseGroup, collectibleArrivalBuckets } = require('../utils/arrivalPayme
 const { validateArrivalPaymentDate } = require('../utils/arrivalPaymentDate');
 const { buildArrivalPaymentDetail } = require('../utils/arrivalPaymentDetail');
 const { resolveArrivalPaymentAdjustment } = require('../utils/arrivalPaymentAdjustment');
+const { withdrawForStay, datesTakenMarker } = require('../utils/datesTaken');
 const { getNightBlocksFromTimes, buildOccupiedDatesFromReservations } = require('../utils/occupancy');
 const { computeNextIcalSyncLocked, getTodayIsoDate } = require('../utils/reservationHelpers');
 const { buildAuditSnapshotFromPayload, computeAuditChanges } = require('../utils/reservationAudit');
@@ -963,6 +964,8 @@ function getById(req, res) {
     // specs/mid-stay-extras-on-locked-fiche.md rule 13 — the lock decided by the server: the fiche
     // renders it and derives nothing (CLAUDE.md §6.0).
     editLock: model.getEditLock(Number(req.params.id), { today: getTodayIsoDate() }),
+    // specs/payment-link-lifecycle.md rule 48 — an unpaid stay whose nights another stay holds: « Dates prises ».
+    datesTaken: datesTakenMarker(db, { ...model.getRow(reservation.id) }),
   });
 }
 
@@ -1505,6 +1508,8 @@ function createStay(req, res) {
     if (err instanceof CreationRefused) return res.status(err.refusal.status).json(err.refusal.body);
     throw err;
   }
+  // specs/payment-link-lifecycle.md rule 32 — a stay that holds its nights takes them from unpaid requests.
+  withdrawForStay(db, reservationId);
 
   res.json({ id: reservationId, reservationNumber: model.getReservationNumber(reservationId) });
   // Plugins react after the response and can never fail it (specs/plugins-phase-1-sdk.md rule 9).
@@ -1660,6 +1665,9 @@ function performUpdate(reservationId, body, { unlockPast = false, dryRun = false
   if (!dryRun) {
     applyUpdate({ body, params: { id: reservationId } }, res, Boolean(unlockPast));
     const result = res.result();
+    // specs/payment-link-lifecycle.md rule 32 — every save path (fiche, SAS, plugins, platform intakes): a stay
+    // that holds its nights after the save takes them from the unpaid requests it now covers. Never on a dry run.
+    if (result.status === 200) withdrawForStay(db, Number(reservationId));
     // specs/direct-installments.md rule 17 — whoever saved (the fiche, a plugin, the SAS), the links that bill
     // an amount the save just changed are abandoned and deactivated; the poll retries should the provider fail.
     if (result.status === 200) installments.retireChangedLinks(reservationId);
@@ -2629,6 +2637,7 @@ function restoreSuperseded(req, res) {
   if (taken) return res.status(409).json({ error: 'Ces dates sont déjà prises.' });
   db.transaction(() => {
     model.restoreSuperseded(id);
+    withdrawForStay(db, id);
     model.addHistoryEntry(id, 'unsuperseded', [
       { field: 'kind', label: 'Statut', fromText: 'Doublon écarté', toText: 'Réservation' },
       { field: 'actor', label: 'Auteur', fromText: null, toText: (req.user && (req.user.email || req.user.name)) || 'administrateur' },

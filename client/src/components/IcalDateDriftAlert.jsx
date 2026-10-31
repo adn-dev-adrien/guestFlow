@@ -4,7 +4,8 @@
  *
  * Self-contained: fetches its own list on mount + on every route change, then renders one
  * `AttentionCard` listing every pending drift. Each card offers three actions:
- *   - "Approuver" (color="success") → applies the narrow date override on the reservation.
+ *   - "Approuver" (color="success") → applies the narrow date override on the reservation; onto nights another
+ *     stay holds (`heldDates`, specs/payment-link-lifecycle.md rule 39) it asks first, naming those stays.
  *   - "Voir la fiche"               → opens the reservation page without acknowledging.
  *   - ✕ (top-right)                 → ignores the proposal (rejects).
  *
@@ -22,6 +23,8 @@ import CheckIcon from '@mui/icons-material/Check';
 import { useNavigate } from 'react-router';
 import api from '../api';
 import AttentionCard from './AttentionCard';
+import ConflictList from './ConflictList';
+import { useAppDialogs } from './DialogProvider';
 import { displayDateShort } from '../utils/formatters';
 
 // Relative-time formatting is purely presentational (no business rules), so it lives client-side
@@ -44,6 +47,7 @@ function relativeFromNow(iso) {
 
 export default function IcalDateDriftAlert({ attention }) {
   const navigate = useNavigate();
+  const { confirm } = useAppDialogs();
   const [alerts, setAlerts] = useState([]);
   const [busyId, setBusyId] = useState(null);
 
@@ -60,6 +64,17 @@ export default function IcalDateDriftAlert({ attention }) {
 
   const handleApprove = useCallback(async (alert) => {
     if (!alert.reservationExists) return;
+    // specs/payment-link-lifecycle.md rule 39 — onto nights another stay holds: said first, the operator decides.
+    if (alert.heldDates) {
+      const ok = await confirm({
+        title: alert.heldDates.title,
+        message: alert.heldDates.message,
+        details: <ConflictList severity="warning" items={(alert.heldDates.stays || []).map((stay) => ({ key: stay.id, label: stay.label, url: stay.url }))} />,
+        confirmLabel: 'Approuver quand même',
+        confirmColor: 'warning',
+      });
+      if (!ok) return;
+    }
     const previous = alerts;
     setBusyId(alert.id);
     setAlerts((rows) => rows.filter((r) => r.id !== alert.id));
@@ -70,7 +85,7 @@ export default function IcalDateDriftAlert({ attention }) {
     } finally {
       setBusyId(null);
     }
-  }, [alerts]);
+  }, [alerts, confirm]);
 
   const handleReject = useCallback(async (alert) => {
     const previous = alerts;
@@ -120,6 +135,11 @@ export default function IcalDateDriftAlert({ attention }) {
             <Typography variant="body2" color="text.secondary">
               Dates proposées : <strong>{displayDateShort(alert.newStartDate)} → {displayDateShort(alert.newEndDate)}</strong>
             </Typography>
+            {alert.heldDates && (
+              <Typography variant="body2" sx={{ color: 'warning.text', fontWeight: 600 }}>
+                Sur des dates réservées par un autre séjour
+              </Typography>
+            )}
             <Typography variant="caption" color="text.secondary">
               Détecté {relativeFromNow(alert.detectedAt)}
             </Typography>

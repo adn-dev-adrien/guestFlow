@@ -357,6 +357,8 @@ function createCustomersController(ctx) {
     return r.detail || '';
   }
 
+  const erasureDue = (c) => Boolean(c.archivedAt && c.eraseAt && c.eraseAt <= today());
+
   function stepsView(c, defs) {
     const rows = new Map(provisioning.list(c.id).map((r) => [r.step, r]));
     return defs.filter((d) => rows.has(d.step)).map((d) => {
@@ -367,8 +369,10 @@ function createCustomersController(ctx) {
         kind: d.kind,
         status: r.status,
         detail: stepDetail(r),
-        // H1 rule 2: a failed creation step resumes the sequence from itself.
-        action: r.status !== 'failed' || (c.archivedAt && SERVING_STEPS.has(d.step)) ? null : (CREATE_STEPS.some((x) => x.step === d.step) ? 'resume' : 'retry'),
+        // H1 rule 2: a failed creation step resumes the sequence from itself. H1 rule 41: from the
+        // erasure day on, a closing mail can no longer be sent, so it offers nothing.
+        action: r.status !== 'failed' || (c.archivedAt && SERVING_STEPS.has(d.step)) || (d.step === 'deprov-email' && erasureDue(c))
+          ? null : (CREATE_STEPS.some((x) => x.step === d.step) ? 'resume' : 'retry'),
       };
     });
   }
@@ -920,9 +924,15 @@ function createCustomersController(ctx) {
         provisioning.set(id, 'deprov-email', 'failed', 'Lien expiré et base introuvable : aucun export à envoyer.', stamp());
         return;
       }
-      const fresh = exportForDeprovision(c, operator);
+      // Rule 41: the archive goes with the erasure, so a link must expire the day before it.
+      if (erasureDue(c)) {
+        const when = c.eraseAt < today() ? 'dû' : 'prévu';
+        provisioning.set(id, 'deprov-email', 'failed', `Effacement ${when} le ${frDay(c.eraseAt)} : aucun lien envoyé.`, stamp());
+        return;
+      }
+      const fresh = exportForDeprovision(c, operator, { closed: true });
       if (fresh.failed) {
-        provisioning.set(id, 'deprov-email', 'failed', 'Nouvel export en échec : aucun lien envoyé.', stamp());
+        provisioning.set(id, 'deprov-email', 'failed', `Nouvel export en échec (${fresh.error}) : aucun lien envoyé.`, stamp());
         return;
       }
       journal(id, operator, 'deprovision', 'Nouvel export produit : l’ancien lien avait expiré');
@@ -973,7 +983,9 @@ function createCustomersController(ctx) {
     return view(c.id);
   }
 
-  function exportForDeprovision(c, operator) {
+  // Rule 42: on a closed customer (a late « Réessayer »), a failure belongs to the mail step alone;
+  // « Export complet » keeps its last successful export.
+  function exportForDeprovision(c, operator, { closed = false } = {}) {
     if (!instances.hasDatabase(c.slug)) {
       provisioning.set(c.id, 'deprov-export', 'skipped', 'Aucune donnée : l’instance n’a jamais été créée.', stamp());
       return { token: null };
@@ -981,11 +993,15 @@ function createCustomersController(ctx) {
     try {
       const { file, bytes } = exportInstance({ instances, slug: c.slug, exportsDir, stamp: today() });
       const token = crypto.randomBytes(24).toString('base64url');
-      const link = { token, customerId: c.id, path: file, createdAt: stamp(), expiresAt: addDays(today(), EXPORT_LINK_DAYS) };
+      const fullTerm = addDays(today(), EXPORT_LINK_DAYS);
+      const beforeErasure = c.archivedAt && c.eraseAt ? addDays(c.eraseAt, -1) : null;
+      const expiresAt = beforeErasure && beforeErasure < fullTerm ? beforeErasure : fullTerm;
+      const link = { token, customerId: c.id, path: file, createdAt: stamp(), expiresAt };
       provisioning.addExport(link);
       provisioning.set(c.id, 'deprov-export', 'ok', `Archive de ${(bytes / 1048576).toFixed(1).replace('.', ',')} Mo.`, stamp());
       return { token, link };
     } catch (err) {
+      if (closed) return { failed: true, error: err.message };
       provisioning.set(c.id, 'deprov-export', 'failed', `Échec : ${err.message}`, stamp());
       journal(c.id, operator, 'deprovision', `Déprovisionnement interrompu : l’export a échoué (${err.message})`);
       return { failed: true };

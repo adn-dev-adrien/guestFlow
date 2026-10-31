@@ -91,6 +91,9 @@ function applyPaidEffect({ database, devisModel, link, checkConflict, paidDate =
       return { effect: 'double-payment', reservationId, conflict: false };
     }
     const conflict = flagConflictIfAny({ database, checkConflict, reservationId });
+    // specs/payment-link-lifecycle.md rule 55 (audit R10-1) — defence in depth: a devis that reached closed nights
+    // anyway is booked, but its guest is never confirmed there.
+    const closed = closedNightsOf(database, reservationId);
     // The quote can be re-priced after its link was minted, and a link older than the tourist-tax rule
     // charges less than the quote asks: what the guest paid is booked, never the quote's amount.
     // A legacy devis stored without its split (both NULL) has no amount to compare with.
@@ -100,10 +103,10 @@ function applyPaidEffect({ database, devisModel, link, checkConflict, paidDate =
     const expectedCents = hasSplit ? linkAmountCents(link.type, priced) : null;
     if (expectedCents != null && link.amountCents != null && Number(link.amountCents) !== expectedCents) {
       const booked = bookPaidAfterAmountChange({ database, recordPayment }, link, { paidDay: paidDate });
-      return { effect: booked.effect, reservationId, conflict, justConverted: effect === 'converted', amountMismatch: mismatchOf(link, priced, database, paidDate) };
+      return { effect: booked.effect, reservationId, conflict, closed, justConverted: effect === 'converted', amountMismatch: mismatchOf(link, priced, database, paidDate) };
     }
     recordPayment({ reservationId, bucket: isFull ? 'full' : 'deposit', paidDate });
-    return { effect, reservationId, conflict };
+    return { effect, reservationId, conflict, closed };
   }
 
   // A link minted on the stay itself, paid after another link of the same stay (its own or the devis it
@@ -141,6 +144,13 @@ function applyPaidEffect({ database, devisModel, link, checkConflict, paidDate =
     return { effect: 'balance-marked' };
   }
   return { effect: 'noop' };
+}
+
+// A minimal schema (a unit suite's) without closures or logements has no closed nights.
+function closedNightsOf(database, stayId) {
+  const hasClosures = database.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'establishment_closures'").get();
+  const hasProperty = database.prepare('PRAGMA table_info(reservations)').all().some((c) => c.name === 'propertyId');
+  return Boolean(hasClosures && hasProperty && require('./closedStayDates').closedDatesRefusal(database, stayId));
 }
 
 // Rule 39 — the bucket a link pays was already collected another way (the arrival payment, a tick by hand):
@@ -350,7 +360,7 @@ async function processPaidLink({ database, devisModel, paymentLinksModel, link, 
   }
   if (effect.amountMismatch && effect.amountMismatch.balanceCents != null && !effect.amountMismatch.excessCents) {
     if (effect.justConverted) emitPluginEvent('reservation.created', { reservationId: effect.reservationId });
-    if (notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link, alertOptions(effect.amountMismatch, true)); } catch { /* best effort */ } }
+    if (notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link, alertOptions(effect.amountMismatch, !effect.closed)); } catch { /* best effort */ } }
   } else if (effect.amountMismatch) {
     if (effect.justConverted) emitPluginEvent('reservation.created', { reservationId: effect.reservationId });
     if (notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link, alertOptions(effect.amountMismatch, false)); } catch { /* best effort */ } }
@@ -376,7 +386,10 @@ async function processPaidLink({ database, devisModel, paymentLinksModel, link, 
 
   if (CONFIRMING_TYPES.has(link.type) && CONFIRMING_EFFECTS.has(effect.effect)) {
     const confirmedId = effect.reservationId || link.reservationId;
-    if (sendConfirmation && !(quietOnConflict && effect.conflict)) { try { await sendConfirmation(confirmedId); } catch (e) { /* logged inside the sender */ } }
+    if (sendConfirmation && !(quietOnConflict && effect.conflict) && !effect.closed) { try { await sendConfirmation(confirmedId); } catch (e) { /* logged inside the sender */ } }
+    // Rule 55 (R10-1) — paid for closed nights: the admin moves or refunds it. A withdrawn link booked late is told by
+    // its own caller (bookWithdrawnPaid, bookDatesTakenPaid).
+    if (effect.closed && !retiredReason && notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link, { nightsUnavailable: 'closed', livePayment: true }); } catch { /* best effort */ } }
     if (effect.conflict && notifyConflict) { try { await notifyConflict(confirmedId); } catch (e) { /* best effort */ } }
   }
   return { id: link.id, reservationId: link.reservationId, type: link.type, status: 'paid', ...effect };
@@ -440,6 +453,12 @@ async function retryPendingCancellationsOnce({ only = null, paymentLinksModel, p
         results.push(await bookWithdrawnPaid({ database, devisModel, paymentLinksModel, link, pay, sendConfirmation, checkConflict, notifyConflict, notifyPaidAfterCancel, recordPayment, emitPluginEvent }));
         continue;
       }
+      // specs/payment-link-lifecycle.md rule 33 — a link withdrawn because its dates were taken, paid before its
+      // deactivation: the money is the stay's, recorded on the fiche in date conflict, without a confirmation.
+      if (pay.paid && link.cancelReason === LINK_REASONS.DATES_TAKEN) {
+        results.push(await bookDatesTakenPaid({ database, devisModel, paymentLinksModel, link, pay, checkConflict, notifyConflict, notifyPaidAfterCancel, recordPayment, emitPluginEvent }));
+        continue;
+      }
       if (pay.paid) {
         paymentLinksModel.clearRemoteCancelPending(link.id, { providerPaymentId: pay.paymentId || null, paidAt: pay.paidAt || new Date().toISOString() });
         if (notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link); } catch { /* best effort */ } }
@@ -478,6 +497,29 @@ async function bookWithdrawnPaid({ database, link, pay, sendConfirmation, notify
   const unavailable = outcome.effect === 'already-processed' ? null : before || (outcome.conflict ? 'taken' : null);
   if (unavailable && notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link, { nightsUnavailable: unavailable }); } catch { /* best effort */ } }
   return outcome;
+}
+
+// Rule 33 (decided 2026-10-30, §9 Q5) — `cancelled → paid`, then the effect of a live payment of that link (a devis
+// is converted with `allowConflict`, a reservation records the bucket). The stay the link answers for is stamped
+// `bookingConflictAt` while another stay still holds its nights; the guest gets no confirmation; the admin is told
+// to move the stay or refund it, with the stay that took the dates.
+async function bookDatesTakenPaid({ database, link, pay, notifyPaidAfterCancel, notifyConflict, checkConflict, ...effect }) {
+  const outcome = await processPaidLink({
+    ...effect, database, link, paidPayment: pay, checkConflict, notifyConflict, notifyPaidAfterCancel,
+    sendConfirmation: null, quietOnConflict: true, retiredReason: LINK_REASONS.DATES_TAKEN,
+  });
+  if (outcome.effect === 'already-processed' || outcome.effect === 'reservation-cancelled') return outcome;
+  const { answeringStay, heldOverlaps, stayRefs } = require('./datesTaken');
+  const found = answeringStay(database, link.reservationId);
+  if (!found) return outcome;
+  const conflict = Boolean(outcome.conflict) || flagConflictIfAny({ database, checkConflict, reservationId: found.stay.id });
+  if (conflict && !outcome.conflict && notifyConflict) { try { await notifyConflict(found.stay.id); } catch { /* best effort */ } }
+  const [holder] = heldOverlaps(database, { ...found.stay, excludeIds: [found.row.id, found.stay.id] });
+  const [takenBy] = holder ? stayRefs(database, [holder], String(found.stay.startDate || '').slice(0, 4)) : [];
+  if (notifyPaidAfterCancel) {
+    try { await notifyPaidAfterCancel(link, { nightsUnavailable: 'taken', datesTaken: true, ...(takenBy ? { takenBy: takenBy.label } : {}) }); } catch { /* best effort */ }
+  }
+  return { ...outcome, datesTaken: true, conflict };
 }
 
 // A withdrawal by hand ends the link at its moment (`expiresAt`); a payment with no known date is not before it.
