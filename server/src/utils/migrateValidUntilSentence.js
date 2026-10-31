@@ -11,14 +11,26 @@
  * Idempotent via `migrations`.
  *
  *   runValidUntilSentenceMigration(db, { logger }) → { ran, updated, kept: ['<stableKey> (fr|en)'] }
- *   withoutValidUntilSentence(body)                 → the body without the sentence (as shipped before rule 36)
+ *   withoutValidUntilSentence(body)                 → the body without the sentence, in either form (as shipped before rule 36)
  *   withValidUntilSentence(body, lang)              → the sentence inserted after the link, or null
+ *
+ * v2 (rule 59, audit R9 database N1): the sentence moves into a block of its own,
+ * `{{#if hasPaymentLinkValidUntil}}\n<sentence>{{/if}}`, so a rollback to a release that knows neither the token
+ * nor the flag drops the line instead of mailing « Ce lien est valable jusqu'au . ». It rewrites a side only when
+ * its text is, to the character, a default as v1 left it (the defaults of rule 36, or an older default with v1's
+ * sentence inserted — `MIGRATED_V1`, every version of the registry up to rule 59); any other text carrying the
+ * sentence is the operator's, left alone and named in the boot log. Runs after v1, so an install that never ran
+ * v1 gets both in one boot. Idempotent via `migrations`, and a side already in the block form is skipped.
+ *
+ *   runValidUntilBlockMigration(db, { logger })     → { ran, updated, kept: ['<stableKey> (fr|en)'] }
+ *   rollbackSafeValidUntil(body, lang)              → the v1 form turned into the block form, or null
  */
 
 const crypto = require('crypto');
-const { VALID_UNTIL_SENTENCE } = require('./defaultEmailTemplatesRegistry');
+const { VALID_UNTIL_SENTENCE, VALID_UNTIL_FLAG, VALID_UNTIL_BLOCK } = require('./defaultEmailTemplatesRegistry');
 
 const MIGRATION_NAME = 'payment_link_valid_until_sentence_v1';
+const MIGRATION_NAME_V2 = 'payment_link_valid_until_sentence_v2';
 const LINK = '{{paymentLink}}';
 
 /* eslint-disable max-len */
@@ -44,13 +56,38 @@ const SHIPPED = Object.freeze({
     en: ['7159aeabc500b72bcc7800a56ff831cd01086b79541758800392a7f7e0b12dd6', '80750ea51a8515392f63e696a56cf859445995281ebeeae75034d1aaf69b8949', 'f1e88810b8c2a6162450f325632c69088fecb5c70f452d60565c114b5033454f', '0c21c4667ff9380d06c56aed9b3550894fdeffb2d4b028a046f44a481cd98f53'],
   },
 });
+
+// The sides as v1 left them: each pre-rule-36 default above with its sentence inserted, and the rule-36 defaults.
+const MIGRATED_V1 = Object.freeze({
+  deposit_request: {
+    fr: ['b2281fd326ea1b66fed1664455f6fe9bcb4bd72b4db0e50ffcf6c286a5dad90c', '204cce873b0badd89c3a5c806a7e94367f6c4fa6ff12434c0a21831428799ef1'],
+    en: ['3e572f47792064862edb1ac3a508b938f2a0727dbe7d7bd05bf3c412d5022af4', '34ec79a3ef74e5545b1c0bd928860ec627821bb1915277391828ea58991ba452'],
+  },
+  balance_request: {
+    fr: ['d7537ddc874cfc8e197468c19efcb441b801700d9261dc90541979e347beeacc', '53dd918f1679d66b26125d82ae6b8ac79c5f5985a3abab8109db846b7c8fd7a7'],
+    en: ['4729e7051d626be3cfb5e4e2681cd21a6acf45f457bb91b207bfc74b512202c2', '162c7dc3bb80e4949217977533d7f52ffdb101a4d339f93c454bf238489047ac'],
+  },
+  full_request: {
+    fr: ['d910eaec60c3eddac355e8e2b76739bae2cc8b95ae3ddf902bf4cecc8bab2e91', '2e5587461dbcb44c3aea0f6fdb29cb61bfe58256d2f1db9398836c5f91d79f10'],
+    en: ['d8170de824694267465cc02c89dc624067dcc38148cb2ff52d990a3d35eac9a8', '41691b5fbad11aa5a20d8a33eb61c691877cff4bf092a74fc1113e779b03b38b'],
+  },
+  installment_request: {
+    fr: ['5b24daa232d8d581d2b1914e074b715665a3bf7f0b5e4bb76ebd2420858e733f'],
+    en: ['ea726745cd7bdb3628174748f422e4a32d4f503633065a4f51217174329359c9'],
+  },
+  deposit_reminder: {
+    fr: ['bfe99200112925ac95696142841fff49c14e6927f956fae55422526ceb5dfd8c', '9d93753868f59e431654665b4a58577421915a46784088356f5bad90ce7c5b8c', 'b0fb7e3df283461748afee5a026dab760be31cc878e502670f69a12dc0211422', '1a7a9098b9f159ba8cda47127968ce4d66a7ccbfaa6bddaa43cd0341e185abea'],
+    en: ['f48de69a22f7c2f423888efc971c19d5da7939f63a91eabd275717a77187e218', 'e5a094a217f0b68be8917f61d054d5bc55f21a76a44527ec12e8da8d3f08081c', 'c988f925097e3feff40b9cda0d613c7c2ce8597ad45a773f5f9c573ec9846b99', '2df31ddcdde294865c248f6ad440d37e907d76d8eda09a518fe434f5b3a017ed'],
+  },
+});
 /* eslint-enable max-len */
 
 const sha256 = (text) => crypto.createHash('sha256').update(text, 'utf8').digest('hex');
 
 function withoutValidUntilSentence(body) {
-  return [VALID_UNTIL_SENTENCE.fr, VALID_UNTIL_SENTENCE.en]
-    .reduce((text, sentence) => text.split(`${LINK}\n${sentence}`).join(LINK), String(body || ''));
+  return ['fr', 'en'].reduce((text, lang) => text
+    .split(VALID_UNTIL_BLOCK[lang]).join('')
+    .split(`${LINK}\n${VALID_UNTIL_SENTENCE[lang]}`).join(LINK), String(body || ''));
 }
 
 function withValidUntilSentence(body, lang) {
@@ -86,4 +123,48 @@ function runValidUntilSentenceMigration(db, { logger = console } = {}) {
   return outcome;
 }
 
-module.exports = { runValidUntilSentenceMigration, withoutValidUntilSentence, withValidUntilSentence, MIGRATION_NAME, SHIPPED };
+function rollbackSafeValidUntil(body, lang) {
+  const text = String(body || '');
+  const v1 = `${LINK}\n${VALID_UNTIL_SENTENCE[lang]}`;
+  const at = text.indexOf(v1);
+  if (at < 0 || text.indexOf(v1, at + 1) >= 0 || text.includes(VALID_UNTIL_FLAG)) return null;
+  const bare = text.slice(0, at) + LINK + text.slice(at + v1.length);
+  const before = bare.slice(0, at);
+  const insideLinkBlock = before.lastIndexOf('{{#if hasPaymentLink}}') > before.lastIndexOf('{{/if}}');
+  const end = insideLinkBlock ? bare.indexOf('{{/if}}', at) + '{{/if}}'.length : at + LINK.length;
+  if (insideLinkBlock && end < '{{/if}}'.length) return null;
+  return bare.slice(0, end) + VALID_UNTIL_BLOCK[lang] + bare.slice(end);
+}
+
+function runValidUntilBlockMigration(db, { logger = console } = {}) {
+  if (db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(MIGRATION_NAME_V2)) return { ran: false, updated: 0, kept: [] };
+  const outcome = db.transaction(() => {
+    let updated = 0;
+    const kept = [];
+    for (const [stableKey, migrated] of Object.entries(MIGRATED_V1)) {
+      const row = db.prepare('SELECT id, body, bodyEn FROM email_templates WHERE stableKey = ?').get(stableKey);
+      if (!row) continue;
+      for (const [column, lang] of [['body', 'fr'], ['bodyEn', 'en']]) {
+        const stored = row[column];
+        if (!stored || !stored.includes('{{paymentLinkValidUntil}}') || stored.includes(VALID_UNTIL_FLAG)) continue;
+        const safe = migrated[lang].includes(sha256(stored)) ? rollbackSafeValidUntil(stored, lang) : null;
+        if (!safe) {
+          kept.push(`${stableKey} (${lang})`);
+          continue;
+        }
+        db.prepare(`UPDATE email_templates SET ${column} = ?, updatedAt = datetime('now') WHERE id = ?`).run(safe, row.id);
+        updated += 1;
+      }
+    }
+    db.prepare('INSERT INTO migrations (name) VALUES (?)').run(MIGRATION_NAME_V2);
+    return { ran: true, updated, kept };
+  })();
+  logger.log(`[migration:link-valid-until-v2] ${outcome.updated} template field(s) now state the link's end in a rollback-safe block`
+    + `${outcome.kept.length ? `; edited, left as they are: ${outcome.kept.join(', ')}` : ''}`);
+  return outcome;
+}
+
+module.exports = {
+  runValidUntilSentenceMigration, runValidUntilBlockMigration, withoutValidUntilSentence, withValidUntilSentence, rollbackSafeValidUntil,
+  MIGRATION_NAME, MIGRATION_NAME_V2, SHIPPED, MIGRATED_V1,
+};

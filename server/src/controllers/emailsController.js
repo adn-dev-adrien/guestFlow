@@ -15,6 +15,7 @@
 const { todayIso: localTodayIso } = require('../utils/localDate');
 const { closedDatesRefusal } = require('../utils/closedStayDates');
 const { unsettledWithdrawnRefusal } = require('../utils/withdrawnPayments');
+const { platformStayRefusal } = require('../utils/platformStayRefusal');
 const { sendFailureMessage } = require('../utils/sendFailure');
 const { parisDateTimeLabel } = require('../utils/parisDateTime');
 
@@ -164,6 +165,16 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
     return text.includes(LINK_AT_SEND) || text.includes('{{paymentLink}}') || stayLinks.some((l) => l.url && text.includes(l.url));
   }
 
+  // specs/payment-link-lifecycle.md rules 55-57 — a request or reminder that carries a link is refused, before any
+  // mint, on a platform stay, on closed nights, or while a payment received on a withdrawn link waits. Rule 60 —
+  // the preview reads the same answer, so the dialog says it before « Envoyer ».
+  function linkRefusal(reservationId) {
+    const refusal = platformStayRefusal(database, Number(reservationId))
+      || closedDatesRefusal(database, Number(reservationId))
+      || unsettledWithdrawnRefusal(database, Number(reservationId));
+    return refusal ? { httpStatus: refusal.httpStatus, error: refusal.error, message: refusal.message } : null;
+  }
+
   const hasPlaceholder = (text) => String(text || '').includes(LINK_AT_SEND) || String(text || '').includes(VALID_UNTIL_AT_SEND);
 
   function buildPreview(reservationId, templateId, overrides = {}, lang, extra = {}) {
@@ -206,16 +217,20 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
     // provider is live: nobody polls or reconciles it otherwise. The send hands the link it resolved.
     const providerLive = Boolean(paymentProviders.declared());
     const linkType = SEND_TIME_LINKS[template.stableKey];
+    const refusal = template.stableKey === INSTALLMENT_STABLE_KEY || linkType ? linkRefusal(reservationId) : null;
     if (installmentRef || linkType) {
       const stored = installmentRef
         ? installmentRef.openLink
         : paymentLinksModel && typeof paymentLinksModel.findOpenForStay === 'function' && paymentLinksModel.findOpenForStay(Number(reservationId), linkType);
-      const mintable = Boolean(installmentRef ? installmentRequests.available() : paymentRequests && paymentRequests.available());
-      const link = extra.paymentLink || (providerLive ? reusableLink(stored) : null);
+      // Rules 57, 60 — a refused request prints no link and no placeholder; the send is refused 409.
+      const payable = !refusal;
+      const mintable = payable && Boolean(installmentRef ? installmentRequests.available() : paymentRequests && paymentRequests.available());
+      const link = extra.paymentLink || (payable && providerLive ? reusableLink(stored) : null);
       const { url, validUntil } = linkVariables(link, mintable, useLang);
       context.vars.paymentLink = url;
       context.vars.paymentLinkValidUntil = validUntil;
       context.flags.hasPaymentLink = Boolean(url);
+      context.flags.hasPaymentLinkValidUntil = Boolean(validUntil);
     }
 
     // Template side for the language (EN if filled, else FR fallback). Operator overrides still win.
@@ -242,6 +257,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
       lang: useLang,
       // specs/email-language-fr-en.md rule 9 — shown, never sent.
       englishMissing: englishMissing(template, useLang),
+      refusal: refusal ? { error: refusal.error, message: refusal.message } : null,
       occurrenceKey: installmentRef ? installmentRef.occurrenceKey : '',
       installmentId: installmentRef ? installmentRef.id : null,
     };
@@ -279,6 +295,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
       missingVariables: result.missingVariables,
       lang: result.lang,
       englishMissing: result.englishMissing,
+      refusal: result.refusal,
     });
   }
 
@@ -300,10 +317,8 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
     const isInstallment = Boolean(wanted && wanted.stableKey === INSTALLMENT_STABLE_KEY && installmentRequests);
     const linkType = wanted ? SEND_TIME_LINKS[wanted.stableKey] : null;
 
-    // specs/payment-link-lifecycle.md rule 55 — a request or reminder on closed nights is refused before any mint.
     if (isInstallment || linkType) {
-      // Rule 56 — and none while a payment received on a link withdrawn by hand waits to be settled.
-      const refusal = closedDatesRefusal(database, Number(reservationId)) || unsettledWithdrawnRefusal(database, Number(reservationId));
+      const refusal = linkRefusal(reservationId);
       if (refusal) return res.status(refusal.httpStatus).json({ error: refusal.error, message: refusal.message });
     }
     // A send that cannot leave is refused before a payment link is minted for it (review of #897).

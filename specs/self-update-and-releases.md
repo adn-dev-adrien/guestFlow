@@ -401,7 +401,9 @@ signed-off releases over HTTPS, when the operator asks for it.
     `installmentDueDate`, which v3.18.0 ignores (inte's own installment branch of the queue never reads
     `anchor`: it selects by `stableKey`), and the one-shot migration `installment_template_anchor_v1`
     (`utils/migrateInstallmentTemplateAnchor.js`) moves an existing row off `start`, writing only when the
-    value differs. The anchor is not editable: `templateWhen` keeps the fixed sentence of the key.
+    value differs. The anchor is not editable: `templateWhen` keeps the fixed sentence of the key. The same
+    class — template content a rolled-back release would mail broken — is handled for the link's validity
+    sentence by rule 53.
 44. **The plugin-owned tables have a floor too (2026-10-29, round-2 audit).** Rule 39's floor covered the
     core tables only, so a plugin migration renaming or dropping a column of its own table would have gone
     unseen. `fixtures/rollback-floor-v3.18.0-plugin-tables.json` lists the 16 tables the v3.18.0 plugins own
@@ -506,6 +508,21 @@ signed-off releases over HTTPS, when the operator asks for it.
     step times add up to 1 030–1 310 s, and the first release after the integration had a real chance of being
     cancelled at its limit with nothing published. Same split as the PR workflow
     (specs/server-test-isolation.md rule 8). Test: `test-suite-calendar-and-ci-budget.unit.test.js`.
+
+53. **A rollback never mails « Ce lien est valable jusqu'au . »** (added 2026-10-31, audit R9 database N1; same
+    class as rule 43). A content migration stays in the database when the code rolls back (rule 31).
+    specs/payment-link-lifecycle.md rule 36 writes « Ce lien est valable jusqu'au {{paymentLinkValidUntil}}. » into
+    the untouched request templates and the acompte reminder; the release before it renders an unknown token as
+    an empty string and stores no end on its links, so every request it sent would have read « jusqu'au . ».
+    Two options were weighed: accept it as a known limit (sending is manual, the operator reads the preview), or
+    make the text safe. Chosen: safe (payment-link-lifecycle rule 59). The sentence sits in its own
+    `{{#if hasPaymentLinkValidUntil}}…{{/if}}` block, a flag only this release sets; the earlier renderer reads an
+    unknown flag as false and drops the whole line, so a rolled-back instance mails the text of before rule 36.
+    The block cannot nest inside `{{#if hasPaymentLink}}` (the renderer is single-level), so it follows that
+    block's `{{/if}}`. Installs already migrated by v1 are moved by `payment_link_valid_until_sentence_v2`, on
+    untouched sides only (SHA-256), at the same boot as v1 on an install that never ran it. An operator who edited
+    the sentence keeps their text, and with it the old behaviour under a rollback. Test:
+    `payment-link-valid-until-rollback.unit.test.js`.
 
 ---
 

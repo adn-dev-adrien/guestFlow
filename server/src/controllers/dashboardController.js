@@ -259,6 +259,9 @@ function buildController({
           : await sendBalanceRequest(id);
         return res.status(httpStatus).json(body);
       } catch (err) {
+        // specs/payment-link-lifecycle.md rule 50 — a refusal of the request service (409 LINK_ALREADY_PAID booked
+        // the payment) keeps its status and code, so the card re-reads its rows; only an unknown failure is a 502.
+        if (err && err.httpStatus) return res.status(err.httpStatus).json({ error: err.error, message: err.message });
         return res.status(502).json({ error: 'REMINDER_FAILED', message: String((err && err.message) || err) });
       }
     },

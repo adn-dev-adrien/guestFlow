@@ -20,7 +20,8 @@ const LINK_NAMES = ['paymentLink', 'paymentLinkValidUntil'];
 
 function readsWithoutLink(template) {
   return ['subject', 'body', 'subjectEn', 'bodyEn'].every((field) => {
-    const outside = namesUsedOutside(template[field], 'hasPaymentLink');
+    // specs/payment-link-lifecycle.md rule 59 — the end of validity sits in a block of its own, never without a link.
+    const outside = namesUsedOutside(template[field], ['hasPaymentLink', 'hasPaymentLinkValidUntil']);
     return LINK_NAMES.every((name) => !outside.has(name));
   });
 }

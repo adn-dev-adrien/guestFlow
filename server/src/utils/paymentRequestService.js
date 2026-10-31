@@ -18,6 +18,7 @@ const { validityOf, validityEnd, lapsesAtArrival } = require('./paymentLinkLifec
 const { LINK_REASONS } = require('../constants/paymentLinks');
 const { closedDatesRefusal } = require('./closedStayDates');
 const { unsettledWithdrawnRefusal } = require('./withdrawnPayments');
+const { platformStayRefusal } = require('./platformStayRefusal');
 
 // Enrich the stay line's title + description with the booking reference, guest name, property and
 // dates so the payment is identifiable in Qonto (specs/qonto-payment-link-reference.md). Text only —
@@ -120,6 +121,9 @@ async function mintPaymentLink(deps, id, type) {
   // provider call, for a cancelled stay or a duplicate set aside — whoever the caller is (a devis is fine).
   const closed = refusalForKind(r.kind);
   if (closed) throw { httpStatus: closed.status, error: closed.body.code, message: closed.body.error };
+  // specs/payment-link-lifecycle.md rule 57 — a platform stay is paid by its platform: no link, new or reused.
+  const platformOwned = platformStayRefusal(database, id);
+  if (platformOwned) throw platformOwned;
   // An échéance already collected is never billed twice (fixed at the 2026-10-27 spec review): the link
   // of a paid acompte or solde — or a full payment once either is in — is refused before any provider call.
   assertBucketOpen(database, id, type);
@@ -239,11 +243,13 @@ async function retireOrBook(deps, link, options) {
 }
 
 // A re-click before the lifecycle pass: the bucket's newest lapsed link still owed its deactivation is read
-// first. Unreadable → refused like any replacement (a new link needs the provider anyway).
+// first. Unreadable → refused like any replacement (a new link needs the provider anyway). Rule 58 — so is one
+// still owed its last look (rule 19): the guest's payment may have landed after the deactivation read. An
+// unpaid read leaves the look to the lifecycle pass.
 async function bookOwedLapsedPayment(deps, where, params) {
   const owed = deps.database.prepare(`
     SELECT * FROM payment_links
-     WHERE ${where} AND status = 'expired' AND remoteCancelPendingAt IS NOT NULL AND providerLinkId IS NOT NULL
+     WHERE ${where} AND status = 'expired' AND (remoteCancelPendingAt IS NOT NULL OR lastLookAt IS NOT NULL) AND providerLinkId IS NOT NULL
      ORDER BY id DESC LIMIT 1
   `).get(...params);
   if (owed) {
@@ -315,8 +321,8 @@ async function mintInstallmentLink(deps, id, installmentId) {
   if (!reservation || reservation.kind !== 'reservation') {
     throw { httpStatus: 404, error: 'RESERVATION_NOT_FOUND', message: 'Réservation introuvable.' };
   }
-  const closedNights = closedDatesRefusal(database, id);
-  if (closedNights) throw closedNights;
+  const refusal = platformStayRefusal(database, id) || closedDatesRefusal(database, id);
+  if (refusal) throw refusal;
   assertNoUnsettledPayment(database, id);
   const amountCents = Number(installment.amountCents);
   if (amountCents <= 0) throw { httpStatus: 400, error: 'ZERO_AMOUNT', message: 'Montant nul pour cette échéance.' };

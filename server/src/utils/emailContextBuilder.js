@@ -489,6 +489,7 @@ function buildContext({ reservation, client, property, options = [], resources =
       hasNordicBath,
       hasBabyBedNotice,
       hasPaymentLink: false, // overridden per-send via extraContext when a payment link is attached
+      hasPaymentLinkValidUntil: false, // with it, when the link's end is known (specs/payment-link-lifecycle.md rule 59)
       ...((pluginContext && pluginContext.flags) || {}),
     },
   };

@@ -33,10 +33,18 @@ const RESERVATION_CONFIRMATION_BODY = SEQUENCE.CONFIRMATION_BODY;
 const RESERVATION_CONFIRMATION_BODY_EN = SEQUENCE.CONFIRMATION_BODY_EN;
 
 // specs/payment-link-lifecycle.md rule 36 — every link a guest receives is valid 36 hours: the e-mail says
-// until when, on the line right after the link (inside its {{#if hasPaymentLink}} where the template has one).
+// until when, on the line right after the link. Rule 59 — in a block of its own, guarded by the flag the
+// sender sets with the date: a release that knows neither the token nor the flag (a rollback) drops the line
+// instead of writing « valable jusqu'au . ». Never nested: the renderer is single-level, so in a template
+// whose link sits inside {{#if hasPaymentLink}} the block follows that block's {{/if}}.
 const VALID_UNTIL_SENTENCE = Object.freeze({
   fr: 'Ce lien est valable jusqu\'au {{paymentLinkValidUntil}}.',
   en: 'This link is valid until {{paymentLinkValidUntil}}.',
+});
+const VALID_UNTIL_FLAG = 'hasPaymentLinkValidUntil';
+const VALID_UNTIL_BLOCK = Object.freeze({
+  fr: `{{#if ${VALID_UNTIL_FLAG}}}\n${VALID_UNTIL_SENTENCE.fr}{{/if}}`,
+  en: `{{#if ${VALID_UNTIL_FLAG}}}\n${VALID_UNTIL_SENTENCE.en}{{/if}}`,
 });
 
 // Deposit request — ACTION-triggered (sent by paymentsController.sendPaymentRequestEmail when the host
@@ -57,8 +65,7 @@ const DEPOSIT_REQUEST_BODY = [
   '',
   'Acompte à régler maintenant : {{depositAmount}}',
   '',
-  'Payer l\'acompte en ligne : {{paymentLink}}',
-  VALID_UNTIL_SENTENCE.fr,
+  `Payer l'acompte en ligne : {{paymentLink}}${VALID_UNTIL_BLOCK.fr}`,
   '',
   'Important : le règlement de l\'acompte bloque vos dates. Tant qu\'il n\'est pas payé, les dates restent disponibles et peuvent être réservées par un autre client.',
   '',
@@ -83,8 +90,7 @@ const DEPOSIT_REQUEST_BODY_EN = [
   '',
   'Deposit to pay now: {{depositAmount}}',
   '',
-  'Pay the deposit online: {{paymentLink}}',
-  VALID_UNTIL_SENTENCE.en,
+  `Pay the deposit online: {{paymentLink}}${VALID_UNTIL_BLOCK.en}`,
   '',
   'Important: paying the deposit secures your dates. Until it is paid, the dates remain available and may be booked by another guest.',
   '',
@@ -111,8 +117,7 @@ const BALANCE_REQUEST_BODY = [
   '',
   'Solde à régler : {{balanceAmount}} (avant le {{balanceDueDate}})',
   '',
-  'Payer le solde en ligne : {{paymentLink}}',
-  VALID_UNTIL_SENTENCE.fr,
+  `Payer le solde en ligne : {{paymentLink}}${VALID_UNTIL_BLOCK.fr}`,
   '',
   'Pour toute question, répondez simplement à cet email{{#if hasCompanyPhone}} ou appelez-nous au {{companyPhone}}{{/if}}.',
   '',
@@ -134,8 +139,7 @@ const BALANCE_REQUEST_BODY_EN = [
   '',
   'Balance to pay: {{balanceAmount}} (before {{balanceDueDate}})',
   '',
-  'Pay the balance online: {{paymentLink}}',
-  VALID_UNTIL_SENTENCE.en,
+  `Pay the balance online: {{paymentLink}}${VALID_UNTIL_BLOCK.en}`,
   '',
   'For any question, simply reply to this email{{#if hasCompanyPhone}} or call us at {{companyPhone}}{{/if}}.',
   '',
@@ -164,7 +168,7 @@ const DEPOSIT_REMINDER_BODY = [
   '',
   'Acompte à régler : {{depositAmount}}',
   '',
-  `{{#if hasPaymentLink}}Régler l'acompte en ligne : {{paymentLink}}\n${VALID_UNTIL_SENTENCE.fr}{{else}}Contactez-nous pour le règlement.{{/if}}`,
+  `{{#if hasPaymentLink}}Régler l'acompte en ligne : {{paymentLink}}{{else}}Contactez-nous pour le règlement.{{/if}}${VALID_UNTIL_BLOCK.fr}`,
   '',
   'Sans règlement de votre part, nous serons contraints de remettre vos dates à la vente.',
   '',
@@ -190,7 +194,7 @@ const DEPOSIT_REMINDER_BODY_EN = [
   '',
   'Deposit to pay: {{depositAmount}}',
   '',
-  `{{#if hasPaymentLink}}Pay the deposit online: {{paymentLink}}\n${VALID_UNTIL_SENTENCE.en}{{else}}Contact us to arrange payment.{{/if}}`,
+  `{{#if hasPaymentLink}}Pay the deposit online: {{paymentLink}}{{else}}Contact us to arrange payment.{{/if}}${VALID_UNTIL_BLOCK.en}`,
   '',
   'Without your payment we will have to put your dates back on sale.',
   '',
@@ -320,8 +324,7 @@ const FULL_REQUEST_BODY = [
   '{{/if}}',
   'Montant à régler : {{paymentAmount}}',
   '',
-  'Payer en ligne : {{paymentLink}}',
-  VALID_UNTIL_SENTENCE.fr,
+  `Payer en ligne : {{paymentLink}}${VALID_UNTIL_BLOCK.fr}`,
   '',
   'Important : le règlement bloque vos dates. Tant qu\'il n\'est pas payé, les dates restent disponibles et peuvent être réservées par un autre client.',
   '',
@@ -345,8 +348,7 @@ const FULL_REQUEST_BODY_EN = [
   '{{/if}}',
   'Amount to pay: {{paymentAmount}}',
   '',
-  'Pay online: {{paymentLink}}',
-  VALID_UNTIL_SENTENCE.en,
+  `Pay online: {{paymentLink}}${VALID_UNTIL_BLOCK.en}`,
   '',
   'Important: paying secures your dates. Until it is paid, they remain available and may be booked by another guest.',
   '',
@@ -366,7 +368,7 @@ const INSTALLMENT_REQUEST_BODY = [
   '',
   '{{installmentSchedule}}',
   '',
-  `{{#if hasPaymentLink}}Payer {{installmentAmount}} en ligne : {{paymentLink}}\n${VALID_UNTIL_SENTENCE.fr}{{else}}Contactez-nous pour le règlement.{{/if}}`,
+  `{{#if hasPaymentLink}}Payer {{installmentAmount}} en ligne : {{paymentLink}}{{else}}Contactez-nous pour le règlement.{{/if}}${VALID_UNTIL_BLOCK.fr}`,
   '',
   'Pour toute question, répondez simplement à cet email{{#if hasCompanyPhone}} ou appelez-nous au {{companyPhone}}{{/if}}.',
   '',
@@ -381,7 +383,7 @@ const INSTALLMENT_REQUEST_BODY_EN = [
   '',
   '{{installmentSchedule}}',
   '',
-  `{{#if hasPaymentLink}}Pay {{installmentAmount}} online: {{paymentLink}}\n${VALID_UNTIL_SENTENCE.en}{{else}}Please contact us to arrange payment.{{/if}}`,
+  `{{#if hasPaymentLink}}Pay {{installmentAmount}} online: {{paymentLink}}{{else}}Please contact us to arrange payment.{{/if}}${VALID_UNTIL_BLOCK.en}`,
   '',
   'For any question, simply reply to this email{{#if hasCompanyPhone}} or call us at {{companyPhone}}{{/if}}.',
   '',
@@ -577,6 +579,8 @@ module.exports = {
   EVENT_TRIGGERED_STABLE_KEYS,
   PAYMENT_STABLE_KEYS,
   VALID_UNTIL_SENTENCE,
+  VALID_UNTIL_FLAG,
+  VALID_UNTIL_BLOCK,
   // Exposed verbatim for tests that need the same body string the seed inserts.
   ARRIVAL_REMINDER_7D_BODY,
   ARRIVAL_REMINDER_1D_BODY,
