@@ -1,4 +1,4 @@
-// specs/server-test-isolation.md rule 11 — a « nothing shown » check first waits for the answer that could show it.
+// server-test-isolation.md rule 11 — a « nothing shown » check first waits for the answer that could show it.
 import { vi } from 'vitest';
 /**
  * « Échéances de paiement » dashboard card (specs/payment-schedule-and-cancellation.md §3.4 / §6).

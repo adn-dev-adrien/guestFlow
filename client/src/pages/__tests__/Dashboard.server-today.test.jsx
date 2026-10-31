@@ -1,4 +1,4 @@
-// specs/server-test-isolation.md rule 11 — a « nothing shown » check first waits for the answer that could show it.
+// server-test-isolation.md rule 11 — a « nothing shown » check first waits for the answer that could show it.
 // specs/ds-sweep-planning.md rule 28 — nothing loads before the server's date is known (the lists
 // themselves are the server's, specs/dashboard-planning-scroll.md rule 1); the attention subjects —
 // email readiness included — are only loaded for an admin (an accountant would get a 403).

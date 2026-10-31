@@ -1,4 +1,4 @@
-// specs/server-test-isolation.md rule 11 — a « nothing shown » check first waits for the answer that could show it.
+// server-test-isolation.md rule 11 — a « nothing shown » check first waits for the answer that could show it.
 /**
  * NewReservationsAlert — dashboard card listing every reservation created during the last 24 hours.
  * Renders nothing when empty; each row navigates to the reservation page on click; refetches every

@@ -1,4 +1,4 @@
-// specs/server-test-isolation.md rule 11 — a « nothing shown » check first waits for the answer that could show it.
+// server-test-isolation.md rule 11 — a « nothing shown » check first waits for the answer that could show it.
 /**
  * UpdateAvailableAlert — dashboard notification for a published GuestFlow version.
  * specs/self-update-and-releases.md §3.C rules 17-20 + §6.1. Whether it shows (not up to date, not

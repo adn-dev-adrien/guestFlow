@@ -1,4 +1,4 @@
-// specs/server-test-isolation.md rule 11 — a « nothing shown » check first waits for the answer that could show it.
+// server-test-isolation.md rule 11 — a « nothing shown » check first waits for the answer that could show it.
 // specs/hosting-h2-account-security.md rule 59 — changing the email on « Mon compte » asks the password
 // (and the current code of a second step) first; a save that leaves the email alone asks nothing.
 import React from 'react';
