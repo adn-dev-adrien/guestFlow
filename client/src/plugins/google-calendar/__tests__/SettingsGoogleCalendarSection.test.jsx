@@ -118,7 +118,8 @@ test('state 3 — picking a calendar calls setGoogleCalendar', async () => {
   api.getGoogleCalendarStatus.mockResolvedValue({ ...CONNECTED_STATUS, calendarId: null, calendarSummary: null, syncActive: false });
   renderSection();
   await screen.findByText('adrien@example.com');
-  await waitFor(() => expect(api.getGoogleCalendars).toHaveBeenCalled());
+  // The select stays disabled until the calendars land, after the call (specs/server-test-isolation.md rule 11).
+  await waitFor(() => expect(screen.getByRole('combobox')).not.toHaveAttribute('aria-disabled', 'true'));
 
   fireEvent.mouseDown(screen.getByRole('combobox'));
   fireEvent.click(await screen.findByRole('option', { name: /Perso \(principal\)/ }));

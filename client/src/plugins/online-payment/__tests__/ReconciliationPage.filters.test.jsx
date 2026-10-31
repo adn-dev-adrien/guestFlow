@@ -58,7 +58,7 @@ test('rule 11 — the chip\'s close button and Échap leave the filter', async (
   await screen.findByLabelText('Filtre actif : À confirmer · 1');
   fireEvent.click(screen.getByTestId('CancelIcon'));
   await waitFor(() => expect(screen.queryByLabelText('Filtre actif : À confirmer · 1')).toBeNull());
-  fireEvent.click(screen.getByRole('button', { name: /À confirmer/ }));
+  fireEvent.click(await screen.findByRole('button', { name: /À confirmer/ }));
   await screen.findByLabelText('Filtre actif : À confirmer · 1');
   fireEvent.keyDown(document, { key: 'Escape' });
   await waitFor(() => expect(screen.queryByLabelText('Filtre actif : À confirmer · 1')).toBeNull());

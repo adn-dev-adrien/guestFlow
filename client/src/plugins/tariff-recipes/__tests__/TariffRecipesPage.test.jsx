@@ -40,8 +40,7 @@ test('renders bundled and local-override recipes distinctly, with their properti
     invalid: [],
   });
   renderPage();
-  await waitFor(() => expect(api.getTariffRecipes).toHaveBeenCalled());
-  expect(screen.getByText('Livrée')).toBeInTheDocument();
+  expect(await screen.findByText('Livrée')).toBeInTheDocument();
   expect(screen.getByText('Locale')).toBeInTheDocument();
   expect(screen.getByText('Écrase la version livrée')).toBeInTheDocument();
   expect(screen.getByText('Aventura Lodge')).toBeInTheDocument();

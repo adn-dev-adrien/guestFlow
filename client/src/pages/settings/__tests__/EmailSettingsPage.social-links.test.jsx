@@ -47,7 +47,8 @@ const renderPage = () => render(<MemoryRouter><EmailSettingsPage /></MemoryRoute
 test('rule 35, 42: an added link is saved as the whole list, without the legacy instagramUrl', async () => {
   api.updateSettings.mockImplementation(async (body) => payload(body.emails.socialLinks));
   renderPage();
-  await screen.findByText('Réseaux sociaux');
+  // The section heading renders before the saved links: wait for a link row, not for the heading.
+  await screen.findByLabelText('Adresse du lien');
   fireEvent.click(screen.getByRole('button', { name: 'Ajouter un réseau' }));
   fireEvent.change(screen.getAllByLabelText('Adresse du lien')[1], { target: { value: 'https://facebook.com/a' } });
   await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' })); });
@@ -62,8 +63,7 @@ test('rule 37: the server\'s refusal of one link shows under that row', async ()
     errors: { 'socialLinks.0.url': "Lien d'un autre réseau." },
   }));
   renderPage();
-  await screen.findByText('Réseaux sociaux');
-  fireEvent.change(screen.getByLabelText('Adresse du lien'), { target: { value: 'https://instagram.com/ax' } });
+  fireEvent.change(await screen.findByLabelText('Adresse du lien'), { target: { value: 'https://instagram.com/ax' } });
   await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' })); });
   const row = (await screen.findAllByRole('listitem'))[0];
   expect(await within(row).findByText("Lien d'un autre réseau.")).toBeInTheDocument();

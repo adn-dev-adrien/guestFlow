@@ -4,7 +4,7 @@
 // support's own session.
 import React from 'react';
 import { vi } from 'vitest';
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { act, render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 
 vi.mock('../../api', () => ({
   __esModule: true,
@@ -37,7 +37,7 @@ test('rule 12 — the reason, « Autoriser 24 h » and « Refuser »', async () 
   expect(await screen.findByText('Le support demande l’accès : Vérifier la synchronisation Booking')).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Autoriser 24 h' }));
   await waitFor(() => expect(api.decideSupportAccess).toHaveBeenCalledWith(7, 'accept', 24));
-  expect(screen.queryByText(/Le support demande/)).toBeNull();
+  await waitFor(() => expect(screen.queryByText(/Le support demande/)).toBeNull());
 });
 
 test('rule 13 — another duration is sent with the decision', async () => {
@@ -59,6 +59,8 @@ test('rule 17 — nothing without a request, for another role, on an unmanaged i
   api.getSupportBanner.mockResolvedValue({ pending: null });
   const { unmount } = render(<SupportAccessBanner />);
   await waitFor(() => expect(api.getSupportBanner).toHaveBeenCalled());
+  // The banner renders nothing to find: awaiting the answer inside act commits what it brings first.
+  await act(() => api.getSupportBanner.mock.results[0].value);
   expect(screen.queryByText(/Le support demande/)).toBeNull();
   unmount();
 

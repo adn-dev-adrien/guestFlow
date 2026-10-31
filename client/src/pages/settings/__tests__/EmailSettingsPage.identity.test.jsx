@@ -59,7 +59,8 @@ function renderPage() {
 
 test('rule 12: the derived sending address, login and name are shown with their source', async () => {
   renderPage();
-  expect(await screen.findByLabelText("Adresse d'envoi")).toHaveValue('contact@solio.fr');
+  // The fields render before the settings land in them (specs/server-test-isolation.md rule 11).
+  await waitFor(() => expect(screen.getByLabelText("Adresse d'envoi")).toHaveValue('contact@solio.fr'));
   expect(screen.getByLabelText('Identifiant du serveur')).toHaveValue('contact@solio.fr');
   expect(screen.getByLabelText('Nom affiché')).toHaveValue('Domaine Solio');
   expect(screen.getByText("= l'email de contact de l'Établissement")).toBeInTheDocument();

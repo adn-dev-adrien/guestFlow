@@ -48,6 +48,13 @@ function versionInfo(overrides = {}) {
   };
 }
 
+// The buttons are disabled until the version details load (specs/server-test-isolation.md rule 11).
+async function enabledButton(name) {
+  const button = await screen.findByRole('button', { name });
+  await waitFor(() => expect(button).toBeEnabled());
+  return button;
+}
+
 beforeEach(() => {
   currentUser = { id: 1, roles: ['admin'] };
   api.getSystemVersion.mockReset();
@@ -83,7 +90,7 @@ test('"Plus tard" postpones that exact version', async () => {
   api.dismissUpdate.mockResolvedValue({ dismissedVersion: '1.1.0' });
   render(<UpdateAvailableAlert attention={ATTENTION} />);
 
-  await user.click(await screen.findByRole('button', { name: 'Plus tard' }));
+  await user.click(await enabledButton('Plus tard'));
   expect(api.dismissUpdate).toHaveBeenCalledWith('1.1.0');
 });
 
@@ -92,7 +99,7 @@ test('nothing installs without reading the notes first: the button opens the dia
   api.getSystemVersion.mockResolvedValue(versionInfo());
   render(<UpdateAvailableAlert attention={ATTENTION} />);
 
-  await user.click(await screen.findByRole('button', { name: 'Voir les nouveautés' }));
+  await user.click(await enabledButton('Voir les nouveautés'));
 
   expect(await screen.findByText('Une nouveauté')).toBeInTheDocument();
   expect(screen.getByText(/sauvegarde de la base/i)).toBeInTheDocument();
@@ -110,7 +117,7 @@ test('when the deployment cannot self-update, the dialog explains and blocks the
   }));
   render(<UpdateAvailableAlert attention={ATTENTION} />);
 
-  await user.click(await screen.findByRole('button', { name: 'Voir les nouveautés' }));
+  await user.click(await enabledButton('Voir les nouveautés'));
   expect(screen.getByText(/PM2 est introuvable/)).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Installer maintenant' })).toBeDisabled();
 });
