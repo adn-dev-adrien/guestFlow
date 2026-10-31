@@ -719,7 +719,10 @@ function createCustomersController(ctx) {
       run = host().rename(c.id, previous ? previous.slug : c.slug)
         .finally(() => unmarkRenaming(c.id))
         .then((ok) => { if (ok) refresh(c.id, operator); return ok; });
-    } else if (step === 'deprov-email') run = sendExportLink(c.id);
+    } else if (step === 'deprov-email') {
+      assertNotErasing(c.id);
+      run = host().exclusive(c.id, () => resendExportLink(c.id, operator));
+    }
     else if (step === 'deprov-export') return deprovision(c.id, { confirmSlug: c.slug, retry: true }, operator);
     if (!background) await run;
     return view(c.id);
@@ -874,10 +877,9 @@ function createCustomersController(ctx) {
 
   // --- deprovisioning (rule 20) ----------------------------------------------------------------
 
-  async function sendExportLink(id) {
+  async function sendExportLink(id, link) {
     const c = customers.get(id);
     const exp = provisioning.get(id, 'deprov-export');
-    const link = provisioning.latestExport(id);
     if (!exp || exp.status !== 'ok' || !link) {
       provisioning.set(id, 'deprov-email', 'skipped', 'Aucun export à envoyer.', stamp());
       return;
@@ -889,7 +891,7 @@ function createCustomersController(ctx) {
         text: [
           `Bonjour${c.contactName ? ` ${c.contactName}` : ''},`,
           '',
-          `Votre espace ${urlOf(c.slug)} a été fermé. Toutes vos données sont dans cette archive, téléchargeable pendant ${EXPORT_LINK_DAYS} jours :`,
+          `Votre espace ${urlOf(c.slug)} a été fermé. Toutes vos données sont dans cette archive, téléchargeable jusqu’au ${frDay(link.expiresAt)} inclus :`,
           `${consoleUrl}/exports/${link.token}`,
           '',
           'Elle contient la base complète, vos photos et deux fichiers CSV (réservations et clients).',
@@ -899,6 +901,34 @@ function createCustomersController(ctx) {
     } catch (err) {
       provisioning.set(id, 'deprov-email', 'failed', `Échec de l’envoi : ${err.message}`, stamp());
     }
+  }
+
+  // H1 rule 40: inside the customer's lock. An erasure accepted meanwhile deletes the archive next,
+  // and a link that expired or lost its file is replaced by a fresh export while the database is there.
+  // A reactivation or another retry that ran first while this one waited leaves nothing to send.
+  async function resendExportLink(id, operator) {
+    const c = customers.get(id);
+    if (!c || c.erasedAt || !c.archivedAt) return;
+    if (provisioning.get(id, 'deprov-email')?.status !== 'failed') return;
+    if (erasing.has(id)) {
+      provisioning.set(id, 'deprov-email', 'failed', 'Effacement en cours : aucun lien envoyé.', stamp());
+      return;
+    }
+    let link = provisioning.latestExport(id);
+    if (link && (link.expiresAt < today() || !fs.existsSync(link.path))) {
+      if (!instances.hasDatabase(c.slug)) {
+        provisioning.set(id, 'deprov-email', 'failed', 'Lien expiré et base introuvable : aucun export à envoyer.', stamp());
+        return;
+      }
+      const fresh = exportForDeprovision(c, operator);
+      if (fresh.failed) {
+        provisioning.set(id, 'deprov-email', 'failed', 'Nouvel export en échec : aucun lien envoyé.', stamp());
+        return;
+      }
+      journal(id, operator, 'deprovision', 'Nouvel export produit : l’ancien lien avait expiré');
+      link = fresh.link;
+    }
+    await sendExportLink(id, link);
   }
 
   // H1 rule 38: a customer is archived only after its stop, so a second request (another tab, or one
@@ -932,7 +962,7 @@ function createCustomersController(ctx) {
     const exported = await host().exclusive(c.id, () => exportForDeprovision(c, operator));
     if (exported.failed) return view(c.id);
     // 2. The link to the contact.
-    await sendExportLink(c.id);
+    await sendExportLink(c.id, exported.link || null);
     // 3. The process and the route stop; the address serves « Cet espace a été fermé » (H1 rule 3).
     await host().stop(c.id);
     // 4. Archived; 5. erased after 90 days.
@@ -951,9 +981,10 @@ function createCustomersController(ctx) {
     try {
       const { file, bytes } = exportInstance({ instances, slug: c.slug, exportsDir, stamp: today() });
       const token = crypto.randomBytes(24).toString('base64url');
-      provisioning.addExport({ token, customerId: c.id, path: file, createdAt: stamp(), expiresAt: addDays(today(), EXPORT_LINK_DAYS) });
+      const link = { token, customerId: c.id, path: file, createdAt: stamp(), expiresAt: addDays(today(), EXPORT_LINK_DAYS) };
+      provisioning.addExport(link);
       provisioning.set(c.id, 'deprov-export', 'ok', `Archive de ${(bytes / 1048576).toFixed(1).replace('.', ',')} Mo.`, stamp());
-      return { token };
+      return { token, link };
     } catch (err) {
       provisioning.set(c.id, 'deprov-export', 'failed', `Échec : ${err.message}`, stamp());
       journal(c.id, operator, 'deprovision', `Déprovisionnement interrompu : l’export a échoué (${err.message})`);
