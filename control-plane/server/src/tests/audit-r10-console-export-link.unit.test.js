@@ -72,6 +72,35 @@ test('rule 41 — on the erasure day, before the erasure ran, the retry mails no
   } finally { h.cleanup(); }
 });
 
+const emailAction = (customers, c) => customers.view(c.id).deprovisionSteps.find((s) => s.step === 'deprov-email').action;
+
+test('rule 41 — « Réessayer » is offered until the day before the erasure, never from the erasure day on', async () => {
+  const { h, c, customers } = await archivedWithFailedMail();
+  try {
+    later(h, 89);
+    assert.equal(emailAction(customers, c), 'retry', 'the last day before the erasure can still send');
+    later(h, 1);
+    assert.equal(emailAction(customers, c), null, 'a retry on the erasure day can never succeed');
+    await customers.stepAction(c.id, 'deprov-email', 'retry', 'op');
+    const s = step(h, c, 'deprov-email');
+    assert.equal(s.status, 'failed');
+    assert.match(s.detail, /^Effacement prévu le /);
+    assert.equal(emailAction(customers, c), null, 'the step keeps its message, without a button');
+  } finally { h.cleanup(); }
+});
+
+test('rule 41 — past the erasure date (erasure overdue), the message says it is due, not scheduled', async () => {
+  const { h, c, customers } = await archivedWithFailedMail();
+  try {
+    const eraseAt = eraseAtOf(h, c);
+    later(h, 92);
+    assert.equal(emailAction(customers, c), null);
+    await customers.stepAction(c.id, 'deprov-email', 'retry', 'op');
+    const s = step(h, c, 'deprov-email');
+    assert.deepEqual([s.status, s.detail], ['failed', `Effacement dû le ${frDay(eraseAt)} : aucun lien envoyé.`]);
+  } finally { h.cleanup(); }
+});
+
 test('rule 41 — with the erasure cancelled, the fresh link keeps its 30 days', async () => {
   const { h, c, customers } = await archivedWithFailedMail();
   try {

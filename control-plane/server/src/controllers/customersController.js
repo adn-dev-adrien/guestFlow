@@ -357,6 +357,8 @@ function createCustomersController(ctx) {
     return r.detail || '';
   }
 
+  const erasureDue = (c) => Boolean(c.archivedAt && c.eraseAt && c.eraseAt <= today());
+
   function stepsView(c, defs) {
     const rows = new Map(provisioning.list(c.id).map((r) => [r.step, r]));
     return defs.filter((d) => rows.has(d.step)).map((d) => {
@@ -367,8 +369,10 @@ function createCustomersController(ctx) {
         kind: d.kind,
         status: r.status,
         detail: stepDetail(r),
-        // H1 rule 2: a failed creation step resumes the sequence from itself.
-        action: r.status !== 'failed' || (c.archivedAt && SERVING_STEPS.has(d.step)) ? null : (CREATE_STEPS.some((x) => x.step === d.step) ? 'resume' : 'retry'),
+        // H1 rule 2: a failed creation step resumes the sequence from itself. H1 rule 41: from the
+        // erasure day on, a closing mail can no longer be sent, so it offers nothing.
+        action: r.status !== 'failed' || (c.archivedAt && SERVING_STEPS.has(d.step)) || (d.step === 'deprov-email' && erasureDue(c))
+          ? null : (CREATE_STEPS.some((x) => x.step === d.step) ? 'resume' : 'retry'),
       };
     });
   }
@@ -921,8 +925,9 @@ function createCustomersController(ctx) {
         return;
       }
       // Rule 41: the archive goes with the erasure, so a link must expire the day before it.
-      if (c.eraseAt && addDays(c.eraseAt, -1) < today()) {
-        provisioning.set(id, 'deprov-email', 'failed', `Effacement prévu le ${frDay(c.eraseAt)} : aucun lien envoyé.`, stamp());
+      if (erasureDue(c)) {
+        const when = c.eraseAt < today() ? 'dû' : 'prévu';
+        provisioning.set(id, 'deprov-email', 'failed', `Effacement ${when} le ${frDay(c.eraseAt)} : aucun lien envoyé.`, stamp());
         return;
       }
       const fresh = exportForDeprovision(c, operator, { closed: true });
@@ -979,7 +984,7 @@ function createCustomersController(ctx) {
   }
 
   // Rule 42: on a closed customer (a late « Réessayer »), a failure belongs to the mail step alone;
-  // the closing's own export stays as it was.
+  // « Export complet » keeps its last successful export.
   function exportForDeprovision(c, operator, { closed = false } = {}) {
     if (!instances.hasDatabase(c.slug)) {
       provisioning.set(c.id, 'deprov-export', 'skipped', 'Aucune donnée : l’instance n’a jamais été créée.', stamp());
