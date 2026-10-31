@@ -920,9 +920,14 @@ function createCustomersController(ctx) {
         provisioning.set(id, 'deprov-email', 'failed', 'Lien expiré et base introuvable : aucun export à envoyer.', stamp());
         return;
       }
-      const fresh = exportForDeprovision(c, operator);
+      // Rule 41: the archive goes with the erasure, so a link must expire the day before it.
+      if (c.eraseAt && addDays(c.eraseAt, -1) < today()) {
+        provisioning.set(id, 'deprov-email', 'failed', `Effacement prévu le ${frDay(c.eraseAt)} : aucun lien envoyé.`, stamp());
+        return;
+      }
+      const fresh = exportForDeprovision(c, operator, { closed: true });
       if (fresh.failed) {
-        provisioning.set(id, 'deprov-email', 'failed', 'Nouvel export en échec : aucun lien envoyé.', stamp());
+        provisioning.set(id, 'deprov-email', 'failed', `Nouvel export en échec (${fresh.error}) : aucun lien envoyé.`, stamp());
         return;
       }
       journal(id, operator, 'deprovision', 'Nouvel export produit : l’ancien lien avait expiré');
@@ -973,7 +978,9 @@ function createCustomersController(ctx) {
     return view(c.id);
   }
 
-  function exportForDeprovision(c, operator) {
+  // Rule 42: on a closed customer (a late « Réessayer »), a failure belongs to the mail step alone;
+  // the closing's own export stays as it was.
+  function exportForDeprovision(c, operator, { closed = false } = {}) {
     if (!instances.hasDatabase(c.slug)) {
       provisioning.set(c.id, 'deprov-export', 'skipped', 'Aucune donnée : l’instance n’a jamais été créée.', stamp());
       return { token: null };
@@ -981,11 +988,15 @@ function createCustomersController(ctx) {
     try {
       const { file, bytes } = exportInstance({ instances, slug: c.slug, exportsDir, stamp: today() });
       const token = crypto.randomBytes(24).toString('base64url');
-      const link = { token, customerId: c.id, path: file, createdAt: stamp(), expiresAt: addDays(today(), EXPORT_LINK_DAYS) };
+      const fullTerm = addDays(today(), EXPORT_LINK_DAYS);
+      const beforeErasure = c.archivedAt && c.eraseAt ? addDays(c.eraseAt, -1) : null;
+      const expiresAt = beforeErasure && beforeErasure < fullTerm ? beforeErasure : fullTerm;
+      const link = { token, customerId: c.id, path: file, createdAt: stamp(), expiresAt };
       provisioning.addExport(link);
       provisioning.set(c.id, 'deprov-export', 'ok', `Archive de ${(bytes / 1048576).toFixed(1).replace('.', ',')} Mo.`, stamp());
       return { token, link };
     } catch (err) {
+      if (closed) return { failed: true, error: err.message };
       provisioning.set(c.id, 'deprov-export', 'failed', `Échec : ${err.message}`, stamp());
       journal(c.id, operator, 'deprovision', `Déprovisionnement interrompu : l’export a échoué (${err.message})`);
       return { failed: true };
