@@ -1,3 +1,4 @@
+// server-test-isolation.md rule 11 — a « nothing shown » check first waits for the answer that could show it.
 /**
  * EmailTemplatesPage — the Emails page: « Emails à envoyer » + « Modèles d'emails » cards.
  * See specs/email-automation.md §6.1 + §6.10; the timeline of the templates is
@@ -6,7 +7,7 @@
 
 import React from 'react';
 import { vi } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { render, screen, waitFor, within, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 
@@ -169,6 +170,8 @@ test('specs/guest-email-texts-made-simple.md rule 44: the operator’s own row o
 });
 
 test('specs/guest-email-texts-made-simple.md rule 44: « Supprimer » sits in « ⋯ »; a shipped email cannot be deleted, only switched off', async () => {
+  let answer;
+  api.deleteEmailTemplate.mockReturnValueOnce(new Promise((resolve) => { answer = resolve; }));
   const user = userEvent.setup();
   renderPage();
   await user.click(await screen.findByRole('button', { name: 'Plus d’actions : Préparation du séjour' }));
@@ -177,6 +180,7 @@ test('specs/guest-email-texts-made-simple.md rule 44: « Supprimer » sits in «
   await user.click(screen.getByRole('button', { name: 'Plus d’actions : Bienvenue' }));
   await user.click(screen.getByRole('menuitem', { name: 'Supprimer' }));
   await waitFor(() => expect(api.deleteEmailTemplate).toHaveBeenCalledWith(2));
+  await act(async () => { answer(); });
   expect(screen.queryByRole('heading', { name: 'Bienvenue' })).not.toBeInTheDocument();
 });
 
@@ -202,10 +206,13 @@ test('specs/guest-email-texts-made-simple.md rule 44: a refused confirmation kee
 });
 
 test('toggling the enabled switch does NOT open the edit dialog', async () => {
+  let answer;
+  api.updateEmailTemplate.mockReturnValueOnce(new Promise((resolve) => { answer = resolve; }));
   const user = userEvent.setup();
   renderPage();
   await user.click(await screen.findByRole('switch', { name: 'Envoyer Bienvenue' }));
   await waitFor(() => expect(api.updateEmailTemplate).toHaveBeenCalled());
+  await act(async () => { answer(); });
   expect(screen.queryByRole('heading', { name: 'Bienvenue' })).not.toBeInTheDocument();
 });
 

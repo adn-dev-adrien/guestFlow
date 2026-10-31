@@ -1,3 +1,4 @@
+// server-test-isolation.md rule 11 — a « nothing shown » check first waits for the answer that could show it.
 import { vi } from 'vitest';
 /**
  * « Échéances de paiement » dashboard card (specs/payment-schedule-and-cancellation.md §3.4 / §6).
@@ -6,7 +7,7 @@ import { vi } from 'vitest';
  */
 
 import React from 'react';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { render, screen, waitFor, within, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import DialogProvider from '../DialogProvider';
 
@@ -117,7 +118,7 @@ beforeEach(() => {
 
 test('renders nothing when no deadline is missed', async () => {
   const { container } = renderCard();
-  await waitFor(() => expect(api.getPaymentDeadlines).toHaveBeenCalled());
+  await act(() => api.getPaymentDeadlines.mock.results.at(-1).value);
   expect(container.textContent).toBe('');
 });
 

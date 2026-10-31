@@ -1,9 +1,10 @@
+// server-test-isolation.md rule 11 — a « nothing shown » check first waits for the answer that could show it.
 // specs/control-plane-plans-and-access.md §6 — the admin banner: due, grace and read-only, with the
 // Qonto renewal link; nothing for other roles, an active subscription or an unmanaged instance; a
 // write refused for the subscription always ends in the error toast.
 import React from 'react';
 import { vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 
 vi.mock('../../api', () => ({
   __esModule: true,
@@ -52,7 +53,7 @@ test('active or unmanaged: nothing shows', async () => {
   for (const s of [status({ state: 'active', severity: null, text: null }), { state: null, text: null }]) {
     api.getSubscription.mockResolvedValue(s);
     const { container, unmount } = render(<SubscriptionBanner />);
-    await waitFor(() => expect(api.getSubscription).toHaveBeenCalled());
+    await act(() => api.getSubscription.mock.results.at(-1).value);
     expect(container.textContent).toBe('');
     unmount();
   }
