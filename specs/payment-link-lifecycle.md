@@ -818,6 +818,11 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     text then carries no link and no placeholder. `EmailManualSendDialog` shows the message in an info alert above
     the subject and keeps « Envoyer » disabled, so a « Payer le solde en ligne : » with nothing after it is never one
     click from a refusal. The server decides; the dialog only renders it. The send keeps its own refusal.
+61. **The closure dialog's lines only describe the dates it shows** (audit R10-C1, 2026-10-31). A conflicts look
+    (rules 41, 49) still in flight when the dialog closes, reopens, or its range stops being valid (a date
+    missing, reopening ≤ start) is dropped: its answer never paints a red or amber line over a fresh « Ajouter une
+    fermeture » or over dates the server was not asked about. Only the answer to the latest look of the open dialog
+    is shown; the save stays the judge.
 
 ---
 
@@ -1049,6 +1054,7 @@ refused).
 - [x] `client/src/components/reservation/__tests__/FinanceSection.link-lifecycle.test.jsx` (11) — prints the new labels, offers « Renvoyer la demande » on expired, not on dates-taken; « Retirer le lien » asks for confirmation.
 - [x] `client/src/pages/__tests__/EstablishmentClosuresPage.conflicts.test.jsx` (6) — warning list with links, 409 lists rendered, asked again on focus, same tab on a phone.
 - [x] `client/src/components/__tests__/ConflictList.test.jsx` (5).
+- [x] `client/src/pages/__tests__/EstablishmentClosuresPage.stale-conflicts.test.jsx` (2) — rule 61: a late answer after close/reopen, or after the range turned invalid, is dropped.
 
 ### Manual verification (fake provider in dev, never the production Qonto)
 - [ ] Mint a link, move the clock 36 h (injected `now` / env), run the job: row « Lien expiré le … », « Renvoyer la demande » mints a new link.
@@ -1228,5 +1234,8 @@ Six sequential PRs into `inte/plugins` (plan validated 2026-10-30).
   (`payment-link-valid-until-rollback` 10, `payment-link-valid-until-token` +1). Review of #906: rule 57's preview
   sentence corrected (R1); rule 60 the preview's `refusal` and the dialog's alert (`payment-link-preview-refusal` 4,
   `EmailManualSendDialog.payment-refusal` 2).
+  Audit round 10 (2026-10-31): rule 61 the closure dialog drops a stale conflicts answer
+  (`EstablishmentClosuresPage` bumps its look sequence when the range is unset; client
+  `EstablishmentClosuresPage.stale-conflicts` 2).
 - [ ] PR5 — held dates and dates-taken withdrawal (rules 10-12, 16, 24, 25, 31-33, 37-39, 46, 48).
 - [ ] PR6 — dates-taken guest notice (rules 35, 43-45, 47); status → Implemented.
