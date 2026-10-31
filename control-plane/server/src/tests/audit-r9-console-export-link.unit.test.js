@@ -135,3 +135,57 @@ test('rule 40 — a retry with a dead link and no database left refuses to mail 
     assert.deepEqual([step.status, step.detail], ['failed', 'Lien expiré et base introuvable : aucun export à envoyer.']);
   } finally { h.cleanup(); }
 });
+
+test('rule 40 — a retry queued behind the lock, then « Réactiver »: no mail and no export', async () => {
+  const { h, c, customers } = await archivedWithFailedMail();
+  try {
+    let release;
+    const gate = new Promise((r) => { release = r; });
+    h.ctx.provisioner.exclusive(c.id, () => gate);
+    later(h, 40);
+    const before = h.mailer.sent.length;
+    const retry = customers.stepAction(c.id, 'deprov-email', 'retry', 'op');
+    await tick();
+    const reactivated = customers.reactivate(c.id, 'op');
+    await tick();
+    release();
+    await retry;
+    await reactivated;
+    await tick(100);
+    assert.equal(h.ctx.models.customers.get(c.id).archivedAt, null);
+    assert.equal(h.mailer.sent.length, before, 'no « a été fermé » mail to an active customer');
+    const archives = h.ctx.models.provisioning.exportsOf(c.id).filter((e) => fs.existsSync(e.path));
+    assert.equal(archives.length, 0, 'no export of an active customer');
+    assert.equal(mailStep(h, c), null);
+    assert.equal(h.ctx.models.provisioning.get(c.id, 'deprov-export'), null);
+  } finally { h.cleanup(); }
+});
+
+test('rule 40 — two « Réessayer » at once (two tabs) send one mail', async () => {
+  const { h, c, customers } = await archivedWithFailedMail();
+  try {
+    let release;
+    const gate = new Promise((r) => { release = r; });
+    h.ctx.provisioner.exclusive(c.id, () => gate);
+    const before = h.mailer.sent.length;
+    await customers.stepAction(c.id, 'deprov-email', 'retry', 'op', { background: true });
+    await customers.stepAction(c.id, 'deprov-email', 'retry', 'op', { background: true });
+    release();
+    await h.ctx.provisioner.exclusive(c.id, async () => {});
+    await tick(100);
+    assert.equal(h.mailer.sent.length, before + 1);
+    assert.equal(mailStep(h, c).status, 'ok');
+  } finally { h.cleanup(); }
+});
+
+test('rule 40 — the fresh export\'s own token is mailed, even when it shares the old one\'s timestamp', async () => {
+  const { h, c, customers } = await archivedWithFailedMail();
+  try {
+    const first = h.ctx.models.provisioning.latestExport(c.id);
+    fs.rmSync(first.path, { force: true });
+    await customers.stepAction(c.id, 'deprov-email', 'retry', 'op');
+    const token = tokenOf(h.mailer.sent.at(-1));
+    assert.notEqual(token, first.token, 'never the link whose archive is gone');
+    assert.equal(live(h, token), true, 'the mailed link downloads');
+  } finally { h.cleanup(); }
+});
