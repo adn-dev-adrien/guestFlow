@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
 
@@ -104,6 +104,7 @@ test('says « Non configuré » when a secret is missing', async () => {
 test('stays silent when the server does not answer', async () => {
   api.getGateConnector.mockRejectedValue(new Error('boom'));
   const { container } = render(<SettingsGateAccessSection />);
-  await waitFor(() => expect(api.getGateConnector).toHaveBeenCalled());
+  await act(() => api.getGateConnector.mock.results.at(-1).value.catch(() => {}));
+  expect(api.getGateConnector).toHaveBeenCalled();
   expect(container.textContent).toBe('');
 });

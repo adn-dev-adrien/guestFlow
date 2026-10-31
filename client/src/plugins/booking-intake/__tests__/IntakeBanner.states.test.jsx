@@ -1,7 +1,8 @@
+// specs/server-test-isolation.md rule 11 — a « nothing shown » check first waits for the answer that could show it.
 // specs/booking-extranet-intake.md rules 17–18 — the banner of the fiche: filled from the extranet, or a
 // proposal on a fiche that was already filled.
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
 import { APPLIED, PROPOSED } from './intakeFixtures';
@@ -66,6 +67,7 @@ test('specs/booking-extranet-intake.md rule 17: a refused Appliquer shows the re
 test('specs/booking-extranet-intake.md rule 18: nothing to say, nothing rendered', async () => {
   api.getBookingIntakeForReservation.mockResolvedValue({ intake: null });
   const { container } = render(<IntakeBanner reservationId={22309} />);
-  await waitFor(() => expect(api.getBookingIntakeForReservation).toHaveBeenCalled());
+  await act(() => api.getBookingIntakeForReservation.mock.results.at(-1).value);
+  expect(api.getBookingIntakeForReservation).toHaveBeenCalled();
   expect(container).toBeEmptyDOMElement();
 });

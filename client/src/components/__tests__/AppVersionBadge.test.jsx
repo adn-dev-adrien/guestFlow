@@ -1,3 +1,4 @@
+// specs/server-test-isolation.md rule 11 — a « nothing shown » check first waits for the answer that could show it.
 /**
  * AppVersionBadge — the update affordance of the top bar, and AppVersionFooter — the installed
  * version at the foot of the drawer since 2026-10-19 (specs/shell-and-home-day-first.md rule 16).
@@ -6,7 +7,7 @@
 
 import React from 'react';
 import { vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 vi.mock('../../api', () => ({
@@ -62,7 +63,8 @@ test('specs/shell-and-home-day-first.md rule 16: the drawer foot shows the insta
 test('specs/shell-and-home-day-first.md rule 16: up to date, the top bar shows nothing — the version left it', async () => {
   api.getSystemVersion.mockResolvedValue(versionInfo({ updateAvailable: false, latest: '1.0.0' }));
   const { container } = render(<AppVersionBadge />);
-  await waitFor(() => expect(api.getSystemVersion).toHaveBeenCalled());
+  await act(() => api.getSystemVersion.mock.results.at(-1).value);
+  expect(api.getSystemVersion).toHaveBeenCalled();
   expect(container.firstChild).toBeNull();
   expect(screen.queryByText(/v1\.0\.0/)).not.toBeInTheDocument();
 });

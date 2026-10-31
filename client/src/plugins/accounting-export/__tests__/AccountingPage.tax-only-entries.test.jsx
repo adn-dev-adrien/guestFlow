@@ -1,6 +1,6 @@
 import { vi } from 'vitest';
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, act } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { ThemeProvider } from '@mui/material/styles';
 import theme from '../../../theme';
@@ -44,6 +44,7 @@ test('rule 43 — a tax-only entry is announced with its client and amount', asy
 test('rule 43 — nothing is announced when every entry carries revenue', async () => {
   api.getAccountingSales.mockResolvedValue(sales([]));
   renderPage();
-  await waitFor(() => expect(api.getAccountingSales).toHaveBeenCalled());
+  await act(() => api.getAccountingSales.mock.results.at(-1).value);
+  expect(api.getAccountingSales).toHaveBeenCalled();
   expect(screen.queryByText(/sur la taxe de séjour/)).toBeNull();
 });

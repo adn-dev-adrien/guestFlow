@@ -1,3 +1,4 @@
+// specs/server-test-isolation.md rule 11 — a « nothing shown » check first waits for the answer that could show it.
 /**
  * UpdateAvailableAlert — dashboard notification for a published GuestFlow version.
  * specs/self-update-and-releases.md §3.C rules 17-20 + §6.1. Whether it shows (not up to date, not
@@ -7,7 +8,7 @@
 
 import React from 'react';
 import { vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 vi.mock('../../api', () => ({
@@ -73,7 +74,8 @@ test('announces the published version and the installed one', async () => {
 test('stays silent without a subject (up to date, postponed or running — the server decides)', async () => {
   api.getSystemVersion.mockResolvedValue(versionInfo({ updateAvailable: false }));
   const { container } = render(<UpdateAvailableAlert attention={null} />);
-  await waitFor(() => expect(api.getSystemVersion).toHaveBeenCalled());
+  await act(() => api.getSystemVersion.mock.results.at(-1).value);
+  expect(api.getSystemVersion).toHaveBeenCalled();
   expect(container.firstChild).toBeNull();
 });
 

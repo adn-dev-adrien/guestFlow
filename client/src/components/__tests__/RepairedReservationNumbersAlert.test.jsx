@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
 import RepairedReservationNumbersAlert from '../RepairedReservationNumbersAlert';
@@ -28,7 +28,8 @@ beforeEach(() => { vi.clearAllMocks(); });
 test('rien à vérifier : la carte ne s’affiche pas', async () => {
   api.getRepairedReservationNumbers.mockResolvedValue({ alerts: [] });
   const { container } = render(<RepairedReservationNumbersAlert attention={ATTENTION} />);
-  await waitFor(() => expect(api.getRepairedReservationNumbers).toHaveBeenCalled());
+  await act(() => api.getRepairedReservationNumbers.mock.results.at(-1).value);
+  expect(api.getRepairedReservationNumbers).toHaveBeenCalled();
   expect(container).toBeEmptyDOMElement();
 });
 
@@ -47,6 +48,7 @@ test('une réservation renumérotée s’affiche, s’ouvre, et « Vu » la reti
 test('une erreur de chargement n’affiche rien', async () => {
   api.getRepairedReservationNumbers.mockRejectedValue(new Error('boom'));
   const { container } = render(<RepairedReservationNumbersAlert attention={ATTENTION} />);
-  await waitFor(() => expect(api.getRepairedReservationNumbers).toHaveBeenCalled());
+  await act(() => api.getRepairedReservationNumbers.mock.results.at(-1).value.catch(() => {}));
+  expect(api.getRepairedReservationNumbers).toHaveBeenCalled();
   expect(container).toBeEmptyDOMElement();
 });

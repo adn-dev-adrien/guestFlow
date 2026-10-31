@@ -1,3 +1,4 @@
+// specs/server-test-isolation.md rule 11 — a « nothing shown » check first waits for the answer that could show it.
 /**
  * NewReservationsAlert — dashboard card listing every reservation created during the last 24 hours.
  * Renders nothing when empty; each row navigates to the reservation page on click; refetches every
@@ -48,14 +49,16 @@ test('renders nothing while the API call is pending', () => {
 test('renders nothing when no reservation arrived in the last 24 hours', async () => {
   api.getNewReservations.mockResolvedValue({ alerts: [] });
   const { container } = render(<NewReservationsAlert attention={ATTENTION} />);
-  await waitFor(() => expect(api.getNewReservations).toHaveBeenCalled());
+  await act(() => api.getNewReservations.mock.results.at(-1).value);
+  expect(api.getNewReservations).toHaveBeenCalled();
   expect(container.firstChild).toBeNull();
 });
 
 test('renders nothing on API error (never breaks the dashboard)', async () => {
   api.getNewReservations.mockRejectedValue(new Error('boom'));
   const { container } = render(<NewReservationsAlert attention={ATTENTION} />);
-  await waitFor(() => expect(api.getNewReservations).toHaveBeenCalled());
+  await act(() => api.getNewReservations.mock.results.at(-1).value.catch(() => {}));
+  expect(api.getNewReservations).toHaveBeenCalled();
   expect(container.firstChild).toBeNull();
 });
 

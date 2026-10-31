@@ -1,6 +1,7 @@
+// specs/server-test-isolation.md rule 11 — a « nothing shown » check first waits for the answer that could show it.
 // specs/booking-extranet-intake.md rules 22–24 — the dashboard lines of the Booking stays still to fill.
 import React from 'react';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { render, screen, waitFor, within, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { vi } from 'vitest';
@@ -56,6 +57,7 @@ test('specs/booking-extranet-intake.md rule 24: the urgent instance shows the st
 test('specs/booking-extranet-intake.md rule 22: nothing to fill, nothing rendered', async () => {
   api.getBookingIntakePending.mockResolvedValue([]);
   const { container } = renderIn(<PendingAlert attention={ATTENTION} />);
-  await waitFor(() => expect(api.getBookingIntakePending).toHaveBeenCalled());
+  await act(() => api.getBookingIntakePending.mock.results.at(-1).value);
+  expect(api.getBookingIntakePending).toHaveBeenCalled();
   expect(container).toBeEmptyDOMElement();
 });

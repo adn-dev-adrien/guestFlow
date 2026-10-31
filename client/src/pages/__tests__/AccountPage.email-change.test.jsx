@@ -1,3 +1,4 @@
+// specs/server-test-isolation.md rule 11 — a « nothing shown » check first waits for the answer that could show it.
 // specs/hosting-h2-account-security.md rule 59 — changing the email on « Mon compte » asks the password
 // (and the current code of a second step) first; a save that leaves the email alone asks nothing.
 import React from 'react';
@@ -73,6 +74,7 @@ test('rule 59: a save that leaves the email as it is asks for no password', asyn
   await user.type(last, 'Dupont');
   await user.click(screen.getByRole('button', { name: 'Enregistrer' }));
   await waitFor(() => expect(api.updateSelf).toHaveBeenCalled());
+  expect(await screen.findByText('Informations mises à jour.')).toBeInTheDocument();
   expect(screen.queryByLabelText(/Mot de passe \(confirmation\)/)).toBeNull();
 });
 

@@ -1,6 +1,7 @@
+// specs/server-test-isolation.md rule 11 — a « nothing shown » check first waits for the answer that could show it.
 // specs/gites-de-france-mail-intake.md rules 11–13 — applied, proposal, error, nothing.
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
 import { BASE } from './intakeFixtures';
@@ -42,6 +43,7 @@ test('error: shows the reason', async () => {
 test('no intake, or one still pending: nothing at all', async () => {
   api.getGdfIntakeForReservation.mockResolvedValue({ intake: { ...BASE, status: 'pending' } });
   const { container } = render(<IntakeBanner reservationId={22308} />);
-  await waitFor(() => expect(api.getGdfIntakeForReservation).toHaveBeenCalled());
+  await act(() => api.getGdfIntakeForReservation.mock.results.at(-1).value);
+  expect(api.getGdfIntakeForReservation).toHaveBeenCalled();
   expect(container).toBeEmptyDOMElement();
 });

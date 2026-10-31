@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { vi } from 'vitest';
 
 // specs/tariff-recipes/spec.md §3.2 rule 12 + specs/tariff-events-and-extra-guest-tiers §3.3 rule 17
@@ -28,7 +28,8 @@ beforeEach(() => { vi.clearAllMocks(); });
 test('renders nothing when there is neither a run nor a missing event year', async () => {
   api.getTariffRecipeRuns.mockResolvedValue({ runs: [], missingEvents: [] });
   const { container } = render(<TariffRecipeRunsAlert attention={ATTENTION} />);
-  await waitFor(() => expect(api.getTariffRecipeRuns).toHaveBeenCalled());
+  await act(() => api.getTariffRecipeRuns.mock.results.at(-1).value);
+  expect(api.getTariffRecipeRuns).toHaveBeenCalled();
   expect(container).toBeEmptyDOMElement();
 });
 
