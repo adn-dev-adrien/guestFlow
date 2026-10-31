@@ -11,7 +11,8 @@
  *   withdrawLinksOverlapping(database, { propertyId?, startDate?, endDate?, causeId?, now }) → the links of unpaid
  *                                                    stays whose nights a stay holding its dates took (rules 10, 32)
  *   withdrawSupersededLinks(database, stayId, { now }) → the open links of a stay set aside (rule 12)
- *   listLastLookDue(database, { now })             → the lapsed links whose last look is due (rule 19)
+ *   listLastLookDue(database, { now })             → the lapsed links, and those withdrawn for taken dates, whose last
+ *                                                    look is due (rules 19, 64)
  *   lapsesAtArrival(database, link, now)           → whether rule 9 lapses this open link at the next pass (rule 51)
  *   lastLookAfter(now)                             → when the last look of a link deactivated at `now` is due
  */
@@ -118,6 +119,9 @@ function withdrawLinksOverlapping(database, { propertyId = null, startDate = nul
   const byRow = new Map();
   for (const { linkId, rowId } of candidates) byRow.set(rowId, [...(byRow.get(rowId) || []), linkId]);
   const withdraw = withdrawStatement(database);
+  // Review of #912 (B1) — the notice (rule 43) answers this withdrawal only: it remembers the stay that took the nights.
+  const recordTaker = database.prepare('PRAGMA table_info(payment_links)').all().some((c) => c.name === 'takenByReservationId')
+    ? database.prepare('UPDATE payment_links SET takenByReservationId = ? WHERE id = ?') : null;
   const history = hasTable(database, 'reservation_history')
     ? database.prepare("INSERT INTO reservation_history (reservationId, eventType, changedFields) VALUES (?, 'update', ?)") : null;
   const numbered = database.prepare('PRAGMA table_info(reservations)').all().some((c) => c.name === 'reservationNumber');
@@ -134,6 +138,7 @@ function withdrawLinksOverlapping(database, { propertyId = null, startDate = nul
     const takenBy = (holders.find((h) => causeId != null && Number(h.id) === Number(causeId)) || holders[0]).id;
     const moved = linkIds.filter((id) => Number(withdraw.run(LINK_REASONS.DATES_TAKEN, now.toISOString(), id).changes) > 0);
     if (moved.length === 0) continue;
+    if (recordTaker) moved.forEach((id) => recordTaker.run(Number(takenBy), id));
     if (history) history.run(Number(rowId), JSON.stringify([{
       field: 'paymentLinkRetired', label: 'Lien de paiement', from: null, to: `retiré : dates prises par la réservation ${numberOf(takenBy)}`,
     }]));
@@ -191,8 +196,10 @@ function retireLapsedAndWithdrawn(database, { now = new Date(), paymentLinksMode
 function listLastLookDue(database, { now = new Date() } = {}) {
   const { parseTimestampMs, buildModel } = model();
   const links = buildModel(database);
-  return database.prepare("SELECT id, lastLookAt FROM payment_links WHERE status = 'expired' AND lastLookAt IS NOT NULL ORDER BY id")
-    .all()
+  return database.prepare(`
+    SELECT id, lastLookAt FROM payment_links
+     WHERE (status = 'expired' OR (status = 'cancelled' AND cancelReason = ?)) AND lastLookAt IS NOT NULL ORDER BY id
+  `).all(LINK_REASONS.DATES_TAKEN)
     .filter((row) => {
       const dueMs = parseTimestampMs(row.lastLookAt);
       return dueMs != null && dueMs <= now.getTime();

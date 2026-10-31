@@ -28,6 +28,7 @@ const {
 // through sendFailureMessage (specs/email-automation.md rule 15).
 const FAILURE_CODES = {
   CLIENT_NO_EMAIL: 'Pas d’adresse email.',
+  DATES_UNAVAILABLE: 'Relance refusée : dates prises par une autre réservation.',
   NO_TEMPLATE: 'Modèle manquant.',
   [ENGLISH_VERSION_MISSING]: ENGLISH_VERSION_MISSING_MESSAGE,
 };
@@ -181,13 +182,14 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
     return refusal ? { httpStatus: refusal.httpStatus, error: refusal.error, message: refusal.message } : null;
   }
 
-  // Rule 35 — the refused reminder leaves the queue as skipped (once), and asks for the guest notice (rule 43),
-  // which leaves at most once per stay.
+  // Rule 35 — the refused reminder leaves the hand queue, is traced once as refused, and asks for the guest notice
+  // (rule 43), which leaves at most once per stay. The trace is a `failed` row (review of #912, m2): it never dedups
+  // the queue, so once the nights are free again the reminder is proposed as before.
   function skipReminderOnTakenDates(template, reservationId) {
     if (manualQueueModel) manualQueueModel.remove(Number(template.id), Number(reservationId), '');
-    if (!logModel.existsFor(Number(template.id), Number(reservationId), ['acknowledged-skip'], '')) {
+    if (!logModel.hasFailure(Number(template.id), Number(reservationId), REMINDER_ON_TAKEN_DATES.error)) {
       logModel.insert({
-        templateId: Number(template.id), reservationId: Number(reservationId), status: 'acknowledged-skip',
+        templateId: Number(template.id), reservationId: Number(reservationId), status: 'failed',
         errorMessage: REMINDER_ON_TAKEN_DATES.error, renderedSubject: template.subject || '', renderedBody: '', recipientEmail: '', occurrenceKey: '',
       });
     }

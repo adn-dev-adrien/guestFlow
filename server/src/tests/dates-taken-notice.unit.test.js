@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rules 43, 44, 47 and 63 — a stay whose link was withdrawn because another
+// specs/payment-link-lifecycle.md rules 43, 44, 47 and 64 — a stay whose link was withdrawn because another
 // stay took its nights tells its guest at once, once, without validation: only after the provider read the link
 // unpaid, never for a lapse, a started stay or « Retirer le lien », never for the stays withdrawn at the upgrade
 // (rule 61), and never when it cannot leave (template off, no address, no English, no SMTP), in which case the
@@ -7,10 +7,9 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { db, inDays, freshProperty, addStay, addLink, linkOf, bookingFeed } = require('./datesTakenFixture');
+const { db, inDays, freshProperty, addStay, addLink, linkOf, bookingFeed, providerReads: readsWith } = require('./datesTakenFixture');
 const paymentLinksModel = require('../models/paymentLinksModel');
 const templatesModel = require('../models/emailTemplatesModel');
-const { retryPendingCancellations } = require('../utils/paymentPollRunner');
 const { buildDatesTakenNotice } = require('../utils/datesTakenNotice');
 const { runDatesTakenUpgradeMigration } = require('../utils/datesTakenUpgradeMigration');
 const { fakeProvider } = require('./paymentLinkLifecycleFixture');
@@ -34,10 +33,8 @@ function harness({ smtp = true, failSend = null } = {}) {
 const noticeRow = (stayId) => db.prepare('SELECT * FROM dates_taken_notices WHERE reservationId = ?').get(stayId);
 const logRows = (stayId) => db.prepare("SELECT * FROM email_log WHERE reservationId = ? AND occurrenceKey = ? ORDER BY id").all(stayId, `dates-taken:${stayId}`);
 
-// The provider reads the withdrawn link: unpaid → deactivated, the marker cleared (rule 18's retry).
-async function providerReads(linkId, { paid = false } = {}) {
-  await retryPendingCancellations({ paymentLinksModel, provider: fakeProvider({ paid }), database: db, only: linkId, devisModel: require('../models/devisModel') });
-}
+// The provider deactivates the withdrawn link, then reads it once more an hour later (rules 18, 19, 64).
+const providerReads = (linkId, { paid = false, lastLook = true } = {}) => readsWith(linkId, fakeProvider({ paid }), { lastLook });
 
 // A direct devis with a link, then a Booking stay on its nights: the link is withdrawn, `dates-taken`.
 async function devisTakenByBooking({ start = 40, email = 'lina@example.test', lang = 'fr' } = {}) {
@@ -57,6 +54,9 @@ test('rule 43 — withdrawn for dates taken and read unpaid: the guest is mailed
   assert.equal(linkOf(linkId).cancelReason, 'dates-taken');
   await h.notice.runDueNotices();
   assert.equal(h.mails.length, 0, 'nothing while the provider has not read the link (rule 33 may still book it)');
+  await providerReads(linkId, { lastLook: false });
+  await h.notice.runDueNotices();
+  assert.equal(h.mails.length, 0, 'rule 64 — deactivated, but not read after the deactivation yet');
   await providerReads(linkId);
   await h.notice.runDueNotices();
   assert.equal(h.mails.length, 1);
@@ -77,7 +77,7 @@ test('rule 43 — withdrawn for dates taken and read unpaid: the guest is mailed
   assert.equal(h.pushes[0].url, `/reservations/${devisId}`);
 
   await h.notice.runDueNotices();
-  assert.equal((await h.notice.notifyDatesTaken(devisId)).status, 'already');
+  assert.equal((await h.notice.notifyDatesTaken(devisId)).status, 'not-due', 'rule 64 — the withdrawal was judged once');
   assert.equal(h.mails.length, 1, 'once per stay');
   assert.equal(h.pushes.length, 1);
 });
@@ -160,7 +160,10 @@ test('rule 43 — re-checked before sending: a stay already begun, paid since, o
   db.prepare("UPDATE reservations SET kind = 'cancelled' WHERE id = ?").run(freed.takenById);
   await h.notice.runDueNotices();
   assert.equal(h.mails.length, 0);
-  for (const s of [begun, paid, freed]) assert.equal(noticeRow(s.devisId), undefined, 'nothing claimed: nothing to say');
+  for (const s of [begun, paid, freed]) {
+    assert.equal(noticeRow(s.devisId), undefined, 'nothing claimed: nothing to say');
+    assert.ok(linkOf(s.linkId).noticeJudgedAt, 'rule 64 — judged once, never a candidate again');
+  }
 });
 
 test('rule 44 — fails closed: template off, no address, no English, no SMTP; the push and the row say why', async () => {

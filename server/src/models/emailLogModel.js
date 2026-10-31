@@ -9,13 +9,14 @@
  *   insert({ templateId, reservationId, status, errorMessage?, renderedSubject,
  *            renderedBody, recipientEmail, occurrenceKey? }) → created row
  *   existsFor(templateId, reservationId, statuses[], occurrenceKey?) → boolean
+ *   hasFailure(templateId, reservationId, errorMessage) → a `failed` row with that stored reason exists
  *     `occurrenceKey` tells apart the several sends of one template on one reservation (one per
  *     installment: `installment:<id>`, specs/direct-installments.md rule 19); '' for every other email.
  *   listPending({ today, lookbackDays })
  *                               → « manual » candidates not yet acted on (joins reservation + client
  *                                 + property). « auto » templates leave on their own and are never
  *                                 proposed (specs/settings-rationalization.md rule 17b), nor is the acompte
- *                                 reminder of a stay whose dates were taken (specs/payment-link-lifecycle.md rule 64).
+ *                                 reminder of a stay whose dates were taken (specs/payment-link-lifecycle.md rule 65).
  *   history({ limit, offset, reservationId?, templateId?, status? }) → { rows, total }
  */
 
@@ -65,6 +66,13 @@ function buildModel(database) {
       `SELECT 1 FROM email_log WHERE templateId = ? AND reservationId = ? AND occurrenceKey = ? AND status IN (${placeholders}) LIMIT 1`
     ).get(Number(templateId), Number(reservationId), String(occurrenceKey), ...statuses);
     return Boolean(row);
+  }
+
+  // A `failed` row of this template and stay with this stored reason (an occurrence of any key).
+  function hasFailure(templateId, reservationId, errorMessage) {
+    return Boolean(database.prepare(
+      "SELECT 1 FROM email_log WHERE templateId = ? AND reservationId = ? AND status = 'failed' AND errorMessage = ? LIMIT 1"
+    ).get(Number(templateId), Number(reservationId), String(errorMessage)));
   }
 
   function insert(payload) {
@@ -289,7 +297,7 @@ function buildModel(database) {
     return withoutRemindersOnTakenDates(rows);
   }
 
-  // specs/payment-link-lifecycle.md rule 64 — the acompte reminder of a stay whose nights another stay took is never
+  // specs/payment-link-lifecycle.md rule 65 — the acompte reminder of a stay whose nights another stay took is never
   // proposed: its send would be refused (rule 35), and the guest is told by the notice of rule 43 instead.
   function withoutRemindersOnTakenDates(rows) {
     const reminder = database.prepare("SELECT id FROM email_templates WHERE stableKey = 'deposit_reminder'").get();
@@ -376,6 +384,7 @@ function buildModel(database) {
   return {
     insert,
     existsFor,
+    hasFailure,
     listPending,
     history,
     purgeRealizedStays,

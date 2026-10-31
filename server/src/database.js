@@ -2824,23 +2824,25 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
 
 // ---------- DATES TAKEN (specs/payment-link-lifecycle.md rules 10, 43) ----------
 // One row per stay whose link was withdrawn because another stay took its nights: the notice of rule 43 claims it
-// before it sends, so a stay is told once. The links already on taken nights at the upgrade are withdrawn once and
-// their rows seeded `not-sent` / `upgrade` (dashboard only, never a guest e-mail).
+// (`sending`) before it sends, so a stay is told once. The links already on taken nights at the upgrade are withdrawn
+// once and their rows seeded `not-sent` / `upgrade` (dashboard only, never a guest e-mail).
 db.exec(`
   CREATE TABLE IF NOT EXISTS dates_taken_notices (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     reservationId INTEGER NOT NULL UNIQUE,
     takenByReservationId INTEGER,
     emailLogId INTEGER,
-    noticeStatus TEXT NOT NULL CHECK (noticeStatus IN ('sent', 'not-sent')),
+    noticeStatus TEXT NOT NULL CHECK (noticeStatus IN ('sending', 'sent', 'not-sent')),
     noticeReason TEXT,
     createdAt TEXT NOT NULL DEFAULT (datetime('now')),
     acknowledgedAt TEXT
   )
 `);
+// Review of #912 (m1) — a table created before `sending` existed is rebuilt once with it.
+require('./utils/datesTakenUpgradeMigration').widenNoticeStatuses(db);
 if (process.env.SKIP_MIGRATIONS !== 'true') {
   require('./utils/datesTakenUpgradeMigration').runDatesTakenUpgradeMigration(db);
-  // Rule 63 — the guest notice never follows a withdrawal older than this version.
+  // Rule 64 — the guest notice never follows a withdrawal older than this version.
   require('./utils/datesTakenUpgradeMigration').runDatesTakenNoticeBacklog(db);
 }
 

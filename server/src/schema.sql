@@ -137,7 +137,7 @@ CREATE TABLE IF NOT EXISTS dates_taken_notices (
     reservationId INTEGER NOT NULL UNIQUE,
     takenByReservationId INTEGER,
     emailLogId INTEGER,
-    noticeStatus TEXT NOT NULL CHECK (noticeStatus IN ('sent', 'not-sent')),
+    noticeStatus TEXT NOT NULL CHECK (noticeStatus IN ('sending', 'sent', 'not-sent')),
     noticeReason TEXT,
     createdAt TEXT NOT NULL DEFAULT (datetime('now')),
     acknowledgedAt TEXT
@@ -266,6 +266,9 @@ CREATE TABLE IF NOT EXISTS payment_links (
     installmentId INTEGER,
     lastLookAt TEXT,
     deactivationAlertedAt TEXT,
+    takenByReservationId INTEGER,
+    unpaidReadAt TEXT,
+    noticeJudgedAt TEXT,
     CHECK (type IN ('deposit', 'balance', 'full', 'complement', 'installment')),
     CHECK (status IN ('open', 'paid', 'expired', 'cancelled'))
   );

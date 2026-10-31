@@ -141,7 +141,7 @@ test('manual mode: the same anchors drive the pending queue', () => {
   const db = fixture({ sendMode: 'manual' });
   addReservation(db, { id: 100, depositDueDate: TODAY });
   addReservation(db, { id: 101, balanceDueDate: '2026-08-16' });
-  // Another logement: a paid stay on the same nights would hold them (specs/payment-link-lifecycle.md rule 64).
+  // Another logement: a paid stay on the same nights would hold them (specs/payment-link-lifecycle.md rule 65).
   addReservation(db, { id: 102, depositDueDate: TODAY, depositPaid: 1, propertyId: 2 }); // paid → out
   markRequestSent(db, 100, 'deposit');
   markRequestSent(db, 101, 'balance');

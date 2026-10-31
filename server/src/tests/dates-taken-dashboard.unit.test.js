@@ -1,4 +1,4 @@
-// specs/payment-link-lifecycle.md rules 43 and 65 — the dashboard card « Dates prises »: one row per stay told (or
+// specs/payment-link-lifecycle.md rules 43 and 66 — the dashboard card « Dates prises »: one row per stay told (or
 // not) that its dates were taken, shaped by the server (client, logement, dates, the stay that took them, notice
 // sent or not and why), « Vu » acknowledges it; a stay over, gone or acknowledged leaves the card. Made-up stays.
 
@@ -37,10 +37,23 @@ test('rule 43 — one row per stay, ready to render: who, where, when, taken by 
   assert.equal(sent.url, `/reservations/${devis}`);
   assert.match(sent.title, new RegExp(`^Lina Exemple · Logement ${propertyId} · \\d\\d/\\d\\d → \\d\\d/\\d\\d$`));
   assert.deepEqual(sent.notice, { sent: true, label: 'client prévenu' });
-  assert.equal(sent.detail, `Prises par la réservation T${taker} · Lina Exemple.`);
-  assert.deepEqual(sent.takenBy, { id: taker, url: `/reservations/${taker}` });
+  assert.equal(sent.detail, null);
+  assert.deepEqual(sent.takenBy, { id: taker, url: `/reservations/${taker}`, label: `Prises par la réservation T${taker} · Lina Exemple` });
   assert.deepEqual(notTold.notice, { sent: false, label: 'client non prévenu' });
-  assert.equal(notTold.detail, `Prises par la réservation T${taker} · Lina Exemple. Client non prévenu : pas d’adresse e-mail.`);
+  assert.equal(notTold.detail, 'Raison : pas d’adresse e-mail.', 'review of #912 (n1) — « non prévenu » said once, by the badge');
+});
+
+test('rule 66 (review of #912) — a send left `sending` reads « envoi incertain »; a taker gone reads « une autre réservation »', () => {
+  const propertyId = freshProperty();
+  const stay = addStay({ propertyId, kind: 'devis', start: inDays(25), end: inDays(27) });
+  const orphan = addStay({ propertyId, kind: 'devis', start: inDays(35), end: inDays(37) });
+  told(stay, null, { status: 'sending' });
+  told(orphan, 999999, { status: 'not-sent', reason: 'no-email' });
+  const rows = list().alerts;
+  const uncertain = rows.find((a) => a.reservationId === stay);
+  assert.deepEqual(uncertain.notice, { sent: false, label: 'envoi incertain' });
+  assert.equal(uncertain.detail, 'Envoi interrompu : vérifier l’historique des e-mails.');
+  assert.deepEqual(rows.find((a) => a.reservationId === orphan).takenBy, { id: null, url: null, label: 'Prises par une autre réservation' });
 });
 
 test('rule 61 — a stay withdrawn at the upgrade reads « client non prévenu » with its reason', () => {
@@ -49,10 +62,10 @@ test('rule 61 — a stay withdrawn at the upgrade reads « client non prévenu �
   const taker = addStay({ propertyId, platform: 'Booking', start: inDays(40), end: inDays(42) });
   told(devis, taker, { status: 'not-sent', reason: 'upgrade' });
   const row = list().alerts.find((a) => a.reservationId === devis);
-  assert.match(row.detail, /Client non prévenu : lien retiré à la mise à jour\.$/);
+  assert.equal(row.detail, 'Raison : lien retiré à la mise à jour.');
 });
 
-test('rule 65 — « Vu » takes a row off the card; a stay over, cancelled or deleted is not listed; 404 on an unknown row', () => {
+test('rule 66 — « Vu » takes a row off the card; a stay over, cancelled or deleted is not listed; 404 on an unknown row', () => {
   const propertyId = freshProperty();
   const seen = addStay({ propertyId, kind: 'devis', start: inDays(50), end: inDays(52) });
   const over = addStay({ propertyId, kind: 'devis', start: inDays(-5), end: inDays(-1) });

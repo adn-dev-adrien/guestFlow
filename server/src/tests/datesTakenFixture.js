@@ -1,6 +1,7 @@
 // Shared fixture of the held-dates suites (specs/payment-link-lifecycle.md rules 10-12, 31-33, 37-39, 46, 48): the
 // app's database in memory (the callers of rule 32 write through it), made-up stays and links, an iCal feed stub.
-// Nothing leaves the process: no provider is connected, so a withdrawn link keeps its deactivation marker.
+// Nothing leaves the process: no provider is connected, so a withdrawn link keeps its deactivation marker until a
+// suite's fake provider reads it (`providerReads`).
 
 process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';
@@ -49,6 +50,17 @@ function addLink(reservationId, { type = 'deposit', status = 'open', amountCents
 
 const linkOf = (id) => db.prepare('SELECT * FROM payment_links WHERE id = ?').get(id);
 
+// Rules 18, 19, 64 — the provider deactivates a withdrawn link, then (`lastLook`) reads it once more an hour later.
+// `provider` is a paymentLinkLifecycleFixture.fakeProvider.
+async function providerReads(linkId, provider, { lastLook = true } = {}) {
+  const { retryPendingCancellations, runLastLooks } = require('../utils/paymentPollRunner');
+  const devisModel = require('../models/devisModel');
+  await retryPendingCancellations({ paymentLinksModel, provider, database: db, only: linkId, devisModel });
+  if (!lastLook) return;
+  db.prepare('UPDATE payment_links SET lastLookAt = ? WHERE id = ? AND lastLookAt IS NOT NULL').run(new Date(Date.now() - 1000).toISOString(), linkId);
+  await runLastLooks({ database: db, paymentLinksModel, provider, devisModel, now: new Date() });
+}
+
 function icsFeed(events) {
   const lines = ['BEGIN:VCALENDAR'];
   for (const e of events) {
@@ -74,4 +86,4 @@ function bookingFeed(propertyId) {
   };
 }
 
-module.exports = { db, inDays, freshProperty, addStay, addLink, linkOf, bookingFeed };
+module.exports = { db, inDays, freshProperty, addStay, addLink, linkOf, bookingFeed, providerReads };

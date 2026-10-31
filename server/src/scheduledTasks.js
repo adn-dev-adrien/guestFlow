@@ -132,8 +132,8 @@ async function runBreakfastPushPass(reason = 'tick') {
   }
 }
 
-// specs/payment-link-lifecycle.md rules 43, 63 — the guest whose request lost its dates is told once the provider
-// has read the withdrawn link unpaid (the poll's retry clears its marker). Its own guard; never throws.
+// specs/payment-link-lifecycle.md rules 43, 64 — the guest whose request lost its dates is told once the provider
+// read the withdrawn link unpaid after its deactivation (the lifecycle's last look). Its own guard; never throws.
 let datesTakenNoticeInProgress = false;
 async function runDatesTakenNoticePass() {
   if (datesTakenNoticeInProgress) return;
