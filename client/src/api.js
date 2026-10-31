@@ -538,6 +538,8 @@ const api = {
   sendPaymentRequestOfType: (id, type) => request(`/payments/reservations/${id}/payment-emails`, { method: 'POST', body: { type } }),
   // specs/payment-link-lifecycle.md rule 42 — « Retirer le lien »; answers `{ link }`, 409 LINK_ALREADY_PAID / STAY_READ_ONLY.
   withdrawPaymentLink: (linkId) => request(`/payments/links/${linkId}/withdraw`, { method: 'POST', body: {} }),
+  // Rule 56 — a payment received after a withdrawal by hand: `outcome` 'stay' or 'refunded'; answers `{ link }`.
+  settlePaymentLink: (linkId, outcome) => request(`/payments/links/${linkId}/settle`, { method: 'POST', body: { outcome } }),
   // Échéancier d'une réservation directe (specs/direct-installments.md §4.3). Each answers `{ installmentPlan }`.
   putInstallments: (id, body) => request(`/reservations/${id}/installments`, { method: 'PUT', body }),
   deleteInstallments: (id) => request(`/reservations/${id}/installments`, { method: 'DELETE' }),

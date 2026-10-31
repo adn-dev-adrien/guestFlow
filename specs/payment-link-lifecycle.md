@@ -107,7 +107,8 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
      amount); this spec adds the orphan reason (rule 3) and the dates-taken reason, whose payment is
      recorded on the fiche in date conflict (rule 33).
 2. **`cancelReason` gains values** (the column keeps its name; it is the reason of either state):
-   `orphan`, `superseded`, `dates-taken`, `operator` (rule 42) (withdrawn) and `validity`, `stay-started` (lapsed). A stay
+   `orphan`, `superseded`, `dates-taken`, `operator` (rule 42), `refunded` (rule 56) (withdrawn) and `validity`,
+   `stay-started` (lapsed). A stay
    cancellation keeps writing `NULL` (unchanged: the ledger reads it as « Lien retiré »).
 
 ### 3.B Orphan links (decision 1, 2026-10-30)
@@ -725,6 +726,27 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     `utils/closedStayDates.closedDatesRefusal(database, stayId)` (on `establishmentClosuresModel.findCoveringClosure`).
     The public `pay` already refuses closed nights (`DATES_UNAVAILABLE`, `computeBlockedDates`). A devis created
     or converted on closed nights is out of this rule: the held-dates rules of PR5 (46) handle `devisModel`.
+56. **A payment received on a link withdrawn by hand, after its withdrawal, is settled before any new request**
+    (decided by Adrien 2026-10-31, re-review of #902 L8). Such a payment (the poll's rule-8 alert: the link stays
+    `cancelled` / `operator` with the provider's `paidAt` and payment id, nothing booked) is money the stay does not
+    count. Until the operator settles it, every new payment request of the stay — a mint of any type, an
+    échéance, a request or reminder e-mail — is refused 409 `UNSETTLED_WITHDRAWN_PAYMENT` « Paiement reçu sur un
+    lien retiré : à traiter avant toute nouvelle demande. », before any provider call (checked again after the
+    owed-link reads of a mint, which may find it). **Settled** means one of two operator actions on that ledger
+    row (`POST /api/payments/links/:id/settle`, `outcome`), each behind a confirmation:
+    - « Marquer remboursé » (« Paiement remboursé ? » / « À confirmer une fois le remboursement fait chez le
+      prestataire. »): the reason becomes `refunded` (rule 2's column, a new value), the money stays off the
+      stay, the payment id stays on the row; the ledger reads « Lien retiré · paiement remboursé » and offers
+      « Renvoyer la demande » again;
+    - « Enregistrer sur le séjour » (« Enregistrer ce paiement sur le séjour ? » / « Le montant est compté comme
+      perçu. »): booked as the stay's money through the late booking of rule 42 (`bookWithdrawnPaid`:
+      `cancelled → paid`, its effect, the confirmation unless the nights are closed or taken).
+    Unsettled, the ledger row reads « Payé le {jour} après retrait : à traiter », offers no resend, and carries
+    `settle: { linkId, stay, refunded }` (also among `otherLinks` when another link is shown). Reading recorded:
+    no refund marker existed for money that never reached the stay (`reservation_refunds` refunds the stay's
+    own money), so the reason column carries it; a payment of an orphan or of any other withdrawal reason is
+    out of this rule (they never come from the operator's « Retirer le lien »). Service:
+    `utils/withdrawnPayments.js`.
 
 ---
 
@@ -772,6 +794,7 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
 | `utils/` | `migrateValidUntilSentence.js` | C | Rule 36's content migration, untouched sides only, called from `database.js` |
 | `controllers/` | `establishmentClosuresController.js` | T | `RESERVATION_OVERLAP` reworded + `reservations[]`; new `OPEN_PAYMENT_REQUEST` + `requests[]`; `conflicts` handler (rules 40-41); built by `buildController({ database, model })` so a test drives it on the baseline schema |
 | `utils/` | `closureConflicts.js` | C | `closureConflicts(model, range)` shapes the three lists (labels, `detail`, `url`) and holds the two refusal messages (rules 40, 41, 49) |
+| `utils/` | `withdrawnPayments.js` | C | `unsettledWithdrawnRefusal(database, stayId)` and `settleWithdrawnPayment(linkId, deps)` (rule 56); read by both mints and `emailsController.send` |
 | `utils/` | `closedStayDates.js` | C | `closedDatesRefusal(database, stayId)`: 409 `CLOSED_DATES` when a closure covers a night of the stay; read by both mints of `paymentRequestService` and by `emailsController.send` (rule 55) |
 | `utils/` | `paymentLinkWithdrawal.js` | C | `withdrawPaymentLink(linkId, deps)`: the refusals of rule 42, `retireOpenLink(…, { reason: 'operator' })`, a payment found on the way booked at once |
 | `utils/` | `paymentLinkDeactivation.js`, `models/paymentLinksModel.js` | T | `retireOpenLink` with `operator` ends the link now (`cancelIfOpen(…, { endsAt })`) (rule 42) |
@@ -834,6 +857,7 @@ No new dependency.
 | POST | `/api/plugins/online-payment/deactivate`, `/uninstall` | New 409 `PLUGIN_BLOCKED` code `LINKS_LAST_LOOK_PENDING` (rule 52). |
 | POST / PUT | `/api/establishment-closures` | 409 `RESERVATION_OVERLAP` `{ error, code, reservations[] }` (reworded); new 409 `OPEN_PAYMENT_REQUEST` `{ error, code, requests[] }`. |
 | GET | `/api/establishment-closures/conflicts?propertyId&startDate&endDate` | `{ reservations[], requests[], devis[] }`, read-only; `devis[]` only warns (rule 49); every row carries `label`, `detail`, `url`; 400 `INVALID_RANGE` / `INVALID_PROPERTY`. |
+| POST | `/api/payments/links/:id/settle` | `{ outcome: 'stay' \| 'refunded' }` → `{ link }`; 409 `NOTHING_TO_SETTLE`, 400 `INVALID_OUTCOME`, 404 (rule 56). Mints and request sends answer 409 `UNSETTLED_WITHDRAWN_PAYMENT` while such a payment waits. |
 | POST | `/api/payments/links/:id/withdraw` | `{ link }`; 409 `LINK_ALREADY_PAID` (the payment is booked), 409 `STAY_READ_ONLY`; 404 `LINK_NOT_FOUND`; 502 when the provider cannot be read. |
 | POST / PUT | `/api/devis` (operator create / update) | New 409 `DATES_HELD` `{ error, code, stays[] }` (rule 46); devis payloads gain `datesTaken` (rule 48). |
 | GET / POST | `/api/dashboard/dates-taken`, `/api/dashboard/dates-taken/:id/acknowledge` | Card rows / « Vu ». |
@@ -911,7 +935,8 @@ refused).
 - [x] `tests/payment-link-withdraw.unit.test.js` (21) — rule 42: withdrawn + deactivated, refused when paid (payment booked), marker on provider failure, without a provider or with a disconnected one, read-only stays refused, the ledger's action and label.
 - [ ] `tests/devis-held-dates.unit.test.js` — rule 46: create / re-date onto held dates refused with `stays[]`; onto an unpaid row allowed; other edits of a devis already on held dates allowed; `datesTaken` marker (rule 48).
 - [x] `tests/closure-devis-without-link.unit.test.js` (4) — rule 49: warning listed, save accepted.
-- [x] `tests/payment-link-operator-owed-read.unit.test.js` (2) — rule 42 (L6): an operator-withdrawn link owing its read is read before a new mint: paid before → booked, request refused; unpaid → minted.
+- [x] `tests/payment-link-operator-owed-read.unit.test.js` (4) — rule 42 (L6): an operator-withdrawn link owing its read is read before a new mint: paid before → booked, request refused; unpaid → minted; (R2) a concurrent pass that booked it, or paid the échéance, while the mint waited → 409, nothing created.
+- [x] `tests/payment-link-unsettled-withdrawn.unit.test.js` (8) — rule 56: requests of every bucket, the échéance and the e-mail refused before any mint; « remboursé » and « enregistrer sur le séjour » settle it (stubbed and real booking); only such a payment settles, once; the ledger label and actions.
 - [x] `tests/payment-link-closed-dates.unit.test.js` (9) — rule 55: mint and installment refused before any provider call, an open link not handed out, one night or an establishment-wide closure enough, another logement or the departure day free, request and reminder e-mails refused before any mint, a mail without a link still leaves.
 - [ ] `tests/dates-taken-notice.unit.test.js` — rules 43-45: sent at the `dates-taken` withdrawal (overlap, first paid, iCal), not for expiry, a started stay or « Retirer le lien »; a later refused reminder sends nothing more; e-mail sent once with its `email_log` row, push, dashboard row, every fail-closed case, reminder never queued on taken dates, `AUTO_SEND_EXCEPTIONS` holds exactly one key and `autoSendPolicy` still refuses every other template.
 - [ ] `tests/payment-link-superseded.unit.test.js` — rule 12.
@@ -936,7 +961,7 @@ refused).
 - [x] `client/src/pages/__tests__/ReservationPage.link-already-paid.test.jsx` — rule 50: resend, solde, devis and e-mail-dialog senders re-read on `LINK_ALREADY_PAID`, another refusal re-reads nothing (5).
 - [x] `client/src/components/__tests__/EmailManualSendDialog.link-already-paid.test.jsx` — rule 50: the refusal stays on screen, `onMoneyChanged` once, not `onSent`; another refusal re-reads nothing (2).
 - [x] `client/src/components/reservation/__tests__/InstallmentPlanCard.link-already-paid.test.jsx` — rule 50 (2).
-- [x] `client/src/components/reservation/__tests__/FinanceSection.link-lifecycle.test.jsx` (6) — prints the new labels, offers « Renvoyer la demande » on expired, not on dates-taken; « Retirer le lien » asks for confirmation.
+- [x] `client/src/components/reservation/__tests__/FinanceSection.link-lifecycle.test.jsx` (9) — prints the new labels, offers « Renvoyer la demande » on expired, not on dates-taken; « Retirer le lien » asks for confirmation.
 - [x] `client/src/pages/__tests__/EstablishmentClosuresPage.conflicts.test.jsx` (6) — warning list with links, 409 lists rendered, asked again on focus, same tab on a phone.
 - [x] `client/src/components/__tests__/ConflictList.test.jsx` (5).
 
@@ -1100,6 +1125,10 @@ Six sequential PRs into `inte/plugins` (plan validated 2026-10-30).
   (`payment-link-withdraw` 17, `FinanceSection.link-lifecycle` 6). Re-review: R1 a late booking on closed or
   taken nights sends no confirmation and alerts « déplacer ou rembourser » (`processPaidLink({ quietOnConflict })`,
   `notifyPaidAfterCancel(link, { nightsUnavailable })`); L6 `settleOwedOperatorLinks` before a mint
-  (`payment-link-withdraw` 21, `payment-link-operator-owed-read` 2).
+  (`payment-link-withdraw` 21, `payment-link-operator-owed-read` 2). Second re-review: R2 a mint judges by the row
+  and re-checks the bucket (and the échéance) after its owed-link reads (`payment-link-operator-owed-read` 4);
+  rule 56 (decided 2026-10-31) `utils/withdrawnPayments.js`, `POST /payments/links/:id/settle`, ledger `settle`,
+  `FinanceSection` « Enregistrer sur le séjour » / « Marquer remboursé », `ReservationPage.settlePaymentLink`
+  (`payment-link-unsettled-withdrawn` 8, `FinanceSection.link-lifecycle` 9).
 - [ ] PR5 — held dates and dates-taken withdrawal (rules 10-12, 16, 24, 25, 31-33, 37-39, 46, 48).
 - [ ] PR6 — dates-taken guest notice (rules 35, 43-45, 47); status → Implemented.

@@ -437,14 +437,7 @@ async function retryPendingCancellationsOnce({ only = null, paymentLinksModel, p
       // Re-review of #902 (R1): nights closed since the withdrawal (rule 55) or taken by another stay are booked
       // like rule 33's — the money recorded, no guest confirmation, the admin told to move or refund.
       if (pay.paid && link.cancelReason === LINK_REASONS.OPERATOR && paidBeforeWithdrawal(link, pay)) {
-        const closed = Boolean(closedDatesRefusal(database, link.reservationId));
-        const outcome = await processPaidLink({
-          database, devisModel, paymentLinksModel, link, paidPayment: pay, checkConflict, notifyConflict, notifyPaidAfterCancel, recordPayment, emitPluginEvent,
-          sendConfirmation: closed ? null : sendConfirmation, quietOnConflict: true, retiredReason: LINK_REASONS.OPERATOR,
-        });
-        const unavailable = outcome.effect === 'already-processed' ? null : closed ? 'closed' : outcome.conflict ? 'taken' : null;
-        if (unavailable && notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link, { nightsUnavailable: unavailable }); } catch { /* best effort */ } }
-        results.push(outcome);
+        results.push(await bookWithdrawnPaid({ database, devisModel, paymentLinksModel, link, pay, sendConfirmation, checkConflict, notifyConflict, notifyPaidAfterCancel, recordPayment, emitPluginEvent }));
         continue;
       }
       if (pay.paid) {
@@ -470,6 +463,20 @@ async function retryPendingCancellationsOnce({ only = null, paymentLinksModel, p
     }
   }
   return { results, stoppedBy: null };
+}
+
+// specs/payment-link-lifecycle.md rules 42 and 56 — a link withdrawn by hand booked as the stay's money (`cancelled →
+// paid`): by the poll when paid before its withdrawal, or by the operator's « Enregistrer sur le séjour ». Nights
+// closed since (rule 55) or taken by another stay get no guest confirmation and the « déplacer ou rembourser » alert.
+async function bookWithdrawnPaid({ database, link, pay, sendConfirmation, notifyPaidAfterCancel, ...effect }) {
+  const closed = Boolean(closedDatesRefusal(database, link.reservationId));
+  const outcome = await processPaidLink({
+    ...effect, database, link, paidPayment: pay, notifyPaidAfterCancel,
+    sendConfirmation: closed ? null : sendConfirmation, quietOnConflict: true, retiredReason: LINK_REASONS.OPERATOR,
+  });
+  const unavailable = outcome.effect === 'already-processed' ? null : closed ? 'closed' : outcome.conflict ? 'taken' : null;
+  if (unavailable && notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link, { nightsUnavailable: unavailable }); } catch { /* best effort */ } }
+  return outcome;
 }
 
 // A withdrawal by hand ends the link at its moment (`expiresAt`); a payment with no known date is not before it.
@@ -753,4 +760,4 @@ async function runPaymentPoll({ database, paymentLinksModel, provider, devisMode
   return { checked, paid: results.filter((r) => r.status === 'paid').length, retired, settled: settled.length, stoppedBy, results };
 }
 
-module.exports = { runPaymentPoll, runLinkLifecycle, processPaidLink, applyPaidEffect, retryPendingCancellations };
+module.exports = { runPaymentPoll, runLinkLifecycle, processPaidLink, applyPaidEffect, retryPendingCancellations, bookWithdrawnPaid };

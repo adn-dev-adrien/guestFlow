@@ -31,6 +31,7 @@ const { linkAmountCents } = require('../utils/ledgerLinks');
 
 const paymentRequestService = require('../utils/paymentRequestService');
 const { withdrawPaymentLink } = require('../utils/paymentLinkWithdrawal');
+const { settleWithdrawnPayment } = require('../utils/withdrawnPayments');
 const { LINK_TYPES, LINK_TITLES } = paymentRequestService;
 
 // specs/email-language-fr-en.md rule 12 — the request template this guest would receive has no English
@@ -271,6 +272,21 @@ const withdrawLink = async (req, res) => {
   } catch (err) { return sendError(res, err, provider); }
 };
 
+// POST /links/:id/settle — a payment received on a link withdrawn by hand, after its withdrawal
+// (specs/payment-link-lifecycle.md rule 56): `refunded`, or `stay` (booked as the stay's money, the late-booking path).
+const settleLink = async (req, res) => {
+  try {
+    return res.json(await settleWithdrawnPayment(Number(req.params.id), {
+      database,
+      paymentLinksModel,
+      outcome: String((req.body && req.body.outcome) || ''),
+      bookPaid: (link, payment) => require('../utils/paymentPollRunner').bookWithdrawnPaid({
+        ...buildPaymentEffectDeps(), database, paymentLinksModel, link, pay: payment,
+      }),
+    }));
+  } catch (err) { return sendError(res, err, null); }
+};
+
 // A link minted for an e-mail sent from the e-mail dialog or the « à valider » queue. Throws the service's
 // `{ httpStatus, error, message }`; without a provider, a 409; a provider failure, a 502 that names it.
 async function withProviderLink(mint) {
@@ -292,7 +308,7 @@ const ensurePaymentLinkFor = (id, type) => withProviderLink((deps) => paymentReq
 
 module.exports = {
   createReservationPaymentLink, listReservationPaymentLinks, sendPaymentRequestEmail, pollPaymentsNow,
-  sendBalanceRequestFor, sendDepositRequestFor, ensureInstallmentLinkFor, ensurePaymentLinkFor, withdrawLink,
+  sendBalanceRequestFor, sendDepositRequestFor, ensureInstallmentLinkFor, ensurePaymentLinkFor, withdrawLink, settleLink,
 };
 
 // The two money resolvers, with their quote source injectable (specs/payment-link-quote-parity.md §7):

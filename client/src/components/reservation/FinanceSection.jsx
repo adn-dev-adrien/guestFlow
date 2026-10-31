@@ -279,7 +279,7 @@ export default function FinanceSection() {
     // (specs/calendar-property-parity.md rule 25): the button goes through a portal to a node outside it.
     refundHost = null,
     // specs/reservation-payment-ledger.md — the ledger and its three server round-trips.
-    ledger = null, checkLedgerEdit, applyLedgerPatch, markFromLedger, resendPaymentRequest, withdrawPaymentLink,
+    ledger = null, checkLedgerEdit, applyLedgerPatch, markFromLedger, resendPaymentRequest, withdrawPaymentLink, settlePaymentLink,
     // specs/direct-installments.md — the plan of a direct reservation and its setter.
     installmentPlan = null, setInstallmentPlan, fichePristine = true,
     // specs/disable-deposit-per-reservation.md rule 13 — why « Sans acompte » cannot be ticked, from the server.
@@ -539,6 +539,34 @@ export default function FinanceSection() {
     if (ok) await withdrawPaymentLink(withdraw.linkId);
   };
 
+  // Rule 56 — a payment received after a withdrawal by hand: recorded on the stay, or marked refunded.
+  const askSettle = async (linkId, outcome, action) => {
+    const ok = await confirm({
+      title: action.confirmTitle,
+      message: action.confirmMessage,
+      confirmLabel: action.confirmLabel,
+      cancelLabel: 'Annuler',
+      confirmColor: 'primary',
+    });
+    if (ok) await settlePaymentLink(linkId, outcome);
+  };
+
+  // The by-hand actions the server offers on one link: withdraw it, or settle the payment it received.
+  const linkActions = (link) => (
+    <>
+      {link.withdraw && withdrawPaymentLink && (
+        <Button size="small" variant="text" onClick={() => askWithdraw(link.withdraw)} sx={{ minHeight: 44, textTransform: 'none' }}>
+          {link.withdraw.label}
+        </Button>
+      )}
+      {link.settle && settlePaymentLink && ['stay', 'refunded'].map((outcome) => (
+        <Button key={outcome} size="small" variant="text" onClick={() => askSettle(link.settle.linkId, outcome, link.settle[outcome])} sx={{ minHeight: 44, textTransform: 'none' }}>
+          {link.settle[outcome].label}
+        </Button>
+      ))}
+    </>
+  );
+
   const renderDetail = (row) => {
     const d = row.detail || {};
     const bits = [];
@@ -554,7 +582,7 @@ export default function FinanceSection() {
     const foldable = Boolean(slot) || row.state === 'paid-group';
     const groupFirst = row.state === 'paid-group' && rows.find((r) => r.state === 'paid-group')?.key === row.key;
     const hasFold = slot || (groupFirst && form.arrivalPayment?.covers);
-    if (bits.length === 0 && warnings.length === 0 && lines.length === 0 && penaltyLines.length === 0 && !row.penaltyAction && !d.reconciliation && !d.note && !hasFold && !d.link?.resend && !d.link?.withdraw && otherLinks.length === 0) return null;
+    if (bits.length === 0 && warnings.length === 0 && lines.length === 0 && penaltyLines.length === 0 && !row.penaltyAction && !d.reconciliation && !d.note && !hasFold && !d.link?.resend && !d.link?.withdraw && !d.link?.settle && otherLinks.length === 0) return null;
     const open = folds.has(row.key);
     return (
       <Box sx={{ mt: 0.5 }}>
@@ -565,11 +593,7 @@ export default function FinanceSection() {
               {d.link.resend.label}
             </Button>
           )}
-          {d.link?.withdraw && withdrawPaymentLink && (
-            <Button size="small" variant="text" onClick={() => askWithdraw(d.link.withdraw)} sx={{ minHeight: 44, textTransform: 'none' }}>
-              {d.link.withdraw.label}
-            </Button>
-          )}
+          {d.link && linkActions(d.link)}
           {d.reconciliation && <StatusBadge status={d.reconciliation.tone === 'done' ? 'success' : 'warning'} label={d.reconciliation.label} />}
           {warnings.map((w) => <StatusBadge key={w.label} status="warning" label={w.label} wrap />)}
           {foldable && hasFold && (
@@ -579,13 +603,9 @@ export default function FinanceSection() {
           )}
         </Box>
         {otherLinks.map((l) => (
-          <Box key={l.withdraw ? l.withdraw.linkId : l.label} sx={{ display: 'flex', flexWrap: 'wrap', columnGap: 1.25, alignItems: 'center', color: 'text.secondary', fontSize: '0.8125rem' }}>
+          <Box key={(l.withdraw || l.settle || {}).linkId || l.label} sx={{ display: 'flex', flexWrap: 'wrap', columnGap: 1.25, alignItems: 'center', color: 'text.secondary', fontSize: '0.8125rem' }}>
             <span>{l.label}</span>
-            {l.withdraw && withdrawPaymentLink && (
-              <Button size="small" variant="text" onClick={() => askWithdraw(l.withdraw)} sx={{ minHeight: 44, textTransform: 'none' }}>
-                {l.withdraw.label}
-              </Button>
-            )}
+            {linkActions(l)}
           </Box>
         ))}
         {lines.map((l) => <Typography key={l} variant="body2" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>{l}</Typography>)}

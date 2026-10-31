@@ -68,11 +68,12 @@ function pickLink(links, rowKey) {
 }
 
 // Review of #902 (L5) — a solde link and a full link can both be open (a full request, then a solde request): the
-// row shows the one `pickLink` chose, and every other open link of the row, so each can be withdrawn by hand.
+// row shows the one `pickLink` chose, and every other open link of the row, so each can be withdrawn by hand —
+// and every payment of the row still to settle (rule 56).
 function otherOpenLinks(links, rowKey, shown) {
   const types = LINK_TYPES_BY_ROW[rowKey] || [];
   return (links || [])
-    .filter((l) => types.includes(String(l.type)) && l.status === 'open' && (!shown || l.id !== shown.id))
+    .filter((l) => types.includes(String(l.type)) && (l.status === 'open' || unsettledPayment(l)) && (!shown || l.id !== shown.id))
     .sort((a, b) => Number(b.id || 0) - Number(a.id || 0));
 }
 
@@ -86,6 +87,7 @@ function linkEnd(link, stayYear) {
 }
 
 const WITHDRAWN_LABELS = {
+  refunded: 'Lien retiré · paiement remboursé',
   'amount-changed': 'Lien retiré · montant modifié',
   settled: 'Lien retiré · perçu autrement',
   'dates-taken': 'Lien retiré · dates prises',
@@ -97,6 +99,14 @@ function lapsedLabel(link, stayYear, providerLabel) {
   const label = end ? `Lien expiré le ${end}` : link.cancelReason === 'stay-started' ? 'Lien expiré · séjour commencé' : 'Lien expiré';
   return link.remoteCancelPendingAt ? `${label} · désactivation en attente chez ${providerLabel || 'le prestataire de paiement'}` : label;
 }
+
+// specs/payment-link-lifecycle.md rule 56 — paid after its withdrawal by hand, not settled yet.
+const unsettledPayment = (link) => link.status === 'cancelled' && link.cancelReason === 'operator' && Boolean(link.paidAt);
+const SETTLE_ACTIONS = (linkId) => ({
+  linkId: Number(linkId),
+  stay: { label: 'Enregistrer sur le séjour', confirmTitle: 'Enregistrer ce paiement sur le séjour ?', confirmMessage: 'Le montant est compté comme perçu.', confirmLabel: 'Enregistrer' },
+  refunded: { label: 'Marquer remboursé', confirmTitle: 'Paiement remboursé ?', confirmMessage: 'À confirmer une fois le remboursement fait chez le prestataire.', confirmLabel: 'Remboursé' },
+});
 
 // Rule 42 — « Lien retiré le {jour} »: a link withdrawn by hand ends at its withdrawal.
 function operatorLabel(link, stayYear) {
@@ -118,13 +128,14 @@ function linkDetail(link, { stayYear, due, canRequest, canWithdraw = false, prov
       ? `Payé par lien le ${paidOn} (ancien montant)`
       : `Payé par lien le ${paidOn}`;
   } else if (link.status === 'expired') label = lapsedLabel(link, stayYear, providerLabel);
+  else if (unsettledPayment(link)) label = `Payé le ${shortDate(localIsoDate(new Date(Date.parse(link.paidAt))), stayYear)} après retrait : à traiter`;
   else if (link.cancelReason === 'operator') label = operatorLabel(link, stayYear);
   else label = WITHDRAWN_LABELS[link.cancelReason] || 'Lien retiré';
   // « Renvoyer la demande » only while the row is still due, and only once the previous link is gone
   // (rule 28): an open link is still the request, a paid one settled it. Dates taken by another stay
   // refuse any new link (specs/payment-link-lifecycle.md rule 11): nothing to offer.
   const resendable = due && canRequest && link.status !== 'open' && link.status !== 'paid'
-    && link.cancelReason !== 'dates-taken'
+    && link.cancelReason !== 'dates-taken' && !unsettledPayment(link)
     && ['deposit', 'balance', 'full'].includes(String(link.type));
   return {
     status: link.status,
@@ -140,6 +151,8 @@ function linkDetail(link, { stayYear, due, canRequest, canWithdraw = false, prov
         confirmLabel: 'Retirer',
       },
     } : {}),
+    // Rule 56 — a payment received after a withdrawal by hand: the operator refunds it or records it on the stay.
+    ...(canWithdraw && unsettledPayment(link) ? { settle: SETTLE_ACTIONS(link.id) } : {}),
   };
 }
 

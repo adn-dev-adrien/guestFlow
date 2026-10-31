@@ -18,7 +18,8 @@ const stateOf = (links, id) => { const l = links.findById(id); return [l.status,
 
 test('rules 1-2 — two ways out of open: lapsed reasons make `expired`, every other reason `cancelled`', () => {
   assert.deepEqual([...LAPSED_REASONS].sort(), ['stay-started', 'validity']);
-  assert.deepEqual(Object.values(LINK_REASONS).sort(), ['amount-changed', 'dates-taken', 'operator', 'orphan', 'settled', 'stay-started', 'superseded', 'validity']);
+  // `refunded` (rule 56): a payment received after a withdrawal by hand, refunded by the operator.
+  assert.deepEqual(Object.values(LINK_REASONS).sort(), ['amount-changed', 'dates-taken', 'operator', 'orphan', 'refunded', 'settled', 'stay-started', 'superseded', 'validity']);
 });
 
 test('rule 13 — an open link of a cancelled stay is withdrawn with no reason (a cancellation), deactivation owed', () => {

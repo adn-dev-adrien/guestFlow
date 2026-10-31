@@ -2966,6 +2966,18 @@ export default function ReservationPage() {
     }
   };
 
+  // specs/payment-link-lifecycle.md rule 56 — a payment received after a withdrawal by hand, settled by the operator.
+  const settlePaymentLink = async (linkId, outcome) => {
+    const reread = () => (editingReservationId ? reloadReservationFinance() : setRefundsVersion((v) => v + 1));
+    try {
+      await api.settlePaymentLink(linkId, outcome);
+      showSuccess(outcome === 'refunded' ? 'Paiement marqué remboursé.' : 'Paiement enregistré sur le séjour.');
+      await reread();
+    } catch (e) {
+      showError(e.message || 'Enregistrement impossible.');
+    }
+  };
+
   // specs/reservation-refunds.md §4.3 — the two mutations. Both replace the whole register with the
   // server's answer and bump `refundsVersion` so the quote (and thus the fiche's « total de séjour »)
   // is recomputed. `createRefund` lets the API error bubble up: the dialog renders it inline.
@@ -3578,7 +3590,7 @@ export default function ReservationPage() {
     // Rule 7 (review of #727) — the stored ledger by default, the live one only once the operator has
     // changed the fiche, never on a locked one; a fiche never saved has only the live one.
     ledger: showLiveMoney ? (pricingQuote?.ledger || storedLedger) : storedLedger,
-    checkLedgerEdit, applyLedgerPatch, markFromLedger, resendPaymentRequest, withdrawPaymentLink,
+    checkLedgerEdit, applyLedgerPatch, markFromLedger, resendPaymentRequest, withdrawPaymentLink, settlePaymentLink,
     installmentPlan, setInstallmentPlan, fichePristine: !isDirty,
     // The live quote reads the stored payments afresh; the GET answers until it arrives.
     depositDisabledLockedReason: pricingQuote && pricingQuote.depositDisabledLockedReason !== undefined

@@ -120,6 +120,7 @@ export function makeMockContext(overrides = {}) {
     markFromLedger: vi.fn(async () => ({ ok: true })),
     resendPaymentRequest: vi.fn(),
     withdrawPaymentLink: vi.fn(async () => {}),
+    settlePaymentLink: vi.fn(async () => {}),
     // specs/plugins-phase-3b-neat.md rule 16 — what plugins draw under an option line.
     pluginBlocks: {},
     setPluginBlock: vi.fn(),

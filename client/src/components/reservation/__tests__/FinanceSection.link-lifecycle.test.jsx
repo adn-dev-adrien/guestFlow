@@ -75,3 +75,31 @@ test('rule 42 (review of #902, L5): a second open link of the row prints too, ea
   await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Retirer' }));
   expect(ctx.withdrawPaymentLink).toHaveBeenCalledWith(40);
 });
+
+// specs/payment-link-lifecycle.md rule 56 — a payment received after a withdrawal by hand: refunded or recorded on the stay.
+const SETTLE = {
+  linkId: 44,
+  stay: { label: 'Enregistrer sur le séjour', confirmTitle: 'Enregistrer ce paiement sur le séjour ?', confirmMessage: 'Le montant est compté comme perçu.', confirmLabel: 'Enregistrer' },
+  refunded: { label: 'Marquer remboursé', confirmTitle: 'Paiement remboursé ?', confirmMessage: 'À confirmer une fois le remboursement fait chez le prestataire.', confirmLabel: 'Remboursé' },
+};
+const unsettled = { status: 'cancelled', label: 'Payé le 30/10 après retrait : à traiter', settle: SETTLE };
+
+for (const [outcome, action] of [['stay', SETTLE.stay], ['refunded', SETTLE.refunded]]) {
+  test(`rule 56: « ${action.label} » asks first, then settles the payment as ${outcome}`, async () => {
+    const user = userEvent.setup();
+    const { ctx } = renderFinance({ editingReservationId: 7, ledger: ledgerOf([dueRow('deposit', 'Acompte', 90, { detail: { link: unsettled } })]) });
+    expect(within(rowEl('deposit')).getByText(unsettled.label)).toBeInTheDocument();
+    await user.click(within(rowEl('deposit')).getByRole('button', { name: action.label }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText(action.confirmTitle)).toBeInTheDocument();
+    expect(within(dialog).getByText(action.confirmMessage)).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: action.confirmLabel }));
+    expect(ctx.settlePaymentLink).toHaveBeenCalledWith(44, outcome);
+  });
+}
+
+test('rule 56: a payment to settle listed beside the row’s link offers its two actions', () => {
+  renderFinance({ editingReservationId: 7, ledger: ledgerOf([dueRow('balance', 'Solde', 210, { detail: { link: openLink(), otherLinks: [unsettled] } })]) });
+  expect(within(rowEl('balance')).getByRole('button', { name: 'Enregistrer sur le séjour' })).toBeInTheDocument();
+  expect(within(rowEl('balance')).getByRole('button', { name: 'Marquer remboursé' })).toBeInTheDocument();
+});
