@@ -533,7 +533,7 @@ par mois » and « Taux d'occupation » side by side.
 
 ### Server unit tests (one file per subject)
 - [x] `tests/utc-timestamp-local-day.unit.test.js` (5, 2026-10-30) — rule 50: « Créé le » on the Paris day, the pace's `bookedOn`, an iCal (ledger) and a manual cancellation at 23:30Z booked and cancelled on their Paris days, the arrival payment refused before the Paris booking day and its earliest date on the fiche
-- [x] `tests/utc-timestamp-paris-day-labels.unit.test.js` (3, 2026-10-30) — rule 50: the price check's booking day, « Demandée le » and « Déjà envoyé le » stamped 23:30 UTC read on their Paris day
+- [x] `tests/utc-timestamp-paris-day-labels.unit.test.js` (4, 2026-10-30) — rule 50: the price check's booking day, « Demandée le » and « Déjà envoyé le » stamped 23:30 UTC read on their Paris day
 - [x] `tests/complement-history-paris-day.unit.test.js` (2, 2026-10-30) — rule 50: an edit at 00:30 Paris on the collection day counts in the complement history window (option dropped, tourist tax of a legacy complement)
 - [x] `tests/finance-late-installments.unit.test.js` (3, spec review 2026-10-27) — rule 49; client `FinancePage.settle-late-installment.test.jsx` (1)
 - [x] `finance-window.unit.test.js` (4) — rules 1-2: the three window kinds, refusals.

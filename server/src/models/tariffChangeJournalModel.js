@@ -121,11 +121,15 @@ function createTariffChangeJournalModel(database) {
 
   // specs/reservation-payment-ledger.md rule 61 — whether the property's tariff changed AFTER a day
   // (an event dated later than `isoDay`), so a price check can tell « the tariff the guest saw » from
-  // « today's tariff ».
+  // « today's tariff ». Rule 65: `occurredAt` is UTC for an apply or a backfill, but the wall time
+  // typed in the browser for a manual entry, so only the former is shifted to the local day.
   function hasEventAfter(propertyId, isoDay) {
-    const row = database.prepare(
-      "SELECT 1 AS found FROM tariff_change_events WHERE propertyId = ? AND date(occurredAt, 'localtime') > ? LIMIT 1",
-    ).get(Number(propertyId), String(isoDay || '').slice(0, 10));
+    const row = database.prepare(`
+      SELECT 1 AS found FROM tariff_change_events
+      WHERE propertyId = ?
+        AND (CASE WHEN source = 'manual' THEN date(occurredAt) ELSE date(occurredAt, 'localtime') END) > ?
+      LIMIT 1
+    `).get(Number(propertyId), String(isoDay || '').slice(0, 10));
     return Boolean(row);
   }
 

@@ -5,4 +5,6 @@
   platform stay booked between 00:00 and 01:00 / 02:00 in Paris lost the alert whenever the tariff moved
   earlier that same day. « Demandée le … » on an installment and « Déjà envoyé le … » in the sequence
   simulation showed the day before for a request or a mail sent in that window. All three now read the
-  local day. +3 server tests.
+  local day. The journal side keeps a manual entry on the wall time typed in the form, so a platforms change
+  declared late in the evening no longer silences the alert of a stay booked after it the same evening.
+  +4 server tests.

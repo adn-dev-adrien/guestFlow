@@ -556,7 +556,7 @@ Responsive: every new field stacks full width on `xs`; the simulation swaps tabl
   file: the target is byte-identical afterwards and leaves no `-wal` / `-journal` behind, even when
   `DB_PATH` names it; no `SIMULATION_DB_PATH`, no run.
 - [x] `tests/remove-lost-items.unit.test.js` (5, added 2026-09-28) — rule 33 removal: shipped J+1 bodies; token line stripped with its blank line; operator-edited template (CRLF, inline token, last line); template migration on body + bodyEn then no-op; column drop keeps the rows then no-op.
-- [x] `tests/utc-timestamp-paris-day-labels.unit.test.js` (1 of 3, 2026-10-30) — rule 36: a mail sent at 23:30 UTC reads « Déjà envoyé le » on its Paris day.
+- [x] `tests/utc-timestamp-paris-day-labels.unit.test.js` (1 of 4, 2026-10-30) — rule 36: a mail sent at 23:30 UTC reads « Déjà envoyé le » on its Paris day.
 - [x] Touched: `email-template-renderer` (J-7/J-2 body section rewritten for the new copy), `default-email-templates-registry`, `default-email-templates-seed`, `confirmation-email-gate`, `reservation-email-sender`.
 
 Full server suite: 4 191 tests, all green (4 553 on 2026-09-28, after the rule 33 removal: +5 in `remove-lost-items`).

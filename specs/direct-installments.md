@@ -496,7 +496,7 @@ Baseline 6 264 → **6 373** (+109 net, all green; 5 cron tests of money templat
 - [x] `plugins/accounting-export/tests/accounting-collected-money-frozen.unit.test.js` (2 of 5) — rule 47: an October installment unchanged after a later save; the stored split adds up and keeps the plan's tax share
 - [x] `tests/finance-late-installments.unit.test.js` (3) — rule 48: two late installments as elements, the three-day grace, a covered plan never late
 - [x] `client/src/pages/__tests__/FinancePage.settle-late-installment.test.jsx` (1) — rule 48: « Marquer payé » records each late installment through its endpoint
-- [x] `tests/utc-timestamp-paris-day-labels.unit.test.js` (1 of 3, 2026-10-30) — rule 49: a request stamped 23:30 UTC reads « Demandée le » on its Paris day
+- [x] `tests/utc-timestamp-paris-day-labels.unit.test.js` (1 of 4, 2026-10-30) — rule 49: a request stamped 23:30 UTC reads « Demandée le » on its Paris day
 
 ### Client tests
 Baseline 2 153 → **2 176** (+23, all green).

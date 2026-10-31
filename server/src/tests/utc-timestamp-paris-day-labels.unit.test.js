@@ -3,6 +3,7 @@
 // (specs/reservation-payment-ledger.md rule 65), « Demandée le … » on an installment
 // (specs/direct-installments.md rule 49) and « Déjà envoyé le … » in the sequence simulation
 // (specs/guest-email-sequence.md rule 36). Each one is stamped 23:30 UTC, which is already the next day in Paris.
+// specs/reservation-payment-ledger.md rule 65 also covers the journal side: a manual event holds Paris wall time, not UTC.
 process.env.TZ = 'Europe/Paris';
 process.env.DB_PATH = ':memory:';
 
@@ -26,11 +27,27 @@ test('reservation-payment-ledger rule 65 — a tariff change 20 minutes before a
   const quote = () => liveQuote(id, { platformGrossAmount: 200, forceCurrentPricing: true });
   const bookingDay = inDays(-10);
   db.prepare('UPDATE reservations SET createdAt = ? WHERE id = ?').run(`${inDays(-11)} 23:30:00`, id);
-  db.prepare("INSERT INTO tariff_change_events (propertyId, kind, occurredAt) VALUES (1, 'platforms', ?)").run(`${inDays(-11)} 23:10:00`);
+  db.prepare("INSERT INTO tariff_change_events (propertyId, kind, occurredAt, source) VALUES (1, 'recipe', ?, 'apply')").run(`${inDays(-11)} 23:10:00`);
   assert.ok((await quote()).platformPriceCheck, `booked and changed on ${bookingDay} (Paris): the change is not after the booking`);
 
   db.prepare('UPDATE tariff_change_events SET occurredAt = ?').run(`${inDays(-10)} 23:10:00`);
   assert.equal((await quote()).platformPriceCheck, null, 'a change on the next Paris day still silences it');
+  db.prepare('DELETE FROM tariff_change_events').run();
+});
+
+// A manual event carries the wall time typed in the browser (tariff-change-journal rule 7), not UTC.
+test('reservation-payment-ledger rule 65 — a manual platforms change at 23:30 Paris does not silence a booking at 23:45 that day', async () => {
+  const id = createStay({ platform: 'Booking', platformGrossAmount: 200 });
+  const quote = () => liveQuote(id, { platformGrossAmount: 200, forceCurrentPricing: true });
+  const day = inDays(-10);
+  const [y, m, d] = day.split('-').map(Number);
+  const bookedUtc = new Date(y, m - 1, d, 23, 45).toISOString().replace('T', ' ').slice(0, 19);
+  db.prepare('UPDATE reservations SET createdAt = ? WHERE id = ?').run(bookedUtc, id);
+  db.prepare("INSERT INTO tariff_change_events (propertyId, kind, occurredAt, source) VALUES (1, 'platforms', ?, 'manual')").run(`${day} 23:30:00`);
+  assert.ok((await quote()).platformPriceCheck, `changed at 23:30 and booked at 23:45 on ${day} (Paris): the change is not after the booking`);
+
+  db.prepare('UPDATE tariff_change_events SET occurredAt = ?').run(`${inDays(-9)} 00:10:00`);
+  assert.equal((await quote()).platformPriceCheck, null, 'a manual change at 00:10 the next Paris day still silences it');
   db.prepare('DELETE FROM tariff_change_events').run();
 });
 
