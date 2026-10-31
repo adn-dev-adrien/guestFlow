@@ -1,9 +1,10 @@
+// server-test-isolation.md rule 11 — a « nothing shown » check first waits for the answer that could show it.
 // specs/payment-link-lifecycle.md rule 39 — approving an iCal date drift onto nights another stay holds says so
 // first, with the stays to open: « Approuver quand même » applies it, « Annuler » sends nothing. A free drift is
 // approved at once, as before.
 import React from 'react';
 import { vi } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { render, screen, waitFor, within, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import DialogProvider from '../DialogProvider';
@@ -52,9 +53,12 @@ test('« Approuver quand même » applies the drift', async () => {
 });
 
 test('a drift onto free nights is approved at once', async () => {
+  let answer;
+  api.approveIcalDateDrift.mockReturnValueOnce(new Promise((resolve) => { answer = resolve; }));
   api.getIcalDateDriftAlert.mockResolvedValue({ alerts: [{ ...BASE, heldDates: null }] });
   renderCard();
   await userEvent.click(await screen.findByRole('button', { name: 'Approuver' }));
   await waitFor(() => expect(api.approveIcalDateDrift).toHaveBeenCalledWith(5));
+  await act(async () => { answer({ ok: true }); });
   expect(screen.queryByRole('dialog')).toBeNull();
 });

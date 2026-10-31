@@ -1,3 +1,4 @@
+// server-test-isolation.md rule 11 — a « nothing shown » check first waits for the answer that could show it.
 /**
  * specs/reconciliation-assisted-matching.md rules 24–26, 29 — the penalty dialog: amount, motif, date, the
  * before / after choice only when the server needs it, the server's figures and refusals, nothing computed here.
@@ -30,6 +31,7 @@ test('rule 24 — opened from a reconciliation gap, the amount is prefilled and 
   renderDialog({ source: 'reconciliation', initialAmount: 40 });
   expect(screen.getByLabelText('Montant (€)').value).toBe('40');
   await waitFor(() => expect(api.previewPlatformPenalty).toHaveBeenCalled());
+  expect(await screen.findByText(/^Commission /)).toBeInTheDocument();
   expect(screen.queryByText(/le montant du relevé/)).toBeNull();
 });
 

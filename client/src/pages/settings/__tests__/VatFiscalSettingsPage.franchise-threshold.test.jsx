@@ -1,3 +1,4 @@
+// server-test-isolation.md rule 11 — a « nothing shown » check first waits for the answer that could show it.
 /**
  * VatFiscalSettingsPage — the franchise threshold in the page's draft (specs/vat-optional-mode.md rules
  * 35, 36): an invalid amount blocks Save; a field that is not on screen blocks nothing and sends nothing
@@ -5,7 +6,7 @@
  */
 import React from 'react';
 import { vi } from 'vitest';
-import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, within, act } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 
 vi.mock('../../../api', () => ({
@@ -102,12 +103,14 @@ test('Cancel gives the stored amount back and clears the refusal', async () => {
 });
 
 test('a typed amount is sent alone under the franchise mention', async () => {
-  api.updateSettings.mockResolvedValue(settings(45000));
+  let answer;
+  api.updateSettings.mockReturnValueOnce(new Promise((resolve) => { answer = resolve; }));
   renderPage();
   await screen.findByLabelText('Seuil de franchise (€)');
   fireEvent.change(field(), { target: { value: '45 000' } });
   fireEvent.click(save());
   await waitFor(() => expect(api.updateSettings).toHaveBeenCalledTimes(1));
+  await act(async () => { answer(settings(45000)); });
   expect(api.updateSettings.mock.calls[0][0]).toEqual({ vat: { franchiseThreshold: '45 000' } });
   expect(within(document.body).queryByText(/Seuil sans objet/)).not.toBeInTheDocument();
 });

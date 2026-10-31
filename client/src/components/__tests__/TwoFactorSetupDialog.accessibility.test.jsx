@@ -1,3 +1,4 @@
+// server-test-isolation.md rule 11 — a « nothing shown » check first waits for the answer that could show it.
 // specs/hosting-h2-account-security.md rules 48, 57, 58 — a replacement counts « n sur 2 », says the
 // current app stays valid and offers « Oublier les appareils de confiance »; the check says
 // « Vérification… » and keeps the field focusable; focus lands on « Copier » at step 3 and on
@@ -44,9 +45,10 @@ test('rule 48: a first activation has no such box and confirms with the code alo
   render(<TwoFactorSetupDialog open account="m" emailAvailable onClose={() => {}} onDone={() => {}} />);
   fireEvent.change(screen.getByLabelText(/^Mot de passe \(confirmation\)/), { target: { value: 'secret' } });
   fireEvent.click(screen.getByRole('button', { name: 'Continuer' }));
-  fireEvent.change(await screen.findByLabelText('Code à 6 chiffres'), { target: { value: '123456' } });
-  await waitFor(() => expect(api.confirmTwoFactor).toHaveBeenCalledWith('123456'));
+  const code = await screen.findByLabelText('Code à 6 chiffres');
   expect(screen.queryByRole('checkbox', { name: 'Oublier les appareils de confiance' })).toBeNull();
+  fireEvent.change(code, { target: { value: '123456' } });
+  await waitFor(() => expect(api.confirmTwoFactor).toHaveBeenCalledWith('123456'));
 });
 
 test('rule 57: « Vérification… » shows while the code is checked and the field stays focusable', async () => {
