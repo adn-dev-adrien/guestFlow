@@ -38,6 +38,9 @@ beforeEach(() => {
 });
 afterEach(() => { delete window.matchMedia; });
 
+// The first paint of the MUI page takes over the default 1 s of `waitFor` on a loaded machine (audit R9 L-1).
+const firstPaint = () => screen.findAllByText(/SENTINEL/, {}, { timeout: 5000 });
+
 const renderPage = () => render(
   <MemoryRouter><ThemeProvider theme={theme}><DialogProvider><ResourcePlanningPage /></DialogProvider></ThemeProvider></MemoryRouter>,
 );
@@ -51,11 +54,11 @@ test('rule 31 — next week then back: the late empty answer of next week does n
     return Promise.resolve(bookingOn(calls[0], 'SENTINEL'));
   });
   renderPage();
-  await waitFor(() => expect(screen.getAllByText(/SENTINEL/).length).toBeGreaterThan(0));
+  await firstPaint();
   fireEvent.click(screen.getAllByRole('button', { name: 'Semaine suivante' })[0]);
   fireEvent.click(screen.getAllByRole('button', { name: 'Semaine précédente' })[0]);
   await waitFor(() => expect(calls).toHaveLength(3));
-  await waitFor(() => expect(screen.getAllByText(/SENTINEL/).length).toBeGreaterThan(0));
+  await firstPaint();
   await act(async () => { nextWeek.resolve([]); });
   expect(screen.getAllByText(/SENTINEL/).length).toBeGreaterThan(0);
 });
@@ -69,7 +72,7 @@ test('rule 31 — a late failure of a week already left does not raise the error
     return Promise.resolve(bookingOn(calls[0], 'SENTINEL'));
   });
   renderPage();
-  await waitFor(() => expect(screen.getAllByText(/SENTINEL/).length).toBeGreaterThan(0));
+  await firstPaint();
   fireEvent.click(screen.getAllByRole('button', { name: 'Semaine suivante' })[0]);
   fireEvent.click(screen.getAllByRole('button', { name: 'Semaine précédente' })[0]);
   await waitFor(() => expect(calls).toHaveLength(3));
@@ -88,7 +91,7 @@ test('rule 31 — a resource switch dims the grid and draws nothing of the previ
     return resourceId === 3 ? Promise.resolve(bookingOn(weekStart, 'SENTINEL')) : sauna.promise;
   });
   renderPage();
-  await waitFor(() => expect(screen.getAllByText(/SENTINEL/).length).toBeGreaterThan(0));
+  await firstPaint();
   expect(grid()).toHaveAttribute('aria-busy', 'false');
   fireEvent.mouseDown(screen.getAllByRole('combobox')[0]);
   fireEvent.click(await screen.findByRole('option', { name: 'Sauna' }));
@@ -109,7 +112,7 @@ test('rule 31 — a week change keeps the grid inert, not « libre », until the
     return calls.length === 1 ? Promise.resolve(bookingOn(weekStart, 'SENTINEL')) : nextWeek.promise;
   });
   renderPage();
-  await waitFor(() => expect(screen.getAllByText(/SENTINEL/).length).toBeGreaterThan(0));
+  await firstPaint();
   fireEvent.click(screen.getAllByRole('button', { name: 'Semaine suivante' })[0]);
   await waitFor(() => expect(calls).toHaveLength(2));
   expect(grid()).toHaveAttribute('aria-busy', 'true');
