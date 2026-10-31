@@ -16,6 +16,9 @@
  * `remindByEmail` with the template to use: « Envoyer la demande » then opens that email in the send
  * dialog, for the operator to read before it leaves.
  *
+ * A request refused 409 LINK_ALREADY_PAID (specs/payment-link-lifecycle.md rule 50) has booked the payment: the
+ * card re-reads its rows, from the button and from the draft dialog alike.
+ *
  * When the online-payment plugin reads the bank account (specs/reconciliation-assisted-matching.md rule 22),
  * an overdue row may carry a `bank` line — « Virement trouvé : … » with « Confirmer », or « Rien sur le
  * compte »; the card draws it and nothing otherwise.
@@ -36,6 +39,7 @@ import StatusBadge from './StatusBadge';
 import ReservationCancelDialog from './ReservationCancelDialog';
 import EmailManualSendDialog from './EmailManualSendDialog';
 import { useToast } from './DialogProvider';
+import { isLinkAlreadyPaid } from '../constants/paymentLinks';
 import { displayDateShort, formatCurrency } from '../utils/formatters';
 import { DEADLINE_STATE_LABELS, DEADLINE_STATE_BADGE, deadlineHeadline } from '../constants/paymentDeadlines';
 
@@ -68,12 +72,15 @@ export default function PaymentDeadlinesAlert({ attention }) {
       await api.remindPaymentDeadline(row.reservationId, row.remindType);
       const noun = row.remindType === 'deposit' ? "Demande d'acompte" : 'Demande de solde';
       showSuccess(row.requestSent ? `${noun} renvoyée.` : `${noun} envoyée.`);
+      await refresh();
     } catch (err) {
       showError(err.message || "Envoi impossible.");
+      // specs/payment-link-lifecycle.md rule 50 — the refusal booked the payment: the row is no longer owed.
+      if (isLinkAlreadyPaid(err)) await refresh();
     } finally {
       setBusyId(null);
     }
-  }, [showSuccess, showError]);
+  }, [refresh, showSuccess, showError]);
 
   const handleBankConfirm = useCallback(async (row) => {
     setBusyId(row.reservationId);
@@ -235,6 +242,7 @@ export default function PaymentDeadlinesAlert({ attention }) {
           reservationId={draftRow.reservationId}
           defaultTemplateId={draftRow.remindTemplateId}
           onClose={() => setDraftRow(null)}
+          onMoneyChanged={refresh}
           onSent={() => {
             showSuccess(draftRow.remindType === 'deposit' ? "Demande d'acompte envoyée." : 'Demande de solde envoyée.');
             refresh();
