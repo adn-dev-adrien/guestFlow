@@ -171,6 +171,8 @@ function emailsFixture() {
     CREATE TABLE resources (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, nameEn TEXT);
     CREATE TABLE property_option_defaults (propertyId INTEGER, optionId INTEGER, offered INTEGER DEFAULT 0, PRIMARY KEY (propertyId, optionId));
     CREATE TABLE reservation_custom_options (reservationId INTEGER, description TEXT, amount REAL, inComplement INTEGER DEFAULT 0, offered INTEGER DEFAULT 0, sortOrder INTEGER);
+    CREATE TABLE establishment_closures (id INTEGER PRIMARY KEY, propertyId INTEGER, label TEXT, startDate TEXT, endDate TEXT);
+    CREATE TABLE payment_links (id INTEGER PRIMARY KEY, reservationId INTEGER, status TEXT, cancelReason TEXT, paidAt TEXT);
   `);
   db.prepare("INSERT INTO email_templates (id, stableKey, name, subject, body, dayOffset, sendMode, enabled, anchor) VALUES (20, 'deposit_reminder', 'Relance', 'Devis', '{{#if hasPaymentLink}}Lien : {{paymentLink}}{{else}}Aucun lien{{/if}}', -3, 'manual', 1, 'validUntil')").run();
   db.prepare("INSERT INTO properties (id, name) VALUES (1, 'Villa A')").run();

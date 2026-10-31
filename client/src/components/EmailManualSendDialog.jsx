@@ -8,7 +8,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions, Button, Box,
   Typography, Stack, FormControl, InputLabel, Select, MenuItem, TextField,
-  CircularProgress, Chip, Tooltip, useMediaQuery,
+  CircularProgress, Chip, Tooltip, Alert, useMediaQuery,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import MailOutlineIcon from '@mui/icons-material/MailOutlined';
@@ -44,6 +44,8 @@ function formatTargetDate(startDateIso, dayOffset) {
  * (specs/email-automation.md rule 21).
  * `onMoneyChanged` (optional): a refusal booked the stay's payment (409 LINK_ALREADY_PAID,
  * specs/payment-link-lifecycle.md rule 50): the page re-reads its money; `onSent` stays for a mail that left.
+ * A preview that carries the server's `refusal` (rule 60: platform stay, closed nights, payment to settle) shows
+ * its message and keeps « Envoyer » disabled.
  */
 export default function EmailManualSendDialog(props) {
   const [wasOpen, setWasOpen] = useState(Boolean(props.open));
@@ -88,6 +90,7 @@ function EmailManualSendForm({
   // specs/email-language-fr-en.md rule 9 — the server says this template has no English version for
   // an English-speaking guest: it is shown, never sent.
   const [englishMissing, setEnglishMissing] = useState(false);
+  const [refusal, setRefusal] = useState(null);
 
   // Load template list once when the dialog opens.
   useEffect(() => {
@@ -129,12 +132,13 @@ function EmailManualSendForm({
       setTo(res.to || '');
       setResolvedLang(res.lang || 'fr');
       setEnglishMissing(Boolean(res.englishMissing));
+      setRefusal(res.refusal || null);
       setMissingVariables(res.missingVariables || []);
     } catch (e) {
       if (!current()) return;
       setPreviewFailed(true);
       setError(e?.message || 'Impossible de générer l\'aperçu.');
-      setSubject(''); setBody(''); setTo(''); setMissingVariables([]); setEnglishMissing(false);
+      setSubject(''); setBody(''); setTo(''); setMissingVariables([]); setEnglishMissing(false); setRefusal(null);
     } finally {
       if (current()) setLoading(false);
     }
@@ -183,7 +187,7 @@ function EmailManualSendForm({
   };
 
   const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient);
-  const sendDisabled = sending || loading || !templateId || previewedTemplateId !== templateId || !emailValid || englishMissing;
+  const sendDisabled = sending || loading || !templateId || previewedTemplateId !== templateId || !emailValid || englishMissing || Boolean(refusal);
 
   return (
     <Dialog open={open} onClose={sending ? undefined : onClose} maxWidth="md" fullWidth fullScreen={fullScreen}>
@@ -267,6 +271,8 @@ function EmailManualSendForm({
               Date d'envoi prévue : {formatTargetDate(reservationStartDate, selected.dayOffset)}
             </Typography>
           ) : null}
+
+          {refusal && !loading ? <Alert severity="info">{refusal.message}</Alert> : null}
 
           {loading ? (
             <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>

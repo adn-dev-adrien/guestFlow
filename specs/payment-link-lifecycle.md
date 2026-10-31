@@ -783,7 +783,7 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     home card, the queue). The e-mail send refuses the same 409 for a request template, the acompte reminder
     and an installment request, first among the rule 55-56 refusals, before any mint and before the address
     and SMTP checks, provider or not; a mail that carries no link still leaves. The preview of such a template
-    on a platform stay shows its no-link branch (no « créé à l'envoi » placeholder, no stored link). The home
+    on a platform stay prints no link and no placeholder; the send is refused 409 (and rule 60 says it before). The home
     card keeps its own earlier 400 (specs/platform-payout-due-date.md rule 20), which this rule makes true for
     the hand-sent e-mail too. Before #897 the dialog never minted for these templates; it was the first ordinary
     UI path to an unguarded mint. One helper, `utils/platformStayRefusal.platformStayRefusal(database, stayId)`.
@@ -811,6 +811,13 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     named in the boot log. Idempotent (marker, and the block form is never rewritten). The catalogue gains the
     condition `hasPaymentLinkValidUntil` « Si fin de validité du lien »; `paymentRequestDraft` accepts the token
     inside either block. The rollback reasoning is specs/self-update-and-releases.md rule 53.
+60. **The preview says the refusal before « Envoyer »** (review of #906, 2026-10-31). For a request, the acompte
+    reminder or an installment request, `GET /api/emails/preview` answers `refusal: { error, message }` when the
+    send is already known to be refused — the same chain and the same answer as the send (rule 57 platform stay,
+    rule 55 closed nights, rule 56 payment to settle; `emailsController.linkRefusal`), else `refusal: null`; the
+    text then carries no link and no placeholder. `EmailManualSendDialog` shows the message in an info alert above
+    the subject and keeps « Envoyer » disabled, so a « Payer le solde en ligne : » with nothing after it is never one
+    click from a refusal. The server decides; the dialog only renders it. The send keeps its own refusal.
 
 ---
 
@@ -892,6 +899,7 @@ No new dependency.
 | `services/` / `api.js` | `api.js` | T | `getClosureConflicts`, `withdrawPaymentLink`, `getDatesTakenAlerts`, `acknowledgeDatesTaken` |
 | `pages/` | `ReservationPage.jsx` | T | The 409 `DATES_UNAVAILABLE` message reaches the existing error dialog; on 409 `LINK_ALREADY_PAID` the resend, solde and devis senders re-read the fiche / the devis (rule 50) |
 | `components/` | `reservation/InstallmentPlanCard.jsx` | T | « Envoyer la demande » refused `LINK_ALREADY_PAID` → `onMoneyChanged` (rule 50) |
+| `components/` | `EmailManualSendDialog.jsx` | T | The preview's `refusal`: info alert, « Envoyer » disabled (rule 60) |
 | `components/` | `PaymentDeadlinesAlert.jsx` | T | « Relancer » re-reads the rows after a sent request or a `LINK_ALREADY_PAID` refusal; the draft dialog gets `onMoneyChanged` (rule 50, audit R9-C1) |
 | `constants/` | `paymentLinks.js` | C | `LINK_ALREADY_PAID`, `isLinkAlreadyPaid` (rule 50) |
 | `components/` | `EmailManualSendDialog.jsx` | T | Optional `onMoneyChanged`, called on `LINK_ALREADY_PAID` (rule 50); the fiche passes `reloadReservationFinance` |
@@ -918,6 +926,7 @@ No new dependency.
 | POST | `/api/payments/reservations/:id/payment-links`, `/payment-emails` | New refusal 409 `{ error: 'DATES_UNAVAILABLE', message }` on an unpaid devis or reservation whose nights are taken; a reused link always has ≥ 24 h left. |
 | GET | ledger payload (fiche) | `link.label` wording (rule 24). |
 | POST | `/api/emails/send` (`deposit_reminder`, `deposit_request`, `balance_request`, `full_request`, `installment_request`) | Resolves the link at send (reuse with ≥ 24 h, else mint) and fills the posted preview with it; a mint refusal answers the service's `{ error, message }` and nothing is sent; 409 `PAYMENT_LINK_MISSING`, `PAYMENT_LINK_PLACEHOLDER`, `NO_PAYMENT_PROVIDER` (requests only) (rule 26); new refusal 409 `DATES_UNAVAILABLE` (rule 35). |
+| GET | `/api/emails/preview` | Gains `refusal: { error, message } \| null`: the answer the send would give on a platform stay, closed nights or a payment to settle (rules 55-57, 60). |
 | GET | `/api/emails/preview` | `paymentLink` / `paymentLinkValidUntil` print « (lien de paiement créé à l'envoi) » / « (36 h après l'envoi) » when only the send will create the link (rule 26). |
 | GET | `/public/v1/booking-requests/:id/status` | New `status: 'expired'` (additive). |
 | POST | `/public/v1/booking-requests/:id/pay` | Unchanged contract; `LINK_ALREADY_PAID` answers 409 `ALREADY_CONFIRMED` and `PROVIDER_UNREACHABLE` 502, both worded in the visitor's language (rule 54). |
@@ -1025,6 +1034,7 @@ refused).
 - [x] Amend `payment-poll-fair-use.unit.test.js` (retireExpired now sets the marker) and `plugins-phase-0` uninstall guard (rule 23); `plugins-phase-0` pending last look (rule 52).
 - [x] `tests/public-payment-pay-visitor-refusals.unit.test.js` — rule 54: provider unreachable and a link paid meanwhile, in English and French (4).
 - [x] `tests/payment-link-platform-stay.unit.test.js` (15) — rule 57: no acompte, solde or séjour link on a Booking, Gîtes de France or Airbnb stay, an open link not handed out, a devis converted into a platform stay, the échéance, a direct / empty / own-channel platform still minted, `/payment-emails` refused, the four link templates of the dialog refused before any mint (provider or not), the preview without placeholder or stored link, the arrival reminder still sent.
+- [x] `tests/payment-link-preview-refusal.unit.test.js` (4) — rule 60: the preview carries the platform, closed-nights and unsettled-payment refusals with no placeholder; none on a payable stay or a template without a link.
 - [x] `tests/dashboard-remind-refusal-passthrough.unit.test.js` (3) — rule 50 (R9-C1): `LINK_ALREADY_PAID` and `ALREADY_PAID` keep their 409, an unknown failure stays 502.
 - [x] `tests/payment-link-last-look-reclick.unit.test.js` (6) — rule 58: paid → booked and refused (acompte and full), unpaid → minted with the look kept, unreadable → 502, a taken look not read again, the échéance.
 - [x] `tests/payment-link-valid-until-rollback.unit.test.js` (10) — rule 59: a rollback render drops the sentence whole, the current render equals rule 36's text, v2 on v1 forms, older defaults, an edited side kept and logged, a side without the sentence or in the block form untouched, once and idempotent, v1 + v2 at one boot and a fresh install, the boot order, the no-provider draft. `payment-link-valid-until-token` amended (block form; +1: no known end, no sentence).
@@ -1034,6 +1044,7 @@ refused).
 - [x] `client/src/pages/__tests__/ReservationPage.link-already-paid.test.jsx` — rule 50: resend, solde, devis and e-mail-dialog senders re-read on `LINK_ALREADY_PAID`, another refusal re-reads nothing (5).
 - [x] `client/src/components/__tests__/EmailManualSendDialog.link-already-paid.test.jsx` — rule 50: the refusal stays on screen, `onMoneyChanged` once, not `onSent`; another refusal re-reads nothing (2).
 - [x] `client/src/components/reservation/__tests__/InstallmentPlanCard.link-already-paid.test.jsx` — rule 50 (2).
+- [x] `client/src/components/__tests__/EmailManualSendDialog.payment-refusal.test.jsx` — rule 60: the info alert and « Envoyer » disabled; nothing without a refusal (2).
 - [x] `client/src/components/__tests__/PaymentDeadlinesAlert.link-already-paid.test.jsx` — rule 50 (R9-C1): « Relancer » refused as paid re-reads the rows, a sent request too, another refusal does not, the draft dialog's refusal re-reads (4).
 - [x] `client/src/components/reservation/__tests__/FinanceSection.link-lifecycle.test.jsx` (11) — prints the new labels, offers « Renvoyer la demande » on expired, not on dates-taken; « Retirer le lien » asks for confirmation.
 - [x] `client/src/pages/__tests__/EstablishmentClosuresPage.conflicts.test.jsx` (6) — warning list with links, 409 lists rendered, asked again on focus, same tab on a phone.
@@ -1214,6 +1225,8 @@ Six sequential PRs into `inte/plugins` (plan validated 2026-10-30).
   `PaymentDeadlinesAlert` re-read; `dashboard-remind-refusal-passthrough` 3, client
   `PaymentDeadlinesAlert.link-already-paid` 4); rule 58 `bookOwedLapsedPayment` also reads a pending last look
   (`payment-link-last-look-reclick` 6); rule 59 the rollback-safe block, migration v2, flag in both senders
-  (`payment-link-valid-until-rollback` 10, `payment-link-valid-until-token` +1).
+  (`payment-link-valid-until-rollback` 10, `payment-link-valid-until-token` +1). Review of #906: rule 57's preview
+  sentence corrected (R1); rule 60 the preview's `refusal` and the dialog's alert (`payment-link-preview-refusal` 4,
+  `EmailManualSendDialog.payment-refusal` 2).
 - [ ] PR5 — held dates and dates-taken withdrawal (rules 10-12, 16, 24, 25, 31-33, 37-39, 46, 48).
 - [ ] PR6 — dates-taken guest notice (rules 35, 43-45, 47); status → Implemented.
