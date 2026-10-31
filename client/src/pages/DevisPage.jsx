@@ -14,6 +14,7 @@ import DataPageScaffold from '../components/DataPageScaffold';
 import OriginBadge from '../components/OriginBadge';
 import RowActionsMenu from '../components/RowActionsMenu';
 import StatusBadge from '../components/StatusBadge';
+import DatesTakenBadge from '../components/DatesTakenBadge';
 import { useAppDialogs, useToast } from '../components/DialogProvider';
 import api from '../api';
 import useLatestRequest from '../hooks/useLatestRequest';
@@ -203,6 +204,8 @@ export default function DevisPage() {
     <Stack spacing={0.5} sx={{ alignItems: 'flex-start' }}>
       <StatusBadge status={STATUS_BADGE[d.status] || 'neutral'} label={STATUS_LABELS[d.status] || d.status} />
       {d.expired && <StatusBadge status="warning" label="Périmé" />}
+      {/* specs/payment-link-lifecycle.md rule 48 — another stay took its nights; the devis stays as it is. */}
+      <DatesTakenBadge datesTaken={d.datesTaken} linked={false} />
       {/* specs/public-request-abuse-and-grouping.md rules 14, 21 — the guest wrote again after it was sent. */}
       {d.publicUpdatedAfterSendAt && <StatusBadge status="warning" label="Message du client après envoi" />}
     </Stack>

@@ -73,6 +73,8 @@ function buildModel(database) {
            d.newEndDate,
            d.detectedAt,
            r.id IS NOT NULL AS reservationExists,
+           r.propertyId,
+           ${has('platform') ? 'r.platform' : 'NULL AS platform'},
            c.firstName,
            c.lastName,
            p.name AS propertyName
@@ -83,6 +85,23 @@ function buildModel(database) {
      WHERE d.acknowledgedAt IS NULL
      ORDER BY datetime(d.detectedAt) DESC, d.id DESC
   `);
+
+  // specs/payment-link-lifecycle.md rule 39 — approving the drift would put the platform stay on nights another
+  // stay holds: the approval dialog says so first, with the stays, and the operator decides.
+  function heldDatesWarning(row) {
+    if (!Number(row.reservationExists)) return null;
+    const { heldOverlaps, stayRefs } = require('../utils/datesTaken');
+    const holders = heldOverlaps(database, {
+      propertyId: row.propertyId, startDate: row.newStartDate, endDate: row.newEndDate, excludeIds: [row.reservationId],
+    });
+    if (holders.length === 0) return null;
+    const platform = String(row.platform || '').trim() || 'iCal';
+    return {
+      title: `Surbooking : ${platform} sur des dates réservées`,
+      message: 'Ces dates sont réservées par un autre séjour. Approuver crée un surbooking : annuler ensuite l’une des deux réservations.',
+      stays: stayRefs(database, holders, String(row.newStartDate).slice(0, 4)),
+    };
+  }
 
   function listPending() {
     return listPendingStmt.all().map((row) => {
@@ -100,6 +119,7 @@ function buildModel(database) {
         newEndDate: row.newEndDate,
         detectedAt: row.detectedAt,
         reservationExists: Number(row.reservationExists) === 1,
+        heldDates: heldDatesWarning(row),
       };
     });
   }
@@ -194,6 +214,8 @@ function buildModel(database) {
       if (conflict) database.prepare('UPDATE reservations SET bookingConflictAt = ? WHERE id = ? AND bookingConflictAt IS NULL').run(new Date().toISOString(), drift.reservationId);
       else if (reservation.bookingConflictAt) database.prepare('UPDATE reservations SET bookingConflictAt = NULL WHERE id = ?').run(drift.reservationId);
     }
+    // specs/payment-link-lifecycle.md rule 32 — the platform stay moved onto nights: unpaid requests there lose their links.
+    require('../utils/datesTaken').withdrawForStay(database, drift.reservationId);
     insertHistoryStmt.run(drift.reservationId, buildDateHistoryPayload(
       reservation.startDate, reservation.endDate, drift.newStartDate, drift.newEndDate,
     ));

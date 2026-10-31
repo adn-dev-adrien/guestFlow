@@ -17,6 +17,7 @@ const { ENGLISH_VERSION_MISSING, ENGLISH_VERSION_MISSING_PAYMENT_ACTION } = requ
 const { validityOf, validityEnd, lapsesAtArrival } = require('./paymentLinkLifecycle');
 const { LINK_REASONS } = require('../constants/paymentLinks');
 const { closedDatesRefusal } = require('./closedStayDates');
+const { datesTakenRefusal } = require('./datesTaken');
 const { unsettledWithdrawnRefusal } = require('./withdrawnPayments');
 const { platformStayRefusal } = require('./platformStayRefusal');
 
@@ -130,6 +131,9 @@ async function mintPaymentLink(deps, id, type) {
   // specs/payment-link-lifecycle.md rule 55 — no link, new or reused, on nights the establishment is closed.
   const closedNights = closedDatesRefusal(database, id);
   if (closedNights) throw closedNights;
+  // Rule 11 — an unpaid row whose nights a stay holding its dates took gets no link, new or reused.
+  const taken = datesTakenRefusal(database, id);
+  if (taken) throw taken;
   // Rule 56 — a payment received on a link withdrawn by hand is settled before any new request.
   assertNoUnsettledPayment(database, id);
   const amountCents = resolveAmountCents(id, type, r);
@@ -198,11 +202,26 @@ async function mintPaymentLink(deps, id, type) {
       throw refusal;
     }
   }
-  const row = paymentLinksModel.create({
+  const row = await storeUnlessNightsLost(deps, id, {
     reservationId: id, type, amountCents,
     provider: provider.id, providerLinkId: link.id, url: link.url, status: link.status, ...validityStamps(mintClock(deps)),
-  });
+  }, deactivateLinks);
   return { id: row.id, type, amountCents, url: link.url, status: link.status, providerLinkId: link.id, expiresAt: row.expiresAt, reused: false };
+}
+
+// Rules 11, 55 (review of #907, m1) — the nights may have been taken or closed while the provider answered: no
+// withdrawal could see a link not stored yet. Checked again here; on a refusal the fresh link is stored withdrawn
+// (`dates-taken` for taken nights) and deactivated, the marker kept for the poll when that fails.
+async function storeUnlessNightsLost(deps, id, record, deactivateLinks) {
+  const { database, paymentLinksModel } = deps;
+  const refusal = closedDatesRefusal(database, id) || datesTakenRefusal(database, id);
+  const row = paymentLinksModel.create(record);
+  if (!refusal) return row;
+  const withdrawn = paymentLinksModel.cancelIfOpen(row.id, { reason: refusal.error === 'DATES_UNAVAILABLE' ? LINK_REASONS.DATES_TAKEN : null });
+  if (withdrawn) {
+    try { await deactivateLinks([withdrawn]); } catch { paymentLinksModel.cancel(row.id, { remotePending: true }); }
+  }
+  throw refusal;
 }
 
 // Rule 6 — the 36 hours run from the row's creation, whatever the provider answers about its own expiry.
@@ -321,7 +340,7 @@ async function mintInstallmentLink(deps, id, installmentId) {
   if (!reservation || reservation.kind !== 'reservation') {
     throw { httpStatus: 404, error: 'RESERVATION_NOT_FOUND', message: 'Réservation introuvable.' };
   }
-  const refusal = platformStayRefusal(database, id) || closedDatesRefusal(database, id);
+  const refusal = platformStayRefusal(database, id) || closedDatesRefusal(database, id) || datesTakenRefusal(database, id);
   if (refusal) throw refusal;
   assertNoUnsettledPayment(database, id);
   const amountCents = Number(installment.amountCents);
@@ -373,10 +392,10 @@ async function mintInstallmentLink(deps, id, installmentId) {
     try { await provider.cancelLink(link.id); } catch { /* nothing references it: at worst a stray link */ }
     throw { httpStatus: 409, error: 'INSTALLMENT_CHANGED', message: 'L’échéance a changé pendant la création du lien : réessayer.' };
   }
-  const row = paymentLinksModel.create({
+  const row = await storeUnlessNightsLost(deps, id, {
     reservationId: id, type: 'installment', installmentId: Number(installmentId), amountCents,
     provider: provider.id, providerLinkId: link.id, url: link.url, status: link.status, ...validityStamps(mintClock(deps)),
-  });
+  }, deactivateLinks);
   return { id: row.id, type: 'installment', amountCents, url: link.url, status: link.status, providerLinkId: link.id, expiresAt: row.expiresAt, reused: false };
 }
 

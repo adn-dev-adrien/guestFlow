@@ -2,11 +2,12 @@
  * DialogProvider — app-wide imperative dialogs + toasts (specs/ds-components.md §3.2).
  *
  *   const { confirm, alert, openForm } = useAppDialogs();
- *     confirm(options)  → Promise<boolean>   ConfirmDialog (options: title, message, confirmLabel,
+ *     confirm(options)  → Promise<boolean>   ConfirmDialog (options: title, message, details, confirmLabel,
  *                                            cancelLabel, confirmColor; with `secondaryLabel` a third
  *                                            button resolves the string 'secondary')
- *     alert(options)    → Promise<void>      information dialog (options OBJECT: title, message,
+ *     alert(options)    → Promise<void>      information dialog (options OBJECT: title, message, details,
  *                                            buttonLabel — never a bare string)
+ *   `details` (optional ReactNode) is drawn under the message: the records a refusal names (ConflictList).
  *     openForm(options) → Promise<boolean>   FormDialog (title, content, onSubmit, submitLabel…)
  *
  *   const { showSuccess, showError } = useToast();
@@ -18,7 +19,7 @@
  */
 import React, { createContext, useContext, useMemo, useState } from 'react';
 import {
-  Dialog, DialogActions, DialogContent, DialogTitle, Button, Typography,
+  Box, Dialog, DialogActions, DialogContent, DialogTitle, Button, Typography,
   Snackbar, Alert, useMediaQuery,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
@@ -139,6 +140,7 @@ export default function DialogProvider({ children }) {
         onConfirm={acceptConfirm}
         title={confirmState?.title || 'Confirmer'}
         message={confirmState?.message || ''}
+        details={confirmState?.details || null}
         confirmLabel={confirmState?.confirmLabel || 'Confirmer'}
         cancelLabel={confirmState?.cancelLabel || 'Annuler'}
         confirmColor={confirmState?.confirmColor || 'error'}
@@ -150,6 +152,7 @@ export default function DialogProvider({ children }) {
         <DialogTitle>{alertState?.title || 'Information'}</DialogTitle>
         <DialogContent>
           <Typography>{alertState?.message || ''}</Typography>
+          {alertState?.details && <Box sx={{ mt: 2 }}>{alertState.details}</Box>}
         </DialogContent>
         <DialogActions>
           <Button variant="contained" onClick={closeAlert}>{alertState?.buttonLabel || 'Compris'}</Button>

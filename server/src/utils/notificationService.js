@@ -400,8 +400,34 @@ function buildNotificationService({
     return typeof copy === 'function' ? copy(resa) : copy;
   };
 
+  // specs/payment-link-lifecycle.md rule 39 — a platform booking on nights another stay holds (an acompte paid,
+  // or another platform's stay): an over-booking, said as such, naming the stay that holds them.
+  function heldCopyOf(resa, origin) {
+    if (origin !== 'ical') return null;
+    let holder = null;
+    try {
+      const { heldOverlaps, stayRefs } = require('./datesTaken');
+      const [row] = heldOverlaps(db, { ...resa, excludeIds: [resa.id] });
+      if (row) holder = { row, ref: stayRefs(db, [row], String(resa.startDate || '').slice(0, 4))[0] };
+    } catch { holder = null; }
+    if (!holder) return null;
+    const platform = String(resa.platform || resa.sourceName || '').trim() || 'iCal';
+    const { isDirectChannel } = require('./platformNameFormat');
+    const by = isDirectChannel(holder.row.platform)
+      ? `Dates réservées par l’acompte de ${holder.ref.label}.`
+      : `Dates réservées par la réservation ${String(holder.row.platform || '').trim()} ${holder.ref.label}.`;
+    return {
+      title: `Surbooking : ${platform} sur des dates réservées`,
+      lines: [
+        `Le flux iCal ${platform} annonce un séjour sur des dates déjà réservées dans GuestFlow.`,
+        `${by} Annuler l’une des deux réservations.`,
+      ],
+      heldBy: holder.ref,
+    };
+  }
+
   function buildConflictEmail(resa, publicUrl, origin = 'payment') {
-    const copy = conflictCopy(resa, origin);
+    const copy = heldCopyOf(resa, origin) || conflictCopy(resa, origin);
     const guest = oneLine(`${resa.firstName || ''} ${resa.lastName || ''}`);
     const subject = `⚠️ ${copy.title} (${oneLine(resa.propertyName)})`;
     const lines = [
@@ -411,8 +437,13 @@ function buildNotificationService({
       `Client : ${guest || '—'}`,
       `Séjour : du ${resa.startDate} au ${resa.endDate}`,
     ];
+    if (copy.heldBy) lines.push(`Réservation qui tient ces dates : ${copy.heldBy.label}`);
     const link = joinUrl(publicUrl, `/reservations/${Number(resa.id)}`);
     if (link) lines.push('', `Ouvrir la réservation : ${link}`);
+    if (copy.heldBy) {
+      const other = joinUrl(publicUrl, copy.heldBy.url);
+      if (other) lines.push(`Ouvrir la réservation qui tient ces dates : ${other}`);
+    }
     return { subject, text: lines.join('\n') };
   }
 
@@ -423,7 +454,7 @@ function buildNotificationService({
       const resa = loadReservation(reservationId);
       if (!resa) return { sent: false, skipped: 'not_found' };
       await pushNewReservation({
-        title: `⚠️ ${conflictCopy(resa, origin).title}`,
+        title: `⚠️ ${(heldCopyOf(resa, origin) || conflictCopy(resa, origin)).title}`,
         body: [`${String(resa.firstName || '').trim()} ${String(resa.lastName || '').trim()}`.trim(), resa.propertyName].map((s) => String(s || '').trim()).filter(Boolean).join(' · '),
         url: `/reservations/${Number(resa.id)}`,
       });
@@ -453,7 +484,7 @@ function buildNotificationService({
   // specs/payment-link-lifecycle.md rule 42 (re-review of #902, R1) — a link withdrawn by hand, paid before, booked
   // later on nights closed since (`closed`) or taken by another stay (`taken`): the treatment of rule 33.
   const PAID_UNAVAILABLE_TITLES = { closed: '⚠️ Paiement reçu sur des dates fermées', taken: '⚠️ Paiement reçu sur des dates déjà prises' };
-  function buildPaidAfterCancelEmail(resa, link, publicUrl, { settledOn = null, amountMismatch = null, doublePaid = false, duplicateCents = null, confirmationSent = true, nightsUnavailable = null } = {}) {
+  function buildPaidAfterCancelEmail(resa, link, publicUrl, { settledOn = null, amountMismatch = null, doublePaid = false, duplicateCents = null, confirmationSent = true, nightsUnavailable = null, datesTaken = false, takenBy = null, livePayment = false } = {}) {
     const amount = eurosFr(doublePaid && duplicateCents != null ? duplicateCents : link.amountCents);
     const owner = String(resa.kind) === 'devis' ? 'le devis' : 'le séjour';
     const ref = resa.devisNumber || `#${Number(resa.id)}`;
@@ -463,7 +494,21 @@ function buildNotificationService({
     const soldeLine = amountMismatch && amountMismatch.balanceSettled
       ? `solde déjà perçu (${eurosFr(amountMismatch.balanceCents)})`
       : amountMismatch && `solde porté à ${eurosFr(amountMismatch.balanceCents)}`;
-    const intro = PAID_UNAVAILABLE_TITLES[nightsUnavailable]
+    // specs/payment-link-lifecycle.md rule 33 — a link withdrawn because its dates were taken, paid before its
+    // deactivation reached the provider.
+    const intro = datesTaken
+      ? [
+        `Un lien retiré parce que ces dates venaient d’être réservées${takenBy ? ` (${oneLine(takenBy)})` : ''} a été payé avant sa désactivation.`,
+        'Le paiement est enregistré sur le séjour, en conflit de dates. Aucun e-mail de confirmation n’a été envoyé au client.',
+        'Action requise : déplacer le séjour ou le rembourser.',
+      ]
+      : livePayment && nightsUnavailable === 'closed'
+      ? [
+        'Un lien de paiement a été payé pour des nuits où le logement est fermé.',
+        'Le paiement est enregistré sur le séjour. Aucun e-mail de confirmation n’a été envoyé au client.',
+        'Action requise : déplacer le séjour ou le rembourser.',
+      ]
+      : PAID_UNAVAILABLE_TITLES[nightsUnavailable]
       ? [
         nightsUnavailable === 'closed'
           ? 'Un lien retiré à la main avait été payé avant son retrait ; le logement est depuis fermé sur ces dates.'
@@ -531,6 +576,7 @@ function buildNotificationService({
       `Montant : ${amount}`,
       `Logement : ${resa.propertyName || ''}`,
       `Séjour : du ${resa.startDate} au ${resa.endDate}`,
+      ...(datesTaken && takenBy ? [`Dates prises par : ${oneLine(takenBy)}`] : []),
     ];
     const url = joinUrl(publicUrl, `/reservations/${Number(resa.id)}`);
     if (url) lines.push('', `Ouvrir la réservation : ${url}`);

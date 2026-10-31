@@ -9,7 +9,7 @@
 
 const reservationsModel = require('../models/reservationsModel');
 const establishmentClosuresModel = require('../models/establishmentClosuresModel');
-const { buildOccupiedDatesFromReservations, addIsoDays } = require('./occupancy');
+const { buildOccupiedDatesFromReservations, addIsoDays, rangeHasBlockedNight } = require('./occupancy');
 
 function computeBlockedDates(propertyId, from, to) {
   // A neighbour's late check-out blocks the night of its departure day, an early check-in the night
@@ -21,19 +21,6 @@ function computeBlockedDates(propertyId, from, to) {
   const closures = establishmentClosuresModel.list({ propertyId: Number(propertyId), from, to });
   const closureDates = establishmentClosuresModel.expandClosuresToDates(closures);
   return Array.from(new Set([...occupied, ...closureDates])).sort();
-}
-
-/** True iff any night in [start, end) is blocked. Pure given the blocked set. */
-function rangeHasBlockedNight(start, end, blockedDates) {
-  const set = blockedDates instanceof Set ? blockedDates : new Set(blockedDates || []);
-  let cursor = start;
-  while (cursor && cursor < end) {
-    if (set.has(cursor)) return true;
-    const next = new Date(`${cursor}T00:00:00Z`);
-    next.setUTCDate(next.getUTCDate() + 1);
-    cursor = next.toISOString().slice(0, 10);
-  }
-  return false;
 }
 
 module.exports = { computeBlockedDates, rangeHasBlockedNight };

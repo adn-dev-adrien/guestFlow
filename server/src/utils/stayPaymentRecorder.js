@@ -82,6 +82,9 @@ function recordStayPayment({ db, reservationsModel, emit }, { reservationId, buc
   }).immediate();
 
   if (flipped.length) {
+    // specs/payment-link-lifecycle.md rules 32, 37 — money makes the stay hold its nights: the first paid wins,
+    // and the unpaid requests on them lose their links.
+    require('./datesTaken').withdrawForStay(db, id);
     if (emit) emit('reservation.paid', { reservationId: id, bucket });
   }
   return { flipped, captureFailed };
