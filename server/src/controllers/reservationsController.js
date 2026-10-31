@@ -1219,7 +1219,7 @@ async function calculatePrice(req, res) {
       storedRow,
       devisId,
       nightsReplayed: Array.isArray(lockedPricing.lockedNightlyBreakdown) && lockedPricing.lockedNightlyBreakdown.length > 0,
-      bookingDate: String(scheduleQuoteInputs(db, storedId).bookingDate).slice(0, 10),
+      bookingDate: bookingDayOf(scheduleQuoteInputs(db, storedId).bookingDate),
     });
     quote.ledger = ledgerFor({
       row: storedRow,

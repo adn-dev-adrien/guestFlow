@@ -205,6 +205,10 @@ The former J+7 satisfaction survey and the « season reminder, 8 weeks before th
     « Où laisser un avis » wording, both set in Paramètres › Plateformes; a migration wrote Solio's
     Airbnb / Booking / Gîtes de France knowledge onto its database, so its e-mails are byte-identical
     (specs/platform-settings-relay-and-review.md rules 1–7).
+36. **« Déjà envoyé le … » is the operator's day** (2026-10-30, audit R9). The simulation dates an
+    already-sent mail with the local day of the ledger's `sentAt` (a UTC `datetime('now')`), through
+    `vatRegime.bookingDayOf` (`specs/finance-dashboard-redesign.md` rule 50). *Why:* a mail sent between
+    00:00 and 01:00 / 02:00 in Paris read as sent the day before.
 
 **Edge cases:**
 - One-night stay booked the day before → confirmation carries the arrival block; J-7 and J-2 not
@@ -552,6 +556,7 @@ Responsive: every new field stacks full width on `xs`; the simulation swaps tabl
   file: the target is byte-identical afterwards and leaves no `-wal` / `-journal` behind, even when
   `DB_PATH` names it; no `SIMULATION_DB_PATH`, no run.
 - [x] `tests/remove-lost-items.unit.test.js` (5, added 2026-09-28) — rule 33 removal: shipped J+1 bodies; token line stripped with its blank line; operator-edited template (CRLF, inline token, last line); template migration on body + bodyEn then no-op; column drop keeps the rows then no-op.
+- [x] `tests/utc-timestamp-paris-day-labels.unit.test.js` (1 of 4, 2026-10-30) — rule 36: a mail sent at 23:30 UTC reads « Déjà envoyé le » on its Paris day.
 - [x] Touched: `email-template-renderer` (J-7/J-2 body section rewritten for the new copy), `default-email-templates-registry`, `default-email-templates-seed`, `confirmation-email-gate`, `reservation-email-sender`.
 
 Full server suite: 4 191 tests, all green (4 553 on 2026-09-28, after the rule 33 removal: +5 in `remove-lost-items`).

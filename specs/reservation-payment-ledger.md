@@ -658,6 +658,17 @@ tariff would fire on every platform stay (the brut is grossed up by the commissi
     Finances section's « Actualiser tarifs » (`refreshToCurrentPricing`, confirmation, chip « Tarifs
     actuels appliqués (non sauvegardé) ») stays the one deliberate way to re-price a direct fiche. A
     platform stay has nothing to apply: its price is the brut.
+65. **The booking date of rule 61 is the operator's day** (2026-10-30, audit R9-1). The day the journal
+    is compared with is the local day of the stay's `createdAt` (`vatRegime.bookingDayOf`,
+    `specs/finance-dashboard-redesign.md` rule 50), never its first ten characters: `createdAt` is UTC.
+    The journal is read on the Paris day too, but its `occurredAt` mixes two clocks:
+    `tariffChangeJournalModel.hasEventAfter` reads `date(occurredAt, 'localtime')` for an `apply` or
+    `backfill` event (stored UTC by `datetime('now')`) and `date(occurredAt)` for a `manual` one, which
+    already holds the Paris wall time typed in the form (`specs/tariff-change-journal.md` rule 7). *Why:* a
+    stay booked at 00:30 Paris read as booked the day before, so a tariff change made at 00:10 that same
+    day, before the booking, counted as « after » and silenced the alert; and a manual platforms change
+    declared at 23:30 Paris, shifted to 00:30 or 01:30 the next day, silenced the alert of a stay booked at
+    23:45 that same evening.
 
 **Edge cases (amendment):**
 - Only a due date or the tourist tax differs from today (the 4 Booking stays of 2027) → the stored card,
@@ -938,6 +949,10 @@ summary page (normal direct · normal platform · misconfigured platform, panel 
   omits it for a reception-only user. _The "eight channel totals of tariff recipes rule 54" were not
   replayed through the engine: the real-data pass on the shadow copy (§7 manual) stands in for them._
   The `properties-platform-prices` case planned for `gridCellOf` is dropped with the extraction.
+- [x] **Audit R9-1 (2026-10-30)** `tests/utc-timestamp-paris-day-labels.unit.test.js` (2 of 4): rule 65 — a
+  stay booked at 00:30 Paris and an applied tariff change at 00:10 that day still raise the alert, a change
+  on the next Paris day still silences it; a manual platforms change at 23:30 Paris and a booking at 23:45
+  that day still raise the alert, a manual change at 00:10 the next day still silences it.
 
 ### Client (Vitest)
 - [x] `LedgerList.rendering.test.jsx` (8), `LedgerAmountEditor.refusals.test.jsx` (6),
