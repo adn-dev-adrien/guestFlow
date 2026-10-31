@@ -440,6 +440,12 @@ async function retryPendingCancellationsOnce({ only = null, paymentLinksModel, p
         results.push(await bookWithdrawnPaid({ database, devisModel, paymentLinksModel, link, pay, sendConfirmation, checkConflict, notifyConflict, notifyPaidAfterCancel, recordPayment, emitPluginEvent }));
         continue;
       }
+      // specs/payment-link-lifecycle.md rule 33 — a link withdrawn because its dates were taken, paid before its
+      // deactivation: the money is the stay's, recorded on the fiche in date conflict, without a confirmation.
+      if (pay.paid && link.cancelReason === LINK_REASONS.DATES_TAKEN) {
+        results.push(await bookDatesTakenPaid({ database, devisModel, paymentLinksModel, link, pay, checkConflict, notifyConflict, notifyPaidAfterCancel, recordPayment, emitPluginEvent }));
+        continue;
+      }
       if (pay.paid) {
         paymentLinksModel.clearRemoteCancelPending(link.id, { providerPaymentId: pay.paymentId || null, paidAt: pay.paidAt || new Date().toISOString() });
         if (notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link); } catch { /* best effort */ } }
@@ -478,6 +484,29 @@ async function bookWithdrawnPaid({ database, link, pay, sendConfirmation, notify
   const unavailable = outcome.effect === 'already-processed' ? null : before || (outcome.conflict ? 'taken' : null);
   if (unavailable && notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link, { nightsUnavailable: unavailable }); } catch { /* best effort */ } }
   return outcome;
+}
+
+// Rule 33 (decided 2026-10-30, §9 Q5) — `cancelled → paid`, then the effect of a live payment of that link (a devis
+// is converted with `allowConflict`, a reservation records the bucket). The stay the link answers for is stamped
+// `bookingConflictAt` while another stay still holds its nights; the guest gets no confirmation; the admin is told
+// to move the stay or refund it, with the stay that took the dates.
+async function bookDatesTakenPaid({ database, link, pay, notifyPaidAfterCancel, notifyConflict, checkConflict, ...effect }) {
+  const outcome = await processPaidLink({
+    ...effect, database, link, paidPayment: pay, checkConflict, notifyConflict, notifyPaidAfterCancel,
+    sendConfirmation: null, quietOnConflict: true, retiredReason: LINK_REASONS.DATES_TAKEN,
+  });
+  if (outcome.effect === 'already-processed' || outcome.effect === 'reservation-cancelled') return outcome;
+  const { answeringStay, heldOverlaps, stayRefs } = require('./datesTaken');
+  const found = answeringStay(database, link.reservationId);
+  if (!found) return outcome;
+  const conflict = Boolean(outcome.conflict) || flagConflictIfAny({ database, checkConflict, reservationId: found.stay.id });
+  if (conflict && !outcome.conflict && notifyConflict) { try { await notifyConflict(found.stay.id); } catch { /* best effort */ } }
+  const [holder] = heldOverlaps(database, { ...found.stay, excludeIds: [found.row.id, found.stay.id] });
+  const [takenBy] = holder ? stayRefs(database, [holder], String(found.stay.startDate || '').slice(0, 4)) : [];
+  if (notifyPaidAfterCancel) {
+    try { await notifyPaidAfterCancel(link, { nightsUnavailable: 'taken', datesTaken: true, ...(takenBy ? { takenBy: takenBy.label } : {}) }); } catch { /* best effort */ }
+  }
+  return { ...outcome, datesTaken: true, conflict };
 }
 
 // A withdrawal by hand ends the link at its moment (`expiresAt`); a payment with no known date is not before it.

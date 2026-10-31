@@ -17,6 +17,7 @@ const { ENGLISH_VERSION_MISSING, ENGLISH_VERSION_MISSING_PAYMENT_ACTION } = requ
 const { validityOf, validityEnd, lapsesAtArrival } = require('./paymentLinkLifecycle');
 const { LINK_REASONS } = require('../constants/paymentLinks');
 const { closedDatesRefusal } = require('./closedStayDates');
+const { datesTakenRefusal } = require('./datesTaken');
 const { unsettledWithdrawnRefusal } = require('./withdrawnPayments');
 const { platformStayRefusal } = require('./platformStayRefusal');
 
@@ -130,6 +131,9 @@ async function mintPaymentLink(deps, id, type) {
   // specs/payment-link-lifecycle.md rule 55 — no link, new or reused, on nights the establishment is closed.
   const closedNights = closedDatesRefusal(database, id);
   if (closedNights) throw closedNights;
+  // Rule 11 — an unpaid row whose nights a stay holding its dates took gets no link, new or reused.
+  const taken = datesTakenRefusal(database, id);
+  if (taken) throw taken;
   // Rule 56 — a payment received on a link withdrawn by hand is settled before any new request.
   assertNoUnsettledPayment(database, id);
   const amountCents = resolveAmountCents(id, type, r);
@@ -321,7 +325,7 @@ async function mintInstallmentLink(deps, id, installmentId) {
   if (!reservation || reservation.kind !== 'reservation') {
     throw { httpStatus: 404, error: 'RESERVATION_NOT_FOUND', message: 'Réservation introuvable.' };
   }
-  const refusal = platformStayRefusal(database, id) || closedDatesRefusal(database, id);
+  const refusal = platformStayRefusal(database, id) || closedDatesRefusal(database, id) || datesTakenRefusal(database, id);
   if (refusal) throw refusal;
   assertNoUnsettledPayment(database, id);
   const amountCents = Number(installment.amountCents);

@@ -623,6 +623,21 @@ function createModel(database) {
     })));
   }
 
+  // specs/payment-link-lifecycle.md rule 46 (decided 2026-10-30, §9 Q13) — a devis is never written on nights a
+  // stay holds (an acompte paid, a platform's stay): 409 DATES_HELD with the stays that block, ConflictList-shaped.
+  function heldDatesRefusal({ propertyId, startDate, endDate, excludeIds = [] }) {
+    const { heldOverlaps, stayRefs } = require('../utils/datesTaken');
+    const holders = heldOverlaps(database, { propertyId, startDate, endDate, excludeIds });
+    if (holders.length === 0) return null;
+    return {
+      error: 'Dates déjà réservées : devis non enregistré.', status: 409, code: 'DATES_HELD',
+      stays: stayRefs(database, holders, String(startDate).slice(0, 4)),
+    };
+  }
+
+  // Rule 48 — a devis whose nights another stay took since stays as it is, marked « Dates prises ».
+  const withDatesTaken = (row) => (row ? { ...row, datesTaken: require('../utils/datesTaken').datesTakenMarker(database, row) } : row);
+
   // ---- public API ----
   function list({ propertyId, status, from, to, requestOrigin } = {}) {
     let sql = `
@@ -644,7 +659,10 @@ function createModel(database) {
     // specs/ui-review-2026-10-19-operations.md rules 5, 9, 21 — total, origin and validity shaped for
     // the list.
     const today = todayIso();
-    const listed = database.prepare(sql).all(...params).map((row) => ({ ...devisListRow(row, today), vatRegimeKind: vatRegimeModel.forRow(database, row).regime }));
+    const listed = database.prepare(sql).all(...params).map((row) => ({
+      ...devisListRow(row, today), vatRegimeKind: vatRegimeModel.forRow(database, row).regime,
+      datesTaken: require('../utils/datesTaken').datesTakenMarker(database, row),
+    }));
     // Rule 12 (a): the « TTC » wording stays while one quote of the list is under VAT — decided here, not in the page.
     const showTtc = listed.length === 0 || listed.some((row) => row.vatRegimeKind === 'subject');
     return listed.map((row) => ({ ...row, vatShowTtc: showTtc }));
@@ -652,7 +670,7 @@ function createModel(database) {
 
   function findById(id) {
     const row = database.prepare("SELECT * FROM reservations WHERE id = ? AND kind = 'devis'").get(Number(id));
-    return row ? enrichDevis(row) : null;
+    return row ? withDatesTaken(enrichDevis(row)) : null;
   }
 
   function storedVersion(id) {
@@ -734,6 +752,9 @@ function createModel(database) {
     }
     const property = database.prepare('SELECT * FROM properties WHERE id = ?').get(Number(payload.propertyId));
     if (!property) return { error: 'Logement introuvable', status: 404 };
+
+    const held = heldDatesRefusal({ propertyId: payload.propertyId, startDate: payload.startDate, endDate: payload.endDate });
+    if (held) return held;
 
     const payloadWithDefaults = withCreationDefaults(payload);
 
@@ -832,6 +853,18 @@ function createModel(database) {
     }
     const property = database.prepare('SELECT * FROM properties WHERE id = ?').get(Number(payload.propertyId || existing.propertyId));
     if (!property) return { error: 'Logement introuvable', status: 404 };
+    // specs/payment-link-lifecycle.md rule 46 — only a move (dates or logement) onto held nights is refused: a devis
+    // already there keeps its other edits.
+    const next = {
+      propertyId: Number(payload.propertyId || existing.propertyId),
+      startDate: payload.startDate || existing.startDate,
+      endDate: payload.endDate || existing.endDate,
+    };
+    const moved = next.propertyId !== Number(existing.propertyId) || next.startDate !== existing.startDate || next.endDate !== existing.endDate;
+    if (moved && source === 'operator') {
+      const held = heldDatesRefusal({ ...next, excludeIds: [numId] });
+      if (held) return held;
+    }
 
     // specs/tourist-tax-included-services-deduction.md rules 4-5 — a service included in the rate
     // cannot be dropped from a devis any more than from a reservation: the fiche locks its Switch ON
@@ -1251,6 +1284,9 @@ function createModel(database) {
         insertHistory.run(reservationId, entry.eventType, entry.changedFields, entry.createdAt);
       }
       require('../utils/staleLinksOfStay').retireStaleLinksOfStay(database, reservationId);
+      // specs/payment-link-lifecycle.md rule 32 (Adrien's case b) — the first of two devis paid holds the nights
+      // (its paid link is money, rule 37) and withdraws the other's link; a « Convertir » without money takes nothing.
+      require('../utils/datesTaken').withdrawForStay(database, reservationId);
       return reservationId;
     });
     const reservationId = tx();

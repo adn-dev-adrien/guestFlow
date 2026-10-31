@@ -132,6 +132,17 @@ CREATE TABLE IF NOT EXISTS cancellation_compensations (
     updatedAt           TEXT    NOT NULL DEFAULT (datetime('now'))
   );
 
+CREATE TABLE IF NOT EXISTS dates_taken_notices (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    reservationId INTEGER NOT NULL UNIQUE,
+    takenByReservationId INTEGER,
+    emailLogId INTEGER,
+    noticeStatus TEXT NOT NULL CHECK (noticeStatus IN ('sent', 'not-sent')),
+    noticeReason TEXT,
+    createdAt TEXT NOT NULL DEFAULT (datetime('now')),
+    acknowledgedAt TEXT
+  );
+
 CREATE TABLE IF NOT EXISTS ical_date_drift_alerts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     reservationId INTEGER NOT NULL,
