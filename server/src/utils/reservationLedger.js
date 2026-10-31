@@ -634,7 +634,9 @@ function buildLedger({
         detail: tidyDetail({
           link: first,
           ...(rest.length > 0 ? { otherLinks: rest } : {}),
-          ...(!settleContext.readOnly && waiting.some(heldByPlan) ? { note: 'Supprimer l’échéancier pour l’enregistrer sur le séjour.' } : {}),
+          // Only while the plan can still be deleted: an échéance paid freezes it (direct-installments rule 35).
+          ...(!settleContext.readOnly && waiting.some(heldByPlan) && !planRows.some((i) => i.status === 'paid')
+            ? { note: 'Supprimer l’échéancier pour l’enregistrer sur le séjour.' } : {}),
         }),
       });
     }

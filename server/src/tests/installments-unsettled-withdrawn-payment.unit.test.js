@@ -15,7 +15,9 @@ const { addDaysToIsoDate } = require('../utils/devisHelpers');
 const { buildController } = require('../controllers/installmentsController');
 const { bookWithdrawnPaid } = require('../utils/paymentPollRunner');
 const devisModel = require('../models/devisModel');
-const { spies } = require('./paymentLinkLifecycleFixture');
+const { spies, fakeProvider } = require('./paymentLinkLifecycleFixture');
+const { deactivateAbandonedLinks, assertNotPaid } = require('../utils/paymentLinkDeactivation');
+const { ensurePaymentLink } = require('../utils/paymentRequestService');
 
 const MESSAGE = 'Paiement reçu sur un lien retiré : à traiter avant toute nouvelle demande.';
 const PAID_AT = '2026-10-26T09:15:00Z';
@@ -164,21 +166,22 @@ function addOwedLink(h, { type = 'deposit', status = 'cancelled', marker = true,
   return h.paymentLinksModel.findById(row.id);
 }
 
-for (const [name, fields] of [
-  ['withdrawn by hand, its deactivation owed', { status: 'cancelled', marker: true }],
-  ['lapsed, its deactivation owed', { status: 'expired', marker: true }],
-  ['lapsed, its last look owed', { status: 'expired', marker: false, lastLook: true }],
+const LAST_LOOK_CREATE = 'Ancien lien de paiement en dernière vérification : échéancier non créé.';
+for (const [name, fields, error, message] of [
+  ['withdrawn by hand, its deactivation owed', { status: 'cancelled', marker: true }, 'LINK_DEACTIVATION_PENDING', DEACTIVATION_CREATE],
+  ['lapsed, its deactivation owed', { status: 'expired', marker: true }, 'LINK_DEACTIVATION_PENDING', DEACTIVATION_CREATE],
+  ['lapsed, its last look owed', { status: 'expired', marker: false, lastLook: true }, 'LINK_LAST_LOOK_PENDING', LAST_LOOK_CREATE],
 ]) {
   test(`rule 63: a plan is refused while a link is ${name} — 409, the card says why, nothing read`, async () => {
     const h = createHarness();
     addOwedLink(h, fields);
     const r = await put(h, { count: 3 });
     assert.equal(r.status, 409);
-    assert.deepEqual(r.body, { error: 'LINK_DEACTIVATION_PENDING', message: DEACTIVATION_CREATE });
+    assert.deepEqual(r.body, { error, message });
     assert.equal(h.installmentsModel.listFor(h.reservationId).length, 0);
     assert.deepEqual(h.state.deactivated, []);
     const card = h.controller.planFor(h.reservationId);
-    assert.deepEqual([card.canCreate, card.reason], [false, DEACTIVATION_CREATE]);
+    assert.deepEqual([card.canCreate, card.reason], [false, message]);
   });
 }
 
@@ -290,4 +293,106 @@ test('rule 63: an échéance paid after its withdrawal keeps « Enregistrer sur 
   assert.deepEqual(h.installmentsModel.listFor(h.reservationId).map((i) => i.paid), [0, 1]);
   const row = h.db.prepare('SELECT depositPaid, balancePaid FROM reservations WHERE id = ?').get(h.reservationId);
   assert.deepEqual([row.depositPaid, row.balancePaid], [0, 0]);
+});
+
+test('rule 63 (re-review of #911, m2): the note is not offered once an échéance is paid — the plan can no longer be deleted', () => {
+  const h = createHarness();
+  addUnsettledLink(h, { type: 'full', amountCents: 100150 });
+  const frozen = { ...plan, installments: [{ ...plan.installments[0], status: 'paid', paidDate: TODAY }, plan.installments[1]] };
+  const row = ledgerOf(h, frozen).rows.find((r) => r.key === 'withdrawnPayments');
+  assert.deepEqual(Object.keys(row.detail.link.settle), ['linkId', 'refunded']);
+  assert.equal(row.detail.note, undefined);
+});
+
+// ── The real deactivation path (review of #911, n2): `deactivateAbandonedLinks` and `assertNotPaid` ─────────
+function realController(h, provider) {
+  return buildController({
+    database: h.db, installmentsModel: h.installmentsModel, paymentLinksModel: h.paymentLinksModel,
+    quoteOf: () => h.state.quote, providerReady: () => Boolean(provider), todayOf: () => h.state.today,
+    deactivateLinks: (links) => deactivateAbandonedLinks(links, { paymentLinksModel: h.paymentLinksModel, providerFor: () => provider }),
+    assertLinkNotPaid: (link) => assertNotPaid(link, provider),
+  });
+}
+const openBucketLinks = (h) => ['deposit', 'balance'].map((type, i) => h.paymentLinksModel.create({
+  reservationId: h.reservationId, type, amountCents: [30000, 70000][i], providerLinkId: `ql_${type}`, url: 'u',
+}));
+
+test('rule 63: the provider deactivates the open acompte and solde links — the plan is made', async () => {
+  const h = createHarness();
+  const links = openBucketLinks(h);
+  const provider = fakeProvider();
+  const c = realController(h, provider);
+  const r = await call(c.put, { params: { id: h.reservationId }, body: { count: 2 } });
+  assert.equal(r.status, 200);
+  assert.equal(h.installmentsModel.listFor(h.reservationId).length, 2);
+  for (const link of links.map((l) => h.paymentLinksModel.findById(l.id))) {
+    assert.deepEqual([link.status, link.cancelReason, link.remoteCancelPendingAt], ['cancelled', 'amount-changed', null]);
+  }
+  assert.equal(provider.calls.filter((x) => x[0] === 'cancelLink').length, 2);
+});
+
+test('rule 63: no provider connected — 409, no plan, the links withdrawn here with their deactivation owed', async () => {
+  const h = createHarness();
+  const links = openBucketLinks(h);
+  const c = realController(h, null);
+  const r = await call(c.put, { params: { id: h.reservationId }, body: { count: 2 } });
+  assert.deepEqual([r.status, r.body.error, r.body.message], [409, 'LINK_DEACTIVATION_PENDING', DEACTIVATION_CREATE]);
+  assert.equal(h.installmentsModel.listFor(h.reservationId).length, 0);
+  for (const link of links.map((l) => h.paymentLinksModel.findById(l.id))) {
+    assert.equal(link.status, 'cancelled');
+    assert.ok(link.remoteCancelPendingAt, 'the poll deactivates it once a provider answers');
+  }
+});
+
+// ── The stay's link lock: a plan and a stay link asked at the same moment ────────────────────────────────
+function gatedProvider() {
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  let entered;
+  const inside = new Promise((resolve) => { entered = resolve; });
+  let n = 0;
+  return {
+    release, inside, id: 'qonto',
+    async createLink() { entered(); await gate; n += 1; return { id: `ql_race_${n}`, url: `https://pay.example.test/race/${n}`, status: 'open' }; },
+    async getPayment() { return { paid: false }; },
+    async getLinkStatus() { return 'open'; },
+    async cancelLink() {},
+    isReady: () => true,
+  };
+}
+const openBucketLinksOf = (h) => h.paymentLinksModel.listForStay(h.reservationId)
+  .filter((l) => ['deposit', 'balance', 'full'].includes(l.type) && l.status === 'open');
+
+test('rule 63: an acompte link being minted when the plan is asked for — the plan waits, then retires it', async () => {
+  const h = createHarness({ stay: { depositAmount: 300, balanceAmount: 701.5 } });
+  const provider = gatedProvider();
+  const mint = ensurePaymentLink({ database: h.db, paymentLinksModel: h.paymentLinksModel, provider, resolveAmountCents: () => 30000 }, h.reservationId, 'deposit');
+  await provider.inside;
+  const planning = put(h, { count: 3 });
+  provider.release();
+  const minted = await mint;
+  const r = await planning;
+  assert.equal(r.status, 200);
+  assert.equal(h.installmentsModel.listFor(h.reservationId).length, 3);
+  assert.equal(h.paymentLinksModel.findById(minted.id).status, 'cancelled');
+  assert.deepEqual(openBucketLinksOf(h), []);
+});
+
+test('rule 63: an acompte link asked while the plan is being made — it waits, then finds nothing to bill', async () => {
+  const h = createHarness({ stay: { depositAmount: 300, balanceAmount: 701.5 } });
+  h.state.quote = { preArrivalAmount: 1001.5, depositAmount: 0, balanceAmount: 0, depositDueDate: null, balanceDueDate: null };
+  h.paymentLinksModel.create({ reservationId: h.reservationId, type: 'balance', amountCents: 70150, providerLinkId: 'ql_bal', url: 'u' });
+  let mint;
+  const s = spiedController(h, {
+    duringRead: () => {
+      mint = ensurePaymentLink({
+        database: h.db, paymentLinksModel: h.paymentLinksModel, provider: fakeProvider(),
+        resolveAmountCents: (id) => Math.round(Number(h.db.prepare('SELECT depositAmount FROM reservations WHERE id = ?').get(id).depositAmount) * 100),
+      }, h.reservationId, 'deposit');
+    },
+  });
+  const r = await s.put({ count: 3 });
+  assert.equal(r.status, 200);
+  await assert.rejects(mint, (err) => err.error === 'ZERO_AMOUNT');
+  assert.deepEqual(openBucketLinksOf(h), []);
 });

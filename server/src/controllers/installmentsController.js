@@ -26,9 +26,10 @@ const { unsettledWithdrawnRefusal } = require('../utils/withdrawnPayments');
 
 const MANUAL_METHODS = ['transfer', 'cash', 'cheque', 'card', 'other'];
 const BUCKET_LINK_TYPES = ['deposit', 'balance', 'full'];
-const DEACTIVATION_PENDING = {
-  creating: 'Ancien lien de paiement pas encore désactivé : échéancier non créé.',
-  resizing: 'Ancien lien de paiement pas encore désactivé : échéancier inchangé.',
+const LIVE_LINK_REFUSALS = {
+  deactivation: { error: 'LINK_DEACTIVATION_PENDING', what: 'Ancien lien de paiement pas encore désactivé' },
+  open: { error: 'LINK_DEACTIVATION_PENDING', what: 'Ancien lien de paiement pas encore désactivé' },
+  lastLook: { error: 'LINK_LAST_LOOK_PENDING', what: 'Ancien lien de paiement en dernière vérification' },
 };
 
 const fail = (status, error, message, extra = {}) => ({ status, body: { error, message, ...extra } });
@@ -44,6 +45,8 @@ function buildController({
   assertLinkNotPaid = async () => {},
   emit = () => {},
   todayOf,
+  // Rule 63 — the stay's link lock (`reservation:<id>`), shared with the acompte / solde / séjour mints.
+  stayLock = (reservationId, work) => require('../utils/paymentRequestService').withStayLinkLock(database, reservationId, work),
 }) {
   const stay = (reservationId) => database.prepare('SELECT * FROM reservations WHERE id = ?').get(Number(reservationId));
 
@@ -65,8 +68,9 @@ function buildController({
   function planBlocker(row, { creating, openToo = false }) {
     const unsettled = unsettledWithdrawnRefusal(database, row.id);
     if (unsettled) return { status: unsettled.httpStatus, error: unsettled.error, message: unsettled.message };
-    if (!paymentLinksModel.hasLiveLinkForStay(row.id, BUCKET_LINK_TYPES, { openToo })) return null;
-    return { status: 409, error: 'LINK_DEACTIVATION_PENDING', message: creating ? DEACTIVATION_PENDING.creating : DEACTIVATION_PENDING.resizing };
+    const live = LIVE_LINK_REFUSALS[paymentLinksModel.liveLinkReasonForStay(row.id, BUCKET_LINK_TYPES, { openToo })];
+    if (!live) return null;
+    return { status: 409, error: live.error, message: `${live.what} : échéancier ${creating ? 'non créé' : 'inchangé'}.` };
   }
 
   // Rules 1-3 — who may see the card, and who may create a plan.
@@ -258,8 +262,9 @@ function buildController({
     const rows = installmentsModel.listFor(id);
     const body = req.body || {};
     let refusal;
-    if (body.count !== undefined) refusal = await createOrResize(row, rows, Number(body.count));
-    else if (Array.isArray(body.dates) || Array.isArray(body.amounts)) {
+    if (body.count !== undefined) {
+      refusal = await stayLock(id, () => createOrResize(stay(id), installmentsModel.listFor(id), Number(body.count)));
+    } else if (Array.isArray(body.dates) || Array.isArray(body.amounts)) {
       const eligibility = eligibilityOf(row, rows);
       if (!eligibility.eligible || rows.length === 0) return res.status(409).json({ error: 'INSTALLMENTS_NOT_ALLOWED', message: eligibility.reason || 'Pas d’échéancier sur cette réservation.' });
       refusal = Array.isArray(body.dates) ? applyDates(row, rows, body.dates) : applyAmounts(row, rows, body.amounts);

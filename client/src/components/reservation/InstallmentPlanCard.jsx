@@ -210,6 +210,12 @@ export default function InstallmentPlanCard({ reservationId, plan, today, disabl
   useEffect(() => () => clearTimeout(timer.current), []);
 
   const fail = useCallback((error) => showError(error && error.message ? error.message : t.GENERIC_ERROR), [showError]);
+  // specs/payment-link-lifecycle.md rule 63 — a refused creation or resize may have withdrawn the stay's links
+  // first: the fiche re-reads its money and the card.
+  const refused = useCallback((error) => {
+    fail(error);
+    if (error && error.status === 409 && onMoneyChanged) onMoneyChanged();
+  }, [fail, onMoneyChanged]);
 
   const accept = useCallback((answer) => {
     onPlanChange(answer.installmentPlan);
@@ -242,11 +248,11 @@ export default function InstallmentPlanCard({ reservationId, plan, today, disabl
       wanted.current = planRef.current.count;
       lastSent.current = planRef.current.count;
       setShown(planRef.current.count);
-      fail(error);
+      refused(error);
     } finally {
       if (mine === sequence.current) { inFlight.current = false; if (timer.current === null) setSettling(false); }
     }
-  }, [reservationId, accept, fail]);
+  }, [reservationId, accept, refused]);
 
   const aim = useCallback((count, delay = COUNT_DEBOUNCE_MS) => {
     wanted.current = count;
@@ -269,7 +275,7 @@ export default function InstallmentPlanCard({ reservationId, plan, today, disabl
     setBusy(true);
     try {
       accept(await api.putInstallments(reservationId, { count: DEFAULT_COUNT }));
-    } catch (error) { fail(error); } finally { setBusy(false); }
+    } catch (error) { refused(error); } finally { setBusy(false); }
   };
 
   const remove = async () => {
