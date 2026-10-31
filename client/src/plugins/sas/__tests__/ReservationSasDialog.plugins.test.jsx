@@ -81,8 +81,7 @@ test.skipIf(lacksPlugins(['weather-alerts']))('rule 13: active and alerting, the
   api.getReservationSas.mockResolvedValue(sasPayload(noCaution));
   renderDialog({ mode: 'arrival' });
   await screen.findByText('Commencer');
-  // The step loads in the background; it is part of the wizard once its data is in.
-  // Its data lands after the call: the step is counted once it is in (specs/server-test-isolation.md rule 11).
+  // The step loads in the background and is counted once its data is in (specs/server-test-isolation.md rule 11).
   await waitFor(() => expect(api.getReservationWeatherAlerts).toHaveBeenCalledWith(1));
   expect(await screen.findByText('1 sur 3')).toBeTruthy();
   clickBtn('Commencer');

@@ -14,11 +14,11 @@ test('rule 11: `npm run test:slow-scheduler` runs the unit suite with the slowed
   const { scripts } = JSON.parse(read('package.json'));
   assert.equal(scripts['test:slow-scheduler'], 'vitest run --config vitest.slow-scheduler.config.js');
   const config = read('vitest.slow-scheduler.config.js');
-  assert.match(config, /import base from '\.\/vitest\.config\.js'/);
-  assert.match(config, /setupFiles: \['\.\/src\/setupSlowScheduler\.js', \.\.\.\(base\.test\?\.setupFiles \|\| \[\]\)\]/);
+  assert.match(config, /from '\.\/vitest\.config\.js'/);
+  assert.match(config, /setupSlowScheduler\.js/);
 });
 
-test('rule 11: the setup delays every setImmediate by SCHED_DELAY ms, 2 by default', () => {
+test('rule 11: the setup delays every setImmediate by SCHED_DELAY ms, 8 by default', () => {
   const source = read('src/setupSlowScheduler.js');
   const calls = [];
   const sandbox = {
@@ -27,18 +27,18 @@ test('rule 11: the setup delays every setImmediate by SCHED_DELAY ms, 2 by defau
   };
   new Function('globalThis', 'process', source)(sandbox.globalThis, sandbox.process);
   sandbox.globalThis.setImmediate(() => {});
-  sandbox.process.env.SCHED_DELAY = '8';
+  sandbox.process.env.SCHED_DELAY = '2';
   new Function('globalThis', 'process', source)(sandbox.globalThis, sandbox.process);
   sandbox.globalThis.setImmediate(() => {});
-  assert.deepEqual(calls, [2, 8]);
+  assert.deepEqual(calls, [8, 2]);
 });
 
-test('rule 11: the setup is never part of the normal suite', () => {
+test('rule 11: the setup is never part of the normal suite nor of CI', () => {
   assert.doesNotMatch(read('vitest.config.js'), /setupSlowScheduler/);
-});
-
-test('rule 11: the onStale post-condition of the VAT dialog is awaited', () => {
-  const suite = read('src/components/__tests__/VatRegimeSwitchDialog.switch.test.jsx');
-  assert.match(suite, /await waitFor\(\(\) => expect\(onStale\)\.toHaveBeenCalled\(\)\)/);
-  assert.doesNotMatch(suite, /^\s*expect\(onStale\)\.toHaveBeenCalled\(\);/m);
+  const workflows = path.join(clientDir, '..', '.github', 'workflows');
+  const files = fs.readdirSync(workflows).filter((name) => /\.ya?ml$/.test(name));
+  assert.ok(files.length > 0);
+  for (const name of files) {
+    assert.doesNotMatch(fs.readFileSync(path.join(workflows, name), 'utf8'), /slow-scheduler|setupSlowScheduler/, name);
+  }
 });

@@ -4,7 +4,7 @@
 // support's own session.
 import React from 'react';
 import { vi } from 'vitest';
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { act, render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 
 vi.mock('../../api', () => ({
   __esModule: true,
@@ -59,6 +59,8 @@ test('rule 17 — nothing without a request, for another role, on an unmanaged i
   api.getSupportBanner.mockResolvedValue({ pending: null });
   const { unmount } = render(<SupportAccessBanner />);
   await waitFor(() => expect(api.getSupportBanner).toHaveBeenCalled());
+  // The banner renders nothing to find: awaiting the answer inside act commits what it brings first.
+  await act(() => api.getSupportBanner.mock.results[0].value);
   expect(screen.queryByText(/Le support demande/)).toBeNull();
   unmount();
 

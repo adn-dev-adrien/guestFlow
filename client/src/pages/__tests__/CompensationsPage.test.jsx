@@ -75,6 +75,7 @@ test('specs/plugins-phase-2-hosts.md rule 21 — the month picker drives the ban
   await user.click(screen.getAllByRole('button', { name: 'Mois précédent' })[0]);
   await user.click(screen.getAllByRole('button', { name: 'Mois précédent' })[0]);
   await waitFor(() => expect(api.getCancellationCompensations).toHaveBeenLastCalledWith(8, 2026));
+  expect(await screen.findByText('Encaissées en août 2026')).toBeInTheDocument();
   expect(screen.getByText(/Claire Notin/)).toBeInTheDocument();
 });
 

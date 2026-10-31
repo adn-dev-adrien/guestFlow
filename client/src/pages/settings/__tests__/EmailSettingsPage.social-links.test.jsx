@@ -43,11 +43,11 @@ beforeEach(() => {
 // Under a loaded CI box the whole page renders slowly: a modest per-test timeout, light interactions.
 const SLOW_OK = 20_000;
 const renderPage = () => render(<MemoryRouter><EmailSettingsPage /></MemoryRouter>);
-// The section heading renders before the saved links: wait for a link row, not for the heading.
 
 test('rule 35, 42: an added link is saved as the whole list, without the legacy instagramUrl', async () => {
   api.updateSettings.mockImplementation(async (body) => payload(body.emails.socialLinks));
   renderPage();
+  // The section heading renders before the saved links: wait for a link row, not for the heading.
   await screen.findByLabelText('Adresse du lien');
   fireEvent.click(screen.getByRole('button', { name: 'Ajouter un réseau' }));
   fireEvent.change(screen.getAllByLabelText('Adresse du lien')[1], { target: { value: 'https://facebook.com/a' } });

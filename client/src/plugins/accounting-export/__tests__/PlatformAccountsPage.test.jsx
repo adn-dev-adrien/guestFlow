@@ -70,8 +70,10 @@ beforeEach(() => {
 });
 
 test('renders the default account + every platform row from the GET payload', async () => {
+  // A saved account other than the page's initial 622600, so the value proves the GET landed.
+  api.getPlatformAccounts.mockResolvedValue({ ...SAMPLE_GET, defaultAccount: '62260900' });
   renderPage();
-  expect(await screen.findByLabelText('Commission par défaut')).toHaveValue('622600');
+  expect(await screen.findByDisplayValue('62260900')).toHaveAccessibleName('Commission par défaut');
   // Each platform name appears as a row label.
   expect(await screen.findByText('Airbnb')).toBeInTheDocument();
   expect(screen.getByText('Gitedefrance')).toBeInTheDocument();

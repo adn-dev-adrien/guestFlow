@@ -212,12 +212,19 @@ because the runner is busy (rule 11).
    inte/plugins head red on GitHub CI (run 41191292418, shard 1/3, « expected "vi.fn()" to be called at
    least once ») while it passed 18 of 18 local runs. The race is replayed on demand:
    `cd client && npm run test:slow-scheduler` runs the whole unit suite with
-   `src/setupSlowScheduler.js` loaded first, which delays every `setImmediate` by `SCHED_DELAY` ms (2 by
-   default; 8 also used). Before the change, 2 ms failed 10 tests in 9 files and 8 ms failed 11 in 10
-   files (VatRegimeSwitchDialog included, deterministic when the file runs alone); the sweeps after the
-   first fixes named 4 more (3 files), each deterministic alone. The 18 tests in 15 files, and 2 siblings
-   with the same pattern in those files, were fixed; after it, both delays pass the whole suite. The sweep is manual: it never runs in CI, and the normal
-   `vitest.config.js` never loads it. Test: `client-effect-race-sweep.unit.test.js`.
+   `src/setupSlowScheduler.js` loaded first, which delays every `setImmediate` by `SCHED_DELAY` ms (8 by
+   default, 2 also used) and, at the end of each file, waits for the tasks it still delays, which would
+   otherwise run after jsdom is gone and fail the run with « window is not defined ». Before the change, 2 ms failed 10 tests in 9 files and 8 ms failed 11 in 10
+   files; VatRegimeSwitchDialog run alone failed every run at 8 ms but only 1 of 6 at 2 ms, hence the
+   default of 8 (amended 2026-10-31, review of #910). The sweeps after the first fixes named 4 more
+   (3 files), and the 8 ms default one more (`CompensationsPage.test.jsx`, 1 run in 3). The 19 tests in
+   16 files, and 2 siblings with the same pattern in those files, were fixed; after it, both delays pass
+   the whole suite. A slower scheduler cannot catch the opposite mistake: an
+   absence (`queryBy… toBeNull()`) asserted right after `waitFor(api called)` passes before the answer
+   has rendered, so an absence check first awaits a positive anchor, a `findBy*` on something the same
+   answer renders or, when the answer renders nothing, an `act` that awaits the answer itself. The sweep
+   is manual: it never runs in CI (no workflow names it), and the normal `vitest.config.js` never loads
+   it. Test: `client-effect-race-sweep.unit.test.js`.
 
 **Edge cases:**
 - A targeted `node --test <file>` used to open and migrate `server/guestflow.db` for 389 test files (audit R2,
@@ -264,12 +271,12 @@ API, data model and UI are unchanged. Rule 11 only:
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
 | `client/` | `vitest.slow-scheduler.config.js` | C | The unit config with `src/setupSlowScheduler.js` loaded first. |
-| `src/` | `setupSlowScheduler.js` | C | Delays every `setImmediate` (React's scheduler) by `SCHED_DELAY` ms. |
+| `src/` | `setupSlowScheduler.js` | C | Delays every `setImmediate` (React's scheduler) by `SCHED_DELAY` ms, and drains the delayed ones before each file's jsdom is torn down. |
 | `client/` | `package.json` | T | `test:slow-scheduler` script. |
-| `src/**/__tests__/` | `VatRegimeSwitchDialog.switch`, `SupportAccessBanner.states`, `LazyPage.loading`, `UpdateAvailableAlert`, `EmailSettingsPage.identity`, `EmailSettingsPage.social-links`, `PlatformAccountsPage`, `ReconciliationPage.filters`, `TariffRecipeCard`, `TariffRecipeCard.cleaning-fee`, `TariffRecipeCard.extra-guest-config`, `TariffRecipesPage`, `SettingsGoogleCalendarSection`, `ResourcePlanningPage.stale-bookings`, `ReservationSasDialog.plugins` | T | Await the post-condition (tests only, no plugin version bump). |
+| `src/**/__tests__/` | `VatRegimeSwitchDialog.switch`, `SupportAccessBanner.states`, `LazyPage.loading`, `UpdateAvailableAlert`, `EmailSettingsPage.identity`, `EmailSettingsPage.social-links`, `PlatformAccountsPage`, `ReconciliationPage.filters`, `TariffRecipeCard`, `TariffRecipeCard.cleaning-fee`, `TariffRecipeCard.extra-guest-config`, `TariffRecipesPage`, `SettingsGoogleCalendarSection`, `ResourcePlanningPage.stale-bookings`, `ReservationSasDialog.plugins`, `CompensationsPage` | T | Await the post-condition (tests only, no plugin version bump). |
 
 Server side, rule 11: `tests/client-effect-race-sweep.unit.test.js` (C) pins the script, the config, the
-delay and the VAT dialog's awaited `onStale`.
+delay, and the sweep's absence from the normal config and from every CI workflow.
 
 ## 7. Test plan
 
@@ -285,8 +292,8 @@ delay and the VAT dialog's awaited `onStale`.
 - [x] Rule 6 (third pass): the rule 6 test also reads the eight files of the second review, `ledgerFixture.js` and its 9 suites (found by their `require`). Those 17 files (188 tests) green at today, 2027-03-11 and 2027-07-21; whole-suite sweep below.
 - [x] Rule 7 (injected clocks, review of 2026-10-30): a replaced `getTodayIsoDate` / `todayIso`, a `NOW` constant and a `now:` exempt their block, the real clock and a local `const todayIso` helper do not; a pin in a named helper covers it and its callers; a `test.each` callback holds its own pin; a top-level `test.beforeEach` pins the file; `useFakeTimers({ toFake: ['setTimeout'], now })` pins nothing. Both new cases fail on the previous script.
 - [x] Rule 9: `dropKnownLines` keeps a line absent from the known content of its own file; a real git repository replays an integration PR (exit 0 with `--known`, exit 1 when the known ref does not resolve) and a feature PR adding one new line on top of a known one (only the new line named); the workflow fetches both branches and passes them. The three fail on the previous script and workflow. Replayed on the real branches: inte/plugins → master 2 091 named lines → 0, master → inte 25 → 0; this PR passes against inte/plugins.
-- [x] Rule 11: `client-effect-race-sweep.unit.test.js` (4 tests) — the script and config, the setup's delay (2 ms by default, `SCHED_DELAY` otherwise), its absence from `vitest.config.js`, and the awaited `onStale`; 3 of the 4 red on inte/plugins at 611baf15. Whole client suite under `npm run test:slow-scheduler`: 10 / 11 failures at 2 / 8 ms before, 0 at both after; the normal suite stays 3 131 tests.
 - [x] Rule 8: the same file reads the `client` job (3 shards, `fail-fast: false`, budget in shard 1) and the release jobs (self-update rule 52). The three shards locally: 209 / 208 / 208 files, 1 026 + 1 029 + 1 033 = 3 088 tests, the full suite's count.
+- [x] Rule 11: `client-effect-race-sweep.unit.test.js` (3 tests) — the script and config, the setup's delay (8 ms by default, `SCHED_DELAY` otherwise), and its absence from `vitest.config.js` and from every `.github/workflows/*.yml`; the first 2 red on inte/plugins at 611baf15. Whole client suite under `npm run test:slow-scheduler`: 10 / 11 failures at 2 / 8 ms before, 0 at both after; the normal suite stays 3 131 tests. `SupportAccessBanner.states.test.jsx` rule 17: its absence check, anchored by an `act` on the answer, fails when the answer carries a pending request.
 
 ## 8. Out of scope
 
