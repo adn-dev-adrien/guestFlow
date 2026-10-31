@@ -13,6 +13,7 @@ const settingsModel = require('../models/settingsModel');
 const paymentLinksModel = require('../models/paymentLinksModel');
 const devisModel = require('../models/devisModel');
 const paymentProviders = require('../utils/paymentProviders');
+const { formatMomentLong } = require('../utils/dateFr');
 const { runPaymentPoll } = require('../utils/paymentPollRunner');
 const { buildPaymentEffectDeps } = require('../utils/paymentEffectDeps');
 const { sendReservationTemplateEmail } = require('../utils/reservationEmailSender');
@@ -71,7 +72,8 @@ function requestServiceDeps(provider) {
         amounts: { paymentAmount: Number(amountCents || 0) / 100 },
         // specs/payment-link-lifecycle.md rule 36 — the end of THIS link, written in the guest's language.
         dates: { paymentLinkValidUntil: expiresAt },
-        flags: { hasPaymentLink: true },
+        // Rule 59 — the sentence's own block, shown only with a known end.
+        flags: { hasPaymentLink: true, hasPaymentLinkValidUntil: Boolean(formatMomentLong(expiresAt, 'fr')) },
       },
     }),
   };

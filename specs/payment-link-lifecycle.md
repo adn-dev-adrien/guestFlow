@@ -259,7 +259,7 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
       paid (rule 50). A later request on the same bucket (acompte: acompte or full links; solde: solde or full; full:
       all three; an échéance: its own links) first reads its newest lapsed link still owed a deactivation:
       paid → booked and refused the same way, unreadable → 502 `PROVIDER_UNREACHABLE`, unpaid → minted as
-      usual (re-review of #894).
+      usual (re-review of #894); so does its newest lapsed link still owed its last look (rule 58).
     For a **cancelled** row the existing order (read, then deactivate) and branches are kept, plus the
     orphan branch of rule 3 and the dates-taken branch of rule 33.
 19. **One last look.** The first lifecycle pass after `lastLookAt` reads the payment once more
@@ -450,7 +450,8 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     first of the month; English 12-hour clock, « 12:15 am » after midnight). The money and the date travel
     the same way: `sendTemplate` hands the instant (`extraContext.dates`), the sender writes it in the
     guest's language. A template that prints the token outside `{{#if hasPaymentLink}}` is never chosen
-    as the no-provider draft (`paymentRequestDraft`, like `{{paymentLink}}`).
+    as the no-provider draft (`paymentRequestDraft`, like `{{paymentLink}}`). Rule 59 (2026-10-31) moves the
+    sentence into a block of its own, `{{#if hasPaymentLinkValidUntil}}`, so that a rollback drops it whole.
 
 ### 3.L Decisions of 2026-10-30, second round (Q9–Q12)
 
@@ -671,8 +672,13 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     (`reloadReservationFinance`), the installment card's « Envoyer la demande » calls `onMoneyChanged`, the
     devis « Envoyer la demande de paiement » re-reads the devis, and a request template sent from the fiche's
     e-mail dialog (`EmailManualSendDialog`, rule 26) keeps the refusal on screen and calls the page's
-    `onMoneyChanged` (`reloadReservationFinance`); `onSent` stays for a mail that left. Any other refusal
-    re-reads nothing. The payment and e-mail routes answer `{ error: 'LINK_ALREADY_PAID', message }`: the
+    `onMoneyChanged` (`reloadReservationFinance`); `onSent` stays for a mail that left. The home
+    « Échéances de paiement » card is a sender too (audit R9-C1, 2026-10-31): its « Relancer » / « Envoyer la
+    demande » re-reads the card's rows after the refusal is shown (and after a request that left, so « Relancer »
+    replaces « Envoyer la demande »), and its e-mail draft dialog gets `onMoneyChanged` = the same re-read;
+    `POST /api/dashboard/payment-deadlines/:id/remind` answers a refusal of the request service with its own
+    status and code (409 `LINK_ALREADY_PAID`, `ALREADY_PAID`, …), never the 502 `REMINDER_FAILED` kept for an
+    unknown failure. Any other refusal re-reads nothing. The payment and e-mail routes answer `{ error: 'LINK_ALREADY_PAID', message }`: the
     client reads the code in `error` (`isLinkAlreadyPaid`, `constants/paymentLinks.js`). The fiche
     therefore drops the request button and shows the payment. The booking moved the stay's `updatedAt`: the
     409 carries it like any `/api/payments` or `/api/emails` write (specs/reservation-fiche-concurrency.md
@@ -765,6 +771,47 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     out of this rule (they never come from the operator's « Retirer le lien »). Service:
     `utils/withdrawnPayments.js`.
 
+### 3.P Audit round 9 (2026-10-31; appended, rule numbers are identities)
+
+57. **A platform stay never carries a direct payment** (decided by Adrien, audit R9-M1). The platform collects
+    the stay: a link would ask the guest to pay twice, and its payment would tick `balancePaid` on the platform
+    stay, corrupting the payout tracking. A stay is a platform stay when `isDirectChannel(platform)` is false
+    (own channels, « Compté comme vente directe », stay direct; never `platform === 'direct'`), on the row or on
+    the reservation a devis became. `mintPaymentLink` (acompte, solde, séjour) and `mintInstallmentLink` refuse
+    409 `PLATFORM_RESERVATION` « Réservation plateforme : aucun lien de paiement. » before any provider call, an
+    open link included; every caller is covered (the e-mail dialog, `/payment-emails`, `/payment-links`, the
+    home card, the queue). The e-mail send refuses the same 409 for a request template, the acompte reminder
+    and an installment request, first among the rule 55-56 refusals, before any mint and before the address
+    and SMTP checks, provider or not; a mail that carries no link still leaves. The preview of such a template
+    on a platform stay shows its no-link branch (no « créé à l'envoi » placeholder, no stored link). The home
+    card keeps its own earlier 400 (specs/platform-payout-due-date.md rule 20), which this rule makes true for
+    the hand-sent e-mail too. Before #897 the dialog never minted for these templates; it was the first ordinary
+    UI path to an unguarded mint. One helper, `utils/platformStayRefusal.platformStayRefusal(database, stayId)`.
+58. **A request reads the lapsed link still owed its last look** (audit R9 public L-1). After an unpaid
+    deactivation, rule 18 clears the marker and sets `lastLookAt` for an hour, for a 3-D Secure payment the
+    provider completed after our read with its webhook lost. A new request on the same bucket during that hour
+    used to mint a second payable link without reading the first. The re-click guard of rule 18
+    (`bookOwedLapsedPayment`) now selects the newest `expired` link of the bucket whose deactivation **or** last
+    look is owed: paid → booked through `processPaidLink` and refused 409 `LINK_ALREADY_PAID` (the public `pay`
+    answers `ALREADY_CONFIRMED`, rule 54), unreadable → 502 `PROVIDER_UNREACHABLE`, unpaid → minted as usual,
+    and the look stays for the lifecycle pass (rule 19). Same for an échéance. A link whose look was taken is
+    not read again.
+59. **The sentence stating the link's end is rollback-safe** (audit R9 database N1, option b). It sits in a block
+    of its own, `{{#if hasPaymentLinkValidUntil}}\n<sentence>{{/if}}`, right after the link, or right after the
+    `{{/if}}` of the `{{#if hasPaymentLink}}` block that holds the link (the renderer is single-level: never
+    nested). Every sender sets the flag with the date (`emailsController` from the variable it prints,
+    placeholder included; `paymentsController.requestServiceDeps` when the link's `expiresAt` reads as a date);
+    `emailContextBuilder` defaults it to false. A release that knows neither the token nor the flag reads an
+    unknown flag as false and drops the line, instead of mailing « Ce lien est valable jusqu'au . »; with its
+    date the guest reads exactly the text of rule 36. Content migration `payment_link_valid_until_sentence_v2`
+    (`runValidUntilBlockMigration`, after v1 at the same boot): a side is rewritten only when it is, to the
+    character, a default as v1 left it (`MIGRATED_V1`, SHA-256: the rule-36 defaults and every older default with
+    v1's sentence inserted, rebuilt from every version of the registry); a side already in the block form, or
+    without the sentence, is skipped; any other side carrying the sentence is the operator's, left alone and
+    named in the boot log. Idempotent (marker, and the block form is never rewritten). The catalogue gains the
+    condition `hasPaymentLinkValidUntil` « Si fin de validité du lien »; `paymentRequestDraft` accepts the token
+    inside either block. The rollback reasoning is specs/self-update-and-releases.md rule 53.
+
 ---
 
 ## 4. Architecture
@@ -808,7 +855,9 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
 | `controllers/` | `paymentsController.js` | T | `ensurePaymentLinkFor(id, type)` beside `ensureInstallmentLinkFor`; `sendTemplate` hands `expiresAt` as `extraContext.dates.paymentLinkValidUntil` (rule 36) |
 | `utils/` | `reservationEmailSender.js`, `dateFr.js` | T | `extraContext.dates` written in the guest's language by `formatMomentLong` (rule 36) |
 | `utils/` | `paymentRequestDraft.js`, `emailContextBuilder.js` | T | The no-link draft refuses a template printing the validity outside its condition; the token's default `''` (rule 36) |
-| `utils/` | `migrateValidUntilSentence.js` | C | Rule 36's content migration, untouched sides only, called from `database.js` |
+| `utils/` | `migrateValidUntilSentence.js` | C | Rule 36's content migration, untouched sides only, called from `database.js`; its v2 moves the sentence into its rollback-safe block (rule 59) |
+| `utils/` | `platformStayRefusal.js` | C | `platformStayRefusal(database, stayId)`: 409 `PLATFORM_RESERVATION` on a platform stay (`isDirectChannel`, the converted reservation included); read by both mints and by `emailsController.send` / preview (rule 57) |
+| `utils/` | `templateTokens.js`, `paymentRequestDraft.js`, `emailContextBuilder.js` | T | Condition `hasPaymentLinkValidUntil`; `namesUsedOutside` takes several flags; default false (rule 59) |
 | `controllers/` | `establishmentClosuresController.js` | T | `RESERVATION_OVERLAP` reworded + `reservations[]`; new `OPEN_PAYMENT_REQUEST` + `requests[]`; `conflicts` handler (rules 40-41); built by `buildController({ database, model })` so a test drives it on the baseline schema |
 | `utils/` | `closureConflicts.js` | C | `closureConflicts(model, range)` shapes the three lists (labels, `detail`, `url`) and holds the two refusal messages (rules 40, 41, 49) |
 | `utils/` | `withdrawnPayments.js` | C | `unsettledWithdrawnRefusal(database, stayId)` and `settleWithdrawnPayment(linkId, deps)` (rule 56); read by both mints and `emailsController.send` |
@@ -821,7 +870,7 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
 | `controllers/` | `devisController.js` | T | Relays `DATES_HELD` with `stays[]` |
 | `routes/` | `establishmentClosures.js`, `payments.js`, `dashboard.js` | T | `GET /establishment-closures/conflicts`, `POST /payments/links/:id/withdraw`, `GET/POST /dashboard/dates-taken` |
 | `controllers/` | `paymentsController.js` | T | `withdrawLink` (rule 42) |
-| `controllers/` | `dashboardController.js` | T | Dates-taken card list / acknowledge (rule 43) |
+| `controllers/` | `dashboardController.js` | T | Dates-taken card list / acknowledge (rule 43); `remindPaymentDeadline` passes a service refusal through with its status and code (rule 50) |
 | `models/` | `icalDateDriftModel.js` | T | The approval answer carries the held-dates warning (rule 39) |
 | `plugins/online-payment/` | `index.js`, `paymentJobs.js` (C) | T | Job `payment-link-lifecycle` every 15 min (first run 15 min after boot), `inProgress` shared with `payment-poll` (rules 16, 22); `paymentJobs.createPaymentJobs` builds both jobs; plugin 1.5.0, `sdk ^2.18.0` |
 | `plugins/sdk/` | `version.js`, `coreModules.json`, `coreModuleHistory.json` | T | SDK 2.18.0: `paymentPollRunner.runLinkLifecycle` (specs/plugins-phase-1-sdk.md rule 35) |
@@ -843,6 +892,7 @@ No new dependency.
 | `services/` / `api.js` | `api.js` | T | `getClosureConflicts`, `withdrawPaymentLink`, `getDatesTakenAlerts`, `acknowledgeDatesTaken` |
 | `pages/` | `ReservationPage.jsx` | T | The 409 `DATES_UNAVAILABLE` message reaches the existing error dialog; on 409 `LINK_ALREADY_PAID` the resend, solde and devis senders re-read the fiche / the devis (rule 50) |
 | `components/` | `reservation/InstallmentPlanCard.jsx` | T | « Envoyer la demande » refused `LINK_ALREADY_PAID` → `onMoneyChanged` (rule 50) |
+| `components/` | `PaymentDeadlinesAlert.jsx` | T | « Relancer » re-reads the rows after a sent request or a `LINK_ALREADY_PAID` refusal; the draft dialog gets `onMoneyChanged` (rule 50, audit R9-C1) |
 | `constants/` | `paymentLinks.js` | C | `LINK_ALREADY_PAID`, `isLinkAlreadyPaid` (rule 50) |
 | `components/` | `EmailManualSendDialog.jsx` | T | Optional `onMoneyChanged`, called on `LINK_ALREADY_PAID` (rule 50); the fiche passes `reloadReservationFinance` |
 | `services/` | `api.js` | T | A refused write that moved a stay dispatches its versions (rule 50, reservation-fiche-concurrency rule 12) |
@@ -890,7 +940,7 @@ No new dependency.
 - `payment_links.deactivationAlertedAt TEXT` (new, nullable): rule 20's one-shot alert.
 - Migration `orphan_payment_links_withdrawn_v1` (rule 5).
 - Migration `payment_link_validity_backfill_v1`: `expiresAt` of links already open at the upgrade = install + 36 h at the earliest (rule 34); every later boot gives the same to an open link with no known end (rule 53).
-- Content migration of the untouched default templates (rule 36).
+- Content migration of the untouched default templates (rule 36), then `payment_link_valid_until_sentence_v2`: the sentence in its rollback-safe block (rule 59).
 - `cancelReason = 'dates-taken'` rows may later become `paid` (rule 33, via `markRetiredLinkPaid`).
 - New table `dates_taken_notices` (`id`, `reservationId` UNIQUE, `takenByReservationId`, `emailLogId`, `noticeStatus` `sent | not-sent`, `noticeReason`, `createdAt`, `acknowledgedAt`) (rule 43).
 - New default template `dates_unavailable_notice` FR / EN, seeded (rule 45).
@@ -900,7 +950,9 @@ The 3 prod orphans move to `cancelled` / `orphan`. Every link open at upgrade la
 install (rule 34) — operators re-send requests still wanted. A rollback to the previous
 version reads the new reasons as « Lien retiré » / « Lien expiré » (unknown values fall to the
 generic label) and the new columns are ignored (additive schema, self-update rule 31). The links that release
-mints meanwhile carry Qonto's sentinel; the roll-forward's boot gives them their 36 h (rule 53).
+mints meanwhile carry Qonto's sentinel; the roll-forward's boot gives them their 36 h (rule 53). The template
+text stays in the database too: since rule 59 its validity sentence is in a block that release drops whole
+(self-update rule 53).
 
 ## 6. UI / UX
 
@@ -972,12 +1024,17 @@ refused).
 - [x] Amended `direct-installments-emails` (the preview's placeholder before the mint), `emails-controller` and `plugin-removal-fixes` (a re-offered link has 24 h left).
 - [x] Amend `payment-poll-fair-use.unit.test.js` (retireExpired now sets the marker) and `plugins-phase-0` uninstall guard (rule 23); `plugins-phase-0` pending last look (rule 52).
 - [x] `tests/public-payment-pay-visitor-refusals.unit.test.js` — rule 54: provider unreachable and a link paid meanwhile, in English and French (4).
+- [x] `tests/payment-link-platform-stay.unit.test.js` (15) — rule 57: no acompte, solde or séjour link on a Booking, Gîtes de France or Airbnb stay, an open link not handed out, a devis converted into a platform stay, the échéance, a direct / empty / own-channel platform still minted, `/payment-emails` refused, the four link templates of the dialog refused before any mint (provider or not), the preview without placeholder or stored link, the arrival reminder still sent.
+- [x] `tests/dashboard-remind-refusal-passthrough.unit.test.js` (3) — rule 50 (R9-C1): `LINK_ALREADY_PAID` and `ALREADY_PAID` keep their 409, an unknown failure stays 502.
+- [x] `tests/payment-link-last-look-reclick.unit.test.js` (6) — rule 58: paid → booked and refused (acompte and full), unpaid → minted with the look kept, unreadable → 502, a taken look not read again, the échéance.
+- [x] `tests/payment-link-valid-until-rollback.unit.test.js` (10) — rule 59: a rollback render drops the sentence whole, the current render equals rule 36's text, v2 on v1 forms, older defaults, an edited side kept and logged, a side without the sentence or in the block form untouched, once and idempotent, v1 + v2 at one boot and a fresh install, the boot order, the no-provider draft. `payment-link-valid-until-token` amended (block form; +1: no known end, no sentence).
 
 ### Client
 - [x] `client/src/__tests__/wordpress-booking-view.payment-expired.test.js` — rule 30: the return page stops on `expired` with its message, after a `pending` too; `confirmed` still wins (3).
 - [x] `client/src/pages/__tests__/ReservationPage.link-already-paid.test.jsx` — rule 50: resend, solde, devis and e-mail-dialog senders re-read on `LINK_ALREADY_PAID`, another refusal re-reads nothing (5).
 - [x] `client/src/components/__tests__/EmailManualSendDialog.link-already-paid.test.jsx` — rule 50: the refusal stays on screen, `onMoneyChanged` once, not `onSent`; another refusal re-reads nothing (2).
 - [x] `client/src/components/reservation/__tests__/InstallmentPlanCard.link-already-paid.test.jsx` — rule 50 (2).
+- [x] `client/src/components/__tests__/PaymentDeadlinesAlert.link-already-paid.test.jsx` — rule 50 (R9-C1): « Relancer » refused as paid re-reads the rows, a sent request too, another refusal does not, the draft dialog's refusal re-reads (4).
 - [x] `client/src/components/reservation/__tests__/FinanceSection.link-lifecycle.test.jsx` (11) — prints the new labels, offers « Renvoyer la demande » on expired, not on dates-taken; « Retirer le lien » asks for confirmation.
 - [x] `client/src/pages/__tests__/EstablishmentClosuresPage.conflicts.test.jsx` (6) — warning list with links, 409 lists rendered, asked again on focus, same tab on a phone.
 - [x] `client/src/components/__tests__/ConflictList.test.jsx` (5).
@@ -1152,5 +1209,11 @@ Six sequential PRs into `inte/plugins` (plan validated 2026-10-30).
   (`payment-link-unsettled-withdrawn` 13, `public-payment-pay-visitor-refusals` +2, `FinanceSection.link-lifecycle` 11).
   Final check: M1 `unavailableNights` shared by the ledger, `bookWithdrawnPaid` and the poll (`paymentEffectDeps.conflictCheckerFor`);
   O4 `stayIsReadOnly` → `buildLedger({ stayReadOnly })` (`payment-link-unsettled-withdrawn` 17).
+  Audit round 9 (2026-10-31): rule 57 `utils/platformStayRefusal.js` in both mints and the e-mail send / preview
+  (`payment-link-platform-stay` 15); rule 50 extended to the home card (`dashboardController` pass-through,
+  `PaymentDeadlinesAlert` re-read; `dashboard-remind-refusal-passthrough` 3, client
+  `PaymentDeadlinesAlert.link-already-paid` 4); rule 58 `bookOwedLapsedPayment` also reads a pending last look
+  (`payment-link-last-look-reclick` 6); rule 59 the rollback-safe block, migration v2, flag in both senders
+  (`payment-link-valid-until-rollback` 10, `payment-link-valid-until-token` +1).
 - [ ] PR5 — held dates and dates-taken withdrawal (rules 10-12, 16, 24, 25, 31-33, 37-39, 46, 48).
 - [ ] PR6 — dates-taken guest notice (rules 35, 43-45, 47); status → Implemented.

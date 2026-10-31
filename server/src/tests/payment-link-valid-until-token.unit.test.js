@@ -29,7 +29,7 @@ const { formatMomentLong } = require('../utils/dateFr');
 const { VARIABLES } = require('../utils/templateTokens');
 const { buildContext } = require('../utils/emailContextBuilder');
 const { DEFAULT_TEMPLATES, VALID_UNTIL_SENTENCE } = require('../utils/defaultEmailTemplatesRegistry');
-const { runValidUntilSentenceMigration, MIGRATION_NAME, withoutValidUntilSentence, withValidUntilSentence, SHIPPED } = require('../utils/migrateValidUntilSentence');
+const { runValidUntilSentenceMigration, runValidUntilBlockMigration, MIGRATION_NAME, withoutValidUntilSentence, withValidUntilSentence, rollbackSafeValidUntil, SHIPPED, MIGRATED_V1 } = require('../utils/migrateValidUntilSentence');
 const crypto = require('crypto');
 const { draftTemplateFor } = require('../utils/paymentRequestDraft');
 const { sendPaymentRequest, sendInstallmentRequest } = require('../utils/paymentRequestService');
@@ -63,16 +63,20 @@ test('rule 36 — the token is in the catalogue, among the payment variables, an
 });
 
 // Rule 28 — a guest who opens a lapsed link knows why: the e-mail said until when it was valid.
-test('rules 28, 36 — every default template that carries a link states its end right after it, FR and EN', () => {
+// Rule 59 — in a block of its own, guarded by `hasPaymentLinkValidUntil`; after the link's own block where there is one.
+test('rules 28, 36, 59 — every default template that carries a link states its end right after it, FR and EN', () => {
+  const block = (lang) => `{{#if hasPaymentLinkValidUntil}}\n${VALID_UNTIL_SENTENCE[lang]}{{/if}}`;
   for (const key of LINK_KEYS) {
     const t = DEFAULT_TEMPLATES.find((row) => row.stableKey === key);
-    assert.ok(t.body.includes(`{{paymentLink}}\n${VALID_UNTIL_SENTENCE.fr}`), `${key} FR`);
-    assert.ok(t.bodyEn.includes(`{{paymentLink}}\n${VALID_UNTIL_SENTENCE.en}`), `${key} EN`);
+    for (const [body, lang] of [[t.body, 'fr'], [t.bodyEn, 'en']]) {
+      assert.match(body, /\{\{paymentLink\}\}(\{\{else\}\}[^{\n]*\{\{\/if\}\})?\{\{#if hasPaymentLinkValidUntil\}\}/, `${key} ${lang}`);
+      assert.ok(body.includes(block(lang)), `${key} ${lang}`);
+    }
   }
   assert.equal(VALID_UNTIL_SENTENCE.fr, 'Ce lien est valable jusqu\'au {{paymentLinkValidUntil}}.');
   assert.equal(VALID_UNTIL_SENTENCE.en, 'This link is valid until {{paymentLinkValidUntil}}.');
   const reminder = DEFAULT_TEMPLATES.find((row) => row.stableKey === 'deposit_reminder');
-  assert.match(reminder.body, /\{\{#if hasPaymentLink\}\}[^]*\{\{paymentLinkValidUntil\}\}\.\{\{else\}\}/, 'inside the condition');
+  assert.ok(reminder.body.includes(`Contactez-nous pour le règlement.{{/if}}${block('fr')}`), 'after the link condition, never nested');
   const balanceReminder = DEFAULT_TEMPLATES.find((row) => row.stableKey === 'balance_reminder');
   assert.doesNotMatch(balanceReminder.body, /paymentLinkValidUntil/, 'rule 27: the solde reminder carries no link');
 });
@@ -104,6 +108,13 @@ test('rule 36 — a request sent from the fiche states the link’s end in Frenc
 test('rule 36 — and in English for an English-speaking guest', async () => {
   const text = await sendWith('en', 'balance_request', '2026-11-02T17:00:00.000Z');
   assert.match(text, /Pay the balance online: https:\/\/pay\.example\.test\/l\nThis link is valid until Monday 2 November at 6:00 pm\./);
+});
+
+// Rule 59 — a link with no known end writes no sentence at all: its block is off.
+test('rule 59 — a request whose link has no known end leaves the sentence out', async () => {
+  const text = await sendWith('fr', 'full_request', null);
+  assert.match(text, /Payer en ligne : https:\/\/pay\.example\.test\/l\n\n/);
+  assert.doesNotMatch(text, /valable jusqu/);
 });
 
 test('rule 36 — the controller hands the instant, never a pre-formatted date', () => {
@@ -151,6 +162,8 @@ test('rule 36 — the migration writes the sentence onto the default templates n
   const logs = [];
   const result = runValidUntilSentenceMigration(memory, { logger: { log: (l) => logs.push(l) } });
   assert.equal(result.updated, 10);
+  // Rule 59 — v2 runs right after at the same boot: the result is the text a new install gets.
+  assert.equal(runValidUntilBlockMigration(memory, { logger: { log: () => {} } }).updated, 10);
   for (const key of LINK_KEYS) {
     const row = memory.prepare('SELECT body, bodyEn FROM email_templates WHERE stableKey = ?').get(key);
     const t = DEFAULT_TEMPLATES.find((d) => d.stableKey === key);
@@ -167,7 +180,9 @@ test('rule 36 — every default shipped before this version is recognised, the l
     const t = DEFAULT_TEMPLATES.find((row) => row.stableKey === key);
     assert.ok(SHIPPED[key].fr.includes(hash(withoutValidUntilSentence(t.body))), `${key} FR`);
     assert.ok(SHIPPED[key].en.includes(hash(withoutValidUntilSentence(t.bodyEn))), `${key} EN`);
-    assert.equal(withValidUntilSentence(withoutValidUntilSentence(t.body), 'fr'), t.body, 'inserted where the registry has it');
+    const v1 = withValidUntilSentence(withoutValidUntilSentence(t.body), 'fr');
+    assert.ok(MIGRATED_V1[key].fr.includes(hash(v1)), `${key}: v1's output is a known v1 form`);
+    assert.equal(rollbackSafeValidUntil(v1, 'fr'), t.body, 'v2 lands where the registry has it');
   }
 });
 
@@ -196,7 +211,7 @@ test('rule 36 — an operator-edited template keeps its text, on each side separ
   const result = runValidUntilSentenceMigration(memory, { logger: { log: (l) => logs.push(l) } });
   const row = memory.prepare('SELECT body, bodyEn FROM email_templates WHERE stableKey = ?').get('deposit_request');
   assert.equal(row.body, edited, 'the edited French side is left alone');
-  assert.equal(row.bodyEn, t.bodyEn, 'the untouched English side gets the sentence');
+  assert.equal(row.bodyEn, withValidUntilSentence(withoutValidUntilSentence(t.bodyEn), 'en'), 'the untouched English side gets the sentence');
   assert.equal(result.updated, 1);
   assert.deepEqual(result.kept, ['deposit_request (fr)']);
   assert.match(logs[0], /edited, left as they are: deposit_request \(fr\)/);

@@ -15,6 +15,7 @@
 const { todayIso: localTodayIso } = require('../utils/localDate');
 const { closedDatesRefusal } = require('../utils/closedStayDates');
 const { unsettledWithdrawnRefusal } = require('../utils/withdrawnPayments');
+const { platformStayRefusal } = require('../utils/platformStayRefusal');
 const { sendFailureMessage } = require('../utils/sendFailure');
 const { parisDateTimeLabel } = require('../utils/parisDateTime');
 
@@ -210,12 +211,15 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
       const stored = installmentRef
         ? installmentRef.openLink
         : paymentLinksModel && typeof paymentLinksModel.findOpenForStay === 'function' && paymentLinksModel.findOpenForStay(Number(reservationId), linkType);
-      const mintable = Boolean(installmentRef ? installmentRequests.available() : paymentRequests && paymentRequests.available());
-      const link = extra.paymentLink || (providerLive ? reusableLink(stored) : null);
+      // Rule 57 — a platform stay gets no link: the preview shows the template's no-link branch.
+      const payable = !platformStayRefusal(database, reservationId);
+      const mintable = payable && Boolean(installmentRef ? installmentRequests.available() : paymentRequests && paymentRequests.available());
+      const link = extra.paymentLink || (payable && providerLive ? reusableLink(stored) : null);
       const { url, validUntil } = linkVariables(link, mintable, useLang);
       context.vars.paymentLink = url;
       context.vars.paymentLinkValidUntil = validUntil;
       context.flags.hasPaymentLink = Boolean(url);
+      context.flags.hasPaymentLinkValidUntil = Boolean(validUntil);
     }
 
     // Template side for the language (EN if filled, else FR fallback). Operator overrides still win.
@@ -302,8 +306,11 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
 
     // specs/payment-link-lifecycle.md rule 55 — a request or reminder on closed nights is refused before any mint.
     if (isInstallment || linkType) {
-      // Rule 56 — and none while a payment received on a link withdrawn by hand waits to be settled.
-      const refusal = closedDatesRefusal(database, Number(reservationId)) || unsettledWithdrawnRefusal(database, Number(reservationId));
+      // Rule 57 — nor on a platform stay; rule 56 — nor while a payment received on a link withdrawn by hand
+      // waits to be settled.
+      const refusal = platformStayRefusal(database, Number(reservationId))
+        || closedDatesRefusal(database, Number(reservationId))
+        || unsettledWithdrawnRefusal(database, Number(reservationId));
       if (refusal) return res.status(refusal.httpStatus).json({ error: refusal.error, message: refusal.message });
     }
     // A send that cannot leave is refused before a payment link is minted for it (review of #897).

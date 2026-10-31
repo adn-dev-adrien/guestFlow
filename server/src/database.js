@@ -2826,6 +2826,8 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
 // Untouched default templates only; an edited side keeps its text.
 if (process.env.SKIP_MIGRATIONS !== 'true') {
   require('./utils/migrateValidUntilSentence').runValidUntilSentenceMigration(db);
+  // Rule 59 — then in a block a rolled-back release drops whole (never « valable jusqu'au . »).
+  require('./utils/migrateValidUntilSentence').runValidUntilBlockMigration(db);
 }
 
 // ---------- HISTORY OUTLIVES THE STAY (specs/ical-cancellation-approval.md rules 11, 14) ----------

@@ -135,6 +135,7 @@ const FLAGS = Object.freeze([
   { name: 'hasCompanyPhone', label: 'Si téléphone de l’entreprise', in: null },
   { name: 'hasRetainedDeposit', label: 'Si acompte conservé', in: ['payment', 'cancellation'] },
   { name: 'hasPaymentLink', label: 'Si lien de paiement', in: ['payment'] },
+  { name: 'hasPaymentLinkValidUntil', label: 'Si fin de validité du lien', in: ['payment'] },
   { name: 'hasBedLinenOption', label: 'Si linge de lit', in: STAY },
   { name: 'bedLinenProvidedByDefault', label: 'Si linge fourni par défaut', in: STAY },
   { name: 'bedLinenBringYourOwn', label: 'Si linge à apporter', in: STAY },
@@ -218,12 +219,14 @@ function namesUsedBy(templates) {
 }
 
 /**
- * The names a text uses outside a block guarded by `flag` — `{{companyPhone}}` inside
+ * The names a text uses outside the blocks guarded by `flag` (one name or several) — `{{companyPhone}}` inside
  * `{{#if hasCompanyPhone}}…{{/if}}` needs no phone (rule 6, 2026-10-17).
  */
 function namesUsedOutside(text, flag) {
-  const guarded = new RegExp(`\\{\\{#if\\s+${flag}\\s*\\}\\}[\\s\\S]*?\\{\\{/if\\}\\}`, 'g');
-  return namesUsed(String(text || '').replace(guarded, ''));
+  const unguarded = [].concat(flag).reduce((out, name) => out.replace(
+    new RegExp(`\\{\\{#if\\s+${name}\\s*\\}\\}[\\s\\S]*?\\{\\{/if\\}\\}`, 'g'), '',
+  ), String(text || ''));
+  return namesUsed(unguarded);
 }
 
 const inScope = (entry, section) => !entry.in || !section || entry.in.includes(section);

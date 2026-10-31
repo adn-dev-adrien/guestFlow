@@ -1,0 +1,3 @@
+- Payment links: a platform stay (Booking, Airbnb, Gîtes de France…) never gets a direct payment link any more. The e-mail dialog, the payment routes and the échéance are refused with « Réservation plateforme : aucun lien de paiement. » before any link is created; before, picking « Demande de solde » on a platform fiche mailed the guest a real link.
+- Home « Échéances de paiement »: when « Relancer » finds that the payment has just been received, the card re-reads its rows and the row goes away. The refusal now keeps its code (409) instead of a generic 502.
+- Payment links: clicking again within the hour after an expired link was deactivated reads that link first, so a payment that arrived late is recorded instead of a second link being sent.
