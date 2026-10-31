@@ -1,1 +1,0 @@
-- **Server dev dependencies — `minimatch` 11.0.3 under nodemon** (audit R10 L-1, `specs/security-hardening.md` rule 13). nodemon 3.1.14 pins `minimatch ^10.2.1`, inside GHSA-g3hv-75wg-m249; an `overrides` entry scoped to nodemon closes it in the existing lockfile (`npm audit` in `server/`: 2 moderate → 0). Dev only, production unaffected.
