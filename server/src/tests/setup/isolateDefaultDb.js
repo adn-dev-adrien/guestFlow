@@ -4,10 +4,19 @@
  * `guestflow.db` (or `PERSISTENT_DB`) throws. A test that needs a database sets `DB_PATH` itself, as
  * before; one that forgets used to create and migrate the developer's `server/guestflow.db`. The secrets
  * file and the uploads folder move to the same temp directory (rule 4).
+ *
+ * It also starts the process without the shell's GuestFlow flags (rule 12): a developer shell exporting
+ * `GUESTFLOW_MANAGED=1` or the E2E `GUESTFLOW_DISABLE_OUTBOUND=1` turned tests that read `process.env`
+ * red, or vacuously green. A test that needs a flag sets it inline or passes its own `env`. The runner's
+ * own `GUESTFLOW_TEST_*` knobs are kept.
  */
 const path = require('path');
 
 const DEFAULT_DB = path.resolve(__dirname, '..', '..', '..', 'guestflow.db');
+
+for (const name of Object.keys(process.env)) {
+  if (name.startsWith('GUESTFLOW_') && !name.startsWith('GUESTFLOW_TEST_')) delete process.env[name];
+}
 
 require('../../utils/testProcessIsolation').isolate({ force: true });
 
