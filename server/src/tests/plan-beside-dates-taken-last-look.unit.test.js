@@ -9,7 +9,7 @@ process.env.TZ = 'Europe/Paris';
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { createHarness, call, addStay, TODAY } = require('./directInstallmentsFixtures');
+const { createHarness, call, addStay, TODAY, ARRIVAL } = require('./directInstallmentsFixtures');
 const { fakeProvider } = require('./paymentLinkLifecycleFixture');
 const { runLastLooks, retryPendingCancellations, bookLateWithdrawnPaid } = require('../utils/paymentPollRunner');
 const { settleWithdrawnPayment, unsettledWithdrawnRefusal } = require('../utils/withdrawnPayments');
@@ -100,7 +100,7 @@ async function paidBesidePlan({ path = 'last-look' } = {}) {
   const h = createHarness();
   assert.equal((await put(h, { count: 3 })).status, 200);
   const link = addDatesTakenLink(h, { lookInMinutes: -1, markerOwed: path === 'retry' });
-  const devisId = addStay(h.db, { kind: 'devis', devisNumber: 'D-T-916', startDate: '2027-06-15', endDate: '2027-06-18' });
+  const devisId = addStay(h.db, { kind: 'devis', devisNumber: 'D-T-916', startDate: addDaysToIsoDate(ARRIVAL, 1), endDate: addDaysToIsoDate(ARRIVAL, 4) });
   const devisLink = h.paymentLinksModel.create({
     reservationId: devisId, type: 'full', amountCents: 50000, provider: 'qonto', providerLinkId: 'pl_devis_916', url: 'https://pay.example.test/devis', status: 'open',
   });
