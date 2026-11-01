@@ -287,6 +287,7 @@ test('online payment: the last look of a link withdrawn for taken dates blocks t
   const linksDdl = fs.readFileSync(path.join(__dirname, '..', 'schema.sql'), 'utf8').match(/CREATE TABLE IF NOT EXISTS payment_links \([\s\S]*?\n {2}\);/)[0];
   db.exec(`DROP TABLE payment_links; ${linksDdl}`);
   call('install', 'online-payment');
+  // date-literal-ok: the guard only asks whether a last look is owed, never when
   db.prepare("INSERT INTO payment_links (id, reservationId, type, status, cancelReason, providerLinkId, lastLookAt) VALUES (1, 5, 'deposit', 'cancelled', 'dates-taken', 'pl_1', '2026-11-03T21:00:00Z'), (2, 5, 'balance', 'cancelled', 'operator', 'pl_2', '2026-11-03T21:05:00Z')").run();
   const res = call('uninstall', 'online-payment');
   assert.equal(res.statusCode, 409);
