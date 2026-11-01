@@ -2494,6 +2494,8 @@ export default function ReservationPage() {
           if (overwriteOnceRef.current) loadedUpdatedAtRef.current = savedDevis?.updatedAt || null;
           overwriteOnceRef.current = false;
           if (savedDevis?.retiredPaymentLinks) showSuccess('Devis enregistré. Le lien de paiement en cours est retiré : le montant a changé.');
+          // Rule 48 — the marker is live: moved onto free nights, the devis is no longer « Dates prises ».
+          setDatesTaken(savedDevis?.datesTaken || null);
           setInitialSnapshot(formSnapshot);
           if (safeAfterSaveAction) {
             safeAfterSaveAction();
@@ -2585,8 +2587,9 @@ export default function ReservationPage() {
         const overwritten = overwriteOnceRef.current;
         overwriteOnceRef.current = false;
         ledgerEditMarkerRef.current = null;
-        // Rule 7 — the stored ledger is what the fiche shows once clean again: re-read it after a save.
-        api.getReservation(reservationId).then((r) => { if (overwritten) loadedUpdatedAtRef.current = r.updatedAt || null; setStoredLedger(r.ledger || null); setStoredHeadline(r.storedHeadline || null); setStoredSummary(r.storedSummary || null); setStoredDepositDisabledLockedReason(r.depositDisabledLockedReason || null); setConvertToDevisLockedReason(r.convertToDevisLockedReason || null); setInstallmentPlan(r.installmentPlan || null); }).catch(() => {});
+        // Rule 7 — the stored ledger is what the fiche shows once clean again: re-read it after a save (and the live
+        // « Dates prises » marker, specs/payment-link-lifecycle.md rule 48).
+        api.getReservation(reservationId).then((r) => { if (overwritten) loadedUpdatedAtRef.current = r.updatedAt || null; setDatesTaken(r.datesTaken || null); setStoredLedger(r.ledger || null); setStoredHeadline(r.storedHeadline || null); setStoredSummary(r.storedSummary || null); setStoredDepositDisabledLockedReason(r.depositDisabledLockedReason || null); setConvertToDevisLockedReason(r.convertToDevisLockedReason || null); setInstallmentPlan(r.installmentPlan || null); }).catch(() => {});
         if (safeAfterSaveAction) {
           safeAfterSaveAction();
           // The page stays open: refetch so the server's `editLock` (floors, window) is fresh. Only on a

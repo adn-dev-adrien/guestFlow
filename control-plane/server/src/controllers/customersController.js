@@ -358,6 +358,11 @@ function createCustomersController(ctx) {
   }
 
   const erasureDue = (c) => Boolean(c.archivedAt && c.eraseAt && c.eraseAt <= today());
+  // Rule 41: the archive goes with the erasure, so a link must expire the day before it.
+  function refuseForErasure(c) {
+    const when = c.eraseAt < today() ? 'dû' : 'prévu';
+    provisioning.set(c.id, 'deprov-email', 'failed', `Effacement ${when} le ${frDay(c.eraseAt)} : aucun lien envoyé.`, stamp());
+  }
 
   function stepsView(c, defs) {
     const rows = new Map(provisioning.list(c.id).map((r) => [r.step, r]));
@@ -924,15 +929,17 @@ function createCustomersController(ctx) {
         provisioning.set(id, 'deprov-email', 'failed', 'Lien expiré et base introuvable : aucun export à envoyer.', stamp());
         return;
       }
-      // Rule 41: the archive goes with the erasure, so a link must expire the day before it.
       if (erasureDue(c)) {
-        const when = c.eraseAt < today() ? 'dû' : 'prévu';
-        provisioning.set(id, 'deprov-email', 'failed', `Effacement ${when} le ${frDay(c.eraseAt)} : aucun lien envoyé.`, stamp());
+        refuseForErasure(c);
         return;
       }
       const fresh = exportForDeprovision(c, operator, { closed: true });
       if (fresh.failed) {
         provisioning.set(id, 'deprov-email', 'failed', `Nouvel export en échec (${fresh.error}) : aucun lien envoyé.`, stamp());
+        return;
+      }
+      if (fresh.dead) {
+        refuseForErasure(c);
         return;
       }
       journal(id, operator, 'deprovision', 'Nouvel export produit : l’ancien lien avait expiré');
@@ -996,6 +1003,12 @@ function createCustomersController(ctx) {
       const fullTerm = addDays(today(), EXPORT_LINK_DAYS);
       const beforeErasure = c.archivedAt && c.eraseAt ? addDays(c.eraseAt, -1) : null;
       const expiresAt = beforeErasure && beforeErasure < fullTerm ? beforeErasure : fullTerm;
+      // Rule 44: an export that ran past midnight into the erasure day ends with a link expired
+      // yesterday; nothing of it is kept, so « Export complet » still shows the last real export.
+      if (expiresAt < today()) {
+        fs.rmSync(file, { force: true });
+        return { dead: true };
+      }
       const link = { token, customerId: c.id, path: file, createdAt: stamp(), expiresAt };
       provisioning.addExport(link);
       provisioning.set(c.id, 'deprov-export', 'ok', `Archive de ${(bytes / 1048576).toFixed(1).replace('.', ',')} Mo.`, stamp());
@@ -1050,20 +1063,22 @@ function createCustomersController(ctx) {
   }
 
   // The export archives hold the whole database: they go with the link (rule 20).
+  // H1 rule 43: a file a still valid link points at stays (rows written before the names were unique).
   function dropExports(customerId) {
-    for (const exp of provisioning.exportsOf(customerId)) {
-      fs.rmSync(exp.path, { force: true });
-      provisioning.expireExport(exp.token, addDays(today(), -1));
-    }
+    const rows = provisioning.exportsOf(customerId);
+    for (const exp of rows) provisioning.expireExport(exp.token, addDays(today(), -1));
+    for (const exp of rows) if (!provisioning.pathInUse(exp.path, today())) fs.rmSync(exp.path, { force: true });
   }
 
   function purgeExpiredExports() {
-    const expired = provisioning.expiredExports(today()).filter((exp) => fs.existsSync(exp.path));
-    for (const exp of expired) {
+    let purged = 0;
+    for (const exp of provisioning.expiredExports(today())) {
+      if (!fs.existsSync(exp.path) || provisioning.pathInUse(exp.path, today())) continue;
       fs.rmSync(exp.path, { force: true });
       journal(exp.customerId, 'système', 'deprovision', 'Archive d’export supprimée (lien expiré)');
+      purged += 1;
     }
-    return expired.length;
+    return purged;
   }
 
   async function eraseNow(id, body, operator) {

@@ -10,18 +10,40 @@
  *   openLabel?:  string                              the link text (default « Ouvrir »)
  *   newTab?:     boolean                             open in a new tab (desktop) or in place (phone)
  *
+ * In place, « Ouvrir » leaves through the page's unsaved-changes guard, and inside an app dialog it first closes
+ * that dialog as « Annuler » would (rules 39, 46, audit R11-C2): nothing is left open over the next page. A new
+ * tab leaves the dialog where it is.
+ *
  * The server shapes every text: the component prints `label`, `detail` and links `url`. Renders nothing when
  * no group has a row.
  */
 import React from 'react';
 import { Alert, Box, Button, Typography } from '@mui/material';
-import { Link as RouterLink, useInRouterContext } from 'react-router';
+import { Link as RouterLink, useInRouterContext, useNavigate } from 'react-router';
+import { useDialogDismiss } from './dialogDismissContext';
+import { isPlainClick, navigateThroughGuard } from '../utils/guardedNavigation';
 
-function OpenLink({ url, label, ariaLabel, newTab, inRouter }) {
-  const target = newTab ? { target: '_blank', rel: 'noopener' } : {};
+function InPlaceLink({ url, ...props }) {
+  const navigate = useNavigate();
+  const dismiss = useDialogDismiss();
+  const open = (event) => {
+    if (!isPlainClick(event)) return;
+    event.preventDefault();
+    if (dismiss) dismiss();
+    navigateThroughGuard(navigate, url);
+  };
+  return <LinkButton {...props} nav={{ component: RouterLink, to: url, onClick: open }} />;
+}
+
+function OpenLink({ url, newTab, inRouter, ...props }) {
+  if (inRouter && !newTab) return <InPlaceLink url={url} {...props} />;
   const nav = inRouter ? { component: RouterLink, to: url } : { href: url };
+  return <LinkButton {...props} nav={{ ...nav, ...(newTab ? { target: '_blank', rel: 'noopener' } : {}) }} />;
+}
+
+function LinkButton({ label, ariaLabel, nav }) {
   return (
-    <Button size="small" variant="text" color="inherit" aria-label={ariaLabel} {...nav} {...target}
+    <Button size="small" variant="text" color="inherit" aria-label={ariaLabel} {...nav}
       sx={{ minHeight: 44, minWidth: 44, flexShrink: 0, textTransform: 'none', fontWeight: 600, textDecoration: 'underline', textUnderlineOffset: 3 }}>
       {label}
     </Button>
