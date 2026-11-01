@@ -1,7 +1,7 @@
 {
   "id": "accounting-export",
   "name": "Export comptable",
-  "version": "1.0.20",
+  "version": "1.0.21",
   "description": "Écritures, plan comptable et export pour le cabinet comptable.",
   "icon": "book",
   "surfaces": [
@@ -88,6 +88,10 @@
     ],
     "1.0.20": [
       "Message de validation des plateformes à la forme impersonnelle.",
+      "Compatible avec le SDK 2 de GuestFlow."
+    ],
+    "1.0.21": [
+      "L’annulation d’un séjour payé en plusieurs échéances s’équilibre au centime sur chaque compte de produits et de TVA.",
       "Compatible avec le SDK 2 de GuestFlow."
     ]
   }

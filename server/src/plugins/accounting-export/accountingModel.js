@@ -394,12 +394,17 @@ function buildCompensationEntry(compensation, { account, vatRatePercent }) {
 // One refund → one avoir entry. Revenue lines are grouped per (bucket, frozen VAT rate) and split
 // HT/VAT at that rate; tourist-tax lines ride the 46710000 pass-through with no VAT, exactly like the
 // tax portion of an encaissement. No commission, ever (rule 23): the owner refunds the guest directly.
+// A `retained` avoir reverses encaissements line for line (one line per installment and bucket,
+// specs/direct-installments.md rule 46), so it splits each line on its own, as each encaissement was
+// split, and the accounts net to the cent. With one line per bucket, as every acompte avoir has, both
+// splits are the same numbers.
 function buildRefundEntry(refund) {
   const lines = refund.lines || [];
   const ttc = round2(refund.totalTtc);
   if (ttc <= 0) return null;
 
-  const byBucket = new Map(); // `${bucket}|${rate}` → { name, ttc, ratePercent }
+  const perLine = refund.method === 'retained';
+  const byBucket = new Map(); // `${bucket}|${rate}` → { name, ttc, ht, vat, ratePercent }
   let taxTtc = 0;
   for (const line of lines) {
     const amount = round2(line.amountTtc);
@@ -407,13 +412,16 @@ function buildRefundEntry(refund) {
     if (line.bucket === 'touristTax') { taxTtc = round2(taxTtc + amount); continue; }
     const rate = Number(line.vatRate || 0);
     const mapKey = `${line.bucket}|${rate}`;
-    const current = byBucket.get(mapKey) || { name: line.bucket, ttc: 0, ratePercent: rate };
+    const current = byBucket.get(mapKey) || { name: line.bucket, ttc: 0, ht: 0, vat: 0, ratePercent: rate };
     current.ttc = round2(current.ttc + amount);
+    const part = bucketFromTtc(line.bucket, amount, rate);
+    current.ht = round2(current.ht + part.ht);
+    current.vat = round2(current.vat + part.vat);
     byBucket.set(mapKey, current);
   }
 
   const buckets = [...byBucket.values()]
-    .map((b) => bucketFromTtc(b.name, b.ttc, b.ratePercent))
+    .map((b) => (perLine ? { name: b.name, ht: b.ht, vat: b.vat, ratePercent: b.ratePercent } : bucketFromTtc(b.name, b.ttc, b.ratePercent)))
     .filter((b) => b.ht > 0 || b.vat > 0);
 
   return {
@@ -1217,5 +1225,5 @@ function bucketFromTtc(name, ttc, ratePercent) {
 
 module.exports = {
   create: createAccountingModel,
-  __test: { buildEntry, buildEndOfStayEntry, splitByDestination, buildInstallmentEntry },
+  __test: { buildEntry, buildEndOfStayEntry, splitByDestination, buildInstallmentEntry, buildRefundEntry },
 };

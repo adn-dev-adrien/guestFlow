@@ -61,10 +61,13 @@ function lineLabelOf(line) {
   return String(line.title || line.name || line.description || 'Prestation').trim() || 'Prestation';
 }
 
-/** `{ key → TTC already refunded }` over a reservation's whole refund register (every means). */
-function refundedByKey(refunds) {
+/**
+ * `{ key → TTC already refunded }` over a reservation's whole refund register (every means). `filter`
+ * keeps only some refunds — `isRequalification` for the money a cancellation requalified.
+ */
+function refundedByKey(refunds, filter = () => true) {
   const byKey = {};
-  for (const refund of refunds || []) {
+  for (const refund of (refunds || []).filter(filter)) {
     for (const line of refund.lines || []) {
       if (!line.lineKey) continue;
       byKey[line.lineKey] = round2((byKey[line.lineKey] || 0) + Number(line.amountTtc || 0));
@@ -72,6 +75,10 @@ function refundedByKey(refunds) {
   }
   return byKey;
 }
+
+// A `retained` avoir gives nothing back: it requalifies money a cancellation kept as an indemnity
+// (payment-schedule spec §3.6).
+const isRequalification = (refund) => String((refund && refund.method) || '') === 'retained';
 
 /** Σ of the refund register, either book-money only (default) or including the caisse interne. */
 function refundsTotal(refunds, { withCash = false } = {}) {
@@ -98,7 +105,8 @@ function refundsTotal(refunds, { withCash = false } = {}) {
  *                                      PER NIGHT (specs/reservation-refunds.md §3.5 rule 27)
  */
 function buildRefundableLines({ finalPrice, touristTaxTotal, vatRate, options = [], resources = [], refunds = [], nights = 0 }) {
-  const refunded = refundedByKey(refunds);
+  const given = refundedByKey(refunds, (refund) => !isRequalification(refund));
+  const requalified = refundedByKey(refunds, isRequalification);
   const rate = Number(vatRate || 0);
 
   const extras = [];
@@ -156,13 +164,45 @@ function buildRefundableLines({ finalPrice, touristTaxTotal, vatRate, options = 
   }
 
   // A line whose billed amount shrank below what was already refunded clamps to 0 (spec §3.2 edge
-  // case): the money physically left, but nothing more can be given back on that key.
-  return all
-    .map((line) => {
-      const refundedTtc = round2(refunded[line.key] || 0);
-      return { ...line, refundedTtc, refundableTtc: Math.max(0, round2(line.billedTtc - refundedTtc)) };
-    })
-    .filter((line) => line.refundableTtc > 0);
+  // case): the money physically left, but nothing more can be given back on that key. What a
+  // cancellation requalified is told apart from what went back to the guest (rule 46).
+  const perLine = all.map((line) => {
+    const refundedTtc = round2(given[line.key] || 0);
+    const requalifiedTtc = round2(requalified[line.key] || 0);
+    return { ...line, refundedTtc, requalifiedTtc, refundableTtc: Math.max(0, round2(line.billedTtc - refundedTtc - requalifiedTtc)) };
+  });
+  ['options', 'resources'].forEach((bucket) => spreadBucketRefund(perLine.filter((line) => line.key !== bucket && line.bucket === bucket), requalified[bucket]));
+  return perLine.filter((line) => line.refundableTtc > 0);
+}
+
+/**
+ * A line keyed by its bucket (`options`, `resources`) names no billed line: it is the requalification avoir of
+ * a cancellation, which reverses a whole bucket (specs/reservation-refunds.md rule 45). It consumes the
+ * bucket's lines pro rata of what each still had to give back, by largest remainder (rule 46): every cent
+ * of it lands on a line that still had it, so the register never offers again what the cancellation
+ * requalified.
+ */
+function spreadBucketRefund(lines, amountTtc) {
+  const totalCents = Math.round(Number(amountTtc || 0) * 100);
+  const remaining = lines.filter((line) => line.refundableTtc > 0);
+  const lineCents = remaining.map((line) => Math.round(line.refundableTtc * 100));
+  const availableCents = lineCents.reduce((sum, c) => sum + c, 0);
+  if (totalCents <= 0 || availableCents <= 0) return;
+  const spentCents = Math.min(totalCents, availableCents);
+  const takes = lineCents.map((c) => Math.floor((spentCents * c) / availableCents));
+  let leftCents = spentCents - takes.reduce((sum, c) => sum + c, 0);
+  lineCents
+    .map((c, index) => ({ index, rest: (spentCents * c) % availableCents }))
+    .sort((a, b) => b.rest - a.rest || a.index - b.index)
+    .forEach(({ index }) => {
+      if (leftCents <= 0 || takes[index] >= lineCents[index]) return;
+      takes[index] += 1;
+      leftCents -= 1;
+    });
+  remaining.forEach((line, index) => {
+    line.requalifiedTtc = round2(line.requalifiedTtc + takes[index] / 100);
+    line.refundableTtc = round2((lineCents[index] - takes[index]) / 100);
+  });
 }
 
 /**
