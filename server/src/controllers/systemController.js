@@ -94,7 +94,7 @@ function buildVersionInfo(model = updateStateModel, env = process.env) {
     };
   }
   const state = model.readState();
-  const support = selfUpdateSupported();
+  const support = selfUpdateSupported(env);
   const latest = state.latestVersion;
   const versions = buildVersionSpan(state, current, latest);
   return {

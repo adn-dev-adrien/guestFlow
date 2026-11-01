@@ -512,6 +512,13 @@ signed-off releases over HTTPS, when the operator asks for it.
     #896 review R-2): a production instance (`NODE_ENV=production`, or no `NODE_ENV`) that inherited it by
     mistake — a copy-pasted command, a stray env file — still checks, instead of silently never offering an
     update again. Test: `e2e-no-outbound.unit.test.js`.
+    Reading recorded 2026-11-01 (audit R12 suites L-1): the unit tests of the version check and the version
+    payload pass their environment (`env: {}`) instead of inheriting the shell's. A developer shell carrying
+    the E2E flags turned « runVersionCheck stores what GitHub published » red, and made « keeps the last known
+    answer when GitHub is unreachable » pass without ever calling the fake (it now counts the call); one
+    carrying `GUESTFLOW_MANAGED=1` turned seven `buildVersionInfo` tests red. `buildVersionInfo(model, env)` now
+    hands its `env` to `selfUpdateSupported` too, so the payload reads one environment throughout; in production
+    both are `process.env`, as before.
 
 52. **The release's unit suites run side by side** (added 2026-10-30, audit R8 M-2). `release.yml` runs the server
     suite in its own `server-tests` job (20-minute cap) and the client suite in a 3-shard `client-tests` matrix
@@ -927,7 +934,8 @@ save flow.
       file written by the previous shape reads as an empty span rather than throwing.
 - [x] `tests/self-update-controller.unit.test.js` — the version and status payloads, the dev-tree
       refusal with its reason, the loopback health URL, the French failure messages, and the hourly
-      check keeping its last answer when GitHub is unreachable (rules 14, 21, 37).
+      check keeping its last answer when GitHub is unreachable (rules 14, 21, 37). Every call passes an explicit
+      environment, so the file is green whatever the shell exports (rule 51, reading of 2026-11-01).
 
 ### Client tests (37 new, `cd client && npm test` → 1105 green)
 
