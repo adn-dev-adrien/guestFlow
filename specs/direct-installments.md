@@ -198,7 +198,10 @@ its due date, after the operator validates it.
     retires the installment links (checked against the provider first — a link paid meanwhile refuses the
     change). A bucket already collected is never zeroed by a plan (the engine ignores the plan, « Marquer
     acompte / solde perçu » is refused on a stay with a plan). A link minted while the plan was changing is
-    cancelled at once.
+    cancelled at once. Amended 2026-10-31 (Adrien, specs/payment-link-lifecycle.md rule 63): the open
+    acompte / solde / séjour links are retired before the plan is written, and the plan is refused (409
+    `LINK_DEACTIVATION_PENDING` / `UNSETTLED_WITHDRAWN_PAYMENT`) while one of them is not known dead at the provider
+    or carries a payment to settle — beside a plan, the only payment that can arrive is an échéance.
 36. **Unpaid installments are due at arrival.** `stayDueAtArrival` counts them (`installments.due`), the SAS
     stay step offers them, and settling there marks every remaining installment paid today with the mode chosen
     at the door (« CB / Chèque » → `card`, « Espèces » → `cash`); « Pas maintenant » leaves them as they are. The payment-deadline

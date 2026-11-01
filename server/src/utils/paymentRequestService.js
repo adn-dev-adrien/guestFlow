@@ -108,6 +108,12 @@ function ensurePaymentLink(deps, id, type) {
   return withLinkLock(stayLockKey(deps.database, id), () => mintPaymentLink(deps, id, type));
 }
 
+// specs/payment-link-lifecycle.md rule 63 — the same lock for an installment plan's creation or resize: a stay link
+// minted at that moment waits for the plan (then finds 0 to bill), or the plan waits for it (then retires it).
+function withStayLinkLock(database, id, work) {
+  return withLinkLock(stayLockKey(database, id), work);
+}
+
 async function mintPaymentLink(deps, id, type) {
   const { database, paymentLinksModel, resolveAmountCents, provider, resolveItems } = deps;
   const deactivateLinks = deps.deactivateLinks
@@ -480,5 +486,5 @@ async function sendPaymentRequest(deps, id, requestedType) {
 }
 
 module.exports = {
-  ensurePaymentLink, sendPaymentRequest, ensureInstallmentLink, sendInstallmentRequest, resolveRequestType, LINK_TYPES, LINK_TITLES, REQUEST_TEMPLATES,
+  ensurePaymentLink, withStayLinkLock, sendPaymentRequest, ensureInstallmentLink, sendInstallmentRequest, resolveRequestType, LINK_TYPES, LINK_TITLES, REQUEST_TEMPLATES,
 };
