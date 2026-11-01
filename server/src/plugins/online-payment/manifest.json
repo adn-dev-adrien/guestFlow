@@ -105,7 +105,7 @@
       "Un lien de paiement expire 36 heures après sa création, ou le jour d’arrivée : il est désactivé chez Qonto dans les 15 minutes, et un paiement fait juste avant reste enregistré. Compatible avec le SDK 2.18 de GuestFlow."
     ],
     "1.5.1": [
-      "Un paiement Qonto encore en cours (ni payé ni échoué) est signalé comme tel : un lien retiré pour dates prises n’est jamais dit « rien prélevé » tant qu’il peut encore aboutir."
+      "Un paiement Qonto encore en cours (ni payé ni échoué) est signalé comme tel : un lien retiré pour dates prises n’est jamais dit « rien prélevé » tant qu’il peut encore aboutir. Compatible avec le SDK 2.18 de GuestFlow."
     ]
   }
 }
