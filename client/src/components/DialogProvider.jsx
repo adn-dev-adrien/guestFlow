@@ -8,6 +8,7 @@
  *     alert(options)    → Promise<void>      information dialog (options OBJECT: title, message, details,
  *                                            buttonLabel — never a bare string)
  *   `details` (optional ReactNode) is drawn under the message: the records a refusal names (ConflictList).
+ *   `details` and a form's `content` can close their dialog as « Annuler » would (`useDialogDismiss`).
  *     openForm(options) → Promise<boolean>   FormDialog (title, content, onSubmit, submitLabel…)
  *
  *   const { showSuccess, showError } = useToast();
@@ -25,6 +26,7 @@ import {
 import { useTheme } from '@mui/material/styles';
 import ConfirmDialog from './ConfirmDialog';
 import FormDialog from './FormDialog';
+import { DialogDismissContext } from './dialogDismissContext';
 
 const DialogContext = createContext(null);
 
@@ -140,7 +142,7 @@ export default function DialogProvider({ children }) {
         onConfirm={acceptConfirm}
         title={confirmState?.title || 'Confirmer'}
         message={confirmState?.message || ''}
-        details={confirmState?.details || null}
+        details={confirmState?.details ? <DialogDismissContext.Provider value={closeConfirm}>{confirmState.details}</DialogDismissContext.Provider> : null}
         confirmLabel={confirmState?.confirmLabel || 'Confirmer'}
         cancelLabel={confirmState?.cancelLabel || 'Annuler'}
         confirmColor={confirmState?.confirmColor || 'error'}
@@ -152,7 +154,7 @@ export default function DialogProvider({ children }) {
         <DialogTitle>{alertState?.title || 'Information'}</DialogTitle>
         <DialogContent>
           <Typography>{alertState?.message || ''}</Typography>
-          {alertState?.details && <Box sx={{ mt: 2 }}>{alertState.details}</Box>}
+          {alertState?.details && <Box sx={{ mt: 2 }}><DialogDismissContext.Provider value={closeAlert}>{alertState.details}</DialogDismissContext.Provider></Box>}
         </DialogContent>
         <DialogActions>
           <Button variant="contained" onClick={closeAlert}>{alertState?.buttonLabel || 'Compris'}</Button>
@@ -170,7 +172,7 @@ export default function DialogProvider({ children }) {
         maxWidth={formState?.maxWidth || 'sm'}
         fullWidth={formState?.fullWidth !== false}
       >
-        {formState?.content}
+        <DialogDismissContext.Provider value={closeForm}>{formState?.content}</DialogDismissContext.Provider>
       </FormDialog>
 
       <Snackbar
