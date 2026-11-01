@@ -108,7 +108,10 @@ const unsettledPayment = (link) => require('./withdrawnPayments').isUnsettled(li
 // reservation; the guest is confirmed unless the nights are closed or taken) and is not offered on a read-only stay.
 const CONFIRMING_LINK_TYPES = new Set(['deposit', 'full']);
 function stayConfirmMessage(link, { isDevis, nightsUnavailable }) {
-  const unavailable = 'sans confirmation au client : dates fermées ou prises.';
+  // Review of #916 (2) — a link withdrawn for taken dates says why, not that the nights are taken today.
+  const unavailable = link.cancelReason === 'dates-taken'
+    ? 'sans confirmation au client (lien retiré : dates prises).'
+    : 'sans confirmation au client : dates fermées ou prises.';
   if (isDevis) return nightsUnavailable ? `Le devis devient une réservation, ${unavailable}` : 'Le devis devient une réservation ; confirmation envoyée au client.';
   if (nightsUnavailable) return `Le montant est compté comme perçu, ${unavailable}`;
   return CONFIRMING_LINK_TYPES.has(String(link.type)) ? 'Le montant est compté comme perçu ; confirmation envoyée au client.' : 'Le montant est compté comme perçu.';

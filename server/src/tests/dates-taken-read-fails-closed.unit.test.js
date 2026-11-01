@@ -15,6 +15,7 @@ const paymentLinksModel = require('../models/paymentLinksModel');
 const { buildDatesTakenNotice } = require('../utils/datesTakenNotice');
 const { withdrawLinksOverlapping } = require('../utils/paymentLinkLifecycle');
 const { runLastLooks } = require('../utils/paymentPollRunner');
+const { settleWithdrawnPayment } = require('../utils/withdrawnPayments');
 
 // What online-payment 1.5.0 answers for a Qonto payment still `processing`: no `pending` key.
 const QONTO_V150 = { paid: false, paymentId: null, paidAt: null };
@@ -115,15 +116,26 @@ test('rule 19 (R11-E1): a lapsed link answered without `pending` keeps its one l
   assert.equal(linkOf(linkId).lastLookAt, null);
 });
 
-test('rule 63 (R11): a taken-dates payment refunded beside a plan keeps the stay from « rien ne vous a été prélevé »', async () => {
+test('rule 63 (R11): a taken-dates payment held beside a plan, then refunded, keeps the stay from « rien ne vous a été prélevé »', async () => {
   const h = harness();
-  const s = devisTaken(740);
-  await providerReads(s.linkId, provider({ paid: false, pending: false }));
-  const refunded = addLink(s.stayId, { type: 'balance' });
-  db.prepare("UPDATE payment_links SET status = 'cancelled', cancelReason = 'refunded', takenByReservationId = ?, paidAt = ?, providerPaymentId = 'pay_r' WHERE id = ?")
-    .run(linkOf(s.linkId).takenByReservationId, new Date().toISOString(), refunded);
+  const propertyId = freshProperty();
+  // A direct stay with a plan (nothing paid on it) whose acompte link another stay's acompte took.
+  const stayId = addStay({ propertyId, start: inDays(740), end: inDays(744), extra: { clientId: newClient() } });
+  db.prepare('INSERT INTO reservation_installments (reservationId, number, dueDate, amountCents) VALUES (?, 1, ?, 40000)').run(stayId, inDays(400));
+  const linkId = addLink(stayId);
+  addStay({ propertyId, depositPaid: 1, start: inDays(741), end: inDays(743), extra: { clientId: newClient() } });
+  withdrawLinksOverlapping(db, { now: new Date() });
+  assert.equal(linkOf(linkId).cancelReason, 'dates-taken');
+  // Its payment lands before the deactivation: held on the link, never on the buckets.
+  await providerReads(linkId, provider({ paid: true, paymentId: 'pay_held', paidAt: new Date().toISOString() }), { lastLook: false });
+  const held = linkOf(linkId);
+  assert.equal(held.status, 'cancelled');
+  assert.ok(held.paidAt);
+  assert.equal(db.prepare('SELECT depositPaid FROM reservations WHERE id = ?').get(stayId).depositPaid, 0);
+  await settleWithdrawnPayment(linkId, { database: db, paymentLinksModel, outcome: 'refunded', bookPaid: async () => { throw new Error('must not book'); } });
+  assert.equal(linkOf(linkId).cancelReason, 'refunded');
   await h.notice.runDueNotices();
-  assert.equal(mailsTo(h, s.stayId), 0);
+  assert.equal(mailsTo(h, stayId), 0);
 });
 
 test('rule 63 (R11): the admin alert of a payment held beside a plan says to refund it', () => {

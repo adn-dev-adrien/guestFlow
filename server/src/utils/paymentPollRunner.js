@@ -530,7 +530,9 @@ async function bookDatesTakenPaid({ database, link, pay, notifyPaidAfterCancel, 
   if (conflict && !outcome.conflict && notifyConflict) { try { await notifyConflict(found.stay.id); } catch { /* best effort */ } }
   const [holder] = heldOverlaps(database, { ...found.stay, excludeIds: [found.row.id, found.stay.id] });
   const [takenBy] = holder ? stayRefs(database, [holder], String(found.stay.startDate || '').slice(0, 4)) : [];
-  if (notifyPaidAfterCancel) {
+  // Review of #916 (2) — the « dates déjà prises » alert only while they are: once the nights are free again (rule 58's
+  // read, « Enregistrer sur le séjour » after the plan's deletion) there is nothing to move or refund.
+  if ((conflict || holder) && notifyPaidAfterCancel) {
     try { await notifyPaidAfterCancel(link, { nightsUnavailable: 'taken', datesTaken: true, ...(takenBy ? { takenBy: takenBy.label } : {}) }); } catch { /* best effort */ }
   }
   return { ...outcome, datesTaken: true, conflict };
@@ -543,6 +545,10 @@ async function bookDatesTakenPaid({ database, link, pay, notifyPaidAfterCancel, 
 async function holdPaidBesidePlan({ database, link, pay, notifyPaidAfterCancel, paymentLinksModel }) {
   const held = paymentLinksModel.holdPaidBesidePlan(link.id, { providerPaymentId: pay.paymentId || null, paidAt: pay.paidAt || new Date().toISOString() });
   if (!held) return linkResult(link, { status: 'paid-after-cancel', effect: 'already-processed' });
+  // Rule 32 (review of #916, 3) — the held `paidAt` is the stay's money (rule 31): the stay holds its nights from now on.
+  const { answeringStay, withdrawForStay } = require('./datesTaken');
+  const found = answeringStay(database, link.reservationId);
+  if (found) withdrawForStay(database, found.stay.id);
   if (notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link, { installmentPlan: true }); } catch { /* best effort */ } }
   return linkResult(link, { status: 'paid-after-cancel', effect: 'installment-plan-in-place', reservationId: link.reservationId });
 }

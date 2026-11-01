@@ -276,27 +276,35 @@ async function retireOrBook(deps, link, options) {
 // unpaid read leaves the look to the lifecycle pass.
 // Rule 58, reading of 2026-11-01 (audit R11-L1) — a link withdrawn for taken dates owes that look too (rule 64): paid →
 // booked as rule 33 books it (`bookDatesTakenPaid`); a payment in flight, or an answer that does not say (rule 64,
-// R11-E1) → refused, the look kept.
+// R11-E1) → refused, the look kept. Review of #916 (1, 5): one whose deactivation is still owed is deactivated and read
+// first, with the operator's (`settleOwedOperatorLinks`); every such link is read, never hidden behind a newer lapsed one.
 const PAYMENT_IN_FLIGHT = { httpStatus: 409, error: 'LINK_PAYMENT_IN_FLIGHT', message: 'Paiement en cours sur l’ancien lien : nouveau lien non créé.' };
+async function readOwed(deps, link) {
+  try {
+    return await deps.provider.getPayment(link.providerLinkId, { origin: 'replace-link' });
+  } catch {
+    throw { httpStatus: 502, error: 'PROVIDER_UNREACHABLE', message: 'Prestataire de paiement injoignable : réessayer.' };
+  }
+}
+
 async function bookOwedLapsedPayment(deps, where, params) {
-  const owed = deps.database.prepare(`
+  const lapsed = deps.database.prepare(`
     SELECT * FROM payment_links
-     WHERE ${where} AND providerLinkId IS NOT NULL
-       AND ((status = 'expired' AND (remoteCancelPendingAt IS NOT NULL OR lastLookAt IS NOT NULL))
-         OR (status = 'cancelled' AND cancelReason = ? AND remoteCancelPendingAt IS NULL AND lastLookAt IS NOT NULL))
+     WHERE ${where} AND status = 'expired' AND (remoteCancelPendingAt IS NOT NULL OR lastLookAt IS NOT NULL) AND providerLinkId IS NOT NULL
      ORDER BY id DESC LIMIT 1
-  `).get(...params, LINK_REASONS.DATES_TAKEN);
-  if (owed) {
-    let pay;
-    try {
-      pay = await deps.provider.getPayment(owed.providerLinkId, { origin: 'replace-link' });
-    } catch {
-      throw { httpStatus: 502, error: 'PROVIDER_UNREACHABLE', message: 'Prestataire de paiement injoignable : réessayer.' };
-    }
-    if (owed.status === 'cancelled') await settleDatesTakenRead(deps, owed, pay || {});
-    else if (pay && pay.paid) await bookLapsedPayment(deps, owed, pay);
+  `).get(...params);
+  if (lapsed) {
+    const pay = await readOwed(deps, lapsed);
+    if (pay && pay.paid) await bookLapsedPayment(deps, lapsed, pay);
   }
   await settleOwedOperatorLinks(deps, where, params);
+  const looks = deps.database.prepare(`
+    SELECT * FROM payment_links
+     WHERE ${where} AND status = 'cancelled' AND cancelReason = ? AND remoteCancelPendingAt IS NULL AND lastLookAt IS NOT NULL
+       AND providerLinkId IS NOT NULL
+     ORDER BY id DESC
+  `).all(...params, LINK_REASONS.DATES_TAKEN);
+  for (const link of looks) await settleDatesTakenRead(deps, link, (await readOwed(deps, link)) || {});
 }
 
 async function settleDatesTakenRead(deps, link, pay) {
@@ -313,12 +321,14 @@ async function settleDatesTakenRead(deps, link, pay) {
 // specs/payment-link-lifecycle.md rule 42 (re-review of #902, L6) — a link withdrawn by hand while the provider
 // could not be read still owes its read: it goes through the poll's retry (booked when paid before its
 // withdrawal, the rule-8 alert when paid after, deactivated when unpaid) before a new link of its bucket.
+// Rule 58 (review of #916, 1) — so does a link withdrawn for taken dates whose deactivation is owed: still payable at
+// the provider, it is booked (rule 33) or held beside a plan (rule 63) when paid, else deactivated with its look armed.
 async function settleOwedOperatorLinks(deps, where, params) {
   const owed = deps.database.prepare(`
     SELECT id FROM payment_links
-     WHERE ${where} AND status = 'cancelled' AND cancelReason = ? AND remoteCancelPendingAt IS NOT NULL AND providerLinkId IS NOT NULL
+     WHERE ${where} AND status = 'cancelled' AND cancelReason IN (?, ?) AND remoteCancelPendingAt IS NOT NULL AND providerLinkId IS NOT NULL
      ORDER BY id DESC
-  `).all(...params, LINK_REASONS.OPERATOR);
+  `).all(...params, LINK_REASONS.OPERATOR, LINK_REASONS.DATES_TAKEN);
   if (owed.length === 0) return;
   const { retryPendingCancellations } = require('./paymentPollRunner');
   const effect = typeof deps.paymentEffect === 'function' ? deps.paymentEffect() : require('./paymentEffectDeps').buildPaymentEffectDeps();

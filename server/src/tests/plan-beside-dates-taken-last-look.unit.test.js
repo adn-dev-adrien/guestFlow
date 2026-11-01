@@ -9,7 +9,7 @@ process.env.TZ = 'Europe/Paris';
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { createHarness, call, TODAY } = require('./directInstallmentsFixtures');
+const { createHarness, call, addStay, TODAY } = require('./directInstallmentsFixtures');
 const { fakeProvider } = require('./paymentLinkLifecycleFixture');
 const { runLastLooks, retryPendingCancellations, bookLateWithdrawnPaid } = require('../utils/paymentPollRunner');
 const { settleWithdrawnPayment, unsettledWithdrawnRefusal } = require('../utils/withdrawnPayments');
@@ -95,10 +95,16 @@ test('rule 63 (R11): once the last look read the link unpaid, the plan is made',
 });
 
 // Defence in depth: should the payment land beside a plan anyway (a plan made before this release, a race).
+// An unpaid devis on the stay's nights, its acompte link open: the held payment makes the stay hold them (rule 32).
 async function paidBesidePlan({ path = 'last-look' } = {}) {
   const h = createHarness();
   assert.equal((await put(h, { count: 3 })).status, 200);
   const link = addDatesTakenLink(h, { lookInMinutes: -1, markerOwed: path === 'retry' });
+  const devisId = addStay(h.db, { kind: 'devis', devisNumber: 'D-T-916', startDate: '2027-06-15', endDate: '2027-06-18' });
+  const devisLink = h.paymentLinksModel.create({
+    reservationId: devisId, type: 'full', amountCents: 50000, provider: 'qonto', providerLinkId: 'pl_devis_916', url: 'https://pay.example.test/devis', status: 'open',
+  });
+  h.devisLinkId = devisLink.id;
   const { deps, notified, confirmed } = effect();
   const provider = fakeProvider({ paid: true });
   const run = path === 'retry' ? retryPendingCancellations : runLastLooks;
@@ -126,6 +132,11 @@ for (const path of ['last-look', 'retry']) {
     assert.equal(notified[0].installmentPlan, true);
     // Rule 56: no new request of the stay leaves until it is settled.
     assert.equal(unsettledWithdrawnRefusal(h.db, h.reservationId).error, 'UNSETTLED_WITHDRAWN_PAYMENT');
+    // Rule 32 (review of #916, 3): the held payment is the stay's money, the devis on its nights loses its link now.
+    const devisLink = raw(h, h.devisLinkId);
+    assert.equal(devisLink.status, 'cancelled');
+    assert.equal(devisLink.cancelReason, 'dates-taken');
+    assert.equal(Number(devisLink.takenByReservationId), h.reservationId);
   });
 }
 
@@ -138,6 +149,17 @@ test('rule 63 (R11): a second read of that payment holds nothing twice and alert
   assert.equal(notified.length, 1);
   assert.deepEqual(stayFlags(h), { depositPaid: 0, balancePaid: 0 });
 });
+
+// The « à traiter » actions of a link, wherever the ledger shows it (its bucket's row once there is no plan).
+function findSettle(node, linkId) {
+  if (!node || typeof node !== 'object') return null;
+  if (node.settle && Number(node.settle.linkId) === Number(linkId)) return node.settle;
+  for (const value of Object.values(node)) {
+    const hit = findSettle(value, linkId);
+    if (hit) return hit;
+  }
+  return null;
+}
 
 const plan = {
   installments: [
@@ -170,7 +192,16 @@ test('rule 63 (R11): the held payment shows on its own ledger row, refund only; 
 
 test('rule 63 (R11): once the plan is deleted, « Enregistrer sur le séjour » books it as rule 33 does — no confirmation', async () => {
   const { h, link } = await paidBesidePlan();
-  h.db.prepare('DELETE FROM reservation_installments WHERE reservationId = ?').run(h.reservationId);
+  const removal = await call(h.controller.remove, { params: { id: h.reservationId } });
+  assert.equal(removal.status, 200);
+  assert.equal(h.installmentsModel.listFor(h.reservationId).length, 0);
+  const { rows } = buildLedger({
+    row: h.db.prepare('SELECT * FROM reservations WHERE id = ?').get(h.reservationId),
+    links: h.paymentLinksModel.listForStay(h.reservationId), installmentPlan: null, canRequest: true, today: TODAY,
+  });
+  const settle = findSettle(rows, link.id);
+  // Review of #916 (2): the confirm says why the guest is not confirmed, not that the nights are taken today.
+  assert.equal(settle.stay.confirmMessage, 'Le montant est compté comme perçu, sans confirmation au client (lien retiré : dates prises).');
   const { deps, confirmed, notified } = effect();
   await settleWithdrawnPayment(link.id, {
     database: h.db, paymentLinksModel: h.paymentLinksModel, outcome: 'stay',
@@ -179,5 +210,6 @@ test('rule 63 (R11): once the plan is deleted, « Enregistrer sur le séjour » 
   assert.equal(h.paymentLinksModel.findById(link.id).status, 'paid');
   assert.equal(stayFlags(h).balancePaid, 1);
   assert.deepEqual(confirmed, []);
-  assert.equal(notified.at(-1).datesTaken, true);
+  assert.deepEqual(notified, [], 'review of #916 (2): the operator settled it on free nights — no « dates déjà prises » alert');
+  assert.equal(h.db.prepare('SELECT bookingConflictAt FROM reservations WHERE id = ?').get(h.reservationId).bookingConflictAt, null);
 });
