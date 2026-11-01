@@ -519,6 +519,10 @@ signed-off releases over HTTPS, when the operator asks for it.
     carrying `GUESTFLOW_MANAGED=1` turned seven `buildVersionInfo` tests red. `buildVersionInfo(model, env)` now
     hands its `env` to `selfUpdateSupported` too, so the payload reads one environment throughout; in production
     both are `process.env`, as before.
+    Test: « rule 51 — buildVersionInfo asks selfUpdateSupported about the environment it was given »
+    (`self-update-controller.unit.test.js`, `{ GUESTFLOW_SELF_UPDATE: 'off' }` → the `=off` reason; red when
+    the controller calls `selfUpdateSupported()` bare). Since the same day the `npm test` preload also drops the
+    shell's GuestFlow flags ([server-test-isolation.md](server-test-isolation.md) rule 12).
 
 52. **The release's unit suites run side by side** (added 2026-10-30, audit R8 M-2). `release.yml` runs the server
     suite in its own `server-tests` job (20-minute cap) and the client suite in a 3-shard `client-tests` matrix
@@ -935,7 +939,8 @@ save flow.
 - [x] `tests/self-update-controller.unit.test.js` — the version and status payloads, the dev-tree
       refusal with its reason, the loopback health URL, the French failure messages, and the hourly
       check keeping its last answer when GitHub is unreachable (rules 14, 21, 37). Every call passes an explicit
-      environment, so the file is green whatever the shell exports (rule 51, reading of 2026-11-01).
+      environment, so the file is green whatever the shell exports, and one test passes
+      `GUESTFLOW_SELF_UPDATE: 'off'` to prove the payload reads that environment (rule 51, reading of 2026-11-01).
 
 ### Client tests (37 new, `cd client && npm test` → 1105 green)
 

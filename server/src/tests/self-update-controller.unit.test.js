@@ -12,7 +12,8 @@ const { phaseLabel, errorMessage } = require('../constants/updatePhases');
 
 const { buildVersionInfo, buildStatus, healthUrl, stagingErrorMessage } = controller.__test;
 
-// specs/self-update-and-releases.md §4.3. The client renders these payloads as-is: no version
+// specs/self-update-and-releases.md §4.3 and rule 51 (reading of 2026-11-01): every payload is built
+// from the environment the test passes, never from the shell's. The client renders these payloads as-is: no version
 // comparison, no status mapping, no French string built in React.
 
 function freshModel() {
@@ -99,6 +100,14 @@ test('buildVersionInfo says why self-update is unavailable on a dev tree', () =>
   // The dev checkout has no `current` symlink, so the engine must refuse — with a reason.
   assert.equal(info.selfUpdateSupported, false);
   assert.match(info.selfUpdateReason, /indisponible|PM2|releases/);
+  cleanup();
+});
+
+test('rule 51 — buildVersionInfo asks selfUpdateSupported about the environment it was given', () => {
+  const { model, cleanup } = freshModel();
+  const info = buildVersionInfo(model, { GUESTFLOW_SELF_UPDATE: 'off' });
+  assert.equal(info.selfUpdateSupported, false);
+  assert.match(info.selfUpdateReason, /GUESTFLOW_SELF_UPDATE=off/);
   cleanup();
 });
 

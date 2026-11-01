@@ -9,7 +9,8 @@ const path = require('node:path');
 const ROOT = path.join(__dirname, '..', '..', '..');
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 
-const fieldsOf = (shape) => shape.replace(/[{}\s?]/g, '').split(',').filter(Boolean).sort();
+// The `?` stays on the token: a required field written `pending?` is a different contract.
+const fieldsOf = (shape) => shape.replace(/[{}\s]/g, '').split(',').filter(Boolean).sort();
 
 function specGetPaymentFields() {
   const row = read('specs/plugins-phase-3a-online-payment.md')
@@ -29,10 +30,10 @@ function coreGetPaymentFields() {
   return fieldsOf(line.match(/→\s*(\{[^}]+\})/)[1]);
 }
 
-test('rule 4 — the spec table lists the getPayment fields the core reads, pending included', () => {
+test('rule 4 — the spec table lists the getPayment fields the core reads, pending required', () => {
   const spec = specGetPaymentFields();
   assert.deepEqual(spec, coreGetPaymentFields());
-  assert.ok(spec.includes('pending'), 'pending is part of the plugin-facing contract');
+  assert.deepEqual(spec, ['paid', 'paidAt?', 'paymentId?', 'pending'], 'paid and pending are required, the ids optional');
 });
 
 test('rule 4 — the spec says an answer without pending counts as in flight', () => {
