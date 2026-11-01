@@ -7,7 +7,11 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 const { makeContext, NEW_CUSTOMER } = require('./helpers');
+const session = require('express-session');
+const { passwordHash } = require('../utils/gf');
+const { createApp } = require('../app');
 const { addDays, frDay, parisDay } = require('../utils/days');
+const { listenLocal, closeServer, fetchLocal } = require('./listenLocal');
 
 const DAY = 86400000;
 const later = (h, days) => h.now.set(new Date(h.now().getTime() + days * DAY));
@@ -86,6 +90,9 @@ test('rule 44 — a retry on the eve of the erasure whose export ends past midni
     await billing.deprovision(c.id, { confirmSlug: c.slug }, 'op');
     h.mailer.send = send;
     const { eraseAt } = h.ctx.models.customers.get(c.id);
+    const P = h.ctx.models.provisioning;
+    const earlier = P.latestExport(c.id);
+    const exportStep = P.get(c.id, 'deprov-export');
     later(h, 89);
     assert.equal(today(h), addDays(eraseAt, -1));
     const { instances } = h.ctx;
@@ -106,5 +113,30 @@ test('rule 44 — a retry on the eve of the erasure whose export ends past midni
     assert.deepEqual([s.status, s.detail], ['failed', `Effacement prévu le ${frDay(eraseAt)} : aucun lien envoyé.`]);
     assert.equal(customers.view(c.id).deprovisionSteps.find((x) => x.step === 'deprov-email').action, null);
     assert.ok(!customers.view(c.id).history.some((x) => x.text.startsWith('Nouvel export produit')), 'no export is journaled as produced for nothing');
+    assert.equal(P.latestExport(c.id).token, earlier.token, 'the dead link is never recorded');
+    assert.deepEqual(fs.readdirSync(h.exportsDir), [path.basename(earlier.path)], 'the dead link\'s archive is deleted');
+    const step = P.get(c.id, 'deprov-export');
+    assert.deepEqual([step.status, step.detail, step.at], [exportStep.status, exportStep.detail, exportStep.at], '« Export complet » keeps its last real export');
   } finally { h.cleanup(); }
+});
+
+test('rule 43 — the customer downloads the archive under its plain name, without the unique suffix', async () => {
+  const h = makeContext({ versions: ['3.9.0'] });
+  const app = createApp(h.ctx, { sessionSecret: 'test', sessionStore: new session.MemoryStore() });
+  const server = await listenLocal(app);
+  try {
+    h.ctx.models.operators.create({ email: 'op@test', name: 'Op', passwordHash: passwordHash.hashPassword('correct horse battery') });
+    const { customers, billing } = h.ctx.controllers;
+    const c = await customers.create(NEW_CUSTOMER, 'op');
+    await billing.deprovision(c.id, { confirmSlug: c.slug }, 'op');
+    const token = tokenOf(h.mailer.sent.at(-1));
+    assert.match(path.basename(h.ctx.models.provisioning.getExport(token).path), new RegExp(`^${c.slug}-${today(h)}-[0-9a-f]{12}\\.tar\\.gz$`));
+    const res = await fetchLocal(`http://127.0.0.1:${server.address().port}/exports/${token}`);
+    assert.equal(res.status, 200);
+    assert.match(res.headers.get('content-disposition'), new RegExp(`filename="${c.slug}-${today(h)}\\.tar\\.gz"`));
+    await res.arrayBuffer();
+  } finally {
+    await closeServer(server);
+    h.cleanup();
+  }
 });
