@@ -37,7 +37,7 @@ const ANCHORS = Object.freeze({
   balanceDueDate: { after: 'l’échéance du solde', dayOf: 'le jour de l’échéance du solde' },
 });
 const EDITABLE_ANCHORS = Object.keys(ANCHORS);
-const FIXED_ANCHOR_AFTER = Object.freeze({ installmentDueDate: 'l’échéance' });
+const FIXED_ANCHOR_AFTER = Object.freeze({ installmentDueDate: 'l’échéance', datesTaken: 'la prise des dates' });
 
 const MAX_DAYS = 90;
 const capitalised = (s) => `${s.charAt(0).toUpperCase()}${s.slice(1)}`;

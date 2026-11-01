@@ -404,6 +404,15 @@ signed-off releases over HTTPS, when the operator asks for it.
     value differs. The anchor is not editable: `templateWhen` keeps the fixed sentence of the key. The same
     class — template content a rolled-back release would mail broken — is handled for the link's validity
     sentence by rule 53.
+    Reading of 2026-11-01 (audit R11 console N1): `dates_unavailable_notice` repeated the defect (seeded on `start`,
+    offered by v3.19.0's queue for every stay on its arrival day). It is seeded on the anchor `datesTaken`, and the
+    one-shot migration `dates_unavailable_notice_anchor_v1` (`utils/migrateDatesUnavailableNoticeAnchor.js`) moves an
+    existing row, writing only when the value differs. A generic guard now covers the class
+    (`tests/event-templates-rollback-anchor.unit.test.js`, the floor's queue in `tests/rollbackFloorQueue.js`): every
+    template of `EVENT_TRIGGERED_STABLE_KEYS` or `AUTO_SEND_EXCEPTIONS` that the floor does not exclude by name is
+    seeded manual on an anchor the floor's queue never matches (not `start`, `validUntil`, `depositDueDate`,
+    `balanceDueDate`). The five keys the floor excludes by name keep their anchor: moving them would only add a
+    migration.
 44. **The plugin-owned tables have a floor too (2026-10-29, round-2 audit).** Rule 39's floor covered the
     core tables only, so a plugin migration renaming or dropping a column of its own table would have gone
     unseen. `fixtures/rollback-floor-v3.18.0-plugin-tables.json` lists the 16 tables the v3.18.0 plugins own
