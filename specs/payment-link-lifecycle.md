@@ -540,6 +540,9 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     drift row carries `heldDates: { title, message, stays[] }` (`icalDateDriftModel.listPending`): the card says « Sur
     des dates réservées par un autre séjour », and « Approuver » first asks (« Approuver quand même » / « Annuler »)
     with the stays in a `ConflictList`; a drift onto free nights is approved at once, as before.
+    Reading recorded 2026-11-01 (audit R11-C2): « Ouvrir » in that dialog opens the stay in place (no new tab), so it
+    first closes the dialog as « Annuler » would — the drift is not approved, and « Approuver quand même » is not left
+    over the stay's page. `ConflictList` does it for any app dialog through `useDialogDismiss` (`DialogProvider`).
 40. **A closure cannot be saved over a reservation** (decided 2026-10-30, §9 Q10). Unchanged in substance
     (`establishmentClosuresController` 409 `RESERVATION_OVERLAP`), reworded short and impersonal:
     « Réservation sur ces dates : fermeture impossible. », and the answer now lists the stays
@@ -711,6 +714,10 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     devis fiche no longer refuses a save by its own occupancy check (which counted every reservation, unpaid ones
     included, and blocked even a notes edit on a devis already overlapped): the server is the judge of a devis's
     nights; the red line under the dates stays as information.
+    Reading recorded 2026-11-01 (audit R11-C2): on a phone the dialog's « Ouvrir » opens the stay in place: it closes
+    the dialog, then asks the fiche's unsaved-changes guard (`window.__guestflowBeforeNavigate`), so the draft the
+    refusal kept is never dropped without « Quitter sans enregistrer ». On a wider screen it opens in a new tab, the
+    dialog and the draft untouched.
 47. **The notice's trigger is the withdrawal for taken dates** (decided 2026-10-30, §9 Q14) — written in
     rule 43, which it amends.
 48. **A devis whose dates were taken stays as it is** (decided 2026-10-30, §9 Q15). Nothing changes on it
@@ -724,6 +731,11 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     took the dates; on the list row it is a plain badge (the row opens the devis). Review of #907: only a devis still
     open (draft, sent, accepted) and a stay not over yet are marked (n1); the badge, a link, gets a 44 px hit area on a
     finger-driven screen (m4).
+    Readings recorded 2026-11-01 (audit R11-C1, R11-C3): the badge leaves the fiche through its unsaved-changes guard,
+    like a sidebar link — a dirty devis or reservation asks first (`/reservations/new` and `/reservations/:id` are the
+    same page, so a direct link reloaded the form over the draft); a cmd/ctrl click keeps the browser's new tab. A save
+    that leaves the fiche open shows the fresh marker: the devis update answer, and the reservation's post-save
+    re-read, carry `datesTaken`, so a devis moved onto free nights loses « Dates prises » at once.
 49. **A closure over a devis without an open link warns, and saves** (decided 2026-10-30, §9 Q16). The
     closure dialog shows the same kind of amber warning line, « Devis en cours sur ces dates. », with
     « Ouvrir » per devis (the `conflicts` answer gains `devis: [{ reservationId, label, url }]`). Save stays
