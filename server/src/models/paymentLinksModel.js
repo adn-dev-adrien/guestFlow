@@ -29,7 +29,8 @@
  *   listForStay(id) / findOpenForStay(id, type) → the same, over the stay AND the devis converted into it
  *                                           (a devis link keeps the devis id after the conversion)
  *   liveLinkReasonForStay(id, types, { openToo }) → why a link of those types (stay + converted devis) may still be
- *                                           paid: 'deactivation' | 'lastLook' owed, 'open' with `openToo`, else null (rule 63)
+ *                                           paid: 'deactivation' | 'lastLook' owed (lapsed or `dates-taken`), 'open' with
+ *                                           `openToo`, else null (rule 63)
  *   findOpenForInstallment(installmentId)   → the current open link of that installment, or undefined
  *   findByProviderLinkId(provider, linkId)  → the row a provider id names (webhook, retries)
  *   markPaid(id, { providerPaymentId, paidAt }) → flips open|expired→paid (idempotent: a paid/cancelled row is untouched)
@@ -38,6 +39,8 @@
  *   cancel(id, { remotePending })           → 'cancelled', with the remote-deactivation marker when pending
  *   listRemoteCancelPending()               → cancelled and expired rows whose deactivation at the provider is owed
  *   clearRemoteCancelPending(id, { providerPaymentId?, paidAt? }) → the provider settled it (deactivated, or paid)
+ *   holdPaidBesidePlan(id, { providerPaymentId?, paidAt? }) → a `dates-taken` bucket link paid beside an installment plan:
+ *                                           the payment kept on the link, unbooked, to settle (rule 63); true once
  *   setLastLook(id, at) / claimLastLook(id) → the one last payment read of a lapsed link (specs/payment-link-lifecycle.md rule 19),
  *                                           or of a link withdrawn for taken dates (rule 64); the claim clears it and says
  *                                           whether this caller owns the read
@@ -351,18 +354,20 @@ function buildModel(database) {
   }
 
   // specs/payment-link-lifecycle.md rule 63 — why a link of these types may still take a payment at the provider:
-  // 'deactivation' (owed), 'lastLook' (a lapsed link's last read owed), 'open' (with `openToo`), or null.
+  // 'deactivation' (owed), 'lastLook' (rule 19's last read owed — a lapsed link, or one withdrawn for taken dates,
+  // rule 64; audit R11 N1), 'open' (with `openToo`), or null.
   function liveLinkReasonForStay(id, types, { openToo = false } = {}) {
     const owners = ownersOf(id);
     if (owners.length === 0 || types.length === 0) return null;
+    const lookOwed = `(${OWES_LAST_LOOK}) AND lastLookAt IS NOT NULL`;
     const row = database.prepare(`
       SELECT CASE WHEN remoteCancelPendingAt IS NOT NULL THEN 'deactivation'
-                  WHEN status = 'expired' AND lastLookAt IS NOT NULL THEN 'lastLook'
+                  WHEN ${lookOwed} THEN 'lastLook'
                   ELSE 'open' END AS reason
         FROM payment_links
        WHERE reservationId IN (${owners.map(() => '?').join(', ')}) AND type IN (${types.map(() => '?').join(', ')})
-         AND (remoteCancelPendingAt IS NOT NULL OR (status = 'expired' AND lastLookAt IS NOT NULL)${openToo ? " OR status = 'open'" : ''})
-       ORDER BY CASE WHEN remoteCancelPendingAt IS NOT NULL THEN 0 WHEN status = 'expired' THEN 1 ELSE 2 END
+         AND (remoteCancelPendingAt IS NOT NULL OR (${lookOwed})${openToo ? " OR status = 'open'" : ''})
+       ORDER BY CASE WHEN remoteCancelPendingAt IS NOT NULL THEN 0 WHEN ${lookOwed} THEN 1 ELSE 2 END
        LIMIT 1`).get(...owners, ...types);
     return row ? row.reason : null;
   }
@@ -495,6 +500,21 @@ function buildModel(database) {
       .run(at.toISOString(), Number(id)).changes) === 1;
   }
 
+  // specs/payment-link-lifecycle.md rule 63 (audit R11 M1) — a `dates-taken` acompte / solde / séjour link found paid
+  // beside an installment plan: the payment stays on the link, unbooked, for the operator to settle (rule 56). Only the
+  // caller that stamps it alerts; nothing more is owed on it (no deactivation, no last look).
+  function holdPaidBesidePlan(id, { providerPaymentId = null, paidAt = null } = {}) {
+    const info = database.prepare(`
+      UPDATE payment_links
+         SET remoteCancelPendingAt = NULL,
+             lastLookAt = NULL,
+             providerPaymentId = COALESCE(?, providerPaymentId),
+             paidAt = COALESCE(?, datetime('now'))
+       WHERE id = ? AND status = 'cancelled' AND cancelReason = 'dates-taken' AND paidAt IS NULL
+    `).run(providerPaymentId == null ? null : String(providerPaymentId), paidAt == null ? null : String(paidAt), Number(id));
+    return Number(info.changes) > 0;
+  }
+
   // The provider settled a pending deactivation: deactivated, or — rule 8 — paid after all, in which
   // case the payment's id and date stay on the row for the refund.
   function clearRemoteCancelPending(id, { providerPaymentId = null, paidAt = null } = {}) {
@@ -538,6 +558,7 @@ function buildModel(database) {
     restoreRemoteCancelPending,
     listRemoteCancelPending,
     clearRemoteCancelPending,
+    holdPaidBesidePlan,
     setLastLook,
     claimLastLook,
     markUnpaidRead,

@@ -62,7 +62,8 @@ function fakeProvider({ paid = false, pending = false, paidAt = '2026-10-29T09:1
       calls.push(['getPayment', linkId, opts && opts.origin]);
       if (failPayment) throw failPayment;
       if (isPaid(linkId, opts && opts.origin)) return { paid: true, paymentId: `pay_${linkId}`, paidAt };
-      return { paid: false, ...((typeof pending === 'function' ? pending(linkId, opts && opts.origin) : pending) ? { pending: true } : {}) };
+      // The provider contract's `pending` is a boolean (rule 64: an answer without one counts as in flight).
+      return { paid: false, pending: Boolean(typeof pending === 'function' ? pending(linkId, opts && opts.origin) : pending) };
     },
     getLinkStatus: async (linkId) => { calls.push(['getLinkStatus', linkId]); return linkStatus; },
     cancelLink: async (linkId) => {

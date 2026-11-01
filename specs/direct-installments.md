@@ -285,6 +285,13 @@ its due date, after the operator validates it.
     (`paymentRequestService`); the label prints its local day (`vatRegime.bookingDayOf`,
     `specs/finance-dashboard-redesign.md` rule 50). *Why:* a request sent between 00:00 and 01:00 / 02:00
     in Paris was labelled with the day before.
+50. **A paid installment makes the stay hold its nights at once** (2026-11-01, audit R11-1). Recording an
+    installment as collected (`installmentPayment.recordInstallmentPayment`: the operator's tick, a paid
+    installment link, its late booking) withdraws, once it flipped the installment, the open payment links of the
+    other unpaid devis and reservations on the stay's nights (`datesTaken.withdrawForStay`,
+    `specs/payment-link-lifecycle.md` rules 10, 32, 37). *Why:* beside a plan an installment is the only payment
+    that can arrive (that spec's rule 63), so this was the one money path where a second guest could still pay for
+    the same nights until the next lifecycle pass, up to 15 minutes later.
 
 ---
 
@@ -500,6 +507,7 @@ Baseline 6 264 → **6 373** (+109 net, all green; 5 cron tests of money templat
 - [x] `tests/finance-late-installments.unit.test.js` (3) — rule 48: two late installments as elements, the three-day grace, a covered plan never late
 - [x] `client/src/pages/__tests__/FinancePage.settle-late-installment.test.jsx` (1) — rule 48: « Marquer payé » records each late installment through its endpoint
 - [x] `tests/utc-timestamp-paris-day-labels.unit.test.js` (1 of 4, 2026-10-30) — rule 49: a request stamped 23:30 UTC reads « Demandée le » on its Paris day
+- [x] `tests/installment-paid-holds-nights.unit.test.js` (4, 2026-11-01) — rule 50: an installment ticked or paid by link withdraws the devis link on the stay's nights at once; a replay withdraws nothing more; nothing paid holds nothing
 
 ### Client tests
 Baseline 2 153 → **2 176** (+23, all green).
