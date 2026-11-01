@@ -11,6 +11,7 @@ import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { frFR } from '@mui/x-date-pickers/locales';
 import dayjs from 'dayjs';
+import { useNavigate } from 'react-router';
 import PageActionBar from '../components/PageActionBar';
 import TableCard from '../components/TableCard';
 import FormDialog from '../components/FormDialog';
@@ -18,6 +19,8 @@ import LoadingState from '../components/LoadingState';
 import EmptyState from '../components/EmptyState';
 import ErrorAlert from '../components/ErrorAlert';
 import ConflictList from '../components/ConflictList';
+import UnsavedChangesDialog from '../components/UnsavedChangesDialog';
+import useDirtyFormGuard from '../hooks/useDirtyFormGuard';
 import { useAppDialogs } from '../components/DialogProvider';
 import api from '../api';
 import { displayDate } from '../utils/formatters';
@@ -58,6 +61,7 @@ export default function EstablishmentClosuresPage({ barTabs }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editId, setEditId] = useState(null);
   const [form, setForm] = useState(EMPTY_FORM);
+  const [openedForm, setOpenedForm] = useState(EMPTY_FORM);
   const [dialogError, setDialogError] = useState('');
   const [saving, setSaving] = useState(false);
   const [endDateOpen, setEndDateOpen] = useState(false);
@@ -68,6 +72,13 @@ export default function EstablishmentClosuresPage({ barTabs }) {
   const [requestsRefusal, setRequestsRefusal] = useState('');
   const [conflictsToken, setConflictsToken] = useState(0);
   const conflictsSeq = useRef(0);
+  // Review of #917 — on a phone « Ouvrir » leaves in place: a closure being typed asks first.
+  const navigate = useNavigate();
+  const leaveGuard = useDirtyFormGuard({
+    draft: dialogOpen ? form : null,
+    saved: dialogOpen ? openedForm : null,
+    navigate,
+  });
 
   const load = async () => {
     setLoading(true);
@@ -123,19 +134,22 @@ export default function EstablishmentClosuresPage({ barTabs }) {
   const openCreate = () => {
     setEditId(null);
     setForm(EMPTY_FORM);
+    setOpenedForm(EMPTY_FORM);
     setDialogError('');
     setEndDateOpen(false);
     setDialogOpen(true);
   };
 
   const openEdit = (row) => {
-    setEditId(row.id);
-    setForm({
+    const opened = {
       propertyId: row.propertyId == null ? ALL_PROPERTIES : String(row.propertyId),
       label: row.label || 'Fermeture établissement',
       startDate: row.startDate || '',
       endDate: row.endDate || '',
-    });
+    };
+    setEditId(row.id);
+    setForm(opened);
+    setOpenedForm(opened);
     setDialogError('');
     setEndDateOpen(false);
     setDialogOpen(true);
@@ -160,6 +174,7 @@ export default function EstablishmentClosuresPage({ barTabs }) {
       }
       setDialogOpen(false);
       await load();
+      return true;
     } catch (err) {
       const listed = err && LISTED_REFUSALS[err.code];
       if (listed && Array.isArray(err[listed])) {
@@ -168,9 +183,15 @@ export default function EstablishmentClosuresPage({ barTabs }) {
       } else {
         setDialogError(err.error || err.message || "Impossible d'enregistrer cette fermeture.");
       }
+      return false;
     } finally {
       setSaving(false);
     }
+  };
+
+  const saveAndLeave = async () => {
+    if (await handleSave()) leaveGuard.confirmLeave();
+    else leaveGuard.dismissGuard();
   };
 
   const handleDelete = async (id) => {
@@ -352,6 +373,12 @@ export default function EstablishmentClosuresPage({ barTabs }) {
           />
         </Box>
       </FormDialog>
+      <UnsavedChangesDialog
+        open={leaveGuard.guardDialogOpen}
+        onStay={leaveGuard.dismissGuard}
+        onDiscard={() => { setDialogOpen(false); leaveGuard.confirmLeave(); }}
+        onSaveAndQuit={saveAndLeave}
+      />
     </Box>
   );
 }

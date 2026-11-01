@@ -745,6 +745,12 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     Reading recorded at implementation (2026-10-30, PR4): a devis whose links lapsed or were withdrawn is
     « without an open link »; a converted devis gives no line. Each row carries `detail`
     (« {logement} · {du} → {au} · aucun lien en cours »).
+    Reading recorded 2026-11-01 (review of #917, rules 40, 41, 49): on a phone the dialog's « Ouvrir » opens the
+    record in place (a new tab on desktop), so a closure being typed — any field changed since the dialog opened —
+    asks first with the shared « Modifications non enregistrées » prompt (`useDirtyFormGuard` +
+    `UnsavedChangesDialog`): « Rester sur la page » keeps the dialog as typed, « Quitter sans enregistrer » opens the
+    record, « Enregistrer et quitter » saves then opens it, and a refused save keeps the dialog with its refusal. An
+    unchanged dialog leaves at once.
 
 **Edge cases:**
 - Link paid at 35 h 59, webhook lost, pass at 36 h 10 → deactivation, then `getPayment` says paid →
@@ -1369,6 +1375,11 @@ refused).
 - [x] `client/src/components/reservation/__tests__/FinanceSection.withdrawn-payments-plan.test.jsx` (4) — rule 63: the row beside the échéances with both payments, « Enregistrer » on the échéance one only, the note; each action settles its own link; on a closed fiche the refunds are drawn outside the fieldset.
 - [x] `client/src/pages/__tests__/EstablishmentClosuresPage.conflicts.test.jsx` (6) — warning list with links, 409 lists rendered, asked again on focus, same tab on a phone.
 - [x] `client/src/components/__tests__/ConflictList.test.jsx` (5).
+- [x] `client/src/components/__tests__/ConflictList.in-dialog.test.jsx` (3) — rules 39, 46 (R11-C2): « Ouvrir » in place closes a confirm with « no » or an alert and goes through the guard; a new tab leaves the dialog open.
+- [x] `client/src/components/__tests__/DatesTakenBadge.guard.test.jsx` (3) — rule 48 (R11-C1): a blocking guard keeps the page, a free guard navigates, a modified click keeps the browser's handling.
+- [x] `client/src/pages/__tests__/ReservationPage.dates-taken-guard.test.jsx` (2) — rule 48 (R11-C1): a dirty devis asks before the chip leaves; a clean one leaves.
+- [x] `client/src/pages/__tests__/ReservationPage.dates-taken-refresh.test.jsx` (2) — rule 48 (R11-C3): a devis update and a reservation save that keep the fiche open show the fresh marker.
+- [x] `client/src/pages/__tests__/EstablishmentClosuresPage.dirty-leave.test.jsx` (5) — rules 40, 41, 49 (review of #917): on a phone « Ouvrir » on a typed closure asks; stay, discard, save and leave, a refused save kept; an unchanged closure leaves at once.
 - [x] `client/src/components/__tests__/DatesTakenBadge.test.jsx` (4) — rule 48; the 44 px hit area (m4).
 - [x] `client/src/components/__tests__/IcalDateDriftAlert.held-dates.test.jsx` (3) — rule 39: the card line, the dialog's stays, « Annuler » and « Approuver quand même », a free drift at once.
 - [x] `client/src/components/__tests__/DialogProvider.details.test.jsx` (1) — rule 46.
@@ -1633,3 +1644,9 @@ Six sequential PRs into `inte/plugins` (plan validated 2026-10-30).
   `deactivateAbandonedLinks` schedules the last look of a `dates-taken` link; n4 the `failed` trace kept for every
   template but the notice; n5 links without a recorded taker closed once (`no-taker`); n6 the guard's dates-taken
   case tested. Tests: `dates-taken-read-limits` (7, red first), `plugins-phase-0` (+1).
+  Audit R11 (2026-11-01, branch `fix/audit-r11-client`): C1 the « Dates prises » chip leaves through the fiche's
+  unsaved-changes guard (`utils/guardedNavigation.js`); C2 an in-place « Ouvrir » inside an app dialog closes it as
+  « Annuler » would (`dialogDismissContext`), then asks the guard; C3 a save that keeps the fiche open shows the fresh
+  marker. Review of #917: on a phone the closure dialog asks before « Ouvrir » drops a typed closure. Tests: client
+  `ConflictList.in-dialog` (3), `DatesTakenBadge.guard` (3), `ReservationPage.dates-taken-guard` (2),
+  `ReservationPage.dates-taken-refresh` (2), `EstablishmentClosuresPage.dirty-leave` (5), each positive case red first.
