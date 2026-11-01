@@ -86,6 +86,9 @@ function migrateLinkLifecycleColumns(db) {
   if (!cols.includes('takenByReservationId')) db.exec('ALTER TABLE payment_links ADD COLUMN takenByReservationId INTEGER');
   if (!cols.includes('unpaidReadAt')) db.exec('ALTER TABLE payment_links ADD COLUMN unpaidReadAt TEXT');
   if (!cols.includes('noticeJudgedAt')) db.exec('ALTER TABLE payment_links ADD COLUMN noticeJudgedAt TEXT');
+  // Re-review of #912 (R1, R2, n5) — when the withdrawal happened, and why a link was closed without a notice.
+  if (!cols.includes('withdrawnAt')) db.exec('ALTER TABLE payment_links ADD COLUMN withdrawnAt TEXT');
+  if (!cols.includes('noticeClosedReason')) db.exec('ALTER TABLE payment_links ADD COLUMN noticeClosedReason TEXT');
 }
 
 module.exports = { migratePaymentLinksToProviders, syncLegacyQontoColumns, migrateLinkLifecycleColumns };

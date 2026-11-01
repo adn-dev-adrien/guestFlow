@@ -52,6 +52,7 @@ function buildPaymentEffectDeps() {
     notifyConflict: (reservationId) => notificationService.notifyBookingConflict(reservationId),
     notifyPaidAfterCancel: (link, options) => notificationService.notifyPaidAfterCancel(link, options),
     notifyDeactivationStuck: (link, options) => notificationService.notifyDeactivationStuck(link, options),
+    notifyPaymentInFlight: (link) => notificationService.notifyPaymentInFlight(link),
   };
 }
 

@@ -223,7 +223,10 @@ async function storeUnlessNightsLost(deps, id, record, deactivateLinks) {
   const refusal = closedDatesRefusal(database, id) || datesTakenRefusal(database, id);
   const row = paymentLinksModel.create(record);
   if (!refusal) return row;
-  const withdrawn = paymentLinksModel.cancelIfOpen(row.id, { reason: refusal.error === 'DATES_UNAVAILABLE' ? LINK_REASONS.DATES_TAKEN : null });
+  const datesTaken = refusal.error === 'DATES_UNAVAILABLE';
+  const withdrawn = paymentLinksModel.cancelIfOpen(row.id, { reason: datesTaken ? LINK_REASONS.DATES_TAKEN : null });
+  // Rule 64 (re-review of #912, R2) — this link never reached the guest: the notice never answers it.
+  if (withdrawn && datesTaken) paymentLinksModel.closeForNotice(row.id, 'never-sent');
   if (withdrawn) {
     try { await deactivateLinks([withdrawn]); } catch { paymentLinksModel.cancel(row.id, { remotePending: true }); }
   }
@@ -487,4 +490,5 @@ async function sendPaymentRequest(deps, id, requestedType) {
 
 module.exports = {
   ensurePaymentLink, withStayLinkLock, sendPaymentRequest, ensureInstallmentLink, sendInstallmentRequest, resolveRequestType, LINK_TYPES, LINK_TITLES, REQUEST_TEMPLATES,
+  __test: { storeUnlessNightsLost },
 };

@@ -38,6 +38,15 @@ const frDay = (iso) => new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Pari
 
 const PACKAGE_STATUS = { PACKAGE_REJECTED: 422, DOWNLOAD_FAILED: 502 };
 
+function lastLookBlocker(looks) {
+  return {
+    code: 'LINKS_LAST_LOOK_PENDING',
+    message: looks > 1
+      ? `${looks} liens retirés ou expirés dont le paiement reste à vérifier : réessayer plus tard.`
+      : '1 lien retiré ou expiré dont le paiement reste à vérifier : réessayer plus tard.',
+  };
+}
+
 // Rule 8 — turning these off would leave something live without its tool.
 function blockerFor(id, model) {
   if (id === ONLINE_PAYMENT) {
@@ -59,16 +68,10 @@ function blockerFor(id, model) {
           : '1 lien retiré ou expiré encore actif chez le prestataire : désactivation en cours, réessayer plus tard.',
       };
     }
-    // specs/payment-link-lifecycle.md rule 52 — the last look of a lapsed link is still owed.
+    // specs/payment-link-lifecycle.md rule 52 — the last look of a lapsed link, or of one withdrawn for taken dates
+    // (rule 64), is still owed.
     const looks = model.countPendingLastLooks ? model.countPendingLastLooks() : 0;
-    if (looks > 0) {
-      return {
-        code: 'LINKS_LAST_LOOK_PENDING',
-        message: looks > 1
-          ? `${looks} liens expirés dont le paiement reste à vérifier : réessayer plus tard.`
-          : '1 lien expiré dont le paiement reste à vérifier : réessayer plus tard.',
-      };
-    }
+    if (looks > 0) return lastLookBlocker(looks);
   }
   if (id === SAS) {
     const n = model.countOnlyRoleUsers(RECEPTION);
@@ -1203,3 +1206,4 @@ const defaultController = createController();
 
 module.exports = defaultController;
 module.exports.createController = createController;
+module.exports.__test = { lastLookBlocker };

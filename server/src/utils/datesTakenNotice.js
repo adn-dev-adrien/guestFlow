@@ -73,7 +73,7 @@ function readStay(database, id) {
 function takenLinksOfStay(database, stayId) {
   return database.prepare(`
     SELECT l.id, l.status, l.providerLinkId, l.remoteCancelPendingAt, l.lastLookAt, l.unpaidReadAt, l.paidAt,
-           l.providerPaymentId, l.takenByReservationId, l.noticeJudgedAt
+           l.providerPaymentId, l.takenByReservationId, l.noticeJudgedAt, l.noticeClosedReason
       FROM payment_links l
      WHERE l.cancelReason = ?
        AND (l.reservationId = ? OR l.reservationId IN (SELECT id FROM reservations WHERE convertedReservationId = ?))
@@ -81,10 +81,13 @@ function takenLinksOfStay(database, stayId) {
 }
 
 const carriesPayment = (l) => l.status === 'paid' || Boolean(l.paidAt) || Boolean(l.providerPaymentId);
+const open = (l) => l.status === 'cancelled' && !l.noticeJudgedAt && !carriesPayment(l);
+// Re-review of #912 (n5) — withdrawn before the taker was recorded: never due, closed once.
+const isUntaken = (l) => open(l) && !l.takenByReservationId;
 // Rule 64 — read unpaid AFTER its deactivation (a link the provider never held carries no payment).
-const isReady = (l) => l.status === 'cancelled' && !l.noticeJudgedAt && !carriesPayment(l)
+const isReady = (l) => open(l) && Boolean(l.takenByReservationId)
   && !l.remoteCancelPendingAt && !l.lastLookAt && (Boolean(l.unpaidReadAt) || !l.providerLinkId);
-const isUnread = (l) => l.status === 'cancelled' && !l.noticeJudgedAt && !carriesPayment(l) && !isReady(l);
+const isUnread = (l) => open(l) && Boolean(l.takenByReservationId) && !isReady(l);
 
 // The stay, or the devis converted into it, already has its row: told (or not) once, whatever its id now.
 function alreadyClaimed(database, stayId) {
@@ -99,12 +102,16 @@ function judge(database, stayId, now) {
   const { answeringStay, heldOverlaps } = require('./datesTaken');
   const { carriesMoney } = require('./stayMoney');
   const links = takenLinksOfStay(database, stayId);
+  const untaken = links.filter(isUntaken);
+  if (untaken.length > 0) return { verdict: 'closed', reason: 'no-taker', ready: untaken };
   const ready = links.filter(isReady);
   if (ready.length === 0) return { verdict: 'wait', reason: 'no-withdrawn-link', ready };
   // A withdrawn link still unread may yet be paid (rule 33): the whole stay waits for every read.
   if (links.some(isUnread)) return { verdict: 'wait', reason: 'unread', ready };
   const closed = (reason) => ({ verdict: 'closed', reason, ready });
   if (links.some(carriesPayment)) return closed('paid');
+  // Re-review of #912 (R1) — a payment left in flight on a link of the stay: « rien prélevé » cannot be said.
+  if (links.some((l) => l.noticeClosedReason === 'payment-in-flight')) return closed('payment-in-flight');
   const found = answeringStay(database, stayId);
   if (!found || Number(found.stay.id) !== Number(stayId)) return closed('not-a-stay');
   const stay = readStay(database, stayId);
@@ -126,9 +133,9 @@ function judge(database, stayId, now) {
   return { verdict: 'due', stay, takenById: Number(holder.id), ready };
 }
 
-function stampJudged(database, links, now) {
-  const stamp = database.prepare('UPDATE payment_links SET noticeJudgedAt = ? WHERE id = ? AND noticeJudgedAt IS NULL');
-  for (const link of links) stamp.run(now.toISOString(), Number(link.id));
+function stampJudged(database, links, now, reason = null) {
+  const stamp = database.prepare('UPDATE payment_links SET noticeJudgedAt = ?, noticeClosedReason = ? WHERE id = ? AND noticeJudgedAt IS NULL');
+  for (const link of links) stamp.run(now.toISOString(), reason, Number(link.id));
 }
 
 function takerLabel(database, takenById) {
@@ -176,7 +183,7 @@ function buildDatesTakenNotice({
     const verdict = judge(database, stayId, now);
     if (verdict.verdict === 'wait') return { status: 'not-due', reason: verdict.reason };
     const claim = database.transaction(() => {
-      if (verdict.verdict === 'closed') { stampJudged(database, verdict.ready, now); return verdict.reason === 'already' ? 'already' : 'closed'; }
+      if (verdict.verdict === 'closed') { stampJudged(database, verdict.ready, now, verdict.reason); return verdict.reason === 'already' ? 'already' : 'closed'; }
       const inserted = database.prepare(`
         INSERT INTO dates_taken_notices (reservationId, takenByReservationId, noticeStatus, noticeReason, createdAt)
         VALUES (?, ?, 'sending', NULL, ?)
@@ -230,7 +237,8 @@ function buildDatesTakenNotice({
     return track(notify(stayId, options));
   }
 
-  // The stays with a `dates-taken` link read unpaid after its deactivation and not judged yet.
+  // The stays with a `dates-taken` link read unpaid after its deactivation, or withdrawn without a recorded taker, and
+  // not judged yet.
   function candidates() {
     return database.prepare(`
       SELECT DISTINCT COALESCE(r.convertedReservationId, r.id) AS stayId
@@ -238,7 +246,7 @@ function buildDatesTakenNotice({
         JOIN reservations r ON r.id = l.reservationId
        WHERE l.status = 'cancelled' AND l.cancelReason = ? AND l.noticeJudgedAt IS NULL
          AND l.remoteCancelPendingAt IS NULL AND l.lastLookAt IS NULL AND l.paidAt IS NULL AND l.providerPaymentId IS NULL
-         AND (l.unpaidReadAt IS NOT NULL OR COALESCE(l.providerLinkId, '') = '')
+         AND (l.unpaidReadAt IS NOT NULL OR COALESCE(l.providerLinkId, '') = '' OR l.takenByReservationId IS NULL)
        ORDER BY stayId
     `).all(LINK_REASONS.DATES_TAKEN).map((row) => Number(row.stayId));
   }

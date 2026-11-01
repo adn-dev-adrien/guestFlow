@@ -42,6 +42,8 @@
  *                                           or of a link withdrawn for taken dates (rule 64); the claim clears it and says
  *                                           whether this caller owns the read
  *   markUnpaidRead(id, at)                  → that read found a `dates-taken` link unpaid (rule 64)
+ *   closeForNotice(id, reason, at) / stopInFlightRead(id, at) / withdrawnAtMs(id)
+ *                                           → a `dates-taken` link the notice never answers; the read capped (rule 64)
  *   claimDeactivationAlert(id, at)          → stamps deactivationAlertedAt once (rule 20); false when already stamped
  *   findById(id)
  *
@@ -453,6 +455,26 @@ function buildModel(database) {
     database.prepare(`UPDATE payment_links SET lastLookAt = ? WHERE id = ? AND (${OWES_LAST_LOOK})`).run(at.toISOString(), Number(id));
   }
 
+  // Rule 64 — a `dates-taken` link the guest notice will never answer (`reason`: never sent, payment in flight, …).
+  function closeForNotice(id, reason, at = new Date()) {
+    database.prepare(`
+      UPDATE payment_links SET noticeJudgedAt = COALESCE(noticeJudgedAt, ?), noticeClosedReason = COALESCE(noticeClosedReason, ?)
+       WHERE id = ? AND cancelReason = 'dates-taken'
+    `).run(at.toISOString(), String(reason), Number(id));
+  }
+
+  // Re-review of #912 (R1) — a payment in flight past the limit: no more reads, closed for the notice.
+  function stopInFlightRead(id, at = new Date()) {
+    database.prepare("UPDATE payment_links SET lastLookAt = NULL WHERE id = ? AND status = 'cancelled' AND cancelReason = 'dates-taken'").run(Number(id));
+    closeForNotice(id, 'payment-in-flight', at);
+  }
+
+  // When a `dates-taken` link was withdrawn (its creation for a link withdrawn before the date was recorded).
+  function withdrawnAtMs(id) {
+    const row = database.prepare('SELECT COALESCE(withdrawnAt, createdAt) AS at FROM payment_links WHERE id = ?').get(Number(id));
+    return row ? parseTimestampMs(row.at) : null;
+  }
+
   // Review of #912 (M1) — the read after the deactivation of a `dates-taken` link found no payment, final or in flight.
   function markUnpaidRead(id, at = new Date()) {
     database.prepare(`
@@ -519,6 +541,9 @@ function buildModel(database) {
     setLastLook,
     claimLastLook,
     markUnpaidRead,
+    closeForNotice,
+    stopInFlightRead,
+    withdrawnAtMs,
     claimDeactivationAlert,
   };
 }

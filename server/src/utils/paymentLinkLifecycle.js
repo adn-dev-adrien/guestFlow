@@ -121,7 +121,7 @@ function withdrawLinksOverlapping(database, { propertyId = null, startDate = nul
   const withdraw = withdrawStatement(database);
   // Review of #912 (B1) — the notice (rule 43) answers this withdrawal only: it remembers the stay that took the nights.
   const recordTaker = database.prepare('PRAGMA table_info(payment_links)').all().some((c) => c.name === 'takenByReservationId')
-    ? database.prepare('UPDATE payment_links SET takenByReservationId = ? WHERE id = ?') : null;
+    ? database.prepare('UPDATE payment_links SET takenByReservationId = ?, withdrawnAt = ? WHERE id = ?') : null;
   const history = hasTable(database, 'reservation_history')
     ? database.prepare("INSERT INTO reservation_history (reservationId, eventType, changedFields) VALUES (?, 'update', ?)") : null;
   const numbered = database.prepare('PRAGMA table_info(reservations)').all().some((c) => c.name === 'reservationNumber');
@@ -138,7 +138,7 @@ function withdrawLinksOverlapping(database, { propertyId = null, startDate = nul
     const takenBy = (holders.find((h) => causeId != null && Number(h.id) === Number(causeId)) || holders[0]).id;
     const moved = linkIds.filter((id) => Number(withdraw.run(LINK_REASONS.DATES_TAKEN, now.toISOString(), id).changes) > 0);
     if (moved.length === 0) continue;
-    if (recordTaker) moved.forEach((id) => recordTaker.run(Number(takenBy), id));
+    if (recordTaker) moved.forEach((id) => recordTaker.run(Number(takenBy), now.toISOString(), id));
     if (history) history.run(Number(rowId), JSON.stringify([{
       field: 'paymentLinkRetired', label: 'Lien de paiement', from: null, to: `retiré : dates prises par la réservation ${numberOf(takenBy)}`,
     }]));

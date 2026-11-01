@@ -801,7 +801,9 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     code `LINKS_LAST_LOOK_PENDING`, « 1 lien expiré dont le paiement reste à vérifier : réessayer plus tard. »
     (plural « N liens expirés dont le paiement reste à vérifier : … »), until the look is taken. Like the
     marker, the refusal holds while Qonto is disconnected (the accepted class of rule 23).
-    Review of #912: the last look owed by a link withdrawn for taken dates (rule 64) counts too.
+    Review of #912: the last look owed by a link withdrawn for taken dates (rule 64) counts too. Re-review of #912
+    (R1): the refusal reads « {n} lien(s) retiré(s) ou expiré(s) dont le paiement reste à vérifier : réessayer plus
+    tard. », and a `dates-taken` read capped at 24 h (rule 64) no longer counts.
 53. **Every boot gives a known end to the open links an earlier release wrote** (audit R8 database N1). The
     release before this one still stores Qonto's sentinel at mint. A link it mints during a rollback window
     (self-update rule 31, or a manual one) is open with no known end, which rule 7 never lapses, and the
@@ -1033,6 +1035,25 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
       `onAccepted`); a refusal before acceptance writes `not-sent` with its reason. A row left `sending` (a crash, or a
       history write that failed after acceptance) reads « envoi incertain » on the card and the push, and is never
       resent.
+    Re-review of #912 (2026-11-01), still failing closed:
+    - **The in-flight read has a limit (R1).** The withdrawal is dated (`payment_links.withdrawnAt`). A last look that
+      still finds a payment in flight 24 h after it (`DATES_TAKEN_READ_LIMIT_HOURS`; a link without that date counts
+      from its creation) stops the reads: `lastLookAt` cleared (the plugin's uninstall is no longer blocked by it),
+      the link closed for the notice (`noticeClosedReason = 'payment-in-flight'`), and the operator alerted once
+      (push and admin e-mail « Paiement en cours depuis 24 h sur un lien retiré : à vérifier chez le prestataire. »,
+      claimed through `deactivationAlertedAt`). A stay with such a link is never told, whatever its other links read.
+    - **A link that never reached the guest never holds the stay back (R2).** The mint that finds its nights taken
+      during the provider call (`paymentRequestService.storeUnlessNightsLost`) closes its own fresh link for the
+      notice (`never-sent`): the guest never received it. Its payment is still read once after its deactivation:
+      `deactivateAbandonedLinks` schedules the last look of any `dates-taken` link it settles, as the poll does.
+    - **Links withdrawn before the taker was recorded are closed once (n5)** (`no-taker`), never due, never re-read
+      by the notice pass.
+    - **`noticeClosedReason`** records why a link was closed without a notice (`dates-free`, `taken-by-another`,
+      `not-direct`, `same-client`, `paid`, `begun`, `devis-closed`, `already`, `no-taker`, `never-sent`,
+      `payment-in-flight`, …); the server log line carries the same word.
+    - **History write failing after SMTP acceptance (n4).** Only the notice (the caller with `onAccepted`) answers
+      `accepted: true` and leaves its row `sending`; every other template keeps the earlier behaviour, a `failed`
+      history row with the error.
 65. **The acompte reminder on taken dates is never proposed, and refused first.** `emailLogModel.listPending` leaves
     out a `deposit_reminder` whose stay `takenByOf` finds taken; the send and the preview answer rule 35's refusal
     after rules 55-57 (platform stay, closed nights, payment to settle) and before any link is minted, provider or
@@ -1218,6 +1239,7 @@ No new dependency.
 - Content migration of the untouched default templates (rule 36), then `payment_link_valid_until_sentence_v2`: the sentence in its rollback-safe block (rule 59).
 - `cancelReason = 'dates-taken'` rows may later become `paid` (rule 33, via `markRetiredLinkPaid`).
 - New table `dates_taken_notices` (`id`, `reservationId` UNIQUE, `takenByReservationId`, `emailLogId`, `noticeStatus` `sending | sent | not-sent`, `noticeReason`, `createdAt`, `acknowledgedAt`) (rule 43; `sending` added by the review of #912, a table created without it rebuilt once, rows and ids kept).
+- `payment_links.withdrawnAt TEXT`, `noticeClosedReason TEXT` (new, nullable, re-review of #912): when a `dates-taken` link was withdrawn (the 24 h read limit) and why the notice never answers it (rule 64).
 - `payment_links.takenByReservationId INTEGER`, `unpaidReadAt TEXT`, `noticeJudgedAt TEXT` (new, nullable, review of #912): the stay that took the nights at a `dates-taken` withdrawal, when the read after its deactivation found it unpaid, when the notice judged it (rule 64). Links withdrawn before keep them null and are never due.
 - New default template `dates_unavailable_notice` FR / EN, seeded (rule 45).
 - `dates_taken_notices` is created by PR5 (`database.js`, `schema.sql`) for rule 61's seed; PR6 sends from it.
@@ -1289,6 +1311,8 @@ refused).
 - [x] `tests/installments-unsettled-withdrawn-payment.unit.test.js` (26) — rule 63: creation and resize refused 409 with the card's reason (a payment to settle; a deactivation owed; a last look owed, its own code and wording; an open link whose deactivation fails, no plan written), made once settled or deactivated; the refusal before any provider read or withdrawal; a payment found during the read refuses (m1); dates and amounts still editable; the row of its own (with a plan, an acompte « Sans objet », a complement behind a newer link, an échéance link), refund only and the note for bucket payments beside a plan, none on a read-only stay; « stay » of an acompte / solde / séjour payment beside a plan refused through the real late booking (nothing booked, the refund works); an échéance paid after its withdrawal recorded on that échéance; no note once an échéance is paid; the real `deactivateAbandonedLinks` (provider works → plan made; no provider → 409, links withdrawn with their marker); the stay's link lock both ways (a link being minted is retired by the plan; a link asked meanwhile finds nothing to bill).
 - [x] `tests/payment-link-closed-dates.unit.test.js` (9) — rule 55: mint and installment refused before any provider call, an open link not handed out, one night or an establishment-wide closure enough, another logement or the departure day free, request and reminder e-mails refused before any mint, a mail without a link still leaves.
 - [x] `tests/dates-taken-notice-withdrawal.unit.test.js` (16) — rules 43, 44, 64 (review of #912): the taker recorded; freed then re-taken by an unrelated stay, before or after the first judgement; a later link lapsed by validity; a re-dated devis; « Convertir » after the notice; no notice before the read after the deactivation, nor with a payment in flight; paid at the last look; a deactivation found done without a read; a platform stay; the same client; `sending` → `sent` with its history row, an unrecorded acceptance « envoi incertain » never resent; without the exception key nothing leaves; a judged withdrawal no candidate; the iCal happy path once; the Qonto in-flight statuses.
+- [x] `tests/dates-taken-read-limits.unit.test.js` (7) — rules 52, 64 (re-review of #912): a payment in flight 24 h after the withdrawal stops the reads, closes the link, alerts once and frees the uninstall; a stay with such a link never told; the guard's wording; Kilo (a link withdrawn during its mint never holds the real notice, its payment still read); the mint closes its own link; a link without a recorded taker closed once; a history write failing after acceptance keeps the `failed` trace for other templates.
+- [x] `tests/plugins-phase-0.unit.test.js` (+1) — rule 52: a `dates-taken` last look blocks the uninstall, an `operator` one does not count (n6); the wording « retiré ou expiré ».
 - [x] `tests/dates-taken-notice.unit.test.js` (10) — rules 43, 44, 47, 64: sent after the withdrawal once the provider read the link unpaid after its deactivation (iCal over a devis), nothing before; two links, one notice after both reads; a link paid (rule 33) or a payment kept on the cancelled row → no notice; not for a lapse, a started stay or « Retirer le lien »; the upgrade rows never mailed; re-checks (begun, paid, freed); every fail-closed case with the push's reason, told once; English; racing passes send once.
 - [x] `tests/dates-taken-notice-reminder.unit.test.js` (5) — rules 35, 43, 65: the reminder never proposed on taken dates (still on free ones), refused before any mint, one `failed` trace, the notice once; the preview's refusal; a stay without a link claims nothing; once the nights are free the reminder is proposed again (m2).
 - [x] `tests/dates-taken-notice-template.unit.test.js` (6) — rules 44, 45: `AUTO_SEND_EXCEPTIONS` one key, read by its sender alone (source scan); the policy refuses it and every manual template; seeded FR / EN, Manual, event-triggered, no link nor amount; the spec's texts; editor lock (409 `SEND_MODE_LOCKED`, text editable); the history label.
@@ -1591,3 +1615,9 @@ Six sequential PRs into `inte/plugins` (plan validated 2026-10-30).
   sent nothing and were closed (`dates-free`, `taken-by-another`, `not-direct`, `same-client`); a marker cleared
   without a read sent nothing; the happy path sent once FR and once EN, card at 1280 / 390 with the taker link, no
   horizontal scroll.
+  Re-review of #912 (2026-11-01, verdict ready to merge): R1 the in-flight read capped at 24 h after the withdrawal
+  (`withdrawnAt`), closed `payment-in-flight`, one operator alert (`notifyPaymentInFlight`), the uninstall freed, the
+  guard worded « retiré ou expiré »; R2 the mint that loses its nights closes its own link `never-sent`, and
+  `deactivateAbandonedLinks` schedules the last look of a `dates-taken` link; n4 the `failed` trace kept for every
+  template but the notice; n5 links without a recorded taker closed once (`no-taker`); n6 the guard's dates-taken
+  case tested. Tests: `dates-taken-read-limits` (7, red first), `plugins-phase-0` (+1).

@@ -670,7 +670,40 @@ function buildNotificationService({
     }
   }
 
-  return { notifyNewSiteDevis, flushDueDigests, notifyNewIcalReservation, notifyBookingConflict, notifyPaidAfterCancel, notifyDeactivationStuck, __test: { buildDevisEmail, buildSiteDigestEmail, buildReservationEmail, buildConflictEmail, buildPaidAfterCancelEmail, buildOrphanPaidEmail, buildDeactivationStuckEmail } };
+  // specs/payment-link-lifecycle.md rule 64 (re-review of #912, R1) — a link withdrawn for taken dates still shows a
+  // payment in flight 24 h later: GuestFlow stops reading it and the guest is not told; the admin checks it by hand.
+  const PAYMENT_IN_FLIGHT_ACTION = 'Paiement en cours depuis 24 h sur un lien retiré : à vérifier chez le prestataire.';
+  function buildPaymentInFlightEmail(resa, link, publicUrl) {
+    const lines = [
+      PAYMENT_IN_FLIGHT_ACTION,
+      'Ce lien a été retiré parce que ses dates ont été prises par une autre réservation. Le client n’a pas été prévenu automatiquement.',
+      '',
+      `Lien : #${Number(link.id)} (${LINK_TYPE_LABELS[link.type] || oneLine(link.type)}, ${eurosFr(link.amountCents)})`,
+      `Identifiant du lien chez le prestataire : ${oneLine(link.providerLinkId)}`,
+    ];
+    if (resa) {
+      lines.push(`Réservation : ${resa.reservationNumber || resa.devisNumber || `#${Number(resa.id)}`}`, `Logement : ${oneLine(resa.propertyName)}`);
+      const url = joinUrl(publicUrl, `/reservations/${Number(resa.id)}`);
+      if (url) lines.push('', `Ouvrir la réservation : ${url}`);
+    }
+    return { subject: `Paiement en cours sur un lien retiré — ${eurosFr(link.amountCents)}`, text: lines.join('\n') };
+  }
+
+  async function notifyPaymentInFlight(link) {
+    try {
+      const resa = loadReservation(link.reservationId);
+      await pushNewReservation({ title: 'Paiement en cours sur un lien retiré', body: PAYMENT_IN_FLIGHT_ACTION, ...(resa ? { url: `/reservations/${Number(resa.id)}` } : {}) });
+      const ctx = resolveContext();
+      if (ctx.skip) return { sent: false, skipped: ctx.skip };
+      const email = buildPaymentInFlightEmail(resa, link, ctx.publicUrl);
+      return await deliver({ recipient: ctx.recipient, subject: email.subject, text: email.text });
+    } catch (err) {
+      logger.warn('[notificationService.notifyPaymentInFlight]', err && err.message ? err.message : err);
+      return { sent: false, skipped: 'error' };
+    }
+  }
+
+  return { notifyNewSiteDevis, flushDueDigests, notifyNewIcalReservation, notifyBookingConflict, notifyPaidAfterCancel, notifyDeactivationStuck, notifyPaymentInFlight, __test: { buildDevisEmail, buildSiteDigestEmail, buildReservationEmail, buildConflictEmail, buildPaidAfterCancelEmail, buildOrphanPaidEmail, buildDeactivationStuckEmail, buildPaymentInFlightEmail } };
 }
 
 const defaultService = buildNotificationService();
