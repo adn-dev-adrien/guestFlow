@@ -24,7 +24,7 @@ hangs on a test that does not settle (rule 5), and never reports green with test
 (rule 10). A suite does not go red because the calendar moved
 (rules 6-7, 9), and the unit suites fit their CI time budget (rule 8). A client test does not go red
 because the runner is busy (rule 11). A server test does not change outcome with the GuestFlow flags the developer's shell
-exports (rule 12).
+exports, nor with the app's other variables it carries (rule 12).
 
 ## 3. Functional rules
 
@@ -242,14 +242,50 @@ exports (rule 12).
    `GUESTFLOW_DISABLE_OUTBOUND=1` on purpose, start `node src/index.js` without the preload. Test:
    `server-test-ambient-flags.unit.test.js`.
 
+   *Reading of 2026-11-01 (audit R13 L-1):* « the shell's GuestFlow flags » covers the app's whole
+   configuration, not only the `GUESTFLOW_` prefix. The preload also deletes, by name, every other variable
+   the server reads (`PUBLIC_SITE_ORIGIN`, the `*_RATELIMIT_*` knobs, `QONTO_*`, `VAPID_*`, `TLS_*`, `PORT`,
+   `TRUST_PROXY_HOPS`, `GITHUB_SHA`, `SKIP_MIGRATIONS`…), and a `NODE_ENV` other than `test`, so a shell in
+   `production` or `development` runs the suite as CI does (CI sets none). It keeps what the runner needs:
+   `PATH`, `TZ` (a clock sweep sets it on purpose), `NODE_TEST_CONTEXT`, `NODE_ENV=test`, the runner's
+   `GUESTFLOW_TEST_*` knobs; `DB_PATH`, `PERSISTENT_DB` and `TMPDIR` are then replaced or deleted by rules
+   1 and 4. The list lives in one place, `src/tests/setup/appEnvNames.js` (`APP_ENV_NAMES` stripped,
+   `RUNNER_ENV_NAMES` kept), and a guard test derives the app's reads from `src/` outside `tests/`
+   (`process.env.X`, `env.X` on an injected env, `env['X']`, and the secrets `localEnv` reads back by name):
+   a name on neither list fails, so does a listed name `src/` no longer reads, a destructured
+   `process.env`, or a new reader of a name built at run time (only `localEnv.js` and `updateStaging.js`
+   do it, for names the scan already covers or proxy settings). Why: a shell exporting the production
+   `PUBLIC_SITE_ORIGIN` or `PUBLIC_API_RATELIMIT_MAX=5` failed 4 tests in 3 files (`qonto-config` rule 2,
+   the GVR landing URL, website-booking `roostview-key-mounted` rule 6 answering 429). Test:
+   `server-test-app-env.unit.test.js`.
+
+   *Reading of 2026-11-01, review of #920:* the guard of the reading above sees a name only when it is
+   written next to `env`, and ordinary syntax got past it (`process.env?.X`, `const e = process.env`,
+   `(cfg = process.env) => cfg.X`, `env[K]` on an injected env, a backtick key, `Reflect.get`, a lowercase
+   name). Its description is replaced by this one. A name is read as `process.env.X`, `env.X` or
+   `env['X']`, with or without `?.`, in any case (pm2's `pm_id`, which `processRestart` reads to tell it is
+   supervised, is now on `APP_ENV_NAMES`), on `process.env` or on any `env` (bare or `opts.env`, never the
+   `env.local` of a file name). Everything else that reaches the environment is an indirect access:
+   `process.env` not bound to an identifier named `env` (an alias, a destructuring, an argument, a
+   `Reflect.*` call), `env[…]` with a key that is not a quoted literal, `process[…]` or `= process`, a
+   `Reflect.*` call on an `env`, and an `env: other` rename. Comments do not count. An indirect access fails
+   the guard unless its file is listed with its exact count in `INDIRECT_READERS`, each entry checked by
+   hand: `process.env` passed to a parameter named `env` (`settingsController`, `index.js`,
+   `accountSecurityServices`, `plugins/host`), `qontoSettingsController` handing `env: vars` on as `env`,
+   `localEnv` and `testOnlyKeys` over names the scan covers, `updateStaging` over the proxy settings. A
+   new indirect access, even in a listed file, fails until it is read by name or listed with its reason. A
+   test writes each bypass form to a scratch directory and checks the guard fails on it, and another that
+   the forms `src/` uses on purpose (`env = process.env`, `config.env || process.env`, `'.env.local'`)
+   stay quiet. Test: `server-test-app-env.unit.test.js`.
+
 **Edge cases:**
 - A targeted `node --test <file>` used to open and migrate `server/guestflow.db` for 389 test files (audit R2,
   2026-10-29); rule 4 closes that. Rule 3 stays as the explicit guard of the three first offenders.
 - Only a process outside the test runner (e.g. `node -e`) opens the default path. `node --test --experimental-test-isolation=none`
   runs the files in the parent process, where `NODE_TEST_CONTEXT` is not set: that mode is isolated only with the
   preload (`npm test` never uses it). A process with `NODE_ENV=production` is never isolated, even under the runner.
-- A single file run without the preload (`node --test <file>`) still reads the shell's `GUESTFLOW_*` flags:
-  rule 12 lives in the preload only, so `npm test` is the hermetic entry point.
+- A single file run without the preload (`node --test <file>`) still reads the shell's `GUESTFLOW_*` flags
+  and the other app variables: rule 12 lives in the preload only, so `npm test` is the hermetic entry point.
 
 ---
 
@@ -263,8 +299,10 @@ exports (rule 12).
 | `utils/` | `testProcessIsolation.js` | T | Rule 4: same isolation for a process run without the preload. |
 | `database.js`, `utils/instancePaths.js` | | T | Call it before reading the environment. |
 | `tests/` | `server-test-isolation.unit.test.js` | C | Pins rules 1-2 in a child process. |
-| `tests/setup/` | `isolateDefaultDb.js` | T | Rule 12: deletes every `GUESTFLOW_*` variable but `GUESTFLOW_TEST_*` at start-up. |
+| `tests/setup/` | `isolateDefaultDb.js` | T | Rule 12: deletes every `GUESTFLOW_*` variable but `GUESTFLOW_TEST_*` at start-up; since 2026-11-01 through `appEnvNames.stripAppEnv`, which also deletes the app's other variables. |
 | `tests/` | `server-test-ambient-flags.unit.test.js` | C | Pins rule 12: flags dropped under the preload, an inline flag still read, the app modules strip nothing, no E2E launcher loads the preload. |
+| `tests/setup/` | `appEnvNames.js` | C | Rule 12 (reading of 2026-11-01): `APP_ENV_NAMES` the preload deletes, `RUNNER_ENV_NAMES` it keeps, and `stripAppEnv`, which the preload calls. |
+| `tests/` | `server-test-app-env.unit.test.js` | C | Pins the reading: the app variables dropped and the runner's kept under the preload, `NODE_ENV` kept only as `test`, `resolveQontoConfig` no longer follows the shell, and the grep guard that keeps the list equal to what `src/` reads; since the review of #920, the guard's indirect accesses pinned by file in `INDIRECT_READERS`, the bypass probes, and `pm_id` stripped. |
 | `tests/`, `plugins/hourly-resources/tests/` | the three offenders | T | Rule 3. |
 | `package.json` | `test` script | T | `--require ./src/tests/setup/isolateDefaultDb.js`; `--test-timeout=60000` and the exit watchdog (rule 5); the `spec` and completeness reporters (rule 10). |
 | `control-plane/server/package.json` | `test` script | T | `--test-timeout=180000` and the exit watchdog (rule 5); the `spec` and completeness reporters (rule 10). |
@@ -315,6 +353,8 @@ delay, and the sweep's absence from the normal config and from every CI workflow
 - [x] Rule 8: the same file reads the `client` job (3 shards, `fail-fast: false`, budget in shard 1) and the release jobs (self-update rule 52). The three shards locally: 209 / 208 / 208 files, 1 026 + 1 029 + 1 033 = 3 088 tests, the full suite's count.
 - [x] Rule 11: `client-effect-race-sweep.unit.test.js` (3 tests) — the script and config, the setup's delay (8 ms by default, `SCHED_DELAY` otherwise), and its absence from `vitest.config.js` and from every `.github/workflows/*.yml`; the first 2 red on inte/plugins at 611baf15. Whole client suite under `npm run test:slow-scheduler`: 10 / 11 failures at 2 / 8 ms before, 0 at both after; the normal suite stays 3 131 tests. `SupportAccessBanner.states.test.jsx` rule 17: its absence check, anchored by an `act` on the answer, fails when the answer carries a pending request.
 - [x] Rule 12: `server-test-ambient-flags.unit.test.js` (4 tests) — under the preload a shell carrying `GUESTFLOW_MANAGED`, `GUESTFLOW_DISABLE_OUTBOUND`, `GUESTFLOW_SELF_UPDATE`, `GUESTFLOW_PLUGINS` and `GUESTFLOW_ICAL_ALLOW_PRIVATE` leaves only `GUESTFLOW_TEST_EXIT_GRACE_MS`; `operatorManaged()` is false until the test sets the flag inline; `database.js` and `instancePaths` keep the flags; the six Playwright configs and E2E launchers, the app modules and `npm start` never name the preload. The first 2 red before the change. Full `npm test`: 9 242 tests, 0 failures in a clean shell and under each of the three flags (before: 50 failures under `GUESTFLOW_MANAGED=1`).
+- [x] Rule 12, reading of 2026-11-01 (audit R13 L-1): `server-test-app-env.unit.test.js` (5 tests) — under the preload a shell carrying the audit's variables (`PUBLIC_SITE_ORIGIN`, three `*_RATELIMIT_MAX`, `TRUST_PROXY_HOPS`, `PUBLIC_API_KEY`, `QONTO_ENV`, `GATE_API_KEY`) and a sample of the others (`QONTO_API_BASE`, `VAPID_PUBLIC_KEY`, `TLS_CERT_PATH`, `PAYMENT_POLL_TICK_MINUTES`, `GITHUB_SHA`, `PORT`) leaves none of them, keeps `TZ`, `PATH`, `NODE_ENV=test` and `GUESTFLOW_TEST_EXIT_GRACE_MS`; `NODE_ENV=production` and `development` are dropped; `resolveQontoConfig` resolves no origin and the sandbox until the test sets the variable inline; the grep guard finds every name `src/` reads on one of the two lists and no stale entry (a probe file reading `process.env.NEW_SHELL_KNOB` made it fail, naming the file); the whole `APP_ENV_NAMES` list exported is gone under the preload. 4 red before the change: the grep guard (test 4) checks the list against `src/`, not the preload, so it was green on the previous preload and pins the list. The audit's repro (3 files, `PUBLIC_SITE_ORIGIN` + `PUBLIC_API_RATELIMIT_MAX=5`): 4 failures with the previous preload, 0 after. Full `npm test`: 9 247 tests, 0 failures in a clean shell, under the audit's variable set with `NODE_ENV=development`, and under every `APP_ENV_NAMES` variable exported with `NODE_ENV=production GUESTFLOW_MANAGED=1 GUESTFLOW_DISABLE_OUTBOUND=1`.
+- [x] Rule 12, reading of 2026-11-01, review of #920: `server-test-app-env.unit.test.js` now 8 tests (+3). The probe test writes 16 bypass forms and a plain `process.env.X` read to a scratch directory, one file each; the first guard let 15 of the 16 through (it caught only `const { X } = process.env`), the hardened one fails on all 17. The same 16 dropped one by one into `src/utils/` turn the guard red; so does a backtick-keyed `process.env[…]` appended to `localEnv.js`, a listed file. The quiet-forms test pins no false alarm on `env = process.env`, `config.env || process.env`, `env?.X` and `'.env.local'`. The pm2 test (`pm_id=0` in the shell, `createRestarter().supervised` false under the preload) and the guard test (once it reads lowercase names) were red without `pm_id` on the list. Full `npm test`: 9 250 tests, 0 failures in a clean shell and under `pm_id=0 NODE_ENV=production PUBLIC_SITE_ORIGIN=… PUBLIC_API_RATELIMIT_MAX=5`.
 
 ## 8. Out of scope
 

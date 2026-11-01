@@ -8,15 +8,15 @@
  * It also starts the process without the shell's GuestFlow flags (rule 12): a developer shell exporting
  * `GUESTFLOW_MANAGED=1` or the E2E `GUESTFLOW_DISABLE_OUTBOUND=1` turned tests that read `process.env`
  * red, or vacuously green. A test that needs a flag sets it inline or passes its own `env`. The runner's
- * own `GUESTFLOW_TEST_*` knobs are kept.
+ * own `GUESTFLOW_TEST_*` knobs are kept. Since 2026-11-01 (audit R13 L-1) the app's other variables go too
+ * (`PUBLIC_SITE_ORIGIN`, the rate-limit knobs, QONTO_*…): the list and what the runner keeps are in
+ * `appEnvNames.js`.
  */
 const path = require('path');
 
 const DEFAULT_DB = path.resolve(__dirname, '..', '..', '..', 'guestflow.db');
 
-for (const name of Object.keys(process.env)) {
-  if (name.startsWith('GUESTFLOW_') && !name.startsWith('GUESTFLOW_TEST_')) delete process.env[name];
-}
+require('./appEnvNames').stripAppEnv();
 
 require('../../utils/testProcessIsolation').isolate({ force: true });
 
