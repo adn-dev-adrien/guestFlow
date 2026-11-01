@@ -293,6 +293,10 @@ These are the recommended options, taken under the owner's instruction to run th
 
 42. **A fresh export that fails on retry never reopens the finished closing** (audit R10 N2, 2026-10-31; amends rule 40's failure wording). The closing of an archived customer is complete, so the retry's export failure is recorded on the « Lien d’export envoyé » step alone, « Nouvel export en échec (<reason>) : aucun lien envoyé. », and that step keeps its « Réessayer ». « Export complet » (`deprov-export`) keeps its last successful export row, and the journal gets no « Déprovisionnement interrompu » line: before, the step turned red with a « Réessayer » that called the deprovision and always answered 409 « Client déjà archivé. ». Test: `tests/audit-r10-console-export-link.unit.test.js`.
 
+43. **An export archive belongs to one link, and a file a valid link points at is never deleted** (audit R11 N2, 2026-11-01). The archive is named `<slug>-<day>-<12 hex>.tar.gz`: before, two exports of one customer on the same Paris day wrote the same file, so closing, reactivating and closing again the same day gave the new link the old row's path, and the next morning's purge of the expired old row deleted the live archive (the link answered 410 « Ce lien a expiré. » with 29 days left, « Lien d’export envoyé » still green, and nothing to retry). The daily purge (`purgeExpiredExports`) and `dropExports` (reactivation, erasure) still expire every link they cover, but delete a file only when no link valid today or later points at it, so rows written before the names were unique, or a slug taken again by another customer, cannot lose an archive either; the purge journals « Archive d’export supprimée (lien expiré) » only for a file it deleted. The suffix stays on disk: the download (`GET /exports/:token`) serves the file as `<slug>-<day>.tar.gz`. Test: `tests/audit-r11-console-export-archive.unit.test.js`.
+
+44. **A late « Réessayer » that crosses midnight into the erasure day mails nothing** (audit R11 note, verified 2026-11-01; amends rule 41). The retry checks the erasure date before the fresh export, but the link's end date is computed after it, and a large space can take minutes: a retry on the eve of the erasure that ends after midnight produced a link expiring the day before, already dead, and mailed it. When the fresh link would end before today, `exportForDeprovision` deletes its archive and records nothing: no export row (so it never becomes the latest export), and « Export complet » (`deprov-export`) keeps its last real export, detail and time. The mail is not sent, nothing is journaled as produced, and the step fails « Effacement prévu le JJ/MM/AAAA : aucun lien envoyé. » (« dû » past that date), with no « Réessayer » (rule 41). Test: `tests/audit-r11-console-export-archive.unit.test.js`.
+
 ---
 
 ## 4. Architecture
@@ -562,3 +566,5 @@ Tests: instance `hosting-plugin-push` (5, the version handler test now covers ru
 **Left to the owner**: §8, and the host runbook `deploy/hosting/README.md`. Not exercised against a
 real host: systemd, Caddy, Litestream and rclone are covered by their generated files and command
 lines only.
+
+**Audit R11 (2026-11-01):** rules 43–44 appended. Tests: control plane `audit-r11-console-export-archive` (5).
