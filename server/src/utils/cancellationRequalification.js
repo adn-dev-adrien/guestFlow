@@ -65,17 +65,16 @@ function requalificationLines(depositTtc, depositBuckets, vatRate) {
 }
 
 /**
- * The avoir lines of the installments collected under a plan (specs/direct-installments.md rule 46).
- * Each was booked like a solde: the stay at the sales VAT rate plus its share of the tourist tax at 0 %
- * (rule 39), so the avoir reverses exactly those two parts.
+ * The avoir lines of the installments collected under a plan (specs/direct-installments.md rule 46). Each was
+ * booked on its frozen split (rule 47): the revenue per bucket at the sales VAT rate, plus its share of the
+ * tourist tax at 0 % (rule 39). The avoir reverses those same buckets, one line each. Buckets that do not add
+ * up to the stay part (none given) fall back to a single accommodation line, the way an acompte without
+ * contribs does: the total and the VAT stay exact.
  */
-function installmentLines(amountTtc, touristTaxTtc, vatRate) {
+function installmentLines(amountTtc, touristTaxTtc, buckets, vatRate) {
   const tax = Math.min(round2(touristTaxTtc), amountTtc);
   const stay = round2(amountTtc - tax);
-  const lines = [];
-  if (stay > 0) {
-    lines.push({ lineKey: 'accommodation', label: BUCKET_LABELS.accommodation, bucket: 'accommodation', quantity: 1, unitPrice: stay, amountTtc: stay, vatRate });
-  }
+  const lines = stay > 0 ? requalificationLines(stay, buckets, vatRate) : [];
   if (tax > 0) {
     lines.push({ lineKey: 'touristTax', label: 'Taxe de séjour', bucket: 'touristTax', quantity: null, unitPrice: null, amountTtc: tax, vatRate: 0 });
   }
@@ -88,8 +87,9 @@ function installmentLines(amountTtc, touristTaxTtc, vatRate) {
  *                                        lastName, startDate, endDate, finalPrice, depositAmount,
  *                                        depositPaid
  * @param {object} [input.depositBuckets] `{ accommodation, options, resources }` TTC shares of the acompte
- * @param {object} [input.installmentsRetained] `{ amountTtc, touristTaxTtc }` — what the installments of a
- *                                        plan collected, and the tourist tax inside it
+ * @param {object} [input.installmentsRetained] `{ amountTtc, touristTaxTtc, buckets }` — what the installments
+ *                                        of a plan collected, the tourist tax inside it, and the TTC
+ *                                        `{ accommodation, options, resources }` they were booked on
  * @param {string} input.cancellationDate YYYY-MM-DD — the day the requalification is booked
  * @param {number} input.vatRate          the sales VAT rate the acompte was booked at
  * @param {string} [input.reason]         operator's cancellation reason, carried on both records
@@ -116,7 +116,7 @@ function buildCancellationRequalification({
   const rate = Number(vatRate) || 0;
   const lines = [
     ...(depositTtc > 0 ? requalificationLines(depositTtc, depositBuckets, rate) : []),
-    ...(installmentsTtc > 0 ? installmentLines(installmentsTtc, installmentsRetained.touristTaxTtc, rate) : []),
+    ...(installmentsTtc > 0 ? installmentLines(installmentsTtc, installmentsRetained.touristTaxTtc, installmentsRetained.buckets, rate) : []),
   ];
 
   return {

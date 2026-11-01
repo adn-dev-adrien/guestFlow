@@ -157,12 +157,35 @@ function buildRefundableLines({ finalPrice, touristTaxTotal, vatRate, options = 
 
   // A line whose billed amount shrank below what was already refunded clamps to 0 (spec §3.2 edge
   // case): the money physically left, but nothing more can be given back on that key.
-  return all
-    .map((line) => {
-      const refundedTtc = round2(refunded[line.key] || 0);
-      return { ...line, refundedTtc, refundableTtc: Math.max(0, round2(line.billedTtc - refundedTtc)) };
-    })
-    .filter((line) => line.refundableTtc > 0);
+  const perLine = all.map((line) => {
+    const refundedTtc = round2(refunded[line.key] || 0);
+    return { ...line, refundedTtc, refundableTtc: Math.max(0, round2(line.billedTtc - refundedTtc)) };
+  });
+  ['options', 'resources'].forEach((bucket) => spreadBucketRefund(perLine.filter((line) => line.key !== bucket && line.bucket === bucket), refunded[bucket]));
+  return perLine.filter((line) => line.refundableTtc > 0);
+}
+
+/**
+ * A line keyed by its bucket (`options`, `resources`) names no billed line: it is the requalification avoir of
+ * a cancellation, which reverses a whole bucket (specs/reservation-refunds.md rule 45). It consumes the
+ * bucket's lines pro rata of what each still had to give back, the last one taking the cents, so the register
+ * never offers again what the cancellation already requalified.
+ */
+function spreadBucketRefund(lines, amountTtc) {
+  const totalCents = Math.round(Number(amountTtc || 0) * 100);
+  const remaining = lines.filter((line) => line.refundableTtc > 0);
+  const availableCents = remaining.reduce((sum, line) => sum + Math.round(line.refundableTtc * 100), 0);
+  if (totalCents <= 0 || availableCents <= 0) return;
+  const spentCents = Math.min(totalCents, availableCents);
+  let leftCents = spentCents;
+  remaining.forEach((line, index) => {
+    const lineCents = Math.round(line.refundableTtc * 100);
+    const share = index === remaining.length - 1 ? leftCents : Math.min(lineCents, Math.round((spentCents * lineCents) / availableCents));
+    const taken = Math.min(lineCents, share);
+    leftCents -= taken;
+    line.refundedTtc = round2(line.refundedTtc + taken / 100);
+    line.refundableTtc = round2((lineCents - taken) / 100);
+  });
 }
 
 /**

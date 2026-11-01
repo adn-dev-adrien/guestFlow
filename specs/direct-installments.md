@@ -246,6 +246,19 @@ its due date, after the operator validates it.
     complement (`touristTaxInComplement`), no installment carried it, so the avoir reverses none.
     *Why:* the cancellation booked nothing, the installments stayed séjour revenue for a stay that
     never happened.
+    - *Reading of 2026-11-01 (audit R13-M1):* « the stay part » is reversed **bucket by bucket**, the way
+      each installment was booked. `cancelReservation.installmentsRetainedOf` sums the frozen `paidSplit`
+      of the paid installments (rule 47) per bucket — accommodation, options, resources, tax — and
+      `cancellationRequalification.installmentLines` emits one avoir line per non-zero bucket, like the
+      acompte's `requalificationLines` (payment-schedule spec rule 30a). An installment collected before
+      rule 47 has no split: its revenue counts on the accommodation line, its tax share is the plan's,
+      as the export booked it. The refund register then subtracts the requalified options and resources
+      from their lines (`specs/reservation-refunds.md` rule 45). *Why:* the avoir put the whole stay part
+      on « Location gîte »: on stay #22326 (two of three installments paid, 351,38 € of options each) the
+      cancellation month left 70600000 at −638,87 € HT and 70600010 at +638,88 € HT for a stay that never
+      happened, the accommodation line reversed 2 036 € TTC against 1 999,60 € billed, and the register
+      still offered every option as fully refundable. Each bucket's TTC is split HT / VAT once on the avoir
+      against once per installment on the encaissements, so a sub-account may keep a cent of rounding.
 
 **Edge cases:**
 
@@ -503,6 +516,7 @@ Baseline 6 264 → **6 373** (+109 net, all green; 5 cron tests of money templat
 - [x] `tests/direct-installments-arrival.unit.test.js` (7) — due at arrival, SAS settlement, bank receipts, paid buckets never zeroed (rules 35, 36, 38); rule 37 extends `finance-attribution-date.unit.test.js`
 - [x] `tests/direct-installments-finance-revenue.unit.test.js` (4) — rule 45: the invariant on a plan, summary per property, pace and projection, one « Encaissé » row per installment
 - [x] `tests/direct-installments-cancellation.unit.test.js` (3) — rule 46: avoir 400 @ 10 % + 8 @ 0 %, indemnity 408, nothing collected → nothing booked, tax at arrival → no tax reversed
+- [x] `tests/installment-cancellation-buckets.unit.test.js` (5, 2026-11-01) — rule 46 reading of audit R13-M1: two paid installments with an options share → avoir 440 accommodation + 220 options @ 10 % + 8 @ 0 %, the month nets to zero on every 706 / 4457 / 4671 account, the register no longer offers the requalified options, an installment paid before rule 47 still reverses on the accommodation; `reservation-refunds` rule 45 spread
 - [x] `plugins/accounting-export/tests/accounting-collected-money-frozen.unit.test.js` (2 of 5) — rule 47: an October installment unchanged after a later save; the stored split adds up and keeps the plan's tax share
 - [x] `tests/finance-late-installments.unit.test.js` (3) — rule 48: two late installments as elements, the three-day grace, a covered plan never late
 - [x] `client/src/pages/__tests__/FinancePage.settle-late-installment.test.jsx` (1) — rule 48: « Marquer payé » records each late installment through its endpoint

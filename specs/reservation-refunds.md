@@ -329,6 +329,13 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
     from « + Nouveau remboursement » shows « Un trop-perçu de X € est ouvert. » with « Rembourser le trop-perçu »,
     which reopens the dialog on the trop-perçu prefill (the `fromOverpayment` flow). No warning when no trop-perçu
     is open or when the dialog was opened on it. No server change.
+45. **A requalification avoir consumes the lines of the bucket it reverses (audit R13-M1, 2026-11-01).** The
+    `retained` avoir of a cancellation (payment-schedule spec §3.6, `specs/direct-installments.md` rule 46)
+    reverses whole buckets: its option and resource lines are keyed `options` / `resources`, a key no billed
+    line carries. `buildRefundableLines` spreads such an amount over the bucket's lines, pro rata of what each
+    still had to give back (the last one taking the cents, never below 0), after the per-key refunds. *Why:*
+    after cancelling a stay paid through a plan, the register offered every option as fully refundable
+    although the cancellation had already requalified 702,76 € of them.
 
 ---
 
@@ -570,6 +577,8 @@ like « Nouvelle note », not a page-level one).
 - [x] `npm run test:e2e` (Playwright) green — 45 passed, 1 skipped.
 
 **Audit 2026-10-27:** `tests/platform-acompte-paid-follows-statement.unit.test.js` (3, rule 40).
+**Audit R13-M1 (2026-11-01):** `tests/installment-cancellation-buckets.unit.test.js` (2 of 5, rule 45) — the
+register after a plan's cancellation; a bucket amount spread pro rata, clamped, beside a per-key refund.
 
 ## 8. Out of scope
 
