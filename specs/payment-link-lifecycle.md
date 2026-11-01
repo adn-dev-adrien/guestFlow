@@ -758,6 +758,18 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     menu and no tooltip is reachable, the item prints « Transformer en devis » with the reason beneath (the
     `PageActionBar` action's new `label`). Another stay on the nights does not lock the fiche: the
     POST still refuses it, with that stay to open. The POST still refuses every case, whatever the fiche shows.
+    Reading of 2026-11-01 (audit R12-C1, show before refusing): the devis is built from the stored stay
+    (`convertFromReservation` reads the row), never from the values typed on the fiche, so converting a fiche with
+    unsaved changes silently dropped them and carried the old dates or party. While the fiche is dirty « Transformer
+    en devis » is disabled with « Enregistrer d'abord les modifications. » — the tooltip and accessible name on a wider
+    screen, the reason beneath the item in the phone's « Plus d'actions » menu (the same `label` as above) — and
+    nothing is confirmed, sent or navigated. Undoing the change gives the action back. The stay's own
+    `convertToDevisLockedReason` outranks it (saving would not lift that one). Saving an existing reservation
+    returns to the list, so converting a modified stay is: save, reopen the fiche, then convert. That is on purpose
+    (review of #918): a devis is never built from values the operator no longer sees, and an alternative typed on
+    the fiche is never saved onto the real booking behind the operator's back. Both reasons (the dirty one and the
+    stay's lock) leave the action focusable and inert (`PageActionBar`'s `ariaDisabled`): Tab reaches it, the tooltip
+    gives the reason, a click does nothing.
 47. **The notice's trigger is the withdrawal for taken dates** (decided 2026-10-30, §9 Q14) — written in
     rule 43, which it amends.
 48. **A devis whose dates were taken stays as it is** (decided 2026-10-30, §9 Q15). Nothing changes on it
@@ -1485,7 +1497,8 @@ refused).
 - [x] `client/src/pages/__tests__/ReservationPage.dates-held.test.jsx` (4) — rules 46, 48, 55; a devis on an unpaid reservation's nights reaches the server; `CLOSED_DATES` shows the closure.
 - [x] `client/src/pages/__tests__/DevisPage.dates-taken.test.jsx` (2) — rule 48.
 - [x] `client/src/components/__tests__/PageActionBar.overflow-reason.test.jsx` (2) — rule 46 (review of #915): the phone menu prints a disabled action's `label` with its reason beneath, once when they match.
-- [x] `client/src/pages/__tests__/ReservationPage.convert-to-devis-refused.test.jsx` (6) — rules 46, 55 (R11-2, review of #915): « Devis non créé » with the other stays or the closure to open, the source's own reason with no link, the action disabled with `convertToDevisLockedReason` as tooltip before any confirm, other errors, the happy path.
+- [x] `client/src/pages/__tests__/ReservationPage.convert-to-devis-refused.test.jsx` (6) — rules 46, 55 (R11-2, review of #915): « Devis non créé » with the other stays or the closure to open, the source's own reason with no link, the action disabled (focusable and inert since the review of #918) with `convertToDevisLockedReason` as tooltip before any confirm, other errors, the happy path.
+- [x] `client/src/pages/__tests__/ReservationPage.convert-to-devis-dirty.test.jsx` (4) — rule 46 (R12-C1): a dirty fiche disables « Transformer en devis » with « Enregistrer d'abord les modifications. » (tooltip, focusable and inert, no confirm, no API call, the URL and the draft kept), undoing the change gives it back, the stay's own lock outranks it, and the phone menu prints the reason beneath the disabled item.
 - [x] `client/src/pages/__tests__/EstablishmentClosuresPage.stale-conflicts.test.jsx` (2) — rule 62: a late answer after close/reopen, or after the range turned invalid, is dropped.
 - [x] `client/src/components/__tests__/DatesTakenAlert.test.jsx` (5) — rules 43, 66: rows told / not told, « non prévenu » once, the taking stay as a link (plain text when unknown), « Ouvrir », « Vu », a refused « Vu » re-reads, nothing when empty or unreadable.
 - [x] `client/src/pages/__tests__/EmailTemplatesPage.locked-mode.test.jsx` (2) — rule 45.
@@ -1772,3 +1785,7 @@ Six sequential PRs into `inte/plugins` (plan validated 2026-10-30).
   `public-payment-pay-nights-lost-visitor` (4), `dates-unavailable-notice-rollback` (7),
   `event-templates-rollback-anchor` (4); client `ReservationPage.convert-to-devis-refused` (6),
   `PageActionBar.overflow-reason` (2), each red before its fix.
+  Audit R12 (2026-11-01, branch `fix/audit-r12-client`): C1 rule 46 « Transformer en devis » disabled on a dirty
+  fiche with « Enregistrer d'abord les modifications. » (tooltip on a wider screen, the reason in the phone menu);
+  review of #918: both reasons keep the action focusable and inert (`ariaDisabled`), no refusal in the handler. Tests: client `ReservationPage.convert-to-devis-dirty` (4), 3 red
+  before the fix (the lock-precedence case guards the ordering).

@@ -43,7 +43,8 @@
  *     `label`: the action's name when `tooltip` carries the reason it is disabled; the phone's overflow menu
  *     prints it with that reason beneath (no tooltip is reachable there)
  *     `ariaDisabled`: looks and reads as disabled but stays focusable and inert (an action that has just
- *     been performed, so keyboard focus does not drop to the page)
+ *     been performed, so keyboard focus does not drop to the page; or a blocked one whose `tooltip` gives
+ *     the reason, so Tab reaches it)
  *     color ∈ 'primary' | 'info' | 'success' | 'warning' | 'error' | 'default'
  *   Or a custom node: { node: ReactNode } — rendered as-is (e.g. a <Select>),
  *     always kept inline (never collapsed into the mobile overflow menu).

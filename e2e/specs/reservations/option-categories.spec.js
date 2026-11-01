@@ -120,7 +120,7 @@ test('enabled articles stay pinned and visible after a save + reload, section st
   const saved = page.waitForResponse((r) => r.request().method() === 'PUT'
     && r.url().includes(`/api/reservations/${reservation.id}`)
     && r.ok());
-  await page.getByRole('button', { name: 'Enregistrer' }).click();
+  await page.getByRole('button', { name: 'Enregistrer', exact: true }).click();
   await saved;
   // Let the app's own post-save redirect land first, or it interrupts our navigation.
   await page.waitForURL('**/reservations');

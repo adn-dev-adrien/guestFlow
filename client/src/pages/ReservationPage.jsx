@@ -133,11 +133,13 @@ function parseCustomPrice(value) {
   return Number(value);
 }
 
-// specs/reservation-refunds.md — an empty refund register: what a devis, a creation form or a
-// reservation without any refund reads.
+// specs/payment-link-lifecycle.md rule 46 (audit R12-C1) — the devis is built from the stored stay, not the typed values.
+const CONVERT_TO_DEVIS_DIRTY_REASON = "Enregistrer d'abord les modifications.";
 const NO_ARRIVAL_LINES = {};
 const NO_FROZEN_CUSTOM_IDS = [];
 
+// specs/reservation-refunds.md — an empty refund register: what a devis, a creation form or a
+// reservation without any refund reads.
 const EMPTY_REFUND_REGISTER = {
   refunds: [],
   refundableLines: [],
@@ -3307,6 +3309,8 @@ export default function ReservationPage() {
   // specs/reservation-payment-ledger.md rules 7, 39 — the stored money (ledger and headline) until the
   // operator changes the fiche, never the live one on a locked fiche.
   const showLiveMoney = !storedLedger || (isDirty && !isReservationLocked);
+  // The stay's own lock first: saving the draft would not lift it.
+  const convertToDevisBlockedReason = convertToDevisLockedReason || (isDirty ? CONVERT_TO_DEVIS_DIRTY_REASON : null);
   const headline = showLiveMoney ? pricingQuote?.headline : (storedHeadline || pricingQuote?.headline);
   // Rules 44-45 — while the stored ledger shows and today's quote differs from the stored money, the
   // pricing summary (desktop panel and phone sheet) is the stored one, whole: never live lines next to
@@ -3464,11 +3468,12 @@ export default function ReservationPage() {
       ? [{
           icon: <DescriptionIcon />,
           label: 'Transformer en devis',
-          tooltip: convertToDevisLockedReason || 'Transformer en devis',
-          ariaLabel: convertToDevisLockedReason ? `Transformer en devis : ${convertToDevisLockedReason}` : 'Transformer en devis',
+          tooltip: convertToDevisBlockedReason || 'Transformer en devis',
+          ariaLabel: convertToDevisBlockedReason ? `Transformer en devis : ${convertToDevisBlockedReason}` : 'Transformer en devis',
           onClick: handleConvertToDevis,
           color: 'info',
-          disabled: Boolean(convertToDevisLockedReason),
+          // Focusable while blocked, so Tab reaches the reason in the tooltip.
+          ariaDisabled: Boolean(convertToDevisBlockedReason),
         }] : []),
     // specs/email-automation.md §6.6 — manual email send on an existing reservation. Disabled
     // when the client has no email; the dialog otherwise surfaces SMTP / template errors clearly.
