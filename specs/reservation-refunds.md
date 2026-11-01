@@ -333,9 +333,27 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
     `retained` avoir of a cancellation (payment-schedule spec §3.6, `specs/direct-installments.md` rule 46)
     reverses whole buckets: its option and resource lines are keyed `options` / `resources`, a key no billed
     line carries. `buildRefundableLines` spreads such an amount over the bucket's lines, pro rata of what each
-    still had to give back (the last one taking the cents, never below 0), after the per-key refunds. *Why:*
+    still had to give back (cents by largest remainder, rule 46; never below 0), after the per-key refunds. *Why:*
     after cancelling a stay paid through a plan, the register offered every option as fully refundable
     although the cancellation had already requalified 702,76 € of them.
+46. **What a cancellation requalified is told apart from what was given back (review of PR #921, 2026-11-01).**
+    Every refundable line carries `refundedTtc` — what the guest got back, every means but `retained` — and
+    `requalifiedTtc` — what a `retained` avoir kept as an indemnity — and `refundableTtc` is the billed amount
+    minus both. A bucket-keyed amount (rule 45) is spread by **largest remainder**: each line takes the floor
+    of its pro rata share, and the cents left go one by one to the largest remainders, so the whole amount
+    lands on lines that still had it. `RefundDialog` captions a line `Facturé 110,00 € · déjà remboursé
+    20,00 € · requalifié 53,33 €`, each part shown only when above 0. *Why:* after a cancellation the
+    dialog read « déjà remboursé 540,07 € » on options whose money had never left; and rounding each share
+    on its own while the last line took the rest could drop cents — lines of 0,03 / 0,03 / 0,03 / 0,03 /
+    0,01 € under a 0,10 € avoir consumed 0,09 €, so the register offered 0,01 € too much.
+47. **A `retained` avoir is split HT / VAT line by line in the export (review of PR #921, 2026-11-01).**
+    `accountingModel.buildRefundEntry` splits each line of a `retained` refund on its own and sums the HT
+    and the VAT per bucket; a real refund keeps one split per bucket and rate. A cancellation's avoir
+    reverses encaissements line for line (`specs/direct-installments.md` rule 46, reading of 2026-11-01),
+    so this is the split each encaissement was booked with, and the accounts net to the cent. Every
+    `retained` avoir booked before carries at most one line per bucket and rate, where both splits are the
+    same numbers: no exported month moves. *Why:* 2 × 351,38 € of options split into 2 × 319,44 € HT on
+    the installments, but 702,76 € split at once gave 638,87 € HT: 70600010 kept 0,01 €.
 
 ---
 
@@ -477,7 +495,8 @@ Empty state: the block renders with the button only, no total chip, no history l
    capped client-side as a UX hint (the server is the authority). Options priced per unit also show a
    quantity stepper that drives the amount (`qty × unitPrice`). *(2026-10-18, rule 37: the amount is
    a text field accepting « 12,5 », « Max X € » shows under it from the start, and a typed amount that
-   is not a whole number of units shows « Montant libre » instead of the stepper.)*
+   is not a whole number of units shows « Montant libre » instead of the stepper.)* *(2026-11-01, rule 46: money a
+   cancellation requalified reads « · requalifié X € », apart from « déjà remboursé ».)*
 2. **Autre ligne** — « + Ajouter une ligne libre » : libellé + montant + catégorie
    (Hébergement / Prestation complémentaire / Activité / Taxe de séjour), default « Prestation
    complémentaire ».
@@ -577,8 +596,12 @@ like « Nouvelle note », not a page-level one).
 - [x] `npm run test:e2e` (Playwright) green — 45 passed, 1 skipped.
 
 **Audit 2026-10-27:** `tests/platform-acompte-paid-follows-statement.unit.test.js` (3, rule 40).
-**Audit R13-M1 (2026-11-01):** `tests/installment-cancellation-buckets.unit.test.js` (2 of 5, rule 45) — the
-register after a plan's cancellation; a bucket amount spread pro rata, clamped, beside a per-key refund.
+**Audit R13-M1 (2026-11-01):** `tests/installment-cancellation-buckets.unit.test.js` (5 of 9, rules 45–47) — the
+register after a plan's cancellation (requalified, not refunded); a bucket amount spread pro rata, clamped,
+beside a per-key refund; the largest-remainder spread of 0,10 € over 0,03 × 4 + 0,01 €; a one-line-per-bucket
+`retained` avoir booked byte for byte as the per-bucket split, two lines on one bucket split each.
+`client/src/components/reservation/__tests__/RefundDialog.requalified.test.jsx` (3, rule 46) — « requalifié »,
+both parts on one line, a line without requalification unchanged.
 
 ## 8. Out of scope
 

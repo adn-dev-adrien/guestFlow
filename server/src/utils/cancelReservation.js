@@ -26,6 +26,7 @@ const { withConvertedDevis } = require('./deletionGuard');
 const { buildCancellationRequalification } = require('./cancellationRequalification');
 const { isDirectChannel } = require('./platformNameFormat');
 const { taxShares } = require('./installmentPlan');
+const { computeInstallmentPaidSplit } = require('./installmentPaidSplit');
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
@@ -44,8 +45,8 @@ function resolveCancellationReason(row) {
 }
 
 // specs/direct-installments.md rule 46 — what the installments of a plan collected, and how the accounting booked
-// it: the tourist-tax share (rule 39) and the revenue per bucket, summed over the paid installments.
-function installmentsRetainedOf(installmentsModel, id, row) {
+// each one: its tourist-tax share (rule 39) and its revenue per bucket, installment by installment.
+function installmentsRetainedOf(installmentsModel, database, id, row) {
   const plan = installmentsModel ? installmentsModel.listFor(id) : [];
   if (!plan.length) return null;
   // A plan is a direct sale: when the tax rides on the arrival complement, no installment carried it
@@ -56,33 +57,27 @@ function installmentsRetainedOf(installmentsModel, id, row) {
   const shares = taxShares(taxCents, plan.map((i) => Number(i.amountCents)));
   let amountCents = 0;
   let retainedTaxCents = 0;
-  const bucketCents = { accommodation: 0, options: 0, resources: 0 };
+  const installments = [];
   plan.forEach((installment, index) => {
     if (Number(installment.paid) !== 1) return;
     const installmentCents = Number(installment.amountCents);
     amountCents += installmentCents;
     // Rule 47 — the split frozen when it was collected is the one the books hold. Collected before that
-    // rule, the installment has none: the export booked its revenue on the accommodation, so does the avoir.
+    // rule, the installment has none: the export spread it with the stored-money rules, which
+    // computeInstallmentPaidSplit applies to the fiche as it stands.
     const frozen = typeof installmentsModel.paidSplitOf === 'function' ? installmentsModel.paidSplitOf(installment.id) : null;
-    if (frozen) {
-      retainedTaxCents += frozen.taxCents;
-      bucketCents.accommodation += frozen.accommodationCents;
-      bucketCents.options += frozen.optionsCents;
-      bucketCents.resources += frozen.resourcesCents;
-    } else {
-      retainedTaxCents += shares[index];
-      bucketCents.accommodation += Math.max(0, installmentCents - shares[index]);
-    }
+    const split = frozen || (database ? computeInstallmentPaidSplit(database, installment.id) : null)
+      || { taxCents: shares[index], accommodationCents: Math.max(0, installmentCents - shares[index]), optionsCents: 0, resourcesCents: 0 };
+    retainedTaxCents += split.taxCents;
+    installments.push({
+      number: Number(installment.number) || index + 1,
+      count: plan.length,
+      accommodation: split.accommodationCents / 100,
+      options: split.optionsCents / 100,
+      resources: split.resourcesCents / 100,
+    });
   });
-  return {
-    amountTtc: amountCents / 100,
-    touristTaxTtc: retainedTaxCents / 100,
-    buckets: {
-      accommodation: bucketCents.accommodation / 100,
-      options: bucketCents.options / 100,
-      resources: bucketCents.resources / 100,
-    },
-  };
+  return { amountTtc: amountCents / 100, touristTaxTtc: retainedTaxCents / 100, installments };
 }
 
 /**
@@ -110,7 +105,7 @@ function cancelReservation(deps, reservationId, { reason = '', cancelledBy = nul
   const requalification = buildCancellationRequalification({
     reservation: row,
     depositBuckets: reservationsModel.depositContribBuckets(id),
-    installmentsRetained: installmentsRetainedOf(installmentsModel, id, row),
+    installmentsRetained: installmentsRetainedOf(installmentsModel, database, id, row),
     cancellationDate: today,
     vatRate,
     reason: trimmedReason,

@@ -69,7 +69,8 @@ test('the installments collected are retained: avoir (stay at 10 % + tax at 0 %)
   assert.equal(refund.totalTtc, 408);
   assert.equal(refund.refundDate, TODAY);
   const lines = db.prepare('SELECT bucket, amountTtc, vatRate FROM reservation_refund_lines WHERE refundId = ? ORDER BY id').all(out.refundId);
-  assert.deepEqual(lines.map((l) => [l.bucket, l.amountTtc, l.vatRate]), [['accommodation', 400, 10], ['touristTax', 8, 0]]);
+  // One line per paid installment (rule 46, reading of 2026-11-01): 200 € of stay in each.
+  assert.deepEqual(lines.map((l) => [l.bucket, l.amountTtc, l.vatRate]), [['accommodation', 200, 10], ['accommodation', 200, 10], ['touristTax', 8, 0]]);
 
   const compensation = db.prepare('SELECT * FROM cancellation_compensations WHERE id = ?').get(out.compensationId);
   assert.equal(compensation.receivedAmount, 408);
@@ -91,5 +92,5 @@ test('tax paid at arrival: the installments carried none, so the avoir reverses 
   const out = cancel(deps);
   assert.equal(out.retainedDepositAmount, 408);
   const lines = db.prepare('SELECT bucket, amountTtc, vatRate FROM reservation_refund_lines WHERE refundId = ? ORDER BY id').all(out.refundId);
-  assert.deepEqual(lines.map((l) => [l.bucket, l.amountTtc, l.vatRate]), [['accommodation', 408, 10]]);
+  assert.deepEqual(lines.map((l) => [l.bucket, l.amountTtc, l.vatRate]), [['accommodation', 204, 10], ['accommodation', 204, 10]]);
 });

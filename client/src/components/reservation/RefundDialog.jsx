@@ -25,7 +25,8 @@ import { evaluateArithmetic } from '../../utils/arithmetic';
  *
  * Props:
  *  - `open`, `onClose()`
- *  - `refundableLines` — `[{ key, label, bucket, quantity, unitPrice, billedTtc, refundedTtc, refundableTtc }]`
+ *  - `refundableLines` — `[{ key, label, bucket, quantity, unitPrice, billedTtc, refundedTtc, requalifiedTtc, refundableTtc }]`
+ *    (`requalifiedTtc`: what a cancellation kept as an indemnity, never given back)
  *  - `collectedTtc` — what has actually been collected so far, for the over-refund caption.
  *  - `overpaymentTtc` — the server's trop-perçu (rule 34); when > 0 the dialog opens with a free line
  *    « Trop-perçu » set to it, which the operator may change.
@@ -236,6 +237,7 @@ export default function RefundDialog({
                             {line.unitLabel && line.quantity > 0 && line.unitPrice > 0
                               && ` · ${line.quantity} ${line.unitLabel}${line.quantity > 1 ? 's' : ''} à ${formatCurrency(line.unitPrice)}`}
                             {line.refundedTtc > 0 && ` · déjà remboursé ${formatCurrency(line.refundedTtc)}`}
+                            {line.requalifiedTtc > 0 && ` · requalifié ${formatCurrency(line.requalifiedTtc)}`}
                           </Typography>
                         </Box>
                       )}
