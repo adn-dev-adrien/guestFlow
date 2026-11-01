@@ -1,34 +1,60 @@
-// specs/self-update-and-releases.md rule 43, reading of 2026-11-01 (audit R11 console N1) — the generic guard: every
-// default template sent on an event or an action (`EVENT_TRIGGERED_STABLE_KEYS`) or outside the policy
-// (`AUTO_SEND_EXCEPTIONS`) is out of the rollback floor's date-driven queue. Either the floor excludes it by name,
-// or it is seeded manual on an anchor the floor's queue never matches — never on `start`. A new event template
-// that forgets its anchor fails here, before any release.
+// specs/self-update-and-releases.md rule 43, readings of 2026-11-01 (audit R11 console N1, review of #915) — the
+// generic guard: every default template the rollback floor's own registry does not seed is new to the floor, which
+// may not render its placeholders (the rule-53 class), and that the floor's queue cannot exclude by name. Each one
+// must be seeded manual on an anchor the floor's queue never matches — never on `start` — or be declared safe for
+// the floor below, with the reason. A new template that forgets its anchor fails here, before any release, whether
+// it is sent on an event or on a date.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { DEFAULT_TEMPLATES, EVENT_TRIGGERED_STABLE_KEYS } = require('../utils/defaultEmailTemplatesRegistry');
-const { AUTO_SEND_EXCEPTIONS } = require('../utils/autoSendPolicy');
+const { DEFAULT_TEMPLATES } = require('../utils/defaultEmailTemplatesRegistry');
 const { localIsoDate } = require('../utils/localDate');
 const { freshDb, seedProperty } = require('./guestEmailSequenceFixtures');
-const { FLOOR_EVENT_KEYS, FLOOR_QUEUE_ANCHORS, floorQueue } = require('./rollbackFloorQueue');
+const { FLOOR_TEMPLATE_KEYS, FLOOR_QUEUE_ANCHORS, floorQueue } = require('./rollbackFloorQueue');
 
-const outOfQueueKeys = [...new Set([...EVENT_TRIGGERED_STABLE_KEYS, ...AUTO_SEND_EXCEPTIONS])];
-const unknownToFloor = outOfQueueKeys.filter((key) => !FLOOR_EVENT_KEYS.includes(key));
+// New default templates the floor may offer, each with why that is harmless. None today.
+const DECLARED_SAFE_FOR_FLOOR = Object.freeze({});
 
-test('rule 43 (R11 N1) - every event or exception template is a default template', () => {
-  for (const key of outOfQueueKeys) assert.ok(DEFAULT_TEMPLATES.some((t) => t.stableKey === key), key);
-  assert.ok(unknownToFloor.includes('installment_request'));
-  assert.ok(unknownToFloor.includes('dates_unavailable_notice'));
+// The default templates new to the floor that its queue could still offer, each with the reason.
+function floorRisks(templates) {
+  return templates
+    .filter((t) => !FLOOR_TEMPLATE_KEYS.includes(t.stableKey))
+    .filter((t) => !Object.prototype.hasOwnProperty.call(DECLARED_SAFE_FOR_FLOOR, t.stableKey))
+    .flatMap((t) => {
+      if (t.sendMode !== 'manual') return [`${t.stableKey}: seeded '${t.sendMode}', not manual`];
+      if (!t.anchor) return [`${t.stableKey}: no anchor, the seed writes 'start'`];
+      if (FLOOR_QUEUE_ANCHORS.includes(t.anchor)) return [`${t.stableKey}: on '${t.anchor}', an anchor the floor's queue matches`];
+      return [];
+    });
+}
+
+const newToFloor = DEFAULT_TEMPLATES.map((t) => t.stableKey).filter((key) => !FLOOR_TEMPLATE_KEYS.includes(key));
+
+test('rule 43 (R11 N1) - the templates new to the floor are the ones this release added', () => {
+  assert.ok(newToFloor.includes('installment_request'));
+  assert.ok(newToFloor.includes('dates_unavailable_notice'));
+  for (const key of Object.keys(DECLARED_SAFE_FOR_FLOOR)) assert.ok(newToFloor.includes(key), `${key} is declared safe but the floor already knows it`);
 });
 
-for (const key of unknownToFloor) {
-  test(`rule 43 (R11 N1) - ${key}: unknown to the floor, so manual on an anchor its queue never reads`, () => {
-    const def = DEFAULT_TEMPLATES.find((t) => t.stableKey === key);
-    assert.equal(def.sendMode, 'manual');
-    assert.ok(def.anchor && def.anchor !== 'start', `${key} carries no anchor, the seed would write 'start'`);
-    assert.ok(!FLOOR_QUEUE_ANCHORS.includes(def.anchor), `${key} on '${def.anchor}', an anchor the floor's queue matches`);
-  });
-}
+test('rule 43 (R11 N1) - no default template new to the floor sits on an anchor its queue reads', () => {
+  assert.deepEqual(floorRisks(DEFAULT_TEMPLATES), []);
+});
+
+test('rule 43 (review of #915) - a future date-driven template new to the floor is caught, not only an event one', () => {
+  const future = [
+    ...DEFAULT_TEMPLATES,
+    { stableKey: 'stay_reminder_3d', sendMode: 'manual', anchor: 'start' },
+    { stableKey: 'stay_unanchored', sendMode: 'manual' },
+    { stableKey: 'deposit_nudge', sendMode: 'manual', anchor: 'depositDueDate' },
+    { stableKey: 'auto_hello', sendMode: 'auto', anchor: 'created' },
+  ];
+  assert.deepEqual(floorRisks(future), [
+    "stay_reminder_3d: on 'start', an anchor the floor's queue matches",
+    "stay_unanchored: no anchor, the seed writes 'start'",
+    "deposit_nudge: on 'depositDueDate', an anchor the floor's queue matches",
+    "auto_hello: seeded 'auto', not manual",
+  ]);
+});
 
 test('rule 43 (R11 N1) - over a seeded install, the floor offers none of them for a stay arriving today', () => {
   const db = freshDb();
@@ -36,7 +62,7 @@ test('rule 43 (R11 N1) - over a seeded install, the floor offers none of them fo
   const today = localIsoDate(new Date());
   db.prepare("INSERT INTO clients (id, firstName, lastName) VALUES (1, 'A', 'B')").run();
   db.prepare("INSERT INTO reservations (clientId, propertyId, startDate, endDate, kind) VALUES (1, ?, ?, date(?, '+3 days'), 'reservation')").run(propertyId, today, today);
-  db.prepare(`UPDATE email_templates SET enabled = 1 WHERE stableKey IN (${outOfQueueKeys.map(() => '?').join(', ')})`).run(...outOfQueueKeys);
+  db.prepare(`UPDATE email_templates SET enabled = 1 WHERE stableKey IN (${newToFloor.map(() => '?').join(', ')})`).run(...newToFloor);
   const offered = floorQueue(db, today);
-  for (const key of outOfQueueKeys) assert.ok(!offered.includes(key), key);
+  for (const key of newToFloor) assert.ok(!offered.includes(key) || key in DECLARED_SAFE_FOR_FLOOR, key);
 });

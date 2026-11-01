@@ -408,11 +408,16 @@ signed-off releases over HTTPS, when the operator asks for it.
     offered by v3.19.0's queue for every stay on its arrival day). It is seeded on the anchor `datesTaken`, and the
     one-shot migration `dates_unavailable_notice_anchor_v1` (`utils/migrateDatesUnavailableNoticeAnchor.js`) moves an
     existing row, writing only when the value differs. A generic guard now covers the class
-    (`tests/event-templates-rollback-anchor.unit.test.js`, the floor's queue in `tests/rollbackFloorQueue.js`): every
-    template of `EVENT_TRIGGERED_STABLE_KEYS` or `AUTO_SEND_EXCEPTIONS` that the floor does not exclude by name is
-    seeded manual on an anchor the floor's queue never matches (not `start`, `validUntil`, `depositDueDate`,
-    `balanceDueDate`). The five keys the floor excludes by name keep their anchor: moving them would only add a
+    (`tests/event-templates-rollback-anchor.unit.test.js`, the floor's queue in `tests/rollbackFloorQueue.js`). The
+    five keys every retained release excludes by name keep their `start` anchor: each of the four UNION branches of
+    `listPending` (`start`, `validUntil`, `depositDueDate`, `balanceDueDate`) of v3.15.1 to v3.19.0 excludes the same
+    five by name, so no rollback target of rule 33's retention ever queues them, and moving them would only add a
     migration.
+    Reading of 2026-11-01 (review of #915, finding 3): the guard is driven by the default templates, not by the event
+    lists. Every default template absent from a frozen copy of the floor's own keys (`FLOOR_TEMPLATE_KEYS`, the
+    `DEFAULT_TEMPLATES` of v3.19.0) is new to the floor and must be seeded manual on an anchor its queue never matches,
+    or be declared safe for the floor in the suite with the reason (none today). A future date-driven template — a
+    new reminder on `start`, or one with no anchor — fails there as an event template does.
 44. **The plugin-owned tables have a floor too (2026-10-29, round-2 audit).** Rule 39's floor covered the
     core tables only, so a plugin migration renaming or dropping a column of its own table would have gone
     unseen. `fixtures/rollback-floor-v3.18.0-plugin-tables.json` lists the 16 tables the v3.18.0 plugins own
