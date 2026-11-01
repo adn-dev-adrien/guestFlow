@@ -434,6 +434,8 @@ export default function ReservationPage() {
   const [storedSummary, setStoredSummary] = useState(null);
   // specs/disable-deposit-per-reservation.md rule 13 — why « Sans acompte » is locked, as the GET last said.
   const [storedDepositDisabledLockedReason, setStoredDepositDisabledLockedReason] = useState(null);
+  // specs/payment-link-lifecycle.md rule 46 — null while « Transformer en devis » can be tried.
+  const [convertToDevisLockedReason, setConvertToDevisLockedReason] = useState(null);
   // specs/direct-installments.md — the plan of a direct reservation, as the server last sent it.
   const [installmentPlan, setInstallmentPlan] = useState(null);
   const ledgerEditMarkerRef = useRef(null);
@@ -1014,6 +1016,7 @@ export default function ReservationPage() {
           setStoredHeadline(res.storedHeadline || null);
           setStoredSummary(res.storedSummary || null);
           setStoredDepositDisabledLockedReason(res.depositDisabledLockedReason || null);
+          setConvertToDevisLockedReason(res.convertToDevisLockedReason || null);
           setInstallmentPlan(res.installmentPlan || null);
           setPricingQuote(null);
           setIsIcalImportedBlankPrice(importedBlankPrice);
@@ -2251,11 +2254,11 @@ export default function ReservationPage() {
 
   // specs/payment-link-lifecycle.md rules 46, 55 — a devis saved, moved or made from this stay onto held or closed
   // nights: the stays that hold them, or the closure, each to open. True when the error was that refusal.
-  const alertDevisDatesRefusal = async (err) => {
+  const alertDevisDatesRefusal = async (err, title = 'Devis non enregistré') => {
     if (err?.code !== 'DATES_HELD' && err?.code !== 'CLOSED_DATES') return false;
     const records = err.code === 'DATES_HELD' ? err.stays : err.closures;
     await alert({
-      title: 'Devis non enregistré',
+      title,
       message: err.message,
       details: <ConflictList severity="error" items={(records || []).map((row) => ({ key: row.id, label: row.label, url: row.url }))} newTab={!downSm} />,
     });
@@ -2583,7 +2586,7 @@ export default function ReservationPage() {
         overwriteOnceRef.current = false;
         ledgerEditMarkerRef.current = null;
         // Rule 7 — the stored ledger is what the fiche shows once clean again: re-read it after a save.
-        api.getReservation(reservationId).then((r) => { if (overwritten) loadedUpdatedAtRef.current = r.updatedAt || null; setStoredLedger(r.ledger || null); setStoredHeadline(r.storedHeadline || null); setStoredSummary(r.storedSummary || null); setStoredDepositDisabledLockedReason(r.depositDisabledLockedReason || null); setInstallmentPlan(r.installmentPlan || null); }).catch(() => {});
+        api.getReservation(reservationId).then((r) => { if (overwritten) loadedUpdatedAtRef.current = r.updatedAt || null; setStoredLedger(r.ledger || null); setStoredHeadline(r.storedHeadline || null); setStoredSummary(r.storedSummary || null); setStoredDepositDisabledLockedReason(r.depositDisabledLockedReason || null); setConvertToDevisLockedReason(r.convertToDevisLockedReason || null); setInstallmentPlan(r.installmentPlan || null); }).catch(() => {});
         if (safeAfterSaveAction) {
           safeAfterSaveAction();
           // The page stays open: refetch so the server's `editLock` (floors, window) is fresh. Only on a
@@ -2857,6 +2860,7 @@ export default function ReservationPage() {
     setStoredHeadline(res.storedHeadline || null);
     setStoredSummary(res.storedSummary || null);
     setStoredDepositDisabledLockedReason(res.depositDisabledLockedReason || null);
+    setConvertToDevisLockedReason(res.convertToDevisLockedReason || null);
     setInstallmentPlan(res.installmentPlan || null);
     const serverWritten = {
       // L'état d'encaissement du complément d'arrivée est écrit par le serveur (les boutons de la
@@ -3140,7 +3144,7 @@ export default function ReservationPage() {
       const devis = await api.createDevisFromReservation(editingReservationId);
       navigate(`/reservations/new?mode=devis&devisId=${devis.id}`);
     } catch (e) {
-      if (await alertDevisDatesRefusal(e)) return;
+      if (await alertDevisDatesRefusal(e, 'Devis non créé')) return;
       await alert({ title: 'Erreur', message: e.message || 'Impossible de créer le devis.' });
     }
   };
@@ -3454,7 +3458,15 @@ export default function ReservationPage() {
     // Réservation PLATEFORME → pas de devis : le tarif a été fixé par la plateforme, nous ne
     // devisons pas ce séjour. Le bouton n'a de sens que sur une réservation directe.
     ...(!isDevisMode && reservationId && !isPlatformReservation
-      ? [{ icon: <DescriptionIcon />, tooltip: 'Transformer en devis', onClick: handleConvertToDevis, color: 'info' }] : []),
+      ? [{
+          icon: <DescriptionIcon />,
+          label: 'Transformer en devis',
+          tooltip: convertToDevisLockedReason || 'Transformer en devis',
+          ariaLabel: convertToDevisLockedReason ? `Transformer en devis : ${convertToDevisLockedReason}` : 'Transformer en devis',
+          onClick: handleConvertToDevis,
+          color: 'info',
+          disabled: Boolean(convertToDevisLockedReason),
+        }] : []),
     // specs/email-automation.md §6.6 — manual email send on an existing reservation. Disabled
     // when the client has no email; the dialog otherwise surfaces SMTP / template errors clearly.
     ...(!isDevisMode && reservationId

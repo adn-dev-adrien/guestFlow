@@ -966,6 +966,8 @@ function getById(req, res) {
     editLock: model.getEditLock(Number(req.params.id), { today: getTodayIsoDate() }),
     // specs/payment-link-lifecycle.md rule 48 — an unpaid stay whose nights another stay holds: « Dates prises ».
     datesTaken: datesTakenMarker(db, { ...model.getRow(reservation.id) }),
+    // Rule 46, reading of 2026-11-01 (review of #915) — null while « Transformer en devis » can be tried.
+    convertToDevisLockedReason: require('../models/devisModel').convertToDevisLockedReason(reservation.id),
   });
 }
 
