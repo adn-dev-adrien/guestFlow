@@ -5,6 +5,7 @@
  *
  *   unsettledWithdrawnRefusal(database, stayId) → { httpStatus: 409, error: 'UNSETTLED_WITHDRAWN_PAYMENT', message } | null
  *   settleWithdrawnPayment(linkId, { database, paymentLinksModel, outcome: 'stay' | 'refunded', bookPaid }) → { link }
+ *     (`stay` refused 409 `INSTALLMENT_PLAN_IN_PLACE` for an acompte / solde / séjour link of a stay with a plan, rule 63)
  *
  * Unsettled: `status = 'cancelled'`, `cancelReason = 'operator'`, a `paidAt`. Settled: `refunded` turns the reason
  * into `refunded` (the money stays off the stay, the payment id stays on the row); `stay` books it as the stay's
@@ -40,6 +41,21 @@ function stayIsReadOnly(database, stayId) {
   return READ_ONLY_KINDS.has(stayKindOf(database, stayId));
 }
 
+// Rule 63 (Adrien, 2026-10-31) — once a stay has an installment plan, an acompte / solde / séjour payment cannot be
+// its money: the plan holds the whole pre-arrival amount. It is refunded, or recorded after the plan is deleted.
+const BUCKET_TYPES = new Set(['deposit', 'balance', 'full']);
+const PLAN_IN_PLACE = Object.freeze({
+  httpStatus: 409,
+  error: 'INSTALLMENT_PLAN_IN_PLACE',
+  message: 'Échéancier en place : rembourser, ou supprimer l’échéancier d’abord.',
+});
+function planHoldsBucketPayment(database, link) {
+  if (!BUCKET_TYPES.has(String(link.type))) return false;
+  const owner = database.prepare('SELECT convertedReservationId FROM reservations WHERE id = ?').get(Number(link.reservationId));
+  const stayId = owner && owner.convertedReservationId ? owner.convertedReservationId : link.reservationId;
+  return Boolean(database.prepare('SELECT 1 FROM reservation_installments WHERE reservationId = ? LIMIT 1').get(Number(stayId)));
+}
+
 async function settleWithdrawnPayment(linkId, { database, paymentLinksModel, outcome, bookPaid }) {
   if (!OUTCOMES.has(outcome)) throw { httpStatus: 400, error: 'INVALID_OUTCOME', message: 'Issue invalide (stay/refunded).' };
   const link = paymentLinksModel.findById(Number(linkId));
@@ -49,6 +65,7 @@ async function settleWithdrawnPayment(linkId, { database, paymentLinksModel, out
   if (outcome === 'stay' && stayIsReadOnly(database, link.reservationId)) {
     throw { httpStatus: 409, error: 'STAY_READ_ONLY', message: 'Séjour en lecture seule : paiement à rembourser.' };
   }
+  if (outcome === 'stay' && planHoldsBucketPayment(database, link)) throw { ...PLAN_IN_PLACE };
   if (outcome === 'refunded') {
     const info = database.prepare(`UPDATE payment_links SET cancelReason = ? WHERE id = ? AND ${UNSETTLED_SQL}`)
       .run(LINK_REASONS.REFUNDED, link.id, LINK_REASONS.OPERATOR);

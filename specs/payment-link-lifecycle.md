@@ -921,6 +921,53 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     fermeture » or over dates the server was not asked about. Only the answer to the latest look of the open dialog
     is shown; the save stays the judge.
 
+### 3.R Audit round 10 (2026-10-31; appended, rule numbers are identities)
+
+63. **An installment plan never hides a payment to settle — and only an échéance is paid beside it** (audit R10-M1;
+    amended in place by Adrien's decision of 2026-10-31 on the review of #911, M1: « si le séjour a un échéancier, le
+    seul paiement qui peut arriver c'est une échéance, et elle doit être affectée à l'échéance »). Rule 56 refuses
+    every échéance request while a payment received after a withdrawal by hand waits, but the plan replaced the
+    acompte and solde rows, the only ones that carried `settle`: the fiche said « à traiter » and offered nothing to
+    treat it with, short of deleting the plan. And « Enregistrer sur le séjour » of an acompte / solde / séjour
+    payment beside a plan would book it on the buckets while the échéances still asked for the whole stay (the guest
+    charged twice). True by construction, on the server:
+    - **No plan is made or resized while an acompte / solde / séjour link is not known dead at the provider.**
+      `installmentsController.createOrResize` (`PUT …/installments { count }`), after the eligibility and
+      `INSTALLMENTS_LOCKED` checks and before any provider read or withdrawal, refuses 409
+      `UNSETTLED_WITHDRAWN_PAYMENT` (rule 56's message) when a payment waits to be settled; 409
+      `LINK_DEACTIVATION_PENDING` « Ancien lien de paiement pas encore désactivé : échéancier non créé. » (« …
+      échéancier inchangé. » on a resize) when such a link (the stay's or its converted devis') still owes its
+      deactivation (`remoteCancelPendingAt`); and 409 `LINK_LAST_LOOK_PENDING` « Ancien lien de paiement en dernière
+      vérification : échéancier non créé. » (« … inchangé. ») when, lapsed, it still owes its last look (`lastLookAt`,
+      re-review of #911): `paymentLinksModel.liveLinkReasonForStay`. The whole creation or resize runs under the
+      stay's link lock (`paymentRequestService.withStayLinkLock`, `reservation:<id>`, the acompte / solde / séjour
+      mints' own): a stay link being minted makes the plan wait, then the plan retires it; a stay link asked while
+      the plan is being made waits, then finds nothing to bill (the buckets are 0 beside a plan). An open one is not a refusal by itself: direct-installments rule 35
+      retires and deactivates it, now **before** the plan is written. After the provider round trips the stay is read
+      again (review of #911, m1): a bucket collected meanwhile refuses `INSTALLMENTS_LOCKED`; a payment to settle, an
+      owed deactivation (the provider was down) or a link still open refuses as above, and no plan is written — the
+      withdrawn link keeps its marker for the poll, the operator asks again later. On any 409 from a creation or a
+      resize, `InstallmentPlanCard` re-reads the fiche (`onMoneyChanged`): a link withdrawn on the way no longer reads
+      « Lien envoyé » with « Retirer le lien ». `eligibilityOf` answers
+      `canCreate: false` with the same sentence as `reason` (the check runs once per call, review n1), so the card
+      says why. Dates and amounts of an existing plan stay editable (they request nothing).
+    - **A payment to settle that no row shows gets a row of its own.** After the buckets (the échéances, or the
+      acompte and solde) and before the compléments, `buildLedger` emits `withdrawnPayments` « Paiement après
+      retrait » (« Paiements après retrait » for several), the sum of their amounts, tone `warning`, « À traiter »,
+      no action, amount not editable; `detail.link` is the newest such link and `detail.otherLinks` the others,
+      each with its rule-56 label and `settle`. « Shown » is read from the rows themselves (a `settle.linkId` already
+      in a row's `link` or `otherLinks`), so a payment is never listed twice: without a plan the acompte / solde rows
+      keep theirs, and the row also catches what no other row lists (an acompte « Sans objet », a complement behind a
+      newer link, an échéance link). `FinanceSection` renders it through `LedgerList` and the existing `linkActions`,
+      and the closed-fiche portal of rule 56 (O2) picks it up unchanged.
+    - **Beside a plan, an échéance takes its own payment; an acompte / solde / séjour payment is refunded.** An
+      échéance link keeps « Enregistrer sur le séjour », which books that échéance (`recordInstallmentPayment`
+      through the late booking). Defence in depth, should a bucket payment still show beside a plan: its `settle`
+      offers « Marquer remboursé » only, the row's `note` reads « Supprimer l’échéancier pour l’enregistrer sur le
+      séjour. » (not on a read-only stay, nor once an échéance is paid: the plan can no longer be deleted), and `settleWithdrawnPayment` refuses `stay` 409 `INSTALLMENT_PLAN_IN_PLACE`
+      « Échéancier en place : rembourser, ou supprimer l’échéancier d’abord. » for such a link of a stay (or of the
+      reservation its devis became) that has a plan. Deleting the plan brings the usual acompte / solde row back,
+      with « Enregistrer sur le séjour ».
 ---
 
 ## 4. Architecture
@@ -977,6 +1024,11 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
 | `utils/` | `paymentLinkWithdrawal.js` | C | `withdrawPaymentLink(linkId, deps)`: the refusals of rule 42, `retireOpenLink(…, { reason: 'operator' })`, a payment found on the way booked at once |
 | `utils/` | `paymentLinkDeactivation.js`, `models/paymentLinksModel.js` | T | `retireOpenLink` with `operator` ends the link now (`cancelIfOpen(…, { endsAt })`) (rule 42) |
 | `utils/` | `reservationLedger.js` | T | `detail.link.withdraw` on an open link of a stay that is not read-only; « Lien retiré le {jour} » (rule 42) |
+| `utils/` | `reservationLedger.js` | T | Row `withdrawnPayments` for the payments to settle no other row shows; beside a plan a bucket payment is refunded only, with its `note` (rule 63) |
+| `controllers/` | `installmentsController.js` | T | `planBlocker`: `createOrResize` and `eligibilityOf` refuse a plan while a bucket link is not known dead or a payment waits; bucket links retired before the plan, stay read again after the provider (rule 63) |
+| `models/` | `paymentLinksModel.js` | T | `liveLinkReasonForStay(id, types, { openToo })` (rule 63) |
+| `utils/` | `paymentRequestService.js` | T | `withStayLinkLock(database, id, work)`: the stay's mint lock, taken by a plan's creation or resize (rule 63) |
+| `utils/` | `withdrawnPayments.js` | T | `stay` refused 409 `INSTALLMENT_PLAN_IN_PLACE` for a bucket link beside a plan (rule 63) |
 | `models/` | `establishmentClosuresModel.js` | T | `findReservationOverlaps` (all, not the first), `findOpenPaymentRequests(propertyId, start, end)`, `findDevisWithoutLink` (rule 49) |
 | `models/` | `devisModel.js` (create / update) | T | 409 `DATES_HELD` on held dates (rule 46); `datesTaken` marker in the devis payloads (rule 48) |
 | `controllers/` | `devisController.js` | T | Relays `DATES_HELD` with `stays[]` |
@@ -1125,6 +1177,7 @@ refused).
 - [x] `tests/closure-devis-without-link.unit.test.js` (4) — rule 49: warning listed, save accepted.
 - [x] `tests/payment-link-operator-owed-read.unit.test.js` (4) — rule 42 (L6): an operator-withdrawn link owing its read is read before a new mint: paid before → booked, request refused; unpaid → minted; (R2) a concurrent pass that booked it, or paid the échéance, while the mint waited → 409, nothing created.
 - [x] `tests/payment-link-unsettled-withdrawn.unit.test.js` (17) — rule 56: requests of every bucket, the échéance and the e-mail refused before any mint; « remboursé » and « enregistrer sur le séjour » settle it (stubbed and real booking); only such a payment settles, once; the ledger label and actions; (O1) an open link not reused; (O2) read-only stays refund only; (O3) amounts and the devis / unavailable-nights messages; (M1) the shared decision, and a fiche on taken nights through the settle and the poll paths; (O4) a devis converted into a cancelled stay refunds only. `public-payment-pay-visitor-refusals` (+2): the visitor's FR / EN sentence (G1).
+- [x] `tests/installments-unsettled-withdrawn-payment.unit.test.js` (26) — rule 63: creation and resize refused 409 with the card's reason (a payment to settle; a deactivation owed; a last look owed, its own code and wording; an open link whose deactivation fails, no plan written), made once settled or deactivated; the refusal before any provider read or withdrawal; a payment found during the read refuses (m1); dates and amounts still editable; the row of its own (with a plan, an acompte « Sans objet », a complement behind a newer link, an échéance link), refund only and the note for bucket payments beside a plan, none on a read-only stay; « stay » of an acompte / solde / séjour payment beside a plan refused through the real late booking (nothing booked, the refund works); an échéance paid after its withdrawal recorded on that échéance; no note once an échéance is paid; the real `deactivateAbandonedLinks` (provider works → plan made; no provider → 409, links withdrawn with their marker); the stay's link lock both ways (a link being minted is retired by the plan; a link asked meanwhile finds nothing to bill).
 - [x] `tests/payment-link-closed-dates.unit.test.js` (9) — rule 55: mint and installment refused before any provider call, an open link not handed out, one night or an establishment-wide closure enough, another logement or the departure day free, request and reminder e-mails refused before any mint, a mail without a link still leaves.
 - [ ] `tests/dates-taken-notice.unit.test.js` — rules 43-45: sent at the `dates-taken` withdrawal (overlap, first paid, iCal), not for expiry, a started stay or « Retirer le lien »; a later refused reminder sends nothing more; e-mail sent once with its `email_log` row, push, dashboard row, every fail-closed case, reminder never queued on taken dates, `AUTO_SEND_EXCEPTIONS` holds exactly one key and `autoSendPolicy` still refuses every other template.
 - [x] `tests/payment-link-superseded.unit.test.js` (4) — rule 12; rule 31 in `supersededDuplicates`.
@@ -1162,6 +1215,8 @@ refused).
 - [x] `client/src/components/__tests__/EmailManualSendDialog.payment-refusal.test.jsx` — rule 60: the info alert and « Envoyer » disabled; nothing without a refusal (2).
 - [x] `client/src/components/__tests__/PaymentDeadlinesAlert.link-already-paid.test.jsx` — rule 50 (R9-C1): « Relancer » refused as paid re-reads the rows, a sent request too, another refusal does not, the draft dialog's refusal re-reads (4).
 - [x] `client/src/components/reservation/__tests__/FinanceSection.link-lifecycle.test.jsx` (11) — prints the new labels, offers « Renvoyer la demande » on expired, not on dates-taken; « Retirer le lien » asks for confirmation.
+- [x] `client/src/components/reservation/__tests__/InstallmentPlanCard.plan-refused.test.jsx` (3) — rule 63: a creation or resize refused 409 shows the reason and re-reads the fiche; another failure re-reads nothing.
+- [x] `client/src/components/reservation/__tests__/FinanceSection.withdrawn-payments-plan.test.jsx` (4) — rule 63: the row beside the échéances with both payments, « Enregistrer » on the échéance one only, the note; each action settles its own link; on a closed fiche the refunds are drawn outside the fieldset.
 - [x] `client/src/pages/__tests__/EstablishmentClosuresPage.conflicts.test.jsx` (6) — warning list with links, 409 lists rendered, asked again on focus, same tab on a phone.
 - [x] `client/src/components/__tests__/ConflictList.test.jsx` (5).
 - [x] `client/src/components/__tests__/DatesTakenBadge.test.jsx` (4) — rule 48; the 44 px hit area (m4).
@@ -1352,6 +1407,13 @@ Six sequential PRs into `inte/plugins` (plan validated 2026-10-30).
   Audit round 10 (2026-10-31): rule 62 the closure dialog drops a stale conflicts answer
   (`EstablishmentClosuresPage`'s conflicts effect bumps its look sequence in its cleanup; client
   `EstablishmentClosuresPage.stale-conflicts` 2).
+  Rule 63 (audit R10-M1, amended by Adrien's decision of 2026-10-31) `installmentsController.planBlocker` refuses a
+  plan while a bucket link is not known dead at the provider or a payment waits (`paymentLinksModel.liveLinkReasonForStay`),
+  bucket links retired before the plan and the stay read again after the provider; `buildLedger` row
+  `withdrawnPayments` (refund only and a note for a bucket payment beside a plan); `settleWithdrawnPayment` refuses
+  `stay` there (`INSTALLMENT_PLAN_IN_PLACE`). Re-review: the stay's link lock around the plan, `LINK_LAST_LOOK_PENDING`,
+  the note only while the plan can be deleted, the card re-reads the fiche on a 409 (`installments-unsettled-withdrawn-payment` 26,
+  client `FinanceSection.withdrawn-payments-plan` 4, `InstallmentPlanCard.plan-refused` 3).
 - [x] **PR5 — held dates and dates-taken withdrawal** (rules 10-12, 16, 24, 25, 31-33, 37-39, 46, 48, 61).
   `utils/stayMoney.js` (`carriesMoneySql`, `carriesMoney`, `holdsDates`; `supersededDuplicates` reads it and withdraws
   the links of a copy it sets aside); `utils/datesTaken.js` (`heldOverlaps`, `datesTakenRefusal`, `datesTakenMarker`,

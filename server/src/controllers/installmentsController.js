@@ -22,8 +22,15 @@ const { syncAfterTotalChange } = require('../utils/installmentSync');
 const { recordInstallmentPayment } = require('../utils/installmentPayment');
 const { validateCollectionDate } = require('../utils/arrivalPaymentDate');
 const { addDaysToIsoDate } = require('../utils/devisHelpers');
+const { unsettledWithdrawnRefusal } = require('../utils/withdrawnPayments');
 
 const MANUAL_METHODS = ['transfer', 'cash', 'cheque', 'card', 'other'];
+const BUCKET_LINK_TYPES = ['deposit', 'balance', 'full'];
+const LIVE_LINK_REFUSALS = {
+  deactivation: { error: 'LINK_DEACTIVATION_PENDING', what: 'Ancien lien de paiement pas encore désactivé' },
+  open: { error: 'LINK_DEACTIVATION_PENDING', what: 'Ancien lien de paiement pas encore désactivé' },
+  lastLook: { error: 'LINK_LAST_LOOK_PENDING', what: 'Ancien lien de paiement en dernière vérification' },
+};
 
 const fail = (status, error, message, extra = {}) => ({ status, body: { error, message, ...extra } });
 
@@ -38,6 +45,8 @@ function buildController({
   assertLinkNotPaid = async () => {},
   emit = () => {},
   todayOf,
+  // Rule 63 — the stay's link lock (`reservation:<id>`), shared with the acompte / solde / séjour mints.
+  stayLock = (reservationId, work) => require('../utils/paymentRequestService').withStayLinkLock(database, reservationId, work),
 }) {
   const stay = (reservationId) => database.prepare('SELECT * FROM reservations WHERE id = ?').get(Number(reservationId));
 
@@ -51,6 +60,19 @@ function buildController({
   const collected = (row) => [row.depositPaid, row.balancePaid, row.depositPaidCash, row.balancePaidCash]
     .some((flag) => Number(flag || 0) === 1);
 
+  // specs/payment-link-lifecycle.md rule 63 (Adrien, 2026-10-31) — once a plan exists, the only payment that can
+  // arrive is an échéance. So no plan is made or resized while an acompte / solde / séjour link of the stay is not
+  // known dead at the provider: its deactivation (or last look) still owed, or a payment on it still to settle. An
+  // open one is retired by the creation itself (direct-installments rule 35), and refuses only when it is still
+  // there after (`openToo`).
+  function planBlocker(row, { creating, openToo = false }) {
+    const unsettled = unsettledWithdrawnRefusal(database, row.id);
+    if (unsettled) return { status: unsettled.httpStatus, error: unsettled.error, message: unsettled.message };
+    const live = LIVE_LINK_REFUSALS[paymentLinksModel.liveLinkReasonForStay(row.id, BUCKET_LINK_TYPES, { openToo })];
+    if (!live) return null;
+    return { status: 409, error: live.error, message: `${live.what} : échéancier ${creating ? 'non créé' : 'inchangé'}.` };
+  }
+
   // Rules 1-3 — who may see the card, and who may create a plan.
   function eligibilityOf(row, rows) {
     if (!row || row.kind !== 'reservation') {
@@ -63,6 +85,8 @@ function buildController({
     if (collected(row)) {
       return { eligible: true, canCreate: false, reason: 'Un paiement est déjà enregistré sur ce séjour.' };
     }
+    const blocker = planBlocker(row, { creating: true });
+    if (blocker) return { eligible: true, canCreate: false, reason: blocker.message, blocker };
     if (plan.maxCountFor(contextOf(row)) < plan.MIN_COUNT) {
       return { eligible: true, canCreate: false, reason: 'Trop près de l’arrivée pour étaler le paiement.' };
     }
@@ -150,14 +174,16 @@ function buildController({
   }
 
   async function createOrResize(row, rows, count) {
+    const creating = rows.length === 0;
     const eligibility = eligibilityOf(row, rows);
     if (!eligibility.eligible) return fail(409, 'INSTALLMENTS_NOT_ALLOWED', eligibility.reason);
-    if (rows.some((r) => Number(r.paid) === 1) || collected(row)) {
-      return fail(409, 'INSTALLMENTS_LOCKED', 'Un paiement est enregistré : le nombre d’échéances est figé.');
-    }
-    const stalePaid = await paidLinkRefusal(rows.length > 0
-      ? openLinksOf(row.id, ['installment'])
-      : openLinksOf(row.id, ['deposit', 'balance', 'full']));
+    const locked = (current, currentRows) => currentRows.some((r) => Number(r.paid) === 1) || collected(current);
+    if (locked(row, rows)) return fail(409, 'INSTALLMENTS_LOCKED', 'Un paiement est enregistré : le nombre d’échéances est figé.');
+    const blocker = creating ? eligibility.blocker : planBlocker(row, { creating });
+    if (blocker) return fail(blocker.status, blocker.error, blocker.message);
+    const stalePaid = await paidLinkRefusal(creating
+      ? openLinksOf(row.id, BUCKET_LINK_TYPES)
+      : openLinksOf(row.id, ['installment']));
     if (stalePaid) return stalePaid;
     const context = contextOf(row);
     const max = plan.maxCountFor(context);
@@ -172,12 +198,19 @@ function buildController({
     if (!amounts) return fail(400, 'TOTAL_TOO_LOW', `Total trop faible pour ${count} échéances.`);
     const dates = plan.defaultDates(context, count);
 
+    // Rule 35 — the acompte / solde / séjour links die before the plan exists, so a deactivation that fails
+    // leaves no plan beside a link that can still be paid.
+    if (creating) await retireBucketLinks(row.id);
+    // Rule 63 (review of #911, m1) — read again after the provider round trips: the poll may have booked or
+    // found a payment meanwhile.
+    const fresh = stay(row.id);
+    if (locked(fresh, installmentsModel.listFor(row.id))) return fail(409, 'INSTALLMENTS_LOCKED', 'Un paiement est enregistré : le nombre d’échéances est figé.');
+    const after = planBlocker(fresh, { creating, openToo: true });
+    if (after) return fail(after.status, after.error, after.message);
+
     installmentsModel.replacePlan(row.id, dates.map((dueDate, i) => ({ number: i + 1, dueDate, amountCents: amounts[i] })), targetCents);
     await retireLinksOf(row.id, rows.map((r) => r.id));
-    if (rows.length === 0) {
-      await retireBucketLinks(row.id);
-      restampBuckets(row.id);
-    }
+    if (creating) restampBuckets(row.id);
     return null;
   }
 
@@ -229,8 +262,9 @@ function buildController({
     const rows = installmentsModel.listFor(id);
     const body = req.body || {};
     let refusal;
-    if (body.count !== undefined) refusal = await createOrResize(row, rows, Number(body.count));
-    else if (Array.isArray(body.dates) || Array.isArray(body.amounts)) {
+    if (body.count !== undefined) {
+      refusal = await stayLock(id, () => createOrResize(stay(id), installmentsModel.listFor(id), Number(body.count)));
+    } else if (Array.isArray(body.dates) || Array.isArray(body.amounts)) {
       const eligibility = eligibilityOf(row, rows);
       if (!eligibility.eligible || rows.length === 0) return res.status(409).json({ error: 'INSTALLMENTS_NOT_ALLOWED', message: eligibility.reason || 'Pas d’échéancier sur cette réservation.' });
       refusal = Array.isArray(body.dates) ? applyDates(row, rows, body.dates) : applyAmounts(row, rows, body.amounts);

@@ -28,6 +28,8 @@
  *   findOpenForReservation(reservationId, type) → the current open link of that type, or undefined
  *   listForStay(id) / findOpenForStay(id, type) → the same, over the stay AND the devis converted into it
  *                                           (a devis link keeps the devis id after the conversion)
+ *   liveLinkReasonForStay(id, types, { openToo }) → why a link of those types (stay + converted devis) may still be
+ *                                           paid: 'deactivation' | 'lastLook' owed, 'open' with `openToo`, else null (rule 63)
  *   findOpenForInstallment(installmentId)   → the current open link of that installment, or undefined
  *   findByProviderLinkId(provider, linkId)  → the row a provider id names (webhook, retries)
  *   markPaid(id, { providerPaymentId, paidAt }) → flips open|expired→paid (idempotent: a paid/cancelled row is untouched)
@@ -341,6 +343,23 @@ function buildModel(database) {
     return ownersOf(id).flatMap((owner) => listForReservation(owner)).sort((a, b) => b.id - a.id);
   }
 
+  // specs/payment-link-lifecycle.md rule 63 — why a link of these types may still take a payment at the provider:
+  // 'deactivation' (owed), 'lastLook' (a lapsed link's last read owed), 'open' (with `openToo`), or null.
+  function liveLinkReasonForStay(id, types, { openToo = false } = {}) {
+    const owners = ownersOf(id);
+    if (owners.length === 0 || types.length === 0) return null;
+    const row = database.prepare(`
+      SELECT CASE WHEN remoteCancelPendingAt IS NOT NULL THEN 'deactivation'
+                  WHEN status = 'expired' AND lastLookAt IS NOT NULL THEN 'lastLook'
+                  ELSE 'open' END AS reason
+        FROM payment_links
+       WHERE reservationId IN (${owners.map(() => '?').join(', ')}) AND type IN (${types.map(() => '?').join(', ')})
+         AND (remoteCancelPendingAt IS NOT NULL OR (status = 'expired' AND lastLookAt IS NOT NULL)${openToo ? " OR status = 'open'" : ''})
+       ORDER BY CASE WHEN remoteCancelPendingAt IS NOT NULL THEN 0 WHEN status = 'expired' THEN 1 ELSE 2 END
+       LIMIT 1`).get(...owners, ...types);
+    return row ? row.reason : null;
+  }
+
   function findOpenForStay(id, type) {
     return ownersOf(id).map((owner) => findOpenForReservation(owner, type)).filter(Boolean).sort((a, b) => b.id - a.id)[0];
   }
@@ -470,6 +489,7 @@ function buildModel(database) {
     listForReservation,
     findOpenForReservation,
     listForStay,
+    liveLinkReasonForStay,
     findOpenForStay,
     findOpenForInstallment,
     findByProviderLinkId,
