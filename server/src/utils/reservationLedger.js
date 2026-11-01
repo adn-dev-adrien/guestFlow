@@ -102,7 +102,8 @@ function lapsedLabel(link, stayYear, providerLabel) {
 
 const BUCKET_LINK_TYPES = new Set(['deposit', 'balance', 'full']);
 // specs/payment-link-lifecycle.md rule 56 — paid after its withdrawal by hand, not settled yet.
-const unsettledPayment = (link) => link.status === 'cancelled' && link.cancelReason === 'operator' && Boolean(link.paidAt);
+// Audit R11 (M1): also a `dates-taken` bucket payment held beside an installment plan (rule 63).
+const unsettledPayment = (link) => require('./withdrawnPayments').isUnsettled(link);
 // Review of #902 (O2, O3) — the amount in both confirmations; « Enregistrer » says what it does (a devis becomes a
 // reservation; the guest is confirmed unless the nights are closed or taken) and is not offered on a read-only stay.
 const CONFIRMING_LINK_TYPES = new Set(['deposit', 'full']);
@@ -117,7 +118,8 @@ function settleActions(link, { readOnly, isDevis, nightsUnavailable }) {
   return {
     linkId: Number(link.id),
     ...(readOnly ? {} : {
-      stay: { label: 'Enregistrer sur le séjour', confirmTitle: `Enregistrer ${amount} sur le séjour ?`, confirmMessage: stayConfirmMessage(link, { isDevis, nightsUnavailable }), confirmLabel: 'Enregistrer' },
+      // Rule 33 — a link withdrawn for taken dates is booked without a confirmation, whatever the nights read today.
+      stay: { label: 'Enregistrer sur le séjour', confirmTitle: `Enregistrer ${amount} sur le séjour ?`, confirmMessage: stayConfirmMessage(link, { isDevis, nightsUnavailable: nightsUnavailable || link.cancelReason === 'dates-taken' }), confirmLabel: 'Enregistrer' },
     }),
     refunded: { label: 'Marquer remboursé', confirmTitle: `${amount} remboursés ?`, confirmMessage: 'À confirmer une fois le remboursement fait chez le prestataire.', confirmLabel: 'Remboursé' },
   };

@@ -274,12 +274,18 @@ async function retireOrBook(deps, link, options) {
 // first. Unreadable → refused like any replacement (a new link needs the provider anyway). Rule 58 — so is one
 // still owed its last look (rule 19): the guest's payment may have landed after the deactivation read. An
 // unpaid read leaves the look to the lifecycle pass.
+// Rule 58, reading of 2026-11-01 (audit R11-L1) — a link withdrawn for taken dates owes that look too (rule 64): paid →
+// booked as rule 33 books it (`bookDatesTakenPaid`); a payment in flight, or an answer that does not say (rule 64,
+// R11-E1) → refused, the look kept.
+const PAYMENT_IN_FLIGHT = { httpStatus: 409, error: 'LINK_PAYMENT_IN_FLIGHT', message: 'Paiement en cours sur l’ancien lien : nouveau lien non créé.' };
 async function bookOwedLapsedPayment(deps, where, params) {
   const owed = deps.database.prepare(`
     SELECT * FROM payment_links
-     WHERE ${where} AND status = 'expired' AND (remoteCancelPendingAt IS NOT NULL OR lastLookAt IS NOT NULL) AND providerLinkId IS NOT NULL
+     WHERE ${where} AND providerLinkId IS NOT NULL
+       AND ((status = 'expired' AND (remoteCancelPendingAt IS NOT NULL OR lastLookAt IS NOT NULL))
+         OR (status = 'cancelled' AND cancelReason = ? AND remoteCancelPendingAt IS NULL AND lastLookAt IS NOT NULL))
      ORDER BY id DESC LIMIT 1
-  `).get(...params);
+  `).get(...params, LINK_REASONS.DATES_TAKEN);
   if (owed) {
     let pay;
     try {
@@ -287,9 +293,21 @@ async function bookOwedLapsedPayment(deps, where, params) {
     } catch {
       throw { httpStatus: 502, error: 'PROVIDER_UNREACHABLE', message: 'Prestataire de paiement injoignable : réessayer.' };
     }
-    if (pay && pay.paid) await bookLapsedPayment(deps, owed, pay);
+    if (owed.status === 'cancelled') await settleDatesTakenRead(deps, owed, pay || {});
+    else if (pay && pay.paid) await bookLapsedPayment(deps, owed, pay);
   }
   await settleOwedOperatorLinks(deps, where, params);
+}
+
+async function settleDatesTakenRead(deps, link, pay) {
+  if (pay.paid) {
+    const { bookDatesTakenPaid } = require('./paymentPollRunner');
+    const effect = typeof deps.paymentEffect === 'function' ? deps.paymentEffect() : require('./paymentEffectDeps').buildPaymentEffectDeps();
+    await bookDatesTakenPaid({ ...effect, database: deps.database, paymentLinksModel: deps.paymentLinksModel, link, pay });
+    // Beside an installment plan the payment is held, to settle (rule 63): the stay's own refusal says so.
+    throw unsettledWithdrawnRefusal(deps.database, link.reservationId) || { ...PAID_BOOKED };
+  }
+  if (pay.pending !== false) throw { ...PAYMENT_IN_FLIGHT };
 }
 
 // specs/payment-link-lifecycle.md rule 42 (re-review of #902, L6) — a link withdrawn by hand while the provider

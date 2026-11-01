@@ -439,6 +439,11 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     into a 500; the lifecycle pass (rule 16) withdraws the link at its next run. Re-review of #907 (N1): an error that made
     SQLite abort the caller's whole transaction (disk full, I/O error) is rethrown, never swallowed, so the caller
     fails as a whole instead of running its remaining writes in autocommit (a torn iCal sync).
+    Reading recorded 2026-11-01 (audit R11 reservations R11-1): a paid échéance is the stay's money (rule 31) and,
+    beside a plan, the only payment that can arrive (rule 63). Its own recorder, `installmentPayment.recordInstallmentPayment`
+    (the operator's tick, a paid échéance link, its late booking), calls `withdrawForStay` once it flipped the échéance,
+    like `stayPaymentRecorder`: the other requests' links on the nights the stay now holds are withdrawn at once, never
+    up to 15 minutes later by the lifecycle pass. A replayed payment flips nothing and withdraws nothing.
 33. **A `dates-taken` link found paid is recorded on the fiche, in date conflict** (decided 2026-10-30,
     §9 Q5). When the deactivation lost the race (payment in flight, webhook, retry, last look), the money
     is booked like a live payment of that link: `markRetiredLinkPaid(id, { reason: 'dates-taken' })`
@@ -911,6 +916,14 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     answers `ALREADY_CONFIRMED`, rule 54), unreadable → 502 `PROVIDER_UNREACHABLE`, unpaid → minted as usual,
     and the look stays for the lifecycle pass (rule 19). Same for an échéance. A link whose look was taken is
     not read again.
+    Reading recorded 2026-11-01 (audit R11 money R11-L1): a link withdrawn for taken dates owes rule 19's last look
+    too (rule 64), and the stay may be on free nights again (the taker cancelled, the stay moved). The same guard selects
+    it — `cancelled` / `dates-taken`, deactivation done, `lastLookAt` set — before a mint of a bucket it settles: paid →
+    booked as rule 33 books it (`bookDatesTakenPaid`: no confirmation, the « déplacer ou rembourser » alert) and refused
+    409 `LINK_ALREADY_PAID` (beside a plan, held instead and refused 409 `UNSETTLED_WITHDRAWN_PAYMENT`, rule 63); a
+    payment still in flight, or an answer that does not say (rule 64, R11-E1) → refused 409 `LINK_PAYMENT_IN_FLIGHT`
+    « Paiement en cours sur l’ancien lien : nouveau lien non créé. », the look kept; unreadable → 502; unpaid → minted,
+    the look kept for the lifecycle pass.
 59. **The sentence stating the link's end is rollback-safe** (audit R9 database N1, option b). It sits in a block
     of its own, `{{#if hasPaymentLinkValidUntil}}\n<sentence>{{/if}}`, right after the link, or right after the
     `{{/if}}` of the `{{#if hasPaymentLink}}` block that holds the link (the renderer is single-level: never
@@ -1002,6 +1015,23 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
       reservation its devis became) that has a plan. Deleting the plan brings the usual acompte / solde row back,
       with « Enregistrer sur le séjour ».
 
+    Reading recorded 2026-11-01 (audit R11 database N1, money R11-M1, plugins M-1): « not known dead » includes a link
+    withdrawn for taken dates whose last look is still owed (rule 64; its look re-arms while a payment is in flight, up
+    to 24 h). `liveLinkReasonForStay` reads `'lastLook'` with the model's own `OWES_LAST_LOOK` predicate (`expired`, or
+    `cancelled` / `dates-taken`, with `lastLookAt`), the one `listLastLookDue` and the plugin guard use: the plan is
+    refused 409 `LINK_LAST_LOOK_PENDING` with the same wording. Defence in depth, should such a payment land beside a
+    plan anyway (a plan made before this reading, a race): the late booking of a `dates-taken` acompte / solde / séjour
+    link (`bookDatesTakenPaid`, from the last look, the poll's retry or rule 58's read) never books the buckets. The
+    payment stays on the link (`holdPaidBesidePlan`: still `cancelled` / `dates-taken`, `paidAt` and the payment id
+    written once, no marker and no look left), which makes it a payment to settle of rule 56 (`withdrawnPayments`
+    reads `operator` and `dates-taken`): every new request of the stay is refused, the plan's `withdrawnPayments` row
+    offers « Marquer remboursé » only, `settleWithdrawnPayment` refuses `stay` 409 `INSTALLMENT_PLAN_IN_PLACE`, and the
+    admin is alerted once (« ⚠️ Paiement à rembourser : échéancier en place », « Action requise : rembourser ce
+    paiement, ou supprimer l’échéancier pour l’enregistrer sur le séjour. »). Once the plan is deleted, « Enregistrer
+    sur le séjour » books it through the late booking of its own reason (`bookLateWithdrawnPaid`: rule 33's for a
+    `dates-taken` link, so no confirmation, and the confirmation message says so). Like every payment to settle, it is
+    money on the stay (rule 31, `paidAt`): the stay holds its nights, and its guest is never told « rien ne vous a été
+    prélevé », refunded or not.
 ### 3.S Guest notice (PR6, 2026-10-31; appended, rule numbers are identities)
 
 64. **The notice waits for the provider's read, and never follows an older withdrawal.** A stay is due its notice
@@ -1054,6 +1084,13 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     - **History write failing after SMTP acceptance (n4).** Only the notice (the caller with `onAccepted`) answers
       `accepted: true` and leaves its row `sending`; every other template keeps the earlier behaviour, a `failed`
       history row with the error.
+    Reading recorded 2026-11-01 (audit R11 external R11-E1), failing closed in the core: the provider contract's
+    `pending` is a boolean, and the core no longer trusts its absence. After the deactivation of a `dates-taken` link,
+    an unpaid answer whose `pending` is not `false` (online-payment 1.5.0 answers without it, and still loads on this
+    core; a non-boolean value) counts as a payment in flight: the read stays owed, no `unpaidReadAt`, no notice, and 24
+    h after the withdrawal the R1 limit closes it `payment-in-flight` with the operator's alert. Rule 58's read on such
+    a link refuses the same way. A lapsed (`expired`) link keeps its one last look whatever the answer: nothing is said
+    to a guest on it. Recorded in `utils/paymentProviders.js`.
 65. **The acompte reminder on taken dates is never proposed, and refused first.** `emailLogModel.listPending` leaves
     out a `deposit_reminder` whose stay `takenByOf` finds taken; the send and the preview answer rule 35's refusal
     after rules 55-57 (platform stay, closed nights, payment to settle) and before any link is minted, provider or
@@ -1345,6 +1382,12 @@ refused).
 - [x] `tests/payment-link-last-look-reclick.unit.test.js` (6) — rule 58: paid → booked and refused (acompte and full), unpaid → minted with the look kept, unreadable → 502, a taken look not read again, the échéance.
 - [x] `tests/payment-link-valid-until-rollback.unit.test.js` (10) — rule 59: a rollback render drops the sentence whole, the current render equals rule 36's text, v2 on v1 forms, older defaults, an edited side kept and logged, a side without the sentence or in the block form untouched, once and idempotent, v1 + v2 at one boot and a fresh install, the boot order, the no-provider draft. `payment-link-valid-until-token` amended (block form; +1: no known end, no sentence).
 
+- [x] `tests/plan-beside-dates-taken-last-look.unit.test.js` (8) — rule 63, reading of 2026-11-01 (R11 N1 / M1): a `dates-taken` acompte / solde / séjour link owing its last look refuses the plan and its resize (also while the look re-arms on a payment in flight), the plan made once read unpaid; its payment found beside a plan by the last look or the retry is held, never booked (no bucket, no échéance, no confirmation, one alert, rule 56's refusal), a second read holds nothing twice; the ledger row refunds only, `stay` refused, the refund settles it; the plan deleted, « Enregistrer » books it as rule 33 does.
+- [x] `tests/payment-link-mint-reads-dates-taken-look.unit.test.js` (8) — rule 58, reading of 2026-11-01 (R11-L1): an acompte, solde or séjour request reads the `dates-taken` link still owed its look — paid → booked without confirmation and refused; in flight, or an answer without `pending` (rule 64) → `LINK_PAYMENT_IN_FLIGHT`; unpaid → minted, the look kept; unreadable → 502; a taken look not read again.
+- [x] `tests/dates-taken-read-fails-closed.unit.test.js` (7) — rule 64, reading of 2026-11-01 (R11-E1): no `pending` key or a non-boolean one → read again, no notice; still so 24 h after → closed `payment-in-flight`, one alert; `pending: false` still told; a lapsed link keeps one look; rule 63: a refunded taken-dates payment keeps the stay untold, the beside-plan alert wording.
+- [x] `tests/installment-paid-holds-nights.unit.test.js` (4) — rule 32, reading of 2026-11-01 (R11-1): an échéance ticked by transfer or paid by link withdraws the devis link on the stay's nights at once (taker recorded, deactivation owed); a replay withdraws nothing more; a plan with nothing paid holds nothing.
+- [x] `paymentLinkLifecycleFixture.fakeProvider` answers `pending` as a boolean, as the contract now requires (rule 64).
+
 ### Client
 - [x] `client/src/__tests__/wordpress-booking-view.payment-expired.test.js` — rule 30: the return page stops on `expired` with its message, after a `pending` too; `confirmed` still wins (3).
 - [x] `client/src/pages/__tests__/ReservationPage.link-already-paid.test.jsx` — rule 50: resend, solde, devis and e-mail-dialog senders re-read on `LINK_ALREADY_PAID`, another refusal re-reads nothing (5).
@@ -1621,3 +1664,8 @@ Six sequential PRs into `inte/plugins` (plan validated 2026-10-30).
   `deactivateAbandonedLinks` schedules the last look of a `dates-taken` link; n4 the `failed` trace kept for every
   template but the notice; n5 links without a recorded taker closed once (`no-taker`); n6 the guard's dates-taken
   case tested. Tests: `dates-taken-read-limits` (7, red first), `plugins-phase-0` (+1).
+  Audit R11 (2026-11-01, branch `fix/audit-r11-links`): rule 63 counts a `dates-taken` link owing its last look as not
+  known dead, and holds its payment found beside a plan as a payment to settle (refund only); rule 58 reads that link
+  before a new mint; rule 64 fails closed on an answer without a boolean `pending`; rule 32 adds the échéance recorder.
+  Tests: `plan-beside-dates-taken-last-look` (8), `payment-link-mint-reads-dates-taken-look` (8),
+  `dates-taken-read-fails-closed` (7), `installment-paid-holds-nights` (4), each red before its fix.

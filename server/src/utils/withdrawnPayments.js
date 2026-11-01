@@ -6,10 +6,12 @@
  *   unsettledWithdrawnRefusal(database, stayId) → { httpStatus: 409, error: 'UNSETTLED_WITHDRAWN_PAYMENT', message } | null
  *   settleWithdrawnPayment(linkId, { database, paymentLinksModel, outcome: 'stay' | 'refunded', bookPaid }) → { link }
  *     (`stay` refused 409 `INSTALLMENT_PLAN_IN_PLACE` for an acompte / solde / séjour link of a stay with a plan, rule 63)
+ *   planHoldsBucketPayment(database, link) → an acompte / solde / séjour link of a stay (or its devis) that has a plan
  *
- * Unsettled: `status = 'cancelled'`, `cancelReason = 'operator'`, a `paidAt`. Settled: `refunded` turns the reason
+ * Unsettled: `status = 'cancelled'`, `cancelReason` `operator` — or `dates-taken`, a bucket payment held beside an
+ * installment plan (rule 63, audit R11 M1) — and a `paidAt`. Settled: `refunded` turns the reason
  * into `refunded` (the money stays off the stay, the payment id stays on the row); `stay` books it as the stay's
- * money through `bookPaid(link, payment)`, the poll's late booking (`cancelled → paid`) — refused (409
+ * money through `bookPaid(link, payment)`, the poll's late booking of its reason (`cancelled → paid`) — refused (409
  * `STAY_READ_ONLY`) on a cancelled or set-aside stay, where only the refund is recorded.
  */
 
@@ -22,18 +24,19 @@ const UNSETTLED = Object.freeze({
   message: 'Paiement reçu sur un lien retiré : à traiter avant toute nouvelle demande.',
 });
 
-const UNSETTLED_SQL = "status = 'cancelled' AND cancelReason = ? AND paidAt IS NOT NULL";
+const UNSETTLED_REASONS = [LINK_REASONS.OPERATOR, LINK_REASONS.DATES_TAKEN];
+const UNSETTLED_SQL = `status = 'cancelled' AND cancelReason IN (${UNSETTLED_REASONS.map(() => '?').join(', ')}) AND paidAt IS NOT NULL`;
 const OUTCOMES = new Set(['stay', 'refunded']);
 
 function unsettledWithdrawnRefusal(database, stayId) {
   const owners = withConvertedDevis(database, [Number(stayId)]);
   const hit = database.prepare(`
     SELECT 1 FROM payment_links WHERE reservationId IN (${owners.map(() => '?').join(', ')}) AND ${UNSETTLED_SQL} LIMIT 1
-  `).get(...owners, LINK_REASONS.OPERATOR);
+  `).get(...owners, ...UNSETTLED_REASONS);
   return hit ? { ...UNSETTLED } : null;
 }
 
-const isUnsettled = (link) => Boolean(link) && link.status === 'cancelled' && link.cancelReason === LINK_REASONS.OPERATOR && Boolean(link.paidAt);
+const isUnsettled = (link) => Boolean(link) && link.status === 'cancelled' && UNSETTLED_REASONS.includes(link.cancelReason) && Boolean(link.paidAt);
 
 // The stay the link answers for is cancelled or set aside (a devis converted into one included): refund only (O2, O4).
 function stayIsReadOnly(database, stayId) {
@@ -68,7 +71,7 @@ async function settleWithdrawnPayment(linkId, { database, paymentLinksModel, out
   if (outcome === 'stay' && planHoldsBucketPayment(database, link)) throw { ...PLAN_IN_PLACE };
   if (outcome === 'refunded') {
     const info = database.prepare(`UPDATE payment_links SET cancelReason = ? WHERE id = ? AND ${UNSETTLED_SQL}`)
-      .run(LINK_REASONS.REFUNDED, link.id, LINK_REASONS.OPERATOR);
+      .run(LINK_REASONS.REFUNDED, link.id, ...UNSETTLED_REASONS);
     if (Number(info.changes) === 0) throw { httpStatus: 409, error: 'NOTHING_TO_SETTLE', message: 'Aucun paiement à traiter sur ce lien.' };
   } else {
     await bookPaid(link, { paid: true, paymentId: link.providerPaymentId, paidAt: link.paidAt });
@@ -76,4 +79,4 @@ async function settleWithdrawnPayment(linkId, { database, paymentLinksModel, out
   return { link: paymentLinksModel.findById(link.id) };
 }
 
-module.exports = { unsettledWithdrawnRefusal, settleWithdrawnPayment, isUnsettled, stayIsReadOnly, UNSETTLED };
+module.exports = { unsettledWithdrawnRefusal, settleWithdrawnPayment, isUnsettled, stayIsReadOnly, planHoldsBucketPayment, UNSETTLED };

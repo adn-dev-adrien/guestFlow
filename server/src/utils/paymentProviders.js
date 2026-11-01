@@ -7,8 +7,12 @@
  *   isReady()                                   → connected and usable
  *   createLink({ title, amountCents, items?, expectedTotalCents?, redirectUrl? }, { origin? })
  *                                               → { id, url, status, expiresAt }
- *   getPayment(linkId, { origin? })             → { paid, pending?, paymentId?, paidAt? } — `pending`: a payment
- *                                                 started and not final yet (it may still be paid)
+ *   getPayment(linkId, { origin? })             → { paid, pending, paymentId?, paidAt? } — `pending` (a boolean): a
+ *                                                 payment started and not final yet (it may still be paid). Required
+ *                                                 for the read after a `dates-taken` deactivation: an unpaid answer
+ *                                                 whose `pending` is not `false` counts as in flight, so the guest is
+ *                                                 never told « rien prélevé » on a provider that does not say
+ *                                                 (specs/payment-link-lifecycle.md rule 64, audit R11-E1)
  *   getLinkStatus(linkId)                       → 'open' | 'expired' | 'cancelled'
  *   cancelLink(linkId)                          → resolves once the link can no longer be paid
  *   describeError(err)?                         → { httpStatus, error, message } for an error the
