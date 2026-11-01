@@ -7,7 +7,8 @@
  * `server-test-app-env.unit.test.js` derives the app's reads from `src/` and fails on a name that is on
  * neither list, or on a listed name `src/` no longer reads.
  *
- * - `APP_ENV_NAMES`: deleted at start-up.
+ * - `APP_ENV_NAMES`: deleted at start-up. Case counts: `pm_id` is the one pm2 sets, which
+ *   `processRestart` reads to tell it runs supervised.
  * - `RUNNER_ENV_NAMES`: read by the app but left to the runner. `DB_PATH`, `PERSISTENT_DB` and `TMPDIR`
  *   are then replaced or deleted by the isolation of rules 1 and 4; `TZ` stays because a clock sweep sets
  *   it on purpose; `NODE_ENV` stays only when it is `test` (see `stripAppEnv`).
@@ -24,6 +25,7 @@ const APP_ENV_NAMES = [
   'HTTPS_ENABLED', 'TLS_CERT_PATH', 'TLS_KEY_PATH',
   'LOGIN_RATELIMIT_MAX', 'LOGIN_RATELIMIT_WINDOW_MS',
   'NEAT_API_BASE',
+  'pm_id',
   'PAYMENT_POLL_COLD_INTERVAL_MINUTES', 'PAYMENT_POLL_FRESH_HOURS', 'PAYMENT_POLL_TICK_MINUTES',
   'PAYMENT_POLL_WARM_DAYS', 'PAYMENT_POLL_WARM_INTERVAL_MINUTES',
   'PAYMENT_START_RATELIMIT_MAX', 'PAYMENT_START_RATELIMIT_WINDOW_MS',
