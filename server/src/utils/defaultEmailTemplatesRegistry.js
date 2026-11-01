@@ -579,6 +579,7 @@ const DEFAULT_TEMPLATES = Object.freeze([
     body:      DATES_UNAVAILABLE_NOTICE_BODY,
     subjectEn: 'Your dates at {{propertyName}} are no longer available',
     bodyEn:    DATES_UNAVAILABLE_NOTICE_BODY_EN,
+    anchor:    'datesTaken', // never 'start': v3.19.0's queue would offer this row for every arriving stay after a rollback
     dayOffset: 0,          // sentinel — sent when a stay's link is withdrawn because its dates were taken
     sendMode:  'manual',   // stored Manual; its sender is the one exception of utils/autoSendPolicy (rule 44)
     enabled:   true,

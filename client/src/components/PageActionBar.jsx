@@ -39,7 +39,9 @@
  *   actionsAfter?  Action[]     (inserted AFTER Cancel — destructive zone)
  *
  *   Action shape (icon button):
- *     { icon, tooltip, onClick, color?, disabled?, ariaDisabled?, ariaLabel? }
+ *     { icon, tooltip, onClick, color?, disabled?, ariaDisabled?, ariaLabel?, label? }
+ *     `label`: the action's name when `tooltip` carries the reason it is disabled; the phone's overflow menu
+ *     prints it with that reason beneath (no tooltip is reachable there)
  *     `ariaDisabled`: looks and reads as disabled but stays focusable and inert (an action that has just
  *     been performed, so keyboard focus does not drop to the page)
  *     color ∈ 'primary' | 'info' | 'success' | 'warning' | 'error' | 'default'
@@ -264,7 +266,11 @@ export default function PageActionBar({
                 disabled={a.disabled || a.ariaDisabled}
               >
                 <ListItemIcon>{a.icon}</ListItemIcon>
-                <ListItemText>{a.tooltip}</ListItemText>
+                <ListItemText
+                  primary={a.label || a.tooltip}
+                  secondary={a.label && a.label !== a.tooltip ? a.tooltip : undefined}
+                  slotProps={{ secondary: { sx: { whiteSpace: 'normal' } } }}
+                />
               </MenuItem>
             ))}
           </Menu>

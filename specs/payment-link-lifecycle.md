@@ -706,6 +706,11 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     badge in Emails › Modèles and as a read-only line in its editor (« Part seul, une fois, quand les dates sont
     prises par une autre réservation. »), the menu has no mode item, and `PUT /api/email-templates/:id` refuses any
     `sendMode` but `manual` on it (409 `SEND_MODE_LOCKED`); its subject and body stay editable.
+    Reading of 2026-11-01 (audit R11 console N1, self-update rule 43): the template is seeded on the anchor
+    `datesTaken`, never `start` — v3.19.0's manual queue offers every enabled manual `start` template it does not
+    know, so after a rollback « Dates plus disponibles » would have been offered for every stay on its arrival day.
+    Its sender selects it by `stableKey`, never by anchor; the one-shot migration `dates_unavailable_notice_anchor_v1`
+    moves a row already seeded on `start`. Its « Quand » stays fixed.
 
 ### 3.M Decisions of 2026-10-30, third round (Q13–Q16)
 
@@ -730,6 +735,29 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     the dialog, then asks the fiche's unsaved-changes guard (`window.__guestflowBeforeNavigate`), so the draft the
     refusal kept is never dropped without « Quitter sans enregistrer ». On a wider screen it opens in a new tab, the
     dialog and the draft untouched.
+    Reading of 2026-11-01 (audit R11-2, decided by Adrien: refuse): « Transformer en devis »
+    (`devisModel.convertFromReservation`, `POST /api/devis/from-reservation/:id`) copies its source stay's nights, so
+    it is a devis creation like any other: refused 409 `DATES_HELD` when the nights are held — by the source itself
+    (a platform stay, a direct stay with money) or by another stay — and 409 `CLOSED_DATES` (rule 55) when a closure
+    covers them, closures first, the same checks as `create`; no devis row is written. The source is not left out:
+    a devis born on held nights would be marked « Dates prises » by its own stay and could never be paid. The fiche
+    shows the refusal in the same dialog as a devis save (« Devis non enregistré », the stays or the closure to
+    open) and stays on the reservation.
+    Reading of 2026-11-01 (review of #915, finding 1: show before refusing): the common refusal is a direct stay
+    with money held by itself, and naming it sent the operator to the fiche they were on (a dead link on a phone).
+    A source that holds its own nights is answered with its own sentence and is never listed in `stays` (which keeps
+    only the other holders, often none): « Séjour déjà payé : devis non créé. » for a direct stay, « Séjour de
+    plateforme : devis non créé. » for a platform one (no « Transformer en devis » there, the API only). The other
+    sentences of this path say « devis non créé » too: « Dates déjà réservées : devis non créé. » when only another
+    stay holds the nights, « Logement fermé sur ces dates : devis non créé. » under a closure, and the dialog's title
+    is « Devis non créé » (nothing was being saved). `GET /api/reservations/:id` carries
+    `convertToDevisLockedReason` — that sentence when the stay itself blocks its conversion (its nights closed or held
+    by itself), else null — computed by `devisModel.convertToDevisLockedReason` from the same decision as the POST;
+    the fiche disables « Transformer en devis » with the reason as its tooltip (accessible name « Transformer en
+    devis : {reason} ») and re-reads it after every save. On a phone, where the action sits in the « Plus d'actions »
+    menu and no tooltip is reachable, the item prints « Transformer en devis » with the reason beneath (the
+    `PageActionBar` action's new `label`). Another stay on the nights does not lock the fiche: the
+    POST still refuses it, with that stay to open. The POST still refuses every case, whatever the fiche shows.
 47. **The notice's trigger is the withdrawal for taken dates** (decided 2026-10-30, §9 Q14) — written in
     rule 43, which it amends.
 48. **A devis whose dates were taken stays as it is** (decided 2026-10-30, §9 Q15). Nothing changes on it
@@ -850,6 +878,11 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     already converted; `PROVIDER_UNREACHABLE` → 502, same code, `paymentProviderError`. The same mapping covers
     the retirement of a link of the other mode. The provider's own diagnostic strings still pass through
     untranslated. No change to the WordPress plugin: it prints the `message` it receives.
+    Reading of 2026-11-01 (audit R11 public L-1): the re-check after the provider answered (rules 11, 55) is a third
+    source. Nights taken (`DATES_UNAVAILABLE`) or closed (`CLOSED_DATES`) during the round trip are answered 409
+    `DATES_UNAVAILABLE`, `datesUnavailable` (« Ces dates ne sont plus disponibles. » / « These dates are no longer
+    available. »), the code and sentence the pre-check gives for both, which the site already knows; never the
+    operator text « … aucun lien créé ». The fresh link is still stored withdrawn.
 
 ### 3.O Review of PR #902 (2026-10-30; appended, rule numbers are identities)
 
@@ -1380,6 +1413,10 @@ refused).
 - [x] `tests/payment-link-withdraw.unit.test.js` (21) — rule 42: withdrawn + deactivated, refused when paid (payment booked), marker on provider failure, without a provider or with a disconnected one, read-only stays refused, the ledger's action and label.
 - [x] `tests/devis-held-dates.unit.test.js` (8) — rule 46 (n1: no marker on a devis no longer open or a stay over): create / re-date onto held dates refused with `stays[]`; onto an unpaid row allowed; other edits of a devis already on held dates allowed; `datesTaken` marker (rule 48).
 - [x] `tests/closure-devis-without-link.unit.test.js` (4) — rule 49: warning listed, save accepted.
+- [x] `tests/devis-from-reservation-held-dates.unit.test.js` (9) — rule 46 (R11-2, review of #915), rule 55: « Transformer en devis » refused on a source holding its own nights (direct with money, platform) with its own sentence and `stays: []`, beside another holder (listed alone), by another stay alone, under a closure (first); an unpaid stay on free nights converts; the controller passes the refusal through; `convertToDevisLockedReason` (paid, closed, free, another holder) and on `GET /api/reservations/:id`.
+- [x] `tests/public-payment-pay-nights-lost-visitor.unit.test.js` (4) — rule 54 (R11 L-1): nights lost during the provider round trip answer 409 `DATES_UNAVAILABLE` in the visitor's language, the link stored withdrawn.
+- [x] `tests/dates-unavailable-notice-rollback.unit.test.js` (7) — rule 45 (R11 N1): seeded on `datesTaken`, the migration moves a row on `start` once, the rollback floor's queue never offers it, its « Quand ».
+- [x] `tests/event-templates-rollback-anchor.unit.test.js` (4) — rule 45 (R11 N1, generic guard; self-update rule 43): every template new to the rollback floor is driven through the floor's queue (`tests/rollbackFloorQueue.js`), none anchored on a column a retained release would read for every stay.
 - [x] `tests/payment-link-operator-owed-read.unit.test.js` (4) — rule 42 (L6): an operator-withdrawn link owing its read is read before a new mint: paid before → booked, request refused; unpaid → minted; (R2) a concurrent pass that booked it, or paid the échéance, while the mint waited → 409, nothing created.
 - [x] `tests/payment-link-unsettled-withdrawn.unit.test.js` (17) — rule 56: requests of every bucket, the échéance and the e-mail refused before any mint; « remboursé » and « enregistrer sur le séjour » settle it (stubbed and real booking); only such a payment settles, once; the ledger label and actions; (O1) an open link not reused; (O2) read-only stays refund only; (O3) amounts and the devis / unavailable-nights messages; (M1) the shared decision, and a fiche on taken nights through the settle and the poll paths; (O4) a devis converted into a cancelled stay refunds only. `public-payment-pay-visitor-refusals` (+2): the visitor's FR / EN sentence (G1).
 - [x] `tests/installments-unsettled-withdrawn-payment.unit.test.js` (26) — rule 63: creation and resize refused 409 with the card's reason (a payment to settle; a deactivation owed; a last look owed, its own code and wording; an open link whose deactivation fails, no plan written), made once settled or deactivated; the refusal before any provider read or withdrawal; a payment found during the read refuses (m1); dates and amounts still editable; the row of its own (with a plan, an acompte « Sans objet », a complement behind a newer link, an échéance link), refund only and the note for bucket payments beside a plan, none on a read-only stay; « stay » of an acompte / solde / séjour payment beside a plan refused through the real late booking (nothing booked, the refund works); an échéance paid after its withdrawal recorded on that échéance; no note once an échéance is paid; the real `deactivateAbandonedLinks` (provider works → plan made; no provider → 409, links withdrawn with their marker); the stay's link lock both ways (a link being minted is retired by the plan; a link asked meanwhile finds nothing to bill).
@@ -1447,6 +1484,8 @@ refused).
 - [x] `client/src/components/__tests__/DialogProvider.details.test.jsx` (1) — rule 46.
 - [x] `client/src/pages/__tests__/ReservationPage.dates-held.test.jsx` (4) — rules 46, 48, 55; a devis on an unpaid reservation's nights reaches the server; `CLOSED_DATES` shows the closure.
 - [x] `client/src/pages/__tests__/DevisPage.dates-taken.test.jsx` (2) — rule 48.
+- [x] `client/src/components/__tests__/PageActionBar.overflow-reason.test.jsx` (2) — rule 46 (review of #915): the phone menu prints a disabled action's `label` with its reason beneath, once when they match.
+- [x] `client/src/pages/__tests__/ReservationPage.convert-to-devis-refused.test.jsx` (6) — rules 46, 55 (R11-2, review of #915): « Devis non créé » with the other stays or the closure to open, the source's own reason with no link, the action disabled with `convertToDevisLockedReason` as tooltip before any confirm, other errors, the happy path.
 - [x] `client/src/pages/__tests__/EstablishmentClosuresPage.stale-conflicts.test.jsx` (2) — rule 62: a late answer after close/reopen, or after the range turned invalid, is dropped.
 - [x] `client/src/components/__tests__/DatesTakenAlert.test.jsx` (5) — rules 43, 66: rows told / not told, « non prévenu » once, the taking stay as a link (plain text when unknown), « Ouvrir », « Vu », a refused « Vu » re-reads, nothing when empty or unreadable.
 - [x] `client/src/pages/__tests__/EmailTemplatesPage.locked-mode.test.jsx` (2) — rule 45.
@@ -1721,3 +1760,15 @@ Six sequential PRs into `inte/plugins` (plan validated 2026-10-30).
   its look; rule 33's alert only on taken nights, the confirm « lien retiré : dates prises »; rule 63's hold withdraws
   the overlapping links at once. Tests: `payment-link-mint-reads-dates-taken-look` 8 → 14, the other suites amended
   (the plan deleted through `remove`, the refunded case on a real plan), each new case red before its fix.
+  Audit R11 (2026-11-01, branch `fix/audit-r11-devis`): R11-2 rule 46 « Transformer en devis » refused 409
+  `DATES_HELD` / `CLOSED_DATES` on held or closed nights like any devis creation (`devisModel.convertRefusalOf`), the
+  source answered with its own sentence and never listed in `stays`; review of #915, shown before refusing:
+  `convertToDevisLockedReason` on `GET /api/reservations/:id`, the action disabled with it as tooltip, and on a phone
+  the « Plus d'actions » item prints it beneath (`PageActionBar` action `label`). Public L-1, rule 54: nights lost
+  during the provider round trip answer the visitor 409 `DATES_UNAVAILABLE` in their language, the link withdrawn.
+  Console N1, rule 45: `dates_unavailable_notice` seeded on `datesTaken`, the one-shot migration
+  `dates_unavailable_notice_anchor_v1` moves an existing row, and a generic guard drives every template new to the
+  rollback floor through its queue. Tests: `devis-from-reservation-held-dates` (9),
+  `public-payment-pay-nights-lost-visitor` (4), `dates-unavailable-notice-rollback` (7),
+  `event-templates-rollback-anchor` (4); client `ReservationPage.convert-to-devis-refused` (6),
+  `PageActionBar.overflow-reason` (2), each red before its fix.

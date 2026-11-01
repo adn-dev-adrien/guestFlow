@@ -1910,6 +1910,22 @@ db.prepare(`
   }
 }
 
+// specs/self-update-and-releases.md rule 43, reading of 2026-11-01 (audit R11 console N1) — the same for the
+// « Dates plus disponibles » notice: a rollback to v3.19.0 must not offer it for every arriving stay.
+{
+  const migrationName = 'dates_unavailable_notice_anchor_v1';
+  const ran = db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(migrationName);
+  if (!ran) {
+    const { runDatesUnavailableNoticeAnchorMigration } = require('./utils/migrateDatesUnavailableNoticeAnchor');
+    const tx = db.transaction(() => {
+      const { action, changed } = runDatesUnavailableNoticeAnchorMigration(db);
+      db.prepare('INSERT INTO migrations (name) VALUES (?)').run(migrationName);
+      console.log(`[migration:dates-unavailable-notice-anchor] ${action} (${changed})`);
+    });
+    tx();
+  }
+}
+
 // specs/site-meal-portions.md rule 11 — website devis stored while a per-person card option's
 // quantity still meant SÉANCES. Any replay of those devis (PDF, payment link) now reads the quantity
 // as portions and would charge less than the accepted quote; aligning it on `billedUnits` keeps the

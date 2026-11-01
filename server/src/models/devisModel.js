@@ -1314,10 +1314,43 @@ function createModel(database) {
     return { ok: true, data: { success: true, reservationId } };
   }
 
+  // specs/payment-link-lifecycle.md rules 46 and 55, readings of 2026-11-01 (audit R11-2, review of #915) — the devis
+  // copies the stay's nights, so it is judged like any devis creation. A source that holds them refuses its own copy
+  // with its own reason and is never listed: the operator is on that fiche. `locksStay` marks the refusals the stay
+  // itself causes (its nights closed, or held by itself), which the fiche shows before the action is tried.
+  function convertRefusalOf(reservation) {
+    const range = { propertyId: reservation.propertyId, startDate: reservation.startDate, endDate: reservation.endDate };
+    const closed = closedDatesRefusal(range);
+    if (closed) return { locksStay: true, refusal: { ...closed, error: 'Logement fermé sur ces dates : devis non créé.' } };
+    const { heldOverlaps, stayRefs } = require('../utils/datesTaken');
+    const holders = heldOverlaps(database, range);
+    if (holders.length === 0) return null;
+    const others = holders.filter((row) => Number(row.id) !== Number(reservation.id));
+    const own = others.length < holders.length;
+    const ownReason = isDirectChannel(reservation.platform) ? 'Séjour déjà payé : devis non créé.' : 'Séjour de plateforme : devis non créé.';
+    return {
+      locksStay: own,
+      refusal: {
+        error: own ? ownReason : 'Dates déjà réservées : devis non créé.', status: 409, code: 'DATES_HELD',
+        stays: stayRefs(database, others, String(range.startDate).slice(0, 4)),
+      },
+    };
+  }
+
+  function convertToDevisLockedReason(reservationId) {
+    const reservation = database.prepare("SELECT id, propertyId, startDate, endDate, platform FROM reservations WHERE id = ? AND kind = 'reservation'").get(Number(reservationId));
+    if (!reservation) return null;
+    const refused = convertRefusalOf(reservation);
+    return refused && refused.locksStay ? refused.refusal.error : null;
+  }
+
   function convertFromReservation(reservationId) {
     const numId = Number(reservationId);
     const reservation = database.prepare("SELECT * FROM reservations WHERE id = ? AND kind = 'reservation'").get(numId);
     if (!reservation) return { error: 'Réservation introuvable', status: 404 };
+
+    const refused = convertRefusalOf(reservation);
+    if (refused) return refused.refusal;
 
     const devisNumber = database.generateDevisNumber();
 
@@ -1378,6 +1411,7 @@ function createModel(database) {
     deactivateLinksBeforeRemove,
     convertToReservation,
     convertFromReservation,
+    convertToDevisLockedReason,
   };
 }
 
