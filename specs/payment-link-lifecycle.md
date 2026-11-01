@@ -691,6 +691,11 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     badge in Emails › Modèles and as a read-only line in its editor (« Part seul, une fois, quand les dates sont
     prises par une autre réservation. »), the menu has no mode item, and `PUT /api/email-templates/:id` refuses any
     `sendMode` but `manual` on it (409 `SEND_MODE_LOCKED`); its subject and body stay editable.
+    Reading of 2026-11-01 (audit R11 console N1, self-update rule 43): the template is seeded on the anchor
+    `datesTaken`, never `start` — v3.19.0's manual queue offers every enabled manual `start` template it does not
+    know, so after a rollback « Dates plus disponibles » would have been offered for every stay on its arrival day.
+    Its sender selects it by `stableKey`, never by anchor; the one-shot migration `dates_unavailable_notice_anchor_v1`
+    moves a row already seeded on `start`. Its « Quand » stays fixed.
 
 ### 3.M Decisions of 2026-10-30, third round (Q13–Q16)
 
@@ -711,6 +716,14 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     devis fiche no longer refuses a save by its own occupancy check (which counted every reservation, unpaid ones
     included, and blocked even a notes edit on a devis already overlapped): the server is the judge of a devis's
     nights; the red line under the dates stays as information.
+    Reading of 2026-11-01 (audit R11-2, decided by Adrien: refuse): « Transformer en devis »
+    (`devisModel.convertFromReservation`, `POST /api/devis/from-reservation/:id`) copies its source stay's nights, so
+    it is a devis creation like any other: refused 409 `DATES_HELD` when the nights are held — by the source itself
+    (a platform stay, a direct stay with money) or by another stay — and 409 `CLOSED_DATES` (rule 55) when a closure
+    covers them, closures first, the same checks as `create`; no devis row is written. The source is not left out:
+    a devis born on held nights would be marked « Dates prises » by its own stay and could never be paid. The fiche
+    shows the refusal in the same dialog as a devis save (« Devis non enregistré », the stays or the closure to
+    open) and stays on the reservation.
 47. **The notice's trigger is the withdrawal for taken dates** (decided 2026-10-30, §9 Q14) — written in
     rule 43, which it amends.
 48. **A devis whose dates were taken stays as it is** (decided 2026-10-30, §9 Q15). Nothing changes on it
@@ -820,6 +833,11 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     already converted; `PROVIDER_UNREACHABLE` → 502, same code, `paymentProviderError`. The same mapping covers
     the retirement of a link of the other mode. The provider's own diagnostic strings still pass through
     untranslated. No change to the WordPress plugin: it prints the `message` it receives.
+    Reading of 2026-11-01 (audit R11 public L-1): the re-check after the provider answered (rules 11, 55) is a third
+    source. Nights taken (`DATES_UNAVAILABLE`) or closed (`CLOSED_DATES`) during the round trip are answered 409
+    `DATES_UNAVAILABLE`, `datesUnavailable` (« Ces dates ne sont plus disponibles. » / « These dates are no longer
+    available. »), the code and sentence the pre-check gives for both, which the site already knows; never the
+    operator text « … aucun lien créé ». The fresh link is still stored withdrawn.
 
 ### 3.O Review of PR #902 (2026-10-30; appended, rule numbers are identities)
 

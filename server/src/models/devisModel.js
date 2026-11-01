@@ -1319,6 +1319,12 @@ function createModel(database) {
     const reservation = database.prepare("SELECT * FROM reservations WHERE id = ? AND kind = 'reservation'").get(numId);
     if (!reservation) return { error: 'Réservation introuvable', status: 404 };
 
+    // specs/payment-link-lifecycle.md rules 46 and 55, reading of 2026-11-01 (audit R11-2) — the devis copies the
+    // stay's nights, so it is judged like any devis creation: a source that holds them refuses its own copy.
+    const range = { propertyId: reservation.propertyId, startDate: reservation.startDate, endDate: reservation.endDate };
+    const refused = closedDatesRefusal(range) || heldDatesRefusal(range);
+    if (refused) return refused;
+
     const devisNumber = database.generateDevisNumber();
 
     // §3.1 + §3.2 — populate createdAt + validUntil on the new devis row (rules 2 + 8).

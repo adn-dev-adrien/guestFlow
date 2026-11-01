@@ -2249,6 +2249,19 @@ export default function ReservationPage() {
     }
   };
 
+  // specs/payment-link-lifecycle.md rules 46, 55 — a devis saved, moved or made from this stay onto held or closed
+  // nights: the stays that hold them, or the closure, each to open. True when the error was that refusal.
+  const alertDevisDatesRefusal = async (err) => {
+    if (err?.code !== 'DATES_HELD' && err?.code !== 'CLOSED_DATES') return false;
+    const records = err.code === 'DATES_HELD' ? err.stays : err.closures;
+    await alert({
+      title: 'Devis non enregistré',
+      message: err.message,
+      details: <ConflictList severity="error" items={(records || []).map((row) => ({ key: row.id, label: row.label, url: row.url }))} newTab={!downSm} />,
+    });
+    return true;
+  };
+
   const handleSaveReservation = async (afterSaveAction = null, forceMinNights = false, forceCapacity = false, forceChangeover = false, forceMaxNights = false, forceOverpayment = false) => {
     const safeAfterSaveAction = typeof afterSaveAction === 'function' ? afterSaveAction : null;
     
@@ -2722,17 +2735,7 @@ export default function ReservationPage() {
         }
         return false;
       }
-      // specs/payment-link-lifecycle.md rules 46, 55 — a devis moved onto held or closed nights: the stays that hold
-      // them, or the closure, each to open.
-      if (err?.code === 'DATES_HELD' || err?.code === 'CLOSED_DATES') {
-        const records = err.code === 'DATES_HELD' ? err.stays : err.closures;
-        await alert({
-          title: 'Devis non enregistré',
-          message: err.message,
-          details: <ConflictList severity="error" items={(records || []).map((row) => ({ key: row.id, label: row.label, url: row.url }))} newTab={!downSm} />,
-        });
-        return false;
-      }
+      if (await alertDevisDatesRefusal(err)) return false;
       await alert({ title: 'Erreur', message: err.message });
       // The end-of-stay complement was collected elsewhere while this fiche was open: reload it so the
       // extras card shows its locked state (specs/mid-stay-extras-on-locked-fiche.md).
@@ -3135,8 +3138,9 @@ export default function ReservationPage() {
     if (!ok) return;
     try {
       const devis = await api.createDevisFromReservation(editingReservationId);
-        navigate(`/reservations/new?mode=devis&devisId=${devis.id}`);
+      navigate(`/reservations/new?mode=devis&devisId=${devis.id}`);
     } catch (e) {
+      if (await alertDevisDatesRefusal(e)) return;
       await alert({ title: 'Erreur', message: e.message || 'Impossible de créer le devis.' });
     }
   };
