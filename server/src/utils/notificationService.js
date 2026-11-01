@@ -484,11 +484,13 @@ function buildNotificationService({
   // specs/payment-link-lifecycle.md rule 42 (re-review of #902, R1) — a link withdrawn by hand, paid before, booked
   // later on nights closed since (`closed`) or taken by another stay (`taken`): the treatment of rule 33.
   const PAID_UNAVAILABLE_TITLES = { closed: '⚠️ Paiement reçu sur des dates fermées', taken: '⚠️ Paiement reçu sur des dates déjà prises' };
-  function buildPaidAfterCancelEmail(resa, link, publicUrl, { settledOn = null, amountMismatch = null, doublePaid = false, duplicateCents = null, confirmationSent = true, nightsUnavailable = null, datesTaken = false, takenBy = null, livePayment = false } = {}) {
+  // specs/payment-link-lifecycle.md rule 63 (audit R11 M1) — beside an installment plan the payment is not the stay's.
+  const PAID_BESIDE_PLAN_TITLE = '⚠️ Paiement à rembourser : échéancier en place';
+  function buildPaidAfterCancelEmail(resa, link, publicUrl, { settledOn = null, amountMismatch = null, doublePaid = false, duplicateCents = null, confirmationSent = true, nightsUnavailable = null, datesTaken = false, takenBy = null, livePayment = false, installmentPlan = false } = {}) {
     const amount = eurosFr(doublePaid && duplicateCents != null ? duplicateCents : link.amountCents);
     const owner = String(resa.kind) === 'devis' ? 'le devis' : 'le séjour';
     const ref = resa.devisNumber || `#${Number(resa.id)}`;
-    const title = PAID_UNAVAILABLE_TITLES[nightsUnavailable]
+    const title = (installmentPlan && PAID_BESIDE_PLAN_TITLE) || PAID_UNAVAILABLE_TITLES[nightsUnavailable]
       || (doublePaid ? PAID_TWICE_TITLE : amountMismatch ? PAID_OTHER_AMOUNT_TITLE : (settledOn ? PAID_AFTER_SETTLED_TITLE : PAID_AFTER_CANCEL_TITLE));
     const subject = `${title} — ${ref} · ${amount}`;
     const soldeLine = amountMismatch && amountMismatch.balanceSettled
@@ -496,7 +498,13 @@ function buildNotificationService({
       : amountMismatch && `solde porté à ${eurosFr(amountMismatch.balanceCents)}`;
     // specs/payment-link-lifecycle.md rule 33 — a link withdrawn because its dates were taken, paid before its
     // deactivation reached the provider.
-    const intro = datesTaken
+    const intro = installmentPlan
+      ? [
+        'Un lien retiré parce que ces dates venaient d’être réservées a été payé, alors que le séjour a un échéancier.',
+        'Le paiement n’est pas enregistré sur le séjour : l’échéancier porte déjà tout le montant avant l’arrivée.',
+        'Action requise : rembourser ce paiement, ou supprimer l’échéancier pour l’enregistrer sur le séjour.',
+      ]
+      : datesTaken
       ? [
         `Un lien retiré parce que ces dates venaient d’être réservées${takenBy ? ` (${oneLine(takenBy)})` : ''} a été payé avant sa désactivation.`,
         'Le paiement est enregistré sur le séjour, en conflit de dates. Aucun e-mail de confirmation n’a été envoyé au client.',

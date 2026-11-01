@@ -515,6 +515,9 @@ async function bookWithdrawnPaid({ database, link, pay, sendConfirmation, notify
 // `bookingConflictAt` while another stay still holds its nights; the guest gets no confirmation; the admin is told
 // to move the stay or refund it, with the stay that took the dates.
 async function bookDatesTakenPaid({ database, link, pay, notifyPaidAfterCancel, notifyConflict, checkConflict, ...effect }) {
+  if (require('./withdrawnPayments').planHoldsBucketPayment(database, link)) {
+    return holdPaidBesidePlan({ database, link, pay, notifyPaidAfterCancel, paymentLinksModel: effect.paymentLinksModel });
+  }
   const outcome = await processPaidLink({
     ...effect, database, link, paidPayment: pay, checkConflict, notifyConflict, notifyPaidAfterCancel,
     sendConfirmation: null, quietOnConflict: true, retiredReason: LINK_REASONS.DATES_TAKEN,
@@ -527,10 +530,32 @@ async function bookDatesTakenPaid({ database, link, pay, notifyPaidAfterCancel, 
   if (conflict && !outcome.conflict && notifyConflict) { try { await notifyConflict(found.stay.id); } catch { /* best effort */ } }
   const [holder] = heldOverlaps(database, { ...found.stay, excludeIds: [found.row.id, found.stay.id] });
   const [takenBy] = holder ? stayRefs(database, [holder], String(found.stay.startDate || '').slice(0, 4)) : [];
-  if (notifyPaidAfterCancel) {
+  // Review of #916 (2) — the « dates déjà prises » alert only while they are: once the nights are free again (rule 58's
+  // read, « Enregistrer sur le séjour » after the plan's deletion) there is nothing to move or refund.
+  if ((conflict || holder) && notifyPaidAfterCancel) {
     try { await notifyPaidAfterCancel(link, { nightsUnavailable: 'taken', datesTaken: true, ...(takenBy ? { takenBy: takenBy.label } : {}) }); } catch { /* best effort */ }
   }
   return { ...outcome, datesTaken: true, conflict };
+}
+
+// specs/payment-link-lifecycle.md rule 63, reading of 2026-11-01 (audit R11 N1 / M1) — beside an installment plan the
+// only payment that can arrive is an échéance. An acompte / solde / séjour payment found on a link withdrawn for taken
+// dates is never booked on the buckets: it stays on the link (`paidAt`, payment id), a payment to settle (rule 56) that
+// the plan's ledger offers to refund only (`INSTALLMENT_PLAN_IN_PLACE`); the admin is told once.
+async function holdPaidBesidePlan({ database, link, pay, notifyPaidAfterCancel, paymentLinksModel }) {
+  const held = paymentLinksModel.holdPaidBesidePlan(link.id, { providerPaymentId: pay.paymentId || null, paidAt: pay.paidAt || new Date().toISOString() });
+  if (!held) return linkResult(link, { status: 'paid-after-cancel', effect: 'already-processed' });
+  // Rule 32 (review of #916, 3) — the held `paidAt` is the stay's money (rule 31): the stay holds its nights from now on.
+  const { answeringStay, withdrawForStay } = require('./datesTaken');
+  const found = answeringStay(database, link.reservationId);
+  if (found) withdrawForStay(database, found.stay.id);
+  if (notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link, { installmentPlan: true }); } catch { /* best effort */ } }
+  return linkResult(link, { status: 'paid-after-cancel', effect: 'installment-plan-in-place', reservationId: link.reservationId });
+}
+
+// Rule 56 — « Enregistrer sur le séjour » of a payment to settle: the late booking of the reason it was withdrawn for.
+function bookLateWithdrawnPaid({ link, ...deps }) {
+  return link.cancelReason === LINK_REASONS.DATES_TAKEN ? bookDatesTakenPaid({ ...deps, link }) : bookWithdrawnPaid({ ...deps, link });
 }
 
 // A withdrawal by hand ends the link at its moment (`expiresAt`); a payment with no known date is not before it.
@@ -583,18 +608,19 @@ async function runLastLooks({ database, paymentLinksModel, provider, now, ...eff
     const datesTaken = link.status === 'cancelled' && link.cancelReason === LINK_REASONS.DATES_TAKEN;
     try {
       const pay = await provider.getPayment(link.providerLinkId, { origin: 'last-look' });
+      const inFlight = datesTaken && paymentMayBeInFlight(pay);
       if (pay.paid && datesTaken) {
         results.push(await bookDatesTakenPaid({ ...effect, database, paymentLinksModel, link, pay }));
       } else if (pay.paid) {
         results.push(await processPaidLink({ ...effect, database, paymentLinksModel, link, paidPayment: pay }));
-      } else if (datesTaken && pay.pending && inFlightPastLimit(paymentLinksModel, link, now)) {
+      } else if (inFlight && inFlightPastLimit(paymentLinksModel, link, now)) {
         // Re-review of #912 (R1) — no endless reads: the link is closed for the notice, the operator checks by hand.
         paymentLinksModel.stopInFlightRead(link.id, now);
         if (effect.notifyPaymentInFlight && paymentLinksModel.claimDeactivationAlert(link.id, now)) {
           try { await effect.notifyPaymentInFlight(link); } catch { /* best effort */ }
         }
         results.push(linkResult(link, { status: link.status, effect: 'last-look', pending: true, closed: 'payment-in-flight' }));
-      } else if (datesTaken && pay.pending) {
+      } else if (inFlight) {
         // Rule 64 — a payment still in flight may complete: the read stays owed, and so does the notice.
         paymentLinksModel.setLastLook(link.id, now);
         results.push(linkResult(link, { status: link.status, effect: 'last-look', pending: true }));
@@ -610,6 +636,12 @@ async function runLastLooks({ database, paymentLinksModel, provider, now, ...eff
     }
   }
   return { results, stoppedBy: null };
+}
+
+// Rule 64, reading of 2026-11-01 (audit R11-E1) — fails closed: an unpaid answer that does not say `pending` (a
+// boolean) cannot tell the guest « rien ne vous a été prélevé ». Online-payment 1.5.0 answers without it, and still loads.
+function paymentMayBeInFlight(pay) {
+  return !pay.paid && pay.pending !== false;
 }
 
 function inFlightPastLimit(paymentLinksModel, link, now) {
@@ -838,4 +870,4 @@ async function runPaymentPoll({ database, paymentLinksModel, provider, devisMode
   return { checked, paid: results.filter((r) => r.status === 'paid').length, retired, settled: settled.length, stoppedBy, results };
 }
 
-module.exports = { runPaymentPoll, runLinkLifecycle, runLastLooks, processPaidLink, applyPaidEffect, retryPendingCancellations, bookWithdrawnPaid };
+module.exports = { runPaymentPoll, runLinkLifecycle, runLastLooks, processPaidLink, applyPaidEffect, retryPendingCancellations, bookWithdrawnPaid, bookDatesTakenPaid, bookLateWithdrawnPaid };

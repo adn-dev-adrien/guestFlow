@@ -3,7 +3,8 @@
  *
  * A link paid online and a payment ticked by hand on the fiche both end here: the installment is flipped
  * once (a replayed webhook records nothing twice), the stay's aggregates follow, the installment's open
- * link is retired, and `reservation.paid` is announced like for the other buckets.
+ * link is retired, the other requests' links on the nights the stay now holds are withdrawn (rule 32 of
+ * specs/payment-link-lifecycle.md), and `reservation.paid` is announced like for the other buckets.
  */
 
 const { buildModel } = require('../models/installmentsModel');
@@ -36,6 +37,9 @@ function recordInstallmentPayment({ db, emit }, { installmentId, paidDate, metho
   }).immediate();
   if (flipped) {
     buildLinksModel(db).retireSettled();
+    // specs/payment-link-lifecycle.md rules 32, 37 (audit R11-1) — a paid échéance makes the stay hold its nights, and
+    // beside a plan it is the only payment that can arrive: the unpaid requests on those nights lose their links now.
+    require('./datesTaken').withdrawForStay(db, row.reservationId);
     if (emit) emit('reservation.paid', { reservationId: row.reservationId, bucket: 'installment' });
   }
   return { found: true, flipped, reservationId: row.reservationId };

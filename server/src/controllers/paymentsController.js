@@ -282,7 +282,7 @@ const settleLink = async (req, res) => {
       database,
       paymentLinksModel,
       outcome: String((req.body && req.body.outcome) || ''),
-      bookPaid: (link, payment) => require('../utils/paymentPollRunner').bookWithdrawnPaid({
+      bookPaid: (link, payment) => require('../utils/paymentPollRunner').bookLateWithdrawnPaid({
         ...buildPaymentEffectDeps(), database, paymentLinksModel, link, pay: payment,
       }),
     }));
