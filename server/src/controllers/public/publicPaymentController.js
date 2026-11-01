@@ -89,6 +89,10 @@ const VISITOR_REFUSALS = {
   PROVIDER_UNREACHABLE: [502, 'PROVIDER_UNREACHABLE', 'paymentProviderError'],
   // Rule 56 — a payment received on a link withdrawn by hand waits for the operator.
   UNSETTLED_WITHDRAWN_PAYMENT: [409, 'PAYMENT_UNDER_REVIEW', 'paymentUnderReview'],
+  // Rules 11, 55 (reading of 2026-11-01, audit R11 L-1) — nights taken or closed while the provider answered: the
+  // code and sentence the pre-check gives for both, which the site already knows.
+  DATES_UNAVAILABLE: [409, 'DATES_UNAVAILABLE', 'datesUnavailable'],
+  CLOSED_DATES: [409, 'DATES_UNAVAILABLE', 'datesUnavailable'],
 };
 
 function visitorRefusal(res, req, err) {
