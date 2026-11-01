@@ -133,13 +133,13 @@ function parseCustomPrice(value) {
   return Number(value);
 }
 
-// specs/reservation-refunds.md — an empty refund register: what a devis, a creation form or a
-// reservation without any refund reads.
 // specs/payment-link-lifecycle.md rule 46 (audit R12-C1) — the devis is built from the stored stay, not the typed values.
 const CONVERT_TO_DEVIS_DIRTY_REASON = "Enregistrer d'abord les modifications.";
 const NO_ARRIVAL_LINES = {};
 const NO_FROZEN_CUSTOM_IDS = [];
 
+// specs/reservation-refunds.md — an empty refund register: what a devis, a creation form or a
+// reservation without any refund reads.
 const EMPTY_REFUND_REGISTER = {
   refunds: [],
   refundableLines: [],
@@ -3138,10 +3138,6 @@ export default function ReservationPage() {
 
   const handleConvertToDevis = async () => {
     if (!editingReservationId) return;
-    if (isDirty) {
-      await alert({ title: 'Devis non créé', message: CONVERT_TO_DEVIS_DIRTY_REASON });
-      return;
-    }
     const ok = await confirm({
       title: 'Transformer en devis',
       message: 'Créer un devis à partir de cette réservation ? La réservation actuelle ne sera pas modifiée.',
@@ -3476,7 +3472,8 @@ export default function ReservationPage() {
           ariaLabel: convertToDevisBlockedReason ? `Transformer en devis : ${convertToDevisBlockedReason}` : 'Transformer en devis',
           onClick: handleConvertToDevis,
           color: 'info',
-          disabled: Boolean(convertToDevisBlockedReason),
+          // Focusable while blocked, so Tab reaches the reason in the tooltip.
+          ariaDisabled: Boolean(convertToDevisBlockedReason),
         }] : []),
     // specs/email-automation.md §6.6 — manual email send on an existing reservation. Disabled
     // when the client has no email; the dialog otherwise surfaces SMTP / template errors clearly.

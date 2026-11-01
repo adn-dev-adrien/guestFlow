@@ -2,6 +2,7 @@
 // « Transformer en devis » creates is built from the stored stay, not from the typed values: while the fiche holds
 // unsaved changes the action is disabled with « Enregistrer d'abord les modifications. » (the tooltip on a wider
 // screen, the reason beneath the item in the phone's « Plus d'actions » menu), nothing is sent and the fiche stays.
+// The disabled action stays focusable (`ariaDisabled`, review of #918) so Tab reaches it and its reason.
 import React from 'react';
 import { vi } from 'vitest';
 import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
@@ -80,15 +81,23 @@ beforeEach(() => {
   dialogs.confirm.mockReset().mockResolvedValue(true);
 });
 
-test('a dirty fiche disables the action with the reason: no confirm, no devis, the fiche stays', async () => {
+function expectFocusableAndInert(button) {
+  expect(button).toHaveAttribute('aria-disabled', 'true');
+  expect(button).not.toBeDisabled();
+  button.focus();
+  expect(button).toHaveFocus();
+  fireEvent.click(button);
+  expect(button).toHaveFocus();
+}
+
+test('a dirty fiche disables the action with the reason: focusable, no confirm, no devis, the fiche stays', async () => {
   openFiche();
   await screen.findByRole('button', { name: 'Transformer en devis' });
   await typeNote('typed draft');
   const button = await screen.findByRole('button', { name: `Transformer en devis : ${REASON}` });
-  expect(button).toBeDisabled();
   fireEvent.mouseOver(button.parentElement);
   expect(await screen.findByRole('tooltip')).toHaveTextContent(REASON);
-  fireEvent.click(button);
+  expectFocusableAndInert(button);
   expect(dialogs.confirm).not.toHaveBeenCalled();
   expect(api.createDevisFromReservation).not.toHaveBeenCalled();
   expect(screen.getByTestId('where')).toHaveTextContent('/reservations/41');
@@ -112,7 +121,9 @@ test('the stay\'s own lock outranks the unsaved changes: saving would not lift i
   openFiche({ ...FICHE, convertToDevisLockedReason: locked });
   await screen.findByRole('button', { name: `Transformer en devis : ${locked}` });
   await typeNote('typed draft');
-  expect(screen.getByRole('button', { name: `Transformer en devis : ${locked}` })).toBeDisabled();
+  expectFocusableAndInert(screen.getByRole('button', { name: `Transformer en devis : ${locked}` }));
+  expect(dialogs.confirm).not.toHaveBeenCalled();
+  expect(api.createDevisFromReservation).not.toHaveBeenCalled();
 });
 
 test('phone: the « Plus d\'actions » item prints the reason beneath, disabled', async () => {

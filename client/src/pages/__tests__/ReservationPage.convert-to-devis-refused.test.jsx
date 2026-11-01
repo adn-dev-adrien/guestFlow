@@ -105,9 +105,13 @@ test('DATES_HELD by the stay itself: the reason alone, no link back to the fiche
 test('show before refusing: a stay that blocks its own conversion disables the action with the reason', async () => {
   openFiche({ ...FICHE, convertToDevisLockedReason: 'Séjour déjà payé : devis non créé.' });
   const button = await screen.findByRole('button', { name: 'Transformer en devis : Séjour déjà payé : devis non créé.' });
-  expect(button).toBeDisabled();
+  expect(button).toHaveAttribute('aria-disabled', 'true');
   fireEvent.mouseOver(button.parentElement);
   expect(await screen.findByRole('tooltip')).toHaveTextContent('Séjour déjà payé : devis non créé.');
+  // Focusable but inert (review of #918): Tab reaches the reason, a click does nothing.
+  button.focus();
+  expect(button).toHaveFocus();
+  fireEvent.click(button);
   expect(dialogs.confirm).not.toHaveBeenCalled();
   expect(api.createDevisFromReservation).not.toHaveBeenCalled();
 });
