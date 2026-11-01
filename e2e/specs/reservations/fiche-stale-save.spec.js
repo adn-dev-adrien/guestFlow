@@ -20,7 +20,7 @@ test('a save on an out-of-date fiche is refused; the draft is kept, then reload 
   const puts = [];
   page.on('response', (r) => { if (r.request().method() === 'PUT' && /\/api\/reservations\/\d+$/.test(r.url())) puts.push(r.status()); });
 
-  await page.getByRole('button', { name: 'Enregistrer' }).first().click();
+  await page.getByRole('button', { name: 'Enregistrer', exact: true }).first().click();
   const dialog = page.getByRole('dialog', { name: 'Fiche modifiée entre-temps' });
   await expect(dialog).toBeVisible();
   await expect(dialog).toContainText('Recharger efface la saisie en cours');
@@ -30,7 +30,7 @@ test('a save on an out-of-date fiche is refused; the draft is kept, then reload 
   await expect(dialog).toBeHidden();
   await expect(notes).toHaveValue('Ma note de l’opérateur');
 
-  await page.getByRole('button', { name: 'Enregistrer' }).first().click();
+  await page.getByRole('button', { name: 'Enregistrer', exact: true }).first().click();
   await expect(dialog).toBeVisible();
   await dialog.getByRole('button', { name: 'Recharger' }).click();
   await expect(dialog).toBeHidden();
@@ -50,7 +50,7 @@ test('rule 5 — « Enregistrer quand même » overwrites the background write, 
   await notes.fill('Ma note forcée');
   const statuses = [];
   page.on('response', (r) => { if (r.request().method() === 'PUT' && /\/api\/reservations\/\d+$/.test(r.url())) statuses.push(r.status()); });
-  await page.getByRole('button', { name: 'Enregistrer' }).first().click();
+  await page.getByRole('button', { name: 'Enregistrer', exact: true }).first().click();
   const dialog = page.getByRole('dialog', { name: 'Fiche modifiée entre-temps' });
   await expect(dialog).toBeVisible();
   await dialog.getByRole('button', { name: 'Enregistrer quand même' }).click();
@@ -74,7 +74,7 @@ test.describe('phone (390 px)', () => {
     await expect(notes).toBeVisible({ timeout: 15_000 });
     simulateBackgroundWrite(reservation.id, 'Importée');
     await notes.fill('Saisie');
-    await page.getByRole('button', { name: 'Enregistrer' }).first().click();
+    await page.getByRole('button', { name: 'Enregistrer', exact: true }).first().click();
     const dialog = page.getByRole('dialog', { name: 'Fiche modifiée entre-temps' });
     await expect(dialog).toBeVisible();
     for (const name of ['Recharger', 'Enregistrer quand même', 'Annuler']) {
@@ -98,7 +98,7 @@ test('a fiche that only the operator touched saves without any refusal', async (
   await notes.fill('Une note');
   const statuses = [];
   page.on('response', (r) => { if (r.request().method() === 'PUT' && /\/api\/reservations\/\d+$/.test(r.url())) statuses.push(r.status()); });
-  await page.getByRole('button', { name: 'Enregistrer' }).first().click();
+  await page.getByRole('button', { name: 'Enregistrer', exact: true }).first().click();
   await expect.poll(() => statuses.length).toBeGreaterThan(0);
   expect(statuses).toEqual([200]);
 });
@@ -122,7 +122,7 @@ test('rule 4 — a payment marked from the fiche does not make the next save loo
   const statuses = [];
   page.on('response', (r) => { if (r.request().method() === 'PUT' && /\/api\/reservations\/\d+$/.test(r.url())) statuses.push(r.status()); });
   await page.getByLabel('Notes').first().fill('Après encaissement');
-  await page.getByRole('button', { name: 'Enregistrer' }).first().click();
+  await page.getByRole('button', { name: 'Enregistrer', exact: true }).first().click();
   await expect.poll(() => statuses.length).toBeGreaterThan(0);
   expect(statuses).toEqual([200]);
 });
