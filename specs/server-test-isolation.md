@@ -23,7 +23,8 @@ Running `npm test` can never create, open or migrate the checkout's own `server/
 hangs on a test that does not settle (rule 5), and never reports green with tests of a file left unrun
 (rule 10). A suite does not go red because the calendar moved
 (rules 6-7, 9), and the unit suites fit their CI time budget (rule 8). A client test does not go red
-because the runner is busy (rule 11).
+because the runner is busy (rule 11). A server test does not change outcome with the GuestFlow flags the developer's shell
+exports (rule 12).
 
 ## 3. Functional rules
 
@@ -226,12 +227,29 @@ because the runner is busy (rule 11).
    is manual: it never runs in CI (no workflow names it), and the normal `vitest.config.js` never loads
    it. Test: `client-effect-race-sweep.unit.test.js`.
 
+12. **A test process starts without the shell's GuestFlow flags** (added 2026-11-01, review of PR #919). The
+   `npm test` preload (`src/tests/setup/isolateDefaultDb.js`) deletes every `GUESTFLOW_*` variable from
+   `process.env` before anything loads, except the runner's own `GUESTFLOW_TEST_*` knobs (rule 5's
+   `GUESTFLOW_TEST_EXIT_GRACE_MS`). A test that needs a flag sets it inline or passes its own `env`, as the
+   suites already do. Why: tests reading `process.env` through a default (`pluginGovernance.operatorManaged`,
+   the managed-licence reader, `runVersionCheck`, `selfUpdateSupported`) followed the developer's shell: under
+   `GUESTFLOW_MANAGED=1` the full suite had 50 failures in 19 files (plugin lists without `actions` or
+   `state`, public website-booking endpoints answering 503), and the E2E `GUESTFLOW_DISABLE_OUTBOUND=1` could
+   make a test pass without running what it checks. CI never sets them, so only a local run went wrong. After
+   the change the full suite is green in a clean shell and under each of `GUESTFLOW_MANAGED=1`,
+   `GUESTFLOW_DISABLE_OUTBOUND=1 NODE_ENV=test` and `GUESTFLOW_SELF_UPDATE=off` (9 242 / 9 242 in each of the four runs). The app keeps its
+   flags: `database.js` and `utils/instancePaths.js` (rule 4) strip nothing, and the E2E servers, which set
+   `GUESTFLOW_DISABLE_OUTBOUND=1` on purpose, start `node src/index.js` without the preload. Test:
+   `server-test-ambient-flags.unit.test.js`.
+
 **Edge cases:**
 - A targeted `node --test <file>` used to open and migrate `server/guestflow.db` for 389 test files (audit R2,
   2026-10-29); rule 4 closes that. Rule 3 stays as the explicit guard of the three first offenders.
 - Only a process outside the test runner (e.g. `node -e`) opens the default path. `node --test --experimental-test-isolation=none`
   runs the files in the parent process, where `NODE_TEST_CONTEXT` is not set: that mode is isolated only with the
   preload (`npm test` never uses it). A process with `NODE_ENV=production` is never isolated, even under the runner.
+- A single file run without the preload (`node --test <file>`) still reads the shell's `GUESTFLOW_*` flags:
+  rule 12 lives in the preload only, so `npm test` is the hermetic entry point.
 
 ---
 
@@ -245,6 +263,8 @@ because the runner is busy (rule 11).
 | `utils/` | `testProcessIsolation.js` | T | Rule 4: same isolation for a process run without the preload. |
 | `database.js`, `utils/instancePaths.js` | | T | Call it before reading the environment. |
 | `tests/` | `server-test-isolation.unit.test.js` | C | Pins rules 1-2 in a child process. |
+| `tests/setup/` | `isolateDefaultDb.js` | T | Rule 12: deletes every `GUESTFLOW_*` variable but `GUESTFLOW_TEST_*` at start-up. |
+| `tests/` | `server-test-ambient-flags.unit.test.js` | C | Pins rule 12: flags dropped under the preload, an inline flag still read, the app modules strip nothing, no E2E launcher loads the preload. |
 | `tests/`, `plugins/hourly-resources/tests/` | the three offenders | T | Rule 3. |
 | `package.json` | `test` script | T | `--require ./src/tests/setup/isolateDefaultDb.js`; `--test-timeout=60000` and the exit watchdog (rule 5); the `spec` and completeness reporters (rule 10). |
 | `control-plane/server/package.json` | `test` script | T | `--test-timeout=180000` and the exit watchdog (rule 5); the `spec` and completeness reporters (rule 10). |
@@ -294,6 +314,7 @@ delay, and the sweep's absence from the normal config and from every CI workflow
 - [x] Rule 9: `dropKnownLines` keeps a line absent from the known content of its own file; a real git repository replays an integration PR (exit 0 with `--known`, exit 1 when the known ref does not resolve) and a feature PR adding one new line on top of a known one (only the new line named); the workflow fetches both branches and passes them. The three fail on the previous script and workflow. Replayed on the real branches: inte/plugins → master 2 091 named lines → 0, master → inte 25 → 0; this PR passes against inte/plugins.
 - [x] Rule 8: the same file reads the `client` job (3 shards, `fail-fast: false`, budget in shard 1) and the release jobs (self-update rule 52). The three shards locally: 209 / 208 / 208 files, 1 026 + 1 029 + 1 033 = 3 088 tests, the full suite's count.
 - [x] Rule 11: `client-effect-race-sweep.unit.test.js` (3 tests) — the script and config, the setup's delay (8 ms by default, `SCHED_DELAY` otherwise), and its absence from `vitest.config.js` and from every `.github/workflows/*.yml`; the first 2 red on inte/plugins at 611baf15. Whole client suite under `npm run test:slow-scheduler`: 10 / 11 failures at 2 / 8 ms before, 0 at both after; the normal suite stays 3 131 tests. `SupportAccessBanner.states.test.jsx` rule 17: its absence check, anchored by an `act` on the answer, fails when the answer carries a pending request.
+- [x] Rule 12: `server-test-ambient-flags.unit.test.js` (4 tests) — under the preload a shell carrying `GUESTFLOW_MANAGED`, `GUESTFLOW_DISABLE_OUTBOUND`, `GUESTFLOW_SELF_UPDATE`, `GUESTFLOW_PLUGINS` and `GUESTFLOW_ICAL_ALLOW_PRIVATE` leaves only `GUESTFLOW_TEST_EXIT_GRACE_MS`; `operatorManaged()` is false until the test sets the flag inline; `database.js` and `instancePaths` keep the flags; the six Playwright configs and E2E launchers, the app modules and `npm start` never name the preload. The first 2 red before the change. Full `npm test`: 9 242 tests, 0 failures in a clean shell and under each of the three flags (before: 50 failures under `GUESTFLOW_MANAGED=1`).
 
 ## 8. Out of scope
 

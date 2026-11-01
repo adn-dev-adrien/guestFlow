@@ -42,7 +42,7 @@ test('rule 27: back from the payment page with a new party, the token holder\'s 
   const calls = [];
   const provider = {
     createLink: async (args) => { calls.push(['create', args.amountCents]); return { id: `p${calls.length}`, url: `https://pay.example/${calls.length}`, status: 'open' }; },
-    getPayment: async () => ({ paid: false }),
+    getPayment: async () => ({ paid: false, pending: false }),
   };
   const deps = {
     database: db, paymentLinksModel, provider,

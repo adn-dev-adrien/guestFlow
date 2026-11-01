@@ -1173,6 +1173,8 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     h after the withdrawal the R1 limit closes it `payment-in-flight` with the operator's alert. Rule 58's read on such
     a link refuses the same way. A lapsed (`expired`) link keeps its one last look whatever the answer: nothing is said
     to a guest on it. Recorded in `utils/paymentProviders.js`.
+    Reading recorded 2026-11-01 (audit R12 plugins L-1): the plugin-facing contract,
+    [plugins-phase-3a-online-payment.md](plugins-phase-3a-online-payment.md) rule 4, now lists `pending` as well.
 65. **The acompte reminder on taken dates is never proposed, and refused first.** `emailLogModel.listPending` leaves
     out a `deposit_reminder` whose stay `takenByOf` finds taken; the send and the preview answer rule 35's refusal
     after rules 55-57 (platform stay, closed nights, payment to settle) and before any link is minted, provider or

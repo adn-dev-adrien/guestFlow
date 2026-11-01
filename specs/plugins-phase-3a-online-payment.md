@@ -108,7 +108,7 @@ Other facts the design rests on:
    | `id`, `label` | `'qonto'`, `'Qonto'` |
    | `isReady()` | connected and usable; false = treated as no provider |
    | `createLink({ title, amountCents, items?, expectedTotalCents?, redirectUrl? })` | `{ id, url, status, expiresAt }` |
-   | `getPayment(linkId)` | `{ paid, paymentId?, paidAt? }`, the authoritative paid signal |
+   | `getPayment(linkId)` | `{ paid, pending, paymentId?, paidAt? }`, the authoritative paid signal. `pending` is a boolean: a payment started and not final yet. It is required for the read after a `dates-taken` deactivation, where an unpaid answer without it counts as in flight |
    | `getLinkStatus(linkId)` | `'open' \| 'expired' \| 'cancelled'` |
    | `cancelLink(linkId)` | resolves once the link can no longer be paid; throws otherwise |
    | `errorCode` | the code a provider error answers with (`'QONTO_API_ERROR'`, kept for WordPress) |
@@ -118,6 +118,15 @@ Other facts the design rests on:
      `null`.
    - The plugin never writes `reservations` or `payment_links` itself; it hands the core what it
      reads from Qonto.
+   - Reading recorded 2026-11-01 (audit R12 plugins L-1): the `pending` field joined the contract with
+     [payment-link-lifecycle.md](payment-link-lifecycle.md) rule 64 (audit R11-E1), and this table had not
+     followed. The core reads `pending !== false` on an unpaid answer as a payment in flight: the read after a
+     `dates-taken` deactivation stays owed, no « rien prélevé » notice leaves, re-sends answer
+     `LINK_PAYMENT_IN_FLIGHT`, and after 24 h the link closes `payment-in-flight` with an operator alert. A
+     provider that omits it still loads (`createContext` checks member names only) and still works on every
+     other flow. The member set is unchanged, so no SDK bump. `payment-provider-contract-doc.unit.test.js`
+     keeps this table and `utils/paymentProviders.js` on the same fields, required and
+     optional alike.
 5. **Without an active provider, every online-payment entry point refuses and hides.**
    - The core endpoints `POST|GET /api/payments/reservations/:id/payment-links`,
      `POST /api/payments/reservations/:id/payment-emails` and `POST /api/payments/poll` stay at their
@@ -603,6 +612,7 @@ the moved page. No behaviour change.
 | `deposit-link-paid-on-disabled-acompte.unit.test.js` (2026-10-30) | 8 | Rule 48: live and `amount-changed` retry re-enable the acompte; the alert wording; ledger and save keep the acompte; journal keeps its entry |
 | `deposit-link-paid-on-paid-solde.unit.test.js` (2026-10-30) | 6 | Rule 49: live and `amount-changed` retry × the paid solde kept and the acompte booked on top with the excess as trop-perçu; the alert (« solde déjà perçu », « Trop-perçu de X à rembourser. », no confirmation); a later save keeps both payments |
 | `payment-link-retired-then-paid.unit.test.js` (2026-10-18) | 6 | Rule 24: ticked on seeing the money → `paid`, no alert, recorder once; the recorder keeps the operator's date; settled an earlier day → kept for refund, « à vérifier »; other cancellations keep rule 8; the email wording; the `cancelReason` upgrade |
+| `payment-provider-contract-doc.unit.test.js` (2026-11-01) | 2 | Rule 4: the table's `getPayment` fields equal those of `utils/paymentProviders.js`, `?` marks included, so `pending` stays required (`pending?` in the table is red); the row says an answer without it counts as in flight |
 
 ### Moved and updated tests
 
