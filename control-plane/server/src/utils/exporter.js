@@ -6,6 +6,7 @@
 
 const Database = require('better-sqlite3');
 const { execFileSync } = require('child_process');
+const crypto = require('crypto');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -54,7 +55,8 @@ function exportInstance({ instances, slug, exportsDir, stamp }) {
       if (fs.existsSync(source)) fs.cpSync(source, path.join(work, folder), { recursive: true });
     }
     fs.mkdirSync(exportsDir, { recursive: true });
-    const file = path.join(exportsDir, `${slug}-${stamp}.tar.gz`);
+    // H1 rule 43: one file per export, so a link never shares its archive with another one.
+    const file = path.join(exportsDir, `${slug}-${stamp}-${crypto.randomBytes(6).toString('hex')}.tar.gz`);
     execFileSync('tar', ['-czf', file, '-C', work, '.']);
     return { file, bytes: fs.statSync(file).size };
   } finally {
