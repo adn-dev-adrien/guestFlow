@@ -16,15 +16,24 @@
  *
  * Fails closed on purpose. A missing template, a partially-migrated row, a read that throws — all
  * resolve to `false`. The safe default is « ask me », never « mail the guest ».
+ *
+ * One exception, granted by Adrien on 2026-10-30 (specs/payment-link-lifecycle.md rule 44): the guest whose
+ * payment request lost its dates to another stay is told at once, without validation. It is not a mode:
+ * the template stays `manual` in the database, this policy still answers `false` for it, and its only sender
+ * is `utils/datesTakenNotice.js`, the one module that reads `AUTO_SEND_EXCEPTIONS` (a test pins it).
  */
 
 const { PAYMENT_STABLE_KEYS } = require('./defaultEmailTemplatesRegistry');
+
+const AUTO_SEND_EXCEPTIONS = Object.freeze(['dates_unavailable_notice']);
 
 function templateAutoSends(template) {
   try {
     if (!template) return false;
     // Rule 44 — whatever its stored mode, a template that asks for money is never sent by a cron.
     if (PAYMENT_STABLE_KEYS.includes(template.stableKey)) return false;
+    // Rule 44 — the exception never sends through a cron either: its sender calls it by name.
+    if (AUTO_SEND_EXCEPTIONS.includes(template.stableKey)) return false;
     const enabled = template.enabled === true || Number(template.enabled) === 1;
     return enabled && String(template.sendMode) === 'auto';
   } catch {
@@ -50,4 +59,9 @@ function anyTemplateAutoSends(templatesModel) {
   }
 }
 
-module.exports = { templateAutoSends, stableKeyAutoSends, anyTemplateAutoSends };
+/** Rule 45 — the exception's mode is shown, never edited. */
+function sendModeLocked(stableKey) {
+  return AUTO_SEND_EXCEPTIONS.includes(String(stableKey || ''));
+}
+
+module.exports = { templateAutoSends, stableKeyAutoSends, anyTemplateAutoSends, sendModeLocked, AUTO_SEND_EXCEPTIONS };

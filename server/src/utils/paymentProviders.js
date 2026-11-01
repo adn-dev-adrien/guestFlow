@@ -7,7 +7,8 @@
  *   isReady()                                   → connected and usable
  *   createLink({ title, amountCents, items?, expectedTotalCents?, redirectUrl? }, { origin? })
  *                                               → { id, url, status, expiresAt }
- *   getPayment(linkId, { origin? })             → { paid, paymentId?, paidAt? }
+ *   getPayment(linkId, { origin? })             → { paid, pending?, paymentId?, paidAt? } — `pending`: a payment
+ *                                                 started and not final yet (it may still be paid)
  *   getLinkStatus(linkId)                       → 'open' | 'expired' | 'cancelled'
  *   cancelLink(linkId)                          → resolves once the link can no longer be paid
  *   describeError(err)?                         → { httpStatus, error, message } for an error the

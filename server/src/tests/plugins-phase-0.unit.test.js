@@ -272,11 +272,27 @@ test('online payment: a pending last look blocks deactivate and uninstall until 
     const res = call(handler, 'online-payment');
     assert.equal(res.statusCode, 409);
     assert.equal(res.body.code, 'LINKS_LAST_LOOK_PENDING');
-    assert.equal(res.body.message, '2 liens expirés dont le paiement reste à vérifier : réessayer plus tard.');
+    assert.equal(res.body.message, '2 liens retirés ou expirés dont le paiement reste à vérifier : réessayer plus tard.');
   }
   db.prepare('UPDATE payment_links SET lastLookAt = NULL WHERE id = 2').run();
-  assert.equal(call('uninstall', 'online-payment').body.message, '1 lien expiré dont le paiement reste à vérifier : réessayer plus tard.');
+  assert.equal(call('uninstall', 'online-payment').body.message, '1 lien retiré ou expiré dont le paiement reste à vérifier : réessayer plus tard.');
   db.prepare('UPDATE payment_links SET lastLookAt = NULL').run();
+  assert.equal(call('deactivate', 'online-payment').body.state, 'inactive');
+});
+
+// specs/payment-link-lifecycle.md rules 52, 64 (re-review of #912, n6) — a link withdrawn for taken dates owes its read
+// after the deactivation too: it blocks until taken; a link withdrawn for another reason owes none.
+test('online payment: the last look of a link withdrawn for taken dates blocks too', { skip: skipWithout(['online-payment']) }, () => {
+  const { db, call } = setup();
+  const linksDdl = fs.readFileSync(path.join(__dirname, '..', 'schema.sql'), 'utf8').match(/CREATE TABLE IF NOT EXISTS payment_links \([\s\S]*?\n {2}\);/)[0];
+  db.exec(`DROP TABLE payment_links; ${linksDdl}`);
+  call('install', 'online-payment');
+  // date-literal-ok: the guard only asks whether a last look is owed, never when
+  db.prepare("INSERT INTO payment_links (id, reservationId, type, status, cancelReason, providerLinkId, lastLookAt) VALUES (1, 5, 'deposit', 'cancelled', 'dates-taken', 'pl_1', '2026-11-03T21:00:00Z'), (2, 5, 'balance', 'cancelled', 'operator', 'pl_2', '2026-11-03T21:05:00Z')").run();
+  const res = call('uninstall', 'online-payment');
+  assert.equal(res.statusCode, 409);
+  assert.equal(res.body.message, '1 lien retiré ou expiré dont le paiement reste à vérifier : réessayer plus tard.');
+  db.prepare('UPDATE payment_links SET lastLookAt = NULL WHERE id = 1').run();
   assert.equal(call('deactivate', 'online-payment').body.state, 'inactive');
 });
 

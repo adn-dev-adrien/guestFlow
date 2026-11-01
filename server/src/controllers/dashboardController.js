@@ -182,6 +182,30 @@ function buildController({
     },
 
     /**
+     * GET /api/dashboard/dates-taken
+     *
+     * The stays whose dates another stay took, told or not (specs/payment-link-lifecycle.md rule 43): one row per
+     * stay, every word written by the server (utils/datesTakenNotice.datesTakenCard). Empty `alerts: []` → no card.
+     */
+    datesTaken(req, res) {
+      const { datesTakenCard } = require('../utils/datesTakenNotice');
+      return res.json({ alerts: datesTakenCard(require('../database'), { today: resolveToday() }) });
+    },
+
+    /**
+     * POST /api/dashboard/dates-taken/:id/acknowledge
+     *
+     * « Vu » — the row leaves the card. 404 when it was not listed (or already seen).
+     */
+    acknowledgeDatesTaken(req, res) {
+      const id = Number(req.params.id);
+      if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'INVALID_ID' });
+      const { acknowledgeDatesTaken } = require('../utils/datesTakenNotice');
+      if (!acknowledgeDatesTaken(require('../database'), id)) return res.status(404).json({ error: 'NOT_FOUND' });
+      return res.json({ ok: true });
+    },
+
+    /**
      * GET /api/dashboard/payment-deadlines
      *
      * Every direct reservation with a missed payment deadline (specs/payment-schedule-and-cancellation.md

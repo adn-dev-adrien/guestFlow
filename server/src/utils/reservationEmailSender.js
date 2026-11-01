@@ -21,8 +21,11 @@ const { emailAmount } = require('./emailMoney');
 const { formatMomentLong } = require('./dateFr');
 
 // `installment` (the plan context of utils/installmentPlan.requestContext) and `occurrenceKey` make this the
-// request of ONE installment (specs/direct-installments.md rules 19-21).
-async function sendReservationTemplateEmail({ database, templatesModel, logModel, settingsModel, emailServiceFactory, reservationId, stableKey, extraContext, installment = null, occurrenceKey = '' }) {
+// request of ONE installment (specs/direct-installments.md rules 19-21). `onAccepted(logRow)` runs in the transaction
+// that writes the `sent` history row, once SMTP accepted the message (specs/payment-link-lifecycle.md rule 64); a
+// failure after that acceptance answers `accepted: true` (the guest may have it) and writes no `failed` row; without
+// `onAccepted`, such a failure is logged `failed` as any other.
+async function sendReservationTemplateEmail({ database, templatesModel, logModel, settingsModel, emailServiceFactory, reservationId, stableKey, extraContext, installment = null, occurrenceKey = '', onAccepted = null }) {
   const template = templatesModel.findByStableKey(stableKey);
   if (!template || !template.enabled) return { sent: false, reason: 'no-template' };
 
@@ -87,16 +90,26 @@ async function sendReservationTemplateEmail({ database, templatesModel, logModel
     return { sent: false, reason: ENGLISH_VERSION_MISSING };
   }
 
+  let accepted = false;
   try {
     const svc = emailServiceFactory(settingsModel.decryptedSmtpSettings());
     await svc.send(guestEmailMessage({ to, subject, text: body, settings, lang }));
-    const row = logModel.insert({
-      templateId: template.id, reservationId: reservation.id, status: 'sent', channel: 'smtp',
-      errorMessage: '', renderedSubject: subject, renderedBody: body, recipientEmail: to, occurrenceKey,
-    });
+    accepted = true;
+    const record = () => {
+      const logged = logModel.insert({
+        templateId: template.id, reservationId: reservation.id, status: 'sent', channel: 'smtp',
+        errorMessage: '', renderedSubject: subject, renderedBody: body, recipientEmail: to, occurrenceKey,
+      });
+      if (onAccepted) onAccepted(logged);
+      return logged;
+    };
+    const row = onAccepted ? database.transaction(record)() : record();
     return { sent: true, emailLogId: row && row.id, recipientEmail: to };
   } catch (err) {
     const errMsg = err && err.code === 'EMAIL_NOT_CONFIGURED' ? 'EMAIL_NOT_CONFIGURED' : String((err && err.message) || 'unknown');
+    // Re-review of #912 (n4) — only the caller that watches the acceptance (the dates-taken notice) gets it; every
+    // other send keeps its `failed` trace, as before.
+    if (accepted && onAccepted) return { sent: false, accepted: true, reason: errMsg };
     logModel.insert({
       templateId: template.id, reservationId: reservation.id, status: 'failed',
       errorMessage: errMsg, renderedSubject: subject, renderedBody: body, recipientEmail: to, occurrenceKey,

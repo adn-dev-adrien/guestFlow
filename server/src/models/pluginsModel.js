@@ -68,10 +68,14 @@ function buildModel(database) {
     }
   };
   // specs/payment-link-lifecycle.md rule 52 — a lapsed link deactivated unpaid still owes its one last read of
-  // the payment (rule 19); only the plugin's lifecycle job takes it.
+  // the payment (rule 19); only the plugin's lifecycle job takes it. So does a link withdrawn for taken dates (rule 64).
   const countPendingLastLooks = () => {
     try {
-      return database.prepare("SELECT COUNT(*) AS n FROM payment_links WHERE status = 'expired' AND lastLookAt IS NOT NULL AND remoteCancelPendingAt IS NULL").get().n;
+      return database.prepare(`
+        SELECT COUNT(*) AS n FROM payment_links
+         WHERE (status = 'expired' OR (status = 'cancelled' AND cancelReason = 'dates-taken'))
+           AND lastLookAt IS NOT NULL AND remoteCancelPendingAt IS NULL
+      `).get().n;
     } catch {
       return 0;
     }

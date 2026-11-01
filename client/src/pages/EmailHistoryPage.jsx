@@ -25,7 +25,9 @@ const PAGE_SIZE = 50;
 
 // Maps the email-log domain status to the shared StatusBadge (specs/ds-components.md §3.5 — the
 // page used to ship its own shadowing StatusBadge with a divergent outlined rendering).
-function EmailStatusBadge({ status, channel }) {
+function EmailStatusBadge({ status, channel, statusLabel }) {
+  // The server names an exceptional send itself (specs/payment-link-lifecycle.md rule 44).
+  if (status === 'sent' && statusLabel) return <StatusBadge status="success" label={statusLabel} wrap />;
   if (status === 'sent') {
     return channel === 'manual'
       ? <StatusBadge status="info" label="Envoyé manuellement" />
@@ -194,7 +196,7 @@ export default function EmailHistoryPage() {
               </Stack>
             </TableCell>
             <TableCell>{r.recipientEmail || '—'}</TableCell>
-            <TableCell><EmailStatusBadge status={r.status} channel={r.channel} /></TableCell>
+            <TableCell><EmailStatusBadge status={r.status} channel={r.channel} statusLabel={r.statusLabel} /></TableCell>
             <TableCell sx={{ maxWidth: 260, textOverflow: 'ellipsis', whiteSpace: 'nowrap', overflow: 'hidden' }}>
               {r.renderedSubject}
             </TableCell>
@@ -207,7 +209,7 @@ export default function EmailHistoryPage() {
               <Typography variant="body2" sx={{ fontWeight: 600, minWidth: 0, overflowWrap: 'anywhere' }}>
                 {r.templateName || <em>(modèle supprimé)</em>}
               </Typography>
-              <EmailStatusBadge status={r.status} channel={r.channel} />
+              <EmailStatusBadge status={r.status} channel={r.channel} statusLabel={r.statusLabel} />
             </Stack>
             {r.clientFullName ? (
               <Typography variant="caption" color="text.secondary">{r.clientFullName} · {r.propertyName}</Typography>

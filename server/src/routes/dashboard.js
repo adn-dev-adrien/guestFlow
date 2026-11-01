@@ -28,6 +28,10 @@ router.get('/new-reservations', controller.newReservations);
 router.get('/repaired-reservation-numbers', controller.repairedReservationNumbers);
 router.post('/repaired-reservation-numbers/:id/acknowledge', controller.acknowledgeRepairedReservationNumber);
 
+// specs/payment-link-lifecycle.md rule 43 — the stays whose dates another stay took, until « Vu ».
+router.get('/dates-taken', controller.datesTaken);
+router.post('/dates-taken/:id/acknowledge', controller.acknowledgeDatesTaken);
+
 // Échéances de paiement (specs/payment-schedule-and-cancellation.md §3.4). Admin-only: the reception
 // allowlist is deny-by-default, so these three are already out of that role's reach.
 router.get('/payment-deadlines', controller.paymentDeadlines);
@@ -60,6 +64,7 @@ function coreAttentionSources() {
       query: () => ({ month: String(today.getMonth() + 1), year: String(today.getFullYear()) }),
     },
     { key: 'repaired-reservation-numbers', rank: 40, handler: controller.repairedReservationNumbers },
+    { key: 'dates-taken', rank: 25, handler: controller.datesTaken },
     { key: 'email-readiness', rank: 80, handler: require('./emailReadiness').controller.get },
     { key: 'new-reservations', rank: 10, handler: controller.newReservations },
     { key: 'email-pending', rank: 30, handler: require('./emails').controller.pending },

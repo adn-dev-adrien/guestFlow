@@ -20,6 +20,7 @@
  *                              rule 8; `settledOn` = the bucket was settled another way before, rule 24;
  *                              `orphan` = the stay row is gone, specs/payment-link-lifecycle.md rule 3)
  *   - notifyDeactivationStuck? : (link, { providerLabel }) => a lapsed link still active after 24 h (rule 20)
+ *   - notifyPaymentInFlight?   : (link) => a payment in flight 24 h after a `dates-taken` withdrawal (rule 64)
  *
  * Idempotent: a link already `paid` is never re-listed by the poll; converting an already-converted devis
  * only records the bucket again, which the recorder ignores; a webhook replay re-runs the same no-ops.
@@ -467,12 +468,14 @@ async function retryPendingCancellationsOnce({ only = null, paymentLinksModel, p
       }
       await provider.cancelLink(link.providerLinkId);
       paymentLinksModel.clearRemoteCancelPending(link.id);
+      owePaymentReadAfterDeactivation({ paymentLinksModel, link, now });
       // Rule 5 — the outcome of each orphan withdrawn at the upgrade is logged.
       if (orphan) logger.log(`[payments] orphan link #${link.id} deactivated at ${link.provider}`);
       results.push({ id: link.id, reservationId: link.reservationId, type: link.type, status: 'deactivated' });
     } catch (err) {
       if (await require('./paymentLinkDeactivation').alreadyInactive(provider, link.providerLinkId)) {
         paymentLinksModel.clearRemoteCancelPending(link.id);
+        owePaymentReadAfterDeactivation({ paymentLinksModel, link, now });
         if (stayIsMissing(database, link)) logger.log(`[payments] orphan link #${link.id} already inactive at ${link.provider}`);
         results.push({ id: link.id, reservationId: link.reservationId, type: link.type, status: 'already-inactive' });
         continue;
@@ -482,6 +485,14 @@ async function retryPendingCancellationsOnce({ only = null, paymentLinksModel, p
     }
   }
   return { results, stoppedBy: null };
+}
+
+// specs/payment-link-lifecycle.md rule 64 (review of #912, M1) — the guest of a link withdrawn for taken dates is told
+// « rien ne vous a été prélevé » (rule 43). The read before the deactivation cannot say it, nor can a deactivation found
+// already done without any read: that link owes rule 19's last look, and the notice waits for its answer.
+function owePaymentReadAfterDeactivation({ paymentLinksModel, link, now }) {
+  if (link.status !== 'cancelled' || link.cancelReason !== LINK_REASONS.DATES_TAKEN) return;
+  paymentLinksModel.setLastLook(link.id, require('./paymentLinkLifecycle').lastLookAfter(now));
 }
 
 // specs/payment-link-lifecycle.md rules 42 and 56 — a link withdrawn by hand booked as the stay's money (`cancelled →
@@ -560,18 +571,36 @@ async function deactivateThenRead({ link, provider, paymentLinksModel, now, ...e
 }
 
 // Rule 19 — the one last read of a lapsed link, for a payment the provider completed after the read of rule
-// 18 (a 3-D Secure step in flight at the deactivation). Paid → booked (rule 14); either way, never again.
+// 18 (a 3-D Secure step in flight at the deactivation). Paid → booked (rule 14); either way, never again. A link
+// withdrawn for taken dates (rule 64): paid → rule 33; a payment in flight → read again at the next pass; unpaid →
+// stamped `unpaidReadAt`, which the guest notice waits for. Still in flight 24 h after the withdrawal: no more reads,
+// closed for the notice, `notifyPaymentInFlight(link)` once (re-review of #912, R1).
 async function runLastLooks({ database, paymentLinksModel, provider, now, ...effect }) {
   const results = [];
   for (const link of require('./paymentLinkLifecycle').listLastLookDue(database, { now })) {
     if (link.provider !== provider.id || !link.providerLinkId) continue;
     if (!paymentLinksModel.claimLastLook(link.id)) continue;
+    const datesTaken = link.status === 'cancelled' && link.cancelReason === LINK_REASONS.DATES_TAKEN;
     try {
       const pay = await provider.getPayment(link.providerLinkId, { origin: 'last-look' });
-      if (pay.paid) {
+      if (pay.paid && datesTaken) {
+        results.push(await bookDatesTakenPaid({ ...effect, database, paymentLinksModel, link, pay }));
+      } else if (pay.paid) {
         results.push(await processPaidLink({ ...effect, database, paymentLinksModel, link, paidPayment: pay }));
+      } else if (datesTaken && pay.pending && inFlightPastLimit(paymentLinksModel, link, now)) {
+        // Re-review of #912 (R1) — no endless reads: the link is closed for the notice, the operator checks by hand.
+        paymentLinksModel.stopInFlightRead(link.id, now);
+        if (effect.notifyPaymentInFlight && paymentLinksModel.claimDeactivationAlert(link.id, now)) {
+          try { await effect.notifyPaymentInFlight(link); } catch { /* best effort */ }
+        }
+        results.push(linkResult(link, { status: link.status, effect: 'last-look', pending: true, closed: 'payment-in-flight' }));
+      } else if (datesTaken && pay.pending) {
+        // Rule 64 — a payment still in flight may complete: the read stays owed, and so does the notice.
+        paymentLinksModel.setLastLook(link.id, now);
+        results.push(linkResult(link, { status: link.status, effect: 'last-look', pending: true }));
       } else {
-        results.push(linkResult(link, { status: 'expired', effect: 'last-look' }));
+        if (datesTaken) paymentLinksModel.markUnpaidRead(link.id, now);
+        results.push(linkResult(link, { status: link.status, effect: 'last-look' }));
       }
     } catch (err) {
       // Not read: the look stays owed, for the next pass.
@@ -581,6 +610,12 @@ async function runLastLooks({ database, paymentLinksModel, provider, now, ...eff
     }
   }
   return { results, stoppedBy: null };
+}
+
+function inFlightPastLimit(paymentLinksModel, link, now) {
+  const { DATES_TAKEN_READ_LIMIT_HOURS } = require('../constants/paymentLinks');
+  const sinceMs = paymentLinksModel.withdrawnAtMs(link.id);
+  return sinceMs != null && now.getTime() - sinceMs >= DATES_TAKEN_READ_LIMIT_HOURS * 60 * 60 * 1000;
 }
 
 // Rule 20 — a lapsed link whose deactivation has kept failing for 24 hours: one notification per link.
@@ -749,11 +784,11 @@ async function bookInstallmentPaidAfterAmountChange({ paymentLinksModel, notifyP
 // last looks), then check only the open links the decaying cadence says are due (`force` = a human asked,
 // every open link). A rate limit that survives the client's back-off stops the pass: the links not yet
 // examined wait for the next tick instead of being requested into a `429`.
-async function runPaymentPoll({ database, paymentLinksModel, provider, devisModel, sendConfirmation, checkConflict, notifyConflict, notifyPaidAfterCancel, notifyDeactivationStuck, recordPayment, force = false, now = new Date() }) {
+async function runPaymentPoll({ database, paymentLinksModel, provider, devisModel, sendConfirmation, checkConflict, notifyConflict, notifyPaidAfterCancel, notifyDeactivationStuck, notifyPaymentInFlight, recordPayment, force = false, now = new Date() }) {
   // specs/plugins-phase-3a-online-payment.md rule 23 — a link whose bucket was settled another way
   // leaves the polling list and joins the owed deactivations retried just below.
   const settled = typeof paymentLinksModel.retireSettled === 'function' ? paymentLinksModel.retireSettled() : [];
-  const lifecycle = await runLinkLifecycle({ database, paymentLinksModel, provider, now, devisModel, sendConfirmation, checkConflict, notifyConflict, notifyPaidAfterCancel, notifyDeactivationStuck, recordPayment });
+  const lifecycle = await runLinkLifecycle({ database, paymentLinksModel, provider, now, devisModel, sendConfirmation, checkConflict, notifyConflict, notifyPaidAfterCancel, notifyDeactivationStuck, notifyPaymentInFlight, recordPayment });
   const retired = lifecycle.moved.length;
   const results = [
     ...settled.filter((link) => !link.providerLinkId).map((link) => ({ id: link.id, reservationId: link.reservationId, type: link.type, status: 'settled', effect: 'retired-locally' })),
@@ -803,4 +838,4 @@ async function runPaymentPoll({ database, paymentLinksModel, provider, devisMode
   return { checked, paid: results.filter((r) => r.status === 'paid').length, retired, settled: settled.length, stoppedBy, results };
 }
 
-module.exports = { runPaymentPoll, runLinkLifecycle, processPaidLink, applyPaidEffect, retryPendingCancellations, bookWithdrawnPaid };
+module.exports = { runPaymentPoll, runLinkLifecycle, runLastLooks, processPaidLink, applyPaidEffect, retryPendingCancellations, bookWithdrawnPaid };

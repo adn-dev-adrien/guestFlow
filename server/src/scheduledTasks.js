@@ -132,6 +132,21 @@ async function runBreakfastPushPass(reason = 'tick') {
   }
 }
 
+// specs/payment-link-lifecycle.md rules 43, 64 — the guest whose request lost its dates is told once the provider
+// read the withdrawn link unpaid after its deactivation (the lifecycle's last look). Its own guard; never throws.
+let datesTakenNoticeInProgress = false;
+async function runDatesTakenNoticePass() {
+  if (datesTakenNoticeInProgress) return;
+  datesTakenNoticeInProgress = true;
+  try {
+    await require('./utils/datesTakenNotice').runDueNotices();
+  } catch (err) {
+    console.error('[dates-taken] notice pass error:', err && err.message ? err.message : err);
+  } finally {
+    datesTakenNoticeInProgress = false;
+  }
+}
+
 // No money pass here, on purpose (specs/payment-schedule-and-cancellation.md §1 amendment, rule 44).
 // A daily job used to mint the solde link and mail the request at J-30; the operator now sends every
 // money email himself from the dashboard's « Échéances de paiement » card, which lists the same
@@ -173,6 +188,11 @@ function startScheduledTasks() {
   setInterval(() => runBreakfastPushPass('tick').catch((err) => console.error('[push] unhandled:', err)), BREAKFAST_PUSH_TICK);
   setTimeout(() => runBreakfastPushPass('boot').catch((err) => console.error('[push] unhandled:', err)), 105 * 1000);
 
+  // Dates-taken notices: per-minute tick, first pass 115 s after boot.
+  const DATES_TAKEN_NOTICE_TICK = 60 * 1000;
+  setInterval(() => { runDatesTakenNoticePass(); }, DATES_TAKEN_NOTICE_TICK);
+  setTimeout(() => { runDatesTakenNoticePass(); }, 115 * 1000);
+
   // Self-update: poll the GitHub releases API hourly, plus once 60 s after boot so a restart
   // surfaces a pending version straight away (specs/self-update-and-releases.md §3.B rule 12).
   // `runVersionCheck` never rejects — an unreachable GitHub leaves the last known state in place.
@@ -199,4 +219,5 @@ module.exports = {
   runArrivalDeparturePushPass,
   // Breakfast push — exposed for tests + ops trigger.
   runBreakfastPushPass,
+  runDatesTakenNoticePass,
 };

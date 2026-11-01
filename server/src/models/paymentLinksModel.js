@@ -38,8 +38,12 @@
  *   cancel(id, { remotePending })           → 'cancelled', with the remote-deactivation marker when pending
  *   listRemoteCancelPending()               → cancelled and expired rows whose deactivation at the provider is owed
  *   clearRemoteCancelPending(id, { providerPaymentId?, paidAt? }) → the provider settled it (deactivated, or paid)
- *   setLastLook(id, at) / claimLastLook(id) → the one last payment read of a lapsed link (specs/payment-link-lifecycle.md rule 19);
- *                                           the claim clears it and says whether this caller owns the read
+ *   setLastLook(id, at) / claimLastLook(id) → the one last payment read of a lapsed link (specs/payment-link-lifecycle.md rule 19),
+ *                                           or of a link withdrawn for taken dates (rule 64); the claim clears it and says
+ *                                           whether this caller owns the read
+ *   markUnpaidRead(id, at)                  → that read found a `dates-taken` link unpaid (rule 64)
+ *   closeForNotice(id, reason, at) / stopInFlightRead(id, at) / withdrawnAtMs(id)
+ *                                           → a `dates-taken` link the notice never answers; the read capped (rule 64)
  *   claimDeactivationAlert(id, at)          → stamps deactivationAlertedAt once (rule 20); false when already stamped
  *   findById(id)
  *
@@ -103,6 +107,8 @@ function isPollDue(link, nowMs, cadence = POLL_CADENCE_DEFAULTS) {
 }
 
 function buildModel(database) {
+  const OWES_LAST_LOOK = "status = 'expired' OR (status = 'cancelled' AND cancelReason = 'dates-taken')";
+
   const SELECT_COLS = `id, reservationId, type, provider, providerLinkId, url, amountCents, currency,
     status, providerPaymentId, createdAt, paidAt, expiresAt, lastPolledAt, remoteCancelPendingAt, cancelReason, installmentId`;
 
@@ -273,6 +279,7 @@ function buildModel(database) {
       UPDATE payment_links
          SET status = 'paid',
              remoteCancelPendingAt = NULL,
+             lastLookAt = NULL,
              providerPaymentId = COALESCE(?, providerPaymentId),
              paidAt = COALESCE(?, paidAt, datetime('now'))
        WHERE id = ? AND status = 'cancelled' AND cancelReason = ?
@@ -442,9 +449,39 @@ function buildModel(database) {
     ).all();
   }
 
-  // Rule 19 — one more payment read, `at`, for a payment the provider completed after the read of rule 18.
+  // Rule 19 — one more payment read, `at`, for a payment the provider completed after the read of rule 18. A link
+  // withdrawn for taken dates owes it too (review of #912, M1): its guest is told « rien ne vous a été prélevé ».
   function setLastLook(id, at) {
-    database.prepare("UPDATE payment_links SET lastLookAt = ? WHERE id = ? AND status = 'expired'").run(at.toISOString(), Number(id));
+    database.prepare(`UPDATE payment_links SET lastLookAt = ? WHERE id = ? AND (${OWES_LAST_LOOK})`).run(at.toISOString(), Number(id));
+  }
+
+  // Rule 64 — a `dates-taken` link the guest notice will never answer (`reason`: never sent, payment in flight, …).
+  function closeForNotice(id, reason, at = new Date()) {
+    database.prepare(`
+      UPDATE payment_links SET noticeJudgedAt = COALESCE(noticeJudgedAt, ?), noticeClosedReason = COALESCE(noticeClosedReason, ?)
+       WHERE id = ? AND cancelReason = 'dates-taken'
+    `).run(at.toISOString(), String(reason), Number(id));
+  }
+
+  // Re-review of #912 (R1) — a payment in flight past the limit: no more reads, closed for the notice.
+  function stopInFlightRead(id, at = new Date()) {
+    database.prepare("UPDATE payment_links SET lastLookAt = NULL WHERE id = ? AND status = 'cancelled' AND cancelReason = 'dates-taken'").run(Number(id));
+    closeForNotice(id, 'payment-in-flight', at);
+  }
+
+  // When a `dates-taken` link was withdrawn (its creation for a link withdrawn before the date was recorded).
+  function withdrawnAtMs(id) {
+    const row = database.prepare('SELECT COALESCE(withdrawnAt, createdAt) AS at FROM payment_links WHERE id = ?').get(Number(id));
+    return row ? parseTimestampMs(row.at) : null;
+  }
+
+  // Review of #912 (M1) — the read after the deactivation of a `dates-taken` link found no payment, final or in flight.
+  function markUnpaidRead(id, at = new Date()) {
+    database.prepare(`
+      UPDATE payment_links SET unpaidReadAt = ?
+       WHERE id = ? AND status = 'cancelled' AND cancelReason = 'dates-taken' AND remoteCancelPendingAt IS NULL
+         AND lastLookAt IS NULL AND paidAt IS NULL AND providerPaymentId IS NULL
+    `).run(at.toISOString(), Number(id));
   }
 
   // Two passes at once (the job and a manual « poll now ») read a due last look once: the one that clears it.
@@ -503,6 +540,10 @@ function buildModel(database) {
     clearRemoteCancelPending,
     setLastLook,
     claimLastLook,
+    markUnpaidRead,
+    closeForNotice,
+    stopInFlightRead,
+    withdrawnAtMs,
     claimDeactivationAlert,
   };
 }

@@ -97,7 +97,12 @@ async function deactivateAbandonedLinks(links, { paymentLinksModel, providerFor 
   let notDeactivated = 0;
   const paid = [];
   const settled = (link) => {
-    if (link.status !== 'expired') { paymentLinksModel.cancel(link.id); return; }
+    if (link.status !== 'expired') {
+      paymentLinksModel.cancel(link.id);
+      // Rule 64 (re-review of #912, R2) — a `dates-taken` link owes its read after the deactivation, wherever it ends.
+      if (link.cancelReason === LINK_REASONS.DATES_TAKEN) paymentLinksModel.setLastLook(link.id, require('./paymentLinkLifecycle').lastLookAfter(now));
+      return;
+    }
     paymentLinksModel.clearRemoteCancelPending(link.id);
     paymentLinksModel.setLastLook(link.id, require('./paymentLinkLifecycle').lastLookAfter(now));
   };

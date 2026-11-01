@@ -28,6 +28,7 @@ const NAMES = Object.freeze({
   season_gift_vouchers: 'Bons cadeaux',
   season_new_year: 'Vœux et dates',
   cancellation_notice: 'Avis d’annulation',
+  dates_unavailable_notice: 'Dates plus disponibles',
 });
 
 const MOMENTS = Object.freeze([
@@ -41,7 +42,7 @@ const MOMENTS = Object.freeze([
 
 // Within a moment, the order a guest receives the shipped emails.
 const ORDER = Object.freeze([
-  'reservation_confirmation', 'deposit_request', 'full_request', 'deposit_reminder', 'balance_request', 'balance_reminder',
+  'reservation_confirmation', 'deposit_request', 'full_request', 'deposit_reminder', 'dates_unavailable_notice', 'balance_request', 'balance_reminder',
   'installment_request', 'arrival_reminder_7d', 'arrival_reminder_1d', 'guest_thanks_j1', 'season_gift_vouchers', 'season_new_year', 'cancellation_notice',
 ]);
 
@@ -53,7 +54,7 @@ function displayNameOf(template) {
 function momentIdOf(template) {
   const t = template || {};
   if (t.stableKey === 'cancellation_notice') return 'cancellation';
-  if (['deposit_request', 'balance_request', 'full_request'].includes(t.stableKey)) return 'booking';
+  if (['deposit_request', 'balance_request', 'full_request', 'dates_unavailable_notice'].includes(t.stableKey)) return 'booking';
   // An installment falls due before the arrival, with the other payment emails of that moment.
   if (t.stableKey === 'installment_request') return 'before';
   const anchor = String(t.anchor || 'start');

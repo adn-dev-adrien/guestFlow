@@ -84,6 +84,16 @@ const CORE_SUMMARIES = {
       severity: 'todo',
     } : null;
   },
+  // specs/payment-link-lifecycle.md rule 43 — the stays whose dates were taken, and how many guests were not told.
+  'dates-taken': (payload) => {
+    const rows = listOf(payload, 'alerts');
+    if (!rows.length) return null;
+    const notTold = rows.filter((row) => !(row.notice && row.notice.sent)).length;
+    const told = notTold === 0
+      ? (rows.length > 1 ? 'clients prévenus' : 'client prévenu')
+      : plural(notTold, 'client non prévenu', 'clients non prévenus');
+    return { count: rows.length, title: 'Dates prises', detail: `${plural(rows.length, 'séjour', 'séjours')} · ${told}`, severity: 'todo' };
+  },
   'email-readiness': (payload) => {
     const n = Number(payload && payload.soonCount) || 0;
     return n > 0 ? {

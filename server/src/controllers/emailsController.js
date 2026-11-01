@@ -16,6 +16,7 @@ const { todayIso: localTodayIso } = require('../utils/localDate');
 const { closedDatesRefusal } = require('../utils/closedStayDates');
 const { unsettledWithdrawnRefusal } = require('../utils/withdrawnPayments');
 const { platformStayRefusal } = require('../utils/platformStayRefusal');
+const { takenByOf } = require('../utils/datesTaken');
 const { sendFailureMessage } = require('../utils/sendFailure');
 const { parisDateTimeLabel } = require('../utils/parisDateTime');
 
@@ -27,6 +28,7 @@ const {
 // through sendFailureMessage (specs/email-automation.md rule 15).
 const FAILURE_CODES = {
   CLIENT_NO_EMAIL: 'Pas d’adresse email.',
+  DATES_UNAVAILABLE: 'Relance refusée : dates prises par une autre réservation.',
   NO_TEMPLATE: 'Modèle manquant.',
   [ENGLISH_VERSION_MISSING]: ENGLISH_VERSION_MISSING_MESSAGE,
 };
@@ -67,6 +69,9 @@ const VALID_UNTIL_AT_SEND = "(36 h après l'envoi)";
 const LINK_REQUIRED = new Set(['deposit_request', 'balance_request', 'full_request']);
 const LINK_MISSING = { error: 'PAYMENT_LINK_MISSING', message: "Le lien de paiement manque dans le texte : l'e-mail n'est pas envoyé." };
 const PLACEHOLDER_LEFT = { error: 'PAYMENT_LINK_PLACEHOLDER', message: "Lien de paiement indisponible : l'e-mail n'est pas envoyé." };
+// Rule 35 — the acompte reminder of a stay whose nights another stay took is refused, and the guest told instead.
+const REMINDER_ON_TAKEN_DATES = Object.freeze({ httpStatus: 409, error: 'DATES_UNAVAILABLE', message: 'Dates déjà prises par une autre réservation : relance non envoyée.' });
+const DEPOSIT_REMINDER = 'deposit_reminder';
 
 // specs/direct-installments.md rules 19-21 — the request of one installment: it carries the plan in its
 // variables and its own link, and is sent once per installment (the occurrence key).
@@ -78,7 +83,7 @@ const INSTALLMENT_STABLE_KEY = 'installment_request';
 //   markRequested(installmentId).
 // `paymentRequests` (utils/paymentRequests.js), the same for the stay's own links:
 //   available() → a payment provider can mint links;  ensureLink(reservationId, type) → { url, expiresAt }.
-function buildController({ database, templatesModel, logModel, settingsModel, emailServiceFactory, manualQueueModel, paymentLinksModel, ledger, preferences, installmentRequests = null, paymentRequests = null, testMailer = null, now = () => new Date() }) {
+function buildController({ database, templatesModel, logModel, settingsModel, emailServiceFactory, manualQueueModel, paymentLinksModel, ledger, preferences, installmentRequests = null, paymentRequests = null, testMailer = null, datesTakenNotice = null, now = () => new Date() }) {
   // specs/guest-email-sequence.md rules 12-13bis — the ledger key a sequence email is sent under
   // from this controller. Null for every other template (payment emails keep their own rules).
   // A season email sent by hand counts for the season that just passed or is coming.
@@ -168,11 +173,28 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
   // specs/payment-link-lifecycle.md rules 55-57 — a request or reminder that carries a link is refused, before any
   // mint, on a platform stay, on closed nights, or while a payment received on a withdrawn link waits. Rule 60 —
   // the preview reads the same answer, so the dialog says it before « Envoyer ».
-  function linkRefusal(reservationId) {
+  // Rule 35 — the acompte reminder is also refused on nights another stay took (after rules 55-57).
+  function linkRefusal(reservationId, stableKey = null) {
     const refusal = platformStayRefusal(database, Number(reservationId))
       || closedDatesRefusal(database, Number(reservationId))
-      || unsettledWithdrawnRefusal(database, Number(reservationId));
+      || unsettledWithdrawnRefusal(database, Number(reservationId))
+      || (stableKey === DEPOSIT_REMINDER && takenByOf(database, Number(reservationId)) ? REMINDER_ON_TAKEN_DATES : null);
     return refusal ? { httpStatus: refusal.httpStatus, error: refusal.error, message: refusal.message } : null;
+  }
+
+  // Rule 35 — the refused reminder leaves the hand queue, is traced once as refused, and asks for the guest notice
+  // (rule 43), which leaves at most once per stay. The trace is a `failed` row (review of #912, m2): it never dedups
+  // the queue, so once the nights are free again the reminder is proposed as before.
+  function skipReminderOnTakenDates(template, reservationId) {
+    if (manualQueueModel) manualQueueModel.remove(Number(template.id), Number(reservationId), '');
+    if (!logModel.hasFailure(Number(template.id), Number(reservationId), REMINDER_ON_TAKEN_DATES.error)) {
+      logModel.insert({
+        templateId: Number(template.id), reservationId: Number(reservationId), status: 'failed',
+        errorMessage: REMINDER_ON_TAKEN_DATES.error, renderedSubject: template.subject || '', renderedBody: '', recipientEmail: '', occurrenceKey: '',
+      });
+    }
+    const notice = datesTakenNotice || require('../utils/datesTakenNotice');
+    Promise.resolve(notice.notifyDatesTaken(Number(reservationId))).catch((err) => console.warn('[dates-taken] notice after a refused reminder:', (err && err.message) || err));
   }
 
   const hasPlaceholder = (text) => String(text || '').includes(LINK_AT_SEND) || String(text || '').includes(VALID_UNTIL_AT_SEND);
@@ -217,7 +239,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
     // provider is live: nobody polls or reconciles it otherwise. The send hands the link it resolved.
     const providerLive = Boolean(paymentProviders.declared());
     const linkType = SEND_TIME_LINKS[template.stableKey];
-    const refusal = template.stableKey === INSTALLMENT_STABLE_KEY || linkType ? linkRefusal(reservationId) : null;
+    const refusal = template.stableKey === INSTALLMENT_STABLE_KEY || linkType ? linkRefusal(reservationId, template.stableKey) : null;
     if (installmentRef || linkType) {
       const stored = installmentRef
         ? installmentRef.openLink
@@ -318,8 +340,11 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
     const linkType = wanted ? SEND_TIME_LINKS[wanted.stableKey] : null;
 
     if (isInstallment || linkType) {
-      const refusal = linkRefusal(reservationId);
-      if (refusal) return res.status(refusal.httpStatus).json({ error: refusal.error, message: refusal.message });
+      const refusal = linkRefusal(reservationId, wanted.stableKey);
+      if (refusal) {
+        if (refusal.message === REMINDER_ON_TAKEN_DATES.message) skipReminderOnTakenDates(wanted, reservationId);
+        return res.status(refusal.httpStatus).json({ error: refusal.error, message: refusal.message });
+      }
     }
     // A send that cannot leave is refused before a payment link is minted for it (review of #897).
     if ((isInstallment || linkType) && wantedGraph) {
@@ -612,6 +637,8 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
       ...row,
       sentAtLabel: parisDateTimeLabel(row.sentAt),
       errorLabel: row.status === 'failed' ? failureLabel(row.errorMessage) : '',
+      // specs/payment-link-lifecycle.md rule 44 — the one e-mail that left without validation says so.
+      ...(row.status === 'sent' && String(row.occurrenceKey || '').startsWith('dates-taken:') ? { statusLabel: 'Envoyé automatiquement (dates prises)' } : {}),
     }));
     return res.json({ ...result, rows });
   }

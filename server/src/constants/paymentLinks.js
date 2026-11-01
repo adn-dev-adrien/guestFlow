@@ -10,6 +10,8 @@ const PAYMENT_LINK_VALIDITY_HOURS = 36;
 const PAYMENT_LINK_MIN_REMAINING_HOURS = 24;
 const LAST_LOOK_DELAY_MINUTES = 60;
 const DEACTIVATION_ALERT_AFTER_HOURS = 24;
+// Rule 64 (re-review of #912, R1) — a payment in flight on a link withdrawn for taken dates is read again until then.
+const DATES_TAKEN_READ_LIMIT_HOURS = 24;
 
 const LINK_REASONS = Object.freeze({
   ORPHAN: 'orphan',
@@ -35,6 +37,7 @@ module.exports = {
   PAYMENT_LINK_MIN_REMAINING_HOURS,
   LAST_LOOK_DELAY_MINUTES,
   DEACTIVATION_ALERT_AFTER_HOURS,
+  DATES_TAKEN_READ_LIMIT_HOURS,
   LINK_REASONS,
   LAPSED_REASONS,
   PRE_ARRIVAL_TYPES,

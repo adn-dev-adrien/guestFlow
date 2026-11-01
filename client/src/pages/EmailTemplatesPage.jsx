@@ -212,6 +212,8 @@ export default function EmailTemplatesPage() {
         bodiesState: 'loading',
         dayOffset: Number(row.dayOffset || 0),
         sendMode: row.sendMode || 'manual',
+        sendModeLocked: Boolean(row.sendModeLocked),
+        sendModeLabel: row.sendModeLabel || '',
         enabled: row.enabled !== 0,
         stableKey: row.stableKey,
         textsSection: row.textsSection,
@@ -356,6 +358,8 @@ export default function EmailTemplatesPage() {
             <Typography sx={{ fontWeight: 600, overflowWrap: 'anywhere' }}>{row.displayName}</Typography>
             {!row.shipped && <Chip label="personnalisé" size="small" variant="outlined" />}
             {row.sendMode === 'auto' && <StatusBadge status="success" label="Auto" />}
+            {/* specs/payment-link-lifecycle.md rule 45 — the one email that leaves without validation, by name. */}
+            {row.sendModeLocked && <StatusBadge status="info" label={row.sendModeLabel} />}
             {/* specs/email-language-fr-en.md rule 9 — never sent to an English-speaking guest. */}
             {row.hasEnglish === false && <StatusBadge status="warning" label="EN manquant" />}
           </Stack>
@@ -441,9 +445,11 @@ export default function EmailTemplatesPage() {
             menu.row.textsSection && (
               <MenuItem key="texts" onClick={() => { const { row } = menu; setMenu(null); navigate(`/settings/emails/textes#${row.textsSection}`); }}>Modifier les textes</MenuItem>
             ),
-            <MenuItem key="mode" onClick={() => { const { row } = menu; setMenu(null); handleToggleMode(row); }}>
-              {menu.row.sendMode === 'auto' ? 'Revenir à l’envoi manuel' : 'Envoi automatique…'}
-            </MenuItem>,
+            !menu.row.sendModeLocked && (
+              <MenuItem key="mode" onClick={() => { const { row } = menu; setMenu(null); handleToggleMode(row); }}>
+                {menu.row.sendMode === 'auto' ? 'Revenir à l’envoi manuel' : 'Envoi automatique…'}
+              </MenuItem>
+            ),
             <Divider key="d" />,
             menu.row.shipped ? (
               <MenuItem key="del" disabled>
@@ -530,24 +536,32 @@ export default function EmailTemplatesPage() {
               example={when.example}
             />
           )}
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-            <FormControl sx={{ flex: 1 }}>
-              <InputLabel>Mode d'envoi</InputLabel>
-              <Select
-                label="Mode d'envoi"
-                value={form.sendMode}
-                onChange={(e) => setForm({ ...form, sendMode: e.target.value })}
-              >
-                <MenuItem value="manual">Manuel : attend ma validation</MenuItem>
-                <MenuItem value="auto">Automatique : part seul à 08:00</MenuItem>
-              </Select>
-              {form.sendMode === 'auto' ? (
-                <FormHelperText>
-                  Part sans validation, à sa date.
-                </FormHelperText>
-              ) : null}
-            </FormControl>
-          </Stack>
+          {form.sendModeLocked ? (
+            <Box>
+              <Typography variant="subtitle2">Mode d’envoi</Typography>
+              <Typography>{form.sendModeLabel}</Typography>
+              <FormHelperText>Part seul, une fois, quand les dates sont prises par une autre réservation.</FormHelperText>
+            </Box>
+          ) : (
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+              <FormControl sx={{ flex: 1 }}>
+                <InputLabel>Mode d'envoi</InputLabel>
+                <Select
+                  label="Mode d'envoi"
+                  value={form.sendMode}
+                  onChange={(e) => setForm({ ...form, sendMode: e.target.value })}
+                >
+                  <MenuItem value="manual">Manuel : attend ma validation</MenuItem>
+                  <MenuItem value="auto">Automatique : part seul à 08:00</MenuItem>
+                </Select>
+                {form.sendMode === 'auto' ? (
+                  <FormHelperText>
+                    Part sans validation, à sa date.
+                  </FormHelperText>
+                ) : null}
+              </FormControl>
+            </Stack>
+          )}
 
           {/* specs/email-automation.md rule 17 — the same view as « Textes des emails »: each variable
               by its French label, the chips insert it at the cursor; the English side is optional

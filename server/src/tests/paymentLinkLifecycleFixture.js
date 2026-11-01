@@ -44,7 +44,7 @@ function addLink(links, db, reservationId, { type = 'deposit', amountCents = 900
  * A provider stub: `paid` (bool or (linkId, origin) → bool), `failCancel` (an Error to throw from cancelLink),
  * `failPayment` (an Error to throw from getPayment), `linkStatus` (what getLinkStatus answers).
  */
-function fakeProvider({ paid = false, paidAt = '2026-10-29T09:15:00Z', failCancel = null, failPayment = null, linkStatus = 'open' } = {}) {
+function fakeProvider({ paid = false, pending = false, paidAt = '2026-10-29T09:15:00Z', failCancel = null, failPayment = null, linkStatus = 'open' } = {}) {
   const calls = [];
   const isPaid = typeof paid === 'function' ? paid : () => paid;
   return {
@@ -61,7 +61,8 @@ function fakeProvider({ paid = false, paidAt = '2026-10-29T09:15:00Z', failCance
     getPayment: async (linkId, opts) => {
       calls.push(['getPayment', linkId, opts && opts.origin]);
       if (failPayment) throw failPayment;
-      return isPaid(linkId, opts && opts.origin) ? { paid: true, paymentId: `pay_${linkId}`, paidAt } : { paid: false };
+      if (isPaid(linkId, opts && opts.origin)) return { paid: true, paymentId: `pay_${linkId}`, paidAt };
+      return { paid: false, ...((typeof pending === 'function' ? pending(linkId, opts && opts.origin) : pending) ? { pending: true } : {}) };
     },
     getLinkStatus: async (linkId) => { calls.push(['getLinkStatus', linkId]); return linkStatus; },
     cancelLink: async (linkId) => {
