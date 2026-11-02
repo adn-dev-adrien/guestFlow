@@ -6,6 +6,7 @@ const Database = require('better-sqlite3');
 
 const { buildModel, TABLE_SQL } = require('../intakesModel');
 const { createIntakeService } = require('../intakeService');
+const { withStoredUpdateBody } = require('../../sdk/testing');
 const { SUBJECT, SENT_AT, bookingMail } = require('./fixtures');
 
 const R = { id: 1, propertyId: 1, platform: 'Airbnb Lodge', kind: 'reservation', sourceType: 'ical', icalSyncLocked: 0, platformGrossAmount: null, cancelledAt: null };
@@ -15,7 +16,7 @@ function setup({ mails = [MAIL], today = '2026-10-25', findReservations = () => 
   const db = new Database(':memory:');
   db.exec(TABLE_SQL);
   const calls = { clients: [], updates: [], withholds: [] };
-  const service = createIntakeService({
+  const service = createIntakeService(withStoredUpdateBody({
     intakes: buildModel(db),
     settings: { mailbox: () => ({ host: 'h', user: 'u', password: 'p' }), sender: () => 's', listings: () => [[1, '1234567890123456789']], autoApply: () => true },
     readMails: async (cfg, h) => { for (const m of mails) if (!h.seen(m.messageId)) await h.onMail({ authenticated: true, ...m }); },
@@ -29,7 +30,7 @@ function setup({ mails = [MAIL], today = '2026-10-25', findReservations = () => 
       withholdsTouristTax: (propertyId, platform) => { calls.withholds.push([propertyId, platform]); return withholds(); },
     },
     today: () => today,
-  });
+  }));
   return { service, db, calls };
 }
 

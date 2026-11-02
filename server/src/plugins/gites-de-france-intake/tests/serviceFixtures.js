@@ -4,6 +4,7 @@ const Database = require('better-sqlite3');
 
 const { buildModel, TABLE_SQL } = require('../intakesModel');
 const { createIntakeService } = require('../intakeService');
+const { withStoredUpdateBody } = require('../../sdk/testing');
 const { BOOKING_MAIL } = require('./fixtures');
 
 const PLACEHOLDER = {
@@ -24,7 +25,7 @@ function setup({
   db.exec(TABLE_SQL);
   const intakes = buildModel(db);
   const calls = { updates: [], clients: [], mailsSent: 0 };
-  const service = createIntakeService({
+  const service = createIntakeService(withStoredUpdateBody({
     intakes,
     parserVersion,
     settings: {
@@ -54,7 +55,7 @@ function setup({
       },
       suggestBeds: () => ({ singleBeds: 2, doubleBeds: 4 }),
     },
-  });
+  }));
   return { service, intakes, calls, db };
 }
 

@@ -29,14 +29,24 @@ const clientValidation = lazy('../../utils/clientValidation');
 // client behind holding a guest's personal data. The result then carries `clientId`.
 const ROLLBACK = Symbol('rollback');
 
+const autoEnabledOptionIds = () => new Set(database().prepare('SELECT id FROM options WHERE COALESCE(autoEnabled, 0) = 1').all().map((o) => o.id));
+
+// SDK 2.21.0 (specs/plugins-phase-1-sdk.md rule 38) — the body `update` spreads a patch over, for a plugin that
+// rewrites one of its lists (`options`, `customOptions`, `resources`): it starts from these lines, so a field the
+// fiche's save carries (a planning card's `cardOccurrences` and `cardPersons`) is never dropped by a copy.
+function storedUpdateBody(id) {
+  const current = reservations().getByIdWithDetails(Number(id));
+  if (!current || current.kind !== 'reservation') return null;
+  return updateBody().toUpdateBody(current, autoEnabledOptionIds());
+}
+
 function applyReservationUpdate(id, patch, label) {
   const current = reservations().getByIdWithDetails(Number(id));
   if (!current || current.kind !== 'reservation') return { status: 404, body: { error: 'Réservation introuvable' } };
   if (String(current.startDate) <= reservationHelpers().getTodayIsoDate()) {
     return { status: 409, body: { error: 'Séjour commencé ou passé', code: 'PAST_RESERVATION' } };
   }
-  const autoEnabled = new Set(database().prepare('SELECT id FROM options WHERE COALESCE(autoEnabled, 0) = 1').all().map((o) => o.id));
-  const body = { ...updateBody().toUpdateBody(current, autoEnabled), ...patch };
+  const body = { ...updateBody().toUpdateBody(current, autoEnabledOptionIds()), ...patch };
   const result = reservationsController().performUpdate(Number(id), body);
   if (result.status === 200 && label) {
     reservations().addHistoryEntry(Number(id), 'update', [{ field: 'source', label: 'Origine', from: null, to: String(label) }]);
@@ -96,6 +106,7 @@ module.exports = Object.freeze({
   reservations: Object.freeze({
     getByIdWithDetails: (id) => reservations().getByIdWithDetails(id),
     update: updateReservation,
+    updateBody: storedUpdateBody,
     suggestBeds,
     platformCommission: (figures) => platformCommission().computePlatformCommission(figures),
     // specs/per-platform-tourist-tax-three-way.md — true in the `platform` mode only: the platform charges

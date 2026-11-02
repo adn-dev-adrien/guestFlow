@@ -8,6 +8,7 @@ const Database = require('better-sqlite3');
 const { parseAirbnbMail } = require('../mailParser');
 const { buildModel, TABLE_SQL } = require('../intakesModel');
 const { createIntakeService } = require('../intakeService');
+const { withStoredUpdateBody } = require('../../sdk/testing');
 const { SUBJECT, SENT_AT, bookingMail } = require('./fixtures');
 
 const withMessage = (lines, base = bookingMail()) => base.replace('Bonjour,', ['Bonjour,', ...lines].join('\n'));
@@ -102,7 +103,7 @@ function service(text, { authenticated = true } = {}) {
   const base = { id: 1, propertyId: 1, platform: 'Airbnb', kind: 'reservation', sourceType: 'ical', icalSyncLocked: 0, platformGrossAmount: null, cancelledAt: null };
   const rows = [{ ...base, startDate: '2026-12-26', endDate: '2026-12-30' }, { ...base, id: 2, startDate: '2027-01-02', endDate: '2027-01-06' }];
   const intakes = buildModel(db);
-  const svc = createIntakeService({
+  const svc = createIntakeService(withStoredUpdateBody({
     intakes,
     settings: { mailbox: () => ({ host: 'h', user: 'u', password: 'p' }), sender: () => 's', listings: () => [[1, '1234567890123456789']], autoApply: () => true },
     readMails: async (cfg, h) => { if (!h.seen('<x>')) await h.onMail({ messageId: '<x>', receivedAt: SENT_AT, sentAt: SENT_AT, subject: SUBJECT, authenticated, text }); },
@@ -116,7 +117,7 @@ function service(text, { authenticated = true } = {}) {
       withholdsTouristTax: () => true,
     },
     now: () => new Date('2026-10-25T09:00:00Z'),
-  });
+  }));
   return { svc, writes, db };
 }
 
