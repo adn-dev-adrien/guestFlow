@@ -187,8 +187,13 @@ function spreadCents(cents, weights) {
  * the solde's, spread over the buckets the solde was booked on. A commission line carries `unitPrice` 0 — like a bucket
  * requalified out of the paid solde — and the acompte line it came out of keeps the TTC it was booked on, so the export
  * mirrors the books to the cent. The register never offers a `commission` line back from the indemnity.
+ *
+ * Reading of 2026-11-02 (review of PR #929, F1) — `soldeHeld` (cents per bucket) is what the books still hold of the
+ * solde once the refunds made before the cancellation took their share: the solde's commission is spread over it and
+ * never exceeds it, so the avoir reverses no 706 a refund already reversed. Returns the lines and the solde commission
+ * actually requalified (TTC).
  */
-function withCommissions(lines, withheld, vatRate) {
+function withCommissions(lines, withheld, vatRate, soldeHeld) {
   const cents = (value) => Math.round(Number(value || 0) * 100);
   const work = lines.map((line) => ({ ...line }));
   const commission = {};
@@ -202,13 +207,18 @@ function withCommissions(lines, withheld, vatRate) {
     line.quantity = booked > 0 ? Math.round((line.amountTtc / booked) * 10000) / 10000 : null;
     commission[line.bucket] = (commission[line.bucket] || 0) + take;
   });
-  const soldeBuckets = REVENUE_BUCKETS.filter((bucket) => cents(withheld && withheld.soldeBuckets && withheld.soldeBuckets[bucket]) > 0);
   const soldeCents = cents(withheld && withheld.soldeTtc);
-  const soldeTakes = soldeBuckets.length
-    ? spreadCents(soldeCents, soldeBuckets.map((bucket) => cents(withheld.soldeBuckets[bucket])))
-    : [];
-  if (!soldeBuckets.length && soldeCents > 0) commission.accommodation = (commission.accommodation || 0) + soldeCents;
-  soldeBuckets.forEach((bucket, index) => { commission[bucket] = (commission[bucket] || 0) + soldeTakes[index]; });
+  let soldeSpent = 0;
+  if (soldeCents > 0 && !soldeHeld) {
+    commission.accommodation = (commission.accommodation || 0) + soldeCents;
+    soldeSpent = soldeCents;
+  } else if (soldeCents > 0) {
+    spreadCents(soldeCents, REVENUE_BUCKETS.map((bucket) => soldeHeld[bucket] || 0)).forEach((take, index) => {
+      if (take <= 0) return;
+      commission[REVENUE_BUCKETS[index]] = (commission[REVENUE_BUCKETS[index]] || 0) + take;
+      soldeSpent += take;
+    });
+  }
   const named = REVENUE_BUCKETS.filter((bucket) => commission[bucket] > 0).map((bucket) => ({
     lineKey: 'commission',
     label: `Commission retenue — ${BUCKET_LABELS[bucket]}`,
@@ -219,7 +229,23 @@ function withCommissions(lines, withheld, vatRate) {
     vatRate,
     origin: 'commission',
   }));
-  return [...work.filter((line) => cents(line.amountTtc) > 0), ...named];
+  return { lines: [...work.filter((line) => cents(line.amountTtc) > 0), ...named], soldeTtc: soldeSpent / 100 };
+}
+
+/**
+ * Rule 55 reading of 2026-11-02 (review of PR #929, F1) — what the books still hold of the paid solde per revenue
+ * bucket (cents), the avoir aside: the bucket booked the acompte and installments (`gross`) and the solde (`solde`),
+ * the refunds made before the cancellation (`givenBack`) reversed their share, and the avoir (`requalified`, net of
+ * those refunds) reverses its own. Never below 0, never above what the solde was booked on there. `null` when the
+ * solde's buckets are unknown.
+ */
+function soldeHeldOf(gross, requalified, givenBack, solde) {
+  if (!solde) return null;
+  const cents = (value) => Math.round(Number(value || 0) * 100);
+  const sumOf = (lines, bucket) => lines.filter((line) => line.bucket === bucket).reduce((total, line) => total + cents(line.amountTtc), 0);
+  const given = givenBack || {};
+  return Object.fromEntries(REVENUE_BUCKETS.map((bucket) => [bucket, Math.min(cents(solde[bucket]),
+    Math.max(0, sumOf(gross, bucket) + cents(solde[bucket]) - cents(given[bucket]) - sumOf(requalified, bucket)))]));
 }
 
 /**
@@ -266,8 +292,6 @@ function buildCancellationRequalification({
   const soldeWithheldTtc = Math.max(0, round2(withheldCommissions && withheldCommissions.soldeTtc));
   if (round2(grossDepositTtc + grossInstallmentsTtc + soldeWithheldTtc) <= 0) return null;
 
-  const label = grossInstallmentsTtc > 0 ? 'Annulation — échéances conservées'
-    : (grossDepositTtc > 0 ? 'Annulation — acompte conservé' : 'Annulation — commission retenue');
   const note = String(reason || '').trim();
   const gross = [
     ...(grossDepositTtc > 0 ? requalificationLines(grossDepositTtc, depositBuckets, rate).map((line) => ({ ...line, origin: 'deposit' })) : []),
@@ -287,10 +311,14 @@ function buildCancellationRequalification({
   const installmentsTtc = Math.max(0, round2(grossInstallmentsTtc - takenOf('installments')));
   const kept = round2(depositTtc + installmentsTtc);
   const retainedTtc = kept > 0 && lines.length > 0 ? kept : 0;
-  const requalified = withCommissions(retainedTtc > 0 ? lines : [], withheldCommissions, rate);
-  const withheldTtc = round2(requalified.filter((line) => line.origin === 'commission').reduce((total, line) => total + line.amountTtc, 0));
-  const requalifiedTtc = round2(retainedTtc + soldeWithheldTtc);
-  if (requalifiedTtc <= 0 || requalified.length === 0) return null;
+  const keptLines = retainedTtc > 0 ? lines : [];
+  const soldeHeld = soldeHeldOf(gross, keptLines, givenBack, withheldCommissions && withheldCommissions.soldeBuckets);
+  const requalified = withCommissions(keptLines, withheldCommissions, rate, soldeHeld);
+  const withheldTtc = round2(requalified.lines.filter((line) => line.origin === 'commission').reduce((total, line) => total + line.amountTtc, 0));
+  const requalifiedTtc = round2(retainedTtc + requalified.soldeTtc);
+  if (requalifiedTtc <= 0 || requalified.lines.length === 0) return null;
+  const label = retainedTtc <= 0 ? 'Annulation — commission retenue'
+    : (installmentsTtc > 0 ? 'Annulation — échéances conservées' : 'Annulation — acompte conservé');
 
   return {
     retainedTtc,
@@ -303,7 +331,7 @@ function buildCancellationRequalification({
       refundDate: cancellationDate,
       method: 'retained',
       reason: note ? `${label} : ${note}` : label,
-      lines: requalified.map(({ origin, ...line }) => line),
+      lines: requalified.lines.map(({ origin, ...line }) => line),
     },
     compensation: {
       reservationId: Number(row.id),

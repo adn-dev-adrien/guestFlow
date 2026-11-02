@@ -14,7 +14,7 @@
  */
 
 const { remainingToPay, platformPenalty, round2 } = require('./reservationSettlement');
-const { isRetainedDeposit, isIndemnityLine, refundDeletionRefusal, madeAfterCancellation, COMMISSION_KEY } = require('./refunds');
+const { isRetainedDeposit, isIndemnityLine, refundDeletionRefusal, COMMISSION_KEY } = require('./refunds');
 const { parseGroup } = require('./arrivalPaymentGroup');
 const { saleChannel } = require('./saleChannel');
 const { platformDisplay } = require('./platformDisplay');
@@ -188,6 +188,20 @@ function dueState(deadline, today, stayYear, { platformPayout = false } = {}) {
     tone: 'due',
     stateLabel: platformPayout ? `Attendu le ${shortDate(d, stayYear)}` : `À percevoir avant le ${shortDate(d, stayYear)}`,
   };
+}
+
+// Payment-schedule rule 55 readings of 2026-11-02 — what the `retained` avoir kept. With nothing kept, a commission
+// only; with the commission withheld on the paid solde on top of the acompte (or installments) kept, both, so the row
+// never shows more than the « Acompte » row says was kept without saying why (review of PR #929, F3). The acompte's
+// own commission sits inside the acompte: Σ commission lines beyond it is the solde's.
+function retainedLabel(refund, r, planRows) {
+  const lines = refund.lines || [];
+  const commission = round2(lines.filter((l) => l.lineKey === COMMISSION_KEY).reduce((sum, l) => sum + Number(l.amountTtc || 0), 0));
+  if (lines.length > 0 && lines.every((l) => l.lineKey === COMMISSION_KEY)) return 'Commission retenue';
+  const acompteCommission = Number(r.depositPaid) === 1 && !Number(r.depositPaidCash || 0) ? round2(r.acompteCommissionAmount) : 0;
+  const withSolde = commission > acompteCommission;
+  if (planRows || Number(r.installmentsPaidAmount) > 0) return withSolde ? 'Échéances et commission conservées' : 'Échéances conservées';
+  return withSolde ? 'Acompte et commission conservés' : 'Acompte conservé';
 }
 
 /**
@@ -609,8 +623,7 @@ function buildLedger({
         // A cancelled fiche shows no plan rows: the installments it collected still name the money kept.
         // Payment-schedule rule 55 reading of 2026-11-02 — with nothing kept, the avoir requalifies a commission only.
         key: `refund-${refund.id}`,
-        label: (refund.lines || []).length > 0 && refund.lines.every((l) => l.lineKey === COMMISSION_KEY) ? 'Commission retenue'
-          : (planRows || Number(r.installmentsPaidAmount) > 0 ? 'Échéances conservées' : 'Acompte conservé'),
+        label: retainedLabel(refund, r, planRows),
         amount: -round2(refund.totalTtc), state: 'retained', tone: 'info',
         stateLabel: `Requalifié en indemnité le ${when}`,
         action: null,
@@ -626,10 +639,9 @@ function buildLedger({
     rows.push({
       key: `refund-${refund.id}`, label: 'Remboursement', amount: -round2(refund.totalTtc), state: 'refunded', tone: 'info',
       stateLabel: `${allFromIndemnity ? 'Rendu sur l\'indemnité' : 'Rendu'} le ${when}${method ? ` · ${method}` : ''}`,
-      // Refunds rule 6 reading of 2026-11-02 — on a cancelled stay, the fiche deletes the refunds made after the
-      // cancellation, the ones it is about.
-      action: (canAct || (stored && cancelled && madeAfterCancellation(refund, refunds, r.cancelledAt)))
-        && !refundDeletionRefusal(refund, refunds, { ...r, kind })
+      // Refunds rule 6 reading of 2026-11-02 — on a cancelled stay, the fiche deletes every refund the server deletes:
+      // the ones the cancellation never read (review of PR #929, F2 and F5).
+      action: (canAct || (stored && cancelled)) && !refundDeletionRefusal(refund, refunds, { ...r, kind })
         ? { kind: 'deleteRefund', label: 'Supprimer', refundId: refund.id, confirm: 'Supprimer ce remboursement ? L\'avoir correspondant sera supprimé.' } : null,
       amountEdit: { editable: false, mode: 'none', min: null, max: null, reason: null },
       detail: {
