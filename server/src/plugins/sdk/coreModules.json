@@ -773,5 +773,12 @@
     "forRow",
     "inForceBlock",
     "rateForRow"
+  ],
+  "storedMoneySplit": [
+    "buildPerLineData",
+    "splitByDestination",
+    "storedMoneyBucketTtcs",
+    "storedMoneyBuckets",
+    "storedMoneyCollected"
   ]
 }

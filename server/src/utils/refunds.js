@@ -131,8 +131,10 @@ function refundsTotal(refunds, { withCash = false } = {}) {
  *                                      PER NIGHT (specs/reservation-refunds.md §3.5 rule 27)
  * @param {object} [input.cancelled]    `cancelledRefundBudget` of a cancelled stay: each line then offers what it
  *                                      collected (rule 48) and carries `indemnityTtc`, the part the indemnity holds
+ * @param {object} [input.collected]    `collectedByLine(...)` — on a cancelled stay, each line offers at most what IT
+ *                                      collected (rule 49 reading of 2026-11-02)
  */
-function buildRefundableLines({ finalPrice, touristTaxTotal, vatRate, options = [], resources = [], refunds = [], nights = 0, cancelled = null }) {
+function buildRefundableLines({ finalPrice, touristTaxTotal, vatRate, options = [], resources = [], refunds = [], nights = 0, cancelled = null, collected = null }) {
   const given = refundedByKey(refunds, (refund) => !isRequalification(refund));
   const fromIndemnity = refundedByKey(refunds, (refund) => !isRequalification(refund), isIndemnityLine);
   const requalified = refundedByKey(refunds, isRequalification);
@@ -202,17 +204,27 @@ function buildRefundableLines({ finalPrice, touristTaxTotal, vatRate, options = 
     const saleRefundedTtc = round2(refundedTtc - (fromIndemnity[line.key] || 0));
     return { ...line, refundedTtc, requalifiedTtc, refundableTtc: Math.max(0, round2(line.billedTtc - saleRefundedTtc - requalifiedTtc)) };
   });
-  ['options', 'resources'].forEach((bucket) => spreadBucketRefund(perLine.filter((line) => line.key !== bucket && line.bucket === bucket), requalified[bucket]));
+  // Rule 49 reading of 2026-11-02 — on a cancelled stay a line never holds more than it collected, net of the sale
+  // money already given back on it: a line paid at arrival and never collected requalifies nothing and offers nothing.
+  const collectedLeft = (line) => (cancelled && collected && line.key in collected
+    ? Math.max(0, round2(collected[line.key] - (line.refundedTtc - (fromIndemnity[line.key] || 0)))) : Infinity);
+  ['options', 'resources'].forEach((bucket) => spreadBucketRefund(perLine.filter((line) => line.key !== bucket && line.bucket === bucket), requalified[bucket], collectedLeft));
   if (cancelled) {
     // Rule 48 — a cancelled stay gives back money it collected, never what it billed: the requalified money the
     // indemnity still holds on the line, plus at most the collected money no cancellation requalified.
-    const saleRooms = perLine.map((line) => Math.round(Math.min(line.refundableTtc, cancelled.saleLeftTtc) * 100));
+    const saleRooms = perLine.map((line) => Math.round(Math.min(line.refundableTtc, cancelled.saleLeftTtc,
+      Math.max(0, collectedLeft(line) - line.requalifiedTtc)) * 100));
     const indemnityRooms = perLine.map((line) => Math.round(Math.min(cancelled.indemnityLeftTtc,
       Math.max(0, round2(line.requalifiedTtc - (fromIndemnity[line.key] || 0)))) * 100));
     // Rule 49 — the lines together never offer more than is left: a free line took its money from no line in
-    // particular, and a paid solde is one sum the lines share.
-    capInOrder(saleRooms, Math.round(cancelled.saleLeftTtc * 100));
-    capInOrder(indemnityRooms, Math.round(cancelled.indemnityLeftTtc * 100));
+    // particular, and a paid solde is one sum the lines share. The excess comes off the lines paid at arrival first,
+    // the money a cancelled stay is the least likely to have collected, then off the lines whose own collection is
+    // unknown, the lines capped at what they collected last.
+    const atArrival = new Set([...options, ...resources].filter((line) => line && Number(line.inComplement || 0) === 1).map(billedLineKey));
+    const rank = (line) => (atArrival.has(line.key) ? 0 : (collectedLeft(line) === Infinity ? 1 : 2));
+    const order = perLine.map((line, index) => index).sort((a, b) => rank(perLine[a]) - rank(perLine[b]) || a - b);
+    capInOrder(saleRooms, Math.round(cancelled.saleLeftTtc * 100), order);
+    capInOrder(indemnityRooms, Math.round(cancelled.indemnityLeftTtc * 100), order);
     perLine.forEach((line, index) => {
       line.indemnityTtc = indemnityRooms[index] / 100;
       line.refundableTtc = (saleRooms[index] + indemnityRooms[index]) / 100;
@@ -222,14 +234,73 @@ function buildRefundableLines({ finalPrice, touristTaxTotal, vatRate, options = 
 }
 
 // specs/reservation-refunds.md rule 49 — lowers the rooms (cents) until they add up to `budget` at most, taking the
-// excess off the first lines: accommodation, then the extras, the tourist tax last.
-function capInOrder(rooms, budget) {
+// excess off the lines in `order` (accommodation, the extras, the tourist tax, unless rule 49's reading ranks them).
+function capInOrder(rooms, budget, order) {
   let excess = rooms.reduce((total, cents) => total + cents, 0) - Math.max(0, budget);
-  for (let index = 0; index < rooms.length && excess > 0; index += 1) {
+  for (const index of order) {
+    if (excess <= 0) break;
     const taken = Math.min(excess, rooms[index]);
     rooms[index] -= taken;
     excess -= taken;
   }
+}
+
+/**
+ * specs/reservation-refunds.md rule 49 reading of 2026-11-02 — what each line of a stay collected, TTC, keyed like
+ * `buildRefundableLines`: the paid acompte's and solde's contribs, plus a paid arrival complement's share (the lines
+ * it collects whole, and the growth of the others). The tax share an older acompte captured was booked on its
+ * accommodation, and moves to the tax with the solde (accountingModel's reclass). Without contribs that add up to
+ * each paid entry, the accommodation and the tax read `booked` and the extras only the lines paid at arrival (0 while
+ * the complement is unpaid); `null` when nothing is known: the lines then share the money with no per-line cap.
+ */
+function collectedByLine({ reservation, options = [], resources = [], booked = null }) {
+  const row = reservation || {};
+  const lines = [...options, ...resources].filter((line) => line && Number(line.offered || 0) !== 1);
+  const nz = (value) => (value == null ? 0 : Number(value));
+  const deposit = Number(row.depositPaid) === 1;
+  const balance = Number(row.balancePaid) === 1;
+  const complement = Number(row.complementPaid) === 1;
+  // Contribs describe a paid entry when they add up to it (accountingModel's tolerance); otherwise the export booked
+  // it on the stored-money split, which knows no line.
+  const describes = (field, lineField, taxField, amount) => Math.abs(round2(nz(row[field]) + nz(row[taxField])
+    + lines.reduce((sum, line) => sum + nz(line[lineField]), 0)) - round2(amount)) <= 0.02;
+  const known = (deposit || balance)
+    && (!deposit || describes('accommodationAcompteContribTtc', 'acompteContribTtc', 'touristTaxAcompteContribTtc', row.depositAmount))
+    && (!balance || describes('accommodationSoldeContribTtc', 'soldeContribTtc', 'touristTaxSoldeContribTtc', row.balanceAmount));
+  if (!known) {
+    // Without contribs that describe the money, the extras are known only as a bucket: a line paid at arrival
+    // collected nothing while the complement is unpaid. The accommodation and the tax collected what the acompte and
+    // the solde were booked on there (`booked`, bookedStayBuckets), the complement carrying no accommodation.
+    const out = complement ? {} : Object.fromEntries(lines.filter((line) => Number(line.inComplement || 0) === 1)
+      .map(billedLineKey).filter(Boolean).map((key) => [key, 0]));
+    const depositBuckets = deposit && booked ? booked.deposit : null;
+    const soldeBuckets = balance && booked ? booked.solde : null;
+    if ((!deposit || depositBuckets) && (!balance || soldeBuckets)) {
+      out[ACCOMMODATION_KEY] = round2(nz(depositBuckets && depositBuckets.accommodation) + nz(soldeBuckets && soldeBuckets.accommodation));
+      out[TOURIST_TAX_KEY] = complement ? round2(row.touristTaxTotal) : round2(nz(soldeBuckets && soldeBuckets.touristTax));
+    }
+    return Object.keys(out).length ? out : null;
+  }
+  const out = {};
+  for (const line of lines) {
+    const key = billedLineKey(line);
+    if (!key) continue;
+    const total = Math.max(0, round2(line.totalPrice));
+    const atArrival = complement
+      ? (Number(line.inComplement || 0) === 1 ? total : Math.max(0, round2(total - nz(line.acompteContribTtc) - nz(line.soldeContribTtc))))
+      : 0;
+    out[key] = round2((out[key] || 0) + (deposit ? nz(line.acompteContribTtc) : 0) + (balance ? nz(line.soldeContribTtc) : 0) + atArrival);
+  }
+  const extrasTtc = round2([...options, ...resources].reduce((sum, line) => sum + Number((line && line.totalPrice) || 0), 0));
+  const accommodationTtc = Math.max(0, round2(Number(row.finalPrice || 0) - extrasTtc));
+  const acompteTax = nz(row.touristTaxAcompteContribTtc);
+  const accommodationContribs = nz(row.accommodationAcompteContribTtc) + nz(row.accommodationSoldeContribTtc);
+  out[ACCOMMODATION_KEY] = round2((deposit ? nz(row.accommodationAcompteContribTtc) + acompteTax : 0)
+    + (balance ? Math.max(0, nz(row.accommodationSoldeContribTtc) - acompteTax) : 0)
+    + (complement ? Math.max(0, accommodationTtc - accommodationContribs) : 0));
+  const taxContribs = acompteTax + nz(row.touristTaxSoldeContribTtc);
+  out[TOURIST_TAX_KEY] = round2((balance ? taxContribs : 0) + (complement ? Math.max(0, round2(row.touristTaxTotal) - taxContribs) : 0));
+  return out;
 }
 
 /**
@@ -239,10 +310,10 @@ function capInOrder(rooms, budget) {
  * of it lands on a line that still had it, so the register never offers again what the cancellation
  * requalified.
  */
-function spreadBucketRefund(lines, amountTtc) {
+function spreadBucketRefund(lines, amountTtc, capOf = () => Infinity) {
   const totalCents = Math.round(Number(amountTtc || 0) * 100);
-  const remaining = lines.filter((line) => line.refundableTtc > 0);
-  const lineCents = remaining.map((line) => Math.round(line.refundableTtc * 100));
+  const remaining = lines.filter((line) => Math.min(line.refundableTtc, capOf(line)) > 0);
+  const lineCents = remaining.map((line) => Math.round(Math.min(line.refundableTtc, capOf(line)) * 100));
   const availableCents = lineCents.reduce((sum, c) => sum + c, 0);
   if (totalCents <= 0 || availableCents <= 0) return;
   const spentCents = Math.min(totalCents, availableCents);
@@ -258,7 +329,7 @@ function spreadBucketRefund(lines, amountTtc) {
     });
   remaining.forEach((line, index) => {
     line.requalifiedTtc = round2(line.requalifiedTtc + takes[index] / 100);
-    line.refundableTtc = round2((lineCents[index] - takes[index]) / 100);
+    line.refundableTtc = round2(line.refundableTtc - takes[index] / 100);
   });
 }
 
@@ -494,6 +565,7 @@ module.exports = {
   isRetainedDeposit,
   isIndemnityLine,
   cancelledRefundBudget,
+  collectedByLine,
   billedLineKey,
   refundedByKey,
   refundedTouristTax,

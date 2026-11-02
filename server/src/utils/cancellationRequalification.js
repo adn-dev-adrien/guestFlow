@@ -32,7 +32,9 @@ const BUCKET_LABELS = {
  * original entry. When they are absent (a reservation predating the contrib capture) or when they
  * disagree with the acompte actually stored, a single accommodation line carries the whole amount:
  * the total and the VAT reversed stay exact — only the 70xxx sub-account is approximated, which is
- * strictly better than emitting an avoir that does not sum to the money kept.
+ * strictly better than emitting an avoir that does not sum to the money kept. Since rule 55's reading of
+ * 2026-11-02 the cancellation hands such an acompte the stored-money split the export booked it on
+ * (utils/storedMoneySplit), so that line is left for a caller with no split at all.
  */
 function requalificationLines(depositTtc, depositBuckets, vatRate) {
   const buckets = depositBuckets || {};
@@ -41,7 +43,7 @@ function requalificationLines(depositTtc, depositBuckets, vatRate) {
     .filter((line) => line.amountTtc > 0);
   const sum = round2(entries.reduce((total, line) => total + line.amountTtc, 0));
 
-  if (entries.length === 0 || Math.abs(sum - depositTtc) > 0.01) {
+  if (entries.length === 0 || Math.abs(sum - depositTtc) > 0.02) {
     return [{
       lineKey: 'accommodation',
       label: BUCKET_LABELS.accommodation,
@@ -53,6 +55,10 @@ function requalificationLines(depositTtc, depositBuckets, vatRate) {
     }];
   }
 
+  // Rule 55 reading of 2026-11-02 — contribs a cent or two off the acompte (the rounding of their capture) snap
+  // their last bucket onto it: the avoir never reverses more, or less, than the acompte collected.
+  const last = entries[entries.length - 1];
+  last.amountTtc = round2(last.amountTtc + depositTtc - sum);
   return entries.map((line) => ({
     lineKey: line.bucket,
     label: BUCKET_LABELS[line.bucket],
@@ -101,29 +107,59 @@ function absorb(lines, cents) {
   return left;
 }
 
+// A bucket the acompte credited nothing on, which the avoir now requalifies out of the paid solde (rule 55 reading of
+// 2026-11-02). `unitPrice` 0: the acompte booked nothing there.
+function soldeLine(bucket, vatRate) {
+  return bucket === 'touristTax'
+    ? { lineKey: 'touristTax', label: 'Taxe de séjour', bucket, quantity: null, unitPrice: null, amountTtc: 0, vatRate: 0, origin: 'deposit' }
+    : { lineKey: bucket, label: BUCKET_LABELS[bucket], bucket, quantity: null, unitPrice: 0, amountTtc: 0, vatRate, origin: 'deposit' };
+}
+
 /**
  * specs/payment-schedule-and-cancellation.md rule 55 — a book refund made before the cancellation already took its
- * money out of the revenue, the VAT or the tax account: the cancellation keeps only what is left. Per bucket, a paid
- * solde (`saleCollected`) absorbs the earlier refunds first, the same order rule 48 gives back a cancelled stay's
- * money; the rest comes off the bucket's requalified lines, the largest line first, so a single line usually takes it
- * all and the export can mirror its split to the cent. What a bucket cannot hold comes off the other lines.
- * A netted line keeps the TTC it was booked on as `unitPrice`, `quantity` being the share kept.
+ * money out of the revenue, the VAT or the tax account: the cancellation keeps only what is left.
+ *
+ * A paid solde (`saleCollected`, what it collected per bucket) absorbs the earlier refunds first, the order rule 48
+ * gives back a cancelled stay's money, and it is ONE sum: the acompte loses only what the whole solde could not hold,
+ * Σ given − Σ collected. Per bucket, a refund beyond what the solde collected there comes off the bucket's
+ * requalified lines, the largest line first (what a bucket cannot hold comes off the other lines); the solde money
+ * of the other buckets that covered it is requalified in its place, on those buckets, so each bucket of the avoir
+ * reverses what the books still hold there and the sale money left is the solde's own, bucket by bucket.
+ *
+ * An adjusted line keeps the TTC it was booked on as `unitPrice` (0 for a bucket the acompte never credited),
+ * `quantity` being the share kept, so the export can mirror its split to the cent.
  */
 function netOfEarlierRefunds(lines, givenBack, saleCollected) {
   const given = givenBack || {};
   const sale = saleCollected || {};
-  const work = lines.map((line) => ({ line, cents: Math.round(line.amountTtc * 100) }));
-  let spill = 0;
+  const cents = (value) => Math.round(Number(value || 0) * 100);
+  const work = lines.map((line) => ({ line, cents: cents(line.amountTtc) }));
+  const excess = {};
+  const spare = {};
   for (const bucket of NETTED_BUCKETS) {
-    const due = Math.max(0, Math.round(Number(given[bucket] || 0) * 100) - Math.round(Number(sale[bucket] || 0) * 100));
-    spill += absorb(work.filter((entry) => entry.line.bucket === bucket), due);
+    excess[bucket] = Math.max(0, cents(given[bucket]) - cents(sale[bucket]));
+    spare[bucket] = Math.max(0, cents(sale[bucket]) - cents(given[bucket]));
   }
+  const total = (map) => NETTED_BUCKETS.reduce((sum, bucket) => sum + map[bucket], 0);
+  let cover = Math.min(total(excess), total(spare));
+  let spill = 0;
+  for (const bucket of NETTED_BUCKETS) spill += absorb(work.filter((entry) => entry.line.bucket === bucket), excess[bucket]);
   absorb(work, spill);
-  return work.filter((entry) => entry.cents > 0).map(({ line, cents }) => {
-    if (cents === Math.round(line.amountTtc * 100)) return line;
-    const amountTtc = cents / 100;
+  const vatRate = (lines.find((line) => line.bucket !== 'touristTax') || {}).vatRate || 0;
+  for (const bucket of NETTED_BUCKETS) {
+    const added = Math.min(spare[bucket], cover);
+    if (added <= 0) continue;
+    cover -= added;
+    const own = work.filter((entry) => entry.line.bucket === bucket).sort((x, y) => y.cents - x.cents)[0];
+    if (own) own.cents += added;
+    else work.push({ line: soldeLine(bucket, vatRate), cents: added });
+  }
+  return work.filter((entry) => entry.cents > 0).map(({ line, cents: kept }) => {
+    if (kept === cents(line.amountTtc)) return line;
+    const amountTtc = kept / 100;
     if (line.unitPrice == null) return { ...line, amountTtc };
-    return { ...line, amountTtc, unitPrice: line.amountTtc, quantity: Math.round((cents / Math.round(line.amountTtc * 100)) * 10000) / 10000 };
+    const booked = cents(line.amountTtc);
+    return { ...line, amountTtc, unitPrice: line.amountTtc, quantity: booked > 0 ? Math.round((kept / booked) * 10000) / 10000 : null };
   });
 }
 
@@ -166,17 +202,24 @@ function buildCancellationRequalification({
   const label = grossInstallmentsTtc > 0 ? 'Annulation — échéances conservées' : 'Annulation — acompte conservé';
   const note = String(reason || '').trim();
   const rate = Number(vatRate) || 0;
-  const lines = netOfEarlierRefunds([
+  const gross = [
     ...(grossDepositTtc > 0 ? requalificationLines(grossDepositTtc, depositBuckets, rate).map((line) => ({ ...line, origin: 'deposit' })) : []),
     ...(grossInstallmentsTtc > 0
       ? installmentLines(grossInstallmentsTtc, installmentsRetained.touristTaxTtc, installmentsRetained.installments, rate).map((line) => ({ ...line, origin: 'installments' }))
       : []),
-  ], givenBack, saleCollected);
-  const sumOf = (origin) => round2(lines.filter((line) => !origin || line.origin === origin).reduce((total, line) => total + line.amountTtc, 0));
-  const depositTtc = sumOf('deposit');
-  const installmentsTtc = sumOf('installments');
-  const retainedTtc = sumOf(null);
-  if (retainedTtc <= 0) return null;
+  ];
+  const lines = netOfEarlierRefunds(gross, givenBack, saleCollected);
+  // Rule 55 reading of 2026-11-02 — what is kept is the money collected minus what the earlier refunds took from it,
+  // per origin: an installment split a cent short of its amount keeps the gap where it always was, off the lines.
+  const takenOf = (origin) => {
+    const before = round2(gross.filter((line) => line.origin === origin).reduce((total, line) => total + line.amountTtc, 0));
+    const after = round2(lines.filter((line) => line.origin === origin).reduce((total, line) => total + line.amountTtc, 0));
+    return round2(before - after);
+  };
+  const depositTtc = Math.max(0, round2(grossDepositTtc - takenOf('deposit')));
+  const installmentsTtc = Math.max(0, round2(grossInstallmentsTtc - takenOf('installments')));
+  const retainedTtc = round2(depositTtc + installmentsTtc);
+  if (retainedTtc <= 0 || lines.length === 0) return null;
 
   return {
     retainedTtc,

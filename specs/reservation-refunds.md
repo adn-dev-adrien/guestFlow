@@ -422,6 +422,16 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
     > **Reading of 2026-11-02 (round 15).** A book refund made before the cancellation no longer reaches the
     > indemnity: the cancellation keeps only what it left (specs/payment-schedule-and-cancellation.md rule 55), so
     > `requalifiedTtc` and `indemnityTtc` read the net amount.
+    > **Reading of 2026-11-02 (review of PR #926).** A line offers at most what THAT line collected
+    > (`collectedByLine`): the paid acompte's and solde's contribs, plus a paid complement's share, net of the sale
+    > money already given back on it; without contribs that add up to each paid entry, the accommodation and the
+    > tax read what the acompte and the solde were booked on (`cancelReservation.bookedStayBuckets`) and a line paid
+    > at arrival collected nothing while the complement is unpaid. A cancellation's options or resources avoir is
+    > spread only over the lines that collected money. When the lines still add up to more than is left, the excess
+    > comes off the lines paid at arrival first, then the lines whose own collection is unknown, the capped lines
+    > last. A stay with a paid acompte and solde and a 32 € line paid at arrival: the register offers 714 + 200 +
+    > 12 € (no longer 682 € of accommodation and the 32 € line) and giving all of it back nets every 706
+    > sub-account to 0. A plan's money is all requalified, so its lines hold no sale money to cap.
 
 ---
 
@@ -441,7 +451,8 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
 | `controllers/` | `reservationsController.js` | T | Feeds `refundsTotal` into the quote inputs (like `midStayQuoteInputs`) and exposes `refundableLines` on `GET /:id` |
 | `utils/` | `refunds.js` | C | **Pure**: `buildRefundableLines(...)` (incl. the per-night tourist-tax line), `validateRefundPayload(...)` (derives the quantity from the amount), `splitHtVat(...)`, `refundedTouristTax(refunds)` → `{ amount, nights }` |
 | `utils/` | `refunds.js` | T | Rule 48 — `cancelledRefundBudget(...)`; `buildRefundableLines({ cancelled })` caps each line at what was collected (`indemnityTtc`); `validateRefundPayload({ cancelled })` splits each line between the sale and the `indemnity` bucket |
-| `utils/` | `refunds.js` | T | Rule 49 — `capInOrder`: the lines' sale and indemnity rooms add up to what is left; the refusals name what is left |
+| `utils/` | `refunds.js` | T | Rule 49 — `capInOrder`: the lines' sale and indemnity rooms add up to what is left; the refusals name what is left. Reading of 2026-11-02: `collectedByLine` caps each line at what it collected |
+| `controllers/` | `refundsController.js` | T | Rule 49 reading — on a cancelled stay, hands `collectedByLine` (with `bookedStayBuckets`, read on `deps.database`) to `buildRefundableLines` |
 | `controllers/` | `refundsController.js` | T | Rule 48 — on `kind = 'cancelled'`, passes the budget to both and answers `collectedTtc` = the budget |
 | `plugins/accounting-export/` | `accountingModel.js`, `accountingExport.js` | T | Rule 48 — `buildRefundEntry` carries `indemnity` (account + rate of the compensation settings); `refundEntryToRows` debits it |
 | `utils/` | `reservationLedger.js` | T | Rule 46 reading of 2026-11-02 — « Acompte conservé » / « Échéances conservées » row, « Rendu sur l'indemnité » |
@@ -697,10 +708,11 @@ indemnity refund lowers the franchise turnover at face value, a mixed one splits
 (2) — a switch and its undo leave an `indemnity` line at 0 %. `client/src/components/__tests__/CancellationCompensationsSection.indemnity-refunds.test.jsx`
 (2) — the reopen warning, and its absence when no refund touched the card.
 `tests/vat-regime-golden.unit.test.js` — `fiche/109` regenerated: a cancelled stay that collected nothing offers no line.
-**Round 15 (2026-11-02):** `tests/refund-before-cancellation.unit.test.js` (3 of 10, rule 49) — after a free line on
+**Round 15 (2026-11-02):** `tests/refund-before-cancellation.unit.test.js` (4 of 16, rule 49) — after a free line on
 a cancelled plan the lines add up to the 1 537,45 € left and asking for all of them is accepted; after 2 050 € the
-tax line offers the 10 € left and a refusal names 10,00 €, never the 12 € it once held; with a paid solde the lines
-add up to the 914 € collected and asking for all of them is accepted.
+tax line offers the 10 € left and a refusal names 10,00 €, never the 12 € it once held; with a paid solde and a 32 €
+line paid at arrival (no contribs) the lines add up to the 914 € collected, that line is not offered, and asking for
+all of them is accepted; with contribs, the lines offer 714 + 200 + 12 € and every 706 sub-account nets to 0.
 
 ## 8. Out of scope
 

@@ -28,6 +28,8 @@ const { isDirectChannel } = require('./platformNameFormat');
 const { taxShares } = require('./installmentPlan');
 const { computeInstallmentPaidSplit } = require('./installmentPaidSplit');
 const { isOffBooks, isRetainedDeposit } = require('./refunds');
+const { storedMoneyBuckets } = require('./storedMoneySplit');
+const { taxRidesTheComplement } = require('./touristTaxFreeze');
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
@@ -92,17 +94,42 @@ function givenBackByBucket(refundsModel, id) {
   return given;
 }
 
-// A paid solde collected the rest of each bucket, beyond the acompte's share: that money absorbs the earlier refunds
-// first (rule 55). An acompte without its per-bucket shares sat on the accommodation, as its avoir line does.
-function saleCollectedOf(row, billed, depositBuckets) {
-  if (!Number(row.balancePaid) || !billed) return null;
-  const deposit = Number(row.depositPaid) ? Math.max(0, round2(row.depositAmount)) : 0;
-  const buckets = depositBuckets || { accommodation: deposit };
-  const sale = {};
-  for (const bucket of ['accommodation', 'options', 'resources', 'touristTax']) {
-    sale[bucket] = Math.max(0, round2(Number(billed[bucket] || 0) - Number(buckets[bucket] || 0)));
-  }
-  return sale;
+// Contribs describe an entry when they add up to it (accountingModel's CONTRIB_RESIDUE_TOLERANCE_TTC); otherwise the
+// export booked it on the stored-money split.
+const describes = (buckets, amount) => Boolean(buckets)
+  && Math.abs(round2(['accommodation', 'options', 'resources', 'touristTax'].reduce((total, bucket) => total + Number(buckets[bucket] || 0), 0)) - round2(amount)) <= 0.02;
+
+// specs/payment-schedule-and-cancellation.md rule 55 — the buckets the acompte was booked on: its contribs, or the
+// stored-money split the export credited for it (utils/storedMoneySplit), so the avoir of a legacy acompte reverses
+// the sub-accounts it was credited on.
+function depositBucketsOf(database, reservationsModel, row, vatRate) {
+  const contribs = reservationsModel.depositContribBuckets(row.id);
+  const deposit = Math.max(0, round2(row.depositAmount));
+  if (!Number(row.depositPaid) || deposit <= 0 || describes(contribs, deposit) || !database) return contribs;
+  return storedMoneyBuckets(database, row, { kind: 'deposit', revenueTtc: deposit, vatRate });
+}
+
+// Rule 55 — what a paid solde collected per bucket, beyond the acompte: that money absorbs the earlier refunds first.
+// Its contribs when they describe it, else the stored-money split the export booked it on, the tax first.
+function saleCollectedOf(database, reservationsModel, row, vatRate) {
+  if (!Number(row.balancePaid) || !database) return null;
+  const balance = Math.max(0, round2(row.balanceAmount));
+  const contribs = reservationsModel.soldeContribBuckets(row.id);
+  if (describes(contribs, balance)) return contribs;
+  const tax = taxRidesTheComplement(database, row) ? 0 : Math.min(Math.max(0, round2(row.touristTaxTotal)), balance);
+  return { ...storedMoneyBuckets(database, row, { kind: 'balance', revenueTtc: round2(balance - tax), vatRate }), touristTax: tax };
+}
+
+/**
+ * specs/reservation-refunds.md rule 49 reading of 2026-11-02 — what the paid acompte and solde were booked on per
+ * bucket, read the way the cancellation reads them: the refund register of a cancelled stay caps its accommodation
+ * and tax lines with it when no per-line contribs describe the money.
+ */
+function bookedStayBuckets({ database, reservationsModel }, row, vatRate) {
+  return {
+    deposit: Number(row.depositPaid) ? depositBucketsOf(database, reservationsModel, row, vatRate) : null,
+    solde: saleCollectedOf(database, reservationsModel, row, vatRate),
+  };
 }
 
 /**
@@ -127,14 +154,14 @@ function cancelReservation(deps, reservationId, { reason = '', cancelledBy = nul
 
   const cancellationReason = resolveCancellationReason(row);
   const trimmedReason = String(reason || '').trim();
-  const depositBuckets = reservationsModel.depositContribBuckets(id);
+  const depositBuckets = depositBucketsOf(database, reservationsModel, row, vatRate);
   const givenBack = givenBackByBucket(refundsModel, id);
   const requalification = buildCancellationRequalification({
     reservation: row,
     depositBuckets,
     installmentsRetained: installmentsRetainedOf(installmentsModel, database, id, row),
     givenBack,
-    saleCollected: Object.keys(givenBack).length ? saleCollectedOf(row, reservationsModel.billedBuckets(id), depositBuckets) : null,
+    saleCollected: Object.keys(givenBack).length ? saleCollectedOf(database, reservationsModel, row, vatRate) : null,
     cancellationDate: today,
     vatRate,
     reason: trimmedReason,
@@ -177,4 +204,4 @@ function cancelReservation(deps, reservationId, { reason = '', cancelledBy = nul
   };
 }
 
-module.exports = { cancelReservation, resolveCancellationReason };
+module.exports = { cancelReservation, resolveCancellationReason, bookedStayBuckets };

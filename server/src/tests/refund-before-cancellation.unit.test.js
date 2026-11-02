@@ -91,6 +91,7 @@ function seedDeposit({ balancePaid = false } = {}) {
 
 function controllerOf(deps) {
   return createRefundsController({
+    database: deps.database,
     refundsModel: deps.refundsModel,
     reservationsModel: deps.reservationsModel,
     vatRateOf: () => 10,
@@ -274,21 +275,183 @@ test('reservation-refunds rule 49 — a refusal names what is really left, never
 });
 
 test('reservation-refunds rule 49 — a paid solde: the lines share the sale money, their sum stays what was collected', () => {
+  // A 32 € line paid at arrival, never collected: the lines used to offer it on top of the 914 € collected.
   const db = baseDb();
-  db.prepare("INSERT INTO options (id, title, price, priceType) VALUES (1, 'Dîner', 100, 'fixed')").run();
+  db.prepare("INSERT INTO options (id, title, price, priceType) VALUES (1, 'Dîner', 100, 'fixed'), (2, 'Linge', 32, 'fixed')").run();
   db.prepare(`
     INSERT INTO reservations
-      (id, kind, propertyId, clientId, startDate, endDate, platform,
-       finalPrice, totalPrice, depositAmount, depositPaid, depositPaidDate, balanceAmount, balancePaid, balancePaidDate, balanceDueDate)
-    VALUES (10, 'reservation', 1, 1, ?, ?, 'direct', 914, 914, 274, 1, ?, 640, 1, ?, ?)
+      (id, kind, propertyId, clientId, startDate, endDate, platform, finalPrice, totalPrice, depositAmount, depositPaid,
+       depositPaidDate, balanceAmount, balancePaid, balancePaidDate, balanceDueDate, complementAmount, complementPaid)
+    VALUES (10, 'reservation', 1, 1, ?, ?, 'direct', 946, 946, 274, 1, ?, 640, 1, ?, ?, 32, 0)
   `).run(inDays(60), inDays(67), TODAY, TODAY, inDays(30));
-  db.prepare('INSERT INTO reservation_options (reservationId, optionId, quantity, totalPrice) VALUES (10, 1, 1, 100)').run();
+  db.prepare('INSERT INTO reservation_options (reservationId, optionId, quantity, totalPrice, inComplement) VALUES (10, 1, 1, 100, 0), (10, 2, 1, 32, 1)').run();
   const deps = depsOf(db);
   cancel(deps);
   const controller = controllerOf(deps);
   const register = registerOf(controller);
   assert.equal(register.collectedTtc, 914);
   assert.equal(sum(register.refundableLines.map((l) => l.refundableTtc)), 914);
+  assert.equal(register.refundableLines.some((l) => l.key === 'opt:2'), false, 'the line never collected is not offered');
   const all = refund(controller, register.refundableLines.map((l) => ({ key: l.key, amountTtc: l.refundableTtc })));
   assert.equal(all.statusCode, 201, JSON.stringify(all.body));
+});
+
+// ── Review of PR #926 (2026-11-02) ──────────────────────────────────────────────────────────────────────────────
+
+function setRates(db, rate) {
+  if (!db.prepare('SELECT 1 FROM app_settings WHERE id = 1').get()) db.prepare('INSERT INTO app_settings (id) VALUES (1)').run();
+  db.prepare('UPDATE app_settings SET vatRate = ? WHERE id = 1').run(rate);
+}
+
+const controllerAt = (deps, rate) => createRefundsController({
+  database: deps.database,
+  refundsModel: deps.refundsModel, reservationsModel: deps.reservationsModel, vatRateOf: () => rate, storedOverpaymentTtc: () => 0,
+});
+const cancelAt = (deps, rate) => cancelReservation(deps, 10, { today: TODAY, vatRate: rate, reason: 'Solde jamais réglé' });
+
+// 946 € direct stay: accommodation 714, a 200 € dinner, a 32 € linen line paid at arrival (never collected).
+// Acompte 274 € = 200 accommodation + 74 dinner; paid solde 652 € = 514 accommodation + 126 dinner + 12 tax.
+function seedWithContribs(rate = 10) {
+  const db = baseDb();
+  setRates(db, rate);
+  db.prepare("INSERT INTO options (id, title, price, priceType) VALUES (1, 'Dîner', 200, 'fixed'), (2, 'Linge', 32, 'fixed')").run();
+  db.prepare(`INSERT INTO reservations (id, kind, propertyId, clientId, startDate, endDate, platform, finalPrice, totalPrice,
+      touristTaxTotal, depositAmount, depositPaid, depositPaidDate, balanceAmount, balancePaid, balancePaidDate, balanceDueDate,
+      complementAmount, complementPaid, accommodationAcompteContribTtc, touristTaxAcompteContribTtc,
+      accommodationSoldeContribTtc, touristTaxSoldeContribTtc)
+    VALUES (10, 'reservation', 1, 1, ?, ?, 'direct', 946, 946, 12, 274, 1, ?, 652, 1, ?, ?, 32, 0, 200, 0, 514, 12)`)
+    .run(inDays(60), inDays(67), TODAY, TODAY, inDays(30));
+  db.prepare(`INSERT INTO reservation_options (reservationId, optionId, quantity, totalPrice, inComplement, acompteContribTtc, soldeContribTtc)
+    VALUES (10, 1, 1, 200, 0, 74, 126), (10, 2, 1, 32, 1, 0, 0)`).run();
+  return { db, deps: depsOf(db) };
+}
+
+// The shape of stay #22226, anonymised: a legacy direct stay (no contribs) of 282,44 € with 192 € of options, 32 € of
+// them paid at arrival, 2,32 € of tax; acompte 126,38 € and solde 126,38 € paid.
+function seedLegacyWithSolde() {
+  const db = baseDb();
+  db.prepare("INSERT INTO options (id, title, price, priceType) VALUES (1, 'Dîner', 100, 'fixed'), (2, 'Panier', 28, 'fixed'), (3, 'Linge', 32, 'fixed'), (4, 'Petit-déjeuner', 32, 'fixed')").run();
+  db.prepare(`INSERT INTO reservations (id, kind, propertyId, clientId, startDate, endDate, platform, finalPrice, totalPrice,
+      touristTaxTotal, depositAmount, depositPaid, depositPaidDate, balanceAmount, balancePaid, balancePaidDate, balanceDueDate,
+      complementAmount, complementPaid)
+    VALUES (10, 'reservation', 1, 1, ?, ?, 'direct', 282.44, 282.44, 2.32, 126.38, 1, ?, 126.38, 1, ?, ?, 32, 0)`)
+    .run(inDays(60), inDays(62), TODAY, TODAY, inDays(30));
+  db.prepare(`INSERT INTO reservation_options (reservationId, optionId, quantity, totalPrice, inComplement)
+    VALUES (10, 1, 1, 100, 0), (10, 2, 1, 28, 0), (10, 3, 1, 32, 1), (10, 4, 1, 32, 0)`).run();
+  return { db, deps: depsOf(db) };
+}
+
+// Give back what the register offers as sale money (the indemnity stays kept): the usual flow after a cancellation.
+function giveBackSale(controller) {
+  let total = 0;
+  for (const line of registerOf(controller).refundableLines) {
+    const amountTtc = round2(line.refundableTtc - (line.indemnityTtc || 0));
+    if (amountTtc <= 0) continue;
+    const out = refund(controller, [{ key: line.key, amountTtc }]);
+    assert.equal(out.statusCode, 201, `${line.key} ${amountTtc}: ${JSON.stringify(out.body)}`);
+    total = round2(total + amountTtc);
+  }
+  return total;
+}
+
+test('payment-schedule rule 55 — legacy stay, paid solde: a refund before the cancellation comes off the solde, never the acompte', () => {
+  const baseline = seedLegacyWithSolde();
+  assert.equal(cancel(baseline.deps).retainedDepositAmount, 126.38);
+  const backWithout = giveBackSale(controllerOf(baseline.deps));
+  assert.equal(backWithout, 126.38);
+
+  const { deps } = seedLegacyWithSolde();
+  const controller = controllerOf(deps);
+  assert.equal(refund(controller, [{ key: 'accommodation', amountTtc: 50 }]).statusCode, 201);
+  const out = cancel(deps);
+  assert.equal(out.retainedDepositAmount, 126.38, 'the paid solde absorbs the 50 €: the acompte is kept whole');
+  const card = deps.database.prepare('SELECT receivedAmount FROM cancellation_compensations WHERE reservationId = 10').get();
+  assert.equal(card.receivedAmount, 126.38);
+  assert.equal(round2(50 + giveBackSale(controller)), backWithout, 'following the register gives back what it would without the refund');
+});
+
+test('payment-schedule rule 55 — legacy acompte: the avoir reverses the buckets the export booked it on (stay #14)', accounting, () => {
+  // Stay #14, anonymised: 807,20 € with an 80 € option, acompte 242,16 € and solde 565,04 € paid, and a stray
+  // accommodation contrib (807,20 €) the export rejects, so both entries were booked on the stored-money split.
+  const db = baseDb();
+  db.prepare("INSERT INTO options (id, title, price, priceType) VALUES (1, 'Panier', 80, 'fixed')").run();
+  db.prepare(`INSERT INTO reservations (id, kind, propertyId, clientId, startDate, endDate, platform, finalPrice, totalPrice,
+      depositAmount, depositPaid, depositPaidDate, balanceAmount, balancePaid, balancePaidDate, balanceDueDate, accommodationAcompteContribTtc)
+    VALUES (10, 'reservation', 1, 1, ?, ?, 'direct', 807.2, 727.2, 242.16, 1, ?, 565.04, 1, ?, ?, 807.2)`)
+    .run(inDays(60), inDays(65), TODAY, TODAY, inDays(30));
+  db.prepare('INSERT INTO reservation_options (reservationId, optionId, quantity, totalPrice) VALUES (10, 1, 1, 80)').run();
+  const deps = depsOf(db);
+  cancel(deps);
+  const controller = controllerOf(deps);
+  assert.deepEqual(retainedOf(registerOf(controller)).lines.map((l) => [l.bucket, l.amountTtc]), [['accommodation', 218.16], ['options', 24]]);
+  giveBackAll(controller);
+  const net = netByAccount(db);
+  assertSalesAccountsAtZero(net);
+  assert.equal(net['75880000'] || 0, 0);
+  assert.equal(net.CTEST || 0, 0);
+});
+
+test('payment-schedule rule 55 — the solde absorbs what IT collected on a bucket, not the bucket billed minus the acompte', () => {
+  const { deps } = seedWithContribs();
+  const controller = controllerOf(deps);
+  assert.equal(refund(controller, [{ key: 'accommodation', amountTtc: 514 }, { key: 'opt:1', amountTtc: 156 }]).statusCode, 201);
+  // The solde collected 652 € (the 32 € linen line was never collected, billed − acompte would say 684 €): of the
+  // 670 € given back, 18 € come off the acompte. The dinner lacked 30 € on its solde share: they come off its acompte
+  // share, and the 12 € of tax the solde collected, which covered part of them, are kept in their place.
+  assert.equal(cancel(deps).retainedDepositAmount, 256);
+  assert.deepEqual(retainedOf(registerOf(controller)).lines.map((l) => [l.bucket, l.amountTtc]), [['accommodation', 200], ['options', 44], ['touristTax', 12]]);
+  const left = registerOf(controller).refundableLines;
+  assert.equal(sum(left.map((l) => round2(l.refundableTtc - l.indemnityTtc))), 0, 'nothing of the sale is left');
+  assert.equal(sum(left.map((l) => l.indemnityTtc)), 256);
+});
+
+test('reservation-refunds rule 49 — a line never collected is not offered: every 706 sub-account nets to 0', accounting, () => {
+  const { db, deps } = seedWithContribs();
+  cancel(deps);
+  const controller = controllerOf(deps);
+  const register = registerOf(controller);
+  assert.deepEqual(register.refundableLines.map((l) => [l.key, l.refundableTtc]), [['accommodation', 714], ['opt:1', 200], ['touristTax', 12]]);
+  const all = refund(controller, register.refundableLines.map((l) => ({ key: l.key, amountTtc: l.refundableTtc })));
+  assert.equal(all.statusCode, 201, JSON.stringify(all.body));
+  const net = netByAccount(db);
+  assertSalesAccountsAtZero(net);
+  assert.equal(net['75880000'] || 0, 0);
+  assert.equal(net.CTEST || 0, 0);
+});
+
+test('payment-schedule rule 55 — a paid solde absorbed part of a bucket: VAT and revenue net to the cent (fuzz, 5,5 / 10 / 20 %)', accounting, () => {
+  const drift = [];
+  for (const rate of [5.5, 10, 20]) {
+    for (const amount of [126.01, 127.13, 131.17, 140.03, 150.07, 163.33, 171.11, 180.19, 190.91, 199.99]) {
+      const { db, deps } = seedWithContribs(rate);
+      const controller = controllerAt(deps, rate);
+      assert.equal(refund(controller, [{ key: 'opt:1', amountTtc: amount }]).statusCode, 201);
+      cancelAt(deps, rate);
+      for (const line of registerOf(controller).refundableLines) {
+        const out = refund(controller, [{ key: line.key, amountTtc: line.refundableTtc }]);
+        assert.equal(out.statusCode, 201, JSON.stringify(out.body));
+      }
+      const left = Object.entries(netByAccount(db)).filter(([, value]) => value !== 0);
+      if (left.length) drift.push([rate, amount, left]);
+    }
+  }
+  assert.deepEqual(drift, []);
+});
+
+test('payment-schedule rule 55 — what is kept is the acompte minus what earlier refunds took, never the sum of off-by-a-cent lines', () => {
+  const { buildCancellationRequalification } = require('../utils/cancellationRequalification');
+  const row = { id: 1, depositPaid: 1, depositAmount: 274, platform: 'direct' };
+  for (const options of [73.99, 74.01]) {
+    const out = buildCancellationRequalification({ reservation: row, depositBuckets: { accommodation: 200, options, resources: 0 }, cancellationDate: TODAY, vatRate: 10 });
+    assert.equal(out.retainedTtc, 274, `contribs 200 + ${options}`);
+    assert.equal(sum(out.refund.lines.map((l) => l.amountTtc)), 274, 'the last contrib bucket snaps to the acompte');
+    assert.equal(out.compensation.receivedAmount, 274);
+  }
+  const plan = buildCancellationRequalification({
+    reservation: { id: 1, platform: 'direct' },
+    installmentsRetained: { amountTtc: 100, touristTaxTtc: 0, installments: [{ number: 1, count: 2, accommodation: 60, options: 39.99, resources: 0 }] },
+    cancellationDate: TODAY,
+    vatRate: 10,
+  });
+  assert.equal(plan.retainedTtc, 100, 'an installment split one cent short keeps the installment collected');
 });
