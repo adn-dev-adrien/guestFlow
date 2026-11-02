@@ -22,7 +22,9 @@ test('the late simulation of the range left is dropped', async () => {
     return calls === 1 ? new Promise((resolve) => { finishFirst = resolve; }) : Promise.resolve(result('Nouvelle plage'));
   });
   render(<MemoryRouter><EmailSequenceSimulation tabs={null} /></MemoryRouter>);
-  fireEvent.change(screen.getByLabelText('Au'), { target: { value: '2027-01-01' } });
+  // Never the default end (today + 60 days): a value equal to it changes nothing and starts no second call.
+  const otherEnd = new Date(Date.now() + 90 * 86400000).toISOString().slice(0, 10);
+  fireEvent.change(screen.getByLabelText('Au'), { target: { value: otherEnd } });
   expect((await screen.findAllByText('Nouvelle plage')).length).toBeGreaterThan(0);
   await act(async () => { finishFirst(result('Ancienne plage')); });
   expect(screen.queryByText('Ancienne plage')).not.toBeInTheDocument();
