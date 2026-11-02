@@ -6,6 +6,7 @@
 process.env.DB_PATH = ':memory:';
 
 const test = require('node:test');
+const { FAR_YEAR } = require('./farYearFixture');
 const assert = require('node:assert/strict');
 
 function seed() {
@@ -30,7 +31,7 @@ test('rule 3 — the replay of a stored stay prices it like its fiche after the 
   const { quoteStoredReservation } = require('../utils/storedReservationQuote');
 
   const created = await call(reservations.create, { user: { role: 'admin' }, body: {
-    propertyId: 1, clientId: 1, startDate: '2099-03-08', endDate: '2099-03-11', checkInTime: '16:00', checkOutTime: '10:00',
+    propertyId: 1, clientId: 1, startDate: `${FAR_YEAR}-03-08`, endDate: `${FAR_YEAR}-03-11`, checkInTime: '16:00', checkOutTime: '10:00',
     platform: 'direct', adults: 12, children: 0, teens: 0, babies: 0, singleBeds: 0, doubleBeds: 0, babyBeds: 0, options: [],
   } });
   assert.equal(created.status, 200, JSON.stringify(created.body));

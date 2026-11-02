@@ -6,6 +6,7 @@
 process.env.DB_PATH = ':memory:';
 
 const test = require('node:test');
+const { FAR_YEAR } = require('./farYearFixture');
 const assert = require('node:assert/strict');
 
 let seeded = false;
@@ -28,7 +29,7 @@ function fixture(overrides = {}) {
   }
   slot += 1;
   const body = (extra = {}) => ({
-    propertyId: 1, clientId: 1, startDate: `2099-03-${String(slot * 5).padStart(2, '0')}`, endDate: `2099-03-${String(slot * 5 + 2).padStart(2, '0')}`,
+    propertyId: 1, clientId: 1, startDate: `${FAR_YEAR}-03-${String(slot * 5).padStart(2, '0')}`, endDate: `${FAR_YEAR}-03-${String(slot * 5 + 2).padStart(2, '0')}`,
     checkInTime: '16:00', checkOutTime: '10:00', platform: 'direct', adults: 2, children: 0, teens: 0, babies: 0,
     singleBeds: 0, doubleBeds: 0, babyBeds: 0, depositDisabled: 1, options: [], ...overrides, ...extra,
   });

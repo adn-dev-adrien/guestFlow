@@ -1094,8 +1094,11 @@ async function calculatePrice(req, res) {
   });
   if (financeError) return res.status(400).json(financeErrorBody(financeError));
 
-  // specs/reservations-backend-mvc.md rule 11 — sound dates before any pricing or availability check.
-  const datesRefusal = stayDatesRefusal(req.body.startDate, req.body.endDate);
+  // specs/reservations-backend-mvc.md rule 11 — sound dates before any pricing or availability check; rule 13 —
+  // the fiche of a stay or devis quotes its stored dates even past the horizon.
+  const quotedRowId = Number(req.body.reservationId || 0) || Number(req.body.devisId || 0);
+  const quotedRow = quotedRowId > 0 ? db.prepare('SELECT startDate, endDate FROM reservations WHERE id = ?').get(quotedRowId) : null;
+  const datesRefusal = stayDatesRefusal(req.body.startDate, req.body.endDate, { stored: quotedRow });
   if (datesRefusal) return res.status(400).json(stayDatesRefusalBody(datesRefusal));
 
   const propertyId = Number(req.body.propertyId);
@@ -1797,8 +1800,9 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
   });
   if (financeError) return res.status(400).json(financeErrorBody(financeError));
 
-  // specs/reservations-backend-mvc.md rule 11 — sound dates before any pricing or availability check.
-  const datesRefusal = stayDatesRefusal(req.body.startDate, req.body.endDate);
+  // specs/reservations-backend-mvc.md rule 11 — sound dates before any pricing or availability check; rule 13 —
+  // only an edited date is held to the horizon.
+  const datesRefusal = stayDatesRefusal(req.body.startDate, req.body.endDate, { stored: model.getRow(Number(req.params.id)) });
   if (datesRefusal) return res.status(400).json(stayDatesRefusalBody(datesRefusal));
 
   // Data invariant: never persist an empty platform — see `normalisePlatform`.
@@ -2662,7 +2666,8 @@ function restoreSuperseded(req, res) {
   const row = db.prepare('SELECT id, kind, propertyId, startDate, endDate, checkInTime, checkOutTime, blocksPreviousNight, blocksNextNight FROM reservations WHERE id = ?').get(id);
   if (!row) return res.status(404).json({ error: 'Réservation non trouvée' });
   if (row.kind !== 'superseded') return res.status(400).json({ error: "Cette réservation n'est pas un doublon écarté." });
-  const datesRefusal = stayDatesRefusal(row.startDate, row.endDate);
+  // Rule 13 — a restore enters no date: its stored ones are never held to the horizon.
+  const datesRefusal = stayDatesRefusal(row.startDate, row.endDate, { stored: row });
   if (datesRefusal) return res.status(400).json(stayDatesRefusalBody(datesRefusal));
   const taken = model.validateAvailability(
     row.propertyId, row.startDate, row.endDate, row.checkInTime, row.checkOutTime, id,

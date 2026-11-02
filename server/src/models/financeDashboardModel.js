@@ -110,7 +110,7 @@ function createDashboardModel(database, finance) {
     const endMonth = H.getFiscalYearEndMonth(database);
     const current = fiscalYearUtil.containing(endMonth, today);
     const exercise = fiscalYearUtil.resolve(endMonth, { key: params.fiscalYear, today });
-    const resolved = resolveWindow({ exercise, kind: params.period || 'fy', month: params.month, from: params.from, to: params.to });
+    const resolved = resolveWindow({ exercise, kind: params.period || 'fy', month: params.month, from: params.from, to: params.to, today });
     if (!resolved.ok) return { ok: false, status: 400, error: resolved.error };
     const all = properties();
     let propertyId = null;

@@ -27,8 +27,8 @@ function buildController({ database, model, onPricingChanged = emitPricingChange
   }
 
   // The refusal of a write, or null when the closure can be saved.
-  function refusalOf({ propertyId, startDate, endDate, excludeId = null }) {
-    const rangeError = validateRange(startDate, endDate);
+  function refusalOf({ propertyId, startDate, endDate, excludeId = null, stored = null }) {
+    const rangeError = validateRange(startDate, endDate, { stored });
     if (rangeError) return { status: 400, body: { error: rangeError, code: 'INVALID_RANGE' } };
     if (!propertyExists(propertyId)) {
       return { status: 400, body: { error: 'Logement introuvable.', code: 'INVALID_PROPERTY' } };
@@ -91,7 +91,7 @@ function buildController({ database, model, onPricingChanged = emitPricingChange
     const existing = model.findById(id);
     if (!existing) return res.status(404).json({ error: 'Période de fermeture introuvable.' });
     const input = readBody(req);
-    const refusal = refusalOf({ ...input, excludeId: id });
+    const refusal = refusalOf({ ...input, excludeId: id, stored: existing });
     if (refusal) return res.status(refusal.status).json(refusal.body);
     model.update(id, input);
     // The closure may have moved from one property to another: both are recomputed.

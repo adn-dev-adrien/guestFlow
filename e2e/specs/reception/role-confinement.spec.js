@@ -6,6 +6,7 @@
 import { test, expect } from '@playwright/test';
 import { createClient, createProperty, createReservation } from '../../fixtures/apiSeed.js';
 import { RECEPTION_STORAGE_STATE } from '../../fixtures/authState.js';
+import { FAR_YEAR } from '../../fixtures/farYear.js';
 
 test.use({ storageState: RECEPTION_STORAGE_STATE });
 
@@ -37,7 +38,7 @@ test('the reservation payload carries the door money but no revenue, balance or 
     firstName: 'Sophie', lastName: 'Confine', email: 'sophie.confine@example.test', phone: '+33600000042',
   });
   const reservation = await createReservation({
-    propertyId: property.id, clientId: client.id, startDate: '2099-09-10', endDate: '2099-09-14', adults: 2,
+    propertyId: property.id, clientId: client.id, startDate: `${FAR_YEAR}-09-10`, endDate: `${FAR_YEAR}-09-14`, adults: 2,
   });
 
   const res = await request.get(`/api/reservations/${reservation.id}`);
@@ -76,7 +77,7 @@ test('the SAS payload serves the same reception view as the fiche', async ({ req
     firstName: 'Rémi', lastName: 'Guichet', email: 'remi.guichet@example.test', phone: '+33600000043',
   });
   const reservation = await createReservation({
-    propertyId: property.id, clientId: client.id, startDate: '2099-10-01', endDate: '2099-10-04', adults: 2,
+    propertyId: property.id, clientId: client.id, startDate: `${FAR_YEAR}-10-01`, endDate: `${FAR_YEAR}-10-04`, adults: 2,
   });
 
   const res = await request.get(`/api/reservations/${reservation.id}/sas?mode=arrival`);

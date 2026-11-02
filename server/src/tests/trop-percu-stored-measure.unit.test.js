@@ -7,6 +7,7 @@
 process.env.DB_PATH = ':memory:';
 
 const test = require('node:test');
+const { FAR_YEAR } = require('./farYearFixture');
 const assert = require('node:assert/strict');
 
 let seeded = false;
@@ -24,7 +25,7 @@ async function stay(extra = {}) {
   const controller = require('../controllers/reservationsController');
   if (!seeded) seed(db);
   slot += 1;
-  const day = (offset) => new Date(Date.UTC(2099, 0, 1 + offset)).toISOString().slice(0, 10);
+  const day = (offset) => new Date(Date.UTC(FAR_YEAR, 0, 1 + offset)).toISOString().slice(0, 10);
   const body = (overrides = {}) => ({
     propertyId: 1, clientId: 1, startDate: day(slot * 4), endDate: day(slot * 4 + 3), checkInTime: '16:00', checkOutTime: '10:00',
     platform: 'direct', adults: 2, children: 0, teens: 0, babies: 0, singleBeds: 0, doubleBeds: 0, babyBeds: 0, depositDisabled: 1,
@@ -114,7 +115,7 @@ test('rule 12 — an installment stay: the paid installments are collected (#223
   const { db, controller, id } = await stay();
   const total = price(db, id);
   db.prepare('UPDATE reservations SET depositAmount = 0, balanceAmount = 0, finalPrice = finalPrice - 30 WHERE id = ?').run(id);
-  const insert = db.prepare("INSERT INTO reservation_installments (reservationId, number, dueDate, amountCents, paid, paidDate) VALUES (?, ?, '2099-01-01', ?, 1, '2099-01-01')");
+  const insert = db.prepare(`INSERT INTO reservation_installments (reservationId, number, dueDate, amountCents, paid, paidDate) VALUES (?, ?, '${FAR_YEAR}-01-01', ?, 1, '${FAR_YEAR}-01-01')`);
   const cents = Math.round(total * 100);
   insert.run(id, 1, Math.floor(cents / 3)); insert.run(id, 2, Math.floor(cents / 3)); insert.run(id, 3, cents - 2 * Math.floor(cents / 3));
   assert.equal(overpaymentRow(await get(controller, id)).amount, 30);
@@ -148,9 +149,9 @@ test('rule 12 — the refund of a sold line does not eat into the excess; a free
   const { db, controller, id } = await stay();
   db.prepare('UPDATE reservations SET finalPrice = finalPrice - 30, balancePaid = 1, balanceAmount = finalPrice + touristTaxTotal WHERE id = ?').run(id);
   const refunds = require('../models/refundsModel');
-  refunds.create(id, { refundDate: '2099-01-01', method: 'transfer', reason: '', totalTtc: 80, lines: [{ lineKey: 'opt:7', label: 'Ménage', bucket: 'options', quantity: 1, unitPrice: 80, amountTtc: 80, vatRate: 10 }] });
+  refunds.create(id, { refundDate: `${FAR_YEAR}-01-01`, method: 'transfer', reason: '', totalTtc: 80, lines: [{ lineKey: 'opt:7', label: 'Ménage', bucket: 'options', quantity: 1, unitPrice: 80, amountTtc: 80, vatRate: 10 }] });
   assert.equal(overpaymentRow(await get(controller, id)).amount, 30);
-  refunds.create(id, { refundDate: '2099-01-02', method: 'transfer', reason: '', totalTtc: 10, lines: [{ lineKey: null, label: 'Trop-perçu', bucket: 'accommodation', quantity: null, unitPrice: null, amountTtc: 10, vatRate: 10 }] });
+  refunds.create(id, { refundDate: `${FAR_YEAR}-01-02`, method: 'transfer', reason: '', totalTtc: 10, lines: [{ lineKey: null, label: 'Trop-perçu', bucket: 'accommodation', quantity: null, unitPrice: null, amountTtc: 10, vatRate: 10 }] });
   assert.equal(overpaymentRow(await get(controller, id)).amount, 20);
 });
 
@@ -170,8 +171,8 @@ test('rule 14 — the live figure goes down on one refund basis: line refunds an
   assert.equal(controller.performUpdate(id, body({ discountPercent: 10, forceOverpayment: true })).status, 200);
   const stored = overpaymentRow(await get(controller, id)).amount;
   const refunds = require('../models/refundsModel');
-  refunds.create(id, { refundDate: '2099-01-01', method: 'transfer', reason: '', totalTtc: 80, lines: [{ lineKey: 'opt:7', label: 'Ménage', bucket: 'options', quantity: 1, unitPrice: 80, amountTtc: 80, vatRate: 10 }] });
-  refunds.create(id, { refundDate: '2099-01-02', method: 'transfer', reason: '', totalTtc: 10, lines: [{ lineKey: null, label: 'Trop-perçu', bucket: 'accommodation', quantity: null, unitPrice: null, amountTtc: 10, vatRate: 10 }] });
+  refunds.create(id, { refundDate: `${FAR_YEAR}-01-01`, method: 'transfer', reason: '', totalTtc: 80, lines: [{ lineKey: 'opt:7', label: 'Ménage', bucket: 'options', quantity: 1, unitPrice: 80, amountTtc: 80, vatRate: 10 }] });
+  refunds.create(id, { refundDate: `${FAR_YEAR}-01-02`, method: 'transfer', reason: '', totalTtc: 10, lines: [{ lineKey: null, label: 'Trop-perçu', bucket: 'accommodation', quantity: null, unitPrice: null, amountTtc: 10, vatRate: 10 }] });
   const open = stored - 10;
   assert.equal((await preview(controller, id, body({ discountPercent: 10, notes: 'n' }))).overpaymentTtc, open, 'unchanged price: the stored figure');
   assert.equal((await preview(controller, id, body({ discountPercent: 0 }))).overpaymentTtc, 0, 'fully absorbed');
@@ -209,10 +210,10 @@ test('rule 15 — the window starts at the first money collected (a paid install
   const total = price(db, id);
   db.prepare('UPDATE reservations SET depositAmount = 0, balanceAmount = 0 WHERE id = ?').run(id);
   const cents = Math.round(total * 100);
-  const insert = db.prepare("INSERT INTO reservation_installments (reservationId, number, dueDate, amountCents, paid, paidDate) VALUES (?, ?, '2099-01-01', ?, 1, '2099-01-01')");
+  const insert = db.prepare(`INSERT INTO reservation_installments (reservationId, number, dueDate, amountCents, paid, paidDate) VALUES (?, ?, '${FAR_YEAR}-01-01', ?, 1, '${FAR_YEAR}-01-01')`);
   insert.run(id, 1, Math.floor(cents / 2)); insert.run(id, 2, cents - Math.floor(cents / 2));
   assert.equal(controller.performUpdate(id, body({ customOptions: [], discountPercent: 10, forceOverpayment: true })).status, 200); // after the payment
-  setHistoryDates(db, id, ['2098-12-01 10:00:00', '2098-12-01 10:00:00', '2099-02-01 10:00:00']);
+  setHistoryDates(db, id, [`${FAR_YEAR - 1}-12-01 10:00:00`, `${FAR_YEAR - 1}-12-01 10:00:00`, `${FAR_YEAR}-02-01 10:00:00`]);
   const row = overpaymentRow(await get(controller, id));
   assert.deepEqual(row.refundPrefill.overpaymentLines.map((l) => l.bucket), ['accommodation'], 'the 80 € dropped before the first payment is not the excess');
 });

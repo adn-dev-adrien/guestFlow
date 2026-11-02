@@ -1,4 +1,5 @@
 const test = require('node:test');
+const { FAR_YEAR } = require('./farYearFixture');
 const assert = require('node:assert/strict');
 
 // specs/edit-reservation-blocked-by-overlap.md — editing an EXISTING reservation must not be rejected
@@ -60,7 +61,7 @@ function buildController({ stored, availabilityError = null, capacity, captures 
       if (k === 'replaceOptions') return () => null;
       if (k === 'getReservationNumber') return () => 'R-1';
       if (k === 'getForUpdate') return () => stored;
-      if (k === 'getAuditSnapshotFromDb') return () => ({ startDate: '2099-09-10' });
+      if (k === 'getAuditSnapshotFromDb') return () => ({ startDate: `${FAR_YEAR}-09-10` });
       if (k === 'getPricingSnapshot') return () => ({ lockedNightlyBreakdown: [], lockedOptionLines: [], lockedResourceLines: [] });
       return () => null;
     } }),
@@ -74,7 +75,7 @@ function buildController({ stored, availabilityError = null, capacity, captures 
 }
 
 const PLACEMENT = {
-  propertyId: 1, startDate: '2099-09-10', endDate: '2099-09-12', checkInTime: '15:00', checkOutTime: '10:00',
+  propertyId: 1, startDate: `${FAR_YEAR}-09-10`, endDate: `${FAR_YEAR}-09-12`, checkInTime: '15:00', checkOutTime: '10:00',
   adults: 2, children: 0, teens: 0, babies: 0, singleBeds: 0, doubleBeds: 0, babyBeds: 0,
 };
 function body(over = {}) {
@@ -96,7 +97,7 @@ test('moving the reservation into a conflict IS still rejected', () => {
   const controller = buildController({ stored: { ...PLACEMENT }, availabilityError: { error: 'Ce logement est déjà réservé pour ces dates.' }, captures });
   const res = fakeRes();
   // endDate changed → placement changed → the guard runs and the conflict is enforced.
-  controller.update({ params: { id: '7' }, body: body({ endDate: '2099-09-14' }) }, res);
+  controller.update({ params: { id: '7' }, body: body({ endDate: `${FAR_YEAR}-09-14` }) }, res);
   assert.equal(captures.validateCalled, true, 'the availability guard ran (dates changed)');
   assert.equal(res.statusCode, 409, 'the conflict is rejected');
 });

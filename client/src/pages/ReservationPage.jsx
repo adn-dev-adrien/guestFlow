@@ -1349,9 +1349,10 @@ export default function ReservationPage() {
     api.getClient(form.clientId).then((c) => { if (!cancelled && c) setSelectedClient(c); }).catch(() => { if (!cancelled) setClientLookupFailed(true); });
     return () => { cancelled = true; };
   }, [form.clientId, clients, pendingClient]);
-  // Load occupied dates from backend when property or dates change
+  // Load occupied dates from backend when property or dates change. A range the server refuses (reversed,
+  // too long, past the horizon — specs/establishment-closures.md rule 20) is not asked: it has none.
   useEffect(() => {
-    if (!selectedProp || !form.startDate || !form.endDate) {
+    if (!selectedProp || !isQuotableStay(form.startDate, form.endDate, { stored: initialPricingContextRef.current })) {
       setOccupiedDates([]);
       return;
     }
@@ -1376,7 +1377,7 @@ export default function ReservationPage() {
     const start = new Date(`${form.startDate}T00:00:00`);
     const end = new Date(`${form.endDate}T00:00:00`);
     // specs/reservations-backend-mvc.md rule 12 — a stay the server refuses (reversed, too long) is not quoted.
-    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || !isQuotableStay(form.startDate, form.endDate)) {
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || !isQuotableStay(form.startDate, form.endDate, { stored: initialPricingContextRef.current })) {
       setMinNightsState({ breached: false, required: 0, nights: 0 });
       return;
     }
@@ -2081,7 +2082,7 @@ export default function ReservationPage() {
 
     // specs/reservations-backend-mvc.md rule 12 — only a complete, sound stay is quoted (the server refuses
     // the rest): a « Nouveau devis » switched before its dates are typed has no quote yet, like on opening.
-    const hasStayRange = isQuotableStay(form.startDate, form.endDate);
+    const hasStayRange = isQuotableStay(form.startDate, form.endDate, { stored: initialPricingContextRef.current });
     const [{ property: prop }, calc, allRes] = await Promise.all([
       loadPropertyContext(nextPropertyId, properties),
       hasStayRange ? api.calculatePrice({
@@ -2285,8 +2286,9 @@ export default function ReservationPage() {
       return false;
     }
 
-    // specs/reservations-backend-mvc.md rule 12 — a departure on or before the arrival, or a stay too long, is refused here too.
-    const datesMessage = stayDatesMessage(form.startDate, form.endDate);
+    // specs/reservations-backend-mvc.md rules 12-13 — a departure on or before the arrival, a stay too long or a date
+    // past the horizon is refused here too.
+    const datesMessage = stayDatesMessage(form.startDate, form.endDate, { stored: initialPricingContextRef.current });
     if (datesMessage) {
       await alert({ title: 'Erreur', message: datesMessage });
       return false;
@@ -3342,7 +3344,7 @@ export default function ReservationPage() {
   const dateRangeConflictInfo = getDateRangeConflictInfo(form.startDate, form.endDate);
   const datesUnavailableForProperty = Boolean(dateRangeConflictInfo);
   const datesUnavailableMessage = dateRangeConflictInfo?.message || 'Ces dates ne sont pas dispo pour ce logement.';
-  const stayDatesHint = stayDatesMessage(form.startDate, form.endDate);
+  const stayDatesHint = stayDatesMessage(form.startDate, form.endDate, { stored: initialPricingContextRef.current });
   const minNightsWarning = minNightsState.breached
     ? `Séjour trop court: ${minNightsState.nights} nuit(s) pour un minimum saisonnier de ${minNightsState.required} nuit(s).`
     : '';

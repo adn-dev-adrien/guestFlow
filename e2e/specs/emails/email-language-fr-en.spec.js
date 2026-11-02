@@ -5,6 +5,7 @@
 import { test, expect } from '@playwright/test';
 import { createClient, createProperty, createReservation } from '../../fixtures/apiSeed.js';
 import { setClientEmailLanguage } from '../../fixtures/dbSeed.js';
+import { FAR_YEAR } from '../../fixtures/farYear.js';
 
 async function j2TemplateId(request) {
   const res = await request.get('/api/email-templates');
@@ -18,7 +19,7 @@ test('a client set to English drives the J-2 preview to English; French clients 
   const client = await createClient({ firstName: 'John', lastName: 'Langtest' });
   const reservation = await createReservation({
     propertyId: property.id, clientId: client.id,
-    startDate: '2099-07-10', endDate: '2099-07-13', adults: 2,
+    startDate: `${FAR_YEAR}-07-10`, endDate: `${FAR_YEAR}-07-13`, adults: 2,
   });
   const templateId = await j2TemplateId(request);
   expect(templateId).toBeTruthy();
@@ -30,7 +31,7 @@ test('a client set to English drives the J-2 preview to English; French clients 
   // specs/guest-email-sequence.md §6.1 — the J-2 of the guest sequence, in the neutral copy a new
   // database ships (specs/plugins-phase-p-productisation.md rule 13).
   expect(fr.body).toMatch(/Dans deux jours, vous serez/);
-  expect(fr.body).toMatch(/juillet 2099/);
+  expect(fr.body).toMatch(new RegExp(`juillet ${FAR_YEAR}`));
 
   // Switch the CLIENT to English → English preview (body + composed date), no French leakage.
   setClientEmailLanguage(client.id, 'en');
@@ -38,7 +39,7 @@ test('a client set to English drives the J-2 preview to English; French clients 
   const en = await enRes.json();
   expect(en.lang).toBe('en');
   expect(en.body).toMatch(/In two days, you will be at/);
-  expect(en.body).toMatch(/July 2099/);
+  expect(en.body).toMatch(new RegExp(`July ${FAR_YEAR}`));
   expect(en.body).not.toMatch(/Dans deux jours/);
 
   // The reservation fiche no longer carries the email-language selector (it moved to the client fiche).

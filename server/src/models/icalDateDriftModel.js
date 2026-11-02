@@ -207,8 +207,8 @@ function buildModel(database) {
     if (has('kind') && reservation.kind !== 'reservation') {
       return { error: 'RESERVATION_NON_ACTIVE', status: 409 };
     }
-    // specs/reservations-backend-mvc.md rule 11 — the proposal stays pending: Reject still clears it.
-    const datesRefusal = stayDatesRefusal(drift.newStartDate, drift.newEndDate);
+    // specs/reservations-backend-mvc.md rules 11, 13 — the proposal stays pending: Reject still clears it.
+    const datesRefusal = stayDatesRefusal(drift.newStartDate, drift.newEndDate, { stored: reservation });
     if (datesRefusal) return datesRefusal;
     narrowDateUpdate.run(drift.newStartDate, drift.newEndDate, drift.reservationId);
     const deadline = payoutDeadlineFor(reservation, drift.newEndDate);

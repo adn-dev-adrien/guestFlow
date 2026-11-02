@@ -4,6 +4,7 @@
 // a phone.
 import { test, expect } from '@playwright/test';
 import { createClient, createProperty, createReservation } from '../../fixtures/apiSeed.js';
+import { FAR_YEAR } from '../../fixtures/farYear.js';
 
 let reservationId;
 
@@ -11,7 +12,7 @@ test.beforeAll(async () => {
   const property = await createProperty({ name: 'E2E barre de total' });
   const client = await createClient({ firstName: 'Cobalt', lastName: 'Sierra' });
   const reservation = await createReservation({
-    propertyId: property.id, clientId: client.id, startDate: '2099-08-07', endDate: '2099-08-13',
+    propertyId: property.id, clientId: client.id, startDate: `${FAR_YEAR}-08-07`, endDate: `${FAR_YEAR}-08-13`,
   });
   reservationId = reservation.id;
 });

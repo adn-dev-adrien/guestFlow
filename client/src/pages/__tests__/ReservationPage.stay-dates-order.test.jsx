@@ -37,16 +37,20 @@ vi.mock('../../hooks/usePlugins', () => ({ usePlugin: () => false, usePlugins: (
 
 import api from '../../api';
 import ReservationPage from '../ReservationPage';
+import { addIsoDays, localIsoToday } from '../../utils/isoDay';
+
+// A month ahead: inside the date horizon (specs/reservations-backend-mvc.md rule 13), never past.
+const ARRIVAL = addIsoDays(localIsoToday(), 30);
 
 const ORDER = "La date de départ doit suivre la date d'arrivée.";
 const FICHE = {
-  id: 22331, kind: 'reservation', clientId: 1, propertyId: 1, startDate: '2099-02-03', endDate: '2099-02-05',
+  id: 22331, kind: 'reservation', clientId: 1, propertyId: 1, startDate: ARRIVAL, endDate: addIsoDays(ARRIVAL, 2),
   platform: 'direct', adults: 2, reservationNumber: '209922331', options: [], resources: [], customOptions: [],
-  depositAmount: 90, depositPaid: 0, balanceAmount: 210, balancePaid: 0, finalPrice: 300, updatedAt: '2099-01-01 10:00:00',
+  depositAmount: 90, depositPaid: 0, balanceAmount: 210, balancePaid: 0, finalPrice: 300, updatedAt: `${localIsoToday()} 10:00:00`,
 };
 const DEVIS = {
-  id: 77, clientId: 1, propertyId: 1, startDate: '2099-02-03', endDate: '2099-02-05', status: 'sent',
-  adults: 2, platform: 'direct', notes: '', updatedAt: '2099-01-01 10:00:00', options: [], resources: [], customOptions: [],
+  id: 77, clientId: 1, propertyId: 1, startDate: ARRIVAL, endDate: addIsoDays(ARRIVAL, 2), status: 'sent',
+  adults: 2, platform: 'direct', notes: '', updatedAt: `${localIsoToday()} 10:00:00`, options: [], resources: [], customOptions: [],
 };
 
 beforeEach(() => {
@@ -74,14 +78,14 @@ function openAt(entry, path) {
 
 async function typeDeparture(value) {
   const departure = await screen.findByLabelText("Date de départ");
-  await waitFor(() => expect(departure).toHaveValue('2099-02-05'));
+  await waitFor(() => expect(departure).toHaveValue(addIsoDays(ARRIVAL, 2)));
   fireEvent.change(departure, { target: { value } });
   return departure;
 }
 
 test('a departure typed before the arrival shows the error under the dates and the save sends nothing', async () => {
   openAt('/reservations/22331', '/reservations/:reservationId');
-  const departure = await typeDeparture('2099-01-05');
+  const departure = await typeDeparture(addIsoDays(ARRIVAL, -29));
   expect(await screen.findByText(ORDER)).toBeInTheDocument();
   expect(departure).toHaveAttribute('aria-invalid', 'true');
   fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
@@ -91,7 +95,7 @@ test('a departure typed before the arrival shows the error under the dates and t
 
 test('a departure on the arrival day is refused the same way', async () => {
   openAt('/reservations/22331', '/reservations/:reservationId');
-  await typeDeparture('2099-02-03');
+  await typeDeparture(ARRIVAL);
   expect(await screen.findByText(ORDER)).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
   await waitFor(() => expect(dialogs.alert).toHaveBeenCalledWith(expect.objectContaining({ message: ORDER })));
@@ -100,7 +104,7 @@ test('a departure on the arrival day is refused the same way', async () => {
 
 test('the devis refuses a reversed stay before any request', async () => {
   openAt('/reservations/new?mode=devis&devisId=77', '/reservations/new');
-  await typeDeparture('2099-01-05');
+  await typeDeparture(addIsoDays(ARRIVAL, -29));
   expect(await screen.findByText(ORDER)).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Enregistrer le devis' }));
   await waitFor(() => expect(dialogs.alert).toHaveBeenCalledWith(expect.objectContaining({ message: ORDER })));
@@ -109,7 +113,7 @@ test('the devis refuses a reversed stay before any request', async () => {
 
 test('a refusal of the server (400 INVALID_STAY_DATES) is shown with its message', async () => {
   openAt('/reservations/22331', '/reservations/:reservationId');
-  await typeDeparture('2099-02-07');
+  await typeDeparture(addIsoDays(ARRIVAL, 4));
   expect(screen.queryByText(ORDER)).not.toBeInTheDocument();
   api.calculatePrice.mockRejectedValue(Object.assign(new Error('Date de séjour invalide.'), { code: 'INVALID_STAY_DATES', status: 400 }));
   fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));

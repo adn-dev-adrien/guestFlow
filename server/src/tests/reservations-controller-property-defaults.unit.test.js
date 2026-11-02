@@ -1,4 +1,5 @@
 const test = require('node:test');
+const { FAR_YEAR } = require('./farYearFixture');
 const assert = require('node:assert/strict');
 
 // Non-regression coverage for specs/devis-pdf-and-tourist-tax-fixes.md §3.3 rule 13:
@@ -106,7 +107,7 @@ test('create merges property defaults into selectedOptions before quoting (rule 
   const req = {
     body: {
       propertyId: 1, clientId: 1,
-      startDate: '2099-09-10', endDate: '2099-09-12',
+      startDate: `${FAR_YEAR}-09-10`, endDate: `${FAR_YEAR}-09-12`,
       adults: 2, children: 0, teens: 0, babies: 0,
       checkInTime: '15:00', checkOutTime: '10:00',
       options: [{ optionId: 99, quantity: 1 }],
@@ -122,7 +123,7 @@ test('create does not duplicate a default already present in the payload', () =>
   const controller = buildController([{ optionId: 42, offered: false }], captures);
   const req = {
     body: {
-      propertyId: 1, clientId: 1, startDate: '2099-09-10', endDate: '2099-09-12',
+      propertyId: 1, clientId: 1, startDate: `${FAR_YEAR}-09-10`, endDate: `${FAR_YEAR}-09-12`,
       adults: 2, children: 0, teens: 0, babies: 0, checkInTime: '15:00', checkOutTime: '10:00',
       options: [{ optionId: 42, quantity: 2 }], // already includes the default
     },
@@ -138,7 +139,7 @@ test('create is a no-op when the property has no defaults configured', () => {
   const controller = buildController([], captures);
   const req = {
     body: {
-      propertyId: 1, clientId: 1, startDate: '2099-09-10', endDate: '2099-09-12',
+      propertyId: 1, clientId: 1, startDate: `${FAR_YEAR}-09-10`, endDate: `${FAR_YEAR}-09-12`,
       adults: 2, children: 0, teens: 0, babies: 0, checkInTime: '15:00', checkOutTime: '10:00',
       options: [{ optionId: 99, quantity: 1 }],
     },
@@ -156,7 +157,7 @@ test('create propagates the offered=true default into offeredOptionIds (rule 11)
   );
   const req = {
     body: {
-      propertyId: 1, clientId: 1, startDate: '2099-09-10', endDate: '2099-09-12',
+      propertyId: 1, clientId: 1, startDate: `${FAR_YEAR}-09-10`, endDate: `${FAR_YEAR}-09-12`,
       adults: 2, children: 0, teens: 0, babies: 0, checkInTime: '15:00', checkOutTime: '10:00',
       options: [], offeredOptionIds: [],
     },
@@ -174,7 +175,7 @@ test('create propagates the offered=true default into offeredOptionIds (rule 11)
 // Bounded by what the reservation ALREADY carries — specs/reservation-option-immutability.md rule 3.
 
 function updateReq(body) {
-  return { params: { id: 1 }, body: { propertyId: 1, clientId: 1, startDate: '2099-09-10', endDate: '2099-09-12', adults: 2, children: 0, teens: 0, babies: 0, checkInTime: '15:00', checkOutTime: '10:00', ...body } };
+  return { params: { id: 1 }, body: { propertyId: 1, clientId: 1, startDate: `${FAR_YEAR}-09-10`, endDate: `${FAR_YEAR}-09-12`, adults: 2, children: 0, teens: 0, babies: 0, checkInTime: '15:00', checkOutTime: '10:00', ...body } };
 }
 
 test('update restores an offered default the payload dropped when the reservation carries it', () => {
@@ -215,7 +216,7 @@ test('calculatePrice forwards babies to the engine, like create and update do', 
   const controller = buildController([], captures);
   controller.calculatePrice({
     body: {
-      propertyId: 1, startDate: '2099-09-10', endDate: '2099-09-13',
+      propertyId: 1, startDate: `${FAR_YEAR}-09-10`, endDate: `${FAR_YEAR}-09-13`,
       adults: 3, children: 1, teens: 0, babies: 1, babyBeds: 1,
       checkInTime: '15:00', checkOutTime: '10:00', options: [],
     },

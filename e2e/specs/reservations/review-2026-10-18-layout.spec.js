@@ -4,6 +4,7 @@
 // property name ellipsises in its select instead of widening the page (review 2026-10-18, M-4, M-5).
 import { test, expect } from '@playwright/test';
 import { createClient, createProperty, createReservation } from '../../fixtures/apiSeed.js';
+import { FAR_YEAR } from '../../fixtures/farYear.js';
 
 const LONG_NAME = 'Domaine-des-Chênes-Centenaires-et-de-la-Rivière-Sauvage-Lodge-Panoramique-Familial';
 
@@ -19,7 +20,7 @@ test.beforeAll(async () => {
   propertyId = property.id;
   const client = await createClient({ firstName: 'Camille', lastName: 'Largeur' });
   const reservation = await createReservation({
-    propertyId, clientId: client.id, startDate: '2099-05-10', endDate: '2099-05-13',
+    propertyId, clientId: client.id, startDate: `${FAR_YEAR}-05-10`, endDate: `${FAR_YEAR}-05-13`,
   });
   reservationId = reservation.id;
 });

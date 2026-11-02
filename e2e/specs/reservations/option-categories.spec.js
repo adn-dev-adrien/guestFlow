@@ -11,6 +11,7 @@ import path from 'path';
 import { createClient, createProperty, createReservation } from '../../fixtures/apiSeed.js';
 import { seedCateringOptions } from '../../fixtures/dbSeed.js';
 import { CLIENT_URL } from '../../clientUrl.js';
+import { FAR_YEAR } from '../../fixtures/farYear.js';
 
 const STORAGE_STATE = path.join(process.cwd(), 'e2e', '.auth', 'admin.json');
 
@@ -51,8 +52,8 @@ async function openFiche(page, { withBreakfast = false } = {}) {
     propertyId: property.id,
     clientId: client.id,
     // Far-future window so the date range never collides with another spec's seed.
-    startDate: '2099-11-04',
-    endDate: '2099-11-07',
+    startDate: `${FAR_YEAR}-11-04`,
+    endDate: `${FAR_YEAR}-11-07`,
     adults: 2,
   });
   // `?from=` mirrors how the app links to a fiche, and gives the post-save `navigate(from)` a real

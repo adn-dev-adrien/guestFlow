@@ -1,6 +1,7 @@
-// specs/establishment-closures.md rules 18-19 (audit R19, 2026-11-02) — a closure is two real days at
-// most MAX_CLOSURE_DAYS apart, refused otherwise on create, update and the conflicts preview; and a
-// closure is expanded only over the window asked, so a legacy closure ending in 9999 costs nothing.
+// specs/establishment-closures.md rules 18-20 (audit R19, 2026-11-02) — a closure is two real days at
+// most MAX_CLOSURE_DAYS apart, refused otherwise on create, update and the conflicts preview; a closure
+// is expanded only over the window asked, so a legacy closure ending in 9999 costs nothing; and the
+// occupied dates answer a bounded window whose `to` is exclusive.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
@@ -105,4 +106,27 @@ test('rule 20 — the occupied dates answer a window of at most 750 real days, r
   const wide = ask(plusDays(START, -10), plusDays(START, 740));
   assert.equal(wide.statusCode, 200);
   assert.equal(wide.body.length, 740);
+});
+
+test('rule 20 — a closure on the last Sunday of a month grid is occupied when the grid asks up to the day after', () => {
+  const ask = (from, to) => {
+    const res = {
+      statusCode: 200, body: null,
+      status(code) { this.statusCode = code; return this; },
+      json(payload) { this.body = payload; return this; },
+    };
+    reservationsController.occupiedDates({ params: { propertyId: String(cid) }, query: { from, to } }, res);
+    return res.body;
+  };
+  // A month a year ahead whose last day is a Sunday: its grid ends on that day.
+  let last = null;
+  for (let m = 12; m < 36 && !last; m += 1) {
+    const d = new Date(Date.UTC(Number(TODAY.slice(0, 4)), Number(TODAY.slice(5, 7)) - 1 + m + 1, 0));
+    if (d.getUTCDay() === 0) last = d.toISOString().slice(0, 10);
+  }
+  const gridFrom = plusDays(`${last.slice(0, 7)}-01`, -6);
+  const cid = db.prepare("INSERT INTO properties (name, maxGuests) VALUES ('Lodge', 2)").run().lastInsertRowid;
+  db.prepare("INSERT INTO establishment_closures (propertyId, label, startDate, endDate) VALUES (?, 'Hiver', ?, ?)").run(cid, plusDays(last, -2), plusDays(last, 30));
+  assert.deepEqual(ask(gridFrom, plusDays(last, 1)), [plusDays(last, -2), plusDays(last, -1), last]);
+  assert.ok(!ask(gridFrom, last).includes(last), 'the end is exclusive: the grid must ask for the day after its last cell');
 });

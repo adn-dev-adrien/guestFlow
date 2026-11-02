@@ -2,6 +2,7 @@
 // `performUpdate` (the HTTP handler minus Express), `toUpdateBody` (stored reservation → the PUT body),
 // and `ctx.core.reservations.update` (both, for a plugin, refused on a started stay).
 const test = require('node:test');
+const { FAR_YEAR } = require('./farYearFixture');
 const assert = require('node:assert/strict');
 const Module = require('module');
 
@@ -28,7 +29,7 @@ test('result recorder: status + json, and json alone, are recorded as { status, 
 
 // The same controller harness as reservations-controller-edit-overlap: the engine and the model mocked.
 function buildController({ availabilityError = null, captures }) {
-  const PLACEMENT = { propertyId: 1, startDate: '2099-09-10', endDate: '2099-09-12', adults: 2, children: 0, teens: 0, babies: 0 };
+  const PLACEMENT = { propertyId: 1, startDate: `${FAR_YEAR}-09-10`, endDate: `${FAR_YEAR}-09-12`, adults: 2, children: 0, teens: 0, babies: 0 };
   return withMocks({
     '../utils/pricing': { calculateReservationQuote: () => ({ totalPrice: 0, finalPrice: 100, depositAmount: 0, balanceAmount: 100, optionLines: [], resourceLines: [], nightlyBreakdown: [], nights: 2, error: null }) },
     '../utils/occupancy': { getNightBlocksFromTimes: () => ({}), buildOccupiedDatesFromReservations: () => [] },
@@ -41,7 +42,7 @@ function buildController({ availabilityError = null, captures }) {
       if (k === 'updateReservation') return (id, payload) => { captures.updated = { id, payload }; };
       if (k === 'getReservationNumber') return () => 'R-1';
       if (k === 'getForUpdate') return () => PLACEMENT;
-      if (k === 'getAuditSnapshotFromDb') return () => ({ startDate: '2099-09-10' });
+      if (k === 'getAuditSnapshotFromDb') return () => ({ startDate: `${FAR_YEAR}-09-10` });
       if (k === 'getPricingSnapshot') return () => ({ lockedNightlyBreakdown: [], lockedOptionLines: [], lockedResourceLines: [] });
       return () => null;
     } }),
@@ -54,7 +55,7 @@ function buildController({ availabilityError = null, captures }) {
   });
 }
 
-const BODY = { clientId: 1, platform: 'Airbnb', options: [], propertyId: 1, startDate: '2099-09-10', endDate: '2099-09-13', adults: 2, children: 0, teens: 0, babies: 0 };
+const BODY = { clientId: 1, platform: 'Airbnb', options: [], propertyId: 1, startDate: `${FAR_YEAR}-09-10`, endDate: `${FAR_YEAR}-09-13`, adults: 2, children: 0, teens: 0, babies: 0 };
 
 test('performUpdate answers what the HTTP save answers — success', () => {
   const captures = {};

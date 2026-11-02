@@ -8,14 +8,17 @@ import { test, expect, request as playwrightRequest } from '@playwright/test';
 import { createClient, createProperty, createReservation } from '../../fixtures/apiSeed.js';
 import { setPublicUrl, markIcalImported, setPlatformPayout } from '../../fixtures/dbSeed.js';
 import { CLIENT_URL, SERVER_PORT } from '../../clientUrl.js';
+import { FAR_YEAR } from '../../fixtures/farYear.js';
 
 const { PAGE_6300000001, replaceOnce } = require('../../../server/src/plugins/booking-intake/tests/fixtures.js');
 
-const START = '2099-10-05';
-const END = '2099-10-07';
+const START = `${FAR_YEAR}-10-05`;
+const END = `${FAR_YEAR}-10-07`;
+// The extranet's day label, « lun. 5 oct. 2026 » (the weekday follows the year).
+const frDay = (iso) => new Intl.DateTimeFormat('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${iso}T00:00:00Z`));
 const BACKEND = `http://127.0.0.1:${SERVER_PORT}`;
 
-const pageText = (resId) => replaceOnce(replaceOnce(replaceOnce(PAGE_6300000001, '6300000001', resId), 'ven. 6 nov. 2026', 'lun. 5 oct. 2099'), 'dim. 8 nov. 2026', 'mer. 7 oct. 2099');
+const pageText = (resId) => replaceOnce(replaceOnce(replaceOnce(PAGE_6300000001, '6300000001', resId), 'ven. 6 nov. 2026', frDay(START)), 'dim. 8 nov. 2026', frDay(END));
 
 // The seed installs every plugin active (server/scripts/seed-e2e.js): the Plugins page switches it.
 const bookingCard = (page) => page.locator('.MuiCard-root').filter({ hasText: 'Saisie Booking' });
