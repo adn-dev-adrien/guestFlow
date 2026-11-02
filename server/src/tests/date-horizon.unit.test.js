@@ -145,7 +145,7 @@ test('rule 13: extending, previewing and converting a devis stored past the hori
   assert.equal(f.rowOf(reservationId).endDate, at(32));
 });
 
-test('rule 18 (reading of 2026-11-02): a closure may end on the horizon, not one day past it', () => {
+test('establishment-closures.md rule 18 (reading of 2026-11-02): a closure may end on the horizon, not one day past it', () => {
   assert.equal(CLOSURE_MESSAGES.tooFar, HORIZON_MESSAGE);
   assert.equal(validateRange(at(-10), H), null);
   assert.equal(validateRange(at(-10), at(1)), HORIZON_MESSAGE);
@@ -153,7 +153,7 @@ test('rule 18 (reading of 2026-11-02): a closure may end on the horizon, not one
   assert.equal(validateRange(addDaysToIsoDate(todayIso(), -700), addDaysToIsoDate(todayIso(), -650)), null);
 });
 
-test('rule 18 (reading of 2026-11-02): create, update and the conflicts preview refuse a closure past the horizon', () => {
+test('establishment-closures.md rule 18 (reading of 2026-11-02): create, update and the conflicts preview refuse a closure past the horizon', () => {
   const { db, controller } = closures.seedClosures();
   const refused = closures.call(controller.create, { body: { propertyId: 2, startDate: at(-5), endDate: at(1) } });
   assert.equal(refused.statusCode, 400);
@@ -177,7 +177,7 @@ test('rule 18 (reading of 2026-11-02): create, update and the conflicts preview 
   assert.equal(edited.body.error, HORIZON_MESSAGE);
 });
 
-test('rule 51 (reading of 2026-11-02): a custom finance window may end on the horizon, not one day past it', () => {
+test('finance-dashboard-redesign.md rule 51 (reading of 2026-11-02): a custom finance window may end on the horizon, not one day past it', () => {
   const exercise = { key: finance.THIS_YEAR, label: `${finance.THIS_YEAR}`, from: `${finance.THIS_YEAR}-01-01`, to: `${finance.THIS_YEAR}-12-31` };
   assert.equal(WINDOW_MESSAGES.tooFar, HORIZON_MESSAGE);
   assert.equal(resolveWindow({ exercise, kind: 'custom', from: at(-30), to: H, today: todayIso() }).ok, true);

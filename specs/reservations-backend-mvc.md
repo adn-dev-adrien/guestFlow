@@ -142,7 +142,7 @@ rules — just a clean, testable structure that future slices (and Bloc 5) build
    and a closure 2028-03-31 — so nothing is migrated. The GreenGo block of 2028-03-01 → 2028-08-29, which
    reaches GuestFlow through the iCal import, is inside the horizon and the import is not held to it anyway.
    The fiche and the devis (`ReservationPage`) show the message under the dates, the field in error, ask
-   neither a quote nor the occupied dates for such a range, and « Enregistrer » refuses with it before any
+   neither a quote, the occupied dates nor the resources' availability for such a range, and « Enregistrer » refuses with it before any
    request; a date the record was loaded with is not held to it (`utils/stayDates.stayDatesMessage(start,
    end, { stored })`). The horizon and its message live in `constants/dateHorizon.js` and
    `utils/dateHorizon.js`, mirroring the server. *Why:* a year typed one digit off (2062 for 2026) used to

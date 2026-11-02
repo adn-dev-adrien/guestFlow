@@ -1303,9 +1303,10 @@ export default function ReservationPage() {
   // The availability used to refresh only at init and when the Logement select changed — so typing
   // the dates on a blank fiche never triggered it, and « déjà réservée » / the remaining quantity
   // stayed stale (specs/hourly-resource-quantity-and-sas-scheduling.md §3.2 rule 9). Until both dates
-  // are set the catalogue from the property context stands in, so the block is never empty.
+  // are set the catalogue from the property context stands in, so the block is never empty. A range the server
+  // refuses (specs/reservations-backend-mvc.md rules 12-13) is not asked either.
   useEffect(() => {
-    if (loading || !selectedProp || !form.startDate || !form.endDate) return;
+    if (loading || !selectedProp || !isQuotableStay(form.startDate, form.endDate, { stored: initialPricingContextRef.current })) return;
     const excludeId = editingReservationId || excludeReservationIdForDevis || null;
     if (availabilityKey.current === [selectedProp, form.startDate, form.endDate, excludeId || ''].join('|')) return;
     loadResourcesAvailability(form.startDate, form.endDate, selectedProp, excludeId).catch(() => {});

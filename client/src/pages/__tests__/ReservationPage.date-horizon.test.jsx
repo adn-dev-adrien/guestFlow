@@ -1,6 +1,6 @@
 // specs/reservations-backend-mvc.md rule 13 (Adrien's decision of 2026-11-02) — the fiche and the devis say
 // « Date trop lointaine : 5 ans au plus. » under the dates for a date typed past today + 5 years, ask neither a
-// quote nor the occupied dates for it, and « Enregistrer » refuses before any request. A date the record already
+// quote, the occupied dates nor the resources' availability for it, and « Enregistrer » refuses before any request. A date the record already
 // carries is not held to the horizon. And (review of PR #937, R2) a range the server refuses is not sent to the
 // occupied dates.
 import React from 'react';
@@ -109,6 +109,7 @@ test('rule 13 — a departure one day past the horizon says so, asks for no quot
   expect(departure).toHaveAttribute('aria-invalid', 'true');
   expect(quotedDepartures()).not.toContain(tooFar);
   expect(occupiedDepartures()).not.toContain(tooFar);
+  expect(api.getResourcesAvailability.mock.calls.map(([q]) => q.endDate)).not.toContain(tooFar);
   fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
   await waitFor(() => expect(dialogs.alert).toHaveBeenCalledWith(expect.objectContaining({ message: TOO_FAR })));
   expect(api.updateReservation).not.toHaveBeenCalled();
