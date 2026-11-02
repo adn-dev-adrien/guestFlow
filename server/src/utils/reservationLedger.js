@@ -14,6 +14,7 @@
  */
 
 const { remainingToPay, platformPenalty, round2 } = require('./reservationSettlement');
+const { isRetainedDeposit, isIndemnityLine } = require('./refunds');
 const { parseGroup } = require('./arrivalPaymentGroup');
 const { saleChannel } = require('./saleChannel');
 const { platformDisplay } = require('./platformDisplay');
@@ -51,7 +52,8 @@ const DEVIS_LOCK = Object.freeze({
   reason: 'Sur un devis, l\'acompte suit le pourcentage du logement : le prix se règle par « Prix hébergement ajusté ».',
 });
 
-const METHOD_LABELS = { transfer: 'virement', cash: 'espèces', internal: 'caisse interne' };
+// `retained` is never shown as a means (its row says « Requalifié en indemnité »); the label is the fallback.
+const METHOD_LABELS = { transfer: 'virement', cash: 'espèces', internal: 'caisse interne', retained: 'acompte conservé' };
 
 const LINK_TYPES_BY_ROW = { deposit: ['deposit'], balance: ['balance', 'full'], complement: ['complement'] };
 
@@ -600,14 +602,30 @@ function buildLedger({
     });
   }
   for (const refund of refunds || []) {
-    const method = METHOD_LABELS[refund.method] || refund.method || '';
+    const when = shortDate(refund.refundDate, stayYear);
+    // Payment-schedule rule 32bis, reading of 2026-11-02 — the cancellation kept this money as an indemnity.
+    if (isRetainedDeposit(refund.method)) {
+      rows.push({
+        key: `refund-${refund.id}`, label: planRows ? 'Échéances conservées' : 'Acompte conservé',
+        amount: -round2(refund.totalTtc), state: 'retained', tone: 'info',
+        stateLabel: `Requalifié en indemnité le ${when}`,
+        action: null,
+        amountEdit: { editable: false, mode: 'none', min: null, max: null, reason: null },
+        detail: { lines: (refund.lines || []).map((l) => `${l.label} : ${formatEuros(l.amountTtc)}`) },
+      });
+      continue;
+    }
+    const method = METHOD_LABELS[refund.method] || '';
+    // Refunds rule 48 — given back from the indemnity of a cancelled stay, not from the sale.
+    const lines = refund.lines || [];
+    const allFromIndemnity = lines.length > 0 && lines.every(isIndemnityLine);
     rows.push({
       key: `refund-${refund.id}`, label: 'Remboursement', amount: -round2(refund.totalTtc), state: 'refunded', tone: 'info',
-      stateLabel: `Rendu le ${shortDate(refund.refundDate, stayYear)}${method ? ` · ${method}` : ''}`,
+      stateLabel: `${allFromIndemnity ? 'Rendu sur l\'indemnité' : 'Rendu'} le ${when}${method ? ` · ${method}` : ''}`,
       action: canAct ? { kind: 'deleteRefund', label: 'Supprimer', refundId: refund.id, confirm: 'Supprimer ce remboursement ? L\'avoir correspondant sera supprimé.' } : null,
       amountEdit: { editable: false, mode: 'none', min: null, max: null, reason: null },
       detail: {
-        lines: (refund.lines || []).map((l) => `${l.label} : − ${formatEuros(l.amountTtc)}`),
+        lines: lines.map((l) => `${l.label}${!allFromIndemnity && isIndemnityLine(l) ? ' · sur l\'indemnité' : ''} : − ${formatEuros(l.amountTtc)}`),
         ...(refund.reason ? { note: `« ${refund.reason} »` } : {}),
       },
     });

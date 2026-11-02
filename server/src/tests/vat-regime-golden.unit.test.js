@@ -4,7 +4,8 @@
 // the code before the regime existed — except the `quote/*` family, regenerated on 2026-10-28 when the replay of
 // a stored stay became the fiche's own (specs/reservation-save-keeps-pricing.md rule 3), and on 2026-11-01 for `fiche/*` (each
 // refundable line gained `requalifiedTtc`, specs/reservation-refunds.md rule 46, nothing else moved) and `cancel/106` (its unfrozen
-// installments are reversed per installment and bucket, specs/direct-installments.md rule 46 reading of 2026-11-01).
+// installments are reversed per installment and bucket, specs/direct-installments.md rule 46 reading of 2026-11-01), and on
+// 2026-11-02 for `fiche/109` (a cancelled stay that collected nothing offers no refundable line, specs/reservation-refunds.md rule 48).
 // `GOLDEN_UPDATE=1` rewrites the capture, which is only ever legitimate on that code (Lot 0).
 
 const test = require('node:test');

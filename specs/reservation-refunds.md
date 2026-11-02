@@ -346,6 +346,13 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
     dialog read « déjà remboursé 540,07 € » on options whose money had never left; and rounding each share
     on its own while the last line took the rest could drop cents — lines of 0,03 / 0,03 / 0,03 / 0,03 /
     0,01 € under a 0,10 € avoir consumed 0,09 €, so the register offered 0,01 € too much.
+    > **Reading of 2026-11-02 (audit R14-C1).** The fiche's ledger tells the same money apart: a `retained`
+    > avoir is the row « Acompte conservé » (« Échéances conservées » on a stay paid through a plan), stateLabel
+    > « Requalifié en indemnité le JJ/MM », with no action, never « Remboursement · Rendu le … · retained ».
+    > A refund taken whole from the indemnity (rule 48) reads « Rendu sur l'indemnité le JJ/MM · virement »; a
+    > mixed one keeps « Rendu le … » and names its indemnity lines « Hébergement · sur l'indemnité : − 60,00 € ».
+    > `METHOD_LABELS` gains `retained: 'acompte conservé'` as a fallback, so no raw code reaches the screen.
+    > *Why:* the cancelled fiche said money was given back that was kept, in an English code.
 47. **A `retained` avoir is split HT / VAT line by line in the export (review of PR #921, 2026-11-01).**
     `accountingModel.buildRefundEntry` splits each line of a `retained` refund on its own and sums the HT
     and the VAT per bucket; a real refund keeps one split per bucket and rate. A cancellation's avoir
@@ -354,6 +361,30 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
     `retained` avoir booked before carries at most one line per bucket and rate, where both splits are the
     same numbers: no exported month moves. *Why:* 2 × 351,38 € of options split into 2 × 319,44 € HT on
     the installments, but 702,76 € split at once gave 638,87 € HT: 70600010 kept 0,01 €.
+48. **On a cancelled stay, a refund gives back money collected, and reduces the indemnity first kept (audit
+    R14-M1, Adrien's decision 2026-11-02: « Réduire l'indemnité »).** A cancellation moved the money it kept out
+    of 706 + VAT into the indemnity (payment-schedule spec §3.6). On a stay with `kind = 'cancelled'`:
+    - **What is refundable** is what the stay collected (`collectedTtc`, the book money net of every book refund,
+      `comptaCollected`), never what it billed. `cancelledRefundBudget` splits it into `indemnityLeftTtc` — what
+      the `retained` avoirs requalified, minus what refunds already took from the indemnity — and `saleLeftTtc`,
+      the rest (a paid solde, which no cancellation requalifies). Each refundable line offers what the indemnity
+      still holds on it (`indemnityTtc`: its `requalifiedTtc` minus its indemnity refunds) plus at most
+      `saleLeftTtc` of its own headroom. The payload's `collectedTtc` is that same budget, so the dialog's
+      « Dépasse l'encaissé » caption reads true.
+    - **How it is booked:** each line is given back first from `saleLeftTtc` — it keeps its bucket and VAT rate,
+      the sale is reversed as any refund (rule 22) — then from the indemnity: that part is stored as a line of
+      bucket `indemnity`, same key and label, at 0 %. The export debits it on the indemnity account at the
+      indemnity's rate (`cancellationCompensationAccount` / `vatRateCancellationCompensation`, 75880000 at 0 %
+      by default; 0 % on a stay sold « Sans TVA »), never 706 nor 4457. Client account, 706, 4457 and 4671 are
+      then exact; the indemnity is reduced by what went back.
+    - **Refusals (409):** a keyed line beyond its share → `REFUND_EXCEEDS_LINE` « dépasse le montant encaissé »;
+      a free line beyond what is left → `REFUND_EXCEEDS_COLLECTED`; an indemnity share in caisse interne
+      (`internal`, off the books, so it could not reduce the indemnity) → `REFUND_INDEMNITY_OFF_BOOKS`
+      « Pris sur l'indemnité : virement ou espèces seulement. »
+    A stay that is not cancelled is unchanged. *Why:* on stay #22326 (2 060 € collected by two installments, all
+    kept), the register offered the 1 029,60 € never collected, and a 500 € refund debited 70600000 454,55 € and
+    44571100 45,45 € — negative revenue and deductible VAT on money whose VAT was already reversed — while
+    75880000 stayed at 2 060 €.
 
 ---
 
@@ -372,6 +403,10 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
 | `controllers/` | `accountingController.js` | T | Merges encaissement + refund entries, sorted by date, for both `sales.csv` and `sales` |
 | `controllers/` | `reservationsController.js` | T | Feeds `refundsTotal` into the quote inputs (like `midStayQuoteInputs`) and exposes `refundableLines` on `GET /:id` |
 | `utils/` | `refunds.js` | C | **Pure**: `buildRefundableLines(...)` (incl. the per-night tourist-tax line), `validateRefundPayload(...)` (derives the quantity from the amount), `splitHtVat(...)`, `refundedTouristTax(refunds)` → `{ amount, nights }` |
+| `utils/` | `refunds.js` | T | Rule 48 — `cancelledRefundBudget(...)`; `buildRefundableLines({ cancelled })` caps each line at what was collected (`indemnityTtc`); `validateRefundPayload({ cancelled })` splits each line between the sale and the `indemnity` bucket |
+| `controllers/` | `refundsController.js` | T | Rule 48 — on `kind = 'cancelled'`, passes the budget to both and answers `collectedTtc` = the budget |
+| `plugins/accounting-export/` | `accountingModel.js`, `accountingExport.js` | T | Rule 48 — `buildRefundEntry` carries `indemnity` (account + rate of the compensation settings); `refundEntryToRows` debits it |
+| `utils/` | `reservationLedger.js` | T | Rule 46 reading of 2026-11-02 — « Acompte conservé » / « Échéances conservées » row, « Rendu sur l'indemnité » |
 | `utils/` | `accountingExport.js` | T | `refundEntryToRows()` (credit client / debit revenue+VAT+pass-through, residue on the last debit) routed from `entryToRows` on `entry.direction === 'refund'`; `entryToStructured` inherits it for free |
 | `utils/` | `pricing.js` | T | New input `refundsTotal`; new output `refundsTotal` + `sejourNetTotal` net of refunds (single subtraction, no other engine change) |
 | `constants/` | `accounting.js` | T | `REFUND_BUCKET_TO_ACCOUNT` (adds `touristTax → 46710000` on top of the existing `BUCKET_TO_ACCOUNT`) |
@@ -447,7 +482,7 @@ CREATE TABLE IF NOT EXISTS reservation_refund_lines (
   refundId  INTEGER NOT NULL,
   lineKey   TEXT,                                  -- 'accommodation' | 'opt:<id>' | 'res:<id>' | 'custom:<label>' | 'touristTax' | NULL (free line)
   label     TEXT NOT NULL,
-  bucket    TEXT NOT NULL,                         -- 'accommodation' | 'options' | 'resources' | 'touristTax'
+  bucket    TEXT NOT NULL,                         -- 'accommodation' | 'options' | 'resources' | 'touristTax' | 'indemnity' (rule 48)
   quantity  REAL,
   unitPrice REAL,
   amountTtc REAL NOT NULL,
@@ -464,6 +499,9 @@ Migration strategy: the two tables + their indices live in `server/src/schema.sq
 ([migrations-baseline.md](migrations-baseline.md)) — so both a fresh install and the production DB get
 them without a separate migration block (that file is reserved for changes that must alter existing
 rows, which this one doesn't).
+
+**Rule 48 (2026-11-02):** the indemnity share of a refund on a cancelled stay is a line of bucket `indemnity` —
+a value, not a column: no schema change, and every refund booked before carries none.
 
 **Data impact:** none. Purely additive — no column added to `reservations`, no existing row read or
 rewritten, no backfill. Removing the feature would be a pure table drop. Existing reservations simply
@@ -602,6 +640,13 @@ beside a per-key refund; the largest-remainder spread of 0,10 € over 0,03 × 4
 `retained` avoir booked byte for byte as the per-bucket split, two lines on one bucket split each.
 `client/src/components/reservation/__tests__/RefundDialog.requalified.test.jsx` (3, rule 46) — « requalifié »,
 both parts on one line, a line without requalification unchanged.
+**Audit R14 (2026-11-02):** `tests/cancelled-stay-refund-from-indemnity.unit.test.js` (6, rule 48) — a cancelled
+plan offers the 2 060 € collected, never the unpaid remainder; 500 € refunded → 706 / 4457 / 4671 at 0, 75880000
+−1 560, client account 1 560; above the collected refused (line and free); caisse interne refused on the
+indemnity; a retained acompte refunded 200 € → 706 / 4457 at 0, 75880000 −74; a paid solde keeps its 706 + VAT
+refund, the 60 € beyond it off the indemnity. `tests/reservation-ledger-retained-avoir.unit.test.js` (4, rule 46
+reading of 2026-11-02) — « Acompte conservé » / « Échéances conservées », « Rendu sur l'indemnité », no raw code.
+`tests/vat-regime-golden.unit.test.js` — `fiche/109` regenerated: a cancelled stay that collected nothing offers no line.
 
 ## 8. Out of scope
 

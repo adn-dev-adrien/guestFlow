@@ -313,6 +313,18 @@ function refundEntryToRows(entry) {
       vatByRate.set(rate, (vatByRate.get(rate) || 0) + vat);
     }
   }
+  // specs/reservation-refunds.md rule 48 — given back from a cancelled stay's indemnity: the indemnity account
+  // is debited, at the rate it was credited with (0 % by default, so no VAT line).
+  const indemnity = entry.indemnity || null;
+  if (indemnity) {
+    const ht = round2(indemnity.ht || 0);
+    if (ht > 0) revenueLines.push({ account: indemnity.account || DEFAULT_CANCELLATION_COMPENSATION_ACCOUNT, amount: ht });
+    const vat = round2(indemnity.vat || 0);
+    if (vat > 0) {
+      const rate = Number(indemnity.ratePercent) || 0;
+      vatByRate.set(rate, (vatByRate.get(rate) || 0) + vat);
+    }
+  }
   const vatLines = [...vatByRate.entries()].map(([rate, amount]) => ({
     account: vatAccountForRate(rate),
     amount: round2(amount),
