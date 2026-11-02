@@ -4,12 +4,13 @@
 import { test, expect } from '@playwright/test';
 import { createClient, createProperty, createReservation } from '../../fixtures/apiSeed.js';
 import { enablePropertyDeposit, simulateBackgroundWrite } from '../../fixtures/dbSeed.js';
+import { FAR_YEAR } from '../../fixtures/farYear.js';
 
 test('a save on an out-of-date fiche is refused; the draft is kept, then reload shows the background write', async ({ page }) => {
   const property = await createProperty({ name: 'E2E stale villa' });
   const client = await createClient({ firstName: 'Fiche', lastName: 'Perimee' });
   const reservation = await createReservation({
-    propertyId: property.id, clientId: client.id, startDate: '2099-11-05', endDate: '2099-11-08', adults: 2,
+    propertyId: property.id, clientId: client.id, startDate: `${FAR_YEAR}-11-05`, endDate: `${FAR_YEAR}-11-08`, adults: 2,
   });
   await page.goto(`/reservations/${reservation.id}`);
   const notes = page.getByLabel('Notes').first();
@@ -41,7 +42,7 @@ test('rule 5 — « Enregistrer quand même » overwrites the background write, 
   const property = await createProperty({ name: 'E2E overwrite villa' });
   const client = await createClient({ firstName: 'Fiche', lastName: 'Ecrasee' });
   const reservation = await createReservation({
-    propertyId: property.id, clientId: client.id, startDate: '2099-08-05', endDate: '2099-08-08', adults: 2,
+    propertyId: property.id, clientId: client.id, startDate: `${FAR_YEAR}-08-05`, endDate: `${FAR_YEAR}-08-08`, adults: 2,
   });
   await page.goto(`/reservations/${reservation.id}`);
   const notes = page.getByLabel('Notes').first();
@@ -67,7 +68,7 @@ test.describe('phone (390 px)', () => {
     const property = await createProperty({ name: 'E2E stale phone villa' });
     const client = await createClient({ firstName: 'Fiche', lastName: 'Mobile' });
     const reservation = await createReservation({
-      propertyId: property.id, clientId: client.id, startDate: '2099-07-05', endDate: '2099-07-08', adults: 2,
+      propertyId: property.id, clientId: client.id, startDate: `${FAR_YEAR}-07-05`, endDate: `${FAR_YEAR}-07-08`, adults: 2,
     });
     await page.goto(`/reservations/${reservation.id}`);
     const notes = page.getByLabel('Notes').first();
@@ -90,7 +91,7 @@ test('a fiche that only the operator touched saves without any refusal', async (
   const property = await createProperty({ name: 'E2E fresh villa' });
   const client = await createClient({ firstName: 'Fiche', lastName: 'Fraiche' });
   const reservation = await createReservation({
-    propertyId: property.id, clientId: client.id, startDate: '2099-12-05', endDate: '2099-12-08', adults: 2,
+    propertyId: property.id, clientId: client.id, startDate: `${FAR_YEAR}-12-05`, endDate: `${FAR_YEAR}-12-08`, adults: 2,
   });
   await page.goto(`/reservations/${reservation.id}`);
   const notes = page.getByLabel('Notes').first();
@@ -108,7 +109,7 @@ test('rule 4 — a payment marked from the fiche does not make the next save loo
   enablePropertyDeposit(property.id);
   const client = await createClient({ firstName: 'Fiche', lastName: 'Deux' });
   const reservation = await createReservation({
-    propertyId: property.id, clientId: client.id, startDate: '2099-09-05', endDate: '2099-09-08', adults: 2,
+    propertyId: property.id, clientId: client.id, startDate: `${FAR_YEAR}-09-05`, endDate: `${FAR_YEAR}-09-08`, adults: 2,
   });
   await page.goto(`/reservations/${reservation.id}`);
   const deposit = page.locator('[data-row="deposit"]');

@@ -19,7 +19,7 @@ function computeBlockedDates(propertyId, from, to) {
   const reservations = reservationsModel.getOccupiedReservations(Number(propertyId), addIsoDays(from, -1), addIsoDays(to, 1));
   const occupied = buildOccupiedDatesFromReservations(reservations).filter((d) => d >= from && d < to);
   const closures = establishmentClosuresModel.list({ propertyId: Number(propertyId), from, to });
-  const closureDates = establishmentClosuresModel.expandClosuresToDates(closures);
+  const closureDates = establishmentClosuresModel.expandClosuresToDates(closures, { from, to });
   return Array.from(new Set([...occupied, ...closureDates])).sort();
 }
 

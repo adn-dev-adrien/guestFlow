@@ -13,6 +13,7 @@
 // Unit tests pin the engine; this pins what the operator actually sees.
 import { test, expect } from '@playwright/test';
 import { createProperty, createHourlyResource } from '../../fixtures/apiSeed.js';
+import { FAR_YEAR } from '../../fixtures/farYear.js';
 
 const extras = (page) => page.locator('.MuiCard-root').filter({ hasText: 'Options et ressources' }).first();
 const summary = (page) => page.locator('.MuiCard-root').filter({ hasText: 'Résumé tarifaire' }).first();
@@ -38,8 +39,8 @@ test('an hourly resource enabled on a devis lands in the summary AND in the tota
   const card = extras(page).locator('.MuiCard-root').filter({ hasText: resource.name }).first();
   await expect(card).toBeVisible();
 
-  await page.locator('input[type=date]').first().fill('2099-10-04');
-  await page.locator('input[type=date]').nth(1).fill('2099-10-07');
+  await page.locator('input[type=date]').first().fill(`${FAR_YEAR}-10-04`);
+  await page.locator('input[type=date]').nth(1).fill(`${FAR_YEAR}-10-07`);
   await expect(summary(page).getByText(/Total du séjour/)).toBeVisible();
   // Read the baseline only once the quote has actually landed. Reading it eagerly caught the label
   // with no amount behind it yet, and the delta below then compared against 0.

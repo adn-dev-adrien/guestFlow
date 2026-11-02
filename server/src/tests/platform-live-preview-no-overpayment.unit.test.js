@@ -4,6 +4,7 @@
 process.env.DB_PATH = ':memory:';
 
 const test = require('node:test');
+const { FAR_YEAR } = require('./farYearFixture');
 const assert = require('node:assert/strict');
 
 const call = (fn, req) => new Promise((resolve) => fn(req, { status() { return this; }, json: resolve }));
@@ -17,7 +18,7 @@ const call = (fn, req) => new Promise((resolve) => fn(req, { status() { return t
     if (!index) db.prepare("INSERT INTO pricing_rules (propertyId, label, pricePerNight) VALUES (1, 'Standard', 100)").run();
     db.prepare("INSERT OR IGNORE INTO clients (id, firstName, lastName) VALUES (1, 'Camille', 'Revue')").run();
     const body = (extra = {}) => ({
-      propertyId: 1, clientId: 1, startDate: `2099-0${3 + index}-01`, endDate: `2099-0${3 + index}-04`, checkInTime: '16:00', checkOutTime: '10:00',
+      propertyId: 1, clientId: 1, startDate: `${FAR_YEAR}-0${3 + index}-01`, endDate: `${FAR_YEAR}-0${3 + index}-04`, checkInTime: '16:00', checkOutTime: '10:00',
       platform, adults: 2, children: 0, teens: 0, babies: 0, singleBeds: 0, doubleBeds: 0, babyBeds: 0, depositDisabled: 1, options: [], ...extra,
     });
     const created = await call(controller.create, { body: body(), user: { role: 'admin' } });

@@ -1,4 +1,4 @@
-// specs/establishment-closures.md rule 18 (2026-11-02) — a start date typed on the keyboard keeps the focus in
+// specs/establishment-closures.md rule 21 (2026-11-02) — a start date typed on the keyboard keeps the focus in
 // « Début de fermeture »: the reopening calendar opens only on a pick in the start calendar. The reopening
 // date is pre-filled to start + 1 either way.
 import React from 'react';
@@ -49,7 +49,7 @@ const sections = (group) => ({
   year: within(group).getByRole('spinbutton', { name: 'Année', hidden: true }),
 });
 
-test('rule 18: a start date entered on the keyboard keeps the focus and opens no reopening calendar', async () => {
+test('rule 21: a start date entered on the keyboard keeps the focus and opens no reopening calendar', async () => {
   const dialog = await openNewClosure();
   const { day, month, year } = sections(field(dialog, 'Début de fermeture'));
   act(() => day.focus());
@@ -72,7 +72,7 @@ test('rule 18: a start date entered on the keyboard keeps the focus and opens no
   expect(end.year).toHaveTextContent(String(next.year()));
 });
 
-test('rule 18: a day picked in the start calendar still opens the reopening calendar, pre-filled', async () => {
+test('rule 21: a day picked in the start calendar still opens the reopening calendar, pre-filled', async () => {
   const dialog = await openNewClosure();
   const startControl = field(dialog, 'Début de fermeture').closest('.MuiFormControl-root');
   await userEvent.click(within(startControl).getByRole('button', { hidden: true }));

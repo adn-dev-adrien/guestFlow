@@ -9,7 +9,7 @@ import SyncIcon from '@mui/icons-material/Sync';
 import PageActionBar from '../components/PageActionBar';
 import LoadingState from '../components/LoadingState';
 import ErrorAlert from '../components/ErrorAlert';
-import PeriodSelector from '../components/PeriodSelector';
+import PeriodSelector, { customWindowError } from '../components/PeriodSelector';
 import ChoiceCardStrip from '../components/ChoiceCardStrip';
 import InsightCard from '../components/InsightCard';
 import SelectableTile from '../components/SelectableTile';
@@ -61,6 +61,9 @@ export default function FinancePage() {
     setSearchParams(out, { replace: true });
   };
   const paramsKey = searchParams.toString();
+  // Rule 51 — a link to a custom window the server refuses (too wide, past the horizon, reversed) is not
+  // sent: the page shows the period selector with the message, so the window can be fixed in place.
+  const periodRefusal = params.period === 'custom' && params.from && params.to ? customWindowError(params.from, params.to) : '';
 
   const [dashboard, setDashboard] = useState(null);
   const [loadError, setLoadError] = useState(null);
@@ -75,6 +78,11 @@ export default function FinancePage() {
 
   const loadDashboard = useCallback(async () => {
     const current = beginDashboard();
+    if (periodRefusal) {
+      setLoadError(null);
+      setDashboard(null);
+      return;
+    }
     try {
       setLoadError(null);
       const answer = await api.getFinanceDashboard(params);
@@ -165,6 +173,11 @@ export default function FinancePage() {
     const now = iso(new Date()).slice(0, 7);
     return d && d.months.some((m) => m.month === now) ? now : (d && d.months[0] ? d.months[0].month : now);
   };
+  const onPeriodChange = (w) => {
+    if (w.kind === 'fy') setParams({ period: 'fy', month: '', from: '', to: '' });
+    else if (w.kind === 'month') setParams({ period: 'month', month: w.month || defaultMonth(), from: '', to: '' });
+    else setParams({ period: 'custom', month: '', from: w.from, to: w.to });
+  };
   const defaultCustom = () => {
     const start = new Date(); start.setDate(1);
     const end = new Date(start); end.setMonth(end.getMonth() + 1, 0);
@@ -179,7 +192,12 @@ export default function FinancePage() {
       />
       <Box sx={{ p: { xs: 1.5, sm: 3 }, maxWidth: 1240, mx: 'auto' }}>
         {loadError && <ErrorAlert message={loadError} onRetry={loadDashboard} sx={{ mb: 2 }} />}
-        {(!d || franchise === undefined) && !loadError && <LoadingState label="Chargement du suivi financier…" />}
+        {!d && periodRefusal && (
+          <Box sx={{ mb: 1.75 }}>
+            <PeriodSelector kind="custom" from={params.from} to={params.to} months={[]} onChange={onPeriodChange} />
+          </Box>
+        )}
+        {(!d || franchise === undefined) && !loadError && !periodRefusal && <LoadingState label="Chargement du suivi financier…" />}
         {d && franchise !== undefined && (
           <>
             {/* Toolbar — exercise + window (rules 1-2). A filter, so it stays in the page, visible on xs. */}
@@ -193,11 +211,7 @@ export default function FinancePage() {
                 from={params.from || defaultCustom().from}
                 to={params.to || defaultCustom().to}
                 months={d.months}
-                onChange={(w) => {
-                  if (w.kind === 'fy') setParams({ period: 'fy', month: '', from: '', to: '' });
-                  else if (w.kind === 'month') setParams({ period: 'month', month: w.month || defaultMonth(), from: '', to: '' });
-                  else setParams({ period: 'custom', month: '', from: w.from, to: w.to });
-                }}
+                onChange={onPeriodChange}
               />
             </Box>
 

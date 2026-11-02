@@ -114,6 +114,40 @@ rules — just a clean, testable structure that future slices (and Bloc 5) build
    not on opening from URL dates. `utils/stayDates.stayDatesMessage` gives the one hint (order, then
    length) and `isQuotableStay` the quote gate; the message and the 366 live in `constants/stayDates.js`,
    mirroring the server.
+13. **Added 2026-11-02 (Adrien's decision) — no date is entered past the horizon.** No date may be entered
+   more than `MAX_HORIZON_YEARS` = 5 years ahead: the last allowed day is today (the Europe/Paris day,
+   `utils/localDate.todayIso`) plus 5 years, a 29 February landing on the 28th
+   (`utils/stayDates.horizonEnd`, `dateBeyondHorizon`). One day past it is refused with « Date trop
+   lointaine : 5 ans au plus. ». It is checked inside `stayDatesRefusal`, after rule 11's shape, order and
+   length checks, so it runs on every path rule 11 lists: 400 `INVALID_STAY_DATES`, `field` naming the
+   first date past it. The same message refuses a closure (`specs/establishment-closures.md` rule 18,
+   reading of 2026-11-02) and the end of a finance custom window (`specs/finance-dashboard-redesign.md`
+   rule 51, reading of 2026-11-02). The past is not limited: history stays. The duration caps stay as
+   they are: a stay 366 nights, a closure 731, a finance window 750 days.
+   **Only an entered or edited date is held to it.** `stayDatesRefusal(start, end, { stored })` skips a
+   date equal to the stored row's: a row written before this rule, past the horizon, still saves while its
+   dates are not edited (`PUT /reservations/:id` and `performUpdate` compare with the stored row,
+   `calculate-price` with the row of its `reservationId` or `devisId`, a devis update with the stored
+   devis). The paths that enter no date never refuse on it: a restore of a duplicate set aside, a devis
+   extension and its preview, a devis converted into a reservation (stored dates). An iCal date drift
+   approved is held to it on the dates it changes. Read paths never refuse a stored row: the occupied
+   dates and the planning reads keep only their 750-day span cap (`specs/establishment-closures.md` rule
+   20), since the calendar and the planning are navigated, not typed, and must still show a stored row
+   past the horizon. The iCal **import** keeps its own 730-day horizon (`specs/ical-import-hardening.md`),
+   inside this one. The tariff recipes write their closures and seasons through their own model, not
+   through these validators (`horizonYears` ≤ 5 counted from the current year), so a recipe never
+   breaks; a recipe closure ending past the horizon stays editable as long as its dates are kept.
+   A copy of the prod snapshot of 2026-10-22 (read 2026-11-02 against a horizon of 2031-11-02) stores no
+   stay, devis or closure ending past it — the latest are a reservation ending 2027-08-13, a devis 2027-04-16
+   and a closure 2028-03-31 — so nothing is migrated. The GreenGo block of 2028-03-01 → 2028-08-29, which
+   reaches GuestFlow through the iCal import, is inside the horizon and the import is not held to it anyway.
+   The fiche and the devis (`ReservationPage`) show the message under the dates, the field in error, ask
+   neither a quote, the occupied dates nor the resources' availability for such a range, and « Enregistrer » refuses with it before any
+   request; a date the record was loaded with is not held to it (`utils/stayDates.stayDatesMessage(start,
+   end, { stored })`). The horizon and its message live in `constants/dateHorizon.js` and
+   `utils/dateHorizon.js`, mirroring the server. *Why:* a year typed one digit off (2062 for 2026) used to
+   be accepted, and nothing the operator manages is booked or closed five years ahead. Tests:
+   `tests/date-horizon.unit.test.js`, client `ReservationPage.date-horizon.test.jsx`.
 
 **Edge cases:** all current ones are preserved verbatim — min-nights rejection, archived-reservation
 error, iCal-locked pricing snapshot reuse, night-block conflict on adjacent reservations, payment
@@ -136,7 +170,7 @@ patch. No new edge behavior is introduced.
 | `utils/` | `reservationAudit.js` | C | Pure: `normalizeHistoryValue`, `getOptionsSignature`, `getResourcesSignature`, `buildAuditSnapshotFromPayload`, `computeAuditChanges`. Snapshot-from-DB stays a model read that feeds these pure fns. Unit-tested. |
 | `utils/` | `pricing.js` | — | Unchanged; controller calls `calculateReservationQuote` as today. |
 | `utils/` | `financeValidation.js` | — | Unchanged; controller keeps the PR-S validation on writes. |
-| `utils/` | `stayDates.js` | C | *(2026-11-02, rule 11)* `isRealIsoDay`, `stayDatesRefusal`, `stayDatesRefusalBody`: the one stay-dates guard, called by `reservationsController`, `devisModel` and `icalDateDriftModel`. `isRealIsoDay` is also the core's one real-day check: `planningDateRange.isIsoDate` and `cancellationCompensations.isValidIsoDate` are it. *(R19-L1)* `MAX_STAY_NIGHTS` (366), the length cap, also read by `icalParser`'s horizon check. |
+| `utils/` | `stayDates.js` | C | *(2026-11-02, rule 11)* `isRealIsoDay`, `stayDatesRefusal`, `stayDatesRefusalBody`: the one stay-dates guard, called by `reservationsController`, `devisModel` and `icalDateDriftModel`. `isRealIsoDay` is also the core's one real-day check: `planningDateRange.isIsoDate` and `cancellationCompensations.isValidIsoDate` are it. *(R19-L1)* `MAX_STAY_NIGHTS` (366), the length cap, also read by `icalParser`'s horizon check. *(rule 13)* `MAX_HORIZON_YEARS`, `HORIZON_MESSAGE`, `horizonEnd`, `dateBeyondHorizon` and the `stored` option of `stayDatesRefusal`: the date horizon, also read by `establishmentClosuresValidation` and `financeWindow`. |
 | `database.js` | — | — | No schema change. |
 
 **Notes:**
@@ -157,6 +191,11 @@ None. `utils/reservationConflicts.js` and its consumers are unchanged.
 live in `constants/stayDates.js`, and `utils/stayDates.js` holds `stayDatesMessage` / `isQuotableStay`
 (R19-L1, the length cap).
 
+*2026-11-02 (rule 13):* `constants/dateHorizon.js` (`MAX_HORIZON_YEARS`, `HORIZON_MESSAGE`) and
+`utils/dateHorizon.js` (`horizonEnd`, `dateBeyondHorizon`, generic: the fiche, the closures dialog and
+`PeriodSelector` read them); `stayDatesMessage` / `isQuotableStay` take the loaded record as `stored`, and
+the fiche's occupied-dates read is gated by `isQuotableStay` too.
+
 ### 4.3 API contract
 
 **Unchanged.** Same endpoints, bodies, responses, and status codes as today. This slice must be a no-op
@@ -165,6 +204,10 @@ from any API client's perspective (verified by the existing behavior + manual ch
 *2026-11-02 (rule 11):* the stay endpoints listed in rule 11 answer 400 `INVALID_STAY_DATES` (`error`,
 `code`, `field`) for unsound dates, the devis endpoints and the iCal drift approval included (both
 now forward `code` and `field` with their `error`).
+
+*2026-11-02 (rule 13):* the same 400 `INVALID_STAY_DATES`, `error` « Date trop lointaine : 5 ans au plus. »,
+for an entered or edited date past today + 5 years. No new field: `calculate-price` already carried
+`reservationId` / `devisId`.
 
 ---
 
@@ -182,6 +225,9 @@ prove behavior is preserved.)
 ## 7. Test plan
 
 ### Server unit tests
+- [x] `tests/date-horizon.unit.test.js` (12, 2026-11-02) — rule 13: today + 5 years accepted, one day more
+      refused on calculate-price, create, update, drift approval, devis create / update, closures and the
+      finance window; stored dates past the horizon saved, restored, extended and converted untouched.
 - [ ] `tests/occupancy.unit.test.js` — `getNightBlocksFromTimes` thresholds (checkout ≥17h blocks next
       night, checkin ≤10h blocks previous night); `buildOccupiedDatesFromReservations`;
       `validateAvailability` accepts a free range and rejects overlaps incl. night-block adjacency.

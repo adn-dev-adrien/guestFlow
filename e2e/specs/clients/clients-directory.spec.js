@@ -4,14 +4,15 @@
 import { test, expect } from '@playwright/test';
 import { createClient, createProperty, createReservation } from '../../fixtures/apiSeed.js';
 import { setReservationDates } from '../../fixtures/dbSeed.js';
+import { FAR_YEAR } from '../../fixtures/farYear.js';
 
 async function seed(tag) {
   const property = await createProperty({ name: `E2E annuaire ${tag}` });
   const upcoming = await createClient({ firstName: 'Venant', lastName: `Avenir${tag}`, phone: '0612345678', email: `venant-${tag}@example.fr` });
   const past = await createClient({ firstName: 'Parti', lastName: `Passe${tag}` });
   const nobody = await createClient({ firstName: 'Sans', lastName: `Rien${tag}` });
-  await createReservation({ propertyId: property.id, clientId: upcoming.id, startDate: '2099-06-10', endDate: '2099-06-13' });
-  const pastReservation = await createReservation({ propertyId: property.id, clientId: past.id, startDate: '2099-07-10', endDate: '2099-07-13' });
+  await createReservation({ propertyId: property.id, clientId: upcoming.id, startDate: `${FAR_YEAR}-06-10`, endDate: `${FAR_YEAR}-06-13` });
+  const pastReservation = await createReservation({ propertyId: property.id, clientId: past.id, startDate: `${FAR_YEAR}-07-10`, endDate: `${FAR_YEAR}-07-13` });
   setReservationDates(pastReservation.id, '2020-06-10', '2020-06-13');
   return { property, upcoming, past, nobody, pastReservation };
 }
@@ -25,7 +26,7 @@ test('opens on « À venir » without the past clients; a search finds them in �
   const box = page.getByRole('searchbox', { name: /Rechercher un client/ });
   await box.fill(`Avenir${tag}`);
   await expect(page.getByRole('button', { name: new RegExp(upcoming.lastName) })).toBeVisible();
-  await expect(page.getByText('Arrive le 10/06/2099')).toBeVisible();
+  await expect(page.getByText(`Arrive le 10/06/${FAR_YEAR}`)).toBeVisible();
 
   await box.fill(`Passe${tag}`);
   await expect(page.getByText('Aucun résultat dans À venir')).toBeVisible();

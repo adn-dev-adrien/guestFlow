@@ -7,6 +7,7 @@
 process.env.DB_PATH = ':memory:';
 
 const test = require('node:test');
+const { FAR_YEAR } = require('./farYearFixture');
 const assert = require('node:assert/strict');
 
 let seeded = false;
@@ -28,7 +29,7 @@ function seed(db) {
 let nextWeek = 0;
 function stay(db, controller) {
   nextWeek += 1;
-  const day = (offset) => new Date(Date.UTC(2099, 1, 1 + offset)).toISOString().slice(0, 10);
+  const day = (offset) => new Date(Date.UTC(FAR_YEAR, 1, 1 + offset)).toISOString().slice(0, 10);
   const start = day(nextWeek * 4);
   const end = day(nextWeek * 4 + 3);
   const body = (overrides = {}) => ({

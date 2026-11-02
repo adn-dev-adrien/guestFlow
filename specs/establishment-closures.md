@@ -76,7 +76,43 @@ UI redesign: replace `DataPageScaffold` with the shared `PageActionBar` (sticky 
     earlier the day a closure ends likewise. `validateAvailability` now passes the effective range
     (early check-in → previous night, late check-out → next night) to `findCoveringClosure`. Test:
     `tests/reservation-closure-night-blocks.unit.test.js`.
-18. **A start date typed on the keyboard keeps the focus** _(2026-11-02, audit R19-L1 sibling)_. The
+18. **A closure is two real days at most two years apart** _(added 2026-11-02, audit R19, review of PR
+    #935)_. `utils/establishmentClosuresValidation.validateRange` — used by create, update and the
+    `GET /conflicts` preview — refuses, after rule 9's presence check, a day that is not a real calendar
+    day (`stayDates.isRealIsoDay`: « Date invalide. ») and a closure longer than `MAX_CLOSURE_DAYS` = 731
+    nights (« Fermeture trop longue : 2 ans au plus. »), both `400 INVALID_RANGE`; the dialog shows the
+    message in its error alert. *Why:* a closure ending 9999-12-31 was accepted, and every public calendar
+    view of that logement then blocked the server for about 3 s. A tariff-recipe closure is a few weeks
+    long; the snapshot of 2026-10-22 holds 4 closures, the longest 168 nights.
+    *Reading of 2026-11-02 (Adrien's decision, `specs/reservations-backend-mvc.md` rule 13) — no date past
+    the horizon.* `validateRange` also refuses, after the length cap, a start or a reopening day more than
+    5 years after today (`stayDates.dateBeyondHorizon`), with « Date trop lointaine : 5 ans au plus. »,
+    `400 INVALID_RANGE`, on create, update and the conflicts preview; the past is not limited. On update
+    only a date that differs from the stored closure is held to it: a closure a tariff recipe wrote past
+    the horizon (the recipes insert through the model, not this validator) still saves with its dates
+    kept. The dialog shows the message under the date at fault, the field in error, « Enregistrer »
+    disabled, and asks no conflicts preview while a date is past the horizon; a date the closure was
+    opened with stays allowed. The snapshot of 2026-10-22 ends its last closure on 2028-03-31.
+19. **A closure is expanded only over the window asked** _(added 2026-11-02, audit R19)_.
+    `expandClosuresToDates(closures, { from, to })` keeps the nights inside `[from, to)`;
+    `blockedDates.computeBlockedDates` (public availability, quote and booking re-checks),
+    `reservationsController.occupiedDates` (rule 15) and the Google Vacation Rentals feed
+    (`plugins/google-vacation-rentals/source.js`, plugin 1.0.3) pass their window. A row whose bounds are
+    not real days expands to nothing. *Why:* each closure was walked from its start to its end whatever
+    the window: one closure to 9999 cost 3 s and 38 MB on every read, even for a month before it.
+20. **The occupied dates answer a window of at most 750 real days** _(added 2026-11-02, audit R19)_.
+    `GET /api/reservations/occupied-dates/:propertyId` refuses through `planningDateRange.checkPlanningRange`
+    a day that is not real or reversed (`400 INVALID_DATE_RANGE`) and a window over 750 days
+    (`400 DATE_RANGE_TOO_WIDE`). `to` is exclusive. The fiche asks for the stay's own dates (366 nights
+    at most, `specs/reservations-backend-mvc.md` rule 12), and only for a range it would quote
+    (`isQuotableStay`: not reversed, not too long, not past the horizon), so a range being typed is not
+    sent; the calendar asks for one month grid, up to the day after its last cell (amended 2026-11-02,
+    review of PR #937: it asked up to the last cell, so a closed night on a grid's last Sunday — the
+    Estiva winter closure on 31/01/2027 and 28/02/2027 — was missing and the drag-select opened a fiche
+    on it). A fiche whose dates are refused keeps no occupied dates. This read is not held to the date
+    horizon of rule 18's reading: the calendar is navigated, and a stored row past it must still show. *Why:* `from=0001-01-01&to=9999-12-31` over a closure
+    written before rule 18 still walked three million nights (5.4 s on the shadow).
+21. **A start date typed on the keyboard keeps the focus** _(2026-11-02, audit R19-L1 sibling)_. The
     « Début de fermeture » picker opened the « Réouverture » calendar from `onAccept`, and MUI X also
     accepts a complete date typed in the field: the year's first digit already made one (0002), so the
     reopening calendar opened and took the focus mid-typing. The reopening calendar now opens only when
@@ -110,7 +146,7 @@ UI redesign: replace `DataPageScaffold` with the shared `PageActionBar` (sticky 
 | `routes/establishmentClosures.js` | T | T | **Thin** — 4 routes wired to controller. |
 | `controllers/establishmentClosuresController.js` | C | C | `list`, `create`, `update`, `delete`. Orchestrates validation + model. |
 | `models/establishmentClosuresModel.js` | C | C | Sole DB access: `list()`, `findById(id)`, `insert(payload)`, `update(id, payload)`, `delete(id)`, `findReservationOverlap(propertyId, startDate, endDate)`, `findClosureOverlap(propertyId, startDate, endDate, excludeId?)`, `findCoveringClosure(propertyId, date)` (helper used by reservation validation). Factory `(db) => {...}` for testability. |
-| `utils/establishmentClosuresValidation.js` | C | C | Pure helper `validateRange(startDate, endDate)`. (Overlap detection involves DB queries, so stays in the model layer.) |
+| `utils/establishmentClosuresValidation.js` | C | C | Pure helper `validateRange(startDate, endDate, { stored })` — *2026-11-02:* real days, two years at most (rule 18), not past the date horizon unless the date is the stored closure's (rule 18, reading of 2026-11-02). (Overlap detection involves DB queries, so stays in the model layer.) |
 | `database.js` | T | T | Add `CREATE TABLE IF NOT EXISTS establishment_closures` with FK to `properties(id) ON DELETE CASCADE` (nullable). Add index on `(propertyId, startDate, endDate)` (added to `utils/dbHygiene.js` `FK_INDEXES` catalog). |
 | `routes/reservations.js` | T | T | (a) On POST and PUT, after the existing validation, call `establishmentClosuresModel.findCoveringClosure(propertyId, startDate, endDate)` — reject with `409 CLOSURE_COVERS_DATE` if a global or per-property closure covers any night of the requested range. (b) `getOccupiedDates` endpoint (the `GET /occupied-dates/:propertyId` handler at line 344) appends closure-covered date strings to its returned array via a new model helper. |
 | `index.js` | T | T | Add `app.use('/api/establishment-closures', require('./routes/establishmentClosures'));`. |
@@ -239,11 +275,15 @@ Fields:
 - The reopening date is **pre-filled to `startDate + 1`** (= one closed day = the start day) whenever the current value is empty OR `<= startDate` (invalid range). This makes "fermer un seul jour" a single click: accept the start, accept the suggested reopening date, save.
 - The reopening picker has `minDate = startDate + 1` so the user can't pick an invalid range.
 - A start date **typed** in the field pre-fills the reopening date the same way but opens no calendar:
-  the focus stays in « Début de fermeture » (rule 18, 2026-11-02).
+  the focus stays in « Début de fermeture » (rule 21, 2026-11-02).
 
 **Semantics:** `endDate` is **exclusive** — it is the day of reopening, not the last closed day. This mirrors the reservation convention (`endDate` = checkout day, not included in the stay). Helper text on the **Réouverture** picker makes this explicit with an example.
 
 Submit disabled if `!startDate || !endDate || startDate >= endDate`.
+
+*2026-11-02 (rule 18, reading of 2026-11-02):* also disabled while a date moved past today + 5 years; that
+date's field is in error and says « Date trop lointaine : 5 ans au plus. » (`constants/dateHorizon.js`,
+`utils/dateHorizon.js`), and no conflicts preview is asked. A date the closure was opened with stays allowed.
 
 Server error → red `Alert` inside the dialog (`409 RESERVATION_OVERLAP` shows the offending reservation; `409 CLOSURE_OVERLAP` shows a generic message).
 
@@ -321,6 +361,18 @@ If a closure spans multiple months, the band continues into each visible month (
 - [ ] `validateRange('2026-07-05', '2026-07-01')` → French error
 - [ ] `validateRange('', '2026-07-05')` → French error (dates required)
 
+**`tests/establishment-closures-bounds.unit.test.js`** (8) — rules 18-20: unreal days and closures over
+731 nights refused on create, update and the preview; the expansion clipped to the window; public blocked
+nights and the fiche's occupied dates of a legacy closure to 9999 answered at once; the occupied-dates
+window capped at 750 days, its `to` exclusive (a closure on a grid's last Sunday is in when the grid asks
+up to the day after). Client `CalendarPage.occupied-grid-end.test.jsx` (1) — rule 20: the month grid asks
+up to the day after its last Sunday.
+
+**`tests/date-horizon.unit.test.js`** (2 of 12) — rule 18, reading of 2026-11-02: a closure ending on the
+horizon saved, one day past it refused on create, update and the preview, a recipe closure stored past it
+relabelled. Client `EstablishmentClosuresPage.date-horizon.test.jsx` (2): the message under the field,
+no preview, Save disabled; a closure stored past the horizon opens clean.
+
 **`tests/establishment-closures-model.unit.test.js`** — `:memory:` DB:
 - [ ] `insert` + `list` returns the row sorted.
 - [ ] `list({ propertyId })` filters to global + same-property closures.
@@ -356,7 +408,7 @@ If a closure spans multiple months, the band continues into each visible month (
 - [x] 2026-11-02, headless Chromium on a copy of the shadow, 1280 px, 390 px and 390 px touch: 01122028
   typed in « Début de fermeture » gives 01/12/2028, the focus stays on its year, no calendar opens and
   « Réouverture » reads 02/12/2028. Picking the 10 in the start calendar (with « OK » on touch) still
-  opens the reopening calendar, pre-filled to 11/12/2028 (rule 18).
+  opens the reopening calendar, pre-filled to 11/12/2028 (rule 21).
 
 #### Calendar visualization (new)
 - [ ] Open `/calendar`, select a property that has an upcoming global closure → the closure dates appear as gray striped bands across all visible cells of the closure range. Tooltip shows the label + dates.

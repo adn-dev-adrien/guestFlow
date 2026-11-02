@@ -71,7 +71,7 @@ function createSource({ db }) {
       horizonDays,
       maxLos,
       blocked: new Set(computeBlockedDates(row.id, today, until)),
-      closures: new Set(closures.expandClosuresToDates(closures.list({ propertyId: row.id, from: today, to: until }))),
+      closures: new Set(closures.expandClosuresToDates(closures.list({ propertyId: row.id, from: today, to: until }), { from: today, to: until })),
       reuse,
     }, {
       calculateBaseStayPrice: pricing.calculateBaseStayPrice,
