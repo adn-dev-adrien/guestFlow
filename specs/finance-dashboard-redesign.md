@@ -368,6 +368,18 @@ without losing anything today's page shows.
     > Not covered yet: `requestedOn` of the website request (`plugins/website-booking`), which needs the
     > helper exposed through the plugin SDK.
 
+51. **A *Personnalisée* window is at most 750 days wide** (2026-11-02, audit R19, review of PR #935).
+    `utils/financeWindow.resolveWindow` refuses a wider custom window with « Période trop longue : 750
+    jours au plus. » (400, the same text `PeriodSelector.customWindowError` shows before any request, the
+    page keeping its window). 750 leaves room for two whole exercises (731 days); an exercise is at most
+    366, the N-1 comparison and the booking pace read their own fixed windows. The cumulative curve
+    (rule 9) now walks whole-day offsets from the window's start and stops on the first offset at or past
+    the window's width, its last point always the window's last day. *Why:* « Au » typed as 9999-12-31
+    made the weekly loop step past year 9999 into `+010000-…` strings, which sort below `'9999-12-31'`:
+    the loop never ended and the process died out of memory after about 3.5 minutes, and a 9999-11-30
+    still blocked the whole server for 4 s. Test: `tests/finance-custom-window-cap.unit.test.js`,
+    `components/__tests__/PeriodSelector.window-cap.test.jsx`.
+
 ---
 
 ## 4. Architecture
@@ -537,6 +549,7 @@ par mois » and « Taux d'occupation » side by side.
 - [x] `tests/complement-history-paris-day.unit.test.js` (2, 2026-10-30) — rule 50: an edit at 00:30 Paris on the collection day counts in the complement history window (option dropped, tourist tax of a legacy complement)
 - [x] `tests/finance-late-installments.unit.test.js` (3, spec review 2026-10-27) — rule 49; client `FinancePage.settle-late-installment.test.jsx` (1)
 - [x] `finance-window.unit.test.js` (4) — rules 1-2: the three window kinds, refusals.
+- [x] `finance-custom-window-cap.unit.test.js` (4) — rule 51: 750-day cap, 9999 refused at once, the weekly curve ends on the window's last day.
 - [x] `finance-occupancy.unit.test.js` (5) — rules 24-25: closures (global, per logement, exclusive end),
       closed month = gap, ÷ 0 guarded, revenue per night, RevPAR.
 - [x] `finance-year-over-year.unit.test.js` (6) — rules 17-21: coverage per scope, comparable months,
@@ -590,6 +603,7 @@ par mois » and « Taux d'occupation » side by side.
 
 ### Client tests
 - [x] `PeriodSelector.test.jsx` (3) — rules 1-2: month window, reversed and missing dates refused.
+- [x] `PeriodSelector.window-cap.test.jsx` (2) — rule 51: a window wider than 750 days refused on the spot, never sent.
 - [x] `SelectableTile.test.jsx` (2) — rule 13: expanded state, controlled panel.
 - [x] `YearOverYearBadge.test.jsx` (3) — rules 18, 20: hidden without comparison, partial wording.
 - [x] `SmallMultiplesLineChart.test.jsx` (5) — rules 10, 22, 23: the three chart tooltips (curve;

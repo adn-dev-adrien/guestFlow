@@ -3,8 +3,9 @@
  * du / au (specs/finance-dashboard-redesign.md rules 1-2). Generic: any page scoped by an exercise
  * (tourist tax, accounting) can reuse it.
  *
- * A custom window whose start is after its end, or with a missing date, is refused right here with
- * the same message the server gives: the page keeps its previous window until both dates are valid.
+ * A custom window whose start is after its end, with a missing date, or wider than
+ * MAX_CUSTOM_WINDOW_DAYS (rule 51), is refused right here with the same message the server gives: the
+ * page keeps its previous window until both dates are valid.
  *
  * Props:
  *   kind:      'fy' | 'month' | 'custom'
@@ -18,14 +19,19 @@ import React, { useEffect, useState } from 'react';
 import { Box, MenuItem, TextField, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
 
 const DEFAULT_LABELS = { fy: 'Exercice', month: 'Mois', custom: 'Personnalisée' };
+export const MAX_CUSTOM_WINDOW_DAYS = 750;
 export const PERIOD_MESSAGES = {
   missingDates: 'Deux dates à choisir.',
   reversed: 'La date de début doit précéder la date de fin.',
+  tooWide: `Période trop longue : ${MAX_CUSTOM_WINDOW_DAYS} jours au plus.`,
 };
+
+const DAY_MS = 86400000;
 
 export function customWindowError(from, to) {
   if (!from || !to) return PERIOD_MESSAGES.missingDates;
   if (from > to) return PERIOD_MESSAGES.reversed;
+  if ((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / DAY_MS > MAX_CUSTOM_WINDOW_DAYS) return PERIOD_MESSAGES.tooWide;
   return '';
 }
 

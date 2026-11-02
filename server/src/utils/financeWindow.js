@@ -15,11 +15,16 @@ const lastDayOfMonth = (ym) => new Date(Date.UTC(Number(ym.slice(0, 4)), Number(
 const frDate = (s) => `${s.slice(8, 10)}/${s.slice(5, 7)}/${s.slice(0, 4)}`;
 const monthLabel = (ym) => `${MONTH_NAMES[Number(ym.slice(5, 7)) - 1]} ${ym.slice(0, 4)}`;
 
+// Rule 51 — two whole exercises fit (731 days); « au » 9999-12-31 is refused before any work.
+const MAX_CUSTOM_WINDOW_DAYS = 750;
+const daysBetween = (from, to) => Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86400000);
+
 const MESSAGES = {
   missingDates: 'Deux dates à choisir.',
   reversed: 'La date de début doit précéder la date de fin.',
   badMonth: "Ce mois n'appartient pas à l'exercice choisi.",
   badKind: 'Période inconnue.',
+  tooWide: `Période trop longue : ${MAX_CUSTOM_WINDOW_DAYS} jours au plus.`,
 };
 
 /**
@@ -40,9 +45,10 @@ function resolveWindow({ exercise, kind = 'fy', month, from, to }) {
   if (kind === 'custom') {
     if (!isRealDate(from) || !isRealDate(to)) return { ok: false, error: MESSAGES.missingDates };
     if (from > to) return { ok: false, error: MESSAGES.reversed };
+    if (daysBetween(from, to) > MAX_CUSTOM_WINDOW_DAYS) return { ok: false, error: MESSAGES.tooWide };
     return { ok: true, window: { kind: 'custom', from, to, label: `du ${frDate(from)} au ${frDate(to)}` } };
   }
   return { ok: false, error: MESSAGES.badKind };
 }
 
-module.exports = { resolveWindow, monthLabel, MONTH_NAMES, MESSAGES };
+module.exports = { resolveWindow, monthLabel, MONTH_NAMES, MESSAGES, MAX_CUSTOM_WINDOW_DAYS };

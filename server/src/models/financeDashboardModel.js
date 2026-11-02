@@ -236,19 +236,20 @@ function createDashboardModel(database, finance) {
     })));
 
     // Cumulative curve (rule 9) — last year only when the whole window is comparable.
-    const daily = daysBetween(win.from, win.to) <= CUMULATIVE_DAILY_UP_TO;
+    const width = daysBetween(win.from, win.to);
+    const daily = width <= CUMULATIVE_DAILY_UP_TO;
     const step = daily ? 1 : 7;
     const prevStays = comparable && comparable.range.complete ? comparable.prev.reservations : null;
     const cumulative = [];
-    for (let day = win.from; ; day = addDays(day, step)) {
-      const d = day > win.to ? win.to : day;
+    for (let offset = 0; ; offset += step) {
+      const d = offset >= width ? win.to : addDays(win.from, offset);
       cumulative.push({
         day: d,
         x: dayOffset(win.from, d),
         current: d <= win.asOf ? round2(summary.reservations.filter((r) => r.attributionDate <= d).reduce((n, r) => n + r.totalSejour, 0)) : null,
         previous: prevStays ? round2(prevStays.filter((r) => r.attributionDate <= yoy.shiftYear(d, -1)).reduce((n, r) => n + r.totalSejour, 0)) : null,
       });
-      if (d === win.to) break;
+      if (offset >= width) break;
     }
 
     const revenue = summary.revenueTotal;
