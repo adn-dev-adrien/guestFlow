@@ -34,10 +34,24 @@ function daysBetween(from, to) {
 
 const isDay = (s) => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s) && toDay(toDate(s)) === s;
 
+// specs/control-plane-plans-and-access.md rule 47 — a licence date the operator enters lies in [today − 5 years,
+// today + 5 years], as GuestFlow's dates do (specs/reservations-backend-mvc.md rule 13).
+const WINDOW_MONTHS = 60;
+const PAST_WINDOW_MESSAGE = 'Date trop ancienne : 5 ans au plus.';
+const FUTURE_WINDOW_MESSAGE = 'Date trop lointaine : 5 ans au plus.';
+const inWindow = (day, today) => isDay(day) && day >= addMonths(today, -WINDOW_MONTHS) && day <= addMonths(today, WINDOW_MONTHS);
+// The refusal of a real day outside the window, or null (a malformed day keeps its own message).
+const windowError = (day, today) => {
+  if (!isDay(day) || inWindow(day, today)) return null;
+  return day < today ? PAST_WINDOW_MESSAGE : FUTURE_WINDOW_MESSAGE;
+};
+
 const frDay = (day) => (day ? day.split('-').reverse().join('/') : '');
 
 // An instant as the operator reads it: « 30/09/2026 10:42 », Paris time.
 const stampFmt = new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Paris', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 const frStamp = (iso) => (iso ? stampFmt.format(new Date(iso)).replace(',', '') : '');
 
-module.exports = { parisDay, addDays, addMonths, daysBetween, isDay, frDay, frStamp };
+module.exports = {
+  parisDay, addDays, addMonths, daysBetween, isDay, frDay, frStamp, inWindow, windowError, PAST_WINDOW_MESSAGE, FUTURE_WINDOW_MESSAGE,
+};

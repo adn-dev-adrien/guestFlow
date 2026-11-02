@@ -13,6 +13,7 @@ const { createContext } = require('../../sdk/createContext');
 const plugin = require('..');
 const bookingsModel = require('../bookingsModel');
 const { createController } = require('../controller');
+const { FAR_YEAR } = require('../../../tests/farYearFixture');
 
 const DDL = `
   CREATE TABLE properties (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT);
@@ -57,7 +58,7 @@ function seed(overrides = {}) {
 }
 
 const draft = (resourceId, startTime, endTime, extra = {}) => ({
-  resourceId, date: '2099-02-13', startTime, endTime, ...extra,
+  resourceId, date: `${FAR_YEAR}-02-13`, startTime, endTime, ...extra,
 });
 const rowCount = (db) => db.prepare('SELECT COUNT(*) AS n FROM resource_bookings').get().n;
 
@@ -112,7 +113,7 @@ test('finding 2 — a fixed-price resource booked 2 h costs its flat price', () 
 test('finding 3 — a booking tied to a reservation is priced on the guest grid', () => {
   const { model, db, resourceId } = seed();
   const id = Number(db.prepare(
-    "INSERT INTO resource_bookings (resourceId, reservationId, date, startTime, endTime) VALUES (?, 7, '2099-02-12', '10:00', '11:00')",
+    `INSERT INTO resource_bookings (resourceId, reservationId, date, startTime, endTime) VALUES (?, 7, '${FAR_YEAR}-02-12', '10:00', '11:00')`,
   ).run(resourceId).lastInsertRowid);
   const out = model.priceBooking(draft(resourceId, '19:00', '21:00', { bookingId: id }));
   assert.equal(out.rateGrid, 'guest');
@@ -228,7 +229,7 @@ test('a bookingId of another resource is refused', () => {
   const { model, db, resourceId } = seed();
   const other = Number(db.prepare("INSERT INTO resources (name, priceType) VALUES ('Autre fictif', 'per_stay')").run().lastInsertRowid);
   const id = Number(db.prepare(
-    "INSERT INTO resource_bookings (resourceId, date, startTime, endTime) VALUES (?, '2099-02-12', '10:00', '11:00')",
+    `INSERT INTO resource_bookings (resourceId, date, startTime, endTime) VALUES (?, '${FAR_YEAR}-02-12', '10:00', '11:00')`,
   ).run(other).lastInsertRowid);
   const out = model.priceBooking(draft(resourceId, '18:00', '20:00', { bookingId: id }));
   assert.equal(out.status, 400);

@@ -55,7 +55,7 @@ function createController(model = defaultModel, { today = getTodayIsoDate, refun
   };
 
   // Business errors travel as `{ error, status }` from the model; validators as `{ error, field }`.
-  const fail = (res, result) => res.status(result.status || 400).json({ error: result.error, field: result.field });
+  const fail = (res, result) => res.status(result.status || 400).json({ error: result.error, ...(result.code ? { code: result.code } : {}), field: result.field });
 
   return {
     // GET /api/accounting/cancellation-compensations?month=&year=
@@ -76,7 +76,7 @@ function createController(model = defaultModel, { today = getTodayIsoDate, refun
 
     // POST /api/accounting/cancellation-compensations — manual creation (no iCal alert behind it).
     create(req, res) {
-      const parsed = validateDraft(req.body);
+      const parsed = validateDraft(req.body, { today: today() });
       if (!parsed.ok) return fail(res, parsed);
       return res.status(201).json({ compensation: model.create(parsed.value) });
     },
@@ -89,7 +89,7 @@ function createController(model = defaultModel, { today = getTodayIsoDate, refun
       // payload is judged (a PUT without platform used to read 400 PLATFORM_REQUIRED).
       const current = model.getById(id);
       if (current && current.status === 'received') return fail(res, { error: 'COMPENSATION_LOCKED', status: 409 });
-      const parsed = validateDraft(req.body);
+      const parsed = validateDraft(req.body, { stored: current, today: today() });
       if (!parsed.ok) return fail(res, parsed);
       const result = model.update(id, parsed.value);
       if (result.error) return fail(res, result);

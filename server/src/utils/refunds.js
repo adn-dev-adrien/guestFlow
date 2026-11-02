@@ -12,6 +12,7 @@
  */
 
 const { extraLineKey } = require('./midStayExtras');
+const { isRealIsoDay, dateWindowMessage } = require('./stayDates');
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
@@ -534,8 +535,6 @@ function invalid(code, error, status = 400) {
   return { code, error, status };
 }
 
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
-
 /**
  * Validate + normalize a refund creation payload (spec §3.2 rules 9–14).
  *
@@ -552,12 +551,15 @@ function validateRefundPayload(payload, context) {
   } = context || {};
 
   const refundDate = String((payload && payload.refundDate) || '').trim();
-  if (!ISO_DATE.test(refundDate)) {
+  if (!isRealIsoDay(refundDate)) {
     return invalid('REFUND_INVALID_DATE', 'Date de remboursement invalide');
   }
   if (today && refundDate > today) {
     return invalid('REFUND_INVALID_DATE', 'La date de remboursement ne peut pas être dans le futur');
   }
+  // specs/reservations-backend-mvc.md rule 13 (reading of 2026-11-02) — not before today − 5 years.
+  const outside = dateWindowMessage(refundDate, today || undefined);
+  if (outside) return invalid('REFUND_INVALID_DATE', outside);
 
   // Operator-facing methods only: `retained` is written by the cancellation flow, never requested.
   const method = String((payload && payload.method) || 'transfer');

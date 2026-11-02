@@ -78,6 +78,9 @@ On the SAS step, the server already answers the right figure and the page **disc
    The page sums the per-slot badges, which carry no credit. A line sold 60,00 € for 2 h at a 25 €/h day
    rate (credit 10,00 €), placed 19:00–20:00 and 20:00–21:00 at 35 €/h: the page says
    « Supplément soirée : 20 € », the recap and the commit bill **10,00 €**.
+   *Reading of 2026-11-02 — the date window.* The preview and the commit also refuse a `date`
+   that is not a real day or lies outside [today − 5 years, today + 5 years], 400 with the French message;
+   an edited booking keeps its stored day (hourly-resources 1.3.4, `specs/reservations-backend-mvc.md` rule 13, second reading).
 6. **The answer is already there.** `GET /api/resources/:id/free-slots` returns
    `{ days, supplement }` with `supplement = supplementOf(entry, pending)` (`schedulingModel.js:202`),
    and the step payload carries `supplement` per resource (`:186`). The page keeps `days` only

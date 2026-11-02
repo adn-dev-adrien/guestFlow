@@ -11,6 +11,7 @@
 
 const { createSchedule } = require('./laundrySchedule');
 const { createTripLedger, makeBlockBuilders } = require('./laundryTripLedger');
+const { outsideWindow } = require('./entryDate');
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -68,6 +69,8 @@ function createController({
     set(req, res) {
       const date = req.params && req.params.date;
       if (!isValidIsoDate(date)) return res.status(400).json(INVALID_DATE);
+      const outside = outsideWindow(date, { stored: Boolean(trips.get(date)) });
+      if (outside) return res.status(400).json(outside);
       if (schedule().isRegularDay(date)) return res.status(400).json(ON_LAUNDRY_DAY);
       const body = req.body || {};
       const pickUpAll = body.pickUpAll !== false;

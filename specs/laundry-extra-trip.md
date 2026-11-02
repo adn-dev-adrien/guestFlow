@@ -50,6 +50,9 @@ the stock projection + shortage alert follow.
    un-skip it instead. If the weekday setting later changes so that a stored extra trip lands on the
    new laundry weekday, that record becomes **inert** (ignored by the summary and by the engine; the
    regular rules apply that day) — mirrors the skip spec's « skip on a non-laundry day is inert ».
+   *Reading of 2026-11-02 — the date window.* Past dates stop at today − 5 years and future ones at today + 5 years,
+   400 `DATE_OUTSIDE_WINDOW` with the French message; a trip already stored is edited whatever its day
+   (linen 1.2.2, `specs/reservations-backend-mvc.md` rule 13, second reading).
 3. **Drop-off = the whole dirty pile.** On an extra trip the operator always brings all the dirty
    linen accumulated since the previous trip (« on apporte le linge sale qu'on a »). No partial
    drop-off.

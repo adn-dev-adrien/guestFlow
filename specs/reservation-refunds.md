@@ -149,6 +149,8 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
     `REFUND_INVALID_AMOUNT`** otherwise.
 13. `refundDate` must be a valid `YYYY-MM-DD` and **not in the future** (the money has to have moved)
     → **400 `REFUND_INVALID_DATE`**.
+    *Reading of 2026-11-02 — the date window.* `refundDate` is a real calendar day (`2026-02-30` used to pass the
+    regex) and not before today − 5 years, « Date trop ancienne : 5 ans au plus. » (`specs/reservations-backend-mvc.md` rule 13, second reading).
 14. **VAT is frozen at creation.** Each line stores the `vatRate` that applied when it was recorded:
     the app's single global `vatRate` ([single-vat-rate.md](single-vat-rate.md)) for the three revenue
     buckets, **0** for the `touristTax` bucket (a pass-through bears no VAT). A later settings change

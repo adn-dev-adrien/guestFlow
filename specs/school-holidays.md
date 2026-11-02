@@ -42,6 +42,10 @@ A user opens `/school-holidays` and sees a Gantt-style annual timeline (one stac
 3. `label` is required (trimmed, non-empty); auto-applied `sentenceCase` is preserved.
 4. Each zone is configured as a **pair**: either both `start` and `end` are present, or both are empty. A single side is rejected.
 5. When a zone pair is present, `start ≤ end`. A reversed range is rejected. A one-day holiday (`start === end`) is valid.
+   *Reading of 2026-11-02 — the date window.* Each zone date is a real calendar day inside [today − 5 years, today + 5
+   years] (« Zone A : date trop ancienne : 5 ans au plus. », « … : date invalide. »), 400 `INVALID_PERIOD`; a
+   date the edited period already stores (an imported one) is kept. The education.gouv.fr sync writes its
+   own dates and is not judged (school-holidays 1.0.5, `specs/reservations-backend-mvc.md` rule 13, second reading).
 6. At least one zone must be configured. A period with all three zones empty is rejected.
 7. Listing returns periods sorted by `COALESCE(zoneA_start, zoneB_start, zoneC_start) ASC, id ASC`.
 8. Validation errors return `400 INVALID_PERIOD` with a French error message.

@@ -9,6 +9,8 @@
 // `createdAt` is when the row was written — deliberately two columns, because a rollout is often
 // declared after the fact (spec rule 4). Statistics read `occurredAt`.
 
+const { dateWindowMessage } = require('../utils/stayDates');
+
 const KINDS = Object.freeze(['recipe', 'platforms']);
 const SOURCES = Object.freeze(['apply', 'manual', 'backfill']);
 
@@ -88,6 +90,9 @@ function createTariffChangeJournalModel(database) {
       ? database.prepare("SELECT datetime('now') AS now").get().now
       : normalizeOccurredAt(occurredAt);
     if (!when) return { error: "Date d'effet invalide" };
+    // specs/reservations-backend-mvc.md rule 13 (reading of 2026-11-02) — a date the operator declares lies in the window.
+    const outside = source === 'manual' && occurredAt != null ? dateWindowMessage(when.slice(0, 10)) : null;
+    if (outside) return { error: outside };
 
     const info = database.prepare(`
       INSERT INTO tariff_change_events (propertyId, kind, recipeId, recipeVersion, occurredAt, source, note)

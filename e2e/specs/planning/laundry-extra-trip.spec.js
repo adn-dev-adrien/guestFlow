@@ -6,9 +6,11 @@
 // end-to-end regression). This spec exercises the API contract (PUT / GET / preview / DELETE,
 // the laundry-day refusal) and confirms `/planning` still mounts with an extra trip stored.
 import { test, expect } from '@playwright/test';
+import { farYearWeekday } from '../../fixtures/farYear.js';
 
-const FAR_FUTURE_THURSDAY = '2099-09-10'; // Date.getUTCDay() === 4 — a free date for the default Tuesday.
-const FAR_FUTURE_TUESDAY = '2099-09-08';  // Date.getUTCDay() === 2 — the default laundry weekday.
+// Inside the date window (specs/reservations-backend-mvc.md rule 13): 2099 is refused since 2026-11-02.
+const FAR_FUTURE_THURSDAY = farYearWeekday(4); // a free date for the default Tuesday
+const FAR_FUTURE_TUESDAY = farYearWeekday(2); // the default laundry weekday
 
 test('extra laundry trip — API round-trip + planning page still renders with a trip stored', async ({ page, request }) => {
   // Preview first: the trip does not exist yet, the payload still describes the date.
@@ -66,7 +68,7 @@ test('PUT /api/laundry/extra-trips on the laundry weekday returns 400 EXTRA_TRIP
 });
 
 test('PUT /api/laundry/extra-trips with a malformed date returns 400 INVALID_DATE', async ({ request }) => {
-  const res = await request.put('/api/laundry/extra-trips/2099-09-10x', { data: { pickUpAll: true } });
+  const res = await request.put(`/api/laundry/extra-trips/${FAR_FUTURE_THURSDAY}x`, { data: { pickUpAll: true } });
   expect(res.status()).toBe(400);
   const body = await res.json();
   expect(body.code).toBe('INVALID_DATE');

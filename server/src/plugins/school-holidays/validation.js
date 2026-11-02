@@ -6,9 +6,18 @@
  *   - validateSyncSettings: the user-editable sync config (interval + horizon).
  */
 
+const sdk = require('../sdk');
+
 const ZONE_KEYS = ['A', 'B', 'C'];
 
-function validatePeriod(period = {}) {
+const lowerFirst = (text) => text.charAt(0).toLowerCase() + text.slice(1);
+
+/**
+ * `stored` is the row being edited: a zone date equal to its stored value is not held to the date window
+ * (specs/reservations-backend-mvc.md rule 13, reading of 2026-11-02), so an imported row still saves.
+ */
+function validatePeriod(period = {}, { stored = null } = {}) {
+  const { entryDateMessage } = sdk.coreModule('stayDates');
   const label = String(period.label || '').trim();
   if (!label) {
     return 'Le libellé est obligatoire.';
@@ -22,6 +31,11 @@ function validatePeriod(period = {}) {
     const hasEnd = Boolean(end);
     if (hasStart !== hasEnd) {
       return `Zone ${zone} : la date de début et la date de fin doivent être renseignées ensemble.`;
+    }
+    for (const key of [`zone${zone}_start`, `zone${zone}_end`]) {
+      if (!period[key]) continue;
+      const refusal = entryDateMessage(period[key], { stored: stored ? stored[key] : undefined });
+      if (refusal) return `Zone ${zone} : ${lowerFirst(refusal)}`;
     }
     if (hasStart && hasEnd) {
       configuredZones += 1;

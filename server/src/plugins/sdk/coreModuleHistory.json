@@ -165,6 +165,13 @@
         "storedMoneySplit"
       ],
       "names": {}
+    },
+    {
+      "version": "2.20.0",
+      "modules": [
+        "stayDates"
+      ],
+      "names": {}
     }
   ]
 }

@@ -16,6 +16,10 @@ function createCalendarNotesModel(database) {
       return database.prepare('SELECT * FROM calendar_notes WHERE propertyId = ?').all(propertyId);
     },
 
+    exists(propertyId, date) {
+      return Boolean(database.prepare('SELECT 1 FROM calendar_notes WHERE propertyId = ? AND date = ?').get(propertyId, date));
+    },
+
     // Upsert; an empty note deletes the row. Returns the saved row, or { deleted: true }.
     upsert(propertyId, date, rawNote) {
       const note = capitalizeFirst(rawNote || '').slice(0, MAX_NOTE_LENGTH);

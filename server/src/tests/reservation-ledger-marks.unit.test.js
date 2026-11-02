@@ -43,10 +43,11 @@ test('rule 9 — a future date is refused, nothing is written', () => {
 test('rule 9 — a date before the reservation was created is accepted (stays entered after the fact)', () => {
   const id = createStay();
   const created = String(rowOf(id).createdAt).slice(0, 10);
-  assert.ok('2020-01-15' < created);
-  const res = mark(id, { depositPaid: true, depositPaidDate: '2020-01-15' });
+  const longBefore = inDays(-400);
+  assert.ok(longBefore < created);
+  const res = mark(id, { depositPaid: true, depositPaidDate: longBefore });
   assert.equal(res.statusCode, 200, JSON.stringify(res.body));
-  assert.equal(rowOf(id).depositPaidDate, '2020-01-15');
+  assert.equal(rowOf(id).depositPaidDate, longBefore);
 });
 
 test('rule 9 — today is accepted', () => {

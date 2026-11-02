@@ -390,6 +390,9 @@ without losing anything today's page shows.
     as soon as a valid window or another kind is chosen. It used to show only the error alert, with no way
     to change the period but the sidebar. Tests: `tests/date-horizon.unit.test.js` (the window),
     `components/__tests__/PeriodSelector.date-horizon.test.jsx`, `pages/__tests__/FinancePage.refused-window-link.test.jsx`.
+    *Reading of 2026-11-02, second (Adrien's decision) — the past side.* « du » before today − 5 years is
+    refused too, « Date trop ancienne : 5 ans au plus. », by the server and on the spot by `PeriodSelector`
+    (`specs/reservations-backend-mvc.md` rule 13, second reading); the exercise and month periods are not typed dates and stay as they are.
 
 ---
 
@@ -618,6 +621,7 @@ par mois » and « Taux d'occupation » side by side.
 - [x] `PeriodSelector.window-cap.test.jsx` (2) — rule 51: a window wider than 750 days refused on the spot, never sent.
 - [x] `PeriodSelector.date-horizon.test.jsx` (2) — rule 51, reading of 2026-11-02: « Au » past the date horizon refused on the spot, never sent.
 - [x] `FinancePage.refused-window-link.test.jsx` (2) — rule 51, reading of 2026-11-02: a refused custom link keeps the period selector, sends nothing, loads once fixed.
+- [x] `PeriodSelector.server-today.test.jsx` (1), `FinancePage.server-today.test.jsx` (1) — rule 51, review of PR #938 (V2): the window is judged from the server's day (`today` prop, `GET /api/today`), not the device's.
 - [x] `SelectableTile.test.jsx` (2) — rule 13: expanded state, controlled panel.
 - [x] `YearOverYearBadge.test.jsx` (3) — rules 18, 20: hidden without comparison, partial wording.
 - [x] `SmallMultiplesLineChart.test.jsx` (5) — rules 10, 22, 23: the three chart tooltips (curve;

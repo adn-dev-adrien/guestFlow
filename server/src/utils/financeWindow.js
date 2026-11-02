@@ -2,7 +2,7 @@
 // whole exercise, one of its months, or a custom du / au. Pure — the exercise bounds come from
 // utils/fiscalYear.js, today is passed in, never read here.
 
-const { dateBeyondHorizon, HORIZON_MESSAGE } = require('./stayDates');
+const { dateWindowMessage, HORIZON_MESSAGE, PAST_HORIZON_MESSAGE } = require('./stayDates');
 
 const MONTH_NAMES = [
   'janvier', 'février', 'mars', 'avril', 'mai', 'juin',
@@ -28,6 +28,7 @@ const MESSAGES = {
   badKind: 'Période inconnue.',
   tooWide: `Période trop longue : ${MAX_CUSTOM_WINDOW_DAYS} jours au plus.`,
   tooFar: HORIZON_MESSAGE,
+  tooOld: PAST_HORIZON_MESSAGE,
 };
 
 /**
@@ -49,8 +50,9 @@ function resolveWindow({ exercise, kind = 'fy', month, from, to, today }) {
     if (!isRealDate(from) || !isRealDate(to)) return { ok: false, error: MESSAGES.missingDates };
     if (from > to) return { ok: false, error: MESSAGES.reversed };
     if (daysBetween(from, to) > MAX_CUSTOM_WINDOW_DAYS) return { ok: false, error: MESSAGES.tooWide };
-    // Rule 51, reading of 2026-11-02 — the window ends at the date horizon (reservations-backend-mvc rule 13).
-    if (dateBeyondHorizon(to, today)) return { ok: false, error: MESSAGES.tooFar };
+    // Rule 51, readings of 2026-11-02 — both ends inside the date window (reservations-backend-mvc rule 13).
+    const outside = dateWindowMessage(from, today) || dateWindowMessage(to, today);
+    if (outside) return { ok: false, error: outside };
     return { ok: true, window: { kind: 'custom', from, to, label: `du ${frDate(from)} au ${frDate(to)}` } };
   }
   return { ok: false, error: MESSAGES.badKind };

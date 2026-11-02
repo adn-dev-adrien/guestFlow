@@ -15,6 +15,7 @@
 
 const { isDirectChannel } = require('../utils/platformNameFormat');
 const { computePlatformCommission } = require('../utils/platformCommission');
+const { isRealIsoDay, dateBeforeHorizon, PAST_HORIZON_MESSAGE } = require('../utils/stayDates');
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 const cents = (n) => Math.round((Number(n) || 0) * 100);
@@ -71,9 +72,12 @@ function buildController({ database, penaltiesModel, reservationsModel, todayOf,
 
     const defaultDate = Number(row.balancePaid || 0) === 1 && /^\d{4}-\d{2}-\d{2}/.test(String(row.balancePaidDate || '')) ? String(row.balancePaidDate).slice(0, 10) : today;
     const date = body.date ? String(body.date).slice(0, 10) : defaultDate;
-    const validDate = /^\d{4}-\d{2}-\d{2}$/.test(date) && !Number.isNaN(Date.parse(`${date}T00:00:00Z`)) && new Date(`${date}T00:00:00Z`).toISOString().slice(0, 10) === date;
+    const validDate = isRealIsoDay(date);
     if (!validDate) errors.push({ code: 'INVALID_PENALTY', field: 'date', message: 'Date invalide.' });
     else if (date > today) errors.push({ code: 'INVALID_PENALTY', field: 'date', message: 'La date ne peut pas être dans le futur.' });
+    // specs/reservations-backend-mvc.md rule 13 (reading of 2026-11-02) — the date the operator typed; the
+    // default is the stored solde date, never re-judged.
+    else if (body.date && dateBeforeHorizon(date, today)) errors.push({ code: 'INVALID_PENALTY', field: 'date', message: PAST_HORIZON_MESSAGE });
 
     const payoutRecorded = present(row.platformPayoutAmount) && Number(row.platformPayoutAmount) > 0;
     const source = body.source === 'reconciliation' ? 'reconciliation' : 'fiche';

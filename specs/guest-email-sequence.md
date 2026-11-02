@@ -187,6 +187,9 @@ The former J+7 satisfaction survey and the « season reminder, 8 weeks before th
 31. **Simulation** — a page tab and a CLI show, for a date range, every sequence mail that *would*
     leave: date, mail, client, reservation, status (`part` / `ne part pas` / `déjà envoyé` / `à
     vérifier`) and the reason. Same eligibility code as the real pass, no SMTP, no ledger write.
+    *Reading of 2026-11-02 — the date window.* The simulation's `from` and `to` are real days (`02-30` used to pass)
+    inside [today − 5 years, today + 5 years]: 400 `INVALID_RANGE` with the French `message`, shown by the tab;
+    the pending list's simulated `today` is held to the same window (`specs/reservations-backend-mvc.md` rule 13, second reading).
 32. The CLI (`scripts/simulate-guest-email-sequence.mjs`) runs against any database given in
     `SIMULATION_DB_PATH`, opened **read-only**, so it can be pointed at a copy of production before
     the switch is turned on. It forces GuestFlow's own `DB_PATH` to an in-memory database first, so no

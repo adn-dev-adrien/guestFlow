@@ -450,6 +450,20 @@ Optional: a plugin that declares nothing reads « Actif ».
     acompte on the very buckets the export credited it on, and a bare install without the plugin cancels too. A MINOR
     bump (a name added to `coreModules.json`, recorded under 2.19.0 in `coreModuleHistory.json`); `accounting-export`
     1.0.23 asks for `sdk ^2.19.0`. Test: `plugin-core-hardening-floor.unit.test.js`.
+37. *(Added 2026-11-02, specs/reservations-backend-mvc.md rule 13, SDK 2.20.0.)* **`coreModule('stayDates')` hands
+    the date window of every entered date** — [today − 5 years, today + 5 years], the Europe/Paris day: the messages
+    (`DATE_INVALID_MESSAGE`, `ENTRY_DATE_INVALID_MESSAGE`, `HORIZON_MESSAGE`, `PAST_HORIZON_MESSAGE`,
+    `ITEM_OUTSIDE_STAY_MESSAGE`, `ORDER_MESSAGE`, `TOO_LONG_MESSAGE`), the constants (`INVALID_STAY_DATES`,
+    `MAX_HORIZON_YEARS`, `MAX_STAY_NIGHTS`) and the helpers (`isRealIsoDay`, `horizonStart`, `horizonEnd`,
+    `dateBeforeHorizon`, `dateBeyondHorizon`, `dateWindowMessage`, `entryDateMessage`, `rangesWindowMessage`,
+    `stayDatesRefusal`, `stayDatesRefusalBody`, `stayItemDatesRefusal`). A plugin judges the dates its own routes
+    take with them, so a plugin date is refused with the same message as a core one, and a value its row already
+    stores is never re-judged. A MINOR bump (a module added to `coreModules.json`, recorded under 2.20.0 in
+    `coreModuleHistory.json`); `linen` 1.2.2, `school-holidays` 1.0.5 and `hourly-resources` 1.3.4 ask for
+    `sdk ^2.20.0`. The tariff recipes are not a consumer: they reach the guard through the core's
+    `addPricingRule` / `updatePricingRule`. Tests: `plugins-sdk-core-module-floor.unit.test.js`, linen
+    `laundry-date-window`, school-holidays `school-holidays-date-window`, hourly-resources
+    `resource-bookings-date-window`.
 
 **Edge cases:**
 - **A plugin throws during `register`.** Rule 4 applies: the other plugins and the core boot. The Plugins

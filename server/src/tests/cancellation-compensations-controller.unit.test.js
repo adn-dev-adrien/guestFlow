@@ -148,7 +148,8 @@ test('receive: money that has not arrived yet is refused', () => {
   const res = fakeRes();
   controller.receive({ params: { id: '5' }, body: { receivedAmount: 79.2, receivedDate: '2026-08-20' } }, res);
   assert.equal(res.statusCode, 400);
-  assert.equal(res.body.error, 'RECEIVED_DATE_IN_FUTURE');
+  assert.equal(res.body.code, 'RECEIVED_DATE_IN_FUTURE');
+  assert.equal(res.body.error, 'La date ne peut pas être dans le futur.');
   assert.deepEqual(calls.receive, []);
 });
 
@@ -157,7 +158,9 @@ test('receive: a mistyped year (2016 for 2026) is refused', () => {
   const res = fakeRes();
   controller.receive({ params: { id: '5' }, body: { receivedAmount: 79.2, receivedDate: '2016-08-18' } }, res);
   assert.equal(res.statusCode, 400);
-  assert.equal(res.body.error, 'RECEIVED_DATE_TOO_OLD');
+  assert.equal(res.body.code, 'RECEIVED_DATE_TOO_OLD');
+  assert.equal(res.body.error, 'Date trop ancienne : 5 ans au plus.');
+  assert.equal(res.body.field, 'receivedDate');
 });
 
 test('receive: 0 € is not a payment', () => {

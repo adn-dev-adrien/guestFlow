@@ -47,7 +47,7 @@ export default function EmailSequenceSimulation({ tabs }) {
       const answer = await api.getEmailSequenceSimulation({ from, to });
       if (current()) setResult(answer);
     } catch (err) {
-      if (current()) setError(err.error === 'INVALID_RANGE' ? 'Période invalide (400 jours au plus, fin après début).' : 'La simulation n\'a pas pu être calculée.');
+      if (current()) setError(err.error === 'INVALID_RANGE' ? (err.message !== 'INVALID_RANGE' && err.message) || 'Période invalide (400 jours au plus, fin après début).' : 'La simulation n\'a pas pu être calculée.');
     } finally {
       if (current()) setLoading(false);
     }

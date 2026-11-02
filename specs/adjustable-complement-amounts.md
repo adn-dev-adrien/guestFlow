@@ -135,6 +135,9 @@ ajusté, sans écriture compensatoire.
     l'annulation d'encaissement de [mid-stay-notes.md](mid-stay-notes.md), renommée le 2026-08-22
     parce que l'intention réelle de l'opérateur n'est pas d'effacer une erreur mais de **regrouper la
     collecte au départ** — le libellé « Annuler l'encaissement » cachait la seule façon de le faire.
+    *Reading of 2026-11-02 — the date window.* A payment date edited on a note is a real day, not in the future and
+    not before today − 5 years (400 `INVALID_PAYMENT_DATE`, `field: 'paidDate'`); the date it already carries is
+    kept (`specs/reservations-backend-mvc.md` rule 13, second reading).
 25. Changer le montant d'une note déplace l'écart entre la note et le **reste à percevoir en fin de
     séjour**, dans une seule transaction — exactement le mouvement que font déjà « encaisser une note »
     et « annuler une note ». Les prestations vendues ne sont jamais dé-vendues

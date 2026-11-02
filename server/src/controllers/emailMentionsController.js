@@ -15,6 +15,7 @@
  */
 
 const { todayIso: localTodayIso } = require('../utils/localDate');
+const { isRealIsoDay, dateWindowMessage } = require('../utils/stayDates');
 const emailMentionsModel = require('../models/emailMentionsModel');
 const { loadStayFacts } = require('../models/stayFactsModel');
 const { buildStayContent } = require('../utils/stayContentContext');
@@ -50,6 +51,14 @@ function validate(body, optionExists) {
     || ['offerFr', 'offerEn', 'bookedFr', 'bookedEn'].map((field) => lengthError(field, mention[field])).find(Boolean);
   if (error) return { status: 422, error };
   return { mention };
+}
+
+/**
+ * The arrival the preview renders: the date sent when it is a real day inside the date window
+ * (specs/reservations-backend-mvc.md rule 13, second reading), otherwise today — the preview never fails.
+ */
+function previewStartDate(value, today = localTodayIso()) {
+  return isRealIsoDay(value) && !dateWindowMessage(value, today) ? value : today;
 }
 
 function buildController({ database }) {
@@ -105,7 +114,7 @@ function buildController({ database }) {
     const propertyId = Number(body.propertyId);
     const property = database.prepare('SELECT * FROM properties WHERE id = ?').get(propertyId);
     if (!property) return res.status(404).json({ error: 'PROPERTY_NOT_FOUND' });
-    const startDate = /^\d{4}-\d{2}-\d{2}$/.test(String(body.startDate || '')) ? body.startDate : localTodayIso();
+    const startDate = previewStartDate(body.startDate);
     const endDate = new Date(Date.parse(`${startDate}T00:00:00Z`) + 3 * 86400000).toISOString().slice(0, 10);
     const reservation = { propertyId, startDate, endDate, adults: 2, children: Math.max(0, Number(body.children) || 0), babies: 1 };
     const facts = loadStayFacts(database, reservation);
@@ -135,4 +144,4 @@ function buildController({ database }) {
   return { list, create, update, remove, reorder, setConfirmationOrder, preview };
 }
 
-module.exports = { buildController };
+module.exports = { buildController, previewStartDate };

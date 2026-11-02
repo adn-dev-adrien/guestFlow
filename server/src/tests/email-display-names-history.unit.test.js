@@ -14,13 +14,14 @@ const emailTemplatesModel = require('../models/emailTemplatesModel');
 const emailLogModel = require('../models/emailLogModel');
 const emailPreferencesModel = require('../models/emailPreferencesModel');
 const guestEmailSendsModel = require('../models/guestEmailSendsModel');
+const { FAR_YEAR } = require('./farYearFixture');
 
 function setup() {
   const db = freshDb();
   db.prepare('INSERT INTO app_settings (id) VALUES (1)').run();
   seedProperty(db, { id: 1, name: 'Le Gîte', nameArticle: 'au', nameArticleConfirmed: 1 });
   seedClient(db, { id: 1 });
-  const reservationId = seedReservation(db, { startDate: '2099-07-10', endDate: '2099-07-14' });
+  const reservationId = seedReservation(db, { startDate: `${FAR_YEAR}-07-10`, endDate: `${FAR_YEAR}-07-14` });
   const stub = settingsStub({});
   const emails = buildEmails({
     database: db,
@@ -50,7 +51,7 @@ test('the pending list names the J-7 « Préparation du séjour »', async () =>
     ALTER TABLE reservations ADD COLUMN installmentsTarget REAL NOT NULL DEFAULT 0;
     ALTER TABLE reservations ADD COLUMN installmentsLastPaidDate TEXT;
   `);
-  const res = await call(emails.pending, { query: { today: '2099-07-03' } });
+  const res = await call(emails.pending, { query: { today: `${FAR_YEAR}-07-03` } });
   const row = res.body.find((r) => r.stableKey === 'arrival_reminder_7d' || /Préparation/.test(r.templateName));
   assert.ok(row, 'the J-7 is pending');
   assert.equal(row.templateName, 'Préparation du séjour');

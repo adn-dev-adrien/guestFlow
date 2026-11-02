@@ -5,6 +5,8 @@
  * Spec: specs/skip-laundry-trip.md §4.1 + §4.3.
  */
 
+const { outsideWindow } = require('./entryDate');
+
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 function isValidIsoDate(value) {
@@ -26,6 +28,8 @@ function createController(skipsModel) {
       if (!isValidIsoDate(date)) {
         return res.status(400).json({ error: 'Date attendue au format YYYY-MM-DD.', code: 'INVALID_DATE' });
       }
+      const outside = outsideWindow(date, { stored: skipsModel.isSkipped(date) });
+      if (outside) return res.status(400).json(outside);
       skipsModel.add(date);
       return res.json({ ok: true, skips: skipsModel.listAll() });
     },

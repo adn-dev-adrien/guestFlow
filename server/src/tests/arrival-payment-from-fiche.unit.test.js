@@ -124,6 +124,7 @@ test('a malformed or impossible date is refused, never coerced', () => {
   }
 });
 
-test('without a booking date, only the future check applies', () => {
-  assert.equal(validateArrivalPaymentDate('2020-01-01', { today: '2026-08-31' }).ok, true);
+test('without a booking date, only the future check and the date window apply', () => {
+  assert.equal(validateArrivalPaymentDate('2022-01-01', { today: '2026-08-31' }).ok, true);
+  assert.equal(validateArrivalPaymentDate('2021-08-30', { today: '2026-08-31' }).ok, false);
 });
