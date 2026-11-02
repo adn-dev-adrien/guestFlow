@@ -162,7 +162,8 @@ function nettedRefundIdsOf(row, refunds) {
     const { cancellationNettedRefundIds } = require('../utils/cancelReservation');
     const deps = { database: db, reservationsModel, installmentsModel: require('../models/installmentsModel') };
     return cancellationNettedRefundIds(deps, row.id, refunds, vatRegimeModel.rateForRow(db, row));
-  } catch {
+  } catch (err) {
+    console.error('[reservations] netted refunds unreadable for stay', row.id, '-', err && err.message);
     return null;
   }
 }
