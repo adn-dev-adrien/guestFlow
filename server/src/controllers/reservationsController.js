@@ -16,6 +16,7 @@ const {
 const { resolvePlatformPaidGuests } = require('../utils/platformPaidGuests');
 const { validateFinanceInputs, financeErrorBody } = require('../utils/financeValidation');
 const { stayDatesRefusal, stayDatesRefusalBody } = require('../utils/stayDates');
+const { checkPlanningRange } = require('../utils/planningDateRange');
 const { parseGroup, collectibleArrivalBuckets } = require('../utils/arrivalPaymentGroup');
 const { validateArrivalPaymentDate } = require('../utils/arrivalPaymentDate');
 const { buildArrivalPaymentDetail } = require('../utils/arrivalPaymentDetail');
@@ -751,10 +752,13 @@ function occupiedDates(req, res) {
   if (!propertyId || !from || !to) {
     return res.status(400).json({ error: 'propertyId, from, and to are required' });
   }
+  // specs/establishment-closures.md rule 20 — real days, at most 750 apart.
+  const rangeRefusal = checkPlanningRange(from, to);
+  if (rangeRefusal) return res.status(rangeRefusal.status).json({ error: rangeRefusal.error });
   const reservations = model.getOccupiedReservations(propertyId, from, to, excludeReservationId);
   const occupiedFromReservations = buildOccupiedDatesFromReservations(reservations);
   const closures = establishmentClosuresModel.list({ propertyId, from, to });
-  const closureDates = establishmentClosuresModel.expandClosuresToDates(closures);
+  const closureDates = establishmentClosuresModel.expandClosuresToDates(closures, { from, to });
   const merged = Array.from(new Set([...occupiedFromReservations, ...closureDates])).sort();
   res.json(merged);
 }

@@ -76,6 +76,28 @@ UI redesign: replace `DataPageScaffold` with the shared `PageActionBar` (sticky 
     earlier the day a closure ends likewise. `validateAvailability` now passes the effective range
     (early check-in → previous night, late check-out → next night) to `findCoveringClosure`. Test:
     `tests/reservation-closure-night-blocks.unit.test.js`.
+18. **A closure is two real days at most two years apart** _(added 2026-11-02, audit R19, review of PR
+    #935)_. `utils/establishmentClosuresValidation.validateRange` — used by create, update and the
+    `GET /conflicts` preview — refuses, after rule 9's presence check, a day that is not a real calendar
+    day (`stayDates.isRealIsoDay`: « Date invalide. ») and a closure longer than `MAX_CLOSURE_DAYS` = 731
+    nights (« Fermeture trop longue : 2 ans au plus. »), both `400 INVALID_RANGE`; the dialog shows the
+    message in its error alert. *Why:* a closure ending 9999-12-31 was accepted, and every public calendar
+    view of that logement then blocked the server for about 3 s. A tariff-recipe closure is a few weeks
+    long; the snapshot of 2026-10-22 holds 4 closures, the longest 168 nights.
+19. **A closure is expanded only over the window asked** _(added 2026-11-02, audit R19)_.
+    `expandClosuresToDates(closures, { from, to })` keeps the nights inside `[from, to)`;
+    `blockedDates.computeBlockedDates` (public availability, quote and booking re-checks),
+    `reservationsController.occupiedDates` (rule 15) and the Google Vacation Rentals feed
+    (`plugins/google-vacation-rentals/source.js`, plugin 1.0.3) pass their window. A row whose bounds are
+    not real days expands to nothing. *Why:* each closure was walked from its start to its end whatever
+    the window: one closure to 9999 cost 3 s and 38 MB on every read, even for a month before it.
+20. **The occupied dates answer a window of at most 750 real days** _(added 2026-11-02, audit R19)_.
+    `GET /api/reservations/occupied-dates/:propertyId` refuses through `planningDateRange.checkPlanningRange`
+    a day that is not real or reversed (`400 INVALID_DATE_RANGE`) and a window over 750 days
+    (`400 DATE_RANGE_TOO_WIDE`). The fiche asks for the stay's own dates (366 nights at most,
+    `specs/reservations-backend-mvc.md` rule 12) and the calendar for one month grid; a fiche whose
+    dates are refused keeps no occupied dates. *Why:* `from=0001-01-01&to=9999-12-31` over a closure
+    written before rule 18 still walked three million nights (5.4 s on the shadow).
 
 ## 4. Architecture
 
@@ -310,6 +332,11 @@ If a closure spans multiple months, the band continues into each visible month (
 - [ ] `validateRange('2026-07-01', '2026-07-05')` → `null`
 - [ ] `validateRange('2026-07-05', '2026-07-01')` → French error
 - [ ] `validateRange('', '2026-07-05')` → French error (dates required)
+
+**`tests/establishment-closures-bounds.unit.test.js`** (7) — rules 18-20: unreal days and closures over
+731 nights refused on create, update and the preview; the expansion clipped to the window; public blocked
+nights and the fiche's occupied dates of a legacy closure to 9999 answered at once; the occupied-dates
+window capped at 750 days.
 
 **`tests/establishment-closures-model.unit.test.js`** — `:memory:` DB:
 - [ ] `insert` + `list` returns the row sorted.
