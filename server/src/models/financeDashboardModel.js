@@ -323,8 +323,13 @@ function createDashboardModel(database, finance) {
   // internal refunds), same commission netting as utils/reservationSettlement.comptaCollected.
   function paymentsLedger(reservations, { withCommission = false } = {}) {
     const ids = reservations.map((r) => r.id);
+    // specs/reservation-refunds.md rule 48 — what a refund took from a cancellation indemnity, which the franchise
+    // turnover subtracts at face value, like the indemnity itself.
+    const indemnitySql = withCommission && hasTable('reservation_refund_lines')
+      ? "(SELECT COALESCE(SUM(l.amountTtc), 0) FROM reservation_refund_lines l WHERE l.refundId = rf.id AND l.bucket = 'indemnity')"
+      : '0';
     const refunds = ids.length && hasTable('reservation_refunds')
-      ? database.prepare(`SELECT reservationId, refundDate, totalTtc FROM reservation_refunds WHERE method <> 'internal' AND reservationId IN (${ids.map(() => '?').join(',')})`).all(...ids)
+      ? database.prepare(`SELECT rf.reservationId, rf.refundDate, rf.totalTtc, ${indemnitySql} AS indemnityTtc FROM reservation_refunds rf WHERE rf.method <> 'internal' AND rf.reservationId IN (${ids.map(() => '?').join(',')})`).all(...ids)
       : [];
     // specs/direct-installments.md rule 45 — a stay paid through a plan has no acompte / solde: each
     // collected installment is a payment of its own, on the day it was received.
@@ -345,9 +350,13 @@ function createDashboardModel(database, finance) {
       const day = (d) => (d ? String(d).slice(0, 10) : r.attributionDate);
       // `withCommission` adds what the platform already took out of `amount` (commission and penalty), for
       // the figures that count the guest's full price (specs/vat-optional-mode.md rule 37 (a)); « Encaissé » never shows it.
-      const add = (date, kind, label, amount, commission = 0) => {
+      const add = (date, kind, label, amount, commission = 0, indemnity = 0) => {
         if (round2(amount) === 0) return;
-        rows.push({ ...base, date: day(date), kind, label, amount: round2(amount), ...(withCommission ? { commission: round2(commission) } : {}) });
+        rows.push({
+          ...base, date: day(date), kind, label, amount: round2(amount),
+          ...(withCommission ? { commission: round2(commission) } : {}),
+          ...(withCommission && round2(indemnity) > 0 ? { indemnity: round2(indemnity) } : {}),
+        });
       };
       if (r.depositPaid && !r.depositPaidCash) add(r.depositPaidDate, 'deposit', 'Acompte', Number(r.depositAmount || 0) - Number(r.acompteCommissionAmount || 0), r.acompteCommissionAmount);
       if (r.balancePaid && !r.balancePaidCash) add(r.balancePaidDate, 'balance', isPlatformStay(r) ? 'Versement plateforme' : 'Solde', Number(r.balanceAmount || 0) - Number(r.platformCommissionAmount || 0) - platformPenalty(r), Number(r.platformCommissionAmount || 0) + platformPenalty(r));
@@ -361,7 +370,7 @@ function createDashboardModel(database, finance) {
       }
       const adjustment = arrivalPaymentAdjustment(r).net;
       if (adjustment) add((parseGroup(r.arrivalPaymentGroup) || {}).at, 'adjustment', adjustment > 0 ? 'Pourboire à l\'arrivée' : 'Réduction à l\'arrivée', adjustment);
-      for (const f of refunds.filter((x) => x.reservationId === r.id)) add(f.refundDate, 'refund', 'Remboursement', -Number(f.totalTtc || 0));
+      for (const f of refunds.filter((x) => x.reservationId === r.id)) add(f.refundDate, 'refund', 'Remboursement', -Number(f.totalTtc || 0), 0, Number(f.indemnityTtc || 0));
     }
     rows.sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.reservationId - a.reservationId);
     return rows;

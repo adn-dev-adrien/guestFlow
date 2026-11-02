@@ -271,6 +271,7 @@ function createAccountingModel(database, { settings = createAccountSettings(data
       const indemnityOf = (row) => (indemnity ? {
         account: indemnity.account,
         vatRatePercent: vatRegimeModel.forRow(database, { id: row.reservationId }).regime === 'not_subject' ? 0 : indemnity.vatRatePercent,
+        priorTtc: refunds.indemnityGivenBefore(row),
       } : null);
       return rows.map((row) => buildRefundEntry(row, { indemnity: indemnityOf(row) })).filter(Boolean);
     },
@@ -462,9 +463,13 @@ function buildRefundEntry(refund, { indemnity = null } = {}) {
   };
 }
 
+// Split cumulatively over the stay: this share's HT is HT(given back so far + it) − HT(given back so far), so once the
+// whole indemnity is given back the shares' HT add up to the compensation's HT, at any rate (rule 48).
 function indemnityShare(ttc, config) {
   const rate = Number(config && config.vatRatePercent) || 0;
-  const ht = rate > 0 ? round2(ttc / (1 + rate / 100)) : ttc;
+  const prior = round2(Number(config && config.priorTtc) || 0);
+  const htOf = (amount) => round2(amount / (1 + rate / 100));
+  const ht = rate > 0 ? round2(htOf(prior + ttc) - htOf(prior)) : ttc;
   return { account: (config && config.account) || null, ht, vat: round2(ttc - ht), ratePercent: rate };
 }
 

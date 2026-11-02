@@ -88,12 +88,16 @@ const isIndemnityLine = (line) => String((line && line.bucket) || '') === INDEMN
 
 /**
  * What a cancelled stay can still give back (specs/reservation-refunds.md rule 48). `collectedTtc` is the book
- * money it collected, net of every book refund (`comptaCollected`). Of it, `indemnityLeftTtc` is what the
- * cancellation requalified and no refund has taken from the indemnity yet; `saleLeftTtc` is the rest — a paid
- * solde, say — which a refund still reverses as revenue + VAT.
+ * money it collected, net of every book refund (`comptaCollected`); what the caisse interne gave back of the sale
+ * left the stay too, so it comes off as well. Of the rest, `indemnityLeftTtc` is what the cancellation requalified
+ * and no refund has taken from the indemnity yet; `saleLeftTtc` is the remainder — a paid solde, say — which a
+ * refund still reverses as revenue + VAT.
  */
 function cancelledRefundBudget({ collectedTtc, refunds = [] }) {
-  const collected = Math.max(0, round2(collectedTtc));
+  const givenInCash = (refunds || []).filter((r) => isOffBooks(r.method))
+    .flatMap((r) => r.lines || []).filter((l) => !isIndemnityLine(l))
+    .reduce((sum, l) => sum + Number(l.amountTtc || 0), 0);
+  const collected = Math.max(0, round2(Number(collectedTtc || 0) - givenInCash));
   const requalified = (refunds || []).filter(isRequalification).reduce((sum, r) => sum + Number(r.totalTtc || 0), 0);
   const fromIndemnity = (refunds || []).filter((r) => !isRequalification(r))
     .flatMap((r) => r.lines || []).filter(isIndemnityLine)
@@ -334,7 +338,7 @@ function validateRefundPayload(payload, context) {
       if (requestedByKey[key] > billed.refundableTtc) {
         return invalid(
           'REFUND_EXCEEDS_LINE',
-          `« ${billed.label} » : le remboursement dépasse le montant restant remboursable (${billed.refundableTtc.toFixed(2)} €)`,
+          `« ${billed.label} » : le remboursement dépasse le montant restant remboursable (${euros(billed.refundableTtc)})`,
           409,
         );
       }
@@ -407,13 +411,14 @@ function validateRefundPayload(payload, context) {
   };
 }
 
+// Lazy: reservationLedger requires this module.
+const euros = (n) => require('./reservationLedger').formatEuros(n);
+
 /**
  * Rule 48 — on a cancelled stay, each line is given back first from the collected money no cancellation
  * requalified (it keeps its bucket and VAT: the sale is reversed), then from the indemnity (bucket `indemnity`,
  * 0 %). The indemnity part of a sold line never exceeds what the cancellation requalified on it.
  */
-const euros = (n) => `${Number(n).toFixed(2).replace('.', ',')} €`;
-
 function splitOnIndemnity(lines, byKey, budget) {
   let saleLeft = Math.round(budget.saleLeftTtc * 100);
   let indemnityLeft = Math.round(budget.indemnityLeftTtc * 100);

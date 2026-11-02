@@ -222,6 +222,9 @@ warned before and when it crosses it.
     whose regime or rate actually changes gets a `reservation_history` entry « Régime de TVA : Assujetti 10 % → Sans TVA (changement du
     28/10/2026) » (« correction » for scope `all`); the non-tax lines of its refunds are re-rated to the
     new rate, their TTC unchanged. A future-dated `booking` switch reassigns nothing now.
+    > **Reading of 2026-11-02 (review of PR #925).** « Non-tax lines » excludes the `indemnity` lines too
+    > (specs/reservation-refunds.md rule 48): what a refund gave back from a cancellation indemnity is no sale,
+    > it stays at 0 % through a switch and its undo (rule 26).
 17. **Preview before confirmation.** The dialog shows, from the server, for the exact inputs: reservations
     whose regime or rate changes; of which with money collected; stays whose tourist tax changes, with the total delta;
     frozen or declared taxes kept; open payment links (their amount stands, their VAT display is not
@@ -372,6 +375,10 @@ Appended, never renumbered; each narrows or completes a rule above.
       avoir of a cancellation that keeps the acompte included), and the compensation that replaces it
       counts once it is received. A stay whose client or logement was deleted is left out, as in
       « Encaissé » (the ledger's own joins).
+      > **Reading of 2026-11-02 (review of PR #925).** A refund that gave part of an indemnity back
+      > (specs/reservation-refunds.md rule 48, lines of bucket `indemnity`) subtracts that share **at face
+      > value**, like the indemnity it reduces; the rest of it keeps the ratio of c. `paymentsLedger` carries the
+      > share as `indemnity` on the refund row only for this reader (`withCommission`).
     The calendar year is used whatever the exercise of Paramètres (the exercise drives the books, the
     franchise is judged per calendar year). Every reservation of every logement counts; the Suivi
     financier's window and logement filter do not apply to the card. _(Q7: encaissé, not séjours.)_
@@ -713,6 +720,8 @@ Each test file opens with the spec and rules it covers. Counts are targets.
 - [x] `tests/vat-regime-switch.unit.test.js` — rules 3, 14, 15, 16, 18, 19 (16): each scope, bounds and
       messages, identical-target refusal, transaction (all-or-nothing), history entries, refund re-rate,
       delete unused / refuse used / refuse initial, acknowledgement, admin only.
+- [x] `tests/vat-regime-switch-indemnity-lines.unit.test.js` — rules 16 and 26, reading of 2026-11-02 (2): a switch
+      and its undo leave an `indemnity` refund line at 0 %.
 - [x] `tests/vat-regime-preview.unit.test.js` — rule 17 (8): each count against a crafted DB, fingerprint,
       409 on a changed set.
 - [x] `tests/single-vat-rate-period.unit.test.js` — single-vat-rate rule 14 (2).
@@ -724,6 +733,8 @@ Each test file opens with the spec and rules it covers. Counts are targets.
 - [x] `tests/vat-franchise-turnover.unit.test.js` — rules 37, 41 (13): calendar-year bounds, acompte in December for a stay in March, commission added back (acompte and
       payout), tourist-tax ratio, mixed year HT, refund on its own date, caisse interne excluded,
       internal refund excluded, cancellation compensation counted, installments, previous year.
+- [x] `tests/vat-franchise-indemnity-refund.unit.test.js` — rule 37 (e), reading of 2026-11-02 (2): a refund taken
+      from an indemnity lowers the turnover at face value; a mixed refund splits sale share and indemnity share.
 - [x] `tests/vat-franchise-projection.unit.test.js` — rule 38 (8): each expected-date source, past
       unpaid counted, cancelled / devis / caisse interne / after 31/12 excluded, unpriced adds 0.
 - [x] `tests/vat-franchise-levels.unit.test.js` — rules 35, 39, 40 (8): four levels, equality is `near`,

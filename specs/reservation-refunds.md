@@ -386,6 +386,28 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
     kept), the register offered the 1 029,60 € never collected, and a 500 € refund debited 70600000 454,55 € and
     44571100 45,45 € — negative revenue and deductible VAT on money whose VAT was already reversed — while
     75880000 stayed at 2 060 €.
+    - **The compensation card keeps what the cancellation kept.** The « Acompte conservé — annulation » card
+      (payment-schedule spec rule 33) records the amount the cancellation retained; refunds reduce the indemnity
+      **in the journal only** (the debit above). Never re-receive the card at a lower amount after such a
+      refund: the reduction would count twice. `GET /api/accounting/cancellation-compensations` gives each
+      received `retained_deposit` card `indemnityRefundedTtc` (Σ of its stay's `indemnity` lines, book money),
+      and « Rouvrir » then adds « Déjà réduite de X € par des remboursements : la ré-encaisser au même montant. »
+    > **Reading of 2026-11-02 (review of PR #925).**
+    > - The indemnity share is split HT / VAT **cumulatively over the stay**: its HT is HT(Σ of the stay's earlier
+    >   indemnity shares, by `refundDate` then id, + this one) − HT(that earlier Σ), so the shares' HT add up to
+    >   the compensation's HT to the cent once all of it is given back, at any `vatRateCancellationCompensation`
+    >   (`refundsModel.indemnityGivenBefore`). *Why:* at 20 %, 1 030 + 1 030 € split on their own gave
+    >   858,33 × 2 = 1 716,66 € HT against 1 716,67 € on the compensation: 75880000 −0,01, 44571200 +0,01.
+    > - What the **caisse interne** gave back of the sale (its non-`indemnity` lines) comes off `collectedTtc`
+    >   and therefore off `saleLeftTtc`: that money left the stay, even off the books. *Why:* with the paid solde
+    >   (640 €) given back in caisse interne, a free line of 274 € was still booked as a sale — 706 −249,09 and
+    >   4457 −24,91 on revenue the cancellation had already reversed — instead of off the indemnity.
+    > - The franchise turnover (specs/vat-optional-mode.md rule 37) subtracts a refund's `indemnity` share at
+    >   face value, like the indemnity it reduces; its sale share keeps the stay's ratio.
+    > - A VAT regime switch (and its undo) re-rates refund lines except `touristTax` **and `indemnity`**: an
+    >   indemnity line is not a sale, it stays at 0 % (the export reads the compensation settings anyway).
+    > - The refusals write their amounts with `formatEuros` (« Dépasse l'encaissé (2 060,00 €). »,
+    >   « … dépasse le montant restant remboursable (1 333,24 €) »).
 
 ---
 
@@ -408,6 +430,11 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
 | `controllers/` | `refundsController.js` | T | Rule 48 — on `kind = 'cancelled'`, passes the budget to both and answers `collectedTtc` = the budget |
 | `plugins/accounting-export/` | `accountingModel.js`, `accountingExport.js` | T | Rule 48 — `buildRefundEntry` carries `indemnity` (account + rate of the compensation settings); `refundEntryToRows` debits it |
 | `utils/` | `reservationLedger.js` | T | Rule 46 reading of 2026-11-02 — « Acompte conservé » / « Échéances conservées » row, « Rendu sur l'indemnité » |
+| `models/` | `refundsModel.js` | T | Rule 48 — `indemnityGivenBefore(refund)` (cumulative export split), `indemnityGivenBack(reservationId)` (the card's `indemnityRefundedTtc`) |
+| `controllers/` | `cancellationCompensationsController.js` | T | Rule 48 — received `retained_deposit` cards carry `indemnityRefundedTtc` |
+| `models/` | `financeDashboardModel.js`, `vatFranchiseModel.js` (via `utils/vatFranchise.js`) | T | Rule 48 — the franchise turnover subtracts a refund's indemnity share at face value |
+| `models/` | `vatRegimeSwitchModel.js` | T | Rule 48 — a switch never re-rates an `indemnity` line |
+| `client/src/components/` | `CancellationCompensationsSection.jsx` | T | Rule 48 — « Rouvrir » warns when refunds already reduced the indemnity |
 | `utils/` | `accountingExport.js` | T | `refundEntryToRows()` (credit client / debit revenue+VAT+pass-through, residue on the last debit) routed from `entryToRows` on `entry.direction === 'refund'`; `entryToStructured` inherits it for free |
 | `utils/` | `pricing.js` | T | New input `refundsTotal`; new output `refundsTotal` + `sejourNetTotal` net of refunds (single subtraction, no other engine change) |
 | `constants/` | `accounting.js` | T | `REFUND_BUCKET_TO_ACCOUNT` (adds `touristTax → 46710000` on top of the existing `BUCKET_TO_ACCOUNT`) |
@@ -647,6 +674,13 @@ plan offers the 2 060 € collected, never the unpaid remainder; 500 € refunde
 indemnity; a retained acompte refunded 200 € → 706 / 4457 at 0, 75880000 −74; a paid solde keeps its 706 + VAT
 refund, the 60 € beyond it off the indemnity. `tests/reservation-ledger-retained-avoir.unit.test.js` (4, rule 46
 reading of 2026-11-02) — « Acompte conservé » / « Échéances conservées », « Rendu sur l'indemnité », no raw code.
+**Review of #925 (2026-11-02):** `tests/cancelled-stay-refund-from-indemnity.unit.test.js` grows to 10 — at a 20 %
+indemnity rate, 1 030 + 1 030 € given back net every account to 0; after the paid solde went back in caisse
+interne, a free 274 € line is stored `indemnity` and 75880000 nets to 0; refusals read « 2 060,00 € »; the kept
+acompte's card carries `indemnityRefundedTtc` 500. `tests/vat-franchise-indemnity-refund.unit.test.js` (2) — an
+indemnity refund lowers the franchise turnover at face value, a mixed one splits. `tests/vat-regime-switch-indemnity-lines.unit.test.js`
+(2) — a switch and its undo leave an `indemnity` line at 0 %. `client/src/components/__tests__/CancellationCompensationsSection.indemnity-refunds.test.jsx`
+(2) — the reopen warning, and its absence when no refund touched the card.
 `tests/vat-regime-golden.unit.test.js` — `fiche/109` regenerated: a cancelled stay that collected nothing offers no line.
 
 ## 8. Out of scope

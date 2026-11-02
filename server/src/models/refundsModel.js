@@ -153,6 +153,25 @@ function createRefundsModel(database) {
       return totals;
     },
 
+    // TTC a cancelled stay gave back from its indemnity BEFORE `refund` (by date, then id) — the export splits each
+    // indemnity share cumulatively, so the shares' HT add up to the compensation's HT to the cent
+    // (specs/reservation-refunds.md rule 48).
+    indemnityGivenBefore({ reservationId, refundDate, id }) {
+      const row = prep(`SELECT COALESCE(SUM(l.amountTtc), 0) AS total FROM reservation_refund_lines l
+        JOIN reservation_refunds r ON r.id = l.refundId
+        WHERE r.reservationId = ? AND l.bucket = 'indemnity' AND r.method <> 'internal'
+          AND (r.refundDate < ? OR (r.refundDate = ? AND r.id < ?))`).get(reservationId, refundDate, refundDate, id);
+      return round2(row.total);
+    },
+
+    // TTC every refund of a stay took from its cancellation indemnity (rule 48).
+    indemnityGivenBack(reservationId) {
+      const row = prep(`SELECT COALESCE(SUM(l.amountTtc), 0) AS total FROM reservation_refund_lines l
+        JOIN reservation_refunds r ON r.id = l.refundId
+        WHERE r.reservationId = ? AND l.bucket = 'indemnity' AND r.method <> 'internal'`).get(reservationId);
+      return round2(row.total);
+    },
+
     // Book-money refunds whose date falls in [from, nextMonth) — the accounting export's source.
     // Caisse-interne refunds are excluded here, exactly like the cash complements are excluded from
     // `encaissementsByMonth` (specs/reservation-refunds.md §3.4 rule 26).

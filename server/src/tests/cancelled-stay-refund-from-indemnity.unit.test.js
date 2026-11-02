@@ -205,3 +205,58 @@ test('rule 48 — a paid solde keeps its 706 + VAT refund; only what exceeds it 
   assert.equal(net['75880000'], -214, '274 € kept, 60 € of it given back');
   assert.equal(net.CTEST, 214);
 });
+
+// Review of #925 (2026-11-02). The compensation entry splits the whole indemnity HT/VAT once; each refund used to
+// split its own share again, so a VAT-bearing indemnity given back in two halves left a cent on 7588 and 4457.
+test('rule 48 — at a 20 % indemnity rate, an indemnity given back in two refunds nets every account to 0', { skip: skipWithout(['accounting-export']) }, () => {
+  const { db, deps } = seedPlan();
+  db.exec('CREATE TABLE IF NOT EXISTS plugin_settings (plugin_id TEXT NOT NULL, key TEXT NOT NULL, value TEXT, updated_at TEXT, PRIMARY KEY (plugin_id, key))');
+  db.prepare("INSERT INTO plugin_settings (plugin_id, key, value) VALUES ('accounting-export', 'vatRateCancellationCompensation', '20')").run();
+  cancel(deps);
+  const controller = controllerOf(deps);
+  assert.equal(refund(controller, [{ key: 'accommodation', amountTtc: 1030 }]).statusCode, 201);
+  const rest = refund(controller, [{ key: 'accommodation', amountTtc: 303.24 }, { key: 'opt:1', amountTtc: 702.76 }, { key: 'touristTax', amountTtc: 24 }]);
+  assert.equal(rest.statusCode, 201, JSON.stringify(rest.body));
+  const net = netByAccount(db);
+  for (const [account, amount] of Object.entries(net)) assert.equal(amount, 0, `${account} nets to zero`);
+});
+
+// Review of #925: a caisse-interne refund of the paid solde is no book money, but it did give the sale back — a
+// later free line must then come off the indemnity, not reverse 706 + VAT a second time.
+test('rule 48 — after the paid solde went back in caisse interne, a free line is taken from the indemnity', { skip: skipWithout(['accounting-export']) }, () => {
+  const { db, deps } = seedDeposit({ balancePaid: true });
+  cancel(deps);
+  const controller = controllerOf(deps);
+  const internal = refund(controller, [{ key: 'accommodation', amountTtc: 640 }], 'internal');
+  assert.equal(internal.statusCode, 201, JSON.stringify(internal.body));
+  assert.equal(internal.body.collectedTtc, 274, 'only the kept acompte can still go back');
+  const free = refund(controller, [{ label: 'Geste', bucket: 'accommodation', amountTtc: 274 }]);
+  assert.equal(free.statusCode, 201, JSON.stringify(free.body));
+  assert.deepEqual(free.body.refund.lines.map((l) => [l.bucket, l.amountTtc, l.vatRate]), [['indemnity', 274, 0]]);
+  assert.equal(netByAccount(db)['75880000'] || 0, 0, 'the indemnity is wholly given back');
+  assert.equal(refund(controller, [{ label: 'Geste', bucket: 'accommodation', amountTtc: 0.01 }]).body.code, 'REFUND_EXCEEDS_COLLECTED');
+});
+
+test('rule 48 — the refusals write their amounts the French way', () => {
+  const { deps } = seedPlan();
+  cancel(deps);
+  const controller = controllerOf(deps);
+  assert.equal(refund(controller, [{ label: 'Geste', bucket: 'options', amountTtc: 2060.01 }]).body.error, 'Dépasse l’encaissé (2\u00a0060,00\u00a0€).');
+  assert.match(refund(controller, [{ key: 'accommodation', amountTtc: 1333.25 }]).body.error, /\(1\u00a0333,24\u00a0€\)/);
+});
+
+// Review of #925, rule 48: the compensation card keeps what the cancellation kept; a refund reduces it in the
+// journal only. Its list says how much the refunds already took, so reopening it can warn against re-receiving it
+// lower (which would count the reduction twice).
+test('rule 48 — the kept-acompte card tells how much refunds already took from the indemnity', () => {
+  const { createController: createCompensationsController } = require('../controllers/cancellationCompensationsController');
+  const { deps } = seedPlan();
+  cancel(deps);
+  assert.equal(refund(controllerOf(deps), [{ key: 'accommodation', amountTtc: 500 }]).statusCode, 201);
+  const compensations = createCompensationsController(deps.compensationsModel, { refundsModel: deps.refundsModel });
+  const [year, month] = TODAY.split('-').map(Number);
+  const res = call((req, out) => compensations.list({ ...req, query: { month: String(month), year: String(year) } }, out));
+  const [card] = res.body.received;
+  assert.equal(card.receivedAmount, 2060, 'the card keeps what the cancellation kept');
+  assert.equal(card.indemnityRefundedTtc, 500);
+});

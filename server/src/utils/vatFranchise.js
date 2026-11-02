@@ -54,9 +54,12 @@ function turnoverOf({ rows, compensations = [], from, to, share }) {
   for (const row of rows) {
     if (!inRange(row.date)) continue;
     const amount = Number(row.amount) || 0;
+    // A refund's share taken from a cancellation indemnity (rule 48 of reservation-refunds) counts at face value,
+    // like the indemnity it reduces; the rest of it reverses a sale, at the stay's ratio.
+    const indemnity = amount < 0 ? Math.min(-amount, Number(row.indemnity) || 0) : 0;
     total += amount >= 0
       ? share(row.reservationId, amount + (Number(row.commission) || 0))
-      : -share(row.reservationId, -amount);
+      : -share(row.reservationId, -amount - indemnity) - indemnity;
   }
   // An indemnity carries neither VAT nor tourist tax: it counts at face value (rule 37 (e)).
   for (const c of compensations) {

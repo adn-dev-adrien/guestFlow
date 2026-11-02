@@ -41,7 +41,19 @@ function parseId(req) {
   return Number.isInteger(id) && id > 0 ? id : null;
 }
 
-function createController(model = defaultModel, { today = getTodayIsoDate } = {}) {
+// The refunds model is required on first use: a test that builds this controller on a bare compensations model never
+// opens the production database through it.
+const defaultRefundsModel = () => require('../models/refundsModel');
+
+function createController(model = defaultModel, { today = getTodayIsoDate, refundsModel = null } = {}) {
+  // specs/reservation-refunds.md rule 48 — a kept acompte's card records what the cancellation kept; refunds reduce
+  // it in the journal only. The card says how much they already took, so reopening it can warn against re-receiving
+  // it at a lower amount (the reduction would then count twice).
+  const withIndemnityRefunds = (c) => {
+    if (c.origin !== 'retained_deposit' || !c.reservationId) return c;
+    return { ...c, indemnityRefundedTtc: (refundsModel || defaultRefundsModel()).indemnityGivenBack(c.reservationId) };
+  };
+
   // Business errors travel as `{ error, status }` from the model; validators as `{ error, field }`.
   const fail = (res, result) => res.status(result.status || 400).json({ error: result.error, field: result.field });
 
@@ -51,7 +63,7 @@ function createController(model = defaultModel, { today = getTodayIsoDate } = {}
       const params = parseMonthYear(req.query);
       if (!params) return res.status(400).json({ error: 'INVALID_MONTH_OR_YEAR' });
       const pending = model.listPending();
-      const received = model.listReceivedByMonth(monthBounds(params));
+      const received = model.listReceivedByMonth(monthBounds(params)).map(withIndemnityRefunds);
       return res.json({
         pending,
         received,
