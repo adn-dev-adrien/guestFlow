@@ -31,7 +31,7 @@ function inChild(args, code) {
   return JSON.parse(r.stdout.trim().split('\n').pop());
 }
 
-const flagsOf = `JSON.stringify(Object.fromEntries(Object.entries(process.env).filter(([k]) => k.startsWith('GUESTFLOW_') && !['GUESTFLOW_LOCAL_ENV', 'GUESTFLOW_UPLOADS_DIR'].includes(k))))`;
+const flagsOf = `JSON.stringify(Object.fromEntries(Object.entries(process.env).filter(([k]) => k.startsWith('GUESTFLOW_') && !['GUESTFLOW_LOCAL_ENV', 'GUESTFLOW_UPLOADS_DIR', 'GUESTFLOW_TEST_ENV_TRACE_DIR'].includes(k))))`;
 
 test('rule 12: the preload drops every GUESTFLOW_* flag the shell exports, the runner knobs kept', () => {
   const flags = inChild(['--require', PRELOAD], `console.log(${flagsOf})`);
