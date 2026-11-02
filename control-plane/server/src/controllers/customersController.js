@@ -9,7 +9,7 @@
 const crypto = require('crypto');
 const fs = require('fs');
 const { stateOf, daysLeft, paidEndsAt, STATE_LABELS } = require('../utils/lifecycle');
-const { parisDay, addDays, addMonths, isDay, frDay, frStamp } = require('../utils/days');
+const { parisDay, addDays, addMonths, isDay, frDay, frStamp, windowError } = require('../utils/days');
 const { KINDS } = require('../utils/templates');
 const { slugError } = require('../utils/slug');
 const { buildPayload, pluginsOfPlan } = require('../utils/licenceIssuer');
@@ -609,11 +609,13 @@ function createCustomersController(ctx) {
     if (!billing) errors.billing = 'Facturation mensuelle ou annuelle.';
     const startsAt = isDay(body.startsAt) ? body.startsAt : null;
     if (!startsAt) errors.startsAt = 'Date de début invalide.';
+    else if (windowError(startsAt, today())) errors.startsAt = windowError(startsAt, today());
     const length = body.length === 'custom' ? 'custom' : Number(body.length);
     let paidEndsAt = null;
     let periodMonths = billing === 'yearly' ? 12 : 1;
     if (length === 'custom') {
       if (!isDay(body.endsAt) || !startsAt || body.endsAt <= startsAt) errors.endsAt = 'La date de fin doit suivre la date de début.';
+      else if (windowError(body.endsAt, today())) errors.endsAt = windowError(body.endsAt, today());
       else paidEndsAt = body.endsAt;
     } else if (length === 1 || length === 12) {
       periodMonths = length;
@@ -836,6 +838,8 @@ function createCustomersController(ctx) {
     assertExpectedEndsAt(c, body);
     const reason = requireReason(body);
     if (!isDay(body.endsAt) || body.endsAt <= c.endsAt) throw httpError(400, 'INVALID', 'La nouvelle date doit suivre l’échéance actuelle.');
+    const outsideEnd = windowError(body.endsAt, today());
+    if (outsideEnd) throw httpError(400, 'INVALID', outsideEnd);
     customers.setEndsAt(c.id, body.endsAt);
     audit.override({ customerId: c.id, kind: 'extend', reason, operator, at: stamp() });
     journal(c.id, operator, 'override', `Prolongé du ${frDay(c.endsAt)} au ${frDay(body.endsAt)} : « ${reason} »`);
@@ -848,6 +852,8 @@ function createCustomersController(ctx) {
     if (c.archivedAt) throw httpError(409, 'ARCHIVED', 'Client archivé : réactivez-le d’abord.');
     const reason = requireReason(body);
     if (!isDay(body.until) || body.until < today()) throw httpError(400, 'INVALID', 'La date doit être aujourd’hui ou plus tard.');
+    const outsideUntil = windowError(body.until, today());
+    if (outsideUntil) throw httpError(400, 'INVALID', outsideUntil);
     customers.setForceActiveUntil(c.id, body.until);
     audit.override({ customerId: c.id, kind: 'force_active', reason, operator, at: stamp() });
     journal(c.id, operator, 'override', `Remis en actif jusqu’au ${frDay(body.until)} : « ${reason} »`);
