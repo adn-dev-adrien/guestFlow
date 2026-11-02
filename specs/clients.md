@@ -142,6 +142,27 @@ list.
     `409 CLIENT_KEEPS_HISTORY` / `CLIENT_CARRIES_MONEY` on the first, non-forced call
     (`specs/payment-schedule-and-cancellation.md` rule 53).
 
+17. **An answer about a client the operator has left never lands on screen (2026-11-02, audit R18-C1).**
+    The delete confirmation and the sheet's stay list each show only the answer of their latest request
+    (`useLatestRequest`): opening another client, closing the confirmation or confirming a deletion
+    supersedes the pending `delete-impact` request, and its late answer or error is dropped. The
+    confirmation stays loading, « Confirmer la suppression » disabled, until the client it names has
+    answered. A deletion that ends after the operator moved to another client's confirmation neither
+    closes nor marks that confirmation; the list still reloads. *Why: client A's late impact replaced
+    the confirmation of client B (A's name, stays, devis and blocker) while « Confirmer la suppression »
+    deleted B; on the sheet, B listed A's stays and a click opened A's fiche.*
+
+18. **A superseded deletion still reports its failure; a closed cleanup popup stays closed (2026-11-02,
+    review of PR #932).** When a forced deletion fails after the operator closed its confirmation or
+    moved to another client's, the failure is shown as an error toast (the server's message, or « Une
+    erreur est survenue pendant la suppression. »), never inside the confirmation on screen; while its
+    own confirmation is still open the failure stays in that dialog, with no toast. « Nettoyer les
+    clients » guards its orphan preview the same way (`useLatestRequest`): closing the popup while the
+    list loads supersedes the request, so its late answer does not reopen the popup and its late error
+    shows no toast. *Why: after rule 17 a deletion that failed once the operator had moved on was
+    reported nowhere, and A was still listed with nothing saying the deletion had failed; a late
+    preview reopened a popup the operator had just closed.*
+
 **Edge cases:**
 - Client with only devis (no reservations) → `409` now also triggers (was silently deleted); impact shows
   the devis. Force deletes them.
@@ -177,7 +198,7 @@ list.
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
 | `components/` | `ClientFormFields.js` | T | One phone `TextField` (remove the add/remove multi-phone list + per-row errors). |
-| `pages/` | `ClientsPage.js` | T | Single-phone form state/validation/display; remove the client-side reservation sort + nights math; both the in-form reservations list **and** the delete dialog consume the server-shaped `delete-impact` (reservations sorted + `nights`, plus devis). **2026-06-06:** wires the existing **Cleanup clients** button to fetch the preview and open `<ClientCleanupDialog>` instead of bulk-deleting. **2026-09-25:** the edit sheet passes a « Supprimer » button through `FormDialog`'s `secondaryAction`; a `lastHandledDeleteClientIdRef` guards the `?deleteClientId=` effect the way `lastHandledClientIdRef` guards `?clientId=`; the list drops the Notes column. |
+| `pages/` | `ClientsPage.js` | T | Single-phone form state/validation/display; remove the client-side reservation sort + nights math; both the in-form reservations list **and** the delete dialog consume the server-shaped `delete-impact` (reservations sorted + `nights`, plus devis). **2026-06-06:** wires the existing **Cleanup clients** button to fetch the preview and open `<ClientCleanupDialog>` instead of bulk-deleting. **2026-09-25:** the edit sheet passes a « Supprimer » button through `FormDialog`'s `secondaryAction`; a `lastHandledDeleteClientIdRef` guards the `?deleteClientId=` effect the way `lastHandledClientIdRef` guards `?clientId=`; the list drops the Notes column. **2026-11-02:** `useLatestRequest` guards the sheet's stay list, the delete confirmation (rule 17) and the cleanup preview (rule 18); a superseded deletion failure goes to `showError`. |
 | `pages/` | `ReservationPage.js` | T | Inline "create client" dialog: single `phone` (drop `phoneNumbers` from `EMPTY_CLIENT` + payload). |
 | `components/` | `ClientCleanupDialog.js` | C | **NEW (2026-06-06):** focused dialog showing the orphan list with per-row checkboxes (default checked) + master toggle + Annuler / Supprimer. Calls the delete-by-ids API on confirm, surfaces deleted/skipped counts. |
 
@@ -311,6 +332,20 @@ drop is irreversible.
       - **Confirmer la suppression** calls `deleteClient(id, { force: true })` exactly once, closes, and
         never re-fetches the impact of the client it just deleted.
       _(All five regression cases fail against the pre-fix page.)_
+
+- [x] **NEW (2026-11-02, rule 17)** `client/src/pages/__tests__/ClientsPage.stale-impact.test.jsx` (5 tests):
+      - A late impact answer for A never lands in B's confirmation; the confirm deletes B (`42`) once.
+      - When A answers first, B's confirmation stays loading with the confirm disabled, then shows B.
+      - A late impact failure for A shows no error in B's confirmation.
+      - A deletion of A ending after B's confirmation opened neither closes it nor shows A's failure.
+      - B's sheet never lists A's late stays, and stays loading until B answers.
+      _(All five fail against the pre-fix page.)_
+- [x] **NEW (2026-11-02, rule 18)** same file, 4 more tests (9 in all):
+      - A deletion of A failing after B's confirmation opened is reported once as a toast, not in B's dialog.
+      - A deletion failing while its own confirmation is open shows in the dialog, with no toast.
+      - A late orphan preview does not reopen the cleanup popup the operator closed.
+      - A late orphan preview failure after the popup was closed shows no toast.
+      _(The first, third and fourth fail against the rule-17 page.)_
 
 ### Manual UI verification (in browser)
 - [x] "Nouveau client" form shows a single **Téléphone** field (no add/remove); `0` console errors.

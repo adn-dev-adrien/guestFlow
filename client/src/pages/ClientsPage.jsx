@@ -21,6 +21,7 @@ import ClientDirectoryRow from '../components/ClientDirectoryRow';
 import ClientFormFields from '../components/ClientFormFields';
 import ClientCleanupDialog from '../components/ClientCleanupDialog';
 import useCrudResource from '../hooks/useCrudResource';
+import useLatestRequest from '../hooks/useLatestRequest';
 import api from '../api';
 import { isValidEmail, isValidPhone } from '../utils/validation';
 import { withFrom } from '../utils/navigation';
@@ -120,6 +121,10 @@ export default function ClientsPage() {
   const [cityOptions, setCityOptions] = useState([]);
   const [clientReservations, setClientReservations] = useState([]);
   const [clientReservationsLoading, setClientReservationsLoading] = useState(false);
+  // specs/clients.md rule 17: an answer about a client the operator has left never lands on screen.
+  const beginSheetStays = useLatestRequest();
+  const beginDeleteImpact = useLatestRequest();
+  const beginCleanupPreview = useLatestRequest();
   const [deleteImpact, setDeleteImpact] = useState({
     open: false,
     clientId: null,
@@ -188,12 +193,14 @@ export default function ClientsPage() {
       setClientParam(client.id);
       setClientReservations([]);
       setClientReservationsLoading(true);
+      const current = beginSheetStays();
       // Server-shaped (sorted + nights) reservations for this client.
       api.getClientDeleteImpact(client.id)
-        .then((impact) => setClientReservations(impact?.reservations || []))
-        .catch(() => setClientReservations([]))
-        .finally(() => setClientReservationsLoading(false));
+        .then((impact) => { if (current()) setClientReservations(impact?.reservations || []); })
+        .catch(() => { if (current()) setClientReservations([]); })
+        .finally(() => { if (current()) setClientReservationsLoading(false); });
     } else {
+      beginSheetStays();
       setForm({ ...emptyClient });
       setEditId(null);
       setClientReservations([]);
@@ -339,6 +346,7 @@ export default function ClientsPage() {
   }, [form.postalCode, form.city]);
 
   const handleDelete = async (id) => {
+    const current = beginDeleteImpact();
     const client = clients.find((c) => c.id === id);
     lastHandledDeleteClientIdRef.current = id;
     setDeleteClientParam(id);
@@ -354,6 +362,7 @@ export default function ClientsPage() {
 
     try {
       const impact = await api.getClientDeleteImpact(id);
+      if (!current()) return;
       const impactClient = impact?.client;
       setDeleteImpact((prev) => ({
         ...prev,
@@ -365,6 +374,7 @@ export default function ClientsPage() {
         blocked: Boolean(impact?.blocker),
       }));
     } catch (error) {
+      if (!current()) return;
       setDeleteImpact((prev) => ({
         ...prev,
         loading: false,
@@ -376,23 +386,27 @@ export default function ClientsPage() {
   const deleteBlocked = Boolean(deleteImpact.blocked);
 
   const closeDeleteImpact = () => {
+    beginDeleteImpact();
     setDeleteClientParam(null);
     setDeleteImpact({ open: false, clientId: null, clientName: '', reservations: [], devis: [], loading: false, error: '' });
   };
 
   const handleForceDeleteClient = async () => {
     if (!deleteImpact.clientId || deleteImpact.loading || deleteImpact.error) return;
+    const current = beginDeleteImpact();
     setDeleteImpact((prev) => ({ ...prev, loading: true }));
     try {
       await api.deleteClient(deleteImpact.clientId, { force: true });
-      closeDeleteImpact();
+      if (current()) closeDeleteImpact();
       await reload(listParams);
     } catch (error) {
-      setDeleteImpact((prev) => ({
-        ...prev,
-        loading: false,
-        error: error?.message || 'Une erreur est survenue pendant la suppression.',
-      }));
+      const message = error?.message || 'Une erreur est survenue pendant la suppression.';
+      // The operator left this confirmation: the failure still has to be said, outside the dialog.
+      if (!current()) {
+        showError(message);
+        return;
+      }
+      setDeleteImpact((prev) => ({ ...prev, loading: false, error: message }));
     }
   };
 
@@ -536,17 +550,22 @@ export default function ClientsPage() {
   // Open the selective cleanup popup: fetch the orphan list, then show the dialog.
   // The legacy bulk `cleanupOrphanClients()` API stays available but the UI no longer calls it.
   const handleCleanupOrphanClients = async () => {
+    const current = beginCleanupPreview();
     setCleanupDialog({ open: true, orphans: [], loading: true, busy: false });
     try {
       const { orphans = [] } = await api.getOrphanClientsPreview();
+      if (!current()) return;
       setCleanupDialog({ open: true, orphans, loading: false, busy: false });
     } catch (error) {
+      if (!current()) return;
       setCleanupDialog({ open: false, orphans: [], loading: false, busy: false });
       showError(error?.message || 'Impossible de charger la liste des clients à supprimer.');
     }
   };
 
   const handleCleanupClose = () => {
+    if (cleanupDialog.busy) return;
+    beginCleanupPreview();
     setCleanupDialog((prev) => (prev.busy ? prev : { ...prev, open: false }));
   };
 
