@@ -1,7 +1,7 @@
 {
   "id": "accounting-export",
   "name": "Export comptable",
-  "version": "1.0.21",
+  "version": "1.0.22",
   "description": "Écritures, plan comptable et export pour le cabinet comptable.",
   "icon": "book",
   "surfaces": [
@@ -92,6 +92,11 @@
     ],
     "1.0.21": [
       "L’annulation d’un séjour payé en plusieurs échéances s’équilibre au centime sur chaque compte de produits et de TVA.",
+      "Compatible avec le SDK 2 de GuestFlow."
+    ],
+    "1.0.22": [
+      "Un remboursement sur un séjour annulé réduit l’indemnité d’annulation au lieu de repasser une vente négative et sa TVA.",
+      "Une indemnité soumise à TVA rendue en plusieurs fois s’équilibre au centime.",
       "Compatible avec le SDK 2 de GuestFlow."
     ]
   }

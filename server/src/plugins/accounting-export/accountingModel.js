@@ -262,7 +262,18 @@ function createAccountingModel(database, { settings = createAccountSettings(data
       const yyyy = String(year);
       const from = `${yyyy}-${mm}-01`;
       const nextMonth = Number(mm) === 12 ? `${Number(yyyy) + 1}-01-01` : `${yyyy}-${String(Number(mm) + 1).padStart(2, '0')}-01`;
-      return refunds.listByMonth({ from, nextMonth }).map(buildRefundEntry).filter(Boolean);
+      const rows = refunds.listByMonth({ from, nextMonth });
+      // specs/reservation-refunds.md rule 48 — the share a cancelled stay gives back from its indemnity debits the
+      // account the indemnity was credited on, at its rate: read only when such a share exists, so a minimal test
+      // schema without settings never needs them.
+      const fromIndemnity = rows.some((row) => (row.lines || []).some((line) => line.bucket === 'indemnity'));
+      const indemnity = fromIndemnity ? compensationSettings(settings.read()) : null;
+      const indemnityOf = (row) => (indemnity ? {
+        account: indemnity.account,
+        vatRatePercent: vatRegimeModel.forRow(database, { id: row.reservationId }).regime === 'not_subject' ? 0 : indemnity.vatRatePercent,
+        priorTtc: refunds.indemnityGivenBefore(row),
+      } : null);
+      return rows.map((row) => buildRefundEntry(row, { indemnity: indemnityOf(row) })).filter(Boolean);
     },
 
     // Pénalités plateforme du mois (specs/reconciliation-assisted-matching.md rule 28): one entry per
@@ -398,7 +409,10 @@ function buildCompensationEntry(compensation, { account, vatRatePercent }) {
 // specs/direct-installments.md rule 46), so it splits each line on its own, as each encaissement was
 // split, and the accounts net to the cent. With one line per bucket, as every acompte avoir has, both
 // splits are the same numbers.
-function buildRefundEntry(refund) {
+// On a cancelled stay, the lines given back from the indemnity (bucket `indemnity`, specs/reservation-refunds.md
+// rule 48) debit the indemnity account at its own rate — the mirror of the compensation entry — and never touch
+// 706 or VAT on sales: that revenue was already reversed by the cancellation's `retained` avoir.
+function buildRefundEntry(refund, { indemnity = null } = {}) {
   const lines = refund.lines || [];
   const ttc = round2(refund.totalTtc);
   if (ttc <= 0) return null;
@@ -406,10 +420,12 @@ function buildRefundEntry(refund) {
   const perLine = refund.method === 'retained';
   const byBucket = new Map(); // `${bucket}|${rate}` → { name, ttc, ht, vat, ratePercent }
   let taxTtc = 0;
+  let indemnityTtc = 0;
   for (const line of lines) {
     const amount = round2(line.amountTtc);
     if (amount <= 0) continue;
     if (line.bucket === 'touristTax') { taxTtc = round2(taxTtc + amount); continue; }
+    if (line.bucket === 'indemnity') { indemnityTtc = round2(indemnityTtc + amount); continue; }
     const rate = Number(line.vatRate || 0);
     const mapKey = `${line.bucket}|${rate}`;
     const current = byBucket.get(mapKey) || { name: line.bucket, ttc: 0, ht: 0, vat: 0, ratePercent: rate };
@@ -441,9 +457,20 @@ function buildRefundEntry(refund) {
     taxTtc,
     fraction: 1,
     buckets,
+    ...(indemnityTtc > 0 ? { indemnity: indemnityShare(indemnityTtc, indemnity) } : {}),
     reason: refund.reason || '',
     method: refund.method,
   };
+}
+
+// Split cumulatively over the stay: this share's HT is HT(given back so far + it) − HT(given back so far), so once the
+// whole indemnity is given back the shares' HT add up to the compensation's HT, at any rate (rule 48).
+function indemnityShare(ttc, config) {
+  const rate = Number(config && config.vatRatePercent) || 0;
+  const prior = round2(Number(config && config.priorTtc) || 0);
+  const htOf = (amount) => round2(amount / (1 + rate / 100));
+  const ht = rate > 0 ? round2(htOf(prior + ttc) - htOf(prior)) : ttc;
+  return { account: (config && config.account) || null, ht, vat: round2(ttc - ht), ratePercent: rate };
 }
 
 // One-shot snapshot of the per-platform commission config + the global default account. Computed once

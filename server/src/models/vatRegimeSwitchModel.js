@@ -340,7 +340,7 @@ function applySwitch(db, input, { userId = null, fingerprint, acknowledged = fal
     }
 
     if (preview.changedIds.length && tableExists(db, 'reservation_refund_lines')) {
-      db.prepare(`UPDATE reservation_refund_lines SET vatRate = ? WHERE bucket != 'touristTax'
+      db.prepare(`UPDATE reservation_refund_lines SET vatRate = ? WHERE bucket NOT IN ('touristTax', 'indemnity')
         AND refundId IN (SELECT id FROM reservation_refunds WHERE reservationId IN (${placeholders(preview.changedIds)}))`)
         .run(candidate.rate, ...preview.changedIds);
     }
@@ -454,7 +454,7 @@ function deletePeriod(db, id, { today = todayIso() } = {}) {
           toText: `${rules.regimeLabel(before)} (changement annulé du ${rules.frDate(localIsoDate(new Date()))})`,
         }]));
         if (tableExists(db, 'reservation_refund_lines')) {
-          db.prepare(`UPDATE reservation_refund_lines SET vatRate = ? WHERE bucket != 'touristTax'
+          db.prepare(`UPDATE reservation_refund_lines SET vatRate = ? WHERE bucket NOT IN ('touristTax', 'indemnity')
             AND refundId IN (SELECT id FROM reservation_refunds WHERE reservationId = ?)`).run(before.rate, row.id);
         }
       }

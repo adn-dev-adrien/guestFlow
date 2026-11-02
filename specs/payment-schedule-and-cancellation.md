@@ -255,6 +255,12 @@ acompte is kept as an indemnity, and the books say so correctly.
 31. Net effect: the client auxiliary account nets to zero, the cash position is unchanged (no money
     moved), and the revenue is reclassified from `706xxxx` + VAT to `75880000` VAT-free — which is
     what a retained acompte legally is.
+    > **Reading of 2026-11-02 (audit R14-M1, Adrien's decision « Réduire l'indemnité »).** Giving part of the
+    > retained money back later is a reduction of the indemnity, not a refund of the séjour: on the cancelled
+    > stay the refund takes, after any collected money the cancellation did not requalify (a paid solde, still
+    > booked 706 + VAT), the rest from the indemnity — debit 75880000 at its own rate (0 %), no 706, no VAT
+    > (specs/reservation-refunds.md rule 48). Only money collected can go back; the never-collected remainder
+    > of the stay is not refundable. Revenue and VAT stay exact, the indemnity reads what was really kept.
 32. The avoir uses a **new refund method `retained`** (« Acompte conservé »), which is **book money**
     (unlike `internal`, which is off-books): it must appear in the journal. No bank movement is
     implied, and the method is never selectable in the manual refund dialog — only the cancellation
@@ -264,6 +270,9 @@ acompte is kept as an indemnity, and the books say so correctly.
     back » — the fiche's « Remboursements » line, the finance aggregates — therefore skips it. Only
     the monthly journal read sees it. (Found in the browser: without this the cancelled fiche showed
     « Remboursements − 274,00 € », the exact opposite of what happened.)
+    > **Reading of 2026-11-02 (audit R14-C1).** The fiche's payment ledger is such a reader: the `retained`
+    > avoir is the row « Acompte conservé » (« Échéances conservées » for a plan), « Requalifié en indemnité le
+    > JJ/MM », not « Remboursement · Rendu le … » (specs/reservation-refunds.md rule 46, reading of 2026-11-02).
 33. The indemnity card gets a new `origin` field: `platform` (the existing iCal flow) or
     `retained_deposit` (this flow). The Comptabilité section and the dashboard card label it
     « Acompte conservé — annulation » and link to the cancelled reservation.

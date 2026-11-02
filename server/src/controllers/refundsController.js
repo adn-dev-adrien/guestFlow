@@ -15,7 +15,7 @@ const defaultRefundsModel = require('../models/refundsModel');
 const defaultReservationsModel = require('../models/reservationsModel');
 const database = require('../database');
 const vatRegimeModel = require('../models/vatRegimeModel');
-const { buildRefundableLines, validateRefundPayload } = require('../utils/refunds');
+const { buildRefundableLines, validateRefundPayload, cancelledRefundBudget } = require('../utils/refunds');
 const { comptaCollected } = require('../utils/reservationSettlement');
 
 function todayIso() {
@@ -48,6 +48,9 @@ function createRefundsController(deps = {}) {
     const vatRate = vatRateOf(reservation);
     const refunds = refundsModel.listByReservation(reservationId);
     const refundTotals = refundsModel.totalsByReservation(reservationId);
+    const collectedTtc = comptaCollected({ ...reservation, refundsBookTtc: refundTotals.book });
+    // Rule 48 — a cancelled stay gives back only what it collected, the requalified part from the indemnity.
+    const cancelled = String(reservation.kind) === 'cancelled' ? cancelledRefundBudget({ collectedTtc, refunds }) : null;
     const refundableLines = buildRefundableLines({
       finalPrice: reservation.finalPrice,
       touristTaxTotal: reservation.touristTaxTotal,
@@ -57,10 +60,12 @@ function createRefundsController(deps = {}) {
       refunds,
       // Drives the per-night tourist-tax line (spec §3.5 rule 27).
       nights: nightsBetween(reservation.startDate, reservation.endDate),
+      cancelled,
     });
     return {
       reservation,
       vatRate,
+      cancelled,
       payload: {
         refunds,
         refundableLines,
@@ -68,7 +73,7 @@ function createRefundsController(deps = {}) {
         // What the operator has actually banked so far, net of what was already given back — the
         // dialog's « ce remboursement dépasse le montant encaissé » caption (spec §6 rule 7). Same
         // authority as the finance views, never recomputed client-side.
-        collectedTtc: comptaCollected({ ...reservation, refundsBookTtc: refundTotals.book }),
+        collectedTtc: cancelled ? cancelled.collectedTtc : collectedTtc,
       },
     };
   }
@@ -88,7 +93,7 @@ function createRefundsController(deps = {}) {
       const register = buildRegister(id);
       if (!register) return res.status(404).json({ error: 'Réservation non trouvée' });
 
-      const { reservation, vatRate, payload } = register;
+      const { reservation, vatRate, payload, cancelled } = register;
       const validated = validateRefundPayload(req.body, {
         refundableLines: payload.refundableLines,
         finalPrice: reservation.finalPrice,
@@ -96,6 +101,7 @@ function createRefundsController(deps = {}) {
         alreadyRefundedTotal: payload.refundTotals.withCash,
         vatRate,
         today: todayIso(),
+        cancelled,
       });
       if (validated.error) {
         return res.status(validated.status || 400).json({ error: validated.error, code: validated.code });

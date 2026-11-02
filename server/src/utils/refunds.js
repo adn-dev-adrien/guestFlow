@@ -30,6 +30,10 @@ const OFF_BOOKS_METHOD = 'internal';
 // tourist tax which is a pass-through (no VAT, no revenue account).
 const REFUND_BUCKETS = ['accommodation', 'options', 'resources', 'touristTax'];
 
+// On a cancelled stay, the share of a manual refund the indemnity pays (specs/reservation-refunds.md rule 48): no
+// revenue, no VAT — the export debits the indemnity account the cancellation credited. Never operator-selectable.
+const INDEMNITY_BUCKET = 'indemnity';
+
 const ACCOMMODATION_KEY = 'accommodation';
 const TOURIST_TAX_KEY = 'touristTax';
 
@@ -65,11 +69,11 @@ function lineLabelOf(line) {
  * `{ key → TTC already refunded }` over a reservation's whole refund register (every means). `filter`
  * keeps only some refunds — `isRequalification` for the money a cancellation requalified.
  */
-function refundedByKey(refunds, filter = () => true) {
+function refundedByKey(refunds, filter = () => true, lineFilter = () => true) {
   const byKey = {};
   for (const refund of (refunds || []).filter(filter)) {
     for (const line of refund.lines || []) {
-      if (!line.lineKey) continue;
+      if (!line.lineKey || !lineFilter(line)) continue;
       byKey[line.lineKey] = round2((byKey[line.lineKey] || 0) + Number(line.amountTtc || 0));
     }
   }
@@ -79,6 +83,28 @@ function refundedByKey(refunds, filter = () => true) {
 // A `retained` avoir gives nothing back: it requalifies money a cancellation kept as an indemnity
 // (payment-schedule spec §3.6).
 const isRequalification = (refund) => String((refund && refund.method) || '') === 'retained';
+
+const isIndemnityLine = (line) => String((line && line.bucket) || '') === INDEMNITY_BUCKET;
+
+/**
+ * What a cancelled stay can still give back (specs/reservation-refunds.md rule 48). `collectedTtc` is the book
+ * money it collected, net of every book refund (`comptaCollected`); what the caisse interne gave back of the sale
+ * left the stay too, so it comes off as well. Of the rest, `indemnityLeftTtc` is what the cancellation requalified
+ * and no refund has taken from the indemnity yet; `saleLeftTtc` is the remainder — a paid solde, say — which a
+ * refund still reverses as revenue + VAT.
+ */
+function cancelledRefundBudget({ collectedTtc, refunds = [] }) {
+  const givenInCash = (refunds || []).filter((r) => isOffBooks(r.method))
+    .flatMap((r) => r.lines || []).filter((l) => !isIndemnityLine(l))
+    .reduce((sum, l) => sum + Number(l.amountTtc || 0), 0);
+  const collected = Math.max(0, round2(Number(collectedTtc || 0) - givenInCash));
+  const requalified = (refunds || []).filter(isRequalification).reduce((sum, r) => sum + Number(r.totalTtc || 0), 0);
+  const fromIndemnity = (refunds || []).filter((r) => !isRequalification(r))
+    .flatMap((r) => r.lines || []).filter(isIndemnityLine)
+    .reduce((sum, l) => sum + Number(l.amountTtc || 0), 0);
+  const indemnityLeftTtc = Math.min(collected, Math.max(0, round2(requalified - fromIndemnity)));
+  return { collectedTtc: collected, indemnityLeftTtc, saleLeftTtc: round2(collected - indemnityLeftTtc) };
+}
 
 /** Σ of the refund register, either book-money only (default) or including the caisse interne. */
 function refundsTotal(refunds, { withCash = false } = {}) {
@@ -103,9 +129,12 @@ function refundsTotal(refunds, { withCash = false } = {}) {
  * @param {Array}  input.refunds        the refund register (header + lines)
  * @param {number} input.nights         nights of the stay — makes the tourist-tax line refundable
  *                                      PER NIGHT (specs/reservation-refunds.md §3.5 rule 27)
+ * @param {object} [input.cancelled]    `cancelledRefundBudget` of a cancelled stay: each line then offers what it
+ *                                      collected (rule 48) and carries `indemnityTtc`, the part the indemnity holds
  */
-function buildRefundableLines({ finalPrice, touristTaxTotal, vatRate, options = [], resources = [], refunds = [], nights = 0 }) {
+function buildRefundableLines({ finalPrice, touristTaxTotal, vatRate, options = [], resources = [], refunds = [], nights = 0, cancelled = null }) {
   const given = refundedByKey(refunds, (refund) => !isRequalification(refund));
+  const fromIndemnity = refundedByKey(refunds, (refund) => !isRequalification(refund), isIndemnityLine);
   const requalified = refundedByKey(refunds, isRequalification);
   const rate = Number(vatRate || 0);
 
@@ -166,12 +195,23 @@ function buildRefundableLines({ finalPrice, touristTaxTotal, vatRate, options = 
   // A line whose billed amount shrank below what was already refunded clamps to 0 (spec §3.2 edge
   // case): the money physically left, but nothing more can be given back on that key. What a
   // cancellation requalified is told apart from what went back to the guest (rule 46).
+  // What a refund took from the indemnity (rule 48) gave back requalified money, not the line's sale.
   const perLine = all.map((line) => {
     const refundedTtc = round2(given[line.key] || 0);
     const requalifiedTtc = round2(requalified[line.key] || 0);
-    return { ...line, refundedTtc, requalifiedTtc, refundableTtc: Math.max(0, round2(line.billedTtc - refundedTtc - requalifiedTtc)) };
+    const saleRefundedTtc = round2(refundedTtc - (fromIndemnity[line.key] || 0));
+    return { ...line, refundedTtc, requalifiedTtc, refundableTtc: Math.max(0, round2(line.billedTtc - saleRefundedTtc - requalifiedTtc)) };
   });
   ['options', 'resources'].forEach((bucket) => spreadBucketRefund(perLine.filter((line) => line.key !== bucket && line.bucket === bucket), requalified[bucket]));
+  if (cancelled) {
+    // Rule 48 — a cancelled stay gives back money it collected, never what it billed: the requalified money the
+    // indemnity still holds on the line, plus at most the collected money no cancellation requalified.
+    for (const line of perLine) {
+      const saleRoomTtc = Math.min(line.refundableTtc, cancelled.saleLeftTtc);
+      line.indemnityTtc = Math.min(cancelled.indemnityLeftTtc, Math.max(0, round2(line.requalifiedTtc - (fromIndemnity[line.key] || 0))));
+      line.refundableTtc = Math.min(cancelled.collectedTtc, round2(saleRoomTtc + line.indemnityTtc));
+    }
+  }
   return perLine.filter((line) => line.refundableTtc > 0);
 }
 
@@ -256,7 +296,7 @@ const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 function validateRefundPayload(payload, context) {
   const {
     refundableLines = [], finalPrice = 0, touristTaxTotal = 0,
-    alreadyRefundedTotal = 0, vatRate = 0, today,
+    alreadyRefundedTotal = 0, vatRate = 0, today, cancelled = null,
   } = context || {};
 
   const refundDate = String((payload && payload.refundDate) || '').trim();
@@ -298,7 +338,7 @@ function validateRefundPayload(payload, context) {
       if (requestedByKey[key] > billed.refundableTtc) {
         return invalid(
           'REFUND_EXCEEDS_LINE',
-          `« ${billed.label} » : le remboursement dépasse le montant restant remboursable (${billed.refundableTtc.toFixed(2)} €)`,
+          `« ${billed.label} » : le remboursement dépasse le montant restant remboursable (${euros(billed.refundableTtc)})`,
           409,
         );
       }
@@ -339,6 +379,14 @@ function validateRefundPayload(payload, context) {
   }
 
   const totalTtc = round2(lines.reduce((sum, l) => sum + l.amountTtc, 0));
+  if (cancelled) {
+    const split = splitOnIndemnity(lines, byKey, cancelled);
+    if (split.error) return split;
+    if (method === OFF_BOOKS_METHOD && split.lines.some(isIndemnityLine)) {
+      return invalid('REFUND_INDEMNITY_OFF_BOOKS', 'Pris sur l’indemnité : virement ou espèces seulement.', 409);
+    }
+    lines.splice(0, lines.length, ...split.lines);
+  }
   if (!(totalTtc > 0)) {
     return invalid('REFUND_INVALID_AMOUNT', 'Le montant total du remboursement doit être positif');
   }
@@ -363,16 +411,65 @@ function validateRefundPayload(payload, context) {
   };
 }
 
+// Lazy: reservationLedger requires this module.
+const euros = (n) => require('./reservationLedger').formatEuros(n);
+
+/**
+ * Rule 48 — on a cancelled stay, each line is given back first from the collected money no cancellation
+ * requalified (it keeps its bucket and VAT: the sale is reversed), then from the indemnity (bucket `indemnity`,
+ * 0 %). The indemnity part of a sold line never exceeds what the cancellation requalified on it.
+ */
+function splitOnIndemnity(lines, byKey, budget) {
+  let saleLeft = Math.round(budget.saleLeftTtc * 100);
+  let indemnityLeft = Math.round(budget.indemnityLeftTtc * 100);
+  const saleRoom = {};
+  const indemnityRoom = {};
+  for (const [key, line] of byKey) {
+    indemnityRoom[key] = Math.round(Number(line.indemnityTtc || 0) * 100);
+    saleRoom[key] = Math.round(line.refundableTtc * 100) - indemnityRoom[key];
+  }
+  const out = [];
+  for (const line of lines) {
+    const cents = Math.round(line.amountTtc * 100);
+    const key = line.lineKey;
+    const sale = Math.min(cents, saleLeft, key ? Math.max(0, saleRoom[key]) : cents);
+    const fromIndemnity = cents - sale;
+    if (fromIndemnity > indemnityLeft || (key && fromIndemnity > indemnityRoom[key])) {
+      const billed = key ? byKey.get(key) : null;
+      return billed
+        ? invalid('REFUND_EXCEEDS_LINE', `« ${billed.label} » : dépasse l’encaissé (${euros(billed.refundableTtc)}).`, 409)
+        : invalid('REFUND_EXCEEDS_COLLECTED', `Dépasse l’encaissé (${euros(budget.collectedTtc)}).`, 409);
+    }
+    saleLeft -= sale;
+    indemnityLeft -= fromIndemnity;
+    if (key) {
+      saleRoom[key] -= sale;
+      indemnityRoom[key] -= fromIndemnity;
+    }
+    const part = (amountCents) => ({
+      ...line,
+      amountTtc: amountCents / 100,
+      quantity: line.unitPrice ? Math.round((amountCents / 100 / line.unitPrice) * 10000) / 10000 : line.quantity,
+    });
+    if (sale > 0) out.push(part(sale));
+    if (fromIndemnity > 0) out.push({ ...part(fromIndemnity), bucket: INDEMNITY_BUCKET, vatRate: 0 });
+  }
+  return { lines: out };
+}
+
 module.exports = {
   REFUND_METHODS,
   SELECTABLE_REFUND_METHODS,
   RETAINED_DEPOSIT_METHOD,
   REFUND_BUCKETS,
+  INDEMNITY_BUCKET,
   OFF_BOOKS_METHOD,
   ACCOMMODATION_KEY,
   TOURIST_TAX_KEY,
   isOffBooks,
   isRetainedDeposit,
+  isIndemnityLine,
+  cancelledRefundBudget,
   billedLineKey,
   refundedByKey,
   refundedTouristTax,

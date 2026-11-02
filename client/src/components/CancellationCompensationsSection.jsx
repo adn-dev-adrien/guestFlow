@@ -94,10 +94,15 @@ const CancellationCompensationsSection = forwardRef(function CancellationCompens
     }
   }, [dialog, refresh, showSuccess, showError]);
 
+  // specs/reservation-refunds.md rule 48 — refunds reduce a kept acompte in the journal only: re-receiving it lower
+  // would count the reduction twice.
   const handleReopen = useCallback(async (compensation) => {
+    const refunded = Number(compensation.indemnityRefundedTtc || 0);
     const ok = await confirm({
       title: "Rouvrir cette indemnité ?",
-      message: "Elle repasse en attente. Un mois déjà transmis au comptable est à renvoyer.",
+      message: `Elle repasse en attente. Un mois déjà transmis au comptable est à renvoyer.${refunded > 0
+        ? ` Déjà réduite de ${formatCurrency(refunded)} par des remboursements : la ré-encaisser au même montant.`
+        : ''}`,
       confirmLabel: 'Rouvrir',
       confirmColor: 'warning',
     });
