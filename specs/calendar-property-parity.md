@@ -246,7 +246,9 @@ name is always readable or truncated cleanly with the full name on hover.
     `409 RESERVATION_CANCELLED`; refunds, the plan it was cancelled with and the cancellation e-mails stay possible.
     > **Reading of 2026-11-02 (audit R15-C1).** « Refunds stay possible » includes deleting one made after the
     > cancellation (specs/reservation-refunds.md rule 6, reading of the same day). The server offers « Supprimer »
-    > on those ledger rows only — never on « Acompte conservé », never on a refund made before the cancellation —
+    > on those ledger rows only — never on « Acompte conservé », never on a refund the cancellation read (since the
+    > review of PR #929, a refund made before a cancellation that had nothing to keep, or in caisse interne, is
+    > offered too: the cancellation never read it) —
     > and the fiche draws each one outside the disabled fieldset, beside « + Nouveau remboursement », through the
     > portal « Marquer remboursé » already uses (`closedActionsHost`): the row's label, amount and state, then
     > « Supprimer » behind the usual confirmation. Its row in the ledger shows no button. A duplicate set aside still
