@@ -82,7 +82,7 @@ import { useAuth } from '../hooks/useAuth';
 import { ADMIN, userHasRole } from '../constants/roles';
 import { optionLineKey, resourceLineKey } from '../utils/arrivalLineKey';
 import { LOCKED_FICHE_BANNER, MID_STAY_EXTRAS_BANNER } from '../constants/reservationLock';
-import { STAY_DATES_ORDER_MESSAGE } from '../constants/stayDates';
+import { isQuotableStay, stayDatesMessage } from '../utils/stayDates';
 
 const DEVIS_STATUS_OPTIONS = [
   { value: 'draft', label: 'Brouillon' },
@@ -1171,7 +1171,7 @@ export default function ReservationPage() {
           // context — catalogue, categories, resources, defaults, caution, horaires — is loaded the
           // same way; only the pricing quote needs a complete stay range.
           const { property: prop } = await loadPropertyContext(initialPropId, props);
-          const hasStayRange = Boolean(startDate && endDate);
+          const hasStayRange = isQuotableStay(startDate, endDate);
           const defaultCheckIn = prop?.defaultCheckIn || '15:00';
           const defaultCheckOut = prop?.defaultCheckOut || '10:00';
 
@@ -1375,7 +1375,8 @@ export default function ReservationPage() {
 
     const start = new Date(`${form.startDate}T00:00:00`);
     const end = new Date(`${form.endDate}T00:00:00`);
-    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) {
+    // specs/reservations-backend-mvc.md rule 12 — a stay the server refuses (reversed, too long) is not quoted.
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || !isQuotableStay(form.startDate, form.endDate)) {
       setMinNightsState({ breached: false, required: 0, nights: 0 });
       return;
     }
@@ -2078,9 +2079,9 @@ export default function ReservationPage() {
     const nextPropertyId = Number(propertyId);
     if (!nextPropertyId) return;
 
-    // specs/reservations-backend-mvc.md rule 12 — only a complete, ordered stay is quoted (the server refuses
+    // specs/reservations-backend-mvc.md rule 12 — only a complete, sound stay is quoted (the server refuses
     // the rest): a « Nouveau devis » switched before its dates are typed has no quote yet, like on opening.
-    const hasStayRange = Boolean(form.startDate && form.endDate && form.endDate > form.startDate);
+    const hasStayRange = isQuotableStay(form.startDate, form.endDate);
     const [{ property: prop }, calc, allRes] = await Promise.all([
       loadPropertyContext(nextPropertyId, properties),
       hasStayRange ? api.calculatePrice({
@@ -2284,9 +2285,10 @@ export default function ReservationPage() {
       return false;
     }
 
-    // specs/reservations-backend-mvc.md rule 12 — a departure on or before the arrival is refused here too.
-    if (form.endDate <= form.startDate) {
-      await alert({ title: 'Erreur', message: STAY_DATES_ORDER_MESSAGE });
+    // specs/reservations-backend-mvc.md rule 12 — a departure on or before the arrival, or a stay too long, is refused here too.
+    const datesMessage = stayDatesMessage(form.startDate, form.endDate);
+    if (datesMessage) {
+      await alert({ title: 'Erreur', message: datesMessage });
       return false;
     }
 
@@ -3340,7 +3342,7 @@ export default function ReservationPage() {
   const dateRangeConflictInfo = getDateRangeConflictInfo(form.startDate, form.endDate);
   const datesUnavailableForProperty = Boolean(dateRangeConflictInfo);
   const datesUnavailableMessage = dateRangeConflictInfo?.message || 'Ces dates ne sont pas dispo pour ce logement.';
-  const stayDatesOrderMessage = form.startDate && form.endDate && form.endDate <= form.startDate ? STAY_DATES_ORDER_MESSAGE : '';
+  const stayDatesHint = stayDatesMessage(form.startDate, form.endDate);
   const minNightsWarning = minNightsState.breached
     ? `Séjour trop court: ${minNightsState.nights} nuit(s) pour un minimum saisonnier de ${minNightsState.required} nuit(s).`
     : '';
@@ -3586,7 +3588,7 @@ export default function ReservationPage() {
     miniCalendarStart, setMiniCalendarStart, miniVisibleDays, reservations,
     editingReservationId, handleMiniDateClick, centerMiniCalendarOnRange,
     arrivalMin, arrivalMax, departureMin, departureMax, handleManualDateInputChange,
-    datesUnavailableForProperty, datesUnavailableMessage, stayDatesOrderMessage, minNightsState, minNightsWarning,
+    datesUnavailableForProperty, datesUnavailableMessage, stayDatesHint, minNightsState, minNightsWarning,
     liveTimeConflictState, liveTimeConflictMessage, defaultCheckInTime, defaultCheckOutTime,
     isReservationLocked, extrasWindowOpen, arrivalLines, frozenCustomOptionIds,
     refundHost: isCancelledReservation ? refundHost : null,

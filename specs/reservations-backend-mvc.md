@@ -90,6 +90,16 @@ rules — just a clean, testable structure that future slices (and Bloc 5) build
    zero-night event into one night (`specs/ical-import-hardening.md` rule 17, F9), so a sync is never
    refused for a feed's odd dates. A check of the prod snapshot of 2026-10-22 found no stored row with
    such dates, so there is no data migration.
+   *Reading of 2026-11-02 (audit R19-L1) — a stay lasts at most 366 nights.* The guard also refuses a
+   departure more than `MAX_STAY_NIGHTS` (366) nights after the arrival: 400 `INVALID_STAY_DATES`, `field`
+   `endDate`, `error` « Séjour trop long. », on every path listed above and before any pricing. Pricing walks
+   the stay night by night, synchronously, before the availability check: a departure typed as `9999-12-31`
+   on `POST /reservations/calculate-price` took ~100 s and blocked every other request of the server
+   meanwhile (the fiche quotes on every date change, so a year typed digit by digit reached it). 366 is the
+   iCal parser's length cap (`specs/ical-import-hardening.md` rule 17), and the two share the one constant
+   `utils/stayDates.MAX_STAY_NIGHTS`, so an imported event and an internal write obey the same bound. The
+   public booking path keeps its own, tighter caps. The prod snapshot of 2026-10-22 (read on a copy) stores
+   no stay longer than 14 nights, so no stored row or legitimate flow is refused.
 12. **Added 2026-11-02 (audit R18-1) — the fiche says it before the save.** The fiche (reservation and
    devis, both `ReservationPage`) shows « La date de départ doit suivre la date d'arrivée. » in red under
    the dates, the departure field in error, as soon as the departure is on or before the arrival; and
@@ -98,6 +108,12 @@ rules — just a clean, testable structure that future slices (and Bloc 5) build
    only styled a typed value: it never stopped the save. Switching the logement asks for a quote only
    when the stay is complete and ordered: a « Nouveau devis » switched before its dates are typed has
    no quote yet, as on opening (it used to price an empty range at 0 €, which rule 11 now refuses).
+   *Reading of 2026-11-02 (audit R19-L1).* A departure more than 366 nights after the arrival shows
+   « Séjour trop long. » in the same place, the departure field in error, and « Enregistrer » refuses with
+   it. Such a range is never quoted: not by the live quote on a date change, not by the logement switch,
+   not on opening from URL dates. `utils/stayDates.stayDatesMessage` gives the one hint (order, then
+   length) and `isQuotableStay` the quote gate; the message and the 366 live in `constants/stayDates.js`,
+   mirroring the server.
 
 **Edge cases:** all current ones are preserved verbatim — min-nights rejection, archived-reservation
 error, iCal-locked pricing snapshot reuse, night-block conflict on adjacent reservations, payment
@@ -120,7 +136,7 @@ patch. No new edge behavior is introduced.
 | `utils/` | `reservationAudit.js` | C | Pure: `normalizeHistoryValue`, `getOptionsSignature`, `getResourcesSignature`, `buildAuditSnapshotFromPayload`, `computeAuditChanges`. Snapshot-from-DB stays a model read that feeds these pure fns. Unit-tested. |
 | `utils/` | `pricing.js` | — | Unchanged; controller calls `calculateReservationQuote` as today. |
 | `utils/` | `financeValidation.js` | — | Unchanged; controller keeps the PR-S validation on writes. |
-| `utils/` | `stayDates.js` | C | *(2026-11-02, rule 11)* `isRealIsoDay`, `stayDatesRefusal`, `stayDatesRefusalBody`: the one stay-dates guard, called by `reservationsController`, `devisModel` and `icalDateDriftModel`. `isRealIsoDay` is also the core's one real-day check: `planningDateRange.isIsoDate` and `cancellationCompensations.isValidIsoDate` are it. |
+| `utils/` | `stayDates.js` | C | *(2026-11-02, rule 11)* `isRealIsoDay`, `stayDatesRefusal`, `stayDatesRefusalBody`: the one stay-dates guard, called by `reservationsController`, `devisModel` and `icalDateDriftModel`. `isRealIsoDay` is also the core's one real-day check: `planningDateRange.isIsoDate` and `cancellationCompensations.isValidIsoDate` are it. *(R19-L1)* `MAX_STAY_NIGHTS` (366), the length cap, also read by `icalParser`'s horizon check. |
 | `database.js` | — | — | No schema change. |
 
 **Notes:**
@@ -136,9 +152,10 @@ patch. No new edge behavior is introduced.
 
 None. `utils/reservationConflicts.js` and its consumers are unchanged.
 
-*2026-11-02 (rule 12):* `pages/ReservationPage.jsx` refuses the save and exposes `stayDatesOrderMessage`;
-`components/reservation/StaySection.jsx` renders it under the dates; the message lives in
-`constants/stayDates.js`.
+*2026-11-02 (rule 12):* `pages/ReservationPage.jsx` refuses the save and exposes `stayDatesHint`;
+`components/reservation/StaySection.jsx` renders it under the dates; the messages and `MAX_STAY_NIGHTS`
+live in `constants/stayDates.js`, and `utils/stayDates.js` holds `stayDatesMessage` / `isQuotableStay`
+(R19-L1, the length cap).
 
 ### 4.3 API contract
 
@@ -187,6 +204,11 @@ prove behavior is preserved.)
   parser contract) and
   `client/src/pages/__tests__/ReservationPage.stay-dates-order.test.jsx` (5 cases: reservation, zero night,
   devis, server refusal, logement switch before the dates).
+- Audit R19-L1 (rules 11-12, 2026-11-02): `server/src/tests/stay-length-cap.unit.test.js` (12 cases: the cap
+  itself; a `9999-12-31` departure and a 367-night stay refused in under 500 ms on calculate-price, reservation
+  create and update, devis create and update, nothing written; 366 nights quoted and saved) and
+  `client/src/pages/__tests__/ReservationPage.stay-length.test.jsx` (5 cases: the pure hint, 367 nights and
+  `9999-12-31` on the fiche with no quote and no save, 366 nights quoted, the devis).
 - Spec review 2026-10-27 (rule 9): `server/src/tests/create-without-times-and-linen.unit.test.js` — default times stored, no early-arrival fee on the re-save.
 
 ## 8. Out of scope

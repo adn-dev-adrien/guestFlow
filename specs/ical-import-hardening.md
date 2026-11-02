@@ -146,6 +146,8 @@ nothing, and the platforms tab says in one short line what the last sync did.
     after the arrival is still one night). An event is also dropped when it starts more than 730 days from now,
     ends more than 1 095 days from now, or lasts more than 366 nights. `parseIcsEvents(ics, { now })` takes the
     reference day for the tests. Test: `server/src/tests/ical-import-dates-bounds.unit.test.js`.
+    *Reading of 2026-11-02 (audit R19-L1):* the 366-night cap is now `utils/stayDates.MAX_STAY_NIGHTS`, the
+    constant the internal stay guard enforces too (`specs/reservations-backend-mvc.md` rule 11).
 
 18. **A redirect response is drained before the next hop** _(added 2026-10-29, audit R2)_. `safeFeedFetch`
     cancels the body of a 3xx response before following `location`; closing the connection pool waits for an
