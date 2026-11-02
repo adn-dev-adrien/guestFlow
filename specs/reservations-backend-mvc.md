@@ -210,7 +210,8 @@ rules — just a clean, testable structure that future slices (and Bloc 5) build
    (`GET /api/today`, `useServerToday`) once the page knows it, the device's until then: a device ahead of or
    behind Paris no longer disagrees with the server on the boundary day. Tests: client
    `utils/dateHorizon.server-today`, `hooks/useWelcomePack.server-today`,
-   `pages/EstablishmentClosuresPage.server-today`.
+   `pages/EstablishmentClosuresPage.server-today`, `pages/ReservationPage.server-today`,
+   `pages/FinancePage.server-today`, `components/PeriodSelector.server-today`.
 14. **Added 2026-11-02 (merge of PR #936 with #937) — a year typed digit by digit never freezes the fiche.**
    Since a date can be typed on the keyboard again (`specs/datepicker-close-on-select.md`, reading of
    2026-11-02), Chromium hands the fiche each digit of a year typed over a complete date: 0002, 0020, 0203,
@@ -328,11 +329,17 @@ prove behavior is preserved.)
       `school-holidays-date-window` (2), `resource-bookings-date-window` (2); client
       `ReservationPage.date-window-past` (3), `EstablishmentClosuresPage.date-window-past` (2),
       `PeriodSelector.date-window-past` (2).
-- [x] `tests/stay-item-dates.unit.test.js` (6, 2026-11-02, review of PR #938) — rule 13, second reading: an option
+- [x] `tests/stay-item-dates.unit.test.js` (10, 2026-11-02, review of PR #938) — rule 13, second reading: an option
       occurrence or an hourly session off the stay's days or not a real day refused on calculate-price, create,
       update, devis create / update, nothing written; the departure morning accepted; a date the line stores kept.
+      Added after the second review (V1): an impossible day between arrival and departure (stay over the end of
+      February) refused, an occurrence `<day>T09:00` judged on its day, a stored out-of-stay session kept on a
+      reservation re-save, a stored out-of-stay occurrence kept on a devis re-save and refused on another line.
 - [x] Client `utils/dateHorizon.server-today` (2), `hooks/useWelcomePack.server-today` (2),
       `pages/EstablishmentClosuresPage.server-today` (1) (2026-11-02) — the hints read the server's day.
+      Added after the second review (V2): `pages/ReservationPage.server-today` (1),
+      `pages/FinancePage.server-today` (1), `components/PeriodSelector.server-today` (1) — the fiche, a finance
+      link and the period selector's `today` prop refuse a date the device would accept but the server would not.
 - [ ] `tests/occupancy.unit.test.js` — `getNightBlocksFromTimes` thresholds (checkout ≥17h blocks next
       night, checkin ≤10h blocks previous night); `buildOccupiedDatesFromReservations`;
       `validateAvailability` accepts a free range and rejects overlaps incl. night-block adjacency.

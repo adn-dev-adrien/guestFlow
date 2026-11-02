@@ -110,3 +110,47 @@ test('rule 13: POST and PUT /devis refuse an occurrence or a session outside the
   assert.deepEqual(update({ selectedOptions: occurrence(f.inDays(324)) }).body, bodyOf('cardOccurrences'));
   assert.equal(update({ selectedOptions: occurrence(f.inDays(320)) }).statusCode, 200);
 });
+
+test('rule 13: an impossible day lying between the arrival and the departure is refused (stay over the end of February)', async () => {
+  const year = Number(START.slice(0, 4)) + 1;
+  const feb = { startDate: `${year}-02-26`, endDate: `${year}-03-02` };
+  const inside = `${year}-02-30`;
+  assert.ok(inside > feb.startDate && inside < feb.endDate);
+  assert.deepEqual(stayItemDatesRefusal({ ...feb, options: occurrence(inside) }), refusal('cardOccurrences'));
+  assert.deepEqual(stayItemDatesRefusal({ ...feb, resources: session(inside) }), refusal('sessions'));
+  const options = await call(f.controller.calculatePrice, { body: f.stayBody({ ...feb, selectedOptions: occurrence(inside) }) });
+  assert.deepEqual([options.statusCode, options.body], [400, bodyOf('cardOccurrences')]);
+  const resources = await call(f.controller.calculatePrice, { body: f.stayBody({ ...feb, selectedResources: session(inside) }) });
+  assert.deepEqual([resources.statusCode, resources.body], [400, bodyOf('sessions')]);
+});
+
+test('rule 13: an occurrence carrying a time after its day is judged on the day', async () => {
+  assert.equal(stayItemDatesRefusal({ startDate: START, endDate: END, options: occurrence(`${START}T09:00`) }), null);
+  assert.deepEqual(stayItemDatesRefusal({ startDate: START, endDate: END, options: occurrence(`${addDaysToIsoDate(END, 1)}T09:00`) }), refusal('cardOccurrences'));
+  const ok = await call(f.controller.calculatePrice, { body: f.stayBody({ selectedOptions: occurrence(`${START}T09:00`) }) });
+  assert.equal(ok.statusCode, 200, JSON.stringify(ok.body));
+});
+
+test('rule 13: PUT /reservations/:id keeps a session stored outside the stay on a re-save', async () => {
+  const id = f.createStay({ startDate: f.inDays(340), endDate: f.inDays(343), resources: session(f.inDays(341)) });
+  const legacy = f.inDays(240);
+  f.db.prepare('UPDATE reservation_resources SET sessions = ? WHERE reservationId = ? AND resourceId = 70')
+    .run(JSON.stringify([{ date: legacy, start: '10:00', end: '11:00' }]), id);
+  const kept = await f.save(id, { notes: 'Relue', resources: session(legacy) });
+  assert.equal(kept.statusCode, 200, JSON.stringify(kept.body));
+  const moved = await f.save(id, { resources: session(f.inDays(239)) });
+  assert.deepEqual([moved.statusCode, moved.body], [400, bodyOf('sessions')]);
+});
+
+test('rule 13: PUT /devis/:id keeps an occurrence stored outside the stay, the same date on another line is refused', () => {
+  const stay = { startDate: f.inDays(360), endDate: f.inDays(363) };
+  const created = call(devisController.create, { body: f.stayBody({ ...stay, selectedOptions: occurrence(f.inDays(361)) }) });
+  assert.equal(created.statusCode, 201, JSON.stringify(created.body));
+  const legacy = f.inDays(200);
+  f.db.prepare('UPDATE reservation_options SET cardOccurrences = ? WHERE reservationId = ? AND optionId = 50')
+    .run(JSON.stringify([{ date: legacy, time: '08:00' }]), created.body.id);
+  const update = (selectedOptions) => call(devisController.update, { params: { id: String(created.body.id) }, body: f.stayBody({ ...stay, selectedOptions }) });
+  const kept = update(occurrence(legacy));
+  assert.equal(kept.statusCode, 200, JSON.stringify(kept.body));
+  assert.deepEqual(update([{ optionId: 51, quantity: 1, cardOccurrences: [{ date: legacy, time: '08:00' }] }]).body, bodyOf('cardOccurrences'));
+});

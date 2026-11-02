@@ -621,6 +621,7 @@ par mois » and « Taux d'occupation » side by side.
 - [x] `PeriodSelector.window-cap.test.jsx` (2) — rule 51: a window wider than 750 days refused on the spot, never sent.
 - [x] `PeriodSelector.date-horizon.test.jsx` (2) — rule 51, reading of 2026-11-02: « Au » past the date horizon refused on the spot, never sent.
 - [x] `FinancePage.refused-window-link.test.jsx` (2) — rule 51, reading of 2026-11-02: a refused custom link keeps the period selector, sends nothing, loads once fixed.
+- [x] `PeriodSelector.server-today.test.jsx` (1), `FinancePage.server-today.test.jsx` (1) — rule 51, review of PR #938 (V2): the window is judged from the server's day (`today` prop, `GET /api/today`), not the device's.
 - [x] `SelectableTile.test.jsx` (2) — rule 13: expanded state, controlled panel.
 - [x] `YearOverYearBadge.test.jsx` (3) — rules 18, 20: hidden without comparison, partial wording.
 - [x] `SmallMultiplesLineChart.test.jsx` (5) — rules 10, 22, 23: the three chart tooltips (curve;
