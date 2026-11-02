@@ -74,6 +74,25 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
    ([mid-stay-notes.md](mid-stay-notes.md) rule 7, same philosophy).
 6. A refund is **immutable** once created. A correction is a **delete + recreate**, mirroring the
    note-cancel design. Deleting is always allowed (no month lock exists in the app today).
+   > **Reading of 2026-11-02 (audit R15-C1 and its aside).** « Always » has three exceptions, decided on the server
+   > (`utils/refunds.refundDeletionRefusal`, read by the DELETE route and by the ledger alike), each a 409:
+   > - the **`retained` avoir** a cancellation wrote is the cancellation itself, never a refund:
+   >   `REFUND_RETAINED_AVOIR` « L'acompte conservé ne se supprime pas. » *Why:* deleting it through the API left the
+   >   indemnity booked while the 706 reversal was gone — the same money booked as revenue and as indemnity;
+   > - on a cancelled stay, a book refund the avoir was netted of: `REFUND_NETTED_BY_CANCELLATION`
+   >   (payment-schedule-and-cancellation rule 55, second reading of PR #926);
+   > - on a cancelled stay, any other **book** refund made before the cancellation (the cancellation read it, and
+   >   may have kept nothing because of it, then writing no avoir): `REFUND_BEFORE_CANCELLATION` « Remboursement
+   >   antérieur à l'annulation. ». « Made after » is `utils/refunds.madeAfterCancellation`: a higher id than the
+   >   avoir, or, with no avoir, a `createdAt` later than the stay's `cancelledAt`.
+   >
+   > A refund made **after** the cancellation — book or caisse interne — is deleted like any other, and its money
+   > goes back to the budget it was taken from (rule 48). The fiche of a cancelled stay offers « Supprimer » on
+   > exactly those rows, outside its disabled fieldset (specs/calendar-property-parity.md rule 25); the API still
+   > deletes a caisse-interne refund made before the cancellation (off the books, the cancellation never read it),
+   > the fiche does not offer it. *Why:* since the ledger replaced the refunds block, a refund recorded on a
+   > cancelled stay had no « Supprimer » at all: a 500 € typo for 50 € stayed in the journal and on the
+   > compensation card.
 
 ### 3.2 What can be refunded
 
@@ -446,6 +465,37 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
     >   6,05 € of tax, acompte 179,05 € and solde paid: the lines offered 364,14 € of the 364,15 € collected; they
     >   offer all of it, and giving it back leaves nothing collected. The books keep the cent where the solde entry put
     >   it, as the refunds of a stay that is not cancelled do.
+    > **Reading of 2026-11-02 (audit R15-L1, the caisse interne).** Money collected in the caisse interne never
+    > reached the books, and a cancellation now requalifies book money only (payment-schedule-and-cancellation rule
+    > 55, reading of the same day). On a cancelled stay:
+    > - **The caisse interne has its own budget**: `cashCollected` (`utils/reservationSettlement`) — the acompte,
+    >   solde, arrival and end-of-stay complements paid there, its notes, the réduction or pourboire of a
+    >   caisse-interne arrival payment — minus the caisse-interne refunds, `cashLeftTtc`. Each line offers, beside its
+    >   sale money and its indemnity, `cashTtc`: what the caisse interne collected on that line
+    >   (`collectedByLine({ cash: true })`, the same reading as the book money, on the caisse-interne entries), within
+    >   what the line billed, the lines together never above `cashLeftTtc`. `collectedTtc` in the payload is the book
+    >   money left plus `cashLeftTtc`. An installment is never paid in caisse interne (`installmentsController`
+    >   accepts transfer, cash, cheque, card, other).
+    > - **A caisse-interne refund** takes the caisse interne's own money first, then the sale money (the review of
+    >   PR #925 case: a transfer-paid solde given back in caisse interne), never the indemnity
+    >   (`REFUND_INDEMNITY_OFF_BOOKS`, as before). Only what it gives back beyond the money the caisse interne
+    >   collected comes off the book `collectedTtc`.
+    > - **A book refund** never takes the caisse interne's money: `REFUND_CASH_ONLY_IN_CASH` « Encaissé en caisse
+    >   interne : rendu en caisse interne seulement. » when only that money is left on the line.
+    > *Why (probe P2):* acompte 274 € by transfer, solde 640 € paid in caisse interne, cancelled: the register
+    > offered the 274 € indemnity only, and giving back the 640 € held in cash was refused (`REFUND_EXCEEDS_LINE`).
+    > It now offers 914 € (274 € from the indemnity, 640 € in caisse interne), and once both are given back every
+    > book account nets to 0. A stay with no money in the caisse interne reads exactly as before.
+    > **Reading of 2026-11-02 (review of PR #926, residual A, the commissions withheld).** A direct stay collected
+    > through a payment provider (Lodgify / Stripe) was booked gross, the commission on 622600, and reached the bank
+    > net of it (`comptaCollected`). The cancellation now names those commissions on its avoir (lines keyed
+    > `commission`, payment-schedule-and-cancellation rule 55). They leave their lines like the money kept
+    > (`requalifiedTtc` includes them, an options or resources share spread like the avoir's own), but the indemnity
+    > never gives them back: `indemnityLeftTtc` = requalified − the `commission` lines − what refunds took from the
+    > indemnity, and a line's `indemnityTtc` excludes its share. *Why:* on stay #22226, once every collected euro
+    > went back, 6,20 € HT + 0,62 € of VAT stayed as sales revenue on a cancelled stay; now 706, 4457, 4671 and the
+    > client account end at 0, 75880000 at −6,82 € (the commissions, kept) and 622600 at +6,82 € (their cost). An
+    > avoir written before carries no `commission` line: its register does not move.
 
 ---
 
@@ -471,6 +521,11 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
 | `controllers/` | `refundsController.js` | T | Rule 48 — on `kind = 'cancelled'`, passes the budget to both and answers `collectedTtc` = the budget |
 | `plugins/accounting-export/` | `accountingModel.js`, `accountingExport.js` | T | Rule 48 — `buildRefundEntry` carries `indemnity` (account + rate of the compensation settings); `refundEntryToRows` debits it |
 | `utils/` | `reservationLedger.js` | T | Rule 46 reading of 2026-11-02 — « Acompte conservé » / « Échéances conservées » row, « Rendu sur l'indemnité » |
+| `utils/` | `refunds.js` | T | Rule 6 reading (R15-C1) — `refundDeletionRefusal`, `madeAfterCancellation`; rule 48 readings — `cancelledRefundBudget({ cashCollectedTtc })` (`cashLeftTtc`, the `commission` lines out of `indemnityLeftTtc`), `collectedByLine({ cash })`, the lines' `cashTtc`, `splitOnIndemnity` per method (`REFUND_CASH_ONLY_IN_CASH`) |
+| `utils/` | `reservationSettlement.js` | T | Rule 48 reading (R15-L1) — `cashCollected(row)`: what the caisse interne collected on a stay |
+| `controllers/` | `refundsController.js` | T | Rule 6 reading — `remove` answers `refundDeletionRefusal` (409); rule 48 reading — the caisse-interne budget and per-line reading, `collectedTtc` = book money left + `cashLeftTtc` |
+| `utils/` | `reservationLedger.js` | T | Rule 6 reading — on a cancelled stay, `deleteRefund` on a refund made after the cancellation only |
+| `client/src/components/reservation/` | `FinanceSection.jsx` | T | Rule 6 reading — on a cancelled fiche, a refund's « Supprimer » is drawn through `closedActionsHost`, outside the disabled fieldset |
 | `models/` | `refundsModel.js` | T | Rule 48 — `indemnityGivenBefore(refund)` (cumulative export split), `indemnityGivenBack(reservationId)` (the card's `indemnityRefundedTtc`) |
 | `controllers/` | `cancellationCompensationsController.js` | T | Rule 48 — received `retained_deposit` cards carry `indemnityRefundedTtc` |
 | `models/` | `financeDashboardModel.js`, `vatFranchiseModel.js` (via `utils/vatFranchise.js`) | T | Rule 48 — the franchise turnover subtracts a refund's indemnity share at face value |
@@ -730,6 +785,20 @@ line paid at arrival (no contribs) the lines add up to the 914 € collected, th
 all of them is accepted; with contribs, the lines offer 714 + 200 + 12 € and every 706 sub-account nets to 0.
 Second review of PR #926: on the #22226 shape, giving back one line's sale part leaves the others' offer unchanged
 and never takes the indemnity; a legacy stay with a paid solde offers all 364,15 € collected and ends at 0.
+**Audit R15 follow-up (2026-11-02):** `tests/cancelled-stay-refund-deletion.unit.test.js` (5, rule 6 reading) — the
+retained avoir refused (409 `REFUND_RETAINED_AVOIR`); a book and a caisse-interne refund made after the
+cancellation deleted, their money offered again; a refund made before a cancellation that kept nothing refused
+(`REFUND_BEFORE_CANCELLATION`); the ledger offers « Supprimer » on the later refund only.
+`tests/cancelled-stay-caisse-interne.unit.test.js` (5, rule 48 reading) — P1: a caisse-interne acompte goes back in
+caisse interne only (`REFUND_CASH_ONLY_IN_CASH` by transfer), the books untouched; P2: a caisse-interne solde is
+offered beside the indemnity (914 €), given back in caisse interne, the rest refused there, the indemnity by
+transfer, every book account at 0; a caisse-interne refund beyond the cash collected comes off the book money; the
+caisse-interne budget is shared between refunds. `tests/cancelled-stay-withheld-commission.unit.test.js` (8, rule 48
+reading) — the indemnity never offers the commissions withheld (265,78 € of a 274 € acompte), giving everything back
+leaves 75880000 at −commission and 622600 at +commission, every other book account at 0.
+`client/src/components/reservation/__tests__/FinanceSection.cancelled-refund-delete.test.jsx` (3) — on a cancelled
+fiche « Supprimer » is drawn outside the fieldset and deletes the refund; « Acompte conservé » offers none; a
+duplicate set aside none.
 
 ## 8. Out of scope
 
