@@ -1316,7 +1316,7 @@ export default function ReservationPage() {
     if (availabilityKey.current === [selectedProp, form.startDate, form.endDate, excludeId || ''].join('|')) return;
     loadResourcesAvailability(form.startDate, form.endDate, selectedProp, excludeId).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading, selectedProp, form.startDate, form.endDate, editingReservationId, excludeReservationIdForDevis]);
+  }, [loading, selectedProp, form.startDate, form.endDate, editingReservationId, excludeReservationIdForDevis, windowToday]);
 
   const loadBabyBedAvailability = async (startDate, endDate, propertyId, excludeReservationId = null) => {
     if (!propertyId || !startDate || !endDate) {
@@ -1374,7 +1374,7 @@ export default function ReservationPage() {
     };
 
     loadOccupiedDates();
-  }, [selectedProp, form.startDate, form.endDate, editingReservationId]);
+  }, [selectedProp, form.startDate, form.endDate, editingReservationId, windowToday]);
 
   // Auto-refresh base price when reservation parameters change
   useEffect(() => {
@@ -1472,7 +1472,7 @@ export default function ReservationPage() {
     };
 
     refreshBasePrice();
-  }, [selectedProp, pricingQuoteSignature, shouldLockExistingPricing, applyQuoteToForm, applyQuoteMinNights, useCurrentPricing, offeredOptionIds, refundsVersion]);
+  }, [selectedProp, pricingQuoteSignature, shouldLockExistingPricing, applyQuoteToForm, applyQuoteMinNights, useCurrentPricing, offeredOptionIds, refundsVersion, windowToday]);
 
   useEffect(() => {
     const cp = (newClient.postalCode || '').trim();

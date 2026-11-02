@@ -190,6 +190,9 @@ The former J+7 satisfaction survey and the « season reminder, 8 weeks before th
     *Reading of 2026-11-02 — the date window.* The simulation's `from` and `to` are real days (`02-30` used to pass)
     inside [today − 5 years, today + 5 years]: 400 `INVALID_RANGE` with the French `message`, shown by the tab;
     the pending list's simulated `today` is held to the same window (`specs/reservations-backend-mvc.md` rule 13, second reading).
+    *Reading of 2026-11-03 (audit R20-C4) — the operator's day.* « Du » opens on the browser's own day and
+    « Au » 60 days later (`utils/isoDay.localIsoToday` / `addIsoDays`), never the UTC day: between midnight and
+    01:00 / 02:00 in Paris it used to open on yesterday. Test: `components/__tests__/EmailSequenceSimulation.local-day.test.jsx`.
 32. The CLI (`scripts/simulate-guest-email-sequence.mjs`) runs against any database given in
     `SIMULATION_DB_PATH`, opened **read-only**, so it can be pointed at a copy of production before
     the switch is turned on. It forces GuestFlow's own `DB_PATH` to an in-memory database first, so no
@@ -565,6 +568,7 @@ Responsive: every new field stacks full width on `xs`; the simulation swaps tabl
 Full server suite: 4 191 tests, all green (4 553 on 2026-09-28, after the rule 33 removal: +5 in `remove-lost-items`).
 
 ### Client
+- [x] Vitest `EmailSequenceSimulation.local-day.test.jsx` (1, 2026-11-03, audit R20-C4) — rule 31: the default range starts on the local day.
 - [x] Vitest (11 new): `EmailSequenceSimulation.render.test.jsx` (5), `EmailManualSendDialog.already-sent.test.jsx` (2), `ClientFormFields.post-stay-emails.test.jsx` (3), ~~`ReservationLostItemsCard.test.jsx` (1)~~ (deleted with rule 33, 2026-09-28). Full suite green.
 - [x] Playwright: `emails-page.spec.js` and `email-language-fr-en.spec.js` updated for the new names and copy; full suite 68 passed, 1 skipped (unchanged).
 

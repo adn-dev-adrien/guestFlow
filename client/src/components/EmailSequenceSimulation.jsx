@@ -15,6 +15,7 @@ import StatusBadge from './StatusBadge';
 import api from '../api';
 import useLatestRequest from '../hooks/useLatestRequest';
 import { displayDate } from '../utils/formatters';
+import { addIsoDays, localIsoToday } from '../utils/isoDay';
 
 const STATUS = {
   send: { status: 'success', label: 'Part' },
@@ -23,16 +24,14 @@ const STATUS = {
   'to-check': { status: 'warning', label: 'À vérifier' },
 };
 
-const isoDay = (date) => date.toISOString().slice(0, 10);
-
 function SimulationBadge({ status }) {
   const s = STATUS[status] || { status: 'neutral', label: status };
   return <StatusBadge status={s.status} label={s.label} />;
 }
 
 export default function EmailSequenceSimulation({ tabs }) {
-  const [from, setFrom] = useState(() => isoDay(new Date()));
-  const [to, setTo] = useState(() => isoDay(new Date(Date.now() + 60 * 86400000)));
+  const [from, setFrom] = useState(() => localIsoToday());
+  const [to, setTo] = useState(() => addIsoDays(localIsoToday(), 60));
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');

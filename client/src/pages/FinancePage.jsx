@@ -4,7 +4,7 @@
 // and which tile is open.
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
-import { Box, Card, CardContent, Grid, MenuItem, TextField, Typography } from '@mui/material';
+import { Box, Button, Card, CardContent, Grid, MenuItem, TextField, Typography } from '@mui/material';
 import SyncIcon from '@mui/icons-material/Sync';
 import PageActionBar from '../components/PageActionBar';
 import LoadingState from '../components/LoadingState';
@@ -62,10 +62,11 @@ export default function FinancePage() {
     setSearchParams(out, { replace: true });
   };
   const paramsKey = searchParams.toString();
-  // Rule 51 — a link to a custom window the server refuses (too wide, past the horizon, reversed) is not
-  // sent: the page shows the period selector with the message, so the window can be fixed in place.
+  // Rule 51 — a link to a custom window the server refuses (a date missing or not a real day, reversed, too
+  // wide, outside the window) is not sent: the page shows the period selector with the message, so the
+  // window can be fixed in place.
   const today = useServerToday() || localIsoToday();
-  const periodRefusal = params.period === 'custom' && params.from && params.to ? customWindowError(params.from, params.to, today) : '';
+  const periodRefusal = params.period === 'custom' ? customWindowError(params.from, params.to, today) : '';
 
   const [dashboard, setDashboard] = useState(null);
   const [loadError, setLoadError] = useState(null);
@@ -92,7 +93,7 @@ export default function FinancePage() {
     } catch (err) {
       if (current()) setLoadError((err && err.error) || 'Impossible de charger les données financières.');
     }
-  }, [paramsKey]);
+  }, [paramsKey, periodRefusal]);
 
   const detailKey = `${tile}|${paramsKey}|${until}|${staysScope}`;
   const loadDetail = useCallback(async () => {
@@ -194,9 +195,22 @@ export default function FinancePage() {
       />
       <Box sx={{ p: { xs: 1.5, sm: 3 }, maxWidth: 1240, mx: 'auto' }}>
         {loadError && <ErrorAlert message={loadError} onRetry={loadDashboard} sx={{ mb: 2 }} />}
-        {!d && periodRefusal && (
-          <Box sx={{ mb: 1.75 }}>
-            <PeriodSelector kind="custom" from={params.from} to={params.to} months={[]} onChange={onPeriodChange} today={today} />
+        {/* Rule 51 — with no dashboard to show, a refused window keeps its selector: never a dead end. */}
+        {!d && (periodRefusal || loadError) && (
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1.25, mb: 1.75 }}>
+            <PeriodSelector
+              kind={params.period}
+              from={periodRefusal ? params.from : params.from || defaultCustom().from}
+              to={periodRefusal ? params.to : params.to || defaultCustom().to}
+              months={[]}
+              onChange={onPeriodChange}
+              today={today}
+            />
+            {params.propertyId && (
+              <Button size="small" variant="outlined" onClick={() => setParams({ propertyId: '' })} sx={{ textTransform: 'none', minHeight: 36, '@media (pointer: coarse)': { minHeight: 44 } }}>
+                Tous les logements
+              </Button>
+            )}
           </Box>
         )}
         {(!d || franchise === undefined) && !loadError && !periodRefusal && <LoadingState label="Chargement du suivi financier…" />}

@@ -393,6 +393,18 @@ without losing anything today's page shows.
     *Reading of 2026-11-02, second (Adrien's decision) — the past side.* « du » before today − 5 years is
     refused too, « Date trop ancienne : 5 ans au plus. », by the server and on the spot by `PeriodSelector`
     (`specs/reservations-backend-mvc.md` rule 13, second reading); the exercise and month periods are not typed dates and stay as they are.
+    *Reading of 2026-11-03 (audit R20-C1, C3) — no refusal is a dead end.* `customWindowError` refuses a
+    custom date that is missing or not a real `YYYY-MM-DD` day (a 5- or 6-digit year typed in Chromium's year
+    segment, 30 February) with the server's « Deux dates à choisir. » (the server's `isRealDate` test,
+    `utils/isoDay.isRealIsoDay` on the client), so such a link or keystroke is never sent; a year still being
+    typed (padded to four digits) is a real day and gets the window's message. Whenever the dashboard is not
+    shown because of a refusal — the client's or the server's (a month outside the exercise, « Période
+    inconnue. », « Logement inconnu. ») — `FinancePage` keeps the period toolbar under the error: the
+    period selector and, when a logement is set, « Tous les logements », so the window is changed in place.
+    The dashboard request follows the refusal too: when the server's day arrives (`useServerToday`) and lifts
+    a refusal the device's day had made, the dashboard is asked (it used to spin forever). Tests:
+    `components/__tests__/PeriodSelector.real-day.test.jsx`, `pages/__tests__/FinancePage.refused-load.test.jsx`,
+    `pages/__tests__/FinancePage.server-day-arrives.test.jsx`.
 
 ---
 
@@ -622,6 +634,7 @@ par mois » and « Taux d'occupation » side by side.
 - [x] `PeriodSelector.date-horizon.test.jsx` (2) — rule 51, reading of 2026-11-02: « Au » past the date horizon refused on the spot, never sent.
 - [x] `FinancePage.refused-window-link.test.jsx` (2) — rule 51, reading of 2026-11-02: a refused custom link keeps the period selector, sends nothing, loads once fixed.
 - [x] `PeriodSelector.server-today.test.jsx` (1), `FinancePage.server-today.test.jsx` (1) — rule 51, review of PR #938 (V2): the window is judged from the server's day (`today` prop, `GET /api/today`), not the device's.
+- [x] `PeriodSelector.real-day.test.jsx` (6), `FinancePage.refused-load.test.jsx` (6), `FinancePage.server-day-arrives.test.jsx` (1) — rule 51, reading of 2026-11-03 (audit R20): a date not a real day or missing refused as « Deux dates à choisir. », a padded half-typed year judged by the window; every refusal keeps the toolbar; the server's day lifting a refusal loads the dashboard.
 - [x] `SelectableTile.test.jsx` (2) — rule 13: expanded state, controlled panel.
 - [x] `YearOverYearBadge.test.jsx` (3) — rules 18, 20: hidden without comparison, partial wording.
 - [x] `SmallMultiplesLineChart.test.jsx` (5) — rules 10, 22, 23: the three chart tooltips (curve;
