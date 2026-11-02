@@ -801,7 +801,7 @@ One line per reservation:
 
 ## 7. Test plan
 
-### Server unit tests — **53 new, suite at 3157 green**
+### Server unit tests — **55 new, suite at 9347 green (2026-11-02)**
 - [x] `tests/refund-before-cancellation.unit.test.js` (16 of 22, 2026-11-02) — rule 55: acompte 274 €, 100 €
       given back, then cancelled → 174 € kept (avoir, card, register); every 706 / 4457 / 4671 account, 75880000
       and the client account at 0 once the rest goes back; a paid solde absorbs the refund (274 € kept); a plan
@@ -815,8 +815,8 @@ One line per reservation:
       deducted is refused (409) and the fiche offers no « Supprimer », the books and the register unchanged, while a
       later refund and the caisse interne stay deletable; contribs 274,01 + 0,01 € snap onto the largest bucket and
       keep 274 €; 180 random legacy acomptes cancelled at 5,5, 10 and 20 % leave 706 and 4457 at 0; a legacy acompte
-      netted of two refunds (case 16) leaves them at 0
-      `tests/cancelled-stay-absorbed-refund-deletion.unit.test.js` (9, 2026-11-02, audit R16-L1 and review of PR
+      netted of two refunds (case 16) leaves them at 0.
+- [x] `tests/cancelled-stay-absorbed-refund-deletion.unit.test.js` (9, 2026-11-02, audit R16-L1 and review of PR
       #930) — rule 55 reading: a 100 € refund the paid solde absorbed is deleted by the API and offered on the fiche,
       the register back at 914 € (274 € indemnity) and the avoir unchanged; a 700 € refund (214 € kept) and a refund
       with no solde paid stay refused, on the fiche too; two refunds the solde held together are deleted one after
@@ -824,6 +824,11 @@ One line per reservation:
       with a withheld solde commission (contribs, and legacy stay #22226) the absorbed refund is deleted, the avoir
       at 293,20 € / 129,79 €, and everything given back afterwards nets every account as with no refund; a refund
       that moves the kept total (700 €), a kept bucket (600 €) or the legacy acompte (72,76 € kept) stays refused.
+- [x] `tests/cancelled-stay-absorbed-refund-fiche.unit.test.js` (2, 2026-11-02, audit R17-L1) — rule 55 reading,
+      on the fiche itself: through `reservationsController.getById` on the real database, a 100 € refund the paid
+      solde absorbed carries `deleteRefund` and the DELETE route deletes it; a 700 € refund (214 € kept) carries no
+      action and the DELETE route refuses it (409). A failure reading the netted refunds is logged, not swallowed,
+      and turns both cases red.
 - [x] `tests/cancelled-stay-withheld-commission.unit.test.js` (8, 2026-11-02) — rule 55 reading (residual A): the
       acompte's and the solde's commissions are named on the avoir (293,20 € = 274 € kept + 19,20 €, card the
       same, history 274 €); everything given back leaves 706, 4457, 4671 and the client account at 0, 75880000 at
