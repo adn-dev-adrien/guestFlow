@@ -164,6 +164,64 @@ function netOfEarlierRefunds(lines, givenBack, saleCollected) {
   });
 }
 
+const REVENUE_BUCKETS = ['accommodation', 'options', 'resources'];
+
+// `cents` spread over `weights` (cents) by largest remainder, the earlier weight first on a tie.
+function spreadCents(cents, weights) {
+  const total = weights.reduce((sum, weight) => sum + weight, 0);
+  if (cents <= 0 || total <= 0) return weights.map(() => 0);
+  const spent = Math.min(cents, total);
+  const takes = weights.map((weight) => Math.floor((spent * weight) / total));
+  let left = spent - takes.reduce((sum, take) => sum + take, 0);
+  weights.map((weight, index) => ({ index, rest: (spent * weight) % total }))
+    .sort((a, b) => b.rest - a.rest || a.index - b.index)
+    .forEach(({ index }) => { if (left > 0 && takes[index] < weights[index]) { takes[index] += 1; left -= 1; } });
+  return takes;
+}
+
+/**
+ * Rule 55 reading of 2026-11-02 (review of PR #926, residual A) — the commissions a payment provider withheld on the
+ * paid acompte and solde (`withheld`: `{ depositTtc, soldeTtc, soldeBuckets }`). The sale was booked gross, the bank
+ * received it net: money the guest paid and no refund can give back is an indemnity. The avoir already reverses the
+ * whole acompte, its commission inside; it now names that commission on lines of its own, keyed `commission`, and adds
+ * the solde's, spread over the buckets the solde was booked on. A commission line carries `unitPrice` 0 — like a bucket
+ * requalified out of the paid solde — and the acompte line it came out of keeps the TTC it was booked on, so the export
+ * mirrors the books to the cent. The register never offers a `commission` line back from the indemnity.
+ */
+function withCommissions(lines, withheld, vatRate) {
+  const cents = (value) => Math.round(Number(value || 0) * 100);
+  const work = lines.map((line) => ({ ...line }));
+  const commission = {};
+  const deposit = work.filter((line) => line.origin === 'deposit' && REVENUE_BUCKETS.includes(line.bucket) && cents(line.amountTtc) > 0);
+  spreadCents(cents(withheld && withheld.depositTtc), deposit.map((line) => cents(line.amountTtc))).forEach((take, index) => {
+    if (take <= 0) return;
+    const line = deposit[index];
+    const booked = line.unitPrice == null ? Number(line.amountTtc) : Number(line.unitPrice);
+    line.amountTtc = (cents(line.amountTtc) - take) / 100;
+    line.unitPrice = booked;
+    line.quantity = booked > 0 ? Math.round((line.amountTtc / booked) * 10000) / 10000 : null;
+    commission[line.bucket] = (commission[line.bucket] || 0) + take;
+  });
+  const soldeBuckets = REVENUE_BUCKETS.filter((bucket) => cents(withheld && withheld.soldeBuckets && withheld.soldeBuckets[bucket]) > 0);
+  const soldeCents = cents(withheld && withheld.soldeTtc);
+  const soldeTakes = soldeBuckets.length
+    ? spreadCents(soldeCents, soldeBuckets.map((bucket) => cents(withheld.soldeBuckets[bucket])))
+    : [];
+  if (!soldeBuckets.length && soldeCents > 0) commission.accommodation = (commission.accommodation || 0) + soldeCents;
+  soldeBuckets.forEach((bucket, index) => { commission[bucket] = (commission[bucket] || 0) + soldeTakes[index]; });
+  const named = REVENUE_BUCKETS.filter((bucket) => commission[bucket] > 0).map((bucket) => ({
+    lineKey: 'commission',
+    label: `Commission retenue — ${BUCKET_LABELS[bucket]}`,
+    bucket,
+    quantity: null,
+    unitPrice: 0,
+    amountTtc: commission[bucket] / 100,
+    vatRate,
+    origin: 'commission',
+  }));
+  return [...work.filter((line) => cents(line.amountTtc) > 0), ...named];
+}
+
 /**
  * @param {object} input
  * @param {object} input.reservation      row with id, propertyId, propertyName, platform, firstName,
@@ -178,12 +236,15 @@ function netOfEarlierRefunds(lines, givenBack, saleCollected) {
  *                                        before the cancellation gave back (payment-schedule spec rule 55)
  * @param {object} [input.saleCollected] the same buckets, TTC collected outside the requalified money (a paid solde):
  *                                        it absorbs those refunds first
+ * @param {object} [input.withheldCommissions] `{ depositTtc, soldeTtc, soldeBuckets }` — the commissions withheld on
+ *                                        the paid acompte and solde (rule 55 reading of 2026-11-02)
  * @param {string} input.cancellationDate YYYY-MM-DD — the day the requalification is booked
  * @param {number} input.vatRate          the sales VAT rate the acompte was booked at
  * @param {string} [input.reason]         operator's cancellation reason, carried on both records
- * @returns {{retainedTtc:number, depositTtc:number, installmentsTtc:number, refund:object, compensation:object}|null}
- *          null when there is no collected acompte nor installment to requalify — a cancellation then
- *          books nothing (rule 27).
+ * @returns {{retainedTtc:number, depositTtc:number, installmentsTtc:number, withheldTtc:number, requalifiedTtc:number,
+ *          refund:object, compensation:object}|null} `retainedTtc` is the money kept, `requalifiedTtc` the avoir and the
+ *          indemnity (the solde's commission included); null when there is nothing to requalify — a cancellation
+ *          then books nothing (rule 27).
  */
 function buildCancellationRequalification({
   reservation,
@@ -191,18 +252,23 @@ function buildCancellationRequalification({
   installmentsRetained = null,
   givenBack = null,
   saleCollected = null,
+  withheldCommissions = null,
   cancellationDate,
   vatRate = 0,
   reason = '',
 } = {}) {
   const row = reservation || {};
-  const grossDepositTtc = Number(row.depositPaid) ? Math.max(0, round2(row.depositAmount)) : 0;
+  // Rule 55 reading of 2026-11-02 (audit R15-L1) — only book money is requalified: an acompte collected in the caisse
+  // interne was never booked, so no avoir reverses it and no indemnity books it.
+  const grossDepositTtc = Number(row.depositPaid) && !Number(row.depositPaidCash || 0) ? Math.max(0, round2(row.depositAmount)) : 0;
   const grossInstallmentsTtc = Math.max(0, round2(installmentsRetained && installmentsRetained.amountTtc));
-  if (round2(grossDepositTtc + grossInstallmentsTtc) <= 0) return null;
-
-  const label = grossInstallmentsTtc > 0 ? 'Annulation — échéances conservées' : 'Annulation — acompte conservé';
-  const note = String(reason || '').trim();
   const rate = Number(vatRate) || 0;
+  const soldeWithheldTtc = Math.max(0, round2(withheldCommissions && withheldCommissions.soldeTtc));
+  if (round2(grossDepositTtc + grossInstallmentsTtc + soldeWithheldTtc) <= 0) return null;
+
+  const label = grossInstallmentsTtc > 0 ? 'Annulation — échéances conservées'
+    : (grossDepositTtc > 0 ? 'Annulation — acompte conservé' : 'Annulation — commission retenue');
+  const note = String(reason || '').trim();
   const gross = [
     ...(grossDepositTtc > 0 ? requalificationLines(grossDepositTtc, depositBuckets, rate).map((line) => ({ ...line, origin: 'deposit' })) : []),
     ...(grossInstallmentsTtc > 0
@@ -219,19 +285,25 @@ function buildCancellationRequalification({
   };
   const depositTtc = Math.max(0, round2(grossDepositTtc - takenOf('deposit')));
   const installmentsTtc = Math.max(0, round2(grossInstallmentsTtc - takenOf('installments')));
-  const retainedTtc = round2(depositTtc + installmentsTtc);
-  if (retainedTtc <= 0 || lines.length === 0) return null;
+  const kept = round2(depositTtc + installmentsTtc);
+  const retainedTtc = kept > 0 && lines.length > 0 ? kept : 0;
+  const requalified = withCommissions(retainedTtc > 0 ? lines : [], withheldCommissions, rate);
+  const withheldTtc = round2(requalified.filter((line) => line.origin === 'commission').reduce((total, line) => total + line.amountTtc, 0));
+  const requalifiedTtc = round2(retainedTtc + soldeWithheldTtc);
+  if (requalifiedTtc <= 0 || requalified.length === 0) return null;
 
   return {
     retainedTtc,
-    depositTtc,
-    installmentsTtc,
+    depositTtc: retainedTtc > 0 ? depositTtc : 0,
+    installmentsTtc: retainedTtc > 0 ? installmentsTtc : 0,
+    withheldTtc,
+    requalifiedTtc,
     refund: {
       reservationId: Number(row.id),
       refundDate: cancellationDate,
       method: 'retained',
       reason: note ? `${label} : ${note}` : label,
-      lines: lines.map(({ origin, ...line }) => line),
+      lines: requalified.map(({ origin, ...line }) => line),
     },
     compensation: {
       reservationId: Number(row.id),
@@ -243,7 +315,7 @@ function buildCancellationRequalification({
       startDate: row.startDate || null,
       endDate: row.endDate || null,
       cancelledStayAmount: round2(row.finalPrice),
-      receivedAmount: retainedTtc,
+      receivedAmount: requalifiedTtc,
       receivedDate: cancellationDate,
       origin: 'retained_deposit',
       notes: note,

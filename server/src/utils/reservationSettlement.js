@@ -199,7 +199,27 @@ function comptaCollected(r) {
   );
 }
 
+/**
+ * specs/reservation-refunds.md rule 48 reading of 2026-11-02 — what the caisse interne collected on a stay: the buckets
+ * paid there (gross: no platform takes a commission on money handed over at the door), its notes, and the réduction or
+ * pourboire of a caisse-interne arrival payment. The counterpart of `comptaCollected`, which leaves all of it out.
+ */
+function cashCollected(r = {}) {
+  const inCash = (paid, cash, amount) => (Number(r[paid] || 0) === 1 && Number(r[cash] || 0) === 1 ? Number(r[amount] || 0) : 0);
+  const group = parseGroup(r.arrivalPaymentGroup);
+  const groupNet = group && group.cash === 1 ? round2(round2(r.arrivalPaymentTip) - round2(r.arrivalPaymentReduction)) : 0;
+  return round2(
+    inCash('depositPaid', 'depositPaidCash', 'depositAmount')
+    + inCash('balancePaid', 'balancePaidCash', 'balanceAmount')
+    + inCash('complementPaid', 'complementPaidCash', 'complementAmount')
+    + inCash('endOfStayComplementPaid', 'endOfStayComplementPaidCash', 'endOfStayComplementAmount')
+    + round2(midStayNotesTotal(r, { withCash: true }) - midStayNotesTotal(r))
+    + groupNet,
+  );
+}
+
 module.exports = {
+  cashCollected,
   bucketStates, isSettled, remainingToPay, platformCommission, platformPenalty, attributionDate, stayDueAtArrival,
   midStayNotesTotal, refundsBook, comptaCollected, arrivalPaymentAdjustment, round2,
 };

@@ -14,7 +14,7 @@
  */
 
 const { remainingToPay, platformPenalty, round2 } = require('./reservationSettlement');
-const { isRetainedDeposit, isIndemnityLine } = require('./refunds');
+const { isRetainedDeposit, isIndemnityLine, refundDeletionRefusal, madeAfterCancellation, COMMISSION_KEY } = require('./refunds');
 const { parseGroup } = require('./arrivalPaymentGroup');
 const { saleChannel } = require('./saleChannel');
 const { platformDisplay } = require('./platformDisplay');
@@ -607,7 +607,10 @@ function buildLedger({
     if (isRetainedDeposit(refund.method)) {
       rows.push({
         // A cancelled fiche shows no plan rows: the installments it collected still name the money kept.
-        key: `refund-${refund.id}`, label: planRows || Number(r.installmentsPaidAmount) > 0 ? 'Échéances conservées' : 'Acompte conservé',
+        // Payment-schedule rule 55 reading of 2026-11-02 — with nothing kept, the avoir requalifies a commission only.
+        key: `refund-${refund.id}`,
+        label: (refund.lines || []).length > 0 && refund.lines.every((l) => l.lineKey === COMMISSION_KEY) ? 'Commission retenue'
+          : (planRows || Number(r.installmentsPaidAmount) > 0 ? 'Échéances conservées' : 'Acompte conservé'),
         amount: -round2(refund.totalTtc), state: 'retained', tone: 'info',
         stateLabel: `Requalifié en indemnité le ${when}`,
         action: null,
@@ -623,7 +626,11 @@ function buildLedger({
     rows.push({
       key: `refund-${refund.id}`, label: 'Remboursement', amount: -round2(refund.totalTtc), state: 'refunded', tone: 'info',
       stateLabel: `${allFromIndemnity ? 'Rendu sur l\'indemnité' : 'Rendu'} le ${when}${method ? ` · ${method}` : ''}`,
-      action: canAct ? { kind: 'deleteRefund', label: 'Supprimer', refundId: refund.id, confirm: 'Supprimer ce remboursement ? L\'avoir correspondant sera supprimé.' } : null,
+      // Refunds rule 6 reading of 2026-11-02 — on a cancelled stay, the fiche deletes the refunds made after the
+      // cancellation, the ones it is about.
+      action: (canAct || (stored && cancelled && madeAfterCancellation(refund, refunds, r.cancelledAt)))
+        && !refundDeletionRefusal(refund, refunds, { ...r, kind })
+        ? { kind: 'deleteRefund', label: 'Supprimer', refundId: refund.id, confirm: 'Supprimer ce remboursement ? L\'avoir correspondant sera supprimé.' } : null,
       amountEdit: { editable: false, mode: 'none', min: null, max: null, reason: null },
       detail: {
         lines: lines.map((l) => `${l.label}${!allFromIndemnity && isIndemnityLine(l) ? ' · sur l\'indemnité' : ''} : − ${formatEuros(l.amountTtc)}`),
