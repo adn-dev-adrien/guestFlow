@@ -24,7 +24,8 @@ hangs on a test that does not settle (rule 5), and never reports green with test
 (rule 10). A suite does not go red because the calendar moved
 (rules 6-7, 9), and the unit suites fit their CI time budget (rule 8). A client test does not go red
 because the runner is busy (rule 11). A server test does not change outcome with the GuestFlow flags the developer's shell
-exports, nor with the app's other variables it carries (rule 12).
+exports, nor with the app's other variables it carries (rule 12), and a variable the app reads without
+being on the preload's lists fails the run once the suite executes the read (rule 13).
 
 ## 3. Functional rules
 
@@ -314,6 +315,39 @@ exports, nor with the app's other variables it carries (rule 12).
    stays green on this file, and a test fails when a name only a shipped plugin reads is not keyed by it, or a
    keyed name is not read under `src/plugins/<id>/`. Test: `server-test-app-env.unit.test.js`.
 
+13. **The suite traces what the app reads from the environment** (added 2026-11-02, review of #927, option 2
+   of its « durable alternative »). Rule 12's guard reads `src/` with patterns, and five readings in a row
+   found a syntax it had no pattern for (the review of #927 names `x || env`, `await env`, `[env][0].X`). This
+   rule is its runtime complement: under `npm test` the preload (`src/tests/setup/envTrace.js`, called from
+   `isolateDefaultDb.js`) replaces `process.env` in every test process with a `Proxy` over it that records
+   each string key read through `get`, `has` or `getOwnPropertyDescriptor`, and each `ownKeys` (the
+   environment taken whole: a spread, `Object.keys`, `JSON.stringify`, a child spawned without `env`). A
+   record is attributed to the first stack frame outside the tracer: it counts only when that frame is a file
+   of `server/src/` outside any `tests` or `node_modules` folder, so the reads of a test, of a package, of a
+   `node -e` script, and the key reads Node makes on the app's behalf (`FORCE_COLOR` for a `console.log`,
+   undici's knobs for a `fetch`, a `require`) are not the app's; a whole take walks past Node's frames, so
+   `spawn` without `env` is the caller's take. The names a whole take reads on its own line belong to it. Two
+   functions read names no list can hold, by design, and are granted them in `READ_BY_DESIGN`, the runtime
+   twin of rule 12's pins: `updateStaging.installEnv` (the proxy settings and `NODE_EXTRA_CA_CERTS` handed to
+   the npm child) and `localEnv.loadLocalEnv` (the names the process's own `.env.local` holds). Each test
+   process writes what it saw to a directory the runner's process created and handed on in
+   `GUESTFLOW_TEST_ENV_TRACE_DIR` (a runner knob, kept by rule 12), even when it saw nothing. At exit the
+   runner merges the files; it fails the run (exit code 1) when `src/` read a name that is on neither list of
+   `appEnvNames.js` (`APP_ENV_NAMES`, `RUNNER_ENV_NAMES`, the `GUESTFLOW_*` prefix but `GUESTFLOW_TEST_*`),
+   naming each one with its `file:line` and the test files it ran under, or when no test process wrote
+   anything; and it prints, green or red, the `src/` lines that took the environment whole (today
+   `plugins/host.js`, `plugins/packageStore.js`, `utils/localEnv.js`, `utils/updateStaging.js`). The CI
+   `server` job and the release's `server-tests` run `npm test`, so they run it.
+   Writes (string coercion), deletes, `in`, a child process inheriting or given `env`, a `TZ` change and
+   `loadLocalEnv` behave as without the proxy. It is off outside `node --test` with the preload: a process
+   outside the runner, or a runner with `--test-isolation=none`, makes no directory and clears the
+   variable, and a test process without the variable installs nothing. Cost measured on the full suite
+   (9 282 tests, 1 212 traced processes): 343 s against 341 s without it. What it does not see: a read on
+   a code path no test runs, so it adds to rule 12's guard and replaces none of it. Shown on a scratch copy
+   of the tree with `const [holder] = [env]; void holder.PLANTED_UNLISTED_KNOB;` planted in
+   `resolveQontoConfig`: rule 12's guard stayed green (30 / 30 tests), the run failed naming
+   `PLANTED_UNLISTED_KNOB, read at utils/qonto/qontoConfig.js:66`. Test: `server-test-env-trace.unit.test.js`.
+
 **Edge cases:**
 - A targeted `node --test <file>` used to open and migrate `server/guestflow.db` for 389 test files (audit R2,
   2026-10-29); rule 4 closes that. Rule 3 stays as the explicit guard of the three first offenders.
@@ -322,6 +356,8 @@ exports, nor with the app's other variables it carries (rule 12).
   preload (`npm test` never uses it). A process with `NODE_ENV=production` is never isolated, even under the runner.
 - A single file run without the preload (`node --test <file>`) still reads the shell's `GUESTFLOW_*` flags
   and the other app variables: rule 12 lives in the preload only, so `npm test` is the hermetic entry point.
+- A single file run with the preload (`node --test --require ./src/tests/setup/isolateDefaultDb.js <file>`) is
+  traced too (rule 13): its runner checks what that file's code paths read.
 
 ---
 
@@ -339,6 +375,10 @@ exports, nor with the app's other variables it carries (rule 12).
 | `tests/` | `server-test-ambient-flags.unit.test.js` | C | Pins rule 12: flags dropped under the preload, an inline flag still read, the app modules strip nothing, no E2E launcher loads the preload. |
 | `tests/setup/` | `appEnvNames.js` | C | Rule 12 (reading of 2026-11-01): `APP_ENV_NAMES` the preload deletes, `RUNNER_ENV_NAMES` it keeps, and `stripAppEnv`, which the preload calls; since the review of #924, `PLUGIN_ENV_NAMES`, the names only a plugin reads, by plugin id (all in `APP_ENV_NAMES`). |
 | `tests/` | `server-test-app-env.unit.test.js` | C | Pins the reading: the app variables dropped and the runner's kept under the preload, `NODE_ENV` kept only as `test`, `resolveQontoConfig` no longer follows the shell, and the grep guard that keeps the list equal to what `src/` reads; since the review of #920, the guard's indirect accesses pinned by file in `INDIRECT_READERS`, the bypass probes, and `pm_id` stripped; since audit R14 L-1, an `env` taken whole (destructured, `in`, spread, aliased, or handed to a call whose callee does not declare `env` there) and `require('process')`; since the review of #924, `env || …` / `env ?? …` aliases, `return env` / `=> env`, a call argument judged by the callee the call reaches, and the plugin-keyed names. |
+| `tests/setup/` | `envTrace.js` | C | Rule 13: in the runner, the trace directory and the exit check; in each test process, the `process.env` Proxy and its attribution to `src/` lines; `collect` / `report` merge the processes' files. |
+| `tests/setup/` | `isolateDefaultDb.js` | T | Rule 13: calls `envTrace.start()` before `isolate`, whose exit handler removes the runner's temp dir. |
+| `tests/` | `server-test-env-trace.unit.test.js` | C | Pins rule 13: the forms recorded and those left out, the report, unchanged behaviour under the proxy, and the trace on under the `npm test` flags only. |
+| `tests/` | `server-test-ambient-flags.unit.test.js` | T | Rule 13: `GUESTFLOW_TEST_ENV_TRACE_DIR` is set by the runner, like the isolation paths, so it is left out of the flags compared. |
 | `tests/`, `plugins/hourly-resources/tests/` | the three offenders | T | Rule 3. |
 | `package.json` | `test` script | T | `--require ./src/tests/setup/isolateDefaultDb.js`; `--test-timeout=60000` and the exit watchdog (rule 5); the `spec` and completeness reporters (rule 10). |
 | `control-plane/server/package.json` | `test` script | T | `--test-timeout=180000` and the exit watchdog (rule 5); the `spec` and completeness reporters (rule 10). |
@@ -393,6 +433,8 @@ delay, and the sweep's absence from the normal config and from every CI workflow
 - [x] Rule 12, reading of 2026-11-01, review of #920: `server-test-app-env.unit.test.js` now 8 tests (+3). The probe test writes 16 bypass forms and a plain `process.env.X` read to a scratch directory, one file each; the first guard let 15 of the 16 through (it caught only `const { X } = process.env`), the hardened one fails on all 17. The same 16 dropped one by one into `src/utils/` turn the guard red; so does a backtick-keyed `process.env[…]` appended to `localEnv.js`, a listed file. The quiet-forms test pins no false alarm on `env = process.env`, `config.env || process.env`, `env?.X` and `'.env.local'`. The pm2 test (`pm_id=0` in the shell, `createRestarter().supervised` false under the preload) and the guard test (once it reads lowercase names) were red without `pm_id` on the list. Full `npm test`: 9 250 tests, 0 failures in a clean shell and under `pm_id=0 NODE_ENV=production PUBLIC_SITE_ORIGIN=… PUBLIC_API_RATELIMIT_MAX=5`.
 - [x] Rule 12, reading of 2026-11-02 (audit R14 L-1): `server-test-app-env.unit.test.js` stays 8 tests. The probe test gains 12 forms (destructuring of a bound env, of an injected env and of `opts.env`, `in env`, `{ ...env }`, `Object.keys(env)`, `env` as a sole and as a second call argument to a callee naming it `cfg`, `const e = env`, `require('process').env.X`, `const { X } = require('node:process').env`, `const { env: e } = require('process')`): 11 of them got past the previous guard (the last was already caught by the `env: other` rename), the new guard fails on all 28 plus the plain read. The same 12 dropped one by one into `src/utils/` turn the guard test red. The quiet-forms test adds `env` handed to a callee declaring `env` at that position, `if (!env)`, and `env` inside an object and an array. On `src/` the new patterns found 6 files: 4 whose `env` is no process environment and 2 listed files (`localEnv` +1, `qontoSettingsController` +1), all pinned with their reason. The Neat pins apply only when the Neat plugin is shipped (`missingPlugins`), so the Neat cell of the plugin removal matrix sees no missing pin (its stale check stayed red until the review of #924, below; the « bare install » job never runs this file). Full `npm test`: 9 259 tests, 0 failures in a clean shell and under `PUBLIC_SITE_ORIGIN=… PUBLIC_API_RATELIMIT_MAX=5 NODE_ENV=development GUESTFLOW_MANAGED=1 pm_id=0`.
 - [x] Rule 12, reading of 2026-11-02 (review of #924): `server-test-app-env.unit.test.js` now 9 tests (+1, the plugin-keyed names). The probe test gains 10 forms (`e = env || {}`, `e = env ?? {}`, a local function and a local method sharing their name with a function of another file that declares `env`, a package callee and an imported callee whose module does not declare `env` there while another file does, an `env` returned whole, an identity callee declaring `env`, `function fromIt(env) { return env; }`, `({ env })` read as `f().env.X`): all 10 got past the previous guard, the new one fails on all 38 plus the plain read. The quiet-forms test adds an imported callee as `{ f }`, `mod.f`, `{ f: g }` through a re-export and `require('./m').f`, and `'… not set in env'` in a string; the previous guard flagged the re-exported `{ f: g }` and the string. The same 10 forms dropped into `src/utils/` (a form's other files beside it) turn the guard test red; the previous guard let all 10 through there too. On `src/` the scan reads the same 100 names and finds one more indirect access, `return env` in `updateStaging.js` (pin 3 → 4). Removal matrix (`node scripts/plugin-removal.mjs remove <id>` in a copy of the tree, then this file): before, 5 of the 16 cells red (gate-access, google-calendar, neat, online-payment, website-booking, each on its own names called stale); after, 16 of 16 green. The plugin-keyed test fails when `PAYMENT_POLL_TICK_MINUTES` is moved back to the core list, and when a name the plugin does not read is keyed under `neat`. Full `npm test`: 9 260 tests, 0 failures; this file also green at `TZ=Pacific/Kiritimati` under `PUBLIC_SITE_ORIGIN=… PUBLIC_API_RATELIMIT_MAX=5 NODE_ENV=development pm_id=0`.
+
+- [x] Rule 13: `server-test-env-trace.unit.test.js` (4 tests), red before the change (the tracer did not exist): a fake `src/` reading three unlisted names (by name on a bound `env`, by `in`, by a built key on a ternary) is recorded at its lines, while a listed name, a `GUESTFLOW_*` flag, a test helper, a plugin's test helper, a package, `node -e` and Node's own `FORCE_COLOR` read are not, and a spread and a child spawned without `env` are listed as whole takes; `report` fails naming the name, its line and test file, and fails on a missing or empty directory; under the proxy, coercion, delete, `in`, `Object.keys`, an inherited and an explicit child `env`, `TZ`, `loadLocalEnv`, `JSON.stringify` and a descriptor behave as before; under the `npm test` flags a probe file runs proxied and the runner prints the green line, a probe that plants an unlisted record turns the run red with every test passed, and a process outside the runner is not traced. The first full traced run found 12 names: 10 were Node's own reads on the app's behalf (`FORCE_COLOR`, `NODE_V8_COVERAGE`, undici's `JEST_WORKER_ID` / `UNDICI_NO_FG`, attributed to the calling `src/` line) and `updateStaging`'s proxy pass-through plus one `.env.local` name read back by `loadLocalEnv`, which led to the Node-frame rule and `READ_BY_DESIGN`; `server-test-ambient-flags` rule 12 test 1 saw the new runner variable. Full `npm test` after: 9 282 tests, 0 failures, trace green over 1 212 processes, 343 s (341 s at the base).
 
 ## 8. Out of scope
 
