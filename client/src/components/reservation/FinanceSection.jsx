@@ -760,6 +760,47 @@ export default function FinanceSection() {
     );
   };
 
+  // Rule 56 (O2) — a closed fiche is a disabled fieldset: the refund of a payment to settle is drawn outside it.
+  const toSettle = closedActionsHost && settlePaymentLink
+    ? rows.flatMap((r) => [r.detail?.link, ...(r.detail?.otherLinks || [])]).filter((l) => l && l.settle && l.settle.refunded)
+    : [];
+  // specs/calendar-property-parity.md rule 25 reading of 2026-11-02 — so is the deletion of a refund made after the
+  // cancellation; its row in the ledger, inside the fieldset, shows no button. A duplicate set aside takes no refund.
+  const toDelete = closedActionsHost && refundHost ? rows.filter((r) => r.action && r.action.kind === 'deleteRefund') : [];
+  const ledgerRows = toDelete.length > 0 ? rows.map((r) => (toDelete.includes(r) ? { ...r, action: null } : r)) : rows;
+  const closedLineSx = { display: 'flex', flexWrap: 'wrap', columnGap: 1.25, alignItems: 'center', color: 'text.secondary', fontSize: '0.8125rem' };
+  const closedLines = (toSettle.length > 0 || toDelete.length > 0) ? (
+    <Stack spacing={0.5}>
+      {toSettle.map((l) => (
+        <Box key={l.settle.linkId} sx={closedLineSx}>
+          <span>{l.label}</span>
+          <Button size="small" variant="text" onClick={() => askSettle(l.settle.linkId, 'refunded', l.settle.refunded)} sx={{ minHeight: 44, textTransform: 'none' }}>
+            {l.settle.refunded.label}
+          </Button>
+        </Box>
+      ))}
+      {toDelete.map((r) => (
+        <Box key={r.key} sx={closedLineSx}>
+          <span style={{ overflowWrap: 'anywhere' }}>{`${r.label} ${formatCurrency(r.amount)} · ${r.stateLabel}`}</span>
+          <Button
+            size="small"
+            variant="text"
+            color="error"
+            aria-label={`${r.action.label} : ${r.label} ${formatCurrency(r.amount)}`}
+            onClick={() => onAction(r)}
+            sx={{ minHeight: 44, textTransform: 'none' }}
+          >
+            {r.action.label}
+          </Button>
+        </Box>
+      ))}
+    </Stack>
+  ) : null;
+  // On a cancelled fiche they follow « + Nouveau remboursement » in the same place (the footer); on a duplicate set
+  // aside, which takes no refund, they stand alone.
+  const closedActions = closedLines && !refundHost && createPortal(closedLines, closedActionsHost);
+
+
   const refundButton = (
     <Button variant="text" onClick={() => setRefundDialogOpen(true)} sx={{ minHeight: 44, textTransform: 'none' }}>
       + Nouveau remboursement
@@ -777,26 +818,8 @@ export default function FinanceSection() {
           </span>
         </Tooltip>
       )}
-      {!isDevisMode && editingReservationId && (refundHost ? createPortal(refundButton, refundHost) : refundButton)}
+      {!isDevisMode && editingReservationId && (refundHost ? createPortal(<>{refundButton}{closedLines}</>, refundHost) : refundButton)}
     </Stack>
-  );
-
-  // Rule 56 (O2) — a closed fiche is a disabled fieldset: the refund of a payment to settle is drawn outside it.
-  const toSettle = closedActionsHost
-    ? rows.flatMap((r) => [r.detail?.link, ...(r.detail?.otherLinks || [])]).filter((l) => l && l.settle && l.settle.refunded)
-    : [];
-  const closedActions = toSettle.length > 0 && settlePaymentLink && createPortal(
-    <Stack spacing={0.5}>
-      {toSettle.map((l) => (
-        <Box key={l.settle.linkId} sx={{ display: 'flex', flexWrap: 'wrap', columnGap: 1.25, alignItems: 'center', color: 'text.secondary', fontSize: '0.8125rem' }}>
-          <span>{l.label}</span>
-          <Button size="small" variant="text" onClick={() => askSettle(l.settle.linkId, 'refunded', l.settle.refunded)} sx={{ minHeight: 44, textTransform: 'none' }}>
-            {l.settle.refunded.label}
-          </Button>
-        </Box>
-      ))}
-    </Stack>,
-    closedActionsHost,
   );
 
   return (
@@ -937,7 +960,7 @@ export default function FinanceSection() {
               )}
 
               <LedgerList
-                rows={rows}
+                rows={ledgerRows}
                 closing={ledger?.closing || null}
                 formatAmount={formatCurrency}
                 onAction={onAction}
