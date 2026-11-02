@@ -203,6 +203,17 @@ rules — just a clean, testable structure that future slices (and Bloc 5) build
    linen `laundry-date-window`, school-holidays `school-holidays-date-window`, hourly-resources
    `resource-bookings-date-window`; client `ReservationPage.date-window-past`,
    `EstablishmentClosuresPage.date-window-past`, `PeriodSelector.date-window-past`.
+14. **Added 2026-11-02 (merge of PR #936 with #937) — a year typed digit by digit never freezes the fiche.**
+   Since a date can be typed on the keyboard again (`specs/datepicker-close-on-select.md`, reading of
+   2026-11-02), Chromium hands the fiche each digit of a year typed over a complete date: 0002, 0020, 0203,
+   then the year. Rules 12 and 13 keep such a range from any request, and the fiche's own occupancy check
+   (`utils/reservationConflicts.findFirstOccupiedDateInRange`) reads it like any other: it scans the
+   occupied days, not the nights of the range, and pads a year under 1000 to four digits. *Why:* the check
+   walked the range night by night and wrote year 2 as « 2-10-31 », which no date parses: an arrival typed
+   over a stored fiche (first digit, 0002) looped forever and froze the tab. Within those rules, a stay
+   typed six years ahead keeps the focus, says « Date trop lointaine : 5 ans au plus. » and sends nothing.
+   Tests: client `utils/reservationConflicts.half-typed-year.test.js`,
+   `pages/__tests__/ReservationPage.date-horizon-keyboard.test.jsx`.
 
 **Edge cases:** all current ones are preserved verbatim — min-nights rejection, archived-reservation
 error, iCal-locked pricing snapshot reuse, night-block conflict on adjacent reservations, payment
@@ -239,7 +250,7 @@ patch. No new edge behavior is introduced.
 
 ### 4.2 Client side
 
-None. `utils/reservationConflicts.js` and its consumers are unchanged.
+None at first: `utils/reservationConflicts.js` and its consumers were unchanged (until rule 14, below).
 
 *2026-11-02 (rule 12):* `pages/ReservationPage.jsx` refuses the save and exposes `stayDatesHint`;
 `components/reservation/StaySection.jsx` renders it under the dates; the messages and `MAX_STAY_NIGHTS`
@@ -257,6 +268,9 @@ dialog and `PeriodSelector` (« du » too) read `dateWindowMessage`, so none of 
 A new fiche opened from URL dates the fiche refuses asks neither the resources' nor the baby beds' availability for
 them, and `hooks/useWelcomePack` sends no date outside the window. `EmailSequenceSimulation` shows the server's
 window message.
+
+*2026-11-02 (rule 14):* `utils/reservationConflicts.js` — `findFirstOccupiedDateInRange` scans the occupied
+days instead of the range's nights; its date formatting pads the year to four digits.
 
 ### 4.3 API contract
 
@@ -326,6 +340,15 @@ prove behavior is preserved.)
   create and update, devis create and update, nothing written; 366 nights quoted and saved) and
   `client/src/pages/__tests__/ReservationPage.stay-length.test.jsx` (5 cases: the pure hint, 367 nights and
   `9999-12-31` on the fiche with no quote and no save, 366 nights quoted, the devis).
+- Merge of PR #936 with #937 (rule 14, 2026-11-02): `client/src/utils/reservationConflicts.half-typed-year.test.js`
+  (3 cases: a range in year 0002, a range from 0002 to 2031 in under 200 ms — it never ended before —, the
+  bounds) and `client/src/pages/__tests__/ReservationPage.date-horizon-keyboard.test.jsx` (2 cases: the fiche
+  and the devis, a stay typed year digit by digit six years ahead: focus kept, the message, no quote, occupied
+  dates or availability asked for the far or half-typed dates, no save).
+- [x] 2026-11-02 (rule 14), headless Chromium (fr-FR) on a copy of the shadow, 1280 and 390 px: on a stored
+  fiche and on a stored devis, both dates typed over with the year + 6 keep the focus, show « Date trop
+  lointaine : 5 ans au plus. », send no quote, occupied-dates or availability request for the far or
+  half-typed dates, and « Enregistrer » refuses with the message before any write.
 - Spec review 2026-10-27 (rule 9): `server/src/tests/create-without-times-and-linen.unit.test.js` — default times stored, no early-arrival fee on the re-save.
 
 ## 8. Out of scope
