@@ -14,7 +14,10 @@ const INVALID_STAY_DATES = 'INVALID_STAY_DATES';
 const DATE_INVALID_MESSAGE = 'Date de séjour invalide.';
 const ORDER_MESSAGE = "La date de départ doit suivre la date d'arrivée.";
 
-/** Whether `value` is a `YYYY-MM-DD` string naming a day of the calendar (UTC round-trip). */
+/**
+ * Whether `value` is a `YYYY-MM-DD` string naming a day of the calendar (UTC round-trip). The core's one
+ * copy: `planningDateRange.isIsoDate` and `cancellationCompensations.isValidIsoDate` are this function.
+ */
 function isRealIsoDay(value) {
   if (typeof value !== 'string' || !ISO_DAY_RE.test(value)) return false;
   const date = new Date(`${value}T00:00:00Z`);

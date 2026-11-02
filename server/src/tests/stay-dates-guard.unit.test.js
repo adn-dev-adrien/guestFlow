@@ -19,10 +19,10 @@ const INVALID = 'Date de séjour invalide.';
 // calendar does not have, a date that is not zero-padded.
 const nextYear = Number(f.inDays(200).slice(0, 4)) + 1;
 const SHAPES = [
-  { name: 'reversed', startDate: f.inDays(200), endDate: f.inDays(198), message: ORDER },
-  { name: 'zero nights', startDate: f.inDays(200), endDate: f.inDays(200), message: ORDER },
-  { name: 'no such day', startDate: `${nextYear}-02-30`, endDate: `${nextYear}-03-02`, message: INVALID },
-  { name: 'not ISO', startDate: `${nextYear}-2-3`, endDate: `${nextYear}-02-05`, message: INVALID },
+  { name: 'reversed', startDate: f.inDays(200), endDate: f.inDays(198), message: ORDER, field: 'endDate' },
+  { name: 'zero nights', startDate: f.inDays(200), endDate: f.inDays(200), message: ORDER, field: 'endDate' },
+  { name: 'no such day', startDate: `${nextYear}-02-30`, endDate: `${nextYear}-03-02`, message: INVALID, field: 'startDate' },
+  { name: 'not ISO', startDate: `${nextYear}-2-3`, endDate: `${nextYear}-02-05`, message: INVALID, field: 'startDate' },
 ];
 
 const count = (kind) => f.db.prepare('SELECT COUNT(*) AS n FROM reservations WHERE kind = ?').get(kind).n;
@@ -37,6 +37,7 @@ function assertRefused(res, shape) {
   assert.equal(res.statusCode, 400, JSON.stringify(res.body));
   assert.equal(res.body.code, 'INVALID_STAY_DATES');
   assert.equal(res.body.error, shape.message);
+  assert.equal(res.body.field, shape.field, 'every endpoint names the date at fault');
 }
 
 test('rule 11: the pure guard', () => {
@@ -126,6 +127,7 @@ test('rule 11: extending or converting a devis whose stored dates are reversed i
     const res = call(handler, { params: { id: String(id) }, user: f.ADMIN });
     assert.equal(res.statusCode, 400, `${handler.name}: ${JSON.stringify(res.body)}`);
     assert.equal(res.body.code, 'INVALID_STAY_DATES');
+    assert.equal(res.body.field, 'endDate', handler.name);
   }
   assert.equal(f.db.prepare('SELECT convertedReservationId FROM reservations WHERE id = ?').get(id).convertedReservationId, null);
 });
@@ -137,6 +139,7 @@ test('rule 11: restoring a duplicate set aside whose stored dates are reversed i
   const res = call(f.controller.restoreSuperseded, { params: { id: String(id) }, user: f.ADMIN });
   assert.equal(res.statusCode, 400, JSON.stringify(res.body));
   assert.equal(res.body.code, 'INVALID_STAY_DATES');
+  assert.equal(res.body.field, 'endDate');
   assert.equal(f.rowOf(id).kind, 'superseded');
 });
 
@@ -148,6 +151,7 @@ test('rule 11: approving an iCal date drift onto reversed dates is refused and l
   const res = call(dashboardController.approveIcalDateDrift, { params: { id: String(driftId) }, user: f.ADMIN });
   assert.equal(res.statusCode, 400, JSON.stringify(res.body));
   assert.equal(res.body.code, 'INVALID_STAY_DATES');
+  assert.equal(res.body.field, 'endDate');
   assert.equal(f.rowOf(id).startDate, f.inDays(360));
   assert.equal(f.db.prepare('SELECT acknowledgedAt FROM ical_date_drift_alerts WHERE id = ?').get(driftId).acknowledgedAt, null);
 });

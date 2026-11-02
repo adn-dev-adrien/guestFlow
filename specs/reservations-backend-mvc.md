@@ -120,7 +120,7 @@ patch. No new edge behavior is introduced.
 | `utils/` | `reservationAudit.js` | C | Pure: `normalizeHistoryValue`, `getOptionsSignature`, `getResourcesSignature`, `buildAuditSnapshotFromPayload`, `computeAuditChanges`. Snapshot-from-DB stays a model read that feeds these pure fns. Unit-tested. |
 | `utils/` | `pricing.js` | — | Unchanged; controller calls `calculateReservationQuote` as today. |
 | `utils/` | `financeValidation.js` | — | Unchanged; controller keeps the PR-S validation on writes. |
-| `utils/` | `stayDates.js` | C | *(2026-11-02, rule 11)* `isRealIsoDay`, `stayDatesRefusal`, `stayDatesRefusalBody`: the one stay-dates guard, called by `reservationsController`, `devisModel` and `icalDateDriftModel`. |
+| `utils/` | `stayDates.js` | C | *(2026-11-02, rule 11)* `isRealIsoDay`, `stayDatesRefusal`, `stayDatesRefusalBody`: the one stay-dates guard, called by `reservationsController`, `devisModel` and `icalDateDriftModel`. `isRealIsoDay` is also the core's one real-day check: `planningDateRange.isIsoDate` and `cancellationCompensations.isValidIsoDate` are it. |
 | `database.js` | — | — | No schema change. |
 
 **Notes:**
@@ -146,7 +146,8 @@ None. `utils/reservationConflicts.js` and its consumers are unchanged.
 from any API client's perspective (verified by the existing behavior + manual checks).
 
 *2026-11-02 (rule 11):* the stay endpoints listed in rule 11 answer 400 `INVALID_STAY_DATES` (`error`,
-`code`, `field`) for unsound dates; the iCal drift approval now forwards `code` with its `error`.
+`code`, `field`) for unsound dates, the devis endpoints and the iCal drift approval included (both
+now forward `code` and `field` with their `error`).
 
 ---
 
@@ -182,7 +183,8 @@ prove behavior is preserved.)
 - [ ] `GET /occupied-dates` and `GET /:id/history` return the same shapes as before.
 - Audit R18-1 (rules 11-12, 2026-11-02): `server/src/tests/stay-dates-guard.unit.test.js` (30 cases: the four
   shapes on reservation create / update / `performUpdate` / calculate-price / devis create / update, stored
-  dates on devis extend / preview / convert, restore and drift approval, the parser contract) and
+  dates on devis extend / preview / convert, restore and drift approval, each asserting `code` and `field`; the
+  parser contract) and
   `client/src/pages/__tests__/ReservationPage.stay-dates-order.test.jsx` (5 cases: reservation, zero night,
   devis, server refusal, logement switch before the dates).
 - Spec review 2026-10-27 (rule 9): `server/src/tests/create-without-times-and-linen.unit.test.js` — default times stored, no early-arrival fee on the re-save.

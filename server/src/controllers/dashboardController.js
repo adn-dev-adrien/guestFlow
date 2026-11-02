@@ -68,7 +68,7 @@ function buildController({
       const id = Number(req.params.id);
       if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'INVALID_ID' });
       const result = injectedIcalDateDriftModel.approve(id);
-      if (result.error) return res.status(result.status || 400).json({ error: result.error, ...(result.code ? { code: result.code } : {}) });
+      if (result.error) return res.status(result.status || 400).json({ error: result.error, ...(result.code ? { code: result.code } : {}), ...(result.field ? { field: result.field } : {}) });
       res.json({ ok: true });
       // Approved date override → plugins react after the response, so the committed approval can
       // never be turned into a 500 by them (specs/plugins-phase-1-sdk.md rule 9).
