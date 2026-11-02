@@ -5,6 +5,7 @@
 const crypto = require('crypto');
 const { sentenceCase, stripFormatChars } = require('./textFormatters');
 const { resolveServerTimezone } = require('./serverTimezone');
+const { MAX_STAY_NIGHTS } = require('./stayDates');
 
 function normalizePlatformKey(value) {
   return String(value || '')
@@ -221,15 +222,15 @@ function isCompleteIcs(icsText) {
 }
 
 // Rule 17 — a stay starts at most two years from now, ends at most three, and lasts at most a year:
-// `DTEND:99991231` is a corrupted or hostile feed, and it would block every later night.
+// `DTEND:99991231` is a corrupted or hostile feed, and it would block every later night. The length cap is
+// the internal guard's (specs/reservations-backend-mvc.md rule 11).
 const MAX_START_AHEAD_DAYS = 730;
 const MAX_END_AHEAD_DAYS = 1095;
-const MAX_STAY_DAYS = 366;
 
 function isWithinHorizon({ startDate, endDate }, today) {
   const dayDiff = (a, b) => Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86400000);
   return dayDiff(today, startDate) <= MAX_START_AHEAD_DAYS && dayDiff(today, endDate) <= MAX_END_AHEAD_DAYS
-    && dayDiff(startDate, endDate) <= MAX_STAY_DAYS;
+    && dayDiff(startDate, endDate) <= MAX_STAY_NIGHTS;
 }
 
 function parseIcsEvents(icsText, { keepUnavailable = false, now = new Date() } = {}) {

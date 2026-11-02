@@ -20,7 +20,7 @@ export default function StaySection() {
     miniCalendarStart, setMiniCalendarStart, miniVisibleDays, reservations,
     editingReservationId, handleMiniDateClick, centerMiniCalendarOnRange, isReservationLocked,
     arrivalMin, arrivalMax, departureMin, departureMax, handleManualDateInputChange,
-    datesUnavailableForProperty, datesUnavailableMessage, stayDatesOrderMessage, minNightsState, minNightsWarning,
+    datesUnavailableForProperty, datesUnavailableMessage, stayDatesHint, minNightsState, minNightsWarning,
     liveTimeConflictState, liveTimeConflictMessage, defaultCheckInTime, defaultCheckOutTime,
   } = useReservationForm();
 
@@ -98,7 +98,7 @@ export default function StaySection() {
                 type="date"
                 value={form.endDate || ''}
                 onChange={(e) => handleManualDateInputChange({ endDate: e.target.value })}
-                error={Boolean(stayDatesOrderMessage) || datesUnavailableForProperty || minNightsState.breached}
+                error={Boolean(stayDatesHint) || datesUnavailableForProperty || minNightsState.breached}
                 fullWidth
                 slotProps={{
                   htmlInput: { min: departureMin || undefined, max: departureMax || undefined },
@@ -136,11 +136,11 @@ export default function StaySection() {
             </Box>
           </Box>
 
-          {(stayDatesOrderMessage || liveTimeConflictMessage || datesUnavailableForProperty || minNightsState.breached) && (
+          {(stayDatesHint || liveTimeConflictMessage || datesUnavailableForProperty || minNightsState.breached) && (
             <Stack spacing={0.5}>
-              {stayDatesOrderMessage && (
+              {stayDatesHint && (
                 <Typography variant="body2" color="error">
-                  {stayDatesOrderMessage}
+                  {stayDatesHint}
                 </Typography>
               )}
 
