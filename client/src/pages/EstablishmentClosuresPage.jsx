@@ -24,6 +24,8 @@ import useDirtyFormGuard from '../hooks/useDirtyFormGuard';
 import { useAppDialogs } from '../components/DialogProvider';
 import api from '../api';
 import { displayDate } from '../utils/formatters';
+import { HORIZON_MESSAGE } from '../constants/dateHorizon';
+import { dateBeyondHorizon } from '../utils/dateHorizon';
 
 function isoToDayjs(iso) {
   if (!iso) return null;
@@ -101,7 +103,12 @@ export default function EstablishmentClosuresPage({ barTabs }) {
 
   // Rules 41, 49 — as soon as the logement and both dates are set, the server says what the closure would
   // meet. Asked again when the operator comes back to this tab (a request withdrawn on the devis meanwhile).
-  const rangeSet = Boolean(form.startDate && form.endDate && form.startDate < form.endDate);
+  // Rule 18, reading of 2026-11-02 — a date typed past the horizon says so under its field; the dialog
+  // neither previews nor saves it. A date the closure already had stays allowed.
+  const tooFar = (field) => Boolean(form[field]) && !(editId && openedForm[field] === form[field]) && dateBeyondHorizon(form[field]);
+  const horizonRefused = tooFar('startDate') || tooFar('endDate');
+  const rangeSet = Boolean(form.startDate && form.endDate && form.startDate < form.endDate)
+    && !dateBeyondHorizon(form.startDate) && !dateBeyondHorizon(form.endDate);
   useEffect(() => {
     setRequestsRefusal('');
     if (!dialogOpen || !rangeSet) { setConflicts(NO_CONFLICTS); return undefined; }
@@ -155,7 +162,7 @@ export default function EstablishmentClosuresPage({ barTabs }) {
     setDialogOpen(true);
   };
 
-  const submitDisabled = !form.startDate || !form.endDate || form.startDate >= form.endDate || saving;
+  const submitDisabled = !form.startDate || !form.endDate || form.startDate >= form.endDate || horizonRefused || saving;
 
   const handleSave = async () => {
     setSaving(true);
@@ -338,7 +345,7 @@ export default function EstablishmentClosuresPage({ barTabs }) {
                 setEndDateOpen(true);
               }}
               format="DD/MM/YYYY"
-              slotProps={{ textField: { fullWidth: true } }}
+              slotProps={{ textField: { fullWidth: true, error: tooFar('startDate'), helperText: tooFar('startDate') ? HORIZON_MESSAGE : undefined } }}
             />
             <DatePicker
               label="Réouverture"
@@ -352,7 +359,8 @@ export default function EstablishmentClosuresPage({ barTabs }) {
               slotProps={{
                 textField: {
                   fullWidth: true,
-                  helperText: 'Premier jour à nouveau disponible. Ex : du 15 au 16 = un seul jour fermé (le 15).',
+                  error: tooFar('endDate'),
+                  helperText: tooFar('endDate') && !tooFar('startDate') ? HORIZON_MESSAGE : 'Premier jour à nouveau disponible. Ex : du 15 au 16 = un seul jour fermé (le 15).',
                 },
               }}
             />

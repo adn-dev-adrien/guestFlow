@@ -1,4 +1,5 @@
 const test = require('node:test');
+const { FAR_YEAR } = require('./farYearFixture');
 const assert = require('node:assert/strict');
 
 // specs/bed-config-in-linen-card.md §3 rule 7 + §7.1 (+ §10 follow-up 2026-06-08).
@@ -97,7 +98,7 @@ function buildController({ defaults = [], bedLinenFlaggedIds = new Set(), captur
       if (k === 'validateAvailability') return () => null;
       if (k === 'insertReservation') return (body) => { captures.inserted = { singleBeds: body.singleBeds, doubleBeds: body.doubleBeds, babyBeds: body.babyBeds }; return 1; };
       if (k === 'updateReservation') return (id, body) => { captures.updated = { id, singleBeds: body.singleBeds, doubleBeds: body.doubleBeds, babyBeds: body.babyBeds }; };
-      if (k === 'getAuditSnapshotFromDb') return () => ({ startDate: '2099-09-10' });
+      if (k === 'getAuditSnapshotFromDb') return () => ({ startDate: `${FAR_YEAR}-09-10` });
       if (k === 'getForUpdate') return () => ({ propertyId: 1 });
       if (k === 'getPricingSnapshot') return () => ({ lockedNightlyBreakdown: [], lockedOptionLines: [], lockedResourceLines: [] });
       if (k === 'replaceOptions') return () => null;
@@ -125,7 +126,7 @@ function buildController({ defaults = [], bedLinenFlaggedIds = new Set(), captur
 function basicBody({ singleBeds, doubleBeds, babyBeds, babies = 0, options = [] }) {
   return {
     propertyId: 1, clientId: 1,
-    startDate: '2099-09-10', endDate: '2099-09-12',
+    startDate: `${FAR_YEAR}-09-10`, endDate: `${FAR_YEAR}-09-12`,
     adults: 2, children: 0, teens: 0, babies,
     checkInTime: '15:00', checkOutTime: '10:00',
     singleBeds, doubleBeds, babyBeds,

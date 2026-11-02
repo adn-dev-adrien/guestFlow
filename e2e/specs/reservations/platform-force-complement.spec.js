@@ -8,6 +8,7 @@
 // test `ExtrasSection.platform-force-complement.test.js`.
 import { test, expect } from '@playwright/test';
 import { createClient, createProperty, createReservation } from '../../fixtures/apiSeed.js';
+import { FAR_YEAR } from '../../fixtures/farYear.js';
 
 test('platform reservation shows the default-routing caption in the Extras section', async ({ page }) => {
   const property = await createProperty({ name: 'E2E platform-force-complement villa' });
@@ -16,8 +17,8 @@ test('platform reservation shows the default-routing caption in the Extras secti
     propertyId: property.id,
     clientId: client.id,
     // Far-future window so the date-range never collides with another spec's seed.
-    startDate: '2099-09-15',
-    endDate: '2099-09-17',
+    startDate: `${FAR_YEAR}-09-15`,
+    endDate: `${FAR_YEAR}-09-17`,
     adults: 2,
     platform: 'Airbnb',
   });

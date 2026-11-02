@@ -6,6 +6,7 @@
 import { test, expect } from '@playwright/test';
 import { createClient, createProperty, createReservation } from '../../fixtures/apiSeed.js';
 import { enablePropertyDeposit, setReservationAmounts, setReservationDates } from '../../fixtures/dbSeed.js';
+import { FAR_YEAR } from '../../fixtures/farYear.js';
 
 const today = () => new Date().toLocaleDateString('sv-SE');
 
@@ -27,7 +28,7 @@ test('direct stay: set the solde, refusal in place, mark the acompte (future ref
   enablePropertyDeposit(property.id);
   const client = await createClient({ firstName: 'Lena', lastName: 'Registre' });
   const reservation = await createReservation({
-    propertyId: property.id, clientId: client.id, startDate: '2099-10-05', endDate: '2099-10-08', adults: 2,
+    propertyId: property.id, clientId: client.id, startDate: `${FAR_YEAR}-10-05`, endDate: `${FAR_YEAR}-10-08`, adults: 2,
   });
   await openFiche(page, reservation.id);
 
@@ -51,10 +52,10 @@ test('direct stay: set the solde, refusal in place, mark the acompte (future ref
 
   // Rule 9 — a future date is refused, the form stays open with the typed value.
   await deposit.getByRole('button', { name: 'Marquer perçu : Acompte' }).click();
-  await deposit.getByLabel('Perçu le').fill('2099-01-01');
+  await deposit.getByLabel('Perçu le').fill(`${FAR_YEAR}-01-01`);
   await deposit.getByRole('button', { name: 'Valider' }).click();
   await expect(deposit.getByText('Un encaissement ne peut pas être daté dans le futur.')).toBeVisible({ timeout: 10_000 });
-  await expect(deposit.getByLabel('Perçu le')).toHaveValue('2099-01-01');
+  await expect(deposit.getByLabel('Perçu le')).toHaveValue(`${FAR_YEAR}-01-01`);
 
   // Rule 8 — today: the acompte is perceived (the fiche was saved first, rule 10).
   await deposit.getByLabel('Perçu le').fill(today());
@@ -85,7 +86,7 @@ test('platform stay: « Marquer reçu » asks for the transfer, typed when the c
   const property = await createProperty({ name: 'E2E ledger platform villa' });
   const client = await createClient({ firstName: 'Paul', lastName: 'Versement' });
   const reservation = await createReservation({
-    propertyId: property.id, clientId: client.id, startDate: '2099-11-05', endDate: '2099-11-08', adults: 2, platform: 'Booking',
+    propertyId: property.id, clientId: client.id, startDate: `${FAR_YEAR}-11-05`, endDate: `${FAR_YEAR}-11-08`, adults: 2, platform: 'Booking',
   });
   await openFiche(page, reservation.id);
   await expect(page.locator('[data-row="deposit"]')).toContainText('Sans objet');
@@ -108,7 +109,7 @@ test('the ledger does not scroll sideways on a phone', async ({ page }) => {
   const property = await createProperty({ name: 'E2E ledger phone villa with a rather long name' });
   const client = await createClient({ firstName: 'Ana', lastName: 'Téléphone' });
   const reservation = await createReservation({
-    propertyId: property.id, clientId: client.id, startDate: '2099-12-05', endDate: '2099-12-08', adults: 2, platform: 'GitesDeFrance',
+    propertyId: property.id, clientId: client.id, startDate: `${FAR_YEAR}-12-05`, endDate: `${FAR_YEAR}-12-08`, adults: 2, platform: 'GitesDeFrance',
   });
   await openFiche(page, reservation.id);
   expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false);
@@ -120,7 +121,7 @@ test('past platform stay: « Marquer reçu » records the transfer without savin
   const property = await createProperty({ name: 'E2E ledger past platform villa' });
   const client = await createClient({ firstName: 'Iris', lastName: 'Passé' });
   const reservation = await createReservation({
-    propertyId: property.id, clientId: client.id, startDate: '2099-08-05', endDate: '2099-08-08', adults: 2, platform: 'Booking',
+    propertyId: property.id, clientId: client.id, startDate: `${FAR_YEAR}-08-05`, endDate: `${FAR_YEAR}-08-08`, adults: 2, platform: 'Booking',
   });
   setReservationDates(reservation.id, '2026-01-05', '2026-01-08');
   setReservationAmounts(reservation.id, { balanceDueDate: '2026-01-18', depositDueDate: null });
@@ -149,7 +150,7 @@ test('drifted stored amount: shown and marked as stored, no save, the fiche stay
   const property = await createProperty({ name: 'E2E ledger drift villa' });
   const client = await createClient({ firstName: 'Noé', lastName: 'Dérive' });
   const reservation = await createReservation({
-    propertyId: property.id, clientId: client.id, startDate: '2099-09-05', endDate: '2099-09-08', adults: 2,
+    propertyId: property.id, clientId: client.id, startDate: `${FAR_YEAR}-09-05`, endDate: `${FAR_YEAR}-09-08`, adults: 2,
   });
   const stored = await (await page.request.get(`/api/reservations/${reservation.id}`)).json();
   const drifted = Math.round((stored.balanceAmount - 24) * 100) / 100;

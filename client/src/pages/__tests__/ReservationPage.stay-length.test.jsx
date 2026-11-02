@@ -8,6 +8,7 @@ import { MemoryRouter, Route, Routes } from 'react-router';
 import { ThemeProvider } from '@mui/material/styles';
 import theme from '../../theme';
 import { stayDatesMessage } from '../../utils/stayDates';
+import { addIsoDays, localIsoToday } from '../../utils/isoDay';
 
 vi.setConfig({ testTimeout: 30000 });
 
@@ -40,18 +41,19 @@ import api from '../../api';
 import ReservationPage from '../ReservationPage';
 
 const TOO_LONG = 'Séjour trop long.';
-// 2099-02-03 → 2100-02-04 is 366 nights (2100 is not a leap year), → 2100-02-05 is 367.
-const ARRIVAL = '2099-02-03';
-const LAST_SOUND_DEPARTURE = '2100-02-04';
-const ONE_NIGHT_TOO_MANY = '2100-02-05';
+// Inside the date horizon (rule 13): the arrival a month ahead, 366 nights then 367.
+const ARRIVAL = addIsoDays(localIsoToday(), 30);
+const STORED_DEPARTURE = addIsoDays(ARRIVAL, 2);
+const LAST_SOUND_DEPARTURE = addIsoDays(ARRIVAL, 366);
+const ONE_NIGHT_TOO_MANY = addIsoDays(ARRIVAL, 367);
 const FICHE = {
-  id: 22331, kind: 'reservation', clientId: 1, propertyId: 1, startDate: ARRIVAL, endDate: '2099-02-05',
+  id: 22331, kind: 'reservation', clientId: 1, propertyId: 1, startDate: ARRIVAL, endDate: STORED_DEPARTURE,
   platform: 'direct', adults: 2, reservationNumber: '209922331', options: [], resources: [], customOptions: [],
-  depositAmount: 90, depositPaid: 0, balanceAmount: 210, balancePaid: 0, finalPrice: 300, updatedAt: '2099-01-01 10:00:00',
+  depositAmount: 90, depositPaid: 0, balanceAmount: 210, balancePaid: 0, finalPrice: 300, updatedAt: `${localIsoToday()} 10:00:00`,
 };
 const DEVIS = {
-  id: 77, clientId: 1, propertyId: 1, startDate: ARRIVAL, endDate: '2099-02-05', status: 'sent',
-  adults: 2, platform: 'direct', notes: '', updatedAt: '2099-01-01 10:00:00', options: [], resources: [], customOptions: [],
+  id: 77, clientId: 1, propertyId: 1, startDate: ARRIVAL, endDate: STORED_DEPARTURE, status: 'sent',
+  adults: 2, platform: 'direct', notes: '', updatedAt: `${localIsoToday()} 10:00:00`, options: [], resources: [], customOptions: [],
 };
 
 beforeEach(() => {
@@ -79,7 +81,7 @@ function openAt(entry, path) {
 
 async function typeDeparture(value) {
   const departure = await screen.findByLabelText('Date de départ');
-  await waitFor(() => expect(departure).toHaveValue('2099-02-05'));
+  await waitFor(() => expect(departure).toHaveValue(STORED_DEPARTURE));
   await waitFor(() => expect(api.calculatePrice).toHaveBeenCalled());
   fireEvent.change(departure, { target: { value } });
   return departure;

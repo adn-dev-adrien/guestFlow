@@ -5,6 +5,7 @@
 import { test, expect } from '@playwright/test';
 import { createClient, createProperty, createReservation } from '../../fixtures/apiSeed.js';
 import { backdateReservation, resetVatRegime } from '../../fixtures/dbSeed.js';
+import { FAR_YEAR } from '../../fixtures/farYear.js';
 
 const MENTION = 'TVA non applicable, art. 293 B du CGI';
 
@@ -29,7 +30,7 @@ async function summaryOf(page, id) {
 test('a switch from today: the next reservation prints the mention, the old one keeps « TVA 10 % »', async ({ page }) => {
   const property = await createProperty({ name: 'E2E VAT villa', basePrice: 120 });
   const client = await createClient({ firstName: 'Regime', lastName: 'Tva' });
-  const old = await createReservation({ propertyId: property.id, clientId: client.id, startDate: '2099-06-10', endDate: '2099-06-13', adults: 2 });
+  const old = await createReservation({ propertyId: property.id, clientId: client.id, startDate: `${FAR_YEAR}-06-10`, endDate: `${FAR_YEAR}-06-13`, adults: 2 });
   backdateReservation(old.id, '2026-01-02 10:00:00');
   ids.old = old.id;
 
@@ -50,7 +51,7 @@ test('a switch from today: the next reservation prints the mention, the old one 
   await expect(history.getByRole('listitem').first()).toContainText('En vigueur');
   await expect(page.getByLabel('Mention légale')).toBeVisible();
 
-  const fresh = await createReservation({ propertyId: property.id, clientId: client.id, startDate: '2099-07-10', endDate: '2099-07-13', adults: 2 });
+  const fresh = await createReservation({ propertyId: property.id, clientId: client.id, startDate: `${FAR_YEAR}-07-10`, endDate: `${FAR_YEAR}-07-13`, adults: 2 });
   ids.fresh = fresh.id;
   await summaryOf(page, fresh.id);
   await expect(page.getByTestId('vat-mention').first()).toHaveText(MENTION);

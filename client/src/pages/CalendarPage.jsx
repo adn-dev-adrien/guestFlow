@@ -106,7 +106,8 @@ export default function CalendarPage() {
       api.getCalendar({ from, to, propertyId: selectedProp, signal }),
       api.getCalendarNotes(selectedProp, from, to),
       api.getDevis({ propertyId: selectedProp, from, to }).catch(() => []),
-      api.getOccupiedDates(selectedProp, from, to),
+      // specs/establishment-closures.md rule 20 — the endpoint's `to` is exclusive: the grid's last cell included.
+      api.getOccupiedDates(selectedProp, from, shiftDate(to, 1)),
     ]);
     return {
       ...calendar,

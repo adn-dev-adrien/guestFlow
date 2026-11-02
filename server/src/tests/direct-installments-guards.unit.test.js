@@ -2,6 +2,7 @@
 // the links a plan creation / removal / platform switch abandons, concurrency, the VAT basket, hand-queued
 // requests, the money templates' hard « never auto », and the boot migration on awkward rows.
 const test = require('node:test');
+const { FAR_YEAR } = require('./farYearFixture');
 const assert = require('node:assert/strict');
 const Module = require('module');
 const Database = require('better-sqlite3');
@@ -71,8 +72,8 @@ function withMocks(modules, fn) {
 
 test('rule 17 — a save by anyone (plugin, SAS) retires the links of the amounts it moved: performUpdate calls the retire', () => {
   const retired = [];
-  const PLACEMENT = { propertyId: 1, startDate: '2099-09-10', endDate: '2099-09-12', adults: 2, children: 0, teens: 0, babies: 0 };
-  const body = { clientId: 1, platform: 'direct', options: [], propertyId: 1, startDate: '2099-09-10', endDate: '2099-09-13', adults: 2, children: 0, teens: 0, babies: 0 };
+  const PLACEMENT = { propertyId: 1, startDate: `${FAR_YEAR}-09-10`, endDate: `${FAR_YEAR}-09-12`, adults: 2, children: 0, teens: 0, babies: 0 };
+  const body = { clientId: 1, platform: 'direct', options: [], propertyId: 1, startDate: `${FAR_YEAR}-09-10`, endDate: `${FAR_YEAR}-09-13`, adults: 2, children: 0, teens: 0, babies: 0 };
   const load = (availabilityError) => withMocks({
     './installmentsController': {
       retireChangedLinks: (id) => retired.push(id), planFor: () => null, syncAfterSave: () => {}, platformChangeRefusal: () => null,
@@ -87,7 +88,7 @@ test('rule 17 — a save by anyone (plugin, SAS) retires the links of the amount
       if (k === 'validateAvailability') return () => availabilityError;
       if (k === 'getReservationNumber') return () => 'R-1';
       if (k === 'getForUpdate') return () => PLACEMENT;
-      if (k === 'getAuditSnapshotFromDb') return () => ({ startDate: '2099-09-10' });
+      if (k === 'getAuditSnapshotFromDb') return () => ({ startDate: `${FAR_YEAR}-09-10` });
       if (k === 'getPricingSnapshot') return () => ({ lockedNightlyBreakdown: [], lockedOptionLines: [], lockedResourceLines: [] });
       return () => null;
     } }),

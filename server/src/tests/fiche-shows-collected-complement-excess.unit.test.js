@@ -5,6 +5,7 @@
 process.env.DB_PATH = ':memory:';
 
 const test = require('node:test');
+const { FAR_YEAR } = require('./farYearFixture');
 const assert = require('node:assert/strict');
 
 test('rule 4 — the fiche preview of a stay with an over-collected complement announces the trop-perçu', async () => {
@@ -15,7 +16,7 @@ test('rule 4 — the fiche preview of a stay with an over-collected complement a
   db.prepare("INSERT INTO pricing_rules (propertyId, label, pricePerNight) VALUES (1, 'Standard', 100)").run();
   db.prepare("INSERT INTO clients (id, firstName, lastName) VALUES (1, 'Camille', 'Revue')").run();
   const stayBody = {
-    propertyId: 1, clientId: 1, startDate: '2099-05-04', endDate: '2099-05-07', checkInTime: '16:00', checkOutTime: '10:00',
+    propertyId: 1, clientId: 1, startDate: `${FAR_YEAR}-05-04`, endDate: `${FAR_YEAR}-05-07`, checkInTime: '16:00', checkOutTime: '10:00',
     platform: 'direct', adults: 2, children: 0, teens: 0, babies: 0, singleBeds: 0, doubleBeds: 0, babyBeds: 0, depositDisabled: 1, options: [],
   };
   const created = await new Promise((resolve) => {
@@ -77,7 +78,7 @@ async function lockedStay(tamper) {
   const controller = require('../controllers/reservationsController');
   const created = await new Promise((resolve) => {
     controller.create({ body: {
-      propertyId: 1, clientId: 1, startDate: '2099-06-04', endDate: '2099-06-07', checkInTime: '16:00', checkOutTime: '10:00',
+      propertyId: 1, clientId: 1, startDate: `${FAR_YEAR}-06-04`, endDate: `${FAR_YEAR}-06-07`, checkInTime: '16:00', checkOutTime: '10:00',
       platform: 'direct', adults: 2, children: 0, teens: 0, babies: 0, singleBeds: 0, doubleBeds: 0, babyBeds: 0, depositDisabled: 1, options: [],
     }, user: { role: 'admin' } }, { status() { return this; }, json: resolve });
   });
@@ -124,7 +125,7 @@ test('rule 4 — a tourist tax that fell after the complement collected it is re
               VALUES (2, 'Gîte taxé', 8, 'per_day_per_person', 1, 0)`).run();
   db.prepare("INSERT INTO pricing_rules (propertyId, label, pricePerNight) VALUES (2, 'Standard', 100)").run();
   const body = (adults, extra = {}) => ({
-    propertyId: 2, clientId: 1, startDate: '2099-07-04', endDate: '2099-07-07', checkInTime: '16:00', checkOutTime: '10:00',
+    propertyId: 2, clientId: 1, startDate: `${FAR_YEAR}-07-04`, endDate: `${FAR_YEAR}-07-07`, checkInTime: '16:00', checkOutTime: '10:00',
     platform: 'direct', adults, children: 0, teens: 0, babies: 0, singleBeds: 0, doubleBeds: 0, babyBeds: 0, depositDisabled: 1,
     touristTaxInComplement: 1, options: [], ...extra,
   });
@@ -160,7 +161,7 @@ async function taxStay() {
     VALUES ('Gîte taxé', 8, 'per_day_per_person', 1, 0)`).run().lastInsertRowid;
   if (!taxed) db.prepare('INSERT INTO pricing_rules (propertyId, label, pricePerNight) VALUES (?, ?, 100)').run(property, 'Standard');
   let slot = (taxStay.n = (taxStay.n || 0) + 1);
-  const day = (offset) => new Date(Date.UTC(2099, 8, 1 + offset)).toISOString().slice(0, 10);
+  const day = (offset) => new Date(Date.UTC(FAR_YEAR, 8, 1 + offset)).toISOString().slice(0, 10);
   const body = (adults, extra = {}) => ({
     propertyId: property, clientId: 1, startDate: day(slot * 4), endDate: day(slot * 4 + 3), checkInTime: '16:00', checkOutTime: '10:00',
     platform: 'direct', adults, children: 0, teens: 0, babies: 0, singleBeds: 0, doubleBeds: 0, babyBeds: 0, depositDisabled: 1,

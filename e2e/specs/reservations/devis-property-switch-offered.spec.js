@@ -6,6 +6,7 @@
 // switched to La Granja and took the Ménage — it showed « ✓ Offert » at 0 € instead of its 80 €.
 import { test, expect } from '@playwright/test';
 import { createProperty } from '../../fixtures/apiSeed.js';
+import { FAR_YEAR } from '../../fixtures/farYear.js';
 
 const extras = (page) => page.locator('.MuiCard-root').filter({ hasText: 'Options et ressources' }).first();
 const logementSelect = (page) => page.locator('.MuiFormControl-root').filter({ hasText: 'Logement' }).first().getByRole('combobox');
@@ -35,8 +36,8 @@ test('switching logement does not carry the previous logement\'s offered default
   await logementSelect(page).click();
   await page.getByRole('option', { name: billingName, exact: true }).click();
   await expect(logementSelect(page)).toHaveText(billingName);
-  await page.locator('input[type=date]').first().fill('2099-11-04');
-  await page.locator('input[type=date]').nth(1).fill('2099-11-07');
+  await page.locator('input[type=date]').first().fill(`${FAR_YEAR}-11-04`);
+  await page.locator('input[type=date]').nth(1).fill(`${FAR_YEAR}-11-07`);
 
   const card = extras(page).locator('.MuiCard-root').filter({ hasText: title }).last();
   await card.locator(ACTIVATION_SWITCH).check();

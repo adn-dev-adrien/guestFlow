@@ -9,6 +9,9 @@
  */
 
 const db = require('../database');
+const { isRealIsoDay } = require('../utils/stayDates');
+
+const nextIsoDay = (iso) => new Date(Date.parse(`${iso}T00:00:00Z`) + 86400000).toISOString().slice(0, 10);
 
 const EARLY_CHECKIN_BLOCK_HOUR = 10;
 const LATE_CHECKOUT_BLOCK_HOUR = 17;
@@ -235,20 +238,19 @@ function createModel(database) {
 
   /**
    * Expands a list of closures into a sorted, de-duplicated list of date
-   * strings (inclusive start, exclusive end — same convention as reservations).
+   * strings (inclusive start, exclusive end — same convention as reservations),
+   * kept inside the asked window [from, to) when one is given
+   * (specs/establishment-closures.md rule 19). A row whose bounds are not real days expands to nothing.
    */
-  function expandClosuresToDates(closures) {
+  function expandClosuresToDates(closures, { from = null, to = null } = {}) {
     const set = new Set();
     for (const c of closures || []) {
-      if (!c || !c.startDate || !c.endDate) continue;
-      let cursor = String(c.startDate);
-      const end = String(c.endDate);
+      if (!c || !isRealIsoDay(c.startDate) || !isRealIsoDay(c.endDate)) continue;
+      let cursor = isRealIsoDay(from) && from > c.startDate ? from : c.startDate;
+      const end = isRealIsoDay(to) && to < c.endDate ? to : c.endDate;
       while (cursor < end) {
         set.add(cursor);
-        // Advance one day in ISO; works for valid YYYY-MM-DD strings.
-        const next = new Date(`${cursor}T00:00:00Z`);
-        next.setUTCDate(next.getUTCDate() + 1);
-        cursor = next.toISOString().slice(0, 10);
+        cursor = nextIsoDay(cursor);
       }
     }
     return Array.from(set).sort();

@@ -6,6 +6,7 @@
 import { test, expect } from '@playwright/test';
 import { createClient, createProperty, createReservation } from '../../fixtures/apiSeed.js';
 import { resetVatRegime, setFranchiseRegime } from '../../fixtures/dbSeed.js';
+import { FAR_YEAR } from '../../fixtures/farYear.js';
 
 test.describe.configure({ mode: 'serial' });
 test.beforeAll(() => { resetVatRegime(); });
@@ -30,7 +31,7 @@ test('under VAT: no field on the settings page, no card in the Suivi financier',
 test('under the franchise: refusals under the field, then the typed threshold gives the card its level', async ({ page }) => {
   const property = await createProperty({ name: 'E2E franchise villa', basePrice: 120 });
   const client = await createClient({ firstName: 'Franchise', lastName: 'Seuil' });
-  await createReservation({ propertyId: property.id, clientId: client.id, startDate: '2099-06-10', endDate: '2099-06-13', adults: 2 });
+  await createReservation({ propertyId: property.id, clientId: client.id, startDate: `${FAR_YEAR}-06-10`, endDate: `${FAR_YEAR}-06-13`, adults: 2 });
   setFranchiseRegime();
 
   await page.goto('/settings/tva-exercice');

@@ -554,7 +554,8 @@ function createModel(database) {
   function loadExtendable(id) {
     const existing = database.prepare("SELECT * FROM reservations WHERE id = ? AND kind = 'devis'").get(Number(id));
     if (!existing) return { error: 'Devis non trouvé', status: 404 };
-    const datesRefusal = stayDatesRefusal(existing.startDate, existing.endDate);
+    // specs/reservations-backend-mvc.md rule 13 — an extension enters no date: the horizon holds none of them.
+    const datesRefusal = stayDatesRefusal(existing.startDate, existing.endDate, { stored: existing });
     if (datesRefusal) return datesRefusal;
     if (!isDevisExtendable(existing, todayIso())) {
       return existing.devisStatus === 'converted'
@@ -886,7 +887,8 @@ function createModel(database) {
       startDate: payload.startDate || existing.startDate,
       endDate: payload.endDate || existing.endDate,
     };
-    const datesRefusal = stayDatesRefusal(next.startDate, next.endDate);
+    // specs/reservations-backend-mvc.md rule 13 — only an edited date is held to the horizon.
+    const datesRefusal = stayDatesRefusal(next.startDate, next.endDate, { stored: existing });
     if (datesRefusal) return datesRefusal;
     const moved = next.propertyId !== Number(existing.propertyId) || next.startDate !== existing.startDate || next.endDate !== existing.endDate;
     // Rule 55 (R10-1) — a move onto closed nights, whatever the source; rule 46 — onto held nights, by the operator.
@@ -1245,7 +1247,8 @@ function createModel(database) {
     const devisRow = database.prepare("SELECT * FROM reservations WHERE id = ? AND kind = 'devis'").get(numId);
     if (!devisRow) return { error: 'Devis non trouvé', status: 404 };
     if (devisRow.convertedReservationId) return { error: 'Ce devis a déjà été converti en réservation', status: 400 };
-    const datesRefusal = stayDatesRefusal(devisRow.startDate, devisRow.endDate);
+    // specs/reservations-backend-mvc.md rule 13 — the stay takes the devis's dates as stored, past the horizon or not.
+    const datesRefusal = stayDatesRefusal(devisRow.startDate, devisRow.endDate, { stored: devisRow });
     if (datesRefusal) return datesRefusal;
     const property = database.prepare('SELECT * FROM properties WHERE id = ?').get(devisRow.propertyId);
     if (!property) return { error: 'Logement introuvable', status: 404 };

@@ -4,13 +4,14 @@
 import { test, expect } from '@playwright/test';
 import { createClient, createProperty, createReservation } from '../../fixtures/apiSeed.js';
 import { seedPlatformChannel, setReservationAmounts } from '../../fixtures/dbSeed.js';
+import { FAR_YEAR } from '../../fixtures/farYear.js';
 
 async function platformStay({ tag, gross }) {
   const property = await createProperty({ name: `E2E grille ${tag}` });
   seedPlatformChannel({ propertyId: property.id, platform: 'Booking', commissionPercent: 15, pricePerNight: 100 });
   const client = await createClient({ firstName: 'Nora', lastName: `Grille${tag}` });
   const reservation = await createReservation({
-    propertyId: property.id, clientId: client.id, startDate: '2099-10-05', endDate: '2099-10-08', adults: 2, platform: 'Booking',
+    propertyId: property.id, clientId: client.id, startDate: `${FAR_YEAR}-10-05`, endDate: `${FAR_YEAR}-10-08`, adults: 2, platform: 'Booking',
   });
   setReservationAmounts(reservation.id, { platformGrossAmount: gross });
   return { property, reservation };
@@ -22,7 +23,7 @@ test('a drifted direct stay opens with the usual summary: no notice about the ca
   const property = await createProperty({ name: 'E2E résumé enregistré' });
   const client = await createClient({ firstName: 'Lena', lastName: 'Resume' });
   const reservation = await createReservation({
-    propertyId: property.id, clientId: client.id, startDate: '2099-11-05', endDate: '2099-11-08', adults: 2,
+    propertyId: property.id, clientId: client.id, startDate: `${FAR_YEAR}-11-05`, endDate: `${FAR_YEAR}-11-08`, adults: 2,
   });
   setReservationAmounts(reservation.id, { finalPrice: 333, balanceAmount: 333 });
   await page.goto(`/reservations/${reservation.id}`);

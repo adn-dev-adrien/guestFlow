@@ -1,4 +1,5 @@
 const test = require('node:test');
+const { FAR_YEAR } = require('./farYearFixture');
 const assert = require('node:assert/strict');
 
 // specs/property-capacity-single-total.md §3 rules 2, 6 and 9 — the controller enforces the ONE-total
@@ -55,7 +56,7 @@ function buildController({ capacity, stored = null, captures = {} }) {
       if (k === 'updateReservation') return (id) => { captures.updated = { id }; };
       if (k === 'getReservationNumber') return () => 'R-42';
       if (k === 'getForUpdate') return () => stored;
-      if (k === 'getAuditSnapshotFromDb') return () => ({ startDate: '2099-09-10' });
+      if (k === 'getAuditSnapshotFromDb') return () => ({ startDate: `${FAR_YEAR}-09-10` });
       if (k === 'getPricingSnapshot') return () => ({ lockedNightlyBreakdown: [], lockedOptionLines: [], lockedResourceLines: [] });
       if (k === 'resolveArrivalExtrasBaseline') return () => null;
       if (k === 'totalsByReservation') return () => ({ book: 0 });
@@ -74,7 +75,7 @@ function buildController({ capacity, stored = null, captures = {} }) {
 const LODGE = { maxGuests: 5, maxBabies: 1, singleBeds: 99, doubleBeds: 99 };
 const STAY = {
   clientId: 1, platform: 'direct', options: [],
-  propertyId: 2, startDate: '2099-09-10', endDate: '2099-09-12',
+  propertyId: 2, startDate: `${FAR_YEAR}-09-10`, endDate: `${FAR_YEAR}-09-12`,
   checkInTime: '15:00', checkOutTime: '10:00',
   adults: 1, children: 1, teens: 0, babies: 0,
 };
