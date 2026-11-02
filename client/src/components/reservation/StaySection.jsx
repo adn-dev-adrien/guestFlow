@@ -20,7 +20,7 @@ export default function StaySection() {
     miniCalendarStart, setMiniCalendarStart, miniVisibleDays, reservations,
     editingReservationId, handleMiniDateClick, centerMiniCalendarOnRange, isReservationLocked,
     arrivalMin, arrivalMax, departureMin, departureMax, handleManualDateInputChange,
-    datesUnavailableForProperty, datesUnavailableMessage, minNightsState, minNightsWarning,
+    datesUnavailableForProperty, datesUnavailableMessage, stayDatesOrderMessage, minNightsState, minNightsWarning,
     liveTimeConflictState, liveTimeConflictMessage, defaultCheckInTime, defaultCheckOutTime,
   } = useReservationForm();
 
@@ -98,7 +98,7 @@ export default function StaySection() {
                 type="date"
                 value={form.endDate || ''}
                 onChange={(e) => handleManualDateInputChange({ endDate: e.target.value })}
-                error={datesUnavailableForProperty || minNightsState.breached}
+                error={Boolean(stayDatesOrderMessage) || datesUnavailableForProperty || minNightsState.breached}
                 fullWidth
                 slotProps={{
                   htmlInput: { min: departureMin || undefined, max: departureMax || undefined },
@@ -136,8 +136,14 @@ export default function StaySection() {
             </Box>
           </Box>
 
-          {(liveTimeConflictMessage || datesUnavailableForProperty || minNightsState.breached) && (
+          {(stayDatesOrderMessage || liveTimeConflictMessage || datesUnavailableForProperty || minNightsState.breached) && (
             <Stack spacing={0.5}>
+              {stayDatesOrderMessage && (
+                <Typography variant="body2" color="error">
+                  {stayDatesOrderMessage}
+                </Typography>
+              )}
+
               {liveTimeConflictMessage && (
                 <FormHelperText error>
                   {liveTimeConflictMessage}

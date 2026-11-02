@@ -82,6 +82,7 @@ import { useAuth } from '../hooks/useAuth';
 import { ADMIN, userHasRole } from '../constants/roles';
 import { optionLineKey, resourceLineKey } from '../utils/arrivalLineKey';
 import { LOCKED_FICHE_BANNER, MID_STAY_EXTRAS_BANNER } from '../constants/reservationLock';
+import { STAY_DATES_ORDER_MESSAGE } from '../constants/stayDates';
 
 const DEVIS_STATUS_OPTIONS = [
   { value: 'draft', label: 'Brouillon' },
@@ -2280,6 +2281,12 @@ export default function ReservationPage() {
       return false;
     }
 
+    // specs/reservations-backend-mvc.md rule 12 — a departure on or before the arrival is refused here too.
+    if (form.endDate <= form.startDate) {
+      await alert({ title: 'Erreur', message: STAY_DATES_ORDER_MESSAGE });
+      return false;
+    }
+
     if (!form.clientId && !pendingClient) {
       await alert({ title: 'Erreur', message: 'Client à sélectionner.' });
       return false;
@@ -3330,6 +3337,7 @@ export default function ReservationPage() {
   const dateRangeConflictInfo = getDateRangeConflictInfo(form.startDate, form.endDate);
   const datesUnavailableForProperty = Boolean(dateRangeConflictInfo);
   const datesUnavailableMessage = dateRangeConflictInfo?.message || 'Ces dates ne sont pas dispo pour ce logement.';
+  const stayDatesOrderMessage = form.startDate && form.endDate && form.endDate <= form.startDate ? STAY_DATES_ORDER_MESSAGE : '';
   const minNightsWarning = minNightsState.breached
     ? `Séjour trop court: ${minNightsState.nights} nuit(s) pour un minimum saisonnier de ${minNightsState.required} nuit(s).`
     : '';
@@ -3575,7 +3583,7 @@ export default function ReservationPage() {
     miniCalendarStart, setMiniCalendarStart, miniVisibleDays, reservations,
     editingReservationId, handleMiniDateClick, centerMiniCalendarOnRange,
     arrivalMin, arrivalMax, departureMin, departureMax, handleManualDateInputChange,
-    datesUnavailableForProperty, datesUnavailableMessage, minNightsState, minNightsWarning,
+    datesUnavailableForProperty, datesUnavailableMessage, stayDatesOrderMessage, minNightsState, minNightsWarning,
     liveTimeConflictState, liveTimeConflictMessage, defaultCheckInTime, defaultCheckOutTime,
     isReservationLocked, extrasWindowOpen, arrivalLines, frozenCustomOptionIds,
     refundHost: isCancelledReservation ? refundHost : null,

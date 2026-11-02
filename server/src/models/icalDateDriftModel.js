@@ -24,6 +24,7 @@ const { classifyBookingEvent } = require('../utils/icalBookingEcho');
 const { effectiveRange, timeColumnsOf } = require('../utils/occupancy');
 const { addDaysToIsoDate } = require('../utils/devisHelpers');
 const { isDirectChannel } = require('../utils/platformNameFormat');
+const { stayDatesRefusal } = require('../utils/stayDates');
 
 function buildModel(database) {
   const reservationColumns = new Set(database.prepare('PRAGMA table_info(reservations)').all().map((c) => c.name));
@@ -206,6 +207,9 @@ function buildModel(database) {
     if (has('kind') && reservation.kind !== 'reservation') {
       return { error: 'RESERVATION_NON_ACTIVE', status: 409 };
     }
+    // specs/reservations-backend-mvc.md rule 11 — the proposal stays pending: Reject still clears it.
+    const datesRefusal = stayDatesRefusal(drift.newStartDate, drift.newEndDate);
+    if (datesRefusal) return datesRefusal;
     narrowDateUpdate.run(drift.newStartDate, drift.newEndDate, drift.reservationId);
     const deadline = payoutDeadlineFor(reservation, drift.newEndDate);
     if (deadline) database.prepare('UPDATE reservations SET balanceDueDate = ? WHERE id = ?').run(deadline, drift.reservationId);

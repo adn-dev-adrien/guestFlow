@@ -71,6 +71,31 @@ rules — just a clean, testable structure that future slices (and Bloc 5) build
    `clientId` (and no `newClient`) reached the INSERT and failed on the NOT NULL constraint with a 500.
    It is now refused first: 400 `{ error: 'Un client est requis pour créer la réservation.', code:
    'CLIENT_REQUIRED' }`, nothing written. Pinned by `tests/create-requires-client.unit.test.js`.
+11. **Added 2026-11-02 (audit R18-1) — a stay's dates are sound before anything else.** No internal path
+   checked them: a reversed stay (`20/11 → 18/11`), a zero-night one, `2027-02-30` or `2027-2-3` was
+   created at 0 €, freed its nights for a second booking (the overlap SQL matches nothing against a
+   reversed row, and compares a non-padded date as text), and reached the iCal export as an invalid
+   event. One guard, `utils/stayDates.stayDatesRefusal(startDate, endDate)`, now requires each date to
+   match `YYYY-MM-DD` and to be a real calendar day (UTC round-trip), and the departure to follow the
+   arrival. Otherwise 400 `{ error, code: 'INVALID_STAY_DATES', field }`, with `error` « Date de séjour
+   invalide. » (shape or day) or « La date de départ doit suivre la date d'arrivée. » (order), before
+   pricing, availability or any write. It runs on: `POST /reservations` (`createStay`, with or without a
+   draft client), `PUT /reservations/:id` and every server caller of `performUpdate` (plugins, intakes),
+   `POST /reservations/calculate-price`, `POST /reservations/:id/restore` (on the stored dates),
+   `POST /dashboard/ical-date-drift/:id/approve` (on the proposed dates; the alert stays pending, so
+   « Rejeter » still clears it), and in `devisModel` on create, update (the dates the save would store),
+   extension preview and extension (stored dates), and conversion into a reservation (stored dates).
+   The payment `PATCH` carries no dates and is not checked. The iCal **import** needs no guard and is
+   unchanged: the parser already drops an event whose date is not a real day and turns a reversed or
+   zero-night event into one night (`specs/ical-import-hardening.md` rule 17, F9), so a sync is never
+   refused for a feed's odd dates. A check of the prod snapshot of 2026-10-22 found no stored row with
+   such dates, so there is no data migration.
+12. **Added 2026-11-02 (audit R18-1) — the fiche says it before the save.** The fiche (reservation and
+   devis, both `ReservationPage`) shows « La date de départ doit suivre la date d'arrivée. » in red under
+   the dates, the departure field in error, as soon as the departure is on or before the arrival; and
+   « Enregistrer » refuses with that message in the usual error dialog, sending nothing. A refusal of
+   the server (rule 11) reaches the same dialog with its own message. The `min` of the departure field
+   only styled a typed value: it never stopped the save.
 
 **Edge cases:** all current ones are preserved verbatim — min-nights rejection, archived-reservation
 error, iCal-locked pricing snapshot reuse, night-block conflict on adjacent reservations, payment
@@ -93,6 +118,7 @@ patch. No new edge behavior is introduced.
 | `utils/` | `reservationAudit.js` | C | Pure: `normalizeHistoryValue`, `getOptionsSignature`, `getResourcesSignature`, `buildAuditSnapshotFromPayload`, `computeAuditChanges`. Snapshot-from-DB stays a model read that feeds these pure fns. Unit-tested. |
 | `utils/` | `pricing.js` | — | Unchanged; controller calls `calculateReservationQuote` as today. |
 | `utils/` | `financeValidation.js` | — | Unchanged; controller keeps the PR-S validation on writes. |
+| `utils/` | `stayDates.js` | C | *(2026-11-02, rule 11)* `isRealIsoDay`, `stayDatesRefusal`, `stayDatesRefusalBody`: the one stay-dates guard, called by `reservationsController`, `devisModel` and `icalDateDriftModel`. |
 | `database.js` | — | — | No schema change. |
 
 **Notes:**
@@ -108,10 +134,17 @@ patch. No new edge behavior is introduced.
 
 None. `utils/reservationConflicts.js` and its consumers are unchanged.
 
+*2026-11-02 (rule 12):* `pages/ReservationPage.jsx` refuses the save and exposes `stayDatesOrderMessage`;
+`components/reservation/StaySection.jsx` renders it under the dates; the message lives in
+`constants/stayDates.js`.
+
 ### 4.3 API contract
 
 **Unchanged.** Same endpoints, bodies, responses, and status codes as today. This slice must be a no-op
 from any API client's perspective (verified by the existing behavior + manual checks).
+
+*2026-11-02 (rule 11):* the stay endpoints listed in rule 11 answer 400 `INVALID_STAY_DATES` (`error`,
+`code`, `field`) for unsound dates; the iCal drift approval now forwards `code` with its `error`.
 
 ---
 
@@ -145,6 +178,11 @@ prove behavior is preserved.)
 - [ ] Min-nights breach → same rejection.
 - [ ] `PATCH payment` → flags/amounts update; `DELETE` → removed; archived-reservation error unchanged.
 - [ ] `GET /occupied-dates` and `GET /:id/history` return the same shapes as before.
+- Audit R18-1 (rules 11-12, 2026-11-02): `server/src/tests/stay-dates-guard.unit.test.js` (30 cases: the four
+  shapes on reservation create / update / `performUpdate` / calculate-price / devis create / update, stored
+  dates on devis extend / preview / convert, restore and drift approval, the parser contract) and
+  `client/src/pages/__tests__/ReservationPage.stay-dates-order.test.jsx` (4 cases: reservation, zero night,
+  devis, server refusal).
 - Spec review 2026-10-27 (rule 9): `server/src/tests/create-without-times-and-linen.unit.test.js` — default times stored, no early-arrival fee on the re-save.
 
 ## 8. Out of scope
