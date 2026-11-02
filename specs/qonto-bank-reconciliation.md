@@ -313,6 +313,19 @@ a short list of the gaps to fix on the fiches.
     links of a stay with `listForStay` (the stay and the devis it was converted from), like the fiche: the receipt of a
     stay paid by the site's link keeps `channel: 'link'` and its `linkPaidAt`, so the Qonto payout is proposed
     (rule 15) and the receipt no longer reads « Enregistré, non reçu ».
+48. **The start date is an entered date, held to the date window (audit R20-P1, 2026-11-03).** On the generic
+    settings PUT, `reconciliationStartDate` is empty or a real day in `[today − 5 years, today + 5 years]`
+    (`coreModule('stayDates').entryDateMessage`, specs/reservations-backend-mvc.md rule 13): an impossible day
+    (`2027-02-30`, `0000-00-00`) is refused with « Date de mise en service invalide. », a day outside the window
+    with « Date trop ancienne / lointaine : 5 ans au plus. », and nothing is written. The stored value is not
+    re-judged, so a date set before this rule still saves while it is kept. The automatic write of today
+    (`startDateOf`) does not go through the PUT. The card's field is the shared `DateField` and hints the same
+    window from the server's day (`useServerToday`), except for the date it was loaded with; a refusal of the
+    server under the field goes once the date is edited. *Why:* only a
+    `YYYY-MM-DD` regex guarded it; a year typed one digit off (2062) left the reconciliation silently empty,
+    and a far-past one (`0002-10-31`, read by `Date.UTC` as 1902) asked Qonto for the account's whole history.
+    online-payment 1.5.2, `sdk ^2.20.0`. Tests: `reconciliation-start-date-window.unit.test.js`, client
+    `ReconciliationSettingsCard.start-date.test.jsx`.
 
 **Edge cases:**
 - Reservation cancelled after a payment was reconciled → leaves the scope; its reconciliations stay
@@ -491,6 +504,10 @@ The interactive mock-up of the summary page is the reference
       writes payout 950 / commission 35, the expected solde credit with a payout recorded.
 - [x] `reconciliation-installments-core-module.unit.test.js` (2) — rule 45: the plan read through the
       core model, a failing read throws.
+- [x] `reconciliation-start-date-window.unit.test.js` (3) — rule 48: the window bounds and empty accepted;
+      impossible day, half-typed year, one day outside refused with nothing written; a stored value kept.
+      Client `ReconciliationSettingsCard.start-date.test.jsx` (3): the hint from the server's day, none on the
+      loaded date, a server refusal cleared by an edit.
 
 ### Client tests
 - [ ] `client/src/plugins/online-payment/__tests__/ReconciliationPage.test.jsx` — renders states,

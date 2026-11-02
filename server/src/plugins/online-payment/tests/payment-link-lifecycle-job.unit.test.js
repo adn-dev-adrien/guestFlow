@@ -100,8 +100,9 @@ test('rule 16 — what the job moved and where a rate limit stopped it is logged
 });
 
 // specs/plugins-phase-1-sdk.md rule 35 — the pass reaches the plugin as a core module name of SDK 2.18.0.
-test('plugins-phase-1-sdk rule 35 — `paymentPollRunner.runLinkLifecycle` is in the contract, and the plugin asks for SDK 2.18', () => {
+// The floor rose to 2.20.0 with the reconciliation start date (audit R20-P1): 2.18 at least, never below.
+test('plugins-phase-1-sdk rule 35 — `paymentPollRunner.runLinkLifecycle` is in the contract, and the plugin asks for SDK 2.18 at least', () => {
   assert.equal(typeof sdk.coreModule('paymentPollRunner').runLinkLifecycle, 'function');
-  assert.equal(require('../manifest.json').sdk, '^2.18.0');
+  assert.ok(require('semver').gte(require('semver').minVersion(require('../manifest.json').sdk), '2.18.0'));
   assert.ok(require('semver').gte(require('../../sdk/version').SDK_VERSION, '2.18.0'), 'the SDK ships it');
 });

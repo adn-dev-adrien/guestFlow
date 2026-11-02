@@ -2,12 +2,13 @@
 // what the generic settings endpoint accepts, and what only the reader may write.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { RECONCILIATION_DECLARED } = require('../settingsStore');
+const { reconciliationDeclared } = require('../settingsStore');
+const { horizonStart } = require('../../../utils/stayDates');
 
-const validate = (key, value) => RECONCILIATION_DECLARED.find((d) => d.key === key).validate(value);
+const validate = (key, value) => reconciliationDeclared({ get: () => '' }).find((d) => d.key === key).validate(value);
 
 test('rule 23 — the start date is a day or empty', () => {
-  assert.equal(validate('reconciliationStartDate', '2026-10-22'), null);
+  assert.equal(validate('reconciliationStartDate', horizonStart()), null);
   assert.equal(validate('reconciliationStartDate', ''), null);
   assert.match(validate('reconciliationStartDate', '22/10/2026'), /invalide/);
 });

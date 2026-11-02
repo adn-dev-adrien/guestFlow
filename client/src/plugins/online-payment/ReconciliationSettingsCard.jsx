@@ -2,11 +2,12 @@
  * ReconciliationSettingsCard — « Rapprochement bancaire » of Paiements en ligne
  * (specs/qonto-bank-reconciliation.md rule 23): bank account, start date, the recognition patterns of
  * each platform, the acquirer's fee and the card fee. Saved through the plugin's generic settings
- * (`PUT /api/plugins/online-payment/settings`); the server validates and words a refusal.
+ * (`PUT /api/plugins/online-payment/settings`); the server validates and words a refusal. The start date is
+ * hinted against the server's day (rule 48), unless it is the one loaded.
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import { Box, Button, Card, CardContent, FormControlLabel, MenuItem, Stack, Switch, TextField, Typography } from '@mui/material';
-import { api, useToast } from '../sdk/ui';
+import { api, DateField, dateWindowMessage, useServerToday, useToast } from '../sdk/ui';
 
 const PLUGIN = 'online-payment';
 const parse = (raw, fallback) => { try { return raw ? JSON.parse(raw) : fallback; } catch { return fallback; } };
@@ -17,11 +18,14 @@ export default function ReconciliationSettingsCard({ connected }) {
   const [accounts, setAccounts] = useState([]);
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
+  const [storedStartDate, setStoredStartDate] = useState('');
+  const today = useServerToday();
 
   const load = useCallback(async () => {
     try {
       const s = await api.getPluginSettings(PLUGIN);
       const fee = parse(s.reconciliationAcquiringFee, null);
+      setStoredStartDate(s.reconciliationStartDate || '');
       setForm({
         bankAccountId: s.reconciliationBankAccountId || '',
         startDate: s.reconciliationStartDate || '',
@@ -42,6 +46,11 @@ export default function ReconciliationSettingsCard({ connected }) {
 
   if (!connected || !form) return null;
   const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
+  const changeStartDate = (e) => {
+    set('startDate')(e);
+    setErrors((er) => ({ ...er, reconciliationStartDate: undefined }));
+  };
+  const startDateHint = form.startDate !== storedStartDate ? dateWindowMessage(form.startDate, today || undefined) : '';
 
   const save = async () => {
     const patterns = {};
@@ -60,6 +69,7 @@ export default function ReconciliationSettingsCard({ connected }) {
         reconciliationAutoConfirm: form.autoConfirm ? '1' : '0',
       });
       setErrors({});
+      setStoredStartDate(form.startDate);
       showSuccess('Réglages du rapprochement enregistrés.');
     } catch (err) {
       setErrors(err && err.errors ? err.errors : {});
@@ -79,9 +89,10 @@ export default function ReconciliationSettingsCard({ connected }) {
             {form.bankAccountId && !accounts.some((a) => a.id === form.bankAccountId) && <MenuItem value={form.bankAccountId}>Compte choisi</MenuItem>}
             {accounts.map((a) => <MenuItem key={a.id} value={a.id}>{a.name}{a.main ? ' (principal)' : ''}</MenuItem>)}
           </TextField>
-          <TextField
-            type="date" label="Mise en service" value={form.startDate} onChange={set('startDate')} slotProps={{ inputLabel: { shrink: true } }}
-            error={Boolean(errors.reconciliationStartDate)} helperText={errors.reconciliationStartDate || 'Les séjours qui partent avant cette date ne sont pas rapprochés.'}
+          <DateField
+            label="Mise en service" value={form.startDate} onChange={changeStartDate} slotProps={{ inputLabel: { shrink: true } }}
+            error={Boolean(errors.reconciliationStartDate || startDateHint)}
+            helperText={errors.reconciliationStartDate || startDateHint || 'Les séjours qui partent avant cette date ne sont pas rapprochés.'}
           />
           <TextField
             multiline minRows={3} label="Motifs de reconnaissance" value={form.patterns} onChange={set('patterns')}

@@ -11,6 +11,8 @@
  * secrets included (same AES-256-GCM key as `app_settings`).
  */
 
+const sdk = require('../sdk');
+
 const KEYS = Object.freeze([
   'qontoAccessTokenEncrypted',
   'qontoRefreshTokenEncrypted',
@@ -50,10 +52,21 @@ const DECLARED = KEYS.map((key) => ({
 }));
 
 // The bank reconciliation's own settings (specs/qonto-bank-reconciliation.md rules 23, 5–7). The last
-// two are written by the reader only; the rest are typed on the settings card.
-const RECONCILIATION_DECLARED = [
+// three are written by the reader only; the rest are typed on the settings card. `settings` is ctx.settings:
+// the start date is an entered date, held to the window unless it is the one stored (rule 48).
+const reconciliationDeclared = (settings) => [
   { key: 'reconciliationBankAccountId', validate: (v) => (String(v).length > 120 ? 'Compte invalide.' : null) },
-  { key: 'reconciliationStartDate', validate: (v) => (v === '' || /^\d{4}-\d{2}-\d{2}$/.test(String(v)) ? null : 'Date de mise en service invalide.') },
+  {
+    key: 'reconciliationStartDate',
+    validate: (v) => {
+      const value = String(v ?? '').trim();
+      if (value === '') return null;
+      return sdk.coreModule('stayDates').entryDateMessage(value, {
+        stored: settings.get('reconciliationStartDate') || undefined,
+        invalidMessage: 'Date de mise en service invalide.',
+      });
+    },
+  },
   {
     key: 'reconciliationPlatformPatterns',
     validate: (v) => {
@@ -212,4 +225,4 @@ const current = () => {
   return bound;
 };
 
-module.exports = { KEYS, SECRET_KEYS, DECLARED, RECONCILIATION_DECLARED, createSettingsStore, bind, current };
+module.exports = { KEYS, SECRET_KEYS, DECLARED, reconciliationDeclared, createSettingsStore, bind, current };

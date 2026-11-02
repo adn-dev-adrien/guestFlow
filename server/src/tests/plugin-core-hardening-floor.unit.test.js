@@ -31,6 +31,8 @@ const HARDENINGS = [
   { feature: 'payment link lifecycle pass', sdk: '2.18.0', pattern: /\brunLinkLifecycle\b/ },
   // specs/plugins-phase-1-sdk.md rule 36 (specs/payment-schedule-and-cancellation.md rule 55).
   { feature: 'stored-money split shared with the cancellation', sdk: '2.19.0', pattern: /coreModule\(\s*['"`]storedMoneySplit['"`]/ },
+  // specs/plugins-phase-1-sdk.md rule 37 (specs/reservations-backend-mvc.md rule 13) — audit R20-P1.
+  { feature: 'entered-date window', sdk: '2.20.0', pattern: /coreModule\(\s*['"`]stayDates['"`]/ },
 ];
 
 function sourceFiles(dir) {

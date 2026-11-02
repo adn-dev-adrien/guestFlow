@@ -464,6 +464,10 @@ Optional: a plugin that declares nothing reads « Actif ».
     `addPricingRule` / `updatePricingRule`. Tests: `plugins-sdk-core-module-floor.unit.test.js`, linen
     `laundry-date-window`, school-holidays `school-holidays-date-window`, hourly-resources
     `resource-bookings-date-window`.
+    *Added 2026-11-03 (audit R20-P1):* `online-payment` 1.5.2 is a fourth consumer (its reconciliation start
+    date) and asks for `sdk ^2.20.0`; the client SDK's `guestflow/sdk/ui` gains `DateField`, `useServerToday` and
+    `dateWindowMessage` in the same, still unreleased 2.20.0, for the « Rapprochement bancaire » card the console
+    renders too. Test: online-payment `reconciliation-start-date-window`.
 
 **Edge cases:**
 - **A plugin throws during `register`.** Rule 4 applies: the other plugins and the core boot. The Plugins

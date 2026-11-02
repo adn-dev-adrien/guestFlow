@@ -182,6 +182,7 @@ rules — just a clean, testable structure that future slices (and Bloc 5) build
    | linen 1.2.2: `POST /laundry/skips`, `PUT /laundry/manual-additions/:date`, `PUT /laundry/extra-trips/:date` | `date` | real day | + in the window unless stored (`DATE_OUTSIDE_WINDOW`) |
    | school-holidays 1.0.5: `POST /school-holidays`, `PUT /school-holidays/:id` | the six zone dates | **unchecked** (only order) | real days in the window unless kept |
    | hourly-resources 1.3.4: `POST /resource-bookings`, `PUT …/:id`, `POST …/preview` | `date` | **unchecked** | real day in the window unless the booking's stored day |
+   | online-payment 1.5.2: `PUT /plugins/online-payment/settings` *(added 2026-11-03, audit R20-P1)* | `reconciliationStartDate` | regex (`2027-02-30`, `0002-10-31`, `9999-12-31` passed) | empty, or a real day in the window unless the stored value (`specs/qonto-bank-reconciliation.md` rule 48) |
    | `POST /reservations/calculate-price`, `POST /reservations`, `PUT /reservations/:id` (`performUpdate`), `POST /devis`, `PUT /devis/:id` | each option line's `cardOccurrences[].date`, each resource line's `sessions[].date` | regex only (`normalizeCardOccurrences`, `isValidSession`): `1900-01-01`, `9999-12-31`, `2099-02-30` billed and stored | a real day of the stay, arrival to departure morning inclusive (the fiche's grid), else « Date hors du séjour. » (`stayItemDatesRefusal`, `INVALID_STAY_DATES`, `field: 'cardOccurrences'` / `'sessions'`), unless the same line already stores it (`bookingLinesModel.getStoredItemDates`); the stay lies in the window, so they do too |
    | `POST /email-mentions/preview` (read only) | `startDate` | regex | a real day in the window, today otherwise: the preview never fails (`emailMentionsController.previewStartDate`) |
 
@@ -326,7 +327,8 @@ prove behavior is preserved.)
       core path of the table, nothing written, stored dates kept (a penalty's past side and its stored solde
       default, a stored devis `validUntil`, a payment mark sent back with its stored date, the compensation
       receipt's French message and code, the mentions preview's fallback); plugin suites `laundry-date-window` (3),
-      `school-holidays-date-window` (2), `resource-bookings-date-window` (2); client
+      `school-holidays-date-window` (2), `resource-bookings-date-window` (2), `reconciliation-start-date-window` (3,
+      2026-11-03); client
       `ReservationPage.date-window-past` (3), `EstablishmentClosuresPage.date-window-past` (2),
       `PeriodSelector.date-window-past` (2).
 - [x] `tests/stay-item-dates.unit.test.js` (10, 2026-11-02, review of PR #938) — rule 13, second reading: an option
