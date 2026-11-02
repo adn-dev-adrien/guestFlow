@@ -6,7 +6,10 @@
 // that includes an `env` taken whole (destructured, `in`, spread, aliased, handed to a call that does not name
 // its parameter `env`) and `require('process')`; since the review of #924, an `env` returned whole and a call
 // argument judged by the callee the call reaches, and a plugin's names keyed by its id (`PLUGIN_ENV_NAMES`) so
-// that removing the plugin leaves this file green.
+// that removing the plugin leaves this file green; since audit R15 L-1, an `env` as a ternary branch, `process`
+// handed whole to a call, and a callee resolved to the innermost declaration in sight; since the review of #927,
+// an `env` after `||` / `&&` or awaited. The guard is a heuristic:
+// it catches the forms of `PROBES`, and the spec lists what it knowingly lets through.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -123,7 +126,30 @@ const INDIRECT = [
   // Review of #924 (L-3): an `env` that leaves its function whole, which the caller then reads unseen (`get().X`,
   // or `pass(env).X` past the call-argument exemption).
   { on: 'shape', re: new RegExp(`(?:\\breturn\\s+|=>\\s*)${ENV_VALUE}\\s*(?=[;,)}\\n]|$)`, 'g') },
+  // Audit R15 L-1: an `env` as a branch of a ternary (`x ? env : {}`, `x ? {} : env`), and `process` handed
+  // whole to a call (`read(process)`), whose callee then reaches `.env` unseen.
+  { on: 'shape', re: new RegExp(`[?:]\\s*${ENV_VALUE}\\s*(?=[:;,)}\\n]|$)`, 'g'), keep: (src, index) => src.shape[index] === '?' || isTernaryElse(src.shape, index) },
+  { on: 'shape', re: /[(,]\s*process\s*(?=[),])/g },
+  // Review of #927 (L-1): an `env` as the right operand of `||` / `&&` (`x || env`, `read(o || env)`), or
+  // awaited (`await env`), the mirror of the ternary branch.
+  { on: 'shape', re: new RegExp(`(?:\\|\\||&&|\\bawait\\s)\\s*${ENV_VALUE}\\s*(?=[;,)}\\n]|$)`, 'g') },
 ];
+// The `:` at `index` closes the first branch of a ternary, not an object key or a label: walking back at the
+// same bracket depth meets a `?` (neither `?.` nor `??`) before any `,`, `;` or opening bracket.
+function isTernaryElse(shape, index) {
+  let depth = 0;
+  for (let i = index - 1; i >= 0; i -= 1) {
+    const c = shape[i];
+    if (')]}'.includes(c)) depth += 1;
+    else if ('([{'.includes(c)) {
+      if (depth === 0) return false;
+      depth -= 1;
+    } else if (depth === 0 && (c === ',' || c === ';')) return false;
+    else if (depth === 0 && c === '?' && shape[i + 1] !== '.' && shape[i + 1] !== '?' && shape[i - 1] !== '?') return true;
+  }
+  return false;
+}
+
 // `process.env` itself, unless read by name or index (above) …
 const PROCESS_ENV = /\bprocess\s*(?:\?\.|\.)\s*env\b(?!\s*(?:\?\.|\.)\s*[A-Za-z_$]|\s*(?:\?\.\s*)?\[)/g;
 // … or bound to an identifier named `env`, whose reads the patterns above then see.
@@ -160,18 +186,28 @@ const INDIRECT_READERS = {
 // Comments blanked, line breaks kept: a JSDoc naming `process.env` is not an access.
 const withoutComments = (text) => text.replace(/\/\*[\s\S]*?\*\/|(?<![:'"`\\])\/\/[^\n]*/g, (c) => c.replace(/[^\n]/g, ' '));
 
-// A file's code, with string contents blanked as well for pairing brackets, and each `(` paired with its `)`.
+// A file's code, with string contents blanked as well for pairing brackets, each `(` paired with its `)`, and
+// (audit R15 L-1) each `(` and `{` with the innermost `{` around it, -1 at the top of the file.
 function parse(code, file) {
   const shape = code.replace(/'(?:\\.|[^'\\\n])*'|"(?:\\.|[^"\\\n])*"|`(?:\\.|[^`\\])*`/g, (q) => q[0] + q.slice(1, -1).replace(/[^\n]/g, ' ') + q[0]);
   const closeOf = new Map();
+  const braceOf = new Map();
   const stack = [];
+  const braces = [];
   for (let i = 0; i < shape.length; i += 1) {
     const c = shape[i];
-    if ('([{'.includes(c)) stack.push(i);
-    else if (')]}'.includes(c) && stack.length && shape[stack[stack.length - 1]] === '([{'[')]}'.indexOf(c)]) closeOf.set(stack.pop(), i);
+    if (c === '(' || c === '{') braceOf.set(i, braces.length ? braces[braces.length - 1] : -1);
+    if ('([{'.includes(c)) {
+      stack.push(i);
+      if (c === '{') braces.push(i);
+    } else if (')]}'.includes(c) && stack.length && shape[stack[stack.length - 1]] === '([{'[')]}'.indexOf(c)]) {
+      const open = stack.pop();
+      closeOf.set(open, i);
+      if (c === '}' && braces[braces.length - 1] === open) braces.pop();
+    }
   }
   const openOf = new Map([...closeOf].map(([open, close]) => [close, open]));
-  return { file, code, shape, closeOf, openOf };
+  return { file, code, shape, closeOf, openOf, braceOf };
 }
 
 // The name a `(` belongs to, `f` in `f(`, `obj.f?.(`, `function f(`, `f = async (` or `f: function (`.
@@ -205,21 +241,36 @@ function items(src, open) {
 
 const isParameterList = (src, open) => /^\s*(?:=>|\{)/.test(src.shape.slice(src.closeOf.get(open) + 1, src.closeOf.get(open) + 40));
 
-// The functions a file declares, by name, each with the positions where it declares a parameter named `env`:
-// handing an `env` to one is the project's injected-environment pattern, whose reads the scan sees by name in
-// the callee.
+// The functions a file declares, by name, each declaration with the block it is declared in (`scope`, the `{`
+// around it, -1 at the top of the file) and the positions where it declares a parameter named `env`: handing an
+// `env` to one is the project's injected-environment pattern, whose reads the scan sees by name in the callee.
 function declarations(src) {
   const out = new Map();
   for (const open of src.closeOf.keys()) {
     if (src.shape[open] !== '(' || !isParameterList(src, open)) continue;
     const name = nameBefore(src.shape, open);
     if (!name) continue;
-    if (!out.has(name)) out.set(name, new Set());
+    if (!out.has(name)) out.set(name, []);
+    const envAt = new Set();
     items(src, open).forEach(([a, b], position) => {
-      if (/^\s*env\s*(?:=|$)/.test(src.code.slice(a, b))) out.get(name).add(position);
+      if (/^\s*env\s*(?:=|$)/.test(src.code.slice(a, b))) envAt.add(position);
     });
+    out.get(name).push({ scope: src.braceOf.get(open), envAt });
   }
   return out;
+}
+
+// The positions where `name` declares `env`, as seen from the call whose `(` is at `at` (audit R15 L-1): the
+// declaration of the innermost block around the call that declares one, or for a call from another file
+// (`at` undefined) the top-level one. With none in sight (a method of an object literal, a function declared in
+// a sibling block), every declaration of that name in the file.
+function envPositions(src, declared, name, at) {
+  const list = declared.get(name);
+  for (let b = at === undefined ? -1 : src.braceOf.get(at); ; b = src.braceOf.get(b)) {
+    const here = list.filter((d) => d.scope === b);
+    if (here.length) return new Set(here.flatMap((d) => [...d.envAt]));
+    if (b === -1) return new Set(list.flatMap((d) => [...d.envAt]));
+  }
 }
 
 const REQUIRE = String.raw`require\(\s*['"]([^'"]+)['"]\s*\)`;
@@ -249,7 +300,7 @@ function declaresEnvAt(file, name, position, byFile, seen = new Set()) {
   const entry = byFile.get(file);
   if (!entry || seen.has(file)) return false;
   seen.add(file);
-  if (entry.declared.has(name)) return entry.declared.get(name).has(position);
+  if (entry.declared.has(name)) return envPositions(entry.src, entry.declared, name).has(position);
   const bound = entry.imported.get(name);
   const target = bound && bound.name && resolveRequire(file, bound.spec, byFile);
   return Boolean(target) && declaresEnvAt(target, bound.name, position, byFile, seen);
@@ -290,7 +341,7 @@ function handedToEnvParameter(src, index, ctx) {
   } else if (object && imported.has(object) && !imported.get(object).name) {
     target = { spec: imported.get(object).spec, name };
   } else if (declared.has(name)) {
-    return declared.get(name).has(position);
+    return envPositions(src, declared, name, open).has(position);
   } else if (!object && imported.has(name) && imported.get(name).name) {
     target = imported.get(name);
   }
@@ -307,7 +358,7 @@ function scanSources(root) {
     const text = fs.readFileSync(file, 'utf8').replace(REQUIRE_PROCESS, 'process');
     return { file, text, src: parse(withoutComments(text), file) };
   });
-  const ctx = { byFile: new Map(files.map(({ file, src }) => [file, { declared: declarations(src), imported: imports(src.code) }])) };
+  const ctx = { byFile: new Map(files.map(({ file, src }) => [file, { src, declared: declarations(src), imported: imports(src.code) }])) };
   for (const { file, text, src } of files) {
     const rel = path.relative(SERVER_ROOT, file);
     const { code } = src;
@@ -394,7 +445,7 @@ test('rule 12 (2026-11-01): the preload strips the whole list, and keeps exactly
 });
 
 // The forms the review of #920 got past the first guard with, plus the two it already caught, then the
-// forms of audit R14 L-1 and of the review of #924. A form spread over files maps each file name to its code.
+// forms of audit R14 L-1, of the review of #924, of audit R15 L-1 and of the review of #927. A form spread over files maps each file name to its code.
 const PROBES = {
   'optional chaining on process.env': 'module.exports = () => process.env?.PROBE_X;',
   'optional chaining on an injected env': 'module.exports = (env) => env?.PROBE_X;',
@@ -450,6 +501,18 @@ const PROBES = {
   'an identity callee declaring env': 'const pass = (env) => env;\nmodule.exports = (env = process.env) => pass(env).PROBE_X;',
   'a function that returns its env': 'function fromIt(env) { return env; }\nmodule.exports = (env = process.env) => fromIt(env).PROBE_X;',
   'an env returned in an object': 'const f = (env = process.env) => ({ env });\nmodule.exports = () => f().env.PROBE_X;',
+  // Audit R15 L-1: an `env` as a ternary branch, `process` handed whole to a call, and a callee whose name a
+  // nested function also declares with `env` there.
+  'an injected env as a ternary branch': 'module.exports = (env = process.env, x) => { const e = x ? env : {}; return e.PROBE_X; };',
+  'an injected env as the other ternary branch': 'module.exports = (env = process.env, x) => { const e = x ? {} : env; return e.PROBE_X; };',
+  'process handed whole to a call': 'const read = ({ env: { PROBE_X } }) => PROBE_X;\nmodule.exports = () => read(process);',
+  'process handed whole among arguments': 'const read = (a, { env: { PROBE_X } }) => PROBE_X;\nmodule.exports = () => read(1, process);',
+  'a callee named like a nested function declaring env': 'function outer() { const read = (env) => env.NODE_ENV; return read; }\nconst read = (cfg) => cfg.PROBE_X;\nmodule.exports = { outer, probe: (env = process.env) => read(env) };',
+  // Review of #927 (L-1): an `env` as the right operand of `||` / `&&`, or awaited, the mirror of the ternary.
+  'an injected env after ||': 'module.exports = (env = process.env, x) => { const e = x || env; return e.PROBE_X; };',
+  'an injected env after &&': 'module.exports = (env = process.env, x) => { const e = x && env; return e.PROBE_X; };',
+  'an injected env after || as a call argument': 'const read = (cfg) => cfg.PROBE_X;\nmodule.exports = (env = process.env, o) => read(o || env);',
+  'an awaited injected env': 'module.exports = async (env = process.env) => { const e = await env; return e.PROBE_X; };',
 };
 
 const probeRoot = (t) => {
@@ -458,7 +521,7 @@ const probeRoot = (t) => {
   return tmp;
 };
 
-test('rule 12 (2026-11-01, review of #920; 2026-11-02, audit R14 L-1 and review of #924): the guard fails on each probed form of reaching a variable it does not see by name', (t) => {
+test('rule 12 (2026-11-01, review of #920; 2026-11-02, audit R14 L-1, review of #924 and audit R15 L-1): the guard fails on each probed form of reaching a variable it does not see by name', (t) => {
   const tmp = probeRoot(t);
   const missed = [];
   for (const [form, code] of Object.entries({ ...PROBES, 'a plain read': 'module.exports = () => process.env.PROBE_X;' })) {
@@ -469,7 +532,7 @@ test('rule 12 (2026-11-01, review of #920; 2026-11-02, audit R14 L-1 and review 
   assert.deepEqual(missed, [], 'forms the guard lets through');
 });
 
-test('rule 12 (2026-11-01, review of #920; 2026-11-02, audit R14 L-1 and review of #924): the forms the app uses on purpose stay quiet', (t) => {
+test('rule 12 (2026-11-01, review of #920; 2026-11-02, audit R14 L-1, review of #924 and audit R15 L-1): the forms the app uses on purpose stay quiet', (t) => {
   const dir = probeRoot(t);
   fs.writeFileSync(path.join(dir, 'lib.js'), 'const read = (env) => env.NODE_ENV;\nmodule.exports = { read };\n');
   fs.writeFileSync(path.join(dir, 'reexport.js'), "const { read } = require('./lib');\nmodule.exports = { read };\n");
@@ -488,7 +551,11 @@ test('rule 12 (2026-11-01, review of #920; 2026-11-02, audit R14 L-1 and review 
     "const { read: again } = require('./reexport');",
     "const h = (env = process.env) => read(env) || lib.read(env) || again(env) || require('./lib').read(env);",
     "const i = () => { throw new Error('PROBE_LISTED not set in env'); };",
-    'module.exports = { file, a, b, c, d, f, g, h, i, nodeEnv: process.env.NODE_ENV };',
+    'const inner = (cfg) => cfg;',
+    'function j(env = process.env) { const inner = (env) => env.PROBE_LISTED; return inner(env); }',
+    'const k = (env = process.env, x) => (x ? env.PROBE_LISTED : null);',
+    "const l = (env) => ({ value: env, source: env ? 'env' : 'none' });",
+    'module.exports = { file, a, b, c, d, f, g, h, i, inner, j, k, l, nodeEnv: process.env.NODE_ENV };',
     '',
   ].join('\n'));
   const { problems, names } = guardProblems(dir, {});
