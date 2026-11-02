@@ -142,6 +142,16 @@ list.
     `409 CLIENT_KEEPS_HISTORY` / `CLIENT_CARRIES_MONEY` on the first, non-forced call
     (`specs/payment-schedule-and-cancellation.md` rule 53).
 
+17. **An answer about a client the operator has left never lands on screen (2026-11-02, audit R18-C1).**
+    The delete confirmation and the sheet's stay list each show only the answer of their latest request
+    (`useLatestRequest`): opening another client, closing the confirmation or confirming a deletion
+    supersedes the pending `delete-impact` request, and its late answer or error is dropped. The
+    confirmation stays loading, « Confirmer la suppression » disabled, until the client it names has
+    answered. A deletion that ends after the operator moved to another client's confirmation neither
+    closes nor marks that confirmation; the list still reloads. *Why: client A's late impact replaced
+    the confirmation of client B (A's name, stays, devis and blocker) while « Confirmer la suppression »
+    deleted B; on the sheet, B listed A's stays and a click opened A's fiche.*
+
 **Edge cases:**
 - Client with only devis (no reservations) → `409` now also triggers (was silently deleted); impact shows
   the devis. Force deletes them.
@@ -311,6 +321,14 @@ drop is irreversible.
       - **Confirmer la suppression** calls `deleteClient(id, { force: true })` exactly once, closes, and
         never re-fetches the impact of the client it just deleted.
       _(All five regression cases fail against the pre-fix page.)_
+
+- [x] **NEW (2026-11-02, rule 17)** `client/src/pages/__tests__/ClientsPage.stale-impact.test.jsx` (5 tests):
+      - A late impact answer for A never lands in B's confirmation; the confirm deletes B (`42`) once.
+      - When A answers first, B's confirmation stays loading with the confirm disabled, then shows B.
+      - A late impact failure for A shows no error in B's confirmation.
+      - A deletion of A ending after B's confirmation opened neither closes it nor shows A's failure.
+      - B's sheet never lists A's late stays, and stays loading until B answers.
+      _(All five fail against the pre-fix page.)_
 
 ### Manual UI verification (in browser)
 - [x] "Nouveau client" form shows a single **Téléphone** field (no add/remove); `0` console errors.
