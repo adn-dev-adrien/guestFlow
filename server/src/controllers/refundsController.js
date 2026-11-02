@@ -15,8 +15,8 @@ const defaultRefundsModel = require('../models/refundsModel');
 const defaultReservationsModel = require('../models/reservationsModel');
 const database = require('../database');
 const vatRegimeModel = require('../models/vatRegimeModel');
-const { buildRefundableLines, validateRefundPayload, cancelledRefundBudget, collectedByLine, nettedByCancellation } = require('../utils/refunds');
-const { comptaCollected } = require('../utils/reservationSettlement');
+const { buildRefundableLines, validateRefundPayload, cancelledRefundBudget, collectedByLine, refundDeletionRefusal } = require('../utils/refunds');
+const { comptaCollected, cashCollected } = require('../utils/reservationSettlement');
 const { bookedStayBuckets } = require('../utils/cancelReservation');
 
 function todayIso() {
@@ -30,6 +30,8 @@ function nightsBetween(startDate, endDate) {
   if (Number.isNaN(ms)) return 0;
   return Math.max(0, Math.round(ms / 86400000));
 }
+
+const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
 function createRefundsController(deps = {}) {
   const refundsModel = deps.refundsModel || defaultRefundsModel;
@@ -53,8 +55,12 @@ function createRefundsController(deps = {}) {
     const refunds = refundsModel.listByReservation(reservationId);
     const refundTotals = refundsModel.totalsByReservation(reservationId);
     const collectedTtc = comptaCollected({ ...reservation, refundsBookTtc: refundTotals.book });
-    // Rule 48 — a cancelled stay gives back only what it collected, the requalified part from the indemnity.
-    const cancelled = String(reservation.kind) === 'cancelled' ? cancelledRefundBudget({ collectedTtc, refunds }) : null;
+    // Rule 48 — a cancelled stay gives back only what it collected, the requalified part from the indemnity; the
+    // caisse interne's money in the caisse interne only (reading of 2026-11-02, audit R15-L1).
+    const cancelled = String(reservation.kind) === 'cancelled'
+      ? cancelledRefundBudget({ collectedTtc, cashCollectedTtc: cashCollected(reservation), refunds }) : null;
+    const booked = cancelled && stayDatabase ? bookedStayBuckets({ database: stayDatabase, reservationsModel }, reservation, vatRate) : null;
+    const lineReading = (cash) => collectedByLine({ reservation, options: reservation.options || [], resources: reservation.resources || [], booked, cash });
     const refundableLines = buildRefundableLines({
       finalPrice: reservation.finalPrice,
       touristTaxTotal: reservation.touristTaxTotal,
@@ -66,13 +72,15 @@ function createRefundsController(deps = {}) {
       nights: nightsBetween(reservation.startDate, reservation.endDate),
       cancelled,
       // Rule 49 reading of 2026-11-02 — a cancelled stay's line offers at most what that line collected.
-      collected: cancelled ? collectedByLine({
-        reservation,
-        options: reservation.options || [],
-        resources: reservation.resources || [],
-        booked: stayDatabase ? bookedStayBuckets({ database: stayDatabase, reservationsModel }, reservation, vatRate) : null,
-      }) : null,
+      collected: cancelled ? lineReading(false) : null,
+      cashCollected: cancelled && cancelled.cashCollectedTtc > 0 ? lineReading(true) : null,
     });
+    // Rule 48 reading of 2026-11-02 (review of PR #929, F4) — the caisse interne gives back only what its lines carry:
+    // cash collected on no line of the register (an end-of-stay complement, say) is never promised.
+    if (cancelled) {
+      const carried = round2(refundableLines.reduce((sum, line) => sum + Number(line.cashTtc || 0), 0));
+      cancelled.cashLeftTtc = Math.min(cancelled.cashLeftTtc, carried);
+    }
     return {
       reservation,
       vatRate,
@@ -84,7 +92,7 @@ function createRefundsController(deps = {}) {
         // What the operator has actually banked so far, net of what was already given back — the
         // dialog's « ce remboursement dépasse le montant encaissé » caption (spec §6 rule 7). Same
         // authority as the finance views, never recomputed client-side.
-        collectedTtc: cancelled ? cancelled.collectedTtc : collectedTtc,
+        collectedTtc: cancelled ? round2(cancelled.collectedTtc + cancelled.cashLeftTtc) : collectedTtc,
       },
     };
   }
@@ -144,12 +152,12 @@ function createRefundsController(deps = {}) {
     remove(req, res) {
       const id = Number(req.params.id);
       const refundId = Number(req.params.refundId);
-      // Payment-schedule rule 55 reading of 2026-11-02 — the cancellation kept only what this refund left.
+      // Refunds rule 6 and payment-schedule rule 55 readings of 2026-11-02 — the retained avoir, and on a cancelled stay
+      // any refund the cancellation already read, stay.
       const register = buildRegister(id);
       const target = register && register.payload.refunds.find((refund) => Number(refund.id) === refundId);
-      if (register && register.cancelled && nettedByCancellation(target, register.payload.refunds)) {
-        return res.status(409).json({ error: 'Remboursement déduit de l’acompte conservé.', code: 'REFUND_NETTED_BY_CANCELLATION' });
-      }
+      const refusal = register && refundDeletionRefusal(target, register.payload.refunds, register.reservation);
+      if (refusal) return res.status(409).json(refusal);
       const removed = refundsModel.remove(id, refundId);
       if (!removed) return res.status(404).json({ error: 'Remboursement non trouvé' });
       const refreshed = buildRegister(id);

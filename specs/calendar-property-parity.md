@@ -244,6 +244,15 @@ name is always readable or truncated cleanly with the full name on hover.
     its existing behaviour (`specs/payment-schedule-and-cancellation.md` rule 25) and the guard now also closes
     what was clearly a bug: SAS commit and previews, arrival payment, payment links and requests answer
     `409 RESERVATION_CANCELLED`; refunds, the plan it was cancelled with and the cancellation e-mails stay possible.
+    > **Reading of 2026-11-02 (audit R15-C1).** « Refunds stay possible » includes deleting one made after the
+    > cancellation (specs/reservation-refunds.md rule 6, reading of the same day). The server offers « Supprimer »
+    > on those ledger rows only — never on « Acompte conservé », never on a refund the cancellation read (since the
+    > review of PR #929, a refund made before a cancellation that had nothing to keep, or in caisse interne, is
+    > offered too: the cancellation never read it) —
+    > and the fiche draws each one outside the disabled fieldset, beside « + Nouveau remboursement », through the
+    > portal « Marquer remboursé » already uses (`closedActionsHost`): the row's label, amount and state, then
+    > « Supprimer » behind the usual confirmation. Its row in the ledger shows no button. A duplicate set aside still
+    > takes none (rule 29).
 26. **Only a clear copy is set aside (amends 23).** A hidden stay becomes `superseded` only when it sits within
     its keeper's nights — fully inside, no slack (a copy one night longer would free that night for sale; amended
     2026-10-28 after the database audit, which had found a copy set aside with a night of slack). Every other
@@ -340,6 +349,7 @@ name is always readable or truncated cleanly with the full name on hover.
 | `pages/` | `CalendarPage.jsx` | T | Drops the range loader, the month arrows and the week-range extension; per-month loader = `getCalendar` + notes + devis + occupied dates + closures for the logement; keeps drag-select, notes dialog, deep links. |
 | `pages/` | `settings/PlatformsSettingsPage.jsx` | T | Keeps the previous colour and shows the message on a 400. |
 | `pages/` | `ReservationPage.jsx` | T | Read-only fiche + banner « Doublon de la réservation {numéro} » + admin « Rétablir » for a superseded stay (rule 22). |
+| `components/reservation/` | `FinanceSection.jsx` | T | Rule 25 reading of 2026-11-02 — on a cancelled fiche, the « Supprimer » the server offers on a refund is drawn through `closedActionsHost`, outside the disabled fieldset. |
 | `components/` | `ReservationSearch` (header search) | T | « Doublon écarté » chip, as « Annulée » (rule 22). |
 | `pages/` | `Dashboard.jsx` | — | (none — same component) |
 | `constants/` | `platforms.js` | T | Mirror of the palette; `PLATFORM_TEXT_COLORS` filled from the platform-colour listing (no client contrast math). |
@@ -481,6 +491,7 @@ any more (the arrows and « Aujourd'hui » move to the calendar's own toolbar, i
 - [x] `components/__tests__/CalendarDayCell.closure-half-day.test.jsx` — 6 cases (rule 12).
 - [x] `components/__tests__/CalendarDayAgenda.test.jsx` — 5 cases (rule 17); `CalendarDayAgenda.ribbons.test.jsx` — 6 cases (rule 21).
 - [x] `pages/__tests__/ReservationPage.cancelled-refund.test.jsx` — 2 cases: a cancelled fiche keeps the refund button usable (its dialog opens), no opacity, a duplicate's stays blocked (rules 25, 29).
+- [x] `components/reservation/__tests__/FinanceSection.cancelled-refund-delete.test.jsx` — 3 cases (rule 25 reading of 2026-11-02): « Supprimer » of a refund made after the cancellation is drawn outside the fieldset and deletes it, never on « Acompte conservé », never on a duplicate.
 - [x] `pages/__tests__/ReservationPage.superseded.test.jsx` — 3 cases: banner, no Save / extra action, disabled fieldset, no conflict hint, « Rétablir » for an admin only with the 409 message (rules 22, 29).
 - [x] `pages/__tests__/CalendarPage.property-scroll.test.jsx` — 3 cases (rules 14, 15).
 - [x] `components/__tests__/PlatformColorPicker.refusal.test.jsx` — 3 cases (rule 7).

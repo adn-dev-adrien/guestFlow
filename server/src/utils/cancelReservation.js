@@ -120,6 +120,15 @@ function saleCollectedOf(database, reservationsModel, row, vatRate) {
   return { ...storedMoneyBuckets(database, row, { kind: 'balance', revenueTtc: round2(balance - tax), vatRate }), touristTax: tax };
 }
 
+// Rule 55 reading of 2026-11-02 (review of PR #926, residual A) — the commissions the payment provider withheld on the
+// acompte and solde paid to the books, and the buckets the solde was booked on.
+function withheldCommissionsOf(database, reservationsModel, row, vatRate) {
+  const book = (paid, cash) => Number(row[paid]) === 1 && !Number(row[cash] || 0);
+  const depositTtc = book('depositPaid', 'depositPaidCash') ? Math.max(0, round2(row.acompteCommissionAmount)) : 0;
+  const soldeTtc = book('balancePaid', 'balancePaidCash') ? Math.max(0, round2(row.platformCommissionAmount)) : 0;
+  return { depositTtc, soldeTtc, soldeBuckets: soldeTtc > 0 ? saleCollectedOf(database, reservationsModel, row, vatRate) : null };
+}
+
 /**
  * specs/reservation-refunds.md rule 49 reading of 2026-11-02 — what the paid acompte and solde were booked on per
  * bucket, read the way the cancellation reads them: the refund register of a cancelled stay caps its accommodation
@@ -161,7 +170,9 @@ function cancelReservation(deps, reservationId, { reason = '', cancelledBy = nul
     depositBuckets,
     installmentsRetained: installmentsRetainedOf(installmentsModel, database, id, row),
     givenBack,
-    saleCollected: Object.keys(givenBack).length ? saleCollectedOf(database, reservationsModel, row, vatRate) : null,
+    // A solde collected in the caisse interne holds no book money: it absorbs no book refund (audit R15-L1).
+    saleCollected: Object.keys(givenBack).length && !Number(row.balancePaidCash || 0) ? saleCollectedOf(database, reservationsModel, row, vatRate) : null,
+    withheldCommissions: withheldCommissionsOf(database, reservationsModel, row, vatRate),
     cancellationDate: today,
     vatRate,
     reason: trimmedReason,
@@ -181,7 +192,7 @@ function cancelReservation(deps, reservationId, { reason = '', cancelledBy = nul
     ]);
     reservationsModel.markCancelled(id, { reason: trimmedReason || cancellationReason, cancelledBy });
     if (requalification) {
-      refundId = refundsModel.create(id, { ...requalification.refund, totalTtc: retainedDepositAmount });
+      refundId = refundsModel.create(id, { ...requalification.refund, totalTtc: requalification.requalifiedTtc });
       compensationId = compensationsModel.createReceived(requalification.compensation).id;
     }
     // The links of the devis converted into the stay keep the devis id and stay payable otherwise.

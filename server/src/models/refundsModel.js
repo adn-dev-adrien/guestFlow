@@ -25,7 +25,7 @@ function createRefundsModel(database) {
     return cache.get(sql);
   };
   const selectHeaders = () => prep(`
-    SELECT id, reservationId, refundDate, method, totalTtc, reason, createdAt
+    SELECT id, reservationId, refundDate, method, totalTtc, reason, createdAt, afterCancellation
     FROM reservation_refunds
     WHERE reservationId = ?
     ORDER BY refundDate DESC, id DESC
@@ -37,8 +37,9 @@ function createRefundsModel(database) {
     ORDER BY id
   `);
   const insertHeader = () => prep(`
-    INSERT INTO reservation_refunds (reservationId, refundDate, method, totalTtc, reason)
-    VALUES (@reservationId, @refundDate, @method, @totalTtc, @reason)
+    INSERT INTO reservation_refunds (reservationId, refundDate, method, totalTtc, reason, afterCancellation)
+    VALUES (@reservationId, @refundDate, @method, @totalTtc, @reason,
+            (SELECT CASE WHEN kind = 'cancelled' THEN 1 ELSE 0 END FROM reservations WHERE id = @reservationId))
   `);
   const insertLine = () => prep(`
     INSERT INTO reservation_refund_lines (refundId, lineKey, label, bucket, quantity, unitPrice, amountTtc, vatRate)
@@ -81,7 +82,7 @@ function createRefundsModel(database) {
 
     getById(refundId) {
       const header = prep(`
-        SELECT id, reservationId, refundDate, method, totalTtc, reason, createdAt
+        SELECT id, reservationId, refundDate, method, totalTtc, reason, createdAt, afterCancellation
         FROM reservation_refunds WHERE id = ?
       `).get(refundId);
       if (!header) return null;

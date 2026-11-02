@@ -540,6 +540,53 @@ acompte is kept as an indemnity, and the books say so correctly.
     > - **The base text's « a cancellation without an earlier book refund writes the same lines as before »** holds
     >   for contribs that add up to the acompte exactly. A legacy acompte now writes one line per bucket it was booked
     >   on (first reading above), and contribs within 0,02 € snap onto the acompte.
+    > **Reading of 2026-11-02 (audit R15-L1 and review of PR #926, residual A).** This reading supersedes the parts
+    > of the rule and of the readings above it names.
+    > - **Only book money is requalified.** An acompte collected in the caisse interne (`depositPaidCash`) was never
+    >   booked (`encaissementsByMonth` skips it): it writes no avoir line, no indemnity, and `retainedDepositAmount`
+    >   leaves it out. A solde collected there absorbs no book refund (`saleCollected` is not read). That money is
+    >   given back in the caisse interne (specs/reservation-refunds.md rule 48, reading of the same day). *Why (probe
+    >   P1):* acompte 274 € in caisse interne, cancelled → 70600000 +249,09 and 44571100 +24,91 debited on a sale
+    >   never booked, 75880000 −274 for money off the books, and the register offered nothing.
+    > - **The commissions withheld are requalified.** On the acompte and the solde paid to the books, the payment
+    >   provider's commissions (`acompteCommissionAmount`, `platformCommissionAmount`: Lodgify / Stripe on a direct
+    >   stay) were booked as revenue gross and never reached the bank. The avoir names them on lines keyed
+    >   `commission` (« Commission retenue — Hébergement », …), `unitPrice` 0: the acompte's own commission comes out
+    >   of its lines (each keeping the TTC it was booked on as `unitPrice`), the solde's is added, spread over the
+    >   buckets the solde was booked on by largest remainder. So the avoir — and the indemnity card's `receivedAmount`
+    >   — is the acompte kept plus the solde's commission; `retainedDepositAmount` and the history's « Acompte
+    >   conservé » stay the acompte kept. With nothing kept, a paid solde's commission alone writes the pair, read
+    >   « Commission retenue » on the fiche. The export mirrors these lines as any adjusted line (the reading of PR
+    >   #926 above): no plugin code changed. *Why:* stay #22226 (acompte and solde 126,38 € paid, 3,41 € withheld on
+    >   each) left 622600 +6,82, 70600010 −6,20 and 44571100 −0,62 once all of it was given back: revenue and VAT on
+    >   a cancelled stay. It now leaves 622600 +6,82 and 75880000 −6,82 only; on the shadow data, the 12 direct stays
+    >   holding money, cancelled and given back whole, leave 706, 4457, 4671 and the client account at 0 (9 of them
+    >   left revenue before). An avoir written before carries no `commission` line: past exports are byte-identical
+    >   (all 36 months of 2025-2027, before and after the base code cancelled every paid stay of the shadow).
+    > - **The fiche deletes a refund made after the cancellation** (specs/reservation-refunds.md rule 6, reading of
+    >   the same day): the second reading above said a cancelled fiche offered « Supprimer » on no refund; it now
+    >   offers it on those, and still never on one the cancellation read, nor on the avoir, which the API refuses
+    >   too (`REFUND_RETAINED_AVOIR`).
+    > **Reading of 2026-11-02 (review of PR #929).** This reading amends the one above where it names it.
+    > - **The solde's commission is capped at what the books still hold of the solde (F1).** A book refund made
+    >   before the cancellation already reversed its share of the solde's 706 at gross; requalifying the solde's
+    >   commission whole then reversed 706 + 4457 no longer there and credited 7588 with money given back. Per revenue
+    >   bucket, the books hold of the solde what it was booked on there, plus what the acompte and installments were
+    >   booked on, less the earlier refunds there and the avoir's own lines once netted of them
+    >   (`netOfEarlierRefunds`), within 0 and the solde's own booking (`soldeHeldOf`). The solde's commission is
+    >   spread over that, by largest remainder, and never exceeds it; the avoir, the indemnity card's
+    >   `receivedAmount` and `requalifiedTtc` carry what was actually requalified. *Why:* 914 € stay, solde 640 €
+    >   with 19,20 € withheld, 640 € refunded before the cancellation then everything given back: 70600000 +14,01,
+    >   70600010 +3,43, 44571100 +1,76, 75880000 −46,62. Now 640 / 630 / 620,80 € refunded before requalify 0 / 10 /
+    >   19,20 € of the solde's commission, and every case ends with 706, 4457, 4671 and the client at 0, 75880000 at
+    >   −27,42 € and 622600 at +27,42 € — 7588 keeps exactly the commissions the books carry. Stay #22226, its
+    >   126,38 € solde refunded before: the avoir is the acompte (126,38 €), and the books end at 622600 +6,82 /
+    >   75880000 −6,82 €.
+    > - **The avoir row names what it kept (F3).** When the avoir adds the solde's commission to the acompte (or
+    >   installments) kept, the ledger row reads « Acompte et commission conservés » (« Échéances et commission
+    >   conservées »), its amount the avoir's; the acompte's own commission sits inside the acompte and keeps
+    >   « Acompte conservé ». The avoir's reason follows what was kept: « Annulation — commission retenue » when only
+    >   a commission was.
 
 
 ---
@@ -577,6 +624,9 @@ acompte is kept as an indemnity, and the books say so correctly.
 | `plugins/sdk/` | `index.js`, `coreModules.json`, `coreModuleHistory.json`, `version.js` | T | Rule 55 reading — `coreModule('storedMoneySplit')`, SDK 2.19.0 |
 | `plugins/accounting-export/` | `accountingModel.js`, `accountingExport.js` | T | Rule 55 — an adjusted `retained` line mirrors the books (`adjustedBucketSplit`, the paid solde read through `bookedBucketSplit`); the stored-money split comes from `storedMoneySplit`. Second reading: `bookedSplitsOf(id, kind)` reads the acompte entry too, and `bookedSplit` mirrors an acompte line's HT |
 | `controllers/` | `refundsController.js` | T | Rule 55 second reading — `remove` refuses (409) a refund the cancellation deducted (`utils/refunds.nettedByCancellation`) |
+| `utils/` | `cancellationRequalification.js`, `cancelReservation.js` | T | Rule 55 reading (R15-L1, residual A) — a caisse-interne acompte is not requalified, a caisse-interne solde absorbs no refund; `withCommissions` / `withheldCommissionsOf`: the commissions withheld on the paid acompte and solde, lines keyed `commission` |
+| `utils/` | `reservationLedger.js` | T | Rule 55 reading — an avoir of a commission alone reads « Commission retenue », one adding the solde's commission « Acompte et commission conservés » (`retainedLabel`, review of PR #929); « Supprimer » on the refunds `refundDeletionRefusal` lets through |
+| `utils/` | `cancellationRequalification.js` | T | Rule 55 reading (review of PR #929, F1) — `soldeHeldOf`: what the books still hold of the solde per bucket; `withCommissions` spreads the solde's commission over it |
 | `utils/` | `pricing.js` | T | Delegates the two due dates to `paymentSchedule.js`; takes `bookingDate` + the stored `depositDueDate` as inputs |
 | `utils/` | `refunds.js` | T | `retained` added to `REFUND_METHODS` (book money, never off-books) and kept out of `SELECTABLE_REFUND_METHODS`, so the manual refund API refuses it |
 | `utils/` | `balanceRequestRunner.js` | **D** | **Deleted** (rule 38) — its eligibility query moves into `paymentDeadlines.js` as the `balance_to_request` state |
@@ -742,6 +792,19 @@ One line per reservation:
       later refund and the caisse interne stay deletable; contribs 274,01 + 0,01 € snap onto the largest bucket and
       keep 274 €; 180 random legacy acomptes cancelled at 5,5, 10 and 20 % leave 706 and 4457 at 0; a legacy acompte
       netted of two refunds (case 16) leaves them at 0
+- [x] `tests/cancelled-stay-withheld-commission.unit.test.js` (8, 2026-11-02) — rule 55 reading (residual A): the
+      acompte's and the solde's commissions are named on the avoir (293,20 € = 274 € kept + 19,20 €, card the
+      same, history 274 €); everything given back leaves 706, 4457, 4671 and the client account at 0, 75880000 at
+      −27,42 € and 622600 at +27,42 €; the #22226 shape (no contribs) at −6,82 / +6,82 €; an acompte alone and a
+      solde alone; no commission → the same avoir as before; « Commission retenue » on the fiche; « Acompte et
+      commission conservés » when the solde's commission is added (9 since the review of PR #929).
+      `tests/cancelled-stay-refunded-solde-commission.unit.test.js` (6, 2026-11-02, review of PR #929) — rule 55
+      reading (F1): 640 / 630 / 620,80 / 300 € of the solde refunded before the cancellation requalify 0 / 10 /
+      19,20 / 19,20 € of its commission, and give 706, 4457, 4671 and the client 0, 75880000 −27,42 €, 622600
+      +27,42 € once everything is given back; the commission lands on the buckets still holding solde money; the
+      #22226 shape, its solde refunded before, at −6,82 / +6,82 €.
+      `tests/cancelled-stay-caisse-interne.unit.test.js` (1 of 5) — an acompte paid in caisse interne writes no
+      avoir and no indemnity, the books untouched (P1).
 - [x] `tests/payment-schedule-local-booking-day.unit.test.js` (7, 2026-10-30) — rule 54: `toIsoDay` on a date-only value, a UTC datetime and garbage; the last-minute threshold and the acompte deadline from a 00:30 timestamp; clock frozen at 31/10 00:30 Paris, a devis and a reservation (real controller, fiche preview included) keep their schedule across an unchanged save
 - [x] `tests/reservation-cancellation.unit.test.js` — rule 48: the « acompte never collected » case now expects `unpaid_deposit` (spec review 2026-10-27)
 - [x] `tests/payment-schedule.unit.test.js` (9) — deposit due = booking + N and frozen across

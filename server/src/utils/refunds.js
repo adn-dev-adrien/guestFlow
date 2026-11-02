@@ -40,6 +40,9 @@ const STORED_SPLIT_ROUNDING_TTC = 0.02;
 
 const ACCOMMODATION_KEY = 'accommodation';
 const TOURIST_TAX_KEY = 'touristTax';
+// The key of a requalification line that reverses a commission the payment provider withheld on a paid acompte or
+// solde (payment-schedule-and-cancellation rule 55 reading of 2026-11-02): it names no billed line.
+const COMMISSION_KEY = 'commission';
 
 const ACCOMMODATION_LABEL = 'Hébergement';
 const TOURIST_TAX_LABEL = 'Taxe de séjour';
@@ -90,6 +93,9 @@ const isRequalification = (refund) => String((refund && refund.method) || '') ==
 
 const isIndemnityLine = (line) => String((line && line.bucket) || '') === INDEMNITY_BUCKET;
 
+// A requalification line reversing a commission the payment provider withheld (rule 55 reading of 2026-11-02).
+const isCommissionLine = (line) => Boolean(line) && line.lineKey === COMMISSION_KEY;
+
 /**
  * specs/payment-schedule-and-cancellation.md rule 55 reading of 2026-11-02 (second review of PR #926) — a book refund
  * that existed when the cancellation wrote its `retained` avoir: the avoir was netted of it, so deleting it would turn
@@ -98,6 +104,58 @@ const isIndemnityLine = (line) => String((line && line.bucket) || '') === INDEMN
 function nettedByCancellation(refund, refunds) {
   if (!refund || isOffBooks(refund.method) || isRetainedDeposit(refund.method)) return false;
   return writtenBeforeAvoir(refunds)(refund);
+}
+
+/**
+ * specs/reservation-refunds.md rule 6 reading of 2026-11-02 (audit R15-C1) — a refund made after the stay was
+ * cancelled: the cancellation never read it, so deleting it gives its money back to the budget it came from. With an
+ * avoir, after it (a higher id); without one, what the refund recorded when it was written (`afterCancellation`,
+ * review of PR #929: the order, which the second-resolution clock cannot tell within one second), or — for a refund
+ * recorded before that flag existed — a `createdAt` later than the stay's `cancelledAt`. Unknown → not after.
+ */
+function madeAfterCancellation(refund, refunds, cancelledAt) {
+  if (!refund || isRetainedDeposit(refund.method)) return false;
+  const list = refunds || [];
+  if (list.some(isRequalification)) return !writtenBeforeAvoir(list)(refund);
+  if (refund.afterCancellation != null) return Number(refund.afterCancellation) === 1;
+  const created = String(refund.createdAt || '');
+  const at = String(cancelledAt || '');
+  return Boolean(created && at) && created > at;
+}
+
+/**
+ * Payment-schedule rule 55 reading of 2026-11-02 (review of PR #929, F2) — whether the cancellation had book money to
+ * keep: a paid acompte or paid installments, or a commission withheld on a paid solde. A stay paid in full with no
+ * commission had none: its cancellation read no refund, whatever was given back before it.
+ */
+function cancellationHadBookMoney(row) {
+  const book = (paid, cash) => Number(row[paid]) === 1 && !Number(row[cash] || 0);
+  return (book('depositPaid', 'depositPaidCash') && round2(row.depositAmount) > 0)
+    || round2(row.installmentsPaidAmount) > 0
+    || (book('balancePaid', 'balancePaidCash') && round2(row.platformCommissionAmount) > 0);
+}
+
+const DELETION_REFUSALS = {
+  retained: { code: 'REFUND_RETAINED_AVOIR', error: 'L’indemnité d’annulation ne se supprime pas.' },
+  netted: { code: 'REFUND_NETTED_BY_CANCELLATION', error: 'Remboursement déduit de l’acompte conservé.' },
+  before: { code: 'REFUND_BEFORE_CANCELLATION', error: 'Remboursement antérieur à l’annulation.' },
+};
+
+/**
+ * Why a refund of the register cannot be deleted, or null (rule 6 reading of 2026-11-02): the `retained` avoir is the
+ * cancellation itself; on a cancelled stay a book refund made before the cancellation was read by it (netted from the
+ * avoir, or the reason it kept nothing). A caisse-interne refund is off the books: the cancellation never read it. A
+ * cancellation that had no book money to keep read no refund either (review of PR #929, F2). Shared by the DELETE
+ * route and the ledger, so the fiche offers exactly what the server accepts.
+ */
+function refundDeletionRefusal(refund, refunds, reservation) {
+  if (!refund) return null;
+  if (isRetainedDeposit(refund.method)) return DELETION_REFUSALS.retained;
+  const row = reservation || {};
+  if (String(row.kind) !== 'cancelled') return null;
+  if (nettedByCancellation(refund, refunds)) return DELETION_REFUSALS.netted;
+  if (isOffBooks(refund.method) || madeAfterCancellation(refund, refunds, row.cancelledAt)) return null;
+  return cancellationHadBookMoney(row) ? DELETION_REFUSALS.before : null;
 }
 
 // Whether a refund of the register was written before its (last) `retained` avoir: a lower id, or — for a register
@@ -119,22 +177,36 @@ function writtenBeforeAvoir(refunds) {
 
 /**
  * What a cancelled stay can still give back (specs/reservation-refunds.md rule 48). `collectedTtc` is the book
- * money it collected, net of every book refund (`comptaCollected`); what the caisse interne gave back of the sale
- * left the stay too, so it comes off as well. Of the rest, `indemnityLeftTtc` is what the cancellation requalified
- * and no refund has taken from the indemnity yet; `saleLeftTtc` is the remainder — a paid solde, say — which a
- * refund still reverses as revenue + VAT.
+ * money it collected, net of every book refund (`comptaCollected`). Of the rest, `indemnityLeftTtc` is what the
+ * cancellation requalified and no refund has taken from the indemnity yet; `saleLeftTtc` is the remainder — a paid
+ * solde, say — which a refund still reverses as revenue + VAT.
+ *
+ * Rule 48 reading of 2026-11-02 (audit R15-L1) — the caisse interne has a budget of its own: `cashCollectedTtc`
+ * (`cashCollected`) less what it gave back, `cashLeftTtc`, refundable in the caisse interne only. A caisse-interne
+ * refund beyond that money gave back book money, which comes off `collectedTtc`.
+ * Rule 48 reading of 2026-11-02 (review of PR #926, residual A) — the commissions an avoir requalified (lines keyed
+ * `commission`) were withheld by the payment provider, never collected: the indemnity never gives them back.
  */
-function cancelledRefundBudget({ collectedTtc, refunds = [] }) {
+function cancelledRefundBudget({ collectedTtc, cashCollectedTtc = 0, refunds = [] }) {
   const givenInCash = (refunds || []).filter((r) => isOffBooks(r.method))
     .flatMap((r) => r.lines || []).filter((l) => !isIndemnityLine(l))
     .reduce((sum, l) => sum + Number(l.amountTtc || 0), 0);
-  const collected = Math.max(0, round2(Number(collectedTtc || 0) - givenInCash));
+  const cash = Math.max(0, round2(cashCollectedTtc));
+  const collected = Math.max(0, round2(Number(collectedTtc || 0) - Math.max(0, round2(givenInCash - cash))));
   const requalified = (refunds || []).filter(isRequalification).reduce((sum, r) => sum + Number(r.totalTtc || 0), 0);
+  const withheld = (refunds || []).filter(isRequalification).flatMap((r) => r.lines || [])
+    .filter((l) => l.lineKey === COMMISSION_KEY).reduce((sum, l) => sum + Number(l.amountTtc || 0), 0);
   const fromIndemnity = (refunds || []).filter((r) => !isRequalification(r))
     .flatMap((r) => r.lines || []).filter(isIndemnityLine)
     .reduce((sum, l) => sum + Number(l.amountTtc || 0), 0);
-  const indemnityLeftTtc = Math.min(collected, Math.max(0, round2(requalified - fromIndemnity)));
-  return { collectedTtc: collected, indemnityLeftTtc, saleLeftTtc: round2(collected - indemnityLeftTtc) };
+  const indemnityLeftTtc = Math.min(collected, Math.max(0, round2(requalified - withheld - fromIndemnity)));
+  return {
+    collectedTtc: collected,
+    indemnityLeftTtc,
+    saleLeftTtc: round2(collected - indemnityLeftTtc),
+    cashCollectedTtc: cash,
+    cashLeftTtc: Math.max(0, round2(cash - givenInCash)),
+  };
 }
 
 /** Σ of the refund register, either book-money only (default) or including the caisse interne. */
@@ -164,11 +236,20 @@ function refundsTotal(refunds, { withCash = false } = {}) {
  *                                      collected (rule 48) and carries `indemnityTtc`, the part the indemnity holds
  * @param {object} [input.collected]    `collectedByLine(...)` — on a cancelled stay, each line offers at most what IT
  *                                      collected (rule 49 reading of 2026-11-02)
+ * @param {object} [input.cashCollected] `collectedByLine({ cash: true })` — the same, for the caisse interne: a line
+ *                                      then also offers `cashTtc`, refundable in the caisse interne only (rule 48
+ *                                      reading of 2026-11-02, audit R15-L1)
  */
-function buildRefundableLines({ finalPrice, touristTaxTotal, vatRate, options = [], resources = [], refunds = [], nights = 0, cancelled = null, collected = null }) {
+function buildRefundableLines({ finalPrice, touristTaxTotal, vatRate, options = [], resources = [], refunds = [], nights = 0, cancelled = null, collected = null, cashCollected = null }) {
   const given = refundedByKey(refunds, (refund) => !isRequalification(refund));
   const fromIndemnity = refundedByKey(refunds, (refund) => !isRequalification(refund), isIndemnityLine);
-  const requalified = refundedByKey(refunds, isRequalification);
+  const requalified = refundedByKey(refunds, isRequalification, (line) => !isCommissionLine(line));
+  // Rule 48 reading of 2026-11-02 (review of PR #926, residual A) — the commissions an avoir requalified, per bucket:
+  // they leave their lines like the acompte did, but the indemnity never gives them back.
+  const withheld = {};
+  for (const line of (refunds || []).filter(isRequalification).flatMap((refund) => refund.lines || []).filter(isCommissionLine)) {
+    withheld[line.bucket] = round2((withheld[line.bucket] || 0) + Number(line.amountTtc || 0));
+  }
   const rate = Number(vatRate || 0);
 
   const extras = [];
@@ -231,14 +312,24 @@ function buildRefundableLines({ finalPrice, touristTaxTotal, vatRate, options = 
   // What a refund took from the indemnity (rule 48) gave back requalified money, not the line's sale.
   const perLine = all.map((line) => {
     const refundedTtc = round2(given[line.key] || 0);
-    const requalifiedTtc = round2(requalified[line.key] || 0);
+    const withheldTtc = line.key === ACCOMMODATION_KEY ? round2(withheld.accommodation || 0) : 0;
+    const requalifiedTtc = round2((requalified[line.key] || 0) + withheldTtc);
     const saleRefundedTtc = round2(refundedTtc - (fromIndemnity[line.key] || 0));
-    return { ...line, refundedTtc, requalifiedTtc, refundableTtc: Math.max(0, round2(line.billedTtc - saleRefundedTtc - requalifiedTtc)) };
+    return { ...line, refundedTtc, requalifiedTtc, withheldTtc, refundableTtc: Math.max(0, round2(line.billedTtc - saleRefundedTtc - requalifiedTtc)) };
   });
+  // Rule 48 reading of 2026-11-02 (audit R15-L1) — what the caisse interne collected on a line (0 when it collected
+  // nothing on the stay, unknown on a line no reading names) and gave back there: beyond that money, a caisse-interne
+  // refund gave back the line's book money.
+  const inCash = refundedByKey(refunds, (refund) => isOffBooks(refund.method));
+  const hasCash = Boolean(cancelled) && Number(cancelled.cashCollectedTtc || 0) > 0;
+  const cashOf = (line) => (!hasCash ? 0 : (cashCollected && line.key in cashCollected ? cashCollected[line.key] : Infinity));
+  const cashLeftOf = (line) => Math.max(0, cashOf(line) - (inCash[line.key] || 0));
+  const bookGivenOf = (line) => round2(line.refundedTtc - (fromIndemnity[line.key] || 0) - (inCash[line.key] || 0)
+    + (cashOf(line) === Infinity ? 0 : Math.max(0, (inCash[line.key] || 0) - cashOf(line))));
   // Rule 49 reading of 2026-11-02 — on a cancelled stay a line never holds more than it collected, net of the sale
   // money already given back on it: a line paid at arrival and never collected requalifies nothing and offers nothing.
   const collectedLeft = (line) => (cancelled && collected && line.key in collected
-    ? Math.max(0, round2(collected[line.key] - (line.refundedTtc - (fromIndemnity[line.key] || 0)))) : Infinity);
+    ? Math.max(0, round2(collected[line.key] - bookGivenOf(line))) : Infinity);
   // Rule 49 reading of 2026-11-02 (second review of PR #926) — the avoir is spread over the lines as they stood when
   // it was written: a refund made after it never moves its money from one line to another, so giving back one line
   // leaves what the others offer unchanged.
@@ -250,13 +341,14 @@ function buildRefundableLines({ finalPrice, touristTaxTotal, vatRate, options = 
     return cancelled && collected && line.key in collected ? Math.min(billed, Math.max(0, round2(collected[line.key] - before))) : billed;
   };
   ['options', 'resources'].forEach((bucket) => spreadBucketRefund(perLine.filter((line) => line.key !== bucket && line.bucket === bucket), requalified[bucket], roomAtAvoir));
+  ['options', 'resources'].forEach((bucket) => spreadBucketRefund(perLine.filter((line) => line.key !== bucket && line.bucket === bucket), withheld[bucket], roomAtAvoir, true));
   if (cancelled) {
     // Rule 48 — a cancelled stay gives back money it collected, never what it billed: the requalified money the
     // indemnity still holds on the line, plus at most the collected money no cancellation requalified.
     const saleRooms = perLine.map((line) => Math.round(Math.min(line.refundableTtc, cancelled.saleLeftTtc,
       Math.max(0, collectedLeft(line) - line.requalifiedTtc)) * 100));
     const indemnityRooms = perLine.map((line) => Math.round(Math.min(cancelled.indemnityLeftTtc,
-      Math.max(0, round2(line.requalifiedTtc - (fromIndemnity[line.key] || 0)))) * 100));
+      Math.max(0, round2(line.requalifiedTtc - line.withheldTtc - (fromIndemnity[line.key] || 0)))) * 100));
     // Rule 49 — the lines together never offer more than is left: a free line took its money from no line in
     // particular, and a paid solde is one sum the lines share. The excess comes off the lines paid at arrival first,
     // the money a cancelled stay is the least likely to have collected, then off the lines whose own collection is
@@ -279,12 +371,18 @@ function buildRefundableLines({ finalPrice, touristTaxTotal, vatRate, options = 
         unoffered -= added;
       }
     }
+    // Rule 48 reading of 2026-11-02 (audit R15-L1) — the caisse interne's own money, within what the line billed.
+    const cashRooms = perLine.map((line, index) => Math.max(0, Math.round(Math.min(
+      Math.round(line.refundableTtc * 100) - saleRooms[index], cashLeftOf(line) * 100, Number(cancelled.cashLeftTtc || 0) * 100,
+    ))));
+    capInOrder(cashRooms, Math.round(Number(cancelled.cashLeftTtc || 0) * 100), order);
     perLine.forEach((line, index) => {
       line.indemnityTtc = indemnityRooms[index] / 100;
-      line.refundableTtc = (saleRooms[index] + indemnityRooms[index]) / 100;
+      if (cashRooms[index] > 0) line.cashTtc = cashRooms[index] / 100;
+      line.refundableTtc = (saleRooms[index] + indemnityRooms[index] + cashRooms[index]) / 100;
     });
   }
-  return perLine.filter((line) => line.refundableTtc > 0);
+  return perLine.filter((line) => line.refundableTtc > 0).map(({ withheldTtc, ...line }) => line);
 }
 
 // specs/reservation-refunds.md rule 49 — lowers the rooms (cents) until they add up to `budget` at most, taking the
@@ -306,14 +404,17 @@ function capInOrder(rooms, budget, order) {
  * accommodation, and moves to the tax with the solde (accountingModel's reclass). Without contribs that add up to
  * each paid entry, the accommodation and the tax read `booked` and the extras only the lines paid at arrival (0 while
  * the complement is unpaid); `null` when nothing is known: the lines then share the money with no per-line cap.
+ * Book money by default; `cash` reads the entries collected in the caisse interne instead (audit R15-L1).
  */
-function collectedByLine({ reservation, options = [], resources = [], booked = null }) {
+function collectedByLine({ reservation, options = [], resources = [], booked = null, cash = false }) {
   const row = reservation || {};
   const lines = [...options, ...resources].filter((line) => line && Number(line.offered || 0) !== 1);
   const nz = (value) => (value == null ? 0 : Number(value));
-  const deposit = Number(row.depositPaid) === 1;
-  const balance = Number(row.balancePaid) === 1;
-  const complement = Number(row.complementPaid) === 1;
+  // Rule 48 reading of 2026-11-02 (audit R15-L1) — the book money, or (`cash`) what the caisse interne collected.
+  const paid = (flag, cashFlag) => Number(row[flag]) === 1 && (Number(row[cashFlag] || 0) === 1) === Boolean(cash);
+  const deposit = paid('depositPaid', 'depositPaidCash');
+  const balance = paid('balancePaid', 'balancePaidCash');
+  const complement = paid('complementPaid', 'complementPaidCash');
   // Contribs describe a paid entry when they add up to it (accountingModel's tolerance); otherwise the export booked
   // it on the stored-money split, which knows no line.
   const describes = (field, lineField, taxField, amount) => Math.abs(round2(nz(row[field]) + nz(row[taxField])
@@ -362,9 +463,10 @@ function collectedByLine({ reservation, options = [], resources = [], booked = n
  * a cancellation, which reverses a whole bucket (specs/reservation-refunds.md rule 45). It consumes the
  * bucket's lines pro rata of what each still had to give back when it was written (`roomOf`), by largest remainder
  * (rule 46): every cent of it lands on a line that still had it, so the register never offers again what the
- * cancellation requalified.
+ * cancellation requalified. `withheldShare`: the amount is a commission withheld (rule 48 reading of 2026-11-02), which
+ * the indemnity never gives back.
  */
-function spreadBucketRefund(lines, amountTtc, roomOf = (line) => line.refundableTtc) {
+function spreadBucketRefund(lines, amountTtc, roomOf = (line) => line.refundableTtc, withheldShare = false) {
   const totalCents = Math.round(Number(amountTtc || 0) * 100);
   const remaining = lines.filter((line) => roomOf(line) > 0);
   const lineCents = remaining.map((line) => Math.round(roomOf(line) * 100));
@@ -383,6 +485,7 @@ function spreadBucketRefund(lines, amountTtc, roomOf = (line) => line.refundable
     });
   remaining.forEach((line, index) => {
     line.requalifiedTtc = round2(line.requalifiedTtc + takes[index] / 100);
+    if (withheldShare) line.withheldTtc = round2(line.withheldTtc + takes[index] / 100);
     line.refundableTtc = Math.max(0, round2(line.refundableTtc - takes[index] / 100));
   });
 }
@@ -522,14 +625,12 @@ function validateRefundPayload(payload, context) {
 
   const totalTtc = round2(lines.reduce((sum, l) => sum + l.amountTtc, 0));
   if (cancelled) {
-    if (totalTtc > cancelled.collectedTtc) {
-      return invalid('REFUND_EXCEEDS_COLLECTED', `Dépasse l’encaissé (${euros(cancelled.collectedTtc)}).`, 409);
+    const reachable = round2(cancelled.collectedTtc + Number(cancelled.cashLeftTtc || 0));
+    if (totalTtc > reachable) {
+      return invalid('REFUND_EXCEEDS_COLLECTED', `Dépasse l’encaissé (${euros(reachable)}).`, 409);
     }
-    const split = splitOnIndemnity(lines, byKey, cancelled);
+    const split = splitOnIndemnity(lines, byKey, cancelled, method === OFF_BOOKS_METHOD);
     if (split.error) return split;
-    if (method === OFF_BOOKS_METHOD && split.lines.some(isIndemnityLine)) {
-      return invalid('REFUND_INDEMNITY_OFF_BOOKS', 'Pris sur l’indemnité : virement ou espèces seulement.', 409);
-    }
     lines.splice(0, lines.length, ...split.lines);
   }
   if (!(totalTtc > 0)) {
@@ -563,44 +664,57 @@ const euros = (n) => require('./reservationLedger').formatEuros(n);
  * Rule 48 — on a cancelled stay, each line is given back first from the collected money no cancellation
  * requalified (it keeps its bucket and VAT: the sale is reversed), then from the indemnity (bucket `indemnity`,
  * 0 %). The indemnity part of a sold line never exceeds what the cancellation requalified on it.
+ * Rule 48 reading of 2026-11-02 (audit R15-L1) — a caisse-interne refund takes the caisse interne's own money first,
+ * then the sale money, never the indemnity; a book refund never takes the caisse interne's money.
  */
-function splitOnIndemnity(lines, byKey, budget) {
+function splitOnIndemnity(lines, byKey, budget, offBooks = false) {
   let saleLeft = Math.round(budget.saleLeftTtc * 100);
   let indemnityLeft = Math.round(budget.indemnityLeftTtc * 100);
+  let cashLeft = Math.round(Number(budget.cashLeftTtc || 0) * 100);
   const saleRoom = {};
   const indemnityRoom = {};
+  const cashRoom = {};
   for (const [key, line] of byKey) {
     indemnityRoom[key] = Math.round(Number(line.indemnityTtc || 0) * 100);
-    saleRoom[key] = Math.round(line.refundableTtc * 100) - indemnityRoom[key];
+    cashRoom[key] = Math.round(Number(line.cashTtc || 0) * 100);
+    saleRoom[key] = Math.round(line.refundableTtc * 100) - indemnityRoom[key] - cashRoom[key];
   }
   const out = [];
   for (const line of lines) {
     const cents = Math.round(line.amountTtc * 100);
     const key = line.lineKey;
-    const sale = Math.min(cents, saleLeft, key ? Math.max(0, saleRoom[key]) : cents);
-    const fromIndemnity = cents - sale;
-    if (fromIndemnity > indemnityLeft || (key && fromIndemnity > indemnityRoom[key])) {
-      // Rule 49 — what is really left for this line once the earlier lines of the refund took their share.
+    const room = (rooms, left) => Math.min(left, key ? Math.max(0, rooms[key]) : left);
+    const cash = offBooks ? Math.min(cents, room(cashRoom, cashLeft)) : 0;
+    const sale = Math.min(cents - cash, room(saleRoom, saleLeft));
+    const fromIndemnity = cents - cash - sale;
+    if (fromIndemnity > 0 && (offBooks || fromIndemnity > room(indemnityRoom, indemnityLeft))) {
       const billed = key ? byKey.get(key) : null;
-      const leftCents = billed
-        ? Math.min(Math.max(0, saleRoom[key]), saleLeft) + Math.min(Math.max(0, indemnityRoom[key]), indemnityLeft)
-        : saleLeft + indemnityLeft;
+      // Rule 49 — what is really left for this line once the earlier lines of the refund took their share.
+      const leftCents = room(saleRoom, saleLeft) + room(indemnityRoom, indemnityLeft) + room(cashRoom, cashLeft);
+      if (offBooks && fromIndemnity <= room(indemnityRoom, indemnityLeft)) {
+        return invalid('REFUND_INDEMNITY_OFF_BOOKS', 'Pris sur l’indemnité : virement ou espèces seulement.', 409);
+      }
+      if (!offBooks && cents <= leftCents) {
+        return invalid('REFUND_CASH_ONLY_IN_CASH', 'Encaissé en caisse interne : rendu en caisse interne seulement.', 409);
+      }
       return billed
         ? invalid('REFUND_EXCEEDS_LINE', `« ${billed.label} » : dépasse l’encaissé restant (${euros(leftCents / 100)}).`, 409)
         : invalid('REFUND_EXCEEDS_COLLECTED', `Dépasse l’encaissé restant (${euros(leftCents / 100)}).`, 409);
     }
     saleLeft -= sale;
     indemnityLeft -= fromIndemnity;
+    cashLeft -= cash;
     if (key) {
       saleRoom[key] -= sale;
       indemnityRoom[key] -= fromIndemnity;
+      cashRoom[key] -= cash;
     }
     const part = (amountCents) => ({
       ...line,
       amountTtc: amountCents / 100,
       quantity: line.unitPrice ? Math.round((amountCents / 100 / line.unitPrice) * 10000) / 10000 : line.quantity,
     });
-    if (sale > 0) out.push(part(sale));
+    if (cash + sale > 0) out.push(part(cash + sale));
     if (fromIndemnity > 0) out.push({ ...part(fromIndemnity), bucket: INDEMNITY_BUCKET, vatRate: 0 });
   }
   return { lines: out };
@@ -615,12 +729,15 @@ module.exports = {
   OFF_BOOKS_METHOD,
   ACCOMMODATION_KEY,
   TOURIST_TAX_KEY,
+  COMMISSION_KEY,
   isOffBooks,
   isRetainedDeposit,
   isIndemnityLine,
   cancelledRefundBudget,
   collectedByLine,
   nettedByCancellation,
+  refundDeletionRefusal,
+  madeAfterCancellation,
   billedLineKey,
   refundedByKey,
   refundedTouristTax,
