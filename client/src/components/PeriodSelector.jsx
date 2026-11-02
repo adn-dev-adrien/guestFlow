@@ -17,8 +17,8 @@
  */
 import React, { useEffect, useState } from 'react';
 import { Box, MenuItem, TextField, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
-import { HORIZON_MESSAGE } from '../constants/dateHorizon';
-import { dateBeyondHorizon } from '../utils/dateHorizon';
+import { HORIZON_MESSAGE, PAST_HORIZON_MESSAGE } from '../constants/dateHorizon';
+import { dateWindowMessage } from '../utils/dateHorizon';
 
 const DEFAULT_LABELS = { fy: 'Exercice', month: 'Mois', custom: 'Personnalisée' };
 export const MAX_CUSTOM_WINDOW_DAYS = 750;
@@ -27,6 +27,7 @@ export const PERIOD_MESSAGES = {
   reversed: 'La date de début doit précéder la date de fin.',
   tooWide: `Période trop longue : ${MAX_CUSTOM_WINDOW_DAYS} jours au plus.`,
   tooFar: HORIZON_MESSAGE,
+  tooOld: PAST_HORIZON_MESSAGE,
 };
 
 const DAY_MS = 86400000;
@@ -35,8 +36,7 @@ export function customWindowError(from, to) {
   if (!from || !to) return PERIOD_MESSAGES.missingDates;
   if (from > to) return PERIOD_MESSAGES.reversed;
   if ((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / DAY_MS > MAX_CUSTOM_WINDOW_DAYS) return PERIOD_MESSAGES.tooWide;
-  if (dateBeyondHorizon(to)) return PERIOD_MESSAGES.tooFar;
-  return '';
+  return dateWindowMessage(from) || dateWindowMessage(to);
 }
 
 export default function PeriodSelector({ kind, month, from, to, months = [], onChange, labels = DEFAULT_LABELS }) {

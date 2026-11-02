@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import api from '../api';
+import { dateWindowMessage } from '../utils/dateHorizon';
 
 /**
  * useWelcomePack — the option lines the rate already covers for a brand-new own-channel reservation
@@ -10,7 +11,8 @@ import api from '../api';
  * context changes (platform, property, dates, guests) and returns `[]` for every non-eligible case,
  * including a failed request — a pack that cannot be fetched must never block the form (rule: soft
  * fail). `enabled` is what keeps it off saved reservations, devis and iCal-imported fiches (rules
- * 4-5): when false the hook fires no request at all.
+ * 4-5): when false the hook fires no request at all. Nor is a date outside the window of
+ * specs/reservations-backend-mvc.md rule 13 (today ± 5 years) ever sent: the fiche refuses it anyway.
  */
 export default function useWelcomePack({ enabled = false, propertyId, ...context } = {}) {
   const [lines, setLines] = useState([]);
@@ -19,7 +21,7 @@ export default function useWelcomePack({ enabled = false, propertyId, ...context
   } = context;
 
   useEffect(() => {
-    if (!enabled || !propertyId) {
+    if (!enabled || !propertyId || dateWindowMessage(startDate) || dateWindowMessage(endDate)) {
       setLines((prev) => (prev.length === 0 ? prev : []));
       return undefined;
     }

@@ -97,7 +97,7 @@ test('rule 13 — the pure hint: the horizon passes, one day past it does not, a
   expect(stayDatesMessage(ARRIVAL, addIsoDays(H, 1))).toBe(TOO_FAR);
   expect(stayDatesMessage(addIsoDays(H, 1), addIsoDays(H, 3))).toBe(TOO_FAR);
   expect(stayDatesMessage(addIsoDays(H, 1), addIsoDays(H, 3), { stored: { startDate: addIsoDays(H, 1), endDate: addIsoDays(H, 3) } })).toBe('');
-  expect(stayDatesMessage(addIsoDays(localIsoToday(), -4000), addIsoDays(localIsoToday(), -3998))).toBe('');
+  expect(stayDatesMessage(addIsoDays(localIsoToday(), -4000), addIsoDays(localIsoToday(), -3998))).toBe('Date trop ancienne : 5 ans au plus.');
   expect(isQuotableStay(ARRIVAL, addIsoDays(H, 1))).toBe(false);
 });
 

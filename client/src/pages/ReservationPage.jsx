@@ -1264,8 +1264,9 @@ export default function ReservationPage() {
             platformTouristTaxAmount: '',
           });
 
-          await loadResourcesAvailability(startDate, endDate, initialPropId);
-          await loadBabyBedAvailability(startDate, endDate, initialPropId);
+          // A URL range the fiche refuses (rules 12-13) is asked for nothing: its departure is dropped above.
+          await loadResourcesAvailability(startDate, hasStayRange ? endDate : '', initialPropId);
+          await loadBabyBedAvailability(startDate, hasStayRange ? endDate : '', initialPropId);
           // §3.7 — pre-populate selectedOptions with the property's defaults (linen options
           // typically). Soft-fail; awaiting so the form is consistent before the user can interact.
           await applyPropertyDefaultsAsync(initialPropId);
