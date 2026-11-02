@@ -8,6 +8,8 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import dayjs from 'dayjs';
 import DateField from '../DateField';
 
+const inDays = (n) => dayjs().add(n, 'day').format('YYYY-MM-DD');
+
 const setup = (props = {}) => {
   const onChange = vi.fn();
   render(<DateField label="Date" value="" onChange={onChange} {...props} />);
@@ -22,7 +24,7 @@ describe('DateField — keyboard entry', () => {
     const { input, onChange, blur } = setup();
     input.focus();
     fireEvent.keyDown(input, { key: '2' });
-    fireEvent.change(input, { target: { value: '2028-01-15' } });
+    fireEvent.change(input, { target: { value: inDays(30) } });
     expect(onChange).toHaveBeenCalledTimes(1);
     expect(blur).not.toHaveBeenCalled();
   });
@@ -37,7 +39,7 @@ describe('DateField — keyboard entry', () => {
   });
 
   test('clearing the field with Backspace keeps the focus', () => {
-    const { input, blur } = setup({ value: '2028-01-15' });
+    const { input, blur } = setup({ value: inDays(30) });
     fireEvent.keyDown(input, { key: 'Backspace' });
     fireEvent.change(input, { target: { value: '' } });
     expect(blur).not.toHaveBeenCalled();
@@ -46,9 +48,9 @@ describe('DateField — keyboard entry', () => {
   test('a pointer press after typing makes the next change a calendar pick: it blurs', () => {
     const { input, blur } = setup();
     fireEvent.keyDown(input, { key: '2' });
-    fireEvent.change(input, { target: { value: '2028-01-15' } });
+    fireEvent.change(input, { target: { value: inDays(30) } });
     fireEvent.pointerDown(input);
-    fireEvent.change(input, { target: { value: '2028-01-20' } });
+    fireEvent.change(input, { target: { value: inDays(35) } });
     expect(blur).toHaveBeenCalledTimes(1);
   });
 
@@ -57,7 +59,7 @@ describe('DateField — keyboard entry', () => {
     const { input, blur } = setup();
     fireEvent.keyDown(input, { key: ' ' });
     vi.advanceTimersByTime(2000);
-    fireEvent.change(input, { target: { value: '2028-01-20' } });
+    fireEvent.change(input, { target: { value: inDays(35) } });
     expect(blur).toHaveBeenCalledTimes(1);
   });
 
