@@ -27,6 +27,7 @@ const reset = () => {
 };
 
 function refundWithIndemnityShare(reservationId) {
+  // date-literal-ok: buildVatGoldenDb freezes the clock on 2027-10-20.
   const refund = Number(db.prepare("INSERT INTO reservation_refunds (reservationId, refundDate, method, totalTtc, reason) VALUES (?, '2027-10-01', 'transfer', 70, 'x')").run(reservationId).lastInsertRowid);
   const line = db.prepare('INSERT INTO reservation_refund_lines (refundId, lineKey, label, bucket, amountTtc, vatRate) VALUES (?, ?, ?, ?, ?, ?)');
   line.run(refund, 'accommodation', 'Hébergement', 'accommodation', 50, 10);
@@ -44,6 +45,7 @@ test('rule 16: a switch re-rates the sale lines of a refund, never its indemnity
 
 test('rule 26: undoing a future switch restores the sale lines, the indemnity line stays at 0 %', () => {
   const rates = refundWithIndemnityShare(105);
+  // date-literal-ok: buildVatGoldenDb freezes the clock on 2027-10-20, so the switch is still ahead.
   const made = send({ regime: 'subject', rate: 20, basis: 'arrival', effectiveFrom: '2027-12-01' });
   assert.equal(made.statusCode, 201);
   assert.deepEqual(rates(), [['accommodation', 20], ['indemnity', 0]]);
