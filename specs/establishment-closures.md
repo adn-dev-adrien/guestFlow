@@ -409,6 +409,10 @@ no preview, Save disabled; a closure stored past the horizon opens clean.
   typed in « Début de fermeture » gives 01/12/2028, the focus stays on its year, no calendar opens and
   « Réouverture » reads 02/12/2028. Picking the 10 in the start calendar (with « OK » on touch) still
   opens the reopening calendar, pre-filled to 11/12/2028 (rule 21).
+- [x] 2026-11-02, after the merge with #937, same copy and widths: a start typed six years ahead (01/12, today's
+  year + 6) keeps the focus on its year, opens no calendar, says « Date trop lointaine : 5 ans au plus. »,
+  disables « Enregistrer » and is never previewed (rules 18 and 21; client
+  `EstablishmentClosuresPage.keyboard-start.test.jsx`, 3 cases).
 
 #### Calendar visualization (new)
 - [ ] Open `/calendar`, select a property that has an upcoming global closure → the closure dates appear as gray striped bands across all visible cells of the closure range. Tooltip shows the label + dates.

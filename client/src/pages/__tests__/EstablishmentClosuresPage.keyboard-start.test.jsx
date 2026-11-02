@@ -1,6 +1,7 @@
 // specs/establishment-closures.md rule 21 (2026-11-02) — a start date typed on the keyboard keeps the focus in
 // « Début de fermeture »: the reopening calendar opens only on a pick in the start calendar. The reopening
-// date is pre-filled to start + 1 either way.
+// date is pre-filled to start + 1 either way. With rule 18's reading of 2026-11-02 (date horizon): a start typed
+// past today + 5 years says so under its field, opens no calendar, and is not previewed.
 import React from 'react';
 import { vi } from 'vitest';
 import { render, screen, within, waitFor, fireEvent, act } from '@testing-library/react';
@@ -23,6 +24,7 @@ vi.mock('../../api', () => ({
 import api from '../../api';
 import EstablishmentClosuresPage from '../EstablishmentClosuresPage';
 import { NONE, media } from './establishmentClosuresFixtures';
+import { horizonEnd } from '../../utils/dateHorizon';
 
 let orig;
 beforeEach(() => {
@@ -83,4 +85,24 @@ test('rule 21: a day picked in the start calendar still opens the reopening cale
   await waitFor(() => expect(sections(field(dialog, 'Réouverture')).day).toHaveTextContent('11'));
   expect(await screen.findByRole('grid')).toBeInTheDocument();
   expect(api.getClosureConflicts).toHaveBeenCalled();
+});
+
+test('rule 21: a start typed six years ahead keeps the focus, says it is too far and is not previewed', async () => {
+  const dialog = await openNewClosure();
+  const sixYears = dayjs(horizonEnd()).add(1, 'year');
+  const { day, month, year } = sections(field(dialog, 'Début de fermeture'));
+  await userEvent.click(day);
+  await userEvent.keyboard(sixYears.format('DDMMYYYY'));
+  await waitFor(() => expect(year).toHaveTextContent(String(sixYears.year())));
+  expect(day).toHaveTextContent(sixYears.format('DD'));
+  expect(month).toHaveTextContent(sixYears.format('MM'));
+  await act(async () => {});
+  expect(document.activeElement).toBe(year);
+  expect(screen.queryByRole('grid', { hidden: true })).toBeNull();
+  expect(within(dialog).getByText('Date trop lointaine : 5 ans au plus.')).toBeInTheDocument();
+  expect(within(dialog).getByRole('button', { name: 'Enregistrer', hidden: true })).toBeDisabled();
+  // The year's first digits make complete past dates (0002, 0020, 0203) that may be previewed on the way; the
+  // date typed past the horizon never is.
+  const previewedStarts = api.getClosureConflicts.mock.calls.map(([q]) => q.startDate);
+  expect(previewedStarts).not.toContain(sixYears.format('YYYY-MM-DD'));
 });
