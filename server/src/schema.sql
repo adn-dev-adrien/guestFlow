@@ -443,6 +443,7 @@ CREATE TABLE IF NOT EXISTS reservation_refunds (
     totalTtc      REAL NOT NULL DEFAULT 0,          -- server-computed sum of the lines
     reason        TEXT DEFAULT '',
     createdAt     TEXT DEFAULT (datetime('now')),
+    afterCancellation INTEGER,                      -- 1 recorded on a stay already cancelled, 0 before, NULL older rows
     FOREIGN KEY (reservationId) REFERENCES reservations(id) ON DELETE CASCADE
   );
 

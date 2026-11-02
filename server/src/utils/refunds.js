@@ -109,19 +109,34 @@ function nettedByCancellation(refund, refunds) {
 /**
  * specs/reservation-refunds.md rule 6 reading of 2026-11-02 (audit R15-C1) — a refund made after the stay was
  * cancelled: the cancellation never read it, so deleting it gives its money back to the budget it came from. With an
- * avoir, after it (a higher id); without one, a `createdAt` later than the stay's `cancelledAt`. Unknown → not after.
+ * avoir, after it (a higher id); without one, what the refund recorded when it was written (`afterCancellation`,
+ * review of PR #929: the order, which the second-resolution clock cannot tell within one second), or — for a refund
+ * recorded before that flag existed — a `createdAt` later than the stay's `cancelledAt`. Unknown → not after.
  */
 function madeAfterCancellation(refund, refunds, cancelledAt) {
   if (!refund || isRetainedDeposit(refund.method)) return false;
   const list = refunds || [];
   if (list.some(isRequalification)) return !writtenBeforeAvoir(list)(refund);
+  if (refund.afterCancellation != null) return Number(refund.afterCancellation) === 1;
   const created = String(refund.createdAt || '');
   const at = String(cancelledAt || '');
   return Boolean(created && at) && created > at;
 }
 
+/**
+ * Payment-schedule rule 55 reading of 2026-11-02 (review of PR #929, F2) — whether the cancellation had book money to
+ * keep: a paid acompte or paid installments, or a commission withheld on a paid solde. A stay paid in full with no
+ * commission had none: its cancellation read no refund, whatever was given back before it.
+ */
+function cancellationHadBookMoney(row) {
+  const book = (paid, cash) => Number(row[paid]) === 1 && !Number(row[cash] || 0);
+  return (book('depositPaid', 'depositPaidCash') && round2(row.depositAmount) > 0)
+    || round2(row.installmentsPaidAmount) > 0
+    || (book('balancePaid', 'balancePaidCash') && round2(row.platformCommissionAmount) > 0);
+}
+
 const DELETION_REFUSALS = {
-  retained: { code: 'REFUND_RETAINED_AVOIR', error: 'L’acompte conservé ne se supprime pas.' },
+  retained: { code: 'REFUND_RETAINED_AVOIR', error: 'L’indemnité d’annulation ne se supprime pas.' },
   netted: { code: 'REFUND_NETTED_BY_CANCELLATION', error: 'Remboursement déduit de l’acompte conservé.' },
   before: { code: 'REFUND_BEFORE_CANCELLATION', error: 'Remboursement antérieur à l’annulation.' },
 };
@@ -129,8 +144,9 @@ const DELETION_REFUSALS = {
 /**
  * Why a refund of the register cannot be deleted, or null (rule 6 reading of 2026-11-02): the `retained` avoir is the
  * cancellation itself; on a cancelled stay a book refund made before the cancellation was read by it (netted from the
- * avoir, or the reason it kept nothing). A caisse-interne refund is off the books: the cancellation never read it.
- * Shared by the DELETE route and the ledger, so the fiche never offers what the server refuses.
+ * avoir, or the reason it kept nothing). A caisse-interne refund is off the books: the cancellation never read it. A
+ * cancellation that had no book money to keep read no refund either (review of PR #929, F2). Shared by the DELETE
+ * route and the ledger, so the fiche offers exactly what the server accepts.
  */
 function refundDeletionRefusal(refund, refunds, reservation) {
   if (!refund) return null;
@@ -139,7 +155,7 @@ function refundDeletionRefusal(refund, refunds, reservation) {
   if (String(row.kind) !== 'cancelled') return null;
   if (nettedByCancellation(refund, refunds)) return DELETION_REFUSALS.netted;
   if (isOffBooks(refund.method) || madeAfterCancellation(refund, refunds, row.cancelledAt)) return null;
-  return DELETION_REFUSALS.before;
+  return cancellationHadBookMoney(row) ? DELETION_REFUSALS.before : null;
 }
 
 // Whether a refund of the register was written before its (last) `retained` avoir: a lower id, or — for a register

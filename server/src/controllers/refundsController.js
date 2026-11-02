@@ -75,6 +75,12 @@ function createRefundsController(deps = {}) {
       collected: cancelled ? lineReading(false) : null,
       cashCollected: cancelled && cancelled.cashCollectedTtc > 0 ? lineReading(true) : null,
     });
+    // Rule 48 reading of 2026-11-02 (review of PR #929, F4) — the caisse interne gives back only what its lines carry:
+    // cash collected on no line of the register (an end-of-stay complement, say) is never promised.
+    if (cancelled) {
+      const carried = round2(refundableLines.reduce((sum, line) => sum + Number(line.cashTtc || 0), 0));
+      cancelled.cashLeftTtc = Math.min(cancelled.cashLeftTtc, carried);
+    }
     return {
       reservation,
       vatRate,

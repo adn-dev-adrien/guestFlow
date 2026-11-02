@@ -162,3 +162,17 @@ test('reservation-refunds rule 48 reading — the caisse-interne budget is share
   assert.equal(tooMuch.body.code, 'REFUND_INDEMNITY_OFF_BOOKS');
   assert.equal(refund(controller, [{ key: 'accommodation', amountTtc: 40 }], 'internal').statusCode, 201);
 });
+
+test('reservation-refunds rule 48 reading (review of PR #929, F4) — cash no line can give back is never promised', () => {
+  const { db, deps, controller } = seed({ balancePaid: 1 });
+  // The end-of-stay complement, collected in the caisse interne, is no line of the register.
+  db.prepare('UPDATE reservations SET endOfStayComplementAmount = 30, endOfStayComplementPaid = 1, endOfStayComplementPaidCash = 1, endOfStayComplementPaidDate = ? WHERE id = 10').run(TODAY);
+  cancel(deps);
+  const register = registerOf(controller);
+  assert.ok(register.refundableLines.every((l) => !l.cashTtc), 'no line carries it');
+  assert.equal(register.collectedTtc, 914, 'the caption names what the lines can give back');
+  const tooMuch = refund(controller, [{ key: 'accommodation', amountTtc: 914 }, { amountTtc: 30, label: 'Complément' }], 'internal');
+  assert.equal(tooMuch.statusCode, 409);
+  assert.equal(tooMuch.body.code, 'REFUND_EXCEEDS_COLLECTED');
+  assert.match(tooMuch.body.error, /914,00/);
+});

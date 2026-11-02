@@ -1203,6 +1203,14 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   tryAddRes('supersededReason', 'ALTER TABLE reservations ADD COLUMN supersededReason TEXT');
   db.exec('CREATE INDEX IF NOT EXISTS idx_reservations_cancelled ON reservations(cancelledAt)');
 
+  // specs/reservation-refunds.md rule 6 reading of 2026-11-02 (review of PR #929) — whether a refund was recorded on a
+  // stay already cancelled: the order of the two, which `createdAt` and `cancelledAt` only know to the second. Older
+  // rows stay NULL and read the clock.
+  const refundCols = db.prepare('PRAGMA table_info(reservation_refunds)').all().map((c) => c.name);
+  if (refundCols.length > 0 && !refundCols.includes('afterCancellation')) {
+    db.exec('ALTER TABLE reservation_refunds ADD COLUMN afterCancellation INTEGER');
+  }
+
   const compCols = db.prepare('PRAGMA table_info(cancellation_compensations)').all().map((c) => c.name);
   if (!compCols.includes('origin')) {
     db.exec("ALTER TABLE cancellation_compensations ADD COLUMN origin TEXT NOT NULL DEFAULT 'platform'");
