@@ -16,6 +16,7 @@ const {
   grossFromNet,
 } = require('../utils/pricing');
 const { normalizeExtraGuestTiers } = require('../utils/extraGuestTiers');
+const { rangesWindowMessage } = require('../utils/stayDates');
 const { isDirectChannel, formatPlatformName } = require('../utils/platformNameFormat');
 const { normalizePlatformKey } = require('../utils/icalParser');
 const { KNOWN_PLATFORM_COLORS, isBuiltinColor } = require('../constants/platformColors');
@@ -844,6 +845,8 @@ function createPropertiesModel(database) {
     addPricingRule(propertyId, body = {}) {
       const { label, pricePerNight, pricingMode, progressiveTiers, dateRanges, color, startDate, endDate, minNights } = body;
       const normalizedDateRanges = stripRangeMinEqualToDefault(normalizeDateRanges(dateRanges, startDate, endDate), minNights);
+      const datesError = rangesWindowMessage(normalizedDateRanges);
+      if (datesError) return { error: datesError, status: 400 };
       const normalizedProgressiveTiers = pricingMode === 'progressive'
         ? normalizeProgressiveTiers(Number(pricePerNight || 0), progressiveTiers)
         : [];
@@ -890,6 +893,10 @@ function createPropertiesModel(database) {
     updatePricingRule(propertyId, ruleId, body = {}) {
       const { label, pricePerNight, pricingMode, progressiveTiers, dateRanges, color, startDate, endDate, minNights } = body;
       const normalizedDateRanges = stripRangeMinEqualToDefault(normalizeDateRanges(dateRanges, startDate, endDate), minNights);
+      // specs/reservations-backend-mvc.md rule 13 (reading of 2026-11-02) — a range kept as stored is not re-judged.
+      const storedRule = database.prepare('SELECT startDate, endDate, dateRanges FROM pricing_rules WHERE id = ? AND propertyId = ?').get(ruleId, propertyId);
+      const datesError = rangesWindowMessage(normalizedDateRanges, { stored: storedRule ? parseRuleDateRanges(storedRule) : [] });
+      if (datesError) return { error: datesError, status: 400 };
       const normalizedProgressiveTiers = pricingMode === 'progressive'
         ? normalizeProgressiveTiers(Number(pricePerNight || 0), progressiveTiers)
         : [];
@@ -1054,6 +1061,8 @@ function createPropertiesModel(database) {
       const ISO = /^\d{4}-\d{2}-\d{2}$/;
 
       if (!ISO.test(startDate) || !ISO.test(endDate)) return { error: 'Dates invalides.', status: 400 };
+      const datesError = rangesWindowMessage([{ startDate, endDate }]);
+      if (datesError) return { error: datesError, status: 400 };
       if (startDate > endDate) return { error: 'La date de début doit précéder la date de fin.', status: 400 };
       if (!Number.isFinite(minNights) || minNights < 1) return { error: 'Le minimum de nuits doit être un entier ≥ 1.', status: 400 };
       if (target.mode !== 'existing' && target.mode !== 'new') return { error: 'Cible invalide.', status: 400 };

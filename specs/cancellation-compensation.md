@@ -159,6 +159,11 @@ quoi elle apparaît dans l'aperçu du journal et dans le CSV des ventes du **moi
 25. `receivedDate` : `YYYY-MM-DD` valide, **ni dans le futur** (400 `RECEIVED_DATE_IN_FUTURE` — on
     n'encaisse pas de l'argent pas encore arrivé), ni antérieure de plus de 5 ans.
 26. `expectedDate` : `YYYY-MM-DD` valide ou vide. Une date future est parfaitement normale ici.
+    *Reading of 2026-11-02 — the date window.* `startDate`, `endDate` and `expectedDate` — manual create and
+    update, and the block of an iCal cancellation approval — lie in [today − 5 years, today + 5 years]; one
+    outside is refused with the French message as `error` and its `field`; a date the pending compensation
+    already stores is kept. Rule 25's lower bound for `receivedDate` is the same `horizonStart` (a 29 February
+    landing on the 28th) (`specs/reservations-backend-mvc.md` rule 13, second reading).
 27. `platform` : chaîne libre non vide, proposée depuis la liste `platforms` existante mais non
     contrainte (une plateforme peut disparaître de la table). `clientLastName` peut être vide → le
     compte auxiliaire retombe sur `CXXXXX` (comportement existant de `buildClientAccount`).

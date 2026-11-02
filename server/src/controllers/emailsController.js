@@ -13,6 +13,7 @@
  */
 
 const { todayIso: localTodayIso } = require('../utils/localDate');
+const { entryDateMessage } = require('../utils/stayDates');
 const { closedDatesRefusal } = require('../utils/closedStayDates');
 const { unsettledWithdrawnRefusal } = require('../utils/withdrawnPayments');
 const { platformStayRefusal } = require('../utils/platformStayRefusal');
@@ -481,7 +482,11 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
   }
 
   function pending(req, res) {
-    const today = (req.query && req.query.today) || localTodayIso();
+    const simulated = req.query && req.query.today;
+    // specs/reservations-backend-mvc.md rule 13 (reading of 2026-11-02) — a simulated day is a real day in the window.
+    const refusal = simulated ? entryDateMessage(String(simulated)) : null;
+    if (refusal) return res.status(400).json({ error: refusal, field: 'today' });
+    const today = simulated || localTodayIso();
     const lookbackDays = Number((req.query && req.query.lookbackDays) || 7);
     // Only the « manual » templates are proposed: an « auto » one leaves on its own
     // (specs/settings-rationalization.md rule 17b).

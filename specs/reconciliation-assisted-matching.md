@@ -245,6 +245,8 @@ on the right account, on the fiche, in the finance pages and in the accounting e
     penalties above the stay's payout net of its acompte (or above the gross minus the entered commission when
     no payout is recorded), a commission that would turn negative (rule 25, second choice), a future date or
     an empty motif. Refusals are inline in the dialog, in words.
+    *Reading of 2026-11-02 — the date window.* The penalty's date is also refused before today − 5 years,
+    « Date trop ancienne : 5 ans au plus. » (`specs/reservations-backend-mvc.md` rule 13, second reading).
 27. **Where it shows.** The ledger's platform balance row gains a detail line « Pénalité plateforme −40,00 € ·
     Frais de relogement » per penalty; its « net » figures subtract the penalties. The fiche's history records
     each declaration and removal. Every « net received » reader subtracts the penalties of the stay: the

@@ -42,7 +42,7 @@ function createController({ model, sentenceCase, sync: runSync }) {
       return res.status(404).json({ error: 'Période introuvable.' });
     }
     const payload = readPeriodBody(req.body);
-    const error = validatePeriod(payload);
+    const error = validatePeriod(payload, { stored: existing });
     if (error) {
       return res.status(400).json({ error, code: 'INVALID_PERIOD' });
     }

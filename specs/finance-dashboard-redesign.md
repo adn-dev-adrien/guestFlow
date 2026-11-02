@@ -390,6 +390,9 @@ without losing anything today's page shows.
     as soon as a valid window or another kind is chosen. It used to show only the error alert, with no way
     to change the period but the sidebar. Tests: `tests/date-horizon.unit.test.js` (the window),
     `components/__tests__/PeriodSelector.date-horizon.test.jsx`, `pages/__tests__/FinancePage.refused-window-link.test.jsx`.
+    *Reading of 2026-11-02, second (Adrien's decision) — the past side.* « du » before today − 5 years is
+    refused too, « Date trop ancienne : 5 ans au plus. », by the server and on the spot by `PeriodSelector`
+    (`specs/reservations-backend-mvc.md` rule 13, second reading); the exercise and month periods are not typed dates and stay as they are.
 
 ---
 

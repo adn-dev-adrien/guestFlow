@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
 const resourceBookingsModel = require('../bookingsModel');
+const { FAR_YEAR } = require('../../../tests/farYearFixture');
 
 const DDL = `
   CREATE TABLE properties (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT);
@@ -29,12 +30,12 @@ const DDL = `
 
 // specs/resource-supplements-total-server-side.md rule 2 — the total is `priceBooking(draft).total`.
 function priced(model, resourceId, { startTime, endTime, propertyId, bookingId }) {
-  return model.priceBooking({ resourceId, date: '2099-06-01', startTime, endTime, propertyId, bookingId }).total;
+  return model.priceBooking({ resourceId, date: `${FAR_YEAR}-06-01`, startTime, endTime, propertyId, bookingId }).total;
 }
 
 // A booking tied to a reservation: the server prices it on the guest grid.
 function tiedBooking(db, resourceId) {
-  return Number(db.prepare("INSERT INTO resource_bookings (resourceId, reservationId, date, startTime, endTime) VALUES (?, 7, '2099-05-01', '08:00', '09:00')").run(resourceId).lastInsertRowid);
+  return Number(db.prepare(`INSERT INTO resource_bookings (resourceId, reservationId, date, startTime, endTime) VALUES (?, 7, '${FAR_YEAR}-05-01', '08:00', '09:00')`).run(resourceId).lastInsertRowid);
 }
 
 function freshModel(resourceOverrides = {}) {
@@ -104,18 +105,18 @@ test('createBooking: missing fields → 400', () => {
 
 test('createBooking: below minimum usage → 400', () => {
   const { model, resourceId } = freshModel({ priceType: 'per_hour', minimumUsageMinutes: 60 });
-  const r = model.createBooking({ resourceId, date: '2099-06-01', startTime: '10:00', endTime: '10:30' });
+  const r = model.createBooking({ resourceId, date: `${FAR_YEAR}-06-01`, startTime: '10:00', endTime: '10:30' });
   assert.equal(r.status, 400);
 });
 
 test('createBooking: success then overlapping slot → 409 (capacity 1)', () => {
   const { model, resourceId } = freshModel();
-  const ok = model.createBooking({ resourceId, date: '2099-06-01', startTime: '10:00', endTime: '11:00' });
+  const ok = model.createBooking({ resourceId, date: `${FAR_YEAR}-06-01`, startTime: '10:00', endTime: '11:00' });
   assert.equal(ok.ok, true);
-  const conflict = model.createBooking({ resourceId, date: '2099-06-01', startTime: '10:30', endTime: '11:30' });
+  const conflict = model.createBooking({ resourceId, date: `${FAR_YEAR}-06-01`, startTime: '10:30', endTime: '11:30' });
   assert.equal(conflict.status, 409);
   // Non-overlapping slot is fine.
-  const ok2 = model.createBooking({ resourceId, date: '2099-06-01', startTime: '11:00', endTime: '12:00' });
+  const ok2 = model.createBooking({ resourceId, date: `${FAR_YEAR}-06-01`, startTime: '11:00', endTime: '12:00' });
   assert.equal(ok2.ok, true);
 });
 

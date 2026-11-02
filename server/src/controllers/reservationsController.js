@@ -2304,6 +2304,18 @@ function paymentMarkRefusal(row, body, today) {
     const checked = validateCollectionDate(body[dateField], { today, invalidReason: 'Date invalide.' });
     if (!checked.ok) return { status: 400, body: { error: checked.reason, code: 'INVALID_PAYMENT_DATE', field: dateField } };
   }
+  // specs/mid-stay-notes.md — re-dating a settled note obeys the same rule 9 (real day, not in the future,
+  // not before today − 5 years); a date kept as stored is not re-judged.
+  const adjust = body.adjustMidStayNote;
+  if (adjust && adjust.paidDate) {
+    let notes = [];
+    try { notes = JSON.parse(row.midStaySettledNotes || '[]'); } catch { notes = []; }
+    const note = (Array.isArray(notes) ? notes : []).find((n) => Number(n.id) === Number(adjust.id));
+    if (!note || note.paidDate !== adjust.paidDate) {
+      const checked = validateCollectionDate(adjust.paidDate, { today, invalidReason: 'Date invalide.' });
+      if (!checked.ok) return { status: 400, body: { error: checked.reason, code: 'INVALID_PAYMENT_DATE', field: 'paidDate' } };
+    }
+  }
   // Rule 32 — a bucket with nothing to collect is never marked: a converted devis carried a 0 € acompte
   // and « Marquer acompte payé » ticked it, which the books then read as a payment.
   {

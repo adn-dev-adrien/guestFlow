@@ -7,9 +7,10 @@
  * the arrival. A reversed or zero-night stay priced at 0 € and freed its nights for a second booking,
  * and the iCal export published it as an invalid event (audit R18-1). The stay lasts at most
  * `MAX_STAY_NIGHTS`: pricing walks the stay night by night, synchronously, so a departure typed as
- * 9999-12-31 froze the whole server for ~100 s (audit R19-L1). And no date is entered past the horizon,
- * today + MAX_HORIZON_YEARS (rule 13): a date the operator types or edits, never one a stored row
- * already carries.
+ * 9999-12-31 froze the whole server for ~100 s (audit R19-L1). And no date is entered outside the window
+ * [today − MAX_HORIZON_YEARS, today + MAX_HORIZON_YEARS] (rule 13): a date the operator types or edits,
+ * never one a stored row already carries. `entryDateMessage` is the same window for every other date an
+ * operator enters (payment marks, due dates, refunds, compensations, plugin dates…).
  */
 
 const { todayIso } = require('./localDate');
@@ -23,6 +24,9 @@ const TOO_LONG_MESSAGE = 'Séjour trop long.';
 /** specs/reservations-backend-mvc.md rule 13 — Adrien's decision of 2026-11-02. */
 const MAX_HORIZON_YEARS = 5;
 const HORIZON_MESSAGE = `Date trop lointaine : ${MAX_HORIZON_YEARS} ans au plus.`;
+/** The past side of the window — Adrien's decision of 2026-11-02, second reading of rule 13. */
+const PAST_HORIZON_MESSAGE = `Date trop ancienne : ${MAX_HORIZON_YEARS} ans au plus.`;
+const ENTRY_DATE_INVALID_MESSAGE = 'Date invalide.';
 
 /** The longest stay, in nights. The iCal parser drops a longer event with this same constant. */
 const MAX_STAY_NIGHTS = 366;
@@ -38,25 +42,74 @@ function isRealIsoDay(value) {
   return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
 }
 
-/**
- * The last day a date may name: `today` (the Europe/Paris day by default) plus MAX_HORIZON_YEARS years,
- * a 29 February landing on the 28th.
- */
-function horizonEnd(today = todayIso()) {
-  const sameDay = `${Number(today.slice(0, 4)) + MAX_HORIZON_YEARS}${today.slice(4)}`;
+/** `today` shifted by `years` years, a 29 February landing on the 28th. */
+function shiftYears(today, years) {
+  const sameDay = `${Number(today.slice(0, 4)) + years}${today.slice(4)}`;
   return isRealIsoDay(sameDay) ? sameDay : `${sameDay.slice(0, 8)}28`;
 }
 
-/** Whether `iso`, a real day, lies past the horizon. The past is never limited. */
+/** The last day a date may name: `today` (the Europe/Paris day by default) plus MAX_HORIZON_YEARS years. */
+function horizonEnd(today = todayIso()) {
+  return shiftYears(today, MAX_HORIZON_YEARS);
+}
+
+/** The first day a date may name: `today` minus MAX_HORIZON_YEARS years. */
+function horizonStart(today = todayIso()) {
+  return shiftYears(today, -MAX_HORIZON_YEARS);
+}
+
+/** Whether `iso`, a real day, lies past the horizon's end. */
 function dateBeyondHorizon(iso, today = todayIso()) {
   return isRealIsoDay(iso) && iso > horizonEnd(today);
+}
+
+/** Whether `iso`, a real day, lies before the horizon's start. */
+function dateBeforeHorizon(iso, today = todayIso()) {
+  return isRealIsoDay(iso) && iso < horizonStart(today);
+}
+
+/** The refusal of a real day outside the window — the past or the future message — or `null` inside it. */
+function dateWindowMessage(iso, today = todayIso()) {
+  if (dateBeforeHorizon(iso, today)) return PAST_HORIZON_MESSAGE;
+  if (dateBeyondHorizon(iso, today)) return HORIZON_MESSAGE;
+  return null;
+}
+
+/**
+ * The guard on any other date an operator enters: `null` when `value` is a real `YYYY-MM-DD` day inside the
+ * window, or equal to `stored` (the value the row already carries, which is never re-judged), otherwise
+ * the short French refusal. Its first 10 characters are read when `timestamp` is set (an ISO instant).
+ */
+function entryDateMessage(value, { stored, today = todayIso(), timestamp = false, invalidMessage = ENTRY_DATE_INVALID_MESSAGE } = {}) {
+  if (stored !== undefined && stored !== null && value === stored) return null;
+  const day = timestamp && typeof value === 'string' ? value.slice(0, 10) : value;
+  if (!isRealIsoDay(day)) return invalidMessage;
+  if (timestamp && value.length > 10 && Number.isNaN(Date.parse(value))) return invalidMessage;
+  return dateWindowMessage(day, today);
+}
+
+/**
+ * The guard on a list of `{ startDate, endDate }` ranges an operator enters (a season's date ranges):
+ * `null` when every date is a real day inside the window, or one of the `stored` ranges' dates (a range
+ * kept as it was), otherwise the refusal message.
+ */
+function rangesWindowMessage(ranges, { stored = [], today = todayIso(), invalidMessage = 'Dates invalides.' } = {}) {
+  const kept = new Set(stored.flatMap((r) => [r && r.startDate, r && r.endDate]).filter(Boolean));
+  for (const range of ranges) {
+    for (const value of [range.startDate, range.endDate]) {
+      if (kept.has(value)) continue;
+      const message = entryDateMessage(value, { today, invalidMessage });
+      if (message) return message;
+    }
+  }
+  return null;
 }
 
 /**
  * `null` when the stay's dates are sound, otherwise the refusal:
  * `{ status: 400, error, code: 'INVALID_STAY_DATES', field }`, `field` naming the date at fault.
  * `stored` is the row being saved (`{ startDate, endDate }`): a date equal to its stored value is not
- * held to the horizon, so a row written before rule 13 still saves as long as its dates are not edited.
+ * held to the window, so a row written before rule 13 still saves as long as its dates are not edited.
  */
 function stayDatesRefusal(startDate, endDate, { stored = null, today = todayIso() } = {}) {
   const refuse = (field, error) => ({ status: 400, error, code: INVALID_STAY_DATES, field });
@@ -68,7 +121,8 @@ function stayDatesRefusal(startDate, endDate, { stored = null, today = todayIso(
   }
   for (const [field, value] of [['startDate', startDate], ['endDate', endDate]]) {
     if (stored && stored[field] === value) continue;
-    if (dateBeyondHorizon(value, today)) return refuse(field, HORIZON_MESSAGE);
+    const outside = dateWindowMessage(value, today);
+    if (outside) return refuse(field, outside);
   }
   return null;
 }
@@ -80,6 +134,7 @@ function stayDatesRefusalBody(refusal) {
 
 module.exports = {
   INVALID_STAY_DATES, DATE_INVALID_MESSAGE, ORDER_MESSAGE, TOO_LONG_MESSAGE, MAX_STAY_NIGHTS,
-  MAX_HORIZON_YEARS, HORIZON_MESSAGE, horizonEnd, dateBeyondHorizon,
+  MAX_HORIZON_YEARS, HORIZON_MESSAGE, PAST_HORIZON_MESSAGE, ENTRY_DATE_INVALID_MESSAGE,
+  horizonEnd, horizonStart, dateBeyondHorizon, dateBeforeHorizon, dateWindowMessage, entryDateMessage, rangesWindowMessage,
   isRealIsoDay, stayDatesRefusal, stayDatesRefusalBody,
 };

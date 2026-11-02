@@ -57,6 +57,10 @@ the price or the minimum of the rest of the season.
    season default**; when absent, the range **inherits the season-level `minNights`** — itself
    defaulting to 1. An empty min field therefore means **"use the season's minimum"**, never a
    forced 1.
+   *Reading of 2026-11-02 — the date window.* Every range start and end a season write carries (create, update,
+   « assigner des dates ») is a real day in [today − 5 years, today + 5 years], « Dates invalides. » or the
+   window message otherwise; a date one of the stored ranges of that season already has is kept, and a tariff
+   recipe's ranges are always inside the window (`specs/reservations-backend-mvc.md` rule 13, second reading).
 2. The **effective minimum for a night** = `range.minNights` if the covering range defines one, else
    the season's `minNights`, else `1`.
 3. `requiredMinNights` for a stay = the **maximum effective minimum across the nights the stay

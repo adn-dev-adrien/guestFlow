@@ -62,6 +62,9 @@ reflect the skip immediately.
    "actually I didn't go last Tuesday" — the stock projection
    re-aligns with reality. Without this, displayed stock would drift
    from the bins on the shelf.
+   *Reading of 2026-11-02 — the date window.* « Past » stops at today − 5 years and the future at today + 5 years: a
+   skip outside is refused, 400 `DATE_OUTSIDE_WINDOW` with the French message; a date already skipped is
+   re-added or removed whatever its day (linen 1.2.2, `specs/reservations-backend-mvc.md` rule 13, second reading).
 
 ### 3.2 Engine behaviour on a skipped date
 

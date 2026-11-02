@@ -6,6 +6,8 @@
  * Spec: specs/manual-laundry-additions.md §4.3.
  */
 
+const { outsideWindow } = require('./entryDate');
+
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 function isValidIsoDate(value) {
@@ -30,6 +32,8 @@ function createController(additionsModel) {
       if (!isValidIsoDate(date)) {
         return res.status(400).json({ error: 'Date attendue au format YYYY-MM-DD.', code: 'INVALID_DATE' });
       }
+      const outside = outsideWindow(date, { stored: Object.prototype.hasOwnProperty.call(additionsModel.listAll(), date) });
+      if (outside) return res.status(400).json(outside);
       const counts = additionsModel.set(date, req.body || {});
       return res.json({ ok: true, date, counts, additions: additionsModel.listAll() });
     },

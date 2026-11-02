@@ -13,14 +13,11 @@
  * so the controller only maps codes to HTTP statuses.
  */
 
-const { isRealIsoDay } = require('./stayDates');
+const { isRealIsoDay, dateWindowMessage, dateBeforeHorizon } = require('./stayDates');
 
 // The ceiling is a sanity guard, not a business rule: a cancellation indemnity is a fraction of a
 // stay, so anything above it is a typo (a stray extra digit), never a real payment.
 const MAX_AMOUNT = 100000;
-// A bank movement older than this is certainly a mistyped year (2025 → 2015).
-const MAX_BACKDATE_YEARS = 5;
-
 const isValidIsoDate = isRealIsoDay;
 
 function round2(n) {
@@ -43,16 +40,32 @@ function parseOptionalDate(value) {
 }
 
 /**
+ * The first refusal among `fields` of `value` (each a parsed date or null) outside the date window
+ * (specs/reservations-backend-mvc.md rule 13, reading of 2026-11-02) — the French message as `error` —
+ * or null. A date equal to the `stored` row's is never re-judged.
+ */
+function windowRefusal(value, fields, { stored = null, today } = {}) {
+  for (const field of fields) {
+    if (!value[field] || (stored && stored[field] === value[field])) continue;
+    const outside = dateWindowMessage(value[field], today);
+    if (outside) return { ok: false, error: outside, field };
+  }
+  return null;
+}
+
+/**
  * The compensation block of an approval. Returns `{ ok: true, value: null }` when no compensation
  * is declared — the plain "just delete the reservation" path.
  */
-function validateApprovalCompensation(input) {
+function validateApprovalCompensation(input, { today } = {}) {
   if (input === null || input === undefined) return { ok: true, value: null };
   if (typeof input !== 'object') return { ok: false, error: 'INVALID_COMPENSATION', field: 'compensation' };
   const expectedAmount = parseAmount(input.expectedAmount, { positive: false });
   if (Number.isNaN(expectedAmount)) return { ok: false, error: 'INVALID_AMOUNT', field: 'expectedAmount' };
   const expectedDate = parseOptionalDate(input.expectedDate);
   if (expectedDate === undefined) return { ok: false, error: 'INVALID_DATE', field: 'expectedDate' };
+  const outside = windowRefusal({ expectedDate }, ['expectedDate'], { today });
+  if (outside) return outside;
   return {
     ok: true,
     value: { expectedAmount, expectedDate, notes: String(input.notes || '').trim() },
@@ -61,9 +74,10 @@ function validateApprovalCompensation(input) {
 
 /**
  * Full create/update payload. The snapshot fields are free text on purpose: they describe a
- * reservation that no longer exists, so nothing can be joined to validate them.
+ * reservation that no longer exists, so nothing can be joined to validate them. Its dates lie in the
+ * date window unless equal to the `stored` row's (an update keeping them).
  */
-function validateDraft(input) {
+function validateDraft(input, { stored = null, today } = {}) {
   const body = input || {};
   const expectedAmount = parseAmount(body.expectedAmount, { positive: false });
   if (Number.isNaN(expectedAmount)) return { ok: false, error: 'INVALID_AMOUNT', field: 'expectedAmount' };
@@ -79,6 +93,8 @@ function validateDraft(input) {
     ? null
     : parseAmount(body.cancelledStayAmount, { positive: false });
   if (Number.isNaN(cancelledStayAmount)) return { ok: false, error: 'INVALID_AMOUNT', field: 'cancelledStayAmount' };
+  const outside = windowRefusal({ startDate, endDate, expectedDate }, ['startDate', 'endDate', 'expectedDate'], { stored, today });
+  if (outside) return outside;
   return {
     ok: true,
     value: {
@@ -108,8 +124,8 @@ function validateReceipt(input, todayIso) {
   const receivedDate = parseOptionalDate(body.receivedDate);
   if (!receivedDate) return { ok: false, error: 'INVALID_DATE', field: 'receivedDate' };
   if (receivedDate > todayIso) return { ok: false, error: 'RECEIVED_DATE_IN_FUTURE', field: 'receivedDate' };
-  const floor = `${Number(todayIso.slice(0, 4)) - MAX_BACKDATE_YEARS}${todayIso.slice(4)}`;
-  if (receivedDate < floor) return { ok: false, error: 'RECEIVED_DATE_TOO_OLD', field: 'receivedDate' };
+  // A bank movement before the date window (today − 5 years) is certainly a mistyped year (2025 → 2015).
+  if (dateBeforeHorizon(receivedDate, todayIso)) return { ok: false, error: 'RECEIVED_DATE_TOO_OLD', field: 'receivedDate' };
   return { ok: true, value: { receivedAmount, receivedDate } };
 }
 

@@ -149,6 +149,8 @@ next to the field.
    applied to ledger marks: reservations entered after the fact (Abritel stays typed by hand, iCal or
    intake imports) carry a `createdAt` later than real payments. It stays on the single arrival
    payment, unchanged.
+   *Reading of 2026-11-02 — the date window.* Every mark date is also refused before today − 5 years, « Date trop
+   ancienne : 5 ans au plus. » (`specs/reservations-backend-mvc.md` rule 13, second reading); re-dating a note settled in the stay obeys the same rule (it was unchecked).
 10. **Marking saves the fiche first.** « Valider » runs through the page's existing `saveThenRun`
     pipeline (as the mid-stay notes do), then PATCHes the mark. A mark can never be recorded against
     an amount the server has not stored.

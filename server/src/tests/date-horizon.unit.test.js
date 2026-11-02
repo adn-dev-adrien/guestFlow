@@ -2,7 +2,8 @@
 // + 5 years, the Europe/Paris day: 400 INVALID_STAY_DATES « Date trop lointaine : 5 ans au plus. » on every
 // path rule 11 guards; the same message on closures (specs/establishment-closures.md rule 18, reading of
 // 2026-11-02) and the finance custom window (specs/finance-dashboard-redesign.md rule 51, reading of
-// 2026-11-02). The past is never limited, and a stored date that is not edited is never held to the horizon.
+// 2026-11-02). The past side of the window is date-window-past.unit.test.js; a stored date that is not edited is
+// never held to the horizon.
 process.env.DB_PATH = ':memory:';
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -39,7 +40,7 @@ const storeDates = (id, startDate, endDate) => f.db.prepare('UPDATE reservations
 
 test.before(() => f.seed());
 
-test('rule 13: the horizon is today + 5 years, a 29 February landing on the 28th; the past is free', () => {
+test('rule 13: the horizon is today + 5 years, a 29 February landing on the 28th (the past side: date-window-past)', () => {
   assert.equal(MAX_HORIZON_YEARS, 5);
   assert.equal(HORIZON_MESSAGE, 'Date trop lointaine : 5 ans au plus.');
   const today = todayIso();
@@ -48,7 +49,7 @@ test('rule 13: the horizon is today + 5 years, a 29 February landing on the 28th
   assert.equal(horizonEnd(`${leapYear}-02-29`), `${leapYear + 5}-02-28`);
   assert.equal(dateBeyondHorizon(H), false);
   assert.equal(dateBeyondHorizon(at(1)), true);
-  assert.equal(dateBeyondHorizon(addDaysToIsoDate(today, -4000)), false);
+  assert.equal(dateBeyondHorizon(addDaysToIsoDate(today, -1500)), false);
   assert.equal(stayDatesRefusal(at(-3), H), null);
   assert.deepEqual(stayDatesRefusal(at(-3), at(1)), { status: 400, ...TOO_FAR, field: 'endDate' });
   assert.deepEqual(stayDatesRefusal(at(1), at(3)), { status: 400, ...TOO_FAR, field: 'startDate' });
@@ -182,7 +183,7 @@ test('finance-dashboard-redesign.md rule 51 (reading of 2026-11-02): a custom fi
   assert.equal(WINDOW_MESSAGES.tooFar, HORIZON_MESSAGE);
   assert.equal(resolveWindow({ exercise, kind: 'custom', from: at(-30), to: H, today: todayIso() }).ok, true);
   assert.deepEqual(resolveWindow({ exercise, kind: 'custom', from: at(-30), to: at(1), today: todayIso() }), { ok: false, error: HORIZON_MESSAGE });
-  assert.equal(resolveWindow({ exercise, kind: 'custom', from: addDaysToIsoDate(todayIso(), -3000), to: addDaysToIsoDate(todayIso(), -2500), today: todayIso() }).ok, true);
+  assert.equal(resolveWindow({ exercise, kind: 'custom', from: addDaysToIsoDate(todayIso(), -1500), to: addDaysToIsoDate(todayIso(), -1000), today: todayIso() }).ok, true);
   const { dashboard } = finance.freshDb();
   assert.deepEqual(dashboard.getDashboard({ fiscalYear: finance.THIS_YEAR, period: 'custom', from: at(-30), to: at(1) }), { ok: false, status: 400, error: HORIZON_MESSAGE });
   assert.equal(dashboard.getDashboard({ fiscalYear: finance.THIS_YEAR, period: 'custom', from: at(-30), to: H }).ok, true);

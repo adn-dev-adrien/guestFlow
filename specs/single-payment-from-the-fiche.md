@@ -70,6 +70,8 @@ buckets, same date, same accounting, the same group read by the fiche and the Co
      the money has not been received, and the entry would book into a month nobody is looking at yet;
    - a date **before the booking existed** is refused, for the same reason in the other direction.
    Any other past date is accepted: recording late is exactly the case this feature exists for.
+      *Reading of 2026-11-02 — the date window.* The collection date is also refused before today − 5 years
+      (« Date trop ancienne : 5 ans au plus. », `specs/reservations-backend-mvc.md` rule 13, second reading).
 4. **Never shown to a reception-only user** ([reception-role-checkin-only.md](reception-role-checkin-only.md)):
    the fiche is finance-stripped for that role, and the amounts are not in its payload.
 

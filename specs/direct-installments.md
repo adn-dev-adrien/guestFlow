@@ -105,6 +105,9 @@ its due date, after the operator validates it.
 11. The date of an **unpaid** installment is editable. The server refuses (`400`, French message
     naming the installment) a date in the past, a date after the arrival day, or a date that breaks
     the strict order of the installments.
+    *Reading of 2026-11-02 — the date window.* The date must be a real calendar day (`2027-02-30` used to pass) and
+    not past today + 5 years, « Échéance N : date trop lointaine : 5 ans au plus. », for a stay stored past
+    the horizon (`specs/reservations-backend-mvc.md` rule 13, second reading).
 12. Changing the count (allowed by rule 2) recomputes the default dates; edited dates are lost and
     the UI says so before applying.
 13. Moving the stay: dates are **not** moved. If an unpaid installment now falls after the new

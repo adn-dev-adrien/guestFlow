@@ -15,6 +15,8 @@
  * exactly the same thing to the operator.
  */
 
+const { dateBeforeHorizon, PAST_HORIZON_MESSAGE } = require('./stayDates');
+
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
@@ -41,6 +43,8 @@ function validateCollectionDate(date, { today, invalidReason = 'Date d\'encaisse
   if (ISO_DATE_RE.test(now) && value > now) {
     return { ok: false, reason: 'Un encaissement ne peut pas être daté dans le futur.' };
   }
+  // specs/reservations-backend-mvc.md rule 13 (reading of 2026-11-02) — nor before today − 5 years.
+  if (ISO_DATE_RE.test(now) && dateBeforeHorizon(value, now)) return { ok: false, reason: PAST_HORIZON_MESSAGE };
   return { ok: true, date: value };
 }
 

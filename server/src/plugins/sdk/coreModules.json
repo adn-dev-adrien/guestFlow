@@ -780,5 +780,26 @@
     "storedMoneyBucketTtcs",
     "storedMoneyBuckets",
     "storedMoneyCollected"
+  ],
+  "stayDates": [
+    "DATE_INVALID_MESSAGE",
+    "ENTRY_DATE_INVALID_MESSAGE",
+    "HORIZON_MESSAGE",
+    "INVALID_STAY_DATES",
+    "MAX_HORIZON_YEARS",
+    "MAX_STAY_NIGHTS",
+    "ORDER_MESSAGE",
+    "PAST_HORIZON_MESSAGE",
+    "TOO_LONG_MESSAGE",
+    "dateBeforeHorizon",
+    "dateBeyondHorizon",
+    "dateWindowMessage",
+    "entryDateMessage",
+    "horizonEnd",
+    "horizonStart",
+    "isRealIsoDay",
+    "rangesWindowMessage",
+    "stayDatesRefusal",
+    "stayDatesRefusalBody"
   ]
 }

@@ -148,6 +148,61 @@ rules — just a clean, testable structure that future slices (and Bloc 5) build
    `utils/dateHorizon.js`, mirroring the server. *Why:* a year typed one digit off (2062 for 2026) used to
    be accepted, and nothing the operator manages is booked or closed five years ahead. Tests:
    `tests/date-horizon.unit.test.js`, client `ReservationPage.date-horizon.test.jsx`.
+   *Reading of 2026-11-02, second (Adrien's decision, amending the « past is not limited » above) — the window
+   runs both ways, and the backend enforces it on every entered date.* Every date an operator enters lies in
+   `[today − 5 years, today + 5 years]`, the Europe/Paris day (`utils/stayDates.horizonStart`, a 29 February
+   landing on the 28th as `horizonEnd` does). One day before it is refused with « Date trop ancienne : 5 ans
+   au plus. » (`PAST_HORIZON_MESSAGE`), one day after it with « Date trop lointaine : 5 ans au plus. »; an
+   unreadable or impossible day (`2027-02-30`) is refused too. The server is the guard: the client hints
+   only spare a refused request. `dateWindowMessage(iso)` judges one real day, `entryDateMessage(value,
+   { stored })` a value the operator typed (shape, real day, window), `rangesWindowMessage(ranges,
+   { stored })` a list of ranges; all three skip a value the row already stores, the « stored » rule above,
+   so a row written before this reading saves while its dates are kept, and no read path refuses a stored
+   row. A new stay in the past was already refused (« Impossible de réserver dans le passé. »); the window
+   answers first. Plugins reach the helpers through `coreModule('stayDates')` (SDK 2.20.0). The swept
+   write paths, each refused with a 400 before any write:
+
+   | Path | Dates | Before this reading | Now |
+   |---|---|---|---|
+   | `POST /reservations`, `PUT /reservations/:id`, `performUpdate`, `POST /reservations/calculate-price`, iCal drift approval | `startDate`, `endDate` | rule 11 + future side | + past side (`INVALID_STAY_DATES`) |
+   | `POST /devis`, `PUT /devis/:id` | `startDate`, `endDate`; the API-only `validUntil` override | stays: rule 11 + future side; `validUntil` unchecked | stays + past side; `validUntil` a real day in the window unless kept (`field: 'validUntil'`) |
+   | `POST/PUT /establishment-closures`, `GET …/conflicts` | `startDate`, `endDate` | real day, order, 731 days, future side | + past side (`specs/establishment-closures.md` rule 18) |
+   | `GET /finance/dashboard?period=custom` | `from`, `to` | real day, order, 750 days, `to` future side | `from` and `to` both in the window (`specs/finance-dashboard-redesign.md` rule 51) |
+   | `PATCH /reservations/:id/payment` (acompte, solde, compléments, caution) and `POST /reservations/:id/arrival-payment` | `*PaidDate`, `cautionReceivedDate`, `cautionReturnedDate`, the arrival `date` | real day, not in the future | + not before the window (`utils/arrivalPaymentDate.validateCollectionDate`, `INVALID_PAYMENT_DATE`) |
+   | `PATCH /reservations/:id/payment` `adjustMidStayNote.paidDate` | a settled note's date | **unchecked** | real day, not in the future, in the window, unless kept |
+   | `POST /reservations/:id/installments/:iid/payment` | `paidDate` | real day, not in the future | + not before the window |
+   | `PUT /reservations/:id/installments` `dates` | `dueDate` | regex (`2027-02-30` passed), ≥ today, ≤ arrival | real day, ≤ today + 5 years (a stay stored past it) |
+   | `POST /reservations/:id/refunds` | `refundDate` | regex only, not in the future | real day, not in the future, in the window |
+   | `POST /reservations/:id/platform-penalties` (and `/preview`) | `date` | real day, not in the future | + not before the window |
+   | `POST/PUT /accounting/cancellation-compensations`, `…/:id/receive`, the compensation of an iCal cancellation approval | `startDate`, `endDate`, `expectedDate`; `receivedDate` | real day; `receivedDate` not in the future, ≥ today − 5 years (by string, 29 Feb unhandled) | the three in the window unless kept (the French message as `error`); `receivedDate` on `horizonStart` |
+   | `PUT /calendar-notes/:propertyId/:date` | `date` | **unchecked** (`abc` stored) | real day in the window, unless a note is stored on it (edit and clear) |
+   | `POST /properties/:id/pricing`, `PUT …/pricing/:ruleId`, `POST …/pricing/assign-dates` | each `dateRanges` start / end | **unchecked** (assign: regex) | real day in the window, unless one of the stored rule's dates |
+   | `POST /tariff-recipes/journal` (manual entry) | `occurredAt` | real day | + in the window |
+   | `GET /email-sequence/simulation`, `GET /emails/pending?today=` | `from`, `to`; `today` | regex + `Date.parse` (`02-30` passed), 400 days; `today` unchecked | real days in the window (`INVALID_RANGE` with `message`; `today` 400) |
+   | linen 1.2.2: `POST /laundry/skips`, `PUT /laundry/manual-additions/:date`, `PUT /laundry/extra-trips/:date` | `date` | real day | + in the window unless stored (`DATE_OUTSIDE_WINDOW`) |
+   | school-holidays 1.0.5: `POST /school-holidays`, `PUT /school-holidays/:id` | the six zone dates | **unchecked** (only order) | real days in the window unless kept |
+   | hourly-resources 1.3.4: `POST /resource-bookings`, `PUT …/:id`, `POST …/preview` | `date` | **unchecked** | real day in the window unless the booking's stored day |
+
+   Already inside the window by their own, stricter rules, unchanged: the VAT regime switch
+   (`effectiveFrom` ± 366 days), the installment due dates (≥ today, ≤ arrival), the option occurrences and
+   hourly sessions of a stay (the stay's own days), « Marquer préparé » on a planning card (a stored
+   occurrence). No user date: the cancellation (today), the tourist-tax declaration (now), the dashboard
+   snoozes (days), the support access (hours), the payment links (provider dates). Platform-provided dates
+   keep their own rules and are not held to the window: the iCal import (its 730-day horizon,
+   `specs/ical-import-hardening.md`), the Booking / Airbnb / Gîtes de France intakes (they match an existing
+   fiche and refuse a started stay), the bank reconciliation (Qonto's `settledAt`), the school-holidays sync
+   (education.gouv.fr), the public website booking (not in the past, 730 days ahead at most). Read paths are
+   not limited: the planning, the calendar, the occupied dates and the accounting exports of a month read
+   stored rows. The tariff recipes write seasons through `addPricingRule` / `updatePricingRule`, now
+   guarded, but always inside the window (`horizonYears` ≤ 5 from 1 January of the current year).
+   A `.backup` copy of the prod snapshot of 2026-10-22, read 2026-11-02 against a window starting 2021-11-02:
+   the only stored dates before it are 12 `payment_links.expiresAt` rows (ids 1, 2, 3, 6, 7, 10, 11, 13, 14,
+   15, 16, 17), Qonto's `0001-01-01T00:00:00Z` « no expiry », written by the provider and edited by no flow;
+   the earliest stay starts 2025-12-31, no JSON-embedded date (season ranges, settled notes) is older. No
+   legitimate edit flow is refused, nothing is migrated. Tests: `tests/date-window-past.unit.test.js`,
+   linen `laundry-date-window`, school-holidays `school-holidays-date-window`, hourly-resources
+   `resource-bookings-date-window`; client `ReservationPage.date-window-past`,
+   `EstablishmentClosuresPage.date-window-past`, `PeriodSelector.date-window-past`.
 
 **Edge cases:** all current ones are preserved verbatim — min-nights rejection, archived-reservation
 error, iCal-locked pricing snapshot reuse, night-block conflict on adjacent reservations, payment
@@ -170,7 +225,7 @@ patch. No new edge behavior is introduced.
 | `utils/` | `reservationAudit.js` | C | Pure: `normalizeHistoryValue`, `getOptionsSignature`, `getResourcesSignature`, `buildAuditSnapshotFromPayload`, `computeAuditChanges`. Snapshot-from-DB stays a model read that feeds these pure fns. Unit-tested. |
 | `utils/` | `pricing.js` | — | Unchanged; controller calls `calculateReservationQuote` as today. |
 | `utils/` | `financeValidation.js` | — | Unchanged; controller keeps the PR-S validation on writes. |
-| `utils/` | `stayDates.js` | C | *(2026-11-02, rule 11)* `isRealIsoDay`, `stayDatesRefusal`, `stayDatesRefusalBody`: the one stay-dates guard, called by `reservationsController`, `devisModel` and `icalDateDriftModel`. `isRealIsoDay` is also the core's one real-day check: `planningDateRange.isIsoDate` and `cancellationCompensations.isValidIsoDate` are it. *(R19-L1)* `MAX_STAY_NIGHTS` (366), the length cap, also read by `icalParser`'s horizon check. *(rule 13)* `MAX_HORIZON_YEARS`, `HORIZON_MESSAGE`, `horizonEnd`, `dateBeyondHorizon` and the `stored` option of `stayDatesRefusal`: the date horizon, also read by `establishmentClosuresValidation` and `financeWindow`. |
+| `utils/` | `stayDates.js` | C | *(2026-11-02, rule 11)* `isRealIsoDay`, `stayDatesRefusal`, `stayDatesRefusalBody`: the one stay-dates guard, called by `reservationsController`, `devisModel` and `icalDateDriftModel`. `isRealIsoDay` is also the core's one real-day check: `planningDateRange.isIsoDate` and `cancellationCompensations.isValidIsoDate` are it. *(R19-L1)* `MAX_STAY_NIGHTS` (366), the length cap, also read by `icalParser`'s horizon check. *(rule 13)* `MAX_HORIZON_YEARS`, `HORIZON_MESSAGE`, `horizonEnd`, `dateBeyondHorizon` and the `stored` option of `stayDatesRefusal`: the date horizon, also read by `establishmentClosuresValidation` and `financeWindow`. *(rule 13, second reading)* `PAST_HORIZON_MESSAGE`, `horizonStart`, `dateBeforeHorizon`, `dateWindowMessage`, `entryDateMessage`, `rangesWindowMessage`: the window both ways, read by every swept write path, and by plugins as `coreModule('stayDates')` (SDK 2.20.0). |
 | `database.js` | — | — | No schema change. |
 
 **Notes:**
@@ -196,6 +251,13 @@ live in `constants/stayDates.js`, and `utils/stayDates.js` holds `stayDatesMessa
 `PeriodSelector` read them); `stayDatesMessage` / `isQuotableStay` take the loaded record as `stored`, and
 the fiche's occupied-dates read is gated by `isQuotableStay` too.
 
+*2026-11-02 (rule 13, second reading):* `constants/dateHorizon.js` gains `PAST_HORIZON_MESSAGE`, `utils/dateHorizon.js`
+`horizonStart` and `dateWindowMessage` (the past or the future message, or ''); `stayDatesMessage`, the closures
+dialog and `PeriodSelector` (« du » too) read `dateWindowMessage`, so none of them sends a date outside the window.
+A new fiche opened from URL dates the fiche refuses asks neither the resources' nor the baby beds' availability for
+them, and `hooks/useWelcomePack` sends no date outside the window. `EmailSequenceSimulation` shows the server's
+window message.
+
 ### 4.3 API contract
 
 **Unchanged.** Same endpoints, bodies, responses, and status codes as today. This slice must be a no-op
@@ -208,6 +270,9 @@ now forward `code` and `field` with their `error`).
 *2026-11-02 (rule 13):* the same 400 `INVALID_STAY_DATES`, `error` « Date trop lointaine : 5 ans au plus. »,
 for an entered or edited date past today + 5 years. No new field: `calculate-price` already carried
 `reservationId` / `devisId`.
+
+*2026-11-02 (rule 13, second reading):* « Date trop ancienne : 5 ans au plus. » for a date before today − 5 years,
+on the same codes; the other swept endpoints answer 400 with their own code and the French message (table of rule 13).
 
 ---
 
@@ -228,6 +293,12 @@ prove behavior is preserved.)
 - [x] `tests/date-horizon.unit.test.js` (12, 2026-11-02) — rule 13: today + 5 years accepted, one day more
       refused on calculate-price, create, update, drift approval, devis create / update, closures and the
       finance window; stored dates past the horizon saved, restored, extended and converted untouched.
+- [x] `tests/date-window-past.unit.test.js` (17, 2026-11-02) — rule 13, second reading: today − 5 years accepted,
+      one day earlier refused (and today + 5 years / one day later where the path had no future side) on every
+      core path of the table, nothing written, stored dates kept; plugin suites `laundry-date-window` (3),
+      `school-holidays-date-window` (2), `resource-bookings-date-window` (2); client
+      `ReservationPage.date-window-past` (3), `EstablishmentClosuresPage.date-window-past` (2),
+      `PeriodSelector.date-window-past` (2).
 - [ ] `tests/occupancy.unit.test.js` — `getNightBlocksFromTimes` thresholds (checkout ≥17h blocks next
       night, checkin ≤10h blocks previous night); `buildOccupiedDatesFromReservations`;
       `validateAvailability` accepts a free range and rejects overlaps incl. night-block adjacency.

@@ -14,7 +14,7 @@
 const db = require('../database');
 const vatRegimeModel = require('./vatRegimeModel');
 const { calculateReservationQuote } = require('../utils/pricing');
-const { stayDatesRefusal } = require('../utils/stayDates');
+const { stayDatesRefusal, entryDateMessage } = require('../utils/stayDates');
 const { capitalizeFirst } = require('../utils/textFormatters');
 const { roundMoney } = require('../utils/devisHelpers');
 const { resolveDepositDueDate, resolveBalanceDueDate } = require('../utils/paymentSchedule');
@@ -769,6 +769,14 @@ function createModel(database) {
     };
   }
 
+  // specs/reservations-backend-mvc.md rule 13 (reading of 2026-11-02) — the API's `validUntil` override is a real
+  // day inside the date window; the stored value is kept as it is.
+  function validUntilRefusal(value, stored) {
+    if (value === undefined || value === null || value === '') return null;
+    const error = entryDateMessage(value, { stored });
+    return error ? { error, status: 400, code: 'INVALID_STAY_DATES', field: 'validUntil' } : null;
+  }
+
   function create(payload) {
     if (!payload.propertyId || !payload.clientId || !payload.startDate || !payload.endDate) {
       return { error: 'propertyId, clientId, startDate et endDate sont requis', status: 400 };
@@ -776,6 +784,8 @@ function createModel(database) {
     // specs/reservations-backend-mvc.md rule 11 — sound dates before any pricing or availability check.
     const datesRefusal = stayDatesRefusal(payload.startDate, payload.endDate);
     if (datesRefusal) return datesRefusal;
+    const validityRefusal = validUntilRefusal(payload.validUntil);
+    if (validityRefusal) return validityRefusal;
     const property = database.prepare('SELECT * FROM properties WHERE id = ?').get(Number(payload.propertyId));
     if (!property) return { error: 'Logement introuvable', status: 404 };
 
@@ -890,6 +900,8 @@ function createModel(database) {
     // specs/reservations-backend-mvc.md rule 13 — only an edited date is held to the horizon.
     const datesRefusal = stayDatesRefusal(next.startDate, next.endDate, { stored: existing });
     if (datesRefusal) return datesRefusal;
+    const validityRefusal = validUntilRefusal(payload.validUntil, existing.validUntil);
+    if (validityRefusal) return validityRefusal;
     const moved = next.propertyId !== Number(existing.propertyId) || next.startDate !== existing.startDate || next.endDate !== existing.endDate;
     // Rule 55 (R10-1) — a move onto closed nights, whatever the source; rule 46 — onto held nights, by the operator.
     if (moved) {

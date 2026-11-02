@@ -15,6 +15,7 @@
 const { daysBetween } = require('./paymentSchedule');
 const { addDaysToIsoDate } = require('./devisHelpers');
 const { bookingDayOf } = require('./vatRegime');
+const { dateBeyondHorizon, isRealIsoDay } = require('./stayDates');
 
 const MIN_COUNT = 2;
 const MAX_COUNT = 12;
@@ -138,10 +139,13 @@ const dateMessage = (number, text) => `Échéance ${number} : ${text}`;
 // Rule 11 — a date for an unpaid installment. `index` is the installment's place in `installments`.
 function validateDate({ installments, index, dueDate, today, startDate }) {
   const target = installments[index];
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(dueDate || '')) || daysBetween(dueDate, dueDate) === null) {
+  if (!isRealIsoDay(dueDate)) {
     return dateMessage(target.number, 'date invalide.');
   }
   if (dueDate < today) return dateMessage(target.number, `date passée, à partir du ${frDate(today)}.`);
+  // specs/reservations-backend-mvc.md rule 13 (reading of 2026-11-02) — a stay stored past the horizon
+  // before the rule does not carry its installments past it.
+  if (dateBeyondHorizon(dueDate, today)) return dateMessage(target.number, 'date trop lointaine : 5 ans au plus.');
   const arrival = String(startDate).slice(0, 10);
   if (dueDate > arrival) return dateMessage(target.number, `après l'arrivée du ${frDate(arrival)}.`);
   const prev = installments[index - 1];

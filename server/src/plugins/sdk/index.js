@@ -101,6 +101,8 @@ const CORE_MODULES = Object.freeze({
   pushService: '../../utils/pushService', // « Souscriptions Neat » push
   // hourly-resources — the resources, the stays and their sessions stay core tables (phase 3c rule 16)
   dateFr: '../../utils/dateFr', // the planning cards' and the occupancy strip's French times
+  // linen, school-holidays, hourly-resources, tariff-recipes — the date window of every entered date (reservations-backend-mvc rule 13)
+  stayDates: '../../utils/stayDates',
 });
 
 function coreModule(name) {

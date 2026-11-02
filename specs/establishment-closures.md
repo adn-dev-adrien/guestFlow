@@ -93,6 +93,10 @@ UI redesign: replace `DataPageScaffold` with the shared `PageActionBar` (sticky 
     kept. The dialog shows the message under the date at fault, the field in error, « Enregistrer »
     disabled, and asks no conflicts preview while a date is past the horizon; a date the closure was
     opened with stays allowed. The snapshot of 2026-10-22 ends its last closure on 2028-03-31.
+    *Reading of 2026-11-02, second (Adrien's decision) — the past side.* A start or reopening date before
+    today − 5 years is refused too, « Date trop ancienne : 5 ans au plus. », on create, update and the conflicts
+    preview; a date the closure already stores is kept (`specs/reservations-backend-mvc.md` rule 13, second reading). The dialog says it under the field and
+    neither previews nor saves it.
 19. **A closure is expanded only over the window asked** _(added 2026-11-02, audit R19)_.
     `expandClosuresToDates(closures, { from, to })` keeps the nights inside `[from, to)`;
     `blockedDates.computeBlockedDates` (public availability, quote and booking re-checks),
