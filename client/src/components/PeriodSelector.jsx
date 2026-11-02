@@ -14,11 +14,14 @@
  *   months:    Array<{ month, label }>        the exercise's months, from the server
  *   onChange:  ({ kind, month?, from?, to? }) => void — only called with a valid window
  *   labels?:   { fy, month, custom }          segment labels (French defaults)
+ *   today?:    'YYYY-MM-DD'                   the day the window is judged from: the server's when the page
+ *                                             knows it (`useServerToday`), the device's by default
  */
 import React, { useEffect, useState } from 'react';
 import { Box, MenuItem, TextField, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
 import { HORIZON_MESSAGE, PAST_HORIZON_MESSAGE } from '../constants/dateHorizon';
 import { dateWindowMessage } from '../utils/dateHorizon';
+import { localIsoToday } from '../utils/isoDay';
 
 const DEFAULT_LABELS = { fy: 'Exercice', month: 'Mois', custom: 'Personnalisée' };
 export const MAX_CUSTOM_WINDOW_DAYS = 750;
@@ -32,22 +35,22 @@ export const PERIOD_MESSAGES = {
 
 const DAY_MS = 86400000;
 
-export function customWindowError(from, to) {
+export function customWindowError(from, to, today = localIsoToday()) {
   if (!from || !to) return PERIOD_MESSAGES.missingDates;
   if (from > to) return PERIOD_MESSAGES.reversed;
   if ((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / DAY_MS > MAX_CUSTOM_WINDOW_DAYS) return PERIOD_MESSAGES.tooWide;
-  return dateWindowMessage(from) || dateWindowMessage(to);
+  return dateWindowMessage(from, today) || dateWindowMessage(to, today);
 }
 
-export default function PeriodSelector({ kind, month, from, to, months = [], onChange, labels = DEFAULT_LABELS }) {
+export default function PeriodSelector({ kind, month, from, to, months = [], onChange, labels = DEFAULT_LABELS, today = localIsoToday() }) {
   const [draft, setDraft] = useState({ from, to });
   useEffect(() => { setDraft({ from, to }); }, [from, to]);
-  const error = kind === 'custom' ? customWindowError(draft.from, draft.to) : '';
+  const error = kind === 'custom' ? customWindowError(draft.from, draft.to, today) : '';
 
   const setCustom = (next) => {
     const merged = { ...draft, ...next };
     setDraft(merged);
-    if (!customWindowError(merged.from, merged.to)) onChange({ kind: 'custom', from: merged.from, to: merged.to });
+    if (!customWindowError(merged.from, merged.to, today)) onChange({ kind: 'custom', from: merged.from, to: merged.to });
   };
 
   return (

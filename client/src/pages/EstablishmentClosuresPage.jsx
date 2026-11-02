@@ -25,6 +25,8 @@ import { useAppDialogs } from '../components/DialogProvider';
 import api from '../api';
 import { displayDate } from '../utils/formatters';
 import { dateWindowMessage } from '../utils/dateHorizon';
+import { localIsoToday } from '../utils/isoDay';
+import useServerToday from '../hooks/useServerToday';
 
 function isoToDayjs(iso) {
   if (!iso) return null;
@@ -57,6 +59,7 @@ const EMPTY_FORM = {
 export default function EstablishmentClosuresPage({ barTabs }) {
   const { confirm, alert } = useAppDialogs();
   const phone = useMediaQuery(useTheme().breakpoints.down('sm'));
+  const today = useServerToday() || localIsoToday();
   const [closures, setClosures] = useState([]);
   const [properties, setProperties] = useState([]);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -104,10 +107,10 @@ export default function EstablishmentClosuresPage({ barTabs }) {
   // meet. Asked again when the operator comes back to this tab (a request withdrawn on the devis meanwhile).
   // Rule 18, readings of 2026-11-02 — a date typed outside the window (today ± 5 years) says so under its
   // field; the dialog neither previews nor saves it. A date the closure already had stays allowed.
-  const outsideWindow = (field) => (Boolean(form[field]) && !(editId && openedForm[field] === form[field]) && dateWindowMessage(form[field])) || '';
+  const outsideWindow = (field) => (Boolean(form[field]) && !(editId && openedForm[field] === form[field]) && dateWindowMessage(form[field], today)) || '';
   const windowRefused = Boolean(outsideWindow('startDate') || outsideWindow('endDate'));
   const rangeSet = Boolean(form.startDate && form.endDate && form.startDate < form.endDate)
-    && !dateWindowMessage(form.startDate) && !dateWindowMessage(form.endDate);
+    && !dateWindowMessage(form.startDate, today) && !dateWindowMessage(form.endDate, today);
   useEffect(() => {
     setRequestsRefusal('');
     if (!dialogOpen || !rangeSet) { setConflicts(NO_CONFLICTS); return undefined; }

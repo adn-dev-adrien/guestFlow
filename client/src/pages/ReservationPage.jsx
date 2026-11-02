@@ -62,6 +62,8 @@ import { resolvePlatformTouristTaxPrefill } from '../utils/platformTouristTaxPre
 import { COARSE_POINTER, TOUCH_TARGET } from '../utils/touchHitArea';
 import { midStayNoteAccess, countMidStayNotes } from '../utils/midStayNoteAccess';
 import useWelcomePack from '../hooks/useWelcomePack';
+import useServerToday from '../hooks/useServerToday';
+import { localIsoToday } from '../utils/isoDay';
 import { applyWelcomePack, releaseWelcomePackLine } from '../utils/welcomePackApply';
 import {
   hydrateSelectedOptions, hydrateCustomOptions, hydrateSelectedResources,
@@ -176,6 +178,8 @@ export default function ReservationPage() {
   const { reservationId } = useParams();
   const { user: currentUser } = useAuth();
   const isAdmin = userHasRole(currentUser, ADMIN);
+  // specs/reservations-backend-mvc.md rule 13 — the date window is judged from the server's day once known.
+  const windowToday = useServerToday() || localIsoToday();
   // Per-fiche unlock of a past reservation (specs/settings-rationalization.md rule 17a): an admin
   // clicks « Déverrouiller cette fiche »; it lasts as long as this fiche is open and every write it
   // sends carries `unlockPast`. Leaving or reloading the fiche puts the lock back.
@@ -1171,7 +1175,7 @@ export default function ReservationPage() {
           // context — catalogue, categories, resources, defaults, caution, horaires — is loaded the
           // same way; only the pricing quote needs a complete stay range.
           const { property: prop } = await loadPropertyContext(initialPropId, props);
-          const hasStayRange = isQuotableStay(startDate, endDate);
+          const hasStayRange = isQuotableStay(startDate, endDate, { today: windowToday });
           const defaultCheckIn = prop?.defaultCheckIn || '15:00';
           const defaultCheckOut = prop?.defaultCheckOut || '10:00';
 
@@ -1307,7 +1311,7 @@ export default function ReservationPage() {
   // are set the catalogue from the property context stands in, so the block is never empty. A range the server
   // refuses (specs/reservations-backend-mvc.md rules 12-13) is not asked either.
   useEffect(() => {
-    if (loading || !selectedProp || !isQuotableStay(form.startDate, form.endDate, { stored: initialPricingContextRef.current })) return;
+    if (loading || !selectedProp || !isQuotableStay(form.startDate, form.endDate, { stored: initialPricingContextRef.current, today: windowToday })) return;
     const excludeId = editingReservationId || excludeReservationIdForDevis || null;
     if (availabilityKey.current === [selectedProp, form.startDate, form.endDate, excludeId || ''].join('|')) return;
     loadResourcesAvailability(form.startDate, form.endDate, selectedProp, excludeId).catch(() => {});
@@ -1354,7 +1358,7 @@ export default function ReservationPage() {
   // Load occupied dates from backend when property or dates change. A range the server refuses (reversed,
   // too long, past the horizon — specs/establishment-closures.md rule 20) is not asked: it has none.
   useEffect(() => {
-    if (!selectedProp || !isQuotableStay(form.startDate, form.endDate, { stored: initialPricingContextRef.current })) {
+    if (!selectedProp || !isQuotableStay(form.startDate, form.endDate, { stored: initialPricingContextRef.current, today: windowToday })) {
       setOccupiedDates([]);
       return;
     }
@@ -1379,7 +1383,7 @@ export default function ReservationPage() {
     const start = new Date(`${form.startDate}T00:00:00`);
     const end = new Date(`${form.endDate}T00:00:00`);
     // specs/reservations-backend-mvc.md rule 12 — a stay the server refuses (reversed, too long) is not quoted.
-    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || !isQuotableStay(form.startDate, form.endDate, { stored: initialPricingContextRef.current })) {
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || !isQuotableStay(form.startDate, form.endDate, { stored: initialPricingContextRef.current, today: windowToday })) {
       setMinNightsState({ breached: false, required: 0, nights: 0 });
       return;
     }
@@ -1749,6 +1753,7 @@ export default function ReservationPage() {
   const welcomePackLines = useWelcomePack({
     enabled: isBlankNewBooking,
     propertyId: selectedProp || null,
+    today: windowToday,
     platform: form.platform,
     startDate: form.startDate,
     endDate: form.endDate,
@@ -2084,7 +2089,7 @@ export default function ReservationPage() {
 
     // specs/reservations-backend-mvc.md rule 12 — only a complete, sound stay is quoted (the server refuses
     // the rest): a « Nouveau devis » switched before its dates are typed has no quote yet, like on opening.
-    const hasStayRange = isQuotableStay(form.startDate, form.endDate, { stored: initialPricingContextRef.current });
+    const hasStayRange = isQuotableStay(form.startDate, form.endDate, { stored: initialPricingContextRef.current, today: windowToday });
     const [{ property: prop }, calc, allRes] = await Promise.all([
       loadPropertyContext(nextPropertyId, properties),
       hasStayRange ? api.calculatePrice({
@@ -2290,7 +2295,7 @@ export default function ReservationPage() {
 
     // specs/reservations-backend-mvc.md rules 12-13 — a departure on or before the arrival, a stay too long or a date
     // past the horizon is refused here too.
-    const datesMessage = stayDatesMessage(form.startDate, form.endDate, { stored: initialPricingContextRef.current });
+    const datesMessage = stayDatesMessage(form.startDate, form.endDate, { stored: initialPricingContextRef.current, today: windowToday });
     if (datesMessage) {
       await alert({ title: 'Erreur', message: datesMessage });
       return false;
@@ -3346,7 +3351,7 @@ export default function ReservationPage() {
   const dateRangeConflictInfo = getDateRangeConflictInfo(form.startDate, form.endDate);
   const datesUnavailableForProperty = Boolean(dateRangeConflictInfo);
   const datesUnavailableMessage = dateRangeConflictInfo?.message || 'Ces dates ne sont pas dispo pour ce logement.';
-  const stayDatesHint = stayDatesMessage(form.startDate, form.endDate, { stored: initialPricingContextRef.current });
+  const stayDatesHint = stayDatesMessage(form.startDate, form.endDate, { stored: initialPricingContextRef.current, today: windowToday });
   const minNightsWarning = minNightsState.breached
     ? `Séjour trop court: ${minNightsState.nights} nuit(s) pour un minimum saisonnier de ${minNightsState.required} nuit(s).`
     : '';

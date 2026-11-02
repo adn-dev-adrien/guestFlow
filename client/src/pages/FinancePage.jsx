@@ -24,6 +24,7 @@ import { formatCurrencyRounded, plural } from '../utils/formatters';
 import api from '../api';
 import useLatestRequest from '../hooks/useLatestRequest';
 import { localIsoToday } from '../utils/isoDay';
+import useServerToday from '../hooks/useServerToday';
 
 const DETAIL_ID = 'finance-detail';
 const percent = (x) => (x == null ? '—' : `${Math.round(x * 100)} %`);
@@ -63,7 +64,8 @@ export default function FinancePage() {
   const paramsKey = searchParams.toString();
   // Rule 51 — a link to a custom window the server refuses (too wide, past the horizon, reversed) is not
   // sent: the page shows the period selector with the message, so the window can be fixed in place.
-  const periodRefusal = params.period === 'custom' && params.from && params.to ? customWindowError(params.from, params.to) : '';
+  const today = useServerToday() || localIsoToday();
+  const periodRefusal = params.period === 'custom' && params.from && params.to ? customWindowError(params.from, params.to, today) : '';
 
   const [dashboard, setDashboard] = useState(null);
   const [loadError, setLoadError] = useState(null);
@@ -194,7 +196,7 @@ export default function FinancePage() {
         {loadError && <ErrorAlert message={loadError} onRetry={loadDashboard} sx={{ mb: 2 }} />}
         {!d && periodRefusal && (
           <Box sx={{ mb: 1.75 }}>
-            <PeriodSelector kind="custom" from={params.from} to={params.to} months={[]} onChange={onPeriodChange} />
+            <PeriodSelector kind="custom" from={params.from} to={params.to} months={[]} onChange={onPeriodChange} today={today} />
           </Box>
         )}
         {(!d || franchise === undefined) && !loadError && !periodRefusal && <LoadingState label="Chargement du suivi financier…" />}
@@ -212,6 +214,7 @@ export default function FinancePage() {
                 to={params.to || defaultCustom().to}
                 months={d.months}
                 onChange={onPeriodChange}
+                today={today}
               />
             </Box>
 
