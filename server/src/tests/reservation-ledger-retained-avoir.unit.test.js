@@ -44,6 +44,9 @@ test('the installments kept by a cancelled plan read « Échéances conservées 
   const row = rowOf(ledger, 'refund-3');
   assert.equal(row.label, 'Échéances conservées');
   assert.equal(row.stateLabel, `Requalifié en indemnité le ${short(inDays(-1))}`);
+  // The cancelled fiche passes no plan: the installments collected still say what was kept.
+  const withoutPlan = buildLedger({ row: cancelledRow({ depositAmount: 0, depositPaid: 0, installmentsPaidAmount: 2060 }), refunds: [plan], today: TODAY });
+  assert.equal(rowOf(withoutPlan, 'refund-3').label, 'Échéances conservées');
 });
 
 test('a refund taken from the indemnity says so; a mixed one names the share', () => {

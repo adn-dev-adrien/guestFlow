@@ -377,8 +377,9 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
       indemnity's rate (`cancellationCompensationAccount` / `vatRateCancellationCompensation`, 75880000 at 0 %
       by default; 0 % on a stay sold « Sans TVA »), never 706 nor 4457. Client account, 706, 4457 and 4671 are
       then exact; the indemnity is reduced by what went back.
-    - **Refusals (409):** a keyed line beyond its share → `REFUND_EXCEEDS_LINE` « dépasse le montant encaissé »;
-      a free line beyond what is left → `REFUND_EXCEEDS_COLLECTED`; an indemnity share in caisse interne
+    - **Refusals (409):** a keyed line beyond its share → `REFUND_EXCEEDS_LINE` (the per-line cap of rule 10), or,
+      when the line's share is used up by an earlier line of the same refund, « <ligne> : dépasse l'encaissé (X €). »;
+      a free line beyond what is left → `REFUND_EXCEEDS_COLLECTED` « Dépasse l'encaissé (X €). »; an indemnity share in caisse interne
       (`internal`, off the books, so it could not reduce the indemnity) → `REFUND_INDEMNITY_OFF_BOOKS`
       « Pris sur l'indemnité : virement ou espèces seulement. »
     A stay that is not cancelled is unchanged. *Why:* on stay #22326 (2 060 € collected by two installments, all

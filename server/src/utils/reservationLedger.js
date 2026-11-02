@@ -606,7 +606,8 @@ function buildLedger({
     // Payment-schedule rule 32bis, reading of 2026-11-02 — the cancellation kept this money as an indemnity.
     if (isRetainedDeposit(refund.method)) {
       rows.push({
-        key: `refund-${refund.id}`, label: planRows ? 'Échéances conservées' : 'Acompte conservé',
+        // A cancelled fiche shows no plan rows: the installments it collected still name the money kept.
+        key: `refund-${refund.id}`, label: planRows || Number(r.installmentsPaidAmount) > 0 ? 'Échéances conservées' : 'Acompte conservé',
         amount: -round2(refund.totalTtc), state: 'retained', tone: 'info',
         stateLabel: `Requalifié en indemnité le ${when}`,
         action: null,

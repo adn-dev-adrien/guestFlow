@@ -412,6 +412,8 @@ function validateRefundPayload(payload, context) {
  * requalified (it keeps its bucket and VAT: the sale is reversed), then from the indemnity (bucket `indemnity`,
  * 0 %). The indemnity part of a sold line never exceeds what the cancellation requalified on it.
  */
+const euros = (n) => `${Number(n).toFixed(2).replace('.', ',')} €`;
+
 function splitOnIndemnity(lines, byKey, budget) {
   let saleLeft = Math.round(budget.saleLeftTtc * 100);
   let indemnityLeft = Math.round(budget.indemnityLeftTtc * 100);
@@ -430,8 +432,8 @@ function splitOnIndemnity(lines, byKey, budget) {
     if (fromIndemnity > indemnityLeft || (key && fromIndemnity > indemnityRoom[key])) {
       const billed = key ? byKey.get(key) : null;
       return billed
-        ? invalid('REFUND_EXCEEDS_LINE', `« ${billed.label} » : le remboursement dépasse le montant encaissé (${billed.refundableTtc.toFixed(2)} €)`, 409)
-        : invalid('REFUND_EXCEEDS_COLLECTED', `Le remboursement dépasse le montant encaissé (${budget.collectedTtc.toFixed(2)} €)`, 409);
+        ? invalid('REFUND_EXCEEDS_LINE', `« ${billed.label} » : dépasse l’encaissé (${euros(billed.refundableTtc)}).`, 409)
+        : invalid('REFUND_EXCEEDS_COLLECTED', `Dépasse l’encaissé (${euros(budget.collectedTtc)}).`, 409);
     }
     saleLeft -= sale;
     indemnityLeft -= fromIndemnity;
