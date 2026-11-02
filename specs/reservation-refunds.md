@@ -408,6 +408,20 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
     >   indemnity line is not a sale, it stays at 0 % (the export reads the compensation settings anyway).
     > - The refusals write their amounts with `formatEuros` (« Dépasse l'encaissé (2 060,00 €). »,
     >   « … dépasse le montant restant remboursable (1 333,24 €) »).
+49. **A cancelled stay never offers more than it can give back** _(added 2026-11-02, round 15)_. On a cancelled
+    stay the lines share two sums, the indemnity left and the sale money left (rule 48), so
+    `buildRefundableLines` caps each sum over the lines: the excess comes off the first lines (accommodation, then
+    the extras, the tourist tax last), and Σ `refundableTtc` never exceeds `collectedTtc`. Asking for every line at
+    its offered amount is accepted. A refund above what is left is refused with what is left: the whole refund
+    first, `REFUND_EXCEEDS_COLLECTED` « Dépasse l'encaissé (X €). » with X = `collectedTtc`; then a line that runs
+    out after the earlier lines of the same refund, « « <ligne> » : dépasse l'encaissé restant (X €). » with X what
+    was still left for it. A stay that is not cancelled is unchanged. *Why:* on stay #22326, after a 10 € free
+    line the lines offered 1 547,45 € against 1 537,45 € left, and asking for all of them was refused with
+    « Taxe de séjour : dépasse l'encaissé (12,00 €) » although 2 € were left for it. With a paid solde the lines
+    each offered the whole sale money: a stay that had collected 195,94 € offered 290,26 €.
+    > **Reading of 2026-11-02 (round 15).** A book refund made before the cancellation no longer reaches the
+    > indemnity: the cancellation keeps only what it left (specs/payment-schedule-and-cancellation.md rule 55), so
+    > `requalifiedTtc` and `indemnityTtc` read the net amount.
 
 ---
 
@@ -427,6 +441,7 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
 | `controllers/` | `reservationsController.js` | T | Feeds `refundsTotal` into the quote inputs (like `midStayQuoteInputs`) and exposes `refundableLines` on `GET /:id` |
 | `utils/` | `refunds.js` | C | **Pure**: `buildRefundableLines(...)` (incl. the per-night tourist-tax line), `validateRefundPayload(...)` (derives the quantity from the amount), `splitHtVat(...)`, `refundedTouristTax(refunds)` → `{ amount, nights }` |
 | `utils/` | `refunds.js` | T | Rule 48 — `cancelledRefundBudget(...)`; `buildRefundableLines({ cancelled })` caps each line at what was collected (`indemnityTtc`); `validateRefundPayload({ cancelled })` splits each line between the sale and the `indemnity` bucket |
+| `utils/` | `refunds.js` | T | Rule 49 — `capInOrder`: the lines' sale and indemnity rooms add up to what is left; the refusals name what is left |
 | `controllers/` | `refundsController.js` | T | Rule 48 — on `kind = 'cancelled'`, passes the budget to both and answers `collectedTtc` = the budget |
 | `plugins/accounting-export/` | `accountingModel.js`, `accountingExport.js` | T | Rule 48 — `buildRefundEntry` carries `indemnity` (account + rate of the compensation settings); `refundEntryToRows` debits it |
 | `utils/` | `reservationLedger.js` | T | Rule 46 reading of 2026-11-02 — « Acompte conservé » / « Échéances conservées » row, « Rendu sur l'indemnité » |
@@ -682,6 +697,10 @@ indemnity refund lowers the franchise turnover at face value, a mixed one splits
 (2) — a switch and its undo leave an `indemnity` line at 0 %. `client/src/components/__tests__/CancellationCompensationsSection.indemnity-refunds.test.jsx`
 (2) — the reopen warning, and its absence when no refund touched the card.
 `tests/vat-regime-golden.unit.test.js` — `fiche/109` regenerated: a cancelled stay that collected nothing offers no line.
+**Round 15 (2026-11-02):** `tests/refund-before-cancellation.unit.test.js` (3 of 10, rule 49) — after a free line on
+a cancelled plan the lines add up to the 1 537,45 € left and asking for all of them is accepted; after 2 050 € the
+tax line offers the 10 € left and a refusal names 10,00 €, never the 12 € it once held; with a paid solde the lines
+add up to the 914 € collected and asking for all of them is accepted.
 
 ## 8. Out of scope
 

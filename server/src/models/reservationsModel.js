@@ -2164,6 +2164,25 @@ function createReservationsModel(database) {
       };
     },
 
+    // What the stay billed per accounting bucket, TTC — accommodation being the price minus its extra lines, as the
+    // refund register derives it (utils/refunds.buildRefundableLines).
+    billedBuckets(reservationId) {
+      const id = Number(reservationId);
+      const row = database.prepare('SELECT finalPrice, touristTaxTotal FROM reservations WHERE id = ?').get(id);
+      if (!row) return null;
+      const sumOf = (table, column) => Number(database.prepare(
+        `SELECT COALESCE(SUM(${column}), 0) AS total FROM ${table} WHERE reservationId = ?`,
+      ).get(id).total || 0);
+      const options = round2(sumOf('reservation_options', 'totalPrice') + sumOf('reservation_custom_options', 'amount'));
+      const resources = round2(sumOf('reservation_resources', 'totalPrice'));
+      return {
+        accommodation: Math.max(0, round2(Number(row.finalPrice || 0) - options - resources)),
+        options,
+        resources,
+        touristTax: round2(row.touristTaxTotal),
+      };
+    },
+
     // The cancellation write itself: `kind` leaves 'reservation', which is what frees the dates
     // everywhere at once (every operational query filters on it). Amounts, échéances and paid flags
     // are left exactly as they were — they are history now, and accounting still reads them.

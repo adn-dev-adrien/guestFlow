@@ -463,6 +463,22 @@ acompte is kept as an indemnity, and the books say so correctly.
     still yesterday. A devis created then (local day) flipped at its first unchanged save (UTC day): a stay
     booked 30 days out was sold as one single payment, then re-saved with a 30 % acompte and a solde due
     before it. A reservation's fiche showed the same acompte the save had not stored.
+55. **The cancellation keeps what earlier refunds left** _(added 2026-11-02, review of PR #925, finding 3)_. A
+    book refund (virement, espèces) made **before** the cancellation already reversed its revenue + VAT, or its
+    tourist tax. `cancelReservation` hands the stay's book refunds per bucket (`givenBack`) to
+    `buildCancellationRequalification`, which keeps, bucket by bucket, only what they left: a paid solde absorbs
+    them first (`saleCollected` = the bucket billed minus the acompte's share — the order rule 48 of
+    specs/reservation-refunds.md gives back a cancelled stay's money), the rest comes off the bucket's requalified
+    lines, the largest first (one line per installment and bucket on a plan), and what a bucket cannot hold comes
+    off the other lines. The avoir, the indemnity card's `receivedAmount`, the history's « Acompte conservé » and
+    `retainedDepositAmount` all carry that net amount; nothing left → no avoir and no card, as in rule 27. A
+    netted line keeps the TTC it was booked on as `unitPrice`, `quantity` being the share kept; the export splits
+    it as VAT(booked) − the VAT the earlier refunds of that bucket reversed, so 706 and 4457 net to the cent
+    (when that line took exactly those refunds; otherwise each line splits on its own). The caisse interne is off
+    the books and changes nothing here. A cancellation without an earlier book refund writes the same lines as
+    before, and its journal does not move. *Why:* acompte 274 €, 100 € of accommodation given back, then
+    cancelled → 274 € requalified though 174 € were held; once the 174 € still offered went back, 70600000
+    +90,91, 44571100 +9,09 and 75880000 −100 stayed in the books. A plan kept 2 060 € after a 100 € refund.
 
 
 ---
@@ -494,6 +510,9 @@ acompte is kept as an indemnity, and the books say so correctly.
 | `utils/` | `paymentDeadlines.js` | T | **Pure**: reservation rows + today → ready-to-render alert rows (state, amounts, days late, actions). Gains the two `*_to_request` states, the `requestSent` inputs and the `cancel_due` guard of rule 12bis |
 | `utils/` | `cancellationRequalification.js` | C | **Pure**: paid-acompte row → the avoir lines + the compensation payload of §3.6 |
 | `utils/` | `cancelReservation.js` | C | The cancellation transaction itself, every dependency injected — history → kind flip → requalification pair → payment-link cleanup |
+| `utils/` | `cancellationRequalification.js`, `cancelReservation.js` | T | Rule 55 — `netOfEarlierRefunds`: the avoir keeps what the earlier book refunds left, per bucket and installment line; `givenBackByBucket`, `saleCollectedOf` |
+| `models/` | `reservationsModel.js` | T | Rule 55 — `billedBuckets(id)`: TTC billed per bucket, accommodation = price − extra lines |
+| `plugins/accounting-export/` | `accountingModel.js` | T | Rule 55 — a netted `retained` line splits as VAT(booked) − the VAT the earlier refunds reversed (`nettedBucketSplit`) |
 | `utils/` | `pricing.js` | T | Delegates the two due dates to `paymentSchedule.js`; takes `bookingDate` + the stored `depositDueDate` as inputs |
 | `utils/` | `refunds.js` | T | `retained` added to `REFUND_METHODS` (book money, never off-books) and kept out of `SELECTABLE_REFUND_METHODS`, so the manual refund API refuses it |
 | `utils/` | `balanceRequestRunner.js` | **D** | **Deleted** (rule 38) — its eligibility query moves into `paymentDeadlines.js` as the `balance_to_request` state |
@@ -645,6 +664,11 @@ One line per reservation:
 ## 7. Test plan
 
 ### Server unit tests — **53 new, suite at 3157 green**
+- [x] `tests/refund-before-cancellation.unit.test.js` (7 of 10, 2026-11-02) — rule 55: acompte 274 €, 100 €
+      given back, then cancelled → 174 € kept (avoir, card, register); every 706 / 4457 / 4671 account, 75880000
+      and the client account at 0 once the rest goes back; a paid solde absorbs the refund (274 € kept); a plan
+      keeps 1 960 € after 100 €; awkward refunds on every bucket of a plan (100,05 + 0,07 €, 33,37 €, 6 €) net
+      to the cent; a refund of the whole acompte leaves nothing to requalify; the caisse interne changes nothing
 - [x] `tests/payment-schedule-local-booking-day.unit.test.js` (7, 2026-10-30) — rule 54: `toIsoDay` on a date-only value, a UTC datetime and garbage; the last-minute threshold and the acompte deadline from a 00:30 timestamp; clock frozen at 31/10 00:30 Paris, a devis and a reservation (real controller, fiche preview included) keep their schedule across an unchanged save
 - [x] `tests/reservation-cancellation.unit.test.js` — rule 48: the « acompte never collected » case now expects `unpaid_deposit` (spec review 2026-10-27)
 - [x] `tests/payment-schedule.unit.test.js` (9) — deposit due = booking + N and frozen across

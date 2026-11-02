@@ -268,12 +268,18 @@ function createAccountingModel(database, { settings = createAccountSettings(data
       // schema without settings never needs them.
       const fromIndemnity = rows.some((row) => (row.lines || []).some((line) => line.bucket === 'indemnity'));
       const indemnity = fromIndemnity ? compensationSettings(settings.read()) : null;
+      // specs/payment-schedule-and-cancellation.md rule 55 — a requalification avoir netted of the stay's earlier
+      // refunds mirrors their split: read only for such an avoir, so every other entry stays byte-identical.
+      const earlierRefundsOf = (row) => (row.method === 'retained' && (row.lines || []).some(isNettedLine)
+        ? refunds.listByReservation(row.reservationId).filter((other) => !['retained', 'internal'].includes(other.method)
+          && (other.refundDate < row.refundDate || (other.refundDate === row.refundDate && other.id < row.id)))
+        : null);
       const indemnityOf = (row) => (indemnity ? {
         account: indemnity.account,
         vatRatePercent: vatRegimeModel.forRow(database, { id: row.reservationId }).regime === 'not_subject' ? 0 : indemnity.vatRatePercent,
         priorTtc: refunds.indemnityGivenBefore(row),
       } : null);
-      return rows.map((row) => buildRefundEntry(row, { indemnity: indemnityOf(row) })).filter(Boolean);
+      return rows.map((row) => buildRefundEntry(row, { indemnity: indemnityOf(row), earlier: earlierRefundsOf(row) })).filter(Boolean);
     },
 
     // Pénalités plateforme du mois (specs/reconciliation-assisted-matching.md rule 28): one entry per
@@ -412,7 +418,64 @@ function buildCompensationEntry(compensation, { account, vatRatePercent }) {
 // On a cancelled stay, the lines given back from the indemnity (bucket `indemnity`, specs/reservation-refunds.md
 // rule 48) debit the indemnity account at its own rate — the mirror of the compensation entry — and never touch
 // 706 or VAT on sales: that revenue was already reversed by the cancellation's `retained` avoir.
-function buildRefundEntry(refund, { indemnity = null } = {}) {
+// A requalification line netted of earlier refunds keeps the TTC it was booked on as `unitPrice`
+// (specs/payment-schedule-and-cancellation.md rule 55).
+function isNettedLine(line) {
+  return line.unitPrice != null && line.bucket !== 'touristTax' && round2(line.unitPrice) > round2(line.amountTtc);
+}
+
+// Rule 55 — the HT / VAT of the earlier refunds, per `${bucket}|${rate}`, as their own entries booked them.
+function earlierSplits(earlier) {
+  const splits = new Map();
+  for (const refund of earlier || []) {
+    const entry = buildRefundEntry(refund);
+    for (const line of refund.lines || []) {
+      if (['touristTax', 'indemnity'].includes(line.bucket)) continue;
+      const key = `${line.bucket}|${Number(line.vatRate || 0)}`;
+      const current = splits.get(key) || { ttc: 0, vat: 0 };
+      current.ttc = round2(current.ttc + Number(line.amountTtc || 0));
+      splits.set(key, current);
+    }
+    for (const bucket of (entry && entry.buckets) || []) {
+      const key = `${bucket.name}|${Number(bucket.ratePercent || 0)}`;
+      if (splits.has(key)) splits.get(key).vat = round2(splits.get(key).vat + bucket.vat);
+    }
+  }
+  return splits;
+}
+
+// Rule 55 — a requalification avoir netted of earlier refunds reverses what the books still hold on each bucket: the
+// VAT its lines were booked on, minus the VAT those refunds already reversed, so 706 and 4457 net to the cent. Only
+// when the netted lines took exactly those refunds (no paid solde, no spill from another bucket); otherwise each
+// line splits on its own, as before.
+function nettedBucketSplit(lines, earlier) {
+  const netted = lines.filter(isNettedLine);
+  if (!earlier || netted.length === 0) return null;
+  const absorbed = netted.map((line) => Math.round((round2(line.unitPrice) - round2(line.amountTtc)) * 100));
+  const absorbedCents = absorbed.reduce((total, cents) => total + cents, 0);
+  if (absorbedCents !== Math.round(earlier.ttc * 100)) return null;
+  const earlierVatCents = Math.round(earlier.vat * 100);
+  let sharedCents = 0;
+  let ttc = 0;
+  let vat = 0;
+  for (const line of lines) {
+    const rate = Number(line.vatRate || 0);
+    const index = netted.indexOf(line);
+    let lineVat = bucketFromTtc(line.bucket, round2(line.amountTtc), rate).vat;
+    if (index >= 0) {
+      const share = index === netted.length - 1
+        ? earlierVatCents - sharedCents
+        : Math.round((earlierVatCents * absorbed[index]) / absorbedCents);
+      sharedCents += share;
+      lineVat = round2(bucketFromTtc(line.bucket, round2(line.unitPrice), rate).vat - share / 100);
+    }
+    ttc = round2(ttc + round2(line.amountTtc));
+    vat = round2(vat + lineVat);
+  }
+  return { ht: round2(ttc - vat), vat };
+}
+
+function buildRefundEntry(refund, { indemnity = null, earlier = null } = {}) {
   const lines = refund.lines || [];
   const ttc = round2(refund.totalTtc);
   if (ttc <= 0) return null;
@@ -436,8 +499,14 @@ function buildRefundEntry(refund, { indemnity = null } = {}) {
     byBucket.set(mapKey, current);
   }
 
+  const splits = perLine && earlier ? earlierSplits(earlier) : null;
   const buckets = [...byBucket.values()]
-    .map((b) => (perLine ? { name: b.name, ht: b.ht, vat: b.vat, ratePercent: b.ratePercent } : bucketFromTtc(b.name, b.ttc, b.ratePercent)))
+    .map((b) => {
+      if (!perLine) return bucketFromTtc(b.name, b.ttc, b.ratePercent);
+      const bucketLines = lines.filter((line) => line.bucket === b.name && Number(line.vatRate || 0) === b.ratePercent && round2(line.amountTtc) > 0);
+      const netted = splits ? nettedBucketSplit(bucketLines, splits.get(`${b.name}|${b.ratePercent}`)) : null;
+      return { name: b.name, ht: netted ? netted.ht : b.ht, vat: netted ? netted.vat : b.vat, ratePercent: b.ratePercent };
+    })
     .filter((b) => b.ht > 0 || b.vat > 0);
 
   return {

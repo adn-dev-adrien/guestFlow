@@ -86,6 +86,47 @@ function installmentLines(amountTtc, touristTaxTtc, installments, vatRate) {
   return lines;
 }
 
+const NETTED_BUCKETS = ['accommodation', 'options', 'resources', 'touristTax'];
+
+// Takes `cents` off the lines, the largest first (the later one on a tie), and returns what none could hold.
+function absorb(lines, cents) {
+  let left = cents;
+  const order = lines.map((line, index) => ({ line, index })).sort((a, b) => b.line.cents - a.line.cents || b.index - a.index);
+  for (const { line } of order) {
+    if (left <= 0) break;
+    const taken = Math.min(left, line.cents);
+    line.cents -= taken;
+    left -= taken;
+  }
+  return left;
+}
+
+/**
+ * specs/payment-schedule-and-cancellation.md rule 55 — a book refund made before the cancellation already took its
+ * money out of the revenue, the VAT or the tax account: the cancellation keeps only what is left. Per bucket, a paid
+ * solde (`saleCollected`) absorbs the earlier refunds first, the same order rule 48 gives back a cancelled stay's
+ * money; the rest comes off the bucket's requalified lines, the largest line first, so a single line usually takes it
+ * all and the export can mirror its split to the cent. What a bucket cannot hold comes off the other lines.
+ * A netted line keeps the TTC it was booked on as `unitPrice`, `quantity` being the share kept.
+ */
+function netOfEarlierRefunds(lines, givenBack, saleCollected) {
+  const given = givenBack || {};
+  const sale = saleCollected || {};
+  const work = lines.map((line) => ({ line, cents: Math.round(line.amountTtc * 100) }));
+  let spill = 0;
+  for (const bucket of NETTED_BUCKETS) {
+    const due = Math.max(0, Math.round(Number(given[bucket] || 0) * 100) - Math.round(Number(sale[bucket] || 0) * 100));
+    spill += absorb(work.filter((entry) => entry.line.bucket === bucket), due);
+  }
+  absorb(work, spill);
+  return work.filter((entry) => entry.cents > 0).map(({ line, cents }) => {
+    if (cents === Math.round(line.amountTtc * 100)) return line;
+    const amountTtc = cents / 100;
+    if (line.unitPrice == null) return { ...line, amountTtc };
+    return { ...line, amountTtc, unitPrice: line.amountTtc, quantity: Math.round((cents / Math.round(line.amountTtc * 100)) * 10000) / 10000 };
+  });
+}
+
 /**
  * @param {object} input
  * @param {object} input.reservation      row with id, propertyId, propertyName, platform, firstName,
@@ -96,6 +137,10 @@ function installmentLines(amountTtc, touristTaxTtc, installments, vatRate) {
  *                                        installments of a plan collected, the tourist tax inside it, and per
  *                                        paid installment `{ number, count, accommodation, options, resources }`
  *                                        the TTC it was booked on
+ * @param {object} [input.givenBack]    `{ accommodation, options, resources, touristTax }` TTC the book refunds made
+ *                                        before the cancellation gave back (payment-schedule spec rule 55)
+ * @param {object} [input.saleCollected] the same buckets, TTC collected outside the requalified money (a paid solde):
+ *                                        it absorbs those refunds first
  * @param {string} input.cancellationDate YYYY-MM-DD — the day the requalification is booked
  * @param {number} input.vatRate          the sales VAT rate the acompte was booked at
  * @param {string} [input.reason]         operator's cancellation reason, carried on both records
@@ -107,23 +152,31 @@ function buildCancellationRequalification({
   reservation,
   depositBuckets = null,
   installmentsRetained = null,
+  givenBack = null,
+  saleCollected = null,
   cancellationDate,
   vatRate = 0,
   reason = '',
 } = {}) {
   const row = reservation || {};
-  const depositTtc = Number(row.depositPaid) ? Math.max(0, round2(row.depositAmount)) : 0;
-  const installmentsTtc = Math.max(0, round2(installmentsRetained && installmentsRetained.amountTtc));
-  const retainedTtc = round2(depositTtc + installmentsTtc);
-  if (retainedTtc <= 0) return null;
+  const grossDepositTtc = Number(row.depositPaid) ? Math.max(0, round2(row.depositAmount)) : 0;
+  const grossInstallmentsTtc = Math.max(0, round2(installmentsRetained && installmentsRetained.amountTtc));
+  if (round2(grossDepositTtc + grossInstallmentsTtc) <= 0) return null;
 
-  const label = installmentsTtc > 0 ? 'Annulation — échéances conservées' : 'Annulation — acompte conservé';
+  const label = grossInstallmentsTtc > 0 ? 'Annulation — échéances conservées' : 'Annulation — acompte conservé';
   const note = String(reason || '').trim();
   const rate = Number(vatRate) || 0;
-  const lines = [
-    ...(depositTtc > 0 ? requalificationLines(depositTtc, depositBuckets, rate) : []),
-    ...(installmentsTtc > 0 ? installmentLines(installmentsTtc, installmentsRetained.touristTaxTtc, installmentsRetained.installments, rate) : []),
-  ];
+  const lines = netOfEarlierRefunds([
+    ...(grossDepositTtc > 0 ? requalificationLines(grossDepositTtc, depositBuckets, rate).map((line) => ({ ...line, origin: 'deposit' })) : []),
+    ...(grossInstallmentsTtc > 0
+      ? installmentLines(grossInstallmentsTtc, installmentsRetained.touristTaxTtc, installmentsRetained.installments, rate).map((line) => ({ ...line, origin: 'installments' }))
+      : []),
+  ], givenBack, saleCollected);
+  const sumOf = (origin) => round2(lines.filter((line) => !origin || line.origin === origin).reduce((total, line) => total + line.amountTtc, 0));
+  const depositTtc = sumOf('deposit');
+  const installmentsTtc = sumOf('installments');
+  const retainedTtc = sumOf(null);
+  if (retainedTtc <= 0) return null;
 
   return {
     retainedTtc,
@@ -134,7 +187,7 @@ function buildCancellationRequalification({
       refundDate: cancellationDate,
       method: 'retained',
       reason: note ? `${label} : ${note}` : label,
-      lines,
+      lines: lines.map(({ origin, ...line }) => line),
     },
     compensation: {
       reservationId: Number(row.id),
@@ -154,4 +207,4 @@ function buildCancellationRequalification({
   };
 }
 
-module.exports = { buildCancellationRequalification, __test: { requalificationLines, installmentLines, round2 } };
+module.exports = { buildCancellationRequalification, __test: { requalificationLines, installmentLines, netOfEarlierRefunds, round2 } };

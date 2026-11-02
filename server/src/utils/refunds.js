@@ -206,13 +206,30 @@ function buildRefundableLines({ finalPrice, touristTaxTotal, vatRate, options = 
   if (cancelled) {
     // Rule 48 — a cancelled stay gives back money it collected, never what it billed: the requalified money the
     // indemnity still holds on the line, plus at most the collected money no cancellation requalified.
-    for (const line of perLine) {
-      const saleRoomTtc = Math.min(line.refundableTtc, cancelled.saleLeftTtc);
-      line.indemnityTtc = Math.min(cancelled.indemnityLeftTtc, Math.max(0, round2(line.requalifiedTtc - (fromIndemnity[line.key] || 0))));
-      line.refundableTtc = Math.min(cancelled.collectedTtc, round2(saleRoomTtc + line.indemnityTtc));
-    }
+    const saleRooms = perLine.map((line) => Math.round(Math.min(line.refundableTtc, cancelled.saleLeftTtc) * 100));
+    const indemnityRooms = perLine.map((line) => Math.round(Math.min(cancelled.indemnityLeftTtc,
+      Math.max(0, round2(line.requalifiedTtc - (fromIndemnity[line.key] || 0)))) * 100));
+    // Rule 49 — the lines together never offer more than is left: a free line took its money from no line in
+    // particular, and a paid solde is one sum the lines share.
+    capInOrder(saleRooms, Math.round(cancelled.saleLeftTtc * 100));
+    capInOrder(indemnityRooms, Math.round(cancelled.indemnityLeftTtc * 100));
+    perLine.forEach((line, index) => {
+      line.indemnityTtc = indemnityRooms[index] / 100;
+      line.refundableTtc = (saleRooms[index] + indemnityRooms[index]) / 100;
+    });
   }
   return perLine.filter((line) => line.refundableTtc > 0);
+}
+
+// specs/reservation-refunds.md rule 49 — lowers the rooms (cents) until they add up to `budget` at most, taking the
+// excess off the first lines: accommodation, then the extras, the tourist tax last.
+function capInOrder(rooms, budget) {
+  let excess = rooms.reduce((total, cents) => total + cents, 0) - Math.max(0, budget);
+  for (let index = 0; index < rooms.length && excess > 0; index += 1) {
+    const taken = Math.min(excess, rooms[index]);
+    rooms[index] -= taken;
+    excess -= taken;
+  }
 }
 
 /**
@@ -380,6 +397,9 @@ function validateRefundPayload(payload, context) {
 
   const totalTtc = round2(lines.reduce((sum, l) => sum + l.amountTtc, 0));
   if (cancelled) {
+    if (totalTtc > cancelled.collectedTtc) {
+      return invalid('REFUND_EXCEEDS_COLLECTED', `Dépasse l’encaissé (${euros(cancelled.collectedTtc)}).`, 409);
+    }
     const split = splitOnIndemnity(lines, byKey, cancelled);
     if (split.error) return split;
     if (method === OFF_BOOKS_METHOD && split.lines.some(isIndemnityLine)) {
@@ -435,10 +455,14 @@ function splitOnIndemnity(lines, byKey, budget) {
     const sale = Math.min(cents, saleLeft, key ? Math.max(0, saleRoom[key]) : cents);
     const fromIndemnity = cents - sale;
     if (fromIndemnity > indemnityLeft || (key && fromIndemnity > indemnityRoom[key])) {
+      // Rule 49 — what is really left for this line once the earlier lines of the refund took their share.
       const billed = key ? byKey.get(key) : null;
+      const leftCents = billed
+        ? Math.min(Math.max(0, saleRoom[key]), saleLeft) + Math.min(Math.max(0, indemnityRoom[key]), indemnityLeft)
+        : saleLeft + indemnityLeft;
       return billed
-        ? invalid('REFUND_EXCEEDS_LINE', `« ${billed.label} » : dépasse l’encaissé (${euros(billed.refundableTtc)}).`, 409)
-        : invalid('REFUND_EXCEEDS_COLLECTED', `Dépasse l’encaissé (${euros(budget.collectedTtc)}).`, 409);
+        ? invalid('REFUND_EXCEEDS_LINE', `« ${billed.label} » : dépasse l’encaissé restant (${euros(leftCents / 100)}).`, 409)
+        : invalid('REFUND_EXCEEDS_COLLECTED', `Dépasse l’encaissé restant (${euros(leftCents / 100)}).`, 409);
     }
     saleLeft -= sale;
     indemnityLeft -= fromIndemnity;

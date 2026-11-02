@@ -27,6 +27,7 @@ const { buildCancellationRequalification } = require('./cancellationRequalificat
 const { isDirectChannel } = require('./platformNameFormat');
 const { taxShares } = require('./installmentPlan');
 const { computeInstallmentPaidSplit } = require('./installmentPaidSplit');
+const { isOffBooks, isRetainedDeposit } = require('./refunds');
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
@@ -80,6 +81,30 @@ function installmentsRetainedOf(installmentsModel, database, id, row) {
   return { amountTtc: amountCents / 100, touristTaxTtc: retainedTaxCents / 100, installments };
 }
 
+// specs/payment-schedule-and-cancellation.md rule 55 — per bucket, what the book refunds made before the cancellation
+// gave back (the caisse interne is off the books: it never reversed any revenue).
+function givenBackByBucket(refundsModel, id) {
+  const given = {};
+  for (const refund of refundsModel.listByReservation(id)) {
+    if (isOffBooks(refund.method) || isRetainedDeposit(refund.method)) continue;
+    for (const line of refund.lines || []) given[line.bucket] = round2((given[line.bucket] || 0) + Number(line.amountTtc || 0));
+  }
+  return given;
+}
+
+// A paid solde collected the rest of each bucket, beyond the acompte's share: that money absorbs the earlier refunds
+// first (rule 55). An acompte without its per-bucket shares sat on the accommodation, as its avoir line does.
+function saleCollectedOf(row, billed, depositBuckets) {
+  if (!Number(row.balancePaid) || !billed) return null;
+  const deposit = Number(row.depositPaid) ? Math.max(0, round2(row.depositAmount)) : 0;
+  const buckets = depositBuckets || { accommodation: deposit };
+  const sale = {};
+  for (const bucket of ['accommodation', 'options', 'resources', 'touristTax']) {
+    sale[bucket] = Math.max(0, round2(Number(billed[bucket] || 0) - Number(buckets[bucket] || 0)));
+  }
+  return sale;
+}
+
 /**
  * @param {object} deps { database, reservationsModel, refundsModel, compensationsModel, paymentLinksModel, installmentsModel? }
  * @param {number} reservationId
@@ -102,10 +127,14 @@ function cancelReservation(deps, reservationId, { reason = '', cancelledBy = nul
 
   const cancellationReason = resolveCancellationReason(row);
   const trimmedReason = String(reason || '').trim();
+  const depositBuckets = reservationsModel.depositContribBuckets(id);
+  const givenBack = givenBackByBucket(refundsModel, id);
   const requalification = buildCancellationRequalification({
     reservation: row,
-    depositBuckets: reservationsModel.depositContribBuckets(id),
+    depositBuckets,
     installmentsRetained: installmentsRetainedOf(installmentsModel, database, id, row),
+    givenBack,
+    saleCollected: Object.keys(givenBack).length ? saleCollectedOf(row, reservationsModel.billedBuckets(id), depositBuckets) : null,
     cancellationDate: today,
     vatRate,
     reason: trimmedReason,
