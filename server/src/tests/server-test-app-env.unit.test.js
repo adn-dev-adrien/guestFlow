@@ -7,7 +7,8 @@
 // its parameter `env`) and `require('process')`; since the review of #924, an `env` returned whole and a call
 // argument judged by the callee the call reaches, and a plugin's names keyed by its id (`PLUGIN_ENV_NAMES`) so
 // that removing the plugin leaves this file green; since audit R15 L-1, an `env` as a ternary branch, `process`
-// handed whole to a call, and a callee resolved to the innermost declaration in sight. The guard is a heuristic:
+// handed whole to a call, and a callee resolved to the innermost declaration in sight; since the review of #927,
+// an `env` after `||` / `&&` or awaited. The guard is a heuristic:
 // it catches the forms of `PROBES`, and the spec lists what it knowingly lets through.
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -129,6 +130,9 @@ const INDIRECT = [
   // whole to a call (`read(process)`), whose callee then reaches `.env` unseen.
   { on: 'shape', re: new RegExp(`[?:]\\s*${ENV_VALUE}\\s*(?=[:;,)}\\n]|$)`, 'g'), keep: (src, index) => src.shape[index] === '?' || isTernaryElse(src.shape, index) },
   { on: 'shape', re: /[(,]\s*process\s*(?=[),])/g },
+  // Review of #927 (L-1): an `env` as the right operand of `||` / `&&` (`x || env`, `read(o || env)`), or
+  // awaited (`await env`), the mirror of the ternary branch.
+  { on: 'shape', re: new RegExp(`(?:\\|\\||&&|\\bawait\\s)\\s*${ENV_VALUE}\\s*(?=[;,)}\\n]|$)`, 'g') },
 ];
 // The `:` at `index` closes the first branch of a ternary, not an object key or a label: walking back at the
 // same bracket depth meets a `?` (neither `?.` nor `??`) before any `,`, `;` or opening bracket.
@@ -441,7 +445,7 @@ test('rule 12 (2026-11-01): the preload strips the whole list, and keeps exactly
 });
 
 // The forms the review of #920 got past the first guard with, plus the two it already caught, then the
-// forms of audit R14 L-1, of the review of #924 and of audit R15 L-1. A form spread over files maps each file name to its code.
+// forms of audit R14 L-1, of the review of #924, of audit R15 L-1 and of the review of #927. A form spread over files maps each file name to its code.
 const PROBES = {
   'optional chaining on process.env': 'module.exports = () => process.env?.PROBE_X;',
   'optional chaining on an injected env': 'module.exports = (env) => env?.PROBE_X;',
@@ -504,6 +508,11 @@ const PROBES = {
   'process handed whole to a call': 'const read = ({ env: { PROBE_X } }) => PROBE_X;\nmodule.exports = () => read(process);',
   'process handed whole among arguments': 'const read = (a, { env: { PROBE_X } }) => PROBE_X;\nmodule.exports = () => read(1, process);',
   'a callee named like a nested function declaring env': 'function outer() { const read = (env) => env.NODE_ENV; return read; }\nconst read = (cfg) => cfg.PROBE_X;\nmodule.exports = { outer, probe: (env = process.env) => read(env) };',
+  // Review of #927 (L-1): an `env` as the right operand of `||` / `&&`, or awaited, the mirror of the ternary.
+  'an injected env after ||': 'module.exports = (env = process.env, x) => { const e = x || env; return e.PROBE_X; };',
+  'an injected env after &&': 'module.exports = (env = process.env, x) => { const e = x && env; return e.PROBE_X; };',
+  'an injected env after || as a call argument': 'const read = (cfg) => cfg.PROBE_X;\nmodule.exports = (env = process.env, o) => read(o || env);',
+  'an awaited injected env': 'module.exports = async (env = process.env) => { const e = await env; return e.PROBE_X; };',
 };
 
 const probeRoot = (t) => {
