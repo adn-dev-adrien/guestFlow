@@ -27,7 +27,7 @@ const { buildCancellationRequalification } = require('./cancellationRequalificat
 const { isDirectChannel } = require('./platformNameFormat');
 const { taxShares } = require('./installmentPlan');
 const { computeInstallmentPaidSplit } = require('./installmentPaidSplit');
-const { isOffBooks, isRetainedDeposit } = require('./refunds');
+const { isOffBooks, isRetainedDeposit, COMMISSION_KEY } = require('./refunds');
 const { storedMoneyBuckets } = require('./storedMoneySplit');
 const { taxRidesTheComplement } = require('./touristTaxFreeze');
 
@@ -85,9 +85,9 @@ function installmentsRetainedOf(installmentsModel, database, id, row) {
 
 // specs/payment-schedule-and-cancellation.md rule 55 — per bucket, what the book refunds made before the cancellation
 // gave back (the caisse interne is off the books: it never reversed any revenue).
-function givenBackByBucket(refundsModel, id) {
+function givenBackByBucket(refunds) {
   const given = {};
-  for (const refund of refundsModel.listByReservation(id)) {
+  for (const refund of refunds || []) {
     if (isOffBooks(refund.method) || isRetainedDeposit(refund.method)) continue;
     for (const line of refund.lines || []) given[line.bucket] = round2((given[line.bucket] || 0) + Number(line.amountTtc || 0));
   }
@@ -141,13 +141,70 @@ function bookedStayBuckets({ database, reservationsModel }, row, vatRate) {
   };
 }
 
+// Rule 55 — the requalification a cancellation books for `row`, the book refunds before it having given back `givenBack`.
+function requalificationOf(deps, row, givenBack, { today = null, vatRate = 0, reason = '' } = {}) {
+  const { database, reservationsModel, installmentsModel = null } = deps;
+  return buildCancellationRequalification({
+    reservation: row,
+    depositBuckets: depositBucketsOf(database, reservationsModel, row, vatRate),
+    installmentsRetained: installmentsRetainedOf(installmentsModel, database, Number(row.id), row),
+    givenBack,
+    // A solde collected in the caisse interne holds no book money: it absorbs no book refund (audit R15-L1).
+    saleCollected: Object.keys(givenBack).length && !Number(row.balancePaidCash || 0) ? saleCollectedOf(database, reservationsModel, row, vatRate) : null,
+    withheldCommissions: withheldCommissionsOf(database, reservationsModel, row, vatRate),
+    cancellationDate: today,
+    vatRate,
+    reason,
+  });
+}
+
+const cents = (value) => Math.round(Number(value || 0) * 100);
+const lineSignature = (line) => JSON.stringify([line.lineKey || null, line.bucket, String(line.label || ''),
+  line.quantity == null ? null : Number(line.quantity), line.unitPrice == null ? null : cents(line.unitPrice),
+  cents(line.amountTtc), Number(line.vatRate || 0)]);
+// Review of PR #930, F1 — the solde's commission is spread over what the books still hold of the solde, which an
+// absorbed refund moves by a few cents: only the commission total is money kept, its spread is not compared.
+const keptSignature = (totalTtc, lines) => {
+  const kept = (lines || []).filter((line) => line.lineKey !== COMMISSION_KEY);
+  const commission = (lines || []).filter((line) => line.lineKey === COMMISSION_KEY)
+    .reduce((sum, line) => sum + cents(line.amountTtc), 0);
+  return JSON.stringify([cents(totalTtc), kept.map(lineSignature).sort(), commission]);
+};
+
+/**
+ * Payment-schedule rule 55 reading of 2026-11-02 (audit R16-L1) — the ids of the book refunds made before the
+ * cancellation that its `retained` avoir actually read: rebuilt without one of them (same stay, same solde, same
+ * commissions), the requalification would keep another total, other non-commission lines or another commission total
+ * than the avoir does. A refund the paid
+ * solde absorbed whole moved nothing: it is not in the set. `null` when the register has no avoir (or the stay cannot
+ * be read): the caller then keeps the refusal by order.
+ */
+function cancellationNettedRefundIds(deps, reservationId, refunds, vatRate = 0) {
+  const list = refunds || [];
+  const avoirs = list.filter((refund) => isRetainedDeposit(refund.method));
+  if (avoirs.length === 0 || !deps || !deps.database || !deps.reservationsModel) return null;
+  const avoir = avoirs.reduce((best, refund) => (Number(refund.id) > Number(best.id) ? refund : best));
+  const row = deps.reservationsModel.getForCancellation(Number(reservationId));
+  if (!row) return null;
+  const before = list.filter((refund) => !isOffBooks(refund.method) && !isRetainedDeposit(refund.method)
+    && Number(refund.id) < Number(avoir.id));
+  const kept = keptSignature(avoir.totalTtc, avoir.lines);
+  const netted = new Set();
+  for (const refund of before) {
+    const rebuilt = requalificationOf(deps, row, givenBackByBucket(before.filter((other) => other !== refund)), { vatRate });
+    const same = rebuilt && keptSignature(rebuilt.requalifiedTtc, rebuilt.refund.lines) === kept;
+    if (!same) netted.add(Number(refund.id));
+  }
+  return netted;
+}
+
 /**
  * @param {object} deps { database, reservationsModel, refundsModel, compensationsModel, paymentLinksModel, installmentsModel? }
  * @param {number} reservationId
  * @param {object} input { reason?, cancelledBy?, today, vatRate }
  */
 function cancelReservation(deps, reservationId, { reason = '', cancelledBy = null, today, vatRate = 0 } = {}) {
-  const { database, reservationsModel, refundsModel, compensationsModel, paymentLinksModel, installmentsModel = null } = deps;
+  const { database, reservationsModel, refundsModel, compensationsModel, paymentLinksModel } = deps;
   const id = Number(reservationId);
   const row = reservationsModel.getForCancellation(id);
 
@@ -163,19 +220,8 @@ function cancelReservation(deps, reservationId, { reason = '', cancelledBy = nul
 
   const cancellationReason = resolveCancellationReason(row);
   const trimmedReason = String(reason || '').trim();
-  const depositBuckets = depositBucketsOf(database, reservationsModel, row, vatRate);
-  const givenBack = givenBackByBucket(refundsModel, id);
-  const requalification = buildCancellationRequalification({
-    reservation: row,
-    depositBuckets,
-    installmentsRetained: installmentsRetainedOf(installmentsModel, database, id, row),
-    givenBack,
-    // A solde collected in the caisse interne holds no book money: it absorbs no book refund (audit R15-L1).
-    saleCollected: Object.keys(givenBack).length && !Number(row.balancePaidCash || 0) ? saleCollectedOf(database, reservationsModel, row, vatRate) : null,
-    withheldCommissions: withheldCommissionsOf(database, reservationsModel, row, vatRate),
-    cancellationDate: today,
-    vatRate,
-    reason: trimmedReason,
+  const requalification = requalificationOf(deps, row, givenBackByBucket(refundsModel.listByReservation(id)), {
+    today, vatRate, reason: trimmedReason,
   });
   const retainedDepositAmount = requalification ? requalification.retainedTtc : 0;
   const writtenOffBalance = round2((Number(row.balancePaid) ? 0 : round2(row.balanceAmount)) + round2(row.installmentsUnpaidAmount));
@@ -215,4 +261,4 @@ function cancelReservation(deps, reservationId, { reason = '', cancelledBy = nul
   };
 }
 
-module.exports = { cancelReservation, resolveCancellationReason, bookedStayBuckets };
+module.exports = { cancelReservation, resolveCancellationReason, bookedStayBuckets, cancellationNettedRefundIds };

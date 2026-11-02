@@ -226,6 +226,8 @@ function retainedLabel(refund, r, planRows) {
  *                                  of a payment to settle confirms nobody (specs/payment-link-lifecycle.md rule 56)
  * @param {boolean} [p.stayReadOnly] the stay the links answer for is read-only (a devis converted into a cancelled
  *                                  stay): no withdrawal, a payment to settle is refunded only (rule 56, O4)
+ * @param {Set<number>} [p.nettedRefundIds] on a cancelled stay, the refunds its avoir read (payment-schedule rule 55
+ *                                  reading of 2026-11-02, audit R16-L1); omitted, every refund before the avoir counts
  * @param {string} p.today          `YYYY-MM-DD`
  * @returns {{ rows: object[], remaining: number, remainingLabel: string, settled: boolean }}
  */
@@ -233,6 +235,7 @@ function buildLedger({
   row = null, quote = null, live = {}, links = [], refunds = [], overpayment = null,
   midStayNotes = [], cautionAmount = 0, canRequest = false, installmentPlan = null, today,
   storedAccommodationPreArrival = null, penalties = [], providerLabel = null, nightsUnavailable = false, stayReadOnly = false,
+  nettedRefundIds = null,
 } = {}) {
   const r = row || {};
   const has = (k) => Object.prototype.hasOwnProperty.call(live, k) && live[k] !== undefined;
@@ -641,7 +644,7 @@ function buildLedger({
       stateLabel: `${allFromIndemnity ? 'Rendu sur l\'indemnité' : 'Rendu'} le ${when}${method ? ` · ${method}` : ''}`,
       // Refunds rule 6 reading of 2026-11-02 — on a cancelled stay, the fiche deletes every refund the server deletes:
       // the ones the cancellation never read (review of PR #929, F2 and F5).
-      action: (canAct || (stored && cancelled)) && !refundDeletionRefusal(refund, refunds, { ...r, kind })
+      action: (canAct || (stored && cancelled)) && !refundDeletionRefusal(refund, refunds, { ...r, kind }, nettedRefundIds)
         ? { kind: 'deleteRefund', label: 'Supprimer', refundId: refund.id, confirm: 'Supprimer ce remboursement ? L\'avoir correspondant sera supprimé.' } : null,
       amountEdit: { editable: false, mode: 'none', min: null, max: null, reason: null },
       detail: {

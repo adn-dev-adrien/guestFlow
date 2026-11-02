@@ -109,6 +109,19 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
    > - **A caisse-interne refund made before the cancellation** is offered « Supprimer » on the fiche too, as the API
    >   already deleted it: the cancellation never reads off-books refunds and the export never books them, so the
    >   deletion moves no journal line, it only gives the money back to the budget.
+>
+   > **Reading of 2026-11-02 (audit R16-L1, review of PR #930, F2).** This reading amends the two above where it
+   > names it.
+   > - **`REFUND_NETTED_BY_CANCELLATION` only for a refund that moved the avoir** — read as
+   >   payment-schedule-and-cancellation rule 55 states it in its reading of 2026-11-02 (audit R16-L1): a book refund
+   >   made before the `retained` avoir is refused only when the requalification rebuilt without it would keep
+   >   another total, other lines outside the commission or another commission total
+   >   (`cancelReservation.cancellationNettedRefundIds`, passed to `refundDeletionRefusal` by the DELETE route and the
+   >   ledger). A refund the paid solde absorbed whole is deleted, by the API and on the fiche.
+   > - **`REFUND_BEFORE_CANCELLATION` only when the cancellation wrote no avoir.** With an avoir, a book refund
+   >   before it is judged by that set alone: one outside it is deleted. With no avoir, the bullet above stands
+   >   unchanged. A stay that cannot be read back gets no set: every book refund before the avoir is then refused as
+   >   netted, by id order.
 
 ### 3.2 What can be refunded
 
