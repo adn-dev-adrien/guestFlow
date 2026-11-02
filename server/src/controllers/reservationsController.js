@@ -149,9 +149,22 @@ function ledgerFor({ row, quote = null, live = {}, propertyId = null, overpaymen
     canRequest: Boolean(paymentProviders.summary()),
     nightsUnavailable: id ? settleNightsUnavailable(id, links) : false,
     stayReadOnly: id ? require('../utils/withdrawnPayments').stayIsReadOnly(db, id) : false,
+    nettedRefundIds: id && String(row.kind) === 'cancelled' ? nettedRefundIdsOf(row, refunds) : null,
     providerLabel: (paymentProviders.declared() || {}).label || null,
     today: getTodayIsoDate(),
   });
+}
+
+// Payment-schedule rule 55 reading of 2026-11-02 (audit R16-L1) — the refunds the cancellation's avoir read: the
+// fiche offers « Supprimer » on the others, like the DELETE route.
+function nettedRefundIdsOf(row, refunds) {
+  try {
+    const { cancellationNettedRefundIds } = require('../utils/cancelReservation');
+    const deps = { database: db, reservationsModel, installmentsModel: require('../models/installmentsModel') };
+    return cancellationNettedRefundIds(deps, row.id, refunds, vatRegimeModel.rateForRow(db, row));
+  } catch {
+    return null;
+  }
 }
 
 // specs/payment-link-lifecycle.md rule 56 (review of #902, O3) — whether booking a payment to settle would land on

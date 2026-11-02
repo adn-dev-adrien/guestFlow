@@ -100,10 +100,14 @@ const isCommissionLine = (line) => Boolean(line) && line.lineKey === COMMISSION_
  * specs/payment-schedule-and-cancellation.md rule 55 reading of 2026-11-02 (second review of PR #926) — a book refund
  * that existed when the cancellation wrote its `retained` avoir: the avoir was netted of it, so deleting it would turn
  * its money back into sale money the stay never holds. The avoir is written after it, so its id is higher.
+ * Reading of 2026-11-02 (audit R16-L1) — only when it moved the avoir: `nettedIds` (cancelReservation's
+ * `cancellationNettedRefundIds`) names the refunds whose removal changes what the avoir keeps. A refund the paid solde
+ * absorbed whole is not among them. Without that set, every refund before the avoir counts.
  */
-function nettedByCancellation(refund, refunds) {
+function nettedByCancellation(refund, refunds, nettedIds = null) {
   if (!refund || isOffBooks(refund.method) || isRetainedDeposit(refund.method)) return false;
-  return writtenBeforeAvoir(refunds)(refund);
+  if (!writtenBeforeAvoir(refunds)(refund)) return false;
+  return !nettedIds || refund.id == null || nettedIds.has(Number(refund.id));
 }
 
 /**
@@ -147,14 +151,17 @@ const DELETION_REFUSALS = {
  * avoir, or the reason it kept nothing). A caisse-interne refund is off the books: the cancellation never read it. A
  * cancellation that had no book money to keep read no refund either (review of PR #929, F2). Shared by the DELETE
  * route and the ledger, so the fiche offers exactly what the server accepts.
+ * Payment-schedule rule 55 reading of 2026-11-02 (audit R16-L1) — with an avoir and its `nettedIds`, a book refund
+ * before it that the avoir never read (the paid solde absorbed it whole) is deleted: its money goes back to the solde.
  */
-function refundDeletionRefusal(refund, refunds, reservation) {
+function refundDeletionRefusal(refund, refunds, reservation, nettedIds = null) {
   if (!refund) return null;
   if (isRetainedDeposit(refund.method)) return DELETION_REFUSALS.retained;
   const row = reservation || {};
   if (String(row.kind) !== 'cancelled') return null;
-  if (nettedByCancellation(refund, refunds)) return DELETION_REFUSALS.netted;
+  if (nettedByCancellation(refund, refunds, nettedIds)) return DELETION_REFUSALS.netted;
   if (isOffBooks(refund.method) || madeAfterCancellation(refund, refunds, row.cancelledAt)) return null;
+  if (nettedIds && (refunds || []).some(isRequalification)) return null;
   return cancellationHadBookMoney(row) ? DELETION_REFUSALS.before : null;
 }
 

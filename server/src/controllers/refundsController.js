@@ -17,7 +17,7 @@ const database = require('../database');
 const vatRegimeModel = require('../models/vatRegimeModel');
 const { buildRefundableLines, validateRefundPayload, cancelledRefundBudget, collectedByLine, refundDeletionRefusal } = require('../utils/refunds');
 const { comptaCollected, cashCollected } = require('../utils/reservationSettlement');
-const { bookedStayBuckets } = require('../utils/cancelReservation');
+const { bookedStayBuckets, cancellationNettedRefundIds } = require('../utils/cancelReservation');
 
 function todayIso() {
   return localTodayIso();
@@ -45,6 +45,7 @@ function createRefundsController(deps = {}) {
   // The stay's stored money lives in the database its models read: an injected model without its database reads no
   // booked split (rule 49 reading of 2026-11-02).
   const stayDatabase = deps.database || (deps.reservationsModel ? null : database);
+  const installmentsModel = deps.installmentsModel || (deps.reservationsModel ? null : require('../models/installmentsModel'));
 
   // The whole read side of the feature: register + still-refundable lines + both total readings.
   // Reused by the three endpoints AND by the reservation payload, so the fiche never has to ask twice.
@@ -156,7 +157,11 @@ function createRefundsController(deps = {}) {
       // any refund the cancellation already read, stay.
       const register = buildRegister(id);
       const target = register && register.payload.refunds.find((refund) => Number(refund.id) === refundId);
-      const refusal = register && refundDeletionRefusal(target, register.payload.refunds, register.reservation);
+      const refunds = register && register.payload.refunds;
+      // Payment-schedule rule 55 reading of 2026-11-02 (audit R16-L1) — refused only when it moved the avoir.
+      const nettedIds = register && String(register.reservation.kind) === 'cancelled'
+        ? cancellationNettedRefundIds({ database: stayDatabase, reservationsModel, installmentsModel }, id, refunds, register.vatRate) : null;
+      const refusal = register && refundDeletionRefusal(target, refunds, register.reservation, nettedIds);
       if (refusal) return res.status(409).json(refusal);
       const removed = refundsModel.remove(id, refundId);
       if (!removed) return res.status(404).json({ error: 'Remboursement non trouvé' });
