@@ -11,12 +11,17 @@
  * own `GUESTFLOW_TEST_*` knobs are kept. Since 2026-11-01 (audit R13 L-1) the app's other variables go too
  * (`PUBLIC_SITE_ORIGIN`, the rate-limit knobs, QONTO_*…): the list and what the runner keeps are in
  * `appEnvNames.js`.
+ *
+ * Under `npm test` it then traces what the app reads from the environment (rule 13, `envTrace.js`).
  */
 const path = require('path');
 
 const DEFAULT_DB = path.resolve(__dirname, '..', '..', '..', 'guestflow.db');
 
 require('./appEnvNames').stripAppEnv();
+
+// Before `isolate`: the runner's check reads the trace in an exit handler that must run before the temp dir goes.
+require('./envTrace').start();
 
 require('../../utils/testProcessIsolation').isolate({ force: true });
 
