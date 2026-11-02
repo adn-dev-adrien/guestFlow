@@ -2,13 +2,16 @@
 // also drops every non-prefixed variable the app reads (`PUBLIC_SITE_ORIGIN`, the rate-limit knobs, QONTO_*,
 // …), keeping only what the runner needs. The list lives in `setup/appEnvNames.js`; the guard below derives
 // the app's reads from `src/` so a new `process.env.X` outside that list fails here, and (reading of the
-// review of #920) so does any access it cannot read a name off.
+// review of #920) so does any access it cannot read a name off; since audit R14 L-1 (reading of 2026-11-02),
+// that includes an `env` taken whole (destructured, `in`, spread, aliased, handed to a call that does not name
+// its parameter `env`) and `require('process')`.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
+const { missingPlugins } = require('../plugins/sdk/testing');
 
 const PRELOAD = path.join(__dirname, 'setup', 'isolateDefaultDb.js');
 const NAMES = path.join(__dirname, 'setup', 'appEnvNames.js');
@@ -88,6 +91,11 @@ function sourceFiles(dir, out = []) {
 // An `env` identifier, bare or as a property (`process.env`, `opts.env`), never the `env.local` of a file name.
 const ENV = String.raw`(?:(?<![\w$.'"\`/])|(?<=[\w$]\.))env`;
 const KEY = String.raw`[A-Za-z_][A-Za-z0-9_]*`;
+// An `env` used as a value, neither `process.env` nor read by name or index.
+const ENV_VALUE = String.raw`(?:(?!process\b)[\w$]+\s*(?:\?\.|\.)\s*)?env\b(?!\s*(?:\?\.|\.|\[))`;
+// `process` as `require('process')` / `require('node:process')` gives it.
+const REQUIRE_PROCESS = /\brequire\s*\(\s*(['"`])(?:node:)?process\1\s*\)/g;
+
 const READS = [
   new RegExp(`${ENV}\\??\\.(${KEY})\\b`, 'g'),
   new RegExp(`${ENV}\\s*(?:\\?\\.)?\\s*\\[\\s*['"](${KEY})['"]\\s*\\]`, 'g'),
@@ -100,6 +108,14 @@ const INDIRECT = [
   /\bprocess\s*(?:\?\.\s*)?\[|=\s*(?:globalThis\s*\.\s*)?process\s*(?=[;,)}\n]|$)/g,
   new RegExp(`\\bReflect\\s*\\.\\s*\\w+\\(\\s*(?:[\\w$]+\\s*\\.\\s*)?env\\b`, 'g'),
   /(?<![\w$.])env\s*:\s*[A-Za-z_$][\w$]*\s*(?:=(?!=)|[,}])/g,
+  // Audit R14 L-1: an `env` (bare or `opts.env`, `process.env` being matched below) taken whole, so the names
+  // it reaches are never written next to it: destructured, `in`, spread, aliased, or handed to a call
+  // (`read(env)`, `Object.keys(env)`).
+  new RegExp(`\\}\\s*=\\s*${ENV_VALUE}`, 'g'),
+  new RegExp(`\\bin\\s+${ENV_VALUE}`, 'g'),
+  new RegExp(`\\.\\.\\.\\s*${ENV_VALUE}`, 'g'),
+  new RegExp(`(?<!(?<![\\w$.])env\\s*)(?<![=!<>])=\\s*${ENV_VALUE}\\s*(?=[;,)}\\n]|$)`, 'g'),
+  { re: new RegExp(`[(,]\\s*${ENV_VALUE}\\s*(?=[),])`, 'g'), keep: (src, index, envParameters) => !handedToEnvParameter(src, index + 1, envParameters) },
 ];
 // `process.env` itself, unless read by name or index (above) …
 const PROCESS_ENV = /\bprocess\s*(?:\?\.|\.)\s*env\b(?!\s*(?:\?\.|\.)\s*[A-Za-z_$]|\s*(?:\?\.\s*)?\[)/g;
@@ -114,10 +130,19 @@ const INDIRECT_READERS = {
   'src/index.js': 2,
   'src/utils/accountSecurityServices.js': 1,
   'src/plugins/host.js': 1,
-  // `env: vars`, handed on to `runQontoConnectionTest` and `ensureWebhookSubscription` as `env`.
-  'src/utils/qonto/qontoSettingsController.js': 3,
-  // `process.env[name]` for the secrets read back by name (`getOrCreateSecret('X')` above) and the file's keys.
-  'src/utils/localEnv.js': 11,
+  // `env: vars = env`, handed on to `runQontoConnectionTest` and `ensureWebhookSubscription` as `env`.
+  'src/utils/qonto/qontoSettingsController.js': 4,
+  // `process.env[name]` for the secrets read back by name (`getOrCreateSecret('X')` above) and the file's keys;
+  // `{ ...env }`, the copy `environmentWithoutLocalFile` hands to the self-update child.
+  'src/utils/localEnv.js': 12,
+  // An `env` that is no process environment (audit R14 L-1): the `{ coreVersion, sdkVersion, hostExports }`
+  // a plugin range is checked against, and the Neat environment (`'production'` or `'staging'`).
+  'src/plugins/loader.js': 1,
+  'src/utils/pluginOffers.js': 2,
+  ...(missingPlugins(['neat']).length ? {} : {
+    'src/plugins/neat/controller.js': 1,
+    'src/plugins/neat/subscriptionRunner.js': 5,
+  }),
   // `env[name]` over two `GUESTFLOW_*` names.
   'src/utils/testOnlyKeys.js': 1,
   // `process.env[name]` over `PASS_THROUGH_ENV`, the proxy settings (`HTTPS_PROXY`, `NO_PROXY`…) left to npm.
@@ -127,19 +152,107 @@ const INDIRECT_READERS = {
 // Comments blanked, line breaks kept: a JSDoc naming `process.env` is not an access.
 const withoutComments = (text) => text.replace(/\/\*[\s\S]*?\*\/|(?<![:'"`\\])\/\/[^\n]*/g, (c) => c.replace(/[^\n]/g, ' '));
 
+// A file's code, with string contents blanked as well for pairing brackets, and each `(` paired with its `)`.
+function parse(code) {
+  const shape = code.replace(/'(?:\\.|[^'\\\n])*'|"(?:\\.|[^"\\\n])*"|`(?:\\.|[^`\\])*`/g, (q) => q[0] + q.slice(1, -1).replace(/[^\n]/g, ' ') + q[0]);
+  const closeOf = new Map();
+  const stack = [];
+  for (let i = 0; i < shape.length; i += 1) {
+    const c = shape[i];
+    if ('([{'.includes(c)) stack.push(i);
+    else if (')]}'.includes(c) && stack.length && shape[stack[stack.length - 1]] === '([{'[')]}'.indexOf(c)]) closeOf.set(stack.pop(), i);
+  }
+  return { code, shape, closeOf };
+}
+
+// The name a `(` belongs to, `f` in `f(`, `obj.f?.(`, `function f(`, `f = async (` or `f: function (`.
+function nameBefore(shape, open) {
+  const tokens = shape.slice(Math.max(0, open - 160), open).match(/[\w$]+|\S/g) || [];
+  let assigned = false;
+  for (let i = tokens.length - 1; i >= 0; i -= 1) {
+    const t = tokens[i];
+    if (t === 'function' || t === 'async' || t === '*' || (t === '?' && tokens[i + 1] === '.') || (t === '.' && tokens[i - 1] === '?')) continue;
+    if ((t === '=' || t === ':') && !assigned) { assigned = true; continue; }
+    return /^[A-Za-z_$][\w$]*$/.test(t) ? t : null;
+  }
+  return null;
+}
+
+// The top-level comma-separated items between `open` and its closer, as [start, end) offsets.
+function items(src, open) {
+  const close = src.closeOf.get(open);
+  const out = [];
+  let depth = 0;
+  let from = open + 1;
+  for (let i = open + 1; i < close; i += 1) {
+    const c = src.shape[i];
+    if ('([{'.includes(c)) depth += 1;
+    else if (')]}'.includes(c)) depth -= 1;
+    else if (c === ',' && depth === 0) { out.push([from, i]); from = i + 1; }
+  }
+  out.push([from, close]);
+  return out;
+}
+
+const isParameterList = (src, open) => /^\s*(?:=>|\{)/.test(src.shape.slice(src.closeOf.get(open) + 1, src.closeOf.get(open) + 40));
+
+// Every function of `root` declaring a parameter named `env`, by name and position: handing an `env` to one
+// is the project's injected-environment pattern, whose reads the scan sees by name in the callee.
+function collectEnvParameters(sources) {
+  const found = new Set();
+  for (const src of sources) {
+    for (const open of src.closeOf.keys()) {
+      if (src.shape[open] !== '(' || !isParameterList(src, open)) continue;
+      const name = nameBefore(src.shape, open);
+      if (!name) continue;
+      items(src, open).forEach(([a, b], position) => {
+        if (/^\s*env\s*(?:=|$)/.test(src.code.slice(a, b))) found.add(`${name}#${position}`);
+      });
+    }
+  }
+  return found;
+}
+
+// The `env` at `index` is an argument of a call whose callee declares `env` at that position. An `env`
+// inside a parameter list, a condition, an object or an array is no call argument at all.
+function handedToEnvParameter(src, index, envParameters) {
+  let depth = 0;
+  let open = -1;
+  for (let i = index - 1; i >= 0 && open < 0; i -= 1) {
+    const c = src.shape[i];
+    if (')]}'.includes(c)) depth += 1;
+    else if ('([{'.includes(c)) {
+      if (depth === 0) open = i;
+      else depth -= 1;
+    }
+  }
+  if (open < 0 || src.shape[open] !== '(' || !src.closeOf.has(open) || isParameterList(src, open)) return true;
+  const name = nameBefore(src.shape, open);
+  if (!name || ['if', 'while', 'for', 'switch', 'return', 'typeof', 'void', 'await', 'catch', 'in', 'of'].includes(name)) return true;
+  const position = items(src, open).findIndex(([a, b]) => a <= index && index <= b);
+  return envParameters.has(`${name}#${position}`);
+}
+
 // Every environment name `root` reads (comments included, so the list errs on the side of stripping), and
 // every indirect access in its code, by file.
 function scanSources(root) {
   const names = new Map();
   const indirect = new Map();
-  for (const file of sourceFiles(root)) {
+  const files = sourceFiles(root).map((file) => {
+    const text = fs.readFileSync(file, 'utf8').replace(REQUIRE_PROCESS, 'process');
+    return { file, text, src: parse(withoutComments(text)) };
+  });
+  const envParameters = collectEnvParameters(files.map((f) => f.src));
+  for (const { file, text, src } of files) {
     const rel = path.relative(SERVER_ROOT, file);
-    const text = fs.readFileSync(file, 'utf8');
-    const code = withoutComments(text);
+    const { code } = src;
     const hits = [];
     const note = (m) => hits.push(`${code.slice(0, m.index).split('\n').length}: ${m[0].trim()}`);
     for (const re of READS) for (const m of text.matchAll(re)) if (!names.has(m[1])) names.set(m[1], rel);
-    for (const re of INDIRECT) for (const m of code.matchAll(re)) note(m);
+    for (const entry of INDIRECT) {
+      const { re, keep = () => true } = entry instanceof RegExp ? { re: entry } : entry;
+      for (const m of code.matchAll(re)) if (keep(src, m.index, envParameters)) note(m);
+    }
     for (const m of code.matchAll(PROCESS_ENV)) {
       const lineStart = code.lastIndexOf('\n', m.index) + 1;
       if (!BOUND_TO_ENV.test(code.slice(lineStart, m.index))) note(m);
@@ -180,7 +293,8 @@ test('rule 12 (2026-11-01): the preload strips the whole list, and keeps exactly
   assert.deepEqual(Object.entries(seen).filter(([, v]) => v !== null).map(([k]) => k), []);
 });
 
-// The forms the review of #920 got past the first guard with, plus the two it already caught.
+// The forms the review of #920 got past the first guard with, plus the two it already caught, then the
+// forms of audit R14 L-1.
 const PROBES = {
   'optional chaining on process.env': 'module.exports = () => process.env?.PROBE_X;',
   'optional chaining on an injected env': 'module.exports = (env) => env?.PROBE_X;',
@@ -198,6 +312,19 @@ const PROBES = {
   'a lowercase name on process.env': 'module.exports = () => process.env.probe_x;',
   'a lowercase name on an injected env': 'module.exports = (env) => env.probe_x !== undefined;',
   'a destructured process.env': 'const { PROBE_X } = process.env;\nmodule.exports = () => PROBE_X;',
+  // Audit R14 L-1: what an `env` bound to `process.env` reached past the guard, and `require('process')`.
+  'a destructuring of a bound env': 'const env = process.env;\nconst { PROBE_X } = env;\nmodule.exports = () => PROBE_X;',
+  'a destructuring of an injected env': 'module.exports = (env = process.env) => { const { PROBE_X } = env; return PROBE_X; };',
+  'a destructuring of opts.env': 'module.exports = (opts) => { const { PROBE_X = 1 } = opts.env; return PROBE_X; };',
+  'in on an injected env': "module.exports = (env = process.env) => 'PROBE_X' in env;",
+  'a spread of an injected env': 'module.exports = (env = process.env) => ({ ...env }).PROBE_X;',
+  'an injected env passed to Object.keys': "module.exports = (env = process.env) => Object.keys(env).filter((k) => k.startsWith('PROBE_'));",
+  'an injected env passed as an argument': 'const read = (cfg) => cfg.PROBE_X;\nmodule.exports = (env = process.env) => read(env);',
+  'an injected env passed among arguments': 'const read = (a, cfg) => cfg.PROBE_X;\nmodule.exports = (env = process.env) => read(1, env);',
+  'an alias of an injected env': 'module.exports = (env = process.env) => { const e = env; return e.PROBE_X; };',
+  "require('process').env read by name": "module.exports = () => require('process').env.PROBE_X;",
+  "require('node:process').env destructured": "const { PROBE_X } = require('node:process').env;\nmodule.exports = () => PROBE_X;",
+  "require('process') destructured to another name": "const { env: e } = require('process');\nmodule.exports = () => e.PROBE_X;",
 };
 
 const probeRoot = (t) => {
@@ -206,7 +333,7 @@ const probeRoot = (t) => {
   return tmp;
 };
 
-test('rule 12 (2026-11-01, review of #920): the guard fails on every form of reading a variable it does not see by name', (t) => {
+test('rule 12 (2026-11-01, review of #920; 2026-11-02, audit R14 L-1): the guard fails on each probed form of reaching a variable it does not see by name', (t) => {
   const tmp = probeRoot(t);
   const missed = [];
   for (const [form, code] of Object.entries({ ...PROBES, 'a plain read': 'module.exports = () => process.env.PROBE_X;' })) {
@@ -217,7 +344,7 @@ test('rule 12 (2026-11-01, review of #920): the guard fails on every form of rea
   assert.deepEqual(missed, [], 'forms the guard lets through');
 });
 
-test('rule 12 (2026-11-01, review of #920): the forms the app uses on purpose stay quiet', (t) => {
+test('rule 12 (2026-11-01, review of #920; 2026-11-02, audit R14 L-1): the forms the app uses on purpose stay quiet', (t) => {
   const dir = probeRoot(t);
   fs.writeFileSync(path.join(dir, 'ok.js'), [
     "const path = require('path');",
@@ -226,7 +353,10 @@ test('rule 12 (2026-11-01, review of #920): the forms the app uses on purpose st
     'function b({ env = process.env } = {}) { return env?.PROBE_LISTED; }',
     'const c = (config = {}) => { const env = config.env || process.env; return env.PROBE_LISTED; };',
     "const d = (env) => env['PROBE_LISTED'];",
-    'module.exports = { file, a, b, c, d, nodeEnv: process.env.NODE_ENV };',
+    'function e(key, env = process.env) { if (!env) return null; return env.PROBE_LISTED || key; }',
+    'const f = (env = process.env) => e(1, env) || d(env);',
+    'const g = (env) => ({ e, env, f: [f, env] });',
+    'module.exports = { file, a, b, c, d, f, g, nodeEnv: process.env.NODE_ENV };',
     '',
   ].join('\n'));
   const { problems, names } = guardProblems(dir, {});
