@@ -26,11 +26,13 @@ const { taxShares } = sdk.coreModule('installmentPlan');
 const {
   DEFAULT_COMMISSION_ACCOUNT, VAT_DEDUCTIBLE_COMMISSION_ACCOUNT, DISCOUNT_ACCOUNT, TIP_ACCOUNT, PLATFORM_PENALTY_ACCOUNT,
 } = require('./accountPlan');
-const { createAccountSettings } = require('./settings');
+const { createAccountSettings, readTtcSplitFrom } = require('./settings');
+const { bookedBucketSplit } = require('./accountingExport');
 
 const { isPlatformCollectingTouristTax } = sdk.coreModule('pricing');
 const vatRegimeModel = sdk.coreModule('vatRegimeModel');
-const { resolveMidStaySplit, storedMidStayLines, extraLineKey, parseNotes } = sdk.coreModule('midStayExtras');
+const { extraLineKey, parseNotes } = sdk.coreModule('midStayExtras');
+const { buildPerLineData, splitByDestination, storedMoneyCollected } = sdk.coreModule('storedMoneySplit');
 const { createModel: createRefundsModel } = sdk.coreModule('refundsModel');
 const { buildModel: buildCompensationsModel } = sdk.coreModule('cancellationCompensationsModel');
 const { buildModel: buildPenaltiesModel } = sdk.coreModule('platformPenaltiesModel');
@@ -108,6 +110,39 @@ function createAccountingModel(database, { settings = createAccountSettings(data
   const compensations = buildCompensationsModel(database);
   // Platform penalties (specs/reconciliation-assisted-matching.md rule 28), same lazy discipline.
   const penalties = buildPenaltiesModel(database);
+  // Tax collected at check-in (→ complement) only when WE charge the guest directly, i.e. a non-direct platform that
+  // does NOT collect the tax from the guest (case 3 « owner » of specs/per-platform-tourist-tax-three-way.md).
+  // Mirrors the pricing engine's `isTouristTaxCollectedOnArrival` without recomputing a full quote.
+  const taxContextOf = (row) => ({
+    collectedOnArrival: String(row.platform || 'direct').toLowerCase() !== 'direct'
+      && Number(row.touristTaxTotal || 0) > 0
+      && !isPlatformCollectingTouristTax(database, row.propertyId, row.platform),
+  });
+
+  // specs/payment-schedule-and-cancellation.md rule 55 — what the stay's paid acompte or solde credited per
+  // `${bucket}|${rate}` (TTC, HT, VAT), as its own entry books it: a cancellation's avoir mirrors it. A plan's money
+  // was booked installment by installment: its acompte is read from none.
+  const bookedSplitsOf = (reservationId, kind) => {
+    const splits = new Map();
+    const row = database.prepare(`
+      SELECT r.*, c.firstName, c.lastName, p.name AS propertyName
+        FROM reservations r LEFT JOIN clients c ON c.id = r.clientId LEFT JOIN properties p ON p.id = r.propertyId
+       WHERE r.id = ?`).get(Number(reservationId));
+    const paid = kind === 'deposit'
+      ? row && Number(row.depositPaid) && !Number(row.depositPaidCash || 0) && !Number(row.installmentsPaidAmount || 0)
+      : row && Number(row.balancePaid) && !Number(row.balancePaidCash || 0);
+    if (!paid) return splits;
+    const salesRegime = vatRegimeModel.forRow(database, row);
+    const context = { ...buildCommissionContext(settings.read()), vatRate: salesRegime.rate, salesRegime: salesRegime.regime };
+    const entry = buildEntry(row, kind, buildPerLineData(database, row), context, taxContextOf(row));
+    const splitFrom = readTtcSplitFrom(database);
+    for (const bucket of (entry && entry.buckets) || []) {
+      const { ht, vat } = bookedBucketSplit(entry, bucket, splitFrom);
+      splits.set(`${bucket.name}|${Number(bucket.ratePercent || 0)}`, { ttc: round2(ht + vat), ht, vat });
+    }
+    return splits;
+  };
+
   return {
     // List every encaissement (deposit + balance) whose paid date falls in [`YYYY-MM-01`, end of month].
     // Returns enriched entries already carrying the per-bucket HT/VAT and the platform info.
@@ -180,14 +215,7 @@ function createAccountingModel(database, { settings = createAccountSettings(data
         const salesRegime = vatRegimeModel.forRow(database, row);
         const rowContext = { ...commissionContext, vatRate: salesRegime.rate, salesRegime: salesRegime.regime };
         const perLineData = buildPerLineData(database, row);
-        // Tax collected at check-in (→ complement) only when WE charge the guest directly, i.e. a
-        // non-direct platform that does NOT collect the tax from the guest (case 3 « owner » of
-        // specs/per-platform-tourist-tax-three-way.md). Mirrors the pricing engine's
-        // `isTouristTaxCollectedOnArrival` without recomputing a full quote.
-        const collectedOnArrival = String(row.platform || 'direct').toLowerCase() !== 'direct'
-          && Number(row.touristTaxTotal || 0) > 0
-          && !isPlatformCollectingTouristTax(database, row.propertyId, row.platform);
-        const taxContext = { collectedOnArrival };
+        const taxContext = taxContextOf(row);
         const entries = [];
         const inMonth = (paid, date) => paid && date && date >= from && date < nextMonth;
         // Cash-collected stay buckets are settled off the books → never emitted as an encaissement
@@ -268,12 +296,24 @@ function createAccountingModel(database, { settings = createAccountSettings(data
       // schema without settings never needs them.
       const fromIndemnity = rows.some((row) => (row.lines || []).some((line) => line.bucket === 'indemnity'));
       const indemnity = fromIndemnity ? compensationSettings(settings.read()) : null;
+      // specs/payment-schedule-and-cancellation.md rule 55 — a requalification avoir netted of the stay's earlier
+      // refunds mirrors their split: read only for such an avoir, so every other entry stays byte-identical.
+      const adjusted = (row) => row.method === 'retained' && (row.lines || []).some(isAdjustedLine);
+      const earlierRefundsOf = (row) => (adjusted(row)
+        ? refunds.listByReservation(row.reservationId).filter((other) => !['retained', 'internal'].includes(other.method)
+          && (other.refundDate < row.refundDate || (other.refundDate === row.refundDate && other.id < row.id)))
+        : null);
       const indemnityOf = (row) => (indemnity ? {
         account: indemnity.account,
         vatRatePercent: vatRegimeModel.forRow(database, { id: row.reservationId }).regime === 'not_subject' ? 0 : indemnity.vatRatePercent,
         priorTtc: refunds.indemnityGivenBefore(row),
       } : null);
-      return rows.map((row) => buildRefundEntry(row, { indemnity: indemnityOf(row) })).filter(Boolean);
+      return rows.map((row) => buildRefundEntry(row, {
+        indemnity: indemnityOf(row),
+        earlier: earlierRefundsOf(row),
+        solde: adjusted(row) ? bookedSplitsOf(row.reservationId, 'balance') : null,
+        deposit: row.method === 'retained' ? bookedSplitsOf(row.reservationId, 'deposit') : null,
+      })).filter(Boolean);
     },
 
     // Pénalités plateforme du mois (specs/reconciliation-assisted-matching.md rule 28): one entry per
@@ -412,7 +452,71 @@ function buildCompensationEntry(compensation, { account, vatRatePercent }) {
 // On a cancelled stay, the lines given back from the indemnity (bucket `indemnity`, specs/reservation-refunds.md
 // rule 48) debit the indemnity account at its own rate — the mirror of the compensation entry — and never touch
 // 706 or VAT on sales: that revenue was already reversed by the cancellation's `retained` avoir.
-function buildRefundEntry(refund, { indemnity = null } = {}) {
+// A requalification line adjusted for earlier refunds keeps the TTC it was booked on as `unitPrice`
+// (specs/payment-schedule-and-cancellation.md rule 55); every other avoir line carries its own amount there.
+function isAdjustedLine(line) {
+  return line.unitPrice != null && line.bucket !== 'touristTax' && round2(line.unitPrice) !== round2(line.amountTtc);
+}
+
+// Rule 55 — the HT / VAT of the earlier refunds, per `${bucket}|${rate}`, as their own entries booked them.
+function earlierSplits(earlier) {
+  const splits = new Map();
+  for (const refund of earlier || []) {
+    const entry = buildRefundEntry(refund);
+    for (const line of refund.lines || []) {
+      if (['touristTax', 'indemnity'].includes(line.bucket)) continue;
+      const key = `${line.bucket}|${Number(line.vatRate || 0)}`;
+      const current = splits.get(key) || { ttc: 0, vat: 0 };
+      current.ttc = round2(current.ttc + Number(line.amountTtc || 0));
+      splits.set(key, current);
+    }
+    for (const bucket of (entry && entry.buckets) || []) {
+      const key = `${bucket.name}|${Number(bucket.ratePercent || 0)}`;
+      if (splits.has(key)) splits.get(key).vat = round2(splits.get(key).vat + bucket.vat);
+    }
+  }
+  return splits;
+}
+
+// Rule 55 — a requalification avoir adjusted for earlier refunds reverses what the books still hold on each bucket.
+// Booked there: the acompte's lines (at their `unitPrice`) and the paid solde's share (`solde`); reversed already: the
+// earlier refunds (`earlier`); left after the avoir: the sale money the register still offers on the bucket, which a
+// refund of it reverses at its own split. So the avoir's VAT is booked − reversed − left, and 706 and 4457 net to the
+// cent once that money goes back. A bucket that took a spill from another one splits each line on its own, as before.
+function adjustedBucketSplit(name, rate, lines, earlier, solde, deposit) {
+  if (!lines.some(isAdjustedLine)) return null;
+  const reversed = earlier || { ttc: 0, vat: 0 };
+  const sold = solde || { ttc: 0, vat: 0 };
+  let bookedTtc = 0;
+  let bookedVat = 0;
+  let keptTtc = 0;
+  for (const line of lines) {
+    const booked = round2(isAdjustedLine(line) ? line.unitPrice : line.amountTtc);
+    bookedTtc = round2(bookedTtc + booked);
+    bookedVat = round2(bookedVat + bookedSplit(name, booked, rate, deposit).vat);
+    keptTtc = round2(keptTtc + round2(line.amountTtc));
+  }
+  const leftTtc = round2(bookedTtc + sold.ttc - reversed.ttc - keptTtc);
+  // Kept below what the acompte booked, the bucket took exactly its own refunds (nothing left); kept above, it took
+  // the solde money that covered another bucket, and what is left is the rest of that solde money.
+  if (keptTtc < bookedTtc ? leftTtc !== 0 : leftTtc < 0) return null;
+  const vat = round2(bookedVat + sold.vat - reversed.vat - bucketFromTtc(name, leftTtc, rate).vat);
+  if (vat < 0 || vat > keptTtc) return null;
+  return { ht: round2(keptTtc - vat), vat };
+}
+
+// Rule 55 reading of 2026-11-02 (second review of PR #926) — the HT / VAT an acompte line of the avoir was booked on:
+// the acompte entry's own HT for the bucket when the line is that bucket's share (within the residue cents the entry
+// put on its VAT line), so the avoir reverses the HT the entry credited and the VAT it really booked; otherwise the
+// line split at its rate.
+function bookedSplit(name, ttc, rate, deposit) {
+  if (deposit && Math.abs(round2(ttc - deposit.ttc)) <= CONTRIB_RESIDUE_TOLERANCE_TTC && ttc >= deposit.ht) {
+    return { name, ht: deposit.ht, vat: round2(ttc - deposit.ht), ratePercent: Number(rate || 0) };
+  }
+  return bucketFromTtc(name, ttc, rate);
+}
+
+function buildRefundEntry(refund, { indemnity = null, earlier = null, solde = null, deposit = null } = {}) {
   const lines = refund.lines || [];
   const ttc = round2(refund.totalTtc);
   if (ttc <= 0) return null;
@@ -436,8 +540,20 @@ function buildRefundEntry(refund, { indemnity = null } = {}) {
     byBucket.set(mapKey, current);
   }
 
+  const splits = perLine && earlier ? earlierSplits(earlier) : null;
   const buckets = [...byBucket.values()]
-    .map((b) => (perLine ? { name: b.name, ht: b.ht, vat: b.vat, ratePercent: b.ratePercent } : bucketFromTtc(b.name, b.ttc, b.ratePercent)))
+    .map((b) => {
+      if (!perLine) return bucketFromTtc(b.name, b.ttc, b.ratePercent);
+      const key = `${b.name}|${b.ratePercent}`;
+      const bucketLines = lines.filter((line) => line.bucket === b.name && Number(line.vatRate || 0) === b.ratePercent && round2(line.amountTtc) > 0);
+      const depositSplit = deposit ? deposit.get(key) : null;
+      const netted = splits ? adjustedBucketSplit(b.name, b.ratePercent, bucketLines, splits.get(key), solde && solde.get(key), depositSplit) : null;
+      if (netted) return { name: b.name, ...netted, ratePercent: b.ratePercent };
+      // One line per bucket, as every acompte avoir has: it mirrors the acompte entry.
+      const mirrored = depositSplit && bucketLines.length === 1 && !isAdjustedLine(bucketLines[0])
+        ? bookedSplit(b.name, b.ttc, b.ratePercent, depositSplit) : b;
+      return { name: b.name, ht: mirrored.ht, vat: mirrored.vat, ratePercent: b.ratePercent };
+    })
     .filter((b) => b.ht > 0 || b.vat > 0);
 
   return {
@@ -502,99 +618,6 @@ function resolveCommissionConfig(row, commissionContext) {
   return { account, hasVat };
 }
 
-
-// Read the per-line contribs + current totals for one reservation. Used by `buildEntry` to
-// drive the contrib-based per-bucket attribution (spec force-item-to-complement.md §5).
-function buildPerLineData(database, row) {
-  const optionLines = database.prepare(`
-    SELECT optionId, totalPrice, COALESCE(offered, 0) AS offered,
-      COALESCE(inComplement, 0) AS inComplement, acompteContribTtc, soldeContribTtc
-    FROM reservation_options WHERE reservationId = ?
-  `).all(row.id);
-  const customOptionLines = database.prepare(`
-    SELECT id AS customOptionId, description AS title,
-      CASE WHEN COALESCE(offered, 0) = 1 THEN 0 ELSE amount END AS totalPrice,
-      COALESCE(offered, 0) AS offered,
-      COALESCE(inComplement, 0) AS inComplement, acompteContribTtc, soldeContribTtc
-    FROM reservation_custom_options WHERE reservationId = ?
-  `).all(row.id);
-  const resourceLines = database.prepare(`
-    SELECT resourceId, totalPrice, COALESCE(offered, 0) AS offered,
-      COALESCE(inComplement, 0) AS inComplement, acompteContribTtc, soldeContribTtc
-    FROM reservation_resources WHERE reservationId = ?
-  `).all(row.id);
-
-  // Any non-NULL contrib anywhere on the reservation → use the contrib path; else legacy.
-  const hasContribs = [
-    row.accommodationAcompteContribTtc, row.accommodationSoldeContribTtc,
-    row.touristTaxAcompteContribTtc, row.touristTaxSoldeContribTtc,
-    ...optionLines.flatMap((l) => [l.acompteContribTtc, l.soldeContribTtc]),
-    ...customOptionLines.flatMap((l) => [l.acompteContribTtc, l.soldeContribTtc]),
-    ...resourceLines.flatMap((l) => [l.acompteContribTtc, l.soldeContribTtc]),
-  ].some((v) => v != null);
-
-  // Current accommodation TTC = finalPrice − options − resources. Same shape as
-  // `forceItemContribsCapture.js → computeAccommodationTtc`.
-  const optionsCurrentTotal = (optionLines.reduce((s, l) => s + nz(l.totalPrice), 0))
-    + (customOptionLines.reduce((s, l) => s + nz(l.totalPrice), 0));
-  const resourcesCurrentTotal = resourceLines.reduce((s, l) => s + nz(l.totalPrice), 0);
-  const accommodationTtcCurrent = Math.max(0, round2(Number(row.finalPrice || 0) - optionsCurrentTotal - resourcesCurrentTotal));
-
-  // specs/mid-stay-extras-to-end-of-stay-complement.md §3.4 rule 16 — the part of a line sold DURING
-  // the stay is billed by the flat `endOfStayComplement` entry, so it must leave the `complement`
-  // entry: otherwise that entry credits option revenue its (frozen) debit doesn't carry.
-  const midStay = resolveMidStaySplit(
-    [...optionLines, ...customOptionLines.map((l) => ({ ...l, isCustom: true })), ...resourceLines],
-    {
-      baseline: row.arrivalExtrasBaseline,
-      settled: Number(row.endOfStayComplementPaid || 0) === 1 || Number(row.endOfStayComplementPaidCash || 0) === 1,
-      storedLines: storedMidStayLines(row.endOfStayComplementDetail),
-    },
-  );
-
-  return {
-    optionLines, customOptionLines, resourceLines, hasContribs, accommodationTtcCurrent,
-    midStayByKey: midStay.byKey,
-    optionsTtc: round2(optionsCurrentTotal),
-    resourcesTtc: round2(resourcesCurrentTotal),
-    destinations: splitByDestination({ optionLines, customOptionLines, resourceLines }, midStay.byKey),
-  };
-}
-
-// Where each billed line is COLLECTED (specs/accounting-books-the-money-collected.md rule 5). One line
-// belongs to exactly one encaissement: pre-arrival (acompte + solde), arrival complement, or — for the
-// share sold during the stay — the flat end-of-stay complement, which bills it separately.
-//
-// This is what lets an entry credit the extras it actually carries instead of a pro-rata slice of every
-// line on the reservation. Offered lines (0 €) are skipped: they can never be billed anywhere.
-function splitByDestination({ optionLines, customOptionLines, resourceLines }, midStayByKey) {
-  const remainingMidStay = { ...(midStayByKey || {}) };
-  const totals = { preArrivalOptions: 0, preArrivalResources: 0, complementOptions: 0, complementResources: 0 };
-
-  const classify = (lines, { isCustom = false, isResource = false } = {}) => {
-    for (const line of (lines || [])) {
-      if (Number(line.offered || 0) === 1) continue;
-      const lineTotal = Math.max(0, nz(line.totalPrice));
-      if (lineTotal === 0) continue;
-      // The mid-stay share is consumed as it is deducted, so two lines sharing a key split it.
-      const key = extraLineKey(isCustom ? { ...line, isCustom: true } : line);
-      const midStay = key ? Math.min(nz(remainingMidStay[key]), lineTotal) : 0;
-      if (key && midStay > 0) remainingMidStay[key] = round2(nz(remainingMidStay[key]) - midStay);
-      const collectedHere = round2(lineTotal - midStay);
-      if (collectedHere <= 0) continue; // sold entirely mid-stay → billed by the end-of-stay entry
-      const inComplement = Number(line.inComplement || 0) === 1;
-      const bucket = inComplement
-        ? (isResource ? 'complementResources' : 'complementOptions')
-        : (isResource ? 'preArrivalResources' : 'preArrivalOptions');
-      totals[bucket] = round2(totals[bucket] + collectedHere);
-    }
-  };
-
-  classify(optionLines);
-  classify(customOptionLines, { isCustom: true });
-  classify(resourceLines, { isResource: true });
-  return totals;
-}
 
 // Shape an entry the export engine consumes.
 //
@@ -972,25 +995,10 @@ function buildEntry(row, kind, perLineData, commissionContext, taxContext) {
   // reservation's buckets by `revenue / finalPrice`, so a solde that collected pure accommodation still
   // credited a slice of every option and resource on the fiche — including extras collected at arrival,
   // at checkout, or settled in caisse interne.
-  const optionsTtc = perLineData ? Number(perLineData.optionsTtc || 0) : 0;
-  const resourcesTtc = perLineData ? Number(perLineData.resourcesTtc || 0) : 0;
-  const accommodationTtc = Math.max(0, round2(finalPriceTtc - optionsTtc - resourcesTtc));
+  // The split lives in the core (utils/storedMoneySplit): the cancellation reverses a legacy acompte on the very
+  // same postes (specs/payment-schedule-and-cancellation.md rule 55).
   const revenueTtc = Math.max(0, round2(encaissementTtc - taxTtc));
-  const destinations = (perLineData && perLineData.destinations) || null;
-
-  // Fallback for callers that don't model the line destinations (legacy unit tests): the whole
-  // reservation is treated as one destination, i.e. the previous behaviour.
-  const collectedHere = kind === 'complement'
-    ? {
-      accommodation: 0,
-      options:   destinations ? destinations.complementOptions   : optionsTtc,
-      resources: destinations ? destinations.complementResources : resourcesTtc,
-    }
-    : {
-      accommodation: accommodationTtc,
-      options:   destinations ? destinations.preArrivalOptions   : optionsTtc,
-      resources: destinations ? destinations.preArrivalResources : resourcesTtc,
-    };
+  const collectedHere = storedMoneyCollected(kind, finalPriceTtc, perLineData);
   const collectedTotal = round2(collectedHere.accommodation + collectedHere.options + collectedHere.resources);
 
   let fraction;

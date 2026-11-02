@@ -76,6 +76,7 @@ const CORE_MODULES = Object.freeze({
   refundsModel: '../../models/refundsModel', // refunds by month, mirrored as avoirs in the journal
   cancellationCompensationsModel: '../../models/cancellationCompensationsModel', // compensations received by month, booked in the journal
   midStayExtras: '../../utils/midStayExtras', // the mid-stay share of a complement, kept out of its entry
+  storedMoneySplit: '../../utils/storedMoneySplit', // accounting-export — the stored-money split, shared with the cancellation (payment-schedule rule 55)
   complementAllocation: '../../utils/complementAllocation', // the stored ventilation of an adjusted complement
   csv: '../../utils/csv', // the generic CSV writer the sales export serialises with
   settingsValidation: '../../utils/settingsValidation', // the VAT-rate validator of the account plan

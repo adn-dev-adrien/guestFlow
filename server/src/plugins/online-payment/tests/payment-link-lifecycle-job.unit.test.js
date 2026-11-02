@@ -103,5 +103,5 @@ test('rule 16 — what the job moved and where a rate limit stopped it is logged
 test('plugins-phase-1-sdk rule 35 — `paymentPollRunner.runLinkLifecycle` is in the contract, and the plugin asks for SDK 2.18', () => {
   assert.equal(typeof sdk.coreModule('paymentPollRunner').runLinkLifecycle, 'function');
   assert.equal(require('../manifest.json').sdk, '^2.18.0');
-  assert.equal(require('../../sdk/version').SDK_VERSION, '2.18.0');
+  assert.ok(require('semver').gte(require('../../sdk/version').SDK_VERSION, '2.18.0'), 'the SDK ships it');
 });

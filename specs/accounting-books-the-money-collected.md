@@ -227,7 +227,8 @@ options and resources appear once, at their real amount, only when they were rea
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
-| `models/` | `accountingModel.js` | T | `buildEntry`: the ratio rule (rules 1-2) and the per-encaissement ventilation (rules 5-7, 10). `buildPerLineData`: classify every billed line into pre-arrival / complement / mid-stay, options and resources kept apart. `buildEndOfStayEntry`: ventilate by stored detail key (rule 8). |
+| `models/` | `accountingModel.js` | T | `buildEntry`: the ratio rule (rules 1-2) and the per-encaissement ventilation (rules 5-7, 10). `buildEndOfStayEntry`: ventilate by stored detail key (rule 8). |
+| `utils/` | `storedMoneySplit.js` | C | `buildPerLineData`: classify every billed line into pre-arrival / complement / mid-stay, options and resources kept apart; `splitByDestination`, `storedMoneyCollected`, `storedMoneyBucketTtcs`. Moved out of the plugin's `accountingModel.js` on 2026-11-02 (specs/payment-schedule-and-cancellation.md rule 55): the cancellation reads the same split; the plugin reads it through `coreModule('storedMoneySplit')` (specs/plugins-phase-1-sdk.md rule 36). |
 | `utils/` | `midStayExtras.js` | — | (none) — `extraLineKey` / `resolveMidStaySplit` / `storedMidStayLines` are reused as they are. |
 | `utils/` | `accountingExport.js` | — | (none) — the row layout, the accounts and the residue absorption are unchanged. |
 | `constants/` | `accounting.js` | — | (none) — same chart of accounts (rule 9). |

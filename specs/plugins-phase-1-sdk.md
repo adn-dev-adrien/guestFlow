@@ -443,6 +443,13 @@ Optional: a plugin that declares nothing reads « Actif ».
     minutes. A MINOR bump (a name added to `coreModules.json`, recorded under 2.18.0 in
     `coreModuleHistory.json`); `online-payment` 1.5.0 asks for `sdk ^2.18.0`. Test:
     `plugins/online-payment/tests/payment-link-lifecycle-job.unit.test.js`.
+36. *(Added 2026-11-02, specs/payment-schedule-and-cancellation.md rule 55, SDK 2.19.0.)* **`coreModule('storedMoneySplit')`
+    hands the stored-money split of an encaissement** (`buildPerLineData`, `splitByDestination`,
+    `storedMoneyCollected`, `storedMoneyBucketTtcs`, `storedMoneyBuckets`). The split moved from the
+    `accounting-export` plugin to the core (`utils/storedMoneySplit.js`) because the cancellation reverses a legacy
+    acompte on the very buckets the export credited it on, and a bare install without the plugin cancels too. A MINOR
+    bump (a name added to `coreModules.json`, recorded under 2.19.0 in `coreModuleHistory.json`); `accounting-export`
+    1.0.23 asks for `sdk ^2.19.0`. Test: `plugin-core-hardening-floor.unit.test.js`.
 
 **Edge cases:**
 - **A plugin throws during `register`.** Rule 4 applies: the other plugins and the core boot. The Plugins

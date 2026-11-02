@@ -2164,6 +2164,26 @@ function createReservationsModel(database) {
       };
     },
 
+    // What the paid solde collected per bucket, from its contribs (the balance entry's own shares: the tax share an
+    // older acompte captured rides on the solde's tax, out of its accommodation). NULL without them.
+    soldeContribBuckets(reservationId) {
+      const id = Number(reservationId);
+      const row = database.prepare(`
+        SELECT accommodationSoldeContribTtc AS accommodation, touristTaxSoldeContribTtc AS tax, touristTaxAcompteContribTtc AS acompteTax
+          FROM reservations WHERE id = ?
+      `).get(id);
+      if (!row || row.accommodation == null) return null;
+      const sumOf = (table) => Number(database.prepare(
+        `SELECT COALESCE(SUM(soldeContribTtc), 0) AS total FROM ${table} WHERE reservationId = ?`,
+      ).get(id).total || 0);
+      return {
+        accommodation: Math.max(0, round2(Number(row.accommodation || 0) - Number(row.acompteTax || 0))),
+        options: round2(sumOf('reservation_options') + sumOf('reservation_custom_options')),
+        resources: round2(sumOf('reservation_resources')),
+        touristTax: round2(Number(row.tax || 0) + Number(row.acompteTax || 0)),
+      };
+    },
+
     // The cancellation write itself: `kind` leaves 'reservation', which is what frees the dates
     // everywhere at once (every operational query filters on it). Amounts, échéances and paid flags
     // are left exactly as they were — they are history now, and accounting still reads them.

@@ -408,6 +408,44 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
     >   indemnity line is not a sale, it stays at 0 % (the export reads the compensation settings anyway).
     > - The refusals write their amounts with `formatEuros` (« Dépasse l'encaissé (2 060,00 €). »,
     >   « … dépasse le montant restant remboursable (1 333,24 €) »).
+49. **A cancelled stay never offers more than it can give back** _(added 2026-11-02, round 15)_. On a cancelled
+    stay the lines share two sums, the indemnity left and the sale money left (rule 48), so
+    `buildRefundableLines` caps each sum over the lines: the excess comes off the first lines (accommodation, then
+    the extras, the tourist tax last), and Σ `refundableTtc` never exceeds `collectedTtc`. Asking for every line at
+    its offered amount is accepted. A refund above what is left is refused with what is left: the whole refund
+    first, `REFUND_EXCEEDS_COLLECTED` « Dépasse l'encaissé (X €). » with X = `collectedTtc`; then a line that runs
+    out after the earlier lines of the same refund, « « <ligne> » : dépasse l'encaissé restant (X €). » with X what
+    was still left for it. A stay that is not cancelled is unchanged. *Why:* on stay #22326, after a 10 € free
+    line the lines offered 1 547,45 € against 1 537,45 € left, and asking for all of them was refused with
+    « Taxe de séjour : dépasse l'encaissé (12,00 €) » although 2 € were left for it. With a paid solde the lines
+    each offered the whole sale money: a stay that had collected 195,94 € offered 290,26 €.
+    > **Reading of 2026-11-02 (round 15).** A book refund made before the cancellation no longer reaches the
+    > indemnity: the cancellation keeps only what it left (specs/payment-schedule-and-cancellation.md rule 55), so
+    > `requalifiedTtc` and `indemnityTtc` read the net amount.
+    > **Reading of 2026-11-02 (review of PR #926).** A line offers at most what THAT line collected
+    > (`collectedByLine`): the paid acompte's and solde's contribs, plus a paid complement's share, net of the sale
+    > money already given back on it; without contribs that add up to each paid entry, the accommodation and the
+    > tax read what the acompte and the solde were booked on (`cancelReservation.bookedStayBuckets`) and a line paid
+    > at arrival collected nothing while the complement is unpaid. A cancellation's options or resources avoir is
+    > spread only over the lines that collected money. When the lines still add up to more than is left, the excess
+    > comes off the lines paid at arrival first, then the lines whose own collection is unknown, the capped lines
+    > last. A stay with a paid acompte and solde and a 32 € line paid at arrival: the register offers 714 + 200 +
+    > 12 € (no longer 682 € of accommodation and the 32 € line) and giving all of it back nets every 706
+    > sub-account to 0. A plan's money is all requalified, so its lines hold no sale money to cap.
+    > **Reading of 2026-11-02 (second review of PR #926).**
+    > - **The avoir is spread over the lines as they stood when it was written.** A cancellation's options or
+    >   resources avoir is spread pro rata of what each line had left net of the refunds made before it
+    >   (`spreadBucketRefund` with `roomOf`), never of what a later refund left: giving back the sale part of one line
+    >   leaves what the others offer, and the indemnity each holds, unchanged, and a refund asked from an older view of
+    >   the register takes no indemnity on a line that still holds sale money. *Why:* on stay #22226, giving back the
+    >   sale part one line at a time offered 37,67 € on the dinner, then 6,16, 1,30, 0,29, 0,07 and 0,01 € more after
+    >   each refund, and a tab left on the first view took 7,74 € of indemnity while sale money was left.
+    > - **No cent of the money collected is left unoffered.** The per-line caps of a stored-money split can leave up to
+    >   0,02 € that no line offers (a bucket booked a cent above what it billed, the solde's tax a cent below); those
+    >   cents are offered on the line with the most room left within what it billed. A legacy stay of 358,10 € plus
+    >   6,05 € of tax, acompte 179,05 € and solde paid: the lines offered 364,14 € of the 364,15 € collected; they
+    >   offer all of it, and giving it back leaves nothing collected. The books keep the cent where the solde entry put
+    >   it, as the refunds of a stay that is not cancelled do.
 
 ---
 
@@ -427,6 +465,9 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
 | `controllers/` | `reservationsController.js` | T | Feeds `refundsTotal` into the quote inputs (like `midStayQuoteInputs`) and exposes `refundableLines` on `GET /:id` |
 | `utils/` | `refunds.js` | C | **Pure**: `buildRefundableLines(...)` (incl. the per-night tourist-tax line), `validateRefundPayload(...)` (derives the quantity from the amount), `splitHtVat(...)`, `refundedTouristTax(refunds)` → `{ amount, nights }` |
 | `utils/` | `refunds.js` | T | Rule 48 — `cancelledRefundBudget(...)`; `buildRefundableLines({ cancelled })` caps each line at what was collected (`indemnityTtc`); `validateRefundPayload({ cancelled })` splits each line between the sale and the `indemnity` bucket |
+| `utils/` | `refunds.js` | T | Rule 49 — `capInOrder`: the lines' sale and indemnity rooms add up to what is left; the refusals name what is left. Reading of 2026-11-02: `collectedByLine` caps each line at what it collected |
+| `controllers/` | `refundsController.js` | T | Rule 49 reading — on a cancelled stay, hands `collectedByLine` (with `bookedStayBuckets`, read on `deps.database`) to `buildRefundableLines` |
+| `utils/` | `refunds.js` | T | Rule 49 second reading — `spreadBucketRefund(lines, amount, roomOf)` spreads the avoir on the lines as they stood when it was written; the unoffered rounding cents (`STORED_SPLIT_ROUNDING_TTC`) go on the line with the most room |
 | `controllers/` | `refundsController.js` | T | Rule 48 — on `kind = 'cancelled'`, passes the budget to both and answers `collectedTtc` = the budget |
 | `plugins/accounting-export/` | `accountingModel.js`, `accountingExport.js` | T | Rule 48 — `buildRefundEntry` carries `indemnity` (account + rate of the compensation settings); `refundEntryToRows` debits it |
 | `utils/` | `reservationLedger.js` | T | Rule 46 reading of 2026-11-02 — « Acompte conservé » / « Échéances conservées » row, « Rendu sur l'indemnité » |
@@ -682,6 +723,13 @@ indemnity refund lowers the franchise turnover at face value, a mixed one splits
 (2) — a switch and its undo leave an `indemnity` line at 0 %. `client/src/components/__tests__/CancellationCompensationsSection.indemnity-refunds.test.jsx`
 (2) — the reopen warning, and its absence when no refund touched the card.
 `tests/vat-regime-golden.unit.test.js` — `fiche/109` regenerated: a cancelled stay that collected nothing offers no line.
+**Round 15 (2026-11-02):** `tests/refund-before-cancellation.unit.test.js` (6 of 22, rule 49) — after a free line on
+a cancelled plan the lines add up to the 1 537,45 € left and asking for all of them is accepted; after 2 050 € the
+tax line offers the 10 € left and a refusal names 10,00 €, never the 12 € it once held; with a paid solde and a 32 €
+line paid at arrival (no contribs) the lines add up to the 914 € collected, that line is not offered, and asking for
+all of them is accepted; with contribs, the lines offer 714 + 200 + 12 € and every 706 sub-account nets to 0.
+Second review of PR #926: on the #22226 shape, giving back one line's sale part leaves the others' offer unchanged
+and never takes the indemnity; a legacy stay with a paid solde offers all 364,15 € collected and ends at 0.
 
 ## 8. Out of scope
 

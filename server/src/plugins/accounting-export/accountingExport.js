@@ -129,6 +129,19 @@ function zerofyMoneyColumns(row) {
 // to: the first day of the month after this version was installed (`ttcSplitFrom`, stored by the
 // plugin's migration). The months before were exported with HT and VAT prorated separately;
 // re-exporting them must give the accountant the same cents.
+// The HT and VAT an encaissement credits on one bucket, before the residue its last credit absorbs. Also read by
+// accountingModel: a cancellation netted of earlier refunds mirrors what the paid solde booked
+// (specs/payment-schedule-and-cancellation.md rule 55).
+function bookedBucketSplit(entry, bucket, splitFrom = TTC_SPLIT_FALLBACK) {
+  const fraction = entry.fraction;
+  const rate = Number(bucket.ratePercent) || 0;
+  const split = String(entry.paidDate || '') >= splitFrom && fraction !== 1 && rate > 0 && (bucket.vat || 0) > 0;
+  const ttc = round2(((bucket.ht || 0) + (bucket.vat || 0)) * fraction);
+  const ht = split ? round2(ttc / (1 + rate / 100)) : round2((bucket.ht || 0) * fraction);
+  const vat = split ? round2(ttc - ht) : round2((bucket.vat || 0) * fraction);
+  return { ht, vat };
+}
+
 function rowsAtDefaults(entry, splitFrom = TTC_SPLIT_FALLBACK) {
   // Remboursements (specs/reservation-refunds.md §3.4): the very same money shape, sides swapped.
   if (entry && entry.direction === 'refund') return refundEntryToRows(entry);
@@ -145,7 +158,6 @@ function rowsAtDefaults(entry, splitFrom = TTC_SPLIT_FALLBACK) {
   const clientAccount = buildClientAccount(entry.client.lastName);
   const piece = ''; // empty until Adrien provides a numbering scheme; see spec §3.4 rule 13b.
 
-  const fraction = entry.fraction;
   const grossDebitTtc = round2(entry.encaissementTtc);
   // The CCLIENT debit defaults to the net (= bank movement). When `encaissementNetTtc` is
   // not provided (legacy entries built without the commission spec), fall back to gross so
@@ -171,10 +183,7 @@ function rowsAtDefaults(entry, splitFrom = TTC_SPLIT_FALLBACK) {
     // Rules 33, 35 — only from `splitFrom`: a month the accountant may already have imported keeps the
     // cents it was exported with.
     const rate = Number(bucket.ratePercent) || 0;
-    const split = String(entry.paidDate || '') >= splitFrom && fraction !== 1 && rate > 0 && (bucket.vat || 0) > 0;
-    const ttc = round2(((bucket.ht || 0) + (bucket.vat || 0)) * fraction);
-    const ht = split ? round2(ttc / (1 + rate / 100)) : round2((bucket.ht || 0) * fraction);
-    const vat = split ? round2(ttc - ht) : round2((bucket.vat || 0) * fraction);
+    const { ht, vat } = bookedBucketSplit(entry, bucket, splitFrom);
     if (ht > 0) revenueLines.push({ account, amount: ht });
     if (vat > 0) vatByRate.set(rate, (vatByRate.get(rate) || 0) + vat);
   }
@@ -646,5 +655,6 @@ module.exports = {
   buildRows,
   entryToStructured,
   buildStructuredEntries,
+  bookedBucketSplit,
   __test: { splitIsoDate, round2, classifyLine, libelleFor, zerofyMoneyColumns, refundEntryToRows, compensationEntryToRows },
 };

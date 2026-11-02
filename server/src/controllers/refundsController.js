@@ -15,8 +15,9 @@ const defaultRefundsModel = require('../models/refundsModel');
 const defaultReservationsModel = require('../models/reservationsModel');
 const database = require('../database');
 const vatRegimeModel = require('../models/vatRegimeModel');
-const { buildRefundableLines, validateRefundPayload, cancelledRefundBudget } = require('../utils/refunds');
+const { buildRefundableLines, validateRefundPayload, cancelledRefundBudget, collectedByLine, nettedByCancellation } = require('../utils/refunds');
 const { comptaCollected } = require('../utils/reservationSettlement');
+const { bookedStayBuckets } = require('../utils/cancelReservation');
 
 function todayIso() {
   return localTodayIso();
@@ -39,6 +40,9 @@ function createRefundsController(deps = {}) {
     return over ? Number(over.overpaymentTtc || 0) : 0;
   });
   const vatRateOf = deps.vatRateOf || ((reservation) => vatRegimeModel.rateForRow(database, reservation));
+  // The stay's stored money lives in the database its models read: an injected model without its database reads no
+  // booked split (rule 49 reading of 2026-11-02).
+  const stayDatabase = deps.database || (deps.reservationsModel ? null : database);
 
   // The whole read side of the feature: register + still-refundable lines + both total readings.
   // Reused by the three endpoints AND by the reservation payload, so the fiche never has to ask twice.
@@ -61,6 +65,13 @@ function createRefundsController(deps = {}) {
       // Drives the per-night tourist-tax line (spec §3.5 rule 27).
       nights: nightsBetween(reservation.startDate, reservation.endDate),
       cancelled,
+      // Rule 49 reading of 2026-11-02 — a cancelled stay's line offers at most what that line collected.
+      collected: cancelled ? collectedByLine({
+        reservation,
+        options: reservation.options || [],
+        resources: reservation.resources || [],
+        booked: stayDatabase ? bookedStayBuckets({ database: stayDatabase, reservationsModel }, reservation, vatRate) : null,
+      }) : null,
     });
     return {
       reservation,
@@ -133,6 +144,12 @@ function createRefundsController(deps = {}) {
     remove(req, res) {
       const id = Number(req.params.id);
       const refundId = Number(req.params.refundId);
+      // Payment-schedule rule 55 reading of 2026-11-02 — the cancellation kept only what this refund left.
+      const register = buildRegister(id);
+      const target = register && register.payload.refunds.find((refund) => Number(refund.id) === refundId);
+      if (register && register.cancelled && nettedByCancellation(target, register.payload.refunds)) {
+        return res.status(409).json({ error: 'Remboursement déduit de l’acompte conservé.', code: 'REFUND_NETTED_BY_CANCELLATION' });
+      }
       const removed = refundsModel.remove(id, refundId);
       if (!removed) return res.status(404).json({ error: 'Remboursement non trouvé' });
       const refreshed = buildRegister(id);
