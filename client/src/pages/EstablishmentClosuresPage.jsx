@@ -330,7 +330,7 @@ export default function EstablishmentClosuresPage({ barTabs }) {
               label="Début de fermeture"
               value={isoToDayjs(form.startDate)}
               onChange={(value) => setForm((prev) => ({ ...prev, startDate: dayjsToIso(value) }))}
-              onAccept={(value) => {
+              onAccept={(value, context) => {
                 const iso = dayjsToIso(value);
                 const nextDayIso = value && value.isValid()
                   ? value.add(1, 'day').format('YYYY-MM-DD')
@@ -342,7 +342,8 @@ export default function EstablishmentClosuresPage({ barTabs }) {
                   // whenever it's empty or no longer valid (≤ new start).
                   endDate: (!prev.endDate || prev.endDate <= iso) ? nextDayIso : prev.endDate,
                 }));
-                setEndDateOpen(true);
+                // Rule 21 — a date typed in the field keeps the focus there; only a calendar pick opens the next one.
+                if (context?.source === 'view') setEndDateOpen(true);
               }}
               format="DD/MM/YYYY"
               slotProps={{ textField: { fullWidth: true, error: tooFar('startDate'), helperText: tooFar('startDate') ? HORIZON_MESSAGE : undefined } }}

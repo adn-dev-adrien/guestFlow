@@ -1,5 +1,5 @@
 function formatDate(date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  return `${String(date.getFullYear()).padStart(4, '0')}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
 function shiftDate(dateStr, daysDelta) {
@@ -81,14 +81,13 @@ export function getBlockedNightConflictInfo(dateStr, reservations = []) {
 export function findFirstOccupiedDateInRange(startDate, endDate, occupiedDates = []) {
   if (!startDate || !endDate) return null;
 
-  const occupiedDateSet = occupiedDates instanceof Set ? occupiedDates : new Set(occupiedDates);
-  for (let cursor = startDate; cursor < endDate; cursor = shiftDate(cursor, 1)) {
-    if (occupiedDateSet.has(cursor)) {
-      return cursor;
-    }
+  // ISO days compare as strings: scanning the occupied days, not the nights of the range, keeps a range being
+  // typed (an arrival at 0002 before a departure in 2031) as cheap as any other.
+  let first = null;
+  for (const day of occupiedDates) {
+    if (day >= startDate && day < endDate && (first === null || day < first)) first = day;
   }
-
-  return null;
+  return first;
 }
 
 export function getRangeOccupancyConflictInfo({
