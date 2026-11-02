@@ -15,7 +15,7 @@ const {
 } = require('../utils/reservationQuoteContext');
 const { resolvePlatformPaidGuests } = require('../utils/platformPaidGuests');
 const { validateFinanceInputs, financeErrorBody } = require('../utils/financeValidation');
-const { stayDatesRefusal, stayDatesRefusalBody } = require('../utils/stayDates');
+const { stayDatesRefusal, stayDatesRefusalBody, stayItemDatesRefusal } = require('../utils/stayDates');
 const { checkPlanningRange } = require('../utils/planningDateRange');
 const { parseGroup, collectibleArrivalBuckets } = require('../utils/arrivalPaymentGroup');
 const { validateArrivalPaymentDate } = require('../utils/arrivalPaymentDate');
@@ -37,6 +37,7 @@ const { planMidStayNote } = require('../utils/midStayNotePlan');
 const establishmentClosuresModel = require('../models/establishmentClosuresModel');
 const { emit: emitPluginEvent } = require('../plugins/sdk/eventBus');
 const reservationsModel = require('../models/reservationsModel');
+const bookingLinesModel = require('../models/bookingLinesModel');
 const vatRegimeModel = require('../models/vatRegimeModel');
 const termsController = require('./termsController');
 const quotePostProcessors = require('../utils/quotePostProcessors');
@@ -1100,6 +1101,13 @@ async function calculatePrice(req, res) {
   const quotedRow = quotedRowId > 0 ? db.prepare('SELECT startDate, endDate FROM reservations WHERE id = ?').get(quotedRowId) : null;
   const datesRefusal = stayDatesRefusal(req.body.startDate, req.body.endDate, { stored: quotedRow });
   if (datesRefusal) return res.status(400).json(stayDatesRefusalBody(datesRefusal));
+  // Rule 13 (second reading) — the occurrences and sessions lie on the stay's days, unless already stored.
+  const itemsRefusal = stayItemDatesRefusal({
+    options: req.body.selectedOptions, resources: req.body.selectedResources,
+    startDate: req.body.startDate, endDate: req.body.endDate,
+    stored: quotedRow ? bookingLinesModel.getStoredItemDates(quotedRowId) : null,
+  });
+  if (itemsRefusal) return res.status(400).json(stayDatesRefusalBody(itemsRefusal));
 
   const propertyId = Number(req.body.propertyId);
   if (typeof db.ensureDefaultTimedOptionsForProperty === 'function' && Number.isFinite(propertyId) && propertyId > 0) {
@@ -1329,6 +1337,10 @@ function createStay(req, res) {
   // specs/reservations-backend-mvc.md rule 11 — sound dates before any pricing or availability check.
   const datesRefusal = stayDatesRefusal(req.body.startDate, req.body.endDate);
   if (datesRefusal) return res.status(400).json(stayDatesRefusalBody(datesRefusal));
+  const itemsRefusal = stayItemDatesRefusal({
+    options: req.body.options, resources: req.body.resources, startDate: req.body.startDate, endDate: req.body.endDate,
+  });
+  if (itemsRefusal) return res.status(400).json(stayDatesRefusalBody(itemsRefusal));
 
   // specs/reservations-backend-mvc.md rule 10 — refused here rather than by the NOT NULL constraint (a 500).
   if (!req.body.clientId) {
@@ -1804,6 +1816,11 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
   // only an edited date is held to the horizon.
   const datesRefusal = stayDatesRefusal(req.body.startDate, req.body.endDate, { stored: model.getRow(Number(req.params.id)) });
   if (datesRefusal) return res.status(400).json(stayDatesRefusalBody(datesRefusal));
+  const itemsRefusal = stayItemDatesRefusal({
+    options: req.body.options, resources: req.body.resources, startDate: req.body.startDate, endDate: req.body.endDate,
+    stored: bookingLinesModel.getStoredItemDates(Number(req.params.id)),
+  });
+  if (itemsRefusal) return res.status(400).json(stayDatesRefusalBody(itemsRefusal));
 
   // Data invariant: never persist an empty platform — see `normalisePlatform`.
   req.body.platform = normalisePlatform(req.body.platform);
@@ -2301,6 +2318,8 @@ function paymentMarkRefusal(row, body, today) {
   }
   for (const [flagField, dateField] of PAID_DATE_FIELDS) {
     if (!body[flagField] || body[dateField] === undefined || body[dateField] === null || body[dateField] === '') continue;
+    // Rule 13 — a mark sent back with the date the row already stores is not re-judged.
+    if (Number(row[flagField] || 0) === 1 && String(row[dateField] || '').slice(0, 10) === String(body[dateField]).slice(0, 10)) continue;
     const checked = validateCollectionDate(body[dateField], { today, invalidReason: 'Date invalide.' });
     if (!checked.ok) return { status: 400, body: { error: checked.reason, code: 'INVALID_PAYMENT_DATE', field: dateField } };
   }

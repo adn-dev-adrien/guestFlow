@@ -13,7 +13,7 @@
  * so the controller only maps codes to HTTP statuses.
  */
 
-const { isRealIsoDay, dateWindowMessage, dateBeforeHorizon } = require('./stayDates');
+const { isRealIsoDay, dateWindowMessage, dateBeforeHorizon, PAST_HORIZON_MESSAGE, ENTRY_DATE_INVALID_MESSAGE } = require('./stayDates');
 
 // The ceiling is a sanity guard, not a business rule: a cancellation indemnity is a fraction of a
 // stay, so anything above it is a typo (a stray extra digit), never a real payment.
@@ -121,11 +121,13 @@ function validateReceipt(input, todayIso) {
   const body = input || {};
   const receivedAmount = parseAmount(body.receivedAmount, { positive: true });
   if (Number.isNaN(receivedAmount)) return { ok: false, error: 'INVALID_AMOUNT', field: 'receivedAmount' };
+  // The French message is what the card shows (`error`); the code stays for the callers (`code`).
+  const refuse = (code, error) => ({ ok: false, error, code, field: 'receivedDate' });
   const receivedDate = parseOptionalDate(body.receivedDate);
-  if (!receivedDate) return { ok: false, error: 'INVALID_DATE', field: 'receivedDate' };
-  if (receivedDate > todayIso) return { ok: false, error: 'RECEIVED_DATE_IN_FUTURE', field: 'receivedDate' };
+  if (!receivedDate) return refuse('INVALID_DATE', ENTRY_DATE_INVALID_MESSAGE);
+  if (receivedDate > todayIso) return refuse('RECEIVED_DATE_IN_FUTURE', 'La date ne peut pas être dans le futur.');
   // A bank movement before the date window (today − 5 years) is certainly a mistyped year (2025 → 2015).
-  if (dateBeforeHorizon(receivedDate, todayIso)) return { ok: false, error: 'RECEIVED_DATE_TOO_OLD', field: 'receivedDate' };
+  if (dateBeforeHorizon(receivedDate, todayIso)) return refuse('RECEIVED_DATE_TOO_OLD', PAST_HORIZON_MESSAGE);
   return { ok: true, value: { receivedAmount, receivedDate } };
 }
 

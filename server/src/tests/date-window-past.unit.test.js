@@ -71,7 +71,6 @@ test('rule 13: the window starts today − 5 years (29 February → 28) and ends
   assert.equal(entryDateMessage(before), PAST_HORIZON_MESSAGE);
   assert.equal(entryDateMessage(after), HORIZON_MESSAGE);
   assert.equal(entryDateMessage(before, { stored: before }), null);
-  assert.equal(entryDateMessage(`${s(0)}T09:30:00.000Z`, { timestamp: true }), null);
   for (const bad of ['', 'hier', `${TODAY.slice(0, 4)}-02-30`, `${TODAY.slice(0, 4)}-13-01`, null]) assert.equal(entryDateMessage(bad), 'Date invalide.');
   assert.equal(rangesWindowMessage([{ startDate: S, endDate: H }]), null);
   assert.equal(rangesWindowMessage([{ startDate: before, endDate: s(5) }]), PAST_HORIZON_MESSAGE);
@@ -227,7 +226,8 @@ test('cancellation-compensation + rule 13: draft, approval and receipt dates in 
   assert.deepEqual(validateApprovalCompensation({ expectedAmount: 5, expectedDate: after }), { ok: false, error: HORIZON_MESSAGE, field: 'expectedDate' });
   assert.equal(validateApprovalCompensation({ expectedAmount: 5, expectedDate: H }).ok, true);
   assert.equal(validateReceipt({ receivedAmount: 5, receivedDate: S }, TODAY).ok, true);
-  assert.equal(validateReceipt({ receivedAmount: 5, receivedDate: before }, TODAY).error, 'RECEIVED_DATE_TOO_OLD');
+  assert.deepEqual(validateReceipt({ receivedAmount: 5, receivedDate: before }, TODAY), { ok: false, error: PAST_HORIZON_MESSAGE, code: 'RECEIVED_DATE_TOO_OLD', field: 'receivedDate' });
+  assert.deepEqual(validateReceipt({ receivedAmount: 5, receivedDate: `${TODAY.slice(0, 4)}-02-30` }, TODAY), { ok: false, error: 'Date invalide.', code: 'INVALID_DATE', field: 'receivedDate' });
 
   const rows = new Map();
   const model = {
@@ -304,4 +304,66 @@ test('rule 13: a season date range is entered in the window; a range kept as sto
   assert.equal(moved.error, PAST_HORIZON_MESSAGE);
   assert.deepEqual(propertiesModel.assignDateRangeToSeason(1, { startDate: before, endDate: s(3), minNights: 1, target: { mode: 'new' } }), { error: PAST_HORIZON_MESSAGE, status: 400 });
   f.db.prepare('DELETE FROM pricing_rules WHERE id = ?').run(ruleId);
+});
+
+// Review of PR #938, F4 + F6 — the past side of a platform penalty, and the stored solde date it defaults to.
+test('reconciliation-assisted-matching rule 26 + rule 13: a penalty dated before the window is refused (422); an undated one never re-judges the stored solde date', () => {
+  const { buildController } = require('../controllers/platformPenaltiesController');
+  const controller = buildController({
+    database: f.db, penaltiesModel: require('../models/platformPenaltiesModel'), reservationsModel: require('../models/reservationsModel'), todayOf: () => TODAY,
+  });
+  f.seed();
+  const id = Number(f.db.prepare(`INSERT INTO reservations (kind, propertyId, clientId, startDate, endDate, adults, platform, finalPrice,
+      balanceAmount, platformGrossAmount, platformPayoutAmount, platformCommissionAmount, balancePaid, balancePaidDate)
+    VALUES ('reservation', 1, 1, ?, ?, 2, 'Booking', 800, 800, 800, 610.02, 189.98, 1, ?)`).run(addDaysToIsoDate(before, -12), addDaysToIsoDate(before, -10), addDaysToIsoDate(before, -5)).lastInsertRowid);
+  const body = (over = {}) => ({ amount: 40, reason: 'Frais de relogement', source: 'reconciliation', ...over });
+  const dateErrors = (res) => res.body.errors.filter((e) => e.field === 'date');
+  const tooOld = { code: 'INVALID_PENALTY', field: 'date', message: PAST_HORIZON_MESSAGE };
+
+  const refused = controller.declare(id, body({ date: before }), null);
+  assert.equal(refused.status, 422, JSON.stringify(refused.body));
+  assert.deepEqual(refused.body.errors[0], tooOld);
+  assert.deepEqual(dateErrors(controller.preview(id, body({ date: before }))), [tooOld]);
+  assert.equal(count('SELECT COUNT(*) AS n FROM reservation_platform_penalties WHERE reservationId = ?', id), 0);
+  assert.deepEqual(dateErrors(controller.preview(id, body({ date: S }))), []);
+  assert.deepEqual(dateErrors(controller.preview(id, body())), []);
+  assert.equal(controller.declare(id, body({ date: S }), null).status, 201);
+});
+
+// Review of PR #938, F4 — a validUntil the devis already stores is kept even before the window.
+test('rule 13: PUT /devis keeps a stored validUntil set before the window', () => {
+  f.seed();
+  const created = call(devisController.create, { body: f.stayBody({ startDate: f.inDays(330), endDate: f.inDays(333) }) });
+  assert.equal(created.statusCode, 201, JSON.stringify(created.body));
+  const id = created.body.id;
+  f.db.prepare('UPDATE reservations SET validUntil = ? WHERE id = ?').run(before, id);
+  const kept = call(devisController.update, { params: { id: String(id) }, body: f.stayBody({ startDate: f.inDays(330), endDate: f.inDays(333), validUntil: before }) });
+  assert.notEqual(kept.body && kept.body.field, 'validUntil', JSON.stringify(kept.body));
+  const moved = call(devisController.update, { params: { id: String(id) }, body: f.stayBody({ startDate: f.inDays(330), endDate: f.inDays(333), validUntil: addDaysToIsoDate(before, -1) }) });
+  assert.deepEqual([moved.statusCode, moved.body.field, moved.body.error], [400, 'validUntil', PAST_HORIZON_MESSAGE]);
+});
+
+// Review of PR #938, F5 — a payment mark sent back with the date it already stores is not re-judged by the window:
+// it meets « already perceived » instead (specs/reservation-payment-ledger.md rule 38).
+test('reservation-payment-ledger rule 9 + rule 13: a paid date the row already stores is not re-judged by the window', () => {
+  const id = f.createStay({ startDate: f.inDays(660), endDate: f.inDays(663) });
+  f.db.prepare('UPDATE reservations SET depositPaid = 1, depositPaidDate = ? WHERE id = ?').run(before, id);
+  const mark = (depositPaidDate) => call(f.controller.updatePayment, { params: { id: String(id) }, body: { depositPaid: true, depositPaidDate } });
+  const kept = mark(before);
+  assert.deepEqual([kept.statusCode, kept.body.code], [409, 'ALREADY_PAID'], JSON.stringify(kept.body));
+  assert.equal(String(f.rowOf(id).depositPaidDate).slice(0, 10), before);
+  const refused = mark(addDaysToIsoDate(before, -1));
+  assert.deepEqual([refused.statusCode, refused.body.field, refused.body.error], [400, 'depositPaidDate', PAST_HORIZON_MESSAGE]);
+  f.db.prepare('UPDATE reservations SET depositPaid = 0 WHERE id = ?').run(id);
+  assert.equal(mark(before).body.error, PAST_HORIZON_MESSAGE);
+});
+
+// Review of PR #938, F9 — the mentions preview never fails: a date it cannot use becomes today.
+test('rule 13: the email-mentions preview reads a real day in the window, and today otherwise', () => {
+  const { previewStartDate } = require('../controllers/emailMentionsController');
+  assert.equal(previewStartDate(S, TODAY), S);
+  assert.equal(previewStartDate(H, TODAY), H);
+  for (const value of [before, after, `${Number(TODAY.slice(0, 4)) + 1}-02-30`, '1900-01-01', 'abc', undefined]) {
+    assert.equal(previewStartDate(value, TODAY), TODAY, String(value));
+  }
 });

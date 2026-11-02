@@ -10,7 +10,8 @@
  * 9999-12-31 froze the whole server for ~100 s (audit R19-L1). And no date is entered outside the window
  * [today − MAX_HORIZON_YEARS, today + MAX_HORIZON_YEARS] (rule 13): a date the operator types or edits,
  * never one a stored row already carries. `entryDateMessage` is the same window for every other date an
- * operator enters (payment marks, due dates, refunds, compensations, plugin dates…).
+ * operator enters (payment marks, due dates, refunds, compensations, plugin dates…), and
+ * `stayItemDatesRefusal` keeps the option occurrences and hourly sessions of a stay on its own days.
  */
 
 const { todayIso } = require('./localDate');
@@ -27,6 +28,7 @@ const HORIZON_MESSAGE = `Date trop lointaine : ${MAX_HORIZON_YEARS} ans au plus.
 /** The past side of the window — Adrien's decision of 2026-11-02, second reading of rule 13. */
 const PAST_HORIZON_MESSAGE = `Date trop ancienne : ${MAX_HORIZON_YEARS} ans au plus.`;
 const ENTRY_DATE_INVALID_MESSAGE = 'Date invalide.';
+const ITEM_OUTSIDE_STAY_MESSAGE = 'Date hors du séjour.';
 
 /** The longest stay, in nights. The iCal parser drops a longer event with this same constant. */
 const MAX_STAY_NIGHTS = 366;
@@ -78,14 +80,12 @@ function dateWindowMessage(iso, today = todayIso()) {
 /**
  * The guard on any other date an operator enters: `null` when `value` is a real `YYYY-MM-DD` day inside the
  * window, or equal to `stored` (the value the row already carries, which is never re-judged), otherwise
- * the short French refusal. Its first 10 characters are read when `timestamp` is set (an ISO instant).
+ * the short French refusal.
  */
-function entryDateMessage(value, { stored, today = todayIso(), timestamp = false, invalidMessage = ENTRY_DATE_INVALID_MESSAGE } = {}) {
+function entryDateMessage(value, { stored, today = todayIso(), invalidMessage = ENTRY_DATE_INVALID_MESSAGE } = {}) {
   if (stored !== undefined && stored !== null && value === stored) return null;
-  const day = timestamp && typeof value === 'string' ? value.slice(0, 10) : value;
-  if (!isRealIsoDay(day)) return invalidMessage;
-  if (timestamp && value.length > 10 && Number.isNaN(Date.parse(value))) return invalidMessage;
-  return dateWindowMessage(day, today);
+  if (!isRealIsoDay(value)) return invalidMessage;
+  return dateWindowMessage(value, today);
 }
 
 /**
@@ -127,6 +127,43 @@ function stayDatesRefusal(startDate, endDate, { stored = null, today = todayIso(
   return null;
 }
 
+/** A stored JSON list (`cardOccurrences`, `sessions`) or an array, as an array. */
+function listOf(raw) {
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw !== 'string' || raw.trim() === '') return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch { return []; }
+}
+
+/**
+ * `null` when every option occurrence and hourly session of the lines is dated on a day of the stay, arrival
+ * to departure morning inclusive (the fiche's grid), otherwise the refusal
+ * `{ status: 400, error: 'Date hors du séjour.', code: 'INVALID_STAY_DATES', field: 'cardOccurrences' | 'sessions' }`.
+ * `stored` (`{ options: { [optionId]: dates }, resources: { [resourceId]: dates } }`, the edited row's lines)
+ * exempts a date the same line already stores. The stay itself lies in the window, so this holds D6 too.
+ */
+function stayItemDatesRefusal({ options = [], resources = [], startDate, endDate, stored = null } = {}) {
+  const outside = (date) => !isRealIsoDay(date) || date < startDate || date > endDate;
+  const groups = [
+    ['cardOccurrences', options, 'optionId', 'options'],
+    ['sessions', resources, 'resourceId', 'resources'],
+  ];
+  for (const [field, lines, idKey, storedKey] of groups) {
+    for (const line of Array.isArray(lines) ? lines : []) {
+      const kept = new Set((stored && stored[storedKey] && stored[storedKey][Number(line && line[idKey])]) || []);
+      for (const item of listOf(line && line[field])) {
+        const raw = String((item && item.date) || '');
+        const date = field === 'cardOccurrences' ? raw.slice(0, 10) : raw;
+        if (kept.has(date)) continue;
+        if (outside(date)) return { status: 400, error: ITEM_OUTSIDE_STAY_MESSAGE, code: INVALID_STAY_DATES, field };
+      }
+    }
+  }
+  return null;
+}
+
 /** The HTTP body of a refusal: `{ error, code, field }`. */
 function stayDatesRefusalBody(refusal) {
   return { error: refusal.error, code: refusal.code, field: refusal.field };
@@ -134,7 +171,7 @@ function stayDatesRefusalBody(refusal) {
 
 module.exports = {
   INVALID_STAY_DATES, DATE_INVALID_MESSAGE, ORDER_MESSAGE, TOO_LONG_MESSAGE, MAX_STAY_NIGHTS,
-  MAX_HORIZON_YEARS, HORIZON_MESSAGE, PAST_HORIZON_MESSAGE, ENTRY_DATE_INVALID_MESSAGE,
+  MAX_HORIZON_YEARS, HORIZON_MESSAGE, PAST_HORIZON_MESSAGE, ENTRY_DATE_INVALID_MESSAGE, ITEM_OUTSIDE_STAY_MESSAGE,
   horizonEnd, horizonStart, dateBeyondHorizon, dateBeforeHorizon, dateWindowMessage, entryDateMessage, rangesWindowMessage,
-  isRealIsoDay, stayDatesRefusal, stayDatesRefusalBody,
+  isRealIsoDay, stayDatesRefusal, stayDatesRefusalBody, stayItemDatesRefusal,
 };

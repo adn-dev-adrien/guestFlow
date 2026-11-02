@@ -75,8 +75,9 @@ function buildController({ database, penaltiesModel, reservationsModel, todayOf,
     const validDate = isRealIsoDay(date);
     if (!validDate) errors.push({ code: 'INVALID_PENALTY', field: 'date', message: 'Date invalide.' });
     else if (date > today) errors.push({ code: 'INVALID_PENALTY', field: 'date', message: 'La date ne peut pas être dans le futur.' });
-    // specs/reservations-backend-mvc.md rule 13 (reading of 2026-11-02).
-    else if (dateBeforeHorizon(date, today)) errors.push({ code: 'INVALID_PENALTY', field: 'date', message: PAST_HORIZON_MESSAGE });
+    // specs/reservations-backend-mvc.md rule 13 (reading of 2026-11-02) — the date the operator typed; the
+    // default is the stored solde date, never re-judged.
+    else if (body.date && dateBeforeHorizon(date, today)) errors.push({ code: 'INVALID_PENALTY', field: 'date', message: PAST_HORIZON_MESSAGE });
 
     const payoutRecorded = present(row.platformPayoutAmount) && Number(row.platformPayoutAmount) > 0;
     const source = body.source === 'reconciliation' ? 'reconciliation' : 'fiche';

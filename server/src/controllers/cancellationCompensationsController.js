@@ -55,7 +55,7 @@ function createController(model = defaultModel, { today = getTodayIsoDate, refun
   };
 
   // Business errors travel as `{ error, status }` from the model; validators as `{ error, field }`.
-  const fail = (res, result) => res.status(result.status || 400).json({ error: result.error, field: result.field });
+  const fail = (res, result) => res.status(result.status || 400).json({ error: result.error, ...(result.code ? { code: result.code } : {}), field: result.field });
 
   return {
     // GET /api/accounting/cancellation-compensations?month=&year=

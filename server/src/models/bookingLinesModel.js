@@ -266,6 +266,26 @@ function createBookingLinesModel(database) {
       model.replaceNights(toId, database.prepare('SELECT * FROM reservation_nights WHERE reservationId = ?').all(fromId));
     },
 
+    // The dates each line of a booking already stores — `{ options: { [optionId]: dates }, resources:
+    // { [resourceId]: dates } }` — which `stayDates.stayItemDatesRefusal` does not re-judge
+    // (specs/reservations-backend-mvc.md rule 13, second reading).
+    getStoredItemDates(bookingId) {
+      const datesOf = (list) => parseJsonArray(list).map((item) => String((item && item.date) || '').slice(0, 10));
+      const options = {};
+      if (HAS_CARD_OCCURRENCES) {
+        for (const row of database.prepare('SELECT optionId, cardOccurrences FROM reservation_options WHERE reservationId = ?').all(bookingId)) {
+          options[Number(row.optionId)] = datesOf(row.cardOccurrences);
+        }
+      }
+      const resources = {};
+      if (HAS_RESOURCE_SESSIONS) {
+        for (const row of database.prepare('SELECT resourceId, sessions FROM reservation_resources WHERE reservationId = ?').all(bookingId)) {
+          resources[Number(row.resourceId)] = parseJsonArray(row.sessions).map((item) => String((item && item.date) || ''));
+        }
+      }
+      return { options, resources };
+    },
+
     // The prices a booking was sold at, in the shape the pricing engine consumes as `locked*` inputs.
     // Kind-agnostic: a devis under its validity window locks exactly like a saved reservation
     // (specs/devis-extras-parity-and-price-lock.md §3 rule 13).
