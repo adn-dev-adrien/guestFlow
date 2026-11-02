@@ -95,7 +95,9 @@ rules — just a clean, testable structure that future slices (and Bloc 5) build
    the dates, the departure field in error, as soon as the departure is on or before the arrival; and
    « Enregistrer » refuses with that message in the usual error dialog, sending nothing. A refusal of
    the server (rule 11) reaches the same dialog with its own message. The `min` of the departure field
-   only styled a typed value: it never stopped the save.
+   only styled a typed value: it never stopped the save. Switching the logement asks for a quote only
+   when the stay is complete and ordered: a « Nouveau devis » switched before its dates are typed has
+   no quote yet, as on opening (it used to price an empty range at 0 €, which rule 11 now refuses).
 
 **Edge cases:** all current ones are preserved verbatim — min-nights rejection, archived-reservation
 error, iCal-locked pricing snapshot reuse, night-block conflict on adjacent reservations, payment
@@ -181,8 +183,8 @@ prove behavior is preserved.)
 - Audit R18-1 (rules 11-12, 2026-11-02): `server/src/tests/stay-dates-guard.unit.test.js` (30 cases: the four
   shapes on reservation create / update / `performUpdate` / calculate-price / devis create / update, stored
   dates on devis extend / preview / convert, restore and drift approval, the parser contract) and
-  `client/src/pages/__tests__/ReservationPage.stay-dates-order.test.jsx` (4 cases: reservation, zero night,
-  devis, server refusal).
+  `client/src/pages/__tests__/ReservationPage.stay-dates-order.test.jsx` (5 cases: reservation, zero night,
+  devis, server refusal, logement switch before the dates).
 - Spec review 2026-10-27 (rule 9): `server/src/tests/create-without-times-and-linen.unit.test.js` — default times stored, no early-arrival fee on the re-save.
 
 ## 8. Out of scope

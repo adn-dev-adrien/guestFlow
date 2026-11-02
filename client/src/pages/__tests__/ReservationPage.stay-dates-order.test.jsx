@@ -116,3 +116,15 @@ test('a refusal of the server (400 INVALID_STAY_DATES) is shown with its message
   await waitFor(() => expect(dialogs.alert).toHaveBeenCalledWith(expect.objectContaining({ title: 'Erreur', message: 'Date de séjour invalide.' })));
   expect(api.updateReservation).not.toHaveBeenCalled();
 });
+
+test('a « Nouveau devis » switched to another logement before its dates are typed asks for no quote', async () => {
+  api.getProperties.mockResolvedValue([{ id: 1, name: 'Granja', singleBeds: 2, doubleBeds: 2 }, { id: 2, name: 'Estiva', singleBeds: 2, doubleBeds: 1 }]);
+  openAt('/reservations/new?mode=devis&propertyId=1', '/reservations/new');
+  const select = await screen.findByRole('combobox', { name: 'Logement' });
+  await waitFor(() => expect(select).toHaveTextContent('Granja'));
+  fireEvent.mouseDown(select);
+  fireEvent.click(await screen.findByRole('option', { name: 'Estiva' }));
+  await waitFor(() => expect(screen.getByRole('combobox', { name: 'Logement' })).toHaveTextContent('Estiva'));
+  expect(api.calculatePrice).not.toHaveBeenCalled();
+  expect(dialogs.alert).not.toHaveBeenCalled();
+});
