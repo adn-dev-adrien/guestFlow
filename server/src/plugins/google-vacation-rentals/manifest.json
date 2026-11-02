@@ -28,7 +28,8 @@
       "Compatible avec le SDK 2 de GuestFlow."
     ],
     "1.0.3": [
-      "Une fermeture très longue ne ralentit plus l’envoi : seules les nuits envoyées à Google sont lues."
+      "Une fermeture très longue ne ralentit plus l’envoi : seules les nuits envoyées à Google sont lues.",
+      "Compatible avec le SDK 2 de GuestFlow."
     ]
   }
 }
