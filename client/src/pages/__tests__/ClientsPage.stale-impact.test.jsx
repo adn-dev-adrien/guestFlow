@@ -254,6 +254,58 @@ describe('ClientsPage — rule 17: an answer about a client the operator has lef
     expect(await screen.findByText(/Cabane Bravo/)).toBeInTheDocument();
     expect(screen.queryByText(/Chalet Alpha/)).not.toBeInTheDocument();
   });
+  test('the sheet of B keeps B\'s stays only when A\'s stay list answers after B\'s', async () => {
+    const user = userEvent.setup();
+    const aSheet = deferred();
+    const bSheet = deferred();
+    const arm = impactAnswers();
+    arm(41, aSheet.p);
+    arm(42, bSheet.p);
+    renderAt('/clients');
+
+    await openSheet(/Alpha/);
+    await user.click(screen.getByRole('button', { name: 'Annuler' }));
+    await waitFor(() => expect(screen.queryByText('Modifier le client')).not.toBeInTheDocument());
+
+    await openSheet(/Bravo/);
+    bSheet.resolve({ client: B, reservations: [stay(902, 'Cabane Bravo')], devis: [] });
+    expect(await screen.findByText(/Cabane Bravo/)).toBeInTheDocument();
+
+    aSheet.resolve({ client: A, reservations: [stay(901, 'Chalet Alpha')], devis: [] });
+    await aSheet.p;
+    await settle();
+
+    expect(screen.queryByText(/Chalet Alpha/)).not.toBeInTheDocument();
+    expect(screen.getByText(/Cabane Bravo/)).toBeInTheDocument();
+  });
+
+  test('a deletion of A that succeeds after the operator opened B\'s confirmation does not close or reset it', async () => {
+    const user = userEvent.setup();
+    const arm = impactAnswers();
+    const aDeletion = deferred();
+    api.deleteClient.mockReturnValueOnce(aDeletion.p);
+    renderAt('/clients');
+
+    await openDeleteConfirmation(user, /Alpha/, arm, 41, Promise.resolve({ client: A, reservations: [], devis: [] }));
+    const dialogA = screen.getByRole('dialog');
+    await waitFor(() => expect(within(dialogA).getByRole('button', { name: 'Confirmer la suppression' })).toBeEnabled());
+    await user.click(within(dialogA).getByRole('button', { name: 'Confirmer la suppression' }));
+    await cancelDeleteConfirmation(user);
+    await openDeleteConfirmation(user, /Bravo/, arm, 42, Promise.resolve({ client: B, reservations: [], devis: [] }));
+    await waitFor(() => expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'Confirmer la suppression' })).toBeEnabled());
+
+    aDeletion.resolve({ ok: true });
+    await aDeletion.p;
+    await settle();
+
+    expect(screen.getByText('Confirmer la suppression du client')).toBeInTheDocument();
+    const dialog = screen.getByRole('dialog');
+    expect(dialog.textContent).toContain('Bob Bravo');
+    expect(within(dialog).getByRole('button', { name: 'Confirmer la suppression' })).toBeEnabled();
+    expect(api.deleteClient).toHaveBeenCalledTimes(1);
+    expect(api.deleteClient).toHaveBeenCalledWith(41, { force: true });
+    expect(toast.showError).not.toHaveBeenCalled();
+  });
 });
 
 describe('ClientsPage — rule 18: a superseded deletion still reports its failure, a closed cleanup popup stays closed', () => {

@@ -337,10 +337,17 @@ drop is irreversible.
       - A late impact answer for A never lands in B's confirmation; the confirm deletes B (`42`) once.
       - When A answers first, B's confirmation stays loading with the confirm disabled, then shows B.
       - A late impact failure for A shows no error in B's confirmation.
-      - A deletion of A ending after B's confirmation opened neither closes it nor shows A's failure.
+      - A deletion of A ending after B's confirmation opened neither closes it nor shows A's failure
+        (reading of 2026-11-02, audit R19-S1: true for a failure and for a success — see the case below).
       - B's sheet never lists A's late stays, and stays loading until B answers.
       _(All five fail against the pre-fix page.)_
-- [x] **NEW (2026-11-02, rule 18)** same file, 4 more tests (9 in all):
+- [x] **NEW (2026-11-02, rules 17, audit R19-S1)** same file, 2 more tests (11 in all) — each kills a guard
+      mutant the nine above let through:
+      - B's sheet keeps B's stays only when A's stay list answers **after** B's (kills dropping the
+        `current()` guard on the sheet's `then`).
+      - A deletion of A that **succeeds** after B's confirmation opened leaves it open, naming B, its
+        confirm enabled, and no toast (kills dropping the `current()` guard before `closeDeleteImpact`).
+- [x] **NEW (2026-11-02, rule 18)** same file, 4 more tests (9 at the time; 11 since R19-S1):
       - A deletion of A failing after B's confirmation opened is reported once as a toast, not in B's dialog.
       - A deletion failing while its own confirmation is open shows in the dialog, with no toast.
       - A late orphan preview does not reopen the cleanup popup the operator closed.
