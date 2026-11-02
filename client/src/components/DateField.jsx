@@ -13,8 +13,9 @@ const KEYBOARD_CHANGE_MS = 500;
  * - A change typed on the keyboard keeps the focus: Chromium fires a change on every digit once the date
  *   is complete (2 → 0002, 20 → 0020…), and a blur there would end the typing after the first digit.
  * - While typing, the `min` / `max` given in `slotProps.htmlInput` stay those of the first key press until
- *   the field loses the focus: Chromium drops a half-typed date when a bound moves, and callers often
- *   derive a bound from the value being typed.
+ *   the field loses the focus or is pressed with the pointer (which opens the calendar on the live bounds):
+ *   Chromium drops a half-typed date when a bound moves, and callers often derive a bound from the value
+ *   being typed.
  *
  * Props: identical to MUI `TextField` (the caller's `onChange`, `onKeyDown`, `onPointerDown` and `onBlur`
  * still fire, with the same event). `type="date"` is forced.
@@ -31,6 +32,7 @@ export default function DateField({ onChange, onKeyDown, onPointerDown, onBlur, 
   };
   const handlePointerDown = (event) => {
     lastKeyAt.current = null;
+    setTypingBounds(null);
     if (onPointerDown) onPointerDown(event);
   };
   const handleBlur = (event) => {

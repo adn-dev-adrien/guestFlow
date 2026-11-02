@@ -86,6 +86,19 @@ describe('DateField — keyboard entry', () => {
     expect(input).toHaveAttribute('min', after);
   });
 
+  test('a pointer press in the field after typing lifts the frozen bounds: the calendar opens on the live ones', () => {
+    const before = dayjs().format('YYYY-MM-DD');
+    const after = dayjs().add(3, 'day').format('YYYY-MM-DD');
+    const field = (min) => <DateField label="Date" value="" onChange={() => {}} slotProps={{ htmlInput: { min } }} />;
+    const { rerender } = render(field(before));
+    const input = screen.getByLabelText('Date');
+    fireEvent.keyDown(input, { key: '2' });
+    rerender(field(after));
+    expect(input).toHaveAttribute('min', before);
+    fireEvent.pointerDown(input);
+    expect(input).toHaveAttribute('min', after);
+  });
+
   test('without typing, a moved bound applies at once and the caller keeps its onBlur', () => {
     const onBlur = vi.fn();
     const before = dayjs().format('YYYY-MM-DD');
