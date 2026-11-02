@@ -512,6 +512,34 @@ acompte is kept as an indemnity, and the books say so correctly.
     >   over-reversed its own sub-account, and an avoir cannot carry a negative line; VAT and totals are exact. A
     >   tourist-tax refund before the cancellation of an acompte that collected no tax is the same case: it
     >   reversed tax that was never collected, and that spill lands on the accommodation.
+    > **Reading of 2026-11-02 (second review of PR #926).** This reading supersedes the parts of the rule and of the
+    > reading above it names.
+    > - **A refund the cancellation deducted is never deleted.** `DELETE /:id/refunds/:refundId` on a cancelled stay
+    >   refuses, 409 `REFUND_NETTED_BY_CANCELLATION` « Remboursement déduit de l'acompte conservé. », a book refund
+    >   that existed when the `retained` avoir was written (`utils/refunds.nettedByCancellation`: its id is below
+    >   the avoir's); the fiche offers no « Supprimer » on it (a cancelled fiche offers it on no refund). The caisse
+    >   interne, never deducted, and a refund made after the cancellation are not concerned. *Why:* acompte 274 €,
+    >   100 € given back, cancelled → 174 € kept; deleting the refund then offered the 100 € back as sale money and
+    >   left 70600000 −90,91 and 44571100 −9,09 as revenue on a cancelled stay.
+    > - **The avoir of an acompte mirrors its entry to the cent.** The export reads the acompte entry the way it reads
+    >   the paid solde (`bookedSplitsOf(id, 'deposit' | 'balance')`, through `bookedBucketSplit`): an avoir line that is
+    >   a bucket's acompte share (within the 0,02 € of residue the entry put on its VAT line) reverses that bucket's HT
+    >   as the entry credited it, the rest of the line being VAT; an adjusted line reads its booked VAT the same way. A
+    >   plan's money, a cash acompte and any other line split on their own, as before. A legacy acompte cancelled with
+    >   no refund now leaves 706 and 4457 at 0 (it left a cent on 41 of 300 random stays at 10 %, 93 at 20 %), and so
+    >   does one netted of earlier refunds (A 1 400,73 €, O 209,67 €, acompte 805,20 €, refunds 278,43 + 247,63 € →
+    >   279,14 € kept, 706 and 4457 at 0; it left 44571100 +0,01). The shadow data holds no avoir of a legacy acompte:
+    >   no exported month moves.
+    > - **Contribs a cent or two off the acompte snap their largest bucket onto it**, no longer the last: contribs
+    >   274,01 + 0,01 € on a 274 € acompte kept 274,01 € (the options line went to −0,01 and was dropped); they keep
+    >   273,99 + 0,01 €.
+    > - **Inherent, restated:** in the spill case above, the totals are exact but each line splits on its own, so the
+    >   VAT can stay a cent off on top of the 706 swap (a plan with 900,09 € of options given back against 702,76 €
+    >   collected: 44571100 +0,01). The avoir no longer holds the buckets the refund emptied, so it cannot carry that
+    >   cent back.
+    > - **The base text's « a cancellation without an earlier book refund writes the same lines as before »** holds
+    >   for contribs that add up to the acompte exactly. A legacy acompte now writes one line per bucket it was booked
+    >   on (first reading above), and contribs within 0,02 € snap onto the acompte.
 
 
 ---
@@ -547,7 +575,8 @@ acompte is kept as an indemnity, and the books say so correctly.
 | `utils/` | `storedMoneySplit.js` | C | Rule 55 reading — the stored-money split of an encaissement (`buildPerLineData`, `splitByDestination`, `storedMoneyCollected`, `storedMoneyBucketTtcs`, `storedMoneyBuckets`), shared by the export and the cancellation |
 | `models/` | `reservationsModel.js` | T | Rule 55 reading — `soldeContribBuckets(id)`: what the paid solde collected per bucket, from its contribs |
 | `plugins/sdk/` | `index.js`, `coreModules.json`, `coreModuleHistory.json`, `version.js` | T | Rule 55 reading — `coreModule('storedMoneySplit')`, SDK 2.19.0 |
-| `plugins/accounting-export/` | `accountingModel.js`, `accountingExport.js` | T | Rule 55 — an adjusted `retained` line mirrors the books (`adjustedBucketSplit`, the paid solde read through `bookedBucketSplit`); the stored-money split comes from `storedMoneySplit` |
+| `plugins/accounting-export/` | `accountingModel.js`, `accountingExport.js` | T | Rule 55 — an adjusted `retained` line mirrors the books (`adjustedBucketSplit`, the paid solde read through `bookedBucketSplit`); the stored-money split comes from `storedMoneySplit`. Second reading: `bookedSplitsOf(id, kind)` reads the acompte entry too, and `bookedSplit` mirrors an acompte line's HT |
+| `controllers/` | `refundsController.js` | T | Rule 55 second reading — `remove` refuses (409) a refund the cancellation deducted (`utils/refunds.nettedByCancellation`) |
 | `utils/` | `pricing.js` | T | Delegates the two due dates to `paymentSchedule.js`; takes `bookingDate` + the stored `depositDueDate` as inputs |
 | `utils/` | `refunds.js` | T | `retained` added to `REFUND_METHODS` (book money, never off-books) and kept out of `SELECTABLE_REFUND_METHODS`, so the manual refund API refuses it |
 | `utils/` | `balanceRequestRunner.js` | **D** | **Deleted** (rule 38) — its eligibility query moves into `paymentDeadlines.js` as the `balance_to_request` state |
@@ -699,7 +728,7 @@ One line per reservation:
 ## 7. Test plan
 
 ### Server unit tests — **53 new, suite at 3157 green**
-- [x] `tests/refund-before-cancellation.unit.test.js` (12 of 16, 2026-11-02) — rule 55: acompte 274 €, 100 €
+- [x] `tests/refund-before-cancellation.unit.test.js` (16 of 22, 2026-11-02) — rule 55: acompte 274 €, 100 €
       given back, then cancelled → 174 € kept (avoir, card, register); every 706 / 4457 / 4671 account, 75880000
       and the client account at 0 once the rest goes back; a paid solde absorbs the refund (274 € kept); a plan
       keeps 1 960 € after 100 €; awkward refunds on every bucket of a plan (100,05 + 0,07 €, 33,37 €, 6 €) net
@@ -708,7 +737,11 @@ One line per reservation:
       would without the refund; the #14 shape reverses 218,16 + 24 € and every account nets to 0; the solde
       absorbs what it collected (256 € kept, a 12 € tax line); options refunds of 126,01 to 199,99 € with a paid
       solde net every account to the cent at 5,5, 10 and 20 %; contribs a cent off, and an installment split a
-      cent short, keep exactly what was collected
+      cent short, keep exactly what was collected. Second review of PR #926: deleting a refund the cancellation
+      deducted is refused (409) and the fiche offers no « Supprimer », the books and the register unchanged, while a
+      later refund and the caisse interne stay deletable; contribs 274,01 + 0,01 € snap onto the largest bucket and
+      keep 274 €; 180 random legacy acomptes cancelled at 5,5, 10 and 20 % leave 706 and 4457 at 0; a legacy acompte
+      netted of two refunds (case 16) leaves them at 0
 - [x] `tests/payment-schedule-local-booking-day.unit.test.js` (7, 2026-10-30) — rule 54: `toIsoDay` on a date-only value, a UTC datetime and garbage; the last-minute threshold and the acompte deadline from a 00:30 timestamp; clock frozen at 31/10 00:30 Paris, a devis and a reservation (real controller, fiche preview included) keep their schedule across an unchanged save
 - [x] `tests/reservation-cancellation.unit.test.js` — rule 48: the « acompte never collected » case now expects `unpaid_deposit` (spec review 2026-10-27)
 - [x] `tests/payment-schedule.unit.test.js` (9) — deposit due = booking + N and frozen across

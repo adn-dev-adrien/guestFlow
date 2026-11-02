@@ -56,9 +56,10 @@ function requalificationLines(depositTtc, depositBuckets, vatRate) {
   }
 
   // Rule 55 reading of 2026-11-02 — contribs a cent or two off the acompte (the rounding of their capture) snap
-  // their last bucket onto it: the avoir never reverses more, or less, than the acompte collected.
-  const last = entries[entries.length - 1];
-  last.amountTtc = round2(last.amountTtc + depositTtc - sum);
+  // their largest bucket onto it: the avoir never reverses more, or less, than the acompte collected, and no bucket
+  // goes below zero.
+  const largest = entries.reduce((best, line) => (line.amountTtc > best.amountTtc ? line : best), entries[0]);
+  largest.amountTtc = round2(largest.amountTtc + depositTtc - sum);
   return entries.map((line) => ({
     lineKey: line.bucket,
     label: BUCKET_LABELS[line.bucket],

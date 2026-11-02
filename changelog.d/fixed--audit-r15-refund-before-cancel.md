@@ -2,7 +2,8 @@
   now requalifies only what the earlier book refunds left of the acompte or of the paid installments, bucket by
   bucket (a paid solde absorbs those refunds first): acompte 274 €, 100 € given back, then cancelled → 174 € kept,
   not 274 €. Once the rest is given back, every revenue, VAT and tourist-tax account and the indemnity account net
-  to 0 to the cent. Cancellations without an earlier refund book exactly the same lines as before.
+  to 0 to the cent. A refund the cancellation deducted can no longer be deleted (« Remboursement déduit de l'acompte
+  conservé. »): deleting it used to offer its amount back as sale money.
 - **A cancelled stay's refund lines never add up to more than is left.** After a free line, or with a paid solde,
   the lines offered could exceed what the stay still held, and asking for all of them was refused with a line's old
   amount (« Taxe de séjour : dépasse l'encaissé (12,00 €) » with 2 € left). The lines now add up to what is left at
@@ -17,3 +18,10 @@
   no longer offered, nor does it take part of a requalified bucket, so giving everything back leaves every 706
   sub-account at 0. The VAT of a cancellation adjusted for earlier refunds now nets to the cent when a paid solde
   absorbed part of a bucket.
+- **The avoir of an acompte reverses the HT and VAT its entry booked, to the cent.** A legacy acompte cancelled with
+  no refund left 706 and 4457 a cent apart on about one stay in seven (one in three at 20 %); they now net to 0.
+  Contribs a cent or two off the acompte snap onto its largest bucket, so the cancellation never keeps more than was
+  collected. Cancellations whose contribs add up to the acompte book the same lines as before.
+- **Giving back a cancelled stay's lines one at a time no longer re-offers cents.** The kept money is spread over
+  the lines as they stood at the cancellation, so a refund on one line leaves what the others offer unchanged, and a
+  legacy stay with a paid solde offers every cent it collected.

@@ -455,3 +455,157 @@ test('payment-schedule rule 55 — what is kept is the acompte minus what earlie
   });
   assert.equal(plan.retainedTtc, 100, 'an installment split one cent short keeps the installment collected');
 });
+
+// ── Second review of PR #926 (2026-11-02) ───────────────────────────────────────────────────────────────────────
+
+const { buildLedger } = require('../utils/reservationLedger');
+
+const removeRefund = (controller, refundId) => {
+  const res = { statusCode: 200, body: null, status(c) { this.statusCode = c; return this; }, json(b) { this.body = b; return this; } };
+  controller.remove({ params: { id: '10', refundId: String(refundId) } }, res);
+  return res;
+};
+
+// 914 € direct stay: accommodation 714 and a 200 € dinner; acompte 274 € = 200 accommodation + 74 dinner (contribs).
+function seedDepositWithContribs() {
+  const db = baseDb();
+  db.prepare("INSERT INTO options (id, title, price, priceType) VALUES (1, 'Dîner', 200, 'fixed')").run();
+  db.prepare(`INSERT INTO reservations (id, kind, propertyId, clientId, startDate, endDate, platform, finalPrice, totalPrice,
+      touristTaxTotal, depositAmount, depositPaid, depositPaidDate, balanceAmount, balancePaid, balanceDueDate,
+      accommodationAcompteContribTtc, touristTaxAcompteContribTtc)
+    VALUES (10, 'reservation', 1, 1, ?, ?, 'direct', 914, 914, 12, 274, 1, ?, 652, 0, ?, 200, 0)`)
+    .run(inDays(60), inDays(67), TODAY, inDays(30));
+  db.prepare('INSERT INTO reservation_options (reservationId, optionId, quantity, totalPrice, acompteContribTtc) VALUES (10, 1, 1, 200, 74)').run();
+  return { db, deps: depsOf(db) };
+}
+
+test('payment-schedule rule 55 — a refund the cancellation deducted is never deleted: 409, nothing offered back, the books unchanged', accounting, () => {
+  const { db, deps } = seedDepositWithContribs();
+  const controller = controllerOf(deps);
+  const before = refund(controller, [{ key: 'accommodation', amountTtc: 100 }]);
+  assert.equal(before.statusCode, 201);
+  assert.equal(cancel(deps).retainedDepositAmount, 174);
+  const register = registerOf(controller);
+  const books = netByAccount(db);
+
+  const out = removeRefund(controller, before.body.refund.id);
+  assert.equal(out.statusCode, 409);
+  assert.equal(out.body.code, 'REFUND_NETTED_BY_CANCELLATION');
+  assert.equal(out.body.error, 'Remboursement déduit de l’acompte conservé.');
+  assert.deepEqual(registerOf(controller), register, 'the register is unchanged');
+  assert.deepEqual(netByAccount(db), books, 'the books are unchanged');
+
+  // The fiche offers no « Supprimer » on it.
+  const reservation = deps.reservationsModel.getByIdWithDetails(10);
+  const ledger = buildLedger({ row: reservation, refunds: register.refunds, today: TODAY });
+  assert.equal(ledger.rows.find((r) => r.key === `refund-${before.body.refund.id}`).action, null);
+
+  // A refund made after the cancellation is not concerned (rule 55 nets only the earlier ones).
+  const after = refund(controller, [{ key: 'accommodation', amountTtc: 10 }]);
+  assert.equal(after.statusCode, 201, JSON.stringify(after.body));
+  assert.equal(removeRefund(controller, after.body.refund.id).statusCode, 200);
+  // Nor is the caisse interne, which the cancellation never deducted.
+  const { deps: cashDeps } = seedDepositWithContribs();
+  const cashController = controllerOf(cashDeps);
+  const internal = refund(cashController, [{ key: 'accommodation', amountTtc: 100 }], 'internal');
+  cancel(cashDeps);
+  assert.equal(removeRefund(cashController, internal.body.refund.id).statusCode, 200);
+});
+
+test('payment-schedule rule 55 — contribs a cent or two off snap onto the largest bucket: never more kept than collected', () => {
+  const { buildCancellationRequalification } = require('../utils/cancellationRequalification');
+  const row = { id: 1, depositPaid: 1, depositAmount: 274, platform: 'direct' };
+  const out = buildCancellationRequalification({ reservation: row, depositBuckets: { accommodation: 274.01, options: 0.01, resources: 0 }, cancellationDate: TODAY, vatRate: 10 });
+  assert.equal(out.retainedTtc, 274);
+  assert.equal(out.compensation.receivedAmount, 274);
+  assert.deepEqual(out.refund.lines.map((l) => [l.bucket, l.amountTtc]), [['accommodation', 273.99], ['options', 0.01]]);
+});
+
+// A legacy direct stay (no contribs): accommodation A, a dinner O, tax T; acompte `dep` paid, solde paid or not.
+function seedLegacy({ A, O, R = 0, T, dep, balancePaid = false, rate = 10 }) {
+  const db = baseDb();
+  setRates(db, rate);
+  const price = round2(A + O + R);
+  db.prepare("INSERT INTO options (id, title, price, priceType) VALUES (1, 'Dîner', ?, 'fixed')").run(O || 1);
+  db.prepare(`INSERT INTO reservations (id, kind, propertyId, clientId, startDate, endDate, platform, finalPrice, totalPrice,
+      touristTaxTotal, depositAmount, depositPaid, depositPaidDate, balanceAmount, balancePaid, balancePaidDate, balanceDueDate)
+    VALUES (10, 'reservation', 1, 1, ?, ?, 'direct', ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)`)
+    .run(inDays(60), inDays(67), price, price, T, dep, TODAY, round2(price + T - dep), balancePaid ? 1 : 0, balancePaid ? TODAY : null, inDays(30));
+  if (O) db.prepare('INSERT INTO reservation_options (reservationId, optionId, quantity, totalPrice) VALUES (10, 1, 1, ?)').run(O);
+  if (R) {
+    db.prepare("INSERT INTO resources (id, name) VALUES (1, 'Bain')").run();
+    db.prepare('INSERT INTO reservation_resources (reservationId, resourceId, totalPrice) VALUES (10, 1, ?)').run(R);
+  }
+  return { db, deps: depsOf(db) };
+}
+
+const salesDrift = (net) => Object.entries(net).filter(([account, value]) => /^(706|445|467)/.test(account) && value !== 0);
+
+test('payment-schedule rule 55 — a legacy acompte is reversed on the HT and VAT its entry booked, to the cent (5,5 / 10 / 20 %)', accounting, () => {
+  let seed = 3;
+  const rnd = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
+  const amount = (a, b) => round2(a + Math.floor(rnd() * (b - a) * 100) / 100);
+  const drift = [];
+  for (const rate of [5.5, 10, 20]) {
+    for (let k = 0; k < 60; k++) {
+      const A = amount(200, 1500);
+      const O = rnd() < 0.8 ? amount(5, 400) : 0;
+      const R = rnd() < 0.4 ? amount(5, 200) : 0;
+      const T = amount(0, 30);
+      const dep = round2(round2(A + O + R) * [0.3, 0.33, 0.5, 0.25][Math.floor(rnd() * 4)]);
+      const { db, deps } = seedLegacy({ A, O, R, T, dep, rate });
+      cancelAt(deps, rate);
+      const left = salesDrift(netByAccount(db));
+      if (left.length) drift.push([rate, A, O, R, dep, left]);
+    }
+  }
+  assert.deepEqual(drift, []);
+});
+
+test('payment-schedule rule 55 — a legacy acompte netted of earlier refunds mirrors its entry: 706 and 4457 at 0 (case 16)', accounting, () => {
+  const { db, deps } = seedLegacy({ A: 1400.73, O: 209.67, T: 35.08, dep: 805.2 });
+  const controller = controllerOf(deps);
+  assert.equal(refund(controller, [{ key: 'accommodation', amountTtc: 246.75 }, { key: 'opt:1', amountTtc: 31.68 }]).statusCode, 201);
+  assert.equal(refund(controller, [{ key: 'accommodation', amountTtc: 216.57 }, { key: 'opt:1', amountTtc: 31.06 }]).statusCode, 201);
+  assert.equal(cancel(deps).retainedDepositAmount, 279.14);
+  const net = netByAccount(db);
+  assert.deepEqual(salesDrift(net), []);
+  assert.equal(net['75880000'], -279.14);
+});
+
+test('reservation-refunds rule 49 — a legacy stay with a paid solde: giving everything back leaves nothing collected', accounting, () => {
+  // The solde entry booked 6,04 € of tax and the dinner 44,34 € over both entries, against 6,05 € and 44,33 € billed:
+  // the lines used to leave one cent of the 364,15 € collected that no line offered.
+  const { deps } = seedLegacy({ A: 313.77, O: 44.33, T: 6.05, dep: 179.05, balancePaid: true });
+  cancel(deps);
+  const controller = controllerOf(deps);
+  const register = registerOf(controller);
+  assert.equal(register.collectedTtc, 364.15);
+  assert.equal(sum(register.refundableLines.map((l) => l.refundableTtc)), 364.15);
+  const all = refund(controller, register.refundableLines.map((l) => ({ key: l.key, amountTtc: l.refundableTtc })));
+  assert.equal(all.statusCode, 201, JSON.stringify(all.body));
+  assert.equal(registerOf(controller).collectedTtc, 0);
+});
+
+test('reservation-refunds rule 49 — giving back one line leaves what the others offer unchanged (stay #22226)', () => {
+  const { deps } = seedLegacyWithSolde();
+  deps.database.prepare('UPDATE reservations SET complementPaid = 1, complementPaidDate = ? WHERE id = 10').run(TODAY);
+  cancel(deps);
+  const controller = controllerOf(deps);
+  const first = registerOf(controller).refundableLines;
+  const offered = new Map(first.map((l) => [l.key, [l.refundableTtc, l.indemnityTtc]]));
+  for (const line of first) {
+    const sale = round2(line.refundableTtc - line.indemnityTtc);
+    if (sale <= 0) continue;
+    const out = refund(controller, [{ key: line.key, amountTtc: sale }]);
+    assert.equal(out.statusCode, 201, JSON.stringify(out.body));
+    assert.deepEqual(out.body.refund.lines.map((l) => l.bucket), [line.bucket], 'the sale part is sale money, never the indemnity');
+    offered.set(line.key, [line.indemnityTtc, line.indemnityTtc]);
+    const now = registerOf(controller).refundableLines;
+    assert.deepEqual(new Map(now.map((l) => [l.key, [l.refundableTtc, l.indemnityTtc]])),
+      new Map([...offered].filter(([, [left]]) => left > 0)), `after ${line.key}`);
+  }
+  const indemnity = registerOf(controller).refundableLines;
+  assert.equal(sum(indemnity.map((l) => l.refundableTtc)), 126.38, 'the indemnity is all that is left');
+  assert.equal(sum(indemnity.map((l) => l.indemnityTtc)), 126.38);
+});

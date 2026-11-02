@@ -119,22 +119,26 @@ function createAccountingModel(database, { settings = createAccountSettings(data
       && !isPlatformCollectingTouristTax(database, row.propertyId, row.platform),
   });
 
-  // specs/payment-schedule-and-cancellation.md rule 55 — what the stay's paid solde credited per `${bucket}|${rate}`
-  // (TTC, VAT), as its own entry books it: a cancellation netted of earlier refunds mirrors it.
-  const soldeSplitsOf = (reservationId) => {
+  // specs/payment-schedule-and-cancellation.md rule 55 — what the stay's paid acompte or solde credited per
+  // `${bucket}|${rate}` (TTC, HT, VAT), as its own entry books it: a cancellation's avoir mirrors it. A plan's money
+  // was booked installment by installment: its acompte is read from none.
+  const bookedSplitsOf = (reservationId, kind) => {
     const splits = new Map();
     const row = database.prepare(`
       SELECT r.*, c.firstName, c.lastName, p.name AS propertyName
         FROM reservations r LEFT JOIN clients c ON c.id = r.clientId LEFT JOIN properties p ON p.id = r.propertyId
        WHERE r.id = ?`).get(Number(reservationId));
-    if (!row || !Number(row.balancePaid) || Number(row.balancePaidCash || 0)) return splits;
+    const paid = kind === 'deposit'
+      ? row && Number(row.depositPaid) && !Number(row.depositPaidCash || 0) && !Number(row.installmentsPaidAmount || 0)
+      : row && Number(row.balancePaid) && !Number(row.balancePaidCash || 0);
+    if (!paid) return splits;
     const salesRegime = vatRegimeModel.forRow(database, row);
     const context = { ...buildCommissionContext(settings.read()), vatRate: salesRegime.rate, salesRegime: salesRegime.regime };
-    const entry = buildEntry(row, 'balance', buildPerLineData(database, row), context, taxContextOf(row));
+    const entry = buildEntry(row, kind, buildPerLineData(database, row), context, taxContextOf(row));
     const splitFrom = readTtcSplitFrom(database);
     for (const bucket of (entry && entry.buckets) || []) {
       const { ht, vat } = bookedBucketSplit(entry, bucket, splitFrom);
-      splits.set(`${bucket.name}|${Number(bucket.ratePercent || 0)}`, { ttc: round2(ht + vat), vat });
+      splits.set(`${bucket.name}|${Number(bucket.ratePercent || 0)}`, { ttc: round2(ht + vat), ht, vat });
     }
     return splits;
   };
@@ -307,7 +311,8 @@ function createAccountingModel(database, { settings = createAccountSettings(data
       return rows.map((row) => buildRefundEntry(row, {
         indemnity: indemnityOf(row),
         earlier: earlierRefundsOf(row),
-        solde: adjusted(row) ? soldeSplitsOf(row.reservationId) : null,
+        solde: adjusted(row) ? bookedSplitsOf(row.reservationId, 'balance') : null,
+        deposit: row.method === 'retained' ? bookedSplitsOf(row.reservationId, 'deposit') : null,
       })).filter(Boolean);
     },
 
@@ -478,7 +483,7 @@ function earlierSplits(earlier) {
 // earlier refunds (`earlier`); left after the avoir: the sale money the register still offers on the bucket, which a
 // refund of it reverses at its own split. So the avoir's VAT is booked − reversed − left, and 706 and 4457 net to the
 // cent once that money goes back. A bucket that took a spill from another one splits each line on its own, as before.
-function adjustedBucketSplit(name, rate, lines, earlier, solde) {
+function adjustedBucketSplit(name, rate, lines, earlier, solde, deposit) {
   if (!lines.some(isAdjustedLine)) return null;
   const reversed = earlier || { ttc: 0, vat: 0 };
   const sold = solde || { ttc: 0, vat: 0 };
@@ -488,7 +493,7 @@ function adjustedBucketSplit(name, rate, lines, earlier, solde) {
   for (const line of lines) {
     const booked = round2(isAdjustedLine(line) ? line.unitPrice : line.amountTtc);
     bookedTtc = round2(bookedTtc + booked);
-    bookedVat = round2(bookedVat + bucketFromTtc(name, booked, rate).vat);
+    bookedVat = round2(bookedVat + bookedSplit(name, booked, rate, deposit).vat);
     keptTtc = round2(keptTtc + round2(line.amountTtc));
   }
   const leftTtc = round2(bookedTtc + sold.ttc - reversed.ttc - keptTtc);
@@ -500,7 +505,18 @@ function adjustedBucketSplit(name, rate, lines, earlier, solde) {
   return { ht: round2(keptTtc - vat), vat };
 }
 
-function buildRefundEntry(refund, { indemnity = null, earlier = null, solde = null } = {}) {
+// Rule 55 reading of 2026-11-02 (second review of PR #926) — the HT / VAT an acompte line of the avoir was booked on:
+// the acompte entry's own HT for the bucket when the line is that bucket's share (within the residue cents the entry
+// put on its VAT line), so the avoir reverses the HT the entry credited and the VAT it really booked; otherwise the
+// line split at its rate.
+function bookedSplit(name, ttc, rate, deposit) {
+  if (deposit && Math.abs(round2(ttc - deposit.ttc)) <= CONTRIB_RESIDUE_TOLERANCE_TTC && ttc >= deposit.ht) {
+    return { name, ht: deposit.ht, vat: round2(ttc - deposit.ht), ratePercent: Number(rate || 0) };
+  }
+  return bucketFromTtc(name, ttc, rate);
+}
+
+function buildRefundEntry(refund, { indemnity = null, earlier = null, solde = null, deposit = null } = {}) {
   const lines = refund.lines || [];
   const ttc = round2(refund.totalTtc);
   if (ttc <= 0) return null;
@@ -530,8 +546,13 @@ function buildRefundEntry(refund, { indemnity = null, earlier = null, solde = nu
       if (!perLine) return bucketFromTtc(b.name, b.ttc, b.ratePercent);
       const key = `${b.name}|${b.ratePercent}`;
       const bucketLines = lines.filter((line) => line.bucket === b.name && Number(line.vatRate || 0) === b.ratePercent && round2(line.amountTtc) > 0);
-      const netted = splits ? adjustedBucketSplit(b.name, b.ratePercent, bucketLines, splits.get(key), solde && solde.get(key)) : null;
-      return { name: b.name, ht: netted ? netted.ht : b.ht, vat: netted ? netted.vat : b.vat, ratePercent: b.ratePercent };
+      const depositSplit = deposit ? deposit.get(key) : null;
+      const netted = splits ? adjustedBucketSplit(b.name, b.ratePercent, bucketLines, splits.get(key), solde && solde.get(key), depositSplit) : null;
+      if (netted) return { name: b.name, ...netted, ratePercent: b.ratePercent };
+      // One line per bucket, as every acompte avoir has: it mirrors the acompte entry.
+      const mirrored = depositSplit && bucketLines.length === 1 && !isAdjustedLine(bucketLines[0])
+        ? bookedSplit(b.name, b.ttc, b.ratePercent, depositSplit) : b;
+      return { name: b.name, ht: mirrored.ht, vat: mirrored.vat, ratePercent: b.ratePercent };
     })
     .filter((b) => b.ht > 0 || b.vat > 0);
 

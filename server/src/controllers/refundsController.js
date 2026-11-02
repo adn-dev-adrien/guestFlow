@@ -15,7 +15,7 @@ const defaultRefundsModel = require('../models/refundsModel');
 const defaultReservationsModel = require('../models/reservationsModel');
 const database = require('../database');
 const vatRegimeModel = require('../models/vatRegimeModel');
-const { buildRefundableLines, validateRefundPayload, cancelledRefundBudget, collectedByLine } = require('../utils/refunds');
+const { buildRefundableLines, validateRefundPayload, cancelledRefundBudget, collectedByLine, nettedByCancellation } = require('../utils/refunds');
 const { comptaCollected } = require('../utils/reservationSettlement');
 const { bookedStayBuckets } = require('../utils/cancelReservation');
 
@@ -144,6 +144,12 @@ function createRefundsController(deps = {}) {
     remove(req, res) {
       const id = Number(req.params.id);
       const refundId = Number(req.params.refundId);
+      // Payment-schedule rule 55 reading of 2026-11-02 — the cancellation kept only what this refund left.
+      const register = buildRegister(id);
+      const target = register && register.payload.refunds.find((refund) => Number(refund.id) === refundId);
+      if (register && register.cancelled && nettedByCancellation(target, register.payload.refunds)) {
+        return res.status(409).json({ error: 'Remboursement déduit de l’acompte conservé.', code: 'REFUND_NETTED_BY_CANCELLATION' });
+      }
       const removed = refundsModel.remove(id, refundId);
       if (!removed) return res.status(404).json({ error: 'Remboursement non trouvé' });
       const refreshed = buildRegister(id);
