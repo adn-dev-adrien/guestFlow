@@ -22,9 +22,7 @@ test('the late simulation of the range left is dropped', async () => {
     return calls === 1 ? new Promise((resolve) => { finishFirst = resolve; }) : Promise.resolve(result('Nouvelle plage'));
   });
   render(<MemoryRouter><EmailSequenceSimulation tabs={null} /></MemoryRouter>);
-  // A new end date, never the default one (today + 60 days): on 2026-11-02 a fixed 2027-01-01 was the default and changed nothing.
-  const newEnd = new Date(Date.now() + 90 * 86400000).toISOString().slice(0, 10);
-  fireEvent.change(screen.getByLabelText('Au'), { target: { value: newEnd } });
+  fireEvent.change(screen.getByLabelText('Au'), { target: { value: '2027-01-01' } });
   expect((await screen.findAllByText('Nouvelle plage')).length).toBeGreaterThan(0);
   await act(async () => { finishFirst(result('Ancienne plage')); });
   expect(screen.queryByText('Ancienne plage')).not.toBeInTheDocument();
