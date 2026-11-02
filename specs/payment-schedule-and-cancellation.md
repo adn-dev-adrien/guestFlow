@@ -592,7 +592,7 @@ acompte is kept as an indemnity, and the books say so correctly.
     > - **A refund is deducted only when it moved the avoir.** A book refund made before the `retained` avoir is
     >   refused, 409 `REFUND_NETTED_BY_CANCELLATION`, only when the requalification rebuilt without it (the same stay,
     >   the same `saleCollected`, the same commissions, the same per-bucket netting, the other earlier refunds kept)
-    >   would keep another total or other lines than the avoir does
+    >   would keep another total, other lines outside the commission or another commission total than the avoir does
     >   (`cancelReservation.cancellationNettedRefundIds`, read by the DELETE route and by the fiche's ledger through
     >   `utils/refunds.refundDeletionRefusal`). A refund the paid solde absorbed whole moved nothing: it is deleted,
     >   by the API and on the fiche, and its money goes back to the solde's sale money; the avoir and the indemnity
@@ -601,6 +601,15 @@ acompte is kept as an indemnity, and the books say so correctly.
     >   (274 €), yet deleting the mistyped refund was refused with « Remboursement déduit de l'acompte conservé. »,
     >   which it was not; deleted, the register reads 914 € collected, 274 € of it indemnity, as with no refund. A
     >   700 € refund (the acompte kept 214 €) stays refused.
+    > - **Review of PR #930, F1 (2026-11-02) — the commission counts by its total.** On a stay whose provider
+    >   withheld a solde commission, `withCommissions` spreads it over what the books still hold of the solde
+    >   (`soldeHeldOf`), so an absorbed refund moves its per-bucket split by a few cents while the money kept does not
+    >   move. The spread is not compared. *Why:* Lodgify stay, acompte 274 € and solde 640 € paid, 8,22 € and
+    >   19,20 € withheld, 100 € of accommodation given back then cancelled → the avoir is 293,20 € with or without
+    >   the refund (accommodation 194 €, options 71,78 €), only the commission split changes (20,72 / 6,70 € against
+    >   21,42 / 6,00 €); the refund was refused although, deleted and everything then given back, the books end as
+    >   with no refund (622600 +27,42 €, 75880000 −27,42 €, 706, 4457, 4671 and the client at 0). A refund that
+    >   moves the kept total, a kept bucket or the commission total stays refused.
 
 
 ---
@@ -807,10 +816,14 @@ One line per reservation:
       later refund and the caisse interne stay deletable; contribs 274,01 + 0,01 € snap onto the largest bucket and
       keep 274 €; 180 random legacy acomptes cancelled at 5,5, 10 and 20 % leave 706 and 4457 at 0; a legacy acompte
       netted of two refunds (case 16) leaves them at 0
-      `tests/cancelled-stay-absorbed-refund-deletion.unit.test.js` (4, 2026-11-02, audit R16-L1) — rule 55 reading:
-      a 100 € refund the paid solde absorbed is deleted by the API and offered on the fiche, the register back at
-      914 € (274 € indemnity) and the avoir unchanged; a 700 € refund (214 € kept) and a refund with no solde paid
-      stay refused, on the fiche too; two refunds the solde held together are deleted one after the other.
+      `tests/cancelled-stay-absorbed-refund-deletion.unit.test.js` (9, 2026-11-02, audit R16-L1 and review of PR
+      #930) — rule 55 reading: a 100 € refund the paid solde absorbed is deleted by the API and offered on the fiche,
+      the register back at 914 € (274 € indemnity) and the avoir unchanged; a 700 € refund (214 € kept) and a refund
+      with no solde paid stay refused, on the fiche too; two refunds the solde held together are deleted one after
+      the other; 400 + 400 € (114 € kept) and 300 + 300 + 100 € (214 € kept) are all refused. Review F1: on a stay
+      with a withheld solde commission (contribs, and legacy stay #22226) the absorbed refund is deleted, the avoir
+      at 293,20 € / 129,79 €, and everything given back afterwards nets every account as with no refund; a refund
+      that moves the kept total (700 €), a kept bucket (600 €) or the legacy acompte (72,76 € kept) stays refused.
 - [x] `tests/cancelled-stay-withheld-commission.unit.test.js` (8, 2026-11-02) — rule 55 reading (residual A): the
       acompte's and the solde's commissions are named on the avoir (293,20 € = 274 € kept + 19,20 €, card the
       same, history 274 €); everything given back leaves 706, 4457, 4671 and the client account at 0, 75880000 at

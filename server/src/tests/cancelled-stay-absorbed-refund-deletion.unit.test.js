@@ -20,6 +20,8 @@ const refundsModelFactory = require('../models/refundsModel');
 const compensationsModelFactory = require('../models/cancellationCompensationsModel');
 const paymentLinksModelFactory = require('../models/paymentLinksModel');
 const { createController: createRefundsController } = require('../controllers/refundsController');
+const { setDirectChannels } = require('../utils/platformNameFormat');
+const fx = require('./cancelledStayCommissionFixtures');
 
 const SCHEMA = fs.readFileSync(path.join(__dirname, '..', 'schema.sql'), 'utf8');
 const inDays = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return localIsoDate(d); };
@@ -118,4 +120,99 @@ test('payment-schedule rule 55 reading (audit R16-L1) — two refunds the solde 
   assert.equal(remove(controller, first.id).statusCode, 200);
   assert.equal(remove(controller, second.id).statusCode, 200);
   assert.equal(registerOf(controller).collectedTtc, 914);
+});
+
+// Review of PR #930, F1 — a stay collected through a payment provider (Lodgify / Stripe) also requalifies the commissions
+// withheld; the solde's is spread over what the books still hold of the solde, which an absorbed refund moves by a few
+// cents. Only the commission total is money kept: its spread does not make a refund netted.
+const commissionStays = [
+  ['contribs', 'seedWithContribs', [{ key: 'accommodation', amountTtc: 100 }], 293.2, 27.42],
+  ['legacy, no contribs (stay #22226)', 'seedLegacy', [{ key: 'accommodation', amountTtc: 20 }], 129.79, 6.82],
+];
+const commissionTotal = (deps) => fx.round2(avoirOf(deps).lines.filter((l) => l.lineKey === 'commission').reduce((t, l) => t + l.amountTtc, 0));
+const keptLines = (deps) => avoirOf(deps).lines.filter((l) => l.lineKey !== 'commission').map((l) => [l.lineKey, l.amountTtc]);
+
+for (const [name, seedName, lines, avoirTtc, commission] of commissionStays) {
+  test(`payment-schedule rule 55 reading (review of PR #930, F1) — ${name}: a refund the solde absorbed is deleted on a stay with a withheld commission`, () => {
+    setDirectChannels(['Lodgify']);
+    try {
+      const reference = fx[seedName]();
+      fx.cancel(reference.deps);
+      const { deps, controller } = fx[seedName]();
+      const made = call(controller.create, { params: { id: '10' }, body: { refundDate: fx.TODAY, method: 'transfer', lines } });
+      assert.equal(made.statusCode, 201);
+      fx.cancel(deps);
+      assert.equal(avoirOf(deps).totalTtc, avoirTtc, 'the avoir keeps what it keeps with no refund');
+      assert.deepEqual(keptLines(deps), keptLines(reference.deps));
+      assert.equal(commissionTotal(deps), commission);
+      const refunds = deps.refundsModel.listByReservation(10);
+      assert.deepEqual([...cancellationNettedRefundIds(deps, 10, refunds, 10)], []);
+      const ledger = buildLedger({ row: deps.reservationsModel.getForCancellation(10), refunds, nettedRefundIds: cancellationNettedRefundIds(deps, 10, refunds, 10), today: fx.TODAY });
+      assert.equal(ledger.rows.find((r) => r.key === `refund-${made.body.refund.id}`).action.kind, 'deleteRefund');
+
+      const out = call(controller.remove, { params: { id: '10', refundId: String(made.body.refund.id) } });
+      assert.equal(out.statusCode, 200);
+      assert.equal(avoirOf(deps).totalTtc, avoirTtc, 'the avoir does not move');
+    } finally {
+      setDirectChannels([]);
+    }
+  });
+}
+
+test('payment-schedule rule 55 reading (review of PR #930, F1) — everything given back after the deletion: the books end as with no refund', fx.accounting, () => {
+  setDirectChannels(['Lodgify']);
+  try {
+    for (const [, seedName, lines] of commissionStays) {
+      const reference = fx[seedName]();
+      fx.cancel(reference.deps);
+      fx.giveBackAll(reference.controller);
+      const { db, deps, controller } = fx[seedName]();
+      const made = call(controller.create, { params: { id: '10' }, body: { refundDate: fx.TODAY, method: 'transfer', lines } });
+      fx.cancel(deps);
+      assert.equal(call(controller.remove, { params: { id: '10', refundId: String(made.body.refund.id) } }).statusCode, 200);
+      assert.equal(fx.giveBackAll(controller).statusCode, 201);
+      assert.deepEqual(fx.netByAccount(db), fx.netByAccount(reference.db));
+    }
+  } finally {
+    setDirectChannels([]);
+  }
+});
+
+test('payment-schedule rule 55 reading (review of PR #930, F1) — on a commission stay, a refund that changes the money kept stays refused', () => {
+  setDirectChannels(['Lodgify']);
+  try {
+    const cases = [
+      // The acompte lost 60 €: the total kept and the commission total move.
+      ['seedWithContribs', [{ key: 'accommodation', amountTtc: 700 }], 214],
+      // The total kept is the gross acompte, but the solde held only 514 € of accommodation: the kept buckets move.
+      ['seedWithContribs', [{ key: 'accommodation', amountTtc: 600 }], 274],
+      ['seedLegacy', [{ key: 'accommodation', amountTtc: 80 }, { key: 'opt:16', amountTtc: 100 }], 72.76],
+    ];
+    for (const [seedName, lines, kept] of cases) {
+      const { deps, controller } = fx[seedName]();
+      const made = call(controller.create, { params: { id: '10' }, body: { refundDate: fx.TODAY, method: 'transfer', lines } });
+      assert.equal(made.statusCode, 201);
+      assert.equal(fx.cancel(deps).retainedDepositAmount, kept);
+      const refunds = deps.refundsModel.listByReservation(10);
+      const ledger = buildLedger({ row: deps.reservationsModel.getForCancellation(10), refunds, nettedRefundIds: cancellationNettedRefundIds(deps, 10, refunds, 10), today: fx.TODAY });
+      assert.equal(ledger.rows.find((r) => r.key === `refund-${made.body.refund.id}`).action, null);
+      const out = call(controller.remove, { params: { id: '10', refundId: String(made.body.refund.id) } });
+      assert.equal(out.statusCode, 409);
+      assert.equal(out.body.code, 'REFUND_NETTED_BY_CANCELLATION');
+      assert.equal(deps.refundsModel.listByReservation(10).length, 2, 'nothing was deleted');
+    }
+  } finally {
+    setDirectChannels([]);
+  }
+});
+
+test('payment-schedule rule 55 reading (review of PR #930) — refunds the solde absorbed alone but not together: each one moved the avoir, all refused', () => {
+  for (const [amounts, kept] of [[[400, 400], 114], [[300, 300, 100], 214]]) {
+    const { deps, controller } = seed();
+    const ids = amounts.map((amountTtc) => refund(controller, [{ key: 'accommodation', amountTtc }]).body.refund.id);
+    assert.equal(cancel(deps).retainedDepositAmount, kept);
+    assert.deepEqual([...cancellationNettedRefundIds(deps, 10, deps.refundsModel.listByReservation(10), 10)].sort(), ids.sort());
+    for (const id of ids) assert.equal(remove(controller, id).body.code, 'REFUND_NETTED_BY_CANCELLATION');
+    assert.equal(deps.refundsModel.listByReservation(10).length, amounts.length + 1, 'nothing was deleted');
+  }
 });

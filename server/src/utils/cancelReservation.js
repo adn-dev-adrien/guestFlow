@@ -27,7 +27,7 @@ const { buildCancellationRequalification } = require('./cancellationRequalificat
 const { isDirectChannel } = require('./platformNameFormat');
 const { taxShares } = require('./installmentPlan');
 const { computeInstallmentPaidSplit } = require('./installmentPaidSplit');
-const { isOffBooks, isRetainedDeposit } = require('./refunds');
+const { isOffBooks, isRetainedDeposit, COMMISSION_KEY } = require('./refunds');
 const { storedMoneyBuckets } = require('./storedMoneySplit');
 const { taxRidesTheComplement } = require('./touristTaxFreeze');
 
@@ -162,12 +162,20 @@ const cents = (value) => Math.round(Number(value || 0) * 100);
 const lineSignature = (line) => JSON.stringify([line.lineKey || null, line.bucket, String(line.label || ''),
   line.quantity == null ? null : Number(line.quantity), line.unitPrice == null ? null : cents(line.unitPrice),
   cents(line.amountTtc), Number(line.vatRate || 0)]);
-const linesSignature = (lines) => (lines || []).map(lineSignature).sort().join('|');
+// Review of PR #930, F1 — the solde's commission is spread over what the books still hold of the solde, which an
+// absorbed refund moves by a few cents: only the commission total is money kept, its spread is not compared.
+const keptSignature = (totalTtc, lines) => {
+  const kept = (lines || []).filter((line) => line.lineKey !== COMMISSION_KEY);
+  const commission = (lines || []).filter((line) => line.lineKey === COMMISSION_KEY)
+    .reduce((sum, line) => sum + cents(line.amountTtc), 0);
+  return JSON.stringify([cents(totalTtc), kept.map(lineSignature).sort(), commission]);
+};
 
 /**
  * Payment-schedule rule 55 reading of 2026-11-02 (audit R16-L1) — the ids of the book refunds made before the
  * cancellation that its `retained` avoir actually read: rebuilt without one of them (same stay, same solde, same
- * commissions), the requalification would keep another total or other lines than the avoir does. A refund the paid
+ * commissions), the requalification would keep another total, other non-commission lines or another commission total
+ * than the avoir does. A refund the paid
  * solde absorbed whole moved nothing: it is not in the set. `null` when the register has no avoir (or the stay cannot
  * be read): the caller then keeps the refusal by order.
  */
@@ -180,12 +188,11 @@ function cancellationNettedRefundIds(deps, reservationId, refunds, vatRate = 0) 
   if (!row) return null;
   const before = list.filter((refund) => !isOffBooks(refund.method) && !isRetainedDeposit(refund.method)
     && Number(refund.id) < Number(avoir.id));
-  const keptTotal = cents(avoir.totalTtc);
-  const keptLines = linesSignature(avoir.lines);
+  const kept = keptSignature(avoir.totalTtc, avoir.lines);
   const netted = new Set();
   for (const refund of before) {
     const rebuilt = requalificationOf(deps, row, givenBackByBucket(before.filter((other) => other !== refund)), { vatRate });
-    const same = rebuilt && cents(rebuilt.requalifiedTtc) === keptTotal && linesSignature(rebuilt.refund.lines) === keptLines;
+    const same = rebuilt && keptSignature(rebuilt.requalifiedTtc, rebuilt.refund.lines) === kept;
     if (!same) netted.add(Number(refund.id));
   }
   return netted;
