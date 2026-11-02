@@ -124,6 +124,7 @@ export default function ClientsPage() {
   // specs/clients.md rule 17: an answer about a client the operator has left never lands on screen.
   const beginSheetStays = useLatestRequest();
   const beginDeleteImpact = useLatestRequest();
+  const beginCleanupPreview = useLatestRequest();
   const [deleteImpact, setDeleteImpact] = useState({
     open: false,
     clientId: null,
@@ -399,12 +400,13 @@ export default function ClientsPage() {
       if (current()) closeDeleteImpact();
       await reload(listParams);
     } catch (error) {
-      if (!current()) return;
-      setDeleteImpact((prev) => ({
-        ...prev,
-        loading: false,
-        error: error?.message || 'Une erreur est survenue pendant la suppression.',
-      }));
+      const message = error?.message || 'Une erreur est survenue pendant la suppression.';
+      // The operator left this confirmation: the failure still has to be said, outside the dialog.
+      if (!current()) {
+        showError(message);
+        return;
+      }
+      setDeleteImpact((prev) => ({ ...prev, loading: false, error: message }));
     }
   };
 
@@ -548,17 +550,22 @@ export default function ClientsPage() {
   // Open the selective cleanup popup: fetch the orphan list, then show the dialog.
   // The legacy bulk `cleanupOrphanClients()` API stays available but the UI no longer calls it.
   const handleCleanupOrphanClients = async () => {
+    const current = beginCleanupPreview();
     setCleanupDialog({ open: true, orphans: [], loading: true, busy: false });
     try {
       const { orphans = [] } = await api.getOrphanClientsPreview();
+      if (!current()) return;
       setCleanupDialog({ open: true, orphans, loading: false, busy: false });
     } catch (error) {
+      if (!current()) return;
       setCleanupDialog({ open: false, orphans: [], loading: false, busy: false });
       showError(error?.message || 'Impossible de charger la liste des clients à supprimer.');
     }
   };
 
   const handleCleanupClose = () => {
+    if (cleanupDialog.busy) return;
+    beginCleanupPreview();
     setCleanupDialog((prev) => (prev.busy ? prev : { ...prev, open: false }));
   };
 

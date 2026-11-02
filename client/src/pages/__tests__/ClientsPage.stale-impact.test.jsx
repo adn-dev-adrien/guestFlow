@@ -1,11 +1,14 @@
 /**
- * ClientsPage — a late answer about the client the operator has left (specs/clients.md §3 rule 17).
+ * ClientsPage — a late answer about the client the operator has left (specs/clients.md §3 rules 17, 18).
  *
  * Audit R18-C1: `handleDelete(id)` merged the `delete-impact` answer into whatever confirmation was on
  * screen. When client A's answer arrived after the operator had cancelled it and opened client B's
  * confirmation, the dialog showed A's name, stays, devis and blocker while « Confirmer la suppression »
  * deleted B. The client sheet had the same race on its stay list: B's sheet listed A's stays, and a
  * click opened A's fiche. Every answer now lands only on the request that is still the latest one.
+ *
+ * Rule 18 (review of PR #932): a forced deletion that fails after the operator moved on is still
+ * reported, as a toast; a late orphan preview no longer reopens a cleanup popup the operator closed.
  */
 
 import React from 'react';
@@ -15,6 +18,8 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route } from 'react-router';
 import { ThemeProvider } from '@mui/material/styles';
 import theme from '../../theme';
+
+const toast = vi.hoisted(() => ({ showSuccess: vi.fn(), showError: vi.fn() }));
 
 vi.mock('../../api', () => ({
   __esModule: true,
@@ -38,10 +43,7 @@ vi.mock('../../components/DialogProvider', () => ({
     confirm: vi.fn().mockResolvedValue(false),
     alert: vi.fn().mockResolvedValue(),
   }),
-  useToast: () => ({
-    showSuccess: vi.fn(),
-    showError: vi.fn(),
-  }),
+  useToast: () => toast,
 }));
 
 import api from '../../api';
@@ -251,5 +253,92 @@ describe('ClientsPage — rule 17: an answer about a client the operator has lef
     bSheet.resolve({ client: B, reservations: [stay(902, 'Cabane Bravo')], devis: [] });
     expect(await screen.findByText(/Cabane Bravo/)).toBeInTheDocument();
     expect(screen.queryByText(/Chalet Alpha/)).not.toBeInTheDocument();
+  });
+});
+
+describe('ClientsPage — rule 18: a superseded deletion still reports its failure, a closed cleanup popup stays closed', () => {
+  test('a deletion of A that fails after the operator opened B\'s confirmation is reported as a toast', async () => {
+    const user = userEvent.setup();
+    const arm = impactAnswers();
+    const aDeletion = deferred();
+    api.deleteClient.mockReturnValueOnce(aDeletion.p);
+    renderAt('/clients');
+
+    await openDeleteConfirmation(user, /Alpha/, arm, 41, Promise.resolve({ client: A, reservations: [], devis: [] }));
+    const dialogA = screen.getByRole('dialog');
+    await waitFor(() => expect(within(dialogA).getByRole('button', { name: 'Confirmer la suppression' })).toBeEnabled());
+    await user.click(within(dialogA).getByRole('button', { name: 'Confirmer la suppression' }));
+    await cancelDeleteConfirmation(user);
+    await openDeleteConfirmation(user, /Bravo/, arm, 42, Promise.resolve({ client: B, reservations: [], devis: [] }));
+
+    aDeletion.reject(new Error('Suppression refusée'));
+    await aDeletion.p.catch(() => {});
+    await settle();
+
+    expect(toast.showError).toHaveBeenCalledTimes(1);
+    expect(toast.showError).toHaveBeenCalledWith('Suppression refusée');
+    expect(within(screen.getByRole('dialog')).queryByText('Suppression refusée')).not.toBeInTheDocument();
+  });
+
+  test('a deletion that fails while its own confirmation is still open shows in it, without a toast', async () => {
+    const user = userEvent.setup();
+    const arm = impactAnswers();
+    api.deleteClient.mockRejectedValueOnce(new Error('Suppression refusée'));
+    renderAt('/clients');
+
+    await openDeleteConfirmation(user, /Alpha/, arm, 41, Promise.resolve({ client: A, reservations: [], devis: [] }));
+    const dialog = screen.getByRole('dialog');
+    await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Confirmer la suppression' })).toBeEnabled());
+    await user.click(within(dialog).getByRole('button', { name: 'Confirmer la suppression' }));
+
+    expect(await within(dialog).findByText('Suppression refusée')).toBeInTheDocument();
+    expect(toast.showError).not.toHaveBeenCalled();
+  });
+
+  test('a late orphan preview does not reopen the cleanup popup the operator closed', async () => {
+    const user = userEvent.setup();
+    const preview = deferred();
+    api.getOrphanClientsPreview.mockReturnValueOnce(preview.p);
+    api.getClientsDirectory.mockResolvedValue(directoryPayload({
+      view: 'none',
+      orphanCount: 1,
+      groups: [oneGroup([directoryClient({ ...A, stay: null, bucket: 'none' })], 'Aucune réservation', 'nothing')],
+    }));
+    renderAt('/clients?vue=sans-sejour');
+
+    await user.click(await screen.findByRole('button', { name: 'Nettoyer les clients' }));
+    const popup = await screen.findByRole('dialog');
+    expect(within(popup).getByText('Nettoyer la base clients')).toBeInTheDocument();
+    await user.click(within(popup).getByRole('button', { name: 'Annuler' }));
+    await waitFor(() => expect(screen.queryByText('Nettoyer la base clients')).not.toBeInTheDocument());
+
+    preview.resolve({ orphans: [{ id: 41, firstName: 'Anne', lastName: 'Alpha', email: '', phone: '' }] });
+    await preview.p;
+    await settle();
+
+    expect(screen.queryByText('Nettoyer la base clients')).not.toBeInTheDocument();
+  });
+
+  test('a late orphan preview failure after the popup was closed shows no toast', async () => {
+    const user = userEvent.setup();
+    const preview = deferred();
+    api.getOrphanClientsPreview.mockReturnValueOnce(preview.p);
+    api.getClientsDirectory.mockResolvedValue(directoryPayload({
+      view: 'none',
+      orphanCount: 1,
+      groups: [oneGroup([directoryClient({ ...A, stay: null, bucket: 'none' })], 'Aucune réservation', 'nothing')],
+    }));
+    renderAt('/clients?vue=sans-sejour');
+
+    await user.click(await screen.findByRole('button', { name: 'Nettoyer les clients' }));
+    const popup = await screen.findByRole('dialog');
+    await user.click(within(popup).getByRole('button', { name: 'Annuler' }));
+    await waitFor(() => expect(screen.queryByText('Nettoyer la base clients')).not.toBeInTheDocument());
+
+    preview.reject(new Error('Réseau indisponible'));
+    await preview.p.catch(() => {});
+    await settle();
+
+    expect(toast.showError).not.toHaveBeenCalled();
   });
 });
