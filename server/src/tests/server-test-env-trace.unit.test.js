@@ -1,8 +1,8 @@
 // specs/server-test-isolation.md rule 13 (added 2026-11-02, review of #927): under `npm test` the preload
 // replaces `process.env` with a Proxy that records, per test process, every name `src/` code reads and every
 // place it takes the environment whole; at exit the runner fails the run on a name that is on neither list of
-// `appEnvNames.js`. The runtime complement of rule 12's grep guard: it sees every syntactic form, but
-// only on the code paths the suite runs.
+// `appEnvNames.js`. The runtime complement of rule 12's grep guard: it sees the forms that guard misses, but
+// only where the suite runs the code against the real `process.env`.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -58,7 +58,7 @@ function plantTree(root) {
   return src;
 }
 
-test('rule 13 (2026-11-02): the trace records the names `src/` reads, by every form, and where it takes the environment whole, not what tests, packages or Node read', (t) => {
+test('rule 13 (2026-11-02): the trace records the names `src/` reads, by each form planted, and where it takes the environment whole, not what tests, packages or Node read', (t) => {
   const root = scratch(t);
   const src = plantTree(root);
   const dir = fs.mkdirSync(path.join(root, 'trace'), { recursive: true }) || path.join(root, 'trace');
@@ -157,4 +157,28 @@ test('rule 13 (2026-11-02): under the `npm test` flags the runner traces its tes
   const childEnv = { ...process.env };
   delete childEnv[DIR_VAR];
   assert.equal(node(['--require', PRELOAD, '-p', "require('node:util').types.isProxy(process.env)"], childEnv), 'false', 'nor is a test process of a run that made no directory');
+});
+
+test('rule 13 (2026-11-02, review of #928): a runner without isolation is recognised in every spelling, and makes no directory', (t) => {
+  const { isolationNone } = require(TRACE);
+  for (const execArgv of [
+    ['--test', '--test-isolation=none'], ['--test', '--experimental-test-isolation=none'],
+    ['--test', '--test-isolation', 'none'], ['--test', '--experimental-test-isolation', 'none'],
+  ]) assert.equal(isolationNone(execArgv), true, execArgv.join(' '));
+  for (const execArgv of [
+    ['--test'], ['--test', '--test-isolation=process'], ['--test', '--test-isolation', 'process'],
+    ['--test', '--experimental-test-isolation', 'process'], ['--test', '--test-isolation'], ['--test', 'none'],
+    ['--test', '--test-isolation=none', '--test-isolation', 'process'],
+  ]) assert.equal(isolationNone(execArgv), false, execArgv.join(' '));
+
+  const flag = spawnSync(process.execPath, ['--test-isolation=none', '-e', '0']).status === 0 ? '--test-isolation' : '--experimental-test-isolation';
+  const dir = scratch(t);
+  const probe = write(dir, 'probe.test.js', "require('node:test')('probe', () => { console.log('DIR=' + (process.env.GUESTFLOW_TEST_ENV_TRACE_DIR ?? '-')); });");
+  const env = { ...process.env };
+  delete env.NODE_TEST_CONTEXT;
+  delete env[DIR_VAR];
+  const r = spawnSync(process.execPath, ['--test', flag, 'none', '--require', PRELOAD, probe], { cwd: SERVER_ROOT, env, encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.match(r.stdout, /DIR=-/);
+  assert.doesNotMatch(r.stdout + r.stderr, /environment trace/);
 });

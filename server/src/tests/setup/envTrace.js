@@ -1,14 +1,15 @@
 /**
  * The runtime trace of the environment (specs/server-test-isolation.md rule 13), the complement of rule 12's
- * grep guard: that one reads `src/` and misses the forms it has no pattern for; this one sees every form, but
- * only on the code paths the suite runs.
+ * grep guard: that one reads `src/` and misses the forms it has no pattern for; this one sees those too, but
+ * only where the suite runs the code against the real `process.env` (not through a copy, not on an injected
+ * `env`, not on a path no test runs).
  *
  * - `start()`, called by the `npm test` preload. In the runner's own process (`node --test`, no
  *   `NODE_TEST_CONTEXT`) it creates the trace directory, hands it to the test processes in
  *   `GUESTFLOW_TEST_ENV_TRACE_DIR`, and at exit prints `report()` and sets the exit code to 1 when it fails.
  *   In a test process given the directory it calls `install`. Anywhere else (a process outside the runner,
- *   a runner with `--test-isolation=none`, a test process of a run that made no directory) it does nothing,
- *   and clears the variable.
+ *   a runner without isolation, as `isolationNone` reads it, a test process of a run that made no directory)
+ *   it does nothing, and clears the variable.
  * - `install({ dir, srcRoot })` replaces `process.env` with a Proxy over it. A string key read through
  *   `get`, `has` or `getOwnPropertyDescriptor` that `appEnvNames.js` does not cover, and every `ownKeys`
  *   (the environment taken whole: a spread, `Object.keys`, a child spawned without `env`), is attributed to
@@ -114,12 +115,25 @@ function install({ dir, srcRoot: root = SERVER_SRC }) {
   });
 }
 
+const ISOLATION_FLAG = /^--(experimental-)?test-isolation(=(.*))?$/;
+
+// `--test-isolation=none`, `--test-isolation none`, and both under their `--experimental-` name; the last one
+// given wins, as it does for Node.
+function isolationNone(execArgv) {
+  let mode;
+  execArgv.forEach((arg, i) => {
+    const match = ISOLATION_FLAG.exec(arg);
+    if (match) mode = match[2] === undefined ? execArgv[i + 1] : match[3];
+  });
+  return mode === 'none';
+}
+
 function start() {
   if (process.env.NODE_TEST_CONTEXT) {
     if (process.env[DIR_VAR]) install({ dir: process.env[DIR_VAR] });
     return;
   }
-  const runner = process.execArgv.includes('--test') && !process.execArgv.some((arg) => /^--(experimental-)?test-isolation=none$/.test(arg));
+  const runner = process.execArgv.includes('--test') && !isolationNone(process.execArgv);
   if (!runner) {
     delete process.env[DIR_VAR];
     return;
@@ -172,4 +186,4 @@ function report(dir) {
   };
 }
 
-module.exports = { DIR_VAR, install, start, collect, report };
+module.exports = { DIR_VAR, install, start, collect, report, isolationNone };
