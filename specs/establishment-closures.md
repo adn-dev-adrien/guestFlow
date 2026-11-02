@@ -76,6 +76,14 @@ UI redesign: replace `DataPageScaffold` with the shared `PageActionBar` (sticky 
     earlier the day a closure ends likewise. `validateAvailability` now passes the effective range
     (early check-in → previous night, late check-out → next night) to `findCoveringClosure`. Test:
     `tests/reservation-closure-night-blocks.unit.test.js`.
+18. **A start date typed on the keyboard keeps the focus** _(2026-11-02, audit R19-L1 sibling)_. The
+    « Début de fermeture » picker opened the « Réouverture » calendar from `onAccept`, and MUI X also
+    accepts a complete date typed in the field: the year's first digit already made one (0002), so the
+    reopening calendar opened and took the focus mid-typing. The reopening calendar now opens only when
+    the start was picked in the calendar (`onAccept` context `source === 'view'`, which is also the source
+    of the touch picker's « OK »). A typed start still pre-fills the reopening date to start + 1 under the
+    same condition as a pick (empty, or not after the start). Test:
+    `client/src/pages/__tests__/EstablishmentClosuresPage.keyboard-start.test.jsx`.
 
 ## 4. Architecture
 
@@ -230,6 +238,8 @@ Fields:
 - On accept, the start date is stored and the **Réouverture** picker is opened programmatically (`open={endDateOpen}` controlled state).
 - The reopening date is **pre-filled to `startDate + 1`** (= one closed day = the start day) whenever the current value is empty OR `<= startDate` (invalid range). This makes "fermer un seul jour" a single click: accept the start, accept the suggested reopening date, save.
 - The reopening picker has `minDate = startDate + 1` so the user can't pick an invalid range.
+- A start date **typed** in the field pre-fills the reopening date the same way but opens no calendar:
+  the focus stays in « Début de fermeture » (rule 18, 2026-11-02).
 
 **Semantics:** `endDate` is **exclusive** — it is the day of reopening, not the last closed day. This mirrors the reservation convention (`endDate` = checkout day, not included in the stay). Helper text on the **Réouverture** picker makes this explicit with an example.
 
@@ -342,6 +352,11 @@ If a closure spans multiple months, the band continues into each visible month (
 - [ ] Delete → confirm dialog → row gone.
 - [ ] After a global closure is created, try to create a reservation on that property during the closed period → API returns `409 CLOSURE_COVERS_DATE` (UI behavior of reservation form is out of scope, but the server rejection is asserted).
 - [ ] After a per-property closure on property A, try to create a reservation on property B for the same period → succeeds (different property).
+
+- [x] 2026-11-02, headless Chromium on a copy of the shadow, 1280 px, 390 px and 390 px touch: 01122028
+  typed in « Début de fermeture » gives 01/12/2028, the focus stays on its year, no calendar opens and
+  « Réouverture » reads 02/12/2028. Picking the 10 in the start calendar (with « OK » on touch) still
+  opens the reopening calendar, pre-filled to 11/12/2028 (rule 18).
 
 #### Calendar visualization (new)
 - [ ] Open `/calendar`, select a property that has an upcoming global closure → the closure dates appear as gray striped bands across all visible cells of the closure range. Tooltip shows the label + dates.
