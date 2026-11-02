@@ -14,6 +14,7 @@
 const db = require('../database');
 const vatRegimeModel = require('./vatRegimeModel');
 const { calculateReservationQuote } = require('../utils/pricing');
+const { stayDatesRefusal } = require('../utils/stayDates');
 const { capitalizeFirst } = require('../utils/textFormatters');
 const { roundMoney } = require('../utils/devisHelpers');
 const { resolveDepositDueDate, resolveBalanceDueDate } = require('../utils/paymentSchedule');
@@ -553,6 +554,8 @@ function createModel(database) {
   function loadExtendable(id) {
     const existing = database.prepare("SELECT * FROM reservations WHERE id = ? AND kind = 'devis'").get(Number(id));
     if (!existing) return { error: 'Devis non trouvé', status: 404 };
+    const datesRefusal = stayDatesRefusal(existing.startDate, existing.endDate);
+    if (datesRefusal) return datesRefusal;
     if (!isDevisExtendable(existing, todayIso())) {
       return existing.devisStatus === 'converted'
         ? { error: 'Devis converti en réservation : sa validité ne se prolonge pas.', status: 409, code: 'DEVIS_CONVERTED' }
@@ -769,6 +772,9 @@ function createModel(database) {
     if (!payload.propertyId || !payload.clientId || !payload.startDate || !payload.endDate) {
       return { error: 'propertyId, clientId, startDate et endDate sont requis', status: 400 };
     }
+    // specs/reservations-backend-mvc.md rule 11 — sound dates before any pricing or availability check.
+    const datesRefusal = stayDatesRefusal(payload.startDate, payload.endDate);
+    if (datesRefusal) return datesRefusal;
     const property = database.prepare('SELECT * FROM properties WHERE id = ?').get(Number(payload.propertyId));
     if (!property) return { error: 'Logement introuvable', status: 404 };
 
@@ -880,6 +886,8 @@ function createModel(database) {
       startDate: payload.startDate || existing.startDate,
       endDate: payload.endDate || existing.endDate,
     };
+    const datesRefusal = stayDatesRefusal(next.startDate, next.endDate);
+    if (datesRefusal) return datesRefusal;
     const moved = next.propertyId !== Number(existing.propertyId) || next.startDate !== existing.startDate || next.endDate !== existing.endDate;
     // Rule 55 (R10-1) — a move onto closed nights, whatever the source; rule 46 — onto held nights, by the operator.
     if (moved) {
@@ -1237,6 +1245,8 @@ function createModel(database) {
     const devisRow = database.prepare("SELECT * FROM reservations WHERE id = ? AND kind = 'devis'").get(numId);
     if (!devisRow) return { error: 'Devis non trouvé', status: 404 };
     if (devisRow.convertedReservationId) return { error: 'Ce devis a déjà été converti en réservation', status: 400 };
+    const datesRefusal = stayDatesRefusal(devisRow.startDate, devisRow.endDate);
+    if (datesRefusal) return datesRefusal;
     const property = database.prepare('SELECT * FROM properties WHERE id = ?').get(devisRow.propertyId);
     if (!property) return { error: 'Logement introuvable', status: 404 };
 

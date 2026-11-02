@@ -13,7 +13,7 @@
  * so the controller only maps codes to HTTP statuses.
  */
 
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+const { isRealIsoDay } = require('./stayDates');
 
 // The ceiling is a sanity guard, not a business rule: a cancellation indemnity is a fraction of a
 // stay, so anything above it is a typo (a stray extra digit), never a real payment.
@@ -21,11 +21,7 @@ const MAX_AMOUNT = 100000;
 // A bank movement older than this is certainly a mistyped year (2025 → 2015).
 const MAX_BACKDATE_YEARS = 5;
 
-function isValidIsoDate(value) {
-  if (typeof value !== 'string' || !ISO_DATE.test(value)) return false;
-  const d = new Date(`${value}T00:00:00Z`);
-  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === value;
-}
+const isValidIsoDate = isRealIsoDay;
 
 function round2(n) {
   return Math.round(Number(n) * 100) / 100;

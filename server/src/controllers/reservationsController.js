@@ -15,6 +15,7 @@ const {
 } = require('../utils/reservationQuoteContext');
 const { resolvePlatformPaidGuests } = require('../utils/platformPaidGuests');
 const { validateFinanceInputs, financeErrorBody } = require('../utils/financeValidation');
+const { stayDatesRefusal, stayDatesRefusalBody } = require('../utils/stayDates');
 const { parseGroup, collectibleArrivalBuckets } = require('../utils/arrivalPaymentGroup');
 const { validateArrivalPaymentDate } = require('../utils/arrivalPaymentDate');
 const { buildArrivalPaymentDetail } = require('../utils/arrivalPaymentDetail');
@@ -1089,6 +1090,10 @@ async function calculatePrice(req, res) {
   });
   if (financeError) return res.status(400).json(financeErrorBody(financeError));
 
+  // specs/reservations-backend-mvc.md rule 11 — sound dates before any pricing or availability check.
+  const datesRefusal = stayDatesRefusal(req.body.startDate, req.body.endDate);
+  if (datesRefusal) return res.status(400).json(stayDatesRefusalBody(datesRefusal));
+
   const propertyId = Number(req.body.propertyId);
   if (typeof db.ensureDefaultTimedOptionsForProperty === 'function' && Number.isFinite(propertyId) && propertyId > 0) {
     db.ensureDefaultTimedOptionsForProperty(propertyId);
@@ -1313,6 +1318,10 @@ function createStay(req, res) {
     discountPercent: { value: req.body.discountPercent, kind: 'percentage' },
   });
   if (financeError) return res.status(400).json(financeErrorBody(financeError));
+
+  // specs/reservations-backend-mvc.md rule 11 — sound dates before any pricing or availability check.
+  const datesRefusal = stayDatesRefusal(req.body.startDate, req.body.endDate);
+  if (datesRefusal) return res.status(400).json(stayDatesRefusalBody(datesRefusal));
 
   // specs/reservations-backend-mvc.md rule 10 — refused here rather than by the NOT NULL constraint (a 500).
   if (!req.body.clientId) {
@@ -1783,6 +1792,10 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
     discountPercent: { value: req.body.discountPercent, kind: 'percentage' },
   });
   if (financeError) return res.status(400).json(financeErrorBody(financeError));
+
+  // specs/reservations-backend-mvc.md rule 11 — sound dates before any pricing or availability check.
+  const datesRefusal = stayDatesRefusal(req.body.startDate, req.body.endDate);
+  if (datesRefusal) return res.status(400).json(stayDatesRefusalBody(datesRefusal));
 
   // Data invariant: never persist an empty platform — see `normalisePlatform`.
   req.body.platform = normalisePlatform(req.body.platform);
@@ -2645,6 +2658,8 @@ function restoreSuperseded(req, res) {
   const row = db.prepare('SELECT id, kind, propertyId, startDate, endDate, checkInTime, checkOutTime, blocksPreviousNight, blocksNextNight FROM reservations WHERE id = ?').get(id);
   if (!row) return res.status(404).json({ error: 'Réservation non trouvée' });
   if (row.kind !== 'superseded') return res.status(400).json({ error: "Cette réservation n'est pas un doublon écarté." });
+  const datesRefusal = stayDatesRefusal(row.startDate, row.endDate);
+  if (datesRefusal) return res.status(400).json(stayDatesRefusalBody(datesRefusal));
   const taken = model.validateAvailability(
     row.propertyId, row.startDate, row.endDate, row.checkInTime, row.checkOutTime, id,
     { blocksPreviousNight: row.blocksPreviousNight, blocksNextNight: row.blocksNextNight },

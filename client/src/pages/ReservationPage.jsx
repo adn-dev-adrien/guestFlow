@@ -82,6 +82,7 @@ import { useAuth } from '../hooks/useAuth';
 import { ADMIN, userHasRole } from '../constants/roles';
 import { optionLineKey, resourceLineKey } from '../utils/arrivalLineKey';
 import { LOCKED_FICHE_BANNER, MID_STAY_EXTRAS_BANNER } from '../constants/reservationLock';
+import { STAY_DATES_ORDER_MESSAGE } from '../constants/stayDates';
 
 const DEVIS_STATUS_OPTIONS = [
   { value: 'draft', label: 'Brouillon' },
@@ -2077,9 +2078,12 @@ export default function ReservationPage() {
     const nextPropertyId = Number(propertyId);
     if (!nextPropertyId) return;
 
+    // specs/reservations-backend-mvc.md rule 12 — only a complete, ordered stay is quoted (the server refuses
+    // the rest): a « Nouveau devis » switched before its dates are typed has no quote yet, like on opening.
+    const hasStayRange = Boolean(form.startDate && form.endDate && form.endDate > form.startDate);
     const [{ property: prop }, calc, allRes] = await Promise.all([
       loadPropertyContext(nextPropertyId, properties),
-      api.calculatePrice({
+      hasStayRange ? api.calculatePrice({
         propertyId: nextPropertyId,
         startDate: form.startDate,
         endDate: form.endDate,
@@ -2099,7 +2103,7 @@ export default function ReservationPage() {
         // A saved devis locks its prices while it is still valid — the server replays its stored
         // lines so this preview equals what the save will store (specs/devis-extras-parity-and-price-lock.md §3 rule 13).
         ...(editingDevisId ? { devisId: editingDevisId } : {}),
-      }),
+      }) : null,
       api.getReservations({ propertyId: nextPropertyId, view: 'occupancy' }),
     ]);
 
@@ -2117,10 +2121,10 @@ export default function ReservationPage() {
       singleBeds: '',
       doubleBeds: '',
       babyBeds: '',
-      totalPrice: Number(calc.totalPrice || 0),
+      totalPrice: Number(calc?.totalPrice || 0),
       cautionAmount: prop?.defaultCautionAmount ?? 0,
-      checkInTime: prev.checkInTime || calc.defaultCheckIn || prop?.defaultCheckIn || '15:00',
-      checkOutTime: prev.checkOutTime || calc.defaultCheckOut || prop?.defaultCheckOut || '10:00',
+      checkInTime: prev.checkInTime || calc?.defaultCheckIn || prop?.defaultCheckIn || '15:00',
+      checkOutTime: prev.checkOutTime || calc?.defaultCheckOut || prop?.defaultCheckOut || '10:00',
     }));
     // specs/per-property-default-options.md rule 11 — the offered set belongs to the option list just
     // cleared: kept, the previous logement's « offert » defaults would make the same option free here.
@@ -2277,6 +2281,12 @@ export default function ReservationPage() {
 
     if (!form.startDate || !form.endDate) {
       await alert({ title: 'Erreur', message: 'Dates à sélectionner.' });
+      return false;
+    }
+
+    // specs/reservations-backend-mvc.md rule 12 — a departure on or before the arrival is refused here too.
+    if (form.endDate <= form.startDate) {
+      await alert({ title: 'Erreur', message: STAY_DATES_ORDER_MESSAGE });
       return false;
     }
 
@@ -3330,6 +3340,7 @@ export default function ReservationPage() {
   const dateRangeConflictInfo = getDateRangeConflictInfo(form.startDate, form.endDate);
   const datesUnavailableForProperty = Boolean(dateRangeConflictInfo);
   const datesUnavailableMessage = dateRangeConflictInfo?.message || 'Ces dates ne sont pas dispo pour ce logement.';
+  const stayDatesOrderMessage = form.startDate && form.endDate && form.endDate <= form.startDate ? STAY_DATES_ORDER_MESSAGE : '';
   const minNightsWarning = minNightsState.breached
     ? `Séjour trop court: ${minNightsState.nights} nuit(s) pour un minimum saisonnier de ${minNightsState.required} nuit(s).`
     : '';
@@ -3575,7 +3586,7 @@ export default function ReservationPage() {
     miniCalendarStart, setMiniCalendarStart, miniVisibleDays, reservations,
     editingReservationId, handleMiniDateClick, centerMiniCalendarOnRange,
     arrivalMin, arrivalMax, departureMin, departureMax, handleManualDateInputChange,
-    datesUnavailableForProperty, datesUnavailableMessage, minNightsState, minNightsWarning,
+    datesUnavailableForProperty, datesUnavailableMessage, stayDatesOrderMessage, minNightsState, minNightsWarning,
     liveTimeConflictState, liveTimeConflictMessage, defaultCheckInTime, defaultCheckOutTime,
     isReservationLocked, extrasWindowOpen, arrivalLines, frozenCustomOptionIds,
     refundHost: isCancelledReservation ? refundHost : null,
