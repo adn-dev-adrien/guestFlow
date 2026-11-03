@@ -131,6 +131,18 @@ Rules added after Adrien's review of this spec (2026-11-03):
     NULL: the line follows the party or the stay again and the flag goes. On `xs` the button stays beside
     the field, 44 × 44 px. It is not offered when the current value is outside rule 5's bounds.
 
+Rule added after the audit of 2026-11-03 (R21):
+
+27. **A typed count is judged, never reinterpreted.** On every write that prices options (preview, create,
+    update, devis create and update) a present `cardPersons` is a whole number from 1, a present `cardNights` a
+    whole number from 1 to 366 (D7's stay cap), or 400 `INVALID_CARD_PERSONS` / `INVALID_CARD_NIGHTS`, before any
+    pricing. Absent, null or empty still means « follows ». A count above the stay stays allowed (rule 25), and a
+    `cardPersons` above the capacity is still clamped by the engine (rule 5). A count the line already stores is
+    not re-judged when sent back unchanged, so rule 15's archived lines keep saving. *Why:* `0.5` stored a free
+    line whose next save billed the whole stay, `400` billed 400 nights with no refusal, `-1` silently meant the
+    whole party. Prod check of 2026-11-03: every stored `cardPersons` is whole, no `cardNights` above 366. The
+    nights field stops at 366 (`OptionRow`, a hint), or at the stored value when higher.
+
 **Edge cases:**
 - Party lowered below a frozen count (3 served, party now 2) → stays 3, within rule 5's ceiling when the
   property allows it; the engine's existing clamp applies otherwise.
@@ -154,13 +166,15 @@ Rules added after Adrien's review of this spec (2026-11-03):
 | `models/` | `laundryModel.js` | T | Towel demand from `COALESCE(cardPersons, party) × quantity` (rule 6) |
 | `models/` | `linenInventoryModel.js` | T | Reads `cardPersons` with the bath lines (rule 6) |
 | `models/` | `reservationsModel.js` | T | SAS sale writes `cardNights`; `readExtraLinesWithQuantity` carries `typedCount` (rule 17) |
-| `models/` | `devisModel.js` | T | Carries `cardNights`; same save guard as a reservation (rule 22) |
+| `models/` | `devisModel.js` | T | Carries `cardNights`; same save guard as a reservation (rule 22); same refusal of a bad count (rule 27) |
+| `models/` | `bookingLinesModel.js` | T | `getStoredTypedCounts`: the stored counts rule 27 does not re-judge |
 | `controllers/` | `devisController.js` | T | Forwards the guard's `code` and `lines` |
 | `middleware/` | — | — | (none) |
 | `utils/` | `pricing.js` | T | Generic option path: pure helper `resolveNonCardUnits`, returns `cardPersons`, `cardNights`, `servedPersons`, `servedNights` |
 | `utils/` | `sasOptionSale.js` | T | Rule 12; `buildOptionOffer` reads `selectedPersons` from `sold.cardPersons` for non-card too |
 | `utils/` | `linenInventory.js` | T | Towel count from served people (rule 6) |
 | `utils/` | `midStayExtrasWindow.js` | T | `minTypedCount` on the floors (rule 17) |
+| `utils/` | `lineInputBounds.js` | C | The boundary guard of a line's and a party's numbers (rule 27; `reservations-backend-mvc.md` rule 15) |
 | `utils/` | `typedCounts.js` | C | Pure: `typedCountAlerts`, the 409 payload, `typedCountOf` (rules 17, 20-23) |
 | `utils/` | `servedPersonsOptionMigration.js` | C | Rules 14-16, 19; dry-run returns the list without writing |
 | `utils/` | `reservationUpdateBody.js` | T | Carries `cardNights`; server callers send `forceTypedCounts` (rule 24) |
@@ -246,6 +260,7 @@ Interactive rendering in the [decision summary](../docs/specs/2026-11-03-non-car
 ### Server unit tests
 - [x] `tests/non-card-option-served-persons.unit.test.js` (13) — rules 1, 5, 6, 12, 14-17, 19
 - [x] `tests/typed-counts-no-regression.unit.test.js` (11) — rule 25: exhaustive grid, 22336 sequence through the controller, save guard. Mutation-checked: restoring the old computation fails 4 tests, removing the guard fails 2
+- [x] `tests/line-input-bounds.unit.test.js` (13) — rule 27, `reservations-backend-mvc.md` rule 15
 - [x] `tests/typed-counts-client-guard.unit.test.js` (4) — rule 25: no multiplier conversion left in the option fields
 - [x] `tests/sas-option-sales.unit.test.js` — updated (rule 12)
 - The existing `breakfast-model`, `laundry-model`, `laundry-end-to-end.regression` and `linen-inventory` suites still pass unchanged: a drifted `quantity` keeps scaling the party. Rule 6's new behaviour is covered in the feature's own file (CLAUDE.md §9).
@@ -254,6 +269,7 @@ Interactive rendering in the [decision summary](../docs/specs/2026-11-03-non-car
 - [x] `OptionRow.served-persons.test.jsx` (8) — field, hint, no arithmetic, red state on an alert
 - [x] `MidStayNoteDialog.typed-count.test.jsx` (3) — rule 13
 - [x] `GuestsBedsSection.typed-counts.test.jsx` (2) — rule 21
+- [x] `OptionRow.typed-nights-max.test.jsx` (3) — rule 27
 
 ### End to end
 - [x] `e2e/specs/reservations/typed-count-party-change.spec.js` — type 3 for 4 → party 5 → red, alert; retype 2 → still red; dialog: cancel keeps the fiche, force saves; circular arrows → 5, no red

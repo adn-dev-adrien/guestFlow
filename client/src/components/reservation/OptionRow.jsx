@@ -19,6 +19,9 @@ import { optionLineKey, displayedFloor } from '../../utils/arrivalLineKey';
 import { typedCountKind, typedCountValue } from '../../utils/optionTypedCount';
 import TypedCountField from './TypedCountField';
 
+// specs/non-card-option-served-persons.md rule 27 — the server refuses more; a hint, never the guard.
+const MAX_TYPED_NIGHTS = 366;
+
 /**
  * Occurrence checklist for an option-driven planning card (specs/option-planning-card.md §3.2).
  * 'once' → a single editable date + heure. 'daily' → one checkbox row per (stay day × time slot),
@@ -355,7 +358,7 @@ export default function OptionRow({ opt }) {
               <TypedCountField
                 label="Qté"
                 min={arrivalLine?.minTypedCount != null ? displayedFloor(arrivalLine.minTypedCount) : 1}
-                max={typedKind === 'persons' ? Math.max(Number(maxGuestsAllowed) || 0, Number(quantityPersons) || 1, typedValue) : undefined}
+                max={typedKind === 'persons' ? Math.max(Number(maxGuestsAllowed) || 0, Number(quantityPersons) || 1, typedValue) : Math.max(MAX_TYPED_NIGHTS, typedValue)}
                 value={typedValue}
                 onCommit={(v) => setOptionTypedCount(opt.id, typedKind, v)}
                 disabled={extrasLocked}

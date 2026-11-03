@@ -85,7 +85,7 @@ function priceOptionSale(option, {
   const stayNights = Math.max(0, Number(nights) || 0);
   const perNight = priceType === 'per_night';
   if (isPerPerson(option) || perNight) {
-    if (perNight && !(Number(units) > 0)) return null;
+    if (perNight && !(Number(units) > 0 && Number.isFinite(Number(units)))) return null;
     if (!perNight && !(head > 0)) return null;
     const typed = resolveNonCardUnits({
       priceType,
@@ -112,7 +112,7 @@ function priceOptionSale(option, {
   }
 
   const billedUnits = round2(units);
-  if (!(billedUnits > 0)) return null;
+  if (!(billedUnits > 0 && Number.isFinite(billedUnits))) return null;
   return {
     optionId: Number(option.id),
     quantity: billedUnits,

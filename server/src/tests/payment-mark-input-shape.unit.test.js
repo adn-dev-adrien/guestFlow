@@ -187,3 +187,45 @@ test('rule 66 (d): true / false / 1 / 0 are the accepted shapes', () => {
   assert.equal(call({ complementPaid: 0, complementPaidCash: 0 }, id).statusCode, 200);
   assert.equal(Number(f.rowOf(id).complementPaid), 0);
 });
+
+test('rule 66 (d): the check-in, check-out and deferral marks are held to the same shapes', () => {
+  const STATUS_FLAGS = ['checkInReady', 'checkInDone', 'checkOutDone', 'complementDeferredToCheckout'];
+  for (const shape of ['false', 'true', 'x', 2, null, {}, []]) {
+    for (const flag of STATUS_FLAGS) {
+      const id = pastStay();
+      const before = f.rowOf(id);
+      const res = call({ [flag]: shape }, id);
+      assert.equal(res.statusCode, 400, `${flag} ${JSON.stringify(shape)}: ${JSON.stringify(res.body)}`);
+      assert.deepEqual(res.body, { error: 'Valeur invalide.', code: 'INVALID_PAYMENT_FLAG', field: flag });
+      assert.deepEqual(f.rowOf(id), before, `${flag} ${JSON.stringify(shape)}`);
+    }
+  }
+  for (const flag of ['checkInReady', 'checkInDone', 'checkOutDone']) {
+    const id = pastStay();
+    for (const [sent, stored] of [[true, 1], [false, 0], [1, 1], [0, 0]]) {
+      const res = call({ [flag]: sent }, id);
+      assert.equal(res.statusCode, 200, `${flag} ${sent}: ${JSON.stringify(res.body)}`);
+      assert.equal(Number(f.rowOf(id)[flag]), stored, `${flag} ${sent}`);
+    }
+  }
+});
+
+test('rule 66 (d): a reception session gets the same refusal, and its toggles still work', () => {
+  const reception = { id: 2, roles: ['reception'] };
+  const id = f.createStay();
+  f.db.prepare('UPDATE reservations SET startDate = ?, endDate = ? WHERE id = ?').run(TODAY, f.inDays(2), id);
+  const patch = (body) => {
+    const res = f.respond();
+    f.controller.updatePayment({ user: reception, params: { id: String(id) }, query: {}, body }, res);
+    return res;
+  };
+  const refused = patch({ checkInDone: 'false' });
+  assert.equal(refused.statusCode, 400, JSON.stringify(refused.body));
+  assert.equal(refused.body.code, 'INVALID_PAYMENT_FLAG');
+  assert.equal(Number(f.rowOf(id).checkInDone || 0), 0);
+  assert.equal(patch({ checkInDone: true }).statusCode, 200);
+  assert.equal(Number(f.rowOf(id).checkInDone), 1);
+  // A money flag forged beside it is still dropped before the shape is judged.
+  assert.equal(patch({ checkInDone: false, depositPaid: 'x' }).statusCode, 200);
+  assert.equal(Number(f.rowOf(id).depositPaid || 0), 0);
+});

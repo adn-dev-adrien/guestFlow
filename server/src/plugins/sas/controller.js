@@ -15,6 +15,7 @@ const { extinguisherCheckOn } = require('./settings');
 const { nothingToCollect } = require('./nothingToCollect');
 const { shapeArrivalRecap } = require('./arrivalRecap');
 const { shapeDepartureRecap } = require('./departureRecap');
+const { wholePiecesMessage, soldOptionsMessage } = require('./sasQuantityBounds');
 
 // The money stays in the core (specs/plugins-phase-2-hosts.md §1): the SAS commit, the settlement and
 // the reception view are core modules this controller calls, never copies.
@@ -250,25 +251,16 @@ function saleOffersFor(reservation, { isDeparture }) {
 // specs/sas-departure-recap-server-side.md rule 28 (2026-10-27 spec review) — a linen element is
 // counted in whole pieces. A quantity of 1.5 used to be rounded to 2 and billed; it is refused, at
 // the preview as at the commit, so the recap never shows a count the operator did not type.
-const WHOLE_QUANTITY_REFUSAL = {
-  status: 400,
-  body: { error: 'INVALID_QUANTITY', message: 'Quantité invalide : un nombre entier de pièces est attendu.' },
-};
-function wholeQuantityRefusal(lines) {
-  if (!Array.isArray(lines)) return null;
-  const bad = lines.some((line) => {
-    const qty = Number(line && line.qty);
-    return !Number.isInteger(qty) || qty < 0;
-  });
-  return bad ? WHOLE_QUANTITY_REFUSAL : null;
-}
+// Rule 29 — and every count is bounded, on the same refusal.
+const quantityRefusal = (message) => (message ? { status: 400, body: { error: 'INVALID_QUANTITY', message } } : null);
 
 function normaliseArrivalDraft(req, reservation) {
   let body = req.body || {};
   if (isReceptionOnly(req.user)) body = toReceptionSasCommit(body);
   body = withoutLinenDecisions(Number(reservation.id), body);
-  const quantityRefusal = wholeQuantityRefusal(body.linenItems);
-  if (quantityRefusal) return { refusal: quantityRefusal };
+  const refusedQuantity = quantityRefusal(wholePiecesMessage(body.linenItems)
+    || soldOptionsMessage(body.soldOptions, (optionId) => optionsModel.get(optionId)?.priceType, reservation.options));
+  if (refusedQuantity) return { refusal: refusedQuantity };
   const plugins = sasCommitHooks.prepare({ reservation, pluginSteps: body.pluginSteps || {} });
   if (plugins.refusal) return { refusal: plugins.refusal };
   const resolved = reservationsModel.resolveSasArrivalItems(Number(reservation.id), {
@@ -592,10 +584,11 @@ function commitArrival(req, res) {
  */
 function normaliseDepartureDraft(req, reservation) {
   const body = req.body || {};
-  const quantityRefusal = wholeQuantityRefusal(body.missingItems);
-  if (quantityRefusal) return { refusal: quantityRefusal };
   // specs/plugins-phase-p-productisation.md rule 16 — with the check off, no seal field is accepted.
   const checked = extinguisherCheckOn();
+  const refusedQuantity = quantityRefusal(wholePiecesMessage(body.missingItems)
+    || wholePiecesMessage(checked ? body.extinguisherCharges : []));
+  if (refusedQuantity) return { refusal: refusedQuantity };
   return {
     body,
     input: {

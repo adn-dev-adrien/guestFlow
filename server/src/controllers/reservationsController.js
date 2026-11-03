@@ -8,7 +8,7 @@ const { platformDisplay } = require('../utils/platformDisplay');
 const { todayIso: localTodayIso } = require('../utils/localDate');
 const db = require('../database');
 const { calculateReservationQuote } = require('../utils/pricing');
-const { refuseInvalidServedPersons } = require('../utils/cardServedPersons');
+const { lineInputRefusal } = require('../utils/lineInputBounds');
 const { quoteStoredReservation, pricingUnchangedFromStored, pinStoredPricing } = require('../utils/storedReservationQuote');
 const {
   midStayQuoteInputs, scheduleQuoteInputs, resolvePlatformTakesDeposit, resolvePlatformPayoutDueDays, frozenTouristTaxInputs,
@@ -51,13 +51,6 @@ const { reservationBlocks } = require('../utils/pluginReservationBlocks');
 // keeps the line it carries exactly as stored and cannot gain one. Applies the gate to the engine
 // input; answers 422 and returns false when the payload adds the insurance.
 function gateInsurance(res, engineInput, bookingId) {
-  // specs/card-option-served-persons.md rule 3 — the served count is refused at ≤ 0, on every path
-  // that prices options (preview, create, update), before the engine reads it as the party.
-  const servedRefusal = refuseInvalidServedPersons(engineInput.selectedOptions);
-  if (servedRefusal) {
-    res.status(400).json(servedRefusal);
-    return false;
-  }
   const gate = insuranceOffer.gateSelection({
     db, bookingId, selectedOptions: engineInput.selectedOptions, lockedOptionLines: engineInput.lockedOptionLines,
   });
@@ -1112,6 +1105,9 @@ async function calculatePrice(req, res) {
   // specs/reservations-backend-mvc.md rule 11 — sound dates before any pricing or availability check; rule 13 —
   // the fiche of a stay or devis quotes its stored dates even past the horizon.
   const quotedRowId = Number(req.body.reservationId || 0) || Number(req.body.devisId || 0);
+  // Rule 15 — the numbers of the lines and the party, before anything reads them.
+  const inputRefusal = lineInputRefusal(req.body, quotedRowId > 0 ? bookingLinesModel.getStoredTypedCounts(quotedRowId) : {});
+  if (inputRefusal) return res.status(400).json(inputRefusal);
   const quotedRow = quotedRowId > 0 ? db.prepare('SELECT startDate, endDate FROM reservations WHERE id = ?').get(quotedRowId) : null;
   const datesRefusal = stayDatesRefusal(req.body.startDate, req.body.endDate, { stored: quotedRow });
   if (datesRefusal) return res.status(400).json(stayDatesRefusalBody(datesRefusal));
@@ -1351,6 +1347,10 @@ function createStay(req, res) {
     discountPercent: { value: req.body.discountPercent, kind: 'percentage' },
   });
   if (financeError) return res.status(400).json(financeErrorBody(financeError));
+
+  // specs/reservations-backend-mvc.md rule 15 — the numbers of the lines and the party, before anything reads them.
+  const inputRefusal = lineInputRefusal(req.body);
+  if (inputRefusal) return res.status(400).json(inputRefusal);
 
   // specs/reservations-backend-mvc.md rule 11 — sound dates before any pricing or availability check.
   const datesRefusal = stayDatesRefusal(req.body.startDate, req.body.endDate);
@@ -1833,6 +1833,11 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
     discountPercent: { value: req.body.discountPercent, kind: 'percentage' },
   });
   if (financeError) return res.status(400).json(financeErrorBody(financeError));
+
+  // specs/reservations-backend-mvc.md rule 15 — the numbers of the lines and the party, before anything reads
+  // them; what the stay already stores is not re-judged.
+  const inputRefusal = lineInputRefusal(req.body, bookingLinesModel.getStoredTypedCounts(Number(req.params.id)));
+  if (inputRefusal) return res.status(400).json(inputRefusal);
 
   // specs/reservations-backend-mvc.md rule 11 — sound dates before any pricing or availability check; rule 13 —
   // only an edited date is held to the horizon.
@@ -2331,6 +2336,7 @@ const PAID_CASH_FIELDS = { complementPaid: 'complementPaidCash', endOfStayComple
 const PAYMENT_FLAG_FIELDS = [
   ...PAID_DATE_FIELDS.map(([flag]) => flag),
   'complementPaidCash', 'endOfStayComplementPaidCash',
+  'complementDeferredToCheckout', 'checkInReady', 'checkInDone', 'checkOutDone',
 ];
 
 /**
