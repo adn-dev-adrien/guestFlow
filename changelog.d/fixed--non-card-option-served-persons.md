@@ -1,2 +1,0 @@
-- **Decimal option quantities.** A number of people or nights typed on an option stays that number when the party or the stay changes: 3 meals for 4 people no longer become 3.75 at 5 people. A line nobody touched follows the party and the nights.
-- **A typed value that no longer matches is visible.** The field turns red with an alert, circular arrows apply the new value, and saving asks « Annuler » or « Forcer l'enregistrement », on reservations and quotes alike.
