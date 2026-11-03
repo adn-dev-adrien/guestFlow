@@ -61,7 +61,8 @@
       "Compatible avec le SDK 2.20 de GuestFlow."
     ],
     "1.2.3": [
-      "Le linge compte les personnes servies quand un nombre a été saisi sur l’option."
+      "Le linge compte les personnes servies quand un nombre a été saisi sur l’option.",
+      "Compatible avec le SDK 2.20 de GuestFlow."
     ]
   }
 }

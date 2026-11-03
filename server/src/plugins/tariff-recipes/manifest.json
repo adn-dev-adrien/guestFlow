@@ -52,7 +52,8 @@
       "Le lien « (voir le site) » est plus facile à toucher sur un téléphone. Compatible avec le SDK 2 de GuestFlow."
     ],
     "1.4.2": [
-      "Le 25 décembre garde le minimum de nuits de sa période sous un jour férié."
+      "Le 25 décembre garde le minimum de nuits de sa période sous un jour férié.",
+      "Compatible avec le SDK 2 de GuestFlow."
     ]
   }
 }
