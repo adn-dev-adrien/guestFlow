@@ -80,6 +80,28 @@ test('rule 25 — no combination of type, typed value, party and nights yields a
   }
 });
 
+test('rules 2, 3, 4 — a count different from the party is stored and frozen; equal, it is stored NULL and follows', () => {
+  const frozen = resolveNonCardUnits({ priceType: 'per_person', quantity: 1, persons: 4, nights: 2, cardPersons: 3, maxGuests: 13 });
+  assert.deepEqual([frozen.cardPersons, frozen.billedUnits], [3, 3]);
+  const equal = resolveNonCardUnits({ priceType: 'per_person', quantity: 1, persons: 4, nights: 2, cardPersons: 4, maxGuests: 13 });
+  assert.deepEqual([equal.cardPersons, equal.billedUnits], [null, 4]);
+  const ppn = resolveNonCardUnits({ priceType: 'per_person_per_night', quantity: 1, persons: 4, nights: 3, cardPersons: 2, maxGuests: 13 });
+  assert.deepEqual([ppn.cardPersons, ppn.billedUnits], [2, 6]);
+  // `quantity` stays the base of the other dimensions.
+  assert.equal(resolveNonCardUnits({ priceType: 'per_person', quantity: 2, persons: 4, nights: 2, cardPersons: 3, maxGuests: 13 }).billedUnits, 6);
+});
+
+test('rule 7 — changing the party on a typed line never produces a decimal quantity', () => {
+  const id = seedStay();
+  save(id, bodyOf(id, {}, { [TOWEL]: { cardPersons: 3 } }));
+  for (const adults of [5, 7, 9]) {
+    save(id, bodyOf(id, { adults, forceTypedCounts: true }));
+    assert.equal(option(id, TOWEL).quantity, 1);
+    assert.equal(option(id, TOWEL).billedUnits, 3);
+    assert.ok(Number.isInteger(option(id, BED).billedUnits));
+  }
+});
+
 test('rule 25 — a typed number never moves when the party or the stay changes', () => {
   for (let typed = 1; typed <= 12; typed += 1) {
     for (let persons = 1; persons <= 15; persons += 1) {

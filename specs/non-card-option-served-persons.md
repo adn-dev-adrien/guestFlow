@@ -73,10 +73,12 @@ never appears on these lines again.
    stepper. The server stores `cardPersons` and `quantity = 1`.
 9. **Fiche, `per_person_per_night`:** same, with the hint « × N nuits ».
 10. ~~`per_night`: unchanged.~~ Superseded by rule 19 (2026-11-03).
+    > **Sans test** — superseded by rule 19, which is tested.
 11. The client never multiplies nor divides the typed number (CLAUDE.md §6.0).
 12. **SAS:** `priceOptionSale` for a non-card per-person option stores `cardPersons` and `quantity = 1`;
     no more `round4`.
-13. **Mid-stay (`MidStayNoteDialog`):** same field as the fiche.
+13. **Mid-stay (`MidStayNoteDialog`):** same field as the fiche. What the note counts as added, and what
+    « Annuler » restores, read that number and not `quantity`, which stays 1.
 14. **Migration**, idempotent (flag in `settings`), on non-card `per_person` / `ppn` lines where
     `quantity ≠ 1`: `served = billedUnits / (ppn ? nights : 1)`. When it is a positive integer:
     `cardPersons = served` (NULL if equal to the party), `quantity = 1`. Never rewrites `billedUnits`,
@@ -243,13 +245,15 @@ Interactive rendering in the [decision summary](../docs/specs/2026-11-03-non-car
 
 ### Server unit tests
 - [x] `tests/non-card-option-served-persons.unit.test.js` (13) — rules 1, 5, 6, 12, 14-17, 19
-- [x] `tests/typed-counts-no-regression.unit.test.js` (9) — rule 25: exhaustive grid, 22336 sequence through the controller, save guard. Mutation-checked: restoring the old computation fails 4 tests, removing the guard fails 2
+- [x] `tests/typed-counts-no-regression.unit.test.js` (11) — rule 25: exhaustive grid, 22336 sequence through the controller, save guard. Mutation-checked: restoring the old computation fails 4 tests, removing the guard fails 2
 - [x] `tests/typed-counts-client-guard.unit.test.js` (4) — rule 25: no multiplier conversion left in the option fields
 - [x] `tests/sas-option-sales.unit.test.js` — updated (rule 12)
 - The existing `breakfast-model`, `laundry-model`, `laundry-end-to-end.regression` and `linen-inventory` suites still pass unchanged: a drifted `quantity` keeps scaling the party. Rule 6's new behaviour is covered in the feature's own file (CLAUDE.md §9).
 
 ### Client tests
 - [x] `OptionRow.served-persons.test.jsx` (8) — field, hint, no arithmetic, red state on an alert
+- [x] `MidStayNoteDialog.typed-count.test.jsx` (3) — rule 13
+- [x] `GuestsBedsSection.typed-counts.test.jsx` (2) — rule 21
 
 ### End to end
 - [x] `e2e/specs/reservations/typed-count-party-change.spec.js` — type 3 for 4 → party 5 → red, alert; retype 2 → still red; dialog: cancel keeps the fiche, force saves; circular arrows → 5, no red
@@ -261,6 +265,9 @@ Interactive rendering in the [decision summary](../docs/specs/2026-11-03-non-car
 - [x] Red field: retyping another wrong value stays red; the circular arrows apply the new value and clear it
 - [ ] `per_night`: typed 3 for 2 nights → 3 nights → still 3, red
 - [ ] Regression: `per_night` Qté, card options « Personnes servies », arrival SAS catering
+
+**Known limit:** the history's option signature reads `quantity` and `totalPrice`, so a typed number changed on an
+offered line (0 €) leaves no history entry.
 
 **Known, not caused by this change:** at about 900 px the « Résumé tarifaire » panel overflows the page as
 soon as an option is active on the fiche.
