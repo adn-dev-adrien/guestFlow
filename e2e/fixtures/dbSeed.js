@@ -338,12 +338,14 @@ function simulateBackgroundWrite(reservationId, notes) {
 }
 
 /**
- * A plain per-person option on a property (specs/non-card-option-served-persons.md rule 25).
+ * A plain per-person option on a priced property (specs/non-card-option-served-persons.md rule 25).
  */
 function seedPerPersonOption({ propertyId, title, price }) {
   return withDb((db) => {
     const optionId = Number(db.prepare("INSERT INTO options (title, price, priceType) VALUES (?, ?, 'per_person')").run(title, price).lastInsertRowid);
     db.prepare('INSERT INTO property_options (propertyId, optionId) VALUES (?, ?)').run(propertyId, optionId);
+    // A fiche with an unpriced night cannot be saved: give the property a season.
+    db.prepare("INSERT INTO pricing_rules (propertyId, label, pricePerNight, minNights) VALUES (?, 'Standard', 100, 1)").run(propertyId);
     return optionId;
   });
 }
