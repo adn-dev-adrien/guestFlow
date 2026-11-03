@@ -58,6 +58,7 @@ test('rule 1: the paid adults follow the brut, and the body is never read', () =
   assert.equal(resolvePlatformPaidAdults({ ...stored, platformGrossAmount: null }, body), 3);
 });
 
+// specs/platform-added-guests-tourist-tax.md rules 8-9.
 test('§1: 2 → 3 adults, the added tax rides the complement and the accommodation stays', () => {
   const q = quote({ adults: 3 });
   assert.equal(q.touristTaxAddedGuestsAmount, 2.4);
