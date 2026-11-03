@@ -17,7 +17,7 @@ const reservationsController = require('../controllers/reservationsController');
 const { seedClosures, call } = require('./closureConflictsFixture');
 
 const plusDays = (iso, n) => new Date(Date.parse(`${iso}T00:00:00Z`) + n * 86400000).toISOString().slice(0, 10);
-const TODAY = new Date().toISOString().slice(0, 10);
+const TODAY = require('../utils/localDate').todayIso();
 const START = plusDays(TODAY, 400);
 const FAR = '9999-12-31';
 

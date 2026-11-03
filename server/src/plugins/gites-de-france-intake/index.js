@@ -79,6 +79,7 @@ function register(ctx) {
     getReservation: (reservationId) => ctx.core.reservations.getByIdWithDetails(reservationId),
     core: {
       updateReservation: ctx.core.reservations.update,
+      updateBody: ctx.core.reservations.updateBody,
       suggestBeds: ctx.core.reservations.suggestBeds,
     },
   });

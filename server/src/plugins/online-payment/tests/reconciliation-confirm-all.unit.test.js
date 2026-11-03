@@ -3,7 +3,7 @@
 // drawn. Fictional data only.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { USER, addReservation, credit, build, reset, row } = require('./reconciliationFixture');
+const { USER, addReservation, credit, build, reset, row, dayAt } = require('./reconciliationFixture');
 const { applyPaymentMark } = require('../../../utils/reservationPaymentMark');
 
 test.beforeEach(() => { reset(); });
@@ -12,14 +12,14 @@ const at = (day) => `${day}T09:00:00.000Z`;
 
 // Two « probable » (client name in the transfer) and one « à vérifier » (exact amount, other name).
 function world(opts) {
-  const a = addReservation({ balanceAmount: 300, finalPrice: 300, balanceDueDate: '2026-10-10' });
-  const b = addReservation({ clientId: 2, balanceAmount: 450.5, finalPrice: 450.5, balanceDueDate: '2026-10-11' });
-  const c = addReservation({ clientId: 2, balanceAmount: 125, finalPrice: 125, balanceDueDate: '2026-10-12' });
+  const a = addReservation({ balanceAmount: 300, finalPrice: 300, balanceDueDate: dayAt(-13) });
+  const b = addReservation({ clientId: 2, balanceAmount: 450.5, finalPrice: 450.5, balanceDueDate: dayAt(-12) });
+  const c = addReservation({ clientId: 2, balanceAmount: 125, finalPrice: 125, balanceDueDate: dayAt(-11) });
   const built = build(opts);
   built.transactions.upsertMany([
-    credit('ta', 30000, { settledAt: at('2026-10-12'), counterpartyName: 'M. DUPONT' }),
-    credit('tb', 45050, { settledAt: at('2026-10-13'), counterpartyName: 'ROSSI Lucia' }),
-    credit('tc', 12500, { settledAt: at('2026-10-14'), counterpartyName: 'SOMEONE ELSE' }),
+    credit('ta', 30000, { settledAt: at(dayAt(-11)), counterpartyName: 'M. DUPONT' }),
+    credit('tb', 45050, { settledAt: at(dayAt(-10)), counterpartyName: 'ROSSI Lucia' }),
+    credit('tc', 12500, { settledAt: at(dayAt(-9)), counterpartyName: 'SOMEONE ELSE' }),
   ], { bankAccountId: 'acc-1' });
   return { ...built, a, b, c };
 }
@@ -51,7 +51,7 @@ test('rule 13 — confirming the shown ids marks each fiche received at its cred
   assert.equal(answer.body.skipped.length, 0);
   assert.equal(answer.body.totalCents, 75050);
   assert.equal(row(a).balancePaid, 1);
-  assert.equal(row(a).balancePaidDate, '2026-10-12');
+  assert.equal(row(a).balancePaidDate, dayAt(-11));
   assert.equal(row(b).balancePaid, 1);
 });
 

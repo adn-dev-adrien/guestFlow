@@ -16,6 +16,13 @@ const devisModel = require('../models/devisModel');
 const { runPaymentPoll } = require('../utils/paymentPollRunner');
 const { staleLinks, linkAmountCents } = require('../utils/ledgerLinks');
 const { formatEuros: eur } = require('../utils/reservationLedger');
+const { todayIso } = require('../utils/localDate');
+const { addDaysToIsoDate } = require('../utils/devisHelpers');
+
+/** `YYYY-MM-DD`, `days` after today: the dates of this suite hang on it (specs/server-test-isolation.md rule 6). */
+const inDays = (days) => addDaysToIsoDate(todayIso(), days);
+/** A day as the ledger prints it: « jj/mm », with the year when it is not the stay's (reservation-payment-ledger rule 4). */
+const ledgerDay = (iso, stayStart) => (iso.slice(0, 4) === stayStart.slice(0, 4) ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}` : iso.split('-').reverse().join('/'));
 
 function fakeProvider({ paid = false, down = false } = {}) {
   const calls = [];
@@ -27,7 +34,7 @@ function fakeProvider({ paid = false, down = false } = {}) {
     getPayment: async (linkId) => {
       calls.push(['getPayment', linkId]);
       if (down) throw new Error('provider down');
-      return paid ? { paid: true, paymentId: `pay_${linkId}`, paidAt: '2026-10-05T10:00:00Z' } : { paid: false };
+      return paid ? { paid: true, paymentId: `pay_${linkId}`, paidAt: `${inDays(-29)}T10:00:00Z` } : { paid: false };
     },
     getLinkStatus: async () => { if (down) throw new Error('provider down'); return 'open'; },
     cancelLink: async (linkId) => { calls.push(['cancelLink', linkId]); if (down) throw new Error('provider down'); },
@@ -152,7 +159,7 @@ test('rule 31 — deposit link paid after its retirement: the acompte is perceiv
   assert.ok(notified.includes(link.id), 'the admin is told, as today');
 
   const ledger = (await liveQuote(id, { depositAmountOverride: 90 })).ledger;
-  assert.equal(ledger.rows.find((r) => r.key === 'deposit').detail.link.label, 'Payé par lien le 05/10/2026 (ancien montant)');
+  assert.equal(ledger.rows.find((r) => r.key === 'deposit').detail.link.label, `Payé par lien le ${ledgerDay(inDays(-29), rowOf(id).startDate)} (ancien montant)`);
 });
 
 test('rule 31 — balance link paid after its retirement: the solde is recorded at the link\'s amount', async () => {
@@ -186,7 +193,7 @@ test('rule 31 — perceived another way meanwhile: a double payment, nothing rec
   const id = createStay();
   const link = openLink(id, 'deposit', 9000);
   await save(id, { depositAmountOverride: 100 });
-  db.prepare("UPDATE reservations SET depositPaid = 1, depositPaidDate = '2026-10-04' WHERE id = ?").run(id);
+  db.prepare(`UPDATE reservations SET depositPaid = 1, depositPaidDate = '${inDays(-30)}' WHERE id = ?`).run(id);
   const notified = [];
   const summary = await poll(fakeProvider({ paid: true }), notified);
   const result = summary.results.find((r) => r.id === link.id);
@@ -210,7 +217,7 @@ test('rules 31 + 36 — paid SHORT of the new solde: the shortfall is owed as th
   const oldCents = Math.round(rowOf(id).balanceAmount * 100); // 307,20 €
   await save(id, { depositDisabled: 1, customPrice: 350 }); // new solde 357,20 €
   const booked = bookPaidAfterAmountChange({ database: db, recordPayment: recordReal },
-    { reservationId: id, type: 'balance', amountCents: oldCents }, { paidDay: '2026-10-19' });
+    { reservationId: id, type: 'balance', amountCents: oldCents }, { paidDay: inDays(-15) });
   assert.deepEqual([booked.effect, booked.shortfall], ['balance-booked', 50]);
   let row = rowOf(id);
   assert.deepEqual([row.balancePaid, row.balanceAmount, row.complementAmount, remainingToPay(row)], [1, 307.2, 50, 50]);
@@ -228,7 +235,7 @@ test('rules 31 + 36 — paid ABOVE the new solde: the excess is a trop-perçu, n
   const oldCents = Math.round(rowOf(id).balanceAmount * 100); // 307,20 €
   await save(id, { depositDisabled: 1, customPrice: 280 }); // new solde 287,20 €
   const booked = bookPaidAfterAmountChange({ database: db, recordPayment: recordReal },
-    { reservationId: id, type: 'balance', amountCents: oldCents }, { paidDay: '2026-10-19' });
+    { reservationId: id, type: 'balance', amountCents: oldCents }, { paidDay: inDays(-15) });
   assert.equal(booked.excess, 20);
   const row = rowOf(id);
   assert.deepEqual([row.balanceAmount, row.complementAmount, remainingToPay(row)], [307.2, 0, 0]);

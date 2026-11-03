@@ -11,6 +11,13 @@ const assert = require('node:assert/strict');
 const { db, createStay, rowOf, liveQuote, save, mark } = require('./ledgerFixture');
 const { formatEuros: eur } = require('../utils/reservationLedger');
 const { parseAmount } = require('../utils/ledgerAmountEdit');
+const { todayIso } = require('../utils/localDate');
+const { addDaysToIsoDate } = require('../utils/devisHelpers');
+
+/** `YYYY-MM-DD`, `days` after today: the dates of this suite hang on it (specs/server-test-isolation.md rule 6). */
+const inDays = (days) => addDaysToIsoDate(todayIso(), days);
+/** A day as the ledger prints it: « jj/mm », with the year when it is not the stay's (reservation-payment-ledger rule 4). */
+const ledgerDay = (iso, stayStart) => (iso.slice(0, 4) === stayStart.slice(0, 4) ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}` : iso.split('-').reverse().join('/'));
 
 const edit = async (id, row, amount, over = {}) => (await liveQuote(id, { ledgerEdit: { row, amount }, ...over })).ledgerEdit;
 const rowIn = (quote, key) => quote.ledger.rows.find((r) => r.key === key);
@@ -23,10 +30,10 @@ test('rule 15 — every row says whether its amount can be edited, between which
     [true, 0, 300],
   );
   assert.deepEqual([rowIn(q, 'balance').amountEdit.mode, rowIn(q, 'balance').amountEdit.min, rowIn(q, 'balance').amountEdit.max], ['split', 7.2, 307.2]);
-  mark(id, { depositPaid: true, depositPaidDate: '2026-10-01' });
+  mark(id, { depositPaid: true, depositPaidDate: inDays(-33) });
   const paid = await liveQuote(id);
   assert.equal(rowIn(paid, 'deposit').amountEdit.editable, false);
-  assert.equal(rowIn(paid, 'deposit').amountEdit.reason, 'Acompte perçu le 01/10/2026 : annuler la perception pour corriger le montant.');
+  assert.equal(rowIn(paid, 'deposit').amountEdit.reason, `Acompte perçu le ${ledgerDay(inDays(-33), rowOf(id).startDate)} : annuler la perception pour corriger le montant.`);
   assert.equal(rowIn(paid, 'balance').amountEdit.mode, 'price', 'acompte perçu → a different solde is a different price');
 });
 
@@ -81,7 +88,7 @@ test('rule 17 — a later price drop under the frozen acompte: the engine clamps
 
 test('rule 18 — solde with the acompte perceived: the whole engine finds the accommodation price', async () => {
   const id = createStay();
-  mark(id, { depositPaid: true, depositPaidDate: '2026-10-01' });
+  mark(id, { depositPaid: true, depositPaidDate: inDays(-33) });
   const res = await edit(id, 'balance', 150);
   assert.equal(res.ok, true);
   assert.equal(res.reached, 150);
@@ -93,7 +100,7 @@ test('rule 18 — solde with the acompte perceived: the whole engine finds the a
 
 test('rule 18 — the tourist tax follows the accommodation: nearest reachable cent, said', async () => {
   const id = createStay({ propertyId: 2 });
-  mark(id, { depositPaid: true, depositPaidDate: '2026-10-01' });
+  mark(id, { depositPaid: true, depositPaidDate: inDays(-33) });
   let unreachable = null;
   for (let cents = 15000; cents < 15100 && !unreachable; cents += 1) {
     const res = await edit(id, 'balance', cents / 100, { propertyId: 2 });
@@ -122,7 +129,7 @@ test('rule 18 — a stay carrying a cancellation insurance: the percentage optio
 
 test('rule 18 — floor: the accommodation never falls below the acompte received', async () => {
   const id = createStay();
-  mark(id, { depositPaid: true, depositPaidDate: '2026-10-01' });
+  mark(id, { depositPaid: true, depositPaidDate: inDays(-33) });
   const res = await edit(id, 'balance', 1);
   // H' = A = 90 € → solde = the tax alone, 7,20 €.
   assert.equal(res.reason, `Pas en dessous de ${eur(7.2)} : l'acompte perçu (${eur(90)}) couvre déjà l'hébergement.`);
@@ -141,7 +148,7 @@ test('rule 18 — no acompte at all: a different solde is a different price', as
 
 test('rule 19 — a perceived row keeps what it collected: lower → refund, higher → undo then redo', async () => {
   const id = createStay({ depositDisabled: 1 });
-  const marked = mark(id, { balancePaid: true, balancePaidDate: '2026-10-02' });
+  const marked = mark(id, { balancePaid: true, balancePaidDate: inDays(-32) });
   assert.equal(marked.statusCode, 200, JSON.stringify(marked.body));
   const lower = await edit(id, 'balance', 300, { depositDisabled: 1 });
   assert.equal(lower.reason, `Déjà perçu : ${eur(307.2)}. Pour rendre ${eur(7.2)}, créer un remboursement.`);
@@ -150,7 +157,7 @@ test('rule 19 — a perceived row keeps what it collected: lower → refund, hig
   assert.equal(higher.reason, `Déjà perçu : ${eur(307.2)}. Pour un autre montant, annuler la perception puis la refaire.`);
 
   const dep = createStay();
-  mark(dep, { depositPaid: true, depositPaidDate: '2026-10-01' });
+  mark(dep, { depositPaid: true, depositPaidDate: inDays(-33) });
   const depLower = await edit(dep, 'deposit', 50);
   assert.equal(depLower.reason, `Déjà perçu : ${eur(90)}. Pour rendre ${eur(40)}, créer un remboursement.`);
 });
@@ -158,7 +165,7 @@ test('rule 19 — a perceived row keeps what it collected: lower → refund, hig
 test('rule 20 — a paid solde freezes the acompte', async () => {
   const id = createStay();
   // The unusual order (solde perceived before the acompte), written as stored data.
-  db.prepare("UPDATE reservations SET balancePaid = 1, balancePaidDate = '2026-10-02' WHERE id = ?").run(id);
+  db.prepare(`UPDATE reservations SET balancePaid = 1, balancePaidDate = '${inDays(-32)}' WHERE id = ?`).run(id);
   const deposit = await edit(id, 'deposit', 50);
   assert.equal(deposit.reason, 'Solde déjà perçu : l\'acompte ne peut plus changer.');
   const q = await liveQuote(id);
@@ -192,7 +199,7 @@ test('rule 4 (amended) — the save re-validates: a crafted acompte above H gets
 
 test('rule 21 — a crafted solde under the floor is refused at save too', async () => {
   const id = createStay();
-  mark(id, { depositPaid: true, depositPaidDate: '2026-10-01' });
+  mark(id, { depositPaid: true, depositPaidDate: inDays(-33) });
   const res = await save(id, { customPrice: 50, ledgerAmountEdit: 'balance' });
   assert.equal(res.statusCode, 400);
   assert.equal(res.body.error, `Pas en dessous de ${eur(7.2)} : l'acompte perçu (${eur(90)}) couvre déjà l'hébergement.`);

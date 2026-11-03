@@ -5,6 +5,7 @@ const Database = require('better-sqlite3');
 
 const { buildModel, TABLE_SQL } = require('../intakesModel');
 const { createIntakeService } = require('../intakeService');
+const { withStoredUpdateBody } = require('../../sdk/testing');
 const { listingIdOf, detectedFromIcal, listingPairs } = require('../listings');
 const { SUBJECT, SENT_AT, bookingMail, WITH_CLEANING } = require('./fixtures');
 
@@ -25,7 +26,7 @@ function setup({
   db.exec(TABLE_SQL);
   const intakes = buildModel(db);
   const calls = { updates: [], clients: [] };
-  const service = createIntakeService({
+  const service = createIntakeService(withStoredUpdateBody({
     intakes,
     settings: {
       mailbox: () => ({ host: 'imap.test', port: 993, user: 'contact@test', password: 'x' }),
@@ -53,7 +54,7 @@ function setup({
       withholdsTouristTax: () => withholds,
     },
     now: () => new Date(now),
-  });
+  }));
   return { service, intakes, calls };
 }
 

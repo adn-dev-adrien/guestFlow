@@ -34,7 +34,7 @@ test('rule 39 — 465,60 € paid, 6 → 2 adults, breakfasts kept as a free lin
   controller.create({ body: body(6), user: { role: 'admin' } }, created);
   assert.equal(created.statusCode, 200, JSON.stringify(created.body));
   const id = created.body.id;
-  recordStayPayment(depsFor(db), { reservationId: id, bucket: 'balance', paidDate: '2026-10-18' });
+  recordStayPayment(depsFor(db), { reservationId: id, bucket: 'balance', paidDate: inDays(-16) });
 
   assert.equal(controller.performUpdate(id, body(2)).body.overpaymentTtc, 110.4);
 
