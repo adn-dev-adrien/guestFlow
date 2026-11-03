@@ -35,7 +35,9 @@ export default function buildArrivalDraft({
     soldOptions: (ran('breakfastSale') || ran('cateringAsk'))
       ? soldSelections.map((s) => (s.occurrences
         ? { optionId: s.offer.optionId, occurrences: s.occurrences, persons: s.persons }
-        : { optionId: s.offer.optionId, units: s.units }))
+        : (s.persons != null
+          ? { optionId: s.offer.optionId, persons: s.persons }
+          : { optionId: s.offer.optionId, units: s.units })))
       : undefined,
     // The authoritative offered set of the pre-existing complement lines (absent from it = billed).
     offeredExtras: [...offered]

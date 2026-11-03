@@ -144,7 +144,10 @@ function buildModel(database) {
       const served = Number(row.cardPersons);
       return Math.max(0, served > 0 ? Math.floor(served) : personsBase);
     }
-    return Math.max(0, Math.round(personsBase * (Number(row.qtySum) || 0)));
+    // The people served when the operator typed a number (specs/non-card-option-served-persons.md
+    // rule 6); they enter neither the occupancy nor the tourist tax.
+    const served = Number(row.cardPersons) > 0 ? Math.floor(Number(row.cardPersons)) : personsBase;
+    return Math.max(0, Math.round(served * (Number(row.qtySum) || 0)));
   }
 
   // Eligible reservations in (or overlapping with) the [from, to] window. Same UNION ALL

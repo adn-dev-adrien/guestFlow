@@ -73,6 +73,7 @@ export function makeMockContext(overrides = {}) {
     // Card options (specs/option-planning-card.md §3.2 + card-option-served-persons.md §3.2): the
     // occurrence grid and how many people each of its moments serves.
     setOptionCardOccurrences: vi.fn(), setOptionCardPersons: vi.fn(),
+    setOptionTypedCount: vi.fn(),
     setResourceSessions: vi.fn(),
     addCustomOption: vi.fn(), updateCustomOption: vi.fn(), removeCustomOption: vi.fn(),
     // specs/bed-config-in-linen-card.md — added 2026-06-05. Default to "no bed-linen

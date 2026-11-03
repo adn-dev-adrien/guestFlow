@@ -8,6 +8,8 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
+> **Amended 2026-11-03** by [non-card-option-served-persons.md](non-card-option-served-persons.md): a per-person or per-night « Qté » is the number of people or nights, stored as typed, no longer a base derived from a multiplier.
+
 ---
 
 ## 1. Context

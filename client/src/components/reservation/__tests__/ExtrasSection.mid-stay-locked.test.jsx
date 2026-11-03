@@ -160,8 +160,7 @@ test('C5 — an offered line is captioned « Offerte », an arrival one « Vendu
 });
 
 test('C6 — the floor shown in the quantity field is a whole number, never « 2.01 »', () => {
-  const context = buildContext({ extrasWindowOpen: true, arrivalLines: { 'opt:1': { minQuantity: 2, frozen: true, reason: 'arrival' } } });
-  context.toDisplayedQuantity = (q) => q + 0.01;
+  const context = buildContext({ extrasWindowOpen: true, arrivalLines: { 'opt:1': { minQuantity: 2.01, frozen: true, reason: 'arrival' } } });
   context.form.selectedOptions[0].quantity = 2;
   renderCard(context);
   const field = within(optionCard('Ménage')).getAllByRole('textbox')[0];
