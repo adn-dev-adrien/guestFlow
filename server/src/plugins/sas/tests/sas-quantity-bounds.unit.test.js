@@ -1,4 +1,4 @@
-// specs/sas-departure-recap-server-side.md rule 29 and specs/sas-breakfast-and-catering-upsell.md rule 15 (audit R21,
+// specs/sas-departure-recap-server-side.md rule 29 and specs/sas-breakfast-and-catering-upsell.md rule 16 (audit R21,
 // 2026-11-03) — what the SAS sells or counts is finite and at most 999, whole pieces are safe integers, a per-night
 // sale is a stay's worth of nights: refused at the preview as at the commit, before anything is planned or written.
 
@@ -57,7 +57,7 @@ function assertRefused(fn, id, body, label) {
 const NOT_WHOLE_PIECES = [1000, 1e15, 1e308, Infinity, 1.5, -1, 'abc', '1e309', '9'.repeat(400), {}, [2], true];
 const NOT_UNITS = [1000, 1e15, 1e308, Infinity, -1, 'abc', '1e309', '9'.repeat(400), {}, [2], true];
 
-test('sas-breakfast-and-catering-upsell rule 15: sold units beyond 999 or not finite are refused, preview and commit, and nothing is written', () => {
+test('sas-breakfast-and-catering-upsell rule 16: sold units beyond 999 or not finite are refused, preview and commit, and nothing is written', () => {
   const id = arrivalStay();
   for (const fn of ['previewArrival', 'commitArrival']) {
     for (const units of NOT_UNITS) assertRefused(fn, id, { soldOptions: [{ optionId: STAY_LINE, units }] }, `units ${String(units).slice(0, 12)}`);
@@ -68,35 +68,35 @@ test('sas-breakfast-and-catering-upsell rule 15: sold units beyond 999 or not fi
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM reservation_options WHERE reservationId = ?').get(id).n, 0);
 });
 
-test('sas-breakfast-and-catering-upsell rule 15: a reception session is held to the same refusal', () => {
+test('sas-breakfast-and-catering-upsell rule 16: a reception session is held to the same refusal', () => {
   const id = arrivalStay();
   const res = call('commitArrival', id, { soldOptions: [{ optionId: STAY_LINE, units: 1e308 }] }, { id: 2, roles: ['reception'] });
   assert.equal(res.statusCode, 400, JSON.stringify(res.body));
   assert.equal(res.body.error, 'INVALID_QUANTITY');
 });
 
-test('sas-breakfast-and-catering-upsell rule 15: fractional units stay what a per-stay sale allows, up to 999', () => {
+test('sas-breakfast-and-catering-upsell rule 16: fractional units stay what a per-stay sale allows, up to 999', () => {
   const id = arrivalStay();
   for (const units of [1.5, 999, 0]) {
     assert.equal(call('previewArrival', id, { soldOptions: [{ optionId: STAY_LINE, units }] }).statusCode, 200, String(units));
   }
 });
 
-test('sas-breakfast-and-catering-upsell rule 15: a per-night sale is a whole number of nights, at most 366', () => {
+test('sas-breakfast-and-catering-upsell rule 16: a per-night sale is a whole number of nights, at most 366', () => {
   const id = arrivalStay();
   for (const units of [367, 999, 1.5]) assertRefused('previewArrival', id, { soldOptions: [{ optionId: NIGHT_LINE, units }] }, `nights ${units}`);
   assert.equal(call('previewArrival', id, { soldOptions: [{ optionId: NIGHT_LINE, units: 366 }] }).statusCode, 200);
   assert.equal(call('previewArrival', id, { soldOptions: [{ optionId: NIGHT_LINE, units: 0 }] }).statusCode, 200);
 });
 
-test('sas-breakfast-and-catering-upsell rule 15: people served must be finite and at most 999; a valid number is still capped by the capacity', () => {
+test('sas-breakfast-and-catering-upsell rule 16: people served must be finite and at most 999; a valid number is still capped by the capacity', () => {
   const id = arrivalStay();
   for (const persons of [1000, 1e308, Infinity, 'abc', {}]) assertRefused('previewArrival', id, { soldOptions: [{ optionId: PERSON_LINE, persons }] }, `persons ${String(persons)}`);
   const capped = call('previewArrival', id, { soldOptions: [{ optionId: PERSON_LINE, persons: 999 }] });
   assert.equal(capped.statusCode, 200, JSON.stringify(capped.body));
 });
 
-test('sas-breakfast-and-catering-upsell rule 15: a line this SAS already sold, sent back unchanged at re-opening, is not re-judged', () => {
+test('sas-breakfast-and-catering-upsell rule 16: a line this SAS already sold, sent back unchanged at re-opening, is not re-judged', () => {
   const id = arrivalStay();
   db.prepare(`INSERT INTO reservation_options (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, inComplement, sasArrivalOrigin)
               VALUES (?, ?, 1, 5, 1.26, 'per_night', 6.3, 1, 1)`).run(id, NIGHT_LINE);
@@ -106,6 +106,13 @@ test('sas-breakfast-and-catering-upsell rule 15: a line this SAS already sold, s
   assert.equal(res.statusCode, 200, JSON.stringify(res.body));
   assertRefused('previewArrival', id, { soldOptions: [{ optionId: NIGHT_LINE, units: 1.5 }] }, 'changed');
   assertRefused('previewArrival', id, { soldOptions: [{ optionId: STAY_LINE, units: 1201 }] }, 'changed');
+});
+
+test('sas-breakfast-and-catering-upsell rule 16: the unchanged-units exemption covers only what this SAS sold', () => {
+  const id = arrivalStay();
+  db.prepare(`INSERT INTO reservation_options (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, inComplement, sasArrivalOrigin)
+              VALUES (?, ?, 1200, 20, 1200, 'per_stay', 24000, 0, 0)`).run(id, STAY_LINE);
+  assertRefused('previewArrival', id, { soldOptions: [{ optionId: STAY_LINE, units: 1200 }] }, 'a fiche line sent back');
 });
 
 test('sas-departure-recap-server-side rule 29: linen pieces at arrival are a safe integer of at most 999, preview and commit', () => {
@@ -128,6 +135,15 @@ test('sas-departure-recap-server-side rule 29: missing pieces at departure are a
   assert.equal(call('previewDeparture', id, { missingItems: [{ itemId: TOWEL, qty: 999 }] }).statusCode, 200);
 });
 
+test('sas-departure-recap-server-side rule 29: a line that names no count is refused, a null one counts nothing', () => {
+  const arrival = arrivalStay();
+  const departure = departureStay();
+  for (const fn of ['previewArrival', 'commitArrival']) assertRefused(fn, arrival, { linenItems: [{ itemId: PILLOW }] }, 'no qty');
+  for (const fn of ['previewDeparture', 'commitDeparture']) assertRefused(fn, departure, { missingItems: [{ itemId: TOWEL }] }, 'no qty');
+  assert.equal(call('previewArrival', arrival, { linenItems: [{ itemId: PILLOW, qty: null }] }).statusCode, 200);
+  assert.equal(call('previewDeparture', departure, { missingItems: [{ itemId: TOWEL, qty: null }] }).statusCode, 200);
+});
+
 test('sas-departure-recap-server-side rule 29: an extinguisher charge is counted the same way', () => {
   require('../settings').bind({ settings: { declare() {}, get: () => '1' } });
   const id = departureStay();
@@ -136,7 +152,7 @@ test('sas-departure-recap-server-side rule 29: an extinguisher charge is counted
   }
 });
 
-test('sas-breakfast-and-catering-upsell rule 15: the pure pricing never returns a non-finite line', () => {
+test('sas-breakfast-and-catering-upsell rule 16: the pure pricing never returns a non-finite line', () => {
   const stayNight = { id: NIGHT_LINE, priceType: 'per_night', price: 5 };
   const stayLine = { id: STAY_LINE, priceType: 'per_stay', price: 20 };
   for (const units of [Infinity, '1e309']) {

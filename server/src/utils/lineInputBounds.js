@@ -1,6 +1,6 @@
 /**
  * The one boundary guard of the numbers a reservation, devis or quote write carries on its lines and
- * party (specs/reservations-backend-mvc.md rule 15; specs/non-card-option-served-persons.md rule 27).
+ * party (specs/reservations-backend-mvc.md rule 15; specs/non-card-option-served-persons.md rule 34).
  * The SAS holds its intents to the same reading in `plugins/sas/sasQuantityBounds.js`.
  *
  * A bad number is refused, never clamped, before any pricing, so the preview and the save answer alike.

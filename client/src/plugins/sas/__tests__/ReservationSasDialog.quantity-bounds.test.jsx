@@ -1,13 +1,14 @@
-// specs/sas-departure-recap-server-side.md rule 29 — a count the server refuses is said with its reason, without
-// a « Réessayer » that would send the same draft; the piece steppers stop at the server's ceiling.
+// specs/sas-departure-recap-server-side.md rule 29, specs/sas-breakfast-and-catering-upsell.md rule 16 — a count the
+// server refuses is said with its reason, without a « Réessayer » that would send the same draft; the piece steppers
+// stop at the server's ceiling.
 //
 // One file per subject (CLAUDE.md §9). Fixtures used by more than one subject live in ./sasFixtures.
 import { screen, fireEvent, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';
 
 import api from '../../../api';
-import { sasPayload, renderDialog, clickBtn } from './sasFixtures';
-import { recapFor, departurePreviewLikeTheServer } from './sasPreviewFake';
+import { sasPayload, BOARD_OFFER, salesPayload, renderDialog, clickBtn } from './sasFixtures';
+import { recapFor, previewLikeTheServer, departurePreviewLikeTheServer } from './sasPreviewFake';
 
 vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: () => true }));
 vi.mock('../../../api', () => ({
@@ -70,4 +71,24 @@ test('rule 29 — a missing piece stops at 999', async () => {
   const input = screen.getByText('Serviette').closest('.MuiStack-root').querySelector('input');
   fireEvent.change(input, { target: { value: '5000' } });
   await waitFor(() => expect(screen.getByText('Serviette').closest('.MuiStack-root').querySelector('input').value).toBe('999'));
+});
+
+test('rule 29 — the catering units stepper stops at 999', async () => {
+  api.getReservationSas.mockResolvedValue(sasPayload({
+    reservation: { cautionReceived: 1, adults: 2 },
+    cleaning: { included: true, price: 80 },
+    sasSales: salesPayload({ catering: { available: true, options: [BOARD_OFFER] } }),
+  }));
+  api.previewArrivalSas.mockImplementation(previewLikeTheServer(api));
+  renderDialog({ mode: 'arrival' });
+  await screen.findByText('Commencer');
+  clickBtn('Commencer');
+  await screen.findByText(/souhaite-t-il de la restauration/);
+  clickBtn('Oui, proposer');
+  await screen.findByText('Planche S');
+  fireEvent.click(screen.getByRole('switch', { name: 'Planche S' }));
+  const row = () => screen.getByText(/^Quantité — /).closest('.MuiStack-root').parentElement;
+  await waitFor(() => expect(row().querySelector('input').value).toBe('1'));
+  fireEvent.change(row().querySelector('input'), { target: { value: '5000' } });
+  await waitFor(() => expect(row().querySelector('input').value).toBe('999'));
 });

@@ -1,4 +1,4 @@
-// specs/reservations-backend-mvc.md rule 15 and specs/non-card-option-served-persons.md rule 27 (audit R21, 2026-11-03)
+// specs/reservations-backend-mvc.md rule 15 and specs/non-card-option-served-persons.md rule 34 (audit R21, 2026-11-03)
 // — one boundary guard for every option, party and amount number of a reservation or devis write: refused,
 // never clamped, the same on the preview, the save and the quote; a stored line sent back unchanged is not re-judged.
 process.env.DB_PATH = ':memory:';
@@ -79,21 +79,21 @@ async function assertRefusedEverywhere(fields, code, label) {
   }
 }
 
-test('non-card-option-served-persons rule 27: a typed number of nights is a whole number from 1 to 366, on every path', async () => {
+test('non-card-option-served-persons rule 34: a typed number of nights is a whole number from 1 to 366, on every path', async () => {
   const bad = [0, -3, 0.5, 2.5, 367, 400, 1e6, 1e15, 1e308, Infinity, 'abc', '1e309', 'Infinity', '0x10', [2], {}, { a: 1 }, true, false];
   for (const cardNights of bad) {
     await assertRefusedEverywhere(asOptions({ optionId: NIGHTLY, quantity: 1, cardNights }), 'INVALID_CARD_NIGHTS', `cardNights ${String(cardNights)}`);
   }
 });
 
-test('non-card-option-served-persons rule 27: a typed number of people is a whole number from 1, on every path', async () => {
+test('non-card-option-served-persons rule 34: a typed number of people is a whole number from 1, on every path', async () => {
   const bad = [0, -1, 0.5, 2.5, 2.9, 1e308, Infinity, 'abc', '1e309', [2], {}, true];
   for (const cardPersons of bad) {
     await assertRefusedEverywhere(asOptions({ optionId: PER_PERSON, quantity: 1, cardPersons }), 'INVALID_CARD_PERSONS', `cardPersons ${String(cardPersons)}`);
   }
 });
 
-test('non-card-option-served-persons rule 27: absent, null and empty still mean « follows », and 366 is allowed', async () => {
+test('non-card-option-served-persons rule 34: absent, null and empty still mean « follows », and 366 is allowed', async () => {
   for (const cardNights of [undefined, null, '', 1, 2, '2', 366]) {
     const out = await everyPath(asOptions({ optionId: NIGHTLY, quantity: 1, ...(cardNights === undefined ? {} : { cardNights }), forceTypedCounts: true }));
     for (const [path, answer] of Object.entries(out)) {
@@ -159,7 +159,7 @@ test('reservations-backend-mvc rule 15: the alerts of a quote read lines that ar
   assert.deepEqual(typedCountAlerts({ quoteLines: [], requestLines: 'abc', persons: 2, nights: 2 }), []);
 });
 
-test('non-card-option-served-persons rule 27: a stored count sent back unchanged is not re-judged, a changed one is', async () => {
+test('non-card-option-served-persons rule 34: a stored count sent back unchanged is not re-judged, a changed one is', async () => {
   const id = f.createStay(dates());
   f.db.prepare(`INSERT INTO reservation_options (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, cardPersons)
                 VALUES (?, ${PER_PERSON}, 1, 8, 2.5, 'per_person', 20, 2.5)`).run(id);
@@ -180,7 +180,7 @@ test('non-card-option-served-persons rule 27: a stored count sent back unchanged
   assert.deepEqual([changed.statusCode, changed.body.code], [400, 'INVALID_CARD_NIGHTS']);
 });
 
-test('non-card-option-served-persons rule 27: the server\'s own update body passes the guard with a stored fractional count on a devis (an archived line)', () => {
+test('non-card-option-served-persons rule 34: the server\'s own update body passes the guard with a stored fractional count on a devis (an archived line)', () => {
   const made = devis.create({ ...devisBody({ selectedOptions: [{ optionId: PER_PERSON, quantity: 1 }] }), ...dates() });
   assert.equal(made.status, 201);
   const id = made.data.id;
@@ -191,7 +191,7 @@ test('non-card-option-served-persons rule 27: the server\'s own update body pass
   assert.equal(devis.update(id, { selectedOptions: [{ optionId: PER_PERSON, quantity: 0.75, cardPersons: 1.75 }], forceTypedCounts: true }).code, 'INVALID_CARD_PERSONS');
 });
 
-test('non-card-option-served-persons rule 27: a reservation saved back from its own stored body still passes', async () => {
+test('non-card-option-served-persons rule 34: a reservation saved back from its own stored body still passes', async () => {
   const id = f.createStay({ ...dates(), options: [{ optionId: NIGHTLY, quantity: 1, cardNights: 2 }, { optionId: PER_PERSON, quantity: 1, cardPersons: 1 }], forceTypedCounts: true });
   const full = f.getFiche(id);
   const body = toUpdateBody(full, new Set());

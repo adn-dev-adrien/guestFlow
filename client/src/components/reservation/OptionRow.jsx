@@ -19,7 +19,7 @@ import { optionLineKey, displayedFloor } from '../../utils/arrivalLineKey';
 import { typedCountKind, typedCountValue } from '../../utils/optionTypedCount';
 import TypedCountField from './TypedCountField';
 
-// specs/non-card-option-served-persons.md rule 27 — the server refuses more; a hint, never the guard.
+// specs/non-card-option-served-persons.md rule 34 — the server refuses more; a hint, never the guard.
 const MAX_TYPED_NIGHTS = 366;
 
 /**

@@ -1,4 +1,4 @@
-// specs/non-card-option-served-persons.md rule 27 — the nights field of a per-night option stops at 366;
+// specs/non-card-option-served-persons.md rule 34 — the nights field of a per-night option stops at 366;
 // a stored count above it is shown as it is, and can only come down.
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
@@ -29,19 +29,25 @@ const type = (value) => {
   fireEvent.blur(input);
 };
 
-test('rule 27 — a typed number of nights stops at 366', () => {
+test('rule 34 — a typed number of nights stops at 366', () => {
   const ctx = renderRow({ cardNights: 4 });
   type('1000000');
   expect(ctx.setOptionTypedCount).toHaveBeenCalledWith(32, 'nights', 366);
 });
 
-test('rule 27 — 366 itself goes through', () => {
+test('rule 34 — 366 itself goes through', () => {
   const ctx = renderRow({ cardNights: 4 });
   type('366');
   expect(ctx.setOptionTypedCount).toHaveBeenCalledWith(32, 'nights', 366);
 });
 
-test('rule 27 — a stored count above the ceiling is not moved by the field', () => {
+test('rule 34 — a stored count above the ceiling is not moved by the field', () => {
   renderRow({ cardNights: 400 });
   expect(screen.getByLabelText('Qté').value).toBe('400');
+});
+
+test('rule 34 — a stored count above the ceiling keeps it as its own ceiling', () => {
+  const ctx = renderRow({ cardNights: 400 });
+  type('500');
+  expect(ctx.setOptionTypedCount).toHaveBeenCalledWith(32, 'nights', 400);
 });

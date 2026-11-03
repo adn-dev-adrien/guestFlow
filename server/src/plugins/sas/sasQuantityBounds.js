@@ -1,7 +1,7 @@
 /**
  * What the SAS counts and sells, judged before planning so the preview and the commit answer alike:
  * refused, never clamped (specs/sas-departure-recap-server-side.md rule 29,
- * specs/sas-breakfast-and-catering-upsell.md rule 15). Same reading of a number as the fiche's guard,
+ * specs/sas-breakfast-and-catering-upsell.md rule 16). Same reading of a number as the fiche's guard,
  * `utils/lineInputBounds.js`. Each function returns the refusal's message, or null.
  */
 

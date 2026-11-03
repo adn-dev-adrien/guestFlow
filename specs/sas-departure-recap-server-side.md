@@ -248,9 +248,9 @@ the commit runs, so that what the operator collects at the door is what the book
     quantity of `1e308` stored `endOfStayComplementAmount = Infinity`, and the sales journal then read `null` under
     a « balanced » flag. `missingItems`, `linenItems` and, when the check is on, `extinguisherCharges` carry a
     safe integer from 0 to 999, or 400 `INVALID_QUANTITY`, for reception and admin alike, at the preview as at the
-    commit. The wizard's piece and units steppers stop at 999, as a hint. Should a stale client send more, the
-    recap says the server's reason, with no « Réessayer »: the same draft would be refused again. Tests:
-    `plugins/sas/tests/sas-quantity-bounds.unit.test.js`, client
+    commit. A line with no `qty` is refused too; a null or empty one counts nothing. The wizard's piece and units
+    steppers stop at 999, as a hint. Should a stale client send more, the recap says the server's reason, with no
+    « Réessayer »: the same draft would be refused again. Tests: `plugins/sas/tests/sas-quantity-bounds.unit.test.js`, client
     `plugins/sas/__tests__/ReservationSasDialog.quantity-bounds.test.jsx`.
 
 **Edge cases:**

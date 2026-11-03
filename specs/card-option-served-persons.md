@@ -172,7 +172,7 @@ planning card and the kitchen prep all follow that number instead of the party s
     *Reading of 2026-11-03 (audit R21):* the count is a **whole number** (a fraction was floored, or billed
     2.5 covers on a card line), on the devis create and update as well, and the message says « un nombre
     entier, au moins 1 ». One guard: `utils/lineInputBounds.js`, see `non-card-option-served-persons.md`
-    rule 27. Tests: `tests/line-input-bounds.unit.test.js`.
+    rule 34. Tests: `tests/line-input-bounds.unit.test.js`.
 
 ---
 

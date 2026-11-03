@@ -289,7 +289,7 @@ function createBookingLinesModel(database) {
       return { options, resources };
     },
 
-    // specs/non-card-option-served-persons.md rule 27 — the typed counts a booking stores: sent back
+    // specs/non-card-option-served-persons.md rule 34 — the typed counts a booking stores: sent back
     // unchanged, they are not re-judged.
     getStoredTypedCounts(bookingId) {
       if (!HAS_CARD_PERSONS && !HAS_CARD_NIGHTS) return {};

@@ -174,7 +174,7 @@ réservation — préparée, planifiée, comptée — et son montant rejoint le 
 
 ### 3.6 Bornes (audit R21, 2026-11-03)
 
-15. Les `units` d'une vente sont un nombre fini de 0 à 999, fractions admises sur une option au séjour ; sur une
+16. Les `units` d'une vente sont un nombre fini de 0 à 999, fractions admises sur une option au séjour ; sur une
     option à la nuit, un entier d'au plus 366 (elles deviennent des `cardNights`). `persons` est un nombre fini
     d'au plus 999, puis plafonné à la capacité comme avant. Sinon **400 `INVALID_QUANTITY`**, à l'aperçu comme à la
     validation, avant tout calcul (`plugins/sas/sasQuantityBounds.js`). Des unités que ce SAS a déjà vendues,
