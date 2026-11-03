@@ -6,7 +6,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { makeContext, NEW_CUSTOMER } = require('./helpers');
-const { addDays, addMonths, inWindow, windowError, PAST_WINDOW_MESSAGE, FUTURE_WINDOW_MESSAGE } = require('../utils/days');
+const { addDays, addMonths, isDay, inWindow, windowError, PAST_WINDOW_MESSAGE, FUTURE_WINDOW_MESSAGE } = require('../utils/days');
 
 // date-literal-ok: makeContext pins the console's clock on this instant; every date below is computed from it
 const AT = '2026-09-29T10:00:00Z';
@@ -50,4 +50,23 @@ test('rule 47 — « Prolonger » and « Forcer actif » are refused past the wi
   customers.forceActive(c.id, { until: LAST, reason: 'Virement annoncé' }, 'op');
   extend(LAST);
   assert.equal(customers.view(c.id).endsAt, LAST);
+});
+
+// Audit R21 C1 — the impossible-day invariant holds here too: a YYYY-MM-DD naming no day is the field's refusal, never a RangeError.
+test('rule 47 — a YYYY-MM-DD naming no day is refused under its field, never a throw', async () => {
+  const { ctx } = makeContext({ at: AT });
+  const { customers } = ctx.controllers;
+  const c = await customers.create({ ...NEW_CUSTOMER, startsAt: TODAY }, 'op');
+  const { endsAt } = c;
+  for (const day of ['2026-13-45', '2026-00-10', '2026-12-32', '2026-10-00', '0000-00-00', '2026-02-30']) { // date-literal-ok: none of them is a day
+    assert.equal(isDay(day), false, day);
+    assert.equal(inWindow(day, TODAY), false, day);
+    assert.equal(windowError(day, TODAY), null, day);
+    assert.equal(customers.preview({ ...NEW_CUSTOMER, startsAt: day }).errors.startsAt, 'Date de début invalide.', day);
+    assert.equal(customers.preview({ ...NEW_CUSTOMER, length: 'custom', endsAt: day }).errors.endsAt, 'La date de fin doit suivre la date de début.', day);
+    assert.throws(() => customers.extend(c.id, { endsAt: day, reason: 'Geste commercial', expectedEndsAt: endsAt }, 'op'), (e) => e.status === 400, day);
+    assert.throws(() => customers.forceActive(c.id, { until: day, reason: 'Virement annoncé' }, 'op'), (e) => e.status === 400, day);
+  }
+  for (const value of [null, 1, {}, [], true]) assert.equal(isDay(value), false);
+  assert.equal(isDay(TODAY), true);
 });
