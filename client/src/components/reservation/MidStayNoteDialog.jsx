@@ -78,19 +78,32 @@ export default function MidStayNoteDialog({ open, onClose, pendingLines = [], on
   }, [liveRemainder, checkedKeys, pendingLines, pricingQuote]);
 
   const noteTotal = items.reduce((s, i) => s + i.amount, 0);
+  // What a line sold counts: its typed people or nights, else its units (a typed line's `quantity` stays
+  // 1, specs/non-card-option-served-persons.md rule 13). Same reading as the field below.
+  const kindOf = (optionId) => typedCountKind((propertyOptions || []).find((p) => Number(p.id) === Number(optionId)));
+  const soldCount = (line) => {
+    const kind = kindOf(line.optionId);
+    if (!kind) return Number(line.quantity) || 0;
+    return typedCountValue(line, kind, kind === 'nights' ? quantityNights : quantityPersons);
+  };
   const hasAdditions = useMemo(() => {
-    const before = new Map((snapshotRef.current || []).map((o) => [Number(o.optionId), Number(o.quantity) || 0]));
-    return (form.selectedOptions || []).some((o) => (Number(o.quantity) || 0) > (before.get(Number(o.optionId)) || 0));
-  }, [form.selectedOptions]);
+    const before = new Map((snapshotRef.current || []).map((o) => [Number(o.optionId), soldCount(o)]));
+    return (form.selectedOptions || []).some((o) => soldCount(o) > (before.get(Number(o.optionId)) || 0));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.selectedOptions, propertyOptions, quantityPersons, quantityNights]);
 
   const rollback = () => {
     const before = snapshotRef.current;
     if (!before) return;
-    const beforeQty = new Map(before.map((o) => [Number(o.optionId), Number(o.quantity) || 0]));
+    const beforeCount = new Map(before.map((o) => [Number(o.optionId), soldCount(o)]));
     for (const o of (form.selectedOptions || [])) {
       const id = Number(o.optionId);
-      if (!beforeQty.has(id)) setOptionEnabled(id, false);
-      else if (beforeQty.get(id) !== (Number(o.quantity) || 0)) setOptionQuantity(id, beforeQty.get(id));
+      if (!beforeCount.has(id)) setOptionEnabled(id, false);
+      else if (beforeCount.get(id) !== soldCount(o)) {
+        const kind = kindOf(id);
+        if (kind) setOptionTypedCount(id, kind, beforeCount.get(id));
+        else setOptionQuantity(id, beforeCount.get(id));
+      }
     }
   };
 

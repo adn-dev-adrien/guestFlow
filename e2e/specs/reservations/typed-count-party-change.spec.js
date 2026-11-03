@@ -17,6 +17,11 @@ const adults = (page) => page.getByLabel('Adultes');
 const saveButton = (page) => page.getByRole('button', { name: 'Enregistrer', exact: true });
 // Saved: the fiche is clean again, or was left. Reloading any earlier would meet the unsaved-changes guard.
 const settled = (page) => expect(saveButton(page).and(page.locator(':enabled'))).toHaveCount(0, { timeout: 15_000 });
+// A save may still be navigating away: reopening races with it, so retry until the fiche is back.
+const reopen = (page, id, value) => expect(async () => {
+  await page.goto(`/reservations/${id}`);
+  await expect(qty(page)).toHaveValue(value, { timeout: 5_000 });
+}).toPass({ timeout: 30_000 });
 const savedStay = (page, id) => page.waitForResponse((res) => res.request().method() === 'PUT'
   && res.url().includes(`/api/reservations/${id}`) && res.ok());
 
@@ -45,8 +50,7 @@ test('a typed number survives a party change, turns red, and the save asks', asy
 
   await Promise.all([savedStay(page, reservation.id), saveButton(page).click()]);
   await settled(page);
-  await page.goto(`/reservations/${reservation.id}`);
-  await expect(qty(page)).toHaveValue('3', { timeout: 15_000 });
+  await reopen(page, reservation.id, '3');
   await expect(qty(page)).toHaveAttribute('aria-invalid', 'false');
 
   // The party moves: the number stays, the total stays, the field says so.
@@ -85,8 +89,7 @@ test('a typed number survives a party change, turns red, and the save asks', asy
   ]);
   await settled(page);
 
-  await page.goto(`/reservations/${reservation.id}`);
-  await expect(qty(page)).toHaveValue('2', { timeout: 15_000 });
+  await reopen(page, reservation.id, '2');
   await expect(qty(page)).toHaveAttribute('aria-invalid', 'false');
   await expect(optionCard(page).getByText(/Total: 16,00/)).toBeVisible();
 });
