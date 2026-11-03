@@ -123,8 +123,8 @@ test('rule 21 — a manual confirmation is not marked auto', () => {
 });
 
 test('rule 20 — the setting accepts on, off and the default, nothing else', () => {
-  const { RECONCILIATION_DECLARED } = require('../settingsStore');
-  const { validate } = RECONCILIATION_DECLARED.find((d) => d.key === 'reconciliationAutoConfirm');
+  const { reconciliationDeclared } = require('../settingsStore');
+  const { validate } = reconciliationDeclared({ get: () => '' }).find((d) => d.key === 'reconciliationAutoConfirm');
   assert.deepEqual(['', '0', '1'].map(validate), [null, null, null]);
   assert.equal(validate('maybe'), 'Réglage invalide.');
 });

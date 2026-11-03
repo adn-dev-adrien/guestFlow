@@ -12,3 +12,8 @@ export { default as SummaryItem } from '../../components/SummaryItem';
 export { default as MaskedTextField } from '../../components/MaskedTextField';
 export { default as HelpedTextField } from '../../components/HelpedTextField';
 export { default as useDirtyFormGuard } from '../../hooks/useDirtyFormGuard';
+// The reconciliation start date (specs/qonto-bank-reconciliation.md rule 48) — the date field and the window hint
+// read from the server's day, SDK 2.20.0.
+export { default as DateField } from '../../components/DateField';
+export { default as useServerToday } from '../../hooks/useServerToday';
+export { dateWindowMessage } from '../../utils/dateHorizon';
