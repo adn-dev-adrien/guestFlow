@@ -3,6 +3,11 @@ const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
 const propertiesModel = require('../models/propertiesModel');
+const { todayIso } = require('../utils/localDate');
+const { addDaysToIsoDate } = require('../utils/devisHelpers');
+
+/** `YYYY-MM-DD`, `days` after today: the dates of this suite hang on it (specs/server-test-isolation.md rule 6). */
+const inDays = (days) => addDaysToIsoDate(todayIso(), days);
 
 const DDL = `
   CREATE TABLE properties (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT);
@@ -35,10 +40,10 @@ const range = (startDate, endDate) => [{ startDate, endDate }];
 
 test('addPricingRule inserts a rule and rejects an overlapping one (400)', () => {
   const { model } = freshModel();
-  const first = model.addPricingRule(1, { label: 'Été', pricePerNight: 120, dateRanges: range('2026-07-01', '2026-07-31') });
+  const first = model.addPricingRule(1, { label: 'Été', pricePerNight: 120, dateRanges: range(inDays(-125), inDays(-95)) });
   assert.ok(first.data.id);
 
-  const overlap = model.addPricingRule(1, { label: 'Haute', pricePerNight: 150, dateRanges: range('2026-07-15', '2026-08-15') });
+  const overlap = model.addPricingRule(1, { label: 'Haute', pricePerNight: 150, dateRanges: range(inDays(-111), inDays(-80)) });
   assert.equal(overlap.status, 400);
   assert.ok(overlap.conflictingRule);
   assert.equal(overlap.conflictingRule.label, 'Été');
@@ -46,14 +51,14 @@ test('addPricingRule inserts a rule and rejects an overlapping one (400)', () =>
 
 test('addPricingRule allows a non-overlapping range', () => {
   const { model } = freshModel();
-  model.addPricingRule(1, { label: 'Été', pricePerNight: 120, dateRanges: range('2026-07-01', '2026-07-31') });
-  const ok = model.addPricingRule(1, { label: 'Automne', pricePerNight: 90, dateRanges: range('2026-09-01', '2026-09-30') });
+  model.addPricingRule(1, { label: 'Été', pricePerNight: 120, dateRanges: range(inDays(-125), inDays(-95)) });
+  const ok = model.addPricingRule(1, { label: 'Automne', pricePerNight: 90, dateRanges: range(inDays(-63), inDays(-34)) });
   assert.ok(ok.data.id);
 });
 
 test('applyPricingTo copies seasons to an empty target', () => {
   const { db, model } = freshModel();
-  model.addPricingRule(1, { label: 'Été', pricePerNight: 120, dateRanges: range('2026-07-01', '2026-07-31') });
+  model.addPricingRule(1, { label: 'Été', pricePerNight: 120, dateRanges: range(inDays(-125), inDays(-95)) });
   const result = model.applyPricingTo(1, { targetPropertyId: 2 });
   assert.equal(result.data.copiedRules, 1);
   assert.equal(db.prepare('SELECT COUNT(*) c FROM pricing_rules WHERE propertyId = 2').get().c, 1);
@@ -61,8 +66,8 @@ test('applyPricingTo copies seasons to an empty target', () => {
 
 test('applyPricingTo returns 409 PRICING_OVERLAP when target conflicts (no replace)', () => {
   const { model } = freshModel();
-  model.addPricingRule(1, { label: 'Été', pricePerNight: 120, dateRanges: range('2026-07-01', '2026-07-31') });
-  model.addPricingRule(2, { label: 'Cible', pricePerNight: 100, dateRanges: range('2026-07-10', '2026-07-20') });
+  model.addPricingRule(1, { label: 'Été', pricePerNight: 120, dateRanges: range(inDays(-125), inDays(-95)) });
+  model.addPricingRule(2, { label: 'Cible', pricePerNight: 100, dateRanges: range(inDays(-116), inDays(-106)) });
   const result = model.applyPricingTo(1, { targetPropertyId: 2 });
   assert.equal(result.status, 409);
   assert.equal(result.code, 'PRICING_OVERLAP');
@@ -70,8 +75,8 @@ test('applyPricingTo returns 409 PRICING_OVERLAP when target conflicts (no repla
 
 test('applyPricingTo with replaceExisting wipes + copies', () => {
   const { db, model } = freshModel();
-  model.addPricingRule(1, { label: 'Été', pricePerNight: 120, dateRanges: range('2026-07-01', '2026-07-31') });
-  model.addPricingRule(2, { label: 'Cible', pricePerNight: 100, dateRanges: range('2026-07-10', '2026-07-20') });
+  model.addPricingRule(1, { label: 'Été', pricePerNight: 120, dateRanges: range(inDays(-125), inDays(-95)) });
+  model.addPricingRule(2, { label: 'Cible', pricePerNight: 100, dateRanges: range(inDays(-116), inDays(-106)) });
   const result = model.applyPricingTo(1, { targetPropertyId: 2, replaceExisting: true });
   assert.equal(result.data.copiedRules, 1);
   const targetRules = db.prepare('SELECT label FROM pricing_rules WHERE propertyId = 2').all();
@@ -88,7 +93,7 @@ test('applyPricingTo validates source/target', () => {
 
 test('getByIdWithDetails returns enriched payload; setOptions links options', () => {
   const { db, model } = freshModel();
-  model.addPricingRule(1, { label: 'Été', pricePerNight: 120, dateRanges: range('2026-07-01', '2026-07-31') });
+  model.addPricingRule(1, { label: 'Été', pricePerNight: 120, dateRanges: range(inDays(-125), inDays(-95)) });
   db.prepare("INSERT INTO documents (propertyId, type, name, filePath) VALUES (1, 'other', 'Guide', '/uploads/g.pdf')").run();
   model.setOptions(1, [7, 9]);
 

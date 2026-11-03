@@ -14,7 +14,14 @@ const { create: accountingModel } = optionalPlugin(() => require('../plugins/acc
 const { create: accountingController } = optionalPlugin(() => require('../plugins/accounting-export/controller'));
 const { hasAnyContrib, captureBucketSplit } = require('../utils/forceItemContribsCapture');
 
-const TODAY = new Date().toISOString().slice(0, 10);
+const { localIsoDate } = require('../utils/localDate');
+const { addDaysToIsoDate } = require('../utils/devisHelpers');
+
+const TODAY = localIsoDate();
+// The acompte of an older stay, months before today's journal month.
+const ACOMPTE_DAY = addDaysToIsoDate(TODAY, -170);
+const ACOMPTE_YEAR = Number(ACOMPTE_DAY.slice(0, 4));
+const ACOMPTE_MONTH = Number(ACOMPTE_DAY.slice(5, 7));
 
 // The whole month's CSV, byte for byte.
 function csvOf(year, month) {
@@ -30,22 +37,22 @@ function journal(day) {
   return json;
 }
 
-// An older stay: acompte ticked in May 2026, no contribution captured anywhere.
+// An older stay: acompte ticked months ago, no contribution captured anywhere.
 function olderStay() {
   const id = createStay();
-  db.prepare("UPDATE reservations SET depositPaid = 1, depositPaidDate = '2026-05-10' WHERE id = ?").run(id);
+  db.prepare('UPDATE reservations SET depositPaid = 1, depositPaidDate = ? WHERE id = ?').run(ACOMPTE_DAY, id);
   assert.equal(hasAnyContrib(db, id), false);
   return id;
 }
 
 test('rule 46 — a stay with no contribution stays wholly on the stored-money path when its solde is marked', { skip: skipWithout(['accounting-export']) }, () => {
   const id = olderStay();
-  const mayBefore = csvOf(2026, 5);
-  assert.match(mayBefore, /;90;0;/, 'the acompte entry of May');
+  const mayBefore = csvOf(ACOMPTE_YEAR, ACOMPTE_MONTH);
+  assert.match(mayBefore, /;90;0;/, 'the acompte entry of its month');
   const res = mark(id, { balancePaid: true, balancePaidDate: TODAY, expectedAmountCents: Math.round(rowOf(id).balanceAmount * 100) });
   assert.equal(res.statusCode, 200, JSON.stringify(res.body));
   assert.equal(hasAnyContrib(db, id), false, 'no first contribution written');
-  assert.equal(csvOf(2026, 5), mayBefore, 'the earlier month is unchanged, the acompte entry still there');
+  assert.equal(csvOf(ACOMPTE_YEAR, ACOMPTE_MONTH), mayBefore, 'the earlier month is unchanged, the acompte entry still there');
   const balance = journal(TODAY).entries.find((e) => e.reservationId === id && e.kind === 'balance');
   assert.ok(balance.lines.some((l) => /^706/.test(l.compte) && Number(l.credit) > 0), 'the solde books revenue');
 });
@@ -53,19 +60,19 @@ test('rule 46 — a stay with no contribution stays wholly on the stored-money p
 test('rule 46 — the single payment and the SAS keep a no-contribution stay on the stored-money path too', { skip: skipWithout(['accounting-export']) }, () => {
   const settled = olderStay();
   db.prepare('UPDATE reservations SET complementAmount = 24 WHERE id = ?').run(settled);
-  const mayBefore = csvOf(2026, 5);
+  const mayBefore = csvOf(ACOMPTE_YEAR, ACOMPTE_MONTH);
   const res = respond();
   controller.settleArrivalPayment({ params: { id: String(settled) }, body: { mode: 'card', date: TODAY }, user: ADMIN }, res);
   assert.equal(res.statusCode, 200, JSON.stringify(res.body));
   assert.equal(hasAnyContrib(db, settled), false);
-  assert.equal(csvOf(2026, 5), mayBefore);
+  assert.equal(csvOf(ACOMPTE_YEAR, ACOMPTE_MONTH), mayBefore);
 
   const sas = olderStay();
-  const sasMay = csvOf(2026, 5);
+  const sasMay = csvOf(ACOMPTE_YEAR, ACOMPTE_MONTH);
   require('../models/reservationsModel').commitArrivalSas(sas, { stayPaid: true, stayPaidCash: false });
   assert.equal(rowOf(sas).balancePaid, 1);
   assert.equal(hasAnyContrib(db, sas), false);
-  assert.equal(csvOf(2026, 5), sasMay);
+  assert.equal(csvOf(ACOMPTE_YEAR, ACOMPTE_MONTH), sasMay);
 });
 
 test('rule 46 — an acompte that captured its split: the drifted solde still gets the stored split (rule 37 holds)', { skip: skipWithout(['accounting-export']) }, () => {

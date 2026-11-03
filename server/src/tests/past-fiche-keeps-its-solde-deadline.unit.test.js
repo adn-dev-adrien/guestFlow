@@ -17,6 +17,11 @@ const assert = require('node:assert/strict');
 const Module = require('module');
 
 const { buildAuditSnapshotFromPayload } = require('../utils/reservationAudit');
+const { todayIso } = require('../utils/localDate');
+const { addDaysToIsoDate } = require('../utils/devisHelpers');
+
+/** `YYYY-MM-DD`, `days` after today: the dates of this suite hang on it (specs/server-test-isolation.md rule 6). */
+const inDays = (days) => addDaysToIsoDate(todayIso(), days);
 
 function withMocks(modules, fn) {
   const origRequire = Module.prototype.require;
@@ -37,9 +42,9 @@ function fakeRes() {
 }
 
 // What the engine derives TODAY for a Booking stay ending on 19/07 with a 10-day payout delay.
-const RECOMPUTED_DEADLINE = '2026-07-29';
+const RECOMPUTED_DEADLINE = inDays(-97);
 // What the row has carried since it was saved, under the old J-30 rule.
-const STORED_DEADLINE = '2026-07-10';
+const STORED_DEADLINE = inDays(-116);
 
 function quoteFor(balanceDueDate) {
   return {
@@ -54,8 +59,8 @@ function body(over = {}) {
   return {
     propertyId: 1,
     clientId: 79,
-    startDate: '2026-07-17',
-    endDate: '2026-07-19',
+    startDate: inDays(-109),
+    endDate: inDays(-107),
     adults: 8, children: 0, teens: 0, babies: 0,
     checkInTime: '16:00', checkOutTime: '10:00',
     // Zeroed by the save itself when no bed-linen option is selected — kept at 0 so the two
@@ -73,7 +78,7 @@ function body(over = {}) {
   };
 }
 
-function runUpdate({ storedDeadline, startDate = '2026-07-17' }) {
+function runUpdate({ storedDeadline, startDate = inDays(-109) }) {
   const captures = {};
   const payload = body();
   // The row as the DB holds it: priced identically, but with the deadline of its own era.
@@ -91,13 +96,13 @@ function runUpdate({ storedDeadline, startDate = '2026-07-17' }) {
     },
     '../utils/financeValidation': { validateFinanceInputs: () => null, validateClientGrossAmount: () => null },
     '../utils/occupancy': { getNightBlocksFromTimes: () => ({}), buildOccupiedDatesFromReservations: () => [] },
-    '../utils/reservationHelpers': { computeNextIcalSyncLocked: () => 0, getTodayIsoDate: () => '2026-09-25' },
+    '../utils/reservationHelpers': { computeNextIcalSyncLocked: () => 0, getTodayIsoDate: () => inDays(-39) },
     '../utils/bedDistribution': { suggestBedDistribution: () => null },
     '../utils/forceItemContribsCapture': { captureContribsOnFlip: () => null, clearContribsOnUnflip: () => null },
     '../models/establishmentClosuresModel': new Proxy({}, { get: () => () => null }),
     '../models/reservationsModel': new Proxy({}, {
       get: (_, k) => {
-        const row = { id: 22219, propertyId: 1, startDate, endDate: '2026-07-19', balanceDueDate: storedDeadline };
+        const row = { id: 22219, propertyId: 1, startDate, endDate: inDays(-107), balanceDueDate: storedDeadline };
         if (k === 'getRow') return () => ({ ...row });
         if (k === 'getForUpdate') return () => ({ ...row });
         if (k === 'getAuditSnapshotFromDb') return () => dbSnapshot;
@@ -138,6 +143,6 @@ test('…and the solde deadline it was stored with is the one written back', () 
 test('a future fiche still re-derives its deadline from the payout regime', () => {
   // The freeze is the past-reservation lock's business only: a stay that has not started must keep
   // following the platform payout rule, or the « Virement plateforme en retard » alert loses its anchor.
-  const { captures } = runUpdate({ storedDeadline: STORED_DEADLINE, startDate: '2027-07-17' });
+  const { captures } = runUpdate({ storedDeadline: STORED_DEADLINE, startDate: inDays(256) });
   assert.equal(captures.quote.balanceDueDate, RECOMPUTED_DEADLINE);
 });

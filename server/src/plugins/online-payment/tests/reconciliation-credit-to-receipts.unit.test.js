@@ -2,25 +2,25 @@
 // receipts first, all open receipts folded, the same search, several receipts at once. Fictional data only.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { USER, addReservation, credit, build, reset, row } = require('./reconciliationFixture');
+const { USER, addReservation, credit, build, reset, row, dayAt, frShort } = require('./reconciliationFixture');
 
 test.beforeEach(() => { reset(); });
 
 const at = (day) => `${day}T09:00:00.000Z`;
 
 function world() {
-  const a = addReservation({ balanceAmount: 400, finalPrice: 400, balanceDueDate: '2026-10-18' });
-  const b = addReservation({ clientId: 2, balanceAmount: 300, finalPrice: 300, balanceDueDate: '2026-10-19' });
-  const far = addReservation({ clientId: 2, balanceAmount: 777, finalPrice: 777, balanceDueDate: '2027-02-01', startDate: '2027-02-01', endDate: '2027-02-03' });
+  const a = addReservation({ balanceAmount: 400, finalPrice: 400, balanceDueDate: dayAt(-5) });
+  const b = addReservation({ clientId: 2, balanceAmount: 300, finalPrice: 300, balanceDueDate: dayAt(-4) });
+  const far = addReservation({ clientId: 2, balanceAmount: 777, finalPrice: 777, balanceDueDate: dayAt(101), startDate: dayAt(101), endDate: dayAt(103) });
   const built = build();
-  built.transactions.upsertMany([credit('t1', 70000, { settledAt: at('2026-10-20'), counterpartyName: 'ACME' })], { bankAccountId: 'acc-1' });
+  built.transactions.upsertMany([credit('t1', 70000, { settledAt: at(dayAt(-3)), counterpartyName: 'ACME' })], { bankAccountId: 'acc-1' });
   return { ...built, a, b, far };
 }
 const find = (controller, q = '') => controller.candidates({ transactionId: 't1', q }).body;
 
 test('rule 14 — receipts whose open amount fits the credit within 5 € and the dates come first; the rest is folded', () => {
   const { controller, a, b, far } = world();
-  addReservation({ balanceAmount: 700, finalPrice: 700, balanceDueDate: '2026-10-19' });
+  addReservation({ balanceAmount: 700, finalPrice: 700, balanceDueDate: dayAt(-4) });
   const body = find(controller);
   assert.equal(body.likely.length, 1, 'only the 700 € one fits the 700 € credit');
   assert.equal(body.likely[0].openCents, 70000);
@@ -31,12 +31,12 @@ test('rule 14 — receipts whose open amount fits the credit within 5 € and th
 test('rule 14 — the receipts of the credit\'s own proposal are plausible even when no one fits the amount alone', () => {
   const platformStay = (payout, over = {}) => addReservation({
     platform: 'Booking', platformGrossAmount: payout + 50, platformPayoutAmount: payout, finalPrice: payout + 50, balanceAmount: payout + 50,
-    depositAmount: 0, balanceDueDate: '2026-10-18', ...over,
+    depositAmount: 0, balanceDueDate: dayAt(-5), ...over,
   });
   const a = platformStay(400);
   const b = platformStay(300, { clientId: 2 });
   const { controller, transactions } = build();
-  transactions.upsertMany([credit('t1', 70000, { settledAt: at('2026-10-20'), counterpartyName: 'BOOKING.COM B.V.', reference: 'NO.X/ID.1' })], { bankAccountId: 'acc-1' });
+  transactions.upsertMany([credit('t1', 70000, { settledAt: at(dayAt(-3)), counterpartyName: 'BOOKING.COM B.V.', reference: 'NO.X/ID.1' })], { bankAccountId: 'acc-1' });
   const body = find(controller);
   assert.deepEqual(body.likely.map((r) => r.reservationId).sort(), [a, b].sort());
 });
@@ -46,7 +46,7 @@ test('rule 14 — the search covers client, booking number, amount and date, wit
   const ids = (q) => { const body = find(controller, q); return [...body.likely, ...body.others.items].map((r) => r.reservationId).sort(); };
   assert.ok(ids('rossi').includes(b) && !ids('rossi').includes(a), 'text on the client name');
   assert.deepEqual(ids('400'), [a], 'an integer amount');
-  assert.deepEqual(ids('19/10'), [b], 'a due date');
+  assert.deepEqual(ids(frShort(dayAt(-4))), [b], 'a due date');
   assert.deepEqual(ids('12/13'), [], 'an invalid date reads as text');
 });
 

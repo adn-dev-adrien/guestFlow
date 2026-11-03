@@ -17,6 +17,7 @@ const { addDaysToIsoDate } = require('../../../utils/devisHelpers');
 
 // The stay hangs on today: a literal date becomes a stay in the past.
 const inDays = (days) => addDaysToIsoDate(todayIso(), days);
+const monthOf = (iso) => ({ month: Number(iso.slice(5, 7)), year: Number(iso.slice(0, 4)) });
 
 const round2 = (n) => Math.round(Number(n) * 100) / 100;
 const linesOf = (structured) => structured.lines.map((l) => `${l.compte} ${l.debit != null && l.debit !== '' ? `D${l.debit}` : `C${l.credit}`}`);
@@ -27,7 +28,7 @@ function reducedRow(overrides = {}) {
   return {
     id: 1, firstName: 'Camille', lastName: 'Revue', platform: 'direct',
     depositAmount: 0, depositPaid: 0, depositPaidDate: null,
-    balanceAmount: 355.2, balancePaid: 1, balancePaidDate: '2026-10-18',
+    balanceAmount: 355.2, balancePaid: 1, balancePaidDate: inDays(-16),
     complementAmount: 0, complementPaid: 0,
     finalPrice: 348, totalPrice: 300, touristTaxTotal: 7.2, touristTaxInComplement: 0,
     accommodationAcompteContribTtc: 0, accommodationSoldeContribTtc: 300,
@@ -101,13 +102,13 @@ test('rule 11 — online payment, then a reduced party: the journal stays positi
   assert.equal(res.statusCode, 200, JSON.stringify(res.body));
   const id = res.body.id;
 
-  const paid = recordStayPayment(depsFor(db), { reservationId: id, bucket: 'balance', paidDate: '2026-10-18', keepPaymentOnCaptureFailure: true });
+  const paid = recordStayPayment(depsFor(db), { reservationId: id, bucket: 'balance', paidDate: inDays(-16), keepPaymentOnCaptureFailure: true });
   assert.deepEqual(paid, { flipped: ['balance'], captureFailed: [] });
 
   const saved = controller.performUpdate(id, { ...body(2), forceOverpayment: true });
   assert.equal(saved.status, 200, JSON.stringify(saved.body));
 
-  const entries = createAccountingModel(db).encaissementsByMonth({ month: 10, year: 2026 })
+  const entries = createAccountingModel(db).encaissementsByMonth(monthOf(inDays(-16)))
     .filter((e) => Number(e.reservationId) === Number(id));
   assert.ok(entries.length > 0, 'the solde is in the journal');
   // specs/reservation-refunds.md rule 36 — the paid solde keeps what it collected, so the entry books

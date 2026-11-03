@@ -7,16 +7,17 @@ const { day } = require('../reconciliation/dates');
 const { up } = require('../reconciliation/schema');
 const { createBankTransactionsModel } = require('../reconciliation/bankTransactionsModel');
 const { readTransactions } = require('../reconciliation/transactionsReader');
-const { USER, addReservation, credit, build, reset, row } = require('./reconciliationFixture');
+const { USER, addReservation, credit, build, reset, row, dayAt } = require('./reconciliationFixture');
 
 test.beforeEach(() => { reset(); });
 
 test('rule 40 — a credit settled at 22:30 UTC belongs to the next day in Paris, winter and summer', () => {
+  // date-literal-ok: the pure day of an instant, one winter and one summer case
   assert.equal(day('2026-10-22T22:30:00.000Z'), '2026-10-23');
-  assert.equal(day('2026-01-15T23:30:00.000Z'), '2026-01-16');
-  assert.equal(day('2026-10-22T05:00:00.000Z'), '2026-10-22');
-  assert.equal(day('2026-10-22'), '2026-10-22', 'a plain date is untouched');
-  assert.equal(day('2026-10-22 14:00:00'), '2026-10-22');
+  assert.equal(day('2026-01-15T23:30:00.000Z'), '2026-01-16'); // date-literal-ok: pure
+  assert.equal(day('2026-10-22T05:00:00.000Z'), '2026-10-22'); // date-literal-ok: pure
+  assert.equal(day('2026-10-22'), '2026-10-22', 'a plain date is untouched'); // date-literal-ok: pure
+  assert.equal(day('2026-10-22 14:00:00'), '2026-10-22'); // date-literal-ok: pure
   assert.equal(day(null), null);
 });
 
@@ -53,7 +54,7 @@ test('rule 42 — a read that hits the page cap fails instead of moving lastRead
     listBankAccounts: async () => [{ id: 'acc-1', main: true }],
     listTransactions: async ({ page }) => ({ transactions: [], nextPage: page + 1 }),
   };
-  const out = await readTransactions({ withQonto: async (fn) => fn(client, 'token'), model, settings, startDate: '2026-10-22' });
+  const out = await readTransactions({ withQonto: async (fn) => fn(client, 'token'), model, settings, startDate: dayAt(-1) });
   assert.equal(out.ok, false);
   assert.equal(store.get('reconciliationLastReadAt'), undefined);
 });

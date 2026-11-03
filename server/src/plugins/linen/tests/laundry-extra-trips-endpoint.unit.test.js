@@ -6,6 +6,17 @@ const laundryExtraTripsModel = require('../extraTripsModel');
 const laundryManualAdditionsModel = require('../manualAdditionsModel');
 const laundryExtraTripsController = require('../extraTripsController');
 const { fakeScheduleModel } = require('./laundry-schedule-fixtures');
+const { todayIso } = require('../../../utils/localDate');
+const { addDaysToIsoDate } = require('../../../utils/devisHelpers');
+
+// The dates of this suite hang on today (specs/server-test-isolation.md rule 6), on fixed weekdays: a
+// Thursday free of laundry, the Tuesday before it (laundry weekday 2), and the Tuesday after.
+const THURSDAY = (() => {
+  const from = addDaysToIsoDate(todayIso(), -75);
+  return addDaysToIsoDate(from, (4 - new Date(`${from}T00:00:00Z`).getUTCDay() + 7) % 7);
+})();
+const TUESDAY = addDaysToIsoDate(THURSDAY, -2);
+const NEXT_TUESDAY = addDaysToIsoDate(THURSDAY, 5);
 
 // specs/laundry-extra-trip.md §4.3 + §7 — endpoint-shape coverage for the extra-trip handlers,
 // driven via mock req/res. Role enforcement is owned by `enforceRoleAccess` (its own suite); here
@@ -74,30 +85,29 @@ function makeRes() {
   };
 }
 
-// 2026-08-20 is a Thursday; 2026-08-18 is a Tuesday (laundry weekday 2).
 
 test('GET /extra-trips returns the persisted list', () => {
   const { ctrl, trips } = freshController();
-  trips.set('2026-08-20', {});
+  trips.set(THURSDAY, {});
   const res = makeRes();
   ctrl.list({}, res);
   assert.equal(res.statusCode, 200);
-  assert.deepEqual(res.body, { trips: [{ date: '2026-08-20', pickUpAll: true, pickUp: ZERO_BLOCK }] });
+  assert.deepEqual(res.body, { trips: [{ date: THURSDAY, pickUpAll: true, pickUp: ZERO_BLOCK }] });
 });
 
 test('PUT /extra-trips/:date with pickUpAll upserts and returns the trip', () => {
   const { ctrl, trips } = freshController();
   const res = makeRes();
-  ctrl.set({ params: { date: '2026-08-20' }, body: { pickUpAll: true } }, res);
+  ctrl.set({ params: { date: THURSDAY }, body: { pickUpAll: true } }, res);
   assert.equal(res.statusCode, 200);
-  assert.deepEqual(res.body, { ok: true, trip: { date: '2026-08-20', pickUpAll: true, pickUp: ZERO_BLOCK } });
+  assert.deepEqual(res.body, { ok: true, trip: { date: THURSDAY, pickUpAll: true, pickUp: ZERO_BLOCK } });
   assert.equal(trips.count(), 1);
 });
 
 test('PUT /extra-trips/:date partial stores the counts', () => {
   const { ctrl } = freshController();
   const res = makeRes();
-  ctrl.set({ params: { date: '2026-08-20' }, body: { pickUpAll: false, pickUp: { singleBeds: 2, largeTowels: 4 } } }, res);
+  ctrl.set({ params: { date: THURSDAY }, body: { pickUpAll: false, pickUp: { singleBeds: 2, largeTowels: 4 } } }, res);
   assert.equal(res.statusCode, 200);
   assert.equal(res.body.trip.pickUpAll, false);
   assert.deepEqual(res.body.trip.pickUp, { ...ZERO_BLOCK, singleBeds: 2, largeTowels: 4 });
@@ -106,7 +116,7 @@ test('PUT /extra-trips/:date partial stores the counts', () => {
 test('PUT partial without pickUp counts → 400 INVALID_PICKUP', () => {
   const { ctrl, trips } = freshController();
   const res = makeRes();
-  ctrl.set({ params: { date: '2026-08-20' }, body: { pickUpAll: false } }, res);
+  ctrl.set({ params: { date: THURSDAY }, body: { pickUpAll: false } }, res);
   assert.equal(res.statusCode, 400);
   assert.equal(res.body.code, 'INVALID_PICKUP');
   assert.equal(trips.count(), 0);
@@ -115,7 +125,7 @@ test('PUT partial without pickUp counts → 400 INVALID_PICKUP', () => {
 test('PUT on the regular laundry day → 400 EXTRA_TRIP_ON_LAUNDRY_DAY (rule 2)', () => {
   const { ctrl, trips } = freshController({ laundryWeekday: 2 });
   const res = makeRes();
-  ctrl.set({ params: { date: '2026-08-18' }, body: { pickUpAll: true } }, res);
+  ctrl.set({ params: { date: TUESDAY }, body: { pickUpAll: true } }, res);
   assert.equal(res.statusCode, 400);
   assert.equal(res.body.code, 'EXTRA_TRIP_ON_LAUNDRY_DAY');
   assert.equal(trips.count(), 0);
@@ -133,18 +143,18 @@ test('PUT with a malformed or impossible date → 400 INVALID_DATE', () => {
 
 test('DELETE /extra-trips/:date is idempotent and cascades the manual line of that date (rule 6)', () => {
   const { ctrl, trips, manual } = freshController();
-  trips.set('2026-08-20', {});
-  manual.set('2026-08-20', { singleBeds: 2 });
-  manual.set('2026-08-25', { singleBeds: 1 });
+  trips.set(THURSDAY, {});
+  manual.set(THURSDAY, { singleBeds: 2 });
+  manual.set(NEXT_TUESDAY, { singleBeds: 1 });
   const res = makeRes();
-  ctrl.remove({ params: { date: '2026-08-20' } }, res);
+  ctrl.remove({ params: { date: THURSDAY } }, res);
   assert.equal(res.statusCode, 200);
   assert.deepEqual(res.body, { ok: true });
   assert.equal(trips.count(), 0);
-  assert.deepEqual(Object.keys(manual.listAll()), ['2026-08-25']);
+  assert.deepEqual(Object.keys(manual.listAll()), [NEXT_TUESDAY]);
   // Second delete: still 200.
   const res2 = makeRes();
-  ctrl.remove({ params: { date: '2026-08-20' } }, res2);
+  ctrl.remove({ params: { date: THURSDAY } }, res2);
   assert.equal(res2.statusCode, 200);
 });
 
@@ -159,9 +169,9 @@ test('DELETE with a malformed date → 400 INVALID_DATE', () => {
 test('GET /extra-trips/preview returns dropOff + atLaundry for a free date', () => {
   const { ctrl } = freshController();
   const res = makeRes();
-  ctrl.preview({ query: { date: '2026-08-20' } }, res);
+  ctrl.preview({ query: { date: THURSDAY } }, res);
   assert.equal(res.statusCode, 200);
-  assert.equal(res.body.date, '2026-08-20');
+  assert.equal(res.body.date, THURSDAY);
   // The fake window returns the same block for every window → dropOff and the pool (= the previous
   // regular trip's drop) read the same.
   const expected = { singleBeds: 2, doubleBeds: 1, babyBeds: 0, largeTowels: 3, mediumTowels: 0, smallTowels: 3, bathMats: 0 };
@@ -172,11 +182,11 @@ test('GET /extra-trips/preview returns dropOff + atLaundry for a free date', () 
 test('GET /extra-trips/preview on a laundry day → 400 EXTRA_TRIP_ON_LAUNDRY_DAY; bad date → 400 INVALID_DATE', () => {
   const { ctrl } = freshController();
   const res = makeRes();
-  ctrl.preview({ query: { date: '2026-08-18' } }, res);
+  ctrl.preview({ query: { date: TUESDAY } }, res);
   assert.equal(res.statusCode, 400);
   assert.equal(res.body.code, 'EXTRA_TRIP_ON_LAUNDRY_DAY');
   const res2 = makeRes();
-  ctrl.preview({ query: { date: '20260820' } }, res2);
+  ctrl.preview({ query: { date: '20260820' } }, res2); // date-literal-ok: refused for its compact form, whatever today is
   assert.equal(res2.statusCode, 400);
   assert.equal(res2.body.code, 'INVALID_DATE');
 });

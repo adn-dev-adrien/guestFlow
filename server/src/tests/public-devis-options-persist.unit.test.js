@@ -3,6 +3,11 @@ const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
 const devisModel = require('../models/devisModel');
+const { todayIso } = require('../utils/localDate');
+const { addDaysToIsoDate } = require('../utils/devisHelpers');
+
+/** `YYYY-MM-DD`, `days` after today: the dates of this suite hang on it (specs/server-test-isolation.md rule 6). */
+const inDays = (days) => addDaysToIsoDate(todayIso(), days);
 
 /**
  * Regression guard for the site-booking options bug (specs/site-booking-notifications.md §1).
@@ -65,7 +70,7 @@ function freshModel() {
 }
 
 const BASE = {
-  propertyId: 1, clientId: 1, startDate: '2026-09-11', endDate: '2026-09-14',
+  propertyId: 1, clientId: 1, startDate: inDays(-53), endDate: inDays(-50),
   adults: 2, children: 0, teens: 0, babies: 0,
   checkInTime: '15:00', checkOutTime: '10:00', platform: 'direct',
 };

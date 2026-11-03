@@ -50,7 +50,7 @@ test('rule 36 — 465,60 € paid, reduced, 110,40 € refunded: every surface r
   assert.equal(created.statusCode, 200, JSON.stringify(created.body));
   const id = created.body.id;
   assert.equal(db.prepare('SELECT balanceAmount FROM reservations WHERE id = ?').get(id).balanceAmount, 465.6);
-  recordStayPayment(depsFor(db), { reservationId: id, bucket: 'balance', paidDate: '2026-10-18' });
+  recordStayPayment(depsFor(db), { reservationId: id, bucket: 'balance', paidDate: inDays(-16) });
 
   const refused = controller.performUpdate(id, body(2));
   assert.equal(refused.status, 409, JSON.stringify(refused.body));
@@ -66,17 +66,18 @@ test('rule 36 — 465,60 € paid, reduced, 110,40 € refunded: every surface r
   refunds.create({
     params: { id },
     body: {
-      refundDate: '2026-10-18', method: 'transfer', reason: 'Trop-perçu',
+      refundDate: inDays(-16), method: 'transfer', reason: 'Trop-perçu',
       lines: refused.body.overpaymentLines.map((l) => ({ label: 'Trop-perçu', bucket: l.bucket, amountTtc: l.amountTtc })),
     },
   }, refunded);
   assert.equal(refunded.statusCode, 201, JSON.stringify(refunded.body));
 
-  // Journal of October: the solde as received, the refund as given back.
+  // Journal of the payment's month: the solde as received, the refund as given back.
   const accounting = createAccountingModel(db);
+  const month = { month: Number(inDays(-16).slice(5, 7)), year: Number(inDays(-16).slice(0, 4)) };
   const entries = [
-    ...accounting.encaissementsByMonth({ month: 10, year: 2026 }),
-    ...accounting.refundsByMonth({ month: 10, year: 2026 }),
+    ...accounting.encaissementsByMonth(month),
+    ...accounting.refundsByMonth(month),
   ].filter((e) => Number(e.reservationId) === Number(id));
   const lines = entries.flatMap((e) => entryToStructured(e).lines);
   const net = (compte) => round2(lines.filter((l) => l.compte === compte)
@@ -92,7 +93,7 @@ test('rule 36 — 465,60 € paid, reduced, 110,40 € refunded: every surface r
   }
 
   // Finance « Encaissé » and the stay's total.
-  const summary = financeModel.getSummary({ from: '2026-10-01', to: inDays(5) });
+  const summary = financeModel.getSummary({ from: inDays(-33), to: inDays(5) });
   const stay = summary.reservations.find((r) => Number(r.id) === Number(id));
   assert.equal(summary.totalCollected, 355.2);
   assert.equal(stay.totalSejour, 355.2);

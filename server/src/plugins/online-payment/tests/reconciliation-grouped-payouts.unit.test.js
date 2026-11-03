@@ -3,7 +3,7 @@
 // Fictional data only.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { db, USER, addReservation, credit, build, reset, row } = require('./reconciliationFixture');
+const { db, USER, addReservation, credit, build, reset, row, dayAt } = require('./reconciliationFixture');
 
 test.beforeEach(() => { reset(); });
 
@@ -16,13 +16,13 @@ const unrecorded = (gross, due, over = {}) => addReservation({
 const recorded = (payout, due, over = {}) => addReservation({
   platform: 'Booking', platformGrossAmount: payout + 60, platformPayoutAmount: payout, finalPrice: payout + 60, balanceAmount: payout + 60, depositAmount: 0, balanceDueDate: due, ...over,
 });
-const payout = (id, cents, settled = '2026-10-15') => credit(id, cents, { settledAt: at(settled), counterpartyName: 'BOOKING.COM B.V.', reference: 'NO.Z/ID.9' });
+const payout = (id, cents, settled = dayAt(-8)) => credit(id, cents, { settledAt: at(settled), counterpartyName: 'BOOKING.COM B.V.', reference: 'NO.Z/ID.9' });
 const itemOf = (controller, id) => controller.list({ view: 'todo' }).body.items.find((i) => i.reservation.id === id && i.proposal);
 
 test('rule 17 — three stays whose payout is not recorded are combined at gross minus commission', () => {
-  const a = unrecorded(500, '2026-10-08');
-  const b = unrecorded(300, '2026-10-09');
-  const c = unrecorded(200, '2026-10-10');
+  const a = unrecorded(500, dayAt(-15));
+  const b = unrecorded(300, dayAt(-14));
+  const c = unrecorded(200, dayAt(-13));
   const { controller, transactions } = build();
   transactions.upsertMany([payout('p', est(500) + est(300) + est(200))], { bankAccountId: 'acc-1' });
   const item = itemOf(controller, a);
@@ -31,9 +31,9 @@ test('rule 17 — three stays whose payout is not recorded are combined at gross
 });
 
 test('rules 17–18 — two or more estimated rows: « à vérifier », shares to type, estimates prefilled', () => {
-  const a = unrecorded(500, '2026-10-08');
-  unrecorded(300, '2026-10-09');
-  unrecorded(200, '2026-10-10');
+  const a = unrecorded(500, dayAt(-15));
+  unrecorded(300, dayAt(-14));
+  unrecorded(200, dayAt(-13));
   const { controller, transactions } = build();
   transactions.upsertMany([payout('p', est(500) + est(300) + est(200))], { bankAccountId: 'acc-1' });
   const { proposal } = itemOf(controller, a);
@@ -46,9 +46,9 @@ test('rules 17–18 — two or more estimated rows: « à vérifier », shares t
 });
 
 test('rule 18 — one estimated row among exact ones: « à vérifier » (never « probable »), its share is the credit minus the exact rows', () => {
-  const exactA = recorded(400, '2026-10-08');
-  const exactB = recorded(300, '2026-10-09');
-  const guess = unrecorded(500, '2026-10-10');
+  const exactA = recorded(400, dayAt(-15));
+  const exactB = recorded(300, dayAt(-14));
+  const guess = unrecorded(500, dayAt(-13));
   const credited = 40000 + 30000 + est(500) + 150;
   const { controller, transactions } = build();
   transactions.upsertMany([payout('p', credited)], { bankAccountId: 'acc-1' });
@@ -61,41 +61,41 @@ test('rule 18 — one estimated row among exact ones: « à vérifier » (never 
 });
 
 test('rule 17 — one payout run: rows more than 14 days apart are never combined', () => {
-  unrecorded(500, '2026-09-26');
-  const late = unrecorded(300, '2026-10-12');
+  unrecorded(500, dayAt(-27));
+  const late = unrecorded(300, dayAt(-11));
   const { controller, transactions } = build();
-  transactions.upsertMany([payout('p', est(500) + est(300), '2026-10-14')], { bankAccountId: 'acc-1' });
+  transactions.upsertMany([payout('p', est(500) + est(300), dayAt(-9))], { bankAccountId: 'acc-1' });
   assert.equal(itemOf(controller, late), undefined, 'not proposed anywhere');
   const body = controller.list({ view: 'todo', filter: 'unmatched' }).body;
   assert.deepEqual(body.credits.map((c) => c.transactionId), ['p']);
 });
 
 test('rule 17 — the estimate tolerates 1 % per estimated row, not more', () => {
-  const a = unrecorded(500, '2026-10-08');
-  unrecorded(300, '2026-10-09');
+  const a = unrecorded(500, dayAt(-15));
+  unrecorded(300, dayAt(-14));
   const { controller, transactions } = build();
   const sum = est(500) + est(300);
   transactions.upsertMany([payout('ok', sum + Math.round(est(500) * 0.009))], { bankAccountId: 'acc-1' });
   assert.ok(itemOf(controller, a), 'within 1 % of one row');
   reset();
-  const b = unrecorded(500, '2026-10-08');
-  unrecorded(300, '2026-10-09');
+  const b = unrecorded(500, dayAt(-15));
+  unrecorded(300, dayAt(-14));
   const built = build();
   built.transactions.upsertMany([payout('off', sum + Math.round(sum * 0.03))], { bankAccountId: 'acc-1' });
   assert.equal(itemOf(built.controller, b), undefined, '3 % off is no estimate');
 });
 
 test('rule 17 — a row whose expected date is more than 30 days before the credit is out of the window', () => {
-  const a = unrecorded(500, '2026-08-01');
-  unrecorded(300, '2026-08-02');
+  const a = unrecorded(500, dayAt(-83));
+  unrecorded(300, dayAt(-82));
   const { controller, transactions } = build();
-  transactions.upsertMany([payout('p', est(500) + est(300), '2026-10-15')], { bankAccountId: 'acc-1' });
+  transactions.upsertMany([payout('p', est(500) + est(300), dayAt(-8))], { bankAccountId: 'acc-1' });
   assert.equal(itemOf(controller, a), undefined);
 });
 
 test('rule 18 — shares that do not make the credit to the cent are refused (SHARES_DO_NOT_SUM); exact shares become each fiche\'s payout', () => {
-  const a = unrecorded(500, '2026-10-08');
-  const b = unrecorded(300, '2026-10-09');
+  const a = unrecorded(500, dayAt(-15));
+  const b = unrecorded(300, dayAt(-14));
   const total = est(500) + est(300);
   const { controller, transactions } = build();
   transactions.upsertMany([payout('p', total)], { bankAccountId: 'acc-1' });
@@ -119,9 +119,9 @@ test('rule 18 — shares that do not make the credit to the cent are refused (SH
 });
 
 test('rule 18 — shares may not leave the proposal\'s stays', () => {
-  const a = unrecorded(500, '2026-10-08');
-  unrecorded(300, '2026-10-09');
-  const stranger = unrecorded(100, '2026-10-09');
+  const a = unrecorded(500, dayAt(-15));
+  unrecorded(300, dayAt(-14));
+  const stranger = unrecorded(100, dayAt(-14));
   const total = est(500) + est(300);
   const { controller, transactions } = build();
   transactions.upsertMany([payout('p', total)], { bankAccountId: 'acc-1' });
@@ -134,8 +134,8 @@ test('rule 18 — shares may not leave the proposal\'s stays', () => {
 });
 
 test('rule 19 — every fiche of the group shows the others; discarding it discards the pairing of the credit', () => {
-  const a = unrecorded(500, '2026-10-08');
-  const b = unrecorded(300, '2026-10-09');
+  const a = unrecorded(500, dayAt(-15));
+  const b = unrecorded(300, dayAt(-14));
   const { controller, transactions } = build();
   transactions.upsertMany([payout('p', est(500) + est(300))], { bankAccountId: 'acc-1' });
   assert.deepEqual(itemOf(controller, a).proposal.alsoCovers.map((x) => x.reservationId), [b]);
@@ -146,8 +146,8 @@ test('rule 19 — every fiche of the group shows the others; discarding it disca
 });
 
 test('rule 19 — a confirmed group says on each fiche which others the credit covered', () => {
-  const a = recorded(400, '2026-10-08');
-  const b = recorded(300, '2026-10-09');
+  const a = recorded(400, dayAt(-15));
+  const b = recorded(300, dayAt(-14));
   const { controller, transactions } = build();
   transactions.upsertMany([payout('p', 70000)], { bankAccountId: 'acc-1' });
   const { proposalIds, amounts } = controller.list({ view: 'todo', filter: 'proposed' }).body.bulk;

@@ -15,9 +15,14 @@ const { runPaymentPoll } = require('../utils/paymentPollRunner');
 const { bookPaidAfterAmountChange } = require('../utils/ledgerLinks');
 const { recordStayPayment, depsFor } = require('../utils/stayPaymentRecorder');
 const { remainingToPay } = require('../utils/reservationSettlement');
+const { todayIso } = require('../utils/localDate');
+const { addDaysToIsoDate } = require('../utils/devisHelpers');
+
+/** `YYYY-MM-DD`, `days` after today: the dates of this suite hang on it (specs/server-test-isolation.md rule 6). */
+const inDays = (days) => addDaysToIsoDate(todayIso(), days);
 
 const recordReal = (p) => recordStayPayment(depsFor(db), { ...p, keepPaymentOnCaptureFailure: true });
-const book = (link) => bookPaidAfterAmountChange({ database: db, recordPayment: recordReal }, link, { paidDay: '2026-10-19' });
+const book = (link) => bookPaidAfterAmountChange({ database: db, recordPayment: recordReal }, link, { paidDay: inDays(-15) });
 const historyOf = (id) => db.prepare('SELECT changedFields FROM reservation_history WHERE reservationId = ?').all(id)
   .map((h) => h.changedFields).join(' ');
 
@@ -69,7 +74,7 @@ test('rule 31 — a retired complement link paid: recorded like the fiche record
   assert.equal(booked.effect, 'complement-booked');
   const row = rowOf(id);
   assert.deepEqual([row.complementPaid, row.complementPaidDate, row.complementPaidCash, row.complementAmount],
-    [1, '2026-10-19', 0, 30]);
+    [1, inDays(-15), 0, 30]);
   assert.ok(row.arrivalExtrasBaseline, 'the arrival extras baseline is pinned, as on « Marquer perçu »');
   assert.match(historyOf(id), /24,00.*perçus \(payé par un lien retiré\)/);
 });
@@ -79,7 +84,7 @@ function paidProvider() {
     id: 'qonto',
     label: 'Qonto',
     isReady: () => true,
-    getPayment: async (linkId) => ({ paid: true, paymentId: `pay_${linkId}`, paidAt: '2026-10-05T10:00:00Z' }),
+    getPayment: async (linkId) => ({ paid: true, paymentId: `pay_${linkId}`, paidAt: `${inDays(-29)}T10:00:00Z` }),
     getLinkStatus: async () => 'open',
     cancelLink: async () => {},
   };
