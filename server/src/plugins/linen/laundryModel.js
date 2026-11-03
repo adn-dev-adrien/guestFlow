@@ -111,43 +111,44 @@ function buildModel(database) {
   // ticked means not provided, so a visible default must not conjure towels. When the operator
   // explicitly entered a quantity (typically 0.6667 = "2 of 3 want towels" — Adrien's sub-occupation
   // factor) the explicit row wins and the default is suppressed by `NOT EXISTS`.
+  //
+  // 2026-11-03 — the people served replace the whole party when the operator typed a number
+  // (specs/non-card-option-served-persons.md rule 6): `servedSum` is Σ served × quantity.
+  const HAS_CARD_PERSONS = (() => {
+    try { return database.prepare('PRAGMA table_info(reservation_options)').all().some((c) => c.name === 'cardPersons'); }
+    catch { return false; }
+  })();
+  const partyExpr = (alias) => `(COALESCE(${alias}.adults, 0) + COALESCE(${alias}.teens, 0) + COALESCE(${alias}.children, 0))`;
+  const servedExpr = HAS_CARD_PERSONS ? `COALESCE(ro.cardPersons, ${partyExpr('resv')})` : partyExpr('resv');
   const sumBathroomStmt = database.prepare(`
     SELECT
-      COALESCE(SUM(ROUND(
-        (COALESCE(r.adults, 0) + COALESCE(r.teens, 0) + COALESCE(r.children, 0))
-        * sub.qtySum * sub.largePerPerson
-      )), 0) AS largeTowels,
-      COALESCE(SUM(ROUND(
-        (COALESCE(r.adults, 0) + COALESCE(r.teens, 0) + COALESCE(r.children, 0))
-        * sub.qtySum * sub.mediumPerPerson
-      )), 0) AS mediumTowels,
-      COALESCE(SUM(ROUND(
-        (COALESCE(r.adults, 0) + COALESCE(r.teens, 0) + COALESCE(r.children, 0))
-        * sub.qtySum * sub.smallPerPerson
-      )), 0) AS smallTowels
+      COALESCE(SUM(ROUND(sub.servedSum * sub.largePerPerson)), 0) AS largeTowels,
+      COALESCE(SUM(ROUND(sub.servedSum * sub.mediumPerPerson)), 0) AS mediumTowels,
+      COALESCE(SUM(ROUND(sub.servedSum * sub.smallPerPerson)), 0) AS smallTowels
     FROM reservations r
     JOIN (
       SELECT reservationId,
-        SUM(qtySum)         AS qtySum,
+        SUM(servedSum)      AS servedSum,
         MAX(largePerPerson) AS largePerPerson,
         MAX(mediumPerPerson) AS mediumPerPerson,
         MAX(smallPerPerson)  AS smallPerPerson
       FROM (
         -- Source 1: explicit reservation_options row.
         SELECT ro.reservationId,
-          COALESCE(ro.quantity, 0) AS qtySum,
+          ${servedExpr} * COALESCE(ro.quantity, 0) AS servedSum,
           o.towelLargePerPerson    AS largePerPerson,
           o.towelMediumPerPerson   AS mediumPerPerson,
           o.towelSmallPerPerson    AS smallPerPerson
         FROM reservation_options ro
         JOIN options o ON o.id = ro.optionId
+        JOIN reservations resv ON resv.id = ro.reservationId
         WHERE o.countsAsBathroomLinen = 1
 
         UNION ALL
 
-        -- Source 2: property-level default fallback, INTERNAL options only. qty = 1.0 (whole party).
+        -- Source 2: property-level default fallback, INTERNAL options only: the whole party.
         SELECT res.id AS reservationId,
-          1.0 AS qtySum,
+          ${partyExpr('res')} AS servedSum,
           o.towelLargePerPerson, o.towelMediumPerPerson, o.towelSmallPerPerson
         FROM reservations res
         JOIN property_option_defaults pod ON pod.propertyId = res.propertyId
@@ -285,10 +286,10 @@ function buildModel(database) {
      * Sum the towel demand for reservations whose endDate is in
      * `(startExclusiveIso, endInclusiveIso]` and that have ≥1 bathroom-flagged option.
      *
-     * Per-reservation contribution per towel size = ROUND(persons × Σ quantity × perPersonCount),
-     * where persons = adults + teens + children (babies excluded), `Σ quantity` is the sum of
-     * `reservation_options.quantity` over the bathroom-flagged options on that reservation
-     * (sub-occupation factor — §3.5.bis), and `perPersonCount` is the option's
+     * Per-reservation contribution per towel size = ROUND(Σ (served × quantity) × perPersonCount),
+     * where served = `cardPersons`, or adults + teens + children (babies excluded) when the line
+     * follows the party (specs/non-card-option-served-persons.md rule 6), the sum runs over the
+     * bathroom-flagged options on that reservation, and `perPersonCount` is the option's
      * `towelLargePerPerson` / `towelMediumPerPerson` / `towelSmallPerPerson` (§3.5.ter; defaults
      * 1 / 0 / 1 preserve legacy semantics). The client filters silent sizes (0) at render time
      * (rule 13.bis).

@@ -56,6 +56,8 @@ function createBookingLinesModel(database) {
   const HAS_SAS_ARRIVAL_ORIGIN = hasColumn('reservation_options', 'sasArrivalOrigin');
   // Served persons of a per-person card option (specs/card-option-served-persons.md §5).
   const HAS_CARD_PERSONS = hasColumn('reservation_options', 'cardPersons');
+  // Nights typed on a per-night option (specs/non-card-option-served-persons.md rule 19). NULL = the stay.
+  const HAS_CARD_NIGHTS = hasColumn('reservation_options', 'cardNights');
   // Hourly-scheduled resource sessions (specs/resource-hourly-scheduling.md), stored as JSON.
   const HAS_RESOURCE_SESSIONS = hasColumn('reservation_resources', 'sessions');
   // Client-visibility flag on the options catalog (specs/laundry-bath-mat.md §3 rule 11).
@@ -116,6 +118,7 @@ function createBookingLinesModel(database) {
           // (specs/card-option-served-persons.md §3.1). NULL = the whole party; the engine resolves it
           // and echoes it back, so a fiche re-save can never silently re-inflate a reduced count.
           ...(HAS_CARD_PERSONS ? { cardPersons: opt.cardPersons != null ? Number(opt.cardPersons) : null } : {}),
+          ...(HAS_CARD_NIGHTS ? { cardNights: opt.cardNights != null ? Number(opt.cardNights) : null } : {}),
           ...(sasOriginSet.size > 0 ? { sasArrivalOrigin: sasOriginSet.has(Number(opt.optionId)) ? 1 : 0 } : {}),
         });
       }

@@ -32,7 +32,9 @@ const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
  * @returns {{ok: true, date: string} | {ok: false, reason: string}}
  */
 function validateCollectionDate(date, { today, invalidReason = 'Date d\'encaissement invalide.' } = {}) {
-  const value = String(date || '').slice(0, 10);
+  // specs/reservation-payment-ledger.md rule 66 — `String(["2026-10-30"])` reads as a day: only a string is one.
+  if (typeof date !== 'string') return { ok: false, reason: invalidReason };
+  const value = date.slice(0, 10);
   if (!ISO_DATE_RE.test(value)) return { ok: false, reason: invalidReason };
   // A real calendar day: the regex accepts 2026-02-31, the Date constructor does not keep it.
   const parsed = new Date(`${value}T12:00:00Z`);

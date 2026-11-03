@@ -40,6 +40,7 @@ export function hydrateSelectedOptions(options, stay, catalogue, buildCardGrid) 
       // specs/card-option-served-persons.md §3.2 — the served count is the operator's decision, so it
       // must come back on the form line: without it the next save re-bills the whole party.
       ...(o.cardPersons != null ? { cardPersons: Number(o.cardPersons) } : {}),
+      ...(o.cardNights != null ? { cardNights: Number(o.cardNights) } : {}),
     };
   });
 }
