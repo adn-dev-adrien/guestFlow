@@ -598,6 +598,7 @@ every change still writes the journal, the secret still never leaves the server 
     `onboarding-login-opt-in.unit.test.js`.
 65. **The assistant's answer is truthful when the revoke fails** (added 2026-10-29, audit r4). Once `useAsLogin` has written the email, a failure of `revokeOtherSessionsForUser` is logged and the response still says `loginChanged: true` with the new login (it used to say `false`). Test: `onboarding-login-opt-in.unit.test.js`.
 66. **The support journal labels only real sections** (added 2026-10-29, audit r4, R4-2). The first path segment is looked up with `Object.hasOwn`: `/api/constructor` or `/api/__proto__/12/x` read « Consultation » / « Modification », never a function's source or `undefined`. Test: `support-log-labels-prototype-keys.unit.test.js`.
+67. **A login or a reset whose fields are not strings is the normal refusal** (added 2026-11-03, audit R21, public finding 3). `POST /api/auth/login`: an `email` or a `password` that is not a string → `400 MISSING_CREDENTIALS`. `POST /api/auth/reset`: a `password` that is not a string → `400 PASSWORD_TOO_SHORT`, a `token` that is not a string → `400 INVALID_TOKEN`, and no link is spent. `usersModel.verifyCredentials` answers null on such values. `{"toString":1}` used to throw from `String()`: a 500, anonymous, with no key. Test: `tests/auth-input-shape.unit.test.js`.
 
 ---
 

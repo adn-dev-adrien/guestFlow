@@ -216,14 +216,17 @@ test('rule 13 — a creation that fails half-way leaves no stay behind', () => {
 test('rule 14 — numberless stays get a number, a history line, and are reported; devis and cancelled untouched', () => {
   const db = realSchemaDb();
   seedCancelledMax(db);
+  // The repair reads the month from the stored string, and PREFIX is the local month: a UTC stamp would miss it in
+  // the first hour of a month (audit R21-S3).
+  const [arrival, departure, devisStart, devisEnd] = [inDays(120), inDays(122), inDays(127), inDays(129)];
   const ghost = db.prepare(`INSERT INTO reservations (kind, propertyId, clientId, startDate, endDate, createdAt)
-                            VALUES ('reservation', 1, 1, '2027-03-20', '2027-03-22', datetime('now'))`).run().lastInsertRowid;
+                            VALUES ('reservation', 1, 1, ?, ?, datetime('now', 'localtime'))`).run(arrival, departure).lastInsertRowid;
   db.prepare(`INSERT INTO reservations (kind, devisNumber, propertyId, clientId, startDate, endDate, createdAt)
-              VALUES ('devis', '2026-10-004', 1, 1, '2027-03-25', '2027-03-27', datetime('now'))`).run();
+              VALUES ('devis', '2026-10-004', 1, 1, ?, ?, datetime('now', 'localtime'))`).run(devisStart, devisEnd);
 
   const repaired = repairNumberlessReservations(db);
   assert.deepEqual(repaired, [{
-    id: Number(ghost), reservationNumber: `${PREFIX}003`, propertyId: 1, startDate: '2027-03-20', endDate: '2027-03-22',
+    id: Number(ghost), reservationNumber: `${PREFIX}003`, propertyId: 1, startDate: arrival, endDate: departure,
   }]);
   const history = db.prepare('SELECT eventType, changedFields FROM reservation_history WHERE reservationId = ?').get(ghost);
   assert.equal(history.eventType, 'update');

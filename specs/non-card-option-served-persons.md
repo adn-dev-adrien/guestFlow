@@ -79,7 +79,7 @@ never appears on these lines again.
     no more `round4`.
 13. **Mid-stay (`MidStayNoteDialog`):** same field as the fiche. What the note counts as added, and what
     « Annuler » restores, read that number and not `quantity`, which stays 1.
-14. **Migration**, idempotent (flag in `settings`), on non-card `per_person` / `ppn` lines where
+14. **Migration**, idempotent (one-shot `non_card_served_persons_v1` in the `migrations` table), on non-card `per_person` / `ppn` lines where
     `quantity ≠ 1`: `served = billedUnits / (ppn ? nights : 1)`. When it is a positive integer:
     `cardPersons = served` (NULL if equal to the party), `quantity = 1`. Never rewrites `billedUnits`,
     `unitPrice`, `totalPrice`, `inComplement` nor the deposit/balance contributions.
@@ -166,7 +166,7 @@ Rules added after Adrien's review of this spec (2026-11-03):
 | `utils/` | `reservationUpdateBody.js` | T | Carries `cardNights`; server callers send `forceTypedCounts` (rule 24) |
 | `controllers/` | `reservationsController.js` | T | `409 TYPED_COUNTS_STALE`, `forceTypedCounts`, `typedCountAlerts` on the quote (rules 21-22) |
 | `scheduledTasks.js` | — | — | (none) |
-| `database.js` | `database.js` | T | Adds `cardNights`; runs the migration once, behind a `settings` flag |
+| `database.js` | `database.js` | T | Adds `cardNights`; runs the migration once, behind its row in the `migrations` table |
 
 On `inte/plugins` the linen files live in `server/src/plugins/linen/`, and the plugin's manifest version
 is bumped.
@@ -221,6 +221,16 @@ matched), in a transaction.
 **Data impact:** no amount changes. In production: 4 lines migrated (22199, 9, 22269, 22280). The two
 lines of quote 22335 are left and logged; those of 22336 were corrected by hand on 2026-11-03.
 
+**Rollback (accepted exception, recorded 2026-11-03, audit R21; [self-update-and-releases.md](self-update-and-releases.md)
+rule 39).** The schema only adds a column, but this migration, and every line the code writes since, changes what
+`quantity = 1` means. An engine below v3.20.0 ignores `cardPersons` on a non-card line and knows no `cardNights`, so
+after a rollback below v3.20.0 a typed line re-bills the whole party or the whole stay **at its next save**: on a copy
+of production under v3.19.0, a line of 1 unit at 8 € became 4 units at 32 €. The stored amount does not move until
+that save. Accepted, documentation only: undoing it would mean storing a base quantity again, which is what this spec
+removes. After such a rollback, restore the pre-update backup, or review the typed lines before saving their fiches.
+On a roll-forward the flag is already set, so a line typed during the rollback window keeps its decimal base and
+reads as what it bills until it is retyped (rule 18).
+
 ## 6. UI / UX
 
 Interactive rendering in the [decision summary](../docs/specs/2026-11-03-non-card-option-served-persons.html).
@@ -244,7 +254,13 @@ Interactive rendering in the [decision summary](../docs/specs/2026-11-03-non-car
 ## 7. Test plan
 
 ### Server unit tests
-- [x] `tests/non-card-option-served-persons.unit.test.js` (13) — rules 1, 5, 6, 12, 14-17, 19
+- [x] `tests/non-card-option-served-persons.unit.test.js` (12) — rules 1, 5, 6, 12, 14-17, 19
+- [x] `plugins/linen/tests/non-card-served-persons.unit.test.js` (2) — rule 6: the contract and the laundry
+- [x] `plugins/linen/tests/non-card-served-persons-simulation.unit.test.js` (2) — rule 6: the sum over the stored lines, and the projection reading `cardPersons`
+- [x] `tests/typed-counts-alerts.unit.test.js` (7) — rules 19, 20, 23, 25: party, nights, which line is flagged, the floor on a typed count
+- [x] `tests/typed-counts-guards.unit.test.js` (6) — rules 19, 21, 22, 24: devis, creation, live quote, locked past stay, replay of a frozen night count
+- [x] `tests/typed-counts-floors-and-sas-offer.unit.test.js` (2) — rules 17, 19: floor of an offered line, re-opened SAS
+- [x] `tests/served-persons-migration-cases.unit.test.js` (1) — rules 14, 16, 19: a real boot on a seeded file, party < count ≤ capacity, per-night count equal to the party, per-night above capacity
 - [x] `tests/typed-counts-no-regression.unit.test.js` (11) — rule 25: exhaustive grid, 22336 sequence through the controller, save guard. Mutation-checked: restoring the old computation fails 4 tests, removing the guard fails 2
 - [x] `tests/typed-counts-client-guard.unit.test.js` (4) — rule 25: no multiplier conversion left in the option fields
 - [x] `tests/sas-option-sales.unit.test.js` — updated (rule 12)
@@ -254,17 +270,26 @@ Interactive rendering in the [decision summary](../docs/specs/2026-11-03-non-car
 - [x] `OptionRow.served-persons.test.jsx` (8) — field, hint, no arithmetic, red state on an alert
 - [x] `MidStayNoteDialog.typed-count.test.jsx` (3) — rule 13
 - [x] `GuestsBedsSection.typed-counts.test.jsx` (2) — rule 21
+- [x] `optionTypedCount.test.js` (4) — rules 1, 18, 19: which option has a field, the nights column
+- [x] `applyQuoteToForm.typed-counts.test.js` (3) — rules 18, 19, 23
+- [x] `bookingFormHydration.typed-counts.test.js` (1) — rule 19
+- [x] `arrivalDraft.typed-count.test.js` (2), `ReservationSasDialog.typed-count.test.jsx` (1) — rule 12, client half
+- [x] `MidStayNoteDialog.typed-count-additions.test.jsx` (2) — rule 13: an addition is read on the typed number
+- [x] `ReservationPage.typed-counts.test.jsx` (8) — rules 4, 8, 19, 22, 23: floor, equal drops, tags, dirty compare, confirm, flags cleared
 
 ### End to end
 - [x] `e2e/specs/reservations/typed-count-party-change.spec.js` — type 3 for 4 → party 5 → red, alert; retype 2 → still red; dialog: cancel keeps the fiche, force saves; circular arrows → 5, no red
+- [x] `e2e/specs/reservations/typed-count-nights.spec.js` — `per_night`: 3 typed for 2 nights → saved → 4 nights → still 3, red, circular arrows → 4; `per_person_per_night`: « × N nuits », an untouched line follows the party and the nights
 
 ### Manual UI verification
 - [x] Happy path: per-person option typed 3 for 4 people → party 5 → still 3, same total (desktop + mobile)
-- [ ] Edge case: untouched line follows the party; ppn shows « × N nuits » and follows the nights
+- [x] Edge case: untouched line follows the party; ppn shows « × N nuits » and follows the nights (held by `typed-count-nights.spec.js`, 2026-11-03)
 - [x] Alert: party change turns the field red, card option included; save opens the dialog; reload after forcing shows no red
 - [x] Red field: retyping another wrong value stays red; the circular arrows apply the new value and clear it
-- [ ] `per_night`: typed 3 for 2 nights → 3 nights → still 3, red
-- [ ] Regression: `per_night` Qté, card options « Personnes servies », arrival SAS catering
+- [x] `per_night`: typed 3 for 2 nights → 4 nights → still 3, red (held by `typed-count-nights.spec.js`, 2026-11-03). This line used to say « → 3 nights »: a number equal to the new stay is not flagged (rule 20), it follows the stay
+- [x] Regression: `per_night` Qté (`typed-count-nights.spec.js`)
+- [ ] Regression: arrival SAS catering in a browser. Held by `ReservationSasDialog.catering` and `.typed-count` in Vitest, and on the server by `sas-option-sales`; no E2E walks this step, and nobody has clicked through it since this change
+- [ ] Regression: card options « Personnes servies »: held by `ExtrasSection.served-persons` and `OptionRow.served-persons` in Vitest; no E2E, nobody has clicked through it since this change
 
 **Known limit:** the history's option signature reads `quantity` and `totalPrice`, so a typed number changed on an
 offered line (0 €) leaves no history entry.

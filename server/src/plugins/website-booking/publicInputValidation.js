@@ -14,6 +14,7 @@ const sdk = require('../sdk');
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const ISO_TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
+const isTime = (value) => typeof value === 'string' && ISO_TIME.test(value);
 // Same shape as the client dialog's (utils/clientValidation.isValidPhone): 8–15 digits, an optional leading +,
 // spaces, dots, dashes and brackets as separators — and nothing else, so no line break reaches an operator e-mail.
 const isValidPhone = (value) => {
@@ -43,6 +44,7 @@ function isValidIsoDate(value) {
 
 function toNonNegativeInt(value, fallback = 0) {
   if (value === undefined || value === null || value === '') return fallback;
+  if (typeof value !== 'number' && typeof value !== 'string') return NaN;
   const n = Number(value);
   if (!Number.isFinite(n) || n < 0 || !Number.isInteger(n)) return NaN;
   return n;
@@ -125,10 +127,10 @@ function validateStayInput(body = {}, { todayIso } = {}) {
     }
   }
 
-  if (body.checkInTime !== undefined && body.checkInTime !== '' && !ISO_TIME.test(body.checkInTime)) {
+  if (body.checkInTime !== undefined && body.checkInTime !== '' && !isTime(body.checkInTime)) {
     errors.push({ field: 'checkInTime', issue: 'must be HH:MM' });
   }
-  if (body.checkOutTime !== undefined && body.checkOutTime !== '' && !ISO_TIME.test(body.checkOutTime)) {
+  if (body.checkOutTime !== undefined && body.checkOutTime !== '' && !isTime(body.checkOutTime)) {
     errors.push({ field: 'checkOutTime', issue: 'must be HH:MM' });
   }
 
@@ -224,15 +226,19 @@ function validateStayInput(body = {}, { todayIso } = {}) {
  */
 const GUEST_MAX = Object.freeze({ firstName: 100, lastName: 100, phone: 40, email: 254 });
 
-// Bidi overrides and zero-width characters let a name read backwards or pass for another; the joiners stay for Persian/Indic names.
-const withoutFormatChars = (v) => String(v || '').replace(/(?![\u200C\u200D])\p{Cf}/gu, '').trim();
+// Only a string is text (rule 22): `String()` throws on {"toString":1} and names a client « True » or « [object Object] ».
+const textOf = (v) => (typeof v === 'string' ? v : '');
 
-function validateGuest(guest = {}) {
+// Bidi overrides and zero-width characters let a name read backwards or pass for another; the joiners stay for Persian/Indic names.
+const withoutFormatChars = (v) => textOf(v).replace(/(?![\u200C\u200D])\p{Cf}/gu, '').trim();
+
+function validateGuest(raw) {
   const errors = [];
+  const guest = raw && typeof raw === 'object' ? raw : {};
   const firstName = withoutFormatChars(guest.firstName);
   const lastName = withoutFormatChars(guest.lastName);
-  const email = String(guest.email || '').trim();
-  const phone = String(guest.phone || '').trim();
+  const email = textOf(guest.email).trim();
+  const phone = textOf(guest.phone).trim();
   if (!firstName) errors.push({ field: 'guest.firstName', issue: 'required', reason: 'required' });
   if (!lastName) errors.push({ field: 'guest.lastName', issue: 'required', reason: 'required' });
   if (email.length <= GUEST_MAX.email && !isValidGuestEmail(email)) {

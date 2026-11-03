@@ -28,7 +28,7 @@ function setup() {
 test('rule 34 — every open link gets install + 36 h, the sentinel and a complement included; a log line each', () => {
   const { db, links, stay, lines, logger } = setup();
   const old = addLink(links, db, stay, { createdAt: new Date('2026-05-02T10:00:00Z') });
-  const sentinel = links.create({ reservationId: stay, type: 'full', amountCents: 30000, providerLinkId: 'pl_zero', url: 'u', expiresAt: '0001-01-01T00:00:00Z' });
+  const sentinel = links.create({ reservationId: stay, type: 'full', amountCents: 30000, providerLinkId: 'pl_zero', url: 'u', expiresAt: '0001-01-01T00:00:00Z', createdAt: '2026-05-02 10:00:00' }); // date-literal-ok: a stored past row, before the injected install clock
   const complement = addLink(links, db, stay, { type: 'complement', createdAt: new Date('2026-10-30T10:00:00Z') });
 
   const { ran, backfilled } = runPaymentLinkValidityBackfill(db, { now: INSTALL, logger });
@@ -59,7 +59,7 @@ test('rule 34 — paid, cancelled and expired rows are never touched', () => {
 
 test('rule 34 — runs once: a second boot never pushes a known end back, and logs nothing', () => {
   const { db, links, stay, lines, logger } = setup();
-  const link = addLink(links, db, stay);
+  const link = addLink(links, db, stay, { createdAt: new Date('2026-05-02T10:00:00Z') }); // date-literal-ok: a stored past row, before the injected install clock
   runPaymentLinkValidityBackfill(db, { now: INSTALL, logger });
   lines.length = 0;
 
