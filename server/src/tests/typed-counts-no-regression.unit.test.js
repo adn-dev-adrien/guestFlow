@@ -30,19 +30,21 @@ db.prepare(`INSERT INTO options (id, title, price, priceType) VALUES
   (120, 'Panier', 10, 'per_person_per_night'), (121, 'Bois', 5, 'per_night')`).run();
 db.prepare('INSERT INTO property_options (propertyId, optionId) VALUES (1, 108), (1, 109), (1, 107), (1, 120), (1, 121)').run();
 
-// One property: each stay takes its own year, so none overlaps another.
-let seedYear = 2090;
+// One property: each stay takes its own month of next year, so none overlaps another.
+const SEED_YEAR = new Date().getFullYear() + 1;
+let seedMonth = 0;
+const seedDay = (day) => `${SEED_YEAR}-${String(seedMonth).padStart(2, '0')}-${day}`;
 
 function seedStay() {
-  seedYear += 1;
+  seedMonth += 1;
   const id = Number(db.prepare(`INSERT INTO reservations
       (propertyId, clientId, startDate, endDate, adults, children, teens, babies, platform, totalPrice, discountPercent,
        finalPrice, depositAmount, balanceAmount, touristTaxRate, touristTaxTotal, kind, checkInTime, checkOutTime, cautionAmount, tariffSnapshot)
       VALUES (1, 1, ?, ?, 8, 2, 0, 0, 'direct', 1423, 0, 1713, 0, 1732.2, 1.2, 19.2, 'reservation', '16:00', '10:00', 500, ?)`)
-    .run(`${seedYear}-12-24`, `${seedYear}-12-26`, TARIFF).lastInsertRowid);
+    .run(seedDay(24), seedDay(26), TARIFF).lastInsertRowid);
   const night = db.prepare("INSERT INTO reservation_nights (reservationId, date, seasonLabel, pricingMode, price) VALUES (?, ?, 'Noël', 'fixed', ?)");
-  night.run(id, `${seedYear}-12-24`, 972);
-  night.run(id, `${seedYear}-12-25`, 451);
+  night.run(id, seedDay(24), 972);
+  night.run(id, seedDay(25), 451);
   const line = db.prepare(`INSERT INTO reservation_options (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered)
                            VALUES (?, ?, 1, ?, ?, ?, ?, ?)`);
   line.run(id, BED, 7, 10, 'per_person', 0, 1);
@@ -160,11 +162,11 @@ test('rule 19 — a typed number of nights is frozen, asks when the stay changes
   assert.equal(option(id, FIREWOOD).billedUnits, 3);
   assert.equal(option(id, FIREWOOD).quantity, 1);
 
-  const refused = save(id, bodyOf(id, { endDate: `${seedYear}-12-28` }));
+  const refused = save(id, bodyOf(id, { endDate: seedDay(28) }));
   assert.equal(refused.status, 409, JSON.stringify(refused.body));
   assert.equal(refused.body.lines[0].kind, 'nights');
 
-  save(id, bodyOf(id, { endDate: `${seedYear}-12-28`, forceTypedCounts: true }));
+  save(id, bodyOf(id, { endDate: seedDay(28), forceTypedCounts: true }));
   assert.equal(option(id, FIREWOOD).billedUnits, 3);
 });
 
