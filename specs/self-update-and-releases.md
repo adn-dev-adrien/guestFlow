@@ -344,6 +344,14 @@ signed-off releases over HTTPS, when the operator asks for it.
     in the backup). Nothing does this automatically: rule 31 restores no database, so no code path
     performs the file move, and a roll-forward repairs the row again because the boot move recognises a
     file already in place.
+    **Accepted exception (2026-11-03, audit R21):** `non_card_served_persons_v1` adds only a column, so the floor stays
+    green, but it and every line the code writes since store a typed count with `quantity = 1`. An engine below v3.20.0
+    ignores `cardPersons` on a non-card line and knows no `cardNights`, so after a rollback below v3.20.0 a typed line
+    re-bills the whole party or the whole stay **at its next save**; on a copy of production under v3.19.0, a line of 1
+    unit at 8 € became 4 units at 32 €. Nothing moves until that save. Documentation only: storing a base quantity again
+    is what specs/non-card-option-served-persons.md removes (its §5). After such a rollback, restore the pre-update
+    backup, or review the typed lines before saving their fiches. On a roll-forward the migration's flag is already set:
+    a line typed during the window keeps its decimal base and reads as what it bills until it is retyped.
 40. **A release's install runs no script and starts from a trusted lockfile** (audit 2026-10-28, H1).
     Before any `npm` runs, `server/package-lock.json` must exist and every entry must resolve from
     `https://registry.npmjs.org/` with an `integrity` hash: a git, file, link or http dependency, another
