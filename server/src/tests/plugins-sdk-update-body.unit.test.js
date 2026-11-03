@@ -66,3 +66,29 @@ test('rule 38: every plugin writing a line list through reservations.update star
   });
   assert.deepEqual(listWriters.sort(), ['airbnb-intake', 'gites-de-france-intake'].filter((id) => PLUGIN_IDS.includes(id)));
 });
+
+// Review of PR #942 (optional follow-up, closed 2026-11-03): the exclusion is the core's own, not the
+// doubles'. An engine-added line (`options.autoEnabled = 1`) is left out of `options` — the engine adds it
+// back from the stay itself — and only its « dans le complément » choice rides along.
+test('rule 38: through the real core, an engine-added line stays out of updateBody and is not doubled by update', () => {
+  const early = Number(f.db.prepare(`INSERT INTO options (title, priceType, price, autoOptionType, autoEnabled, autoPricingMode, autoFullNightThreshold)
+    VALUES ('Arrivée anticipée', 'per_stay', 40, 'early_check_in', 1, 'proportional', '10:00')`).run().lastInsertRowid);
+  f.db.prepare('INSERT INTO property_options (propertyId, optionId) VALUES (1, ?)').run(early);
+  const id = f.createStay({
+    startDate: f.inDays(320), endDate: f.inDays(323), checkInTime: '13:00',
+    options: [{ optionId: 60, quantity: 1, cardOccurrences: [{ date: f.inDays(321), time: '08:30' }], cardPersons: 2 }],
+  });
+  const stored = (rid) => reservationsModel.getByIdWithDetails(rid).options.filter((o) => !o.isCustom).map((o) => Number(o.optionId)).sort();
+  assert.deepEqual(stored(id), [60, early].sort(), 'the stay carries the engine-added line');
+  f.db.prepare('UPDATE reservation_options SET inComplement = 1 WHERE reservationId = ? AND optionId = ?').run(id, early);
+
+  const body = core.reservations.updateBody(id);
+  assert.deepEqual(body.options.map((o) => Number(o.optionId)), [60]);
+  assert.deepEqual(body.autoOptionsInComplement, [early]);
+
+  const saved = core.reservations.update(id, { notes: 'Relu par la saisie' }, 'Test');
+  assert.equal(saved.status, 200, JSON.stringify(saved.body));
+  assert.deepEqual(stored(id), [60, early].sort(), 'one engine-added line, never two');
+  const line = f.db.prepare('SELECT inComplement FROM reservation_options WHERE reservationId = ? AND optionId = ?').all(id, early);
+  assert.deepEqual(line.map((l) => l.inComplement), [1]);
+});

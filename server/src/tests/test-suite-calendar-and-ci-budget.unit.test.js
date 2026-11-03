@@ -275,6 +275,21 @@ test('rule 7, reading of 2026-11-03 (audit R20-S2): a past date the five-year wi
   }
 });
 
+// Review of PR #943 (nit closed 2026-11-03): the far end is inclusive — today + 10 years is still named, the
+// day after is the far future. A year alone follows the same bound.
+test('rule 7: a date is named up to today + 10 years included, and not one day further', async () => {
+  const { datesInReach } = await load();
+  const shift = (iso, days) => new Date(Date.parse(`${iso}T00:00:00Z`) + days * 86400000).toISOString().slice(0, 10);
+  for (const today of ['2026-11-03', '2027-12-31', '2028-02-29']) { // date-literal-ok: input of the pure function under test
+    const year = Number(today.slice(0, 4));
+    const last = `${year + 10}${today.slice(4)}`.replace(/-02-29$/, '-02-28');
+    const days = datesInReach(`'${last}' '${shift(last, 1)}'`, today).map((d) => d.date);
+    assert.deepEqual(days, [last], `the checker's far end on ${today}`);
+    const years = datesInReach(`\`${year + 10}-\${m}\` Date.UTC(${year + 10}, 0, 1) \`${year + 11}-\${m}\` Date.UTC(${year + 11}, 0, 1)`, today).map((d) => d.date);
+    assert.deepEqual(years, [String(year + 10), String(year + 10)], `a year alone on ${today}`);
+  }
+});
+
 test('rule 7: a pin in a helper covers the tests that call it, a test.each callback holds its own pin, a fake timer that leaves Date real pins nothing', async () => {
   const { findDateBombs } = await load();
   const content = [

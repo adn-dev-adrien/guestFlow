@@ -474,7 +474,9 @@ Optional: a plugin that declares nothing reads « Actif ».
     A MINOR bump (an entry point added to `ctx.core`); `airbnb-intake` 1.1.6 and `gites-de-france-intake` 1.4.8 ask
     for `sdk ^2.21.0`. `booking-intake` sends no line list and is unchanged. `sdk/testing` exports
     `withStoredUpdateBody(deps)`, the suites' double of it built on their own `getReservation` through `toUpdateBody`.
-    Tests: `plugins-sdk-update-body.unit.test.js` (the body, `null`, the sweep of the plugins writing a line list),
+    Tests: `plugins-sdk-update-body.unit.test.js` (the body, `null`, the sweep of the plugins writing a line list,
+    and — review of PR #942, 2026-11-03 — through the real core, an engine-added line (`options.autoEnabled = 1`) left
+    out of `options`, its « dans le complément » choice kept in `autoOptionsInComplement`, never doubled by `update`),
     `airbnb-intake/tests/card-lines-real-core.unit.test.js`, `gites-de-france-intake/tests/card-lines-real-core.unit.test.js`.
 
 **Edge cases:**
