@@ -1,0 +1,1 @@
+- Caution: a single request marking the deposit both received (without a date) and returned on an earlier day is refused, as a return before its receipt always was, instead of recording a return dated before the receipt.
