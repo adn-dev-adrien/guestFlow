@@ -29,7 +29,7 @@ const christmasDay = (plan, year) => plan.peak.find((x) => x.startDate === `${ye
 test('a period minimum below the season minimum is kept on a public holiday', () => {
   // 2027: 25 December is a Saturday, a one-night block — the period's 2 stands.
   assert.deepEqual(christmasDay(buildYearPlan(recipeWith(2), 2027, []), 2027),
-    { startDate: '2027-12-25', endDate: '2027-12-25', minNights: 2 });
+    { startDate: '2027-12-25', endDate: '2027-12-25', minNights: 2 }); // date-literal-ok: a recipe's calendar for a fixed year, compared with nothing of today
   // 2026: a Friday, a 2-night block (25, 26) — equal to the period's 2, still not the season's 4.
   assert.equal(christmasDay(buildYearPlan(recipeWith(2), 2026, []), 2026).minNights, 2);
 });
@@ -41,5 +41,5 @@ test('the holiday block still raises a period minimum it exceeds', () => {
 
 test('without a period minimum the season minimum stands and records no override', () => {
   assert.deepEqual(christmasDay(buildYearPlan(recipeWith(null), 2026, []), 2026),
-    { startDate: '2026-12-25', endDate: '2026-12-25' });
+    { startDate: '2026-12-25', endDate: '2026-12-25' }); // date-literal-ok: a recipe's calendar for a fixed year, compared with nothing of today
 });

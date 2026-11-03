@@ -16,8 +16,8 @@ const planOf = (recipe, year) => buildYearPlan(recipe, year, materializeClosures
 test('the Gîte 2026 summer core is one range carrying its 4-night minimum', () => {
   // 25 December sits in the same season since recipe 3.7.0, with its own 2 nights.
   assert.deepEqual(planOf(gite, 2026).peak, [
-    { startDate: '2026-07-11', endDate: '2026-08-21', minNights: 4 },
-    { startDate: '2026-12-25', endDate: '2026-12-25', minNights: 2 },
+    { startDate: '2026-07-11', endDate: '2026-08-21', minNights: 4 }, // date-literal-ok: a recipe's calendar for a fixed year, compared with nothing of today
+    { startDate: '2026-12-25', endDate: '2026-12-25', minNights: 2 }, // date-literal-ok: a recipe's calendar for a fixed year, compared with nothing of today
   ]);
 });
 
