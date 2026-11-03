@@ -12,6 +12,23 @@ function formatOptionQuantity(quantity) {
   return Number.isInteger(safe) ? String(safe) : safe.toFixed(2).replace(/\.00$/, '');
 }
 
+// The count the fiche's field shows (specs/non-card-option-served-persons.md rule 29), read from what the
+// line bills: `quantity` stays 1 on a typed line. Same reading as the core's `displayCountOf`, and a test
+// holds the two together; a card line counts its moments and the insurance covers the stay.
+function optionDisplayCount({
+  priceType, quantity, billedUnits, startDate, endDate, isCard, isInsurance,
+}) {
+  const fallback = Number(quantity || 0);
+  if (isCard || isInsurance) return fallback;
+  let count = null;
+  if (priceType === 'per_person' || priceType === 'per_night') count = Number(billedUnits);
+  else if (priceType === 'per_person_per_night') {
+    const nights = Math.round((new Date(endDate) - new Date(startDate)) / 86400000);
+    if (nights > 0) count = Number(billedUnits) / nights;
+  }
+  return Number.isFinite(count) && count > 0 ? Math.round(count * 100) / 100 : fallback;
+}
+
 function buildEventTitle(reservation) {
   const propertyName = String(reservation.propertyName || '').trim() || 'Logement';
   const fullName = `${String(reservation.clientLastName || '').trim()} ${String(reservation.clientFirstName || '').trim()}`.trim() || 'Client inconnu';
@@ -30,7 +47,7 @@ function buildEventDescription(reservation, options) {
   const babyBeds = Number(reservation.babyBeds || 0);
 
   const optionLines = Array.isArray(options) && options.length > 0
-    ? options.map((opt) => `- ${opt.title} x${formatOptionQuantity(opt.quantity)}`)
+    ? options.map((opt) => `- ${opt.title} x${formatOptionQuantity(opt.displayCount ?? opt.quantity)}`)
     : ['- Aucune option'];
 
   return [
@@ -167,6 +184,7 @@ function eventDiffers(remoteEvent, desiredPayload) {
 }
 
 module.exports = {
+  optionDisplayCount,
   formatCountLabel,
   formatOptionQuantity,
   buildEventTitle,

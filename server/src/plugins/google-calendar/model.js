@@ -1,6 +1,17 @@
 // Google Calendar model — reads the reservations (kind='reservation' only) + their options to push to
 // Google. A devis is never synced. `propertyId` feeds the deterministic per-property event color.
 
+const { optionDisplayCount } = require('./events');
+
+const OPTION_LINE_COLUMNS = `o.title, ro.quantity, ro.billedUnits, ro.priceType, r.startDate, r.endDate,
+  COALESCE(o.showsPlanningCard, 0) AS isCard, COALESCE(o.isCancellationInsurance, 0) AS isInsurance`;
+
+const toEventOption = (row) => ({
+  title: String(row.title || 'Option').trim(),
+  quantity: Number(row.quantity || 0),
+  displayCount: optionDisplayCount(row),
+});
+
 const RESERVATION_SELECT = `
   SELECT
     r.id, r.propertyId, r.startDate, r.endDate, r.checkInTime, r.checkOutTime,
@@ -17,9 +28,10 @@ const RESERVATION_SELECT = `
 function createGoogleCalendarModel(database) {
   function optionsForReservationIds() {
     const optionRows = database.prepare(`
-      SELECT ro.reservationId, o.title, ro.quantity
+      SELECT ro.reservationId, ${OPTION_LINE_COLUMNS}
       FROM reservation_options ro
       JOIN options o ON o.id = ro.optionId
+      JOIN reservations r ON r.id = ro.reservationId
       ORDER BY ro.reservationId ASC, o.title ASC
     `).all();
 
@@ -27,10 +39,7 @@ function createGoogleCalendarModel(database) {
     for (const row of optionRows) {
       const key = Number(row.reservationId);
       if (!optionsByReservation.has(key)) optionsByReservation.set(key, []);
-      optionsByReservation.get(key).push({
-        title: String(row.title || 'Option').trim(),
-        quantity: Number(row.quantity || 0),
-      });
+      optionsByReservation.get(key).push(toEventOption(row));
     }
     return optionsByReservation;
   }
@@ -54,15 +63,13 @@ function createGoogleCalendarModel(database) {
       if (!reservation) return null;
 
       const options = database.prepare(`
-        SELECT o.title, ro.quantity
+        SELECT ${OPTION_LINE_COLUMNS}
         FROM reservation_options ro
         JOIN options o ON o.id = ro.optionId
+        JOIN reservations r ON r.id = ro.reservationId
         WHERE ro.reservationId = ?
         ORDER BY o.title ASC
-      `).all(Number(reservationId)).map((row) => ({
-        title: String(row.title || 'Option').trim(),
-        quantity: Number(row.quantity || 0),
-      }));
+      `).all(Number(reservationId)).map(toEventOption);
 
       return { ...reservation, options };
     },

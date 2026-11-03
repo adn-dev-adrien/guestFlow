@@ -21,6 +21,11 @@
 // that path has no extension resolution.
 import { WELCOME_PACK_TAG } from './welcomePackApply.js';
 
+const typedCountFromEcho = (column, line, prevLine) => {
+  if (line[column] != null) return { [column]: Number(line[column]) };
+  return prevLine && prevLine[column] != null ? { [column]: Number(prevLine[column]) } : {};
+};
+
 function applyQuoteToForm(prev, quote, opts = {}) {
   const { preserveBlankPrice = false } = opts;
   void preserveBlankPrice; // kept in the signature for callers that pass it through
@@ -74,18 +79,14 @@ function applyQuoteToForm(prev, quote, opts = {}) {
         ...(prevLine && Array.isArray(prevLine.cardOccurrences)
           ? { cardOccurrences: prevLine.cardOccurrences }
           : (Array.isArray(line.cardOccurrences) ? { cardOccurrences: line.cardOccurrences } : {})),
-        // specs/card-option-served-persons.md §3.2 rule 9 — the served count is the operator's too:
-        // the form value wins over the quote echo, and a `null` echo (« follows the party ») must not
-        // wipe a number the operator is in the middle of typing.
-        ...(prevLine && prevLine.cardPersons != null
-          ? { cardPersons: Number(prevLine.cardPersons) }
-          : (line.cardPersons != null ? { cardPersons: Number(line.cardPersons) } : {})),
-        // specs/non-card-option-served-persons.md rules 18, 19, 23 — the nights work like the people,
-        // the figure a drifted line bills comes from the quote, and the typed-against reference is
-        // form-local (the engine knows nothing about it).
-        ...(prevLine && prevLine.cardNights != null
-          ? { cardNights: Number(prevLine.cardNights) }
-          : (line.cardNights != null ? { cardNights: Number(line.cardNights) } : {})),
+        // specs/non-card-option-served-persons.md rule 30 — the field shows what is billed: a numeric
+        // echo wins (the engine may have clamped the count), a `null` echo (« follows the party ») must
+        // not wipe a number the operator is in the middle of typing. A stale answer never gets here:
+        // the page drops it by request id.
+        ...typedCountFromEcho('cardPersons', line, prevLine),
+        // Rules 18, 19, 23 — the nights work like the people, the figure a drifted line bills comes from
+        // the quote, and the typed-against reference is form-local (the engine knows nothing about it).
+        ...typedCountFromEcho('cardNights', line, prevLine),
         ...(line.servedPersons != null ? { servedPersons: Number(line.servedPersons) } : {}),
         ...(line.servedNights != null ? { servedNights: Number(line.servedNights) } : {}),
         ...(prevLine && prevLine.typedAtParty != null ? { typedAtParty: prevLine.typedAtParty } : {}),
@@ -143,4 +144,39 @@ function applyQuoteToForm(prev, quote, opts = {}) {
   };
 }
 
-export { applyQuoteToForm };
+const typedCountIn = (line, column) => (line && line[column] != null ? Number(line[column]) : null);
+const lineOf = (lines, optionId) => (lines || []).find((l) => Number(l.optionId) === Number(optionId));
+
+/**
+ * The clean baseline of the unsaved-changes guard after a quote (specs/non-card-option-served-persons.md
+ * rule 30). A numeric echo enters it only when that quote asked for the count the baseline holds: the
+ * engine then read the stored line, so a clamped count is no edit. A count the quote asked for and the
+ * baseline does not hold was typed meanwhile, and it stays an edit.
+ *
+ * @param {object} baseline       the form the baseline holds
+ * @param {object} quote          server pricing quote
+ * @param {Array}  askedLines     `selectedOptions` of the request that quote answers
+ * @param {object} [opts]         passed on to `applyQuoteToForm`
+ * @returns {object} the next baseline form
+ */
+function applyQuoteToBaseline(baseline, quote, askedLines, opts = {}) {
+  const next = applyQuoteToForm(baseline, quote, opts);
+  if (!Array.isArray(askedLines)) return next;
+  return {
+    ...next,
+    selectedOptions: next.selectedOptions.map((line) => {
+      const held = lineOf(baseline.selectedOptions, line.optionId);
+      const asked = lineOf(askedLines, line.optionId);
+      const kept = { ...line };
+      ['cardPersons', 'cardNights'].forEach((column) => {
+        const value = typedCountIn(held, column);
+        if (typedCountIn(asked, column) === value) return;
+        if (value == null) delete kept[column];
+        else kept[column] = value;
+      });
+      return kept;
+    }),
+  };
+}
+
+export { applyQuoteToForm, applyQuoteToBaseline };

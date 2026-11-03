@@ -55,6 +55,6 @@ test('rule 13 — « Annuler » puts the typed number back, though `quantity` ne
   const { ctx, onClose, rerenderWith } = renderDialog({ optionId: 40, quantity: 1, totalPrice: 24, cardPersons: 3 });
   rerenderWith([{ optionId: 40, quantity: 1, totalPrice: 32, cardPersons: 4 }]);
   fireEvent.click(screen.getByRole('button', { name: 'Annuler' }));
-  expect(ctx.setOptionTypedCount).toHaveBeenCalledWith(40, 'persons', 3);
+  expect(ctx.restoreOptionsState.mock.calls[0][0].selectedOptions[0].cardPersons).toBe(3);
   expect(onClose).toHaveBeenCalled();
 });

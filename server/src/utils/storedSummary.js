@@ -12,6 +12,7 @@
 const { summaryCascade, storedWithheldTax } = require('./quoteHeadline');
 const { isPlatformCollectingTouristTax, isTouristTaxRemittedByOwner } = require('./pricing');
 const { saleChannel } = require('./saleChannel');
+const { displayCountOf } = require('./typedCounts');
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 const flag = (v) => Number(v || 0) === 1;
@@ -34,6 +35,7 @@ function storedOptionLines(db, row) {
   );
   const options = safeAll(db, `
     SELECT ro.optionId, o.title, ro.quantity, ro.unitPrice, ro.billedUnits, ro.priceType, ro.totalPrice,
+           COALESCE(o.showsPlanningCard, 0) AS isCard, COALESCE(o.isCancellationInsurance, 0) AS isInsurance,
            ro.offered, ro.inComplement, ro.acompteContribTtc, ro.soldeContribTtc
       FROM reservation_options ro LEFT JOIN options o ON o.id = ro.optionId
      WHERE ro.reservationId = ? ORDER BY o.title COLLATE NOCASE`, row.id).map((r) => {
@@ -43,6 +45,7 @@ function storedOptionLines(db, row) {
       optionId: Number(r.optionId),
       title: r.title || '',
       quantity: Number(r.quantity || 1),
+      displayCount: displayCountOf(r, row, { isCard: Boolean(r.isCard), isInsurance: Boolean(r.isInsurance) }),
       unitPrice: Number(r.unitPrice || 0),
       billedUnits: Number(r.billedUnits || 0),
       priceType: r.priceType,

@@ -1173,7 +1173,10 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           <Stack spacing={1}>
             <Typography variant="body1" sx={{ fontWeight: 600 }}>Prestations réservées</Typography>
             {opts.length === 0 && reslist.length === 0 && <Typography variant="body2" color="text.secondary">Aucune.</Typography>}
-            {opts.map((o, i) => <Typography key={`o${i}`} variant="body2">• {o.title}{o.quantity > 1 ? ` × ${o.quantity}` : ''}</Typography>)}
+            {opts.map((o, i) => {
+              const count = o.displayCount ?? o.quantity;
+              return <Typography key={`o${i}`} variant="body2">• {o.title}{count > 1 ? ` × ${count}` : ''}</Typography>;
+            })}
             {reslist.map((o, i) => <Typography key={`r${i}`} variant="body2">• {o.name}{o.quantity > 1 ? ` × ${o.quantity}` : ''}</Typography>)}
           </Stack>
         );

@@ -45,7 +45,7 @@ const statusBgSx = (t, done, ready = false) => {
 };
 
 const optionsResourcesText = (r) => {
-  const optionsText = (r.options || []).map((o) => `${o.title} x${o.quantity}`).join(', ');
+  const optionsText = (r.options || []).map((o) => `${o.title} x${o.displayCount ?? o.quantity}`).join(', ');
   const resourcesText = [
     ...(Number(r.babyBeds || 0) > 0 ? [`Lit bébé ×${r.babyBeds}`] : []),
     ...(r.resources || []).map((rr) => `${rr.name} x${rr.quantity}`),

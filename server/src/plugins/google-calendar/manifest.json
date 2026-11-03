@@ -1,7 +1,7 @@
 {
   "id": "google-calendar",
   "name": "Google Agenda",
-  "version": "1.2.6",
+  "version": "1.2.7",
   "description": "Copie les séjours dans un agenda Google.",
   "icon": "event",
   "surfaces": [
@@ -50,6 +50,10 @@
     ],
     "1.2.6": [
       "La déconnexion de Google Agenda n’attend plus indéfiniment quand Google ne répond pas : elle s’arrête au bout de 20 s.",
+      "Compatible avec le SDK 2.17 de GuestFlow."
+    ],
+    "1.2.7": [
+      "Dans la description des événements, chaque option affiche le nombre de personnes servies ou de nuits de la fiche, au lieu de « x1 ».",
       "Compatible avec le SDK 2.17 de GuestFlow."
     ]
   }

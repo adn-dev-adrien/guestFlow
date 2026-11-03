@@ -446,10 +446,10 @@ export default function PricingSummary({
                 // A line whose quantity counts mornings (the server says so) reads « · 3 matins »,
                 // not « ×3 », which reads as portions (specs/pricing-summary-labels rule, F13).
                 const countsMornings = so.quantityUnit === 'morning';
-                const quantity = Number(so.quantity);
+                const quantity = Number(so.displayCount ?? so.quantity);
                 const quantitySuffix = countsMornings
                   ? ` · ${quantity} matin${quantity > 1 ? 's' : ''}`
-                  : (quantity > 1 ? ` ×${so.quantity}` : '');
+                  : (quantity > 1 ? ` ×${quantity}` : '');
                 const baseLabel = `${so.title || opt?.title || '—'}${quantitySuffix}`;
                 const baseKey = so.optionId || so.customKey || `custom_${index}`;
 
