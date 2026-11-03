@@ -12,6 +12,11 @@ const { globalFetch } = require('./icalFetchFixture');
 const model = require('../models/propertyIcalModel').buildModel(require('../database'), { fetchImpl: globalFetch });
 const reservationsModel = require('../models/reservationsModel');
 const cancellationModel = require('../models/icalCancellationModel');
+const { todayIso } = require('../utils/localDate');
+const { addDaysToIsoDate } = require('../utils/devisHelpers');
+
+/** `YYYY-MM-DD`, `days` after today: the dates of this suite hang on it (specs/server-test-isolation.md rule 6). */
+const inDays = (days) => addDaysToIsoDate(todayIso(), days);
 
 function ics(events) {
   const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0'];
@@ -38,7 +43,7 @@ async function cancelledStayWithRefund() {
   await model.syncSourceAndRecord(source);
   const id = db.prepare('SELECT id FROM reservations WHERE propertyId = ?').get(propertyId).id;
   reservationsModel.markCancelled(id, { reason: 'test' });
-  db.prepare("INSERT INTO reservation_refunds (reservationId, refundDate, totalTtc, reason) VALUES (?, '2026-10-27', 120, 'avoir')").run(id);
+  db.prepare(`INSERT INTO reservation_refunds (reservationId, refundDate, totalTtc, reason) VALUES (?, '${inDays(-7)}', 120, 'avoir')`).run(id);
   return { id, source };
 }
 

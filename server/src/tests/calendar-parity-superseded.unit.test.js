@@ -24,6 +24,9 @@ const { addDaysToIsoDate } = require('../utils/devisHelpers');
 // it, `compact(n)` the same day as an iCal DATE.
 const FIRST = addDaysToIsoDate(todayIso(), 370);
 const day = (n) => addDaysToIsoDate(FIRST, n);
+// The calendar-year fixture lies in last year: nothing in it is compared with today, it never meets the
+// stays hung on FIRST, and its writes stay inside the five-year date window (specs/server-test-isolation.md rule 6).
+const Y = Number(todayIso().slice(0, 4)) - 1;
 const compact = (n) => day(n).replace(/-/g, '');
 
 function stay(id, propertyId, startDate, endDate, { platform = 'direct', balancePaid = 0 } = {}) {
@@ -53,19 +56,19 @@ db.prepare("INSERT INTO ical_sources (propertyId, name, url, platformKey, platfo
 db.prepare("INSERT INTO ical_sources (propertyId, name, url, platformKey, platformLabel, isActive, disabled) VALUES (2, 'Lodgify', '', 'lodgify', 'Lodgify', 0, 1)").run();
 
 // Prod-shaped: one true duplicate on a direct stay, nine isolated past stays.
-stay(14, 1, '2026-04-13', '2026-04-16', { platform: 'direct' });
+stay(14, 1, `${Y}-04-13`, `${Y}-04-16`, { platform: 'direct' });
 // The real copy ended one night after its keeper (13→17 against 13→16) and is now flagged instead (rule 26);
 // the fixture keeps the copy inside its keeper.
-stay(22279, 1, '2026-04-13', '2026-04-16', { platform: 'Lodgify' });
+stay(22279, 1, `${Y}-04-13`, `${Y}-04-16`, { platform: 'Lodgify' });
 const ISOLATED = [22201, 22224, 22226, 22227, 22229, 22242, 22269, 22271, 22272];
-ISOLATED.forEach((id, i) => stay(id, 1, `2026-0${1 + (i % 3)}-${String(2 + i * 3).padStart(2, '0')}`, `2026-0${1 + (i % 3)}-${String(4 + i * 3).padStart(2, '0')}`, { platform: 'Lodgify' }));
+ISOLATED.forEach((id, i) => stay(id, 1, `${Y}-0${1 + (i % 3)}-${String(2 + i * 3).padStart(2, '0')}`, `${Y}-0${1 + (i % 3)}-${String(4 + i * 3).padStart(2, '0')}`, { platform: 'Lodgify' }));
 // Estiva: three direct stays, no hidden one.
-stay(30, 2, '2026-05-01', '2026-05-04');
-stay(31, 2, '2026-05-10', '2026-05-12');
-stay(32, 2, '2026-06-01', '2026-06-03');
+stay(30, 2, `${Y}-05-01`, `${Y}-05-04`);
+stay(31, 2, `${Y}-05-10`, `${Y}-05-12`);
+stay(32, 2, `${Y}-06-01`, `${Y}-06-03`);
 
 // The fixture's year, as a calendar window: nothing compares it with today.
-const YEAR = { from: '2026-01-01', to: '2026-12-31' }; // date-literal-ok: the fixture's calendar year, a fixed window
+const YEAR = { from: `${Y}-01-01`, to: `${Y}-12-31` };
 const allSet = (propertyId) => ids(calendarModel.listRange({ from: YEAR.from, to: YEAR.to, propertyId }).stays);
 
 test('rule 23 — the old filter hides 10 Granja stays; only the one overlapping a visible stay is a duplicate', () => {
@@ -109,8 +112,8 @@ test('rule 23 — a second boot changes nothing', () => {
 });
 
 test('rule 26 — a hidden duplicate carrying money is left untouched and both stays are flagged for the operator', () => {
-  stay(40, 2, '2026-08-05', '2026-08-08', { platform: 'direct' });
-  stay(41, 2, '2026-08-06', '2026-08-09', { platform: 'Lodgify', balancePaid: 1 });
+  stay(40, 2, `${Y}-08-05`, `${Y}-08-08`, { platform: 'direct' });
+  stay(41, 2, `${Y}-08-06`, `${Y}-08-09`, { platform: 'Lodgify', balancePaid: 1 });
   const found = setAsideDuplicates(db);
   assert.ok(found.conflicts.some((c) => c.id === 41 && c.otherId === 40 && c.why === 'paid'));
   assert.equal(kindOf(41), 'reservation');
@@ -121,11 +124,11 @@ test('rule 26 — a hidden duplicate carrying money is left untouched and both s
 });
 
 test('rule 23 — a paid payment link or a paid installment also counts as money', () => {
-  const keeper = stay(50, 2, '2026-09-05', '2026-09-08', { platform: 'direct' });
-  const withLink = stay(51, 2, '2026-09-06', '2026-09-09', { platform: 'Lodgify' });
-  const withInstallment = stay(52, 2, '2026-09-04', '2026-09-07', { platform: 'Lodgify' });
-  db.prepare("INSERT INTO payment_links (reservationId, type, url, status, paidAt) VALUES (?, 'balance', 'x', 'paid', '2026-08-01')").run(withLink);
-  db.prepare('INSERT INTO reservation_installments (reservationId, number, dueDate, amountCents, paid) VALUES (?, 1, ?, 1000, 1)').run(withInstallment, '2026-08-01');
+  const keeper = stay(50, 2, `${Y}-09-05`, `${Y}-09-08`, { platform: 'direct' });
+  const withLink = stay(51, 2, `${Y}-09-06`, `${Y}-09-09`, { platform: 'Lodgify' });
+  const withInstallment = stay(52, 2, `${Y}-09-04`, `${Y}-09-07`, { platform: 'Lodgify' });
+  db.prepare(`INSERT INTO payment_links (reservationId, type, url, status, paidAt) VALUES (?, 'balance', 'x', 'paid', '${Y}-08-01')`).run(withLink);
+  db.prepare('INSERT INTO reservation_installments (reservationId, number, dueDate, amountCents, paid) VALUES (?, 1, ?, 1000, 1)').run(withInstallment, `${Y}-08-01`);
   const found = findCandidates(db);
   const paid = found.conflicts.filter((c) => c.why === 'paid').map((c) => c.id);
   assert.ok(paid.includes(withLink) && paid.includes(withInstallment));
@@ -133,8 +136,8 @@ test('rule 23 — a paid payment link or a paid installment also counts as money
 });
 
 test('rule 26 — two hidden stays on the same nights are not set aside: both are flagged, never both silently visible', () => {
-  stay(60, 1, '2026-11-01', '2026-11-06', { platform: 'Lodgify' }); // date-literal-ok: a past-shaped stay, nothing compares it with today
-  stay(61, 1, '2026-11-04', '2026-11-08', { platform: 'Lodgify' }); // date-literal-ok: a past-shaped stay, nothing compares it with today
+  stay(60, 1, `${Y}-11-01`, `${Y}-11-06`, { platform: 'Lodgify' });
+  stay(61, 1, `${Y}-11-04`, `${Y}-11-08`, { platform: 'Lodgify' });
   const found = setAsideDuplicates(db);
   assert.ok(found.conflicts.some((c) => c.why === 'hidden-overlap'));
   assert.ok(found.flagged.includes(60) && found.flagged.includes(61));
@@ -144,8 +147,8 @@ test('rule 26 — two hidden stays on the same nights are not set aside: both ar
 });
 
 test('rule 26 — a hidden stay LONGER than the visible one it overlaps is not set aside (it would free nights): flagged instead', () => {
-  stay(80, 1, '2026-06-10', '2026-06-18', { platform: 'direct' });
-  stay(81, 1, '2026-06-09', '2026-06-21', { platform: 'Lodgify' });
+  stay(80, 1, `${Y}-06-10`, `${Y}-06-18`, { platform: 'direct' });
+  stay(81, 1, `${Y}-06-09`, `${Y}-06-21`, { platform: 'Lodgify' });
   const found = setAsideDuplicates(db);
   assert.ok(found.conflicts.some((c) => c.id === 81 && c.otherId === 80 && c.why === 'longer'));
   assert.equal(kindOf(81), 'reservation');
@@ -153,9 +156,9 @@ test('rule 26 — a hidden stay LONGER than the visible one it overlaps is not s
 });
 
 test('rule 26 — a hidden stay one night longer than its keeper is flagged, never set aside (audit 2026-10-28)', () => {
-  stay(90, 1, '2026-09-13', '2026-09-16', { platform: 'direct' });
-  stay(91, 1, '2026-09-13', '2026-09-17', { platform: 'Lodgify' });
-  stay(92, 1, '2026-09-12', '2026-09-16', { platform: 'Lodgify' });
+  stay(90, 1, `${Y}-09-13`, `${Y}-09-16`, { platform: 'direct' });
+  stay(91, 1, `${Y}-09-13`, `${Y}-09-17`, { platform: 'Lodgify' });
+  stay(92, 1, `${Y}-09-12`, `${Y}-09-16`, { platform: 'Lodgify' });
   const found = findCandidates(db);
   assert.ok(found.conflicts.some((c) => c.id === 91 && c.otherId === 90 && c.why === 'longer'), 'one night after');
   assert.ok(found.conflicts.some((c) => c.id === 92 && c.otherId === 90 && c.why === 'longer'), 'one night before');
@@ -163,9 +166,9 @@ test('rule 26 — a hidden stay one night longer than its keeper is flagged, nev
 });
 
 test('rule 26 — fully inside the keeper dates it is a copy; the keeper is the earliest overlap, by date not by id', () => {
-  stay(70, 1, '2026-12-02', '2026-12-03', { platform: 'Lodgify' }); // date-literal-ok: a past-shaped stay, nothing compares it with today
-  stay(72, 1, '2026-12-01', '2026-12-03', { platform: 'direct' }); // date-literal-ok: a past-shaped stay, nothing compares it with today
-  stay(71, 1, '2026-12-02', '2026-12-04', { platform: 'direct' }); // date-literal-ok: a past-shaped stay, nothing compares it with today
+  stay(70, 1, `${Y}-12-02`, `${Y}-12-03`, { platform: 'Lodgify' });
+  stay(72, 1, `${Y}-12-01`, `${Y}-12-03`, { platform: 'direct' });
+  stay(71, 1, `${Y}-12-02`, `${Y}-12-04`, { platform: 'direct' });
   const found = findCandidates(db);
   assert.deepEqual(found.superseded.find((s) => s.id === 70), { id: 70, byReservationId: 72 });
 });
@@ -174,15 +177,15 @@ test('rule 22 — a stay set aside is absent from the calendar, the lists, the a
   assert.ok(!allSet(1).includes(22279));
   assert.ok(!rm.list({ propertyId: 1 }).some((r) => r.id === 22279));
   assert.equal(rm.validateAvailability(1, day(-200), day(-199), '15:00', '10:00', null), null, 'a free night is free');
-  assert.equal(rm.getOccupiedReservations(1, '2026-04-01', '2026-04-30').some((r) => r.id === 22279), false);
+  assert.equal(rm.getOccupiedReservations(1, `${Y}-04-01`, `${Y}-04-30`).some((r) => r.id === 22279), false);
   const found = rm.search({ q: 'Camille' });
   assert.equal(found.find((r) => r.id === 22279).superseded, true);
   assert.equal(found.find((r) => r.id === 14).superseded, false);
-  db.prepare("UPDATE reservations SET depositPaid = 1, depositPaidDate = '2026-05-10', depositAmount = 100 WHERE id = 22279").run();
+  db.prepare(`UPDATE reservations SET depositPaid = 1, depositPaidDate = '${Y}-05-10', depositAmount = 100 WHERE id = 22279`).run();
   const accounting = accountingModelFactory.create(db);
-  assert.equal(accounting.encaissementsByMonth({ month: 5, year: 2026 }).filter((e) => e.reservationId === 22279 || e.id === 22279).length, 0, 'the books skip it');
+  assert.equal(accounting.encaissementsByMonth({ month: 5, year: Y }).filter((e) => e.reservationId === 22279 || e.id === 22279).length, 0, 'the books skip it');
   db.prepare("UPDATE reservations SET kind = 'reservation' WHERE id = 22279").run();
-  assert.ok(accounting.encaissementsByMonth({ month: 5, year: 2026 }).length > 0, 'the same row as a reservation would be booked');
+  assert.ok(accounting.encaissementsByMonth({ month: 5, year: Y }).length > 0, 'the same row as a reservation would be booked');
   db.prepare("UPDATE reservations SET kind = 'superseded', depositPaid = 0, depositPaidDate = NULL, depositAmount = 0 WHERE id = 22279").run();
 });
 

@@ -3,6 +3,11 @@ const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
 const devisModel = require('../models/devisModel');
+const { todayIso } = require('../utils/localDate');
+const { addDaysToIsoDate } = require('../utils/devisHelpers');
+
+/** `YYYY-MM-DD`, `days` after today: the dates of this suite hang on it (specs/server-test-isolation.md rule 6). */
+const inDays = (days) => addDaysToIsoDate(todayIso(), days);
 
 // Full pricing schema (so calculateReservationQuote runs) + devis tables, to cover the money-critical
 // create/update persistence that the plain devis-model test can't reach.
@@ -69,7 +74,7 @@ function freshModel() {
   return { model: devisModel.buildModel(db), db };
 }
 
-const BASE = { propertyId: 1, clientId: 1, startDate: '2026-07-10', endDate: '2026-07-13', adults: 2 };
+const BASE = { propertyId: 1, clientId: 1, startDate: inDays(-116), endDate: inDays(-113), adults: 2 };
 
 test('create persists the devis + lines with engine prices (360 stay + 50 option)', () => {
   const { model, db } = freshModel();

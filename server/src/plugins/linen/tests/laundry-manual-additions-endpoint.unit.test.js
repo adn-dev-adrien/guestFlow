@@ -3,6 +3,11 @@ const assert = require('node:assert/strict');
 
 // specs/manual-laundry-additions.md §4.3 — GET list + PUT upsert behind /api/laundry/manual-additions.
 const { create } = require('../manualAdditionsController');
+const { todayIso } = require('../../../utils/localDate');
+const { addDaysToIsoDate } = require('../../../utils/devisHelpers');
+
+/** `YYYY-MM-DD`, `days` after today: the dates of this suite hang on it (specs/server-test-isolation.md rule 6). */
+const inDays = (days) => addDaysToIsoDate(todayIso(), days);
 
 const ZEROS = { singleBeds: 0, doubleBeds: 0, babyBeds: 0, largeTowels: 0, mediumTowels: 0, smallTowels: 0 };
 
@@ -24,27 +29,27 @@ function stubModel() {
 }
 
 test('GET → { additions } map', () => {
-  const m = stubModel(); m.set('2026-06-09', { singleBeds: 2 });
+  const m = stubModel(); m.set(inDays(-147), { singleBeds: 2 });
   const res = fakeRes();
   create(m).listAdditions({}, res);
   assert.equal(res.statusCode, 200);
-  assert.deepEqual(Object.keys(res.body.additions), ['2026-06-09']);
+  assert.deepEqual(Object.keys(res.body.additions), [inDays(-147)]);
 });
 
 test('PUT upserts + echoes counts; refreshes the list', () => {
   const m = stubModel();
   const res = fakeRes();
-  create(m).setAddition({ params: { date: '2026-06-09' }, body: { singleBeds: 3 } }, res);
+  create(m).setAddition({ params: { date: inDays(-147) }, body: { singleBeds: 3 } }, res);
   assert.equal(res.statusCode, 200);
   assert.equal(res.body.counts.singleBeds, 3);
-  assert.equal(res.body.additions['2026-06-09'].singleBeds, 3);
+  assert.equal(res.body.additions[inDays(-147)].singleBeds, 3);
 });
 
 test('PUT all-zero deletes the row', () => {
   const m = stubModel();
-  create(m).setAddition({ params: { date: '2026-06-09' }, body: { singleBeds: 2 } }, fakeRes());
+  create(m).setAddition({ params: { date: inDays(-147) }, body: { singleBeds: 2 } }, fakeRes());
   const res = fakeRes();
-  create(m).setAddition({ params: { date: '2026-06-09' }, body: { singleBeds: 0 } }, res);
+  create(m).setAddition({ params: { date: inDays(-147) }, body: { singleBeds: 0 } }, res);
   assert.deepEqual(res.body.additions, {});
 });
 

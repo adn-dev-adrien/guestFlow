@@ -4,6 +4,11 @@ const Database = require('better-sqlite3');
 
 const resourceBookingsModel = require('../bookingsModel');
 const resourceOccupancyModel = require('../occupancyModel');
+const { todayIso } = require('../../../utils/localDate');
+const { addDaysToIsoDate } = require('../../../utils/devisHelpers');
+
+/** `YYYY-MM-DD`, `days` after today: the dates of this suite hang on it (specs/server-test-isolation.md rule 6). */
+const inDays = (days) => addDaysToIsoDate(todayIso(), days);
 
 // specs/hourly-resource-quantity-and-sas-scheduling.md §3.5 — a resource is occupied by standalone
 // bookings AND by the sessions placed on reservations. `countConflicts` used to read only the former,
@@ -59,14 +64,14 @@ function seed({ resource = {}, sessions = [], kind = 'reservation' } = {}) {
   return { db, resourceId, model: resourceBookingsModel.create(db), occupancy: resourceOccupancyModel.create(db) };
 }
 
-const GUEST_SESSION = [{ date: '2026-09-12', start: '14:00', end: '15:00' }];
+const GUEST_SESSION = [{ date: inDays(-52), start: '14:00', end: '15:00' }];
 
 // ── The regression that matters ────────────────────────────────────────────────────────────────────
 
 test('REGRESSION: a guest session blocks a standalone booking on the same slot', () => {
   const { model, resourceId } = seed({ sessions: GUEST_SESSION });
   const result = model.createBooking({
-    resourceId, date: '2026-09-12', startTime: '14:00', endTime: '15:00', propertyId: 1,
+    resourceId, date: inDays(-52), startTime: '14:00', endTime: '15:00', propertyId: 1,
   });
   assert.equal(result.status, 409);
   assert.match(result.error, /non disponible/i);
@@ -75,42 +80,42 @@ test('REGRESSION: a guest session blocks a standalone booking on the same slot',
 test('REGRESSION: the turnover buffer around a guest session also blocks', () => {
   const { model, resourceId } = seed({ sessions: GUEST_SESSION });
   // Ends exactly when the session starts — 15 min of reset are still owed.
-  assert.equal(model.createBooking({ resourceId, date: '2026-09-12', startTime: '13:00', endTime: '14:00' }).status, 409);
+  assert.equal(model.createBooking({ resourceId, date: inDays(-52), startTime: '13:00', endTime: '14:00' }).status, 409);
   // Starts exactly when it ends — same.
-  assert.equal(model.createBooking({ resourceId, date: '2026-09-12', startTime: '15:00', endTime: '16:00' }).status, 409);
+  assert.equal(model.createBooking({ resourceId, date: inDays(-52), startTime: '15:00', endTime: '16:00' }).status, 409);
   // Clear of the buffer on both sides.
-  assert.equal(model.createBooking({ resourceId, date: '2026-09-12', startTime: '16:00', endTime: '17:00' }).ok, true);
+  assert.equal(model.createBooking({ resourceId, date: inDays(-52), startTime: '16:00', endTime: '17:00' }).ok, true);
 });
 
 test('a standalone booking still blocks another standalone booking (unchanged)', () => {
   const { model, resourceId } = seed();
-  assert.equal(model.createBooking({ resourceId, date: '2026-09-12', startTime: '14:00', endTime: '15:00' }).ok, true);
-  assert.equal(model.createBooking({ resourceId, date: '2026-09-12', startTime: '14:00', endTime: '15:00' }).status, 409);
+  assert.equal(model.createBooking({ resourceId, date: inDays(-52), startTime: '14:00', endTime: '15:00' }).ok, true);
+  assert.equal(model.createBooking({ resourceId, date: inDays(-52), startTime: '14:00', endTime: '15:00' }).status, 409);
 });
 
 test('a guest session on ANOTHER day leaves the slot free', () => {
   const { model, resourceId } = seed({ sessions: GUEST_SESSION });
-  assert.equal(model.createBooking({ resourceId, date: '2026-09-13', startTime: '14:00', endTime: '15:00' }).ok, true);
+  assert.equal(model.createBooking({ resourceId, date: inDays(-51), startTime: '14:00', endTime: '15:00' }).ok, true);
 });
 
 test('capacity 2 admits the standalone booking beside one guest session, refuses the third use', () => {
   const { model, resourceId } = seed({ resource: { quantity: 2, turnoverMinutes: 0 }, sessions: GUEST_SESSION });
-  assert.equal(model.createBooking({ resourceId, date: '2026-09-12', startTime: '14:00', endTime: '15:00' }).ok, true);
-  assert.equal(model.createBooking({ resourceId, date: '2026-09-12', startTime: '14:00', endTime: '15:00' }).status, 409);
+  assert.equal(model.createBooking({ resourceId, date: inDays(-52), startTime: '14:00', endTime: '15:00' }).ok, true);
+  assert.equal(model.createBooking({ resourceId, date: inDays(-52), startTime: '14:00', endTime: '15:00' }).status, 409);
 });
 
 test('a session carried by a DEVIS reserves nothing — a quote holds no slot', () => {
   const { model, resourceId } = seed({ sessions: GUEST_SESSION, kind: 'devis' });
-  assert.equal(model.createBooking({ resourceId, date: '2026-09-12', startTime: '14:00', endTime: '15:00' }).ok, true);
+  assert.equal(model.createBooking({ resourceId, date: inDays(-52), startTime: '14:00', endTime: '15:00' }).ok, true);
 });
 
 // ── The unified reader ─────────────────────────────────────────────────────────────────────────────
 
 test('listRange: returns bookings and sessions together, each tagged by kind', () => {
   const { model, occupancy, resourceId } = seed({ sessions: GUEST_SESSION });
-  model.createBooking({ resourceId, date: '2026-09-12', startTime: '17:00', endTime: '18:00' });
+  model.createBooking({ resourceId, date: inDays(-52), startTime: '17:00', endTime: '18:00' });
 
-  const rows = occupancy.listRange({ resourceId, from: '2026-09-12', to: '2026-09-12' });
+  const rows = occupancy.listRange({ resourceId, from: inDays(-52), to: inDays(-52) });
   assert.deepEqual(rows.map((r) => [r.start, r.kind]), [['14:00', 'session'], ['17:00', 'booking']]);
   assert.equal(rows.find((r) => r.kind === 'session').reservationId, 700);
 });
@@ -118,9 +123,9 @@ test('listRange: returns bookings and sessions together, each tagged by kind', (
 test('listRange: carries no client identity', () => {
   const { db, model, occupancy, resourceId } = seed({ sessions: GUEST_SESSION });
   db.prepare("INSERT INTO clients (id, firstName, lastName) VALUES (1, 'Camille', 'Dupont')").run();
-  model.createBooking({ resourceId, date: '2026-09-12', startTime: '17:00', endTime: '18:00', clientName: 'Client extérieur' });
+  model.createBooking({ resourceId, date: inDays(-52), startTime: '17:00', endTime: '18:00', clientName: 'Client extérieur' });
 
-  const serialized = JSON.stringify(occupancy.listRange({ resourceId, from: '2026-09-12', to: '2026-09-12' }));
+  const serialized = JSON.stringify(occupancy.listRange({ resourceId, from: inDays(-52), to: inDays(-52) }));
   assert.ok(!serialized.includes('Camille'));
   assert.ok(!serialized.includes('Dupont'));
   assert.ok(!serialized.includes('Client extérieur'));
@@ -128,24 +133,24 @@ test('listRange: carries no client identity', () => {
 
 test('listRange: excludeReservationId drops the booking being edited, so it never blocks itself', () => {
   const { occupancy, resourceId } = seed({ sessions: GUEST_SESSION });
-  assert.equal(occupancy.listRange({ resourceId, from: '2026-09-12', to: '2026-09-12' }).length, 1);
+  assert.equal(occupancy.listRange({ resourceId, from: inDays(-52), to: inDays(-52) }).length, 1);
   assert.equal(
-    occupancy.listRange({ resourceId, from: '2026-09-12', to: '2026-09-12', excludeReservationId: 700 }).length,
+    occupancy.listRange({ resourceId, from: inDays(-52), to: inDays(-52), excludeReservationId: 700 }).length,
     0,
   );
 });
 
 test('listForStay: reaches one day back so a late-evening use can still be seen', () => {
-  const { occupancy, resourceId } = seed({ sessions: [{ date: '2026-09-11', start: '21:00', end: '22:00' }] });
-  const rows = occupancy.listForStay({ resourceId, startDate: '2026-09-12', endDate: '2026-09-14' });
-  assert.deepEqual(rows.map((r) => r.date), ['2026-09-11']);
+  const { occupancy, resourceId } = seed({ sessions: [{ date: inDays(-53), start: '21:00', end: '22:00' }] });
+  const rows = occupancy.listForStay({ resourceId, startDate: inDays(-52), endDate: inDays(-50) });
+  assert.deepEqual(rows.map((r) => r.date), [inDays(-53)]);
 });
 
 test('listRange: malformed session JSON is ignored, never thrown', () => {
   const { db, occupancy, resourceId } = seed();
   db.prepare('INSERT INTO reservation_resources (reservationId, resourceId, quantity, sessions) VALUES (700, ?, 1, ?)')
     .run(resourceId, 'not json at all');
-  assert.deepEqual(occupancy.listRange({ resourceId, from: '2026-09-12', to: '2026-09-12' }), []);
+  assert.deepEqual(occupancy.listRange({ resourceId, from: inDays(-52), to: inDays(-52) }), []);
 });
 
 // ── The planning list (§3.5 rule 29) ───────────────────────────────────────────────────────────────
@@ -154,9 +159,9 @@ test('listForResource merges bookings and sessions, tagged, ordered, for the pla
   const { db, model, resourceId } = seed({ sessions: GUEST_SESSION });
   db.prepare("INSERT INTO clients (id, firstName, lastName) VALUES (1, 'Camille', 'Dupont')").run();
   db.prepare("INSERT INTO properties (id, name) VALUES (1, 'Aventura lodge')").run();
-  model.createBooking({ resourceId, date: '2026-09-12', startTime: '17:00', endTime: '18:00', clientName: 'Extérieur' });
+  model.createBooking({ resourceId, date: inDays(-52), startTime: '17:00', endTime: '18:00', clientName: 'Extérieur' });
 
-  const rows = model.listForResource({ resourceId, date: '2026-09-12' });
+  const rows = model.listForResource({ resourceId, date: inDays(-52) });
   assert.deepEqual(rows.map((r) => [r.startTime, r.kind]), [['14:00', 'session'], ['17:00', 'booking']]);
 
   // Unlike the SAS picker, the OPERATOR's planning names the guest — same as the booking beside it.
@@ -169,10 +174,10 @@ test('listForResource merges bookings and sessions, tagged, ordered, for the pla
 test('listForResource scopes sessions to the requested week', () => {
   const { model, resourceId } = seed({
     sessions: [
-      { date: '2026-09-12', start: '14:00', end: '15:00' },
-      { date: '2026-09-30', start: '14:00', end: '15:00' },
+      { date: inDays(-52), start: '14:00', end: '15:00' },
+      { date: inDays(-34), start: '14:00', end: '15:00' },
     ],
   });
-  const rows = model.listForResource({ resourceId, weekStart: '2026-09-07' });
-  assert.deepEqual(rows.map((r) => r.date), ['2026-09-12']);
+  const rows = model.listForResource({ resourceId, weekStart: inDays(-57) });
+  assert.deepEqual(rows.map((r) => r.date), [inDays(-52)]);
 });

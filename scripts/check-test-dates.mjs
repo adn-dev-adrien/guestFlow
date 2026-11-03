@@ -12,9 +12,14 @@
  *
  * A literal date written in a test today is a time bomb once the calendar passes it: a stay « in the
  * future » becomes a stay in the past, an acompte window closes, a journal month changes year. Audit R7
- * found 19 of them, and the very next PR (#893) brought 4 back. Only the lines a PR ADDS are read, so the
- * existing suites block nobody, and only dates from today to ten years out are named: a date already in
- * the past cannot be passed again, and one further out (`2099-06-01`) is a deliberate far future.
+ * found 19 of them, and the very next PR (#893) brought 4 back. Since 2026-11-02 a past date is one too: every
+ * date entered on a write path lies within [today − 5 years, today + 5 years] (specs/reservations-backend-mvc.md
+ * rule 13, second reading), so a literal past date a test hands to the code is refused once it is more than
+ * five years old — 136 server tests in 43 files would have gone red from 2031 (audit R20-S2). Only the lines a
+ * PR ADDS are read, so the existing suites block nobody, and the dates named are those from the window's start
+ * (`horizonStart` of server/src/utils/stayDates.js: today − 5 years, a 29 February landing on the 28th) to ten
+ * years out: a date older than that is refused today already, and one further out (`2099-06-01`) is a
+ * deliberate far future.
  *
  * On CI the step runs `--strict` and blocks the PR (decided 2026-10-30): a warning reaches nobody, since
  * PRs are merged on their check buckets, and #893 would have merged with its 13 named lines. Replayed on
@@ -22,16 +27,19 @@
  * dates a test hands to the code as its « now »: those take the marker below, one comment each.
  *
  * Read: on a line that is not a comment, a quoted `YYYY-MM-DD` or iCal `YYYYMMDD` (alone or as the start of a timestamp), a template
- * opening on a year (`` `2028-${m}-10` ``), and `Date.UTC(YYYY, …)` / `new Date(YYYY, …)` from the current year on. Test files are the `.js/.jsx/.mjs/.cjs/.ts/.tsx` files of
+ * opening on a year (`` `2028-${m}-10` ``), and `Date.UTC(YYYY, …)` / `new Date(YYYY, …)` from the window's first year on. Test files are the `.js/.jsx/.mjs/.cjs/.ts/.tsx` files of
  * a `tests/`, `__tests__/` or `e2e/` folder, and every `*.test.*` / `*.spec.*` file.
  *
  * Not named:
  *   - a line carrying `date-literal-ok`, or whose previous line does: the date is an input of a pure
  *     function, or a value nothing compares with today. Say why after the marker;
  *   - a line of a test that pins the clock (`vi.setSystemTime(`, `mock.timers.setTime(`, `vi.useFakeTimers({ now })`
- *     with `'Date'` in its `toFake` or no `toFake`, `mock.timers.enable(` with `'Date'` in its `apis` or no `apis`)
- *     or injects its own (a replaced `getTodayIsoDate` / `todayIso`, a `NOW` constant, a `now:` handed to the
- *     code, the real clock aside): that test decides what today is. A pin inside a `test` / `it` / `describe`
+ *     with `'Date'` in its `toFake` or no `toFake`, `mock.timers.enable(` with `'Date'` in its `apis` or no `apis`):
+ *     that test decides what today is, for the code under test and for the date window alike. A clock the test
+ *     only injects (a replaced `getTodayIsoDate` / `todayIso`, a `NOW` constant, a `now:` handed to the code) is
+ *     no pin: the window reads the real clock, so a date such a test sends to a write path still expires
+ *     (audit R20-S2). A date it hands only to the function it injects the clock into takes the marker.
+ *     A pin inside a `test` / `it` / `describe`
  *     (a `test.each` callback included) covers that block only; a pin in a named helper (an object or class
  *     method included) covers the helper and
  *     the blocks that call it; a pin outside all of them (top level, a top-level hook) covers the file.
@@ -45,8 +53,11 @@
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 
 const MARKER = 'date-literal-ok';
+
+const { horizonStart, isRealIsoDay } = createRequire(import.meta.url)('../server/src/utils/stayDates.js');
 
 /** `git <args>`: its output as text, or as a Buffer when `input` is fed to it. */
 const git = (args, input) => execFileSync('git', args, {
@@ -167,35 +178,20 @@ function namedFunctions(code) {
   return fns;
 }
 
-const REAL_NOW = /^(new Date\(\s*\)|Date\.now\(\s*\))/;
-
 /**
- * → offsets where the clock is pinned. A pin is `vi.setSystemTime(`, `mock.timers.setTime(`,
- * `vi.useFakeTimers({ now })` whose `toFake` (when given) includes `'Date'`, `mock.timers.enable(` whose `apis`
- * include `'Date'` or are left out (the default mocks Date); or a clock the test injects: a replaced
- * `getTodayIsoDate` / `todayIso` (`helpers.getTodayIsoDate = () => …`, not a local `const todayIso = …`), a
- * `NOW` constant, or a `now:` handed to the code — unless it is the real clock (`new Date()`, `Date.now()`).
+ * → offsets where the clock is pinned: `vi.setSystemTime(`, `mock.timers.setTime(`, `vi.useFakeTimers({ now })`
+ * whose `toFake` (when given) includes `'Date'`, `mock.timers.enable(` whose `apis` include `'Date'` or are left
+ * out (the default mocks Date). A clock the test injects is not read: it does not pin the date window.
  */
 function pinOffsets(content, code) {
   const out = [];
-  const timerArgs = [];
   for (const m of code.matchAll(/\b(setSystemTime|mock\.timers\.setTime|mock\.timers\.enable|useFakeTimers)\s*\(/g)) {
     const open = m.index + m[0].length - 1;
-    const close = closing(code, open);
-    timerArgs.push([open, close]);
-    const args = content.slice(open + 1, close);
+    const args = content.slice(open + 1, closing(code, open));
     if (m[1] === 'mock.timers.enable' && /\bapis\s*:/.test(args) && !/\bapis\s*:\s*\[[^\]]*(['"`])Date\1/.test(args)) continue;
     if (m[1] === 'useFakeTimers' && !/\bnow\s*[:,}]/.test(args)) continue;
     if (m[1] === 'useFakeTimers' && /\btoFake\s*:/.test(args) && !/\btoFake\s*:\s*\[[^\]]*(['"`])Date\1/.test(args)) continue;
     out.push(m.index);
-  }
-  const inTimer = (k) => timerArgs.some(([a, b]) => a < k && k < b);
-  for (const m of code.matchAll(/(?<!\b(?:const|let|var)\s+)(?<![\w$])(getTodayIsoDate|todayIso)\s*=(?![=>])/g)) out.push(m.index);
-  for (const m of code.matchAll(/\b(?:const|let|var)\s+NOW\s*=\s*/g)) {
-    if (!REAL_NOW.test(code.slice(m.index + m[0].length))) out.push(m.index);
-  }
-  for (const m of code.matchAll(/[{,]\s*now\s*:\s*/g)) {
-    if (!inTimer(m.index) && !REAL_NOW.test(code.slice(m.index + m[0].length))) out.push(m.index);
   }
   return out;
 }
@@ -235,33 +231,40 @@ export const localToday = (now = new Date()) => `${now.getFullYear()}-${pad(now.
 
 const HORIZON_YEARS = 10;
 
-/** → [{ date, literal }] — the dates of `text` from `today` to ten years out. */
-export function futureDates(text, today) {
+/**
+ * → [{ date, literal }] — the dates of `text` the calendar will pass or the date window will drop: from
+ * `horizonStart(today)` (today − 5 years, 29 February → 28) to ten years out. A year alone (a template, a
+ * `Date.UTC`) is named from the window's first year on. An impossible day (`2026-02-30`) is refused whatever
+ * today is, and never named.
+ */
+export function datesInReach(text, today) {
   const trimmed = text.trim();
   if (trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('/*')) return [];
   const year = Number(today.slice(0, 4));
-  const horizon = `${year + HORIZON_YEARS}${today.slice(4)}`;
+  const start = horizonStart(today);
+  const firstYear = Number(start.slice(0, 4));
+  const end = `${year + HORIZON_YEARS}${today.slice(4)}`;
+  const inReach = (date) => isRealIsoDay(date) && date >= start && date <= end;
+  const yearInReach = (y) => y >= firstYear && y <= year + HORIZON_YEARS;
   const found = [];
   for (const m of text.matchAll(/(['"`])(20\d\d-[01]\d-[0-3]\d)(?=[T\s'"`])/g)) {
-    if (m[2] >= today && m[2] <= horizon) found.push({ date: m[2], literal: m[2] });
+    if (inReach(m[2])) found.push({ date: m[2], literal: m[2] });
   }
   for (const m of text.matchAll(/(['"`])(20\d\d)([01]\d)([0-3]\d)(?=T\d|['"`])/g)) {
     const date = `${m[2]}-${m[3]}-${m[4]}`;
-    if (date >= today && date <= horizon) found.push({ date, literal: `${m[2]}${m[3]}${m[4]}` });
+    if (inReach(date)) found.push({ date, literal: `${m[2]}${m[3]}${m[4]}` });
   }
   for (const m of text.matchAll(/`(20\d\d)-\$\{/g)) {
-    const y = Number(m[1]);
-    if (y >= year && y <= year + HORIZON_YEARS) found.push({ date: m[1], literal: `\`${m[1]}-\${…}\`` });
+    if (yearInReach(Number(m[1]))) found.push({ date: m[1], literal: `\`${m[1]}-\${…}\`` });
   }
   for (const m of text.matchAll(/\b(Date\.UTC|new Date)\(\s*(20\d\d)\s*,/g)) {
-    const y = Number(m[2]);
-    if (y >= year && y <= year + HORIZON_YEARS) found.push({ date: m[2], literal: `${m[1]}(${m[2]}, …)` });
+    if (yearInReach(Number(m[2]))) found.push({ date: m[2], literal: `${m[1]}(${m[2]}, …)` });
   }
   return found;
 }
 
 /**
- * → [{ file, line, literal }] — the added lines that carry a date the calendar will pass.
+ * → [{ file, line, literal }] — the added lines that carry a date the calendar will pass or the window drop.
  * `files`: [{ file, content, added: [{ line, text }] }], `content` being the file at the head.
  */
 export function findDateBombs({ files, today }) {
@@ -273,7 +276,7 @@ export function findDateBombs({ files, today }) {
     for (const { line, text } of added) {
       if (text.includes(MARKER) || (lines[line - 2] || '').includes(MARKER)) continue;
       if (pinned.some((r) => r.from <= line && line <= r.to)) continue;
-      for (const { literal } of futureDates(text, today)) out.push({ file, line, literal });
+      for (const { literal } of datesInReach(text, today)) out.push({ file, line, literal });
     }
   }
   return out;
@@ -371,7 +374,7 @@ function main() {
     .filter((f) => f.added.length > 0);
   const bombs = findDateBombs({ files, today });
   if (bombs.length === 0) {
-    console.log(`✓ No literal date from ${today} on in the test lines added since ${base}.`);
+    console.log(`✓ No literal date from ${horizonStart(today)} to ten years out in the test lines added since ${base}.`);
     return;
   }
   const hint = 'Build the date from today (todayIso() + addDaysToIsoDate(), or `new Date()` arithmetic), pin the clock '

@@ -4,7 +4,7 @@
 // 15), solde credit 665 → the fiche stored a 320 € commission instead of 35 €.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { db, USER, addReservation, credit, build, reset, row } = require('./reconciliationFixture');
+const { db, USER, addReservation, credit, build, reset, row, dayAt } = require('./reconciliationFixture');
 const { platformAcompteNet } = require('../reconciliation/expectedReceipts');
 
 test.beforeEach(() => { reset(); });
@@ -13,8 +13,8 @@ db.prepare("INSERT OR IGNORE INTO platforms (name) VALUES ('GitesDeFrance')").ru
 
 const stay = (over = {}) => addReservation({
   platform: 'GitesDeFrance', finalPrice: 1000, platformGrossAmount: 1000,
-  depositAmount: 300, depositPaid: 1, depositPaidDate: '2026-09-01', acompteCommissionAmount: 15,
-  balanceAmount: 700, balanceDueDate: '2026-11-01', ...over,
+  depositAmount: 300, depositPaid: 1, depositPaidDate: dayAt(-52), acompteCommissionAmount: 15,
+  balanceAmount: 700, balanceDueDate: dayAt(9), ...over,
 });
 
 test('rule 44 — the acompte already paid out is the acompte net of its commission', () => {

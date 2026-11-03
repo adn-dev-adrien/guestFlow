@@ -1,6 +1,8 @@
 // specs/server-test-isolation.md rules 6, 7, 8 and 9, and specs/self-update-and-releases.md rule 52 (audit R8,
 // 2026-10-30) — no test goes red with the calendar, a PR adding a literal date to a test is told so (but not
-// for a line already merged on a long-lived branch), and the unit suites fit their CI time budget.
+// for a line already merged on a long-lived branch), and the unit suites fit their CI time budget. Rule 7,
+// reading of 2026-11-03 (audit R20-S2): a past date within the five-year window is named too, and a clock the
+// test only injects is no pin.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -20,6 +22,66 @@ const suitesOf = (fixture) => fs.readdirSync(path.join(ROOT, TESTS))
   .map((f) => `${TESTS}/${f}`);
 const SAVE_FIXTURE_SUITES = suitesOf('reservationSaveFixture');
 const LEDGER_FIXTURE_SUITES = suitesOf('ledgerFixture');
+
+// specs/server-test-isolation.md rule 7, reading of 2026-11-03 (audit R20-S2): the suites whose dates the five-year
+// window would have dropped by 2031 (136 server tests), now hung on today, and the reconciliation fixture's family.
+const R20_SWEEP = [
+  'scripts/check-test-dates.mjs',
+  'server/src/plugins/accounting-export/tests/accounting-gross-up-ignores-contribs.unit.test.js',
+  'server/src/plugins/hourly-resources/tests/resource-occupancy-conflicts.unit.test.js',
+  'server/src/plugins/linen/tests/laundry-extra-trips-endpoint.unit.test.js',
+  'server/src/plugins/linen/tests/laundry-manual-additions-endpoint.unit.test.js',
+  'server/src/plugins/linen/tests/laundry-skips-endpoint.unit.test.js',
+  'server/src/plugins/online-payment/tests/reconciliation-allocation.unit.test.js',
+  'server/src/plugins/online-payment/tests/reconciliation-auto-confirm.unit.test.js',
+  'server/src/plugins/online-payment/tests/reconciliation-confirm-all.unit.test.js',
+  'server/src/plugins/online-payment/tests/reconciliation-controller.unit.test.js',
+  'server/src/plugins/online-payment/tests/reconciliation-converted-devis-link.unit.test.js',
+  'server/src/plugins/online-payment/tests/reconciliation-credit-to-receipts.unit.test.js',
+  'server/src/plugins/online-payment/tests/reconciliation-deadline-decorator.unit.test.js',
+  'server/src/plugins/online-payment/tests/reconciliation-expected-receipts.unit.test.js',
+  'server/src/plugins/online-payment/tests/reconciliation-fiche-credits.unit.test.js',
+  'server/src/plugins/online-payment/tests/reconciliation-grouped-payouts.unit.test.js',
+  'server/src/plugins/online-payment/tests/reconciliation-installments-core-module.unit.test.js',
+  'server/src/plugins/online-payment/tests/reconciliation-link-batch.unit.test.js',
+  'server/src/plugins/online-payment/tests/reconciliation-money-review.unit.test.js',
+  'server/src/plugins/online-payment/tests/reconciliation-page-filters.unit.test.js',
+  'server/src/plugins/online-payment/tests/reconciliation-penalty.unit.test.js',
+  'server/src/plugins/online-payment/tests/reconciliation-platform-acompte.unit.test.js',
+  'server/src/plugins/online-payment/tests/reconciliation-platform-follows-ledger.unit.test.js',
+  'server/src/plugins/online-payment/tests/reconciliation-review-fixes.unit.test.js',
+  'server/src/plugins/online-payment/tests/reconciliation-split-payments.unit.test.js',
+  'server/src/plugins/online-payment/tests/reconciliationFixture.js',
+  'server/src/plugins/online-payment/tests/reservation-payment-mark.unit.test.js',
+  'server/src/plugins/school-holidays/tests/school-holidays-validation.unit.test.js',
+  'server/src/plugins/tariff-recipes/tests/tariff-recipe-apply.unit.test.js',
+  `${TESTS}/collected-tax-kept-on-save.unit.test.js`,
+  `${TESTS}/dashboard-controller-ical-cancellation.unit.test.js`,
+  `${TESTS}/devis-model-create.unit.test.js`,
+  `${TESTS}/devis-model-createdAt-validUntil.unit.test.js`,
+  `${TESTS}/devis-model-pdf-language.unit.test.js`,
+  `${TESTS}/devis-model-property-defaults.unit.test.js`,
+  `${TESTS}/email-manual-queue.unit.test.js`,
+  `${TESTS}/establishment-closures-bounds.unit.test.js`,
+  `${TESTS}/establishment-closures-validation.unit.test.js`,
+  `${TESTS}/fiche-save-keeps-the-payment.unit.test.js`,
+  `${TESTS}/finance-window.unit.test.js`,
+  `${TESTS}/ical-date-drift-model.unit.test.js`,
+  `${TESTS}/ledger-link-amount-mismatch.unit.test.js`,
+  `${TESTS}/past-fiche-keeps-its-solde-deadline.unit.test.js`,
+  `${TESTS}/platform-price-check.unit.test.js`,
+  `${TESTS}/properties-model-assign-date-range.unit.test.js`,
+  `${TESTS}/properties-model.unit.test.js`,
+  `${TESTS}/public-booking-request-default-options.unit.test.js`,
+  `${TESTS}/public-devis-options-persist.unit.test.js`,
+  `${TESTS}/reservation-ledger-amounts.unit.test.js`,
+  `${TESTS}/reservation-ledger-links.unit.test.js`,
+  `${TESTS}/reservation-ledger-marks.unit.test.js`,
+  `${TESTS}/reservation-ledger-parity.unit.test.js`,
+  `${TESTS}/stored-split-only-with-contribs.unit.test.js`,
+  `${TESTS}/tariff-change-journal.unit.test.js`,
+  `${TESTS}/zero-deposit-deadline-legacy-rows.unit.test.js`,
+];
 
 test('rule 6: the suites the audits found, and every suite of the reservation-save and ledger fixtures, carry no date the calendar will pass', async () => {
   const { findDateBombs, localToday } = await load();
@@ -52,6 +114,7 @@ test('rule 6: the suites the audits found, and every suite of the reservation-sa
     `${TESTS}/ical-cancelled-stay-dropped.unit.test.js`,
     `${TESTS}/ledgerFixture.js`,
     ...LEDGER_FIXTURE_SUITES,
+    ...R20_SWEEP,
   ])].map((f) => asAdded(f, read(f)));
   assert.deepEqual(findDateBombs({ files, today: localToday() }), []);
 });
@@ -62,7 +125,7 @@ test('rule 7: a quoted date, a template opening on a year or a Date.UTC year fro
     "const id = f.createStay({ startDate: '2027-11-02', endDate: '2027-11-05' });", // date-literal-ok: input or output of the guard under test
     'const day = (o) => new Date(Date.UTC(2027, 5, 1 + o)).toISOString();', // date-literal-ok: input or output of the guard under test
     "const paidAt = '2027-03-01T09:00:00Z';", // date-literal-ok: input or output of the guard under test
-    "const old = '2026-10-29';",
+    "const old = '2021-10-29';", // date-literal-ok: input or output of the guard under test
     'const start = `2028-${m}-10`;', // date-literal-ok: input or output of the guard under test
   ].join('\n');
   assert.deepEqual(findDateBombs({ files: [asAdded('server/src/tests/x.unit.test.js', content)], today: '2026-10-30' }), [ // date-literal-ok: input or output of the guard under test
@@ -156,7 +219,7 @@ test('rule 7: a clock pinned inside one test exempts that test, not its neighbou
   ]);
 });
 
-test('rule 7: a clock the test injects — a replaced getTodayIsoDate / todayIso, a NOW constant, a now: handed to the code — exempts its block', async () => {
+test('rule 7, reading of 2026-11-03 (audit R20-S2): a clock the test only injects — a replaced getTodayIsoDate / todayIso, a NOW constant, a now: handed to the code — exempts nothing, since the date window reads the real clock', async () => {
   const { findDateBombs } = await load();
   const content = [
     "test('stubbed today', () => {",
@@ -170,18 +233,46 @@ test('rule 7: a clock the test injects — a replaced getTodayIsoDate / todayIso
     "test('a now handed in place', () => {",
     "  run({ id: 1, now: () => Date.parse('2027-04-01T10:00:00Z') }, '2027-04-03');", // date-literal-ok: guard input
     '});',
-    "test('free', () => {",
-    "  createStay({ startDate: '2027-01-24' });", // date-literal-ok: guard input
-    "  const NOW = new Date();",
-    "  run({ now: new Date(), at: '2027-01-25' });", // date-literal-ok: guard input
-    "  const todayIso = () => '2027-01-26';", // date-literal-ok: guard input
+    "test('the pure function it is handed to', () => {",
+    "  // date-literal-ok: the clock is injected into this pure function, no write path reads the date",
+    "  assert.equal(validUntil({ now: new Date('2027-03-01T10:00:00Z'), stay: '2027-03-05' }), true);", // date-literal-ok: guard input
     '});',
   ].join('\n');
   assert.deepEqual(findDateBombs({ files: [asAdded('server/src/tests/x.unit.test.js', content)], today: '2026-10-30' }).map((b) => [b.line, b.literal]), [ // date-literal-ok: guard input
-    [13, '2027-01-24'], [15, '2027-01-25'], [16, '2027-01-26'], // date-literal-ok: guard output
+    [2, '2027-01-01'], [3, '2027-01-02'], [6, '2027-03-01'], [7, '2027-03-05'], [10, '2027-04-01'], [10, '2027-04-03'], // date-literal-ok: guard output
   ]);
   const fileWide = "dateUtils.todayIso = () => '2027-06-01';\ntest('a', () => { assert.ok(open('2027-06-02')); });"; // date-literal-ok: guard input
-  assert.deepEqual(findDateBombs({ files: [asAdded('server/src/tests/y.unit.test.js', fileWide)], today: '2026-10-30' }), []); // date-literal-ok: guard input
+  assert.deepEqual(findDateBombs({ files: [asAdded('server/src/tests/y.unit.test.js', fileWide)], today: '2026-10-30' }).map((b) => [b.line, b.literal]), [ // date-literal-ok: guard input
+    [1, '2027-06-01'], [2, '2027-06-02'], // date-literal-ok: guard output
+  ]);
+});
+
+test('rule 7, reading of 2026-11-03 (audit R20-S2): a past date the five-year window will drop is named, from today − 5 years on (a 29 February landing on the 28th)', async () => {
+  const { findDateBombs, datesInReach } = await load();
+  const content = [
+    "mark(id, { balancePaidDate: '2026-10-12' });", // date-literal-ok: guard input
+    "mark(id, { balancePaidDate: '2026-12-12' });", // date-literal-ok: guard input
+    "ctl.pending({ query: { today: '2026-01-01' } }, r);", // date-literal-ok: guard input
+    "const opened = '2021-11-03';", // date-literal-ok: guard input
+    "const refused = '2021-11-02';", // date-literal-ok: guard input
+    "const ical = '20220115';", // date-literal-ok: guard input
+    'const first = `2021-${m}-10`;', // date-literal-ok: guard input
+    'const before = `2020-${m}-10`;', // date-literal-ok: guard input
+    'const stamp = Date.UTC(2023, 0, 1);', // date-literal-ok: guard input
+    'const older = new Date(2020, 0, 1);', // date-literal-ok: guard input
+    "mark(id, { balancePaidDate: '2026-02-30' }); expect(bad('2026-13-01')); feed('20260231');", // date-literal-ok: guard input
+  ].join('\n');
+  assert.deepEqual(findDateBombs({ files: [asAdded('server/src/tests/x.unit.test.js', content)], today: '2026-11-03' }).map((b) => [b.line, b.literal]), [ // date-literal-ok: guard input
+    [1, '2026-10-12'], [2, '2026-12-12'], [3, '2026-01-01'], [4, '2021-11-03'], [6, '20220115'], [7, '`2021-${…}`'], [9, 'Date.UTC(2023, …)'], // date-literal-ok: guard output
+  ]);
+  // date-literal-ok: the window's start on a 29 February, input and output of the pure function under test
+  assert.deepEqual(datesInReach("'2023-02-28' '2023-02-27' '2038-02-28' '2038-03-01'", '2028-02-29').map((d) => d.date), ['2023-02-28', '2038-02-28']);
+  const { horizonStart } = require('../utils/stayDates');
+  for (const today of ['2026-11-03', '2028-02-29', '2027-01-01']) { // date-literal-ok: input of the pure function under test
+    const start = horizonStart(today);
+    const before = new Date(Date.parse(`${start}T00:00:00Z`) - 86400000).toISOString().slice(0, 10);
+    assert.deepEqual(datesInReach(`'${before}' '${start}'`, today).map((d) => d.date), [start], `the checker opens where the window does, on ${today}`);
+  }
 });
 
 test('rule 7: a pin in a helper covers the tests that call it, a test.each callback holds its own pin, a fake timer that leaves Date real pins nothing', async () => {
@@ -228,7 +319,7 @@ test('rule 7: a quoted compact iCal date (YYYYMMDD, alone or opening a timestamp
   const content = [
     "feed([{ uid: 'G1', start: '20271105', end: '20271110' }]);", // date-literal-ok: guard input
     "const stamp = '20280301T090000Z';", // date-literal-ok: guard input
-    "const old = '20261029';", // date-literal-ok: guard input
+    "const old = '20211029';", // date-literal-ok: guard input
     'const line = `DTSTART;VALUE=DATE:20271105`;', // date-literal-ok: guard input
     "const n = '202711051';", // date-literal-ok: guard input
     "const far = '20990601';", // date-literal-ok: guard input

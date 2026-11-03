@@ -11,6 +11,12 @@ const assert = require('node:assert/strict');
 
 const { __test: { buildEntry }, create: createAccountingModel } = require('../accountingModel');
 const { entryToRows } = require('../accountingExport');
+const { todayIso } = require('../../../utils/localDate');
+const { addDaysToIsoDate } = require('../../../utils/devisHelpers');
+
+/** `YYYY-MM-DD`, `days` after today: the dates of this suite hang on it (specs/server-test-isolation.md rule 6). */
+const inDays = (days) => addDaysToIsoDate(todayIso(), days);
+const monthOf = (iso) => ({ month: Number(iso.slice(5, 7)), year: Number(iso.slice(0, 4)) });
 
 const COMMISSION_CONTEXT = {
   defaultAccount: '622600',
@@ -26,7 +32,7 @@ function grossEraRow(overrides = {}) {
   return {
     id: 13, firstName: 'Test', lastName: 'Gites', propertyName: 'Gîte', platform: 'GitesDeFrance',
     depositAmount: 0, depositPaid: 0, depositPaidDate: null,
-    balanceAmount: 706, balancePaid: 1, balancePaidDate: '2026-10-19',
+    balanceAmount: 706, balancePaid: 1, balancePaidDate: inDays(-15),
     complementAmount: 0, complementPaid: 0, complementPaidDate: null, endOfStayComplementAmount: 0,
     finalPrice: 706, totalPrice: 782.4, touristTaxTotal: 0, touristTaxInComplement: 0,
     clientGrossAmount: 907.2, platformCommissionAmount: null, acompteCommissionAmount: null,
@@ -76,14 +82,14 @@ test('rule 12 — ticking the solde of a clientGrossAmount-era stay keeps the jo
   const id = db.prepare(`INSERT INTO reservations
       (propertyId, clientId, startDate, endDate, adults, platform, totalPrice, discountPercent, finalPrice,
        customPrice, depositAmount, depositDisabled, balanceAmount, touristTaxTotal, clientGrossAmount, kind)
-      VALUES (1, 1, '2026-09-25', '2026-09-28', 10, 'GitesDeFrance', 782.4, 0, 706, 706, 0, 1, 706, 0, 907.2, 'reservation')`)
+      VALUES (1, 1, '${inDays(-39)}', '${inDays(-36)}', 10, 'GitesDeFrance', 782.4, 0, 706, 706, 0, 1, 706, 0, 907.2, 'reservation')`)
     .run().lastInsertRowid;
 
   const res = { statusCode: 200, body: null, status(c) { this.statusCode = c; return this; }, json(b) { this.body = b; return this; } };
-  controller.updatePayment({ params: { id: String(id) }, body: { balancePaid: true, balancePaidDate: '2026-10-19' }, user: { role: 'admin', roles: ['admin'] } }, res);
+  controller.updatePayment({ params: { id: String(id) }, body: { balancePaid: true, balancePaidDate: inDays(-15) }, user: { role: 'admin', roles: ['admin'] } }, res);
   assert.equal(res.statusCode, 200, JSON.stringify(res.body));
 
-  const [entry] = createAccountingModel(db).encaissementsByMonth({ month: 10, year: 2026 })
+  const [entry] = createAccountingModel(db).encaissementsByMonth(monthOf(inDays(-15)))
     .filter((e) => Number(e.reservationId) === Number(id));
   assert.ok(entry, 'the solde is in the journal');
   const lines = linesOf(entry);

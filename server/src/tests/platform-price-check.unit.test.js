@@ -87,7 +87,7 @@ function util(over = {}) {
     },
     stay: { kind: 'reservation', startDate: '2027-09-01', endDate: '2027-09-04', platform: 'Booking', propertyId: 7, ...stayOver }, // date-literal-ok: input of the pure check, judged against its injected today
     nightsReplayed: true,
-    today: '2026-10-28',
+    today: '2026-10-28', // date-literal-ok: the « today » injected into the pure check, which no date window reads
     loadContext: () => ({ rules: RULES, property: {}, grid: GRID, tariffChangedSinceBooking: false }),
     ...rest,
   });
@@ -116,7 +116,7 @@ test('rule 61 — the check is not run for a devis, a cancelled stay, a started 
   assert.ok(util(far), 'sanity: this stay alerts');
   assert.equal(util({ ...far, stay: { kind: 'devis' } }), null);
   assert.equal(util({ ...far, stay: { kind: 'cancelled' } }), null);
-  assert.equal(util({ ...far, stay: { startDate: '2026-10-28' } }), null, 'it has started: the fiche is locked');
+  assert.equal(util({ ...far, stay: { startDate: '2026-10-28' } }), null, 'it has started: the fiche is locked'); // date-literal-ok: the pure check's own today
   assert.equal(util({ ...far, stay: { platform: 'direct' } }), null);
 });
 

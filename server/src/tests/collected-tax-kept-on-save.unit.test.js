@@ -8,7 +8,7 @@ const f = require('./reservationSaveFixture');
 
 function markBalancePaid(id) {
   const res = f.respond();
-  f.controller.updatePayment({ params: { id: String(id) }, body: { balancePaid: true, balancePaidDate: '2026-10-01' }, user: f.ADMIN }, res);
+  f.controller.updatePayment({ params: { id: String(id) }, body: { balancePaid: true, balancePaidDate: f.inDays(-33) }, user: f.ADMIN }, res);
   assert.equal(res.statusCode, 200, JSON.stringify(res.body));
 }
 

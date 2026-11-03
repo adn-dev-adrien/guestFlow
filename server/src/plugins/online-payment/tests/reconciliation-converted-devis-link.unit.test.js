@@ -5,7 +5,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
-const { db, TODAY, addReservation, reset } = require('./reconciliationFixture');
+const { db, TODAY, addReservation, reset, dayAt } = require('./reconciliationFixture');
 const { expectedReceiptsOfReservation } = require('../reconciliation/expectedReceipts');
 const { buildLedger } = require('../../../utils/reservationLedger');
 const { parseGroup } = require('../../../utils/arrivalPaymentGroup');
@@ -15,17 +15,17 @@ test.beforeEach(() => { reset(); });
 
 test('qonto-bank-reconciliation rule 47: the receipt of a stay paid by its devis link is a link receipt', () => {
   const devis = addReservation({ kind: 'devis', finalPrice: 463.12, balanceAmount: 463.12 });
-  const stay = addReservation({ finalPrice: 463.12, balanceAmount: 463.12, balancePaid: 1, balancePaidDate: '2026-10-12' });
+  const stay = addReservation({ finalPrice: 463.12, balanceAmount: 463.12, balancePaid: 1, balancePaidDate: dayAt(-11) });
   db.prepare('UPDATE reservations SET convertedReservationId = ? WHERE id = ?').run(stay, devis);
   const link = paymentLinks.create({ reservationId: devis, type: 'full', amountCents: 46312, provider: 'qonto', providerLinkId: 'F', url: 'u', status: 'open' });
-  paymentLinks.markPaid(link.id, { providerPaymentId: 'p', paidAt: '2026-10-12T08:00:00Z' });
+  paymentLinks.markPaid(link.id, { providerPaymentId: 'p', paidAt: `${dayAt(-11)}T08:00:00Z` });
   const receipts = expectedReceiptsOfReservation({
-    db, reservationId: stay, startDate: '2026-10-01', today: TODAY, buildLedger, parseGroup,
+    db, reservationId: stay, startDate: dayAt(-22), today: TODAY, buildLedger, parseGroup,
     listLinks: (id) => paymentLinks.listForStay(id), listInstallments: () => [],
   });
   const balance = receipts.find((r) => r.ledgerKey === 'balance');
   assert.equal(balance.channel, 'link');
-  assert.equal(balance.linkPaidAt, '2026-10-12');
+  assert.equal(balance.linkPaidAt, dayAt(-11));
 });
 
 test('qonto-bank-reconciliation rule 47: the plugin reads the links of the stay and of the devis it came from', () => {

@@ -135,16 +135,18 @@ being on the preload's lists fails the run once the suite executes the read (rul
    audit R7 proposed). `scripts/check-test-dates.mjs --base <ref>` reads only the test lines a PR adds (files of
    a `tests/`, `__tests__/` or `e2e/` folder, and every `*.test.*` / `*.spec.*`), and names a quoted
    `YYYY-MM-DD`, a quoted iCal `YYYYMMDD` (alone or opening a `…T090000Z` timestamp), a template opening on a year (`` `2028-${m}-10` ``), or a `Date.UTC(YYYY, …)` /
-   `new Date(YYYY, …)` year, from today to ten years out. Not named: comment lines; a line carrying
+   `new Date(YYYY, …)` year, from the date window's start — today − 5 years, a 29 February landing on the 28th,
+   `horizonStart` of `utils/stayDates.js` — to ten years out (amended 2026-11-03, reading below). Not named:
+   comment lines; an impossible day (`2026-02-30`), refused whatever today is; a line carrying
    `date-literal-ok`, or under one (« `// date-literal-ok: <why>` », for a date nothing compares with today,
-   such as the input of a pure function or a « now » the test hands to the code); the lines of a test that
-   pins the clock; and a date further out, a deliberate far future (`2099-06-01`). A pin is
+   such as the input of a pure function or a « now » the test hands to it, or a row the test seeds straight
+   into the database); the lines of a test that pins the clock; and a date further out, a deliberate far
+   future (`2099-06-01`). A pin is
    `vi.setSystemTime(`, `mock.timers.setTime(`, `vi.useFakeTimers({ now })` whose `toFake` (when given)
    includes `'Date'`, or `mock.timers.enable(` whose `apis` include `'Date'` or are left out —
    `{ apis: ['setTimeout'] }` or `toFake: ['setTimeout']` leaves `Date` real and pins nothing. A clock the test
-   injects is a pin too: a replaced `getTodayIsoDate` / `todayIso` (`reservationHelpers.getTodayIsoDate = () =>
-   …`, not a local `const todayIso = …` helper), a `NOW` constant, or a `now:` handed to the code — unless it
-   is the real clock (`new Date()`, `Date.now()`). A pin inside a `test` / `it` / `describe` call, a
+   only injects — a replaced `getTodayIsoDate` / `todayIso`, a `NOW` constant, a `now:` handed to the code — is
+   no pin (withdrawn 2026-11-03, reading below; it was one from the review of 2026-10-30). A pin inside a `test` / `it` / `describe` call, a
    `test.each(…)(…)` callback included, exempts that call only, not the file's other tests; a pin in a named
    helper (`function freeze(t)`, `const freeze = (t) => …`, an object or class method `freeze(t) {…}` /
    `freeze: (t) => {…}`) exempts the helper and the calls that use it (`h.freeze(t)` for a method); a pin
@@ -162,6 +164,31 @@ being on the preload's lists fails the run once the suite executes the read (rul
    and every PR touching one of those files would go red for a date it did not write. Those 157 are not all
    « bombs with a longer fuse »: the reviews of 2026-10-30 found the first of them red from 2027-01-24, then
    2027-03-11, and rule 6 defused every one they named. Test: `test-suite-calendar-and-ci-budget.unit.test.js`.
+   **Reading of 2026-11-03 (audit R20-S2).** The guard's premise, « a date already in the past cannot be
+   passed again », stopped holding on 2026-11-02: every date entered on a write path now lies within
+   [today − 5 years, today + 5 years] (specs/reservations-backend-mvc.md rule 13, second reading), so a past
+   literal a test sends to a write path is refused once it is more than five years old. A clock-shift run of
+   the whole server suite at 2031-11-03, once with the five-year window and once with it widened to 50 years,
+   found 136 tests in 43 files red for the window alone (the first on 2031-01-02, `email-manual-queue`'s
+   `query: { today: '2026-01-01' }`), plus `PeriodSelector.test.jsx` on the client; and the guard let a new
+   one in that day (`balancePaidDate: '2026-10-12'` was not named, `'2026-12-12'` was). The guard now names the
+   past side down to the window's start, read from `horizonStart` itself so the two never drift apart. An
+   injected « now » no longer exempts anything: it pins the function it is handed to, while the window reads
+   the real clock (`todayIso()`, `Date`), so a date such a test sends to a write path expires all the same —
+   the reconciliation suites injected `todayIso: () => '2026-10-23'` and marked bank credits received on
+   their October 2026 dates. A date handed only to the function the clock is injected into takes the marker.
+   Only the clock pins (`mock.timers`, `vi.setSystemTime`) still exempt their block: they move the window too.
+   The 136 tests and the client file now hang on today (rule 6): `inDays(n)` keeps each date at the distance
+   from today it had on 2026-11-03; a journal month is the month of the paid date; a printed day is built from
+   the same date, with the year the ledger shows (rule 4 of reservation-payment-ledger); the laundry suite
+   keeps its Thursday and its Tuesdays; the reconciliation fixture's `TODAY` is the real day, its suites'
+   dates `dayAt(n)` from it, and `frShort` prints their « jj/mm »; `calendar-parity-superseded`'s
+   calendar-year fixture lies in last year. The rule 6 test reads all of them, whole (`R20_SWEEP`). In the
+   same pass the four suites that read « today » as the UTC day (`new Date().toISOString().slice(0, 10)`)
+   read the server's local day: `stored-split-only-with-contribs` failed every night between 00:00 and
+   01:00 / 02:00 in Paris, its payment dated the day before the stay was created (audit R20-S1); the others
+   (`establishment-closures-bounds`, `devis-model-createdAt-validUntil`, `reservation-ledger-parity`) only
+   held by their margins.
 
 8. **The client unit suite runs in three shards** (added 2026-10-30, audit R8 M-2). The `client` job of
    `unit-tests.yml` is a matrix of three (`vitest run --shard=N/3`, `fail-fast: false`), each under its own
@@ -434,7 +461,7 @@ being on the preload's lists fails the run once the suite executes the read (rul
 | `plugins/accounting-export/tests/` | `accounting-paid-then-reduced.unit.test.js` | T | Rule 6: stay built from today (test only, no plugin version bump). |
 | `tests/` | `ledgerFixture.js` and its 9 suites, `clients-no-duplicate-and-draft`, `clients-duplicate-created-from-the-fiche`, `reservation-overpayment-by-poste`, `calendar-parity-superseded`, `baby-bed-line-stored-on-create`, `ical-nameless-summary-matching`, `lodgify-decommission-native-feeds`, `reservation-number-after-cancellation` | T | Rule 6 (third pass): default stay `inDays(270)`, slots `inDays(255 + 7n)`, `inDays` exported; stays, iCal feeds and paid dates built from today. |
 | `plugins/accounting-export/tests/` | `stay-payment-split-fallback.unit.test.js` | T | Rule 6: weekly slots built from today (test only, no plugin version bump). |
-| `scripts/` (repo root) | `check-test-dates.mjs` | C | Rule 7: names the literal dates of the test lines a PR adds; a clock pin or an injected clock exempts its own block (a helper's, the blocks that call it); `--strict` fails. Rule 9: `--known` sets aside lines already on those refs. |
+| `scripts/` (repo root) | `check-test-dates.mjs` | C | Rule 7: names the literal dates of the test lines a PR adds, from `horizonStart` (today − 5 years) to ten years out; a clock pin exempts its own block (a helper's, the blocks that call it), an injected clock does not; `--strict` fails. Rule 9: `--known` sets aside lines already on those refs. |
 | `.github/workflows/` | `unit-tests.yml` | T | Rule 7: a `spec rules` step runs the check with `--strict`; rule 9: it fetches master and inte/plugins and passes them as `--known`. Rule 8: the `client` job is a 3-shard matrix; build and bundle budget in shard 1. |
 | `.github/workflows/` | `release.yml` | T | Rule 8 / self-update rule 52: `tests` split into `server-tests` and a 3-shard `client-tests`. |
 | `tests/` | `test-suite-calendar-and-ci-budget.unit.test.js` | C | Pins rules 6-9 and self-update rule 52. |
@@ -478,6 +505,7 @@ delay, and the sweep's absence from the normal config and from every CI workflow
 - [x] Rule 12, reading of 2026-11-02 (review of #927): `server-test-app-env.unit.test.js` stays 9 tests. The probe test gains 4 forms (`x || env`, `x && env`, `read(o || env)` to a callee naming `cfg`, `await env`): all 4 got past the previous guard, the new one fails on all 47 plus the plain read. Each of the 4 dropped alone into `src/utils/` turns the guard test red. On `src/` the new pattern adds no hit and no pin. Full `npm test`: 9 278 tests, 0 failures.
 - [x] Rule 13: `server-test-env-trace.unit.test.js` (4 tests), red before the change (the tracer did not exist): a fake `src/` reading three unlisted names (by name on a bound `env`, by `in`, by a built key on a ternary) is recorded at its lines, while a listed name, a `GUESTFLOW_*` flag, a test helper, a plugin's test helper, a package, `node -e` and Node's own `FORCE_COLOR` read are not, and a spread and a child spawned without `env` are listed as whole takes; `report` fails naming the name, its line and test file, and fails on a missing or empty directory; under the proxy, coercion, delete, `in`, `Object.keys`, an inherited and an explicit child `env`, `TZ`, `loadLocalEnv`, `JSON.stringify` and a descriptor behave as before; under the `npm test` flags a probe file runs proxied and the runner prints the green line, a probe that plants an unlisted record turns the run red with every test passed, and a process outside the runner is not traced. The first full traced run found 12 names: 10 were Node's own reads on the app's behalf (`FORCE_COLOR`, `NODE_V8_COVERAGE`, undici's `JEST_WORKER_ID` / `UNDICI_NO_FG`, attributed to the calling `src/` line) and `updateStaging`'s proxy pass-through plus one `.env.local` name read back by `loadLocalEnv`, which led to the Node-frame rule and `READ_BY_DESIGN`; `server-test-ambient-flags` rule 12 test 1 saw the new runner variable. Full `npm test` after: 9 282 tests, 0 failures, trace green over 1 212 processes, 343 s (341 s at the base).
 - [x] Rule 13, review of #928: `server-test-env-trace.unit.test.js` now 5 tests (+1): `isolationNone` reads `--test-isolation=none`, `--test-isolation none` and both under `--experimental-`, the last one given winning, and a real runner given the two-argument form makes no directory and prints no trace line. Red before: the two-argument form made a directory no test process wrote to, and the run failed with « no test process wrote ». After merging #927: full `npm test` 9 283 tests, 0 failures, trace green over 1 212 processes, 333 s.
+- [x] Rule 7, reading of 2026-11-03 (audit R20-S1 and R20-S2): `test-suite-calendar-and-ci-budget.unit.test.js` now 19 tests (+1). The injected-clock test is rewritten (a replaced `getTodayIsoDate` / `todayIso`, a `NOW`, a `now:` now leave their dates named; a pure-function input under the marker is not) and a new test names a past date down to `horizonStart` (`balancePaidDate: '2026-10-12'`, `query: { today: '2026-01-01' }`, a compact `'20220115'`, a template or `Date.UTC` year from the window's first year), not the day before it nor an impossible day, and checks that the guard opens where `horizonStart` does on 2026-11-03, 2028-02-29 and 2027-01-01. Both were red on the previous script, and so was the rule 6 test once it reads `R20_SWEEP` (55 more files). Replayed on the 40 merges #897–#938, each on its merge day: the previous script named 105 lines in 4 PRs, the new one 170 in 10 — 26 lines in 6 of the 36 merged since the guard turned blocking (#900 on), each a past date or an injected-clock date. Clock-shift differential of the whole server suite at 2031-11-03 09:00Z (Europe/Paris, `shift-clock.cjs` preload), five-year window vs. a 50-year one: 136 tests red for the window alone before, 0 after (15 red in both: the window's own boundary tests and the mixed-clock ones, SQLite's `datetime('now')` against the shifted `Date`). The changed files (63) at 2026-11-03, 2026-12-31 23:30Z, 2027-03-01, 2027-08-17, 2028-02-28 23:30Z, 2029-03-31 22:30Z and 2030-10-27 01:30Z: red only on mixed-clock `rule 9 — a date before the reservation was created` from 2028. `PeriodSelector.test.jsx` under the same preload: 2 red at 2031-11-03 before, 3/3 after. R20-S1 on the real clock at 00:33 in Paris (2026-11-03): `stored-split-only-with-contribs` 3/4 with the four files as they were (« La réservation n'existait pas encore le 02/11/2026. »), 4/4 after; the whole server suite on the real clock past midnight, 9 453 tests, only the rule 6 test red (before the sweep). Full `npm test` after: 9 453 tests, 0 failures; client 679 files / 3 266 tests.
 
 ## 8. Out of scope
 

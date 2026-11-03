@@ -4,6 +4,11 @@ const Database = require('better-sqlite3');
 
 const { createTariffRecipeModel } = require('../model');
 const { validateRecipe } = require('../store');
+const { todayIso } = require('../../../utils/localDate');
+const { addDaysToIsoDate } = require('../../../utils/devisHelpers');
+
+/** `YYYY-MM-DD`, `days` after today: the dates of this suite hang on it (specs/server-test-isolation.md rule 6). */
+const inDays = (days) => addDaysToIsoDate(todayIso(), days);
 
 // specs/tariff-recipes/spec.md §3.2 rules 7-12 — diff shape, orphan removal, manual seasons as
 // obstacles, transactional rollback, idempotent re-apply, pre-horizon ranges preserved.
@@ -144,7 +149,7 @@ test('an orphan recipe season is marked remove and deleted on apply; manual seas
   model.apply(1, 'aventura-test');
   // The recipe drops the high season → its row must go; a manual season on ANOTHER property stays.
   db.prepare(`INSERT INTO pricing_rules (propertyId, label, pricePerNight, dateRanges)
-    VALUES (2, 'Gite annuel', 80, '[{"startDate":"2020-01-01","endDate":"2030-12-31"}]')`).run();
+    VALUES (2, 'Gite annuel', 80, '[{"startDate":"2020-01-01","endDate":"2030-12-31"}]')`).run(); // date-literal-ok: a stored season of another property, only its presence is read
   const smaller = validateRecipe({
     ...RECIPE, seasons: [RECIPE.seasons[0]],
     calendar: { baseSeason: 'low', periods: [], modifiers: [] },
@@ -276,7 +281,7 @@ test('a label typed by the operator is still tidied — the recipe flag is the o
   const properties = require('../../../models/propertiesModel').buildModel(db);
   properties.addPricingRule(1, {
     label: 'très BASSE saison', pricePerNight: 100,
-    dateRanges: [{ startDate: '2026-01-01', endDate: '2026-01-31' }],
+    dateRanges: [{ startDate: inDays(-306), endDate: inDays(-276) }],
   });
   assert.equal(db.prepare('SELECT label FROM pricing_rules WHERE propertyId = 1').get().label, 'Très basse saison');
 });

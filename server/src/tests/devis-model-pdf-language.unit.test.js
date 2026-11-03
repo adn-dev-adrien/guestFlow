@@ -10,6 +10,11 @@ const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
 const devisModel = require('../models/devisModel');
+const { todayIso } = require('../utils/localDate');
+const { addDaysToIsoDate } = require('../utils/devisHelpers');
+
+/** `YYYY-MM-DD`, `days` after today: the dates of this suite hang on it (specs/server-test-isolation.md rule 6). */
+const inDays = (days) => addDaysToIsoDate(todayIso(), days);
 
 const DDL = `
   CREATE TABLE properties (
@@ -78,7 +83,7 @@ function freshModel() {
   return { model: devisModel.buildModel(db), db };
 }
 
-const BASE = { propertyId: 1, clientId: 1, startDate: '2026-07-10', endDate: '2026-07-13', adults: 2 };
+const BASE = { propertyId: 1, clientId: 1, startDate: inDays(-116), endDate: inDays(-113), adults: 2 };
 
 const PDF_LANG_OF = (db, id) => db.prepare('SELECT pdfLanguage FROM reservations WHERE id = ?').get(id).pdfLanguage;
 
@@ -148,7 +153,7 @@ test('findById: surfaces option.titleEn + resource.nameEn so the PDF can read th
     ['resource:1:name', 'resource.name', 'Lit bébé', 'Baby bed'],
   ]) {
     db.prepare('INSERT INTO translation_entries (entryKey, kind, sourceId, sourceText, seenAt) VALUES (?, ?, 1, ?, ?)')
-      .run(key, kind, source, '2026-09-25');
+      .run(key, kind, source, inDays(-39));
     db.prepare('INSERT INTO translation_values (entryKey, lang, text, sourceAtTime) VALUES (?, ?, ?, ?)')
       .run(key, 'en', en, source);
   }

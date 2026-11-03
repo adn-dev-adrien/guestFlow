@@ -30,7 +30,7 @@ const { create: createAccountingModel } = optionalPlugin(() => require('../plugi
 const { create: createAccountingController } = optionalPlugin(() => require('../plugins/accounting-export/controller'));
 
 function seedSynthetic() {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = require('../utils/localDate').todayIso();
   const due = createStay();
   const depositPaid = createStay();
   mark(depositPaid, { depositPaid: true, depositPaidDate: today });

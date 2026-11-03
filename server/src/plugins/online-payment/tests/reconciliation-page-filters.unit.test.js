@@ -2,7 +2,7 @@
 // server. Fictional data only.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { USER, addReservation, credit, build, reset } = require('./reconciliationFixture');
+const { USER, addReservation, credit, build, reset, dayAt } = require('./reconciliationFixture');
 
 test.beforeEach(() => { reset(); });
 
@@ -11,14 +11,14 @@ const at = (day) => `${day}T09:00:00.000Z`;
 // One gap (750 € on a 700 € échéance), one proposal, one unmatched platform credit, one reconciled receipt.
 function world() {
   const gap = addReservation({ balanceAmount: 700, finalPrice: 700, clientId: 1 });
-  const proposed = addReservation({ balanceAmount: 410, finalPrice: 410, clientId: 2, balanceDueDate: '2026-10-10' });
-  const done = addReservation({ balanceAmount: 120, finalPrice: 120, clientId: 1, balanceDueDate: '2026-10-05' });
+  const proposed = addReservation({ balanceAmount: 410, finalPrice: 410, clientId: 2, balanceDueDate: dayAt(-13) });
+  const done = addReservation({ balanceAmount: 120, finalPrice: 120, clientId: 1, balanceDueDate: dayAt(-18) });
   const built = build();
   built.transactions.upsertMany([
-    credit('gap', 75000, { settledAt: at('2026-10-12'), counterpartyName: 'ACME' }),
-    credit('prop', 41000, { settledAt: at('2026-10-11'), counterpartyName: 'M. ROSSI' }),
-    credit('done', 12000, { settledAt: at('2026-10-06'), counterpartyName: 'Dupont' }),
-    credit('orphan', 99999, { settledAt: at('2026-10-13'), counterpartyName: 'BOOKING.COM B.V.', reference: 'NO.Z/ID.1' }),
+    credit('gap', 75000, { settledAt: at(dayAt(-11)), counterpartyName: 'ACME' }),
+    credit('prop', 41000, { settledAt: at(dayAt(-12)), counterpartyName: 'M. ROSSI' }),
+    credit('done', 12000, { settledAt: at(dayAt(-17)), counterpartyName: 'Dupont' }),
+    credit('orphan', 99999, { settledAt: at(dayAt(-10)), counterpartyName: 'BOOKING.COM B.V.', reference: 'NO.Z/ID.1' }),
   ], { bankAccountId: 'acc-1' });
   built.controller.confirm({ transactionId: 'gap', allocations: [{ reservationId: gap, ledgerKey: 'balance', amountCents: 75000 }], user: USER });
   built.controller.confirm({ transactionId: 'done', allocations: [{ reservationId: done, ledgerKey: 'balance', amountCents: 12000 }], user: USER });
