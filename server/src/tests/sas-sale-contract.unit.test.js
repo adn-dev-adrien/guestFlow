@@ -1,5 +1,4 @@
-// The arrival SAS sale, what the write path accepts (specs/sas-breakfast-and-catering-upsell.md rule 15) and how it reads
-// the sale of a tab still running the previous bundle (specs/non-card-option-served-persons.md rule 28).
+// The arrival SAS sale, what the write path accepts (specs/sas-breakfast-and-catering-upsell.md rule 15).
 // Driven through the real schema, the real catalogue query and the real commit.
 
 process.env.DB_PATH = ':memory:';
@@ -9,7 +8,6 @@ const assert = require('node:assert/strict');
 
 const db = require('../database');
 const model = require('../models/reservationsModel');
-const { priceOptionSale } = require('../utils/sasOptionSale');
 const { todayIso } = require('../utils/localDate');
 const { addIsoDays: addDaysIso } = require('../utils/occupancy');
 
@@ -17,7 +15,6 @@ const PROPERTY = 1;
 const OTHER_PROPERTY = 2;
 const CATER = 201;
 const BREAKFAST = 202;
-const PER_PERSON = 203;
 const INSURANCE = 210;
 const HIDDEN = 211;
 const AUTO = 212;
@@ -41,7 +38,6 @@ const option = (over) => insertOption.run({
 });
 option({ id: CATER, title: 'Planche' });
 option({ id: BREAKFAST, title: 'Petit déjeuner', price: 8, priceType: 'per_person_per_night', autoOptionType: 'breakfast', showsPlanningCard: 1, cardRepeat: 'once_per_day', planningCardTimes: '["09:00"]' });
-option({ id: PER_PERSON, title: 'Panier', price: 8, priceType: 'per_person' });
 option({ id: INSURANCE, title: 'Assurance annulation', isCancellationInsurance: 1 });
 option({ id: HIDDEN, title: 'Cachée', displayToClient: 0 });
 option({ id: AUTO, title: 'Automatique', autoEnabled: 1 });
@@ -51,7 +47,7 @@ option({ id: NOT_THIS_PROPERTY, title: 'Ailleurs' });
 option({ id: NOT_CARD_BREAKFAST, title: 'Petit déjeuner sans carte', autoOptionType: 'breakfast' });
 option({ id: FICHE_LINE, title: 'Prise sur la fiche' });
 const link = db.prepare('INSERT INTO property_options (propertyId, optionId) VALUES (?, ?)');
-for (const id of [CATER, BREAKFAST, PER_PERSON, INSURANCE, HIDDEN, AUTO, ARCHIVED, OTHER_CATEGORY, FICHE_LINE]) link.run(PROPERTY, id);
+for (const id of [CATER, BREAKFAST, INSURANCE, HIDDEN, AUTO, ARCHIVED, OTHER_CATEGORY, FICHE_LINE]) link.run(PROPERTY, id);
 link.run(OTHER_PROPERTY, NOT_THIS_PROPERTY);
 link.run(NOT_CARD_BREAKFAST_PROPERTY, NOT_CARD_BREAKFAST);
 
@@ -150,68 +146,4 @@ test('rule 15 — a held line opens nothing else: the offer still bounds the res
   const id = stay();
   holdLine(id, ARCHIVED);
   assert.deepEqual(sold(id, ARCHIVED, HIDDEN), [ARCHIVED]);
-});
-
-const legacy = (priceType, over = {}) => priceOptionSale({ id: 9, price: 20, priceType, showsPlanningCard: 0 }, {
-  persons: 5, nights: 2, maxPersons: 6, ...over,
-});
-
-test('rule 28 — a per-person sale sent with units only reads as the people served, quantity 1', () => {
-  const line = legacy('per_person', { units: 3 });
-  assert.equal(line.quantity, 1);
-  assert.equal(line.cardPersons, 3);
-  assert.equal(line.billedUnits, 3);
-  assert.equal(line.totalPrice, 60);
-});
-
-test('rule 28 — per person per night: the units are divided by the nights, never by the party', () => {
-  const line = legacy('per_person_per_night', { units: 6 });
-  assert.equal(line.quantity, 1);
-  assert.equal(line.cardPersons, 3);
-  assert.equal(line.billedUnits, 6);
-  assert.equal(line.totalPrice, 120);
-});
-
-test('rule 28 — never a decimal: a remainder is not billed, and at least one person is served', () => {
-  const line = legacy('per_person_per_night', { units: 5 });
-  assert.equal(line.cardPersons, 2);
-  assert.equal(line.billedUnits, 4);
-  const one = legacy('per_person', { units: 0.5 });
-  assert.equal(one.cardPersons, 1);
-  assert.equal(one.quantity, 1);
-});
-
-test('rule 28 — the old default (the whole party) stays NULL and follows the party', () => {
-  const line = legacy('per_person', { units: 5 });
-  assert.equal(line.cardPersons, null);
-  assert.equal(line.billedUnits, 5);
-});
-
-test('rule 28 — a stay with no night bills nothing, and never divides by zero', () => {
-  assert.equal(legacy('per_person_per_night', { units: 3, nights: 0 }), null);
-});
-
-test('rule 28 — persons wins over units; no units and no persons is the party, as before', () => {
-  assert.equal(legacy('per_person', { units: 2, servedPersons: 4 }).cardPersons, 4);
-  const party = legacy('per_person', {});
-  assert.equal(party.cardPersons, null);
-  assert.equal(party.billedUnits, 5);
-});
-
-test('rule 28 — a units-only sale on any other price type is unchanged', () => {
-  const night = legacy('per_night', { units: 3 });
-  assert.equal(night.cardNights, 3);
-  assert.equal(night.billedUnits, 3);
-  const flat = legacy('per_stay', { units: 2 });
-  assert.equal(flat.quantity, 2);
-  assert.equal(flat.billedUnits, 2);
-});
-
-test('rule 28 — through the real resolver: a stale tab sells 3 meals, not the party', () => {
-  const id = stay({ adults: 4 });
-  const [line] = model.resolveSasOptionSales(id, [{ optionId: PER_PERSON, units: 3 }]);
-  assert.equal(line.billedUnits, 3);
-  assert.equal(line.cardPersons, 3);
-  assert.equal(line.quantity, 1);
-  assert.equal(line.totalPrice, 24);
 });

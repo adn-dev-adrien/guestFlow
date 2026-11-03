@@ -262,7 +262,7 @@ Interactive rendering in the [decision summary](../docs/specs/2026-11-03-non-car
 - [x] `tests/typed-counts-no-regression.unit.test.js` (11) — rule 25: exhaustive grid, 22336 sequence through the controller, save guard. Mutation-checked: restoring the old computation fails 4 tests, removing the guard fails 2
 - [x] `tests/typed-counts-client-guard.unit.test.js` (4) — rule 25: no multiplier conversion left in the option fields
 - [x] `tests/sas-option-sales.unit.test.js` — updated (rule 12)
-- [x] `tests/sas-sale-contract.unit.test.js` — rule 28: `units` alone, the nights, the remainder, the real resolver
+- [x] `tests/sas-sale-legacy-units.unit.test.js` — rule 28: `units` alone, the nights, the remainder, the real resolver
 - [x] `tests/typed-count-offered-floor.unit.test.js` (10) — rule 27: pure rule and the real controller
 - The existing `breakfast-model`, `laundry-model`, `laundry-end-to-end.regression` and `linen-inventory` suites still pass unchanged: a drifted `quantity` keeps scaling the party. Rule 6's new behaviour is covered in the feature's own file (CLAUDE.md §9).
 
