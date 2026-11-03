@@ -301,8 +301,10 @@ soon as an option is active on the fiche.
 
 - Resources: their `quantity` also serves as stock.
 - The WordPress widget: it sends « 1 = everyone », unchanged.
-- The custom line's `soldeContribTtc` is reset to NULL by a fiche save on a paid reservation, seen while
-  rehearsing the 22336 correction. No amount moves; to examine separately.
+- The custom line's `soldeContribTtc` was reset to NULL by a priced fiche save on a paid reservation, seen while
+  rehearsing the 22336 correction. This spec first read « no amount moves »; that was wrong: the total and the cash
+  hold, but revenue moved between 706 accounts on booked entries (audit R21-M1). Fixed on 2026-11-03 by
+  [reservation-save-keeps-pricing.md](reservation-save-keeps-pricing.md) rule 19.
 
 ## 9. Open questions
 

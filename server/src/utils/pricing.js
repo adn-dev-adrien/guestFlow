@@ -2033,9 +2033,10 @@ function calculateReservationQuote({
     .map((line) => withQuantityUnit(line, optionsById.get(Number(line.optionId))));
 
   // Custom option lines never have a persisted locked row keyed by optionId (their id rolls each
-  // save), so the only source of `inComplement` / contribs is the payload itself. The contribs
-  // come pre-populated by the controller (it reads them from the DB by customOptionId before
-  // calling the engine).
+  // save), so the only source of `inComplement` / contribs is this input: a stored stay's replay
+  // reads them from its rows (`buildReservationEngineInput`), a save carries them onto the posted
+  // lines (`carryStoredCustomContribs`, specs/reservation-save-keeps-pricing.md rule 19). A preview
+  // has none and needs none: they move no figure of the quote.
   const customOptionLines = (Array.isArray(customOptions) ? customOptions : [])
     .map((line, index) => {
       const description = String(line?.description || '').trim();
