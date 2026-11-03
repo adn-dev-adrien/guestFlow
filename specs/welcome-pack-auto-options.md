@@ -101,6 +101,11 @@ Changing the platform before saving takes it back off.
 - Empty pack (the Gîte today) → no-op, no request noise on the fiche.
 - Stay dates missing or invalid → the per-stay lines still apply; the card line waits for dates
   (rule 6 re-evaluates as soon as they are entered).
+  *Reading of 2026-11-03 (review of PR #940, REG-1).* « Invalid » here means missing, reversed or too
+  long: the pack is still asked and its per-stay lines apply. The one thing never sent is a date that is
+  typed but is not a real `YYYY-MM-DD` day (5- or 6-digit year, 30 February) or lies outside the window of
+  specs/reservations-backend-mvc.md rule 13 — the fiche refuses such a date anyway, so the hook asks
+  nothing and holds no line until it is fixed.
 - Guest count raised above the free units after the pack was applied → the tagged card line is
   removed again (rule 7 is a live condition, not a one-shot check at creation).
 - Guest count lowered back to ≤ `freeUnits` → the card line comes back, unless rule 11 dropped its
@@ -250,6 +255,11 @@ never rewritten (rule 4).
 - [x] `utils/applyQuoteToForm.test.js` — the tag survives a pricing recompute (rule 10).
 - [x] `components/reservation/__tests__/ExtrasSection.welcome-pack.test.jsx` — the chip shows on a
   tagged line and not on a manual one.
+- [x] `hooks/__tests__/useWelcomePack.real-day.test.jsx` — 8 tests (2026-11-03): no dates, an arrival
+  only, a reversed range and a stay over 366 nights are asked (edge case); a 5- or 6-digit year and
+  30 February are not.
+- [x] `hooks/__tests__/useWelcomePack.server-today.test.jsx` — 2 tests: the window is judged from the
+  server's day the fiche hands the hook.
 
 ### Manual UI verification (2026-08-12, dev DB, Aventura Lodge, 14→17 Sept)
 - [x] Happy path: new reservation, platform `direct` → breakfast ticked on the first morning

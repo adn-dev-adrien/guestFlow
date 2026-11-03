@@ -118,8 +118,10 @@ rules — just a clean, testable structure that future slices (and Bloc 5) build
    (Chromium's year segment takes up to six digits), 30 February — shows the server's own « Date de séjour
    invalide. » in the same place, before the order check, and « Enregistrer » refuses with it
    (`utils/isoDay.isRealIsoDay`, the UTC round-trip of the server's `isRealIsoDay`). `isQuotableStay` is
-   then false, so no quote, occupied dates, resources' availability or welcome pack (`hooks/useWelcomePack`
-   now gates on `isQuotableStay`) is asked for it: they used to answer 400. A year still being typed, padded
+   then false, so no quote, occupied dates or resources' availability is asked for it: they used to answer
+   400. `hooks/useWelcomePack` skips only a *present* date that is not a real day or lies outside the window;
+   missing, reversed or too-long dates are still asked, so the pack's per-stay lines apply before the dates
+   are sound (specs/welcome-pack-auto-options.md edge cases; review of PR #940, REG-1). A year still being typed, padded
    to four digits (rule 14), is a real day and keeps the order / length / window messages; a stored date is
    always a real day, so the stored-row exemption of rule 13 is unchanged. Tests: client
    `utils/stayDates.real-day`, `pages/ReservationPage.real-day`, `hooks/useWelcomePack.real-day`.
@@ -298,7 +300,7 @@ days instead of the range's nights; its date formatting pads the year to four di
 
 *2026-11-03 (audit R20):* `utils/isoDay.js` gains `isRealIsoDay` (generic: `stayDatesMessage` and
 `PeriodSelector.customWindowError` read it), `constants/stayDates.js` `STAY_DATE_INVALID_MESSAGE`;
-`hooks/useWelcomePack` gates on `isQuotableStay`; the three `ReservationPage` read effects list `windowToday`.
+`hooks/useWelcomePack` skips a present date that is not a real day or is outside the window (not `isQuotableStay`: missing, reversed and too-long dates are still asked); the three `ReservationPage` read effects list `windowToday`.
 
 ### 4.3 API contract
 
@@ -357,9 +359,9 @@ prove behavior is preserved.)
       Added after the second review (V2): `pages/ReservationPage.server-today` (1),
       `pages/FinancePage.server-today` (1), `components/PeriodSelector.server-today` (1) — the fiche, a finance
       link and the period selector's `today` prop refuse a date the device would accept but the server would not.
-- [x] Client `utils/stayDates.real-day` (7), `pages/ReservationPage.real-day` (2), `hooks/useWelcomePack.real-day` (4)
+- [x] Client `utils/stayDates.real-day` (7), `pages/ReservationPage.real-day` (2), `hooks/useWelcomePack.real-day` (8)
       (2026-11-03, audit R20-C2) — rule 12: a date not a real day says « Date de séjour invalide. » and is asked
-      nothing; a padded half-typed year and a stored row keep their behaviour. `pages/ReservationPage.server-day-arrives`
+      nothing (the welcome pack still asks missing, reversed and too-long dates, REG-1); a padded half-typed year and a stored row keep their behaviour. `pages/ReservationPage.server-day-arrives`
       (1) (R20-C3) — rule 13: the server's day lifting a refusal asks the fiche's reads.
 - [ ] `tests/occupancy.unit.test.js` — `getNightBlocksFromTimes` thresholds (checkout ≥17h blocks next
       night, checkin ≤10h blocks previous night); `buildOccupiedDatesFromReservations`;

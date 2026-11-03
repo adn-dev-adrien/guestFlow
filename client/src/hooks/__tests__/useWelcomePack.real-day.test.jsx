@@ -1,6 +1,7 @@
 // specs/welcome-pack-auto-options.md + specs/reservations-backend-mvc.md rule 12, reading of 2026-11-03 (audit R20-C2)
-// — the welcome pack is asked only for a stay the fiche would quote: a date that is not a real day (5-digit year,
-// 30 February) or a reversed range sends nothing.
+// — a typed date that is not a real day (5-digit year, 30 February) sends nothing; missing, reversed or too-long
+// dates are still asked, so the per-stay lines apply before the dates are sound (welcome-pack edge cases; review
+// of PR #940, REG-1).
 import { vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 
@@ -26,9 +27,19 @@ test('a sound stay is asked', async () => {
 });
 
 test.each([
+  ['no dates', { startDate: '', endDate: '' }],
+  ['an arrival only', { endDate: '' }],
+  ['a reversed range', { startDate: DEPARTURE, endDate: ARRIVAL }],
+  ['a stay longer than 366 nights', { endDate: addIsoDays(ARRIVAL, 367) }],
+])('%s is asked', async (_name, dates) => {
+  renderHook(() => useWelcomePack({ ...stay, ...dates }));
+  await waitFor(() => expect(api.getWelcomePack).toHaveBeenCalledTimes(1));
+});
+
+test.each([
   ['a 5-digit departure year', { endDate: `3${DEPARTURE}` }],
   ['a 6-digit arrival year', { startDate: `20${ARRIVAL}` }],
-  ['a reversed range', { startDate: DEPARTURE, endDate: ARRIVAL }],
+  ['a 30 February departure', { endDate: `${DEPARTURE.slice(0, 4)}-02-30` }],
 ])('%s is not asked', async (_name, dates) => {
   const { result } = renderHook(() => useWelcomePack({ ...stay, ...dates }));
   await new Promise((r) => setTimeout(r, 20));
