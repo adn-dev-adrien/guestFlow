@@ -168,7 +168,8 @@ site the visitor must say **oui** or **non** before paying: the choice can no lo
     the fiche, it prints on the devis PDF, it feeds the accounting exactly like the other extras. Its
     amount follows §3.1.
 17. **Never sold once the stay has started.** There is nothing left to cancel, so the insurance is
-    excluded from **both** in-stay selling surfaces:
+    excluded from **both** in-stay selling surfaces (the SAS write path too since 2026-11-03,
+    [sas-breakfast-and-catering-upsell.md](sas-breakfast-and-catering-upsell.md) rule 15):
     - the SAS upsell catalogue
       ([sas-breakfast-and-catering-upsell.md](sas-breakfast-and-catering-upsell.md)) — enforced by an
       **explicit guard** in `sasOptionSale.sellable` rather than left to the « Restauration »
