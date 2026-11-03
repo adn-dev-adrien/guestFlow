@@ -260,7 +260,7 @@ Interactive rendering in the [decision summary](../docs/specs/2026-11-03-non-car
 ### Server unit tests
 - [x] `tests/non-card-option-served-persons.unit.test.js` (13) — rules 1, 5, 6, 12, 14-17, 19
 - [x] `tests/typed-counts-no-regression.unit.test.js` (11) — rule 25: exhaustive grid, 22336 sequence through the controller, save guard. Mutation-checked: restoring the old computation fails 4 tests, removing the guard fails 2
-- [x] `tests/line-input-bounds.unit.test.js` (13) — rule 27, `reservations-backend-mvc.md` rule 15
+- [x] `tests/line-input-bounds.unit.test.js` (12) — rule 27, `reservations-backend-mvc.md` rule 15
 - [x] `tests/typed-counts-client-guard.unit.test.js` (4) — rule 25: no multiplier conversion left in the option fields
 - [x] `tests/sas-option-sales.unit.test.js` — updated (rule 12)
 - The existing `breakfast-model`, `laundry-model`, `laundry-end-to-end.regression` and `linen-inventory` suites still pass unchanged: a drifted `quantity` keeps scaling the party. Rule 6's new behaviour is covered in the feature's own file (CLAUDE.md §9).
