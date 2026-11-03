@@ -239,6 +239,20 @@ rules — just a clean, testable structure that future slices (and Bloc 5) build
    typed six years ahead keeps the focus, says « Date trop lointaine : 5 ans au plus. » and sends nothing.
    Tests: client `utils/reservationConflicts.half-typed-year.test.js`,
    `pages/__tests__/ReservationPage.date-horizon-keyboard.test.jsx`.
+15. **Added 2026-11-03 (audit R21) — the numbers of a line and of the party are judged at the boundary.** On
+   the price preview, the create, the update and the devis create and update, before anything reads them
+   (`utils/lineInputBounds.js`, same code everywhere):
+   `options` / `selectedOptions` / `customOptions` / `resources` / `selectedResources` present and not an array
+   of objects, or `offeredOptionIds` not an array → 400 `INVALID_LINES`; a line `quantity` or a party number
+   (`adults`, `children`, `teens`, `babies`, `babyBeds`, `singleBeds`, `doubleBeds`) that is not a finite number →
+   400 `INVALID_QUANTITY`; a custom `amount` or a line's `acompteContribTtc` / `soldeContribTtc` likewise → 400
+   `INVALID_AMOUNT`. Refused, never clamped. A boolean, an array, `1,5` or `0x10` is not a number; absent, null and
+   empty still mean « not sent »; a `quantity` of 0 or less still switches the line off, and a fraction stays
+   allowed. Past `Number.MAX_SAFE_INTEGER` a number counts as unusable: it is finite, but overflows to Infinity
+   once priced and summed. That is a technical limit: no business ceiling on `quantity` is decided. *Why:*
+   `1e999` parses to Infinity; it reached `finalPrice` and `balanceAmount`, which JSON then reads as `null` and no
+   save can repair, while `quantity: 1e308` stored a line at 0 €, and lines that were not an array answered 500.
+   Tests: `tests/line-input-bounds.unit.test.js`.
 
 **Edge cases:** all current ones are preserved verbatim — min-nights rejection, archived-reservation
 error, iCal-locked pricing snapshot reuse, night-block conflict on adjacent reservations, payment

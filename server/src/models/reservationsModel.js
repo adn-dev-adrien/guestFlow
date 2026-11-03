@@ -29,7 +29,8 @@ const {
   buildMidStayLine, parseNotes, nextNoteId, storedMidStayLines, resolveMidStaySplit, MID_STAY_SOURCE,
 } = require('../utils/midStayExtras');
 const { buildEditLock } = require('../utils/midStayExtrasWindow');
-const { priceOptionSale, billablePersons } = require('../utils/sasOptionSale');
+const { priceOptionSale, billablePersons, buildSasSaleOffers, offeredSaleOptionIds } = require('../utils/sasOptionSale');
+const { CATERING_CATEGORY } = require('../utils/optionCategoriesMigration');
 const { typedCountOf, displayCountOf } = require('../utils/typedCounts');
 const { reconcileEndOfStayLines, isAdjustmentLine } = require('../utils/endOfStayAdjustment');
 const {
@@ -46,6 +47,7 @@ const { buildArrivalPaymentDetail } = require('../utils/arrivalPaymentDetail');
 const { resolveArrivalPaymentAdjustment } = require('../utils/arrivalPaymentAdjustment');
 const { upsellOutcome, arrivalComplementAfter } = require('../utils/arrivalSasPlan');
 const bookingLinesModel = require('./bookingLinesModel');
+const { buildModel: createOptionsModel } = require('./optionsModel');
 
 // Label of the bath-linen line the arrival SAS may add (shared by the commit + the re-open
 // reconstruction, like « Ménage »). specs/sas-bath-linen-upsell.md §3.1 rule 4.
@@ -2382,7 +2384,9 @@ function createReservationsModel(database) {
     // occurrences }]` for a card option, `[{ optionId, units }]` otherwise — and everything priced is
     // resolved here: the catalogue row, the per-property price override, then the engine arithmetic
     // (utils/sasOptionSale.js). An option the operator sold from the fiche is skipped: the sale step
-    // is hidden for it, and its money must never be re-routed to the complement.
+    // is hidden for it, and its money must never be re-routed to the complement. Anything else outside
+    // the offer is dropped too (rule 15), but a line this SAS already sold stays its own, whatever the
+    // catalogue became since (specs/reopen-completed-sas.md rule 4).
     resolveSasOptionSales(reservationId, sales) {
       if (!Array.isArray(sales) || sales.length === 0) return [];
       const res = database.prepare(`
@@ -2402,17 +2406,24 @@ function createReservationsModel(database) {
         checkInTime: res.checkInTime || '15:00',
         checkOutTime: res.checkOutTime || '10:00',
       };
-      const fiche = new Set(database
-        .prepare(`SELECT optionId FROM reservation_options WHERE reservationId = ?
-                  ${HAS_RO_SAS_ARRIVAL_ORIGIN ? 'AND COALESCE(sasArrivalOrigin, 0) = 0' : ''}`)
-        .all(reservationId)
-        .map((r) => Number(r.optionId)));
+      const held = database
+        .prepare(`SELECT optionId, ${HAS_RO_SAS_ARRIVAL_ORIGIN ? 'COALESCE(sasArrivalOrigin, 0)' : '0'} AS sasArrivalOrigin
+                  FROM reservation_options WHERE reservationId = ?`)
+        .all(reservationId);
+      const fiche = new Set(held.filter((r) => Number(r.sasArrivalOrigin) !== 1).map((r) => Number(r.optionId)));
+      const sellable = offeredSaleOptionIds(buildSasSaleOffers({
+        reservation: { ...res, nights: Array.from({ length: Number(res.nights) || 0 }), options: held },
+        options: createOptionsModel(database).listForProperty(res.propertyId),
+        cateringCategory: CATERING_CATEGORY,
+        maxPersons: Number(res.maxGuests) || 0,
+      }));
+      for (const line of held) if (Number(line.sasArrivalOrigin) === 1) sellable.add(Number(line.optionId));
       const readOption = database.prepare('SELECT * FROM options WHERE id = ?');
       const out = [];
       const seen = new Set();
       for (const sale of sales) {
         const optionId = Number(sale?.optionId);
-        if (!optionId || seen.has(optionId) || fiche.has(optionId)) continue;
+        if (!optionId || seen.has(optionId) || fiche.has(optionId) || !sellable.has(optionId)) continue;
         const option = readOption.get(optionId);
         if (!option) continue;
         let override;
@@ -2663,6 +2674,7 @@ function createReservationsModel(database) {
 
     // specs/mid-stay-extras-on-locked-fiche.md rule 8 — the « Forcer en complément » routing as stored,
     // so a save inside the window can carry it back untouched whatever the payload says.
+    // specs/reservation-save-keeps-pricing.md rule 19 — and the custom lines' contribs, carried by every priced save.
     getStoredRouting(reservationId) {
       const flag = (r) => Number(r.inComplement || 0);
       return {
@@ -2670,8 +2682,10 @@ function createReservationsModel(database) {
           .all(reservationId).map((r) => [Number(r.id), flag(r)])),
         resources: new Map(database.prepare('SELECT resourceId AS id, COALESCE(inComplement, 0) AS inComplement FROM reservation_resources WHERE reservationId = ?')
           .all(reservationId).map((r) => [Number(r.id), flag(r)])),
-        customs: database.prepare('SELECT id, description, COALESCE(inComplement, 0) AS inComplement FROM reservation_custom_options WHERE reservationId = ? ORDER BY sortOrder, id')
-          .all(reservationId).map((r) => ({ id: Number(r.id), description: r.description, inComplement: flag(r) })),
+        customs: database.prepare('SELECT id, description, COALESCE(inComplement, 0) AS inComplement, acompteContribTtc, soldeContribTtc FROM reservation_custom_options WHERE reservationId = ? ORDER BY sortOrder, id')
+          .all(reservationId).map((r) => ({
+            id: Number(r.id), description: r.description, inComplement: flag(r), acompteContribTtc: r.acompteContribTtc, soldeContribTtc: r.soldeContribTtc,
+          })),
       };
     },
 

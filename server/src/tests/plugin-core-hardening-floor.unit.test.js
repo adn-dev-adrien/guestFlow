@@ -35,6 +35,9 @@ const HARDENINGS = [
   { feature: 'entered-date window', sdk: '2.20.0', pattern: /coreModule\(\s*['"`]stayDates['"`]/ },
   // specs/plugins-phase-1-sdk.md rule 38 (audit R20, E20-1).
   { feature: 'the stored update body of a reservation', sdk: '2.21.0', pattern: /\breservations\.updateBody\b/ },
+  // specs/plugins-phase-1-sdk.md rule 39 (specs/non-card-option-served-persons.md rule 12) — audit R21-P1, C4. The draft
+  // that sends `{ optionId, persons }` lives on the client, which this scan skips: `soldOptions` is its server end.
+  { feature: 'SAS sale by people served', sdk: '2.21.0', pattern: /\bsoldOptions\b/ },
 ];
 
 function sourceFiles(dir) {

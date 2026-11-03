@@ -23,6 +23,11 @@ const DINNER = Number(db.prepare("INSERT INTO options (title, priceType, price) 
 const BREAKFAST = Number(db.prepare("INSERT INTO options (title, priceType, price) VALUES ('Petit déjeuner', 'per_stay', 8)").run().lastInsertRowid);
 const MEAL = Number(db.prepare("INSERT INTO options (title, priceType, price) VALUES ('Le repas des trappeurs', 'per_stay', 25)").run().lastInsertRowid);
 const BOARD = Number(db.prepare("INSERT INTO options (title, priceType, price) VALUES ('Planche S', 'per_stay', 17)").run().lastInsertRowid);
+// What the sale steps may sell (specs/sas-breakfast-and-catering-upsell.md rule 15): this property's « Restauration ».
+for (const optionId of [BREAKFAST, MEAL, BOARD]) {
+  db.prepare("UPDATE options SET category = 'Restauration' WHERE id = ?").run(optionId);
+  db.prepare('INSERT INTO property_options (propertyId, optionId) VALUES (1, ?)').run(optionId);
+}
 
 let nextId = 100;
 function stay(columns = {}) {

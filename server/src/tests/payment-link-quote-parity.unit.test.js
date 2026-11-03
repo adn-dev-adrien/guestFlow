@@ -16,6 +16,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
+const { FAR_YEAR } = require('./farYearFixture');
 const devisModel = require('../models/devisModel');
 const { calculateReservationQuote } = require('../utils/pricing');
 const { __test: { resolveAmountCents, resolveVatComponents } } = require('../controllers/paymentsController');
@@ -98,10 +99,10 @@ function freshModel() {
 }
 
 // Far-future stay so the quote stays valid (validUntil is driven by quoteValidityDays).
-const MOMENTS = [{ date: '2030-07-11', time: '19:30' }];
+const MOMENTS = [{ date: `${FAR_YEAR}-07-11`, time: '19:30' }];
 const BASE = {
   propertyId: 1, clientId: 1,
-  startDate: '2030-07-10', endDate: '2030-07-13',
+  startDate: `${FAR_YEAR}-07-10`, endDate: `${FAR_YEAR}-07-13`,
   adults: 2, children: 0, platform: 'direct',
   selectedOptions: [
     { optionId: CLEANING, quantity: 1 },

@@ -73,6 +73,9 @@ routes, mêmes codes de statut, mêmes charges utiles, mêmes sessions.
    corps mal formé → 400 `INVALID_JSON` « Requête invalide : le corps JSON est mal formé. », corps trop
    gros → 413 `PAYLOAD_TOO_LARGE`, encodage / jeu de caractères → 415 ; rien n'est journalisé comme crash.
    Toute autre erreur reste un 500 opaque.
+8. **Sous `/public/`, le refus du parseur garde l'enveloppe publique** (audit R21, 2026-11-03). Mêmes statuts et mêmes
+   codes que la règle 7, mais `{ error: { code, message } }` et le message dans la langue de l'appelant
+   (`publicHttp.answerBodyRefusal`, specs/public-api.md règle 22). L'API interne garde sa forme plate.
 
 ---
 

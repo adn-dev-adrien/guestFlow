@@ -63,7 +63,7 @@ function alertFor(line, kind, typed, reference, current) {
 function typedCountAlerts({
   quoteLines = [], requestLines = [], persons, nights, storedPersons = null, storedNights = null,
 } = {}) {
-  const requested = new Map((requestLines || []).map((line) => [Number(line?.optionId), line]));
+  const requested = new Map((Array.isArray(requestLines) ? requestLines : []).map((line) => [Number(line?.optionId), line]));
   const alerts = [];
   for (const line of quoteLines || []) {
     if (line?.isCustom || line?.optionId == null) continue;

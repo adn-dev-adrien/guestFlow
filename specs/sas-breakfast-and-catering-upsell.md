@@ -172,6 +172,26 @@ réservation — préparée, planifiée, comptée — et son montant rejoint le 
     lignes ménage / linge de toilette existantes
     ([arrival-departure-sas.md](arrival-departure-sas.md) §3.7).
 
+Rule added 2026-11-03 (audit R21-A1):
+
+15. **On n'écrit que ce que l'offre vend.** `resolveSasOptionSales` construit la même offre que la
+    lecture (`buildSasSaleOffers` sur `optionsModel.listForProperty`) et ne garde que le petit déjeuner
+    disponible, les options du catalogue offert et les options que ce séjour détient déjà avec
+    `sasArrivalOrigin = 1`, pour qu'un SAS rouvert ou un archivage ultérieur ne perde jamais sa propre
+    ligne ([reopen-completed-sas.md](reopen-completed-sas.md) §4 rule 4). Tout le reste (assurance
+    annulation, option masquée, automatique, archivée, hors « Restauration », hors logement, inconnue)
+    est ignoré sans erreur : l'aperçu passe par le même résolveur, le récapitulatif montre donc ce qui
+    est réellement facturé. Vaut pour l'accueil comme pour l'administrateur.
+
+### 3.6 Bornes (audit R21, 2026-11-03)
+
+16. Les `units` d'une vente sont un nombre fini de 0 à 999, fractions admises sur une option au séjour ; sur une
+    option à la nuit, un entier d'au plus 366 (elles deviennent des `cardNights`). `persons` est un nombre fini
+    d'au plus 999, puis plafonné à la capacité comme avant. Sinon **400 `INVALID_QUANTITY`**, à l'aperçu comme à la
+    validation, avant tout calcul (`plugins/sas/sasQuantityBounds.js`). Des unités que ce SAS a déjà vendues,
+    renvoyées telles quelles à la réouverture, ne sont pas rejugées. Test :
+    `plugins/sas/tests/sas-quantity-bounds.unit.test.js`.
+
 **Edge cases:**
 - Aucune option « Restauration » vendable pour ce logement → la page de demande n'apparaît pas.
 - Petit déjeuner sans carte de planning (config héritée) → non vendable au SAS (les matins *sont* le
@@ -281,6 +301,9 @@ recalculée.
       touche à rien ; complément gelé → ligne écrite, complément d'arrivée intact, montant en fin de
       séjour, clé hors baseline ; re-run qui dé-sélectionne et rend l'argent sans toucher aux ventes
       faites depuis la fiche ; historique des prestations vendues.
+
+### Server unit tests — `tests/sas-sale-contract.unit.test.js`
+- [x] Règle 15 : un test par type exclu, l'aperçu et le commit, les lignes déjà vendues par ce SAS.
 
 ### Client tests (vitest) — `components/sas/__tests__/ReservationSasDialog.test.jsx` (7 tests)
 - [x] Vente du petit déjeuner : matins pré-cochés, légende « (2 × 2 pers.) », total, composition

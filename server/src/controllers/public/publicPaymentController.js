@@ -34,7 +34,8 @@ const { ok, fail, failT } = require('./publicHttp');
 function buildReturnUrl(returnPath) {
   const origin = settingsModel.publicSiteOrigin();
   if (!origin) return '';
-  const path = String(returnPath || '/').trim();
+  if (returnPath !== undefined && returnPath !== null && typeof returnPath !== 'string') return '';
+  const path = (returnPath || '/').trim();
   // Only a same-origin path: must start with a single '/'. Reject protocol-relative ('//host') and full
   // URLs ('https://…') — both are open-redirect vectors.
   if (!path.startsWith('/') || path.startsWith('//')) return '';

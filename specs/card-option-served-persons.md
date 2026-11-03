@@ -170,6 +170,10 @@ planning card and the kitchen prep all follow that number instead of the party s
     `INVALID_CARD_PERSONS`** « Personnes servies : au moins 1. Pour retirer la prestation, la
     désactiver. », with the `optionId`, before any pricing. An absent / null / empty count still means
     the whole party. The SAS intent (rule 12) keeps clamping, as it says.
+    *Reading of 2026-11-03 (audit R21):* the count is a **whole number** (a fraction was floored, or billed
+    2.5 covers on a card line), on the devis create and update as well, and the message says « un nombre
+    entier, au moins 1 ». One guard: `utils/lineInputBounds.js`, see `non-card-option-served-persons.md`
+    rule 34. Tests: `tests/line-input-bounds.unit.test.js`.
 
 ---
 
@@ -189,7 +193,7 @@ planning card and the kitchen prep all follow that number instead of the party s
 | `database.js` | `database.js` | T | Idempotent migration: `reservation_options.cardPersons REAL NULL` (§5). |
 | — | `schema.sql` | T | Column added to the reference schema. |
 | `utils/` | `utils/pricing.js` | T | Card branch: `served = clamp(selected.cardPersons ?? persons, 1, maxGuests \|\| persons)`, `billedUnits = moments × served`, and `cardPersons` echoed on the priced line so it round-trips through every writer. `percent_of_stay` + `planningCardAsQuantity` branches untouched. |
-| `utils/` | `utils/cardServedPersons.js` | C | 2026-10-27 (rule 19) — `refuseInvalidServedPersons(selectedOptions)`: the 400 body for a count ≤ 0, called by `reservationsController` (preview, create, update) before pricing. |
+| `utils/` | `utils/lineInputBounds.js` | C | 2026-10-27 (rule 19, moved there on 2026-11-03) — `refuseInvalidServedPersons(selectedOptions)`: the 400 body for a count ≤ 0, called by `reservationsController` (preview, create, update) before pricing. |
 | `utils/` | `utils/sasOptionSale.js` | T | `priceOptionSale` accepts `servedPersons` (+ `maxPersons` for the clamp) and returns `cardPersons`; `buildOptionOffer` exposes `defaultPersons` / `maxPersons` / `selectedPersons`; `defaultBreakfastComposition` keyed on the served count, with the per-person rule exposed for the wizard's pre-fill. |
 | `models/` | `models/bookingLinesModel.js` | T | `insertOptions` writes `cardPersons` (guarded by column presence) and the line readers return it — this single point covers fiche saves, devis, and `copyLineGraph` (devis ↔ réservation conversions). |
 | `models/` | `models/reservationsModel.js` | T | `resolveSasOptionSales` reads `properties.maxGuests` and passes the served count to the pricer; the SAS `writeSoldOptions` upsert writes `cardPersons`; `listSasArrivalOptionLines` returns a `detail` string for the history; `getByIdWithDetails` surfaces `propertyMaxGuests` (the stepper's ceiling, read by the SAS controller). |
