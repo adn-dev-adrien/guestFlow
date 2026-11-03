@@ -294,7 +294,11 @@ function createIntakeService(deps) {
   function applyFromBanner(intakeId, { rent } = {}) {
     const intake = intakes.get(intakeId);
     if (!intake || !intake.parsed) return { status: 'error', error: 'Saisie introuvable' };
-    if (intake.status === 'needs_rent' || (intake.status === 'applied' && rent != null)) return chooseRent(intake, rent);
+    const written = intake.status === 'needs_rent' || intake.status === 'applied';
+    if (written && rent != null) return chooseRent(intake, rent);
+    if (intake.dismissedAt) return { status: 'error', error: 'Saisie ignorée' };
+    // Rule 12 — a second tab or a lost response: the fiche is never written twice, the banner reloads.
+    if (written) return { status: intake.status };
     const m = match(intake.parsed);
     if (m.error || !m.reservation) return { status: 'error', error: m.error || m.unmapped || 'Fiche introuvable' };
     return apply(intake, m.reservation, { rent });
