@@ -140,12 +140,13 @@ test('price: a moment the guest cannot attend is refused', () => {
   assert.equal(line, null);
 });
 
-test('price: a plain option bills the units the operator picked, quantity re-derived for the engine', () => {
+test('price: a per-person option bills the people served, quantity stays 1 (specs/non-card-option-served-persons.md rule 12)', () => {
   const line = priceOptionSale({ ...BOARD, priceType: 'per_person' }, {
-    unitPrice: 17, persons: 3, nights: 3, units: 2,
+    unitPrice: 17, persons: 3, nights: 3, servedPersons: 2,
   });
   assert.equal(line.billedUnits, 2);
-  assert.equal(line.quantity, 0.6667);       // 2 / 3 persons — what the fiche stores
+  assert.equal(line.quantity, 1);
+  assert.equal(line.cardPersons, 2);
   assert.equal(line.totalPrice, 34);
   assert.equal(line.cardOccurrences, null);
 });

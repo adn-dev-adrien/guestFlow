@@ -4,6 +4,19 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+## [3.19.0] - 2026-10-30
+
+### Summary
+- Gîte : la nuit du 25 décembre passe en très haute saison, 2 nuits minimum, en 2026 comme en 2027. Seule la nuit du 24 garde le tarif de Noël.
+- Un séjour minimum posé sur une période reste appliqué quand la nuit tombe un jour férié.
+- Après l'installation, réappliquer la recette Gîte 3.7.0 pour mettre à jour les saisons de Noël.
+
+### Changed
+- Gîte recipe `gite-2027` 3.7.0: 25 December leaves the flat Noël rate for Très haute with a 2-night minimum, in 2026 and 2027; only the night of the 24th keeps the Noël premium (`specs/tariff-recipe-gite/spec.md` rule 14bis).
+
+### Fixed
+- Tariff recipes: a minimum stay declared on a period no longer reverts to its season's minimum when the night is a public holiday (`specs/tariff-recipes/spec.md` §3.3 rule 19bis).
+
 ## [3.18.0] - 2026-10-26
 
 ### Summary

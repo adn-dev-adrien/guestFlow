@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quantités d'options décimales</title>
+<style>
+:root{
+  --primary:#2F5D46;--paper:#F8F5EF;--card:#FFFFFF;--ink:#27251F;--muted:#6E6A5E;--line:#E4DED2;
+  --success:#3E7D54;--success-bg:#E6EFE7;--warning:#8F6A1D;--warning-bg:#F6EDD7;
+  --error:#A8433A;--error-bg:#F7E8E5;
+  --radius:14px;--serif:"Source Serif 4","Iowan Old Style",Georgia,serif;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.55 var(--sans)}
+:focus-visible{outline:2px solid var(--primary);outline-offset:2px;border-radius:6px}
+main{max-width:980px;margin:0 auto;padding:40px 16px 80px}
+h1{font:600 clamp(1.8rem,4vw,2.5rem)/1.1 var(--serif);letter-spacing:-.015em;margin:0 0 10px}
+h2{font:600 1.35rem/1.2 var(--serif);margin:48px 0 12px}
+h3{font:600 1rem/1.3 var(--sans);margin:0 0 10px}
+p{margin:0 0 12px;max-width:70ch}
+.lede{color:var(--muted);font-size:1.05rem}
+ul{margin:0;padding-left:1.1em;max-width:70ch}li{margin:4px 0}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:720px){.cols{grid-template-columns:1fr}}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px;min-width:0}
+.party{display:flex;flex-wrap:wrap;gap:16px;align-items:center;margin-bottom:16px}
+.field{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:8px;background:var(--card)}
+.field button{width:44px;height:44px;border:0;background:none;font-size:20px;color:var(--ink);cursor:pointer;border-radius:8px}
+.field button:active:not(:disabled){background:var(--success-bg)}
+.field button:disabled{color:var(--line);cursor:default}
+.field input{width:64px;height:44px;border:0;background:none;text-align:center;font:inherit;font-variant-numeric:tabular-nums}
+label.cap{display:block;font-size:.8rem;color:var(--muted);margin-bottom:4px}
+.row{padding:12px 0;border-top:1px solid var(--line)}
+.row:first-of-type{border-top:0}
+.row b{font-weight:600}
+.hint{font-size:.8rem;color:var(--muted);margin-top:4px;min-height:1.2em}
+.hint.refus{color:var(--error)}
+.total{font-variant-numeric:tabular-nums;font-weight:600}
+.bad{color:var(--error)}.ok{color:var(--success)}
+.switch{font-size:.85rem;color:var(--muted);display:flex;gap:6px;align-items:center;margin-bottom:8px}
+.ligne{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;margin-top:6px}
+.scroll{overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:var(--radius)}
+table{border-collapse:collapse;width:100%;font-size:.9rem;font-variant-numeric:tabular-nums}
+th,td{padding:8px 12px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+th{color:var(--muted);font-weight:500}tr:last-child td{border-bottom:0}
+.tag{display:inline-block;padding:1px 8px;border-radius:99px;font-size:.78rem}
+.tag.m{background:var(--success-bg);color:var(--success)}.tag.l{background:var(--warning-bg);color:var(--warning)}
+.decide{background:var(--warning-bg);border-radius:var(--radius);padding:16px 20px}
+.field.err{border-color:var(--error);box-shadow:0 0 0 1px var(--error)}
+.field.err input{color:var(--error)}
+.apply{width:44px;height:44px;flex:none;border:1px solid var(--error);border-radius:8px;background:var(--card);color:var(--error);cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
+.apply:active{background:var(--error-bg)}
+.apply svg{width:20px;height:20px;fill:currentColor}
+.saisie{display:inline-flex;align-items:center;gap:8px}
+#alerte:not(:empty){background:var(--warning-bg);color:var(--warning);border-radius:10px;padding:10px 14px;margin-bottom:16px}
+.primary,.warn,#dlgCancel{min-height:44px;padding:0 16px;border-radius:8px;font:inherit;font-weight:600;cursor:pointer;border:0}
+.primary{background:var(--primary);color:#fff}.warn{background:var(--warning);color:#fff}#dlgCancel{background:none;color:var(--ink)}
+dialog{border:0;border-radius:var(--radius);padding:20px;max-width:440px;width:calc(100% - 32px)}
+dialog::backdrop{background:rgba(39,37,31,.4)}
+.acts{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px;margin-top:16px}
+@media(prefers-reduced-motion:no-preference){.field button{transition:background-color .1s ease-out}}
+</style>
+</head>
+<body>
+<main>
+<h1>Quantités d'options décimales</h1>
+<p class="lede">Une quantité saisie pour un groupe est stockée en proportion. Quand le groupe change, elle se multiplie et facture des fractions.</p>
+
+<h2>Le constat, en prod</h2>
+<div class="cols">
+  <div class="panel">
+    <h3>Fiche 22336, 24 au 26/12</h3>
+    <ul>
+      <li>01/11 16:23, 10 pers. : linge de toilette passé de 10 à 11, base 1,1, <b>+8,00 €</b>.</li>
+      <li>01/11 19:26, groupe 10 → 11 : 1,1 × 11 = 12,1, <b>+8,80 € indus</b> en plus des 50 € du voyageur.</li>
+      <li>Linge de lit à 11,1, offert, donc 0 €.</li>
+      <li>Versement de 1 732,20 € reçu le 03/11.</li>
+    </ul>
+  </div>
+  <div class="panel">
+    <h3>Ce qu'on propose</h3>
+    <ul>
+      <li>Un nombre de personnes saisi reste ce nombre.</li>
+      <li>Une ligne jamais retouchée suit le groupe.</li>
+      <li>Une valeur saisie qui ne correspond plus passe en rouge et demande un choix à l'enregistrement.</li>
+      <li>Plus jamais de virgule, personnes comme nuits.</li>
+      <li>Aucun montant existant ne bouge à la migration.</li>
+    </ul>
+  </div>
+</div>
+
+<h2>Essayez</h2>
+<p>Dans « Après », saisissez 3 repas, puis changez le groupe : la case passe en rouge. Retapez un autre nombre, elle reste rouge. Les flèches circulaires appliquent la nouvelle valeur. Essayez aussi d'enregistrer, de saisir 0, ou plus que la capacité de 12.</p>
+<div class="party">
+  <div>
+    <label class="cap" for="g">Voyageurs</label>
+    <div class="field" data-f="group"><button aria-label="Diminuer les voyageurs">−</button><input id="g" inputmode="numeric"><button aria-label="Augmenter les voyageurs">＋</button></div>
+  </div>
+  <div>
+    <label class="cap" for="n">Nuits</label>
+    <div class="field" data-f="nights"><button aria-label="Diminuer les nuits">−</button><input id="n" inputmode="numeric"><button aria-label="Augmenter les nuits">＋</button></div>
+  </div>
+</div>
+<div id="alerte" role="status"></div>
+<div class="cols">
+  <div class="panel"><h3>Aujourd'hui</h3><div id="avant"></div></div>
+  <div class="panel"><h3>Après le correctif</h3><div id="apres"></div><div class="ligne" style="margin-top:12px"><button class="primary" id="save">Enregistrer</button><span id="saved" class="hint"></span></div></div>
+</div>
+
+<h2>Lignes concernées en prod</h2>
+<p>8 lignes sur 86. Quatre migrent sans changer de montant. Celles de la fiche 22336 sont corrigées. Celles du devis 22335 restent telles quelles et sont journalisées.</p>
+<div class="scroll"><table>
+<thead><tr><th>Fiche</th><th>Séjour</th><th>Option</th><th>Base</th><th>Facturé</th><th>Groupe</th><th>Total</th><th>Migration</th></tr></thead>
+<tbody>
+<tr><td>22199</td><td>13/06</td><td>Linge de lit</td><td>0,6</td><td>3</td><td>5</td><td>21 €</td><td><span class="tag m">3 servies</span></td></tr>
+<tr><td>9</td><td>19/07</td><td>Linge de toilette</td><td>0,25</td><td>1</td><td>4</td><td>8 €</td><td><span class="tag m">1 servie</span></td></tr>
+<tr><td>22269</td><td>05/08</td><td>Linge de toilette</td><td>0,6</td><td>3</td><td>5</td><td>24 €</td><td><span class="tag m">3 servies</span></td></tr>
+<tr><td>22280</td><td>11/09</td><td>Linge de toilette</td><td>0,4167</td><td>5</td><td>12</td><td>40 €</td><td><span class="tag m">5 servies</span></td></tr>
+<tr><td>22336</td><td>24/12</td><td>Linge de toilette</td><td>1,1</td><td>12,1</td><td>11</td><td>96,80 €</td><td><span class="tag m">corrigée : 11, 88 €</span></td></tr>
+<tr><td>22336</td><td>24/12</td><td>Linge de lit (offert)</td><td>1,0091</td><td>11,1</td><td>11</td><td>0 €</td><td><span class="tag m">corrigée : 11</span></td></tr>
+<tr><td>22335 devis converti</td><td>24/12</td><td>Linge de toilette</td><td>1,1</td><td>12,1</td><td>11</td><td>96,80 €</td><td><span class="tag l">laissée</span></td></tr>
+<tr><td>22335 devis converti</td><td>24/12</td><td>Linge de lit (offert)</td><td>1,0091</td><td>11,1</td><td>11</td><td>0 €</td><td><span class="tag l">laissée</span></td></tr>
+</tbody></table></div>
+
+<h2>Ce qu'on ne fait pas</h2>
+<ul>
+  <li>Les ressources : leur quantité sert aussi de stock.</li>
+  <li>Le widget WordPress : il envoie « 1 = tout le monde », inchangé.</li>
+  <li>Forfait, à l'heure, progressif, pourcentage, assurance, options carte : inchangés.</li>
+</ul>
+
+<h2>Le risque</h2>
+<ul>
+  <li>Linge et petit-déjeuner lisent cette quantité : ils passent aux personnes servies, sous tests.</li>
+  <li>Une ligne vendue à l'arrivée garde son plancher, désormais exprimé en personnes. Le refus côté serveur reste sur le montant.</li>
+  <li>Sur <code>inte/plugins</code>, le linge vit dans un plugin : la livraison y est adaptée, pas recopiée.</li>
+</ul>
+
+<h2>Fait en prod</h2>
+<div class="panel">
+  <p><b>Fiche 202611001.</b> Total 1 792,60 €, solde de 1 732,20 € payé le 03/11, <b>complément de 60,40 € à régler sur place</b> : 50 € de voyageur, 8 € de linge, 2,40 € de taxe. Aucune autre réservation touchée.</p>
+</div>
+<h2>La non-régression</h2>
+<ul>
+  <li>Grille exhaustive : chaque type de prix, chaque valeur saisie, chaque groupe, chaque durée. Une seule décimale fait échouer la suite.</li>
+  <li>La séquence réelle de cette fiche rejouée à travers le serveur : 88 € et 60,40 €, ou échec.</li>
+  <li>L'enregistrement sans choix est refusé par le serveur.</li>
+  <li>Le parcours complet dans le navigateur : rouge, valeur retapée qui reste rouge, flèches circulaires, dialogue.</li>
+</ul>
+</main>
+<dialog id="dlg"><h3>Quantités saisies à vérifier</h3><div id="dlgBody"></div><div class="acts"><button id="dlgCancel">Annuler</button><button class="warn" id="dlgForce">Forcer l'enregistrement</button></div></dialog>
+<script>
+const PRICE = 8, CAP = 12;
+const SYNC = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg>';
+const LINES = [
+  { k: 'pp', title: 'Repas, par personne', dim: 'persons' },
+  { k: 'ppn', title: 'Panier, par personne et par nuit', dim: 'persons', perNight: true },
+  { k: 'pn', title: 'Bois, par nuit', dim: 'nights' },
+];
+const s = { group: 4, nights: 2,
+  old: { pp: 1, ppn: 1, pn: 1 },     // stored base: typed / multiplier
+  next: { pp: null, ppn: null, pn: null },   // stored typed value: null follows
+  at: {},                            // what each value was typed for
+  msg: {} };
+const fr = (n) => (Math.round(n * 100) / 100).toLocaleString('fr-FR');
+const eur = (n) => (Math.round(n * 100) / 100).toLocaleString('fr-FR', { minimumFractionDigits: 2 }) + ' €';
+const ceiling = () => Math.max(s.group, CAP);
+const current = (l) => (l.dim === 'nights' ? s.nights : s.group);
+const valueOf = (l) => (s.next[l.k] == null ? current(l) : s.next[l.k]);
+const stale = (l) => s.next[l.k] != null && s.next[l.k] !== current(l) && s.at[l.k] !== current(l);
+const unit = (l, n) => (l.dim === 'nights' ? `${n} nuit${n > 1 ? 's' : ''}` : `${n} personne${n > 1 ? 's' : ''}`);
+const dimLabel = (l) => (l.dim === 'nights' ? 'séjour' : 'groupe');
+const staleText = (l) => `Saisi pour ${unit(l, s.at[l.k])}, ${dimLabel(l)} : ${current(l)}`;
+
+function stepper(id, value, label, min, max, err) {
+  return `<div class="field ${err ? 'err' : ''}" data-k="${id}"><button aria-label="Diminuer ${label}" ${value <= min ? 'disabled' : ''}>−</button>`
+    + `<input aria-label="${label}" inputmode="numeric" ${err ? 'aria-invalid="true"' : ''} value="${fr(value)}"><button aria-label="Augmenter ${label}" ${max != null && value >= max ? 'disabled' : ''}>＋</button></div>`;
+}
+function rowOld(l) {
+  const mult = l.dim === 'nights' ? s.nights : s.group * (l.perNight ? s.nights : 1);
+  const billed = Math.round(s.old[l.k] * mult * 100) / 100;
+  const dec = !Number.isInteger(billed);
+  return `<div class="row"><b>${l.title}</b><div class="ligne">${stepper('old-' + l.k, billed, 'quantité', 1)}`
+    + `<span class="total ${dec ? 'bad' : ''}">${eur(billed * PRICE)}</span></div>`
+    + `<div class="hint">base stockée ${fr(Math.round(s.old[l.k] * 10000) / 10000)} × ${mult}${dec ? ' : quantité décimale' : ''}</div></div>`;
+}
+function rowNew(l) {
+  const v = valueOf(l);
+  const billed = v * (l.perNight ? s.nights : 1);
+  const bad = stale(l);
+  const m = s.msg[l.k];
+  const base = l.perNight ? `× ${s.nights} nuit${s.nights > 1 ? 's' : ''}` : '';
+  const text = m || (bad ? staleText(l) : base);
+  const apply = bad ? `<button class="apply" data-apply="${l.k}" title="Appliquer ${unit(l, current(l))}" aria-label="Appliquer ${unit(l, current(l))}">${SYNC}</button>` : '';
+  return `<div class="row"><b>${l.title}</b><div class="ligne"><span class="saisie">${stepper('new-' + l.k, v, l.dim === 'nights' ? 'nuits' : 'personnes', 1, l.dim === 'nights' ? null : ceiling(), bad)}${apply}</span>`
+    + `<span class="total">${eur(billed * PRICE)}</span></div>`
+    + `<div class="hint ${m || bad ? 'refus' : ''}">${text}</div></div>`;
+}
+function render() {
+  document.getElementById('avant').innerHTML = LINES.map(rowOld).join('');
+  document.getElementById('apres').innerHTML = LINES.map(rowNew).join('');
+  document.getElementById('g').value = s.group; document.getElementById('n').value = s.nights;
+  const bad = LINES.filter(stale);
+  document.getElementById('alerte').textContent = bad.length ? 'Valeur saisie à vérifier : ' + bad.map((l) => l.title).join(', ') : '';
+}
+function commit(key, raw) {
+  const n = Math.floor(Number(String(raw).replace(',', '.')));
+  const [side, k] = key.split('-');
+  const l = LINES.find((x) => x.k === k);
+  if (side === 'old') {
+    const mult = l.dim === 'nights' ? s.nights : s.group * (l.perNight ? s.nights : 1);
+    s.old[k] = Math.round((Number.isFinite(n) && n >= 1 ? n : 1) / mult * 10000) / 10000;
+  } else {
+    s.msg[k] = null;
+    let v = n;
+    if (!Number.isFinite(v) || v < 1) { v = 1; s.msg[k] = 'Minimum 1. Pour retirer l\'option : l\'interrupteur.'; }
+    if (l.dim === 'persons' && v > ceiling()) { v = ceiling(); s.msg[k] = `Maximum ${ceiling()} personnes.`; }
+    const wasStale = stale(l);
+    s.next[k] = v === current(l) ? null : v;
+    if (!wasStale) s.at[k] = current(l);
+  }
+  document.getElementById('saved').textContent = '';
+  render();
+}
+function savedNow() {
+  LINES.forEach((l) => { if (s.next[l.k] != null) s.at[l.k] = current(l); });
+  document.getElementById('saved').textContent = 'Enregistré.';
+  render();
+}
+const dlg = document.getElementById('dlg');
+document.getElementById('save').addEventListener('click', (e) => {
+  e.stopPropagation();
+  const bad = LINES.filter(stale);
+  if (!bad.length) { savedNow(); return; }
+  document.getElementById('dlgBody').innerHTML = bad.map((l) => `<p>${l.title} : ${s.next[l.k]}. ${staleText(l)}.</p>`).join('');
+  dlg.showModal();
+});
+document.getElementById('dlgCancel').addEventListener('click', (e) => { e.stopPropagation(); dlg.close(); });
+document.getElementById('dlgForce').addEventListener('click', (e) => { e.stopPropagation(); dlg.close(); savedNow(); });
+document.body.addEventListener('click', (e) => {
+  const a = e.target.closest('[data-apply]');
+  if (a) {
+    const k = a.dataset.apply;
+    s.next[k] = null; s.msg[k] = null;
+    document.getElementById('saved').textContent = '';
+    render();
+    document.querySelector(`[data-k="new-${k}"] input`).focus();
+    return;
+  }
+  const b = e.target.closest('.field button'); if (!b) return;
+  const f = b.parentElement; const inp = f.querySelector('input');
+  const delta = b === f.firstElementChild ? -1 : 1;
+  const num = Number(inp.value.replace(',', '.'));
+  if (f.dataset.f) {
+    const name = f.dataset.f; const max = name === 'group' ? 15 : 14;
+    s[name] = Math.min(max, Math.max(1, s[name] + delta)); s.msg = {};
+    document.getElementById('saved').textContent = ''; render();
+  } else commit(f.dataset.k, (delta < 0 ? Math.ceil(num) : Math.floor(num)) + delta);
+});
+document.body.addEventListener('change', (e) => {
+  if (e.target.tagName !== 'INPUT') return;
+  const f = e.target.closest('.field');
+  if (f.dataset.f) { const n = Math.floor(Number(e.target.value)); if (n >= 1) s[f.dataset.f] = Math.min(f.dataset.f === 'group' ? 15 : 14, n); s.msg = {}; render(); }
+  else commit(f.dataset.k, e.target.value);
+});
+render();
+</script>
+</body>
+</html>

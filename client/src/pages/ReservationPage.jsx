@@ -173,6 +173,7 @@ function markMissingLookup(err) {
   if (err && err.status === 404) err.missingLookup = true;
   throw err;
 }
+const withoutTypedAtTags = (lines) => (lines || []).map(({ typedAtParty, typedAtNights, ...line }) => line);
 
 export default function ReservationPage() {
   const { reservationId } = useParams();
@@ -549,9 +550,11 @@ export default function ReservationPage() {
   const isSupersededReservation = form.kind === 'superseded';
   // A cancelled stay and a duplicate set aside are history: the fiche only shows them (the server answers 409).
   const isClosedFiche = isCancelledReservation || isSupersededReservation;
+  // `typedAtParty` / `typedAtNights` only say what a number was typed against during this edit: they
+  // are not a change of their own (specs/non-card-option-served-persons.md rule 23).
   const formSnapshot = useMemo(() => JSON.stringify({
     selectedProp: selectedProp ? Number(selectedProp) : null,
-    form,
+    form: { ...form, selectedOptions: withoutTypedAtTags(form.selectedOptions) },
   }), [selectedProp, form]);
   // specs/tourist-tax-matches-the-office-calculation.md rules 10-12 — the freeze is the SERVER's
   // decision (has the instalment carrying the tax been collected? has the line been declared?), so the
@@ -619,6 +622,9 @@ export default function ReservationPage() {
         if (Array.isArray(item.cardOccurrences)) line.cardOccurrences = toWireCardOccurrences(item.cardOccurrences);
         // …and how many covers they serve (specs/card-option-served-persons.md §3.2 rule 9).
         if (item.cardPersons != null) line.cardPersons = Number(item.cardPersons);
+        if (item.cardNights != null) line.cardNights = Number(item.cardNights);
+        if (item.typedAtParty != null) line.typedAtParty = item.typedAtParty;
+        if (item.typedAtNights != null) line.typedAtNights = item.typedAtNights;
         return line;
       })
       .sort((a, b) => a.optionId - b.optionId),
@@ -1688,20 +1694,42 @@ export default function ReservationPage() {
   // §3.2 rule 7). Same welcome-pack release as the occurrence grid: adjusting the covers is an
   // operator act, so the line leaves the pack's hands. The server clamps the value and decides what
   // to persist — this only carries the intent.
-  const setOptionCardPersons = (optionId, persons) => {
+  //
+  // specs/non-card-option-served-persons.md rules 8, 19, 23 and 26 — the same intent for a non-card
+  // option, and for its nights. Equal to the party or the stay, the number is dropped: the line follows
+  // them again, which is also what the circular-arrows button does. A line already flagged keeps its
+  // reference, so retyping another number leaves it flagged.
+  const setOptionTypedCount = (optionId, kind, count) => {
+    const column = kind === 'nights' ? 'cardNights' : 'cardPersons';
+    const tag = kind === 'nights' ? 'typedAtNights' : 'typedAtParty';
+    const current = kind === 'nights' ? quantityNights : quantityPersons;
+    const flagged = (pricingQuote?.typedCountAlerts || [])
+      .some((alert) => alert.optionId === Number(optionId) && alert.kind === kind);
+    const isCard = Boolean((propertyOptions || []).find((o) => Number(o.id) === Number(optionId))?.showsPlanningCard);
+    const value = Math.max(1, Math.floor(Number(count)) || 1);
     let didReleasePack = false;
     setForm((prev) => {
       const selected = releaseWelcomePackLine(prev.selectedOptions || [], optionId);
       if (selected !== (prev.selectedOptions || [])) didReleasePack = true;
-      const value = Math.max(1, Number(persons) || 1);
       const exists = selected.some((so) => Number(so.optionId) === Number(optionId));
-      const next = exists
-        ? selected.map((so) => (Number(so.optionId) === Number(optionId) ? { ...so, cardPersons: value } : so))
-        : [...selected, { optionId: Number(optionId), quantity: 1, totalPrice: 0, cardPersons: value }];
+      const base = exists
+        ? selected
+        : [...selected, { optionId: Number(optionId), quantity: 1, totalPrice: 0 }];
+      const next = base.map((so) => {
+        if (Number(so.optionId) !== Number(optionId)) return so;
+        const { [column]: dropped, [tag]: previousTag, servedPersons, servedNights, ...line } = so;
+        return {
+          ...line,
+          ...(isCard ? {} : { quantity: 1 }),
+          ...(value === current ? {} : { [column]: value }),
+          ...(flagged ? (previousTag != null ? { [tag]: previousTag } : {}) : { [tag]: current }),
+        };
+      });
       return { ...prev, selectedOptions: next };
     });
     if (didReleasePack) releaseFromWelcomePack(optionId);
   };
+  const setOptionCardPersons = (optionId, persons) => setOptionTypedCount(optionId, 'persons', persons);
 
   const setOptionEnabled = (optionId, enabled) => {
     const existing = form.selectedOptions.find((so) => so.optionId === optionId);
@@ -1954,6 +1982,9 @@ export default function ReservationPage() {
         // Served persons of that card option (specs/card-option-served-persons.md §3.2 rule 9): an
         // intent, never a price — the engine clamps it and decides whether to persist it.
         if (item.cardPersons != null) line.cardPersons = Number(item.cardPersons);
+        if (item.cardNights != null) line.cardNights = Number(item.cardNights);
+        if (item.typedAtParty != null) line.typedAtParty = item.typedAtParty;
+        if (item.typedAtNights != null) line.typedAtNights = item.typedAtNights;
         return line;
       });
   };
@@ -2267,6 +2298,12 @@ export default function ReservationPage() {
     }
   };
 
+  // Saved: what was typed is the new reference, nothing stays flagged (specs/non-card-option-served-persons.md rule 23).
+  const clearTypedCountFlags = () => {
+    setForm((prev) => ({ ...prev, selectedOptions: withoutTypedAtTags(prev.selectedOptions) }));
+    setPricingQuote((prev) => (prev ? { ...prev, typedCountAlerts: [] } : prev));
+  };
+
   // specs/payment-link-lifecycle.md rules 46, 55 — a devis saved, moved or made from this stay onto held or closed
   // nights: the stays that hold them, or the closure, each to open. True when the error was that refusal.
   const alertDevisDatesRefusal = async (err, title = 'Devis non enregistré') => {
@@ -2280,7 +2317,7 @@ export default function ReservationPage() {
     return true;
   };
 
-  const handleSaveReservation = async (afterSaveAction = null, forceMinNights = false, forceCapacity = false, forceChangeover = false, forceMaxNights = false, forceOverpayment = false) => {
+  const handleSaveReservation = async (afterSaveAction = null, forceMinNights = false, forceCapacity = false, forceChangeover = false, forceMaxNights = false, forceOverpayment = false, forceTypedCounts = false) => {
     const safeAfterSaveAction = typeof afterSaveAction === 'function' ? afterSaveAction : null;
     
     if (!selectedProp) {
@@ -2354,7 +2391,7 @@ export default function ReservationPage() {
         confirmColor: 'warning',
       });
       if (proceed) {
-        return await handleSaveReservation(safeAfterSaveAction, forceMinNights, true, forceChangeover, forceMaxNights, forceOverpayment);
+        return await handleSaveReservation(safeAfterSaveAction, forceMinNights, true, forceChangeover, forceMaxNights, forceOverpayment, forceTypedCounts);
       }
       return false;
     }
@@ -2426,7 +2463,7 @@ export default function ReservationPage() {
           confirmColor: 'warning',
         });
         if (!proceed) return false;
-        return await handleSaveReservation(safeAfterSaveAction, true, forceCapacity, forceChangeover, forceMaxNights, forceOverpayment);
+        return await handleSaveReservation(safeAfterSaveAction, true, forceCapacity, forceChangeover, forceMaxNights, forceOverpayment, forceTypedCounts);
       }
 
       // specs/tariff-recipes/spec.md §3.4 rule 23 — changeover breach: same confirm + force-override
@@ -2443,7 +2480,7 @@ export default function ReservationPage() {
           confirmColor: 'warning',
         });
         if (!proceed) return false;
-        return await handleSaveReservation(safeAfterSaveAction, forceMinNights, forceCapacity, true, forceMaxNights, forceOverpayment);
+        return await handleSaveReservation(safeAfterSaveAction, forceMinNights, forceCapacity, true, forceMaxNights, forceOverpayment, forceTypedCounts);
       }
 
       // specs/tariff-recipes/spec.md §3.4 rule 20bis — maximum stay, mirror of the minimum guard.
@@ -2456,7 +2493,21 @@ export default function ReservationPage() {
           confirmColor: 'warning',
         });
         if (!proceed) return false;
-        return await handleSaveReservation(safeAfterSaveAction, forceMinNights, forceCapacity, forceChangeover, true, forceOverpayment);
+        return await handleSaveReservation(safeAfterSaveAction, forceMinNights, forceCapacity, forceChangeover, true, forceOverpayment, forceTypedCounts);
+      }
+
+      // specs/non-card-option-served-persons.md rule 22 — same confirm + force-override as the stay
+      // guards above; the server decides which lines, and refuses the save without this answer.
+      if (quote.typedCountAlerts?.length > 0 && !forceTypedCounts) {
+        const proceed = await confirm({
+          title: 'Quantités saisies à vérifier',
+          message: quote.typedCountAlerts.map((alert) => `${alert.title} : ${alert.typed}. ${alert.label}.`).join(' '),
+          confirmLabel: 'Forcer l\'enregistrement',
+          cancelLabel: 'Annuler',
+          confirmColor: 'warning',
+        });
+        if (!proceed) return false;
+        return await handleSaveReservation(safeAfterSaveAction, forceMinNights, forceCapacity, forceChangeover, forceMaxNights, forceOverpayment, true);
       }
 
       if (isDevisMode) {
@@ -2504,6 +2555,7 @@ export default function ReservationPage() {
           // server otherwise replays the prices it was quoted at (specs/devis-extras-parity-and-price-lock.md
           // §3 rules 13 + 15).
           refreshPricingToCurrent: useCurrentPricing,
+          forceTypedCounts,
           // 2026-06-06 — bilingual devis PDF (specs/devis-english-language.md §3 rule 1).
           // Defaults to 'fr' for new devis; persists whatever the operator picked.
           pdfLanguage: form.pdfLanguage || 'fr',
@@ -2601,6 +2653,7 @@ export default function ReservationPage() {
           forceChangeover,
           forceMaxNights,
           forceOverpayment,
+          forceTypedCounts,
           offeredOptionIds: Array.from(offeredOptionIds),
           options: buildSelectedOptionsPayload(),
           customOptions: buildCustomOptionsPayload(),
@@ -2613,6 +2666,7 @@ export default function ReservationPage() {
         // Rule 7 — the stored ledger is what the fiche shows once clean again: re-read it after a save (and the live
         // « Dates prises » marker, specs/payment-link-lifecycle.md rule 48).
         api.getReservation(reservationId).then((r) => { if (overwritten) loadedUpdatedAtRef.current = r.updatedAt || null; setDatesTaken(r.datesTaken || null); setStoredLedger(r.ledger || null); setStoredHeadline(r.storedHeadline || null); setStoredSummary(r.storedSummary || null); setStoredDepositDisabledLockedReason(r.depositDisabledLockedReason || null); setConvertToDevisLockedReason(r.convertToDevisLockedReason || null); setInstallmentPlan(r.installmentPlan || null); }).catch(() => {});
+        clearTypedCountFlags();
         if (safeAfterSaveAction) {
           safeAfterSaveAction();
           // The page stays open: refetch so the server's `editLock` (floors, window) is fresh. Only on a
@@ -2674,12 +2728,14 @@ export default function ReservationPage() {
           forceCapacity,
           forceChangeover,
           forceMaxNights,
+          forceTypedCounts,
           offeredOptionIds: Array.from(offeredOptionIds),
           options: buildSelectedOptionsPayload(),
           customOptions: buildCustomOptionsPayload(),
           resources: quote.resourceLines,
         });
         setInitialSnapshot(formSnapshot);
+        clearTypedCountFlags();
         if (safeAfterSaveAction) {
           safeAfterSaveAction();
         } else {
@@ -2697,7 +2753,7 @@ export default function ReservationPage() {
           confirmColor: 'warning',
         });
         if (proceed) {
-          return await handleSaveReservation(safeAfterSaveAction, true, forceCapacity, forceChangeover, forceMaxNights, forceOverpayment);
+          return await handleSaveReservation(safeAfterSaveAction, true, forceCapacity, forceChangeover, forceMaxNights, forceOverpayment, forceTypedCounts);
         }
         return false;
       }
@@ -2710,7 +2766,7 @@ export default function ReservationPage() {
           confirmColor: 'warning',
         });
         if (proceed) {
-          return await handleSaveReservation(safeAfterSaveAction, forceMinNights, forceCapacity, true, forceMaxNights, forceOverpayment);
+          return await handleSaveReservation(safeAfterSaveAction, forceMinNights, forceCapacity, true, forceMaxNights, forceOverpayment, forceTypedCounts);
         }
         return false;
       }
@@ -2727,7 +2783,7 @@ export default function ReservationPage() {
         if (!proceed) return false;
         return await handleSaveReservation(
           safeAfterSaveAction || (() => openOverpaymentRefund(Number(err.overpaymentTtc || 0), err.overpaymentLines, err.overpaymentMethod)),
-          forceMinNights, forceCapacity, forceChangeover, forceMaxNights, true,
+          forceMinNights, forceCapacity, forceChangeover, forceMaxNights, true, forceTypedCounts,
         );
       }
       if (err?.code === 'MAX_NIGHTS' && !forceMaxNights) {
@@ -2739,7 +2795,7 @@ export default function ReservationPage() {
           confirmColor: 'warning',
         });
         if (proceed) {
-          return await handleSaveReservation(safeAfterSaveAction, forceMinNights, forceCapacity, forceChangeover, true, forceOverpayment);
+          return await handleSaveReservation(safeAfterSaveAction, forceMinNights, forceCapacity, forceChangeover, true, forceOverpayment, forceTypedCounts);
         }
         return false;
       }
@@ -2757,7 +2813,7 @@ export default function ReservationPage() {
         if (choice === 'secondary') {
           overwriteOnceRef.current = true;
           try {
-            return await handleSaveReservation(safeAfterSaveAction, forceMinNights, forceCapacity, forceChangeover, forceMaxNights, forceOverpayment);
+            return await handleSaveReservation(safeAfterSaveAction, forceMinNights, forceCapacity, forceChangeover, forceMaxNights, forceOverpayment, forceTypedCounts);
           } finally {
             overwriteOnceRef.current = false;
           }
@@ -3626,6 +3682,7 @@ export default function ReservationPage() {
     setOptionCardOccurrences,
     // specs/card-option-served-persons.md §3.2 — « Personnes servies » on a per-person card option.
     setOptionCardPersons,
+    setOptionTypedCount,
     // Hourly-scheduled resource sessions (specs/resource-hourly-scheduling.md §3.2).
     setResourceSessions,
     // finance

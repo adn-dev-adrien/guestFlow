@@ -28,6 +28,7 @@ const { buildAuditSnapshotFromPayload, computeAuditChanges } = require('../utils
 const { suggestBedDistribution } = require('../utils/bedDistribution');
 const { computePlatformCommission } = require('../utils/platformCommission');
 const { checkGuestCapacity } = require('../utils/capacity');
+const { partyOf, nightsOf, typedCountAlerts, typedCountsErrorPayload } = require('../utils/typedCounts');
 const { clearContribsOnUnflip } = require('../utils/forceItemContribsCapture');
 const { recordStayPayment, defaultDeps: stayPaymentDeps } = require('../utils/stayPaymentRecorder');
 const paymentProviders = require('../utils/paymentProviders');
@@ -258,6 +259,19 @@ function reservationNumberOverrideError(value, exceptId) {
 
 // specs/tariff-recipes/spec.md §3.4 rule 20bis — the maximum stay, mirror of MIN_NIGHTS: same
 // 409-with-code + force-override contract, same iCal exemption.
+// specs/non-card-option-served-persons.md rules 20-23 — which typed counts no longer match the party
+// or the stay being saved. `stored` is the row they were typed against, absent on a fresh fiche.
+function alertsForQuote(quote, body, requestLines, stored) {
+  return typedCountAlerts({
+    quoteLines: quote.optionLines,
+    requestLines,
+    persons: partyOf(body),
+    nights: Number(quote.nights) || 0,
+    storedPersons: stored ? partyOf(stored) : null,
+    storedNights: stored ? nightsOf(stored) : null,
+  });
+}
+
 function maxNightsErrorPayload(quote) {
   return {
     error: `Cette réservation comporte ${quote.nights} nuit(s), au-delà du maximum autorisé (${quote.requiredMaxNights}).`,
@@ -1227,6 +1241,10 @@ async function calculatePrice(req, res) {
   // call out and warms the cache the save then reads, so the fiche announces what the save will bill.
   quote = await quotePostProcessors.applyLive({ engineInput, quote, calculate: calculateReservationQuote });
   if (quote.error) return res.status(quote.status || 400).json({ error: quote.error });
+  quote.typedCountAlerts = alertsForQuote(
+    quote, req.body, req.body.selectedOptions,
+    reservationId > 0 || devisId > 0 ? model.getRow(reservationId > 0 ? reservationId : devisId) : null,
+  );
   // specs/defer-arrival-complement-to-checkout.md §3.2 rule 7bis — the merged « complément de fin de
   // séjour » block, rebuilt from THIS quote so the card follows every edit live instead of showing
   // the last save. Payment flags and the deferral marker come from the stored row: the fiche's
@@ -1367,7 +1385,7 @@ function createStay(req, res) {
   const {
     propertyId, clientId, startDate, endDate, adults, children, teens, babies,
     singleBeds, doubleBeds, babyBeds, checkInTime, checkOutTime,
-    forceMinNights, forceMaxNights, forceCapacity, forceChangeover,
+    forceMinNights, forceMaxNights, forceCapacity, forceChangeover, forceTypedCounts,
     options: rawReservationOptions, customOptions: reservationCustomOptions, resources: reservationResources,
   } = req.body;
 
@@ -1481,6 +1499,10 @@ function createStay(req, res) {
   }
   if (quote.changeoverBreached && !forceChangeover) {
     return res.status(409).json(changeoverErrorPayload(quote));
+  }
+  if (!forceTypedCounts) {
+    const typedAlerts = alertsForQuote(quote, req.body, rawReservationOptions, null);
+    if (typedAlerts.length > 0) return res.status(409).json(typedCountsErrorPayload(typedAlerts));
   }
 
   // specs/bed-config-in-linen-card.md §3 rules 7 and 12 — single/double bed counts are only meaningful
@@ -1858,7 +1880,7 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
   const {
     propertyId, clientId, startDate, endDate, adults, children, teens, babies,
     singleBeds, doubleBeds, babyBeds, checkInTime, checkOutTime,
-    forceMinNights, forceMaxNights, forceCapacity, forceChangeover, refreshPricingToCurrent,
+    forceMinNights, forceMaxNights, forceCapacity, forceChangeover, forceTypedCounts, refreshPricingToCurrent,
     options: rawUpdateOptions, customOptions: reservationCustomOptions, resources: reservationResources,
   } = req.body;
 
@@ -2125,6 +2147,10 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
     const overpaid = overpaymentIntroducedBy(id, quote, windowEngineInputs);
     if (overpaid) return res.status(409).json(overpaid);
   }
+  if (!forceTypedCounts && !pastReservationLocked) {
+    const typedAlerts = alertsForQuote(quote, req.body, rawUpdateOptions, model.getRow(id));
+    if (typedAlerts.length > 0) return res.status(409).json(typedCountsErrorPayload(typedAlerts));
+  }
 
   const nightBlocks = getNightBlocksFromTimes(checkInTime, checkOutTime);
 
@@ -2301,6 +2327,11 @@ const PAID_DATE_FIELDS = [
   ['cautionReceived', 'cautionReceivedDate'],
   ['cautionReturned', 'cautionReturnedDate'],
 ];
+const PAID_CASH_FIELDS = { complementPaid: 'complementPaidCash', endOfStayComplementPaid: 'endOfStayComplementPaidCash' };
+const PAYMENT_FLAG_FIELDS = [
+  ...PAID_DATE_FIELDS.map(([flag]) => flag),
+  'complementPaidCash', 'endOfStayComplementPaidCash',
+];
 
 /**
  * specs/reservation-payment-ledger.md — the guards of a payment mark:
@@ -2311,17 +2342,47 @@ const PAID_DATE_FIELDS = [
  * Returns `{ status, body }` or null.
  */
 function paymentMarkRefusal(row, body, today) {
+  // Rule 66 — a payment flag is true / false / 1 / 0: `Boolean("false")` booked money that never came.
+  // The accepted shapes are normalised to booleans, so `1` marks exactly what `true` marks.
+  const flagRefusal = (holder, field) => {
+    if (!holder || typeof holder !== 'object' || holder[field] === undefined) return null;
+    const value = holder[field];
+    if (value !== true && value !== false && value !== 1 && value !== 0) {
+      return { status: 400, body: { error: 'Valeur invalide.', code: 'INVALID_PAYMENT_FLAG', field } };
+    }
+    holder[field] = value === true || value === 1;
+    return null;
+  };
+  for (const field of PAYMENT_FLAG_FIELDS) {
+    const refusal = flagRefusal(body, field);
+    if (refusal) return refusal;
+  }
+  for (const holder of [body.adjustMidStayNote, body.settleMidStayNote]) {
+    const refusal = flagRefusal(holder, 'cash');
+    if (refusal) return refusal;
+  }
   // specs/direct-installments.md rule 35 — a stay with a plan is collected installment by installment.
   const hasPlan = Number(row.installmentsTarget || 0) > 0;
-  if (hasPlan && (body.depositPaid === true || body.depositPaid === 1 || body.balancePaid === true || body.balancePaid === 1)) {
+  if (hasPlan && (body.depositPaid === true || body.balancePaid === true)) {
     return { status: 409, body: { error: 'Un échéancier remplace l’acompte et le solde : marquer les échéances.', code: 'INSTALLMENTS_IN_PLACE' } };
   }
   for (const [flagField, dateField] of PAID_DATE_FIELDS) {
-    if (!body[flagField] || body[dateField] === undefined || body[dateField] === null || body[dateField] === '') continue;
-    // Rule 13 — a mark sent back with the date the row already stores is not re-judged.
-    if (Number(row[flagField] || 0) === 1 && String(row[dateField] || '').slice(0, 10) === String(body[dateField]).slice(0, 10)) continue;
+    if (body[dateField] === undefined || body[dateField] === null || body[dateField] === '') continue;
+    // Rule 66 — a date rides its mark: sent with an unticked one, it is dropped, so it can never be written.
+    const cashField = PAID_CASH_FIELDS[flagField];
+    if (body[flagField] !== true && !(cashField && body[cashField] === true)) { delete body[dateField]; continue; }
+    if (typeof body[dateField] !== 'string') {
+      return { status: 400, body: { error: 'Date invalide.', code: 'INVALID_PAYMENT_DATE', field: dateField } };
+    }
+    // Rule 13 — a mark sent back with the date the row already stores is not re-judged; the stored value is kept.
+    if (Number(row[flagField] || 0) === 1 && String(row[dateField] || '').slice(0, 10) === body[dateField].slice(0, 10)) {
+      body[dateField] = row[dateField];
+      continue;
+    }
     const checked = validateCollectionDate(body[dateField], { today, invalidReason: 'Date invalide.' });
     if (!checked.ok) return { status: 400, body: { error: checked.reason, code: 'INVALID_PAYMENT_DATE', field: dateField } };
+    // Rule 66 — what is stored is the day that was judged, never the text sent with it.
+    body[dateField] = checked.date;
   }
   // specs/mid-stay-notes.md — re-dating a settled note obeys the same rule 9 (real day, not in the future,
   // not before today − 5 years); a date kept as stored is not re-judged.
@@ -2333,6 +2394,7 @@ function paymentMarkRefusal(row, body, today) {
     if (!note || note.paidDate !== adjust.paidDate) {
       const checked = validateCollectionDate(adjust.paidDate, { today, invalidReason: 'Date invalide.' });
       if (!checked.ok) return { status: 400, body: { error: checked.reason, code: 'INVALID_PAYMENT_DATE', field: 'paidDate' } };
+      adjust.paidDate = checked.date;
     }
   }
   // Rule 32 — a bucket with nothing to collect is never marked: a converted devis carried a 0 € acompte
@@ -2635,7 +2697,8 @@ function updatePayment(req, res) {
     }
   }
   if (cautionReturned !== undefined) {
-    const date = cautionReturnedDate || (cautionReturned ? localTodayIso() : null);
+    // Rule 66 — a return date is written only with the return itself (rule 14: never returned, never dated).
+    const date = cautionReturned ? (cautionReturnedDate || localTodayIso()) : null;
     model.updatePaymentField('UPDATE reservations SET cautionReturned = ?, cautionReturnedDate = ?, updatedAt = datetime(\'now\') WHERE id = ?', cautionReturned ? 1 : 0, date, id);
   }
   if (checkInReady !== undefined) {
