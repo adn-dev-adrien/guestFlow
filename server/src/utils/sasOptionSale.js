@@ -8,20 +8,19 @@
  *
  *   - card option (`showsPlanningCard`): `quantity = occurrences`, `billedUnits = occurrences ×
  *     persons` when the option is per-person ([pricing.js](pricing.js) `showsPlanningCard` branch);
- *   - anything else: the operator picks the BILLED units (« 3 repas »), exactly what the fiche's
- *     « Qté » field shows, and `quantity = units / multiplier` is the base the engine re-derives them
- *     from — so a later fiche save recomputes the same figure instead of drifting.
+ *   - per person (and per person per night): the operator picks how many people are served, stored in
+ *     `cardPersons` with `quantity = 1` (specs/non-card-option-served-persons.md rule 12);
+ *   - per night: the operator picks the nights, stored in `cardNights` with `quantity = 1` (rule 19);
+ *   - anything else: the operator picks the units, and `quantity` is that number.
  *
  * Pure — no DB access. Option rows come in with their EFFECTIVE unit price for the property
  * (per-property override already applied).
  */
 
-const { getTypeMultiplier, resolveServedPersons } = require('./pricing');
+const { getTypeMultiplier, resolveServedPersons, resolveNonCardUnits } = require('./pricing');
 const { buildCandidateGrid, normalizeOccurrences } = require('./cardOccurrences');
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
-// Same 4-decimal base quantity as the fiche's `toBaseQuantity` — the engine multiplies it back.
-const round4 = (n) => Math.round((Number(n) || 0) * 10000) / 10000;
 
 // The engine's head count: babies never count (pricing.js).
 function billablePersons(reservation) {
@@ -83,12 +82,40 @@ function priceOptionSale(option, {
     };
   }
 
+  const stayNights = Math.max(0, Number(nights) || 0);
+  const perNight = priceType === 'per_night';
+  if (isPerPerson(option) || perNight) {
+    if (perNight && !(Number(units) > 0)) return null;
+    if (!perNight && !(head > 0)) return null;
+    const typed = resolveNonCardUnits({
+      priceType,
+      quantity: 1,
+      persons: head,
+      nights: stayNights,
+      cardPersons: servedPersons,
+      cardNights: perNight ? units : null,
+      maxGuests: maxPersons,
+    });
+    if (!(typed.billedUnits > 0)) return null;
+    return {
+      optionId: Number(option.id),
+      quantity: 1,
+      unitPrice: price,
+      billedUnits: typed.billedUnits,
+      priceType,
+      totalPrice: round2(price * typed.billedUnits),
+      cardOccurrences: null,
+      cardPersons: typed.cardPersons,
+      cardNights: typed.cardNights,
+      servedPersons: typed.servedPersons != null ? typed.servedPersons : null,
+    };
+  }
+
   const billedUnits = round2(units);
   if (!(billedUnits > 0)) return null;
-  const multiplier = getTypeMultiplier(priceType, head, Math.max(0, Number(nights) || 0)) || 1;
   return {
     optionId: Number(option.id),
-    quantity: round4(billedUnits / multiplier),
+    quantity: billedUnits,
     unitPrice: price,
     billedUnits,
     priceType,
@@ -109,7 +136,8 @@ function buildOptionOffer(option, { unitPrice, persons, nights, stay, sold, maxP
   const priceType = option.priceType || 'per_stay';
   const head = Math.max(0, Number(persons) || 0);
   const card = isCardOption(option);
-  const multiplier = getTypeMultiplier(priceType, head, Math.max(0, Number(nights) || 0)) || 1;
+  const stayNights = Math.max(0, Number(nights) || 0);
+  const multiplier = getTypeMultiplier(priceType, head, stayNights) || 1;
   return {
     optionId: Number(option.id),
     title: option.title || 'Prestation',
@@ -127,7 +155,9 @@ function buildOptionOffer(option, { unitPrice, persons, nights, stay, sold, maxP
     // property's capacity so a friend joining for dinner can still be served.
     defaultPersons: head,
     maxPersons: Math.max(head, Number(maxPersons) > 0 ? Math.floor(Number(maxPersons)) : 0),
-    selectedPersons: (card && sold && Number(sold.cardPersons) > 0) ? Math.floor(Number(sold.cardPersons)) : head,
+    selectedPersons: (sold && Number(sold.cardPersons) > 0) ? Math.floor(Number(sold.cardPersons)) : head,
+    // Billed units of one person served: the nights on a per-person-per-night option, otherwise 1.
+    unitsPerPerson: priceType === 'per_person_per_night' ? stayNights : 1,
     occurrences: card ? buildCandidateGrid(option, stay || {}) : [],
     selectedOccurrences: card ? normalizeOccurrences(sold?.cardOccurrences) : [],
     selectedUnits: !card && sold ? round2(sold.billedUnits) : 0,
@@ -187,6 +217,7 @@ function buildSasSaleOffers({
       // What this SAS decided about the covers, so a re-open reopens on it rather than on the party
       // (specs/card-option-served-persons.md §3.3 rule 11).
       cardPersons: line.cardPersons != null ? Number(line.cardPersons) : null,
+      cardNights: line.cardNights != null ? Number(line.cardNights) : null,
     });
   }
   const soldByThisSas = (optionId) => {

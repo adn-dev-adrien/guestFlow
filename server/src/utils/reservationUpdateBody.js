@@ -21,6 +21,8 @@ function toUpdateBody(reservation, autoEnabledOptionIds = new Set()) {
     propertyId: r.propertyId,
     clientId: r.clientId,
     reservationNumber: '',
+    // Nobody is in front of a server caller to answer the question (specs/non-card-option-served-persons.md rule 24).
+    forceTypedCounts: true,
     startDate: r.startDate,
     endDate: r.endDate,
     adults: r.adults,
@@ -70,6 +72,7 @@ function toUpdateBody(reservation, autoEnabledOptionIds = new Set()) {
       inComplement: Number(o.inComplement || 0) === 1 ? 1 : 0,
       ...(Array.isArray(o.cardOccurrences) && o.cardOccurrences.length ? { cardOccurrences: o.cardOccurrences } : {}),
       ...(o.cardPersons != null ? { cardPersons: Number(o.cardPersons) } : {}),
+      ...(o.cardNights != null ? { cardNights: Number(o.cardNights) } : {}),
     })),
     customOptions: lines.filter((o) => o.isCustom).map((o, index) => ({
       customKey: String(o.customOptionId || `custom_${index + 1}`),

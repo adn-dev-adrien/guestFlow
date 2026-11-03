@@ -8,6 +8,8 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
+> **Amended 2026-11-03** by [non-card-option-served-persons.md](non-card-option-served-persons.md) rule 12: a non-card per-person sale sends `persons` and stores `cardPersons` with `quantity = 1`; the 4-decimal base is gone.
+
 ---
 
 ## 1. Context

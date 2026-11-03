@@ -77,8 +77,14 @@ function addDays(iso, n) {
  *   reservation — { adults, teens, children, singleBeds, doubleBeds, babyBeds, propertyId }
  *   bedLinenContext — { flagsByOption: Map<optionId, {linenIncludesSingle, ...}>,
  *                       explicitOptionIds: Set<number>, propertyDefaultOption: { ... } | null }
- *   bathroomContext — same shape with towel<Size>PerPerson + explicit qtySum
+ *   bathroomContext — same shape with towel<Size>PerPerson + explicitServedSum (Σ served × quantity)
  */
+function partySize(reservation) {
+  return Math.max(0, Number(reservation.adults || 0))
+    + Math.max(0, Number(reservation.teens || 0))
+    + Math.max(0, Number(reservation.children || 0));
+}
+
 function computeReservationContract({ reservation, bedLinenContext, bathroomContext, bathMatContext }) {
   const out = zeroByType();
 
@@ -94,21 +100,18 @@ function computeReservationContract({ reservation, bedLinenContext, bathroomCont
 
   // --- bathroom-linen contract ---
   let bathOption = null;
-  let qtySum = 0;
+  let served = 0;
   if (bathroomContext.explicitOption) {
     bathOption = bathroomContext.explicitOption;
-    qtySum = Number(bathroomContext.explicitQtySum || 0);
+    served = Number(bathroomContext.explicitServedSum || 0);
   } else if (bathroomContext.propertyDefaultOption) {
     bathOption = bathroomContext.propertyDefaultOption;
-    qtySum = 1.0;
+    served = partySize(reservation);
   }
   if (bathOption) {
-    const persons = Math.max(0, Number(reservation.adults || 0))
-                  + Math.max(0, Number(reservation.teens   || 0))
-                  + Math.max(0, Number(reservation.children|| 0));
-    out.large  = Math.max(0, Math.round(persons * qtySum * Number(bathOption.towelLargePerPerson  || 0)));
-    out.medium = Math.max(0, Math.round(persons * qtySum * Number(bathOption.towelMediumPerPerson || 0)));
-    out.small  = Math.max(0, Math.round(persons * qtySum * Number(bathOption.towelSmallPerPerson  || 0)));
+    out.large  = Math.max(0, Math.round(served * Number(bathOption.towelLargePerPerson  || 0)));
+    out.medium = Math.max(0, Math.round(served * Number(bathOption.towelMediumPerPerson || 0)));
+    out.small  = Math.max(0, Math.round(served * Number(bathOption.towelSmallPerPerson  || 0)));
   }
 
   // --- bath-mat contract (specs/laundry-bath-mat.md §3 rules 5-6) ---
@@ -168,7 +171,11 @@ function buildContractsByReservationId({ reservations, options, reservationOptio
       const o = optionsById.get(Number(ro.optionId));
       return o && Number(o.countsAsBathroomLinen) === 1;
     });
-    const explicitBathQtySum = explicitBathRows.reduce((s, ro) => s + Number(ro.quantity || 0), 0);
+    // People served × quantity (specs/non-card-option-served-persons.md rule 6); NULL = the whole party.
+    const explicitBathServedSum = explicitBathRows.reduce(
+      (s, ro) => s + (ro.cardPersons != null ? Number(ro.cardPersons) : partySize(r)) * Number(ro.quantity || 0),
+      0,
+    );
 
     const explicitBathMatOption = explicitRows
       .map((ro) => optionsById.get(Number(ro.optionId)))
@@ -199,7 +206,7 @@ function buildContractsByReservationId({ reservations, options, reservationOptio
       },
       bathroomContext: {
         explicitOption: explicitBathOption || null,
-        explicitQtySum: explicitBathQtySum,
+        explicitServedSum: explicitBathServedSum,
         propertyDefaultOption: propertyDefaultBathOption,
       },
       bathMatContext: {

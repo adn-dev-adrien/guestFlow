@@ -15,6 +15,7 @@ const db = require('../database');
 const vatRegimeModel = require('./vatRegimeModel');
 const { calculateReservationQuote } = require('../utils/pricing');
 const { stayDatesRefusal, entryDateMessage, stayItemDatesRefusal } = require('../utils/stayDates');
+const { partyOf, nightsOf, typedCountAlerts, typedCountsErrorPayload } = require('../utils/typedCounts');
 const { capitalizeFirst } = require('../utils/textFormatters');
 const { roundMoney } = require('../utils/devisHelpers');
 const { resolveDepositDueDate, resolveBalanceDueDate } = require('../utils/paymentSchedule');
@@ -361,6 +362,7 @@ function createModel(database) {
       // Served persons of a card option (specs/card-option-served-persons.md §3.2 rule 10): same
       // reason as the moments — dropping it would re-bill the whole party on every recompute.
       ...(o.cardPersons !== undefined ? { cardPersons: o.cardPersons } : {}),
+      ...(o.cardNights !== undefined ? { cardNights: o.cardNights } : {}),
       inComplement: routing(o.inComplement),
     })).filter((line) => !isEngineManagedAuto(line.optionId));
     const customOptions = (body.customOptions || []).map((line, index) => ({
@@ -477,7 +479,7 @@ function createModel(database) {
       selectedOptions: catalogLines.map((line) => ({
         optionId: Number(line.optionId), quantity: Number(line.quantity || 1),
         unitPrice: line.unitPrice != null ? Number(line.unitPrice) : undefined,
-        cardOccurrences: line.cardOccurrences, cardPersons: line.cardPersons,
+        cardOccurrences: line.cardOccurrences, cardPersons: line.cardPersons, cardNights: line.cardNights,
         inComplement: line.inComplement,
       })),
       customOptions: lines.filter((line) => line.isCustom).map((line) => ({
@@ -742,6 +744,23 @@ function createModel(database) {
     return Math.max(1, Number(payload.adults || 1) + Number(payload.children || 0) + Number(payload.teens || 0));
   }
 
+  // specs/non-card-option-served-persons.md rule 22 — a typed count that no longer matches the party or
+  // the stay asks the operator, on a devis like on a reservation.
+  function staleTypedCounts(payload, quote, stored) {
+    if (payload.forceTypedCounts) return null;
+    const alerts = typedCountAlerts({
+      quoteLines: quote.optionLines,
+      requestLines: payload.selectedOptions,
+      persons: partyOf(payload),
+      nights: Number(quote.nights) || 0,
+      storedPersons: stored ? partyOf(stored) : null,
+      storedNights: stored ? nightsOf(stored) : null,
+    });
+    if (alerts.length === 0) return null;
+    const { error, code, lines } = typedCountsErrorPayload(alerts);
+    return { error, code, lines, status: 409 };
+  }
+
   // The payload a new devis is priced from: the property's default options merged in, the insurance
   // dropped unless asked for. Shared by `create` and `updateFromPublicRequest`, so a website request
   // updated in place is priced exactly as its creation was (specs/public-request-abuse-and-grouping.md
@@ -801,6 +820,8 @@ function createModel(database) {
 
     const quote = computeQuote(payloadWithDefaults, null, property);
     if (quote.code === insuranceOffer.NOT_OFFERED.code || quote.code === resourceOffer.NOT_OFFERED.code) return { error: quote.error, status: quote.status, code: quote.code };
+    const createAlert = staleTypedCounts(payloadWithDefaults, quote, null);
+    if (createAlert) return createAlert;
     const devisNumber = database.generateDevisNumber();
 
     // §3.1 + §3.2 — bind `createdAt` + `validUntil` explicitly. `validUntil` =
@@ -961,6 +982,8 @@ function createModel(database) {
     // date the save is about to write, never the expired one it replaces: a re-issued devis owes its
     // single payment on its new validity date, on the fiche and on the PDF alike.
     const quote = computeQuote({ ...payloadWithIncluded, validUntil: resolvedValidUntil }, existing, property);
+    const updateAlert = staleTypedCounts(payloadWithIncluded, quote, existing);
+    if (updateAlert) return updateAlert;
     if (quote.code === insuranceOffer.NOT_OFFERED.code || quote.code === resourceOffer.NOT_OFFERED.code) return { error: quote.error, status: quote.status, code: quote.code };
     // Capture the audit baseline BEFORE persisting (fixes the former always-empty update history).
     const beforeSnapshot = snapshotFromDb(numId);

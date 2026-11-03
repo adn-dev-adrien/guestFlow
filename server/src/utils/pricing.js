@@ -367,6 +367,47 @@ function resolveServedPersons({ cardPersons, persons, maxGuests } = {}) {
   return { served, stored: served === party ? null : served };
 }
 
+/**
+ * Billed units of a non-card option (specs/non-card-option-served-persons.md rules 2-5 and 19). What
+ * the operator typed is a count of people or of nights and stays that count: it is never derived from
+ * the party or the stay again. NULL follows them. `quantity` remains the base of the other dimensions
+ * (normally 1); a line that drifted before this rule keeps it and reads as what it bills (rule 18).
+ *
+ * @param {{priceType: string, quantity: number, persons: number, nights: number,
+ *          cardPersons?: number|null, cardNights?: number|null, maxGuests?: number}} params
+ * @returns {{billedUnits: number, cardPersons: number|null, cardNights: number|null,
+ *            servedPersons?: number, servedNights?: number}}
+ */
+function resolveNonCardUnits({
+  priceType, quantity, persons, nights, cardPersons, cardNights, maxGuests,
+}) {
+  if (priceType === 'per_person' || priceType === 'per_person_per_night') {
+    const wanted = Number(cardPersons) > 0 ? Math.floor(Number(cardPersons)) : null;
+    const covers = resolveServedPersons({ cardPersons: wanted, persons, maxGuests });
+    return {
+      billedUnits: roundMoney(quantity * covers.served * (priceType === 'per_person' ? 1 : nights)),
+      cardPersons: covers.stored,
+      cardNights: null,
+      servedPersons: roundMoney(quantity * covers.served),
+    };
+  }
+  if (priceType === 'per_night') {
+    const wanted = Number(cardNights) > 0 ? Math.floor(Number(cardNights)) : null;
+    const counted = wanted != null ? wanted : nights;
+    return {
+      billedUnits: roundMoney(quantity * counted),
+      cardPersons: null,
+      cardNights: counted === nights ? null : counted,
+      servedNights: roundMoney(quantity * counted),
+    };
+  }
+  return {
+    billedUnits: roundMoney(quantity * getTypeMultiplier(priceType, persons, nights)),
+    cardPersons: null,
+    cardNights: null,
+  };
+}
+
 function normalizeOptionProgressiveTiers(rawTiers) {
   const parsed = parseJsonArray(rawTiers);
   const byParticipant = new Map();
@@ -1937,11 +1978,22 @@ function calculateReservationQuote({
       // resolve the override (or a later Neat disconnect) must not re-bill it × nights. Fresh
       // Neat-priced lines are stay-wide: billedUnits 1.
       const lockedInsuranceLine = isCancellationInsurance ? reconstructLockedRealTotal(locked, unitBase) : null;
+      const typedUnits = isStayWideYesNo ? null : resolveNonCardUnits({
+        priceType,
+        quantity: effectiveQuantity,
+        persons,
+        nights,
+        cardPersons: selected?.cardPersons,
+        cardNights: selected?.cardNights,
+        maxGuests: property.maxGuests,
+      });
       const targetBilledUnits = lockedInsuranceLine
         ? normalizeBilledUnits(lockedInsuranceLine.billedUnits !== undefined ? lockedInsuranceLine.billedUnits : lockedInsuranceLine.quantity)
         : (neatOverride !== null
           ? 1
-          : roundMoney(effectiveQuantity * getTypeMultiplier(priceType, persons, nights)));
+          : (typedUnits
+            ? typedUnits.billedUnits
+            : roundMoney(effectiveQuantity * getTypeMultiplier(priceType, persons, nights))));
       // Only what a snapshot says was deducted is added back: a row stored without one predates the
       // free units and holds a gross total (rule 56).
       const soldFreeUnits = consumedFreeUnitsFor(optionId);
@@ -1967,6 +2019,12 @@ function calculateReservationQuote({
         freeUnitsAmount: free.freeUnitsAmount,
         chargedUnits: free.chargedUnits,
         priceType,
+        ...(typedUnits ? {
+          cardPersons: typedUnits.cardPersons,
+          cardNights: typedUnits.cardNights,
+          ...(typedUnits.servedPersons !== undefined ? { servedPersons: typedUnits.servedPersons } : {}),
+          ...(typedUnits.servedNights !== undefined ? { servedNights: typedUnits.servedNights } : {}),
+        } : {}),
         ...applyOfferedToLine(free.realTotal, offeredOptionIdSet.has(optionId)),
         ...pickContribsAndForce(selected, locked),
       };
@@ -3153,6 +3211,7 @@ module.exports = {
   getTypeMultiplier,
   computePercentOfStayAmount,
   resolveServedPersons,
+  resolveNonCardUnits,
   effectiveMinNightsForDate,
   getRuleNightBaseForDate,
   matchNightRule,
