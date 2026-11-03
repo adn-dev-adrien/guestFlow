@@ -130,6 +130,15 @@ being on the preload's lists fails the run once the suite executes the read (rul
    form. The 78 compact literals of five other iCal suites (`ical-import-hardening` holds 54), green through
    2028-03-01, are left as they are: rule 7 reads only added lines,
    and rule 9 sets aside the unchanged ones an integration or sync PR carries.
+   **Reading of 2026-11-03 (audit R21-S3, S4).** A clock coherent across `Date` and SQLite's own « now » removes the
+   « mixed clock » noise above, and two kinds of test it was hiding went red. A test that stores `datetime('now')` and
+   compares with the local month misses it in the first hour of a month (`reservation-number-after-cancellation`,
+   `reservation-number-repair-shown-until-checked`): it stores `datetime('now', 'localtime')`. And a row whose
+   `createdAt` falls to the column's default reads the real clock even under a frozen `Date` (`vat-regime-preview`,
+   whose golden fixture freezes `Date` at its own calendar): that row names its `createdAt`. The stays of
+   `devis-price-lock`, `devis-pdf-quote-parity` and `payment-link-quote-parity` (`2030-07-10`) now use `FAR_YEAR`. The rule 6
+   test reads whichever of its files the tree ships, so a removed plugin takes its tests with it
+   ([plugin-removal-resilience.md](plugin-removal-resilience.md) rule 19).
 
 7. **A PR adding a literal date to a test is told so, on the line** (added 2026-10-30, audit R8 M-1, the guard
    audit R7 proposed). `scripts/check-test-dates.mjs --base <ref>` reads only the test lines a PR adds (files of
