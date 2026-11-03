@@ -3,7 +3,7 @@
  * du / au (specs/finance-dashboard-redesign.md rules 1-2). Generic: any page scoped by an exercise
  * (tourist tax, accounting) can reuse it.
  *
- * A custom window whose start is after its end, with a missing date, wider than MAX_CUSTOM_WINDOW_DAYS
+ * A custom window whose start is after its end, with a missing date or one that is not a real day (a 5-digit year), wider than MAX_CUSTOM_WINDOW_DAYS
  * or ending past the date horizon (rule 51), is refused right here with the same message the server
  * gives: the page keeps its previous window until both dates are valid.
  *
@@ -21,7 +21,7 @@ import React, { useEffect, useState } from 'react';
 import { Box, MenuItem, TextField, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
 import { HORIZON_MESSAGE, PAST_HORIZON_MESSAGE } from '../constants/dateHorizon';
 import { dateWindowMessage } from '../utils/dateHorizon';
-import { localIsoToday } from '../utils/isoDay';
+import { isRealIsoDay, localIsoToday } from '../utils/isoDay';
 
 const DEFAULT_LABELS = { fy: 'Exercice', month: 'Mois', custom: 'Personnalisée' };
 export const MAX_CUSTOM_WINDOW_DAYS = 750;
@@ -36,7 +36,7 @@ export const PERIOD_MESSAGES = {
 const DAY_MS = 86400000;
 
 export function customWindowError(from, to, today = localIsoToday()) {
-  if (!from || !to) return PERIOD_MESSAGES.missingDates;
+  if (!isRealIsoDay(from) || !isRealIsoDay(to)) return PERIOD_MESSAGES.missingDates;
   if (from > to) return PERIOD_MESSAGES.reversed;
   if ((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / DAY_MS > MAX_CUSTOM_WINDOW_DAYS) return PERIOD_MESSAGES.tooWide;
   return dateWindowMessage(from, today) || dateWindowMessage(to, today);

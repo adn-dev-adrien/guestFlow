@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import api from '../api';
 import { dateWindowMessage } from '../utils/dateHorizon';
-import { localIsoToday } from '../utils/isoDay';
+import { isRealIsoDay, localIsoToday } from '../utils/isoDay';
 
 /**
  * useWelcomePack — the option lines the rate already covers for a brand-new own-channel reservation
@@ -12,9 +12,11 @@ import { localIsoToday } from '../utils/isoDay';
  * context changes (platform, property, dates, guests) and returns `[]` for every non-eligible case,
  * including a failed request — a pack that cannot be fetched must never block the form (rule: soft
  * fail). `enabled` is what keeps it off saved reservations, devis and iCal-imported fiches (rules
- * 4-5): when false the hook fires no request at all. Nor is a date outside the window of
- * specs/reservations-backend-mvc.md rule 13 (today ± 5 years) ever sent: the fiche refuses it anyway. `today` is the
- * server's day the fiche knows, the device's otherwise.
+ * 4-5): when false the hook fires no request at all. Nor is a date that is typed but not a real day, or
+ * outside the window of specs/reservations-backend-mvc.md rule 13, ever sent: the fiche refuses it anyway.
+ * Missing, reversed or too-long dates are still asked, so the per-stay lines apply before the dates are
+ * sound (specs/welcome-pack-auto-options.md, edge cases). `today` is the server's day the fiche knows, the
+ * device's otherwise.
  */
 export default function useWelcomePack({ enabled = false, propertyId, today = localIsoToday(), ...context } = {}) {
   const [lines, setLines] = useState([]);
@@ -23,7 +25,8 @@ export default function useWelcomePack({ enabled = false, propertyId, today = lo
   } = context;
 
   useEffect(() => {
-    if (!enabled || !propertyId || dateWindowMessage(startDate, today) || dateWindowMessage(endDate, today)) {
+    const unsendable = [startDate, endDate].some((d) => d && (!isRealIsoDay(d) || dateWindowMessage(d, today)));
+    if (!enabled || !propertyId || unsendable) {
       setLines((prev) => (prev.length === 0 ? prev : []));
       return undefined;
     }

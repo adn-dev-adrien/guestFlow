@@ -114,6 +114,17 @@ rules — just a clean, testable structure that future slices (and Bloc 5) build
    not on opening from URL dates. `utils/stayDates.stayDatesMessage` gives the one hint (order, then
    length) and `isQuotableStay` the quote gate; the message and the 366 live in `constants/stayDates.js`,
    mirroring the server.
+   *Reading of 2026-11-03 (audit R20-C2).* A date that is not a real `YYYY-MM-DD` day — a 5- or 6-digit year
+   (Chromium's year segment takes up to six digits), 30 February — shows the server's own « Date de séjour
+   invalide. » in the same place, before the order check, and « Enregistrer » refuses with it
+   (`utils/isoDay.isRealIsoDay`, the UTC round-trip of the server's `isRealIsoDay`). `isQuotableStay` is
+   then false, so no quote, occupied dates or resources' availability is asked for it: they used to answer
+   400. `hooks/useWelcomePack` skips only a *present* date that is not a real day or lies outside the window;
+   missing, reversed or too-long dates are still asked, so the pack's per-stay lines apply before the dates
+   are sound (specs/welcome-pack-auto-options.md edge cases; review of PR #940, REG-1). A year still being typed, padded
+   to four digits (rule 14), is a real day and keeps the order / length / window messages; a stored date is
+   always a real day, so the stored-row exemption of rule 13 is unchanged. Tests: client
+   `utils/stayDates.real-day`, `pages/ReservationPage.real-day`, `hooks/useWelcomePack.real-day`.
 13. **Added 2026-11-02 (Adrien's decision) — no date is entered past the horizon.** No date may be entered
    more than `MAX_HORIZON_YEARS` = 5 years ahead: the last allowed day is today (the Europe/Paris day,
    `utils/localDate.todayIso`) plus 5 years, a 29 February landing on the 28th
@@ -212,6 +223,10 @@ rules — just a clean, testable structure that future slices (and Bloc 5) build
    `utils/dateHorizon.server-today`, `hooks/useWelcomePack.server-today`,
    `pages/EstablishmentClosuresPage.server-today`, `pages/ReservationPage.server-today`,
    `pages/FinancePage.server-today`, `components/PeriodSelector.server-today`.
+   *Reading of 2026-11-03 (audit R20-C3).* The fiche's reads follow that day as well as the dates: the
+   resources' availability, the occupied dates and the live quote re-run when `windowToday` changes, so a
+   date the device's day held back is asked as soon as the server's day accepts it (the availability and
+   the quote stay de-duplicated by their key and signature). Test: client `pages/ReservationPage.server-day-arrives`.
 14. **Added 2026-11-02 (merge of PR #936 with #937) — a year typed digit by digit never freezes the fiche.**
    Since a date can be typed on the keyboard again (`specs/datepicker-close-on-select.md`, reading of
    2026-11-02), Chromium hands the fiche each digit of a year typed over a complete date: 0002, 0020, 0203,
@@ -283,6 +298,10 @@ window message. The fiche, the closures dialog and `FinancePage` read `hooks/use
 *2026-11-02 (rule 14):* `utils/reservationConflicts.js` — `findFirstOccupiedDateInRange` scans the occupied
 days instead of the range's nights; its date formatting pads the year to four digits.
 
+*2026-11-03 (audit R20):* `utils/isoDay.js` gains `isRealIsoDay` (generic: `stayDatesMessage` and
+`PeriodSelector.customWindowError` read it), `constants/stayDates.js` `STAY_DATE_INVALID_MESSAGE`;
+`hooks/useWelcomePack` skips a present date that is not a real day or is outside the window (not `isQuotableStay`: missing, reversed and too-long dates are still asked); the three `ReservationPage` read effects list `windowToday`.
+
 ### 4.3 API contract
 
 **Unchanged.** Same endpoints, bodies, responses, and status codes as today. This slice must be a no-op
@@ -340,6 +359,10 @@ prove behavior is preserved.)
       Added after the second review (V2): `pages/ReservationPage.server-today` (1),
       `pages/FinancePage.server-today` (1), `components/PeriodSelector.server-today` (1) — the fiche, a finance
       link and the period selector's `today` prop refuse a date the device would accept but the server would not.
+- [x] Client `utils/stayDates.real-day` (7), `pages/ReservationPage.real-day` (2), `hooks/useWelcomePack.real-day` (8)
+      (2026-11-03, audit R20-C2) — rule 12: a date not a real day says « Date de séjour invalide. » and is asked
+      nothing (the welcome pack still asks missing, reversed and too-long dates, REG-1); a padded half-typed year and a stored row keep their behaviour. `pages/ReservationPage.server-day-arrives`
+      (1) (R20-C3) — rule 13: the server's day lifting a refusal asks the fiche's reads.
 - [ ] `tests/occupancy.unit.test.js` — `getNightBlocksFromTimes` thresholds (checkout ≥17h blocks next
       night, checkin ≤10h blocks previous night); `buildOccupiedDatesFromReservations`;
       `validateAvailability` accepts a free range and rejects overlaps incl. night-block adjacency.
