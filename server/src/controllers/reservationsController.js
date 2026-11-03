@@ -100,6 +100,7 @@ const {
   midStayExtrasWindow, arrivalLineFloors, arrivalExtrasViolations, extrasContentChanged,
 } = require('../utils/midStayExtrasWindow');
 const { matchStoredCustomLines } = require('../utils/storedCustomLines');
+const { withStoredLineContribs } = require('../utils/storedLineContribs');
 const { buildLiveCheckoutComplement } = require('../utils/checkoutComplement');
 const { createResultRecorder } = require('../utils/resultRecorder');
 const { saveWithDraftClient } = require('../utils/draftClient');
@@ -2043,6 +2044,8 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
   // The insurance price a plugin sets (specs/plugins-phase-3b-neat.md rule 2): same as the preview.
   quote = quotePostProcessors.applySync({ engineInput, quote, calculate: calculateReservationQuote });
   if (quote.error) return res.status(quote.status || 400).json({ error: quote.error });
+  // specs/reservation-save-keeps-pricing.md rule 20 — priced without the snapshot, the lines still keep what they collected.
+  if (existingReservation && !canReuseLockedPricing) quote = withStoredLineContribs(quote, model.getPricingSnapshot(id));
 
   // specs/reservation-save-keeps-pricing.md rule 1 — a save that moved no pricing input keeps the stay as
   // it was priced: money, lines, nights, snapshots and history stay put.

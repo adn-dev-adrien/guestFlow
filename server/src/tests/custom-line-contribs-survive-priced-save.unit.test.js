@@ -243,6 +243,22 @@ test('rule 19 — the mid-stay window of a started fiche keeps the contrib of a 
   assert.equal(csvOfToday(), before);
 });
 
+test('rule 19 — the window pins each line to its own stored row, whatever the payload says and whichever line comes first', () => {
+  const id = startedStay({ depositDisabled: 1, customOptions: [free('Payée', 100), free('Forcée', 30, 1)] });
+  paySolde(id);
+
+  save(id, (body) => {
+    for (const line of body.customOptions) line.inComplement = line.description === 'Forcée' ? 0 : 1;
+    body.customOptions.push(free('Payée', 15, null));
+    body.customOptions.reverse();
+  });
+
+  const byAmount = Object.fromEntries(customs(id).map((line) => [line.amount, line]));
+  assert.equal(byAmount[30].inComplement, 1, 'a forced line stays forced');
+  assert.deepEqual([byAmount[100].inComplement, byAmount[100].s], [0, 100], 'the paid row keeps its routing and its contrib');
+  assert.equal(byAmount[15].s, null, 'the new line sharing its text takes nothing');
+});
+
 test('rule 19 — the admin unlock of a started fiche keeps it too', () => {
   const id = startedStay({ depositDisabled: 1, customOptions: [free('Ligne libre', 100)] });
   paySolde(id);
