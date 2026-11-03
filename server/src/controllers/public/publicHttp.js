@@ -54,4 +54,16 @@ function failT(res, req, status, code, messageKey, details, ...args) {
   return fail(res, status, code, errorMessage(langOf(req), messageKey, ...args), details);
 }
 
-module.exports = { ok, fail, failT, langOf, langStated };
+// Express routes ignore the case, so /PUBLIC/v1 is the same tree.
+const PUBLIC_TREE = /^\/public\//i;
+
+/**
+ * The answer to a body the parser refused (utils/bodyParserRefusal): the public tree keeps its envelope
+ * (specs/public-api.md rule 22), the internal API its flat shape (specs/express-5-upgrade.md rule 7).
+ */
+function answerBodyRefusal(req, res, refusal) {
+  if (PUBLIC_TREE.test(req.originalUrl)) return failT(res, req, refusal.status, refusal.body.code, refusal.messageKey);
+  return res.status(refusal.status).json(refusal.body);
+}
+
+module.exports = { ok, fail, failT, langOf, langStated, answerBodyRefusal };

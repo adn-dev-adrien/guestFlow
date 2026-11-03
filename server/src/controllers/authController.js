@@ -84,7 +84,9 @@ function createAuthController(users, {
 
   function login(req, res, next) {
     const { email, password } = req.body || {};
-    if (!email || !password) return res.status(400).json({ error: 'MISSING_CREDENTIALS' });
+    if (!email || !password || typeof email !== 'string' || typeof password !== 'string') {
+      return res.status(400).json({ error: 'MISSING_CREDENTIALS' });
+    }
     const user = users.verifyCredentials(email, password);
     if (!user) return res.status(401).json({ error: 'INVALID_CREDENTIALS' });
     // Regenerate the session id on login so a session id planted in the victim's browser BEFORE

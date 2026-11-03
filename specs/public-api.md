@@ -208,6 +208,26 @@ or **[CREATE]** (genuinely new logic).
     `reason: 'phoneInvalid'` (« Numéro de téléphone invalide. » / « Invalid phone number. »); a phone with a line
     break used to be stored and printed on its own line of the owner's e-mail. `guest.email` is one address (no
     comma, semicolon, angle bracket). Covered by `plugins/website-booking/tests/public-request-line-injection.unit.test.js`.
+22. **A value of the wrong JSON type is a refusal, never a crash nor a coercion** (audit R21, 2026-11-03; closes R14 L-1).
+    Nothing the site really sends moves: strings and numbers read as before, nothing else is narrowed.
+    - A count, an id or a line quantity (`propertyId`, `adults`, `children`, `teens`, `babies`, `babyBeds`,
+      `options[].optionId`, `options[].quantity`, `resources[].resourceId`, `resources[].quantity`) is a number or a
+      string; `checkInTime` / `checkOutTime` are strings. Anything else → `422 VALIDATION_FAILED` on that field.
+    - A `guest` that is not an object is an empty guest, and a `guest` field that is not a string reads as empty: `422`
+      with `reason: 'required'`. `true`, `1.5`, `[1]` or `{}` used to create a client named « True », « 1.5 », « 1 » or
+      « [object Object] ».
+    - A `message` that is neither a string nor absent → `422` on `message`.
+    - `termsVersion` is an integer or a string of digits; anything else is `TERMS_OUTDATED`, as an unknown version is.
+      `true` and `[1]` used to read as version 1 and write an acceptance.
+    - A `_hp` that is a non-empty string or any other truthy value is the honeypot's silent `201`, with nothing written.
+    - A language that is not a string reads as French, not stated (`langOf` never throws); a `returnPath` that is not a
+      string gives no redirect; a request without a parsed body (non-JSON content type) is refused like an empty one.
+    - A body the JSON parser refuses answers the public envelope under `/public/`: `{ error: { code, message } }`, the
+      codes of specs/express-5-upgrade.md rule 7, the message in the caller's language (`?lang=`). The parser runs for
+      the whole application, ahead of any route: this refusal still comes before the key check, and says nothing about
+      the key. `{"toString":1}` used to throw from `Number()`, `String()` or `RegExp.test()`: a `500` and a stack in the
+      log per call, reachable by any visitor through the WordPress proxy.
+    Covered by `plugins/website-booking/tests/public-input-shape.unit.test.js` and `tests/public-input-shape-core.unit.test.js`.
 
 **Edge cases:**
 
@@ -248,6 +268,8 @@ or **[CREATE]** (genuinely new logic).
 | `utils/` | `utils/publicInputValidation.js` | C | Pure validators for public query/body params (dates, counts, ids, email, phone). Unit-testable. |
 | `utils/` | `pricing.js` | REUSE | **Untouched.** Called by `publicQuoteController` and indirectly by the devis create path. |
 | `plugins/website-booking/` | `nextAvailability.js` | C (2026-10-19) | Pure `findNextAvailableDate` + `stayRulesPredicate` (the engine's min/max stay and changeover days, through SDK 1.3.0 core modules `pricing` and `changeover`) — the availability payload's `nextAvailableDate` (§4.3). Test: `public-next-availability.unit.test.js`. |
+| `plugins/website-booking/` | `publicInputValidation.js`, `controllers/publicBookingRequestController.js` | T (2026-11-03) | Rule 22: non-scalar counts and times refused, guest and message fields read as strings only, `_hp` and `termsVersion` judged by type. |
+| `controllers/public/` | `publicHttp.js` (`answerBodyRefusal`), `publicPaymentController.js`; `utils/bodyParserRefusal.js`, `utils/publicLabels.js`, `index.js` | T (2026-11-03) | Rule 22: the parser's refusal in the public envelope, language and return path read as strings only. |
 | `plugins/website-booking/` | `publicInputValidation.js` + `utils/publicLabels.js` | T (2026-10-19) | Guest errors carry `reason`; `withFieldMessages` adds `labels(lang).fieldErrors` as `message` (§4.3 booking-requests). Test: `public-guest-field-errors.unit.test.js`. |
 | `plugins/website-booking/` | `publicSelectableOptions.js` | C (2026-10-27) | The options a visitor may pick (applicable, not an offered default, client-visible, price ≥ 0): the catalogue lists them, the quote and the booking request accept only them (rule 14). |
 | `plugins/website-booking/` | `publicProjections.js`, `publicArrivalWindows.js`, controllers | T (2026-10-27) | `stayRuleBreach` + the quote's `maxNights`/`maxNightsBreached`/`changeoverBreached`/`stayRefusal`, `hasUnpricedNights`; arrival windows run `stayRulesPredicate`; the booking request refuses `MAX_NIGHTS`/`CHANGEOVER`, never edits an existing client and notes the typed identity (rules 12-13); duplicate lines refused by `validateStayInput` (rule 16). |
@@ -646,6 +668,7 @@ follow-up.
       (`customPrice`/`discountPercent`/`platform`/`clientGrossAmount`/`depositAmount`/`offeredOptionIds`/
       per-option `offered`/`free`/`unitPrice`/`price`/`selectedResources`/…) is dropped before the
       engine; options collapse to `{optionId, quantity}`. **(12 tests)**
+- [x] `plugins/website-booking/tests/public-input-shape.unit.test.js` and `tests/public-input-shape-core.unit.test.js` — rule 22. **(10 + 5 tests)**
 - [x] `tests/public-catalog-readonly.unit.test.js` — `GET /public/v1/properties/:id` reads through the
       side-effect-free `getByIdPublicReadOnly` and **never** the seeding `getByIdWithDetails`, proving a
       public GET performs zero writes; 404 path also writes nothing. **(2 tests)**
