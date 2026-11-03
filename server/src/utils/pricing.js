@@ -690,6 +690,21 @@ function getRuleNightBaseForDate(rules, dateStr) {
   };
 }
 
+// specs/platform-added-guests-tourist-tax.md rules 2, 4 — the tax of the current party against the tax
+// of the party the platform billed, both from the engine on the same base: the platform's own figure
+// stays out of it, so a platform rate that differs from ours never bills an unchanged party.
+function resolveAddedGuestsTouristTax({ adults, occupants, paidAdults, paidOccupants, nights, ...taxInputs }) {
+  const taxOf = (adultsCount, occupantsCount) => computeTouristTaxBreakdown({
+    ...taxInputs, nights, adults: adultsCount, occupants: occupantsCount,
+  }).touristTaxTotal;
+  const paidTotal = taxOf(paidAdults, paidOccupants);
+  const added = Math.max(0, roundMoney(taxOf(adults, occupants) - paidTotal));
+  // The unit amount of a percentage property is rounded to the cent: a gap that small is not a sale.
+  const isRoundingNoise = String(taxInputs.touristTaxMode || '').startsWith('percentage')
+    && added <= roundMoney(0.01 * Number(nights || 0) * Number(adults || 0));
+  return { paidTotal, added: isRoundingNoise ? 0 : added };
+}
+
 // specs/tariff-recipes/spec.md §3.6 rules 37-38 — the extra-guest supplement, in either unit.
 //   per_stay  (legacy, every existing property): flat `count × unitPrice`, byte-for-byte the
 //             pre-recipe behaviour. This branch is the regression guarantee.
@@ -1374,6 +1389,10 @@ function calculateReservationQuote({
   // reservation it PINS the total séjour: finalPrice = platformGrossAmount, the accommodation absorbing
   // the remainder (brut − options − resources − extra-guest). Empty / direct → normal pricing.
   platformGrossAmount: platformGrossAmountInput,
+  // specs/platform-added-guests-tourist-tax.md rules 1, 7 — the adults the platform billed (server-owned)
+  // and the added tax as last stored, which a collected complement or a frozen total already contains.
+  platformPaidAdults,
+  storedTouristTaxAddedGuests,
   // specs/platform-extra-guest-complement.md — the persons the platform billed (server-owned).
   platformPaidGuests = null,
   // specs/platform-tourist-tax-out-of-the-commission.md — the tourist tax the platform withheld from
@@ -2328,6 +2347,45 @@ function calculateReservationQuote({
       touristTaxBreakdown.touristTaxUnitAmount = Number(frozenTouristTaxRate || 0);
     }
   }
+  // specs/platform-added-guests-tourist-tax.md — on a platform that reverses the tax to us, it reversed
+  // the tax of the party it sold: what the added guests owe is collected in the complement. Reads the
+  // platform's mode, never its name (rule 3). A tax already forced to the complement is whole there.
+  let touristTaxAddedGuestsAmount = 0;
+  if (platformGrossPin != null && collectsFromGuest && isTouristTaxRemittedByOwnerFlag
+    && !touristTaxInComplement && resolvedPlatformPaidGuests != null
+    && platformPaidAdults != null && Number.isFinite(Number(platformPaidAdults))) {
+    const storedAdded = roundMoney(Math.max(0, Number(storedTouristTaxAddedGuests || 0)));
+    const { paidTotal, added } = resolveAddedGuestsTouristTax({
+      touristTaxMode: property.touristTaxMode,
+      touristTaxPerDayPerPerson: property.touristTaxPerDayPerPerson,
+      touristTaxPercentage: property.touristTaxPercentage,
+      touristTaxDepartmentPercentage: property.touristTaxDepartmentPercentage,
+      touristTaxFixedAmount: property.touristTaxFixedAmount,
+      nights,
+      adults: Number(adults || 0),
+      // The live party, even on a frozen stay: only the amount already reversed is pinned (rule 7bis).
+      occupants: Number(adults || 0) + Number(children || 0) + Number(teens || 0),
+      paidAdults: Number(platformPaidAdults),
+      paidOccupants: resolvedPlatformPaidGuests,
+      accommodationAmountTtc: taxBaseAccommodation,
+      accommodationVatRate: vatRate,
+      accommodationAmountHt: freezeTouristTax && frozenTouristTaxBaseHt != null
+        && Number.isFinite(Number(frozenTouristTaxBaseHt))
+        ? Number(frozenTouristTaxBaseHt)
+        : null,
+    });
+    // Rule 7 — collected money stops moving, and with it the tax of a later party.
+    touristTaxAddedGuestsAmount = complementPaid ? storedAdded : added;
+    if (freezeTouristTax) {
+      // Rule 7bis — the frozen total holds the added tax of the last save: take it out before adding
+      // today's, or every save would count it again.
+      touristTaxBreakdown.touristTaxTotal = roundMoney(
+        Math.max(0, roundMoney(Number(frozenTouristTaxTotal || 0)) - storedAdded) + touristTaxAddedGuestsAmount,
+      );
+    } else if (complementPaid) {
+      touristTaxBreakdown.touristTaxTotal = roundMoney(paidTotal + storedAdded);
+    }
+  }
   let touristTaxTotal = touristTaxBreakdown.touristTaxTotal;
   if (isTouristTaxOfferedByPlatform) {
     touristTaxTotal = 0;
@@ -2338,7 +2396,10 @@ function calculateReservationQuote({
   // again as `totalStayPrice`, over-stating the total/balance and producing a « Paiement plateforme »
   // écart equal to the tax (specs/platform-payment-tourist-tax-as-option.md).
   const touristTaxReversedByPlatform = collectsFromGuest && isTouristTaxRemittedByOwnerFlag && touristTaxTotal > 0;
-  const reversedTouristTaxInBrut = (platformGrossPin != null && touristTaxReversedByPlatform) ? touristTaxTotal : 0;
+  // specs/platform-added-guests-tourist-tax.md rule 9 — the added tax was never on the platform's bill.
+  const reversedTouristTaxInBrut = (platformGrossPin != null && touristTaxReversedByPlatform)
+    ? roundMoney(touristTaxTotal - touristTaxAddedGuestsAmount)
+    : 0;
   // « Offered » case (platform collects the tax AND remits it to the commune itself): what the brut
   // contains is now the operator's call, stated in euros (specs/platform-tourist-tax-out-of-the-
   // commission.md rules 3 and 6). `withheldTouristTaxInBrut` empty → the brut is the stay total the
@@ -2436,8 +2497,10 @@ function calculateReservationQuote({
   // below reduces to the former formulas when nothing was sold mid-stay (`midStay* = 0`).
   const complementForcedItemsTotal = roundMoney(Math.max(0, forcedItemsTotal - midStayForced));
   const isTouristTaxForcedToComplement = Boolean(touristTaxInComplement);
-  const taxInPreArrival = (isTouristTaxCollectedOnArrival || isTouristTaxForcedToComplement) ? 0 : touristTaxTotal;
-  const taxInComplement = (isTouristTaxCollectedOnArrival || isTouristTaxForcedToComplement) ? touristTaxTotal : 0;
+  const taxInComplement = (isTouristTaxCollectedOnArrival || isTouristTaxForcedToComplement)
+    ? touristTaxTotal
+    : touristTaxAddedGuestsAmount;
+  const taxInPreArrival = roundMoney(touristTaxTotal - taxInComplement);
   const preArrivalAmount = roundMoney(Math.max(0, finalPrice - forcedItemsTotal - midStayUnforced + taxInPreArrival));
   // specs/tourist-tax-on-solde.md — when there's an acompte, the tourist tax rides entirely on the SOLDE.
   // The acompte is therefore a % of the ACCOMMODATION pre-arrival only (no tax); the balance is the rest of
@@ -2619,7 +2682,8 @@ function calculateReservationQuote({
   let resolvedComplementAmount;
   if (complementPaid) {
     resolvedComplementAmount = roundMoney(complementAmount);
-  } else if (isTouristTaxCollectedOnArrival || isTouristTaxForcedToComplement || complementForcedItemsTotal > 0) {
+  } else if (isTouristTaxCollectedOnArrival || isTouristTaxForcedToComplement || complementForcedItemsTotal > 0
+    || touristTaxAddedGuestsAmount > 0) {
     // Forced contributions are visible from save 1, regardless of payment state.
     resolvedComplementAmount = depositPaid && balancePaid
       ? rawComplement
@@ -2833,6 +2897,9 @@ function calculateReservationQuote({
     // the dedicated PricingSummary caption.
     touristTaxReversedByPlatform,
     touristTaxInComplement: isTouristTaxForcedToComplement,
+    // specs/platform-added-guests-tourist-tax.md §4.3.
+    touristTaxAddedGuestsAmount,
+    platformPaidAdults: platformGrossPin != null && platformPaidAdults != null ? Number(platformPaidAdults) : null,
     forcedItemsTotal,
     // specs/mid-stay-extras-to-end-of-stay-complement.md — what was sold during the stay: the total
     // the engine carved out of the other buckets, and the ready-to-store end-of-stay detail lines.
@@ -2933,6 +3000,7 @@ module.exports.__test = {
   normalizeOptionProgressiveTiers,
   calculateProgressiveParticipantOptionTotal,
   computeTouristTaxBreakdown,
+  resolveAddedGuestsTouristTax,
   calculateReservationQuote,
   isPlatformCollectingTouristTax,
   isTouristTaxRemittedByOwner,

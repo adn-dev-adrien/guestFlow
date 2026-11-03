@@ -37,7 +37,10 @@ function roundCents(value) {
 function computeAccommodationTtc(quote) {
   // Accommodation portion of finalPrice = finalPrice - options - resources (TTC, before tax).
   // optionsTotal already includes the offered=0 customs; resourcesTotal idem.
-  const accommodation = Number(quote.finalPrice || 0) - Number(quote.optionsTotal || 0) - Number(quote.resourcesTotal || 0);
+  // specs/platform-added-guests-tourist-tax.md rule 16 — the added guests' supplement is in finalPrice
+  // but collected with the complement: left here, it made the solde's capture refuse the flip.
+  const accommodation = Number(quote.finalPrice || 0) - Number(quote.optionsTotal || 0) - Number(quote.resourcesTotal || 0)
+    - Number(quote.extraGuestComplementSurcharge || 0);
   return roundCents(Math.max(0, accommodation));
 }
 
@@ -80,7 +83,8 @@ function captureContribsOnFlip({ db, reservation, bucket }) {
   // derived from the engine's `preArrivalAmount`, which already excludes forced items + the
   // complement-routed tax — so the fraction can only be > 0 for non-forced contributors.
   const taxRoutedToComplement = Boolean(quote.touristTaxCollectedOnArrival || quote.touristTaxInComplement);
-  const taxFullTtc = roundCents(quote.touristTaxTotal || 0);
+  // specs/platform-added-guests-tourist-tax.md rule 13 — the added tax rides the complement, not the solde.
+  const taxFullTtc = roundCents(Number(quote.touristTaxTotal || 0) - Number(quote.touristTaxAddedGuestsAmount || 0));
   const accommodationTtc = computeAccommodationTtc(quote);
 
   // ── DEPOSIT capture ─────────────────────────────────────────────────────
@@ -314,7 +318,10 @@ function captureStoredSplit({ db, reservation, bucket }) {
   const amount = roundCents(isDeposit ? reservation.depositAmount : reservation.balanceAmount);
   // Mirrors the export: the balance carries the whole tourist tax (capped by the entry); a tax share an
   // older acompte captured is reclassed onto the acompte and taken off this accommodation by the export.
-  const tax = isDeposit || routedToComplement ? 0 : roundCents(Math.min(Number(reservation.touristTaxTotal || 0), amount));
+  const tax = isDeposit || routedToComplement ? 0 : roundCents(Math.min(
+    Number(reservation.touristTaxTotal || 0) - Number(reservation.touristTaxAddedGuestsAmount || 0),
+    amount,
+  ));
   const reclass = isDeposit || routedToComplement ? 0 : roundCents(reservation.touristTaxAcompteContribTtc);
   // What is left to collect on each pre-arrival line (forced and offered lines are not on the schedule),
   // the accommodation taking the rest — the same pro rata the export's stored-money path uses.
@@ -406,6 +413,7 @@ function captureBucketSplit({ db, reservation, bucket, log = console }) {
 function writeDepositContribs() { /* no-op: 0-eur stays never persist contribs */ }
 
 module.exports = {
+  computeAccommodationTtc,
   captureStoredSplit,
   captureBucketSplit,
   captureContribsOnFlip,

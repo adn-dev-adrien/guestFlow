@@ -27,4 +27,16 @@ function resolvePlatformPaidGuests(stored, next) {
   return countPayingPersons(next);
 }
 
-module.exports = { isBrutPinned, countPayingPersons, resolvePlatformPaidGuests };
+/**
+ * specs/platform-added-guests-tourist-tax.md rule 1 — the adults the platform billed, same lifecycle
+ * as the guests: only adults pay the tourist tax, so a head count is not enough to price it.
+ */
+function resolvePlatformPaidAdults(stored, next) {
+  if (!isBrutPinned(next.platform, next.platformGrossAmount)) return null;
+  if (stored && isBrutPinned(stored.platform, stored.platformGrossAmount) && stored.platformPaidAdults != null) {
+    return Number(stored.platformPaidAdults);
+  }
+  return Number(next.adults || 1) || 1;
+}
+
+module.exports = { isBrutPinned, countPayingPersons, resolvePlatformPaidGuests, resolvePlatformPaidAdults };
