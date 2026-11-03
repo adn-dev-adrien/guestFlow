@@ -4,6 +4,22 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+## [3.20.0] - 2026-11-03
+
+### Summary
+- Options : un nombre de personnes ou de nuits saisi reste ce nombre quand le groupe ou le séjour change, sans virgule.
+- Si ce nombre ne correspond plus, la case passe en rouge et les flèches circulaires appliquent la nouvelle valeur.
+- À l'enregistrement, une fenêtre propose d'annuler ou de forcer, sur les réservations comme sur les devis.
+- À l'installation, les lignes d'options existantes sont converties, sans changer aucun montant.
+- Un nombre déjà à virgule reste tel quel : le ressaisir le corrige.
+
+### Fixed
+- **Decimal option quantities.** A number of people or nights typed on an option stays that number when the party or the stay changes: 3 meals for 4 people no longer become 3.75 at 5 people. A line nobody touched follows the party and the nights.
+- **A typed value that no longer matches is visible.** The field turns red with an alert, circular arrows apply the new value, and saving asks « Annuler » or « Forcer l'enregistrement », on reservations and quotes alike.
+
+### Migration
+- New column `reservation_options.cardNights`. One-shot migration `non_card_served_persons_v1`: non-card lines with a proportional quantity move to a typed count (`cardPersons` / `cardNights`, `quantity = 1`) and no amount changes. Lines that already drifted (non-integer count) stay as they are and are logged at boot.
+
 ## [3.19.0] - 2026-10-30
 
 ### Summary
