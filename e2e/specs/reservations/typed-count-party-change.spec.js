@@ -15,6 +15,8 @@ const optionCard = (page) => page.locator('.MuiCard-root').filter({ hasText: 'Op
 const qty = (page) => optionCard(page).getByLabel('Qté');
 const adults = (page) => page.getByLabel('Adultes');
 const saveButton = (page) => page.getByRole('button', { name: 'Enregistrer', exact: true });
+// Saved: the fiche is clean again, or was left. Reloading any earlier would meet the unsaved-changes guard.
+const settled = (page) => expect(saveButton(page).and(page.locator(':enabled'))).toHaveCount(0, { timeout: 15_000 });
 const savedStay = (page, id) => page.waitForResponse((res) => res.request().method() === 'PUT'
   && res.url().includes(`/api/reservations/${id}`) && res.ok());
 
@@ -42,6 +44,7 @@ test('a typed number survives a party change, turns red, and the save asks', asy
   await expect(optionCard(page).getByText(/Total: 24,00/)).toBeVisible();
 
   await Promise.all([savedStay(page, reservation.id), saveButton(page).click()]);
+  await settled(page);
   await page.goto(`/reservations/${reservation.id}`);
   await expect(qty(page)).toHaveValue('3', { timeout: 15_000 });
   await expect(qty(page)).toHaveAttribute('aria-invalid', 'false');
@@ -80,6 +83,7 @@ test('a typed number survives a party change, turns red, and the save asks', asy
     savedStay(page, reservation.id),
     page.getByRole('dialog').getByRole('button', { name: 'Forcer l\'enregistrement' }).click(),
   ]);
+  await settled(page);
 
   await page.goto(`/reservations/${reservation.id}`);
   await expect(qty(page)).toHaveValue('2', { timeout: 15_000 });
