@@ -287,8 +287,9 @@ Interactive rendering in the [decision summary](../docs/specs/2026-11-03-non-car
 - [x] Alert: party change turns the field red, card option included; save opens the dialog; reload after forcing shows no red
 - [x] Red field: retyping another wrong value stays red; the circular arrows apply the new value and clear it
 - [x] `per_night`: typed 3 for 2 nights → 4 nights → still 3, red (held by `typed-count-nights.spec.js`, 2026-11-03). This line used to say « → 3 nights »: a number equal to the new stay is not flagged (rule 20), it follows the stay
-- [x] Regression: `per_night` Qté (`typed-count-nights.spec.js`), card options « Personnes servies » (`option-categories.spec.js`)
+- [x] Regression: `per_night` Qté (`typed-count-nights.spec.js`)
 - [ ] Regression: arrival SAS catering in a browser. Held by `ReservationSasDialog.catering` and `.typed-count` in Vitest, and on the server by `sas-option-sales`; no E2E walks this step, and nobody has clicked through it since this change
+- [ ] Regression: card options « Personnes servies »: held by `ExtrasSection.served-persons` and `OptionRow.served-persons` in Vitest; no E2E, nobody has clicked through it since this change
 
 **Known limit:** the history's option signature reads `quantity` and `totalPrice`, so a typed number changed on an
 offered line (0 €) leaves no history entry.

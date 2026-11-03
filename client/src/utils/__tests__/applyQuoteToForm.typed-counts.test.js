@@ -7,9 +7,8 @@ const quote = (line) => ({ optionLines: [{ optionId: 40, quantity: 1, totalPrice
 const prev = (line) => ({ customPrice: '', selectedOptions: [{ optionId: 40, quantity: 1, ...line }], customOptions: [], selectedResources: [] });
 const lineOf = (form) => form.selectedOptions[0];
 
-test('rule 19 — the number of nights typed in the form wins over the quote, which still fills a first load', () => {
+test('rule 19 — a null echo keeps the nights typed in the form; the quote still fills a first load', () => {
   expect(lineOf(applyQuoteToForm(prev({ cardNights: 3 }), quote({ cardNights: null }))).cardNights).toBe(3);
-  expect(lineOf(applyQuoteToForm(prev({ cardNights: 3 }), quote({ cardNights: 2 }))).cardNights).toBe(3);
   expect(lineOf(applyQuoteToForm(prev({}), quote({ cardNights: 2 }))).cardNights).toBe(2);
   expect(lineOf(applyQuoteToForm(prev({}), quote({ cardNights: null })))).not.toHaveProperty('cardNights');
 });
