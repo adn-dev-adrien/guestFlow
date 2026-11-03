@@ -195,6 +195,18 @@ changed something the price depends on; money collected beyond the total is repo
     activity (X1, X2). A signature written before the flag existed carries none: its lines count in both windows, which
     is why rule 17's overflow correction stays.
 
+19. **A priced save keeps what each custom line collected (audit R21-M1, 2026-11-03).** A save that re-prices the stay
+    deletes and rewrites the custom lines, and neither the fiche nor `toUpdateBody` posts their contribs, so they came
+    back NULL: Σ contribs no longer matched the paid amount, the export and `collectedByLine` fell back to the
+    stored-money split, and revenue moved between 70600000 and 70600010 on entries already booked (16,80 € on a measured
+    stay, 0,01 € of VAT on a closed entry), with the total and the cash right. `applyUpdate` now carries the stored
+    `acompteContribTtc` / `soldeContribTtc` onto the posted lines before the engine runs, on every path through it (fiche,
+    mid-stay window, admin unlock, plugins via `performUpdate`). `matchStoredCustomLines` names the row: by
+    `customOptionId` first over every line, then by `extraLineKey` of the text, each row answering once; the mid-stay
+    routing pin reads the same match, so a line's routing and contribs come from one row. A contrib in a save's request
+    is never read, and a line with no stored row has none. As for a catalogue option: a line that grows keeps its contrib and the growth goes to the complement,
+    a line forced to the complement drops it, a line removed takes it along. Stored rows already at NULL are not repaired.
+
 **Edge cases:**
 - In the extras window of a started fiche a custom line is keyed by its text (end-of-stay complement,
   arrival baseline): a rename there is refused with « Une prestation ajoutée une fois le séjour commencé ne
@@ -214,11 +226,12 @@ changed something the price depends on; money collected beyond the total is repo
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
-| `controllers/` | `reservationsController.js` | T | `performUpdate`: `keepPricing` gate, pinned quote, reduced write; `pricingNoticesOf`; imports the context helpers |
+| `controllers/` | `reservationsController.js` | T | `performUpdate`: `keepPricing` gate, pinned quote, reduced write; `carryStoredCustomContribs` (rule 19); `pricingNoticesOf`; imports the context helpers |
 | `controllers/` | `installmentsController.js` | T | Prices the stay through `quoteStoredReservation` |
-| `models/` | `reservationsModel.js` | T | `updateReservation({ keepPricing })` skips the engine-derived side writes |
+| `models/` | `reservationsModel.js` | T | `updateReservation({ keepPricing })` skips the engine-derived side writes; `getStoredRouting` returns the custom lines' contribs (rule 19) |
 | `models/` | `financeModel.js`, `vatRegimeSwitchModel.js` | T | Price stored stays through `quoteStoredReservation` |
 | `utils/` | `reservationEngineInput.js` | T | The stored-stay engine input, complete |
+| `utils/` | `storedCustomLines.js` | C | `matchStoredCustomLines`: which stored row a posted custom line is (rule 19), pure |
 | `utils/` | `reservationQuoteContext.js` | C | Mid-stay, schedule, platform and freeze inputs shared by preview, create, save and replay |
 | `utils/` | `storedReservationQuote.js` | C | `quoteStoredReservation`, `pricingUnchangedFromStored`, `pinStoredPricing` |
 | `utils/` | `fichePricingNotices.js` | C | Rules 5 and 6, pure |
@@ -276,6 +289,7 @@ An amber alert above the platform price alert, one per notice, 44 px action targ
       adjusted complement, line versus free refunds, live ledger going down); rules 8-11: a confirmed trop-perçu
       survives the reload and shows locked (#22306 shape), no drift excess (#14 shape), platform none, the live
       ledger adds only the edit's change, the 409 means, the detail wording.
+- [x] `custom-line-contribs-survive-priced-save.unit.test.js` (20) — rule 19: solde only, acompte + solde, renamed, stale id, same text, removed, grown, forced, posted contribs, trop-perçu, mid-stay window, admin unlock, dry run, tariff refresh, replayed SAS commit, cancellation; journal byte-identical, catalogue option as the control.
 - [x] `fiche-pricing-notices.unit.test.js` (6) — rules 5-6; client `PricingNotices.test.jsx` (3).
 - [x] Client `RefundDialog.overpayment.test.jsx` (5, `defaultMethod`) and `FinanceSection.refunds.test.jsx`
       (7, the row's own prefill).

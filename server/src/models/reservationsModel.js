@@ -2658,6 +2658,7 @@ function createReservationsModel(database) {
 
     // specs/mid-stay-extras-on-locked-fiche.md rule 8 — the « Forcer en complément » routing as stored,
     // so a save inside the window can carry it back untouched whatever the payload says.
+    // specs/reservation-save-keeps-pricing.md rule 19 — and the custom lines' contribs, carried by every priced save.
     getStoredRouting(reservationId) {
       const flag = (r) => Number(r.inComplement || 0);
       return {
@@ -2665,8 +2666,10 @@ function createReservationsModel(database) {
           .all(reservationId).map((r) => [Number(r.id), flag(r)])),
         resources: new Map(database.prepare('SELECT resourceId AS id, COALESCE(inComplement, 0) AS inComplement FROM reservation_resources WHERE reservationId = ?')
           .all(reservationId).map((r) => [Number(r.id), flag(r)])),
-        customs: database.prepare('SELECT id, description, COALESCE(inComplement, 0) AS inComplement FROM reservation_custom_options WHERE reservationId = ? ORDER BY sortOrder, id')
-          .all(reservationId).map((r) => ({ id: Number(r.id), description: r.description, inComplement: flag(r) })),
+        customs: database.prepare('SELECT id, description, COALESCE(inComplement, 0) AS inComplement, acompteContribTtc, soldeContribTtc FROM reservation_custom_options WHERE reservationId = ? ORDER BY sortOrder, id')
+          .all(reservationId).map((r) => ({
+            id: Number(r.id), description: r.description, inComplement: flag(r), acompteContribTtc: r.acompteContribTtc, soldeContribTtc: r.soldeContribTtc,
+          })),
       };
     },
 
