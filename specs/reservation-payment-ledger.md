@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Implemented (rules 1-49) · Implemented — amendment of 2026-10-28 (rules 50-64, §3.8; 53-55 withdrawn) |
+| **Status** | Implemented (rules 1-49) · Implemented — amendment of 2026-10-28 (rules 50-64, §3.8; 53-55 withdrawn) · Implemented — audit R20-M1 of 2026-11-03 (rule 66, §3.9) |
 | **Branch** | `docs/payments-ledger-spec` (spec, #718) · `feature/reservation-payment-ledger` (implementation) |
 | **Created** | 2026-10-19 |
 | **Author** | Adrien |
@@ -691,6 +691,36 @@ tariff would fire on every platform stay (the brut is grossed up by the commissi
   nights unless the journal guard of rule 61 applies.
 - A devis never gets the alert (rule 61).
 
+### 3.9 Audit R20-M1 (2026-11-03) — the mark stores what it validated
+
+66. **What `PATCH /api/reservations/:id/payment` stores is what it judged.** `paymentMarkRefusal` judged
+    `String(date).slice(0, 10)` and `updatePayment` then wrote the raw body value, so a hand-made request
+    stored `2026-11-01<b>x</b>` as a paid date, an array `["2026-11-01"]` as a note's date (the journal's
+    `"paidDate":"2026-11` prefilter then dropped the note: collected money missing from the export), a
+    return date beside `cautionReturned: false`, and `depositPaid: "false"` as a received acompte. Every
+    instance, fixed together:
+    - a paid date (`*PaidDate`, `cautionReceivedDate`, `cautionReturnedDate`, `adjustMidStayNote.paidDate`)
+      is a **string**, anything else « Date invalide. » (`INVALID_PAYMENT_DATE`, `field`) —
+      `validateCollectionDate` refuses a non-string;
+    - the value written is the **judged day** (`YYYY-MM-DD`), or the stored value when the date is the one
+      the row already holds (rule 13 of `reservations-backend-mvc.md`, not re-judged);
+    - a date **rides its mark**: sent beside an unticked mark (flag not true, and for a complement no
+      « caisse interne » either) it is dropped, never written; a complement ticked through its
+      « caisse interne » flag alone has its date judged like any other mark. `cautionReturnedDate` is
+      written only with `cautionReturned: true` (rule 14: a caution never returned has no return date);
+    - a payment flag (`depositPaid`, `balancePaid`, `complementPaid`, `endOfStayComplementPaid`,
+      `complementPaidCash`, `endOfStayComplementPaidCash`, `cautionReceived`, `cautionReturned`, and the
+      `cash` of `settleMidStayNote` / `adjustMidStayNote`) is `true`, `false`, `1` or `0`, anything else
+      (`"false"`, `"0"`, `null`, `2`…) 400 « Valeur invalide. » (`INVALID_PAYMENT_FLAG`, `field`), checked
+      before anything is written; `1` / `0` are read as `true` / `false`, so `complementPaidCash: 1` marks
+      the complement exactly as `true` does.
+    Every legitimate caller already sends these shapes: the fiche (`FinanceSection` ledger marks and
+    undo, `MidStayNoteRow`, `MidStayNoteDialog`), the dashboard, finance and planning toggles (`!r[field]`,
+    booleans), the reconciliation `ficheWriter` (`true` / `false` and `day(settledAt)`) through
+    `applyPaymentMark`, and the E2E specs (`checkInReady: true`, a status flag, unchanged). The check-in
+    status flags (`checkInReady`, `checkInDone`, `checkOutDone`) are not payment flags and keep their
+    reading.
+
 ---
 
 ## 4. Architecture
@@ -779,7 +809,7 @@ tariff would fire on every platform stay (the brut is grossed up by the commissi
 | GET | `/api/reservations/:id` | — | `{ …, ledger: { rows, remaining } }` | Additive. Absent for a reception-only user. |
 | POST | `/api/reservations/calculate-price` | `{ …, ledgerEdit?: { row: 'deposit' \| 'balance', amount } }` | `{ …quote, ledger, ledgerEdit?: { ok, reason?, effects?, reached?, formPatch? } }` | Additive. `ledgerEdit` answered only when asked; `reached` = the solde actually produced (rule 18). |
 | PUT | `/api/reservations/:id` | unchanged; caution columns ignored | unchanged | Amount validation (400 + French `message`); 409 `LINK_ALREADY_PAID` (rule 30). |
-| PATCH | `/api/reservations/:id/payment` | `{ …, expectedAmountCents?, <bucket>PaidDate }` | `{ ok: true }` | 400 date refusal; 409 `AMOUNT_CHANGED`, `CAUTION_NOT_RECEIVED`. No new money field. |
+| PATCH | `/api/reservations/:id/payment` | `{ …, expectedAmountCents?, <bucket>PaidDate }` | `{ ok: true }` | 400 date refusal; 400 `INVALID_PAYMENT_FLAG` for a flag that is not `true`/`false`/`1`/`0` (rule 66); 409 `AMOUNT_CHANGED`, `CAUTION_NOT_RECEIVED`. No new money field. |
 
 Row shape:
 
@@ -901,7 +931,8 @@ summary page (normal direct · normal platform · misconfigured platform, panel 
 
 ## 7. Test plan
 
-### Server unit tests (76)
+### Server unit tests (86)
+- [x] **Audit R20-M1 (2026-11-03)** `tests/payment-mark-input-shape.unit.test.js` (10) — rule 66: a suffixed paid date stored as the judged day on the six marks; a non-string date refused with nothing written; a « caisse interne » complement's date judged; a date sent back as stored keeps the stored value; a date beside an unticked complement never re-dates it; a note re-dated with an array refused and kept in the journal; no return date without the return; string / null / out-of-range flags refused on the eight flags and the notes' `cash`; `1` / `0` behave as `true` / `false`.
 - [x] `tests/installment-headline-after-price-drop.unit.test.js` (3, spec review 2026-10-27) — rule 48: live and stored headlines agree on the stay after a drop, money above the stay stays counted, a plan without drop unchanged
 - [x] `tests/ledger-stored-deposit-ceiling.unit.test.js` (1, spec review 2026-10-27) — rule 49: the stored acompte row carries `max` 500 on a 515 € stay
 - [x] `reservation-ledger.unit.test.js` (15) — rules 1-7, 12, 24, 27-28: direct with acompte, without
