@@ -1,0 +1,1 @@
+- New column `reservation_options.cardNights`. One-shot migration `non_card_served_persons_v1`: non-card lines with a proportional quantity move to a typed count (`cardPersons` / `cardNights`, `quantity = 1`) and no amount changes. Lines that already drifted (non-integer count) stay as they are and are logged at boot.

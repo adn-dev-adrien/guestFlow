@@ -1261,6 +1261,29 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   if (!roCols.includes('cardPersons')) {
     db.exec('ALTER TABLE reservation_options ADD COLUMN cardPersons REAL');
   }
+  // Nights typed on a per-night option (specs/non-card-option-served-persons.md rule 19). NULL = the
+  // stay, which is what every existing line means.
+  if (!roCols.includes('cardNights')) {
+    db.exec('ALTER TABLE reservation_options ADD COLUMN cardNights REAL');
+  }
+}
+// One-shot data migration: a non-card line's base quantity becomes a stored typed count, at the SAME
+// amount (specs/non-card-option-served-persons.md rules 14-16). What cannot be migrated safely stays
+// as it is and is logged for a decision case by case.
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  const migrationName = 'non_card_served_persons_v1';
+  const ran = db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(migrationName);
+  if (!ran) {
+    const { runServedPersonsOptionMigration } = require('./utils/servedPersonsOptionMigration');
+    db.transaction(() => {
+      const { migrated, skipped } = runServedPersonsOptionMigration(db);
+      db.prepare('INSERT INTO migrations (name) VALUES (?)').run(migrationName);
+      if (migrated.length > 0 || skipped.length > 0) {
+        // eslint-disable-next-line no-console
+        console.log(`[migration] ${migrationName}: ${migrated.length} migrated, ${skipped.length} left as they are`, JSON.stringify(skipped));
+      }
+    })();
+  }
 }
 // One-shot data migration: move the existing SAS-origin custom lines onto their catalogue option, at
 // the SAME amount (a past stay is never re-quoted). A reservation already carrying the option is

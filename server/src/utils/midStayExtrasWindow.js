@@ -50,8 +50,9 @@ function aggregateByKey(lines) {
       ? 1
       : Number(line.quantity == null ? 1 : line.quantity);
     const offered = Number(line.offered || 0) === 1 || line.offered === true;
-    const entry = byKey.get(key) || { quantity: 0, total: 0, offeredCount: 0, count: 0, hourly: false };
+    const entry = byKey.get(key) || { quantity: 0, total: 0, offeredCount: 0, count: 0, hourly: false, typedCount: null };
     if (line.hourly) entry.hourly = true;
+    if (line.typedCount != null) entry.typedCount = Number(line.typedCount);
     entry.quantity = round2(entry.quantity + (Number.isFinite(quantity) ? quantity : 1));
     entry.total = round2(entry.total + (offered ? 0 : Number(line.totalPrice || 0)));
     entry.count += 1;
@@ -79,7 +80,7 @@ function arrivalLineFloors(baselineRaw, beforeLines) {
   const floors = {};
   for (const [key, entry] of aggregateByKey(beforeLines)) {
     if (isAllOffered(entry)) {
-      floors[key] = { minQuantity: entry.quantity, frozen: true, reason: 'offered' };
+      floors[key] = { minQuantity: entry.quantity, frozen: true, reason: 'offered', ...(entry.typedCount != null ? { minTypedCount: entry.typedCount } : {}) };
       continue;
     }
     const arrivalAmount = Number(baseline[key] || 0);
@@ -90,7 +91,14 @@ function arrivalLineFloors(baselineRaw, beforeLines) {
       const rounded = entry.hourly ? ceil2(estimate) : Math.ceil(estimate - 1e-9);
       minQuantity = Math.min(entry.quantity, Math.max(rounded, Math.min(1, entry.quantity)));
     }
-    floors[key] = { minQuantity, frozen: true, reason: 'arrival' };
+    // The same floor in what the field shows (specs/non-card-option-served-persons.md rule 17): a
+    // non-card line's `quantity` is 1, so only its count can say how many people were sold.
+    const typedFloor = entry.typedCount == null ? {} : {
+      minTypedCount: entry.total > arrivalAmount + 0.005
+        ? Math.min(entry.typedCount, Math.ceil((arrivalAmount / (entry.total / entry.typedCount)) - 1e-9))
+        : entry.typedCount,
+    };
+    floors[key] = { minQuantity, frozen: true, reason: 'arrival', ...typedFloor };
   }
   return floors;
 }
