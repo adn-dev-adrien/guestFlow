@@ -92,6 +92,7 @@ function receptionOptionLine(o) {
     // A count, not money: what the card shows as « ×N » (« Ménage ×3 », not ×1) — fixed at the
     // 2026-10-27 spec review.
     billedUnits: o.billedUnits,
+    displayCount: o.displayCount,
     autoOptionType: o.autoOptionType,
     isCustom: o.isCustom,
     inComplement: o.inComplement,

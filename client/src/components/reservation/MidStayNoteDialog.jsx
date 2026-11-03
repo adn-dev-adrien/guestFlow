@@ -9,6 +9,7 @@ import QuantityField from '../QuantityField';
 import { useReservationForm } from './ReservationFormContext';
 import api from '../../api';
 import { typedCountKind, typedCountValue } from '../../utils/optionTypedCount';
+import { optionLineKey, displayedFloor } from '../../utils/arrivalLineKey';
 import { formatCurrency } from '../../utils/formatters';
 
 /**
@@ -37,21 +38,26 @@ export default function MidStayNoteDialog({ open, onClose, pendingLines = [], on
   const {
     form, propertyOptions, propertyOptionGroups, setOptionEnabled, setOptionQuantity,
     quantityPersons, quantityNights, setOptionTypedCount, pricingQuote,
+    captureOptionsState, restoreOptionsState, arrivalLines, maxGuestsAllowed,
   } = useReservationForm();
 
   const [checkedKeys, setCheckedKeys] = useState([]);
   const [busy, setBusy] = useState(false);
   const [preview, setPreview] = useState({ items: [], total: 0 });
-  // Snapshot of the sold options when the dialog opened: « Annuler » must leave the reservation
-  // exactly as it was, catalogue additions included (§3.5 edge cases).
-  const snapshotRef = useRef(null);
+  // The sold options when the dialog opened: « Annuler » must leave the reservation exactly as it was,
+  // catalogue additions and removals included (§3.5 edge cases; non-card-option-served-persons.md rule 29).
+  // State, not a ref: what the note adds is measured against it (rule 31), so it has to render.
+  const [openingOptions, setOpeningOptions] = useState(null);
   // The remainder as it stood on open — the reference the server measures « what did this note add? » from.
   const openingRef = useRef([]);
   const previewSeq = useRef(0);
 
   useEffect(() => {
-    if (!open) return;
-    snapshotRef.current = JSON.parse(JSON.stringify(form.selectedOptions || []));
+    if (!open) {
+      setOpeningOptions(null);
+      return;
+    }
+    setOpeningOptions(captureOptionsState());
     openingRef.current = (pendingLines || []).filter((l) => l.key)
       .map((l) => ({ key: l.key, label: l.label, amount: l.amount }));
     setCheckedKeys([]);
@@ -82,27 +88,16 @@ export default function MidStayNoteDialog({ open, onClose, pendingLines = [], on
     return typedCountValue(line, kind, kind === 'nights' ? quantityNights : quantityPersons);
   };
   const hasAdditions = useMemo(() => {
-    const before = new Map((snapshotRef.current || []).map((o) => [Number(o.optionId), soldCount(o)]));
+    if (!openingOptions) return false;
+    const before = new Map((openingOptions.selectedOptions || []).map((o) => [Number(o.optionId), soldCount(o)]));
     return (form.selectedOptions || []).some((o) => soldCount(o) > (before.get(Number(o.optionId)) || 0));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.selectedOptions, propertyOptions, quantityPersons, quantityNights]);
+  }, [openingOptions, form.selectedOptions, propertyOptions, quantityPersons, quantityNights]);
 
-  const rollback = () => {
-    const before = snapshotRef.current;
-    if (!before) return;
-    const beforeCount = new Map(before.map((o) => [Number(o.optionId), soldCount(o)]));
-    for (const o of (form.selectedOptions || [])) {
-      const id = Number(o.optionId);
-      if (!beforeCount.has(id)) setOptionEnabled(id, false);
-      else if (beforeCount.get(id) !== soldCount(o)) {
-        const kind = kindOf(id);
-        if (kind) setOptionTypedCount(id, kind, beforeCount.get(id));
-        else setOptionQuantity(id, beforeCount.get(id));
-      }
-    }
+  const close = () => {
+    if (openingOptions) restoreOptionsState(openingOptions);
+    onClose();
   };
-
-  const close = () => { rollback(); onClose(); };
 
   const run = async (fn) => {
     setBusy(true);
@@ -175,6 +170,14 @@ export default function MidStayNoteDialog({ open, onClose, pendingLines = [], on
                       const displayed = !selected
                         ? 0
                         : (typedKind ? typedCountValue(selected, typedKind, typedCurrent) : Number(selected.quantity));
+                      // Same bounds as the fiche's OptionRow (rule 30): what was sold at arrival is a
+                      // floor; without one, 0 takes the line off.
+                      const arrivalLine = (arrivalLines || {})[optionLineKey(opt.id)];
+                      const typedFloor = arrivalLine?.minTypedCount != null ? displayedFloor(arrivalLine.minTypedCount) : 1;
+                      const floor = !arrivalLine ? 0 : (typedKind ? typedFloor : displayedFloor(arrivalLine.minQuantity));
+                      const ceiling = typedKind === 'persons'
+                        ? Math.max(Number(maxGuestsAllowed) || 0, Number(quantityPersons) || 1, displayed)
+                        : undefined;
                       return (
                         <Box
                           key={opt.id}
@@ -199,6 +202,7 @@ export default function MidStayNoteDialog({ open, onClose, pendingLines = [], on
                               variant={selected ? 'contained' : 'outlined'}
                               color={selected ? 'success' : 'primary'}
                               onClick={() => setOptionEnabled(Number(opt.id), !selected)}
+                              disabled={Boolean(arrivalLine)}
                               sx={{ textTransform: 'none', minWidth: 110 }}
                             >
                               {selected ? 'Ajouté ✓' : 'Ajouter'}
@@ -206,7 +210,8 @@ export default function MidStayNoteDialog({ open, onClose, pendingLines = [], on
                           ) : (
                             <QuantityField
                               value={displayed}
-                              min={0}
+                              min={floor}
+                              max={ceiling}
                               onCommit={(v) => {
                                 const next = Number(v) || 0;
                                 if (next <= 0) setOptionEnabled(Number(opt.id), false);

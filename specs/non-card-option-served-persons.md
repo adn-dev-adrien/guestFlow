@@ -7,7 +7,7 @@
 | **Created** | 2026-11-03 |
 | **Approved** | 2026-11-03 |
 | **Author** | Adrien |
-| **Amends** | [card-option-served-persons.md](card-option-served-persons.md) rules 1, 5, 6, 16; [reservation-quantity-stepper.md](reservation-quantity-stepper.md) (per-person Qté); [sas-breakfast-and-catering-upsell.md](sas-breakfast-and-catering-upsell.md) (non-card SAS sale) |
+| **Amends** | [card-option-served-persons.md](card-option-served-persons.md) rules 1, 5, 6, 9, 16; [reservation-quantity-stepper.md](reservation-quantity-stepper.md) (per-person Qté); [sas-breakfast-and-catering-upsell.md](sas-breakfast-and-catering-upsell.md) (non-card SAS sale) |
 | **Decision summary** | [docs/specs/2026-11-03-non-card-option-served-persons.html](../docs/specs/2026-11-03-non-card-option-served-persons.html) |
 | **Related PR** | _(opened at the end of implementation)_ |
 
@@ -120,6 +120,7 @@ Rules added after Adrien's review of this spec (2026-11-03):
     **Editing a flagged line does not clear the flag.** Its reference stays the party it was typed for,
     so the field stays red until the value equals the current party or stay, the operator applies it
     (rule 26), the party or stay returns to the reference, or a save is forced.
+    A devis behaves the same: a forced save clears the flags at once, without a reload (audit R21-C1).
 24. **Only an operator is asked.** A server caller with nobody in front of it (mail intakes) sends
     `forceTypedCounts`. A locked past reservation is not asked, like the other save guards.
 25. **Non-regression, permanent.** The suite must fail if: a typed value moves when the party or the stay
@@ -130,6 +131,30 @@ Rules added after Adrien's review of this spec (2026-11-03):
     tooltip « Appliquer 11 personnes » or « Appliquer 3 nuits ». It sends `cardPersons` / `cardNights` as
     NULL: the line follows the party or the stay again and the flag goes. On `xs` the button stays beside
     the field, 44 × 44 px. It is not offered when the current value is outside rule 5's bounds.
+
+Rules added after audit round 21 (2026-11-03):
+
+27. **The server sends the figure to print.** `quantity` stays 1 on a typed line, so no reader prints it
+    as a count. Stored lines (`getByIdWithDetails`, the reception view, the stored summary) and quote lines
+    carry `displayCount`: the people served on `per_person` / `per_person_per_night`, the nights on
+    `per_night`, whether typed or followed, read as the fiche's field reads them (a whole party of 4 reads
+    4, a drifted line reads what it bills, rule 18). A card line, the cancellation insurance and every other
+    price type keep `quantity`. The dashboard's arrivals, the SAS « Prestations réservées », `PricingSummary`
+    and the Google Calendar description print it; `ReservationCard` keeps `billedUnits`. A non-card breakfast
+    with `quantityUnit: 'morning'` counts mornings: the typed nights on `per_night`, the stay's nights on
+    `per_person_per_night`. No amount moves.
+28. **The field shows what is billed.** In `applyQuoteToForm`, a numeric `cardPersons` / `cardNights` echo
+    wins over the form, so a count the engine clamped reads as the clamped number; a `null` echo keeps the
+    form value, since it means « follows » and must not wipe a number being typed. Stale answers are already
+    dropped by request id. Supersedes the « form wins » reading of card-option-served-persons.md rule 9.
+29. **The note's « Annuler » restores the opening state whole.** `MidStayNoteDialog` captures on opening,
+    through the page, the option lines, the offered set, the bed counters and the welcome pack's refusals, and
+    gives them back on « Annuler », so a line taken out returns with its occurrence grid and its typed count.
+30. **The note's rows have the fiche's bounds.** A line sold at arrival keeps its floor (`minTypedCount`, or
+    `minQuantity` on a plain line) and its card button is disabled; only a line with no floor can be taken
+    off by typing 0. People served are capped at the larger of capacity, party and the value held (rule 5).
+31. **« En fin de séjour » waits for an addition.** It is measured against the current opening, so it is
+    absent on opening and a second opening never compares with the first.
 
 **Edge cases:**
 - Party lowered below a frozen count (3 served, party now 2) → stays 3, within rule 5's ceiling when the
@@ -161,7 +186,9 @@ Rules added after Adrien's review of this spec (2026-11-03):
 | `utils/` | `sasOptionSale.js` | T | Rule 12; `buildOptionOffer` reads `selectedPersons` from `sold.cardPersons` for non-card too |
 | `utils/` | `linenInventory.js` | T | Towel count from served people (rule 6) |
 | `utils/` | `midStayExtrasWindow.js` | T | `minTypedCount` on the floors (rule 17) |
-| `utils/` | `typedCounts.js` | C | Pure: `typedCountAlerts`, the 409 payload, `typedCountOf` (rules 17, 20-23) |
+| `utils/` | `typedCounts.js` | C | Pure: `typedCountAlerts`, the 409 payload, `typedCountOf`, `displayCountOf` (rules 17, 20-23, 27) |
+| `models/`, `utils/` | `reservationsModel.js`, `storedSummary.js`, `receptionView.js`, `pricing.js` | T | Carry `displayCount` on stored and quote lines (rule 27) |
+| `plugins/google-calendar/` | `events.js`, `model.js`, `manifest.json` | T | The event description prints the same figure, read locally from `billedUnits` so the plugin needs no newer SDK (rule 27); 1.2.7 |
 | `utils/` | `servedPersonsOptionMigration.js` | C | Rules 14-16, 19; dry-run returns the list without writing |
 | `utils/` | `reservationUpdateBody.js` | T | Carries `cardNights`; server callers send `forceTypedCounts` (rule 24) |
 | `controllers/` | `reservationsController.js` | T | `409 TYPED_COUNTS_STALE`, `forceTypedCounts`, `typedCountAlerts` on the quote (rules 21-22) |
@@ -177,7 +204,8 @@ is bumped.
 |---|---|---|---|
 | `pages/` | `ReservationPage.jsx` | T | `setOptionServedPersons`, `setOptionTypedNights`: carry the typed intent, no arithmetic; alert under party and dates; `TYPED_COUNTS_STALE` handled like `MIN_NIGHTS` |
 | `components/` | `reservation/OptionRow.jsx` | T | « Qté » in people or nights + « × N nuits » hint; red state from `typedCountAlerts`, card options included |
-| `components/` | `reservation/MidStayNoteDialog.jsx` | T | Same field |
+| `components/` | `reservation/MidStayNoteDialog.jsx` | T | Same field; restores the opening state, arrival floor, ceiling (rules 29-31) |
+| `pages/`, `components/`, `plugins/sas/` | `Dashboard.jsx`, `PricingSummary.jsx`, `ReservationSasDialog.jsx` | T | Print `displayCount` (rule 27) |
 | `components/` | `sas/ReservationSasDialog.jsx` | T | Reuses the « Personnes servies » stepper for non-card per-person options |
 | `hooks/`, `services/`, `constants/`, `styles/` | — | — | (none) |
 | `utils/` | `applyQuoteToForm.js` | T | Keeps `servedPersons`, `servedNights`, `cardNights` and the typed-against tags |
@@ -206,6 +234,7 @@ No new endpoint. Backward-compatible additions:
 | `editLock.arrivalLines[key]` | `minTypedCount` | Rule 17 |
 | Option line, request and quote | `cardNights`; `servedNights` on the quote | Rule 19 |
 | Option line, request | `typedAtParty`, `typedAtNights` | Form-local reference of rule 23, never stored |
+| Stored and quote option lines | `displayCount` | Rule 27: the figure a reader prints |
 | Quote response | `typedCountAlerts: [{ optionId, title, kind, typed, reference, current }]` | Rules 20-21 |
 | `POST`, `PUT /api/reservations`, `/api/devis` | `forceTypedCounts`; `409 { code: 'TYPED_COUNTS_STALE', lines }` | Rule 22 |
 
@@ -237,6 +266,9 @@ Interactive rendering in the [decision summary](../docs/specs/2026-11-03-non-car
 - **Dialog at save** (existing `confirm`), title « Quantités saisies à vérifier », one line per option,
   « Annuler » / « Forcer l'enregistrement ».
 - `per_night`: « Qté » pre-filled with the nights, integer stepper.
+- Printed counts (rule 27): « Linge x3 » on the arrivals, « • Linge × 3 » in the SAS recap, « Linge ×3 » in
+  the summary, « - Linge x3 » in the calendar event. A figure of 1 prints no count in the SAS and the summary.
+- Note dialog, same on `xs`: a row sold at arrival stops at its floor, a sold card line's « Ajouté ✓ » is disabled.
 - No new page, so `PageActionBar` is untouched.
 - **Responsive:** `xs` full-width field as today (`width: { xs: '100%', sm: 180 }`), the hint under the
   field; `md` and `lg` unchanged. `MidStayNoteDialog` is already full-screen on `xs`.
@@ -248,12 +280,18 @@ Interactive rendering in the [decision summary](../docs/specs/2026-11-03-non-car
 - [x] `tests/typed-counts-no-regression.unit.test.js` (11) — rule 25: exhaustive grid, 22336 sequence through the controller, save guard. Mutation-checked: restoring the old computation fails 4 tests, removing the guard fails 2
 - [x] `tests/typed-counts-client-guard.unit.test.js` (4) — rule 25: no multiplier conversion left in the option fields
 - [x] `tests/sas-option-sales.unit.test.js` — updated (rule 12)
+- [x] `tests/typed-count-display-figure.unit.test.js` (9) — rule 27: helper, stored stay, reception view, stored summary, live quote, breakfast mornings
+- [x] `plugins/google-calendar/tests/typed-count-description.unit.test.js` (3) — rule 27: push, reconcile, plugin and core read a line alike
 - The existing `breakfast-model`, `laundry-model`, `laundry-end-to-end.regression` and `linen-inventory` suites still pass unchanged: a drifted `quantity` keeps scaling the party. Rule 6's new behaviour is covered in the feature's own file (CLAUDE.md §9).
 
 ### Client tests
 - [x] `OptionRow.served-persons.test.jsx` (8) — field, hint, no arithmetic, red state on an alert
 - [x] `MidStayNoteDialog.typed-count.test.jsx` (3) — rule 13
 - [x] `GuestsBedsSection.typed-counts.test.jsx` (2) — rule 21
+- [x] `ReservationPage.devis-forced-typed-count.test.jsx` (1) — rule 23 on a devis
+- [x] `Dashboard.typed-count.test.jsx` (1), `ReservationSasDialog.options-count.test.jsx` (1), `PricingSummary.typed-count.test.jsx` (3) — rule 27
+- [x] `applyQuoteToForm.numeric-echo.test.js` (5) — rule 28
+- [x] `MidStayNoteDialog.cancel-and-floor.test.jsx` (9) — rules 29-31
 
 ### End to end
 - [x] `e2e/specs/reservations/typed-count-party-change.spec.js` — type 3 for 4 → party 5 → red, alert; retype 2 → still red; dialog: cancel keeps the fiche, force saves; circular arrows → 5, no red

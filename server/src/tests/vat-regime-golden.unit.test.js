@@ -8,7 +8,8 @@
 // 2026-11-02 for `fiche/109` (a cancelled stay that collected nothing offers no refundable line, specs/reservation-refunds.md rule 48)
 // and for `fiche/101`, `cancel/101`, `cancel/106` (each refund carries `afterCancellation`, specs/reservation-refunds.md rule 6
 // reading of 2026-11-02, nothing else moved), and on 2026-11-03 for six `quote/*` (a non-card line carries
-// `cardPersons`, `cardNights` and `servedPersons`, specs/non-card-option-served-persons.md rules 2 and 18, nothing else moved).
+// `cardPersons`, `cardNights` and `servedPersons`, specs/non-card-option-served-persons.md rules 2 and 18, nothing else moved), and later that day for the
+// same six `quote/*` (each line carries `displayCount`, the same spec's rule 27, nothing else moved).
 // `GOLDEN_UPDATE=1` rewrites the capture, which is only ever legitimate on that code (Lot 0).
 
 const test = require('node:test');

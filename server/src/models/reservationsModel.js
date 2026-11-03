@@ -30,7 +30,7 @@ const {
 } = require('../utils/midStayExtras');
 const { buildEditLock } = require('../utils/midStayExtrasWindow');
 const { priceOptionSale, billablePersons } = require('../utils/sasOptionSale');
-const { typedCountOf } = require('../utils/typedCounts');
+const { typedCountOf, displayCountOf } = require('../utils/typedCounts');
 const { reconcileEndOfStayLines, isAdjustmentLine } = require('../utils/endOfStayAdjustment');
 const {
   realOfStoredLine, classifyStoredLines, storeLine, keepRealLines, recalledArrivalAfter, isRecalled,
@@ -917,6 +917,7 @@ function createReservationsModel(database) {
       reservation.options = database.prepare(`
         SELECT ro.*, o.title, o.description, o.priceType as currentPriceType, o.price as currentUnitPrice,
           o.autoOptionType as autoOptionType, ${OPTION_DISPLAY_TO_CLIENT_SELECT},
+          COALESCE(o.showsPlanningCard, 0) as lineIsCard, COALESCE(o.isCancellationInsurance, 0) as lineIsInsurance,
           COALESCE(
             NULLIF(ro.totalPrice, 0),
             NULLIF(round(COALESCE(ro.unitPrice, 0) * COALESCE(ro.billedUnits, ro.quantity, 0), 2), 0),
@@ -926,7 +927,11 @@ function createReservationsModel(database) {
         FROM reservation_options ro
         JOIN options o ON ro.optionId = o.id
         WHERE ro.reservationId = ?
-      `).all(id);
+      `).all(id).map(({ lineIsCard, lineIsInsurance, ...line }) => ({
+        ...line,
+        // specs/non-card-option-served-persons.md rule 27 — what the dashboard and the SAS recap print.
+        displayCount: displayCountOf(line, reservation, { isCard: Boolean(lineIsCard), isInsurance: Boolean(lineIsInsurance) }),
+      }));
 
       // Option-driven planning cards (specs/option-planning-card.md §3.2): the per-reservation
       // selected occurrences are stored as a JSON string — parse them back to an array so the

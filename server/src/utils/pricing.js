@@ -12,6 +12,14 @@ function withQuantityUnit(line, option) {
   const byDay = !option.showsPlanningCard && ['per_night', 'per_person_per_night'].includes(line.priceType || option.priceType);
   return placed || byDay ? { ...line, quantityUnit: 'morning' } : line;
 }
+// The figure the summary prints beside the line (specs/non-card-option-served-persons.md rule 27), the
+// same reading as the fiche's field. A breakfast counted by the day says its mornings: the stay's for a
+// count of people, the typed ones for a count of nights.
+function withDisplayCount(line, nights) {
+  if (!line) return line;
+  const mornings = line.quantityUnit === 'morning' && line.servedPersons !== undefined;
+  return { ...line, displayCount: mornings ? nights : (line.servedPersons ?? line.servedNights ?? line.quantity) };
+}
 const {
   resolveMidStaySplit, extraLineKey, settledByKey, buildMidStayLine,
   ARRIVAL_COMPLEMENT_EXCESS_KEY, ARRIVAL_COMPLEMENT_EXCESS_LABEL,
@@ -2030,7 +2038,7 @@ function calculateReservationQuote({
       };
     })
     .filter(Boolean)
-    .map((line) => withQuantityUnit(line, optionsById.get(Number(line.optionId))));
+    .map((line) => withDisplayCount(withQuantityUnit(line, optionsById.get(Number(line.optionId))), nights));
 
   // Custom option lines never have a persisted locked row keyed by optionId (their id rolls each
   // save), so the only source of `inComplement` / contribs is the payload itself. The contribs

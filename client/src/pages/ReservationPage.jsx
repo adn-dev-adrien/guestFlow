@@ -1731,6 +1731,24 @@ export default function ReservationPage() {
   };
   const setOptionCardPersons = (optionId, persons) => setOptionTypedCount(optionId, 'persons', persons);
 
+  // specs/non-card-option-served-persons.md rule 29 — what the mid-stay note's « Annuler » puts back, whole:
+  // the lines with their grids and typed counts, plus what removing or re-adding a line moves elsewhere
+  // (the offered set, the bed counters of a bed-linen option, the welcome pack's refusals).
+  const captureOptionsState = () => ({
+    selectedOptions: JSON.parse(JSON.stringify(form.selectedOptions || [])),
+    offeredOptionIds: Array.from(offeredOptionIds),
+    welcomePackOptOut: Array.from(welcomePackOptOut),
+    singleBeds: form.singleBeds,
+    doubleBeds: form.doubleBeds,
+  });
+  const restoreOptionsState = (state) => {
+    setForm((prev) => ({
+      ...prev, selectedOptions: state.selectedOptions, singleBeds: state.singleBeds, doubleBeds: state.doubleBeds,
+    }));
+    setOfferedOptionIds(new Set(state.offeredOptionIds));
+    setWelcomePackOptOut(new Set(state.welcomePackOptOut));
+  };
+
   const setOptionEnabled = (optionId, enabled) => {
     const existing = form.selectedOptions.find((so) => so.optionId === optionId);
     const catalogOpt = (propertyOptions || []).find((o) => Number(o.id) === Number(optionId));
@@ -2572,6 +2590,7 @@ export default function ReservationPage() {
           // Rule 48 — the marker is live: moved onto free nights, the devis is no longer « Dates prises ».
           setDatesTaken(savedDevis?.datesTaken || null);
           setInitialSnapshot(formSnapshot);
+          clearTypedCountFlags();
           if (safeAfterSaveAction) {
             safeAfterSaveAction();
           }
@@ -3683,6 +3702,7 @@ export default function ReservationPage() {
     // specs/card-option-served-persons.md §3.2 — « Personnes servies » on a per-person card option.
     setOptionCardPersons,
     setOptionTypedCount,
+    captureOptionsState, restoreOptionsState,
     // Hourly-scheduled resource sessions (specs/resource-hourly-scheduling.md §3.2).
     setResourceSessions,
     // finance

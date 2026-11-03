@@ -1,7 +1,7 @@
 {
   "id": "sas",
   "name": "Arrivée et départ guidés",
-  "version": "1.7.5",
+  "version": "1.7.6",
   "description": "Le sas pas à pas de l’accueil et du départ.",
   "icon": "door",
   "surfaces": [
@@ -85,6 +85,10 @@
     ],
     "1.7.5": [
       "Le sas vend une option par personne au nombre de personnes servies.",
+      "Compatible avec le SDK 2 de GuestFlow."
+    ],
+    "1.7.6": [
+      "Les prestations réservées affichent le nombre de personnes servies ou de nuits de la fiche.",
       "Compatible avec le SDK 2 de GuestFlow."
     ]
   }

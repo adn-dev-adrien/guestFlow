@@ -21,6 +21,11 @@
 // that path has no extension resolution.
 import { WELCOME_PACK_TAG } from './welcomePackApply.js';
 
+const typedCountFromEcho = (column, line, prevLine) => {
+  if (line[column] != null) return { [column]: Number(line[column]) };
+  return prevLine && prevLine[column] != null ? { [column]: Number(prevLine[column]) } : {};
+};
+
 function applyQuoteToForm(prev, quote, opts = {}) {
   const { preserveBlankPrice = false } = opts;
   void preserveBlankPrice; // kept in the signature for callers that pass it through
@@ -74,18 +79,14 @@ function applyQuoteToForm(prev, quote, opts = {}) {
         ...(prevLine && Array.isArray(prevLine.cardOccurrences)
           ? { cardOccurrences: prevLine.cardOccurrences }
           : (Array.isArray(line.cardOccurrences) ? { cardOccurrences: line.cardOccurrences } : {})),
-        // specs/card-option-served-persons.md §3.2 rule 9 — the served count is the operator's too:
-        // the form value wins over the quote echo, and a `null` echo (« follows the party ») must not
-        // wipe a number the operator is in the middle of typing.
-        ...(prevLine && prevLine.cardPersons != null
-          ? { cardPersons: Number(prevLine.cardPersons) }
-          : (line.cardPersons != null ? { cardPersons: Number(line.cardPersons) } : {})),
-        // specs/non-card-option-served-persons.md rules 18, 19, 23 — the nights work like the people,
-        // the figure a drifted line bills comes from the quote, and the typed-against reference is
-        // form-local (the engine knows nothing about it).
-        ...(prevLine && prevLine.cardNights != null
-          ? { cardNights: Number(prevLine.cardNights) }
-          : (line.cardNights != null ? { cardNights: Number(line.cardNights) } : {})),
+        // specs/non-card-option-served-persons.md rule 28 — the field shows what is billed: a numeric
+        // echo wins (the engine may have clamped the count), a `null` echo (« follows the party ») must
+        // not wipe a number the operator is in the middle of typing. A stale answer never gets here:
+        // the page drops it by request id.
+        ...typedCountFromEcho('cardPersons', line, prevLine),
+        // Rules 18, 19, 23 — the nights work like the people, the figure a drifted line bills comes from
+        // the quote, and the typed-against reference is form-local (the engine knows nothing about it).
+        ...typedCountFromEcho('cardNights', line, prevLine),
         ...(line.servedPersons != null ? { servedPersons: Number(line.servedPersons) } : {}),
         ...(line.servedNights != null ? { servedNights: Number(line.servedNights) } : {}),
         ...(prevLine && prevLine.typedAtParty != null ? { typedAtParty: prevLine.typedAtParty } : {}),
