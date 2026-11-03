@@ -5,10 +5,14 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('fs');
+const path = require('path');
 const session = require('express-session');
-const { passwordHash } = require('../utils/gf');
+const Database = require('better-sqlite3');
+const { passwordHash, supportAccess } = require('../utils/gf');
 const { createApp } = require('../app');
-const { makeContext, NEW_CUSTOMER } = require('./helpers');
+const { makeContext, makeFakeQonto, makeInstance, NEW_CUSTOMER } = require('./helpers');
+const { customerWithSpace, writeSpace, lineOf, writtenAt, licenceOf } = require('./moduleFixture');
 const { listenLocal, closeServer, fetchLocal } = require('./listenLocal');
 const { text, fieldText, numeric } = require('../utils/bodyText');
 const { addDays } = require('../utils/days');
@@ -155,6 +159,7 @@ test('rule 48 — a motive, a reference, a confirmation that is not a string ans
         ['POST', '/api/fleet/updates', { targetVersion: '1.0.0', customerIds: [value] }],
         ['POST', '/api/fleet/plugins/push', { pluginId: value, version: '1.0.0' }],
         ['POST', '/api/fleet/plugins/push', { pluginId: 'gate-access', version: value }],
+        ['POST', '/api/fleet/plugins/push', { pluginId: 'gate-access', version: '1.0.0', customerIds: [value] }],
       ];
       for (const [method, url, body] of cases) {
         const r = await s.call(method, url, body);
@@ -182,6 +187,103 @@ test('rule 48 — a motive, a reference, a confirmation that is not a string ans
     assert.equal(s.h.ctx.models.audit.overrides(id).length, 0);
     assert.deepEqual(logs, [], 'no internal fault in the log');
   } finally { await s.close(); }
+});
+
+test('rule 48 — a reference that is not text stops before Qonto: the link stays, the invoice stays open, nothing renews', async () => {
+  const qonto = makeFakeQonto();
+  const h = makeContext({ at: AT, qonto });
+  try {
+    const { customers, billing } = h.ctx.controllers;
+    const c = await customers.create({ ...NEW_CUSTOMER, billing: 'monthly', length: 1, startsAt: TODAY }, 'op');
+    h.now.set(`${addDays(c.endsAt, -7)}T08:00:00Z`);
+    await billing.runDaily(() => {});
+    const before = customers.view(c.id);
+    assert.ok(before.invoices.length, 'an invoice is open');
+    for (const reference of [EVIL, {}, [1], ['virement'], true, 5]) {
+      await assert.rejects(
+        billing.recordPayment(c.id, { months: 1, reference, expectedEndsAt: before.endsAt }, 'op'),
+        (e) => e.status === 400 && e.body.errors.reference === 'Texte attendu.',
+        JSON.stringify(reference),
+      );
+    }
+    assert.equal(qonto.named('deactivateLink').length, 0);
+    const after = customers.view(c.id);
+    assert.equal(after.endsAt, before.endsAt);
+    assert.equal(after.invoices[0].statusLabel, before.invoices[0].statusLabel);
+
+    const paid = await billing.recordPayment(c.id, { months: 1, reference: 'virement', expectedEndsAt: before.endsAt }, 'op');
+    assert.equal(qonto.named('deactivateLink').length, 1, 'a real reference reaches Qonto');
+    assert.notEqual(paid.endsAt, before.endsAt);
+  } finally { h.cleanup(); }
+});
+
+test('rule 48 — a support motive that is not text is « Motif obligatoire. » on a space that can answer, nothing is written', async () => {
+  const h = makeContext({ at: AT });
+  try {
+    const dataDir = makeInstance(h.root, NEW_CUSTOMER.slug, { users: [{ email: 'claire@example.test' }] });
+    const db = new Database(path.join(dataDir, 'guestflow.db'));
+    db.exec(`CREATE TABLE support_access (id INTEGER PRIMARY KEY AUTOINCREMENT, requestId TEXT NOT NULL UNIQUE, reason TEXT NOT NULL,
+      requestedAt TEXT NOT NULL, decision TEXT, decidedBy INTEGER, decidedAt TEXT, expiresAt TEXT, revokedAt TEXT, revokedBy INTEGER)`);
+    db.close();
+    const { customers, support } = h.ctx.controllers;
+    const c = await customers.create(NEW_CUSTOMER, 'op');
+    assert.equal(support.state(c.id).available, true, 'past the 409 UNAVAILABLE');
+    const journal = () => customers.view(c.id).history.length;
+    const entries = journal();
+    for (const reason of [EVIL, {}, [1], ['Vérifier'], true, 5]) {
+      assert.throws(
+        () => support.request(c.id, { reason }, 'op'),
+        (e) => e.status === 400 && e.body.errors.reason === 'Motif obligatoire.',
+        JSON.stringify(reason),
+      );
+    }
+    assert.equal(support.state(c.id).state, 'none');
+    const requestFile = path.join(dataDir, supportAccess.REQUEST_FILE);
+    assert.equal(fs.existsSync(requestFile), false);
+    assert.equal(journal(), entries);
+    assert.equal(support.request(c.id, { reason: 'Vérifier' }, 'op').state, 'pending');
+    assert.equal(fs.existsSync(requestFile), true, 'a real motive is written');
+  } finally { h.cleanup(); }
+});
+
+test('rule 48 — a module erase confirmed by anything but the slug as a string is SLUG_MISMATCH, no order leaves', async () => {
+  const env = await customerWithSpace({ at: AT, startsAt: TODAY });
+  try {
+    const { modules } = env.ctx.controllers;
+    modules.toggle(env.id, 'linen', false, 'op');
+    const facts = { linen: { setup: null, erasable: true, data: [{ label: '3 pièces de stock', count: 3 }] } };
+    writeSpace(env, { inactive: ['linen'], applied: writtenAt(env), facts });
+    assert.equal(lineOf(modules.view(env.id), 'linen').canErase, true, 'past NOT_SEEDED and MODULE_ACTIVE');
+    for (const confirmSlug of [EVIL, {}, [1], [env.slug], true, 5]) {
+      assert.throws(
+        () => modules.erase(env.id, 'linen', confirmSlug, 'op', 'erase'),
+        (e) => e.status === 400 && e.body.error === 'SLUG_MISMATCH',
+        JSON.stringify(confirmSlug),
+      );
+    }
+    assert.deepEqual(licenceOf(env).eraseOrders, []);
+    modules.erase(env.id, 'linen', env.slug, 'op', 'erase');
+    assert.equal(licenceOf(env).eraseOrders.length, 1, 'the slug itself still confirms');
+  } finally { env.cleanup(); }
+});
+
+test('rule 48 — the password asked to switch MFA method: anything but a string is BAD_PASSWORD, nothing starts', async () => {
+  const h = makeContext({ at: AT });
+  try {
+    const password = 'correct horse battery';
+    const id = h.ctx.models.operators.create({ email: 'op@example.test', name: 'Op', passwordHash: passwordHash.hashPassword(password) });
+    const { auth } = h.ctx.controllers;
+    for (const value of [EVIL, {}, [password], true]) {
+      await assert.rejects(
+        auth.startMethod(id, { method: 'totp', password: value }),
+        (e) => e.status === 400 && e.body.error === 'BAD_PASSWORD',
+        JSON.stringify(value),
+      );
+    }
+    assert.equal(h.ctx.models.operators.byId(id).pendingMethod, null);
+    assert.equal((await auth.startMethod(id, { method: 'totp', password })).method, 'totp');
+    assert.equal(h.ctx.models.operators.byId(id).pendingMethod, 'totp');
+  } finally { h.cleanup(); }
 });
 
 test('rule 48 — the template kept its text: `null` never lands as « null »', async () => {
