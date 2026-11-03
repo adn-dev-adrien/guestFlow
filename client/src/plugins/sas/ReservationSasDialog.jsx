@@ -1433,7 +1433,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
                   )) : units > 0 && o.perPerson ? (
                     <CountStepper
                       icon={<PeopleIcon color="action" />}
-                      label={`Personnes servies — ${formatCurrency(amount)}`}
+                      label={`Personnes servies — ${amount}`}
                       value={served}
                       min={1}
                       max={Number(o.maxPersons) || undefined}

@@ -6,6 +6,7 @@
  */
 
 const { httpError } = require('../utils/httpError');
+const { asText, text, numeric } = require('../utils/bodyText');
 const { semver, plugins: gfPlugins } = require('../utils/gf');
 
 const PHASE_LABELS = { downloading: 'Téléchargement…', verifying: 'Empreinte SHA-256 vérifiée…', extracting: 'Archive dépaquetée…', installing: 'Dépendances installées…' };
@@ -145,17 +146,17 @@ function createFleetController(ctx, customersController) {
 
   // Rule 10: one customer, a selection, or the whole fleet (no `customerIds`).
   function startUpdate(body, operator) {
-    const ids = Array.isArray(body.customerIds) ? body.customerIds.map(Number).filter(Boolean) : null;
+    const ids = Array.isArray(body.customerIds) ? body.customerIds.map(numeric).filter(Boolean) : null;
     if (ids && !ids.length) throw httpError(400, 'INVALID', 'Aucun client choisi.');
-    fleetUpdater.start({ targetVersion: String(body.targetVersion || ''), customerIds: ids, operator });
+    fleetUpdater.start({ targetVersion: text(body, 'targetVersion'), customerIds: ids, operator });
     return view();
   }
 
   // Rule 11.
   function pushPlugin(body, operator) {
-    const ids = Array.isArray(body.customerIds) ? body.customerIds.map(Number).filter(Boolean) : null;
+    const ids = Array.isArray(body.customerIds) ? body.customerIds.map(numeric).filter(Boolean) : null;
     fleetUpdater.start({
-      kind: 'plugin', pluginId: String(body.pluginId || ''), targetVersion: String(body.version || ''), customerIds: ids, operator,
+      kind: 'plugin', pluginId: text(body, 'pluginId'), targetVersion: text(body, 'version'), customerIds: ids, operator,
       installedPlugins: (c) => (instances.readFacts(c.slug) || {}).versions || {},
     });
     return view();
@@ -174,7 +175,7 @@ function createFleetController(ctx, customersController) {
     const c = customersController.mustGet(id);
     if (c.archivedAt) throw httpError(409, 'ARCHIVED', 'Client archivé : réactivez-le d’abord.');
     customersController.assertNotDeprovisioning(c.id);
-    const out = await restoreVerifier.restoreAt(c, body.at, operator);
+    const out = await restoreVerifier.restoreAt(c, asText(body.at), operator);
     return { ...customersController.view(c.id), notice: `Base restaurée (${out.reservations} réservation(s)).` };
   }
 

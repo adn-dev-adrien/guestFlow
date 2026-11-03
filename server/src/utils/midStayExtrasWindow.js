@@ -50,9 +50,12 @@ function aggregateByKey(lines) {
       ? 1
       : Number(line.quantity == null ? 1 : line.quantity);
     const offered = Number(line.offered || 0) === 1 || line.offered === true;
-    const entry = byKey.get(key) || { quantity: 0, total: 0, offeredCount: 0, count: 0, hourly: false, typedCount: null };
+    const entry = byKey.get(key) || { quantity: 0, total: 0, offeredCount: 0, count: 0, hourly: false, typedCount: null, frozenCount: null };
     if (line.hourly) entry.hourly = true;
     if (line.typedCount != null) entry.typedCount = Number(line.typedCount);
+    // What a submitted line froze; NULL follows the party or the stay, and is never a reduction.
+    const frozen = line.cardPersons ?? line.cardNights;
+    if (frozen != null) entry.frozenCount = Number(frozen);
     entry.quantity = round2(entry.quantity + (Number.isFinite(quantity) ? quantity : 1));
     entry.total = round2(entry.total + (offered ? 0 : Number(line.totalPrice || 0)));
     entry.count += 1;
@@ -119,6 +122,14 @@ function arrivalExtrasViolations(baselineRaw, beforeLines, afterLines) {
     if (wasOffered && !isAllOffered(next)) { violations.push({ key, reason: 'unoffered' }); continue; }
     if (!wasOffered && isAllOffered(next)) { violations.push({ key, reason: 'offered' }); continue; }
     if (next.quantity + EPSILON < floor.minQuantity) { violations.push({ key, reason: 'reduced' }); continue; }
+    // An offered line's quantity is 1 and its amount 0: only its count can shrink
+    // (specs/non-card-option-served-persons.md rule 27). The floor is whole so a drifted line can
+    // still be repaired by typing the whole number it reads as (rule 18).
+    if (wasOffered && floor.minTypedCount != null && next.frozenCount != null
+      && next.frozenCount < Math.floor(floor.minTypedCount + EPSILON)) {
+      violations.push({ key, reason: 'reduced' });
+      continue;
+    }
     // The amount is the line's real price: fewer served persons, a lower price or a lost free allowance
     // all shrink it without touching the quantity.
     if (!wasOffered && next.total + 0.005 < Number(baseline[key] || 0)) violations.push({ key, reason: 'reduced' });

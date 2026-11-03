@@ -3,6 +3,8 @@
  * (TOTP seed) or hashed (backup codes, email code); nothing here returns them to a client.
  */
 
+const { asText } = require('../utils/bodyText');
+
 function buildOperatorsModel(db) {
   const byEmailStmt = db.prepare('SELECT * FROM operators WHERE email = ?');
   const byIdStmt = db.prepare('SELECT * FROM operators WHERE id = ?');
@@ -25,7 +27,7 @@ function buildOperatorsModel(db) {
   const clearCodeStmt = db.prepare('DELETE FROM mfa_codes WHERE operatorId = ?');
 
   return {
-    byEmail: (email) => byEmailStmt.get(String(email || '').trim().toLowerCase()) || null,
+    byEmail: (email) => byEmailStmt.get(asText(email).trim().toLowerCase()) || null,
     byId: (id) => byIdStmt.get(id) || null,
     // Who receives the daily email (rule 18).
     list: () => listStmt.all(),

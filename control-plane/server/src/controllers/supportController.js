@@ -18,6 +18,7 @@ const fs = require('fs');
 const path = require('path');
 const { supportAccess } = require('../utils/gf');
 const { httpError } = require('../utils/httpError');
+const { asText } = require('../utils/bodyText');
 
 const frDateTime = (iso) => (iso ? new Date(iso).toLocaleString('fr-FR', {
   timeZone: 'Europe/Paris', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
@@ -85,7 +86,7 @@ function createSupportController(ctx, customers) {
     const current = stateOf(c);
     if (!current.available) throw httpError(409, 'UNAVAILABLE', current.unavailableReason);
     if (current.state === 'open') throw httpError(409, 'ALREADY_OPEN', 'Un accès est déjà ouvert.');
-    const text = String(reason || '').trim();
+    const text = asText(reason).trim();
     if (!text) throw httpError(400, 'INVALID', 'Motif obligatoire.', { errors: { reason: 'Motif obligatoire.' } });
     if (text.length > supportAccess.REASON_MAX) {
       throw httpError(400, 'INVALID', `${supportAccess.REASON_MAX} caractères au plus.`, { errors: { reason: `${supportAccess.REASON_MAX} caractères au plus.` } });

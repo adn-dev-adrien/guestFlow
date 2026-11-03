@@ -9,7 +9,7 @@
  *   - card option (`showsPlanningCard`): `quantity = occurrences`, `billedUnits = occurrences ×
  *     persons` when the option is per-person ([pricing.js](pricing.js) `showsPlanningCard` branch);
  *   - per person (and per person per night): the operator picks how many people are served, stored in
- *     `cardPersons` with `quantity = 1` (specs/non-card-option-served-persons.md rule 12);
+ *     `cardPersons` with `quantity = 1` (specs/non-card-option-served-persons.md rules 12 and 28);
  *   - per night: the operator picks the nights, stored in `cardNights` with `quantity = 1` (rule 19);
  *   - anything else: the operator picks the units, and `quantity` is that number.
  *
@@ -35,6 +35,15 @@ function isCardOption(option) {
 
 function isPerPerson(option) {
   return String(option?.priceType || '').includes('per_person');
+}
+
+// A tab still running the previous bundle sends the billed units of a per-person line
+// (specs/non-card-option-served-persons.md rule 28). They become people served, whole: the party is
+// not involved, only the nights a per-person-per-night unit counts.
+function servedFromIntent(priceType, { servedPersons, units, nights }) {
+  if (servedPersons != null || !(Number(units) > 0)) return servedPersons;
+  const unitsPerPerson = priceType === 'per_person_per_night' && nights > 0 ? nights : 1;
+  return Math.max(1, Math.floor(Number(units) / unitsPerPerson));
 }
 
 /**
@@ -87,12 +96,14 @@ function priceOptionSale(option, {
   if (isPerPerson(option) || perNight) {
     if (perNight && !(Number(units) > 0 && Number.isFinite(Number(units)))) return null;
     if (!perNight && !(head > 0)) return null;
+    // Rule 28: units sent that are not a positive number sell nothing, they never fall back to the party.
+    if (!perNight && servedPersons == null && units != null && !(Number(units) > 0)) return null;
     const typed = resolveNonCardUnits({
       priceType,
       quantity: 1,
       persons: head,
       nights: stayNights,
-      cardPersons: servedPersons,
+      cardPersons: perNight ? null : servedFromIntent(priceType, { servedPersons, units, nights: stayNights }),
       cardNights: perNight ? units : null,
       maxGuests: maxPersons,
     });
@@ -284,6 +295,18 @@ function buildSasSaleOffers({
   };
 }
 
+/**
+ * The options a sale may carry: what the offers above sell, the same way the read shows them
+ * (specs/sas-breakfast-and-catering-upsell.md rule 15).
+ * @param {{breakfast: object, catering: {options: object[]}}} offers  from `buildSasSaleOffers`
+ * @returns {Set<number>}
+ */
+function offeredSaleOptionIds({ breakfast, catering } = {}) {
+  const ids = (catering?.options || []).map((offer) => Number(offer.optionId));
+  if (breakfast?.available) ids.push(Number(breakfast.optionId));
+  return new Set(ids);
+}
+
 module.exports = {
   billablePersons,
   BREAKFAST_COMPOSITION_PER_PERSON,
@@ -292,5 +315,6 @@ module.exports = {
   priceOptionSale,
   buildOptionOffer,
   buildSasSaleOffers,
+  offeredSaleOptionIds,
   defaultBreakfastComposition,
 };

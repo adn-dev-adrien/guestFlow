@@ -325,6 +325,11 @@ including the ones added later.
     without the plugin. **The guard is heuristic** (regexes, a 400-character window): the matrix of rule 7 is the
     net, and a cell going red on a test the guard missed is a reason to widen the guard, not to skip the cell. The
     owners of rule 44's floor must be catalogue ids (a misspelled owner would silently drop its tables).
+    Reading of 2026-11-03 (audit R21-S2): six cells were red on one test, the date sweep of
+    `test-suite-calendar-and-ci-budget`, which read plugin files by a path from the repository root
+    (`server/src/plugins/<id>/…`) the guard did not see. The sweep now keeps only the files the tree ships. The guard
+    reads that form too, unless the file filters on `fs.existsSync(path.join(ROOT, f))` or the literal is only an input
+    of `pluginsOf([…])`.
 20. **The snapshot server's port is a flag** (audit R4, 2026-10-29). `plugin-removal.mjs cell <id>` took the
     seed-time snapshot server's port as `--port` + 2, which collided with another process or another cell run on the
     same machine. `--snapshot-port` sets it; without it the port is still `--port` + 2.
