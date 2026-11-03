@@ -317,8 +317,17 @@ function createReservationsModel(database) {
     try { return database.prepare("PRAGMA table_info(reservations)").all().some((c) => c.name === 'extraGuestComplementSurcharge'); }
     catch { return false; }
   })();
+  // specs/platform-added-guests-tourist-tax.md §5 — the engine already kept a collected amount (rule 7).
+  const HAS_ADDED_GUESTS_TAX = (() => {
+    try { return database.prepare("PRAGMA table_info(reservations)").all().some((c) => c.name === 'touristTaxAddedGuestsAmount'); }
+    catch { return false; }
+  })();
   function persistExtraGuestComplement(reservationId, quote, { complementPaid = false } = {}) {
     if (!HAS_EXTRA_GUEST_COMPLEMENT || !quote) return;
+    if (HAS_ADDED_GUESTS_TAX) {
+      database.prepare('UPDATE reservations SET platformPaidAdults = ?, touristTaxAddedGuestsAmount = ? WHERE id = ?')
+        .run(quote.platformPaidAdults ?? null, Number(quote.touristTaxAddedGuestsAmount || 0), reservationId);
+    }
     if (complementPaid) {
       database.prepare('UPDATE reservations SET platformPaidGuests = ? WHERE id = ?')
         .run(quote.platformPaidGuests ?? null, reservationId);
@@ -1007,9 +1016,11 @@ function createReservationsModel(database) {
       const weCollectAtArrival = taxPlatform !== 'direct'
         && Number(reservation.touristTaxTotal || 0) > 0
         && !isPlatformCollectingTouristTax(database, reservation.propertyId, taxPlatform);
+      // specs/platform-added-guests-tourist-tax.md rule 15 — a reversing platform's added guests pay
+      // their share here; every surface that itemises the complement reads this one figure.
       reservation.touristTaxInComplementAmount = (
         Number(reservation.touristTaxInComplement || 0) === 1 || weCollectAtArrival
-      ) ? Number(reservation.touristTaxTotal || 0) : 0;
+      ) ? Number(reservation.touristTaxTotal || 0) : Number(reservation.touristTaxAddedGuestsAmount || 0);
       // specs/defer-arrival-complement-to-checkout.md §3.2 rules 6-7 — the single « complément de fin
       // de séjour » the fiche renders when the operator deferred the arrival complement to check-out.
       // Server-built (amount + detail lines + paid state) so the client only renders it.

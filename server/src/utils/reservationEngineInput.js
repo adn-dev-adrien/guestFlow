@@ -128,6 +128,10 @@ function buildReservationEngineInput(db, reservation) {
     // capture then refuses to mark that solde paid.
     platformTouristTaxAmount: reservation.platformTouristTaxAmount,
     platformPaidGuests: reservation.platformPaidGuests,
+    // specs/platform-added-guests-tourist-tax.md rules 1, 7 — without them a replay puts the added tax
+    // back inside the brut, and the payment capture refuses the solde.
+    platformPaidAdults: reservation.platformPaidAdults,
+    storedTouristTaxAddedGuests: reservation.touristTaxAddedGuestsAmount,
     // Rule 12 — the freeze envelope travels with the rest. The caller decides whether to honour it
     // (`freezeTouristTax`); this only makes sure it has the values to honour it with.
     frozenTouristTaxTotal: reservation.touristTaxTotal,

@@ -64,6 +64,9 @@ function createAccountingModel(database) {
   // specs/arrival-payment-detail-and-adjustment.md §3.4 — what the guest actually handed over for that
   // one payment, when it differs from the buckets: a réduction accordée, or a pourboire. Each gets its
   // own entry, stamped with the same group, so the card reads « voilà ce qui a été encaissé ».
+  const addedGuestsTaxCol = hasReservationColumn('touristTaxAddedGuestsAmount')
+    ? 'r.touristTaxAddedGuestsAmount'
+    : '0 AS touristTaxAddedGuestsAmount';
   const arrivalAdjustmentCols = [
     hasReservationColumn('arrivalPaymentReduction') ? 'r.arrivalPaymentReduction' : 'NULL AS arrivalPaymentReduction',
     hasReservationColumn('arrivalPaymentTip') ? 'r.arrivalPaymentTip' : 'NULL AS arrivalPaymentTip',
@@ -110,6 +113,7 @@ function createAccountingModel(database) {
                r.finalPrice, r.clientGrossAmount, r.platformCommissionAmount, r.acompteCommissionAmount,
                r.totalPrice, r.touristTaxTotal,
                r.touristTaxInComplement,
+               ${addedGuestsTaxCol},
                r.accommodationAcompteContribTtc, r.accommodationSoldeContribTtc,
                r.touristTaxAcompteContribTtc, r.touristTaxSoldeContribTtc,
                c.firstName, c.lastName,
@@ -955,9 +959,12 @@ function computeTaxTtcForKind(row, kind, taxRoutedToComplement, encaissementTtc)
   // this rule shipped) must still show 0 tax on the deposit and the full tax on the balance.
   // The balance CA is always ≥ the tax (balance = accommodation remainder + tax), so the
   // clamp is only a defensive guard.
+  // specs/platform-added-guests-tourist-tax.md rule 13 — the added guests' share is collected with the
+  // complement; the solde books what the platform reversed.
+  const added = round2(nz(row.touristTaxAddedGuestsAmount));
   if (kind === 'deposit') return 0;
-  if (kind === 'balance') return round2(Math.min(total, cap));
-  return 0;
+  if (kind === 'balance') return round2(Math.min(Math.max(0, total - added), cap));
+  return round2(Math.min(added, cap));
 }
 
 // Aggregate the per-line/per-portion TTCs for a single entry kind. Tax is always excluded.

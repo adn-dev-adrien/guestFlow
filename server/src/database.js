@@ -2272,6 +2272,19 @@ if (!db.prepare("SELECT 1 FROM repair_amounts WHERE repairKey = 'extinguisher_us
   }
   if (!rcols.includes('extraGuestComplementSurcharge')) db.exec('ALTER TABLE reservations ADD COLUMN extraGuestComplementSurcharge REAL NOT NULL DEFAULT 0');
   if (!rcols.includes('extraGuestComplementCount')) db.exec('ALTER TABLE reservations ADD COLUMN extraGuestComplementCount INTEGER NOT NULL DEFAULT 0');
+  // specs/platform-added-guests-tourist-tax.md §5 — the adults the platform billed and the tourist tax
+  // of the guests added since. Reservations whose brut is already entered take their current adults as
+  // the paid base: their added tax is 0 and their totals do not move.
+  if (!rcols.includes('platformPaidAdults')) {
+    db.exec('ALTER TABLE reservations ADD COLUMN platformPaidAdults INTEGER');
+    db.prepare(`
+      UPDATE reservations
+         SET platformPaidAdults = COALESCE(adults, 1)
+       WHERE platformGrossAmount IS NOT NULL AND LOWER(COALESCE(platform, 'direct')) <> 'direct'
+    `).run();
+  }
+  if (!rcols.includes('touristTaxAddedGuestsAmount')) db.exec('ALTER TABLE reservations ADD COLUMN touristTaxAddedGuestsAmount REAL NOT NULL DEFAULT 0');
+  if (!rcols.includes('touristTaxAddedGuestsDeclaredAt')) db.exec('ALTER TABLE reservations ADD COLUMN touristTaxAddedGuestsDeclaredAt TEXT');
   db.exec('CREATE INDEX IF NOT EXISTS idx_reservations_attribution_channel ON reservations(attributionChannel)');
 }
 // PWA Web Push (specs/pwa-push-notifications.md §5): per-(user,device) subscriptions + per-user prefs.

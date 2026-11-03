@@ -1,0 +1,2 @@
+- **Tourist tax of guests added after a platform booking.** On a platform that reverses the tax to us, guests added after the platform amounts were entered no longer take their tax out of the accommodation: it is collected in the arrival complement, on its own line, and declared once collected (`specs/platform-added-guests-tourist-tax.md`).
+- **« Marquer solde payé » refused on a platform fiche with added guests.** The payment capture counted the added guests' supplement in the solde and answered 409.

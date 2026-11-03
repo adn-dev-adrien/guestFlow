@@ -320,7 +320,7 @@ const api = {
   getFinanceGoalContext: () => request('/finance/goal-context'),
   getTouristTaxExtraction: (month) => request(`/finance/tourist-tax?month=${encodeURIComponent(month)}`),
   // specs/tourist-tax-declared-checkbox.md — tick / untick « Déclarée » for one reservation.
-  setTouristTaxDeclared: (reservationId, declared) => request(`/finance/tourist-tax/${reservationId}/declared`, { method: 'PATCH', body: { declared } }),
+  setTouristTaxDeclared: (reservationId, declared, { addedGuests = false } = {}) => request(`/finance/tourist-tax/${reservationId}/declared`, { method: 'PATCH', body: { declared, addedGuests } }),
 
   // School holidays — getSchoolHolidays now returns { periods, syncState }.
   getSchoolHolidays: () => request('/school-holidays'),
