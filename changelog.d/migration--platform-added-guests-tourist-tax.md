@@ -1,1 +1,0 @@
-- `reservations` gains `platformPaidAdults`, `touristTaxAddedGuestsAmount` and `touristTaxAddedGuestsDeclaredAt`. Non-direct reservations with a brut take their current adults as the paid base, so no stored amount moves.
