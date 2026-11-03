@@ -105,14 +105,31 @@ function testFiles(dir, out = []) {
 // Code that reads a plugin's folder: a path literal starting at `plugins/<id>` (`../plugins/sas/controller`,
 // `plugins/sas/index.js`) or a `path.join(__dirname, …, 'plugins', '<id>')`. Comments, URLs
 // (`/plugins/<id>/install`) and the data directory of a package (`<dataDir>/plugins/<id>`) name no file.
+//
+// Audit R21-S2: a path from the repository root (`server/src/plugins/<id>/…`) reads that folder too, unless the
+// file drops what the tree does not ship (a `.filter` on `fs.existsSync`), or the literal is only an input of the
+// release's path classifier (`pluginsOf([…])`).
+const READS_WHAT_SHIPS = /\.filter\(\((\w+)\) => fs\.existsSync\(path\.join\(ROOT, \1\)\)\)/;
 function pluginsNamedBy(source, ids) {
   const code = source.split('\n').filter((line) => !/^\s*(\/\/|\*|\/\*)/.test(line)).join('\n')
-    .replace(/optionalPlugin\(\(\) => require\([^)]*\)\)/g, '');
+    .replace(/optionalPlugin\(\(\) => require\([^)]*\)\)/g, '')
+    .replace(/pluginsOf\(\[[^\]]*\]\)/g, '');
+  const prefix = READS_WHAT_SHIPS.test(code) ? '(?:src/)?' : '(?:(?:server/)?src/)?';
   return ids.filter((id) => {
     const folder = id.replace(/-/g, '\\-');
-    return new RegExp(`['"\`](?:\\.{1,2}/)*(?:src/)?plugins/${folder}(?:/|['"\`])|__dirname[^\\n]*['"]plugins['"],\\s*['"]${folder}['"]`).test(code);
+    return new RegExp(`['"\`](?:\\.{1,2}/)*${prefix}plugins/${folder}(?:/|['"\`])|__dirname[^\\n]*['"]plugins['"],\\s*['"]${folder}['"]`).test(code);
   });
 }
+
+test('rules 3, 19: a path from the repository root reads the plugin folder, unless the file keeps only what ships', () => {
+  const ids = ['fx-linen', 'fx-sas'];
+  assert.deepEqual(pluginsNamedBy("read('../plugins/fx-linen/x.js');", ids), ['fx-linen']);
+  assert.deepEqual(pluginsNamedBy("read('server/src/plugins/fx-linen/x.js');", ids), ['fx-linen']);
+  assert.deepEqual(pluginsNamedBy("const F = ['server/src/plugins/fx-sas/x.js'];\nF.map((f) => read(f));", ids), ['fx-sas']);
+  assert.deepEqual(pluginsNamedBy("const F = ['server/src/plugins/fx-sas/x.js'];\nF.filter((f) => fs.existsSync(path.join(ROOT, f))).map((f) => read(f));", ids), []);
+  assert.deepEqual(pluginsNamedBy("const c = pluginsOf([\n  'server/src/plugins/fx-linen/routes.js',\n]);", ids), []);
+  assert.deepEqual(pluginsNamedBy("// server/src/plugins/fx-linen/x.js is not read here", ids), []);
+});
 
 const GUARD = /(?:requirePlugins|missingPlugins|skipWithout)\(\[([^\]]*)\]/g;
 const guardedIn = (source) => [...source.matchAll(GUARD)].flatMap((m) => [...m[1].matchAll(/'([a-z-]+)'/g)].map((x) => x[1]));

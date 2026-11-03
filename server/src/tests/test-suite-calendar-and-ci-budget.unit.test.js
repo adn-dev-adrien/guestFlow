@@ -81,6 +81,11 @@ const R20_SWEEP = [
   `${TESTS}/stored-split-only-with-contribs.unit.test.js`,
   `${TESTS}/tariff-change-journal.unit.test.js`,
   `${TESTS}/zero-deposit-deadline-legacy-rows.unit.test.js`,
+  // Audit R21-S4: the literals left that the calendar reaches before 2031.
+  `${TESTS}/devis-pdf-quote-parity.unit.test.js`,
+  `${TESTS}/devis-price-lock.unit.test.js`,
+  `${TESTS}/payment-link-quote-parity.unit.test.js`,
+  `${TESTS}/vat-regime-preview.unit.test.js`,
 ];
 
 test('rule 6: the suites the audits found, and every suite of the reservation-save and ledger fixtures, carry no date the calendar will pass', async () => {
@@ -115,7 +120,9 @@ test('rule 6: the suites the audits found, and every suite of the reservation-sa
     `${TESTS}/ledgerFixture.js`,
     ...LEDGER_FIXTURE_SUITES,
     ...R20_SWEEP,
-  ])].map((f) => asAdded(f, read(f)));
+  // specs/plugin-removal-resilience.md rule 19 (audit R21-S2): a removed plugin takes its tests with it, and the date
+  // check stays complete for whatever the tree ships.
+  ])].filter((f) => fs.existsSync(path.join(ROOT, f))).map((f) => asAdded(f, read(f)));
   assert.deepEqual(findDateBombs({ files, today: localToday() }), []);
 });
 
