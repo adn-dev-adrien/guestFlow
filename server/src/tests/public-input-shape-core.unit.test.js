@@ -15,7 +15,7 @@ const { __test: { buildReturnUrl } } = require('../controllers/public/publicPaym
 
 const EVIL = JSON.parse('{"toString":1}');
 
-test('rule 22 — a language that is not a string reads as French and is not « stated »', () => {
+test('specs/public-api.md rule 22 — a language that is not a string reads as French and is not « stated »', () => {
   for (const value of [EVIL, {}, [], ['en'], true, 1]) {
     assert.equal(normalisePublicLang(value), 'fr', JSON.stringify(value));
     assert.equal(statesLang(value), false, JSON.stringify(value));
@@ -27,7 +27,7 @@ test('rule 22 — a language that is not a string reads as French and is not « 
   assert.equal(statesLang(undefined), false);
 });
 
-test('rule 22 — a return path that is not a string gives no redirect, never a throw', (t) => {
+test('specs/public-api.md rule 22 — a return path that is not a string gives no redirect, never a throw', (t) => {
   t.mock.method(settingsModel, 'publicSiteOrigin', () => 'https://site.example.test');
   for (const value of [EVIL, {}, [], ['/merci'], true, 1]) assert.equal(buildReturnUrl(value), '', JSON.stringify(value));
   assert.equal(buildReturnUrl('/merci'), 'https://site.example.test/merci');
@@ -65,8 +65,8 @@ async function post(path, body, headers = {}) {
   } finally { server.closeAllConnections(); server.close(); }
 }
 
-// specs/express-5-upgrade.md rule 8
-test('R14 L-1, rule 22 — a body the parser refuses on /public/ answers the nested envelope, in the caller\'s language', async () => {
+// R14 L-1
+test('specs/express-5-upgrade.md rule 8, specs/public-api.md rule 22 — a body the parser refuses on /public/ answers the nested envelope, in the caller\'s language', async () => {
   const bad = await post('/public/v1/quote', '{bad');
   assert.equal(bad.status, 400);
   assert.deepEqual(bad.json, { error: { code: 'INVALID_JSON', message: labels('fr').errors.bodyMalformed } });
@@ -87,7 +87,7 @@ test('R14 L-1, rule 22 — a body the parser refuses on /public/ answers the nes
   assert.equal(upper.json.error.code, 'INVALID_JSON', 'Express routes ignore the case');
 });
 
-test('express-5-upgrade rule 7 — the internal API keeps its flat refusal', async () => {
+test('specs/express-5-upgrade.md rule 7 — the internal API keeps its flat refusal', async () => {
   const bad = await post('/api/x', '{bad');
   assert.equal(bad.status, 400);
   assert.deepEqual(bad.json, { error: 'Requête invalide : le corps JSON est mal formé.', code: 'INVALID_JSON' });
