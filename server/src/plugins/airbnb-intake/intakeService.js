@@ -273,6 +273,9 @@ function createIntakeService(deps) {
   function applyFromBanner(intakeId) {
     const intake = intakes.get(intakeId);
     if (!intake || !intake.parsed) return { status: 'error', error: 'Saisie introuvable' };
+    if (intake.dismissedAt) return { status: 'error', error: 'Saisie ignorée' };
+    // Rule 14 — a second tab or a lost response: the fiche is never written twice, the banner reloads.
+    if (intake.status === 'applied') return { status: 'applied' };
     const m = match(intake.parsed);
     if (m.error || !m.reservation) return { status: 'error', error: m.error || 'Fiche introuvable' };
     return apply(intake, m.reservation);

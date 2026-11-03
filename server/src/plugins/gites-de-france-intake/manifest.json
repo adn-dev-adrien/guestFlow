@@ -1,7 +1,7 @@
 {
   "id": "gites-de-france-intake",
   "name": "Saisie Gîtes de France",
-  "version": "1.4.8",
+  "version": "1.4.9",
   "description": "Remplit les fiches Gîtes de France depuis le mail de réservation de la centrale.",
   "icon": "mail",
   "surfaces": [
@@ -93,6 +93,10 @@
     ],
     "1.4.8": [
       "Appliquer un mail garde les moments planifiés d’une option à carte de planning (petit déjeuner, repas) et leur nombre de couverts (SDK 2.21 de GuestFlow)."
+    ],
+    "1.4.9": [
+      "Appliquer deux fois le même mail (second onglet, réponse perdue) n’écrit plus rien la seconde fois, et un mail ignoré ne s’applique plus.",
+      "Compatible avec le SDK 2.21 de GuestFlow."
     ]
   }
 }
