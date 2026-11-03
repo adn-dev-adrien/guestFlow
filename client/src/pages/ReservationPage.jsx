@@ -57,7 +57,7 @@ import { expandOptionGroups } from '../utils/optionGroups';
 import { getRangeOccupancyConflictInfo, isPlacementUnchanged } from '../utils/reservationConflicts';
 import { isValidEmail, isValidPhone } from '../utils/validation';
 import { DEFAULT_BACK_PATH, getFromParam, navigateBack, navigateBackWithFrom } from '../utils/navigation';
-import { applyQuoteToForm as applyQuoteToFormPure } from '../utils/applyQuoteToForm';
+import { applyQuoteToForm as applyQuoteToFormPure, applyQuoteToBaseline } from '../utils/applyQuoteToForm';
 import { resolvePlatformTouristTaxPrefill } from '../utils/platformTouristTaxPrefill';
 import { COARSE_POINTER, TOUCH_TARGET } from '../utils/touchHitArea';
 import { midStayNoteAccess, countMidStayNotes } from '../utils/midStayNoteAccess';
@@ -666,7 +666,7 @@ export default function ReservationPage() {
       try {
         const loaded = JSON.parse(cleanBaseline);
         const preserveBlankPrice = isIcalImportedBlankPrice && loaded.form.customPrice === '' && loaded.form.totalPrice === '';
-        cleanBaseline = JSON.stringify({ ...loaded, form: applyQuoteToFormPure(loaded.form, pricingQuote, { preserveBlankPrice }) });
+        cleanBaseline = JSON.stringify({ ...loaded, form: applyQuoteToBaseline(loaded.form, pricingQuote, lastQuoteBodyRef.current?.selectedOptions, { preserveBlankPrice }) });
       } catch { /* the loaded form stands */ }
     }
     if (!isExistingRecord || pricingQuote) setInitialSnapshot(cleanBaseline);
@@ -683,13 +683,14 @@ export default function ReservationPage() {
     if (pricingQuote === resnapshotAfterQuoteRef.current.quote) return;
     resnapshotAfterQuoteRef.current = null;
     // The baseline takes what the quote wrote into the form, and nothing else: whatever the operator typed
-    // while the quote was on its way (a note) stays an edit, so Enregistrer lights up.
+    // while the quote was on its way (a note, a count) stays an edit, so Enregistrer lights up.
+    const askedLines = lastQuoteBodyRef.current?.selectedOptions;
     setInitialSnapshot((prevSnapshot) => {
       // Not frozen yet: the baseline is still derived from the loaded form and the quote, which is right.
       if (!prevSnapshot) return prevSnapshot;
       try {
         const snap = JSON.parse(prevSnapshot);
-        return JSON.stringify({ ...snap, form: applyQuoteToFormPure(snap.form, pricingQuote, { preserveBlankPrice: false }) });
+        return JSON.stringify({ ...snap, form: applyQuoteToBaseline(snap.form, pricingQuote, askedLines, { preserveBlankPrice: false }) });
       } catch { return prevSnapshot; }
     });
   }, [pricingQuote, formSnapshot]);
@@ -1731,7 +1732,7 @@ export default function ReservationPage() {
   };
   const setOptionCardPersons = (optionId, persons) => setOptionTypedCount(optionId, 'persons', persons);
 
-  // specs/non-card-option-served-persons.md rule 29 — what the mid-stay note's « Annuler » puts back, whole:
+  // specs/non-card-option-served-persons.md rule 31 — what the mid-stay note's « Annuler » puts back, whole:
   // the lines with their grids and typed counts, plus what removing or re-adding a line moves elsewhere
   // (the offered set, the bed counters of a bed-linen option, the welcome pack's refusals).
   const captureOptionsState = () => ({

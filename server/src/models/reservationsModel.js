@@ -929,7 +929,7 @@ function createReservationsModel(database) {
         WHERE ro.reservationId = ?
       `).all(id).map(({ lineIsCard, lineIsInsurance, ...line }) => ({
         ...line,
-        // specs/non-card-option-served-persons.md rule 27 — what the dashboard and the SAS recap print.
+        // specs/non-card-option-served-persons.md rule 29 — what the dashboard and the SAS recap print.
         displayCount: displayCountOf(line, reservation, { isCard: Boolean(lineIsCard), isInsurance: Boolean(lineIsInsurance) }),
       }));
 

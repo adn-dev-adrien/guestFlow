@@ -12,7 +12,7 @@ function formatOptionQuantity(quantity) {
   return Number.isInteger(safe) ? String(safe) : safe.toFixed(2).replace(/\.00$/, '');
 }
 
-// The count the fiche's field shows (specs/non-card-option-served-persons.md rule 27), read from what the
+// The count the fiche's field shows (specs/non-card-option-served-persons.md rule 29), read from what the
 // line bills: `quantity` stays 1 on a typed line. Same reading as the core's `displayCountOf`, and a test
 // holds the two together; a card line counts its moments and the insurance covers the stay.
 function optionDisplayCount({

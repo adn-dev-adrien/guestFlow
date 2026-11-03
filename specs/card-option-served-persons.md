@@ -101,7 +101,7 @@ planning card and the kitchen prep all follow that number instead of the party s
 9. Editing the stepper re-prices the line live like any other quantity edit (the same `/quote` preview
    round-trip), and is saved with the fiche. A locked reservation (`isReservationLocked`) disables it
    like every other field. Since 2026-11-03 a numeric echo of the quote wins over the form, a `null` echo
-   keeps it ([non-card-option-served-persons.md](non-card-option-served-persons.md) rule 28).
+   keeps it ([non-card-option-served-persons.md](non-card-option-served-persons.md) rule 30).
 10. **Devis parity** — a quote carries the served count exactly like it carries the moments; the
     devis → réservation conversion (and back) copies it verbatim, and the PDF shows the quantity it
     priced ([devis-extras-parity-and-price-lock.md](devis-extras-parity-and-price-lock.md)).

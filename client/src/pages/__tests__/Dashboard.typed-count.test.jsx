@@ -1,4 +1,4 @@
-// specs/non-card-option-served-persons.md rule 27 — the arrivals table prints the figure the server sends,
+// specs/non-card-option-served-persons.md rule 29 — the arrivals table prints the figure the server sends,
 // not `quantity`, which stays 1 on a typed line.
 import React from 'react';
 import { render, screen } from '@testing-library/react';
@@ -19,7 +19,7 @@ import api from '../../api';
 import Dashboard from '../Dashboard';
 import { localIsoToday } from '../../utils/isoDay';
 
-test('rule 27 — a typed line reads the people served, a line without a figure keeps its quantity', async () => {
+test('rule 29 — a typed line reads the people served, a line without a figure keeps its quantity', async () => {
   const today = localIsoToday();
   api.getAttention.mockResolvedValue({ pinned: [], total: 0, items: [] });
   api.getToday.mockResolvedValue({ today });

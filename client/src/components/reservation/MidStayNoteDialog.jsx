@@ -45,8 +45,8 @@ export default function MidStayNoteDialog({ open, onClose, pendingLines = [], on
   const [busy, setBusy] = useState(false);
   const [preview, setPreview] = useState({ items: [], total: 0 });
   // The sold options when the dialog opened: « Annuler » must leave the reservation exactly as it was,
-  // catalogue additions and removals included (§3.5 edge cases; non-card-option-served-persons.md rule 29).
-  // State, not a ref: what the note adds is measured against it (rule 31), so it has to render.
+  // catalogue additions and removals included (§3.5 edge cases; non-card-option-served-persons.md rule 31).
+  // State, not a ref: what the note adds is measured against it (rule 33), so it has to render.
   const [openingOptions, setOpeningOptions] = useState(null);
   // The remainder as it stood on open — the reference the server measures « what did this note add? » from.
   const openingRef = useRef([]);
@@ -170,7 +170,7 @@ export default function MidStayNoteDialog({ open, onClose, pendingLines = [], on
                       const displayed = !selected
                         ? 0
                         : (typedKind ? typedCountValue(selected, typedKind, typedCurrent) : Number(selected.quantity));
-                      // Same bounds as the fiche's OptionRow (rule 30): what was sold at arrival is a
+                      // Same bounds as the fiche's OptionRow (rule 32): what was sold at arrival is a
                       // floor; without one, 0 takes the line off.
                       const arrivalLine = (arrivalLines || {})[optionLineKey(opt.id)];
                       const typedFloor = arrivalLine?.minTypedCount != null ? displayedFloor(arrivalLine.minTypedCount) : 1;

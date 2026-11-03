@@ -1,4 +1,4 @@
-// specs/non-card-option-served-persons.md rule 27 — the summary's line label prints the figure the server
+// specs/non-card-option-served-persons.md rule 29 — the summary's line label prints the figure the server
 // sends: a typed line is no longer « · 1 matin », or silent, whatever was typed.
 import React from 'react';
 import { render, screen } from '@testing-library/react';
@@ -32,17 +32,17 @@ function renderSummary(optionLine) {
 
 const line = (over) => ({ optionId: 7, title: 'Café', quantity: 1, unitPrice: 4, billedUnits: 3, totalPrice: 12, offered: false, ...over });
 
-test('rule 27 — a breakfast by the day reads the mornings the server counts', () => {
+test('rule 29 — a breakfast by the day reads the mornings the server counts', () => {
   renderSummary(line({ priceType: 'per_night', quantityUnit: 'morning', displayCount: 3 }));
   expect(screen.getByText('Café · 3 matins')).toBeInTheDocument();
 });
 
-test('rule 27 — a typed line reads the people served', () => {
+test('rule 29 — a typed line reads the people served', () => {
   renderSummary(line({ priceType: 'per_person', displayCount: 3 }));
   expect(screen.getByText('Café ×3')).toBeInTheDocument();
 });
 
-test('rule 27 — a figure of 1 reads no count, and a line without a figure keeps its quantity', () => {
+test('rule 29 — a figure of 1 reads no count, and a line without a figure keeps its quantity', () => {
   const { unmount } = renderSummary(line({ priceType: 'per_person', displayCount: 1 }));
   expect(screen.getByText('Café')).toBeInTheDocument();
   unmount();

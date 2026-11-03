@@ -12,7 +12,7 @@ function withQuantityUnit(line, option) {
   const byDay = !option.showsPlanningCard && ['per_night', 'per_person_per_night'].includes(line.priceType || option.priceType);
   return placed || byDay ? { ...line, quantityUnit: 'morning' } : line;
 }
-// The figure the summary prints beside the line (specs/non-card-option-served-persons.md rule 27), the
+// The figure the summary prints beside the line (specs/non-card-option-served-persons.md rule 29), the
 // same reading as the fiche's field. A breakfast counted by the day says its mornings: the stay's for a
 // count of people, the typed ones for a count of nights.
 function withDisplayCount(line, nights) {

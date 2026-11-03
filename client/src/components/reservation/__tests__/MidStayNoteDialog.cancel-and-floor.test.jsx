@@ -1,4 +1,4 @@
-// specs/non-card-option-served-persons.md rules 13, 29, 30 — « Annuler » restores the opening state
+// specs/non-card-option-served-persons.md rules 13, 31, 32, 33 — « Annuler » restores the opening state
 // whole, each row keeps its arrival floor and the fiche's ceiling, and « En fin de séjour » waits for an
 // actual addition.
 import React from 'react';
@@ -46,7 +46,7 @@ const type = (input, value) => {
   fireEvent.blur(input);
 };
 
-test('rule 29 — « Annuler » restores the state captured on opening, a removed line included', () => {
+test('rule 31 — « Annuler » restores the state captured on opening, a removed line included', () => {
   const opening = [{ optionId: 40, quantity: 1, totalPrice: 24, cardPersons: 3, cardOccurrences: [] }];
   const { ctx, onClose, withLines } = setup({ lines: opening });
   withLines([]);
@@ -56,7 +56,7 @@ test('rule 29 — « Annuler » restores the state captured on opening, a remove
   expect(onClose).toHaveBeenCalled();
 });
 
-test('rule 29 — a card line taken off and cancelled comes back with its grid', () => {
+test('rule 31 — a card line taken off and cancelled comes back with its grid', () => {
   const occurrences = [{ date: 'd1', time: '19:00', checked: true }];
   const opening = [{ optionId: 42, quantity: 1, totalPrice: 20, cardOccurrences: occurrences }];
   const { ctx, withLines } = setup({ lines: opening, catalogue: [CARD] });
@@ -65,7 +65,7 @@ test('rule 29 — a card line taken off and cancelled comes back with its grid',
   expect(ctx.restoreOptionsState.mock.calls[0][0].selectedOptions[0].cardOccurrences).toEqual(occurrences);
 });
 
-test('rule 30 — a typed line sold at arrival cannot go below what was sold', () => {
+test('rule 32 — a typed line sold at arrival cannot go below what was sold', () => {
   const { ctx } = setup({
     lines: [{ optionId: 40, quantity: 1, totalPrice: 24, cardPersons: 3 }],
     arrivalLines: { 'opt:40': { minQuantity: 1, minTypedCount: 3, reason: 'arrival' } },
@@ -76,7 +76,7 @@ test('rule 30 — a typed line sold at arrival cannot go below what was sold', (
   expect(ctx.setOptionTypedCount).toHaveBeenCalledWith(40, 'persons', 3);
 });
 
-test('rule 30 — a plain line sold at arrival keeps its floor in units', () => {
+test('rule 32 — a plain line sold at arrival keeps its floor in units', () => {
   const { ctx } = setup({
     lines: [{ optionId: 41, quantity: 3, totalPrice: 240 }],
     catalogue: [PER_STAY],
@@ -87,7 +87,7 @@ test('rule 30 — a plain line sold at arrival keeps its floor in units', () => 
   expect(ctx.setOptionQuantity).toHaveBeenCalledWith(41, 2);
 });
 
-test('rule 30 — a card line sold at arrival cannot be taken off', () => {
+test('rule 32 — a card line sold at arrival cannot be taken off', () => {
   setup({
     lines: [{ optionId: 42, quantity: 1, totalPrice: 20, cardOccurrences: [] }],
     catalogue: [CARD],
@@ -97,24 +97,24 @@ test('rule 30 — a card line sold at arrival cannot be taken off', () => {
   expect(screen.getByRole('button', { name: 'Ajouté ✓', hidden: true })).toBeDisabled();
 });
 
-test('rule 30 — a line without an arrival floor can still be removed by typing 0', () => {
+test('rule 32 — a line without an arrival floor can still be removed by typing 0', () => {
   const { ctx } = setup({ lines: [{ optionId: 40, quantity: 1, totalPrice: 24, cardPersons: 3 }] });
   type(screen.getByDisplayValue('3'), '0');
   expect(ctx.setOptionEnabled).toHaveBeenCalledWith(40, false);
 });
 
-test('rule 30 — people served are capped like on the fiche: the larger of capacity, party and the value held', () => {
+test('rule 32 — people served are capped like on the fiche: the larger of capacity, party and the value held', () => {
   const { ctx } = setup({ lines: [{ optionId: 40, quantity: 1, totalPrice: 8, cardPersons: 1 }], persons: 4, maxGuests: 5 });
   type(screen.getByDisplayValue('1'), '50');
   expect(ctx.setOptionTypedCount).toHaveBeenCalledWith(40, 'persons', 5);
 });
 
-test('rule 31 — opening without touching anything offers no « En fin de séjour »', () => {
+test('rule 33 — opening without touching anything offers no « En fin de séjour »', () => {
   setup({ lines: [{ optionId: 40, quantity: 1, totalPrice: 24, cardPersons: 3 }] });
   expect(screen.queryByRole('button', { name: 'En fin de séjour' })).not.toBeInTheDocument();
 });
 
-test('rule 31 — an addition offers it; a second opening compares with its own opening, not the first', () => {
+test('rule 33 — an addition offers it; a second opening compares with its own opening, not the first', () => {
   const opening = [{ optionId: 40, quantity: 1, totalPrice: 24, cardPersons: 3 }];
   const { withLines, ctx } = setup({ lines: opening });
   const raised = [{ optionId: 40, quantity: 1, totalPrice: 32, cardPersons: 4 }];

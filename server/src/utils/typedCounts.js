@@ -24,7 +24,7 @@ function typedCountOf({ priceType, billedUnits }, stay) {
   return nights > 0 ? Number(billedUnits) / nights : null;
 }
 
-// The figure a reader prints for a line (rule 27): the count the fiche's field shows, read from what the
+// The figure a reader prints for a line (rule 29): the count the fiche's field shows, read from what the
 // line bills. A card line counts its moments and the insurance covers the stay, so both keep `quantity`,
 // as does any line with no count of its own.
 function displayCountOf(line, stay, { isCard = false, isInsurance = false } = {}) {

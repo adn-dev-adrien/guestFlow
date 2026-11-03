@@ -1,4 +1,4 @@
-// specs/non-card-option-served-persons.md rule 27 + specs/google-calendar-oauth-rework.md rule 31 — the
+// specs/non-card-option-served-persons.md rule 29 + specs/google-calendar-oauth-rework.md rule 31 — the
 // event description prints the count the fiche shows, not `quantity`, which stays 1 on a typed line.
 
 const test = require('node:test');
@@ -46,17 +46,17 @@ const EXPECTED = ['- Assurance x1', '- Bois x2', '- Dîner x3', '- Linge de bain
 const optionLinesOf = (reservation) => buildEventDescription(reservation, reservation.options)
   .split('\n').filter((l) => l.startsWith('- '));
 
-test('rule 27 — a targeted push prints the typed people and nights', () => {
+test('rule 29 — a targeted push prints the typed people and nights', () => {
   const reservation = buildModel(seededDb(day(10), day(15))).getReservationForSync(1);
   assert.deepEqual(optionLinesOf(reservation), EXPECTED);
 });
 
-test('rule 27 — a full reconcile prints the same figures', () => {
+test('rule 29 — a full reconcile prints the same figures', () => {
   const [reservation] = buildModel(seededDb(day(10), day(15))).listReservationsForSync();
   assert.deepEqual(optionLinesOf(reservation), EXPECTED);
 });
 
-test('rule 27 — the plugin reads a line exactly as the core does', () => {
+test('rule 29 — the plugin reads a line exactly as the core does', () => {
   const stay = { startDate: day(10), endDate: day(15) };
   const rows = [
     { priceType: 'per_person', quantity: 1, billedUnits: 3 },
@@ -71,4 +71,13 @@ test('rule 27 — the plugin reads a line exactly as the core does', () => {
   }
   assert.equal(optionDisplayCount({ priceType: 'per_person', quantity: 3, billedUnits: 9, isCard: 1, ...stay }), 3);
   assert.equal(optionDisplayCount({ priceType: 'per_night', quantity: 1, billedUnits: 5, isInsurance: 1, ...stay }), 1);
+});
+
+test('rule 29 — a figure that does not divide evenly reads 1.67 in the plugin and the core alike', () => {
+  const stay = { startDate: day(10), endDate: day(13) };
+  const row = { priceType: 'per_person_per_night', quantity: 1, billedUnits: 5 };
+  assert.equal(displayCountOf(row, stay), 1.67);
+  assert.equal(optionDisplayCount({ ...row, ...stay }), 1.67);
+  const description = buildEventDescription({ ...stay, adults: 4 }, [{ title: 'Repas', displayCount: optionDisplayCount({ ...row, ...stay }) }]);
+  assert.ok(description.includes('- Repas x1.67'), description);
 });

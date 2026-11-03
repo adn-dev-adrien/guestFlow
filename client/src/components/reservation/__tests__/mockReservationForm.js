@@ -74,7 +74,7 @@ export function makeMockContext(overrides = {}) {
     // occurrence grid and how many people each of its moments serves.
     setOptionCardOccurrences: vi.fn(), setOptionCardPersons: vi.fn(),
     setOptionTypedCount: vi.fn(),
-    // What the mid-stay note's « Annuler » puts back (specs/non-card-option-served-persons.md rule 29).
+    // What the mid-stay note's « Annuler » puts back (specs/non-card-option-served-persons.md rule 31).
     captureOptionsState: vi.fn(() => ({ selectedOptions: JSON.parse(JSON.stringify(form.selectedOptions)) })),
     restoreOptionsState: vi.fn(),
     setResourceSessions: vi.fn(),

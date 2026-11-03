@@ -1,4 +1,4 @@
-// specs/non-card-option-served-persons.md rule 27 — `quantity` stays 1 on a typed line, so the readers
+// specs/non-card-option-served-persons.md rule 29 — `quantity` stays 1 on a typed line, so the readers
 // that print a count print the figure the server sends: the people served or the nights, as the fiche's
 // field reads them. Driven through the real engine, model and schema.
 
@@ -70,18 +70,23 @@ const quote = async (selectedOptions) => {
   return payload;
 };
 
-test('rule 27 — the figure is the people served or the nights, never the base quantity of 1', () => {
+test('rule 29 — the figure is the people served or the nights, never the base quantity of 1', () => {
   assert.equal(displayCountOf({ priceType: 'per_person', quantity: 1, billedUnits: 3 }, STAY), 3);
   assert.equal(displayCountOf({ priceType: 'per_night', quantity: 1, billedUnits: 2 }, STAY), 2);
   assert.equal(displayCountOf({ priceType: 'per_person_per_night', quantity: 1, billedUnits: 10 }, STAY), 2);
 });
 
-test('rule 27 — a line nobody typed reads the whole party or the whole stay', () => {
+test('rule 29 — a line nobody typed reads the whole party or the whole stay', () => {
   assert.equal(displayCountOf({ priceType: 'per_person', quantity: 1, billedUnits: 4 }, STAY), 4);
   assert.equal(displayCountOf({ priceType: 'per_night', quantity: 1, billedUnits: 5 }, STAY), 5);
 });
 
-test('rule 27 — every other line keeps its quantity: other price types, a card, the insurance, a line with no billed units', () => {
+test('rule 29 — a per-person-per-night figure that does not divide evenly reads 2 decimals', () => {
+  const threeNights = { startDate: inDays(40), endDate: inDays(43) };
+  assert.equal(displayCountOf({ priceType: 'per_person_per_night', quantity: 1, billedUnits: 5 }, threeNights), 1.67);
+});
+
+test('rule 29 — every other line keeps its quantity: other price types, a card, the insurance, a line with no billed units', () => {
   assert.equal(displayCountOf({ priceType: 'per_stay', quantity: 2, billedUnits: 2 }, STAY), 2);
   assert.equal(displayCountOf({ priceType: 'percent_of_stay', quantity: 1, billedUnits: 1 }, STAY), 1);
   assert.equal(displayCountOf({ priceType: 'per_person', quantity: 3, billedUnits: 9 }, STAY, { isCard: true }), 3);
@@ -90,27 +95,27 @@ test('rule 27 — every other line keeps its quantity: other price types, a card
   assert.equal(displayCountOf({ priceType: 'per_person_per_night', quantity: 2, billedUnits: 10 }, {}), 2);
 });
 
-test('rule 18 + 27 — a drifted line reads as what it bills', () => {
+test('rule 18 + 29 — a drifted line reads as what it bills', () => {
   assert.equal(displayCountOf({ priceType: 'per_person', quantity: 1.1, billedUnits: 12.1 }, STAY), 12.1);
 });
 
-test('rule 27 — the stay read by the dashboard and the SAS carries the figure on each line', () => {
+test('rule 29 — the stay read by the dashboard and the SAS carries the figure on each line', () => {
   const lines = figures(model.getByIdWithDetails(stayId).options);
   assert.deepEqual(lines, { [PP]: 3, [PPN]: 2, [NIGHT]: 2, [FLAT]: 2, [CARD]: 3, [INSURANCE]: 1 });
 });
 
-test('rule 27 — the reception view keeps the figure', () => {
+test('rule 29 — the reception view keeps the figure', () => {
   const view = toReceptionReservationView(model.getByIdWithDetails(stayId));
   assert.equal(figures(view.options)[PP], 3);
 });
 
-test('rule 27 — the stored summary carries it too', () => {
+test('rule 29 — the stored summary carries it too', () => {
   const row = db.prepare('SELECT * FROM reservations WHERE id = ?').get(stayId);
   const summary = buildStoredSummary({ row, db, vatRegime: vatRegimeModel, headline: {} });
   assert.deepEqual(figures(summary.optionLines), { [PP]: 3, [PPN]: 2, [NIGHT]: 2, [FLAT]: 2, [CARD]: 3, [INSURANCE]: 1 });
 });
 
-test('rule 27 — the live quote carries the typed figure, and what the line follows when nobody typed', async () => {
+test('rule 29 — the live quote carries the typed figure, and what the line follows when nobody typed', async () => {
   const typed = figures((await quote([
     { optionId: PP, quantity: 1, cardPersons: 3 },
     { optionId: PPN, quantity: 1, cardPersons: 2 },
@@ -122,7 +127,7 @@ test('rule 27 — the live quote carries the typed figure, and what the line fol
   assert.deepEqual([untouched[PP], untouched[NIGHT]], [4, 5]);
 });
 
-test('rule 27 — a non-card breakfast counted by the day reads its mornings, however many are typed', async () => {
+test('rule 29 — a non-card breakfast counted by the day reads its mornings, however many are typed', async () => {
   const lines = (await quote([
     { optionId: BF_NIGHT, quantity: 1, cardNights: 3 },
     { optionId: BF_PPN, quantity: 1, cardPersons: 2 },

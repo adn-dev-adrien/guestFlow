@@ -1,4 +1,4 @@
-// specs/non-card-option-served-persons.md rule 27 — the « Prestations réservées » recap prints the figure
+// specs/non-card-option-served-persons.md rule 29 — the « Prestations réservées » recap prints the figure
 // the server sends, not `quantity`, which stays 1 on a typed line.
 import { screen } from '@testing-library/react';
 import { vi } from 'vitest';
@@ -19,7 +19,7 @@ vi.mock('../../../api', () => ({
   },
 }));
 
-test('rule 27 — a typed line reads the people served; a lone unit reads no count', async () => {
+test('rule 29 — a typed line reads the people served; a lone unit reads no count', async () => {
   api.previewArrivalSas.mockImplementation(previewLikeTheServer(api));
   api.previewDepartureSas.mockImplementation(departurePreviewLikeTheServer(api));
   api.getReservationSas.mockResolvedValue(sasPayload({
