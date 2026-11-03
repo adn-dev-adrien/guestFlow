@@ -7,7 +7,7 @@ const resourceOccupancyModel = require('../occupancyModel');
 const { todayIso } = require('../../../utils/localDate');
 const { addDaysToIsoDate } = require('../../../utils/devisHelpers');
 
-/** `YYYY-MM-DD`, `days` after today: the dates of this suite hang on it (specs/server-test-isolation.md rule 6). */
+/** `YYYY-MM-DD`, `days` after today: the dates of this suite hang on it, so the date window never drops them. */
 const inDays = (days) => addDaysToIsoDate(todayIso(), days);
 
 // specs/hourly-resource-quantity-and-sas-scheduling.md §3.5 — a resource is occupied by standalone

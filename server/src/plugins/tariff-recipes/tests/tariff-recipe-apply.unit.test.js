@@ -7,7 +7,7 @@ const { validateRecipe } = require('../store');
 const { todayIso } = require('../../../utils/localDate');
 const { addDaysToIsoDate } = require('../../../utils/devisHelpers');
 
-/** `YYYY-MM-DD`, `days` after today: the dates of this suite hang on it (specs/server-test-isolation.md rule 6). */
+/** `YYYY-MM-DD`, `days` after today: the dates of this suite hang on it, so the date window never drops them. */
 const inDays = (days) => addDaysToIsoDate(todayIso(), days);
 
 // specs/tariff-recipes/spec.md §3.2 rules 7-12 — diff shape, orphan removal, manual seasons as
