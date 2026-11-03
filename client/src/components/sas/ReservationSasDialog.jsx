@@ -715,7 +715,11 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           }
         } else {
           const units = Number(cateringUnits[opt.optionId]) || 0;
-          if (units > 0) out.push({ offer: opt, occurrences: null, persons: null, units });
+          if (units > 0 && opt.perPerson) {
+            // specs/non-card-option-served-persons.md rule 12 — it sells people served, as a card does.
+            const persons = servedFor(opt, cateringServed[opt.optionId]);
+            out.push({ offer: opt, occurrences: null, persons, units: persons * (Number(opt.unitsPerPerson) || 1) });
+          } else if (units > 0) out.push({ offer: opt, occurrences: null, persons: null, units });
         }
       }
     }
@@ -1036,7 +1040,9 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           soldOptions: (activeKeys.includes('breakfastSale') || activeKeys.includes('cateringAsk'))
             ? soldSelections.map((s) => (s.occurrences
               ? { optionId: s.offer.optionId, occurrences: s.occurrences, persons: s.persons }
-              : { optionId: s.offer.optionId, units: s.units }))
+              : (s.persons != null
+                ? { optionId: s.offer.optionId, persons: s.persons }
+                : { optionId: s.offer.optionId, units: s.units })))
             : undefined,
           // « Offrir » on an upsell keeps its option activated (laundry + linen stock) but bills 0 €.
           cleaningOffered: isOffered('cleaning'),
@@ -1457,9 +1463,10 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
               const chosen = grid.filter((x) => x.checked).length;
               const picked = Boolean(cateringPicked[o.optionId]);
               const served = servedFor(o, cateringServed[o.optionId]);
+              const plainUnits = Number(cateringUnits[o.optionId]) || 0;
               const units = o.showsPlanningCard
                 ? chosen * (o.perPerson ? served : 1)
-                : Number(cateringUnits[o.optionId]) || 0;
+                : (o.perPerson && plainUnits > 0 ? served * (Number(o.unitsPerPerson) || 1) : plainUnits);
               const amount = Math.round(Number(o.unitPrice) * units * 100) / 100;
               return (
                 <Box key={o.optionId} sx={{ py: 0.5 }}>
@@ -1522,7 +1529,16 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
                         />
                       )}
                     </>
-                  )) : units > 0 && (
+                  )) : units > 0 && o.perPerson ? (
+                    <CountStepper
+                      icon={<PeopleIcon color="action" />}
+                      label={`Personnes servies — ${formatCurrency(amount)}`}
+                      value={served}
+                      min={1}
+                      max={Number(o.maxPersons) || undefined}
+                      onChange={(v) => setCateringServed((prev) => ({ ...prev, [o.optionId]: v }))}
+                    />
+                  ) : units > 0 && (
                     <CountStepper
                       icon={<RestaurantIcon color="action" />}
                       label={`Quantité — ${formatCurrency(amount)}`}

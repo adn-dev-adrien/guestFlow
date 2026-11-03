@@ -36,6 +36,7 @@ const {
 } = require('../utils/midStayExtras');
 const { buildEditLock } = require('../utils/midStayExtrasWindow');
 const { priceOptionSale, billablePersons } = require('../utils/sasOptionSale');
+const { typedCountOf } = require('../utils/typedCounts');
 const { reconcileEndOfStayLines, isAdjustmentLine } = require('../utils/endOfStayAdjustment');
 const { splitComplementByPoste, allocateComplementAdjustment, parseComplementAllocation } = require('../utils/complementAllocation');
 const { buildOperationalCollection } = require('../utils/operationalCollection');
@@ -480,6 +481,10 @@ function createReservationsModel(database) {
   })();
   // Served persons of a per-person card option (specs/card-option-served-persons.md §5), and the
   // property capacity that bounds it. Guarded like every other optional column.
+  const HAS_RO_CARD_NIGHTS = (() => {
+    try { return database.prepare('PRAGMA table_info(reservation_options)').all().some((c) => c.name === 'cardNights'); }
+    catch { return false; }
+  })();
   const HAS_RO_CARD_PERSONS = (() => {
     try { return database.prepare('PRAGMA table_info(reservation_options)').all().some((c) => c.name === 'cardPersons'); }
     catch { return false; }
@@ -2303,6 +2308,14 @@ function createReservationsModel(database) {
           .all(reservationId).map((row) => [Number(row.id), Number(row.quantity || 0)]),
       );
       const optionUnits = quantities('reservation_options', 'optionId');
+      // What the fiche's field shows for a non-card line, so a floor can speak its unit
+      // (specs/non-card-option-served-persons.md rule 17). No count for any other price type.
+      const stay = database.prepare('SELECT startDate, endDate FROM reservations WHERE id = ?').get(reservationId);
+      const optionCounts = new Map(database.prepare(`
+        SELECT ro.optionId, ro.billedUnits, ro.priceType FROM reservation_options ro
+        JOIN options o ON o.id = ro.optionId
+        WHERE ro.reservationId = ? AND COALESCE(o.showsPlanningCard, 0) = 0
+      `).all(reservationId).map((row) => [Number(row.optionId), typedCountOf(row, stay)]));
       const optionOccurrences = new Map(database.prepare('SELECT optionId, cardOccurrences FROM reservation_options WHERE reservationId = ?')
         .all(reservationId).map((row) => {
           let list = [];
@@ -2314,7 +2327,7 @@ function createReservationsModel(database) {
         "SELECT id FROM resources WHERE priceType = 'per_hour' OR COALESCE(isComplex, 0) = 1",
       ).all().map((row) => Number(row.id)));
       return model.readExtraLines(reservationId).map((line) => {
-        if (line.optionId != null) return { ...line, quantity: optionUnits.get(line.optionId), occurrences: optionOccurrences.get(line.optionId) };
+        if (line.optionId != null) return { ...line, quantity: optionUnits.get(line.optionId), occurrences: optionOccurrences.get(line.optionId), typedCount: optionCounts.get(line.optionId) };
         if (line.resourceId != null) {
           return { ...line, quantity: resourceUnits.get(line.resourceId), hourly: hourlyResources.has(line.resourceId) };
         }
@@ -2874,14 +2887,15 @@ function createReservationsModel(database) {
           }
           const occColumn = HAS_RO_CARD_OCCURRENCES;
           const perColumn = HAS_RO_CARD_PERSONS;
+          const nightsColumn = HAS_RO_CARD_NIGHTS;
           const upsert = database.prepare(`
             INSERT INTO reservation_options
-              (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered, inComplement, sasArrivalOrigin${occColumn ? ', cardOccurrences' : ''}${perColumn ? ', cardPersons' : ''})
-            VALUES (?, ?, ?, ?, ?, ?, ?, 0, 1, 1${occColumn ? ', ?' : ''}${perColumn ? ', ?' : ''})
+              (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered, inComplement, sasArrivalOrigin${occColumn ? ', cardOccurrences' : ''}${perColumn ? ', cardPersons' : ''}${nightsColumn ? ', cardNights' : ''})
+            VALUES (?, ?, ?, ?, ?, ?, ?, 0, 1, 1${occColumn ? ', ?' : ''}${perColumn ? ', ?' : ''}${nightsColumn ? ', ?' : ''})
             ON CONFLICT(reservationId, optionId) DO UPDATE SET
               quantity = excluded.quantity, unitPrice = excluded.unitPrice, billedUnits = excluded.billedUnits,
               priceType = excluded.priceType, totalPrice = excluded.totalPrice,
-              inComplement = 1, sasArrivalOrigin = 1${occColumn ? ', cardOccurrences = excluded.cardOccurrences' : ''}${perColumn ? ', cardPersons = excluded.cardPersons' : ''}
+              inComplement = 1, sasArrivalOrigin = 1${occColumn ? ', cardOccurrences = excluded.cardOccurrences' : ''}${perColumn ? ', cardPersons = excluded.cardPersons' : ''}${nightsColumn ? ', cardNights = excluded.cardNights' : ''}
           `);
           for (const l of lines) {
             const params = [reservationId, l.optionId, l.quantity, l.unitPrice, l.billedUnits, l.priceType, l.totalPrice];
@@ -2889,6 +2903,7 @@ function createReservationsModel(database) {
             // Only a deliberately reduced (or raised) number of covers is stored; NULL keeps the line
             // following the party (specs/card-option-served-persons.md §3.1 rule 4).
             if (perColumn) params.push(l.cardPersons != null ? Number(l.cardPersons) : null);
+            if (nightsColumn) params.push(l.cardNights != null ? Number(l.cardNights) : null);
             upsert.run(...params);
           }
         };

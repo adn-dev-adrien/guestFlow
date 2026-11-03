@@ -80,6 +80,16 @@ function applyQuoteToForm(prev, quote, opts = {}) {
         ...(prevLine && prevLine.cardPersons != null
           ? { cardPersons: Number(prevLine.cardPersons) }
           : (line.cardPersons != null ? { cardPersons: Number(line.cardPersons) } : {})),
+        // specs/non-card-option-served-persons.md rules 18, 19, 23 — the nights work like the people,
+        // the figure a drifted line bills comes from the quote, and the typed-against reference is
+        // form-local (the engine knows nothing about it).
+        ...(prevLine && prevLine.cardNights != null
+          ? { cardNights: Number(prevLine.cardNights) }
+          : (line.cardNights != null ? { cardNights: Number(line.cardNights) } : {})),
+        ...(line.servedPersons != null ? { servedPersons: Number(line.servedPersons) } : {}),
+        ...(line.servedNights != null ? { servedNights: Number(line.servedNights) } : {}),
+        ...(prevLine && prevLine.typedAtParty != null ? { typedAtParty: prevLine.typedAtParty } : {}),
+        ...(prevLine && prevLine.typedAtNights != null ? { typedAtNights: prevLine.typedAtNights } : {}),
         // specs/welcome-pack-auto-options.md §3.4 — same reason as `cardOccurrences`: the pack tag is
         // form-local (the engine knows nothing about it), so rebuilding the line from the quote would
         // erase it, and with it the form's ability to take back what it added on a platform change.

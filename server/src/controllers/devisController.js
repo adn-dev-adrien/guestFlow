@@ -25,7 +25,12 @@ function createController(model, {
 } = {}) {
   // Maps a model result ({ ok, status?, data } | { error, status }) to an HTTP response.
   function respond(res, result) {
-    if (result.error) return res.status(result.status || 400).json({ error: result.error });
+    if (result.error) {
+      return res.status(result.status || 400).json({
+        error: result.error,
+        ...(result.code ? { code: result.code, lines: result.lines } : {}),
+      });
+    }
     return res.status(result.status || 200).json(result.data);
   }
 

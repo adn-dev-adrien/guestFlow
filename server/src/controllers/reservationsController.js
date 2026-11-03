@@ -19,6 +19,7 @@ const { buildAuditSnapshotFromPayload, computeAuditChanges } = require('../utils
 const { suggestBedDistribution } = require('../utils/bedDistribution');
 const { computePlatformCommission } = require('../utils/platformCommission');
 const { checkGuestCapacity } = require('../utils/capacity');
+const { partyOf, nightsOf, typedCountAlerts, typedCountsErrorPayload } = require('../utils/typedCounts');
 const { captureContribsOnFlip, clearContribsOnUnflip } = require('../utils/forceItemContribsCapture');
 const { resolveComplementPayment } = require('../utils/complementPayment');
 const { isTouristTaxFrozen } = require('../utils/touristTaxFreeze');
@@ -181,6 +182,19 @@ function reservationNumberOverrideError(value, exceptId) {
 
 // specs/tariff-recipes/spec.md §3.4 rule 20bis — the maximum stay, mirror of MIN_NIGHTS: same
 // 409-with-code + force-override contract, same iCal exemption.
+// specs/non-card-option-served-persons.md rules 20-23 — which typed counts no longer match the party
+// or the stay being saved. `stored` is the row they were typed against, absent on a fresh fiche.
+function alertsForQuote(quote, body, requestLines, stored) {
+  return typedCountAlerts({
+    quoteLines: quote.optionLines,
+    requestLines,
+    persons: partyOf(body),
+    nights: Number(quote.nights) || 0,
+    storedPersons: stored ? partyOf(stored) : null,
+    storedNights: stored ? nightsOf(stored) : null,
+  });
+}
+
 function maxNightsErrorPayload(quote) {
   return {
     error: `Cette réservation comporte ${quote.nights} nuit(s), au-delà du maximum autorisé (${quote.requiredMaxNights}).`,
@@ -692,6 +706,10 @@ async function calculatePrice(req, res) {
     console.error('[neat] live reprice failed:', err.message);
   }
   if (quote.error) return res.status(quote.status || 400).json({ error: quote.error });
+  quote.typedCountAlerts = alertsForQuote(
+    quote, req.body, req.body.selectedOptions,
+    reservationId > 0 || devisId > 0 ? model.getRow(reservationId > 0 ? reservationId : devisId) : null,
+  );
   // specs/defer-arrival-complement-to-checkout.md §3.2 rule 7bis — the merged « complément de fin de
   // séjour » block, rebuilt from THIS quote so the card follows every edit live instead of showing
   // the last save. Payment flags and the deferral marker come from the stored row: the fiche's
@@ -746,7 +764,7 @@ function create(req, res) {
   const {
     propertyId, clientId, startDate, endDate, adults, children, teens, babies,
     singleBeds, doubleBeds, babyBeds, checkInTime, checkOutTime,
-    forceMinNights, forceMaxNights, forceCapacity, forceChangeover,
+    forceMinNights, forceMaxNights, forceCapacity, forceChangeover, forceTypedCounts,
     options: rawReservationOptions, customOptions: reservationCustomOptions, resources: reservationResources,
   } = req.body;
 
@@ -862,6 +880,10 @@ function create(req, res) {
   }
   if (quote.changeoverBreached && !forceChangeover) {
     return res.status(409).json(changeoverErrorPayload(quote));
+  }
+  if (!forceTypedCounts) {
+    const typedAlerts = alertsForQuote(quote, req.body, rawReservationOptions, null);
+    if (typedAlerts.length > 0) return res.status(409).json(typedCountsErrorPayload(typedAlerts));
   }
 
   const nightBlocks = getNightBlocksFromTimes(checkInTime, checkOutTime);
@@ -1045,7 +1067,7 @@ function applyUpdate(req, res, pastUnlocked) {
   const {
     propertyId, clientId, startDate, endDate, adults, children, teens, babies,
     singleBeds, doubleBeds, babyBeds, checkInTime, checkOutTime,
-    forceMinNights, forceMaxNights, forceCapacity, forceChangeover, refreshPricingToCurrent,
+    forceMinNights, forceMaxNights, forceCapacity, forceChangeover, forceTypedCounts, refreshPricingToCurrent,
     options: rawUpdateOptions, customOptions: reservationCustomOptions, resources: reservationResources,
   } = req.body;
 
@@ -1260,6 +1282,10 @@ function applyUpdate(req, res, pastUnlocked) {
   }
   if (quote.changeoverBreached && !forceChangeover && !pastReservationLocked) {
     return res.status(409).json(changeoverErrorPayload(quote));
+  }
+  if (!forceTypedCounts && !pastReservationLocked) {
+    const typedAlerts = alertsForQuote(quote, req.body, rawUpdateOptions, model.getRow(id));
+    if (typedAlerts.length > 0) return res.status(409).json(typedCountsErrorPayload(typedAlerts));
   }
 
   const nightBlocks = getNightBlocksFromTimes(checkInTime, checkOutTime);

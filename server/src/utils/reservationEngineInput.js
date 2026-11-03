@@ -14,7 +14,7 @@
 // The two card-option columns, kept out of the SELECT on a schema that predates them.
 function cardColumns(db) {
   const present = new Set(db.prepare('PRAGMA table_info(reservation_options)').all().map((c) => c.name));
-  return ['cardOccurrences', 'cardPersons'].filter((name) => present.has(name));
+  return ['cardOccurrences', 'cardPersons', 'cardNights'].filter((name) => present.has(name));
 }
 
 function buildReservationEngineInput(db, reservation) {
@@ -89,6 +89,7 @@ function buildReservationEngineInput(db, reservation) {
       // « sold, not placed yet » and the line is then priced from its snapshot.
       cardOccurrences: r.cardOccurrences,
       cardPersons: r.cardPersons,
+      cardNights: r.cardNights,
     })),
     customOptions: customOptionRows.map((r) => ({
       customOptionId: r.customOptionId,

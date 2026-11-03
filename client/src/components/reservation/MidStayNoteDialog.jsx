@@ -7,6 +7,7 @@ import { useTheme } from '@mui/material/styles';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import QuantityField from '../QuantityField';
 import { useReservationForm } from './ReservationFormContext';
+import { typedCountKind, typedCountValue } from '../../utils/optionTypedCount';
 import { formatCurrency } from '../../utils/formatters';
 
 /**
@@ -33,7 +34,7 @@ export default function MidStayNoteDialog({ open, onClose, pendingLines = [], on
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const {
     form, propertyOptions, propertyOptionGroups, setOptionEnabled, setOptionQuantity,
-    toDisplayedQuantity, toBaseQuantity, getQuantityMultiplier, pricingQuote,
+    quantityPersons, quantityNights, setOptionTypedCount, pricingQuote,
   } = useReservationForm();
 
   const [checkedKeys, setCheckedKeys] = useState([]);
@@ -77,19 +78,32 @@ export default function MidStayNoteDialog({ open, onClose, pendingLines = [], on
   }, [liveRemainder, checkedKeys, pendingLines, pricingQuote]);
 
   const noteTotal = items.reduce((s, i) => s + i.amount, 0);
+  // What a line sold counts: its typed people or nights, else its units (a typed line's `quantity` stays
+  // 1, specs/non-card-option-served-persons.md rule 13). Same reading as the field below.
+  const kindOf = (optionId) => typedCountKind((propertyOptions || []).find((p) => Number(p.id) === Number(optionId)));
+  const soldCount = (line) => {
+    const kind = kindOf(line.optionId);
+    if (!kind) return Number(line.quantity) || 0;
+    return typedCountValue(line, kind, kind === 'nights' ? quantityNights : quantityPersons);
+  };
   const hasAdditions = useMemo(() => {
-    const before = new Map((snapshotRef.current || []).map((o) => [Number(o.optionId), Number(o.quantity) || 0]));
-    return (form.selectedOptions || []).some((o) => (Number(o.quantity) || 0) > (before.get(Number(o.optionId)) || 0));
-  }, [form.selectedOptions]);
+    const before = new Map((snapshotRef.current || []).map((o) => [Number(o.optionId), soldCount(o)]));
+    return (form.selectedOptions || []).some((o) => soldCount(o) > (before.get(Number(o.optionId)) || 0));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.selectedOptions, propertyOptions, quantityPersons, quantityNights]);
 
   const rollback = () => {
     const before = snapshotRef.current;
     if (!before) return;
-    const beforeQty = new Map(before.map((o) => [Number(o.optionId), Number(o.quantity) || 0]));
+    const beforeCount = new Map(before.map((o) => [Number(o.optionId), soldCount(o)]));
     for (const o of (form.selectedOptions || [])) {
       const id = Number(o.optionId);
-      if (!beforeQty.has(id)) setOptionEnabled(id, false);
-      else if (beforeQty.get(id) !== (Number(o.quantity) || 0)) setOptionQuantity(id, beforeQty.get(id));
+      if (!beforeCount.has(id)) setOptionEnabled(id, false);
+      else if (beforeCount.get(id) !== soldCount(o)) {
+        const kind = kindOf(id);
+        if (kind) setOptionTypedCount(id, kind, beforeCount.get(id));
+        else setOptionQuantity(id, beforeCount.get(id));
+      }
     }
   };
 
@@ -158,10 +172,14 @@ export default function MidStayNoteDialog({ open, onClose, pendingLines = [], on
                   <Stack spacing={1}>
                     {group.options.map((opt) => {
                       const selected = (form.selectedOptions || []).find((o) => Number(o.optionId) === Number(opt.id));
-                      // Same displayed-units convention as the fiche's OptionRow (a « par pers./jour »
-                      // option shows persons × nights). 0 = not sold; the first « + » sells the
-                      // default quantity, exactly like flicking the switch on the fiche.
-                      const displayed = selected ? toDisplayedQuantity(selected.quantity, opt.priceType) : 0;
+                      // Same field as the fiche's OptionRow (specs/non-card-option-served-persons.md
+                      // rule 13). 0 = not sold; the first « + » sells the default quantity, exactly
+                      // like flicking the switch on the fiche.
+                      const typedKind = typedCountKind(opt);
+                      const typedCurrent = typedKind === 'nights' ? quantityNights : quantityPersons;
+                      const displayed = !selected
+                        ? 0
+                        : (typedKind ? typedCountValue(selected, typedKind, typedCurrent) : Number(selected.quantity));
                       return (
                         <Box
                           key={opt.id}
@@ -200,7 +218,8 @@ export default function MidStayNoteDialog({ open, onClose, pendingLines = [], on
                                 // Not sold yet → enable it and let the form apply its default
                                 // quantity; calling both setters would fight over the same line.
                                 else if (!selected) setOptionEnabled(Number(opt.id), true);
-                                else setOptionQuantity(Number(opt.id), toBaseQuantity(next, opt.priceType));
+                                else if (typedKind) setOptionTypedCount(Number(opt.id), typedKind, next);
+                                else setOptionQuantity(Number(opt.id), next);
                               }}
                             />
                           )}
