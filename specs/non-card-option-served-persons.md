@@ -145,6 +145,15 @@ Rules added after audit round 21 (2026-11-03):
     count stays what it is. `persons` wins when both are sent. `units` that are not a positive number (`0`, `-2`,
     `'abc'`) with no `persons` sell nothing, as before #946; neither `units` nor `persons` is still the party. A
     `units`-only `per_night` or `per_stay` sale is unchanged.
+34. **A typed count is judged, never reinterpreted.** On every write that prices options (preview, create,
+    update, devis create and update) a present `cardPersons` is a whole number from 1, a present `cardNights` a
+    whole number from 1 to 366 (D7's stay cap), or 400 `INVALID_CARD_PERSONS` / `INVALID_CARD_NIGHTS`, before any
+    pricing. Absent, null or empty still means « follows ». A count above the stay stays allowed (rule 25), and a
+    `cardPersons` above the capacity is still clamped by the engine (rule 5). A count the line already stores is
+    not re-judged when sent back unchanged, so rule 15's archived lines keep saving. *Why:* `0.5` stored a free
+    line whose next save billed the whole stay, `400` billed 400 nights with no refusal, `-1` silently meant the
+    whole party. Prod check of 2026-11-03: every stored `cardPersons` is whole, no `cardNights` above 366. The
+    nights field stops at 366 (`OptionRow`, a hint), or at the stored value when higher.
 
 **Edge cases:**
 - Party lowered below a frozen count (3 served, party now 2) → stays 3, within rule 5's ceiling when the
@@ -169,13 +178,15 @@ Rules added after audit round 21 (2026-11-03):
 | `models/` | `laundryModel.js` | T | Towel demand from `COALESCE(cardPersons, party) × quantity` (rule 6) |
 | `models/` | `linenInventoryModel.js` | T | Reads `cardPersons` with the bath lines (rule 6) |
 | `models/` | `reservationsModel.js` | T | SAS sale writes `cardNights`; `readExtraLinesWithQuantity` carries `typedCount` (rule 17) |
-| `models/` | `devisModel.js` | T | Carries `cardNights`; same save guard as a reservation (rule 22) |
+| `models/` | `devisModel.js` | T | Carries `cardNights`; same save guard as a reservation (rule 22); same refusal of a bad count (rule 34) |
+| `models/` | `bookingLinesModel.js` | T | `getStoredTypedCounts`: the stored counts rule 34 does not re-judge |
 | `controllers/` | `devisController.js` | T | Forwards the guard's `code` and `lines` |
 | `middleware/` | — | — | (none) |
 | `utils/` | `pricing.js` | T | Generic option path: pure helper `resolveNonCardUnits`, returns `cardPersons`, `cardNights`, `servedPersons`, `servedNights` |
 | `utils/` | `sasOptionSale.js` | T | Rules 12 and 28; `buildOptionOffer` reads `selectedPersons` from `sold.cardPersons` for non-card too |
 | `utils/` | `linenInventory.js` | T | Towel count from served people (rule 6) |
 | `utils/` | `midStayExtrasWindow.js` | T | `minTypedCount` on the floors (rule 17), compared for an offered line (rule 27) |
+| `utils/` | `lineInputBounds.js` | C | The boundary guard of a line's and a party's numbers (rule 34; `reservations-backend-mvc.md` rule 15) |
 | `utils/` | `typedCounts.js` | C | Pure: `typedCountAlerts`, the 409 payload, `typedCountOf` (rules 17, 20-23) |
 | `utils/` | `servedPersonsOptionMigration.js` | C | Rules 14-16, 19; dry-run returns the list without writing |
 | `utils/` | `reservationUpdateBody.js` | T | Carries `cardNights`; server callers send `forceTypedCounts` (rule 24) |
@@ -277,6 +288,7 @@ Interactive rendering in the [decision summary](../docs/specs/2026-11-03-non-car
 - [x] `tests/typed-counts-floors-and-sas-offer.unit.test.js` (2) — rules 17, 19: floor of an offered line, re-opened SAS
 - [x] `tests/served-persons-migration-cases.unit.test.js` (1) — rules 14, 16, 19: a real boot on a seeded file, party < count ≤ capacity, per-night count equal to the party, per-night above capacity
 - [x] `tests/typed-counts-no-regression.unit.test.js` (11) — rule 25: exhaustive grid, 22336 sequence through the controller, save guard. Mutation-checked: restoring the old computation fails 4 tests, removing the guard fails 2
+- [x] `tests/line-input-bounds.unit.test.js` (12) — rule 34, `reservations-backend-mvc.md` rule 15
 - [x] `tests/typed-counts-client-guard.unit.test.js` (4) — rule 25: no multiplier conversion left in the option fields
 - [x] `tests/sas-option-sales.unit.test.js` — updated (rule 12)
 - [x] `tests/sas-sale-legacy-units.unit.test.js` — rule 28: `units` alone, the nights, the remainder, the real resolver
@@ -294,6 +306,7 @@ Interactive rendering in the [decision summary](../docs/specs/2026-11-03-non-car
 - [x] `arrivalDraft.typed-count.test.js` (2), `ReservationSasDialog.typed-count.test.jsx` (1) — rule 12, client half
 - [x] `MidStayNoteDialog.typed-count-additions.test.jsx` (2) — rule 13: an addition is read on the typed number
 - [x] `ReservationPage.typed-counts.test.jsx` (8) — rules 4, 8, 19, 22, 23: floor, equal drops, tags, dirty compare, confirm, flags cleared
+- [x] `OptionRow.typed-nights-max.test.jsx` (4) — rule 34
 
 ### End to end
 - [x] `e2e/specs/reservations/typed-count-party-change.spec.js` — type 3 for 4 → party 5 → red, alert; retype 2 → still red; dialog: cancel keeps the fiche, force saves; circular arrows → 5, no red

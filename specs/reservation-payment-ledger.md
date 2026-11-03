@@ -719,6 +719,10 @@ tariff would fire on every platform stay (the brut is grossed up by the commissi
       (`"false"`, `"0"`, `null`, `2`…) 400 « Valeur invalide. » (`INVALID_PAYMENT_FLAG`, `field`), checked
       before anything is written; `1` / `0` are read as `true` / `false`, so `complementPaidCash: 1` marks
       the complement exactly as `true` does.
+    *Reading of 2026-11-03 (audit R21-A3):* `complementDeferredToCheckout`, `checkInReady`, `checkInDone` and
+    `checkOutDone` are held to the same shapes and the same refusal, for reception too (the money flags are
+    stripped from a reception request first): `"false"` used to record the opposite. Their callers send
+    booleans only (`Dashboard`, `PlanningPage`, `ReservationsUpcomingPage`, `FinanceSection.onToggleDefer`).
     Every legitimate caller already sends these shapes: the fiche (`FinanceSection` ledger marks and
     undo, `MidStayNoteRow`, `MidStayNoteDialog`), the dashboard, finance and planning toggles (`!r[field]`,
     booleans), the reconciliation `ficheWriter` (`true` / `false` and `day(settledAt)`) through

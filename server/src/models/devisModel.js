@@ -15,6 +15,7 @@ const db = require('../database');
 const vatRegimeModel = require('./vatRegimeModel');
 const { calculateReservationQuote } = require('../utils/pricing');
 const { stayDatesRefusal, entryDateMessage, stayItemDatesRefusal } = require('../utils/stayDates');
+const { lineInputRefusal } = require('../utils/lineInputBounds');
 const { partyOf, nightsOf, typedCountAlerts, typedCountsErrorPayload } = require('../utils/typedCounts');
 const { capitalizeFirst } = require('../utils/textFormatters');
 const { roundMoney } = require('../utils/devisHelpers');
@@ -800,6 +801,9 @@ function createModel(database) {
     if (!payload.propertyId || !payload.clientId || !payload.startDate || !payload.endDate) {
       return { error: 'propertyId, clientId, startDate et endDate sont requis', status: 400 };
     }
+    // specs/reservations-backend-mvc.md rule 15 — the numbers of the lines and the party, before anything reads them.
+    const inputRefusal = lineInputRefusal(payload);
+    if (inputRefusal) return { ...inputRefusal, status: 400 };
     // specs/reservations-backend-mvc.md rule 11 — sound dates before any pricing or availability check.
     const datesRefusal = stayDatesRefusal(payload.startDate, payload.endDate);
     if (datesRefusal) return datesRefusal;
@@ -913,6 +917,9 @@ function createModel(database) {
     if (existing.devisStatus === 'converted') {
       return { error: 'Devis converti en réservation : la réservation se modifie à sa place.', status: 409, code: 'DEVIS_CONVERTED' };
     }
+    // specs/reservations-backend-mvc.md rule 15 — what the devis already stores is not re-judged.
+    const inputRefusal = lineInputRefusal(payload, bookingLines.getStoredTypedCounts(numId));
+    if (inputRefusal) return { ...inputRefusal, status: 400 };
     const property = database.prepare('SELECT * FROM properties WHERE id = ?').get(Number(payload.propertyId || existing.propertyId));
     if (!property) return { error: 'Logement introuvable', status: 404 };
     // specs/payment-link-lifecycle.md rule 46 — only a move (dates or logement) onto held nights is refused: a devis

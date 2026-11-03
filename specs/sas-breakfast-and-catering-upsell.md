@@ -183,6 +183,15 @@ Rule added 2026-11-03 (audit R21-A1):
     est ignoré sans erreur : l'aperçu passe par le même résolveur, le récapitulatif montre donc ce qui
     est réellement facturé. Vaut pour l'accueil comme pour l'administrateur.
 
+### 3.6 Bornes (audit R21, 2026-11-03)
+
+16. Les `units` d'une vente sont un nombre fini de 0 à 999, fractions admises sur une option au séjour ; sur une
+    option à la nuit, un entier d'au plus 366 (elles deviennent des `cardNights`). `persons` est un nombre fini
+    d'au plus 999, puis plafonné à la capacité comme avant. Sinon **400 `INVALID_QUANTITY`**, à l'aperçu comme à la
+    validation, avant tout calcul (`plugins/sas/sasQuantityBounds.js`). Des unités que ce SAS a déjà vendues,
+    renvoyées telles quelles à la réouverture, ne sont pas rejugées. Test :
+    `plugins/sas/tests/sas-quantity-bounds.unit.test.js`.
+
 **Edge cases:**
 - Aucune option « Restauration » vendable pour ce logement → la page de demande n'apparaît pas.
 - Petit déjeuner sans carte de planning (config héritée) → non vendable au SAS (les matins *sont* le

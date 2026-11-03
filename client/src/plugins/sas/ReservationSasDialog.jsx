@@ -199,7 +199,17 @@ function PaymentModeButtons({
 // hidden: no reachable server → « Total indisponible » + « Réessayer »; a plugin refusing the draft
 // (409, e.g. a slot taken meanwhile) → its reason + the way back to its step.
 const RECAP_REFUSALS = { SLOT_CONFLICT: 'Ce créneau n’est plus libre.' };
+// specs/sas-departure-recap-server-side.md rule 29 — the server's ceiling, mirrored on the steppers as a hint.
+const MAX_SAS_COUNT = 999;
 function RecapPreviewError({ error, onRetry, onBack, unavailable = 'Total indisponible : pas de réponse du serveur.' }) {
+  // A refused count: retrying sends the same draft, so only the server's reason is said.
+  if (error?.error === 'INVALID_QUANTITY') {
+    return (
+      <Box role="alert" sx={(t) => ({ bgcolor: alpha(t.palette.error.main, 0.08), color: 'error.dark', borderRadius: 1.5, px: 1.5, py: 1 })}>
+        <Typography variant="body2" sx={{ fontWeight: 600 }}>{error.message}</Typography>
+      </Box>
+    );
+  }
   const refused = Number(error?.status) === 409;
   return (
     <Box role="alert" sx={(t) => ({ bgcolor: alpha(t.palette.error.main, 0.08), color: 'error.dark', borderRadius: 1.5, px: 1.5, py: 0.5 })}>
@@ -928,7 +938,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   // ---- quantity stepper for a linen item row ----
   const QtyRow = ({ item, qtyMap, setQtyMap }) => {
     const qty = Number(qtyMap[item.id] || 0);
-    const set = (v) => setQtyMap({ ...qtyMap, [item.id]: Math.max(0, v) });
+    const set = (v) => setQtyMap({ ...qtyMap, [item.id]: Math.min(MAX_SAS_COUNT, Math.max(0, v)) });
     return (
       <Stack direction="row" spacing={1} sx={{ alignItems: 'center', justifyContent: 'space-between', py: 0.5 }}>
         <Box sx={{ minWidth: 0 }}>
@@ -938,7 +948,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
           <Button size="small" variant="outlined" onClick={() => set(qty - 1)} disabled={qty <= 0} sx={{ minWidth: 36 }}>−</Button>
           <TextField value={qty} onChange={(e) => set(Math.floor(Number(e.target.value) || 0))} size="small" sx={{ width: 56 }} slotProps={{ htmlInput: { style: { textAlign: 'center' } } }} />
-          <Button size="small" variant="outlined" onClick={() => set(qty + 1)} sx={{ minWidth: 36 }}>+</Button>
+          <Button size="small" variant="outlined" onClick={() => set(qty + 1)} disabled={qty >= MAX_SAS_COUNT} sx={{ minWidth: 36 }}>+</Button>
         </Stack>
       </Stack>
     );
@@ -1434,6 +1444,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
                       icon={<RestaurantIcon color="action" />}
                       label={`Quantité — ${amount}`}
                       value={units}
+                      max={MAX_SAS_COUNT}
                       onChange={(v) => setCateringUnits((prev) => ({ ...prev, [o.optionId]: v }))}
                     />
                   )}

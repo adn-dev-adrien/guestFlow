@@ -289,6 +289,18 @@ function createBookingLinesModel(database) {
       return { options, resources };
     },
 
+    // specs/non-card-option-served-persons.md rule 34 — the typed counts a booking stores: sent back
+    // unchanged, they are not re-judged.
+    getStoredTypedCounts(bookingId) {
+      if (!HAS_CARD_PERSONS && !HAS_CARD_NIGHTS) return {};
+      const columns = [HAS_CARD_PERSONS ? 'cardPersons' : 'NULL AS cardPersons', HAS_CARD_NIGHTS ? 'cardNights' : 'NULL AS cardNights'];
+      const counts = {};
+      for (const row of database.prepare(`SELECT optionId, ${columns.join(', ')} FROM reservation_options WHERE reservationId = ?`).all(bookingId)) {
+        counts[Number(row.optionId)] = { cardPersons: row.cardPersons, cardNights: row.cardNights };
+      }
+      return counts;
+    },
+
     // The prices a booking was sold at, in the shape the pricing engine consumes as `locked*` inputs.
     // Kind-agnostic: a devis under its validity window locks exactly like a saved reservation
     // (specs/devis-extras-parity-and-price-lock.md §3 rule 13).
