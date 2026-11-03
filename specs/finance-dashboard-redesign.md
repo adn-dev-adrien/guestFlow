@@ -390,6 +390,11 @@ without losing anything today's page shows.
     as soon as a valid window or another kind is chosen. It used to show only the error alert, with no way
     to change the period but the sidebar. Tests: `tests/date-horizon.unit.test.js` (the window),
     `components/__tests__/PeriodSelector.date-horizon.test.jsx`, `pages/__tests__/FinancePage.refused-window-link.test.jsx`.
+    *Reading of 2026-11-03 (review of PR #940, side note) — an impossible day is a refusal, never a throw.* A
+    « Du » or « Au » of the right shape that names no day (`2026-13-08`, month `00`, day `00` or `32`) is
+    « Deux dates à choisir. » (400), like `2026-02-30` already was: `resolveWindow` judges it with
+    `stayDates.isRealIsoDay`. Its own round-trip ran `toISOString()` on an Invalid Date and threw a
+    RangeError, so the API answered 500. Test: `tests/impossible-day-is-a-refusal.unit.test.js`.
     *Reading of 2026-11-02, second (Adrien's decision) — the past side.* « du » before today − 5 years is
     refused too, « Date trop ancienne : 5 ans au plus. », by the server and on the spot by `PeriodSelector`
     (`specs/reservations-backend-mvc.md` rule 13, second reading); the exercise and month periods are not typed dates and stay as they are.
@@ -577,6 +582,7 @@ par mois » and « Taux d'occupation » side by side.
 - [x] `finance-window.unit.test.js` (4) — rules 1-2: the three window kinds, refusals.
 - [x] `finance-custom-window-cap.unit.test.js` (4) — rule 51: 750-day cap, 9999 refused at once, the weekly curve ends on the window's last day.
 - [x] `date-horizon.unit.test.js` (1 of 12) — rule 51, reading of 2026-11-02: « Au » on the date horizon accepted, one day past it refused (400).
+- [x] `impossible-day-is-a-refusal.unit.test.js` (2 of 3) — rule 51, reading of 2026-11-03: an impossible « Du » / « Au » (month 13 or 00, day 00 or 32) is « Deux dates à choisir. », 400 on the dashboard and its detail, never a throw.
 - [x] `finance-occupancy.unit.test.js` (5) — rules 24-25: closures (global, per logement, exclusive end),
       closed month = gap, ÷ 0 guarded, revenue per night, RevPAR.
 - [x] `finance-year-over-year.unit.test.js` (6) — rules 17-21: coverage per scope, comparable months,

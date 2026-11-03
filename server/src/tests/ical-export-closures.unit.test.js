@@ -52,6 +52,12 @@ function freshModel() {
   return { db, model: icalModel.buildModel(db) };
 }
 
+// Two exports compared byte for byte are two DTSTAMPs: the clock is held still so a second boundary
+// crossed between them is not read as a changed event (audit R20, flake of PR #939's CI).
+function holdClock(t) {
+  t.mock.timers.enable({ apis: ['Date'], now: Date.now() });
+}
+
 function addClosure(db, { propertyId = null, label = 'Fermeture hivernale', startDate, endDate }) {
   const result = db.prepare(`
     INSERT INTO establishment_closures (propertyId, label, startDate, endDate) VALUES (?, ?, ?, ?)
@@ -170,7 +176,8 @@ test('rule 5 — closure UIDs live in their own namespace, next to the reservati
   assert.ok(uids.some((u) => u.startsWith('closure-')));
 });
 
-test('with no applicable closure the feed is byte-for-byte what it was', () => {
+test('with no applicable closure the feed is byte-for-byte what it was', (t) => {
+  holdClock(t);
   const { db, model } = freshModel();
   const before = model.exportProperty(GRANJA);
 
@@ -219,7 +226,8 @@ test('rule 9 — a deleted closure simply stops being in the feed', () => {
   assert.deepEqual(closureEvents(model.exportProperty(GRANJA)), []);
 });
 
-test('rule 10 — an existing reservation event keeps its exact shape once closures are exported', () => {
+test('rule 10 — an existing reservation event keeps its exact shape once closures are exported', (t) => {
+  holdClock(t);
   const { db, model } = freshModel();
   const reservationBefore = events(model.exportProperty(GRANJA))[0];
 

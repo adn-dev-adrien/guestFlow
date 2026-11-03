@@ -2483,7 +2483,10 @@ function paymentMarkRefusal(row, body, today) {
     if (!receivedNow) {
       return { status: 409, body: { error: 'La caution n\'a pas encore été reçue.', code: 'CAUTION_NOT_RECEIVED' } };
     }
-    const receivedOn = String((body.cautionReceived ? body.cautionReceivedDate : row.cautionReceivedDate) || '').slice(0, 10);
+    // Rule 12, reading of 2026-11-03 — a receipt sent without its date is stamped today below: the return is judged against that day.
+    const receivedOn = body.cautionReceived
+      ? (String(body.cautionReceivedDate || '').slice(0, 10) || String(today || '').slice(0, 10))
+      : String(row.cautionReceivedDate || '').slice(0, 10);
     const returnedOn = String(body.cautionReturnedDate || today || '').slice(0, 10);
     if (receivedOn && returnedOn && returnedOn < receivedOn) {
       const [, m, d] = receivedOn.split('-');

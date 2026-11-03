@@ -190,6 +190,10 @@ Every rule is cited by the test that covers it (`rule N` in the test title), as
 `scripts/check-spec-coverage.mjs` requires — the `spec rules` CI gate fails a PR that adds a rule no
 test names. Rule 10's other half, that this makes the change a **Y** and not an **X**, is a
 versioning judgement no assertion can hold; the behaviour it rests on is the one tested.
+The two byte-for-byte comparisons (the feed with no applicable closure, rule 10's event) hold the clock
+still (`mock.timers`, 2026-11-03, audit R20): each export stamps `DTSTAMP` with the second it is built,
+and two exports a second boundary apart failed CI on PR #939. A sweep of the whole server suite under a
+clock that moves 1.1 s on every read found no other test comparing two stamped exports.
 - [ ] `tests/ical-model.unit.test.js` — still green: the devis exclusion and the reservation event
       are untouched (its DDL gains the `establishment_closures` table).
 

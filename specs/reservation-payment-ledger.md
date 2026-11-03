@@ -164,6 +164,11 @@ next to the field.
     received caution (409 `CAUTION_NOT_RECEIVED`, « La caution n'a pas encore été reçue. ») and a
     return date before the receipt date (« Restitution avant la réception (14/08). »). Caution marks
     become immediate PATCHes like every other mark (no more draft-until-save).
+    *Reading of 2026-11-03 (review of PR #939, out of scope):* a PATCH that ticks `cautionReceived` and
+    `cautionReturned` together with no receipt date judges the return against **today**, the date the
+    receipt is then stamped with: received today and returned three days ago is refused like any return
+    before its receipt, nothing written. The check read the absent date as `''` and let it through. API-only
+    (the fiche sends one mark at a time). Test: `tests/caution-return-before-undated-receipt.unit.test.js`.
 13. **The save never writes a payment state.** Rule 11bis of
     [single-payment-from-the-fiche.md](single-payment-from-the-fiche.md) (the paid flags of acompte,
     solde and complement are re-read from the database by `PUT /api/reservations/:id`, never taken
@@ -931,7 +936,8 @@ summary page (normal direct · normal platform · misconfigured platform, panel 
 
 ## 7. Test plan
 
-### Server unit tests (86)
+### Server unit tests (89)
+- [x] **Review of PR #939 (2026-11-03)** `tests/caution-return-before-undated-receipt.unit.test.js` (3) — rule 12, reading of 2026-11-03: received and returned in one PATCH without a receipt date, a return before today refused with nothing written (absent, `''` and `null` receipt dates); both stamped today when the return is today or undated; a dated or stored receipt still judged on its own date.
 - [x] **Audit R20-M1 (2026-11-03)** `tests/payment-mark-input-shape.unit.test.js` (10) — rule 66: a suffixed paid date stored as the judged day on the six marks; a non-string date refused with nothing written; a « caisse interne » complement's date judged; a date sent back as stored keeps the stored value; a date beside an unticked complement never re-dates it; a note re-dated with an array refused and kept in the journal; no return date without the return; string / null / out-of-range flags refused on the eight flags and the notes' `cash`; `1` / `0` behave as `true` / `false`.
 - [x] `tests/installment-headline-after-price-drop.unit.test.js` (3, spec review 2026-10-27) — rule 48: live and stored headlines agree on the stay after a drop, money above the stay stays counted, a plan without drop unchanged
 - [x] `tests/ledger-stored-deposit-ceiling.unit.test.js` (1, spec review 2026-10-27) — rule 49: the stored acompte row carries `max` 500 on a 515 € stay

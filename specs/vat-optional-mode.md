@@ -217,6 +217,10 @@ warned before and when it crosses it.
     history is never rewritten in the middle), ≥ today − 366 days (further back is a correction) and
     ≤ today + 366 days. A target identical to the period in force (same regime, and same rate for `subject`) is refused. Errors are 422 with the field and a
     short message (§4.3).
+    *Reading of 2026-11-03 (review of PR #940, side note): an `effectiveFrom` of the right shape naming no day
+    (`2027-13-08`, month `00`, day `00` or `32`) is « Date invalide », like `2027-02-30` already was —
+    `stayDates.isRealIsoDay` judges it. The old round-trip threw a RangeError on it, so preview and switch
+    answered 500.* Test: `tests/impossible-day-is-a-refusal.unit.test.js`.
 16. **Reassignment.** In one transaction: the period is inserted; every existing reservation (kinds
     `reservation` and `cancelled`) matching its predicate (rule 5) takes the new `vatPeriodId`; each one
     whose regime or rate actually changes gets a `reservation_history` entry « Régime de TVA : Assujetti 10 % → Sans TVA (changement du
@@ -720,6 +724,8 @@ Each test file opens with the spec and rules it covers. Counts are targets.
 - [x] `tests/vat-regime-switch.unit.test.js` — rules 3, 14, 15, 16, 18, 19 (16): each scope, bounds and
       messages, identical-target refusal, transaction (all-or-nothing), history entries, refund re-rate,
       delete unused / refuse used / refuse initial, acknowledgement, admin only.
+- [x] `tests/impossible-day-is-a-refusal.unit.test.js` — rule 15, reading of 2026-11-03 (1 of 3): an impossible
+      `effectiveFrom` is « Date invalide », never a throw.
 - [x] `tests/vat-regime-switch-indemnity-lines.unit.test.js` — rules 16 and 26, reading of 2026-11-02 (2): a switch
       and its undo leave an `indemnity` refund line at 0 %.
 - [x] `tests/vat-regime-preview.unit.test.js` — rule 17 (8): each count against a crafted DB, fingerprint,
