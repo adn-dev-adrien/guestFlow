@@ -5,13 +5,14 @@
  * `express.json()` hands a malformed or oversized body to the global error middleware with
  * `err.type` set; without this the caller read « Erreur interne du serveur » and the log recorded an
  * unhandled crash for what is a bad request. Anything else returns null and stays a real 500.
+ * `messageKey` is the sentence the public tree answers with, in its own envelope (specs/public-api.md rule 22).
  */
 
 const REFUSALS = {
-  'entity.parse.failed': { status: 400, body: { error: 'Requête invalide : le corps JSON est mal formé.', code: 'INVALID_JSON' } },
-  'entity.too.large': { status: 413, body: { error: 'Requête trop volumineuse.', code: 'PAYLOAD_TOO_LARGE' } },
-  'encoding.unsupported': { status: 415, body: { error: 'Encodage de la requête non pris en charge.', code: 'UNSUPPORTED_ENCODING' } },
-  'charset.unsupported': { status: 415, body: { error: 'Jeu de caractères de la requête non pris en charge.', code: 'UNSUPPORTED_CHARSET' } },
+  'entity.parse.failed': { status: 400, messageKey: 'bodyMalformed', body: { error: 'Requête invalide : le corps JSON est mal formé.', code: 'INVALID_JSON' } },
+  'entity.too.large': { status: 413, messageKey: 'bodyTooLarge', body: { error: 'Requête trop volumineuse.', code: 'PAYLOAD_TOO_LARGE' } },
+  'encoding.unsupported': { status: 415, messageKey: 'bodyUnsupported', body: { error: 'Encodage de la requête non pris en charge.', code: 'UNSUPPORTED_ENCODING' } },
+  'charset.unsupported': { status: 415, messageKey: 'bodyUnsupported', body: { error: 'Jeu de caractères de la requête non pris en charge.', code: 'UNSUPPORTED_CHARSET' } },
 };
 
 function bodyParserRefusal(err) {

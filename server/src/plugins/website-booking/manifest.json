@@ -1,7 +1,7 @@
 {
   "id": "website-booking",
   "name": "Réservation depuis le site",
-  "version": "1.8.7",
+  "version": "1.8.8",
   "description": "Le moteur de réservation du site WordPress.",
   "icon": "language",
   "surfaces": [
@@ -115,6 +115,10 @@
     ],
     "1.8.7": [
       "La preuve de travail devenue obligatoire et la dernière version du plugin WordPress vue ne peuvent plus être modifiées depuis les réglages (SDK 2.17 de GuestFlow)."
+    ],
+    "1.8.8": [
+      "Une demande dont un champ n’a pas le bon type est refusée sur ce champ : plus d’erreur interne, ni de nom « True » sur une fiche client.",
+      "Compatible avec le SDK 2.17 de GuestFlow."
     ]
   }
 }

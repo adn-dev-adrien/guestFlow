@@ -35,7 +35,7 @@ const { DEFAULT_ADMIN_EMAIL, DEFAULT_ADMIN_PASSWORD } = require('../constants/au
 const { isKnownRole, ADMIN } = require('../constants/roles');
 
 function normalizeEmail(value) {
-  return String(value || '').trim().toLowerCase();
+  return (typeof value === 'string' ? value : '').trim().toLowerCase();
 }
 
 const DUMMY_PASSWORD_HASH = hashPassword(crypto.randomBytes(16).toString('hex'));
@@ -185,7 +185,7 @@ function buildModel(database) {
       const row = findByEmailStmt.get(normalizeEmail(email));
       // One scrypt run whatever the account: an unknown, inactive or support account answers in the
       // time of a wrong password (specs/hosting-h2-account-security.md rule 61).
-      const passwordOk = verifyPassword(String(password || ''), row ? row.passwordHash : DUMMY_PASSWORD_HASH);
+      const passwordOk = verifyPassword(typeof password === 'string' ? password : '', row ? row.passwordHash : DUMMY_PASSWORD_HASH);
       if (!row || !passwordOk || Number(row.isActive) !== 1 || Number(row.isSupportAccount) === 1) return null;
       return toSafeUser(row);
     },

@@ -66,7 +66,15 @@ function createApp(ctx, { sessionSecret, sessionStore, secureCookies = false, cl
 
   // eslint-disable-next-line no-unused-vars
   app.use((err, req, res, next) => {
-    if (err.status && err.body) return res.status(err.status).json(err.body);
+    if (err.status && err.body && typeof err.body === 'object') return res.status(err.status).json(err.body);
+    // specs/control-plane-plans-and-access.md rule 49: a body the parser refuses is the caller's, not a fault.
+    if (err.status >= 400 && err.status < 500) {
+      const tooLarge = err.status === 413;
+      return res.status(err.status).json({
+        error: tooLarge ? 'TOO_LARGE' : 'BAD_REQUEST',
+        message: tooLarge ? 'Envoi trop volumineux.' : 'Requête illisible.',
+      });
+    }
     console.error('[console]', err);
     return res.status(500).json({ error: 'INTERNAL', message: 'Erreur interne de la console.' });
   });
