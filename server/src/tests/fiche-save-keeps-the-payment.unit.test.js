@@ -17,6 +17,11 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const Module = require('module');
+const { todayIso } = require('../utils/localDate');
+const { addDaysToIsoDate } = require('../utils/devisHelpers');
+
+/** `YYYY-MM-DD`, `days` after today: the dates of this suite hang on it (specs/server-test-isolation.md rule 6). */
+const inDays = (days) => addDaysToIsoDate(todayIso(), days);
 
 function withMocks(modules, fn) {
   const origRequire = Module.prototype.require;
@@ -44,14 +49,14 @@ const SETTLED_ROW = {
   depositPaidDate: null,
   depositDisabled: 1,
   balancePaid: 1,
-  balancePaidDate: '2026-08-30',
+  balancePaidDate: inDays(-65),
   balanceAmount: 231.98,
   complementPaid: 1,
-  complementPaidDate: '2026-08-30',
+  complementPaidDate: inDays(-65),
   complementAmount: 45,
   endOfStayComplementAmount: 50,
   endOfStayComplementPaid: 1,
-  arrivalPaymentGroup: '{"at":"2026-08-30","cash":0,"total":281.98,"buckets":["balance","endOfStayComplement"]}',
+  arrivalPaymentGroup: `{"at":"${inDays(-65)}","cash":0,"total":281.98,"buckets":["balance","endOfStayComplement"]}`,
 };
 
 function buildController({ captures, storedRow = SETTLED_ROW }) {
@@ -73,7 +78,7 @@ function buildController({ captures, storedRow = SETTLED_ROW }) {
     '../utils/pricing': pricingMock,
     '../utils/financeValidation': { validateFinanceInputs: () => null, validateClientGrossAmount: () => null },
     '../utils/occupancy': { getNightBlocksFromTimes: () => ({}), buildOccupiedDatesFromReservations: () => [] },
-    '../utils/reservationHelpers': { computeNextIcalSyncLocked: () => 0, getTodayIsoDate: () => '2026-08-31' },
+    '../utils/reservationHelpers': { computeNextIcalSyncLocked: () => 0, getTodayIsoDate: () => inDays(-64) },
     '../utils/reservationAudit': { buildAuditSnapshotFromPayload: () => ({}), computeAuditChanges: () => [] },
     '../utils/bedDistribution': { suggestBedDistribution: () => null },
     '../utils/forceItemContribsCapture': { captureContribsOnFlip: () => null, clearContribsOnUnflip: () => null },
@@ -82,7 +87,7 @@ function buildController({ captures, storedRow = SETTLED_ROW }) {
       get: (_, k) => {
         if (k === 'getRow') return () => ({ ...storedRow });
         if (k === 'getForUpdate') return () => ({ ...storedRow });
-        if (k === 'getAuditSnapshotFromDb') return () => ({ startDate: '2026-08-30' });
+        if (k === 'getAuditSnapshotFromDb') return () => ({ startDate: inDays(-65) });
         if (k === 'getPropertyCapacity') return () => ({ maxGuests: 99, maxBabies: 99, singleBeds: 99, doubleBeds: 99, babyBeds: 99 });
         if (k === 'getPropertyBeds') return () => ({ singleBeds: 99, doubleBeds: 99, babyBeds: 99 });
         if (k === 'getBabyBedAvailability') return () => ({ availableBabyBeds: 99 });
@@ -109,8 +114,8 @@ function staleBody(over = {}) {
   return {
     propertyId: 1,
     clientId: 1,
-    startDate: '2026-08-30',
-    endDate: '2026-08-31',
+    startDate: inDays(-65),
+    endDate: inDays(-64),
     adults: 2, children: 0, teens: 0, babies: 0,
     checkInTime: '16:00', checkOutTime: '10:00',
     singleBeds: 0, doubleBeds: 1, babyBeds: 0,
@@ -138,29 +143,29 @@ function runUpdate(body, storedRow) {
 test('a stale « solde non payé » in the save no longer un-pays the solde', () => {
   const { captures } = runUpdate(staleBody());
   assert.equal(captures.payload.balancePaid, true);
-  assert.equal(captures.payload.balancePaidDate, '2026-08-30');
+  assert.equal(captures.payload.balancePaidDate, inDays(-65));
 });
 
 test('…nor the complément d’arrivée', () => {
   const { captures } = runUpdate(staleBody());
   assert.equal(captures.payload.complementPaid, true);
-  assert.equal(captures.payload.complementPaidDate, '2026-08-30');
+  assert.equal(captures.payload.complementPaidDate, inDays(-65));
 });
 
 test('…nor the acompte', () => {
   const { captures } = runUpdate(
     staleBody(),
-    { ...SETTLED_ROW, depositDisabled: 0, depositPaid: 1, depositPaidDate: '2026-07-01' },
+    { ...SETTLED_ROW, depositDisabled: 0, depositPaid: 1, depositPaidDate: inDays(-125) },
   );
   assert.equal(captures.payload.depositPaid, true);
-  assert.equal(captures.payload.depositPaidDate, '2026-07-01');
+  assert.equal(captures.payload.depositPaidDate, inDays(-125));
 });
 
 test('a save cannot PAY a bucket either — the flags are simply not its business', () => {
   // The mirror case: a browser claiming « payé » on a bucket the server knows is unpaid must not
   // book money. Only the dedicated endpoints collect.
   const { captures } = runUpdate(
-    staleBody({ balancePaid: true, balancePaidDate: '2026-08-31' }),
+    staleBody({ balancePaid: true, balancePaidDate: inDays(-64) }),
     { ...SETTLED_ROW, balancePaid: 0, balancePaidDate: null },
   );
   assert.equal(captures.payload.balancePaid, false);
@@ -172,7 +177,7 @@ test('disabling the deposit still force-zeroes it — the one flag this save own
   // clear a deposit that was flagged paid, or the accounting re-emits a phantom entry.
   const { captures } = runUpdate(
     staleBody({ depositDisabled: true }),
-    { ...SETTLED_ROW, depositDisabled: 0, depositPaid: 1, depositPaidDate: '2026-07-01' },
+    { ...SETTLED_ROW, depositDisabled: 0, depositPaid: 1, depositPaidDate: inDays(-125) },
   );
   assert.equal(captures.payload.depositPaid, false);
   assert.equal(captures.payload.depositPaidDate, null);

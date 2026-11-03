@@ -33,6 +33,8 @@ const HARDENINGS = [
   { feature: 'stored-money split shared with the cancellation', sdk: '2.19.0', pattern: /coreModule\(\s*['"`]storedMoneySplit['"`]/ },
   // specs/plugins-phase-1-sdk.md rule 37 (specs/reservations-backend-mvc.md rule 13) — audit R20-P1.
   { feature: 'entered-date window', sdk: '2.20.0', pattern: /coreModule\(\s*['"`]stayDates['"`]/ },
+  // specs/plugins-phase-1-sdk.md rule 38 (audit R20, E20-1).
+  { feature: 'the stored update body of a reservation', sdk: '2.21.0', pattern: /\breservations\.updateBody\b/ },
 ];
 
 function sourceFiles(dir) {

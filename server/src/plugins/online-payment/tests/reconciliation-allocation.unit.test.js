@@ -3,7 +3,7 @@
 // plan following its own order. Fictional data only.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { db, addReservation, credit, build, reset, row } = require('./reconciliationFixture');
+const { db, addReservation, credit, build, reset, row, dayAt, frShort } = require('./reconciliationFixture');
 const { allocateFifo, summarize, validatePairs } = require('../reconciliation/allocation');
 const sdk = require('../../sdk');
 
@@ -11,7 +11,7 @@ test.beforeEach(() => { reset(); db.prepare('DELETE FROM reservation_installment
 
 const at = (day) => `${day}T09:00:00.000Z`;
 const stay = (over = {}) => addReservation({
-  depositAmount: 300, depositDueDate: '2026-10-14', balanceAmount: 700, finalPrice: 1000, balanceDueDate: '2026-11-01', ...over,
+  depositAmount: 300, depositDueDate: dayAt(-9), balanceAmount: 700, finalPrice: 1000, balanceDueDate: dayAt(9), ...over,
 });
 const preview = (controller, body) => controller.previewAllocation(body).body;
 
@@ -19,27 +19,27 @@ const R = (ledgerKey, anchor, need, over = {}) => ({ key: `1|${ledgerKey}`, rese
 const C = (id, cents, settledAt) => ({ transactionId: id, remainingCents: cents, settledAt, dateLabel: settledAt.slice(8, 10) + '/' + settledAt.slice(5, 7) });
 
 test('rule 5 — two credits settle an acompte first in first out, the oldest on the earliest due', () => {
-  const credits = [C('b', 15000, '2026-10-20'), C('a', 15000, '2026-10-10')];
-  const pairs = allocateFifo({ credits, receipts: [R('balance', '2026-11-01', 70000), R('deposit', '2026-10-14', 30000)] });
+  const credits = [C('b', 15000, dayAt(-3)), C('a', 15000, dayAt(-13))];
+  const pairs = allocateFifo({ credits, receipts: [R('balance', dayAt(9), 70000), R('deposit', dayAt(-9), 30000)] });
   assert.deepEqual(pairs.map((p) => [p.transactionId, p.ledgerKey, p.amountCents]), [['a', 'deposit', 15000], ['b', 'deposit', 15000]]);
 });
 
 test('rule 5 — a credit that fits one receipt to the cent goes there, not onto an earlier one', () => {
-  const pairs = allocateFifo({ credits: [C('a', 70000, '2026-10-20')], receipts: [R('deposit', '2026-10-14', 30000), R('balance', '2026-11-01', 70000)] });
+  const pairs = allocateFifo({ credits: [C('a', 70000, dayAt(-3))], receipts: [R('deposit', dayAt(-9), 30000), R('balance', dayAt(9), 70000)] });
   assert.deepEqual(pairs.map((p) => [p.ledgerKey, p.amountCents]), [['balance', 70000]]);
 });
 
 test('rule 6 — a surplus stays on the last credit and is worded; a shortfall leaves the receipt partial', () => {
-  const receipts = [R('deposit', '2026-10-14', 30000)];
-  const over = [C('a', 20000, '2026-10-10'), C('b', 15000, '2026-10-12')];
+  const receipts = [R('deposit', dayAt(-9), 30000)];
+  const over = [C('a', 20000, dayAt(-13)), C('b', 15000, dayAt(-11))];
   const pairs = allocateFifo({ credits: over, receipts });
   const sum = summarize({ credits: over, receipts, pairs });
   assert.deepEqual(sum.leftover.map((l) => [l.transactionId, l.cents]), [['b', 5000]]);
-  assert.match(sum.leftover[0].message, /50,00 € restent disponibles sur le virement du 12\/10/);
+  assert.match(sum.leftover[0].message, new RegExp(`50,00 € restent disponibles sur le virement du ${frShort(dayAt(-11))}`));
   assert.equal(sum.receipts[0].after, 'covered');
   assert.equal(sum.summaryLabel, '2 virements · 300,00 €');
 
-  const under = [C('a', 10000, '2026-10-10')];
+  const under = [C('a', 10000, dayAt(-13))];
   const sum2 = summarize({ credits: under, receipts, pairs: allocateFifo({ credits: under, receipts }) });
   assert.equal(sum2.receipts[0].after, 'partial');
   assert.match(sum2.receipts[0].statusLabel, /100,00 € sur 300,00 €/);
@@ -49,7 +49,7 @@ test('rule 5 — the preview over a real fiche: two credits cover the acompte an
   const id = stay();
   const { controller, transactions, model } = build();
   transactions.upsertMany([
-    credit('a', 20000, { settledAt: at('2026-10-10') }), credit('b', 25000, { settledAt: at('2026-10-12') }),
+    credit('a', 20000, { settledAt: at(dayAt(-13)) }), credit('b', 25000, { settledAt: at(dayAt(-11)) }),
   ], { bankAccountId: 'acc-1' });
   const body = preview(controller, { reservationId: id, transactionIds: ['b', 'a'] });
   assert.equal(body.valid, true);
@@ -62,7 +62,7 @@ test('rule 5 — the preview over a real fiche: two credits cover the acompte an
 test('rule 7 — manual pairs are refused above the credit, above the receipt, at zero and with 3 decimals', () => {
   const id = stay();
   const { controller, transactions } = build();
-  transactions.upsertMany([credit('a', 20000, { settledAt: at('2026-10-10') })], { bankAccountId: 'acc-1' });
+  transactions.upsertMany([credit('a', 20000, { settledAt: at(dayAt(-13)) })], { bankAccountId: 'acc-1' });
   const check = (amountCents) => preview(controller, { pairs: [{ transactionId: 'a', reservationId: id, ledgerKey: 'deposit', amountCents }] });
   assert.equal(check(15000).valid, true);
   assert.equal(check(20001).errors[0].code, 'ALLOCATION_EXCEEDS_TRANSACTION');
@@ -74,7 +74,7 @@ test('rule 7 — manual pairs are refused above the credit, above the receipt, a
 });
 
 test('rule 7 — a pair above what the receipt still expects is refused; a payout not yet recorded is capped at its gross', () => {
-  const receipts = new Map([['1|deposit', R('deposit', '2026-10-14', 30000)]]);
+  const receipts = new Map([['1|deposit', R('deposit', dayAt(-9), 30000)]]);
   const creditsById = new Map([['a', { transactionId: 'a', remainingCents: 90000, dateLabel: '10/10' }]]);
   const errs = validatePairs({ pairs: [{ transactionId: 'a', reservationId: 1, ledgerKey: 'deposit', amountCents: 40000 }], creditsById, receiptsByKey: receipts });
   assert.equal(errs[0].code, 'ALLOCATION_EXCEEDS_RECEIPT');
@@ -87,10 +87,10 @@ test('rule 7 — a pair above what the receipt still expects is refused; a payou
 test('rule 9 — equal installments take the earliest due unpaid one, whatever the credit date', () => {
   const id = addReservation({ finalPrice: 1000, depositAmount: 0, balanceAmount: 0 });
   sdk.coreModule('installmentsModel').buildModel(db).replacePlan(id, [
-    { number: 1, dueDate: '2026-10-01', amountCents: 33400 }, { number: 2, dueDate: '2026-10-20', amountCents: 33400 }, { number: 3, dueDate: '2026-11-05', amountCents: 33200 },
+    { number: 1, dueDate: dayAt(-22), amountCents: 33400 }, { number: 2, dueDate: dayAt(-3), amountCents: 33400 }, { number: 3, dueDate: dayAt(13), amountCents: 33200 },
   ], 100000);
   const { controller, transactions } = build();
-  transactions.upsertMany([credit('late', 33400, { settledAt: at('2026-10-22') })], { bankAccountId: 'acc-1' });
+  transactions.upsertMany([credit('late', 33400, { settledAt: at(dayAt(-1)) })], { bankAccountId: 'acc-1' });
   const body = preview(controller, { reservationId: id, transactionIds: ['late'] });
   assert.deepEqual(body.pairs.map((p) => p.ledgerKey), ['installment-1']);
 });
@@ -98,10 +98,10 @@ test('rule 9 — equal installments take the earliest due unpaid one, whatever t
 test('rule 9 — an installment already reconciled takes no more money', () => {
   const id = addReservation({ finalPrice: 1000, depositAmount: 0, balanceAmount: 0 });
   sdk.coreModule('installmentsModel').buildModel(db).replacePlan(id, [
-    { number: 1, dueDate: '2026-10-01', amountCents: 33400 }, { number: 2, dueDate: '2026-10-20', amountCents: 33400 },
+    { number: 1, dueDate: dayAt(-22), amountCents: 33400 }, { number: 2, dueDate: dayAt(-3), amountCents: 33400 },
   ], 66800);
   const { controller, transactions, model } = build();
-  transactions.upsertMany([credit('first', 33400, { settledAt: at('2026-10-02') }), credit('second', 33400, { settledAt: at('2026-10-21') })], { bankAccountId: 'acc-1' });
+  transactions.upsertMany([credit('first', 33400, { settledAt: at(dayAt(-21)) }), credit('second', 33400, { settledAt: at(dayAt(-2)) })], { bankAccountId: 'acc-1' });
   model.addLine({ transactionId: 'first', reservationId: id, ledgerKey: 'installment-1', amountCents: 33400 });
   const body = preview(controller, { reservationId: id, transactionIds: ['second'] });
   assert.deepEqual(body.pairs.map((p) => p.ledgerKey), ['installment-2']);
@@ -110,7 +110,7 @@ test('rule 9 — an installment already reconciled takes no more money', () => {
 test('rule 8 — a payout the fiche does not carry yet takes the whole credit', () => {
   const id = addReservation({ platform: 'Booking', finalPrice: 800, platformGrossAmount: 800, balanceAmount: 800, depositAmount: 0 });
   const { controller, transactions } = build();
-  transactions.upsertMany([credit('p', 67000, { settledAt: at('2026-10-20') })], { bankAccountId: 'acc-1' });
+  transactions.upsertMany([credit('p', 67000, { settledAt: at(dayAt(-3)) })], { bankAccountId: 'acc-1' });
   const body = preview(controller, { reservationId: id, transactionIds: ['p'] });
   assert.deepEqual(body.pairs.map((p) => p.amountCents), [67000]);
   assert.equal(body.receipts[0].after, 'covered');

@@ -8,6 +8,8 @@ const test = require('node:test');
 const { skipWithout } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
 const { db, inDays, createStay, rowOf, liveQuote, save, mark } = require('./ledgerFixture');
+/** A day as the ledger prints it: « jj/mm », with the year when it is not the stay's (reservation-payment-ledger rule 4). */
+const ledgerDay = (iso, stayStart) => (iso.slice(0, 4) === stayStart.slice(0, 4) ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}` : iso.split('-').reverse().join('/'));
 const { getTodayIsoDate } = require('../utils/reservationHelpers');
 
 const rowIn = (quote, key) => quote.ledger.rows.find((r) => r.key === key);
@@ -84,24 +86,24 @@ test('rule 12 — the caution follows the order of events', () => {
   assert.deepEqual(early.body, { error: 'La caution n\'a pas encore été reçue.', code: 'CAUTION_NOT_RECEIVED' });
   assert.equal(rowOf(id).cautionReturned, 0);
 
-  assert.equal(mark(id, { cautionReceived: true, cautionReceivedDate: '2026-08-14' }).statusCode, 200);
-  const before = mark(id, { cautionReturned: true, cautionReturnedDate: '2026-08-10' });
+  assert.equal(mark(id, { cautionReceived: true, cautionReceivedDate: inDays(-81) }).statusCode, 200);
+  const before = mark(id, { cautionReturned: true, cautionReturnedDate: inDays(-85) });
   assert.equal(before.statusCode, 400);
-  assert.equal(before.body.error, 'Restitution avant la réception (14/08).');
-  assert.equal(mark(id, { cautionReturned: true, cautionReturnedDate: '2026-08-21' }).statusCode, 200);
+  assert.equal(before.body.error, `Restitution avant la réception (${inDays(-81).slice(8, 10)}/${inDays(-81).slice(5, 7)}).`);
+  assert.equal(mark(id, { cautionReturned: true, cautionReturnedDate: inDays(-74) }).statusCode, 200);
   const row = rowOf(id);
-  assert.deepEqual([row.cautionReceived, row.cautionReturned, row.cautionReturnedDate], [1, 1, '2026-08-21']);
+  assert.deepEqual([row.cautionReceived, row.cautionReturned, row.cautionReturnedDate], [1, 1, inDays(-74)]);
 });
 
 // specs/single-payment-from-the-fiche.md rule 11bis — extended to the caution columns.
 test('rule 13 — the save never writes a payment state: forged caution columns are ignored', async () => {
   const id = createStay();
-  const res = await save(id, { cautionReceived: true, cautionReceivedDate: '2026-08-01', cautionReturned: true, cautionReturnedDate: '2026-08-02' });
+  const res = await save(id, { cautionReceived: true, cautionReceivedDate: inDays(-94), cautionReturned: true, cautionReturnedDate: inDays(-93) });
   assert.equal(res.statusCode, 200, JSON.stringify(res.body));
   const row = rowOf(id);
   assert.deepEqual([row.cautionReceived, row.cautionReceivedDate, row.cautionReturned, row.cautionReturnedDate], [0, null, 0, null]);
 
-  mark(id, { cautionReceived: true, cautionReceivedDate: '2026-08-14' });
+  mark(id, { cautionReceived: true, cautionReceivedDate: inDays(-81) });
   const clear = await save(id, { cautionReceived: false, cautionReceivedDate: '' });
   assert.equal(clear.statusCode, 200);
   assert.equal(rowOf(id).cautionReceived, 1, 'a stale form cannot un-receive the caution either');
@@ -109,30 +111,30 @@ test('rule 13 — the save never writes a payment state: forged caution columns 
 
 test('rule 13 — same on a past-locked fiche: the caution columns left the locked whitelist', async () => {
   const id = createStay();
-  db.prepare("UPDATE reservations SET startDate = '2026-01-10', endDate = '2026-01-13', depositDueDate = NULL, depositAmount = 0, balanceAmount = 307.2 WHERE id = ?").run(id);
-  const res = await save(id, { startDate: '2026-01-10', endDate: '2026-01-13', cautionReturned: true, cautionReturnedDate: '2026-01-13' });
+  db.prepare(`UPDATE reservations SET startDate = '${inDays(-297)}', endDate = '${inDays(-294)}', depositDueDate = NULL, depositAmount = 0, balanceAmount = 307.2 WHERE id = ?`).run(id);
+  const res = await save(id, { startDate: inDays(-297), endDate: inDays(-294), cautionReturned: true, cautionReturnedDate: inDays(-294) });
   assert.equal(res.statusCode, 200, JSON.stringify(res.body));
   assert.equal(rowOf(id).cautionReturned, 0);
 });
 
 test('rule 14 — undo asks for a confirmation naming the date and the accounting entry', async () => {
   const id = createStay();
-  mark(id, { depositPaid: true, depositPaidDate: '2026-08-12' });
-  mark(id, { cautionReceived: true, cautionReceivedDate: '2026-08-14' });
-  mark(id, { cautionReturned: true, cautionReturnedDate: '2026-08-21' });
+  mark(id, { depositPaid: true, depositPaidDate: inDays(-83) });
+  mark(id, { cautionReceived: true, cautionReceivedDate: inDays(-81) });
+  mark(id, { cautionReturned: true, cautionReturnedDate: inDays(-74) });
   const q = await liveQuote(id);
   const deposit = rowIn(q, 'deposit');
   assert.equal(deposit.action.kind, 'undo');
   assert.equal(deposit.action.label, 'Annuler');
-  assert.equal(deposit.action.confirm, 'Annuler la perception de l\'acompte du 12/08/2026 ? L\'écriture comptable correspondante disparaît.');
-  assert.equal(rowIn(q, 'cautionReceived').action.confirm, 'Annuler la réception de la caution du 14/08/2026 ? La restitution est annulée aussi.');
+  assert.equal(deposit.action.confirm, `Annuler la perception de l'acompte du ${ledgerDay(inDays(-83), rowOf(id).startDate)} ? L'écriture comptable correspondante disparaît.`);
+  assert.equal(rowIn(q, 'cautionReceived').action.confirm, `Annuler la réception de la caution du ${ledgerDay(inDays(-81), rowOf(id).startDate)} ? La restitution est annulée aussi.`);
 });
 
 test('rule 14 — undoing « Caution reçue » also undoes « Caution restituée »; undoing the acompte un-ticks it', () => {
   const id = createStay();
-  mark(id, { depositPaid: true, depositPaidDate: '2026-08-12' });
-  mark(id, { cautionReceived: true, cautionReceivedDate: '2026-08-14' });
-  mark(id, { cautionReturned: true, cautionReturnedDate: '2026-08-21' });
+  mark(id, { depositPaid: true, depositPaidDate: inDays(-83) });
+  mark(id, { cautionReceived: true, cautionReceivedDate: inDays(-81) });
+  mark(id, { cautionReturned: true, cautionReturnedDate: inDays(-74) });
   assert.equal(mark(id, { cautionReceived: false }).statusCode, 200);
   const row = rowOf(id);
   assert.deepEqual([row.cautionReceived, row.cautionReceivedDate, row.cautionReturned, row.cautionReturnedDate], [0, null, 0, null]);
@@ -143,13 +145,13 @@ test('rule 14 — undoing « Caution reçue » also undoes « Caution restituée
 test('rule 14 — undoing a bucket of a single payment names the dissolved group', async () => {
   const id = createStay({ depositDisabled: 1 });
   db.prepare('UPDATE reservations SET complementAmount = 24 WHERE id = ?').run(id);
-  const group = JSON.stringify({ at: '2026-08-14', cash: 0, total: 331.2, buckets: ['balance', 'complement'] });
-  db.prepare("UPDATE reservations SET balancePaid = 1, balancePaidDate = '2026-08-14', complementPaid = 1, complementPaidDate = '2026-08-14', arrivalPaymentGroup = ? WHERE id = ?")
+  const group = JSON.stringify({ at: inDays(-81), cash: 0, total: 331.2, buckets: ['balance', 'complement'] });
+  db.prepare(`UPDATE reservations SET balancePaid = 1, balancePaidDate = '${inDays(-81)}', complementPaid = 1, complementPaidDate = '${inDays(-81)}', arrivalPaymentGroup = ? WHERE id = ?`)
     .run(group, id);
   const q = await liveQuote(id, { depositDisabled: 1 });
   const balance = rowIn(q, 'balance');
-  assert.equal(balance.stateLabel, 'Perçu le 14/08/2026 · paiement unique');
-  assert.match(balance.action.confirm, /Le paiement unique du 14\/08\/2026 est dissous\.$/);
+  assert.equal(balance.stateLabel, `Perçu le ${ledgerDay(inDays(-81), rowOf(id).startDate)} · paiement unique`);
+  assert.match(balance.action.confirm, new RegExp(`Le paiement unique du ${ledgerDay(inDays(-81), rowOf(id).startDate)} est dissous\\.$`));
   assert.equal(mark(id, { balancePaid: false }).statusCode, 200);
   assert.equal(rowOf(id).arrivalPaymentGroup, null, 'single-payment-at-check-in rule 17 — the group is dissolved');
 });
@@ -172,7 +174,7 @@ test('rule 32 — a zero bucket is never marked: no action on the row, and the s
 
 test('rule 32 — a 0 € acompte already stored as perceived is shown with a warning', async () => {
   const id = createStay();
-  db.prepare("UPDATE reservations SET depositAmount = 0, depositAmountOverride = 0, depositPaid = 1, depositPaidDate = '2026-09-01' WHERE id = ?").run(id);
+  db.prepare(`UPDATE reservations SET depositAmount = 0, depositAmountOverride = 0, depositPaid = 1, depositPaidDate = '${inDays(-63)}' WHERE id = ?`).run(id);
   const q = await liveQuote(id, { depositAmountOverride: 0 });
   assert.deepEqual(rowIn(q, 'deposit').detail.warnings.map((w) => w.label), [`Acompte de ${require('../utils/reservationLedger').formatEuros(0)} marqué perçu`]);
 });
@@ -193,9 +195,9 @@ test('rule 26 — « Marquer reçu » asks for the transfer: the server words th
 // ride the mark, no full save, nothing re-priced.
 test('rule 34 — « Marquer reçu » writes the transfer and the commission with the mark, on a past locked stay', () => {
   const id = createStay({ platform: 'Booking' });
-  db.prepare("UPDATE reservations SET startDate = '2026-01-10', endDate = '2026-01-13' WHERE id = ?").run(id);
+  db.prepare(`UPDATE reservations SET startDate = '${inDays(-297)}', endDate = '${inDays(-294)}' WHERE id = ?`).run(id);
   const before = rowOf(id);
-  const res = mark(id, { balancePaid: true, balancePaidDate: '2026-01-20', platformPayoutAmount: 260.5, platformCommissionAmount: 46.7,
+  const res = mark(id, { balancePaid: true, balancePaidDate: inDays(-287), platformPayoutAmount: 260.5, platformCommissionAmount: 46.7,
     expectedAmountCents: Math.round(before.balanceAmount * 100) });
   assert.equal(res.statusCode, 200, JSON.stringify(res.body));
   const after = rowOf(id);
@@ -263,7 +265,7 @@ test('rule 26 — no commission suggestion when the gap is the tourist tax, nor 
 
 test('rule 32 — a stay imported without a price says « Prix à renseigner », never « En retard »', async () => {
   const id = createStay();
-  db.prepare("UPDATE reservations SET finalPrice = 0, totalPrice = 0, depositAmount = 0, balanceAmount = 0, balanceDueDate = '2026-01-01' WHERE id = ?").run(id);
+  db.prepare(`UPDATE reservations SET finalPrice = 0, totalPrice = 0, depositAmount = 0, balanceAmount = 0, balanceDueDate = '${inDays(-306)}' WHERE id = ?`).run(id);
   const res = { statusCode: 200, body: null, status(c) { this.statusCode = c; return this; }, json(b) { this.body = b; return this; } };
   require('../controllers/reservationsController').getById({ params: { id: String(id) }, user: { role: 'admin' } }, res);
   const balance = res.body.ledger.rows.find((r) => r.key === 'balance');
@@ -327,13 +329,13 @@ test('export invariant — no sale entry of the month has all its credits on the
 test('rule 38 — marking an already perceived bucket is refused (409 ALREADY_PAID), its date and figures untouched', () => {
   const id = createStay({ platform: 'Booking' });
   const cents = Math.round(rowOf(id).balanceAmount * 100);
-  assert.equal(mark(id, { balancePaid: true, balancePaidDate: '2026-07-24', expectedAmountCents: cents, platformPayoutAmount: 200 }).statusCode, 200);
+  assert.equal(mark(id, { balancePaid: true, balancePaidDate: inDays(-102), expectedAmountCents: cents, platformPayoutAmount: 200 }).statusCode, 200);
   // A second tab sends the same mark, with the same expected amount.
   const again = mark(id, { balancePaid: true, balancePaidDate: TODAY, expectedAmountCents: cents, platformCommissionAmount: 999, platformPayoutAmount: 1 });
   assert.equal(again.statusCode, 409);
   assert.equal(again.body.code, 'ALREADY_PAID');
   const row = rowOf(id);
-  assert.deepEqual([row.balancePaidDate, row.platformPayoutAmount, row.platformCommissionAmount ?? null], ['2026-07-24', 200, null]);
+  assert.deepEqual([row.balancePaidDate, row.platformPayoutAmount, row.platformCommissionAmount ?? null], [inDays(-102), 200, null]);
   for (const field of ['cautionReceived']) {
     mark(id, { [field]: true, [`${field}Date`]: TODAY });
     assert.equal(mark(id, { [field]: true, [`${field}Date`]: TODAY }).body.code, 'ALREADY_PAID');
@@ -420,12 +422,12 @@ test('rule 42 — the shared capture never throws: with no possible split it log
 test('rule 43 — the export announces an entry whose credits are all on the tourist-tax account', { skip: skipWithout(['accounting-export']) }, () => {
   const { __test } = require('../plugins/accounting-export/controller');
   const entries = [
-    { direction: 'sale', reservationId: 1, kind: 'balance', libelle: 'A', paidDate: '2026-06-19', encaissementTtc: 67.13,
+    { direction: 'sale', reservationId: 1, kind: 'balance', libelle: 'A', paidDate: inDays(-137), encaissementTtc: 67.13,
       lines: [{ compte: 'CA', debit: 67.13 }, { compte: '46710000', credit: 67.13 }] },
     { direction: 'sale', reservationId: 2, kind: 'balance', libelle: 'B', encaissementTtc: 100,
       lines: [{ compte: 'CB', debit: 100 }, { compte: '70600000', credit: 90.91 }, { compte: '44571100', credit: 9.09 }] },
   ];
-  assert.deepEqual(__test.taxOnlyEntries(entries), [{ reservationId: 1, kind: 'balance', libelle: 'A', paidDate: '2026-06-19', amount: 67.13 }]);
+  assert.deepEqual(__test.taxOnlyEntries(entries), [{ reservationId: 1, kind: 'balance', libelle: 'A', paidDate: inDays(-137), amount: 67.13 }]);
 });
 
 // Third review of #727 — the pricing summary's money figures, stored, for the rule-39 switch.

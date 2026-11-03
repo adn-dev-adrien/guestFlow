@@ -7,6 +7,7 @@ const Database = require('better-sqlite3');
 
 const { buildModel, TABLE_SQL } = require('../intakesModel');
 const { createIntakeService } = require('../intakeService');
+const { withStoredUpdateBody } = require('../../sdk/testing');
 const { BOOKING_MAIL } = require('./fixtures');
 
 test('rule 18: unmapped gîte → pending with its reason; mapped later → applied at the next pass', async () => {
@@ -15,7 +16,7 @@ test('rule 18: unmapped gîte → pending with its reason; mapped later → appl
   let giteNumbers = { 1: '111111' };
   const R = { id: 5, propertyId: 2, platform: 'GitesDeFrance', kind: 'reservation', sourceType: 'ical', icalSyncLocked: 0, platformGrossAmount: null };
   const updates = [];
-  const service = createIntakeService({
+  const service = createIntakeService(withStoredUpdateBody({
     intakes: buildModel(db),
     settings: { mailbox: () => ({ host: 'h', user: 'u', password: 'p' }), sender: () => 's', giteNumbers: () => giteNumbers, autoApply: () => true },
     readMails: async (cfg, h) => { if (!h.seen('<m1>')) await h.onMail({ messageId: '<m1>', receivedAt: '2026-10-14T16:32:00.000Z', text: BOOKING_MAIL, authenticated: true }); },
@@ -25,7 +26,7 @@ test('rule 18: unmapped gîte → pending with its reason; mapped later → appl
     getReservation: () => ({ ...R, options: [] }),
     core: { updateReservation: (id) => { updates.push(id); return { status: 200 }; }, suggestBeds: () => ({ singleBeds: 0, doubleBeds: 0 }) },
     today: () => '2026-10-20',
-  });
+  }));
 
   assert.deepEqual(await service.runPass(), { read: 1, pending: 1 });
   assert.deepEqual(db.prepare('SELECT status, error FROM gdf_intakes').get(),
@@ -45,13 +46,13 @@ test('rule 18: mapped but no iCal fiche yet → still pending, the unmapped reas
   const db = new Database(':memory:');
   db.exec(TABLE_SQL);
   let giteNumbers = { 1: '111111' };
-  const service = createIntakeService({
+  const service = createIntakeService(withStoredUpdateBody({
     intakes: buildModel(db),
     settings: { mailbox: () => ({ host: 'h', user: 'u', password: 'p' }), sender: () => 's', giteNumbers: () => giteNumbers, autoApply: () => true },
     readMails: async (cfg, h) => { if (!h.seen('<m1>')) await h.onMail({ messageId: '<m1>', receivedAt: '2026-10-14T16:32:00.000Z', text: BOOKING_MAIL, authenticated: true }); },
     findReservations: () => [], commissionPercent: () => 10, propertyOptions: () => [], getReservation: () => null, core: {},
     today: () => '2026-10-20',
-  });
+  }));
   await service.runPass();
   giteNumbers = { 2: '309700' };
   assert.deepEqual(await service.runPass(), { read: 0, pending: 1 });

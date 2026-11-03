@@ -84,6 +84,7 @@ function register(ctx) {
     getReservation: (reservationId) => ctx.core.reservations.getByIdWithDetails(reservationId),
     core: {
       updateReservation: ctx.core.reservations.update,
+      updateBody: ctx.core.reservations.updateBody,
       suggestBeds: ctx.core.reservations.suggestBeds,
       platformCommission: ctx.core.reservations.platformCommission,
       // Rule 20 — the mode of the fiche's own platform row (« Airbnb », or a renamed / second Airbnb channel).

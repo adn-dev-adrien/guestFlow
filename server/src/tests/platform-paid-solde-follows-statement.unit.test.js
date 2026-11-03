@@ -36,7 +36,7 @@ test('rule 38 — Abracadaroom 600 € paid, corrected to 450 €: solde 450 €
   assert.equal(created.statusCode, 200, JSON.stringify(created.body));
   const id = created.body.id;
   assert.equal(db.prepare('SELECT balanceAmount FROM reservations WHERE id = ?').get(id).balanceAmount, 600);
-  recordStayPayment(depsFor(db), { reservationId: id, bucket: 'balance', paidDate: '2026-10-18' });
+  recordStayPayment(depsFor(db), { reservationId: id, bucket: 'balance', paidDate: inDays(-16) });
 
   const saved = controller.performUpdate(id, body(450));
   assert.equal(saved.status, 200, 'no 409 OVERPAID on a platform stay');

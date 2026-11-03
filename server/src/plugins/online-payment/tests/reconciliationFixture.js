@@ -21,6 +21,8 @@ const { platformDisplay } = require('../../../utils/platformDisplay');
 const { applyPaymentMark, computePlatformCommission } = require('../../../utils/reservationPaymentMark');
 const reservations = require('../../../models/reservationsModel');
 const paymentLinks = require('../../../models/paymentLinksModel');
+const { todayIso } = require('../../../utils/localDate');
+const { addDaysToIsoDate } = require('../../../utils/devisHelpers');
 
 up(db);
 upV2(db);
@@ -32,14 +34,20 @@ db.prepare("INSERT OR IGNORE INTO platforms (name) VALUES ('Booking')").run();
 db.prepare("UPDATE platforms SET commissionPercent = 16.44 WHERE name = 'Booking'").run();
 
 const USER = { id: 1, role: 'admin' };
-const TODAY = '2026-10-23';
+// Every date of these suites hangs on the real day (specs/server-test-isolation.md rule 6): the controller's
+// injected « today » and the payment mark's date window (rule 13 of reservations-backend-mvc) read the same one.
+const TODAY = todayIso();
+/** `YYYY-MM-DD`, `days` after TODAY. */
+const dayAt = (days) => addDaysToIsoDate(TODAY, days);
+/** `jj/mm` of `iso`, as the reconciliation labels print a day. */
+const frShort = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 
 let nextId = 100;
 function addReservation(over = {}) {
   const id = over.id || (nextId += 1);
   const row = {
-    id, kind: 'reservation', propertyId: 1, clientId: 1, startDate: '2026-10-02', endDate: '2026-10-04', adults: 2, platform: 'direct',
-    finalPrice: 700, depositAmount: 0, balanceAmount: 700, depositDueDate: null, balanceDueDate: '2026-11-01', ...over,
+    id, kind: 'reservation', propertyId: 1, clientId: 1, startDate: dayAt(-21), endDate: dayAt(-19), adults: 2, platform: 'direct',
+    finalPrice: 700, depositAmount: 0, balanceAmount: 700, depositDueDate: null, balanceDueDate: dayAt(9), ...over,
   };
   const cols = Object.keys(row);
   db.prepare(`INSERT INTO reservations (${cols.join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`).run(...cols.map((c) => row[c]));
@@ -48,12 +56,12 @@ function addReservation(over = {}) {
 
 function credit(id, cents, over = {}) {
   return {
-    id, amountCents: cents, currency: 'EUR', settledAt: '2026-10-12T08:00:00.000Z', emittedAt: '2026-10-12T07:00:00.000Z',
-    updatedAt: '2026-10-12T08:00:00.000Z', operationType: 'income', label: 'ACME', counterpartyName: 'ACME', reference: '', note: '', ...over,
+    id, amountCents: cents, currency: 'EUR', settledAt: `${dayAt(-11)}T08:00:00.000Z`, emittedAt: `${dayAt(-11)}T07:00:00.000Z`,
+    updatedAt: `${dayAt(-11)}T08:00:00.000Z`, operationType: 'income', label: 'ACME', counterpartyName: 'ACME', reference: '', note: '', ...over,
   };
 }
 
-function build({ connected = true, startDate = '2026-10-01', mark = applyPaymentMark, withQonto, read } = {}) {
+function build({ connected = true, startDate = dayAt(-22), mark = applyPaymentMark, withQonto, read } = {}) {
   const store = new Map([['reconciliationBankAccountId', 'acc-1'], ['reconciliationStartDate', startDate]]);
   const settings = { get: (k) => store.get(k) || '', set: (k, v) => store.set(k, v) };
   const transactions = createBankTransactionsModel(db);
@@ -83,4 +91,4 @@ function reset() {
 
 const row = (id) => db.prepare('SELECT * FROM reservations WHERE id = ?').get(id);
 
-module.exports = { db, USER, TODAY, addReservation, credit, build, reset, row };
+module.exports = { db, USER, TODAY, dayAt, frShort, addReservation, credit, build, reset, row };

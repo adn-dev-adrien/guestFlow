@@ -355,6 +355,14 @@ add the phone and e-mail from Airbnb. When the mail cannot be applied, the fiche
     nothing, is logged, and the mail is read again by the next pass (review of PR #874, R2: storing it would lose a
     verified genuine mail for good); any other error is stored like a mail that does not parse (rule 26): `error` with
     « Erreur de lecture : <reason> » for a verified mail, `ignored` otherwise. Tests: `airbnb-intake/tests/unparsable-date-header.unit.test.js`.
+35. **Applying a mail keeps the fiche's own lines, planning cards included** (audit R20, E20-1, 2026-11-03). The fill
+    rebuilt the catalogue options as `{ optionId, quantity, inComplement }`, which replaced the fiche's lines and dropped
+    a planning card's planned moments (`cardOccurrences`) and covers (`cardPersons`): the line came back « à planifier »
+    with the sold portions as its quantity, on the auto-apply and on « Appliquer » alike. The options, the custom lines
+    and the offered ids now start from `ctx.core.reservations.updateBody` (`plugins-phase-1-sdk.md` rule 38), the body
+    the update itself spreads the patch over; only the cleaning line is then set, as before (rule 12). The amounts do
+    not move. Airbnb 1.1.6 asks for `sdk ^2.21.0`. Test: `airbnb-intake/tests/card-lines-real-core.unit.test.js`
+    (real core, both paths).
 
 ---
 

@@ -86,7 +86,7 @@ test('rule 35 — paid, then 2 → 1 adult: the refusal, the live fiche and the 
   controller.create({ body: body(2), user: { role: 'admin' } }, created);
   assert.equal(created.statusCode, 200, JSON.stringify(created.body));
   const id = created.body.id;
-  recordStayPayment(depsFor(db), { reservationId: id, bucket: 'full', paidDate: '2026-10-18' });
+  recordStayPayment(depsFor(db), { reservationId: id, bucket: 'full', paidDate: addDaysToIsoDate(todayIso(), -16) });
   const row = db.prepare('SELECT depositAmount, balanceAmount FROM reservations WHERE id = ?').get(id);
   const paidFlags = { depositPaid: true, balancePaid: true, depositAmount: row.depositAmount, balanceAmount: row.balanceAmount };
 

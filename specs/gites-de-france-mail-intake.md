@@ -307,6 +307,11 @@ choice in one click.
 34. **An unparsable Date header or a throwing mail never stops a pass** (audit r5, review of PR #874, R1): see
     `airbnb-mail-intake.md` rule 34. The genuine booking is applied beside a forged `Date: not a date` or 32 KB Date,
     with and without a trusted server. A database error (`SQLITE_*`) on a mail stores nothing and the next pass retries it (R2); any other error is stored `error` for a verified mail, `ignored` otherwise. Test: `tests/unparsable-date-header.unit.test.js`.
+35. **Applying a mail keeps the fiche's own lines, planning cards included** (audit R20, E20-1, 2026-11-03): see
+    `airbnb-mail-intake.md` rule 35. `stayPatch` starts its options, custom lines and offered ids from
+    `ctx.core.reservations.updateBody`, on the first write (`applied` or `needs_rent`), the auto-apply and « Appliquer »;
+    the rent chosen later (`paymentPatch`) sends money fields only and was never affected. Gîtes de France 1.4.8 asks
+    for `sdk ^2.21.0`. Test: `gites-de-france-intake/tests/card-lines-real-core.unit.test.js` (real core, both paths).
 
 ---
 

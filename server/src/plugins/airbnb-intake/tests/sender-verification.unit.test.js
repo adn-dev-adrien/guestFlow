@@ -6,6 +6,7 @@ const Database = require('better-sqlite3');
 
 const { buildModel, TABLE_SQL, addSenderVerifiedColumn } = require('../intakesModel');
 const { createIntakeService } = require('../intakeService');
+const { withStoredUpdateBody } = require('../../sdk/testing');
 const { SUBJECT, SENT_AT, bookingMail } = require('./fixtures');
 
 const PLACEHOLDER = { id: 22326, propertyId: 1, platform: 'Airbnb', kind: 'reservation', sourceType: 'ical', icalSyncLocked: 0, platformGrossAmount: null, cancelledAt: null };
@@ -16,7 +17,7 @@ function setup(mails) {
   db.exec(TABLE_SQL);
   const intakes = buildModel(db);
   const calls = { updates: [] };
-  const service = createIntakeService({
+  const service = createIntakeService(withStoredUpdateBody({
     intakes,
     settings: {
       mailbox: () => ({ host: 'imap.test', port: 993, user: 'contact@test', password: 'x' }),
@@ -36,7 +37,7 @@ function setup(mails) {
       withholdsTouristTax: () => true,
     },
     now: () => new Date('2026-10-25T09:00:00.000Z'),
-  });
+  }));
   return { service, intakes, calls };
 }
 

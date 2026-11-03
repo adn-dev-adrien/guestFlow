@@ -3,14 +3,14 @@
 // « Défaire », scope, the fiche block and the home subject.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { db, USER, addReservation, credit, build, reset, row } = require('./reconciliationFixture');
+const { db, USER, addReservation, credit, build, reset, row, dayAt } = require('./reconciliationFixture');
 
 test.beforeEach(() => { reset(); });
 
 const bookingCredit = (id, cents, over = {}) => credit(id, cents, { counterpartyName: 'Booking.com B.V.', label: 'Booking.com B.V.', reference: 'NO.x/ID.1', ...over });
 
 test('rules 34–36 — confirming a platform payout marks the fiche received at the bank date and carries the payout and its commission', () => {
-  const id = addReservation({ platform: 'Booking', finalPrice: 710.02, balanceAmount: 710.02, platformGrossAmount: 710.02, balanceDueDate: '2026-10-10' });
+  const id = addReservation({ platform: 'Booking', finalPrice: 710.02, balanceAmount: 710.02, platformGrossAmount: 710.02, balanceDueDate: dayAt(-13) });
   const { controller, transactions } = build();
   transactions.upsertMany([bookingCredit('t1', 59658)], { bankAccountId: 'acc-1' });
 
@@ -24,7 +24,7 @@ test('rules 34–36 — confirming a platform payout marks the fiche received at
   assert.equal(answer.body.marked.length, 1);
   const fiche = row(id);
   assert.equal(fiche.balancePaid, 1);
-  assert.equal(fiche.balancePaidDate, '2026-10-12', 'the date of the credit (rule 35)');
+  assert.equal(fiche.balancePaidDate, dayAt(-11), 'the date of the credit (rule 35)');
   assert.equal(fiche.platformPayoutAmount, 596.58);
   assert.equal(fiche.platformCommissionAmount, 113.44);
   const history = db.prepare('SELECT changedFields FROM reservation_history WHERE reservationId = ?').all(id).map((h) => h.changedFields).join(' ');
@@ -35,7 +35,7 @@ test('rules 34–36 — confirming a platform payout marks the fiche received at
 });
 
 test('rule 38 — « Défaire » restores the fiche: unpaid again, payout and commission back to what they were', () => {
-  const id = addReservation({ platform: 'Booking', finalPrice: 710.02, balanceAmount: 710.02, platformGrossAmount: 710.02, balanceDueDate: '2026-10-10' });
+  const id = addReservation({ platform: 'Booking', finalPrice: 710.02, balanceAmount: 710.02, platformGrossAmount: 710.02, balanceDueDate: dayAt(-13) });
   const { controller, transactions } = build();
   transactions.upsertMany([bookingCredit('t1', 59658)], { bankAccountId: 'acc-1' });
   const item = controller.list().body.items.find((i) => i.reservation.id === id);
@@ -51,12 +51,12 @@ test('rule 38 — « Défaire » restores the fiche: unpaid again, payout and co
 });
 
 test('rule 38 — a fiche edited since the confirmation is left alone by « Défaire »', () => {
-  const id = addReservation({ platform: 'Booking', finalPrice: 710.02, balanceAmount: 710.02, platformGrossAmount: 710.02, balanceDueDate: '2026-10-10' });
+  const id = addReservation({ platform: 'Booking', finalPrice: 710.02, balanceAmount: 710.02, platformGrossAmount: 710.02, balanceDueDate: dayAt(-13) });
   const { controller, transactions } = build();
   transactions.upsertMany([bookingCredit('t1', 59658)], { bankAccountId: 'acc-1' });
   const item = controller.list().body.items.find((i) => i.reservation.id === id);
   controller.confirm({ transactionId: 't1', allocations: item.proposal.allocations, user: USER });
-  db.prepare("UPDATE reservations SET balancePaidDate = '2026-10-13' WHERE id = ?").run(id);
+  db.prepare(`UPDATE reservations SET balancePaidDate = '${dayAt(-10)}' WHERE id = ?`).run(id);
 
   const undone = controller.undo({ transactionId: 't1', user: USER });
   assert.equal(undone.body.restored.length, 0);
@@ -80,14 +80,14 @@ test('rule 36 — a direct échéance of another amount is marked received, its 
 test('rule 37 — a partial cover marks nothing; the second credit completes it at its own date', () => {
   const id = addReservation({ balanceAmount: 700, finalPrice: 700 });
   const { controller, transactions } = build();
-  transactions.upsertMany([credit('t1', 30000), credit('t2', 40000, { settledAt: '2026-10-15T08:00:00.000Z' })], { bankAccountId: 'acc-1' });
+  transactions.upsertMany([credit('t1', 30000), credit('t2', 40000, { settledAt: `${dayAt(-8)}T08:00:00.000Z` })], { bankAccountId: 'acc-1' });
   const first = controller.confirm({ transactionId: 't1', allocations: [{ reservationId: id, ledgerKey: 'balance', amountCents: 30000 }], user: USER });
   assert.equal(first.body.marked.length, 0);
   assert.equal(row(id).balancePaid, 0);
   assert.equal(controller.list({ view: 'waiting' }).body.items.find((i) => i.reservation.id === id).state, 'partial');
   const second = controller.confirm({ transactionId: 't2', allocations: [{ reservationId: id, ledgerKey: 'balance', amountCents: 40000 }], user: USER });
   assert.equal(second.body.marked.length, 1);
-  assert.equal(row(id).balancePaidDate, '2026-10-15');
+  assert.equal(row(id).balancePaidDate, dayAt(-8));
 });
 
 test('rule 34 — a refusal of the core mark cancels the whole confirmation', () => {
@@ -102,7 +102,7 @@ test('rule 34 — a refusal of the core mark cancels the whole confirmation', ()
 });
 
 test('rule 34 — an échéance already marked received is reconciled without any write on the fiche', () => {
-  const id = addReservation({ balanceAmount: 700, finalPrice: 700, balancePaid: 1, balancePaidDate: '2026-10-12' });
+  const id = addReservation({ balanceAmount: 700, finalPrice: 700, balancePaid: 1, balancePaidDate: dayAt(-11) });
   const { controller, transactions } = build();
   transactions.upsertMany([credit('t1', 70000, { counterpartyName: 'Dupont' })], { bankAccountId: 'acc-1' });
   const answer = controller.confirm({ transactionId: 't1', allocations: [{ reservationId: id, ledgerKey: 'balance', amountCents: 70000 }], user: USER });
@@ -113,7 +113,7 @@ test('rule 34 — an échéance already marked received is reconciled without an
 
 test('§4.3 — validation: unknown credit, over-allocation, out of scope, unknown receipt', () => {
   const inScope = addReservation({});
-  const past = addReservation({ startDate: '2026-08-01', endDate: '2026-08-03' });
+  const past = addReservation({ startDate: dayAt(-83), endDate: dayAt(-81) });
   const { controller, transactions } = build();
   transactions.upsertMany([credit('t1', 10000)], { bankAccountId: 'acc-1' });
   const alloc = (reservationId, ledgerKey = 'balance', amountCents = 5000) => [{ reservationId, ledgerKey, amountCents }];
@@ -152,7 +152,7 @@ test('rule 17 — a credit marked « Hors réservation » leaves the proposals a
 
 test('rules 25–27 — the fiche block: in scope only, stored data only, folded when everything is reconciled', () => {
   const id = addReservation({ balanceAmount: 700, finalPrice: 700 });
-  const past = addReservation({ startDate: '2026-08-01', endDate: '2026-08-03' });
+  const past = addReservation({ startDate: dayAt(-83), endDate: dayAt(-81) });
   const { controller, transactions, calls } = build();
   transactions.upsertMany([credit('t1', 70000, { counterpartyName: 'Dupont' })], { bankAccountId: 'acc-1' });
   const block = controller.buildFicheBlock({ id });
@@ -166,7 +166,7 @@ test('rules 25–27 — the fiche block: in scope only, stored data only, folded
 });
 
 test('rule 22 — the home subject counts the gaps and the unmatched credits', () => {
-  const id = addReservation({ balanceAmount: 700, finalPrice: 700, balanceDueDate: '2026-09-01' });
+  const id = addReservation({ balanceAmount: 700, finalPrice: 700, balanceDueDate: dayAt(-52) });
   const { controller, transactions } = build();
   transactions.upsertMany([bookingCredit('t1', 12345), credit('t2', 75000)], { bankAccountId: 'acc-1' });
   controller.confirm({ transactionId: 't2', allocations: [{ reservationId: id, ledgerKey: 'balance', amountCents: 75000 }], user: USER });
@@ -194,8 +194,8 @@ test('rule 5 — « Actualiser » is throttled to one read a minute', async () =
 test('rule 2 — the start date defaults to the day the feature is first opened', () => {
   const { controller, store } = build();
   store.delete('reconciliationStartDate');
-  assert.equal(controller.list().body.startDate, '2026-10-23');
-  assert.equal(store.get('reconciliationStartDate'), '2026-10-23');
+  assert.equal(controller.list().body.startDate, dayAt(0));
+  assert.equal(store.get('reconciliationStartDate'), dayAt(0));
 });
 
 test('rule 18 — manual linking: the candidates of the dialog, an allocation spread over two échéances of one credit', () => {

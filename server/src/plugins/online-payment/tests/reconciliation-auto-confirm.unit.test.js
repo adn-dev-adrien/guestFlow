@@ -2,16 +2,16 @@
 // themselves, visibly and undoably; nothing else does. Fictional data only.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { db, USER, addReservation, credit, build, reset, row } = require('./reconciliationFixture');
+const { db, USER, addReservation, credit, build, reset, row, dayAt, frShort } = require('./reconciliationFixture');
 
 test.beforeEach(() => { reset(); });
 
 const at = (day) => `${day}T09:00:00.000Z`;
 const recorded = (payout, over = {}) => addReservation({
   platform: 'Booking', platformGrossAmount: payout + 60, platformPayoutAmount: payout, platformCommissionAmount: 60, finalPrice: payout + 60,
-  balanceAmount: payout + 60, depositAmount: 0, balanceDueDate: '2026-10-10', ...over,
+  balanceAmount: payout + 60, depositAmount: 0, balanceDueDate: dayAt(-13), ...over,
 });
-const payout = (id, cents) => credit(id, cents, { settledAt: at('2026-10-12'), counterpartyName: 'BOOKING.COM B.V.', reference: 'NO.Z/ID.9' });
+const payout = (id, cents) => credit(id, cents, { settledAt: at(dayAt(-11)), counterpartyName: 'BOOKING.COM B.V.', reference: 'NO.Z/ID.9' });
 const lines = () => db.prepare('SELECT * FROM bank_reconciliation_lines').all();
 const history = (id) => db.prepare('SELECT changedFields FROM reservation_history WHERE reservationId = ?').all(id).map((r) => r.changedFields).join(' ');
 
@@ -23,7 +23,7 @@ test('rule 20 — a « sûr » single exact match is confirmed by « Actualiser 
   assert.equal(row(id).balancePaid, 0, 'a page load confirms nothing');
   const body = (await controller.readNow({ view: 'done' })).body;
   assert.equal(row(id).balancePaid, 1);
-  assert.equal(row(id).balancePaidDate, '2026-10-12');
+  assert.equal(row(id).balancePaidDate, dayAt(-11));
   assert.equal(body.autoConfirmed.count, 1);
 });
 
@@ -48,12 +48,12 @@ test('rule 20 — only the paid flag and the date are written: payout and commis
 });
 
 test('rule 20 — « probable » and « à vérifier » proposals wait for the operator', async () => {
-  const named = addReservation({ balanceAmount: 300, finalPrice: 300, balanceDueDate: '2026-10-10' });
-  const other = addReservation({ clientId: 2, balanceAmount: 125, finalPrice: 125, balanceDueDate: '2026-10-11' });
+  const named = addReservation({ balanceAmount: 300, finalPrice: 300, balanceDueDate: dayAt(-13) });
+  const other = addReservation({ clientId: 2, balanceAmount: 125, finalPrice: 125, balanceDueDate: dayAt(-12) });
   const { controller, transactions } = build();
   transactions.upsertMany([
-    credit('a', 30000, { settledAt: at('2026-10-12'), counterpartyName: 'M. DUPONT' }),
-    credit('b', 12500, { settledAt: at('2026-10-12'), counterpartyName: 'SOMEONE ELSE' }),
+    credit('a', 30000, { settledAt: at(dayAt(-11)), counterpartyName: 'M. DUPONT' }),
+    credit('b', 12500, { settledAt: at(dayAt(-11)), counterpartyName: 'SOMEONE ELSE' }),
   ], { bankAccountId: 'acc-1' });
   await controller.readNow();
   assert.equal(row(named).balancePaid, 0);
@@ -63,7 +63,7 @@ test('rule 20 — « probable » and « à vérifier » proposals wait for the o
 
 test('rule 20 — a stay that is cancelled is never auto-confirmed', async () => {
   const id = recorded(400);
-  db.prepare("UPDATE reservations SET cancelledAt = '2026-10-11' WHERE id = ?").run(id);
+  db.prepare(`UPDATE reservations SET cancelledAt = '${dayAt(-12)}' WHERE id = ?`).run(id);
   const { controller, transactions } = build();
   transactions.upsertMany([payout('p', 40000)], { bankAccountId: 'acc-1' });
   await controller.readNow();
@@ -71,7 +71,7 @@ test('rule 20 — a stay that is cancelled is never auto-confirmed', async () =>
 });
 
 test('rule 20 — a payout the fiche does not carry yet (no amount to compare) is never auto-confirmed', async () => {
-  const id = addReservation({ platform: 'Booking', platformGrossAmount: 400, finalPrice: 400, balanceAmount: 400, depositAmount: 0, balanceDueDate: '2026-10-10' });
+  const id = addReservation({ platform: 'Booking', platformGrossAmount: 400, finalPrice: 400, balanceAmount: 400, depositAmount: 0, balanceDueDate: dayAt(-13) });
   const { controller, transactions } = build();
   transactions.upsertMany([payout('p', 40000)], { bankAccountId: 'acc-1' });
   await controller.readNow();
@@ -95,7 +95,7 @@ test('rule 21 — the line is stored with auto = 1 and no user, the history says
   await controller.readNow();
   assert.deepEqual(lines().map((l) => [l.auto, l.createdBy]), [[1, null]]);
   assert.match(history(id), /Rapprochement bancaire automatique/);
-  assert.match(history(id), /reçu le 12\/10 \(virement\)/);
+  assert.match(history(id), new RegExp(`reçu le ${frShort(dayAt(-11))} \\(virement\\)`));
   const item = controller.list({ view: 'done' }).body.items.find((i) => i.reservation.id === id);
   assert.equal(item.bank[0].auto, true);
 });

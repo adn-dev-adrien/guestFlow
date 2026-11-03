@@ -12,13 +12,13 @@ function legacyZeroAcompte(over = {}) {
   const res = f.create({ ...f.stayBody({ depositDisabled: 1, ...over }), unlockPast: true });
   assert.equal(res.statusCode, 200);
   const id = Number(res.body.id);
-  f.db.prepare("UPDATE reservations SET depositDueDate = '2026-08-01' WHERE id = ?").run(id);
+  f.db.prepare(`UPDATE reservations SET depositDueDate = '${f.inDays(-94)}' WHERE id = ?`).run(id);
   assert.equal(f.rowOf(id).depositAmount, 0);
   return id;
 }
 
 test('a PAST locked fiche with a legacy 0 € acompte deadline still saves', async () => {
-  const id = legacyZeroAcompte({ startDate: '2026-09-01', endDate: '2026-09-04' });
+  const id = legacyZeroAcompte({ startDate: f.inDays(-63), endDate: f.inDays(-60) });
   const res = await f.save(id, {});
   assert.equal(res.statusCode, 200, JSON.stringify(res.body));
   assert.equal((await f.save(id, { discountPercent: 5 })).statusCode, 200);
@@ -43,7 +43,7 @@ test('the boot cleanup clears the deadline of unpaid 0 € acomptes only', () =>
   const cleared = runZeroDepositDeadlineCleanup(f.db);
   assert.ok(cleared >= 1);
   assert.equal(f.rowOf(zero).depositDueDate, null);
-  assert.equal(f.rowOf(paidZero).depositDueDate, '2026-08-01', 'something recorded on the acompte: left alone');
+  assert.equal(f.rowOf(paidZero).depositDueDate, f.inDays(-94), 'something recorded on the acompte: left alone');
   assert.equal(f.rowOf(withAcompte).depositDueDate, deadline);
   assert.equal(runZeroDepositDeadlineCleanup(f.db), 0, 'idempotent');
 });

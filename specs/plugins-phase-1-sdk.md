@@ -468,6 +468,18 @@ Optional: a plugin that declares nothing reads « Actif ».
     date) and asks for `sdk ^2.20.0`; the client SDK's `guestflow/sdk/ui` gains `DateField`, `useServerToday` and
     `dateWindowMessage` in the same, still unreleased 2.20.0, for the « Rapprochement bancaire » card the console
     renders too. Test: online-payment `reconciliation-start-date-window`.
+38. *(Added 2026-11-03, audit R20, E20-1, SDK 2.21.0.)* **`ctx.core.reservations.updateBody(id)` hands the stored
+    reservation as the fiche's PUT body** — the very body `ctx.core.reservations.update` spreads a patch over
+    (`utils/reservationUpdateBody.js` `toUpdateBody`, the auto-enabled options left out), or `null` for an unknown id
+    or a devis. A plugin that rewrites one of the line lists (`options`, `customOptions`, `offeredOptionIds`,
+    `resources`) starts from these lines instead of copying the fiche's details by hand: the Airbnb and Gîtes de France
+    intakes rebuilt `options` as `{ optionId, quantity, inComplement }` and dropped a planning card's `cardOccurrences`
+    and `cardPersons`, so applying a mail turned two planned breakfasts for 3 covers into 6 portions « à planifier ».
+    A MINOR bump (an entry point added to `ctx.core`); `airbnb-intake` 1.1.6 and `gites-de-france-intake` 1.4.8 ask
+    for `sdk ^2.21.0`. `booking-intake` sends no line list and is unchanged. `sdk/testing` exports
+    `withStoredUpdateBody(deps)`, the suites' double of it built on their own `getReservation` through `toUpdateBody`.
+    Tests: `plugins-sdk-update-body.unit.test.js` (the body, `null`, the sweep of the plugins writing a line list),
+    `airbnb-intake/tests/card-lines-real-core.unit.test.js`, `gites-de-france-intake/tests/card-lines-real-core.unit.test.js`.
 
 **Edge cases:**
 - **A plugin throws during `register`.** Rule 4 applies: the other plugins and the core boot. The Plugins

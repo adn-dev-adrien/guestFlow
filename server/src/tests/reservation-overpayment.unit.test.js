@@ -63,7 +63,7 @@ function fixture() {
   controller.create({ body: body(6), user: { role: 'admin' } }, res);
   assert.equal(res.statusCode, 200, JSON.stringify(res.body));
   const id = res.body.id;
-  recordStayPayment(depsFor(db), { reservationId: id, bucket: 'balance', paidDate: '2026-10-18', keepPaymentOnCaptureFailure: true });
+  recordStayPayment(depsFor(db), { reservationId: id, bucket: 'balance', paidDate: inDays(-16), keepPaymentOnCaptureFailure: true });
   return { db, controller, id, body };
 }
 
@@ -95,7 +95,7 @@ test('rule 34 — paid online, then reduced: 409 OVERPAID with the amount, saved
   const res = { statusCode: 200, body: null, status(c) { this.statusCode = c; return this; }, json(b) { this.body = b; return this; } };
   refunds.create({
     params: { id },
-    body: { refundDate: '2026-10-18', method: 'transfer', reason: '', lines: [{ label: 'Trop-perçu', bucket: 'options', amountTtc: expected }] },
+    body: { refundDate: inDays(-16), method: 'transfer', reason: '', lines: [{ label: 'Trop-perçu', bucket: 'options', amountTtc: expected }] },
   }, res);
   assert.equal(res.statusCode, 201, JSON.stringify(res.body));
   assert.equal(await liveOverpayment(controller, id, body(2)), 0);
@@ -127,7 +127,7 @@ test('rule 34 — acompte and solde paid, then the stay reduced: the frozen exce
   const id = res.body.id;
   const row = db.prepare('SELECT depositAmount, balanceAmount, touristTaxTotal FROM reservations WHERE id = ?').get(id);
   const { recordStayPayment, depsFor } = require('../utils/stayPaymentRecorder');
-  recordStayPayment(depsFor(db), { reservationId: id, bucket: 'full', paidDate: '2026-10-18' });
+  recordStayPayment(depsFor(db), { reservationId: id, bucket: 'full', paidDate: inDays(-16) });
 
   const paidFlags = { depositPaid: true, balancePaid: true, depositAmount: row.depositAmount, balanceAmount: row.balanceAmount };
   assert.equal(await liveOverpayment(controller, id, body(2, paidFlags)), 0, 'nothing in excess before the change');
