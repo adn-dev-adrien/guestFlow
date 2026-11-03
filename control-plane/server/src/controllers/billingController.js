@@ -12,6 +12,7 @@ const { dueWindow } = require('../utils/lifecycle');
 const { parisDay, addDays, addMonths, frDay } = require('../utils/days');
 const { KINDS, render } = require('../utils/templates');
 const { httpError } = require('../utils/httpError');
+const { text } = require('../utils/bodyText');
 const { euros } = require('../utils/money');
 
 const VAT_RATE = 20;
@@ -384,6 +385,7 @@ function createBillingController(ctx, customersController) {
   async function recordPayment(id, body, operator) {
     const c = mustGet(id);
     customersController.assertExpectedEndsAt(c, body);
+    const reference = text(body, 'reference').trim();
     const inv = invoices.unsettled(c.id)[0];
     if (c.archivedAt || !inv) return customersController.recordPayment(id, body, operator);
     const label = inv.number || '(en préparation)';
@@ -403,7 +405,6 @@ function createBillingController(ctx, customersController) {
         journal(c.id, operator, 'payment', `Lien de paiement de la facture ${label} non désactivé : ${errorText(err)}. Désactivez-le dans Qonto.`);
       }
     }
-    const reference = String(body.reference || '').trim();
     settle(inv, { paidBy: 'manual', paidAt: stamp(), operator });
     if (reference) journal(c.id, operator, 'payment', `Référence du paiement de la facture ${label} : « ${reference} »`);
     return customersController.view(c.id);

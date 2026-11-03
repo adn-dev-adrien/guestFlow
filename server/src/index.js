@@ -302,6 +302,7 @@ const settingsModelForFavicon = require('./models/settingsModel');
 const { uploadsDir: faviconUploadsDir } = require('./middleware/multerLogoUpload');
 const { buildFaviconHandler } = require('./middleware/dynamicFavicon');
 const { bodyParserRefusal } = require('./utils/bodyParserRefusal');
+const { answerBodyRefusal } = require('./controllers/public/publicHttp');
 const dynamicFavicon = buildFaviconHandler({
   settingsModel: settingsModelForFavicon,
   uploadsDir: faviconUploadsDir,
@@ -339,7 +340,7 @@ app.use((err, req, res, next) => {
   // A body the JSON parser refuses is the caller's mistake, not a crash: a 400 that says so, not an
   // « Erreur interne » logged as unhandled (specs/express-5-upgrade.md rule 7).
   const refusal = bodyParserRefusal(err);
-  if (refusal && !res.headersSent) return res.status(refusal.status).json(refusal.body);
+  if (refusal && !res.headersSent) return answerBodyRefusal(req, res, refusal);
   console.error(`[unhandled] ${req.method} ${req.originalUrl}`, err);
   if (res.headersSent) return;
   res.status(err && Number.isInteger(err.status) && err.status >= 400 && err.status < 600 ? err.status : 500)

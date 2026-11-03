@@ -14,6 +14,7 @@
 const crypto = require('crypto');
 const QRCode = require('qrcode');
 const { passwordHash, totp } = require('../utils/gf');
+const { asText } = require('../utils/bodyText');
 const { httpError } = require('../utils/httpError');
 
 const MAX_FAILURES = 5;
@@ -60,7 +61,7 @@ function createAuthController(ctx) {
   function checkEmailCode(op, code) {
     const row = operators.getCode(op.id);
     if (!row || new Date(row.expiresAt) <= now()) return false;
-    const ok = crypto.timingSafeEqual(Buffer.from(row.codeHash), Buffer.from(sha256(String(code || '').trim())));
+    const ok = crypto.timingSafeEqual(Buffer.from(row.codeHash), Buffer.from(sha256(asText(code).trim())));
     if (ok) operators.clearCode(op.id);
     return ok;
   }
@@ -68,7 +69,7 @@ function createAuthController(ctx) {
   // Codes stored before 2026-10-04 are plain SHA-256; they keep working until used.
   function useBackupCode(op, code) {
     const hashes = JSON.parse(op.backupCodes || '[]');
-    const value = totp.normalizeCode(code);
+    const value = totp.normalizeCode(asText(code));
     const match = hashes.find((h) => LEGACY_BACKUP_HASH.test(h) && h === sha256(value))
       || totp.findBackupCode(value, hashes.filter((h) => !LEGACY_BACKUP_HASH.test(h)));
     if (!match) return false;
@@ -94,7 +95,7 @@ function createAuthController(ctx) {
   // Step 1 → { operatorId (for the session's pending slot), step payload }
   async function login({ email, password }) {
     const op = operators.byEmail(email);
-    if (!passwordHash.verifyPassword(String(password || ''), op ? op.passwordHash : DUMMY_HASH) || !op) {
+    if (!passwordHash.verifyPassword(asText(password), op ? op.passwordHash : DUMMY_HASH) || !op) {
       throw httpError(401, 'BAD_CREDENTIALS', 'Email ou mot de passe incorrect.');
     }
     assertNotLocked(op);
@@ -107,7 +108,7 @@ function createAuthController(ctx) {
     const op = operators.byId(operatorId);
     if (!op) throw httpError(401, 'NO_PENDING_LOGIN', 'Reconnectez-vous.');
     assertNotLocked(op);
-    const value = totp.normalizeCode(code);
+    const value = totp.normalizeCode(asText(code));
     let ok = false;
     let usedBackup = false;
     if (totp.isBackupCodeShape(value)) ok = usedBackup = useBackupCode(op, value);
@@ -156,7 +157,7 @@ function createAuthController(ctx) {
   async function startMethod(operatorId, { method, password }) {
     const op = operators.byId(operatorId);
     assertNotLocked(op);
-    if (!passwordHash.verifyPassword(String(password || ''), op.passwordHash)) {
+    if (!passwordHash.verifyPassword(asText(password), op.passwordHash)) {
       fail(op);
       throw httpError(400, 'BAD_PASSWORD', 'Mot de passe incorrect.');
     }

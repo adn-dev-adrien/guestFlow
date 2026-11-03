@@ -10,7 +10,7 @@ const { buildVatGoldenDb } = require('./vatRegimeGoldenFixture');
 
 const db = buildVatGoldenDb();
 // The fixture's devis expired in June / July 2027; a live offer is what the preview counts (rule 25).
-db.prepare("UPDATE reservations SET validUntil = '2027-12-31' WHERE kind = 'devis'").run();
+db.prepare("UPDATE reservations SET validUntil = '2027-12-31' WHERE kind = 'devis'").run(); // date-literal-ok: judged against the golden fixture's frozen clock
 const controller = require('../controllers/vatRegimeController');
 const vatRegimeModel = require('../models/vatRegimeModel');
 
@@ -36,7 +36,7 @@ test('rule 17: a pure read — looking changes no period, no reservation, no his
   ]);
   const before = snapshot();
   preview(ALL);
-  preview({ regime: 'not_subject', basis: 'arrival', effectiveFrom: '2027-09-01' });
+  preview({ regime: 'not_subject', basis: 'arrival', effectiveFrom: '2027-09-01' }); // date-literal-ok: judged against the golden fixture's frozen clock
   assert.equal(snapshot(), before);
   assert.equal(db.prepare('SELECT seq FROM sqlite_sequence WHERE name = ?').get('vat_periods').seq <= 1, true, 'the rolled-back period leaves no trace');
 });
@@ -46,9 +46,9 @@ test('rule 17: the reservations that change, and those with money collected', ()
   const stays = db.prepare("SELECT COUNT(*) AS n FROM reservations WHERE kind IN ('reservation', 'cancelled')").get().n;
   assert.equal(all.reassigned, stays);
   assert.ok(all.collected > 0 && all.collected <= all.reassigned);
-  const arrival = preview({ regime: 'not_subject', basis: 'arrival', effectiveFrom: '2027-09-01' });
-  assert.equal(arrival.reassigned, db.prepare("SELECT COUNT(*) AS n FROM reservations WHERE kind IN ('reservation', 'cancelled') AND startDate >= '2027-09-01'").get().n);
-  assert.equal(preview({ regime: 'not_subject', basis: 'booking', effectiveFrom: '2027-10-20' }).reassigned, 0);
+  const arrival = preview({ regime: 'not_subject', basis: 'arrival', effectiveFrom: '2027-09-01' }); // date-literal-ok: judged against the golden fixture's frozen clock
+  assert.equal(arrival.reassigned, db.prepare("SELECT COUNT(*) AS n FROM reservations WHERE kind IN ('reservation', 'cancelled') AND startDate >= '2027-09-01'").get().n); // date-literal-ok: judged against the golden fixture's frozen clock
+  assert.equal(preview({ regime: 'not_subject', basis: 'booking', effectiveFrom: '2027-10-20' }).reassigned, 0); // date-literal-ok: judged against the golden fixture's frozen clock
 });
 
 test('rule 17: a rate change counts as a change, an unchanged rate does not', () => {
@@ -60,24 +60,24 @@ test('rule 17: the tourist taxes that move, with the total delta, and the frozen
   assert.equal(all.touristTaxChanged, 1, 'the proportional tax of the installment stay rises');
   assert.ok(all.touristTaxDelta > 1.5 && all.touristTaxDelta < 2.2, `${all.touristTaxDelta}`);
   assert.ok(all.touristTaxKept >= 1, 'the frozen tax of the lodgify stay and the collected ones');
-  const none = preview({ regime: 'not_subject', basis: 'arrival', effectiveFrom: '2027-12-01' });
+  const none = preview({ regime: 'not_subject', basis: 'arrival', effectiveFrom: '2027-12-01' }); // date-literal-ok: judged against the golden fixture's frozen clock
   assert.deepEqual([none.touristTaxChanged, none.touristTaxDelta], [0, 0]);
 });
 
 test('rule 17: the open payment links of the reservations that change — their amount stands', () => {
   assert.equal(preview(ALL).openLinks, 2);
-  assert.equal(preview({ regime: 'not_subject', basis: 'arrival', effectiveFrom: '2027-08-01' }).openLinks, 1);
+  assert.equal(preview({ regime: 'not_subject', basis: 'arrival', effectiveFrom: '2027-08-01' }).openLinks, 1); // date-literal-ok: judged against the golden fixture's frozen clock
 });
 
 test('rule 17: the months of the books that would change', () => {
   assert.deepEqual(preview(ALL).exportMonths, ['2027-05', '2027-06', '2027-08', '2027-09']);
-  assert.deepEqual(preview({ regime: 'not_subject', basis: 'arrival', effectiveFrom: '2027-12-01' }).exportMonths, []);
+  assert.deepEqual(preview({ regime: 'not_subject', basis: 'arrival', effectiveFrom: '2027-12-01' }).exportMonths, []); // date-literal-ok: judged against the golden fixture's frozen clock
 });
 
 test('rule 17: the devis drafts that would now print differently', () => {
   assert.equal(preview(ALL).devisDrafts, 2);
-  assert.equal(preview({ regime: 'not_subject', basis: 'booking', effectiveFrom: '2027-12-01' }).devisDrafts, 0, 'a devis is quoted as booked today');
-  assert.equal(preview({ regime: 'not_subject', basis: 'arrival', effectiveFrom: '2027-10-01' }).devisDrafts, 1, 'only the one arriving after the date');
+  assert.equal(preview({ regime: 'not_subject', basis: 'booking', effectiveFrom: '2027-12-01' }).devisDrafts, 0, 'a devis is quoted as booked today'); // date-literal-ok: judged against the golden fixture's frozen clock
+  assert.equal(preview({ regime: 'not_subject', basis: 'arrival', effectiveFrom: '2027-10-01' }).devisDrafts, 1, 'only the one arriving after the date'); // date-literal-ok: judged against the golden fixture's frozen clock
 });
 
 test('rule 17: the preview says whether the accounting export follows', () => {
@@ -86,14 +86,16 @@ test('rule 17: the preview says whether the accounting export follows', () => {
 
 test('rule 17: the fingerprint is stable for the same inputs and moves with them', () => {
   assert.equal(preview(ALL).fingerprint, preview(ALL).fingerprint);
-  assert.notEqual(preview(ALL).fingerprint, preview({ regime: 'not_subject', basis: 'arrival', effectiveFrom: '2027-09-01' }).fingerprint);
+  assert.notEqual(preview(ALL).fingerprint, preview({ regime: 'not_subject', basis: 'arrival', effectiveFrom: '2027-09-01' }).fingerprint); // date-literal-ok: judged against the golden fixture's frozen clock
   assert.notEqual(preview(ALL).fingerprint, preview({ ...ALL, legalMention: 'art_261_d_4' }).fingerprint);
 });
 
 test('rule 17: a switch whose reassigned set changed since the preview is refused with 409, and goes through after a new preview', () => {
-  const input = { regime: 'not_subject', basis: 'arrival', effectiveFrom: '2027-09-01' };
+  const input = { regime: 'not_subject', basis: 'arrival', effectiveFrom: '2027-09-01' }; // date-literal-ok: judged against the golden fixture's frozen clock
   const { fingerprint } = preview(input);
-  db.prepare("INSERT INTO reservations (kind, clientId, propertyId, startDate, endDate, finalPrice) VALUES ('reservation', 1, 1, '2027-11-10', '2027-11-12', 100)").run();
+  // An explicit createdAt: the column's default reads SQLite's real clock, not the frozen one, so the booking date of
+  // this row would pass the next test's effectiveFrom as the calendar goes by (audit R21-S4).
+  db.prepare("INSERT INTO reservations (kind, clientId, propertyId, startDate, endDate, finalPrice, createdAt) VALUES ('reservation', 1, 1, '2027-11-10', '2027-11-12', 100, '2027-10-20 10:00:00')").run(); // date-literal-ok: judged against the golden fixture's frozen clock
   const stale = call(controller.makeSwitch, { ...input, fingerprint });
   assert.deepEqual([stale.statusCode, stale.body], [409, { error: 'preview_stale' }]);
   assert.equal(vatRegimeModel.listPeriods(db).length, 1);
@@ -102,7 +104,7 @@ test('rule 17: a switch whose reassigned set changed since the preview is refuse
 });
 
 test('rule 17: a switch without a fingerprint is refused', () => {
-  const res = call(controller.makeSwitch, { regime: 'subject', rate: 20, basis: 'arrival', effectiveFrom: '2027-12-01' });
+  const res = call(controller.makeSwitch, { regime: 'subject', rate: 20, basis: 'arrival', effectiveFrom: '2027-12-01' }); // date-literal-ok: judged against the golden fixture's frozen clock
   assert.equal(res.statusCode, 409);
 });
 
@@ -120,7 +122,7 @@ test('rule 17: the lines of « Ce qui change » are phrased by the server, only 
   assert.ok(back.lines.some((l) => /^Taxe de séjour recalculée sur 1 séjour \([+−]\d,\d\d\u00a0€\)\.$/.test(l)));
   assert.ok(back.lines.some((l) => /^\d+ liens? de paiement ouverts? (gardent? (leur|son) montant|sont? abandonnés? : (leur|son) montant change)\./.test(l)));
   assert.equal(back.lines[back.lines.length - 1], 'Devis et résumés : TVA 20 %.');
-  const none = preview({ regime: 'subject', rate: 20, basis: 'booking', effectiveFrom: '2028-01-01' });
+  const none = preview({ regime: 'subject', rate: 20, basis: 'booking', effectiveFrom: '2028-01-01' }); // date-literal-ok: judged against the golden fixture's frozen clock
   assert.deepEqual(none.lines, [
     'Aucune réservation existante. Les réservations prises à partir du 01/01/2028 passent à la TVA.',
     'Prix inchangés. Le chiffre d’affaires HT baisse d’autant.',

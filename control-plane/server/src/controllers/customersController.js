@@ -16,6 +16,7 @@ const { buildPayload, pluginsOfPlan } = require('../utils/licenceIssuer');
 const { exportInstance } = require('../utils/exporter');
 const { eraseInstance } = require('../utils/eraser');
 const { httpError } = require('../utils/httpError');
+const { asText, text, fieldText, numeric } = require('../utils/bodyText');
 const { euros } = require('../utils/money');
 const { plugins: gfPlugins } = require('../utils/gf');
 const { CREATE_STEPS: PROVISION_STEPS } = require('../utils/provisioner');
@@ -27,6 +28,10 @@ const HOST_RESTART = { step: 'restart', label: 'Processus et route relancés dep
 const HOST_RENAME = { step: 'rename', label: 'Dossier renommé, processus et route relancés, redirection 301 posée' };
 
 const TRIAL_DAYS = 30;
+// Rule 48: a 5 000-character company name was accepted, then printed on every invoice and mail.
+const IDENTITY_MAX = 200;
+const EMAIL_MAX = 254;
+const ADDONS_NOT_A_LIST = 'Liste attendue.';
 const ERASE_AFTER_DAYS = 90;
 const EXPORT_LINK_DAYS = 30;
 const FORCE_ACTIVE_DEFAULT_DAYS = 7;
@@ -104,7 +109,7 @@ function createCustomersController(ctx) {
   // An action that moves the end date carries the end date the operator was looking at: a second
   // click, or a second tab, finds it changed and is refused instead of counting twice.
   function assertExpectedEndsAt(c, body) {
-    if (String((body || {}).expectedEndsAt || '') !== c.endsAt) {
+    if (asText((body || {}).expectedEndsAt) !== c.endsAt) {
       throw httpError(409, 'STALE', 'Échéance modifiée entre-temps : recharger la page.');
     }
   }
@@ -138,18 +143,18 @@ function createCustomersController(ctx) {
   // Rule 7 (C2b): the billing identity, checked the same way at creation and on edit.
   function readBilling(body, errors) {
     const billing = {
-      billingStreet: String(body.billingStreet || '').trim(),
-      billingPostcode: String(body.billingPostcode || '').trim(),
-      billingCity: String(body.billingCity || '').trim(),
-      billingCountry: String(body.billingCountry || 'FR').trim().toUpperCase(),
-      vatNumber: String(body.vatNumber || '').replace(/\s+/g, '').toUpperCase(),
+      billingStreet: fieldText(body, 'billingStreet', errors, { max: IDENTITY_MAX }),
+      billingPostcode: fieldText(body, 'billingPostcode', errors, { max: IDENTITY_MAX }),
+      billingCity: fieldText(body, 'billingCity', errors, { max: IDENTITY_MAX }),
+      billingCountry: (fieldText(body, 'billingCountry', errors) || 'FR').toUpperCase(),
+      vatNumber: fieldText(body, 'vatNumber', errors).replace(/\s+/g, '').toUpperCase(),
     };
     if (!billing.billingStreet) errors.billingStreet = 'L’adresse est obligatoire : Qonto ne facture pas un client sans adresse.';
-    if (!COUNTRIES[billing.billingCountry]) errors.billingCountry = 'Pays non pris en charge.';
+    if (!COUNTRIES[billing.billingCountry] && !errors.billingCountry) errors.billingCountry = 'Pays non pris en charge.';
     if (!billing.billingPostcode) errors.billingPostcode = 'Le code postal est obligatoire.';
     else if (billing.billingCountry === 'FR' && !/^\d{5}$/.test(billing.billingPostcode)) errors.billingPostcode = 'Code postal français : 5 chiffres.';
     if (!billing.billingCity) errors.billingCity = 'La ville est obligatoire.';
-    if (billing.vatNumber && !/^[A-Z]{2}[A-Z0-9]{2,13}$/.test(billing.vatNumber)) errors.vatNumber = 'Numéro de TVA invalide (ex. FR12345678901).';
+    if (!errors.vatNumber && billing.vatNumber && !/^[A-Z]{2}[A-Z0-9]{2,13}$/.test(billing.vatNumber)) errors.vatNumber = 'Numéro de TVA invalide (ex. FR12345678901).';
     return billing;
   }
 
@@ -595,12 +600,12 @@ function createCustomersController(ctx) {
   // Validates the form and computes what it means; `preview` shows it, `create` saves it.
   function plan(body) {
     const errors = {};
-    const companyName = String(body.companyName || '').trim();
-    const contactName = String(body.contactName || '').trim();
-    const contactEmail = String(body.contactEmail || '').trim().toLowerCase();
-    const slug = String(body.slug || '').trim();
+    const companyName = fieldText(body, 'companyName', errors, { max: IDENTITY_MAX });
+    const contactName = fieldText(body, 'contactName', errors, { max: IDENTITY_MAX });
+    const contactEmail = fieldText(body, 'contactEmail', errors, { max: EMAIL_MAX }).toLowerCase();
+    const slug = fieldText(body, 'slug', errors);
     if (!companyName) errors.companyName = 'Le nom de la société est obligatoire.';
-    if (!EMAIL_RE.test(contactEmail)) errors.contactEmail = 'Adresse email invalide.';
+    if (!errors.contactEmail && !EMAIL_RE.test(contactEmail)) errors.contactEmail = 'Adresse email invalide.';
     const slugErr = slugError(slug, slugTaken);
     if (slugErr) errors.slug = slugErr;
     const planRow = catalogue.plan(body.planCode);
@@ -610,7 +615,7 @@ function createCustomersController(ctx) {
     const startsAt = isDay(body.startsAt) ? body.startsAt : null;
     if (!startsAt) errors.startsAt = 'Date de début invalide.';
     else if (windowError(startsAt, today())) errors.startsAt = windowError(startsAt, today());
-    const length = body.length === 'custom' ? 'custom' : Number(body.length);
+    const length = body.length === 'custom' ? 'custom' : numeric(body.length);
     let paidEndsAt = null;
     let periodMonths = billing === 'yearly' ? 12 : 1;
     if (length === 'custom') {
@@ -623,9 +628,11 @@ function createCustomersController(ctx) {
     } else {
       errors.length = 'Durée : 1 mois, 12 mois ou une date de fin.';
     }
+    const addonsListed = body.addons === undefined || Array.isArray(body.addons);
     const requested = Array.isArray(body.addons) ? [...new Set(body.addons)] : [];
     const { unknown, addons } = planRow ? keepSellableAddons(requested, planRow.code) : { unknown: false, addons: [] };
     if (unknown) errors.addons = 'Option inconnue.';
+    if (!addonsListed) errors.addons = ADDONS_NOT_A_LIST;
     const incoherent = planRow && !unknown ? modules().refuseComposition(planRow.code, addons) : null;
     if (incoherent) errors.addons = incoherent.message;
     const billingIdentity = readBilling(body, errors);
@@ -755,9 +762,9 @@ function createCustomersController(ctx) {
     const c = mustGet(id);
     if (c.archivedAt) throw httpError(409, 'ARCHIVED', 'Client archivé : réactivez-le d’abord.');
     assertExpectedEndsAt(c, body);
-    const months = Number(body.months);
+    const months = numeric(body.months);
     if (months !== 1 && months !== 12) throw httpError(400, 'INVALID', 'Durée payée : 1 ou 12 mois.');
-    const reference = String(body.reference || '').trim();
+    const reference = text(body, 'reference').trim();
     const day = today();
     const inTrial = Boolean(c.trialEndsAt && day < c.trialEndsAt);
     const periodStart = !inTrial && c.endsAt > day ? c.endsAt : day;
@@ -789,7 +796,7 @@ function createCustomersController(ctx) {
 
   function renamePreview(id, body) {
     const c = mustGet(id);
-    const slug = String(body.slug || '').trim();
+    const slug = text(body, 'slug').trim();
     const error = slug === c.slug ? 'C’est déjà son adresse.' : (slug ? slugError(slug, slugTaken) : null);
     const until = addMonths(today(), ALIAS_MONTHS);
     return {
@@ -804,7 +811,7 @@ function createCustomersController(ctx) {
     const c = mustGet(id);
     if (c.archivedAt) throw httpError(409, 'ARCHIVED', 'Client archivé : réactivez-le d’abord.');
     assertNotDeprovisioning(c.id);
-    const slug = String(body.slug || '').trim();
+    const slug = text(body, 'slug').trim();
     const { error } = renamePreview(id, { slug });
     if (!slug || error) throw httpError(400, 'INVALID', error || 'Nouvelle adresse obligatoire.');
     const checked = new Set(Array.isArray(body.checked) ? body.checked : []);
@@ -827,7 +834,7 @@ function createCustomersController(ctx) {
   }
 
   function requireReason(body) {
-    const reason = String(body.reason || '').trim();
+    const reason = asText(body.reason).trim();
     if (!reason) throw httpError(400, 'REASON_REQUIRED', 'Le motif est obligatoire.');
     return reason;
   }
@@ -869,7 +876,8 @@ function createCustomersController(ctx) {
     if (!planRow) throw httpError(400, 'INVALID', 'Forfait inconnu.');
     const billing = body.billing === 'yearly' ? 'yearly' : body.billing === 'monthly' ? 'monthly' : null;
     if (!billing) throw httpError(400, 'INVALID', 'Facturation mensuelle ou annuelle.');
-    const { unknown, addons } = keepSellableAddons(Array.isArray(body.addons) ? [...new Set(body.addons)] : [], planRow.code);
+    if (!Array.isArray(body.addons)) throw httpError(400, 'INVALID', ADDONS_NOT_A_LIST);
+    const { unknown, addons } = keepSellableAddons([...new Set(body.addons)], planRow.code);
     if (unknown) throw httpError(400, 'INVALID', 'Option inconnue.');
     const incoherent = modules().refuseComposition(planRow.code, addons);
     if (incoherent) throw incoherent;
@@ -967,7 +975,7 @@ function createCustomersController(ctx) {
     const c = mustGet(id);
     if (c.archivedAt) throw httpError(409, 'ARCHIVED', 'Client déjà archivé.');
     if (renamePending(c)) throw httpError(409, 'RENAME_PENDING', 'Changement d’adresse à terminer d’abord.');
-    if (String(body.confirmSlug || '') !== c.slug) throw httpError(400, 'CONFIRM_SLUG', `Tapez exactement « ${c.slug} » pour confirmer.`);
+    if (asText(body.confirmSlug) !== c.slug) throw httpError(400, 'CONFIRM_SLUG', `Tapez exactement « ${c.slug} » pour confirmer.`);
     if (deprovisioning.has(c.id)) return view(c.id);
     deprovisioning.add(c.id);
     try {
@@ -1091,7 +1099,7 @@ function createCustomersController(ctx) {
     const c = mustGet(id);
     if (!c.archivedAt) throw httpError(409, 'NOT_ARCHIVED', 'Seul un client archivé peut être effacé.');
     if (!stopped(c)) throw httpError(409, 'NOT_STOPPED', '« Processus et route arrêtés » en échec : à relancer d’abord.');
-    if (String(body.confirmSlug || '') !== c.slug) throw httpError(400, 'CONFIRM_SLUG', `Tapez exactement « ${c.slug} » pour confirmer.`);
+    if (asText(body.confirmSlug) !== c.slug) throw httpError(400, 'CONFIRM_SLUG', `Tapez exactement « ${c.slug} » pour confirmer.`);
     const result = await erase(c.id, operator);
     if (result.erased) return result;
     // Rule 39: a second click queued behind the first finds the customer erased by it.

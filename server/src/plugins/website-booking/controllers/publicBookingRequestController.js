@@ -152,24 +152,31 @@ function submittedIdentityNote(client, guest, statedLang) {
   return `Client existant reconnu par l'e-mail — identité saisie : ${typed}. La fiche client n'a pas été modifiée.`;
 }
 
+// A filled `_hp` of any shape is a bot: only a person's untouched field (absent, empty, spaces) goes on.
+function honeypotFilled(value) {
+  return typeof value === 'string' ? value.trim() !== '' : Boolean(value);
+}
+
 function create(req, res) {
+  // Without a JSON content type the parser leaves no body at all (Express 5).
+  const body = req.body ?? {};
   // Honeypot: a filled `_hp` means a bot. Respond like a success WITHOUT persisting anything, so a
   // spammer can't tell a block from a pass (specs/public-api.md §3 edge cases).
-  if (String(req.body._hp || '').trim() !== '') {
+  if (honeypotFilled(body._hp)) {
     return ok(res, { status: 'pending' }, 201);
   }
 
-  const v = validateStayInput(req.body, { todayIso: sdk.coreModule('reservationHelpers').getTodayIsoDate() });
+  const v = validateStayInput(body, { todayIso: sdk.coreModule('reservationHelpers').getTodayIsoDate() });
   if (!v.ok) return failT(res, req, 422, 'VALIDATION_FAILED', 'requestInvalid', v.errors);
 
-  const g = validateGuest(req.body.guest);
+  const g = validateGuest(body.guest);
   // Each refused field carries its own sentence, so the site can print it under that field
   // (specs/wordpress-plugin.md rule 28). `details` only gains keys: older plugins read `message`.
   if (!g.ok) {
     return failT(res, req, 422, 'VALIDATION_FAILED', 'clientInvalid', withFieldMessages(g.errors, labels(langOf(req)).fieldErrors));
   }
 
-  const terms = checkTermsAcceptance(req.body.termsVersion);
+  const terms = checkTermsAcceptance(body.termsVersion);
   if (terms.error) return failT(res, req, terms.status, terms.code, terms.messageKey, terms.details);
 
   const optErrors = checkOptionApplicability(v.value.propertyId, v.value.options);
@@ -218,7 +225,10 @@ function create(req, res) {
   }
 
   const visitor = req.visitor || {};
-  const message = String(req.body.message || '').trim();
+  if (body.message !== undefined && body.message !== null && typeof body.message !== 'string') {
+    return failT(res, req, 422, 'VALIDATION_FAILED', 'requestInvalid', [{ field: 'message', issue: 'must be a string' }]);
+  }
+  const message = (body.message || '').trim();
   if (message.length > MAX_MESSAGE_LENGTH) {
     // The drawer prints the sentence as it is (its textarea also stops at 2 000).
     return failT(res, req, 422, 'VALIDATION_FAILED', 'messageTooLong',
@@ -243,7 +253,7 @@ function create(req, res) {
   const langWasStated = langStated(req);
   // Where the visitor came from (specs/site-traffic-analytics.md rules 15-17). Never a reason to
   // refuse: an invalid record is already reduced to `null` by its validator.
-  const attribution = validateAttribution(req.body.attribution);
+  const attribution = validateAttribution(body.attribution);
   const origin = classifyAttribution(attribution);
 
   const persist = db.transaction(() => {
@@ -462,10 +472,16 @@ function updateSameStay(req, res, { sameStay, value, guest, message, fingerprint
  * the emergency switch is off and nothing (valid) was sent. A refusal names its sentence by
  * `messageKey` (publicLabels), answered in the visitor's language like every other public error.
  */
+function sentTermsVersion(value) {
+  if (value === undefined || value === null || value === '') return null;
+  if (typeof value === 'number') return Number.isInteger(value) ? value : NaN;
+  return typeof value === 'string' && /^\d+$/.test(value) ? Number(value) : NaN;
+}
+
 function checkTermsAcceptance(termsVersion) {
   const { requireTermsAcceptance } = settings.termsSettings();
   const current = termsModel.getCurrent();
-  const sent = termsVersion === undefined || termsVersion === null || termsVersion === '' ? null : Number(termsVersion);
+  const sent = sentTermsVersion(termsVersion);
   if (requireTermsAcceptance) {
     if (!current) {
       return { error: true, status: 503, code: 'TERMS_NOT_CONFIGURED', messageKey: 'termsUnavailableForBooking' };

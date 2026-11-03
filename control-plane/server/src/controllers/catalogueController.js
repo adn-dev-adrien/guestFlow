@@ -11,6 +11,7 @@
 
 const { plugins: gfPlugins } = require('../utils/gf');
 const { httpError } = require('../utils/httpError');
+const { asText } = require('../utils/bodyText');
 const { compositionRefusal } = require('./customerModulesController');
 const { euros, eurosText, parseEuros } = require('../utils/money');
 const { frDay } = require('../utils/days');
@@ -173,6 +174,7 @@ function createCatalogueController(ctx, customersController) {
   // the server reads them. Cents fields are accepted too, for callers that already hold numbers.
   function validatePlans(input, plans) {
     if (!Array.isArray(input)) return plans;
+    if (!input.every((x) => x && typeof x === 'object')) throw httpError(400, 'INVALID', 'Forfait illisible.');
     return plans.map((p) => {
       const edit = input.find((x) => x.code === p.code) || {};
       const price = (text, cents, fallback, label) => {
@@ -183,7 +185,7 @@ function createCatalogueController(ctx, customersController) {
       };
       const count = (text, value, fallback, label) => {
         if (text === undefined) return value === undefined ? fallback : value;
-        const s = String(text).trim();
+        const s = typeof text === 'string' || typeof text === 'number' ? String(text).trim() : 'invalide';
         if (s === '') return null;
         if (!/^\d+$/.test(s)) throw httpError(400, 'INVALID', `Quota de ${label} de ${p.name} invalide (nombre entier, ou vide pour illimité).`);
         return Number(s);
@@ -209,7 +211,7 @@ function createCatalogueController(ctx, customersController) {
     if (!Array.isArray(input)) return catalogue.addons();
     const seen = new Set();
     return input.map((a) => {
-      if (!gfPlugins.PLUGIN_IDS.includes(a.pluginId) || seen.has(a.pluginId)) throw httpError(400, 'INVALID', 'Option inconnue ou en double.');
+      if (!a || !gfPlugins.PLUGIN_IDS.includes(a.pluginId) || seen.has(a.pluginId)) throw httpError(400, 'INVALID', 'Option inconnue ou en double.');
       const cents = a.price !== undefined ? parseEuros(a.price) : a.priceMonthlyCents;
       if (!Number.isInteger(cents) || cents < 0) throw httpError(400, 'INVALID', `Prix de ${pluginName(a.pluginId)} invalide.`);
       seen.add(a.pluginId);
@@ -218,7 +220,7 @@ function createCatalogueController(ctx, customersController) {
   }
 
   function save(body, operator) {
-    const reason = String(body.reason || '').trim();
+    const reason = asText(body.reason).trim();
     if (!reason) throw httpError(400, 'REASON_REQUIRED', 'Le motif du changement est obligatoire.');
     const plansNow = catalogue.plans();
     const lowest = validateLowest(body.lowest || catalogue.lowest(), plansNow);

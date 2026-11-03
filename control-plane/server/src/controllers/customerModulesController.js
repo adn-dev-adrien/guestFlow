@@ -8,6 +8,7 @@ const crypto = require('crypto');
 const { allowedPlugins } = require('../utils/licenceIssuer');
 const { moduleState, headerText, headerParts } = require('../utils/moduleStates');
 const { httpError } = require('../utils/httpError');
+const { asText } = require('../utils/bodyText');
 const { plugins: gfPlugins, pluginGraph } = require('../utils/gf');
 
 const OUT_OF_PLAN = 'Hors forfait : à ajouter au forfait ou en option d’abord.';
@@ -257,7 +258,7 @@ function createCustomerModulesController(ctx, customersController) {
     if (c.archivedAt) throw httpError(409, 'ARCHIVED', 'Client archivé : réactivez-le d’abord.');
     if (!c.pluginsSeededAt) throw httpError(409, 'NOT_SEEDED', unseededLabel(c));
     if (customerPlugins.chosen(c.id).includes(pluginId)) throw httpError(409, 'MODULE_ACTIVE', 'Module actif : à désactiver d’abord.');
-    if (action === 'erase' && String(confirmSlug || '') !== c.slug) throw httpError(400, 'SLUG_MISMATCH', `Tapez exactement « ${c.slug} » pour confirmer.`);
+    if (action === 'erase' && asText(confirmSlug) !== c.slug) throw httpError(400, 'SLUG_MISMATCH', `Tapez exactement « ${c.slug} » pour confirmer.`);
     if (customerPlugins.pendingOrders(c.id).some((o) => o.pluginId === pluginId)) return view(c.id);
     const line = view(c.id).included.find((l) => l.id === pluginId);
     if (line && line.blockedBy) throw httpError(422, 'REQUIRED_BY', line.blockedBy);

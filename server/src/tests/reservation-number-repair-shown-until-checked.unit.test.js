@@ -12,6 +12,8 @@ const db = require('../database');
 const { repairNumberlessReservations, monthPrefix } = require('../utils/reservationNumber');
 const reservationsModel = require('../models/reservationsModel');
 const { buildController } = require('../controllers/dashboardController');
+const { todayIso } = require('../utils/localDate');
+const { addDaysToIsoDate } = require('../utils/devisHelpers');
 
 const fakeRes = () => ({ statusCode: 200, body: null, status(c) { this.statusCode = c; return this; }, json(b) { this.body = b; return this; } });
 
@@ -24,8 +26,11 @@ test('rule 15 — the boot migration adds the stamp column', () => {
 });
 
 test('rule 15 — a repaired stay is listed on the dashboard until « Vu », and only then', () => {
+  // The repair reads the month from the stored string, and the test compares with the local month: a UTC stamp
+  // would miss it in the first hour of a month (audit R21-S3).
+  const [arrival, departure] = [addDaysToIsoDate(todayIso(), 120), addDaysToIsoDate(todayIso(), 122)];
   const ghost = Number(db.prepare(`INSERT INTO reservations (kind, propertyId, clientId, startDate, endDate, createdAt)
-                                   VALUES ('reservation', 1, 1, '2027-06-20', '2027-06-22', datetime('now'))`).run().lastInsertRowid);
+                                   VALUES ('reservation', 1, 1, ?, ?, datetime('now', 'localtime'))`).run(arrival, departure).lastInsertRowid);
   const numbered = Number(db.prepare(`INSERT INTO reservations (kind, propertyId, clientId, startDate, endDate, reservationNumber)
                                       VALUES ('reservation', 1, 1, '2027-07-01', '2027-07-03', '209901001')`).run().lastInsertRowid);
   const [repaired] = repairNumberlessReservations(db);
@@ -38,7 +43,7 @@ test('rule 15 — a repaired stay is listed on the dashboard until « Vu », and
   assert.equal(listed.body.alerts.length, 1);
   assert.deepEqual({ ...listed.body.alerts[0], repairedAt: undefined }, {
     reservationId: ghost, reservationNumber: repaired.reservationNumber, clientName: 'Jean Dupont',
-    propertyName: 'Gîte', startDate: '2027-06-20', endDate: '2027-06-22', repairedAt: undefined,
+    propertyName: 'Gîte', startDate: arrival, endDate: departure, repairedAt: undefined,
   });
   assert.ok(listed.body.alerts[0].repairedAt, 'the date of the repair travels with the row');
 

@@ -114,6 +114,9 @@ const FR = Object.freeze({
     overCapacity: 'Le nombre de personnes dépasse la capacité du logement.',
     clientInvalid: 'Coordonnées incomplètes ou invalides.',
     requestInvalid: 'Données de demande invalides.',
+    bodyMalformed: 'Requête illisible.',
+    bodyTooLarge: 'Requête trop volumineuse.',
+    bodyUnsupported: 'Format de requête non pris en charge.',
     devisInvalid: 'Données de devis invalides.',
     optionUnavailable: 'Option non disponible pour ce logement.',
     periodInvalid: 'Paramètres de période invalides.',
@@ -220,6 +223,9 @@ const EN = Object.freeze({
     overCapacity: 'The number of guests exceeds the property capacity.',
     clientInvalid: 'Contact details incomplete or invalid.',
     requestInvalid: 'Invalid request data.',
+    bodyMalformed: 'Unreadable request.',
+    bodyTooLarge: 'Request too large.',
+    bodyUnsupported: 'Request format not supported.',
     devisInvalid: 'Invalid quote data.',
     optionUnavailable: 'This option is not available for this property.',
     periodInvalid: 'Invalid period parameters.',
@@ -254,7 +260,7 @@ const MAPS = { fr: FR, en: EN };
  * anything absent — is French.
  */
 function normalisePublicLang(value) {
-  const raw = String(value == null ? '' : value).trim().toLowerCase().replace('_', '-');
+  const raw = (typeof value === 'string' ? value : '').trim().toLowerCase().replace('_', '-');
   if (!raw) return 'fr';
   const base = raw.split('-')[0];
   return base === 'en' ? 'en' : 'fr';
@@ -268,8 +274,7 @@ function normalisePublicLang(value) {
  * answers `fr` to both.
  */
 function statesLang(value) {
-  const raw = String(value == null ? '' : value).trim();
-  return raw.length > 0;
+  return typeof value === 'string' && value.trim().length > 0;
 }
 
 function labels(language) {

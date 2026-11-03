@@ -99,7 +99,8 @@ const { toReceptionReservationView, toReceptionReservationList, toReceptionPayme
 const {
   midStayExtrasWindow, arrivalLineFloors, arrivalExtrasViolations, extrasContentChanged,
 } = require('../utils/midStayExtrasWindow');
-const { extraLineKey } = require('../utils/midStayExtras');
+const { matchStoredCustomLines } = require('../utils/storedCustomLines');
+const { withStoredLineContribs } = require('../utils/storedLineContribs');
 const { buildLiveCheckoutComplement } = require('../utils/checkoutComplement');
 const { createResultRecorder } = require('../utils/resultRecorder');
 const { saveWithDraftClient } = require('../utils/draftClient');
@@ -1771,21 +1772,26 @@ function pinStoredRouting(body, routing) {
     body.resources = body.resources.map((r) => pin(r, routing.resources.get(Number(r.resourceId))));
   }
   if (Array.isArray(body.customOptions)) {
-    const free = [...routing.customs];
-    body.customOptions = body.customOptions.map((c) => {
-      let at = c.customOptionId != null ? free.findIndex((s) => s.id === Number(c.customOptionId)) : -1;
-      if (at < 0) {
-        const key = extraLineKey({ isCustom: true, title: c.description });
-        at = free.findIndex((s) => extraLineKey({ isCustom: true, title: s.description }) === key);
-      }
-      const [match] = at >= 0 ? free.splice(at, 1) : [];
-      return pin(c, match ? match.inComplement : undefined);
-    });
+    const matches = matchStoredCustomLines(body.customOptions, routing.customs);
+    body.customOptions = body.customOptions.map((c, index) => pin(c, matches[index] ? matches[index].inComplement : undefined));
   }
   if (Array.isArray(body.autoOptionsInComplement)) {
     body.autoOptionsInComplement = body.autoOptionsInComplement
       .filter((optionId) => routing.options.get(Number(optionId)) === 1);
   }
+}
+
+// specs/reservation-save-keeps-pricing.md rule 19 — the contribs are the money each line collected, written by the
+// payment flip only: a priced save carries the stored ones onto the posted lines, whatever the request says. The
+// engine keeps them, and drops them on a line forced to the complement, like a catalogue option's.
+function carryStoredCustomContribs(id, body) {
+  if (!Array.isArray(body.customOptions) || body.customOptions.length === 0) return;
+  const matches = matchStoredCustomLines(body.customOptions, model.getStoredRouting(id).customs);
+  body.customOptions = body.customOptions.map((line, index) => ({
+    ...line,
+    acompteContribTtc: matches[index] ? matches[index].acompteContribTtc : null,
+    soldeContribTtc: matches[index] ? matches[index].soldeContribTtc : null,
+  }));
 }
 
 // specs/mid-stay-extras-on-locked-fiche.md §3.3 — opens the window for this save when the fiche is
@@ -1874,6 +1880,7 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
 
   const todayIso = getTodayIsoDate();
   const midStayWindow = pastUnlocked ? null : enterMidStayExtrasWindow(id, req.body, todayIso);
+  carryStoredCustomContribs(id, req.body);
   // The window pins the baseline at the write: every pricing of this save reads the one that write will store.
   const windowEngineInputs = midStayWindow ? { arrivalExtrasBaseline: midStayWindow.baseline } : {};
 
@@ -2037,6 +2044,8 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
   // The insurance price a plugin sets (specs/plugins-phase-3b-neat.md rule 2): same as the preview.
   quote = quotePostProcessors.applySync({ engineInput, quote, calculate: calculateReservationQuote });
   if (quote.error) return res.status(quote.status || 400).json({ error: quote.error });
+  // specs/reservation-save-keeps-pricing.md rule 20 — priced without the snapshot, the lines still keep what they collected.
+  if (existingReservation && !canReuseLockedPricing) quote = withStoredLineContribs(quote, model.getPricingSnapshot(id));
 
   // specs/reservation-save-keeps-pricing.md rule 1 — a save that moved no pricing input keeps the stay as
   // it was priced: money, lines, nights, snapshots and history stay put.
