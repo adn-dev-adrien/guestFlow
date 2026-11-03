@@ -135,6 +135,15 @@ choice in one click.
 12. The fiche shows a banner while an intake is open: applied (dismissible), proposal, or rent choice
     (two buttons with the two candidate amounts, the resulting commission under each, and a link to the
     dossier on ITEA).
+    *Reading of 2026-11-03 (audit R21, E21-1):* `POST /:intakeId/apply` writes a fiche once. Only the open banner's
+    client-side `busy` stood in the way, so a second tab or a lost response on an `applied` intake overwrote the party
+    and beds, piled up the custom lines and moved the status back to `needs_rent`. With a rent, a written intake
+    (`needs_rent`, `applied`) goes to the rent choice first, as before: only the payment block moves, dismissed or not.
+    Then a dismissed intake is refused (`400` « Saisie ignorée »), and a written one without a rent writes nothing and
+    answers its status, so a stale tab reloads into the right banner (`needs_rent` used to answer `400` « Loyer hors des
+    valeurs possibles »). `proposed` and `error` (a retry) still apply. The auto-apply is untouched: the pass calls
+    `apply` directly. Same rule as `airbnb-mail-intake.md` rule 14. Gîtes de France 1.4.9. Test:
+    `gites-de-france-intake/tests/reapply-real-core.unit.test.js` (real core).
 13. A supplement is put on a catalogue option only when it is the property's cleaning option
     (« Forfait ménage ») at the same price. Any other supplement is not guessed onto the catalogue: it
     becomes a custom line with the centrale's own label and amount, paid to the platform
@@ -366,7 +375,7 @@ plugin-local; if a second intake plugin appears, it moves to `components/` then.
 | Method | Endpoint | Body | Response |
 |---|---|---|---|
 | GET | `/api/gdf-intake/reservation/:reservationId` | — | `{ intake: { id, status, error, receivedAt, receivedLabel, dossierNumber, netRent, rentCandidates: [{ rent, commission }], customLines: [{ label, amount }], iteaUrl } \| null }` — the banner, ready to render |
-| POST | `/api/gdf-intake/:intakeId/apply` | `{ rent? }` | `{ status }` (`rent` chooses between two candidates; 400 + `{ error }` on refusal) |
+| POST | `/api/gdf-intake/:intakeId/apply` | `{ rent? }` | `{ status }` (`rent` chooses between two candidates; without one, a written intake answers its status and writes nothing, rule 12; « Saisie ignorée » when dismissed; 400 + `{ error }` on refusal) |
 | POST | `/api/gdf-intake/:intakeId/dismiss` | — | `{ ok }` |
 | GET | `/api/gdf-intake` | — | `{ items }` — intakes in error, or pending > 24 h (dashboard) |
 | POST | `/api/gdf-intake/run` | — | `{ read, applied?, needs_rent?, proposed?, pending?, error?, ignored? }` or `{ skipped }` (« Relever maintenant ») |
@@ -425,6 +434,9 @@ Responsive: on `xs` the rent buttons stack full width and every button keeps 44 
 
 ## 7. Test plan
 
+- [x] `server/src/plugins/gites-de-france-intake/tests/reapply-real-core.unit.test.js` (6): rule 12, reading of
+  2026-11-03: a POST without a rent writes nothing on `applied` or `needs_rent`, typed values stay, the rent choice moves
+  the payment block only, dismissed refused, `error` retried.
 - [x] `server/src/plugins/gites-de-france-intake/tests/mailParser.unit.test.js` (11): the 11773 layout
   with a fictitious guest (public repository), flattened HTML, towels + compound names + thousands, no
   supplement, both consistency refusals, other mails, phone forms, the 6 measured dossiers, 504/505
