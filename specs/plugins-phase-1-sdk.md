@@ -482,6 +482,13 @@ Optional: a plugin that declares nothing reads « Actif ».
     and — review of PR #942, 2026-11-03 — through the real core, an engine-added line (`options.autoEnabled = 1`) left
     out of `options`, its « dans le complément » choice kept in `autoOptionsInComplement`, never doubled by `update`),
     `airbnb-intake/tests/card-lines-real-core.unit.test.js`, `gites-de-france-intake/tests/card-lines-real-core.unit.test.js`.
+39. *(Added 2026-11-03, audit R21-P1 and C4, SDK 2.21.0.)* **`sas` 1.7.6 asks for `sdk ^2.21.0`.** Its draft sends
+    `{ optionId, persons }` for a non-card per-person sale ([non-card-option-served-persons.md](non-card-option-served-persons.md)
+    rule 12), and a core before that SDK reads this as « no units » and drops the sale in silence. It is a change of
+    contract rather than a hardening, read as [plugins-phase-4-registry.md](plugins-phase-4-registry.md) rules 51 and 54
+    by extension. In the other direction, the core still reads the former `{ optionId, units }` (rule 28 of the same
+    spec). The sale draft lives on the client, which the hardening scan skips, so the row recognises `soldOptions`, its
+    server end. Test: `plugin-core-hardening-floor.unit.test.js`.
 
 **Edge cases:**
 - **A plugin throws during `register`.** Rule 4 applies: the other plugins and the core boot. The Plugins

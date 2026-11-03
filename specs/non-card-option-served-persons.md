@@ -131,6 +131,21 @@ Rules added after Adrien's review of this spec (2026-11-03):
     NULL: the line follows the party or the stay again and the flag goes. On `xs` the button stays beside
     the field, 44 × 44 px. It is not offered when the current value is outside rule 5's bounds.
 
+Rules added after audit round 21 (2026-11-03):
+
+27. **An offered line sold at arrival keeps its floor on the typed count.** Its `quantity` stays 1 and it bills
+    0 €, so neither the quantity check nor the amount check can see a reduction. `arrivalExtrasViolations` compares
+    the submitted line's `cardPersons` / `cardNights` with `minTypedCount` and answers `reduced`
+    (`400 ARRIVAL_EXTRAS_FROZEN`). A line sent NULL follows the party or the stay and is not compared: billed units
+    are never read here, or a party lowered on a whole-party line would be refused. The floor is rounded down to a
+    whole number, so a drifted offered line is still repaired as rule 18 says.
+28. **A per-person SAS sale sent with `units` and no `persons`** (a tab still running the previous bundle, up to
+    `sas` 1.7.4) reads as people served: `max(1, floor(units / (ppn ? nights : 1)))`, then rule 12 applies: stored
+    in `cardPersons`, `quantity = 1`. The units are divided by the nights only, never by the party, so the typed
+    count stays what it is. `persons` wins when both are sent. `units` that are not a positive number (`0`, `-2`,
+    `'abc'`) with no `persons` sell nothing, as before #946; neither `units` nor `persons` is still the party. A
+    `units`-only `per_night` or `per_stay` sale is unchanged.
+
 **Edge cases:**
 - Party lowered below a frozen count (3 served, party now 2) → stays 3, within rule 5's ceiling when the
   property allows it; the engine's existing clamp applies otherwise.
@@ -158,9 +173,9 @@ Rules added after Adrien's review of this spec (2026-11-03):
 | `controllers/` | `devisController.js` | T | Forwards the guard's `code` and `lines` |
 | `middleware/` | — | — | (none) |
 | `utils/` | `pricing.js` | T | Generic option path: pure helper `resolveNonCardUnits`, returns `cardPersons`, `cardNights`, `servedPersons`, `servedNights` |
-| `utils/` | `sasOptionSale.js` | T | Rule 12; `buildOptionOffer` reads `selectedPersons` from `sold.cardPersons` for non-card too |
+| `utils/` | `sasOptionSale.js` | T | Rules 12 and 28; `buildOptionOffer` reads `selectedPersons` from `sold.cardPersons` for non-card too |
 | `utils/` | `linenInventory.js` | T | Towel count from served people (rule 6) |
-| `utils/` | `midStayExtrasWindow.js` | T | `minTypedCount` on the floors (rule 17) |
+| `utils/` | `midStayExtrasWindow.js` | T | `minTypedCount` on the floors (rule 17), compared for an offered line (rule 27) |
 | `utils/` | `typedCounts.js` | C | Pure: `typedCountAlerts`, the 409 payload, `typedCountOf` (rules 17, 20-23) |
 | `utils/` | `servedPersonsOptionMigration.js` | C | Rules 14-16, 19; dry-run returns the list without writing |
 | `utils/` | `reservationUpdateBody.js` | T | Carries `cardNights`; server callers send `forceTypedCounts` (rule 24) |
@@ -202,7 +217,7 @@ No new endpoint. Backward-compatible additions:
 |---|---|---|
 | Option line, request | `cardPersons` | Now honoured on non-card `per_person` / `ppn` lines |
 | Option line, quote response | `cardPersons`, `servedPersons` | Stored value, and the figure to display |
-| SAS sale, request | `persons` | Replaces `units` for a non-card per-person option |
+| SAS sale, request | `persons` | Replaces `units` for a non-card per-person option; `units` alone is still read (rule 28) |
 | `editLock.arrivalLines[key]` | `minTypedCount` | Rule 17 |
 | Option line, request and quote | `cardNights`; `servedNights` on the quote | Rule 19 |
 | Option line, request | `typedAtParty`, `typedAtNights` | Form-local reference of rule 23, never stored |
@@ -264,12 +279,15 @@ Interactive rendering in the [decision summary](../docs/specs/2026-11-03-non-car
 - [x] `tests/typed-counts-no-regression.unit.test.js` (11) — rule 25: exhaustive grid, 22336 sequence through the controller, save guard. Mutation-checked: restoring the old computation fails 4 tests, removing the guard fails 2
 - [x] `tests/typed-counts-client-guard.unit.test.js` (4) — rule 25: no multiplier conversion left in the option fields
 - [x] `tests/sas-option-sales.unit.test.js` — updated (rule 12)
+- [x] `tests/sas-sale-legacy-units.unit.test.js` — rule 28: `units` alone, the nights, the remainder, the real resolver
+- [x] `tests/typed-count-offered-floor.unit.test.js` (10) — rule 27: pure rule and the real controller
 - The existing `breakfast-model`, `laundry-model`, `laundry-end-to-end.regression` and `linen-inventory` suites still pass unchanged: a drifted `quantity` keeps scaling the party. Rule 6's new behaviour is covered in the feature's own file (CLAUDE.md §9).
 
 ### Client tests
 - [x] `OptionRow.served-persons.test.jsx` (8) — field, hint, no arithmetic, red state on an alert
 - [x] `MidStayNoteDialog.typed-count.test.jsx` (3) — rule 13
 - [x] `GuestsBedsSection.typed-counts.test.jsx` (2) — rule 21
+- [x] `ReservationSasDialog.non-card-persons.test.jsx` (3) — §6: « Personnes servies — montant », rule 12: `{ optionId, persons }` in the commit body
 - [x] `optionTypedCount.test.js` (4) — rules 1, 18, 19: which option has a field, the nights column
 - [x] `applyQuoteToForm.typed-counts.test.js` (3) — rules 18, 19, 23
 - [x] `bookingFormHydration.typed-counts.test.js` (1) — rule 19

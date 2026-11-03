@@ -17,7 +17,8 @@ registry.ensure('linen');
 db.prepare("INSERT INTO properties (id, name, maxGuests) VALUES (1, 'Gîte fictif', 6)").run();
 db.prepare("INSERT INTO clients (id, firstName, lastName) VALUES (1, 'Alex', 'Exemple')").run();
 const PILLOW = Number(db.prepare("INSERT INTO linen_priced_items (label, price, category) VALUES ('Taie d''oreiller', 5, 'bed')").run().lastInsertRowid);
-const MEAL = Number(db.prepare("INSERT INTO options (title, priceType, price) VALUES ('Le repas des trappeurs', 'per_stay', 25)").run().lastInsertRowid);
+const MEAL = Number(db.prepare("INSERT INTO options (title, priceType, price, category) VALUES ('Le repas des trappeurs', 'per_stay', 25, 'Restauration')").run().lastInsertRowid);
+db.prepare('INSERT INTO property_options (propertyId, optionId) VALUES (1, ?)').run(MEAL);
 
 const today = () => {
   const d = new Date();
