@@ -7,6 +7,7 @@
 
 const crypto = require('crypto');
 const { localIsoDate, todayIso } = require('./localDate');
+const { isRealIsoDay } = require('./stayDates');
 
 const REGIMES = Object.freeze({ SUBJECT: 'subject', NOT_SUBJECT: 'not_subject' });
 const BASES = Object.freeze({ ALL: 'all', BOOKING: 'booking', ARRIVAL: 'arrival' });
@@ -78,8 +79,6 @@ const addDays = (iso, days) => {
   return localIsoDate(new Date(y, m - 1, d + days));
 };
 
-const isIsoDate = (value) => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
-  && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
 
 const frDate = (iso) => iso.split('-').reverse().join('/');
 
@@ -121,7 +120,7 @@ function validateSwitch(input, periods, { today = todayIso() } = {}) {
   if (body.basis === BASES.BOOKING || body.basis === BASES.ARRIVAL) {
     const from = body.effectiveFrom;
     const latestDated = [...periods].filter((p) => p.effectiveFrom).sort((a, b) => b.id - a.id)[0] || null;
-    if (!isIsoDate(from)) errors.effectiveFrom = 'Date invalide';
+    if (!isRealIsoDay(from)) errors.effectiveFrom = 'Date invalide';
     else if (latestDated && from < latestDated.effectiveFrom) errors.effectiveFrom = `Date antérieure au dernier changement (${frDate(latestDated.effectiveFrom)})`;
     else if (from < addDays(today, -366)) errors.effectiveFrom = 'Au plus un an en arrière, sinon correction';
     else if (from > addDays(today, 366)) errors.effectiveFrom = "Au plus un an à l'avance";
