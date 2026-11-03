@@ -88,4 +88,21 @@ function optionalPlugin(load) {
   }
 }
 
-module.exports = { applyPluginSchema, listPlugins, missingPlugins, requirePlugins, skipWithout, optionalPlugin };
+/**
+ * specs/plugins-phase-1-sdk.md rule 38 — an intake suite's double of `ctx.core.reservations.updateBody`, built
+ * from its own `getReservation` and `propertyOptions` doubles through the core's `toUpdateBody`, so the lines
+ * a suite sees are exactly the ones the running core would hand over. Returns `deps` with `core.updateBody` set.
+ */
+function withStoredUpdateBody(deps) {
+  const { toUpdateBody } = require('../../utils/reservationUpdateBody');
+  const updateBody = (id) => {
+    const reservation = deps.getReservation(id);
+    if (!reservation) return null;
+    const autoIds = new Set((deps.propertyOptions(reservation.propertyId) || [])
+      .filter((o) => Number(o.autoEnabled || 0) === 1).map((o) => Number(o.id)));
+    return toUpdateBody(reservation, autoIds);
+  };
+  return { ...deps, core: { ...deps.core, updateBody } };
+}
+
+module.exports = { applyPluginSchema, listPlugins, missingPlugins, requirePlugins, skipWithout, optionalPlugin, withStoredUpdateBody };

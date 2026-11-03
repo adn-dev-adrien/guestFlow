@@ -73,22 +73,14 @@ function createIntakeService(deps) {
   // The fiche as the operator fills it by hand (skill reference gites-de-france.md): guest, party,
   // booking number, the centrale's supplements paid to the platform (« Forcer en complément » off).
   function stayPatch(booking, reservation) {
-    const details = getReservation(reservation.id);
     const catalogue = propertyOptions(reservation.propertyId);
-    const autoIds = new Set(catalogue.filter((o) => Number(o.autoEnabled || 0) === 1).map((o) => Number(o.id)));
     const cleaning = catalogue.find(isCleaning);
 
-    const options = (details.options || []).filter((o) => !o.isCustom && !autoIds.has(Number(o.optionId)))
-      .map((o) => ({ optionId: o.optionId, quantity: o.quantity, inComplement: Number(o.inComplement || 0) === 1 ? 1 : 0 }));
-    const customOptions = (details.options || []).filter((o) => o.isCustom).map((o, i) => ({
-      customKey: String(o.customOptionId || `custom_${i + 1}`),
-      customOptionId: o.customOptionId,
-      description: o.title || o.description,
-      amount: Number(o.originalTotalPrice ?? o.totalPrice ?? 0),
-      offered: Boolean(o.offered),
-      inComplement: Number(o.inComplement || 0) === 1 ? 1 : 0,
-    }));
-    let offered = (details.options || []).filter((o) => !o.isCustom && o.offered).map((o) => Number(o.optionId));
+    // Rule 35 — the lines as the fiche's own save sends them (SDK 2.21.0): a planning card keeps its moments.
+    const stored = core.updateBody(reservation.id);
+    const options = stored.options.map((o) => ({ ...o }));
+    const customOptions = stored.customOptions.map((o) => ({ ...o }));
+    let offered = stored.offeredOptionIds.map(Number);
     const asCustomLines = [];
 
     booking.supplements.forEach((s, i) => {
