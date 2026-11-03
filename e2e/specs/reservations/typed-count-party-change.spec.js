@@ -7,6 +7,7 @@ import { createClient, createProperty, createReservation } from '../../fixtures/
 import { seedPerPersonOption } from '../../fixtures/dbSeed.js';
 
 const OPTION_TITLE = 'E2E Serviettes';
+const STAY_YEAR = new Date().getFullYear() + 1;
 
 // Scoped to the extras card: an enabled option's title also shows in the pricing panel.
 const optionCard = (page) => page.locator('.MuiCard-root').filter({ hasText: 'Options et ressources' }).first()
@@ -24,7 +25,7 @@ test('a typed number survives a party change, turns red, and the save asks', asy
   const client = await createClient({ firstName: 'Typed', lastName: 'Count' });
   seedPerPersonOption({ propertyId: property.id, title: OPTION_TITLE, price: 8 });
   const reservation = await createReservation({
-    propertyId: property.id, clientId: client.id, startDate: '2099-11-04', endDate: '2099-11-06', adults: 4,
+    propertyId: property.id, clientId: client.id, startDate: `${STAY_YEAR}-11-04`, endDate: `${STAY_YEAR}-11-06`, adults: 4,
   });
 
   await page.goto(`/reservations/${reservation.id}`);
