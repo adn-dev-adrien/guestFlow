@@ -14,6 +14,9 @@ const optionCard = (page) => page.locator('.MuiCard-root').filter({ hasText: 'Op
   .locator('.MuiCard-root').filter({ hasText: OPTION_TITLE }).last();
 const qty = (page) => optionCard(page).getByLabel('Qté');
 const adults = (page) => page.getByLabel('Adultes');
+const saveButton = (page) => page.getByRole('button', { name: 'Enregistrer', exact: true });
+const savedStay = (page, id) => page.waitForResponse((res) => res.request().method() === 'PUT'
+  && res.url().includes(`/api/reservations/${id}`) && res.ok());
 
 async function type(locator, value) {
   await locator.fill(value);
@@ -38,9 +41,7 @@ test('a typed number survives a party change, turns red, and the save asks', asy
   await type(qty(page), '3');
   await expect(optionCard(page).getByText(/Total: 24,00/)).toBeVisible();
 
-  // A save leaves the fiche: come back to it.
-  await page.getByRole('button', { name: 'Enregistrer' }).first().click();
-  await expect(page).not.toHaveURL(new RegExp(`/reservations/${reservation.id}`), { timeout: 15_000 });
+  await Promise.all([savedStay(page, reservation.id), saveButton(page).click()]);
   await page.goto(`/reservations/${reservation.id}`);
   await expect(qty(page)).toHaveValue('3', { timeout: 15_000 });
   await expect(qty(page)).toHaveAttribute('aria-invalid', 'false');
@@ -58,7 +59,7 @@ test('a typed number survives a party change, turns red, and the save asks', asy
   await expect(qty(page)).toHaveAttribute('aria-invalid', 'true');
 
   // The save asks: « Annuler » keeps the fiche.
-  await page.getByRole('button', { name: 'Enregistrer' }).first().click();
+  await saveButton(page).click();
   const dialog = page.getByRole('dialog');
   await expect(dialog.getByText('Quantités saisies à vérifier')).toBeVisible();
   await dialog.getByRole('button', { name: 'Annuler' }).click();
@@ -74,9 +75,11 @@ test('a typed number survives a party change, turns red, and the save asks', asy
   await type(qty(page), '2');
   await type(adults(page), '6');
   await expect(qty(page)).toHaveAttribute('aria-invalid', 'true');
-  await page.getByRole('button', { name: 'Enregistrer' }).first().click();
-  await page.getByRole('dialog').getByRole('button', { name: 'Forcer l\'enregistrement' }).click();
-  await expect(page).not.toHaveURL(new RegExp(`/reservations/${reservation.id}`), { timeout: 15_000 });
+  await saveButton(page).click();
+  await Promise.all([
+    savedStay(page, reservation.id),
+    page.getByRole('dialog').getByRole('button', { name: 'Forcer l\'enregistrement' }).click(),
+  ]);
 
   await page.goto(`/reservations/${reservation.id}`);
   await expect(qty(page)).toHaveValue('2', { timeout: 15_000 });
