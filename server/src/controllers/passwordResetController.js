@@ -98,10 +98,10 @@ function createPasswordResetController({
 
   // → { user } — the safe user whose password was set. Sessions are ended before it returns.
   function reset({ token, password }) {
-    if (String(password || '').length < MIN_PASSWORD_LENGTH) {
+    if (typeof password !== 'string' || password.length < MIN_PASSWORD_LENGTH) {
       throw httpError(400, 'PASSWORD_TOO_SHORT', `Au moins ${MIN_PASSWORD_LENGTH} caractères.`);
     }
-    const row = token ? model.findUsable(sha256(token), nowIso()) : null;
+    const row = token && typeof token === 'string' ? model.findUsable(sha256(token), nowIso()) : null;
     if (!row || !model.consume(row.id, nowIso())) {
       throw httpError(400, 'INVALID_TOKEN', 'Lien expiré ou déjà utilisé.');
     }

@@ -6,6 +6,7 @@
 
 const { KINDS, PLACEHOLDERS, templateError, render } = require('../utils/templates');
 const { httpError } = require('../utils/httpError');
+const { text: readText } = require('../utils/bodyText');
 
 const SAMPLE = {
   contactName: 'Claire',
@@ -47,27 +48,29 @@ function createTemplatesController(ctx) {
 
   function preview(key, body) {
     if (!KINDS[key]) throw httpError(404, 'NOT_FOUND', 'Modèle inconnu.');
-    const error = templateError(body.subject, body.body);
+    const subject = readText(body, 'subject');
+    const content = readText(body, 'body');
+    const error = templateError(subject, content);
     return {
       error: error ? error.message : null,
-      subject: render(body.subject || '', SAMPLE),
-      body: render(body.body || '', SAMPLE),
+      subject: render(subject, SAMPLE),
+      body: render(content, SAMPLE),
     };
   }
 
   function save(key, body, operator) {
     const current = emails.template(key);
     if (!current || !KINDS[key]) throw httpError(404, 'NOT_FOUND', 'Modèle inconnu.');
-    const subject = body.subject === undefined ? current.subject : String(body.subject);
-    const text = body.body === undefined ? current.body : String(body.body);
-    const error = templateError(subject, text);
+    const subject = body.subject === undefined ? current.subject : readText(body, 'subject');
+    const content = body.body === undefined ? current.body : readText(body, 'body');
+    const error = templateError(subject, content);
     if (error) throw httpError(400, error.code, error.message);
     let sendMode = current.sendMode;
     if (body.sendMode !== undefined && key !== CLICK_ONLY) {
       if (!['manual', 'auto'].includes(body.sendMode)) throw httpError(400, 'INVALID', 'Mode : Manuel ou Automatique.');
       sendMode = body.sendMode;
     }
-    emails.saveTemplate({ key, subject, body: text, sendMode, at: now().toISOString(), operator });
+    emails.saveTemplate({ key, subject, body: content, sendMode, at: now().toISOString(), operator });
     return { template: card(emails.template(key)), notice: `Modèle « ${KINDS[key].name} » enregistré${sendMode !== current.sendMode ? ` : ${sendMode === 'auto' ? 'il partira seul' : 'il attendra votre validation'}` : ''}.` };
   }
 

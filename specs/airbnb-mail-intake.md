@@ -196,6 +196,13 @@ add the phone and e-mail from Airbnb. When the mail cannot be applied, the fiche
 14. The fiche shows a banner while an intake is open: applied (closable, ends with « Téléphone et e-mail à
     reprendre sur Airbnb. »), proposal, or error. Every state carries a « Voir sur Airbnb » link to the
     reservation URL of rule 5, where the operator finds the phone.
+    *Reading of 2026-11-03 (audit R21, E21-1):* `POST /:intakeId/apply` writes a fiche once. Only the open banner's
+    client-side `busy` stood in the way, so a second tab or a lost response created a new client holding the first and
+    last name alone (detaching the contact typed since), overwrote the party, beds and notes, and piled up the custom
+    cleaning line. A dismissed intake is refused (`400` « Saisie ignorée »); an `applied` one writes nothing and answers
+    `{ status: 'applied' }`, so a stale tab reloads into the right banner; `proposed` and `error` (a retry) still apply.
+    The auto-apply is untouched: the pass calls `apply` directly. Airbnb 1.1.7. Test:
+    `airbnb-intake/tests/reapply-real-core.unit.test.js` (real core).
 15. Dashboard: one line per intake in `error` or unmatched for more than 24 h.
 16. Applying never sends an e-mail to the guest.
 17. Nothing is read while no property has an Airbnb listing (no feed, no override); a started or past stay is refused by
@@ -411,7 +418,7 @@ kept green.
 | Method | Endpoint | Body | Response |
 |---|---|---|---|
 | GET | `/api/airbnb-intake/reservation/:reservationId` | — | `{ intake: { id, status, error, receivedLabel, code, airbnbUrl, details[] } \| null }` |
-| POST | `/api/airbnb-intake/:intakeId/apply` | — | `{ status }` or 400 `{ error }` |
+| POST | `/api/airbnb-intake/:intakeId/apply` | — | `{ status }` (`applied` when already applied, nothing written: rule 14) or 400 `{ error }` (« Saisie ignorée » when dismissed) |
 | POST | `/api/airbnb-intake/:intakeId/dismiss` | — | `{ ok }` |
 | GET | `/api/airbnb-intake` | — | `{ items }` (dashboard) |
 | POST | `/api/airbnb-intake/run` | — | `{ read, applied, proposed, pending, error, ignored }` or `{ skipped }` |
@@ -475,6 +482,8 @@ horizontal scroll at 390 px. No page added, so no new `PageActionBar`.
   on one property (rule 11).
 - [x] `airbnb-intake/tests/intake-audit-2026-10-27.unit.test.js` (3) — rules 18, 19, 20: no client for a
   started stay, a throwing intake does not stop the pass, the fiche's platform row is asked for the tax mode.
+- [x] `airbnb-intake/tests/reapply-real-core.unit.test.js` (5) — rule 14, reading of 2026-11-03: a second POST writes
+  nothing (client, lines, history), typed values stay, auto-applied mail, dismissed refused, `error` retried.
 - [x] `airbnb-intake/tests/isolation.unit.test.js` (1) — no core file names the plugin outside registration.
 - [x] Gîtes de France suite unchanged (29) on the SDK reader.
 - [x] Client: `components/__tests__/IntakeBanner.test.jsx` (2), `airbnb-intake/__tests__/IntakeBanner.states.test.jsx`
