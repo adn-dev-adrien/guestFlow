@@ -142,8 +142,9 @@ Rules added after audit round 21 (2026-11-03):
 28. **A per-person SAS sale sent with `units` and no `persons`** (a tab still running the previous bundle, up to
     `sas` 1.7.4) reads as people served: `max(1, floor(units / (ppn ? nights : 1)))`, then rule 12 applies: stored
     in `cardPersons`, `quantity = 1`. The units are divided by the nights only, never by the party, so the typed
-    count stays what it is. `persons` wins when both are sent. A `units`-only `per_night` or `per_stay` sale is
-    unchanged.
+    count stays what it is. `persons` wins when both are sent. `units` that are not a positive number (`0`, `-2`,
+    `'abc'`) with no `persons` sell nothing, as before #946; neither `units` nor `persons` is still the party. A
+    `units`-only `per_night` or `per_stay` sale is unchanged.
 
 **Edge cases:**
 - Party lowered below a frozen count (3 served, party now 2) → stays 3, within rule 5's ceiling when the

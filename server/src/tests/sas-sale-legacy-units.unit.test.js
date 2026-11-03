@@ -58,6 +58,21 @@ test('rule 28 — persons wins over units; no units and no persons is the party,
   assert.equal(party.billedUnits, 5);
 });
 
+for (const priceType of ['per_person', 'per_person_per_night']) {
+  for (const units of [0, -2, 'abc', '', '0']) {
+    test(`rule 28 — ${priceType}, units ${JSON.stringify(units)} and no persons: nothing is sold, the party is not billed`, () => {
+      assert.equal(legacy(priceType, { units }), null);
+      assert.equal(legacy(priceType, { units, servedPersons: null }), null);
+    });
+  }
+
+  test(`rule 28 — ${priceType}, units 0 with persons sent: persons still wins`, () => {
+    const line = legacy(priceType, { units: 0, servedPersons: 3 });
+    assert.equal(line.cardPersons, 3);
+    assert.equal(line.quantity, 1);
+  });
+}
+
 test('rule 28 — a units-only sale on any other price type is unchanged', () => {
   const night = legacy('per_night', { units: 3 });
   assert.equal(night.cardNights, 3);
@@ -80,4 +95,6 @@ test('rule 28 — through the real resolver: a stale tab sells 3 meals, not the 
   assert.equal(line.cardPersons, 3);
   assert.equal(line.quantity, 1);
   assert.equal(line.totalPrice, 24);
+  assert.deepEqual(model.resolveSasOptionSales(id, [{ optionId: 203, units: 0 }]), []);
+  assert.deepEqual(model.resolveSasOptionSales(id, [{ optionId: 203, units: -2 }]), []);
 });

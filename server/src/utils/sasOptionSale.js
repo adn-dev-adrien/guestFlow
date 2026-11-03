@@ -96,6 +96,8 @@ function priceOptionSale(option, {
   if (isPerPerson(option) || perNight) {
     if (perNight && !(Number(units) > 0)) return null;
     if (!perNight && !(head > 0)) return null;
+    // Rule 28: units sent that are not a positive number sell nothing, they never fall back to the party.
+    if (!perNight && servedPersons == null && units != null && !(Number(units) > 0)) return null;
     const typed = resolveNonCardUnits({
       priceType,
       quantity: 1,

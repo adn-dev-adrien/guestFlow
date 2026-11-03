@@ -1,4 +1,4 @@
 - **Arrival SAS: the sale only writes what the offer sells** (`sas-breakfast-and-catering-upsell.md` rule 15). A crafted call could bill any catalogue option at check-in, the cancellation insurance on a started stay included; everything outside the offer is now dropped, except a line this SAS already sold.
 - **Arrival SAS: « Personnes servies » shows the line's amount** on a non-card per-person option, where it read « — » (`sas` 1.7.6, which now asks for SDK 2.21).
-- **Arrival SAS: a per-person sale sent as units by a tab still on the previous bundle bills what was asked**, not the whole party (`non-card-option-served-persons.md` rule 28).
+- **Arrival SAS: a per-person sale sent as units by a tab still on the previous bundle bills what was asked**, not the whole party; units that are not a positive number sell nothing (`non-card-option-served-persons.md` rule 28).
 - **Locked fiche: the people or nights typed on an offered line sold at arrival can no longer be lowered** (`non-card-option-served-persons.md` rule 27).
