@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Card, CardContent, Typography, Stack, TextField } from '@mui/material';
+import { Alert, Box, Card, CardContent, Typography, Stack, TextField } from '@mui/material';
 import QuantityField from '../QuantityField';
 import { formatCurrency } from '../../utils/formatters';
 import { useReservationForm } from './ReservationFormContext';
@@ -25,7 +25,7 @@ import { useReservationForm } from './ReservationFormContext';
 export default function GuestsBedsSection() {
   const {
     formSectionCardSx, lockedSectionSx, formSectionContentSx,
-    form, updateForm,
+    form, updateForm, pricingQuote,
     maxGuestsAllowed, maxBabiesAllowed,
     exceedsGuestsCapacity, exceedsBabiesCapacity,
     guestsCount,
@@ -47,6 +47,8 @@ export default function GuestsBedsSection() {
   const capacityHint = maxGuestsAllowed
     ? `Capacité : ${maxGuestsAllowed} voyageur${maxGuestsAllowed > 1 ? 's' : ''}${maxBabiesAllowed ? ` · ${maxBabiesAllowed} bébé${maxBabiesAllowed > 1 ? 's' : ''}` : ''}`
     : null;
+
+  const typedAlertTitles = [...new Set((pricingQuote?.typedCountAlerts || []).map((alert) => alert.title))];
 
   return (
     <Card variant="outlined" sx={{ ...formSectionCardSx, ...lockedSectionSx }}>
@@ -137,6 +139,12 @@ export default function GuestsBedsSection() {
             </Typography>
           )}
         </Stack>
+        {/* specs/non-card-option-served-persons.md rule 21 — said at once, where the change was made. */}
+        {typedAlertTitles.length > 0 && (
+          <Alert severity="warning" sx={{ mt: 2 }}>
+            Valeur saisie à vérifier : {typedAlertTitles.join(', ')}
+          </Alert>
+        )}
       </CardContent>
     </Card>
   );

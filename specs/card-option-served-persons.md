@@ -10,6 +10,8 @@
 | **Amends** | [sas-breakfast-and-catering-upsell.md](sas-breakfast-and-catering-upsell.md) §3.1-§3.3 + §4.3, [option-planning-card.md](option-planning-card.md) §3.4, [breakfast-option-planning-card.md](breakfast-option-planning-card.md) rule 3, [arrival-departure-sas.md](arrival-departure-sas.md) §3.7 |
 | **Related PR** | _(opened at the end of implementation)_ |
 
+> **Amended 2026-11-03** by [non-card-option-served-persons.md](non-card-option-served-persons.md): rules 1, 5, 6 and 16 extend to non-card options, and « Personnes servies » turns red when the party changes (rules 20-26).
+
 ---
 
 ## 1. Context

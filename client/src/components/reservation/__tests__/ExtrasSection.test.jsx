@@ -33,7 +33,7 @@ test('toggling an option switch calls setOptionEnabled', async () => {
   expect(ctx.setOptionEnabled).toHaveBeenCalledWith(10, true);
 });
 
-test('editing an enabled option quantity calls setOptionQuantity on blur', () => {
+test('editing a per-person option quantity carries the typed number on blur', () => {
   const ctx = renderExtras({
     form: { selectedOptions: [{ optionId: 10, quantity: 2, totalPrice: 20 }] },
   });
@@ -42,7 +42,7 @@ test('editing an enabled option quantity calls setOptionQuantity on blur', () =>
   fireEvent.focus(input);
   fireEvent.change(input, { target: { value: '5' } });
   fireEvent.blur(input);
-  expect(ctx.setOptionQuantity).toHaveBeenCalledWith(10, 5);
+  expect(ctx.setOptionTypedCount).toHaveBeenCalledWith(10, 'persons', 5);
 });
 
 test('"Ajouter une ligne" calls addCustomOption', async () => {

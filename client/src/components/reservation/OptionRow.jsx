@@ -14,6 +14,8 @@ import { formatCurrency } from '../../utils/formatters';
 import { COMPLEMENT_TOOLTIP, PRICE_TYPE_LABELS } from './extrasLabels';
 import { ARRIVAL_LINE_CAPTION, OFFERED_LINE_CAPTION } from '../../constants/reservationLock';
 import { optionLineKey, displayedFloor } from '../../utils/arrivalLineKey';
+import { typedCountKind, typedCountValue } from '../../utils/optionTypedCount';
+import TypedCountField from './TypedCountField';
 import StatusBadge from '../StatusBadge';
 
 /**
@@ -164,10 +166,10 @@ function BedLinenInputsBlock() {
 export default function OptionRow({ opt }) {
   const {
     form, updateForm,
-    quantityPersons, quantityNights, toDisplayedQuantity, toBaseQuantity, getQuantityMultiplier,
+    quantityPersons, quantityNights,
     setOptionEnabled, setOptionQuantity, isReservationLocked, extrasWindowOpen, arrivalLines: rawArrivalLines,
     setOptionInComplement, setAutoOptionInComplement,
-    setOptionCardPersons, maxGuestsAllowed,
+    setOptionCardPersons, setOptionTypedCount, maxGuestsAllowed, pricingQuote,
     firstEnabledBedLinenOptionId, bedLinenForcedOptionIds, lockedIncludedOptionIds,
     isDevisMode,
     // specs/neat-cancellation-insurance-subscription.md §3.3 — the server-shaped Neat block +
@@ -219,7 +221,9 @@ export default function OptionRow({ opt }) {
   // Voyageurs card, and its price is per cot, for the whole stay.
   const isBabyBedOption = isAutoTimedOption && opt.autoOptionType === 'baby_bed';
   let factorHint = '';
-  if (opt.priceType === 'per_person') factorHint = `×${quantityPersons} pers.`;
+  // A typed count shows its own number in the field: « ×5 pers. » beside a typed 3 would contradict it.
+  if (typedCountKind(opt)) factorHint = '';
+  else if (opt.priceType === 'per_person') factorHint = `×${quantityPersons} pers.`;
   else if (opt.priceType === 'per_night') factorHint = `×${quantityNights} j.`;
   else if (opt.priceType === 'per_person_per_night') factorHint = `×${quantityPersons} pers. ×${quantityNights} j.`;
   // specs/cancellation-insurance.md §3.1 rule 5 — a percentage of the stay is a yes/no product:
@@ -239,6 +243,14 @@ export default function OptionRow({ opt }) {
     && String(opt.priceType || '').includes('per_person');
   const servedPersons = Math.max(1, Number(selected?.cardPersons) || Number(quantityPersons) || 1);
   const servedPersonsMax = Math.max(servedPersons, Number(maxGuestsAllowed) || 0, Number(quantityPersons) || 1);
+  // specs/non-card-option-served-persons.md rules 8, 9, 19 — a non-card option's « Qté » is the number
+  // of people or of nights. The server says when a typed number no longer matches (rule 20).
+  const typedKind = hasNoQuantity ? null : typedCountKind(opt);
+  const typedCurrent = typedKind === 'nights' ? quantityNights : quantityPersons;
+  const typedValue = typedCountValue(selected, typedKind, typedCurrent);
+  const typedAlerts = (pricingQuote?.typedCountAlerts || []).filter((alert) => alert.optionId === Number(opt.id));
+  const typedAlert = typedAlerts.find((alert) => alert.kind === (typedKind || 'persons')) || null;
+  const perPersonPerNight = opt.priceType === 'per_person_per_night';
 
   return (
     <Card
@@ -345,8 +357,7 @@ export default function OptionRow({ opt }) {
                 checklist below replaces the manual Qté — the selection drives the
                 billed quantity server-side. */}
             {hasServedPersons ? (
-              <QuantityField
-                size="small"
+              <TypedCountField
                 label="Personnes servies"
                 min={1}
                 max={servedPersonsMax}
@@ -354,17 +365,32 @@ export default function OptionRow({ opt }) {
                 onCommit={(v) => setOptionCardPersons(opt.id, v)}
                 disabled={extrasLocked || Boolean(arrivalLine)}
                 helperText="Par défaut toute la tablée — baissez-la si tout le monde ne mange pas."
+                alert={typedAlert}
+                onApply={() => setOptionCardPersons(opt.id, quantityPersons)}
                 sx={{ width: { xs: '100%', sm: 240 } }}
               />
             ) : opt.showsPlanningCard || hasNoQuantity ? (
               <Box sx={{ flex: 1 }} />
+            ) : typedKind ? (
+              <TypedCountField
+                label="Qté"
+                min={arrivalLine?.minTypedCount != null ? displayedFloor(arrivalLine.minTypedCount) : 1}
+                max={typedKind === 'persons' ? Math.max(Number(maxGuestsAllowed) || 0, Number(quantityPersons) || 1, typedValue) : undefined}
+                value={typedValue}
+                onCommit={(v) => setOptionTypedCount(opt.id, typedKind, v)}
+                disabled={extrasLocked}
+                helperText={perPersonPerNight ? `× ${quantityNights} nuit${quantityNights > 1 ? 's' : ''}` : undefined}
+                alert={typedAlert}
+                onApply={() => setOptionTypedCount(opt.id, typedKind, typedCurrent)}
+                sx={{ width: { xs: '100%', sm: 180 } }}
+              />
             ) : (
               <QuantityField
                 size="small"
                 label="Qté"
-                min={arrivalLine ? displayedFloor(toDisplayedQuantity(arrivalLine.minQuantity, opt.priceType)) : 1}
-                value={selected ? toDisplayedQuantity(selected.quantity, opt.priceType) : getQuantityMultiplier(opt.priceType)}
-                onCommit={(v) => setOptionQuantity(opt.id, toBaseQuantity(v, opt.priceType))}
+                min={arrivalLine ? displayedFloor(arrivalLine.minQuantity) : 1}
+                value={selected ? Number(selected.quantity) : 1}
+                onCommit={(v) => setOptionQuantity(opt.id, v)}
                 disabled={extrasLocked}
                 sx={{ width: { xs: '100%', sm: 180 } }}
               />

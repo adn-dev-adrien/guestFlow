@@ -13,6 +13,7 @@
 
 const db = require('../database');
 const { calculateReservationQuote } = require('../utils/pricing');
+const { partyOf, nightsOf, typedCountAlerts, typedCountsErrorPayload } = require('../utils/typedCounts');
 const { capitalizeFirst } = require('../utils/textFormatters');
 const { roundMoney } = require('../utils/devisHelpers');
 const { resolveDepositDueDate, resolveBalanceDueDate } = require('../utils/paymentSchedule');
@@ -343,6 +344,7 @@ function createModel(database) {
       // Served persons of a card option (specs/card-option-served-persons.md §3.2 rule 10): same
       // reason as the moments — dropping it would re-bill the whole party on every recompute.
       ...(o.cardPersons !== undefined ? { cardPersons: o.cardPersons } : {}),
+      ...(o.cardNights !== undefined ? { cardNights: o.cardNights } : {}),
       inComplement: routing(o.inComplement),
     })).filter((line) => !isEngineManagedAuto(line.optionId));
     const customOptions = (body.customOptions || []).map((line, index) => ({
@@ -450,7 +452,7 @@ function createModel(database) {
       selectedOptions: catalogLines.map((line) => ({
         optionId: Number(line.optionId), quantity: Number(line.quantity || 1),
         unitPrice: line.unitPrice != null ? Number(line.unitPrice) : undefined,
-        cardOccurrences: line.cardOccurrences, cardPersons: line.cardPersons,
+        cardOccurrences: line.cardOccurrences, cardPersons: line.cardPersons, cardNights: line.cardNights,
         inComplement: line.inComplement,
       })),
       customOptions: lines.filter((line) => line.isCustom).map((line) => ({
@@ -587,6 +589,23 @@ function createModel(database) {
     return Math.max(1, Number(payload.adults || 1) + Number(payload.children || 0) + Number(payload.teens || 0));
   }
 
+  // specs/non-card-option-served-persons.md rule 22 — a typed count that no longer matches the party or
+  // the stay asks the operator, on a devis like on a reservation.
+  function staleTypedCounts(payload, quote, stored) {
+    if (payload.forceTypedCounts) return null;
+    const alerts = typedCountAlerts({
+      quoteLines: quote.optionLines,
+      requestLines: payload.selectedOptions,
+      persons: partyOf(payload),
+      nights: Number(quote.nights) || 0,
+      storedPersons: stored ? partyOf(stored) : null,
+      storedNights: stored ? nightsOf(stored) : null,
+    });
+    if (alerts.length === 0) return null;
+    const { error, code, lines } = typedCountsErrorPayload(alerts);
+    return { error, code, lines, status: 409 };
+  }
+
   function create(payload) {
     if (!payload.propertyId || !payload.clientId || !payload.startDate || !payload.endDate) {
       return { error: 'propertyId, clientId, startDate et endDate sont requis', status: 400 };
@@ -609,6 +628,8 @@ function createModel(database) {
     );
 
     const quote = computeQuote(payloadWithDefaults, null, property);
+    const createAlert = staleTypedCounts(payloadWithDefaults, quote, null);
+    if (createAlert) return createAlert;
     const devisNumber = database.generateDevisNumber();
 
     // §3.1 + §3.2 — bind `createdAt` + `validUntil` explicitly. `validUntil` =
@@ -716,6 +737,8 @@ function createModel(database) {
     };
 
     const quote = computeQuote(payloadWithIncluded, existing, property);
+    const updateAlert = staleTypedCounts(payloadWithIncluded, quote, existing);
+    if (updateAlert) return updateAlert;
     // Capture the audit baseline BEFORE persisting (fixes the former always-empty update history).
     const beforeSnapshot = snapshotFromDb(numId);
     // §3.2 rule 7 — backfill `validUntil` when the existing row has an empty value and the payload

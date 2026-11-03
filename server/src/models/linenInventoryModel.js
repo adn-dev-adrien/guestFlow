@@ -69,8 +69,12 @@ function buildModel(database, deps = {}) {
       FROM options
      WHERE countsAsBedLinen = 1 OR countsAsBathroomLinen = 1 ${HAS_BATH_MAT_COL ? 'OR countsAsBathMat = 1' : ''}
   `);
+  const HAS_CARD_PERSONS = (() => {
+    try { return database.prepare('PRAGMA table_info(reservation_options)').all().some((c) => c.name === 'cardPersons'); }
+    catch { return false; }
+  })();
   const fetchReservationOptionsStmt = database.prepare(`
-    SELECT ro.reservationId, ro.optionId, ro.quantity
+    SELECT ro.reservationId, ro.optionId, ro.quantity${HAS_CARD_PERSONS ? ', ro.cardPersons' : ''}
       FROM reservation_options ro
       JOIN options o ON o.id = ro.optionId
      WHERE o.countsAsBedLinen = 1 OR o.countsAsBathroomLinen = 1 ${BATH_MAT_OR}
