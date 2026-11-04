@@ -12,16 +12,27 @@ const MAX_NIGHTS = 366;
 const PIECES_MESSAGE = `Quantité invalide : un nombre entier de pièces, ${MAX_COUNT} au plus.`;
 const UNITS_MESSAGE = `Quantité invalide : ${MAX_COUNT} au plus.`;
 const NIGHTS_MESSAGE = `Nuits : un nombre entier de 1 à ${MAX_NIGHTS}.`;
+const PERSONS_MESSAGE = `Personnes servies : un nombre entier de 1 à ${MAX_COUNT}.`;
+const PRICE_MESSAGE = 'Prix : un montant ≥ 0 €.';
+const BREAKFAST_MESSAGE = 'Petit-déjeuner : une quantité de 0 ou plus.';
+
+const BREAKFAST_COUNTS = [
+  'breakfastCoffee', 'breakfastTea', 'breakfastChocolate', 'breakfastMilk', 'breakfastPastries', 'breakfastCereals', 'breakfastBread',
+];
 
 const NUMERIC_TEXT = /^[+-]?(\d+(\.\d*)?|\.\d+)(e[+-]?\d+)?$/i;
 
 // undefined = not sent. NaN = sent, and not a number: a boolean or an array never counts as one.
 function readNumber(value) {
-  if (value === undefined || value === null || value === '') return undefined;
+  if (value === undefined || value === null) return undefined;
   if (typeof value === 'number') return value;
-  if (typeof value === 'string' && NUMERIC_TEXT.test(value.trim())) return Number(value);
-  return NaN;
+  if (typeof value !== 'string') return NaN;
+  const text = value.trim();
+  if (text === '') return undefined;
+  return NUMERIC_TEXT.test(text) ? Number(text) : NaN;
 }
+
+const usable = (n) => Number.isFinite(n) && Math.abs(n) <= Number.MAX_SAFE_INTEGER;
 
 // A line without a count is refused; a null or empty one counts nothing, and the pricing drops it.
 function wholePiecesMessage(lines) {
@@ -36,16 +47,17 @@ function wholePiecesMessage(lines) {
 /**
  * @param {Array} sales  the draft's `soldOptions`
  * @param {(optionId: number) => string|undefined} priceTypeOf
- * @param {Array} storedLines  the stay's option lines: what this SAS already sold is not re-judged
- *        when sent back unchanged, whatever a later rule would say of it.
+ * @param {Array} storedLines  the stay's option lines: the units and people this SAS already sold are not
+ *        re-judged when sent back unchanged, whatever a later rule would say of them.
  */
 function soldOptionsMessage(sales, priceTypeOf, storedLines) {
-  const storedUnits = new Map((storedLines || [])
-    .filter((line) => Number(line.sasArrivalOrigin || 0) === 1)
-    .map((line) => [Number(line.optionId), Math.round(Number(line.billedUnits) * 100) / 100]));
+  const soldHere = (storedLines || []).filter((line) => Number(line.sasArrivalOrigin || 0) === 1);
+  const storedUnits = new Map(soldHere.map((line) => [Number(line.optionId), Math.round(Number(line.billedUnits) * 100) / 100]));
+  const storedPersons = new Map(soldHere.map((line) => [Number(line.optionId), line.cardPersons == null ? undefined : Number(line.cardPersons)]));
   for (const sale of Array.isArray(sales) ? sales : []) {
     const persons = readNumber(sale?.persons);
-    if (persons !== undefined && !(Number.isFinite(persons) && persons <= MAX_COUNT)) return UNITS_MESSAGE;
+    if (persons !== undefined && persons !== storedPersons.get(Number(sale.optionId))
+      && !(Number.isSafeInteger(persons) && persons >= 1 && persons <= MAX_COUNT)) return PERSONS_MESSAGE;
     const units = readNumber(sale?.units);
     if (units === undefined || units === storedUnits.get(Number(sale.optionId))) continue;
     if (!(Number.isFinite(units) && units >= 0 && units <= MAX_COUNT)) return UNITS_MESSAGE;
@@ -55,4 +67,26 @@ function soldOptionsMessage(sales, priceTypeOf, storedLines) {
   return null;
 }
 
-module.exports = { wholePiecesMessage, soldOptionsMessage };
+// The breakfast composition is stored as sent, rounded (specs/sas-departure-recap-server-side.md rule 30).
+function breakfastCountsMessage(body, stored) {
+  const bad = BREAKFAST_COUNTS.some((field) => {
+    const count = readNumber(body?.[field]);
+    if (count === undefined || (stored?.[field] != null && Number(stored[field]) === count)) return false;
+    return !(usable(count) && count >= 0);
+  });
+  return bad ? BREAKFAST_MESSAGE : null;
+}
+
+// A billable price (specs/settings-input-guards.md rule 54). A row with no label is dropped by the save, so it
+// is not judged; a price already stored passes when sent back, the rows having no identity across a replace-all.
+function billablePriceMessage(items, storedRows) {
+  const kept = new Set((storedRows || []).map((row) => Number(row.price)));
+  const bad = (Array.isArray(items) ? items : []).some((item) => {
+    if (typeof item?.label !== 'string' ? item?.label == null : !item.label.trim()) return false;
+    const price = readNumber(item.price);
+    return price !== undefined && !kept.has(price) && !(usable(price) && price >= 0);
+  });
+  return bad ? PRICE_MESSAGE : null;
+}
+
+module.exports = { wholePiecesMessage, soldOptionsMessage, breakfastCountsMessage, billablePriceMessage };

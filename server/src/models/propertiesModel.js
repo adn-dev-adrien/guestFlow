@@ -842,6 +842,10 @@ function createPropertiesModel(database) {
       return { platforms, seasons };
     },
 
+    pricingRuleRow(propertyId, ruleId) {
+      return database.prepare('SELECT * FROM pricing_rules WHERE id = ? AND propertyId = ?').get(ruleId, propertyId) || null;
+    },
+
     addPricingRule(propertyId, body = {}) {
       const { label, pricePerNight, pricingMode, progressiveTiers, dateRanges, color, startDate, endDate, minNights } = body;
       const normalizedDateRanges = stripRangeMinEqualToDefault(normalizeDateRanges(dateRanges, startDate, endDate), minNights);

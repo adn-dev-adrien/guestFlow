@@ -312,6 +312,31 @@ were written then withdrawn the same day; their numbers stay reserved._
     buttons name their network; the list-level error reads in the error colour. The « TVA sur
     indemnités (%) » field is its own cell, after « Indemnités d'annulation » (helper « 0 % = hors champ de
     TVA. »).
+51. **Every number of a property is judged** (audit R22, 2026-11-04). On top of the rules above,
+    `validatePropertyInput` refuses, field by field under `PROPERTY_INVALID`, a value that is not a number or lies
+    past `Number.MAX_SAFE_INTEGER` (`usableNumber`, `utils/lineInputBounds.js`) on the capacity and bed counts (whole),
+    `extraGuestPrice`, the tourist-tax amounts, the caution, `welcomePackCost`, `cleaningHours` and
+    `parkingDistanceMeters` (≥ 0, half hours allowed, blank is not sent), and `depositPercent` with the acompte off
+    (0 to 100). A stored number sent back unchanged is not re-judged, so a questionable property stays savable for
+    an unrelated edit. *Why:* `1e999` was stored as Infinity, `1e308` as a tax a stay then overflowed on, `-2` as a
+    cleaning time. No business ceiling is decided. Tests: `tests/numeric-bounds-catalogue.unit.test.js`.
+52. **Every number of a season is judged at its route** (audit R22, 2026-11-04). On `POST` and `PUT
+    /properties/:id/pricing` and on `assign-dates` (the new season it would create), `seasonInputRefusal`
+    (`utils/propertyValidation.js`) answers 400 `INVALID_SEASON` with its `field`: `pricePerNight`, the net targets and
+    the extra-guest price usable and ≥ 0; `minNights` whole ≥ 1; `maxNights` whole ≥ 0, where 0 still means unlimited;
+    the same two on a date range; the progressive and extra-guest tier tables usable, their prices ≥ 0. Absent, null
+    or empty is not sent; a stored value sent back unchanged is not re-judged. A recipe apply calls the model
+    directly: it computes its own numbers and is not judged here. *Why:* a season at `1e999` poisoned every stay
+    created on its nights, at Infinity and through the public quote, `-100` stored a stay at -400 €, `-5` a minimum
+    of nights. Tests: `tests/numeric-bounds-catalogue.unit.test.js`.
+53. **The progressive preview walks a stay's worth of nights at most** (audit R22, 2026-11-04). `maxNights` is a
+    whole number from 1 to `MAX_STAY_NIGHTS` (absent stays 14), `pricePerNight` usable and ≥ 0, tiers as rule 52, or
+    400 `INVALID_SEASON`. *Why:* the loop's bound came from the body: `maxNights: 1e999` exhausted the heap and stopped
+    the server for everyone. Tests: `tests/numeric-bounds-catalogue.unit.test.js`.
+54. **A price of « Facturables au SAS » is a usable number ≥ 0** (audit R22, 2026-11-04), on the linen list and the
+    repair list: refused with 400 `INVALID_PAYLOAD` and its message, never clamped, the list left as it is. A row with
+    no label is dropped by the save and not judged; a price already stored passes when sent back. Test:
+    `plugins/sas/tests/sas-billable-prices.unit.test.js`.
 
 **Edge cases:**
 - Deposit days `0` on a property whose acompte is **off** → hidden field, not validated (rule 9), no guard

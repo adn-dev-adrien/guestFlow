@@ -83,7 +83,7 @@ function buildController({ defaults = [], bedLinenFlaggedIds = new Set(), captur
 
   return withMocks({
     '../utils/pricing': pricingMock,
-    '../utils/financeValidation': { validateFinanceInputs: () => null, validateClientGrossAmount: () => null },
+    '../utils/financeValidation': { validateFinanceInputs: () => null, validateStayFinance: () => null, validateClientGrossAmount: () => null },
     '../utils/occupancy': { getNightBlocksFromTimes: () => ({}), buildOccupiedDatesFromReservations: () => [] },
     '../utils/reservationHelpers': { computeNextIcalSyncLocked: () => 0, getTodayIsoDate: () => '2026-06-04' },
     '../utils/reservationAudit': { buildAuditSnapshotFromPayload: () => ({}), computeAuditChanges: () => [] },

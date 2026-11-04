@@ -243,16 +243,38 @@ rules — just a clean, testable structure that future slices (and Bloc 5) build
    the price preview, the create, the update and the devis create and update, before anything reads them
    (`utils/lineInputBounds.js`, same code everywhere):
    `options` / `selectedOptions` / `customOptions` / `resources` / `selectedResources` present and not an array
-   of objects, or `offeredOptionIds` not an array → 400 `INVALID_LINES`; a line `quantity` or a party number
-   (`adults`, `children`, `teens`, `babies`, `babyBeds`, `singleBeds`, `doubleBeds`) that is not a finite number →
-   400 `INVALID_QUANTITY`; a custom `amount` or a line's `acompteContribTtc` / `soldeContribTtc` likewise → 400
+   of objects, or `offeredOptionIds` not an array → 400 `INVALID_LINES`; a line `quantity` that is not a finite number
+   → 400 `INVALID_QUANTITY`; a party number (`adults`, `children`, `teens`, `babies`, `babyBeds`, `singleBeds`,
+   `doubleBeds`) that is not a whole number ≥ 0 → 400 `INVALID_QUANTITY` (narrowed 2026-11-04, audit R22, Adrien's
+   call), `adults: 0` still meaning one adult, a value the row already stores not re-judged when sent back
+   unchanged, and an inline hint under the fiche's four fields; a custom `amount` or a line's `acompteContribTtc` / `soldeContribTtc` likewise → 400
    `INVALID_AMOUNT`. Refused, never clamped. A boolean, an array, `1,5` or `0x10` is not a number; absent, null and
    empty still mean « not sent »; a `quantity` of 0 or less still switches the line off, and a fraction stays
    allowed. Past `Number.MAX_SAFE_INTEGER` a number counts as unusable: it is finite, but overflows to Infinity
    once priced and summed. That is a technical limit: no business ceiling on `quantity` is decided. *Why:*
    `1e999` parses to Infinity; it reached `finalPrice` and `balanceAmount`, which JSON then reads as `null` and no
-   save can repair, while `quantity: 1e308` stored a line at 0 €, and lines that were not an array answered 500.
-   Tests: `tests/line-input-bounds.unit.test.js`.
+   save can repair, while `quantity: 1e308` stored a line at 0 €, and lines that were not an array answered 500. A
+   party of -3 dropped the tourist tax and the per-person lines, 3 adults and -2 teens taxed three for one occupant
+   and bypassed the capacity, 1.5 adults billed 1.5 linen sets. Prod check of 2026-11-04: no stored party is
+   negative or fractional.
+   Tests: `tests/line-input-bounds.unit.test.js`, `tests/numeric-bounds-stay.unit.test.js`, client
+   `components/reservation/__tests__/GuestsBedsSection.party-hint.test.jsx`.
+16. **Added 2026-11-04 (audit R22) — a line is sent once.** A repeated `optionId` or `resourceId` within `options`,
+   `selectedOptions`, `resources` or `selectedResources` (`8` and `'8'` are the same id) → 400 `INVALID_LINES` on the
+   preview, the create, the update and the devis create and update. *Why:* the preview answered 200 and the save a
+   500 « Enregistrement impossible. ». Custom lines are not concerned. Tests: `tests/numeric-bounds-stay.unit.test.js`.
+17. **Added 2026-11-04 (audit R22) — the preview refuses what the save refuses, and money stops at the usable
+   range.** `validateStayFinance` (`utils/financeValidation.js`) is one list for the price preview, the create, the
+   update and the devis create and update: `customPrice`, the deposit, complement and balance amounts, the caution, the
+   platform commissions, gross, payout and tourist tax, `discountPercent`. `validateMoneyAmount` and
+   `validatePercentage` read numbers with `readNumber` and `usableNumber` (`utils/lineInputBounds.js`): a boolean, an
+   array, `0x10`, or a magnitude above `Number.MAX_SAFE_INTEGER` → `NOT_A_NUMBER`; numeric text and empty stay valid.
+   A value the row stores under the same field, sent back unchanged, is not re-judged (D6's reading), on the payment
+   PATCH too. The capacity stays out: it is a save-time guard the operator can force (`forceCapacity`), and the fiche
+   has to keep quoting a party forced above it. No business ceiling is decided. *Why:* `customPrice: 1e308` stored
+   `finalPrice` and `balanceAmount` at Infinity, which JSON reads as `null`, and the whole year's revenue with them
+   once marked paid; `customPrice: true` priced the stay at 1 €; `platformGrossAmount: -100` quoted 200 and saved 400.
+   Tests: `tests/numeric-bounds-stay.unit.test.js`.
 
 **Edge cases:** all current ones are preserved verbatim — min-nights rejection, archived-reservation
 error, iCal-locked pricing snapshot reuse, night-block conflict on adjacent reservations, payment

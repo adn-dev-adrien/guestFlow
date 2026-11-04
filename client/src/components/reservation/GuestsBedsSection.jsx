@@ -4,6 +4,10 @@ import QuantityField from '../QuantityField';
 import { formatCurrency } from '../../utils/formatters';
 import { useReservationForm } from './ReservationFormContext';
 
+// specs/reservations-backend-mvc.md rule 15 — a hint as it is typed; only the server refuses.
+const PARTY_HINT = 'Un nombre entier, 0 ou plus.';
+const partyHint = (value) => (Number.isSafeInteger(Number(value)) && Number(value) >= 0 ? null : PARTY_HINT);
+
 /**
  * Voyageurs card: guest counts + capacity warning.
  *
@@ -66,12 +70,12 @@ export default function GuestsBedsSection() {
             <Box>
               <TextField
                 label="Adultes"
-                helperText="18 ans et plus"
+                helperText={partyHint(form.adults) || '18 ans et plus'}
                 type="number"
                 value={form.adults}
                 onChange={(e) => updateForm({ adults: Number(e.target.value) })}
                 fullWidth
-                error={exceedsGuestsCapacity}
+                error={exceedsGuestsCapacity || Boolean(partyHint(form.adults))}
                 slotProps={{
                   htmlInput: { min: 1 }
                 }}
@@ -80,12 +84,12 @@ export default function GuestsBedsSection() {
             <Box>
               <TextField
                 label="Enfants"
-                helperText="2 à 12 ans"
+                helperText={partyHint(form.children) || '2 à 12 ans'}
                 type="number"
                 value={form.children}
                 onChange={(e) => updateForm({ children: Number(e.target.value) })}
                 fullWidth
-                error={exceedsGuestsCapacity}
+                error={exceedsGuestsCapacity || Boolean(partyHint(form.children))}
                 slotProps={{
                   htmlInput: { min: 0 }
                 }}
@@ -94,12 +98,12 @@ export default function GuestsBedsSection() {
             <Box>
               <TextField
                 label="Ados"
-                helperText="12 à 18 ans"
+                helperText={partyHint(form.teens) || '12 à 18 ans'}
                 type="number"
                 value={form.teens}
                 onChange={(e) => updateForm({ teens: Number(e.target.value) })}
                 fullWidth
-                error={exceedsGuestsCapacity}
+                error={exceedsGuestsCapacity || Boolean(partyHint(form.teens))}
                 slotProps={{
                   htmlInput: { min: 0 }
                 }}
@@ -108,12 +112,12 @@ export default function GuestsBedsSection() {
             <Box>
               <TextField
                 label="Bébés"
-                helperText="0 à 2 ans"
+                helperText={partyHint(form.babies) || '0 à 2 ans'}
                 type="number"
                 value={form.babies}
                 onChange={(e) => updateForm({ babies: Number(e.target.value) })}
                 fullWidth
-                error={exceedsBabiesCapacity}
+                error={exceedsBabiesCapacity || Boolean(partyHint(form.babies))}
                 slotProps={{
                   htmlInput: { min: 0, max: maxBabiesAllowed ?? undefined }
                 }}
