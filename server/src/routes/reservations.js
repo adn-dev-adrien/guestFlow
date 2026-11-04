@@ -15,6 +15,9 @@ const { ficheVersionHeaders } = require('../middleware/ficheVersionHeaders');
 const noWriteOnDuplicate = guardReadOnly(db, { cancelled: false });
 const noWriteOnClosedStay = guardReadOnly(db, { cancelled: true });
 
+// specs/reservations-backend-mvc.md rule 16 — a write on /reservations/undefined/… is a stay that does not exist.
+const stayId = (req, res, next) => (/^[1-9]\d*$/.test(req.params.id) ? next() : res.status(404).json({ error: 'Réservation non trouvée' }));
+
 // Reception sees no money (specs/reception-role-checkin-only.md): the plan is never theirs to change.
 const notReception = (handler) => (req, res) => (isReceptionOnly(req.user)
   ? res.status(403).json({ error: 'FORBIDDEN' })
@@ -40,32 +43,32 @@ router.get('/:id/history', controller.getHistory);
 // Remboursements (specs/reservation-refunds.md §4.3). Admin-only through the standard role guard;
 // deliberately reachable on a past-locked reservation — an early departure is discovered after the stay.
 router.get('/:id/refunds', refundsController.list);
-router.post('/:id/refunds', noWriteOnDuplicate, refundsController.create);
+router.post('/:id/refunds', stayId, noWriteOnDuplicate, refundsController.create);
 router.delete('/:id/refunds/:refundId', refundsController.remove);
 // Annulation d'un séjour (specs/payment-schedule-and-cancellation.md §3.5). Operator-confirmed only —
 // nothing in GuestFlow cancels a stay on its own.
-router.post('/:id/cancel', noWriteOnDuplicate, cancellationController.cancel);
+router.post('/:id/cancel', stayId, noWriteOnDuplicate, cancellationController.cancel);
 // « Rétablir » a duplicate set aside (specs/calendar-property-parity.md rule 22). Admin-only through the role guard.
-router.post('/:id/restore', controller.restoreSuperseded);
+router.post('/:id/restore', stayId, controller.restoreSuperseded);
 // Échéancier d'une réservation directe (specs/direct-installments.md §4.3).
-router.put('/:id/installments', noWriteOnDuplicate, notReception(installmentsController.put));
-router.delete('/:id/installments', noWriteOnDuplicate, notReception(installmentsController.remove));
-router.post('/:id/installments/:installmentId/payment', noWriteOnDuplicate, notReception(installmentsController.markPaid));
+router.put('/:id/installments', stayId, noWriteOnDuplicate, notReception(installmentsController.put));
+router.delete('/:id/installments', stayId, noWriteOnDuplicate, notReception(installmentsController.remove));
+router.post('/:id/installments/:installmentId/payment', stayId, noWriteOnDuplicate, notReception(installmentsController.markPaid));
 
 // Pénalités plateforme (specs/reconciliation-assisted-matching.md §4.3).
 const send = (res, answer) => res.status(answer.status).json(answer.body);
 router.get('/:id/platform-penalties', notReception((req, res) => send(res, platformPenalties.list(req.params.id))));
-router.post('/:id/platform-penalties/preview', notReception((req, res) => send(res, platformPenalties.preview(req.params.id, req.body))));
-router.post('/:id/platform-penalties', noWriteOnDuplicate, notReception((req, res) => send(res, platformPenalties.declare(req.params.id, req.body, req.user))));
+router.post('/:id/platform-penalties/preview', stayId, notReception((req, res) => send(res, platformPenalties.preview(req.params.id, req.body))));
+router.post('/:id/platform-penalties', stayId, noWriteOnDuplicate, notReception((req, res) => send(res, platformPenalties.declare(req.params.id, req.body, req.user))));
 router.delete('/:id/platform-penalties/:penaltyId', noWriteOnDuplicate, notReception((req, res) => send(res, platformPenalties.remove(req.params.id, req.params.penaltyId))));
 router.post('/calculate-price', controller.calculatePrice);
 router.post('/', controller.create);
-router.put('/:id', controller.update);
-router.patch('/:id/payment', controller.updatePayment);
+router.put('/:id', stayId, controller.update);
+router.patch('/:id/payment', stayId, controller.updatePayment);
 // specs/single-payment-from-the-fiche.md §4.3 — record (or undo) the single arrival payment
 // without running the SAS: `{ mode: 'card' | 'cash' | 'undo', date }`.
-router.post('/:id/arrival-payment', noWriteOnClosedStay, controller.settleArrivalPayment);
-router.delete('/:id', controller.remove);
+router.post('/:id/arrival-payment', stayId, noWriteOnClosedStay, controller.settleArrivalPayment);
+router.delete('/:id', stayId, controller.remove);
 
 module.exports = router;
 

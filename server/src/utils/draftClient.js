@@ -10,6 +10,7 @@
  * or carries no draft, is passed through untouched.
  */
 
+const { asText } = require('./bodyText');
 const { validateClientPayload } = require('./clientValidation');
 const { clientExistsRefusal } = require('./clientDuplicates');
 
@@ -23,7 +24,7 @@ class SaveRefused extends Error {
 function saveWithDraftClient({ db, clientsModel, body, run }) {
   const draft = body && !body.clientId && body.newClient && typeof body.newClient === 'object' ? body.newClient : null;
   if (!draft) return run(body);
-  if (!String(draft.lastName || '').trim() || !String(draft.firstName || '').trim()) {
+  if (!asText(draft.lastName).trim() || !asText(draft.firstName).trim()) {
     return { status: 400, body: { error: 'Nom et prénom du client requis.' } };
   }
   const invalid = validateClientPayload(draft);

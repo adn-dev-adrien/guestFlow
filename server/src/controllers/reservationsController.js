@@ -9,6 +9,9 @@ const { todayIso: localTodayIso } = require('../utils/localDate');
 const db = require('../database');
 const { calculateReservationQuote } = require('../utils/pricing');
 const { lineInputRefusal } = require('../utils/lineInputBounds');
+const { stayShapeRefusal } = require('../utils/stayInputShape');
+const { positiveId, scalarQuery } = require('../utils/bodyText');
+const { isWrongFieldType, WRONG_FIELD_TYPE } = require('../utils/bodyParserRefusal');
 const { quoteStoredReservation, pricingUnchangedFromStored, pinStoredPricing } = require('../utils/storedReservationQuote');
 const {
   midStayQuoteInputs, scheduleQuoteInputs, resolvePlatformTakesDeposit, resolvePlatformPayoutDueDays, frozenTouristTaxInputs,
@@ -233,6 +236,16 @@ const model = reservationsModel;
 // already declares DEFAULT 'direct' on the `platform` column; this coercion catches the
 // case where the client sends an explicit empty string AND backfills any pre-existing
 // NULL/'' rows via a paired migration at boot.
+// specs/reservations-backend-mvc.md rule 16 — a client that does not exist reaches the foreign key: told apart from
+// any other constraint here, and answered as a stay with no client.
+const CLIENT_REQUIRED = { error: 'Un client est requis pour enregistrer la réservation.', code: 'CLIENT_REQUIRED' };
+
+function unknownClient(err, clientId) {
+  if (!err || err.code !== 'SQLITE_CONSTRAINT_FOREIGNKEY') return false;
+  const id = positiveId(clientId);
+  return Boolean(id) && !db.prepare('SELECT 1 FROM clients WHERE id = ?').get(id);
+}
+
 function normalisePlatform(platform) {
   if (platform == null) return 'direct';
   const trimmed = String(platform).trim();
@@ -667,8 +680,11 @@ class CreationRefused extends Error {
 // ── Handlers ─────────────────────────────────────────────────────────────
 
 function suggestBeds(req, res) {
-  const propertyId = Number(req.body.propertyId || 0);
+  const propertyId = positiveId(req.body.propertyId);
   if (!propertyId) return res.status(400).json({ error: 'propertyId requis' });
+  // specs/reservations-backend-mvc.md rule 16 — the party, as on the save.
+  const partyRefusal = lineInputRefusal({ adults: req.body.adults, children: req.body.children, teens: req.body.teens });
+  if (partyRefusal) return res.status(400).json(partyRefusal);
   const property = model.getPropertyBeds(propertyId);
   if (!property) return res.status(404).json({ error: 'Logement non trouvé' });
 
@@ -738,7 +754,7 @@ function platformCommission(req, res) {
 }
 
 function list(req, res) {
-  const { propertyId, clientId, from, to } = req.query;
+  const { propertyId, clientId, from, to } = scalarQuery(req.query);
   // specs/ui-review-2026-10-19-operations.md rule 15 — the display name the calendar prints.
   const rows = model.list({ propertyId, clientId, from, to })
     .map((row) => ({ ...row, platformDisplay: platformDisplay(row.platform) }));
@@ -1090,6 +1106,11 @@ function depositDisabledLockedReasonOf(reservationId) {
 }
 
 async function calculatePrice(req, res) {
+  // specs/reservations-backend-mvc.md rule 16 — the shape of the fields, before anything reads them; what the row
+  // being quoted stores is not re-judged.
+  const shapeRowId = positiveId(req.body.reservationId) || positiveId(req.body.devisId);
+  const shapeRefusal = stayShapeRefusal(req.body, shapeRowId ? model.getRow(shapeRowId) : null);
+  if (shapeRefusal) return res.status(400).json(shapeRefusal);
   const financeError = validateFinanceInputs({
     customPrice: { value: req.body.customPrice, kind: 'money' },
     depositAmount: { value: req.body.depositAmount, kind: 'money' },
@@ -1333,6 +1354,9 @@ function pastUnlockRequested(req) {
 }
 
 function createStay(req, res) {
+  // specs/reservations-backend-mvc.md rule 16 — the shape of the fields, before anything reads them.
+  const shapeRefusal = stayShapeRefusal(req.body);
+  if (shapeRefusal) return res.status(400).json(shapeRefusal);
   const financeError = validateFinanceInputs({
     customPrice: { value: req.body.customPrice, kind: 'money' },
     depositAmount: { value: req.body.depositAmount, kind: 'money' },
@@ -1592,7 +1616,14 @@ function createStay(req, res) {
 // The HTTP creation of a stay. A client typed on the fiche (`newClient`) is written in the same
 // transaction (specs/clients.md rule 13).
 function create(req, res) {
-  if (!req.body || req.body.clientId || !req.body.newClient) return createStay(req, res);
+  if (!req.body || req.body.clientId || !req.body.newClient) {
+    try {
+      return createStay(req, res);
+    } catch (err) {
+      if (unknownClient(err, req.body && req.body.clientId)) return res.status(400).json(CLIENT_REQUIRED);
+      throw err;
+    }
+  }
   const result = saveWithDraftClient({
     db,
     clientsModel: require('../models/clientsModel'),
@@ -1666,6 +1697,10 @@ function staleFicheRefusal(reservationId, body) {
 async function update(req, res) {
   try {
     const id = Number(req.params.id);
+    // specs/reservations-backend-mvc.md rule 16 — before anything reads the request. The internal writers
+    // (`performUpdate`) build their own bodies and do not pass here.
+    const shapeRefusal = stayShapeRefusal(req.body || {}, model.getRow(id));
+    if (shapeRefusal) return res.status(400).json(shapeRefusal);
     const stale409 = staleFicheRefusal(id, req.body);
     if (stale409) return res.status(stale409.status).json(stale409.body);
     const unlockPast = pastUnlockRequested(req);
@@ -1690,6 +1725,8 @@ async function update(req, res) {
     return res.status(result.status).json(result.body);
   } catch (err) {
     // eslint-disable-next-line no-console
+    if (isWrongFieldType(err)) return res.status(WRONG_FIELD_TYPE.status).json(WRONG_FIELD_TYPE.body);
+    if (unknownClient(err, req.body && req.body.clientId)) return res.status(400).json(CLIENT_REQUIRED);
     console.error('[reservations] update failed:', err);
     return res.status(500).json({ error: 'Enregistrement impossible.' });
   }
@@ -1866,6 +1903,9 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
 
   const cancelled = readOnlyRefusal(db, id);
   if (cancelled) return res.status(cancelled.status).json(cancelled.body);
+
+  // Rule 16 — refused here rather than by the NOT NULL constraint (a 500), as on the creation.
+  if (!req.body.clientId) return res.status(400).json(CLIENT_REQUIRED);
 
   // specs/direct-installments.md rule 1 — a plan with money in keeps the reservation on the own channels.
   const planRefusal = installments.platformChangeRefusal(id, req.body.platform);

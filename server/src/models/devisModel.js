@@ -721,7 +721,7 @@ function createModel(database) {
     const existing = database.prepare("SELECT * FROM reservations WHERE id = ? AND kind = 'devis'").get(Number(id));
     if (!existing) return { error: 'Devis non trouvé', status: 404 };
     const allowed = new Set(['draft', 'sent', 'accepted']);
-    const next = String(status || '').trim();
+    const next = typeof status === 'string' ? status.trim() : '';
     if (!allowed.has(next)) return { error: 'Statut invalide', status: 400 };
     if (existing.devisStatus === 'converted') return { error: 'Un devis converti ne peut plus changer de statut', status: 400 };
 

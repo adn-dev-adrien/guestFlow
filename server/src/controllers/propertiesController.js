@@ -7,6 +7,8 @@ const { buildProgressivePreview } = require('../utils/pricing');
 const { ADMIN, RECEPTION, userHasRole } = require('../constants/roles');
 const { toReceptionPropertyList } = require('../utils/receptionView');
 const { validatePropertyInput } = require('../utils/propertyValidation');
+const { positiveId } = require('../utils/bodyText');
+const { isWrongFieldType, WRONG_FIELD_TYPE } = require('../utils/bodyParserRefusal');
 const { PROPERTY_LIMITS } = require('../utils/inputLimits');
 const { quotaRefusal } = require('../utils/planQuota');
 const propertyArticle = require('../utils/propertyArticle');
@@ -107,6 +109,7 @@ async function create(req, res) {
     // Don't echo the raw error message back — it may include file paths, library internals
     // or sharp/multer details that aren't useful to the user but help an attacker fingerprint
     // the stack. Spotted in the 2026-06-01 security audit (finding M3).
+    if (isWrongFieldType(err)) return void res.status(WRONG_FIELD_TYPE.status).json(WRONG_FIELD_TYPE.body);
     console.error('[propertiesController.create]', err);
     res.status(500).json({ error: 'Erreur lors de la création du logement' });
   }
@@ -120,6 +123,7 @@ async function update(req, res) {
     if (priceBearingChanged(before, priceBearingRow(req.params.id))) emitPricingChanged(req.params.id, 'property');
     res.json(result);
   } catch (err) {
+    if (isWrongFieldType(err)) return void res.status(WRONG_FIELD_TYPE.status).json(WRONG_FIELD_TYPE.body);
     console.error('[propertiesController.update]', err);
     res.status(500).json({ error: 'Erreur lors de la mise à jour du logement' });
   }
@@ -192,7 +196,12 @@ function deleteDocument(req, res) {
 }
 
 function setOptions(req, res) {
-  const result = model.setOptions(req.params.id, req.body.optionIds);
+  // specs/settings-input-guards.md, hosting-h2 rule 68 — a list of ids or nothing; left out means an empty list, as before.
+  const { optionIds } = req.body || {};
+  if (optionIds !== undefined && optionIds !== null && !(Array.isArray(optionIds) && optionIds.every((id) => positiveId(id) !== null))) {
+    return res.status(400).json({ error: 'Liste d’options invalide.' });
+  }
+  const result = model.setOptions(req.params.id, optionIds);
   emitPricingChanged(req.params.id, 'options');
   res.json(result);
 }

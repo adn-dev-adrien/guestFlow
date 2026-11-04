@@ -8,6 +8,7 @@
  * handler answers 409 NO_PAYMENT_PROVIDER.
  */
 
+const { asText } = require('../utils/bodyText');
 const database = require('../database');
 const settingsModel = require('../models/settingsModel');
 const paymentLinksModel = require('../models/paymentLinksModel');
@@ -281,7 +282,7 @@ const settleLink = async (req, res) => {
     return res.json(await settleWithdrawnPayment(Number(req.params.id), {
       database,
       paymentLinksModel,
-      outcome: String((req.body && req.body.outcome) || ''),
+      outcome: asText(req.body && req.body.outcome),
       bookPaid: (link, payment) => require('../utils/paymentPollRunner').bookLateWithdrawnPaid({
         ...buildPaymentEffectDeps(), database, paymentLinksModel, link, pay: payment,
       }),

@@ -1184,7 +1184,14 @@ function createController(model = defaultModel, deps = {}) {
       // (specs/google-vacation-rentals-feed.md rule 16: « Envoi » needs the partner id).
       const errors = {};
       record.settings.forEach(({ key, validate }) => {
-        if (!validate || !Object.prototype.hasOwnProperty.call(body, key)) return;
+        if (!Object.prototype.hasOwnProperty.call(body, key)) return;
+        // Rule 7 (reading of 2026-11-04) — an object or a list is no setting: it would be stored as
+        // « [object Object] », over a secret too. The whole write is refused, and no validator sees it.
+        if (body[key] !== null && typeof body[key] === 'object') {
+          errors[key] = 'Valeur invalide.';
+          return;
+        }
+        if (!validate) return;
         const message = validate(body[key], body);
         if (message) errors[key] = message;
       });
@@ -1192,8 +1199,9 @@ function createController(model = defaultModel, deps = {}) {
       record.settings.forEach(({ key, secret, afterSave }) => {
         if (!Object.prototype.hasOwnProperty.call(body, key)) return;
         const value = body[key];
-        if (secret && value === '') return;
         const stored = value == null ? '' : String(value).trim();
+        // '' keeps a secret and only null clears it: a field of spaces is an empty field.
+        if (secret && value !== null && stored === '') return;
         settingsModel().set(entry.id, key, stored, { secret: Boolean(secret) });
         if (afterSave) afterSave(stored);
       });

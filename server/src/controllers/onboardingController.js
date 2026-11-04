@@ -22,6 +22,7 @@
  * plugin install and activate handlers. A failed plugin is named and the others go through.
  */
 
+const { asText, fieldText, isOptionalText } = require('../utils/bodyText');
 const validation = require('../utils/settingsValidation');
 const { validatePropertyInput } = require('../utils/propertyValidation');
 const { quotaRefusal } = require('../utils/planQuota');
@@ -49,6 +50,9 @@ const PLUGIN_FAILURES = Object.freeze({
   UPDATE_IN_PROGRESS: 'activation en cours, réessayer dans un instant',
   RESTART_PENDING: 'redémarrage en cours, réessayer dans un instant',
 });
+
+// The assistant's two time fields answer under the property's own names (rule 21's form).
+const FIELD_OF_ASSISTANT = { checkIn: 'defaultCheckIn', checkOut: 'defaultCheckOut' };
 
 function failureReason(code, message) {
   if (PLUGIN_FAILURES[code]) return PLUGIN_FAILURES[code];
@@ -310,11 +314,11 @@ function buildController({
 
   function saveCompany(req, res) {
     const b = req.body || {};
-    const company = {
-      name: String(b.name || '').trim(), email: String(b.email || '').trim(), phone: String(b.phone || '').trim(),
-      address: String(b.address || '').trim(), siret: String(b.siret || '').replace(/\s/g, ''),
-    };
     const errors = {};
+    const company = {
+      name: asText(b.name).trim(), email: asText(b.email).trim(), phone: fieldText(b, 'phone', errors),
+      address: fieldText(b, 'address', errors), siret: fieldText(b, 'siret', errors).replace(/\s/g, ''),
+    };
     if (!company.name) errors.name = 'Nom obligatoire';
     if (!company.email) errors.email = 'Email obligatoire';
     else if (validation.validateEmail(company.email)) errors.email = 'Email invalide';
@@ -340,9 +344,16 @@ function buildController({
   async function saveProperty(req, res) {
     const b = req.body || {};
     // Rule 21 — a property sent without a capacity takes the one its beds propose.
+    const wrongType = ['maxGuests', 'doubleBeds', 'singleBeds', 'pricePerNight', 'checkIn', 'checkOut']
+      .filter((key) => b[key] !== undefined && b[key] !== null && typeof b[key] !== 'string' && typeof b[key] !== 'number');
+    if (wrongType.length || !isOptionalText(b.name)) {
+      const errors = Object.fromEntries(wrongType.map((key) => [FIELD_OF_ASSISTANT[key] || key, 'Valeur invalide']));
+      if (!asText(b.name).trim()) errors.name = 'Nom obligatoire';
+      return res.status(422).json({ errors });
+    }
     const noCapacity = b.maxGuests == null || String(b.maxGuests).trim() === '';
     const body = {
-      name: String(b.name || '').trim(),
+      name: asText(b.name).trim(),
       doubleBeds: b.doubleBeds, singleBeds: b.singleBeds,
       maxGuests: noCapacity ? capacityFor(b.doubleBeds, b.singleBeds) : b.maxGuests,
       defaultCheckIn: b.checkIn, defaultCheckOut: b.checkOut, pricePerNight: b.pricePerNight,

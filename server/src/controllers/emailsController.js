@@ -12,6 +12,7 @@
  *   500 EMAIL_SEND_FAILED      ← nodemailer threw at send time
  */
 
+const { scalarQuery } = require('../utils/bodyText');
 const { todayIso: localTodayIso } = require('../utils/localDate');
 const { entryDateMessage } = require('../utils/stayDates');
 const { closedDatesRefusal } = require('../utils/closedStayDates');
@@ -628,7 +629,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
   }
 
   function history(req, res) {
-    const { limit, offset, reservationId, templateId, status } = req.query || {};
+    const { limit, offset, reservationId, templateId, status } = scalarQuery(req.query);
     const result = logModel.history({
       limit:         limit  != null ? Number(limit)  : 50,
       offset:        offset != null ? Number(offset) : 0,

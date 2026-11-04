@@ -48,6 +48,15 @@ function createSupportAudit({ controller, isSecretSetting, currentSettings, isHi
     return false;
   }
 
+  // Rules 19, 60: a request the policy cannot read is refused and journaled like any other (hosting-h2 rule 68).
+  function policyReason(method, req) {
+    try {
+      return forbiddenReason(method, req.path, req.body, policyDeps);
+    } catch {
+      return 'credentials';
+    }
+  }
+
   return function supportAudit(req, res, next) {
     if (!isSupportSession(req)) return next();
     const access = controller.sessionAccess(req.session.supportAccessId);
@@ -58,7 +67,7 @@ function createSupportAudit({ controller, isSecretSetting, currentSettings, isHi
     const method = String(req.method).toUpperCase();
     const path = normalizePath(req.path);
     // A route the space hides answers and is logged like an unknown one: no 403 to tell it apart.
-    const reason = isHidden(req) ? null : forbiddenReason(method, req.path, req.body, policyDeps);
+    const reason = isHidden(req) ? null : policyReason(method, req);
     if (reason) {
       controller.record(access.id, { method, path: `/api${path}`, summary: '403' });
       return res.status(403).json({ error: 'SUPPORT_FORBIDDEN', message: MESSAGES[reason] });

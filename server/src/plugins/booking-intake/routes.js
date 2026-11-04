@@ -30,7 +30,8 @@ function publicRouter({ secret, handlePage, perMinute = REQUESTS_PER_MINUTE, log
     if (!secretMatches(req.get('X-Booking-Intake-Key'), secret())) return res.status(401).json({ error: 'UNAUTHORIZED' });
     const body = req.body || {};
     if (req.rawBody && req.rawBody.length > MAX_PAGE_BYTES) return res.status(413).json({ status: 'refused', message: 'Page trop volumineuse' });
-    if (typeof body.text !== 'string' || !body.hotelId || !body.resId) {
+    const isId = (value) => (typeof value === 'string' || typeof value === 'number') && Boolean(value);
+    if (typeof body.text !== 'string' || !isId(body.hotelId) || !isId(body.resId)) {
       return res.status(400).json({ status: 'refused', message: 'Requête incomplète' });
     }
     try {

@@ -175,3 +175,22 @@ test('rule 22 — the CGV version is an integer or digits: `true` and `[1]` are 
   for (const sent of [1, '1']) assert.deepEqual(checkTermsAcceptance(sent), { version: current });
   for (const sent of [undefined, null, '']) assert.equal(checkTermsAcceptance(sent).code, 'TERMS_NOT_ACCEPTED');
 });
+
+// specs/public-api.md rule 20, reading of 2026-11-04 (audit R22, public finding 3).
+test('rule 20 — a name with no letter nor digit is « required », a control character never stored', () => {
+  for (const name of ['\u0000', '\u0007', '\u0001\u0002', '\u0085', '\u001b', '\u2800', '\u200D', '\uFEFF', '  ', '---']) {
+    for (const field of ['firstName', 'lastName']) {
+      const out = validateGuest({ ...guest, [field]: name });
+      assert.equal(out.ok, false, JSON.stringify(name));
+      assert.ok(out.errors.some((e) => e.field === `guest.${field}` && e.reason === 'required'), JSON.stringify(out.errors));
+    }
+  }
+  assert.equal(validateGuest({ ...guest, firstName: '\u001b[31mZoé' }).value.firstName, '[31mZoé');
+  assert.equal(validateGuest({ ...guest, lastName: 'A\nB' }).value.lastName, 'A B');
+});
+
+test('rule 20 — names the site really sends are unchanged', () => {
+  for (const name of ['Zoé', 'O\'Neil', 'Marie-Anne', 'Иван', '李', 'سارا\u200Cی', '3', 'ㅤ']) {
+    assert.equal(validateGuest({ ...guest, firstName: name }).value.firstName, name);
+  }
+});

@@ -90,18 +90,21 @@ function buildOverview(deps = {}) {
   };
 }
 
+const INVALID_ORIGIN = 'Adresse invalide : le domaine seul, par exemple https://www.mon-site.fr';
+
 /**
  * The public site origin: '' (unset) or an http(s) origin without path, query or fragment. Returns the
  * cleaned value, or `{ error }` in French.
  */
 function parsePublicSiteOrigin(raw) {
-  const value = String(raw == null ? '' : raw).trim().replace(/\/+$/, '');
+  if (raw != null && typeof raw !== 'string') return { error: INVALID_ORIGIN };
+  const value = (raw || '').trim().replace(/\/+$/, '');
   if (!value) return { value: '' };
   let url;
   try { url = new URL(value); } catch { url = null; }
   const ok = url && (url.protocol === 'https:' || url.protocol === 'http:')
     && (url.pathname === '/' || url.pathname === '') && !url.search && !url.hash && !url.username;
-  if (!ok) return { error: 'Adresse invalide : le domaine seul, par exemple https://www.mon-site.fr' };
+  if (!ok) return { error: INVALID_ORIGIN };
   return { value: url.origin };
 }
 

@@ -76,6 +76,12 @@ routes, mêmes codes de statut, mêmes charges utiles, mêmes sessions.
 8. **Sous `/public/`, le refus du parseur garde l'enveloppe publique** (audit R21, 2026-11-03). Mêmes statuts et mêmes
    codes que la règle 7, mais `{ error: { code, message } }` et le message dans la langue de l'appelant
    (`publicHttp.answerBodyRefusal`, specs/public-api.md règle 22). L'API interne garde sa forme plate.
+9. **Added 2026-11-04 (audit R22, public findings 1 and 2) — what the parser and the router refuse is never a crash.**
+   A compressed body that does not inflate (`Z_*`, `ERR_*` with status 400), a dropped upload (`request.aborted`) and
+   `request.size.invalid` answer rule 7's `400 INVALID_JSON`; a badly encoded path parameter (`URIError` « Failed to
+   decode param ») answers `404 NOT_FOUND`, in the public envelope under `/public/` (rule 8). None is logged: the parser
+   sits ahead of every limiter, and any visitor could fill the log with false crashes. `utils/bodyParserRefusal.js`
+   `requestRefusal`; test `tests/public-input-shape-core.unit.test.js`.
 
 ---
 

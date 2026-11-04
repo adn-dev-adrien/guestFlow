@@ -1,7 +1,7 @@
 {
   "id": "school-holidays",
   "name": "Vacances scolaires",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "Zones A, B, C récupérées sur education.gouv.fr.",
   "icon": "school",
   "surfaces": [
@@ -29,6 +29,10 @@
     ],
     "1.0.5": [
       "Une période se date entre il y a 5 ans et dans 5 ans, sur des jours réels ; une date déjà enregistrée reste modifiable.",
+      "Compatible avec le SDK 2.20 de GuestFlow."
+    ],
+    "1.0.6": [
+      "Un libellé qui n’est pas du texte reçoit le refus normal, jamais une erreur interne.",
       "Compatible avec le SDK 2.20 de GuestFlow."
     ]
   }
