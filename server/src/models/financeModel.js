@@ -176,6 +176,13 @@ function createFinanceModel(database) {
   // specs/reservation-refunds.md §3.5 — the tourist tax given back to the guest, in euros and in
   // nights. EVERY means counts here (caisse interne included): « hors comptabilité » excludes money
   // from the turnover, never from what is owed to the commune.
+  const hasAddedGuestsTax = (() => {
+    try { return database.prepare('PRAGMA table_info(reservations)').all().some((c) => c.name === 'touristTaxAddedGuestsAmount'); }
+    catch { return false; }
+  })();
+  // Same condition as the SQL of the added-guests rows (specs/platform-added-guests-tourist-tax.md rule 12).
+  const hasOwnAddedGuestsRow = (stored) => Boolean(stored.touristTaxDeclaredAt)
+    && String(stored.complementPaidDate || stored.endDate).slice(0, 10) >= String(stored.touristTaxDeclaredAt).slice(0, 10);
   const REFUNDED_TAX_COLS = hasRefundTables
     ? `COALESCE((SELECT SUM(rl.amountTtc) FROM reservation_refund_lines rl
                  JOIN reservation_refunds rf ON rf.id = rl.refundId
@@ -823,7 +830,7 @@ function createFinanceModel(database) {
         return { ok: false, status: 400, error: 'Les mois futurs ne sont pas autorisés.' };
       }
 
-      const rows = database.prepare(`
+      const selectRows = `
         SELECT
           r.id as reservationId,
           r.propertyId,
@@ -879,6 +886,9 @@ function createFinanceModel(database) {
         FROM reservations r
         JOIN properties p ON p.id = r.propertyId
         JOIN clients c ON c.id = r.clientId
+      `;
+      const rows = database.prepare(`
+        ${selectRows}
         WHERE r.kind = 'reservation'
           -- specs/tourist-tax-declaration-month-stay-end.md — the declaration follows the STAY: a stay
           -- is declared in the month of its LAST NIGHT (DATE(endDate,'-1 day')), unless its tax-carrying
@@ -922,6 +932,20 @@ function createFinanceModel(database) {
         ORDER BY p.name, r.startDate, c.lastName, c.firstName
       `).all(bounds.start, bounds.endExclusive, bounds.start, bounds.endExclusive);
 
+      // specs/platform-added-guests-tourist-tax.md rule 12 — an added tax collected once the stay's row
+      // was declared is told to the commune on a row of its own, in the month it was collected.
+      const addedGuestsRows = !hasAddedGuestsTax ? [] : database.prepare(`
+        ${selectRows}
+        WHERE r.kind = 'reservation'
+          AND COALESCE(r.touristTaxAddedGuestsAmount, 0) > 0
+          AND r.complementPaid = 1
+          AND r.touristTaxDeclaredAt IS NOT NULL
+          AND COALESCE(DATE(r.complementPaidDate), DATE(r.endDate, '-1 day')) >= DATE(r.touristTaxDeclaredAt)
+          AND MAX(DATE(r.endDate, '-1 day'), COALESCE(DATE(r.complementPaidDate), DATE(r.endDate, '-1 day'))) >= ?
+          AND MAX(DATE(r.endDate, '-1 day'), COALESCE(DATE(r.complementPaidDate), DATE(r.endDate, '-1 day'))) < ?
+        ORDER BY p.name, r.startDate, c.lastName, c.firstName
+      `).all(bounds.start, bounds.endExclusive);
+
       // specs/tourist-tax-included-services-deduction.md rule 14 — this page does NOT re-derive the
       // tax from SQL any more: it REPLAYS THE PRICING ENGINE on each stay, from the very inputs the
       // fiche replays (`buildReservationEngineInput`). It used to keep its own arithmetic —
@@ -929,10 +953,11 @@ function createFinanceModel(database) {
       // drifted: the same stay could be validated at 13,05 € on its fiche and declared 14,85 € here.
       // One stay, one amount, one engine. What stays this page's own business is WHICH stays it lists
       // (the attribution month, the payment gate, the platform mode) and the refunded-nights prorata.
+      const listedIds = [...rows, ...addedGuestsRows].map((row) => row.reservationId);
       const storedById = new Map(
-        (rows.length === 0 ? [] : database
-          .prepare(`SELECT * FROM reservations WHERE id IN (${rows.map(() => '?').join(', ')})`)
-          .all(...rows.map((row) => row.reservationId)))
+        (listedIds.length === 0 ? [] : database
+          .prepare(`SELECT * FROM reservations WHERE id IN (${listedIds.map(() => '?').join(', ')})`)
+          .all(...listedIds))
           .map((r) => [Number(r.id), r]),
       );
       // specs/tourist-tax-matches-the-office-calculation.md rules 10-12 — the fiche freezes a tax the
@@ -950,6 +975,14 @@ function createFinanceModel(database) {
           const teens = Number(row.teens || 0);
           const quote = quoteStoredReservation(database, stored);
           const isPercentageMode = String(row.touristTaxMode || '').startsWith('percentage');
+          // specs/platform-added-guests-tourist-tax.md rules 11-12 — the added tax counts here once
+          // collected, unless that came after this row was declared: it then has a row of its own.
+          const addedTax = round2(Number(quote.touristTaxAddedGuestsAmount || 0));
+          const addedTaxKeptOut = addedTax > 0
+            && (!Number(stored.complementPaid || 0) || hasOwnAddedGuestsRow(stored));
+          const taxedAdults = addedTaxKeptOut
+            ? Number(quote.platformPaidAdults ?? quote.touristTaxAdultsCount ?? 0)
+            : Number(quote.touristTaxAdultsCount || 0);
 
           // specs/reservation-refunds.md §3.5 rules 29–31 — a refunded tourist tax is a night the guest
           // did not spend: that night leaves the declaration, and with it its taxable person-nights and
@@ -965,11 +998,11 @@ function createFinanceModel(database) {
           const declaredNights = Math.max(0, nightsCount - refundedTaxNights);
           const declaredAdultNights = Math.max(
             0,
-            Number(quote.touristTaxAdultsCount || 0) * Math.max(0, Number(quote.touristTaxNights || 0) - refundedTaxNights),
+            taxedAdults * Math.max(0, Number(quote.touristTaxNights || 0) - refundedTaxNights),
           );
           // The tax the fiche shows: frozen on a past stay, recomputed live otherwise.
-          const grossTaxAmount = round2(Number(quote.touristTaxTotal || 0));
-          const grossAdultNights = Number(quote.touristTaxAdultsCount || 0) * Number(quote.touristTaxNights || 0);
+          const grossTaxAmount = round2(Number(quote.touristTaxTotal || 0) - (addedTaxKeptOut ? addedTax : 0));
+          const grossAdultNights = taxedAdults * Number(quote.touristTaxNights || 0);
           // Pro-rated on the nights: exact for the per-night modes, the natural share for the
           // percentage ones (where the tax isn't night-linear).
           const declaredTaxAmount = nightsCount > 0
@@ -989,7 +1022,7 @@ function createFinanceModel(database) {
             endDate: row.endDate,
             lastNightDate: row.lastNightDate,
             touristTaxDeclaredAt: row.touristTaxDeclaredAt || null,
-            adults,
+            adults: addedTaxKeptOut ? taxedAdults : adults,
             children: children + teens,
             // Net of the refunded nights — these are the figures to declare.
             nightsCount: declaredNights,
@@ -1025,6 +1058,39 @@ function createFinanceModel(database) {
           };
         })
         .filter(Boolean)
+        .concat(addedGuestsRows.map((row) => {
+          const stored = storedById.get(Number(row.reservationId));
+          const quote = quoteStoredReservation(database, stored);
+          const nightsCount = Number(row.nightsCount || 0);
+          const refundedTaxNights = Math.min(nightsCount, Math.max(0, Math.round(Number(row.refundedTaxNights || 0))));
+          const declaredNights = Math.max(0, nightsCount - refundedTaxNights);
+          const addedTax = round2(Number(quote.touristTaxAddedGuestsAmount || 0));
+          const declaredTaxAmount = nightsCount > 0 ? round2(addedTax * (declaredNights / nightsCount)) : addedTax;
+          const addedAdults = Math.max(0, Number(row.adults || 0) - Number(stored.platformPaidAdults || 0));
+          return {
+            reservationId: row.reservationId,
+            addedGuestsRow: true,
+            propertyId: row.propertyId,
+            propertyName: row.propertyName,
+            reservationName: `${row.firstName || ''} ${row.lastName || ''}`.trim(),
+            startDate: row.startDate,
+            endDate: row.endDate,
+            lastNightDate: row.lastNightDate,
+            touristTaxDeclaredAt: stored.touristTaxAddedGuestsDeclaredAt || null,
+            adults: addedAdults,
+            children: 0,
+            nightsCount: declaredNights,
+            adultNights: addedAdults * declaredNights,
+            taxRate: addedAdults > 0 && nightsCount > 0 ? round2(addedTax / (addedAdults * nightsCount)) : 0,
+            taxAmount: declaredTaxAmount,
+            refundedTaxNights,
+            refundedTaxAmount: round2(addedTax - declaredTaxAmount),
+            // The stay's base was declared with its row: this one only tells the commune the difference.
+            accommodationAmount: 0,
+            includedServicesDeduction: 0,
+            nightPricePerOccupantHt: null,
+          };
+        }))
         // `nightsCount` is the NET figure: a stay whose tourist tax was refunded night after night
         // until nothing is left simply leaves the declaration — there is nothing to remit for it
         // (specs/reservation-refunds.md §3.5 rule 31).
@@ -1044,8 +1110,11 @@ function createFinanceModel(database) {
           });
         }
         const aggregate = byPropertyMap.get(row.propertyId);
-        aggregate.reservationsCount += 1;
-        aggregate.nightsCount += row.nightsCount;
+        // A row of added guests is the same stay and the same nights: only its tax and adults add up.
+        if (!row.addedGuestsRow) {
+          aggregate.reservationsCount += 1;
+          aggregate.nightsCount += row.nightsCount;
+        }
         aggregate.adultNights += row.adultNights;
         aggregate.taxAmount = round2(aggregate.taxAmount + row.taxAmount);
         aggregate.accommodationAmount = round2(aggregate.accommodationAmount + row.accommodationAmount);
@@ -1054,7 +1123,7 @@ function createFinanceModel(database) {
       const byProperty = Array.from(byPropertyMap.values()).sort((a, b) => a.propertyName.localeCompare(b.propertyName, 'fr'));
 
       const totalAccommodationAmount = round2(reservations.reduce((sum, row) => sum + row.accommodationAmount, 0));
-      const totalRentedNights = reservations.reduce((sum, row) => sum + row.nightsCount, 0);
+      const totalRentedNights = reservations.reduce((sum, row) => sum + (row.addedGuestsRow ? 0 : row.nightsCount), 0);
       const totalAdultNights = reservations.reduce((sum, row) => sum + row.adultNights, 0);
       const totalTaxAmount = round2(reservations.reduce((sum, row) => sum + row.taxAmount, 0));
 
@@ -1067,7 +1136,7 @@ function createFinanceModel(database) {
           reservations,
           byProperty,
           totals: {
-            reservationsCount: reservations.length,
+            reservationsCount: reservations.filter((row) => !row.addedGuestsRow).length,
             rentedNights: totalRentedNights,
             adultNights: totalAdultNights,
             taxAmount: totalTaxAmount,
@@ -1079,7 +1148,8 @@ function createFinanceModel(database) {
 
     // specs/tourist-tax-declared-checkbox.md §3 — the operator ticks « Déclarée » on the extraction page.
     // declared=true stamps the server clock (so we know WHEN it was declared); declared=false clears it.
-    setTouristTaxDeclared({ reservationId, declared } = {}) {
+    // specs/platform-added-guests-tourist-tax.md rule 12 — `addedGuests` ticks the added-guests row alone.
+    setTouristTaxDeclared({ reservationId, declared, addedGuests = false } = {}) {
       const id = Number(reservationId);
       if (!Number.isInteger(id) || id <= 0) {
         return { ok: false, status: 400, error: 'Réservation invalide.' };
@@ -1087,6 +1157,12 @@ function createFinanceModel(database) {
       const exists = database.prepare("SELECT 1 FROM reservations WHERE id = ? AND kind = 'reservation'").get(id);
       if (!exists) {
         return { ok: false, status: 404, error: 'Réservation introuvable.' };
+      }
+      if (addedGuests) {
+        if (!hasAddedGuestsTax) return { ok: false, status: 400, error: 'Réservation invalide.' };
+        database.prepare(`UPDATE reservations SET touristTaxAddedGuestsDeclaredAt = ${declared ? "datetime('now')" : 'NULL'}, updatedAt = datetime('now') WHERE id = ?`).run(id);
+        const row = database.prepare('SELECT touristTaxAddedGuestsDeclaredAt AS at FROM reservations WHERE id = ?').get(id);
+        return { ok: true, data: { declaredAt: row.at || null } };
       }
       if (declared) {
         database.prepare("UPDATE reservations SET touristTaxDeclaredAt = datetime('now'), updatedAt = datetime('now') WHERE id = ?").run(id);

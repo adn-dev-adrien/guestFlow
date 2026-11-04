@@ -215,7 +215,8 @@ Interactive summary: `docs/specs/2026-10-22-platform-extra-guest-complement.html
 
 - Editing the composition from the SAS (decision 2026-10-22).
 - A field showing or editing the paid base (decision 2026-10-22: one way of working).
-- Taxe de séjour of added guests (already follows the composition).
+- Taxe de séjour of added guests: true of the `owner` mode only; the `platform_reversed` mode is covered by
+  [platform-added-guests-tourist-tax.md](platform-added-guests-tourist-tax.md).
 - Notifying the guest automatically (`no-automatic-email-without-approval.md`).
 - **Pre-existing, found while planning (2026-10-22):** the quote's VAT split
   (`accommodationVatAmount`, `totalVatAmount`) leaves `extraGuestSurcharge` out. The new complement line

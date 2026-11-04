@@ -75,6 +75,9 @@ function createAccountingModel(database, { settings = createAccountSettings(data
   // specs/arrival-payment-detail-and-adjustment.md §3.4 — what the guest actually handed over for that
   // one payment, when it differs from the buckets: a réduction accordée, or a pourboire. Each gets its
   // own entry, stamped with the same group, so the card reads « voilà ce qui a été encaissé ».
+  const addedGuestsTaxCol = hasReservationColumn('touristTaxAddedGuestsAmount')
+    ? 'r.touristTaxAddedGuestsAmount'
+    : '0 AS touristTaxAddedGuestsAmount';
   const arrivalAdjustmentCols = [
     hasReservationColumn('arrivalPaymentReduction') ? 'r.arrivalPaymentReduction' : 'NULL AS arrivalPaymentReduction',
     hasReservationColumn('arrivalPaymentTip') ? 'r.arrivalPaymentTip' : 'NULL AS arrivalPaymentTip',
@@ -171,6 +174,7 @@ function createAccountingModel(database, { settings = createAccountSettings(data
                r.finalPrice, r.clientGrossAmount, r.platformCommissionAmount, r.acompteCommissionAmount,
                r.totalPrice, r.touristTaxTotal,
                r.touristTaxInComplement,
+               ${addedGuestsTaxCol},
                r.accommodationAcompteContribTtc, r.accommodationSoldeContribTtc,
                r.touristTaxAcompteContribTtc, r.touristTaxSoldeContribTtc,
                ${installmentCols},
@@ -1145,6 +1149,9 @@ function computeTaxTtcForKind(row, kind, taxRoutedToComplement, encaissementTtc,
   // this rule shipped) must still show 0 tax on the deposit and the full tax on the balance.
   // The balance CA is always ≥ the tax (balance = accommodation remainder + tax), so the
   // clamp is only a defensive guard.
+  // specs/platform-added-guests-tourist-tax.md rule 13 — the added guests' share is collected with the
+  // complement; the solde books what the platform reversed.
+  const added = round2(nz(row.touristTaxAddedGuestsAmount));
   if (kind === 'deposit') return 0;
   // specs/accounting-books-the-money-collected.md rule 13 — once the solde is paid, the tax it
   // collected is frozen in `touristTaxSoldeContribTtc` (plus the share an older acompte captured,
@@ -1154,9 +1161,11 @@ function computeTaxTtcForKind(row, kind, taxRoutedToComplement, encaissementTtc,
   const frozenInSolde = soldeFrozen && Number(row.balancePaid || 0) === 1
     ? round2(nz(row.touristTaxAcompteContribTtc) + nz(row.touristTaxSoldeContribTtc))
     : null;
-  if (kind === 'balance') return round2(Math.min(frozenInSolde != null ? frozenInSolde : total, cap));
-  if (kind === 'complement' && frozenInSolde != null) {
-    return round2(Math.min(Math.max(0, total - frozenInSolde), cap));
+  if (kind === 'balance') {
+    return round2(Math.min(frozenInSolde != null ? frozenInSolde : Math.max(0, total - added), cap));
+  }
+  if (kind === 'complement') {
+    return round2(Math.min(frozenInSolde != null ? Math.max(0, total - frozenInSolde) : added, cap));
   }
   return 0;
 }

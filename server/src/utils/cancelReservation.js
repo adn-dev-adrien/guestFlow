@@ -116,7 +116,10 @@ function saleCollectedOf(database, reservationsModel, row, vatRate) {
   const balance = Math.max(0, round2(row.balanceAmount));
   const contribs = reservationsModel.soldeContribBuckets(row.id);
   if (describes(contribs, balance)) return contribs;
-  const tax = taxRidesTheComplement(database, row) ? 0 : Math.min(Math.max(0, round2(row.touristTaxTotal)), balance);
+  // specs/platform-added-guests-tourist-tax.md rule 13 — the added guests' tax rode the complement, not this solde.
+  const tax = taxRidesTheComplement(database, row)
+    ? 0
+    : Math.min(Math.max(0, round2(Number(row.touristTaxTotal || 0) - Number(row.touristTaxAddedGuestsAmount || 0))), balance);
   return { ...storedMoneyBuckets(database, row, { kind: 'balance', revenueTtc: round2(balance - tax), vatRate }), touristTax: tax };
 }
 

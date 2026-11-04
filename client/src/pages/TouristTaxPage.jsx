@@ -58,6 +58,10 @@ function refundedTaxCaption(row) {
   return `dont ${nightsPart} (− ${formatCurrency(amount)})`;
 }
 
+// specs/platform-added-guests-tourist-tax.md rule 12 — a stay can list a second row, its added guests.
+const rowKey = (row) => `${row.reservationId}${row.addedGuestsRow ? '-added' : ''}`;
+const rowName = (row) => `${row.reservationName || 'Réservation'}${row.addedGuestsRow ? ' · voyageurs ajoutés' : ''}`;
+
 export default function TouristTaxPage() {
   const navigate = useNavigate();
   const { showError } = useToast();
@@ -83,21 +87,21 @@ export default function TouristTaxPage() {
   }, [data]);
 
   // specs/tourist-tax-declared-checkbox.md §3 — optimistic « Déclarée » toggle; revert + toast on error.
-  const patchDeclared = (reservationId, value) =>
+  const patchDeclared = (target, value) =>
     setData((prev) => (prev ? {
       ...prev,
       reservations: prev.reservations.map((r) =>
-        r.reservationId === reservationId ? { ...r, touristTaxDeclaredAt: value } : r),
+        rowKey(r) === rowKey(target) ? { ...r, touristTaxDeclaredAt: value } : r),
     } : prev));
 
   const handleToggleDeclared = async (row) => {
     const declared = !row.touristTaxDeclaredAt;
-    patchDeclared(row.reservationId, declared ? '__pending__' : null);
+    patchDeclared(row, declared ? '__pending__' : null);
     try {
-      const res = await api.setTouristTaxDeclared(row.reservationId, declared);
-      patchDeclared(row.reservationId, res.declaredAt);
+      const res = await api.setTouristTaxDeclared(row.reservationId, declared, { addedGuests: Boolean(row.addedGuestsRow) });
+      patchDeclared(row, res.declaredAt);
     } catch (e) {
-      patchDeclared(row.reservationId, row.touristTaxDeclaredAt);
+      patchDeclared(row, row.touristTaxDeclaredAt);
       showError(e.message || 'Impossible de mettre à jour la déclaration.');
     }
   };
@@ -122,7 +126,7 @@ export default function TouristTaxPage() {
         size="small"
         checked={!!row.touristTaxDeclaredAt}
         onChange={() => handleToggleDeclared(row)}
-        slotProps={{ input: { 'aria-label': `Déclarée — ${row.reservationName || 'Réservation'}` } }}
+        slotProps={{ input: { 'aria-label': `Déclarée — ${rowName(row)}` } }}
       />
     </Tooltip>
   );
@@ -180,7 +184,7 @@ export default function TouristTaxPage() {
                     </Box>
                     <ResponsiveTable
                       items={property.reservations}
-                      getKey={(row) => row.reservationId}
+                      getKey={rowKey}
                       minWidth={1080}
                       emptyText="Aucune réservation directe sur ce logement pour le mois sélectionné."
                       head={(
@@ -200,7 +204,7 @@ export default function TouristTaxPage() {
                       )}
                       renderRow={(row) => (
                         <TableRow
-                          key={row.reservationId}
+                          key={rowKey(row)}
                           hover
                           onClick={() => navigate(withFrom(`/reservations/${row.reservationId}`, '/finance/tourist-tax'))}
                           sx={{ cursor: 'pointer' }}
@@ -209,7 +213,7 @@ export default function TouristTaxPage() {
                             {declaredCheckbox(row)}
                           </TableCell>
                           <TableCell>
-                            {row.reservationName || 'Réservation'}
+                            {rowName(row)}
                             {refundedTaxCaption(row) && (
                               <Typography variant="caption" sx={{ display: 'block', color: 'warning.main' }}>
                                 {`↳ ${refundedTaxCaption(row)}`}
@@ -230,7 +234,7 @@ export default function TouristTaxPage() {
                       renderMobileCard={(row) => (
                         <Stack onClick={() => navigate(withFrom(`/reservations/${row.reservationId}`, '/finance/tourist-tax'))} sx={{ cursor: 'pointer', gap: 0.5 }}>
                           <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
-                            <Typography variant="body2" sx={{ fontWeight: 600 }}>{row.reservationName || 'Réservation'}</Typography>
+                            <Typography variant="body2" sx={{ fontWeight: 600 }}>{rowName(row)}</Typography>
                             <Box onClick={(e) => e.stopPropagation()}>{declaredCheckbox(row)}</Box>
                           </Stack>
                           <Typography variant="caption" color="text.secondary">

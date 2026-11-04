@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Taxe des voyageurs ajoutés</title>
+<style>
+:root{
+  --primary:#2F5D46;--paper:#F8F5EF;--card:#FFFFFF;--ink:#27251F;--muted:#6E6A5E;--line:#E4DED2;
+  --success:#3E7D54;--success-bg:#E6EFE7;--warning:#8F6A1D;--warning-bg:#F6EDD7;
+  --error:#A8433A;--error-bg:#F7E8E5;
+  --radius:14px;--serif:"Source Serif 4","Iowan Old Style",Georgia,serif;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.55 var(--sans)}
+::selection{background:var(--success-bg)}
+:focus-visible{outline:2px solid var(--primary);outline-offset:2px;border-radius:6px}
+main{max-width:980px;margin:0 auto;padding:40px 16px 80px}
+h1{font:600 clamp(1.8rem,4vw,2.5rem)/1.1 var(--serif);letter-spacing:-.015em;margin:0 0 10px;text-wrap:balance}
+h2{font:600 1.35rem/1.2 var(--serif);margin:48px 0 12px}
+h3{font:600 1rem/1.3 var(--sans);margin:0 0 10px}
+p{margin:0 0 12px;max-width:70ch}
+.lede{color:var(--muted);font-size:1.05rem}
+ul{margin:0;padding-left:1.1em;max-width:70ch}li{margin:4px 0}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:720px){.cols{grid-template-columns:1fr}}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px;min-width:0}
+.controls{display:flex;flex-wrap:wrap;gap:16px 24px;margin-bottom:20px}
+label.cap,.cap{display:block;font-size:.8rem;color:var(--muted);margin-bottom:4px}
+.field{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:8px;background:var(--card)}
+.field.err{border-color:var(--error);box-shadow:0 0 0 1px var(--error)}
+.field button{width:44px;height:44px;border:0;background:none;font-size:20px;color:var(--ink);cursor:pointer;border-radius:8px;touch-action:manipulation}
+.field button:active:not(:disabled){background:var(--success-bg)}
+.field button:disabled{color:var(--line);cursor:default}
+.field output{width:36px;text-align:center;font-variant-numeric:tabular-nums}
+.seg{display:inline-flex;flex-wrap:wrap;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--card)}
+.seg button{min-height:44px;padding:0 14px;border:0;background:none;font:inherit;font-size:.92rem;color:var(--ink);cursor:pointer;touch-action:manipulation}
+.seg button:active{background:var(--success-bg)}
+.seg button[aria-pressed=true]{background:var(--primary);color:#fff}
+.check{display:flex;align-items:center;gap:8px;min-height:44px;font-size:.92rem;cursor:pointer}
+.check input{width:18px;height:18px;accent-color:var(--primary)}
+.refus{color:var(--error);font-size:.85rem;min-height:1.3em;margin:0 0 12px}
+.fiche h3{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.tag{display:inline-block;padding:1px 8px;border-radius:99px;font-size:.78rem;font-weight:500;white-space:nowrap}
+.tag.good{background:var(--success-bg);color:var(--primary)}.tag.bad{background:var(--error-bg);color:var(--error)}
+.tag.c{background:var(--warning-bg);color:var(--warning)}
+.l{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-top:1px solid var(--line);align-items:baseline}
+.l span:first-child{min-width:0}
+.l .m{font-variant-numeric:tabular-nums;white-space:nowrap}
+.l.strong{font-weight:600}
+.l small{display:block;color:var(--muted);font-size:.8rem;font-weight:400}
+.l.new{background:var(--success-bg);margin:0 -10px;padding:9px 10px;border-radius:8px;border-top-color:transparent}
+.moved{color:var(--error)}
+s{color:var(--muted)}
+.bilan{margin:12px 0 0;font-size:.9rem;min-height:3em}
+.bilan.bad{color:var(--error)}.bilan.good{color:var(--success)}
+.scroll{overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:var(--radius)}
+table{border-collapse:collapse;width:100%;font-size:.9rem;font-variant-numeric:tabular-nums}
+th,td{padding:8px 12px;text-align:left;border-bottom:1px solid var(--line)}
+th{color:var(--muted);font-weight:500}tr:last-child td{border-bottom:0}
+td:first-child{white-space:nowrap}
+.decide{background:var(--warning-bg);border-radius:var(--radius);padding:16px 20px}
+.decide p:last-child,.decide ul:last-child{margin-bottom:0}
+@media(prefers-reduced-motion:no-preference){.field button,.seg button{transition:background-color .1s ease-out}}
+</style>
+</head>
+<body>
+<main>
+<h1>Taxe de séjour des voyageurs ajoutés</h1>
+<p class="lede">Une plateforme qui nous reverse la taxe ne reverse que celle du groupe vendu. Quand des voyageurs s'ajoutent, leur taxe passe dans le complément.</p>
+
+<h2>Essayer</h2>
+<p>Séjour de 2 nuits à 600 € sur la plateforme, vendu à 2 adultes. 2 personnes incluses, supplément de 20 € par voyageur et par nuit.</p>
+<div class="panel" style="margin-bottom:16px">
+  <div class="controls">
+    <div><span class="cap" id="capA">Adultes</span><span class="field" id="fA"><button data-t="a" data-d="-1" aria-label="Retirer un adulte">−</button><output id="a" aria-labelledby="capA">3</output><button data-t="a" data-d="1" aria-label="Ajouter un adulte">+</button></span></div>
+    <div><span class="cap" id="capC">Enfants</span><span class="field" id="fC"><button data-t="c" data-d="-1" aria-label="Retirer un enfant">−</button><output id="c" aria-labelledby="capC">0</output><button data-t="c" data-d="1" aria-label="Ajouter un enfant">+</button></span></div>
+    <div><span class="cap">La plateforme</span><span class="seg" id="mode"><button data-v="platform_reversed" aria-pressed="true">nous reverse la taxe</button><button data-v="platform" aria-pressed="false">la verse à la commune</button></span></div>
+    <div><span class="cap">Taxe du logement</span><span class="seg" id="tax"><button data-v="day" aria-pressed="true">1,20 € / adulte / nuit</button><button data-v="pct" aria-pressed="false">5 % du prix</button></span></div>
+    <div><span class="cap">État</span><label class="check"><input type="checkbox" id="frozen"> Solde plateforme déjà payé (taxe figée)</label><label class="check"><input type="checkbox" id="paid"> Complément encaissé à 3 adultes, un 4e arrive</label></div>
+  </div>
+  <p class="refus" id="refus" role="status"></p>
+  <div class="cols">
+    <div class="fiche"><h3>Aujourd'hui <span class="tag bad">Défaut</span></h3><div id="before"></div><p class="bilan bad" id="bBefore"></p></div>
+    <div class="fiche"><h3>Avec la spec <span class="tag good">Proposé</span></h3><div id="after"></div><p class="bilan good" id="bAfter"></p></div>
+  </div>
+</div>
+<p style="font-size:.85rem;color:var(--muted)">La colonne « Aujourd'hui » reprend les chiffres relevés sur le moteur actuel. Les montants sont calculés dans cette page pour la démonstration ; en vrai, tout vient du serveur.</p>
+
+<h2>Le constat</h2>
+<div class="scroll"><table>
+<thead><tr><th>La plateforme</th><th>Passage de 2 à 3 adultes aujourd'hui</th><th>Après</th></tr></thead>
+<tbody>
+<tr><td>Nous reverse la taxe</td><td>Les 2,40 € sortent de l'hébergement. La taxe à déclarer monte, le client ne paie rien.</td><td>2,40 € au complément</td></tr>
+<tr><td>La verse à la commune</td><td>Les 2,40 € ne sont ni encaissés ni déclarés.</td><td>Inchangé (arbitrage du 03/11)</td></tr>
+<tr><td>Ne la collecte pas</td><td>Déjà correct : toute la taxe est au complément.</td><td>Inchangé</td></tr>
+</tbody></table></div>
+
+<h2>Ce qu'on propose</h2>
+<div class="cols">
+  <div class="panel"><h3>Le calcul</h3><ul>
+    <li>Taxe du groupe actuel moins taxe du groupe payé, jamais négative.</li>
+    <li>Le groupe payé est relevé à la saisie du montant plateforme, sans nouveau champ.</li>
+    <li>La règle lit le mode de la plateforme, jamais son nom.</li>
+    <li>Un écart d'arrondi de quelques centimes compte pour zéro.</li>
+  </ul></div>
+  <div class="panel"><h3>Où ça apparaît</h3><ul>
+    <li>Une ligne sur la fiche, avec le supplément déjà en place.</li>
+    <li>La ligne « Taxe de séjour » du SAS, du mail J-2 et du lien de paiement.</li>
+    <li>Suivi taxe de séjour et compte 46710000, une fois le complément encaissé.</li>
+    <li>Si le séjour est déjà coché « Déclarée », une ligne à part le mois de l'encaissement : la déclaration faite ne bouge pas.</li>
+    <li>Pas de bouton « Offrir » : c'est une dette envers la commune.</li>
+  </ul></div>
+</div>
+
+<h2>Ce qu'on ne fait pas</h2>
+<ul>
+  <li>Rien sur les plateformes qui versent la taxe à la commune.</li>
+  <li>Pas de rattrapage : les voyageurs ajoutés avant la version ne sont pas facturés, aucun montant existant ne bouge.</li>
+  <li>Une fois le complément d'arrivée encaissé, un voyageur de plus ne crée plus de ligne, comme pour le supplément.</li>
+</ul>
+
+<h2>Le risque</h2>
+<ul>
+  <li>Le moteur de prix et la déclaration sont touchés : on rejoue chaque mode au centime et on vérifie que les totaux existants ne bougent pas.</li>
+  <li>Une fiche où le brut est saisi avant de corriger le groupe verra une taxe en plus, comme le supplément aujourd'hui.</li>
+</ul>
+</main>
+<script>
+const r=n=>Math.round((n+Number.EPSILON)*100)/100;
+const eur=n=>n.toFixed(2).replace('.',',')+' €';
+const st={a:3,c:0,mode:'platform_reversed',tax:'day',paid:false,frozen:false};
+const N=2,BRUT=600,INC=2,PA=2,PG=2,MAX=8,SUP=40;
+function tax(a,occ,base){
+  if(st.tax==='day')return r(1.2*N*a);
+  if(!occ)return 0;
+  const ht=r(r(base/N)/1.1),per=r(ht/occ),u=r(per*.05);
+  return r(u*N*a);
+}
+function calc(){
+  const p=st.a+st.c,extra=Math.max(0,p-INC),comp=Math.max(0,p-Math.max(INC,PG));
+  return{p,inBrut:(extra-comp)*SUP,sup:comp*SUP,comp};
+}
+function before(){
+  const{inBrut,sup}=calc(),base=BRUT-inBrut,s=st.paid?SUP:sup;
+  if(st.mode!=='platform_reversed')return{acc:base,tax:0,struck:tax(PA,PG,BRUT),sup:s,add:0,compl:s,total:r(BRUT+s)};
+  const t=st.frozen?tax(PA,PG,base):tax(st.a,st.a+st.c,base);
+  return{acc:r(base-t),tax:t,sup:s,add:0,compl:s,total:r(BRUT+s)};
+}
+function after(){
+  if(st.mode!=='platform_reversed')return{...before(),note:'Inchangé : cette plateforme reste hors périmètre.',same:true};
+  const{inBrut,sup}=calc(),base=BRUT-inBrut,paidT=tax(PA,PG,base);
+  // Rule 7: a collected complement keeps its amount. Rule 7bis: a frozen tax does not stop the line.
+  const liveA=st.paid?PA+1:st.a,liveO=st.paid?PG+1:st.a+st.c,s=st.paid?SUP:sup;
+  let d=Math.max(0,r(tax(liveA,liveO,base)-paidT));
+  if(st.tax==='pct'&&d<=r(.01*N*liveA))d=0;
+  const note=st.paid?'Complément encaissé : le 4e adulte ne change plus rien, le montant reste celui perçu.':(st.frozen&&d>0?`Part figée inchangée, ${eur(d)} en plus au complément.`:'');
+  return{acc:r(base-paidT),tax:r(paidT+d),sup:s,add:d,compl:r(s+d),total:r(BRUT+s+d),note};
+}
+const line=(l,m,c='',sub='')=>`<div class="l ${c}"><span>${l}${sub?`<small>${sub}</small>`:''}</span><span class="m">${m}</span></div>`;
+function fiche(q){
+  let h=line('Hébergement',eur(q.acc));
+  if(q.struck!=null)h+=line('Taxe de séjour (plateforme)',`<s>${eur(q.struck)}</s>`);
+  else h+=line('Taxe de séjour',eur(q.tax));
+  if(q.sup>0)h+=line('Voyageurs ajoutés <span class="tag c">Complément</span>',eur(q.sup));
+  if(q.add>0)h+=line('Taxe de séjour · voyageurs ajoutés <span class="tag c">Complément</span>',eur(q.add),'new');
+  h+=line('Complément à percevoir',eur(q.compl),'strong');
+  h+=line('Total du séjour',eur(q.total),'strong');
+  return h;
+}
+function render(){
+  a.textContent=st.a;c.textContent=st.c;
+  const b=before(),f=after();
+  document.getElementById('before').innerHTML=fiche(b);
+  document.getElementById('after').innerHTML=fiche(f);
+  const miss=f.add;
+  bBefore.textContent=f.same?'Pas de changement.':miss>0?(st.frozen?`${eur(miss)} de taxe due sur ces voyageurs, nulle part sur la fiche.`:`${eur(miss)} de taxe pris sur l'hébergement. Le client ne les paie pas.`):'Pas d\'écart sur ce groupe.';
+  bAfter.textContent=f.note||(miss>0?`${eur(miss)} encaissés à l'arrivée et déclarés. Hébergement inchangé.`:(st.tax==='pct'?'Au pourcentage, la taxe totale ne monte pas ici : rien à percevoir.':'Rien à percevoir : seuls les adultes paient la taxe.'));
+}
+function refuse(m){refus.textContent=m;}
+document.querySelectorAll('.field button').forEach(x=>x.addEventListener('click',()=>{
+  const k=x.dataset.t,d=+x.dataset.d,n=st[k]+d;refuse('');
+  fA.classList.remove('err');fC.classList.remove('err');
+  if(k==='a'&&n<1){refuse('Il faut au moins un adulte.');fA.classList.add('err');return;}
+  if(n<0)return;
+  if(st.a+st.c+d>MAX&&d>0){refuse('Capacité du logement dépassée : 8 personnes au maximum.');(k==='a'?fA:fC).classList.add('err');return;}
+  if(st.paid){st.paid=false;paid.checked=false;}
+  st[k]=n;render();
+}));
+function seg(id,key){document.querySelectorAll(`#${id} button`).forEach(x=>x.addEventListener('click',()=>{
+  st[key]=x.dataset.v;document.querySelectorAll(`#${id} button`).forEach(y=>y.setAttribute('aria-pressed',y===x));render();}));}
+seg('mode','mode');seg('tax','tax');
+paid.addEventListener('change',()=>{st.paid=paid.checked;if(st.paid){st.a=4;st.c=0;refuse('');}else{st.a=3;}render();});
+frozen.addEventListener('change',()=>{st.frozen=frozen.checked;render();});
+render();
+</script>
+</body>
+</html>

@@ -83,7 +83,7 @@ test('« Déclarée » checkbox reflects touristTaxDeclaredAt and toggling PATCH
   expect(declared).toBeChecked();
 
   fireEvent.click(undeclared);
-  await waitFor(() => expect(api.setTouristTaxDeclared).toHaveBeenCalledWith(7, true));
+  await waitFor(() => expect(api.setTouristTaxDeclared).toHaveBeenCalledWith(7, true, { addedGuests: false }));
   expect(navigateSpy).not.toHaveBeenCalled();
   await waitFor(() => expect(screen.getByLabelText('Déclarée — Jean Dupont')).toBeChecked());
 });
