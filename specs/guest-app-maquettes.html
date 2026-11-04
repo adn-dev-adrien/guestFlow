@@ -1,0 +1,506 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mon séjour — maquettes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --fir:#2F5D46; --fir-d:#24493A; --fir-soft:#E3ECE6; --honey:#C99038; --honey-soft:#F6EBD6;
+  --paper:#F7F4EE; --card:#FFFFFF; --ink:#27251F; --muted:#6E6A5E; --line:#E6E1D6;
+  --ok:#3E7D54; --ok-soft:#E6EFE7; --warn:#8F6A1D; --warn-soft:#F6EDD7; --bad:#A8433A;
+  --page:#ECE8DF; --frame:#1B1A17; --shadow:0 10px 30px rgba(39,37,31,.12);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#16171A; --card:#202226; --ink:#EDEAE3; --muted:#A39E92; --line:#33352F;
+    --fir-soft:#1F3229; --honey-soft:#3A2E19; --ok-soft:#1C3024; --warn-soft:#352B16; --page:#0F1012;
+    --shadow:0 10px 30px rgba(0,0,0,.4);
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#16171A; --card:#202226; --ink:#EDEAE3; --muted:#A39E92; --line:#33352F;
+  --fir-soft:#1F3229; --honey-soft:#3A2E19; --ok-soft:#1C3024; --warn-soft:#352B16; --page:#0F1012;
+  --shadow:0 10px 30px rgba(0,0,0,.4);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--page);color:var(--ink);font:14px/1.45 Inter,system-ui,sans-serif}
+.serif{font-family:"Source Serif 4",Georgia,serif}
+main{max-width:1320px;margin:0 auto;padding:32px 16px 80px}
+header.doc h1{font:600 34px/1.1 "Source Serif 4",Georgia,serif;margin:0 0 8px}
+header.doc p{color:var(--muted);max-width:760px;margin:0 0 6px}
+.toggle{margin-top:12px;display:flex;gap:8px}
+.toggle button{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;padding:6px 14px;font:500 13px Inter;cursor:pointer}
+section.row{margin-top:44px}
+section.row>h2{font:600 22px "Source Serif 4",Georgia,serif;margin:0 0 4px}
+section.row>p{color:var(--muted);margin:0 0 18px;max-width:820px}
+.phones{display:flex;gap:28px;flex-wrap:wrap}
+.phone-wrap{display:flex;flex-direction:column;gap:10px;align-items:center}
+.phone-wrap figcaption{font-size:12px;color:var(--muted);text-align:center;max-width:300px}
+.phone{width:300px;height:620px;border-radius:44px;background:var(--frame);padding:10px;box-shadow:var(--shadow);flex:none}
+.screen{position:relative;width:100%;height:100%;border-radius:35px;overflow:hidden;background:var(--paper)}
+.notch{position:absolute;top:8px;left:50%;transform:translateX(-50%);width:90px;height:24px;background:var(--frame);border-radius:20px;z-index:20}
+.scroll{position:absolute;inset:0;overflow:hidden}
+/* photo placeholders */
+.ph-granja{background:radial-gradient(120% 80% at 70% 10%,#F2C98B 0,#D98F4E 30%,#7D5A3A 60%,#2F3B2E 100%)}
+.ph-estiva{background:radial-gradient(120% 90% at 30% 0%,#CFE3E8 0,#8DB5B0 35%,#4E7A63 65%,#22382C 100%)}
+.ph-bath{background:radial-gradient(90% 70% at 50% 30%,#FFE2B8 0,#C98B55 40%,#3A3530 100%)}
+.ph-cider{background:linear-gradient(160deg,#F5D27A,#C98A2E 60%,#7A4E1C)}
+.ph-wine{background:linear-gradient(160deg,#C25B6B,#7A2433 60%,#3D1018)}
+.ph-cheese{background:linear-gradient(160deg,#FFF1C9,#E7C277 55%,#A9813B)}
+.ph-wood{background:linear-gradient(160deg,#C59A6D,#7F5634 60%,#3F2A1A)}
+.ph-bread{background:linear-gradient(160deg,#F3D9A6,#C99556 60%,#7D5328)}
+.ph-forest{background:linear-gradient(160deg,#9CC59F,#4E8460 55%,#1F3B2B)}
+.ph-house{background:linear-gradient(160deg,#E9DCC6,#B9A07D 55%,#6F5A3F)}
+/* home */
+.hero{height:300px;position:relative;color:#fff}
+.hero::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.05) 30%,rgba(0,0,0,.55) 100%)}
+.hero .top{position:absolute;top:40px;left:16px;right:16px;display:flex;justify-content:space-between;align-items:center;z-index:2}
+.brand{font:600 13px Inter;letter-spacing:.08em;text-transform:uppercase;opacity:.95}
+.lang{font:600 11px Inter;background:rgba(255,255,255,.22);backdrop-filter:blur(8px);border-radius:999px;padding:5px 10px}
+.hero .greet{position:absolute;left:18px;bottom:78px;z-index:2}
+.hero .greet small{display:block;font:500 12px Inter;opacity:.9}
+.hero .greet h3{font:600 30px/1.05 "Source Serif 4",Georgia,serif;margin:2px 0 0}
+.staycard{position:relative;margin:-64px 14px 0;z-index:3;background:color-mix(in srgb,var(--card) 88%,transparent);backdrop-filter:blur(14px);border-radius:22px;padding:14px 16px;box-shadow:var(--shadow);display:flex;gap:12px;align-items:center}
+.staycard .dates{flex:1}
+.staycard .dates b{display:block;font:600 15px Inter}
+.staycard .dates span{color:var(--muted);font-size:12px}
+.ring{width:48px;height:48px;border-radius:50%;background:conic-gradient(var(--fir) 0 50%,var(--fir-soft) 50% 100%);display:grid;place-items:center}
+.ring i{width:38px;height:38px;border-radius:50%;background:var(--card);display:grid;place-items:center;font:700 11px Inter;font-style:normal;color:var(--fir)}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:16px 14px 6px}
+.tile{background:var(--card);border-radius:18px;padding:12px 6px 10px;text-align:center;box-shadow:0 1px 0 var(--line);font:600 11.5px Inter}
+.tile .ic{width:40px;height:40px;margin:0 auto 6px;border-radius:13px;display:grid;place-items:center}
+.ic svg{width:22px;height:22px}
+.ic.g{background:var(--fir-soft);color:var(--fir)} .ic.h{background:var(--honey-soft);color:var(--honey)}
+.highlight{margin:10px 14px;border-radius:18px;padding:12px 14px;display:flex;gap:12px;align-items:center;background:linear-gradient(120deg,var(--fir),#3E7A5C);color:#fff}
+.highlight .thumb{width:46px;height:46px;border-radius:12px;flex:none}
+.highlight b{display:block;font:600 13px Inter}
+.highlight span{font-size:11.5px;opacity:.85}
+.strip-title{padding:8px 16px 6px;font:600 13px Inter;display:flex;justify-content:space-between}
+.strip-title a{color:var(--fir);font-weight:600;text-decoration:none;font-size:12px}
+.strip{display:flex;gap:10px;padding:0 14px}
+.strip .pc{width:118px;height:84px;border-radius:14px;flex:none;position:relative;color:#fff;overflow:hidden}
+.strip .pc span{position:absolute;left:8px;bottom:7px;font:600 11.5px Inter;text-shadow:0 1px 4px rgba(0,0,0,.4)}
+/* tab bar */
+.tabbar{position:absolute;left:0;right:0;bottom:0;height:72px;background:color-mix(in srgb,var(--card) 92%,transparent);backdrop-filter:blur(12px);border-top:1px solid var(--line);display:flex;justify-content:space-around;padding:8px 6px 18px;z-index:10}
+.tabbar div{display:flex;flex-direction:column;align-items:center;gap:3px;font:500 10.5px Inter;color:var(--muted)}
+.tabbar div.on{color:var(--fir)}
+.tabbar svg{width:22px;height:22px}
+.badge{position:absolute;top:-4px;right:-8px;background:var(--honey);color:#fff;border-radius:999px;font:700 9px Inter;padding:1px 5px}
+/* app bar */
+.appbar{position:absolute;top:0;left:0;right:0;padding:42px 16px 10px;background:var(--paper);z-index:5;display:flex;align-items:center;gap:10px}
+.appbar .back{width:34px;height:34px;border-radius:50%;background:var(--card);display:grid;place-items:center;box-shadow:0 1px 0 var(--line)}
+.appbar h4{margin:0;font:600 18px "Source Serif 4",Georgia,serif;flex:1}
+.content{position:absolute;top:86px;left:0;right:0;bottom:72px;overflow:hidden;padding:0 14px}
+/* booklet page */
+.cover{height:150px;border-radius:20px;position:relative;color:#fff;overflow:hidden;margin-bottom:12px}
+.cover::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,transparent 40%,rgba(0,0,0,.5))}
+.cover h5{position:absolute;left:14px;bottom:10px;margin:0;font:600 22px "Source Serif 4",serif;z-index:2}
+.wifi{background:var(--card);border-radius:18px;padding:14px;display:flex;gap:12px;align-items:center;border:1px dashed var(--line);margin-bottom:12px}
+.wifi .qr{width:58px;height:58px;border-radius:10px;background:
+  repeating-linear-gradient(90deg,var(--ink) 0 4px,transparent 4px 8px),repeating-linear-gradient(0deg,var(--ink) 0 4px,transparent 4px 9px);opacity:.85;flex:none}
+.wifi small{color:var(--muted);font-size:11px;display:block}
+.wifi b{font:600 14px Inter;display:block}
+.copy{margin-left:auto;font:600 11px Inter;color:var(--fir);background:var(--fir-soft);padding:6px 10px;border-radius:999px}
+.steps{position:relative;padding-left:26px}
+.steps::before{content:"";position:absolute;left:10px;top:6px;bottom:6px;width:2px;background:var(--line)}
+.step{position:relative;margin-bottom:12px}
+.step::before{content:attr(data-n);position:absolute;left:-26px;top:0;width:22px;height:22px;border-radius:50%;background:var(--fir);color:#fff;font:700 11px Inter;display:grid;place-items:center}
+.step b{font:600 13px Inter;display:block}
+.step span{color:var(--muted);font-size:12px}
+.callout{background:var(--warn-soft);color:var(--warn);border-radius:14px;padding:10px 12px;font-size:12px;display:flex;gap:8px}
+/* shop */
+.chips{display:flex;gap:8px;margin-bottom:12px}
+.chip{padding:7px 12px;border-radius:999px;background:var(--card);font:600 12px Inter;border:1px solid var(--line);white-space:nowrap}
+.chip.on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.prod{background:var(--card);border-radius:18px;overflow:hidden;box-shadow:0 1px 0 var(--line)}
+.prod .img{height:92px;position:relative}
+.prod .add{position:absolute;right:8px;bottom:-14px;width:30px;height:30px;border-radius:50%;background:var(--fir);color:#fff;display:grid;place-items:center;font:600 18px Inter;box-shadow:var(--shadow)}
+.prod .t{padding:16px 10px 10px}
+.prod .t b{display:block;font:600 12.5px Inter}
+.prod .t span{color:var(--muted);font-size:11.5px}
+.feature{border-radius:20px;height:118px;position:relative;color:#fff;overflow:hidden;margin-bottom:12px;padding:14px}
+.feature::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(0,0,0,.55),transparent)}
+.feature *{position:relative;z-index:2}
+.feature small{font:600 10.5px Inter;letter-spacing:.08em;text-transform:uppercase;opacity:.9}
+.feature b{display:block;font:600 19px/1.15 "Source Serif 4",serif;margin:4px 0 8px;max-width:170px}
+.feature span{font:600 11px Inter;background:#fff;color:var(--ink);padding:5px 10px;border-radius:999px}
+.cartbar{position:absolute;left:12px;right:12px;bottom:82px;height:52px;border-radius:16px;background:var(--fir);color:#fff;display:flex;align-items:center;padding:0 14px;gap:10px;z-index:11;box-shadow:0 10px 24px rgba(47,93,70,.35)}
+.cartbar .n{width:26px;height:26px;border-radius:8px;background:rgba(255,255,255,.18);display:grid;place-items:center;font:700 12px Inter}
+.cartbar b{flex:1;font:600 13.5px Inter}
+.cartbar span{font:700 14px Inter}
+/* sheet */
+.dim{position:absolute;inset:0;background:rgba(0,0,0,.35);z-index:12}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:var(--card);border-radius:26px 26px 0 0;z-index:13;padding:10px 16px 22px}
+.grab{width:40px;height:5px;border-radius:9px;background:var(--line);margin:0 auto 12px}
+.sheet h6{margin:0 0 4px;font:600 20px "Source Serif 4",serif}
+.sheet p{margin:0 0 12px;color:var(--muted);font-size:12.5px}
+.stepper{display:flex;align-items:center;gap:14px;background:var(--paper);border-radius:14px;padding:6px;width:max-content}
+.stepper i{width:36px;height:36px;border-radius:11px;background:var(--card);display:grid;place-items:center;font:600 18px Inter;font-style:normal}
+.stepper b{font:700 16px Inter;min-width:16px;text-align:center}
+.cta{margin-top:14px;height:50px;border-radius:15px;background:var(--fir);color:#fff;display:flex;align-items:center;justify-content:center;font:600 14.5px Inter}
+.cta.ghost{background:var(--paper);color:var(--ink)}
+/* slots */
+.days{display:flex;gap:8px;margin-bottom:12px}
+.day{flex:1;border-radius:14px;padding:8px 4px;text-align:center;background:var(--card);border:1px solid var(--line);font:500 11px Inter;color:var(--muted)}
+.day b{display:block;font:700 16px Inter;color:var(--ink)}
+.day.on{background:var(--fir);border-color:var(--fir);color:#fff}
+.day.on b{color:#fff}
+.slots{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.slot{border-radius:14px;padding:10px;background:var(--card);border:1px solid var(--line)}
+.slot b{display:block;font:600 13.5px Inter}
+.slot span{font-size:11px;color:var(--muted)}
+.slot.eve span{color:var(--honey)}
+.slot.off{opacity:.45;text-decoration:line-through}
+.slot.on{border:2px solid var(--fir);background:var(--fir-soft)}
+.free{display:flex;gap:8px;align-items:center;background:var(--ok-soft);color:var(--ok);border-radius:12px;padding:8px 10px;font:500 11.5px Inter;margin-bottom:12px}
+/* cart */
+.line{display:flex;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
+.line .th{width:44px;height:44px;border-radius:12px;flex:none}
+.line .d{flex:1}
+.line .d b{display:block;font:600 12.5px Inter}
+.line .d span{font-size:11px;color:var(--muted)}
+.line .p{font:600 13px Inter}
+.total{display:flex;justify-content:space-between;padding:12px 0 6px;font:700 16px Inter}
+.pay{display:grid;gap:10px;margin-top:6px}
+.paycard{border:1.5px solid var(--line);border-radius:16px;padding:12px;display:flex;gap:12px;align-items:center;background:var(--card)}
+.paycard.on{border-color:var(--fir);background:var(--fir-soft)}
+.paycard .ic{width:38px;height:38px;border-radius:12px}
+.paycard b{display:block;font:600 13px Inter}
+.paycard span{font-size:11.5px;color:var(--muted)}
+.field{border:1.5px solid var(--fir);border-radius:14px;padding:10px 12px;font:500 15px Inter;margin:6px 0}
+.field small{display:block;color:var(--muted);font-size:10.5px}
+/* gate */
+.gate{display:flex;flex-direction:column;align-items:center;padding-top:20px}
+.gbtn{width:190px;height:190px;border-radius:50%;background:radial-gradient(circle at 50% 35%,#4D8C6B,var(--fir) 60%,var(--fir-d));color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;box-shadow:0 0 0 14px var(--fir-soft),0 0 0 28px color-mix(in srgb,var(--fir-soft) 50%,transparent),0 20px 40px rgba(47,93,70,.35);font:600 15px Inter}
+.gbtn svg{width:46px;height:46px}
+.code{margin-top:44px;text-align:center}
+.code small{color:var(--muted);font-size:11.5px}
+.code b{display:block;font:700 34px/1.1 ui-monospace,Menlo,monospace;letter-spacing:.18em;margin:4px 0}
+.valid{margin-top:12px;display:flex;gap:8px;align-items:center;background:var(--ok-soft);color:var(--ok);padding:7px 12px;border-radius:999px;font:600 11.5px Inter}
+/* tablet */
+.tablet{width:100%;max-width:1060px;aspect-ratio:4/2.75;border-radius:34px;background:var(--frame);padding:14px;box-shadow:var(--shadow)}
+.tablet .screen{border-radius:22px;display:flex}
+.rail{width:84px;background:var(--card);border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;padding:22px 0;gap:20px}
+.rail .logo{width:42px;height:42px;border-radius:14px;background:var(--fir);color:#fff;display:grid;place-items:center;font:600 18px "Source Serif 4",serif}
+.rail div{display:flex;flex-direction:column;align-items:center;gap:4px;font:500 10.5px Inter;color:var(--muted)}
+.rail div.on{color:var(--fir)}
+.rail svg{width:24px;height:24px}
+.tmain{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.thero{height:38%;position:relative;color:#fff;padding:24px 28px;display:flex;align-items:flex-end}
+.thero::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(0,0,0,.55),rgba(0,0,0,.05))}
+.thero *{position:relative;z-index:2}
+.thero h3{font:600 34px/1 "Source Serif 4",serif;margin:4px 0 0}
+.tbody{flex:1;display:grid;grid-template-columns:1.25fr 1fr;gap:18px;padding:18px 24px;overflow:hidden}
+.tbody .tiles{grid-template-columns:repeat(3,1fr);padding:0}
+.panel{background:var(--card);border-radius:20px;padding:16px;box-shadow:0 1px 0 var(--line);overflow:hidden}
+.panel h4{margin:0 0 8px;font:600 17px "Source Serif 4",serif}
+/* studio */
+.studio{width:100%;max-width:1060px;border-radius:16px;overflow:hidden;box-shadow:var(--shadow);background:var(--card);border:1px solid var(--line)}
+.sbar{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line)}
+.sbar b{font:600 15px "Source Serif 4",serif;flex:1}
+.ibtn{width:36px;height:36px;border-radius:10px;border:1px solid var(--line);display:grid;place-items:center;color:var(--muted)}
+.ibtn.save{background:var(--fir);border-color:var(--fir);color:#fff}
+.ibtn.pub{border-color:var(--ok);color:var(--ok)}
+.ibtn svg{width:18px;height:18px}
+.sgrid{display:grid;grid-template-columns:200px 1fr 260px;min-height:420px}
+.spages{border-right:1px solid var(--line);padding:12px}
+.spages div{padding:8px 10px;border-radius:10px;font:500 12.5px Inter;display:flex;gap:8px;align-items:center;color:var(--muted)}
+.spages div.on{background:var(--fir-soft);color:var(--fir);font-weight:600}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--ok)}
+.dot.d{background:var(--honey)}
+.seditor{padding:14px 18px;background:var(--paper)}
+.sblock{background:var(--card);border-radius:14px;border:1px solid var(--line);padding:12px;margin-bottom:10px}
+.sblock .h{display:flex;justify-content:space-between;font:600 11px Inter;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px}
+.bi{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.bi div{border:1px solid var(--line);border-radius:10px;padding:8px;font-size:12px;min-height:44px}
+.bi div small{display:block;color:var(--muted);font:600 10px Inter;margin-bottom:2px}
+.palette{display:flex;gap:6px;flex-wrap:wrap}
+.palette span{font:600 11px Inter;padding:6px 10px;border-radius:999px;border:1px dashed var(--line);color:var(--muted);background:var(--card)}
+.spreview{border-left:1px solid var(--line);display:grid;place-items:center;padding:12px;background:var(--card)}
+.mini{width:200px;height:400px;border-radius:30px;background:var(--frame);padding:7px}
+.mini .screen{border-radius:24px;padding:10px;font-size:9px}
+@media (max-width:760px){
+  .sgrid{grid-template-columns:1fr}.spages,.spreview{display:none}
+  .tbody{grid-template-columns:1fr}.rail{width:60px}
+}
+</style>
+</head>
+<body>
+<main>
+<header class="doc">
+  <h1>Mon séjour — l'app des clients de La Granja et L'Estiva</h1>
+  <p>Maquettes de la spec <code>specs/guest-app.md</code>. Les photos sont des aplats de couleur en attendant les vraies : l'app est pensée « photo d'abord ». On y retrouve la palette et les polices de GuestFlow (vert sapin, miel, papier chaud, Source Serif 4 et Inter). Le mode sombre s'active automatiquement le soir.</p>
+  <p>Inspirations : les « boarding pass » d'Enso Connect et de Duve pour l'accueil personnalisé, Touch Stay pour le livret, les apps de commande d'hôtels boutique pour la boutique.</p>
+  <div class="toggle"><button onclick="document.documentElement.dataset.theme='light'">Clair</button><button onclick="document.documentElement.dataset.theme='dark'">Sombre</button><button onclick="delete document.documentElement.dataset.theme">Système</button></div>
+</header>
+
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="i-gate" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 21V8l4-3 4 3v13M13 21V8l4-3 4 3v13M3 12h18M3 16h18"/></symbol>
+  <symbol id="i-wifi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M2 9a15 15 0 0 1 20 0M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0"/><circle cx="12" cy="19.5" r="1" fill="currentColor"/></symbol>
+  <symbol id="i-bag" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8h14l-1 12H6L5 8z"/><path d="M9 8a3 3 0 0 1 6 0"/></symbol>
+  <symbol id="i-bath" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 13h18v2a5 5 0 0 1-5 5H8a5 5 0 0 1-5-5v-2zM8 9c0-2 2-2 2-4M12 9c0-2 2-2 2-4M16 9c0-2 2-2 2-4"/></symbol>
+  <symbol id="i-map" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2zM9 4v14M15 6v14"/></symbol>
+  <symbol id="i-book" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2V5z"/><path d="M4 19a2 2 0 0 1 2-2h13"/></symbol>
+  <symbol id="i-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M3 11 12 4l9 7v9h-6v-6H9v6H3z"/></symbol>
+  <symbol id="i-receipt" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2zM9 8h6M9 12h6"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 5l-7 7 7 7"/></symbol>
+  <symbol id="i-card" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="m5 12 4 4 10-10"/></symbol>
+  <symbol id="i-save" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 3h11l3 3v15H5z"/><path d="M8 3v5h7V3M8 21v-6h8v6"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 19V5M5 12l7-7 7 7"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></symbol>
+</svg>
+
+<!-- ============ MOBILE ============ -->
+<section class="row">
+  <h2>1. Arrivée : on scanne le QR du logement</h2>
+  <p>Le QR collé dans le logement ouvre l'accueil personnalisé du séjour en cours, sans application à télécharger. Les tuiles donnent l'essentiel en un geste. Une seule carte « à la une », choisie par le serveur selon le moment du séjour.</p>
+  <div class="phones">
+    <figure class="phone-wrap"><div class="phone"><div class="screen"><div class="notch"></div><div class="scroll">
+      <div class="hero ph-estiva">
+        <div class="top"><span class="brand">Domaine Solio</span><span class="lang">FR · EN</span></div>
+        <div class="greet"><small>L'Estiva</small><h3>Bonjour Marie</h3></div>
+      </div>
+      <div class="staycard">
+        <div class="dates"><b>6 → 9 octobre</b><span>Jour 2 sur 3 · départ jeudi avant 10 h</span></div>
+        <div class="ring"><i>J2</i></div>
+      </div>
+      <div class="tiles">
+        <div class="tile"><div class="ic g"><svg><use href="#i-gate"/></svg></div>Portail</div>
+        <div class="tile"><div class="ic g"><svg><use href="#i-wifi"/></svg></div>Wifi</div>
+        <div class="tile"><div class="ic h"><svg><use href="#i-bag"/></svg></div>Boutique</div>
+        <div class="tile"><div class="ic h"><svg><use href="#i-bath"/></svg></div>Bain nordique</div>
+        <div class="tile"><div class="ic g"><svg><use href="#i-map"/></svg></div>Soliomap</div>
+        <div class="tile"><div class="ic g"><svg><use href="#i-book"/></svg></div>Livret</div>
+      </div>
+      <div class="highlight"><div class="thumb ph-bath"></div><div><b>Prolongez votre bain ce soir</b><span>Créneau libre à 20 h · dès 15 €</span></div></div>
+      <div class="strip-title">Le livret <a>Tout voir</a></div>
+      <div class="strip"><div class="pc ph-house"><span>Le logement</span></div><div class="pc ph-forest"><span>Le domaine</span></div><div class="pc ph-bath"><span>Bain nordique</span></div></div>
+    </div>
+    <div class="tabbar"><div class="on"><svg><use href="#i-home"/></svg>Accueil</div><div><svg><use href="#i-book"/></svg>Livret</div><div style="position:relative"><svg><use href="#i-bag"/></svg>Boutique</div><div><svg><use href="#i-receipt"/></svg>Commandes</div></div>
+    </div></div><figcaption>Accueil — séjour en cours (téléphone, 390 px)</figcaption></figure>
+
+    <figure class="phone-wrap"><div class="phone"><div class="screen"><div class="notch"></div>
+      <div class="appbar"><div class="back"><svg width="18" height="18"><use href="#i-back"/></svg></div><h4>Le portail</h4></div>
+      <div class="content">
+        <div class="gate">
+          <div class="gbtn"><svg><use href="#i-gate"/></svg>Ouvrir le portail</div>
+          <div class="code"><small>Code du clavier</small><b>4 8 2 7</b><span class="copy" style="display:inline-block">Copier</span></div>
+          <div class="valid"><svg width="14" height="14"><use href="#i-check"/></svg>Valable jusqu'au 9 oct. à 12 h</div>
+        </div>
+      </div>
+      <div class="tabbar"><div class="on"><svg><use href="#i-home"/></svg>Accueil</div><div><svg><use href="#i-book"/></svg>Livret</div><div><svg><use href="#i-bag"/></svg>Boutique</div><div><svg><use href="#i-receipt"/></svg>Commandes</div></div>
+    </div></div><figcaption>Portail : la clé Sowel du séjour, active du check-in −3 h au check-out +2 h</figcaption></figure>
+
+    <figure class="phone-wrap"><div class="phone"><div class="screen"><div class="notch"></div>
+      <div class="appbar"><div class="back"><svg width="18" height="18"><use href="#i-back"/></svg></div><h4>Arrivée</h4></div>
+      <div class="content">
+        <div class="cover ph-granja"><h5>Bienvenue chez vous</h5></div>
+        <div class="wifi"><div class="qr"></div><div><small>Réseau</small><b>Solio-Granja</b><small>Mot de passe</small><b>chataigne2026</b></div><span class="copy">Copier</span></div>
+        <div class="steps">
+          <div class="step" data-n="1"><b>Garez-vous au parking du haut</b><span>Le chemin est éclairé jusqu'au logement.</span></div>
+          <div class="step" data-n="2"><b>La clé est dans la boîte</b><span>Code de la boîte : celui du portail.</span></div>
+          <div class="step" data-n="3"><b>Allumez le poêle</b><span>Le bois est sous l'auvent, à gauche.</span></div>
+        </div>
+        <div class="callout">⚠ Le bain nordique chauffe pendant 3 h : réservez votre créneau à l'avance.</div>
+      </div>
+      <div class="tabbar"><div><svg><use href="#i-home"/></svg>Accueil</div><div class="on"><svg><use href="#i-book"/></svg>Livret</div><div><svg><use href="#i-bag"/></svg>Boutique</div><div><svg><use href="#i-receipt"/></svg>Commandes</div></div>
+    </div></div><figcaption>Page du livret : couverture, bloc wifi (QR pour se connecter), étapes, encadré. Lisible hors connexion.</figcaption></figure>
+  </div>
+</section>
+
+<section class="row">
+  <h2>2. La boutique : les prix de GuestFlow, en photos</h2>
+  <p>Le catalogue, ce sont les options et ressources marquées « Vendu dans l'app », aux prix du logement dans GuestFlow, présentés comme sur le site. Le total vient toujours du serveur.</p>
+  <div class="phones">
+    <figure class="phone-wrap"><div class="phone"><div class="screen"><div class="notch"></div>
+      <div class="appbar"><h4>La boutique</h4></div>
+      <div class="content">
+        <div class="chips"><span class="chip on">Tout</span><span class="chip">Boissons</span><span class="chip">Restauration</span><span class="chip">Bien-être</span></div>
+        <div class="feature ph-bath"><small>Bien-être</small><b>Une heure de plus au bain nordique</b><span>Choisir un créneau</span></div>
+        <div class="grid2">
+          <div class="prod"><div class="img ph-cider"><div class="add">+</div></div><div class="t"><b>Cidre fermier</b><span>4,50 € · la bouteille</span></div></div>
+          <div class="prod"><div class="img ph-wine"><div class="add">+</div></div><div class="t"><b>Vin d'Ardèche</b><span>14,00 € · la bouteille</span></div></div>
+          <div class="prod"><div class="img ph-cheese"><div class="add">+</div></div><div class="t"><b>Plateau picodons</b><span>12,00 € · 2 pers.</span></div></div>
+          <div class="prod"><div class="img ph-wood"><div class="add">+</div></div><div class="t"><b>Panier de bois</b><span>8,00 € · le panier</span></div></div>
+        </div>
+      </div>
+      <div class="cartbar"><div class="n">3</div><b>Voir le panier</b><span>23,00 €</span></div>
+      <div class="tabbar"><div><svg><use href="#i-home"/></svg>Accueil</div><div><svg><use href="#i-book"/></svg>Livret</div><div class="on" style="position:relative"><svg><use href="#i-bag"/></svg><span class="badge">3</span>Boutique</div><div><svg><use href="#i-receipt"/></svg>Commandes</div></div>
+    </div></div><figcaption>Catalogue par catégorie, mise en avant du bain, barre panier flottante</figcaption></figure>
+
+    <figure class="phone-wrap"><div class="phone"><div class="screen"><div class="notch"></div>
+      <div class="appbar"><h4>La boutique</h4></div>
+      <div class="content">
+        <div class="chips"><span class="chip on">Tout</span><span class="chip">Boissons</span></div>
+        <div class="grid2">
+          <div class="prod"><div class="img ph-cider"></div><div class="t"><b>Cidre fermier</b><span>4,50 €</span></div></div>
+          <div class="prod"><div class="img ph-wine"></div><div class="t"><b>Vin d'Ardèche</b><span>14,00 €</span></div></div>
+        </div>
+      </div>
+      <div class="dim"></div>
+      <div class="sheet">
+        <div class="grab"></div>
+        <div class="ph-cheese" style="height:150px;border-radius:18px;margin-bottom:12px"></div>
+        <h6>Plateau picodons</h6>
+        <p>Trois picodons AOP de la ferme voisine, confiture de châtaigne et pain au levain.</p>
+        <div style="display:flex;align-items:center;justify-content:space-between"><div class="stepper"><i>−</i><b>1</b><i>+</i></div><span style="font:600 13px Inter;color:var(--muted)">12,00 € · 2 pers.</span></div>
+        <div class="cta">Ajouter · 12,00 €</div>
+      </div>
+    </div></div><figcaption>Fiche produit en feuille glissante (au centre de l'écran en dialogue sur tablette)</figcaption></figure>
+
+    <figure class="phone-wrap"><div class="phone"><div class="screen"><div class="notch"></div>
+      <div class="appbar"><div class="back"><svg width="18" height="18"><use href="#i-back"/></svg></div><h4>Bain nordique</h4></div>
+      <div class="content">
+        <div class="free"><svg width="14" height="14"><use href="#i-check"/></svg>1 h offerte avec votre séjour, déjà utilisée</div>
+        <div class="days"><div class="day">lun.<b>6</b></div><div class="day on">mar.<b>7</b></div><div class="day">mer.<b>8</b></div></div>
+        <div class="slots">
+          <div class="slot off"><b>17 h – 18 h</b><span>Pris</span></div>
+          <div class="slot"><b>18 h – 19 h</b><span>15,00 €</span></div>
+          <div class="slot off"><b>19 h – 20 h</b><span>Pris</span></div>
+          <div class="slot eve on"><b>20 h – 21 h</b><span>Tarif soirée · 20,00 €</span></div>
+          <div class="slot eve"><b>21 h – 22 h</b><span>Tarif soirée · 20,00 €</span></div>
+          <div class="slot off"><b>22 h – 23 h</b><span>Fermé</span></div>
+        </div>
+        <div class="cta">Ajouter 20 h – 21 h · 20,00 €</div>
+      </div>
+      <div class="tabbar"><div><svg><use href="#i-home"/></svg>Accueil</div><div><svg><use href="#i-book"/></svg>Livret</div><div class="on"><svg><use href="#i-bag"/></svg>Boutique</div><div><svg><use href="#i-receipt"/></svg>Commandes</div></div>
+    </div></div><figcaption>Créneaux du bain, calculés par GuestFlow (grille, chauffe, tarif soirée)</figcaption></figure>
+  </div>
+</section>
+
+<section class="row">
+  <h2>3. Payer : maintenant, ou sur la note de départ</h2>
+  <p>Le client choisit. Le paiement par carte passe par un lien Qonto et ne demande rien d'autre. « Ajouter à ma note » demande une seule fois de confirmer son nom de famille : c'est le seul moment où l'app pose la question.</p>
+  <div class="phones">
+    <figure class="phone-wrap"><div class="phone"><div class="screen"><div class="notch"></div>
+      <div class="appbar"><div class="back"><svg width="18" height="18"><use href="#i-back"/></svg></div><h4>Votre panier</h4></div>
+      <div class="content">
+        <div class="line"><div class="th ph-cider"></div><div class="d"><b>Cidre fermier</b><span>2 × 4,50 €</span></div><div class="p">9,00 €</div></div>
+        <div class="line"><div class="th ph-bath"></div><div class="d"><b>Bain nordique</b><span>mar. 7 · 20 h – 21 h</span></div><div class="p">20,00 €</div></div>
+        <div class="line"><div class="th ph-bread"></div><div class="d"><b>Pain au levain</b><span>1 × 4,00 €</span></div><div class="p">4,00 €</div></div>
+        <div class="total"><span>Total</span><span>33,00 €</span></div>
+        <div class="pay">
+          <div class="paycard"><div class="ic g" style="display:grid;place-items:center"><svg width="20" height="20"><use href="#i-card"/></svg></div><div><b>Payer maintenant</b><span>Carte bancaire · paiement sécurisé Qonto</span></div></div>
+          <div class="paycard on"><div class="ic h" style="display:grid;place-items:center"><svg width="20" height="20"><use href="#i-receipt"/></svg></div><div><b>Ajouter à ma note</b><span>Réglée à votre départ</span></div></div>
+        </div>
+        <div class="cta">Commander · 33,00 €</div>
+      </div>
+    </div></div><figcaption>Panier : le total et chaque ligne viennent du devis serveur</figcaption></figure>
+
+    <figure class="phone-wrap"><div class="phone"><div class="screen"><div class="notch"></div>
+      <div class="appbar"><h4>Votre panier</h4></div>
+      <div class="content"><div class="line"><div class="th ph-cider"></div><div class="d"><b>Cidre fermier</b><span>2 × 4,50 €</span></div><div class="p">9,00 €</div></div></div>
+      <div class="dim"></div>
+      <div class="sheet">
+        <div class="grab"></div>
+        <h6>Sur votre note</h6>
+        <p>Pour mettre cette commande sur votre note de séjour, confirmez votre nom de famille.</p>
+        <div class="field"><small>Nom de famille</small>Durand</div>
+        <div class="cta">Confirmer et commander</div>
+        <div class="cta ghost" style="margin-top:8px">Payer par carte plutôt</div>
+      </div>
+    </div></div><figcaption>Confirmation du nom, seulement pour « Ajouter à ma note »</figcaption></figure>
+
+    <figure class="phone-wrap"><div class="phone"><div class="screen"><div class="notch"></div>
+      <div class="content" style="top:60px;display:flex;flex-direction:column;align-items:center;text-align:center;padding-top:40px">
+        <div style="width:96px;height:96px;border-radius:50%;background:var(--ok-soft);color:var(--ok);display:grid;place-items:center;box-shadow:0 0 0 12px color-mix(in srgb,var(--ok-soft) 50%,transparent)"><svg width="46" height="46"><use href="#i-check"/></svg></div>
+        <h3 class="serif" style="font-size:26px;margin:26px 0 6px">Commande envoyée !</h3>
+        <p style="color:var(--muted);margin:0 0 20px;max-width:220px">Nous la préparons. Le bain sera chaud pour 20 h.</p>
+        <div style="background:var(--card);border-radius:18px;padding:12px 14px;width:100%;text-align:left">
+          <div style="display:flex;justify-content:space-between;font:600 12.5px Inter"><span>Commande n° 12</span><span style="background:var(--honey-soft);color:var(--warn);padding:2px 8px;border-radius:999px;font-size:11px">Sur votre note</span></div>
+          <div style="color:var(--muted);font-size:12px;margin-top:6px">2 × Cidre fermier · Bain nordique mar. 20 h · Pain au levain</div>
+          <div style="font:700 15px Inter;margin-top:8px">33,00 €</div>
+        </div>
+        <div class="cta" style="width:100%">Retour à l'accueil</div>
+      </div>
+      <div class="tabbar"><div><svg><use href="#i-home"/></svg>Accueil</div><div><svg><use href="#i-book"/></svg>Livret</div><div><svg><use href="#i-bag"/></svg>Boutique</div><div class="on"><svg><use href="#i-receipt"/></svg>Commandes</div></div>
+    </div></div><figcaption>Confirmation : l'équipe reçoit une notification push « Commandes clients »</figcaption></figure>
+  </div>
+</section>
+
+<!-- ============ TABLET ============ -->
+<section class="row">
+  <h2>4. Tablette et ordinateur</h2>
+  <p>À partir de 900 px, un rail de navigation à gauche remplace la barre d'onglets. Le livret et la boutique passent en deux volets, le panier restant visible. Sur ordinateur, le contenu fait au plus 1200 px de large.</p>
+  <div class="tablet"><div class="screen">
+    <div class="rail"><div class="logo">S</div><div class="on"><svg><use href="#i-home"/></svg>Accueil</div><div><svg><use href="#i-book"/></svg>Livret</div><div><svg><use href="#i-bag"/></svg>Boutique</div><div><svg><use href="#i-receipt"/></svg>Commandes</div></div>
+    <div class="tmain">
+      <div class="thero ph-granja"><div><small style="font:600 12px Inter;letter-spacing:.08em;text-transform:uppercase">La Granja · 6 → 9 octobre</small><h3>Bonjour Marie</h3></div></div>
+      <div class="tbody">
+        <div>
+          <div class="tiles">
+            <div class="tile"><div class="ic g"><svg><use href="#i-gate"/></svg></div>Portail</div>
+            <div class="tile"><div class="ic g"><svg><use href="#i-wifi"/></svg></div>Wifi</div>
+            <div class="tile"><div class="ic h"><svg><use href="#i-bag"/></svg></div>Boutique</div>
+            <div class="tile"><div class="ic h"><svg><use href="#i-bath"/></svg></div>Bain nordique</div>
+            <div class="tile"><div class="ic g"><svg><use href="#i-map"/></svg></div>Soliomap</div>
+            <div class="tile"><div class="ic g"><svg><use href="#i-book"/></svg></div>Livret</div>
+          </div>
+          <div class="highlight" style="margin:12px 0 0"><div class="thumb ph-bath"></div><div><b>Prolongez votre bain ce soir</b><span>Créneau libre à 20 h · dès 15 €</span></div></div>
+        </div>
+        <div class="panel">
+          <h4>Votre panier</h4>
+          <div class="line"><div class="th ph-cider"></div><div class="d"><b>Cidre fermier</b><span>2 × 4,50 €</span></div><div class="p">9,00 €</div></div>
+          <div class="line"><div class="th ph-bath"></div><div class="d"><b>Bain nordique</b><span>mar. 7 · 20 h – 21 h</span></div><div class="p">20,00 €</div></div>
+          <div class="total"><span>Total</span><span>29,00 €</span></div>
+          <div class="cta" style="margin-top:6px">Commander</div>
+        </div>
+      </div>
+    </div>
+  </div></div>
+</section>
+
+<!-- ============ STUDIO ============ -->
+<section class="row">
+  <h2>5. Le Studio du livret (équipe)</h2>
+  <p>Une application web à part, sur <code>/studio</code>, avec le compte GuestFlow. Les pages sont communes ou propres à un logement. Les blocs s'éditent en FR et EN côte à côte, avec un aperçu téléphone rendu par les vrais composants de l'app. « Publier » met en ligne pour les clients.</p>
+  <div class="studio">
+    <div class="sbar"><b>Studio du livret · Arrivée</b>
+      <span class="ibtn" title="Aperçu"><svg><use href="#i-eye"/></svg></span>
+      <span class="ibtn pub" title="Publier"><svg><use href="#i-up"/></svg></span>
+      <span class="ibtn save" title="Enregistrer le brouillon"><svg><use href="#i-save"/></svg></span>
+      <span class="ibtn" title="Annuler"><svg><use href="#i-x"/></svg></span>
+      <span class="ibtn" style="border-color:var(--bad);color:var(--bad)" title="Supprimer la page"><svg><use href="#i-trash"/></svg></span>
+    </div>
+    <div class="sgrid">
+      <div class="spages">
+        <div><span class="dot"></span>Bienvenue</div>
+        <div class="on"><span class="dot d"></span>Arrivée</div>
+        <div><span class="dot"></span>Le logement</div>
+        <div><span class="dot"></span>Bain nordique</div>
+        <div><span class="dot"></span>Le domaine</div>
+        <div><span class="dot"></span>Autour de nous</div>
+        <div><span class="dot"></span>Départ</div>
+        <div><span class="dot"></span>Urgences</div>
+        <div style="color:var(--fir);font-weight:600">+ Nouvelle page</div>
+      </div>
+      <div class="seditor">
+        <div class="sblock"><div class="h"><span>Wifi · La Granja seulement</span><span>⋮⋮</span></div>
+          <div class="bi"><div><small>Réseau</small>Solio-Granja</div><div><small>Mot de passe</small>chataigne2026</div></div></div>
+        <div class="sblock"><div class="h"><span>Étapes</span><span>⋮⋮</span></div>
+          <div class="bi"><div><small>FR</small>Garez-vous au parking du haut</div><div><small>EN</small>Park in the upper car park</div></div></div>
+        <div class="sblock"><div class="h"><span>Encadré · attention</span><span>⋮⋮</span></div>
+          <div class="bi"><div><small>FR</small>Le bain nordique chauffe pendant 3 h…</div><div><small>EN</small><span style="color:var(--warn)">À traduire</span></div></div></div>
+        <div class="palette"><span>+ Texte</span><span>+ Photo</span><span>+ Galerie</span><span>+ Étapes</span><span>+ Wifi</span><span>+ Contact</span><span>+ Lieu</span><span>+ FAQ</span><span>+ Bouton</span><span>+ Horaires</span></div>
+      </div>
+      <div class="spreview"><div class="mini"><div class="screen">
+        <div class="ph-granja" style="height:90px;border-radius:14px;margin-bottom:8px"></div>
+        <div style="font:600 13px 'Source Serif 4',serif;margin-bottom:6px">Bienvenue chez vous</div>
+        <div style="border:1px dashed var(--line);border-radius:10px;padding:6px;margin-bottom:6px"><b>Solio-Granja</b><br>chataigne2026</div>
+        <div style="margin-bottom:4px">① Garez-vous au parking du haut</div>
+        <div style="margin-bottom:4px">② La clé est dans la boîte</div>
+        <div style="background:var(--warn-soft);color:var(--warn);border-radius:8px;padding:5px">⚠ Le bain chauffe pendant 3 h</div>
+      </div></div></div>
+    </div>
+  </div>
+</section>
+</main>
+</body>
+</html>
