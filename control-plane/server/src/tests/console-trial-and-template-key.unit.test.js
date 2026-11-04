@@ -1,6 +1,6 @@
 // specs/control-plane-plans-and-access.md rule 48 (audit R22, console N3) — a free trial is granted by a real
-// boolean only; hosting-h2 rule 66's reading applied to the console's templates (N5, control-plane rule 50): a
-// template key is an own key of the list, never one read through the prototype chain.
+// boolean only; same spec, rule 50 (N5) — a template key is an own key of the list, never one read through the
+// prototype chain.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');

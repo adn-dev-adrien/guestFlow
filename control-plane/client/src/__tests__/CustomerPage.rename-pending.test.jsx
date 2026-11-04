@@ -33,7 +33,7 @@ it('rule 45 — finished: the button is enabled', async () => {
 });
 
 it('rule 45 — an archived customer has no such button', async () => {
-  open({ archivedAt: '2026-11-01T00:00:00Z' }, { rename: false, renameHint: null });
+  open({ archivedAt: new Date().toISOString() }, { rename: false, renameHint: null });
   await screen.findByRole('button', { name: 'Télécharger la licence' });
   expect(screen.queryByRole('button', { name: 'Changer l’adresse' })).not.toBeInTheDocument();
 });
