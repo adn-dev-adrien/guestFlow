@@ -1,12 +1,13 @@
 // specs/platform-added-guests-tourist-tax.md rule 18 — what reads a solde from its stored money leaves
-// the addition out: the stored split of a failed capture, the booked solde of a cancelled stay.
+// the addition out: the stored split of a failed capture, the booked solde of a cancelled stay; and the
+// stored summary of the fiche names it.
 
 process.env.DB_PATH = ':memory:';
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { db, createStay, inDays, rowOf, save, seed } = require('./ledgerFixture');
+const { db, controller, respond, createStay, inDays, rowOf, save, seed, ADMIN } = require('./ledgerFixture');
 const { captureStoredSplit } = require('../utils/forceItemContribsCapture');
 const { bookedStayBuckets } = require('../utils/cancelReservation');
 const reservationsModel = require('../models/reservationsModel');
@@ -32,6 +33,10 @@ test('rule 18: stored split and booked solde leave out the supplement and the ad
   const row = rowOf(id);
   assert.equal(row.touristTaxAddedGuestsAmount, 2.4);
   assert.equal(row.balanceAmount, 600);
+
+  const fiche = respond();
+  controller.getById({ params: { id: String(id) }, user: ADMIN }, fiche);
+  assert.equal(fiche.body.storedSummary.touristTaxAddedGuestsAmount, 2.4);
 
   const booked = bookedStayBuckets({ database: db, reservationsModel }, { ...row, balancePaid: 1 }, 10);
   assert.equal(booked.solde.touristTax, 4.8);

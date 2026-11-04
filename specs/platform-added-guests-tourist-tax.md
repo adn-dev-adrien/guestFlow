@@ -125,7 +125,8 @@ is declared to the commune. The accommodation no longer pays for it.
 18. **The stored-money readers of a solde leave the addition out too.** The stored split of a capture
     that failed (`captureStoredSplit`) takes the added guests' supplement out of the accommodation it
     shares against, so the lines are not under-credited; `bookedStayBuckets` of a cancelled stay reads
-    the solde's tax without the added tax.
+    the solde's tax without the added tax. The fiche's stored summary (`storedSummary.js`) carries
+    `touristTaxAddedGuestsAmount`, so the line of rule 14 prints there as on the live quote.
 
 **Edge cases:**
 - iCal import with 1 default adult, composition set to 4, then the brut → paid = 4, no added tax.
@@ -153,6 +154,7 @@ is declared to the commune. The accommodation no longer pays for it.
 | `models/` | `financeModel.js` | T | Rules 11–12: gate, amount, own row of the declaration |
 | `plugins/accounting-export/` | `accountingModel.js` | T | Rules 13, 17: split the tax between the balance and the complement entries |
 | `utils/` | `cancelReservation.js` | T | Rule 18: a solde's booked tax leaves out the added tax |
+| `utils/` | `storedSummary.js` | T | Rule 18: the stored summary names the added tax |
 | `utils/` | `forceItemContribsCapture.js` | T | Rules 13, 16, 18: the solde's capture and stored split leave out the added tax and the added guests' supplement |
 | `controllers/` | `financeController.js` | T | Rule 12: forward `addedGuests` to the tick |
 | `database.js` | | T | Idempotent `ADD COLUMN` × 3 + backfill (§5) |
@@ -208,7 +210,7 @@ Interactive summary: `docs/specs/2026-11-03-platform-added-guests-tourist-tax.ht
 - [x] Rule 13: balance and complement entries sum to the tax.
 - [x] Rule 16: the solde's capture succeeds with added guests and books what the platform paid.
 - [x] Rule 17: frozen solde + addition, untrustworthy contribs, and the whole path through the controllers to the journal (46710000 = 4,80 + 2,40).
-- [x] Rule 18: stored split with a line, booked solde of a cancelled stay.
+- [x] Rule 18: stored split with a line, booked solde of a cancelled stay, stored summary of the fiche.
 - [x] Rule 15: stored detail line. §5: backfill is an `UPDATE` inside the migration guard, totals unchanged by construction.
 
 ### Client (Vitest)
