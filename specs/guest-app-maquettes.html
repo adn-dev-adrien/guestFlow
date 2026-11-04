@@ -483,9 +483,9 @@ section.row>p{color:var(--muted);margin:0 0 18px;max-width:820px}
 <!-- ============ STUDIO ============ -->
 <section class="row">
   <h2>5. Le Studio du livret (équipe)</h2>
-  <p>Une application web à part, sur <code>/studio</code>, avec le compte GuestFlow. Les pages sont communes ou propres à un logement. Les blocs s'éditent en FR et EN côte à côte, avec un aperçu téléphone rendu par les vrais composants de l'app. « Publier » met en ligne pour les clients.</p>
+  <p>Une application web à part, sur <code>/studio</code>, avec le compte GuestFlow. On choisit d'abord le logement : chacun a son propre livret (ses pages, dans son ordre). Une page commune peut être partagée (⇄, modifiée une seule fois) ou dupliquée pour diverger. Les blocs s'éditent en FR et EN côte à côte, avec un aperçu téléphone rendu par les vrais composants de l'app. « Publier » met en ligne pour les clients.</p>
   <div class="studio">
-    <div class="sbar"><b>Studio du livret · Arrivée</b>
+    <div class="sbar"><span style="display:flex;gap:4px;background:var(--paper);border-radius:999px;padding:3px"><span class="chip on" style="padding:5px 12px">La Granja</span><span class="chip" style="padding:5px 12px;border:0;background:transparent">L'Estiva</span></span><b>Livret de La Granja · Arrivée</b>
       <span class="ibtn" title="Aperçu"><svg><use href="#i-eye"/></svg></span>
       <span class="ibtn pub" title="Publier"><svg><use href="#i-up"/></svg></span>
       <span class="ibtn save" title="Enregistrer le brouillon"><svg><use href="#i-save"/></svg></span>
@@ -498,8 +498,9 @@ section.row>p{color:var(--muted);margin:0 0 18px;max-width:820px}
         <div class="on"><span class="dot d"></span>Arrivée</div>
         <div><span class="dot"></span>Le logement</div>
         <div><span class="dot"></span>Bain nordique</div>
-        <div><span class="dot"></span>Le domaine</div>
-        <div><span class="dot"></span>Autour de nous</div>
+        <div><span class="dot"></span>Le poêle à bois</div>
+        <div><span class="dot"></span>Le domaine <span style="margin-left:auto;font-size:10px;color:var(--fir)">⇄</span></div>
+        <div><span class="dot"></span>Autour de nous <span style="margin-left:auto;font-size:10px;color:var(--fir)">⇄</span></div>
         <div><span class="dot"></span>Départ</div>
         <div><span class="dot"></span>Urgences</div>
         <div style="color:var(--fir);font-weight:600">+ Nouvelle page</div>
@@ -549,6 +550,33 @@ section.row>p{color:var(--muted);margin:0 0 18px;max-width:820px}
         <div class="field" style="border-color:var(--line)"><small>Quantité max.</small>4</div>
       </div>
     </div>
+  </div>
+</section>
+<section class="row">
+  <h2>7. Chaque logement choisit ce que ses clients voient</h2>
+  <p>Dans le Studio, l'écran « Modules & infos » se règle logement par logement : chaque tuile s'active ou non, et l'ordre se change par glisser-déposer. Les infos propres au logement (wifi, photo, contacts) sont saisies une seule fois, et la tuile comme le livret les reprennent. Un module désactivé disparaît de l'app, et le serveur refuse aussi ses accès.</p>
+  <div class="phones" style="align-items:flex-start">
+    <div class="studio" style="max-width:560px;flex:1 1 420px">
+      <div class="sbar"><span style="display:flex;gap:4px;background:var(--paper);border-radius:999px;padding:3px"><span class="chip" style="padding:5px 12px;border:0;background:transparent">La Granja</span><span class="chip on" style="padding:5px 12px">L'Estiva</span></span><b>Modules & infos</b><span class="ibtn save" title="Enregistrer"><svg><use href="#i-save"/></svg></span><span class="ibtn" title="Annuler"><svg><use href="#i-x"/></svg></span></div>
+      <div style="padding:6px 18px 14px"><div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--line)"><span style="color:var(--muted)">⋮⋮</span><div class="ic g" style="width:34px;height:34px;border-radius:11px;display:grid;place-items:center;flex:none"><svg width="18" height="18"><use href="#i-gate"/></svg></div><div style="flex:1"><b style="font:600 13px Inter;display:block">Portail</b><span style="font-size:11.5px;color:var(--muted)">Lien d'accès Sowel du séjour</span></div><span style="width:38px;height:22px;border-radius:999px;background:var(--fir);position:relative;display:inline-block;flex:none"><span style="position:absolute;right:3px;top:3px;width:16px;height:16px;border-radius:50%;background:#fff"></span></span></div><div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--line)"><span style="color:var(--muted)">⋮⋮</span><div class="ic g" style="width:34px;height:34px;border-radius:11px;display:grid;place-items:center;flex:none"><svg width="18" height="18"><use href="#i-wifi"/></svg></div><div style="flex:1"><b style="font:600 13px Inter;display:block">Wifi</b><span style="font-size:11.5px;color:var(--muted)">Pas de wifi à L'Estiva — le livret affiche « Pas de wifi »</span></div><span style="width:38px;height:22px;border-radius:999px;background:var(--line);position:relative;display:inline-block;flex:none"><span style="position:absolute;left:3px;top:3px;width:16px;height:16px;border-radius:50%;background:#fff"></span></span></div><div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--line)"><span style="color:var(--muted)">⋮⋮</span><div class="ic h" style="width:34px;height:34px;border-radius:11px;display:grid;place-items:center;flex:none"><svg width="18" height="18"><use href="#i-bag"/></svg></div><div style="flex:1"><b style="font:600 13px Inter;display:block">Boutique</b><span style="font-size:11.5px;color:var(--muted)">6 articles vendus pour ce logement</span></div><span style="width:38px;height:22px;border-radius:999px;background:var(--fir);position:relative;display:inline-block;flex:none"><span style="position:absolute;right:3px;top:3px;width:16px;height:16px;border-radius:50%;background:#fff"></span></span></div><div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--line)"><span style="color:var(--muted)">⋮⋮</span><div class="ic h" style="width:34px;height:34px;border-radius:11px;display:grid;place-items:center;flex:none"><svg width="18" height="18"><use href="#i-bath"/></svg></div><div style="flex:1"><b style="font:600 13px Inter;display:block">Bain nordique</b><span style="font-size:11.5px;color:var(--muted)">Payant ici · offert à La Granja</span></div><span style="width:38px;height:22px;border-radius:999px;background:var(--fir);position:relative;display:inline-block;flex:none"><span style="position:absolute;right:3px;top:3px;width:16px;height:16px;border-radius:50%;background:#fff"></span></span></div><div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--line)"><span style="color:var(--muted)">⋮⋮</span><div class="ic g" style="width:34px;height:34px;border-radius:11px;display:grid;place-items:center;flex:none"><svg width="18" height="18"><use href="#i-map"/></svg></div><div style="flex:1"><b style="font:600 13px Inter;display:block">Soliomap</b><span style="font-size:11.5px;color:var(--muted)">Ouvert dans l'app</span></div><span style="width:38px;height:22px;border-radius:999px;background:var(--fir);position:relative;display:inline-block;flex:none"><span style="position:absolute;right:3px;top:3px;width:16px;height:16px;border-radius:50%;background:#fff"></span></span></div><div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--line)"><span style="color:var(--muted)">⋮⋮</span><div class="ic g" style="width:34px;height:34px;border-radius:11px;display:grid;place-items:center;flex:none"><svg width="18" height="18"><use href="#i-book"/></svg></div><div style="flex:1"><b style="font:600 13px Inter;display:block">Livret</b><span style="font-size:11.5px;color:var(--muted)">7 pages · 2 partagées avec La Granja</span></div><span style="width:38px;height:22px;border-radius:999px;background:var(--fir);position:relative;display:inline-block;flex:none"><span style="position:absolute;right:3px;top:3px;width:16px;height:16px;border-radius:50%;background:#fff"></span></span></div>
+        <div style="display:flex;align-items:center;gap:10px;margin-top:14px"><span style="font:600 11px Inter;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;flex:1">Wifi de L'Estiva</span><span style="font:600 12.5px Inter">Wifi disponible</span><span style="width:38px;height:22px;border-radius:999px;background:var(--line);position:relative;display:inline-block;flex:none"><span style="position:absolute;left:3px;top:3px;width:16px;height:16px;border-radius:50%;background:#fff"></span></span></div>
+        <div class="field" style="border-color:var(--line);margin-top:8px"><small>Message affiché aux clients</small>L'Estiva est un lieu pour déconnecter : il n'y a pas de wifi. Le réseau 4G passe bien sur la terrasse.</div>
+      </div>
+    </div>
+    <figure class="phone-wrap"><div class="phone"><div class="screen"><div class="notch"></div><div class="scroll">
+      <div class="hero ph-estiva" style="height:220px"><div class="top"><span class="brand">Domaine Solio</span><span class="lang">FR · EN</span></div><div class="greet" style="bottom:22px"><small>L'Estiva</small><h3>Bonjour Marie</h3></div></div>
+      <div class="tiles" style="padding-top:14px">
+        <div class="tile"><div class="ic g"><svg width="18" height="18"><use href="#i-gate"/></svg></div>Portail</div>
+        <div class="tile"><div class="ic h"><svg width="18" height="18"><use href="#i-bag"/></svg></div>Boutique</div>
+        <div class="tile"><div class="ic h"><svg width="18" height="18"><use href="#i-bath"/></svg></div>Bain nordique</div>
+        <div class="tile"><div class="ic g"><svg width="18" height="18"><use href="#i-map"/></svg></div>Soliomap</div>
+        <div class="tile"><div class="ic g"><svg width="18" height="18"><use href="#i-book"/></svg></div>Livret</div>
+      </div>
+      <div class="strip-title">Le livret de L'Estiva</div>
+      <div class="strip"><div class="pc ph-forest"><span>Le domaine</span></div><div class="pc ph-house"><span>La cabane</span></div><div class="pc ph-bath"><span>Bain nordique</span></div></div>
+    </div>
+    <div class="tabbar"><div class="on"><svg width="22" height="22"><use href="#i-home"/></svg>Accueil</div><div><svg width="22" height="22"><use href="#i-book"/></svg>Livret</div><div><svg width="22" height="22"><use href="#i-bag"/></svg>Boutique</div><div><svg width="22" height="22"><use href="#i-receipt"/></svg>Commandes</div></div>
+    </div></div><figcaption>Un client à L'Estiva : pas de tuile Wifi, et le livret propre à ce logement</figcaption></figure>
   </div>
 </section>
 </main>

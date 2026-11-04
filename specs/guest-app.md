@@ -93,14 +93,36 @@ is pushed every order.
 
 10. **Personalised home** (stay session): hero photo of the lodging, « Bonjour Marie », lodging name, a
     **stay card** with arrival / departure dates and a server-computed status line (« Arrivée aujourd'hui à
-    partir de 16 h », « Jour 2 sur 4 », « Départ demain avant 10 h »), then the **quick tiles** in this order:
-    Portail · Wifi · Boutique · Bain nordique · Soliomap · Livret. A tile whose feature is off for the lodging
-    is not rendered (no greyed tile).
+    partir de 16 h », « Jour 2 sur 4 », « Départ demain avant 10 h »), then the **quick tiles** of the
+    lodging's modules (rule 11bis), in the order configured for that lodging (default: Portail · Wifi ·
+    Boutique · Bain nordique · Soliomap · Livret). A module that is off for the lodging is not rendered (no
+    greyed tile).
 11. **Contextual highlight.** One card under the tiles, chosen by the server among: « Le portail est
     actif » (arrival day), « Prolongez votre bain nordique ce soir » (a bath slot is still free today and the
     resource is sold in the app), « Votre commande est prête » (an order marked delivered in the last hour),
     « Départ demain : les consignes » (eve of departure → booklet page *Départ*). At most one, never a
-    marketing carousel.
+    marketing carousel. A highlight is only chosen among the lodging's enabled modules.
+
+#### Per-lodging configuration — each lodging decides what its guests see
+
+11bis. **Modules per lodging.** Each lodging has its own list of modules, each **on / off** and ordered:
+    `gate` (Portail), `wifi`, `shop` (Boutique), `bath` (Bain nordique shortcut), `soliomap`, `booklet`
+    (Livret), `orders` (Mes commandes), `contacts` (Urgences & contacts shortcut). The server resolves them:
+    a module is shown only if it is **on for the lodging** *and* its prerequisite holds (gate → `gate-access`
+    active and a key in window; shop → at least one item sold for this lodging; bath → an hourly resource
+    sold for this lodging; wifi → wifi configured for this lodging, rule 11ter). Every endpoint of an
+    **off** module answers 404 `MODULE_OFF` for that lodging's sessions — hiding is enforced server-side,
+    not only in the UI. The app's tab bar / rail follows the same list (no « Boutique » tab in a lodging
+    without shop).
+11ter. **Lodging facts** live per lodging, not in the booklet text: **wifi** (« Wifi disponible » on/off,
+    network name, password, optional « Wifi seulement dans la pièce principale » note — off → no wifi tile,
+    no wifi block, and the booklet may show the lodging's « Pas de wifi » message, prefilled from the
+    existing stay text `noWifi` of `stayTextCatalogue.js`), **hero photo**, **display name**, **check-in /
+    check-out wording**, **emergency contacts**. The `wifi` and `contact` booklet blocks read these facts
+    (one place to change a password, both the tile and the booklet follow).
+11quater. **App enabled per lodging.** A lodging can be left out of the app entirely (« Application
+    clients » off for that lodging): no QR code is issued, its lookup answers like an unknown stay, and the
+    studio hides it. A new property created in GuestFlow starts **off**.
 
 ### 3.C Gate — a door to the existing gate app
 
@@ -122,12 +144,21 @@ is pushed every order.
 
 ### 3.E Welcome booklet
 
-16. **Pages.** The booklet is an ordered list of pages, each with an icon, a cover photo, a title and a
-    sequence of blocks. Seeded from the paper booklet (§9 Q1); expected pages: *Bienvenue*, *Arrivée*,
-    *Le logement* (équipements & modes d'emploi), *Bain nordique*, *Le domaine* (règles, tri, animaux,
-    calme), *Autour de nous* (→ Soliomap), *Départ*, *Urgences & contacts*.
-17. **Scope.** A page is either **common** (both lodgings) or **lodging-specific**; a common page may hold
-    lodging-specific blocks. The guest only ever sees their lodging's resolved booklet (server-resolved).
+16. **One booklet per lodging.** Each lodging has **its own booklet**: its own list of pages, in its own
+    order, with its own cover photos. Each page has an icon, a cover photo, a title and a sequence of blocks.
+    Seeded from the paper booklets (§9 Q1); typical pages: *Bienvenue*, *Arrivée*, *Le logement*
+    (équipements & modes d'emploi), *Bain nordique*, *Le domaine* (règles, tri, animaux, calme), *Autour de
+    nous* (→ Soliomap), *Départ*, *Urgences & contacts* — but a lodging may have pages the other does not
+    (e.g. *Le poêle à bois* at La Granja only) and skip others.
+17. **Sharing without copying, or copying to diverge.** What is truly common (the estate rules, the
+    surroundings) need not be written twice:
+    - a page can be **shared** with several lodgings — one content, edited once, placed independently in
+      each lodging's booklet (own position, can be unpublished in one lodging only);
+    - inside a shared page, a block can be **restricted** to some lodgings (« Seulement pour : La Granja »);
+    - « Dupliquer vers… » copies a page into another lodging as an independent page, to diverge from there.
+    The guest only ever sees their lodging's resolved booklet (server-resolved: the lodging's pages, in its
+    order, with restricted blocks filtered and lodging facts injected). Visitor mode resolves the same
+    booklet for the lodging of the QR.
 18. **Block types** (closed list, each with a dedicated renderer): `text` (rich text: paragraphs, bold,
     lists, links), `image`, `gallery`, `callout` (info / warning), `steps` (numbered how-to with optional
     photo per step), `wifi` (network + password + « Copier », QR to join), `contact` (name, role, phone →
@@ -305,13 +336,19 @@ is pushed every order.
     the plugin is active, with its own lightweight layout optimised for content editing (tablet-first),
     **signed in with the GuestFlow admin account** (same session cookie as `/api`, so no second login on the
     same browser). Roles: admin only; the reception role has no access.
-48. **Edits:** pages (create, reorder by drag, scope common / lodging, publish / draft, icon, cover photo),
+48. **Lodging first.** The studio opens on a **lodging switcher** (La Granja · L'Estiva); every screen works
+    on the selected lodging: *Modules* (switches + drag order, rule 11bis), *Infos du logement* (wifi, hero,
+    contacts, rule 11ter), *Livret* (that lodging's pages), *Boutique* (presentation of the items sold there).
+    A shared page shows a « Partagée avec L'Estiva » chip, and saving it says « Modifie aussi L'Estiva ».
+    **Edits:** pages (create, reorder by drag per lodging, share with / restrict to lodgings, duplicate to a
+    lodging, publish / draft, icon, cover photo),
     blocks (add from a palette, reorder, edit FR / EN side by side), photos (upload, crop to the block's
     ratio, alt text), shop presentation (per sold item: photo, short description FR/EN, `maxQuantity`,
     `needsStaff`, `leadMinutes`, category order; the price and title stay GuestFlow's — read-only here with
     « Modifier dans GuestFlow »), service hours (rule 40), app settings (app name, hero photo per lodging,
     Soliomap URL + « Intégrer dans l'app », order limits, regenerate a lodging's QR code, print the QR poster
-    PDF per lodging).
+    PDF per lodging). « Publier » publishes one lodging's booklet; publishing a shared page republishes it in
+    every lodging it is placed in.
 49. **Live preview.** The editing screen shows a phone-frame preview of the page rendered by the real guest
     components, for the chosen lodging and language. « Publier » makes the draft the guest version; until
     then guests see the previous version.
@@ -473,6 +510,7 @@ never accept the site's shared key. Plugin inactive → every route 404 `PLUGIN_
 | GET | `/public/v1/guest/booklet?lang=` | session or `lodgingCode` | — | `{ version, pages:[{slug,icon,title,cover}] }` |
 | GET | `/public/v1/guest/booklet/pages/:slug?lang=` | idem | — | `{ slug, title, cover, blocks:[{type, …}] }` |
 | GET | `/public/v1/guest/booklet/search?q=&lang=` | idem | — | `{ results:[{slug,title,excerpt}] }` |
+| GET | `/public/v1/guest/lodging` | session or `lodgingCode` | — | `{ name, heroUrl, modules:[{key, label, order}], wifi?:{network, password, note?, joinQr}, contacts:[…] }` — only enabled modules / configured facts |
 | GET | `/public/v1/guest/gate` | stay session | — | `{ state:'active'\|'preparing'\|'outside', url? }` |
 | GET | `/public/v1/guest/shop` | session | — | `{ open, closedReason?, service:{openNow, nextOpening?, bannerLabel?}, canPayCard, canPayNote, categories:[{name, items:[{kind:'option'\|'resource', id, title, shortDescription, imageUrl, price, priceUnitLabel, included?, freeLeftLabel?, maxQuantity, needsStaff, scheduling?:'hourly', unavailableReason?}]}] }` |
 | GET | `/public/v1/guest/shop/resources/:id/slots?from&to` | stay session | — | `{ freeMinutesLeft, freeLabel?, days:[{date,label,closed,slots:[{start,end,state,priceLabel,reasonLabel?}]}] }` |
@@ -483,6 +521,9 @@ never accept the site's shared key. Plugin inactive → every route 404 `PLUGIN_
 | GET | `/public/v1/guest/orders/:id` | stay session | — | one order (triggers the on-demand Qonto poll like `/booking-requests/:id/status`) |
 | GET | `/public/v1/guest/manifest.webmanifest` | — | — | manifest with the plugin's app name |
 | GET/PUT | `/api/guest-app/items/:kind/:id` | admin | `{ sold, mediaId?, shortDescriptionFr/En, maxQuantity, needsStaff, leadMinutes }` | the row — used by the editor contribution and the studio |
+| GET/PUT | `/api/guest-app/lodgings/:propertyId` | admin | `{ enabled, displayName, heroMediaId, modules:[{key, on, order}], wifi:{available, network, password, note}, contacts:[…] }` | the lodging config (rules 11bis-11quater) |
+| POST | `/api/guest-app/studio/pages/:id/duplicate` | admin | `{ toPropertyId }` | the new independent page |
+| PUT | `/api/guest-app/studio/lodgings/:propertyId/booklet` | admin | `{ pages:[{pageId, sortOrder, published}] }` | that lodging's page order and visibility |
 | GET/PUT | `/api/guest-app/service-hours` | admin | `{ weekly:{1:[{from,to}],…}, exceptions:[{date, closed\|ranges}] }` | the config |
 | GET/POST/PUT/DELETE | `/api/guest-app/studio/**` | admin | pages, blocks, media, settings, publish, `lodgings/:id/regenerate-qr`, `lodgings/:id/qr-poster.pdf` | — |
 | GET | `/api/guest-app/orders?status=` | admin/staff | — | orders list (rule 45) |
@@ -497,8 +538,11 @@ reads under the existing `publicApiLimiter` budget.
 
 **No core column.** Everything below is created by the `guest-app` plugin's migrations:
 
-- `guest_app_lodgings(propertyId PK, lodgingCode TEXT UNIQUE, heroMediaId)` — the QR code of each
-  property, generated on install for every property (and for a property created later), never logged.
+- `guest_app_lodgings(propertyId PK, enabled INTEGER DEFAULT 0, lodgingCode TEXT UNIQUE, displayName,
+  heroMediaId, modulesJson, wifiAvailable INTEGER DEFAULT 0, wifiNetwork, wifiPasswordEncrypted, wifiNote,
+  contactsJson)` — the per-lodging configuration (rules 11bis-11quater). The QR code is generated when a
+  lodging is enabled, never logged. The wifi password is encrypted at rest like the other stored secrets
+  (`settingsModel` encryption helper) — it is shown to guests, but must not sit in clear in a backup.
 - `guest_app_items(kind 'option'|'resource', itemId, sold INTEGER DEFAULT 0, mediaId, shortDescriptionFr,
   shortDescriptionEn, maxQuantity DEFAULT 10, needsStaff INTEGER DEFAULT 0, leadMinutes DEFAULT 30,
   sortOrder, PRIMARY KEY(kind,itemId))` — the sell switch and its presentation (rules 22, 39). Default
@@ -508,10 +552,12 @@ reads under the existing `publicApiLimiter` budget.
 - `guest_sessions(id, tokenHash UNIQUE, propertyId, reservationId NULL, mode, origin 'qr'|'lookup',
   nameConfirmedAt, nameFailures, nameLockedUntil, createdAt, lastSeenAt, expiresAt)` — purged 30 days after
   expiry.
-- `guest_booklet_pages(id, slug, icon, coverMediaId, scopePropertyId NULL, sortOrder, status
-  'draft'|'published', titleFr, titleEn, updatedAt)`; `guest_booklet_blocks(id, pageId, sortOrder,
-  scopePropertyId NULL, type, dataJson, updatedAt)`; `guest_booklet_versions(id, publishedAt, publishedBy,
-  snapshotJson)` — « Publier » freezes the resolved structure guests read.
+- `guest_booklet_pages(id, slug, icon, coverMediaId, titleFr, titleEn, updatedAt)` — page content;
+  `guest_booklet_placements(pageId, propertyId, sortOrder, published, PRIMARY KEY(pageId, propertyId))` —
+  which lodgings' booklets show the page, where (a page placed in two lodgings is « shared », rule 17);
+  `guest_booklet_blocks(id, pageId, sortOrder, onlyForPropertyIdsJson NULL, type, dataJson, updatedAt)`;
+  `guest_booklet_versions(id, propertyId, publishedAt, publishedBy, snapshotJson)` — « Publier » freezes the
+  resolved booklet of one lodging.
 - `guest_media(id, path, width, height, altFr, altEn, createdAt)` — files under `server/uploads/guest-app/`,
   resized at upload (1600 / 800 / 400 px, WebP).
 - `guest_orders(id, reservationId, sessionId, payment 'card'|'note'|'none', status 'awaiting_payment'|
@@ -581,7 +627,12 @@ tab bar is the guest-facing pattern (deliberate exception to CLAUDE.md §7, to c
 - [ ] `…/guest-app-name-match.unit.test.js` — rule 7 (accents, hyphens, second name, empty)
 - [ ] `…/guest-app-sessions.unit.test.js` — rules 1, 4, 6, 8, lookup throttling, generic errors, payload
   minimisation
-- [ ] `…/guest-app-booklet.unit.test.js` — rules 17, 19, 20, draft vs published
+- [ ] `…/guest-app-booklet.unit.test.js` — rules 16, 17, 19, 20: each lodging resolves only its own
+  placements in its own order, shared page edited once appears in both, restricted block filtered,
+  duplicate diverges, per-lodging publish, draft vs published
+- [ ] `…/guest-app-lodging-config.unit.test.js` — rules 11bis-11quater: module off → absent from `/me` and
+  404 `MODULE_OFF` on its endpoints, prerequisites, wifi off → no tile / no wifi block, wifi password
+  encrypted at rest, lodging disabled → no QR and lookup refused, new property starts off
 - [ ] `…/guest-app-plugin-gating.unit.test.js` — rule 22: plugin inactive → 404 `PLUGIN_INACTIVE`, items
   rows kept, no core column touched
 - [ ] `…/guest-app-sellable.unit.test.js` — rules 23, 25: per price type, archived, lodging scope, 0 € in
@@ -619,6 +670,9 @@ tab bar is the guest-facing pattern (deliberate exception to CLAUDE.md §7, to c
   order.
 - [ ] Visitor mode (no stay) and pre-arrival lookup; offline booklet in airplane mode.
 - [ ] Tablet (900 px) two-pane layouts; desktop (1280 px); dark mode; EN.
+- [ ] Per lodging: wifi off at one lodging → no wifi tile, wifi block replaced by « Pas de wifi »; shop off at
+  one lodging → no Boutique tab; booklet of La Granja and L'Estiva differ (own pages, shared page edited
+  once shows in both).
 - [ ] Studio: create page, add each block type, preview, publish, service hours, regenerate QR (old QR no
   longer resolves).
 - [ ] Regression: website booking tunnel prices unchanged; mid-stay extras from the fiche unchanged; arrival
@@ -673,5 +727,8 @@ tab bar is the guest-facing pattern (deliberate exception to CLAUDE.md §7, to c
   the `hourly-resources` plugin (rules 25, 28-31).
 - **Service hours** — staff-prepared items follow configurable service hours; outside them the guest orders
   for later by picking a delivery time (rules 39-43).
+- **Per-lodging configuration** — what the app shows (modules, wifi and other lodging facts) and the booklet
+  are configured per lodging; common content can be shared without being copied (rules 11bis-11quater,
+  16-17, 48).
 - **Accepted as proposed** — PageActionBar exception for the guest app (§6); 30-min card link lifetime
   (rule 35).
