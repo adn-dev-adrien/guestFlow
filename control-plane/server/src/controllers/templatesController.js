@@ -47,7 +47,7 @@ function createTemplatesController(ctx) {
   }
 
   function preview(key, body) {
-    if (!KINDS[key]) throw httpError(404, 'NOT_FOUND', 'Modèle inconnu.');
+    if (!Object.hasOwn(KINDS, key)) throw httpError(404, 'NOT_FOUND', 'Modèle inconnu.');
     const subject = readText(body, 'subject');
     const content = readText(body, 'body');
     const error = templateError(subject, content);
@@ -60,7 +60,7 @@ function createTemplatesController(ctx) {
 
   function save(key, body, operator) {
     const current = emails.template(key);
-    if (!current || !KINDS[key]) throw httpError(404, 'NOT_FOUND', 'Modèle inconnu.');
+    if (!current || !Object.hasOwn(KINDS, key)) throw httpError(404, 'NOT_FOUND', 'Modèle inconnu.');
     const subject = body.subject === undefined ? current.subject : readText(body, 'subject');
     const content = body.body === undefined ? current.body : readText(body, 'body');
     const error = templateError(subject, content);

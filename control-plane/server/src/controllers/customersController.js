@@ -32,6 +32,8 @@ const TRIAL_DAYS = 30;
 const IDENTITY_MAX = 200;
 const EMAIL_MAX = 254;
 const ADDONS_NOT_A_LIST = 'Liste attendue.';
+const TRIAL_NOT_A_BOOLEAN = 'Oui ou non attendu.';
+const RENAME_PENDING_MESSAGE = 'Changement d’adresse à terminer d’abord.';
 const ERASE_AFTER_DAYS = 90;
 const EXPORT_LINK_DAYS = 30;
 const FORCE_ACTIVE_DEFAULT_DAYS = 7;
@@ -526,9 +528,10 @@ function createCustomersController(ctx) {
         changePlan: !archived,
         downloadLicence: true,
         deprovision: !archived && !renamePending(c),
-        deprovisionHint: renamePending(c) ? 'Changement d’adresse à terminer d’abord.' : null,
+        deprovisionHint: renamePending(c) ? RENAME_PENDING_MESSAGE : null,
         reactivate: archived,
-        rename: !archived,
+        rename: !archived && !renamePending(c),
+        renameHint: renamePending(c) ? RENAME_PENDING_MESSAGE : null,
         cancelErase: archived && Boolean(c.eraseAt),
         eraseNow: archived && stopped(c),
         eraseHint: archived && !stopped(c) ? '« Processus et route arrêtés » en échec : à relancer d’abord.' : null,
@@ -637,7 +640,8 @@ function createCustomersController(ctx) {
     if (incoherent) errors.addons = incoherent.message;
     const billingIdentity = readBilling(body, errors);
     const moduleChoice = modules().creationChoices({ planCode: planRow && planRow.code, addons, requested: body.modules, errors });
-    const trial = Boolean(body.trial);
+    if (body.trial !== undefined && body.trial !== null && typeof body.trial !== 'boolean') errors.trial = TRIAL_NOT_A_BOOLEAN;
+    const trial = body.trial === true;
     const trialEndsAt = trial && startsAt ? addDays(startsAt, TRIAL_DAYS) : null;
 
     let summary = null;
@@ -811,6 +815,7 @@ function createCustomersController(ctx) {
     const c = mustGet(id);
     if (c.archivedAt) throw httpError(409, 'ARCHIVED', 'Client archivé : réactivez-le d’abord.');
     assertNotDeprovisioning(c.id);
+    if (renamePending(c)) throw httpError(409, 'RENAME_PENDING', RENAME_PENDING_MESSAGE);
     const slug = text(body, 'slug').trim();
     const { error } = renamePreview(id, { slug });
     if (!slug || error) throw httpError(400, 'INVALID', error || 'Nouvelle adresse obligatoire.');
@@ -974,7 +979,7 @@ function createCustomersController(ctx) {
   async function deprovision(id, body, operator) {
     const c = mustGet(id);
     if (c.archivedAt) throw httpError(409, 'ARCHIVED', 'Client déjà archivé.');
-    if (renamePending(c)) throw httpError(409, 'RENAME_PENDING', 'Changement d’adresse à terminer d’abord.');
+    if (renamePending(c)) throw httpError(409, 'RENAME_PENDING', RENAME_PENDING_MESSAGE);
     if (asText(body.confirmSlug) !== c.slug) throw httpError(400, 'CONFIRM_SLUG', `Tapez exactement « ${c.slug} » pour confirmer.`);
     if (deprovisioning.has(c.id)) return view(c.id);
     deprovisioning.add(c.id);

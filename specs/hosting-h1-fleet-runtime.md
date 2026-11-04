@@ -297,6 +297,8 @@ These are the recommended options, taken under the owner's instruction to run th
 
 44. **A late « Réessayer » that crosses midnight into the erasure day mails nothing** (audit R11 note, verified 2026-11-01; amends rule 41). The retry checks the erasure date before the fresh export, but the link's end date is computed after it, and a large space can take minutes: a retry on the eve of the erasure that ends after midnight produced a link expiring the day before, already dead, and mailed it. When the fresh link would end before today, `exportForDeprovision` deletes its archive and records nothing: no export row (so it never becomes the latest export), and « Export complet » (`deprov-export`) keeps its last real export, detail and time. The mail is not sent, nothing is journaled as produced, and the step fails « Effacement prévu le JJ/MM/AAAA : aucun lien envoyé. » (« dû » past that date), with no « Réessayer » (rule 41). Test: `tests/audit-r11-console-export-archive.unit.test.js`.
 
+45. **A rename waits for the one before it, and the console never loses an instance** (audit R22 N1, N2, 2026-11-04). While a rename is unfinished (in flight or its step not `ok`), « Changer l’adresse » is disabled with the hint « Changement d’adresse à terminer d’abord. » (`actions.rename` false, `actions.renameHint`) and the route answers 409 `RENAME_PENDING` before anything is written; only « Réessayer » goes on. `directory.aliasesOf` lists the slug last left first (`until DESC, rowid DESC`), so a retry and `servedSlug` start from the directory the instance is really in, even after two renames on one day. `provisioner.rename` fails with « Dossier de l’instance introuvable. » when the customer has a port and its directory is neither at the old slug nor at the new one, with no redirect set; « Aucune instance à déplacer » is only for a customer with no port yet. The creation's first step (`dir`) refuses with « Une base de données existe déjà à cette adresse. » when a database is already there, and nothing further runs until it is gone; `create` skips that step once `ok`, so resuming later steps is unaffected. *Why:* one failed host step followed by the rename the page still offered recorded success on a directory nobody had moved. The console then lost the instance: a deprovision skipped the export and left the unit running, an erasure reported as done left the database in place, and the next customer of the freed address opened the first customer's guest data. Test: `tests/audit-r22-console-rename.unit.test.js`.
+
 ---
 
 ## 4. Architecture
@@ -418,6 +420,8 @@ Mobile: the fleet table becomes cards, and the step list stays vertical.
   second deprovision serves an archived customer again, no rename or restore runs during a
   deprovision, no deprovision runs during a rename, and the erasure removes every reserved old
   address's route (38).
+- (2026-11-04) a second rename waits for the first, the retry starts from the slug last left, a rename finding no
+  directory for a live instance fails, and the creation stops on a database already at its address (45).
 
 **Instance unit tests:**
 - 403 on a managed instance;
@@ -568,3 +572,5 @@ real host: systemd, Caddy, Litestream and rclone are covered by their generated 
 lines only.
 
 **Audit R11 (2026-11-01):** rules 43–44 appended. Tests: control plane `audit-r11-console-export-archive` (5).
+
+**Audit R22 (2026-11-04):** rule 45 appended. Tests: control plane `audit-r22-console-rename` (7), console client `CustomerPage.rename-pending` (3). The fixture `makeInstance` now holds its database back until the fake « database » step, as on a host.

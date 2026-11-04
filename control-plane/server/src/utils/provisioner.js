@@ -141,6 +141,8 @@ function createProvisioner({
   const RUNNERS = {
     async dir(c) {
       const inst = instanceOf(c);
+      // H1 rule 45: a database here belongs to someone else; create skips this step once it is ok.
+      if (fs.existsSync(inst.dbPath)) throw new Error('Une base de données existe déjà à cette adresse.');
       for (const sub of ['data', 'uploads', 'private-documents', 'logs']) fs.mkdirSync(path.join(inst.dir, sub), { recursive: true });
       hosting.ensure(c.id);
       syncEnv(c);
@@ -344,8 +346,10 @@ function createProvisioner({
           if (fs.existsSync(to.dir)) throw new Error(`Le dossier ${to.dir} existe déjà.`);
           fs.renameSync(from.dir, to.dir);
         }
+        // H1 rule 45: with a port the instance exists somewhere; never record it as moved.
+        if (to.port && !fs.existsSync(to.dir)) throw new Error('Dossier de l’instance introuvable.');
         if (fs.existsSync(from.envFile) && !fs.existsSync(to.envFile)) fs.renameSync(from.envFile, to.envFile);
-        if (!fs.existsSync(to.dir) || !to.port) {
+        if (!to.port) {
           await drivers.proxy.writeRedirect(oldSlug, c.slug);
           hosting.addRedirect(oldSlug, c.id, until);
           return 'Aucune instance à déplacer ; redirection posée.';

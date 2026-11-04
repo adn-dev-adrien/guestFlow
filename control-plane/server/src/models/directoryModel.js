@@ -11,7 +11,7 @@ function buildDirectoryModel(db) {
   const countStmt = db.prepare('SELECT COUNT(*) AS n FROM directory WHERE customerId = ?');
   const addAliasStmt = db.prepare('INSERT INTO slug_aliases (slug, customerId, until) VALUES (?, ?, ?) ON CONFLICT (slug) DO UPDATE SET customerId = excluded.customerId, until = excluded.until');
   const aliasStmt = db.prepare('SELECT * FROM slug_aliases WHERE slug = ? AND until >= ?');
-  const aliasesOfStmt = db.prepare('SELECT * FROM slug_aliases WHERE customerId = ? AND until >= ? ORDER BY until DESC');
+  const aliasesOfStmt = db.prepare('SELECT * FROM slug_aliases WHERE customerId = ? AND until >= ? ORDER BY until DESC, rowid DESC');
   const dropAliasesStmt = db.prepare('DELETE FROM slug_aliases WHERE customerId = ?');
 
   return {
@@ -26,6 +26,7 @@ function buildDirectoryModel(db) {
     addAlias: (slug, customerId, until) => addAliasStmt.run(slug, customerId, until),
     // An old slug is reserved while its date has not passed.
     aliasTaken: (slug, today) => Boolean(aliasStmt.get(slug, today)),
+    // Latest first: `[0]` is the slug the instance last left, even after two renames on one day.
     aliasesOf: (customerId, today) => aliasesOfStmt.all(customerId, today),
   };
 }
