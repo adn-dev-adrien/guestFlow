@@ -2,12 +2,13 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Draft |
+| **Status** | Approved (2026-11-04) |
 | **Branch** | `claude/granja-estival-app-spec-77uvgj` (spec) — implementation base `inte/plugins` |
 | **Created** | 2026-11-04 |
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 | **Mock-ups** | [`specs/guest-app-maquettes.html`](guest-app-maquettes.html) |
+| **Plan** | [`specs/guest-app-plan.md`](guest-app-plan.md) |
 | **Builds on** | `public-api.md`, `wordpress-plugin.md` (catalogue projections), `gate-access-sowel-connector.md` + `sowel-stays-in-keys.md` (gate keys), `mid-stay-extras-on-locked-fiche.md` + `mid-stay-extras-to-end-of-stay-complement.md` (the end-of-stay bill), `online-payments-qonto.md` + `payment-link-lifecycle.md` (card payment), `resource-hourly-scheduling.md` (nordic bath slots), `pwa-push-notifications.md` (staff push) |
 
 > Code references below point at `origin/inte/plugins` (HEAD `71d3b314`), the branch whose public API the
@@ -61,7 +62,8 @@ is pushed every order.
 2. **Scanning opens the app at that lodging.** `POST /public/v1/guest/sessions {lodgingCode}` resolves the
    property, then its **current stay**: the non-cancelled reservation of that property whose window contains
    *now*. The window is the gate window — `startDate`+`checkInTime` − 3 h → `endDate`+`checkOutTime` + 2 h,
-   Europe/Paris, same inputs and fallbacks as `utils/gateWindow.js` (one helper, not a copy).
+   Europe/Paris, same inputs and fallbacks as the gate key window (`plugins/gate-access/window.js`, moved to
+   the core as `utils/stayWindow.js` so both plugins share one helper, not a copy).
 3. **Changeover day.** If two stays' windows contain *now*, the departing stay wins until its
    `checkOutTime`, the arriving one after. With the default times (10:00 + 2 h / 16:00 − 3 h) the windows
    never overlap; the rule only matters for custom times.
@@ -436,13 +438,14 @@ plugins only through the functions they export to other plugins (no direct table
 | `plugins/guest-app/` | `orderExpiryRunner.js` | C | Every minute: expire unpaid orders, release holds (rule 36) |
 | `plugins/guest-app/` | `planningCards.js` | C | `planning.days` server feed: « Commande app » cards on the delivery day (rule 43) |
 | `plugins/guest-app/` | `migrations.js` | C | Tables of §5 |
-| `plugins/website-booking/` | `publicProjections.js` | T | Export `toPublicOption` / `toPublicResource` for reuse (no behaviour change) |
-| `plugins/hourly-resources/` | `index.js` | T | Export to other plugins: `slotsForStay({resourceId, reservationId, propertyId, from, to, held, notBefore})` (occupancy + `buildDays` + `priceSessions`, rule 28), `validateSessions(...)`, and a `holds` provider so held guest orders count as occupancy in **every** consumer (planning page, SAS picker, outside bookings) |
-| `plugins/gate-access/` | `index.js` | T | Export `keyUrlForReservation(id, now)` (rules 12-13) |
+| `utils/` | `publicCatalogProjection.js` | C | `toPublicOption` / `toPublicResource` moved out of `website-booking/publicProjections.js` (which imports them back) so the guest app does not depend on the website plugin |
+| `plugins/sdk/createContext.js` · `coreServices.js` | — | T | Two SDK hooks: `ctx.resourceScheduler(provider)` (one provider app-wide, like `paymentProvider`) and `ctx.resourceHolds(fn)`; the core exposes `coreServices.resourceScheduler()` — plugins never `require` each other |
+| `plugins/hourly-resources/` | `index.js` | T | Declares the scheduler: `slotsForStay` (occupancy + `buildDays` + `priceSessions`, rule 28), `validateSessions`; reads every holds source as pending occupancy in **every** consumer (planning page, SAS picker, outside bookings) |
+| `plugins/gate-access/` | `index.js` | T | Declares a gate-key provider hook (`keyUrlForReservation(id, now)`, rules 12-13); `window.js` moves to core `utils/stayWindow.js` |
 | `utils/paymentRequestService.js` | — | T | `complement` link type with explicit basket and 30-min lifetime (rule 35) |
 | `utils/paymentPollRunner.js` | — | T | `applyPaidEffect` `complement` branch → `guestOrderCommit` |
 | `utils/` | `guestOrderCommit.js` | C | **Core**: commits an order's lines (options + resource sessions) as mid-stay extras, records a complement payment when paid, history entry — one transaction (rules 30, 34, 35) |
-| `utils/` | `gateWindow.js` | T | Export the window as a reusable function if not already (rule 2) |
+| `utils/` | `stayWindow.js` | C | The stay window, moved from `gate-access/window.js` (rule 2) |
 | `plugins/sdk/index.js` | — | T | Add `guestOrderCommit`, `pricing` free-units helper, `midStayExtrasWindow` to `CORE_MODULES` (one reviewed line each) |
 | `middleware/` | `rateLimiters.js` | T | `guestSessionLimiter` (30/h/IP), `guestLookupLimiter` (5/15 min/IP), `guestOrderLimiter` (10/h/session) |
 | `index.js` | — | T | Serve the guest app build on the guest host and the studio build at `/studio` (only while the plugin is live) |
@@ -453,11 +456,12 @@ devis PDF.
 
 ### 4.2 Client side
 
-Two new Vite apps in the repo, plus plugin contributions to the GuestFlow admin client.
+Two new Vite apps in the repo (`apps/guest/`, `apps/studio/`, shipped inside the `guest-app` plugin
+package by `scripts/build-plugin-packages.mjs`), plus plugin contributions to the GuestFlow admin client.
 
-**`guest/` — the guest PWA** (React, MUI with its own theme `guest/src/theme.js` carrying the Domaine Solio
+**`apps/guest/` — the guest PWA** (React, MUI with its own theme `apps/guest/src/theme.js` carrying the Domaine Solio
 tokens of §6.1 and GuestFlow's semantic colours, React Router; fonts Marcellus + Karla self-hosted in
-`guest/public/fonts/`; icons `lucide-react`):
+`apps/guest/public/fonts/`; icons `lucide-react`):
 
 | Layer | File | T/C | Responsibility |
 |---|---|---|---|
@@ -468,12 +472,12 @@ tokens of §6.1 and GuestFlow's semantic colours, React Router; fonts Marcellus 
 | `i18n/` | `fr.json`, `en.json` | C | App chrome strings (booklet content comes from the server) |
 | `public/` | `manifest.webmanifest`, `sw.js`, icons | C | Install + offline booklet |
 
-**`studio/` — the booklet studio** (React, MUI using GuestFlow's `client/src/theme.js`):
+**`apps/studio/` — the booklet studio** (React, MUI using GuestFlow's `client/src/theme.js`):
 
 | Layer | File | T/C | Responsibility |
 |---|---|---|---|
 | `pages/` | `PagesListPage`, `PageEditorPage`, `ShopItemsPage`, `ServiceHoursPage`, `MediaLibraryPage`, `AppSettingsPage` | C | Studio screens |
-| `components/` | `BlockPalette`, `BlockEditor` (one per type), `BilingualField`, `PhonePreview` (imports `guest/` renderers), `ImageCropper`, `SortableList`, `WeeklyHoursEditor` | C | Editing UI |
+| `components/` | `BlockPalette`, `BlockEditor` (one per type), `BilingualField`, `PhonePreview` (imports `apps/guest/` renderers), `ImageCropper`, `SortableList`, `WeeklyHoursEditor` | C | Editing UI |
 
 **`client/` (GuestFlow admin) — only through the plugin's client module `client/src/plugins/guest-app/`:**
 
@@ -579,8 +583,8 @@ prototype of the main flows, key screens in day and night, tablet / desktop, the
 
 | Surface | Identity | Why |
 |---|---|---|
-| **Guest app** (`guest/`) | **Domaine Solio — « forêt et heure dorée »**, the charter of the showcase site (`gf-site-style.php`, 2026-09, now in the site's private repo) and of the gate app (`gate-access-portier.md` / `guest-gate-access.md` §6.0) | The guest is a guest of the estate, not a user of GuestFlow. Website → booking → gate app → guest app must read as one house: same fonts, same ocre button, same night register. Tapping « Portail » hops into the gate app without a visual jolt. |
-| **Studio** (`studio/`) and the **Commandes app** page | **GuestFlow « Maison »** (`design-system.md`, `design-system-reference.md`, `client/src/theme.js`) | Operator tools. Same component library (`PageActionBar`, `StatusBadge`, `EmptyState`…), same tokens, same rules (formatters, tabular figures, fullscreen dialogs on `xs`). |
+| **Guest app** (`apps/guest/`) | **Domaine Solio — « forêt et heure dorée »**, the charter of the showcase site (`gf-site-style.php`, 2026-09, now in the site's private repo) and of the gate app (`gate-access-portier.md` / `guest-gate-access.md` §6.0) | The guest is a guest of the estate, not a user of GuestFlow. Website → booking → gate app → guest app must read as one house: same fonts, same ocre button, same night register. Tapping « Portail » hops into the gate app without a visual jolt. |
+| **Studio** (`apps/studio/`) and the **Commandes app** page | **GuestFlow « Maison »** (`design-system.md`, `design-system-reference.md`, `client/src/theme.js`) | Operator tools. Same component library (`PageActionBar`, `StatusBadge`, `EmptyState`…), same tokens, same rules (formatters, tabular figures, fullscreen dialogs on `xs`). |
 | **Studio's phone preview** | Domaine Solio | It renders the real guest components (rule 49). |
 
 What both share, so the house stays coherent: the **semantic colours** of « Maison » (success / warning /
@@ -588,7 +592,7 @@ error soft-chip pattern, contrast ≥ 4.5:1), the **money and date formats** (`1
 « 20 h – 21 h »), **figures never in a display face** (Karla / Inter, `tabular-nums`), 44 px touch targets,
 and French copy written from the guest's side.
 
-### 6.1 Guest app tokens (`guest/src/theme.js`, single source)
+### 6.1 Guest app tokens (`apps/guest/src/theme.js`, single source)
 
 | Token | Day | Night | Use |
 |---|---|---|---|
@@ -627,7 +631,7 @@ are night-time uses.
 | `figure` (prices, times, codes) | Karla 700 `tabular-nums` | never Marcellus |
 
 Fonts are the very woff2 files the site serves (Marcellus 400, Karla variable + italic), bundled in
-`guest/public/fonts/`, `font-display: swap`, preloaded — no Google Fonts request in production (the
+`apps/guest/public/fonts/`, `font-display: swap`, preloaded — no Google Fonts request in production (the
 mock-ups load them from Google Fonts only because they are static files).
 
 ### 6.3 Shape, depth, iconography, photography, motion
