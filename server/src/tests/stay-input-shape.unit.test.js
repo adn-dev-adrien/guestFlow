@@ -64,7 +64,7 @@ test('rule 16 — the lines: ids positive integers, text is text, a flag is a fl
     assert.equal(refusal.field, field);
   }
   assert.equal(stayShapeRefusal({
-    options: [{ optionId: 1, inComplement: 0, cardOccurrences: [{ date: '2030-01-01', time: '08:00' }] }, { optionId: '2', inComplement: null }],
+    options: [{ optionId: 1, inComplement: 0, cardOccurrences: [{ date: app.dates.start, time: '08:00' }] }, { optionId: '2', inComplement: null }],
     customOptions: [{ description: 'x', customOptionId: null, inComplement: true }],
     resources: [{ resourceId: 3 }], offeredOptionIds: [1, '2'], autoOptionsInComplement: [1],
   }), null);

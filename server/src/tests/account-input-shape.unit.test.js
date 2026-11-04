@@ -6,6 +6,7 @@ const { setup, fakeRes, fakeSession } = require('./accountSecurityFixture');
 const authController = require('../controllers/authController');
 const { createReauthGuard, MAX_FAILURES } = require('../utils/reauthGuard');
 const totp = require('../utils/totp');
+const { todayIso } = require('../utils/localDate');
 const { buildController: buildPlanning } = require('../controllers/planningController');
 const { createSupportAudit } = require('../middleware/supportAudit');
 const { startApp } = require('./inputShapeApp');
@@ -104,13 +105,14 @@ test('rule 68 — planning cards: a tick is true / false / 1 / 0, ids and date j
     c.setOptionCardDone({ body }, res);
     return res;
   };
-  const good = { reservationId: 1, optionId: 2, date: '2030-01-01', time: '08:00' };
+  const today = todayIso();
+  const good = { reservationId: 1, optionId: 2, date: today, time: '08:00' };
   for (const done of ['false', 'abc', T, {}, [], 2]) {
     const res = post({ ...good, done });
     assert.equal(res.statusCode, 400, JSON.stringify(done));
     assert.equal(res.body.error, 'INVALID_PAYLOAD');
   }
-  for (const bad of [{ reservationId: [1] }, { reservationId: T }, { optionId: true }, { date: T }, { date: ['2030-01-01'] }, { time: T }, { time: 8 }]) {
+  for (const bad of [{ reservationId: [1] }, { reservationId: T }, { optionId: true }, { date: T }, { date: [today] }, { time: T }, { time: 8 }]) {
     assert.equal(post({ ...good, done: true, ...bad }).statusCode, 400, JSON.stringify(bad));
   }
   assert.equal(calls.length, 0);
