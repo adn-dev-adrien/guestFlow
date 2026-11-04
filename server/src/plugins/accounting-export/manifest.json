@@ -1,7 +1,7 @@
 {
   "id": "accounting-export",
   "name": "Export comptable",
-  "version": "1.0.23",
+  "version": "1.0.24",
   "description": "Écritures, plan comptable et export pour le cabinet comptable.",
   "icon": "book",
   "surfaces": [
@@ -103,6 +103,10 @@
       "Une annulation après un remboursement ne reprend que ce qui restait de l’acompte ou des échéances : chaque compte de produits et de TVA s’équilibre au centime.",
       "L’annulation d’un ancien acompte reprend la répartition hébergement / prestations sur laquelle il a été comptabilisé, et un solde payé absorbe les remboursements au centime près.",
       "L’avoir d’un ancien acompte reprend au centime le HT et la TVA de son écriture.",
+      "Compatible avec le SDK 2.19 de GuestFlow."
+    ],
+    "1.0.24": [
+      "La taxe de séjour des voyageurs ajoutés sur une plateforme qui la reverse est comptabilisée avec le complément, le solde gardant ce que la plateforme a reversé.",
       "Compatible avec le SDK 2.19 de GuestFlow."
     ]
   }

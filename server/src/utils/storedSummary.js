@@ -193,6 +193,8 @@ function buildStoredSummary({ row, db, vatRegime, headline, refundsTotal = 0, mi
     finalPrice: round2(row.finalPrice),
     touristTaxTotal: tax,
     touristTaxOriginalTotal: tax,
+    // specs/platform-added-guests-tourist-tax.md rule 18 — the fiche prints its own line, as on the live quote.
+    touristTaxAddedGuestsAmount: round2(row.touristTaxAddedGuestsAmount),
     touristTaxInComplement: flag(row.touristTaxInComplement),
     touristTaxOfferedByPlatform,
     touristTaxCollectedOnArrival: !collects && isPlatform && tax > 0,

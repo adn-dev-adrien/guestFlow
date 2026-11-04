@@ -185,6 +185,7 @@ export default function PricingSummary({
   const touristTaxIncludedDeduction = Number(quote?.touristTaxIncludedInRateDeduction || 0);
   const touristTaxBaseBeforeDeduction = Number(quote?.touristTaxBaseBeforeDeduction || 0);
   const touristTaxFrozenAt = quote?.touristTaxFrozenAt || null;
+  const touristTaxAddedGuestsAmount = Number(quote?.touristTaxAddedGuestsAmount || 0);
   const touristTaxBrutInconsistent = Boolean(quote?.touristTaxBrutInconsistent);
   const optionsSelected = quote?.optionLines || [];
   const resourcesSelected = quote?.resourceLines || [];
@@ -832,6 +833,15 @@ export default function PricingSummary({
                 <Typography variant="caption" sx={{ display: 'block', color: 'warning.main', fontStyle: 'italic' }}>
                   À collecter à l'arrivée (incluse dans le complément)
                 </Typography>
+              )}
+              {/* specs/platform-added-guests-tourist-tax.md rule 14 — never offered: a debt to the commune. */}
+              {touristTaxAddedGuestsAmount > 0 && (
+                <ExtraGuestRow
+                  label="Taxe de séjour · voyageurs ajoutés"
+                  caption="Comprise dans la taxe ci-dessus"
+                  amount={touristTaxAddedGuestsAmount}
+                  chip={<ComplementChip active readOnly />}
+                />
               )}
             </Box>
           </>

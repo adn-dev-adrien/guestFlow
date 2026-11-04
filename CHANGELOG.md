@@ -4,6 +4,22 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+## [3.21.0] - 2026-11-03
+
+### Summary
+- Sur une plateforme qui reverse la taxe, celle des voyageurs ajoutés après la saisie passe au complément, sur sa propre ligne.
+- L'hébergement ne baisse plus quand des voyageurs s'ajoutent ; le client paie sa taxe à l'arrivée et elle est déclarée une fois encaissée.
+- Si le séjour est déjà déclaré, la part ajoutée a sa ligne et sa case dans le Suivi taxe de séjour, le mois de l'encaissement.
+- « Marquer solde payé » n'est plus refusé sur une fiche plateforme avec voyageur ajouté.
+- Les fiches existantes ne bougent pas : les voyageurs déjà ajoutés ne sont pas facturés de cette taxe.
+
+### Fixed
+- **Tourist tax of guests added after a platform booking.** On a platform that reverses the tax to us, guests added after the platform amounts were entered no longer take their tax out of the accommodation: it is collected in the arrival complement, on its own line, and declared once collected (`specs/platform-added-guests-tourist-tax.md`).
+- **« Marquer solde payé » refused on a platform fiche with added guests.** The payment capture counted the added guests' supplement in the solde and answered 409.
+
+### Migration
+- `reservations` gains `platformPaidAdults`, `touristTaxAddedGuestsAmount` and `touristTaxAddedGuestsDeclaredAt`. Non-direct reservations with a brut take their current adults as the paid base, so no stored amount moves.
+
 ## [3.20.0] - 2026-11-03
 
 ### Summary
