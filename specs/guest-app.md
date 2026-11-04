@@ -363,11 +363,9 @@ is pushed every order.
 52. **Installable PWA.** Manifest (name from the studio, theme fir-green), icons, standalone display,
     offline shell + booklet (rule 21). After the second visit a discreet « Installer l'app » card (Android
     `beforeinstallprompt`; iOS: a sheet with the share → « Sur l'écran d'accueil » steps). Never on first load.
-53. **Look & feel** — see §6 and the mock-ups: photo-led, generous whitespace, the GuestFlow « maison »
-    palette (fir green `#2F5D46`, honey `#C99038`, warm paper) and fonts (Source Serif 4 for display, Inter for
-    text), soft large-radius cards, subtle motion (tile press, bottom sheets, page transitions ≤ 250 ms,
-    `prefers-reduced-motion` respected), automatic dark mode for the evening, WCAG AA contrast, 44 px touch
-    targets.
+53. **Look & feel** — §6: the Domaine Solio identity of the site and the gate app (Marcellus + Karla,
+    sapin / ocre / paper, square-cut, photo-led), the night register at night, one orchestrated motion per
+    screen, WCAG AA in both registers, 44 px touch targets.
 
 **Edge cases:**
 - Guest scans the La Granja QR while staying at L'Estiva (wrong lodging, same estate) → the La Granja stay
@@ -457,12 +455,14 @@ devis PDF.
 
 Two new Vite apps in the repo, plus plugin contributions to the GuestFlow admin client.
 
-**`guest/` — the guest PWA** (React, MUI with a dedicated theme built from GuestFlow's tokens, React Router):
+**`guest/` — the guest PWA** (React, MUI with its own theme `guest/src/theme.js` carrying the Domaine Solio
+tokens of §6.1 and GuestFlow's semantic colours, React Router; fonts Marcellus + Karla self-hosted in
+`guest/public/fonts/`; icons `lucide-react`):
 
 | Layer | File | T/C | Responsibility |
 |---|---|---|---|
 | `pages/` | `HomePage`, `BookletIndexPage`, `BookletPage`, `ShopPage`, `SlotPickerPage`, `CartPage`, `OrderPage`, `OrdersPage`, `SoliomapPage`, `LookupPage`, `LodgingEntryPage` (`/l/:code`) | C | Route-level views |
-| `components/` | `AppShell` (tab bar / rail), `HeroHeader`, `StayCard`, `QuickTile`, `HighlightCard`, `BlockRenderer` + one renderer per block type, `ProductCard`, `ProductSheet`, `QuantityStepper`, `SlotGrid`, `DeliveryTimeChips`, `ServiceHoursBanner`, `CartBar`, `PaymentChoice`, `NameConfirmDialog`, `StatusChip`, `InstallPrompt`, `OfflineBanner` | C | Rendering only |
+| `components/` | `AppShell` (`TabBar` / `NavRail`), `HeroHeader`, `StayCard`, `QuickTile`, `MomentCard`, `PhotoCard`, `BlockRenderer` + one renderer per block type, `ProductCard`, `ProductSheet`, `QuantityStepper`, `SlotGrid`, `DeliveryTimeChips`, `ServiceHoursBanner`, `CartBar`, `PaymentChoice`, `NameConfirmSheet`, `OrderTimeline`, `StatusChip`, `InstallPrompt`, `OfflineBanner` | C | Rendering only — anatomy in §6.4 |
 | `services/` | `api.js` | C | `fetch` with credentials, error envelope → typed errors |
 | `hooks/` | `useSession`, `useCart` (local state + localStorage), `useOrderStatus` (poll) | C | UI state |
 | `i18n/` | `fr.json`, `en.json` | C | App chrome strings (booklet content comes from the server) |
@@ -489,8 +489,8 @@ Two new Vite apps in the repo, plus plugin contributions to the GuestFlow admin 
 | Category | Components | Notes |
 |---|---|---|
 | **Consumed (existing generic)** | `PageActionBar`, `DataPageScaffold`, `StatusBadge`, `EmptyState`, `ConfirmDialog`, `FormDialog` (admin page + studio) | Studio and admin keep GuestFlow's component library. |
-| **Created (new generic, guest app)** | `QuickTile`, `BottomSheet`, `QuantityStepper`, `StatusChip`, `BlockRenderer` | Generic inside the guest app; `BlockRenderer` is shared with the studio preview. |
-| **Specific** | `SlotGrid`, `DeliveryTimeChips`, `PaymentChoice`, `NameConfirmDialog`, `StayCard`, `GuestAppItemFields` | Tied to the stay / order flows. |
+| **Created (new generic, guest app)** | `QuickTile`, `PhotoCard`, `BottomSheet`, `QuantityStepper`, `StatusChip`, `BlockRenderer`, `OrderTimeline` | Generic inside the guest app; `BlockRenderer` is shared with the studio preview. |
+| **Specific** | `SlotGrid`, `DeliveryTimeChips`, `PaymentChoice`, `NameConfirmSheet`, `StayCard`, `MomentCard`, `GuestAppItemFields` | Tied to the stay / order flows. |
 
 Why not reuse `client/` for the guest app: different audience, origin, auth and bundle budget (the guest
 app must load fast on 3G and be cacheable offline; the admin bundle is several MB).
@@ -572,52 +572,173 @@ through the existing mid-stay path. Changelog `Migration` note at implementation
 
 ## 6. UI / UX
 
-See **`specs/guest-app-maquettes.html`** (mobile home, booklet page, shop, bath slot picker, cart with the
-payment choice and name confirmation, staff delivery time, tablet/desktop layout, studio editor, the
-plugin switch in GuestFlow's option editor).
+Mock-ups and clickable prototype: **`specs/guest-app-maquettes.html`** (charter board, a working phone
+prototype of the main flows, key screens in day and night, tablet / desktop, the studio).
 
-Design direction — « boarding pass » apps (Enso, Duve) meet a boutique-hotel magazine:
-- **Home**: full-bleed lodging photo with a dark gradient, greeting in Source Serif 4, a frosted stay card
-  overlapping the photo (dates, status line, countdown), then a 3 × 2 grid of large rounded tiles with
-  duotone icons; one highlight card; booklet shortcuts as a horizontal photo strip.
-- **Booklet**: index as photo cards; page = cover photo, title, blocks with generous rhythm; `steps` as a
-  vertical timeline; `wifi` as a ticket-like card with copy + join QR.
-- **Shop**: category chips (sticky), product cards with photo, name, price label; tap → bottom sheet with
-  large photo, description, stepper, « Ajouter · 9,00 € »; floating cart bar « 3 articles · 24,00 € » above
-  the tab bar.
-- **Bath**: day chips, then a slot grid read from the GuestFlow planning (free / evening rate / taken /
-  heating / « équipe absente »), price per slot shown by the server, free-minutes banner on top.
-- **Delivery time** (staff items): horizontal time chips « Dès que possible · 17 h 30 », « 18 h », … and, out
-  of service hours, a honey banner « Le service reprend demain à 8 h ».
-- **Checkout**: two big choice cards — « Payer maintenant » (card icon, « Paiement sécurisé Qonto ») and
-  « Ajouter à ma note » (« Réglée à votre départ ») → the latter opens the name confirmation sheet.
-- **Gate**: no screen of its own — the « Portail » tile opens the existing gate app (Sowel key link).
+### 6.0 Two identities, one rule: who is looking
 
-Copy (FR, EN in `en.json`): « Bonjour {prénom} », « Votre séjour », « Ouvrir le portail », « Le livret »,
-« La boutique », « Ajouter au panier », « Payer maintenant », « Ajouter à ma note », « Pour mettre cette
-commande sur votre note, confirmez votre nom de famille », « Commande envoyée ! Nous la préparons. »,
-« Quand souhaitez-vous la recevoir ? », « Inclus », « 1 h offerte avec votre séjour »,
-« Le service reprend demain à 8 h », « Connexion nécessaire », « Nous n'avons pas trouvé ce séjour. Vérifiez le nom et le numéro. »
+| Surface | Identity | Why |
+|---|---|---|
+| **Guest app** (`guest/`) | **Domaine Solio — « forêt et heure dorée »**, the charter of the showcase site (`gf-site-style.php`, 2026-09, now in the site's private repo) and of the gate app (`gate-access-portier.md` / `guest-gate-access.md` §6.0) | The guest is a guest of the estate, not a user of GuestFlow. Website → booking → gate app → guest app must read as one house: same fonts, same ocre button, same night register. Tapping « Portail » hops into the gate app without a visual jolt. |
+| **Studio** (`studio/`) and the **Commandes app** page | **GuestFlow « Maison »** (`design-system.md`, `design-system-reference.md`, `client/src/theme.js`) | Operator tools. Same component library (`PageActionBar`, `StatusBadge`, `EmptyState`…), same tokens, same rules (formatters, tabular figures, fullscreen dialogs on `xs`). |
+| **Studio's phone preview** | Domaine Solio | It renders the real guest components (rule 49). |
 
-States: skeleton loading on every list, `EmptyState` for empty categories / no orders, offline banner,
-error toasts with retry.
+What both share, so the house stays coherent: the **semantic colours** of « Maison » (success / warning /
+error soft-chip pattern, contrast ≥ 4.5:1), the **money and date formats** (`1 234,50 €`, « ven. 9 oct. »,
+« 20 h – 21 h »), **figures never in a display face** (Karla / Inter, `tabular-nums`), 44 px touch targets,
+and French copy written from the guest's side.
+
+### 6.1 Guest app tokens (`guest/src/theme.js`, single source)
+
+| Token | Day | Night | Use |
+|---|---|---|---|
+| `paper` | `#F5F0E6` | `#161C16` (« nuit ») | page ground |
+| `card` | `#FDFAF3` | `#1F261E` | cards, sheets, fields |
+| `ink` | `#22271F` | `#EFE8D6` | text |
+| `inkSoft` | `#5C6153` | `#A9AE9C` | secondary text (5.6:1 / 7.6:1) |
+| `sapin` | `#2E3B2A` | `#EFE8D6` | headings, outline buttons, active tab |
+| `lichen` | `#5A6B48` | `#9DB087` | icons, quiet accents |
+| `ocre` | `#B87B2A` | `#E8C286` (« or ») | non-text accents: active chip, progress, stars, focus ring |
+| `ocreInk` | `#8A5816` | `#E8C286` | eyebrows, links, prices in accent (5.3:1 on paper) |
+| `action` / `onAction` | `#9A6318` / `#FFFFFF` | `#E8C286` / `#161C16` | the primary button (5.0:1 / 10.3:1) |
+| `line` | `#DCD4C2` | `#2E362C` | rules, borders |
+| `scrim` | `linear-gradient(to top, rgba(10,14,10,.74), rgba(10,14,10,.22) 45%, rgba(10,14,10,.12))` | same | over every photo carrying text — the site's hero gradient |
+| semantic | « Maison » `success` / `warning` / `error` main + soft | darkened soft, light text | status chips only |
+
+**Accessibility adjustment, recorded:** the site's button (`#B87B2A` + white, 3.6:1) fails AA for the
+app's 15 px label, so the app's filled button uses `ocre-deep` `#9A6318` (5.0:1); the bright ocre is kept
+for non-text accents. Eyebrows use `ocreInk` `#8A5816` because `#9A6318` on paper is 4.4:1.
+
+**Night register.** Under `prefers-color-scheme: dark` — and automatically from sunset to sunrise
+(Europe/Paris, server-provided `isNight`) unless the guest chose « Jour » in the app bar — the app moves to
+« nuit » with the header's gold, the pairing the site uses for its header and « band ciel ». A guest
+opening the app on the terrace at 22:00 must not be blinded; the bath, the gate and the evening drinks
+are night-time uses.
+
+### 6.2 Typography (the site's faces, self-hosted)
+
+| Role | Face | Spec |
+|---|---|---|
+| `display` (hero greeting, page titles) | **Marcellus** 400 | 30–34 px mobile / 44 px desktop, line-height 1.1, mixed case for the greeting (« Bonjour Marie »), **uppercase + `letter-spacing .06em`** for page titles (« LA BOUTIQUE ») |
+| `title` (card / sheet titles) | Marcellus 400 | 19–22 px, mixed case |
+| `eyebrow` (the site's signature) | Karla 700 | 11.5 px, uppercase, `letter-spacing .32em`, `ocreInk` — above each title (« VOTRE SÉJOUR », « BIEN-ÊTRE ») |
+| `body` | Karla 400 / 500 | 16 px, line-height 1.55; 15 px in dense lists |
+| `label` (buttons, tabs) | Karla 700 | 13 px uppercase `letter-spacing .16em` for buttons (site: .22em, tightened for phones); tabs 11 px sentence case |
+| `figure` (prices, times, codes) | Karla 700 `tabular-nums` | never Marcellus |
+
+Fonts are the very woff2 files the site serves (Marcellus 400, Karla variable + italic), bundled in
+`guest/public/fonts/`, `font-display: swap`, preloaded — no Google Fonts request in production (the
+mock-ups load them from Google Fonts only because they are static files).
+
+### 6.3 Shape, depth, iconography, photography, motion
+
+- **Shape.** The site is square-cut: buttons **2 px**, cards and photos **4 px**. The app keeps it — it is
+  what makes it read as Domaine Solio rather than a generic rounded app. Exceptions where the platform
+  speaks: bottom sheets **16 px** top corners, chips and the cart pill fully rounded, the phone's own
+  safe-area curves.
+- **Depth.** Paper is flat; cards are set off by a `line` border, not a shadow. One shadow only, for things
+  that float: the cart bar and sheets (`0 12px 32px rgba(22,28,22,.22)`).
+- **Icons.** One line set, 1.75 px stroke, rounded caps (Lucide, MIT, tree-shaken), drawn in `lichen` on
+  a `card` tile; filled glyphs only for the active tab. No emoji anywhere in the UI.
+- **Photography carries the brand.** Every page opens on a real photo of the estate — golden hour, forest,
+  stone, steam on the bath — under the site's scrim. Product photos are square, natural light, on wood or
+  linen. The studio enforces ratios (hero 4:5 mobile / 16:9 desktop, product 1:1, page cover 3:2) and
+  shows a warning on a photo under 1200 px.
+- **Motion, one orchestrated moment per screen.** Page enter: 8 px rise + fade, 220 ms ease-out.
+  Sheets: 280 ms decelerate. Add to cart: the product thumbnail flies to the cart bar (320 ms) and the
+  count ticks. Order confirmed: a gold check is drawn (600 ms). Nothing loops, nothing auto-plays.
+  `prefers-reduced-motion` → cross-fades only.
+
+### 6.4 Components (guest app)
+
+| Component | Anatomy & behaviour |
+|---|---|
+| `HeroHeader` | Full-bleed photo (≈ 46 % of the viewport on mobile, never 100 vh), scrim, eyebrow (lodging), greeting in Marcellus, language + day/night switch top-right on a frosted pill. |
+| `StayCard` | `card` panel overlapping the hero by 48 px: dates (« 6 → 9 oct. »), status line from the server, a 3-segment night progress (« nuit 2 sur 3 »). |
+| `QuickTile` | 1:1 tile, `line` border, 4 px radius, lichen line icon, Karla 13 px label; pressed state darkens the border to `sapin` and scales 0.98. External tiles (Portail, Soliomap) carry a small ↗. |
+| `MomentCard` | The single highlight of rule 11: photo left, eyebrow + one sentence + one text button. Time-aware copy (« Ce soir », « Demain matin »). |
+| `PhotoCard` | Booklet / shop entry: photo with scrim, eyebrow + Marcellus title inside the photo, bottom-left. |
+| `ProductCard` | Square photo, title (Karla 600), price `figure` + unit (« 4,50 € · la bouteille »), a 44 px « + » button on the photo corner. Included / free states replace the price with a success soft chip « Inclus » / « 1 h offerte ». |
+| `ProductSheet` | Bottom sheet (`xs`) / centred dialog (`md+`): large photo, eyebrow, Marcellus title, description, stepper, full-width primary button carrying the server total (« AJOUTER · 12,00 € »). |
+| `SlotGrid` | Day chips (weekday + date), then 2-column slot buttons: time range, price or reason. States: free, evening (gold dot + « tarif soirée »), taken (struck, 40 % opacity), heating / staff (dashed border + reason), selected (sapin fill). |
+| `DeliveryTimeChips` | Horizontal chips grouped by day, first one « Dès que possible · 17 h 30 ». Out-of-hours banner above (warning soft). |
+| `CartBar` | Floating pill above the tab bar: count, « Voir le panier », server total; slides up on first add. |
+| `PaymentChoice` | Two large selectable cards with icon, title, one-line explanation; the selected one gets a sapin border and check. |
+| `NameConfirmSheet` | One field, autofocus, `autocomplete="family-name"`, explanation in one sentence, primary button + text button « Payer par carte plutôt ». |
+| `OrderTimeline` | Status as a vertical 3-step line: Reçue → En préparation → Livrée (or Payée / Sur votre note), times in `figure`. |
+| `TabBar` / `NavRail` | 4 entries max (rule 11bis decides which); active = filled icon + sapin label + 2 px ocre bar on top. |
+| `BlockRenderer` | One renderer per booklet block; `steps` as a vertical timeline with lichen numerals, `wifi` as a ticket with a perforated edge, `callout` as a soft panel with a left icon, `contact` as a row with « Appeler » / « WhatsApp » buttons, `place` with a static map tile + « Itinéraire ». |
+
+States, for every list: skeletons in the final layout (no spinner on a blank page), `EmptyState` with an
+illustration-free icon + one sentence + one action, `ErrorAlert` with « Réessayer », offline banner
+« Hors connexion — le livret reste disponible ».
+
+### 6.5 UX principles — what makes it feel effortless
+
+1. **Zero steps before value.** The QR opens straight on the guest's home — no splash, no login, no cookie
+   wall (the session cookie is strictly necessary). The only question the app ever asks is the last name,
+   and only to put an order on the bill (rule 33).
+2. **The home answers « what now? ».** Tiles are the stable map; the `MomentCard` is the one thing that
+   matters at this hour (arrival day → Portail; evening → bath; morning → breakfast delivery; eve of
+   departure → « Départ : les consignes »).
+3. **Thumb zone.** Primary actions sit in the bottom third: cart bar, sheet buttons, payment confirmation.
+   Nothing important in the top corners except language / night.
+4. **Show the real price before every commitment.** Each button that commits carries the server total
+   (« COMMANDER · 33,00 € »); free and included items say so in green before the guest asks.
+5. **Never a dead end.** Every refusal names the next step: slot taken → the next free slots; service
+   closed → « commandez pour demain 8 h 30 »; name mismatch → « Payer par carte plutôt »; offline → the
+   booklet still works.
+6. **One house.** Same eyebrow, same button, same night register as the site and the gate app; the gate
+   tile opens the gate app, Soliomap opens Soliomap — the guest app is the hall, not a copy of the rooms.
+7. **Readable anywhere.** 16 px body minimum, supports system text size up to 200 % without overlap,
+   contrast ≥ 4.5:1 in both registers, visible focus (2 px ocre ring, 2 px offset), every tile and price
+   labelled for screen readers (« 12 euros, plateau picodons, ajouter »), `lang` switched with the content.
+
+### 6.6 Screen by screen
+
+- **Home** — hero (46 %), `StayCard`, tiles grid (3 × 2 on phone, 6 in a row on desktop), `MomentCard`,
+  « Le livret » photo strip, « Commandes en cours » row if any.
+- **Booklet index** — search field (sticky), then `PhotoCard`s in one column (phone) / 2 (tablet) / 3
+  (desktop); a shared page is indistinguishable from a lodging one.
+- **Booklet page** — cover photo with title inside, then blocks with 24 px rhythm; « Page suivante » card at
+  the bottom (no dead end); offline-cached badge discreet in the footer.
+- **Shop** — page title « LA BOUTIQUE », sticky category chips, a featured `PhotoCard` for the bath when it
+  is sold here, then a 2-column `ProductCard` grid (3 on tablet, 4 on desktop). Service banner on top when
+  closed. `CartBar` floats.
+- **Bath** — eyebrow « BIEN-ÊTRE », title, free-time chip (« 1 h offerte · déjà utilisée lundi »), day
+  chips, `SlotGrid`, sticky button with the server price of the selection.
+- **Cart** — lines with thumbnails and steppers, delivery chips (if any staff item), total, `PaymentChoice`,
+  one primary button whose label follows the choice (« PAYER 33,00 € » / « AJOUTER À MA NOTE »).
+- **Confirmation** — gold check drawn, « Commande envoyée », one-sentence promise built by the server
+  (« Livrée vers 18 h à L'Estiva », « Le bain sera chaud à 20 h »), `OrderTimeline`, « Retour à
+  l'accueil ».
+- **Orders** — current orders first with `OrderTimeline`, then past ones collapsed.
+- **Lookup** (`/retrouver`) — night-register hero photo, two fields, one button; the same calm error.
 
 **Responsive:**
-- `xs` (≤ 600): bottom tab bar, single column, bottom sheets for product / name / install, cart bar floating.
-- `md` (~900): navigation rail left, booklet two-pane (index 320 px | page), shop two-pane (catalogue | cart
-  panel always visible), sheets become centred dialogs.
-- `lg` (≥ 1200): content max 1200 px centred, hero 420 px high, tiles 6 in a row.
+- `xs` (≤ 600): bottom tab bar, single column, bottom sheets, cart bar floating, hero 46 % of the viewport.
+- `md` (~900): navigation rail left (72 px), booklet two-pane (index 320 px | page), shop two-pane (catalogue
+  | cart panel always visible — no cart bar), sheets become centred dialogs (max 560 px).
+- `lg` (≥ 1200): content max 1200 px centred, hero 420 px high with the greeting at 44 px, tiles 6 in a row,
+  booklet 3 columns.
 
-**GuestFlow option / resource editors (plugin contribution):** while `guest-app` is active, a section
-« Application clients » appears at the bottom of the editor: switch « Vendu dans l'app », and when on: photo,
-short description FR/EN, « Préparé par l'équipe » + « Délai de préparation (min) », « Quantité max. par
-commande ». Plugin inactive → the section does not exist.
+**GuestFlow option / resource editors (plugin contribution, « Maison »):** while `guest-app` is active, a
+section « Application clients » appears at the bottom of the editor: switch « Vendu dans l'app », and when
+on: photo, short description FR/EN, « Préparé par l'équipe » + « Délai de préparation (min) », « Quantité
+max. par commande ». Plugin inactive → the section does not exist.
 
 **PageActionBar:** applies to the GuestFlow admin page *Commandes app* (title « Commandes app », action
 « Actualiser » `RefreshIcon` info) and to the studio pages (editor: Save « Enregistrer le brouillon »,
 Cancel, `actionsBefore` « Aperçu » and « Publier » success, `actionsAfter` « Supprimer la page » error).
 The **guest app does not use `PageActionBar`**: it is not a GuestFlow back-office page, and its app bar +
-tab bar is the guest-facing pattern (deliberate exception to CLAUDE.md §7, to confirm — §9 Q7).
+tab bar is the guest-facing pattern (deliberate exception to CLAUDE.md §7, accepted 2026-11-04).
+
+Copy (FR; EN in `en.json`): « Bonjour {prénom} », « Votre séjour », « Le livret », « La boutique »,
+« Ajouter », « Voir le panier », « Quand souhaitez-vous la recevoir ? », « Dès que possible », « Inclus »,
+« 1 h offerte avec votre séjour », « Le service reprend demain à 8 h », « Payer maintenant », « Ajouter à
+ma note », « Pour mettre cette commande sur votre note, confirmez votre nom de famille », « Commande
+envoyée », « Hors connexion — le livret reste disponible », « Nous n'avons pas trouvé ce séjour. Vérifiez
+le nom et le numéro. »
 
 ## 7. Test plan
 
@@ -698,8 +819,6 @@ tab bar is the guest-facing pattern (deliberate exception to CLAUDE.md §7, to c
   reverse proxy route to GuestFlow).
 - **Q3 — App name.** « Domaine Solio » with « Mon séjour » as subtitle? One app for both lodgings, branded
   per lodging inside (hero, name).
-- **Q6 — Brand tokens.** Guest app reuses GuestFlow's « maison » palette and fonts, or Domaine Solio has its
-  own charter (logo, colours, fonts) to apply?
 - **Q8 — Soliomap framing.** Does `soliomap.domainesolio.com` allow being framed by the guest host
   (`frame-ancestors`)? Can it read `?lang=&lodging=`?
 - **Q9 — What is sold at launch.** Which catalogue items get « Vendu dans l'app » first, and which are
@@ -730,5 +849,8 @@ tab bar is the guest-facing pattern (deliberate exception to CLAUDE.md §7, to c
 - **Per-lodging configuration** — what the app shows (modules, wifi and other lodging facts) and the booklet
   are configured per lodging; common content can be shared without being copied (rules 11bis-11quater,
   16-17, 48).
+- **Visual identity (Q6)** — the guest app wears the Domaine Solio charter of the site and the gate app
+  (Marcellus + Karla, sapin / ocre / paper, square buttons, night register); the studio and the admin page
+  stay GuestFlow « Maison »; both share the semantic colours and formats (§6.0-§6.3).
 - **Accepted as proposed** — PageActionBar exception for the guest app (§6); 30-min card link lifetime
   (rule 35).
