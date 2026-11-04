@@ -16,7 +16,7 @@ const { optionalPlugin } = require('../plugins/sdk/testing');
 // Timestamps SQLite stamps with the real clock say nothing about a VAT reader. `vatRegime`,
 // `vatPeriodId` and `showHt` are what the regime ADDED to the payloads (rule 23 compares what already existed; the
 // new keys have their own suites). The four reservation columns merged from inte/plugins (platform penalty,
-// supersession) are additive too and carry no VAT.
+// supersession) are additive too and carry no VAT, and so are the three of specs/platform-added-guests-tourist-tax.md.
 // What the quote-shaped stored summary added (specs/reservation-payment-ledger.md rules 50-51): lines, nights, the
 // tourist-tax case and the cascade. Rule 23 compares the money figures that already existed.
 const STORED_SUMMARY_ADDED = ['nights', 'nightlyBreakdown', 'optionLines', 'resourceLines', 'discountAmount', 'vatPercentageAccommodation',
@@ -31,7 +31,8 @@ function withoutStoredLines(summary) {
 }
 
 const VOLATILE = new Set(['createdAt', 'updatedAt', 'cancelledAt', 'vatRegime', 'vatPeriodId', 'showHt',
-  'platformPenaltyAmount', 'supersededAt', 'supersededByReservationId', 'supersededReason']);
+  'platformPenaltyAmount', 'supersededAt', 'supersededByReservationId', 'supersededReason',
+  'platformPaidAdults', 'touristTaxAddedGuestsAmount', 'touristTaxAddedGuestsDeclaredAt']);
 
 function canonical(value) {
   if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;

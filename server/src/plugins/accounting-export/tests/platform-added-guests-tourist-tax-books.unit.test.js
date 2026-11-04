@@ -79,14 +79,21 @@ test('rule 17: reversed platform, gross entered, 2 → 3 adults, solde then comp
   const complement = mark(id, { complementPaid: true, complementPaidDate: TODAY });
   assert.equal(complement.statusCode, 200, JSON.stringify(complement.body));
 
-  let month = null;
-  const res = { setHeader() {}, status() { return res; }, json(b) { month = b; return res; } };
-  createAccountingController(createAccountingModel(db))
-    .salesJson({ query: { year: Number(TODAY.slice(0, 4)), month: Number(TODAY.slice(5, 7)) } }, res);
-  const entries = month.entries.filter((e) => e.reservationId === id);
-  const taxCredit = (kind) => entries.find((e) => e.kind === kind).lines
+  const journal = () => {
+    let month = null;
+    const res = { setHeader() {}, status() { return res; }, json(b) { month = b; return res; } };
+    createAccountingController(createAccountingModel(db))
+      .salesJson({ query: { year: Number(TODAY.slice(0, 4)), month: Number(TODAY.slice(5, 7)) } }, res);
+    return month;
+  };
+  const taxCredit = (month, kind) => month.entries.find((e) => e.reservationId === id && e.kind === kind).lines
     .filter((l) => l.compte === TAX_ACCOUNT).reduce((sum, l) => sum + Number(l.credit), 0);
+  const month = journal();
   assert.equal(month.totals.allBalanced, true);
-  assert.equal(taxCredit('balance'), 4.8);
-  assert.equal(taxCredit('complement'), 2.4);
+  assert.equal(taxCredit(month, 'balance'), 4.8);
+  assert.equal(taxCredit(month, 'complement'), 2.4);
+
+  // Contribs that no longer describe the solde: the export reads the addition from its own SELECT.
+  db.prepare('UPDATE reservations SET accommodationSoldeContribTtc = 100 WHERE id = ?').run(id);
+  assert.equal(taxCredit(journal(), 'balance'), 4.8);
 });

@@ -33,6 +33,9 @@ test('rule 18: stored split and booked solde leave out the supplement and the ad
   assert.equal(row.touristTaxAddedGuestsAmount, 2.4);
   assert.equal(row.balanceAmount, 600);
 
+  const booked = bookedStayBuckets({ database: db, reservationsModel }, { ...row, balancePaid: 1 }, 10);
+  assert.equal(booked.solde.touristTax, 4.8);
+
   captureStoredSplit({ db, reservation: row, bucket: 'balance' });
   const after = rowOf(id);
   assert.equal(after.touristTaxSoldeContribTtc, 4.8);
@@ -40,6 +43,4 @@ test('rule 18: stored split and booked solde leave out the supplement and the ad
   assert.equal(line.solde, 60, 'the line is whole: the supplement is not in the base it shares against');
   assert.equal(after.accommodationSoldeContribTtc, 535.2);
 
-  const booked = bookedStayBuckets({ database: db, reservationsModel }, { ...row, balancePaid: 1 }, 10);
-  assert.equal(booked.solde.touristTax, 4.8);
 });
