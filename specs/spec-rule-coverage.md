@@ -72,7 +72,7 @@ no test?** » — and prevent a **new** rule from being delivered without its te
 3. **What counts as a test**: a server test file (`server/src/tests/**`) or client test file
    (`client/src/**/__tests__/**`) that cites the spec and then the number. A citation is attached to
    the **spec named closest above it** in the file — which is how a human reads a multi-line comment.
-4. **Suffixes and groups are understood**: `2bis`, `20c`, `rules 4-5` (range), `rules 28 + 30b`
+4. **Suffixes and groups are understood**: `2bis`, `2ter`, `11quater`, `20c`, `rules 4-5` (range), `rules 28 + 30b`
    (list). A range covers every integer it contains.
 5. **A rule can be declared untestable**, and it then counts as covered — but **never silently**: the
    spec itself carries, under the rule, a line `> **Sans test** — <reason>` (the marker stays in French:

@@ -84,6 +84,16 @@ test('parseCitations comprend les formes réellement écrites dans le dépôt', 
   ]);
 });
 
+// specs/spec-rule-coverage.md §3.1 rule 4 — « quater » est un suffixe comme « bis » et « ter » :
+// sans lui, « 11quater » se lisait « 11q », une règle qui n'existe pas.
+test('un suffixe quater est lu en entier, dans la spec comme dans la citation', async () => {
+  const { parseSpecRules, parseCitations } = await load();
+  const spec = ['## 3. Functional rules', '', '11. **Une.**', '11ter. **Deux.**', '11quater. **Trois.**', '', '## 4. Architecture'].join('\n');
+  assert.deepEqual(parseSpecRules(spec).map((r) => r.id), ['11', '11ter', '11quater']);
+  const got = parseCitations('// specs\/ma-spec.md rules\x2011ter, 11quater — deux suffixes').map((c) => c.rule);
+  assert.deepEqual(got, ['11ter', '11quater']);
+});
+
 // specs/spec-rule-coverage.md §3.1 rule 3 — une citation est rattachée à la spec nommée près d'elle,
 // sinon à celle que le fichier annonce en tête.
 test('une citation loin de sa spec retombe sur celle que le fichier annonce en tête', async () => {
