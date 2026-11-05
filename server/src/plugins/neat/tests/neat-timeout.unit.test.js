@@ -185,12 +185,13 @@ test('rule 17 — auth and price share one budget: two slow exchanges stay withi
 });
 
 test('rule 17 — the 401 re-auth and retry stay inside the same budget', async () => {
-  const server = await slowNeat({ authMs: 100, priceMs: 100, firstPrice401: true });
+  // Roomy margins (audit R22-S1): the second auth reaches the server near 600 ms, the whole path would need 1200 ms.
+  const server = await slowNeat({ authMs: 400, priceMs: 200, firstPrice401: true });
   try {
-    const client = buildNeatClient({ ...cfg, baseUrl: server.baseUrl, timeoutMs: 250 });
+    const client = buildNeatClient({ ...cfg, baseUrl: server.baseUrl, timeoutMs: 900 });
     const t0 = Date.now();
     await assert.rejects(client.price('c-1', { serviceFieldValues: [] }), (err) => err.code === 'NEAT_TIMEOUT');
-    assert.ok(Date.now() - t0 < 400, `auth + 401 + re-auth + retry capped at the budget (${Date.now() - t0} ms)`);
+    assert.ok(Date.now() - t0 < 1300, `auth + 401 + re-auth + retry capped at the budget (${Date.now() - t0} ms)`);
     assert.equal(server.hits.auth, 2, 'it did try the re-auth');
   } finally { await server.stop(); }
 });

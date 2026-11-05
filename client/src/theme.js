@@ -143,10 +143,11 @@ const theme = createTheme({
       },
     },
     // A switch is 24 or 38 px tall: on touch its (invisible) input, which takes the tap, is 44 px tall around
-    // the thumb, so the track keeps its look.
+    // the thumb, so the track keeps its look. Only the height sticks out: the input is 300 % wide, and past the
+    // sides it scrolled its container sideways and took taps meant for the row's text (specs/ds-components.md rule 30).
     MuiSwitch: {
       styleOverrides: {
-        root: { [COARSE_POINTER]: { overflow: 'visible' } },
+        root: { [COARSE_POINTER]: { overflowX: 'clip', overflowY: 'visible' } },
         input: {
           [COARSE_POINTER]: { top: '50%', height: TOUCH_TARGET, transform: 'translateY(-50%)' },
         },

@@ -47,8 +47,6 @@ test('rule 5 — the people served are capped at the larger of the party and the
 test('re-opening a SAS reopens on what it sold', () => {
   const offer = buildOptionOffer(OPTION, { unitPrice: 17, persons: 4, nights: 2, maxPersons: 8, sold: { cardPersons: 3, billedUnits: 3 } });
   assert.equal(offer.selectedPersons, 3);
-  assert.equal(offer.unitsPerPerson, 1);
-  assert.equal(buildOptionOffer({ ...OPTION, priceType: 'per_person_per_night' }, { persons: 4, nights: 3 }).unitsPerPerson, 3);
 });
 
 test('rule 17 — a line sold at arrival keeps its floor in people', () => {

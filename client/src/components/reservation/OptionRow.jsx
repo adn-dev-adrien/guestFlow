@@ -16,11 +16,8 @@ import { useSlot } from '../../plugins/sdk/useSlot';
 import { Contribution } from '../../plugins/sdk/Slot';
 import { ARRIVAL_LINE_CAPTION, OFFERED_LINE_CAPTION } from '../../constants/reservationLock';
 import { optionLineKey, displayedFloor } from '../../utils/arrivalLineKey';
-import { typedCountKind, typedCountValue } from '../../utils/optionTypedCount';
+import { typedCountKind, typedCountValue, MAX_TYPED_NIGHTS } from '../../utils/optionTypedCount';
 import TypedCountField from './TypedCountField';
-
-// specs/non-card-option-served-persons.md rule 34 — the server refuses more; a hint, never the guard.
-const MAX_TYPED_NIGHTS = 366;
 
 /**
  * Occurrence checklist for an option-driven planning card (specs/option-planning-card.md §3.2).

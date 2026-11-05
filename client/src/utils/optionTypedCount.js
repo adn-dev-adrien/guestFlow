@@ -5,6 +5,9 @@
  */
 const PERSON_TYPES = new Set(['per_person', 'per_person_per_night']);
 
+// The nights field stops at the longest stay (rule 34): a hint, the server judges.
+export const MAX_TYPED_NIGHTS = 366;
+
 // 'persons', 'nights', or null when the option's quantity is a plain number of units.
 export const typedCountKind = (option) => {
   if (option?.showsPlanningCard) return null;
