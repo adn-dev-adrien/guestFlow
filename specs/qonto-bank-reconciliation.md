@@ -338,7 +338,7 @@ a short list of the gaps to fix on the fiches.
     Accepted residues, recorded: going back to an account that already has credits stays incremental, so the time
     spent on the other one is not read again; a start date moved earlier is not read further back either (closing
     that would need a stored `readFrom`, not worth it). In both cases « Effacer aussi ses données » followed by a read
-    starts over. online-payment 1.5.4. Test: `reconciliation-account-change.unit.test.js`.
+    starts over. online-payment 1.5.5. Test: `reconciliation-account-change.unit.test.js`.
 
 **Edge cases:**
 - Reservation cancelled after a payment was reconciled → leaves the scope; its reconciliations stay
