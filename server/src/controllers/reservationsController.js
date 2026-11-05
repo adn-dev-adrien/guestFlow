@@ -18,6 +18,7 @@ const {
 } = require('../utils/reservationQuoteContext');
 const { resolvePlatformPaidGuests, resolvePlatformPaidAdults, resolvePlatformPaidOccupants } = require('../utils/platformPaidGuests');
 const { validateFinanceInputs, validateStayFinance, financeErrorBody } = require('../utils/financeValidation');
+const { cotsRefusal, resourceRefusal } = require('../utils/stockPeak');
 const { stayDatesRefusal, stayDatesRefusalBody, stayItemDatesRefusal } = require('../utils/stayDates');
 const { checkPlanningRange } = require('../utils/planningDateRange');
 const { parseGroup, collectibleArrivalBuckets } = require('../utils/arrivalPaymentGroup');
@@ -109,10 +110,14 @@ const propertiesModel = require('../models/propertiesModel');
 const { getDefaultModel: getTariffJournal } = require('../models/tariffChangeJournalModel');
 const { evaluateLedgerEdit } = require('../utils/ledgerAmountEdit');
 const { stampComplementPaidSplit } = require('../utils/complementPaidSplit');
+const { untickRefusal } = require('../utils/refundUntickGuard');
 const { contribLinesOf, recordRemovedLineContribs } = require('../utils/removedLineContribs');
 const { validateCollectionDate } = require('../utils/arrivalPaymentDate');
 const { parseNotes: parseMidStayNotes } = require('../utils/midStayExtras');
 const ledgerLinks = require('../utils/ledgerLinks');
+const { taxInComplementLockedReason, platformTakesTaxOnArrival } = require('../utils/touristTaxFreeze');
+
+const TAX_IN_COMPLEMENT_LOCKED_MESSAGE = 'Taxe déjà encaissée : décocher le paiement d’abord.';
 const installments = require('./installmentsController');
 const { deactivateOpenLinksBeforeDelete } = require('../utils/paymentLinkDeactivation');
 const paymentLinksStore = require('../models/paymentLinksModel');
@@ -361,7 +366,7 @@ function checkBabyBeds({ propertyId, startDate, endDate, children, babies, babyB
   }
   const babyAvailable = model.getBabyBedAvailability(propertyId, startDate, endDate, excludeId);
   if (babyBedsCount > babyAvailable) {
-    return `Lits bébé indisponibles: ${babyAvailable} restant(s) pour cette période.`;
+    return cotsRefusal(babyAvailable);
   }
   return null;
 }
@@ -376,7 +381,7 @@ function insertResourceLines(reservationId, quote, { propertyId, startDate, endD
       const reserved = model.getResourceReservedQuantity(rr.resourceId, startDate, endDate, excludeId);
       const available = Number(resource.quantity) - Number(reserved);
       if (Number(rr.quantity || 0) > available) {
-        return { status: 409, body: { error: `Ressource '${resource.name}' indisponible: ${available} restant(s) pour cette période.` } };
+        return { status: 409, body: { error: resourceRefusal(resource.name, available) } };
       }
     }
     const unitPrice = rr.unitPrice !== undefined ? Number(rr.unitPrice) : Number(resource.price || 0);
@@ -711,8 +716,11 @@ function suggestBeds(req, res) {
 // specs/mid-stay-notes.md rule 22 — the « Nouvelle note » total while the operator ticks and adds:
 // the dialog prints `items` and `total`, it computes nothing.
 function previewMidStayNote(req, res) {
-  const { opening, current, checkedKeys } = req.body || {};
-  res.json(planMidStayNote({ opening, current, checkedKeys }));
+  const { opening, current, checkedKeys, reservationId } = req.body || {};
+  // specs/mid-stay-notes.md rule 23 (D19): no arrival marked, a sale joins the ordinary balance, so the note says so.
+  const id = ['number', 'string'].includes(typeof reservationId) ? Number(reservationId) : NaN;
+  const arrivalNotMarked = Number.isInteger(id) && id > 0 && model.isArrivalNotMarked(id);
+  res.json({ ...planMidStayNote({ opening, current, checkedKeys }), arrivalNotMarked });
 }
 
 function platformCommission(req, res) {
@@ -783,7 +791,7 @@ function occupiedDates(req, res) {
   }
   // specs/establishment-closures.md rule 20 — real days, at most 750 apart.
   const rangeRefusal = checkPlanningRange(from, to);
-  if (rangeRefusal) return res.status(rangeRefusal.status).json({ error: rangeRefusal.error });
+  if (rangeRefusal) return res.status(rangeRefusal.status).json({ error: rangeRefusal.error, message: rangeRefusal.message });
   const reservations = model.getOccupiedReservations(propertyId, from, to, excludeReservationId);
   const occupiedFromReservations = buildOccupiedDatesFromReservations(reservations);
   const closures = establishmentClosuresModel.list({ propertyId, from, to });
@@ -915,6 +923,11 @@ function settleArrivalPayment(req, res) {
     }
   }
 
+  // specs/reservation-refunds.md rule 52 — the undo takes every bucket of the group back, and its réduction or pourboire.
+  if (mode === 'undo') {
+    const refusal = untickRefusal(row, arrivalUndoChanges(row), refundsModel.listByReservation(id));
+    if (refusal) return res.status(refusal.status).json(refusal.body);
+  }
   const result = model.settleArrivalBuckets(id, { mode, date });
   const after = model.getRow(id);
   // The view itemises the payment, which needs the options / ressources of the fiche — `getRow`
@@ -933,6 +946,62 @@ function settleArrivalPayment(req, res) {
       }]);
   }
   return res.json({ arrivalPayment: buildArrivalPaymentView(detailed || after), reservation: after });
+}
+
+const ARRIVAL_BUCKET_FLAGS = {
+  deposit: 'depositPaid', balance: 'balancePaid', complement: 'complementPaid', endOfStayComplement: 'endOfStayComplementPaid',
+};
+
+function arrivalUndoChanges(row) {
+  const group = parseGroup(row.arrivalPaymentGroup);
+  if (!group) return {};
+  return Object.fromEntries([['arrivalPaymentGroup', null], ...group.buckets.map((bucket) => [ARRIVAL_BUCKET_FLAGS[bucket], 0])]);
+}
+
+// The amounts a save's adjustment fields would write on the two complements; blank = no adjustment.
+function adjustedComplementChanges(body) {
+  const changes = {};
+  const read = (field, column) => {
+    const value = body[field];
+    if (value !== undefined && value !== null && value !== '' && Number.isFinite(Number(value))) changes[column] = Math.max(0, round2(value));
+  };
+  read('complementAmountOverride', 'complementAmount');
+  read('endOfStayComplementAmountOverride', 'endOfStayComplementAmount');
+  return changes;
+}
+
+// What a payment PATCH would write on the money `comptaCollected` reads (rule 52), computed ahead of any write.
+function paymentPatchChanges(row, body, today) {
+  const changes = {};
+  if (body.depositPaid === false) changes.depositPaid = 0;
+  if (body.balancePaid === false) changes.balancePaid = 0;
+  const resolved = (paidInput, cashInput, prevPaid, prevCash) => resolveComplementPayment({ paidInput, cashInput, prevPaid, prevCash, today });
+  if (body.complementPaid !== undefined || body.complementPaidCash !== undefined) {
+    const { paid, cash } = resolved(body.complementPaid, body.complementPaidCash, row.complementPaid, row.complementPaidCash);
+    Object.assign(changes, { complementPaid: paid, complementPaidCash: cash });
+    if (Number(row.complementDeferredToCheckout || 0) === 1 && Number(row.endOfStayComplementAmount || 0) > 0) {
+      Object.assign(changes, { endOfStayComplementPaid: paid, endOfStayComplementPaidCash: cash });
+    }
+  }
+  if (body.endOfStayComplementPaid !== undefined || body.endOfStayComplementPaidCash !== undefined) {
+    const { paid, cash } = resolved(body.endOfStayComplementPaid, body.endOfStayComplementPaidCash, row.endOfStayComplementPaid, row.endOfStayComplementPaidCash);
+    Object.assign(changes, { endOfStayComplementPaid: paid, endOfStayComplementPaidCash: cash });
+  }
+  const { cancelMidStayNote: cancelled, adjustMidStayNote: adjusted } = body;
+  if (cancelled || adjusted) {
+    const notes = parseMidStayNotes(row.midStaySettledNotes)
+      .filter((note) => !cancelled || Number(note.id) !== Number(cancelled.id))
+      .map((note) => {
+        if (!adjusted || Number(note.id) !== Number(adjusted.id)) return note;
+        return {
+          ...note,
+          ...(adjusted.cash !== undefined ? { paidCash: adjusted.cash ? 1 : 0 } : {}),
+          ...(adjusted.total === undefined || adjusted.total === null || adjusted.total === '' ? {} : { total: round2(adjusted.total) }),
+        };
+      });
+    changes.midStaySettledNotes = JSON.stringify(notes);
+  }
+  return changes;
 }
 
 function storedHeadlineOf(row) {
@@ -1000,6 +1069,8 @@ function getById(req, res) {
     storedSummary: storedSummaryOf(model.getRow(reservation.id)),
     // specs/disable-deposit-per-reservation.md rule 13 — null while « Sans acompte » can be ticked.
     depositDisabledLockedReason: depositDisabledLockedReasonOf(reservation.id),
+    // specs/force-item-to-complement.md rule 20 — null while « Taxe de séjour en complément » can be switched on.
+    touristTaxInComplementLockedReason: taxInComplementLockedReason(db, model.getRow(reservation.id)),
     // specs/plugins-phase-3b-neat.md rule 12 — what live plugins show on this stay (Neat: the
     // subscription chip and its actions), keyed by block, each shaped for display.
     pluginBlocks: reservationBlocks(reservation),
@@ -1125,7 +1196,7 @@ async function calculatePrice(req, res) {
   // the fiche of a stay or devis quotes its stored dates even past the horizon.
   const quotedRowId = Number(req.body.reservationId || 0) || Number(req.body.devisId || 0);
   const quotedStored = quotedRowId > 0 ? model.getRow(quotedRowId) : null;
-  // Rule 17 — the money the save would refuse, refused here too.
+  // specs/reservations-backend-mvc.md rule 19 — the money the save would refuse, refused here too.
   const financeError = validateStayFinance(req.body, quotedStored);
   if (financeError) return res.status(400).json(financeErrorBody(financeError));
 
@@ -1224,7 +1295,8 @@ async function calculatePrice(req, res) {
     platform: req.body.platform,
     touristTaxInComplement: req.body.touristTaxInComplement,
     autoOptionsInComplement: req.body.autoOptionsInComplement,
-    ...frozenTouristTaxInputs(db, reservationId, req.body.refreshTouristTax),
+    // Same lift as the save below: a changed party or date re-prices, so the preview shows what the save stores.
+    ...frozenTouristTaxInputs(db, reservationId, req.body.refreshTouristTax || (reservationId > 0 && !sameStayAsSold(model.getRow(reservationId), req.body))),
     // Read-only preview: the baseline is only CAPTURED on save, never here.
     ...midStayQuoteInputs(db, reservationId),
     // specs/payment-schedule-and-cancellation.md §3.1 — same booking context as the save, so the
@@ -1306,6 +1378,7 @@ async function calculatePrice(req, res) {
     }
     quote.notices = pricingNoticesOf({ quote, body: req.body, storedRow });
     quote.depositDisabledLockedReason = depositDisabledLockedReasonOf(reservationId);
+    quote.touristTaxInComplementLockedReason = taxInComplementLockedReason(db, storedRow);
     quote.platformPriceCheck = platformPriceCheckOf({
       quote,
       body: req.body,
@@ -1873,12 +1946,19 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
   // Data invariant: never persist an empty platform — see `normalisePlatform`.
   req.body.platform = normalisePlatform(req.body.platform);
 
+  // specs/reservations-backend-mvc.md rule 23 — a blank time is not sent: the stay keeps its own, as a devis does.
+  if (storedBefore && (!req.body.checkInTime || !req.body.checkOutTime)) {
+    const defaultTimes = model.getPropertyDefaultTimes(storedBefore.propertyId) || {};
+    if (!req.body.checkInTime) req.body.checkInTime = storedBefore.checkInTime || defaultTimes.checkInTime;
+    if (!req.body.checkOutTime) req.body.checkOutTime = storedBefore.checkOutTime || defaultTimes.checkOutTime;
+  }
+
   const id = Number(req.params.id);
 
   const cancelled = readOnlyRefusal(db, id);
   if (cancelled) return res.status(cancelled.status).json(cancelled.body);
 
-  // Rule 16 — refused here rather than by the NOT NULL constraint (a 500), as on the creation.
+  // specs/reservations-backend-mvc.md rule 20 — refused here rather than by the NOT NULL constraint (a 500), as on the creation.
   if (!req.body.clientId) return res.status(400).json(CLIENT_REQUIRED);
 
   // specs/direct-installments.md rule 1 — a plan with money in keeps the reservation on the own channels.
@@ -1973,6 +2053,13 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
   // is priced on it too, so the frozen-schedule branches of the engine and the row that is about to
   // be written can never disagree.
   const storedPaymentForQuote = model.getRow(id) || {};
+  // specs/force-item-to-complement.md rule 20 — the tax already collected stays where it was booked; a value
+  // sent back unchanged is no switch, and a platform that takes the tax on arrival routes it the same way.
+  const taxMovesToComplement = (req.body.touristTaxInComplement && !Number(storedPaymentForQuote.touristTaxInComplement || 0))
+    || (req.body.platform !== storedPaymentForQuote.platform && platformTakesTaxOnArrival(db, req.body.platform));
+  if (taxMovesToComplement && taxInComplementLockedReason(db, storedPaymentForQuote)) {
+    return res.status(409).json({ error: TAX_IN_COMPLEMENT_LOCKED_MESSAGE, code: 'TOURIST_TAX_ALREADY_COLLECTED' });
+  }
   if (req.body.depositDisabled && !depositDisabledFlag) {
     // The refused switch also drops what the fiche cleared along with it: the acompte keeps its amount and deadline.
     req.body.depositAmountOverride = storedPaymentForQuote.depositAmountOverride ?? null;
@@ -2128,6 +2215,17 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
       return res.status(400).json({ error: ARRIVAL_EXTRAS_FROZEN_MESSAGE, code: 'ARRIVAL_EXTRAS_FROZEN', lines: violations });
     }
   }
+  // specs/mid-stay-extras-to-end-of-stay-complement.md rule 20, reading of 2026-11-05 (audit R23 N4) — D9 makes the end-of-stay
+  // complement exist before arrival. Once collected nothing can claim a rise: same refusal as a started stay.
+  const notStarted = !(beforeAuditSnapshot?.startDate && beforeAuditSnapshot.startDate <= todayIso);
+  const endOfStayCollected = Number(storedPaymentForQuote.endOfStayComplementPaid || 0) === 1 || Number(storedPaymentForQuote.endOfStayComplementPaidCash || 0) === 1;
+  if (notStarted && endOfStayCollected
+    && round2(Number(quote.finalPrice || 0) + Number(quote.touristTaxTotal || 0)) > round2(Number(storedPaymentForQuote.finalPrice || 0) + Number(storedPaymentForQuote.touristTaxTotal || 0))) {
+    return res.status(400).json({ error: MID_STAY_EXTRAS_CLOSED_MESSAGE, code: 'MID_STAY_EXTRAS_CLOSED' });
+  }
+  // specs/reservation-refunds.md rule 52, reading of 2026-11-05 (audit R23 L6) — a paid complement adjusted down lowers what stays collected too.
+  const adjustRefusal = untickRefusal(storedPaymentForQuote, adjustedComplementChanges(req.body), refundsModel.listByReservation(id));
+  if (adjustRefusal) return res.status(adjustRefusal.status).json(adjustRefusal.body);
   if (pastReservationLocked) {
     const allowedLockedFields = new Set([
       'clientId', 'platform', 'touristTaxRate', 'touristTaxTotal', 'discountPercent', 'finalPrice',
@@ -2144,7 +2242,7 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
       // Force-item routing toggles can still be flipped on a past-locked reservation: they only
       // shuffle money between buckets (Acompte/Solde/Complément), not the underlying total. The
       // accounting export needs them to stay editable so the operator can correct miscategories
-      // discovered later. See specs/force-item-to-complement.md §7.
+      // discovered later, once the payment holding the tax is unticked (rule 20). See specs/force-item-to-complement.md §7.
       'touristTaxInComplement',
     ]);
     // specs/mid-stay-extras-on-locked-fiche.md rule 9 — the extras and what they move on the row.
@@ -2571,6 +2669,12 @@ function updatePayment(req, res) {
   // anything is written, so a refusal leaves the whole PATCH without effect.
   const markRefusal = paymentMarkRefusal(model.getRow(Number(req.params.id)) || {}, req.body, getTodayIsoDate());
   if (markRefusal) return res.status(markRefusal.status).json(markRefusal.body);
+  // specs/reservation-refunds.md rule 52 — a mark taken back never leaves book refunds above what stays collected.
+  {
+    const stored = model.getRow(Number(req.params.id)) || {};
+    const refusal = untickRefusal(stored, paymentPatchChanges(stored, req.body, getTodayIsoDate()), refundsModel.listByReservation(Number(req.params.id)));
+    if (refusal) return res.status(refusal.status).json(refusal.body);
+  }
 
   // specs/mid-stay-notes.md — settle / cancel a « note en séjour ». Runs FIRST: both actions are
   // transactional and self-contained, and a rejection must leave the whole PATCH without effect.
@@ -2807,10 +2911,10 @@ async function remove(req, res) {
 }
 
 // POST /api/reservations/:id/restore — « Rétablir » on a duplicate set aside (specs/calendar-property-parity.md
-// rules 22, 24). The dates must still be free: another stay may have been booked on them since.
+// rules 22, 24, 31). The dates and the stock must still be free: another stay may have been booked on them since.
 function restoreSuperseded(req, res) {
   const id = Number(req.params.id);
-  const row = db.prepare('SELECT id, kind, propertyId, startDate, endDate, checkInTime, checkOutTime, blocksPreviousNight, blocksNextNight FROM reservations WHERE id = ?').get(id);
+  const row = db.prepare('SELECT id, kind, propertyId, startDate, endDate, babyBeds, checkInTime, checkOutTime, blocksPreviousNight, blocksNextNight FROM reservations WHERE id = ?').get(id);
   if (!row) return res.status(404).json({ error: 'Réservation non trouvée' });
   if (row.kind !== 'superseded') return res.status(400).json({ error: "Cette réservation n'est pas un doublon écarté." });
   // Rule 13 — a restore enters no date: its stored ones are never held to the horizon.
@@ -2822,6 +2926,9 @@ function restoreSuperseded(req, res) {
     { allowPastDates: true },
   );
   if (taken) return res.status(409).json({ error: 'Ces dates sont déjà prises.' });
+  // Rule 31 — set aside it held no stock, so coming back takes some.
+  const noStock = model.heldStockRefusal(row);
+  if (noStock) return res.status(409).json({ error: noStock, code: 'STOCK_UNAVAILABLE' });
   db.transaction(() => {
     model.restoreSuperseded(id);
     withdrawForStay(db, id);

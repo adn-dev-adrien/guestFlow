@@ -58,7 +58,7 @@ function setTouristTaxDeclared(req, res) {
     declared: Boolean(req.body && req.body.declared),
     addedGuests: Boolean(req.body && req.body.addedGuests),
   });
-  if (!result.ok) return res.status(result.status || 400).json({ error: result.error });
+  if (!result.ok) return res.status(result.status || 400).json({ error: result.error, ...(result.code ? { code: result.code } : {}) });
   return res.json({ ok: true, declaredAt: result.data.declaredAt });
 }
 

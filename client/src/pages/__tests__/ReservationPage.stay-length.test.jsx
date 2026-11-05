@@ -1,6 +1,7 @@
 // specs/reservations-backend-mvc.md rule 12, reading of 2026-11-02 (audit R19-L1) — the fiche and the devis say
 // « Séjour trop long. » under the dates as soon as the departure is more than 366 nights after the arrival, ask for
 // no quote for such a range (a 9999 departure froze the server), and « Enregistrer » refuses before any request.
+// The button is the shared bar's: specs/reservation-page-action-bar.md rule 6.
 import React from 'react';
 import { vi } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';

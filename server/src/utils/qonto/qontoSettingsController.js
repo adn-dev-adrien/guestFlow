@@ -26,10 +26,18 @@ const {
   qontoCredentialsPayload, qontoStatusPayload, applyQontoCredentials,
 } = require('./qontoService');
 const { resolveQontoConfig } = require('./qontoConfig');
-const { ensureWebhookSubscription } = require('./qontoWebhookRegistrar');
+const { ensureWebhookSubscription, forgetWebhookSubscription } = require('./qontoWebhookRegistrar');
 const { validateProviderConnection } = require('./paymentProviderValidation');
 
 const SETTINGS_PAGE_PATH = '/parametres/paiements';
+const CREDENTIAL_TEXTS = ['clientId', 'clientSecret', 'stagingToken', 'webhookSecret', 'publicSiteOrigin'];
+
+// Hosting-h2 rule 68, reading of 2026-11-05 (audit E23-2) — one malformed request used to answer 200 and disconnect Qonto,
+// or move production to the sandbox. Returns the field refused, or null.
+function credentialsFieldRefused(body) {
+  if (body.environment != null && body.environment !== 'sandbox' && body.environment !== 'production') return 'environment';
+  return CREDENTIAL_TEXTS.find((key) => body[key] != null && typeof body[key] !== 'string') || null;
+}
 
 /**
  * @param {object} deps
@@ -96,6 +104,7 @@ function createQontoSettingsController({ settings, env = process.env, scopes = D
       if (!tokens.refreshToken) return back('error');
       const expiresAt = tokens.expiresIn ? new Date(now() + tokens.expiresIn * 1000).toISOString() : null;
       settings.storeQontoTokens({ accessToken: tokens.accessToken, refreshToken: tokens.refreshToken, expiresAt });
+      await forgetWebhookSubscription({ settings });
 
       await completeQontoAuthorization();
       return back('connected');
@@ -121,7 +130,12 @@ function createQontoSettingsController({ settings, env = process.env, scopes = D
   }
 
   function updateQontoCredentials(req, res) {
-    return res.json(applyQontoCredentials({ settings, env, body: req.body || {} }));
+    const body = req.body || {};
+    const refused = credentialsFieldRefused(body);
+    if (refused) return res.status(400).json({ error: 'Requête invalide.', code: 'INVALID_FIELD_TYPE', field: refused });
+    // `null` reads as absent: the store would otherwise write the word.
+    const sent = Object.fromEntries(Object.entries(body).filter(([, value]) => value !== null));
+    return res.json(applyQontoCredentials({ settings, env, body: sent }));
   }
 
   /** Run a real call against Qonto and report what it means (rules 9-10). */

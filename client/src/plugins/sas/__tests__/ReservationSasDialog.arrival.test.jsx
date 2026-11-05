@@ -210,7 +210,7 @@ test('arrival SAS recap: an in-complément extra is detailed with quantity + pri
   })();
 });
 
-// specs/arrival-departure-sas.md rule 17
+// specs/arrival-departure-sas.md rule 30
 test('arrival SAS recap: the tourist tax collected at arrival is itemised as a « Taxe de séjour » line', () => {
   // specs/per-platform-tourist-tax-three-way.md §3 rule 7 — the arrival-collected tax is part of the
   // complement; it gets its own line so the detail reconciles with the total (here: Repas 80 + tax 4,80).

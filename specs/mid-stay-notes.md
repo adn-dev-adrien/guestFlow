@@ -89,7 +89,11 @@ becomes **the remainder** — collected at check-out exactly as today.
    rule 3). A stay that started but was never re-saved therefore has none, and the note total would
    read 0 € for a prestation just added. The **read path synthesizes** the baseline the next save
    would store (the currently stored extras) so the preview matches the post-save reality — and
-   never writes. Once captured, the stored baseline always wins.
+   never writes. Once captured, the stored baseline always wins. **Corrected 2026-11-05 (audit R23-C8):** the
+   baseline is due on the arrival act, not on the date (specs/arrival-moment-is-the-check-in.md): a check-in, an arrival
+   SAS or a collected complement. A started stay with none of them has no baseline for the preview, which synthesizes none,
+   so the note total stays 0 € for an addition. **Corrected 2026-11-05 (R23 verification F3):** the save is another
+   matter: on a locked fiche `enterMidStayExtrasWindow` stores the baseline whether or not the check-in was marked, as rule 23 says.
 6. **Closing the note** offers three choices: **CB / Chèque**, **Caisse interne** (both = settle
    now), **En fin de séjour** (= sale only, everything stays in the remainder).
 7. **Amounts are engine-authoritative.** *(Superseded by rule 22 on 2026-10-27: the dialog now sends keys, not amounts.)* The dialog's displayed note total comes from the live
@@ -186,6 +190,17 @@ becomes **the remainder** — collected at check-out exactly as today.
       `ticked = min(opening, current)` when ticked, `amount = ticked + added`, rounded to the cent once;
       then `settleMidStayNote(id, { items })` moves them as before (rule 8). An `items` field sent by a
       client is ignored.
+
+23. **A note on a started stay with no arrival marked stays open and says so** (D19, Adrien, 2026-11-05; audit R23-C8).
+    With no baseline (no check-in, no arrival SAS, no collected complement) the note total stays 0 € and « CB / Chèque » and
+    « Caisse interne » stay disabled. **Corrected 2026-11-05 (R23 verification F3):** closing on « En fin de séjour » on the
+    locked fiche pins the baseline and the sale lands on the end-of-stay complement (`source: midStayExtra`), due and
+    collectable at the next opening; it did not go to the ordinary balance. The caption's wording is D19's and stays. The dialog sends
+    `reservationId` with its preview, and `POST /api/reservations/mid-stay-note/preview` answers
+    `arrivalNotMarked` (`reservationsModel.isArrivalNotMarked`, read at each preview, so it follows a check-in marked
+    meanwhile). True: the caption « Arrivée non marquée : la vente rejoint le solde. » under the total. No stay named, a
+    stay not found or a failed preview: no caption. Tests: server `mid-stay-note-arrival-flag`, client
+    `MidStayNoteDialog.arrival-not-marked`.
 
 **Edge cases:**
 

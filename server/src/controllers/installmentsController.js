@@ -262,6 +262,10 @@ function buildController({
     const rows = installmentsModel.listFor(id);
     const body = req.body || {};
     let refusal;
+    const listed = [body.dates, body.amounts].filter(Array.isArray).flat();
+    if (listed.some((item) => !item || typeof item !== 'object')) {
+      return res.status(400).json({ error: 'INVALID_PAYLOAD', message: 'Nombre, dates ou montants attendus.' });
+    }
     if (body.count !== undefined) {
       refusal = await stayLock(id, () => createOrResize(stay(id), installmentsModel.listFor(id), Number(body.count)));
     } else if (Array.isArray(body.dates) || Array.isArray(body.amounts)) {

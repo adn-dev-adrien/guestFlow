@@ -13,7 +13,7 @@
 
 const vatRegimeModel = require('./vatRegimeModel');
 const rules = require('../utils/vatRegime');
-const { isTouristTaxFrozen } = require('../utils/touristTaxFreeze');
+const { isTouristTaxFrozen, isTouristTaxFrozenAsidePlan } = require('../utils/touristTaxFreeze');
 const { comptaCollected } = require('../utils/reservationSettlement');
 const { quoteStoredReservation } = require('../utils/storedReservationQuote');
 const { staleLinks } = require('../utils/ledgerLinks');
@@ -80,9 +80,12 @@ const proportionalTax = (db, row) => {
   return Boolean(property) && String(property.touristTaxMode || '').startsWith('percentage');
 };
 
-/** The stays a regime can re-price: a proportional tourist tax that no payment or declaration froze. */
+/**
+ * The stays a regime can re-price: a proportional tourist tax that no payment or declaration froze. A paid
+ * plan is frozen too (D17), but rule 27 reports it for its plan: planReprice gives that reason first.
+ */
 function repriceable(db, rows) {
-  return rows.filter((row) => row.kind === 'reservation' && !isTouristTaxFrozen(db, row) && proportionalTax(db, row));
+  return rows.filter((row) => row.kind === 'reservation' && !isTouristTaxFrozenAsidePlan(db, row) && proportionalTax(db, row));
 }
 
 // Rule 27 — what the regime must leave alone: if any of these moves between the engine's figures under
@@ -228,7 +231,7 @@ function previewSwitch(db, input, { today = todayIso() } = {}) {
   const changed = taken.filter((row) => changesRegimeOrRate(periods, row, candidate));
   const stays = changed.filter((row) => row.kind === 'reservation');
   const movable = repriceable(db, changed);
-  const frozen = stays.filter((row) => isTouristTaxFrozen(db, row)).length;
+  const frozen = stays.filter((row) => isTouristTaxFrozenAsidePlan(db, row)).length;
 
   const draftIds = db.prepare("SELECT id FROM reservations WHERE kind = 'devis' AND COALESCE(devisStatus, 'draft') != 'converted'").all().map((r) => r.id);
   const devisBefore = new Map(draftIds.map((id) => [id, vatRegimeModel.forRow(db, { id })]));

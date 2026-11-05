@@ -44,9 +44,9 @@ function notTextRefusal(body) {
 }
 
 // A blank entry is dropped; one that is not a string stays, for UNKNOWN_ROLE to refuse.
-const readRoles = (list) => list
+const readRoles = (list) => [...new Set(list
   .map((role) => (role === undefined || role === null ? '' : (typeof role === 'string' ? role.trim() : role)))
-  .filter((role) => role !== '');
+  .filter((role) => role !== ''))];
 
 function unknownRoleRefusal(roles) {
   const role = roles.find((r) => !isKnownRole(r));
@@ -128,8 +128,8 @@ function buildController({
     // (a lost phone); recorded in that user's history. Never the admin's own: that takes a password.
     disableTwoFactor(req, res) {
       const id = asInt(req.params.id);
-      if (id == null) return res.status(400).json({ error: 'INVALID_ID' });
-      if (isSelf(req, id)) return res.status(403).json({ error: 'SELF_ACTION_FORBIDDEN' });
+      if (id == null) return res.status(400).json({ error: 'INVALID_ID', message: 'Compte introuvable.' });
+      if (isSelf(req, id)) return res.status(403).json({ error: 'SELF_ACTION_FORBIDDEN', message: 'Action impossible sur son propre compte.' });
       try {
         return res.json(twoFactor.disableFor(req.user, id));
       } catch (err) {
@@ -142,7 +142,7 @@ function buildController({
     getMe(req, res) {
       if (!req.user) return res.status(401).json({ error: 'UNAUTHENTICATED' });
       const fresh = usersModel.findById(req.user.id);
-      if (!fresh) return res.status(404).json({ error: 'USER_NOT_FOUND' });
+      if (!fresh) return res.status(404).json({ error: 'USER_NOT_FOUND', message: 'Compte introuvable.' });
       return res.json({ user: fresh });
     },
 
@@ -210,7 +210,7 @@ function buildController({
         }
         throw err;
       }
-      if (!updated) return res.status(404).json({ error: 'USER_NOT_FOUND' });
+      if (!updated) return res.status(404).json({ error: 'USER_NOT_FOUND', message: 'Compte introuvable.' });
       // Sync the persisted session so the next /me + every downstream `req.user` read
       // (sidebar greeting, dialogs, future navigation) sees the new values immediately,
       // without waiting for the next /me round-trip to refresh from the DB.
@@ -275,11 +275,11 @@ function buildController({
       if (refusal) return res.status(402).json(refusal);
 
       if (!settingsModel.smtpConfigured()) {
-        return res.status(400).json({ error: 'SMTP_NOT_CONFIGURED' });
+        return res.status(400).json({ error: 'SMTP_NOT_CONFIGURED', message: 'Envoi d’e-mails non configuré.' });
       }
       const publicUrl = String(settingsModel.publicUrl() || '').trim();
       if (!publicUrl) {
-        return res.status(400).json({ error: 'PUBLIC_URL_NOT_CONFIGURED' });
+        return res.status(400).json({ error: 'PUBLIC_URL_NOT_CONFIGURED', message: 'Adresse publique non configurée.' });
       }
 
       // Generate the temp password + prerender the welcome email. We send the email FIRST and only
@@ -308,7 +308,7 @@ function buildController({
         })
         .catch((err) => {
           if (err && err.code === 'EMAIL_NOT_CONFIGURED') {
-            return res.status(400).json({ error: 'SMTP_NOT_CONFIGURED' });
+            return res.status(400).json({ error: 'SMTP_NOT_CONFIGURED', message: 'Envoi d’e-mails non configuré.' });
           }
           if (err && err.code === 'EMAIL_ALREADY_EXISTS') {
             return res.status(409).json({ error: 'EMAIL_ALREADY_EXISTS', field: 'email' });
@@ -318,17 +318,17 @@ function buildController({
           // stays in the server log; the client only sees the stable code. The user has NOT
           // been persisted. Spotted in the 2026-06-01 security audit (finding M3).
           console.error('[usersController.create] email send failed:', err);
-          return res.status(502).json({ error: 'EMAIL_SEND_FAILED' });
+          return res.status(502).json({ error: 'EMAIL_SEND_FAILED', message: 'Envoi de l’e-mail impossible.' });
         });
     },
 
     // PUT /api/users/:id — identity + roles update.
     update(req, res) {
       const id = asInt(req.params.id);
-      if (id == null) return res.status(400).json({ error: 'INVALID_ID' });
+      if (id == null) return res.status(400).json({ error: 'INVALID_ID', message: 'Compte introuvable.' });
       const body = req.body || {};
       const target = usersModel.findById(id);
-      if (!target || target.isSupport) return res.status(404).json({ error: 'USER_NOT_FOUND' });
+      if (!target || target.isSupport) return res.status(404).json({ error: 'USER_NOT_FOUND', message: 'Compte introuvable.' });
 
       // Rule 68 — as on /me: a name that is sent must be a name; a field left out stays as it is.
       if (body.firstName !== undefined && !asText(body.firstName).trim()) return res.status(400).json({ error: 'FIRSTNAME_REQUIRED', field: 'firstName' });
@@ -345,12 +345,12 @@ function buildController({
         if (withoutPlugin) return res.status(400).json(withoutPlugin);
         // Self-protection: an admin cannot strip their own admin role.
         if (isSelf(req, id) && target.roles.includes(ADMIN) && !nextRoles.includes(ADMIN)) {
-          return res.status(403).json({ error: 'SELF_ACTION_FORBIDDEN', detail: 'Vous ne pouvez pas retirer votre propre rôle admin.' });
+          return res.status(403).json({ error: 'SELF_ACTION_FORBIDDEN', message: 'Rôle admin de son propre compte : retrait impossible.', detail: 'Rôle admin de son propre compte : retrait impossible.' });
         }
         // Last-admin: would removing admin from this active admin leave zero?
         const isLosingAdmin = target.isActive && target.roles.includes(ADMIN) && !nextRoles.includes(ADMIN);
         if (isLosingAdmin && !ensureAdminCountAfter((count) => count - 1 >= 1)) {
-          return res.status(400).json({ error: 'LAST_ADMIN' });
+          return res.status(400).json({ error: 'LAST_ADMIN', message: 'Au moins un administrateur doit rester actif.' });
         }
       }
 
@@ -375,12 +375,12 @@ function buildController({
     // POST /api/users/:id/reset-password — regenerate + email new temp password, then persist hash.
     resetPassword(req, res) {
       const id = asInt(req.params.id);
-      if (id == null) return res.status(400).json({ error: 'INVALID_ID' });
+      if (id == null) return res.status(400).json({ error: 'INVALID_ID', message: 'Compte introuvable.' });
       if (isSelf(req, id)) {
-        return res.status(403).json({ error: 'SELF_ACTION_FORBIDDEN', detail: 'Mot de passe personnel : page Mot de passe.' });
+        return res.status(403).json({ error: 'SELF_ACTION_FORBIDDEN', message: 'Mot de passe personnel : page Mot de passe.', detail: 'Mot de passe personnel : page Mot de passe.' });
       }
       const target = usersModel.findById(id);
-      if (!target || target.isSupport) return res.status(404).json({ error: 'USER_NOT_FOUND' });
+      if (!target || target.isSupport) return res.status(404).json({ error: 'USER_NOT_FOUND', message: 'Compte introuvable.' });
       // A reset reactivates the account, so a disabled one counts against the plan's quota
       // (specs/control-plane-plans-and-access.md rule 13).
       if (!target.isActive) {
@@ -388,10 +388,10 @@ function buildController({
         if (refusal) return res.status(402).json(refusal);
       }
       if (!settingsModel.smtpConfigured()) {
-        return res.status(400).json({ error: 'SMTP_NOT_CONFIGURED' });
+        return res.status(400).json({ error: 'SMTP_NOT_CONFIGURED', message: 'Envoi d’e-mails non configuré.' });
       }
       const publicUrl = String(settingsModel.publicUrl() || '').trim();
-      if (!publicUrl) return res.status(400).json({ error: 'PUBLIC_URL_NOT_CONFIGURED' });
+      if (!publicUrl) return res.status(400).json({ error: 'PUBLIC_URL_NOT_CONFIGURED', message: 'Adresse publique non configurée.' });
 
       const temporaryPassword = passwordGenerator();
       const fromName = settingsModel.decryptedSmtpSettings().fromName;
@@ -415,28 +415,28 @@ function buildController({
         })
         .catch((err) => {
           if (err && err.code === 'EMAIL_NOT_CONFIGURED') {
-            return res.status(400).json({ error: 'SMTP_NOT_CONFIGURED' });
+            return res.status(400).json({ error: 'SMTP_NOT_CONFIGURED', message: 'Envoi d’e-mails non configuré.' });
           }
           // Same rule as create: keep the raw error server-side, return a stable code.
           // Spotted in the 2026-06-01 security audit (finding M3).
           console.error('[usersController.resetPassword] email send failed:', err);
-          return res.status(502).json({ error: 'EMAIL_SEND_FAILED' });
+          return res.status(502).json({ error: 'EMAIL_SEND_FAILED', message: 'Envoi de l’e-mail impossible.' });
         });
     },
 
     // DELETE /api/users/:id — soft delete by default.
     softDelete(req, res) {
       const id = asInt(req.params.id);
-      if (id == null) return res.status(400).json({ error: 'INVALID_ID' });
+      if (id == null) return res.status(400).json({ error: 'INVALID_ID', message: 'Compte introuvable.' });
       if (isSelf(req, id)) {
-        return res.status(403).json({ error: 'SELF_ACTION_FORBIDDEN' });
+        return res.status(403).json({ error: 'SELF_ACTION_FORBIDDEN', message: 'Action impossible sur son propre compte.' });
       }
       const target = usersModel.findById(id);
-      if (!target || target.isSupport) return res.status(404).json({ error: 'USER_NOT_FOUND' });
+      if (!target || target.isSupport) return res.status(404).json({ error: 'USER_NOT_FOUND', message: 'Compte introuvable.' });
       // Last-admin guard: deactivating an active admin must keep ≥1 active admin alive.
       const removesAnAdmin = target.isActive && target.roles.includes(ADMIN);
       if (removesAnAdmin && !ensureAdminCountAfter((count) => count - 1 >= 1)) {
-        return res.status(400).json({ error: 'LAST_ADMIN' });
+        return res.status(400).json({ error: 'LAST_ADMIN', message: 'Au moins un administrateur doit rester actif.' });
       }
       usersModel.softDelete(id);
       // Deactivation is the control reached for after an employee leaves — it must end the session
@@ -448,23 +448,23 @@ function buildController({
     // DELETE /api/users/:id?hard=1 — hard delete (only when the user never logged in).
     hardDelete(req, res) {
       const id = asInt(req.params.id);
-      if (id == null) return res.status(400).json({ error: 'INVALID_ID' });
+      if (id == null) return res.status(400).json({ error: 'INVALID_ID', message: 'Compte introuvable.' });
       if (isSelf(req, id)) {
-        return res.status(403).json({ error: 'SELF_ACTION_FORBIDDEN' });
+        return res.status(403).json({ error: 'SELF_ACTION_FORBIDDEN', message: 'Action impossible sur son propre compte.' });
       }
       const target = usersModel.findById(id);
-      if (!target || target.isSupport) return res.status(404).json({ error: 'USER_NOT_FOUND' });
+      if (!target || target.isSupport) return res.status(404).json({ error: 'USER_NOT_FOUND', message: 'Compte introuvable.' });
       // The user is by definition still mustChangePassword=1 + lastLoginAt=null when eligible, so
       // they can't be the active admin holding the fort. But we still guard for safety.
       const removesAnAdmin = target.isActive && target.roles.includes(ADMIN);
       if (removesAnAdmin && !ensureAdminCountAfter((count) => count - 1 >= 1)) {
-        return res.status(400).json({ error: 'LAST_ADMIN' });
+        return res.status(400).json({ error: 'LAST_ADMIN', message: 'Au moins un administrateur doit rester actif.' });
       }
       try {
         usersModel.hardDelete(id);
       } catch (err) {
         if (err && err.code === 'HARD_DELETE_NOT_ELIGIBLE') {
-          return res.status(400).json({ error: 'HARD_DELETE_NOT_ELIGIBLE' });
+          return res.status(400).json({ error: 'HARD_DELETE_NOT_ELIGIBLE', message: 'Ce compte ne peut pas être supprimé.' });
         }
         throw err;
       }

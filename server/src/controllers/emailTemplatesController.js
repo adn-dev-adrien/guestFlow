@@ -27,6 +27,7 @@ const { templateWhenLabel, templateWhen, describeWhen } = require('../utils/temp
 const { displayNameOf, timeline, compare: stayOrder } = require('../utils/emailTimeline');
 const { hasEnglishVersion } = require('../utils/emailTemplateLanguage');
 const { weekdayLabel } = require('../utils/dateFr');
+const { asText, isOptionalText, numeric } = require('../utils/bodyText');
 const { templateAllowed, chipsForTemplate, tokenError, sectionOfStableKey } = require('../utils/templateTokens');
 
 // specs/guest-email-texts-made-simple.md rule 11 — a template refuses an unknown variable with the
@@ -66,26 +67,30 @@ function lengthRefusal(payload) {
 function validateForCreate(payload) {
   const errors = [];
   if (!payload || typeof payload !== 'object') return ['INVALID_PAYLOAD'];
-  if (!String(payload.name || '').trim())    errors.push('name');
-  if (!String(payload.subject || '').trim()) errors.push('subject');
-  if (!String(payload.body || '').trim())    errors.push('body');
-  const offset = Number(payload.dayOffset);
+  if (!asText(payload.name).trim())    errors.push('name');
+  if (!asText(payload.subject).trim()) errors.push('subject');
+  if (!asText(payload.body).trim())    errors.push('body');
+  if (!isOptionalText(payload.subjectEn)) errors.push('subjectEn');
+  if (!isOptionalText(payload.bodyEn))    errors.push('bodyEn');
+  const offset = numeric(payload.dayOffset);
   if (!Number.isInteger(offset) || offset < DAY_OFFSET_MIN || offset > DAY_OFFSET_MAX) errors.push('dayOffset');
-  if (!['auto', 'manual'].includes(String(payload.sendMode || '').toLowerCase())) errors.push('sendMode');
+  if (!['auto', 'manual'].includes(asText(payload.sendMode).toLowerCase())) errors.push('sendMode');
   return errors;
 }
 
 function validateForUpdate(payload) {
   const errors = [];
   if (!payload || typeof payload !== 'object') return ['INVALID_PAYLOAD'];
-  if (payload.name      !== undefined && !String(payload.name).trim())    errors.push('name');
-  if (payload.subject   !== undefined && !String(payload.subject).trim()) errors.push('subject');
-  if (payload.body      !== undefined && !String(payload.body).trim())    errors.push('body');
+  if (payload.name      !== undefined && !asText(payload.name).trim())    errors.push('name');
+  if (payload.subject   !== undefined && !asText(payload.subject).trim()) errors.push('subject');
+  if (payload.body      !== undefined && !asText(payload.body).trim())    errors.push('body');
+  if (!isOptionalText(payload.subjectEn)) errors.push('subjectEn');
+  if (!isOptionalText(payload.bodyEn))    errors.push('bodyEn');
   if (payload.dayOffset !== undefined) {
-    const offset = Number(payload.dayOffset);
+    const offset = numeric(payload.dayOffset);
     if (!Number.isInteger(offset) || offset < DAY_OFFSET_MIN || offset > DAY_OFFSET_MAX) errors.push('dayOffset');
   }
-  if (payload.sendMode  !== undefined && !['auto', 'manual'].includes(String(payload.sendMode).toLowerCase())) {
+  if (payload.sendMode  !== undefined && !['auto', 'manual'].includes(asText(payload.sendMode).toLowerCase())) {
     errors.push('sendMode');
   }
   return errors;
@@ -213,7 +218,7 @@ function buildController(model, settingsModel, deps = {}) {
     if (!read.ok) return res.status(422).json({ field: read.field, message: read.message });
     req.body = read.body;
     const errors = validateForCreate(req.body);
-    if (errors.length > 0) return res.status(400).json({ error: 'INVALID_PAYLOAD', fields: errors });
+    if (errors.length > 0) return res.status(400).json({ error: 'INVALID_PAYLOAD', message: 'Données invalides.', fields: errors });
     const tooLong = lengthRefusal(req.body);
     if (tooLong) return res.status(422).json(tooLong);
     const unknown = templateTokenError(req.body);
@@ -240,7 +245,7 @@ function buildController(model, settingsModel, deps = {}) {
     if (!read.ok) return res.status(422).json({ field: read.field, message: read.message });
     req.body = read.body;
     const errors = validateForUpdate(req.body);
-    if (errors.length > 0) return res.status(400).json({ error: 'INVALID_PAYLOAD', fields: errors });
+    if (errors.length > 0) return res.status(400).json({ error: 'INVALID_PAYLOAD', message: 'Données invalides.', fields: errors });
     // specs/payment-schedule-and-cancellation.md rule 44 — a template that asks for money is never « auto ».
     if (PAYMENT_STABLE_KEYS.includes(existing.stableKey) && String(req.body.sendMode || '').toLowerCase() === 'auto') {
       return res.status(409).json({ error: 'PAYMENT_TEMPLATE_STAYS_MANUAL', message: 'Un email qui demande de l’argent ne part jamais tout seul : il reste en validation manuelle.' });

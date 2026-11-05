@@ -65,7 +65,7 @@ function buildController({ database, penaltiesModel, reservationsModel, todayOf,
     if (!Number.isFinite(amount) || amount <= 0) errors.push({ code: 'INVALID_PENALTY', field: 'amount', message: 'Le montant doit être supérieur à 0.' });
     else if (Math.abs(amount * 100 - amountCents) > 1e-6) errors.push({ code: 'INVALID_PENALTY', field: 'amount', message: 'Le montant a deux décimales au plus.' });
 
-    const reason = String(body.reason == null ? '' : body.reason).trim().replace(/\s+/g, ' ');
+    const reason = (typeof body.reason === 'string' ? body.reason : '').trim().replace(/\s+/g, ' ');
     if (reason.length < REASON_MIN || reason.length > REASON_MAX) {
       errors.push({ code: 'INVALID_PENALTY', field: 'reason', message: `Le motif fait entre ${REASON_MIN} et ${REASON_MAX} caractères.` });
     }

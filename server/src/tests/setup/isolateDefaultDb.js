@@ -12,13 +12,16 @@
  * (`PUBLIC_SITE_ORIGIN`, the rate-limit knobs, QONTO_*…): the list and what the runner keeps are in
  * `appEnvNames.js`.
  *
- * Under `npm test` it then traces what the app reads from the environment (rule 13, `envTrace.js`).
+ * Under `npm test` it then traces what the app reads from the environment (rule 13, `envTrace.js`), and no
+ * client reaches a real Qonto host (rule 14, `realQontoGuard.js`).
  */
 const path = require('path');
 
 const DEFAULT_DB = path.resolve(__dirname, '..', '..', '..', 'guestflow.db');
 
 require('./appEnvNames').stripAppEnv();
+
+require('./realQontoGuard');
 
 // Before `isolate`: the runner's check reads the trace in an exit handler that must run before the temp dir goes.
 require('./envTrace').start();

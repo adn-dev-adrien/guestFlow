@@ -108,6 +108,10 @@ the first page and the last email.
 8. Error envelopes keep their machine-readable `code` unchanged; only `message` follows `lang`,
    through a dictionary keyed by code in `utils/publicLabels.js`. This covers the ~20 hard-coded
    French messages in `controllers/public/*` and the messages propagated from the pricing engine.
+   *Reading of 2026-11-05 (audit R23 public finding 2):* so does the `429` of the four public limiters, the `404` of a path
+   no plugin owns under `/public/v1` and the `401` / `403` of the site's API key, keyed `tooManyRequests`,
+   `tooManyBookingRequests`, `tooManyPayments`, `resourceNotFound`, `apiKeyInvalid`, `apiKeyReadOnly`; code and status do
+   not move. Test: `public-refusal-language.unit.test.js`.
 9. Property names are proper nouns and are **not** translated. But `nameArticle` ("à la", "à l'") is
    French grammar: for `lang=en` the projection returns it as an empty string, and the consumer
    composes "at La Granja" instead of "à la Granja".

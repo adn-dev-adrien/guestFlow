@@ -86,6 +86,7 @@ describe('CumulativeMonthCalendar — solid bars and closures', () => {
     expect(top(container.querySelector('[data-bar="r1"]'))).toBe(top(container.querySelector('[data-closure-bar="c4"]')));
   });
 
+  // specs/cumulative-month-calendar.md rule 12
   it('legend — a platform is listed once whatever its stored casing, with a solid swatch, behind « Légende »', async () => {
     api.getCalendar.mockResolvedValue(payload([
       stay(1, '2026-07-20', '2026-07-22', { platform: 'Abracadaroom', platformDisplay: 'Abracadaroom', color: '#8A55B2' }),

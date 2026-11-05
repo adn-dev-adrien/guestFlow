@@ -46,7 +46,7 @@ function compositionRefusal(ids) {
 }
 
 function createCustomerModulesController(ctx, customersController) {
-  const { models, now, instances } = ctx;
+  const { models, now } = ctx;
   const { customers, catalogue, audit, customerPlugins, meta } = models;
   const day = () => customersController.today();
 
@@ -170,7 +170,7 @@ function createCustomerModulesController(ctx, customersController) {
 
   // A readable space on a release before the reconciler is not « illisible »: it only needs the update.
   function unseededLabel(c) {
-    const facts = instances.readFacts(customersController.servedSlug(c));
+    const facts = customersController.spaceFacts(c);
     return facts && !facts.provisioning ? TOO_OLD : UNREADABLE;
   }
 
@@ -184,7 +184,7 @@ function createCustomerModulesController(ctx, customersController) {
     }
     const allowed = allowedOf(c);
     const chosen = new Set(customerPlugins.chosen(c.id).filter((id) => allowed.has(id)));
-    const facts = instances.readFacts(customersController.servedSlug(c));
+    const facts = customersController.spaceFacts(c);
     const writtenAt = meta.get(`licenceIssuedAt:${c.id}`);
     const erasing = new Map(customerPlugins.pendingOrders(c.id).map((o) => [o.pluginId, Boolean(o.removal)]));
     const lines = gfPlugins.PLUGIN_IDS.map((id) => lineOf(c, id, { allowed, chosen, facts, writtenAt, erasing }));
@@ -210,7 +210,7 @@ function createCustomerModulesController(ctx, customersController) {
   // An order still on its way must not fire the next time the module is switched off — unless the space
   // already ran it: then the journal says so instead of « annulé » (audit 2026-10-28, L1).
   function cancelPendingOrders(c, pluginId, operator) {
-    const facts = instances.readFacts(customersController.servedSlug(c));
+    const facts = customersController.spaceFacts(c);
     const ran = new Set(facts && facts.provisioning ? facts.provisioning.erasedOrders : []);
     customerPlugins.pendingOrders(c.id).filter((o) => o.pluginId === pluginId).forEach((o) => {
       customerPlugins.acknowledge(o.orderId, now().toISOString());
@@ -275,7 +275,7 @@ function createCustomerModulesController(ctx, customersController) {
     let acknowledged = 0;
     customerPlugins.customersWithPendingOrders().forEach((customerId) => {
       const c = customers.get(customerId);
-      const facts = c && !c.erasedAt ? instances.readFacts(customersController.servedSlug(c)) : null;
+      const facts = c && !c.erasedAt ? customersController.spaceFacts(c) : null;
       if (!facts || !facts.provisioning) return;
       const done = customerPlugins.pendingOrders(customerId).filter((o) => facts.provisioning.erasedOrders.includes(o.orderId));
       done.forEach((o) => {
@@ -303,7 +303,7 @@ function createCustomerModulesController(ctx, customersController) {
 
   // Rule 25 — from what the space runs now, before any licence carries `activePlugins`.
   function seedCustomer(c, operator = 'migration') {
-    const facts = instances.readFacts(customersController.servedSlug(c));
+    const facts = customersController.spaceFacts(c);
     // Rule 29 — a space on a release before the reconciler would take the licence's choice for nothing.
     if (!facts || !facts.provisioning) return false;
     const allowed = allowedOf(c);

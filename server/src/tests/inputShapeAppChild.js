@@ -1,5 +1,8 @@
 // The real `src/index.js` with a throw-away database, for authenticated-input-shape.unit.test.js: three accounts,
 // one client, one property, one stay and one devis. Nothing leaves the machine (see the parent's environment).
+const routeCensus = require('./routeCensus');
+
+routeCensus.install();
 require('../index.js');
 
 const users = require('../models/usersModel');
@@ -26,6 +29,6 @@ const devis = db.prepare(`INSERT INTO reservations (propertyId, clientId, startD
   VALUES (?, ?, ?, ?, 2, '15:00', '10:00', 'direct', 'devis', 'draft', 'D-1')`).run(property, client, dayAt(50), dayAt(53)).lastInsertRowid;
 
 process.send({
-  ready: true, password: PASSWORD, ids: { client: Number(client), property: Number(property), reservation: Number(reservation), legacy: Number(legacy), devis: Number(devis) },
+  ready: true, routes: routeCensus.writeRoutes(), password: PASSWORD, ids: { client: Number(client), property: Number(property), reservation: Number(reservation), legacy: Number(legacy), devis: Number(devis) },
   dates: { start: dayAt(30), end: dayAt(33), freeStart: dayAt(70), freeEnd: dayAt(73) },
 });

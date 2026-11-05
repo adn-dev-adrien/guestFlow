@@ -130,6 +130,7 @@ function getLineSplit(line, totalPrice) {
  *   onToggleCustomOptionInComplement(customKey, next)
  *   onToggleResourceInComplement(resourceId, next)
  *   onToggleTouristTaxInComplement(next)
+ *   touristTaxInComplementLocked — the server's rule 20 reason is set: the chip reads, it does not toggle
  *   mode                           'live' (default) | 'stored' — the quote is then the server's `storedSummary`
  *                                  (specs/reservation-payment-ledger.md rules 50-52): the same sections,
  *                                  labels and rows, with every per-line control left out, since a value
@@ -155,6 +156,7 @@ export default function PricingSummary({
   onToggleCustomOptionInComplement,
   onToggleResourceInComplement,
   onToggleTouristTaxInComplement,
+  touristTaxInComplementLocked = false,
   // specs/mid-stay-extras-on-locked-fiche.md — inside the window the routing is the server's and a
   // line sold at arrival can be neither offered nor un-offered.
   routingLocked = false,
@@ -733,6 +735,7 @@ export default function PricingSummary({
                         <ComplementChip
                           active={Boolean(quote?.touristTaxInComplement)}
                           onClick={onToggleTouristTaxInComplement}
+                          readOnly={Boolean(touristTaxInComplementLocked)}
                         />
                       )
                     ))}

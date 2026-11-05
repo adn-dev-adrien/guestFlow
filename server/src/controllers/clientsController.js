@@ -6,7 +6,7 @@
  * tests can inject a fake model. (The factory is NOT named `create` — that's a request handler here.)
  */
 
-const { validateClientPayload } = require('../utils/clientValidation');
+const { validateClientPayload, cleanClientText } = require('../utils/clientValidation');
 const { parseAddressBlock, extractEmail, extractPhone, MAX_RAW_LENGTH } = require('../utils/contactParsing');
 const { clientExistsRefusal } = require('../utils/clientDuplicates');
 const { deactivateOpenLinksBeforeDelete } = require('../utils/paymentLinkDeactivation');
@@ -59,20 +59,23 @@ function createController(model) {
   // specs/clients.md rule 12 — a record with the email or phone of an existing client is
   // refused with that client, unless the operator asked for a second one (`allowDuplicate`).
   function create(req, res) {
-    const error = validateClientPayload(req.body);
+    const body = cleanClientText(req.body);
+    const error = validateClientPayload(body);
     if (error) return res.status(400).json({ error });
-    if (!req.body.allowDuplicate && typeof model.findDuplicate === 'function') {
-      const existing = model.findDuplicate(req.body);
+    if (!body.allowDuplicate && typeof model.findDuplicate === 'function') {
+      const existing = model.findDuplicate(body);
       if (existing) return res.status(409).json(clientExistsRefusal(existing));
     }
-    return res.json(model.insert(req.body));
+    return res.json(model.insert(body));
   }
 
   function update(req, res) {
-    if (!model.findById(req.params.id)) return res.status(404).json({ error: 'Client non trouvé' });
-    const error = validateClientPayload(req.body);
+    const stored = model.findById(req.params.id);
+    if (!stored) return res.status(404).json({ error: 'Client non trouvé' });
+    const body = cleanClientText(req.body, stored);
+    const error = validateClientPayload(body);
     if (error) return res.status(400).json({ error });
-    return res.json(model.update(req.params.id, req.body));
+    return res.json(model.update(req.params.id, body));
   }
 
   async function remove(req, res) {
@@ -111,7 +114,7 @@ function createController(model) {
   function parseContact(req, res) {
     const body = req.body || {};
     const requested = Object.keys(CONTACT_PARSERS).filter((key) => typeof body[key] === 'string');
-    if (requested.length === 0) return res.status(400).json({ error: 'INVALID_PAYLOAD' });
+    if (requested.length === 0) return res.status(400).json({ error: 'INVALID_PAYLOAD', message: 'Données invalides.' });
     if (requested.some((key) => body[key].length > MAX_RAW_LENGTH)) return res.status(400).json({ error: 'PAYLOAD_TOO_LONG' });
 
     const parsed = {};

@@ -155,7 +155,7 @@ confirmation — records the caution status and the complement(s) on the reserva
     status, and the keys reminder if « Non ». **Valider et terminer** (commit) / **Quitter**.
 
 ### 3.3 Complements
-17. **Arrival complement** = the reservation's existing `complementAmount` **plus** the SAS-added items
+30. **Arrival complement** = the reservation's existing `complementAmount` **plus** the SAS-added items
     (linen elements + ménage + linge de toilette). **Two storages since 2026-08-03**
     ([sas-upsells-activate-catalogue-option.md](sas-upsells-activate-catalogue-option.md)): the ménage and
     the linge de toilette activate their **catalogue option** (`reservation_options`, `inComplement = 1`,

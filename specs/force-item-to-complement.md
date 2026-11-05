@@ -171,6 +171,24 @@ Auto-options (`option.autoOptionType ∈ {early_check_in, late_check_out, …}` 
     update) and the conversion carries it; a devis stored before that converts with the amount its own
     totals prove (`provenComplementAmount`, the repair's proof), else nothing. The migration key stays
     `created_complement_amount_repaired_v1` (it never ran in production).
+20. **The tax cannot be switched to the complement once the bucket holding it is paid** (audit R23-N2, 2026-11-05).
+    `touristTaxInComplement` going from 0 to 1 is refused with 409 `TOURIST_TAX_ALREADY_COLLECTED`, the forced save
+    included, while the solde is paid with a tax share (`touristTaxSoldeContribTtc` > 0, or NULL on an older row with a
+    tax), a paid acompte holds one (`touristTaxAcompteContribTtc` > 0), or a paid installment holds one. A value sent back
+    unchanged passes, and so does switching it off. *Why:* the guest was asked 609,60 € for a stay of 604,80 €, the booked
+    solde entry was rewritten at once in a possibly exported month, and a cancel left 4,80 € on no line. The fiche greys
+    the switch and says why from `touristTaxInComplementLockedReason` (reservation and live quote). *Reading of §7's « toggles
+    stay editable to correct a category »:* still so on a past stay, after unticking the payment that holds the tax.
+    *Readings of 2026-11-05 (R23 verification):* moving the stay to a platform that takes the tax on arrival
+    (`collectsTouristTax = 0`, read through the routing of `TAX_ON_ARRIVAL_SQL`) is the same switch and answers the same 409, no
+    new field; a platform that reverses the tax changes nothing and passes. The « + compl. » chip of the pricing summary is
+    read-only while the reason holds. The installment's caption reads « Taxe encaissée avec une échéance. » with no gesture
+    named: a manually marked installment has no way back, only the bank reconciliation's « Défaire » reaches `markUnpaid`.
+    *Accepted (A2, pre-existing, no money moved):* solde paid and tax on the unpaid complement, then the switch off or a move
+    from a platform taking the tax on arrival to direct: the save passes, the complement stays due, a row may be ticked with
+    the tax uncollected on a stay without a plan.
+    *Accepted (A5, pre-existing, one setting change):* flipping a platform's `collectsTouristTax` rewrites a paid solde's
+    journal at read (46710000 4,80 € to 0), and claims nothing.
 
 ---
 
@@ -192,6 +210,8 @@ Auto-options (`option.autoOptionType ∈ {early_check_in, late_check_out, …}` 
 | `tests/` | `pricing-force-and-snapshot.unit.test.js` | C | New file. ≥ 15 cases over the matrix (forced flag × payment state × snapshot presence × growth/extension). Conservation invariant asserted on every case. |
 | `tests/` | `accounting-per-line-contribs.unit.test.js` | C | New file. Insert reservation, mark deposit paid → assert each non-forced line has `acompteContribTtc = totalPrice × depositPercent` and the sum equals `depositAmount`. Grow an option, mark balance paid, assert `soldeContribTtc` calculated correctly, sum equals `balanceAmount`. Run the export, assert the per-entry bucket TTC sums match the encaissement amounts and no contamination occurs (deposit entry's options HT = `acompteContribTtc → HT extraction`, not pro-rated against the grown total). |
 | `tests/` | `payment-contrib-capture.unit.test.js` | C | New file. Drive `updatePayment` deposit 0→1 and balance 0→1; assert the contrib columns now contain the expected values per line. Verify 1→0 clears them. Forced lines stay NULL throughout. Conservation invariant asserted on capture. |
+| `controllers/` + `utils/` | `reservationsController.js`, `touristTaxFreeze.js` | T | Rule 20: `taxInComplementLockedReason`, the 409 on save, the reason on `getById` and the live quote. |
+| client | `FinanceSection.jsx`, `ReservationPage.jsx` | T | Rule 20: renders the reason: switch disabled while off, caption under it; no new component. |
 
 ### 4.2 Client side (`client/src/`)
 
@@ -347,6 +367,7 @@ For the duplicated line label (`Option B (+1)`), the engine returns the `quantit
 - [ ] Mobile (`xs`) → checkbox column reachable; summary splits readably.
 
 ---
+- Rule 20 (2026-11-05): `server/src/tests/tax-in-complement-locked.unit.test.js` (9 tests), `client/src/components/reservation/__tests__/FinanceSection.tax-in-complement-lock.test.jsx` (5 tests). Replayed on an isolated copy of the production data at 1280 and 390 px: refusal, caption, and rule 8 of `tourist-tax-declared-checkbox.md`.
 - Spec review 2026-10-27 (rule 18): `server/src/tests/created-stay-complement-amount.unit.test.js` (3 tests — complement stored at creation, boot repair limited to the proven rows and idempotent, unproven gap left alone).
 - Adversarial review of the 2026-10-27 fixes (rule 19): `server/src/tests/created-complement-repair-tourist-tax.unit.test.js` (4 tests — repair with a tax on the solde and on the complement, ended stay left alone, devis stores and carries its complement, legacy devis converts with the proven amount).
 

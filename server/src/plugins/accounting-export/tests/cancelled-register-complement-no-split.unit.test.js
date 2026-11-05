@@ -7,7 +7,7 @@ process.env.DB_PATH = ':memory:';
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
-  db, respond, ADMIN, NO_ACOMPTE, WITH_ACOMPTE, PLATFORM, S, C, D, TODAY, forced, free, fiche, put, pay, cancel, register, offered, giveAll, net, rowOf,
+  db, respond, ADMIN, NO_ACOMPTE, WITH_ACOMPTE, PLATFORM, S, C, D, TODAY, forced, free, fiche, put, pay, cancel, register, offered, giveAll, net, rowOf, entry,
 } = require('./journalFixture');
 const installmentsController = require('../../../controllers/installmentsController');
 const reservationsModel = require('../../../models/reservationsModel');
@@ -128,4 +128,27 @@ test('a plan holds the lines it collected: a free line paid by the installments 
   const lines = await givenBack(stay.id);
   assert.equal(lines['custom:libre'], 100);
   assert.equal(lines[LINE], 50);
+});
+
+test('audit R23-S3 — a line the complement’s split names, gone from the fiche, stays read on the no-contrib path', () => {
+  const stay = fiche(NO_ACOMPTE, 'direct', { customOptions: [forced(50)] });
+  pay(stay.id, S, C);
+  assert.equal(JSON.parse(rowOf(stay.id).complementPaidSplit).lines[0].key, LINE);
+  dropContribs(stay.id);
+  db.prepare('DELETE FROM reservation_custom_options WHERE reservationId = ?').run(stay.id);
+  assert.equal(reading(stay.id)[LINE], 50);
+});
+
+test('audit R23-S3 — an adjusted complement: no stamp, the export follows the stored allocation', async () => {
+  const stay = fiche(NO_ACOMPTE, 'direct', { customOptions: [forced(20)] });
+  pay(stay.id, S);
+  await put(stay, { complementAmountOverride: 80 });
+  pay(stay.id, C);
+  assert.equal(rowOf(stay.id).complementPaidSplit, null);
+  const allocation = JSON.parse(rowOf(stay.id).complementAllocation);
+  const booked = entry(stay.id, 'complement');
+  assert.equal(Math.round((allocation.accommodation + allocation.options + allocation.resources + (allocation.tax || 0)) * 100) / 100, 80);
+  assert.ok(Object.keys(booked).length > 0);
+  assert.equal(booked['70600000'] || 0, Math.round((allocation.accommodation / 1.1) * 100) / 100);
+  assert.equal(booked['70600010'] || 0, Math.round((allocation.options / 1.1) * 100) / 100);
 });

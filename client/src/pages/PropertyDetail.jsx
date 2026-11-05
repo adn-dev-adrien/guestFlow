@@ -14,6 +14,10 @@ import ConfirmDialog from '../components/ConfirmDialog';
 import UnsavedChangesDialog from '../components/UnsavedChangesDialog';
 import LoadingState from '../components/LoadingState';
 import ErrorAlert from '../components/ErrorAlert';
+import EmptyState from '../components/EmptyState';
+import SearchOffIcon from '@mui/icons-material/SearchOff';
+import { holdGuardSlot } from '../utils/backGuard';
+import { navigateThroughGuard } from '../utils/guardedNavigation';
 import { useToast } from '../components/DialogProvider';
 import PropertyGeneralTab from '../components/property/PropertyGeneralTab';
 import PropertyTariffTab from '../components/property/PropertyTariffTab';
@@ -138,6 +142,7 @@ export default function PropertyDetail() {
   const pendingNavRef = useRef(null);
   const [property, setProperty] = useState(isNew ? { name: 'Nouveau logement', pricingRules: [], documents: [] } : null);
   const [loadError, setLoadError] = useState(false);
+  const [notFound, setNotFound] = useState(false);
   const [form, setForm] = useState(isNew ? NEW_DEFAULTS : {});
   const [dirty, setDirty] = useState(isNew);
   const [saving, setSaving] = useState(false);
@@ -173,7 +178,10 @@ export default function PropertyDetail() {
     setLoadError(false);
     let p; let allOptions;
     try {
-      [p, allOptions] = await Promise.all([api.getProperty(id), api.getOptions()]);
+      [p, allOptions] = await Promise.all([
+        api.getProperty(id).catch((e) => { if (e && e.status === 404) setNotFound(true); throw e; }),
+        api.getOptions(),
+      ]);
     } catch (e) {
       setLoadError(true);
       return;
@@ -371,20 +379,18 @@ export default function PropertyDetail() {
     return () => document.removeEventListener('click', handler, true);
   }, []);
 
-  // Intercept browser back/forward
+  // Browser back/forward (specs/ui-review-2026-10-19-operations.md rules 26, 40): the interceptor of
+  // utils/backGuard.js asks this handler before the router moves. `dirtyRef` is cleared once the operator
+  // chose to leave, so the back that follows passes.
   useEffect(() => {
-    if (!pageDirty) return;
-    const pageState = window.history.state;
-    const handler = () => {
+    if (!pageDirty) return undefined;
+    const keep = { state: window.history.state, url: window.location.href };
+    return holdGuardSlot('__guestflowBeforeBack', () => {
+      if (!dirtyRef.current) return null;
       pendingNavRef.current = null;
       setNavGuardOpen(true);
-      // push current location back to cancel the pop
-      // The page's own router state, not null: a null entry loses `idx`, and the next « Retour » would
-      // think the page was opened directly (specs/ui-review-2026-10-19-operations.md rule 26).
-      window.history.pushState(pageState, '', window.location.href);
-    };
-    window.addEventListener('popstate', handler);
-    return () => window.removeEventListener('popstate', handler);
+      return keep;
+    });
   }, [pageDirty, location]);
 
   const handleNavGuardLeave = () => {
@@ -397,11 +403,13 @@ export default function PropertyDetail() {
     else navigateBackWithFrom(navigate, from, PROPERTIES_LIST);
   };
 
+  // Rule 42: a refused save stays on the page, its reason shown.
   const handleNavGuardSave = async () => {
-    await handleSaveProperty();
+    const saved = await handleSaveProperty();
     setNavGuardOpen(false);
     const dest = pendingNavRef.current;
     pendingNavRef.current = null;
+    if (!saved) return;
     if (dest) navigate(dest);
     else navigateBackWithFrom(navigate, from, PROPERTIES_LIST);
   };
@@ -449,11 +457,22 @@ export default function PropertyDetail() {
     setDirty(true);
   };
 
+  const showFieldRefusals = (fieldErrors) => {
+    setErrors(fieldErrors);
+    const firstTab = PROPERTY_TABS.find((t) => Object.keys(fieldErrors).some((f) => FIELD_TAB[f] === t.key));
+    if (firstTab) selectTab(firstTab.key);
+    showError('Enregistrement refusé : corrigez les champs en rouge.');
+  };
+
+  // Answers whether everything was saved.
   const handleSaveProperty = async () => {
-    if (!form.name?.trim()) return;
+    if (!form.name?.trim()) {
+      showFieldRefusals({ name: 'Le nom est obligatoire.' });
+      return false;
+    }
     if (photoFile && !SUPPORTED_PHOTO_MIME_TYPES.has(photoFile.type)) {
       setPhotoValidationError(`Format non pris en charge pour la photo. ${SUPPORTED_PHOTO_FORMATS_TEXT}`);
-      return;
+      return false;
     }
     setSaving(true);
     setErrors({});
@@ -463,7 +482,7 @@ export default function PropertyDetail() {
         if (photoFile) fd.append('photo', photoFile);
         const result = await api.createProperty(fd);
         navigate(`/properties/${result.id}`, { replace: true });
-        return;
+        return true;
       }
 
       if (dirty || photoFile) {
@@ -483,7 +502,7 @@ export default function PropertyDetail() {
             setArrivalErrors(err.errors);
             selectTab('sejour');
             showError('Enregistrement refusé : corrigez les champs en rouge.');
-            return;
+            return false;
           }
           throw err;
         }
@@ -498,17 +517,13 @@ export default function PropertyDetail() {
       setPhotoValidationError('');
       await load();
       showSuccess('Logement enregistré.');
+      return true;
     } catch (err) {
       // A refused field lands under its input and lights its tab (rule 23a); anything else toasts —
       // NOT the photo-validation field (reserved for the local file-format check).
-      if (err && err.errors) {
-        setErrors(err.errors);
-        const firstTab = PROPERTY_TABS.find((t) => Object.keys(err.errors).some((f) => FIELD_TAB[f] === t.key));
-        if (firstTab) selectTab(firstTab.key);
-        showError('Enregistrement refusé : corrigez les champs en rouge.');
-      } else {
-        showError(err?.message || "Impossible d'enregistrer le logement.");
-      }
+      if (err && err.errors) showFieldRefusals(err.errors);
+      else showError(err?.message || "Impossible d'enregistrer le logement.");
+      return false;
     } finally {
       setSaving(false);
     }
@@ -523,6 +538,20 @@ export default function PropertyDetail() {
     }
   };
 
+  if (notFound) {
+    return (
+      <Box>
+        <PageActionBar title="Logement" onBack={() => navigateBackWithFrom(navigate, from, PROPERTIES_LIST)} />
+        <EmptyState
+          icon={<SearchOffIcon />}
+          title="Logement introuvable."
+          message="Le lien est périmé ou le logement a été supprimé."
+          actionLabel="Retour aux logements"
+          onAction={() => navigate(PROPERTIES_LIST, { replace: true })}
+        />
+      </Box>
+    );
+  }
   if (loadError) {
     return <Box><PageActionBar title="Logement" onBack={() => navigateBackWithFrom(navigate, from, PROPERTIES_LIST)} /><ErrorAlert message="Impossible de charger le logement." onRetry={load} /></Box>;
   }
@@ -584,7 +613,7 @@ export default function PropertyDetail() {
             property={property}
             canManage={canManageExtras}
             getSortedSeasonRanges={getSortedSeasonRanges}
-            onOpenTariffs={() => navigate(withFrom(`/properties/${id}/pricing-seasons`, `/properties/${id}?tab=tarifs`))}
+            onOpenTariffs={() => navigateThroughGuard(navigate, withFrom(`/properties/${id}/pricing-seasons`, `/properties/${id}?tab=tarifs`))}
           />
         )}
         {tab === 'paiement' && (limits ? <PropertyPaymentTab {...common} /> : (

@@ -8,6 +8,7 @@
  * « Réservation en ligne » card fill the slot `terms.settings` (specs/plugins-phase-2-hosts.md rule 25).
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router';
 import {
   Alert, Box, Button, Card, CardContent, Chip, Stack, Tab, Table, TableBody,
   TableCell, TableHead, TableRow, Typography, useMediaQuery,
@@ -15,6 +16,8 @@ import {
 import { useTheme } from '@mui/material/styles';
 import PublishIcon from '@mui/icons-material/Publish';
 import PageActionBar from '../../components/PageActionBar';
+import UnsavedChangesDialog from '../../components/UnsavedChangesDialog';
+import useDirtyFormGuard from '../../hooks/useDirtyFormGuard';
 import PageTabs from '../../components/PageTabs';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import ErrorAlert from '../../components/ErrorAlert';
@@ -43,6 +46,7 @@ export default function TermsSettingsPage() {
   const theme = useTheme();
   const isXs = useMediaQuery(theme.breakpoints.down('sm'));
   const { showSuccess, showError } = useToast();
+  const navigate = useNavigate();
   const [overview, setOverview] = useState(null);
   const [loadError, setLoadError] = useState('');
   const [draft, setDraft] = useState({ fr: '', en: '' });
@@ -80,6 +84,13 @@ export default function TermsSettingsPage() {
     return () => clearTimeout(timer);
   }, [draft, overview]);
 
+  // Before the early return: the guard is off until the page knows what is stored (saved = draft).
+  const leaveGuard = useDirtyFormGuard({
+    draft: { fr: draft.fr, en: draft.en },
+    saved: overview ? { fr: overview.draft.fr, en: overview.draft.en } : { fr: draft.fr, en: draft.en },
+    navigate,
+  });
+
   if (!overview) {
     return (
       <Box>
@@ -91,18 +102,25 @@ export default function TermsSettingsPage() {
     );
   }
 
-  const dirty = draft.fr !== overview.draft.fr || draft.en !== overview.draft.en;
+  const dirty = leaveGuard.isDirty;
 
   const handleSave = async () => {
     setSaving(true);
     try {
       applyOverview(await api.saveTermsDraft(draft));
       showSuccess('Brouillon enregistré');
+      return true;
     } catch (e) {
       showError(e.message || 'Échec de l’enregistrement.');
+      return false;
     } finally {
       setSaving(false);
     }
+  };
+
+  const saveAndLeave = async () => {
+    if (await handleSave()) leaveGuard.confirmLeave();
+    else leaveGuard.dismissGuard();
   };
 
   const handlePublish = async () => {
@@ -277,6 +295,12 @@ export default function TermsSettingsPage() {
         message={`La version ${overview.nextVersion} sera figée et proposée aux clients dès maintenant. Elle ne pourra plus être modifiée.`}
         confirmLabel="Publier"
         confirmColor="success"
+      />
+      <UnsavedChangesDialog
+        open={leaveGuard.guardDialogOpen}
+        onStay={leaveGuard.dismissGuard}
+        onDiscard={leaveGuard.confirmLeave}
+        onSaveAndQuit={saveAndLeave}
       />
       <ArchivedHtmlDialog
         open={Boolean(versionView)}

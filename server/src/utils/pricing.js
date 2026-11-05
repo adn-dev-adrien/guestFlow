@@ -2926,9 +2926,11 @@ function calculateReservationQuote({
   // auto-gap: the line can under-claim but never invent a due. With that proof (reading of 2026-11-05, D9:
   // the solde's contribs captured and the pre-arrival money settled) the auto-gap counts too. Never on a
   // complement the operator adjusted (his amount is the decision), nor once the end-of-stay complement is
-  // collected too (its lines are frozen).
+  // collected too (its lines are frozen). Reading of 2026-11-05 (audit R23 N1): a plan never sets `balancePaid`, so all
+  // its installments paid is the same proof.
+  const bucketsAgreed = paidSoldeCaptured || Boolean(installmentPlan && installmentPlan.allPaid);
   const routedToComplement = roundMoney(complementForcedItemsTotal + taxInComplement
-    + (paidSoldeCaptured && preArrivalSettled ? autoGapBetweenDepositAndBalance : 0));
+    + (bucketsAgreed && preArrivalSettled ? autoGapBetweenDepositAndBalance : 0));
   const arrivalComplementExcess = complementPaid && !complementOverridden && !endOfStayComplementSettled
     ? roundMoney(Math.max(0, routedToComplement - resolvedComplementAmount))
     : 0;

@@ -69,7 +69,7 @@ buttons), with a **sticky month label** and an « Aujourd'hui » shortcut.
    settles the heights. The scroll offset is computed **rect-relative** (`getBoundingClientRect`), not via
    `offsetTop` — the month anchors have no positioned ancestor, so `offsetTop` measured from the page top
    and clamped the scroll to the last month (the « date bizarre » bug, fixed 2026-06-23).
-7. **Legend**: the platforms present, with their colours, plus a grey « Fermeture » entry when closures
+12. **Legend**: the platforms present, with their colours, plus a grey « Fermeture » entry when closures
    are present. On mobile (agenda list) closures render as grey rows « Fermé — {logement} ».
    **Amended 2026-10-19** (specs/ui-review-2026-10-19-operations.md rules 13, 15): the legend is folded
    behind « Légende » and prints display names (« Gîtes de France »); a closure swatch is hatched, and

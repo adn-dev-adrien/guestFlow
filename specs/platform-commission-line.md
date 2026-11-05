@@ -83,7 +83,7 @@ Both the commission and the net are **engine-authoritative** (`quote.platformCom
    booked as-is; « Prix payé par le client » + « Total du séjour » keep their name/formula.
 7. **Live recompute.** The commission is in the quote signature, so the « net perçu » + solde update as the
    operator types.
-6. **« Prix payé par le client » stays separate/informative.** The existing `clientGrossAmount` field is
+8. **« Prix payé par le client » stays separate/informative.** The existing `clientGrossAmount` field is
    unchanged and keeps driving the **accounting** commission (`gross − finalPrice` in `accountingModel` +
    the CSV export). The new field is for the **fiche net** only — accounting is deliberately untouched
    here (§8).

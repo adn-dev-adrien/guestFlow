@@ -1,4 +1,5 @@
 const { isValidEmailAddress } = require('./emailAddress');
+const { cleanedBody } = require('./bodyText');
 
 function isValidEmail(value) {
   const trimmed = String(value || '').trim();
@@ -22,6 +23,9 @@ function isValidPhone(value) {
 // rule 68).
 const TEXT_FIELDS = ['lastName', 'firstName', 'streetNumber', 'street', 'postalCode', 'city', 'address', 'phone', 'email', 'notes', 'emailLanguage'];
 
+/** Audit R23-I8 — NUL used to read as a blank name in the lists: control characters out, a stored value left as it is. A pasted tab separates words: a space. */
+const cleanClientText = (payload, stored = null) => cleanedBody(payload || {}, { fields: TEXT_FIELDS, lineFields: ['notes'], stored, tabAsSpace: true });
+
 function validateClientPayload(payload) {
   if (TEXT_FIELDS.some((field) => payload?.[field] !== undefined && payload[field] !== null && typeof payload[field] !== 'string')) {
     return 'Valeur invalide.';
@@ -44,4 +48,5 @@ module.exports = {
   isValidEmail,
   isValidPhone,
   validateClientPayload,
+  cleanClientText,
 };

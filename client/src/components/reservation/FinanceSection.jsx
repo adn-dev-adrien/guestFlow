@@ -264,6 +264,13 @@ const DEPOSIT_DISABLED_LOCK_REASONS = {
   'collected-by-link': 'Acompte perçu par un lien de paiement : remboursement pour l’annuler.',
 };
 
+// specs/force-item-to-complement.md rule 20.
+const TAX_IN_COMPLEMENT_LOCK_REASONS = {
+  'collected-on-solde': 'Taxe encaissée avec le solde : décocher le solde d’abord.',
+  'collected-on-acompte': 'Taxe encaissée avec l’acompte : décocher l’acompte d’abord.',
+  'collected-on-installment': 'Taxe encaissée avec une échéance.',
+};
+
 export default function FinanceSection() {
   const {
     formSectionCardSx, formSectionContentSx, sectionGridSx,
@@ -286,8 +293,10 @@ export default function FinanceSection() {
     installmentPlan = null, setInstallmentPlan, fichePristine = true,
     // specs/disable-deposit-per-reservation.md rule 13 — why « Sans acompte » cannot be ticked, from the server.
     depositDisabledLockedReason = null,
+    touristTaxInComplementLockedReason = null,
   } = useReservationForm();
   const depositDisabledLockReason = DEPOSIT_DISABLED_LOCK_REASONS[depositDisabledLockedReason] || null;
+  const taxInComplementLockReason = form.touristTaxInComplement ? null : (TAX_IN_COMPLEMENT_LOCK_REASONS[touristTaxInComplementLockedReason] || null);
   const { confirm } = useAppDialogs();
   const { showError, showSuccess } = useToast();
   const [penaltyOpen, setPenaltyOpen] = useState(false);
@@ -1003,20 +1012,34 @@ export default function FinanceSection() {
                 )}
                 {/* Per-item routing for the tourist tax (spec force-item-to-complement.md §6.4). */}
                 {Number(pricingQuote?.touristTaxTotal || 0) > 0 && !pricingQuote?.touristTaxCollectedOnArrival && (
-                  <Tooltip title="Lorsque cette option est activée, la taxe de séjour n'est pas comprise dans l'acompte ni le solde : elle est intégralement perçue dans le Complément à percevoir (par exemple, encaissée à l'arrivée)." arrow>
-                    <FormControlLabel
-                      control={<Switch checked={Boolean(form.touristTaxInComplement)} onChange={(e) => updateForm({ touristTaxInComplement: e.target.checked })} />}
-                      label={(
-                        <Typography variant="body2">
-                          Taxe de séjour en complément
-                          <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 1 }}>
-                            ({formatCurrency(pricingQuote.touristTaxTotal)})
+                  <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                    <Tooltip title="Lorsque cette option est activée, la taxe de séjour n'est pas comprise dans l'acompte ni le solde : elle est intégralement perçue dans le Complément à percevoir (par exemple, encaissée à l'arrivée)." arrow describeChild>
+                      <FormControlLabel
+                        control={(
+                          <Switch
+                            checked={Boolean(form.touristTaxInComplement)}
+                            onChange={(e) => updateForm({ touristTaxInComplement: e.target.checked })}
+                            disabled={Boolean(taxInComplementLockReason)}
+                            slotProps={{ input: { 'aria-describedby': taxInComplementLockReason ? 'tax-in-complement-lock-reason' : undefined } }}
+                          />
+                        )}
+                        label={(
+                          <Typography variant="body2">
+                            Taxe de séjour en complément
+                            <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+                              ({formatCurrency(pricingQuote.touristTaxTotal)})
+                            </Typography>
                           </Typography>
-                        </Typography>
-                      )}
-                      sx={{ minHeight: 44, m: 0 }}
-                    />
-                  </Tooltip>
+                        )}
+                        sx={{ minHeight: 44, m: 0 }}
+                      />
+                    </Tooltip>
+                    {taxInComplementLockReason && (
+                      <Typography id="tax-in-complement-lock-reason" variant="caption" color="text.secondary" sx={{ mt: -0.5, mb: 1, lineHeight: 1.4 }}>
+                        {taxInComplementLockReason}
+                      </Typography>
+                    )}
+                  </Box>
                 )}
               </Stack>
             )}

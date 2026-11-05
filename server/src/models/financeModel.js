@@ -3,6 +3,7 @@
 
 const { addDays } = require('../utils/dateDays');
 const { todayIso: localTodayIso } = require('../utils/localDate');
+const { isTouristTaxDeclarable } = require('../utils/touristTaxFreeze');
 const db = require('../database');
 const { quoteStoredReservation } = require('../utils/storedReservationQuote');
 const { computePaymentStatus, round2 } = require('../utils/paymentStatus');
@@ -182,14 +183,25 @@ function createFinanceModel(database) {
     catch { return false; }
   })();
   // Same condition as the SQL of the added-guests rows (specs/platform-added-guests-tourist-tax.md rules
-  // 12, 20): declared, collected, and the declared row left the addition out. A row ticked before the
-  // stamp existed has only the dates to go by.
+  // 12, 20, 29): declared, collected, and an addition above what the declared row held. A row ticked
+  // before the stamp existed has only the dates to go by. A stamp above the addition stays silent.
   const hasOwnAddedGuestsRow = (stored) => {
     if (!stored.touristTaxDeclaredAt || !Number(stored.complementPaid || 0)) return false;
-    if (stored.touristTaxDeclaredWithAddedAmount != null) return Number(stored.touristTaxDeclaredWithAddedAmount) === 0;
+    if (stored.touristTaxDeclaredWithAddedAmount != null) {
+      return round2(Number(stored.touristTaxAddedGuestsAmount || 0)) > round2(Number(stored.touristTaxDeclaredWithAddedAmount));
+    }
     const collectedDay = String(stored.complementPaidDate || addDays(String(stored.endDate).slice(0, 10), -1)).slice(0, 10);
     return collectedDay >= String(stored.touristTaxDeclaredAt).slice(0, 10);
   };
+  // Rule 29 — of a row of its own, what the declared row already told the commune: the stamp, and the adults
+  // that amount stood for at the stored per-adult figure. An addition left out whole holds neither.
+  const toldOfAddition = (stored, addedAdults, addedTax) => {
+    const told = hasOwnAddedGuestsRow(stored) ? Number(stored.touristTaxDeclaredWithAddedAmount || 0) : 0;
+    return { told, toldAdults: addedTax > 0 ? Math.round((addedAdults * told) / addedTax) : 0 };
+  };
+  const addedAdultsOf = (stored, rowAdults) => (stored.touristTaxAddedGuestsAdults != null
+    ? Number(stored.touristTaxAddedGuestsAdults)
+    : Math.max(0, Number(rowAdults || 0) - Number(stored.platformPaidAdults || 0)));
   // specs/tourist-tax-declaration-month-stay-end.md rule 7 — read from the plan itself: paying an
   // installment leaves balancePaid at 0. A minimal test schema without the table holds no plan.
   const HAS_PLAN_SQL = (() => {
@@ -964,7 +976,7 @@ function createFinanceModel(database) {
           AND r.touristTaxDeclaredAt IS NOT NULL
           AND CASE WHEN r.touristTaxDeclaredWithAddedAmount IS NULL
                 THEN COALESCE(DATE(r.complementPaidDate), DATE(r.endDate, '-1 day')) >= DATE(r.touristTaxDeclaredAt)
-                ELSE r.touristTaxDeclaredWithAddedAmount = 0 END
+                ELSE ROUND(r.touristTaxAddedGuestsAmount, 2) > ROUND(r.touristTaxDeclaredWithAddedAmount, 2) END
           AND MAX(DATE(r.endDate, '-1 day'), COALESCE(DATE(r.complementPaidDate), DATE(r.endDate, '-1 day'))) >= ?
           AND MAX(DATE(r.endDate, '-1 day'), COALESCE(DATE(r.complementPaidDate), DATE(r.endDate, '-1 day'))) < ?
         ORDER BY p.name, r.startDate, c.lastName, c.firstName
@@ -1013,8 +1025,10 @@ function createFinanceModel(database) {
           const addedTax = round2(Number(quote.touristTaxAddedGuestsAmount || 0));
           const addedTaxKeptOut = addedTax > 0
             && (!Number(stored.complementPaid || 0) || hasOwnAddedGuestsRow(stored));
+          // Rule 29 — what this row already told of the addition stays on it; only the rest has left.
+          const { told, toldAdults } = toldOfAddition(stored, addedAdultsOf(stored, row.adults), addedTax);
           const taxedAdults = addedTaxKeptOut
-            ? Number(quote.platformPaidAdults ?? quote.touristTaxAdultsCount ?? 0)
+            ? Number(quote.platformPaidAdults ?? quote.touristTaxAdultsCount ?? 0) + toldAdults
             : Number(quote.touristTaxAdultsCount || 0);
 
           // specs/reservation-refunds.md §3.5 rules 29–31 — a refunded tourist tax is a night the guest
@@ -1034,7 +1048,7 @@ function createFinanceModel(database) {
             taxedAdults * Math.max(0, Number(quote.touristTaxNights || 0) - refundedTaxNights),
           );
           // The tax the fiche shows: frozen on a past stay, recomputed live otherwise.
-          const grossTaxAmount = round2(Number(quote.touristTaxTotal || 0) - (addedTaxKeptOut ? addedTax : 0));
+          const grossTaxAmount = round2(Number(quote.touristTaxTotal || 0) - (addedTaxKeptOut ? addedTax - told : 0));
           const grossAdultNights = taxedAdults * Number(quote.touristTaxNights || 0);
           // Pro-rated on the nights: exact for the per-night modes, the natural share for the
           // percentage ones (where the tax isn't night-linear).
@@ -1055,6 +1069,7 @@ function createFinanceModel(database) {
             endDate: row.endDate,
             lastNightDate: row.lastNightDate,
             touristTaxDeclaredAt: row.touristTaxDeclaredAt || null,
+            declarable: isTouristTaxDeclarable(database, stored),
             adults: addedTaxKeptOut ? taxedAdults : adults,
             children: children + teens,
             // Net of the refunded nights — these are the figures to declare.
@@ -1097,13 +1112,14 @@ function createFinanceModel(database) {
           const nightsCount = Number(row.nightsCount || 0);
           const refundedTaxNights = Math.min(nightsCount, Math.max(0, Math.round(Number(row.refundedTaxNights || 0))));
           const declaredNights = Math.max(0, nightsCount - refundedTaxNights);
-          const addedTax = round2(Number(quote.touristTaxAddedGuestsAmount || 0));
-          const declaredTaxAmount = nightsCount > 0 ? round2(addedTax * (declaredNights / nightsCount)) : addedTax;
+          const wholeAddition = round2(Number(quote.touristTaxAddedGuestsAmount || 0));
           // Rule 21 — who the stored amount is for, not who is on the fiche today. Nobody (a gap of rule 5):
-          // the amount alone, no person-night to tell the commune.
-          const addedAdults = stored.touristTaxAddedGuestsAdults != null
-            ? Number(stored.touristTaxAddedGuestsAdults)
-            : Math.max(0, Number(row.adults || 0) - Number(stored.platformPaidAdults || 0));
+          // the amount alone, no person-night to tell the commune. Rule 29 — and only what the declared row left out.
+          const wholeAdults = addedAdultsOf(stored, row.adults);
+          const { told, toldAdults } = toldOfAddition(stored, wholeAdults, wholeAddition);
+          const addedTax = round2(wholeAddition - told);
+          const addedAdults = Math.max(0, wholeAdults - toldAdults);
+          const declaredTaxAmount = nightsCount > 0 ? round2(addedTax * (declaredNights / nightsCount)) : addedTax;
           const noGuestAdded = addedAdults === 0;
           return {
             reservationId: row.reservationId,
@@ -1116,6 +1132,7 @@ function createFinanceModel(database) {
             endDate: row.endDate,
             lastNightDate: row.lastNightDate,
             touristTaxDeclaredAt: stored.touristTaxAddedGuestsDeclaredAt || null,
+            declarable: isTouristTaxDeclarable(database, stored),
             adults: noGuestAdded ? null : addedAdults,
             children: noGuestAdded ? null : 0,
             nightsCount: declaredNights,
@@ -1188,6 +1205,8 @@ function createFinanceModel(database) {
     // specs/tourist-tax-declared-checkbox.md §3 — the operator ticks « Déclarée » on the extraction page.
     // declared=true stamps the server clock (so we know WHEN it was declared); declared=false clears it.
     // specs/platform-added-guests-tourist-tax.md rule 12 — `addedGuests` ticks the added-guests row alone.
+    // specs/tourist-tax-declared-checkbox.md rule 8 (D16) — a new tick waits for a stay paid and over; a tick
+    // sent back and an untick pass.
     setTouristTaxDeclared({ reservationId, declared, addedGuests = false } = {}) {
       const id = Number(reservationId);
       if (!Number.isInteger(id) || id <= 0) {
@@ -1197,17 +1216,20 @@ function createFinanceModel(database) {
       if (!stored) {
         return { ok: false, status: 404, error: 'Réservation introuvable.' };
       }
+      const notDeclarable = { ok: false, status: 409, code: 'TOURIST_TAX_NOT_DECLARABLE', error: 'Déclarable une fois le séjour payé et terminé.' };
       if (addedGuests) {
         if (!hasAddedGuestsTax) return { ok: false, status: 400, error: 'Réservation invalide.' };
         // Rule 22 — a screen left open can show a row the server no longer lists.
         if (declared && !(Number(stored.touristTaxAddedGuestsAmount || 0) > 0 && hasOwnAddedGuestsRow(stored))) {
           return { ok: false, status: 409, error: 'Aucun complément de taxe à déclarer.' };
         }
-        database.prepare(`UPDATE reservations SET touristTaxAddedGuestsDeclaredAt = ${declared ? "datetime('now')" : 'NULL'}, updatedAt = datetime('now') WHERE id = ?`).run(id);
+        if (declared && !stored.touristTaxAddedGuestsDeclaredAt && !isTouristTaxDeclarable(database, stored)) return notDeclarable;
+        database.prepare(`UPDATE reservations SET touristTaxAddedGuestsDeclaredAt = ${declared ? "COALESCE(touristTaxAddedGuestsDeclaredAt, datetime('now'))" : 'NULL'}, updatedAt = datetime('now') WHERE id = ?`).run(id);
         const row = database.prepare('SELECT touristTaxAddedGuestsDeclaredAt AS at FROM reservations WHERE id = ?').get(id);
         return { ok: true, data: { declaredAt: row.at || null } };
       }
       if (declared) {
+        if (!stored.touristTaxDeclaredAt && !isTouristTaxDeclarable(database, stored)) return notDeclarable;
         // Rules 20, 25 — what this tick told the commune, once: a tick repeated from a stale tab changes nothing.
         database.prepare("UPDATE reservations SET touristTaxDeclaredAt = COALESCE(touristTaxDeclaredAt, datetime('now')), updatedAt = datetime('now') WHERE id = ?").run(id);
         if (hasAddedGuestsTax && !stored.touristTaxDeclaredAt) {

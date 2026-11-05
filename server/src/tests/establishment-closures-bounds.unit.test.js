@@ -100,7 +100,7 @@ test('rule 20 — the occupied dates answer a window of at most 750 real days, r
   const absurd = ask('0001-01-01', FAR);
   assert.ok(Date.now() - started < 1000);
   assert.equal(absurd.statusCode, 400);
-  assert.deepEqual(absurd.body, { error: 'DATE_RANGE_TOO_WIDE' });
+  assert.deepEqual(absurd.body, { error: 'DATE_RANGE_TOO_WIDE', message: 'Période trop longue.' });
   assert.equal(ask('abc', 'abd').statusCode, 400);
   assert.equal(ask(plusDays(START, 2), START).statusCode, 400);
   const wide = ask(plusDays(START, -10), plusDays(START, 740));

@@ -141,6 +141,9 @@ move into it in phases 2 and 3, and plugin downloads arrive in phase 4.
      `tariff-recipes` (`recipeId`, journal), `accounting-export` (accounts, rates, `platforms` entries are objects), `neat`
      (credentials, margin: `SETTINGS_INVALID`). Tests: `tests/plugin-settings-input-shape.unit.test.js`,
      `tests/plugin-admin-input-shape.unit.test.js`.
+   - *Reading of 2026-11-05 (audit R23-P1):* a secret takes a string or `null`, and a key with a validator takes no boolean:
+     400 `INVALID_SETTING` « Valeur invalide. », nothing written, no validator called. `{apiKey:true}` used to replace the
+     key with `true`, and `Number(true)` passed the numeric validators. A key with no validator keeps its reading.
    - The Météo-France card of Intégrations writes its key there. It has no Save of its own: the
      page's bar saves it, like the Neat card.
 8. **Scheduled jobs** — `ctx.jobs.every({ name, intervalMs, bootDelayMs, run })`:

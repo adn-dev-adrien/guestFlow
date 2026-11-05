@@ -233,7 +233,7 @@ test('reservations-backend-mvc rule 19: the devis update route reads the stored 
   const kept = devisCall('update', { id: String(quote) }, { cautionAmount: 1e300 });
   assert.notEqual(kept.body?.error, 'NOT_A_NUMBER', JSON.stringify(kept.body).slice(0, 200));
   const changed = devisCall('update', { id: String(quote) }, { cautionAmount: 1e301 });
-  assert.deepEqual([changed.statusCode, changed.body.error], [400, 'NOT_A_NUMBER']);
+  assert.deepEqual([changed.statusCode, changed.body.code], [400, 'NOT_A_NUMBER']);
 });
 
 test('reservations-backend-mvc rule 15: the devis update passes the stored row to the guard, so a stored party passes and a changed one does not', () => {

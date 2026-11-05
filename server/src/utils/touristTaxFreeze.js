@@ -18,6 +18,8 @@
  * which instalment carries the tax.
  */
 
+const { todayIso } = require('./localDate');
+
 // Which instalment carries the tax, in SQL — the three-way platform routing of
 // specs/per-platform-tourist-tax-three-way.md. Answered without pricing the stay, because the freeze
 // has to be decided BEFORE the engine runs (the engine needs to know whether to freeze) and because
@@ -70,22 +72,113 @@ function taxRidesTheComplement(db, reservation) {
 }
 
 /**
+ * Would a stay on this platform carry its tax on the complement? The stay's own switch left aside, read
+ * through the same routing as the stored rows. A platform that is not a text or is not known: no.
+ */
+function platformTakesTaxOnArrival(db, platform) {
+  if (typeof platform !== 'string' || !platform) return false;
+  try {
+    const row = db.prepare(`SELECT ${TAX_ON_ARRIVAL_SQL} AS onArrival FROM (SELECT 0 AS touristTaxInComplement, ? AS platform) r`).get(platform);
+    return Boolean(row && Number(row.onArrival));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Where a stay's installment plan stands: none, all paid, and whether a paid installment holds a share of
+ * the tax. A paid installment's share is the one frozen on it (`paidSplit`), an older row without one
+ * reads it from the plan. A minimal test schema without the table holds no plan.
+ */
+function installmentPlanState(db, reservationId) {
+  const none = { hasPlan: false, allPaid: false, paidTaxShare: false };
+  let plan;
+  try {
+    plan = db.prepare('SELECT id, paid, paidSplit FROM reservation_installments WHERE reservationId = ?').all(reservationId);
+  } catch {
+    return none;
+  }
+  if (plan.length === 0) return none;
+  // Required here: installmentPaidSplit reads TAX_ON_ARRIVAL_SQL from this module.
+  const { computeInstallmentPaidSplit, parsePaidSplit } = require('./installmentPaidSplit');
+  const paid = plan.filter((installment) => Number(installment.paid) === 1);
+  return {
+    hasPlan: true,
+    allPaid: paid.length === plan.length,
+    paidTaxShare: paid.some((installment) => {
+      const split = parsePaidSplit(installment.paidSplit) || computeInstallmentPaidSplit(db, installment.id);
+      return Boolean(split) && split.taxCents > 0;
+    }),
+  };
+}
+
+/** Is the bucket that carries the tax on a stay without a plan collected? The page's gate, in JS. */
+function taxBucketPaid(db, reservation) {
+  return Boolean(taxRidesTheComplement(db, reservation)
+    ? Number(reservation.complementPaid || 0)
+    : Number(reservation.balancePaid || 0));
+}
+
+/**
+ * Pinned by the fiche's own history: a stamp, a tick, or the bucket carrying the tax collected. The
+ * VAT regime switch reads this one: a stay with a plan is reported for its plan before anything else
+ * (specs/vat-optional-mode.md rule 27), so its paid installments must not hide it as merely frozen.
+ */
+function isTouristTaxFrozenAsidePlan(db, reservation) {
+  if (!reservation) return false;
+  if (!hasFreezeColumns(db)) return false;
+  if (reservation.touristTaxFrozenAt) return true;
+  if (reservation.touristTaxDeclaredAt) return true;
+  return taxBucketPaid(db, reservation);
+}
+
+/**
  * Is this reservation's tax pinned? Either the migration or an earlier save stamped it (rule 13),
  * or the event that pins it has since happened: the instalment carrying the tax is collected, or the
- * line was ticked « Déclarée » (rules 10-11).
+ * line was ticked « Déclarée » (rules 10-11), or a plan is fully paid or a paid installment holds a
+ * share of the tax (rule 19, D17).
  *
  * Read live from the payment flags rather than only from the stamp, because a tax can be collected
  * through the arrival SAS or the payments page without the fiche ever being saved again — and from
  * that moment the guest has paid, so the amount must not move.
  */
 function isTouristTaxFrozen(db, reservation) {
+  if (isTouristTaxFrozenAsidePlan(db, reservation)) return true;
+  if (!reservation || !hasFreezeColumns(db)) return false;
+  const plan = installmentPlanState(db, reservation.id);
+  return plan.allPaid || plan.paidTaxShare;
+}
+
+/**
+ * May « Déclarée » be ticked (specs/tourist-tax-declared-checkbox.md rule 8, D16)? The stay is paid and
+ * its end date is behind us: today > endDate. Paid is the page's own gate on a stay without a plan, every
+ * installment on a plan, and the complement too when the tax rides it. Today is the server's local day, Europe/Paris (utils/localDate).
+ */
+function isTouristTaxDeclarable(db, reservation, today = todayIso()) {
   if (!reservation) return false;
-  if (!hasFreezeColumns(db)) return false;
-  if (reservation.touristTaxFrozenAt) return true;
-  if (reservation.touristTaxDeclaredAt) return true;
-  return Boolean(taxRidesTheComplement(db, reservation)
-    ? Number(reservation.complementPaid || 0)
-    : Number(reservation.balancePaid || 0));
+  const endDate = String(reservation.endDate || '').slice(0, 10);
+  if (!endDate || endDate >= today) return false;
+  const plan = installmentPlanState(db, reservation.id);
+  if (!plan.hasPlan) return taxBucketPaid(db, reservation);
+  return plan.allPaid && (!taxRidesTheComplement(db, reservation) || Boolean(Number(reservation.complementPaid || 0)));
+}
+
+/**
+ * Why the tax cannot be switched to the complement (specs/force-item-to-complement.md rule 20): the
+ * bucket holding it is collected, and moving it would rewrite a booked entry and ask the tax twice.
+ * Null while the switch can go on, and for a stay whose tax already rides the complement.
+ */
+function taxInComplementLockedReason(db, reservation) {
+  if (!reservation || reservation.kind === 'devis') return null;
+  if (taxRidesTheComplement(db, reservation)) return null;
+  if (installmentPlanState(db, reservation.id).paidTaxShare) return 'collected-on-installment';
+  if (Number(reservation.balancePaid || 0)) {
+    const contrib = reservation.touristTaxSoldeContribTtc;
+    // No contribs on an older solde: the tax rode on it (specs/tourist-tax-on-solde.md).
+    if (contrib == null ? Number(reservation.touristTaxTotal || 0) > 0 : Number(contrib) > 0) return 'collected-on-solde';
+  }
+  if (Number(reservation.depositPaid || 0) && Number(reservation.touristTaxAcompteContribTtc || 0) > 0) return 'collected-on-acompte';
+  return null;
 }
 
 /**
@@ -180,7 +273,11 @@ function reconstructFrozenBase({
 module.exports = {
   TAX_ON_ARRIVAL_SQL,
   taxRidesTheComplement,
+  platformTakesTaxOnArrival,
   isTouristTaxFrozen,
+  isTouristTaxFrozenAsidePlan,
+  isTouristTaxDeclarable,
+  taxInComplementLockedReason,
   writeTouristTaxSnapshot,
   reconstructFrozenBase,
 };

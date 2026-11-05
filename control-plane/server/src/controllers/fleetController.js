@@ -17,7 +17,7 @@ const SCOPE_LABELS = { all: 'toute la flotte', selection: 'une sélection', one:
 const paris = (iso) => (iso ? new Date(iso).toLocaleString('fr-FR', { timeZone: 'Europe/Paris', dateStyle: 'short', timeStyle: 'short' }) : null);
 
 function createFleetController(ctx, customersController) {
-  const { models, releases, fleetUpdater, restoreVerifier, instances } = ctx;
+  const { models, releases, fleetUpdater, restoreVerifier } = ctx;
   const { customers, hosting } = models;
   let published = null;
   let install = null;
@@ -71,7 +71,7 @@ function createFleetController(ctx, customersController) {
   // than the oldest one running — never a downgrade (the instance itself refuses one). A version that
   // rolled an instance back and that no instance runs is « En échec », never the default.
   function pluginPushView(rows) {
-    const facts = rows.map(({ c }) => (instances.readFacts(c.slug) || {}).versions || {});
+    const facts = rows.map(({ c }) => (customersController.spaceFacts(c) || {}).versions || {});
     const ids = [...new Set(facts.flatMap((f) => Object.keys(f)))].sort();
     const rolledBack = hosting.rolledBackPluginTargets();
     return ids.map((id) => {
@@ -157,7 +157,7 @@ function createFleetController(ctx, customersController) {
     const ids = Array.isArray(body.customerIds) ? body.customerIds.map(numeric).filter(Boolean) : null;
     fleetUpdater.start({
       kind: 'plugin', pluginId: text(body, 'pluginId'), targetVersion: text(body, 'version'), customerIds: ids, operator,
-      installedPlugins: (c) => (instances.readFacts(c.slug) || {}).versions || {},
+      installedPlugins: (c) => (customersController.spaceFacts(c) || {}).versions || {},
     });
     return view();
   }
@@ -175,6 +175,7 @@ function createFleetController(ctx, customersController) {
     const c = customersController.mustGet(id);
     if (c.archivedAt) throw httpError(409, 'ARCHIVED', 'Client archivé : réactivez-le d’abord.');
     customersController.assertNotDeprovisioning(c.id);
+    if (customersController.renamePending(c)) throw httpError(409, 'RENAME_PENDING', customersController.RENAME_PENDING_MESSAGE);
     const out = await restoreVerifier.restoreAt(c, asText(body.at), operator);
     return { ...customersController.view(c.id), notice: `Base restaurée (${out.reservations} réservation(s)).` };
   }

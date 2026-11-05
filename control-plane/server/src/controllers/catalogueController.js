@@ -20,7 +20,7 @@ const pluginName = (id) => (gfPlugins.findPlugin(id) || { name: id }).name;
 const plural = (n, word) => `${n} ${word}${n > 1 ? 's' : ''}`;
 
 function createCatalogueController(ctx, customersController) {
-  const { models, now, instances } = ctx;
+  const { models, now } = ctx;
   const { catalogue, customers, audit } = models;
 
   const stamp = () => now().toISOString();
@@ -121,7 +121,7 @@ function createCatalogueController(ctx, customersController) {
     const current = catalogue.lowest();
     const { rank } = planIndex(plans);
     const live = customers.list().filter((c) => !c.archivedAt);
-    const facts = new Map(live.map((c) => [c.id, instances.readFacts(c.slug)]));
+    const facts = new Map(live.map((c) => [c.id, customersController.spaceFacts(c)]));
     const lines = [];
     const grandfather = [];
     for (const id of gfPlugins.PLUGIN_IDS) {

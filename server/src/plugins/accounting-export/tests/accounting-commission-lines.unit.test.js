@@ -236,6 +236,7 @@ test('Case 4quater: real Gîtes de France reservation (fictitious guest) — NEW
 });
 
 // specs/accounting-platform-commission-and-no-deposit.md rule 4
+// specs/platform-commission-line.md rule 8: the gross keeps driving the accounting commission.
 test('Case 5: Unknown platform → falls back to default account; hasVat defaults to false', () => {
   const row = rowForPlatform({ platform: 'Booking.com', gross: 687, balance: 626 });
   const entry = buildEntry(row, 'balance', null, commissionContext);
