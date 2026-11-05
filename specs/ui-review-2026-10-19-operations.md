@@ -393,6 +393,11 @@ guessing; and the quote the guest receives looks like the house that sends it.
 48. **The bank block holds a long line (audit R24, 2026-11-05).** An account name or an IBAN that wraps pushes the
     next line down instead of printing under it (the BIC was drawn over the second line of a long account name),
     and every line stays inside the frame drawn around the block. Test: `devis-pdf-glyphs`.
+49. **The issuer address prints no blank line (audit R24 devis PDF observation, 2026-11-05).** An empty line of the
+    stored company address, a trailing newline included, prints nothing: the phone follows the last address line.
+    Test: `devis-pdf-glyphs`. *Accepted, recorded:* an English quote prints its amounts with the French decimal comma
+    (« 15,00 € »): `devisHelpers.formatCurrency` is not the PDF's alone (the trop-perçu refusal of the reservations
+    controller reads it, and it is a name of the SDK contract), so it is not localised here.
 
 ---
 
@@ -559,8 +564,8 @@ licence notices. Manual: `qlmanage -t` page 1 and every page through PDFKit (Swi
 before and after — Latin Extended, Vietnamese, Greek + Cyrillic, CJK + RTL, and a 30-line quote with a
 long company and logement name.
 
-**Audit R24, devis PDF check (2026-11-05)** — rules 46–48: `server/src/tests/devis-pdf-glyphs.unit.test.js`
-(6: every `doc.text` call is recorded with its face — no box for pasted invisible characters, the text kept
+**Audit R24, devis PDF check (2026-11-05)** — rules 46–49: `server/src/tests/devis-pdf-glyphs.unit.test.js`
+(7: the issuer address with no blank line (rule 49); every `doc.text` call is recorded with its face — no box for pasted invisible characters, the text kept
 otherwise, the quantity column, the bank block, the extra-guest row of tariff-events §6 and the Estiva quote's
 totals). Manual: every quote of the 2026-10-22 production copy and every reservation of it rendered as a quote,
 in French and English, plus 17 worst cases, each checked for missing glyphs, overflow and totals; pages viewed

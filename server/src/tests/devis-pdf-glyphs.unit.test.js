@@ -3,7 +3,7 @@
 // does not add up is caught without rasterising the page.
 //   specs/tariff-events-and-extra-guest-tiers/spec.md §6 — the extra-guest row names the count only
 //     (reading of 2026-11-05: prod printed « 1ʳᵉ » as « 1+1Ô’ àuit »).
-//   specs/ui-review-2026-10-19-operations.md rules 46, 47, 48.
+//   specs/ui-review-2026-10-19-operations.md rules 46, 47, 48, 49.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const PDFDocument = require('pdfkit');
@@ -145,4 +145,18 @@ test('rule 48 — a long bank account name wraps inside the frame and pushes the
   // The frame runs from LEFT − 4 over (PAGE_W − 220) − 14 points: 4 points of padding inside it.
   const frameInnerRight = 45 + (595.28 - 90 - 220) - 18;
   for (const line of [account, bic, iban]) assert.ok(line.x + line.width <= frameInnerRight + 0.01);
+});
+
+// Rule 49 (audit R24 devis-pdf observation) — a stored address ending with a newline, or holding an empty line, prints no
+// blank line: the phone comes right after the last address line.
+test('rule 49 — the issuer address prints no blank line for a trailing or empty line', async () => {
+  const settings = { ...SETTINGS, companyAddress: '1 chemin des Pins\n\n20000 Ajaccio\n', companyPhone: '0102030405' };
+  const calls = await render(devis({ pdfLanguage: 'fr' }), settings);
+  const street = calls.findIndex((c) => c.text === '1 chemin des Pins');
+  assert.ok(street >= 0);
+  assert.deepEqual(calls.slice(street, street + 3).map((c) => c.text), ['1 chemin des Pins', '20000 Ajaccio', 'Tél : 0102030405']);
+  assert.equal(calls.slice(street, street + 3).some((c) => c.text.trim() === ''), false);
+  const same = await render(devis({ pdfLanguage: 'fr' }), { ...settings, companyAddress: '1 chemin des Pins\n20000 Ajaccio' });
+  const phoneY = (list) => list.find((c) => c.text === 'Tél : 0102030405').y;
+  assert.equal(phoneY(calls), phoneY(same));
 });

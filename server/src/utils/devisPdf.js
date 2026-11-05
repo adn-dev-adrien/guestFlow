@@ -430,7 +430,8 @@ function renderDevisPdf(storedFull, storedSettings, quote, logoBytes) {
   }
   doc.font(F.regular).fontSize(9).fillColor(TEXT_LIGHT);
   if (settings.companyAddress) {
-    const addrLines = settings.companyAddress.split('\n');
+    // ui-review-2026-10-19-operations rule 49 — a blank line of the stored address (a trailing newline) prints nothing.
+    const addrLines = settings.companyAddress.split('\n').filter((line) => line.trim());
     for (const line of addrLines) {
       cy = textLine(line, EMETTEUR_LEFT, cy, EMETTEUR_WIDTH, 13);
     }
