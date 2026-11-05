@@ -222,7 +222,8 @@ test('rules 12-13 — no history a year back: no N-1, no delta, one notice', () 
   assert.deepEqual([now.current.average, now.previous, now.delta], [400, null, null]);
 });
 
-test('rule 12 — before a year of booking dates, a month not over has no N-1 (dashboard rule 33)', () => {
+test('rule 12 — before a year of booking dates, a month not over has no N-1', () => {
+  // As specs/finance-dashboard-redesign.md rule 33 reads it.
   assert.equal(yoy.lastYearReading('2026-10', { today: '2026-11-05', snapshotKnown: false }), 'final'); // date-literal-ok: a pure function of its input
   assert.equal(yoy.lastYearReading('2026-11', { today: '2026-11-05', snapshotKnown: false }), null); // date-literal-ok: a pure function of its input
   assert.equal(yoy.lastYearReading('2026-11', { today: '2026-11-05', snapshotKnown: true }), 'knownAt'); // date-literal-ok: a pure function of its input
