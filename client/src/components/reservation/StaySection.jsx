@@ -57,7 +57,7 @@ export default function StaySection() {
                 onChange={(e) => updateForm({ reservationNumber: e.target.value })}
                 disabled={isReservationLocked}
                 fullWidth
-                slotProps={{ inputLabel: { shrink: true } }}
+                slotProps={{ inputLabel: { shrink: true }, htmlInput: { maxLength: 64 } }}
                 helperText={form.reservationNumber
                   ? 'Modifiable'
                   : 'Attribué automatiquement à l\'enregistrement'}

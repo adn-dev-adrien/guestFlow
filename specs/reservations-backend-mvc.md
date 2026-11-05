@@ -290,6 +290,37 @@ rules — just a clean, testable structure that future slices (and Bloc 5) build
    `finalPrice` and `balanceAmount` at Infinity, which JSON reads as `null`, and the whole year's revenue with them
    once marked paid; `customPrice: true` priced the stay at 1 €; `platformGrossAmount: -100` quoted 200 and saved 400.
    Tests: `tests/numeric-bounds-stay.unit.test.js`.
+   *Reading of 2026-11-05 (audit R23-7):* the devis create and update answer that refusal as the stay does,
+   `financeErrorBody` (French text and `code`), never the raw code as the error. Test:
+   `tests/devis-money-refusal-body.unit.test.js`.
+
+21. **Added 2026-11-05 (audit R23-4) — a stock out on a range is the peak of one night.** The cots and the resources held
+   on `[start, end)` are the most held on one night of it, not the sum of every stay touching it: stays that never meet
+   hold the stock in turn. `utils/stockPeak.js` is the one reading (`peakPerNight`, fed by `peakCotsHeld` and
+   `peakResourceHeld`), for the save (`reservationsModel.getBabyBedAvailability`, `getResourceReservedQuantity`) and the
+   fiche's hints (`resourcesModel.getBabyBedAvailability`, `availability`). A stay leaving the day another arrives shares
+   no night with it; a night outside the range does not count. *Why:* with 3 cots, 2 + 2 on separate weeks refused a
+   third stay across both, « 0 restant(s) », though 3 at most were ever out. Never an overbooking, a false refusal.
+   Test: `tests/stock-peak-per-night.unit.test.js`.
+22. **Added 2026-11-05 (audit R23-3) — the night before an early check-in is judged in minutes, in SQL too.** The overlap
+   check (`validateAvailability`) and the closures (`findReservationOverlap`, `findReservationOverlaps`) compare
+   `hour * 60 + minute` with 600, as `getNightBlocksFromTimes` compares 10.5 with 10: a check-in at 10:00 or earlier
+   takes the night before, 10:01 does not. The late check-out keeps its hour: a floored hour at or above 17 reads the
+   same. *Why:* a check-in at 10:30, offered by the fiche, refused the stay leaving that morning although the cleaning
+   fitted and the calendar and the iCal export showed the night free, and the same two stays passed in the other order.
+   Test: `tests/early-checkin-minutes-in-sql.unit.test.js`.
+23. **Added 2026-11-05 (audit R23-8) — on an update, a blank time keeps the stored one.** An empty, `null` or absent
+   `checkInTime` / `checkOutTime` on `PUT /reservations/:id` is « not sent » (rule 20): the stay keeps its time, as a
+   devis does; a stay storing none takes its logement's default, as rule 9 on a creation. *Why:* the model's 15:00 / 10:00
+   fallback moved a 16:00 arrival an hour earlier, and the guard, reading the blank as no change, never judged it.
+   Test: `tests/blank-time-keeps-the-stored-one.unit.test.js`.
+24. **Added 2026-11-05 (audit R23-6) — a refused reservation number names its field.** Over 64 characters: « Numéro de
+   réservation : 64 caractères au plus. »; a control character (line break, tab, NUL, `\p{Cc}`): « Numéro de réservation :
+   caractères non acceptés. », both `INVALID_FIELD` with `field`, both only when the value changed, so a stored one sent
+   back still saves. The fiche's field stops at 64 characters. A number that is not a string keeps rule 20's refusal.
+   *Why:* the dialog read « Erreur / Valeur invalide. » and named nothing. Tests:
+   `tests/reservation-number-refusal.unit.test.js`, client
+   `components/reservation/__tests__/StaySection.reservation-number-length.test.jsx`.
 
 **Edge cases:** all current ones are preserved verbatim — min-nights rejection, archived-reservation
 error, iCal-locked pricing snapshot reuse, night-block conflict on adjacent reservations, payment
@@ -331,6 +362,7 @@ patch. No new edge behavior is introduced.
 | `utils/` | `pricing.js` | — | Unchanged; controller calls `calculateReservationQuote` as today. |
 | `utils/` | `financeValidation.js` | — | Unchanged; controller keeps the PR-S validation on writes. |
 | `utils/` | `stayDates.js` | C | *(2026-11-02, rule 11)* `isRealIsoDay`, `stayDatesRefusal`, `stayDatesRefusalBody`: the one stay-dates guard, called by `reservationsController`, `devisModel` and `icalDateDriftModel`. `isRealIsoDay` is also the core's one real-day check: `planningDateRange.isIsoDate` and `cancellationCompensations.isValidIsoDate` are it. *(R19-L1)* `MAX_STAY_NIGHTS` (366), the length cap, also read by `icalParser`'s horizon check. *(rule 13)* `MAX_HORIZON_YEARS`, `HORIZON_MESSAGE`, `horizonEnd`, `dateBeyondHorizon` and the `stored` option of `stayDatesRefusal`: the date horizon, also read by `establishmentClosuresValidation` and `financeWindow`. *(rule 13, second reading)* `PAST_HORIZON_MESSAGE`, `horizonStart`, `dateBeforeHorizon`, `dateWindowMessage`, `entryDateMessage`, `rangesWindowMessage`: the window both ways, read by every swept write path, and by plugins as `coreModule('stayDates')` (SDK 2.20.0). `ITEM_OUTSIDE_STAY_MESSAGE`, `stayItemDatesRefusal`: the option occurrences and hourly sessions on the stay's days, read by `reservationsController` and `devisModel`; the stored dates come from `models/bookingLinesModel.getStoredItemDates`. |
+| `utils/` | `stockPeak.js` | C | *(2026-11-05, rule 21)* `peakPerNight`, `peakCotsHeld`, `peakResourceHeld`: what a shared stock has out on a range; `cotsRefusal`, `resourceRefusal`: the words of its refusal. Read by `reservationsModel`, `resourcesModel`, `reservationsController`. |
 | `database.js` | — | — | No schema change. |
 
 **Notes:**
@@ -408,9 +440,15 @@ prove behavior is preserved.)
 
 ### Client tests (2026-11-04)
 - [x] `pages/__tests__/ReservationPage.latest-answer.test.jsx` (6) — rule 16: occupied dates and their failure, client search, resources, back on the range shown, onto a refused range
+- [x] `components/reservation/__tests__/StaySection.reservation-number-length.test.jsx` (1, 2026-11-05) — rule 24: the field stops at 64
 - [x] `pages/__tests__/ReservationPage.baby-bed-dates.test.jsx` (8) — rule 17: dates, one question per range, blank fiche, refused range, older answer, no cot left, back on the range shown, party change on no cot left
 
 ### Server unit tests
+- [x] `tests/stock-peak-per-night.unit.test.js` (10, 2026-11-05) — rule 21: stays that never meet, that meet, turnover day, a night outside the range, arrival inside the range, excluded stay, devis and cancelled, scoped cot, per-stay resource, the pure peak, the save
+- [x] `tests/early-checkin-minutes-in-sql.unit.test.js` (18, 2026-11-05) — rule 22: 10:01 to 15:00 free, 10:00 and earlier taken, on the overlap check and both closure reads, either order, departure threshold
+- [x] `tests/blank-time-keeps-the-stored-one.unit.test.js` (7, 2026-11-05) — rule 23: empty, null, absent, none stored, one of two, past the cleaning check, a real time still judged
+- [x] `tests/reservation-number-refusal.unit.test.js` (5, 2026-11-05) — rule 24: length, control characters, real numbers, stored value, not a string
+- [x] `tests/devis-money-refusal-body.unit.test.js` (3, 2026-11-05) — rule 19, reading of 2026-11-05
 - [x] `tests/cots-follow-the-dates-at-save.unit.test.js` (8, 2026-11-05) — rule 17: dates onto a full range refused,
       party changed too, one date alone, free range, no cot held, logement moved, oversold and unchanged, one more cot unchanged range
 - [x] `tests/date-horizon.unit.test.js` (12, 2026-11-02) — rule 13: today + 5 years accepted, one day more

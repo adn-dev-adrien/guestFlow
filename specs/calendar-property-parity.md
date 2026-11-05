@@ -275,6 +275,12 @@ name is always readable or truncated cleanly with the full name on hover.
 30. **A closure is never hidden by a stay on the logement calendar.** A closure of the logement on days a stay
     also holds (a conflict the day cells cannot show both of) gets a hatched ribbon « Fermé · label » of its own,
     in a lane with the lane packing of « Tous »; a closure on free days keeps the cell hatching alone.
+31. **« Rétablir » checks the stock** _(added 2026-11-05, audit R23-1)_. A duplicate set aside holds no stock, so coming
+    back takes some. After the dates (rule 22), `restoreSuperseded` judges its cots and its resource lines (every price
+    type but `per_hour`) with `reservationsModel.heldStockRefusal`, on the peak of
+    `specs/reservations-backend-mvc.md` rule 21: past the stock, 409 `STOCK_UNAVAILABLE` with the words of a new stay,
+    shown as a toast on the fiche; the row stays set aside, no history entry. Test:
+    `server/src/tests/conversion-and-restore-judge-stock.unit.test.js`.
 
 **Edge cases:**
 - Stay with a disabled iCal source → shown in both calendars (rule 2).
@@ -480,6 +486,7 @@ any more (the arrows and « Aujourd'hui » move to the calendar's own toolbar, i
 - [x] `tests/calendar-property-parity.unit.test.js` — 10 cases: logement range = general range filtered (rule 1); the disabled platform's stay is in both and in `list({ propertyId })` (rule 2); the cancelled stay in neither; `label` (3 fallbacks), `color`, `textColor`, `past` on the server day (rule 3); closures with `global` / `propertyName` / `label`; 400 on `from > to`, malformed date, > 400 days, unknown logement; reception-only whitelist.
 - [x] `tests/calendar-colors.unit.test.js` — 10 cases: `contrastRatio` pairs, `textColorFor` (rule 5); every built-in at 4.5:1 and one hue per platform (rule 6); `validateCalendarColor` with its three messages, the previous colour kept on a refused PUT and a refused bulk save (rule 7); `textColors` in the listing; the boot backfill keeps only Lodgify `#fec700` as custom on the prod-shaped fixture and the listing ignores an old built-in per-source colour (rule 27).
 - [x] `tests/calendar-parity-superseded.unit.test.js` — 14 cases: the set-aside with keeper, reason text and `superseded` history event (rules 23, 24); the prod-shaped fixture (1 duplicate + 9 isolated); idempotent second boot; money, longer-than-keeper and hidden-overlap cases left as they are and both stays flagged (rule 26); keeper = earliest overlap, a copy one night longer flagged instead; a superseded stay absent from the calendar, lists, availability and the books but found by search (rule 22); the fiche payload; « Rétablir » with its audit event and 409 (rules 22, 24); the iCal sync never touches it.
+- [x] `tests/conversion-and-restore-judge-stock.unit.test.js` — 4 rule 31 cases (2026-11-05): cot and per-stay resource past the stock refused, row set aside, no history entry; stock free restored; taken dates keep their words.
 - [x] `tests/calendar-parity-read-only.unit.test.js` — 5 cases (rule 25; the dashboard, acknowledge and payment-service paths included): every write path of rule 25 answers 409 `RESERVATION_SUPERSEDED` and writes nothing (an express harness over the real routes and the SAS controller); a live stay is not refused; a cancelled stay stays refused where listed, keeps refunds and the cancellation e-mails.
 - [x] `tests/platforms-and-ical-rework.unit.test.js` — the « list excludes a disabled-platform reservation » case is inverted (rule 2).
 

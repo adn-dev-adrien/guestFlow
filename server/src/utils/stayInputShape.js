@@ -23,6 +23,7 @@ const RESOURCE_LISTS = ['resources', 'selectedResources'];
 
 const notSent = (value) => value === undefined || value === null || value === '';
 const INVALID_FIELD = (field) => ({ error: 'Valeur invalide.', code: 'INVALID_FIELD', field });
+const RESERVATION_NUMBER = (reason) => ({ error: `Numéro de réservation : ${reason}`, code: 'INVALID_FIELD', field: 'reservationNumber' });
 const INVALID_TIME = (field) => ({ error: 'Heure invalide.', code: 'INVALID_TIME', field });
 
 const lines = (list) => (Array.isArray(list) ? list.filter((line) => line && typeof line === 'object' && !Array.isArray(line)) : []);
@@ -77,8 +78,9 @@ function stayShapeRefusal(body, stored = null) {
   for (const field of TEXT_FIELDS) {
     if (!unchanged(field) && !isOptionalText(body[field])) return INVALID_FIELD(field);
   }
-  if (typeof body.reservationNumber === 'string' && !unchanged('reservationNumber') && body.reservationNumber.length > MAX_RESERVATION_NUMBER) {
-    return INVALID_FIELD('reservationNumber');
+  if (typeof body.reservationNumber === 'string' && !unchanged('reservationNumber')) {
+    if (body.reservationNumber.length > MAX_RESERVATION_NUMBER) return RESERVATION_NUMBER('64 caractères au plus.');
+    if (/\p{Cc}/u.test(body.reservationNumber)) return RESERVATION_NUMBER('caractères non acceptés.');
   }
   for (const field of ID_FIELDS) {
     // 0 is how a new fiche says « no row yet ».
