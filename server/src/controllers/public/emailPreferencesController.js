@@ -11,6 +11,8 @@
 
 // The house speaks under its own name (specs/plugins-phase-p-productisation.md rule 17): `{name}` is
 // the company name, « GuestFlow » while none is set.
+const { asText } = require('../../utils/bodyText');
+
 const COPY = {
   fr: {
     title: 'Vos nouvelles de {name}',
@@ -57,7 +59,7 @@ function buildController({ preferences, database }) {
   }
 
   function show(req, res) {
-    const token = String((req.query && req.query.t) || '');
+    const token = asText(req.query && req.query.t);
     const found = preferences.findByToken(token);
     res.set('Cache-Control', 'no-store');
     if (!found) return res.status(200).type('html').send(page(copyFor('fr'), `<p>${escapeHtml(COPY.fr.unknown)}</p>`));
@@ -68,7 +70,7 @@ function buildController({ preferences, database }) {
   }
 
   function confirm(req, res) {
-    const token = String((req.body && req.body.t) || '');
+    const token = asText(req.body && req.body.t);
     const found = preferences.findByToken(token);
     res.set('Cache-Control', 'no-store');
     if (!found) return res.status(200).type('html').send(page(copyFor('fr'), `<p>${escapeHtml(COPY.fr.unknown)}</p>`));

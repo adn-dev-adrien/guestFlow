@@ -16,6 +16,8 @@ const { checkPlanningRange } = sdk.coreModule('planningDateRange');
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const isIsoDate = (value) => typeof value === 'string' && ISO_DATE_RE.test(value);
+// Only a number or its digits: Number([1]) is 1, Number({toString:1}) throws.
+const wholeNumber = (value) => (typeof value === 'number' || typeof value === 'string' ? Number(value) : NaN);
 
 function createController({ bookings: model, scheduling, planningCards, reservations }) {
   function planningEvents(req, res) {
@@ -89,7 +91,9 @@ function createController({ bookings: model, scheduling, planningCards, reservat
    * keep the resource warm for the next one.
    */
   function freeSlots(req, res) {
-    const reservation = reservations.getByIdWithDetails(req.query.reservationId);
+    // A repeated key arrives as a list: only one id is an id.
+    const reservationId = typeof req.query.reservationId === 'string' ? req.query.reservationId : null;
+    const reservation = reservationId && reservations.getByIdWithDetails(reservationId);
     if (!reservation) return res.status(404).json({ error: 'RESERVATION_NOT_FOUND' });
 
     let pending = [];
@@ -125,16 +129,20 @@ function createController({ bookings: model, scheduling, planningCards, reservat
    */
   function setResourceCardDone(req, res) {
     const body = req.body || {};
-    const reservationId = Number(body.reservationId);
-    const resourceId = Number(body.resourceId);
-    const date = String(body.date || '');
+    const reservationId = wholeNumber(body.reservationId);
+    const resourceId = wholeNumber(body.resourceId);
+    const date = typeof body.date === 'string' ? body.date : '';
+    const { start = '' } = body;
+    // A tick reads as INVALID_PAYMENT_FLAG does: `Boolean("false")` ticked the card.
     if (!Number.isInteger(reservationId) || reservationId <= 0
       || !Number.isInteger(resourceId) || resourceId <= 0
-      || !isIsoDate(date)) {
+      || !isIsoDate(date)
+      || (start !== null && typeof start !== 'string')
+      || (body.done !== undefined && ![true, false, 1, 0].includes(body.done))) {
       return res.status(400).json({ error: 'INVALID_PAYLOAD' });
     }
     const result = planningCards().setSessionDone({
-      reservationId, resourceId, date, start: String(body.start || ''), done: Boolean(body.done),
+      reservationId, resourceId, date, start: start || '', done: Boolean(body.done),
       kind: body.kind === 'ignition' ? 'ignition' : 'session',
     });
     if (result && result.error) {

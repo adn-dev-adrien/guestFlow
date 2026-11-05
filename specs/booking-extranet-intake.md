@@ -279,6 +279,10 @@ attempts since 2026-10-16 were all refused « Sous-total introuvable »).
     « Créer le secret ». »): an admin could replace the generated secret with a guessable one (rule 25: created by an
     explicit POST only). `key` stays `secret: true`, so `keySet` still reads and the create and regenerate routes keep
     writing through `ctx.settings`. Plugin 1.3.9. Test: `tests/settings-key-refused.unit.test.js`.
+36. **Added 2026-11-05 (audit R22, verification of PR #961) — dismissing a fiche takes a fiche's number.** `POST
+    /pending/<id>/dismiss` with an id that is not a positive integer written in digits (`1e999`, `abc`, `0`, past the
+    safe integers) answers `404 NOT_FOUND`, nothing written; `1e999` was a datatype mismatch's 500. Plugin 1.3.10. Test:
+    `tests/public-route.unit.test.js`.
 
 ---
 

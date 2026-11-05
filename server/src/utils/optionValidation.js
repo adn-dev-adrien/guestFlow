@@ -12,6 +12,7 @@ const { readNumber, usableNumber, numberRefused, nonNegative, wholeFrom, rowsOf 
 
 const MESSAGES = Object.freeze({
   titleRequired: 'Nom requis',
+  notText: 'Texte attendu',
   notANumber: 'Nombre attendu',
   negative: 'Positif ou nul',
   decimals: '2 décimales max',
@@ -61,7 +62,11 @@ function validateOptionPayload(payload, { knownPropertyIds, stored } = {}) {
       details.push({ field: `${group}.${pid}`, message: MESSAGES.unknownProperty });
     });
   }
-  if (!String(body.title || '').trim()) details.push({ field: 'title', message: MESSAGES.titleRequired });
+  // Only a string is text: an object used to be stored as « [object Object] » (hosting-h2 rule 68).
+  if (typeof body.title !== 'string' || !body.title.trim()) details.push({ field: 'title', message: MESSAGES.titleRequired });
+  if (body.description !== undefined && body.description !== null && typeof body.description !== 'string') {
+    details.push({ field: 'description', message: MESSAGES.notText });
+  }
 
   const percent = body.priceType === 'percent_of_stay';
   if (!isBlank(body.price) && body.priceType !== 'free') {

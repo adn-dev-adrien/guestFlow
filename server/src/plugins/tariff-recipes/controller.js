@@ -41,7 +41,7 @@ function createController({ db, store: getStore, model: getModel, properties, jo
   }
 
   function applyToProperty(req, res) {
-    const recipeId = String(req.body?.recipeId || '');
+    const recipeId = typeof req.body?.recipeId === 'string' ? req.body.recipeId : '';
     if (!recipeId) return res.status(400).json({ error: 'recipeId requis' });
     const result = getModel().apply(req.params.id, recipeId);
     if (result.blocking) return res.status(409).json(result);
@@ -95,11 +95,18 @@ function createController({ db, store: getStore, model: getModel, properties, jo
   }
 
   function createJournalEntry(req, res) {
+    const { propertyId, kind, occurredAt, note } = req.body || {};
+    if ((typeof propertyId !== 'number' && typeof propertyId !== 'string')
+      || (kind != null && typeof kind !== 'string')
+      || (occurredAt != null && typeof occurredAt !== 'string')
+      || (note != null && typeof note !== 'string')) {
+      return res.status(400).json({ error: 'Valeur invalide.' });
+    }
     const result = journal().insert({
-      propertyId: Number(req.body?.propertyId),
-      kind: String(req.body?.kind || ''),
-      occurredAt: req.body?.occurredAt,
-      note: req.body?.note,
+      propertyId: Number(propertyId),
+      kind: kind || '',
+      occurredAt,
+      note,
       source: 'manual',
     });
     if (result.error) return res.status(400).json({ error: result.error });

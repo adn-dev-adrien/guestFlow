@@ -29,7 +29,8 @@ const { validateVatRate } = sdk.coreModule('settingsValidation');
 const VAT_RATE_FIELDS = ['vatRateCommission', 'vatRateCancellationCompensation'];
 
 function validateRequiredVatRate(value) {
-  if (value == null || String(value).trim() === '') return 'Taux requis (0 à 100 %).';
+  if (typeof value !== 'string' && typeof value !== 'number') return 'Taux requis (0 à 100 %).';
+  if (String(value).trim() === '') return 'Taux requis (0 à 100 %).';
   return validateVatRate(String(value).replace(',', '.'));
 }
 
@@ -97,7 +98,12 @@ function createPlatformAccountsModel(database, { platforms = sdk.coreModule('pla
         const planErrors = {};
         for (const key of PLAN_KEYS) {
           if (!Object.prototype.hasOwnProperty.call(body.plan, key)) continue;
-          const value = String(body.plan[key] == null ? '' : body.plan[key]).trim();
+          const raw = body.plan[key];
+          if (raw !== null && raw !== undefined && typeof raw !== 'string' && typeof raw !== 'number') {
+            planErrors[key] = 'Valeur invalide.';
+            continue;
+          }
+          const value = String(raw == null ? '' : raw).trim();
           const err = key === 'journalCode' ? validateJournalCode(value) : validateAccount(value);
           if (err) planErrors[key] = err;
           else plan[key] = value || String(PLAN_DEFAULTS[key]);
@@ -107,6 +113,10 @@ function createPlatformAccountsModel(database, { platforms = sdk.coreModule('pla
       const platformList = Array.isArray(body.platforms) ? body.platforms : [];
       const perPlatformErrors = [];
       for (const p of platformList) {
+        if (!p || typeof p !== 'object' || Array.isArray(p)) {
+          perPlatformErrors.push({ id: null, account: 'Valeur invalide.' });
+          continue;
+        }
         const accErr = validateAccountNumber(p.account, { required: false });
         if (accErr) {
           perPlatformErrors.push({ id: p.id, account: accErr });

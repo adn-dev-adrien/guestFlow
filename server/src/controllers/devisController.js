@@ -6,6 +6,8 @@
  * tests. (The factory is NOT named `create` — that's a request handler here.)
  */
 
+const { scalarQuery } = require('../utils/bodyText');
+const { stayShapeRefusal } = require('../utils/stayInputShape');
 const { validateStayFinance } = require('../utils/financeValidation');
 const settingsModel = require('../models/settingsModel');
 const { generateDevisPdf } = require('../utils/devisPdf');
@@ -29,7 +31,7 @@ function createController(model, {
   }
 
   function list(req, res) {
-    return res.json(model.list(req.query));
+    return res.json(model.list(scalarQuery(req.query)));
   }
 
   // Every admin read of one devis — the fiche, its PDF, its history, the extension preview — is the
@@ -78,6 +80,8 @@ function createController(model, {
 
   // A client typed on the devis is written with it (specs/clients.md rule 13).
   function create(req, res) {
+    const shape = stayShapeRefusal(req.body || {});
+    if (shape) return res.status(400).json(shape);
     const error = validateStayFinance(req.body);
     if (error) return res.status(400).json({ error });
     if (!req.body || req.body.clientId || !req.body.newClient) return respond(res, model.create(req.body));
@@ -98,6 +102,8 @@ function createController(model, {
   // specs/reservation-fiche-concurrency.md rule 11 — the editor sends the `updatedAt` it loaded; a save
   // built on an older version would rewrite every column and erase what a guest's new request wrote.
   function update(req, res) {
+    const shape = stayShapeRefusal(req.body || {}, model.findById(req.params.id));
+    if (shape) return res.status(400).json(shape);
     const error = validateStayFinance(req.body) && validateStayFinance(req.body, model.findById(req.params.id));
     if (error) return res.status(400).json({ error });
     const loaded = req.body && req.body.loadedUpdatedAt;

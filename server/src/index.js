@@ -301,7 +301,7 @@ app.get('/api/version', require('./controllers/versionController').buildVersionH
 const settingsModelForFavicon = require('./models/settingsModel');
 const { uploadsDir: faviconUploadsDir } = require('./middleware/multerLogoUpload');
 const { buildFaviconHandler } = require('./middleware/dynamicFavicon');
-const { bodyParserRefusal } = require('./utils/bodyParserRefusal');
+const { bodyParserRefusal, requestRefusal } = require('./utils/bodyParserRefusal');
 const { answerBodyRefusal } = require('./controllers/public/publicHttp');
 const dynamicFavicon = buildFaviconHandler({
   settingsModel: settingsModelForFavicon,
@@ -338,8 +338,9 @@ app.use('/api', (req, res) => {
 // eslint-disable-next-line no-unused-vars -- `next` is required for express to see this as an error handler
 app.use((err, req, res, next) => {
   // A body the JSON parser refuses is the caller's mistake, not a crash: a 400 that says so, not an
-  // « Erreur interne » logged as unhandled (specs/express-5-upgrade.md rule 7).
-  const refusal = bodyParserRefusal(err);
+  // « Erreur interne » logged as unhandled (specs/express-5-upgrade.md rules 7, 9). The same for a wrong JSON type
+  // nothing refused first (specs/hosting-h2-account-security.md rule 68): it runs after every route's own check.
+  const refusal = bodyParserRefusal(err) || requestRefusal(err);
   if (refusal && !res.headersSent) return answerBodyRefusal(req, res, refusal);
   console.error(`[unhandled] ${req.method} ${req.originalUrl}`, err);
   if (res.headersSent) return;
