@@ -1,5 +1,5 @@
 /**
- * VAPID keys for Web Push (specs/pwa-push-notifications.md §3.4 rule 11).
+ * VAPID keys for Web Push (specs/pwa-push-notifications.md §3.4 rule 17).
  *
  * The keypair is generated once on first boot and persisted to `server/.env.local`
  * (`VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY`) — same pattern as the session secret. It is git-ignored and

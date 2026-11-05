@@ -53,7 +53,7 @@ backward-compatible capabilities so it can host this (and future) richer bars.
    `center` keep the previous `[title]…[actions]` layout.
 
 **ReservationPage migration (behavior-preserving)**
-3. The inline fixed bar is replaced by `<PageActionBar>` with the same actions, same conditions, same
+6. The inline fixed bar is replaced by `<PageActionBar>` with the same actions, same conditions, same
    handlers, same tooltips/colors:
    - **Back / Cancel** → `onBack`/`onCancel` = `goBackToOrigin`.
    - **Title** = current `computedTitle`. **Subtitle** = the "Tarifs actuels appliqués (non sauvegardé)"

@@ -210,6 +210,7 @@ test('notifyNewSiteDevis fires a « newReservation » push', async () => {
   assert.match(push.calls[0].payload.body, /Marie Durand · Le Gîte du Domaine/);
 });
 
+// specs/pwa-push-notifications.md rule 16
 test('a throwing push service never breaks the email path (isolation)', async () => {
   const db = seedDb();
   const sent = [];

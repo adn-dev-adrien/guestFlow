@@ -87,7 +87,7 @@ rules — just a clean, testable structure that future slices (and Bloc 5) build
    extension preview and extension (stored dates), and conversion into a reservation (stored dates).
    The payment `PATCH` carries no dates and is not checked. The iCal **import** needs no guard and is
    unchanged: the parser already drops an event whose date is not a real day and turns a reversed or
-   zero-night event into one night (`specs/ical-import-hardening.md` rule 17, F9), so a sync is never
+   zero-night event into one night (`specs/ical-import-hardening.md` rule 21, F9), so a sync is never
    refused for a feed's odd dates. A check of the prod snapshot of 2026-10-22 found no stored row with
    such dates, so there is no data migration.
    *Reading of 2026-11-02 (audit R19-L1) — a stay lasts at most 366 nights.* The guard also refuses a
@@ -96,7 +96,7 @@ rules — just a clean, testable structure that future slices (and Bloc 5) build
    the stay night by night, synchronously, before the availability check: a departure typed as `9999-12-31`
    on `POST /reservations/calculate-price` took ~100 s and blocked every other request of the server
    meanwhile (the fiche quotes on every date change, so a year typed digit by digit reached it). 366 is the
-   iCal parser's length cap (`specs/ical-import-hardening.md` rule 17), and the two share the one constant
+   iCal parser's length cap (`specs/ical-import-hardening.md` rule 21), and the two share the one constant
    `utils/stayDates.MAX_STAY_NIGHTS`, so an imported event and an internal write obey the same bound. The
    public booking path keeps its own, tighter caps. The prod snapshot of 2026-10-22 (read on a copy) stores
    no stay longer than 14 nights, so no stored row or legitimate flow is refused.
@@ -301,6 +301,8 @@ rules — just a clean, testable structure that future slices (and Bloc 5) build
    fiche's hints (`resourcesModel.getBabyBedAvailability`, `availability`). A stay leaving the day another arrives shares
    no night with it; a night outside the range does not count. *Why:* with 3 cots, 2 + 2 on separate weeks refused a
    third stay across both, « 0 restant(s) », though 3 at most were ever out. Never an overbooking, a false refusal.
+   Accepted: a resource oversold by a paid link or a stored row refuses a re-priced save (discount, party) naming the line,
+   where a note edit passes and the oversold cot fiche passes both; nothing is written, no money moves.
    Test: `tests/stock-peak-per-night.unit.test.js`.
 22. **Added 2026-11-05 (audit R23-3) — the night before an early check-in is judged in minutes, in SQL too.** The overlap
    check (`validateAvailability`) and the closures (`findReservationOverlap`, `findReservationOverlaps`) compare

@@ -1649,7 +1649,7 @@ function createReservationsModel(database) {
       // to UpperCamelCase here so direct DB queries (`SELECT DISTINCT platform`) yield a
       // case-uniform set. The 'direct' enum stays lowercase (formatPlatformName preserves it).
       const platformNormalized = formatPlatformName(platform) || 'direct';
-      // accounting-platform-commission-and-no-deposit.md §3.2 rule 4: `clientGrossAmount`
+      // accounting-platform-commission-and-no-deposit.md §3.2 rule 24: `clientGrossAmount`
       // is populated on every reservation now. For platforms = the operator-typed gross;
       // for directs = `finalPrice` (since gross === net trivially). This homogenises the
       // shape so the accounting engine doesn't have to special-case NULLs.

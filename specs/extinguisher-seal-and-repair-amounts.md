@@ -83,11 +83,12 @@ guest-billable amounts live in one place.
    *(2026-10-27 spec review: « every departure » holds only while the `extinguisherCheck` setting of
    the `sas` plugin is on — [plugins-phase-p-productisation.md](plugins-phase-p-productisation.md)
    rule 16. Off, the departure shows no extinguisher page and the commit accepts no seal field.)*
-7. **« Précédent » navigation (new — all SAS pages).** The SAS gains a back affordance (a « ‹ » arrow in
+9. **« Précédent » navigation (new — all SAS pages).** The SAS gains a back affordance (a « ‹ » arrow in
    the header band, shown from the 2nd page on) that returns to the previous page; in-memory decisions
    are **preserved** (revisiting a page shows the prior answer). Going back writes nothing — only
    « Valider et terminer » commits. This relaxes the former forward-only rule (amended in
    `specs/arrival-departure-sas.md` §3.0).
+   > **Sans test** — the header arrow only moves an in-memory page index; the commit it never makes is held by the SAS suites.
 8. **Recap reflects it.** The end-of-stay recap lists each billed extinguisher tariff line (« Plomb
    manquant », « Utilisation ») within the existing end-of-stay total; the arrival recap is unchanged.
 

@@ -182,7 +182,7 @@ Make every monthly CSV match the écriture model the accountant validated:
 
 ### 3.2 Data model — `clientGrossAmount` on direct bookings
 
-4. `reservations.clientGrossAmount` is now **populated for every reservation**
+24. (Test: `client-gross-on-every-stay.unit.test.js`.) `reservations.clientGrossAmount` is now **populated for every reservation**
    (not only platform). For a direct booking, `clientGrossAmount = finalPrice`
    at save time. Migrated for existing data on boot: `UPDATE reservations SET
    clientGrossAmount = finalPrice WHERE clientGrossAmount IS NULL AND (platform
@@ -366,7 +366,7 @@ Make every monthly CSV match the écriture model the accountant validated:
 
 ### 3.8 Reservation form UI
 
-21. **FinanceSection** — when `platform !== 'direct'`:
+25. **FinanceSection** — when `platform !== 'direct'`:
     - The whole **Acompte block** is hidden (title, amount input, "Marquer
       payé" toggle, "Payé le" date). A subtle caption replaces the block:
       *"Pas d'acompte (réservation plateforme — virement unique)"*.

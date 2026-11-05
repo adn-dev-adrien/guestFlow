@@ -144,7 +144,7 @@ nothing, and the platforms tab says in one short line what the last sync did.
     push door. Known cost: behind a transparent proxy whose DNS answers fake addresses from `198.18.0.0/15`, iCal and push
     lose their hosts; `GUESTFLOW_ICAL_ALLOW_PRIVATE` is the exit for iCal only. Test: `safe-feed-reserved-ranges.unit.test.js`.)_
 
-17. *(Added 2026-10-28, audit finding F9.)* **A date is a day of the calendar, and a stay is bounded.** `20270231`
+21. *(Added 2026-10-28, audit finding F9.)* **A date is a day of the calendar, and a stay is bounded.** `20270231`
     and `20271399` used to import as `2027-02-31` / `2027-14-00`, and `DTEND:99991231` as a placeholder blocking
     every later night. An impossible date (also inside a UTC instant) now parses to nothing, so the event is
     dropped (an invalid `DTEND` is not turned into a one-night stay; a missing one still is, and a departure not

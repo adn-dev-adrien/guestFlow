@@ -20,7 +20,7 @@ function toIsoDate(year, month, day) {
   return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
-// specs/ical-import-hardening.md rule 17 — a date is a day of the calendar: `20270231` and `20271399` are not.
+// specs/ical-import-hardening.md rule 21 — a date is a day of the calendar: `20270231` and `20271399` are not.
 function isRealDate(iso) {
   const date = new Date(`${iso}T00:00:00Z`);
   return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === iso;
