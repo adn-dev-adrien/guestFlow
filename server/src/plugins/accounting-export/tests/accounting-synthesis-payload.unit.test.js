@@ -17,7 +17,7 @@ const saleOn = (paidDate, ttc = 110, rate = 10) => ({
     : [{ name: 'accommodation', ht: ttc, vat: 0, ratePercent: 0 }],
 });
 
-function model({ entries = [], range = null, cover = '2024-01', regime = { regime: 'subject', rate: 10, legalMention: null }, revenue = () => 0 } = {}) {
+function model({ entries = [], range = null, notice = null, reason = null, regime = { regime: 'subject', rate: 10, legalMention: null }, revenue = () => 0 } = {}) {
   return {
     today: () => TODAY,
     fiscalEndMonth: () => 12,
@@ -25,7 +25,7 @@ function model({ entries = [], range = null, cover = '2024-01', regime = { regim
     entriesBetween: (from, to) => entries.filter((e) => e.paidDate >= from && e.paidDate <= to),
     summary: ({ from, to }) => ({ revenueTotalHt: revenue(from, to), revenueTotal: revenue(from, to) * 1.1, showHt: true, reservations: [], fiscalYears: [{ key: 2026, label: '2026', isCurrent: true }] }),
     touristTax: (months) => ({ amount: months.length * 10, stays: months.length }),
-    lastYearRange: () => ({ cover, range, snapshotKnown: true, knownN1: '2025-11-05' }),
+    lastYearRange: () => ({ range, snapshotKnown: true, knownN1: '2025-11-05', status: { comparable: Boolean(range), reason, notice, comparableFrom: null } }),
     lastCsvExport: () => null,
     regimeInForce: () => regime,
   };
@@ -48,13 +48,12 @@ test('rule 5 — VAT collected before a switch to the franchise is still due: th
   assert.deepEqual(data.kpis.vat.byRate, [{ ratePercent: 10, vat: 10 }]);
 });
 
-test('rule 9 — no comparison: one reason, no pill', () => {
-  const fy = buildSynthesis(model(), { period: 'fy', fiscalYear: '2026' }).data;
-  assert.equal(fy.comparison.reason, 'Pas d’exercice 2025 en base : la comparaison avec l’an dernier n’est pas affichée.');
+test('rule 9 — no comparison: the shared status\'s one sentence, no pill', () => {
+  const notice = "Pas de comparaison avec l'an dernier : aucun séjour enregistré.";
+  const fy = buildSynthesis(model({ notice, reason: 'noHistory' }), { period: 'fy', fiscalYear: '2026' }).data;
+  assert.deepEqual([fy.comparison.comparable, fy.comparison.reasonCode, fy.comparison.notice], [false, 'noHistory', notice]);
   assert.deepEqual([fy.kpis.revenue.yoy, fy.kpis.collected.yoy, fy.kpis.touristTax.yoy, fy.kpis.vat.yoy], [null, null, null, null]);
-  const empty = buildSynthesis(model({ cover: null }), { period: 'month', month: '2026-10' }).data;
-  assert.equal(empty.comparison.reason, 'Aucun séjour en base : pas de comparaison avec l’an dernier.');
-  assert.equal(empty.comparison.comparable, false);
+  assert.equal(fy.comparison.totalMonths, 12);
 });
 
 test('rule 9 — compared on the comparable part only, both sides, with a note', () => {
@@ -63,8 +62,10 @@ test('rule 9 — compared on the comparable part only, both sides, with a note',
   };
   const entries = [saleOn('2026-01-10', 220), saleOn('2026-04-10', 110), saleOn('2025-04-10', 55)];
   const revenue = (from) => (from.startsWith('2026-01') ? 300 : (from.startsWith('2026-03') ? 200 : 100));
-  const data = buildSynthesis(model({ entries, range, revenue }), { period: 'custom', from: '2026-01-01', to: '2026-10-31' }).data;
-  assert.equal(data.comparison.note, 'Comparaison sur 8 mois sur 10.');
+  const notice = 'Comparaison sur 8 mois sur 10 : les données commencent en mars 2025.';
+  const data = buildSynthesis(model({ entries, range, revenue, notice }), { period: 'custom', from: '2026-01-01', to: '2026-10-31' }).data;
+  assert.equal(data.comparison.notice, notice);
+  assert.equal(data.comparison.comparable, true);
   assert.equal(data.kpis.collected.amount, 330, 'the tile keeps the whole window');
   assert.deepEqual(data.kpis.collected.yoy, { current: 110, previous: 55, change: 100 });
   assert.deepEqual(data.kpis.revenue.yoy, { current: 200, previous: 100, change: 100 });

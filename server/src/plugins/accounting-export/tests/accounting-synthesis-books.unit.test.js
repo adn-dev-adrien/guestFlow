@@ -175,7 +175,12 @@ test('rule 1 — a refused period answers 400 with its message, nothing computed
 test('rule 9 — one comparison, the dashboard\'s: none before a year of stays, then on the same window a year earlier', () => {
   const before = synthesis({ period: 'month', month: PREV }).body;
   assert.equal(before.comparison.comparable, false);
-  assert.equal(before.comparison.reason, 'Pas de données un an plus tôt : la comparaison avec l’an dernier n’est pas affichée.');
+  // The dashboard and the synthesis say the same sentence for the same window.
+  const dashboardMonth = dashboard.getDashboard({ period: 'month', month: PREV, fiscalYear: before.fiscalYear.key });
+  assert.equal(dashboardMonth.ok, true);
+  assert.ok(before.comparison.notice, 'a sentence says why');
+  assert.equal(before.comparison.notice, dashboardMonth.data.comparison.notice);
+  assert.equal(before.comparison.reasonCode, dashboardMonth.data.comparison.reason);
   assert.equal(before.kpis.revenue.yoy, null);
 
   // A stay in the same month a year earlier: last year now exists for this month.
@@ -189,6 +194,9 @@ test('rule 9 — one comparison, the dashboard\'s: none before a year of stays, 
   const { range } = dashboard.lastYearRange({ window: { from: data.window.from, to: data.window.to }, today: TODAY });
   assert.equal(data.comparison.comparable, true);
   assert.deepEqual([data.comparison.current, data.comparison.previous], [range.current, range.previous]);
+  const dashboardAfter = dashboard.getDashboard({ period: 'month', month: PREV, fiscalYear: data.fiscalYear.key }).data.comparison;
+  assert.equal(data.comparison.notice, dashboardAfter.notice);
+  assert.equal(data.comparison.comparable, dashboardAfter.comparable);
   const previous = finance.getSummary({ from: range.previous.from, to: range.previous.to, fiscalYear: data.fiscalYear.key });
   assert.equal(data.kpis.revenue.yoy.previous, previous.revenueTotalHt);
   assert.equal(data.kpis.collected.yoy.previous, synthesis({ period: 'custom', from: range.previous.from, to: range.previous.to }).body.kpis.collected.amount);

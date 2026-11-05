@@ -43,6 +43,17 @@ export { default as PlatformChip } from '../../components/PlatformChip';
 export { default as TableCard } from '../../components/TableCard';
 export { default as PageTabs } from '../../components/PageTabs';
 export { ADMIN, userHasRole } from '../../constants/roles';
+// The report grammar (specs/report-grammar.md) — the accounting synthesis renders with it
+// (specs/accounting-synthesis.md rules 23-33) — SDK 2.22.0.
+export { default as SelectableTile } from '../../components/SelectableTile';
+export { default as NoComparisonNotice } from '../../components/NoComparisonNotice';
+export { default as Panel } from '../../components/Panel';
+export { default as TrendChart } from '../../components/TrendChart';
+export { default as AlignedDailyCumulativeCharts } from '../../components/AlignedDailyCumulativeCharts';
+export { default as ShareTable } from '../../components/ShareTable';
+export { default as useServerToday } from '../../hooks/useServerToday';
+export { customWindowError } from '../../components/PeriodSelector';
+export { formatCurrencyRounded } from '../../utils/formatters';
 // linen (specs/plugins-phase-2-hosts.md §3.D)
 export { default as DateField } from '../../components/DateField';
 export { default as QuantityField } from '../../components/QuantityField';
