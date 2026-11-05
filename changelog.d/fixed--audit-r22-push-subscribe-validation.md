@@ -1,0 +1,1 @@
+- **Push: the subscription is validated on arrival** (spec `pwa-push-notifications.md` rule 15, audit R22 E22-5). `POST /api/push/subscribe` answers 400 `INVALID_SUBSCRIPTION` unless the endpoint is a public https address on the default port and the keys have the right size. No allow-list of push hosts; stored rows are not re-judged.
