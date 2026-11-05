@@ -219,7 +219,7 @@ function validateStayInput(body = {}, { todayIso } = {}) {
  * Validate the guest contact block + message for a booking request. Honeypot (`_hp`) is checked
  * by the controller (it intentionally returns a fake success), not here.
  *
- * Each error carries a `reason` (`required` | `emailInvalid` | `phoneInvalid` | `tooLong`) next to its unchanged `issue`: the
+ * Each error carries a `reason` (`required` | `nameInvalid` | `emailInvalid` | `phoneInvalid` | `tooLong`) next to its unchanged `issue`: the
  * reason picks the visitor-facing sentence (`fieldErrors` in publicLabels), so an empty address
  * reads « Champ requis. » and `jo@` reads « Adresse e-mail incomplète. »
  * (specs/wordpress-plugin.md rule 28).
@@ -237,6 +237,9 @@ const nameOf = (v) => {
   const name = withoutFormatChars(v);
   return /[\p{L}\p{N}]/u.test(name) ? name : '';
 };
+// Decision D13 (specs/public-api.md rule 23): the public form's names only. The joiners are those withoutFormatChars keeps.
+const NAME_CHARACTERS = /^[\p{L}\p{M}\u200C\u200D '’.-]+$/u;
+const NAME_REFUSAL = 'must hold only letters, marks, spaces, hyphens, apostrophes and dots';
 
 function validateGuest(raw) {
   const errors = [];
@@ -245,8 +248,12 @@ function validateGuest(raw) {
   const lastName = nameOf(guest.lastName);
   const email = textOf(guest.email).trim();
   const phone = textOf(guest.phone).trim();
-  if (!firstName) errors.push({ field: 'guest.firstName', issue: 'required', reason: 'required' });
-  if (!lastName) errors.push({ field: 'guest.lastName', issue: 'required', reason: 'required' });
+  const judgeName = (field, name) => {
+    if (!name) errors.push({ field: `guest.${field}`, issue: 'required', reason: 'required' });
+    else if (!NAME_CHARACTERS.test(name)) errors.push({ field: `guest.${field}`, issue: NAME_REFUSAL, reason: 'nameInvalid' });
+  };
+  judgeName('firstName', firstName);
+  judgeName('lastName', lastName);
   if (email.length <= GUEST_MAX.email && !isValidGuestEmail(email)) {
     errors.push({ field: 'guest.email', issue: 'must be a valid email', reason: email ? 'emailInvalid' : 'required' });
   }
