@@ -201,6 +201,9 @@ Auto-options (`option.autoOptionType ∈ {early_check_in, late_check_out, …}` 
 | `tests/` | `accounting-per-line-contribs.unit.test.js` | C | New file. Insert reservation, mark deposit paid → assert each non-forced line has `acompteContribTtc = totalPrice × depositPercent` and the sum equals `depositAmount`. Grow an option, mark balance paid, assert `soldeContribTtc` calculated correctly, sum equals `balanceAmount`. Run the export, assert the per-entry bucket TTC sums match the encaissement amounts and no contamination occurs (deposit entry's options HT = `acompteContribTtc → HT extraction`, not pro-rated against the grown total). |
 | `tests/` | `payment-contrib-capture.unit.test.js` | C | New file. Drive `updatePayment` deposit 0→1 and balance 0→1; assert the contrib columns now contain the expected values per line. Verify 1→0 clears them. Forced lines stay NULL throughout. Conservation invariant asserted on capture. |
 
+| `controllers/` + `utils/` | `reservationsController.js`, `touristTaxFreeze.js` | T | Rule 20: `taxInComplementLockedReason`, the 409 on save, the reason on `getById` and the live quote. |
+| client | `FinanceSection.jsx`, `ReservationPage.jsx` | T | Rule 20: renders the reason: switch disabled while off, caption under it; no new component. |
+
 ### 4.2 Client side (`client/src/`)
 
 | Layer | File | T/C | Responsibility in this change |

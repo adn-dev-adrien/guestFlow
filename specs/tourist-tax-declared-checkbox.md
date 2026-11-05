@@ -76,11 +76,13 @@ Two problems surface in real use:
 | `models/` | `models/financeModel.js` | `getTouristTaxExtraction` also SELECTs + returns `touristTaxDeclaredAt` per reservation. NEW `setTouristTaxDeclared({ reservationId, declared })` → sets the column to `datetime('now')` or `NULL`, returns the new value. |
 | `controllers/` | `controllers/financeController.js` | NEW thin handler `setTouristTaxDeclared` — parse `:reservationId` + `{ declared }`, call the model, respond `{ ok, declaredAt }`. |
 | `routes/` | `routes/finance.js` | NEW `PATCH /finance/tourist-tax/:reservationId/declared`. |
+| `utils/` | `utils/touristTaxFreeze.js` | Rule 8: `isTouristTaxDeclarable`, read by the tick and by each row's `declarable`. |
 
 ### 4.2 Client (`client/src/`)
 | Layer | File | Role |
 |---|---|---|
 | `pages/` | `pages/TouristTaxPage.js` | Fix `formatReservationDates` (no −1 day). Add a first « Déclarée » column: a `Checkbox` bound to `row.touristTaxDeclaredAt`, wrapped in a `Tooltip`, with a cell-level `stopPropagation`. Optimistic local update on toggle. Empty-row `colSpan` 7 → 8. |
+| `pages/` | `pages/TouristTaxPage.jsx` | Rule 8: renders `declarable`: disabled box, tooltip and caption, desktop and mobile; no new component. |
 | `api.js` | `api.js` | NEW `setTouristTaxDeclared(reservationId, declared)` → `PATCH /finance/tourist-tax/:id/declared`. |
 
 No new generic component: a single MUI `Checkbox` + `Tooltip` in the existing table is the minimal fit

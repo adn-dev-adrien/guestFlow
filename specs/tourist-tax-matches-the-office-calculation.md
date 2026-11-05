@@ -290,6 +290,8 @@ Nothing the guest has already paid moves. What is still to be collected is corre
 | `models/` | `financeModel.js` | T | `getTouristTaxExtraction`: `accommodationAmount` and `nightPricePerOccupantHt` come from the frozen columns when set, from the quote otherwise. The row becomes self-consistent again. |
 | `database.js` | `database.js` | T | Idempotent migration: three columns + the backfill of rule 13. |
 
+| `utils/` + `models/` | `touristTaxFreeze.js`, `vatRegimeSwitchModel.js` | T | Rule 19: `installmentPlanState`, `isTouristTaxFrozen` reads the plan, `isTouristTaxFrozenAsidePlan` for the VAT switch's own filter. |
+
 ### 4.2 Client side (`client/src/`)
 
 | Layer | File | T/C | Responsibility in this change |
