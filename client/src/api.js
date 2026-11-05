@@ -503,6 +503,29 @@ const api = {
   getTouristTaxExtraction: (month) => request(`/finance/tourist-tax?month=${encodeURIComponent(month)}`),
   // specs/tourist-tax-declared-checkbox.md — tick / untick « Déclarée » for one reservation.
   setTouristTaxDeclared: (reservationId, declared, { addedGuests = false } = {}) => request(`/finance/tourist-tax/${reservationId}/declared`, { method: 'PATCH', body: { declared, addedGuests } }),
+  // specs/tourist-tax-report-v2.md §4.3 — the report over a month, quarter, year or du / au, by logement and
+  // declaration status: `{ period, month | quarter | year | from + to, propertyId, declaration }`.
+  getTouristTaxReport: (params = {}) => request(`/finance/tourist-tax/report?${financeQuery(params)}`),
+  // The CSV of the same selection (`view`: 'list' | 'night'), saved under the server's file name. A refusal
+  // throws the server's French reason.
+  downloadTouristTaxReportCsv: async (params = {}, view = 'list') => {
+    const res = await reach(`/finance/tourist-tax/report.csv?${financeQuery({ ...params, view })}`);
+    if (!res.ok) {
+      const parsed = await res.json().catch(() => null);
+      throw Object.assign(new Error((parsed && parsed.error) || 'Téléchargement impossible.'), { status: res.status });
+    }
+    const blob = await res.blob();
+    const match = /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') || '');
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = match ? match[1] : 'taxe-de-sejour.csv';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    return a.download;
+  },
 
   // School holidays — getSchoolHolidays now returns { periods, syncState }.
   getSchoolHolidays: () => request('/school-holidays'),

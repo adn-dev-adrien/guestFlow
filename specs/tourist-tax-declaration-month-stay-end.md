@@ -96,6 +96,7 @@ appears, so the operator never remits a tax that was not collected.
 | `models/` | `financeModel.js` | T | Rules 7-8 (2026-11-05): `HAS_PLAN_SQL` (`EXISTS` on `reservation_installments`, `(0)` on a minimal schema without the table) opens a third branch of the WHERE clause on the last night alone, and closes the two others to a plan. |
 | `tests/` | `plan-tax-declaration.unit.test.js` | C | Rules 7-8, through the real controllers. |
 | `tests/` | `fixtures/vat-regime/golden.json` | T | `tourist-tax/2027-07` regenerated, that key alone: the golden's stay 106 has a plan. |
+| `models/` | `financeModel.js` | T | 2026-11-05 (`specs/tourist-tax-report-v2.md` rule 1): this WHERE clause now lives in `getTouristTaxRows({ start, endExclusive })`, which the monthly extraction calls for its month and the period report for any window; the SQL is unchanged. |
 | `routes/` / `controllers/` | — | — | (none — endpoint contract unchanged) |
 | `database.js` | — | — | (no schema change) |
 

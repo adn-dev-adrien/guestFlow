@@ -1,0 +1,62 @@
+// specs/tourist-tax-report-v2.md §3 rule 13 — the CSV of the tourist-tax report, pure: French Excel format, one row per
+// stay or per night, the statut of each row, the total line read from the report's totals, the file's name.
+
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const { touristTaxReportCsv, csvFileName, LIST_HEADERS, NIGHT_HEADERS } = require('../utils/touristTaxReportCsv');
+const { buildTouristTaxReport, ourStayRow, platformStayRow } = require('../utils/touristTaxReport');
+
+const Y = new Date().getFullYear() + 1;
+const day = (d) => `${Y}-08-${String(d).padStart(2, '0')}`;
+const fr = (d) => `${String(d).padStart(2, '0')}/08/${Y}`;
+
+const extractionRow = (over = {}) => ({
+  reservationId: 1, propertyId: 1, propertyName: 'Granja', reservationName: 'Camille Registre', startDate: day(1), endDate: day(3),
+  touristTaxDeclaredAt: null, declarable: true, adults: 2, children: 1, nightsCount: 2, adultNights: 4, taxAmount: 6.6,
+  refundedTaxNights: 0, refundedTaxAmount: 0, ...over,
+});
+
+function sample() {
+  const report = buildTouristTaxReport({
+    ourRows: [
+      ourStayRow(extractionRow({ touristTaxDeclaredAt: `${day(5)} 10:00:00` }), { platformLabel: 'Direct' }),
+      ourStayRow(extractionRow({ reservationId: 1, addedGuestsRow: true, adults: 1, children: 0, adultNights: 2, taxAmount: 3.3 }), { platformLabel: 'Direct' }),
+      ourStayRow(extractionRow({ reservationId: 2, reservationName: '=HYPERLINK("x")', startDate: day(4), endDate: day(6), taxAmount: 5 }), { platformLabel: 'Booking' }),
+    ],
+    platformRows: [platformStayRow({ reservationId: 3, propertyId: 1, propertyName: 'Granja', reservationName: 'Sam', platformLabel: 'Airbnb', startDate: day(2), endDate: day(3), nightsCount: 1, adults: 2, taxAmount: 3.3 })],
+    declaration: 'all',
+  });
+  return { window: { from: day(1), to: day(31) }, ...report };
+}
+const lines = (text) => text.replace(/^﻿/, '').trim().split('\r\n');
+
+test('rule 13: the list CSV, one row per stay, its statut, the total line from the totals', () => {
+  const text = touristTaxReportCsv(sample(), 'list');
+  assert.ok(text.startsWith('﻿'));
+  const [header, ...rows] = lines(text);
+  assert.equal(header, LIST_HEADERS.join(';'));
+  assert.deepEqual(rows, [
+    `Déclarée le ${fr(5)};Camille Registre;Granja;Direct;${fr(1)};${fr(3)};2;3;2;1;4;2;6,60`,
+    `À déclarer;Camille Registre (voyageurs ajoutés);Granja;Direct;${fr(1)};${fr(3)};2;1;1;0;2;0;3,30`,
+    `Reversée par la plateforme;Sam;Granja;Airbnb;${fr(2)};${fr(3)};1;2;2;0;2;0;3,30`,
+    `À déclarer;"'=HYPERLINK(""x"")";Granja;Booking;${fr(4)};${fr(6)};2;3;2;1;4;2;5`,
+    'Total à reverser;2 séjours;;;;;4;7;5;2;10;4;14,90',
+  ]);
+});
+
+test('rule 13: the register CSV, one row per night, and its total line', () => {
+  const [header, ...rows] = lines(touristTaxReportCsv(sample(), 'night'));
+  assert.equal(header, NIGHT_HEADERS.join(';'));
+  assert.deepEqual(rows, [
+    `${fr(1)};1;4;3;1;4,95`,
+    `${fr(2)};1;4;3;1;4,95`,
+    `${fr(4)};1;3;2;1;2,50`,
+    `${fr(5)};1;3;2;1;2,50`,
+    'Total à reverser;4;14;10;4;14,90',
+  ]);
+});
+
+test('rule 13: the file is named after the window and the view', () => {
+  assert.equal(csvFileName(sample(), 'list'), `taxe-de-sejour-${day(1)}_${day(31)}.csv`);
+  assert.equal(csvFileName(sample(), 'night'), `taxe-de-sejour-${day(1)}_${day(31)}-par-nuit.csv`);
+});
