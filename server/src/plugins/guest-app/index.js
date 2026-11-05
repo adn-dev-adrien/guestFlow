@@ -11,9 +11,13 @@ const createLodgingsModel = require('./models/lodgingsModel');
 const createSessionsModel = require('./models/sessionsModel');
 const createStaysModel = require('./models/staysModel');
 const createOrdersModel = require('./models/ordersModel');
+const createItemsModel = require('./models/itemsModel');
+const createStayLinesModel = require('./models/stayLinesModel');
 const { buildGuestSession } = require('./middleware/guestSession');
 const { buildSessionController } = require('./controllers/sessionController');
 const { buildLodgingsController } = require('./controllers/lodgingsController');
+const { buildItemsController } = require('./controllers/itemsController');
+const { buildShopController } = require('./controllers/shopController');
 const { buildPublicRouter } = require('./routes/public');
 const { buildAdminRouter } = require('./routes/admin');
 
@@ -28,16 +32,22 @@ const once = (build) => {
   };
 };
 
-function buildGuestApi({ db, soliomapUrl, now = () => new Date(), limiters }) {
+// The translation catalogue of the language served; tests hand one bound to their own database.
+const coreTranslator = (lang) => sdk.coreModule('translationResolver').forLang(lang);
+
+function buildGuestApi({ db, soliomapUrl, now = () => new Date(), limiters, translator = coreTranslator }) {
   const lodgings = once(() => createLodgingsModel(db()));
   const sessions = once(() => createSessionsModel(db()));
   const stays = once(() => createStaysModel(db()));
   const orders = once(() => createOrdersModel(db()));
+  const items = once(() => createItemsModel(db()));
+  const stayLines = once(() => createStayLinesModel(db()));
   const guestSession = buildGuestSession({ sessions, stays, lodgings, now });
   const controller = buildSessionController({ lodgings, sessions, stays, orders, guestSession, soliomapUrl, now });
+  const shop = buildShopController({ items, stayLines, orders, translator, now });
   return {
-    publicRouter: buildPublicRouter({ controller, guestSession, limiters }),
-    adminRouter: buildAdminRouter({ lodgings: buildLodgingsController({ lodgings }) }),
+    publicRouter: buildPublicRouter({ controller, shop, guestSession, limiters }),
+    adminRouter: buildAdminRouter({ lodgings: buildLodgingsController({ lodgings }), items: buildItemsController({ items }) }),
     sessions,
     shownKeysOf: controller.shownKeysOf,
   };

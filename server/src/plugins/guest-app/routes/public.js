@@ -4,8 +4,9 @@
  */
 
 const express = require('express');
+const { requireModule } = require('../middleware/guestSession');
 
-function buildPublicRouter({ controller, guestSession, limiters }) {
+function buildPublicRouter({ controller, shop, guestSession, limiters }) {
   const router = express.Router();
   router.use((req, res, next) => {
     res.set('Cache-Control', 'no-store');
@@ -16,6 +17,7 @@ function buildPublicRouter({ controller, guestSession, limiters }) {
   router.get('/me', limiters.read, guestSession.requireSession, controller.me);
   router.post('/me/confirm-name', limiters.read, guestSession.requireSession, guestSession.requireStay, controller.confirmName);
   router.get('/lodging', limiters.read, controller.lodging);
+  router.get('/shop', limiters.read, guestSession.requireSession, requireModule('shop', controller.shownKeysOf), shop.read);
   return router;
 }
 

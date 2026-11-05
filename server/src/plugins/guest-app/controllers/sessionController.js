@@ -5,6 +5,7 @@
 
 const QRCode = require('qrcode');
 const sdk = require('../../sdk');
+const registry = require('../../sdk/registry');
 const { addDays, nextOpeningToday, parisDate, resolveLodging, resolveLookup } = require('../currentStay');
 const { nameMatches } = require('../nameMatch');
 const { shownModules, tilesOf } = require('../modules');
@@ -38,8 +39,7 @@ function buildSessionController({ lodgings, sessions, stays, orders, guestSessio
   function factsOf(lodging) {
     return {
       ...lodgings().soldCounts(lodging.propertyId),
-      // The key provider of rules 12-14 is not wired yet: no gate tile until it is.
-      gateKey: false,
+      gateAccess: registry.isLive('gate-access'),
       wifiConfigured: lodging.wifi.available && lodging.wifi.network !== '',
       soliomapUrl: soliomapUrl(),
       contactCount: lodging.contacts.length,

@@ -19,7 +19,7 @@ function withApi(name, fn, options) {
   });
 }
 
-const FACTS = { gateKey: true, wifiConfigured: true, soldItems: 1, soldHourlyResources: 1, soliomapUrl: 'https://x.test', contactCount: 1 };
+const FACTS = { gateAccess: true, wifiConfigured: true, soldItems: 1, soldHourlyResources: 1, soliomapUrl: 'https://x.test', contactCount: 1 };
 const keysOf = (shown) => shown.map((m) => m.key);
 const allOn = () => defaultModules().map((m) => ({ ...m, on: true }));
 
@@ -36,14 +36,27 @@ test('rule 51: the orders tab is a module, not one of the tiles', () => {
 test('rule 11bis: a module off is not shown, the order is the configured one', () => {
   const modules = allOn().reverse().map((m, order) => ({ ...m, order }));
   modules.find((m) => m.key === 'shop').on = false;
-  assert.deepEqual(keysOf(shownModules(modules, FACTS, 'stay')), ['contacts', 'orders', 'booklet', 'soliomap', 'bath', 'wifi', 'gate']);
+  assert.deepEqual(keysOf(shownModules(modules, FACTS, 'stay')), ['contacts', 'orders', 'booklet', 'soliomap', 'wifi', 'gate'], 'the bath goes with the shop');
 });
 
 test('rule 11bis: on but its prerequisite fails → not shown', () => {
-  const cases = [['gate', { gateKey: false }], ['wifi', { wifiConfigured: false }], ['shop', { soldItems: 0 }], ['bath', { soldHourlyResources: 0 }], ['soliomap', { soliomapUrl: '' }], ['contacts', { contactCount: 0 }]];
+  const cases = [['gate', { gateAccess: false }], ['wifi', { wifiConfigured: false }], ['shop', { soldItems: 0 }], ['bath', { soldHourlyResources: 0 }], ['soliomap', { soliomapUrl: '' }], ['contacts', { contactCount: 0 }]];
   cases.forEach(([key, lack]) => {
     assert.equal(keysOf(shownModules(allOn(), { ...FACTS, ...lack }, 'stay')).includes(key), false, key);
   });
+});
+
+test('rules 11bis, 13: the gate needs gate-access live and a stay session — the key itself need not exist yet', () => {
+  assert.equal(keysOf(shownModules(allOn(), { ...FACTS, gateAccess: true }, 'stay')).includes('gate'), true);
+  assert.equal(keysOf(shownModules(allOn(), { ...FACTS, gateAccess: false }, 'stay')).includes('gate'), false);
+  assert.equal(keysOf(shownModules(allOn(), { ...FACTS, gateAccess: true }, 'preArrival')).includes('gate'), false, 'outside the gate window');
+});
+
+test('rule 11bis: the bath is a shortcut into the shop — shop off or empty hides it too', () => {
+  const shopOff = allOn().map((m) => (m.key === 'shop' ? { ...m, on: false } : m));
+  assert.equal(keysOf(shownModules(shopOff, FACTS, 'stay')).includes('bath'), false);
+  assert.equal(keysOf(shownModules(allOn(), { ...FACTS, soldItems: 0 }, 'stay')).includes('bath'), false);
+  assert.equal(keysOf(shownModules(allOn(), FACTS, 'stay')).includes('bath'), true);
 });
 
 test('rules 5, 6: a visitor has no gate, shop, bath or orders; pre-arrival keeps the catalogue', () => {
@@ -100,6 +113,23 @@ withApi('rule 11bis: the shop follows the items sold for this lodging, the other
   assert.equal((await tiles()).includes('shop'), true);
   db.prepare("UPDATE options SET archivedAt = '2099-01-01' WHERE id = 5").run();
   assert.equal((await tiles()).includes('shop'), false);
+});
+
+withApi('rules 11bis, 13: a stay session gets the gate tile while gate-access is live, before any key exists', async ({ db, api, call }) => {
+  const registry = require('../../sdk/registry');
+  addStay(db);
+  const code = enable(api, db, 1);
+  await call('POST', '/public/v1/guest/sessions', { lodgingCode: code });
+  const tiles = async () => (await call('GET', '/public/v1/guest/me')).body.data.tiles.map((t) => t.key);
+  try {
+    registry.configure({ isActive: () => true, allows: () => true });
+    registry.ensure('gate-access');
+    assert.equal((await tiles()).includes('gate'), true);
+    registry.discard('gate-access');
+    assert.equal((await tiles()).includes('gate'), false);
+  } finally {
+    registry.reset();
+  }
 });
 
 withApi('rule 11ter: wifi facts reach /lodging with a join QR; wifi off → no tile, no block', async ({ db, api, call }) => {

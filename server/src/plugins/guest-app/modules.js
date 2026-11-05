@@ -30,8 +30,10 @@ const MODES_OF = Object.freeze({
   orders: ['stay'],
 });
 
+// `gate`: the plugin is live; the window is the mode's — a stay session lives exactly in the gate window
+// (rule 2), and before the key exists the tile reads « Accès en préparation » (rule 13).
 const PREREQUISITES = Object.freeze({
-  gate: (facts) => Boolean(facts.gateKey),
+  gate: (facts) => Boolean(facts.gateAccess),
   wifi: (facts) => Boolean(facts.wifiConfigured),
   shop: (facts) => Number(facts.soldItems) > 0,
   bath: (facts) => Number(facts.soldHourlyResources) > 0,
@@ -55,14 +57,20 @@ function readModules(stored) {
   return [...known, ...missing].map((m, order) => ({ ...m, order }));
 }
 
+// Rule 11bis — a shortcut into another module's pages exists only while that module is shown: the bath's
+// slots, quote and orders are the shop's.
+const SHORTCUT_OF = Object.freeze({ bath: 'shop' });
+
 /** Rule 11bis — on for the lodging, its prerequisite holds and the session's mode has it. */
 function shownModules(stored, facts, mode, lang = 'fr') {
-  return readModules(stored)
-    .filter(({ key, on }) => {
-      if (!on) return false;
-      if (MODES_OF[key] && !MODES_OF[key].includes(mode)) return false;
-      return !PREREQUISITES[key] || PREREQUISITES[key](facts);
-    })
+  const shown = readModules(stored).filter(({ key, on }) => {
+    if (!on) return false;
+    if (MODES_OF[key] && !MODES_OF[key].includes(mode)) return false;
+    return !PREREQUISITES[key] || PREREQUISITES[key](facts);
+  });
+  const keys = new Set(shown.map((m) => m.key));
+  return shown
+    .filter(({ key }) => !SHORTCUT_OF[key] || keys.has(SHORTCUT_OF[key]))
     .map(({ key }, order) => {
       const { label } = MODULES.find((m) => m.key === key);
       return { key, label: label[lang] || label.fr, order };

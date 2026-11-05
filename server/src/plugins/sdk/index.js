@@ -107,6 +107,10 @@ const CORE_MODULES = Object.freeze({
   stayWindow: '../../utils/stayWindow',
   // guest-app — the wifi password of a lodging, encrypted at rest like the other stored secrets (specs/guest-app.md §5)
   encryption: '../../utils/encryption',
+  // website-booking, guest-app — one projection of an option and a resource for every surface that sells them (specs/guest-app.md rule 24)
+  publicCatalogProjection: '../../utils/publicCatalogProjection',
+  // guest-app — the shop is open exactly when the fiche takes mid-stay extras (specs/guest-app.md rule 27)
+  midStayExtrasWindow: '../../utils/midStayExtrasWindow',
 });
 
 function coreModule(name) {

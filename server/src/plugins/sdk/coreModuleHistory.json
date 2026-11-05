@@ -177,12 +177,19 @@
       "version": "2.22.0",
       "modules": [
         "stayWindow",
-        "encryption"
+        "encryption",
+        "publicCatalogProjection",
+        "midStayExtrasWindow"
       ],
       "names": {
         "rateLimiters": [
           "guestLookupLimiter",
           "guestSessionLimiter"
+        ],
+        "pricing": [
+          "applyFreeUnitsToLine",
+          "getApplicableOptions",
+          "getApplicableResources"
         ]
       }
     }

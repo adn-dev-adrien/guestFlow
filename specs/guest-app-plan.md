@@ -25,7 +25,7 @@ guest UI, so the riskiest code is the most tested before a guest can reach it.
 | **A — Plugin, lodgings, sessions** | Plugin skeleton, per-lodging config, QR codes, current stay, sessions, lookup, `/me`, `/lodging` | — |
 | **B — Sellable catalogue** | `guest_app_items`, the editor contribution in GuestFlow, `/shop` with per-lodging prices and free / included states | A |
 | **C — Planning and service hours** | Bath slots from the resource planning (SDK hook in `hourly-resources`), holds, service hours, delivery slots, ignition rule | B |
-| **D — Orders and payment** | Quote, note / 0 € / card orders, core commit to the fiche, `complement` payment links, expiry, push, planning card, *Commandes app* page | C |
+| **D — Orders and payment** | Quote, note / 0 € / card orders, core commit to the fiche, `complement` payment links, expiry, push, planning card, *Commandes clients* page | C |
 | **E — Booklet and studio API** | Pages, placements, blocks, versions, media, publish, search, QR poster | A |
 | **F — Guest PWA** | `apps/guest`: the whole guest app of §6, offline booklet, install | A-E |
 | **G — Studio** | `apps/studio`: lodging switcher, modules & infos, booklet editor with live preview, shop presentation, service hours | E, F (preview components) |
@@ -168,7 +168,7 @@ guest UI, so the riskiest code is the most tested before a guest can reach it.
 26. Core `utils/guestOrderCommit.js`: one transaction — add option quantities to the existing line or
     create it, add resource sessions to the stay's `reservation_resources` line (raising sold hours), all
     through the same path as `PUT /api/reservations/:id` on a locked fiche (`ARRIVAL_EXTRAS_FROZEN` /
-    `MID_STAY_EXTRAS_CLOSED` respected), history entry « Commande app #N », optional `complement`
+    `MID_STAY_EXTRAS_CLOSED` respected), history entry « Commande client #N », optional `complement`
     payment recorded in the ledger. Exposed in `coreModules.json`.
 27. `tests/guest-order-commit.unit.test.js` (core): note → `endOfStayComplementDetail` lines
     `source:'midStayExtra'`; paid → lines + ledger payment, complement unchanged; quantities merge; closed

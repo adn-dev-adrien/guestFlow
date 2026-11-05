@@ -9,6 +9,8 @@ const Database = require('better-sqlite3');
 process.env.GUESTFLOW_ENCRYPTION_KEY = process.env.GUESTFLOW_ENCRYPTION_KEY || Buffer.alloc(32, 7).toString('base64');
 
 const { applyPluginSchema } = require('../../sdk/testing');
+const { forLang } = require('../../../utils/translationResolver');
+const translationsModel = require('../../../models/translationsModel');
 const { buildGuestApi } = require('..');
 
 const SCHEMA = fs.readFileSync(path.join(__dirname, '..', '..', '..', 'schema.sql'), 'utf8');
@@ -52,6 +54,7 @@ async function startApi(db, { soliomapUrl = 'https://soliomap.example.test', lim
     db: () => db,
     soliomapUrl: () => soliomapUrl,
     now: () => clock.now,
+    translator: (lang) => forLang(lang, translationsModel.create(db)),
     limiters: { session: passThrough, lookup: passThrough, read: passThrough, ...limiters },
   });
   const app = express();
@@ -83,4 +86,48 @@ function enable(api, db, propertyId = 1, patch = {}) {
   return db.prepare('SELECT lodgingCode FROM guest_app_lodgings WHERE propertyId = ?').get(propertyId).lodgingCode;
 }
 
-module.exports = { addStay, enable, freshDb, paris, startApi };
+/** An option of the catalogue, linked to the given lodgings, with a per-lodging price where one is given. */
+function addOption(db, { id, title, priceType = 'per_stay', price = 10, category = '', lodgings = [1, 2], prices = {}, freeUnits = {}, ...over }) {
+  const row = { archivedAt: null, autoOptionType: null, isCancellationInsurance: 0, displayToClient: 1, ...over };
+  db.prepare(`INSERT INTO options (id, title, priceType, price, category, archivedAt, autoOptionType, isCancellationInsurance, displayToClient)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(id, title, priceType, price, category, row.archivedAt, row.autoOptionType, row.isCancellationInsurance, row.displayToClient);
+  lodgings.forEach((propertyId) => db.prepare('INSERT INTO property_options (propertyId, optionId) VALUES (?, ?)').run(propertyId, id));
+  [...new Set([...Object.keys(prices), ...Object.keys(freeUnits)])].forEach((propertyId) => {
+    db.prepare('INSERT INTO property_option_prices (propertyId, optionId, price, freeUnits) VALUES (?, ?, ?, ?)')
+      .run(Number(propertyId), id, prices[propertyId] ?? price, freeUnits[propertyId] ?? 0);
+  });
+  return id;
+}
+
+/** A resource linked to the given lodgings, with its per-lodging price and free minutes where given. */
+function addResource(db, { id, name, priceType = 'per_hour', price = 30, lodgings = [1, 2], prices = {}, freeMinutes = {} }) {
+  db.prepare('INSERT INTO resources (id, name, priceType, price, quantity) VALUES (?, ?, ?, ?, 1)').run(id, name, priceType, price);
+  lodgings.forEach((propertyId) => db.prepare('INSERT INTO resource_properties (resourceId, propertyId) VALUES (?, ?)').run(id, propertyId));
+  [...new Set([...Object.keys(prices), ...Object.keys(freeMinutes)])].forEach((propertyId) => {
+    db.prepare('INSERT INTO property_resource_prices (propertyId, resourceId, price, freeMinutes) VALUES (?, ?, ?, ?)')
+      .run(Number(propertyId), id, prices[propertyId] ?? null, freeMinutes[propertyId] ?? 0);
+  });
+  return id;
+}
+
+/** The sell switch on, with the plugin fields given. */
+function sell(db, kind, itemId, fields = {}) {
+  const row = { sold: 1, shortDescriptionFr: null, shortDescriptionEn: null, maxQuantity: 10, needsStaff: 0, sortOrder: null, mediaId: null, ...fields };
+  db.prepare(`INSERT OR REPLACE INTO guest_app_items (kind, itemId, sold, shortDescriptionFr, shortDescriptionEn, maxQuantity, needsStaff, sortOrder, mediaId)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(kind, itemId, row.sold, row.shortDescriptionFr, row.shortDescriptionEn, row.maxQuantity, row.needsStaff, row.sortOrder, row.mediaId);
+}
+
+/**
+ * The plugins the shop reads through the registry: something pricing the hours (`hourly-resources`) and a
+ * payment provider (`online-payment`). `null` leaves the plugin out.
+ */
+function livePlugins({ hourly = true, payment = null } = {}) {
+  const registry = require('../../sdk/registry');
+  registry.reset();
+  registry.configure({ isActive: () => true, allows: () => true });
+  if (hourly) registry.ensure('hourly-resources').priceLineContributor = { id: 'hourly-resources', priceTypes: ['per_hour'], priceLine: () => null };
+  if (payment) registry.ensure('online-payment').paymentProvider = { id: 'qonto', label: 'Qonto', isReady: () => payment === 'ready' };
+  return () => registry.reset();
+}
+
+module.exports = { addOption, addResource, addStay, enable, freshDb, livePlugins, paris, sell, startApi };

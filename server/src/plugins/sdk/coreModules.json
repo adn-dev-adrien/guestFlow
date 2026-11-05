@@ -378,6 +378,7 @@
   "pricing": [
     "__test",
     "addDaysToIsoDate",
+    "applyFreeUnitsToLine",
     "buildDefaultProgressiveTiers",
     "buildProgressivePreview",
     "calculateBaseStayPrice",
@@ -386,6 +387,8 @@
     "computeExtraGuestSurcharge",
     "computePercentOfStayAmount",
     "computeTouristTaxBreakdown",
+    "getApplicableOptions",
+    "getApplicableResources",
     "getBoundsFromDateRanges",
     "getTypeMultiplier",
     "grossFromNet",
@@ -822,5 +825,24 @@
     "encrypt",
     "isEncrypted",
     "safeDecrypt"
+  ],
+  "publicCatalogProjection": [
+    "hoursLabel",
+    "isOfferedPlural",
+    "isResolver",
+    "labelsFor",
+    "optionPriceLabels",
+    "resolveTitle",
+    "resourceFreeLabel",
+    "toPublicOption",
+    "toPublicResource"
+  ],
+  "midStayExtrasWindow": [
+    "arrivalExtrasViolations",
+    "arrivalLineFloors",
+    "buildEditLock",
+    "extrasContentChanged",
+    "isMidStayExtrasWindowOpen",
+    "midStayExtrasWindow"
   ]
 }

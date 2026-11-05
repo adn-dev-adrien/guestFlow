@@ -1,7 +1,7 @@
 {
   "id": "website-booking",
   "name": "Réservation depuis le site",
-  "version": "1.8.11",
+  "version": "1.8.12",
   "description": "Le moteur de réservation du site WordPress.",
   "icon": "language",
   "surfaces": [
@@ -13,7 +13,7 @@
   ],
   "requires": [],
   "guestflow": ">=3.10.0 <4.0.0",
-  "sdk": "^2.17.0",
+  "sdk": "^2.22.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
@@ -133,6 +133,10 @@
       "Les messages de limite et de clé d’API suivent la langue du visiteur.",
       "Une adresse e-mail ou un message perd ses caractères invisibles avant d’être enregistré.",
       "Compatible avec le SDK 2.17 de GuestFlow."
+    ],
+    "1.8.12": [
+      "Les prix et libellés des options et des ressources viennent désormais d’une projection commune de GuestFlow, partagée avec l’application clients : rien ne change sur le site.",
+      "Demande le SDK 2.22 de GuestFlow."
     ]
   }
 }

@@ -90,9 +90,9 @@ for (const [id, hits] of relying) {
       const before = `${major}.${minor - 1}.0`;
       assert.equal(satisfies(before, m.sdk), false, `${id} ${m.sdk} still loads on SDK ${before} (${h.feature})`);
     }
-    const newest = hits.map((h) => h.sdk).sort((a, b) => a.localeCompare(b, undefined, { numeric: true })).pop();
-    assert.equal(satisfies(newest, m.sdk), true, `${id} ${m.sdk} refuses SDK ${newest}`);
-    assert.ok(satisfies(SDK_VERSION, m.sdk));
+    // « This one » is the running SDK. The floor may sit above the newest hardening: a plugin can need a later
+    // SDK for another reason (website-booking 1.8.12 reads `publicCatalogProjection`, SDK 2.22.0).
+    assert.ok(satisfies(SDK_VERSION, m.sdk), `${id} ${m.sdk} refuses SDK ${SDK_VERSION}`);
     assert.ok((m.changelog[m.version] || []).some((line) => /SDK 2\.\d+/.test(line)), `${id} ${m.version} names its SDK`);
   });
 }

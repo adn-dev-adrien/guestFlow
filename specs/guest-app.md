@@ -213,9 +213,11 @@ is pushed every order.
 23. **What is sold.** Options and resources **linked to the stay's lodging** (`property_options`,
     `resource_properties`) that are flagged in `guest_app_items`, not archived, and of a price type the app
     can sell by quantity:
-    - options: `per_stay` (unit), `per_person` (unit = one person), `per_day_per_person` (unit = one
-      person-day);
-    - resources: hourly resources (`per_hour`, scheduled — the nordic bath) and quantity resources.
+    - options: `per_stay` (unit), `per_person` (unit = one person), `free` (always included), and the breakfast
+      (rule 27bis); an internal option (`displayToClient = 0`), the cancellation insurance and the auto timed
+      options (early check-in, late check-out) never;
+    - resources: hourly resources (`per_hour`, scheduled — the nordic bath) and the `per_stay`, `per_person` and
+      `free` resources, each only with an explicit `resource_properties` link to the stay's lodging.
     Other types (`per_night`, `per_person_per_night`, `percent_of_stay`, progressive tiers, cancellation
     insurance, auto timed options such as late check-out) cannot be flagged — the switch is disabled with the
     reason. An item flagged but not linked to a lodging is simply absent from that lodging's shop.
@@ -232,8 +234,9 @@ is pushed every order.
     - a per-property price of **0 €** → the item shows « Inclus » for that lodging (and its price elsewhere);
     - an option's **free units** (`property_option_prices.freeUnits`, own-channel bookings only — rule 53 of
       `tariff-recipes/spec.md`, `applyFreeUnitsToLine`) and a resource's **free minutes**
-      (`property_resource_prices.freeMinutes`) are granted **once per stay**: the server subtracts what the
-      stay already received (existing lines on the fiche, previous orders) and shows what is left
+      (`property_resource_prices.freeMinutes`) are granted **once per stay** (the stay's tariff snapshot grant wins over today's catalogue): the server
+      subtracts what the stay already received (its lines on the fiche, which already carry its confirmed, paid
+      and delivered orders, rule 34, plus the orders still awaiting payment) and shows what is left
       (« 1 h offerte avec votre séjour », « 1 h offerte — déjà utilisée »);
     - an option **offered by default** to the lodging (`property_option_defaults.offered`) that the stay
       already carries is shown « Déjà inclus dans votre séjour » and not sold again;
@@ -242,8 +245,9 @@ is pushed every order.
     An order whose quote total is **0 €** (only free / included units) needs no payment and no name: one
     button « Réserver », the order is `confirmed` and written to the fiche like a note order (rule 34).
 26. **Categories.** Items are grouped by the existing option `category` (e.g. « Boissons »,
-    « Alimentation », « Bien-être »), in the plugin's category order; hourly resources appear in
-    « Bien-être ». An empty category is not shown.
+    « Alimentation », « Bien-être »), in the core's category order (French collation, `groupOptionsByCategory`) until the studio gets a category
+    order, and inside a category by the plugin's `sortOrder`, then title; hourly resources appear in « Bien-être »;
+    items without a category and non-hourly resources come last under « Autres ». An empty category is not shown.
 27. **When the shop is open.** Exactly when the core mid-stay extras window is open for the stay
     (`midStayExtrasWindow.js`: from `startDate` until the end-of-stay complement is collected). Pre-arrival sessions see the catalogue read-only (a visitor has no shop, rule 11bis) with « Disponible pendant votre séjour ». After the
     complement is collected: « La boutique est fermée. Bon retour chez vous ! ».
@@ -251,7 +255,7 @@ is pushed every order.
     `per_person_per_night`, `utils/breakfastSeed.js`) is sellable despite rule 23's exclusion of its price
     type. Ordering it means choosing the mornings left in the stay and the hour (inside the service hours),
     written as the stay's breakfast line `cardOccurrences` and priced per person and night by the core engine;
-    it appears on the planning's `BreakfastDayCard` only, never on a « Commande app » card. A stay that already
+    it appears on the planning's `BreakfastDayCard` only, never on a « Commande client » card. A stay that already
     includes it orders it at 0 €, which only sets its mornings and hour. Staff-prepared items also follow the
     service hours of §3.G.
 
@@ -307,7 +311,7 @@ is pushed every order.
 34. **How an order lands on the fiche.** A confirmed order (note or 0 €) or a paid order (card) is written
     by the **core** as mid-stay extras on the reservation — the same write path as the operator's `PUT
     /api/reservations/:id` on a locked fiche (rules 1 and 9 of `mid-stay-extras-on-locked-fiche.md`), in one
-    transaction with the order status, with the reservation history entry « Commande app #12 ». Quantities
+    transaction with the order status, with the reservation history entry « Commande client #12 ». Quantities
     add to the existing line of the same option/resource (no duplicate line). Note orders flow into
     `endOfStayComplementDetail` with `source:'midStayExtra'` exactly like an operator addition — no new
     arithmetic.
@@ -353,7 +357,7 @@ is pushed every order.
     starts at the next opening + lead time (rule 41). An item whose last possible delivery is past check-out is shown
     « Plus disponible pour votre séjour ».
 43. **The delivery time drives the staff.** The order carries `deliverAt`; the push of rule 44 states it;
-    a planning card « Commande app » appears on the planning day of `deliverAt` (contributed by the plugin
+    a planning card « Commande client » appears on the planning day of `deliverAt` (contributed by the plugin
     through `planning.days`), with the lines and a « Livrée » check.
 
 ### 3.H Staff side
@@ -361,7 +365,8 @@ is pushed every order.
 44. **Push.** Every confirmed or paid order pushes the new channel **« Commandes clients »**
     (`guest-orders`, declared by the plugin with `ctx.pushChannel`, whose keys are kebab-case) to subscribed staff: « L'Estiva · Marie —
     2 × Cidre pour 18 h, 1 h bain nordique ven. 20 h (sur la note) ». The push opens the order in GuestFlow.
-45. **Orders list in GuestFlow.** A page *Commandes app* (contributed by the plugin; sidebar, under the
+45. **Orders list in GuestFlow.** A page *Commandes clients* (the same name as the push channel, review of
+    2026-11-05) (contributed by the plugin; sidebar, under the
     day-to-day group) lists orders by delivery time, filter « À préparer / Toutes », each row: lodging, guest,
     lines, delivery time, payment mode, status, « Marquer livrée ». Bath sessions appear in the resource
     planning as any session (rule 30).
@@ -476,7 +481,7 @@ plugins only through the functions they export to other plugins (no direct table
 | `plugins/guest-app/` | `homeHighlight.js` | C | Pure: status line + the single highlight (rules 10, 11) |
 | `plugins/guest-app/` | `soliomapFeed.js` | C | Reads Soliomap's `GET /api/activities` (outbound HTTPS, 1 h cache, 5 s timeout; a failure → no card) and picks the stay's suggestion (rule 15bis) |
 | `plugins/guest-app/` | `orderExpiryRunner.js` | C | Every minute: expire unpaid orders, release holds (rule 36) |
-| `plugins/guest-app/` | `planningCards.js` | C | `planning.days` server feed: « Commande app » cards on the delivery day (rule 43) |
+| `plugins/guest-app/` | `planningCards.js` | C | `planning.days` server feed: « Commande client » cards on the delivery day (rule 43) |
 | `plugins/guest-app/` | `migrations.js` | C | Tables of §5 |
 | `utils/` | `publicCatalogProjection.js` | C | `toPublicOption` / `toPublicResource` moved out of `website-booking/publicProjections.js` (which imports them back) so the guest app does not depend on the website plugin |
 | `plugins/sdk/createContext.js` · `coreServices.js` | — | T | Two SDK hooks: `ctx.resourceScheduler(provider)` (one provider app-wide, like `paymentProvider`) and `ctx.resourceHolds(fn)`; the core exposes `coreServices.resourceScheduler()` — plugins never `require` each other |
@@ -558,7 +563,7 @@ shape for every plugin: `{ error: 'PLUGIN_INACTIVE', plugin }`.
 | GET | `/public/v1/guest/booklet/search?q=&lang=` | idem | — | `{ results:[{slug,title,excerpt}] }` |
 | GET | `/public/v1/guest/lodging` | session or `lodgingCode` | — | `{ name, heroUrl, modules:[{key, label, order}], wifi?:{network, password, note?, joinQr}, contacts:[…] }` — only enabled modules / configured facts |
 | GET | `/public/v1/guest/gate` | stay session | — | `{ state:'active'\|'preparing'\|'outside', url? }` |
-| GET | `/public/v1/guest/shop` | session | — | `{ open, closedReason?, service:{openNow, nextOpening?, bannerLabel?}, canPayCard, canPayNote, categories:[{name, items:[{kind:'option'\|'resource', id, title, shortDescription, imageUrl, price, priceUnitLabel, included?, freeLeftLabel?, maxQuantity, needsStaff, scheduling?:'hourly', unavailableReason?}]}] }` |
+| GET | `/public/v1/guest/shop` | stay or pre-arrival session (visitor → 404 `MODULE_OFF`) | — | `{ open, closedReason?, service (slice C), canPayCard, canPayNote, categories:[{ name, items:[{ kind:'option'\|'breakfast'\|'resource', id, title, shortDescription, imageUrl, price, priceLabel, priceUnitLabel, included?, includedLeft?, freeLeftLabel?, maxQuantity, needsStaff, scheduling?:'hourly', unavailableReason? }] }] }`; a `breakfast` item adds `state:'included'\|'sold'`, `defaultTime`, `mornings:[{date,label}]`, `occurrences:[{date,time}]` |
 | GET | `/public/v1/guest/shop/resources/:id/slots?from&to` | stay session | — | `{ freeMinutesLeft, freeLabel?, days:[{date,label,closed,slots:[{start,end,state,priceLabel,reasonLabel?}]}] }` |
 | POST | `/public/v1/guest/shop/delivery-slots` | stay session | `{ lines }` | `{ asap:{at,label}, slots:[{at,label}], bannerLabel? }` |
 | POST | `/public/v1/guest/orders/quote` | stay session | `{ lines:[{kind,id,quantity?,sessions?}], deliverAt? }` | `{ lines:[{…, unitPrice, freeUnits?, total, label, unavailable?}], total, totalLabel, needsDelivery }` |
@@ -566,7 +571,8 @@ shape for every plugin: `{ error: 'PLUGIN_INACTIVE', plugin }`.
 | GET | `/public/v1/guest/orders` | stay session | — | `{ orders:[{id, createdAt, deliverAt, lines, total, payment, status, statusLabel}] }` |
 | GET | `/public/v1/guest/orders/:id` | stay session | — | one order (triggers the on-demand Qonto poll like `/booking-requests/:id/status`) |
 | GET | `/public/v1/guest/manifest.webmanifest` | — | — | manifest with the plugin's app name |
-| GET/PUT | `/api/guest-app/items/:kind/:id` | admin | `{ sold, mediaId?, shortDescriptionFr/En, maxQuantity, needsStaff, leadMinutes }` | the row — used by the editor contribution and the studio |
+| GET | `/api/guest-app/items` | admin | — | every option and resource: `{ kind, id, title, priceType, category?, archived?, sellable:{ok, reason}, sold, mediaId, shortDescriptionFr, shortDescriptionEn, maxQuantity, needsStaff, leadMinutes }` |
+| GET/PUT | `/api/guest-app/items/:kind/:id` | admin | `{ sold?, mediaId?, shortDescriptionFr?, shortDescriptionEn?, maxQuantity?, needsStaff?, leadMinutes? }` (only the keys sent are written; unknown keys refused) | the item view; 400 on a description over 140 characters, `maxQuantity` outside 1-50, `leadMinutes` outside 0-240, an unknown `mediaId`; 400 `NOT_SELLABLE` + the reason for `sold:true` on a type rule 23 excludes; `needsStaff` always false for a resource |
 | GET/PUT | `/api/guest-app/lodgings/:propertyId` | admin | `{ enabled, displayName, heroMediaId, modules:[{key, on, order}], wifi:{available, network, password, note}, contacts:[{name, role?, phone?, whatsapp?, email?}] }` — a PUT writes the keys it names; a `wifi` without `password` keeps the stored one, `''` clears it | the lodging config with `hasLodgingCode`, never the code itself (rules 11bis-11quater) |
 | POST | `/api/guest-app/studio/pages/:id/duplicate` | admin | `{ toPropertyId }` | the new independent page |
 | PUT | `/api/guest-app/studio/lodgings/:propertyId/booklet` | admin | `{ pages:[{pageId, sortOrder, published}] }` | that lodging's page order and visibility |
@@ -627,7 +633,7 @@ access proposal). The v1 charter board and prototype stay in `specs/guest-app-ma
 | Surface | Identity | Why |
 |---|---|---|
 | **Guest app** (`apps/guest/`) | **Domaine Solio — « forêt et heure dorée »**, the charter of the showcase site (`gf-site-style.php`, 2026-09, now in the site's private repo) and of the gate app (`gate-access-portier.md` / `guest-gate-access.md` §6.0) | The guest is a guest of the estate, not a user of GuestFlow. Website → booking → gate app → guest app must read as one house: same fonts, same ocre button, same night register. Tapping « Portail » hops into the gate app without a visual jolt. |
-| **Studio** (`apps/studio/`) and the **Commandes app** page | **GuestFlow « Maison »** (`design-system.md`, `design-system-reference.md`, `client/src/theme.js`) | Operator tools. Same component library (`PageActionBar`, `StatusBadge`, `EmptyState`…), same tokens, same rules (formatters, tabular figures, fullscreen dialogs on `xs`). |
+| **Studio** (`apps/studio/`) and the **Commandes clients** page | **GuestFlow « Maison »** (`design-system.md`, `design-system-reference.md`, `client/src/theme.js`) | Operator tools. Same component library (`PageActionBar`, `StatusBadge`, `EmptyState`…), same tokens, same rules (formatters, tabular figures, fullscreen dialogs on `xs`). |
 | **Studio's phone preview** | Domaine Solio | It renders the real guest components (rule 49). |
 
 What both share, so the house stays coherent: the **semantic colours** of « Maison » (success / warning /
@@ -773,7 +779,7 @@ section « Application clients » appears at the bottom of the editor: switch «
 on: photo, short description FR/EN, « Préparé par l'équipe » + « Délai de préparation (min) », « Quantité
 max. par commande ». Plugin inactive → the section does not exist.
 
-**PageActionBar:** applies to the GuestFlow admin page *Commandes app* (title « Commandes app », action
+**PageActionBar:** applies to the GuestFlow admin page *Commandes clients* (title « Commandes clients », action
 « Actualiser » `RefreshIcon` info) and to the studio pages (editor: Save « Enregistrer le brouillon »,
 Cancel, `actionsBefore` « Aperçu » and « Publier » success, `actionsAfter` « Supprimer la page » error).
 The **guest app does not use `PageActionBar`**: it is not a GuestFlow back-office page, and its app bar +
@@ -804,7 +810,9 @@ le nom et le numéro. »
   answers the generic 404 (never a 500), a confirmation without a name is a 400 that spends no attempt
 - [x] `…/guest-app-plugin-gating.unit.test.js` — rule 22: plugin inactive → 404 `PLUGIN_INACTIVE`, items
   rows kept, no core column touched
-- [ ] `…/guest-app-sellable.unit.test.js` — rules 23, 25: per price type, archived, lodging scope, 0 € in
+- [x] `…/guest-app-items.unit.test.js` (9) — rules 22, 23, 27bis: the admin routes' validation, `NOT_SELLABLE`, roles
+- [x] `…/guest-app-shop.unit.test.js` (11) — rules 11bis, 24, 25, 26, 27, 27bis: payload per lodging and language, categories, window states, visitor, `canPayCard`
+- [x] `…/guest-app-sellable.unit.test.js` (16 tests) — rules 23, 25, 27bis: per price type, archived, lodging scope, 0 € in
   one lodging and paid in the other, free units (direct only) and free minutes left after existing lines,
   offered-by-default already on the stay
 - [ ] `…/guest-app-shop-quote.unit.test.js` — rules 24, 32, 37: quote equals the fiche's pricing engine for
@@ -917,7 +925,8 @@ le nom et le numéro. »
 | Slice | State |
 |---|---|
 | A — Plugin, lodgings, sessions | Done on `feature/guest-app-plugin` (2026-11-05); may change with Q10 |
-| B-E — Server slices | In progress (the user's answer of 2026-11-05: server slices go ahead during the review) |
+| B — Sellable catalogue (server) | Done (2026-11-05): items routes, shop payload, catalogue projections moved to the core (`publicCatalogProjection`, SDK 2.22.0); full server suite 10 561 / 10 561 |
+| C-E — Server slices | In progress (the user's answer of 2026-11-05: server slices go ahead during the review) |
 | F-G — Guest app, studio | Waiting for the verdicts on the review boards v2 |
 | H — Hardening and rollout | Not started |
 | I — Booklet content | Waiting for the user's booklets |
