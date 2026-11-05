@@ -146,6 +146,7 @@ function createContext({
   });
   ctx.probe = createProbe({
     models, drivers: ctx.drivers, provisioner: ctx.provisioner, alerts: ctx.hostAlerts, now, fetchImpl, root: instances.root, today, ...(diskRatio ? { diskRatio } : {}),
+    servedSlug: (c) => ctx.controllers.customers.servedSlug(c),
   });
   ctx.weeklyRestore = createWeeklyRestore({ meta: models.meta, verifier: ctx.restoreVerifier, today });
 

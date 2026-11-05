@@ -35,20 +35,6 @@ const EMPTY_CREDENTIALS = {
   stagingToken: undefined,
 };
 
-// Where a recorded Qonto failure came from (specs/qonto-settings-in-app.md §3 rule 12).
-const ORIGIN_LABELS = {
-  test: 'test de connexion',
-  'public-payment': 'paiement depuis le site',
-  poll: 'vérification automatique',
-  'manual-link': 'lien créé à la main',
-  // specs/plugins-phase-3a-online-payment.md rule 7 — an abandoned link deactivated at Qonto.
-  'cancel-link': 'désactivation d’un lien',
-  webhook: 'notification Qonto',
-  admin: 'réglages',
-  // The control plane's renewal invoices (specs/control-plane-plans-and-access.md rule 32).
-  billing: 'facturation des abonnements',
-};
-
 const formatStamp = (iso) => {
   if (!iso) return '';
   const d = new Date(iso);
@@ -261,7 +247,7 @@ export default function PaymentsSettingsPage() {
       <Box sx={{ p: { xs: 1.5, sm: 3 }, display: 'flex', flexDirection: 'column', gap: 2, maxWidth: 900, mx: 'auto' }}>
         {health.lastError && (
           <ErrorAlert
-            message={`Dernier échec Qonto — ${health.lastError.code}${health.lastError.message ? ` : ${health.lastError.message}` : ''} (${ORIGIN_LABELS[health.lastError.origin] || health.lastError.origin}, le ${formatStamp(health.lastError.at)})`}
+            message={`Dernier échec Qonto — ${health.lastError.code}${health.lastError.message ? ` : ${health.lastError.message}` : ''} (${health.lastError.originLabel ? `${health.lastError.originLabel}, ` : ''}le ${formatStamp(health.lastError.at)})`}
           />
         )}
 
