@@ -844,5 +844,13 @@
     "extrasContentChanged",
     "isMidStayExtrasWindowOpen",
     "midStayExtrasWindow"
+  ],
+  "safeFeedFetch": [
+    "FeedFetchError",
+    "fetchPublic",
+    "readCapped"
+  ],
+  "instancePaths": [
+    "uploadsDir"
   ]
 }

@@ -11,6 +11,7 @@ const { nameMatches } = require('../nameMatch');
 const { shownModules, tilesOf } = require('../modules');
 const { chooseHighlight, openingLine, statusLine, welcomeLine } = require('../homeHighlight');
 const { setSessionCookie } = require('../middleware/guestSession');
+const { pickSuggestion } = require('../soliomapFeed');
 
 const publicHttp = sdk.coreModule('publicHttp');
 const { toParisIso } = sdk.coreModule('stayWindow');
@@ -35,7 +36,17 @@ function languageOf(req, stay) {
 
 const lodgingView = (lodging) => ({ id: lodging.propertyId, name: lodging.name, slug: lodging.slug });
 
-function buildSessionController({ lodgings, sessions, stays, orders, guestSession, soliomapUrl, now }) {
+/** Rule 18 `wifi` — the join QR a phone scans: the WIFI: scheme escapes these characters. */
+async function wifiView(wifi) {
+  const escape = (text) => String(text).replace(/([\;,:"])/g, '\\$1');
+  const type = wifi.password ? 'WPA' : 'nopass';
+  const joinQr = await QRCode.toDataURL(`WIFI:T:${type};S:${escape(wifi.network)};P:${escape(wifi.password)};;`);
+  return { network: wifi.network, password: wifi.password, ...(wifi.note ? { note: wifi.note } : {}), joinQr };
+}
+
+function buildSessionController({
+  lodgings, sessions, stays, orders, guestSession, soliomapUrl, soliomapFeed, now,
+}) {
   function factsOf(lodging) {
     return {
       ...lodgings().soldCounts(lodging.propertyId),
@@ -151,8 +162,15 @@ function buildSessionController({ lodgings, sessions, stays, orders, guestSessio
     return res.status(422).json({ error: { code: 'NAME_MISMATCH', message: 'Ce nom ne correspond pas à la réservation.', attemptsLeft: MAX_NAME_FAILURES - after.nameFailures } });
   }
 
+  /** Rule 15bis — one dated Soliomap event for a stay or pre-arrival session, while the lodging shows Soliomap. */
+  async function suggestionFor({ mode, stay, shown, at, lang }) {
+    if (!shown.some((m) => m.key === 'soliomap')) return null;
+    const activities = await soliomapFeed.activities();
+    return pickSuggestion(activities, { mode, stay, now: at, lang, soliomapUrl: soliomapUrl() });
+  }
+
   // GET /me — rule 8: this payload is the whole of what a session learns about its stay.
-  function me(req, res) {
+  async function me(req, res) {
     const { stay, window, lodging, mode, session } = req.guest;
     const lang = languageOf(req, stay);
     const at = now();
@@ -173,6 +191,7 @@ function buildSessionController({ lodgings, sessions, stays, orders, guestSessio
       orderReady: orders().deliveredRecently(stay.id, at),
       lang,
     }) : null;
+    const suggestion = await suggestionFor({ mode, stay, shown, at, lang });
     return publicHttp.ok(res, {
       ...base,
       guest: { firstName: stay.clientFirstName || '' },
@@ -183,16 +202,9 @@ function buildSessionController({ lodgings, sessions, stays, orders, guestSessio
         statusLine: statusLine(stay, window, at, lang),
       },
       nameConfirmed: Boolean(session.nameConfirmedAt),
+      ...(suggestion ? { suggestion } : {}),
       ...(highlight ? { highlight } : {}),
     });
-  }
-
-  /** Rule 18 `wifi` — the join QR a phone scans: the WIFI: scheme escapes these characters. */
-  async function wifiView(wifi) {
-    const escape = (text) => String(text).replace(/([\;,:"])/g, '\\$1');
-    const type = wifi.password ? 'WPA' : 'nopass';
-    const joinQr = await QRCode.toDataURL(`WIFI:T:${type};S:${escape(wifi.network)};P:${escape(wifi.password)};;`);
-    return { network: wifi.network, password: wifi.password, ...(wifi.note ? { note: wifi.note } : {}), joinQr };
   }
 
   // GET /lodging — a session, or the printed code in visitor mode (rule 5). Only what the lodging shows.
@@ -214,10 +226,15 @@ function buildSessionController({ lodgings, sessions, stays, orders, guestSessio
     });
   }
 
-  /** The shown keys of the request's session, for `requireModule`. */
-  const shownKeysOf = (req) => shownFor(req.guest.lodging, req.guest.mode).map((m) => m.key);
+  /** The keys a lodging shows a session of this mode. */
+  const shownKeys = (shownLodging, mode) => shownFor(shownLodging, mode).map((m) => m.key);
 
-  return { confirmName, createFromCode, lodging, lookup, me, shownKeysOf };
+  /** The shown keys of the request's session, for `requireModule`. */
+  const shownKeysOf = (req) => shownKeys(req.guest.lodging, req.guest.mode);
+
+  return {
+    confirmName, createFromCode, lodging, lookup, me, shownKeys, shownKeysOf,
+  };
 }
 
-module.exports = { buildSessionController, languageOf };
+module.exports = { buildSessionController, languageOf, wifiView };

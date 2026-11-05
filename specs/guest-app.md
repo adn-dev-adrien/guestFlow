@@ -585,7 +585,15 @@ shape for every plugin: `{ error: 'PLUGIN_INACTIVE', plugin }`.
 | POST | `/api/guest-app/studio/pages/:id/duplicate` | admin | `{ toPropertyId }` | the new independent page |
 | PUT | `/api/guest-app/studio/lodgings/:propertyId/booklet` | admin | `{ pages:[{pageId, sortOrder, published}] }` | that lodging's page order and visibility |
 | GET/PUT | `/api/guest-app/service-hours[?propertyId=]` | admin | PUT `{ weekly:{0..6 (0 = Sunday):[{from,to}]}, exceptions:[{date, closed:true} \| {date, ranges:[{from,to}]}] }` (both keys required, the whole configuration replaced) | `{ propertyId, shared, weekly, exceptions }`; 400 on more than 3 ranges, a bad `HH:MM`, start ≥ end, an overlap, a duplicate date, a closed exception with ranges |
-| GET/POST/PUT/DELETE | `/api/guest-app/studio/**` | admin | pages, blocks, media, settings, publish, `lodgings/:id/regenerate-qr`, `lodgings/:id/qr-poster.pdf` | — |
+| GET/PUT | `/api/guest-app/studio/lodgings/:id/booklet` | admin | PUT `{ pages:[{pageId, sortOrder, published}] }` (every page once) | the lodging's pages with `sharedWith`, `placeholder`, `blockCount`, plus `version`, `upToDate`, `untranslated` |
+| GET | `/api/guest-app/studio/lodgings/:id/preview?lang=` · `…/search?q=` | admin | — | the lodging's draft resolved like the guest's · search results |
+| POST | `/api/guest-app/studio/lodgings/:id/publish` | admin | — | `{ versions:[{propertyId, id, publishedAt}] }` (a shared page is patched into the other lodgings' latest version, rule 48) |
+| POST/GET/PUT/DELETE | `/api/guest-app/studio/lodgings/:id/pages`, `…/studio/pages/:id` | admin | `{ slug, title:{fr,en?}, icon?, coverMediaId? }` | the page; slug unique within one lodging's booklet |
+| POST/DELETE | `…/studio/pages/:id/placements[/:propertyId]`, `…/pages/:id/duplicate` | admin | `{ propertyId }` · `{ toPropertyId }` | share / unshare (409 on the last placement) · independent copy (blocks the target would see, `-2` on a slug clash) |
+| POST/PUT/DELETE | `…/studio/pages/:id/blocks`, `…/pages/:id/blocks/order`, `…/studio/blocks/:id` | admin | `{ type, data, onlyForPropertyIds? }` · `{ blockIds }` | the block, validated per type (rule 18), rich text sanitised |
+| GET/POST/PUT | `/api/guest-app/studio/media[/:id]` | admin | multipart `file` (JPG / PNG / WEBP, ≤ 10 MB, ≤ 50 MP) + `altFr`, `altEn` | `{ id, url, sizes:{1600,800,400}, width, height, alt }` (WebP, never enlarged) |
+| POST | `/api/guest-app/lodgings/:propertyId/regenerate-qr` | admin | — | the lodging view (never the code); the old code dies at once, live sessions survive (they are stay capabilities); 409 if the lodging is off |
+| GET | `/api/guest-app/lodgings/:propertyId/qr-poster.pdf` | admin | — | A4 PDF of `https://<guestHost>/l/<code>`; 409 if the lodging is off or the guest host is not set |
 | GET | `/api/guest-app/orders?status=` | admin/staff | — | orders list (rule 45) |
 | POST | `/api/guest-app/orders/:id/delivered` | admin/staff | — | `{ status:'delivered' }` |
 
@@ -808,7 +816,9 @@ le nom et le numéro. »
 - [x] `…/guest-app-name-match.unit.test.js` — rule 7 (accents, hyphens, second name, empty)
 - [x] `…/guest-app-sessions.unit.test.js` — rules 1, 4, 6, 8, lookup throttling, generic errors, payload
   minimisation
-- [ ] `…/guest-app-booklet.unit.test.js` — rules 16, 17, 19, 20: each lodging resolves only its own
+- [x] `…/guest-app-block-validation.unit.test.js` (8) — rule 18: shapes per type, sanitising, unavailable buttons dropped
+- [x] `…/guest-app-media.unit.test.js` (5) — limits, three WebP sizes · `…/guest-app-qr.unit.test.js` (4) — rule 1: regenerate kills the old code, poster PDF
+- [x] `…/guest-app-booklet.unit.test.js` (11) — rules 16, 17, 19, 20: each lodging resolves only its own
   placements in its own order, shared page edited once appears in both, restricted block filtered,
   duplicate diverges, per-lodging publish, draft vs published
 - [x] `…/guest-app-lodging-config.unit.test.js` — rules 11bis-11quater: module off → absent from `/me` and
@@ -838,7 +848,7 @@ le nom et le numéro. »
   branch, refusal without basket
 - [ ] `…/guest-app-gate.unit.test.js` — rules 12-14, no URL outside the window
 - [x] `…/guest-app-home.unit.test.js` — rules 10-11
-- [ ] `…/guest-app-suggestion.unit.test.js` — rule 15bis: 14 h cut-off, eve of departure, `visibleFrom`, nearest
+- [x] `…/guest-app-suggestion.unit.test.js` (9) — rule 15bis: 14 h cut-off, eve of departure, `visibleFrom`, nearest
   then soonest, multi-day label with the real end date, feed down or slow → no card, visitor → none
 
 ### Manual UI verification
@@ -935,7 +945,8 @@ le nom et le numéro. »
 | A — Plugin, lodgings, sessions | Done on `feature/guest-app-plugin` (2026-11-05); may change with Q10 |
 | B — Sellable catalogue (server) | Done (2026-11-05): items routes, shop payload, catalogue projections moved to the core (`publicCatalogProjection`, SDK 2.22.0); full server suite 10 561 / 10 561 |
 | C — Planning and service hours (server) | Done (2026-11-05): `ctx.resourceScheduler` / `ctx.resourceHolds` (SDK 2.22.0), hourly-resources 1.4.0, slots, delivery times, service hours; full server suite 10 591 / 10 591 before the last change, targeted suites green after it |
-| D-E — Server slices | In progress |
+| E — Booklet and studio API (server) | Done (2026-11-05): booklet per lodging with shared pages and versions, studio API, media, QR poster, the Soliomap suggestion (`safeFeedFetch`, `instancePaths` core modules, SDK 2.22.0); guest-app suites 186 / 186, full suite 10 631 / 10 632 (the one failure is a core baseline that fails between 0 h and 1 h Paris time on the previous commit too) |
+| D — Orders and payment (server) | Waiting for Q10 (it decides whether the bill asks the name) |
 | F-G — Guest app, studio | Waiting for the verdicts on the review boards v2 |
 | H — Hardening and rollout | Not started |
 | I — Booklet content | Waiting for the user's booklets |

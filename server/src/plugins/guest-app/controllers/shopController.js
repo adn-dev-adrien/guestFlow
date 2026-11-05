@@ -201,6 +201,9 @@ function buildShopController({ items, stayLines, orders, serviceHours, scheduler
     ].map(({ name, entries: list }) => ({ name, items: bySortOrder(list).map((e) => itemView(e.sold, context)) }));
   }
 
+  // The guest app never schedules hours itself: without the scheduler of `hourly-resources`, no bath.
+  const hourlyOffered = (row) => isOffered(row) && Boolean(scheduler());
+
   /** Rules 23, 25 — the items the stay's lodging sells, with what the stay already received. */
   function soldFor({ stay, lodging }) {
     const extras = stayLines().ofStay(stay.id);
@@ -219,10 +222,22 @@ function buildShopController({ items, stayLines, orders, serviceHours, scheduler
         optionLines: extras.optionLines,
         ...consumed,
       },
-      // The guest app never schedules hours itself: without the scheduler of `hourly-resources`, no bath.
-      hourlyOffered: (row) => isOffered(row) && Boolean(scheduler()),
+      hourlyOffered,
     });
     return { sold, extras, catalogue };
+  }
+
+  /**
+   * Rule 18 — the items a lodging's shop sells (`kind:id`), whatever a stay already received: a booklet button
+   * to an item is shown only while the item is sold there.
+   */
+  function soldKeysOf(propertyId) {
+    const sold = shopItems({
+      ...items().catalogueFor(propertyId),
+      stay: { isDirectBooking: false, grantedFreeUnitsByOption: {}, optionLines: [], ...stayConsumption({}) },
+      hourlyOffered,
+    });
+    return new Set(sold.map((s) => `${s.kind}:${Number(s.row.id)}`));
   }
 
   const scheduleOf = (lodging, at) => serviceHours().scheduleFor(lodging.propertyId, { from: parisDate(at) });
@@ -311,7 +326,7 @@ function buildShopController({ items, stayLines, orders, serviceHours, scheduler
     });
   }
 
-  return { read, slots, deliverySlots };
+  return { read, slots, deliverySlots, soldKeysOf };
 }
 
 module.exports = { buildShopController };

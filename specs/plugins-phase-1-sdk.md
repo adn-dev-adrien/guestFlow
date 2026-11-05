@@ -519,6 +519,10 @@ Optional: a plugin that declares nothing reads « Actif ».
     is logged and holds nothing) and shown as occupied by the planning, the SAS picker and outside bookings. A row of
     `plugin-core-hardening-floor.unit.test.js` makes a plugin calling them floor at `^2.22.0`. Tests:
     `resource-scheduler-hook.unit.test.js`, `guest-app-slots.unit.test.js`.
+43. *(Added 2026-11-05, specs/guest-app.md rules 15bis and 47-49, SDK 2.22.0.)* **`coreModule('safeFeedFetch')` and
+    `coreModule('instancePaths')`.** The iCal import's public-only fetch (`fetchPublic`, `readCapped`,
+    `FeedFetchError`) serves the guest app's Soliomap feed; `instancePaths` exposes `uploadsDir` for the studio's
+    media. Tests: `guest-app-suggestion`, `guest-app-media`.
 
 **Edge cases:**
 - **A plugin throws during `register`.** Rule 4 applies: the other plugins and the core boot. The Plugins

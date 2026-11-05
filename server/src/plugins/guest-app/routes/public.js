@@ -6,7 +6,9 @@
 const express = require('express');
 const { requireModule } = require('../middleware/guestSession');
 
-function buildPublicRouter({ controller, shop, guestSession, limiters }) {
+function buildPublicRouter({
+  controller, shop, booklet, guestSession, limiters,
+}) {
   const router = express.Router();
   router.use((req, res, next) => {
     res.set('Cache-Control', 'no-store');
@@ -21,6 +23,11 @@ function buildPublicRouter({ controller, shop, guestSession, limiters }) {
   router.get('/shop', ...shopRoute, shop.read);
   router.get('/shop/resources/:id/slots', ...shopRoute, guestSession.requireStay, shop.slots);
   router.post('/shop/delivery-slots', ...shopRoute, guestSession.requireStay, shop.deliverySlots);
+  // Rule 5 — the booklet reads for a session or, in visitor mode, for the printed code.
+  const bookletRoute = [limiters.read, booklet.reader, requireModule('booklet', controller.shownKeysOf)];
+  router.get('/booklet', ...bookletRoute, booklet.index);
+  router.get('/booklet/search', ...bookletRoute, booklet.search);
+  router.get('/booklet/pages/:slug', ...bookletRoute, booklet.page);
   return router;
 }
 

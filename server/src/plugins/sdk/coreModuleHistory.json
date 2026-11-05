@@ -179,7 +179,9 @@
         "stayWindow",
         "encryption",
         "publicCatalogProjection",
-        "midStayExtrasWindow"
+        "midStayExtrasWindow",
+        "safeFeedFetch",
+        "instancePaths"
       ],
       "names": {
         "rateLimiters": [

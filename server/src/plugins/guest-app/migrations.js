@@ -16,7 +16,8 @@ const TABLES_SQL = `
     wifiNetwork           TEXT,
     wifiPasswordEncrypted TEXT,
     wifiNote              TEXT,
-    contactsJson          TEXT
+    contactsJson          TEXT,
+    bookletSeededAt       TEXT
   );
   CREATE TABLE IF NOT EXISTS guest_app_items (
     kind               TEXT NOT NULL CHECK (kind IN ('option', 'resource')),
@@ -67,6 +68,7 @@ const TABLES_SQL = `
     coverMediaId INTEGER,
     titleFr      TEXT NOT NULL DEFAULT '',
     titleEn      TEXT,
+    placeholder  INTEGER NOT NULL DEFAULT 0,
     updatedAt    TEXT
   );
   CREATE TABLE IF NOT EXISTS guest_booklet_placements (
@@ -86,6 +88,7 @@ const TABLES_SQL = `
     updatedAt              TEXT
   );
   CREATE INDEX IF NOT EXISTS idx_guest_booklet_blocks_page ON guest_booklet_blocks(pageId, sortOrder);
+  CREATE INDEX IF NOT EXISTS idx_guest_booklet_placements_property ON guest_booklet_placements(propertyId, sortOrder);
   CREATE TABLE IF NOT EXISTS guest_booklet_versions (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
     propertyId   INTEGER NOT NULL,
@@ -93,6 +96,7 @@ const TABLES_SQL = `
     publishedBy  INTEGER,
     snapshotJson TEXT NOT NULL
   );
+  CREATE INDEX IF NOT EXISTS idx_guest_booklet_versions_property ON guest_booklet_versions(propertyId, id);
   CREATE TABLE IF NOT EXISTS guest_media (
     id        INTEGER PRIMARY KEY AUTOINCREMENT,
     path      TEXT NOT NULL,

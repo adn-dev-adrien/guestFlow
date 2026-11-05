@@ -14,12 +14,17 @@ const createOrdersModel = require('./models/ordersModel');
 const createItemsModel = require('./models/itemsModel');
 const createStayLinesModel = require('./models/stayLinesModel');
 const createServiceHoursModel = require('./models/serviceHoursModel');
+const createBookletModel = require('./models/bookletModel');
+const createMediaModel = require('./models/mediaModel');
+const { createSoliomapFeed } = require('./soliomapFeed');
 const { buildGuestSession } = require('./middleware/guestSession');
 const { buildSessionController } = require('./controllers/sessionController');
 const { buildLodgingsController } = require('./controllers/lodgingsController');
 const { buildItemsController } = require('./controllers/itemsController');
 const { buildShopController } = require('./controllers/shopController');
 const { buildServiceHoursController } = require('./controllers/serviceHoursController');
+const { buildBookletController, buildBookletResolver } = require('./controllers/bookletController');
+const { buildStudioController } = require('./controllers/studioController');
 const { buildPublicRouter } = require('./routes/public');
 const { buildAdminRouter } = require('./routes/admin');
 
@@ -40,8 +45,13 @@ const coreTranslator = (lang) => sdk.coreModule('translationResolver').forLang(l
 // The hourly slots come from the scheduler `hourly-resources` declares, never from that plugin's files.
 const coreScheduler = () => sdk.core.resourceScheduler();
 
+// The booklet photos sit under the instance's uploads, served by `/uploads` (specs/guest-app.md §5).
+const coreUploadsDir = () => sdk.coreModule('instancePaths').uploadsDir();
+
 function buildGuestApi({
   db, soliomapUrl, now = () => new Date(), limiters, translator = coreTranslator, scheduler = coreScheduler,
+  appName = () => null, guestHost = () => null, uploadsDir = coreUploadsDir,
+  soliomapFeed = createSoliomapFeed({ url: soliomapUrl, now }),
 }) {
   const lodgings = once(() => createLodgingsModel(db()));
   const sessions = once(() => createSessionsModel(db()));
@@ -50,15 +60,29 @@ function buildGuestApi({
   const items = once(() => createItemsModel(db()));
   const stayLines = once(() => createStayLinesModel(db()));
   const serviceHours = once(() => createServiceHoursModel(db()));
+  const booklet = once(() => createBookletModel(db()));
+  const media = once(() => createMediaModel(db()));
   const guestSession = buildGuestSession({ sessions, stays, lodgings, now });
-  const controller = buildSessionController({ lodgings, sessions, stays, orders, guestSession, soliomapUrl, now });
+  const controller = buildSessionController({
+    lodgings, sessions, stays, orders, guestSession, soliomapUrl, soliomapFeed, now,
+  });
   const shop = buildShopController({ items, stayLines, orders, serviceHours, scheduler, translator, now });
+  const resolver = buildBookletResolver({
+    booklet, media, soldKeysOf: shop.soldKeysOf, shownKeys: controller.shownKeys,
+  });
   return {
-    publicRouter: buildPublicRouter({ controller, shop, guestSession, limiters }),
+    publicRouter: buildPublicRouter({
+      controller, shop, booklet: buildBookletController({ resolver, guestSession, lodgings }), guestSession, limiters,
+    }),
     adminRouter: buildAdminRouter({
-      lodgings: buildLodgingsController({ lodgings }),
+      lodgings: buildLodgingsController({
+        lodgings, booklet, appName, guestHost, now,
+      }),
       items: buildItemsController({ items }),
       serviceHours: buildServiceHoursController({ serviceHours }),
+      studio: buildStudioController({
+        booklet, media, lodgings, resolver, uploadsDir, now,
+      }),
     }),
     sessions,
     shownKeysOf: controller.shownKeysOf,
@@ -77,6 +101,8 @@ function register(ctx) {
   const api = buildGuestApi({
     db: () => ctx.db,
     soliomapUrl: () => ctx.settings.get('soliomapUrl'),
+    appName: () => ctx.settings.get('appName'),
+    guestHost: () => ctx.settings.get('guestHost'),
     limiters: {
       session: rateLimiters.guestSessionLimiter,
       lookup: rateLimiters.guestLookupLimiter,

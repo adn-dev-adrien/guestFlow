@@ -47,12 +47,21 @@ function addStay(db, over = {}) {
 
 const passThrough = (req, res, next) => next();
 
+// No suite reaches the network: Soliomap's feed answers what the suite hands it, nothing by default.
+const NO_FEED = Object.freeze({ activities: async () => null });
+
 /** The plugin's real routers on an in-memory database, with a clock the test moves. */
-async function startApi(db, { soliomapUrl = 'https://soliomap.example.test', limiters = {} } = {}) {
+async function startApi(db, {
+  soliomapUrl = 'https://soliomap.example.test', limiters = {}, soliomapFeed = NO_FEED, uploadsDir = null, guestHost = null,
+} = {}) {
   const clock = { now: paris('2099-07-07', '12:00') };
   const api = buildGuestApi({
     db: () => db,
     soliomapUrl: () => soliomapUrl,
+    soliomapFeed,
+    appName: () => 'Domaine Solio',
+    guestHost: () => guestHost,
+    uploadsDir: () => uploadsDir,
     now: () => clock.now,
     translator: (lang) => forLang(lang, translationsModel.create(db)),
     limiters: { session: passThrough, lookup: passThrough, read: passThrough, ...limiters },

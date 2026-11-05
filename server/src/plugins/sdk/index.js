@@ -112,6 +112,10 @@ const CORE_MODULES = Object.freeze({
   publicCatalogProjection: '../../utils/publicCatalogProjection',
   // guest-app — the shop is open exactly when the fiche takes mid-stay extras (specs/guest-app.md rule 27)
   midStayExtrasWindow: '../../utils/midStayExtrasWindow',
+  // guest-app — Soliomap's feed, read like an iCal feed: public addresses only, bounded body (specs/guest-app.md rule 15bis)
+  safeFeedFetch: '../../utils/safeFeedFetch',
+  // guest-app — the booklet photos live under the instance's uploads, served by `/uploads` (specs/guest-app.md §5)
+  instancePaths: '../../utils/instancePaths',
 });
 
 function coreModule(name) {

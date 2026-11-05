@@ -110,12 +110,13 @@ function createLodgingsModel(db) {
         wifiPasswordEncrypted: patch.wifi && wifi.password !== undefined ? (encrypt(wifi.password) || null) : (row.wifiPasswordEncrypted ?? null),
         wifiNote: patch.wifi && wifi.note !== undefined ? wifi.note : (row.wifiNote ?? null),
         contactsJson: has('contacts') ? JSON.stringify(patch.contacts) : (row.contactsJson ?? null),
+        bookletSeededAt: row.bookletSeededAt ?? null,
       };
       db.prepare(`
         INSERT OR REPLACE INTO guest_app_lodgings
-          (propertyId, enabled, lodgingCode, displayName, heroMediaId, modulesJson, wifiAvailable, wifiNetwork, wifiPasswordEncrypted, wifiNote, contactsJson)
+          (propertyId, enabled, lodgingCode, displayName, heroMediaId, modulesJson, wifiAvailable, wifiNetwork, wifiPasswordEncrypted, wifiNote, contactsJson, bookletSeededAt)
         VALUES
-          (@propertyId, @enabled, @lodgingCode, @displayName, @heroMediaId, @modulesJson, @wifiAvailable, @wifiNetwork, @wifiPasswordEncrypted, @wifiNote, @contactsJson)
+          (@propertyId, @enabled, @lodgingCode, @displayName, @heroMediaId, @modulesJson, @wifiAvailable, @wifiNetwork, @wifiPasswordEncrypted, @wifiNote, @contactsJson, @bookletSeededAt)
       `).run(next);
       return get(id);
     })();
@@ -142,12 +143,30 @@ function createLodgingsModel(db) {
     };
   }
 
+  /**
+   * Rule 1 — a new code for an enabled lodging: the old one answers like an unknown code from now on, and every
+   * poster printed with it is dead. → the new code, or null for a lodging not in the app.
+   */
+  function regenerateCode(propertyId) {
+    const code = generateLodgingCode();
+    const changed = db.prepare('UPDATE guest_app_lodgings SET lodgingCode = ? WHERE propertyId = ? AND enabled = 1').run(code, Number(propertyId)).changes;
+    return changed ? code : null;
+  }
+
+  /** The code the poster prints — only for an enabled lodging; never over the JSON API. */
+  function codeOf(propertyId) {
+    const row = db.prepare('SELECT lodgingCode FROM guest_app_lodgings WHERE propertyId = ? AND enabled = 1').get(Number(propertyId));
+    return (row && row.lodgingCode) || null;
+  }
+
   function mediaPath(mediaId) {
     const row = mediaId ? db.prepare('SELECT path FROM guest_media WHERE id = ?').get(Number(mediaId)) : null;
     return row ? row.path : null;
   }
 
-  return { findEnabled, findEnabledByCode, get, mediaPath, save, soldCounts };
+  return {
+    codeOf, findEnabled, findEnabledByCode, get, mediaPath, regenerateCode, save, soldCounts,
+  };
 }
 
 module.exports = createLodgingsModel;
