@@ -52,7 +52,8 @@ export default function SettingsCompanySection({
               onUpload={onUploadLogo}
               onDelete={onDeleteLogo}
               disabled={disabled}
-              helperText="Affiché sur les devis et dans l’onglet du navigateur. 2 Mo maximum."
+              accept="image/png,image/jpeg"
+              helperText="Affiché sur les devis et dans l’onglet du navigateur. PNG ou JPEG, 2 Mo maximum."
             />
           </Box>
 

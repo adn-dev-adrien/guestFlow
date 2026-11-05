@@ -50,7 +50,16 @@ UX kept simple: **one page, three cards stacked, all fields editable inline**, w
 
 ### Société (Informations sur votre activité)
 7. All fields optional. The form can be entirely empty without blocking save.
-8. Logo: image upload (PNG/JPEG/WEBP, ≤2 MB). Stored as `server/uploads/company-logo.<ext>`; path persisted as `companyLogoPath`. Delete removes the file from disk and clears the path. Logo upload/delete commit immediately (independent of the Save button).
+8. Logo: image upload (PNG/JPEG, ≤2 MB). Stored as `server/uploads/company-logo.<ext>`; path persisted as `companyLogoPath`. Delete removes the file from disk and clears the path. Logo upload/delete commit immediately (independent of the Save button).
+    *Corrected 2026-11-05 (audit R24-I1):* the rule promised WEBP, and GIF was accepted too, but the devis PDF prints
+    PNG and JPEG only: one WEBP or GIF logo made every devis PDF answer 500. The upload now takes a PNG or a JPEG, judged
+    on its name, its type and its first bytes, and the image must decode whole; else 400 « Logo en PNG ou JPEG
+    uniquement. », and the stored logo is left as it was (the file is held in memory until judged). Any other upload
+    failure answers « Fichier non enregistré. », never the library's or the disk's text. A new logo removes the
+    `company-logo.*` files of the other extensions, so no former logo stays public. A logo already stored that the PDF
+    cannot read (WEBP, GIF, truncated, garbled) leaves the devis without its logo and writes a `[devisPdf] logo` line to
+    the server log; the PDF is still served. The picker offers PNG and JPEG and says so under the field. Tests:
+    `tests/logo-upload-formats.unit.test.js`, `client/src/components/__tests__/SettingsCompanySection.logo-formats.test.jsx`.
 9. **Server-side validation** when non-empty:
     - Email → basic email regex.
     - SIRET → exactly 14 digits (whitespace tolerated, stripped before validation).
@@ -129,7 +138,7 @@ UX kept simple: **one page, three cards stacked, all fields editable inline**, w
 |---|---|---|---|
 | GET | `/api/settings` | — | `{ company: { name, address, email, phone, siret, tva, iban, bic, bankName, logoPath }, quote: { footerText, validityDays }, updatedAt, updatedAtLabel }` — the `googleCalendar` group was **removed 2026-07-18** ([[google-calendar-oauth-rework]]) |
 | PUT | `/api/settings` | `{ company?: {...}, quote?: {...} }` (per-group; field omitted → preserved) — `googleCalendar?` **no longer accepted** (2026-07-18) | Same shape as GET on success. `400 { code: 'SETTINGS_INVALID', errors: { fieldName: frenchMessage } }` on validation failure. |
-| POST | `/api/settings/logo` | multipart with `logo` file (≤ 2 MB, image MIME) | `{ company: { logoPath } }` |
+| POST | `/api/settings/logo` | multipart with `logo` file (≤ 2 MB, PNG or JPEG by name, MIME and first bytes; rule 8) | `{ company: { logoPath } }`; 400 `{ error }` refused, stored logo kept |
 | DELETE | `/api/settings/logo` | — | `{ company: { logoPath: '' } }` |
 | POST | `/api/google-calendar/test-connection` | — | Reworked to the OAuth path — see [[google-calendar-oauth-rework]] §4.3 |
 
@@ -246,7 +255,7 @@ No schema change. The existing `app_settings` table (singleton, 15+ columns incl
 - Sub-label: `Logo de votre activité`
 - Logo placeholder: `Aucun logo`
 - Logo buttons: `Choisir un logo` / `Remplacer le logo`; delete tooltip: `Supprimer le logo`
-- Logo helper: `Ce logo apparaît sur vos devis et sert de favicon. Max 2 Mo.`
+- Logo helper: `Affiché sur les devis et dans l’onglet du navigateur. PNG ou JPEG, 2 Mo maximum.` (rule 8, 2026-11-05)
 - Field: `Raison sociale` — helper `Nom officiel de votre entreprise.`
 - Field: `Adresse` — helper `Vous pouvez utiliser des retours à la ligne.`
 - Field: `Email professionnel`

@@ -185,6 +185,12 @@ will store or bill, answered live while the operator draws a range or places a b
     soirée de l'étape « Planifier » déduit ce que la prestation vendue facture déjà. »). The thirteen
     other plugins keep `^2.0.0`, which 2.2.0 satisfies; `sas` 1.5.0 also moves to `^2.2.0` (its hook imports `useLatestPreview`): no bump for them.
 23. **A booking's fields are judged before anything is read with them** (audit R23-A2, R23-A3, 2026-11-05), on the preview, the create and the update, the plugin's own checks (`hourly-resources` 1.3.6): `startTime`, `endTime` `HH:MM`, a stored time sent back exempt on the update, not on the preview, which has no row to compare with and refuses a stored odd time (L2; production copy of 22/10: none of 3 rows); `date` a string (rule 4's window then applies); `resourceId`, `bookingId`, `reservationId`, `clientId`, `propertyId` a positive id or its digits, the optional ones `null` or empty for none, else 400; a well-typed id that names no row 404, its name in the message; `clientName`, `clientPhone`, `notes` text; `paid` true, false, 1, 0 or absent; `displayedTotal` a number, its text or not sent. They used to answer 500 (`timeStr.split`, `SQLite3 can only bind`, a foreign key) or store `99:99` and `paid` from an object. The dialog sends these shapes (`propertyId` `''` on the preview). Test: `plugins/hourly-resources/tests/booking-input-shape.unit.test.js`.
+    *Reading of 2026-11-05 (audit R24-P3):* a booking ends after it starts. On the preview, the create and the
+    update, an `endTime` at or before `startTime` answers 400 « L’heure de fin doit suivre l’heure de début. »,
+    whatever the resource's minimum duration, unless both times are the stored ones (an update that does not send
+    them, or sends them back; a preview of that booking). A minimum of 0 let `12:00 → 10:00` be stored at 0 €, and an
+    update turn a 5 € booking into 0 €. Hours outside opening are not judged here. `hourly-resources` 1.3.7. Test:
+    `plugins/hourly-resources/tests/booking-chronological.unit.test.js`.
 
 **Edge cases:**
 - Range not yet complete (start without end) → no request; the summary shows « Sélectionnez un

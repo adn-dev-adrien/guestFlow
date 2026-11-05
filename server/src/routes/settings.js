@@ -29,10 +29,19 @@ const handle = (fn) => (req, res, next) => Promise.resolve(fn(req, res)).catch(n
 
 router.put('/', handle(settingsController.updateSettings));
 
-router.post('/logo', (req, res) => {
+// specs/settings.md rule 8 — the format and size refusals are ours; any other failure answers a fixed message,
+// never a library's or the disk's text.
+function logoUploadRefusal(err) {
+  if (err.code === 'LOGO_FORMAT') return logoUpload.LOGO_FORMAT_REFUSAL;
+  if (err.code === 'LIMIT_FILE_SIZE') return 'Logo trop volumineux (2 Mo maximum).';
+  console.error('[settings.logo] upload', err && err.code);
+  return 'Fichier non enregistré.';
+}
+
+router.post('/logo', (req, res, next) => {
   logoUpload.single('logo')(req, res, (err) => {
-    if (err) return res.status(400).json({ error: err.message || 'Erreur upload logo.' });
-    return settingsController.uploadLogo(req, res);
+    if (err) return res.status(400).json({ error: logoUploadRefusal(err) });
+    return Promise.resolve(settingsController.uploadLogo(req, res)).catch(next);
   });
 });
 

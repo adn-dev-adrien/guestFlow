@@ -26,7 +26,9 @@ const { shapeResponse } = require('../utils/settingsResponse');
 const validation = require('../utils/settingsValidation');
 const { validateSocialLinks, validateSocialUrl, networkOf, instagramUrlOf, mergeLegacyInstagram, parseSocialLinks } = require('../utils/socialLinks');
 const { validateRevenueGoals, mergeRevenueGoals } = require('../utils/revenueGoals');
-const { uploadsDir } = require('../middleware/multerLogoUpload');
+const { uploadsDir, LOGO_FORMAT_REFUSAL } = require('../middleware/multerLogoUpload');
+const { allowedExtension, bytesMatchImageName, ALLOWED } = require('../utils/uploadSafety');
+const { logoDecodes } = require('../utils/logoImage');
 const { createEmailService } = require('../utils/emailService');
 const { resolveEmailIdentity } = require('../utils/emailIdentity');
 const { createSmtpDetector, detectionMessage } = require('../utils/smtpPresets');
@@ -337,11 +339,31 @@ async function updateSettings(req, res) {
   return res.json({ ...shapeResponse(row, process.env, vatRegimeModel.inForceBlock(db)), vatNotRepriced: notRepriced });
 }
 
-function uploadLogo(req, res) {
+// Every extension a logo was ever stored under: WEBP and GIF were accepted before 2026-11-05.
+const LOGO_EXTENSIONS = [...ALLOWED.image.ext, '.webp', '.gif'];
+
+// specs/settings.md rule 8 — judged on its first bytes before anything is written; once stored, the company-logo
+// files of the other extensions go, so no former logo stays public.
+async function uploadLogo(req, res) {
   if (!req.file) {
     return res.status(400).json({ error: 'Aucun fichier fourni.' });
   }
-  const logoPath = `/uploads/${req.file.filename}`;
+  if (!bytesMatchImageName(req.file.buffer, req.file.originalname) || !(await logoDecodes(req.file.buffer))) {
+    return res.status(400).json({ error: LOGO_FORMAT_REFUSAL });
+  }
+  const filename = `company-logo${allowedExtension(req.file.originalname, 'image', '.png')}`;
+  try {
+    fs.writeFileSync(path.join(uploadsDir, filename), req.file.buffer);
+  } catch (err) {
+    console.error('[settings.logo] write', err && err.code);
+    return res.status(500).json({ error: 'Fichier non enregistré.' });
+  }
+  for (const ext of LOGO_EXTENSIONS) {
+    const other = `company-logo${ext}`;
+    if (other === filename) continue;
+    try { fs.rmSync(path.join(uploadsDir, other), { force: true }); } catch (_) { /* best-effort */ }
+  }
+  const logoPath = `/uploads/${filename}`;
   settingsModel.updateLogoPath(logoPath);
   return res.json({ company: { logoPath } });
 }

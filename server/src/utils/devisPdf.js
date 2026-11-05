@@ -15,7 +15,7 @@ const {
 } = require("./devisHelpers");
 const { labels } = require("./devisPdfLabels");
 const { isDirectChannel } = require("./platformNameFormat");
-const { uploadsDir } = require("./instancePaths");
+const { readableLogo } = require("./logoImage");
 const { DEFAULT_RATE: DEFAULT_VAT_RATE } = require("../models/vatRegimeModel");
 
 // specs/ui-review-2026-10-19-operations.md rule 17 — the « Maison » tokens of client/src/theme.js:
@@ -252,7 +252,12 @@ function resolveRowGeometry({
   };
 }
 
-function generateDevisPdf(full, settings, quote) {
+// specs/settings.md rule 8 — a stored logo the PDF cannot read leaves the devis without it, never without a PDF.
+async function generateDevisPdf(full, settings, quote) {
+  return renderDevisPdf(full, settings, quote, await readableLogo(settings));
+}
+
+function renderDevisPdf(full, settings, quote, logoBytes) {
   return new Promise((resolve, reject) => {
   // 2026-06-06 — bilingual rendering (specs/devis-english-language.md). The devis row
   // carries `pdfLanguage` ('fr' default, 'en' opt-in). Every literal goes through `L.<key>`
@@ -333,7 +338,14 @@ function generateDevisPdf(full, settings, quote) {
   // ── Logo (zone blanche au-dessus de la bande) ────────────────────────────
   const LOGO_H = 60;
   const LOGO_W = 100;
-  const HAS_LOGO = settings.companyLogoPath && fs.existsSync(path.join(uploadsDir(), path.basename(settings.companyLogoPath)));
+  const logo = (() => {
+    if (!logoBytes) return null;
+    try { return doc.openImage(logoBytes); } catch (err) {
+      console.error('[devisPdf] logo format not printable, PDF without it:', err && err.message);
+      return null;
+    }
+  })();
+  const HAS_LOGO = Boolean(logo);
   const BAND_TOP = 40;
   const BAND_HEIGHT = 52;
 
@@ -370,8 +382,7 @@ function generateDevisPdf(full, settings, quote) {
   const EMETTEUR_WIDTH = HAS_LOGO ? PAGE_W * 0.55 - LOGO_W - 12 : PAGE_W * 0.55;
 
   if (HAS_LOGO) {
-    const logoAbsPath = path.join(uploadsDir(), path.basename(settings.companyLogoPath));
-    doc.image(logoAbsPath, LEFT, INFO_TOP, { height: LOGO_H, width: LOGO_W, fit: [LOGO_W, LOGO_H], align: 'left', valign: 'center' });
+    doc.image(logo, LEFT, INFO_TOP, { height: LOGO_H, width: LOGO_W, fit: [LOGO_W, LOGO_H], align: 'left', valign: 'center' });
   }
 
   // Company info (right of logo, or at LEFT if no logo)
