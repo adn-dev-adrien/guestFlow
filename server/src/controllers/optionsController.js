@@ -50,7 +50,9 @@ function insuranceFlagRefused(req, res) {
 // first (rule 15), so an invisible, switched-off line can never block a save.
 function validationRefused(req, res, stored = null) {
   req.body = cleanOptionText(req.body, stored);
-  const details = validateOptionPayload(scopePayload(req.body), { knownPropertyIds: propertiesModel.list().map((p) => p.id), stored });
+  const details = validateOptionPayload(scopePayload(req.body), {
+    knownPropertyIds: propertiesModel.list().map((p) => p.id), stored, storedFreeUnits: stored?.propertyFreeUnits || {},
+  });
   if (details.length === 0) return false;
   res.status(422).json({ error: 'VALIDATION_FAILED', details });
   return true;

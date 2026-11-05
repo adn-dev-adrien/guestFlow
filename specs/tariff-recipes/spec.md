@@ -666,6 +666,14 @@ all-inclusive pricing as the first such recipe.
     replayed, so re-applying a recipe leaves `storedDrift` false; and a platform stay is compared with the
     « Prix plateformes » grid of its channel (rules 31-34bis), never with the direct tariff, so a recipe
     change that moves the grid moves the check only for the nights priced on today's seasons.
+69. **An option save keeps the free units its rows hold** (audit R24-DB-1, 2026-11-05). `property_option_prices.freeUnits` is
+    written by the recipe (rule 51) and never shown nor sent by the option editor, whose save replaces the per-property prices:
+    each row it writes again keeps the free units it held. A save that would drop a row holding free units (its price blanked,
+    the property no longer proposed, a price type with no per-property price) is refused 422 on `propertyPrices.<propertyId>`
+    with « Prix requis : unités offertes », nothing written. `GET /api/options/:id` carries `propertyFreeUnits`
+    (`{ [propertyId]: n }`, rows holding some), read by that check. *Why:* any « Enregistrer » on the apple juice, a description
+    fix included, set its free unit to 0: 5 € more on every new direct stay of the Lodge and its welcome pack gone, with no way
+    back in the app. Test: `option-free-units`.
 
 ## 4. Architecture
 
@@ -698,6 +706,9 @@ Full code map in [architecture.md](architecture.md). Summary:
   replayed tier table stored verbatim (67); `models/reservationsModel.js` — `refreshTariffSnapshot`
   stores the engine's snapshot as is; `controllers/reservationsController.js` refreshes it whenever the
   save writes the extras (66).
+- **Audit R24-DB-1 (rule 69):** `models/optionsModel.js` — `freeUnitsFor`, `persistPropertyPrices` re-inserts each row with its
+  free units, `get` carries `propertyFreeUnits`; `utils/optionValidation.js` — the `freeUnitsNeedPrice` refusal;
+  `controllers/optionsController.js` hands `storedFreeUnits` to it. No client change: the editor prints the 422 under the field.
 
 ## 5. Data model
 
