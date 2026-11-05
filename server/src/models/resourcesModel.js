@@ -9,9 +9,9 @@
 const db = require('../database');
 const { sentenceCase, capitalizeFirst } = require('../utils/textFormatters');
 const { isBabyBedResource } = require('../utils/babyBedResource');
+const { peakCotsHeld, peakResourceHeld } = require('../utils/stockPeak');
 
 const DEFAULT_OPEN_DAYS = '[0,1,2,3,4,5,6]';
-const OVERLAP = 'r.startDate < ? AND r.endDate > ?';
 
 function createModel(database) {
   // Hourly scheduling + time-banded grid (specs/resource-hourly-scheduling.md). Guarded so minimal
@@ -150,18 +150,7 @@ function createModel(database) {
   function computeAvailability(resourceId, startDate, endDate, excludeReservationId) {
     const resource = database.prepare('SELECT * FROM resources WHERE id = ?').get(resourceId);
     if (!resource) return null;
-    let sql = `
-      SELECT COALESCE(SUM(rr.quantity), 0) as reserved
-      FROM reservation_resources rr
-      JOIN reservations r ON r.id = rr.reservationId
-      WHERE r.kind = 'reservation' AND rr.resourceId = ? AND ${OVERLAP}
-    `;
-    const params = [resourceId, endDate, startDate];
-    if (excludeReservationId) {
-      sql += ' AND rr.reservationId != ?';
-      params.push(excludeReservationId);
-    }
-    const reserved = database.prepare(sql).get(...params)?.reserved || 0;
+    const reserved = peakResourceHeld(database, { resourceId, startDate, endDate, excludeId: excludeReservationId });
     return { resource, reserved, available: Math.max(0, Number(resource.quantity) - Number(reserved)) };
   }
 
@@ -193,12 +182,7 @@ function createModel(database) {
     const totalQuantity = resources.reduce((sum, r) => sum + Number(r.quantity || 0), 0);
     const hasGlobal = resources.some((r) => r.scopedIds.length === 0);
 
-    let sql = "SELECT COALESCE(SUM(COALESCE(babyBeds, 0)), 0) as reserved FROM reservations WHERE kind = 'reservation' AND startDate < ? AND endDate > ?";
-    const params = [endDate, startDate];
-    if (!hasGlobal && propertyId) { sql += ' AND propertyId = ?'; params.push(propertyId); }
-    if (excludeReservationId) { sql += ' AND id != ?'; params.push(Number(excludeReservationId)); }
-
-    const reserved = database.prepare(sql).get(...params)?.reserved || 0;
+    const reserved = peakCotsHeld(database, { startDate, endDate, propertyId: hasGlobal ? null : propertyId, excludeId: excludeReservationId });
     return { totalQuantity, reserved, available: Math.max(0, Number(totalQuantity) - Number(reserved)) };
   }
 

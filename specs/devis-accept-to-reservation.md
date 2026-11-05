@@ -67,6 +67,16 @@ reservation editor.
    nothing and leaves the devis as it was. The **paid-link path** (`paymentPollRunner`) passes
    `{ allowConflict: true }`: the money is already in, so the stay is created and flagged
    `bookingConflictAt` with the admin notification, as before (`specs/online-payments-qonto.md` §3.3).
+10. **A conversion checks the stock** _(added 2026-11-05, audit R23-1)_. A devis holds no stock, so the
+   conversion is the only place left to judge it. After the dates (rule 9), under the same condition,
+   `convertToReservation` judges the devis's cots and its resource lines (every price type but
+   `per_hour`) with `reservationsModel.heldStockRefusal`, on the peak of `specs/reservations-backend-mvc.md`
+   rule 21. Past the stock: `409 STOCK_UNAVAILABLE` with the words of a new stay (« Lits bébé indisponibles:
+   0 restant(s) pour cette période. », « Ressource 'X' indisponible: … »), nothing created, the devis as it
+   was. Only the stock is judged: a party smaller than its cots is the devis save's matter. The **paid-link
+   path** keeps `{ allowConflict: true }` and converts: the money is in. The fiche shows the refusal as any
+   other. *Why:* the same stay refused as a direct POST converted 200, 4 cots out of 3, with no warning.
+   Test: `server/src/tests/conversion-and-restore-judge-stock.unit.test.js`.
 
 **Edge cases:**
 - Save validation fails (no client/dates/property, conflicts, capacity/min-nights refused) → conversion
@@ -89,7 +99,7 @@ reservation editor.
 |---|---|---|---|
 | `routes/` | `devis.js` | — | `POST /:id/convert-to-reservation` unchanged — already creates the reservation, marks the devis converted, returns `reservationId`. |
 
-No server change. No new dependency.
+No server change at the time of this spec. No new dependency. *Since 2026-10-28:* `models/devisModel.js` `convertToReservation` judges the dates (rule 9). *Since 2026-11-05:* it judges the stock through `models/reservationsModel.js` `heldStockRefusal` (rule 10).
 
 ### 4.2 Client side (`client/src/`)
 
@@ -140,6 +150,7 @@ updates `devis.status`/`devis.convertedReservationId` — all pre-existing.
 ### Server unit tests
 - [x] N/A — no server change. Existing suite stays green (257).
 - [x] `devis-convert-availability.unit.test.js` (5, 2026-10-28): rule 9 — refusal over a taken range, the HTTP 409, free dates convert, a closure refuses, the paid-link path converts and flags.
+- [x] `conversion-and-restore-judge-stock.unit.test.js` (12, 2026-11-05): rule 10 (8 cases, past the stock, stock left, stays that never meet, hourly, party not judged, dates first, paid link) and `calendar-property-parity` rule 31 (4 cases).
 
 ### Manual UI verification
 - [x] Devis editor no longer shows "Passer en réservation" (verified in browser).

@@ -1306,11 +1306,15 @@ function createModel(database) {
 
     if (!options.allowConflict) {
       const { getNightBlocksFromTimes } = require('../utils/occupancy');
-      const unavailable = require('./reservationsModel').create(database).validateAvailability(
+      const reservations = require('./reservationsModel').create(database);
+      const unavailable = reservations.validateAvailability(
         devisRow.propertyId, devisRow.startDate, devisRow.endDate, devisRow.checkInTime, devisRow.checkOutTime,
         null, getNightBlocksFromTimes(devisRow.checkInTime, devisRow.checkOutTime), { allowPastDates: true },
       );
       if (unavailable) return { error: unavailable.error, status: 409, code: 'DATES_UNAVAILABLE' };
+      // Rule 10 — a devis holds no stock: this is the only place left to judge it.
+      const noStock = reservations.heldStockRefusal(devisRow);
+      if (noStock) return { error: noStock, status: 409, code: 'STOCK_UNAVAILABLE' };
     }
 
     const tx = database.transaction(() => {

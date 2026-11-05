@@ -18,6 +18,7 @@ const {
 } = require('../utils/reservationQuoteContext');
 const { resolvePlatformPaidGuests, resolvePlatformPaidAdults, resolvePlatformPaidOccupants } = require('../utils/platformPaidGuests');
 const { validateFinanceInputs, validateStayFinance, financeErrorBody } = require('../utils/financeValidation');
+const { cotsRefusal, resourceRefusal } = require('../utils/stockPeak');
 const { stayDatesRefusal, stayDatesRefusalBody, stayItemDatesRefusal } = require('../utils/stayDates');
 const { checkPlanningRange } = require('../utils/planningDateRange');
 const { parseGroup, collectibleArrivalBuckets } = require('../utils/arrivalPaymentGroup');
@@ -361,7 +362,7 @@ function checkBabyBeds({ propertyId, startDate, endDate, children, babies, babyB
   }
   const babyAvailable = model.getBabyBedAvailability(propertyId, startDate, endDate, excludeId);
   if (babyBedsCount > babyAvailable) {
-    return `Lits bébé indisponibles: ${babyAvailable} restant(s) pour cette période.`;
+    return cotsRefusal(babyAvailable);
   }
   return null;
 }
@@ -376,7 +377,7 @@ function insertResourceLines(reservationId, quote, { propertyId, startDate, endD
       const reserved = model.getResourceReservedQuantity(rr.resourceId, startDate, endDate, excludeId);
       const available = Number(resource.quantity) - Number(reserved);
       if (Number(rr.quantity || 0) > available) {
-        return { status: 409, body: { error: `Ressource '${resource.name}' indisponible: ${available} restant(s) pour cette période.` } };
+        return { status: 409, body: { error: resourceRefusal(resource.name, available) } };
       }
     }
     const unitPrice = rr.unitPrice !== undefined ? Number(rr.unitPrice) : Number(resource.price || 0);
@@ -1873,6 +1874,13 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
   // Data invariant: never persist an empty platform — see `normalisePlatform`.
   req.body.platform = normalisePlatform(req.body.platform);
 
+  // specs/reservations-backend-mvc.md rule 23 — a blank time is not sent: the stay keeps its own, as a devis does.
+  if (storedBefore && (!req.body.checkInTime || !req.body.checkOutTime)) {
+    const defaultTimes = model.getPropertyDefaultTimes(storedBefore.propertyId) || {};
+    if (!req.body.checkInTime) req.body.checkInTime = storedBefore.checkInTime || defaultTimes.checkInTime;
+    if (!req.body.checkOutTime) req.body.checkOutTime = storedBefore.checkOutTime || defaultTimes.checkOutTime;
+  }
+
   const id = Number(req.params.id);
 
   const cancelled = readOnlyRefusal(db, id);
@@ -2807,10 +2815,10 @@ async function remove(req, res) {
 }
 
 // POST /api/reservations/:id/restore — « Rétablir » on a duplicate set aside (specs/calendar-property-parity.md
-// rules 22, 24). The dates must still be free: another stay may have been booked on them since.
+// rules 22, 24, 31). The dates and the stock must still be free: another stay may have been booked on them since.
 function restoreSuperseded(req, res) {
   const id = Number(req.params.id);
-  const row = db.prepare('SELECT id, kind, propertyId, startDate, endDate, checkInTime, checkOutTime, blocksPreviousNight, blocksNextNight FROM reservations WHERE id = ?').get(id);
+  const row = db.prepare('SELECT id, kind, propertyId, startDate, endDate, babyBeds, checkInTime, checkOutTime, blocksPreviousNight, blocksNextNight FROM reservations WHERE id = ?').get(id);
   if (!row) return res.status(404).json({ error: 'Réservation non trouvée' });
   if (row.kind !== 'superseded') return res.status(400).json({ error: "Cette réservation n'est pas un doublon écarté." });
   // Rule 13 — a restore enters no date: its stored ones are never held to the horizon.
@@ -2822,6 +2830,9 @@ function restoreSuperseded(req, res) {
     { allowPastDates: true },
   );
   if (taken) return res.status(409).json({ error: 'Ces dates sont déjà prises.' });
+  // Rule 31 — set aside it held no stock, so coming back takes some.
+  const noStock = model.heldStockRefusal(row);
+  if (noStock) return res.status(409).json({ error: noStock, code: 'STOCK_UNAVAILABLE' });
   db.transaction(() => {
     model.restoreSuperseded(id);
     withdrawForStay(db, id);

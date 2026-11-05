@@ -54,7 +54,7 @@ UI redesign: replace `DataPageScaffold` with the shared `PageActionBar` (sticky 
 5. `propertyId IS NULL` = **global closure** (applies to every property). Cannot overlap with any reservation across all properties, nor with any other closure (global or per-property).
 6. `propertyId = X` = **per-property closure** (applies only to property X). Cannot overlap with any reservation on property X, nor with any global closure, nor with any other closure on property X.
 7. Two per-property closures on **different** properties can overlap freely (they don't conflict).
-8. Conflict detection uses the same night-block semantics as the existing code: early check-in (≤ 10h) extends the reservation's effective start to the previous day; late check-out (≥ 17h) extends the effective end to the next day.
+8. Conflict detection uses the same night-block semantics as the existing code: early check-in (≤ 10h) extends the reservation's effective start to the previous day; late check-out (≥ 17h) extends the effective end to the next day. *Reading of 2026-11-05 (audit R23-3):* ≤ 10h is judged in minutes, so 10:30 does not take the night before (`specs/reservations-backend-mvc.md` rule 22).
 
 ### Validation (server-side)
 
