@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Implemented (server; the UI round follows, §4.2) |
+| **Status** | Implemented |
 | **Branch** | `feature/hc-l3` (integrated through `feature/finance-reporting-hippocamp`) |
 | **Created** | 2026-11-05 |
 | **Author** | Adrien |
@@ -137,6 +137,32 @@ server.
     `hero.occupiedNights`, `occupancyAll`, `comparison`. A test pins the payload produced before this
     spec on a fixed fixture.
 
+### 3.6 UI (round 2, 2026-11-05)
+
+15. **Every tile and hero figure has its « i ».** With the new payload, the six tiles and the hero's
+    figures carry a definition (`DefinitionButton`, report grammar rule 2), written in
+    `constants/financeDefinitions.js`. A definition names its source when the figure reads money
+    (D-HC8): « Sur les encaissements : … » for « Encaissé », « Sur les montants des séjours : … » for
+    the others. The source is stated in the definitions, not as an extra caption on each panel: the
+    hero and the tiles already say what they count, and a caption on every card added noise.
+16. **The year-over-year pill.** « Encaissé » and « Réservations » (tiles) and « nuits vendues »,
+    « taux d'occupation », « revenu moyen / nuit » and « RevPAR » (hero) show the pill of report
+    grammar rule 3 from `comparison.metrics.<key>`: the server's change, in « pt » for the occupancy,
+    and last year's value formatted like the figure (one decimal for a rate). A metric that does not
+    compare reads « — vs N-1 ». « À encaisser », « En retard », « Logements », « Canaux » and « en
+    direct » have no pill (rule 8). The revenue keeps its existing badge (`hero.yoy`). The hero's grid
+    gains « RevPAR · par nuit ouverte » and « nuits ouvertes » (rules 1-2): six figures, two by row.
+    Labels follow rule 25 of the dashboard: « revenu moyen / nuit », never « prix ».
+17. **One notice.** `NoComparisonNotice` shows `comparison.notice` once, under the hero, above the
+    pills it explains; nothing when the server sends none.
+18. **Occupancy chart, last year dashed.** The « Taux d'occupation » card draws `occupancyAll` first
+    as a `TrendChart` (this exercise solid with its area, last exercise dashed, named by the
+    exercises' labels, months by their short name, « ⋯ » menu with the table view and the copy), in the
+    selected logement's colour when one is selected. The per-logement small multiples follow under
+    « Par logement » while the scope has more than one logement; with one logement they would repeat
+    the chart and are not drawn. Last year's series is omitted when no month of it compares. An older
+    payload without `occupancyAll` / `comparison` renders the page exactly as before.
+
 **Edge cases:**
 - Window wholly closed → `openNights: 0`, `revPar: null`, occupancy comparison `noCurrentValue` or
   `noPreviousValue`.
@@ -166,15 +192,24 @@ server.
 
 ### 4.2 Client side (`client/src/`)
 
-This first round ships the server only. The UI round (after lot 0's shared components) consumes the
-fields: the KPI tiles' year-over-year pill (`unit` → « % » or « pt »), the page notice, the RevPAR
-tile, the source caption, and « Taux d'occupation par mois » with `occupancyAll` (N-1 dashed).
+The UI round (2026-11-05, rules 15-18) renders the fields with lot 0's report grammar
+(`specs/report-grammar.md`). No figure, delta or comparability is computed on the client.
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
+| `pages/` | `FinancePage.jsx` | T | Tiles get `info` + `comparison` (rules 15-16), the hero its pills and definitions, one `NoComparisonNotice` (rule 17), « Taux d'occupation » draws `occupancyAll` as a `TrendChart` and keeps the small multiples only for several logements (rule 18) |
+| `components/` | `FinanceHero.jsx` | T | Optional `comparisons` / `definitions`; each figure may carry its « i » and its pill; « RevPAR · par nuit ouverte » and « nuits ouvertes » when the payload has them |
+| `utils/` | `comparisonPill.js` | C | Presentational: a server metric → the pill's props (last year formatted, change null when not comparable); `rateOneDecimal` |
+| `constants/` | `financeDefinitions.js` | C | The French definitions of the tiles and hero figures, with their source (D-HC8) |
 | `api.js` | — | — | None: `getFinanceDashboard` already returns the whole payload |
 
-**Component reuse declaration:** deferred to the UI round (lot 0's KPI tile and chart components).
+**Component reuse declaration:**
+
+| Category | Components | Notes |
+|---|---|---|
+| **Consumed (existing generic)** | `SelectableTile` (`info`, `comparison`), `YearOverYearBadge` (report mode, `onDark`), `DefinitionButton`, `NoComparisonNotice`, `TrendChart` (with `ChartMenu` / `ChartDataTable`), `SmallMultiplesLineChart` | Lot 0's grammar, unchanged |
+| **Created (new generic)** | — | |
+| **Specific (kept feature-local)** | `FinanceHero` (extended) | Tied to `dashboard.hero` |
 
 ### 4.3 API contract
 
@@ -217,12 +252,25 @@ None. Read-only aggregation. **Data impact:** none.
 
 ## 6. UI / UX
 
-Delivered in the UI round; the server already writes the only French text, the notice. Target (design
-page `#occupation`): four tiles « Taux d'occupation » (« N nuits ouvertes »), « Nuits vendues » (« sur
-N ouvertes »), « Revenu moyen par nuit » and « RevPAR » (« par nuit ouverte »), each with its « i »
-definition and its pill; then « Taux d'occupation par mois » for the scope, N-1 dashed. The ADR label
-follows rule 25 of the dashboard: « revenu moyen », not « prix de la nuitée » and not « hors options et
-taxe » (see §9). Mobile: tiles two across, the chart full width; detailed with the UI round.
+Adapted from the design page `#occupation` to the existing Suivi financier instead of a separate
+section: the occupancy figures already live in the ink hero (rule 8 of the dashboard: no tile repeats
+them), so the hero's grid of figures grows from four to six — nuits vendues, taux d'occupation, revenu
+moyen / nuit, RevPAR · par nuit ouverte, en direct, nuits ouvertes — each with its « i » (light variant
+on ink) and, where rule 16 says, its pill under the label. « Encaissé » and « Réservations » carry their
+pill in the tile. The notice sits under the hero. « Taux d'occupation » shows the scope's `TrendChart`
+(220 px, area under this year, last year dashed, names at the line ends, « ⋯ » menu) above the
+per-logement small multiples. The ADR label follows rule 25 of the dashboard: « revenu moyen », not
+« prix de la nuitée » and not « hors options et taxe » (see §9).
+
+- **lg (1280):** hero two columns (revenue | 2×3 figures); tiles three across; charts side by side.
+- **md:** as today, charts stacked.
+- **xs (390):** hero one column, figures two across with the pills wrapping « (N-1 : …) » to their own
+  line; tiles two across; the occupancy chart full width with fewer month ticks. No horizontal page
+  scroll (checked: `scrollWidth − clientWidth = 0`).
+- Copy: the definitions of `constants/financeDefinitions.js`, « RevPAR · par nuit ouverte », « nuits
+  ouvertes », « Par logement », « Nuits vendues ÷ nuits ouvertes, par mois · <logement | tous les
+  logements> »; the notice is the server's.
+- `PageActionBar`: unchanged (« Suivi financier », « Actualiser »).
 
 ## 7. Test plan
 
@@ -234,12 +282,22 @@ taxe » (see §9). Mobile: tiles two across, the chart full width; detailed with
 - [x] `tests/finance-revpar-yoy-payload-pin.unit.test.js` (7) — rule 14: the pre-change payload (exercise, one logement, one month) and its detail tables unchanged, the added fields exactly the documented ones. Fixture: `tests/financeComparisonFixture.js`, pin: `tests/fixtures/finance-dashboard-payload-pin.json` (produced by the model at `5437951d`).
 - [x] `tests/vat-regime-golden.unit.test.js` — its four `finance/dashboard/*` captures rewritten for rule 14 after checking that, the added fields removed, each is byte for byte the previous capture.
 
-### Manual UI verification
-- [ ] UI round: pill per tile, « — vs N-1 » with the one notice, N-1 dashed on the occupancy chart, at xs / md / lg.
+### Client tests (Vitest)
+- [x] `pages/__tests__/FinancePage.yoy-pills.test.jsx` (6) — rules 15-18: the tiles' and hero's pills (points for the occupancy, « — vs N-1 » without a base), RevPAR and open nights, definitions naming their source, one notice under the hero, no history, an older payload unchanged.
+- [x] `pages/__tests__/FinancePage.occupancy-trend.test.jsx` (3) — rule 18: the scope's series and last year's with the table view, no dashed series without a comparable month, one logement without small multiples.
+- [x] `utils/__tests__/comparisonPill.test.js` (3) — rule 16: metric → pill props, not comparable, one-decimal rate.
+- Fixture: `pages/__tests__/financeComparisonFixtures.jsx`. The existing FinancePage suites (older payload) pass unchanged.
+
+### Manual UI verification (2026-11-05, isolated instance on ports 47130 / 47131, throwaway DB)
+Seeded: two logements (Granja all year, Estiva closed November-March), 99 stays over 2025-2026, booking
+dates from 2025-01 (snapshot known).
+- [x] Desktop 1280, exercise 2026: pills on « Encaissé » (+44,4 %), « Réservations » (+20,0 %), nuits (+52,1 %), occupancy (+10,9 pt), revenue per night (−4,3 %, red), RevPAR (+45,4 %); « 579 nuits ouvertes »; RevPAR definition opens; occupancy chart 2026 solid over 2025 dashed, small multiples below.
+- [x] Desktop 1280, exercise 2025: every pill « — vs N-1 » and one notice « Pas de comparaison avec l'an dernier : les données commencent en janvier 2025. »; the chart without a 2025 dashed series.
+- [x] Desktop 1280, Estiva selected: the chart in Estiva's colour, no small multiple.
+- [x] Mobile 390: hero figures two across, pills wrap, tiles two across, no horizontal scroll.
 
 ## 8. Out of scope
 
-- The UI (next round of this lot).
 - A room-only revenue (« hors options et taxe ») — see §9.
 - Comparing the operational tiles (« À encaisser », « En retard ») and the channels' commission.
 - A second « as it stood » reading including the stays cancelled since (see §9).
@@ -268,3 +326,10 @@ taxe » (see §9). Mobile: tiles two across, the chart full width; detailed with
     fields could not take an object without changing their type.
 - Q: The per-logement occupancy series' last year?
   - A: Already present (`occupancy[].months[].previous`, rule 23); only the all-logements series is new.
+- Q: A separate « Occupation » section with its own four tiles, as on the design page?
+  - A: No — the hero already shows nights, occupancy and revenue per night, and rule 8 of the dashboard
+    forbids a tile repeating them. RevPAR and the open nights join the hero's grid, the pills go under
+    the figures. Decided in the UI round (2026-11-05).
+- Q: The tiles' colour dot?
+  - A: A tile with a definition shows the « i » where the dot was (`SelectableTile`, report grammar rule
+    2): with the new payload the six tiles carry an « i » and no dot. An older payload keeps the dots.

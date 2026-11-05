@@ -13,11 +13,15 @@
  *   propertyName?: string
  *   fiscalYearLabel: string
  *   format:        { amount, percent, date } presentational formatters
+ *   comparisons?:  { nights, occupancy, revenuePerNight, revPar } — each the year-over-year pill props
+ *                  (`utils/comparisonPill`), drawn under its figure (specs/finance-revpar-year-over-year.md rule 16)
+ *   definitions?:  { nights, occupancy, revenuePerNight, revPar, openNights } — the « i » of each figure
  */
 import React from 'react';
 import { Box, LinearProgress, Typography } from '@mui/material';
 import { AreaChart, Area, CartesianGrid, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import YearOverYearBadge from './YearOverYearBadge';
+import DefinitionButton from './DefinitionButton';
 import { chart } from '../utils/chartColors';
 
 export function CurveTooltip({ active, payload, format }) {
@@ -37,16 +41,22 @@ const { surface: INK, accent: HONEY, hairline: HAIRLINE, muted: MUTED, previous:
 const CURVE_HEIGHT = 120;
 const CURVE_HEIGHT_COMPACT = 56;
 
-function Figure({ value, label }) {
+function Figure({ value, label, info, pill }) {
   return (
-    <Box sx={{ px: 2, py: 1.5, display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: 72 }}>
-      <Typography sx={{ fontWeight: 700, fontSize: '1.3rem', fontVariantNumeric: 'tabular-nums', lineHeight: 1.2 }}>{value}</Typography>
+    <Box sx={{ position: 'relative', px: 2, py: 1.5, display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: 72, minWidth: 0 }}>
+      {info && <Box sx={{ position: 'absolute', top: 8, right: 8 }}><DefinitionButton label={label} definition={info} onDark /></Box>}
+      <Typography sx={{ fontWeight: 700, fontSize: '1.3rem', fontVariantNumeric: 'tabular-nums', lineHeight: 1.2, pr: info ? 3 : 0 }}>{value}</Typography>
       <Typography variant="caption" sx={{ color: MUTED, mt: 0.25 }}>{label}</Typography>
+      {pill && (
+        <Box sx={{ mt: 0.5 }}>
+          <YearOverYearBadge change={pill.change} previous={pill.previous} unit={pill.unit} showEmpty onDark />
+        </Box>
+      )}
     </Box>
   );
 }
 
-export default function FinanceHero({ hero, showHt = true, windowLabel, asOf, propertyName, fiscalYearLabel, format }) {
+export default function FinanceHero({ hero, showHt = true, windowLabel, asOf, propertyName, fiscalYearLabel, format, comparisons = {}, definitions = {} }) {
   const hasPrevious = hero.cumulative.some((p) => p.previous != null);
   const dash = '—';
   const labels = new Map(hero.axis.map((t) => [t.x, t.label]));
@@ -91,13 +101,15 @@ export default function FinanceHero({ hero, showHt = true, windowLabel, asOf, pr
             display: 'grid', gridTemplateColumns: '1fr 1fr', borderRadius: '10px', overflow: 'hidden', bgcolor: 'rgba(255,255,255,0.06)',
             '& > *': { borderColor: HAIRLINE, borderStyle: 'solid', borderWidth: 0 },
             '& > :nth-of-type(odd)': { borderRightWidth: 1 },
-            '& > :nth-of-type(-n+2)': { borderBottomWidth: 1 },
+            '& > :nth-last-of-type(n+3)': { borderBottomWidth: 1 },
           }}
         >
-          <Figure value={hero.nights.toLocaleString('fr-FR')} label="nuits vendues" />
-          <Figure value={hero.occupancy == null ? dash : format.percent(hero.occupancy)} label="taux d'occupation" />
-          <Figure value={hero.revenuePerNight == null ? dash : format.amount(hero.revenuePerNight)} label="revenu moyen / nuit" />
+          <Figure value={hero.nights.toLocaleString('fr-FR')} label="nuits vendues" info={definitions.nights} pill={comparisons.nights} />
+          <Figure value={hero.occupancy == null ? dash : format.percent(hero.occupancy)} label="taux d'occupation" info={definitions.occupancy} pill={comparisons.occupancy} />
+          <Figure value={hero.revenuePerNight == null ? dash : format.amount(hero.revenuePerNight)} label="revenu moyen / nuit" info={definitions.revenuePerNight} pill={comparisons.revenuePerNight} />
+          {'revPar' in hero && <Figure value={hero.revPar == null ? dash : format.amount(hero.revPar)} label="RevPAR · par nuit ouverte" info={definitions.revPar} pill={comparisons.revPar} />}
           <Figure value={hero.directShare == null ? dash : format.percent(hero.directShare)} label="en direct" />
+          {'openNights' in hero && <Figure value={hero.openNights.toLocaleString('fr-FR')} label="nuits ouvertes" info={definitions.openNights} />}
         </Box>
       </Box>
       <Box sx={{ mt: 2, pt: 0.75, borderTop: `1px solid ${HAIRLINE}` }}>
