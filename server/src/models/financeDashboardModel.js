@@ -173,10 +173,7 @@ function createDashboardModel(database, finance) {
     const { summary, cover, comparable, knownN1, snapshotKnown } = figures(ctx);
     // Rule 33 — which N-1 reading a month gets: as it stood a year ago when that is known, its final
     // value when the month is over, nothing otherwise.
-    const previousReading = (ym) => {
-      if (snapshotKnown) return 'knownAt';
-      return yoy.isMonthOver(ym, today) ? 'final' : null;
-    };
+    const previousReading = (ym) => yoy.lastYearReading(ym, { today, snapshotKnown });
     const operational = finance.getOperational({ propertyId });
     const everywhere = propertyId ? finance.getSummary({ from: win.from, to: win.to, fiscalYear: exercise.key }) : summary;
     const allClosures = closures();
@@ -477,7 +474,9 @@ function createDashboardModel(database, finance) {
     };
   }
 
-  return { getDashboard, getDashboardDetail, paymentsLedger };
+  // specs/stay-profile.md rules 1-3 and 12 — the « Profil des séjours » reads the same window, logement
+  // filter and last-year basis as this page.
+  return { getDashboard, getDashboardDetail, paymentsLedger, context, coverage, trackingStart };
 }
 
 const defaultModel = createDashboardModel(db, financeModel);

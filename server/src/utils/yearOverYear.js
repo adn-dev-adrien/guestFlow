@@ -89,6 +89,16 @@ function clampToMonthsOver(range, today) {
   };
 }
 
+/**
+ * Rule 33 — which reading of last year a month gets: 'knownAt' (as it stood a year ago) when that
+ * snapshot is known, 'final' once the month is over, null otherwise. Comparability (rule 18) is
+ * judged apart, by `isComparableMonth`.
+ */
+function lastYearReading(ym, { today, snapshotKnown }) {
+  if (snapshotKnown) return 'knownAt';
+  return isMonthOver(ym, today) ? 'final' : null;
+}
+
 // Change in percent, one decimal; null when there is nothing to compare against.
 function change(current, previous) {
   if (!(previous > 0)) return null;
@@ -97,5 +107,5 @@ function change(current, previous) {
 
 module.exports = {
   shiftYear, shiftMonth, coverageMonth, isComparableMonth, comparableRange, change, monthsTouched,
-  lastYearSnapshotKnown, isMonthOver, clampToMonthsOver,
+  lastYearSnapshotKnown, isMonthOver, clampToMonthsOver, lastYearReading,
 };

@@ -1,8 +1,10 @@
 const router = require('express').Router();
 const ctrl = require('../controllers/financeController');
+const stayProfile = require('../controllers/stayProfileController');
 
 router.get('/dashboard', ctrl.getDashboard);
 router.get('/dashboard/detail/:tile', ctrl.getDashboardDetail);
+router.get('/stay-profile', stayProfile.getStayProfile);
 router.get('/pace', ctrl.getPace);
 router.get('/pace/:month', ctrl.getPaceMonth);
 router.get('/goal-context', ctrl.goalContext);
