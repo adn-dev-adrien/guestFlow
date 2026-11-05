@@ -190,6 +190,14 @@ function createFinanceModel(database) {
     const collectedDay = String(stored.complementPaidDate || addDays(String(stored.endDate).slice(0, 10), -1)).slice(0, 10);
     return collectedDay >= String(stored.touristTaxDeclaredAt).slice(0, 10);
   };
+  // specs/tourist-tax-declaration-month-stay-end.md rule 7 — read from the plan itself: paying an
+  // installment leaves balancePaid at 0. A minimal test schema without the table holds no plan.
+  const HAS_PLAN_SQL = (() => {
+    try {
+      database.prepare('SELECT 1 FROM reservation_installments LIMIT 1').get();
+      return '(EXISTS (SELECT 1 FROM reservation_installments i WHERE i.reservationId = r.id))';
+    } catch { return '(0)'; }
+  })();
   const REFUNDED_TAX_COLS = hasRefundTables
     ? `COALESCE((SELECT SUM(rl.amountTtc) FROM reservation_refund_lines rl
                  JOIN reservation_refunds rf ON rf.id = rl.refundId
@@ -905,12 +913,17 @@ function createFinanceModel(database) {
           -- with the paid flag set) falls back to the last night. Normally the tax rides on the SOLDE →
           -- balancePaidDate; collected on arrival (forced to complement, or a platform mode where WE
           -- collect at arrival) → complementPaidDate.
+          -- Rules 7-8 (D14): a stay with a plan has no solde to wait for, so its stay month, whatever is paid.
           AND (
-            ( NOT ${TAX_ON_ARRIVAL_SQL} AND r.balancePaid = 1
+            ( ${HAS_PLAN_SQL}
+              AND DATE(r.endDate, '-1 day') >= ?
+              AND DATE(r.endDate, '-1 day') < ? )
+            OR
+            ( NOT ${HAS_PLAN_SQL} AND NOT ${TAX_ON_ARRIVAL_SQL} AND r.balancePaid = 1
               AND MAX(DATE(r.endDate, '-1 day'), COALESCE(DATE(r.balancePaidDate), DATE(r.endDate, '-1 day'))) >= ?
               AND MAX(DATE(r.endDate, '-1 day'), COALESCE(DATE(r.balancePaidDate), DATE(r.endDate, '-1 day'))) < ? )
             OR
-            ( ${TAX_ON_ARRIVAL_SQL} AND r.complementPaid = 1
+            ( NOT ${HAS_PLAN_SQL} AND ${TAX_ON_ARRIVAL_SQL} AND r.complementPaid = 1
               AND MAX(DATE(r.endDate, '-1 day'), COALESCE(DATE(r.complementPaidDate), DATE(r.endDate, '-1 day'))) >= ?
               AND MAX(DATE(r.endDate, '-1 day'), COALESCE(DATE(r.complementPaidDate), DATE(r.endDate, '-1 day'))) < ? )
           )
@@ -937,7 +950,7 @@ function createFinanceModel(database) {
             )
           )
         ORDER BY p.name, r.startDate, c.lastName, c.firstName
-      `).all(bounds.start, bounds.endExclusive, bounds.start, bounds.endExclusive);
+      `).all(bounds.start, bounds.endExclusive, bounds.start, bounds.endExclusive, bounds.start, bounds.endExclusive);
 
       // specs/platform-added-guests-tourist-tax.md rule 12 — an added tax collected once the stay's row
       // was declared is told to the commune on a row of its own, in the month it was collected.
