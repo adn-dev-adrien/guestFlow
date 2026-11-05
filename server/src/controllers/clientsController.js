@@ -111,7 +111,7 @@ function createController(model) {
   function parseContact(req, res) {
     const body = req.body || {};
     const requested = Object.keys(CONTACT_PARSERS).filter((key) => typeof body[key] === 'string');
-    if (requested.length === 0) return res.status(400).json({ error: 'INVALID_PAYLOAD' });
+    if (requested.length === 0) return res.status(400).json({ error: 'INVALID_PAYLOAD', message: 'Données invalides.' });
     if (requested.some((key) => body[key].length > MAX_RAW_LENGTH)) return res.status(400).json({ error: 'PAYLOAD_TOO_LONG' });
 
     const parsed = {};

@@ -32,6 +32,7 @@
  *   <ConfirmDialog open={guardDialogOpen} onClose={dismissGuard} onConfirm={confirmLeave} ... />
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { holdGuardSlot } from '../utils/backGuard';
 
 export default function useDirtyFormGuard({
   draft, saved, navigate, guardBack = true,
@@ -53,23 +54,10 @@ export default function useDirtyFormGuard({
     dirtyRef.current = isDirty;
   }, [isDirty]);
 
-  // Takes a global slot (`window[slot]`) for as long as `active`, and puts the previous holder back. The
-  // handler re-checks `dirtyRef`: when two forms release out of order the restored handler may belong to
-  // a form that is clean by now, and a clean form must never block anything.
-  const holdSlot = (slot, handler) => {
-    const previous = window[slot];
-    window[slot] = handler;
-    return () => {
-      if (window[slot] !== handler) return;
-      if (previous) window[slot] = previous;
-      else delete window[slot];
-    };
-  };
-
   // Sidebar / router-level navigation (clicks): held only while dirty.
   useEffect(() => {
     if (!isDirty) return undefined;
-    return holdSlot('__guestflowBeforeNavigate', (targetPath) => {
+    return holdGuardSlot('__guestflowBeforeNavigate', (targetPath) => {
       if (!dirtyRef.current || !targetPath || targetPath === window.location.pathname) return false;
       pendingNavRef.current = targetPath;
       setGuardDialogOpen(true);
@@ -94,7 +82,7 @@ export default function useDirtyFormGuard({
   useEffect(() => {
     if (!isDirty || !guardBack) return undefined;
     const keep = { state: window.history.state, url: window.location.href };
-    return holdSlot('__guestflowBeforeBack', () => {
+    return holdGuardSlot('__guestflowBeforeBack', () => {
       if (!dirtyRef.current || leavingRef.current) return null;
       pendingNavRef.current = null;
       setGuardDialogOpen(true);

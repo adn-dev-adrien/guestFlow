@@ -58,6 +58,21 @@ function fullName(user) {
   return both || user.email;
 }
 
+const FIELD_REFUSALS = {
+  FIRSTNAME_REQUIRED: 'Prénom obligatoire.',
+  LASTNAME_REQUIRED: 'Nom obligatoire.',
+  INVALID_EMAIL: 'Adresse email invalide.',
+  EMAIL_ALREADY_EXISTS: 'Cet email est déjà utilisé.',
+  ROLES_REQUIRED: 'Choisir au moins un rôle.',
+  UNKNOWN_ROLE: 'Rôle inconnu.',
+  ROLE_PLUGIN_INACTIVE: 'Module de ce rôle inactif.',
+};
+
+/** What a server refusal says under its field of the account dialog (specs/admin-account-management.md rule 20). */
+export function fieldRefusalText(err) {
+  return err.detail || FIELD_REFUSALS[err.error] || (err.message !== err.error && err.message) || 'Valeur refusée.';
+}
+
 export default function UserManagementPage() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('lg'));
@@ -136,7 +151,7 @@ export default function UserManagementPage() {
     } catch (err) {
       // Server-side field errors land under their field; everything else lands in the snackbar.
       if (err && err.field) {
-        setFormErrors({ [err.field]: err.detail || err.error });
+        setFormErrors({ [err.field]: fieldRefusalText(err) });
       } else if (err && err.error === 'EMAIL_ALREADY_EXISTS') {
         setFormErrors({ email: 'Cet email est déjà utilisé.' });
       } else {

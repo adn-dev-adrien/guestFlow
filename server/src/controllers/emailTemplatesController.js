@@ -213,7 +213,7 @@ function buildController(model, settingsModel, deps = {}) {
     if (!read.ok) return res.status(422).json({ field: read.field, message: read.message });
     req.body = read.body;
     const errors = validateForCreate(req.body);
-    if (errors.length > 0) return res.status(400).json({ error: 'INVALID_PAYLOAD', fields: errors });
+    if (errors.length > 0) return res.status(400).json({ error: 'INVALID_PAYLOAD', message: 'Données invalides.', fields: errors });
     const tooLong = lengthRefusal(req.body);
     if (tooLong) return res.status(422).json(tooLong);
     const unknown = templateTokenError(req.body);
@@ -240,7 +240,7 @@ function buildController(model, settingsModel, deps = {}) {
     if (!read.ok) return res.status(422).json({ field: read.field, message: read.message });
     req.body = read.body;
     const errors = validateForUpdate(req.body);
-    if (errors.length > 0) return res.status(400).json({ error: 'INVALID_PAYLOAD', fields: errors });
+    if (errors.length > 0) return res.status(400).json({ error: 'INVALID_PAYLOAD', message: 'Données invalides.', fields: errors });
     // specs/payment-schedule-and-cancellation.md rule 44 — a template that asks for money is never « auto ».
     if (PAYMENT_STABLE_KEYS.includes(existing.stableKey) && String(req.body.sendMode || '').toLowerCase() === 'auto') {
       return res.status(409).json({ error: 'PAYMENT_TEMPLATE_STAYS_MANUAL', message: 'Un email qui demande de l’argent ne part jamais tout seul : il reste en validation manuelle.' });

@@ -254,6 +254,8 @@ no user-visible change), plus one advisory kept as-is:
   timedOptionsDirty`; `initialSnapshot !== formSnapshot`) that don't map to a single draft/saved
   pair. Swapping would change data-loss-protection semantics on the two highest-value editors — not
   worth the risk for a presentational phase. The guards already deliver the exact UX.
+  Amended 2026-11-05 (audit R23-C1, C2): they no longer listen to `popstate`, they hold the `backGuard` slot, and the
+  fiche gained the `beforeunload` this note claimed it had (specs/ui-review-2026-10-19-operations.md rules 40, 41).
 - **ReservationPage action feedback (rule 8, advisory) — kept on `useAppDialogs.alert`.** Its
   outcomes are consequential (payment-link sent, devis converted, dates blocked) and its pre-submit
   validations are **blocking** (must stop the save); a modal acknowledgment is appropriate. Mixing

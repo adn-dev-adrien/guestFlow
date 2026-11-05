@@ -8,8 +8,24 @@
  * that answers `{ state, url }` blocks the navigation: the event is stopped before the router sees it,
  * the page's own history entry is put back (its state and URL, so « Retour » still knows an app page
  * is behind) and the handler has opened its « Modifications non enregistrées » dialog. An answer of
- * `null` lets the pop through.
+ * `null` lets the pop through. The fiche and the logement hold the same slot themselves, as their
+ * dirtiness is not a draft/saved pair (specs/ui-review-2026-10-19-operations.md rule 40).
  */
+
+/**
+ * Takes a global slot (`window[slot]`) and returns what puts the previous holder back. The handler itself
+ * re-checks that its form is dirty: when two forms release out of order the restored handler may belong
+ * to a form that is clean by now, and a clean form must never block anything.
+ */
+export function holdGuardSlot(slot, handler) {
+  const previous = window[slot];
+  window[slot] = handler;
+  return () => {
+    if (window[slot] !== handler) return;
+    if (previous) window[slot] = previous;
+    else delete window[slot];
+  };
+}
 
 let installed = false;
 

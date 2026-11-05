@@ -53,6 +53,7 @@ test('les prestations à percevoir sont listées et cochables ; le total est cel
   await user.click(screen.getAllByRole('checkbox')[0]);
   await waitFor(() => expect(screen.getByText('24,00 €')).toBeInTheDocument());
   expect(api.previewMidStayNote).toHaveBeenLastCalledWith({
+    reservationId: 7,
     opening: [{ key: 'opt:9', label: 'Petit-déjeuner', amount: 24 }, { key: 'res:3', label: 'Location vélo', amount: 18 }],
     current: PENDING,
     checkedKeys: ['opt:9'],

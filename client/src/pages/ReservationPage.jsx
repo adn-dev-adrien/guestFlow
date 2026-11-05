@@ -51,6 +51,7 @@ import { useAppDialogs, useToast } from '../components/DialogProvider';
 import PluginGate from '../components/PluginGate';
 import { WEBSITE_BOOKING } from '../constants/plugins';
 import UnsavedChangesDialog from '../components/UnsavedChangesDialog';
+import { holdGuardSlot } from '../utils/backGuard';
 import ReservationCancelDialog from '../components/ReservationCancelDialog';
 import api from '../api';
 import { expandOptionGroups } from '../utils/optionGroups';
@@ -771,22 +772,35 @@ export default function ReservationPage() {
     });
   };
 
+  // Browser back/forward (specs/ui-review-2026-10-19-operations.md rules 26, 40): the interceptor of
+  // utils/backGuard.js asks this handler before the router moves, and puts back the entry it answers, the
+  // one the fiche stands on (read here: on a pop the browser's URL has already moved).
+  const leavingByBackRef = useRef(false);
   useEffect(() => {
-    if (!isDirty) return;
-    const pageState = window.history.state;
-
-    const onPopState = () => {
-      pendingLeaveActionRef.current = () => navigate(-1);
+    if (!isDirty) return undefined;
+    leavingByBackRef.current = false;
+    const keep = { state: window.history.state, url: window.location.href };
+    return holdGuardSlot('__guestflowBeforeBack', () => {
+      if (!isDirtyRef.current || leavingByBackRef.current) return null;
+      pendingLeaveActionRef.current = () => {
+        leavingByBackRef.current = true;
+        navigate(-1);
+      };
       setUnsavedDialogOpen(true);
-      // Keep user on the current page until they confirm.
-      // The page's own router state, not null: a null entry loses `idx`, and the next « Retour » would
-      // think the page was opened directly (specs/ui-review-2026-10-19-operations.md rule 26).
-      window.history.pushState(pageState, '', window.location.href);
-    };
+      return keep;
+    });
+  }, [isDirty, navigate, location]);
 
-    window.addEventListener('popstate', onPopState);
-    return () => window.removeEventListener('popstate', onPopState);
-  }, [isDirty, navigate]);
+  // Reload, closed tab, pull-to-refresh (rule 41).
+  useEffect(() => {
+    if (!isDirty) return undefined;
+    const warn = (e) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [isDirty]);
 
   useEffect(() => {
     const guardHandler = (targetPath) => {

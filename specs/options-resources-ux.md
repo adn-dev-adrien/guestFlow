@@ -236,7 +236,8 @@ organised by topic — on a laptop and on a phone. No pricing or catalogue rule 
     entry, but only when it is still the current one. `useDirtyFormGuard` takes the global navigation slot only while its form is dirty and puts
     the previous handler back, and its Back path keeps the page's own URL; a clean or closed form holds
     nothing. « Enregistrer et quitter » continues to the pending destination only when the save
-    succeeded.
+    succeeded. Reading of 2026-11-05: the fiche and the logement hold the same slot
+    (specs/ui-review-2026-10-19-operations.md rule 40).
 30. Accessibility and feedback of the lists and panels: a row or card has one button, its name, stretched
     over the whole row (price, traits and the « ⋯ » menu are not nested inside a button); the panel is
     named by its visible title; a pristine form shows no error — they appear once it is edited; while a

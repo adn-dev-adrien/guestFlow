@@ -75,21 +75,21 @@ test('planning-events: reception-only when roles also include a non-admin role',
 
 test('checkPlanningRange: ok, inverted, bad ISO, and the width ceiling', () => {
   assert.equal(checkPlanningRange('2026-01-01', '2026-02-01'), null);
-  assert.deepEqual(checkPlanningRange('2026-02-01', '2026-01-01'), { status: 400, error: 'INVALID_DATE_RANGE' });
-  assert.deepEqual(checkPlanningRange('nope', '2026-01-01'), { status: 400, error: 'INVALID_DATE_RANGE' });
+  assert.deepEqual(checkPlanningRange('2026-02-01', '2026-01-01'), { status: 400, error: 'INVALID_DATE_RANGE', message: 'Période invalide.' });
+  assert.deepEqual(checkPlanningRange('nope', '2026-01-01'), { status: 400, error: 'INVALID_DATE_RANGE', message: 'Période invalide.' });
   // exactly at the ceiling is allowed; one day over is rejected.
   const base = '2026-01-01';
   const atCeiling = new Date(Date.parse(base + 'T00:00:00Z') + MAX_PLANNING_RANGE_DAYS * 86400000).toISOString().slice(0, 10);
   assert.equal(daysBetween(base, atCeiling), MAX_PLANNING_RANGE_DAYS);
   assert.equal(checkPlanningRange(base, atCeiling), null);
   const overCeiling = new Date(Date.parse(base + 'T00:00:00Z') + (MAX_PLANNING_RANGE_DAYS + 1) * 86400000).toISOString().slice(0, 10);
-  assert.deepEqual(checkPlanningRange(base, overCeiling), { status: 400, error: 'DATE_RANGE_TOO_WIDE' });
+  assert.deepEqual(checkPlanningRange(base, overCeiling), { status: 400, error: 'DATE_RANGE_TOO_WIDE', message: 'Période trop longue.' });
   // A real calendar day (specs/linen-laundry-days.md rule 13): `9999-99-99` used to pass the shape check, parse
   // to NaN and slip under the cap.
   for (const bad of ['2026-13-99', '9999-99-99', '2026-02-30', '2026-00-10']) assert.equal(isIsoDate(bad), false, bad);
   assert.equal(isIsoDate('2026-02-28'), true);
-  assert.deepEqual(checkPlanningRange('2026-06-01', '9999-99-99'), { status: 400, error: 'INVALID_DATE_RANGE' });
-  assert.deepEqual(checkPlanningRange('0000-00-00', '2026-06-01'), { status: 400, error: 'INVALID_DATE_RANGE' });
+  assert.deepEqual(checkPlanningRange('2026-06-01', '9999-99-99'), { status: 400, error: 'INVALID_DATE_RANGE', message: 'Période invalide.' });
+  assert.deepEqual(checkPlanningRange('0000-00-00', '2026-06-01'), { status: 400, error: 'INVALID_DATE_RANGE', message: 'Période invalide.' });
 });
 
 test('planning-events rejects a pathological span before hitting the DB', { skip: skipWithout(['hourly-resources']) }, () => {

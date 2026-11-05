@@ -33,9 +33,9 @@ function daysBetween(from, to) {
  * `{ status, error }` to send as-is. `from`/`to` must already be resolved (no undefined `to`).
  */
 function checkPlanningRange(from, to, maxDays = MAX_PLANNING_RANGE_DAYS) {
-  if (!isIsoDate(from) || !isIsoDate(to)) return { status: 400, error: 'INVALID_DATE_RANGE' };
-  if (from > to) return { status: 400, error: 'INVALID_DATE_RANGE' };
-  if (daysBetween(from, to) > maxDays) return { status: 400, error: 'DATE_RANGE_TOO_WIDE' };
+  if (!isIsoDate(from) || !isIsoDate(to)) return { status: 400, error: 'INVALID_DATE_RANGE', message: 'Période invalide.' };
+  if (from > to) return { status: 400, error: 'INVALID_DATE_RANGE', message: 'Période invalide.' };
+  if (daysBetween(from, to) > maxDays) return { status: 400, error: 'DATE_RANGE_TOO_WIDE', message: 'Période trop longue.' };
   return null;
 }
 

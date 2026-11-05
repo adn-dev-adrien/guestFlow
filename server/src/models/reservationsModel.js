@@ -2817,6 +2817,13 @@ function createReservationsModel(database) {
       return JSON.stringify(buildExtrasBaseline(model.readExtraLines(reservationId)));
     },
 
+    // No baseline, and none due: what is sold now joins the ordinary balance (specs/mid-stay-notes.md rule 23).
+    isArrivalNotMarked(reservationId) {
+      if (!HAS_ARRIVAL_EXTRAS_BASELINE) return false;
+      const row = database.prepare('SELECT * FROM reservations WHERE id = ?').get(reservationId);
+      return Boolean(row) && !row.arrivalExtrasBaseline && !arrivalExtrasBaselineIsDue(row);
+    },
+
     getArrivalExtrasBaseline(reservationId) {
       if (!HAS_ARRIVAL_EXTRAS_BASELINE) return null;
       const row = database.prepare('SELECT arrivalExtrasBaseline FROM reservations WHERE id = ?').get(reservationId);
