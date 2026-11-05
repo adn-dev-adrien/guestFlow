@@ -160,6 +160,11 @@ reservation's **check-out time** is reached (departure) — only to the users (a
     otherwise 400 `INVALID_SUBSCRIPTION`, « Abonnement refusé. », nothing stored. A name is not resolved, and there
     is no allow-list of push hosts: it would break a new browser. Rows already stored are not re-judged. Test:
     `push-subscribe-validation.unit.test.js`.
+    The endpoint must also read as one host to both parsers: the check reads `new URL`, web-push dials
+    `url.parse(endpoint).hostname`, and `https://127.0.0.1}/x` or `https://10.0.0.5%2Eexample/` were public to the first
+    and private to the second. So the host is written `https://` + dot-separated labels of letters, digits, `-`, `_` (or
+    a bracketed IPv6), at most one trailing dot, an optional `:443`, and `new URL` must read it unchanged. A login, a
+    `%`, a repeated dot, an empty host or a numeric form such as `https://134744072/` is refused. Stored as sent.
 
 **Edge cases:**
 - User denies the browser permission → the device isn't subscribed; the UI reflects "non activées".

@@ -28,14 +28,20 @@ const MAX_ENDPOINT_LENGTH = 2048;
 const P256DH_BYTES = 65;
 const AUTH_BYTES = 16;
 
+// One host as written, at most one trailing dot, an optional :443. Anything else (a login, a %, a character that ends
+// the host for one parser only) can mean two hosts: this check reads the URL parser, web-push dials the legacy one.
+const ENDPOINT_AUTHORITY = /^https:\/\/((?:[a-z0-9_-]+(?:\.[a-z0-9_-]+)*\.?)|\[[0-9a-f:.]+\])(?::443)?(?:[/?#]|$)/i;
+
 // The server POSTs to whatever is stored here: a private address would be a blind request into the LAN, the
 // reasoning of ical-import-hardening rule 17. No allow-list of push hosts, it would break a new browser. The iCal
 // dev switch does not apply. The URL parser and web-push's legacy one read whitespace and backslashes differently.
 function isPublicHttpsEndpoint(endpoint) {
   if (typeof endpoint !== 'string' || endpoint.length > MAX_ENDPOINT_LENGTH || /[\s\\]/.test(endpoint)) return false;
+  const authority = ENDPOINT_AUTHORITY.exec(endpoint);
+  if (!authority) return false;
   try {
     const url = new URL(endpoint);
-    if (url.protocol !== 'https:' || url.port !== '') return false;
+    if (url.hostname !== authority[1].toLowerCase()) return false;
     assertPublicHost(url.hostname.replace(/\.$/, ''), { env: {} });
     return true;
   } catch {

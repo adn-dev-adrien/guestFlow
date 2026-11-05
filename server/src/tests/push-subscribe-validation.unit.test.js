@@ -5,6 +5,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const crypto = require('crypto');
 const net = require('net');
+const nodeUrl = require('url');
 const Database = require('better-sqlite3');
 const webpush = require('web-push');
 
@@ -39,7 +40,16 @@ test('rule 15 — what real browsers send is accepted', () => {
     'https://8.8.8.8/public-literal',
   ];
   endpoints.forEach((endpoint) => assert.deepEqual(model.subscribe(1, { endpoint, keys }), { ok: true }, endpoint));
-  assert.equal(rows().length, endpoints.length);
+  assert.deepEqual(rows().sort(), [...endpoints].sort(), 'stored exactly as sent');
+});
+
+test('rule 15 — the length ceiling is 2048 characters, included', () => {
+  const { model, rows } = fresh();
+  const base = 'https://push.example/';
+  const longest = `${base}${'a'.repeat(2048 - base.length)}`;
+  assert.deepEqual(model.subscribe(1, { endpoint: longest, keys }), { ok: true });
+  assert.deepEqual(model.subscribe(1, { endpoint: `${longest}a`, keys }), { error: 'INVALID_SUBSCRIPTION' });
+  assert.deepEqual(rows(), [longest]);
 });
 
 test('rule 15 — padded base64url keys are the same bytes', () => {
@@ -69,6 +79,24 @@ test('rule 15 — an endpoint that is not a public https address is refused and 
     'https://foo.localhost/x',
     'https://foo.localhost./x',
     'https://a.example\\@127.0.0.1/backslash',
+    'https://push.example/with space',
+    'https://push.example/back\\slash',
+    'https://127.0.0.1}/x',
+    'https://10.0.0.5{/x',
+    'https://192.168.0.24"/x',
+    'https://localhost\'/x',
+    'https://localhost;/x',
+    'https://localhost`/x',
+    'https://10.0.0.5%2Eexample/percent-in-the-host',
+    'https://{/x',
+    'https://localhost../x',
+    'https://127.0.0.1../x',
+    'https://push.example../x',
+    'https:///push.example/x',
+    'https:/push.example/x',
+    'https:push.example/x',
+    'https://user@push.example/userinfo',
+    'https://134744072/decimal-of-a-public-address',
     ' https://127.0.0.1/space',
     'https://push.example:8443/other-port',
     'http://push.example/not-https',
@@ -79,6 +107,30 @@ test('rule 15 — an endpoint that is not a public https address is refused and 
   ];
   refused.forEach((endpoint) => assert.deepEqual(model.subscribe(1, { endpoint, keys }), { error: 'INVALID_SUBSCRIPTION' }, endpoint));
   assert.deepEqual(rows(), []);
+});
+
+// web-push dials url.parse(endpoint).hostname, the check reads new URL: an accepted endpoint must mean the same host to both.
+test('rule 15 — what is checked is what web-push dials', () => {
+  const { model, rows } = fresh();
+  const pieces = ['https://', 'https:', '/', '//', 'push.example', 'localhost', '127.0.0.1', '10.0.0.5', '8.8.8.8', '[::1]', '.', '..', ':443', ':8443',
+    '@', '%2E', '%31', '}', '{', '"', "'", ';', '`', '?', '#', 'a', '-', '_', '0x7f', '\u3002', 'é'];
+  let seed = 963;
+  const next = (n) => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed % n; };
+  const offered = ['https://push.example/x'];
+  for (let i = 0; i < 20000; i += 1) {
+    let host = '';
+    for (let n = next(3) + 1; n > 0; n -= 1) host += pieces[next(pieces.length)];
+    offered.push(`${next(5) ? 'https://' : ''}${host}${next(2) ? '/x' : ''}`);
+  }
+  const accepted = offered.filter((endpoint) => !model.subscribe(1, { endpoint, keys }).error);
+  assert.ok(accepted.length > 100, `the generator reaches accepted endpoints (${accepted.length})`);
+  assert.deepEqual(rows().sort(), [...new Set(accepted)].sort());
+  for (const endpoint of accepted) {
+    const dialled = nodeUrl.parse(endpoint).hostname;
+    assert.equal(`${dialled}`, new URL(endpoint).hostname.replace(/^\[|\]$/g, ''), endpoint);
+    assert.ok(dialled, endpoint);
+    assert.doesNotMatch(dialled, /^(localhost\.?|.*\.localhost\.?|127\.0\.0\.1\.?|10\.0\.0\.5\.?|::1)$/, endpoint);
+  }
 });
 
 test('rule 15 — fields of the wrong type or keys of the wrong size are refused', () => {
