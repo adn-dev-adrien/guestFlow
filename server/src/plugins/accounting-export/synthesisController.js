@@ -6,7 +6,7 @@
  */
 
 const sdk = require('../sdk');
-const { resolvePeriod, bucketsOf, monthsOf, isWholeMonths } = require('./synthesisPeriod');
+const { resolvePeriod, bucketsOf, monthsOf, isWholeMonths, periodOptions } = require('./synthesisPeriod');
 const {
   ventilate, vatReturn, balanceCheck, vatCheck, collectionUnits, collections, refundsOf, series,
 } = require('./synthesis');
@@ -14,7 +14,7 @@ const {
 const financeWindow = sdk.coreModule('financeWindow');
 const fiscalYearUtil = sdk.coreModule('fiscalYear');
 const yoy = sdk.coreModule('yearOverYear');
-const { dateWindowMessage } = sdk.coreModule('stayDates');
+const { dateWindowMessage, horizonStart } = sdk.coreModule('stayDates');
 const { remainingToPay } = sdk.coreModule('reservationSettlement');
 
 const SOURCE = Object.freeze({ stays: 'stays', collections: 'collections' });
@@ -29,16 +29,6 @@ const TAX_WHOLE_MONTHS = 'La taxe de séjour se déclare par mois entiers.';
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 const pill = (current, previous) => ({ current: round2(current), previous: round2(previous), change: yoy.change(current, previous) });
-
-// Rule 9 — why there is no comparison, in one sentence.
-function noComparisonReason({ cover, window, exercise, fiscalEndMonth }) {
-  if (!cover) return 'Aucun séjour en base : pas de comparaison avec l’an dernier.';
-  if (window.kind === 'fy') {
-    const previous = fiscalYearUtil.boundsForEndYear(fiscalEndMonth, exercise.key - 1).label;
-    return `Pas d’exercice ${previous} en base : la comparaison avec l’an dernier n’est pas affichée.`;
-  }
-  return 'Pas de données un an plus tôt : la comparaison avec l’an dernier n’est pas affichée.';
-}
 
 /**
  * @returns {{ ok: true, data: object } | { ok: false, status: number, error: string }}
@@ -66,8 +56,8 @@ function buildSynthesis(model, query = {}, plan = undefined) {
   const tax = taxOf(win.from, win.to);
 
   // Rule 9 — one comparison for every tile, on the comparable part of the window only.
-  const { cover, range, snapshotKnown, knownN1 } = model.lastYearRange(win, today);
-  let comparison;
+  // The sentence is the dashboard's own (utils/financeComparison status.notice): one window, one sentence.
+  const { range, snapshotKnown, knownN1, status } = model.lastYearRange(win, today);
   let yoyOf = { revenue: null, collected: null, touristTax: null, vat: null };
   let previousUnits = null;
   if (range) {
@@ -84,22 +74,18 @@ function buildSynthesis(model, query = {}, plan = undefined) {
       vat: pill(vatReturn(part.items, plan).totals.vat, vatReturn(previous.items, plan).totals.vat),
     };
     if (range.complete) previousUnits = previous.units;
-    comparison = {
-      comparable: true,
-      complete: range.complete,
-      months: range.months,
-      totalMonths: range.totalMonths,
-      current: range.current,
-      previous: range.previous,
-      reason: null,
-      note: range.complete ? null : `Comparaison sur ${range.months} mois sur ${range.totalMonths}.`,
-    };
-  } else {
-    comparison = {
-      comparable: false, complete: false, months: 0, totalMonths: yoy.monthsTouched(win.from, win.to),
-      current: null, previous: null, reason: noComparisonReason({ cover, window: win, exercise, fiscalEndMonth }), note: null,
-    };
   }
+  const comparison = {
+    comparable: Boolean(range),
+    complete: Boolean(range && range.complete),
+    months: range ? range.months : 0,
+    totalMonths: range ? range.totalMonths : yoy.monthsTouched(win.from, win.to),
+    current: range ? range.current : null,
+    previous: range ? range.previous : null,
+    reasonCode: status.reason,
+    comparableFrom: status.comparableFrom || null,
+    notice: status.notice,
+  };
 
   const regime = model.regimeInForce();
   const notSubject = regime && regime.regime === 'not_subject' && vat.totals.vat === 0
@@ -126,6 +112,14 @@ function buildSynthesis(model, query = {}, plan = undefined) {
       today,
       fiscalYear: { key: exercise.key, label: exercise.label, from: exercise.from, to: exercise.to },
       fiscalYears: (summary.fiscalYears || []).map((f) => ({ key: f.key, label: f.label, isCurrent: Boolean(f.isCurrent) })),
+      periodOptions: (() => {
+        // Rule 22 — from the oldest exercise (never before the entered-date window) to the server's month.
+        const oldest = (summary.fiscalYears || []).reduce((min, f) => (f.from && f.from < min ? f.from : min), exercise.from);
+        const floor = horizonStart(today);
+        const first = [oldest, win.from].reduce((a, b) => (b < a ? b : a));
+        const last = win.to > today ? win.to : today;
+        return periodOptions({ firstMonth: (first < floor ? floor : first).slice(0, 7), lastMonth: last.slice(0, 7) });
+      })(),
       counts: { payments: money.payments, entries: current.items.length },
       comparison,
       kpis: {
@@ -155,6 +149,9 @@ function buildSynthesis(model, query = {}, plan = undefined) {
           source: SOURCE.collections,
           amount: notSubject ? null : vat.totals.vat,
           byRate: vat.byRate.filter((r) => r.ratePercent > 0).map((r) => ({ ratePercent: r.ratePercent, vat: r.vat })),
+          // Rule 25 — the tile's « dont 10 % : … »: the rate that carries the most VAT.
+          mainRate: vat.byRate.filter((r) => r.ratePercent > 0 && r.vat > 0)
+            .reduce((best, r) => (!best || r.vat > best.vat ? { ratePercent: r.ratePercent, vat: r.vat } : best), null),
           notSubject,
           yoy: notSubject ? null : yoyOf.vat,
         },
@@ -164,7 +161,10 @@ function buildSynthesis(model, query = {}, plan = undefined) {
         balanced: { source: SOURCE.collections, ...balanceCheck(current.items) },
         vatCoherence: { source: SOURCE.collections, ...vatCheck(current.items) },
         settled: { source: SOURCE.stays, status: unsettled.length === 0 ? 'ok' : 'gap', count: unsettled.length, stays: unsettled },
-        lastExport: model.lastCsvExport(),
+        lastExport: (() => {
+          const stamp = model.lastCsvExport();
+          return stamp ? { ...stamp, monthLabel: financeWindow.monthLabel(stamp.month) } : null;
+        })(),
       },
       collections: {
         source: SOURCE.collections,

@@ -260,6 +260,9 @@ function sharesOf(amounts) {
   return apportion(1000, amounts).map((tenths) => tenths / 10);
 }
 
+/** The same shares as fractions of 1 (rule 14), for the share bar: tenths of a percent, exact. */
+const ratioOf = (percent) => (percent == null ? null : Math.round(percent * 10) / 1000);
+
 function breakdown(units, field, labels) {
   const rows = new Map();
   for (const u of units) {
@@ -270,7 +273,7 @@ function breakdown(units, field, labels) {
   }
   const list = [...rows.values()].sort((a, b) => b.amount - a.amount || a.label.localeCompare(b.label, 'fr'));
   const shares = sharesOf(list.map((r) => r.amount));
-  return list.map((r, i) => ({ key: r.key, label: r.label, count: r.count, amount: euros(r.amount), share: shares[i] }));
+  return list.map((r, i) => ({ key: r.key, label: r.label, count: r.count, amount: euros(r.amount), share: shares[i], ratio: ratioOf(shares[i]) }));
 }
 
 function collections(units) {

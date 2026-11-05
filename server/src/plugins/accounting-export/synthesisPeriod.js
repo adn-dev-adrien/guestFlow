@@ -161,6 +161,24 @@ function resolvePeriod({ query = {}, today, fiscalEndMonth, fiscalYear, resolveC
   return finish({ kind, from, to, label, ...extra }, exerciseOf(from));
 }
 
+/**
+ * Rule 22 — what the period selector offers: every month and calendar quarter from `firstMonth` to
+ * `lastMonth` (YYYY-MM), newest first, labelled. The selector never builds a period itself.
+ */
+function periodOptions({ firstMonth, lastMonth }) {
+  const months = monthsOf(`${firstMonth}-01`, `${lastMonth}-01`).reverse();
+  const quarters = [];
+  for (const ym of months) {
+    const value = `${ym.slice(0, 4)}-Q${Math.floor((Number(ym.slice(5, 7)) - 1) / 3) + 1}`;
+    if (!quarters.some((q) => q.value === value)) quarters.push({ value, label: `T${value.slice(6)} ${ym.slice(0, 4)}` });
+  }
+  return {
+    months: months.map((ym) => ({ value: ym, label: `${MONTHS_FR[Number(ym.slice(5, 7)) - 1]} ${ym.slice(0, 4)}` })),
+    quarters,
+  };
+}
+
 module.exports = {
+  periodOptions,
   resolvePeriod, bucketsOf, monthsOf, isWholeMonths, granularityOf, isoWeek, addDays, daysBetween, UNKNOWN_PERIOD,
 };

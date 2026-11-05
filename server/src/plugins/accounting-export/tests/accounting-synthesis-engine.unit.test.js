@@ -116,6 +116,8 @@ test('rules 10 and 13 — an arrival payment is one payment; a rebate rides it; 
     ['platform', 'Versements plateforme', 1, 440], ['recorded', 'Marqué perçu', 1, 297], ['paymentLink', 'Lien de paiement', 1, 165],
   ]);
   assert.equal(Math.round(money.byType.reduce((a, r) => a + r.share * 10, 0)), 1000, 'shares add up to 100');
+  assert.equal(Math.round(money.byType.reduce((a, r) => a + r.ratio * 1000, 0)), 1000, 'the bar\'s fractions add up to 1');
+  money.byType.forEach((r) => assert.equal(r.ratio, Math.round(r.share * 10) / 1000));
   assert.deepEqual(refundsOf(items), { count: 0, amount: 0 });
 });
 

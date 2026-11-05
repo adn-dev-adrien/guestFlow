@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Implemented — round 1 (server, API, client API function, 2026-11-05); the UI (round 2) waits for the shared chart and tile components of lot 0 |
+| **Status** | Implemented — server, API and UI (rounds 1 and 2, 2026-11-05) |
 | **Branch** | `feature/hc-l2` (merged into `feature/finance-reporting-hippocamp`) |
 | **Created** | 2026-11-05 |
 | **Author** | Adrien |
@@ -80,11 +80,12 @@ add up — before the CSV goes to the accountant.
    over only while last year's snapshot is unknown (D-HC7). Every pill compares the comparable part of the window,
    on both sides, and is `{ current, previous, change }`, `change` in percent with one decimal, null when last year
    is 0 or less (never « +∞ % »). The revenue of last year is read `knownAt` a year ago when that snapshot is known,
-   as the dashboard does. Without a comparable range every pill is null and `comparison.reason` holds ONE sentence:
-   « Aucun séjour en base : pas de comparaison avec l’an dernier. », « Pas d’exercice <label> en base : la
-   comparaison avec l’an dernier n’est pas affichée. » (exercise), « Pas de données un an plus tôt : la comparaison
-   avec l’an dernier n’est pas affichée. » (otherwise). A partial range adds the note « Comparaison sur N mois sur
-   M. ».
+   as the dashboard does. The sentence is the dashboard's own: `lastYearRange` returns the shared status of
+   `utils/financeComparison.comparisonWindow` (specs/finance-revpar-year-over-year.md rules 4-7), and
+   `comparison.notice` is its `notice` (`reasonCode` its `reason`, `comparableFrom` its date): without a comparable
+   range every pill is null and the notice says why (no history, or « Comparaison avec l'an dernier à partir
+   du … »); a partial range keeps its pills and the notice « Comparaison sur N mois sur M : … ». For the same window
+   the dashboard and the synthesis say the same sentence (reading of 2026-11-05, integration of lots 2 and 3).
 10. **Collected.** The money collected is the net movement of the client accounts of the window's collections:
     sales (acompte, solde, installment, arrival complement, end-of-stay complement, mid-stay note), compensations,
     tips, minus the rebates granted at the door and the platform penalties. A platform payout counts its net (the
@@ -115,7 +116,8 @@ add up — before the CSV goes to the accountant.
     `compensation` « Indemnités d’annulation », `tip` « Pourboires ». Each row of both breakdowns carries
     `count`, `amount` and `share` — percent with one decimal, largest remainder on tenths, so the shares add up to
     exactly 100 —, sorted by amount. No share at all (`null` on every row) while the total is not positive or a row is
-    negative: a part of a whole cannot be read there.
+    negative: a part of a whole cannot be read there. Each row also carries `ratio`, the same share as a fraction of 1 (tenths of a percent,
+    exact), which the share bar draws.
 15. **Collected series.** Buckets: a day for a month, an ISO week (« S27 », clipped to the window) for a quarter, a
     month for an exercise; a custom window by its width (≤ 62 days: days, ≤ 186: weeks, beyond: months). Each bucket
     carries `amount`, `cumulative` (read up to the bucket's end, null for a bucket that starts after the server's
@@ -137,6 +139,59 @@ add up — before the CSV goes to the accountant.
 20. **Access.** Admins, and the accountant role in read (`GET` only), through the plugin's own role entry.
 21. **Money.** Every amount is summed in integer cents and leaves as euros rounded to the cent; no figure is
     computed by the client.
+
+22. **Periods offered.** The payload lists what the period selector offers (`periodOptions`): every month and calendar
+    quarter from the first day of the oldest exercise (never before the entered-date window) to the server's month —
+    or to a window chosen ahead —, newest first and labelled (« novembre 2026 », « T4 2026 »), and the exercises
+    (`fiscalYears`). The client never builds a period itself.
+23. **Three tabs (D-HC2).** « Comptabilité » opens on « Synthèse », then « Encaissements » and « Écritures », each of
+    the last two with the server's count (`counts.payments`, `counts.entries`). « Écritures » is the journal view as it
+    was, with its own month and its CSV download — the CSV action is offered on that tab only, where its month is
+    chosen. One URL holds the three: `tab`, the journal's `month`/`year`, the synthesis's `p`/`sm`/`sq`/`sfy`/`sfrom`/
+    `sto`; a change keeps the others. A link with `month` and `year` and no `tab` (the way back from a fiche, every
+    journal link before this spec) opens « Écritures ».
+24. **The period bar.** Mois · Trimestre · Exercice · Personnalisée, then the month, quarter or exercise among the
+    server's options; the shown choice is the payload's `window`. A custom du / au is judged as the server judges it
+    (`customWindowError`, from the server's day): refused here with the same message, nothing sent. A period the
+    server refuses keeps the bar and the last figures shown, with the server's message above them: the page never
+    dead-ends.
+25. **The four tiles (D-HC6).** CA HT (secondary « TTC : … »), Encaissé (« N paiements »), Taxe de séjour (« N
+    séjours »), TVA à déclarer (« dont 10 % : … », the rate the server names `kpis.vat.mainRate`, the one carrying the
+    most VAT). Each: label, « i » definition, value, secondary line, its source (rule 30) and the pill « ↑ +21,3 %
+    (N-1 : 15 210 €) », or « — vs N-1 » when the server sends no comparison. Outside the VAT the VAT tile shows the
+    regime's mention (« Franchise en base de TVA ») instead of a figure, and no pill; on a cut month the tourist-tax
+    tile shows « — » and the server's reason, and no pill.
+26. **One notice.** Under the tiles, `NoComparisonNotice` shows `comparison.notice` once — the reason there is no
+    comparison, or the part compared — and nothing when the server sends none.
+27. **The checks strip.** Four checks in a row (two on a tablet, stacked on a phone): « Écritures équilibrées »
+    (« Débits = crédits : … » or the unbalanced count), « TVA cohérente » (« Aucun écart avec les écritures » or
+    « Écart de 0,01 € · voir l'écriture »), « Séjours terminés soldés » (all, or the count · voir), « Dernier export
+    CSV » (« 02/11/2026 à 09:14 · octobre 2026 », or « Aucun export »). « voir » opens, under the strip, what the check
+    names: the entries with their rate, VAT, expected VAT and gap, each with « Écritures du mois » that opens
+    « Écritures » on that entry's month; the stays with their logement, departure and what they still owe, linked to
+    their fiche for an admin only.
+28. **VAT to declare panel.** « Récapitulatif TVA à déclarer » with a « Par taux / Par compte » switch: the server's
+    rows and its total row, the deductible VAT on commissions on a line of its own (« non déduite ici »), and, outside
+    the VAT, « <mention> : aucune TVA à déclarer. » instead of the explanation.
+29. **Collected running total.** « Encaissements cumulés »: the server's running total per bucket with its light area,
+    last year's dashed beside it only when the server sends it (`previousAvailable`), a « ⋯ » menu to read it as a
+    table or copy it.
+30. **Sources shown (D-HC8).** Each tile and panel ends with « Sur les montants des séjours » or « Sur les
+    encaissements », from its `source`.
+31. **« Encaissements » shares.** Two panels, « Encaissements par moyen de paiement » and « Répartition par type de
+    règlement »: a segmented bar (the server's `ratio`) above the table — label, count, amount, share printed to one
+    decimal as the server rounded it —, and the server's total row (payments, collected). The refunds of the window
+    show on one line apart when there are any.
+32. **« Encaissements » series.** The amount per bucket and its running total on one time axis, with last year's
+    running total when sent, named after the granularity: « Encaissements journaliers / hebdomadaires / mensuels et
+    cumul », « Encaissé du jour / de la semaine / du mois ».
+33. **Responsive.** Tiles two per row below 1200 px, four from 1200 px; the panels side by side from 1200 px, stacked
+    below; the period selects full width on a phone; tables scroll inside their own box; no horizontal scroll of the
+    page at 390 px.
+    > **Sans test** — layout only, checked in a browser at 1280, 900 and 390 px (§7); the components it arranges are
+    > covered by their own tests.
+34. **The accountant.** Everything above is shown to the accountant role, read-only: the only difference is that a
+    stay is not a link (the fiche is not theirs).
 
 **Edge cases:**
 - A window with no entry → zeros, empty breakdowns (no share), a flat series, checks `ok`.
@@ -169,20 +224,20 @@ add up — before the CSV goes to the accountant.
 
 ### 4.2 Client side (`client/src/`)
 
-Round 1 touches `api.js` only. Round 2 (after lot 0's shared components are merged):
-
 | Layer | File | T/C | Responsibility |
 |---|---|---|---|
-| `api.js` | `api.js` | T (round 1) | `getAccountingSynthesis(params)` — sends only the keys given |
-| `plugins/accounting-export/` | `AccountingPage.jsx` | T (round 2) | Tabs « Synthèse » (first) · « Encaissements » (badge `counts.payments`) · « Écritures » (badge `counts.entries`, today's journal view unchanged); period selector in the `PageActionBar` |
-| `plugins/accounting-export/` | `AccountingSynthesisTab.jsx` | C (round 2) | KPI row, comparison notice, checks strip, VAT return (Par taux / Par compte), cumulative chart |
-| `plugins/accounting-export/` | `AccountingCollectionsTab.jsx` | C (round 2) | Means and types (segmented bar + table), daily/weekly/monthly series with cumulative and N-1 |
-| `hooks/` | `useServerToday` | consumed | Client date hints of the custom window judged from the server's day |
+| `api.js` | `api.js` | T | `getAccountingSynthesis(params)` — sends only the keys given |
+| `plugins/sdk/` | `index.js` | T | Exposes the report grammar to plugins (SDK 2.22.0): `SelectableTile`, `NoComparisonNotice`, `Panel`, `TrendChart`, `AlignedDailyCumulativeCharts`, `ShareTable`, `useServerToday`, `customWindowError`, `formatCurrencyRounded` |
+| `plugins/accounting-export/` | `AccountingPage.jsx` | T | The three tabs in the `PageActionBar` (rule 23), the URL, the synthesis load and its refusal (rule 24); « Écritures » renders the journal view unchanged |
+| `plugins/accounting-export/` | `SynthesisPeriodBar.jsx` | C | Mois · Trimestre · Exercice · Personnalisée and the server's options (rules 22, 24) |
+| `plugins/accounting-export/` | `AccountingSynthesisTab.jsx` | C | Tiles, notice, checks strip, VAT panel, cumulative chart (rules 25–30) |
+| `plugins/accounting-export/` | `AccountingCollectionsTab.jsx` | C | Means and types share tables, aligned series (rules 31, 32) |
+| `plugins/accounting-export/` | `synthesisCopy.js` | C | French copy of the two tabs |
 
-**Component reuse declaration:** consumed — `PageActionBar`, `PeriodSelector` (custom window), lot 0's KPI tile
-(label + « i », value, secondary line, N-1 pill), trend chart (dashed N-1, series named at the line end, legend
-toggles, « ⋯ » menu « Voir en tableau » / « Copier les données »), share bar + table, `EmptyState`, `ErrorAlert`,
-`LoadingState`; created — the two tabs, feature-local (they only arrange generic components on this payload).
+**Component reuse declaration:** consumed — `PageActionBar`, `PageTabs` (`count`), `SelectableTile` (static, `info`,
+`comparison`), `NoComparisonNotice`, `Panel`, `TrendChart`, `AlignedDailyCumulativeCharts`, `ShareTable`, `DateField`,
+`ErrorAlert`, `LoadingState`, `customWindowError` (from `PeriodSelector`, whose three-kind control could not take a
+quarter); created — the two tabs and the period bar, feature-local (they arrange generic components on this payload).
 
 ### 4.3 API contract
 
@@ -203,13 +258,17 @@ Example — `GET /api/accounting/synthesis?period=quarter&quarter=2026-Q3` (amou
   "comparison": {
     "comparable": true, "complete": true, "months": 3, "totalMonths": 3,
     "current": { "from": "2026-07-01", "to": "2026-09-30" }, "previous": { "from": "2025-07-01", "to": "2025-09-30" },
-    "reason": null, "note": null
+    "reasonCode": null, "comparableFrom": null, "notice": null
+  },
+  "periodOptions": {
+    "months": [{ "value": "2026-11", "label": "novembre 2026" }, { "value": "2026-10", "label": "octobre 2026" }],
+    "quarters": [{ "value": "2026-Q4", "label": "T4 2026" }, { "value": "2026-Q3", "label": "T3 2026" }]
   },
   "kpis": {
     "revenue": { "source": "stays", "ht": 18450.3, "ttc": 20295, "showHt": true, "stays": 41, "yoy": { "current": 18450.3, "previous": 15210.8, "change": 21.3 } },
     "collected": { "source": "collections", "amount": 21980.6, "payments": 96, "refunds": { "count": 1, "amount": 120 }, "yoy": { "current": 21980.6, "previous": 17430.2, "change": 26.1 } },
     "touristTax": { "source": "stays", "amount": 286.4, "stays": 41, "reason": null, "yoy": { "current": 286.4, "previous": 241.9, "change": 18.4 } },
-    "vat": { "source": "collections", "amount": 1882.7, "byRate": [{ "ratePercent": 20, "vat": 141.67 }, { "ratePercent": 10, "vat": 1741.03 }], "notSubject": null, "yoy": { "current": 1882.7, "previous": 1490.4, "change": 26.3 } }
+    "vat": { "source": "collections", "amount": 1882.7, "byRate": [{ "ratePercent": 20, "vat": 141.67 }, { "ratePercent": 10, "vat": 1741.03 }], "mainRate": { "ratePercent": 10, "vat": 1741.03 }, "notSubject": null, "yoy": { "current": 1882.7, "previous": 1490.4, "change": 26.3 } }
   },
   "vatReturn": {
     "source": "collections",
@@ -237,20 +296,20 @@ Example — `GET /api/accounting/synthesis?period=quarter&quarter=2026-Q3` (amou
       }]
     },
     "settled": { "source": "stays", "status": "gap", "count": 1, "stays": [{ "reservationId": 22290, "name": "Paul Martin", "propertyName": "Gîte", "endDate": "2026-09-14", "remaining": 412.5 }] },
-    "lastExport": { "at": "2026-10-02T09:14", "month": "2026-09" }
+    "lastExport": { "at": "2026-10-02T09:14", "month": "2026-09", "monthLabel": "septembre 2026" }
   },
   "collections": {
     "source": "collections", "total": 21980.6, "payments": 96,
     "byMeans": [
-      { "key": "recorded", "label": "Marqué perçu", "count": 46, "amount": 9020, "share": 41 },
-      { "key": "platform", "label": "Versements plateforme", "count": 29, "amount": 7650, "share": 34.8 },
-      { "key": "paymentLink", "label": "Lien de paiement", "count": 21, "amount": 5310.6, "share": 24.2 }
+      { "key": "recorded", "label": "Marqué perçu", "count": 46, "amount": 9020, "share": 41, "ratio": 0.41 },
+      { "key": "platform", "label": "Versements plateforme", "count": 29, "amount": 7650, "share": 34.8, "ratio": 0.348 },
+      { "key": "paymentLink", "label": "Lien de paiement", "count": 21, "amount": 5310.6, "share": 24.2, "ratio": 0.242 }
     ],
     "byType": [
-      { "key": "balance", "label": "Soldes", "count": 33, "amount": 8132.8, "share": 37 },
-      { "key": "platformPayout", "label": "Versements plateforme", "count": 29, "amount": 7650, "share": 34.8 },
-      { "key": "deposit", "label": "Acomptes", "count": 25, "amount": 4397.8, "share": 20 },
-      { "key": "arrivalComplement", "label": "Compléments à l’arrivée", "count": 9, "amount": 1800, "share": 8.2 }
+      { "key": "balance", "label": "Soldes", "count": 33, "amount": 8132.8, "share": 37, "ratio": 0.37 },
+      { "key": "platformPayout", "label": "Versements plateforme", "count": 29, "amount": 7650, "share": 34.8, "ratio": 0.348 },
+      { "key": "deposit", "label": "Acomptes", "count": 25, "amount": 4397.8, "share": 20, "ratio": 0.2 },
+      { "key": "arrivalComplement", "label": "Compléments à l’arrivée", "count": 9, "amount": 1800, "share": 8.2, "ratio": 0.082 }
     ],
     "series": {
       "granularity": "week", "previousAvailable": true,
@@ -279,42 +338,54 @@ plugin's data deletes it with the plugin's other settings.
 
 ## 6. UI / UX
 
-Round 2, after lot 0 — the design reference `#synthese` (approved 2026-11-05), adapted to MUI and the « Maison »
-theme:
+The design reference `#synthese` (approved 2026-11-05), in MUI and the « Maison » theme, with lot 0's report grammar.
 
-- **Tabs** under the `PageActionBar` (title « Comptabilité », period selector — Mois · Trimestre · Exercice ·
-  Dates — in the bar's centre on `md+`, below on `xs`): « Synthèse » (first, default), « Encaissements » + badge,
-  « Écritures » + badge. « Écritures » is today's page body, unchanged (its own month selector).
-- **Synthèse:** four tiles — « CA HT » (secondary « TTC : … », caption « Sur les montants des séjours »),
-  « Encaissé » (« N paiements », « Sur les encaissements »), « Taxe de séjour » (« N séjours »; the reason instead
-  of a figure on a cut month), « TVA à déclarer » (« dont 10 % : … »; the mention label under « Sans TVA ») — each
-  with its N-1 pill or « — vs N-1 »; one notice under the row when `comparison.reason`; the checks strip
-  (Acomptes soldés · TVA cohérente · Dernier export CSV), each gap opening the named entries or stays; the VAT
-  return with « Par taux / Par compte »; the cumulative chart with N-1 dashed.
-- **Encaissements:** means and types as a thin segmented bar + table (no pie, D-HC5), the series with its cumulative.
-- **Responsive:** tiles 4 → 2 → 1 columns (`lg` / `md` / `xs`); tables become stacked rows on `xs`; charts full
-  width; no horizontal scroll.
-- **Never dead-ends:** a refused period keeps the selector and shows the refusal; the custom window's hints judge
-  from `useServerToday`.
+- **Bar:** `PageActionBar` « Comptabilité », the tabs in its `tabs` slot (centred on `sm+`, second row on `xs`):
+  « Synthèse » · « Encaissements 96 » · « Écritures 131 ». The CSV action (« Télécharger le CSV des ventes ») only on
+  « Écritures ».
+- **Period bar** (Synthèse and Encaissements): toggle Mois · Trimestre · Exercice · Personnalisée, then the select
+  (Mois / Trimestre / Exercice) or Du / Au. Refusal text in red under the dates; a server refusal in an `ErrorAlert`
+  with « Réessayer » above the last figures.
+- **Synthèse:** the four tiles (« i », value, secondary line, source, pill), one notice, the checks strip (dot +
+  title + state; « voir » opens the named entries or stays under the strip), « Récapitulatif TVA à déclarer » with
+  « Par taux / Par compte », « Encaissements cumulés » (current with area, N-1 dashed, « ⋯ »).
+- **Encaissements:** « Encaissements par moyen de paiement » and « Répartition par type de règlement » (segmented bar
+  + table + total), « Encaissements journaliers / hebdomadaires / mensuels et cumul » (bars over the running total).
+- **Copy** (impersonal): « Sur les montants des séjours », « Sur les encaissements », « Écritures équilibrées »,
+  « TVA cohérente », « Séjours terminés soldés », « Dernier export CSV », « Aucun export », « Écritures du mois »,
+  « TVA déductible sur les commissions, non déduite ici », « Remboursements sur la période, hors encaissements ».
+- **Responsive:** rule 33 — tiles 2 per row below 1200 px (the sidebar leaves ~600 px at 900), 4 from 1200 px; panels
+  side by side from 1200 px; the period select full width on a phone; checks strip 4 → 2 → 1 columns; tables scroll
+  in their own box; the tabs scroll on a phone (PageTabs). Checked at 1280, 900 and 390 px.
+- **Accountant:** everything shown, nothing editable (there is nothing to edit); stays are not links.
 
 ## 7. Test plan
 
-### Server unit tests (round 1 — 43 tests in 6 new files, all in `server/src/plugins/accounting-export/tests/`)
+### Server unit tests (48 tests in 7 new files, all in `server/src/plugins/accounting-export/tests/`)
 - [x] `accounting-synthesis-period.unit.test.js` (9) — rules 1, 2, 8, 15: periods, refusals, granularity, buckets.
 - [x] `accounting-synthesis-engine.unit.test.js` (10) — rules 4, 5, 6, 10–15, 21: VAT return, checks, payments, shares, series.
 - [x] `accounting-synthesis-csv-one-source.unit.test.js` (4) — rules 3, 5, 6: CSV byte-identical (golden file, two plans), rows = ventilation lines, VAT = the CSV's VAT accounts.
 - [x] `accounting-synthesis-books.unit.test.js` (9) — rules 1, 4, 5, 7, 8, 9, 10, 13, 16, 17, 18, 20 on the real schema through the plugin's routes: journal equality, `getSummary` equality, tourist-tax extraction equality, dashboard range equality, means from links and channel, stamp, accountant access.
 - [x] `accounting-synthesis-payload.unit.test.js` (8) — rules 5, 8, 9, 19, 21 on a model double.
 - [x] `accounting-synthesis-last-export.unit.test.js` (3) — rule 16.
+- [x] `accounting-synthesis-ui-payload.unit.test.js` (5) — rules 14, 16, 22, 25: periods offered, main VAT rate, export month in words, share ratio.
+- The books suite also proves the dashboard and the synthesis say the same comparison sentence for the same window (rule 9).
 
-### Client unit tests
+### Client unit tests (Vitest — 24 tests in 7 new files)
 - [x] `client/src/__tests__/api.accounting-synthesis.test.js` (1) — the query sent.
-- [ ] Round 2: `AccountingPage.synthesis-tabs.test.jsx`, `AccountingSynthesisTab.*.test.jsx`, `AccountingCollectionsTab.*.test.jsx`.
+- [x] `plugins/accounting-export/__tests__/AccountingPage.synthesis-tabs.test.jsx` (5) — rules 23, 24, 34.
+- [x] `plugins/accounting-export/__tests__/AccountingSynthesisTab.kpis.test.jsx` (6) — rules 25, 26, 30.
+- [x] `plugins/accounting-export/__tests__/AccountingSynthesisTab.checks.test.jsx` (4) — rules 27, 34.
+- [x] `plugins/accounting-export/__tests__/AccountingSynthesisTab.vat-panel.test.jsx` (3) — rules 28, 29, 30.
+- [x] `plugins/accounting-export/__tests__/AccountingCollectionsTab.shares.test.jsx` (2) — rules 31, 32.
+- [x] `plugins/accounting-export/__tests__/SynthesisPeriodBar.periods.test.jsx` (3) — rules 22, 24.
+- The journal suites (`AccountingPage.regression`, `.platforms`, `.tax-only-entries`, …) are unchanged and green: a
+  `month`+`year` link still opens the journal (rule 23).
 
-### Manual UI verification (round 2)
-- [ ] A quarter with a platform payout, a paid link and a door payment: tiles, VAT tables equal, shares 100.
-- [ ] Mobile (≤ 600 px): tiles stacked, tables as rows, no horizontal scroll.
-- [ ] A custom window cut mid-month: the tax tile's reason; a refused window keeps the selector.
+### Manual UI verification (throwaway seeded DB, ports 47120/47121)
+- [x] 1280 px: Synthèse on a quarter (tiles, pills, checks, VAT, cumulative with N-1), Encaissements (share tables, aligned series).
+- [x] 900 px: exercise, tiles two per row, checks two per row, « voir » on an unsettled stay.
+- [x] 390 px: tiles two per row, period select full width, no page-level horizontal scroll.
 
 ## 8. Out of scope
 
@@ -339,7 +410,17 @@ theme:
 - Q: « Écritures » on a quarter? — A: the tab keeps today's month view unchanged (D-HC2); its badge counts the
   synthesis window's entries.
 
+**Resolved by default (round 2, 2026-11-05):**
+- Q: Reuse `PeriodSelector`? — A: it has three kinds (exercise, month, custom) and no quarter; the period bar is
+  feature-local, the same look, and reuses its `customWindowError` so the refusals stay one.
+- Q: Where is the CSV download? — A: on « Écritures » only: the CSV is one month's journal, chosen there.
+- Q: Old links `?month=&year=` (the way back from a fiche)? — A: they open « Écritures », as they did.
+- Q: Four tiles per row at 900 px? — A: two: with the sidebar the content is about 600 px wide and the amounts
+  overflowed; four from 1200 px.
+- Q: Where does each tile state its source (D-HC8)? — A: on its secondary line, under the figure's own line.
+
 ## 10. Implementation progress
 
-- 2026-11-05 — round 1: server, API, `api.getAccountingSynthesis`, 43 server tests + 1 client test. Round 2 (UI)
-  pending lot 0.
+- 2026-11-05 — round 1: server, API, `api.getAccountingSynthesis`, 43 server tests + 1 client test.
+- 2026-11-05 — round 2: the comparison sentence shared with the dashboard, `periodOptions`, `mainRate`, export month,
+  share `ratio`; the UI (rules 22–34); 48 server tests, 24 client tests.
