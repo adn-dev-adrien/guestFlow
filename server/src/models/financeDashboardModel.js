@@ -131,17 +131,23 @@ function createDashboardModel(database, finance) {
   // rule (the earliest creation day is the initial import), on the same stays.
   const trackingStart = (propertyId) => paceStartOf(finance.getPaceStays({ propertyId }));
 
+  // Rules 17-20, 33 — the comparable part of a window and its twin a year earlier: the one reading of
+  // « comparable with last year », shared with the accounting synthesis (specs/accounting-synthesis.md rule 9).
+  // A year ago GuestFlow may not have existed yet: last year « as it stood » is then unknown, and only the
+  // months already over (both sides final) can be compared.
+  function lastYearRange({ window: win, today, propertyId = null }) {
+    const cover = coverage(propertyId);
+    const snapshotKnown = yoy.lastYearSnapshotKnown(today, trackingStart(propertyId));
+    let range = yoy.comparableRange(win, cover);
+    if (range && !snapshotKnown) range = yoy.clampToMonthsOver(range, today);
+    return { cover, range, snapshotKnown, knownN1: yoy.shiftYear(today, -1) };
+  }
+
   // The figures every part of the page shares — computed once per request.
   function figures(ctx) {
     const { window: win, exercise, propertyId, today } = ctx;
     const summary = finance.getSummary({ from: win.from, to: win.to, fiscalYear: exercise.key, propertyId });
-    const cover = coverage(propertyId);
-    const knownN1 = yoy.shiftYear(today, -1);
-    // Rule 33 — a year ago GuestFlow may not have existed yet: last year « as it stood » is then
-    // unknown, and only the months already over (both sides final) can be compared.
-    const snapshotKnown = yoy.lastYearSnapshotKnown(today, trackingStart(propertyId));
-    let range = yoy.comparableRange(win, cover);
-    if (range && !snapshotKnown) range = yoy.clampToMonthsOver(range, today);
+    const { cover, range, snapshotKnown, knownN1 } = lastYearRange({ window: win, today, propertyId });
     let comparable = null;
     if (range) {
       const cur = range.complete ? summary : finance.getSummary({ from: range.current.from, to: range.current.to, fiscalYear: exercise.key, propertyId });
@@ -477,7 +483,7 @@ function createDashboardModel(database, finance) {
     };
   }
 
-  return { getDashboard, getDashboardDetail, paymentsLedger };
+  return { getDashboard, getDashboardDetail, paymentsLedger, lastYearRange };
 }
 
 const defaultModel = createDashboardModel(db, financeModel);

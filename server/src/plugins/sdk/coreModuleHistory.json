@@ -172,6 +172,17 @@
         "stayDates"
       ],
       "names": {}
+    },
+    {
+      "version": "2.22.0",
+      "modules": [
+        "financeModel",
+        "financeDashboardModel",
+        "financeWindow",
+        "fiscalYear",
+        "yearOverYear"
+      ],
+      "names": {}
     }
   ]
 }

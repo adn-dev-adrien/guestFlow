@@ -596,6 +596,16 @@ const api = {
   // Accounting (read-only; admin + accountant)
   getAccountingSales: (month, year) => request(`/accounting/sales?month=${month}&year=${year}`),
   getAccountingPlatforms: (month, year) => request(`/accounting/platforms?month=${month}&year=${year}`),
+  // specs/accounting-synthesis.md §4.3 — `{ period: 'month'|'quarter'|'fy'|'custom', month, quarter, fiscalYear, from, to }`;
+  // only the keys given are sent, the server judges them (400 `{ error }` with the French refusal).
+  getAccountingSynthesis: (params = {}) => {
+    const query = new URLSearchParams();
+    ['period', 'month', 'quarter', 'fiscalYear', 'from', 'to'].forEach((key) => {
+      if (params[key] != null && params[key] !== '') query.set(key, String(params[key]));
+    });
+    const qs = query.toString();
+    return request(`/accounting/synthesis${qs ? `?${qs}` : ''}`);
+  },
   downloadAccountingSalesCsv: async (month, year) => {
     const res = await reach(`/accounting/sales.csv?month=${month}&year=${year}`);
     if (!res.ok) throw new Error("Impossible de générer le CSV.");

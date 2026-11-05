@@ -103,6 +103,13 @@ const CORE_MODULES = Object.freeze({
   dateFr: '../../utils/dateFr', // the planning cards' and the occupancy strip's French times
   // linen, school-holidays, hourly-resources — the date window of every entered date (reservations-backend-mvc rule 13)
   stayDates: '../../utils/stayDates',
+  // accounting-export — the accounting synthesis reads the core's own finance figures, never a second
+  // derivation (specs/accounting-synthesis.md rules 7-10, SDK 2.22.0)
+  financeModel: '../../models/financeModel', // the stays' revenue of a window and the tourist-tax extraction
+  financeDashboardModel: '../../models/financeDashboardModel', // the one « comparable with last year » reading
+  financeWindow: '../../utils/financeWindow', // the custom window's refusals, shared with the Suivi financier
+  fiscalYear: '../../utils/fiscalYear', // the exercise bounds of the app's closing month
+  yearOverYear: '../../utils/yearOverYear', // one year earlier, and the change in percent
 });
 
 function coreModule(name) {

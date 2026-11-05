@@ -803,5 +803,53 @@
     "stayDatesRefusal",
     "stayDatesRefusalBody",
     "stayItemDatesRefusal"
+  ],
+  "financeModel": [
+    "buildModel",
+    "getGoalContext",
+    "getLedgerStays",
+    "getOperational",
+    "getPaceStays",
+    "getProjection",
+    "getSummary",
+    "getTouristTaxExtraction",
+    "helpers",
+    "setTouristTaxDeclared"
+  ],
+  "financeDashboardModel": [
+    "bestMonthOf",
+    "buildModel",
+    "getDashboard",
+    "getDashboardDetail",
+    "isPlatformStay",
+    "lastYearRange",
+    "paymentsLedger"
+  ],
+  "financeWindow": [
+    "MAX_CUSTOM_WINDOW_DAYS",
+    "MESSAGES",
+    "MONTH_NAMES",
+    "monthLabel",
+    "resolveWindow"
+  ],
+  "fiscalYear": [
+    "DEFAULT_END_MONTH",
+    "boundsForEndYear",
+    "containing",
+    "list",
+    "normaliseEndMonth",
+    "resolve"
+  ],
+  "yearOverYear": [
+    "change",
+    "clampToMonthsOver",
+    "comparableRange",
+    "coverageMonth",
+    "isComparableMonth",
+    "isMonthOver",
+    "lastYearSnapshotKnown",
+    "monthsTouched",
+    "shiftMonth",
+    "shiftYear"
   ]
 }
