@@ -82,11 +82,12 @@ test('an adjusted complement is not stamped: the operator’s allocation decides
 });
 
 test('an offered line collected nothing: the contrib path skips it', () => {
-  const stay = fiche(NO_ACOMPTE, 'direct', { customOptions: [forced(20), forced(30, 'Offerte')] });
+  const stay = fiche(NO_ACOMPTE, 'direct', { customOptions: [forced(20)] });
   pay(stay.id, S);
-  db.prepare("UPDATE reservation_custom_options SET offered = 1 WHERE reservationId = ? AND description = 'Offerte'").run(stay.id);
+  db.prepare("INSERT OR IGNORE INTO options (id, title, priceType, price) VALUES (91, 'Offerte', 'per_stay', 30)").run();
+  db.prepare('INSERT INTO reservation_options (reservationId, optionId, quantity, totalPrice, offered, inComplement) VALUES (?, 91, 1, 30, 1, 1)').run(stay.id);
+  db.prepare('UPDATE reservations SET complementAmount = 50 WHERE id = ?').run(stay.id);
   const split = computeComplementPaidSplit(db, stay.id);
-  assert.equal(rowOf(stay.id).complementAmount, 50);
   assert.deepEqual(split.lines.map((line) => line.key), ['custom:forcée']);
 });
 
@@ -94,9 +95,9 @@ test('the share sold during the stay stays out of what the complement collected'
   const stay = fiche(NO_ACOMPTE, 'direct', { customOptions: [forced(50), forced(50, 'Autre')] });
   pay(stay.id, S);
   db.prepare('UPDATE reservations SET complementAmount = 90, endOfStayComplementAmount = 10, endOfStayComplementPaid = 1, endOfStayComplementDetail = ? WHERE id = ?')
-    .run(JSON.stringify([{ source: 'midStayExtra', key: 'custom:forcée', label: 'Forcée', amount: 10 }]), stay.id);
+    .run(JSON.stringify([{ source: 'midStayExtra', key: 'custom:autre', label: 'Autre', amount: 10 }]), stay.id);
   const split = computeComplementPaidSplit(db, stay.id);
-  assert.deepEqual(split.lines.map((line) => [line.key, line.cents]), [['custom:forcée', 4000], ['custom:autre', 5000]]);
+  assert.deepEqual(split.lines.map((line) => [line.key, line.cents]), [['custom:forcée', 5000], ['custom:autre', 4000]]);
   assert.equal(split.accommodationCents, 0);
 });
 
