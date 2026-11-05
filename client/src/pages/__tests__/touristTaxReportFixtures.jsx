@@ -43,8 +43,10 @@ export const TOTALS = {
 
 export function reportOf(rows, over = {}) {
   return {
+    // date-literal-ok: display-only fixture dates, the page compares none of them with today
     window: { kind: 'month', from: '2026-06-01', to: '2026-06-30', toExclusive: '2026-07-01', label: 'juin 2026', month: '2026-06', coveredTo: '2026-06-30', coveredToExclusive: '2026-07-01', futureExcluded: false },
     filters: { propertyId: null, declaration: 'all' },
+    // date-literal-ok: display-only fixture dates, the page compares none of them with today
     today: '2026-07-05',
     currentMonth: '2026-07',
     properties: [{ id: 1, name: 'Gîte' }, { id: 2, name: 'Estiva' }],

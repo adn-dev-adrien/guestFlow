@@ -12,6 +12,7 @@ vi.mock('../../api', () => ({
 
 import api from '../../api';
 
+// date-literal-ok: display-only fixture dates, the page compares none of them with today
 const ROW = { reservationId: 7, reservationName: 'Jean Dupont', startDate: '2026-06-20', endDate: '2026-06-22', adults: 2, children: 1, nightsCount: 2, taxAmount: 4.8 };
 const FULL = {
   ...TOTALS, staysCount: 3, persons: 9, taxedPersons: 6, exemptPersons: 3, nights: 7, taxedPersonNights: 18, exemptPersonNights: 5,
@@ -21,6 +22,7 @@ const FULL = {
 beforeEach(() => {
   setPhone(false);
   api.getTouristTaxReport.mockReset().mockResolvedValue(reportOf([ROW], { totals: FULL }));
+  // date-literal-ok: display-only fixture dates, the page compares none of them with today
   api.setTouristTaxDeclared.mockReset().mockResolvedValue({ declaredAt: '2026-07-01 10:00:00' });
 });
 afterAll(() => setPhone(null));
@@ -69,6 +71,7 @@ test('rule 21: a tick reads the report again and the bar takes the new totals', 
   renderTaxPage();
   const box = await screen.findByRole('checkbox', { name: 'Déclarée — Jean Dupont' });
   api.getTouristTaxReport.mockResolvedValue(reportOf(
+    // date-literal-ok: display-only fixture dates, the page compares none of them with today
     [{ ...ROW, touristTaxDeclaredAt: '2026-07-01 10:00:00' }],
     { totals: { ...FULL, declaredAmount: 24.8, remainingAmount: 27.64 } },
   ));

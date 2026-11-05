@@ -11,6 +11,7 @@ vi.mock('../../api', () => ({
 
 import api from '../../api';
 
+// date-literal-ok: display-only fixture dates, the page compares none of them with today
 const OURS = { reservationId: 7, reservationName: 'Jean Dupont', startDate: '2026-06-20', endDate: '2026-06-22', adults: 2, children: 0, nightsCount: 2, taxAmount: 4.8 };
 const PLATFORM = {
   ...OURS, reservationId: 9, key: '9-platform', reservationName: 'Sam Martin', remittedBy: 'platform', platformLabel: 'Airbnb',

@@ -17,6 +17,7 @@ import api from '../../api';
 
 test('rule 23 — the declared total keeps its cents', async () => {
   api.getTouristTaxReport.mockResolvedValue(reportOf(
+    // date-literal-ok: display-only fixture dates, the page compares none of them with today
     [{ reservationId: 7, reservationName: 'Jean Dupont', startDate: '2026-09-20', endDate: '2026-09-21', adults: 2, children: 0, nightsCount: 1, taxAmount: 5.95 }],
     { totals: { ...TOTALS, amount: 5.95, remainingAmount: 5.95 } },
   ));

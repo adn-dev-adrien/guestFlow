@@ -15,10 +15,14 @@ import api from '../../api';
 
 const ROW = { reservationId: 7, reservationName: 'Jean Dupont', startDate: '2026-06-20', endDate: '2026-06-22', adults: 2, children: 1, nightsCount: 2, taxAmount: 4.8 };
 
+// The clock is pinned: the custom window's dates are judged against today (specs/server-test-isolation.md rule 7).
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-07-05T12:00:00') });
   api.getTouristTaxReport.mockReset().mockResolvedValue(reportOf([ROW]));
   api.getToday.mockReset().mockResolvedValue({ today: '2026-07-05' }); // date-literal-ok: the server's day, mocked
 });
+
+afterEach(() => { vi.useRealTimers(); });
 
 const lastQuery = () => api.getTouristTaxReport.mock.calls.at(-1)[0];
 const pick = async (label, option) => {
