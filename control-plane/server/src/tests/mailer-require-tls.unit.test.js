@@ -3,6 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const net = require('net');
+const nodemailer = require('nodemailer');
 
 const { createMailer } = require('../utils/mailer');
 
@@ -49,4 +50,21 @@ test('no login: the relay keeps working', async (t) => {
   const mailer = createMailer({ CP_SMTP_HOST: '127.0.0.1', CP_SMTP_PORT: String(smtp.port) });
   await mailer.send(message);
   assert.equal(smtp.lines.some((line) => /^DATA/i.test(line)), true);
+});
+
+test('requireTLS: with a login on 587, not on 465 where TLS is already implicit, not without a login', (t) => {
+  const seen = [];
+  t.mock.method(nodemailer, 'createTransport', (options) => { seen.push(options); return { sendMail: async () => {} }; });
+  const login = { CP_SMTP_USER: 'USER', CP_SMTP_PASS: 'PASS_XYZ' };
+  const cases = [
+    [{ ...login, CP_SMTP_PORT: '587' }, { secure: false, requireTLS: true }],
+    [{ ...login }, { secure: false, requireTLS: true }],
+    [{ ...login, CP_SMTP_PORT: '465' }, { secure: true, requireTLS: false }],
+    [{ CP_SMTP_PORT: '587' }, { secure: false, requireTLS: false }],
+  ];
+  for (const [env, expected] of cases) {
+    seen.length = 0;
+    createMailer({ CP_SMTP_HOST: 'smtp.example.test', ...env });
+    assert.deepEqual({ secure: seen[0].secure, requireTLS: seen[0].requireTLS }, expected, JSON.stringify(env));
+  }
 });
