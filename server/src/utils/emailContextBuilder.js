@@ -9,6 +9,7 @@
  * Pure: no DB access. The caller passes raw rows; this module just shapes them.
  */
 
+const { ADDED_GUESTS_TAX_LABEL } = require('./platformPaidGuests');
 const propertyArticle = require('./propertyArticle');
 const { pendingFactsOf } = require('./propertyFacts');
 const { formatDateLong, formatTimeShort } = require('./dateFr');
@@ -254,6 +255,8 @@ function buildContext({ reservation, client, property, options = [], resources =
       inComplementItems.push({ label: safeStr(o.title).trim(), amount: Number(o.totalPrice || 0) });
     }
   }
+  // specs/platform-added-guests-tourist-tax.md rule 23.
+  const addedGuestsTaxLabel = isEn ? 'Additional tourist tax' : ADDED_GUESTS_TAX_LABEL;
   for (const rr of (resources || [])) {
     if (Number(rr.inComplement || 0) === 1 && Number(rr.offered || 0) !== 1) {
       inComplementItems.push({ label: safeStr(rr.name).trim(), amount: Number(rr.totalPrice || 0) });
@@ -266,6 +269,8 @@ function buildContext({ reservation, client, property, options = [], resources =
   }
   if (Number(r.touristTaxInComplement || 0) === 1 && Number(r.touristTaxTotal || 0) > 0) {
     inComplementItems.push({ label: isEn ? 'Tourist tax' : 'Taxe de séjour', amount: Number(r.touristTaxTotal || 0) });
+  } else if (Number(r.touristTaxAddedGuestsAmount || 0) > 0) {
+    inComplementItems.push({ label: addedGuestsTaxLabel, amount: Number(r.touristTaxAddedGuestsAmount) });
   }
   // specs/j2-email-coffee-and-sas-complement.md — render the complement like the SAS check-in recap:
   // one itemised line per prestation (« label : qté × prix = total », or « label : total » without a
@@ -281,7 +286,7 @@ function buildContext({ reservation, client, property, options = [], resources =
   if (usingSasDetail) {
     noticeLines = sasDetailLines
       .filter((it) => Number(it.amount) > 0)
-      .map((it) => ({ kind: it.kind, label: safeStr(it.label).trim(), qty: Number(it.qty || 1), unitPrice: Number(it.unitPrice || 0), amount: round2c(it.amount) }));
+      .map((it) => ({ kind: it.kind, addedGuests: Boolean(it.addedGuests), label: safeStr(it.label).trim(), qty: Number(it.qty || 1), unitPrice: Number(it.unitPrice || 0), amount: round2c(it.amount) }));
   } else {
     noticeLines = inComplementItems
       .filter((it) => it.label && it.amount > 0)
@@ -293,6 +298,7 @@ function buildContext({ reservation, client, property, options = [], resources =
   // System labels are localised per language; item titles pass through (EN option-title localisation
   // is out of scope, spec §8).
   const localizedComplementLabel = (l) => {
+    if (l.kind === 'tax' && l.addedGuests) return addedGuestsTaxLabel;
     if (l.kind === 'tax') return isEn ? 'Tourist tax' : 'Taxe de séjour';
     if (l.kind === 'remainder') return isEn ? 'Arrival balance' : "Complément d'arrivée";
     return l.label;

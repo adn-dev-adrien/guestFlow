@@ -29,7 +29,7 @@ const { checkChangeover } = require('./changeover');
 const { isDirectChannel } = require('./platformNameFormat');
 const { saleChannel } = require('./saleChannel');
 const { quoteHeadline, summaryCascade } = require('./quoteHeadline');
-const { isBrutPinned } = require('./platformPaidGuests');
+const { ADDED_GUESTS_TAX_LABEL, isBrutPinned } = require('./platformPaidGuests');
 const { portionCap, clampPortions } = require('./mealPortions');
 const {
   normalizeExtraGuestTiers, resolveTierPrice, describeExtraGuestTiers,
@@ -1498,7 +1498,9 @@ function calculateReservationQuote({
   // specs/platform-added-guests-tourist-tax.md rules 1, 7 — the adults the platform billed (server-owned)
   // and the added tax as last stored, which a collected complement or a frozen total already contains.
   platformPaidAdults,
+  platformPaidOccupants,
   storedTouristTaxAddedGuests,
+  storedTouristTaxAddedGuestsAdults,
   // specs/platform-extra-guest-complement.md — the persons the platform billed (server-owned).
   platformPaidGuests = null,
   // specs/platform-tourist-tax-out-of-the-commission.md — the tourist tax the platform withheld from
@@ -2459,6 +2461,10 @@ function calculateReservationQuote({
   // the tax of the party it sold: what the added guests owe is collected in the complement. Reads the
   // platform's mode, never its name (rule 3). A tax already forced to the complement is whole there.
   let touristTaxAddedGuestsAmount = 0;
+  let touristTaxAddedGuestsAdults = 0;
+  const resolvedPlatformPaidOccupants = platformPaidOccupants != null && Number.isFinite(Number(platformPaidOccupants))
+    ? Number(platformPaidOccupants)
+    : resolvedPlatformPaidGuests;
   if (platformGrossPin != null && collectsFromGuest && isTouristTaxRemittedByOwnerFlag
     && !touristTaxInComplement && resolvedPlatformPaidGuests != null
     && platformPaidAdults != null && Number.isFinite(Number(platformPaidAdults))) {
@@ -2474,7 +2480,7 @@ function calculateReservationQuote({
       // The live party, even on a frozen stay: only the amount already reversed is pinned (rule 7bis).
       occupants: Number(adults || 0) + Number(children || 0) + Number(teens || 0),
       paidAdults: Number(platformPaidAdults),
-      paidOccupants: resolvedPlatformPaidGuests,
+      paidOccupants: resolvedPlatformPaidOccupants,
       accommodationAmountTtc: taxBaseAccommodation,
       accommodationVatRate: vatRate,
       accommodationAmountHt: freezeTouristTax && frozenTouristTaxBaseHt != null
@@ -2484,6 +2490,13 @@ function calculateReservationQuote({
     });
     // Rule 7 — collected money stops moving, and with it the tax of a later party.
     touristTaxAddedGuestsAmount = complementPaid ? storedAdded : added;
+    // Rule 21 — who the amount is for, kept with it: a gap with nobody added (rule 5) holds 0.
+    const addedAdults = Math.max(0, Number(adults || 0) - Number(platformPaidAdults));
+    if (complementPaid) {
+      touristTaxAddedGuestsAdults = storedTouristTaxAddedGuestsAdults != null ? Number(storedTouristTaxAddedGuestsAdults) : addedAdults;
+    } else {
+      touristTaxAddedGuestsAdults = added > 0 ? addedAdults : 0;
+    }
     if (freezeTouristTax) {
       // Rule 7bis — the frozen total holds the added tax of the last save: take it out before adding
       // today's, or every save would count it again.
@@ -2982,7 +2995,15 @@ function calculateReservationQuote({
       });
     }
     if (taxInComplement > 0) {
-      complementDetailLines.push({ kind: 'tax', label: 'Taxe de séjour', qty: 1, unitPrice: roundMoney(taxInComplement), amount: roundMoney(taxInComplement) });
+      const isAddition = !isTouristTaxCollectedOnArrival && !isTouristTaxForcedToComplement;
+      complementDetailLines.push({
+        kind: 'tax',
+        label: isAddition ? ADDED_GUESTS_TAX_LABEL : 'Taxe de séjour',
+        qty: 1,
+        unitPrice: roundMoney(taxInComplement),
+        amount: roundMoney(taxInComplement),
+        ...(isAddition ? { addedGuests: true } : {}),
+      });
     }
     const listed = roundMoney(complementDetailLines.reduce((sum, l) => sum + l.amount, 0));
     const rem = roundMoney(resolvedComplementAmount - listed);
@@ -3201,7 +3222,9 @@ function calculateReservationQuote({
     touristTaxInComplement: isTouristTaxForcedToComplement,
     // specs/platform-added-guests-tourist-tax.md §4.3.
     touristTaxAddedGuestsAmount,
+    touristTaxAddedGuestsAdults,
     platformPaidAdults: platformGrossPin != null && platformPaidAdults != null ? Number(platformPaidAdults) : null,
+    platformPaidOccupants: platformGrossPin != null && platformPaidAdults != null ? resolvedPlatformPaidOccupants : null,
     forcedItemsTotal,
     // specs/mid-stay-extras-to-end-of-stay-complement.md — what was sold during the stay: the total
     // the engine carved out of the other buckets, and the ready-to-store end-of-stay detail lines.

@@ -1,4 +1,4 @@
-// specs/platform-added-guests-tourist-tax.md rule 19 (audit R22-8, 2026-11-05) — the tax the pre-arrival money holds is
+// specs/platform-added-guests-tourist-tax.md rule 27 (audit R22-8, 2026-11-05) — the tax the pre-arrival money holds is
 // touristTaxTotal − touristTaxAddedGuestsAmount; the addition rides the complement. On a plan, a link, the avoir and the
 // acompte's ceiling. Replay of the auditor's p5 probe.
 process.env.DB_PATH = ':memory:';

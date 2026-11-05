@@ -47,6 +47,7 @@ const { resolveStayPayment } = require('../utils/stayPayment');
 const { serialiseGroup, groupCovers, parseGroup, collectibleArrivalBuckets } = require('../utils/arrivalPaymentGroup');
 const { clearContribsOnUnflip, captureBucketSplit } = require('../utils/forceItemContribsCapture');
 const { buildArrivalPaymentDetail } = require('../utils/arrivalPaymentDetail');
+const { ADDED_GUESTS_TAX_LABEL } = require('../utils/platformPaidGuests');
 const { resolveArrivalPaymentAdjustment } = require('../utils/arrivalPaymentAdjustment');
 const { upsellOutcome, arrivalComplementAfter } = require('../utils/arrivalSasPlan');
 const bookingLinesModel = require('./bookingLinesModel');
@@ -233,6 +234,13 @@ function clearArrivalPaymentAdjustment(database, reservationId) {
   }
 }
 
+// specs/platform-added-guests-tourist-tax.md rule 23 — a tax forced to the complement or collected on
+// arrival is whole there and keeps its name; the engine counts no addition on those.
+function complementTaxIsAddition(r, tax) {
+  const added = round2(r.touristTaxAddedGuestsAmount || 0);
+  return added > 0 && round2(tax) === added;
+}
+
 function arrivalComplementDetailFromReservation(r, { includeOffered = false } = {}) {
   if (!r) return { amount: 0, paid: 0, detail: [] };
   const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
@@ -315,7 +323,13 @@ function arrivalComplementDetailFromReservation(r, { includeOffered = false } = 
     }
   }
   const tax = round2(r.touristTaxInComplementAmount || 0);
-  if (tax > 0) lines.push({ kind: 'tax', label: 'Taxe de séjour', qty: 1, unitPrice: tax, amount: tax });
+  if (tax > 0) {
+    const isAddition = complementTaxIsAddition(r, tax);
+    lines.push({
+      kind: 'tax', label: isAddition ? ADDED_GUESTS_TAX_LABEL : 'Taxe de séjour', qty: 1, unitPrice: tax, amount: tax,
+      ...(isAddition ? { addedGuests: true } : {}),
+    });
+  }
   const amount = round2(r.complementAmount || 0);
   const listed = round2(lines.reduce((s, l) => s + l.amount, 0));
   const remainder = round2(amount - listed);
@@ -346,14 +360,21 @@ function createReservationsModel(database) {
   })();
   // specs/platform-added-guests-tourist-tax.md §5 — the engine already kept a collected amount (rule 7).
   const HAS_ADDED_GUESTS_TAX = (() => {
-    try { return database.prepare("PRAGMA table_info(reservations)").all().some((c) => c.name === 'touristTaxAddedGuestsAmount'); }
+    try { return database.prepare("PRAGMA table_info(reservations)").all().some((c) => c.name === 'platformPaidOccupants'); }
     catch { return false; }
   })();
   function persistExtraGuestComplement(reservationId, quote, { complementPaid = false } = {}) {
     if (!HAS_EXTRA_GUEST_COMPLEMENT || !quote) return;
     if (HAS_ADDED_GUESTS_TAX) {
-      database.prepare('UPDATE reservations SET platformPaidAdults = ?, touristTaxAddedGuestsAmount = ? WHERE id = ?')
-        .run(quote.platformPaidAdults ?? null, Number(quote.touristTaxAddedGuestsAmount || 0), reservationId);
+      database.prepare(`UPDATE reservations SET platformPaidAdults = ?, platformPaidOccupants = ?,
+          touristTaxAddedGuestsAmount = ?, touristTaxAddedGuestsAdults = ? WHERE id = ?`)
+        .run(
+          quote.platformPaidAdults ?? null,
+          quote.platformPaidOccupants ?? null,
+          Number(quote.touristTaxAddedGuestsAmount || 0),
+          Number(quote.touristTaxAddedGuestsAdults || 0),
+          reservationId,
+        );
     }
     if (complementPaid) {
       database.prepare('UPDATE reservations SET platformPaidGuests = ? WHERE id = ?')
@@ -1107,7 +1128,11 @@ function createReservationsModel(database) {
             { label: 'Hébergement', amount: storedAllocation.accommodation, locked: true },
             { label: 'Prestations', amount: storedAllocation.options },
             { label: 'Activités', amount: storedAllocation.resources },
-            { label: 'Taxe de séjour', amount: posteBase.tax, locked: true },
+            {
+              label: complementTaxIsAddition(reservation, posteBase.tax) ? ADDED_GUESTS_TAX_LABEL : 'Taxe de séjour',
+              amount: posteBase.tax,
+              locked: true,
+            },
           ].filter((poste) => poste.amount > 0)
           : null,
       };
@@ -2582,7 +2607,7 @@ function createReservationsModel(database) {
       const taxAmount = round2(r.touristTaxInComplementAmount);
       if (taxAmount > 0) {
         lines.push({
-          key: null, group: 'existing', label: 'Taxe de séjour', qty: 1, unitPrice: taxAmount,
+          key: null, group: 'existing', label: complementTaxIsAddition(r, taxAmount) ? ADDED_GUESTS_TAX_LABEL : 'Taxe de séjour', qty: 1, unitPrice: taxAmount,
           real: taxAmount, billed: taxAmount, offerable: false, offered: false,
         });
       }

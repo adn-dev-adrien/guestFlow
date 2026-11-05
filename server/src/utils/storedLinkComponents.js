@@ -21,7 +21,7 @@ function storedLinkComponents(row, type, { vatRatePercent, taxOnArrival, titles 
   // A full payment is the acompte plus the solde (specs/deposit-blocks-the-dates.md rule 18): the tax
   // rides on it exactly as on the solde.
   const total = type === 'full' ? cents(Number(row.depositAmount || 0) + Number(row.balanceAmount || 0)) : cents(row.balanceAmount);
-  // specs/platform-added-guests-tourist-tax.md rule 19 — the added guests' tax rides the complement, not this money.
+  // specs/platform-added-guests-tourist-tax.md rule 27 — the added guests' tax rides the complement, not this money.
   const tax = taxOnArrival ? 0 : Math.max(0, cents(row.touristTaxTotal) - cents(row.touristTaxAddedGuestsAmount));
   if (tax > total) return null;
   const components = [{ title: titles[type], grossCents: total - tax, taxable: true }];

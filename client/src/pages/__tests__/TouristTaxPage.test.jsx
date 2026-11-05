@@ -82,6 +82,11 @@ test('« Déclarée » checkbox reflects touristTaxDeclaredAt and toggling PATCH
   expect(undeclared).not.toBeChecked();
   expect(declared).toBeChecked();
 
+  // The page reads the month again after a tick (specs/platform-added-guests-tourist-tax.md rule 24).
+  api.getTouristTaxExtraction.mockResolvedValue({
+    ...DATA,
+    reservations: DATA.reservations.map((r) => (r.reservationId === 7 ? { ...r, touristTaxDeclaredAt: new Date().toISOString() } : r)),
+  });
   fireEvent.click(undeclared);
   await waitFor(() => expect(api.setTouristTaxDeclared).toHaveBeenCalledWith(7, true, { addedGuests: false }));
   expect(navigateSpy).not.toHaveBeenCalled();

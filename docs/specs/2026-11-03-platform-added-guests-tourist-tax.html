@@ -165,7 +165,7 @@ function fiche(q){
   if(q.struck!=null)h+=line('Taxe de séjour (plateforme)',`<s>${eur(q.struck)}</s>`);
   else h+=line('Taxe de séjour',eur(q.tax));
   if(q.sup>0)h+=line('Voyageurs ajoutés <span class="tag c">Complément</span>',eur(q.sup));
-  if(q.add>0)h+=line('Taxe de séjour · voyageurs ajoutés <span class="tag c">Complément</span>',eur(q.add),'new');
+  if(q.add>0)h+=line('Complément de taxe de séjour <span class="tag c">Complément</span>',eur(q.add),'new');
   h+=line('Complément à percevoir',eur(q.compl),'strong');
   h+=line('Total du séjour',eur(q.total),'strong');
   return h;

@@ -46,8 +46,9 @@ Two problems surface in real use:
    extraction payload; the client only renders it + optimistically reflects the toggle.
 
 **Edge cases:**
-- Re-ticking an already-declared reservation refreshes nothing destructive (idempotent set to a new
-  now — acceptable; the marker just means « declared », the exact instant is informational).
+- Re-ticking an already-declared reservation changes nothing: its first date stands. Corrected on
+  2026-11-05 (`platform-added-guests-tourist-tax.md` rule 25): this date also decides which rows a stay
+  declared before the stamp lists, so it is no longer informational.
 - A reservation that leaves the month's selection (e.g. its échéance is un-paid) simply stops appearing;
   its `touristTaxDeclaredAt` is retained and reappears if it comes back.
 
