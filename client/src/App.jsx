@@ -56,6 +56,7 @@ import {
 import { CALENDAR_ENTRIES, CALENDAR_PATHS, isCalendarPath } from './constants/calendarMenu';
 import { isPluginEnabled, isRouteEnabled, SAS } from './constants/plugins';
 import { FINANCE_MENU, COMPENSATIONS_PATH, canSeeFinanceEntry, isFinancePath } from './constants/financeMenu';
+import { STAY_PROFILE_PATH } from './constants/stayProfile';
 import { allContributions } from './plugins/sdk/registry';
 import { DATA_CHANGED_EVENT } from './constants/appEvents';
 import ScrollToTop from './components/ScrollToTop';
@@ -82,6 +83,7 @@ const ReservationPage = lazyPage(() => import('./pages/ReservationPage'));
 const ReservationsUpcomingPage = lazyPage(() => import('./pages/ReservationsUpcomingPage'));
 const FinancePage = lazyPage(() => import('./pages/FinancePage'));
 const TouristTaxPage = lazyPage(() => import('./pages/TouristTaxPage'));
+const StayProfilePage = lazyPage(() => import('./pages/StayProfilePage'));
 const PlanningPage = lazyPage(() => import('./pages/PlanningPage'));
 const EstablishmentSettingsPage = lazyPage(() => import('./pages/settings/EstablishmentSettingsPage'));
 const PlatformsSettingsPage = lazyPage(() => import('./pages/settings/PlatformsSettingsPage'));
@@ -114,6 +116,7 @@ const PAGE_ROUTES = [
   ['/devis', DevisPage],
   ['/finance', FinancePage],
   ['/finance/tourist-tax', TouristTaxPage],
+  [STAY_PROFILE_PATH, StayProfilePage],
   ['/planning', PlanningPage],
   ['/establishment-closures', EstablishmentClosuresPage],
   ['/settings', SettingsHomePage],
@@ -862,6 +865,7 @@ function AppShell() {
           <Route path="/devis" element={<DevisPage />} />
           <Route path="/finance" element={<FinancePage />} />
           <Route path="/finance/tourist-tax" element={<TouristTaxPage />} />
+          <Route path={STAY_PROFILE_PATH} element={<StayProfilePage />} />
           <Route path={COMPENSATIONS_PATH} element={<CompensationsPage />} />
           <Route path="/planning" element={<PlanningPage />} />
           <Route path="/establishment-closures" element={<EstablishmentClosuresPage />} />

@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-// specs/stay-profile.md §3 rules 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14 and 15 — the « Profil
+// specs/stay-profile.md §3 rules 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 and 16 — the « Profil
 // des séjours »: the dashboard's window and logement filter, non-cancelled stays only, the four
 // breakdowns and their bucket edges, shares adding up to 100, the monthly average basket against last
 // year (tourist tax excluded) and the source of every panel.
@@ -239,4 +239,22 @@ test('rules 12 and 14 — the delta and the tax split on their edges', () => {
   assert.equal(withoutTouristTax({ totalSejour: 297, finalPrice: 300, touristTaxTotal: 30 }), 270);
   assert.equal(withoutTouristTax({ totalSejour: 150, finalPrice: 0, touristTaxTotal: 0 }), 150);
   assert.equal(withoutTouristTax({ totalSejour: 150 }), 150);
+});
+
+test('rule 16 — the 0–1 shares are the whole percents over 100, null with them', () => {
+  const { db, profile } = setup();
+  insert(db, { startDate: at(-10), endDate: at(-8), createdAt: stamp(-40), balanceAmount: 100 });
+  insert(db, { startDate: at(-7), endDate: at(-5), createdAt: stamp(-40), balanceAmount: 100 });
+  insert(db, { startDate: at(-4), endDate: at(-1), createdAt: stamp(-40), balanceAmount: 100, platform: 'Airbnb' });
+  const { data } = profile.getStayProfile(WINDOW);
+  for (const d of data.dimensions) {
+    for (const r of d.rows) {
+      assert.equal(r.countShare, r.countPercent == null ? null : r.countPercent / 100);
+      assert.equal(r.amountShare, r.amountPercent == null ? null : r.amountPercent / 100);
+    }
+    assert.equal(Math.round(sumOf(d.rows, 'countShare') * 100), 100, d.key);
+  }
+  assert.deepEqual(dim(data, 'channel').map((r) => r.countShare), [0.67, 0.33]);
+  const empty = setup().profile.getStayProfile(WINDOW).data;
+  assert.ok(dim(empty, 'price').every((r) => r.countShare === null && r.amountShare === null));
 });
