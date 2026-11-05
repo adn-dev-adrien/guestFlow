@@ -332,6 +332,12 @@ guessing; and the quote the guest receives looks like the house that sends it.
     freezes what stood before it (`ReservationPage.new-fiche-clean`). *Accepted (A1):* `asked` stays true after « Rester »:
     a later signed-in `/login` signs out, reached only by a forced password change in the same session, one more login.
     *Accepted (A3):* `/properties/new` is dirty by design, so it asks on Back, and « Enregistrer et quitter » creates the logement.
+    *Reading of 2026-11-05 (audit R24-1):* a client created on a fiche not saved yet (`pendingClient`, nothing written
+    until the stay is, clients rule 13) is part of the compared state: « + Créer un nouveau client » then « Enregistrer »
+    lights Enregistrer and makes Back, the other exits and a reload ask, calendar-prefilled stay or devis alike
+    (`ReservationPage.new-fiche-clean`). Stored rows hold none, so they compare as before. *Accepted (R24 A1):* a
+    gesture made before the logement's options, the welcome pack or the quote land freezes the baseline before them,
+    so that fiche asks on leaving; one more tap, no data.
 41. **A reload warns on a dirty fiche (audit R23-C2, 2026-11-05).** A reload, a closed tab or a pull-to-refresh fires
     `beforeunload` while the fiche, new reservation included, is dirty. Tests: `ReservationPage.browser-back`,
     e2e `reservations/leave-guards`.
@@ -362,6 +368,10 @@ guessing; and the quote the guest receives looks like the house that sends it.
     *Reading of 2026-11-05 (R23 verification F6, F7):* the raw `fetch` of the downloads (translations, devis PDF, sales CSV, e-mail
     texts) goes through the same helper (`reach`) and says the same sentence; `SMTP_TEST_FAILED` carries « Envoi d’essai refusé par le serveur d’e-mails. »
     (`api.error-wording`, `smtp-test-refusal-wording`).
+    *Reading of 2026-11-05 (audit R24-C1):* a 401 `INVALID_CREDENTIALS` on `POST /auth/change-password` (wrong current
+    password, « Mon compte » and the forced first-login change) is the form's refusal: it signs nobody out and the form
+    reads « Mot de passe actuel incorrect. ». Any other 401 there (`UNAUTHENTICATED`, the session gone) still asks the
+    app to sign in again (`api.change-password-wrong-current`).
 45. **The tax page's first tile reads « Réservations (mois) » (audit R23-C9, 2026-11-05).** It counts every row of the
     month, whatever its channel; « directes » was wrong. Test: `TouristTaxPage.kpi-label`.
 
@@ -533,6 +543,11 @@ long company and logement name.
 **Audit 2026-10-27:** `tests/quote-headline-live-stored-parity.unit.test.js` (3, rules 31-32);
 `tests/ui-review-operations-headline.unit.test.js` adjusted to the rule-31 tax; the
 `PricingSummary.commission` / `.platform-tourist-tax` client suites feed `summaryCascade`.
+
+**Audit R24 (2026-11-05)** — rule 40 reading: `pages/__tests__/ReservationPage.new-fiche-clean.test.jsx` (3, the new
+client typed on a prefilled fiche); rule 44 reading: `__tests__/api.change-password-wrong-current.test.js` (2). Manual:
+headless browser on the real-data shadow at 1280 and 390 touch, calendar-prefilled `/reservations/new`, « + Créer un
+nouveau client »: Enregistrer lit, POST 200, leaving asks; wrong current password on « Mon compte » keeps the page.
 
 ## 8. Out of scope
 
