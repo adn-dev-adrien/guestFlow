@@ -25,6 +25,7 @@ export const CHECKS = [
 ];
 
 export const PAYLOAD = {
+  // date-literal-ok: a server payload echoed as is; the panel renders it and never compares it with today
   exercise: { key: 2026, label: '2026', from: '2026-01-01', to: '2026-12-31' }, propertyId: null, asOf: '2026-11-05', pendingCount: 3, checks: CHECKS,
 };
 

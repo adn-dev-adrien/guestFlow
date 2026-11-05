@@ -16,6 +16,7 @@ const HERO = {
   revenue: 30655, revenueHt: 27868, stays: 54, nights: 184, occupancy: 0.32, revenuePerNight: 167, directShare: 0.52,
   revPar: 53, openNights: 579, occupiedNights: 184,
   yoy: { current: 30655, previous: 21069, change: 45.5, months: 12, totalMonths: 12 }, goal: null,
+  // date-literal-ok: the hero's curve points as the server sends them; the component only draws them, nothing reads today
   cumulative: [{ day: '2026-01-01', x: 0, current: 0, previous: 0 }, { day: '2026-12-31', x: 364, current: 30655, previous: 21069 }],
   axis: [{ x: 0, label: 'janv.' }], curveCompact: false,
 };
