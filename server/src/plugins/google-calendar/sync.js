@@ -201,6 +201,8 @@ function createGoogleCalendarSync({
   let reconcileInProgress = false;
   let reconcilePending = false;
 
+  const logReconcileFailure = (error) => log('[googleCalendarSync.scheduleReconcile]', googleErrorForLog(error));
+
   async function runReconcileGuarded() {
     if (reconcileInProgress) return { ok: false, alreadyRunning: true };
     reconcileInProgress = true;
@@ -210,7 +212,7 @@ function createGoogleCalendarSync({
       reconcileInProgress = false;
       if (reconcilePending) {
         reconcilePending = false;
-        Promise.resolve().then(() => runReconcileGuarded()).catch(log);
+        Promise.resolve().then(() => runReconcileGuarded()).catch(logReconcileFailure);
       }
     }
   }
@@ -247,7 +249,7 @@ function createGoogleCalendarSync({
       reconcilePending = true;
       return;
     }
-    Promise.resolve().then(() => runReconcileGuarded()).catch(log);
+    Promise.resolve().then(() => runReconcileGuarded()).catch(logReconcileFailure);
   }
 
   return {

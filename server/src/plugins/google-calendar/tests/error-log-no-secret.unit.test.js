@@ -119,6 +119,40 @@ test('a scheduled push and a scheduled delete that fail log no request', async (
   assertClean(lines, 2);
 });
 
+test('a run that rejects, scheduled or queued as the follow-up, logs no request', async () => {
+  // Every Google call of a run sits inside its try: only what its catch itself calls can still reject.
+  const settings = { ...syncSettings, recordGoogleSyncResult: () => { throw networkError(); } };
+  let failFirstRun;
+  let runs = 0;
+  const calendar = {
+    events: {
+      list: () => {
+        runs += 1;
+        if (runs > 1) return Promise.reject(new Error('list failed'));
+        return new Promise((_, reject) => { failFirstRun = () => reject(new Error('list failed')); });
+      },
+    },
+  };
+  const lines = [];
+  const sync = create({
+    settings,
+    model: { listReservationsForSync: () => [], getReservationForSync: () => null },
+    getCalendar: () => calendar,
+    log: (...args) => lines.push(util.format(...args)),
+  });
+
+  sync.scheduleReconcile();
+  await settle();
+  sync.scheduleReconcile();
+  failFirstRun();
+  await settle();
+  assert.equal(runs, 2, 'the scheduled run and its queued follow-up');
+  const failures = lines.filter((line) => line.startsWith('[googleCalendarSync.scheduleReconcile]'));
+  assert.equal(failures.length, 2, lines.join('\n'));
+  assertClean(failures, 2);
+  assert.equal(lines.join('\n').includes(SECRET), false);
+});
+
 test('controller: every catch logs no request', async (t) => {
   const original = console.error;
   const lines = [];
