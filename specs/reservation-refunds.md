@@ -625,9 +625,18 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
     gesture that does not lower `comptaCollected`, a caisse-interne refund and what stays collected above the refunds pass.
     *Why:* solde paid, 300 € refunded, un-tick: `collected −300`, 70600000 −272,73 and the bank +300 stayed in the journal, and a
     cancellation then left the negative revenue on an empty register. Shared guard: `utils/refundUntickGuard.js`. The departure and
-    arrival SAS commits, which can also take a mark back on a re-open, do not pass through it. Test: `untick-with-open-refund`,
+    arrival SAS commits pass through it too since the reading of 2026-11-05 below (audit R24-DB-2). Test: `untick-with-open-refund`,
     `plugins/online-payment/tests/reconciliation-undo-open-refund`. *Reading of 2026-11-05 (audit R23 L6):* a save adjusting a paid
     complement or end-of-stay complement down is the same gesture by another door: same guard, same 409, nothing written.
+    *Reading of 2026-11-05 (audit R24-DB-2):* three more doors, same guard, same 409, nothing written. A re-opened arrival SAS
+    (plugin `sas`, `commitArrival`) answering « Pas maintenant » or moving to the caisse interne the acompte or solde it settled
+    itself (`*PaidAtArrival`), or the arrival complement; a re-opened departure SAS doing the same on the end-of-stay complement
+    it settled itself (`endOfStayComplementPaidAtDeparture`); « Sans acompte » saved on a paid acompte (the hand-ticked one:
+    rule 13 of disable-deposit-per-reservation already keeps an acompte a link collected). The SAS calls the core's
+    `takeBackRefusal` with the flags it would clear; a re-open with nothing refunded behaves as before. *Accepted (audit R24 L4,
+    2026-11-05, pre-existing):* on a live stay a book refund is capped at `finalPrice` + tax (`REFUND_EXCEEDS_STAY`), so a paid
+    departure-SAS charge (end-of-stay complement, outside `finalPrice`) cannot be given back with the rest; after a
+    cancellation the cap is skipped and a free line reaches it. No money is lost.
 
 ---
 
@@ -650,6 +659,8 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
 | `utils/` | `cancelReservation.js` | T | Rule 49 reading (N5) — `bookedStayBuckets().installments` also returns `options` and `resources` |
 | `utils/` | `refundUntickGuard.js` | C | Rule 52 — `untickRefusal(row, changes, refunds)`: pure, shared by the PATCH, the arrival undo and `takeBackRefusal` |
 | `utils/` | `reservationPaymentMark.js` | T | Rule 52 — `takeBackRefusal(reservationId, { flags, installmentCents })` for a plugin taking a mark back |
+| `plugins/sas/` | `controller.js` | T | Rule 52 reading (R24-DB-2) — `arrivalTakeBackFlags`, `departureTakeBackFlags`: a re-opened SAS asks `takeBackRefusal` before writing |
+| `controllers/` | `reservationsController.js` | T | Rule 52 reading (R24-DB-2) — « Sans acompte » on a paid acompte adds `depositPaid: 0` to the save's guard |
 | `controllers/` | `refundsController.js` | T | Rule 51 — reads `collectedByLine` on a live stay too, when its money can be read |
 | `controllers/` | `reservationsController.js` | T | Rule 52 — `paymentPatchChanges`, `arrivalUndoChanges` feed the guard |
 | `plugins/online-payment/reconciliation/` | `ficheWriter.js`, `controller.js`, `index.js` | T | Rule 52 — `undoRefusal`: « Défaire » answers the core's refusal before writing |
