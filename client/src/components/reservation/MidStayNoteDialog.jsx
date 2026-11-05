@@ -8,7 +8,7 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import QuantityField from '../QuantityField';
 import { useReservationForm } from './ReservationFormContext';
 import api from '../../api';
-import { typedCountKind, typedCountValue } from '../../utils/optionTypedCount';
+import { typedCountKind, typedCountValue, MAX_TYPED_NIGHTS } from '../../utils/optionTypedCount';
 import { optionLineKey, displayedFloor } from '../../utils/arrivalLineKey';
 import { formatCurrency } from '../../utils/formatters';
 
@@ -163,8 +163,7 @@ export default function MidStayNoteDialog({ open, onClose, pendingLines = [], on
                     {group.options.map((opt) => {
                       const selected = (form.selectedOptions || []).find((o) => Number(o.optionId) === Number(opt.id));
                       // Same field as the fiche's OptionRow (specs/non-card-option-served-persons.md
-                      // rule 13). 0 = not sold; the first « + » sells the default quantity, exactly
-                      // like flicking the switch on the fiche.
+                      // rule 13). 0 = not sold; a number on an unsold line sells that number (rule 35).
                       const typedKind = typedCountKind(opt);
                       const typedCurrent = typedKind === 'nights' ? quantityNights : quantityPersons;
                       const displayed = !selected
@@ -175,9 +174,9 @@ export default function MidStayNoteDialog({ open, onClose, pendingLines = [], on
                       const arrivalLine = (arrivalLines || {})[optionLineKey(opt.id)];
                       const typedFloor = arrivalLine?.minTypedCount != null ? displayedFloor(arrivalLine.minTypedCount) : 1;
                       const floor = !arrivalLine ? 0 : (typedKind ? typedFloor : displayedFloor(arrivalLine.minQuantity));
-                      const ceiling = typedKind === 'persons'
-                        ? Math.max(Number(maxGuestsAllowed) || 0, Number(quantityPersons) || 1, displayed)
-                        : undefined;
+                      let ceiling;
+                      if (typedKind === 'persons') ceiling = Math.max(Number(maxGuestsAllowed) || 0, Number(quantityPersons) || 1, displayed);
+                      else if (typedKind === 'nights') ceiling = Math.max(MAX_TYPED_NIGHTS, displayed);
                       return (
                         <Box
                           key={opt.id}
@@ -214,12 +213,15 @@ export default function MidStayNoteDialog({ open, onClose, pendingLines = [], on
                               max={ceiling}
                               onCommit={(v) => {
                                 const next = Number(v) || 0;
-                                if (next <= 0) setOptionEnabled(Number(opt.id), false);
-                                // Not sold yet → enable it and let the form apply its default
-                                // quantity; calling both setters would fight over the same line.
-                                else if (!selected) setOptionEnabled(Number(opt.id), true);
-                                else if (typedKind) setOptionTypedCount(Number(opt.id), typedKind, next);
-                                else setOptionQuantity(Number(opt.id), next);
+                                if (next <= 0) {
+                                  setOptionEnabled(Number(opt.id), false);
+                                } else if (typedKind) {
+                                  // The switch's way in first: it applies the property's offered default.
+                                  if (!selected) setOptionEnabled(Number(opt.id), true);
+                                  setOptionTypedCount(Number(opt.id), typedKind, next);
+                                } else {
+                                  setOptionQuantity(Number(opt.id), next);
+                                }
                               }}
                             />
                           )}

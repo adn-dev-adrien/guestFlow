@@ -352,6 +352,12 @@ signed-off releases over HTTPS, when the operator asks for it.
     is what specs/non-card-option-served-persons.md removes (its §5). After such a rollback, restore the pre-update
     backup, or review the typed lines before saving their fiches. On a roll-forward the migration's flag is already set:
     a line typed during the window keeps its decimal base and reads as what it bills until it is retyped.
+    **Reading of 2026-11-05 (audit R22):** `complementPaidSplit`, `removedLineContribs` and their trigger are additive and
+    nullable, and no retained release reads them or writes against them, so the floor stays green. After a rollback the
+    entries read live again, as they did: a complement or a removed line can move in the journal at the next save, and a stay
+    that rose after payment no longer claims the growth. Roll-forward: what was stamped is read again; a complement collected
+    during the window has no split and reads live. Accounting-export 1.0.26 keeps its floors (`guestflow >=3.18.0`,
+    `sdk ^2.19.0`): it asks no new core module, and reads the columns behind `hasReservationColumn`.
 40. **A release's install runs no script and starts from a trusted lockfile** (audit 2026-10-28, H1).
     Before any `npm` runs, `server/package-lock.json` must exist and every entry must resolve from
     `https://registry.npmjs.org/` with an `integrity` hash: a git, file, link or http dependency, another

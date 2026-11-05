@@ -171,6 +171,15 @@ is declared to the commune. The accommodation no longer pays for it.
 26. **The re-read of rule 24 is of the month on screen.** Once the last tick on its way has answered, the
     page reads the month it shows, whichever month that tick was made on: a tick on another month answering
     last cannot leave the shown rows stale.
+27. **The tax on pre-arrival money leaves the addition out, everywhere** _(audit R22-8, 2026-11-05)_. It is
+    `touristTaxTotal − touristTaxAddedGuestsAmount` in the plan's shares of the export, in `computeInstallmentPaidSplit`, in
+    the avoir of a plan (`cancelReservation`), in an installment's link basket (`resolveInstallmentComponents`), in a stored
+    link's basket (`storedLinkComponents`) and in the acompte's ceiling (`storedAccommodationPreArrivalOf`). *Why:* on an own
+    channel with a guest added and a plan of two, both paid and the complement paid, 46710000 held 9,60 € for a tax of
+    7,20 €; a link named 592,80 + 7,20 € for a solde holding 595,20 + 4,80 €. Read from the amounts, never from the
+    platform's name. An installment with no frozen split reads its share as it stands, the addition already out: it took
+    2,40 € of 2,40 €, booking no tax at all, until the verification of 2026-11-05. Test:
+    `plugins/accounting-export/tests/added-guests-tax-pre-arrival-readers`.
 
 **Edge cases:**
 - iCal import with 1 default adult, composition set to 4, then the brut → paid = 4, no added tax.
@@ -261,7 +270,7 @@ Interactive summary: `docs/specs/2026-11-03-platform-added-guests-tourist-tax.ht
 
 ## 7. Test plan
 
-### Server unit tests — `platform-added-guests-tourist-tax.unit.test.js` (24), `platform-added-guests-tourist-tax-books.unit.test.js` (23), `plugins/accounting-export/tests/platform-added-guests-tourist-tax-books.unit.test.js` (6), `platform-added-guests-stored-readers.unit.test.js` (1), `platform-added-guests-paths.unit.test.js` (15), `platform-added-guests-migration.unit.test.js` (3)
+### Server unit tests — `platform-added-guests-tourist-tax.unit.test.js` (24), `platform-added-guests-tourist-tax-books.unit.test.js` (23), `plugins/accounting-export/tests/platform-added-guests-tourist-tax-books.unit.test.js` (6), `platform-added-guests-stored-readers.unit.test.js` (1), `platform-added-guests-paths.unit.test.js` (15), `platform-added-guests-migration.unit.test.js` (3), `plugins/accounting-export/tests/added-guests-tax-pre-arrival-readers.unit.test.js` (13)
 - [x] Rule 1: capture, keep on a corrected brut, clear, re-capture; body value ignored; a locked past stay can still take its brut.
 - [x] Rules 2–5: amount per mode and per tax mode, a platform rate that differs, rounding noise, minors, a child removed on a percentage property (D12).
 - [x] Rules 6–7bis: rises and falls; stored amount kept once the complement is collected; frozen tax + guest added → line in the complement, frozen part unchanged, no double count on the next save. Through the real save and the real preview too.

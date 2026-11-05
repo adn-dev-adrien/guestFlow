@@ -141,6 +141,8 @@ function createProvisioner({
   const RUNNERS = {
     async dir(c) {
       const inst = instanceOf(c);
+      // H1 rule 45: a database here belongs to someone else; create skips this step once it is ok.
+      if (fs.existsSync(inst.dbPath)) throw new Error('Une base de données existe déjà à cette adresse.');
       for (const sub of ['data', 'uploads', 'private-documents', 'logs']) fs.mkdirSync(path.join(inst.dir, sub), { recursive: true });
       hosting.ensure(c.id);
       syncEnv(c);
@@ -338,14 +340,20 @@ function createProvisioner({
         const from = instanceOf(c, oldSlug);
         const to = instanceOf(c);
         const until = addDaysIso(today(), REDIRECT_DAYS);
-        if (fs.existsSync(from.dir)) {
+        // H1 rule 45: before its first step is done, nothing at the old address is this customer's.
+        const dirRow = provisioning.get(c.id, 'dir');
+        const mine = !dirRow || dirRow.status === 'ok';
+        if (mine && fs.existsSync(from.dir)) {
           // The unit goes, its identity stays: the files keep their owner (rule 21).
           await drivers.process.remove(from, { keepIdentity: true });
           if (fs.existsSync(to.dir)) throw new Error(`Le dossier ${to.dir} existe déjà.`);
           fs.renameSync(from.dir, to.dir);
         }
-        if (fs.existsSync(from.envFile) && !fs.existsSync(to.envFile)) fs.renameSync(from.envFile, to.envFile);
-        if (!fs.existsSync(to.dir) || !to.port) {
+        // H1 rule 45: with a port the instance exists somewhere; never record it as moved.
+        if (to.port && !fs.existsSync(to.dir)) throw new Error('Dossier de l’instance introuvable.');
+        if (mine && fs.existsSync(from.envFile) && !fs.existsSync(to.envFile)) fs.renameSync(from.envFile, to.envFile);
+        if (!mine && fs.existsSync(from.dbPath)) return 'Aucune instance à déplacer ; adresse occupée, aucune redirection.';
+        if (!to.port) {
           await drivers.proxy.writeRedirect(oldSlug, c.slug);
           hosting.addRedirect(oldSlug, c.id, until);
           return 'Aucune instance à déplacer ; redirection posée.';

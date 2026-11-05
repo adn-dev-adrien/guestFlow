@@ -22,12 +22,13 @@ const cents = (euros) => Math.round(Number(euros || 0) * 100);
 function computeInstallmentPaidSplit(db, installmentId) {
   const installment = db.prepare('SELECT id, reservationId, amountCents FROM reservation_installments WHERE id = ?').get(Number(installmentId));
   if (!installment) return null;
-  const stay = db.prepare(`SELECT r.finalPrice, r.touristTaxTotal, ${TAX_ON_ARRIVAL_SQL} AS taxOnArrival
+  const stay = db.prepare(`SELECT r.*, ${TAX_ON_ARRIVAL_SQL} AS taxOnArrival
     FROM reservations r WHERE r.id = ?`).get(installment.reservationId);
   if (!stay) return null;
   const plan = db.prepare('SELECT id, amountCents FROM reservation_installments WHERE reservationId = ? ORDER BY number')
     .all(installment.reservationId);
-  const taxCents = stay.taxOnArrival ? 0 : cents(stay.touristTaxTotal);
+  // specs/platform-added-guests-tourist-tax.md rule 27 — the plan holds the tax without the added guests' share.
+  const taxCents = stay.taxOnArrival ? 0 : cents(stay.touristTaxTotal) - cents(stay.touristTaxAddedGuestsAmount);
   const shares = taxShares(taxCents, plan.map((p) => Number(p.amountCents)));
   const share = shares[plan.findIndex((p) => p.id === installment.id)] || 0;
   const revenueCents = Math.max(0, Number(installment.amountCents) - share);

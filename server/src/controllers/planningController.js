@@ -10,6 +10,7 @@ const planningOptionCardsModel = require('../models/planningOptionCardsModel');
 const planningAlertsModel = require('../models/planningAlertsModel');
 const planningDaysModel = require('../models/planningDaysModel');
 const reservationsModel = require('../models/reservationsModel');
+const { asText, isOptionalText, numeric, isFlag } = require('../utils/bodyText');
 const { getTodayIsoDate } = require('../utils/reservationHelpers');
 const { isReceptionOnly } = require('../constants/roles');
 const { toReceptionReservationView } = require('../utils/receptionView');
@@ -144,16 +145,20 @@ function buildController({
      */
     setOptionCardDone(req, res) {
       const body = req.body || {};
-      const reservationId = Number(body.reservationId);
-      const optionId = Number(body.optionId);
-      const date = String(body.date || '');
+      const reservationId = numeric(body.reservationId);
+      const optionId = numeric(body.optionId);
+      const date = asText(body.date);
+      // A tick reads as INVALID_PAYMENT_FLAG does: `Boolean("false")` ticked the card
+      // (specs/hosting-h2-account-security.md rule 68).
       if (!Number.isInteger(reservationId) || reservationId <= 0
         || !Number.isInteger(optionId) || optionId <= 0
-        || !isIsoDate(date)) {
+        || !isIsoDate(date)
+        || !isOptionalText(body.time)
+        || (body.done !== undefined && !isFlag(body.done))) {
         return res.status(400).json({ error: 'INVALID_PAYLOAD' });
       }
       let result = injectedOptionCardsModel.setOccurrenceDone({
-        reservationId, optionId, date, time: String(body.time || ''), done: Boolean(body.done),
+        reservationId, optionId, date, time: asText(body.time), done: Boolean(body.done),
       });
       // A breakfast served without chosen mornings has a card every morning but no stored occurrence:
       // its flag is kept apart (specs/breakfast-option-planning-card.md, 2026-10-27 spec review).

@@ -14,6 +14,7 @@ const SENDER = 'resa@gdf07.com';
 // `mails` is the live mailbox, oldest first: uid = index + 1.
 function fakeImap(mails) {
   return class Fake {
+    on() {}
     async connect() {}
     async getMailboxLock() { return { release() {} }; }
     async search() { return mails.map((_, i) => i + 1); }

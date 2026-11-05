@@ -9,6 +9,7 @@
  *
  * Exports:
  *   mapGoogleError(error)                  → { code, error } with a French message
+ *   googleErrorForLog(error)               → what a log line may print of a Google failure
  *   testConnection(config, { calendarApi }) → { ok, message? } | { ok:false, code, error }
  */
 
@@ -55,6 +56,12 @@ function mapGoogleError(error) {
   return { code: 'UNKNOWN', error: `Erreur Google : ${message}` };
 }
 
+// A GaxiosError carries its request in `config`: on the token call that is the refresh token, which
+// gaxios's redactor does not mask (specs/google-calendar-oauth-rework.md rule 5, reading of 2026-11-04).
+function googleErrorForLog(error) {
+  return error?.response?.data || { message: error?.message, code: error?.code, status: error?.status };
+}
+
 async function testConnection(config, { calendarApi } = {}) {
   if (!config || !config.configured || !config.calendarId) {
     return {
@@ -90,6 +97,7 @@ async function testConnection(config, { calendarApi } = {}) {
 
 module.exports = {
   mapGoogleError,
+  googleErrorForLog,
   testConnection,
 };
 

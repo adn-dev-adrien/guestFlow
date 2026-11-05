@@ -63,6 +63,7 @@ import { COARSE_POINTER, TOUCH_TARGET } from '../utils/touchHitArea';
 import { midStayNoteAccess, countMidStayNotes } from '../utils/midStayNoteAccess';
 import useWelcomePack from '../hooks/useWelcomePack';
 import useServerToday from '../hooks/useServerToday';
+import useLatestRequest from '../hooks/useLatestRequest';
 import { localIsoToday } from '../utils/isoDay';
 import { applyWelcomePack, releaseWelcomePackLine } from '../utils/welcomePackApply';
 import {
@@ -296,6 +297,12 @@ export default function ReservationPage() {
   // What the last resource-availability read was for: the effect that follows the dates does not ask again
   // for the answer the init just got, and a new property context forgets it (specs/inte-performance.md rule 23).
   const availabilityKey = useRef('');
+  const babyBedKey = useRef('');
+  // Out-of-order answers (audit R22-C4, C6): only the latest question of each loader reaches the fiche.
+  const beginResourcesRequest = useLatestRequest();
+  const beginBabyBedRequest = useLatestRequest();
+  const beginClientSearch = useLatestRequest();
+  const beginOccupiedRequest = useLatestRequest();
   pricingQuoteRef.current = pricingQuote;
   const [minNightsState, setMinNightsState] = useState({ breached: false, required: 0, nights: 0 });
   const [useCurrentPricing, setUseCurrentPricing] = useState(false);
@@ -377,6 +384,7 @@ export default function ReservationPage() {
     // `propDetails.options` is the property-scoped, priced, grouped list.
     const options = Array.isArray(propDetails?.options) ? propDetails.options : [];
     availabilityKey.current = '';
+    babyBedKey.current = '';
     setSelectedProp(numId);
     setSelectedProperty(propDetails || propertiesList.find((p) => p.id === numId) || null);
     setPropertyOptions(options);
@@ -1300,6 +1308,7 @@ export default function ReservationPage() {
     // endpoint has nothing to answer, but the resources themselves are already known — they came with
     // the property context. Leave them alone instead of blanking the Ressources block; the refinement
     // (« déjà réservée », remaining quantity) lands as soon as both dates are set.
+    const current = beginResourcesRequest();
     if (!propertyId || !startDate || !endDate) return;
     const resources = await api.getResourcesAvailability({
       propertyId,
@@ -1307,6 +1316,7 @@ export default function ReservationPage() {
       endDate,
       ...(excludeReservationId ? { excludeReservationId } : {}),
     });
+    if (!current()) return;
     availabilityKey.current = [propertyId, startDate, endDate, excludeReservationId || ''].join('|');
     setAvailableResources(resources);
   };
@@ -1318,15 +1328,25 @@ export default function ReservationPage() {
   // are set the catalogue from the property context stands in, so the block is never empty. A range the server
   // refuses (specs/reservations-backend-mvc.md rules 12-13) is not asked either.
   useEffect(() => {
-    if (loading || !selectedProp || !isQuotableStay(form.startDate, form.endDate, { stored: initialPricingContextRef.current, today: windowToday })) return;
+    if (loading) return;
+    if (!selectedProp || !isQuotableStay(form.startDate, form.endDate, { stored: initialPricingContextRef.current, today: windowToday })) {
+      beginResourcesRequest();
+      return;
+    }
     const excludeId = editingReservationId || excludeReservationIdForDevis || null;
-    if (availabilityKey.current === [selectedProp, form.startDate, form.endDate, excludeId || ''].join('|')) return;
+    if (availabilityKey.current === [selectedProp, form.startDate, form.endDate, excludeId || ''].join('|')) {
+      // Back on the range already shown: an answer still on its way is for the range just left.
+      beginResourcesRequest();
+      return;
+    }
     loadResourcesAvailability(form.startDate, form.endDate, selectedProp, excludeId).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, selectedProp, form.startDate, form.endDate, editingReservationId, excludeReservationIdForDevis, windowToday]);
 
   const loadBabyBedAvailability = async (startDate, endDate, propertyId, excludeReservationId = null) => {
+    const current = beginBabyBedRequest();
     if (!propertyId || !startDate || !endDate) {
+      babyBedKey.current = '';
       setBabyBedAvailability({ totalQuantity: 0, reserved: 0, available: null });
       return;
     }
@@ -1336,12 +1356,32 @@ export default function ReservationPage() {
       endDate,
       ...(excludeReservationId ? { excludeReservationId } : {}),
     });
+    if (!current()) return;
+    babyBedKey.current = [propertyId, startDate, endDate, excludeReservationId || ''].join('|');
     setBabyBedAvailability(data || { totalQuantity: 0, reserved: 0, available: 0 });
   };
 
+  // The cots follow the dates like the resources above (audit R22-C6; specs/reservations-backend-mvc.md
+  // rule 17). A range the server would refuse has no answer: the hint waits and the ceiling stands aside.
+  useEffect(() => {
+    if (loading) return;
+    if (!selectedProp || !isQuotableStay(form.startDate, form.endDate, { stored: initialPricingContextRef.current, today: windowToday })) {
+      loadBabyBedAvailability('', '', selectedProp).catch(() => {});
+      return;
+    }
+    const excludeId = editingReservationId || excludeReservationIdForDevis || null;
+    if (babyBedKey.current === [selectedProp, form.startDate, form.endDate, excludeId || ''].join('|')) {
+      beginBabyBedRequest();
+      return;
+    }
+    loadBabyBedAvailability(form.startDate, form.endDate, selectedProp, excludeId).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, selectedProp, form.startDate, form.endDate, editingReservationId, excludeReservationIdForDevis, windowToday]);
+
   const loadClientsForSearch = async (q) => {
+    const current = beginClientSearch();
     const data = await api.getClients(q);
-    setClients(data);
+    if (current()) setClients(data);
   };
 
   // The list feeds the search box only: it is read when the box is what the page shows. An existing stay
@@ -1365,6 +1405,7 @@ export default function ReservationPage() {
   // Load occupied dates from backend when property or dates change. A range the server refuses (reversed,
   // too long, past the horizon — specs/establishment-closures.md rule 20) is not asked: it has none.
   useEffect(() => {
+    const current = beginOccupiedRequest();
     if (!selectedProp || !isQuotableStay(form.startDate, form.endDate, { stored: initialPricingContextRef.current, today: windowToday })) {
       setOccupiedDates([]);
       return;
@@ -1373,10 +1414,10 @@ export default function ReservationPage() {
     const loadOccupiedDates = async () => {
       try {
         const occupied = await api.getOccupiedDates(selectedProp, form.startDate, form.endDate, editingReservationId);
-        setOccupiedDates(occupied || []);
+        if (current()) setOccupiedDates(occupied || []);
       } catch (err) {
         console.error('Failed to load occupied dates:', err);
-        setOccupiedDates([]);
+        if (current()) setOccupiedDates([]);
       }
     };
 
@@ -1600,7 +1641,10 @@ export default function ReservationPage() {
     if (current > maxBabyBedsByRule) {
       setForm(prev => ({ ...prev, babyBeds: maxBabyBedsByRule }));
     }
-  }, [form.babies, form.children, babyBedAvailability.available]);
+    // The party moves the count, the answer alone never does: a move of the dates onto a range with no cot left
+    // keeps the fiche's number, and the save says why it is refused (specs/reservations-backend-mvc.md rule 17).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.babies, form.children]);
 
   const handleSuggestBeds = async () => {
     if (!selectedProp) return;

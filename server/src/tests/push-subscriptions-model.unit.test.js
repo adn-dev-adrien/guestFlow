@@ -29,7 +29,7 @@ function freshModel() {
   return { db, model: createModel(db) };
 }
 
-const sub = (endpoint) => ({ endpoint, keys: { p256dh: `p-${endpoint}`, auth: `a-${endpoint}` } });
+const sub = (endpoint) => ({ endpoint, keys: { p256dh: Buffer.alloc(65, 4).toString('base64url'), auth: Buffer.alloc(16, 1).toString('base64url') } });
 
 test('subscribe stores a (user, device) row; re-subscribe upserts by endpoint', () => {
   const { db, model } = freshModel();

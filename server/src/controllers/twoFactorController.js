@@ -25,6 +25,7 @@ const deviceTrust = require('../utils/deviceTrust');
 const { httpError } = require('../utils/httpError');
 const { ADMIN, userHasRole } = require('../constants/roles');
 const { createReauthGuard, lockedError } = require('../utils/reauthGuard');
+const { asText } = require('../utils/bodyText');
 
 const MAX_FAILURES = 5;
 const LOCK_MINUTES = 15;
@@ -61,7 +62,9 @@ const parisDateTime = (iso) => new Date(iso).toLocaleString('fr-FR', { timeZone:
 const fullName = (u) => [u.firstName, u.lastName].filter(Boolean).join(' ').trim() || u.email;
 
 const plural = (n, one, many) => (n === 1 ? one : many);
-const hashToken = (token) => sha256(`2fa-enrolment:${token || ''}`);
+const hashToken = (token) => sha256(`2fa-enrolment:${asText(token)}`);
+// Rule 68 — a code that is not a string is a wrong code, not a missing one: the normal refusal, counted.
+const typedCode = (code) => (code === undefined || code === null || typeof code === 'string' ? code : 'not-a-code');
 const newToken = () => crypto.randomBytes(32).toString('hex');
 const sameHash = (a, b) => Boolean(a && b) && a.length === b.length && crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
 
@@ -175,7 +178,7 @@ function createTwoFactorController({
   // just emailed. A wrong one counts toward the lock of rule 8; the TOTP step used cannot open a session.
   function assertCurrentCode(user, row, code) {
     assertNotLocked(row, { detailed: true });
-    const value = totp.normalizeCode(code);
+    const value = totp.normalizeCode(typedCode(code));
     if (!value) throw httpError(400, 'CODE_REQUIRED', 'Saisir un code actuel.');
     let ok;
     if (totp.isBackupCodeShape(value)) {
@@ -337,7 +340,7 @@ function createTwoFactorController({
     }
     // Rule 24 — the step of the enrolment code is recorded: the same code cannot then open a session.
     const step = row.pendingMethod === 'totp' ? totp.matchTotpStep(row.pendingSecretEncrypted, code, now()) : null;
-    const ok = row.pendingMethod === 'totp' ? step !== null : checkEmailCode(user.id, row, code);
+    const ok = row.pendingMethod === 'totp' ? step !== null : checkEmailCode(user.id, row, typedCode(code));
     if (!ok) {
       model.recordPendingFailure(user.id);
       const failures = row.pendingFailures + 1;
@@ -437,7 +440,7 @@ function createTwoFactorController({
     const row = user && model.get(userId);
     if (!user || !row || !row.enabledAt) throw httpError(401, 'NO_PENDING_LOGIN', 'Reconnexion nécessaire.');
     assertNotLocked(row);
-    const value = totp.normalizeCode(code);
+    const value = totp.normalizeCode(typedCode(code));
     let ok = false;
     let usedBackup = false;
     if (totp.isBackupCodeShape(value)) {

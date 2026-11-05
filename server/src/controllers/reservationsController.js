@@ -9,12 +9,15 @@ const { todayIso: localTodayIso } = require('../utils/localDate');
 const db = require('../database');
 const { calculateReservationQuote } = require('../utils/pricing');
 const { lineInputRefusal } = require('../utils/lineInputBounds');
+const { stayShapeRefusal } = require('../utils/stayInputShape');
+const { positiveId, scalarQuery } = require('../utils/bodyText');
+const { isWrongFieldType, WRONG_FIELD_TYPE } = require('../utils/bodyParserRefusal');
 const { quoteStoredReservation, pricingUnchangedFromStored, pinStoredPricing } = require('../utils/storedReservationQuote');
 const {
   midStayQuoteInputs, scheduleQuoteInputs, resolvePlatformTakesDeposit, resolvePlatformPayoutDueDays, frozenTouristTaxInputs,
 } = require('../utils/reservationQuoteContext');
 const { resolvePlatformPaidGuests, resolvePlatformPaidAdults, resolvePlatformPaidOccupants } = require('../utils/platformPaidGuests');
-const { validateFinanceInputs, financeErrorBody } = require('../utils/financeValidation');
+const { validateFinanceInputs, validateStayFinance, financeErrorBody } = require('../utils/financeValidation');
 const { stayDatesRefusal, stayDatesRefusalBody, stayItemDatesRefusal } = require('../utils/stayDates');
 const { checkPlanningRange } = require('../utils/planningDateRange');
 const { parseGroup, collectibleArrivalBuckets } = require('../utils/arrivalPaymentGroup');
@@ -105,6 +108,8 @@ const { buildStoredSummary } = require('../utils/storedSummary');
 const propertiesModel = require('../models/propertiesModel');
 const { getDefaultModel: getTariffJournal } = require('../models/tariffChangeJournalModel');
 const { evaluateLedgerEdit } = require('../utils/ledgerAmountEdit');
+const { stampComplementPaidSplit } = require('../utils/complementPaidSplit');
+const { contribLinesOf, recordRemovedLineContribs } = require('../utils/removedLineContribs');
 const { validateCollectionDate } = require('../utils/arrivalPaymentDate');
 const { parseNotes: parseMidStayNotes } = require('../utils/midStayExtras');
 const ledgerLinks = require('../utils/ledgerLinks');
@@ -187,7 +192,9 @@ function storedAccommodationPreArrivalOf(row) {
     if (hit) taxOnArrival = Boolean(hit.onArrival);
   } catch { /* the stored flag decides */ }
   const preArrival = Number(row.depositAmount || 0) + Number(row.balanceAmount || 0);
-  return round2(Math.max(0, preArrival - (taxOnArrival ? 0 : Number(row.touristTaxTotal || 0))));
+  // specs/platform-added-guests-tourist-tax.md rule 27 — the added guests' tax rides the complement, not this money.
+  const taxHeld = Number(row.touristTaxTotal || 0) - Number(row.touristTaxAddedGuestsAmount || 0);
+  return round2(Math.max(0, preArrival - (taxOnArrival ? 0 : taxHeld)));
 }
 
 // specs/mid-stay-notes.md §4.3 — the two note actions carried by the payment PATCH. Business
@@ -233,6 +240,16 @@ const model = reservationsModel;
 // already declares DEFAULT 'direct' on the `platform` column; this coercion catches the
 // case where the client sends an explicit empty string AND backfills any pre-existing
 // NULL/'' rows via a paired migration at boot.
+// specs/reservations-backend-mvc.md rule 20 — a client that does not exist reaches the foreign key: told apart from
+// any other constraint here, and answered as a stay with no client.
+const CLIENT_REQUIRED = { error: 'Un client est requis pour enregistrer la réservation.', code: 'CLIENT_REQUIRED' };
+
+function unknownClient(err, clientId) {
+  if (!err || err.code !== 'SQLITE_CONSTRAINT_FOREIGNKEY') return false;
+  const id = positiveId(clientId);
+  return Boolean(id) && !db.prepare('SELECT 1 FROM clients WHERE id = ?').get(id);
+}
+
 function normalisePlatform(platform) {
   if (platform == null) return 'direct';
   const trimmed = String(platform).trim();
@@ -667,8 +684,11 @@ class CreationRefused extends Error {
 // ── Handlers ─────────────────────────────────────────────────────────────
 
 function suggestBeds(req, res) {
-  const propertyId = Number(req.body.propertyId || 0);
+  const propertyId = positiveId(req.body.propertyId);
   if (!propertyId) return res.status(400).json({ error: 'propertyId requis' });
+  // specs/reservations-backend-mvc.md rule 20 — the party, as on the save.
+  const partyRefusal = lineInputRefusal({ adults: req.body.adults, children: req.body.children, teens: req.body.teens });
+  if (partyRefusal) return res.status(400).json(partyRefusal);
   const property = model.getPropertyBeds(propertyId);
   if (!property) return res.status(404).json({ error: 'Logement non trouvé' });
 
@@ -738,7 +758,7 @@ function platformCommission(req, res) {
 }
 
 function list(req, res) {
-  const { propertyId, clientId, from, to } = req.query;
+  const { propertyId, clientId, from, to } = scalarQuery(req.query);
   // specs/ui-review-2026-10-19-operations.md rule 15 — the display name the calendar prints.
   const rows = model.list({ propertyId, clientId, from, to })
     .map((row) => ({ ...row, platformDisplay: platformDisplay(row.platform) }));
@@ -945,6 +965,11 @@ function storedSummaryOf(row) {
   });
 }
 
+function soldePaidBeforeAcompte(reservationId) {
+  const row = reservationId > 0 ? model.getRow(reservationId) : null;
+  return Boolean(row) && Number(row.balancePaid || 0) === 1 && Number(row.depositPaid || 0) !== 1;
+}
+
 function getById(req, res) {
   const reservation = model.getByIdWithDetails(req.params.id);
   if (!reservation) return res.status(404).json({ error: 'Réservation non trouvée' });
@@ -1090,24 +1115,22 @@ function depositDisabledLockedReasonOf(reservationId) {
 }
 
 async function calculatePrice(req, res) {
-  const financeError = validateFinanceInputs({
-    customPrice: { value: req.body.customPrice, kind: 'money' },
-    depositAmount: { value: req.body.depositAmount, kind: 'money' },
-    depositAmountOverride: { value: req.body.depositAmountOverride, kind: 'money' },
-    // specs/adjustable-complement-amounts.md §3.1 rule 7 — the operator's complement amounts share the
-    // money validator: finite, ≥ 0, '' meaning « not provided ».
-    complementAmountOverride: { value: req.body.complementAmountOverride, kind: 'money' },
-    endOfStayComplementAmountOverride: { value: req.body.endOfStayComplementAmountOverride, kind: 'money' },
-    balanceAmount: { value: req.body.balanceAmount, kind: 'money' },
-    discountPercent: { value: req.body.discountPercent, kind: 'percentage' },
-  });
-  if (financeError) return res.status(400).json(financeErrorBody(financeError));
+  // specs/reservations-backend-mvc.md rule 20 — the shape of the fields, before anything reads them; what the row
+  // being quoted stores is not re-judged.
+  const shapeRowId = positiveId(req.body.reservationId) || positiveId(req.body.devisId);
+  const shapeRefusal = stayShapeRefusal(req.body, shapeRowId ? model.getRow(shapeRowId) : null);
+  if (shapeRefusal) return res.status(400).json(shapeRefusal);
 
   // specs/reservations-backend-mvc.md rule 11 — sound dates before any pricing or availability check; rule 13 —
   // the fiche of a stay or devis quotes its stored dates even past the horizon.
   const quotedRowId = Number(req.body.reservationId || 0) || Number(req.body.devisId || 0);
+  const quotedStored = quotedRowId > 0 ? model.getRow(quotedRowId) : null;
+  // Rule 17 — the money the save would refuse, refused here too.
+  const financeError = validateStayFinance(req.body, quotedStored);
+  if (financeError) return res.status(400).json(financeErrorBody(financeError));
+
   // Rule 15 — the numbers of the lines and the party, before anything reads them.
-  const inputRefusal = lineInputRefusal(req.body, quotedRowId > 0 ? bookingLinesModel.getStoredTypedCounts(quotedRowId) : {});
+  const inputRefusal = lineInputRefusal(req.body, quotedRowId > 0 ? bookingLinesModel.getStoredTypedCounts(quotedRowId) : {}, quotedStored);
   if (inputRefusal) return res.status(400).json(inputRefusal);
   const quotedRow = quotedRowId > 0 ? db.prepare('SELECT startDate, endDate FROM reservations WHERE id = ?').get(quotedRowId) : null;
   const datesRefusal = stayDatesRefusal(req.body.startDate, req.body.endDate, { stored: quotedRow });
@@ -1177,7 +1200,9 @@ async function calculatePrice(req, res) {
     depositPaid: req.body.depositPaid,
     balancePaid: req.body.balancePaid,
     extraGuestSurchargeOffered: req.body.extraGuestSurchargeOffered,
-    depositAmount: req.body.depositAmount,
+    // specs/reservation-payment-ledger.md rule 46, reading of 2026-11-05 — a solde paid before its acompte: the acompte
+    // still owed is judged from the stored one, as the save does, never from a figure an earlier preview answered.
+    depositAmount: soldePaidBeforeAcompte(reservationId) ? model.getRow(reservationId).depositAmount : req.body.depositAmount,
     depositAmountOverride: req.body.depositAmountOverride,
     // specs/reservation-payment-ledger.md rule 7 — the live quote prices the per-reservation opt-out
     // like the save does, so the ledger's solde is the one « Enregistrer » will store.
@@ -1334,23 +1359,10 @@ function pastUnlockRequested(req) {
 }
 
 function createStay(req, res) {
-  const financeError = validateFinanceInputs({
-    customPrice: { value: req.body.customPrice, kind: 'money' },
-    depositAmount: { value: req.body.depositAmount, kind: 'money' },
-    depositAmountOverride: { value: req.body.depositAmountOverride, kind: 'money' },
-    // specs/adjustable-complement-amounts.md §3.1 rule 7 — the operator's complement amounts share the
-    // money validator: finite, ≥ 0, '' meaning « not provided ».
-    complementAmountOverride: { value: req.body.complementAmountOverride, kind: 'money' },
-    endOfStayComplementAmountOverride: { value: req.body.endOfStayComplementAmountOverride, kind: 'money' },
-    balanceAmount: { value: req.body.balanceAmount, kind: 'money' },
-    cautionAmount: { value: req.body.cautionAmount, kind: 'money' },
-    platformCommissionAmount: { value: req.body.platformCommissionAmount, kind: 'money' },
-    acompteCommissionAmount: { value: req.body.acompteCommissionAmount, kind: 'money' },
-    platformGrossAmount: { value: req.body.platformGrossAmount, kind: 'money' },
-    platformPayoutAmount: { value: req.body.platformPayoutAmount, kind: 'money' },
-    platformTouristTaxAmount: { value: req.body.platformTouristTaxAmount, kind: 'money' },
-    discountPercent: { value: req.body.discountPercent, kind: 'percentage' },
-  });
+  // specs/reservations-backend-mvc.md rule 20 — the shape of the fields, before anything reads them.
+  const shapeRefusal = stayShapeRefusal(req.body);
+  if (shapeRefusal) return res.status(400).json(shapeRefusal);
+  const financeError = validateStayFinance(req.body);
   if (financeError) return res.status(400).json(financeErrorBody(financeError));
 
   // specs/reservations-backend-mvc.md rule 15 — the numbers of the lines and the party, before anything reads them.
@@ -1593,7 +1605,14 @@ function createStay(req, res) {
 // The HTTP creation of a stay. A client typed on the fiche (`newClient`) is written in the same
 // transaction (specs/clients.md rule 13).
 function create(req, res) {
-  if (!req.body || req.body.clientId || !req.body.newClient) return createStay(req, res);
+  if (!req.body || req.body.clientId || !req.body.newClient) {
+    try {
+      return createStay(req, res);
+    } catch (err) {
+      if (unknownClient(err, req.body && req.body.clientId)) return res.status(400).json(CLIENT_REQUIRED);
+      throw err;
+    }
+  }
   const result = saveWithDraftClient({
     db,
     clientsModel: require('../models/clientsModel'),
@@ -1667,6 +1686,10 @@ function staleFicheRefusal(reservationId, body) {
 async function update(req, res) {
   try {
     const id = Number(req.params.id);
+    // specs/reservations-backend-mvc.md rule 20 — before anything reads the request. The internal writers
+    // (`performUpdate`) build their own bodies and do not pass here.
+    const shapeRefusal = stayShapeRefusal(req.body || {}, model.getRow(id));
+    if (shapeRefusal) return res.status(400).json(shapeRefusal);
     const stale409 = staleFicheRefusal(id, req.body);
     if (stale409) return res.status(stale409.status).json(stale409.body);
     const unlockPast = pastUnlockRequested(req);
@@ -1691,6 +1714,8 @@ async function update(req, res) {
     return res.status(result.status).json(result.body);
   } catch (err) {
     // eslint-disable-next-line no-console
+    if (isWrongFieldType(err)) return res.status(WRONG_FIELD_TYPE.status).json(WRONG_FIELD_TYPE.body);
+    if (unknownClient(err, req.body && req.body.clientId)) return res.status(400).json(CLIENT_REQUIRED);
     console.error('[reservations] update failed:', err);
     return res.status(500).json({ error: 'Enregistrement impossible.' });
   }
@@ -1826,28 +1851,13 @@ function enterMidStayExtrasWindow(id, body, today) {
 }
 
 function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
-  const financeError = validateFinanceInputs({
-    customPrice: { value: req.body.customPrice, kind: 'money' },
-    depositAmount: { value: req.body.depositAmount, kind: 'money' },
-    depositAmountOverride: { value: req.body.depositAmountOverride, kind: 'money' },
-    // specs/adjustable-complement-amounts.md §3.1 rule 7 — the operator's complement amounts share the
-    // money validator: finite, ≥ 0, '' meaning « not provided ».
-    complementAmountOverride: { value: req.body.complementAmountOverride, kind: 'money' },
-    endOfStayComplementAmountOverride: { value: req.body.endOfStayComplementAmountOverride, kind: 'money' },
-    balanceAmount: { value: req.body.balanceAmount, kind: 'money' },
-    cautionAmount: { value: req.body.cautionAmount, kind: 'money' },
-    platformCommissionAmount: { value: req.body.platformCommissionAmount, kind: 'money' },
-    acompteCommissionAmount: { value: req.body.acompteCommissionAmount, kind: 'money' },
-    platformGrossAmount: { value: req.body.platformGrossAmount, kind: 'money' },
-    platformPayoutAmount: { value: req.body.platformPayoutAmount, kind: 'money' },
-    platformTouristTaxAmount: { value: req.body.platformTouristTaxAmount, kind: 'money' },
-    discountPercent: { value: req.body.discountPercent, kind: 'percentage' },
-  });
+  const storedBefore = model.getRow(Number(req.params.id));
+  const financeError = validateStayFinance(req.body, storedBefore);
   if (financeError) return res.status(400).json(financeErrorBody(financeError));
 
   // specs/reservations-backend-mvc.md rule 15 — the numbers of the lines and the party, before anything reads
   // them; what the stay already stores is not re-judged.
-  const inputRefusal = lineInputRefusal(req.body, bookingLinesModel.getStoredTypedCounts(Number(req.params.id)));
+  const inputRefusal = lineInputRefusal(req.body, bookingLinesModel.getStoredTypedCounts(Number(req.params.id)), storedBefore);
   if (inputRefusal) return res.status(400).json(inputRefusal);
 
   // specs/reservations-backend-mvc.md rule 11 — sound dates before any pricing or availability check; rule 13 —
@@ -1867,6 +1877,9 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
 
   const cancelled = readOnlyRefusal(db, id);
   if (cancelled) return res.status(cancelled.status).json(cancelled.body);
+
+  // Rule 16 — refused here rather than by the NOT NULL constraint (a 500), as on the creation.
+  if (!req.body.clientId) return res.status(400).json(CLIENT_REQUIRED);
 
   // specs/direct-installments.md rule 1 — a plan with money in keeps the reservation on the own channels.
   const planRefusal = installments.platformChangeRefusal(id, req.body.platform);
@@ -1999,7 +2012,8 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
     complementPaid: effectiveComplementPaid,
     // specs/reservation-refunds.md rule 36 — a paid acompte or solde is priced on what it collected
     // (the stored amount), never on a figure the browser carried over from an earlier preview.
-    depositAmount: effectiveDepositPaid ? storedPaymentForQuote.depositAmount : req.body.depositAmount,
+    // A solde paid first too (rule 46, reading of 2026-11-05): the acompte still owed is judged from the stored one.
+    depositAmount: (effectiveDepositPaid || effectiveBalancePaid) ? storedPaymentForQuote.depositAmount : req.body.depositAmount,
     depositAmountOverride: req.body.depositAmountOverride,
     // specs/adjustable-complement-amounts.md §3.2 rule 13 — applied last by the engine, over every
     // other branch, so it corrects even a frozen complement.
@@ -2222,7 +2236,13 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
         forceCapacity,
       });
       if (capacityError) return res.status(400).json({ error: capacityError });
+    }
 
+    // specs/reservations-backend-mvc.md rule 17 — the cots are held on a range, so moving it is judged too.
+    const cotRangeUnchanged = existingReservation
+      && sameNum(prev.propertyId, propertyId)
+      && sameStr(prev.startDate, startDate) && sameStr(prev.endDate, endDate);
+    if (!occupancyUnchanged || !cotRangeUnchanged) {
       const babyError = checkBabyBeds({ propertyId, startDate, endDate, children, babies, babyBeds: effectiveBabyBeds, excludeId: id });
       if (babyError) return res.status(400).json({ error: babyError });
     }
@@ -2285,6 +2305,8 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
 
     // Nights are never rewritten on a locked fiche, but its extras are while the window is open.
     const writesExtras = !pastReservationLocked || Boolean(midStayWindow);
+    // specs/accounting-books-the-money-collected.md rule 17 (D11) — what the lines hold of the booked entries, before they go.
+    const contribLinesBefore = writesExtras ? contribLinesOf(db, id) : null;
     if (writesExtras && reservationOptions) model.replaceOptions(id, quote.optionLines);
     if (writesExtras) {
       const sasOriginLabels = model.sasOriginCustomLabels(id);
@@ -2304,6 +2326,8 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
       const resourceError = insertResourceLines(id, quote, { propertyId, startDate, endDate, excludeId: id });
       if (resourceError) throw new CreationRefused(resourceError);
     }
+
+    if (contribLinesBefore) recordRemovedLineContribs(db, id, contribLinesBefore);
 
     // specs/mid-stay-extras-to-end-of-stay-complement.md §3.4 rule 11 — the engine has computed what was
     // sold during the stay; store it as the mid-stay lines of the end-of-stay complement (the SAS-owned
@@ -2536,7 +2560,7 @@ function updatePayment(req, res) {
     depositAmount: { value: req.body.depositAmount, kind: 'money' },
     balanceAmount: { value: req.body.balanceAmount, kind: 'money' },
     cautionAmount: { value: req.body.cautionAmount, kind: 'money' },
-  });
+  }, model.getRow(Number(req.params.id)));
   if (financeError) return res.status(400).json(financeErrorBody(financeError));
   const existing = model.getBasic(Number(req.params.id));
   if (!existing) return res.status(404).json({ error: 'Réservation non trouvée' });
@@ -2678,6 +2702,7 @@ function updatePayment(req, res) {
     // sera vendu ensuite parte au complément de fin de séjour au lieu de se perdre entre les
     // échéances. Idempotent : une base déjà posée n'est jamais réécrite.
     if (paid) model.captureArrivalExtrasBaseline(Number(id));
+    if (paid && Number(before?.complementPaid || 0) !== 1) stampComplementPaidSplit(db, Number(id));
     // specs/defer-arrival-complement-to-checkout.md §3.2 rule 8 — when the complement was deferred to
     // check-out, the fiche shows ONE card for ONE collection: marking it paid (or « caisse interne »)
     // settles BOTH buckets with the same date, and un-marking clears both. The amounts stay separate

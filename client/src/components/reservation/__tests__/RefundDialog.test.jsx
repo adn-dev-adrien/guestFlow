@@ -97,12 +97,22 @@ test('rien de coché → le bouton reste désactivé', () => {
   expect(screen.getByRole('button', { name: 'Enregistrer le remboursement' })).toBeDisabled();
 });
 
-test('un dépassement de l’encaissé affiche un avertissement sans bloquer', async () => {
+test('un dépassement de l’encaissé bloque le virement (règle 50, D10), avec le montant en trop', async () => {
   const user = userEvent.setup();
   renderDialog({ collectedTtc: 50 });
   await user.click(screen.getAllByRole('checkbox')[1]); // 60 € > 50 € encaissés
 
-  expect(screen.getByText('Dépasse l’encaissé de 10,00 €.')).toBeInTheDocument();
+  expect(screen.getByRole('alert')).toHaveTextContent('Dépasse l’encaissé de 10,00 €.');
+  expect(screen.getByRole('button', { name: 'Enregistrer le remboursement' })).toBeDisabled();
+});
+
+test('en caisse interne, hors comptabilité, le dépassement reste un avertissement', async () => {
+  const user = userEvent.setup();
+  renderDialog({ collectedTtc: 50 });
+  await user.click(screen.getAllByRole('checkbox')[1]);
+  await user.click(screen.getByRole('radio', { name: /Caisse interne/ }));
+
+  expect(screen.getByRole('status')).toHaveTextContent('Dépasse l’encaissé de 10,00 €.');
   expect(screen.getByRole('button', { name: 'Enregistrer le remboursement' })).toBeEnabled();
 });
 

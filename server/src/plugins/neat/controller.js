@@ -129,18 +129,22 @@ function createNeatController({
       const payload = {};
       const errors = {};
       if (body.environment !== undefined) {
-        const env = String(body.environment);
+        const env = body.environment;
         if (env !== 'production' && env !== 'staging') errors.environment = 'Environnement invalide.';
         else payload.neatEnvironment = env;
       }
-      if (body.clientId !== undefined) payload.neatClientId = String(body.clientId).trim();
-      if (body.clientSecret !== undefined) payload.neatClientSecretEncrypted = String(body.clientSecret).trim();
+      // Only a string is a credential: an object used to be stored as « [object Object] ».
+      for (const [field, column] of [['clientId', 'neatClientId'], ['clientSecret', 'neatClientSecretEncrypted']]) {
+        if (body[field] === undefined) continue;
+        if (typeof body[field] !== 'string') errors[field] = 'Texte attendu.';
+        else payload[column] = body[field].trim();
+      }
       if (body.marginPercent !== undefined) {
         const raw = body.marginPercent;
         if (raw === null || raw === '') {
           payload.neatMarginPercent = null;
         } else {
-          const n = Number(raw);
+          const n = typeof raw === 'number' || typeof raw === 'string' ? Number(raw) : NaN;
           if (!Number.isFinite(n) || n < 0 || n > 1000) errors.marginPercent = 'Marge invalide (0 à 1000 %).';
           else payload.neatMarginPercent = n;
         }

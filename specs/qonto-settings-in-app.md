@@ -106,6 +106,15 @@ when it is broken.
 17. **A failed load says so (audit R3, 2026-10-29).** When `GET /api/payments/settings` fails, the page
     shows an `ErrorAlert` (« Impossible de charger les paramètres de paiement. ») with « Réessayer »
     instead of an endless spinner. « Réessayer » asks for the settings again, without reloading the page.
+18. **One refresh at a time per refresh token (audit R22 E22-3, 2026-11-04).** The poll, the webhook, a public
+    payment and the operator's actions can all meet an expired access token at once, and each one used to refresh
+    with the same refresh token. With a token that rotates, one caller then failed (possibly a guest's payment) and
+    `invalid_grant` was recorded; a provider that revokes on reuse (what real Qonto does is not verified) would
+    leave the connection dead until a new consent. `getValidQontoAccessToken` keeps the running refresh in a
+    module-level map keyed on the refresh token: a caller finding one waits for it and shares its answer, success or
+    failure. The entry leaves once the new pair is stored, so a later caller reads the new tokens, and a failed
+    refresh leaves nothing behind: the next call asks again. Shared with the control plane's billing. Test:
+    `plugins/online-payment/tests/qonto-refresh-single-flight.unit.test.js`.
 
 
 **Edge cases:**

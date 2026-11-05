@@ -221,8 +221,9 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
   the sale stays at its full price, the solde stays « payé » at its full amount, one refund of 24 €
   is recorded → the fiche shows « Remboursements −24,00 € », the CA of the transfer's month drops by
   21,82 € HT + 2,18 € de TVA, and the accountant gets a balanced avoir.
-- **Refund recorded before the money is fully collected** (allowed, rules 10–11 are the only caps):
-  the fiche's « reste à payer » is unaffected; the dialog surfaces a warning caption, not a block.
+- **Refund recorded before the money is fully collected**: refused above what was collected
+  (rule 50, D10 of 2026-11-05, reversing the earlier « allowed, warning only »); within it, the fiche's
+  « reste à payer » is unaffected.
 - **A refunded line is later shrunk or removed on the fiche**: existing refunds keep their money (it
   physically left the bank). `refundableTtc` clamps to 0, so no *further* refund is possible on that
   key.
@@ -536,6 +537,44 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
     > (payment-schedule-and-cancellation rule 55, reading of the same day): the same nets hold when part of the solde
     > was refunded before the cancellation.
 
+    > **Reading of 2026-11-05 (audit R22-2).** A paid complement is not « whatever the solde did not hold »: that is false
+    > while the solde is unpaid. `collectedByLine` splits on the solde, on both of its paths. Complement paid, solde unpaid:
+    > a forced line collected its total, a non-forced line its acompte contrib (0 with no acompte, left unknown on a plan
+    > with paid installments), the accommodation gains `extraGuestComplementSurcharge`, the tax is the whole tax if it rides
+    > the complement (`taxRidesTheComplement`), else `touristTaxAddedGuestsAmount`. The arrival rank of the excess holds only
+    > while the complement is unpaid. A forced 50 € line, complement paid, solde unpaid: the register offers 50 € on it and no
+    > tax, where it offered 45,20 + 4,80 € and left 46710000 at −4,80 after the give-back. Giving everything back nets every
+    > account to 0 in each order. Test: `plugins/accounting-export/tests/cancelled-register-complement-before-solde`.
+    > **Reading of 2026-11-05 (audit R22-4).** On a cancelled stay a line's ceiling is `max(billed, collected)`, in the
+    > register and in the spread of the avoir (`roomAtAvoir`): a line lowered after payment (tariff refresh 50 → 25 €, quantity
+    > 10 → 5) offers what it collected. `validateRefundPayload` skips the stay cap when cancelled, `REFUND_EXCEEDS_COLLECTED`
+    > rules there. A paid line removed since stays on the register for what it collected, under its name (billed = that
+    > amount, `collectedLinesGone`; accounting-books rule 17); a free line remains possible, within what was collected. Test:
+    > `plugins/accounting-export/tests/cancelled-register-lowered-line`, `removed-line-contribs`.
+    > **Reading of 2026-11-05 (audit R22-6a).** A complement stamped at its flip (accounting-books rule 16) collected what
+    > its split says: `collectedByLine` reads it first, so a stay that rose after solde and complement reads no phantom
+    > accommodation or tax on the complement, and the give-back nets to 0 (the auditor's `p8` residue, 70600000 −13,82 /
+    > 70600010 +13,82). A split that pro-rated its money names no line: the lines then read as without one.
+    >
+    > **Reading of 2026-11-05 (R22 verification, L1).** A plan's installments are book money: `collectedByLine` adds the
+    > accommodation and the tax they were booked on (`bookedStayBuckets().installments`, frozen split first, then the plan's
+    > `taxShares`), never in the caisse interne's reading. Without them the requalification came off the complement's money
+    > alone: own channel reversed, gross 600 €, one adult more, plan of 2 paid, complement 42,40 € paid, cancelled, the register
+    > offered 595,20 + 4,80 € for 642,40 € collected, and 42,40 € stayed on no line (70600000 36,36, 44571100 3,64, 46710000
+    > 2,40). It now offers 635,20 + 7,20 € and every account nets to 0. A plan never sits beside a paid acompte or solde (D2),
+    > so the reading with contribs does not add them. Test:
+    > `plugins/accounting-export/tests/added-guests-tax-pre-arrival-readers`.
+50. **A live stay refuses a book refund above what it collected** _(D10, Adrien, 2026-11-05; audit R22-7)_. The total of a
+    refund made by transfer or in cash (`Espèces`) on a stay that is not cancelled cannot exceed `collectedTtc`, net of the
+    refunds already made: 409 `REFUND_EXCEEDS_COLLECTED` « Dépasse l'encaissé (X €). », the same refusal as a cancelled
+    stay. Only the total is judged, the per-line reading is unchanged. A caisse-interne refund is off the books and not
+    judged by this rule. This reverses the earlier « allowed, warning only » (§3.4 edge case, §6 item 7). *Why:* a bank
+    refund of money never received is not a real event, and rule 48 refused it on cancelled stays for that reason. On a
+    direct stay nothing collected accepted 704,80 € and showed `collected −704,80`; on a reversed platform with a guest
+    added, solde 600 € collected, 642,40 € was offered and accepted. Rule 44 (« + Nouveau remboursement » only warns about a
+    trop-perçu) is a different case and does not change. The dialog disables the save with « Dépasse l'encaissé de X. » on a
+    book means, and keeps the warning on the caisse interne. Test: `live-refund-above-collected`, `RefundDialog.test`.
+
 ---
 
 ## 4. Architecture
@@ -717,8 +756,9 @@ Empty state: the block renders with the button only, no total chip, no history l
 7. Caption warning (not a block) when the total exceeds what has actually been collected so far:
    « Ce remboursement dépasse le montant encaissé à ce jour. » *(2026-10-18, rule 37: it now reads
    « Dépasse l'encaissé de X € » on one line right above the save button, where a blocking refusal —
-   « <ligne> : dépasse le remboursable de X € », « Montant illisible. » — shows too.)*
-8. Validation errors from the server (`REFUND_EXCEEDS_LINE` / `REFUND_EXCEEDS_STAY`) surface as an
+   « <ligne> : dépasse le remboursable de X € », « Montant illisible. » — shows too.)* *(2026-11-05,
+   rule 50: a block on « Virement » and « Espèces », still a warning on « Caisse interne ».)*
+8. Validation errors from the server (`REFUND_EXCEEDS_LINE` / `REFUND_EXCEEDS_STAY` / `REFUND_EXCEEDS_COLLECTED`) surface as an
    `ErrorAlert` inside the dialog, the dialog stays open with the input preserved.
 
 Deleting a refund goes through `ConfirmDialog`: « Supprimer ce remboursement ? L'écriture d'avoir
@@ -781,6 +821,8 @@ like « Nouvelle note », not a page-level one).
       declaration, a sub-night refund changing nothing, `net + retiré = brut` (rules 27–33).
 - [x] `tests/reception-role-allowlist.unit.test.js` (existing drift test) — still red-flags the new
       refund paths as admin-only (rule 15).
+
+Round 22 (2026-11-05): `live-refund-above-collected` (6, rule 50), `plugins/accounting-export/tests/cancelled-register-complement-before-solde` (10, rule 49 reading), `cancelled-register-lowered-line` (5, rule 49 reading), `cancelled-register-complement-no-split` (10, the same readings on a complement with no split, as every production complement has today); `refunds-model` and `refund-exceeds-overpayment` reviewed: their stubs now hold a paid solde, the assertions unchanged.
 
 ### Client tests (`npx vitest run` — 15 new, full suite 820 ✅)
 - [x] `RefundDialog.test.jsx` — line selection drives the total, free line adds up, future date

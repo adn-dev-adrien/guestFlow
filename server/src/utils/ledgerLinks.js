@@ -231,6 +231,7 @@ function bookPaidAfterAmountChange({ database, recordPayment, reservationsModel 
   // same resolver, the single-payment group released, the arrival extras baseline pinned — and traced.
   const { depsFor, paidDayOf } = require('./stayPaymentRecorder');
   const { resolveComplementPayment } = require('./complementPayment');
+  const { stampComplementPaidSplit } = require('./complementPaidSplit');
   const model = reservationsModel || depsFor(database).reservationsModel;
   const { paid, cash, date } = resolveComplementPayment({
     paidInput: true, dateInput: paidDay,
@@ -242,6 +243,7 @@ function bookPaidAfterAmountChange({ database, recordPayment, reservationsModel 
       .run(paid, date, cash, row.id);
     model.releaseComplementBucket(row.id);
     model.captureArrivalExtrasBaseline(row.id);
+    stampComplementPaidSplit(database, row.id);
     model.addHistoryEntry(row.id, 'update', [{
       field: 'complementPaid', label: "Complément d'arrivée", from: `${fmt(row.complementAmount)} à percevoir`,
       to: `${fmt(paidAmount)} perçus (payé par un lien retiré)`,

@@ -9,6 +9,7 @@
 
 const crypto = require('crypto');
 const { hashPassword, verifyPassword } = require('./passwordHash');
+const { asText } = require('./bodyText');
 
 const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
 const STEP_SECONDS = 30;
@@ -65,7 +66,7 @@ function generateSecret() {
 // The time step the code belongs to (±1 step), or null. The caller refuses a step it already
 // accepted, so a code seen over a shoulder cannot open a second session.
 function matchTotpStep(secretBase32, code, date) {
-  const candidate = String(code || '').replace(/\s/g, '');
+  const candidate = asText(code).replace(/\s/g, '');
   if (!/^\d{6}$/.test(candidate)) return null;
   const key = base32Decode(secretBase32);
   const counter = Math.floor(date.getTime() / 1000 / STEP_SECONDS);
@@ -98,7 +99,7 @@ function generateBackupCodes(count = BACKUP_CODE_COUNT) {
 // What a person types or pastes, as the checks expect it (specs/hosting-h2-account-security.md rule 35):
 // « 123 456 » / « 123-456 » → « 123456 », a backup code without its dash or with spaces → « xxxxx-xxxxx ».
 function normalizeCode(code) {
-  const value = String(code || '').trim().toLowerCase();
+  const value = asText(code).trim().toLowerCase();
   const compact = value.replace(/[\s.-]/g, '');
   if (/^\d{6}$/.test(compact)) return compact;
   if (/^[a-z0-9]{10}$/.test(compact)) return `${compact.slice(0, 5)}-${compact.slice(5)}`;

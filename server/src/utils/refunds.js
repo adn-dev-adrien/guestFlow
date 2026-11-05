@@ -12,6 +12,8 @@
  */
 
 const { extraLineKey } = require('./midStayExtras');
+const { parseRemovedLineContribs } = require('./removedLineContribs');
+const { readComplementPaidSplit } = require('./complementPaidSplit');
 const { isRealIsoDay, dateWindowMessage } = require('./stayDates');
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
@@ -244,11 +246,14 @@ function refundsTotal(refunds, { withCash = false } = {}) {
  *                                      collected (rule 48) and carries `indemnityTtc`, the part the indemnity holds
  * @param {object} [input.collected]    `collectedByLine(...)` — on a cancelled stay, each line offers at most what IT
  *                                      collected (rule 49 reading of 2026-11-02)
+ * @param {boolean} [input.complementCollected] the arrival complement is paid: its lines did collect their money
+ * @param {Array}  [input.goneLines]    `collectedLinesGone(...)` — on a cancelled stay, the lines that collected money
+ *                                      and left the fiche since (rule 49 reading of 2026-11-05)
  * @param {object} [input.cashCollected] `collectedByLine({ cash: true })` — the same, for the caisse interne: a line
  *                                      then also offers `cashTtc`, refundable in the caisse interne only (rule 48
  *                                      reading of 2026-11-02, audit R15-L1)
  */
-function buildRefundableLines({ finalPrice, touristTaxTotal, vatRate, options = [], resources = [], refunds = [], nights = 0, cancelled = null, collected = null, cashCollected = null }) {
+function buildRefundableLines({ finalPrice, touristTaxTotal, vatRate, options = [], resources = [], refunds = [], nights = 0, cancelled = null, collected = null, cashCollected = null, complementCollected = false, goneLines = [] }) {
   const given = refundedByKey(refunds, (refund) => !isRequalification(refund));
   const fromIndemnity = refundedByKey(refunds, (refund) => !isRequalification(refund), isIndemnityLine);
   const requalified = refundedByKey(refunds, isRequalification, (line) => !isCommissionLine(line));
@@ -296,6 +301,13 @@ function buildRefundableLines({ finalPrice, touristTaxTotal, vatRate, options = 
     });
   }
   all.push(...extras);
+  // Rule 49 reading of 2026-11-05 (D11) — a paid line removed since is offered back on what it collected, under its name.
+  if (cancelled) {
+    for (const line of goneLines) {
+      if (all.some((other) => other.key === line.key)) continue;
+      all.push({ key: line.key, label: line.label, bucket: line.bucket, quantity: null, unitPrice: null, billedTtc: line.collectedTtc, vatRate: rate });
+    }
+  }
   const taxTtc = round2(touristTaxTotal);
   if (taxTtc > 0) {
     // The tax is refunded BY NIGHT, never as a loose amount: the commune declaration removes whole
@@ -323,7 +335,9 @@ function buildRefundableLines({ finalPrice, touristTaxTotal, vatRate, options = 
     const withheldTtc = line.key === ACCOMMODATION_KEY ? round2(withheld.accommodation || 0) : 0;
     const requalifiedTtc = round2((requalified[line.key] || 0) + withheldTtc);
     const saleRefundedTtc = round2(refundedTtc - (fromIndemnity[line.key] || 0));
-    return { ...line, refundedTtc, requalifiedTtc, withheldTtc, refundableTtc: Math.max(0, round2(line.billedTtc - saleRefundedTtc - requalifiedTtc)) };
+    // Rule 49 reading of 2026-11-05 (audit R22-4) — a line lowered after it was paid still holds what it collected.
+    const ceilingTtc = cancelled && collected && line.key in collected ? Math.max(line.billedTtc, Number(collected[line.key]) || 0) : line.billedTtc;
+    return { ...line, ceilingTtc, refundedTtc, requalifiedTtc, withheldTtc, refundableTtc: Math.max(0, round2(ceilingTtc - saleRefundedTtc - requalifiedTtc)) };
   });
   // Rule 48 reading of 2026-11-02 (audit R15-L1) — what the caisse interne collected on a line (0 when it collected
   // nothing on the stay, unknown on a line no reading names) and gave back there: beyond that money, a caisse-interne
@@ -345,7 +359,7 @@ function buildRefundableLines({ finalPrice, touristTaxTotal, vatRate, options = 
   const saleBefore = refundedByKey(refunds, (refund) => !isRequalification(refund) && beforeAvoir(refund), (line) => !isIndemnityLine(line));
   const roomAtAvoir = (line) => {
     const before = saleBefore[line.key] || 0;
-    const billed = Math.max(0, round2(line.billedTtc - before - line.requalifiedTtc));
+    const billed = Math.max(0, round2(line.ceilingTtc - before - line.requalifiedTtc));
     return cancelled && collected && line.key in collected ? Math.min(billed, Math.max(0, round2(collected[line.key] - before))) : billed;
   };
   ['options', 'resources'].forEach((bucket) => spreadBucketRefund(perLine.filter((line) => line.key !== bucket && line.bucket === bucket), requalified[bucket], roomAtAvoir));
@@ -362,7 +376,9 @@ function buildRefundableLines({ finalPrice, touristTaxTotal, vatRate, options = 
     // the money a cancelled stay is the least likely to have collected, then off the lines whose own collection is
     // unknown, the lines capped at what they collected last.
     const atArrival = new Set([...options, ...resources].filter((line) => line && Number(line.inComplement || 0) === 1).map(billedLineKey));
-    const rank = (line) => (atArrival.has(line.key) ? 0 : (collectedLeft(line) === Infinity ? 1 : 2));
+    // Reading of 2026-11-05 (audit R22-2) — the arrival rank holds while the complement is unpaid: once paid, those lines
+    // are the very lines that collected.
+    const rank = (line) => (atArrival.has(line.key) && !complementCollected ? 0 : (collectedLeft(line) === Infinity ? 1 : 2));
     const order = perLine.map((line, index) => index).sort((a, b) => rank(perLine[a]) - rank(perLine[b]) || a - b);
     capInOrder(saleRooms, Math.round(cancelled.saleLeftTtc * 100), order);
     capInOrder(indemnityRooms, Math.round(cancelled.indemnityLeftTtc * 100), order);
@@ -390,7 +406,7 @@ function buildRefundableLines({ finalPrice, touristTaxTotal, vatRate, options = 
       line.refundableTtc = (saleRooms[index] + indemnityRooms[index] + cashRooms[index]) / 100;
     });
   }
-  return perLine.filter((line) => line.refundableTtc > 0).map(({ withheldTtc, ...line }) => line);
+  return perLine.filter((line) => line.refundableTtc > 0).map(({ withheldTtc, ceilingTtc, ...line }) => line);
 }
 
 // specs/reservation-refunds.md rule 49 — lowers the rooms (cents) until they add up to `budget` at most, taking the
@@ -414,15 +430,26 @@ function capInOrder(rooms, budget, order) {
  * the complement is unpaid); `null` when nothing is known: the lines then share the money with no per-line cap.
  * Book money by default; `cash` reads the entries collected in the caisse interne instead (audit R15-L1).
  */
-function collectedByLine({ reservation, options = [], resources = [], booked = null, cash = false }) {
+function collectedByLine({ reservation, options = [], resources = [], booked = null, cash = false, taxOnArrival = true }) {
   const row = reservation || {};
-  const lines = [...options, ...resources].filter((line) => line && Number(line.offered || 0) !== 1);
+  const billed = [...options, ...resources].filter((line) => line && Number(line.offered || 0) !== 1);
   const nz = (value) => (value == null ? 0 : Number(value));
   // Rule 48 reading of 2026-11-02 (audit R15-L1) — the book money, or (`cash`) what the caisse interne collected.
   const paid = (flag, cashFlag) => Number(row[flag]) === 1 && (Number(row[cashFlag] || 0) === 1) === Boolean(cash);
   const deposit = paid('depositPaid', 'depositPaidCash');
   const balance = paid('balancePaid', 'balancePaidCash');
   const complement = paid('complementPaid', 'complementPaidCash');
+  // Rule 49 reading of 2026-11-05 (D11) — a paid line since removed still holds what its entries booked.
+  const removed = parseRemovedLineContribs(row.removedLineContribs).map((entry) => ({ ...entry, removed: true, totalPrice: 0, isCustom: false }));
+  const lines = [...billed, ...removed];
+  const keyOf = (line) => (line.removed ? line.key : billedLineKey(line));
+  // Rule 49 reading of 2026-11-05 (audit R22-6a) — what the complement was stamped with at its flip is what it collected.
+  const split = complement ? readComplementPaidSplit(row) : null;
+  const splitAccommodation = split ? split.accommodationCents / 100 : 0;
+  const splitTax = split ? split.taxCents / 100 : 0;
+  // A split that pro-rated its money names no line: the lines then read as they do without one.
+  const splitLines = split && (split.lines || []).reduce((sum, line) => sum + line.cents, 0) === split.optionsCents + split.resourcesCents ? split.lines || [] : null;
+  const splitOf = new Map((splitLines || []).map((line) => [line.key, line.cents / 100]));
   // Contribs describe a paid entry when they add up to it (accountingModel's tolerance); otherwise the export booked
   // it on the stored-money split, which knows no line.
   const describes = (field, lineField, taxField, amount) => Math.abs(round2(nz(row[field]) + nz(row[taxField])
@@ -430,40 +457,96 @@ function collectedByLine({ reservation, options = [], resources = [], booked = n
   const known = (deposit || balance)
     && (!deposit || describes('accommodationAcompteContribTtc', 'acompteContribTtc', 'touristTaxAcompteContribTtc', row.depositAmount))
     && (!balance || describes('accommodationSoldeContribTtc', 'soldeContribTtc', 'touristTaxSoldeContribTtc', row.balanceAmount));
+  const out = {};
+  const add = (key, amount) => { out[key] = round2((out[key] || 0) + amount); };
   if (!known) {
-    // Without contribs that describe the money, the extras are known only as a bucket: a line paid at arrival
-    // collected nothing while the complement is unpaid. The accommodation and the tax collected what the acompte and
-    // the solde were booked on there (`booked`, bookedStayBuckets), the complement carrying no accommodation.
-    const out = complement ? {} : Object.fromEntries(lines.filter((line) => Number(line.inComplement || 0) === 1)
-      .map(billedLineKey).filter(Boolean).map((key) => [key, 0]));
+    // Without contribs that describe the money, the extras are known only as a bucket: a line paid at arrival collected
+    // its amount once the complement is paid, nothing before. Reading of 2026-11-05 (audit R22-2): a complement alone
+    // holds no line paid before arrival, unless a plan's installments hold them. The accommodation and the tax collected
+    // what the acompte and the solde were booked on there (`booked`, bookedStayBuckets).
+    const preArrivalKnownEmpty = complement && !deposit && !balance && !(nz(row.installmentsPaidAmount) > 0);
+    for (const line of billed) {
+      const key = keyOf(line);
+      if (!key) continue;
+      if (Number(line.inComplement || 0) === 1) add(key, !complement ? 0 : (splitLines ? nz(splitOf.get(key)) : Math.max(0, round2(line.totalPrice))));
+      else if (preArrivalKnownEmpty) add(key, nz(splitOf.get(key)));
+    }
     const depositBuckets = deposit && booked ? booked.deposit : null;
     const soldeBuckets = balance && booked ? booked.solde : null;
     if ((!deposit || depositBuckets) && (!balance || soldeBuckets)) {
-      out[ACCOMMODATION_KEY] = round2(nz(depositBuckets && depositBuckets.accommodation) + nz(soldeBuckets && soldeBuckets.accommodation));
-      out[TOURIST_TAX_KEY] = complement ? round2(row.touristTaxTotal) : round2(nz(soldeBuckets && soldeBuckets.touristTax));
+      const soldeTax = nz(soldeBuckets && soldeBuckets.touristTax);
+      // Reading of 2026-11-05 (R22 verification, L1) — a plan's installments are book money on the accommodation and the
+      // tax. Left out, the requalification came off the complement's money alone, whose sale room fell to 0: 42,40 €
+      // collected stayed on no line of the register. A plan never sits beside a paid acompte or solde (D2).
+      const plan = (!cash && booked && booked.installments) || { accommodation: 0, touristTax: 0 };
+      out[ACCOMMODATION_KEY] = round2(nz(depositBuckets && depositBuckets.accommodation) + nz(soldeBuckets && soldeBuckets.accommodation) + plan.accommodation
+        + (!complement ? 0 : (split ? splitAccommodation : nz(row.extraGuestComplementSurcharge))));
+      out[TOURIST_TAX_KEY] = round2(plan.touristTax + (!complement
+        ? soldeTax
+        : (split ? soldeTax + splitTax : (balance || taxOnArrival ? round2(row.touristTaxTotal) : nz(row.touristTaxAddedGuestsAmount)))));
     }
+    addLinesOnlyTheSplitNames(out, splitOf, billed);
     return Object.keys(out).length ? out : null;
   }
-  const out = {};
   for (const line of lines) {
-    const key = billedLineKey(line);
+    const key = keyOf(line);
     if (!key) continue;
     const total = Math.max(0, round2(line.totalPrice));
-    const atArrival = complement
-      ? (Number(line.inComplement || 0) === 1 ? total : Math.max(0, round2(total - nz(line.acompteContribTtc) - nz(line.soldeContribTtc))))
-      : 0;
-    out[key] = round2((out[key] || 0) + (deposit ? nz(line.acompteContribTtc) : 0) + (balance ? nz(line.soldeContribTtc) : 0) + atArrival);
+    let atArrival = 0;
+    if (complement && splitLines) atArrival = nz(splitOf.get(key));
+    else if (complement && Number(line.inComplement || 0) === 1) atArrival = total;
+    else if (complement && balance) atArrival = Math.max(0, round2(total - nz(line.acompteContribTtc) - nz(line.soldeContribTtc)));
+    add(key, (deposit ? nz(line.acompteContribTtc) : 0) + (balance ? nz(line.soldeContribTtc) : 0) + atArrival);
   }
-  const extrasTtc = round2([...options, ...resources].reduce((sum, line) => sum + Number((line && line.totalPrice) || 0), 0));
+  const extrasTtc = round2(billed.reduce((sum, line) => sum + Number((line && line.totalPrice) || 0), 0));
   const accommodationTtc = Math.max(0, round2(Number(row.finalPrice || 0) - extrasTtc));
   const acompteTax = nz(row.touristTaxAcompteContribTtc);
   const accommodationContribs = nz(row.accommodationAcompteContribTtc) + nz(row.accommodationSoldeContribTtc);
+  let complementAccommodation = 0;
+  if (complement) {
+    if (split) complementAccommodation = splitAccommodation;
+    else complementAccommodation = balance ? Math.max(0, accommodationTtc - accommodationContribs) : nz(row.extraGuestComplementSurcharge);
+  }
   out[ACCOMMODATION_KEY] = round2((deposit ? nz(row.accommodationAcompteContribTtc) + acompteTax : 0)
     + (balance ? Math.max(0, nz(row.accommodationSoldeContribTtc) - acompteTax) : 0)
-    + (complement ? Math.max(0, accommodationTtc - accommodationContribs) : 0));
+    + complementAccommodation);
   const taxContribs = acompteTax + nz(row.touristTaxSoldeContribTtc);
-  out[TOURIST_TAX_KEY] = round2((balance ? taxContribs : 0) + (complement ? Math.max(0, round2(row.touristTaxTotal) - taxContribs) : 0));
+  let complementTax = 0;
+  if (complement) {
+    if (split) complementTax = splitTax;
+    else complementTax = balance || taxOnArrival ? Math.max(0, round2(row.touristTaxTotal) - taxContribs) : nz(row.touristTaxAddedGuestsAmount);
+  }
+  out[TOURIST_TAX_KEY] = round2((balance ? taxContribs : 0) + complementTax);
+  addLinesOnlyTheSplitNames(out, splitOf, lines);
   return out;
+}
+
+// A line the complement's split names that left the fiche since: what it collected still reads on its key.
+function addLinesOnlyTheSplitNames(out, splitOf, lines) {
+  const onTheFiche = new Set(lines.map((line) => (line.removed ? line.key : billedLineKey(line))));
+  for (const [key, amount] of splitOf) {
+    if (!onTheFiche.has(key)) out[key] = round2((out[key] || 0) + amount);
+  }
+}
+
+/**
+ * Rule 49 reading of 2026-11-05 (D11) — the lines that collected money and are no longer on the fiche: the paid lines
+ * removed since, and those a collected complement names. `collected` is `collectedByLine`'s reading of the same stay,
+ * book money and caisse interne together.
+ */
+function collectedLinesGone({ reservation, options = [], resources = [], collected = null, cashCollected = null }) {
+  const row = reservation || {};
+  const onTheFiche = new Set([...options, ...resources].filter((line) => line && Number(line.offered || 0) !== 1).map(billedLineKey));
+  const named = new Map();
+  for (const entry of parseRemovedLineContribs(row.removedLineContribs)) named.set(entry.key, entry);
+  for (const line of (readComplementPaidSplit(row) || { lines: [] }).lines || []) named.set(line.key, line);
+  const gone = [];
+  for (const [key, entry] of named) {
+    if (onTheFiche.has(key)) continue;
+    const collectedTtc = round2(Number((collected && collected[key]) || 0) + Number((cashCollected && cashCollected[key]) || 0));
+    if (collectedTtc > 0) gone.push({ key, label: entry.label || 'Prestation', bucket: entry.bucket === 'resources' ? 'resources' : 'options', collectedTtc });
+  }
+  return gone;
 }
 
 /**
@@ -547,7 +630,7 @@ function invalid(code, error, status = 400) {
 function validateRefundPayload(payload, context) {
   const {
     refundableLines = [], finalPrice = 0, touristTaxTotal = 0,
-    alreadyRefundedTotal = 0, vatRate = 0, today, cancelled = null,
+    alreadyRefundedTotal = 0, vatRate = 0, today, cancelled = null, liveCollectedTtc = null,
   } = context || {};
 
   const refundDate = String((payload && payload.refundDate) || '').trim();
@@ -645,9 +728,15 @@ function validateRefundPayload(payload, context) {
   if (!(totalTtc > 0)) {
     return invalid('REFUND_INVALID_AMOUNT', 'Le montant total du remboursement doit être positif');
   }
+  // Rule 50 (D10) — on a live stay too, a book refund never exceeds what was collected: money never received cannot go back.
+  if (!cancelled && !isOffBooks(method) && liveCollectedTtc != null && totalTtc > round2(liveCollectedTtc)) {
+    return invalid('REFUND_EXCEEDS_COLLECTED', `Dépasse l’encaissé (${euros(Math.max(0, round2(liveCollectedTtc)))}).`, 409);
+  }
 
+  // Rule 49 reading of 2026-11-05 (audit R22-4) — a cancelled stay is judged by what it collected (above), never by what
+  // it still bills: a line lowered or removed since would make that money unreachable.
   const stayCap = round2(Number(finalPrice || 0) + Number(touristTaxTotal || 0));
-  if (round2(Number(alreadyRefundedTotal || 0) + totalTtc) > stayCap) {
+  if (!cancelled && round2(Number(alreadyRefundedTotal || 0) + totalTtc) > stayCap) {
     return invalid(
       'REFUND_EXCEEDS_STAY',
       `Le total remboursé dépasserait le montant du séjour (${stayCap.toFixed(2)} €)`,
@@ -744,6 +833,7 @@ module.exports = {
   isIndemnityLine,
   cancelledRefundBudget,
   collectedByLine,
+  collectedLinesGone,
   nettedByCancellation,
   refundDeletionRefusal,
   madeAfterCancellation,

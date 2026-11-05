@@ -245,6 +245,13 @@ organised by topic — on a laptop and on a phone. No pricing or catalogue rule 
     44 px on `xs`; a failed refetch keeps the list with an error « Réessayer », and a refetch shows a
     loading cue; disabled-action reasons come from the server (`archiveBlockedReason`,
     `deleteBlockedReason`).
+31. **Every number of an option or a resource is judged** (audit R22, 2026-11-04), 422 `VALIDATION_FAILED` with its
+    `field`, on top of rules 16 and 21. A price past `Number.MAX_SAFE_INTEGER`, on the base, a property or an hourly
+    rate, is « Nombre attendu »; a blank price (empty or spaces) on an option or a resource is not judged, as before. An option's towel counts and bath mats are whole ≥ 0; its participant tiers usable
+    and ≥ 0. A resource's `quantity` a safe integer; `slotDuration`, `turnoverMinutes`, `minimumUsageMinutes`,
+    `heatUpMinutes`, `heatRetentionMinutes` and a property's `freeMinutes` usable and ≥ 0. A stored number sent back
+    unchanged is not re-judged; no business ceiling is decided. *Why:* towels and durations at `1e999` were stored as
+    Infinity, prices at `1e308` as they were. Tests: `tests/numeric-bounds-catalogue.unit.test.js`.
 
 **Edge cases:**
 - 12 properties: traits read « 8 logements seulement », the property filter is a select.

@@ -18,7 +18,14 @@ function isValidPhone(value) {
   return /^[0-9]{10,15}$/.test(normalized);
 }
 
+// Only a string is text: an object used to be stored as « [object Object] » (specs/hosting-h2-account-security.md
+// rule 68).
+const TEXT_FIELDS = ['lastName', 'firstName', 'streetNumber', 'street', 'postalCode', 'city', 'address', 'phone', 'email', 'notes', 'emailLanguage'];
+
 function validateClientPayload(payload) {
+  if (TEXT_FIELDS.some((field) => payload?.[field] !== undefined && payload[field] !== null && typeof payload[field] !== 'string')) {
+    return 'Valeur invalide.';
+  }
   const email = String(payload?.email || '').trim();
   const phone = String(payload?.phone || '').trim();
 

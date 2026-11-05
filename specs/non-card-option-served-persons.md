@@ -170,7 +170,9 @@ Rules added after audit round 21 (2026-11-03):
     gives them back on « Annuler », so a line taken out returns with its occurrence grid and its typed count.
 32. **The note's rows have the fiche's bounds.** A line sold at arrival keeps its floor (`minTypedCount`, or
     `minQuantity` on a plain line) and its card button is disabled; only a line with no floor can be taken
-    off by typing 0. People served are capped at the larger of capacity, party and the value held (rule 5).
+    off by typing 0. People served are capped at the larger of capacity, party and the value held (rule 5). Typed
+    nights stop at 366, or at the value held when higher (rule 34, the constant `OptionRow` reads; added 2026-11-04,
+    audit R22-C5: with no ceiling the refusal only came after the click, and the dialog closed with 500 in the form).
 33. **« En fin de séjour » waits for an addition.** It is measured against the current opening, so it is
     absent on opening and a second opening never compares with the first.
 34. **A typed count is judged, never reinterpreted.** On every write that prices options (preview, create,
@@ -182,6 +184,25 @@ Rules added after audit round 21 (2026-11-03):
     line whose next save billed the whole stay, `400` billed 400 nights with no refusal, `-1` silently meant the
     whole party. Prod check of 2026-11-03: every stored `cardPersons` is whole, no `cardNights` above 366. The
     nights field stops at 366 (`OptionRow`, a hint), or at the stored value when higher.
+35. **A number typed on an unsold line of the note is that number.** Typing 5 on an unsold plain line sells 5, typing
+    1 on an unsold per-night line sells 1 night, typing 2 on an unsold per-person line serves 2 people. The line goes
+    through the switch's way in first, so the property's offered default still applies. *Why:* the field used to sell
+    the default whatever was typed (1, the stay, the party), and only re-reading it showed the difference. Accepted:
+    the field cannot tell a typed 1 from a stepped one, so « + » from 0 on a typed line also commits 1, not the party.
+    A count equal to the party or the stay follows them (rule 4).
+
+36. **A sent `persons` on a SAS sale is a whole number from 1 to 999** (audit R22, 2026-11-04), or 400
+    `INVALID_QUANTITY`, preview and commit (`plugins/sas/sasQuantityBounds.js`). Null, absent and `''` still mean not
+    sent, so rule 28 stands; text of spaces alone is refused, it never bills the party; a number above the capacity is still clamped; the count this SAS stored, sent back
+    unchanged, is not re-judged. *Why:* `-5`, `0` and `0.5` were billed as the whole party, against rule 34's reading
+    of the same count on the fiche and rule 28's « never the party ». Test:
+    `plugins/sas/tests/sas-quantity-bounds.unit.test.js`.
+
+37. **An offered planning-card line has a floor too** _(audit R22-6 of the reservations slice, 2026-11-05)_. It bills 0 €, so
+    only the `cardPersons` it stored says what was sold: `readExtraLinesWithQuantity` gives it as `typedCount`, and
+    `arrivalLineFloors` turns it into `minTypedCount`, compared by rule 27. NULL follows the party and is never compared,
+    on either side; a paid card line keeps its amount floor. *Why:* a card line offered for 3 and saved for 2 raised no
+    violation, the non-card line of rule 27 did. Test: `offered-card-line-floor`.
 
 **Edge cases:**
 - Party lowered below a frozen count (3 served, party now 2) → stays 3, within rule 5's ceiling when the
@@ -234,13 +255,13 @@ is bumped.
 |---|---|---|---|
 | `pages/` | `ReservationPage.jsx` | T | `setOptionServedPersons`, `setOptionTypedNights`: carry the typed intent, no arithmetic; alert under party and dates; `TYPED_COUNTS_STALE` handled like `MIN_NIGHTS` |
 | `components/` | `reservation/OptionRow.jsx` | T | « Qté » in people or nights + « × N nuits » hint; red state from `typedCountAlerts`, card options included |
-| `components/` | `reservation/MidStayNoteDialog.jsx` | T | Same field; restores the opening state, arrival floor, ceiling (rules 31-33) |
+| `components/` | `reservation/MidStayNoteDialog.jsx` | T | Same field; restores the opening state, arrival floor, ceiling (rules 31-33); a number typed on an unsold line (rule 35) |
 | `pages/`, `components/`, `plugins/sas/` | `Dashboard.jsx`, `PricingSummary.jsx`, `ReservationSasDialog.jsx` | T | Print `displayCount` (rule 29) |
 | `components/` | `sas/ReservationSasDialog.jsx` | T | Reuses the « Personnes servies » stepper for non-card per-person options |
 | `hooks/`, `services/`, `constants/`, `styles/` | — | — | (none) |
 | `utils/` | `applyQuoteToForm.js` | T | Keeps `servedPersons`, `servedNights`, `cardNights` and the typed-against tags; `applyQuoteToBaseline` for the clean baseline (rule 30) |
 | `utils/` | `bookingFormHydration.js` | T | Loads `cardNights` |
-| `utils/` | `optionTypedCount.js` | C | Which field an option has, and what it shows; no arithmetic (rule 11) |
+| `utils/` | `optionTypedCount.js` | C | Which field an option has, what it shows, the nights' ceiling; no arithmetic (rule 11) |
 | `components/` | `reservation/TypedCountField.jsx` | C | Stepper + red state + circular arrows, shared by non-card and card options |
 | `components/` | `reservation/GuestsBedsSection.jsx` | T | The alert of rule 21 |
 
@@ -260,7 +281,7 @@ No new endpoint. Backward-compatible additions:
 |---|---|---|
 | Option line, request | `cardPersons` | Now honoured on non-card `per_person` / `ppn` lines |
 | Option line, quote response | `cardPersons`, `servedPersons` | Stored value, and the figure to display |
-| SAS sale, request | `persons` | Replaces `units` for a non-card per-person option; `units` alone is still read (rule 28) |
+| SAS sale, request | `persons` | Replaces `units` for a non-card per-person option; `units` alone is still read (rule 28). The offer's `unitsPerPerson` is gone (2026-11-04, audit R22-S5): the dialog computed a `units` the draft never sent |
 | `editLock.arrivalLines[key]` | `minTypedCount` | Rule 17 |
 | Option line, request and quote | `cardNights`; `servedNights` on the quote | Rule 19 |
 | Option line, request | `typedAtParty`, `typedAtNights` | Form-local reference of rule 23, never stored |
@@ -308,7 +329,8 @@ Interactive rendering in the [decision summary](../docs/specs/2026-11-03-non-car
 - `per_night`: « Qté » pre-filled with the nights, integer stepper.
 - Printed counts (rule 29): « Linge x3 » on the arrivals, « • Linge × 3 » in the SAS recap, « Linge ×3 » in
   the summary, « - Linge x3 » in the calendar event. A figure of 1 prints no count in the SAS and the summary.
-- Note dialog, same on `xs`: a row sold at arrival stops at its floor, a sold card line's « Ajouté ✓ » is disabled.
+- Note dialog, same on `xs`: a row sold at arrival stops at its floor, a sold card line's « Ajouté ✓ » is disabled, typed
+  nights stop at 366, a number on an unsold row sells that number.
 - No new page, so `PageActionBar` is untouched.
 - **Responsive:** `xs` full-width field as today (`width: { xs: '100%', sm: 180 }`), the hint under the
   field; `md` and `lg` unchanged. `MidStayNoteDialog` is already full-screen on `xs`.
@@ -317,11 +339,12 @@ Interactive rendering in the [decision summary](../docs/specs/2026-11-03-non-car
 
 ### Server unit tests
 - [x] `tests/non-card-option-served-persons.unit.test.js` (12) — rules 1, 5, 6, 12, 14-17, 19
+- [x] `tests/offered-card-line-floor.unit.test.js` (3) — rule 37
 - [x] `plugins/linen/tests/non-card-served-persons.unit.test.js` (2) — rule 6: the contract and the laundry
 - [x] `plugins/linen/tests/non-card-served-persons-simulation.unit.test.js` (2) — rule 6: the sum over the stored lines, and the projection reading `cardPersons`
 - [x] `tests/typed-counts-alerts.unit.test.js` (7) — rules 19, 20, 23, 25: party, nights, which line is flagged, the floor on a typed count
 - [x] `tests/typed-counts-guards.unit.test.js` (6) — rules 19, 21, 22, 24: devis, creation, live quote, locked past stay, replay of a frozen night count
-- [x] `tests/typed-counts-floors-and-sas-offer.unit.test.js` (2) — rules 17, 19: floor of an offered line, re-opened SAS
+- [x] `tests/typed-counts-floors-and-sas-offer.unit.test.js` (4) — rules 17, 19: floor of an offered line, re-opened SAS, a per-night sale typed and following the stay
 - [x] `tests/served-persons-migration-cases.unit.test.js` (1) — rules 14, 16, 19: a real boot on a seeded file, party < count ≤ capacity, per-night count equal to the party, per-night above capacity
 - [x] `tests/typed-counts-no-regression.unit.test.js` (11) — rule 25: exhaustive grid, 22336 sequence through the controller, save guard. Mutation-checked: restoring the old computation fails 4 tests, removing the guard fails 2
 - [x] `tests/line-input-bounds.unit.test.js` (12) — rule 34, `reservations-backend-mvc.md` rule 15
@@ -349,6 +372,7 @@ Interactive rendering in the [decision summary](../docs/specs/2026-11-03-non-car
 - [x] `Dashboard.typed-count.test.jsx` (1), `ReservationSasDialog.options-count.test.jsx` (1), `PricingSummary.typed-count.test.jsx` (3) — rule 29
 - [x] `applyQuoteToForm.numeric-echo.test.js` (5) — rule 30
 - [x] `MidStayNoteDialog.cancel-and-floor.test.jsx` (9) — rules 31-33
+- [x] `MidStayNoteDialog.unsold-line-count.test.jsx` (7) — rules 32, 35: the number typed on an unsold line, the nights' ceiling
 - [x] `applyQuoteToForm.baseline-echo.test.js` (5), `ReservationPage.typed-count-baseline.test.jsx` (4) — rule 30: a count typed before the quote lands stays an edit, opening and after a mark; a clamped stored count opens clean
 - [x] `ReservationPage.options-restore.test.jsx` (2) — rule 31: capture then restore on the real page gives back the lines, the offered set, the beds and the pack's refusals
 

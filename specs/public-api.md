@@ -203,6 +203,10 @@ or **[CREATE]** (genuinely new logic).
     `reason: 'tooLong'` (« Texte trop long. » / « Text too long. »). A name of 40 000 characters used to be
     stored and flow into every e-mail, PDF and CSV. The WordPress block sets the matching `maxlength`.
     Covered by `plugins/website-booking/tests/public-guest-field-errors.unit.test.js`.
+    *Reading of 2026-11-04 (audit R22, public finding 3):* control characters count as nothing (a space, as a line
+    break already did) and a name holds at least one letter or digit, else `reason: 'required'`: `"\u0000"`, an escape
+    sequence, a braille blank or a lone joiner created a client that reads blank in the lists. Covered by
+    `plugins/website-booking/tests/public-input-shape.unit.test.js`.
 21. **The phone is a phone number** (audit 2026-10-28, F5). `guest.phone` must be 8-15 digits with an optional
     `+` and spaces, dots, dashes or brackets as separators (the client dialog's rule), otherwise `422` with
     `reason: 'phoneInvalid'` (« Numéro de téléphone invalide. » / « Invalid phone number. »); a phone with a line
@@ -228,6 +232,11 @@ or **[CREATE]** (genuinely new logic).
       the key. `{"toString":1}` used to throw from `Number()`, `String()` or `RegExp.test()`: a `500` and a stack in the
       log per call, reachable by any visitor through the WordPress proxy.
     Covered by `plugins/website-booking/tests/public-input-shape.unit.test.js` and `tests/public-input-shape-core.unit.test.js`.
+    - *Reading of 2026-11-04 (audit R22):* the same on the tree's edges, with nothing newly refused beyond a 500: a body that
+      does not inflate and a badly encoded id answer the nested envelope (specs/express-5-upgrade.md rule 9), a wrong type
+      nothing refused first answers `400 INVALID_FIELD_TYPE` (specs/hosting-h2-account-security.md rule 68), and
+      `/public/booking-intake/page` with a `hotelId` or `resId` that is not a string or a number answers its `400 « Requête
+      incomplète »` (`plugins/booking-intake/tests/public-route.unit.test.js`).
 
 **Edge cases:**
 

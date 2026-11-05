@@ -230,13 +230,19 @@ const GUEST_MAX = Object.freeze({ firstName: 100, lastName: 100, phone: 40, emai
 const textOf = (v) => (typeof v === 'string' ? v : '');
 
 // Bidi overrides and zero-width characters let a name read backwards or pass for another; the joiners stay for Persian/Indic names.
-const withoutFormatChars = (v) => textOf(v).replace(/(?![\u200C\u200D])\p{Cf}/gu, '').trim();
+// Control characters too (a space, as the model reads a line break), and a name holds at least one letter or digit:
+// NUL, an escape sequence, a braille blank or a lone joiner read as blank in the lists.
+const withoutFormatChars = (v) => textOf(v).replace(/(?![\u200C\u200D])\p{Cf}/gu, '').replace(/\p{Cc}/gu, ' ').trim();
+const nameOf = (v) => {
+  const name = withoutFormatChars(v);
+  return /[\p{L}\p{N}]/u.test(name) ? name : '';
+};
 
 function validateGuest(raw) {
   const errors = [];
   const guest = raw && typeof raw === 'object' ? raw : {};
-  const firstName = withoutFormatChars(guest.firstName);
-  const lastName = withoutFormatChars(guest.lastName);
+  const firstName = nameOf(guest.firstName);
+  const lastName = nameOf(guest.lastName);
   const email = textOf(guest.email).trim();
   const phone = textOf(guest.phone).trim();
   if (!firstName) errors.push({ field: 'guest.firstName', issue: 'required', reason: 'required' });

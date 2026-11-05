@@ -234,8 +234,12 @@ function createAuthController(users, {
     const sessionUser = req.session && req.session.user;
     if (!sessionUser) return res.status(401).json({ error: 'UNAUTHENTICATED' });
     const { currentPassword, newPassword } = req.body || {};
-    if (!currentPassword || !newPassword) return res.status(400).json({ error: 'MISSING_FIELDS' });
-    if (String(newPassword).length < MIN_PASSWORD_LENGTH) return res.status(400).json({ error: 'PASSWORD_TOO_SHORT' });
+    // specs/hosting-h2-account-security.md rule 68 — only a string is a new password; a current password that is
+    // not one is a wrong one, counted by the guard below.
+    if (currentPassword === undefined || currentPassword === null || currentPassword === '' || typeof newPassword !== 'string' || !newPassword) {
+      return res.status(400).json({ error: 'MISSING_FIELDS' });
+    }
+    if (newPassword.length < MIN_PASSWORD_LENGTH) return res.status(400).json({ error: 'PASSWORD_TOO_SHORT' });
     if (newPassword === currentPassword) return res.status(400).json({ error: 'PASSWORD_UNCHANGED' });
 
     // Rule 49 — the same limit as the second step's confirmation password: a stolen session cannot guess

@@ -370,6 +370,12 @@ add the phone and e-mail from Airbnb. When the mail cannot be applied, the fiche
     the update itself spreads the patch over; only the cleaning line is then set, as before (rule 12). The amounts do
     not move. Airbnb 1.1.6 asks for `sdk ^2.21.0`. Test: `airbnb-intake/tests/card-lines-real-core.unit.test.js`
     (real core, both paths).
+36. **A socket error stays inside the pass** (audit R22, E22-4, 2026-11-04). imapflow emits `'error'` once `connect()`
+    has resolved, and an EventEmitter with no listener throws: a plain network reset or socket timeout reached
+    `uncaughtException`, an alarming false signal, and would kill any process without that handler. `readMailsFrom` and
+    `testConnection` now listen before connecting and log `mail intake: <code> <message>`, the real cause, through the
+    caller's `log` (optional on `testConnection`). The call under way still rejects as before, so a pass never hangs.
+    Shared by every plugin reading a mailbox through `sdk.mailbox`. Test: `tests/mail-reader-socket-error.unit.test.js`.
 
 ---
 

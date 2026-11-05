@@ -14,6 +14,7 @@ const BODY = Buffer.from(`${'Une nouvelle réservation '.padEnd(96, 'x')}\n`.rep
 
 function fakeImap(count, stats) {
   return class Fake {
+    on() {}
     async connect() {}
     async getMailboxLock() { return { release() {} }; }
     async search() { return Array.from({ length: count }, (_, i) => i + 1); }
@@ -71,6 +72,7 @@ test('rule 30: mails are handed over one by one — the reader keeps none (bound
 
 test('rule 30: an oversized part is handed over as a skipped mail, so the caller can remember it', async () => {
   class Big {
+    on() {}
     async connect() {}
     async getMailboxLock() { return { release() {} }; }
     async search() { return [1]; }

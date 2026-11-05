@@ -9,6 +9,7 @@
  */
 
 const { resolveMidStaySplit, storedMidStayLines, extraLineKey } = require('./midStayExtras');
+const { parseRemovedLineContribs } = require('./removedLineContribs');
 
 function nz(value) { return value == null ? 0 : Number(value); }
 function round2(value) { return Math.round(Number(value || 0) * 100) / 100; }
@@ -34,6 +35,14 @@ function buildPerLineData(database, row) {
     FROM reservation_resources WHERE reservationId = ?
   `).all(row.id);
 
+  // specs/accounting-books-the-money-collected.md rule 17 (D11) — a paid line since removed still holds what its entries
+  // booked: it reads as a line billed 0 €, so it weighs on no total and no destination.
+  const removed = parseRemovedLineContribs(row.removedLineContribs).map((entry) => ({
+    totalPrice: 0, offered: 0, inComplement: 0, acompteContribTtc: entry.acompteContribTtc, soldeContribTtc: entry.soldeContribTtc, bucket: entry.bucket,
+  }));
+  const removedOptions = removed.filter((entry) => entry.bucket !== 'resources');
+  const removedResources = removed.filter((entry) => entry.bucket === 'resources');
+
   // Any non-NULL contrib anywhere on the reservation → use the contrib path; else legacy.
   const hasContribs = [
     row.accommodationAcompteContribTtc, row.accommodationSoldeContribTtc,
@@ -41,6 +50,7 @@ function buildPerLineData(database, row) {
     ...optionLines.flatMap((l) => [l.acompteContribTtc, l.soldeContribTtc]),
     ...customOptionLines.flatMap((l) => [l.acompteContribTtc, l.soldeContribTtc]),
     ...resourceLines.flatMap((l) => [l.acompteContribTtc, l.soldeContribTtc]),
+    ...removed.flatMap((l) => [l.acompteContribTtc, l.soldeContribTtc]),
   ].some((v) => v != null);
 
   // Current accommodation TTC = finalPrice − options − resources. Same shape as
@@ -63,7 +73,11 @@ function buildPerLineData(database, row) {
   );
 
   return {
-    optionLines, customOptionLines, resourceLines, hasContribs, accommodationTtcCurrent,
+    optionLines: [...optionLines, ...removedOptions],
+    customOptionLines,
+    resourceLines: [...resourceLines, ...removedResources],
+    hasContribs,
+    accommodationTtcCurrent,
     midStayByKey: midStay.byKey,
     optionsTtc: round2(optionsCurrentTotal),
     resourcesTtc: round2(resourcesCurrentTotal),

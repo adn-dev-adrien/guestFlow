@@ -11,6 +11,7 @@
 
 const db = require('../database');
 const { ADMIN } = require('../constants/roles');
+const { assertPublicHost } = require('../utils/safeFeedFetch');
 
 const PREF_KEYS = ['newReservation', 'arrivals', 'departures', 'breakfast'];
 const DEFAULT_PREFS = { newReservation: true, arrivals: true, departures: true, breakfast: true };
@@ -22,6 +23,45 @@ const ELIGIBLE_OWNER = `
   JOIN users u ON u.id = s.userId AND u.isActive = 1 AND u.isSupportAccount = 0
   JOIN user_roles ur ON ur.userId = u.id AND ur.role = '${ADMIN}'`;
 const isChannelKey = (key) => !PREF_KEYS.includes(key) && CHANNEL_KEY.test(String(key || ''));
+
+const MAX_ENDPOINT_LENGTH = 2048;
+const P256DH_BYTES = 65;
+const AUTH_BYTES = 16;
+
+// One host as written, at most one trailing dot, an optional :443. Anything else (a login, a %, a character that ends
+// the host for one parser only) can mean two hosts: this check reads the URL parser, web-push dials the legacy one.
+const ENDPOINT_AUTHORITY = /^https:\/\/((?:[a-z0-9_-]+(?:\.[a-z0-9_-]+)*\.?)|\[[0-9a-f:.]+\])(?::443)?(?:[/?#]|$)/i;
+
+// The server POSTs to whatever is stored here: a private address would be a blind request into the LAN, the
+// reasoning of ical-import-hardening rule 17. No allow-list of push hosts, it would break a new browser. The iCal
+// dev switch does not apply. The URL parser and web-push's legacy one read whitespace and backslashes differently.
+function isPublicHttpsEndpoint(endpoint) {
+  if (typeof endpoint !== 'string' || endpoint.length > MAX_ENDPOINT_LENGTH || /[\s\\]/.test(endpoint)) return false;
+  const authority = ENDPOINT_AUTHORITY.exec(endpoint);
+  // url.parse empties a host above 255 characters while new URL keeps it.
+  if (!authority || authority[1].length > 255) return false;
+  try {
+    const url = new URL(endpoint);
+    if (url.hostname !== authority[1].toLowerCase()) return false;
+    assertPublicHost(url.hostname.replace(/\.$/, ''), { env: {} });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const isBase64UrlOfBytes = (value, bytes) => typeof value === 'string'
+  && /^[A-Za-z0-9_-]+={0,2}$/.test(value)
+  && Buffer.from(value, 'base64url').length === bytes;
+
+// specs/pwa-push-notifications.md rule 15. Judged at the door only: a stored row is not re-judged.
+function isAcceptableSubscription(subscription) {
+  const keys = subscription && subscription.keys;
+  return Boolean(keys)
+    && isPublicHttpsEndpoint(subscription.endpoint)
+    && isBase64UrlOfBytes(keys.p256dh, P256DH_BYTES)
+    && isBase64UrlOfBytes(keys.auth, AUTH_BYTES);
+}
 
 function createPushSubscriptionsModel(database) {
   const stmts = {
@@ -88,10 +128,9 @@ function createPushSubscriptionsModel(database) {
     PREF_KEYS,
 
     subscribe(userId, subscription) {
-      const endpoint = subscription && subscription.endpoint;
-      const keys = (subscription && subscription.keys) || {};
-      if (!endpoint || !keys.p256dh || !keys.auth) return { error: 'INVALID_SUBSCRIPTION' };
-      stmts.upsertSub.run(Number(userId), String(endpoint), String(keys.p256dh), String(keys.auth));
+      if (!isAcceptableSubscription(subscription)) return { error: 'INVALID_SUBSCRIPTION' };
+      const { endpoint, keys } = subscription;
+      stmts.upsertSub.run(Number(userId), endpoint, keys.p256dh, keys.auth);
       return { ok: true };
     },
 

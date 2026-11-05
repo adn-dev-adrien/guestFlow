@@ -56,7 +56,8 @@ function installmentsRetainedOf(installmentsModel, database, id, row) {
   // (paymentsController.resolveInstallmentComponents, accountingModel.buildInstallmentEntry), so the
   // avoir reverses none (specs/direct-installments.md rule 46).
   const taxOnArrival = Number(row.touristTaxInComplement) === 1;
-  const taxCents = taxOnArrival ? 0 : Math.round(Number(row.touristTaxTotal || 0) * 100);
+  // specs/platform-added-guests-tourist-tax.md rule 27 — the plan holds the tax without the added guests' share.
+  const taxCents = taxOnArrival ? 0 : Math.round((Number(row.touristTaxTotal || 0) - Number(row.touristTaxAddedGuestsAmount || 0)) * 100);
   const shares = taxShares(taxCents, plan.map((i) => Number(i.amountCents)));
   let amountCents = 0;
   let retainedTaxCents = 0;
@@ -137,10 +138,16 @@ function withheldCommissionsOf(database, reservationsModel, row, vatRate) {
  * bucket, read the way the cancellation reads them: the refund register of a cancelled stay caps its accommodation
  * and tax lines with it when no per-line contribs describe the money.
  */
-function bookedStayBuckets({ database, reservationsModel }, row, vatRate) {
+function bookedStayBuckets({ database, reservationsModel, installmentsModel = null }, row, vatRate) {
+  const retained = installmentsRetainedOf(installmentsModel, database, Number(row.id), row);
   return {
     deposit: Number(row.depositPaid) ? depositBucketsOf(database, reservationsModel, row, vatRate) : null,
     solde: saleCollectedOf(database, reservationsModel, row, vatRate),
+    // Rule 49 reading of 2026-11-05 (R22 verification, L1) — the accommodation and the tax a plan's installments were booked on.
+    installments: retained && {
+      accommodation: round2(retained.installments.reduce((total, installment) => total + installment.accommodation, 0)),
+      touristTax: retained.touristTaxTtc,
+    },
   };
 }
 

@@ -15,9 +15,10 @@ const defaultRefundsModel = require('../models/refundsModel');
 const defaultReservationsModel = require('../models/reservationsModel');
 const database = require('../database');
 const vatRegimeModel = require('../models/vatRegimeModel');
-const { buildRefundableLines, validateRefundPayload, cancelledRefundBudget, collectedByLine, refundDeletionRefusal } = require('../utils/refunds');
+const { buildRefundableLines, validateRefundPayload, cancelledRefundBudget, collectedByLine, collectedLinesGone, refundDeletionRefusal } = require('../utils/refunds');
 const { comptaCollected, cashCollected } = require('../utils/reservationSettlement');
 const { bookedStayBuckets, cancellationNettedRefundIds } = require('../utils/cancelReservation');
+const { taxRidesTheComplement } = require('../utils/touristTaxFreeze');
 
 function todayIso() {
   return localTodayIso();
@@ -60,8 +61,11 @@ function createRefundsController(deps = {}) {
     // caisse interne's money in the caisse interne only (reading of 2026-11-02, audit R15-L1).
     const cancelled = String(reservation.kind) === 'cancelled'
       ? cancelledRefundBudget({ collectedTtc, cashCollectedTtc: cashCollected(reservation), refunds }) : null;
-    const booked = cancelled && stayDatabase ? bookedStayBuckets({ database: stayDatabase, reservationsModel }, reservation, vatRate) : null;
-    const lineReading = (cash) => collectedByLine({ reservation, options: reservation.options || [], resources: reservation.resources || [], booked, cash });
+    const booked = cancelled && stayDatabase ? bookedStayBuckets({ database: stayDatabase, reservationsModel, installmentsModel }, reservation, vatRate) : null;
+    const taxOnArrival = cancelled && stayDatabase ? taxRidesTheComplement(stayDatabase, reservation) : true;
+    const lineReading = (cash) => collectedByLine({ reservation, options: reservation.options || [], resources: reservation.resources || [], booked, cash, taxOnArrival });
+    const collected = cancelled ? lineReading(false) : null;
+    const cashReading = cancelled && cancelled.cashCollectedTtc > 0 ? lineReading(true) : null;
     const refundableLines = buildRefundableLines({
       finalPrice: reservation.finalPrice,
       touristTaxTotal: reservation.touristTaxTotal,
@@ -73,8 +77,10 @@ function createRefundsController(deps = {}) {
       nights: nightsBetween(reservation.startDate, reservation.endDate),
       cancelled,
       // Rule 49 reading of 2026-11-02 — a cancelled stay's line offers at most what that line collected.
-      collected: cancelled ? lineReading(false) : null,
-      cashCollected: cancelled && cancelled.cashCollectedTtc > 0 ? lineReading(true) : null,
+      collected,
+      cashCollected: cashReading,
+      complementCollected: Number(reservation.complementPaid) === 1,
+      goneLines: cancelled ? collectedLinesGone({ reservation, options: reservation.options || [], resources: reservation.resources || [], collected, cashCollected: cashReading }) : [],
     });
     // Rule 48 reading of 2026-11-02 (review of PR #929, F4) — the caisse interne gives back only what its lines carry:
     // cash collected on no line of the register (an end-of-stay complement, say) is never promised.
@@ -122,6 +128,8 @@ function createRefundsController(deps = {}) {
         vatRate,
         today: todayIso(),
         cancelled,
+        // Rule 50 (D10) — already net of the refunds made so far.
+        liveCollectedTtc: payload.collectedTtc,
       });
       if (validated.error) {
         return res.status(validated.status || 400).json({ error: validated.error, code: validated.code });

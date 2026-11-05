@@ -133,6 +133,14 @@ move into it in phases 2 and 3, and plugin downloads arrive in phase 4.
      secret is never sent back to the client: it reads `{ <key>Set: true|false }`. On a write, an empty
      draft keeps the stored value, and `null` clears it, as in the rest of the settings. An undeclared
      key → 400 `UNKNOWN_SETTING`.
+   - *Reading of 2026-11-04 (audit R22-P1, R22-P2):* an object or a list on a write → 400 `INVALID_SETTING` with
+     « Valeur invalide. », nothing of the request stored and no validator called: it used to overwrite a secret with
+     `[object Object]`, or throw after half the write. Strings, numbers and booleans stay accepted. A secret's draft of
+     spaces keeps the stored value, as `''` does; only `null` clears it. The plugin admin routes hold the same line, each
+     with its own existing 400: `hourly-resources` (cards, repeated `reservationId`), `school-holidays` (`label`),
+     `tariff-recipes` (`recipeId`, journal), `accounting-export` (accounts, rates, `platforms` entries are objects), `neat`
+     (credentials, margin: `SETTINGS_INVALID`). Tests: `tests/plugin-settings-input-shape.unit.test.js`,
+     `tests/plugin-admin-input-shape.unit.test.js`.
    - The Météo-France card of Intégrations writes its key there. It has no Save of its own: the
      page's bar saves it, like the Neat card.
 8. **Scheduled jobs** — `ctx.jobs.every({ name, intervalMs, bootDelayMs, run })`:
