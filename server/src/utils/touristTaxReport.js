@@ -53,6 +53,9 @@ function ourStayRow(row, { babies = 0, platformLabel = '' } = {}) {
     touristTaxDeclaredAt: row.touristTaxDeclaredAt || null,
     declared: Boolean(row.touristTaxDeclaredAt),
     declarable: Boolean(row.declarable),
+    // Rule 16 — what the commune's percentage form asks for, as the extraction row carries it.
+    nightPricePerOccupantHt: row.nightPricePerOccupantHt == null ? null : euros(cents(row.nightPricePerOccupantHt)),
+    accommodationAmount: euros(cents(row.accommodationAmount)),
   };
 }
 
@@ -85,6 +88,8 @@ function platformStayRow(row) {
     touristTaxDeclaredAt: null,
     declared: false,
     declarable: false,
+    nightPricePerOccupantHt: null,
+    accommodationAmount: null,
   };
 }
 
@@ -172,7 +177,9 @@ function buildTouristTaxReport({ ourRows, platformRows, declaration = 'all' }) {
   const ours = ourRows.filter(keepByDeclaration(declaration)).sort(byStayOrder);
   const platform = [...platformRows].sort(byStayOrder);
   const stays = (declaration === 'all' ? [...ours, ...platform] : ours).sort(byStayOrder);
-  return { stays, nights: nightRegister(ours), totals: reportTotals(ours, platform) };
+  // Rule 16 — the base columns are shown when a row of ours is taxed on a percentage of its price.
+  const columns = { percentageBase: ours.some((r) => r.nightPricePerOccupantHt != null) };
+  return { stays, nights: nightRegister(ours), totals: reportTotals(ours, platform), columns };
 }
 
 module.exports = {
