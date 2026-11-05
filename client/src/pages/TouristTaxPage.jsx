@@ -2,7 +2,7 @@
 // declaration status, as a list of stays or a night-by-night register, with the totals pinned at the bottom.
 // Every figure comes from GET /finance/tourist-tax/report; the page renders it and keeps local UI state only.
 import React, { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import {
   Box, Typography, Stack, Checkbox, Tooltip, Chip, TableRow, TableCell, TextField, MenuItem, Alert,
 } from '@mui/material';
@@ -40,6 +40,16 @@ function getPreviousMonth() {
   d.setDate(1);
   d.setMonth(d.getMonth() - 1);
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`;
+}
+
+// specs/finance-data-checks.md rule 16 — `?month=YYYY-MM` (a link of « À vérifier ») opens that month when it is
+// a real one not still to come; anything else opens the default month.
+function linkedMonth(asked) {
+  const m = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(String(asked || ''));
+  if (!m) return null;
+  const d = new Date();
+  const current = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`;
+  return asked <= current ? asked : null;
 }
 
 // The query of a selection: the period's own key only, the filters when set.
@@ -100,9 +110,10 @@ function totalsItems(t) {
 
 export default function TouristTaxPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { showError } = useToast();
   const today = useServerToday() || localIsoToday();
-  const [query, setQuery] = useState(() => ({ period: 'month', month: getPreviousMonth(), quarter: '', year: '', from: '', to: '', propertyId: '', declaration: 'all' }));
+  const [query, setQuery] = useState(() => ({ period: 'month', month: linkedMonth(searchParams.get('month')) || getPreviousMonth(), quarter: '', year: '', from: '', to: '', propertyId: '', declaration: 'all' }));
   const [view, setView] = useState('list');
   const [data, setData] = useState(null);
   const [loadError, setLoadError] = useState(false);

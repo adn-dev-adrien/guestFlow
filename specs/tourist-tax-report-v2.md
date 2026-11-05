@@ -120,7 +120,9 @@ declared and what remains, and, apart, what the platforms remit themselves. The 
 17. **The page reads the report.** `TouristTaxPage` reads `GET /finance/tourist-tax/report` for the selection on
     screen and opens on the previous month. The period selector offers Mois · Trimestre · Année · Personnalisée, its
     options from `choices`; while a selection loads the pickers keep the options of the last report read. The
-    monthly endpoint is no longer read by the page and stays as it is (rule 1).
+    monthly endpoint is no longer read by the page and stays as it is (rule 1). A `?month=YYYY-MM` in the URL (the
+    « À vérifier » links, `finance-data-checks.md` rule 16) opens that month when it is a real one not still to come,
+    the default month otherwise.
 18. **`PeriodSelector` gains a quarter and a year.** Optional `kinds` (which segments, in order), `quarters`,
     `years`, `quarter`, `year`; switching to a quarter or a year hands the option already chosen, else the first
     (the newest). Without `kinds` it renders the exercise selector as before.
@@ -349,6 +351,7 @@ Target: the `#taxe` mock-up of the design reference, in MUI + the « Maison » t
 - [x] `pages/__tests__/TouristTaxPage.platform-rows.test.jsx` (2) — rule 22.
 - [x] `pages/__tests__/TouristTaxPage.night-register.test.jsx` (2) — rule 23.
 - [x] `pages/__tests__/TouristTaxPage.export.test.jsx` (2) — rule 24.
+- [x] `pages/__tests__/TouristTaxPage.month-link.test.jsx` (4) — rule 17's `?month=` (lot 5's suite, moved onto the report).
 - [x] `components/__tests__/StickyTotalsBar.test.jsx` (2) — rule 20.
 - [x] `components/__tests__/PeriodSelector.quarter-year.test.jsx` (4) — rule 18.
 - [x] The existing page suites, moved onto the report payload (shared fixture `pages/__tests__/touristTaxReportFixtures.jsx`),
