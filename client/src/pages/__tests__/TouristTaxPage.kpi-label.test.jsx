@@ -1,25 +1,18 @@
-// specs/ui-review-2026-10-19-operations.md rule 45 — the tile counts every row of the month, whatever its channel.
-import React from 'react';
+// specs/ui-review-2026-10-19-operations.md rule 45 — the count reads every row of the selection, whatever its channel:
+// no « Réservations directes ». Since specs/tourist-tax-report-v2.md rule 20 it is the « Séjours » total of the bar.
 import { vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router';
-import { ThemeProvider } from '@mui/material/styles';
-import theme from '../../theme';
-import DialogProvider from '../../components/DialogProvider';
+import { screen, within } from '@testing-library/react';
+import { reportOf, renderTaxPage, TOTALS } from './touristTaxReportFixtures';
 
-vi.mock('../../api', () => ({ __esModule: true, default: { getTouristTaxExtraction: vi.fn(), setTouristTaxDeclared: vi.fn(), getProperties: vi.fn(async () => []) } }));
+vi.mock('../../api', () => ({ __esModule: true, default: { getTouristTaxReport: vi.fn(), setTouristTaxDeclared: vi.fn() } }));
 
 import api from '../../api';
-import TouristTaxPage from '../TouristTaxPage';
 
-test('rule 45: the tile reads « Réservations (mois) »', async () => {
-  api.getTouristTaxExtraction.mockResolvedValue({
-    month: '2026-06',
-    byProperty: [],
-    reservations: [],
-    totals: { reservationsCount: 2, rentedNights: 3, adultNights: 6, taxAmount: 12, accommodationAmount: 600 },
-  });
-  render(<ThemeProvider theme={theme}><DialogProvider><MemoryRouter><TouristTaxPage /></MemoryRouter></DialogProvider></ThemeProvider>);
-  expect(await screen.findByText('Réservations (mois)')).toBeInTheDocument();
+test('rule 45: the count reads « Séjours »', async () => {
+  api.getTouristTaxReport.mockResolvedValue(reportOf([], { totals: { ...TOTALS, staysCount: 2 } }));
+  renderTaxPage();
+  const stays = within(await screen.findByTestId('total-stays'));
+  expect(stays.getByText('Séjours')).toBeInTheDocument();
+  expect(stays.getByText('2')).toBeInTheDocument();
   expect(screen.queryByText(/Réservations directes/)).toBeNull();
 });

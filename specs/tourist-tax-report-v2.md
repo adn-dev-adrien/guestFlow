@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Implemented (server and API, 2026-11-05) — approved by Adrien on 2026-11-05; the page (§4.2 round 2, §6) follows on the lot-0 components |
+| **Status** | Implemented |
 | **Branch** | `feature/hc-l1` → integrated on `feature/finance-reporting-hippocamp` _(user-managed)_ |
 | **Created** | 2026-11-05 |
 | **Author** | Adrien |
@@ -113,6 +113,42 @@ declared and what remains, and, apart, what the platforms remit themselves. The 
     from the month of the first stay's last night to the current month, never before the date window's start
     (today − 5 years); `choices.defaultMonth` is the month before the current one, the month a declaration is
     usually made for. An older month stays readable by its query, it is just not offered.
+16. **The percentage form's base.** Each row of ours carries the extraction's `nightPricePerOccupantHt` and
+    `accommodationAmount` (null on a platform's row), and `columns.percentageBase` says whether a row of ours listed
+    is taxed on a percentage of its price — then the page shows « Nuit HT / occupant » and « Montant du séjour HT »,
+    as the monthly page did (`tourist-tax-included-services-deduction.md` rule 15); otherwise they are left out.
+17. **The page reads the report.** `TouristTaxPage` reads `GET /finance/tourist-tax/report` for the selection on
+    screen and opens on the previous month. The period selector offers Mois · Trimestre · Année · Personnalisée, its
+    options from `choices`; while a selection loads the pickers keep the options of the last report read. The
+    monthly endpoint is no longer read by the page and stays as it is (rule 1).
+18. **`PeriodSelector` gains a quarter and a year.** Optional `kinds` (which segments, in order), `quarters`,
+    `years`, `quarter`, `year`; switching to a quarter or a year hands the option already chosen, else the first
+    (the newest). Without `kinds` it renders the exercise selector as before.
+19. **A refused selection never dead-ends.** A custom window is judged on the page with the server's own messages
+    (`customWindowError`) from the server's day (`useServerToday`), and an invalid one is not sent. A selection the
+    server refuses (400) keeps the last report on screen and shows the server's reason; a first read that fails
+    offers « Réessayer ».
+20. **The sticky totals bar** (`StickyTotalsBar`) replaces the three tiles of the monthly page and shows `totals` as
+    given: Séjours (« + N reversés par plateforme »), Personnes, Taxées · exonérées (« mineurs exonérés »), Nuits,
+    Nuitées taxées (« N exonérées »), Déjà déclaré (« X reversés par les plateformes »), and the main figure
+    « À reverser » with « reste X », or « tout est déclaré » when `allDeclared`. It is a polite live region; on a
+    phone it shows Séjours and À reverser and a « Détail des totaux » toggle (`aria-expanded`) for the rest.
+    The count and the amount keep the readings of `ui-review-2026-10-19-operations.md` rule 45 (every row of the
+    selection, whatever its channel) and `ds-sweep-finance.md` rule 23 (to the cent).
+21. **A tick re-reads the report.** « Déclarée » keeps its PATCH, its optimistic box, its added-guests variant and
+    its refusal (`tourist-tax-declared-checkbox.md` rule 8); once no tick is on its way the report of the selection
+    on screen is read again, without a loading state, so the rows and the bar take the server's figures — never a
+    sum made on the page. A read older than a tick, or of a selection left behind, is dropped
+    (`platform-added-guests-tourist-tax.md` rules 24, 26).
+22. **A platform's stay is muted.** Its row has no box (« — ») and a tag « reversée par <canal> » under the guest's
+    name (beside the name on a card), with the tooltip « La plateforme reverse elle-même cette taxe à la commune. »
+23. **« Par nuit »** shows `nights`: Nuit du (« sam. 04/07/2026 ») · Séjours · Personnes · Taxées · Exonérées ·
+    Montant, its empty state « Aucune nuit à déclarer sur cette période. ». The view is local; switching it reads
+    nothing.
+24. **Export.** « Exporter en CSV » downloads `report.csv` for the selection last read and the view on screen; a
+    refusal shows the server's reason.
+25. **Filters.** « Logement » (« Tous » + `properties`) and « Déclaration » (Toutes · À déclarer · Déclarées) are
+    sent to the server as they are; the page filters nothing itself.
 
 **Edge cases:**
 - No stay in the selection → `stays: []`, `nights: []`, every total 0, `allDeclared: false`.
@@ -147,22 +183,20 @@ declared and what remains, and, apart, what the platforms remit themselves. The 
 
 ### 4.2 Client side (`client/src/`)
 
-Round 1 (this branch) ships the API functions only; round 2 builds the page on the lot-0 components.
-
 | Layer | File | T/C | Responsibility |
 |---|---|---|---|
-| `api.js` | `api.js` | T | Round 1: `getTouristTaxReport(params)`, `downloadTouristTaxReportCsv(params, view)` (saves the server-named file, throws the server's French refusal). `getTouristTaxExtraction` and `setTouristTaxDeclared` unchanged. |
-| `pages/` | `TouristTaxPage.jsx` | T | Round 2: reads `getTouristTaxReport`; period, logement and status pickers fed by `choices` / `properties`; list or « Par nuit » table; the « Déclarée » tick as today (re-reading the report after a tick); export through `downloadTouristTaxReportCsv`. Renders `totals` as given. |
-| `components/` | `StickyTotalsBar.jsx` | C | Round 2: generic sticky bar of labelled figures, folding to two figures on a phone (D-HC1 plan; reused by the accounting synthesis and the payment register). Distinct from `StickyTotalBar` (one figure + sheet), which it may compose. |
-| `components/` | `PeriodSelector.jsx` | T | Round 2: gains the « Trimestre » and « Année » kinds, options from the server, the server's day (`useServerToday`). |
-| `constants/` | `touristTaxReport.js` | C | Round 2: the page's French strings. |
-| `hooks/` | `useServerToday.js` | — | Round 2: consumed for the custom window's hints. |
+| `api.js` | `api.js` | T | `getTouristTaxReport(params)`, `downloadTouristTaxReportCsv(params, view)` (saves the server-named file, throws the server's French refusal). `getTouristTaxExtraction` and `setTouristTaxDeclared` unchanged. |
+| `pages/` | `TouristTaxPage.jsx` | T | Rules 17-25: reads the report; pickers fed by `choices` / `properties`; list or « Par nuit » table; the « Déclarée » tick, re-reading the report after it; export. Renders `totals` as given. |
+| `components/` | `StickyTotalsBar.jsx` | C | Rule 20: generic translucent sticky bar of labelled figures, two figures and a toggle on a phone. Distinct from `StickyTotalBar` (one figure + a sheet). |
+| `components/` | `PeriodSelector.jsx` | T | Rule 18: optional quarter and year kinds; default render unchanged. |
+| `constants/` | `touristTaxReport.js` | C | The page's French strings. |
+| `hooks/` | `useServerToday.js` | — | Consumed: the custom window's hints judged from the server's day (rule 19). |
 
 **Component reuse declaration:**
 
 | Category | Components | Notes |
 |---|---|---|
-| **Consumed (existing generic)** | `PageActionBar`, `PeriodSelector`, `SegmentedSelect`, `ResponsiveTable`, `EmptyState`, `ErrorAlert`, `LoadingState`, lot-0 `Panel` | Pre-existing or from lot 0. |
+| **Consumed (existing generic)** | `PageActionBar`, `PeriodSelector`, `SegmentedSelect`, `ResponsiveTable`, `ErrorAlert`, `LoadingState`, lot-0 `Panel`, `DialogProvider` toasts | Pre-existing or from lot 0. |
 | **Created (new generic)** | `StickyTotalsBar` | Several labelled totals pinned at the bottom: the tax page, the accounting synthesis, the payment register. |
 | **Specific (kept feature-local)** | — | The tables are compositions of `ResponsiveTable`. |
 
@@ -266,24 +300,31 @@ None. Reads `reservations`, `properties`, `clients`, `platforms`, `ical_sources`
 
 ## 6. UI / UX
 
-Target: the `#taxe` mock-up of the design reference, in MUI + the « Maison » theme. Built in round 2.
+Target: the `#taxe` mock-up of the design reference, in MUI + the « Maison » theme.
 
-- **`PageActionBar`**: title « Taxe de séjour »; `center` = the « Liste » / « Par nuit » segmented toggle (`md+`);
-  `actionsBefore` = « Exporter en CSV » (download icon, `info`), exporting the current view and selection.
-- **Pickers** (one row on `md+`, stacked full width on `xs`): Période (Mois · Trimestre · Année · Personnalisée,
-  `PeriodSelector`), then the month / quarter / year select fed by `choices`, or Du / Au; Logement (« Tous » +
-  `properties`); Déclaration (« Toutes », « À déclarer », « Déclarées »). A custom window refused by the server
-  shows its message under the dates and the table keeps the last valid result (pages never dead-end).
-  `window.futureExcluded` shows one line: « Les mois à venir ne sont pas comptés. »
-- **List**: columns Déclarée · Séjour (guest, then « logement · canal ») · Dates · Nuits · Pers. · Taxées ·
-  Exonérées · Nuitées taxées · Nuitées exonérées · Montant. A platform's row is muted, its tick replaced by a tag
-  « reversée par <platformLabel> ». A row of added guests reads « voyageurs ajoutés ». On `xs` each row is a card.
-- **Par nuit**: Nuit du (« ven. 04/07 ») · Séjours · Personnes · Taxées · Exonérées · Montant.
-- **Sticky totals bar** (`StickyTotalsBar`): Séjours (+ « N reversés par plateforme »), Personnes, Taxées ·
-  exonérées, Nuits, Nuitées taxées (« N exonérées »), Déjà déclaré (« X reversés par les plateformes »), and the main
-  figure « À reverser » with « reste X » or « tout est déclaré » (`allDeclared`). On `xs` it folds to « À reverser »
-  and « reste » and opens on a tap; it never covers the last row.
-- Empty: « Aucun séjour sur cette période. » / « Aucune nuit à déclarer sur cette période. »
+- **`PageActionBar`**: title « Taxe de séjour »; `center` = the « Liste » / « Par nuit » segmented toggle (`md+`;
+  below `md` the toggle sits full width under the pickers); `actionsBefore` = « Exporter en CSV » (download icon,
+  `info`).
+- **Pickers** (wrapping row): Mois · Trimestre · Année · Personnalisée (`PeriodSelector`), then the month / quarter /
+  year select or Du / Au (opening on the window shown); Logement; Déclaration. A custom window refused here shows
+  the message beside the dates and nothing is read; a selection refused by the server shows its reason in a
+  warning band and the last report stays. `window.futureExcluded` adds « Les mois à venir ne sont pas comptés. ».
+- **Panel** « Séjours · <window label> » / « Registre par nuit · <window label> », with the D-HC8 source caption
+  « Sur les montants des séjours, rattachés au mois de leur dernière nuit. » under its label.
+- **List** (`md+`, a table while its container is wider than the table, else cards): Déclarée · Séjour (guest, then
+  « JJ/MM/AAAA au JJ/MM/AAAA », then « logement · canal », the notes: not declarable yet, gap without a guest,
+  refunded nights) · Nuits · PERSONNES (Total · Taxées · Exonérées) · NUITÉES (Taxées · Exonérées) · [Nuit HT /
+  occupant · Montant du séjour HT, rule 16] · Montant. A platform's row is greyed, « — » for the box, its tag under
+  the name. A row of added guests reads « · Complément de taxe de séjour ». Row click opens the fiche; the box
+  never navigates.
+- **Cards** (phone, tablet beside the drawer): name and box (or tag), « logement · canal », dates · nights · taxed ·
+  exempt, the base when there is one, Montant.
+- **Par nuit**: Nuit du (« sam. 04/07/2026 ») · Séjours · Personnes · Taxées · Exonérées · Montant; cards on a phone.
+- **Sticky totals bar**: translucent (`backdrop-filter`, solid under `prefers-reduced-transparency`), pinned at the
+  bottom, the main figure « À reverser » right-aligned in sapin with « reste X » / « tout est déclaré » under it; on
+  `xs` Séjours and À reverser, « Détail des totaux » unfolds the rest above them. No motion of its own.
+- Empty: « Aucun séjour sur cette période. » / « Aucune nuit à déclarer sur cette période. ».
+- Loading: « Chargement de l'extraction… »; failure: « Impossible de charger l'extraction. » + Réessayer.
 
 ## 7. Test plan
 
@@ -298,13 +339,28 @@ Target: the `#taxe` mock-up of the design reference, in MUI + the « Maison » t
 - [x] `tests/tourist-tax-report-csv.unit.test.js` (3) — rule 13, pure.
 - [x] Existing tourist-tax suites unchanged and green (rule 1).
 
-### Client unit tests
-- [x] `src/__tests__/api.tourist-tax-report.test.js` (3) — §4.3: query string, CSV file name and view, refusal.
-- [ ] Round 2: `TouristTaxPage.<subject>.test.jsx` per subject, `StickyTotalsBar.test.jsx`.
+- [x] `tests/tourist-tax-report-base-columns.unit.test.js` (2) — rule 16.
+- Server suites of this spec: 33 tests in 6 files.
 
-### Manual UI verification (round 2)
-- [ ] Month, quarter, year and custom on a copy of the production data, 1280 / 900 / 390 px.
-- [ ] Register totals equal list totals on screen; CSV opens in a spreadsheet with French decimals.
+### Client unit tests (Vitest)
+- [x] `src/__tests__/api.tourist-tax-report.test.js` (3) — §4.3: query string, CSV file name and view, refusal.
+- [x] `pages/__tests__/TouristTaxPage.period.test.jsx` (7) — rules 17, 19, 25.
+- [x] `pages/__tests__/TouristTaxPage.totals-bar.test.jsx` (4) — rules 20, 21.
+- [x] `pages/__tests__/TouristTaxPage.platform-rows.test.jsx` (2) — rule 22.
+- [x] `pages/__tests__/TouristTaxPage.night-register.test.jsx` (2) — rule 23.
+- [x] `pages/__tests__/TouristTaxPage.export.test.jsx` (2) — rule 24.
+- [x] `components/__tests__/StickyTotalsBar.test.jsx` (2) — rule 20.
+- [x] `components/__tests__/PeriodSelector.quarter-year.test.jsx` (4) — rule 18.
+- [x] The existing page suites, moved onto the report payload (shared fixture `pages/__tests__/touristTaxReportFixtures.jsx`),
+      every assertion kept: `TouristTaxPage.test.jsx` (5), `.added-guests` (10), `.declarable` (6); the tile suites
+      `.declared-total-cents` (1) and `.kpi-label` (1) now read the bar's « À reverser » and « Séjours » (rule 20).
+
+### Manual UI verification (2026-11-05, throwaway seeded DB, ports 47110/47111)
+- [x] 1280 px: month, quarter T3 with 9 stays (2 platform rows greyed and tagged), the base columns on a percentage
+      logement, the tick of a row moving « Déjà déclaré » and « reste » from the server, « Par nuit », a reversed
+      custom window refused beside the dates while the table keeps the last result. No console warning.
+- [x] 900 px: cards beside the drawer, the bar on two rows. 390 px: cards, the bar folded to two figures and
+      unfolded, no horizontal scroll. CSV of the register downloaded with its total line (212,16).
 
 ## 8. Out of scope
 

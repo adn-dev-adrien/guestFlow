@@ -27,6 +27,7 @@ test('rule 7: a row of ours keeps the extraction figures and counts its minors a
     platformLabel: 'Direct', startDate: day(4), endDate: day(7), remittedBy: 'us', addedGuestsRow: false, noGuestAdded: false,
     nightsCount: 3, persons: 4, taxedPersons: 2, exemptPersons: 2, taxedPersonNights: 6, exemptPersonNights: 6,
     taxAmount: 9.9, refundedTaxNights: 0, refundedTaxAmount: 0, touristTaxDeclaredAt: null, declared: false, declarable: true,
+    nightPricePerOccupantHt: null, accommodationAmount: 400,
   });
   const declared = ourStayRow(extractionRow({ touristTaxDeclaredAt: `${day(10)} 09:00:00` }));
   assert.equal(declared.declared, true);
