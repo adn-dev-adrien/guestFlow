@@ -1,7 +1,7 @@
 {
   "id": "accounting-export",
   "name": "Export comptable",
-  "version": "1.0.27",
+  "version": "1.0.28",
   "description": "Écritures, plan comptable et export pour le cabinet comptable.",
   "icon": "book",
   "surfaces": [
@@ -10,7 +10,7 @@
   ],
   "requires": [],
   "guestflow": ">=3.18.0 <4.0.0",
-  "sdk": "^2.19.0",
+  "sdk": "^2.22.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
@@ -123,6 +123,11 @@
     "1.0.27": [
       "Aucun changement de comportement : référence de spec mise à jour.",
       "Compatible avec le SDK 2.19 de GuestFlow."
+    ],
+    "1.0.28": [
+      "Synthèse comptable d’une période (mois, trimestre, exercice ou dates libres) : TVA à déclarer par taux et par compte, encaissements par moyen et par type, contrôles des écritures.",
+      "La date du dernier export CSV est conservée.",
+      "Demande le SDK 2.22 de GuestFlow."
     ]
   }
 }

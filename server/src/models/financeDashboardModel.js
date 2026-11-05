@@ -139,17 +139,27 @@ function createDashboardModel(database, finance) {
   // rule (the earliest creation day is the initial import), on the same stays.
   const trackingStart = (propertyId) => paceStartOf(finance.getPaceStays({ propertyId }));
 
+  // Rules 17-20, 33 — the comparable part of a window and its twin a year earlier: the one reading of
+  // « comparable with last year », shared with the accounting synthesis (specs/accounting-synthesis.md rule 9).
+  // A year ago GuestFlow may not have existed yet: last year « as it stood » is then unknown, and only the
+  // months already over (both sides final) can be compared.
+  // Rule 33 — a year ago GuestFlow may not have existed yet: last year « as it stood » is then
+  // unknown, and only the months already over (both sides final) can be compared. The range and its
+  // status come from one place (specs/finance-revpar-year-over-year.md rules 4-7), shared with the
+  // accounting synthesis (specs/accounting-synthesis.md).
+  function lastYearRange({ window: win, today, propertyId = null }) {
+    const cover = coverage(propertyId);
+    const { range, snapshotKnown, knownAt, status } = comparisonWindow({
+      window: win, coverage: cover, today, trackingStart: trackingStart(propertyId),
+    });
+    return { cover, range, snapshotKnown, knownN1: knownAt, status };
+  }
+
   // The figures every part of the page shares — computed once per request.
   function figures(ctx) {
     const { window: win, exercise, propertyId, today } = ctx;
     const summary = finance.getSummary({ from: win.from, to: win.to, fiscalYear: exercise.key, propertyId });
-    const cover = coverage(propertyId);
-    // Rule 33 — a year ago GuestFlow may not have existed yet: last year « as it stood » is then
-    // unknown, and only the months already over (both sides final) can be compared. The range and its
-    // status come from one place (specs/finance-revpar-year-over-year.md rules 4-7).
-    const { range, snapshotKnown, knownAt: knownN1, status } = comparisonWindow({
-      window: win, coverage: cover, today, trackingStart: trackingStart(propertyId),
-    });
+    const { cover, range, snapshotKnown, knownN1, status } = lastYearRange({ window: win, today, propertyId });
     let comparable = null;
     if (range) {
       const cur = range.complete ? summary : finance.getSummary({ from: range.current.from, to: range.current.to, fiscalYear: exercise.key, propertyId });
@@ -535,7 +545,7 @@ function createDashboardModel(database, finance) {
 
   // specs/stay-profile.md rules 1-3 and 12 — the « Profil des séjours » reads the same window, logement
   // filter and last-year basis as this page.
-  return { getDashboard, getDashboardDetail, paymentsLedger, context, coverage, trackingStart };
+  return { getDashboard, getDashboardDetail, paymentsLedger, context, coverage, trackingStart, lastYearRange };
 }
 
 const defaultModel = createDashboardModel(db, financeModel);

@@ -500,6 +500,16 @@ Optional: a plugin that declares nothing reads « Actif ».
     by extension. In the other direction, the core still reads the former `{ optionId, units }` (rule 28 of the same
     spec). The sale draft lives on the client, which the hardening scan skips, so the row recognises `soldOptions`, its
     server end. Test: `plugin-core-hardening-floor.unit.test.js`.
+40. *(Added 2026-11-05, [accounting-synthesis.md](accounting-synthesis.md) rules 7-9, SDK 2.22.0.)* **`coreModule()` hands
+    the accounting synthesis the core's own finance readings**: `financeModel` (the stays' revenue of a window,
+    `getSummary`, and the tourist-tax extraction), `financeDashboardModel` (`lastYearRange`, the one reading of
+    « comparable with last year », extracted from the dashboard's figures, which call it too), `financeWindow` (the
+    custom window's refusals), `fiscalYear` and `yearOverYear`. The plugin never re-derives a figure another screen
+    shows; it also reads `stayDates` (2.20.0) for the periods' date window. A MINOR bump (modules added to
+    `coreModules.json`, recorded under 2.22.0 in `coreModuleHistory.json`); `accounting-export` 1.0.28 asks for
+    `sdk ^2.22.0`. Tests: `plugins/accounting-export/tests/accounting-synthesis-books.unit.test.js`,
+    `plugins-sdk-core-modules-contract.unit.test.js`, `plugins-sdk-core-module-floor.unit.test.js`,
+    `plugin-core-hardening-floor.unit.test.js`.
 
 **Edge cases:**
 - **A plugin throws during `register`.** Rule 4 applies: the other plugins and the core boot. The Plugins

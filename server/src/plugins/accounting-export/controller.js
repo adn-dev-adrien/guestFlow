@@ -44,7 +44,8 @@ function taxOnlyEntries(structured) {
 
 // `plan()` — the account plan of the export (specs/plugins-phase-p-productisation.md rule 27); none
 // means the defaults.
-function createAccountingController(accountingModel, { plan = () => undefined } = {}) {
+// `onCsvExported(month)` — specs/accounting-synthesis.md rule 16: the download is stamped once its file is built.
+function createAccountingController(accountingModel, { plan = () => undefined, onCsvExported = () => {} } = {}) {
   return {
     salesCsv(req, res) {
       const params = parseMonthYear(req.query);
@@ -60,6 +61,7 @@ function createAccountingController(accountingModel, { plan = () => undefined } 
       const csv = serializeCsv(CSV_HEADERS, latin1Rows, { bom: false });
       const buffer = Buffer.from(csv, 'latin1');
       const mm = String(params.month).padStart(2, '0');
+      onCsvExported(`${params.year}-${mm}`);
       res.setHeader('Content-Type', 'text/csv; charset=ISO-8859-1');
       res.setHeader('Content-Disposition', `attachment; filename="ventes-${params.year}-${mm}.csv"`);
       return res.send(buffer);
@@ -132,5 +134,6 @@ function createAccountingController(accountingModel, { plan = () => undefined } 
 
 module.exports = {
   create: createAccountingController,
+  monthEntries,
   __test: { parseMonthYear, monthEntries, taxOnlyEntries },
 };

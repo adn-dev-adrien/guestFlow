@@ -38,6 +38,8 @@ const HARDENINGS = [
   // specs/plugins-phase-1-sdk.md rule 39 (specs/non-card-option-served-persons.md rule 12) — audit R21-P1, C4. The draft
   // that sends `{ optionId, persons }` lives on the client, which this scan skips: `soldOptions` is its server end.
   { feature: 'SAS sale by people served', sdk: '2.21.0', pattern: /\bsoldOptions\b/ },
+  // specs/plugins-phase-1-sdk.md rule 40 (specs/accounting-synthesis.md rules 7-9).
+  { feature: 'finance readings of the accounting synthesis', sdk: '2.22.0', pattern: /coreModule\(\s*['"`]financeDashboardModel['"`]/ },
 ];
 
 function sourceFiles(dir) {

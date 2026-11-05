@@ -12,8 +12,12 @@ const { create: createAccountingModel } = require('./accountingModel');
 const { create: createAccountingController } = require('./controller');
 const { create: createPlatformAccountsModel } = require('./platformAccountsModel');
 const { create: createPlatformAccountsController } = require('./platformAccountsController');
+const { create: createSynthesisModel } = require('./synthesisModel');
+const { create: createSynthesisController } = require('./synthesisController');
 const sdk = require('../sdk');
-const { PLUGIN_ID, KEYS, DEFAULTS, DECLARED, createAccountSettings, readTtcSplitFrom, storeTtcSplitFrom } = require('./settings');
+const {
+  PLUGIN_ID, KEYS, DEFAULTS, DECLARED, createAccountSettings, readTtcSplitFrom, storeTtcSplitFrom, storeLastCsvExport,
+} = require('./settings');
 
 const id = PLUGIN_ID;
 const vatRegimeModel = sdk.coreModule('vatRegimeModel');
@@ -59,11 +63,25 @@ function register(ctx) {
   // Built on first use: the plugins register while the core is still booting.
   let controller = null;
   let platformAccounts = null;
+  let synthesisModel = null;
+  let synthesis = null;
+  const plan = () => ({ ...createAccountSettings(ctx.db).read(), ttcSplitFrom: readTtcSplitFrom(ctx.db) });
   const getController = () => {
     if (!controller) controller = createAccountingController(createAccountingModel(ctx.db), {
-      plan: () => ({ ...createAccountSettings(ctx.db).read(), ttcSplitFrom: readTtcSplitFrom(ctx.db) }),
+      plan,
+      onCsvExported: (month) => storeLastCsvExport(ctx.db, month),
     });
     return controller;
+  };
+  // specs/accounting-synthesis.md — the « Synthèse » tab of the Comptabilité page.
+  const getSynthesis = () => {
+    if (!synthesis) {
+      synthesis = createSynthesisController(() => {
+        if (!synthesisModel) synthesisModel = createSynthesisModel(ctx.db);
+        return synthesisModel;
+      }, { plan });
+    }
+    return synthesis;
   };
   const getPlatformAccounts = () => {
     if (!platformAccounts) {
@@ -77,6 +95,7 @@ function register(ctx) {
   ctx.route('get', '/api/accounting/sales.csv', (req, res) => getController().salesCsv(req, res));
   ctx.route('get', '/api/accounting/sales', (req, res) => getController().salesJson(req, res));
   ctx.route('get', '/api/accounting/platforms', (req, res) => getController().platformsPreview(req, res));
+  ctx.route('get', '/api/accounting/synthesis', (req, res) => getSynthesis().synthesis(req, res));
   // accounting-platform-commission-and-no-deposit.md §3.7 + §4.3 — the Plan comptable page. The
   // refresh re-runs the platform rescan so a brand-new platform name surfaces without a restart.
   ctx.route('get', '/api/accounting/platform-accounts', (req, res) => getPlatformAccounts().getAll(req, res));
@@ -88,6 +107,7 @@ function register(ctx) {
   ctx.roleAccess('accountant', [
     { method: 'GET', re: /^\/accounting\/sales(\.csv)?$/ },
     { method: 'GET', re: /^\/accounting\/platforms$/ },
+    { method: 'GET', re: /^\/accounting\/synthesis$/ },
     { method: 'GET', re: /^\/accounting\/platform-accounts$/ },
     { method: 'PUT', re: /^\/accounting\/platform-accounts$/ },
     { method: 'POST', re: /^\/accounting\/platform-accounts\/refresh$/ },
