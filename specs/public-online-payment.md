@@ -229,6 +229,14 @@ Let a website visitor **pay their full stay online** and have the reservation co
     was received (`balanceAmount`). The public `/status` of a
     devis whose stay was cancelled answers `cancelled`. Covered by
     `tests/audit-r2-public-devis-links.unit.test.js`.
+17. **`pay` judges the devis's own times against the neighbours** (audit R24 public finding 1, 2026-11-05). After the
+    nights re-check and before the stay rules of rule 13, `utils/blockedDates.stayTimesRefused` runs the back office's
+    check with the devis's stored arrival and departure times ([public-api.md](public-api.md) rule 24): a stay booked
+    since the request that leaves on the arrival day or arrives on the departure day, with no cleaning time left or a
+    night taken by an early or late time, is `409 STAY_TIMES_UNAVAILABLE` in the visitor's language, and the provider is
+    never called. It used to be paid in full, then converted with `bookingConflictAt` set and the operator alert. The
+    paid-link path keeps `allowConflict` (devis-accept-to-reservation rule 10): this refuses before any payment. Covered
+    by `tests/public-payment-pay-stay-times.unit.test.js`.
 
 ## 4. Architecture
 
@@ -267,7 +275,7 @@ reservation status-chip pattern. Responsive per the existing chip rules. **Vites
 
 | Method | Endpoint | Body | Response | Notes |
 |---|---|---|---|---|
-| POST | `/booking-requests/:id/pay` | `{ token: string, returnPath?: string }` | `{ data: { paymentUrl, amountCents, currency, status } }` | Creates/reuses the `full` link. **`token` required** (per-devis capability). `409` if dates no longer free / already paid; `404` unknown / non-public devis / bad-or-missing token. |
+| POST | `/booking-requests/:id/pay` | `{ token: string, returnPath?: string }` | `{ data: { paymentUrl, amountCents, currency, status } }` | Creates/reuses the `full` link. **`token` required** (per-devis capability). `409` if dates no longer free / already paid, `409 STAY_TIMES_UNAVAILABLE` if its times clash with a neighbour (rule 17); `404` unknown / non-public devis / bad-or-missing token. |
 | GET | `/booking-requests/:id/status?token=…` | — | `{ data: { status, reservationId?, propertyName?, startDate?, endDate?, finalPrice?, totalStayPrice? } }` | `status ∈ pending\|paid\|confirmed\|conflict`. **`token` required**; `404` on mismatch. `paymentStatusLimiter`. On-demand poll before answering. `totalStayPrice` = tax-inclusive total actually charged (2026-07-02: the site displays THIS as « Total », never the tax-exclusive `finalPrice`). |
 
 `POST /booking-requests` is unchanged except its response now also returns **`publicToken`** (the site
@@ -314,6 +322,8 @@ calls it first to get the devis id **+ token**, then echoes the token to `pay`/`
   paid. Availability conflict at conversion → `bookingConflictAt` set + conflict effect surfaced.
 - `publicPaymentController.pay` — non-public/converted/paid devis rejected; dates-unavailable → 409;
   engine amount used; reuse of an open `full` link; return URL allowlisted (rejects a foreign origin).
+  Times clashing with a neighbour → `409 STAY_TIMES_UNAVAILABLE` before any link (rule 17,
+  `tests/public-payment-pay-stay-times.unit.test.js`, 6 tests).
 - `publicPaymentController.status` — maps link/devis state to `pending|paid|confirmed|conflict`; no PII
   leak (only the whitelisted fields).
 - `qontoClient.createPaymentLink` — includes the redirect URL in the payload when provided; omits it

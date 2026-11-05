@@ -304,6 +304,10 @@ rules — just a clean, testable structure that future slices (and Bloc 5) build
    Accepted: a resource oversold by a paid link or a stored row refuses a re-priced save (discount, party) naming the line,
    where a note edit passes and the oversold cot fiche passes both; nothing is written, no money moves.
    Test: `tests/stock-peak-per-night.unit.test.js`.
+   *Reading of 2026-11-05 (audit R24-2), accepted, no code:* a platform date move, approved from the dashboard
+   (`icalDateDriftModel` approve) or applied by an unlocked sync (`propertyIcalModel`), writes the dates alone and does not
+   judge the stock, so a platform stay holding a cot moved onto nights where the cots are out oversells them, unflagged.
+   The platform's dates are a fact: a 409 there would leave the fiche on dates the platform has already moved.
 22. **Added 2026-11-05 (audit R23-3) — the night before an early check-in is judged in minutes, in SQL too.** The overlap
    check (`validateAvailability`) and the closures (`findReservationOverlap`, `findReservationOverlaps`) compare
    `hour * 60 + minute` with 600, as `getNightBlocksFromTimes` compares 10.5 with 10: a check-in at 10:00 or earlier

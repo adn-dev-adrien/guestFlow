@@ -412,7 +412,8 @@
   ],
   "blockedDates": [
     "computeBlockedDates",
-    "rangeHasBlockedNight"
+    "rangeHasBlockedNight",
+    "stayTimesRefused"
   ],
   "changeover": [
     "FRENCH_DAYS",
