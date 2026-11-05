@@ -52,6 +52,12 @@ test('rule 15 — the length ceiling is 2048 characters, included', () => {
   assert.deepEqual(rows(), [longest]);
 });
 
+test('rule 15 — a host of 255 characters is the longest one both parsers read', () => {
+  const { model } = fresh();
+  assert.deepEqual(model.subscribe(1, { endpoint: `https://${'a'.repeat(255)}/x`, keys }), { ok: true });
+  assert.deepEqual(model.subscribe(1, { endpoint: `https://${'a'.repeat(256)}/x`, keys }), { error: 'INVALID_SUBSCRIPTION' });
+});
+
 test('rule 15 — padded base64url keys are the same bytes', () => {
   const { model } = fresh();
   const padded = { p256dh: `${P256DH}=`, auth: `${AUTH}==` };
@@ -81,6 +87,7 @@ test('rule 15 — an endpoint that is not a public https address is refused and 
     'https://a.example\\@127.0.0.1/backslash',
     'https://push.example/with space',
     'https://push.example/back\\slash',
+    `https://${'a'.repeat(256)}/x`,
     'https://127.0.0.1}/x',
     'https://10.0.0.5{/x',
     'https://192.168.0.24"/x',

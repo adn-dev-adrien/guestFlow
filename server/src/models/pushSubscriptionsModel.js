@@ -38,7 +38,8 @@ const ENDPOINT_AUTHORITY = /^https:\/\/((?:[a-z0-9_-]+(?:\.[a-z0-9_-]+)*\.?)|\[[
 function isPublicHttpsEndpoint(endpoint) {
   if (typeof endpoint !== 'string' || endpoint.length > MAX_ENDPOINT_LENGTH || /[\s\\]/.test(endpoint)) return false;
   const authority = ENDPOINT_AUTHORITY.exec(endpoint);
-  if (!authority) return false;
+  // url.parse empties a host above 255 characters while new URL keeps it.
+  if (!authority || authority[1].length > 255) return false;
   try {
     const url = new URL(endpoint);
     if (url.hostname !== authority[1].toLowerCase()) return false;
