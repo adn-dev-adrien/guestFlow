@@ -118,6 +118,16 @@ which « Enregistrer » writes which field.
     a real connection test whose outcome becomes the recorded state. The page therefore opens on what is
     true now, never on the failure that preceded the repair. A test that fails does not undo the
     authorisation: the tokens are kept and the diagnosis is shown instead of a bare « échec ».
+15. **A failed webhook check stays shown until a check succeeds (audit R24 E24-2, 2026-11-05).** While the recorded
+    failure comes from the check (`lastErrorOrigin` `webhook-register`), a successful Qonto call elsewhere (the poll
+    of the same pass, a reconciliation read, « Test ») stamps only `lastCheckAt` and leaves it in place. It goes when a
+    check succeeds: after Qonto answered (subscription adopted or created), with `lastSuccessAt` stamped; or when the
+    record already points at the public address (no call), the failure alone is cleared. A check that succeeds never
+    clears a failure of another origin, so rule 11's `recordSuccess: false` still keeps « Test »'s diagnosis. No new
+    field. *Why:* rule 13 of specs/qonto-settings-in-app.md cleared it at the next successful call, in practice the
+    poll that follows the check in the same pass. A consent without the `webhook` scope then left no trace on the
+    only page that shows the webhook: no notification arrived, a paid link was seen at the guest's return or at the
+    poll, up to 8 hours later, and nothing said why. Test: `plugins/online-payment/tests/qonto-webhook-failure-stays.unit.test.js`.
 
 **Edge cases:**
 
@@ -302,6 +312,7 @@ Neat card and one field from the SMTP card shortens both on mobile.
   - a test that fails after a successful exchange keeps the tokens and still redirects to `connected`
   - the webhook check runs after the test and its failure changes neither
 - [x] `plugins/online-payment/tests/qonto-consent-resubscribes.unit.test.js` — rules 8, 10 (readings of 2026-11-05)
+- [x] `plugins/online-payment/tests/qonto-webhook-failure-stays.unit.test.js` — rule 15 (audit R24 E24-2)
   - switch then consent: one create on the new account, then free; same account: adopted, no create
   - a list refused at the consent leaves the record empty and the next check heals it; a refused consent keeps it
   - two checks at once share one list and one create; a check in flight cannot write over a fresh consent

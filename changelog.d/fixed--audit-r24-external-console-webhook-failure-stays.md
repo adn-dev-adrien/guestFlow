@@ -1,0 +1,2 @@
+- Payments settings: a failed webhook-subscription check stays shown until a check succeeds, instead of being erased by the next successful poll or reconciliation read (`settings-one-save-and-automatic-webhook.md` rule 15).
+- Payments settings: the origin of the last Qonto failure is always named in French, from a label the server sends (`qonto-settings-in-app.md` rule 21).
