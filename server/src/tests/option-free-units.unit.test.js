@@ -205,7 +205,7 @@ test('planning-card breakfast, a single morning for 2 guests → entirely covere
   db.close();
 });
 
-// specs/tariff-recipes/spec.md rule 69 (audit R24-DB-1, 2026-11-05) — an option save keeps the free units the recipe wrote: the
+// specs/tariff-recipes/spec.md §3 item 69 (audit R24-DB-1, 2026-11-05) — an option save keeps the free units the recipe wrote: the
 // editor never shows nor sends them, and the save used to DELETE and re-insert the per-property prices without them.
 function savedOption() {
   const appDb = require('../database');
