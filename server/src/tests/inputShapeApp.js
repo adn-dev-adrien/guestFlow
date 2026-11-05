@@ -82,9 +82,10 @@ async function startApp() {
   async function activatePlugins(cookie, ids) {
     const active = new Set();
     for (const id of ids) {
-      const install = await call(cookie, 'POST', `/api/plugins/${id}/install`, {});
+      const route = (step) => ['/api/plugins', id, step].join('/');
+      const install = await call(cookie, 'POST', route('install'), {});
       if (install.status === 404 && install.json && install.json.error === 'UNKNOWN_PLUGIN') continue;
-      const activate = install.status < 300 ? await call(cookie, 'POST', `/api/plugins/${id}/activate`, {}) : install;
+      const activate = install.status < 300 ? await call(cookie, 'POST', route('activate'), {}) : install;
       if (activate.status >= 300) throw new Error(`${id}: ${activate.status} ${activate.text.slice(0, 200)}`);
       active.add(id);
     }
