@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Implemented (server and API, 2026-11-05; the page follows in round 2, §4.2) |
+| **Status** | Implemented |
 | **Branch** | `feature/hc-l4` (integrated through `feature/finance-reporting-hippocamp`) |
 | **Created** | 2026-11-05 |
 | **Author** | Adrien |
@@ -113,6 +113,35 @@ and the average basket per stay for each month of the exercise against last year
     true` and « Sur les montants des séjours, hors taxe de séjour ». Nothing on this page reads the
     encaissements, so no panel mixes the two.
 
+### 3.4 Shares for the share table, and the page (added 2026-11-05, round 2)
+
+16. **0–1 shares.** Each breakdown row also carries `countShare` / `amountShare`: its whole percent ÷ 100
+    (`null` with it), so the share table's segment widths are the server's and add up to 100 % like the
+    percents. The client never divides.
+17. **Menu and route.** « Profil des séjours » is the second entry of « Suivi financier », right after
+    « Vue générale »; route `/finance/profil`, admin only (the dashboard's roles).
+18. **The dashboard's URL and refusals.** Exercise, window and logement live in the URL with the
+    dashboard's names (`?exercice=&periode=&mois=&du=&au=&logement=`). A custom window the client
+    refuses (judged from the server's day, `useServerToday`) is not sent; any server refusal shows its
+    message and keeps the period selector, plus « Tous les logements » when a logement is set — never a
+    dead end.
+19. **Breakdown panel.** Panel « Répartition des séjours »: a « Découpage » switch (Canal · Durée · Délai
+    · Tranche de prix, default Canal) and a « Mesure » switch (Nombre · Montant, default Nombre), then a
+    share table (`ShareTable`, D-HC5: thin segmented bar + table, no pie) whose rows are the server's in
+    the server's order: label, stays, amount, share. « Mesure » chooses the share column and the bar
+    (`countShare` or `amountShare`); both figures stay in the table. A row at 0 keeps its line and draws
+    no segment.
+20. **Caption and empty window.** Under the table: « N séjours · <window label>, séjours non annulés. »
+    then the panel's `sourceLabel` (D-HC8). A window with no stay shows « Aucun séjour sur la période. »
+    in place of the table; the switches, the selector and the basket stay.
+21. **Basket panel.** Panel « Panier moyen par séjour »: a table Mois · <previousLabel> · <currentLabel> ·
+    Écart, one row per month the server lists, named by its short month (« juil. », the full label as
+    its title); « — » for a missing average; the Écart is the report
+    pill of `YearOverYearBadge` from the server's `delta.change` (« ↑ +12,4 % »), « — vs N-1 » when the
+    delta is null; the server's notice under the table (`NoComparisonNotice`) when no month is
+    comparable; the basket's `sourceLabel` last (« …, hors taxe de séjour »). No month listed:
+    « Aucun séjour sur l'exercice. »
+
 **Edge cases:**
 - A stay of the window booked on the import day → lead time unknown (rule 7), counted everywhere else.
 - A fiche created after its arrival → lead time unknown.
@@ -141,23 +170,24 @@ and the average basket per stay for each month of the exercise against last year
 | `constants/` | `stayProfileBuckets.js` | C | Every bucket boundary and label of rules 5-8, in one place |
 | `database.js` | — | — | (none — no schema change) |
 
-### 4.2 Client side (`client/src/`) — round 2, once lot 0's shared components are merged
+### 4.2 Client side (`client/src/`)
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
-| `api.js` | `api.js` | T | `getFinanceStayProfile(params)` (round 1) |
-| `pages/` | `StayProfilePage.jsx` | C | Route `/finance/profil`: `PageActionBar`, the dashboard's period / logement selector (URL params as the dashboard, rule 4 there), « Découpage » toggle (Canal · Durée · Délai · Tranche de prix) and « Mesure » toggle (Nombre · Montant), the bar list, the basket table; never dead-ends on a refusal (keeps the selector) |
-| `constants/` | `financeMenu.js` | T | Entry « Profil des séjours » → `/finance/profil` |
-| `constants/` | `roles.js` | T | `/finance/profil` → `[ADMIN]`, as `/finance` |
-| `App.jsx` | `App.jsx` | T | Route `/finance/profil` |
+| `api.js` | `api.js` | T | `getFinanceStayProfile(params)` |
+| `pages/` | `StayProfilePage.jsx` | C | Route `/finance/profil`: `PageActionBar` (« Actualiser »), exercise + period + logement selector in the URL, the breakdown panel (two switches + `ShareTable`) and the basket panel; never dead-ends on a refusal (rules 18-21) |
+| `constants/` | `stayProfile.js` | C | The page's path and French strings, the « Mesure » options |
+| `constants/` | `financeMenu.js` | T | Entry « Profil des séjours », order 15 (rule 17) |
+| `constants/` | `roles.js` | T | `/finance/profil` → `[ADMIN]` |
+| `App.jsx` | `App.jsx` | T | Lazy route `/finance/profil` and its chunk prefetch |
 
 **Component reuse declaration:**
 
 | Category | Components | Notes |
 |---|---|---|
-| **Consumed (existing generic)** | `PageActionBar`, `PeriodSelector`, `LoadingState`, `ErrorAlert`, `EmptyState`, lot 0's shared finance components (segmented toggle, delta pill, source caption, « ⋯ » menu) | Names fixed in round 2 against lot 0 as merged. |
-| **Created (new generic)** | A horizontal share-bar list, unless lot 0 ships one | Label · bar · value · percent rows; the « Canaux » detail and future breakdowns can reuse it. |
-| **Specific (kept feature-local)** | — | |
+| **Consumed (existing generic)** | `PageActionBar`, `PeriodSelector`, `SegmentedSelect`, `Panel`, `ShareTable`, `YearOverYearBadge` (report mode), `NoComparisonNotice`, `EmptyState`, `LoadingState`, `ErrorAlert` | Lot 0's report grammar (`specs/report-grammar.md`) and the dashboard's selector. |
+| **Created (new generic)** | — | The mock-up's ranked bars are rendered by `ShareTable` (D-HC5's part-to-whole form), so no new bar component. |
+| **Specific (kept feature-local)** | `BreakdownPanel`, `BasketPanel` (inside the page) | Tied to this payload's shape. |
 
 ### 4.3 API contract
 
@@ -202,7 +232,8 @@ and the average basket per stay for each month of the exercise against last year
 }
 ```
 
-(Rows shortened; every fixed bucket is present in a real answer.)
+(Rows shortened; every fixed bucket is present in a real answer. Each row also carries `countShare` and
+`amountShare`, its percents ÷ 100 — rule 16.)
 
 ---
 
@@ -215,39 +246,45 @@ No schema change. Reads `reservations` (dates, `createdAt`, platform, origin, am
 
 ## 6. UI / UX
 
-Per the mock-up (`#profil`), in the « Maison » theme:
+Per the mock-up (`#profil`), in the « Maison » theme and lot 0's report grammar:
 
-- `PageActionBar` title « Profil des séjours », no Save / Cancel; the dashboard's period and logement
-  selector below it.
-- Two cards side by side from `md` (stacked on `xs`): the bars, and « Panier moyen par séjour ».
-- Bars card: segmented « Découpage » (Canal · Durée · Délai · Tranche de prix) and « Mesure » (Nombre ·
-  Montant); each row label · bar (`countBar` / `amountBar`) · « 14 séj. » or « 9 310 € » · « 33 % ».
-  Caption: « 42 séjours · Exercice 2025-2026, séjours non annulés » then the source caption.
-- Basket table: Mois · <previousLabel> · <currentLabel> · Écart (delta pill of D-HC6, « — » when
-  `delta` is null); the notice under the table when `comparable` is false; source caption.
-- Empty window: `EmptyState` « Aucun séjour sur la période. », the selector stays.
-- A refusal: the server's message, the selector stays (the dashboard's FinancePage.refused-load rule).
-- `xs`: the toggles wrap, bars keep one row per bucket with the value under the label when narrow; the
-  table stays a table (four short columns) inside its card, no horizontal page scroll.
+- `PageActionBar` « Profil des séjours », one action « Actualiser » (info), no Save / Cancel.
+- Toolbar: « Exercice » select, the dashboard's `PeriodSelector` (Exercice · Mois · Personnalisée), and
+  a « Logement » select (« Tous les logements » first).
+- Two panels side by side from `lg` (equal columns), stacked below: « Répartition des séjours » and
+  « Panier moyen par séjour » (rules 19-21). At `md` the sidebar leaves ~600 px: two columns cut the
+  switches and the tables, so they stack.
+- **Mobile (`xs`)**: the toolbar's selects take the full width, one per line; each switch is a full-width
+  segmented control (`SegmentedSelect`; a long label wraps); the share table tightens its padding and
+  scrolls inside its own box if needed; the basket table's pill may wrap. No horizontal page scroll.
+- **Tablet (`md`, ~900 px)**: panels stacked, full width; switches on one line when they fit.
+- Loading: « Chargement du profil des séjours… »; a load failure: `ErrorAlert` with « Réessayer » and
+  the selector (rule 18).
 
 ## 7. Test plan
 
 ### Server unit tests
-- [x] `server/src/tests/stay-profile.unit.test.js` — 14 tests, rules 1-15: bucket edges (2/3, 6/7,
-  30/31, 90/91 days, 299,99 / 300,00 / 800,00 / 800,01 €), shares to 100 and their null cases, lead time
-  on the arrival day / after it / on the import, cancelled stays and devis excluded, totals equal to the
-  dashboard hero, channel rows equal to the « Canaux » tile, logement filter, empty window, the
-  dashboard's refusals, basket with tourist tax excluded and its N-1, no-history notice, delta edges,
-  the dashboard's own N-1 reading unchanged.
+- [x] `server/src/tests/stay-profile.unit.test.js` — 15 tests, rules 1-16: bucket edges (2/3, 6/7,
+  30/31, 90/91 days, 299,99 / 300,00 / 800,00 / 800,01 €), shares to 100 and their null cases, the 0–1
+  shares, lead time on the arrival day / after it / on the import, cancelled stays and devis excluded,
+  totals equal to the dashboard hero, channel rows equal to the « Canaux » tile, logement filter, empty
+  window, the dashboard's refusals, basket with tourist tax excluded and its N-1, no-history notice,
+  delta edges, the dashboard's own N-1 reading unchanged.
 
-### Client unit tests
-- [x] `client/src/__tests__/api.stay-profile.test.js` — 1 test, rule 1 (query parameters).
-- [ ] Round 2: `StayProfilePage.*.test.jsx` per subject.
+### Client unit tests (Vitest) — 5 files, 14 tests
+- [x] `client/src/__tests__/api.stay-profile.test.js` — 1 test, rule 1.
+- [x] `client/src/pages/__tests__/StayProfilePage.breakdown.test.jsx` — 6 tests, rules 16, 19, 20.
+- [x] `client/src/pages/__tests__/StayProfilePage.basket.test.jsx` — 3 tests, rules 13, 15, 21.
+- [x] `client/src/pages/__tests__/StayProfilePage.refused-load.test.jsx` — 3 tests, rules 1, 18.
+- [x] `client/src/constants/__tests__/financeMenu.stay-profile.test.js` — 1 test, rule 17.
+- Fixture: `client/src/pages/__tests__/stayProfileFixtures.js`.
 
-### Manual UI verification (round 2)
-- [ ] Happy path at 1440, 900 and 390 px on a copy of the database.
-- [ ] Edge case: a custom window refused, a logement with no stay.
-- [ ] Regression: the Suivi financier's « Revenu par mois » N-1 bars unchanged.
+### Manual UI verification (throwaway seeded DB, ports 47140/47141)
+- [x] 1280 px: both panels side by side, switches, share table, basket pills and captions; a month
+      window with one stay.
+- [x] 900 px: panels stacked, nothing cut.
+- [x] 390 px: toolbar stacked, switches full width, short months, no horizontal page scroll.
+- [x] Regression: the Suivi financier still loads.
 
 ## 8. Out of scope
 
@@ -270,5 +307,9 @@ Per the mock-up (`#profil`), in the « Maison » theme:
 - Lead time unknown for a fiche created after arrival or on the import day, rather than clamped to 0.
 - « Sans montant » band for 0 € stays, so they do not swell « Moins de 300 € ».
 - The basket follows the selected exercise, not the window, and lists only months holding a stay.
+- Round 2: the mock-up's ranked bars are drawn by lot 0's `ShareTable` (D-HC5's part-to-whole form,
+  and one grammar across the lots) rather than a new bar component; the « Mesure » switch picks its
+  share and bar. The logement filter is a select, not the dashboard's figure strip (this page carries
+  no per-logement figure to show in it).
 - Tourist tax removed by the HT split's proportion rather than by subtracting `touristTaxTotal`, so a
   tax collected in the caisse interne (already out of the total) is not removed twice.

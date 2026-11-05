@@ -67,6 +67,9 @@ function finish(rows) {
     amount: euros(r.cents),
     countPercent: countPercents[i],
     amountPercent: amountPercents[i],
+    // Rule 16 — the same whole percents as 0–1 shares, for the share table (widths add up to 100 %).
+    countShare: countPercents[i] == null ? null : countPercents[i] / 100,
+    amountShare: amountPercents[i] == null ? null : amountPercents[i] / 100,
     countBar: maxCount > 0 ? round4(r.count / maxCount) : 0,
     amountBar: maxCents > 0 ? round4(Math.max(0, r.cents) / maxCents) : 0,
   }));

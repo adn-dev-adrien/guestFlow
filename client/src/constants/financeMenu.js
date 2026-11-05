@@ -9,11 +9,14 @@
 import PLUGIN_MODULES from '../plugins';
 import { ADMIN, userHasRole, canSeeRoute } from './roles';
 import { ACCOUNTING_EXPORT, isPluginEnabled } from './plugins';
+import { STAY_PROFILE_PATH } from './stayProfile';
 
 export const COMPENSATIONS_PATH = '/finance/indemnites';
 
 const CORE_ENTRIES = [
   { key: 'overview', path: '/finance', label: 'Vue générale', order: 10 },
+  // specs/stay-profile.md rule 17 — right after « Vue générale ».
+  { key: 'stay-profile', path: STAY_PROFILE_PATH, label: 'Profil des séjours', order: 15 },
   { key: 'tourist-tax', path: '/finance/tourist-tax', label: 'Taxe de séjour', order: 20 },
   // specs/plugins-phase-2-hosts.md rule 21 — core, after « Taxe de séjour ».
   { key: 'compensations', path: COMPENSATIONS_PATH, label: "Indemnités d'annulation", order: 30 },
