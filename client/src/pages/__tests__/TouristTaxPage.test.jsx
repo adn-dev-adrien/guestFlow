@@ -40,7 +40,7 @@ const DATA = {
     {
       reservationId: 7, propertyId: 1, propertyName: 'Gîte', reservationName: 'Jean Dupont',
       startDate: '2026-06-20', endDate: '2026-06-21', lastNightDate: '2026-06-20',
-      touristTaxDeclaredAt: null, adults: 2, children: 0, nightsCount: 1, taxRate: 1, taxAmount: 4, accommodationAmount: 200,
+      touristTaxDeclaredAt: null, declarable: true, adults: 2, children: 0, nightsCount: 1, taxRate: 1, taxAmount: 4, accommodationAmount: 200,
     },
     {
       reservationId: 8, propertyId: 1, propertyName: 'Gîte', reservationName: 'Marie Martin',

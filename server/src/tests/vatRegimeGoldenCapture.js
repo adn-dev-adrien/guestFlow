@@ -34,7 +34,9 @@ const VOLATILE = new Set(['createdAt', 'updatedAt', 'cancelledAt', 'vatRegime', 
   'platformPenaltyAmount', 'supersededAt', 'supersededByReservationId', 'supersededReason',
   'platformPaidAdults', 'platformPaidOccupants', 'touristTaxAddedGuestsAmount', 'touristTaxAddedGuestsAdults',
   'touristTaxAddedGuestsDeclaredAt', 'touristTaxDeclaredWithAddedAmount',
-  'complementPaidSplit', 'removedLineContribs', 'availableTtc', 'sharedBucketTtc']);
+  'complementPaidSplit', 'removedLineContribs', 'availableTtc', 'sharedBucketTtc',
+  // Additive, no VAT, and `declarable` reads today (specs/tourist-tax-declared-checkbox.md rule 8).
+  'declarable', 'touristTaxInComplementLockedReason']);
 
 function canonical(value) {
   if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;

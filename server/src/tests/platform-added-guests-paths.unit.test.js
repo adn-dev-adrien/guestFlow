@@ -105,13 +105,22 @@ test('rule 15: the stored row feeds the figure every surface reads', async () =>
   assert.equal(tax.label, LABEL);
 });
 
-test('rule 22: complementPaid written again at 1 is no untick: the row\'s own tick stays', async () => {
+// D16: a tick waits for a stay paid and over, so these two ticks are made the day after it; the writes then come back to today.
+const afterStayEnd = (t, id, tickIt) => {
+  const end = new Date(`${rowOf(id).endDate}T12:00:00`);
+  t.mock.timers.enable({ apis: ['Date'], now: end.getTime() + 86400000 });
+  const result = tickIt();
+  t.mock.timers.reset();
+  return result;
+};
+
+test('rule 22: complementPaid written again at 1 is no untick: the row\'s own tick stays', async (t) => {
   const { id, stay } = await addedGuestStay();
   mark(id, { balancePaid: true, balancePaidDate: TODAY });
   const finance = financeModel.buildModel(db);
-  assert.equal(finance.setTouristTaxDeclared({ reservationId: id, declared: true }).ok, true);
+  assert.equal(afterStayEnd(t, id, () => finance.setTouristTaxDeclared({ reservationId: id, declared: true })).ok, true);
   mark(id, { complementPaid: true, complementPaidDate: TODAY });
-  assert.equal(finance.setTouristTaxDeclared({ reservationId: id, declared: true, addedGuests: true }).ok, true);
+  assert.equal(afterStayEnd(t, id, () => finance.setTouristTaxDeclared({ reservationId: id, declared: true, addedGuests: true })).ok, true);
   const ticked = rowOf(id).touristTaxAddedGuestsDeclaredAt;
   assert.ok(ticked);
 
@@ -239,13 +248,13 @@ test('rule 1: a locked past stay can still take its brut, the paid base follows'
   assert.equal(rowOf(id).platformPaidOccupants, 2);
 });
 
-test('rule 22: the complement unticked clears the row\'s own tick, by every path: collected again, it is to declare again', async () => {
+test('rule 22: the complement unticked clears the row\'s own tick, by every path: collected again, it is to declare again', async (t) => {
   const { id } = await addedGuestStay();
   mark(id, { balancePaid: true, balancePaidDate: TODAY });
   const finance = financeModel.buildModel(db);
-  assert.equal(finance.setTouristTaxDeclared({ reservationId: id, declared: true }).ok, true);
+  assert.equal(afterStayEnd(t, id, () => finance.setTouristTaxDeclared({ reservationId: id, declared: true })).ok, true);
   mark(id, { complementPaid: true, complementPaidDate: TODAY });
-  assert.equal(finance.setTouristTaxDeclared({ reservationId: id, declared: true, addedGuests: true }).ok, true);
+  assert.equal(afterStayEnd(t, id, () => finance.setTouristTaxDeclared({ reservationId: id, declared: true, addedGuests: true })).ok, true);
   assert.ok(rowOf(id).touristTaxAddedGuestsDeclaredAt);
 
   mark(id, { complementPaid: false });

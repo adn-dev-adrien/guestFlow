@@ -58,12 +58,15 @@ appears, so the operator never remits a tax that was not collected.
    nothing paid yet, the stay is listed in the month of its last night and for its whole tax, payment
    dates playing no part, including a complement that carries the tax. *Why:* paying an installment
    leaves `balancePaid` at 0 (`specs/direct-installments.md` rule 51), so a stay paid through a plan
-   never reached the page and its tax was never offered for declaration. A tax not yet collected can
-   therefore be declared: Adrien accepts it, nothing is forgotten that way. Platform routing (rule 1),
-   refunded nights and a cancelled stay read as on any other stay.
+   never reached the page and its tax was never offered for declaration. Listed is not declarable: the
+   early-declaration reading first recorded here was withdrawn by Adrien on 2026-11-05 (D16), the tick waits
+   for every installment paid and the stay over (`tourist-tax-declared-checkbox.md` rule 8). The row placement
+   stands, so nothing is forgotten. Platform routing (rule 1), refunded nights and a cancelled stay read as on
+   any other stay.
    The row reads the stored tax, the figure its tick pins: paying an installment freezes nothing, so a live replay
    showed 8,00 € after a rate move, the tick then showed 4,80 €, and the operator had told the commune the first. A
-   save of the fiche still re-prices the stored figure, as it does the plan's shares.
+   save of the fiche re-prices the stored figure only while nothing pins it: a plan fully paid or a paid installment
+   holding a tax share does (D17, `tourist-tax-matches-the-office-calculation.md` rule 19).
 8. **Every other stay keeps its gate, and the plan decides alone** (2026-11-05, D14). Without a plan,
    rules 2 and 3 are unchanged. With a plan, a stored paid flag is not read, so a stay stays in one
    month (rule 6). A plan removed again (nothing was paid, `direct-installments` rule 2) gives the stay
@@ -129,7 +132,7 @@ All automated cases live in `tourist-tax-collection-coverage.unit.test.js`:
 - [x] Paid flag = 1, paid date NULL → last-night month.
 - [x] Future month still rejected; current month accepted (pre-existing, unchanged).
 - [x] Full server suite green — **2075 / 2075 pass**.
-- [x] `plan-tax-declaration.unit.test.js` (23, 2026-11-05), rules 7-8: plan paid, partly paid, nothing paid; stay month against payment month; departure on the 1st; amount, KPIs and aggregate equal to the same stay paid by solde; refunded night; cancelled stay; plan removed; tax on the complement; an own channel that remits itself; a stay without a plan unchanged.
+- [x] `plan-tax-declaration.unit.test.js` (27, 2026-11-05), rules 7-8: the percentage modes with the complement, tick, untick and rate move (audit R23-S2, T1); plan paid, partly paid, nothing paid; stay month against payment month; departure on the 1st; amount, KPIs and aggregate equal to the same stay paid by solde; refunded night; cancelled stay; plan removed; tax on the complement; an own channel that remits itself; a stay without a plan unchanged.
 - [ ] Manual UI check: month selector on `/finance/tourist-tax` shows the moved stays (desktop + mobile).
 
 ## 7. Out of scope
