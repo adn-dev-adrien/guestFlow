@@ -555,6 +555,15 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
     > its split says: `collectedByLine` reads it first, so a stay that rose after solde and complement reads no phantom
     > accommodation or tax on the complement, and the give-back nets to 0 (the auditor's `p8` residue, 70600000 −13,82 /
     > 70600010 +13,82). A split that pro-rated its money names no line: the lines then read as without one.
+    >
+    > **Reading of 2026-11-05 (R22 verification, L1).** A plan's installments are book money: `collectedByLine` adds the
+    > accommodation and the tax they were booked on (`bookedStayBuckets().installments`, frozen split first, then the plan's
+    > `taxShares`), never in the caisse interne's reading. Without them the requalification came off the complement's money
+    > alone: own channel reversed, gross 600 €, one adult more, plan of 2 paid, complement 42,40 € paid, cancelled, the register
+    > offered 595,20 + 4,80 € for 642,40 € collected, and 42,40 € stayed on no line (70600000 36,36, 44571100 3,64, 46710000
+    > 2,40). It now offers 635,20 + 7,20 € and every account nets to 0. A plan never sits beside a paid acompte or solde (D2),
+    > so the reading with contribs does not add them. Test:
+    > `plugins/accounting-export/tests/added-guests-tax-pre-arrival-readers`.
 50. **A live stay refuses a book refund above what it collected** _(D10, Adrien, 2026-11-05; audit R22-7)_. The total of a
     refund made by transfer or in cash (`Espèces`) on a stay that is not cancelled cannot exceed `collectedTtc`, net of the
     refunds already made: 409 `REFUND_EXCEEDS_COLLECTED` « Dépasse l'encaissé (X €). », the same refusal as a cancelled
@@ -813,7 +822,7 @@ like « Nouvelle note », not a page-level one).
 - [x] `tests/reception-role-allowlist.unit.test.js` (existing drift test) — still red-flags the new
       refund paths as admin-only (rule 15).
 
-Round 22 (2026-11-05): `live-refund-above-collected` (6, rule 50), `plugins/accounting-export/tests/cancelled-register-complement-before-solde` (10, rule 49 reading), `cancelled-register-lowered-line` (4, rule 49 reading); `refunds-model` and `refund-exceeds-overpayment` reviewed: their stubs now hold a paid solde, the assertions unchanged.
+Round 22 (2026-11-05): `live-refund-above-collected` (6, rule 50), `plugins/accounting-export/tests/cancelled-register-complement-before-solde` (10, rule 49 reading), `cancelled-register-lowered-line` (5, rule 49 reading), `cancelled-register-complement-no-split` (10, the same readings on a complement with no split, as every production complement has today); `refunds-model` and `refund-exceeds-overpayment` reviewed: their stubs now hold a paid solde, the assertions unchanged.
 
 ### Client tests (`npx vitest run` — 15 new, full suite 820 ✅)
 - [x] `RefundDialog.test.jsx` — line selection drives the total, free line adds up, future date

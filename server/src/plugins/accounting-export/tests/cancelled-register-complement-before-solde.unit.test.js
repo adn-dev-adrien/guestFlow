@@ -6,7 +6,7 @@ process.env.DB_PATH = ':memory:';
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
-  NO_ACOMPTE, WITH_ACOMPTE, PLATFORM, S, C, D, forced, free, fiche, put, pay, cancel, register, offered, keyOf, giveAll, net, rowOf, refund,
+  db, NO_ACOMPTE, WITH_ACOMPTE, PLATFORM, S, C, D, forced, free, fiche, put, pay, cancel, register, offered, keyOf, giveAll, net, rowOf, refund,
 } = require('./journalFixture');
 
 const ACCOMMODATION = 'accommodation';
@@ -110,10 +110,15 @@ test('Caisse interne — a complement of 50 € paid there: the line in cash, no
   assert.deepEqual(net(stay.id), {});
 });
 
-test('Rank — with the complement paid, the money comes off the lines that did not collect it first', async () => {
+test('Rank — the budget cuts: with the complement paid, the money comes off the line of unknown collection, never the line that collected', async () => {
   const stay = fiche(WITH_ACOMPTE, 'direct', { customOptions: [forced(50), free(100)] });
   pay(stay.id, D, C);
+  db.prepare('UPDATE reservations SET accommodationAcompteContribTtc = NULL, touristTaxAcompteContribTtc = NULL WHERE id = ?').run(stay.id);
+  db.prepare('UPDATE reservation_custom_options SET acompteContribTtc = NULL WHERE reservationId = ?').run(stay.id);
   await cancel(stay.id);
-  const before = offered(stay.id)[keyOf(stay.id, 'Forcée')];
-  assert.equal(before, 50);
+  const lines = offered(stay.id);
+  assert.equal(lines[keyOf(stay.id, 'Forcée')], 50);
+  assert.equal(Math.round(Object.values(lines).reduce((sum, v) => sum + v, 0) * 100) / 100, Math.round((rowOf(stay.id).depositAmount + 50) * 100) / 100);
+  giveAll(stay.id);
+  assert.deepEqual(net(stay.id), {});
 });

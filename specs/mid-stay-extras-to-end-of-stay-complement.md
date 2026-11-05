@@ -375,7 +375,7 @@ détectée, et jamais lorsqu'il est encaissé (§3.5). Aucun backfill, aucune pe
 `financeModel` / `reservationSettlement` ne sont pas modifiés (ils somment déjà les quatre buckets) :
 leur couverture existante suffit, aucun test ajouté.
 
-- `end-of-stay-claims-growth.unit.test.js` (9) — rule 20, reading of 2026-11-05 (D9).
+- `end-of-stay-claims-growth.unit.test.js` (10) — rule 20, reading of 2026-11-05 (D9).
 
 ### Client tests (`cd client && npx vitest run` → **774 verts**, +2)
 

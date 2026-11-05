@@ -6,8 +6,11 @@ process.env.DB_PATH = ':memory:';
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
-  db, rowOf, NO_ACOMPTE, WITH_ACOMPTE, PLATFORM, S, C, D, forced, free, fiche, put, pay, ficheView, unclaimed, inDays,
+  db, respond, ADMIN, TODAY, rowOf, NO_ACOMPTE, WITH_ACOMPTE, PLATFORM, S, C, D, forced, free, fiche, put, pay, ficheView, unclaimed, inDays,
 } = require('./moneyLedgerFixture');
+
+const { quoteStoredReservation } = require('../utils/storedReservationQuote');
+const installmentsController = require('../controllers/installmentsController');
 
 const EXCESS_KEY = 'arrivalComplementExcess';
 const excessOf = (id) => (ficheView(id).ledger.rows || []).length && (JSON.parse(rowOf(id).endOfStayComplementDetail || '[]').find((line) => line.key === EXCESS_KEY) || {}).amount;
@@ -90,4 +93,29 @@ test('D9 — a stay reduced after payment asks nothing', async () => {
   await put(stay, { adults: 2 });
   assert.equal(ficheView(stay.id).ledger.remaining, 0);
   assert.equal(excessOf(stay.id) || 0, 0);
+});
+
+// A paid solde with its contribs always reads as settled through the fiche (a sweep of 67 200 engine inputs found no gap
+// otherwise), so the engine's own condition is judged on the state that does leave money unsettled: a plan part-paid.
+test('D9 — the proof given, pre-arrival money not settled: the gap is claimed by nobody yet, only once the plan is all paid', async () => {
+  const stay = fiche(NO_ACOMPTE, 'direct', { customOptions: [forced(20)] });
+  const set = respond();
+  await installmentsController.put({ params: { id: stay.id }, body: { count: 2 }, user: ADMIN }, set);
+  assert.equal(set.statusCode, 200, JSON.stringify(set.body));
+  const plan = db.prepare('SELECT id FROM reservation_installments WHERE reservationId = ? ORDER BY number').all(stay.id);
+  const payInstallment = async (installment) => {
+    const res = respond();
+    await installmentsController.markPaid({ params: { id: stay.id, installmentId: installment.id }, body: { paidDate: TODAY, method: 'transfer' }, user: ADMIN }, res);
+    assert.equal(res.statusCode, 200, JSON.stringify(res.body));
+  };
+  const claimed = () => {
+    const quote = quoteStoredReservation(db, rowOf(stay.id), { paidSoldeCaptured: true, adults: 3 });
+    assert.equal(quote.error, undefined);
+    return (quote.midStayExtrasLines || []).find((line) => line.key === EXCESS_KEY);
+  };
+  await payInstallment(plan[0]);
+  pay(stay.id, C);
+  assert.equal(claimed(), undefined);
+  await payInstallment(plan[1]);
+  assert.equal(claimed().amount, 42.4, 'the same gap, settled, is claimed');
 });

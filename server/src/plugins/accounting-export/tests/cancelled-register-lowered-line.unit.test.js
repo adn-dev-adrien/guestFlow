@@ -6,7 +6,7 @@ process.env.DB_PATH = ':memory:';
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
-  db, NO_ACOMPTE, S, free, fiche, put, pay, cancel, register, offered, keyOf, giveAll, net, refund, csv,
+  db, NO_ACOMPTE, WITH_ACOMPTE, S, D, free, fiche, put, pay, cancel, register, offered, keyOf, giveAll, net, refund, csv,
 } = require('./journalFixture');
 
 const OPTION = 18;
@@ -54,4 +54,19 @@ test('a free line on a cancelled stay is judged by what was collected, never by 
   assert.equal(given.statusCode, 201, JSON.stringify(given.body));
   const before = csv();
   assert.ok(before.length > 0);
+});
+
+test('an acompte on a line lowered below its share: the avoir spreads over what the line collected, its indemnity share included', async () => {
+  const stay = fiche(WITH_ACOMPTE, 'direct', { customOptions: [free(100)] });
+  pay(stay.id, D);
+  const share = db.prepare('SELECT acompteContribTtc AS c FROM reservation_custom_options WHERE reservationId = ?').get(stay.id).c;
+  assert.equal(share, 30);
+  await put(stay, { customOptions: [free(10)] });
+  await cancel(stay.id);
+  const line = register(stay.id).refundableLines.find((l) => l.key === keyOf(stay.id, 'Libre'));
+  assert.equal(line.indemnityTtc, 30);
+  assert.equal(line.refundableTtc, 30);
+  giveAll(stay.id);
+  assert.deepEqual(net(stay.id), {});
+  assert.equal(register(stay.id).collectedTtc, 0);
 });

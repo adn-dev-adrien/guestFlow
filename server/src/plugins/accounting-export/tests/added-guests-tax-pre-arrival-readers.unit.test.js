@@ -6,13 +6,17 @@ process.env.DB_PATH = ':memory:';
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
-  db, NO_ACOMPTE, PLATFORM, C, fiche, put, pay, rowOf, net, entriesOf, TODAY,
+  db, NO_ACOMPTE, WITH_ACOMPTE, PLATFORM, C, forced, fiche, put, pay, rowOf, net, entriesOf, TODAY, register, offered, ficheView,
 } = require('./journalFixture');
 const { respond, ADMIN, cancel, giveAll } = require('./journalFixture');
 const installmentsController = require('../../../controllers/installmentsController');
 const paymentsController = require('../../../controllers/paymentsController');
 const { storedLinkComponents } = require('../../../utils/storedLinkComponents');
 const { computeInstallmentPaidSplit } = require('../../../utils/installmentPaidSplit');
+const { bookedStayBuckets } = require('../../../utils/cancelReservation');
+const { collectedByLine } = require('../../../utils/refunds');
+const reservationsModel = require('../../../models/reservationsModel');
+const installmentsModel = require('../../../models/installmentsModel');
 
 const TAX = '46710000';
 
@@ -71,4 +75,99 @@ test('no added tax: the link is unchanged', () => {
   const row = { depositAmount: 0, balanceAmount: 604.8, touristTaxTotal: 4.8 };
   const { components } = storedLinkComponents(row, 'balance', { vatRatePercent: 10, taxOnArrival: false, titles: { balance: 'Solde' } });
   assert.deepEqual(components.map((c) => c.grossCents), [60000, 480]);
+});
+
+test('L1 — plan of 2 paid, an added guest, its complement paid, cancelled: everything given back nets every account to 0', async () => {
+  const stay = fiche(NO_ACOMPTE, PLATFORM.ownReversed, { platformGrossAmount: 600 });
+  await put(stay, { adults: 3 });
+  const plan = await planOfTwo(stay);
+  for (const installment of plan) await payInstallment(stay, installment);
+  pay(stay.id, C);
+  await cancel(stay.id);
+  assert.deepEqual(offered(stay.id), { accommodation: 635.2, touristTax: 7.2 });
+  giveAll(stay.id);
+  assert.deepEqual(net(stay.id), {});
+  assert.equal(register(stay.id).collectedTtc, 0);
+});
+
+test('L1 — the same with one installment paid: the plan\'s share of what it collected, no more', async () => {
+  const stay = fiche(NO_ACOMPTE, PLATFORM.ownReversed, { platformGrossAmount: 600 });
+  await put(stay, { adults: 3 });
+  const plan = await planOfTwo(stay);
+  await payInstallment(stay, plan[0]);
+  pay(stay.id, C);
+  await cancel(stay.id);
+  const lines = offered(stay.id);
+  assert.equal(Math.round((lines.accommodation + lines.touristTax) * 100) / 100, 342.4);
+  assert.equal(lines.touristTax, 4.8);
+  giveAll(stay.id);
+  assert.deepEqual(net(stay.id), {});
+});
+
+test('L1 — no added guest, a forced line in the complement: unchanged and sound', async () => {
+  const stay = fiche(NO_ACOMPTE, 'direct', { customOptions: [forced(50)] });
+  const plan = await planOfTwo(stay);
+  for (const installment of plan) await payInstallment(stay, installment);
+  pay(stay.id, C);
+  await cancel(stay.id);
+  assert.deepEqual(offered(stay.id), { accommodation: 600, 'custom:forcée': 50, touristTax: 4.8 });
+  giveAll(stay.id);
+  assert.deepEqual(net(stay.id), {});
+});
+
+test('L1 — the tax on the complement: the plan holds none, the complement all of it', async () => {
+  const stay = fiche(NO_ACOMPTE, 'direct', { touristTaxInComplement: 1 });
+  const plan = await planOfTwo(stay);
+  for (const installment of plan) await payInstallment(stay, installment);
+  pay(stay.id, C);
+  await cancel(stay.id);
+  assert.deepEqual(offered(stay.id), { accommodation: 600, touristTax: 4.8 });
+  giveAll(stay.id);
+  assert.deepEqual(net(stay.id), {});
+});
+
+test('L1 — the caisse interne\'s reading holds no installment: a complement paid there offers its own money only in cash', async () => {
+  const stay = fiche(NO_ACOMPTE, PLATFORM.ownReversed, { platformGrossAmount: 600 });
+  await put(stay, { adults: 3 });
+  const plan = await planOfTwo(stay);
+  for (const installment of plan) await payInstallment(stay, installment);
+  pay(stay.id, { ...C, complementPaidCash: true });
+  await cancel(stay.id);
+  const lines = register(stay.id).refundableLines;
+  assert.equal(lines.reduce((sum, line) => sum + (line.cashTtc || 0), 0).toFixed(2), '42.40');
+  const details = reservationsModel.getByIdWithDetails(stay.id);
+  const booked = bookedStayBuckets({ database: db, reservationsModel, installmentsModel }, details, 10);
+  assert.equal(collectedByLine({ reservation: details, booked, cash: true }).accommodation, 40);
+  assert.equal(collectedByLine({ reservation: details, booked }).accommodation, 595.2);
+  giveAll(stay.id);
+  assert.deepEqual(net(stay.id), {});
+  assert.equal(register(stay.id).collectedTtc, 0);
+});
+
+test('R22-8 readers — the export\'s own shares, on an installment with no frozen split: 4,80 € of tax, never 7,20 €', async () => {
+  const stay = fiche(NO_ACOMPTE, PLATFORM.ownReversed, { platformGrossAmount: 600 });
+  await put(stay, { adults: 3 });
+  const plan = await planOfTwo(stay);
+  for (const installment of plan) await payInstallment(stay, installment);
+  db.prepare('UPDATE reservation_installments SET paidSplit = NULL WHERE reservationId = ?').run(stay.id);
+  assert.equal(Math.round(taxOnJournal(stay.id) * 100) / 100, 4.8);
+});
+
+test('R22-8 readers — the avoir\'s own shares, when no split is at hand: the tax of the installment paid, without the addition', async () => {
+  const stay = fiche(NO_ACOMPTE, PLATFORM.ownReversed, { platformGrossAmount: 600 });
+  await put(stay, { adults: 3 });
+  const plan = await planOfTwo(stay);
+  await payInstallment(stay, plan[0]);
+  const planOnly = { listFor: installmentsModel.listFor };
+  const row = rowOf(stay.id);
+  const { installments } = bookedStayBuckets({ database: null, reservationsModel, installmentsModel: planOnly }, row, 10);
+  assert.equal(installments.touristTax, 2.4);
+  assert.equal(installments.accommodation, Math.round(plan[0].amountCents - 240) / 100);
+});
+
+test('R22-8 readers — the acompte\'s ceiling on the stored ledger leaves the addition out', async () => {
+  const stay = fiche(WITH_ACOMPTE, PLATFORM.ownReversed, { platformGrossAmount: 600 });
+  await put(stay, { adults: 3 });
+  const deposit = ficheView(stay.id).ledger.rows.find((row) => row.key === 'deposit');
+  assert.equal(deposit.amountEdit.max, 595.2);
 });

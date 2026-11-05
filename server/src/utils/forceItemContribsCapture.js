@@ -27,6 +27,7 @@
 
 const { quoteStoredReservation } = require('./storedReservationQuote');
 const { clearRemovedLineContribs } = require('./removedLineContribs');
+const { readComplementPaidSplit } = require('./complementPaidSplit');
 
 const CONSERVATION_TOLERANCE_EUR = 0.01;
 
@@ -405,8 +406,12 @@ function captureBucketSplit({ db, reservation, bucket, log = console }) {
     // so it takes the stored split from its first entry and a later save can no longer rewrite it.
     const soldeBeforeAcompte = bucket === 'balance' && reservation
       && Number(reservation.depositPaid || 0) !== 1 && Number(reservation.depositAmount || 0) > 0;
+    // Reading of 2026-11-05 (R22 verification) — nor does a collected complement whose split is frozen: it never reads
+    // the contribs. Left NULL, this bucket's entry would stay a live pro rata of the fiche, which a later save rewrites.
+    const afterFrozenComplement = reservation && Number(reservation.complementPaid || 0) === 1 && readComplementPaidSplit(reservation)
+      && Number(reservation[bucket === 'deposit' ? 'balancePaid' : 'depositPaid'] || 0) !== 1;
     try {
-      if (reservation && !soldeBeforeAcompte && !hasAnyContrib(db, reservation.id)) return 'legacy';
+      if (reservation && !soldeBeforeAcompte && !afterFrozenComplement && !hasAnyContrib(db, reservation.id)) return 'legacy';
     } catch (errCheck) {
       log.error(`[payments] reservation ${reservation && reservation.id}: contribution check failed on ${bucket} — ${errCheck.message}`);
       return 'none';

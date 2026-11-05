@@ -7,3 +7,6 @@
 - **The added guests' tax is out of the pre-arrival money** on a plan, a link, a plan's avoir and the acompte's ceiling: 46710000 no longer books it twice.
 - **Saving a platform stay keeps `clientGrossAmount`** unless the body carries a number: legacy stays no longer lose turnover from a closed month.
 - **An offered planning-card line has a floor** on the persons it stored at arrival; a NULL count is never compared.
+- **A cancelled plan gives back everything it collected:** with a guest added and a complement paid, 42,40 € stayed on no line of the refund register. It now offers the installments and the complement, and every account nets to 0.
+- **An acompte ticked after a collected complement keeps its entry** when its engine split fails: it takes the stored split at once, so a later change of party no longer moves a booked entry.
+- **An installment with no frozen split books its tourist tax** on a stay with added guests: the addition was taken off a share that no longer held it.

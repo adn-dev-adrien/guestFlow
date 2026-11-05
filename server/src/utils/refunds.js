@@ -475,11 +475,15 @@ function collectedByLine({ reservation, options = [], resources = [], booked = n
     const soldeBuckets = balance && booked ? booked.solde : null;
     if ((!deposit || depositBuckets) && (!balance || soldeBuckets)) {
       const soldeTax = nz(soldeBuckets && soldeBuckets.touristTax);
-      out[ACCOMMODATION_KEY] = round2(nz(depositBuckets && depositBuckets.accommodation) + nz(soldeBuckets && soldeBuckets.accommodation)
+      // Reading of 2026-11-05 (R22 verification, L1) — a plan's installments are book money on the accommodation and the
+      // tax. Left out, the requalification came off the complement's money alone, whose sale room fell to 0: 42,40 €
+      // collected stayed on no line of the register. A plan never sits beside a paid acompte or solde (D2).
+      const plan = (!cash && booked && booked.installments) || { accommodation: 0, touristTax: 0 };
+      out[ACCOMMODATION_KEY] = round2(nz(depositBuckets && depositBuckets.accommodation) + nz(soldeBuckets && soldeBuckets.accommodation) + plan.accommodation
         + (!complement ? 0 : (split ? splitAccommodation : nz(row.extraGuestComplementSurcharge))));
-      out[TOURIST_TAX_KEY] = !complement
-        ? round2(soldeTax)
-        : (split ? round2(soldeTax + splitTax) : (balance || taxOnArrival ? round2(row.touristTaxTotal) : round2(nz(row.touristTaxAddedGuestsAmount))));
+      out[TOURIST_TAX_KEY] = round2(plan.touristTax + (!complement
+        ? soldeTax
+        : (split ? soldeTax + splitTax : (balance || taxOnArrival ? round2(row.touristTaxTotal) : nz(row.touristTaxAddedGuestsAmount)))));
     }
     addLinesOnlyTheSplitNames(out, splitOf, billed);
     return Object.keys(out).length ? out : null;

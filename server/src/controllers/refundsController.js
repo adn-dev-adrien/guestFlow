@@ -61,7 +61,7 @@ function createRefundsController(deps = {}) {
     // caisse interne's money in the caisse interne only (reading of 2026-11-02, audit R15-L1).
     const cancelled = String(reservation.kind) === 'cancelled'
       ? cancelledRefundBudget({ collectedTtc, cashCollectedTtc: cashCollected(reservation), refunds }) : null;
-    const booked = cancelled && stayDatabase ? bookedStayBuckets({ database: stayDatabase, reservationsModel }, reservation, vatRate) : null;
+    const booked = cancelled && stayDatabase ? bookedStayBuckets({ database: stayDatabase, reservationsModel, installmentsModel }, reservation, vatRate) : null;
     const taxOnArrival = cancelled && stayDatabase ? taxRidesTheComplement(stayDatabase, reservation) : true;
     const lineReading = (cash) => collectedByLine({ reservation, options: reservation.options || [], resources: reservation.resources || [], booked, cash, taxOnArrival });
     const collected = cancelled ? lineReading(false) : null;

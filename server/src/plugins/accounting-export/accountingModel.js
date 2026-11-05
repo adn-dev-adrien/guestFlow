@@ -677,6 +677,8 @@ function buildInstallmentEntry(row, installment, count, taxShare, perLineData, c
     balanceAmount: amount,
     balancePaidDate: installment.paidDate,
     touristTaxTotal: taxShare,
+    // specs/platform-added-guests-tourist-tax.md rule 19 — the share already leaves the addition out: never taken off twice.
+    touristTaxAddedGuestsAmount: 0,
   };
   const entry = buildEntry(standIn, 'balance', { ...perLineData, hasContribs: false }, commissionContext, taxContext);
   if (!entry) return null;

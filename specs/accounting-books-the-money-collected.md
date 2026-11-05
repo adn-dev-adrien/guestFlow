@@ -233,7 +233,8 @@ options and resources appear once, at their real amount, only when they were rea
     un-tick. Money with no line to attach it to is what the accommodation gained when it did (a solde paid before its
     acompte), else a prestation (rule 10). Growth after the flip is claimed at the end of stay (mid-stay-extras rule 20). NULL on a complement collected
     before the column or adjusted by the operator: those read as they did. Test:
-    `plugins/accounting-export/tests/booked-complement-entry-frozen`.
+    `plugins/accounting-export/tests/booked-complement-entry-frozen`; every other flip path (arrival settle, arrival SAS,
+    departure SAS, the model's save): `complement-split-stamped-on-every-flip`.
 17. **Removing a paid line does not rewrite a booked entry (D11, Adrien; audit R22-6b).** The contribs a removed line held
     stay on the stay, per bucket, in `reservations.removedLineContribs` (JSON: key, label, bucket, acompte and solde contrib);
     a priced save records what the lines lost, net of what another line of the same bucket gained (a rename is no removal),
@@ -323,8 +324,10 @@ become the money that actually moved. No new string, no responsive impact, no ac
       unchanged by a later save, the stored split.
 
 - [x] Round 22 (2026-11-05), all under `plugins/accounting-export/tests/`: `booked-complement-entry-frozen` (12, rule 16),
+      `acompte-after-collected-complement` (6, reservation-payment-ledger rule 46 reading),
       `removed-line-contribs` (11, rule 17), `added-guests-supplement-account` (9), `platform-client-gross-kept` (3, rule 4
-      reading); `tests/complement-split-removed-contribs-schema` (3, the columns, the trigger, the upgrade).
+      reading); `tests/complement-split-removed-contribs-schema` (3, the columns, the trigger, the upgrade),
+      `tests/complement-split-stamped-on-every-flip` (5, rule 16).
 
 ### Coherence audit (the tool that found this)
 - [x] Re-run over the whole base (7 months, 40 entries): 0 unbalanced entry, 0 negative line, 0 entry
