@@ -8,7 +8,7 @@ const assert = require('node:assert/strict');
 const {
   db, NO_ACOMPTE, WITH_ACOMPTE, S, D, free, fiche, put, pay, cancel, register, offered, giveAll, net, csv, entry, rowOf, mark,
 } = require('./journalFixture');
-const { parseRemovedLineContribs } = require('../../../utils/removedLineContribs');
+const { parseRemovedLineContribs, recordRemovedLineContribs } = require('../../../utils/removedLineContribs');
 const reservationsModel = require('../../../models/reservationsModel');
 
 const PRESTATION = '70600010';
@@ -160,6 +160,14 @@ test('a second removal of one key adds up: paid by the acompte, removed, re-adde
   assert.equal(records[0].acompteContribTtc, fromAcompte);
   assert.equal(records[0].soldeContribTtc, fromSolde);
   assert.ok(fromAcompte > 0 && fromSolde > 0);
+});
+
+test('the same bucket removed twice adds up', () => {
+  const stay = fiche(WITH_ACOMPTE, 'direct');
+  const lost = (soldeContribTtc) => [{ key: 'custom:libre', label: 'Libre', bucket: 'options', acompteContribTtc: null, soldeContribTtc }];
+  recordRemovedLineContribs(db, stay.id, lost(10));
+  recordRemovedLineContribs(db, stay.id, lost(5));
+  assert.equal(parseRemovedLineContribs(rowOf(stay.id).removedLineContribs)[0].soldeContribTtc, 15);
 });
 
 test('un-ticking the acompte clears its bucket only: the solde’s stays', async () => {

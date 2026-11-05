@@ -103,6 +103,11 @@ test('a caisse-interne refund takes nothing from what the line holds on the book
   pay(stay.id, S);
   assert.equal(refund(stay.id, [{ key: 'custom:libre', amountTtc: 30 }], 'internal').statusCode, 201);
   assert.equal(line(stay.id, 'custom:libre').availableTtc, 70, 'min of what the line can still give back');
+
+  const acompte = fiche(WITH_ACOMPTE, 'direct', { customOptions: [free(100)] });
+  pay(acompte.id, D);
+  assert.equal(refund(acompte.id, [{ key: 'custom:libre', amountTtc: 10 }], 'internal').statusCode, 201);
+  assert.equal(line(acompte.id, 'custom:libre').availableTtc, 30, 'its 30 € on the books are all there');
 });
 
 test('a trop-perçu refund still works: free lines, on what was collected', async () => {
