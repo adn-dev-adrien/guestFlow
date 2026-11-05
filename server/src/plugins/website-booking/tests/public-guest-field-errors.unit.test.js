@@ -29,7 +29,7 @@ test('an empty e-mail is a missing field, not a malformed one — and its issue 
 });
 
 test('the sentences exist in English too, and the summary message is impersonal in both', () => {
-  assert.deepEqual(labels('en').fieldErrors, { required: 'Required.', emailInvalid: 'Incomplete email address.', phoneInvalid: 'Invalid phone number.', tooLong: 'Text too long.' });
+  assert.deepEqual(labels('en').fieldErrors, { required: 'Required.', nameInvalid: 'Characters not accepted.', emailInvalid: 'Incomplete email address.', phoneInvalid: 'Invalid phone number.', tooLong: 'Text too long.' });
   assert.equal(labels('fr').errors.clientInvalid, 'Coordonnées incomplètes ou invalides.');
   assert.equal(labels('en').errors.clientInvalid, 'Contact details incomplete or invalid.');
 });

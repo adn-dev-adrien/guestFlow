@@ -279,6 +279,13 @@ remaining the single source of truth for prices, availability, and validation.
     expiré. Refaire la réservation depuis la page du logement. » (`paymentExpired`, English « This
     payment link has expired. Please book again from the accommodation's page. »). Against a GuestFlow
     that never answers `expired` nothing changes.
+35. **A name refused for its characters reads on its field** (Adrien's decision D13, 2026-11-05, GuestFlow plugin
+    `website-booking` 1.8.10, [public-api.md](public-api.md) rule 23). The server alone judges the characters of a first or
+    last name: the block's local check stays presence only (rule 28), and a `422` naming `guest.firstName` or `guest.lastName`
+    prints the server's `details[].message` under that field, « Caractères non acceptés. », as for any other reason. The
+    WordPress plugin does not change and keeps its version. Against a GuestFlow core older than that sentence, the refusal
+    carries no `message` and the field reads the plugin's fallback « Champ requis. ». The form has no city nor address field.
+    Test: `plugins/website-booking/tests/public-name-charset.unit.test.js`.
 
 ---
 
