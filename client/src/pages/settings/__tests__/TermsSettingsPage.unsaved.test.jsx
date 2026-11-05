@@ -18,7 +18,7 @@ vi.mock('../../../components/DialogProvider', () => {
 import api from '../../../api';
 import TermsSettingsPage from '../TermsSettingsPage';
 
-const overview = (draft = { fr: '## Conditions', en: '## Terms', updatedAt: '2026-09-22T08:00:00Z' }) => ({
+const overview = (draft = { fr: '## Conditions', en: '## Terms', updatedAt: 'x' }) => ({
   draft,
   current: null,
   nextVersion: 1,

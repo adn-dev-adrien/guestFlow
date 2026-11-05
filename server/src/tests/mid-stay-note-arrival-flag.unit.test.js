@@ -6,6 +6,10 @@ const Module = require('module');
 const Database = require('better-sqlite3');
 
 const { create: createReservationsModel } = require('../models/reservationsModel');
+const { todayIso } = require('../utils/localDate');
+const { addDaysToIsoDate } = require('../utils/devisHelpers');
+
+const dayAt = (n) => addDaysToIsoDate(todayIso(), n);
 
 function modelDb(columns = {}) {
   const db = new Database(':memory:');
@@ -15,7 +19,7 @@ function modelDb(columns = {}) {
     CREATE TABLE reservation_resources (reservationId INTEGER, resourceId INTEGER, totalPrice REAL DEFAULT 0, offered INTEGER DEFAULT 0);
     CREATE TABLE reservation_custom_options (id INTEGER PRIMARY KEY AUTOINCREMENT, reservationId INTEGER, description TEXT, amount REAL DEFAULT 0, offered INTEGER DEFAULT 0);
   `);
-  db.prepare('INSERT INTO reservations (id, startDate, endDate) VALUES (1, ?, ?)').run('2026-01-03', '2026-01-08');
+  db.prepare('INSERT INTO reservations (id, startDate, endDate) VALUES (1, ?, ?)').run(dayAt(-2), dayAt(3));
   Object.entries(columns).forEach(([name, value]) => db.prepare(`UPDATE reservations SET ${name} = ? WHERE id = 1`).run(value));
   return db;
 }
@@ -29,7 +33,7 @@ test('rule 23: started, no check-in, no SAS, nothing collected → arrival not m
 test('rule 23: check-in, arrival SAS, a collected complement or a stored baseline → no flag', () => {
   for (const columns of [
     { checkInDone: 1 },
-    { arrivalSasDoneAt: '2026-01-03 16:10:00' },
+    { arrivalSasDoneAt: `${dayAt(-2)} 16:10:00` },
     { complementPaid: 1 },
     { complementPaidCash: 1 },
     { arrivalExtrasBaseline: '{}' },

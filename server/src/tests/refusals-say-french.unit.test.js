@@ -6,7 +6,9 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const { buildController } = require('../controllers/usersController');
-const { checkPlanningRange } = require('../utils/planningDateRange');
+const { checkPlanningRange, MAX_PLANNING_RANGE_DAYS } = require('../utils/planningDateRange');
+const { todayIso } = require('../utils/localDate');
+const { addDaysToIsoDate } = require('../utils/devisHelpers');
 
 const SRC = path.join(__dirname, '..');
 const CODES = ['SMTP_NOT_CONFIGURED', 'PUBLIC_URL_NOT_CONFIGURED', 'LAST_ADMIN', 'SELF_ACTION_FORBIDDEN', 'RESERVATION_NOT_FOUND', 'INVALID_DATE_RANGE', 'INVALID_PAYLOAD'];
@@ -83,6 +85,6 @@ test('rule 44: self action and last admin say so in French', () => {
 
 test('rule 44: the planning range hands its message to whoever answers it', () => {
   assert.deepEqual(checkPlanningRange('x', 'y'), { status: 400, error: 'INVALID_DATE_RANGE', message: 'Période invalide.' });
-  assert.deepEqual(checkPlanningRange('2030-01-02', '2030-01-01'), { status: 400, error: 'INVALID_DATE_RANGE', message: 'Période invalide.' });
-  assert.equal(checkPlanningRange('2020-01-01', '2030-01-01').message, 'Période trop longue.');
+  assert.deepEqual(checkPlanningRange(addDaysToIsoDate(todayIso(), 1), todayIso()), { status: 400, error: 'INVALID_DATE_RANGE', message: 'Période invalide.' });
+  assert.equal(checkPlanningRange(todayIso(), addDaysToIsoDate(todayIso(), MAX_PLANNING_RANGE_DAYS + 1)).message, 'Période trop longue.');
 });

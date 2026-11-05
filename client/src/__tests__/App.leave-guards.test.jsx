@@ -16,7 +16,7 @@ vi.mock('../api', () => {
   const answers = {
     getSystemVersion: { current: '3.10.0', latest: '3.10.0', updateAvailable: false, updateInProgress: false },
     getAttention: { pinned: [], items: [], total: 0 },
-    getToday: { today: '2026-10-19' },
+    getToday: { today: new Date().toLocaleDateString('sv') },
     getPlatformColors: { customColors: {} },
     getProperties: [{ id: 1, name: 'Gite' }],
     searchReservations: [{ id: 41, reservationNumber: 'T41', clientName: 'Ana Test', propertyName: 'Gite', startDate: '2099-01-01', endDate: '2099-01-03' }],
