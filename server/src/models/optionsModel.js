@@ -255,12 +255,27 @@ function createOptionsModel(database) {
     }
   }
 
+  // The free units a recipe wrote on each property's row (specs/tariff-recipes/spec.md rules 51, 69): { [propertyId]: n } for
+  // the rows that hold some. The editor never sends them. Guarded: several minimal test schemas have no such column.
+  const HAS_FREE_UNITS = HAS_OPTION_PROPERTY_PRICES
+    && database.prepare('PRAGMA table_info(property_option_prices)').all().some((c) => c.name === 'freeUnits');
+  const freeUnitsFor = (optionId) => {
+    if (!HAS_FREE_UNITS) return {};
+    return Object.fromEntries(database
+      .prepare('SELECT propertyId, freeUnits FROM property_option_prices WHERE optionId = ? AND freeUnits > 0')
+      .all(optionId)
+      .map((row) => [String(row.propertyId), Number(row.freeUnits)]));
+  };
   // Replace the override rows for an option. A blank/empty value means "inherit the base price" (no
-  // row); an explicit number (incl. 0 = free) is persisted. `undefined` payload → leave untouched.
+  // row); an explicit number (incl. 0 = free) is persisted, with the free units its row already held.
+  // `undefined` payload → leave untouched.
   function persistPropertyPrices(optionId, payload) {
     if (!HAS_OPTION_PROPERTY_PRICES || payload.propertyPrices === undefined) return;
+    const freeUnits = freeUnitsFor(optionId);
     database.prepare('DELETE FROM property_option_prices WHERE optionId = ?').run(optionId);
-    const insert = database.prepare('INSERT INTO property_option_prices (propertyId, optionId, price) VALUES (?, ?, ?)');
+    const insert = HAS_FREE_UNITS
+      ? database.prepare('INSERT INTO property_option_prices (propertyId, optionId, price, freeUnits) VALUES (?, ?, ?, ?)')
+      : database.prepare('INSERT INTO property_option_prices (propertyId, optionId, price) VALUES (?, ?, ?)');
     for (const [pid, raw] of Object.entries(payload.propertyPrices || {})) {
       if (raw === null || raw === undefined || raw === '') continue; // blank = inherit
       const price = Number(raw);
@@ -268,11 +283,12 @@ function createOptionsModel(database) {
       if (!Number.isFinite(price) || price < 0 || !Number.isInteger(propertyId) || propertyId <= 0) {
         throw new Error(`Invalid per-property price for property ${pid}: ${JSON.stringify(raw)}`);
       }
-      insert.run(propertyId, optionId, price);
+      insert.run(propertyId, optionId, price, ...(HAS_FREE_UNITS ? [freeUnits[String(propertyId)] || 0] : []));
     }
   }
 
   const model = {
+
     list() {
       // Ungrouped options ('') come first, then the categories alphabetically — the same reading
       // order the fiche and the public widget render (specs/option-categories.md §3 rule 3).
@@ -298,6 +314,7 @@ function createOptionsModel(database) {
       option.propertyPrices = propertyPricesFor(id);
       option.propertyDefaults = propertyDefaultsFor(id);
       option.propertyBathMats = propertyBathMatsFor(id);
+      option.propertyFreeUnits = freeUnitsFor(id);
       option.optionProgressiveTiers = normalizeProgressiveOptionTiers(option.optionProgressiveTiers);
       return attachEnglish(decoratePlanningCard(option), englishTitles());
     },

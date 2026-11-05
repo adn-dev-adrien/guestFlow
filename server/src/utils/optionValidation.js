@@ -22,6 +22,7 @@ const MESSAGES = Object.freeze({
   whole: 'Nombre entier attendu',
   choice: 'Choix invalide',
   time: 'Heure invalide',
+  freeUnitsNeedPrice: 'Prix requis : unités offertes',
 });
 
 // A negative base price used to be refused with its own 400; the code now rides on the `price` detail.
@@ -64,11 +65,12 @@ function priceProblem(raw, { percent = false, stored } = {}) {
 
 /**
  * @param {object} payload
- * @param {{ knownPropertyIds?: number[], stored?: object }} [context]  the ids of the properties that exist:
- *   any property id the payload names (scope, prices, defaults, bath mats) must be one of them — an unknown
- *   one would otherwise reach a foreign key and answer 500. `stored` is the option being edited.
+ * @param {{ knownPropertyIds?: number[], stored?: object, storedFreeUnits?: object }} [context]  the ids of the properties
+ *   that exist: any property id the payload names (scope, prices, defaults, bath mats) must be one of them — an unknown
+ *   one would otherwise reach a foreign key and answer 500. `stored` is the option being edited, `storedFreeUnits` the
+ *   free units its rows hold ({ [propertyId]: n }).
  */
-function validateOptionPayload(payload, { knownPropertyIds, stored } = {}) {
+function validateOptionPayload(payload, { knownPropertyIds, stored, storedFreeUnits = {} } = {}) {
   const body = payload || {};
   const details = [];
   const known = knownPropertyIds ? new Set(knownPropertyIds.map(Number)) : null;
@@ -115,6 +117,14 @@ function validateOptionPayload(payload, { knownPropertyIds, stored } = {}) {
       if (isBlank(raw)) continue;
       const message = priceProblem(raw, { percent, stored: stored?.propertyPrices?.[pid] });
       if (message) details.push({ field: `propertyPrices.${pid}`, message });
+    }
+  }
+  // specs/tariff-recipes/spec.md rule 69 — the row carries the free units: a save that would drop it (price blanked, property
+  // no longer proposed, a price type with no per-property price) is refused on that row's price.
+  if (body.propertyPrices !== undefined) {
+    for (const pid of Object.keys(storedFreeUnits)) {
+      const kept = !NO_PROPERTY_PRICE.includes(body.priceType) && !isBlank((body.propertyPrices || {})[pid]);
+      if (!kept) details.push({ field: `propertyPrices.${pid}`, message: MESSAGES.freeUnitsNeedPrice });
     }
   }
   for (const field of TOWEL_COUNTS) {
