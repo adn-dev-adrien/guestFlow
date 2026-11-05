@@ -34,6 +34,7 @@ test('rule 3: fix before check before info, then the catalogue order; pendingCou
 });
 
 test('rule 2: the labels a stay and a month are listed with', () => {
+  // date-literal-ok — inputs of the pure label helper, compared with nothing but the year handed to it.
   const stay = { id: 7, reservationNumber: '202609011', firstName: 'Marie', lastName: 'Martin', propertyName: 'Granja', startDate: '2026-09-26', endDate: '2026-09-28' };
   assert.equal(shape.stayLabel(stay, { year: '2026' }), '202609011 · Marie Martin · Granja · 26/09 → 28/09');
   assert.equal(shape.stayLabel({ ...stay, reservationNumber: null }, { year: '2027' }), '#7 · Marie Martin · Granja · 26/09/2026 → 28/09/2026');
