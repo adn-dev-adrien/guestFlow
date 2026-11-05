@@ -1,6 +1,6 @@
 // specs/reservations-backend-mvc.md rule 22 (audit R23-3) — a check-in takes the night before at 10:00 or earlier, in
 // minutes: 10:30 does not. The SQL of the overlap check and of the closures reads what `getNightBlocksFromTimes` reads;
-// the floored hour blocked the night for a check-in from 10:01 to 10:59.
+// the floored hour blocked the night for a check-in from 10:01 to 10:59. Closures read the same: specs/establishment-closures.md rule 8.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 

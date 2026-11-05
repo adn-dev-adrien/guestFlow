@@ -3690,8 +3690,8 @@ export default function ReservationPage() {
       ? [{ icon: <RequestQuoteIcon />, tooltip: 'Envoyer la demande de solde', onClick: handleSendBalanceRequest, color: 'info' }] : []),
   ];
 
-  // specs/calendar-property-parity.md rules 22, 24 — « Rétablir » a duplicate set aside; the server refuses
-  // when its dates were booked since.
+  // specs/calendar-property-parity.md rules 22, 24, 31 — « Rétablir » a duplicate set aside; the server refuses
+  // when its dates were booked since or its stock is gone.
   const handleRestoreSuperseded = async () => {
     setRestoring(true);
     try {

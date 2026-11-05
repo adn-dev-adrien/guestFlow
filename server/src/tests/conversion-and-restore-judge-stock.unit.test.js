@@ -9,6 +9,7 @@ const { db, inDays, freshProperty, addStay } = require('./datesTakenFixture');
 const devisModel = require('../models/devisModel');
 const { buildController } = require('../controllers/devisController');
 const reservationsController = require('../controllers/reservationsController');
+const { resourceRefusal, cotsRefusal } = require('../utils/stockPeak');
 
 const FROM = inDays(60);
 const TO = inDays(63);
@@ -186,4 +187,9 @@ test('specs/calendar-property-parity.md rule 31 — taken dates still answer « 
   const res = restore(id);
   assert.equal(res.statusCode, 409);
   assert.equal(res.body.error, 'Ces dates sont déjà prises.');
+});
+
+test('rule 10 — an oversold stock reads 0 left, never a negative count', () => {
+  assert.match(resourceRefusal('Vélo', 1 - 2), /Ressource 'Vélo' indisponible: 0 restant\(s\)/);
+  assert.match(cotsRefusal(1 - 2), /Lits bébé indisponibles: 0 restant\(s\)/);
 });

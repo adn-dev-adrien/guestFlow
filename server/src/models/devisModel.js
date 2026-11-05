@@ -1292,7 +1292,7 @@ function createModel(database) {
   }
 
   // `options.allowConflict` is for the paid-link path only: the money is already in, so the stay is
-  // created anyway and the caller flags the clash (specs/devis-accept-to-reservation.md rule 12).
+  // created anyway and the caller flags the clash (specs/devis-accept-to-reservation.md rules 9 and 10).
   function convertToReservation(id, options = {}) {
     const numId = Number(id);
     const devisRow = database.prepare("SELECT * FROM reservations WHERE id = ? AND kind = 'devis'").get(numId);

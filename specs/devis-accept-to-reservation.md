@@ -150,7 +150,7 @@ updates `devis.status`/`devis.convertedReservationId` — all pre-existing.
 ### Server unit tests
 - [x] N/A — no server change. Existing suite stays green (257).
 - [x] `devis-convert-availability.unit.test.js` (5, 2026-10-28): rule 9 — refusal over a taken range, the HTTP 409, free dates convert, a closure refuses, the paid-link path converts and flags.
-- [x] `conversion-and-restore-judge-stock.unit.test.js` (12, 2026-11-05): rule 10 (8 cases, past the stock, stock left, stays that never meet, hourly, party not judged, dates first, paid link) and `calendar-property-parity` rule 31 (4 cases).
+- [x] `conversion-and-restore-judge-stock.unit.test.js` (13, 2026-11-05): rule 10 (9 cases, past the stock, stock left, stays that never meet, hourly, party not judged, dates first, paid link) and `calendar-property-parity` rule 31 (4 cases).
 
 ### Manual UI verification
 - [x] Devis editor no longer shows "Passer en réservation" (verified in browser).

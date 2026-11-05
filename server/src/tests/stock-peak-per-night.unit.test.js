@@ -105,10 +105,13 @@ test('rule 21 — a cot scoped to its logement counts only that logement, night 
   const cot = Number(db.prepare("INSERT INTO resources (name, quantity, price, priceType) VALUES ('Lit bébé', 2, 0, 'free')").run().lastInsertRowid);
   db.prepare('INSERT INTO resource_properties (resourceId, propertyId) VALUES (?, ?)').run(cot, mine);
   addStay({ propertyId: mine, start: day(3), end: day(5), extra: { babies: 2, babyBeds: 2 } });
-  addStay({ propertyId: freshProperty(), start: day(3), end: day(5), extra: { babies: 2, babyBeds: 2 } });
+  const other = freshProperty();
+  addStay({ propertyId: other, start: day(3), end: day(5), extra: { babies: 2, babyBeds: 2 } });
+  addStay({ propertyId: other, start: day(6), end: day(8), extra: { babies: 2, babyBeds: 2 } });
   addStay({ propertyId: mine, start: day(6), end: day(8), extra: { babies: 1, babyBeds: 1 } });
   assert.equal(reservationsModel.getBabyBedAvailability(mine, day(3), day(8), null), 0);
   assert.deepEqual(resourcesModel.getBabyBedAvailability(mine, day(6), day(8), null), { totalQuantity: 2, reserved: 1, available: 1 });
+  assert.equal(reservationsModel.getBabyBedAvailability(mine, day(6), day(8), null), 1);
 });
 
 test('rule 21 — a per-stay resource reads the same peak on the save and on the availability', () => {
