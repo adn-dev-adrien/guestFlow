@@ -111,7 +111,8 @@
       "Rapprochement bancaire : la date de mise en service est un vrai jour, de 5 ans avant à 5 ans après aujourd’hui ; la date déjà enregistrée reste acceptée telle quelle. Compatible avec le SDK 2.20 de GuestFlow."
     ],
     "1.5.3": [
-      "Rapprochement bancaire : « Défaire » est refusé tant qu’un remboursement a besoin de cet argent, et le nomme. Compatible avec le SDK 2.20 de GuestFlow."
+      "Rapprochement bancaire : « Défaire » est refusé tant qu’un remboursement a besoin de cet argent, et le nomme.",
+      "Rapprochement bancaire : une demande de mauvaise forme est refusée, jamais une erreur interne ni une ligne écartée illisible. Compatible avec le SDK 2.20 de GuestFlow."
     ]
   }
 }

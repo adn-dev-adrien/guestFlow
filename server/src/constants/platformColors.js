@@ -1,7 +1,8 @@
 // Known booking-platform colours (shared by the platform-colors endpoint and iCal source creation).
 // One hue per platform, each readable with white or ink text at 4.5:1 or more
 // (specs/calendar-property-parity.md rule 6).
-const KNOWN_PLATFORM_COLORS = {
+// Read by a platform's slug, which anyone may name « constructor »: no prototype to find a function on.
+const KNOWN_PLATFORM_COLORS = Object.assign(Object.create(null), {
   direct: '#2F5D46',
   airbnb: '#C93848',
   greengo: '#8BC34A',
@@ -14,14 +15,14 @@ const KNOWN_PLATFORM_COLORS = {
   // Mirrors client/src/constants/platforms.js which carries both spellings.
   gitesdefrance: '#F2CC3D',
   pitchup: '#EF7D22',
-};
+});
 
 const DEFAULT_PLATFORM_COLOR = '#6E6A5E';
 
 // The palette before specs/calendar-property-parity.md rule 6. Rows written while it was the built-in one
 // (`ical_sources.platformColor` at creation) hold these values: they are the old DEFAULT, never an operator's
 // choice, so the boot backfill and the colour listing must not read them as a custom colour.
-const LEGACY_PLATFORM_COLORS = {
+const LEGACY_PLATFORM_COLORS = Object.assign(Object.create(null), {
   direct: '#c9a227',
   airbnb: '#FF5A5F',
   greengo: '#4CAF50',
@@ -31,7 +32,7 @@ const LEGACY_PLATFORM_COLORS = {
   gitedefrance: '#e6c832',
   gitesdefrance: '#e6c832',
   pitchup: '#f57c00',
-};
+});
 const LEGACY_DEFAULT_PLATFORM_COLOR = '#757575';
 
 /** Whether `color` is a built-in default (current or pre-2026-10-28) for the platform `slug`, not a custom one. */

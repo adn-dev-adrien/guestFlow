@@ -109,6 +109,7 @@
     ],
     "1.7.11": [
       "Une réservation introuvable ou des données invalides se lisent en français.",
+      "Un libellé facturable qui n’est pas un texte est refusé : plus de « [object Object] » proposé à l’accueil.",
       "Compatible avec le SDK 2.21 de GuestFlow."
     ]
   }

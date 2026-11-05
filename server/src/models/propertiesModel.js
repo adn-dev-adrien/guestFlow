@@ -648,7 +648,7 @@ function createPropertiesModel(database) {
     async update(id, body = {}, photoFile = null) {
       const existing = database.prepare('SELECT photo, nameArticle, extraGuestPriceUnit, welcomePackCost, defaultCautionAmount, depositDueDays, balanceDaysBefore, cancelAfterBalanceDueDays FROM properties WHERE id = ?').get(id);
       const newPhoto = photoFile ? await saveOptimizedPhoto(photoFile) : '';
-      const photo = newPhoto || (body.photo || (existing ? existing.photo : ''));
+      const photo = newPhoto || (existing ? existing.photo : '');
 
       database.prepare(`
         UPDATE properties SET name=?, nameArticle=?, photo=?, maxGuests=?, maxBabies=?, basePriceIncludedGuests=?, extraGuestPrice=?, extraGuestPriceUnit=?, welcomePackCost=?, singleBeds=?, doubleBeds=?, depositPercent=?, depositDueDays=?, balanceDaysBefore=?, cancelAfterBalanceDueDays=?, defaultCheckIn=?, defaultCheckOut=?, cleaningHours=?, defaultCautionAmount=?, touristTaxPerDayPerPerson=?, touristTaxMode=?, touristTaxPercentage=?, touristTaxDepartmentPercentage=?, touristTaxFixedAmount=?, depositEnabled=?, updatedAt=datetime('now')

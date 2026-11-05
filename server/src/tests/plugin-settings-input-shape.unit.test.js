@@ -1,5 +1,6 @@
-// specs/plugins-phase-1-sdk.md rule 7, reading of 2026-11-04 (audit R22-P1) — the generic settings write: an object or a
-// list is 400 INVALID_SETTING with nothing written and no validator called; a field of spaces keeps a secret as '' does.
+// specs/plugins-phase-1-sdk.md rule 7, readings of 2026-11-04 and 2026-11-05 (audit R22-P1, R23-P1) — the generic settings
+// write: an object or a list is 400 INVALID_SETTING with nothing written and no validator called; a field of spaces keeps a
+// secret as '' does; a secret is a string or null, and a boolean never reaches a validator.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
@@ -97,4 +98,34 @@ test('R22-P1 — strings, numbers and booleans stay accepted; a plain setting ca
   assert.equal(save({ label: '' }).statusCode, 200);
   assert.equal(settingsModel.raw(ID, 'label'), '');
   assert.equal(save({ checked: 'bad' }).statusCode, 400);
+});
+
+test('R23-P1 — a boolean or a number replaces no secret, and writes nothing', () => {
+  const { save, settingsModel } = boot();
+  assert.equal(save({ apiKey: 'the-real-key' }).statusCode, 200);
+  for (const value of [true, false, 12, 0]) {
+    const res = save({ apiKey: value });
+    assert.equal(res.statusCode, 400, JSON.stringify(value));
+    assert.equal(res.body.error, 'INVALID_SETTING');
+    assert.equal(res.body.errors.apiKey, 'Valeur invalide.');
+  }
+  assert.equal(settingsModel.get(ID, 'apiKey', { secret: true }), 'the-real-key');
+  assert.equal(save({ apiKey: 'replaced' }).statusCode, 200);
+  assert.equal(settingsModel.get(ID, 'apiKey', { secret: true }), 'replaced');
+  assert.equal(save({ apiKey: null }).statusCode, 200, 'null still clears a plugin secret (rule 7)');
+  assert.equal(settingsModel.get(ID, 'apiKey', { secret: true }), '');
+});
+
+test('R23-P1 — a boolean never passes a validator as a number; a key with no validator keeps its reading', () => {
+  const { save, settingsModel } = boot();
+  for (const value of [true, false]) {
+    const res = save({ checked: value });
+    assert.equal(res.statusCode, 400, JSON.stringify(value));
+    assert.equal(res.body.errors.checked, 'Valeur invalide.');
+  }
+  assert.deepEqual(validated, []);
+  assert.equal(save({ checked: 'good' }).statusCode, 200);
+  assert.equal(save({ checked: 3 }).statusCode, 200);
+  assert.equal(save({ label: true }).statusCode, 200);
+  assert.equal(settingsModel.raw(ID, 'label'), 'true');
 });

@@ -171,7 +171,7 @@ test('rule 18: the catalogue endpoint hides a resource sold by the hour while it
   assert.equal(shown.body.items[1].footer, 'ok');
 });
 
-const controller = () => resourcesController.buildController(fakeModel([resource()]), { isOffered: () => true });
+const controller = () => resourcesController.buildController(fakeModel([resource()]), { isOffered: () => true, properties: () => PROPS });
 const refused = (body) => {
   const r = fakeRes();
   controller().create({ body }, r);

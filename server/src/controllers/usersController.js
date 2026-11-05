@@ -44,9 +44,9 @@ function notTextRefusal(body) {
 }
 
 // A blank entry is dropped; one that is not a string stays, for UNKNOWN_ROLE to refuse.
-const readRoles = (list) => list
+const readRoles = (list) => [...new Set(list
   .map((role) => (role === undefined || role === null ? '' : (typeof role === 'string' ? role.trim() : role)))
-  .filter((role) => role !== '');
+  .filter((role) => role !== ''))];
 
 function unknownRoleRefusal(roles) {
   const role = roles.find((r) => !isKnownRole(r));

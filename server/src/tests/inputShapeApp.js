@@ -95,6 +95,7 @@ async function startApp() {
   return {
     ...seed,
     base,
+    dbPath: path.join(dir, 'g.db'),
     call,
     login,
     activatePlugins,

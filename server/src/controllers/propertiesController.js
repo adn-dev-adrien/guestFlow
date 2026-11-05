@@ -6,7 +6,7 @@ const { isHistoryMessage } = require('../utils/deletionGuard');
 const { buildProgressivePreview } = require('../utils/pricing');
 const { ADMIN, RECEPTION, userHasRole } = require('../constants/roles');
 const { toReceptionPropertyList } = require('../utils/receptionView');
-const { validatePropertyInput, seasonInputRefusal, progressivePreviewRefusal } = require('../utils/propertyValidation');
+const { validatePropertyInput, cleanPropertyText, seasonInputRefusal, progressivePreviewRefusal } = require('../utils/propertyValidation');
 const { positiveId } = require('../utils/bodyText');
 const { isWrongFieldType, WRONG_FIELD_TYPE } = require('../utils/bodyParserRefusal');
 const { PROPERTY_LIMITS } = require('../utils/inputLimits');
@@ -103,6 +103,7 @@ function refuseInvalid(res, body, existing) {
 }
 
 async function create(req, res) {
+  req.body = cleanPropertyText(req.body);
   if (refuseInvalid(res, req.body, null)) return;
   const refusal = quotaRefusal('units', () => model.count());
   if (refusal) return void res.status(402).json(refusal);
@@ -119,7 +120,9 @@ async function create(req, res) {
 }
 
 async function update(req, res) {
-  if (refuseInvalid(res, req.body, model.getByIdWithDetails(req.params.id))) return;
+  const stored = model.getByIdWithDetails(req.params.id);
+  req.body = cleanPropertyText(req.body, stored);
+  if (refuseInvalid(res, req.body, stored)) return;
   try {
     const before = priceBearingRow(req.params.id);
     const result = await model.update(req.params.id, req.body, req.file);

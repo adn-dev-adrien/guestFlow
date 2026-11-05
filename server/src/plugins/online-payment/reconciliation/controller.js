@@ -41,6 +41,16 @@ const parseJson = (raw, fallback) => { try { return raw ? JSON.parse(raw) : fall
  * @param {Function} deps.withQonto      `(fn) → Promise`
  * @param {object} deps.core             `{ buildLedger, parseGroup, listLinks, platformDisplay, todayIso }`
  */
+// Hosting-h2 rule 68, reading of 2026-11-05 — the routes' wrap answers a throw with a 500: what `String()` cannot read stops
+// here, and every other value keeps the refusal it always had.
+const isName = (value) => typeof value === 'string' && value !== '';
+const isScalar = (value) => typeof value === 'string' || typeof value === 'number';
+const optionalScalar = (value) => value === undefined || value === null || isScalar(value);
+const wrongShape = () => ({ status: 400, body: { error: 'Requête invalide.', code: 'INVALID_FIELD_TYPE' } });
+const pairsRead = (pairs) => !Array.isArray(pairs) || pairs.every((p) => p && typeof p === 'object' && !Array.isArray(p)
+  && optionalScalar(p.transactionId) && optionalScalar(p.reservationId) && optionalScalar(p.ledgerKey) && optionalScalar(p.amountCents));
+const listRead = (list) => !Array.isArray(list) || list.every(isScalar);
+
 function createReconciliationController({ db, settings, transactions, model, writer, read, connected, withQonto, core }) {
   let lastAttemptAt = 0;
 
@@ -461,6 +471,7 @@ function createReconciliationController({ db, settings, transactions, model, wri
 
     /** POST /links — « Confirmer » and manual linking of one credit (rules 12, 18, 34). */
     confirm({ transactionId, allocations, user }) {
+      if (!optionalScalar(transactionId) || !pairsRead(allocations)) return wrongShape();
       if (!connected()) return notConnected();
       const list = Array.isArray(allocations) ? allocations : [];
       return linkPairs({ pairs: list.map((a) => ({ ...a, transactionId: String(transactionId) })), user, legacy: true });
@@ -468,12 +479,14 @@ function createReconciliationController({ db, settings, transactions, model, wri
 
     /** POST /links/batch — several credits over several receipts, one transaction (rules 5–8, 14). */
     linkBatch({ pairs, user, proposalId }) {
+      if (!pairsRead(pairs) || !optionalScalar(proposalId)) return wrongShape();
       if (!connected()) return notConnected();
       return linkPairs({ pairs: Array.isArray(pairs) ? pairs : [], user, enforceCap: true, proposalId });
     },
 
     /** POST /allocation-preview — what the ticked credits would do, written nowhere (rules 5–7). */
     previewAllocation({ reservationId, transactionIds, receiptKeys, pairs, proposalId }) {
+      if (!pairsRead(pairs) || !optionalScalar(proposalId) || !optionalScalar(reservationId) || !listRead(transactionIds) || !listRead(receiptKeys)) return wrongShape();
       if (!connected()) return notConnected();
       const data = compute();
       const index = creditIndex(data);
@@ -519,6 +532,7 @@ function createReconciliationController({ db, settings, transactions, model, wri
 
     /** POST /confirm-all — the proposals the page showed, each in its own transaction (rules 12–13). */
     confirmAll({ proposalIds, amounts, user }) {
+      if (!listRead(proposalIds) || (amounts != null && (typeof amounts !== 'object' || !Object.values(amounts).every(optionalScalar)))) return wrongShape();
       if (!connected()) return notConnected();
       const ids = [...new Set((Array.isArray(proposalIds) ? proposalIds : []).map(String))];
       const expected = amounts && typeof amounts === 'object' ? amounts : {};
@@ -565,6 +579,9 @@ function createReconciliationController({ db, settings, transactions, model, wri
     /** Rule 19 — discarding one fiche of a group proposal discards the whole pairing of that credit. */
     discard({ transactionId, reservationId, ledgerKey }) {
       if (!connected()) return notConnected();
+      // A garbage row here is inert but permanent.
+      const id = typeof reservationId === 'string' && /^[1-9]\d*$/.test(reservationId) ? Number(reservationId) : reservationId;
+      if (!isName(transactionId) || !isName(ledgerKey) || !Number.isSafeInteger(id) || id <= 0) return wrongShape();
       const txIdsOf = (p) => (p.parts ? p.parts.map((x) => x.transactionId) : [p.transactionId]);
       const shown = Object.values(compute().byTransaction).map((slot) => slot.proposal)
         .find((p) => p && txIdsOf(p).includes(String(transactionId))

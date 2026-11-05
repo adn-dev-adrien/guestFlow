@@ -12,6 +12,7 @@
 const { CATALOGUE, entryOf } = require('../utils/stayTextCatalogue');
 // Rule 4, and specs/guest-email-texts-made-simple.md rule 11: one validation for every editor.
 const { tokenError, lengthError } = require('../utils/templateTokens');
+const { isOptionalText, positiveId } = require('../utils/bodyText');
 const stayTextsModel = require('../models/stayTextsModel');
 
 function buildController({ database }) {
@@ -55,10 +56,14 @@ function buildController({ database }) {
     const entry = entryOf(req.params.key);
     if (!entry) return res.status(404).json({ error: 'STAY_TEXT_NOT_FOUND' });
     const body = req.body || {};
-    const propertyId = Number(body.propertyId) || 0;
+    const notText = ['fr', 'en'].find((lang) => !isOptionalText(body[lang]));
+    if (notText) return res.status(422).json({ field: notText, message: 'Texte attendu.' });
+    const noProperty = body.propertyId == null || body.propertyId === '' || body.propertyId === 0;
+    const propertyId = noProperty ? 0 : positiveId(body.propertyId);
+    if (propertyId === null) return res.status(400).json({ error: 'INVALID_FIELD', field: 'propertyId' });
     if (propertyId && !entry.overridable) return res.status(400).json({ error: 'NOT_OVERRIDABLE' });
-    const fr = body.fr == null ? '' : String(body.fr);
-    const en = body.en == null ? '' : String(body.en);
+    const fr = body.fr ?? '';
+    const en = body.en ?? '';
     const allowed = { tokens: entry.tokens, flags: entry.flags };
     const error = tokenError('fr', fr, allowed) || tokenError('en', en, allowed) || lengthError('fr', fr) || lengthError('en', en);
     if (error) return res.status(422).json(error);
