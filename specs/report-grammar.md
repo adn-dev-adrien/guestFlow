@@ -103,6 +103,16 @@ like the approved design page, on desktop and phone, without writing chart or ti
     > **Sans test** — a development-only page with no behaviour of its own: each component it shows is
     > covered by its own test, and the production build is checked not to contain it (§7).
 
+18. **A row of tiles reads level** (2026-11-05, lot 3 follow-up). A tile with a definition or a pill is a
+    column laid from its top (`display: flex`, `flex-direction: column`, `justify-content: flex-start`):
+    a `<button>` centres its content vertically whatever its `display`, so in a row where only some tiles
+    carry a pill the others' labels sat 12 px lower. The legacy tile (neither `info` nor `comparison`)
+    keeps its markup byte for byte (rule 1).
+19. **A pill's text is readable on its soft background** (2026-11-05, lot 3 follow-up). In report mode
+    the pill writes its text in the palette's `text` shade (`success.text`, `error.text`,
+    `neutral.text`) on its `soft` background — each ≥ 4.5:1, small text — never in `main`
+    (`success.main` on `success.soft` is 4.2:1).
+
 **Edge cases:**
 - A series whose values are all null → no line, no end label, still listed in the legend and table.
 - A KPI tile with `info` but no `comparison` → no pill (the pill only appears when `comparison` is sent).
@@ -212,6 +222,7 @@ Reference: the approved design page, section « Graphiques » (`#graphiques`), r
 - `components/__tests__/chartPalette.categorical.test.js` — rule 13
 - `utils/__tests__/reportChart.helpers.test.js` — rules 8, 10, 12
 - Existing suites of `SelectableTile`, `YearOverYearBadge`, `PageTabs` and the finance page stay green unmodified.
+- 2026-11-05 (lot 3 follow-up): `components/__tests__/SelectableTile.row-alignment.test.jsx` (2) — rule 18; `components/__tests__/YearOverYearBadge.report-contrast.test.jsx` (5) — rule 19. `ReportGrammar.legacy-unchanged` still passes unmodified: the legacy tile's markup did not move.
 
 ### Build
 

@@ -1,6 +1,10 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
+// The clock is pinned for the whole file (specs/server-test-isolation.md rule 7): « today » is the day the
+// comparisons were written against, so no date below is ever passed by the calendar.
+require('node:test').mock.timers.enable({ apis: ['Date'], now: Date.UTC(2026, 10, 5, 11) });
+
 // specs/finance-revpar-year-over-year.md §3 rules 4, 5, 6, 8, 10, 11 and 13 — the dashboard's
 // `comparison`: the headline figures against the comparable part of the window a year back, read by
 // the functions that compute the figures themselves, with their source.

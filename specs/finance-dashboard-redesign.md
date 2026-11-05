@@ -185,6 +185,7 @@ without losing anything today's page shows.
     chose ink over a flat fir green and over a white card.
     > **Sans test** — a colour choice, checked on screen at 1440 and 390 px (manual verification of
     > rules 30-32 below and the polish summary).
+    > Superseded by rule 52 (2026-11-05).
 32. **Radii follow the design system**: 14 px for every card (banner, tiles, insight cards — the
     theme's `shape.borderRadius`, i.e. `borderRadius: 1` in `sx`), 10 px for inner frames (logement
     strip cards, the banner's figure grid, occupancy charts, the detail panel's summary), 8 px for icon
@@ -411,6 +412,22 @@ without losing anything today's page shows.
     `components/__tests__/PeriodSelector.real-day.test.jsx`, `pages/__tests__/FinancePage.refused-load.test.jsx`,
     `pages/__tests__/FinancePage.server-day-arrives.test.jsx`.
 
+52. **The banner is a light card** (Adrien, 2026-11-05, supersedes rule 31). « Carte claire »
+    (`docs/rapports/2026-11-05-bandeau-suivi-financier.html`, variant 3): `background.paper`, a 1 px
+    `divider` border, radius 14 px, a 3 px fir rule (`primary.main`) inset at the top; the kicker line
+    in fir serif (`sectionHeader`), the revenue in ink (`text.primary`), the sub-line and the figure
+    labels in `text.secondary`. The figures sit on white in a grid whose hairlines are the `divider`
+    (1 px between the cells and around the grid). The year-over-year pills keep their light-surface
+    style (report grammar rule 3, `success.text` / `error.text` on `soft`, ≥ 4.5:1), the « i » its light
+    variant. The cumulative curve is `palette.chart.current` with its light area, last year dashed in
+    `lastYearEdge`, ticks in `chart.tick`; the goal bar is fir on `neutral.soft`. No `palette.chart.onInk`
+    token is left in the theme. In the hero's grid (two columns, the right one wider), each pill stays on
+    one line from `sm` up and may wrap on a phone. *Why:* the same grammar as the synthesis, tourist-tax
+    and profile pages — one family of pages; the pills keep their usual meaning without a special palette
+    for a dark background; no brightness jump at the top of the page, no ink block when printed. The risk
+    noted on 2026-09-29 (the key figure stands out less) is met by the fir rule and the 3 rem figure.
+    Test: `components/__tests__/FinanceHero.light-card.test.jsx`.
+
 ---
 
 ## 4. Architecture
@@ -448,7 +465,7 @@ séjour », attribution date, HT, `comptaCollected`, remaining-to-pay, settled. 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
 | `pages/` | `FinancePage.jsx` | T (rewrite) | URL state, loads `/dashboard`, lays out strip → hero → insights → tiles + detail → charts; 2026-10-18 `handleSettleOverdue` sends the late row's `paidField`s only (rule 38) |
-| `components/` | `FinanceHero.jsx` | C | Ink banner: revenue, badge, goal bar, 4 figures in a grid, cumulative curve (Recharts `AreaChart`, numeric axis on `hero.axis`); 2026-10-19 56 px curve while `hero.curveCompact` (rule 46), ink colours from `palette.chart.onInk` |
+| `components/` | `FinanceHero.jsx` | C | Ink banner: revenue, badge, goal bar, 4 figures in a grid, cumulative curve (Recharts `AreaChart`, numeric axis on `hero.axis`); 2026-10-19 56 px curve while `hero.curveCompact` (rule 46), ink colours from `palette.chart.onInk`; 2026-11-05 a light card on theme tokens, `onInk` removed (rule 52) |
 | `components/` | `PeriodSelector.jsx` | C | Generic: segmented *Exercice / Mois / Personnalisée* + month select / date pair with its refusal message |
 | `components/` | `ChoiceCardStrip.jsx` | C | Generic: horizontally scrollable selectable cards (label, value, caption, colour dot) |
 | `components/` | `InsightCard.jsx` | C | Generic: icon + bold line + caption, tone (success / warning / error / info); optional text action (`actionLabel` / `onAction`, rule 35); 2026-10-19 text column `min-width: 0`, wraps anywhere (rule 43) |
@@ -639,6 +656,7 @@ par mois » and « Taux d'occupation » side by side.
   the breakdown case of `finance-refunds.unit.test.js` now reads `getSummary`.
 
 ### Client tests
+- [x] `components/__tests__/FinanceHero.light-card.test.jsx` (4, 2026-11-05) — rule 52: white card, divider border and fir rule, kicker in fir, light pills (`text` on `soft`) and light « i », no `onInk` token left.
 - [x] `PeriodSelector.test.jsx` (3) — rules 1-2: month window, reversed and missing dates refused.
 - [x] `PeriodSelector.window-cap.test.jsx` (2) — rule 51: a window wider than 750 days refused on the spot, never sent.
 - [x] `PeriodSelector.date-horizon.test.jsx` (2) — rule 51, reading of 2026-11-02: « Au » past the date horizon refused on the spot, never sent.
@@ -739,3 +757,7 @@ All resolved on 2026-09-29:
 - Q (2026-09-29, after 3.7.0): colour of the banner once the gradient and halo go?
   - A: **Ink** (`#27251F`) with honey accents, chosen on `docs/specs/2026-09-29-finance-dashboard-polish.html`
     over a flat fir green and a white card (rule 31).
+- Q (2026-11-05, Finance reporting inspired by HIPPOCAMP): ink banner or light card, now that the
+  synthesis, tourist-tax and profile pages are white report cards?
+  - A: **Light card** (« Carte claire », variant 3 of `docs/rapports/2026-11-05-bandeau-suivi-financier.html`),
+    Adrien's decision of 2026-11-05: rule 52, which supersedes rule 31.

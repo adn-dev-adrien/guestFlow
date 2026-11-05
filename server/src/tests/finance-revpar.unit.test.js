@@ -1,6 +1,10 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
+// The clock is pinned for the whole file (specs/server-test-isolation.md rule 7): « today » is the day the
+// comparisons were written against, so no date below is ever passed by the calendar.
+require('node:test').mock.timers.enable({ apis: ['Date'], now: Date.UTC(2026, 10, 5, 11) });
+
 // specs/finance-revpar-year-over-year.md §3 rules 1, 2 and 3 — RevPAR = the page's revenue ÷ the open
 // nights of the window, the open nights being the occupancy denominator itself (closures and nights
 // before a logement's data excluded); the revenue per night sold is the existing figure.

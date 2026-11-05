@@ -20,7 +20,7 @@ export const COMPARED = {
   comparison: {
     comparable: true, reason: null, notice: 'Comparaison sur 8 mois sur 12 : les données commencent en mai 2025.',
     months: 8, totalMonths: 12, complete: false, comparableFrom: null,
-    current: { from: '2026-05-01', to: '2026-12-31' }, previous: { from: '2025-05-01', to: '2025-12-31' },
+    current: { from: '2026-05-01', to: '2026-12-31' }, previous: { from: '2025-05-01', to: '2025-12-31' }, // date-literal-ok: the range is only echoed by the payload, the page compares it with nothing
     metrics: {
       revenue: metric(3600, 3000, 20, 'percent'),
       collected: metric(3000, 20534, 44.4, 'percent', 'payments'),
