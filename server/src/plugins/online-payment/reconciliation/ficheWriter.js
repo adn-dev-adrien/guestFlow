@@ -28,10 +28,24 @@ const frDate = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
  * @param {Function} deps.computePlatformCommission
  * @param {object} deps.reservations       core reservationsModel (getRow, addHistoryEntry, updatePaymentField)
  * @param {object} [deps.installments]     core installmentsModel (findById, markUnpaid): « Défaire » takes an installment back
+ * @param {Function} [deps.takeBackRefusal] core guard: a mark taken back never leaves book refunds above what stays collected
  */
-function createFicheWriter({ model, applyPaymentMark, computePlatformCommission, reservations, installments = null }) {
+function createFicheWriter({ model, applyPaymentMark, computePlatformCommission, reservations, installments = null, takeBackRefusal = null }) {
   const history = (reservationId, label, from, to) => reservations.addHistoryEntry(reservationId, 'update',
     [{ field: 'bankReconciliation', label, from, to }]);
+  const installmentOfWrite = (w) => {
+    const installment = installments ? installments.findById(w.written.installmentId) : null;
+    const untouchedSince = installment && Number(installment.paid) === 1 && day(installment.paidDate) === w.written.date
+      && String(installment.paidMethod) === 'transfer';
+    return untouchedSince ? installment : null;
+  };
+  const bucketEdited = (w) => {
+    const fields = BUCKET_FIELDS[w.ledgerKey];
+    const row = reservations.getRow(w.reservationId);
+    return !row || !fields
+      || Number(row[fields.flag] || 0) !== 1 || day(row[fields.date]) !== w.written.date
+      || (w.written.payout != null && round2(row.platformPayoutAmount) !== round2(w.written.payout));
+  };
 
   return {
     /**
@@ -91,6 +105,28 @@ function createFicheWriter({ model, applyPaymentMark, computePlatformCommission,
     },
 
     /**
+     * specs/reservation-refunds.md rule 52 — what `restoreForTransaction` would take back must not leave book refunds above
+     * what stays collected: the refusal, or null. Only the marks it would really touch count.
+     */
+    undoRefusal({ transactionId }) {
+      if (!takeBackRefusal) return null;
+      const byStay = new Map();
+      model.ficheWritesOfTransaction(transactionId).forEach((w) => {
+        const stay = byStay.get(w.reservationId) || { flags: [], installmentCents: 0 };
+        if (w.written.installmentId != null) {
+          const installment = installmentOfWrite(w);
+          if (installment) stay.installmentCents += Number(installment.amountCents);
+        } else if (!bucketEdited(w)) stay.flags.push(BUCKET_FIELDS[w.ledgerKey].flag);
+        byStay.set(w.reservationId, stay);
+      });
+      for (const [reservationId, stay] of byStay) {
+        const refusal = takeBackRefusal(reservationId, stay);
+        if (refusal) return refusal;
+      }
+      return null;
+    },
+
+    /**
      * Rule 38 — puts back what the confirmations of this credit wrote, unless the fiche was edited since.
      * @returns {{ restored: object[], untouched: object[] }}
      */
@@ -100,10 +136,8 @@ function createFicheWriter({ model, applyPaymentMark, computePlatformCommission,
       model.ficheWritesOfTransaction(transactionId).forEach((w) => {
         if (w.written.installmentId != null) {
           // An installment the confirmation marked received goes back to unpaid, unless it was touched since.
-          const installment = installments ? installments.findById(w.written.installmentId) : null;
-          const untouchedSince = installment && Number(installment.paid) === 1 && day(installment.paidDate) === w.written.date
-            && String(installment.paidMethod) === 'transfer';
-          if (untouchedSince && installments.markUnpaid(installment.id).flipped) {
+          const installment = installmentOfWrite(w);
+          if (installment && installments.markUnpaid(installment.id).flipped) {
             history(w.reservationId, 'Rapprochement bancaire', `reçu le ${frDate(w.written.date)}`, 'à percevoir (rapprochement défait)');
             restored.push({ reservationId: w.reservationId, ledgerKey: w.ledgerKey });
           } else untouched.push({ reservationId: w.reservationId, ledgerKey: w.ledgerKey });
@@ -111,11 +145,7 @@ function createFicheWriter({ model, applyPaymentMark, computePlatformCommission,
           return;
         }
         const fields = BUCKET_FIELDS[w.ledgerKey];
-        const row = reservations.getRow(w.reservationId);
-        const edited = !row || !fields
-          || Number(row[fields.flag] || 0) !== 1 || day(row[fields.date]) !== w.written.date
-          || (w.written.payout != null && round2(row.platformPayoutAmount) !== round2(w.written.payout));
-        if (edited) {
+        if (bucketEdited(w)) {
           untouched.push({ reservationId: w.reservationId, ledgerKey: w.ledgerKey });
           model.deleteFicheWrite(w.id);
           return;

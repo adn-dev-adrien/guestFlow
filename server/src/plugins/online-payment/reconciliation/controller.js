@@ -550,6 +550,8 @@ function createReconciliationController({ db, settings, transactions, model, wri
     /** DELETE /links/:transactionId — « Défaire » (rule 38). */
     undo({ transactionId, user }) {
       if (!connected()) return notConnected();
+      const refusal = writer.undoRefusal({ transactionId: String(transactionId) });
+      if (refusal) return refusal;
       let result = { restored: [], untouched: [] };
       db.transaction(() => {
         result = writer.restoreForTransaction({ transactionId: String(transactionId), user });

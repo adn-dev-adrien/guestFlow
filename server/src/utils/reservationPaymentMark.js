@@ -41,4 +41,17 @@ function applyPaymentMark({ reservationId, body, user }) {
   return { status, body: payload };
 }
 
-module.exports = { applyPaymentMark, computePlatformCommission };
+/**
+ * specs/reservation-refunds.md rule 52 — whether taking back these marks (`flags`) or this much of a plan (`installmentCents`)
+ * would leave book refunds above what stays collected: the refusal, or null. For a caller that takes a mark back without the PATCH.
+ */
+function takeBackRefusal(reservationId, { flags = [], installmentCents = 0 } = {}) {
+  const row = require('../models/reservationsModel').getRow(Number(reservationId));
+  if (!row) return null;
+  const changes = Object.fromEntries(flags.map((flag) => [flag, 0]));
+  if (installmentCents > 0) changes.installmentsPaidAmount = (Math.round(Number(row.installmentsPaidAmount || 0) * 100) - installmentCents) / 100;
+  const { untickRefusal } = require('./refundUntickGuard');
+  return untickRefusal(row, changes, require('../models/refundsModel').listByReservation(Number(reservationId)));
+}
+
+module.exports = { applyPaymentMark, computePlatformCommission, takeBackRefusal };

@@ -66,3 +66,54 @@ test('a complement already collected keeps its first stamp, whichever path passe
   model.commitArrivalSas(stay.id, { complementSettled: true });
   assert.equal(rowOf(stay.id).complementPaidSplit, first);
 });
+
+// Audit R23-S3 — the lines of `complementPaidSplit.js` no test held.
+const { computeComplementPaidSplit, stampComplementPaidSplit } = require('../utils/complementPaidSplit');
+const { put } = require('./moneyLedgerFixture');
+
+test('an adjusted complement is not stamped: the operator’s allocation decides', async () => {
+  const stay = fiche(NO_ACOMPTE, 'direct', { customOptions: [forced(20)] });
+  pay(stay.id, S);
+  await put(stay, { complementAmountOverride: 80 });
+  assert.ok(rowOf(stay.id).complementAllocation, 'the save stored the allocation');
+  pay(stay.id, C);
+  assert.equal(rowOf(stay.id).complementPaid, 1);
+  assert.equal(rowOf(stay.id).complementPaidSplit, null);
+});
+
+test('an offered line collected nothing: the contrib path skips it', () => {
+  const stay = fiche(NO_ACOMPTE, 'direct', { customOptions: [forced(20), forced(30, 'Offerte')] });
+  pay(stay.id, S);
+  db.prepare("UPDATE reservation_custom_options SET offered = 1 WHERE reservationId = ? AND description = 'Offerte'").run(stay.id);
+  db.prepare('UPDATE reservations SET complementAmount = 20 WHERE id = ?').run(stay.id);
+  const split = computeComplementPaidSplit(db, stay.id);
+  assert.deepEqual(split.lines.map((line) => [line.key, line.cents]), [['custom:forcée', 2000]]);
+});
+
+test('the share sold during the stay stays out of what the complement collected', () => {
+  const stay = fiche(NO_ACOMPTE, 'direct', { customOptions: [forced(50)] });
+  pay(stay.id, S);
+  db.prepare('UPDATE reservations SET complementAmount = 40, endOfStayComplementAmount = 10, endOfStayComplementDetail = ? WHERE id = ?')
+    .run(JSON.stringify([{ source: 'midStayExtra', key: 'custom:forcée', label: 'Forcée', amount: 10 }]), stay.id);
+  const split = computeComplementPaidSplit(db, stay.id);
+  assert.deepEqual(split.lines.map((line) => [line.key, line.cents]), [['custom:forcée', 4000]]);
+  assert.equal(split.accommodationCents, 0);
+});
+
+test('a contrib split a euro off the complement is not accepted: it falls to the stored money', () => {
+  const stay = fiche(NO_ACOMPTE, 'direct', { customOptions: [forced(50)] });
+  pay(stay.id, S);
+  db.prepare('UPDATE reservations SET complementAmount = 51 WHERE id = ?').run(stay.id);
+  const split = computeComplementPaidSplit(db, stay.id);
+  assert.equal(split.optionsCents, 5100);
+  assert.equal(split.accommodationCents, 0);
+});
+
+test('a direct call on a stamped row keeps its stamp', () => {
+  const id = unpaidComplement();
+  pay(id, C);
+  const first = { ...FORCED_ONLY, optionsCents: 1500, accommodationCents: 500, lines: [] };
+  db.prepare('UPDATE reservations SET complementPaidSplit = ? WHERE id = ?').run(JSON.stringify(first), id);
+  stampComplementPaidSplit(db, id);
+  assert.deepEqual(stampOf(id), first);
+});

@@ -140,12 +140,15 @@ function withheldCommissionsOf(database, reservationsModel, row, vatRate) {
  */
 function bookedStayBuckets({ database, reservationsModel, installmentsModel = null }, row, vatRate) {
   const retained = installmentsRetainedOf(installmentsModel, database, Number(row.id), row);
+  const bookedOn = (bucket) => round2(retained.installments.reduce((total, installment) => total + installment[bucket], 0));
   return {
     deposit: Number(row.depositPaid) ? depositBucketsOf(database, reservationsModel, row, vatRate) : null,
     solde: saleCollectedOf(database, reservationsModel, row, vatRate),
-    // Rule 49 reading of 2026-11-05 (R22 verification, L1) — the accommodation and the tax a plan's installments were booked on.
+    // Rule 49 readings of 2026-11-05 (R22 verification, L1; audit R23 N5) — what a plan's installments were booked on.
     installments: retained && {
-      accommodation: round2(retained.installments.reduce((total, installment) => total + installment.accommodation, 0)),
+      accommodation: bookedOn('accommodation'),
+      options: bookedOn('options'),
+      resources: bookedOn('resources'),
       touristTax: retained.touristTaxTtc,
     },
   };

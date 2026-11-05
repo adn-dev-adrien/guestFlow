@@ -25,7 +25,7 @@ function mountReconciliation(ctx, { store }) {
     const { withQonto } = sdk.coreModule('qonto').qontoService;
     const { buildLedger } = sdk.coreModule('reservationLedger');
     const { parseGroup } = sdk.coreModule('arrivalPaymentGroup');
-    const { applyPaymentMark, computePlatformCommission } = sdk.coreModule('reservationPaymentMark');
+    const { applyPaymentMark, computePlatformCommission, takeBackRefusal } = sdk.coreModule('reservationPaymentMark');
     const { platformDisplay } = sdk.coreModule('platformDisplay');
     const { getTodayIsoDate } = sdk.coreModule('reservationHelpers');
     const paymentLinks = sdk.coreModule('paymentLinksModel');
@@ -35,7 +35,7 @@ function mountReconciliation(ctx, { store }) {
     const transactions = createBankTransactionsModel(ctx.db);
     const model = createReconciliationModel(ctx.db);
     const qonto = (fn) => withQonto({ settings: store, origin: 'reconciliation' }, fn);
-    const writer = createFicheWriter({ model, applyPaymentMark, computePlatformCommission, reservations, installments });
+    const writer = createFicheWriter({ model, applyPaymentMark, computePlatformCommission, reservations, installments, takeBackRefusal });
     const links = paymentLinks.buildModel(ctx.db);
     controller = createReconciliationController({
       db: ctx.db, settings: ctx.settings, transactions, model, writer,
