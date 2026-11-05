@@ -35,6 +35,10 @@ async function fakeQonto(t) {
         state.subscriptions.push(sub);
         return res.end(JSON.stringify({ webhook_subscription: sub }));
       }
+      if (route.startsWith('/v2/payment_links/connections') && state.failConnection) {
+        res.statusCode = 503;
+        return res.end(JSON.stringify({ errors: [{ code: 'unavailable', detail: 'down' }] }));
+      }
       if (route.startsWith('/v2/payment_links/connections')) return res.end(JSON.stringify({ connection: { status: 'enabled', bank_account_id: 'ba' } }));
       return res.end(JSON.stringify({ payments: [] }));
     });
@@ -192,4 +196,18 @@ test('settings-one-save-and-automatic-webhook rule 15 — with no webhook failur
   const answer = await pressTest(settings, q.env);
   assert.equal(answer.ok, true);
   assert.equal(q.subscriptions.length, 0);
+});
+
+test('settings-one-save-and-automatic-webhook rule 15 — a failed « Test » runs no webhook check and shows its own failure', async (t) => {
+  const q = await fakeQonto(t);
+  const settings = connected();
+  await ensureWebhookSubscription({ settings, env: q.env });
+  await tick();
+  q.refuseWebhook = false;
+  q.failConnection = true;
+  const answer = await pressTest(settings, q.env);
+  assert.equal(answer.ok, false);
+  assert.equal(q.subscriptions.length, 0, 'no check after a failed test');
+  // The failed call records its own origin, so the result.ok guard and the origin guard both hold the check back.
+  assert.notEqual(answer.status.health.lastError.origin, 'webhook-register');
 });

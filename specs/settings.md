@@ -67,6 +67,9 @@ UX kept simple: **one page, three cards stacked, all fields editable inline**, w
     drawing it (older logos included); a stored WEBP or GIF still prints no logo. The stored name follows the format the
     bytes hold, not the file's name: a JPEG named `.png` is stored as `company-logo.jpg` (the name and the type still have
     to say PNG or JPEG).
+    *Reading 2026-11-05 (audit R24 combined verification):* the PDF draws the logo at 100×60 pt, so the bytes it reads hold
+    at most 1200 px a side (`printableLogo`, aspect kept, never enlarged): a 10000 px logo under 2 MB no longer costs
+    seconds and gigabytes per devis. Tests: `logo-printable-size`.
 9. **Server-side validation** when non-empty:
     - Email → basic email regex.
     - SIRET → exactly 14 digits (whitespace tolerated, stripped before validation).
