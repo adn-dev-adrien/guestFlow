@@ -109,6 +109,7 @@ const deferred = () => {
   return { promise, resolve, reject };
 };
 const settle = () => new Promise((resolve) => { setTimeout(resolve, 20); });
+const TICKED_AT = new Date().toISOString();
 const switchMonth = async () => {
   fireEvent.mouseDown(screen.getAllByRole('combobox')[0]);
   const options = await screen.findAllByRole('option');
@@ -144,9 +145,9 @@ test('rule 24: a read older than a tick that has started is dropped, the later r
 
   api.getTouristTaxExtraction.mockResolvedValue({
     ...TWO_STAYS,
-    reservations: TWO_STAYS.reservations.map((r) => ({ ...r, touristTaxDeclaredAt: '2026-07-01 10:00:00' })),
+    reservations: TWO_STAYS.reservations.map((r) => ({ ...r, touristTaxDeclaredAt: TICKED_AT })),
   });
-  secondTick.resolve({ declaredAt: '2026-07-01 10:00:00' });
+  secondTick.resolve({ declaredAt: TICKED_AT });
   await waitFor(() => expect(api.getTouristTaxExtraction).toHaveBeenCalledTimes(3));
   await waitFor(() => expect(screen.getByRole('checkbox', { name: 'Déclarée — Jean Dupont' })).toBeChecked());
   expect(screen.getByRole('checkbox', { name: 'Déclarée — Anne Martin' })).toBeChecked();
@@ -166,7 +167,7 @@ test('rule 24: a tick answered after the month changed patches nothing on the ne
   const onNewMonth = await screen.findByRole('checkbox', { name: /Complément de taxe de séjour/ });
   expect(onNewMonth).not.toBeChecked();
   api.getTouristTaxExtraction.mockReturnValue(new Promise(() => {}));
-  tick.resolve({ declaredAt: '2026-07-01 10:00:00' });
+  tick.resolve({ declaredAt: TICKED_AT });
   await settle();
   expect(onNewMonth).not.toBeChecked();
 });
@@ -203,12 +204,12 @@ test('rule 26: the last tick answered reads the month on screen, even if it was 
   const main = await screen.findByRole('checkbox', { name: 'Déclarée — Jean Dupont' });
   fireEvent.click(main);
 
-  tickOnNewMonth.resolve({ declaredAt: '2026-07-01 10:00:00' });
+  tickOnNewMonth.resolve({ declaredAt: TICKED_AT });
   await settle();
   expect(api.getTouristTaxExtraction).toHaveBeenCalledTimes(2);
 
   api.getTouristTaxExtraction.mockResolvedValue(DATA);
-  tickOnOldMonth.resolve({ declaredAt: '2026-07-01 10:00:00' });
+  tickOnOldMonth.resolve({ declaredAt: TICKED_AT });
   await waitFor(() => expect(api.getTouristTaxExtraction).toHaveBeenCalledTimes(3));
   expect(api.getTouristTaxExtraction.mock.calls[2][0]).toBe(shownMonth);
   await screen.findByRole('checkbox', { name: /Complément de taxe de séjour/ });
