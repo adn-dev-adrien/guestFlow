@@ -228,6 +228,9 @@ test('rule 21: the added adults go with the amount, frozen with it once collecte
   const added = quote({ adults: 4 });
   assert.equal(added.touristTaxAddedGuestsAdults, 2);
   assert.equal(quote({ adults: 2 }).touristTaxAddedGuestsAdults, 0);
+  const noise = quote({ adults: 3 }, { taxMode: 'percentage_accommodation' });
+  assert.equal(noise.touristTaxAddedGuestsAmount, 0);
+  assert.equal(noise.touristTaxAddedGuestsAdults, 0, 'no amount, nobody it is for');
   const collected = quote({ adults: 2, complementPaid: true, storedTouristTaxAddedGuests: 2.4, storedTouristTaxAddedGuestsAdults: 1 });
   assert.equal(collected.touristTaxAddedGuestsAmount, 2.4);
   assert.equal(collected.touristTaxAddedGuestsAdults, 1);

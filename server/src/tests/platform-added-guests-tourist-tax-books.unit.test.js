@@ -120,6 +120,14 @@ test('rule 12: the added row is ticked on its own', () => {
   assert.ok(extract(model).data.reservations.find((r) => r.addedGuestsRow).touristTaxDeclaredAt);
 });
 
+test('rule 23: a tax that is not the addition keeps its name on the stored detail', () => {
+  const { detail } = arrivalComplementDetailFromReservation({
+    complementAmount: 7.2, touristTaxInComplementAmount: 7.2, touristTaxAddedGuestsAmount: 2.4, options: [], resources: [],
+  });
+  assert.equal(detail[0].label, 'Taxe de séjour');
+  assert.equal(detail[0].addedGuests, undefined);
+});
+
 test('rule 15: the stored complement detail carries the added tax on its tax line', () => {
   const { detail } = arrivalComplementDetailFromReservation({
     complementAmount: 42.4, touristTaxInComplementAmount: 2.4,
@@ -216,6 +224,10 @@ test('rule 11: no row of its own while the complement is not collected, or while
   const notDeclared = extract(undeclared.model).data;
   assert.equal(notDeclared.reservations.length, 1);
   assert.equal(notDeclared.totals.taxAmount, 7.2);
+  // An older release unticks without touching the stamp: undeclared stays undeclared.
+  const rolledBack = seed({ complementPaid: 1, complementPaidDate: day(2), touristTaxDeclaredWithAddedAmount: 0, touristTaxAddedGuestsAdults: 1 });
+  assert.equal(extract(rolledBack.model).data.reservations.length, 1);
+  assert.equal(extract(rolledBack.model).data.totals.taxAmount, 7.2);
 });
 
 test('rule 12: the row holds its rate, no base of its own, and the property counts the stay and its nights once', () => {
@@ -279,6 +291,11 @@ test('rule 22: ticking a row that does not exist answers 409 and stamps nothing'
   assert.equal(included.model.setTouristTaxDeclared({ reservationId: 1, declared: true, addedGuests: true }).status, 409);
   const uncollected = seed({ touristTaxDeclaredAt: `${day(1)} 09:00:00`, touristTaxDeclaredWithAddedAmount: 0 });
   assert.equal(uncollected.model.setTouristTaxDeclared({ reservationId: 1, declared: true, addedGuests: true }).status, 409);
+  const noAddition = seed({
+    touristTaxAddedGuestsAmount: 0, touristTaxTotal: 4.8, adults: 2, complementPaid: 1, complementPaidDate: day(2),
+    touristTaxDeclaredAt: `${day(1)} 09:00:00`, touristTaxDeclaredWithAddedAmount: 0,
+  });
+  assert.equal(noAddition.model.setTouristTaxDeclared({ reservationId: 1, declared: true, addedGuests: true }).status, 409);
 });
 
 test('rule 22: the added row unticks alone, and unticking the main row takes the added tick with it', () => {

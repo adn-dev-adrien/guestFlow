@@ -8,6 +8,7 @@ const assert = require('node:assert/strict');
 
 const { db, controller, respond, createStay, inDays, rowOf, save, seed, liveQuote, mark, ADMIN } = require('./ledgerFixture');
 const { buildArrivalPaymentDetail } = require('../utils/arrivalPaymentDetail');
+const { quoteStoredReservation } = require('../utils/storedReservationQuote');
 const reservationsModel = require('../models/reservationsModel');
 const financeModel = require('../models/financeModel');
 const { buildContext } = require('../utils/emailContextBuilder');
@@ -75,6 +76,9 @@ test('rule 19: on a percentage property the comparison reads the occupants, the 
   assert.equal(rowOf(id).touristTaxAddedGuestsAmount, 0, 'the party did not move: no gap');
   assert.equal(rowOf(id).platformPaidGuests, 6);
   assert.equal(rowOf(id).platformPaidOccupants, 4);
+  const live = await liveQuote(id, { ...stay });
+  assert.equal(live.touristTaxAddedGuestsAmount, 0, 'the preview reads the same base');
+  assert.equal(quoteStoredReservation(db, rowOf(id)).touristTaxAddedGuestsAmount, 0, 'and so does a replay of the row');
 });
 
 test('D12, rule 5: a child removed on a percentage property bills the gap, with nobody added', async () => {
@@ -148,7 +152,7 @@ test('rule 23: a tax that is whole in the complement keeps its own name', async 
 
 test('rule 23: a single payment of solde and complement names the whole tax', () => {
   const { lines } = buildArrivalPaymentDetail(
-    { balanceAmount: 600, complementAmount: 2.4, touristTaxSoldeContribTtc: 4.8, accommodationSoldeContribTtc: 595.2, startDate: '2030-01-01', endDate: '2030-01-03', options: [], resources: [], customOptions: [] },
+    { balanceAmount: 600, complementAmount: 2.4, touristTaxSoldeContribTtc: 4.8, accommodationSoldeContribTtc: 595.2, startDate: inDays(10), endDate: inDays(12), options: [], resources: [], customOptions: [] },
     { buckets: ['balance', 'complement'], complementDetail: { detail: [{ kind: 'tax', label: LABEL, addedGuests: true, qty: 1, unitPrice: 2.4, amount: 2.4 }] } },
   );
   const tax = lines.find((l) => l.kind === 'tax');
@@ -187,6 +191,7 @@ test('save, rule 7: a collected complement keeps the amount and its adults throu
   assert.equal(larger.statusCode, 200, JSON.stringify(larger.body));
   assert.equal(rowOf(id).touristTaxAddedGuestsAmount, 2.4);
   assert.equal(rowOf(id).touristTaxAddedGuestsAdults, 1);
+  assert.equal(quoteStoredReservation(db, rowOf(id)).touristTaxAddedGuestsAdults, 1, 'a replay of the row reads them too');
 });
 
 test('save, rule 7bis: a frozen tax does not count the addition twice from one save to the next', async () => {

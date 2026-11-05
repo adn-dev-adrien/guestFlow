@@ -47,7 +47,7 @@ test('the added row ticks alone, and the main row stays as it was', async () => 
   expect(added).not.toBeChecked();
   api.getTouristTaxExtraction.mockResolvedValue({
     ...DATA,
-    reservations: [DATA.reservations[0], { ...DATA.reservations[1], touristTaxDeclaredAt: '2026-07-01 10:00:00' }],
+    reservations: [DATA.reservations[0], { ...DATA.reservations[1], touristTaxDeclaredAt: new Date().toISOString() }],
   });
   fireEvent.click(added);
   await waitFor(() => expect(api.setTouristTaxDeclared).toHaveBeenCalledWith(7, true, { addedGuests: true }));

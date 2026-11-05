@@ -1474,7 +1474,6 @@ function createStay(req, res) {
     // composition sold by the platform.
     platformPaidGuests: resolvePlatformPaidGuests(null, req.body),
     platformPaidAdults: resolvePlatformPaidAdults(null, req.body),
-    platformPaidOccupants: resolvePlatformPaidOccupants(null, req.body),
     // specs/platform-tourist-tax-out-of-the-commission.md rule 6 — the tourist tax the platform kept,
     // which comes back out of the brut. Forwarded on the SAVE paths too, not just the preview: the
     // fiche and the books have to price identically (the divergence platform-payment-entry had to fix).
