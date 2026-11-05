@@ -5,6 +5,7 @@
 const db = require('../database');
 const { defaultMarksStaysClosed } = require('../utils/icalClosedFeed');
 const { KNOWN_PLATFORM_COLORS, DEFAULT_PLATFORM_COLOR } = require('../constants/platformColors');
+const { validateCalendarColor } = require('../utils/colorContrast');
 const { isOptionalText, isFlag } = require('../utils/bodyText');
 const {
   normalizePlatformKey,
@@ -169,6 +170,10 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
 
     const knownColor = KNOWN_PLATFORM_COLORS[platformKey] || KNOWN_PLATFORM_COLORS[normalizedPlatformKey];
     const chosenColor = String(body.platformColor || '').trim();
+    // Rule 17 — the platform colour check of `PUT /api/platforms/:key/color`; the stored colour sent back passes.
+    const colorRefusal = chosenColor && chosenColor !== String(existing?.platformColor ?? '').trim()
+      ? validateCalendarColor(chosenColor) : null;
+    if (colorRefusal) return { error: colorRefusal, code: 'INVALID_FIELD', field: 'platformColor' };
     const platformColor = knownColor || chosenColor || existing?.platformColor || DEFAULT_PLATFORM_COLOR;
 
     // §3 rule 10 — per (property, platform) "hidden from this property's reservation views" flag.
