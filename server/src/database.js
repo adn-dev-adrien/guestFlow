@@ -2294,6 +2294,40 @@ db.prepare("UPDATE repair_amounts SET label = 'Plomb manquant' WHERE repairKey =
   }
   if (!rcols.includes('touristTaxAddedGuestsAmount')) db.exec('ALTER TABLE reservations ADD COLUMN touristTaxAddedGuestsAmount REAL NOT NULL DEFAULT 0');
   if (!rcols.includes('touristTaxAddedGuestsDeclaredAt')) db.exec('ALTER TABLE reservations ADD COLUMN touristTaxAddedGuestsDeclaredAt TEXT');
+  // Rule 19 — the occupants the paid tax is priced on: the current party, so nothing moves. A stay that
+  // already moved under v3.21.0 keeps the persons that release compared with, or its stored tax would.
+  if (!rcols.includes('platformPaidOccupants')) {
+    db.exec('ALTER TABLE reservations ADD COLUMN platformPaidOccupants INTEGER');
+    db.prepare(`
+      UPDATE reservations
+         SET platformPaidOccupants = CASE
+           WHEN platformPaidGuests IS NOT NULL
+            AND (COALESCE(touristTaxAddedGuestsAmount, 0) > 0 OR COALESCE(platformPaidAdults, adults) <> adults)
+           THEN platformPaidGuests
+           ELSE COALESCE(adults, 1) + COALESCE(teens, 0) + COALESCE(children, 0)
+         END
+       WHERE platformGrossAmount IS NOT NULL AND LOWER(COALESCE(platform, 'direct')) <> 'direct'
+    `).run();
+  }
+  // Rule 21 — the adults the stored amount is for. NULL is a row no release has priced since.
+  if (!rcols.includes('touristTaxAddedGuestsAdults')) {
+    db.exec('ALTER TABLE reservations ADD COLUMN touristTaxAddedGuestsAdults INTEGER');
+    db.prepare(`
+      UPDATE reservations
+         SET touristTaxAddedGuestsAdults = MAX(0, COALESCE(adults, 1) - COALESCE(platformPaidAdults, adults, 1))
+       WHERE COALESCE(touristTaxAddedGuestsAmount, 0) > 0
+    `).run();
+  }
+  // Rule 20 — what the declared row held of the addition, written at the tick. NULL: ticked before this
+  // column, the date test still decides.
+  if (!rcols.includes('touristTaxDeclaredWithAddedAmount')) db.exec('ALTER TABLE reservations ADD COLUMN touristTaxDeclaredWithAddedAmount REAL');
+  // Rule 22 — stamped in the statement that flips complementPaid, whatever the payment path.
+  db.exec(`
+    CREATE TRIGGER IF NOT EXISTS reservations_clear_added_guests_declared
+    AFTER UPDATE OF complementPaid ON reservations
+    WHEN COALESCE(NEW.complementPaid, 0) = 0 AND OLD.complementPaid = 1
+    BEGIN UPDATE reservations SET touristTaxAddedGuestsDeclaredAt = NULL WHERE id = NEW.id; END;
+  `);
   db.exec('CREATE INDEX IF NOT EXISTS idx_reservations_attribution_channel ON reservations(attributionChannel)');
 }
 // PWA Web Push (specs/pwa-push-notifications.md §5): per-(user,device) subscriptions + per-user prefs.

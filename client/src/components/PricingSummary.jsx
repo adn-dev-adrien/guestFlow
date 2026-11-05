@@ -837,7 +837,7 @@ export default function PricingSummary({
               {/* specs/platform-added-guests-tourist-tax.md rule 14 — never offered: a debt to the commune. */}
               {touristTaxAddedGuestsAmount > 0 && (
                 <ExtraGuestRow
-                  label="Taxe de séjour · voyageurs ajoutés"
+                  label="Complément de taxe de séjour"
                   caption="Comprise dans la taxe ci-dessus"
                   amount={touristTaxAddedGuestsAmount}
                   chip={<ComplementChip active readOnly />}

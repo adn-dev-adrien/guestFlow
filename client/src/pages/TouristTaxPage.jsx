@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import {
   Box, Typography, Card, CardContent, Grid, Stack, Checkbox, Tooltip,
@@ -60,7 +60,9 @@ function refundedTaxCaption(row) {
 
 // specs/platform-added-guests-tourist-tax.md rule 12 — a stay can list a second row, its added guests.
 const rowKey = (row) => `${row.reservationId}${row.addedGuestsRow ? '-added' : ''}`;
-const rowName = (row) => `${row.reservationName || 'Réservation'}${row.addedGuestsRow ? ' · voyageurs ajoutés' : ''}`;
+const rowName = (row) => `${row.reservationName || 'Réservation'}${row.addedGuestsRow ? ' · Complément de taxe de séjour' : ''}`;
+// Rule 21 — a gap with nobody added: an amount, no person to tell the commune about.
+const NO_GUEST_ADDED_NOTE = 'Écart de taxe, aucun voyageur ajouté';
 
 export default function TouristTaxPage() {
   const navigate = useNavigate();
@@ -69,6 +71,10 @@ export default function TouristTaxPage() {
   const [data, setData] = useState(null);
   const [loadError, setLoadError] = useState(false);
   const [reloadNonce, setReloadNonce] = useState(0);
+  const monthRef = useRef(month);
+  monthRef.current = month;
+  const readSeq = useRef(0);
+  const pendingTicks = useRef(0);
 
   const maxSelectableMonth = useMemo(() => getMaxSelectableMonth(), []);
   const groupedByProperty = useMemo(() => {
@@ -94,16 +100,32 @@ export default function TouristTaxPage() {
         rowKey(r) === rowKey(target) ? { ...r, touristTaxDeclaredAt: value } : r),
     } : prev));
 
+  // specs/platform-added-guests-tourist-tax.md rule 24 — the server decides which rows exist, and a tick
+  // can merge or split them: the month is read again once no tick is on its way, without a loading state.
+  // Only the last read counts, and only if its month is still on screen.
+  const refreshMonth = (forMonth) => {
+    const read = readSeq.current + 1;
+    readSeq.current = read;
+    api.getTouristTaxExtraction(forMonth)
+      .then((res) => { if (read === readSeq.current && forMonth === monthRef.current) setData(res); })
+      .catch(() => {});
+  };
+
   const handleToggleDeclared = async (row) => {
+    const forMonth = month;
     const declared = !row.touristTaxDeclaredAt;
+    readSeq.current += 1;
+    pendingTicks.current += 1;
     patchDeclared(row, declared ? '__pending__' : null);
     try {
       const res = await api.setTouristTaxDeclared(row.reservationId, declared, { addedGuests: Boolean(row.addedGuestsRow) });
-      patchDeclared(row, res.declaredAt);
+      if (forMonth === monthRef.current) patchDeclared(row, res.declaredAt);
     } catch (e) {
-      patchDeclared(row, row.touristTaxDeclaredAt);
+      if (forMonth === monthRef.current) patchDeclared(row, row.touristTaxDeclaredAt);
       showError(e.message || 'Impossible de mettre à jour la déclaration.');
     }
+    pendingTicks.current -= 1;
+    if (pendingTicks.current === 0 && forMonth === monthRef.current) refreshMonth(forMonth);
   };
 
   useEffect(() => {
@@ -214,6 +236,9 @@ export default function TouristTaxPage() {
                           </TableCell>
                           <TableCell>
                             {rowName(row)}
+                            {row.noGuestAdded && (
+                              <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>{NO_GUEST_ADDED_NOTE}</Typography>
+                            )}
                             {refundedTaxCaption(row) && (
                               <Typography variant="caption" sx={{ display: 'block', color: 'warning.main' }}>
                                 {`↳ ${refundedTaxCaption(row)}`}
@@ -222,8 +247,8 @@ export default function TouristTaxPage() {
                           </TableCell>
                           <TableCell>{formatReservationDates(row.startDate, row.endDate)}</TableCell>
                           <TableCell align="right" sx={TABULAR}>{row.nightsCount}</TableCell>
-                          <TableCell align="right" sx={TABULAR}>{row.adults}</TableCell>
-                          <TableCell align="right" sx={TABULAR}>{row.children ?? 0}</TableCell>
+                          <TableCell align="right" sx={TABULAR}>{row.noGuestAdded ? '—' : row.adults}</TableCell>
+                          <TableCell align="right" sx={TABULAR}>{row.noGuestAdded ? '—' : (row.children ?? 0)}</TableCell>
                           <TableCell align="right" sx={TABULAR}>
                             {row.nightPricePerOccupantHt == null ? '—' : formatCurrency(row.nightPricePerOccupantHt)}
                           </TableCell>
@@ -238,8 +263,11 @@ export default function TouristTaxPage() {
                             <Box onClick={(e) => e.stopPropagation()}>{declaredCheckbox(row)}</Box>
                           </Stack>
                           <Typography variant="caption" color="text.secondary">
-                            {formatReservationDates(row.startDate, row.endDate)} · {row.nightsCount} nuit{row.nightsCount > 1 ? 's' : ''} · {row.adults} ad. · {row.children ?? 0} enf.
+                            {formatReservationDates(row.startDate, row.endDate)} · {row.nightsCount} nuit{row.nightsCount > 1 ? 's' : ''}{row.noGuestAdded ? '' : ` · ${row.adults} ad. · ${row.children ?? 0} enf.`}
                           </Typography>
+                          {row.noGuestAdded && (
+                            <Typography variant="caption" color="text.secondary">{NO_GUEST_ADDED_NOTE}</Typography>
+                          )}
                           {refundedTaxCaption(row) && (
                             <Typography variant="caption" sx={{ color: 'warning.main' }}>
                               {refundedTaxCaption(row)}

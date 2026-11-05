@@ -1,6 +1,7 @@
 // Finance model — all finance DB access + shaping. Returns ready-to-render payloads so the client
 // renders only. Payment figures come from the shared computePaymentStatus authority.
 
+const { addDays } = require('../utils/dateDays');
 const { todayIso: localTodayIso } = require('../utils/localDate');
 const db = require('../database');
 const { quoteStoredReservation } = require('../utils/storedReservationQuote');
@@ -177,12 +178,18 @@ function createFinanceModel(database) {
   // nights. EVERY means counts here (caisse interne included): « hors comptabilité » excludes money
   // from the turnover, never from what is owed to the commune.
   const hasAddedGuestsTax = (() => {
-    try { return database.prepare('PRAGMA table_info(reservations)').all().some((c) => c.name === 'touristTaxAddedGuestsAmount'); }
+    try { return database.prepare('PRAGMA table_info(reservations)').all().some((c) => c.name === 'touristTaxDeclaredWithAddedAmount'); }
     catch { return false; }
   })();
-  // Same condition as the SQL of the added-guests rows (specs/platform-added-guests-tourist-tax.md rule 12).
-  const hasOwnAddedGuestsRow = (stored) => Boolean(stored.touristTaxDeclaredAt)
-    && String(stored.complementPaidDate || stored.endDate).slice(0, 10) >= String(stored.touristTaxDeclaredAt).slice(0, 10);
+  // Same condition as the SQL of the added-guests rows (specs/platform-added-guests-tourist-tax.md rules
+  // 12, 20): declared, collected, and the declared row left the addition out. A row ticked before the
+  // stamp existed has only the dates to go by.
+  const hasOwnAddedGuestsRow = (stored) => {
+    if (!stored.touristTaxDeclaredAt || !Number(stored.complementPaid || 0)) return false;
+    if (stored.touristTaxDeclaredWithAddedAmount != null) return Number(stored.touristTaxDeclaredWithAddedAmount) === 0;
+    const collectedDay = String(stored.complementPaidDate || addDays(String(stored.endDate).slice(0, 10), -1)).slice(0, 10);
+    return collectedDay >= String(stored.touristTaxDeclaredAt).slice(0, 10);
+  };
   const REFUNDED_TAX_COLS = hasRefundTables
     ? `COALESCE((SELECT SUM(rl.amountTtc) FROM reservation_refund_lines rl
                  JOIN reservation_refunds rf ON rf.id = rl.refundId
@@ -940,7 +947,9 @@ function createFinanceModel(database) {
           AND COALESCE(r.touristTaxAddedGuestsAmount, 0) > 0
           AND r.complementPaid = 1
           AND r.touristTaxDeclaredAt IS NOT NULL
-          AND COALESCE(DATE(r.complementPaidDate), DATE(r.endDate, '-1 day')) >= DATE(r.touristTaxDeclaredAt)
+          AND CASE WHEN r.touristTaxDeclaredWithAddedAmount IS NULL
+                THEN COALESCE(DATE(r.complementPaidDate), DATE(r.endDate, '-1 day')) >= DATE(r.touristTaxDeclaredAt)
+                ELSE r.touristTaxDeclaredWithAddedAmount = 0 END
           AND MAX(DATE(r.endDate, '-1 day'), COALESCE(DATE(r.complementPaidDate), DATE(r.endDate, '-1 day'))) >= ?
           AND MAX(DATE(r.endDate, '-1 day'), COALESCE(DATE(r.complementPaidDate), DATE(r.endDate, '-1 day'))) < ?
         ORDER BY p.name, r.startDate, c.lastName, c.firstName
@@ -1066,10 +1075,16 @@ function createFinanceModel(database) {
           const declaredNights = Math.max(0, nightsCount - refundedTaxNights);
           const addedTax = round2(Number(quote.touristTaxAddedGuestsAmount || 0));
           const declaredTaxAmount = nightsCount > 0 ? round2(addedTax * (declaredNights / nightsCount)) : addedTax;
-          const addedAdults = Math.max(0, Number(row.adults || 0) - Number(stored.platformPaidAdults || 0));
+          // Rule 21 — who the stored amount is for, not who is on the fiche today. Nobody (a gap of rule 5):
+          // the amount alone, no person-night to tell the commune.
+          const addedAdults = stored.touristTaxAddedGuestsAdults != null
+            ? Number(stored.touristTaxAddedGuestsAdults)
+            : Math.max(0, Number(row.adults || 0) - Number(stored.platformPaidAdults || 0));
+          const noGuestAdded = addedAdults === 0;
           return {
             reservationId: row.reservationId,
             addedGuestsRow: true,
+            ...(noGuestAdded ? { noGuestAdded: true } : {}),
             propertyId: row.propertyId,
             propertyName: row.propertyName,
             reservationName: `${row.firstName || ''} ${row.lastName || ''}`.trim(),
@@ -1077,11 +1092,11 @@ function createFinanceModel(database) {
             endDate: row.endDate,
             lastNightDate: row.lastNightDate,
             touristTaxDeclaredAt: stored.touristTaxAddedGuestsDeclaredAt || null,
-            adults: addedAdults,
-            children: 0,
+            adults: noGuestAdded ? null : addedAdults,
+            children: noGuestAdded ? null : 0,
             nightsCount: declaredNights,
             adultNights: addedAdults * declaredNights,
-            taxRate: addedAdults > 0 && nightsCount > 0 ? round2(addedTax / (addedAdults * nightsCount)) : 0,
+            taxRate: noGuestAdded ? null : round2(addedTax / (addedAdults * nightsCount)),
             taxAmount: declaredTaxAmount,
             refundedTaxNights,
             refundedTaxAmount: round2(addedTax - declaredTaxAmount),
@@ -1154,20 +1169,32 @@ function createFinanceModel(database) {
       if (!Number.isInteger(id) || id <= 0) {
         return { ok: false, status: 400, error: 'Réservation invalide.' };
       }
-      const exists = database.prepare("SELECT 1 FROM reservations WHERE id = ? AND kind = 'reservation'").get(id);
-      if (!exists) {
+      const stored = database.prepare("SELECT * FROM reservations WHERE id = ? AND kind = 'reservation'").get(id);
+      if (!stored) {
         return { ok: false, status: 404, error: 'Réservation introuvable.' };
       }
       if (addedGuests) {
         if (!hasAddedGuestsTax) return { ok: false, status: 400, error: 'Réservation invalide.' };
+        // Rule 22 — a screen left open can show a row the server no longer lists.
+        if (declared && !(Number(stored.touristTaxAddedGuestsAmount || 0) > 0 && hasOwnAddedGuestsRow(stored))) {
+          return { ok: false, status: 409, error: 'Aucun complément de taxe à déclarer.' };
+        }
         database.prepare(`UPDATE reservations SET touristTaxAddedGuestsDeclaredAt = ${declared ? "datetime('now')" : 'NULL'}, updatedAt = datetime('now') WHERE id = ?`).run(id);
         const row = database.prepare('SELECT touristTaxAddedGuestsDeclaredAt AS at FROM reservations WHERE id = ?').get(id);
         return { ok: true, data: { declaredAt: row.at || null } };
       }
       if (declared) {
         database.prepare("UPDATE reservations SET touristTaxDeclaredAt = datetime('now'), updatedAt = datetime('now') WHERE id = ?").run(id);
+        // Rule 20 — what this tick told the commune, once: a tick repeated from a stale tab changes nothing.
+        if (hasAddedGuestsTax && !stored.touristTaxDeclaredAt) {
+          const heldAddition = Number(stored.complementPaid || 0) ? round2(Number(stored.touristTaxAddedGuestsAmount || 0)) : 0;
+          database.prepare('UPDATE reservations SET touristTaxDeclaredWithAddedAmount = ? WHERE id = ?').run(heldAddition, id);
+        }
       } else {
         database.prepare("UPDATE reservations SET touristTaxDeclaredAt = NULL, updatedAt = datetime('now') WHERE id = ?").run(id);
+        if (hasAddedGuestsTax) {
+          database.prepare('UPDATE reservations SET touristTaxDeclaredWithAddedAmount = NULL, touristTaxAddedGuestsDeclaredAt = NULL WHERE id = ?').run(id);
+        }
       }
       const declaredAt = database.prepare('SELECT touristTaxDeclaredAt FROM reservations WHERE id = ?').get(id).touristTaxDeclaredAt || null;
       return { ok: true, data: { declaredAt } };

@@ -13,7 +13,7 @@ const { quoteStoredReservation, pricingUnchangedFromStored, pinStoredPricing } =
 const {
   midStayQuoteInputs, scheduleQuoteInputs, resolvePlatformTakesDeposit, resolvePlatformPayoutDueDays, frozenTouristTaxInputs,
 } = require('../utils/reservationQuoteContext');
-const { resolvePlatformPaidGuests, resolvePlatformPaidAdults } = require('../utils/platformPaidGuests');
+const { resolvePlatformPaidGuests, resolvePlatformPaidAdults, resolvePlatformPaidOccupants } = require('../utils/platformPaidGuests');
 const { validateFinanceInputs, financeErrorBody } = require('../utils/financeValidation');
 const { stayDatesRefusal, stayDatesRefusalBody, stayItemDatesRefusal } = require('../utils/stayDates');
 const { checkPlanningRange } = require('../utils/planningDateRange');
@@ -1217,6 +1217,7 @@ async function calculatePrice(req, res) {
     platformPaidGuests: resolvePlatformPaidGuests(reservationId > 0 ? model.getRow(reservationId) : null, req.body),
     // specs/platform-added-guests-tourist-tax.md rules 1, 7.
     platformPaidAdults: resolvePlatformPaidAdults(reservationId > 0 ? model.getRow(reservationId) : null, req.body),
+    platformPaidOccupants: resolvePlatformPaidOccupants(reservationId > 0 ? model.getRow(reservationId) : null, req.body),
     storedTouristTaxAddedGuests: reservationId > 0 ? (model.getRow(reservationId) || {}).touristTaxAddedGuestsAmount : 0,
     // specs/platform-tourist-tax-out-of-the-commission.md rule 6 — the tourist tax the platform kept,
     // which comes back out of the brut. Forwarded on the SAVE paths too, not just the preview: the
@@ -1473,6 +1474,7 @@ function createStay(req, res) {
     // composition sold by the platform.
     platformPaidGuests: resolvePlatformPaidGuests(null, req.body),
     platformPaidAdults: resolvePlatformPaidAdults(null, req.body),
+    platformPaidOccupants: resolvePlatformPaidOccupants(null, req.body),
     // specs/platform-tourist-tax-out-of-the-commission.md rule 6 — the tourist tax the platform kept,
     // which comes back out of the brut. Forwarded on the SAVE paths too, not just the preview: the
     // fiche and the books have to price identically (the divergence platform-payment-entry had to fix).
@@ -2029,7 +2031,9 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
     platformPaidGuests: resolvePlatformPaidGuests(storedPaymentForQuote, req.body),
     // specs/platform-added-guests-tourist-tax.md rules 1, 7.
     platformPaidAdults: resolvePlatformPaidAdults(storedPaymentForQuote, req.body),
+    platformPaidOccupants: resolvePlatformPaidOccupants(storedPaymentForQuote, req.body),
     storedTouristTaxAddedGuests: storedPaymentForQuote.touristTaxAddedGuestsAmount,
+    storedTouristTaxAddedGuestsAdults: storedPaymentForQuote.touristTaxAddedGuestsAdults,
     // specs/platform-tourist-tax-out-of-the-commission.md rule 6 — the tourist tax the platform kept,
     // which comes back out of the brut. Forwarded on the SAVE paths too, not just the preview: the
     // fiche and the books have to price identically (the divergence platform-payment-entry had to fix).
@@ -2114,7 +2118,7 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
   if (pastReservationLocked) {
     const allowedLockedFields = new Set([
       'clientId', 'platform', 'touristTaxRate', 'touristTaxTotal', 'discountPercent', 'finalPrice',
-      'extraGuestSurchargeOffered', 'platformPaidGuests', 'platformPaidAdults', 'depositAmount', 'balanceAmount', 'depositPaid', 'balancePaid',
+      'extraGuestSurchargeOffered', 'platformPaidGuests', 'depositAmount', 'balanceAmount', 'depositPaid', 'balancePaid',
       // The acompte typed in the ledger moves `depositAmount`, which is allowed; the override that
       // carries it is audited since the 2026-10-27 review (reservation-history-granular-diff rule 13).
       'depositAmountOverride',
