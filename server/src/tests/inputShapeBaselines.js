@@ -6,10 +6,13 @@
 // stop at (nothing in this harness connects Qonto: its calls would leave the machine).
 const Database = require('better-sqlite3');
 
+// The application's day: the app runs with TZ=Europe/Paris (inputShapeApp), this process with the runner's zone. Just
+// after midnight in Paris a UTC runner is still on the day before, and a payment dated then reads as earlier than the
+// stay's creation.
+const parisToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Paris' }).format(new Date());
 const dayAt = (offset) => {
-  const d = new Date();
-  d.setDate(d.getDate() + offset);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const [y, m, d] = parisToday().split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d + offset)).toISOString().slice(0, 10);
 };
 
 async function seed(app, admin, active) {
