@@ -55,7 +55,7 @@ const ACCEPTED = [
 const REFUSED = [
   'Jean123', '3', '٣ Ali', '<script>', '<script>alert(1)</script>', 'Jean@Dupont', 'jean@example.test', 'Jean_Pierre',
   '12 bis, rue de l\'Église', '3/5 avenue', 'Jean, Paul', 'Jean/Paul', 'Jean#', 'A+B', 'Zoé 😀', '[31mZoé',
-  'Jean\u00A0Paul', 'ジョン・スミス', 'ד׳', 'Gal·la',
+  'ジョン・スミス', 'ד׳', 'Gal·la',
 ];
 
 test('rule 23 — letters of any script, their marks, space, hyphen, both apostrophes and dot pass, unchanged', () => {
@@ -191,4 +191,11 @@ test('rule 23 — only the public booking request calls the validator', () => {
     'plugins/website-booking/controllers/publicBookingRequestController.js',
     'plugins/website-booking/publicInputValidation.js',
   ]);
+});
+
+test('a space or a hyphen is read by its class, whatever the keyboard typed', () => {
+  for (const name of ['Jean\u00A0Paul', '\u5C71\u7530\u3000\u592A\u90CE', 'Jean\u2003Paul', 'Anne\u2013Marie', 'Anne\u2011Marie', '\u05DB\u05D4\u05DF\u05BE\u05DC\u05D5\u05D9']) {
+    const out = validateGuest({ firstName: name, lastName: 'Martin', email: 'a@example.invalid', phone: '0612345678' });
+    assert.equal(out.ok, true, JSON.stringify(name));
+  }
 });

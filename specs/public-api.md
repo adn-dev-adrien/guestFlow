@@ -256,8 +256,10 @@ or **[CREATE]** (genuinely new logic).
       `reason` and `message` are the documented refusal (§4.3); `nameInvalid` is one more value of `reason`, and the site
       prints `message` without reading it ([wordpress-plugin.md](wordpress-plugin.md) rule 35). No X version is implied: a
       caller refused here reads the same documented refusal shape as for any other field.
-    - **What the list implies.** A no-break space, the katakana middle dot `・`, the Hebrew geresh `׳` and the Catalan `·` are
-      not in it, so they are refused; a modifier-letter apostrophe `ʼ` is a letter and passes.
+    - **What the list implies.** A space or a hyphen is read by its Unicode class, whatever the keyboard typed: a no-break
+      space, the ideographic space of a Japanese IME, an en dash and the Hebrew maqaf look like what the visitor means, and
+      a refusal would show nothing visibly wrong. The katakana middle dot `・`, the Hebrew geresh `׳` and the Catalan `·` are
+      not in the list, so they are refused; a modifier-letter apostrophe `ʼ` is a letter and passes.
     Covered by `plugins/website-booking/tests/public-name-charset.unit.test.js`.
 
 **Edge cases:**

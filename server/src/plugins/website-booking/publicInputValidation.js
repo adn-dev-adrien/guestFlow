@@ -238,7 +238,7 @@ const nameOf = (v) => {
   return /[\p{L}\p{N}]/u.test(name) ? name : '';
 };
 // Decision D13 (specs/public-api.md rule 23): the public form's names only. The joiners are those withoutFormatChars keeps.
-const NAME_CHARACTERS = /^[\p{L}\p{M}\u200C\u200D '’.-]+$/u;
+const NAME_CHARACTERS = /^[\p{L}\p{M}\p{Zs}\p{Pd}\u200C\u200D'’.]+$/u;
 const NAME_REFUSAL = 'must hold only letters, marks, spaces, hyphens, apostrophes and dots';
 
 function validateGuest(raw) {
