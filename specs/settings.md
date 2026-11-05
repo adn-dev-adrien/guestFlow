@@ -60,6 +60,13 @@ UX kept simple: **one page, three cards stacked, all fields editable inline**, w
     cannot read (WEBP, GIF, truncated, garbled) leaves the devis without its logo and writes a `[devisPdf] logo` line to
     the server log; the PDF is still served. The picker offers PNG and JPEG and says so under the field. Tests:
     `tests/logo-upload-formats.unit.test.js`, `client/src/components/__tests__/SettingsCompanySection.logo-formats.test.jsx`.
+    *Corrected 2026-11-05 (audit R24 verification N1, N3):* « decode whole » did not mean printable: a PNG whose alpha
+    stream fails its zlib check decodes in the image library, yet PDFKit inflates it itself and threw outside any caller, so
+    every devis PDF request hung. The PDF now reads only bytes the image library wrote: the upload stores the logo
+    re-encoded by it (same format, orientation applied), and the PDF re-encodes a stored PNG or JPEG the same way before
+    drawing it (older logos included); a stored WEBP or GIF still prints no logo. The stored name follows the format the
+    bytes hold, not the file's name: a JPEG named `.png` is stored as `company-logo.jpg` (the name and the type still have
+    to say PNG or JPEG).
 9. **Server-side validation** when non-empty:
     - Email → basic email regex.
     - SIRET → exactly 14 digits (whitespace tolerated, stripped before validation).

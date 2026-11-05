@@ -27,6 +27,9 @@ test.before(async () => {
   images.garbled = Buffer.from(wide);
   const idat = wide.indexOf(Buffer.from('IDAT'));
   images.garbled.fill(0xaa, idat + 6, idat + 2000);
+  // Audit R24 verification N1: a 40×40 RGBA PNG, a few IDAT bits flipped, chunk CRCs fixed. sharp decodes it; PDFKit's own
+  // inflate of the alpha channel fails its zlib check outside any caller and the PDF request never answered.
+  images.zlibBroken = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAACgAAAAoCAYAAACM/rhtAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAYUlEQVRYhe2UoQ0AURTCSFBsx65/wVvgPE9U4ElTUOp3OVoXCAULQc89CyMpBD13LRx1IeiT0bpAKFgIeu5ZGEkh6Llr4agLQZ+M1gVCwULQc8/CSApBz10DR10Ieu7bXz7jQZ4bJZAtFwAAAABJRU5ErkJggg==', 'base64');
   const photo = await sharp({ create: { width: 300, height: 300, channels: 3, background: '#2F5D46' } }).jpeg().toBuffer();
   images.jpegHalf = photo.subarray(0, photo.length >> 1);
 });
@@ -42,7 +45,12 @@ async function upload(name, type, bytes) {
 
 const storedLogo = () => app.readDb('SELECT companyLogoPath FROM app_settings WHERE id = 1')[0].companyLogoPath;
 const logoFiles = () => fs.readdirSync(uploads).filter((f) => f.startsWith('company-logo')).sort();
-const pdfStatus = async () => (await fetch(`${app.base}/api/devis/${app.ids.devis}/pdf`, { headers: { cookie: admin } })).status;
+const pdfStatus = async () => (await fetch(`${app.base}/api/devis/${app.ids.devis}/pdf`, { headers: { cookie: admin }, signal: AbortSignal.timeout(20000) })).status;
+const storeRaw = (file, bytes) => {
+  fs.writeFileSync(path.join(uploads, file), bytes);
+  const db = new (require('better-sqlite3'))(app.dbPath);
+  try { db.prepare('UPDATE app_settings SET companyLogoPath = ? WHERE id = 1').run(`/uploads/${file}`); } finally { db.close(); }
+};
 
 test('rule 8 — PNG and JPEG pass, the devis PDF carries them', async () => {
   for (const [name, type, bytes] of [['logo.png', 'image/png', images.png], ['logo.jpg', 'image/jpeg', images.jpeg], ['logo.jpeg', 'image/jpeg', images.jpeg]]) {
@@ -60,8 +68,6 @@ test('rule 8 — WEBP, GIF and bytes that are not their name\'s format are refus
     ['logo.gif', 'image/gif', images.gif],
     ['logo.png', 'image/png', Buffer.from('not an image at all')],
     ['logo.png', 'image/png', images.webp],
-    ['logo.png', 'image/png', images.jpeg],
-    ['logo.jpg', 'image/jpeg', images.png],
     ['logo.png', 'image/png', Buffer.alloc(0)],
     ['logo.png', 'image/png', images.garbled],
     ['logo.png', 'image/png', images.png.subarray(0, 40)],
@@ -101,4 +107,32 @@ test('rule 8 — a stored logo the PDF cannot read gives the PDF without it, and
     assert.equal(body.subarray(0, 5).toString('latin1'), '%PDF-', file);
     assert.match(app.logSince(mark), /\[devisPdf\] logo/, file);
   }
+});
+
+// Audit R24 verification N3 — the stored name follows the bytes, not the name the file came with.
+test('rule 8 — a JPEG named .png is stored as company-logo.jpg, a PNG named .jpg as company-logo.png', async () => {
+  assert.equal((await upload('logo.png', 'image/png', images.jpeg)).status, 200);
+  assert.equal(storedLogo(), '/uploads/company-logo.jpg');
+  assert.deepEqual(logoFiles(), ['company-logo.jpg']);
+  assert.equal((await sharp(fs.readFileSync(path.join(uploads, 'company-logo.jpg'))).metadata()).format, 'jpeg');
+  assert.equal((await upload('logo.jpg', 'image/jpeg', images.png)).status, 200);
+  assert.equal(storedLogo(), '/uploads/company-logo.png');
+  assert.deepEqual(logoFiles(), ['company-logo.png']);
+  assert.equal(await pdfStatus(), 200);
+});
+
+// Audit R24 verification N1 — PDFKit reads only bytes the image library wrote: at upload, and for a logo already stored.
+test('rule 8 — a PNG whose alpha stream fails its zlib check: uploaded, stored re-encoded, the PDF answers with it', async () => {
+  const res = await upload('logo.png', 'image/png', images.zlibBroken);
+  assert.equal(res.status, 200, res.text);
+  const stored = fs.readFileSync(path.join(uploads, 'company-logo.png'));
+  assert.notDeepEqual(stored, images.zlibBroken, 'the stored file is what sharp wrote');
+  assert.equal(await pdfStatus(), 200);
+});
+
+test('rule 8 — the same PNG already stored as is: the PDF answers, logo re-encoded on the way', async () => {
+  storeRaw('company-logo.png', images.zlibBroken);
+  const mark = app.logMark();
+  assert.equal(await pdfStatus(), 200);
+  assert.doesNotMatch(app.logSince(mark), /UNCAUGHT|incorrect data check/);
 });

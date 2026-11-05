@@ -73,3 +73,18 @@ test('rule 60 — a long document name is stored, the answer never shows a path'
   assert.equal(wrongType.status, 400);
   assert.equal(wrongType.json.error, 'Type de fichier non autorisé.');
 });
+
+// Rule 60 reading of 2026-11-05 (audit R24 verification N2) — the photo's refusals are French and fixed, never multer's text.
+test('rule 60 — a photo over 5 MB, a wrong field and a wrong type answer French refusals, nothing created', async () => {
+  const before = count();
+  const big = await send('POST', '/api/properties', fields, { field: 'photo', name: 'big.jpg', type: 'image/jpeg', bytes: Buffer.alloc(6 * 1024 * 1024, 1) });
+  assert.equal(big.status, 400, big.text);
+  assert.equal(big.json.error, 'Photo trop volumineuse (max 5 Mo).');
+  const field = await send('POST', '/api/properties', fields, { field: 'image', name: 'a.png', type: 'image/png', bytes: Buffer.from('x') });
+  assert.equal(field.status, 400, field.text);
+  assert.equal(field.json.error, 'Fichier non enregistré.');
+  const type = await send('PUT', `/api/properties/${app.ids.property}`, { name: 'Ombre', maxGuests: 4, singleBeds: 2, doubleBeds: 1 }, { field: 'photo', name: 'a.gif', type: 'image/gif', bytes: Buffer.from('GIF89a') });
+  assert.equal(type.status, 400, type.text);
+  assert.equal(type.json.error, 'Format d\'image non pris en charge. Formats acceptés: JPG, JPEG, PNG, WEBP.');
+  assert.equal(count(), before);
+});

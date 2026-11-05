@@ -6,7 +6,7 @@ const path = require('path');
  * - `isAllowedUpload` checks both the extension AND the MIME type against a per-kind allowlist.
  * - `allowedExtension` returns the (whitelisted) extension to store, or a fallback.
  * - `safeUploadName` sanitizes a filename to safe characters, its base cut so the stored name fits the disk.
- * - `bytesMatchImageName` tells whether a buffer's first bytes are the format its name announces (PNG or JPEG).
+ * - `imageFormatOf` names the format a buffer's first bytes announce: 'png', 'jpeg', or null.
  * - `safeUploadPath` resolves a name within the uploads dir and rejects path traversal (returns null).
  */
 
@@ -64,12 +64,11 @@ const SIGNATURES = {
   png: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
   jpeg: Buffer.from([0xff, 0xd8, 0xff]),
 };
-const FORMAT_OF_EXT = { '.png': 'png', '.jpg': 'jpeg', '.jpeg': 'jpeg' };
-
-function bytesMatchImageName(buffer, originalName) {
-  const signature = SIGNATURES[FORMAT_OF_EXT[extOf(originalName)]];
-  return Boolean(signature && Buffer.isBuffer(buffer) && buffer.length > signature.length
+function imageFormatOf(buffer) {
+  if (!Buffer.isBuffer(buffer)) return null;
+  const found = Object.entries(SIGNATURES).find(([, signature]) => buffer.length > signature.length
     && buffer.subarray(0, signature.length).equals(signature));
+  return found ? found[0] : null;
 }
 
 function safeUploadPath(uploadsDir, name) {
@@ -79,4 +78,4 @@ function safeUploadPath(uploadsDir, name) {
   return resolved;
 }
 
-module.exports = { isAllowedUpload, allowedExtension, safeUploadName, safeUploadPath, bytesMatchImageName, ALLOWED };
+module.exports = { isAllowedUpload, allowedExtension, safeUploadName, safeUploadPath, imageFormatOf, ALLOWED };

@@ -1,23 +1,29 @@
 /**
  * The company logo as the devis PDF reads it (specs/settings.md rule 8).
  *
- * - `logoDecodes(buffer)` → true when the image library reads the whole image: a truncated or garbled file is refused
- *   at upload, and skipped by the PDF, whose own PNG reader throws outside any caller on a garbled alpha image.
- * - `readableLogo(settings)` → the stored logo's bytes for the PDF, or null with a log line when it cannot be read.
+ * - `printableLogo(buffer)` → `{ bytes, ext }`: a PNG or a JPEG by its first bytes, decoded whole by the image library and
+ *   written again by it (orientation applied), or null. PDFKit reads only bytes sharp wrote: its own PNG reader inflates the
+ *   alpha channel itself and throws outside any caller on a stream sharp still decodes (audit R24 verification N1).
+ * - `readableLogo(settings)` → the stored logo made printable for the PDF, or null with a log line when it cannot be.
  */
 
 const fs = require('fs');
 const path = require('path');
 const sharp = require('sharp');
 const { uploadsDir } = require('./instancePaths');
+const { imageFormatOf } = require('./uploadSafety');
 
-async function logoDecodes(buffer) {
-  if (!Buffer.isBuffer(buffer) || buffer.length === 0) return false;
+const EXTENSION = { png: '.png', jpeg: '.jpg' };
+
+async function printableLogo(buffer) {
+  const format = imageFormatOf(buffer);
+  if (!format) return null;
   try {
-    await sharp(buffer, { failOn: 'error' }).resize({ width: 32, height: 32, fit: 'inside' }).raw().toBuffer();
-    return true;
+    const image = sharp(buffer, { failOn: 'error' }).rotate();
+    const bytes = await (format === 'png' ? image.png() : image.jpeg({ quality: 92 })).toBuffer();
+    return { bytes, ext: EXTENSION[format] };
   } catch (_) {
-    return false;
+    return null;
   }
 }
 
@@ -31,9 +37,10 @@ async function readableLogo(settings) {
     console.error('[devisPdf] logo unreadable, PDF without it:', err && err.code);
     return null;
   }
-  if (await logoDecodes(bytes)) return bytes;
+  const printable = await printableLogo(bytes);
+  if (printable) return printable.bytes;
   console.error('[devisPdf] logo not decodable, PDF without it:', path.basename(file));
   return null;
 }
 
-module.exports = { logoDecodes, readableLogo };
+module.exports = { printableLogo, readableLogo };

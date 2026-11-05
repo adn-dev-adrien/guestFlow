@@ -61,18 +61,27 @@ const photoUpload = multer({
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     if (!file.mimetype || !SUPPORTED_PHOTO_MIME_TYPES.has(file.mimetype)) {
-      cb(new Error(`Format d'image non pris en charge. Formats acceptés: ${SUPPORTED_PHOTO_FORMATS_LABEL}.`));
+      const refusal = new Error(`Format d'image non pris en charge. Formats acceptés: ${SUPPORTED_PHOTO_FORMATS_LABEL}.`);
+      refusal.code = 'FILE_TYPE_REFUSED';
+      cb(refusal);
       return;
     }
     cb(null, true);
   }
 });
 
+// specs/settings-input-guards.md rule 60, reading of 2026-11-05 (audit R24 verification N2) — the photo's refusals are ours
+// too: multer's own English text (« File too large », « Unexpected field ») never reaches the operator.
+function photoUploadRefusal(err) {
+  if (err.code === 'LIMIT_FILE_SIZE') return 'Photo trop volumineuse (max 5 Mo).';
+  if (err.code === 'FILE_TYPE_REFUSED') return err.message;
+  console.error('[properties.photo] upload', err && err.code);
+  return 'Fichier non enregistré.';
+}
+
 function handlePhotoUpload(req, res, next) {
   photoUpload.single('photo')(req, res, (err) => {
-    if (err) {
-      return res.status(400).json({ error: err.message || `Format d'image non pris en charge. Formats acceptés: ${SUPPORTED_PHOTO_FORMATS_LABEL}.` });
-    }
+    if (err) return res.status(400).json({ error: photoUploadRefusal(err) });
     return next();
   });
 }
@@ -110,20 +119,6 @@ function removeUploadedFile(filePath) {
   if (absPath && fs.existsSync(absPath)) fs.unlinkSync(absPath);
 }
 
-// Express error middleware for multer upload errors (photo size etc.).
-function multerErrorHandler(err, req, res, next) {
-  if (err instanceof multer.MulterError) {
-    if (err.code === 'LIMIT_FILE_SIZE') {
-      return res.status(400).json({ error: 'Photo trop volumineuse (max 5 Mo)' });
-    }
-    return res.status(400).json({ error: err.message || 'Erreur upload' });
-  }
-  if (err && err.message === 'Le fichier photo doit être une image') {
-    return res.status(400).json({ error: err.message });
-  }
-  return next(err);
-}
-
 module.exports = {
   uploadsDir,
   handleDocumentUpload,
@@ -132,5 +127,4 @@ module.exports = {
   isUnreadablePhoto,
   PHOTO_UNREADABLE,
   removeUploadedFile,
-  multerErrorHandler,
 };

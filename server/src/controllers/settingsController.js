@@ -27,8 +27,8 @@ const validation = require('../utils/settingsValidation');
 const { validateSocialLinks, validateSocialUrl, networkOf, instagramUrlOf, mergeLegacyInstagram, parseSocialLinks } = require('../utils/socialLinks');
 const { validateRevenueGoals, mergeRevenueGoals } = require('../utils/revenueGoals');
 const { uploadsDir, LOGO_FORMAT_REFUSAL } = require('../middleware/multerLogoUpload');
-const { allowedExtension, bytesMatchImageName, ALLOWED } = require('../utils/uploadSafety');
-const { logoDecodes } = require('../utils/logoImage');
+const { ALLOWED } = require('../utils/uploadSafety');
+const { printableLogo } = require('../utils/logoImage');
 const { createEmailService } = require('../utils/emailService');
 const { resolveEmailIdentity } = require('../utils/emailIdentity');
 const { createSmtpDetector, detectionMessage } = require('../utils/smtpPresets');
@@ -342,18 +342,18 @@ async function updateSettings(req, res) {
 // Every extension a logo was ever stored under: WEBP and GIF were accepted before 2026-11-05.
 const LOGO_EXTENSIONS = [...ALLOWED.image.ext, '.webp', '.gif'];
 
-// specs/settings.md rule 8 — judged on its first bytes before anything is written; once stored, the company-logo
-// files of the other extensions go, so no former logo stays public.
+// specs/settings.md rule 8 — judged on its first bytes and a whole decode before anything is written; what is stored is
+// what the image library wrote again, named after the format its bytes hold (a JPEG named .png is a JPEG); once stored,
+// the company-logo files of the other extensions go, so no former logo stays public.
 async function uploadLogo(req, res) {
   if (!req.file) {
     return res.status(400).json({ error: 'Aucun fichier fourni.' });
   }
-  if (!bytesMatchImageName(req.file.buffer, req.file.originalname) || !(await logoDecodes(req.file.buffer))) {
-    return res.status(400).json({ error: LOGO_FORMAT_REFUSAL });
-  }
-  const filename = `company-logo${allowedExtension(req.file.originalname, 'image', '.png')}`;
+  const printable = await printableLogo(req.file.buffer);
+  if (!printable) return res.status(400).json({ error: LOGO_FORMAT_REFUSAL });
+  const filename = `company-logo${printable.ext}`;
   try {
-    fs.writeFileSync(path.join(uploadsDir, filename), req.file.buffer);
+    fs.writeFileSync(path.join(uploadsDir, filename), printable.bytes);
   } catch (err) {
     console.error('[settings.logo] write', err && err.code);
     return res.status(500).json({ error: 'Fichier non enregistré.' });
