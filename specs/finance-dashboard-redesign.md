@@ -517,6 +517,10 @@ séjour », attribution date, HT, `comptaCollected`, remaining-to-pay, settled. 
 }
 ```
 
+> 2026-11-05 — the payload also carries `hero.revPar`, `hero.openNights`, `hero.occupiedNights`,
+> `occupancyAll` and `comparison` (every headline figure against last year): see
+> `specs/finance-revpar-year-over-year.md`. No field above changed.
+
 `GET /api/finance/dashboard/detail/:tile` — same query; `:tile ∈ collected | toCollect | late | stays
 | properties | channels`; extra `until=` for `toCollect` (omitted → today + 1 month, echoed as
 `projection.until`), `scope=window|upcoming|unpriced` for `stays` (rule 35). `late` rows carry

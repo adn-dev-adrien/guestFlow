@@ -22,11 +22,19 @@ const { parseNotes } = require('../utils/midStayExtras');
 const { parseGroup } = require('../utils/arrivalPaymentGroup');
 const { arrivalPaymentAdjustment, platformPenalty } = require('../utils/reservationSettlement');
 const { paceStartOf } = require('../utils/bookingPace');
+const { comparisonWindow, compare } = require('../utils/financeComparison');
 
 const H = financeModel.helpers;
 
 const DETAIL_TILES = new Set(['collected', 'toCollect', 'late', 'stays', 'properties', 'channels']);
 const CUMULATIVE_DAILY_UP_TO = 62;
+// specs/finance-revpar-year-over-year.md rules 8 and 13 — the figures compared with last year, their
+// unit, and the source each one reads: the stays' amounts or the money collected, never both.
+const COMPARED = [
+  ['revenue', 'percent', 'stays'], ['collected', 'percent', 'payments'], ['stays', 'percent', 'stays'],
+  ['nights', 'percent', 'stays'], ['occupancy', 'points', 'stays'], ['revenuePerNight', 'percent', 'stays'],
+  ['revPar', 'percent', 'stays'],
+];
 
 /**
  * Rule 43 — « meilleur mois » only among the months already over. While none of them carries revenue,
@@ -136,19 +144,19 @@ function createDashboardModel(database, finance) {
     const { window: win, exercise, propertyId, today } = ctx;
     const summary = finance.getSummary({ from: win.from, to: win.to, fiscalYear: exercise.key, propertyId });
     const cover = coverage(propertyId);
-    const knownN1 = yoy.shiftYear(today, -1);
     // Rule 33 — a year ago GuestFlow may not have existed yet: last year « as it stood » is then
-    // unknown, and only the months already over (both sides final) can be compared.
-    const snapshotKnown = yoy.lastYearSnapshotKnown(today, trackingStart(propertyId));
-    let range = yoy.comparableRange(win, cover);
-    if (range && !snapshotKnown) range = yoy.clampToMonthsOver(range, today);
+    // unknown, and only the months already over (both sides final) can be compared. The range and its
+    // status come from one place (specs/finance-revpar-year-over-year.md rules 4-7).
+    const { range, snapshotKnown, knownAt: knownN1, status } = comparisonWindow({
+      window: win, coverage: cover, today, trackingStart: trackingStart(propertyId),
+    });
     let comparable = null;
     if (range) {
       const cur = range.complete ? summary : finance.getSummary({ from: range.current.from, to: range.current.to, fiscalYear: exercise.key, propertyId });
       const prev = finance.getSummary({ from: range.previous.from, to: range.previous.to, fiscalYear: exercise.key, propertyId, knownAt: snapshotKnown ? knownN1 : null });
       comparable = { range, cur, prev };
     }
-    return { summary, cover, comparable, knownN1, snapshotKnown };
+    return { summary, cover, comparable, knownN1, snapshotKnown, status };
   }
 
   const directRevenueOf = (breakdown) => round2((breakdown.site.subtotal.revenue || 0)
@@ -170,7 +178,7 @@ function createDashboardModel(database, finance) {
     const ctx = context(params);
     if (!ctx.ok) return ctx;
     const { window: win, exercise, propertyId, today, allProperties, scopeProperties } = ctx;
-    const { summary, cover, comparable, knownN1, snapshotKnown } = figures(ctx);
+    const { summary, cover, comparable, knownN1, snapshotKnown, status } = figures(ctx);
     // Rule 33 — which N-1 reading a month gets: as it stood a year ago when that is known, its final
     // value when the month is over, nothing otherwise.
     const previousReading = (ym) => {
@@ -183,16 +191,28 @@ function createDashboardModel(database, finance) {
 
     // Occupancy of the window (hero + strip) and per month of the exercise (chart).
     const prevExercise = { from: yoy.shiftYear(exercise.from, -1), to: yoy.shiftYear(exercise.to, -1) };
-    const stays = stayNights(
-      win.from < prevExercise.from ? win.from : prevExercise.from,
-      win.to > exercise.to ? win.to : exercise.to,
-      null,
-    );
+    // specs/finance-revpar-year-over-year.md rule 11 — the same read also covers the comparable range a
+    // year back, which a custom window may start before last exercise.
+    const earliestRead = [win.from, prevExercise.from, ...(comparable ? [comparable.range.previous.from] : [])].sort()[0];
+    const stays = stayNights(earliestRead, win.to > exercise.to ? win.to : exercise.to, null);
     const staysKnownN1 = stays.filter((s) => !s.createdDay || s.createdDay <= knownN1);
     const startOf = coverageStarts();
     const windowOcc = occupancy.occupancyOver(allProperties, stays, allClosures, win.from, win.to, { startOf });
     const scopeOcc = propertyId ? windowOcc.byProperty.get(propertyId) : windowOcc;
     const months = exerciseMonths(exercise.from, exercise.to);
+
+    // specs/finance-revpar-year-over-year.md rule 12 — the occupancy of a month for a set of logements,
+    // this year and last year, on rules 23-24 and 33 of the dashboard.
+    const monthlyOccupancy = (props, own, ownN1, monthCover) => months.map((m) => {
+      const prevMonth = yoy.shiftMonth(m.month, -1);
+      return {
+        month: m.month, label: m.label, initial: m.initial,
+        current: occupancy.occupancyOver(props, own, allClosures, `${m.month}-01`, lastDay(m.month), { startOf }).rate,
+        previous: yoy.isComparableMonth(m.month, monthCover) && previousReading(m.month)
+          ? occupancy.occupancyOver(props, previousReading(m.month) === 'final' ? own : ownN1, allClosures, `${prevMonth}-01`, lastDay(prevMonth), { startOf }).rate
+          : null,
+      };
+    });
 
     const occupancySeries = scopeProperties.map((p) => {
       const own = stays.filter((s) => s.propertyId === p.id);
@@ -201,20 +221,20 @@ function createDashboardModel(database, finance) {
       return {
         propertyId: p.id, name: p.name, colorIndex: p.colorIndex,
         average: occupancy.occupancyOver([p], own, allClosures, exercise.from, exercise.to, { startOf }).rate,
-        months: months.map((m) => {
-          const from = `${m.month}-01`;
-          const to = lastDay(m.month);
-          const prevMonth = yoy.shiftMonth(m.month, -1);
-          return {
-            month: m.month, label: m.label, initial: m.initial,
-            current: occupancy.occupancyOver([p], own, allClosures, from, to, { startOf }).rate,
-            previous: yoy.isComparableMonth(m.month, pCover) && previousReading(m.month)
-              ? occupancy.occupancyOver([p], previousReading(m.month) === 'final' ? own : ownN1, allClosures, `${prevMonth}-01`, lastDay(prevMonth), { startOf }).rate
-              : null,
-          };
-        }),
+        months: monthlyOccupancy([p], own, ownN1, pCover),
       };
     });
+    // Rule 12 — « Tous les logements » (or the selected one): the scope's nights over its open nights.
+    const scopeIds = new Set(scopeProperties.map((p) => p.id));
+    const occupancyAll = {
+      average: occupancy.occupancyOver(scopeProperties, stays, allClosures, exercise.from, exercise.to, { startOf }).rate,
+      months: monthlyOccupancy(
+        scopeProperties,
+        stays.filter((s) => scopeIds.has(s.propertyId)),
+        staysKnownN1.filter((s) => scopeIds.has(s.propertyId)),
+        cover,
+      ),
+    };
 
     // Revenue per month of the exercise, with last year's month beside it when comparable (rule 22).
     const anyComparable = months.some((m) => yoy.isComparableMonth(m.month, cover));
@@ -264,6 +284,39 @@ function createDashboardModel(database, finance) {
     const bestMonth = bestMonthOf(revenueMonths, today);
     const scopeRevenue = propertyId ? byId.get(propertyId) : null;
     const leader = everywhere.revenueByProperty.find((p) => p.revenue > 0);
+    const heroRevPar = occupancy.revPar(revenue, scopeOcc ? scopeOcc.sellable : 0);
+
+    // specs/finance-revpar-year-over-year.md rules 8-11 — each headline figure against the comparable
+    // part of the window a year back, read by the very functions that compute the figure itself.
+    const figuresOver = (s, stayList, from, to) => {
+      const n = occupancy.stayNights(s.reservations);
+      const occ = occupancy.occupancyOver(scopeProperties, stayList, allClosures, from, to, { startOf });
+      return {
+        revenue: s.revenueTotal,
+        stays: s.reservations.length,
+        nights: n.nights,
+        occupancy: occ.rate,
+        revenuePerNight: occupancy.revenuePerNight(s.revenueTotal, n.pricedNights),
+        revPar: occupancy.revPar(s.revenueTotal, occ.sellable),
+      };
+    };
+    let cur = null;
+    let prev = null;
+    if (comparable) {
+      const { range } = comparable;
+      cur = figuresOver(comparable.cur, stays, range.current.from, range.current.to);
+      prev = figuresOver(comparable.prev, snapshotKnown ? staysKnownN1 : stays, range.previous.from, range.previous.to);
+      // Rule 10 — « Encaissé » a year ago as it stood: the payments received by then only.
+      const prevCollected = snapshotKnown
+        ? round2(paymentsLedger(comparable.prev.reservations).filter((p) => p.date <= knownN1).reduce((n, p) => n + p.amount, 0))
+        : comparable.prev.totalCollected;
+      cur.collected = comparable.cur.totalCollected;
+      prev.collected = prevCollected;
+    }
+    const metrics = Object.fromEntries(COMPARED.map(([key, unit, source]) => [key, {
+      ...(comparable ? compare(cur[key], prev[key], unit, status) : compare(null, null, unit, status)),
+      source,
+    }]));
 
     return {
       ok: true,
@@ -279,6 +332,10 @@ function createDashboardModel(database, finance) {
           occupancy: scopeOcc ? scopeOcc.rate : null,
           revenuePerNight: occupancy.revenuePerNight(revenue, windowNights.pricedNights),
           directShare: ratio(direct, revenue),
+          // specs/finance-revpar-year-over-year.md rules 1-3.
+          revPar: heroRevPar,
+          openNights: scopeOcc ? scopeOcc.sellable : 0,
+          occupiedNights: scopeOcc ? scopeOcc.sold : 0,
           yoy: comparable ? {
             current: comparable.cur.revenueTotal, previous: comparable.prev.revenueTotal,
             change: yoy.change(comparable.cur.revenueTotal, comparable.prev.revenueTotal),
@@ -315,6 +372,8 @@ function createDashboardModel(database, finance) {
         },
         revenueMonths,
         occupancy: occupancySeries,
+        occupancyAll,
+        comparison: { ...status, metrics },
       },
     };
   }
