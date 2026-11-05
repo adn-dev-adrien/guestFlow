@@ -87,6 +87,7 @@ module.exports = defineConfig({
         // specs/e2e-playwright-smoke-suite.md rule 23 — no release check, no school-holidays sync: the
         // suite never reads GitHub or data.education.gouv.fr, so its state does not depend on them.
         + ' GUESTFLOW_DISABLE_OUTBOUND=1'
+        + ' QONTO_API_BASE=http://127.0.0.1:9 QONTO_OAUTH_BASE=http://127.0.0.1:9'
         + ` node src/index.js > "${SERVER_LOG}" 2>&1`,
       url: `http://127.0.0.1:${SERVER_PORT}/api/version`,
       // Always start fresh — see the "DB wipe at config-eval time" comment above. Reusing a
