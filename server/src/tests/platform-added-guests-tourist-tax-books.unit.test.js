@@ -186,6 +186,18 @@ test('rule 20: unticking clears the stamp, and a tick repeated on a declared row
   assert.equal(stamp(db).s, 2.4);
 });
 
+test('rule 25: a main tick repeated on a declared row changes nothing, its first date stands', () => {
+  const first = `${day(1)} 09:00:00`;
+  const { db, model } = seed({ ...OWN_ROW, complementPaidDate: day(1), touristTaxDeclaredAt: first, touristTaxDeclaredWithAddedAmount: null });
+  const before = extract(model).data.reservations.map((r) => [r.addedGuestsRow || false, r.taxAmount]);
+  assert.deepEqual(before, [[false, 4.8], [true, 2.4]]);
+  const answer = model.setTouristTaxDeclared({ reservationId: 1, declared: true });
+  assert.equal(answer.data.declaredAt, first);
+  assert.equal(stamp(db).d, first);
+  assert.equal(stamp(db).s, null, 'a legacy row stays a legacy row');
+  assert.deepEqual(extract(model).data.reservations.map((r) => [r.addedGuestsRow || false, r.taxAmount]), before);
+});
+
 test('rule 20: a tick with no addition stamps 0, and a guest collected later gets the row of its own', () => {
   const { db, model } = seed({ touristTaxAddedGuestsAmount: 0, touristTaxTotal: 4.8, adults: 2, complementAmount: 0 });
   model.setTouristTaxDeclared({ reservationId: 1, declared: true });
@@ -281,6 +293,15 @@ test('rule 21: a gap with nobody added shows the amount, no person-night, and sa
   assert.equal(data.totals.adultNights, 4);
 });
 
+test('rule 21: no adults stored with the amount (a rollback, then a re-upgrade) → the row falls back on the party', () => {
+  const { model } = seed({ ...OWN_ROW, touristTaxAddedGuestsAdults: null, adults: 3, platformPaidAdults: 2 });
+  const added = addedRow(extract(model).data);
+  assert.equal(added.adults, 1);
+  assert.equal(added.adultNights, 2);
+  assert.equal(added.taxRate, 1.2);
+  assert.equal(added.noGuestAdded, undefined);
+});
+
 test('rule 22: ticking a row that does not exist answers 409 and stamps nothing', () => {
   const none = seed({ touristTaxAddedGuestsAmount: 0, touristTaxTotal: 4.8, adults: 2 });
   const refused = none.model.setTouristTaxDeclared({ reservationId: 1, declared: true, addedGuests: true });
@@ -296,6 +317,15 @@ test('rule 22: ticking a row that does not exist answers 409 and stamps nothing'
     touristTaxDeclaredAt: `${day(1)} 09:00:00`, touristTaxDeclaredWithAddedAmount: 0,
   });
   assert.equal(noAddition.model.setTouristTaxDeclared({ reservationId: 1, declared: true, addedGuests: true }).status, 409);
+});
+
+test('rule 22: unticking a row that no longer exists is allowed, only ticking one answers 409', () => {
+  const gone = seed({ touristTaxDeclaredAt: `${day(1)} 09:00:00`, touristTaxDeclaredWithAddedAmount: 0, touristTaxAddedGuestsDeclaredAt: `${day(1)} 10:00:00` });
+  assert.equal(addedRow(extract(gone.model).data), undefined);
+  const answer = gone.model.setTouristTaxDeclared({ reservationId: 1, declared: false, addedGuests: true });
+  assert.equal(answer.ok, true);
+  assert.equal(answer.data.declaredAt, null);
+  assert.equal(stamp(gone.db).at, null);
 });
 
 test('rule 22: the added row unticks alone, and unticking the main row takes the added tick with it', () => {

@@ -236,6 +236,20 @@ test('rule 21: the added adults go with the amount, frozen with it once collecte
   assert.equal(collected.touristTaxAddedGuestsAdults, 1);
 });
 
+test('rule 21: a collected amount with no adults stored falls back on the party (a rollback, then a re-upgrade)', () => {
+  const collected = quote({ adults: 3, complementPaid: true, storedTouristTaxAddedGuests: 2.4, storedTouristTaxAddedGuestsAdults: null });
+  assert.equal(collected.touristTaxAddedGuestsAmount, 2.4);
+  assert.equal(collected.touristTaxAddedGuestsAdults, 1);
+});
+
+test('rule 23: a tax collected on arrival keeps its name on the live detail', () => {
+  const q = quote({ adults: 3 }, { mode: 'owner' });
+  assert.equal(q.touristTaxCollectedOnArrival, true);
+  const line = q.complementDetailLines.find((l) => l.kind === 'tax');
+  assert.equal(line.label, 'Taxe de séjour');
+  assert.equal(line.addedGuests, undefined);
+});
+
 test('rule 23: a tax whole in the complement keeps its name on the live detail', () => {
   const q = quote({ adults: 3, touristTaxInComplement: 1 });
   const line = q.complementDetailLines.find((l) => l.kind === 'tax');

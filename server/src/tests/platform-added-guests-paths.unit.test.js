@@ -105,6 +105,26 @@ test('rule 15: the stored row feeds the figure every surface reads', async () =>
   assert.equal(tax.label, LABEL);
 });
 
+test('rule 22: complementPaid written again at 1 is no untick: the row\'s own tick stays', async () => {
+  const { id, stay } = await addedGuestStay();
+  mark(id, { balancePaid: true, balancePaidDate: TODAY });
+  const finance = financeModel.buildModel(db);
+  assert.equal(finance.setTouristTaxDeclared({ reservationId: id, declared: true }).ok, true);
+  mark(id, { complementPaid: true, complementPaidDate: TODAY });
+  assert.equal(finance.setTouristTaxDeclared({ reservationId: id, declared: true, addedGuests: true }).ok, true);
+  const ticked = rowOf(id).touristTaxAddedGuestsDeclaredAt;
+  assert.ok(ticked);
+
+  const again = mark(id, { complementPaid: true, complementPaidDate: TODAY });
+  assert.equal(again.statusCode, 409, JSON.stringify(again.body));
+  assert.equal(rowOf(id).touristTaxAddedGuestsDeclaredAt, ticked, 'the same PATCH again, refused as already paid');
+  const saved = await save(id, { ...stay, adults: 3, complementPaid: true, balancePaid: true, balancePaidDate: TODAY, complementPaidDate: TODAY });
+  assert.equal(saved.statusCode, 200, JSON.stringify(saved.body));
+  assert.equal(rowOf(id).touristTaxAddedGuestsDeclaredAt, ticked, 'a save of the fiche');
+  db.prepare('UPDATE reservations SET complementPaid = 1 WHERE id = ?').run(id);
+  assert.equal(rowOf(id).touristTaxAddedGuestsDeclaredAt, ticked, 'a statement that rewrites the column');
+});
+
 test('rule 23: every surface of the line says « Complément de taxe de séjour »', async () => {
   const { id, stay } = await addedGuestStay();
   const quote = await liveQuote(id, { ...stay, adults: 3 });

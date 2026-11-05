@@ -92,12 +92,16 @@ test('§5, rules 19, 21: a boot from v3.21.0 keeps the base of a stay that alrea
   const untouched = stay(db, {
     platform: 'Canal', platformGrossAmount: 600, adults: 2, children: 1, platformPaidGuests: 4, platformPaidAdults: 2,
   });
+  const movedNoPersons = stay(db, {
+    platform: 'Canal', platformGrossAmount: 600, adults: 3, children: 1, platformPaidGuests: null, platformPaidAdults: 2, touristTaxAddedGuestsAmount: 2.4,
+  });
   dropColumns(db, NEW_COLUMNS);
   db.close();
 
   boot(file);
 
   const after = new Database(file);
+  assert.equal(read(after, movedNoPersons).platformPaidOccupants, 4, 'moved, but no persons stored: the current party');
   assert.equal(read(after, adultAdded).platformPaidOccupants, 2);
   assert.equal(read(after, adultAdded).touristTaxAddedGuestsAdults, 1);
   assert.equal(read(after, adultAdded).touristTaxAddedGuestsAmount, 2.4);

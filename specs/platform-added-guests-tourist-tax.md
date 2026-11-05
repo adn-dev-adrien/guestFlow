@@ -165,6 +165,12 @@ is declared to the commune. The accommodation no longer pays for it.
 24. **After a tick the page reads the month again, silently.** The server decides which rows exist, and a
     tick can merge or split them. The optimistic tick stays, no loading state, a read is dropped when the
     month has changed or another tick has started, and a refused tick reads the month again too.
+25. **A main tick repeated on a declared row changes nothing.** Its first date stands, as the stamp of rule
+    20 does: on a row ticked before the stamp existed the date test decides, and a new date from a tab left
+    open would merge a row of its own that was already told to the commune (rule 12).
+26. **The re-read of rule 24 is of the month on screen.** Once the last tick on its way has answered, the
+    page reads the month it shows, whichever month that tick was made on: a tick on another month answering
+    last cannot leave the shown rows stale.
 
 **Edge cases:**
 - iCal import with 1 default adult, composition set to 4, then the brut → paid = 4, no added tax.
@@ -255,7 +261,7 @@ Interactive summary: `docs/specs/2026-11-03-platform-added-guests-tourist-tax.ht
 
 ## 7. Test plan
 
-### Server unit tests — `platform-added-guests-tourist-tax.unit.test.js` (22), `platform-added-guests-tourist-tax-books.unit.test.js` (20), `plugins/accounting-export/tests/platform-added-guests-tourist-tax-books.unit.test.js` (6), `platform-added-guests-stored-readers.unit.test.js` (1), `platform-added-guests-paths.unit.test.js` (14), `platform-added-guests-migration.unit.test.js` (3)
+### Server unit tests — `platform-added-guests-tourist-tax.unit.test.js` (24), `platform-added-guests-tourist-tax-books.unit.test.js` (23), `plugins/accounting-export/tests/platform-added-guests-tourist-tax-books.unit.test.js` (6), `platform-added-guests-stored-readers.unit.test.js` (1), `platform-added-guests-paths.unit.test.js` (15), `platform-added-guests-migration.unit.test.js` (3)
 - [x] Rule 1: capture, keep on a corrected brut, clear, re-capture; body value ignored; a locked past stay can still take its brut.
 - [x] Rules 2–5: amount per mode and per tax mode, a platform rate that differs, rounding noise, minors, a child removed on a percentage property (D12).
 - [x] Rules 6–7bis: rises and falls; stored amount kept once the complement is collected; frozen tax + guest added → line in the complement, frozen part unchanged, no double count on the next save. Through the real save and the real preview too.
@@ -269,14 +275,15 @@ Interactive summary: `docs/specs/2026-11-03-platform-added-guests-tourist-tax.ht
 - [x] Rule 18: stored split with a line, booked solde of a cancelled stay, stored summary of the fiche.
 - [x] Rule 19: resolver, comparison against the occupants, supplement against the persons, through a save.
 - [x] Rule 20: tick on the collection day, tick before it, stamp against dates, untick, repeated tick, legacy NULL and its missing paid date.
-- [x] Rule 21: stored adults against today's party; a gap shows no person.
-- [x] Rule 22: 409 on each row that does not exist; untick of the row alone; main untick; complement unticked through the real PATCH.
-- [x] Rule 23: live quote, stored detail, arrival SAS, departure recall, ventilation, single payment alone and mixed, J-2 email in both languages with and without the detail; a whole tax keeps its name.
-- [x] §5: **executed on a real boot of a seeded file** (`platform-added-guests-migration`): a row with a brut, without, direct; from before the feature and from v3.21.0; a second boot leaves everything alone. No stored amount moves.
+- [x] Rule 21: stored adults against today's party; a gap shows no person; no adults stored with an amount (a rollback, then a re-upgrade) falls back on the party, in the row and in the engine.
+- [x] Rule 22: 409 on each row that does not exist, untick of a missing row allowed; untick of the row alone; main untick; complement unticked through the real PATCH; `complementPaid` written again at 1 (a save, a statement) keeps the tick, and the same PATCH again is refused as already paid and keeps it too.
+- [x] Rule 23: live quote, stored detail, arrival SAS, departure recall, ventilation, single payment alone and mixed, J-2 email in both languages with and without the detail; a whole tax, forced or collected on arrival, keeps its name.
+- [x] Rule 25: a repeated main tick on a legacy row keeps its date, its stamp and its two rows.
+- [x] §5: **executed on a real boot of a seeded file** (`platform-added-guests-migration`): a row with a brut, without, direct; from before the feature and from v3.21.0, a moved stay with no persons stored taking the current party; a second boot leaves everything alone. No stored amount moves.
 
 ### Client (Vitest)
 - [x] `PricingSummary.added-guests-tax.test.jsx` (2): the line, no « Offrir ».
-- [x] `TouristTaxPage.added-guests.test.jsx` (6): the added row ticks alone; rule 24: rows re-read with no loading state, a month left behind dropped, a refused tick re-read; rule 21: the gap on a table and on a card.
+- [x] `TouristTaxPage.added-guests.test.jsx` (10): the added row ticks alone; rule 24: rows re-read with no loading state, a month left behind dropped, a refused tick re-read, a read older than a new tick dropped, a tick answered or refused after the month changed patching nothing; rule 26: the last tick answered reads the month on screen; rule 21: the gap on a table, adults and children cells, and on a card.
 
 ### Manual UI verification
 - [x] Fiche on a `platform_reversed` platform (isolated instance, 2026-11-03): brut entered, 2 → 3 adults: line on the

@@ -102,6 +102,118 @@ test('rule 24: a failed tick puts the box back, says why and reads the rows agai
   await screen.findByText('Aucune ligne à déclarer.');
 });
 
+const deferred = () => {
+  let resolve;
+  let reject;
+  const promise = new Promise((res, rej) => { resolve = res; reject = rej; });
+  return { promise, resolve, reject };
+};
+const settle = () => new Promise((resolve) => { setTimeout(resolve, 20); });
+const switchMonth = async () => {
+  fireEvent.mouseDown(screen.getAllByRole('combobox')[0]);
+  const options = await screen.findAllByRole('option');
+  fireEvent.click(options.find((o) => o.getAttribute('aria-selected') !== 'true' && !o.getAttribute('aria-disabled')));
+};
+const TWO_STAYS = {
+  ...DATA,
+  reservations: [
+    { ...STAY, touristTaxDeclaredAt: null, adults: 2, taxAmount: 4.8, accommodationAmount: 500 },
+    { ...STAY, reservationId: 8, reservationName: 'Anne Martin', touristTaxDeclaredAt: null, adults: 2, taxAmount: 4.8, accommodationAmount: 500 },
+  ],
+};
+// Next month's list holds the same stay, unticked: what a stale answer would patch.
+const NEXT_MONTH = { ...DATA, reservations: [{ ...STAY, touristTaxDeclaredAt: null, adults: 2, taxAmount: 4.8, accommodationAmount: 500 }] };
+
+test('rule 24: a read older than a tick that has started is dropped, the later read wins', async () => {
+  api.getTouristTaxExtraction.mockResolvedValue(TWO_STAYS);
+  renderPage();
+  const first = await screen.findByRole('checkbox', { name: 'Déclarée — Jean Dupont' });
+  const second = screen.getByRole('checkbox', { name: 'Déclarée — Anne Martin' });
+  const olderRead = deferred();
+  api.getTouristTaxExtraction.mockReturnValueOnce(olderRead.promise);
+  fireEvent.click(first);
+  await waitFor(() => expect(api.getTouristTaxExtraction).toHaveBeenCalledTimes(2));
+
+  const secondTick = deferred();
+  api.setTouristTaxDeclared.mockReturnValueOnce(secondTick.promise);
+  fireEvent.click(second);
+  expect(second).toBeChecked();
+  olderRead.resolve(TWO_STAYS);
+  await settle();
+  expect(second).toBeChecked();
+
+  api.getTouristTaxExtraction.mockResolvedValue({
+    ...TWO_STAYS,
+    reservations: TWO_STAYS.reservations.map((r) => ({ ...r, touristTaxDeclaredAt: '2026-07-01 10:00:00' })),
+  });
+  secondTick.resolve({ declaredAt: '2026-07-01 10:00:00' });
+  await waitFor(() => expect(api.getTouristTaxExtraction).toHaveBeenCalledTimes(3));
+  await waitFor(() => expect(screen.getByRole('checkbox', { name: 'Déclarée — Jean Dupont' })).toBeChecked());
+  expect(screen.getByRole('checkbox', { name: 'Déclarée — Anne Martin' })).toBeChecked();
+});
+
+test('rule 24: a tick answered after the month changed patches nothing on the new month', async () => {
+  renderPage();
+  const added = await screen.findByRole('checkbox', { name: /Complément de taxe de séjour/ });
+  const tick = deferred();
+  api.setTouristTaxDeclared.mockReturnValueOnce(tick.promise);
+  fireEvent.click(added);
+  api.getTouristTaxExtraction.mockResolvedValueOnce({
+    ...DATA, reservations: [DATA.reservations[0], { ...DATA.reservations[1], touristTaxDeclaredAt: null }],
+  });
+  await switchMonth();
+  await waitFor(() => expect(api.getTouristTaxExtraction).toHaveBeenCalledTimes(2));
+  const onNewMonth = await screen.findByRole('checkbox', { name: /Complément de taxe de séjour/ });
+  expect(onNewMonth).not.toBeChecked();
+  api.getTouristTaxExtraction.mockReturnValue(new Promise(() => {}));
+  tick.resolve({ declaredAt: '2026-07-01 10:00:00' });
+  await settle();
+  expect(onNewMonth).not.toBeChecked();
+});
+
+test('rule 24: a tick refused after the month changed patches nothing on the new month', async () => {
+  renderPage();
+  const main = await screen.findByRole('checkbox', { name: 'Déclarée — Jean Dupont' });
+  expect(main).toBeChecked();
+  const tick = deferred();
+  api.setTouristTaxDeclared.mockReturnValueOnce(tick.promise);
+  fireEvent.click(main);
+  api.getTouristTaxExtraction.mockResolvedValueOnce(NEXT_MONTH);
+  await switchMonth();
+  await waitFor(() => expect(api.getTouristTaxExtraction).toHaveBeenCalledTimes(2));
+  const onNewMonth = await screen.findByRole('checkbox', { name: 'Déclarée — Jean Dupont' });
+  expect(onNewMonth).not.toBeChecked();
+  api.getTouristTaxExtraction.mockReturnValue(new Promise(() => {}));
+  tick.reject(new Error('Refusé.'));
+  await screen.findByText('Refusé.');
+  expect(onNewMonth).not.toBeChecked();
+});
+
+test('rule 26: the last tick answered reads the month on screen, even if it was ticked on another month', async () => {
+  renderPage();
+  const added = await screen.findByRole('checkbox', { name: /Complément de taxe de séjour/ });
+  const tickOnOldMonth = deferred();
+  const tickOnNewMonth = deferred();
+  api.setTouristTaxDeclared.mockReturnValueOnce(tickOnOldMonth.promise).mockReturnValueOnce(tickOnNewMonth.promise);
+  fireEvent.click(added);
+  api.getTouristTaxExtraction.mockResolvedValueOnce(NEXT_MONTH);
+  await switchMonth();
+  await waitFor(() => expect(api.getTouristTaxExtraction).toHaveBeenCalledTimes(2));
+  const shownMonth = api.getTouristTaxExtraction.mock.calls[1][0];
+  const main = await screen.findByRole('checkbox', { name: 'Déclarée — Jean Dupont' });
+  fireEvent.click(main);
+
+  tickOnNewMonth.resolve({ declaredAt: '2026-07-01 10:00:00' });
+  await settle();
+  expect(api.getTouristTaxExtraction).toHaveBeenCalledTimes(2);
+
+  api.getTouristTaxExtraction.mockResolvedValue(DATA);
+  tickOnOldMonth.resolve({ declaredAt: '2026-07-01 10:00:00' });
+  await waitFor(() => expect(api.getTouristTaxExtraction).toHaveBeenCalledTimes(3));
+  expect(api.getTouristTaxExtraction.mock.calls[2][0]).toBe(shownMonth);
+  await screen.findByRole('checkbox', { name: /Complément de taxe de séjour/ });
+});
+
 test('rule 21: a gap with nobody added says so on the row and claims no adult', async () => {
   api.getTouristTaxExtraction.mockResolvedValue({
     ...DATA,
@@ -114,7 +226,9 @@ test('rule 21: a gap with nobody added says so on the row and claims no adult', 
   await screen.findByRole('checkbox', { name: /Complément de taxe de séjour/ });
   expect(screen.getByText('Écart de taxe, aucun voyageur ajouté')).toBeInTheDocument();
   const row = screen.getByText('Écart de taxe, aucun voyageur ajouté').closest('tr');
-  expect(row.textContent).toContain('—');
+  const cells = row.querySelectorAll('td');
+  expect(cells[4]).toHaveTextContent(/^—$/);
+  expect(cells[5]).toHaveTextContent(/^—$/);
   expect(row.textContent).toContain('8,04');
 });
 

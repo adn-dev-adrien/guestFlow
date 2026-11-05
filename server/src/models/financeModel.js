@@ -1184,8 +1184,8 @@ function createFinanceModel(database) {
         return { ok: true, data: { declaredAt: row.at || null } };
       }
       if (declared) {
-        database.prepare("UPDATE reservations SET touristTaxDeclaredAt = datetime('now'), updatedAt = datetime('now') WHERE id = ?").run(id);
-        // Rule 20 — what this tick told the commune, once: a tick repeated from a stale tab changes nothing.
+        // Rules 20, 25 — what this tick told the commune, once: a tick repeated from a stale tab changes nothing.
+        database.prepare("UPDATE reservations SET touristTaxDeclaredAt = COALESCE(touristTaxDeclaredAt, datetime('now')), updatedAt = datetime('now') WHERE id = ?").run(id);
         if (hasAddedGuestsTax && !stored.touristTaxDeclaredAt) {
           const heldAddition = Number(stored.complementPaid || 0) ? round2(Number(stored.touristTaxAddedGuestsAmount || 0)) : 0;
           database.prepare('UPDATE reservations SET touristTaxDeclaredWithAddedAmount = ? WHERE id = ?').run(heldAddition, id);

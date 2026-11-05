@@ -102,7 +102,7 @@ export default function TouristTaxPage() {
 
   // specs/platform-added-guests-tourist-tax.md rule 24 — the server decides which rows exist, and a tick
   // can merge or split them: the month is read again once no tick is on its way, without a loading state.
-  // Only the last read counts, and only if its month is still on screen.
+  // Only the last read counts, and only if its month is still on screen (rule 26: the month read is the one on screen).
   const refreshMonth = (forMonth) => {
     const read = readSeq.current + 1;
     readSeq.current = read;
@@ -125,7 +125,7 @@ export default function TouristTaxPage() {
       showError(e.message || 'Impossible de mettre à jour la déclaration.');
     }
     pendingTicks.current -= 1;
-    if (pendingTicks.current === 0 && forMonth === monthRef.current) refreshMonth(forMonth);
+    if (pendingTicks.current === 0) refreshMonth(monthRef.current);
   };
 
   useEffect(() => {
