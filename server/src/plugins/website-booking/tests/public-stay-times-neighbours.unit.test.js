@@ -136,7 +136,7 @@ test('rule 24 — a departure at 18:00 the day before a neighbour arrives at 09:
 
 // Audit R24 verification L1 (specs/roostview-api-key.md rule 7) — the price watch sends no time and
 // reads prices only: its quote is not judged on the times, the site's still is.
-test('rule 24 — Roostview’s quote is not judged on the times; the site’s same window is', async () => {
+test('roostview-api-key rule 7, public-api rule 24 — Roostview’s quote is not judged on the times; the site’s same window is', async () => {
   const body = stay(inDays(296), ARRIVES_ELEVEN);
   assert.equal((await quote(body)).body.error.code, 'STAY_TIMES_UNAVAILABLE');
   const watched = await quote(body, undefined, 'roostview');
