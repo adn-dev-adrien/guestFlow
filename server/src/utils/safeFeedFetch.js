@@ -18,12 +18,17 @@ const PRIVATE_MESSAGE = 'Adresse du flux non autorisée (réseau privé).';
 class FeedFetchError extends Error {}
 
 function isPrivateIpv4(parts) {
-  const [a, b] = parts;
+  const [a, b, c] = parts;
   return a === 0 || a === 10 || a === 127
     || (a === 100 && b >= 64 && b <= 127)
     || (a === 169 && b === 254)
     || (a === 172 && b >= 16 && b <= 31)
     || (a === 192 && b === 168)
+    || (a === 192 && b === 0 && (c === 0 || c === 2))
+    || (a === 192 && b === 88 && c === 99)
+    || (a === 198 && (b === 18 || b === 19))
+    || (a === 198 && b === 51 && c === 100)
+    || (a === 203 && b === 0 && c === 113)
     || a >= 224;
 }
 
@@ -62,10 +67,13 @@ function isPrivateAddress(address) {
   if (!bytes) return true;
   const zeros = (from, to) => bytes.slice(from, to).every((b) => b === 0);
   if (zeros(0, 10) && bytes[10] === 255 && bytes[11] === 255) return isPrivateIpv4(bytes.slice(12));
-  if (zeros(0, 12)) return true; // ::/96: unspecified, loopback, deprecated IPv4-compatible
-  if (bytes[0] === 0x00 && bytes[1] === 0x64 && bytes[2] === 0xff && bytes[3] === 0x9b) return true; // 64:ff9b::/16 NAT64
   if (bytes[0] === 0x20 && bytes[1] === 0x02) return isPrivateIpv4(bytes.slice(2, 6)); // 6to4
-  return (bytes[0] & 0xfe) === 0xfc || (bytes[0] === 0xfe && (bytes[1] & 0xc0) === 0x80) || bytes[0] === 0xff;
+  if ((bytes[0] & 0xe0) !== 0x20) return true; // only 2000::/3 is global unicast: NAT64, SIIT, ULA, link-local, multicast…
+  const first = (bytes[0] << 8) | bytes[1];
+  const second = (bytes[2] << 8) | bytes[3];
+  return (first === 0x2001 && second < 0x0200) // 2001::/23, IETF special purpose, Teredo included
+    || (first === 0x2001 && second === 0x0db8) // documentation
+    || (first === 0x3fff && second < 0x1000); // documentation
 }
 
 const allowPrivate = (env) => env.GUESTFLOW_ICAL_ALLOW_PRIVATE === '1';
