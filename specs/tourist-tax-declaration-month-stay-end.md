@@ -37,6 +37,8 @@ appears, so the operator never remits a tax that was not collected.
    `balancePaid = 1` normally, `complementPaid = 1` when the tax is collected on arrival
    (`TAX_ON_ARRIVAL_SQL` unchanged). Unpaid → absent from every month. *(Unchanged from
    tourist-tax-on-solde.)*
+   *Reading of 2026-11-05 (D14):* a stay with an installment plan does not pass through this gate,
+   rule 7.
 3. **Attribution month = `max(lastNightMonth, paidMonth)`:**
    - `lastNightDate = DATE(endDate, '-1 day')` — a checkout on the 1st belongs to the previous month
      (all taxed nights are in it).
@@ -51,6 +53,21 @@ appears, so the operator never remits a tax that was not collected.
 6. **Single-month invariant preserved:** `max()` of two fixed dates is deterministic, so a reservation
    still appears in **exactly one** monthly extraction — the « Déclarée » per-reservation checkbox
    (`specs/tourist-tax-declared-checkbox.md`) needs no change.
+7. **A stay with an installment plan enters at its stay month, whatever is paid** (2026-11-05, D14,
+   Adrien's decision). The plan is read from `reservation_installments`: fully paid, partly paid or
+   nothing paid yet, the stay is listed in the month of its last night and for its whole tax, payment
+   dates playing no part, including a complement that carries the tax. *Why:* paying an installment
+   leaves `balancePaid` at 0 (`specs/direct-installments.md` rule 51), so a stay paid through a plan
+   never reached the page and its tax was never offered for declaration. A tax not yet collected can
+   therefore be declared: Adrien accepts it, nothing is forgotten that way. Platform routing (rule 1),
+   refunded nights and a cancelled stay read as on any other stay.
+   The row reads the stored tax, the figure its tick pins: paying an installment freezes nothing, so a live replay
+   showed 8,00 € after a rate move, the tick then showed 4,80 €, and the operator had told the commune the first. A
+   save of the fiche still re-prices the stored figure, as it does the plan's shares.
+8. **Every other stay keeps its gate, and the plan decides alone** (2026-11-05, D14). Without a plan,
+   rules 2 and 3 are unchanged. With a plan, a stored paid flag is not read, so a stay stays in one
+   month (rule 6). A plan removed again (nothing was paid, `direct-installments` rule 2) gives the stay
+   its gate back: absent until the solde is paid, its « Déclarée » tick kept.
 
 **Edge cases:**
 - Paid flag set but paid **date** missing (legacy data) → treat `paidDate` as the last-night date
@@ -73,6 +90,9 @@ appears, so the operator never remits a tax that was not collected.
 |---|---|---|---|
 | `models/` | `financeModel.js` | T | `getTouristTaxExtraction` WHERE clause: keep the paid-flag requirement, replace the paid-date-in-bounds filter by `max(lastNightDate, COALESCE(paidDate, lastNightDate))` in `[monthStart, nextMonthStart)` — for both the solde branch and the `TAX_ON_ARRIVAL_SQL` complement branch. |
 | `tests/` | `tourist-tax-collection-coverage.unit.test.js` | T | Rewrite the attribution cases: paid-early → stay-end month; paid-late → payment month; unpaid → absent; paid-flag-without-date → stay-end month; checkout-on-the-1st → previous month. |
+| `models/` | `financeModel.js` | T | Rules 7-8 (2026-11-05): `HAS_PLAN_SQL` (`EXISTS` on `reservation_installments`, `(0)` on a minimal schema without the table) opens a third branch of the WHERE clause on the last night alone, and closes the two others to a plan. |
+| `tests/` | `plan-tax-declaration.unit.test.js` | C | Rules 7-8, through the real controllers. |
+| `tests/` | `fixtures/vat-regime/golden.json` | T | `tourist-tax/2027-07` regenerated, that key alone: the golden's stay 106 has a plan. |
 | `routes/` / `controllers/` | — | — | (none — endpoint contract unchanged) |
 | `database.js` | — | — | (no schema change) |
 
@@ -109,6 +129,7 @@ All automated cases live in `tourist-tax-collection-coverage.unit.test.js`:
 - [x] Paid flag = 1, paid date NULL → last-night month.
 - [x] Future month still rejected; current month accepted (pre-existing, unchanged).
 - [x] Full server suite green — **2075 / 2075 pass**.
+- [x] `plan-tax-declaration.unit.test.js` (23, 2026-11-05), rules 7-8: plan paid, partly paid, nothing paid; stay month against payment month; departure on the 1st; amount, KPIs and aggregate equal to the same stay paid by solde; refunded night; cancelled stay; plan removed; tax on the complement; an own channel that remits itself; a stay without a plan unchanged.
 - [ ] Manual UI check: month selector on `/finance/tourist-tax` shows the moved stays (desktop + mobile).
 
 ## 7. Out of scope
@@ -123,3 +144,5 @@ All automated cases live in `tourist-tax-collection-coverage.unit.test.js`:
 - **Resolved (2026-07-19):** month boundary = **last night** (checkout on the 1st → previous month).
 - **Resolved (2026-07-19):** payment remains required; late payment attributes to the **payment month**
   (goal: never remit a tax that was never collected).
+- **Resolved (2026-11-05, D14):** a stay with an installment plan is the exception, rule 7: Adrien
+  prefers a tax declared before it is collected to a tax nobody is offered.

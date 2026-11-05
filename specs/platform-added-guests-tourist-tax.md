@@ -180,6 +180,13 @@ is declared to the commune. The accommodation no longer pays for it.
     platform's name. An installment with no frozen split reads its share as it stands, the addition already out: it took
     2,40 € of 2,40 €, booking no tax at all, until the verification of 2026-11-05. Test:
     `plugins/accounting-export/tests/added-guests-tax-pre-arrival-readers`.
+28. **A stay with an installment plan reads these rows like any other** _(D14, 2026-11-05,
+    `tourist-tax-declaration-month-stay-end.md` rule 7)_. Its main row is at the stay month, whatever is paid, and holds the
+    addition only once the complement is collected (rule 11). Ticked with the complement collected, one row and a stamp of
+    the addition; ticked before, a stamp of 0 and, once collected, a row of its own in the month of the collection (rules 12,
+    20), a NULL stamp reading the dates in the row and the SQL alike. A guest added after the tick of a paid plan goes the same
+    way. *Why:* with the gate on `balancePaid`, nothing of such a stay was listed: no main row to tick, and the row of its own
+    needs a declared main row.
 
 **Edge cases:**
 - iCal import with 1 default adult, composition set to 4, then the brut → paid = 4, no added tax.
@@ -270,7 +277,7 @@ Interactive summary: `docs/specs/2026-11-03-platform-added-guests-tourist-tax.ht
 
 ## 7. Test plan
 
-### Server unit tests — `platform-added-guests-tourist-tax.unit.test.js` (24), `platform-added-guests-tourist-tax-books.unit.test.js` (23), `plugins/accounting-export/tests/platform-added-guests-tourist-tax-books.unit.test.js` (6), `platform-added-guests-stored-readers.unit.test.js` (1), `platform-added-guests-paths.unit.test.js` (15), `platform-added-guests-migration.unit.test.js` (3), `plugins/accounting-export/tests/added-guests-tax-pre-arrival-readers.unit.test.js` (13)
+### Server unit tests — `platform-added-guests-tourist-tax.unit.test.js` (24), `platform-added-guests-tourist-tax-books.unit.test.js` (23), `plugins/accounting-export/tests/platform-added-guests-tourist-tax-books.unit.test.js` (6), `platform-added-guests-stored-readers.unit.test.js` (1), `platform-added-guests-paths.unit.test.js` (15), `platform-added-guests-migration.unit.test.js` (3), `plugins/accounting-export/tests/added-guests-tax-pre-arrival-readers.unit.test.js` (13), `plan-tax-declaration.unit.test.js` (5 of 20, rule 28)
 - [x] Rule 1: capture, keep on a corrected brut, clear, re-capture; body value ignored; a locked past stay can still take its brut.
 - [x] Rules 2–5: amount per mode and per tax mode, a platform rate that differs, rounding noise, minors, a child removed on a percentage property (D12).
 - [x] Rules 6–7bis: rises and falls; stored amount kept once the complement is collected; frozen tax + guest added → line in the complement, frozen part unchanged, no double count on the next save. Through the real save and the real preview too.
@@ -287,6 +294,7 @@ Interactive summary: `docs/specs/2026-11-03-platform-added-guests-tourist-tax.ht
 - [x] Rule 21: stored adults against today's party; a gap shows no person; no adults stored with an amount (a rollback, then a re-upgrade) falls back on the party, in the row and in the engine.
 - [x] Rule 22: 409 on each row that does not exist, untick of a missing row allowed; untick of the row alone; main untick; complement unticked through the real PATCH; `complementPaid` written again at 1 (a save, a statement) keeps the tick, and the same PATCH again is refused as already paid and keeps it too.
 - [x] Rule 23: live quote, stored detail, arrival SAS, departure recall, ventilation, single payment alone and mixed, J-2 email in both languages with and without the detail; a whole tax, forced or collected on arrival, keeps its name.
+- [x] Rule 28: plan with the complement collected before the tick (one row, stamp 2,40), ticked before it (rows 4,80 + 2,40, totals and aggregate 7,20, 409 before the row exists, complement unticked drops the row and its tick), collected the month after, guest added after the tick, NULL stamp.
 - [x] Rule 25: a repeated main tick on a legacy row keeps its date, its stamp and its two rows.
 - [x] §5: **executed on a real boot of a seeded file** (`platform-added-guests-migration`): a row with a brut, without, direct; from before the feature and from v3.21.0, a moved stay with no persons stored taking the current party; a second boot leaves everything alone. No stored amount moves.
 

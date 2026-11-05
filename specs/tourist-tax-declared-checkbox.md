@@ -44,6 +44,11 @@ Two problems surface in real use:
    checkbox cell stops event propagation so ticking doesn't navigate away.
 6. **Authoritative server state.** The declared marker is persisted server-side and returned in the
    extraction payload; the client only renders it + optimistically reflects the toggle.
+7. **A stay with an installment plan ticks like any other, money due or not** (2026-11-05, D14,
+   `tourist-tax-declaration-month-stay-end.md` rule 7). The tick stamps its date once, unticking clears it,
+   an installment paid afterwards changes neither the row nor the date, and the tick freezes the amount as
+   on any stay. A plan removed keeps the tick, which shows again when the stay comes back. A cancelled stay
+   answers 404.
 
 **Edge cases:**
 - Re-ticking an already-declared reservation changes nothing: its first date stands. Corrected on
@@ -101,6 +106,9 @@ appears.
 - [x] `setTouristTaxDeclared(declared=true)` sets `touristTaxDeclaredAt` to a non-null date-time; returns it.
 - [x] `setTouristTaxDeclared(declared=false)` clears it back to `NULL`.
 - [x] `getTouristTaxExtraction` exposes `touristTaxDeclaredAt` per reservation (declared value preserved).
+
+### Server unit tests (`tests/plan-tax-declaration.unit.test.js`, 2026-11-05)
+- [x] Rule 7 (4 of 20): tick, untick and repeated tick with an installment still due; amount held when the rate moves; plan removed keeps the tick; cancelled stay 404.
 
 ### Client vitest tests (`pages/__tests__/TouristTaxPage.test.js`, NEW)
 - [x] **Date non-regression**: a reservation `startDate 2026-06-20 / endDate 2026-06-21` renders
