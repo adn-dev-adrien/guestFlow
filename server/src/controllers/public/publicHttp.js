@@ -54,6 +54,11 @@ function failT(res, req, status, code, messageKey, details, ...args) {
   return fail(res, status, code, errorMessage(langOf(req), messageKey, ...args), details);
 }
 
+/** A path no plugin owns under /public/v1: a JSON 404, never the SPA. */
+function publicTreeNotFound(req, res) {
+  return failT(res, req, 404, 'NOT_FOUND', 'resourceNotFound');
+}
+
 // Express routes ignore the case, so /PUBLIC/v1 is the same tree.
 const PUBLIC_TREE = /^\/public\//i;
 
@@ -66,4 +71,4 @@ function answerBodyRefusal(req, res, refusal) {
   return res.status(refusal.status).json(refusal.body);
 }
 
-module.exports = { ok, fail, failT, langOf, langStated, answerBodyRefusal };
+module.exports = { ok, fail, failT, langOf, langStated, publicTreeNotFound, answerBodyRefusal };

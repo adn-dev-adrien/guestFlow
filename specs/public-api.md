@@ -138,6 +138,11 @@ or **[CREATE]** (genuinely new logic).
    ([public-request-abuse-and-grouping.md](public-request-abuse-and-grouping.md) rule 8 — no limit is
    ever shared by all visitors). No third-party CAPTCHA: since 2026-10-27 the request also carries an
    internal proof of work, a per-e-mail cap on new quotes and one quote per stay (same spec).
+   *Reading of 2026-11-05 (Adrien's decision D18, audit R23 public finding 1):* a booking request answered `422` gives
+   its hit back to `bookingRequestLimiter` (`skipFailedRequests`, `requestWasSuccessful: status !== 422`): it stored nothing
+   and a guest correcting the form is not locked out for an hour. Any other answer spends the hit, `403`, `409` and `201`
+   alike. `publicApiLimiter` still counts the refused form and the proof of work is still spent. Covered by
+   `plugins/website-booking/tests/public-refused-form-budget.unit.test.js`.
 10. **Uniform error envelope.** Every public error is `{ "error": { "code", "message", "details"? } }`
     (see §4.3). `message` is generic/non-fingerprinting; `code` is a stable machine string.
 11. **No temporary hold (this version).** A booking request does **not** block the calendar; dates
@@ -207,11 +212,19 @@ or **[CREATE]** (genuinely new logic).
     break already did) and a name holds at least one letter or digit, else `reason: 'required'`: `"\u0000"`, an escape
     sequence, a braille blank or a lone joiner created a client that reads blank in the lists. Covered by
     `plugins/website-booking/tests/public-input-shape.unit.test.js`.
+    *Reading of 2026-11-05 (audit R23 public finding 3):* a letter that shows nothing (`Default_Ignorable_Code_Point`: the
+    Hangul fillers U+115F, U+1160, U+3164, U+FFA0) is not that letter: a name made of them alone is `reason: 'required'`.
+    Rule 23's alphabet does not change, so one beside a real letter still passes. Same suite.
 21. **The phone is a phone number** (audit 2026-10-28, F5). `guest.phone` must be 8-15 digits with an optional
     `+` and spaces, dots, dashes or brackets as separators (the client dialog's rule), otherwise `422` with
     `reason: 'phoneInvalid'` (« Numéro de téléphone invalide. » / « Invalid phone number. »); a phone with a line
     break used to be stored and printed on its own line of the owner's e-mail. `guest.email` is one address (no
     comma, semicolon, angle bracket). Covered by `plugins/website-booking/tests/public-request-line-injection.unit.test.js`.
+    *Reading of 2026-11-05 (audit R23 public finding 5):* every format character (`\p{Cf}`, joiners and U+FEFF included)
+    leaves `guest.email` before it is judged, and nothing is refused for it: an address pasted with a zero-width space lands
+    on the real address and its client, where it used to make a second client that read the same in the list and missed
+    the rules 7 and 12 of [public-request-abuse-and-grouping.md](public-request-abuse-and-grouping.md). Covered by
+    `plugins/website-booking/tests/public-email-one-address.unit.test.js`.
 22. **A value of the wrong JSON type is a refusal, never a crash nor a coercion** (audit R21, 2026-11-03; closes R14 L-1).
     Nothing the site really sends moves: strings and numbers read as before, nothing else is narrowed.
     - A count, an id or a line quantity (`propertyId`, `adults`, `children`, `teens`, `babies`, `babyBeds`,
@@ -702,8 +715,12 @@ follow-up.
       (`customPrice`/`discountPercent`/`platform`/`clientGrossAmount`/`depositAmount`/`offeredOptionIds`/
       per-option `offered`/`free`/`unitPrice`/`price`/`selectedResources`/…) is dropped before the
       engine; options collapse to `{optionId, quantity}`. **(12 tests)**
-- [x] `plugins/website-booking/tests/public-input-shape.unit.test.js` and `tests/public-input-shape-core.unit.test.js` — rule 22. **(10 + 5 tests)**
-- [x] `plugins/website-booking/tests/public-name-charset.unit.test.js` — rule 23 and [wordpress-plugin.md](wordpress-plugin.md) rule 35: accepted and refused names, the refusal's sentence, nothing written, no city nor address read, stored client, intake, back office and the validator's only caller. **(13 tests)**
+- [x] `plugins/website-booking/tests/public-input-shape.unit.test.js` and `tests/public-input-shape-core.unit.test.js` — rule 22. **(13 + 10 tests)**
+- [x] `plugins/website-booking/tests/public-name-charset.unit.test.js` — rule 23 and [wordpress-plugin.md](wordpress-plugin.md) rule 35: accepted and refused names, the refusal's sentence, nothing written, no city nor address read, stored client, intake, back office and the validator's only caller. **(14 tests)**
+- [x] `plugins/website-booking/tests/public-refused-form-budget.unit.test.js` — rule 9's reading of 2026-11-05 (D18): refused forms give their hit back, every other answer spends it, the broad limit and the proof stand. **(6 tests)**
+- [x] `plugins/website-booking/tests/public-email-one-address.unit.test.js` — rule 21's reading of 2026-11-05 and the rules 7 and 12 of the abuse spec on a non-ASCII or hidden-character address. **(4 tests)**
+- [x] `plugins/website-booking/tests/public-free-text-cleaning.unit.test.js` — the cleaner of the message and the attribution ([public-request-abuse-and-grouping.md](public-request-abuse-and-grouping.md) rule 22, [site-traffic-analytics.md](site-traffic-analytics.md) rule 15, readings of 2026-11-05). **(8 tests)**
+- [x] `plugins/website-booking/tests/public-refusal-language.unit.test.js` — [site-english-version.md](site-english-version.md) rule 8's reading of 2026-11-05: limiters, the tree's 404, the key refusals. **(4 tests)**
 - [x] `tests/public-catalog-readonly.unit.test.js` — `GET /public/v1/properties/:id` reads through the
       side-effect-free `getByIdPublicReadOnly` and **never** the seeding `getByIdWithDetails`, proving a
       public GET performs zero writes; 404 path also writes nothing. **(2 tests)**

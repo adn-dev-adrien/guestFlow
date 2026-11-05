@@ -231,12 +231,19 @@ const textOf = (v) => (typeof v === 'string' ? v : '');
 
 // Bidi overrides and zero-width characters let a name read backwards or pass for another; the joiners stay for Persian/Indic names.
 // Control characters too (a space, as the model reads a line break), and a name holds at least one letter or digit:
-// NUL, an escape sequence, a braille blank or a lone joiner read as blank in the lists.
+// NUL, an escape sequence, a braille blank, a lone joiner or a Hangul filler (a letter that shows nothing) read as blank in the lists.
 const withoutFormatChars = (v) => textOf(v).replace(/(?![\u200C\u200D])\p{Cf}/gu, '').replace(/\p{Cc}/gu, ' ').trim();
 const nameOf = (v) => {
   const name = withoutFormatChars(v);
-  return /[\p{L}\p{N}]/u.test(name) ? name : '';
+  return /(?!\p{Default_Ignorable_Code_Point})[\p{L}\p{N}]/u.test(name) ? name : '';
 };
+// No address needs a format character, joiners included: the guest lands on the address that reads the same (rule 21).
+const emailOf = (v) => textOf(v).replace(/\p{Cf}/gu, '').trim();
+// A message or an attribution value keeps its joiners, line breaks and tabs, and nothing else invisible.
+const cleanFreeText = (v) => textOf(v)
+  .replace(/\r\n?/g, '\n')
+  .replace(/(?![\u200C\u200D])\p{Cf}/gu, '')
+  .replace(/(?![\n\t])\p{Cc}/gu, '');
 // Decision D13 (specs/public-api.md rule 23): the public form's names only. The joiners are those withoutFormatChars keeps.
 const NAME_CHARACTERS = /^[\p{L}\p{M}\p{Zs}\p{Pd}\u200C\u200D'’.]+$/u;
 const NAME_REFUSAL = 'must hold only letters, marks, spaces, hyphens, apostrophes and dots';
@@ -246,7 +253,7 @@ function validateGuest(raw) {
   const guest = raw && typeof raw === 'object' ? raw : {};
   const firstName = nameOf(guest.firstName);
   const lastName = nameOf(guest.lastName);
-  const email = textOf(guest.email).trim();
+  const email = emailOf(guest.email);
   const phone = textOf(guest.phone).trim();
   const judgeName = (field, name) => {
     if (!name) errors.push({ field: `guest.${field}`, issue: 'required', reason: 'required' });
@@ -291,14 +298,15 @@ const HOSTNAME = /^(?=.{3,253}$)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2
 function validateAttribution(raw) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
   const text = (v) => (typeof v === 'string' ? v.trim().slice(0, ATTRIBUTION_MAX) : '');
+  const oneLine = (v) => text(cleanFreeText(v).replace(/[\n\t]+/g, ' '));
   const out = {};
   for (const k of ATTRIBUTION_TEXT_KEYS) {
-    const v = text(raw[k]);
+    const v = oneLine(raw[k]);
     if (v) out[k] = v;
   }
   const referrer = text(raw.referrer).toLowerCase();
   if (HOSTNAME.test(referrer)) out.referrer = referrer;
-  const landingPath = text(raw.landingPath);
+  const landingPath = oneLine(raw.landingPath);
   if (landingPath.startsWith('/')) out.landingPath = landingPath;
   const firstSeenAt = text(raw.firstSeenAt);
   if (firstSeenAt && !Number.isNaN(Date.parse(firstSeenAt))) out.firstSeenAt = new Date(firstSeenAt).toISOString();
@@ -317,5 +325,6 @@ module.exports = {
   validateAvailabilityQuery,
   validateStayInput,
   validateGuest,
+  cleanFreeText,
   withFieldMessages,
 };
