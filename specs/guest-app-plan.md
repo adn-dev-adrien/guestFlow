@@ -134,15 +134,15 @@ guest UI, so the riskiest code is the most tested before a guest can reach it.
 
 ### C1 — An SDK hook, not a cross-plugin import
 20. New SDK hook `ctx.resourceScheduler(provider)` (one provider app-wide, like `paymentProvider`):
-    `{ slotsForStay, validateSessions, holdsSource }`. `hourly-resources` declares it, built on its own
+    `{ slotsForStay, validateSessions }` (holds go through `ctx.resourceHolds` / `core.resourceHolds`, not the scheduler). `hourly-resources` declares it, built on its own
     `occupancyModel.listRange`, `availability.buildDays` / `validateBlock`, `hourlyPricing.priceSessions`.
     The core exposes `coreServices.resourceScheduler()` (null when `hourly-resources` is inactive →
     hourly items absent, rule edge case).
 21. `holdsSource`: `hourly-resources` asks every declared holds source for pending occupancy, so a guest
     order awaiting payment blocks the slot in the planning page, the SAS picker and outside bookings too
     (rule 35). `guest-app` declares `ctx.resourceHolds(fn)` reading `guest_orders.heldUntil`.
-22. `slotsForStay` returns states `free | evening | taken | closed | heating | staff | past` and a
-    `reasonLabel`; the `staff` state comes from a predicate the caller passes (C2).
+22. `slotsForStay` returns states `free | evening | taken | closed | heating | staff | past` (no label: the
+    guest app builds its own and lists only the bookable ones); the `staff` state comes from a predicate the caller passes (C2).
 
 ### C2 — Service hours
 23. `models/serviceHoursModel.js`, `GET/PUT /api/guest-app/service-hours` (weekly ranges ≤ 3 per day,

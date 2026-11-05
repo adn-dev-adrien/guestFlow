@@ -104,7 +104,8 @@ is pushed every order.
     Boutique · Bain nordique · Soliomap · Livret). A module that is off for the lodging is not rendered (no
     greyed tile).
 11. **Contextual highlight.** One card under the tiles, chosen by the server among: « Le portail est
-    actif » (arrival day), « Un bain nordique ce soir ? » + the first bookable hour (a slot in state `free` or `evening` remains today and the resource is sold in the app), « Votre commande est prête » (an order marked delivered in the last hour),
+    actif » (arrival day), « Un bain nordique ce soir ? » (« aujourd'hui » when the first bookable slot starts before 18 h) + the
+    first bookable hour (a slot in state `free` or `evening` remains today and the resource is sold in the app), « Votre commande est prête » (an order marked delivered in the last hour),
     « Départ demain : les consignes » (eve of departure → booklet page *Départ*). At most one highlight, plus at most one suggestion (rule 15bis), never a marketing carousel. A highlight is only chosen among the lodging's enabled modules. Priority: the order,
     the gate, the departure, the bath: a bath slot is free on nearly every evening, so ahead of the departure
     it would keep the instructions from ever showing.
@@ -142,8 +143,8 @@ is pushed every order.
 13. **Source and window.** The URL is read from the `gate-access` plugin (`gate_key_results` of the stay)
     and returned only for a stay session inside the gate window. Before the key exists (Sowel has not pulled
     yet) the tile reads « Accès en préparation » and is not clickable; outside the window the tile is absent.
-    On arrival day, while the key does not exist yet, the highlight reads « Votre accès au portail se prépare », with
-    no time promised.
+    On arrival day, while the key does not exist yet, the highlight reads « Votre accès au portail se prépare » and « La tuile Portail s'activera dès que votre accès
+    sera prêt. », with no time promised.
 14. **Plugin off** (`gate-access` inactive or not installed) → tile absent, endpoint 404 `PLUGIN_INACTIVE`.
 
 ### 3.D Soliomap
@@ -187,7 +188,7 @@ is pushed every order.
     lists, links), `image`, `gallery`, `callout` (info / warning), `steps` (numbered how-to with optional
     photo per step), `wifi` (network + password + « Copier », QR to join), `contact` (name, role, phone →
     `tel:`, WhatsApp, email), `place` (address + « Itinéraire » → maps link), `faq` (accordion),
-    `button` (label + internal page / shop item / external URL), `hours` (opening times table). A `button`
+    `button` (label + target `{ kind:'page', slug }` | `{ kind:'item', itemKind, itemId }` | `{ kind:'url', href }`), `hours` (opening times table). A `button`
     whose target is not available to the session (module off, item not sold here, a shop or bath target for a
     visitor or a pre-arrival session) is not rendered.
 19. **Languages.** Every text field has FR and EN. The app language is the guest's `clients.emailLanguage`
@@ -253,8 +254,11 @@ is pushed every order.
     complement is collected: « La boutique est fermée. Bon retour chez vous ! ».
 27bis. **Breakfast** (decided 2026-11-05 with Q9). The seeded breakfast option (`autoOptionType='breakfast'`,
     `per_person_per_night`, `utils/breakfastSeed.js`) is sellable despite rule 23's exclusion of its price
-    type. Ordering it means choosing the mornings left in the stay and the hour (inside the service hours),
-    written as the stay's breakfast line `cardOccurrences` and priced per person and night by the core engine;
+    type. Ordering it means choosing the mornings left in the stay, the number of people (up to the party size) and
+    the hour: one hour chosen applies to every chosen morning where it is a valid delivery time (rule 41), a
+    morning where it is not is shown unavailable at that hour; each morning keeps its own time in the stay's
+    breakfast line `cardOccurrences`. Priced per person and night by the core engine, shown to the guest « par
+    personne et par matin »;
     it appears on the planning's `BreakfastDayCard` only, never on a « Commande client » card. A stay that already
     includes it orders it at 0 €, which only sets its mornings and hour. Staff-prepared items also follow the
     service hours of §3.G.
@@ -321,7 +325,8 @@ is pushed every order.
     the payment date. This wires the `complement` type end to end: `ensurePaymentLink` accepts it **only**
     with an explicit guest-order basket, `applyPaidEffect` gets a `complement` branch that commits the order.
     Exempt from the arrival-day lapse (`payment-link-lifecycle.md` rule 9); its own lifetime is **30 min**.
-    While `awaiting_payment` the order **holds** its hourly slots (rule 28) and the free minutes it uses; the guest can abandon it from « Mes commandes » (holds released at once). At payment, a `deliverAt` earlier than payment + lead moves to the next valid slot and the order says so.
+    While `awaiting_payment` the order **holds** its hourly slots (rule 28) and the free minutes it uses; the guest can abandon it from « Mes commandes » (status `abandoned`, chip *Abandonnée*, holds released at
+    once, its lines back in the cart). At payment, a `deliverAt` earlier than payment + lead moves to the next valid slot and the order says so.
 36. **Unpaid card order.** If the link is not paid within 30 min the order goes `expired`, its holds are
     released, nothing reaches the fiche. A payment confirmed after expiry (late webhook) still commits the
     order if its slots are still free; otherwise the order goes `paid_conflict`, the operator is pushed, and
@@ -331,8 +336,7 @@ is pushed every order.
 37. **Limits.** Per order: ≤ 20 lines, each quantity 1…`maxQuantity` (plugin field, default 10), total
     ≤ 500 € (plugin setting). Per session: 10 orders / hour. Out-of-range → 400 with the documented code;
     the app's steppers already respect `maxQuantity` (UX only).
-38. **Order follow-up.** « Mes commandes » lists the stay's orders with status chips: *En attente de paiement*, *Payée*, *Sur votre note*, *Offerte* (0 €), *Payée · à rembourser*
-    (`paid_conflict`), *Expirée*; a second chip *Prévue {jour heure}* / *Livrée* for orders with a delivery. An
+38. **Order follow-up.** « Mes commandes » lists the stay's orders with status chips: *En attente de paiement*, *Payée*, *Sur votre note*, *Offerte* (0 €), *Payée · à rembourser* (`paid_conflict`), *Expirée*, *Abandonnée*; a second chip *Prévue {jour heure}* / *Livrée* for orders with a delivery. An
     unpaid card order shows « Paiement par carte en attente » and no preparation step until it is paid. The guest cannot cancel a
     confirmed order from the app (« Contactez-nous » → booklet contact block).
 
@@ -348,13 +352,16 @@ is pushed every order.
     closures of GuestFlow (`establishment_closures`, all-properties rows) close the service too. Optionally
     per lodging (both lodgings share them by default).
 41. **Ordering a staff item = choosing a delivery time.** The cart asks « Quand souhaitez-vous la
-    recevoir ? » with server-computed delivery times t (30-min steps) such that check-in ≤ t ≤ check-out and the preparation
+    recevoir ? » with server-computed delivery times t (30-min steps) such that check-in ≤ t < check-out and the preparation
     interval [t − max(leadMinutes), t] lies after *now* inside one service range. Delivery times have no
-    capacity limit (decided 2026-11-05): an order holds no delivery slot and there is no `DELIVERY_SLOT_GONE`. The first slot is
-    preselected (« Dès que possible — vers 17 h 30 »).
+    capacity limit (decided 2026-11-05): an order holds no delivery slot and there is no `DELIVERY_SLOT_GONE`. The first slot is preselected, labelled « Dès que possible — vers 17 h 30 » only while the service is open now.
+    No service hours stored at all (neither shared nor per lodging) = no constraint: the service counts as always
+    open and the plugin's setup status says « horaires du service à configurer ». Once anything is stored, a day
+    without a range is closed. An ignition may fall at the very end of a range.
 42. **Outside service hours the guest can still order, for later.** The shop shows a banner « Le service
     reprend demain à 8 h — vous pouvez commander dès maintenant pour plus tard » and the delivery picker
-    starts at the next opening + lead time (rule 41). An item whose last possible delivery is past check-out is shown
+    starts at the next opening + lead time (rule 41). No opening left before departure: « Le service est fermé
+    jusqu'à votre départ ». An item whose last possible delivery is past check-out is shown
     « Plus disponible pour votre séjour ».
 43. **The delivery time drives the staff.** The order carries `deliverAt`; the push of rule 44 states it;
     a planning card « Commande client » appears on the planning day of `deliverAt` (contributed by the plugin
@@ -564,8 +571,8 @@ shape for every plugin: `{ error: 'PLUGIN_INACTIVE', plugin }`.
 | GET | `/public/v1/guest/lodging` | session or `lodgingCode` | — | `{ name, heroUrl, modules:[{key, label, order}], wifi?:{network, password, note?, joinQr}, contacts:[…] }` — only enabled modules / configured facts |
 | GET | `/public/v1/guest/gate` | stay session | — | `{ state:'active'\|'preparing'\|'outside', url? }` |
 | GET | `/public/v1/guest/shop` | stay or pre-arrival session (visitor → 404 `MODULE_OFF`) | — | `{ open, closedReason?, service (slice C), canPayCard, canPayNote, categories:[{ name, items:[{ kind:'option'\|'breakfast'\|'resource', id, title, shortDescription, imageUrl, price, priceLabel, priceUnitLabel, included?, includedLeft?, freeLeftLabel?, maxQuantity, needsStaff, scheduling?:'hourly', unavailableReason? }] }] }`; a `breakfast` item adds `state:'included'\|'sold'`, `defaultTime`, `mornings:[{date,label}]`, `occurrences:[{date,time}]` |
-| GET | `/public/v1/guest/shop/resources/:id/slots?from&to` | stay session | — | `{ freeMinutesLeft, freeLabel?, days:[{date,label,closed,slots:[{start,end,state,priceLabel,reasonLabel?}]}] }` |
-| POST | `/public/v1/guest/shop/delivery-slots` | stay session | `{ lines }` | `{ asap:{at,label}, slots:[{at,label}], bannerLabel? }` |
+| GET | `/public/v1/guest/shop/resources/:id/slots?from&to` | stay session, `shop` module | — | `{ freeMinutesLeft, freeLabel?, days:[{date, label, slots:[{start, end, state:'free'\|'evening', priceLabel}]}] }` — bookable slots only, days without one dropped; 404 `ITEM_NOT_FOUND` (not a sold hourly item here, or `hourly-resources` inactive), 400 `INVALID_INPUT` |
+| POST | `/public/v1/guest/shop/delivery-slots` | stay session | `{ lines:[{kind, id}] }` (1-20) | `{ needed, asap:{at,label}\|null (null while the service is closed), days:[{date, label, slots:[{at, label}]}], bannerLabel? }`; lead = the longest `leadMinutes` of the cart's staff items |
 | POST | `/public/v1/guest/orders/quote` | stay session | `{ lines:[{kind,id,quantity?,sessions?}], deliverAt? }` | `{ lines:[{…, unitPrice, freeUnits?, total, label, unavailable?}], total, totalLabel, needsDelivery }` |
 | POST | `/public/v1/guest/orders` | stay session | `{ lines, deliverAt?, payment:'card'\|'note'\|'none', returnPath }` | card → `{ orderId, paymentUrl }`; note/none → `{ orderId, status:'confirmed' }`; 403 `NAME_REQUIRED`, 409 `SLOT_TAKEN`, 409 `SHOP_CLOSED`, 400 `ORDER_LIMIT` |
 | GET | `/public/v1/guest/orders` | stay session | — | `{ orders:[{id, createdAt, deliverAt, lines, total, payment, status, statusLabel}] }` |
@@ -576,7 +583,7 @@ shape for every plugin: `{ error: 'PLUGIN_INACTIVE', plugin }`.
 | GET/PUT | `/api/guest-app/lodgings/:propertyId` | admin | `{ enabled, displayName, heroMediaId, modules:[{key, on, order}], wifi:{available, network, password, note}, contacts:[{name, role?, phone?, whatsapp?, email?}] }` — a PUT writes the keys it names; a `wifi` without `password` keeps the stored one, `''` clears it | the lodging config with `hasLodgingCode`, never the code itself (rules 11bis-11quater) |
 | POST | `/api/guest-app/studio/pages/:id/duplicate` | admin | `{ toPropertyId }` | the new independent page |
 | PUT | `/api/guest-app/studio/lodgings/:propertyId/booklet` | admin | `{ pages:[{pageId, sortOrder, published}] }` | that lodging's page order and visibility |
-| GET/PUT | `/api/guest-app/service-hours` | admin | `{ weekly:{1:[{from,to}],…}, exceptions:[{date, closed\|ranges}] }` | the config |
+| GET/PUT | `/api/guest-app/service-hours[?propertyId=]` | admin | PUT `{ weekly:{0..6 (0 = Sunday):[{from,to}]}, exceptions:[{date, closed:true} \| {date, ranges:[{from,to}]}] }` (both keys required, the whole configuration replaced) | `{ propertyId, shared, weekly, exceptions }`; 400 on more than 3 ranges, a bad `HH:MM`, start ≥ end, an overlap, a duplicate date, a closed exception with ranges |
 | GET/POST/PUT/DELETE | `/api/guest-app/studio/**` | admin | pages, blocks, media, settings, publish, `lodgings/:id/regenerate-qr`, `lodgings/:id/qr-poster.pdf` | — |
 | GET | `/api/guest-app/orders?status=` | admin/staff | — | orders list (rule 45) |
 | POST | `/api/guest-app/orders/:id/delivered` | admin/staff | — | `{ status:'delivered' }` |
@@ -613,7 +620,7 @@ reads under the existing `publicApiLimiter` budget.
 - `guest_media(id, path, width, height, altFr, altEn, createdAt)` — files under `server/uploads/guest-app/`,
   resized at upload (1600 / 800 / 400 px, WebP).
 - `guest_orders(id, reservationId, sessionId, payment 'card'|'note'|'none', status 'awaiting_payment'|
-  'confirmed'|'paid'|'delivered'|'expired'|'paid_conflict', linesJson (priced snapshot, sessions included),
+  'confirmed'|'paid'|'delivered'|'expired'|'paid_conflict'|'abandoned', linesJson (priced snapshot, sessions included),
   total, deliverAt NULL, heldUntil NULL, paymentLinkId NULL, createdAt, confirmedAt, deliveredAt,
   deliveredBy)` — `heldUntil` makes the hourly `holds` provider cheap to query.
 - Plugin settings (`ctx.settings.declare`): `appName`, `soliomapUrl`, `soliomapEmbed` (default off), `maxOrderTotal`,
