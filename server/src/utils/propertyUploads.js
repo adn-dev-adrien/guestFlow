@@ -23,21 +23,27 @@ const upload = multer({
   limits: { fileSize: DOCUMENT_LIMIT_BYTES },
   fileFilter: (req, file, cb) => {
     if (!isAllowedUpload(file.originalname, file.mimetype, 'document')) {
-      cb(new Error('Type de fichier non autorisé.'));
+      const refusal = new Error('Type de fichier non autorisé.');
+      refusal.code = 'FILE_TYPE_REFUSED';
+      cb(refusal);
       return;
     }
     cb(null, true);
   },
 });
 
+// specs/settings-input-guards.md rule 60 — the size and type refusals are ours; any other failure (the disk, the
+// parser) answers a fixed message, never its own text, which can hold the server's path.
+function documentUploadRefusal(err) {
+  if (err.code === 'LIMIT_FILE_SIZE') return 'Fichier trop volumineux (max 10 Mo).';
+  if (err.code === 'FILE_TYPE_REFUSED') return err.message;
+  console.error('[properties.documents] upload', err && err.code);
+  return 'Fichier non enregistré.';
+}
+
 function handleDocumentUpload(req, res, next) {
   upload.single('file')(req, res, (err) => {
-    if (err) {
-      const msg = err.code === 'LIMIT_FILE_SIZE'
-        ? 'Fichier trop volumineux (max 10 Mo).'
-        : (err.message || 'Type de fichier non autorisé.');
-      return res.status(400).json({ error: msg });
-    }
+    if (err) return res.status(400).json({ error: documentUploadRefusal(err) });
     return next();
   });
 }
@@ -71,15 +77,30 @@ function handlePhotoUpload(req, res, next) {
   });
 }
 
+// specs/settings-input-guards.md rule 59 — a file the image library cannot read is the operator's photo, not a
+// server fault: 400 « Image illisible. », thrown before the model writes anything.
+const PHOTO_UNREADABLE = Object.freeze({ status: 400, body: { error: 'Image illisible.', code: 'PHOTO_UNREADABLE' } });
+
+function isUnreadablePhoto(err) {
+  return Boolean(err && err.code === PHOTO_UNREADABLE.body.code);
+}
+
 async function saveOptimizedPhoto(file) {
   if (!file) return '';
   const filename = `${Date.now()}-${Math.round(Math.random() * 1e6)}.webp`;
   const outputPath = path.join(uploadsDir, filename);
-  await sharp(file.buffer)
-    .rotate()
-    .resize({ width: 1600, height: 1600, fit: 'inside', withoutEnlargement: true })
-    .webp({ quality: 82, effort: 4 })
-    .toFile(outputPath);
+  try {
+    await sharp(file.buffer)
+      .rotate()
+      .resize({ width: 1600, height: 1600, fit: 'inside', withoutEnlargement: true })
+      .webp({ quality: 82, effort: 4 })
+      .toFile(outputPath);
+  } catch (err) {
+    fs.rmSync(outputPath, { force: true });
+    const refusal = new Error(PHOTO_UNREADABLE.body.error);
+    refusal.code = PHOTO_UNREADABLE.body.code;
+    throw refusal;
+  }
   return `/uploads/${filename}`;
 }
 
@@ -108,6 +129,8 @@ module.exports = {
   handleDocumentUpload,
   handlePhotoUpload,
   saveOptimizedPhoto,
+  isUnreadablePhoto,
+  PHOTO_UNREADABLE,
   removeUploadedFile,
   multerErrorHandler,
 };
