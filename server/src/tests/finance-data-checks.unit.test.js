@@ -213,6 +213,26 @@ test('rule 7: a past month with a declarable row not ticked is listed with what 
   assert.equal(check(elsewhere, 'tourist-tax-undeclared').items.some((i) => i.month === month), false, 'another logement');
 });
 
+test('rule 7: an undeclared row of 0 € leaves nothing to declare: its month is not listed for it', (t) => {
+  const ticked = stay();
+  const zero = stay({ startDate: addDaysToIsoDate(rowOf(ticked).startDate, 3), endDate: addDaysToIsoDate(rowOf(ticked).startDate, 5) });
+  paid(t, ticked);
+  paid(t, zero);
+  zeroTax(zero);
+  at(t, addDaysToIsoDate(rowOf(zero).endDate, 1), () => assert.equal(finance.setTouristTaxDeclared({ reservationId: ticked, declared: true }).ok, true));
+  const month = lastNight(zero).slice(0, 7);
+  const later = nextMonthStart(zero);
+  const page = at(t, later, () => finance.getTouristTaxExtraction({ month }).data.reservations);
+  const row = page.find((r) => r.reservationId === zero);
+  assert.ok(row && row.declarable && !row.touristTaxDeclaredAt && row.taxAmount === 0, 'the page lists it, unticked, at 0 €');
+  const others = page.filter((r) => r.reservationId !== zero && r.declarable && !r.touristTaxDeclaredAt && r.taxAmount > 0);
+  const data = at(t, later, () => dataChecks.getDataChecks({ fiscalYear: fyOf(zero) }).data);
+  const item = check(data, 'tourist-tax-undeclared').items.find((i) => i.month === month);
+  assert.equal(Boolean(item), others.length > 0);
+  if (item) assert.equal(item.stays, new Set(others.map((r) => r.reservationId)).size);
+  assert.equal(listed(at(t, later, () => dataChecks.getDataChecks({ fiscalYear: fyOf(zero) }).data), 'tourist-tax-missing', zero), true, 'the missing tax is rule 6’s business');
+});
+
 test('rule 7: a month whose rows are all ticked, or not declarable yet, is not listed', (t) => {
   const done = stay();
   paid(t, done);

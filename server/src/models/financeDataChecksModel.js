@@ -92,6 +92,7 @@ function createDataChecksModel(database, finance) {
         const result = finance.getTouristTaxExtraction({ month });
         if (!result.ok) continue;
         const rows = result.data.reservations.filter((row) => row.declarable && !row.touristTaxDeclaredAt
+          && round2(Number(row.taxAmount || 0)) > 0
           && (ctx.propertyId == null || Number(row.propertyId) === ctx.propertyId));
         if (rows.length === 0) continue;
         const amount = round2(rows.reduce((sum, row) => sum + Number(row.taxAmount || 0), 0));

@@ -23,6 +23,7 @@ import NoComparisonNotice from '../components/NoComparisonNotice';
 import TrendChart from '../components/TrendChart';
 import { comparisonPill, rateOneDecimal } from '../utils/comparisonPill';
 import { TILE_DEFINITIONS, HERO_DEFINITIONS } from '../constants/financeDefinitions';
+import FinanceDataChecksCard from '../components/FinanceDataChecksCard';
 import { seriesColor } from '../utils/chartColors';
 import { formatCurrencyRounded, plural } from '../utils/formatters';
 import api from '../api';
@@ -409,6 +410,9 @@ export default function FinancePage() {
               </Grid>
               <Grid size={12}>
                 <BookingPaceCard propertyId={params.propertyId} refreshKey={paceRefresh} />
+              </Grid>
+              <Grid size={12}>
+                <FinanceDataChecksCard fiscalYear={d.fiscalYear.key} propertyId={params.propertyId} refreshKey={paceRefresh} />
               </Grid>
             </Grid>
           </>

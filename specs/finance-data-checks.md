@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Implemented (server + API client; the panel of §4.2 round 2 follows) |
+| **Status** | Implemented |
 | **Branch** | `feature/hc-l5` (integrated into `feature/finance-reporting-hippocamp`) |
 | **Created** | 2026-11-05 |
 | **Author** | Adrien |
@@ -68,7 +68,8 @@ look, how many, and opens each one from the list.
 7. **`tourist-tax-undeclared` — « Mois passés dont la taxe n’est pas entièrement déclarée ».** For each month of
    the exercise strictly before the current month, the rows of `financeModel.getTouristTaxExtraction` (the
    « Suivi taxe de séjour » page itself: same stays, same attribution month, same amounts, added-guests rows
-   included) that are `declarable` and not ticked; the month is listed when any is. Item `{ month, label,
+   included) that are `declarable`, not ticked and carry a tax above 0 € (a 0 € row leaves nothing to remit; a
+   finished stay at 0 € that should carry a tax is rule 6's); the month is listed when any is. Item `{ month, label,
    detail, amount, stays }`: « Septembre 2026 », « Reste 18,15 € à déclarer · 2 séjours », `amount` = the sum of
    those rows' `taxAmount` (the page's own figure, proved equal by a test). A row not declarable (unpaid, D16)
    is the « En retard » tile's business and is not counted. Months before the last night of the earliest stay
@@ -95,6 +96,28 @@ look, how many, and opens each one from the list.
     legal base, the accommodation charged (tourist-tax-matches-the-office-calculation rules 2-3), never as a
     reduction of the tax line: the tax is the commune's percentage of that base and the stay total adds it
     whole. No « taxe de séjour remisée » check is needed: it cannot happen by construction.
+12. **The panel.** « À vérifier » is a `Panel` at the bottom of the Suivi financier, under the booking pace, with
+    one muted line « Exercice <label> » (the exercise the server read). It draws one row per check whose
+    `count` is above 0, in the server's order; a check at 0 is not drawn.
+13. **A row.** The row reads the count (tabular figures), the label and the severity in words — « à corriger »
+    (fix, error tone), « à vérifier » (check, honey tone), « information » (info, neutral) — never colour alone.
+    Its « i » opens the check's `hint` (`DefinitionButton`).
+14. **Its items.** The row is a disclosure button (`aria-expanded`, `aria-controls`), closed on load; open, it
+    lists the items: the label as a link when the item has a target, its detail below in secondary text, then
+    « + N autres » (« + 1 autre ») when `moreCount > 0`. The client never counts: N is the server's `moreCount`.
+    Under `prefers-reduced-motion: reduce` the opening is instant.
+15. **Nothing to check.** When every count is 0 the panel stays, with the one line « Rien à vérifier sur
+    l’exercice. » — the operator sees that the checks ran, not a section that vanished.
+16. **Reads and links.** The panel reads `getFinanceDataChecks({ fiscalYear, propertyId })` with the exercise the
+    dashboard answered (`fiscalYear.key`) and the logement of the URL, again on every change of either and on
+    the page's « Actualiser »; an answer for a scope left behind is dropped (`useLatestRequest`). A stay opens
+    its fiche `withFrom('/reservations/<id>', <this page with its query>)`; a month opens the tourist-tax page on
+    that month (`/finance/tourist-tax?month=YYYY-MM`, same `from`), which opens that month when it is a real one
+    not to come and its default month otherwise.
+17. **Never a dead end.** The panel appears only under a loaded dashboard, so the page's own refusals keep their
+    period selector (finance-dashboard-redesign rule 51). A refusal of the checks stays inside the panel — the
+    server's reason, or « Impossible de charger les contrôles. », with « Réessayer » — and the rest of the page
+    is untouched. While loading, the panel shows its spinner « Chargement des contrôles… ».
 
 **Edge cases:**
 - A cancelled stay → in no stay check (no tax owed, the cancellation has its own books).
@@ -121,22 +144,23 @@ look, how many, and opens each one from the list.
 | `models/` | `financeModel.js`, `financeDashboardModel.js` | — | Read only, unchanged. |
 | `database.js` | — | — | No schema change. |
 
-### 4.2 Client side (`client/src/`) — round 1: the API function; round 2: the panel
+### 4.2 Client side (`client/src/`)
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
-| `api.js` | `api.js` | T | `getFinanceDataChecks(params)` (round 1). |
-| `components/` | `DataChecksPanel.jsx` | C (round 2) | Generic « À vérifier » list: one disclosure row per check (count, label, severity chip, « i » hint), its items as links, « et N autres » from `moreCount`, nothing rendered when `pendingCount` is 0 except a one-line « Rien à vérifier ». Generic: any page holding `{ checks }` can render it. |
-| `pages/` | `FinancePage.jsx` | T (round 2) | Loads the checks with the page's exercise and logement (stale answers ignored, a refusal never dead-ends the page) and renders the panel at the bottom. |
-| `constants/` | — | — | Severity chip labels « à corriger » / « à vérifier » / « information » co-located with the component. |
+| `api.js` | `api.js` | T | `getFinanceDataChecks(params)`. |
+| `components/` | `DataChecksPanel.jsx` | C | Generic « À vérifier » list (rules 12-15): one disclosure row per non-empty check, severity words, « i » hint, items as links, « + N autres », the empty line. Renders only. |
+| `components/` | `FinanceDataChecksCard.jsx` | C | Feature-local loader (rules 16-17): reads the endpoint for the page's exercise and logement, builds the two link targets, keeps a refusal inside the panel. |
+| `pages/` | `FinancePage.jsx` | T | One mount point under the booking pace: `<FinanceDataChecksCard fiscalYear propertyId refreshKey />`. |
+| `pages/` | `TouristTaxPage.jsx` | T | Opens the month named by `?month=YYYY-MM` when real and not to come (rule 16). |
 
-**Component reuse declaration (round 2):**
+**Component reuse declaration:**
 
 | Category | Components | Notes |
 |---|---|---|
-| **Consumed (existing generic)** | `StatusBadge` (or lot 0's chip), `EmptyState`, `ErrorAlert` | The panel styles of lot 0. |
-| **Created (new generic)** | `DataChecksPanel` | A list of counted checks with links fits any « faire le point » view. |
-| **Specific (kept feature-local)** | — | — |
+| **Consumed (existing generic)** | `Panel`, `DefinitionButton`, `softChipSx` (StatusBadge), `LoadingState`, `ErrorAlert`, `useLatestRequest`, `withFrom` | Lot 0's report grammar and the shared states. |
+| **Created (new generic)** | `DataChecksPanel` | Any « faire le point » view (a future home card, a plugin's checks) renders the same payload shape. |
+| **Specific (kept feature-local)** | `FinanceDataChecksCard` | It knows the finance endpoint and the two finance link targets, like `BookingPaceCard`. |
 
 ### 4.3 API contract
 
@@ -191,39 +215,45 @@ month.
 
 None. No column, no table, nothing stored (dismissals are out of scope, §8).
 
-## 6. UI / UX (round 2)
+## 6. UI / UX
 
-The design reference (`#controles`): a white panel titled « À vérifier » at the bottom of the Suivi financier,
-one disclosure row per non-empty check — count (tabular figures), label, severity chip (« à corriger » red,
-« à vérifier » honey, « information » grey) — opening the list of its items, each a link (label, then the
-detail in secondary text), « et 3 autres » when `moreCount > 0`. With `pendingCount = 0`: one line « Rien à
-vérifier sur l’exercice. ». It follows the page's exercise and logement; it has no action of its own in the
-`PageActionBar`.
+The design reference (`#controles`), in MUI and the « Maison » theme: a white `Panel` « À VÉRIFIER » at the
+bottom of the Suivi financier, the caption « Exercice 2026 », then one bordered row per non-empty check — count
+in bold tabular figures, label, severity chip (soft error « à corriger », soft honey « à vérifier », neutral
+« information »), a chevron and the « i ». Open, the row lists its items: label in sapin as a link, detail
+under it in secondary text, « + 3 autres » last. Nothing to check: « Rien à vérifier sur l’exercice. ».
+The panel has no action of its own in the `PageActionBar`; the page's « Actualiser » reloads it.
 
-- **Mobile (xs):** rows full width, 48 px touch targets, the chip under the label when it does not fit, item
-  labels wrap (no horizontal scroll).
-- **Tablet / desktop:** the same list, panel width of the page grid.
-- Loading: the panel's skeleton; a refusal: `ErrorAlert` inside the panel, the rest of the page untouched.
+- **Desktop (1280):** count · label · chip · chevron on one line, the « i » at the right edge.
+- **Tablet (~900):** the same; long labels wrap.
+- **Mobile (390):** the label wraps beside the count, the chip and chevron drop under it; rows 48 px tall at
+  least; on touch the item links get extra vertical padding; no horizontal scroll (checked).
+- Loading: the panel's spinner; a refusal: `ErrorAlert` inside the panel with « Réessayer ».
 
 ## 7. Test plan
 
 ### Server unit tests
-- [x] `tests/finance-data-checks.unit.test.js` (15) — rules 1, 2, 4, 5, 6, 7, 8, 9, 10: positive / negative /
+- [x] `tests/finance-data-checks.unit.test.js` (16) — rules 1, 2, 4, 5, 6, 7, 8, 9, 10: positive / negative /
       edge per check, platform modes (reversed, owner, remitted), rate 0, added guests, cancelled, departure day,
       other logement, other exercise, website request, placeholder label, page-equal amount, unpaid not declarable,
-      months before the first tick, cap, read-only route.
+      a 0 € undeclared row, months before the first tick, cap, read-only route.
 - [x] `tests/finance-data-checks-shape.unit.test.js` (4) — rules 2, 3, 4: cap, unknown key, order and
       `pendingCount`, labels and details.
 - [x] `tests/tourist-tax-never-discounted.unit.test.js` (4) — rule 11.
 
 ### Client (vitest)
 - [x] `src/__tests__/api.finance-data-checks.test.js` (1) — rule 10.
-- [ ] Round 2: `components/__tests__/DataChecksPanel.render.test.jsx`, `pages/__tests__/FinancePage.data-checks.test.jsx`.
+- [x] `components/__tests__/DataChecksPanel.render.test.jsx` (7) — rules 12, 13, 14, 15.
+- [x] `components/__tests__/FinanceDataChecksCard.load-and-links.test.jsx` (6) — rules 15, 16, 17.
+- [x] `pages/__tests__/FinancePage.data-checks.test.jsx` (2) — rules 16, 17.
+- [x] `pages/__tests__/TouristTaxPage.month-link.test.jsx` (4) — rule 16.
 
-### Manual UI verification (round 2)
-- [ ] Happy path on a copy of the data: each item opens its fiche / month.
-- [ ] Mobile 375 px: rows, chips and long labels wrap.
-- [ ] Regression: the dashboard tiles and « En retard » unchanged.
+### Manual UI verification (throwaway seeded DB, ports 47150/47151)
+- [x] 1280 px and 390 px: four rows in order, chips in words, rows open on their items, « + 4 autres », the
+      « i » definition; no page-level horizontal scroll; console clean.
+- [x] A month item opens « Extraction taxe de séjour » on that month; a stay item points to its fiche with
+      `from=/finance`.
+- [x] Regression: the dashboard above the panel unchanged.
 
 ## 8. Out of scope
 
@@ -246,6 +276,8 @@ vérifier sur l’exercice. ». It follows the page's exercise and logement; it 
 - Undeclared months start at the earliest ticked stay (rule 7), not at the start of the exercise.
 - `platform-payment-missing` reads the brut only (rule 8).
 - Cap = 20 items per check (rule 4).
+- All counts at 0 → the panel stays with one line rather than disappearing (rule 15).
+- Month link target → `/finance/tourist-tax?month=YYYY-MM`; the tax page did not read a month from its URL, it now does (rule 16).
 
 **Found while building (not fixed here):** a stay created with `adults: 0` is stored with `adults = 1` but its
 tourist tax computed for 0 adults (seen in the unit fixture). Rule 6 lists such a stay — rightly — but the
