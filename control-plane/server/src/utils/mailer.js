@@ -17,11 +17,15 @@ function createMailer(env = process.env, log = (msg) => console.log(msg)) {
       },
     };
   }
+  const secure = String(env.CP_SMTP_PORT) === '465';
+  const auth = env.CP_SMTP_USER ? { user: env.CP_SMTP_USER, pass: env.CP_SMTP_PASS } : undefined;
   const transport = nodemailer.createTransport({
     host,
     port: Number(env.CP_SMTP_PORT || 587),
-    secure: String(env.CP_SMTP_PORT) === '465',
-    auth: env.CP_SMTP_USER ? { user: env.CP_SMTP_USER, pass: env.CP_SMTP_PASS } : undefined,
+    secure,
+    auth,
+    // A login never leaves in clear (specs/admin-account-management.md rule 16, reading of 2026-11-04).
+    requireTLS: Boolean(auth) && !secure,
   });
   return {
     async send({ to, subject, text }) {

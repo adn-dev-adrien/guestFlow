@@ -18,6 +18,7 @@ const FORGED = 'Authentication-Results: mx.google.com; dkim=pass header.i=@gdf07
 
 async function pass(headers) {
   class Imap {
+    on() {}
     async connect() {}
     async getMailboxLock() { return { release() {} }; }
     async logout() {}

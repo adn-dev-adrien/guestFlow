@@ -86,7 +86,7 @@ test('migration: a « Souscriptions Neat » switched off stays off, once', () =>
   assert.equal(runPushChannelPrefsMigration(db).action, 'skipped');
   createContext('neat', {}).pushChannel({ key: 'neat', label: 'Souscriptions Neat' });
   const model = createModel(db);
-  [1, 2, 3].forEach((u) => model.subscribe(u, { endpoint: `https://push/u${u}`, keys: { p256dh: 'p', auth: 'a' } }));
+  [1, 2, 3].forEach((u) => model.subscribe(u, { endpoint: `https://push/u${u}`, keys: { p256dh: Buffer.alloc(65, 4).toString('base64url'), auth: Buffer.alloc(16, 1).toString('base64url') } }));
   assert.deepEqual(model.subscriptionsForPref('neat').map((s) => s.endpoint), ['https://push/u2', 'https://push/u3']);
   assert.equal(model.getPreferences(1, ['neat']).neat, false);
   assert.deepEqual(model.subscriptionsForPref('undeclared'), [], 'a channel no plugin declared reaches nobody');

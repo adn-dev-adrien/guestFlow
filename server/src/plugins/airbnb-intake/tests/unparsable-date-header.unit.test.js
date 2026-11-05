@@ -11,6 +11,7 @@ const { readMailsFrom } = require('../../sdk/mailboxReader');
 
 const NOW = new Date('2026-10-26T09:00:00.000Z');
 const imap = (mails) => class {
+  on() {}
   async connect() {}
   async getMailboxLock() { return { release() {} }; }
   async logout() {}

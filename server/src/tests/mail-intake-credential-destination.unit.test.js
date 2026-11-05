@@ -30,6 +30,7 @@ test('the reader and the connection test both build their client with those opti
   const seen = [];
   class Capture {
     constructor(options) { seen.push(options); }
+    on() {}
     async connect() { throw new Error('stop'); }
     async logout() {}
   }
@@ -63,6 +64,7 @@ test('the reader and the connection test pin the host themselves, whatever the c
   const seen = [];
   class Capture {
     constructor(options) { seen.push(options.host); }
+    on() {}
     async connect() { throw new Error('stop'); }
     async logout() {}
   }

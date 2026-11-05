@@ -20,7 +20,7 @@ function world() {
   `);
   applyPushChannelPrefsSchema(h.db);
   const push = pushModelModule.create(h.db);
-  const sub = (endpoint) => ({ endpoint, keys: { p256dh: 'p', auth: 'a' } });
+  const sub = (endpoint) => ({ endpoint, keys: { p256dh: Buffer.alloc(65, 4).toString('base64url'), auth: Buffer.alloc(16, 1).toString('base64url') } });
   const endpoints = (pref = 'newReservation') => push.subscriptionsForPref(pref).map((s) => s.endpoint).sort();
   const support = Number(h.db.prepare("INSERT INTO users (email, passwordHash, isSupportAccount) VALUES ('support@x.invalid', 'x', 1)").run().lastInsertRowid);
   h.db.prepare("INSERT INTO user_roles (userId, role) VALUES (?, 'admin')").run(support);
