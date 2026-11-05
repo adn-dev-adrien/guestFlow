@@ -70,3 +70,11 @@ test('rule 23: the production-build and removal servers set it in their environm
     assert.match(read(file), /GUESTFLOW_DISABLE_OUTBOUND: '1'/, file);
   }
 });
+
+test('rule 23: every E2E server pins the Qonto hosts to a dead local port', () => {
+  for (const file of ['e2e/prod/serve.js', 'e2e/removal/serve.js']) {
+    assert.match(read(file), /QONTO_API_BASE: 'http:\/\/127\.0\.0\.1:9'/, file);
+    assert.match(read(file), /QONTO_OAUTH_BASE: 'http:\/\/127\.0\.0\.1:9'/, file);
+  }
+  assert.match(read('playwright.config.js'), /QONTO_API_BASE=http:\/\/127\.0\.0\.1:9 QONTO_OAUTH_BASE=http:\/\/127\.0\.0\.1:9/);
+});

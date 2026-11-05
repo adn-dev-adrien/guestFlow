@@ -157,14 +157,19 @@ reservation's **check-out time** is reached (departure) — only to the users (a
     fan-out and never pruned. `subscribe` now requires strings, an endpoint of at most 2048 characters without
     whitespace or backslash, `https:` on the default port, no private literal and no `localhost` (`assertPublicHost` of
     `safeFeedFetch`, the iCal dev switch not applying), a p256dh of 65 bytes and an auth of 16 bytes in base64url;
-    otherwise 400 `INVALID_SUBSCRIPTION`, « Abonnement refusé. », nothing stored. A name is not resolved, and there
-    is no allow-list of push hosts: it would break a new browser. Rows already stored are not re-judged. Test:
+    otherwise 400 `INVALID_SUBSCRIPTION`, « Abonnement refusé. », nothing stored. A name is judged where it is dialled,
+    and there is no allow-list of push hosts: it would break a new browser. Rows already stored are not re-judged. Test:
     `push-subscribe-validation.unit.test.js`.
     The endpoint must also read as one host to both parsers: the check reads `new URL`, web-push dials
     `url.parse(endpoint).hostname`, and `https://127.0.0.1}/x` or `https://10.0.0.5%2Eexample/` were public to the first
     and private to the second. So the host is written `https://` + dot-separated labels of letters, digits, `-`, `_` (or
     a bracketed IPv6), at most one trailing dot, an optional `:443`, and `new URL` must read it unchanged. A login, a
     `%`, a repeated dot, an empty host, a host above 255 characters or a numeric form such as `https://134744072/` is refused. Stored as sent.
+    _(Reading of 2026-11-05, audit R23 E23-7: `subscribe` still resolves nothing; each send goes through one https agent
+    whose `lookup` is `guardedLookup`, the iCal dev switch not applying, so a name answering a private address opens no
+    connection. The send counts `failed` and the row stays. Limits: Node skips `lookup` for an IP literal, so a literal
+    stored before this rule is still dialled, and the log line of a refusal reads « Adresse du flux… ». Test:
+    `push-send-guarded-lookup.unit.test.js`.)_
 
 **Edge cases:**
 - User denies the browser permission → the device isn't subscribed; the UI reflects "non activées".

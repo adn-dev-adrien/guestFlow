@@ -64,6 +64,12 @@ when it is broken.
    step of every diagnosis.
 5. The environment (sandbox or production) is chosen in the interface. The OAuth and API hosts derive
    from it and are displayed read-only, so what GuestFlow will call is never a guess.
+   _(Reading of 2026-11-05, audit R23: a `QONTO_OAUTH_BASE` / `QONTO_API_BASE` that does not name a Qonto host, such
+   as a loopback fake or a dead port, is a deliberate override and always wins, stored environment included; the page
+   displays it. An auditor's probe relying on it reached the real API, because a stored environment outranked it. A
+   variable naming a real Qonto host (`*.qonto.com`, `*.qonto.co`) still gives way to the chosen environment, so
+   an operator switching to production never stays silently on a sandbox pin. Test:
+   `plugins/online-payment/tests/qonto-env-base-wins.unit.test.js`.)_
 6. The redirect URI to declare in the Qonto portal is displayed, ready to copy.
 7. The public site origin — the address the payer returns to after paying — is entered in the same
    place, because a payment tunnel whose return URL is missing is as broken as one whose secret is.
@@ -115,6 +121,12 @@ when it is broken.
     failure. The entry leaves once the new pair is stored, so a later caller reads the new tokens, and a failed
     refresh leaves nothing behind: the next call asks again. Shared with the control plane's billing. Test:
     `plugins/online-payment/tests/qonto-refresh-single-flight.unit.test.js`.
+19. **A refresh that was overtaken stores nothing (audit R23 E23-4, 2026-11-05).** New credentials saved, or a new
+    consent, while a refresh is running: its answer belongs to the tokens they replaced, and storing it brought back a
+    connection built on the old application. After the await, `refreshAndStore` compares the stored refresh token
+    with the one it refreshed. When they differ it stores nothing and answers the stored access token, or
+    `QONTO_NOT_CONNECTED` when there is none. Shared with the control plane's billing. Test:
+    `plugins/online-payment/tests/qonto-refresh-overtaken.unit.test.js`.
 
 
 **Edge cases:**
@@ -274,6 +286,8 @@ card, next to the fields they act on.
 - [ ] `tests/qonto-connection-test.unit.test.js` — rules 9, 11
 - [ ] `tests/qonto-failure-record.unit.test.js` — rules 12, 13
 - [ ] `tests/qonto-credentials-clear-tokens.unit.test.js` — rule 15
+- [x] `plugins/online-payment/tests/qonto-env-base-wins.unit.test.js` — rule 5, reading of 2026-11-05 (11 tests)
+- [x] `plugins/online-payment/tests/qonto-refresh-overtaken.unit.test.js` — rule 19 (3 tests)
 
 ### Client unit tests
 

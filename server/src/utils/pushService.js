@@ -13,11 +13,16 @@
  * Injectable (`webpush` / `model` / `vapid` / `logger` / `sendTimeoutMs`) for unit tests.
  */
 
+const https = require('https');
 const realWebpush = require('web-push');
 const realModel = require('../models/pushSubscriptionsModel');
 const realVapid = require('./vapid');
+const { guardedLookup } = require('./safeFeedFetch');
 
 const SEND_TIMEOUT_MS = 10_000;
+
+// Rule 15: a name is judged where it is dialled, the iCal dev switch not applying.
+const pushAgent = new https.Agent({ lookup: guardedLookup({ env: {} }) });
 
 // web-push's `timeout` is an idle-socket timeout: a peer that trickles bytes would keep it alive, so the
 // send is also raced against the same bound.
@@ -26,7 +31,7 @@ function boundedSend(webpush, subscription, body, timeoutMs) {
   const deadline = new Promise((_, reject) => {
     timer = setTimeout(() => reject(new Error(`push send timeout after ${timeoutMs} ms`)), timeoutMs);
   });
-  return Promise.race([webpush.sendNotification(subscription, body, { timeout: timeoutMs }), deadline])
+  return Promise.race([webpush.sendNotification(subscription, body, { timeout: timeoutMs, agent: pushAgent }), deadline])
     .finally(() => clearTimeout(timer));
 }
 
@@ -96,5 +101,6 @@ function buildPushService({
 const defaultService = buildPushService();
 defaultService.buildPushService = buildPushService;
 defaultService.SEND_TIMEOUT_MS = SEND_TIMEOUT_MS;
+defaultService.pushAgent = pushAgent;
 
 module.exports = defaultService;

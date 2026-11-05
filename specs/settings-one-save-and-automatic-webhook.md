@@ -88,10 +88,19 @@ which « Enregistrer » writes which field.
 8. It never creates a second subscription: when Qonto already has one pointing at that address,
    GuestFlow adopts it as it is and keeps using the secret it already holds, without touching anything
    at Qonto.
+   _(Reading of 2026-11-05, audit R23 E23-5: two checks at once, the OAuth callback and a poll, both found nothing and
+   both created. A settings store now runs one check at a time, and a second caller shares its answer. Test:
+   `plugins/online-payment/tests/qonto-consent-resubscribes.unit.test.js`.)_
 9. A subscription is created only when Qonto has none at that address, and a secret is generated only
    when none is stored — 32 random bytes in hexadecimal, saved encrypted like every other Qonto secret.
 10. The check costs nothing when the recorded subscription still matches the current public address:
     no Qonto call at all. It reaches Qonto only when that record is missing or stale.
+    _(Reading of 2026-11-05, audit R23 E23-1: the record says nothing about which Qonto account holds the subscription.
+    After a switch to production, or a consent on another organisation, the sandbox record answered « skipped » for the
+    new account, so no webhook ever arrived there and nothing said so. A successful OAuth callback now forgets the record
+    once any check in flight has landed, before rule 14 runs, so every fresh consent lists, adopts or creates; a list that
+    fails leaves it empty and the next poll asks again. An instance that switched before this release needs one
+    new consent. Test: `plugins/online-payment/tests/qonto-consent-resubscribes.unit.test.js`.)_
 11. The check runs after each successful Qonto authorisation and at the start of each reconciliation
     pass. A failure is recorded like any other Qonto failure, is shown in Réglages → Paiements, and
     never interrupts the pass or the authorisation.
@@ -123,6 +132,8 @@ which « Enregistrer » writes which field.
 - The public address changes → the recorded callback no longer matches, rule 10 falls through to a
   Qonto call, rule 8 finds no subscription at the new address and rule 9 creates one. The old one stays
   at Qonto, harmless: it points at an address GuestFlow no longer answers on.
+- The operator switches to production, or consents on another Qonto organisation → the record is forgotten at the
+  consent, rule 8 finds nothing on the new account and rule 9 creates one. A consent on the same account adopts.
 - Qonto is unreachable when the check runs → rule 11 records the failure and the pass continues; the
   next pass tries again.
 - A card is dirty and the operator presses Save while another card's request is still in flight → the
@@ -289,6 +300,10 @@ Neat card and one field from the SMTP card shortens both on mobile.
     test's outcome — an error recorded before the repair is gone
   - a test that fails after a successful exchange keeps the tokens and still redirects to `connected`
   - the webhook check runs after the test and its failure changes neither
+- [x] `plugins/online-payment/tests/qonto-consent-resubscribes.unit.test.js` — rules 8, 10 (readings of 2026-11-05)
+  - switch then consent: one create on the new account, then free; same account: adopted, no create
+  - a list refused at the consent leaves the record empty and the next check heals it; a refused consent keeps it
+  - two checks at once share one list and one create; a check in flight cannot write over a fresh consent
 - [x] `tests/settings-smtp-port-derived.unit.test.js` — rule 5
   - saving `secure: true` stores 465, `secure: false` stores 587
   - a `port` in the payload is ignored, whatever its value

@@ -9,10 +9,11 @@
  * Precedence (rule 2): a non-empty stored value wins; otherwise the environment variable of the same
  * role still applies, so an installation that never opens the new form keeps its current behaviour.
  *
- * The hosts follow the environment (rule 5). `QONTO_OAUTH_BASE` / `QONTO_API_BASE` keep overriding
- * them ONLY while no environment has been chosen in the interface: production runs with those two
- * variables pinned to the sandbox hosts, and an operator switching to "production" in the interface
+ * The hosts follow the environment (rule 5). `QONTO_OAUTH_BASE` / `QONTO_API_BASE` naming a Qonto host
+ * override them ONLY while no environment has been chosen in the interface: production ran with those
+ * two variables pinned to the sandbox hosts, and an operator switching to "production" in the interface
  * must not stay silently on the sandbox — that is the exact class of bug this spec exists to remove.
+ * Any other host (a loopback fake, a dead port) is a deliberate override and always wins.
  */
 const { SANDBOX_HOSTS, PROD_HOSTS } = require('./qontoClient');
 
@@ -22,6 +23,20 @@ const clean = (value) => String(value ?? '').trim();
 
 /** An origin is compared and stored without its trailing slash, so two spellings never disagree. */
 const cleanOrigin = (value) => clean(value).replace(/\/+$/, '');
+
+const isQontoHost = (base) => {
+  try {
+    return /(^|\.)qonto\.(com|co)\.?$/i.test(new URL(base).hostname);
+  } catch {
+    return false;
+  }
+};
+
+/** A host variable that still applies, or '' (rule 5). */
+function hostOverride(fromEnv, chosenInApp) {
+  const base = clean(fromEnv);
+  return chosenInApp && isQontoHost(base) ? '' : base;
+}
 
 /**
  * A value and where it came from. `source` is what lets the interface tell the operator whether a
@@ -68,10 +83,9 @@ function resolveQontoConfig({ settings, env = process.env } = {}) {
   const sandbox = effectiveEnvironment !== 'production';
   const hosts = sandbox ? SANDBOX_HOSTS : PROD_HOSTS;
 
-  // Host overrides apply only while the environment is inherited from the files (see the header).
   const chosenInApp = environment.source === 'db';
-  const oauthBase = chosenInApp ? hosts.oauth : (clean(env.QONTO_OAUTH_BASE) || hosts.oauth);
-  const apiBase = chosenInApp ? hosts.api : (clean(env.QONTO_API_BASE) || hosts.api);
+  const oauthBase = hostOverride(env.QONTO_OAUTH_BASE, chosenInApp) || hosts.oauth;
+  const apiBase = hostOverride(env.QONTO_API_BASE, chosenInApp) || hosts.api;
 
   const clientId = pick(stored.clientId, env.QONTO_CLIENT_ID);
   const clientSecret = pick(stored.clientSecret, env.QONTO_CLIENT_SECRET);
