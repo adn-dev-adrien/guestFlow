@@ -77,16 +77,15 @@ async function startApp() {
     return res.setCookie.map((c) => c.split(';')[0]).join('; ');
   }
 
-  // Installs and switches on each plugin the tree ships; a plugin not in it is left out of the returned set
+  // Installs and switches on each plugin the tree ships; a plugin the app does not know is left out of the returned set
   // (plugin-removal-resilience). A plugin that is present and refuses to start fails the suite.
   async function activatePlugins(cookie, ids) {
     const active = new Set();
     for (const id of ids) {
-      if (!fs.existsSync(path.join(__dirname, '..', 'plugins', id))) continue;
-      for (const step of ['install', 'activate']) {
-        const res = await call(cookie, 'POST', `/api/plugins/${id}/${step}`, {});
-        if (res.status >= 300) throw new Error(`${step} ${id}: ${res.status} ${res.text.slice(0, 200)}`);
-      }
+      const install = await call(cookie, 'POST', `/api/plugins/${id}/install`, {});
+      if (install.status === 404 && install.json && install.json.error === 'UNKNOWN_PLUGIN') continue;
+      const activate = install.status < 300 ? await call(cookie, 'POST', `/api/plugins/${id}/activate`, {}) : install;
+      if (activate.status >= 300) throw new Error(`${id}: ${activate.status} ${activate.text.slice(0, 200)}`);
       active.add(id);
     }
     return active;
