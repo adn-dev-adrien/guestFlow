@@ -15,6 +15,7 @@ const NOW = new Date('2026-10-15T08:00:00Z');
 
 function imap(mails) {
   return class {
+    on() {}
     async connect() {}
     async getMailboxLock() { return { release() {} }; }
     async logout() {}

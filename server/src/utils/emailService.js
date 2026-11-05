@@ -18,6 +18,13 @@ const { testEmailBody } = require('./emailTemplates');
 const platformMail = require('./platformMail');
 const { outboxDir, writeMessageToOutbox } = require('./mailOutbox');
 
+// A login on a transport without implicit TLS requires STARTTLS: the UI promises it, and nodemailer would
+// otherwise send the password in clear to a server, or an on-path attacker, not offering the upgrade
+// (specs/admin-account-management.md rule 16, reading of 2026-11-04). A relay without a login is left alone.
+function transportOptions({ host, port, secure, auth }) {
+  return { host, port, secure, auth, ...(auth && !secure ? { requireTLS: true } : {}) };
+}
+
 function createEmailService(settings, {
   transportFactory = nodemailer.createTransport,
   env = process.env,
@@ -49,12 +56,12 @@ function createEmailService(settings, {
       if (!transport) {
         transport = platform.outbox
           ? platformMail.outboxTransport(platform.outbox)
-          : transportFactory({
+          : transportFactory(transportOptions({
             host: platform.host,
             port: platform.port,
             secure: platform.port === 465,
             auth: platform.user ? { user: platform.user, pass: platform.pass } : undefined,
-          });
+          }));
       }
       return transport;
     }
@@ -64,12 +71,12 @@ function createEmailService(settings, {
       throw err;
     }
     if (transport) return transport;
-    transport = transportFactory({
+    transport = transportFactory(transportOptions({
       host,
       port: Number(settings.port) || 587,
       secure: Boolean(settings.secure),
       auth: settings.user ? { user: settings.user, pass: settings.password || '' } : undefined,
-    });
+    }));
     return transport;
   }
 

@@ -1,4 +1,4 @@
-// specs/reservations-backend-mvc.md rule 16 (audit R22-4) — the shape of a stay's fields, on preview, create, update,
+// specs/reservations-backend-mvc.md rule 20 (audit R22-4) — the shape of a stay's fields, on preview, create, update,
 // devis create/update, suggest-beds and devis status. The numbers stay with utils/lineInputBounds.js (rule 15).
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -22,7 +22,7 @@ test.before(async () => {
 });
 test.after(async () => { if (app) await app.stop(); });
 
-test('rule 16 — the guard reads each shape', () => {
+test('rule 20 — the guard reads each shape', () => {
   assert.equal(stayShapeRefusal({}), null);
   assert.equal(stayShapeRefusal({ platform: null, notes: null, checkInTime: null, checkOutTime: '', depositDisabled: null, propertyId: null, clientId: '' }), null);
   assert.equal(stayShapeRefusal({ platform: 'Airbnb', notes: 'x', checkInTime: '00:00', checkOutTime: '23:59', propertyId: 1, clientId: '12', depositDisabled: 1, extraGuestSurchargeOffered: true }), null);
@@ -44,7 +44,7 @@ test('rule 16 — the guard reads each shape', () => {
   }
 });
 
-test('rule 16 — the lines: ids positive integers, text is text, a flag is a flag', () => {
+test('rule 20 — the lines: ids positive integers, text is text, a flag is a flag', () => {
   for (const [body, field] of [
     [{ options: [{ optionId: T }] }, 'optionId'],
     [{ selectedOptions: [{ optionId: 'abc' }] }, 'optionId'],
@@ -70,13 +70,13 @@ test('rule 16 — the lines: ids positive integers, text is text, a flag is a fl
   }), null);
 });
 
-test('rule 16 — what the row stores, sent back unchanged, is not judged', () => {
+test('rule 20 — what the row stores, sent back unchanged, is not judged', () => {
   const stored = { checkInTime: '25:99', platform: '', reservationNumber: 'x'.repeat(80) };
   assert.equal(stayShapeRefusal({ checkInTime: '25:99', reservationNumber: 'x'.repeat(80) }, stored), null);
   assert.equal(stayShapeRefusal({ checkInTime: '26:00' }, stored).code, 'INVALID_TIME');
 });
 
-test('rule 16 — preview, create, update, devis create and update all answer it, nothing stored', async () => {
+test('rule 20 — preview, create, update, devis create and update all answer it, nothing stored', async () => {
   const { reservation, devis } = app.ids;
   const bad = [
     { checkInTime: 'abc' }, { checkInTime: '25:99' }, { checkOutTime: true }, { checkOutTime: [] }, { checkInTime: {} }, { checkInTime: [1] }, { checkInTime: -1 }, { checkInTime: 1e308 }, { checkInTime: 0.5 },
@@ -97,7 +97,7 @@ test('rule 16 — preview, create, update, devis create and update all answer it
   assert.deepEqual(row, { platform: 'direct', notes: '', checkInTime: '15:00', depositDisabled: 0 });
 });
 
-test('rule 16 — an empty tick is not sent, and 0 is how a new fiche names no row', () => {
+test('rule 20 — an empty tick is not sent, and 0 is how a new fiche names no row', () => {
   for (const field of ['depositDisabled', 'extraGuestSurchargeOffered', 'touristTaxInComplement', 'forceMinNights', 'refreshPricingToCurrent']) {
     assert.equal(stayShapeRefusal({ [field]: '' }), null, field);
     assert.equal(stayShapeRefusal({ [field]: 'x' }).code, 'INVALID_FIELD', field);
@@ -109,20 +109,20 @@ test('rule 16 — an empty tick is not sent, and 0 is how a new fiche names no r
   }
 });
 
-test('rule 16 — a stored time the guard would refuse is saved back unchanged', async () => {
+test('rule 20 — a stored time the guard would refuse is saved back unchanged', async () => {
   const { legacy } = app.ids;
   const [row] = app.readDb('SELECT startDate, endDate FROM reservations WHERE id = ?', legacy);
   const res = await app.call(admin, 'PUT', `/api/reservations/${legacy}`, { ...stay(), ...row, checkInTime: '25:99' });
   assert.equal(res.status, 200, res.text.slice(0, 200));
 });
 
-test('rule 16 — a well-formed stay still saves, the empty fields included', async () => {
+test('rule 20 — a well-formed stay still saves, the empty fields included', async () => {
   const { reservation } = app.ids;
   const res = await app.call(admin, 'PUT', `/api/reservations/${reservation}`, { ...stay(), breakfastTime: null, notes: 'Arrivée tardive', platform: 'direct' });
   assert.equal(res.status, 200, res.text.slice(0, 200));
 });
 
-test('rule 16 — PUT without a client, or with one that does not exist, is CLIENT_REQUIRED', async () => {
+test('rule 20 — PUT without a client, or with one that does not exist, is CLIENT_REQUIRED', async () => {
   const { reservation } = app.ids;
   for (const clientId of [null, '', undefined, 987654]) {
     const res = await app.call(admin, 'PUT', `/api/reservations/${reservation}`, { ...stay(), clientId });
@@ -138,7 +138,7 @@ test('rule 16 — PUT without a client, or with one that does not exist, is CLIE
   }
 });
 
-test('rule 16 — a non-numeric :id on a stay\'s write is a 404', async () => {
+test('rule 20 — a non-numeric :id on a stay\'s write is a 404', async () => {
   for (const [method, url] of [
     ['POST', '/api/reservations/undefined/cancel'], ['PUT', '/api/reservations/abc'], ['PATCH', '/api/reservations/abc/payment'],
     ['POST', '/api/reservations/abc/refunds'], ['POST', '/api/reservations/abc/arrival-payment'], ['DELETE', '/api/reservations/abc'], ['PUT', '/api/reservations/abc/installments'],
@@ -148,7 +148,7 @@ test('rule 16 — a non-numeric :id on a stay\'s write is a 404', async () => {
   }
 });
 
-test('rule 16 — suggest-beds and the devis status refuse a wrong type', async () => {
+test('rule 20 — suggest-beds and the devis status refuse a wrong type', async () => {
   for (const body of [{ propertyId: T }, { propertyId: true }, { propertyId: 'abc' }]) {
     const res = await app.call(admin, 'POST', '/api/reservations/suggest-beds', body);
     assert.equal(res.status, 400, JSON.stringify(body));

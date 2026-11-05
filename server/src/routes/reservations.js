@@ -15,7 +15,7 @@ const { ficheVersionHeaders } = require('../middleware/ficheVersionHeaders');
 const noWriteOnDuplicate = guardReadOnly(db, { cancelled: false });
 const noWriteOnClosedStay = guardReadOnly(db, { cancelled: true });
 
-// specs/reservations-backend-mvc.md rule 16 — a write on /reservations/undefined/… is a stay that does not exist.
+// specs/reservations-backend-mvc.md rule 20 — a write on /reservations/undefined/… is a stay that does not exist.
 const stayId = (req, res, next) => (/^[1-9]\d*$/.test(req.params.id) ? next() : res.status(404).json({ error: 'Réservation non trouvée' }));
 
 // Reception sees no money (specs/reception-role-checkin-only.md): the plan is never theirs to change.

@@ -24,7 +24,7 @@ vi.mock('../../../api', () => ({
 const BASKET = {
   optionId: 13, title: 'Panier', description: '', unitPrice: 6, priceType: 'per_person', perPerson: true,
   showsPlanningCard: false, persons: 2, multiplier: 2, defaultUnits: 2, sasOrigin: false, selectedUnits: 0,
-  selectedOccurrences: [], occurrences: [], defaultPersons: 2, maxPersons: 5, selectedPersons: 2, unitsPerPerson: 1,
+  selectedOccurrences: [], occurrences: [], defaultPersons: 2, maxPersons: 5, selectedPersons: 2,
 };
 
 async function takeTheBasket() {

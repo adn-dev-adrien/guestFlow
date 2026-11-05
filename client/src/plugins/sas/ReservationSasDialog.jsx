@@ -713,7 +713,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           if (units > 0 && opt.perPerson) {
             // specs/non-card-option-served-persons.md rule 12 — it sells people served, as a card does.
             const persons = servedFor(opt, cateringServed[opt.optionId]);
-            out.push({ offer: opt, occurrences: null, persons, units: persons * (Number(opt.unitsPerPerson) || 1) });
+            out.push({ offer: opt, occurrences: null, persons });
           } else if (units > 0) out.push({ offer: opt, occurrences: null, persons: null, units });
         }
       }

@@ -160,3 +160,86 @@ test('sas-breakfast-and-catering-upsell rule 16: the pure pricing never returns 
     assert.equal(priceOptionSale(stayLine, { unitPrice: 20, persons: 4, nights: 3, units }), null);
   }
 });
+
+// specs/sas-breakfast-and-catering-upsell.md rule 16, reading of 2026-11-04, and specs/non-card-option-served-persons.md
+// rule 35 (audit R22): a sent `persons` is a whole number from 1 to 999. An invalid count never sells the whole party.
+test('sas-breakfast-and-catering-upsell rule 16: persons not a whole number from 1 to 999 is refused, preview and commit, on a per-person option', () => {
+  for (const persons of [-5, -1, 0, 0.5, 0.001, 1.5, '-5', '0', 1000, 1e15, Infinity, 'abc', true, [2], {}]) {
+    for (const fn of ['previewArrival', 'commitArrival']) {
+      const id = arrivalStay();
+      const res = call(fn, id, { soldOptions: [{ optionId: PERSON_LINE, persons }] });
+      assert.equal(res.statusCode, 400, `${fn} ${String(persons)}: ${JSON.stringify(res.body)}`);
+      assert.equal(res.body.error, 'INVALID_QUANTITY');
+      assert.match(res.body.message, /Personnes servies/);
+      assert.equal(db.prepare('SELECT COUNT(*) AS n FROM reservation_options WHERE reservationId = ?').get(id).n, 0);
+    }
+  }
+  for (const persons of [1, 2, '2', 999, null, undefined, '']) {
+    const res = call('previewArrival', arrivalStay(), { soldOptions: [{ optionId: PERSON_LINE, persons }] });
+    assert.notEqual(res.body?.error, 'INVALID_QUANTITY', String(persons));
+  }
+});
+
+test('sas-breakfast-and-catering-upsell rule 16: persons this SAS already stored, sent back unchanged, is not re-judged', () => {
+  const id = arrivalStay();
+  db.prepare(`INSERT INTO reservation_options (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, cardPersons, sasArrivalOrigin)
+              VALUES (?, ${PERSON_LINE}, 1, 9, 1.5, 'per_person', 13.5, 1.5, 1)`).run(id);
+  assert.notEqual(call('previewArrival', id, { soldOptions: [{ optionId: PERSON_LINE, persons: 1.5 }] }).body?.error, 'INVALID_QUANTITY');
+  assert.equal(call('previewArrival', id, { soldOptions: [{ optionId: PERSON_LINE, persons: 2.5 }] }).body?.error, 'INVALID_QUANTITY');
+});
+
+test('sas-departure-recap-server-side rule 30: a breakfast count that is not a usable number ≥ 0 is refused, preview and commit, and never stored', () => {
+  const fields = ['breakfastCoffee', 'breakfastTea', 'breakfastChocolate', 'breakfastMilk', 'breakfastPastries', 'breakfastCereals', 'breakfastBread'];
+  for (const field of fields) {
+    for (const value of [1e999, 1e308, Number.MAX_SAFE_INTEGER + 2, -1, 'abc', '1e999', true, [1], {}]) {
+      for (const fn of ['previewArrival', 'commitArrival']) {
+        const id = arrivalStay();
+        const res = call(fn, id, { [field]: value });
+        assert.equal(res.statusCode, 400, `${fn} ${field} ${String(value)}: ${JSON.stringify(res.body)}`);
+        assert.equal(res.body.error, 'INVALID_QUANTITY');
+        assert.equal(db.prepare(`SELECT ${field} AS v FROM reservations WHERE id = ?`).get(id).v ?? 0, 0);
+      }
+    }
+  }
+  const id = arrivalStay();
+  const ok = call('commitArrival', id, { breakfastCoffee: 2, breakfastBread: 1.5, breakfastTea: '1', breakfastMilk: '', breakfastCereals: null });
+  assert.equal(ok.statusCode, 200, JSON.stringify(ok.body));
+  const row = db.prepare('SELECT breakfastCoffee, breakfastBread, breakfastTea FROM reservations WHERE id = ?').get(id);
+  assert.deepEqual({ ...row }, { breakfastCoffee: 2, breakfastBread: 1.5, breakfastTea: 1 });
+});
+
+test('sas-departure-recap-server-side rule 30: the model called directly throws on a count it cannot store, it never writes Infinity', () => {
+  const reservationsModel = require('../../../models/reservationsModel');
+  const id = arrivalStay();
+  assert.throws(() => reservationsModel.commitArrivalSas(id, { breakfastBread: Infinity }), /Quantité invalide/);
+  assert.throws(() => reservationsModel.commitArrivalSas(id, { breakfastCoffee: 1e308 }), /Quantité invalide/);
+  assert.equal(db.prepare('SELECT breakfastBread AS v FROM reservations WHERE id = ?').get(id).v ?? 0, 0);
+});
+
+// Text of spaces alone is not a number: it never bills the whole party, sells nothing silently, nor counts as a piece.
+test('sas-breakfast-and-catering-upsell rule 16: spaces alone on persons or units are refused, preview and commit; empty is not sent', () => {
+  for (const value of ['  ', ' ', '\t']) {
+    for (const fn of ['previewArrival', 'commitArrival']) {
+      const label = `${fn} ${JSON.stringify(value)}`;
+      const persons = call(fn, arrivalStay(), { soldOptions: [{ optionId: PERSON_LINE, persons: value }] });
+      assert.deepEqual([persons.statusCode, persons.body.error], [400, 'INVALID_QUANTITY'], `persons ${label}`);
+      assert.match(persons.body.message, /Personnes servies/);
+      const units = call(fn, arrivalStay(), { soldOptions: [{ optionId: STAY_LINE, units: value }] });
+      assert.deepEqual([units.statusCode, units.body.error], [400, 'INVALID_QUANTITY'], `units ${label}`);
+      const pieces = call(fn, arrivalStay(), { linenItems: [{ id: TOWEL, qty: value }] });
+      assert.deepEqual([pieces.statusCode, pieces.body.error], [400, 'INVALID_QUANTITY'], `pieces ${label}`);
+      const breakfast = call(fn, arrivalStay(), { breakfastCoffee: value });
+      assert.deepEqual([breakfast.statusCode, breakfast.body.error], [400, 'INVALID_QUANTITY'], `breakfast ${label}`);
+    }
+  }
+  assert.notEqual(call('previewArrival', arrivalStay(), { soldOptions: [{ optionId: PERSON_LINE, persons: '' }] }).body?.error, 'INVALID_QUANTITY');
+  assert.notEqual(call('previewArrival', arrivalStay(), { breakfastCoffee: '' }).body?.error, 'INVALID_QUANTITY');
+});
+
+test('sas-departure-recap-server-side rule 30: a breakfast count the stay stores, sent back unchanged, is not re-judged; a changed one is', () => {
+  for (const fn of ['previewArrival', 'commitArrival']) {
+    const id = stay({ startDate: dayAt(0), endDate: dayAt(3), breakfastCoffee: -2 });
+    assert.notEqual(call(fn, id, { breakfastCoffee: -2 }).body?.error, 'INVALID_QUANTITY', fn);
+    assert.equal(call(fn, id, { breakfastCoffee: -3 }).body?.error, 'INVALID_QUANTITY', fn);
+  }
+});

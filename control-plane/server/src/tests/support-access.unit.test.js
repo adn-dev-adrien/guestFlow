@@ -17,10 +17,10 @@ const SUPPORT_TABLE = `CREATE TABLE support_access (id INTEGER PRIMARY KEY AUTOI
 async function setup() {
   const h = makeContext();
   const dataDir = makeInstance(h.root, 'aulnes', { users: [{ email: 'claire@aulnes.fr' }] });
+  const c = await h.ctx.controllers.customers.create(NEW_CUSTOMER, 'adrien@adn-dev.fr');
   const db = new Database(path.join(dataDir, 'guestflow.db'));
   db.exec(SUPPORT_TABLE);
   db.close();
-  const c = await h.ctx.controllers.customers.create(NEW_CUSTOMER, 'adrien@adn-dev.fr');
   const instanceDb = () => new Database(path.join(dataDir, 'guestflow.db'));
   // What the instance does with the file (server/src/utils/supportAccess.js readRequest).
   const instanceReads = () => supportAccess.readRequest({ dataDir, publicKey: h.publicKey.export({ format: 'der', type: 'spki' }).toString('base64'), slug: 'aulnes' });

@@ -8,18 +8,9 @@
 
 const { scalarQuery } = require('../utils/bodyText');
 const { stayShapeRefusal } = require('../utils/stayInputShape');
-const { validateFinanceInputs } = require('../utils/financeValidation');
+const { validateStayFinance } = require('../utils/financeValidation');
 const settingsModel = require('../models/settingsModel');
 const { generateDevisPdf } = require('../utils/devisPdf');
-
-function financeError(body) {
-  return validateFinanceInputs({
-    customPrice: { value: body.customPrice, kind: 'money' },
-    depositAmount: { value: body.depositAmount, kind: 'money' },
-    balanceAmount: { value: body.balanceAmount, kind: 'money' },
-    discountPercent: { value: body.discountPercent, kind: 'percentage' },
-  });
-}
 
 const { saveWithDraftClient } = require('../utils/draftClient');
 
@@ -91,7 +82,7 @@ function createController(model, {
   function create(req, res) {
     const shape = stayShapeRefusal(req.body || {});
     if (shape) return res.status(400).json(shape);
-    const error = financeError(req.body);
+    const error = validateStayFinance(req.body);
     if (error) return res.status(400).json({ error });
     if (!req.body || req.body.clientId || !req.body.newClient) return respond(res, model.create(req.body));
     const result = saveWithDraftClient({
@@ -113,7 +104,7 @@ function createController(model, {
   function update(req, res) {
     const shape = stayShapeRefusal(req.body || {}, model.findById(req.params.id));
     if (shape) return res.status(400).json(shape);
-    const error = financeError(req.body);
+    const error = validateStayFinance(req.body) && validateStayFinance(req.body, model.findById(req.params.id));
     if (error) return res.status(400).json({ error });
     const loaded = req.body && req.body.loadedUpdatedAt;
     if (loaded != null && loaded !== '') {

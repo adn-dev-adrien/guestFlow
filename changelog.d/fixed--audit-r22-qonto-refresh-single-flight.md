@@ -1,0 +1,1 @@
+- **Qonto: one token refresh at a time** (spec `qonto-settings-in-app.md` rule 18, audit R22 E22-3). Concurrent calls on an expired token shared one refresh instead of reusing the same refresh token, which could fail one of them, possibly a guest's payment, or leave the connection dead if the provider revokes on reuse.

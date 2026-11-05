@@ -167,8 +167,6 @@ function buildOptionOffer(option, { unitPrice, persons, nights, stay, sold, maxP
     defaultPersons: head,
     maxPersons: Math.max(head, Number(maxPersons) > 0 ? Math.floor(Number(maxPersons)) : 0),
     selectedPersons: (sold && Number(sold.cardPersons) > 0) ? Math.floor(Number(sold.cardPersons)) : head,
-    // Billed units of one person served: the nights on a per-person-per-night option, otherwise 1.
-    unitsPerPerson: priceType === 'per_person_per_night' ? stayNights : 1,
     occurrences: card ? buildCandidateGrid(option, stay || {}) : [],
     selectedOccurrences: card ? normalizeOccurrences(sold?.cardOccurrences) : [],
     selectedUnits: !card && sold ? round2(sold.billedUnits) : 0,
@@ -228,7 +226,6 @@ function buildSasSaleOffers({
       // What this SAS decided about the covers, so a re-open reopens on it rather than on the party
       // (specs/card-option-served-persons.md §3.3 rule 11).
       cardPersons: line.cardPersons != null ? Number(line.cardPersons) : null,
-      cardNights: line.cardNights != null ? Number(line.cardNights) : null,
     });
   }
   const soldByThisSas = (optionId) => {

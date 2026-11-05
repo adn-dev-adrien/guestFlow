@@ -243,22 +243,59 @@ rules — just a clean, testable structure that future slices (and Bloc 5) build
    the price preview, the create, the update and the devis create and update, before anything reads them
    (`utils/lineInputBounds.js`, same code everywhere):
    `options` / `selectedOptions` / `customOptions` / `resources` / `selectedResources` present and not an array
-   of objects, or `offeredOptionIds` not an array → 400 `INVALID_LINES`; a line `quantity` or a party number
-   (`adults`, `children`, `teens`, `babies`, `babyBeds`, `singleBeds`, `doubleBeds`) that is not a finite number →
-   400 `INVALID_QUANTITY`; a custom `amount` or a line's `acompteContribTtc` / `soldeContribTtc` likewise → 400
-   `INVALID_AMOUNT`. Refused, never clamped. A boolean, an array, `1,5` or `0x10` is not a number; absent, null and
-   empty still mean « not sent »; a `quantity` of 0 or less still switches the line off, and a fraction stays
+   of objects, or `offeredOptionIds` not an array → 400 `INVALID_LINES`; a line `quantity` that is not a finite number
+   → 400 `INVALID_QUANTITY`; a party number (`adults`, `children`, `teens`, `babies`, `babyBeds`, `singleBeds`,
+   `doubleBeds`) that is not a whole number ≥ 0 → 400 `INVALID_QUANTITY` (narrowed 2026-11-04, audit R22, Adrien's
+   call), `adults: 0` still meaning one adult, a value the row already stores not re-judged when sent back
+   unchanged, and an inline hint under the fiche's four fields; a custom `amount` or a line's `acompteContribTtc` / `soldeContribTtc` likewise → 400
+   `INVALID_AMOUNT`. Refused, never clamped. A boolean, an array, `1,5`, `0x10` or text of spaces alone is not a number; absent, null and
+   empty (`''`) still mean « not sent »; a `quantity` of 0 or less still switches the line off, and a fraction stays
    allowed. Past `Number.MAX_SAFE_INTEGER` a number counts as unusable: it is finite, but overflows to Infinity
    once priced and summed. That is a technical limit: no business ceiling on `quantity` is decided. *Why:*
    `1e999` parses to Infinity; it reached `finalPrice` and `balanceAmount`, which JSON then reads as `null` and no
-   save can repair, while `quantity: 1e308` stored a line at 0 €, and lines that were not an array answered 500.
-   Tests: `tests/line-input-bounds.unit.test.js`.
+   save can repair, while `quantity: 1e308` stored a line at 0 €, and lines that were not an array answered 500. A
+   party of -3 dropped the tourist tax and the per-person lines, 3 adults and -2 teens taxed three for one occupant
+   and bypassed the capacity, 1.5 adults billed 1.5 linen sets. Prod check of 2026-11-04: no stored party is
+   negative or fractional.
+   Tests: `tests/line-input-bounds.unit.test.js`, `tests/numeric-bounds-stay.unit.test.js`, client
+   `components/reservation/__tests__/GuestsBedsSection.party-hint.test.jsx`.
+16. **Added 2026-11-04 (audit R22-C4) — only the latest question's answer reaches the fiche.** The occupied dates, the
+   client search and the resources' availability drop an answer a newer question has overtaken (`useLatestRequest`).
+   Coming back to the range already shown overtakes the answer on its way too. *Why:* the old answer wiped a conflict
+   hint, emptied the client list under the text typed, and left « déjà réservée » on the range just left. The server
+   still decides at save. Tests: client `pages/__tests__/ReservationPage.latest-answer.test.jsx`.
+17. **Added 2026-11-04 (audit R22-C6) — the cots left follow the dates.** They are asked when the logement, the dates or
+   the excluded stay change, once per range, latest answer only, like the resources. While the range is one the server
+   would refuse, the hint reads « Dispo restante: ... » and availability sets no ceiling. An answer alone never rewrites
+   the fiche's cots: only a change of party clamps them. On a range with no cot left the number stays and the save
+   answers « Lits bébé indisponibles », rather than a cot silently dropped. The update judges the cots whenever the
+   logement or the dates move, even with the party unchanged (a fiche with one cot moved onto a full range was saved and
+   oversold the stock); with the range and the party unchanged it does not judge them, so an already oversold fiche still
+   saves. Tests: server `tests/cots-follow-the-dates-at-save.unit.test.js`, client
+   `pages/__tests__/ReservationPage.baby-bed-dates.test.jsx`.
+18. **Added 2026-11-04 (audit R22) — a line is sent once.** A repeated `optionId` or `resourceId` within `options`,
+   `selectedOptions`, `resources` or `selectedResources` (`8` and `'8'` are the same id) → 400 `INVALID_LINES` on the
+   preview, the create, the update and the devis create and update. *Why:* the preview answered 200 and the save a
+   500 « Enregistrement impossible. ». Custom lines are not concerned. Tests: `tests/numeric-bounds-stay.unit.test.js`.
+19. **Added 2026-11-04 (audit R22) — the preview refuses what the save refuses, and money stops at the usable
+   range.** `validateStayFinance` (`utils/financeValidation.js`) is one list for the price preview, the create, the
+   update and the devis create and update: `customPrice`, the deposit, complement and balance amounts, the caution, the
+   platform commissions, gross, payout and tourist tax, `discountPercent`. `validateMoneyAmount` and
+   `validatePercentage` read numbers with `readNumber` and `usableNumber` (`utils/lineInputBounds.js`): a boolean, an
+   array, `0x10`, or a magnitude above `Number.MAX_SAFE_INTEGER` → `NOT_A_NUMBER`; numeric text and empty stay valid,
+   and on these optional money fields alone text of spaces reads as empty, as it always did.
+   A value the row stores under the same field, sent back unchanged, is not re-judged (D6's reading), on the payment
+   PATCH too. The capacity stays out: it is a save-time guard the operator can force (`forceCapacity`), and the fiche
+   has to keep quoting a party forced above it. No business ceiling is decided. *Why:* `customPrice: 1e308` stored
+   `finalPrice` and `balanceAmount` at Infinity, which JSON reads as `null`, and the whole year's revenue with them
+   once marked paid; `customPrice: true` priced the stay at 1 €; `platformGrossAmount: -100` quoted 200 and saved 400.
+   Tests: `tests/numeric-bounds-stay.unit.test.js`.
 
 **Edge cases:** all current ones are preserved verbatim — min-nights rejection, archived-reservation
 error, iCal-locked pricing snapshot reuse, night-block conflict on adjacent reservations, payment
 patch. No new edge behavior is introduced.
 
-16. **Added 2026-11-04 (audit R22-4) — the shape of a stay's fields is judged at the same boundary.** On the price
+20. **Added 2026-11-04 (audit R22-4) — the shape of a stay's fields is judged at the same boundary.** On the price
    preview, the create, the update and the devis create and update, before anything reads them
    (`utils/stayInputShape.js`, `stayShapeRefusal`; the numbers stay with rule 15): a text field (`platform`, `notes`,
    `emailLanguage`, `pdfLanguage`, the due dates, `reservationNumber`) is a string or absent, a time (`checkInTime`,
@@ -369,7 +406,13 @@ prove behavior is preserved.)
 
 ## 7. Test plan
 
+### Client tests (2026-11-04)
+- [x] `pages/__tests__/ReservationPage.latest-answer.test.jsx` (6) — rule 16: occupied dates and their failure, client search, resources, back on the range shown, onto a refused range
+- [x] `pages/__tests__/ReservationPage.baby-bed-dates.test.jsx` (8) — rule 17: dates, one question per range, blank fiche, refused range, older answer, no cot left, back on the range shown, party change on no cot left
+
 ### Server unit tests
+- [x] `tests/cots-follow-the-dates-at-save.unit.test.js` (8, 2026-11-05) — rule 17: dates onto a full range refused,
+      party changed too, one date alone, free range, no cot held, logement moved, oversold and unchanged, one more cot unchanged range
 - [x] `tests/date-horizon.unit.test.js` (12, 2026-11-02) — rule 13: today + 5 years accepted, one day more
       refused on calculate-price, create, update, drift approval, devis create / update, closures and the
       finance window; stored dates past the horizon saved, restored, extended and converted untouched.

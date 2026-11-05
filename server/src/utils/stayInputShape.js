@@ -1,5 +1,5 @@
 /**
- * The shape of a stay's fields (specs/reservations-backend-mvc.md rule 16), judged on preview, create, update and
+ * The shape of a stay's fields (specs/reservations-backend-mvc.md rule 20), judged on preview, create, update and
  * devis create / update, beside `lineInputRefusal` which holds the numbers (rule 15). Text is a string or absent, a
  * time is HH:MM or empty, an id a positive integer, a tick true / false / 1 / 0. `null` and '' read as not sent, and
  * what the row already stores passes when sent back unchanged. Internal writers (a plugin through `performUpdate`,

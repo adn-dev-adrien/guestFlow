@@ -48,8 +48,8 @@ function insuranceFlagRefused(req, res) {
 // specs/options-resources-ux.md rule 16 — a write the editor's checks would have stopped.
 // It judges the payload the model will store — what concerns a property outside the scope is dropped
 // first (rule 15), so an invisible, switched-off line can never block a save.
-function validationRefused(req, res) {
-  const details = validateOptionPayload(scopePayload(req.body), { knownPropertyIds: propertiesModel.list().map((p) => p.id) });
+function validationRefused(req, res, stored = null) {
+  const details = validateOptionPayload(scopePayload(req.body), { knownPropertyIds: propertiesModel.list().map((p) => p.id), stored });
   if (details.length === 0) return false;
   res.status(422).json({ error: 'VALIDATION_FAILED', details });
   return true;
@@ -63,9 +63,10 @@ function create(req, res) {
 
 function update(req, res) {
   // The hidden insurance answers as if it did not exist (rule 21).
-  if (!model.get(req.params.id)) return res.status(404).json({ error: 'Option non trouvée' });
+  const stored = model.get(req.params.id);
+  if (!stored) return res.status(404).json({ error: 'Option non trouvée' });
   if (insuranceFlagRefused(req, res)) return undefined;
-  if (validationRefused(req, res)) return undefined;
+  if (validationRefused(req, res, stored)) return undefined;
   const result = model.update(req.params.id, req.body);
   // A default option of a property is part of its website quote (specs/google-vacation-rentals-feed.md
   // rule 12): the shared catalogue moves every property.

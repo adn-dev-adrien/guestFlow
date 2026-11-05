@@ -842,6 +842,10 @@ function createPropertiesModel(database) {
       return { platforms, seasons };
     },
 
+    pricingRuleRow(propertyId, ruleId) {
+      return database.prepare('SELECT * FROM pricing_rules WHERE id = ? AND propertyId = ?').get(ruleId, propertyId) || null;
+    },
+
     addPricingRule(propertyId, body = {}) {
       if (!database.prepare('SELECT 1 FROM properties WHERE id = ?').get(propertyId)) return { error: 'Logement introuvable.', status: 404 };
       const { label, pricePerNight, pricingMode, progressiveTiers, dateRanges, color, startDate, endDate, minNights } = body;

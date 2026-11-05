@@ -918,7 +918,7 @@ function createModel(database) {
       return { error: 'Devis converti en réservation : la réservation se modifie à sa place.', status: 409, code: 'DEVIS_CONVERTED' };
     }
     // specs/reservations-backend-mvc.md rule 15 — what the devis already stores is not re-judged.
-    const inputRefusal = lineInputRefusal(payload, bookingLines.getStoredTypedCounts(numId));
+    const inputRefusal = lineInputRefusal(payload, bookingLines.getStoredTypedCounts(numId), existing);
     if (inputRefusal) return { ...inputRefusal, status: 400 };
     const property = database.prepare('SELECT * FROM properties WHERE id = ?').get(Number(payload.propertyId || existing.propertyId));
     if (!property) return { error: 'Logement introuvable', status: 404 };

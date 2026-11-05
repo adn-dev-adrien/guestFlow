@@ -55,6 +55,7 @@ test('the day before the stay, the fiche is still filled', async () => {
 function fakeImap({ failLock = false, failConnect = false } = {}) {
   const log = { loggedOut: 0, released: 0 };
   class FakeImap {
+    on() {}
     async connect() { if (failConnect) throw new Error('ECONNRESET'); }
     async getMailboxLock() {
       if (failLock) throw new Error('Mailbox does not exist');

@@ -17,10 +17,10 @@ test('rule 26 — the request just written reads « En attente » before the ins
   const h = makeContext();
   try {
     const dataDir = makeInstance(h.root, 'aulnes', { users: [{ email: 'claire@aulnes.fr' }] });
+    const c = await h.ctx.controllers.customers.create(NEW_CUSTOMER, 'op');
     const db = new Database(path.join(dataDir, 'guestflow.db'));
     db.exec(SUPPORT_TABLE);
     db.close();
-    const c = await h.ctx.controllers.customers.create(NEW_CUSTOMER, 'op');
     const { support } = h.ctx.controllers;
     const after = support.request(c.id, { reason: 'Vérifier Booking' }, 'op');
     assert.equal(after.state, 'pending');
@@ -45,10 +45,10 @@ test('rule 26 — a request file that is a link out of the instance is never rea
   const h = makeContext();
   try {
     const dataDir = makeInstance(h.root, 'aulnes', { users: [{ email: 'claire@aulnes.fr' }] });
+    const c = await h.ctx.controllers.customers.create(NEW_CUSTOMER, 'op');
     const db = new Database(path.join(dataDir, 'guestflow.db'));
     db.exec(SUPPORT_TABLE);
     db.close();
-    const c = await h.ctx.controllers.customers.create(NEW_CUSTOMER, 'op');
     const { support } = h.ctx.controllers;
     support.request(c.id, { reason: 'Vérifier Booking' }, 'op');
     const file = path.join(dataDir, supportAccess.REQUEST_FILE);
