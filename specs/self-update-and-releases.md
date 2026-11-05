@@ -356,7 +356,7 @@ signed-off releases over HTTPS, when the operator asks for it.
     nullable, and no retained release reads them or writes against them, so the floor stays green. After a rollback the
     entries read live again, as they did: a complement or a removed line can move in the journal at the next save, and a stay
     that rose after payment no longer claims the growth. Roll-forward: what was stamped is read again; a complement collected
-    during the window has no split and reads live. Accounting-export 1.0.25 keeps its floors (`guestflow >=3.18.0`,
+    during the window has no split and reads live. Accounting-export 1.0.26 keeps its floors (`guestflow >=3.18.0`,
     `sdk ^2.19.0`): it asks no new core module, and reads the columns behind `hasReservationColumn`.
 40. **A release's install runs no script and starts from a trusted lockfile** (audit 2026-10-28, H1).
     Before any `npm` runs, `server/package-lock.json` must exist and every entry must resolve from

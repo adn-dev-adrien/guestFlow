@@ -77,7 +77,7 @@ still be offered. The operator keeps a single way of working: the usual composit
     > entry credits `extraGuestComplementSurcharge` on the accommodation (the export selects the column), so the supplement
     > never starts on 70600010 and moves to 70600000 when the solde is paid, in any platform mode or order; a complement
     > stamped at its flip keeps it (accounting-books rule 16). Not an open accounting choice: this rule already named it.
-    > Accounting-export 1.0.25. Test: `plugins/accounting-export/tests/added-guests-supplement-account`.
+    > Accounting-export 1.0.26. Test: `plugins/accounting-export/tests/added-guests-supplement-account`.
 11. **Recomputed on every save** — adding guests raises the line, removing guests lowers it, and it
     disappears when `persons ≤ max(included, paid)`.
 12. A complement **already marked collected** is frozen as today (`frozen-complement-trusts-client.md`):
