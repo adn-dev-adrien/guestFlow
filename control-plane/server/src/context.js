@@ -112,6 +112,7 @@ function createContext({
   });
   const healthTimeoutMs = Number(hostingEnv.CP_HEALTH_TIMEOUT_MS) || 60000;
   const journal = (...args) => ctx.controllers.customers.journal(...args);
+  const renamePending = (c) => ctx.controllers.customers.renamePending(c);
   ctx.provisioner = createProvisioner({
     models,
     drivers: ctx.drivers,
@@ -138,10 +139,10 @@ function createContext({
   // turns the push off; tests pass a fake.
   ctx.pluginInstaller = pluginInstaller === false ? null : (pluginInstaller || createPluginInstaller({ registry: ctx.registry, releases: ctx.releases }));
   ctx.fleetUpdater = createFleetUpdater({
-    models, drivers: ctx.drivers, releases: ctx.releases, provisioner: ctx.provisioner, now, fetchImpl, healthTimeoutMs, journal, pluginInstaller: ctx.pluginInstaller,
+    models, drivers: ctx.drivers, releases: ctx.releases, provisioner: ctx.provisioner, now, fetchImpl, healthTimeoutMs, journal, pluginInstaller: ctx.pluginInstaller, renamePending,
   });
   ctx.restoreVerifier = createRestoreVerifier({
-    models, drivers: ctx.drivers, provisioner: ctx.provisioner, fleetUpdater: ctx.fleetUpdater, now, fetchImpl, healthTimeoutMs, alerts: ctx.hostAlerts, journal,
+    models, drivers: ctx.drivers, provisioner: ctx.provisioner, fleetUpdater: ctx.fleetUpdater, now, fetchImpl, healthTimeoutMs, alerts: ctx.hostAlerts, journal, renamePending,
   });
   ctx.probe = createProbe({
     models, drivers: ctx.drivers, provisioner: ctx.provisioner, alerts: ctx.hostAlerts, now, fetchImpl, root: instances.root, today, ...(diskRatio ? { diskRatio } : {}),

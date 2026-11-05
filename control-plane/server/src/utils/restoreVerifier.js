@@ -19,7 +19,7 @@ const { shareDatabase } = require('./instanceFiles');
 const { waitHealthy } = require('./health');
 const { httpError } = require('./httpError');
 
-function createRestoreVerifier({ models, drivers, provisioner, fleetUpdater, now, fetchImpl = fetch, healthTimeoutMs = 60000, alerts, journal = () => {} }) {
+function createRestoreVerifier({ models, drivers, provisioner, fleetUpdater, now, fetchImpl = fetch, healthTimeoutMs = 60000, alerts, journal = () => {}, renamePending = () => false }) {
   const { hosting, customers, provisioning } = models;
   const stamp = () => now().toISOString();
 
@@ -85,6 +85,8 @@ function createRestoreVerifier({ models, drivers, provisioner, fleetUpdater, now
   async function swap(stale, when, operator) {
     const c = customers.get(stale.id);
     if (!c || c.erasedAt || c.archivedAt) throw httpError(409, 'ARCHIVED', 'Client archivé : réactivez-le d’abord.');
+    // H1 rule 46: `c.slug` is an address the instance has not reached yet.
+    if (renamePending(c)) throw httpError(409, 'RENAME_PENDING', 'Changement d’adresse à terminer d’abord.');
     const inst = provisioner.instanceOf(c);
     const suffix = `.before-restore-${stamp().replace(/[:.]/g, '-')}`;
     const restored = `${inst.dbPath}.restoring`;

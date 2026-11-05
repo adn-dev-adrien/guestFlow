@@ -116,6 +116,15 @@ function createCustomersController(ctx) {
     return alias ? alias.slug : c.slug;
   }
 
+  // H1 rule 48: the address whose directory and database are this customer's; null while they are
+  // someone else's. Every read and write in a space goes through it.
+  const spaceSlug = (c) => (foreignDatabase(c) ? null : servedSlug(c));
+
+  function spaceFacts(c) {
+    const slug = spaceSlug(c);
+    return slug ? instances.readFacts(slug) : null;
+  }
+
   // An action that moves the end date carries the end date the operator was looking at: a second
   // click, or a second tab, finds it changed and is refused instead of counting twice.
   function assertExpectedEndsAt(c, body) {
@@ -226,6 +235,10 @@ function createCustomersController(ctx) {
 
   function issueLicence(id) {
     const c = customers.get(id);
+    if (!spaceSlug(c)) {
+      provisioning.set(id, 'licence', 'failed', ADDRESS_HELD_MESSAGE, stamp());
+      return { written: false, reason: ADDRESS_HELD_MESSAGE };
+    }
     const payload = licencePayload(id, true);
     const result = issuer.write(c.slug, issuer.sign(payload));
     // The stamp the space answers to (specs/plugin-operator-provisioning.md rule 14).
@@ -466,7 +479,7 @@ function createCustomersController(ctx) {
       stepsSummary: steps.length ? `Terminée : ${steps.length} étape${steps.length > 1 ? 's' : ''}` : '',
       // H1 rule 1: the page polls while a sequence runs.
       provisioningRunning: Boolean(host() && host().running(c.id)) || provisioning.list(c.id).some((r) => r.status === 'running'),
-      hosting: hostView(c, hosting.get(c.id), { now: now(), lastCheck: hosting.lastCheck(c.id), dailyMailLimit: ctx.drivers ? ctx.drivers.mail.dailyLimit : null, mailToday: hosting.mailCount(c.id, day) }),
+      hosting: hostView(c, hosting.get(c.id), { now: now(), lastCheck: hosting.lastCheck(c.id), dailyMailLimit: ctx.drivers ? ctx.drivers.mail.dailyLimit : null, mailToday: hosting.mailCount(c.id, day), renamePending: renamePending(c) }),
       formerAddresses: formerAddresses(c, day),
       deprovisionSteps: stepsView(c, DEPROVISION_STEPS),
       history: audit.forCustomer(c.id).map((h) => ({ at: h.at, day: frDay(h.day), operator: h.operator, text: h.text })),
@@ -575,7 +588,7 @@ function createCustomersController(ctx) {
     const day = today();
     const plans = catalogue.plans();
     const rows = customers.list().map((c) => {
-      const facts = instances.readFacts(servedSlug(c));
+      const facts = spaceFacts(c);
       const cols = hostColumns(hosting.get(c.id), now());
       return {
         id: c.id,
@@ -809,7 +822,8 @@ function createCustomersController(ctx) {
   function renamePreview(id, body) {
     const c = mustGet(id);
     const slug = text(body, 'slug').trim();
-    const error = slug === c.slug ? 'C’est déjà son adresse.' : (slug ? slugError(slug, slugTaken) : null);
+    // H1 rule 49: an alias lapses while a directory can still sit at its address; not judged at creation (rule 45 reaches the refused state there).
+    const error = slug === c.slug ? 'C’est déjà son adresse.' : (slug ? slugError(slug, (s) => slugTaken(s) || fs.existsSync(instances.dirOf(s))) : null);
     const until = addMonths(today(), ALIAS_MONTHS);
     return {
       error,
@@ -1213,12 +1227,17 @@ function createCustomersController(ctx) {
     purgeExpiredExports,
     assertExpectedEndsAt,
     servedSlug,
+    spaceSlug,
+    spaceFacts,
+    renamePending,
     today,
     monthlyPriceCents,
     priceLines,
     journal,
     urlOf,
     RENAME_CHECKLIST,
+    RENAME_PENDING_MESSAGE,
+    ADDRESS_HELD_MESSAGE,
   };
 }
 
