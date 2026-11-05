@@ -13,6 +13,8 @@ const { spawnSync } = require('node:child_process');
 const Database = require('better-sqlite3');
 
 const db = require('../database');
+const { todayIso } = require('../utils/localDate');
+const { addDaysToIsoDate } = require('../utils/devisHelpers');
 
 const COLUMNS = ['complementPaidSplit', 'removedLineContribs'];
 const TRIGGER = 'reservations_clear_complement_paid_split';
@@ -31,7 +33,7 @@ test('a fresh install has the two nullable columns and the trigger', () => {
 test('un-ticking a complement clears its split, whatever statement does it; a re-save of the flag keeps it', () => {
   db.prepare("INSERT OR IGNORE INTO properties (id, name) VALUES (1, 'Gîte')").run();
   db.prepare("INSERT OR IGNORE INTO clients (id, firstName, lastName) VALUES (1, 'A', 'B')").run();
-  const id = db.prepare("INSERT INTO reservations (propertyId, clientId, startDate, endDate, complementPaid, complementPaidSplit) VALUES (1, 1, '2030-01-01', '2030-01-03', 1, '{}')").run().lastInsertRowid;
+  const id = db.prepare("INSERT INTO reservations (propertyId, clientId, startDate, endDate, complementPaid, complementPaidSplit) VALUES (1, 1, ?, ?, 1, '{}')").run(addDaysToIsoDate(todayIso(), 30), addDaysToIsoDate(todayIso(), 32)).lastInsertRowid;
   db.prepare('UPDATE reservations SET complementPaid = 1 WHERE id = ?').run(id);
   assert.equal(db.prepare('SELECT complementPaidSplit AS s FROM reservations WHERE id = ?').get(id).s, '{}');
   db.prepare('UPDATE reservations SET complementPaid = 0 WHERE id = ?').run(id);
