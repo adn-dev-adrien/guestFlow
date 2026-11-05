@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import {
   Box, Typography, Card, CardContent, Grid, Stack, Checkbox, Tooltip,
   TableRow, TableCell,
@@ -65,10 +65,18 @@ const rowName = (row) => `${row.reservationName || 'Réservation'}${row.addedGue
 const NO_GUEST_ADDED_NOTE = 'Écart de taxe, aucun voyageur ajouté';
 const NOT_DECLARABLE_NOTE = 'Déclarable une fois le séjour payé et terminé.';
 
+// specs/finance-data-checks.md rule 16 — a link may name the month to open (`?month=YYYY-MM`); a month that is
+// not a real one or still to come opens the default month instead.
+function initialMonth(asked) {
+  const m = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(String(asked || ''));
+  return m && asked <= getMaxSelectableMonth() ? asked : getPreviousMonth();
+}
+
 export default function TouristTaxPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { showError } = useToast();
-  const [month, setMonth] = useState(getPreviousMonth);
+  const [month, setMonth] = useState(() => initialMonth(searchParams.get('month')));
   const [data, setData] = useState(null);
   const [loadError, setLoadError] = useState(false);
   const [reloadNonce, setReloadNonce] = useState(0);

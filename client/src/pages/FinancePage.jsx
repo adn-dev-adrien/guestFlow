@@ -19,6 +19,7 @@ import FinanceDetailPanel from '../components/FinanceDetailPanel';
 import MonthlyRevenueChart from '../components/MonthlyRevenueChart';
 import SmallMultiplesLineChart from '../components/SmallMultiplesLineChart';
 import BookingPaceCard from '../components/BookingPaceCard';
+import FinanceDataChecksCard from '../components/FinanceDataChecksCard';
 import { seriesColor } from '../utils/chartColors';
 import { formatCurrencyRounded, plural } from '../utils/formatters';
 import api from '../api';
@@ -363,6 +364,9 @@ export default function FinancePage() {
               </Grid>
               <Grid size={12}>
                 <BookingPaceCard propertyId={params.propertyId} refreshKey={paceRefresh} />
+              </Grid>
+              <Grid size={12}>
+                <FinanceDataChecksCard fiscalYear={d.fiscalYear.key} propertyId={params.propertyId} refreshKey={paceRefresh} />
               </Grid>
             </Grid>
           </>
