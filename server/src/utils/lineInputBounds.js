@@ -16,13 +16,12 @@ const MAX_MAGNITUDE = Number.MAX_SAFE_INTEGER;
 
 const NUMERIC_TEXT = /^[+-]?(\d+(\.\d*)?|\.\d+)(e[+-]?\d+)?$/i;
 
-// undefined = not sent. NaN = sent, and not a number: a boolean or an array never counts as one.
+// undefined = not sent. NaN = sent, and not a number: a boolean, an array or text of spaces never counts as one.
 function readNumber(value) {
-  if (value === undefined || value === null) return undefined;
+  if (value === undefined || value === null || value === '') return undefined;
   if (typeof value === 'number') return value;
   if (typeof value !== 'string') return NaN;
   const text = value.trim();
-  if (text === '') return undefined;
   return NUMERIC_TEXT.test(text) ? Number(text) : NaN;
 }
 

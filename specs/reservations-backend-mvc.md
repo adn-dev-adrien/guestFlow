@@ -248,8 +248,8 @@ rules — just a clean, testable structure that future slices (and Bloc 5) build
    `doubleBeds`) that is not a whole number ≥ 0 → 400 `INVALID_QUANTITY` (narrowed 2026-11-04, audit R22, Adrien's
    call), `adults: 0` still meaning one adult, a value the row already stores not re-judged when sent back
    unchanged, and an inline hint under the fiche's four fields; a custom `amount` or a line's `acompteContribTtc` / `soldeContribTtc` likewise → 400
-   `INVALID_AMOUNT`. Refused, never clamped. A boolean, an array, `1,5` or `0x10` is not a number; absent, null and
-   empty still mean « not sent »; a `quantity` of 0 or less still switches the line off, and a fraction stays
+   `INVALID_AMOUNT`. Refused, never clamped. A boolean, an array, `1,5`, `0x10` or text of spaces alone is not a number; absent, null and
+   empty (`''`) still mean « not sent »; a `quantity` of 0 or less still switches the line off, and a fraction stays
    allowed. Past `Number.MAX_SAFE_INTEGER` a number counts as unusable: it is finite, but overflows to Infinity
    once priced and summed. That is a technical limit: no business ceiling on `quantity` is decided. *Why:*
    `1e999` parses to Infinity; it reached `finalPrice` and `balanceAmount`, which JSON then reads as `null` and no
@@ -268,7 +268,8 @@ rules — just a clean, testable structure that future slices (and Bloc 5) build
    update and the devis create and update: `customPrice`, the deposit, complement and balance amounts, the caution, the
    platform commissions, gross, payout and tourist tax, `discountPercent`. `validateMoneyAmount` and
    `validatePercentage` read numbers with `readNumber` and `usableNumber` (`utils/lineInputBounds.js`): a boolean, an
-   array, `0x10`, or a magnitude above `Number.MAX_SAFE_INTEGER` → `NOT_A_NUMBER`; numeric text and empty stay valid.
+   array, `0x10`, or a magnitude above `Number.MAX_SAFE_INTEGER` → `NOT_A_NUMBER`; numeric text and empty stay valid,
+   and on these optional money fields alone text of spaces reads as empty, as it always did.
    A value the row stores under the same field, sent back unchanged, is not re-judged (D6's reading), on the payment
    PATCH too. The capacity stays out: it is a save-time guard the operator can force (`forceCapacity`), and the fiche
    has to keep quoting a party forced above it. No business ceiling is decided. *Why:* `customPrice: 1e308` stored

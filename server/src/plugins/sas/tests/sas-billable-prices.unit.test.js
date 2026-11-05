@@ -30,7 +30,7 @@ const ROUTES = [
 for (const { fn, table, item } of ROUTES) {
   test(`settings-input-guards rule 54: ${fn} refuses a price that is not a usable number ≥ 0 and keeps the list`, () => {
     assert.equal(call(fn, { items: [item(12.5)] }).statusCode, 200);
-    for (const price of [1e999, 1e308, Number.MAX_SAFE_INTEGER + 2, -1, 'abc', '1e999', true, [1], {}]) {
+    for (const price of [1e999, 1e308, Number.MAX_SAFE_INTEGER + 2, -1, 'abc', '1e999', '  ', true, [1], {}]) {
       const res = call(fn, { items: [item(price)] });
       assert.equal(res.statusCode, 400, `${String(price)}: ${JSON.stringify(res.body)}`);
       assert.equal(res.body.error, 'INVALID_PAYLOAD');

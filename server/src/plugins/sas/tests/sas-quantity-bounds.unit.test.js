@@ -215,3 +215,31 @@ test('sas-departure-recap-server-side rule 30: the model called directly throws 
   assert.throws(() => reservationsModel.commitArrivalSas(id, { breakfastCoffee: 1e308 }), /Quantité invalide/);
   assert.equal(db.prepare('SELECT breakfastBread AS v FROM reservations WHERE id = ?').get(id).v ?? 0, 0);
 });
+
+// Text of spaces alone is not a number: it never bills the whole party, sells nothing silently, nor counts as a piece.
+test('sas-breakfast-and-catering-upsell rule 16: spaces alone on persons or units are refused, preview and commit; empty is not sent', () => {
+  for (const value of ['  ', ' ', '\t']) {
+    for (const fn of ['previewArrival', 'commitArrival']) {
+      const label = `${fn} ${JSON.stringify(value)}`;
+      const persons = call(fn, arrivalStay(), { soldOptions: [{ optionId: PERSON_LINE, persons: value }] });
+      assert.deepEqual([persons.statusCode, persons.body.error], [400, 'INVALID_QUANTITY'], `persons ${label}`);
+      assert.match(persons.body.message, /Personnes servies/);
+      const units = call(fn, arrivalStay(), { soldOptions: [{ optionId: STAY_LINE, units: value }] });
+      assert.deepEqual([units.statusCode, units.body.error], [400, 'INVALID_QUANTITY'], `units ${label}`);
+      const pieces = call(fn, arrivalStay(), { linenItems: [{ id: TOWEL, qty: value }] });
+      assert.deepEqual([pieces.statusCode, pieces.body.error], [400, 'INVALID_QUANTITY'], `pieces ${label}`);
+      const breakfast = call(fn, arrivalStay(), { breakfastCoffee: value });
+      assert.deepEqual([breakfast.statusCode, breakfast.body.error], [400, 'INVALID_QUANTITY'], `breakfast ${label}`);
+    }
+  }
+  assert.notEqual(call('previewArrival', arrivalStay(), { soldOptions: [{ optionId: PERSON_LINE, persons: '' }] }).body?.error, 'INVALID_QUANTITY');
+  assert.notEqual(call('previewArrival', arrivalStay(), { breakfastCoffee: '' }).body?.error, 'INVALID_QUANTITY');
+});
+
+test('sas-departure-recap-server-side rule 30: a breakfast count the stay stores, sent back unchanged, is not re-judged; a changed one is', () => {
+  for (const fn of ['previewArrival', 'commitArrival']) {
+    const id = stay({ startDate: dayAt(0), endDate: dayAt(3), breakfastCoffee: -2 });
+    assert.notEqual(call(fn, id, { breakfastCoffee: -2 }).body?.error, 'INVALID_QUANTITY', fn);
+    assert.equal(call(fn, id, { breakfastCoffee: -3 }).body?.error, 'INVALID_QUANTITY', fn);
+  }
+});

@@ -15,12 +15,15 @@ const ERROR_NEGATIVE_AMOUNT = 'NEGATIVE_AMOUNT';
 const ERROR_INVALID_PERCENTAGE = 'INVALID_PERCENTAGE';
 const ERROR_GROSS_BELOW_NET = 'GROSS_BELOW_NET';
 
+// An optional money field: text of spaces is as empty as ''. A count or a line refuses it (`readNumber`).
+const readOptionalNumber = (value) => (typeof value === 'string' && value.trim() === '' ? undefined : readNumber(value));
+
 /**
  * Treats empty/undefined/null as "not provided" (valid) so optional money fields
  * can be omitted. Any provided value must be a usable, non-negative number, or numeric text.
  */
 function validateMoneyAmount(value) {
-  const n = readNumber(value);
+  const n = readOptionalNumber(value);
   if (n === undefined) return null;
   if (!usableNumber(n)) return ERROR_NOT_A_NUMBER;
   if (n < 0) return ERROR_NEGATIVE_AMOUNT;
@@ -31,7 +34,7 @@ function validateMoneyAmount(value) {
  * Optional percentage; when provided must be a usable number within [0, 100], or numeric text.
  */
 function validatePercentage(value) {
-  const n = readNumber(value);
+  const n = readOptionalNumber(value);
   if (n === undefined) return null;
   if (!usableNumber(n)) return ERROR_NOT_A_NUMBER;
   if (n < 0 || n > 100) return ERROR_INVALID_PERCENTAGE;
@@ -47,8 +50,8 @@ function validatePercentage(value) {
  */
 function validateClientGrossAmount(gross, net) {
   const grossError = validateMoneyAmount(gross);
-  if (grossError || readNumber(gross) === undefined) return grossError;
-  const g = readNumber(gross);
+  if (grossError || readOptionalNumber(gross) === undefined) return grossError;
+  const g = readOptionalNumber(gross);
   if (net === '' || net === null || net === undefined) return null;
   const n = Number(net);
   if (Number.isFinite(n) && g < n) return ERROR_GROSS_BELOW_NET;

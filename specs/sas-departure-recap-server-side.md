@@ -254,7 +254,8 @@ the commit runs, so that what the operator collects at the door is what the book
     `plugins/sas/__tests__/ReservationSasDialog.quantity-bounds.test.jsx`.
 30. **A breakfast count is a usable number ≥ 0** (audit R22, 2026-11-04). `breakfastCoffee`, `Tea`, `Chocolate`,
     `Milk`, `Pastries`, `Cereals` and `Bread` at the arrival: not a number, negative or past
-    `Number.MAX_SAFE_INTEGER` → 400 `INVALID_QUANTITY`, preview and commit; absent, null or empty counts nothing;
+    `Number.MAX_SAFE_INTEGER` → 400 `INVALID_QUANTITY`, preview and commit; absent, null or empty (`''`) counts nothing,
+    text of spaces alone is not a number;
     a stored count sent back unchanged is not re-judged; no ceiling is decided. Rounding stays (whole, bread by
     halves). `commitArrivalSas` called directly throws rather than store Infinity. *Why:* `Math.max(0, x)` lets
     Infinity through, it was stored as is. Test: `plugins/sas/tests/sas-quantity-bounds.unit.test.js`.

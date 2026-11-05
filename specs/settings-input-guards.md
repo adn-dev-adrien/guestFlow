@@ -325,7 +325,7 @@ were written then withdrawn the same day; their numbers stay reserved._
     (`utils/propertyValidation.js`) answers 400 `INVALID_SEASON` with its `field`: `pricePerNight`, the net targets and
     the extra-guest price usable and ≥ 0; `minNights` whole ≥ 1; `maxNights` whole ≥ 0, where 0 still means unlimited;
     the same two on a date range; the progressive and extra-guest tier tables usable, their prices ≥ 0. Absent, null
-    or empty is not sent; a stored value sent back unchanged is not re-judged. A recipe apply calls the model
+    or empty (`''`) is not sent, text of spaces alone is not a number; a stored value sent back unchanged is not re-judged. A recipe apply calls the model
     directly: it computes its own numbers and is not judged here. *Why:* a season at `1e999` poisoned every stay
     created on its nights, at Infinity and through the public quote, `-100` stored a stay at -400 €, `-5` a minimum
     of nights. Tests: `tests/numeric-bounds-catalogue.unit.test.js`.
@@ -335,7 +335,7 @@ were written then withdrawn the same day; their numbers stay reserved._
     the server for everyone. Tests: `tests/numeric-bounds-catalogue.unit.test.js`.
 54. **A price of « Facturables au SAS » is a usable number ≥ 0** (audit R22, 2026-11-04), on the linen list and the
     repair list: refused with 400 `INVALID_PAYLOAD` and its message, never clamped, the list left as it is. A row with
-    no label is dropped by the save and not judged; a price already stored passes when sent back. Test:
+    no label is dropped by the save and not judged; text of spaces alone is not a number; a price already stored passes when sent back. Test:
     `plugins/sas/tests/sas-billable-prices.unit.test.js`.
 
 **Edge cases:**

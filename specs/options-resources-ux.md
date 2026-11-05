@@ -247,7 +247,7 @@ organised by topic — on a laptop and on a phone. No pricing or catalogue rule 
     `deleteBlockedReason`).
 31. **Every number of an option or a resource is judged** (audit R22, 2026-11-04), 422 `VALIDATION_FAILED` with its
     `field`, on top of rules 16 and 21. A price past `Number.MAX_SAFE_INTEGER`, on the base, a property or an hourly
-    rate, is « Nombre attendu ». An option's towel counts and bath mats are whole ≥ 0; its participant tiers usable
+    rate, or text of spaces alone, is « Nombre attendu ». An option's towel counts and bath mats are whole ≥ 0; its participant tiers usable
     and ≥ 0. A resource's `quantity` a safe integer; `slotDuration`, `turnoverMinutes`, `minimumUsageMinutes`,
     `heatUpMinutes`, `heatRetentionMinutes` and a property's `freeMinutes` usable and ≥ 0. A stored number sent back
     unchanged is not re-judged; no business ceiling is decided. *Why:* towels and durations at `1e999` were stored as

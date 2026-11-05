@@ -105,7 +105,7 @@ test('reservations-backend-mvc rule 17: validateMoneyAmount and validatePercenta
   for (const value of ['', '  ', null, undefined, 0, 12.5, '12.5', ' 7 ', Number.MAX_SAFE_INTEGER]) {
     assert.equal(validateMoneyAmount(value), null, `money ${String(value)}`);
   }
-  for (const value of ['', null, undefined, 0, 100, '50', 12.5]) assert.equal(validatePercentage(value), null, String(value));
+  for (const value of ['', '  ', null, undefined, 0, 100, '50', 12.5]) assert.equal(validatePercentage(value), null, String(value));
   assert.equal(validateMoneyAmount(-1), 'NEGATIVE_AMOUNT');
   assert.equal(validatePercentage(101), 'INVALID_PERCENTAGE');
   assert.equal(validateClientGrossAmount(1e308, 10), 'NOT_A_NUMBER');
@@ -114,7 +114,9 @@ test('reservations-backend-mvc rule 17: validateMoneyAmount and validatePercenta
   assert.equal(validateClientGrossAmount(5, 10), 'GROSS_BELOW_NET');
   assert.equal(usableNumber(Number.MAX_SAFE_INTEGER), true);
   assert.equal(usableNumber(-Number.MAX_SAFE_INTEGER - 2), false);
-  assert.equal(readNumber('  '), undefined);
+  assert.equal(readNumber(''), undefined);
+  assert.equal(readNumber(' 12 '), 12);
+  assert.ok(Number.isNaN(readNumber('  ')));
   assert.equal(numberRefused(1e308, undefined, 1e308), false);
 });
 
@@ -168,4 +170,75 @@ test('reservations-backend-mvc rule 17: the fiche\'s ordinary values still quote
   const saved = await update(id, { customPrice: '450.50', discountPercent: '10', cautionAmount: '', platformGrossAmount: null });
   assert.equal(saved.statusCode, 200, JSON.stringify(saved.body).slice(0, 200));
   assert.equal((await preview({ customPrice: 450.5, platformGrossAmount: '', balanceAmount: '100' })).statusCode, 200);
+});
+
+const SPACES = ['  ', ' ', '\t', ' \n '];
+
+test('reservations-backend-mvc rule 15: text of spaces alone is not a number: refused on the party on every path, never stored as text', async () => {
+  const stay = f.createStay(dates());
+  const quote = devis.create({ ...devisBody({}), ...dates() }).data.id;
+  for (const field of PARTY_FIELDS) {
+    for (const value of SPACES) {
+      const label = `${field} ${JSON.stringify(value)}`;
+      const asPreview = await preview({ [field]: value });
+      assert.deepEqual([asPreview.statusCode, asPreview.body.code, asPreview.body.field], [400, 'INVALID_QUANTITY', field], `preview ${label}`);
+      assert.deepEqual([create({ [field]: value }).statusCode, create({ [field]: value }).body.code], [400, 'INVALID_QUANTITY'], `create ${label}`);
+      const asUpdate = await update(stay, { [field]: value });
+      assert.deepEqual([asUpdate.statusCode, asUpdate.body.code], [400, 'INVALID_QUANTITY'], `update ${label}`);
+      assert.equal(devis.create(devisBody({ [field]: value })).code, 'INVALID_QUANTITY', `devis create ${label}`);
+      assert.equal(devis.update(quote, { [field]: value }).code, 'INVALID_QUANTITY', `devis update ${label}`);
+    }
+  }
+  const asText = PARTY_FIELDS.map((field) => `typeof(${field}) = 'text'`).join(' OR ');
+  assert.equal(f.db.prepare(`SELECT COUNT(*) AS n FROM reservations WHERE ${asText}`).get().n, 0);
+  assert.equal(lineInputRefusal({ adults: '', children: null, teens: undefined }), null);
+});
+
+test('reservations-backend-mvc rule 15: text of spaces alone is refused on a typed count, a quantity, an amount and a line contrib', () => {
+  for (const value of SPACES) {
+    for (const list of ['options', 'selectedOptions']) {
+      assert.equal(lineInputRefusal({ [list]: [{ optionId: OPTION, cardPersons: value }] })?.code, 'INVALID_CARD_PERSONS', list);
+      assert.equal(lineInputRefusal({ [list]: [{ optionId: OPTION, cardNights: value }] })?.code, 'INVALID_CARD_NIGHTS', list);
+      assert.equal(lineInputRefusal({ [list]: [{ optionId: OPTION, quantity: value }] })?.code, 'INVALID_QUANTITY', list);
+      assert.equal(lineInputRefusal({ [list]: [{ optionId: OPTION, acompteContribTtc: value }] })?.code, 'INVALID_AMOUNT', list);
+    }
+    assert.equal(lineInputRefusal({ customOptions: [{ customOptionId: 1, amount: value }] })?.code, 'INVALID_AMOUNT');
+  }
+  assert.equal(lineInputRefusal({ options: [{ optionId: OPTION, cardPersons: '', cardNights: null, quantity: '' }] }), null);
+});
+
+test('reservations-backend-mvc rule 17: text of spaces alone on a money field or a percentage stays « not provided »', async () => {
+  for (const value of SPACES) {
+    assert.equal(validateMoneyAmount(value), null);
+    assert.equal(validatePercentage(value), null);
+    assert.equal(validateClientGrossAmount(value, 10), null);
+    assert.equal(validateStayFinance({ cautionAmount: value, discountPercent: value }), null);
+  }
+  const quoted = await preview({ cautionAmount: '  ', platformGrossAmount: '  ', discountPercent: '  ' });
+  assert.equal(quoted.statusCode, 200, JSON.stringify(quoted.body).slice(0, 200));
+});
+
+test('reservations-backend-mvc rule 17: the update route reads the stored row, so a stored amount passes and a changed one does not', async () => {
+  const id = f.createStay(dates());
+  f.db.prepare('UPDATE reservations SET cautionAmount = ? WHERE id = ?').run(1e300, id);
+  const kept = await update(id, { cautionAmount: 1e300 });
+  assert.notEqual(kept.body.code, 'NOT_A_NUMBER', JSON.stringify(kept.body).slice(0, 200));
+  const changed = await update(id, { cautionAmount: 1e301 });
+  assert.deepEqual([changed.statusCode, changed.body.code], [400, 'NOT_A_NUMBER']);
+});
+
+test('reservations-backend-mvc rule 17: the devis update route reads the stored row, so a stored amount passes and a changed one does not', () => {
+  const quote = devis.create({ ...devisBody({}), ...dates() }).data.id;
+  f.db.prepare('UPDATE reservations SET cautionAmount = ? WHERE id = ?').run(1e300, quote);
+  const kept = devisCall('update', { id: String(quote) }, { cautionAmount: 1e300 });
+  assert.notEqual(kept.body?.error, 'NOT_A_NUMBER', JSON.stringify(kept.body).slice(0, 200));
+  const changed = devisCall('update', { id: String(quote) }, { cautionAmount: 1e301 });
+  assert.deepEqual([changed.statusCode, changed.body.error], [400, 'NOT_A_NUMBER']);
+});
+
+test('reservations-backend-mvc rule 15: the devis update passes the stored row to the guard, so a stored party passes and a changed one does not', () => {
+  const quote = devis.create({ ...devisBody({}), ...dates() }).data.id;
+  f.db.prepare('UPDATE reservations SET adults = -2 WHERE id = ?').run(quote);
+  assert.notEqual(devis.update(quote, { adults: -2 }).code, 'INVALID_QUANTITY');
+  assert.equal(devis.update(quote, { adults: -3 }).code, 'INVALID_QUANTITY');
 });

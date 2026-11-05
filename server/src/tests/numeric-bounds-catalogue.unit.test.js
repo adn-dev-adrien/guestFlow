@@ -99,6 +99,25 @@ test('settings-input-guards rule 52: what the season stores, sent back unchanged
   assert.equal(propertiesModel.pricingRuleRow('1', ruleId), null);
 });
 
+test('settings-input-guards rule 52: the PUT route reads the stored season, so a stored price passes and a changed one does not', () => {
+  const made = call(properties.addPricing, { id: '1' }, seasonBody({ dateRanges: [{ startDate: inDays(420), endDate: inDays(430) }] }));
+  const ruleId = String(made.body.id);
+  db.prepare('UPDATE pricing_rules SET pricePerNight = ? WHERE id = ?').run(1e300, ruleId);
+  const put = (pricePerNight) => call(properties.updatePricing, { id: '1', ruleId }, seasonBody({ pricePerNight, dateRanges: [{ startDate: inDays(420), endDate: inDays(430) }] }));
+  const kept = put(1e300);
+  assert.notEqual(kept.body?.code, 'INVALID_SEASON', JSON.stringify(kept.body));
+  assert.deepEqual([put(1e301).statusCode, put(1e301).body.code, put(1e301).body.field], [400, 'INVALID_SEASON', 'pricePerNight']);
+  db.prepare('DELETE FROM pricing_rules WHERE id = ?').run(ruleId);
+});
+
+test('settings-input-guards rule 52: text of spaces alone is not a number, an empty field is not sent', () => {
+  for (const value of ['  ', '\t']) {
+    assert.equal(seasonInputRefusal(seasonBody({ pricePerNight: value }))?.field, 'pricePerNight');
+    assert.equal(seasonInputRefusal(seasonBody({ minNights: value }))?.field, 'minNights');
+  }
+  assert.equal(seasonInputRefusal(seasonBody({ pricePerNight: '', minNights: '' })), null);
+});
+
 test('settings-input-guards rule 52: assign-dates judges the new season it would create', () => {
   const body = (target, minNights = 2) => ({ startDate: inDays(500), endDate: inDays(505), minNights, target });
   for (const pricePerNight of [1e999, 1e300, -5]) {
