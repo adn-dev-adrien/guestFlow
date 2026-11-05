@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Approved |
+| **Status** | Implemented (server and API, 2026-11-05) — approved by Adrien on 2026-11-05; the page (§4.2 round 2, §6) follows on the lot-0 components |
 | **Branch** | `feature/hc-l1` → integrated on `feature/finance-reporting-hippocamp` _(user-managed)_ |
 | **Created** | 2026-11-05 |
 | **Author** | Adrien |
