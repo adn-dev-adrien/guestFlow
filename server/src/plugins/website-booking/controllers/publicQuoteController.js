@@ -169,8 +169,11 @@ async function quote(req, res) {
   // engine's fallback rate would make of it (`unpricedNights`, fixed at the 2026-10-27 audit).
   const available = !rangeHasBlockedNight(v.value.startDate, v.value.endDate, blocked)
     && !hasUnpricedNights(engineQuote);
-  // Rule 24 — free nights, but times the house cannot take: the request's refusal, said before the form.
-  if (available && stayTimesRefused(v.value)) return failT(res, req, 409, 'STAY_TIMES_UNAVAILABLE', 'stayTimesUnavailable');
+  // Rule 24 — free nights, but times the house cannot take: the request's refusal, said before the form. Roostview
+  // reads prices only and sends no time: it is not judged (specs/roostview-api-key.md rule 7).
+  if (available && req.publicApiCaller !== 'roostview' && stayTimesRefused(v.value)) {
+    return failT(res, req, 409, 'STAY_TIMES_UNAVAILABLE', 'stayTimesUnavailable');
+  }
 
   // Server-decided payment mode: deposit only when the property opted in AND the deposit is positive.
   const paymentMode = resolvePublicPaymentMode(db, v.value.propertyId, Math.round(Number(engineQuote.depositAmount || 0) * 100));

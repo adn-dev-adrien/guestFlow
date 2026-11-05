@@ -1,1 +1,2 @@
 - Reservation page: a client typed on a fiche no longer follows the page to the next fiche it loads (« Retour » after a devis created in place).
+- Public quote: the Roostview price watch is no longer refused for the visitor's times, which it never sends (`specs/roostview-api-key.md` rule 7); the times are judged before the stay rules (public-api rule 24 reading).

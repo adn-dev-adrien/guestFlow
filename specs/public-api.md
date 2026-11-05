@@ -289,6 +289,12 @@ or **[CREATE]** (genuinely new logic).
     or late time with no neighbour and no closure is sold. A devis the operator makes is not on this path. The code is one
     more value of the documented refusal, additive: not an X. `/pay` judges the same ([public-online-payment.md](public-online-payment.md)
     rule 17). Covered by `plugins/website-booking/tests/public-stay-times-neighbours.unit.test.js`.
+    *Reading of 2026-11-05 (audit R24 verification L1, L2, L3):* the times are judged after the nights and the capacity
+    but before the engine's stay rules (`/quote`, `/booking-requests`) and before `stayRuleRefusal` (`/pay`): a stay
+    both too short and on a refused time answers the times first, then the minimum once the time is fixed; accepted,
+    a rare chain at no cost. A Roostview quote is not judged on the times ([roostview-api-key.md](roostview-api-key.md)
+    rule 7). The nights an early arrival or a late departure takes are pinned without any cleaning-gap clash (an
+    arrival at 09:00 the day after a neighbour left at 18:00, a departure at 18:00 the day before a 09:00 arrival).
 25. **A pasted phone reads as it shows** (audit R24 public finding 2, 2026-11-05). Before rule 21 judges `guest.phone`,
     every format character (`\p{Cf}`: bidi marks of a contact card, a zero-width space) leaves it and every space
     separator (`\p{Zs}`: no-break, narrow no-break, ideographic) reads as a space; the cleaned number is stored. A number
@@ -742,7 +748,7 @@ follow-up.
 - [x] `plugins/website-booking/tests/public-email-one-address.unit.test.js` — rule 21's reading of 2026-11-05 and the rules 7 and 12 of the abuse spec on a non-ASCII or hidden-character address. **(4 tests)**
 - [x] `plugins/website-booking/tests/public-free-text-cleaning.unit.test.js` — the cleaner of the message and the attribution ([public-request-abuse-and-grouping.md](public-request-abuse-and-grouping.md) rule 22, [site-traffic-analytics.md](site-traffic-analytics.md) rule 15, readings of 2026-11-05). **(8 tests)**
 - [x] `plugins/website-booking/tests/public-refusal-language.unit.test.js` — [site-english-version.md](site-english-version.md) rule 8's reading of 2026-11-05: limiters, the tree's 404, the key refusals. **(7 tests)**
-- [x] `plugins/website-booking/tests/public-stay-times-neighbours.unit.test.js` — rule 24: the four clashes on the request and the quote, the sentence in both languages, the default times, an early time with no neighbour, nights taken still `DATES_UNAVAILABLE`. **(13 tests)**
+- [x] `plugins/website-booking/tests/public-stay-times-neighbours.unit.test.js` — rule 24: the four clashes on the request and the quote, the sentence in both languages, the default times, an early time with no neighbour, nights taken still `DATES_UNAVAILABLE`; the night taken by a 09:00 arrival or an 18:00 departure with no cleaning-gap clash, a Roostview quote not judged on the times (reading of 2026-11-05). **(16 tests)**
 - [x] `plugins/website-booking/tests/public-phone-pasted.unit.test.js` — rule 25: pasted separators and invisible marks accepted and stored clean, a line break, a slash or a letter still refused. **(9 tests)**
 - [x] `tests/public-catalog-readonly.unit.test.js` — `GET /public/v1/properties/:id` reads through the
       side-effect-free `getByIdPublicReadOnly` and **never** the seeding `getByIdWithDetails`, proving a

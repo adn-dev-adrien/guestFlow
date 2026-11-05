@@ -32,11 +32,19 @@ const LEAVES_LATE = inDays(150);
 addStay(inDays(53), LEAVES, '16:00', '10:00');
 addStay(ARRIVES, inDays(95), '16:00', '10:00');
 addStay(inDays(143), LEAVES_LATE, '16:00', '12:30');
+// Night blocks only (no cleaning-gap clash): a stay leaving at 18:00 the day before the visitor's arrival, a stay
+// arriving at 09:00 the day after the visitor's departure, and a stay arriving at 11:00 on a default departure day.
+const LEFT_LATE_EVE = inDays(220);
+const ARRIVES_EARLY_MORROW = inDays(242);
+const ARRIVES_ELEVEN = inDays(300);
+addStay(inDays(215), LEFT_LATE_EVE, '16:00', '18:00');
+addStay(ARRIVES_EARLY_MORROW, inDays(245), '09:00', '10:00');
+addStay(ARRIVES_ELEVEN, inDays(304), '11:00', '10:00');
 
 const res = () => ({ statusCode: 200, status(c) { this.statusCode = c; return this; }, json(b) { this.body = b; return this; } });
 let seq = 0;
 const stay = (startDate, endDate, times = {}) => ({ propertyId: pid, startDate, endDate, adults: 2, ...times });
-const reqOf = (body, lang) => ({ body: { ...body, ...(lang ? { lang } : {}) }, headers: {}, query: lang ? { lang } : {} });
+const reqOf = (body, lang, caller) => ({ body: { ...body, ...(lang ? { lang } : {}) }, headers: {}, query: lang ? { lang } : {}, ...(caller ? { publicApiCaller: caller } : {}) });
 
 function request(body, lang) {
   seq += 1;
@@ -44,9 +52,9 @@ function request(body, lang) {
   bookingCtl.create(reqOf({ ...body, guest: { firstName: 'Ana', lastName: 'Bel', email: `ana${seq}@example.test`, phone: '+33612345678' } }, lang), r);
   return r;
 }
-async function quote(body, lang) {
+async function quote(body, lang, caller) {
   const r = res();
-  await quoteCtl.quote(reqOf(body, lang), r);
+  await quoteCtl.quote(reqOf(body, lang, caller), r);
   return r;
 }
 const devisCount = () => db.prepare("SELECT COUNT(*) AS n FROM reservations WHERE kind = 'devis'").get().n;
@@ -107,4 +115,31 @@ test('rule 24 — nights already taken still answer DATES_UNAVAILABLE, not the t
   const body = stay(inDays(55), inDays(58), { checkInTime: '16:00', checkOutTime: '10:00' });
   assert.equal(request(body).body.error.code, 'DATES_UNAVAILABLE');
   assert.equal((await quote(body)).body.data.available, false);
+});
+
+// Audit R24 verification L3 — the night an early arrival or a late departure takes, with no cleaning-gap clash.
+test('rule 24 — an arrival at 09:00 the day after a neighbour left at 18:00 takes its night: refused', async () => {
+  const body = stay(inDays(221), inDays(224), { checkInTime: '09:00', checkOutTime: '10:00' });
+  assert.equal((await quote(body)).body.error.code, 'STAY_TIMES_UNAVAILABLE');
+  assert.equal(request(body).body.error.code, 'STAY_TIMES_UNAVAILABLE');
+  const later = stay(inDays(221), inDays(224), { checkInTime: '16:00', checkOutTime: '10:00' });
+  assert.equal((await quote(later)).body.data.available, true);
+});
+
+test('rule 24 — a departure at 18:00 the day before a neighbour arrives at 09:00 takes its night: refused', async () => {
+  const body = stay(inDays(236), inDays(241), { checkInTime: '16:00', checkOutTime: '18:00' });
+  assert.equal((await quote(body)).body.error.code, 'STAY_TIMES_UNAVAILABLE');
+  assert.equal(request(body).body.error.code, 'STAY_TIMES_UNAVAILABLE');
+  const earlier = stay(inDays(236), inDays(241), { checkInTime: '16:00', checkOutTime: '10:00' });
+  assert.equal((await quote(earlier)).body.data.available, true);
+});
+
+// Audit R24 verification L1 (specs/roostview-api-key.md rule 7) — the price watch sends no time and
+// reads prices only: its quote is not judged on the times, the site's still is.
+test('rule 24 — Roostview’s quote is not judged on the times; the site’s same window is', async () => {
+  const body = stay(inDays(296), ARRIVES_ELEVEN);
+  assert.equal((await quote(body)).body.error.code, 'STAY_TIMES_UNAVAILABLE');
+  const watched = await quote(body, undefined, 'roostview');
+  assert.equal(watched.statusCode, 200, JSON.stringify(watched.body));
+  assert.equal(watched.body.data.available, true);
 });

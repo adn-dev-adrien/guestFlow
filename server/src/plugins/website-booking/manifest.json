@@ -137,6 +137,7 @@
     "1.8.12": [
       "Une heure d’arrivée ou de départ que le ménage ou un séjour voisin ne permet pas est refusée sur le site, avant toute demande et tout paiement.",
       "Un numéro de téléphone collé avec une espace insécable ou un caractère invisible est accepté.",
+      "Les prix lus par la veille tarifaire ne sont pas refusés pour les horaires.",
       "Compatible avec le SDK 2.22 de GuestFlow."
     ]
   }
