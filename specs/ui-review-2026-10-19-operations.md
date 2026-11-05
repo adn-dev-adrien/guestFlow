@@ -338,6 +338,9 @@ guessing; and the quote the guest receives looks like the house that sends it.
     (`ReservationPage.new-fiche-clean`). Stored rows hold none, so they compare as before. *Accepted (R24 A1):* a
     gesture made before the logement's options, the welcome pack or the quote land freezes the baseline before them,
     so that fiche asks on leaving; one more tap, no data.
+    *Reading of 2026-11-05 (audit R24 verification V1):* each load of the page (`initPage`, a new fiche or another
+    stay or devis on the same mounted page, such as « Retour » after a devis is created in place) drops the typed
+    client with the baseline, so the next fiche neither shows nor sends it again (`ReservationPage.new-fiche-clean`).
 41. **A reload warns on a dirty fiche (audit R23-C2, 2026-11-05).** A reload, a closed tab or a pull-to-refresh fires
     `beforeunload` while the fiche, new reservation included, is dirty. Tests: `ReservationPage.browser-back`,
     e2e `reservations/leave-guards`.

@@ -1,0 +1,1 @@
+- Reservation page: a client typed on a fiche no longer follows the page to the next fiche it loads (« Retour » after a devis created in place).

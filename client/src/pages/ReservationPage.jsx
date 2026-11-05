@@ -895,6 +895,7 @@ export default function ReservationPage() {
         // A (re)load takes its clean baseline again, from what it loads (see the baseline effect).
         setInitialSnapshot(null);
         setLoadedSnapshot(null);
+        setPendingClient(null);
         setPricingQuote(null);
         resnapshotAfterQuoteRef.current = null;
         setNotFound(false);
