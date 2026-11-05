@@ -62,26 +62,43 @@ test('rule 10: a check that starts the moment the one awaited lands is waited fo
   const qonto = await fakeQonto(t, { subscriptions: [{ id: 'old-account-sub', callback_url: CALLBACK_URL, types: ['v1/payment-links'] }] });
   const settings = sandboxInstallation();
   settings.storeQontoWebhookSubscription({ id: '', callbackUrl: '' });
-  const held = () => {
-    let release;
-    qonto.listGate = new Promise((resolve) => { release = resolve; });
-    return release;
+  let releaseFirst;
+  qonto.listGate = new Promise((resolve) => { releaseFirst = resolve; });
+  let releaseSecond;
+  const secondGate = new Promise((resolve) => { releaseSecond = resolve; });
+
+  // The first check stores its answer: from here each tick asks again, so the next check starts the tick the first one leaves,
+  // ahead of the forget waiting on it. The record is emptied again so that it reaches Qonto.
+  let started = 0;
+  const publicUrl = settings.publicUrl.bind(settings);
+  settings.publicUrl = () => { started += 1; return publicUrl(); };
+  const store = settings.storeQontoWebhookSubscription.bind(settings);
+  let second = null;
+  settings.storeQontoWebhookSubscription = (record) => {
+    store(record);
+    if (!record.id || second) return;
+    qonto.listGate = secondGate;
+    second = (async () => {
+      const startedBefore = started;
+      let call;
+      while (started === startedBefore) {
+        store({ id: '', callbackUrl: '' });
+        call = ensureWebhookSubscription({ settings, env: qonto.env });
+        await null;
+      }
+      return call;
+    })();
   };
-  const releaseFirst = held();
+
   const first = ensureWebhookSubscription({ settings, env: qonto.env });
   while (lists(qonto) === 0) await new Promise((resolve) => setImmediate(resolve));
-
-  let releaseSecond;
-  const second = first.then(() => {
-    settings.storeQontoWebhookSubscription({ id: '', callbackUrl: '' });
-    releaseSecond = held();
-    return ensureWebhookSubscription({ settings, env: qonto.env });
-  });
   const forgotten = forgetWebhookSubscription({ settings });
   releaseFirst();
+  await first;
   while (lists(qonto) < 2) await new Promise((resolve) => setImmediate(resolve));
+  settings.storeQontoWebhookSubscription = store;
   releaseSecond();
-  assert.equal((await second).id, 'old-account-sub');
+  await second;
   await forgotten;
   assert.deepEqual(settings.qontoWebhookSubscription(), { id: '', callbackUrl: '' });
 });

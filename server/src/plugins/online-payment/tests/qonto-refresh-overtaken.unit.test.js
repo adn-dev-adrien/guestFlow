@@ -7,7 +7,7 @@ const http = require('node:http');
 
 const { freshSettings } = require('./qontoSettingsFixture');
 const { getValidQontoAccessToken } = require('../../../utils/qonto/qontoAuth');
-const { applyQontoCredentials, qontoStatusPayload, withQonto } = require('../../../utils/qonto/qontoService');
+const { applyQontoCredentials, withQonto } = require('../../../utils/qonto/qontoService');
 
 const past = () => new Date(Date.now() - 3600_000).toISOString();
 const future = () => new Date(Date.now() + 3600_000).toISOString();
@@ -104,7 +104,7 @@ test('rule 19: a save during a refresh leaves the health it had just cleared', a
   applyQontoCredentials({ settings, env: fake.env, body: { environment: 'production', clientId: 'cid-prod', clientSecret: 'sec-prod' } });
   fake.release();
   await assert.rejects(call, { code: 'QONTO_NOT_CONNECTED' });
-  assert.equal(qontoStatusPayload({ settings, env: fake.env }).lastError, null);
+  assert.equal(settings.qontoHealth().lastError, null);
 });
 
 test('rule 19: a consent during a refresh that then fails: fresh tokens, no failure recorded, the caller goes on', async (t) => {
@@ -116,7 +116,7 @@ test('rule 19: a consent during a refresh that then fails: fresh tokens, no fail
   fake.release();
   assert.equal(await call, 'at-new-consent');
   assert.equal(settings.qontoTokens().refreshToken, 'rt-new-consent');
-  assert.equal(qontoStatusPayload({ settings, env: fake.env }).lastError, null);
+  assert.equal(settings.qontoHealth().lastError, null);
 });
 
 test('rule 19: a refresh that fails and nothing overtook still records its failure', async (t) => {
@@ -124,5 +124,5 @@ test('rule 19: a refresh that fails and nothing overtook still records its failu
   const fake = await fakeTokenEndpoint(t, { refuse: true });
   fake.release();
   await assert.rejects(withQonto({ settings, env: fake.env, origin: 'poll' }, (_client, token) => token));
-  assert.ok(qontoStatusPayload({ settings, env: fake.env }).lastError);
+  assert.ok(settings.qontoHealth().lastError);
 });
