@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Approved — server, API and client API function implemented (round 1, 2026-11-05); the UI (round 2) waits for the shared chart and tile components of lot 0 |
+| **Status** | Implemented — round 1 (server, API, client API function, 2026-11-05); the UI (round 2) waits for the shared chart and tile components of lot 0 |
 | **Branch** | `feature/hc-l2` (merged into `feature/finance-reporting-hippocamp`) |
 | **Created** | 2026-11-05 |
 | **Author** | Adrien |
