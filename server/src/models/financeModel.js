@@ -65,6 +65,27 @@ const TAX_ON_ARRIVAL_SQL = `(
   )
 )`;
 
+// specs/per-platform-tourist-tax-three-way.md — the « Taxe de séjour » page lists every stay WE must remit
+// to the commune: direct, "platform collects then reverses it to us" (case 1), and "we collect at arrival"
+// (case 3) — i.e. everything whose GLOBAL platform mode has touristTaxRemittedByPlatform = 0. Only "platform
+// collects + remits to the commune itself" (case 2) is excluded. Manual reservations store the concatenated
+// label (= platforms.name) → direct match; iCal imports store the hyphenated platformKey → bridge to the
+// canonical label via any ical_sources row, then read the global mode (the key→label map is platform-wide).
+// specs/tourist-tax-report-v2.md rule 6 — its negation is the set of stays a platform remits itself.
+const WE_REMIT_SQL = `(
+  r.platform = 'direct'
+  OR EXISTS (
+    SELECT 1 FROM platforms pl
+    WHERE lower(pl.name) = lower(r.platform)
+      AND pl.touristTaxRemittedByPlatform = 0
+  )
+  OR EXISTS (
+    SELECT 1 FROM ical_sources s
+    JOIN platforms pl ON lower(pl.name) = lower(s.platformLabel)
+    WHERE (lower(s.platformKey) = lower(r.platform) OR lower(s.platformLabel) = lower(r.platform))
+      AND pl.touristTaxRemittedByPlatform = 0
+  )
+)`;
 function todayIso() {
   return localTodayIso();
 }
@@ -859,6 +880,62 @@ function createFinanceModel(database) {
         return { ok: false, status: 400, error: 'Les mois futurs ne sont pas autorisés.' };
       }
 
+      const reservations = model.getTouristTaxRows({ start: bounds.start, endExclusive: bounds.endExclusive });
+
+      const byPropertyMap = new Map();
+      for (const row of reservations) {
+        if (!byPropertyMap.has(row.propertyId)) {
+          byPropertyMap.set(row.propertyId, {
+            propertyId: row.propertyId,
+            propertyName: row.propertyName,
+            reservationsCount: 0,
+            nightsCount: 0,
+            adultNights: 0,
+            taxAmount: 0,
+            accommodationAmount: 0,
+          });
+        }
+        const aggregate = byPropertyMap.get(row.propertyId);
+        // A row of added guests is the same stay and the same nights: only its tax and adults add up.
+        if (!row.addedGuestsRow) {
+          aggregate.reservationsCount += 1;
+          aggregate.nightsCount += row.nightsCount;
+        }
+        aggregate.adultNights += row.adultNights;
+        aggregate.taxAmount = round2(aggregate.taxAmount + row.taxAmount);
+        aggregate.accommodationAmount = round2(aggregate.accommodationAmount + row.accommodationAmount);
+      }
+
+      const byProperty = Array.from(byPropertyMap.values()).sort((a, b) => a.propertyName.localeCompare(b.propertyName, 'fr'));
+
+      const totalAccommodationAmount = round2(reservations.reduce((sum, row) => sum + row.accommodationAmount, 0));
+      const totalRentedNights = reservations.reduce((sum, row) => sum + (row.addedGuestsRow ? 0 : row.nightsCount), 0);
+      const totalAdultNights = reservations.reduce((sum, row) => sum + row.adultNights, 0);
+      const totalTaxAmount = round2(reservations.reduce((sum, row) => sum + row.taxAmount, 0));
+
+      return {
+        ok: true,
+        data: {
+          month,
+          from: bounds.start,
+          toExclusive: bounds.endExclusive,
+          reservations,
+          byProperty,
+          totals: {
+            reservationsCount: reservations.filter((row) => !row.addedGuestsRow).length,
+            rentedNights: totalRentedNights,
+            adultNights: totalAdultNights,
+            taxAmount: totalTaxAmount,
+            accommodationAmount: totalAccommodationAmount,
+          },
+        },
+      };
+    },
+
+    // specs/tourist-tax-report-v2.md rule 1 — the declaration rows of every stay whose attribution day (the rule of
+    // specs/tourist-tax-declaration-month-stay-end.md) lies in [start, endExclusive): the monthly extraction reads one
+    // month of it, the period report any union of months or days. One reading, so both screens show the same row.
+    getTouristTaxRows({ start, endExclusive } = {}) {
       const selectRows = `
         SELECT
           r.id as reservationId,
@@ -941,30 +1018,9 @@ function createFinanceModel(database) {
               AND MAX(DATE(r.endDate, '-1 day'), COALESCE(DATE(r.complementPaidDate), DATE(r.endDate, '-1 day'))) >= ?
               AND MAX(DATE(r.endDate, '-1 day'), COALESCE(DATE(r.complementPaidDate), DATE(r.endDate, '-1 day'))) < ? )
           )
-          AND (
-            -- specs/per-platform-tourist-tax-three-way.md — the « Taxe de séjour » page lists every
-            -- stay WE must remit to the commune: direct, the new "platform collects then reverses it
-            -- to us" (case 1), and "we collect at arrival" (case 3) — i.e. everything whose GLOBAL
-            -- platform mode has touristTaxRemittedByPlatform = 0. Only "platform collects + remits to
-            -- the commune itself" (case 2) is excluded.
-            r.platform = 'direct'
-            -- Manual reservations store the concatenated label (= platforms.name) → direct match.
-            OR EXISTS (
-              SELECT 1 FROM platforms pl
-              WHERE lower(pl.name) = lower(r.platform)
-                AND pl.touristTaxRemittedByPlatform = 0
-            )
-            -- iCal imports store the hyphenated platformKey → bridge to the canonical label via any
-            -- ical_sources row, then read the global mode. (The key→label map is platform-wide.)
-            OR EXISTS (
-              SELECT 1 FROM ical_sources s
-              JOIN platforms pl ON lower(pl.name) = lower(s.platformLabel)
-              WHERE (lower(s.platformKey) = lower(r.platform) OR lower(s.platformLabel) = lower(r.platform))
-                AND pl.touristTaxRemittedByPlatform = 0
-            )
-          )
+          AND ${WE_REMIT_SQL}
         ORDER BY p.name, r.startDate, c.lastName, c.firstName
-      `).all(bounds.start, bounds.endExclusive, bounds.start, bounds.endExclusive, bounds.start, bounds.endExclusive);
+      `).all(start, endExclusive, start, endExclusive, start, endExclusive);
 
       // specs/platform-added-guests-tourist-tax.md rule 12 — an added tax collected once the stay's row
       // was declared is told to the commune on a row of its own, in the month it was collected.
@@ -980,7 +1036,7 @@ function createFinanceModel(database) {
           AND MAX(DATE(r.endDate, '-1 day'), COALESCE(DATE(r.complementPaidDate), DATE(r.endDate, '-1 day'))) >= ?
           AND MAX(DATE(r.endDate, '-1 day'), COALESCE(DATE(r.complementPaidDate), DATE(r.endDate, '-1 day'))) < ?
         ORDER BY p.name, r.startDate, c.lastName, c.firstName
-      `).all(bounds.start, bounds.endExclusive);
+      `).all(start, endExclusive);
 
       // specs/tourist-tax-included-services-deduction.md rule 14 — this page does NOT re-derive the
       // tax from SQL any more: it REPLAYS THE PRICING ENGINE on each stay, from the very inputs the
@@ -1001,7 +1057,7 @@ function createFinanceModel(database) {
       // here, decided by the same helper, or the declaration would drift away from the fiches it
       // declares — which is exactly what the recomputed base did.
 
-      const reservations = rows
+      return rows
         .map((row) => {
           const stored = storedById.get(Number(row.reservationId));
           if (!stored) return null;
@@ -1151,55 +1207,6 @@ function createFinanceModel(database) {
         // until nothing is left simply leaves the declaration — there is nothing to remit for it
         // (specs/reservation-refunds.md §3.5 rule 31).
         .filter((row) => row.nightsCount > 0);
-
-      const byPropertyMap = new Map();
-      for (const row of reservations) {
-        if (!byPropertyMap.has(row.propertyId)) {
-          byPropertyMap.set(row.propertyId, {
-            propertyId: row.propertyId,
-            propertyName: row.propertyName,
-            reservationsCount: 0,
-            nightsCount: 0,
-            adultNights: 0,
-            taxAmount: 0,
-            accommodationAmount: 0,
-          });
-        }
-        const aggregate = byPropertyMap.get(row.propertyId);
-        // A row of added guests is the same stay and the same nights: only its tax and adults add up.
-        if (!row.addedGuestsRow) {
-          aggregate.reservationsCount += 1;
-          aggregate.nightsCount += row.nightsCount;
-        }
-        aggregate.adultNights += row.adultNights;
-        aggregate.taxAmount = round2(aggregate.taxAmount + row.taxAmount);
-        aggregate.accommodationAmount = round2(aggregate.accommodationAmount + row.accommodationAmount);
-      }
-
-      const byProperty = Array.from(byPropertyMap.values()).sort((a, b) => a.propertyName.localeCompare(b.propertyName, 'fr'));
-
-      const totalAccommodationAmount = round2(reservations.reduce((sum, row) => sum + row.accommodationAmount, 0));
-      const totalRentedNights = reservations.reduce((sum, row) => sum + (row.addedGuestsRow ? 0 : row.nightsCount), 0);
-      const totalAdultNights = reservations.reduce((sum, row) => sum + row.adultNights, 0);
-      const totalTaxAmount = round2(reservations.reduce((sum, row) => sum + row.taxAmount, 0));
-
-      return {
-        ok: true,
-        data: {
-          month,
-          from: bounds.start,
-          toExclusive: bounds.endExclusive,
-          reservations,
-          byProperty,
-          totals: {
-            reservationsCount: reservations.filter((row) => !row.addedGuestsRow).length,
-            rentedNights: totalRentedNights,
-            adultNights: totalAdultNights,
-            taxAmount: totalTaxAmount,
-            accommodationAmount: totalAccommodationAmount,
-          },
-        },
-      };
     },
 
     // specs/tourist-tax-declared-checkbox.md §3 — the operator ticks « Déclarée » on the extraction page.
@@ -1254,6 +1261,6 @@ const defaultModel = createFinanceModel(db);
 defaultModel.buildModel = createFinanceModel;
 // Shared with the dashboard model (specs/finance-dashboard-redesign.md §4.1), which composes this one
 // and must never re-derive a stay's revenue or nights on its own.
-defaultModel.helpers = { totalSejour, nightsBetween, getFiscalYearEndMonth, htAmount, todayIso, TAX_ON_ARRIVAL_SQL };
+defaultModel.helpers = { totalSejour, nightsBetween, getFiscalYearEndMonth, htAmount, todayIso, TAX_ON_ARRIVAL_SQL, WE_REMIT_SQL };
 
 module.exports = defaultModel;
