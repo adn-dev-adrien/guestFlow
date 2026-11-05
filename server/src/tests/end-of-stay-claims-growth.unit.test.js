@@ -109,7 +109,8 @@ test('D9 — the proof given, pre-arrival money not settled: the gap is claimed 
     assert.equal(res.statusCode, 200, JSON.stringify(res.body));
   };
   const claimed = () => {
-    const quote = quoteStoredReservation(db, rowOf(stay.id), { paidSoldeCaptured: true, adults: 3 });
+    // D17: a fully paid plan pins its tax; a save that changes the party re-prices it (sameStayAsSold), as here.
+    const quote = quoteStoredReservation(db, rowOf(stay.id), { paidSoldeCaptured: true, adults: 3, freezeTouristTax: false });
     assert.equal(quote.error, undefined);
     return (quote.midStayExtrasLines || []).find((line) => line.key === EXCESS_KEY);
   };

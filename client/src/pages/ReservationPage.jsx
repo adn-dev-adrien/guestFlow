@@ -450,6 +450,7 @@ export default function ReservationPage() {
   const [storedSummary, setStoredSummary] = useState(null);
   // specs/disable-deposit-per-reservation.md rule 13 — why « Sans acompte » is locked, as the GET last said.
   const [storedDepositDisabledLockedReason, setStoredDepositDisabledLockedReason] = useState(null);
+  const [storedTaxInComplementLockedReason, setStoredTaxInComplementLockedReason] = useState(null);
   // specs/payment-link-lifecycle.md rule 46 — null while « Transformer en devis » can be tried.
   const [convertToDevisLockedReason, setConvertToDevisLockedReason] = useState(null);
   // specs/direct-installments.md — the plan of a direct reservation, as the server last sent it.
@@ -1038,6 +1039,7 @@ export default function ReservationPage() {
           setStoredHeadline(res.storedHeadline || null);
           setStoredSummary(res.storedSummary || null);
           setStoredDepositDisabledLockedReason(res.depositDisabledLockedReason || null);
+          setStoredTaxInComplementLockedReason(res.touristTaxInComplementLockedReason || null);
           setConvertToDevisLockedReason(res.convertToDevisLockedReason || null);
           setInstallmentPlan(res.installmentPlan || null);
           setPricingQuote(null);
@@ -3006,6 +3008,7 @@ export default function ReservationPage() {
     setStoredHeadline(res.storedHeadline || null);
     setStoredSummary(res.storedSummary || null);
     setStoredDepositDisabledLockedReason(res.depositDisabledLockedReason || null);
+    setStoredTaxInComplementLockedReason(res.touristTaxInComplementLockedReason || null);
     setConvertToDevisLockedReason(res.convertToDevisLockedReason || null);
     setInstallmentPlan(res.installmentPlan || null);
     const serverWritten = {
@@ -3783,6 +3786,8 @@ export default function ReservationPage() {
     // The live quote reads the stored payments afresh; the GET answers until it arrives.
     depositDisabledLockedReason: pricingQuote && pricingQuote.depositDisabledLockedReason !== undefined
       ? pricingQuote.depositDisabledLockedReason : storedDepositDisabledLockedReason,
+    touristTaxInComplementLockedReason: pricingQuote && pricingQuote.touristTaxInComplementLockedReason !== undefined
+      ? pricingQuote.touristTaxInComplementLockedReason : storedTaxInComplementLockedReason,
     // specs/plugins-phase-3b-neat.md rule 16 — what plugins draw under an option line: their block,
     // its setter, and what they may need to know about the stay.
     pluginBlocks, setPluginBlock,

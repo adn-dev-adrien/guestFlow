@@ -18,7 +18,7 @@ import TouristTaxPage from '../TouristTaxPage';
 
 const STAY = {
   reservationId: 7, propertyId: 1, propertyName: 'Gîte', reservationName: 'Jean Dupont',
-  startDate: '2026-06-20', endDate: '2026-06-22', lastNightDate: '2026-06-21', children: 0, nightsCount: 2, taxRate: 1.2,
+  startDate: '2026-06-20', endDate: '2026-06-22', lastNightDate: '2026-06-21', children: 0, nightsCount: 2, taxRate: 1.2, declarable: true,
 };
 const DATA = {
   month: '2026-06', from: '2026-06-01', toExclusive: '2026-07-01',

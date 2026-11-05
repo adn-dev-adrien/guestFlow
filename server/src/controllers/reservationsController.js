@@ -113,6 +113,9 @@ const { contribLinesOf, recordRemovedLineContribs } = require('../utils/removedL
 const { validateCollectionDate } = require('../utils/arrivalPaymentDate');
 const { parseNotes: parseMidStayNotes } = require('../utils/midStayExtras');
 const ledgerLinks = require('../utils/ledgerLinks');
+const { taxInComplementLockedReason } = require('../utils/touristTaxFreeze');
+
+const TAX_IN_COMPLEMENT_LOCKED_MESSAGE = 'Taxe déjà encaissée : décocher le paiement d’abord.';
 const installments = require('./installmentsController');
 const { deactivateOpenLinksBeforeDelete } = require('../utils/paymentLinkDeactivation');
 const paymentLinksStore = require('../models/paymentLinksModel');
@@ -1000,6 +1003,8 @@ function getById(req, res) {
     storedSummary: storedSummaryOf(model.getRow(reservation.id)),
     // specs/disable-deposit-per-reservation.md rule 13 — null while « Sans acompte » can be ticked.
     depositDisabledLockedReason: depositDisabledLockedReasonOf(reservation.id),
+    // specs/force-item-to-complement.md rule 20 — null while « Taxe de séjour en complément » can be switched on.
+    touristTaxInComplementLockedReason: taxInComplementLockedReason(db, model.getRow(reservation.id)),
     // specs/plugins-phase-3b-neat.md rule 12 — what live plugins show on this stay (Neat: the
     // subscription chip and its actions), keyed by block, each shaped for display.
     pluginBlocks: reservationBlocks(reservation),
@@ -1306,6 +1311,7 @@ async function calculatePrice(req, res) {
     }
     quote.notices = pricingNoticesOf({ quote, body: req.body, storedRow });
     quote.depositDisabledLockedReason = depositDisabledLockedReasonOf(reservationId);
+    quote.touristTaxInComplementLockedReason = taxInComplementLockedReason(db, storedRow);
     quote.platformPriceCheck = platformPriceCheckOf({
       quote,
       body: req.body,
@@ -1973,6 +1979,12 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
   // is priced on it too, so the frozen-schedule branches of the engine and the row that is about to
   // be written can never disagree.
   const storedPaymentForQuote = model.getRow(id) || {};
+  // specs/force-item-to-complement.md rule 20 — the tax already collected stays where it was booked; a value
+  // sent back unchanged is no switch.
+  if (req.body.touristTaxInComplement && !Number(storedPaymentForQuote.touristTaxInComplement || 0)
+    && taxInComplementLockedReason(db, storedPaymentForQuote)) {
+    return res.status(409).json({ error: TAX_IN_COMPLEMENT_LOCKED_MESSAGE, code: 'TOURIST_TAX_ALREADY_COLLECTED' });
+  }
   if (req.body.depositDisabled && !depositDisabledFlag) {
     // The refused switch also drops what the fiche cleared along with it: the acompte keeps its amount and deadline.
     req.body.depositAmountOverride = storedPaymentForQuote.depositAmountOverride ?? null;
@@ -2144,7 +2156,7 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
       // Force-item routing toggles can still be flipped on a past-locked reservation: they only
       // shuffle money between buckets (Acompte/Solde/Complément), not the underlying total. The
       // accounting export needs them to stay editable so the operator can correct miscategories
-      // discovered later. See specs/force-item-to-complement.md §7.
+      // discovered later, once the payment holding the tax is unticked (rule 20). See specs/force-item-to-complement.md §7.
       'touristTaxInComplement',
     ]);
     // specs/mid-stay-extras-on-locked-fiche.md rule 9 — the extras and what they move on the row.

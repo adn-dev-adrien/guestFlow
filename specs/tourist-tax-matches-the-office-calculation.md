@@ -163,6 +163,10 @@ Nothing the guest has already paid moves. What is still to be collected is corre
     ([tourist-tax-declared-checkbox.md](tourist-tax-declared-checkbox.md)) is the moment an amount
     left for the commune, so it locks the amount as firmly as collecting it. The earlier of rule 10
     and rule 11 wins.
+    *Reading of 2026-11-05 (audit R23-DB-2):* an untick does not thaw what a save stamped: like un-collecting (rule
+    10), it leaves `touristTaxFrozenAt` in place, and « Recalculer la taxe de séjour » is the way out. With no priced
+    save between the tick and the untick there is no stamp, so the tax is live again. Before D16 a mistaken tick on an
+    unpaid plan could leave such a stamp; a new tick can no longer be made there (`tourist-tax-declared-checkbox.md` rule 8).
 
     The **old** « past stay » freeze — last night before the 1st of the current month
     ([tourist-tax-freeze-past-with-refresh.md](tourist-tax-freeze-past-with-refresh.md) rule 1) — is
@@ -257,6 +261,14 @@ Nothing the guest has already paid moves. What is still to be collected is corre
     10,00 % dep = 2,50 €/adulte/nuit », French figures (comma, grouped thousands, « € », « × »), and
     the per-person mode « 1,36 € × 2 adultes × 3 nuits ». Built by the engine, so the fiche and the
     public quote (`publicProjections.js`) change together.
+19. **A plan pins the tax it collected** (2026-11-05, D17, Adrien's decision: if the calculation changes after
+    collection, the stay keeps the amount collected). `isTouristTaxFrozen` is also true when a stay's plan is fully
+    paid, or when a paid installment holds a share of the tax: its frozen `paidSplit.taxCents`, or the plan's share on
+    an older row without one. A plan never sets `balancePaid`, so rule 10 never saw it: the fiche of a paid plan showed
+    8,00 € and 3,20 € to collect beside a page pinned at 4,80 €, and an unrelated save claimed those 3,20 €. A party
+    change still re-prices as on a paid solde (rule 17). The VAT regime switch reads `isTouristTaxFrozenAsidePlan`, so a
+    plan is reported for its plan first (`vat-optional-mode.md` rule 27), not hidden as frozen. An installment paid with no tax
+    share, as when the tax rides the complement, pins nothing until the plan is fully paid.
 
 ---
 
@@ -386,6 +398,7 @@ Server 3868 pass, client 1199 pass.
 - [ ] Mobile (`xs`): the fiche caption and the Suivi table read correctly.
 
 ---
+- Rules 11, 19 (2026-11-05): `server/src/tests/tourist-tax-freeze-plan.unit.test.js` (8 tests, red first on the auditor's repros: paid plan, half-paid plan, older row with no split, no tax share, nothing paid, party change, untick with and without a stamp).
 - Spec review 2026-10-27 (rule 17): `server/src/tests/collected-tax-kept-on-save.unit.test.js` (2 tests — notes-only save keeps the collected tax, « Recalculer » still re-prices).
 
 ## 8. Out of scope

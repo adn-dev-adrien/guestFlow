@@ -44,11 +44,21 @@ Two problems surface in real use:
    checkbox cell stops event propagation so ticking doesn't navigate away.
 6. **Authoritative server state.** The declared marker is persisted server-side and returned in the
    extraction payload; the client only renders it + optimistically reflects the toggle.
-7. **A stay with an installment plan ticks like any other, money due or not** (2026-11-05, D14,
-   `tourist-tax-declaration-month-stay-end.md` rule 7). The tick stamps its date once, unticking clears it,
-   an installment paid afterwards changes neither the row nor the date, and the tick freezes the amount as
-   on any stay. A plan removed keeps the tick, which shows again when the stay comes back. A cancelled stay
-   answers 404.
+7. **A stay with an installment plan ticks like any other** (2026-11-05, D14,
+   `tourist-tax-declaration-month-stay-end.md` rule 7; « money due or not » withdrawn the same day by D16, rule 8).
+   The tick stamps its date once, unticking clears it, an installment paid afterwards changes neither the row nor
+   the date, and the tick freezes the amount as on any stay. A plan removed keeps the tick, which shows again when
+   the stay comes back. A cancelled stay answers 404.
+8. **« Déclarée » waits for a stay paid and over** (2026-11-05, D16, Adrien's decision). A new tick, on the main row
+   or on the added guests' own row, is refused with 409 `TOURIST_TAX_NOT_DECLARABLE` unless the stay is paid AND
+   today > `endDate`, today being the server's local day, Europe/Paris (`utils/localDate`). Paid is what the page's
+   gate reads on a stay without a plan (`balancePaid`, or `complementPaid` when the tax rides the complement), and
+   every installment paid on a plan: a plan's row whose tax rides an unpaid complement reads the plan alone. The
+   only write path is `setTouristTaxDeclared` (no bulk path exists), so the judgment lives there and in the
+   helper `isTouristTaxDeclarable`. Each row carries `declarable`; the checkbox is disabled while it is false and
+   nothing is ticked, with « Déclarable une fois le séjour payé et terminé. » on desktop and mobile. Unticking stays
+   possible. A tick sent back unchanged passes and keeps its date, the own row's too. Stored ticks are not rewritten.
+   *Why:* the commune must not be told a tax that may still change or was not collected.
 
 **Edge cases:**
 - Re-ticking an already-declared reservation changes nothing: its first date stands. Corrected on
@@ -81,6 +91,7 @@ appears.
 - `PATCH /finance/tourist-tax/:reservationId/declared` — body `{ declared: boolean }`.
   Response `{ ok: true, declaredAt: string|null }`. 404 if the reservation doesn't exist.
 - `GET /finance/tourist-tax?month=YYYY-MM` — each `reservations[]` item gains `touristTaxDeclaredAt: string|null`.
+- Rule 8: the PATCH answers 409 `{ error, code: 'TOURIST_TAX_NOT_DECLARABLE' }`; each `reservations[]` item gains `declarable: boolean`.
 
 ## 5. Data model
 
@@ -93,6 +104,9 @@ appears.
 - **New first column « Déclarée »**: a checkbox in front of every row. Checked ⇔ `touristTaxDeclaredAt`
   is set. Wrapped in a `Tooltip` (« Déclarée le JJ/MM/AAAA » / « Non déclarée »). The header cell reads
   « Déclarée ».
+- **Rule 8:** a row not declarable has its checkbox disabled, a tooltip and a caption under the guest's name
+  (desktop) or under the row's title (mobile): « Déclarable une fois le séjour payé et terminé. ». A ticked row
+  keeps an enabled checkbox and no caption.
 - **Dates column** now shows arrival → departure (fiche-résa dates).
 - **Row click** still navigates to the reservation; the checkbox cell calls `stopPropagation` so ticking
   stays on the page.
@@ -108,7 +122,10 @@ appears.
 - [x] `getTouristTaxExtraction` exposes `touristTaxDeclaredAt` per reservation (declared value preserved).
 
 ### Server unit tests (`tests/plan-tax-declaration.unit.test.js`, 2026-11-05)
-- [x] Rule 7 (4 of 20): tick, untick and repeated tick with an installment still due; amount held when the rate moves; plan removed keeps the tick; cancelled stay 404.
+- [x] Rule 7 (4): a stored tick with an installment still due kept, sent back and unticked; amount held when the rate moves; plan removed keeps the tick; cancelled stay 404.
+
+### Server unit tests (`tests/tourist-tax-declarable.unit.test.js`, 2026-11-05)
+- [x] Rule 8 (8): stay under way and on its last day refused, the day after allowed; over but unpaid refused; a tax on the complement waits for it; a plan waits for every installment; the own row judged; stored ticks sent back and unticked, main and own.
 
 ### Client vitest tests (`pages/__tests__/TouristTaxPage.test.js`, NEW)
 - [x] **Date non-regression**: a reservation `startDate 2026-06-20 / endDate 2026-06-21` renders
@@ -116,7 +133,11 @@ appears.
 - [x] Declared checkbox reflects `touristTaxDeclaredAt` (checked when set, unchecked when null) and toggling
       calls `api.setTouristTaxDeclared` with the right args, without navigating.
 
+### Client vitest tests (`pages/__tests__/TouristTaxPage.declarable.test.jsx`, 2026-11-05)
+- [x] Rule 8 (6): disabled with the caption on desktop and on a phone, enabled when declarable, a stored tick can go, the own row's flag, a server refusal reverts with its reason.
+
 ### Manual UI verification
+- [x] Rule 8 on an isolated copy of the production data (2026-11-05), 1280 and 390 px: see `specs/force-item-to-complement.md` rule 20's replay, same session.
 - [ ] Load the page for a month with direct reservations; confirm dates match the fiche, tick a row → date
       tooltip appears + persists across reload; untick clears it. Checked at mobile + desktop widths.
 

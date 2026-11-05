@@ -171,6 +171,14 @@ Auto-options (`option.autoOptionType ∈ {early_check_in, late_check_out, …}` 
     update) and the conversion carries it; a devis stored before that converts with the amount its own
     totals prove (`provenComplementAmount`, the repair's proof), else nothing. The migration key stays
     `created_complement_amount_repaired_v1` (it never ran in production).
+20. **The tax cannot be switched to the complement once the bucket holding it is paid** (audit R23-N2, 2026-11-05).
+    `touristTaxInComplement` going from 0 to 1 is refused with 409 `TOURIST_TAX_ALREADY_COLLECTED`, the forced save
+    included, while the solde is paid with a tax share (`touristTaxSoldeContribTtc` > 0, or NULL on an older row with a
+    tax), a paid acompte holds one (`touristTaxAcompteContribTtc` > 0), or a paid installment holds one. A value sent back
+    unchanged passes, and so does switching it off. *Why:* the guest was asked 609,60 € for a stay of 604,80 €, the booked
+    solde entry was rewritten at once in a possibly exported month, and a cancel left 4,80 € on no line. The fiche greys
+    the switch and says why from `touristTaxInComplementLockedReason` (reservation and live quote). *Reading of §7's « toggles
+    stay editable to correct a category »:* still so on a past stay, after unticking the payment that holds the tax.
 
 ---
 
@@ -347,6 +355,7 @@ For the duplicated line label (`Option B (+1)`), the engine returns the `quantit
 - [ ] Mobile (`xs`) → checkbox column reachable; summary splits readably.
 
 ---
+- Rule 20 (2026-11-05): `server/src/tests/tax-in-complement-locked.unit.test.js` (9 tests), `client/src/components/reservation/__tests__/FinanceSection.tax-in-complement-lock.test.jsx` (5 tests). Replayed on an isolated copy of the production data at 1280 and 390 px: refusal, caption, and rule 8 of `tourist-tax-declared-checkbox.md`.
 - Spec review 2026-10-27 (rule 18): `server/src/tests/created-stay-complement-amount.unit.test.js` (3 tests — complement stored at creation, boot repair limited to the proven rows and idempotent, unproven gap left alone).
 - Adversarial review of the 2026-10-27 fixes (rule 19): `server/src/tests/created-complement-repair-tourist-tax.unit.test.js` (4 tests — repair with a tax on the solde and on the complement, ended stay left alone, devis stores and carries its complement, legacy devis converts with the proven amount).
 

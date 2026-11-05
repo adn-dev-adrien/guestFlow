@@ -13,9 +13,11 @@ const financeModel = require('../models/financeModel');
 const SCHEMA = fs.readFileSync(path.join(__dirname, '..', 'schema.sql'), 'utf8');
 const pad2 = (n) => String(n).padStart(2, '0');
 
-function currentMonth() {
+// D16 (rule 8): a tick needs a stay paid and over, so the seeded stay lies in the month before this one.
+function lastMonth() {
   const now = new Date();
-  return { month: `${now.getFullYear()}-${pad2(now.getMonth() + 1)}`, year: now.getFullYear(), m: now.getMonth() + 1 };
+  const first = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  return { month: `${first.getFullYear()}-${pad2(first.getMonth() + 1)}`, year: first.getFullYear(), m: first.getMonth() + 1 };
 }
 
 function seed() {
@@ -25,11 +27,11 @@ function seed() {
   db.prepare(`INSERT INTO properties (id, name, touristTaxPerDayPerPerson, touristTaxMode, basePriceIncludedGuests, extraGuestPrice)
               VALUES (1, 'Gite', 1.0, 'per_day_per_person', 0, 0)`).run();
   db.prepare("INSERT INTO clients (id, firstName, lastName) VALUES (1, 'Jean', 'Dupont')").run();
-  const { year, m } = currentMonth();
+  const { year, m } = lastMonth();
   const start = `${year}-${pad2(m)}-14`;
   const end = `${year}-${pad2(m)}-16`;
   const paid = `${year}-${pad2(m)}-15`;
-  // A direct, solde-paid stay so it surfaces in the current month's extraction.
+  // A direct, solde-paid stay so it surfaces in its month's extraction.
   db.prepare(`INSERT INTO reservations (id, kind, clientId, propertyId, startDate, endDate, platform, adults,
                 touristTaxRate, touristTaxTotal, finalPrice, totalPrice, balanceAmount, balancePaid, balancePaidDate,
                 complementAmount, complementPaid, complementPaidDate)
@@ -66,7 +68,7 @@ test('setTouristTaxDeclared: unknown reservation → 404', () => {
 
 test('getTouristTaxExtraction exposes touristTaxDeclaredAt per reservation', () => {
   const { model } = seed();
-  const { month } = currentMonth();
+  const { month } = lastMonth();
   // Not declared yet → null in the payload.
   let ext = model.getTouristTaxExtraction({ month });
   assert.equal(ext.ok, true);

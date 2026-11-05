@@ -146,7 +146,7 @@ is declared to the commune. The accommodation no longer pays for it.
     the stay is declared AND the complement collected AND the stamp is 0, so a tick on the day of the
     collection, or at 00:30 Paris against a UTC stamp, no longer splits what was just told to the commune.
     NULL is a row ticked before this column: the date test decides, a missing paid date reading the last
-    night in the row and in the SQL alike.
+    night in the row and in the SQL alike. *Reading of 2026-11-05:* « the stamp is 0 » is widened by rule 29.
 21. **The row reads the adults stored with the amount**, `touristTaxAddedGuestsAdults`, frozen with it once
     the complement is collected. A gap with nobody added (rule 5) shows its amount, no adult, no child and no
     person-night, with « Écart de taxe, aucun voyageur ajouté » on the row: never a row claiming 0 adults as a
@@ -186,7 +186,16 @@ is declared to the commune. The accommodation no longer pays for it.
     the addition; ticked before, a stamp of 0 and, once collected, a row of its own in the month of the collection (rules 12,
     20), a NULL stamp reading the dates in the row and the SQL alike. A guest added after the tick of a paid plan goes the same
     way. *Why:* with the gate on `balancePaid`, nothing of such a stay was listed: no main row to tick, and the row of its own
-    needs a declared main row.
+    needs a declared main row. *Reading of 2026-11-05 (D16):* ticks wait for the stay paid and over
+    (`tourist-tax-declared-checkbox.md` rule 8), the own tick too; rows and stamps read as above.
+29. **The addition above what the declared row held has its own row** _(audit R23-DB-1, 2026-11-05)_. A row of its own
+    exists when the stay is declared, the complement collected and the addition is above the stamp; its amount is the
+    addition minus the stamp, its adults what the difference stands for at the stored per-adult figure. The declared row
+    keeps what it told: total minus that difference. *Why:* complement unticked after a tick, a party change, collected
+    again: the row rose from 7,20 € to 9,60 € while marked declared, and nothing asked for the 2,40 € (rule 12: a
+    declaration already made does not move). Re-collected unchanged (addition = stamp), one row as before: the trigger
+    does not zero the stamp, that would declare twice. A stamp above the new amount stays silent: one row, lowered, no
+    signal, recorded here as known and left to Adrien.
 
 **Edge cases:**
 - iCal import with 1 default adult, composition set to 4, then the brut → paid = 4, no added tax.
@@ -301,6 +310,8 @@ Interactive summary: `docs/specs/2026-11-03-platform-added-guests-tourist-tax.ht
 ### Client (Vitest)
 - [x] `PricingSummary.added-guests-tax.test.jsx` (2): the line, no « Offrir ».
 - [x] `TouristTaxPage.added-guests.test.jsx` (10): the added row ticks alone; rule 24: rows re-read with no loading state, a month left behind dropped, a refused tick re-read, a read older than a new tick dropped, a tick answered or refused after the month changed patching nothing; rule 26: the last tick answered reads the month on screen; rule 21: the gap on a table, adults and children cells, and on a card.
+
+- [x] `platform-added-guests-stamp-grown.unit.test.js` (4): rule 29, the auditor's repro, own tick on the difference, merged case, stamp above, stamp 0.
 
 ### Manual UI verification
 - [x] Fiche on a `platform_reversed` platform (isolated instance, 2026-11-03): brut entered, 2 → 3 adults: line on the

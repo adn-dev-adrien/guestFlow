@@ -1,7 +1,7 @@
 // A stay with an installment plan on « Suivi taxe de séjour » (D14, 2026-11-05):
 //   specs/tourist-tax-declaration-month-stay-end.md rule 7 — it enters at its stay month, whatever is paid;
 //   specs/tourist-tax-declaration-month-stay-end.md rule 8 — and in that month only, other stays keep their gate;
-//   specs/tourist-tax-declared-checkbox.md rule 7 — its tick works like any other, even on a tax not yet collected;
+//   specs/tourist-tax-declared-checkbox.md rule 7 — its tick works like any other, once rule 8 (D16) allows it;
 //   specs/platform-added-guests-tourist-tax.md rule 28 — main row and row of its own read as on any stay;
 //   specs/direct-installments.md rule 51 — paying an installment never touches balancePaid, so the gate cannot read it.
 // Everything goes through the real controllers. Each test has its month, so no stay collides with another.
@@ -215,22 +215,22 @@ test('rule 7: an own channel that remits the tax itself stays off the page, plan
   assert.equal(rowsOf(page(month), stay.id).length, 0);
 });
 
-test('specs/tourist-tax-declared-checkbox.md rule 7: tick and untick on a plan with an installment still due', async (t) => {
+// D16 withdrew D14's « can be declared early »: an installment still due refuses the tick (rule 8). A tick stored before
+// that decision is not rewritten, sent back unchanged it passes, and it can go.
+test('specs/tourist-tax-declared-checkbox.md rule 7: a stored tick on a plan with an installment still due keeps its date and can go', async (t) => {
   const month = nextMonth();
   const stay = directStay(month);
   const plan = await planOf(stay.id);
   payInstallment(stay.id, plan[0]);
   clockAt(t, `${next(month)}-15`);
 
-  const first = tick(stay.id);
-  assert.equal(first.statusCode, 200);
-  assert.ok(first.body.declaredAt);
-  assert.equal(mainOf(page(month), stay.id).touristTaxDeclaredAt, first.body.declaredAt);
-  assert.equal(stamp(stay.id), 0);
+  assert.equal(tick(stay.id).statusCode, 409, 'D16: an installment still due');
 
   const DECLARED = `${month}-20 09:00:00`;
-  db.prepare('UPDATE reservations SET touristTaxDeclaredAt = ? WHERE id = ?').run(DECLARED, stay.id);
+  db.prepare('UPDATE reservations SET touristTaxDeclaredAt = ?, touristTaxDeclaredWithAddedAmount = 0 WHERE id = ?').run(DECLARED, stay.id);
   assert.equal(tick(stay.id).body.declaredAt, DECLARED);
+  assert.equal(mainOf(page(month), stay.id).touristTaxDeclaredAt, DECLARED);
+  assert.equal(stamp(stay.id), 0);
 
   payInstallment(stay.id, plan[1], `${next(month)}-15`);
   const after = mainOf(page(month), stay.id);
@@ -247,9 +247,10 @@ test('specs/tourist-tax-declared-checkbox.md rule 7: tick and untick on a plan w
 test('specs/tourist-tax-declared-checkbox.md rule 7: a ticked plan keeps the amount told to the commune when the commune\'s rate moves', async (t) => {
   const month = nextMonth();
   const stay = directStay(month);
-  await planOf(stay.id);
+  const plan = await planOf(stay.id);
+  for (const installment of plan) payInstallment(stay.id, installment);
   clockAt(t, `${next(month)}-15`);
-  tick(stay.id);
+  assert.equal(tick(stay.id).statusCode, 200, 'D16: paid and over');
   t.after(() => db.prepare('UPDATE properties SET touristTaxPerDayPerPerson = 1.2 WHERE id = ?').run(NO_ACOMPTE));
   db.prepare('UPDATE properties SET touristTaxPerDayPerPerson = 2 WHERE id = ?').run(NO_ACOMPTE);
   assert.equal(mainOf(page(month), stay.id).taxAmount, 4.8);
@@ -287,16 +288,17 @@ test('rule 7: a cancelled stay leaves the page as any other does, money paid or 
 
   const declaredMonth = nextMonth();
   const declared = directStay(declaredMonth);
-  await planOf(declared.id);
+  for (const installment of await planOf(declared.id)) payInstallment(declared.id, installment);
 
-  clockAt(t, `${declaredMonth}-05`);
+  // D16: the tick waits for the plan paid and the stay over.
+  clockAt(t, `${next(declaredMonth)}-15`);
   assert.equal(rowsOf(page(month), paid.id).length, 0);
   assert.equal(tick(paid.id).statusCode, 404);
   assert.equal(tick(declared.id).statusCode, 200);
   assert.equal(rowsOf(page(declaredMonth), declared.id).length, 1);
   t.mock.timers.reset();
   await cancel(declared.id);
-  clockAt(t, `${declaredMonth}-05`);
+  clockAt(t, `${next(declaredMonth)}-15`);
   assert.equal(rowsOf(page(declaredMonth), declared.id).length, 0);
 });
 
@@ -307,8 +309,9 @@ test('rule 8: a plan removed again gives the stay its gate back, its tick kept',
 
   clockAt(t, `${month}-05`);
   assert.equal(rowsOf(page(month), stay.id).length, 1);
-  tick(stay.id);
   t.mock.timers.reset();
+  // D16 refuses this tick today: a tick made before it stays on the row.
+  db.prepare("UPDATE reservations SET touristTaxDeclaredAt = ? WHERE id = ?").run(`${month}-05 09:00:00`, stay.id);
 
   const res = respond();
   await installmentsController.remove({ params: { id: stay.id }, user: ADMIN }, res);
@@ -349,7 +352,8 @@ test('specs/platform-added-guests-tourist-tax.md rule 28: ticked before the comp
   const month = nextMonth();
   const stay = await addedGuestStay(month);
   const plan = await planOf(stay.id);
-  payInstallment(stay.id, plan[0]);
+  // D16: the main tick waits for the whole plan.
+  for (const installment of plan) payInstallment(stay.id, installment);
 
   clockAt(t, `${next(month)}-15`);
   const open = page(month);
@@ -391,9 +395,9 @@ test('specs/platform-added-guests-tourist-tax.md rule 28: the row of its own is 
   const month = nextMonth();
   slot += 1;
   const stay = await addedGuestStay(month);
-  await planOf(stay.id);
+  for (const installment of await planOf(stay.id)) payInstallment(stay.id, installment);
   clockAt(t, `${next(month)}-05`);
-  tick(stay.id);
+  assert.equal(tick(stay.id).statusCode, 200, 'D16: paid and over');
   pay(stay.id, { complementPaid: true, complementPaidDate: `${next(month)}-05` });
 
   clockAt(t, `${next(month, 2)}-15`);
@@ -415,7 +419,8 @@ test('specs/platform-added-guests-tourist-tax.md rule 28: a guest added after th
 
   clockAt(t, `${month}-05`);
   assert.equal(mainOf(page(month), stay.id).taxAmount, 4.8);
-  tick(stay.id);
+  // D16 refuses a tick before the stay's end: this one was made before that decision, with its stamp.
+  db.prepare('UPDATE reservations SET touristTaxDeclaredAt = ?, touristTaxDeclaredWithAddedAmount = 0 WHERE id = ?').run(`${month}-05 09:00:00`, stay.id);
   await put(stay, { adults: 3 });
   assert.equal(rowOf(stay.id).touristTaxAddedGuestsAmount, 2.4);
   pay(stay.id, { complementPaid: true, complementPaidDate: `${month}-05` });
@@ -455,7 +460,8 @@ for (const [label, paid] of [['paid', true], ['unpaid', false]]) {
     t.after(() => db.prepare('UPDATE properties SET touristTaxPerDayPerPerson = 1.2 WHERE id = ?').run(NO_ACOMPTE));
     db.prepare('UPDATE properties SET touristTaxPerDayPerPerson = 2 WHERE id = ?').run(NO_ACOMPTE);
     assert.equal(mainOf(page(month), stay.id).taxAmount, 4.8);
-    tick(stay.id);
+    // D16: only the paid plan can be ticked; the row stays pinned either way.
+    assert.equal(tick(stay.id).statusCode, paid ? 200 : 409);
     assert.equal(mainOf(page(month), stay.id).taxAmount, 4.8);
     tick(stay.id, false);
     assert.equal(mainOf(page(month), stay.id).taxAmount, 4.8);
@@ -475,3 +481,45 @@ test('rule 7: an added guest whose complement is paid: the plan row does not mov
   tick(stay.id, false);
   assert.equal(mainOf(page(month), stay.id).taxAmount, before);
 });
+
+// Audit R23-S2, T1: without these a live replay of a percentage tax could come back unseen (27,28 on the complement, 43,64 on a
+// rate move). Own channel, one adult raised, plan paid, then complement, tick, untick and a commune rate moved to 8 %.
+for (const [mode, planPaid, settled] of [['percentage_accommodation', 27.3, 27.3], ['percentage_and_fixed', 28.08, 28.5]]) {
+  test(`specs/tourist-tax-declaration-month-stay-end.md rule 7: a plan on a ${mode} property: the row does not move on the complement, the tick, the untick or the rate`, async (t) => {
+    const setRate = db.prepare('UPDATE properties SET touristTaxMode = ?, touristTaxPercentage = ?, touristTaxFixedAmount = 0.2, touristTaxPerDayPerPerson = ? WHERE id = ?');
+    setRate.run(mode, 5, 4.6, NO_ACOMPTE);
+    t.after(() => setRate.run('per_day_per_person', 0, 1.2, NO_ACOMPTE));
+    const month = nextMonth();
+    const stay = await addedGuestStay(month);
+    for (const installment of await planOf(stay.id)) payInstallment(stay.id, installment);
+    clockAt(t, `${next(month)}-15`);
+    const amount = () => mainOf(page(month), stay.id).taxAmount;
+
+    assert.equal(amount(), planPaid);
+    pay(stay.id, C);
+    assert.equal(amount(), settled);
+    assert.equal(tick(stay.id).statusCode, 200);
+    assert.equal(amount(), settled);
+    assert.equal(tick(stay.id, false).statusCode, 200);
+    assert.equal(amount(), settled);
+    setRate.run(mode, 8, 4.6, NO_ACOMPTE);
+    assert.equal(amount(), settled);
+  });
+}
+
+for (const mode of ['percentage_accommodation', 'percentage_and_fixed']) {
+  test(`specs/tourist-tax-declaration-month-stay-end.md rule 7: a plan with nothing paid on a ${mode} property: a rate move does not reach the row`, async (t) => {
+    const setRate = db.prepare('UPDATE properties SET touristTaxMode = ?, touristTaxPercentage = ?, touristTaxFixedAmount = 0.2, touristTaxPerDayPerPerson = ? WHERE id = ?');
+    setRate.run(mode, 5, 4.6, NO_ACOMPTE);
+    t.after(() => setRate.run('per_day_per_person', 0, 1.2, NO_ACOMPTE));
+    const month = nextMonth();
+    const stay = await addedGuestStay(month);
+    await planOf(stay.id);
+    clockAt(t, `${next(month)}-15`);
+    const before = mainOf(page(month), stay.id).taxAmount;
+    assert.ok(before > 0);
+    setRate.run(mode, 8, 4.6, NO_ACOMPTE);
+    assert.equal(mainOf(page(month), stay.id).taxAmount, before);
+    assert.equal(tick(stay.id).statusCode, 409, 'D16: nothing paid');
+  });
+}
