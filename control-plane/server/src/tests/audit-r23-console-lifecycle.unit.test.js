@@ -73,6 +73,7 @@ test('rule 46 — C1: « Restaurer à une date » is neither offered nor run dur
 
     const before = h.host.calls.length;
     await assert.rejects(fleet.restore(a.id, { at: hourAgo(h) }, 'op'), (e) => e.status === 409 && e.body.error === 'RENAME_PENDING' && e.body.message === PENDING);
+    await assert.rejects(fleet.restore(a.id, { at: 'pas une date' }, 'op'), (e) => e.status === 409 && e.body.error === 'RENAME_PENDING');
     assert.deepEqual(callsFrom(h, before), []);
     assert.equal(fs.existsSync(h.ctx.instances.dirOf('bbb-b')), false);
     assert.equal(running(h, 'aulnes'), true);
@@ -188,7 +189,13 @@ test('rule 48 — C2: seeding and the minute sweep read nothing there', async ()
     assert.equal(modules.seedCustomer({ ...c, pluginsSeededAt: null }), false);
     h.ctx.db.prepare('UPDATE customers SET pluginsSeededAt = NULL WHERE id = ?').run(b.id);
     assert.equal(modules.view(b.id).seedLabel, 'Espace illisible : modules non relevés.');
+    const orderId = 'order-of-b';
+    h.ctx.models.customerPlugins.addOrder({ orderId, customerId: b.id, pluginId: 'linen', createdAt: h.now().toISOString(), operator: 'op', removal: false });
+    const db = new Database(h.ctx.instances.dbPath('aulnes'));
+    db.prepare('INSERT INTO plugin_provisioning_meta VALUES (?, ?)').run(`erase:${orderId}`, h.now().toISOString());
+    db.close();
     assert.deepEqual(modules.sweep(), { seeded: 0, acknowledged: 0 });
+    assert.deepEqual(h.ctx.models.customerPlugins.pendingOrders(b.id).map((o) => o.orderId), [orderId]);
   } finally {
     h.cleanup();
   }
