@@ -30,7 +30,6 @@ const URL_KEYS = { fiscalYear: 'exercice', period: 'periode', month: 'mois', fro
 const iso = (d) => localIsoToday(d);
 const money = (n) => (n == null ? '—' : formatCurrencyRounded(n));
 const TOOLBAR_SX = { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1.25, mb: 1.75 };
-const COARSE = { '@media (pointer: coarse)': { minHeight: 44 } };
 
 function SourceCaption({ children }) {
   return <Typography variant="caption" component="p" color="text.secondary" sx={{ mt: 1, mb: 0 }}>{children}</Typography>;
@@ -183,7 +182,7 @@ export default function StayProfilePage() {
               today={today}
             />
             {params.propertyId && (
-              <Button size="small" variant="outlined" onClick={() => setParams({ propertyId: '' })} sx={{ textTransform: 'none', minHeight: 36, ...COARSE }}>
+              <Button size="small" variant="outlined" onClick={() => setParams({ propertyId: '' })} sx={{ textTransform: 'none', minHeight: 36, '@media (pointer: coarse)': { minHeight: 44 } }}>
                 {T.allProperties}
               </Button>
             )}
