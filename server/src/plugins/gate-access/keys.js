@@ -6,12 +6,14 @@
  * plugin reads this list, creates or revokes the keys on its side, and posts the outcomes back.
  */
 
+const sdk = require('../sdk');
+
 const {
   computeWindow,
   toParisIso,
   OPENS_BEFORE_CHECK_IN_MS,
   CLOSES_AFTER_CHECK_OUT_MS,
-} = require('./window');
+} = sdk.coreModule('stayWindow');
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** A stay enters the list this long before its arrival (rule 2). */

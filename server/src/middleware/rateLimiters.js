@@ -105,4 +105,37 @@ const paymentStatusLimiter = rateLimit({
   message: { error: { code: 'TOO_MANY_REQUESTS', message: 'Trop de requêtes, réessayez plus tard.' } },
 });
 
-module.exports = { apiLimiter, loginLimiter, publicApiLimiter, bookingRequestLimiter, paymentStartLimiter, paymentStatusLimiter };
+/**
+ * Guest app limiters (specs/guest-app.md §4.3). A phone calls these directly, so `req.ip` is the guest.
+ * - guestSessionLimiter: scanning a lodging's QR code creates a session row (default 30 / hour / IP).
+ * - guestLookupLimiter: the name + reservation number fallback, a guessable pair (rule 6, default
+ *   5 attempts / 15 min / IP).
+ */
+const guestSessionLimiter = rateLimit({
+  keyGenerator: publicVisitorKey,
+  windowMs: Number(process.env.GUEST_SESSION_RATELIMIT_WINDOW_MS) || ONE_HOUR,
+  max: Number(process.env.GUEST_SESSION_RATELIMIT_MAX) || 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: { code: 'TOO_MANY_REQUESTS', message: 'Trop de requêtes, réessayez plus tard.' } },
+});
+
+const guestLookupLimiter = rateLimit({
+  keyGenerator: publicVisitorKey,
+  windowMs: Number(process.env.GUEST_LOOKUP_RATELIMIT_WINDOW_MS) || FIFTEEN_MIN,
+  max: Number(process.env.GUEST_LOOKUP_RATELIMIT_MAX) || 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: { code: 'TOO_MANY_REQUESTS', message: 'Trop de tentatives, réessayez plus tard.' } },
+});
+
+module.exports = {
+  apiLimiter,
+  loginLimiter,
+  publicApiLimiter,
+  bookingRequestLimiter,
+  paymentStartLimiter,
+  paymentStatusLimiter,
+  guestSessionLimiter,
+  guestLookupLimiter,
+};

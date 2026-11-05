@@ -20,6 +20,7 @@ const GITES_DE_FRANCE_INTAKE = 'gites-de-france-intake';
 const BOOKING_INTAKE = 'booking-intake';
 const AIRBNB_INTAKE = 'airbnb-intake';
 const GOOGLE_VACATION_RENTALS = 'google-vacation-rentals';
+const GUEST_APP = 'guest-app';
 
 // specs/plugins-phase-4-registry.md rule 2 — each plugin's manifest is its single description; this
 // list only fixes the order the Plugins page shows them in. A version installed from the registry
@@ -27,7 +28,7 @@ const GOOGLE_VACATION_RENTALS = 'google-vacation-rentals';
 const CATALOG_ORDER = [
   HOURLY_RESOURCES, LINEN, WEBSITE_BOOKING, GATE_ACCESS, NEAT, ONLINE_PAYMENT,
   GOOGLE_CALENDAR, ACCOUNTING_EXPORT, SAS, TARIFF_RECIPES, SCHOOL_HOLIDAYS, WEATHER_ALERTS,
-  GITES_DE_FRANCE_INTAKE, BOOKING_INTAKE, AIRBNB_INTAKE, GOOGLE_VACATION_RENTALS,
+  GITES_DE_FRANCE_INTAKE, BOOKING_INTAKE, AIRBNB_INTAKE, GOOGLE_VACATION_RENTALS, GUEST_APP,
 ];
 
 // specs/plugin-removal-resilience.md rule 1 — the catalogue is the manifests that exist: a plugin whose
@@ -67,7 +68,7 @@ const PLUGIN_PAGES = Object.freeze({
   '/finance/rapprochement': [ONLINE_PAYMENT],
   '/school-holidays': [SCHOOL_HOLIDAYS],
   '/parametres/recettes': [TARIFF_RECIPES],
-  '/settings/integrations': [WEBSITE_BOOKING, GOOGLE_CALENDAR, NEAT, WEATHER_ALERTS, GATE_ACCESS, GITES_DE_FRANCE_INTAKE, BOOKING_INTAKE, AIRBNB_INTAKE, GOOGLE_VACATION_RENTALS],
+  '/settings/integrations': [WEBSITE_BOOKING, GOOGLE_CALENDAR, NEAT, WEATHER_ALERTS, GATE_ACCESS, GITES_DE_FRANCE_INTAKE, BOOKING_INTAKE, AIRBNB_INTAKE, GOOGLE_VACATION_RENTALS, GUEST_APP],
 });
 
 // specs/plugins-phase-0-foundation.md rule 25 — where each plugin is set up: the page its card's
@@ -94,6 +95,7 @@ const PLUGIN_SETTINGS_PLACES = Object.freeze({
   [BOOKING_INTAKE]: `${INTEGRATIONS}?tab=${BOOKING_INTAKE}`,
   [AIRBNB_INTAKE]: `${INTEGRATIONS}?tab=${AIRBNB_INTAKE}`,
   [GOOGLE_VACATION_RENTALS]: `${INTEGRATIONS}?tab=${GOOGLE_VACATION_RENTALS}`,
+  [GUEST_APP]: `${INTEGRATIONS}?tab=${GUEST_APP}`,
 });
 
 // specs/plugin-removal-resilience.md rule 1 — what a page says of the plugin it depends on when this
@@ -107,6 +109,7 @@ const PLUGIN_DISPLAY_NAMES = Object.freeze({
   'gites-de-france-intake': 'Saisie Gîtes de France',
   'google-calendar': 'Google Agenda',
   'google-vacation-rentals': 'Google Vacation Rentals',
+  'guest-app': 'Application clients',
   'hourly-resources': 'Ressources à l’heure',
   linen: 'Linge et blanchisserie',
   neat: 'Assurance annulation Neat',

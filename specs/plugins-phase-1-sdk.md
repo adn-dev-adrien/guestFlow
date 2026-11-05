@@ -497,6 +497,12 @@ Optional: a plugin that declares nothing reads « Actif ».
     by extension. In the other direction, the core still reads the former `{ optionId, units }` (rule 28 of the same
     spec). The sale draft lives on the client, which the hardening scan skips, so the row recognises `soldOptions`, its
     server end. Test: `plugin-core-hardening-floor.unit.test.js`.
+40. *(Added 2026-11-05, specs/guest-app.md rule 2, SDK 2.22.0.)* **`coreModule('stayWindow')` and
+    `coreModule('encryption')`.** The stay window leaves `gate-access` for `utils/stayWindow.js`, so the guest app reads
+    it without that plugin; `gate-access` 1.3.3 and `guest-app` 1.0.0 ask for `sdk ^2.22.0`. `encryption` holds the
+    lodging's wifi password at rest. `coreModule('rateLimiters')` gains `guestSessionLimiter` and `guestLookupLimiter`. A
+    MINOR bump (modules and names added to `coreModules.json`, recorded under 2.22.0 in `coreModuleHistory.json`). Tests:
+    `stay-window.unit.test.js` (the moved gate-window suite, its assertions unchanged).
 
 **Edge cases:**
 - **A plugin throws during `register`.** Rule 4 applies: the other plugins and the core boot. The Plugins

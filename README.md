@@ -293,6 +293,8 @@ Optional environment variables (sensible defaults otherwise):
 | `API_RATELIMIT_MAX` / `API_RATELIMIT_WINDOW_MS` | Global API rate limit | `300` / `900000` |
 | `PUBLIC_API_RATELIMIT_MAX` / `PUBLIC_API_RATELIMIT_WINDOW_MS` | Public API rate limit | `600` / `900000` |
 | `BOOKING_REQUEST_RATELIMIT_MAX` / `BOOKING_REQUEST_RATELIMIT_WINDOW_MS` | Public booking-request rate limit | `5` / `3600000` |
+| `GUEST_SESSION_RATELIMIT_MAX` / `GUEST_SESSION_RATELIMIT_WINDOW_MS` | Guest app: scanning a lodging's QR code, per IP | `30` / `3600000` |
+| `GUEST_LOOKUP_RATELIMIT_MAX` / `GUEST_LOOKUP_RATELIMIT_WINDOW_MS` | Guest app: name + reservation number fallback, per IP | `5` / `900000` |
 
 ### Public API (WordPress showcase site)
 

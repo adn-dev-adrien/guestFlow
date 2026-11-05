@@ -1,0 +1,874 @@
+# Guest app « Mon séjour » — booklet, gate, Soliomap and in-stay shop
+
+| Field | Value |
+|---|---|
+| **Status** | Approved (2026-11-04) |
+| **Branch** | `claude/granja-estival-app-spec-77uvgj` (spec) — implementation base `inte/plugins` |
+| **Created** | 2026-11-04 |
+| **Author** | Adrien |
+| **Related PR** | (slice A: link once opened) |
+| **Mock-ups** | [`specs/guest-app-maquettes.html`](guest-app-maquettes.html) |
+| **Plan** | [`specs/guest-app-plan.md`](guest-app-plan.md) |
+| **Builds on** | `public-api.md`, `wordpress-plugin.md` (catalogue projections), `gate-access-sowel-connector.md` + `sowel-stays-in-keys.md` (gate keys), `mid-stay-extras-on-locked-fiche.md` + `mid-stay-extras-to-end-of-stay-complement.md` (the end-of-stay bill), `online-payments-qonto.md` + `payment-link-lifecycle.md` (card payment), `resource-hourly-scheduling.md` (nordic bath slots), `pwa-push-notifications.md` (staff push) |
+
+> Code references below point at `origin/inte/plugins` (HEAD `71d3b314`), the branch whose public API the
+> WordPress site uses today. In code and data the second lodging is **L'Estiva** (property #2) — La Granja
+> is property #1.
+
+---
+
+## 1. Context
+
+Guests of La Granja and L'Estiva today receive a **paper welcome booklet**, gate instructions by email
+(J-7 / J-2, `{{gateAccessCode}}` / `{{gateAccessUrl}}`), and discover the estate's surroundings through
+**Soliomap** — a separate web app at `soliomap.domainesolio.com` presenting things to do around the domain.
+
+Three gaps:
+
+1. **Nothing centralises the guest's tools.** The gate link sits in an email, Soliomap is a URL nobody
+   remembers, the booklet is paper (not translated, not updatable, lost under a magazine).
+2. **A guest cannot buy anything during the stay without finding the operator.** Extra nordic-bath time,
+   drinks, local products, breakfast… all exist in the GuestFlow catalogue (options + resources, per-property
+   prices) and the fiche already accepts mid-stay additions (`midStayExtrasWindow.js`), but only the operator
+   can enter them, and they are collected at the departure SAS only.
+3. **No public API reads an existing stay.** `/public/v1/**` (plugin `website-booking`) is server-to-server,
+   behind a shared key held by the WordPress proxy (`requirePublicApiKey.js`); the only guest capability
+   token is a devis' `publicToken`. A phone in a guest's hand cannot carry that shared key.
+
+And on the payment side: `payment_links.type` already allows `complement` (`schema.sql:271`), but
+`ensurePaymentLink` refuses it (`paymentRequestService.js:55,121`) and `applyPaidEffect` has no complement
+branch (`paymentPollRunner.js:46-145`) — **paying a supplement online is not wired today**.
+
+Competitor products (Duve, Enso Connect « Boarding Pass », Touch Stay, Guesty Guest App, Hostfully,
+GetWelcom, WelloGuest) converge on the same shape: a **no-download web app** opened by link or QR, a
+**personalised home** (name, dates, countdown), the **digital guidebook**, **smart-lock / gate access**
+and **upsells with photos**, the upsell unlocking only for the identified stay.
+
+## 2. Goal
+
+A guest of La Granja or L'Estiva scans the QR code in the lodging and gets, on phone, tablet or computer, a
+beautiful installable app that opens the gate, gives the welcome booklet, opens Soliomap, and lets them order
+and pay — by card right away or on their end-of-stay bill — extra nordic-bath time, drinks and any other
+supplement GuestFlow sells, at GuestFlow's prices. The operator edits the booklet in a dedicated web app and
+is pushed every order.
+
+## 3. Functional rules
+
+### 3.A Identifying the lodging and the stay
+
+1. **One QR code per lodging.** Each property has a `lodgingCode`: 128 random bits, base64url, stored on the
+   property, regenerable from the booklet studio (old printed QR stops working at once). The QR encodes
+   `https://<guest host>/l/<lodgingCode>`. A guessed or stale code answers like an unknown one (no oracle).
+2. **Scanning opens the app at that lodging.** `POST /public/v1/guest/sessions {lodgingCode}` resolves the
+   property, then its **current stay**: the non-cancelled reservation of that property whose window contains
+   *now*. The window is the gate window — `startDate`+`checkInTime` − 3 h → `endDate`+`checkOutTime` + 2 h,
+   Europe/Paris, same inputs and fallbacks as the gate key window (`plugins/gate-access/window.js`, moved to
+   the core as `utils/stayWindow.js` so both plugins share one helper, not a copy).
+3. **Changeover day.** If two stays' windows contain *now*, the departing stay wins until its
+   `checkOutTime`, the arriving one after. With the default times (10:00 + 2 h / 16:00 − 3 h) the windows
+   never overlap; the rule only matters for custom times.
+4. **A session is a stay capability.** The server creates a `guest_sessions` row bound to `reservationId` +
+   `propertyId`, returns it as an `HttpOnly; Secure; SameSite=Strict` cookie `gf_guest` scoped to
+   `/public/v1/guest` (32 random bytes, only its SHA-256 stored), expiring at the window's end. The same
+   device rescanning during the same stay reuses its session.
+5. **No current stay → visitor mode.** The lodging's booklet and Soliomap stay readable; the home shows
+   « Bienvenue à La Granja » without any personal data; the gate tile and the shop are absent. A guest who
+   scanned too early (e.g. 11:00 for a 16:00 check-in) sees « Votre séjour commence aujourd'hui à 16 h —
+   le portail et la boutique s'ouvriront à 13 h. » (computed server-side). A visitor scan also gets a session
+   (`reservationId` NULL), which ends when that stay's window opens, or after 24 h when no stay starts today:
+   the app then scans again from the code it kept, and gets the stay.
+6. **Fallback, from anywhere: name + reservation number.** `/retrouver` asks the last name and the
+   reservation number (`reservations.reservationNumber`, which carries the platform's number for OTA stays
+   filled by the intake skills). Accepted from **J-7 00:00** until the window's end; before the window the
+   session is « pré-arrivée » (booklet, Soliomap, shop catalogue read-only, no gate). One generic error for
+   every failure (« Nous n'avons pas trouvé ce séjour. Vérifiez le nom et le numéro. »), 5 attempts / 15 min
+   per IP, constant-time comparison.
+7. **Name matching.** Normalised on both sides: NFD, accents stripped, lower-case, every non-letter removed
+   (`Le Goff-Durand` = `legoffdurand`). Compared to the reservation's client `lastName`. `nameMatches` takes a
+   list, so a second guest name can join it, but GuestFlow stores none today: only `clients.lastName` is on
+   file.
+8. **Data minimisation.** A session reads only: the guest's first name, lodging name, arrival / departure
+   instants, party size, language, its own orders. Never the email, phone, address, amounts of the stay,
+   nor any other stay. The visitor mode reads no personal data at all.
+9. **Session end.** At the window's end the session is dead (401 `SESSION_EXPIRED`); the app falls back to
+   the lodging's visitor mode, keeping the booklet. A cancelled or deleted reservation kills its sessions on
+   the next request.
+
+### 3.B Home
+
+10. **Personalised home** (stay session): hero photo of the lodging, « Bonjour Marie », lodging name, a
+    **stay card** with arrival / departure dates and a server-computed status line (« Arrivée aujourd'hui à
+    partir de 16 h », « Jour 2 sur 4 », « Départ demain avant 10 h »), then the **quick tiles** of the
+    lodging's modules (rule 11bis), in the order configured for that lodging (default: Portail · Wifi ·
+    Boutique · Bain nordique · Soliomap · Livret). A module that is off for the lodging is not rendered (no
+    greyed tile).
+11. **Contextual highlight.** One card under the tiles, chosen by the server among: « Le portail est
+    actif » (arrival day), « Prolongez votre bain nordique ce soir » (a bath slot is still free today and the
+    resource is sold in the app), « Votre commande est prête » (an order marked delivered in the last hour),
+    « Départ demain : les consignes » (eve of departure → booklet page *Départ*). At most one, never a
+    marketing carousel. A highlight is only chosen among the lodging's enabled modules. Priority: the order,
+    the gate, the departure, the bath: a bath slot is free on nearly every evening, so ahead of the departure
+    it would keep the instructions from ever showing.
+
+#### Per-lodging configuration — each lodging decides what its guests see
+
+11bis. **Modules per lodging.** Each lodging has its own list of modules, each **on / off** and ordered:
+    `gate` (Portail), `wifi`, `shop` (Boutique), `bath` (Bain nordique shortcut), `soliomap`, `booklet`
+    (Livret), `orders` (Mes commandes), `contacts` (Urgences & contacts shortcut). The server resolves them:
+    a module is shown only if it is **on for the lodging** *and* its prerequisite holds (gate → `gate-access`
+    active and a key in window; shop → at least one item sold for this lodging; bath → an hourly resource
+    sold for this lodging; wifi → wifi configured for this lodging, rule 11ter; soliomap → its URL set;
+    contacts → at least one contact). A visitor has no `gate`, `shop`, `bath` or `orders`; a pre-arrival session
+    keeps `shop` but has no `gate`, `bath` or `orders` (rules 5, 6). By default the six modules of rule 10 and
+    `orders` are on, `contacts` off; `orders` feeds the tab of rule 51 and the home's « Commandes en cours » row,
+    never a tile, so the home keeps rule 10's six. Every endpoint of an
+    **off** module answers 404 `MODULE_OFF` for that lodging's sessions — hiding is enforced server-side,
+    not only in the UI. The app's tab bar / rail follows the same list (no « Boutique » tab in a lodging
+    without shop).
+11ter. **Lodging facts** live per lodging, not in the booklet text: **wifi** (« Wifi disponible » on/off,
+    network name, password, optional « Wifi seulement dans la pièce principale » note — off → no wifi tile,
+    no wifi block, and the booklet may show the lodging's « Pas de wifi » message, prefilled from the
+    existing stay text `noWifi` of `stayTextCatalogue.js`), **hero photo**, **display name**, **check-in /
+    check-out wording**, **emergency contacts**. The `wifi` and `contact` booklet blocks read these facts
+    (one place to change a password, both the tile and the booklet follow).
+11quater. **App enabled per lodging.** A lodging can be left out of the app entirely (« Application
+    clients » off for that lodging): no QR code is issued, its lookup answers like an unknown stay, and the
+    studio hides it. A new property created in GuestFlow starts **off**.
+
+### 3.C Gate — a door to the existing gate app
+
+12. **The gate app already exists** (the one Sowel's key URL opens — the same link as the emails'
+    `{{gateAccessUrl}}`). The guest app **does not rebuild any gate screen**: the « Portail » tile opens the
+    stay's key URL (new tab / standalone window). No new gate logic: GuestFlow still never calls the house.
+13. **Source and window.** The URL is read from the `gate-access` plugin (`gate_key_results` of the stay)
+    and returned only for a stay session inside the gate window. Before the key exists (Sowel has not pulled
+    yet) the tile reads « Accès en préparation » and is not clickable; outside the window the tile is absent.
+14. **Plugin off** (`gate-access` inactive or not installed) → tile absent, endpoint 404 `PLUGIN_INACTIVE`.
+
+### 3.D Soliomap
+
+15. **Tile + page.** Soliomap (`soliomap.domainesolio.com`, URL stored in the studio settings) opens inside
+    the app shell, in a full-height frame under the app bar, with « Ouvrir dans le navigateur » in the bar.
+    The app passes `?lang=fr|en&from=guest-app&lodging=<propertySlug>` so Soliomap can centre on the domain.
+    If Soliomap forbids framing (`X-Frame-Options` / `frame-ancestors`), the tile opens it in a new tab
+    instead — decided once by a studio switch « Intégrer dans l'app », not detected at runtime.
+
+### 3.E Welcome booklet
+
+16. **One booklet per lodging.** Each lodging has **its own booklet**: its own list of pages, in its own
+    order, with its own cover photos. Each page has an icon, a cover photo, a title and a sequence of blocks.
+    Seeded from the paper booklets (§9 Q1); typical pages: *Bienvenue*, *Arrivée*, *Le logement*
+    (équipements & modes d'emploi), *Bain nordique*, *Le domaine* (règles, tri, animaux, calme), *Autour de
+    nous* (→ Soliomap), *Départ*, *Urgences & contacts* — but a lodging may have pages the other does not
+    (e.g. *Le poêle à bois* at La Granja only) and skip others.
+17. **Sharing without copying, or copying to diverge.** What is truly common (the estate rules, the
+    surroundings) need not be written twice:
+    - a page can be **shared** with several lodgings — one content, edited once, placed independently in
+      each lodging's booklet (own position, can be unpublished in one lodging only);
+    - inside a shared page, a block can be **restricted** to some lodgings (« Seulement pour : La Granja »);
+    - « Dupliquer vers… » copies a page into another lodging as an independent page, to diverge from there.
+    The guest only ever sees their lodging's resolved booklet (server-resolved: the lodging's pages, in its
+    order, with restricted blocks filtered and lodging facts injected). Visitor mode resolves the same
+    booklet for the lodging of the QR.
+18. **Block types** (closed list, each with a dedicated renderer): `text` (rich text: paragraphs, bold,
+    lists, links), `image`, `gallery`, `callout` (info / warning), `steps` (numbered how-to with optional
+    photo per step), `wifi` (network + password + « Copier », QR to join), `contact` (name, role, phone →
+    `tel:`, WhatsApp, email), `place` (address + « Itinéraire » → maps link), `faq` (accordion),
+    `button` (label + internal page / shop item / external URL), `hours` (opening times table).
+19. **Languages.** Every text field has FR and EN. The app language is the guest's `clients.emailLanguage`
+    for a stay session, else the browser's (`fr` default), switchable from the app bar. A missing EN text
+    falls back to FR, flagged in the studio (« 3 textes non traduits »).
+20. **Search.** A search field on the booklet index searches titles and texts of the resolved booklet
+    (server-side, accent-insensitive).
+21. **Offline.** The resolved booklet (texts + images at mobile size) is cached by the service worker on
+    first load and readable without network (the domain has weak mobile coverage). The shop and the gate
+    always require the network and say so (« Connexion nécessaire »).
+
+### 3.F In-stay shop
+
+22. **Everything lives in the `guest-app` plugin — the sell switch included.** Whether an option or a
+    resource is sold in the app is stored in the plugin's own table (`guest_app_items`, §5), never in a core
+    column. The « Vendu dans l'app » switch (and the photo / short description / `maxQuantity` fields
+    beside it) is **contributed by the plugin** to the GuestFlow option and resource editors through the
+    client contribution points `options.fields` (new, mirroring the existing `resources.fields` the
+    `hourly-resources` plugin uses) and `resources.fields`. **While the plugin is not installed or not
+    active, the switch is not rendered at all**, `/public/v1/guest/**` answers 404 `PLUGIN_INACTIVE`, and
+    nothing in the core behaves differently. Deactivating keeps the plugin's rows (reactivation restores
+    the catalogue as it was); uninstalling follows the usual plugin data rules.
+23. **What is sold.** Options and resources **linked to the stay's lodging** (`property_options`,
+    `resource_properties`) that are flagged in `guest_app_items`, not archived, and of a price type the app
+    can sell by quantity:
+    - options: `per_stay` (unit), `per_person` (unit = one person), `per_day_per_person` (unit = one
+      person-day);
+    - resources: hourly resources (`per_hour`, scheduled — the nordic bath) and quantity resources.
+    Other types (`per_night`, `per_person_per_night`, `percent_of_stay`, progressive tiers, cancellation
+    insurance, auto timed options such as late check-out) cannot be flagged — the switch is disabled with the
+    reason. An item flagged but not linked to a lodging is simply absent from that lodging's shop.
+24. **Prices come from GuestFlow, per lodging, as the site shows them.** Each item reuses the
+    website-booking projections (`toPublicOption` / `toPublicResource`, `publicProjections.js`) for the
+    **stay's** property: effective per-property price (`property_option_prices.price`,
+    `property_resource_prices.price`), server-made `priceUnitLabel`, EN title from the translation catalogue.
+    The guest-app projection adds only `imageUrl`, `shortDescription`, `maxQuantity`, `needsStaff` and the
+    free / included state of rule 25. Prices are TTC. **Every amount is priced by the same core engine as
+    the fiche** (`utils/pricing.js` + the `hourly-resources` price contributor): the app's quote, the order
+    and the line written on the fiche can never disagree.
+25. **Free in one lodging, paid in the other.** The per-lodging rules GuestFlow already holds are applied
+    as they are, never re-implemented:
+    - a per-property price of **0 €** → the item shows « Inclus » for that lodging (and its price elsewhere);
+    - an option's **free units** (`property_option_prices.freeUnits`, own-channel bookings only — rule 53 of
+      `tariff-recipes/spec.md`, `applyFreeUnitsToLine`) and a resource's **free minutes**
+      (`property_resource_prices.freeMinutes`) are granted **once per stay**: the server subtracts what the
+      stay already received (existing lines on the fiche, previous orders) and shows what is left
+      (« 1 h offerte avec votre séjour », « 1 h offerte — déjà utilisée »);
+    - an option **offered by default** to the lodging (`property_option_defaults.offered`) that the stay
+      already carries is shown « Déjà inclus dans votre séjour » and not sold again;
+    - an item not linked to the stay's lodging is not shown.
+    An order whose quote total is **0 €** (only free / included units) needs no payment and no name: one
+    button « Réserver », the order is `confirmed` and written to the fiche like a note order (rule 34).
+26. **Categories.** Items are grouped by the existing option `category` (e.g. « Boissons »,
+    « Restauration », « Bien-être »), in the plugin's category order; hourly resources appear in
+    « Bien-être ». An empty category is not shown.
+27. **When the shop is open.** Exactly when the core mid-stay extras window is open for the stay
+    (`midStayExtrasWindow.js`: from `startDate` until the end-of-stay complement is collected). Pre-arrival
+    and visitor sessions see the catalogue read-only with « Disponible pendant votre séjour ». After the
+    complement is collected: « La boutique est fermée — bon retour ! ». Staff-prepared items also follow the
+    service hours of §3.G.
+
+#### Hourly resources — the GuestFlow resource planning is the only truth
+
+28. **Availability is read from GuestFlow's resource planning, never from a copy.** The slot list of an
+    hourly resource is computed by the `hourly-resources` plugin itself, through the same functions as the
+    arrival SAS picker and the Calendrier › Ressources page:
+    - occupancy = `occupancyModel.listRange` — every **guest session** of every reservation
+      (`reservation_resources.sessions`), every **outside booking** (`resource_bookings`, the
+      « extérieurs »), plus the slots **held** by guest-app orders awaiting payment (rule 35);
+    - slots = `availability.buildDays` / `validateBlock` — slot grid (`slotDuration`), opening window
+      (`openTime`/`closeTime`), open days and closed days, turnover between uses (`turnoverMinutes`),
+      minimum use (`minimumUsageMinutes`), capacity (`quantity` units of the resource), the thermal model
+      (`heatUpMinutes` from cold, `heatRetentionMinutes` once warm), the past (`notBefore = now`), and the
+      stay's own bounds (check-in → check-out);
+    - prices = `hourlyPricing.priceSessions` — day rate, evening rate after `hourlyEveningStart`, the
+      lodging's price and free minutes (rule 25).
+    The guest app never sees another guest's identity (the occupancy rows carry none) — it receives only
+    `{ date, slots:[{ start, end, state, priceLabel }] }` with `state ∈ free | evening | taken | closed |
+    heating | staff | past`.
+29. **Several uses, several days.** The guest may book several slots, on several days of the stay, of one
+    or more hourly resources, in one order; each slot is validated against the others of the same order
+    (they occupy the resource too).
+30. **Ordering writes the planning.** A committed order adds its sessions to the stay's
+    `reservation_resources` line (creating the line if the stay had none, raising its sold hours otherwise),
+    so the session appears at once on Calendrier › Ressources, on the day's planning card, and on the
+    ignition card « Allumer le bain » of `resource-ignition-task.md` — exactly as if the operator had placed
+    it from the fiche. A slot taken between the quote and the order is refused (`SLOT_TAKEN`) and the picker
+    reloads.
+31. **Lighting needs staff.** When a slot needs the resource heated from cold, its ignition time
+    (`start − heatUpMinutes`, as the ignition card computes it) must fall inside the service hours of §3.G;
+    otherwise the slot is `staff` (« Trop tôt pour préparer le bain — premier créneau possible 18 h »). A slot
+    that follows a use while the resource is still warm needs no ignition and is not constrained.
+
+#### Cart, payment, commit
+
+32. **Cart.** Lives on the device (local UI state, persisted in `localStorage` for the session only). The
+    total shown is **always** the server's answer to `POST /guest/orders/quote` — the client never adds
+    prices.
+33. **Two ways to pay, the guest chooses** at checkout (for a non-zero total):
+    - **« Payer maintenant »** (card): the server creates the order `awaiting_payment` and a Qonto payment
+      link of type `complement` for exactly its total, with the order's lines as VAT basket; the app
+      redirects to Qonto; the return lands on `/commande/<id>` which polls the order status.
+      **No name confirmation** — the card payment is the proof.
+    - **« Ajouter à ma note »** (end-of-stay bill): **only here** the guest confirms their last name (rule 7,
+      once per session — a fallback session already proved it); on success the order is `confirmed` at
+      once and its lines join the stay's end-of-stay complement, collected at the departure SAS as today.
+      3 wrong names lock « Ajouter à ma note » for that session for 1 h; card payment stays available.
+    « Payer maintenant » is hidden while the `online-payment` plugin is inactive or Qonto is disconnected.
+34. **How an order lands on the fiche.** A confirmed order (note or 0 €) or a paid order (card) is written
+    by the **core** as mid-stay extras on the reservation — the same write path as the operator's `PUT
+    /api/reservations/:id` on a locked fiche (rules 1 and 9 of `mid-stay-extras-on-locked-fiche.md`), in one
+    transaction with the order status, with the reservation history entry « Commande app #12 ». Quantities
+    add to the existing line of the same option/resource (no duplicate line). Note orders flow into
+    `endOfStayComplementDetail` with `source:'midStayExtra'` exactly like an operator addition — no new
+    arithmetic.
+35. **Card orders** are recorded as **already paid**: the lines join the reservation, and the payment is
+    recorded against the reservation's payment ledger as a `complement` payment (amount, date, Qonto
+    reference), so the end-of-stay complement owes nothing for them and the accounting books the money on
+    the payment date. This wires the `complement` type end to end: `ensurePaymentLink` accepts it **only**
+    with an explicit guest-order basket, `applyPaidEffect` gets a `complement` branch that commits the order.
+    Exempt from the arrival-day lapse (`payment-link-lifecycle.md` rule 9); its own lifetime is **30 min**.
+    While `awaiting_payment` the order **holds** its hourly slots (rule 28) and its staff delivery slot.
+36. **Unpaid card order.** If the link is not paid within 30 min the order goes `expired`, its holds are
+    released, nothing reaches the fiche. A payment confirmed after expiry (late webhook) still commits the
+    order if its slots are still free; otherwise the order goes `paid_conflict`, the operator is pushed, and
+    refunds by hand (refund out of scope).
+37. **Limits.** Per order: ≤ 20 lines, each quantity 1…`maxQuantity` (plugin field, default 10), total
+    ≤ 500 € (plugin setting). Per session: 10 orders / hour. Out-of-range → 400 with the documented code;
+    the app's steppers already respect `maxQuantity` (UX only).
+38. **Order follow-up.** « Mes commandes » lists the stay's orders with status chips: *En attente de
+    paiement*, *Payée*, *Sur votre note*, *Prévue {jour heure}*, *Livrée*, *Expirée*. The guest cannot cancel a
+    confirmed order from the app (« Contactez-nous » → booklet contact block).
+
+### 3.G Service hours — orders that need someone on site
+
+39. **Staff-prepared items.** Each sold item has a plugin flag **« Préparé par l'équipe »** (`needsStaff`)
+    and a **preparation lead time** (`leadMinutes`, default 30). Drinks, platters, firewood, breakfast… are
+    staff-prepared; a self-service item (e.g. a code-locked product) is not. Hourly resources are governed by
+    rule 31 (their ignition), not by `needsStaff`.
+40. **Service hours are configured in the plugin** (Studio › Réglages › Horaires du service): for each
+    weekday, zero to three time ranges (e.g. Mon–Sat 08:00–12:00 and 16:00–20:00, Sun 09:00–12:00), plus
+    **exception dates** (closed day or different ranges — holidays, staff absence). The establishment
+    closures of GuestFlow (`establishment_closures`, all-properties rows) close the service too. Optionally
+    per lodging (both lodgings share them by default).
+41. **Ordering a staff item = choosing a delivery time.** The cart asks « Quand souhaitez-vous la
+    recevoir ? » with server-computed delivery slots (30-min steps) that fall inside service hours, at least
+    `max(leadMinutes)` of the cart after *now*, and before the stay's check-out. The first slot is
+    preselected (« Dès que possible — vers 17 h 30 »).
+42. **Outside service hours the guest can still order, for later.** The shop shows a banner « Le service
+    reprend demain à 8 h — vous pouvez commander dès maintenant pour plus tard » and the delivery picker
+    starts at the next opening + lead time. An item whose last possible delivery is past check-out is shown
+    « Plus disponible pour votre séjour ».
+43. **The delivery time drives the staff.** The order carries `deliverAt`; the push of rule 44 states it;
+    a planning card « Commande app » appears on the planning day of `deliverAt` (contributed by the plugin
+    through `planning.days`), with the lines and a « Livrée » check.
+
+### 3.H Staff side
+
+44. **Push.** Every confirmed or paid order pushes the new channel **« Commandes clients »**
+    (`guest-orders`, declared by the plugin with `ctx.pushChannel`, whose keys are kebab-case) to subscribed staff: « L'Estiva · Marie —
+    2 × Cidre pour 18 h, 1 h bain nordique ven. 20 h (sur la note) ». The push opens the order in GuestFlow.
+45. **Orders list in GuestFlow.** A page *Commandes app* (contributed by the plugin; sidebar, under the
+    day-to-day group) lists orders by delivery time, filter « À préparer / Toutes », each row: lodging, guest,
+    lines, delivery time, payment mode, status, « Marquer livrée ». Bath sessions appear in the resource
+    planning as any session (rule 30).
+46. **The fiche** shows the order's lines as normal lines (they are), and the history entry links to the
+    order.
+
+### 3.I Booklet studio (dedicated web app)
+
+47. **A separate web app**, « Studio du livret », served by GuestFlow at `/studio` on the admin host while
+    the plugin is active, with its own lightweight layout optimised for content editing (tablet-first),
+    **signed in with the GuestFlow admin account** (same session cookie as `/api`, so no second login on the
+    same browser). Roles: admin only; the reception role has no access.
+48. **Lodging first.** The studio opens on a **lodging switcher** (La Granja · L'Estiva); every screen works
+    on the selected lodging: *Modules* (switches + drag order, rule 11bis), *Infos du logement* (wifi, hero,
+    contacts, rule 11ter), *Livret* (that lodging's pages), *Boutique* (presentation of the items sold there).
+    A shared page shows a « Partagée avec L'Estiva » chip, and saving it says « Modifie aussi L'Estiva ».
+    **Edits:** pages (create, reorder by drag per lodging, share with / restrict to lodgings, duplicate to a
+    lodging, publish / draft, icon, cover photo),
+    blocks (add from a palette, reorder, edit FR / EN side by side), photos (upload, crop to the block's
+    ratio, alt text), shop presentation (per sold item: photo, short description FR/EN, `maxQuantity`,
+    `needsStaff`, `leadMinutes`, category order; the price and title stay GuestFlow's — read-only here with
+    « Modifier dans GuestFlow »), service hours (rule 40), app settings (app name, hero photo per lodging,
+    Soliomap URL + « Intégrer dans l'app », order limits, regenerate a lodging's QR code, print the QR poster
+    PDF per lodging). « Publier » publishes one lodging's booklet; publishing a shared page republishes it in
+    every lodging it is placed in.
+49. **Live preview.** The editing screen shows a phone-frame preview of the page rendered by the real guest
+    components, for the chosen lodging and language. « Publier » makes the draft the guest version; until
+    then guests see the previous version.
+50. **One flag, two views.** The sell switch and its fields (rule 22) are edited in the studio's shop
+    screen *and* in GuestFlow's option / resource editors (plugin contribution) — same rows.
+
+### 3.J App shell, install, look & feel
+
+51. **One codebase, three layouts.** Mobile: bottom tab bar (Accueil · Livret · Boutique · Commandes) +
+    floating cart bar. Tablet (≥ 900 px): navigation rail + two-pane booklet (index | page) and shop (catalogue
+    | cart). Desktop (≥ 1200 px): same, content max 1200 px, hero wider.
+52. **Installable PWA.** Manifest (name from the studio, theme fir-green), icons, standalone display,
+    offline shell + booklet (rule 21). After the second visit a discreet « Installer l'app » card (Android
+    `beforeinstallprompt`; iOS: a sheet with the share → « Sur l'écran d'accueil » steps). Never on first load.
+53. **Look & feel** — §6: the Domaine Solio identity of the site and the gate app (Marcellus + Karla,
+    sapin / ocre / paper, square-cut, photo-led), the night register at night, one orchestrated motion per
+    screen, WCAG AA in both registers, 44 px touch targets.
+
+**Edge cases:**
+- Guest scans the La Granja QR while staying at L'Estiva (wrong lodging, same estate) → the La Granja stay
+  (or visitor mode) — the QR is the lodging; the fallback lookup always finds the right one.
+- Two devices of the same family → two sessions on the same stay; orders and the name confirmation are per
+  session, « Mes commandes » shows the stay's orders from every session.
+- Reservation dates changed by the operator → the session expiry follows on the next request (re-derived).
+- Option archived or unflagged while in a cart → quote returns the line `unavailable`, the cart shows it
+  struck through with « Plus disponible », checkout disabled until removed.
+- Price changed while in a cart → the quote is the truth; the cart re-renders the new price, no warning
+  needed (the total shown before paying is always fresh).
+- Qonto disconnected → « Payer maintenant » hidden, « Ajouter à ma note » only.
+- Reservation from a platform with no client last name (rare iCal-only stay) → note payment impossible
+  (« Ajouter à ma note » hidden), card only; fallback lookup impossible.
+- Stay cancelled mid-cart → next request 401, app back to visitor mode, cart cleared.
+- Operator places a bath session from the fiche while the guest looks at the picker → the guest's next
+  quote / order sees it (`SLOT_TAKEN` if they picked that slot); no cache between the planning and the app.
+- Operator moves or deletes a session that came from an app order → the planning is the truth; the order
+  keeps its history, its status line reads « Modifiée par l'équipe ».
+- Free minutes partly used by a session placed at the arrival SAS → the app offers only the remainder
+  (rule 25), priced by the same engine.
+- A resource linked to La Granja only → absent from L'Estiva's shop; free at La Granja (0 € or free
+  minutes) and paid at L'Estiva → each lodging sees its own price.
+- Service closed on an exception date for the whole stay remainder → staff items read « Plus disponible
+  pour votre séjour »; self-service items and the bath (if warm or lit in hours) stay orderable.
+- `hourly-resources` plugin inactive → hourly resources are absent from the shop (the guest app never
+  prices hours itself); `gate-access` inactive → no gate tile; `online-payment` inactive → note only.
+
+---
+
+## 4. Architecture
+
+> **Fat backend, thin frontend.** Stay resolution, windows, name matching, catalogue filtering, every price,
+> every total, free units / minutes left, slot availability (from the resource planning), service-hour
+> delivery slots, the payment link, the commit to the fiche and the booklet resolution (scope + language
+> fallback) are server-side. The guest app and the studio render payloads and keep local UI state (cart
+> lines and quantities, open sheet, current tab, editor drafts).
+
+### 4.1 Server side (`server/src/`)
+
+New plugin **`guest-app`** (« Application clients »), installed and activated from Paramètres ›
+Intégrations like every plugin. It owns `/public/v1/guest/**`, `/api/guest-app/**`, its tables, its
+settings and its client contributions. **Nothing in the core changes behaviour when it is absent.** Money
+and the reservation write stay core (plugins phase 2 rule 2), reached through `sdk.coreModule`.
+
+Dependencies: `requires: []` — the plugin degrades instead: `hourly-resources` inactive → no hourly
+items; `gate-access` inactive → no gate tile; `online-payment` inactive → note only. It reaches those
+plugins only through the functions they export to other plugins (no direct table reads).
+
+| Layer | File | T/C | Responsibility in this change |
+|---|---|---|---|
+| `plugins/guest-app/` | `manifest.json`, `index.js` | C | Declares the plugin, push channel `guestOrders`, settings, migrations, public + admin mounts, the expiry runner |
+| `plugins/guest-app/routes/` | `public.js` | C | `/public/v1/guest/**` — thin: parse → controller → JSON |
+| `plugins/guest-app/routes/` | `admin.js` | C | `/api/guest-app/**` — items, studio, service hours, orders list; admin session guard |
+| `plugins/guest-app/middleware/` | `guestSession.js` | C | Reads `gf_guest`, loads the session, re-derives the window, 401 when dead |
+| `plugins/guest-app/controllers/` | `sessionController.js` | C | QR resolution, fallback lookup, name confirmation, `/me` payload |
+| `plugins/guest-app/controllers/` | `bookletController.js` | C | Resolved booklet + search for a session / visitor |
+| `plugins/guest-app/controllers/` | `shopController.js` | C | Sellable catalogue for the stay's lodging, slots, delivery slots, quote, create order |
+| `plugins/guest-app/controllers/` | `itemsController.js` | C | Read/write `guest_app_items` (the switch + fields shown in GuestFlow's editors and the studio) |
+| `plugins/guest-app/controllers/` | `studioController.js` | C | CRUD pages / blocks / media / settings / service hours, publish, QR poster |
+| `plugins/guest-app/controllers/` | `ordersAdminController.js` | C | Orders list, mark delivered |
+| `plugins/guest-app/controllers/` | `lodgingsController.js` | C | Read/write the per-lodging configuration, validated at the boundary (rules 11bis-11quater) |
+| `plugins/guest-app/models/` | `lodgingsModel.js`, `sessionsModel.js`, `staysModel.js`, `itemsModel.js`, `bookletModel.js`, `ordersModel.js`, `mediaModel.js`, `serviceHoursModel.js` | C | DB access (prepared statements). `staysModel.js` holds the only SELECT of a reservation on the session path: rule 8's minimisation is its column list |
+| `plugins/guest-app/` | `modules.js` | C | Pure: the modules a lodging shows, from its configuration, the facts and the session's mode (rule 11bis) |
+| `plugins/guest-app/` | `settings.js` | C | The declared settings and their checks (§5) |
+| `plugins/guest-app/` | `currentStay.js` | C | Pure: lodging + instant → current stay (rules 2, 3, 5, 6) |
+| `plugins/guest-app/` | `nameMatch.js` | C | Pure: normalisation + comparison (rule 7) |
+| `plugins/guest-app/` | `sellable.js` | C | Pure: which items a lodging's shop shows and their free / included state (rules 23, 25) |
+| `plugins/guest-app/` | `serviceHours.js` | C | Pure: open ranges for a date, next opening, delivery slots from now + lead time to check-out, ignition-in-hours check (rules 31, 40-42) |
+| `plugins/guest-app/` | `homeHighlight.js` | C | Pure: status line + the single highlight (rules 10, 11) |
+| `plugins/guest-app/` | `orderExpiryRunner.js` | C | Every minute: expire unpaid orders, release holds (rule 36) |
+| `plugins/guest-app/` | `planningCards.js` | C | `planning.days` server feed: « Commande app » cards on the delivery day (rule 43) |
+| `plugins/guest-app/` | `migrations.js` | C | Tables of §5 |
+| `utils/` | `publicCatalogProjection.js` | C | `toPublicOption` / `toPublicResource` moved out of `website-booking/publicProjections.js` (which imports them back) so the guest app does not depend on the website plugin |
+| `plugins/sdk/createContext.js` · `coreServices.js` | — | T | Two SDK hooks: `ctx.resourceScheduler(provider)` (one provider app-wide, like `paymentProvider`) and `ctx.resourceHolds(fn)`; the core exposes `coreServices.resourceScheduler()` — plugins never `require` each other |
+| `plugins/hourly-resources/` | `index.js` | T | Declares the scheduler: `slotsForStay` (occupancy + `buildDays` + `priceSessions`, rule 28), `validateSessions`; reads every holds source as pending occupancy in **every** consumer (planning page, SAS picker, outside bookings) |
+| `plugins/gate-access/` | `index.js` | T | Declares a gate-key provider hook (`keyUrlForReservation(id, now)`, rules 12-13); `window.js` moves to core `utils/stayWindow.js` |
+| `utils/paymentRequestService.js` | — | T | `complement` link type with explicit basket and 30-min lifetime (rule 35) |
+| `utils/paymentPollRunner.js` | — | T | `applyPaidEffect` `complement` branch → `guestOrderCommit` |
+| `utils/` | `guestOrderCommit.js` | C | **Core**: commits an order's lines (options + resource sessions) as mid-stay extras, records a complement payment when paid, history entry — one transaction (rules 30, 34, 35) |
+| `utils/` | `stayWindow.js` | C | The stay window, moved from `gate-access/window.js` (rule 2) |
+| `plugins/sdk/index.js` | — | T | Add `stayWindow`, `encryption` (SDK 2.22.0), `guestOrderCommit`, `pricing` free-units helper, `midStayExtrasWindow` to `CORE_MODULES` (one reviewed line each) |
+| `middleware/` | `rateLimiters.js` | T | `guestSessionLimiter` (30/h/IP), `guestLookupLimiter` (5/15 min/IP), `guestOrderLimiter` (10/h/session), each `GUEST_*_RATELIMIT_*`-overridable |
+| `index.js` | — | T | Serve the guest app build on the guest host and the studio build at `/studio` (only while the plugin is live) |
+| `database.js` | — | — | (none — no core column; everything is in plugin migrations) |
+
+New dependency: `qrcode` (server, QR poster + wifi QR) if not already present; `pdfkit` already serves the
+devis PDF.
+
+### 4.2 Client side
+
+Two new Vite apps in the repo (`apps/guest/`, `apps/studio/`, shipped inside the `guest-app` plugin
+package by `scripts/build-plugin-packages.mjs`), plus plugin contributions to the GuestFlow admin client.
+
+**`apps/guest/` — the guest PWA** (React, MUI with its own theme `apps/guest/src/theme.js` carrying the Domaine Solio
+tokens of §6.1 and GuestFlow's semantic colours, React Router; fonts Marcellus + Karla self-hosted in
+`apps/guest/public/fonts/`; icons `lucide-react`):
+
+| Layer | File | T/C | Responsibility |
+|---|---|---|---|
+| `pages/` | `HomePage`, `BookletIndexPage`, `BookletPage`, `ShopPage`, `SlotPickerPage`, `CartPage`, `OrderPage`, `OrdersPage`, `SoliomapPage`, `LookupPage`, `LodgingEntryPage` (`/l/:code`) | C | Route-level views |
+| `components/` | `AppShell` (`TabBar` / `NavRail`), `HeroHeader`, `StayCard`, `QuickTile`, `MomentCard`, `PhotoCard`, `BlockRenderer` + one renderer per block type, `ProductCard`, `ProductSheet`, `QuantityStepper`, `SlotGrid`, `DeliveryTimeChips`, `ServiceHoursBanner`, `CartBar`, `PaymentChoice`, `NameConfirmSheet`, `OrderTimeline`, `StatusChip`, `InstallPrompt`, `OfflineBanner` | C | Rendering only — anatomy in §6.4 |
+| `services/` | `api.js` | C | `fetch` with credentials, error envelope → typed errors |
+| `hooks/` | `useSession`, `useCart` (local state + localStorage), `useOrderStatus` (poll) | C | UI state |
+| `i18n/` | `fr.json`, `en.json` | C | App chrome strings (booklet content comes from the server) |
+| `public/` | `manifest.webmanifest`, `sw.js`, icons | C | Install + offline booklet |
+
+**`apps/studio/` — the booklet studio** (React, MUI using GuestFlow's `client/src/theme.js`):
+
+| Layer | File | T/C | Responsibility |
+|---|---|---|---|
+| `pages/` | `PagesListPage`, `PageEditorPage`, `ShopItemsPage`, `ServiceHoursPage`, `MediaLibraryPage`, `AppSettingsPage` | C | Studio screens |
+| `components/` | `BlockPalette`, `BlockEditor` (one per type), `BilingualField`, `PhonePreview` (imports `apps/guest/` renderers), `ImageCropper`, `SortableList`, `WeeklyHoursEditor` | C | Editing UI |
+
+**`client/` (GuestFlow admin) — only through the plugin's client module `client/src/plugins/guest-app/`:**
+
+| Layer | File | T/C | Responsibility |
+|---|---|---|---|
+| `plugins/guest-app/` | `index.js` | C | Contributions: `options.fields`, `resources.fields`, `routes` (`/commandes-app`), sidebar entry, `planning.days` card, `settings.integrations` card |
+| `plugins/guest-app/` | `SettingsGuestAppSection.jsx` | C | « Application clients » card of Paramètres › Intégrations: the guest host, saved by the page's bar. The link to the studio joins it with slice G, when `/studio` exists |
+| `plugins/guest-app/` | `GuestAppItemFields.jsx` | C | « Application clients » section of the option / resource editor (rule 22) |
+| `plugins/guest-app/` | `GuestOrdersPage.jsx`, `PlanningOrderCard.jsx` | C | Orders list (rule 45) and planning card (rule 43) |
+| `pages/options/` | option editor panel | T | New contribution point `options.fields`, rendered like `resources.fields` in `ResourceEditorPanel.jsx` — empty when no live plugin contributes |
+
+**Component reuse declaration:**
+
+| Category | Components | Notes |
+|---|---|---|
+| **Consumed (existing generic)** | `PageActionBar`, `DataPageScaffold`, `StatusBadge`, `EmptyState`, `ConfirmDialog`, `FormDialog` (admin page + studio) | Studio and admin keep GuestFlow's component library. |
+| **Created (new generic, guest app)** | `QuickTile`, `PhotoCard`, `BottomSheet`, `QuantityStepper`, `StatusChip`, `BlockRenderer`, `OrderTimeline` | Generic inside the guest app; `BlockRenderer` is shared with the studio preview. |
+| **Specific** | `SlotGrid`, `DeliveryTimeChips`, `PaymentChoice`, `NameConfirmSheet`, `StayCard`, `MomentCard`, `GuestAppItemFields` | Tied to the stay / order flows. |
+
+Why not reuse `client/` for the guest app: different audience, origin, auth and bundle budget (the guest
+app must load fast on 3G and be cacheable offline; the admin bundle is several MB).
+
+### 4.3 API contract
+
+Envelope as `public-api.md` §4.3: `{ data }`, and `{ error: { code, message, details? } }`. All guest routes are
+same-origin with the guest app (served by GuestFlow on the guest host — no CORS), cookie-authenticated,
+never accept the site's shared key. Plugin inactive → every route 404 `PLUGIN_INACTIVE`, in the loader's
+shape for every plugin: `{ error: 'PLUGIN_INACTIVE', plugin }`.
+
+| Method | Endpoint | Auth | Request | Response |
+|---|---|---|---|---|
+| POST | `/public/v1/guest/sessions` | — | `{ lodgingCode }` | `{ mode: 'stay'\|'preArrival'\|'visitor', lodging:{id,name,slug}, opensAt? }` + cookie |
+| POST | `/public/v1/guest/sessions/lookup` | — | `{ lastName, reservationNumber }` | same; 404 `STAY_NOT_FOUND` generic |
+| GET | `/public/v1/guest/me` | session | — | stay / pre-arrival: `{ mode, guest:{firstName}, lodging, stay:{arrival,departure,partySize,statusLine}, language, nameConfirmed, tiles:[…], highlight?:{key,text,module,page?} }`; visitor: `{ mode, lodging, language, tiles:[…], welcome, opensAt?, openingLine? }`; dead session 401 `SESSION_EXPIRED` |
+| POST | `/public/v1/guest/me/confirm-name` | stay or pre-arrival session | `{ lastName }` | `{ nameConfirmed:true }`; 422 `NAME_MISMATCH` `{attemptsLeft}`; 423 `NAME_LOCKED` `{lockedUntil}`; visitor 403 `STAY_REQUIRED` |
+| GET | `/public/v1/guest/booklet?lang=` | session or `lodgingCode` | — | `{ version, pages:[{slug,icon,title,cover}] }` |
+| GET | `/public/v1/guest/booklet/pages/:slug?lang=` | idem | — | `{ slug, title, cover, blocks:[{type, …}] }` |
+| GET | `/public/v1/guest/booklet/search?q=&lang=` | idem | — | `{ results:[{slug,title,excerpt}] }` |
+| GET | `/public/v1/guest/lodging` | session or `lodgingCode` | — | `{ name, heroUrl, modules:[{key, label, order}], wifi?:{network, password, note?, joinQr}, contacts:[…] }` — only enabled modules / configured facts |
+| GET | `/public/v1/guest/gate` | stay session | — | `{ state:'active'\|'preparing'\|'outside', url? }` |
+| GET | `/public/v1/guest/shop` | session | — | `{ open, closedReason?, service:{openNow, nextOpening?, bannerLabel?}, canPayCard, canPayNote, categories:[{name, items:[{kind:'option'\|'resource', id, title, shortDescription, imageUrl, price, priceUnitLabel, included?, freeLeftLabel?, maxQuantity, needsStaff, scheduling?:'hourly', unavailableReason?}]}] }` |
+| GET | `/public/v1/guest/shop/resources/:id/slots?from&to` | stay session | — | `{ freeMinutesLeft, freeLabel?, days:[{date,label,closed,slots:[{start,end,state,priceLabel,reasonLabel?}]}] }` |
+| POST | `/public/v1/guest/shop/delivery-slots` | stay session | `{ lines }` | `{ asap:{at,label}, slots:[{at,label}], bannerLabel? }` |
+| POST | `/public/v1/guest/orders/quote` | stay session | `{ lines:[{kind,id,quantity?,sessions?}], deliverAt? }` | `{ lines:[{…, unitPrice, freeUnits?, total, label, unavailable?}], total, totalLabel, needsDelivery }` |
+| POST | `/public/v1/guest/orders` | stay session | `{ lines, deliverAt?, payment:'card'\|'note'\|'none', returnPath }` | card → `{ orderId, paymentUrl }`; note/none → `{ orderId, status:'confirmed' }`; 403 `NAME_REQUIRED`, 409 `SLOT_TAKEN`, 409 `DELIVERY_SLOT_GONE`, 409 `SHOP_CLOSED`, 400 `ORDER_LIMIT` |
+| GET | `/public/v1/guest/orders` | stay session | — | `{ orders:[{id, createdAt, deliverAt, lines, total, payment, status, statusLabel}] }` |
+| GET | `/public/v1/guest/orders/:id` | stay session | — | one order (triggers the on-demand Qonto poll like `/booking-requests/:id/status`) |
+| GET | `/public/v1/guest/manifest.webmanifest` | — | — | manifest with the plugin's app name |
+| GET/PUT | `/api/guest-app/items/:kind/:id` | admin | `{ sold, mediaId?, shortDescriptionFr/En, maxQuantity, needsStaff, leadMinutes }` | the row — used by the editor contribution and the studio |
+| GET/PUT | `/api/guest-app/lodgings/:propertyId` | admin | `{ enabled, displayName, heroMediaId, modules:[{key, on, order}], wifi:{available, network, password, note}, contacts:[{name, role?, phone?, whatsapp?, email?}] }` — a PUT writes the keys it names; a `wifi` without `password` keeps the stored one, `''` clears it | the lodging config with `hasLodgingCode`, never the code itself (rules 11bis-11quater) |
+| POST | `/api/guest-app/studio/pages/:id/duplicate` | admin | `{ toPropertyId }` | the new independent page |
+| PUT | `/api/guest-app/studio/lodgings/:propertyId/booklet` | admin | `{ pages:[{pageId, sortOrder, published}] }` | that lodging's page order and visibility |
+| GET/PUT | `/api/guest-app/service-hours` | admin | `{ weekly:{1:[{from,to}],…}, exceptions:[{date, closed\|ranges}] }` | the config |
+| GET/POST/PUT/DELETE | `/api/guest-app/studio/**` | admin | pages, blocks, media, settings, publish, `lodgings/:id/regenerate-qr`, `lodgings/:id/qr-poster.pdf` | — |
+| GET | `/api/guest-app/orders?status=` | admin/staff | — | orders list (rule 45) |
+| POST | `/api/guest-app/orders/:id/delivered` | admin/staff | — | `{ status:'delivered' }` |
+
+Rate limits: sessions 30/h/IP, lookup 5/15 min/IP, confirm-name 3 failures/h/session, orders 10/h/session,
+reads under the existing `publicApiLimiter` budget.
+
+---
+
+## 5. Data model
+
+**No core column.** Everything below is created by the `guest-app` plugin's migrations:
+
+- `guest_app_lodgings(propertyId PK, enabled INTEGER DEFAULT 0, lodgingCode TEXT UNIQUE, displayName,
+  heroMediaId, modulesJson, wifiAvailable INTEGER DEFAULT 0, wifiNetwork, wifiPasswordEncrypted, wifiNote,
+  contactsJson)` — the per-lodging configuration (rules 11bis-11quater). The QR code is generated when a
+  lodging is enabled, never logged. The wifi password is encrypted at rest like the other stored secrets
+  (`settingsModel` encryption helper) — it is shown to guests, but must not sit in clear in a backup.
+- `guest_app_items(kind 'option'|'resource', itemId, sold INTEGER DEFAULT 0, mediaId, shortDescriptionFr,
+  shortDescriptionEn, maxQuantity DEFAULT 10, needsStaff INTEGER DEFAULT 0, leadMinutes DEFAULT 30,
+  sortOrder, PRIMARY KEY(kind,itemId))` — the sell switch and its presentation (rules 22, 39). Default
+  `sold = 0`: nothing is sold until the operator flags it.
+- `guest_app_service_hours(weekday 0-6, fromTime, toTime, propertyId NULL)` and
+  `guest_app_service_exceptions(date, propertyId NULL, closed, rangesJson)` (rule 40).
+- `guest_sessions(id, tokenHash UNIQUE, propertyId, reservationId NULL, mode, origin 'qr'|'lookup',
+  nameConfirmedAt, nameFailures, nameLockedUntil, createdAt, lastSeenAt, expiresAt)` — purged 30 days after
+  expiry. `reservationId` is NULL for a visitor session (rule 5).
+- `guest_booklet_pages(id, slug, icon, coverMediaId, titleFr, titleEn, updatedAt)` — page content;
+  `guest_booklet_placements(pageId, propertyId, sortOrder, published, PRIMARY KEY(pageId, propertyId))` —
+  which lodgings' booklets show the page, where (a page placed in two lodgings is « shared », rule 17);
+  `guest_booklet_blocks(id, pageId, sortOrder, onlyForPropertyIdsJson NULL, type, dataJson, updatedAt)`;
+  `guest_booklet_versions(id, propertyId, publishedAt, publishedBy, snapshotJson)` — « Publier » freezes the
+  resolved booklet of one lodging.
+- `guest_media(id, path, width, height, altFr, altEn, createdAt)` — files under `server/uploads/guest-app/`,
+  resized at upload (1600 / 800 / 400 px, WebP).
+- `guest_orders(id, reservationId, sessionId, payment 'card'|'note'|'none', status 'awaiting_payment'|
+  'confirmed'|'paid'|'delivered'|'expired'|'paid_conflict', linesJson (priced snapshot, sessions included),
+  total, deliverAt NULL, heldUntil NULL, paymentLinkId NULL, createdAt, confirmedAt, deliveredAt,
+  deliveredBy)` — `heldUntil` makes the hourly `holds` provider cheap to query.
+- Plugin settings (`ctx.settings.declare`): `appName`, `soliomapUrl`, `soliomapEmbed`, `maxOrderTotal`,
+  `guestHost`. The property has no slug column: `lodging.slug` is derived from its name (`L'Estiva` → `l-estiva`).
+
+**Data impact:** additive only, all in plugin tables. Reservations receive lines and resource sessions only
+through the existing mid-stay path. Changelog `Migration` note at implementation.
+
+## 6. UI / UX
+
+Mock-ups and clickable prototype: **`specs/guest-app-maquettes.html`** (charter board, a working phone
+prototype of the main flows, key screens in day and night, tablet / desktop, the studio).
+
+### 6.0 Two identities, one rule: who is looking
+
+| Surface | Identity | Why |
+|---|---|---|
+| **Guest app** (`apps/guest/`) | **Domaine Solio — « forêt et heure dorée »**, the charter of the showcase site (`gf-site-style.php`, 2026-09, now in the site's private repo) and of the gate app (`gate-access-portier.md` / `guest-gate-access.md` §6.0) | The guest is a guest of the estate, not a user of GuestFlow. Website → booking → gate app → guest app must read as one house: same fonts, same ocre button, same night register. Tapping « Portail » hops into the gate app without a visual jolt. |
+| **Studio** (`apps/studio/`) and the **Commandes app** page | **GuestFlow « Maison »** (`design-system.md`, `design-system-reference.md`, `client/src/theme.js`) | Operator tools. Same component library (`PageActionBar`, `StatusBadge`, `EmptyState`…), same tokens, same rules (formatters, tabular figures, fullscreen dialogs on `xs`). |
+| **Studio's phone preview** | Domaine Solio | It renders the real guest components (rule 49). |
+
+What both share, so the house stays coherent: the **semantic colours** of « Maison » (success / warning /
+error soft-chip pattern, contrast ≥ 4.5:1), the **money and date formats** (`1 234,50 €`, « ven. 9 oct. »,
+« 20 h – 21 h »), **figures never in a display face** (Karla / Inter, `tabular-nums`), 44 px touch targets,
+and French copy written from the guest's side.
+
+### 6.1 Guest app tokens (`apps/guest/src/theme.js`, single source)
+
+| Token | Day | Night | Use |
+|---|---|---|---|
+| `paper` | `#F5F0E6` | `#161C16` (« nuit ») | page ground |
+| `card` | `#FDFAF3` | `#1F261E` | cards, sheets, fields |
+| `ink` | `#22271F` | `#EFE8D6` | text |
+| `inkSoft` | `#5C6153` | `#A9AE9C` | secondary text (5.6:1 / 7.6:1) |
+| `sapin` | `#2E3B2A` | `#EFE8D6` | headings, outline buttons, active tab |
+| `lichen` | `#5A6B48` | `#9DB087` | icons, quiet accents |
+| `ocre` | `#B87B2A` | `#E8C286` (« or ») | non-text accents: active chip, progress, stars, focus ring |
+| `ocreInk` | `#8A5816` | `#E8C286` | eyebrows, links, prices in accent (5.3:1 on paper) |
+| `action` / `onAction` | `#9A6318` / `#FFFFFF` | `#E8C286` / `#161C16` | the primary button (5.0:1 / 10.3:1) |
+| `line` | `#DCD4C2` | `#2E362C` | rules, borders |
+| `scrim` | `linear-gradient(to top, rgba(10,14,10,.74), rgba(10,14,10,.22) 45%, rgba(10,14,10,.12))` | same | over every photo carrying text — the site's hero gradient |
+| semantic | « Maison » `success` / `warning` / `error` main + soft | darkened soft, light text | status chips only |
+
+**Accessibility adjustment, recorded:** the site's button (`#B87B2A` + white, 3.6:1) fails AA for the
+app's 15 px label, so the app's filled button uses `ocre-deep` `#9A6318` (5.0:1); the bright ocre is kept
+for non-text accents. Eyebrows use `ocreInk` `#8A5816` because `#9A6318` on paper is 4.4:1.
+
+**Night register.** Under `prefers-color-scheme: dark` — and automatically from sunset to sunrise
+(Europe/Paris, server-provided `isNight`) unless the guest chose « Jour » in the app bar — the app moves to
+« nuit » with the header's gold, the pairing the site uses for its header and « band ciel ». A guest
+opening the app on the terrace at 22:00 must not be blinded; the bath, the gate and the evening drinks
+are night-time uses.
+
+### 6.2 Typography (the site's faces, self-hosted)
+
+| Role | Face | Spec |
+|---|---|---|
+| `display` (hero greeting, page titles) | **Marcellus** 400 | 30–34 px mobile / 44 px desktop, line-height 1.1, mixed case for the greeting (« Bonjour Marie »), **uppercase + `letter-spacing .06em`** for page titles (« LA BOUTIQUE ») |
+| `title` (card / sheet titles) | Marcellus 400 | 19–22 px, mixed case |
+| `eyebrow` (the site's signature) | Karla 700 | 11.5 px, uppercase, `letter-spacing .32em`, `ocreInk` — above each title (« VOTRE SÉJOUR », « BIEN-ÊTRE ») |
+| `body` | Karla 400 / 500 | 16 px, line-height 1.55; 15 px in dense lists |
+| `label` (buttons, tabs) | Karla 700 | 13 px uppercase `letter-spacing .16em` for buttons (site: .22em, tightened for phones); tabs 11 px sentence case |
+| `figure` (prices, times, codes) | Karla 700 `tabular-nums` | never Marcellus |
+
+Fonts are the very woff2 files the site serves (Marcellus 400, Karla variable + italic), bundled in
+`apps/guest/public/fonts/`, `font-display: swap`, preloaded — no Google Fonts request in production (the
+mock-ups load them from Google Fonts only because they are static files).
+
+### 6.3 Shape, depth, iconography, photography, motion
+
+- **Shape.** The site is square-cut: buttons **2 px**, cards and photos **4 px**. The app keeps it — it is
+  what makes it read as Domaine Solio rather than a generic rounded app. Exceptions where the platform
+  speaks: bottom sheets **16 px** top corners, chips and the cart pill fully rounded, the phone's own
+  safe-area curves.
+- **Depth.** Paper is flat; cards are set off by a `line` border, not a shadow. One shadow only, for things
+  that float: the cart bar and sheets (`0 12px 32px rgba(22,28,22,.22)`).
+- **Icons.** One line set, 1.75 px stroke, rounded caps (Lucide, MIT, tree-shaken), drawn in `lichen` on
+  a `card` tile; filled glyphs only for the active tab. No emoji anywhere in the UI.
+- **Photography carries the brand.** Every page opens on a real photo of the estate — golden hour, forest,
+  stone, steam on the bath — under the site's scrim. Product photos are square, natural light, on wood or
+  linen. The studio enforces ratios (hero 4:5 mobile / 16:9 desktop, product 1:1, page cover 3:2) and
+  shows a warning on a photo under 1200 px.
+- **Motion, one orchestrated moment per screen.** Page enter: 8 px rise + fade, 220 ms ease-out.
+  Sheets: 280 ms decelerate. Add to cart: the product thumbnail flies to the cart bar (320 ms) and the
+  count ticks. Order confirmed: a gold check is drawn (600 ms). Nothing loops, nothing auto-plays.
+  `prefers-reduced-motion` → cross-fades only.
+
+### 6.4 Components (guest app)
+
+| Component | Anatomy & behaviour |
+|---|---|
+| `HeroHeader` | Full-bleed photo (≈ 46 % of the viewport on mobile, never 100 vh), scrim, eyebrow (lodging), greeting in Marcellus, language + day/night switch top-right on a frosted pill. |
+| `StayCard` | `card` panel overlapping the hero by 48 px: dates (« 6 → 9 oct. »), status line from the server, a 3-segment night progress (« nuit 2 sur 3 »). |
+| `QuickTile` | 1:1 tile, `line` border, 4 px radius, lichen line icon, Karla 13 px label; pressed state darkens the border to `sapin` and scales 0.98. External tiles (Portail, Soliomap) carry a small ↗. |
+| `MomentCard` | The single highlight of rule 11: photo left, eyebrow + one sentence + one text button. Time-aware copy (« Ce soir », « Demain matin »). |
+| `PhotoCard` | Booklet / shop entry: photo with scrim, eyebrow + Marcellus title inside the photo, bottom-left. |
+| `ProductCard` | Square photo, title (Karla 600), price `figure` + unit (« 4,50 € · la bouteille »), a 44 px « + » button on the photo corner. Included / free states replace the price with a success soft chip « Inclus » / « 1 h offerte ». |
+| `ProductSheet` | Bottom sheet (`xs`) / centred dialog (`md+`): large photo, eyebrow, Marcellus title, description, stepper, full-width primary button carrying the server total (« AJOUTER · 12,00 € »). |
+| `SlotGrid` | Day chips (weekday + date), then 2-column slot buttons: time range, price or reason. States: free, evening (gold dot + « tarif soirée »), taken (struck, 40 % opacity), heating / staff (dashed border + reason), selected (sapin fill). |
+| `DeliveryTimeChips` | Horizontal chips grouped by day, first one « Dès que possible · 17 h 30 ». Out-of-hours banner above (warning soft). |
+| `CartBar` | Floating pill above the tab bar: count, « Voir le panier », server total; slides up on first add. |
+| `PaymentChoice` | Two large selectable cards with icon, title, one-line explanation; the selected one gets a sapin border and check. |
+| `NameConfirmSheet` | One field, autofocus, `autocomplete="family-name"`, explanation in one sentence, primary button + text button « Payer par carte plutôt ». |
+| `OrderTimeline` | Status as a vertical 3-step line: Reçue → En préparation → Livrée (or Payée / Sur votre note), times in `figure`. |
+| `TabBar` / `NavRail` | 4 entries max (rule 11bis decides which); active = filled icon + sapin label + 2 px ocre bar on top. |
+| `BlockRenderer` | One renderer per booklet block; `steps` as a vertical timeline with lichen numerals, `wifi` as a ticket with a perforated edge, `callout` as a soft panel with a left icon, `contact` as a row with « Appeler » / « WhatsApp » buttons, `place` with a static map tile + « Itinéraire ». |
+
+States, for every list: skeletons in the final layout (no spinner on a blank page), `EmptyState` with an
+illustration-free icon + one sentence + one action, `ErrorAlert` with « Réessayer », offline banner
+« Hors connexion — le livret reste disponible ».
+
+### 6.5 UX principles — what makes it feel effortless
+
+1. **Zero steps before value.** The QR opens straight on the guest's home — no splash, no login, no cookie
+   wall (the session cookie is strictly necessary). The only question the app ever asks is the last name,
+   and only to put an order on the bill (rule 33).
+2. **The home answers « what now? ».** Tiles are the stable map; the `MomentCard` is the one thing that
+   matters at this hour (arrival day → Portail; evening → bath; morning → breakfast delivery; eve of
+   departure → « Départ : les consignes »).
+3. **Thumb zone.** Primary actions sit in the bottom third: cart bar, sheet buttons, payment confirmation.
+   Nothing important in the top corners except language / night.
+4. **Show the real price before every commitment.** Each button that commits carries the server total
+   (« COMMANDER · 33,00 € »); free and included items say so in green before the guest asks.
+5. **Never a dead end.** Every refusal names the next step: slot taken → the next free slots; service
+   closed → « commandez pour demain 8 h 30 »; name mismatch → « Payer par carte plutôt »; offline → the
+   booklet still works.
+6. **One house.** Same eyebrow, same button, same night register as the site and the gate app; the gate
+   tile opens the gate app, Soliomap opens Soliomap — the guest app is the hall, not a copy of the rooms.
+7. **Readable anywhere.** 16 px body minimum, supports system text size up to 200 % without overlap,
+   contrast ≥ 4.5:1 in both registers, visible focus (2 px ocre ring, 2 px offset), every tile and price
+   labelled for screen readers (« 12 euros, plateau picodons, ajouter »), `lang` switched with the content.
+
+### 6.6 Screen by screen
+
+- **Home** — hero (46 %), `StayCard`, tiles grid (3 × 2 on phone, 6 in a row on desktop), `MomentCard`,
+  « Le livret » photo strip, « Commandes en cours » row if any.
+- **Booklet index** — search field (sticky), then `PhotoCard`s in one column (phone) / 2 (tablet) / 3
+  (desktop); a shared page is indistinguishable from a lodging one.
+- **Booklet page** — cover photo with title inside, then blocks with 24 px rhythm; « Page suivante » card at
+  the bottom (no dead end); offline-cached badge discreet in the footer.
+- **Shop** — page title « LA BOUTIQUE », sticky category chips, a featured `PhotoCard` for the bath when it
+  is sold here, then a 2-column `ProductCard` grid (3 on tablet, 4 on desktop). Service banner on top when
+  closed. `CartBar` floats.
+- **Bath** — eyebrow « BIEN-ÊTRE », title, free-time chip (« 1 h offerte · déjà utilisée lundi »), day
+  chips, `SlotGrid`, sticky button with the server price of the selection.
+- **Cart** — lines with thumbnails and steppers, delivery chips (if any staff item), total, `PaymentChoice`,
+  one primary button whose label follows the choice (« PAYER 33,00 € » / « AJOUTER À MA NOTE »).
+- **Confirmation** — gold check drawn, « Commande envoyée », one-sentence promise built by the server
+  (« Livrée vers 18 h à L'Estiva », « Le bain sera chaud à 20 h »), `OrderTimeline`, « Retour à
+  l'accueil ».
+- **Orders** — current orders first with `OrderTimeline`, then past ones collapsed.
+- **Lookup** (`/retrouver`) — night-register hero photo, two fields, one button; the same calm error.
+
+**Responsive:**
+- `xs` (≤ 600): bottom tab bar, single column, bottom sheets, cart bar floating, hero 46 % of the viewport.
+- `md` (~900): navigation rail left (72 px), booklet two-pane (index 320 px | page), shop two-pane (catalogue
+  | cart panel always visible — no cart bar), sheets become centred dialogs (max 560 px).
+- `lg` (≥ 1200): content max 1200 px centred, hero 420 px high with the greeting at 44 px, tiles 6 in a row,
+  booklet 3 columns.
+
+**GuestFlow option / resource editors (plugin contribution, « Maison »):** while `guest-app` is active, a
+section « Application clients » appears at the bottom of the editor: switch « Vendu dans l'app », and when
+on: photo, short description FR/EN, « Préparé par l'équipe » + « Délai de préparation (min) », « Quantité
+max. par commande ». Plugin inactive → the section does not exist.
+
+**PageActionBar:** applies to the GuestFlow admin page *Commandes app* (title « Commandes app », action
+« Actualiser » `RefreshIcon` info) and to the studio pages (editor: Save « Enregistrer le brouillon »,
+Cancel, `actionsBefore` « Aperçu » and « Publier » success, `actionsAfter` « Supprimer la page » error).
+The **guest app does not use `PageActionBar`**: it is not a GuestFlow back-office page, and its app bar +
+tab bar is the guest-facing pattern (deliberate exception to CLAUDE.md §7, accepted 2026-11-04).
+
+Copy (FR; EN in `en.json`): « Bonjour {prénom} », « Votre séjour », « Le livret », « La boutique »,
+« Ajouter », « Voir le panier », « Quand souhaitez-vous la recevoir ? », « Dès que possible », « Inclus »,
+« 1 h offerte avec votre séjour », « Le service reprend demain à 8 h », « Payer maintenant », « Ajouter à
+ma note », « Pour mettre cette commande sur votre note, confirmez votre nom de famille », « Commande
+envoyée », « Hors connexion — le livret reste disponible », « Nous n'avons pas trouvé ce séjour. Vérifiez
+le nom et le numéro. »
+
+## 7. Test plan
+
+### Server unit tests (one file per subject)
+- [x] `plugins/guest-app/tests/guest-app-current-stay.unit.test.js` — rules 2, 3, 5, 6, 9 (window edges,
+  changeover, cancelled, pre-arrival J-7)
+- [x] `…/guest-app-name-match.unit.test.js` — rule 7 (accents, hyphens, second name, empty)
+- [x] `…/guest-app-sessions.unit.test.js` — rules 1, 4, 6, 8, lookup throttling, generic errors, payload
+  minimisation
+- [ ] `…/guest-app-booklet.unit.test.js` — rules 16, 17, 19, 20: each lodging resolves only its own
+  placements in its own order, shared page edited once appears in both, restricted block filtered,
+  duplicate diverges, per-lodging publish, draft vs published
+- [x] `…/guest-app-lodging-config.unit.test.js` — rules 11bis-11quater: module off → absent from `/me` and
+  404 `MODULE_OFF` on its endpoints, prerequisites, wifi off → no tile / no wifi block, wifi password
+  encrypted at rest, lodging disabled → no QR and lookup refused, new property starts off
+- [x] `…/guest-app-plugin-gating.unit.test.js` — rule 22: plugin inactive → 404 `PLUGIN_INACTIVE`, items
+  rows kept, no core column touched
+- [ ] `…/guest-app-sellable.unit.test.js` — rules 23, 25: per price type, archived, lodging scope, 0 € in
+  one lodging and paid in the other, free units (direct only) and free minutes left after existing lines,
+  offered-by-default already on the stay
+- [ ] `…/guest-app-shop-quote.unit.test.js` — rules 24, 32, 37: quote equals the fiche's pricing engine for
+  the same lines, limits
+- [ ] `plugins/hourly-resources/tests/guest-app-slots.unit.test.js` — rules 28-31: guest sessions of other
+  stays, outside bookings, held orders, turnover, capacity, heat-up / retention, closed days, evening rate,
+  multi-slot order, ignition outside service hours → `staff`, warm slot not constrained
+- [ ] `…/guest-app-service-hours.unit.test.js` — rules 39-42: weekly ranges, exceptions, establishment
+  closures, lead time, next opening, last delivery before check-out
+- [ ] `…/guest-app-order-note.unit.test.js` — rules 33-34: name only for the note, lock, 0 € order without
+  name, lines + sessions land on the fiche and in `endOfStayComplementDetail`, quantities merge
+- [ ] `…/guest-app-order-card.unit.test.js` — rules 35-36: complement link, paid → lines + payment, holds,
+  expiry releases slots, late payment conflict
+- [ ] `tests/payment-complement-link.unit.test.js` — `ensurePaymentLink` / `applyPaidEffect` complement
+  branch, refusal without basket
+- [ ] `…/guest-app-gate.unit.test.js` — rules 12-14, no URL outside the window
+- [x] `…/guest-app-home.unit.test.js` — rules 10-11
+
+### Manual UI verification
+- [ ] Happy path mobile (390 px): scan QR → home → order 2 drinks for 18 h + 1 h bath → note with name → push
+  received → bath session visible on Calendrier › Ressources and its ignition card, order card on the
+  planning → line on the fiche → collected at the departure SAS.
+- [ ] Card path: Qonto sandbox payment → return page → order paid → fiche shows paid lines, end-of-stay
+  complement unchanged.
+- [ ] Free per lodging: same resource free at La Granja, paid at L'Estiva → each shop shows its own price;
+  free hour used at the arrival SAS → app shows « déjà utilisée ».
+- [ ] Out of service hours (e.g. 22:00): banner, drinks orderable for tomorrow 8 h + lead time; cold-bath
+  slot whose ignition falls at night shown « équipe absente ».
+- [ ] Plugin deactivated → switch gone from the option / resource editors, guest app answers « indisponible »;
+  reactivated → flags back.
+- [ ] Edge: wrong name × 3 → note locked, card still possible; slot taken from the fiche between quote and
+  order.
+- [ ] Visitor mode (no stay) and pre-arrival lookup; offline booklet in airplane mode.
+- [ ] Tablet (900 px) two-pane layouts; desktop (1280 px); dark mode; EN.
+- [ ] Per lodging: wifi off at one lodging → no wifi tile, wifi block replaced by « Pas de wifi »; shop off at
+  one lodging → no Boutique tab; booklet of La Granja and L'Estiva differ (own pages, shared page edited
+  once shows in both).
+- [ ] Studio: create page, add each block type, preview, publish, service hours, regenerate QR (old QR no
+  longer resolves).
+- [ ] Regression: website booking tunnel prices unchanged; mid-stay extras from the fiche unchanged; arrival
+  SAS bath picker unchanged.
+
+## 8. Out of scope
+
+- Late check-out / early check-in purchase (auto timed options) — next iteration.
+- Guest-side cancellation or refund of an order (operator refunds by hand).
+- Guest push notifications, chat / messaging with the operator.
+- Online check-in, ID upload, police forms.
+- Any gate screen in the guest app — the existing gate app (Sowel key link) is opened as is; Portier
+  (`feature/guest-gate-access`) is not used.
+- Any change to Soliomap itself.
+- Selling to people without a stay (day visitors of the nordic bath).
+- Native store apps.
+
+## 9. Open questions
+
+- **Q1 — Booklet content.** Can you share the paper booklet (photos or PDF)? It seeds the default pages
+  and blocks (rule 16).
+- **Q2 — Guest host name.** `sejour.domainesolio.com`? `app.domainesolio.com`? (needs a DNS record + the
+  reverse proxy route to GuestFlow).
+- **Q3 — App name.** « Domaine Solio » with « Mon séjour » as subtitle? One app for both lodgings, branded
+  per lodging inside (hero, name).
+- **Q8 — Soliomap framing.** Does `soliomap.domainesolio.com` allow being framed by the guest host
+  (`frame-ancestors`)? Can it read `?lang=&lodging=`?
+- **Q9 — What is sold at launch.** Which catalogue items get « Vendu dans l'app » first, and which are
+  « Préparé par l'équipe » (drinks list, local products, bath extra hour, breakfast, firewood…)? And the
+  service hours to start with.
+
+### Resolved (2026-11-04)
+
+- **Identification** — lodging QR + current stay; fallback last name + reservation number. The name is
+  asked **only** when the guest puts an order on the end-of-stay bill (rules 1-9, 33).
+- **Payment** — the guest chooses card (Qonto `complement` link) or end-of-stay bill (rules 33-36).
+- **Hosting** — served by GuestFlow, plugin `guest-app`, `/public/v1/guest/**` with a per-stay session; the
+  catalogue projections are those of the website-booking API on `inte/plugins` (rules 4, 24).
+- **Gate** — the gate app already exists: the tile opens the stay's Sowel key link, no gate screen is built
+  (rules 12-14). The residual risk (an old QR photo shows the tile during a later stay) is accepted: the
+  link is per stay and window-bound.
+- **Soliomap** — existing app at `soliomap.domainesolio.com`, opened from a tile (rule 15).
+- **Booklet editing** — a dedicated web app (« Studio du livret », `/studio`, GuestFlow account) (rules
+  47-50).
+- **Staff notification** — admin push channel « Commandes clients » (rule 44).
+- **Plugin-only** — the whole feature is a plugin; the « Vendu dans l'app » switch exists only while it is
+  installed and active (rule 22).
+- **Per-lodging free items and the bath planning** — prices, free units / minutes and included options are
+  read per lodging from GuestFlow; hourly availability comes from the GuestFlow resource planning through
+  the `hourly-resources` plugin (rules 25, 28-31).
+- **Service hours** — staff-prepared items follow configurable service hours; outside them the guest orders
+  for later by picking a delivery time (rules 39-43).
+- **Per-lodging configuration** — what the app shows (modules, wifi and other lodging facts) and the booklet
+  are configured per lodging; common content can be shared without being copied (rules 11bis-11quater,
+  16-17, 48).
+- **Visual identity (Q6)** — the guest app wears the Domaine Solio charter of the site and the gate app
+  (Marcellus + Karla, sapin / ocre / paper, square buttons, night register); the studio and the admin page
+  stay GuestFlow « Maison »; both share the semantic colours and formats (§6.0-§6.3).
+- **Accepted as proposed** — PageActionBar exception for the guest app (§6); 30-min card link lifetime
+  (rule 35).

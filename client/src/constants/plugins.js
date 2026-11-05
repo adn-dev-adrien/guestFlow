@@ -20,11 +20,12 @@ export const GITES_DE_FRANCE_INTAKE = 'gites-de-france-intake';
 export const BOOKING_INTAKE = 'booking-intake';
 export const AIRBNB_INTAKE = 'airbnb-intake';
 export const GOOGLE_VACATION_RENTALS = 'google-vacation-rentals';
+export const GUEST_APP = 'guest-app';
 
 export const PLUGIN_IDS = Object.freeze([
   HOURLY_RESOURCES, LINEN, WEBSITE_BOOKING, GATE_ACCESS, NEAT, ONLINE_PAYMENT,
   GOOGLE_CALENDAR, ACCOUNTING_EXPORT, SAS, TARIFF_RECIPES, SCHOOL_HOLIDAYS, WEATHER_ALERTS,
-  GITES_DE_FRANCE_INTAKE, BOOKING_INTAKE, AIRBNB_INTAKE, GOOGLE_VACATION_RENTALS,
+  GITES_DE_FRANCE_INTAKE, BOOKING_INTAKE, AIRBNB_INTAKE, GOOGLE_VACATION_RENTALS, GUEST_APP,
 ]);
 
 // The pages plugin modules contribute, with the roles that may open them (rule 15). Read live:

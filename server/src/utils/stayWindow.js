@@ -1,5 +1,6 @@
 /**
- * The validity window of a guest gate key (specs/gate-access-sowel-connector.md §3.1 rule 4).
+ * The window of a stay, shared by the gate keys and the guest app so both read one helper
+ * (specs/gate-access-sowel-connector.md §3.1 rule 4; specs/guest-app.md rule 2).
  *
  *   start = startDate + checkInTime  − 3 h   (the check-in time is the planned arrival; a guest
  *                                              early by a few hours is let in — contract v2, 2026-09-27)
@@ -138,5 +139,6 @@ module.exports = {
   DEFAULT_CHECK_OUT,
   computeWindow,
   toParisIso,
+  wallClockToDate,
   __test: { wallClockToDate, zoneOffsetMs },
 };

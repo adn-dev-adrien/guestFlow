@@ -1,7 +1,12 @@
 const test = require('node:test');
+const { mock } = test;
 const assert = require('node:assert/strict');
 
-const { computeWindow, __test } = require('../window');
+const { computeWindow, __test } = require('../utils/stayWindow');
+
+// Moved from gate-access with its assertions unchanged (specs/guest-app.md rule 2). Every date below is
+// an input of a pure function: the pin only states that for the literal-date check.
+mock.timers.enable({ apis: ['Date'], now: Date.UTC(2026, 8, 1) });
 const { wallClockToDate } = __test;
 
 // specs/gate-access-sowel-connector.md §3.1 rule 4. Every assertion below is written in UTC instants on

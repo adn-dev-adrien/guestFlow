@@ -1,0 +1,20 @@
+{
+  "id": "guest-app",
+  "name": "Application clients",
+  "version": "1.0.0",
+  "description": "L’application « Mon séjour » de vos clients : livret d’accueil, portail, Soliomap et boutique du séjour.",
+  "icon": "door",
+  "surfaces": [
+    "Intégrations › Application clients",
+    "La notification push « Commandes clients »",
+    "L’API publique de l’application clients"
+  ],
+  "requires": [],
+  "guestflow": ">=3.10.0 <4.0.0",
+  "sdk": "^2.22.0",
+  "changelog": {
+    "1.0.0": [
+      "Première version : réglages par logement, code QR de chaque logement, sessions de séjour et page d’accueil côté serveur. Aucun écran client pour l’instant."
+    ]
+  }
+}

@@ -1,0 +1,697 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mon séjour — Domaine Solio</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Karla:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Marcellus&family=Inter:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,600&display=swap" rel="stylesheet">
+<style>
+/* Layout: an editorial board on estate paper — charter, then a working phone beside its rationale,
+   then the key screens in day and night, larger screens, and the operator studio (GuestFlow « Maison »). */
+:root{
+  --paper:#F5F0E6; --card:#FDFAF3; --ink:#22271F; --ink-soft:#5C6153; --sapin:#2E3B2A; --lichen:#5A6B48;
+  --ocre:#B87B2A; --ocre-ink:#8A5816; --action:#9A6318; --on-action:#FFFFFF; --line:#DCD4C2;
+  --chip:#EDE5D4; --frame:#151A14; --float:0 12px 32px rgba(22,28,22,.22);
+  --ok:#2F6A43; --ok-soft:#E6EFE7; --warn:#7A5A17; --warn-soft:#F6EDD7; --bad:#A8433A; --bad-soft:#F7E8E5;
+  --m-bg:#F8F5EF; --m-paper:#FFFFFF; --m-ink:#27251F; --m-muted:#6E6A5E; --m-primary:#2F5D46;
+  --m-primary-soft:#E3ECE6; --m-honey:#C99038; --m-line:rgba(60,54,36,.12); --m-success:#3E7D54; --m-error:#A8433A; --m-warn:#8F6A1D;
+  --display:'Marcellus',Georgia,'Times New Roman',serif; --body:'Karla',Helvetica,Arial,sans-serif;
+  --m-serif:'Source Serif 4',Georgia,serif; --m-sans:'Inter',system-ui,sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#161C16; --card:#1F261E; --ink:#EFE8D6; --ink-soft:#A9AE9C; --sapin:#EFE8D6; --lichen:#9DB087;
+    --ocre:#E8C286; --ocre-ink:#E8C286; --action:#E8C286; --on-action:#161C16; --line:#2E362C;
+    --chip:#273026; --frame:#050705; --float:0 12px 32px rgba(0,0,0,.5);
+    --ok:#8FCB9F; --ok-soft:#1E3324; --warn:#E8C286; --warn-soft:#3A2F17; --bad:#F0A39B; --bad-soft:#3A1F1C;
+    --m-bg:#141513; --m-paper:#1E201C; --m-ink:#ECE8DF; --m-muted:#A39E92; --m-primary:#7FB596;
+    --m-primary-soft:#22362B; --m-honey:#D9A85A; --m-line:rgba(236,232,223,.12); --m-success:#7FC195; --m-error:#F0A39B; --m-warn:#E3C27A;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#161C16; --card:#1F261E; --ink:#EFE8D6; --ink-soft:#A9AE9C; --sapin:#EFE8D6; --lichen:#9DB087;
+  --ocre:#E8C286; --ocre-ink:#E8C286; --action:#E8C286; --on-action:#161C16; --line:#2E362C;
+  --chip:#273026; --frame:#050705; --float:0 12px 32px rgba(0,0,0,.5);
+  --ok:#8FCB9F; --ok-soft:#1E3324; --warn:#E8C286; --warn-soft:#3A2F17; --bad:#F0A39B; --bad-soft:#3A1F1C;
+  --m-bg:#141513; --m-paper:#1E201C; --m-ink:#ECE8DF; --m-muted:#A39E92; --m-primary:#7FB596;
+  --m-primary-soft:#22362B; --m-honey:#D9A85A; --m-line:rgba(236,232,223,.12); --m-success:#7FC195; --m-error:#F0A39B; --m-warn:#E3C27A;
+  color-scheme:dark;
+}
+.night{
+  --paper:#161C16; --card:#1F261E; --ink:#EFE8D6; --ink-soft:#A9AE9C; --sapin:#EFE8D6; --lichen:#9DB087;
+  --ocre:#E8C286; --ocre-ink:#E8C286; --action:#E8C286; --on-action:#161C16; --line:#2E362C; --chip:#273026;
+  --ok:#8FCB9F; --ok-soft:#1E3324; --warn:#E8C286; --warn-soft:#3A2F17;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.55 var(--body)}
+.wrap{max-width:1240px;margin:0 auto;padding-block:40px 96px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.eyebrow{font:700 11.5px/1.2 var(--body);text-transform:uppercase;letter-spacing:.32em;color:var(--ocre-ink);margin:0}
+h1,h2,h3{font-family:var(--display);font-weight:400;color:var(--sapin);text-wrap:balance;margin:0}
+.doc-h1{font-size:clamp(2rem,5vw,3.2rem);text-transform:uppercase;letter-spacing:.06em;line-height:1.08;margin:10px 0 14px}
+.lead{max-width:66ch;color:var(--ink-soft);font-size:1.06rem;margin:0}
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:999px;padding:3px;background:var(--card)}
+.seg button{border:0;background:transparent;color:var(--ink-soft);font:700 11px var(--body);letter-spacing:.14em;text-transform:uppercase;padding:8px 14px;border-radius:999px;cursor:pointer;min-height:36px}
+.seg button[aria-pressed="true"]{background:var(--sapin);color:var(--paper)}
+section.block{margin-top:72px;display:grid;gap:18px}
+section.block>header{display:grid;gap:8px;max-width:780px}
+section.block h2{font-size:clamp(1.4rem,3vw,1.9rem);text-transform:uppercase;letter-spacing:.05em}
+section.block>header p{margin:0;color:var(--ink-soft)}
+button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--ocre);outline-offset:2px}
+code{font:500 .9em ui-monospace,Menlo,monospace}
+
+.board{display:grid;grid-template-columns:repeat(12,1fr);gap:16px}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:4px;padding:20px;min-width:0}
+.sw-grid{grid-column:span 7;display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px}
+.sw{border:1px solid var(--line);border-radius:4px;overflow:hidden;background:var(--paper)}
+.sw i{display:block;height:64px}
+.sw div{padding:8px 10px;font-size:12px;line-height:1.35}
+.sw b{display:block;font-weight:700;font-size:12.5px}
+.sw code{font-size:11px;color:var(--ink-soft)}
+.type-p{grid-column:span 5;display:grid;gap:14px}
+.spec-row{display:grid;gap:4px;padding-bottom:12px;border-bottom:1px solid var(--line)}
+.spec-row:last-child{border:0;padding:0}
+.spec-row small{font:500 11px ui-monospace,Menlo,monospace;color:var(--ink-soft)}
+.parts{grid-column:span 12;display:flex;flex-wrap:wrap;gap:22px;align-items:center}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 22px;border-radius:2px;border:1px solid transparent;font:700 13px/1 var(--body);letter-spacing:.16em;text-transform:uppercase;cursor:pointer;background:var(--action);color:var(--on-action);white-space:nowrap;text-decoration:none}
+.btn.ghost{background:transparent;color:var(--sapin);border-color:var(--sapin)}
+.btn.text{background:transparent;color:var(--ocre-ink);padding:0 6px;letter-spacing:.1em}
+.btn.block{width:100%}
+.chip{display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:0 14px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--ink);font:600 13px var(--body);white-space:nowrap;cursor:pointer;flex:none}
+.chip.on{background:var(--sapin);border-color:var(--sapin);color:var(--paper)}
+.state{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;font:700 11.5px var(--body)}
+.state.ok{background:var(--ok-soft);color:var(--ok)} .state.warn{background:var(--warn-soft);color:var(--warn)} .state.bad{background:var(--bad-soft);color:var(--bad)}
+.icons{display:flex;gap:12px;color:var(--lichen)}
+.icons svg{width:24px;height:24px}
+
+.ph{position:relative;background-color:#2b2a1f;overflow:hidden}
+.ph.scrim::after{content:"";position:absolute;inset:0;background:linear-gradient(to top,rgba(10,14,10,.78) 0%,rgba(10,14,10,.24) 48%,rgba(10,14,10,.12) 100%);pointer-events:none}
+.p-granja{background:radial-gradient(60% 40% at 78% 22%,#FFE2A6 0,#F0B867 22%,transparent 55%),linear-gradient(180deg,#E9A964 0%,#B76E3B 34%,#5C4A2E 58%,#26301F 78%,#151B12 100%)}
+.p-estiva{background:radial-gradient(70% 45% at 25% 18%,#F7E3B8 0,#D9B47A 25%,transparent 60%),linear-gradient(180deg,#B9C7B4 0%,#7E9A7C 30%,#3F5A40 58%,#1D2B1D 100%)}
+.p-bath{background:radial-gradient(40% 30% at 50% 58%,rgba(255,240,214,.9) 0,rgba(255,220,170,.35) 40%,transparent 70%),radial-gradient(80% 50% at 50% 100%,#3B2A1C 0,#1A1610 70%),linear-gradient(180deg,#5B4634,#1A1610)}
+.p-forest{background:radial-gradient(50% 30% at 60% 20%,#F2D79B 0,transparent 60%),linear-gradient(170deg,#A9B98E 0%,#5F7A4E 40%,#2C3D25 75%,#162013 100%)}
+.p-house{background:linear-gradient(160deg,#E8D9BE 0%,#C2A57C 45%,#7C6243 80%,#4A3A28 100%)}
+.p-night{background:radial-gradient(1px 1px at 20% 30%,#fff 50%,transparent 51%),radial-gradient(1px 1px at 70% 20%,#fff 50%,transparent 51%),radial-gradient(1.5px 1.5px at 40% 12%,#fff 50%,transparent 51%),radial-gradient(1px 1px at 85% 42%,#fff 50%,transparent 51%),radial-gradient(1px 1px at 12% 60%,#fff 50%,transparent 51%),radial-gradient(1.2px 1.2px at 55% 38%,#E8C286 50%,transparent 51%),radial-gradient(1px 1px at 30% 48%,#fff 50%,transparent 51%),linear-gradient(180deg,#0B1020 0%,#16213A 45%,#1C2418 80%,#0D110C 100%)}
+.p-cider{background:radial-gradient(35% 45% at 50% 55%,#F7D886 0,#D79A35 45%,transparent 75%),linear-gradient(160deg,#C9A574,#7C5A33)}
+.p-wine{background:radial-gradient(30% 50% at 50% 55%,#8A2638 0,#4D1220 55%,transparent 80%),linear-gradient(160deg,#B99572,#6B4E33)}
+.p-cheese{background:radial-gradient(45% 35% at 50% 55%,#FFF4D6 0,#EBCB86 50%,transparent 80%),linear-gradient(160deg,#B48A5C,#6E5136)}
+.p-wood{background:repeating-linear-gradient(100deg,#8E6440 0 10px,#6E4A2C 10px 18px,#A87A4F 18px 26px),#6E4A2C}
+.p-bread{background:radial-gradient(45% 35% at 50% 55%,#E9B874 0,#B97A3A 55%,transparent 85%),linear-gradient(160deg,#D8C3A2,#8C6E4C)}
+.p-honey{background:radial-gradient(30% 45% at 50% 55%,#F6C452 0,#C98A16 55%,transparent 85%),linear-gradient(160deg,#D8C3A2,#8C6E4C)}
+
+.phone{width:min(320px,100%);aspect-ratio:320/660;border-radius:46px;background:var(--frame);padding:10px;box-shadow:0 30px 60px rgba(22,28,22,.28);flex:none}
+.screen{position:relative;height:100%;border-radius:37px;overflow:hidden;background:var(--paper);color:var(--ink);font-size:15px;isolation:isolate}
+.island{position:absolute;top:9px;left:50%;transform:translateX(-50%);width:92px;height:26px;border-radius:20px;background:#000;z-index:40}
+.sbar{position:absolute;top:0;left:0;right:0;height:44px;display:flex;justify-content:space-between;align-items:center;padding:0 26px;font:700 12px var(--body);z-index:35;color:var(--ink);pointer-events:none}
+.sbar.light{color:#fff}
+.view{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;padding-bottom:150px;scrollbar-width:none;animation:rise .22s ease-out}
+.view::-webkit-scrollbar{display:none}
+@keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+.hero{height:300px;color:#F7F2E6;display:flex;align-items:flex-end}
+.hero-in{position:relative;z-index:2;padding:0 20px 64px;display:grid;gap:4px}
+.hero-in .eyebrow{color:#E8C286}
+.hero-in h3{font-family:var(--display);font-size:33px;line-height:1.05;color:#FBF7EC;text-shadow:0 2px 24px rgba(0,0,0,.4)}
+.hero-top{position:absolute;top:46px;left:16px;right:16px;display:flex;justify-content:space-between;align-items:center;z-index:3}
+.brand{font:400 13px var(--display);letter-spacing:.2em;text-transform:uppercase;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.45)}
+.pill{display:flex;gap:2px;padding:3px;border-radius:999px;background:rgba(20,24,18,.35);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.pill span{font:700 10px var(--body);letter-spacing:.12em;color:#F7F2E6;padding:5px 8px;border-radius:999px;display:flex;align-items:center}
+.pill span.on{background:rgba(247,242,230,.22)}
+.pill svg{width:11px;height:11px}
+.stay{position:relative;z-index:4;margin:-46px 14px 0;background:var(--card);border:1px solid var(--line);border-radius:4px;padding:14px 16px;display:grid;gap:8px;box-shadow:var(--float)}
+.stay-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.stay b{font:700 17px var(--body);font-variant-numeric:tabular-nums}
+.stay span{font-size:12.5px;color:var(--ink-soft)}
+.nights{display:grid;grid-template-columns:repeat(3,1fr);gap:4px}
+.nights i{height:3px;border-radius:2px;background:var(--line)}
+.nights i.full{background:var(--ocre)}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:16px 14px 4px}
+.tile{position:relative;aspect-ratio:1;border:1px solid var(--line);border-radius:4px;background:var(--card);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;font:600 12.5px var(--body);color:var(--ink);cursor:pointer;transition:transform .12s,border-color .12s;padding:4px;text-align:center}
+.tile:active{transform:scale(.98);border-color:var(--sapin)}
+.tile svg{width:26px;height:26px;color:var(--lichen)}
+.tile svg.ext{position:absolute;top:6px;right:7px;width:12px;height:12px;color:var(--ink-soft)}
+.moment{margin:12px 14px 0;display:grid;grid-template-columns:84px 1fr;border:1px solid var(--line);border-radius:4px;overflow:hidden;background:var(--card);cursor:pointer}
+.moment .ph{min-height:96px}
+.moment .t{padding:11px 12px;display:grid;gap:3px;align-content:center}
+.moment b{font:400 16px/1.2 var(--display);color:var(--sapin)}
+.moment span{font-size:12.5px;color:var(--ink-soft)}
+.row-h{display:flex;justify-content:space-between;align-items:baseline;padding:20px 16px 8px}
+.row-h h4{font:400 18px var(--display);color:var(--sapin);margin:0}
+.row-h a{font:700 10.5px var(--body);letter-spacing:.14em;text-transform:uppercase;color:var(--ocre-ink);text-decoration:none;cursor:pointer}
+.strip{display:flex;gap:10px;padding:0 14px;overflow:hidden}
+.pcard{position:relative;flex:none;width:132px;height:170px;border-radius:4px;color:#fff;cursor:pointer}
+.pcard .lbl{position:absolute;left:10px;right:10px;bottom:10px;z-index:2;display:grid;gap:2px}
+.pcard .lbl small{font:700 9.5px var(--body);letter-spacing:.26em;text-transform:uppercase;color:#E8C286}
+.pcard .lbl b{font:400 15px/1.15 var(--display);color:#FBF7EC}
+
+.tabbar{position:absolute;left:0;right:0;bottom:0;height:78px;padding:8px 8px 22px;display:grid;grid-template-columns:repeat(4,1fr);background:color-mix(in srgb,var(--card) 94%,transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-top:1px solid var(--line);z-index:30}
+.tab{position:relative;display:flex;flex-direction:column;align-items:center;gap:4px;font:600 10.5px var(--body);color:var(--ink-soft);background:none;border:0;cursor:pointer;padding-top:6px}
+.tab svg{width:22px;height:22px}
+.tab.on{color:var(--sapin)}
+.tab.on::before{content:"";position:absolute;top:-9px;width:22px;height:2px;background:var(--ocre)}
+.tab .n{position:absolute;top:0;right:calc(50% - 22px);min-width:17px;height:17px;padding:0 4px;border-radius:999px;background:var(--action);color:var(--on-action);font:700 10px/17px var(--body);text-align:center}
+
+.appbar{position:sticky;top:0;z-index:20;padding:48px 16px 12px;background:var(--paper);display:flex;align-items:center;gap:10px}
+.back{width:40px;height:40px;border-radius:2px;border:1px solid var(--line);background:var(--card);display:grid;place-items:center;color:var(--sapin);cursor:pointer;flex:none}
+.back svg{width:18px;height:18px}
+.appbar .ttl{display:grid;gap:2px;min-width:0}
+.appbar h3{font-size:20px;text-transform:uppercase;letter-spacing:.06em;line-height:1.1}
+.pad{padding:0 16px;display:grid;grid-template-columns:minmax(0,1fr);gap:12px}
+.pad>*{min-width:0}
+.chips{display:flex;gap:8px;overflow-x:auto;padding:2px 16px 4px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.feature{height:150px;border-radius:4px;color:#fff;cursor:pointer;display:flex;align-items:flex-end}
+.feature .in{position:relative;z-index:2;padding:14px;display:grid;gap:6px;justify-items:start}
+.feature .eyebrow{color:#E8C286}
+.feature b{font:400 21px/1.15 var(--display);color:#FBF7EC;max-width:200px}
+.feature .go{font:700 10.5px var(--body);letter-spacing:.16em;text-transform:uppercase;padding:8px 12px;border-radius:2px;background:#F7F2E6;color:#22271F}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.prod{border:1px solid var(--line);border-radius:4px;overflow:hidden;background:var(--card);cursor:pointer;display:grid}
+.prod .ph{aspect-ratio:1}
+.prod .add{position:absolute;right:8px;bottom:8px;width:40px;height:40px;border-radius:2px;background:var(--card);color:var(--sapin);display:grid;place-items:center;border:0;z-index:2;box-shadow:0 2px 8px rgba(0,0,0,.25);cursor:pointer}
+.prod .add svg{width:18px;height:18px}
+.prod .t{padding:10px 11px 12px;display:grid;gap:4px}
+.prod .t b{font:600 14px/1.25 var(--body)}
+.price{font:700 13.5px var(--body);font-variant-numeric:tabular-nums;color:var(--ink)}
+.price small{font-weight:500;color:var(--ink-soft)}
+.banner{border-radius:4px;padding:11px 12px;font-size:13px;display:flex;gap:10px;align-items:flex-start;line-height:1.4}
+.banner svg{width:18px;height:18px;flex:none;margin-top:1px}
+.banner.warn{background:var(--warn-soft);color:var(--warn)}
+.banner.ok{background:var(--ok-soft);color:var(--ok)}
+.cartbar{position:absolute;left:12px;right:12px;bottom:88px;z-index:31;min-height:54px;border-radius:999px;background:var(--action);color:var(--on-action);display:flex;align-items:center;gap:12px;padding:0 8px;box-shadow:var(--float);border:0;cursor:pointer;font:inherit;animation:up .28s cubic-bezier(.2,.8,.2,1)}
+@keyframes up{from{transform:translateY(24px);opacity:0}to{transform:none;opacity:1}}
+.cartbar .n{width:38px;height:38px;border-radius:999px;background:color-mix(in srgb,var(--on-action) 18%,transparent);display:grid;place-items:center;font:700 14px var(--body)}
+.cartbar b{flex:1;text-align:left;font:700 12px var(--body);letter-spacing:.16em;text-transform:uppercase}
+.cartbar span{font:700 15px var(--body);font-variant-numeric:tabular-nums;padding-right:12px}
+.bump{animation:bump .32s ease}
+@keyframes bump{40%{transform:scale(1.04)}}
+
+.scrim-all{position:absolute;inset:0;background:rgba(10,12,9,.45);z-index:50;animation:fade .2s}
+@keyframes fade{from{opacity:0}}
+.sheet{position:absolute;left:0;right:0;bottom:0;z-index:51;background:var(--card);border-radius:16px 16px 0 0;padding:10px 18px 30px;display:grid;gap:12px;animation:sheet .28s cubic-bezier(.2,.8,.2,1);max-height:88%;overflow:auto}
+@keyframes sheet{from{transform:translateY(40%);opacity:.4}}
+.grab{width:40px;height:4px;border-radius:9px;background:var(--line);margin:0 auto 4px}
+.sheet .ph{height:170px;border-radius:4px}
+.sheet h4{font:400 23px/1.15 var(--display);color:var(--sapin);margin:0}
+.sheet p{margin:0;color:var(--ink-soft);font-size:14px}
+.stepper{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:2px}
+.stepper button{width:44px;height:44px;border:0;background:transparent;color:var(--sapin);font:600 20px var(--body);cursor:pointer}
+.stepper b{min-width:28px;text-align:center;font:700 16px var(--body);font-variant-numeric:tabular-nums}
+.field{display:grid;gap:4px}
+.field label{font:700 10.5px var(--body);letter-spacing:.18em;text-transform:uppercase;color:var(--ink-soft)}
+.field input{height:50px;border-radius:2px;border:1px solid var(--sapin);background:var(--paper);color:var(--ink);font:500 17px var(--body);padding:0 14px;width:100%}
+
+.days{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.day{border:1px solid var(--line);border-radius:4px;background:var(--card);padding:8px 4px;text-align:center;font:600 11px var(--body);color:var(--ink-soft);text-transform:uppercase;letter-spacing:.1em;cursor:pointer}
+.day b{display:block;font:400 22px var(--display);color:var(--sapin);letter-spacing:0}
+.day.on{background:var(--sapin);border-color:var(--sapin);color:var(--paper)}
+.day.on b{color:var(--paper)}
+.slots{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.slot{border:1px solid var(--line);border-radius:4px;background:var(--card);padding:10px 11px;text-align:left;display:grid;gap:2px;cursor:pointer;font:inherit;color:var(--ink);min-height:58px;align-content:center}
+.slot b{font:700 14px var(--body);font-variant-numeric:tabular-nums}
+.slot span{font-size:11.5px;color:var(--ink-soft)}
+.slot.eve span{color:var(--ocre-ink)}
+.slot.eve b::after{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--ocre);margin-left:6px;vertical-align:middle}
+.slot.taken{opacity:.42;cursor:default}
+.slot.taken b{text-decoration:line-through}
+.slot.staff{border-style:dashed;cursor:default}
+.slot.on{background:var(--sapin);border-color:var(--sapin);color:var(--paper)}
+.slot.on span{color:var(--paper);opacity:.85}
+
+.line{display:grid;grid-template-columns:52px 1fr auto;gap:12px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)}
+.line .ph{width:52px;height:52px;border-radius:4px}
+.line b{font:600 14px var(--body);display:block}
+.line span{font-size:12px;color:var(--ink-soft)}
+.total{display:flex;justify-content:space-between;align-items:baseline;padding:4px 0}
+.total span{font:700 11px var(--body);letter-spacing:.2em;text-transform:uppercase;color:var(--ink-soft)}
+.total b{font:700 22px var(--body);font-variant-numeric:tabular-nums}
+.paychoice{display:grid;gap:8px}
+.pc{display:grid;grid-template-columns:40px 1fr 22px;gap:12px;align-items:center;text-align:left;border:1px solid var(--line);border-radius:4px;padding:12px;background:var(--card);cursor:pointer;font:inherit;color:var(--ink)}
+.pc svg{width:22px;height:22px;color:var(--lichen)}
+.pc .ic{width:40px;height:40px;border-radius:2px;background:var(--chip);display:grid;place-items:center}
+.pc b{font:600 14.5px var(--body);display:block}
+.pc span{font-size:12.5px;color:var(--ink-soft)}
+.pc .rd{width:22px;height:22px;border-radius:50%;border:1.5px solid var(--line)}
+.pc.on{border-color:var(--sapin);box-shadow:inset 0 0 0 1px var(--sapin)}
+.pc.on .rd{border:6px solid var(--sapin)}
+.done{display:grid;justify-items:center;text-align:center;gap:10px;padding:76px 22px 0}
+.done svg.chk{width:96px;height:96px}
+.done svg.chk circle{stroke:var(--ocre);stroke-width:2;fill:none;stroke-dasharray:290;stroke-dashoffset:290;animation:draw .6s ease-out forwards}
+.done svg.chk path{stroke:var(--ocre);stroke-width:3;fill:none;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:60;stroke-dashoffset:60;animation:draw .35s .45s ease-out forwards}
+@keyframes draw{to{stroke-dashoffset:0}}
+.done h3{font-size:28px}
+.timeline{display:grid;width:100%;text-align:left;margin-top:8px;border:1px solid var(--line);border-radius:4px;background:var(--card);padding:14px 16px}
+.tl{display:grid;grid-template-columns:18px 1fr auto;gap:10px;align-items:start;position:relative;padding-bottom:14px}
+.tl:last-child{padding-bottom:0}
+.tl::before{content:"";position:absolute;left:8px;top:16px;bottom:-2px;width:2px;background:var(--line)}
+.tl:last-child::before{display:none}
+.tl i{width:18px;height:18px;border-radius:50%;border:2px solid var(--line);background:var(--card);margin-top:1px;z-index:1}
+.tl.ok i{background:var(--ocre);border-color:var(--ocre)}
+.tl b{font:600 14px var(--body)} .tl span{font-size:12px;color:var(--ink-soft);display:block}
+.tl time{font:700 12.5px var(--body);font-variant-numeric:tabular-nums;color:var(--ink-soft)}
+.cover{height:220px;display:flex;align-items:flex-end;color:#fff}
+.cover .in{position:relative;z-index:2;padding:0 18px 18px;display:grid;gap:4px}
+.cover .eyebrow{color:#E8C286}
+.cover h3{color:#FBF7EC;font-size:26px;text-transform:uppercase;letter-spacing:.05em}
+.wifi{position:relative;border:1px solid var(--line);border-radius:4px;background:var(--card);display:grid;grid-template-columns:1fr 64px;gap:12px;padding:14px 18px;align-items:center}
+.wifi::before,.wifi::after{content:"";position:absolute;top:50%;width:14px;height:14px;border-radius:50%;background:var(--paper);border:1px solid var(--line);transform:translateY(-50%)}
+.wifi::before{left:-8px} .wifi::after{right:-8px}
+.wifi small{display:block;font:700 10px var(--body);letter-spacing:.2em;text-transform:uppercase;color:var(--ink-soft)}
+.wifi b{font:700 16px var(--body);display:block;margin-bottom:6px}
+.qr{width:64px;height:64px;background:conic-gradient(from 90deg at 30% 30%,var(--ink) 0 25%,transparent 0 50%,var(--ink) 0 75%,transparent 0) 0 0/16px 16px;border:4px solid var(--card);outline:1px solid var(--line);opacity:.9}
+.steps{display:grid;gap:14px;padding-left:4px}
+.step{display:grid;grid-template-columns:28px 1fr;gap:12px;position:relative}
+.step::before{content:"";position:absolute;left:13px;top:30px;bottom:-12px;width:1px;background:var(--line)}
+.step:last-child::before{display:none}
+.step em{font:400 20px/28px var(--display);color:var(--ocre-ink);font-style:normal;text-align:center}
+.step b{font:600 14.5px var(--body);display:block}
+.step span{font-size:13px;color:var(--ink-soft)}
+.search{height:46px;border-radius:2px;border:1px solid var(--line);background:var(--card);display:flex;align-items:center;gap:10px;padding:0 14px;color:var(--ink-soft);font-size:14px}
+.search svg{width:18px;height:18px}
+.bk{height:150px;border-radius:4px;display:flex;align-items:flex-end;color:#fff;cursor:pointer}
+.bk .in{position:relative;z-index:2;padding:0 14px 12px;display:grid;gap:2px}
+.bk .in small{font:700 9.5px var(--body);letter-spacing:.26em;text-transform:uppercase;color:#E8C286}
+.bk .in b{font:400 20px var(--display);color:#FBF7EC;text-transform:uppercase;letter-spacing:.04em}
+
+.stage{display:grid;grid-template-columns:320px minmax(0,1fr);gap:40px;align-items:start}
+.stage .phone{width:320px;max-width:100%}
+.notes{display:grid;gap:16px;min-width:0;position:sticky;top:20px}
+.jump{display:flex;flex-wrap:wrap;gap:8px}
+.why{background:var(--card);border:1px solid var(--line);border-radius:4px;padding:20px 22px;display:grid;gap:10px}
+.why h3{font-size:22px}
+.why ul{margin:0;padding-left:18px;display:grid;gap:6px;color:var(--ink-soft)}
+.why li b{color:var(--ink)}
+.gallery{display:flex;flex-wrap:wrap;gap:28px}
+figure.g{margin:0;display:grid;gap:10px;justify-items:center;width:min(320px,100%);align-content:start}
+figure.g figcaption{font-size:13px;color:var(--ink-soft);text-align:center;max-width:300px}
+
+.tablet{width:100%;aspect-ratio:4/2.8;max-height:720px;border-radius:30px;background:var(--frame);padding:12px;box-shadow:0 30px 60px rgba(22,28,22,.28)}
+.tablet .screen{border-radius:20px;display:grid;grid-template-columns:72px 1fr;font-size:15px}
+.rail{border-right:1px solid var(--line);background:var(--card);display:flex;flex-direction:column;align-items:center;gap:22px;padding:22px 0}
+.rail .mono{font:400 18px var(--display);color:var(--sapin);letter-spacing:.1em}
+.rail div{display:flex;flex-direction:column;align-items:center;gap:4px;font:600 10px var(--body);color:var(--ink-soft)}
+.rail div.on{color:var(--sapin)}
+.rail svg{width:22px;height:22px}
+.tmain{display:grid;grid-template-rows:42% 1fr;min-height:0}
+.thero{display:flex;align-items:flex-end;color:#fff}
+.thero .in{position:relative;z-index:2;padding:0 28px 26px;display:grid;gap:6px}
+.thero .eyebrow{color:#E8C286}
+.thero h3{font-size:clamp(26px,4vw,44px);color:#FBF7EC}
+.tbody{display:grid;grid-template-columns:1.3fr 1fr;gap:18px;padding:18px 24px;min-height:0;overflow:hidden}
+.tbody .tiles{padding:0;grid-template-columns:repeat(3,1fr)}
+.tbody .tile{aspect-ratio:auto;min-height:84px}
+.cartpanel{border:1px solid var(--line);border-radius:4px;background:var(--card);padding:16px;display:grid;gap:4px;align-content:start;min-width:0}
+.cartpanel h4{font:400 19px var(--display);color:var(--sapin);margin:0 0 4px;text-transform:uppercase;letter-spacing:.05em}
+
+.studio{background:var(--m-paper);color:var(--m-ink);border:1px solid var(--m-line);border-radius:14px;overflow:hidden;font-family:var(--m-sans);font-size:14px;box-shadow:0 3px 16px rgba(60,54,36,.09)}
+.s-bar{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--m-line);flex-wrap:wrap}
+.s-bar h4{font:600 17px var(--m-serif);margin:0;flex:1;min-width:160px}
+.s-seg{display:inline-flex;background:var(--m-bg);border-radius:999px;padding:3px}
+.s-seg span{padding:6px 12px;border-radius:999px;font:600 12.5px var(--m-sans);color:var(--m-muted)}
+.s-seg span.on{background:var(--m-primary);color:var(--m-paper)}
+.ib{width:38px;height:38px;border-radius:10px;border:1px solid var(--m-line);display:grid;place-items:center;color:var(--m-muted)}
+.ib svg{width:18px;height:18px}
+.ib.save{background:var(--m-primary);border-color:var(--m-primary);color:var(--m-paper)}
+.ib.pub{border-color:var(--m-success);color:var(--m-success)}
+.ib.del{border-color:var(--m-error);color:var(--m-error)}
+.s-grid{display:grid;grid-template-columns:200px 1fr 250px;min-height:430px}
+.s-pages{border-right:1px solid var(--m-line);padding:12px;display:grid;gap:2px;align-content:start}
+.s-pages div{padding:8px 10px;border-radius:10px;color:var(--m-muted);display:flex;gap:8px;align-items:center}
+.s-pages div.on{background:var(--m-primary-soft);color:var(--m-primary);font-weight:600}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--m-success);flex:none}
+.dot.d{background:var(--m-honey)}
+.shared{margin-left:auto;font-size:11px;color:var(--m-primary)}
+.s-edit{background:var(--m-bg);padding:14px 16px;display:grid;gap:10px;align-content:start;min-width:0}
+.s-block{background:var(--m-paper);border:1px solid var(--m-line);border-radius:12px;padding:12px;display:grid;gap:8px}
+.s-block .h{display:flex;justify-content:space-between;font:600 11px var(--m-sans);text-transform:uppercase;letter-spacing:.06em;color:var(--m-muted)}
+.bi{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.bi div{border:1px solid var(--m-line);border-radius:10px;padding:8px;font-size:12.5px;min-height:44px;min-width:0}
+.bi small{display:block;color:var(--m-muted);font:600 10px var(--m-sans);margin-bottom:2px}
+.todo{color:var(--m-warn)}
+.palette{display:flex;flex-wrap:wrap;gap:6px}
+.palette span{font:600 11.5px var(--m-sans);padding:6px 10px;border-radius:999px;border:1px dashed var(--m-line);color:var(--m-muted);background:var(--m-paper)}
+.s-prev{border-left:1px solid var(--m-line);display:grid;place-items:center;padding:14px;background:var(--m-paper)}
+.mini{width:190px;aspect-ratio:190/390;border-radius:28px;background:var(--frame);padding:7px}
+.mini .screen{border-radius:22px;font-size:10px}
+.mini .view{zoom:.62}
+.s-mod{display:grid;grid-template-columns:20px 36px 1fr auto;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid var(--m-line)}
+.s-mod .g{color:var(--m-muted)}
+.s-mod .ic{width:36px;height:36px;border-radius:10px;background:var(--m-primary-soft);color:var(--m-primary);display:grid;place-items:center}
+.s-mod .ic svg{width:18px;height:18px}
+.s-mod b{display:block;font-weight:600}
+.s-mod span{font-size:12px;color:var(--m-muted)}
+.tog{width:40px;height:23px;border-radius:999px;background:var(--m-primary);position:relative}
+.tog::after{content:"";position:absolute;top:3px;right:3px;width:17px;height:17px;border-radius:50%;background:var(--m-paper)}
+.tog.off{background:var(--m-line)}
+.tog.off::after{right:auto;left:3px}
+
+@media (max-width:980px){
+  .stage{grid-template-columns:minmax(0,1fr);justify-items:center}
+  .notes{position:static;width:100%}
+  .sw-grid,.type-p{grid-column:span 12}
+  .s-grid{grid-template-columns:1fr}.s-pages,.s-prev{display:none}
+  .tbody{grid-template-columns:1fr;overflow:auto}
+}
+@media (max-width:560px){ .tablet{aspect-ratio:auto;height:680px} .tbody .tiles{grid-template-columns:repeat(2,1fr)} .bi{grid-template-columns:1fr} }
+@media (prefers-reduced-motion: reduce){ *,*::before,*::after{animation-duration:.01ms!important;animation-delay:0s!important;transition:none!important} .done svg.chk circle,.done svg.chk path{stroke-dashoffset:0} }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+  <symbol id="i-gate" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V9l4-3 4 3v12M12 21V9l4-3 4 3v12M4 13h16M4 17h16"/></symbol>
+  <symbol id="i-wifi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M2 8.8a15 15 0 0 1 20 0M5 12.6a10 10 0 0 1 14 0M8.5 16.3a5 5 0 0 1 7 0"/><path d="M12 20h.01" stroke-width="2.6"/></symbol>
+  <symbol id="i-bag" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"><path d="M5 8h14l-1.2 12.2a1 1 0 0 1-1 .8H7.2a1 1 0 0 1-1-.8z"/><path d="M9 10V7a3 3 0 0 1 6 0v3" stroke-linecap="round"/></symbol>
+  <symbol id="i-bath" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M3 12h18v2a6 6 0 0 1-6 6H9a6 6 0 0 1-6-6z"/><path d="M8 9c0-1.6 1.4-1.6 1.4-3.2M12 9c0-1.6 1.4-1.6 1.4-3.2M16 9c0-1.6 1.4-1.6 1.4-3.2"/></symbol>
+  <symbol id="i-map" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"><path d="M9 4 3 6.5v13.5l6-2.5 6 2.5 6-2.5V4l-6 2.5z"/><path d="M9 4v13.5M15 6.5V20"/></symbol>
+  <symbol id="i-book" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"><path d="M12 6.5C10 5 7 4.5 3.5 5v13c3.5-.5 6.5 0 8.5 1.5 2-1.5 5-2 8.5-1.5V5C17 4.5 14 5 12 6.5z"/><path d="M12 6.5v13"/></symbol>
+  <symbol id="i-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"><path d="M3.5 10.5 12 4l8.5 6.5V20a1 1 0 0 1-1 1H15v-6H9v6H4.5a1 1 0 0 1-1-1z"/></symbol>
+  <symbol id="i-receipt" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"><path d="M6 3h12v18l-2.5-1.6L13 21l-2.5-1.6L8 21 6 19.4z"/><path d="M9 8h6M9 12h6" stroke-linecap="round"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-card" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="5.5" width="18" height="13" rx="1.5"/><path d="M3 10h18M7 15h3" stroke-linecap="round"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></symbol>
+  <symbol id="i-gift" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"><path d="M4 11h16v9a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1zM3 7h18v4H3zM12 7v14M12 7S10.5 3 8 4s1 3 4 3zM12 7s1.5-4 4-3-1 3-4 3z"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4-4"/></symbol>
+  <symbol id="i-ext" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 16 16 8M9 8h7v7"/></symbol>
+  <symbol id="i-save" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M5 3h11l3 3v15H5z"/><path d="M8 3v5h7V3M8 21v-6h8v6"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M12 19V5M5 12l7-7 7 7"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol>
+  </defs>
+</svg>
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow">Domaine Solio · Application clients</p>
+    <h1 class="doc-h1">Mon séjour</h1>
+    <p class="lead">Direction visuelle et prototype de l'application clients de La Granja et L'Estiva (spec <code>specs/guest-app.md</code> §6). L'app reprend la charte du site et de l'application portail, « forêt et heure dorée » : Marcellus et Karla, sapin, ocre et papier, boutons à angles vifs. La nuit, elle bascule dans le registre nocturne du site. Le Studio, lui, garde la charte « Maison » de GuestFlow. Les photos sont des aplats en attendant celles du domaine.</p>
+    <div class="toolbar">
+      <div class="seg" role="group" aria-label="Thème de la page">
+        <button type="button" data-theme-set="light" aria-pressed="false">Jour</button>
+        <button type="button" data-theme-set="dark" aria-pressed="false">Nuit</button>
+        <button type="button" data-theme-set="" aria-pressed="true">Système</button>
+      </div>
+    </div>
+  </header>
+
+  <section class="block" aria-labelledby="s1">
+    <header><p class="eyebrow">1 · La charte</p><h2 id="s1">Une seule maison, du site au bain nordique</h2>
+      <p>Mêmes polices, même bouton ocre et même surtitre espacé que le site et l'application portail : le client passe de l'un à l'autre sans changer d'univers. Deux ajustements pour l'accessibilité : le bouton plein passe en ocre profond, qui atteint 5,0:1 de contraste contre 3,6:1 pour l'ocre du site, et les surtitres prennent une encre ocre à 5,3:1.</p></header>
+    <div class="board">
+      <div class="panel sw-grid" aria-label="Couleurs">
+        <div class="sw"><i style="background:#F5F0E6"></i><div><b>Papier</b><code>#F5F0E6</code></div></div>
+        <div class="sw"><i style="background:#FDFAF3"></i><div><b>Carte</b><code>#FDFAF3</code></div></div>
+        <div class="sw"><i style="background:#22271F"></i><div><b>Encre</b><code>#22271F</code></div></div>
+        <div class="sw"><i style="background:#2E3B2A"></i><div><b>Sapin</b><code>#2E3B2A</code></div></div>
+        <div class="sw"><i style="background:#5A6B48"></i><div><b>Lichen</b><code>#5A6B48</code></div></div>
+        <div class="sw"><i style="background:#B87B2A"></i><div><b>Ocre</b><code>#B87B2A</code> accents</div></div>
+        <div class="sw"><i style="background:#9A6318"></i><div><b>Ocre profond</b><code>#9A6318</code> bouton</div></div>
+        <div class="sw"><i style="background:#8A5816"></i><div><b>Encre ocre</b><code>#8A5816</code> surtitres</div></div>
+        <div class="sw"><i style="background:#161C16"></i><div><b>Nuit</b><code>#161C16</code></div></div>
+        <div class="sw"><i style="background:#E8C286"></i><div><b>Or</b><code>#E8C286</code> la nuit</div></div>
+        <div class="sw"><i style="background:#DCD4C2"></i><div><b>Filet</b><code>#DCD4C2</code></div></div>
+        <div class="sw"><i style="background:linear-gradient(90deg,#E6EFE7 50%,#F6EDD7 50%)"></i><div><b>États</b><code>Maison</code> succès · attention</div></div>
+      </div>
+      <div class="panel type-p" aria-label="Typographie">
+        <div class="spec-row"><p class="eyebrow">Votre séjour</p><small>Surtitre · Karla 700 · capitales · .32em</small></div>
+        <div class="spec-row"><span style="font:400 34px/1.05 var(--display);color:var(--sapin)">Bonjour Marie</span><small>Accueil · Marcellus 34 px</small></div>
+        <div class="spec-row"><span style="font:400 22px/1.1 var(--display);color:var(--sapin);text-transform:uppercase;letter-spacing:.06em">La boutique</span><small>Titre de page · Marcellus capitales .06em</small></div>
+        <div class="spec-row"><span>Trois picodons AOP de la ferme voisine, confiture de châtaigne.</span><small>Texte · Karla 16 px / 1,55</small></div>
+        <div class="spec-row"><span class="price" style="font-size:18px">33,00 € <small>· 20 h – 21 h</small></span><small>Chiffres · Karla 700 tabulaires, jamais en Marcellus</small></div>
+      </div>
+      <div class="panel parts" aria-label="Composants">
+        <button class="btn" type="button">Commander · 33,00 €</button>
+        <button class="btn ghost" type="button">Voir le livret</button>
+        <button class="btn text" type="button">Payer par carte plutôt</button>
+        <span class="chip on">Boissons</span><span class="chip">Restauration</span>
+        <span class="state ok">Inclus</span><span class="state warn">En préparation</span><span class="state bad">Plus disponible</span>
+        <span class="icons" role="img" aria-label="Pictogrammes au trait"><svg><use href="#i-gate"/></svg><svg><use href="#i-wifi"/></svg><svg><use href="#i-bag"/></svg><svg><use href="#i-bath"/></svg><svg><use href="#i-map"/></svg><svg><use href="#i-book"/></svg></span>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" aria-labelledby="s2">
+    <header><p class="eyebrow">2 · Prototype</p><h2 id="s2">Essayez le parcours</h2>
+      <p>Le téléphone fonctionne : touchez les tuiles, ajoutez des articles, choisissez un créneau, mettez la commande sur la note. À droite, les choix d'ergonomie de l'écran affiché. Ici les totaux sont calculés dans la maquette ; dans l'app, ils viennent tous du serveur.</p></header>
+    <div class="stage">
+      <div class="phone"><div class="screen" id="proto"></div></div>
+      <div class="notes">
+        <div class="jump" role="group" aria-label="Aller à un écran">
+          <button class="chip" type="button" data-go="home">Accueil</button>
+          <button class="chip" type="button" data-go="shop">Boutique</button>
+          <button class="chip" type="button" data-go="bath">Bain nordique</button>
+          <button class="chip" type="button" data-go="cart">Panier</button>
+          <button class="chip" type="button" data-go="booklet">Livret</button>
+          <button class="chip" type="button" data-go="page">Page du livret</button>
+          <button class="chip" type="button" data-go="orders">Commandes</button>
+        </div>
+        <div class="why" id="why" aria-live="polite"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" aria-labelledby="s3">
+    <header><p class="eyebrow">3 · Écrans clés</p><h2 id="s3">Le jour, la nuit, les cas particuliers</h2>
+      <p>À la tombée du jour, l'app passe dans le registre nocturne du site, nuit et or. On s'en sert le soir sur la terrasse, au bain ou devant le portail.</p></header>
+    <div class="gallery" id="gallery"></div>
+  </section>
+
+  <section class="block" aria-labelledby="s4">
+    <header><p class="eyebrow">4 · Tablette et ordinateur</p><h2 id="s4">La même app, plus d'espace</h2>
+      <p>À partir de 900 px, un rail de navigation remplace la barre d'onglets et le panier reste ouvert à côté du contenu. Sur ordinateur, le contenu fait au plus 1200 px et les tuiles s'alignent sur une ligne.</p></header>
+    <div class="tablet"><div class="screen">
+      <nav class="rail" aria-label="Navigation"><span class="mono">S</span>
+        <div class="on"><svg><use href="#i-home"/></svg>Accueil</div><div><svg><use href="#i-book"/></svg>Livret</div><div><svg><use href="#i-bag"/></svg>Boutique</div><div><svg><use href="#i-receipt"/></svg>Commandes</div></nav>
+      <div class="tmain">
+        <div class="thero ph scrim p-granja"><div class="in"><p class="eyebrow">La Granja · 6 → 9 octobre</p><h3>Bonjour Marie</h3></div></div>
+        <div class="tbody">
+          <div style="display:grid;gap:12px;align-content:start;min-width:0">
+            <div class="tiles">
+              <div class="tile"><svg><use href="#i-gate"/></svg>Portail<svg class="ext"><use href="#i-ext"/></svg></div>
+              <div class="tile"><svg><use href="#i-wifi"/></svg>Wifi</div>
+              <div class="tile"><svg><use href="#i-bag"/></svg>Boutique</div>
+              <div class="tile"><svg><use href="#i-bath"/></svg>Bain nordique</div>
+              <div class="tile"><svg><use href="#i-map"/></svg>Soliomap<svg class="ext"><use href="#i-ext"/></svg></div>
+              <div class="tile"><svg><use href="#i-book"/></svg>Livret</div>
+            </div>
+            <div class="moment" style="margin:0"><div class="ph p-bath"></div><div class="t"><p class="eyebrow">Ce soir</p><b>Le bain est libre à 20 h</b><span>Tarif soirée · 20,00 €</span></div></div>
+          </div>
+          <aside class="cartpanel" aria-label="Panier">
+            <h4>Votre panier</h4>
+            <div class="line"><div class="ph p-cider"></div><div><b>Cidre fermier</b><span>2 × 4,50 €</span></div><span class="price">9,00 €</span></div>
+            <div class="line"><div class="ph p-bath"></div><div><b>Bain nordique</b><span>mar. 7 · 20 h – 21 h</span></div><span class="price">20,00 €</span></div>
+            <div class="total"><span>Total</span><b>29,00 €</b></div>
+            <button class="btn block" type="button">Commander · 29,00 €</button>
+          </aside>
+        </div>
+      </div>
+    </div></div>
+  </section>
+
+  <section class="block" aria-labelledby="s5">
+    <header><p class="eyebrow">5 · Studio du livret</p><h2 id="s5">Côté équipe : la charte GuestFlow</h2>
+      <p>Le Studio est un outil d'équipe, il garde donc la charte « Maison » de GuestFlow : barre d'actions, titres en Source Serif 4, vert sapin. Il s'ouvre sur le choix du logement. L'aperçu téléphone affiche les vrais composants de l'app, aux couleurs du domaine.</p></header>
+    <div class="studio">
+      <div class="s-bar"><span class="s-seg"><span class="on">La Granja</span><span>L'Estiva</span></span><h4>Livret · Arrivée</h4>
+        <span class="ib" title="Aperçu"><svg><use href="#i-eye"/></svg></span><span class="ib pub" title="Publier"><svg><use href="#i-up"/></svg></span><span class="ib save" title="Enregistrer le brouillon"><svg><use href="#i-save"/></svg></span><span class="ib" title="Annuler"><svg><use href="#i-x"/></svg></span><span class="ib del" title="Supprimer la page"><svg><use href="#i-trash"/></svg></span></div>
+      <div class="s-grid">
+        <div class="s-pages"><div><span class="dot"></span>Bienvenue</div><div class="on"><span class="dot d"></span>Arrivée</div><div><span class="dot"></span>Le logement</div><div><span class="dot"></span>Le poêle à bois</div><div><span class="dot"></span>Bain nordique</div><div><span class="dot"></span>Le domaine<span class="shared">⇄ partagée</span></div><div><span class="dot"></span>Autour de nous<span class="shared">⇄ partagée</span></div><div><span class="dot"></span>Départ</div><div style="color:var(--m-primary);font-weight:600">+ Nouvelle page</div></div>
+        <div class="s-edit">
+          <div class="s-block"><div class="h"><span>Wifi · infos du logement</span><span>⋮⋮</span></div><div class="bi"><div><small>Réseau</small>Solio-Granja</div><div><small>Mot de passe</small>•••••••••• · se modifie dans « Modules & infos »</div></div></div>
+          <div class="s-block"><div class="h"><span>Étapes</span><span>⋮⋮</span></div><div class="bi"><div><small>FR</small>Garez-vous au parking du haut</div><div><small>EN</small>Park in the upper car park</div></div></div>
+          <div class="s-block"><div class="h"><span>Encadré · attention</span><span>⋮⋮</span></div><div class="bi"><div><small>FR</small>Le bain chauffe en 3 h…</div><div><small>EN</small><span class="todo">À traduire</span></div></div></div>
+          <div class="palette"><span>+ Texte</span><span>+ Photo</span><span>+ Galerie</span><span>+ Étapes</span><span>+ Wifi</span><span>+ Contact</span><span>+ Lieu</span><span>+ FAQ</span><span>+ Bouton</span><span>+ Horaires</span></div>
+          <div class="s-block" style="margin-top:6px"><div class="h"><span>Modules & infos · La Granja</span></div>
+            <div class="s-mod"><span class="g">⋮⋮</span><span class="ic"><svg><use href="#i-gate"/></svg></span><div><b>Portail</b><span>Ouvre l'application d'accès du séjour</span></div><span class="tog"></span></div>
+            <div class="s-mod"><span class="g">⋮⋮</span><span class="ic"><svg><use href="#i-wifi"/></svg></span><div><b>Wifi</b><span>Solio-Granja</span></div><span class="tog"></span></div>
+            <div class="s-mod"><span class="g">⋮⋮</span><span class="ic"><svg><use href="#i-bath"/></svg></span><div><b>Bain nordique</b><span>1 h offerte ici · payant à L'Estiva</span></div><span class="tog"></span></div>
+            <div class="s-mod" style="border:0"><span class="g">⋮⋮</span><span class="ic"><svg><use href="#i-map"/></svg></span><div><b>Soliomap</b><span>soliomap.domainesolio.com</span></div><span class="tog off"></span></div>
+          </div>
+        </div>
+        <div class="s-prev"><div class="mini"><div class="screen" id="mini"></div></div></div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+(function(){
+  var I=function(id,cls){return '<svg'+(cls?' class="'+cls+'"':'')+' aria-hidden="true"><use href="#i-'+id+'"/></svg>';};
+  var eur=function(n){return n.toFixed(2).replace('.',',')+' €';};
+  var CAT=[
+    {id:'cidre',t:'Cidre fermier',u:'la bouteille',p:4.5,ph:'p-cider',c:'Boissons',d:'Cidre brut d’une cidrerie à 6 km. Servi frais.',staff:true},
+    {id:'vin',t:'Vin d’Ardèche',u:'la bouteille',p:14,ph:'p-wine',c:'Boissons',d:'Syrah d’un domaine voisin, en agriculture biologique.',staff:true},
+    {id:'plateau',t:'Plateau picodons',u:'2 pers.',p:12,ph:'p-cheese',c:'Restauration',d:'Trois picodons AOP de la ferme voisine, confiture de châtaigne et pain au levain.',staff:true},
+    {id:'pain',t:'Pain au levain',u:'la miche',p:4,ph:'p-bread',c:'Restauration',d:'Cuit le matin au four à bois.',staff:true},
+    {id:'miel',t:'Miel de châtaignier',u:'250 g',p:8,ph:'p-honey',c:'Restauration',d:'Récolté sur le domaine.',staff:false,free:true},
+    {id:'bois',t:'Panier de bois',u:'le panier',p:8,ph:'p-wood',c:'Bien-être',d:'Chêne sec pour le poêle, déposé devant la porte.',staff:true}
+  ];
+  var S={screen:'home',cart:{cidre:2},bath:null,pay:'note',sheet:null,cat:'Tout',deliv:0,day:1,named:false,orders:[]};
+  var SLOTS=[['17 h – 18 h','Pris','taken'],['18 h – 19 h','15,00 €',''],['19 h – 20 h','Pris','taken'],['20 h – 21 h','Tarif soirée · 20,00 €','eve'],['21 h – 22 h','Tarif soirée · 20,00 €','eve'],['08 h – 09 h','Équipe absente pour chauffer','staff']];
+  var SLOTP=[0,15,0,20,20,0];
+  function price(p){return p.free?0:p.p;}
+  function count(){var n=0;for(var k in S.cart)n+=S.cart[k];return n+(S.bath!==null?1:0);}
+  function total(){var t=0;CAT.forEach(function(p){t+=(S.cart[p.id]||0)*price(p);});if(S.bath!==null)t+=SLOTP[S.bath];return t;}
+  function needsStaff(){return CAT.some(function(p){return S.cart[p.id]&&p.staff;});}
+  function sbar(light){return '<div class="island"></div><div class="sbar'+(light?' light':'')+'"><span>18:42</span><span>4G</span></div>';}
+  function tabs(active){
+    var n=count();
+    return '<nav class="tabbar" aria-label="Navigation">'+
+      [['home','home','Accueil'],['booklet','book','Livret'],['shop','bag','Boutique'],['orders','receipt','Commandes']].map(function(t){
+        return '<button type="button" class="tab'+(active===t[0]?' on':'')+'" data-go="'+t[0]+'">'+I(t[1])+t[2]+(t[0]==='shop'&&n?'<span class="n">'+n+'</span>':'')+'</button>';}).join('')+'</nav>';
+  }
+  function cartbar(){var n=count();if(!n)return '';return '<button type="button" class="cartbar" data-go="cart"><span class="n">'+n+'</span><b>Voir le panier</b><span>'+eur(total())+'</span></button>';}
+  function appbar(eyebrow,title,back){return '<div class="appbar">'+(back?'<button type="button" class="back" aria-label="Retour" data-go="'+back+'">'+I('back')+'</button>':'')+'<div class="ttl">'+(eyebrow?'<p class="eyebrow">'+eyebrow+'</p>':'')+'<h3>'+title+'</h3></div></div>';}
+
+  var V={};
+  V.home=function(o){o=o||{};
+    var wifi=o.wifi!==false;
+    var tiles=[['gate','Portail',1],wifi?['wifi','Wifi',0,'page']:null,['bag','Boutique',0,'shop'],['bath','Bain nordique',0,'bath'],['map','Soliomap',1],['book','Livret',0,'booklet']].filter(Boolean);
+    return sbar(true)+'<div class="view"><div class="hero ph scrim '+(o.ph||'p-granja')+'"><div class="hero-top"><span class="brand">Domaine Solio</span><span class="pill"><span class="on">FR</span><span>EN</span><span>'+I('moon')+'</span></span></div>'+
+      '<div class="hero-in"><p class="eyebrow">'+(o.lodg||'La Granja')+'</p><h3>Bonjour Marie</h3></div></div>'+
+      '<div class="stay"><div class="stay-top"><b>6 → 9 oct.</b><span>nuit 2 sur 3</span></div><div class="nights"><i class="full"></i><i class="full"></i><i></i></div><span>Départ jeudi avant 10 h</span></div>'+
+      '<div class="tiles">'+tiles.map(function(t){return '<div class="tile" role="button" tabindex="0"'+(t[3]?' data-go="'+t[3]+'"':'')+'>'+I(t[0])+t[1]+(t[2]?I('ext','ext'):'')+'</div>';}).join('')+'</div>'+
+      '<div class="moment" role="button" tabindex="0" data-go="bath"><div class="ph '+(o.mph||'p-bath')+'"></div><div class="t"><p class="eyebrow">'+(o.mEy||'Ce soir')+'</p><b>'+(o.mT||'Le bain est libre à 20 h')+'</b><span>'+(o.mS||'Une heure de plus · dès 15,00 €')+'</span></div></div>'+
+      '<div class="row-h"><h4>Le livret</h4><a data-go="booklet">Tout voir</a></div>'+
+      '<div class="strip"><div class="pcard ph scrim p-house" data-go="page"><div class="lbl"><small>Arrivée</small><b>Bienvenue chez vous</b></div></div><div class="pcard ph scrim p-forest"><div class="lbl"><small>Le domaine</small><b>Douze hectares de forêt</b></div></div><div class="pcard ph scrim p-night"><div class="lbl"><small>La nuit</small><b>Ciel étoilé</b></div></div></div>'+
+      '</div>'+(o.static?'':cartbar())+tabs('home');
+  };
+  V.shop=function(o){o=o||{};
+    var cats=['Tout','Boissons','Restauration','Bien-être'];
+    var list=CAT.filter(function(p){return S.cat==='Tout'||p.c===S.cat;});
+    return sbar()+'<div class="view">'+appbar('La Granja','La boutique')+
+      (o.closed?'<div class="pad" style="margin-bottom:10px"><div class="banner warn">'+I('clock')+'<span><b>Le service reprend demain à 8 h.</b> Commandez dès maintenant pour plus tard.</span></div></div>':'')+
+      '<div class="chips">'+cats.map(function(c){return '<button type="button" class="chip'+(S.cat===c?' on':'')+'" data-cat="'+c+'">'+c+'</button>';}).join('')+'</div>'+
+      '<div class="pad" style="margin-top:12px">'+
+      ((S.cat==='Tout'||S.cat==='Bien-être')?'<div class="feature ph scrim p-bath" role="button" tabindex="0" data-go="bath"><div class="in"><p class="eyebrow">Bien-être</p><b>Une heure de plus au bain nordique</b><span class="go">Choisir un créneau</span></div></div>':'')+
+      '<div class="grid2">'+list.map(function(p){return '<div class="prod" role="button" tabindex="0" data-sheet="'+p.id+'"><div class="ph '+p.ph+'"><button type="button" class="add" aria-label="Ajouter '+p.t+'" data-add="'+p.id+'">'+I('plus')+'</button></div><div class="t"><b>'+p.t+'</b>'+(p.free?'<span class="state ok" style="justify-self:start">Inclus à La Granja</span>':'<span class="price">'+eur(p.p)+' <small>· '+p.u+'</small></span>')+'</div></div>';}).join('')+'</div>'+
+      '</div></div>'+(o.static?'':cartbar())+tabs('shop')+sheet();
+  };
+  function sheet(){
+    if(S.sheet==='name') return '<div class="scrim-all" data-close></div><div class="sheet" role="dialog" aria-label="Confirmer votre nom"><div class="grab"></div><p class="eyebrow">Sur votre note</p><h4>Une seule vérification</h4><p>Pour mettre cette commande sur votre note de séjour, confirmez votre nom de famille.</p><div class="field"><label for="ln">Nom de famille</label><input id="ln" value="Durand" autocomplete="family-name"></div><button type="button" class="btn block" data-confirm>Confirmer et commander</button><button type="button" class="btn text" data-pay="card">Payer par carte plutôt</button></div>';
+    if(!S.sheet) return '';
+    var p=CAT.filter(function(x){return x.id===S.sheet;})[0], q=Math.max(1,S.cart[p.id]||1);
+    return '<div class="scrim-all" data-close></div><div class="sheet" role="dialog" aria-label="'+p.t+'"><div class="grab"></div><div class="ph '+p.ph+'"></div><p class="eyebrow">'+p.c+'</p><h4>'+p.t+'</h4><p>'+p.d+'</p>'+
+      '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div class="stepper"><button type="button" aria-label="Moins" data-q="-1">−</button><b>'+q+'</b><button type="button" aria-label="Plus" data-q="1">+</button></div>'+(p.free?'<span class="state ok">Inclus à La Granja</span>':'<span class="price">'+eur(p.p)+' <small>· '+p.u+'</small></span>')+'</div>'+
+      (p.staff?'<p style="font-size:12.5px">Préparé par l’équipe : vous choisirez l’heure de livraison au panier.</p>':'')+
+      '<button type="button" class="btn block" data-addq="'+p.id+'">Ajouter · '+eur(q*price(p))+'</button></div>';
+  }
+  V.bath=function(o){o=o||{};var sel=o.sel!==undefined?o.sel:S.bath;
+    return sbar()+'<div class="view">'+appbar('Bien-être','Bain nordique','shop')+'<div class="pad">'+
+      '<div class="banner ok">'+I('gift')+'<span>1 h offerte à La Granja · utilisée lundi soir</span></div>'+
+      '<div class="days">'+[['lun.',6],['mar.',7],['mer.',8]].map(function(d,i){return '<button type="button" class="day'+(i===S.day?' on':'')+'" data-day="'+i+'">'+d[0]+'<b>'+d[1]+'</b></button>';}).join('')+'</div>'+
+      '<div class="slots">'+SLOTS.map(function(s,i){var c=s[2];return '<button type="button" class="slot '+c+(sel===i?' on':'')+'"'+(c==='taken'||c==='staff'?' disabled':' data-slot="'+i+'"')+'><b>'+s[0]+'</b><span>'+s[1]+'</span></button>';}).join('')+'</div>'+
+      '<p style="margin:0;font-size:12.5px;color:var(--ink-soft)">Les créneaux tiennent compte des autres séjours, des réservations extérieures et du temps de chauffe.</p>'+
+      (sel!==null&&sel!==undefined?'<button type="button" class="btn block" data-go="cart">Ajouter '+SLOTS[sel][0]+' · '+eur(SLOTP[sel])+'</button>':'')+
+      '</div></div>'+tabs('shop');
+  };
+  V.cart=function(){
+    var lines=CAT.filter(function(p){return S.cart[p.id];}).map(function(p){return '<div class="line"><div class="ph '+p.ph+'"></div><div><b>'+p.t+'</b><span>'+S.cart[p.id]+' × '+(p.free?'inclus':eur(p.p))+'</span></div><span class="price">'+eur(S.cart[p.id]*price(p))+'</span></div>';}).join('');
+    if(S.bath!==null) lines+='<div class="line"><div class="ph p-bath"></div><div><b>Bain nordique</b><span>mar. 7 · '+SLOTS[S.bath][0]+'</span></div><span class="price">'+eur(SLOTP[S.bath])+'</span></div>';
+    if(!lines) lines='<p style="color:var(--ink-soft);margin:24px 0">Votre panier est vide.</p><button type="button" class="btn ghost block" data-go="shop">Voir la boutique</button>';
+    var dl=['Dès que possible · 19 h','19 h 30','20 h','20 h 30'];
+    return sbar()+'<div class="view">'+appbar('La Granja','Votre panier','shop')+'<div class="pad">'+lines+
+      (needsStaff()?'<div style="display:grid;gap:8px;margin-top:6px"><p class="eyebrow">Livraison</p><b style="font:400 18px var(--display);color:var(--sapin)">Quand souhaitez-vous la recevoir&nbsp;?</b><div class="chips" style="padding:0">'+dl.map(function(d,i){return '<button type="button" class="chip'+(S.deliv===i?' on':'')+'" data-deliv="'+i+'">'+d+'</button>';}).join('')+'</div><span style="font-size:12px;color:var(--ink-soft)">Service de 8 h à 12 h et de 16 h à 21 h · 20 min de préparation</span></div>':'')+
+      (count()?'<div class="total"><span>Total</span><b>'+eur(total())+'</b></div><div class="paychoice" role="radiogroup" aria-label="Paiement">'+
+        '<button type="button" role="radio" aria-checked="'+(S.pay==='card')+'" class="pc'+(S.pay==='card'?' on':'')+'" data-pay="card"><span class="ic">'+I('card')+'</span><span><b>Payer maintenant</b><span>Carte bancaire · paiement sécurisé Qonto</span></span><span class="rd"></span></button>'+
+        '<button type="button" role="radio" aria-checked="'+(S.pay==='note')+'" class="pc'+(S.pay==='note'?' on':'')+'" data-pay="note"><span class="ic">'+I('receipt')+'</span><span><b>Ajouter à ma note</b><span>Réglée à votre départ</span></span><span class="rd"></span></button></div>'+
+        '<button type="button" class="btn block" data-order>'+(S.pay==='card'?'Payer '+eur(total()):'Ajouter à ma note · '+eur(total()))+'</button>':'')+
+      '</div></div>'+tabs('shop')+sheet();
+  };
+  V.done=function(){
+    return sbar()+'<div class="view"><div class="done"><svg class="chk" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="46"/><path d="M30 52l13 13 27-29"/></svg><p class="eyebrow">Commande n° 12</p><h3>Commande envoyée</h3><p style="margin:0;color:var(--ink-soft);max-width:240px">Livrée vers 19 h à La Granja. Le bain sera chaud à 20 h.</p>'+
+      '<div class="timeline"><div class="tl ok"><i></i><div><b>Reçue</b><span>'+(S.lastPay==='card'?'Payée par carte':'Sur votre note')+'</span></div><time>18:42</time></div><div class="tl"><i></i><div><b>En préparation</b><span>L’équipe est prévenue</span></div><time></time></div><div class="tl"><i></i><div><b>Livrée</b><span>Vers 19 h</span></div><time></time></div></div>'+
+      '<button type="button" class="btn ghost block" data-go="home" style="margin-top:8px">Retour à l’accueil</button></div></div>'+tabs('orders');
+  };
+  V.orders=function(){
+    return sbar()+'<div class="view">'+appbar('Votre séjour','Commandes')+'<div class="pad">'+
+      (S.orders.length?'<div class="timeline"><div class="tl ok"><i></i><div><b>Commande n° 12 · '+eur(S.orders[0])+'</b><span>'+(S.lastPay==='card'?'Payée par carte':'Sur votre note')+'</span></div><time>18:42</time></div><div class="tl"><i></i><div><b>En préparation</b></div><time></time></div><div class="tl"><i></i><div><b>Livrée vers 19 h</b></div><time></time></div></div>':'')+
+      '<p class="eyebrow" style="margin-top:8px">Plus tôt dans le séjour</p><div class="timeline" style="margin-top:0"><div class="tl ok"><i></i><div><b>Commande n° 9 · 12,00 €</b><span>Payée par carte · lundi</span></div><time>19:05</time></div><div class="tl ok"><i></i><div><b>Livrée</b></div><time>19:31</time></div></div>'+
+      '</div></div>'+tabs('orders');
+  };
+  V.booklet=function(){
+    var pages=[['p-house','Arrivée','Bienvenue chez vous',1],['p-granja','Le logement','La Granja'],['p-wood','Le poêle','Faire un beau feu'],['p-bath','Bien-être','Le bain nordique'],['p-forest','Le domaine','La forêt et ses règles'],['p-night','Départ','Avant de partir']];
+    return sbar()+'<div class="view">'+appbar('La Granja','Le livret')+'<div class="pad"><div class="search">'+I('search')+'Rechercher : poêle, tri, wifi…</div>'+
+      pages.map(function(p){return '<div class="bk ph scrim '+p[0]+'" role="button" tabindex="0"'+(p[3]?' data-go="page"':'')+'><div class="in"><small>'+p[1]+'</small><b>'+p[2]+'</b></div></div>';}).join('')+'</div></div>'+tabs('booklet');
+  };
+  V.page=function(){
+    return sbar(true)+'<div class="view"><div class="cover ph scrim p-house"><div class="hero-top"><button type="button" class="back" aria-label="Retour" data-go="booklet">'+I('back')+'</button><span></span></div><div class="in"><p class="eyebrow">Arrivée</p><h3>Bienvenue chez vous</h3></div></div>'+
+      '<div class="pad" style="margin-top:16px;gap:16px"><div class="wifi"><div><small>Réseau</small><b>Solio-Granja</b><small>Mot de passe</small><b>chataigne2026</b><button class="btn text" type="button" style="min-height:32px;padding:0">Copier</button></div><div class="qr" role="img" aria-label="QR code pour rejoindre le wifi"></div></div>'+
+      '<div class="steps"><div class="step"><em>1</em><div><b>Garez-vous au parking du haut</b><span>Le chemin est éclairé jusqu’au logement, 3 minutes à pied.</span></div></div><div class="step"><em>2</em><div><b>La clé vous attend</b><span>Dans la boîte à gauche de la porte.</span></div></div><div class="step"><em>3</em><div><b>Allumez le poêle</b><span>Le bois sec est sous l’auvent. Mode d’emploi page « Le poêle ».</span></div></div></div>'+
+      '<div class="banner warn">'+I('bath')+'<span>Le bain chauffe en 3 h : réservez votre créneau dans la boutique.</span></div>'+
+      '<div class="moment" style="margin:0" role="button" tabindex="0" data-go="booklet"><div class="ph p-granja"></div><div class="t"><p class="eyebrow">Page suivante</p><b>Le logement</b><span>Équipements et modes d’emploi</span></div></div></div></div>'+tabs('booklet');
+  };
+  V.lookup=function(){
+    return sbar(true)+'<div class="view"><div class="hero ph scrim p-night" style="height:280px"><div class="hero-top"><span class="brand">Domaine Solio</span><span></span></div><div class="hero-in" style="padding-bottom:22px"><p class="eyebrow">Retrouver mon séjour</p><h3 style="font-size:28px">Bienvenue</h3></div></div>'+
+      '<div class="pad" style="margin-top:18px;gap:14px"><div class="field"><label for="l1">Nom de famille</label><input id="l1" value="Durand"></div><div class="field"><label for="l2">Numéro de réservation</label><input id="l2" value="GF-2026-0418"></div><button type="button" class="btn block">Accéder à mon séjour</button><p style="margin:0;font-size:13px;color:var(--ink-soft)">Le numéro figure dans votre e-mail de confirmation ou sur votre plateforme de réservation.</p></div></div>';
+  };
+
+  var WHY={
+    home:['Accueil','L’accueil répond à « que faire maintenant&nbsp;? ».',['<b>Aucune étape avant la valeur</b> : le QR du logement ouvre directement cet écran, sans connexion ni écran d’accueil.','<b>Photo du domaine sous le dégradé du site</b>, prénom en Marcellus, logement en surtitre or.','<b>Carte séjour</b> : dates en chiffres tabulaires et progression par nuit.','<b>Tuiles stables</b>, au choix de chaque logement. ↗ signale qu’on part dans une autre app (portail, Soliomap).','<b>Une seule carte « Ce soir »</b>, choisie par le serveur selon l’heure. Aucun carrousel publicitaire.']],
+    shop:['La boutique','Les prix de GuestFlow, en photos.',['<b>Catégories en pastilles</b>, accessibles au pouce.','<b>Le bain en vedette</b> : c’est l’achat le plus désirable, il ouvre le choix du créneau.','<b>« + » sur la photo</b> pour ajouter en un geste ; un appui sur la carte ouvre le détail.','<b>Gratuit dans ce logement</b> : la pastille verte « Inclus » remplace le prix, le client le voit avant de demander.','<b>La barre panier flottante</b> affiche le total et se pose au-dessus des onglets.']],
+    bath:['Bain nordique','Le planning de GuestFlow, lisible en 3 secondes.',['<b>L’heure offerte du logement</b> s’affiche en premier, même déjà utilisée.','<b>Un jour à la fois</b>, puis les créneaux en deux colonnes ; le tarif soirée est marqué d’un point or.','<b>Pris</b> : barré et estompé. <b>Équipe absente pour chauffer</b> : bordure en pointillés et raison écrite en clair.','<b>Le bouton reprend le créneau et son prix</b>, sans surprise au panier. Touchez un créneau libre.']],
+    cart:['Panier','Choisir l’heure, puis comment payer.',['<b>Heure de livraison</b> seulement si un article est préparé par l’équipe, proposée dans les horaires du service.','<b>Deux grandes cartes de paiement</b> ; le bouton dit exactement ce qui va se passer.','<b>Le nom n’est demandé que pour « Ajouter à ma note »</b>, dans une feuille qui garde une sortie : « Payer par carte plutôt ».','Essayez : gardez « Ajouter à ma note » et commandez.']],
+    done:['Confirmation','Un seul moment animé : le cercle doré qui se dessine.',['<b>Une promesse concrète</b>, rédigée par le serveur : « Livrée vers 19 h », « Le bain sera chaud à 20 h ».','<b>Suivi en 3 étapes</b> plutôt qu’un simple merci.','L’équipe reçoit au même moment la notification « Commandes clients ».']],
+    orders:['Commandes','Où en est ma commande&nbsp;?',['Les commandes en cours en premier, avec leur suivi ; les plus anciennes ensuite.','Les mêmes étapes que la carte « Commande app » du planning de l’équipe.']],
+    booklet:['Le livret','Le livret de ce logement, pas celui d’un autre.',['<b>Recherche en tête</b> : « poêle », « tri », « wifi » mènent à la bonne page.','<b>Grandes cartes photo</b>, surtitre et titre dans l’image, comme les entrées du site.','<b>Lisible hors connexion</b> : le domaine capte mal. « Le poêle » n’existe qu’à La Granja.']],
+    page:['Page du livret','Un mode d’emploi plutôt qu’un dépliant.',['<b>Le wifi en ticket</b> à bords perforés, avec « Copier » et un QR pour se connecter. Le mot de passe vient des infos du logement.','<b>Étapes en frise</b>, numéros en Marcellus ocre.','<b>Pas de cul-de-sac</b> : la carte « Page suivante » en bas.']]
+  };
+
+  var proto=document.getElementById('proto'), why=document.getElementById('why');
+  function render(){
+    proto.innerHTML=V[S.screen]();
+    var w=WHY[S.screen]; why.innerHTML='<p class="eyebrow">'+w[0]+'</p><h3>'+w[1]+'</h3><ul>'+w[2].map(function(x){return '<li>'+x+'</li>';}).join('')+'</ul>';
+  }
+  function finish(){S.lastPay=S.pay;S.orders.unshift(total());S.cart={};S.bath=null;S.screen='done';render();}
+  proto.addEventListener('click',function(e){
+    var t=e.target.closest('[data-go],[data-add],[data-sheet],[data-cat],[data-q],[data-addq],[data-close],[data-slot],[data-day],[data-pay],[data-deliv],[data-order],[data-confirm]');
+    if(!t) return;
+    var d=t.dataset;
+    if(d.add){e.stopPropagation();S.cart[d.add]=(S.cart[d.add]||0)+1;render();var cb=proto.querySelector('.cartbar');if(cb)cb.classList.add('bump');return;}
+    if(d.go){S.sheet=null;S.screen=d.go;render();return;}
+    if(d.sheet){S.sheet=d.sheet;render();return;}
+    if(d.cat){S.cat=d.cat;render();return;}
+    if(d.close!==undefined){S.sheet=null;render();return;}
+    if(d.q){var p=S.sheet;S.cart[p]=Math.max(1,(S.cart[p]||1)+Number(d.q));render();return;}
+    if(d.addq){S.cart[d.addq]=Math.max(1,S.cart[d.addq]||1);S.sheet=null;render();return;}
+    if(d.slot){S.bath=Number(d.slot);render();return;}
+    if(d.day){S.day=Number(d.day);render();return;}
+    if(d.deliv){S.deliv=Number(d.deliv);render();return;}
+    if(d.pay){S.pay=d.pay;S.sheet=null;render();return;}
+    if(d.order!==undefined){if(S.pay==='note'&&!S.named){S.sheet='name';render();return;}finish();return;}
+    if(d.confirm!==undefined){S.named=true;S.sheet=null;finish();}
+  });
+  proto.addEventListener('keydown',function(e){if((e.key==='Enter'||e.key===' ')&&e.target.matches('[role="button"]')){e.preventDefault();e.target.click();}});
+  document.querySelectorAll('.jump [data-go]').forEach(function(b){b.addEventListener('click',function(){S.sheet=null;S.screen=b.dataset.go;if(b.dataset.go==='cart'&&!count()){S.cart={cidre:2,plateau:1};S.bath=3;}render();});});
+  render();
+
+  var G=[
+    ['night','home',{lodg:'L’Estiva',ph:'p-estiva',wifi:false,mEy:'Ce soir',mT:'Le ciel est dégagé',mS:'Le bain est libre à 21 h',mph:'p-night',static:true},'22 h à L’Estiva : le registre de nuit et or. Pas de tuile Wifi, ce logement n’en a pas.'],
+    ['night','bath',{sel:3},'Le bain la nuit : le créneau du soir sélectionné, la raison écrite en clair quand l’équipe est absente pour chauffer.'],
+    ['','shop',{closed:true,static:true},'Hors des horaires du service : le bandeau explique, et on peut commander pour le lendemain.'],
+    ['','page',{},'Page du livret : wifi en ticket, étapes en frise, page suivante.'],
+    ['night','lookup',{},'Secours hors du logement : nom et numéro de réservation. Le message d’erreur est toujours le même.']
+  ];
+  var gal=document.getElementById('gallery');
+  gal.innerHTML=G.map(function(g){return '<figure class="g"><div class="phone '+g[0]+'"><div class="screen">'+V[g[1]](g[2])+'</div></div><figcaption>'+g[3]+'</figcaption></figure>';}).join('');
+  gal.querySelectorAll('.view').forEach(function(v){v.style.animation='none';});
+  gal.querySelectorAll('button,[tabindex]').forEach(function(x){x.setAttribute('tabindex','-1');});
+  document.getElementById('mini').innerHTML=V.page().replace(/<nav class="tabbar"[\s\S]*<\/nav>/,'');
+
+  var root=document.documentElement;
+  document.querySelectorAll('[data-theme-set]').forEach(function(b){b.addEventListener('click',function(){
+    var v=b.dataset.themeSet; if(v) root.setAttribute('data-theme',v); else root.removeAttribute('data-theme');
+    document.querySelectorAll('[data-theme-set]').forEach(function(x){x.setAttribute('aria-pressed',String(x===b));});
+  });});
+})();
+</script>
+</body>
+</html>

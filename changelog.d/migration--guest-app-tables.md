@@ -1,0 +1,1 @@
+- **`guest-app` tables** (spec `guest-app.md` §5). Installing the plugin creates its own tables (`guest_app_*`, `guest_sessions`, `guest_booklet_*`, `guest_media`, `guest_orders`). Additive: no core table or column changes, and nothing is created while the plugin is not installed.

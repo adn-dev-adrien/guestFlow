@@ -551,6 +551,8 @@
   "rateLimiters": [
     "apiLimiter",
     "bookingRequestLimiter",
+    "guestLookupLimiter",
+    "guestSessionLimiter",
     "loginLimiter",
     "paymentStartLimiter",
     "paymentStatusLimiter",
@@ -803,5 +805,22 @@
     "stayDatesRefusal",
     "stayDatesRefusalBody",
     "stayItemDatesRefusal"
+  ],
+  "stayWindow": [
+    "CLOSES_AFTER_CHECK_OUT_MS",
+    "DEFAULT_CHECK_IN",
+    "DEFAULT_CHECK_OUT",
+    "OPENS_BEFORE_CHECK_IN_MS",
+    "TIME_ZONE",
+    "__test",
+    "computeWindow",
+    "toParisIso",
+    "wallClockToDate"
+  ],
+  "encryption": [
+    "decrypt",
+    "encrypt",
+    "isEncrypted",
+    "safeDecrypt"
   ]
 }

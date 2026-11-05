@@ -16,7 +16,8 @@ import gitesDeFranceIntake from './gites-de-france-intake';
 import bookingIntake from './booking-intake';
 import airbnbIntake from './airbnb-intake';
 import googleVacationRentals from './google-vacation-rentals';
+import guestApp from './guest-app';
 
-const PLUGIN_MODULES = [weatherAlerts, schoolHolidays, googleCalendar, tariffRecipes, gateAccess, sas, websiteBooking, accountingExport, linen, onlinePayment, neat, hourlyResources, gitesDeFranceIntake, bookingIntake, airbnbIntake, googleVacationRentals];
+const PLUGIN_MODULES = [weatherAlerts, schoolHolidays, googleCalendar, tariffRecipes, gateAccess, sas, websiteBooking, accountingExport, linen, onlinePayment, neat, hourlyResources, gitesDeFranceIntake, bookingIntake, airbnbIntake, googleVacationRentals, guestApp];
 
 export default PLUGIN_MODULES;

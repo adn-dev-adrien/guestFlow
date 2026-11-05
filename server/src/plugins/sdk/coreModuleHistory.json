@@ -172,6 +172,19 @@
         "stayDates"
       ],
       "names": {}
+    },
+    {
+      "version": "2.22.0",
+      "modules": [
+        "stayWindow",
+        "encryption"
+      ],
+      "names": {
+        "rateLimiters": [
+          "guestLookupLimiter",
+          "guestSessionLimiter"
+        ]
+      }
     }
   ]
 }

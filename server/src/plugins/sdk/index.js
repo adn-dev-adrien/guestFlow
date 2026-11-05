@@ -103,6 +103,10 @@ const CORE_MODULES = Object.freeze({
   dateFr: '../../utils/dateFr', // the planning cards' and the occupancy strip's French times
   // linen, school-holidays, hourly-resources — the date window of every entered date (reservations-backend-mvc rule 13)
   stayDates: '../../utils/stayDates',
+  // gate-access, guest-app — one stay window for the gate keys and the guest sessions (specs/guest-app.md rule 2, SDK 2.22.0)
+  stayWindow: '../../utils/stayWindow',
+  // guest-app — the wifi password of a lodging, encrypted at rest like the other stored secrets (specs/guest-app.md §5)
+  encryption: '../../utils/encryption',
 });
 
 function coreModule(name) {
