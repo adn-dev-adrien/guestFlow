@@ -71,7 +71,7 @@ function hostDiskRatio(root) {
 
 const frDate = (iso) => new Date(iso).toLocaleDateString('fr-FR', { timeZone: 'Europe/Paris' });
 
-function createProbe({ models, drivers, provisioner, alerts, now, fetchImpl = fetch, root, today, diskRatio = hostDiskRatio, log = (msg) => console.log(msg) }) {
+function createProbe({ models, drivers, provisioner, alerts, now, fetchImpl = fetch, root, today, diskRatio = hostDiskRatio, servedSlug = (c) => c.slug, log = (msg) => console.log(msg) }) {
   const { customers, hosting, provisioning } = models;
   const backupCheckedAt = new Map();
 
@@ -89,7 +89,8 @@ function createProbe({ models, drivers, provisioner, alerts, now, fetchImpl = fe
   }
 
   async function probeCustomer(c) {
-    const inst = provisioner.instanceOf(c);
+    // H1 rule 55: an unfinished rename still answers at its old address; that is the instance to measure.
+    const inst = provisioner.instanceOf(c, servedSlug(c));
     const row = hosting.get(c.id) || {};
     const t = now();
     const fields = { probed_at: t.toISOString() };
@@ -135,7 +136,7 @@ function createProbe({ models, drivers, provisioner, alerts, now, fetchImpl = fe
     }
 
     // Rule 16: a certificate expiring within 14 days.
-    const cert = await drivers.proxy.certExpiry(c.slug);
+    const cert = await drivers.proxy.certExpiry(inst.slug);
     fields.cert_expires_at = cert;
     toggle(`cert:${c.id}`, Boolean(cert) && !archived && new Date(cert) - t < CERT_WARN_MS,
       { customerId: c.id, kind: 'cert', severity: 'warning', text: `${c.companyName} : certificat expirant le ${cert ? frDate(cert) : '?'}.` });

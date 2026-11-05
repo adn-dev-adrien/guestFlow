@@ -189,6 +189,11 @@ Auto-options (`option.autoOptionType ∈ {early_check_in, late_check_out, …}` 
     the tax uncollected on a stay without a plan.
     *Accepted (A5, pre-existing, one setting change):* flipping a platform's `collectsTouristTax` rewrites a paid solde's
     journal at read (46710000 4,80 € to 0), and claims nothing.
+    *Accepted (audit R24 L3, 2026-11-05, pre-existing):* the switch turned OFF after the complement collected the tax, the
+    solde still unpaid, puts the tax back on the solde: the save answers the OVERPAID dialog (« Trop-perçu : 4,80 € déjà
+    encaissés au-delà du nouveau total »), and a forced save then asks the tax twice (4,80 € here, up to the tax of a
+    percentage property). « Enregistrer et rembourser » closes it. The switch off stays free, as written above; refusing it
+    is Adrien's call.
 
 ---
 

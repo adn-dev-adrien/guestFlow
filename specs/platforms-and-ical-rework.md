@@ -108,6 +108,13 @@ calendar everywhere), an **optional "URL iCal"** (empty → no sync, manual), a 
     skipping any slug a row already covers) every platform a reservation or an iCal source names. A
     platform first used by a reservation or an intake used to appear only after a restart or the accounting
     « refresh ». Test (rules 15-16): `tests/platform-catalogue-canonical-names.unit.test.js`.
+17. **A colour sent on an iCal source is a platform colour** (audit R24-I5, 2026-11-05). On `POST` and
+    `PUT /api/properties/:id/ical-sources[/:sourceId]`, a non-empty `platformColor` passes the check of
+    `PUT /api/platforms/:key/color` (`validateCalendarColor`: a readable `#rrggbb`), else 400 `INVALID_FIELD`,
+    `field` `platformColor`, with that check's message, nothing written. The stored colour sent back passes;
+    empty, `null` or absent is no colour. Any text used to be stored and served to every calendar chip as CSS
+    (`red;}body{display:none}`). The screen sends no colour on a source. Test:
+    `tests/ical-source-color-guard.unit.test.js`.
 
 **Edge cases:**
 - Empty URL + tax left at default + default colour → no source row persisted (nothing to store).

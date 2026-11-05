@@ -970,6 +970,13 @@ function adjustedComplementChanges(body) {
   return changes;
 }
 
+// Whether a save's complement adjustment differs from the stored one: absent = left alone, blank = none (as the model stores it).
+function complementOverrideMoved(sent, stored) {
+  if (sent === undefined) return false;
+  const read = (value) => (value === null || value === '' || !Number.isFinite(Number(value)) ? null : round2(Math.max(0, Number(value))));
+  return read(sent) !== read(stored ?? null);
+}
+
 // What a payment PATCH would write on the money `comptaCollected` reads (rule 52), computed ahead of any write.
 function paymentPatchChanges(row, body, today) {
   const changes = {};
@@ -2165,7 +2172,10 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
 
   // specs/reservation-save-keeps-pricing.md rule 1 — a save that moved no pricing input keeps the stay as
   // it was priced: money, lines, nights, snapshots and history stay put.
+  // Reading of 2026-11-05 (audit R24-DB-3): a new complement adjustment is a pricing input even when the engine lands on the
+  // same figure, so the correction of reservation-payment-ledger rule 67 is written, not pinned back to the stale amount.
   const keepPricing = Boolean(existingReservation) && !refreshPricingToCurrent && !req.body.refreshTouristTax
+    && !complementOverrideMoved(req.body.complementAmountOverride, storedPaymentForQuote.complementAmountOverride)
     && pricingUnchangedFromStored(db, storedPaymentForQuote, quote, windowEngineInputs);
   if (keepPricing) quote = pinStoredPricing(quote, storedPaymentForQuote);
   // Adrien, 2026-10-29: a custom line renamed alone saves its text, nothing is re-priced.
@@ -2224,7 +2234,9 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
     return res.status(400).json({ error: MID_STAY_EXTRAS_CLOSED_MESSAGE, code: 'MID_STAY_EXTRAS_CLOSED' });
   }
   // specs/reservation-refunds.md rule 52, reading of 2026-11-05 (audit R23 L6) — a paid complement adjusted down lowers what stays collected too.
-  const adjustRefusal = untickRefusal(storedPaymentForQuote, adjustedComplementChanges(req.body), refundsModel.listByReservation(id));
+  // Reading of 2026-11-05 (audit R24-DB-2): « Sans acompte » on a paid acompte takes its mark back.
+  const depositTakenBack = depositDisabledFlag && Number(storedPaymentForQuote.depositPaid || 0) === 1 ? { depositPaid: 0 } : {};
+  const adjustRefusal = untickRefusal(storedPaymentForQuote, { ...adjustedComplementChanges(req.body), ...depositTakenBack }, refundsModel.listByReservation(id));
   if (adjustRefusal) return res.status(adjustRefusal.status).json(adjustRefusal.body);
   if (pastReservationLocked) {
     const allowedLockedFields = new Set([

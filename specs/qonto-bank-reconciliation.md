@@ -329,6 +329,16 @@ a short list of the gaps to fix on the fiches.
     and a far-past one (`0002-10-31`, read by `Date.UTC` as 1902) asked Qonto for the account's whole history.
     online-payment 1.5.2, `sdk ^2.20.0`. Tests: `reconciliation-start-date-window.unit.test.js`, client
     `ReconciliationSettingsCard.start-date.test.jsx`.
+49. **Another bank account gets its own first read (audit R24 E24-1, 2026-11-05).** A read is incremental (rule 5)
+    only when the current account already has a credit stored (`latestSettledAt(bankAccountId)`); otherwise it is a
+    first read, 13 months before the start date. *Why:* the test counted every account's credits against a
+    `lastReadAt` shared by all of them, so after « Compte bancaire » was changed (the main account is the default,
+    rule 4, and the money often lands on another), the new account was read from the last read minus one day only: its
+    older credits never came in, and their receipts showed as gaps with nothing saying the history was missing.
+    Accepted residues, recorded: going back to an account that already has credits stays incremental, so the time
+    spent on the other one is not read again; a start date moved earlier is not read further back either (closing
+    that would need a stored `readFrom`, not worth it). In both cases « Effacer aussi ses données » followed by a read
+    starts over. online-payment 1.5.5. Test: `reconciliation-account-change.unit.test.js`.
 
 **Edge cases:**
 - Reservation cancelled after a payment was reconciled → leaves the scope; its reconciliations stay
@@ -343,7 +353,7 @@ a short list of the gaps to fix on the fiches.
   « Autre crédit », never « Non rattaché » (rules 31 and §8).
 - Credit in a currency other than EUR → listed under « Autres crédits », never proposed.
 - The operator changes the bank account → stored transactions of the previous account are kept but
-  no longer read; reconciliations on them stay.
+  no longer read; reconciliations on them stay. The new account gets its first read (rule 49).
 
 ---
 
@@ -507,6 +517,8 @@ The interactive mock-up of the summary page is the reference
       writes payout 950 / commission 35, the expected solde credit with a payout recorded.
 - [x] `reconciliation-installments-core-module.unit.test.js` (2) — rule 45: the plan read through the
       core model, a failing read throws.
+- [x] `reconciliation-account-change.unit.test.js` (3) — rule 49: a newly picked account read from rule 5's first
+      window, incremental from its second read, back on an account with credits stays incremental (residue).
 - [x] `reconciliation-start-date-window.unit.test.js` (3) — rule 48: the window bounds and empty accepted;
       impossible day, half-typed year, one day outside refused with nothing written; a stored value kept.
       Client `ReconciliationSettingsCard.start-date.test.jsx` (3): the hint from the server's day, none on the

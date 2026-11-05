@@ -1,7 +1,7 @@
 {
   "id": "online-payment",
   "name": "Paiement en ligne (Qonto)",
-  "version": "1.5.3",
+  "version": "1.5.5",
   "description": "Liens de paiement envoyés aux voyageurs, et rapprochement des virements du compte Qonto avec les fiches.",
   "icon": "payments",
   "surfaces": [
@@ -12,7 +12,7 @@
   ],
   "requires": [],
   "guestflow": ">=3.18.0 <4.0.0",
-  "sdk": "^2.20.0",
+  "sdk": "^2.21.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
@@ -114,6 +114,11 @@
       "Rapprochement bancaire : « Défaire » est refusé tant qu’un remboursement a besoin de cet argent, et le nomme.",
       "Rapprochement bancaire : une demande de mauvaise forme est refusée, jamais une erreur interne ni une ligne écartée illisible.",
       "Compatible avec le SDK 2.20 de GuestFlow."
+    ],
+    "1.5.5": [
+      "Rapprochement bancaire : un autre compte choisi est lu depuis le début de la période, et plus seulement depuis la dernière lecture.",
+      "Paiements : l’échec de l’abonnement au webhook reste affiché jusqu’à ce qu’une vérification réussisse, et l’origine d’un échec est toujours écrite en français.",
+      "Demande le SDK 2.21 de GuestFlow, qui porte le refus de « Défaire » de la 1.5.3."
     ]
   }
 }

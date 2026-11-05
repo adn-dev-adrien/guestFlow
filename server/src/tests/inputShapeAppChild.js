@@ -29,6 +29,6 @@ const devis = db.prepare(`INSERT INTO reservations (propertyId, clientId, startD
   VALUES (?, ?, ?, ?, 2, '15:00', '10:00', 'direct', 'devis', 'draft', 'D-1')`).run(property, client, dayAt(50), dayAt(53)).lastInsertRowid;
 
 process.send({
-  ready: true, routes: routeCensus.writeRoutes(), password: PASSWORD, ids: { client: Number(client), property: Number(property), reservation: Number(reservation), legacy: Number(legacy), devis: Number(devis) },
+  ready: true, routes: routeCensus.writeRoutes(), pluginRoutes: routeCensus.pluginWriteRoutes(), password: PASSWORD, ids: { client: Number(client), property: Number(property), reservation: Number(reservation), legacy: Number(legacy), devis: Number(devis) },
   dates: { start: dayAt(30), end: dayAt(33), freeStart: dayAt(70), freeEnd: dayAt(73) },
 });

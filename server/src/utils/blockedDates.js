@@ -9,7 +9,8 @@
 
 const reservationsModel = require('../models/reservationsModel');
 const establishmentClosuresModel = require('../models/establishmentClosuresModel');
-const { buildOccupiedDatesFromReservations, addIsoDays, rangeHasBlockedNight } = require('./occupancy');
+const { buildOccupiedDatesFromReservations, addIsoDays, rangeHasBlockedNight, getNightBlocksFromTimes } = require('./occupancy');
+const database = require('../database');
 
 function computeBlockedDates(propertyId, from, to) {
   // A neighbour's late check-out blocks the night of its departure day, an early check-in the night
@@ -23,4 +24,19 @@ function computeBlockedDates(propertyId, from, to) {
   return Array.from(new Set([...occupied, ...closureDates])).sort();
 }
 
-module.exports = { computeBlockedDates, rangeHasBlockedNight };
+/**
+ * Whether the visitor's own arrival and departure times clash with the neighbouring stays or a closure
+ * (specs/public-api.md rule 24): the back office's check, run with those times and the nights they take.
+ * A time not sent is the property's default, the one the devis will store, not the check's 15:00 / 10:00.
+ * Judged after the nights are known free; the past is judged by each caller's own date rules.
+ */
+function stayTimesRefused({ propertyId, startDate, endDate, checkInTime, checkOutTime }) {
+  const property = database.prepare('SELECT defaultCheckIn, defaultCheckOut FROM properties WHERE id = ?').get(Number(propertyId)) || {};
+  const checkIn = checkInTime || property.defaultCheckIn || '15:00';
+  const checkOut = checkOutTime || property.defaultCheckOut || '10:00';
+  return Boolean(reservationsModel.validateAvailability(
+    Number(propertyId), startDate, endDate, checkIn, checkOut, null, getNightBlocksFromTimes(checkIn, checkOut), { allowPastDates: true },
+  ));
+}
+
+module.exports = { computeBlockedDates, rangeHasBlockedNight, stayTimesRefused };

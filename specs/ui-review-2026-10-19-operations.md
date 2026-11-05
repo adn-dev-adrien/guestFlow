@@ -332,6 +332,15 @@ guessing; and the quote the guest receives looks like the house that sends it.
     freezes what stood before it (`ReservationPage.new-fiche-clean`). *Accepted (A1):* `asked` stays true after « Rester »:
     a later signed-in `/login` signs out, reached only by a forced password change in the same session, one more login.
     *Accepted (A3):* `/properties/new` is dirty by design, so it asks on Back, and « Enregistrer et quitter » creates the logement.
+    *Reading of 2026-11-05 (audit R24-1):* a client created on a fiche not saved yet (`pendingClient`, nothing written
+    until the stay is, clients rule 13) is part of the compared state: « + Créer un nouveau client » then « Enregistrer »
+    lights Enregistrer and makes Back, the other exits and a reload ask, calendar-prefilled stay or devis alike
+    (`ReservationPage.new-fiche-clean`). Stored rows hold none, so they compare as before. *Accepted (R24 A1):* a
+    gesture made before the logement's options, the welcome pack or the quote land freezes the baseline before them,
+    so that fiche asks on leaving; one more tap, no data.
+    *Reading of 2026-11-05 (audit R24 verification V1):* each load of the page (`initPage`, a new fiche or another
+    stay or devis on the same mounted page, such as « Retour » after a devis is created in place) drops the typed
+    client with the baseline, so the next fiche neither shows nor sends it again (`ReservationPage.new-fiche-clean`).
 41. **A reload warns on a dirty fiche (audit R23-C2, 2026-11-05).** A reload, a closed tab or a pull-to-refresh fires
     `beforeunload` while the fiche, new reservation included, is dirty. Tests: `ReservationPage.browser-back`,
     e2e `reservations/leave-guards`.
@@ -362,8 +371,33 @@ guessing; and the quote the guest receives looks like the house that sends it.
     *Reading of 2026-11-05 (R23 verification F6, F7):* the raw `fetch` of the downloads (translations, devis PDF, sales CSV, e-mail
     texts) goes through the same helper (`reach`) and says the same sentence; `SMTP_TEST_FAILED` carries « Envoi d’essai refusé par le serveur d’e-mails. »
     (`api.error-wording`, `smtp-test-refusal-wording`).
+    *Reading of 2026-11-05 (audit R24-C1):* a 401 `INVALID_CREDENTIALS` on `POST /auth/change-password` (wrong current
+    password, « Mon compte » and the forced first-login change) is the form's refusal: it signs nobody out and the form
+    reads « Mot de passe actuel incorrect. ». Any other 401 there (`UNAUTHENTICATED`, the session gone) still asks the
+    app to sign in again (`api.change-password-wrong-current`).
 45. **The tax page's first tile reads « Réservations (mois) » (audit R23-C9, 2026-11-05).** It counts every row of the
     month, whatever its channel; « directes » was wrong. Test: `TouristTaxPage.kpi-label`.
+46. **Invisible characters never print as boxes on the quote (audit R24, devis PDF check of 2026-11-05).** Text pasted
+    from a phone or another app carries characters with no visible form that the body face cannot draw: direction
+    marks and embeddings (U+200E/F, U+202A–E, U+2066–9 — « ‪+33 6…‬ » from a contact card), joiners (U+200C/D,
+    U+2060), a Windows carriage return, a tab, an em or en space, a line separator. Each printed as the empty box of
+    the face (rule 29 is for visible scripts, not for these). Every string of the quote and of the settings is made
+    printable before anything is measured: a carriage return or a line / paragraph separator becomes a line break, a
+    space the face lacks becomes a plain space, a control or format character the face lacks is dropped. What the
+    face draws (no-break and narrow no-break spaces, soft hyphen, « 1ʳᵉ ») and every visible character it lacks
+    (rule 29) are left as typed. Test: `devis-pdf-glyphs`.
+47. **A quantity prints rounded to the cent, with the language's decimal mark (audit R24, 2026-11-05).** A
+    fractional option quantity printed raw: a third of a unit read « 0.3333333333333333 », wrapped in its column and
+    ran into the next row, and « 2.5 » kept an English point on a French quote. It prints « 0,33 » / « 2,5 » in
+    French, « 0.33 » / « 2.5 » in English; a whole number is unchanged. Test: `devis-pdf-glyphs`.
+48. **The bank block holds a long line (audit R24, 2026-11-05).** An account name or an IBAN that wraps pushes the
+    next line down instead of printing under it (the BIC was drawn over the second line of a long account name),
+    and every line stays inside the frame drawn around the block. Test: `devis-pdf-glyphs`.
+49. **The issuer address prints no blank line (audit R24 devis PDF observation, 2026-11-05).** An empty line of the
+    stored company address, a trailing newline included, prints nothing: the phone follows the last address line.
+    Test: `devis-pdf-glyphs`. *Accepted, recorded:* an English quote prints its amounts with the French decimal comma
+    (« 15,00 € »): `devisHelpers.formatCurrency` is not the PDF's alone (the trop-perçu refusal of the reservations
+    controller reads it, and it is a name of the SDK contract), so it is not localised here.
 
 ---
 
@@ -390,7 +424,7 @@ guessing; and the quote the guest receives looks like the house that sends it.
 | `controllers/` | `reservationsController.js` | T | `list` rows carry `platformDisplay` (rule 15). |
 | `plugins/sas/` | `nothingToCollect.js` | C | Pure: was anything owed at the door before this run (rule 4). |
 | `plugins/sas/` | `controller.js` | T | The SAS payload carries `nothingToCollect` (rule 4). |
-| `utils/` | `devisPdf.js` | T | Maison palette + serif drawn run by run, rows built before drawing, offered lines grouped, page-1 summary, no expired suffix (rules 17-20). `FACES` / `registerFaces` embed the serif and the three sans faces for every text, the PDF standard fonts only for a missing file; `faceHasGlyph` reads coverage from the font files; `fitFontSize` / `nextLineY` keep long texts in their boxes (rules 27-30). |
+| `utils/` | `devisPdf.js` | T | Maison palette + serif drawn run by run, rows built before drawing, offered lines grouped, page-1 summary, no expired suffix (rules 17-20). `FACES` / `registerFaces` embed the serif and the three sans faces for every text, the PDF standard fonts only for a missing file; `faceHasGlyph` reads coverage from the font files; `fitFontSize` / `nextLineY` keep long texts in their boxes (rules 27-30). `printableText` cleans every string before drawing (rule 46), `formatQuantity` prints the quantity column (rule 47), the bank block wraps through `textLine` (rule 48). |
 | `utils/` | `devisPdfLabels.js` | T | `offeredGroup`, `offeredValue`, `summaryHeading`; `expiredSuffix` removed (rules 18-20). |
 | `assets/fonts/` | `SourceSerif4-Semibold.otf.woff2`, `SourceSerif4-OFL.txt` | C | Embedded serif of the PDF and its licence notice (SIL OFL, © Adobe; upstream release `adobe-fonts/source-serif` 4.005R, unmodified). Replaces the two `@fontsource` subsets (rules 17, 27). |
 | `assets/fonts/` | `SourceSans3-Regular.otf.woff2`, `SourceSans3-Semibold.otf.woff2`, `SourceSans3-It.otf.woff2`, `SourceSans3-OFL.txt` | C | Embedded body of the PDF and its licence notice (SIL OFL, © Adobe; upstream release `adobe-fonts/source-sans` 3.052R, unmodified) (rule 27). |
@@ -530,9 +564,21 @@ licence notices. Manual: `qlmanage -t` page 1 and every page through PDFKit (Swi
 before and after — Latin Extended, Vietnamese, Greek + Cyrillic, CJK + RTL, and a 30-line quote with a
 long company and logement name.
 
+**Audit R24, devis PDF check (2026-11-05)** — rules 46–49: `server/src/tests/devis-pdf-glyphs.unit.test.js`
+(7: the issuer address with no blank line (rule 49); every `doc.text` call is recorded with its face — no box for pasted invisible characters, the text kept
+otherwise, the quantity column, the bank block, the extra-guest row of tariff-events §6 and the Estiva quote's
+totals). Manual: every quote of the 2026-10-22 production copy and every reservation of it rendered as a quote,
+in French and English, plus 17 worst cases, each checked for missing glyphs, overflow and totals; pages viewed
+through PDFKit (Swift).
+
 **Audit 2026-10-27:** `tests/quote-headline-live-stored-parity.unit.test.js` (3, rules 31-32);
 `tests/ui-review-operations-headline.unit.test.js` adjusted to the rule-31 tax; the
 `PricingSummary.commission` / `.platform-tourist-tax` client suites feed `summaryCascade`.
+
+**Audit R24 (2026-11-05)** — rule 40 reading: `pages/__tests__/ReservationPage.new-fiche-clean.test.jsx` (3, the new
+client typed on a prefilled fiche); rule 44 reading: `__tests__/api.change-password-wrong-current.test.js` (2). Manual:
+headless browser on the real-data shadow at 1280 and 390 touch, calendar-prefilled `/reservations/new`, « + Créer un
+nouveau client »: Enregistrer lit, POST 200, leaving asks; wrong current password on « Mon compte » keeps the page.
 
 ## 8. Out of scope
 

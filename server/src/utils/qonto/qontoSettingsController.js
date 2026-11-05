@@ -138,9 +138,15 @@ function createQontoSettingsController({ settings, env = process.env, scopes = D
     return res.json(applyQontoCredentials({ settings, env, body: sent }));
   }
 
-  /** Run a real call against Qonto and report what it means (rules 9-10). */
+  /**
+   * Run a real call against Qonto and report what it means (rules 9-10). A webhook check's failure standing on the page is
+   * cleared only by a check (settings-one-save-and-automatic-webhook rule 15): « Test » runs it again, so its advice holds.
+   */
   async function testQontoConnection(req, res) {
     const result = await runQontoConnectionTest({ settings, env });
+    if (result.ok && statusPayload().health?.lastError?.origin === 'webhook-register') {
+      await ensureWebhookSubscription({ settings, env });
+    }
     return res.json({ ...result, status: statusPayload() });
   }
 

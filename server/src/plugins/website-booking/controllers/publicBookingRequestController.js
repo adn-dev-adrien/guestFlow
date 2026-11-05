@@ -24,6 +24,7 @@ const { classifyAttribution } = sdk.coreModule('attributionChannel');
 const { checkGuestCapacity, publicGuestCap } = sdk.coreModule('capacity');
 const { generateToken, tokensMatch } = sdk.coreModule('publicDevisToken');
 const { computeBlockedDates, rangeHasBlockedNight } = require('./publicCatalogController');
+const { stayTimesRefused } = sdk.coreModule('blockedDates');
 const { buildEngineQuote, checkOptionApplicability, checkResourceApplicability } = require('./publicQuoteController');
 const { stayRuleBreach, hasUnpricedNights } = require('../publicProjections');
 const optionsModel = sdk.coreModule('optionsModel');
@@ -199,6 +200,8 @@ function create(req, res) {
   if (rangeHasBlockedNight(v.value.startDate, v.value.endDate, blocked)) {
     return failT(res, req, 409, 'DATES_UNAVAILABLE', 'datesUnavailable');
   }
+  // Rule 24 — the visitor's own times against the neighbouring stays, as the back office judges them.
+  if (stayTimesRefused(v.value)) return failT(res, req, 409, 'STAY_TIMES_UNAVAILABLE', 'stayTimesUnavailable');
 
   // Run the engine to enforce the stay rules and to surface the price for the receipt.
   const engineQuote = buildEngineQuote(v.value);

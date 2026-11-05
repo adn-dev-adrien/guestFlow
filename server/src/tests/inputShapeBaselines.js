@@ -6,10 +6,13 @@
 // stop at (nothing in this harness connects Qonto: its calls would leave the machine).
 const Database = require('better-sqlite3');
 
+// The application's day: the app runs with TZ=Europe/Paris (inputShapeApp), this process with the runner's zone. Just
+// after midnight in Paris a UTC runner is still on the day before, and a payment dated then reads as earlier than the
+// stay's creation.
+const parisToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Paris' }).format(new Date());
 const dayAt = (offset) => {
-  const d = new Date();
-  d.setDate(d.getDate() + offset);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const [y, m, d] = parisToday().split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d + offset)).toISOString().slice(0, 10);
 };
 
 async function seed(app, admin, active) {
@@ -181,7 +184,7 @@ async function baselines(app, admin, active) {
     ['POST', '/api/emails/queue', { templateId: s.template, reservationId: s.direct }, { ok: [400, 404, 409] }],
     ['PUT', '/api/terms/draft', { fr: 'Texte', en: 'Text', text: 'Texte' }, { ok: [400, 404] }],
     ['POST', '/api/terms/preview', { fr: 'Texte', en: 'Text', text: 'Texte' }, { ok: [400, 404] }],
-    ['PUT', '/api/terms/enforcement', { enabled: false, enforcement: 'off' }, { ok: [400, 404, 409] }],
+    ['PUT', '/api/terms/enforcement', { requireTermsAcceptance: false }, { plugin: 'website-booking' }],
     ['PUT', '/api/terms/public-site-origin', { publicSiteOrigin: 'https://example.invalid' }],
     ['PUT', '/api/platforms/settings', { platforms: [{ id: platformId, reviewWhereFr: 'sur Booking', reviewWhereEn: 'on Booking' }] }],
     ['PUT', `/api/platforms/${platformId}/color`, { color: '#112233' }],
