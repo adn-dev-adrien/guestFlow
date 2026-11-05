@@ -38,6 +38,8 @@ const HARDENINGS = [
   // specs/plugins-phase-1-sdk.md rule 39 (specs/non-card-option-served-persons.md rule 12) — audit R21-P1, C4. The draft
   // that sends `{ optionId, persons }` lives on the client, which this scan skips: `soldOptions` is its server end.
   { feature: 'SAS sale by people served', sdk: '2.21.0', pattern: /\bsoldOptions\b/ },
+  // specs/plugins-phase-4-registry.md rule 54 reading of 2026-11-05 (specs/reservation-refunds.md rule 52) — audit R24 NEW-1.
+  { feature: 'take-back refused while a refund needs the money', sdk: '2.21.0', pattern: /\btakeBackRefusal\b/ },
   // specs/plugins-phase-1-sdk.md rule 40 (specs/public-api.md rule 24) — audit R24 public finding 1.
   { feature: 'visitor times judged against the neighbours', sdk: '2.22.0', pattern: /\bstayTimesRefused\b/ },
 ];

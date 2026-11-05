@@ -2,7 +2,9 @@
 // reads, not only the modules it reaches. Every name a plugin takes from `coreModule('m')` (destructured, read as
 // `coreModule('m').x`, or through a variable holding the module) is in `coreModules.json` under `m`; otherwise a core change
 // could remove it with no guard and an installed package would read `undefined`. A second-level read
-// (`coreModule('qonto').qontoService.x`) belongs to the object it is read from, not to the contract.
+// (`coreModule('qonto').qontoService.x`) belongs to the object it is read from, not to the contract. Audit R24 NEW-2: the
+// module may come from `require('../sdk').coreModule('m')`, a getter `x = () => [y ||] sdk.coreModule('m')` read as
+// `x().n`, a default parameter or an injected property `x = / x: sdk.coreModule('m')` read as `x.n`.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
@@ -11,11 +13,12 @@ const path = require('path');
 const CONTRACT = require('../plugins/sdk/coreModules.json');
 
 const PLUGINS = path.join(__dirname, '..', 'plugins');
-const MODULE = String.raw`(?:[\w.]+\.)?coreModule\('([^']+)'\)`;
+const MODULE = String.raw`(?:[\w.]+\.|require\([^)]*\)\.)?coreModule\('([^']+)'\)`;
 const names = (list) => list.split(',').map((part) => part.trim().split(/[:=\s]/)[0]).filter((name) => /^\w+$/.test(name));
 
 /** → [[file, module, name]] for every name the source reads from a core module. */
-function readsOf(file, source) {
+function readsOf(file, text) {
+  const source = text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
   const out = [];
   for (const m of source.matchAll(new RegExp(String.raw`(?:const|let|var)\s*\{([^}]+)\}\s*=\s*${MODULE}\s*(?=[;\n,)])`, 'g'))) {
     names(m[1]).forEach((name) => out.push([file, m[2], name]));
@@ -25,6 +28,15 @@ function readsOf(file, source) {
     const [, variable, mod] = m;
     for (const u of source.matchAll(new RegExp(String.raw`(?<![\w.])${variable}\.(\w+)`, 'g'))) out.push([file, mod, u[1]]);
     for (const u of source.matchAll(new RegExp(String.raw`\{([^}]+)\}\s*=\s*${variable}\s*;`, 'g'))) names(u[1]).forEach((name) => out.push([file, mod, name]));
+  }
+  for (const m of source.matchAll(new RegExp(String.raw`(\w+)\s*=\s*\(\)\s*=>\s*(?:\w+\s*\|\|\s*)?${MODULE}`, 'g'))) {
+    const [, getter, mod] = m;
+    for (const u of source.matchAll(new RegExp(String.raw`(?<![\w.])${getter}\(\)\.(\w+)`, 'g'))) out.push([file, mod, u[1]]);
+    for (const u of source.matchAll(new RegExp(String.raw`\{([^}]+)\}\s*=\s*${getter}\(\)`, 'g'))) names(u[1]).forEach((name) => out.push([file, mod, name]));
+  }
+  for (const m of source.matchAll(new RegExp(String.raw`(?<!(?:const|let|var)\s+)(?<!\w)(\w+)\s*[:=]\s*${MODULE}(?!\s*\.)`, 'g'))) {
+    const [, holder, mod] = m;
+    for (const u of source.matchAll(new RegExp(String.raw`(?<!\w)${holder}\.(\w+)`, 'g'))) out.push([file, mod, u[1]]);
   }
   return out;
 }
@@ -58,4 +70,21 @@ test('rule 35 (R24-P2) — the census reads the three forms, and leaves a second
   ].join('\n');
   const found = readsOf('x.js', source).map(([, mod, name]) => `${mod}#${name}`).sort();
   assert.deepEqual(found, ['m#a', 'm#b', 'm#c', 'm#e', 'm#f', 'm#g', 'qonto#qontoService', 'qonto#qontoSettingsController']);
+});
+
+test('rule 35 (R24 NEW-2) — the census reads require(sdk), getter, default-parameter and injected-property forms', () => {
+  const source = [
+    "const { h } = require('../sdk').coreModule('r');",
+    "const rm = require('../sdk').coreModule('r');",
+    'rm.i();',
+    "const opts = () => sdk.coreModule('o');",
+    'opts().j(); const { k } = opts();',
+    "const links = () => injected || sdk.coreModule('l');",
+    'links().n();',
+    "function run({ db = sdk.coreModule('d') } = {}) { db.p(); }",
+    "const deps = { push: sdk.coreModule('p') };",
+    'deps.push.q();',
+  ].join('\n');
+  const found = [...new Set(readsOf('x.js', source).map(([, mod, name]) => `${mod}#${name}`))].sort();
+  assert.deepEqual(found, ['d#p', 'l#n', 'o#j', 'o#k', 'p#q', 'r#h', 'r#i']);
 });
