@@ -56,14 +56,11 @@ const FR = Object.freeze({
       : `Hébergement — ${nights} nuits (${season})`
   ),
   accommodationDiscount:   (pct) => `RÉDUCTION LOGEMENT ${pct}%`,
-  // Extra-guest supplement row (specs/tariff-events-and-extra-guest-tiers §6). `detail` is the
-  // server-phrased tier rule (French) — only the FR map prints it.
-  extraGuestSupplement: (count, detail) => {
-    const base = count > 0
-      ? `Surcoût voyageurs (${count} pers. au-delà du tarif de base)`
-      : 'Surcoût voyageurs';
-    return detail ? `${base} — ${detail}` : base;
-  },
+  // Extra-guest supplement row (specs/tariff-events-and-extra-guest-tiers §6): the count only, no
+  // tier phrase (dropped 2026-11-05).
+  extraGuestSupplement: (count) => (
+    count > 0 ? `Surcoût voyageurs (${count} pers. au-delà du tarif de base)` : 'Surcoût voyageurs'
+  ),
 
   // ── Option suffixes ───────────────────────────────────────────────────────
   extraHoursSuffix: (label) => `${label} suppl.`,
@@ -160,13 +157,11 @@ const EN = Object.freeze({
       : `Accommodation — ${nights} nights (${season})`
   ),
   accommodationDiscount:   (pct) => `ACCOMMODATION DISCOUNT ${pct}%`,
-  // The tier detail is a French server phrase — the EN map deliberately ignores it.
-  extraGuestSupplement: (count, detail) => {
-    void detail;
-    return count > 0
+  extraGuestSupplement: (count) => (
+    count > 0
       ? `Extra-guest supplement (${count} ${count > 1 ? 'guests' : 'guest'} above the base rate)`
-      : 'Extra-guest supplement';
-  },
+      : 'Extra-guest supplement'
+  ),
 
   // ── Option suffixes ───────────────────────────────────────────────────────
   extraHoursSuffix: (label) => `${label} extra`,

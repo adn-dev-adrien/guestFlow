@@ -114,6 +114,40 @@ function serifRuns(text, { serif = FACES.serif.name, bold = FACES.bold.name } = 
   return runs;
 }
 
+// specs/ui-review-2026-10-19-operations.md rule 46 — a character with no visible form that the body
+// face cannot draw never reaches the page: pasted text carries direction marks (« ‪+33 6…‬ » from a
+// phone's contacts), joiners, a Windows « \r » or a tab, and each printed as the empty box of the
+// face. A line separator or a carriage return becomes a line break, a space the face lacks becomes a
+// plain space, an invisible format or control character is dropped. Everything the face draws, and
+// every visible character it lacks (rule 29), is left as typed.
+function printableText(text) {
+  return String(text)
+    .replace(/\r\n?|[\u2028\u2029]/g, '\n')
+    .replace(/[^ \n\P{White_Space}]|[^\n\P{Cc}]|\p{Cf}/gu, (ch) => {
+      if (!/\p{Cc}/u.test(ch) && faceHasGlyph('regular', ch.codePointAt(0))) return ch;
+      return /\s/u.test(ch) ? ' ' : '';
+    });
+}
+
+// Every string of the devis and the settings, made printable (rule 46) before anything is measured.
+function printable(value) {
+  if (typeof value === 'string') return printableText(value);
+  if (Array.isArray(value)) return value.map(printable);
+  if (value && Object.getPrototypeOf(value) === Object.prototype) {
+    return Object.fromEntries(Object.entries(value).map(([key, v]) => [key, printable(v)]));
+  }
+  return value;
+}
+
+// specs/ui-review-2026-10-19-operations.md rule 47 — a quantity prints rounded to the cent, with the
+// decimal mark of the document's language: a third of a unit read « 0.3333333333333333 » and ran
+// into the next row.
+function formatQuantity(qty, language) {
+  if (typeof qty !== 'number' || !Number.isFinite(qty)) return String(qty == null ? '' : qty);
+  const text = String(Math.round(qty * 100) / 100);
+  return language === 'en' ? text : text.replace('.', ',');
+}
+
 // The largest size, from `max` down to `min` by half points, at which `text` fits `width` on one line
 // in `font` (rule 30). Leaves the document set to that font and size.
 function fitFontSize(doc, font, text, width, max, min) {
@@ -252,8 +286,10 @@ function resolveRowGeometry({
   };
 }
 
-function generateDevisPdf(full, settings, quote) {
+function generateDevisPdf(storedFull, storedSettings, quote) {
   return new Promise((resolve, reject) => {
+  const full = printable(storedFull);
+  const settings = printable(storedSettings);
   // 2026-06-06 — bilingual rendering (specs/devis-english-language.md). The devis row
   // carries `pdfLanguage` ('fr' default, 'en' opt-in). Every literal goes through `L.<key>`
   // and every date through `fmtDate`. The "at" connector between date + time and the
@@ -553,7 +589,7 @@ function generateDevisPdf(full, settings, quote) {
     doc.fontSize(9).fillColor(TEXT_DARK);
     if (italic) doc.font(F.italic); else doc.font(F.regular);
     doc.text(descText, COL_DESC + 4, lineY, { width: DESC_W });
-    doc.font(F.regular).text(String(qty), COL_QTY, lineY, { width: PAGE_W * 0.1, align: 'center' });
+    doc.font(F.regular).text(formatQuantity(qty, language), COL_QTY, lineY, { width: PAGE_W * 0.1, align: 'center' });
     if (!notSubject) doc.text(`${rate.toFixed(2).replace('.', ',')}%`, COL_VAT, lineY, { width: PAGE_W * 0.1, align: 'center' });
 
     if (showOriginal) {
@@ -651,11 +687,10 @@ function generateDevisPdf(full, settings, quote) {
       resourcesTtc: resourcesTotalTtc,
     });
     if (supplementRow && supplementRow.offered) {
-      offeredLines.push({ name: L.extraGuestSupplement(supplementRow.count, null), real: supplementRow.originalTtc });
+      offeredLines.push({ name: L.extraGuestSupplement(supplementRow.count), real: supplementRow.originalTtc });
     } else if (supplementRow) {
-      const detail = language === 'fr' ? supplementRow.tiersLabel : null;
       drawRow(
-        L.extraGuestSupplement(supplementRow.count, detail),
+        L.extraGuestSupplement(supplementRow.count),
         supplementRow.count || 1,
         supplementRow.totalTtc,
         vatAccommodation,
@@ -780,21 +815,14 @@ function generateDevisPdf(full, settings, quote) {
   if (settings.companyIban || settings.companyBic || settings.companyBankName) {
     const bankTop = totY + BANK_BLOCK_Y_OFFSET;
     let bankY = bankTop;
-    doc.fontSize(10.5).fillColor(BRAND).font(SERIF).text(L.bankHeading, LEFT, bankY, { width: LEFT_COL_W, align: 'left' });
+    // Rule 48: the lines stay inside the frame, and one that wraps pushes the next one down.
+    const BANK_TEXT_W = LEFT_COL_W - 22;
+    doc.fontSize(10.5).fillColor(BRAND).font(SERIF).text(L.bankHeading, LEFT, bankY, { width: BANK_TEXT_W, align: 'left' });
     bankY += 17;
     doc.fontSize(9).fillColor(TEXT_DARK).font(F.regular);
-    if (settings.companyBankName) {
-      doc.text(`${L.bankAccount}${settings.companyBankName}`, LEFT, bankY, { width: LEFT_COL_W, align: 'left' });
-      bankY += 13;
-    }
-    if (settings.companyBic) {
-      doc.text(`${L.bankBic}${settings.companyBic}`, LEFT, bankY, { width: LEFT_COL_W, align: 'left' });
-      bankY += 13;
-    }
-    if (settings.companyIban) {
-      doc.text(`${L.bankIban}${settings.companyIban}`, LEFT, bankY, { width: LEFT_COL_W, align: 'left' });
-      bankY += 13;
-    }
+    if (settings.companyBankName) bankY = textLine(`${L.bankAccount}${settings.companyBankName}`, LEFT, bankY, BANK_TEXT_W, 13);
+    if (settings.companyBic) bankY = textLine(`${L.bankBic}${settings.companyBic}`, LEFT, bankY, BANK_TEXT_W, 13);
+    if (settings.companyIban) bankY = textLine(`${L.bankIban}${settings.companyIban}`, LEFT, bankY, BANK_TEXT_W, 13);
 
     // Discreet frame around bank details block.
     doc
@@ -1083,6 +1111,8 @@ module.exports = {
     summarySchedule,
     serifRuns,
     faceHasGlyph,
+    printableText,
+    formatQuantity,
     FACES,
     fitFontSize,
     clampToLines,
