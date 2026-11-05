@@ -16,6 +16,7 @@ const ROW = { reservationId: 7, reservationName: 'Jean Dupont', startDate: '2026
 const NIGHTS = [
   // date-literal-ok: display-only fixture dates, the page compares none of them with today
   { date: '2026-06-20', staysCount: 1, persons: 3, taxedPersons: 2, exemptPersons: 1, taxAmount: 2.4 },
+  // date-literal-ok: display-only fixture dates, the page compares none of them with today
   { date: '2026-06-21', staysCount: 2, persons: 5, taxedPersons: 4, exemptPersons: 1, taxAmount: 4.75 },
 ];
 
