@@ -46,7 +46,9 @@ the reservation **into** a conflict (changing dates/place/occupancy) still valid
 2. On **update**, the **capacity** guards (`checkCapacity` + `checkBabyBeds`) run **only if the
    occupancy changed** — i.e. any of `propertyId`, `adults`, `children`, `teens`, `babies`,
    `singleBeds`, `doubleBeds`, `babyBeds` differs from the stored reservation. If unchanged, a
-   pre-existing capacity excess does **not** block the save.
+   pre-existing capacity excess does **not** block the save. *Corrected 2026-11-05 (audit R22-C6):* `checkBabyBeds` also
+   runs when the logement or the dates move, since cots are held on a range: a fiche with one cot moved onto a full range
+   was saved and oversold the stock (specs/reservations-backend-mvc.md rule 17). `checkCapacity` is not concerned.
 3. **Create** is unchanged — a new reservation always validates fully (it has no prior placement).
 4. Moving a reservation **into** a conflict (changed placement → overlap) is still rejected (409);
    increasing occupancy beyond capacity (changed occupancy) is still rejected (400). The min-nights
@@ -77,7 +79,7 @@ the reservation **into** a conflict (changing dates/place/occupancy) still valid
 | Layer | File | T/C | Responsibility |
 |---|---|---|---|
 | `models/` | `reservationsModel.js` | T | `getForUpdate` now also returns the placement + occupancy columns (`startDate`, `endDate`, `checkInTime`, `checkOutTime`, `adults`, `children`, `teens`, `babies`, `singleBeds`, `doubleBeds`, `babyBeds`) so the controller can diff them. |
-| `controllers/` | `reservationsController.js` | T | In `update`, compute `placementUnchanged` / `occupancyUnchanged` from the stored reservation vs the payload; run `validateAvailability` only when placement changed, and `checkCapacity` / `checkBabyBeds` only when occupancy changed. |
+| `controllers/` | `reservationsController.js` | T | In `update`, compute `placementUnchanged` / `occupancyUnchanged` from the stored reservation vs the payload; run `validateAvailability` only when placement changed, `checkCapacity` only when occupancy changed, and `checkBabyBeds` when occupancy, logement or dates changed. |
 
 No API/schema/client change.
 
