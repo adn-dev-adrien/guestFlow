@@ -196,7 +196,7 @@ export default function CustomerPage() {
     !c.archivedAt && { icon: <SendIcon />, tooltip: a.remind ? 'Relancer maintenant' : a.remindHint, color: 'info', disabled: !a.remind, ariaLabel: 'Relancer maintenant', onClick: openRemind },
     a.extend && { icon: <EventIcon />, tooltip: 'Prolonger', color: 'info', onClick: () => openDialog('extend', { endsAt: c.defaults.extendTo, reason: '', expectedEndsAt: c.endsAt }) },
     a.forceActive && { icon: <LockOpenIcon />, tooltip: 'Remettre en actif', color: 'info', onClick: () => openDialog('force', { until: c.defaults.forceActiveUntil, reason: '' }) },
-    a.rename && { icon: <DriveFileRenameOutlineIcon />, tooltip: 'Changer l’adresse', color: 'info', onClick: () => { setRenameCheck(null); openDialog('rename', { slug: '', checked: [] }); } },
+    !c.archivedAt && { icon: <DriveFileRenameOutlineIcon />, tooltip: a.rename ? 'Changer l’adresse' : a.renameHint, ariaLabel: 'Changer l’adresse', color: 'info', disabled: !a.rename, onClick: () => { setRenameCheck(null); openDialog('rename', { slug: '', checked: [] }); } },
     a.resendInvitation && { icon: <ForwardToInboxIcon />, tooltip: 'Renvoyer l’invitation', color: 'info', onClick: () => act(() => api.resendInvitation(c.id)) },
     a.resetAccess && { icon: <LockResetIcon />, tooltip: 'Réinitialiser l’accès', color: 'warning', onClick: resetAccess },
     a.changePlan && { icon: <SwapHorizIcon />, tooltip: 'Changer de forfait', color: 'info', onClick: () => openDialog('plan', { planCode: c.planCode, billing: c.billing, addons: c.addons.map((x) => x.id) }) },
