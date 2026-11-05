@@ -190,6 +190,17 @@ withApi('rule 11quater: a disabled lodging refuses its lookup and kills its sess
   assert.equal(lookup.body.error.code, 'STAY_NOT_FOUND');
 });
 
+test('rule 11quater: the lodging configuration is the admin’s, a restricted role is refused', () => {
+  const enforceRoleAccess = require('../../../middleware/enforceRoleAccess');
+  ['reception', 'accountant'].forEach((role) => {
+    const res = { code: null, status(code) { this.code = code; return this; }, json() { return this; } };
+    let passed = false;
+    enforceRoleAccess({ user: { roles: [role] }, method: 'GET', path: '/guest-app/lodgings/1' }, res, () => { passed = true; });
+    assert.equal(passed, false, role);
+    assert.equal(res.code, 403, role);
+  });
+});
+
 const BAD_BODIES = [
   ['enabled not a boolean', { enabled: 'yes' }],
   ['unknown module', { modules: [...defaultModules().slice(1), { key: 'casino', on: true, order: 7 }] }],
