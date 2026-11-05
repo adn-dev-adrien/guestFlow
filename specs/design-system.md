@@ -288,3 +288,13 @@ Per phase (details in phase specs):
 - **Serif face:** spec proposes Source Serif 4 (`@fontsource`, self-hosted). Swappable in phase 1 review if
   the rendered result disappoints — one token.
 - **Per-phase open questions** live in each phase spec.
+
+## 10. Report grammar (2026-11-05)
+
+Report screens (tourist tax, accounting synthesis, occupancy/RevPAR, stay profile, data checks) are
+composed from one grammar, specified in **`specs/report-grammar.md`**: the KPI tile anatomy
+(`SelectableTile` with `info` + `comparison`, `YearOverYearBadge` report mode, « — vs N-1 » and one
+`NoComparisonNotice`), `Panel` with the `panelLabel` typography role, `PageTabs` item counts, and the
+report charts `TrendChart`, `AlignedDailyCumulativeCharts` and `ShareTable` (with the generic
+`ChartMenu` / `ChartDataTable`). Chart colours come from `palette.chart`, categories from
+`palette.chart.categorical`. A development build shows them all at `/design/report-grammar`.

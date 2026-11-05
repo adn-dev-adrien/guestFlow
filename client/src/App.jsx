@@ -69,6 +69,8 @@ import NotFoundPage from './components/NotFoundPage';
 const EmailTextsSettingsPage = lazyPage(() => import('./pages/settings/EmailTextsSettingsPage'));
 const UserManagementPage = lazyPage(() => import('./pages/UserManagementPage'));
 const SupportAccessPage = lazyPage(() => import('./pages/settings/SupportAccessPage'));
+// Dev-only workbench of the report grammar (specs/report-grammar.md rule 17): absent from a production build.
+const ReportGrammarPreview = import.meta.env.DEV ? lazyPage(() => import('./pages/ReportGrammarPreview')) : null;
 const SettingsHomePage = lazyPage(() => import('./pages/settings/SettingsHomePage'));
 const Dashboard = lazyPage(() => import('./pages/Dashboard'));
 const ClientsPage = lazyPage(() => import('./pages/ClientsPage'));
@@ -894,6 +896,7 @@ function AppShell() {
           <Route path="/emails"            element={<EmailTemplatesPage />} />
           <Route path="/emails/modeles"    element={<Navigate to="/emails" replace />} />
           <Route path="/emails/historique" element={<EmailHistoryPage />} />
+          {ReportGrammarPreview && <Route path="/design/report-grammar" element={<ReportGrammarPreview />} />}
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
         )}
