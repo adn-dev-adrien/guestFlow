@@ -71,7 +71,7 @@ test('rule 11 — debits equal credits entry by entry; an unbalanced entry is na
 });
 
 test('rule 12 — VAT against base × rate, entry by entry and rate by rate, to the cent', () => {
-  // The Lima shape booked before the TTC split (rule 33 of the export): 117,28 HT / 11,72 VAT, 1 cent short of 11,73.
+  // The Lima shape booked before the TTC split (specs/accountant-accounting-export.md rule 33): 117,28 HT / 11,72 VAT, 1 cent short of 11,73.
   const legacy = sale({ reservationId: 7, kind: 'deposit', paidDate: '2026-10-04', finalPrice: 150.07, encaissementTtc: 129, encaissementNetTtc: 129, fraction: 0.859599,
     buckets: [{ name: 'accommodation', ht: 136.43, vat: 13.64, ratePercent: 10 }] });
   const exact = sale();
