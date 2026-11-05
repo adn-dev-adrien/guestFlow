@@ -61,6 +61,9 @@ appears, so the operator never remits a tax that was not collected.
    never reached the page and its tax was never offered for declaration. A tax not yet collected can
    therefore be declared: Adrien accepts it, nothing is forgotten that way. Platform routing (rule 1),
    refunded nights and a cancelled stay read as on any other stay.
+   The row reads the stored tax, the figure its tick pins: paying an installment freezes nothing, so a live replay
+   showed 8,00 € after a rate move, the tick then showed 4,80 €, and the operator had told the commune the first. A
+   save of the fiche still re-prices the stored figure, as it does the plan's shares.
 8. **Every other stay keeps its gate, and the plan decides alone** (2026-11-05, D14). Without a plan,
    rules 2 and 3 are unchanged. With a plan, a stored paid flag is not read, so a stay stays in one
    month (rule 6). A plan removed again (nothing was paid, `direct-installments` rule 2) gives the stay

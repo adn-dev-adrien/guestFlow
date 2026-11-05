@@ -198,6 +198,8 @@ function createFinanceModel(database) {
       return '(EXISTS (SELECT 1 FROM reservation_installments i WHERE i.reservationId = r.id))';
     } catch { return '(0)'; }
   })();
+  const planOfStay = HAS_PLAN_SQL === '(0)' ? null : database.prepare('SELECT 1 FROM reservation_installments WHERE reservationId = ? LIMIT 1');
+  const stayHasPlan = (id) => Boolean(planOfStay && planOfStay.get(id));
   const REFUNDED_TAX_COLS = hasRefundTables
     ? `COALESCE((SELECT SUM(rl.amountTtc) FROM reservation_refund_lines rl
                  JOIN reservation_refunds rf ON rf.id = rl.refundId
@@ -995,7 +997,16 @@ function createFinanceModel(database) {
           const adults = Number(row.adults || 0);
           const children = Number(row.children || 0);
           const teens = Number(row.teens || 0);
-          const quote = quoteStoredReservation(database, stored);
+          // specs/tourist-tax-declaration-month-stay-end.md rule 7 — paying an installment freezes nothing, so a plan's
+          // row reads the stored tax, the figure its tick pins: what the operator tells the commune does not move on it.
+          const quote = quoteStoredReservation(database, stored, stayHasPlan(stored.id) ? {
+            freezeTouristTax: true,
+            frozenTouristTaxTotal: stored.touristTaxTotal,
+            frozenTouristTaxRate: stored.touristTaxRate,
+            frozenTouristTaxBaseHt: stored.touristTaxFrozenBaseHt,
+            frozenTouristTaxOccupants: stored.touristTaxFrozenOccupants,
+            frozenTouristTaxAt: stored.touristTaxFrozenAt,
+          } : {});
           const isPercentageMode = String(row.touristTaxMode || '').startsWith('percentage');
           // specs/platform-added-guests-tourist-tax.md rules 11-12 — the added tax counts here once
           // collected, unless that came after this row was declared: it then has a row of its own.

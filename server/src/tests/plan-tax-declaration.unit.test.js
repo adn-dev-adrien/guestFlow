@@ -444,3 +444,34 @@ test('specs/platform-added-guests-tourist-tax.md rule 28: a NULL stamp reads the
   assert.equal(rowsOf(merged, stay.id).length, 1);
   assert.equal(mainOf(merged, stay.id).taxAmount, 7.2);
 });
+
+for (const [label, paid] of [['paid', true], ['unpaid', false]]) {
+  test(`specs/tourist-tax-declaration-month-stay-end.md rule 7: a rate moved before the tick moves nothing on a ${label} plan`, async (t) => {
+    const month = nextMonth();
+    const stay = directStay(month);
+    const plan = await planOf(stay.id);
+    if (paid) for (const installment of plan) payInstallment(stay.id, installment);
+    clockAt(t, `${next(month)}-15`);
+    t.after(() => db.prepare('UPDATE properties SET touristTaxPerDayPerPerson = 1.2 WHERE id = ?').run(NO_ACOMPTE));
+    db.prepare('UPDATE properties SET touristTaxPerDayPerPerson = 2 WHERE id = ?').run(NO_ACOMPTE);
+    assert.equal(mainOf(page(month), stay.id).taxAmount, 4.8);
+    tick(stay.id);
+    assert.equal(mainOf(page(month), stay.id).taxAmount, 4.8);
+    tick(stay.id, false);
+    assert.equal(mainOf(page(month), stay.id).taxAmount, 4.8);
+  });
+}
+
+test('rule 7: an added guest whose complement is paid: the plan row does not move on the tick and the untick', async (t) => {
+  const month = nextMonth();
+  const stay = await addedGuestStay(month);
+  const plan = await planOf(stay.id);
+  for (const installment of plan) payInstallment(stay.id, installment);
+  pay(stay.id, C);
+  clockAt(t, `${next(month)}-15`);
+  const before = mainOf(page(month), stay.id).taxAmount;
+  tick(stay.id);
+  assert.equal(mainOf(page(month), stay.id).taxAmount, before);
+  tick(stay.id, false);
+  assert.equal(mainOf(page(month), stay.id).taxAmount, before);
+});
