@@ -1,7 +1,7 @@
 /** The plugin's settings (specs/guest-app.md §5), each with the check `PUT /api/plugins/:id/settings` runs. */
 
 const HOSTNAME = /^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/i;
-const DEFAULT_SOLIOMAP_URL = 'https://soliomap.domainesolio.com';
+const DEFAULT_SOLIOMAP_URL = 'https://map.domainesolio.com';
 
 function httpsUrlError(value) {
   if (value === null || value === '') return null;

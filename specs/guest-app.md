@@ -8,7 +8,7 @@
 | **Author** | Adrien |
 | **Related PR** | (slice A: link once opened) |
 | **Mock-ups** | [`specs/guest-app-maquettes.html`](guest-app-maquettes.html) |
-| **Review boards** | [`specs/guest-app-planches.html`](guest-app-planches.html) — every surface wired to one simulated state, to validate before slices B-H (2026-11-05) |
+| **Review boards** | [`specs/guest-app-planches.html`](guest-app-planches.html) — v2 (2026-11-05): every surface wired to one simulated state, the access proposal, to validate before slices F-G |
 | **Plan** | [`specs/guest-app-plan.md`](guest-app-plan.md) |
 | **Builds on** | `public-api.md`, `wordpress-plugin.md` (catalogue projections), `gate-access-sowel-connector.md` + `sowel-stays-in-keys.md` (gate keys), `mid-stay-extras-on-locked-fiche.md` + `mid-stay-extras-to-end-of-stay-complement.md` (the end-of-stay bill), `online-payments-qonto.md` + `payment-link-lifecycle.md` (card payment), `resource-hourly-scheduling.md` (nordic bath slots), `pwa-push-notifications.md` (staff push) |
 
@@ -22,7 +22,7 @@
 
 Guests of La Granja and L'Estiva today receive a **paper welcome booklet**, gate instructions by email
 (J-7 / J-2, `{{gateAccessCode}}` / `{{gateAccessUrl}}`), and discover the estate's surroundings through
-**Soliomap** — a separate web app at `soliomap.domainesolio.com` presenting things to do around the domain.
+**Soliomap** — a separate web app at `map.domainesolio.com` presenting things to do around the domain.
 
 Three gaps:
 
@@ -129,7 +129,8 @@ is pushed every order.
 11ter. **Lodging facts** live per lodging, not in the booklet text: **wifi** (« Wifi disponible » on/off,
     network name, password, optional « Wifi seulement dans la pièce principale » note — off → no wifi tile,
     no wifi block, and the booklet may show the lodging's « Pas de wifi » message, prefilled from the
-    existing stay text `noWifi` of `stayTextCatalogue.js`), **hero photo**, **display name**, **check-in /
+    existing stay text `noWifi` of `stayTextCatalogue.js`), **hero photo** (default: the hero of domainesolio.com's
+    home page, the aerial view of the estate), **display name**, **check-in /
     check-out wording**, **emergency contacts**. The `wifi` and `contact` booklet blocks read these facts
     (one place to change a password, both the tile and the booklet follow).
 11quater. **App enabled per lodging.** A lodging can be left out of the app entirely (« Application
@@ -148,11 +149,21 @@ is pushed every order.
 
 ### 3.D Soliomap
 
-15. **Tile + page.** Soliomap (`soliomap.domainesolio.com`, URL stored in the studio settings) opens inside
+15. **Tile + page.** Soliomap (`https://map.domainesolio.com`, URL stored in the studio settings) opens inside
     the app shell, in a full-height frame under the app bar, with « Ouvrir dans le navigateur » in the bar.
-    The app passes `?lang=fr|en&from=guest-app&lodging=<propertySlug>` so Soliomap can centre on the domain.
-    If Soliomap forbids framing (`X-Frame-Options` / `frame-ancestors`), the tile opens it in a new tab
-    instead — decided once by a studio switch « Intégrer dans l'app », not detected at runtime.
+    A place opens on its permalink `/#<activity id>` (Soliomap's own deep link); Soliomap reads no language
+    nor lodging from the URL. Checked on 2026-11-05: Soliomap answers `frame-ancestors 'self'` and
+    `X-Frame-Options: SAMEORIGIN`, so framing needs the guest host allowed on Soliomap's side (§9 Q8). Until
+    then, and whenever the studio switch « Intégrer dans l'app » is off, the tile opens it in a new tab —
+    decided by that switch, not detected at runtime.
+15bis. **One activity suggestion on the home.** Under the contextual highlight, a card « À faire pendant
+    votre séjour » shows ONE dated event read from Soliomap's feed (`GET /api/activities`, the items that
+    carry `startsOn` / `endsOn`, cached by the server for an hour): among the events still to come during the
+    stay — they overlap the days from today (or, from 14 h on, from tomorrow; a pre-arrival session counts
+    from the arrival day) to the departure day, and `visibleFrom` is reached — the one with the smallest
+    `driveMinutes`, then the soonest. The card carries the date, « à N min », the name, the category and
+    opens that event on Soliomap (rule 15). No such event, Soliomap unreachable, a visitor session or the
+    `soliomap` module off → no card. The guest sees no ranking, no list: one idea, never a carousel.
 
 ### 3.E Welcome booklet
 
@@ -679,7 +690,7 @@ mock-ups load them from Google Fonts only because they are static files).
 | `PhotoCard` | Booklet / shop entry: photo with scrim, eyebrow + Marcellus title inside the photo, bottom-left. |
 | `ProductCard` | Square photo, title (Karla 600), price `figure` + unit (« 4,50 € · la bouteille »), a 44 px « + » button on the photo corner. Included / free states replace the price with a success soft chip « Inclus » / « 1 h offerte ». |
 | `ProductSheet` | Bottom sheet (`xs`) / centred dialog (`md+`): large photo, eyebrow, Marcellus title, description, stepper, full-width primary button carrying the server total (« AJOUTER · 12,00 € »). |
-| `SlotGrid` | Day chips (weekday + date), then 2-column slot buttons: time range, price or reason. States: free, evening (gold dot + « tarif soirée »), taken (struck, 40 % opacity), heating / staff (dashed border + reason), selected (sapin fill). |
+| `SlotGrid` | Day chips (weekday + date) of the days that still have a bookable slot, then 2-column slot buttons: time range + price. Only bookable slots are shown (free, evening with gold dot + « tarif soirée », selected in sapin fill); taken, past, heating and staff slots are not rendered, and no « bain déjà chaud » note (review of 2026-11-05). |
 | `DeliveryTimeChips` | Horizontal chips grouped by day, first one « Dès que possible · 17 h 30 ». Out-of-hours banner above (warning soft). |
 | `CartBar` | Floating pill above the tab bar: count, « Voir le panier », server total; slides up on first add. |
 | `PaymentChoice` | Two large selectable cards with icon, title, one-line explanation; the selected one gets a sapin border and check. |
@@ -834,17 +845,28 @@ le nom et le numéro. »
 
 ## 9. Open questions
 
-- **Q1 — Booklet content.** Can you share the paper booklet (photos or PDF)? It seeds the default pages
-  and blocks (rule 16).
-- **Q2 — Guest host name.** `sejour.domainesolio.com`? `app.domainesolio.com`? (needs a DNS record + the
-  reverse proxy route to GuestFlow).
-- **Q3 — App name.** « Domaine Solio » with « Mon séjour » as subtitle? One app for both lodgings, branded
-  per lodging inside (hero, name).
-- **Q8 — Soliomap framing.** Does `soliomap.domainesolio.com` allow being framed by the guest host
-  (`frame-ancestors`)? Can it read `?lang=&lodging=`?
-- **Q9 — What is sold at launch.** Which catalogue items get « Vendu dans l'app » first, and which are
-  « Préparé par l'équipe » (drinks list, local products, bath extra hour, breakfast, firewood…)? And the
-  service hours to start with.
+- **Q8 — Soliomap framing.** Checked 2026-11-05: `map.domainesolio.com` refuses framing
+  (`frame-ancestors 'self'`). Allow `sejour.domainesolio.com` in Soliomap (one line in the solioMap repository,
+  shipped there), or keep opening it in a new tab? (review boards, arbitrage A7)
+- **Q10 — How the guest opens the app.** A lodging QR (rules 1-9 as written) lets a past guest who photographed
+  the poster open the next stay. Proposal A (review boards v2, section « Accès »): one link per stay, random,
+  valid for the stay window only, shown as the QR of the arrival SAS step that today shows the gate QR, and
+  sent in the J-7 e-mail in place of the gate link; it proves the stay, so no name is ever asked, even for the
+  bill; the lodging poster opens the visitor mode only. B = rules 1-9 as written; C = lodging QR + a 4-digit
+  code given at the SAS. A changes slice A (session from the stay link, name confirmation removed): rules
+  1-9 and 33 are rewritten once the user picks (arbitrage A6).
+
+### Resolved (2026-11-05, review of the boards v1)
+
+- **Q1 — Booklet content** → the user's own complete booklets of both lodgings, entered in a dedicated slice
+  (plan, slice I); until then the booklet holds neutral placeholder pages.
+- **Q2 — Guest host** → `sejour.domainesolio.com`.
+- **Q3 — App name** → « Domaine Solio », subtitle « Mon séjour ».
+- **Q9 — Sold at launch** → the breakfast, the nordic bath, and every option of the GuestFlow categories
+  « Boissons » and « Alimentation ». Nothing else is flagged at launch.
+- **Bath picker** → only bookable slots are listed, without the « bain déjà chaud » note (§6.4 `SlotGrid`).
+- **Activity suggestion** → one dated Soliomap event on the home (rule 15bis).
+- **Home photo** → the hero of domainesolio.com by default, per lodging in the studio (rule 11ter).
 
 ### Resolved (2026-11-04)
 
@@ -856,7 +878,7 @@ le nom et le numéro. »
 - **Gate** — the gate app already exists: the tile opens the stay's Sowel key link, no gate screen is built
   (rules 12-14). The residual risk (an old QR photo shows the tile during a later stay) is accepted: the
   link is per stay and window-bound.
-- **Soliomap** — existing app at `soliomap.domainesolio.com`, opened from a tile (rule 15).
+- **Soliomap** — existing app at `map.domainesolio.com` (address corrected 2026-11-05), opened from a tile (rule 15).
 - **Booklet editing** — a dedicated web app (« Studio du livret », `/studio`, GuestFlow account) (rules
   47-50).
 - **Staff notification** — admin push channel « Commandes clients » (rule 44).
@@ -875,3 +897,16 @@ le nom et le numéro. »
   stay GuestFlow « Maison »; both share the semantic colours and formats (§6.0-§6.3).
 - **Accepted as proposed** — PageActionBar exception for the guest app (§6); 30-min card link lifetime
   (rule 35).
+
+## 10. Implementation progress
+
+| Slice | State |
+|---|---|
+| A — Plugin, lodgings, sessions | Done on `feature/guest-app-plugin` (2026-11-05); may change with Q10 |
+| B-E — Server slices | In progress (the user's answer of 2026-11-05: server slices go ahead during the review) |
+| F-G — Guest app, studio | Waiting for the verdicts on the review boards v2 |
+| H — Hardening and rollout | Not started |
+| I — Booklet content | Waiting for the user's booklets |
+
+The whole spec ships in ONE pull request (the user's decision of 2026-11-05): the spec-coverage gate refuses
+code citing a spec that is still Approved, and only a spec moved to Implemented with every rule cited passes it.

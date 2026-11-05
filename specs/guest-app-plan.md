@@ -26,7 +26,8 @@ guest UI, so the riskiest code is the most tested before a guest can reach it.
 | **E — Booklet and studio API** | Pages, placements, blocks, versions, media, publish, search, QR poster | A |
 | **F — Guest PWA** | `apps/guest`: the whole guest app of §6, offline booklet, install | A-E |
 | **G — Studio** | `apps/studio`: lodging switcher, modules & infos, booklet editor with live preview, shop presentation, service hours | E, F (preview components) |
-| **H — Hardening and rollout** | E2E, accessibility and bundle checks, guest host in production, content seeding, release | all |
+| **H — Hardening and rollout** | E2E, accessibility and bundle checks, guest host in production, release | all |
+| **I — Booklet content** | Both booklets entered from the user's own complete booklets (placeholder pages until then) | E, the booklets |
 
 ---
 
@@ -265,11 +266,18 @@ guest UI, so the riskiest code is the most tested before a guest can reach it.
 61. Security review (`/security-review`): session cookie, lookup throttling, name lock, no data of another
     stay, rich-text sanitising, upload limits, guest host CSP.
 62. Production: DNS + Caddy route for the guest host (operator), plugin installed and configured, lodgings
-    enabled, QR posters printed, catalogue flagged, service hours set, booklets entered from the paper
-    versions, photos uploaded.
+    enabled, QR posters printed, catalogue flagged, service hours set, photos uploaded.
 63. Docs: `changelog.d/added--guest-app.md` (+ `migration--guest-app-tables.md`), README headline
     feature, spec status → `Implemented`, §10 progress, test counts updated in spec §7.
 64. Release through `/guestflow-release` once every slice is merged and the user asks for it.
+
+---
+
+## Slice I — Booklet content (decided 2026-11-05)
+
+65. The user sends the complete welcome booklets of La Granja and L'Estiva; their pages, blocks and photos are
+    entered through the studio API (shared pages where both say the same thing), FR first, EN after.
+66. Until then the seeded pages are neutral placeholders, marked as such in the studio.
 
 ---
 
