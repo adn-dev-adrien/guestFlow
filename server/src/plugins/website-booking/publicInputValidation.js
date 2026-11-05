@@ -298,7 +298,7 @@ const HOSTNAME = /^(?=.{3,253}$)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2
 function validateAttribution(raw) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
   const text = (v) => (typeof v === 'string' ? v.trim().slice(0, ATTRIBUTION_MAX) : '');
-  const oneLine = (v) => text(cleanFreeText(v).replace(/[\n\t]+/g, ' '));
+  const oneLine = (v) => text(cleanFreeText(v).replace(/[\n\t\u2028\u2029]+/g, ' '));
   const out = {};
   for (const k of ATTRIBUTION_TEXT_KEYS) {
     const v = oneLine(raw[k]);

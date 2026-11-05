@@ -720,7 +720,7 @@ follow-up.
 - [x] `plugins/website-booking/tests/public-refused-form-budget.unit.test.js` — rule 9's reading of 2026-11-05 (D18): refused forms give their hit back, every other answer spends it, the broad limit and the proof stand. **(6 tests)**
 - [x] `plugins/website-booking/tests/public-email-one-address.unit.test.js` — rule 21's reading of 2026-11-05 and the rules 7 and 12 of the abuse spec on a non-ASCII or hidden-character address. **(4 tests)**
 - [x] `plugins/website-booking/tests/public-free-text-cleaning.unit.test.js` — the cleaner of the message and the attribution ([public-request-abuse-and-grouping.md](public-request-abuse-and-grouping.md) rule 22, [site-traffic-analytics.md](site-traffic-analytics.md) rule 15, readings of 2026-11-05). **(8 tests)**
-- [x] `plugins/website-booking/tests/public-refusal-language.unit.test.js` — [site-english-version.md](site-english-version.md) rule 8's reading of 2026-11-05: limiters, the tree's 404, the key refusals. **(4 tests)**
+- [x] `plugins/website-booking/tests/public-refusal-language.unit.test.js` — [site-english-version.md](site-english-version.md) rule 8's reading of 2026-11-05: limiters, the tree's 404, the key refusals. **(7 tests)**
 - [x] `tests/public-catalog-readonly.unit.test.js` — `GET /public/v1/properties/:id` reads through the
       side-effect-free `getByIdPublicReadOnly` and **never** the seeding `getByIdWithDetails`, proving a
       public GET performs zero writes; 404 path also writes nothing. **(2 tests)**

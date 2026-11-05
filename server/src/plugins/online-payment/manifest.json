@@ -112,7 +112,8 @@
     ],
     "1.5.3": [
       "Rapprochement bancaire : « Défaire » est refusé tant qu’un remboursement a besoin de cet argent, et le nomme.",
-      "Rapprochement bancaire : une demande de mauvaise forme est refusée, jamais une erreur interne ni une ligne écartée illisible. Compatible avec le SDK 2.20 de GuestFlow."
+      "Rapprochement bancaire : une demande de mauvaise forme est refusée, jamais une erreur interne ni une ligne écartée illisible.",
+      "Compatible avec le SDK 2.20 de GuestFlow."
     ]
   }
 }

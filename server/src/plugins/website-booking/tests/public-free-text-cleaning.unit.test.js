@@ -92,6 +92,7 @@ test('rule 15 — the attribution keeps one clean line and never refuses', () =>
     landingPath: '/a\u0000\r\nb',
   }), { utmSource: 'xy[31m', utmMedium: 'cpc', utmCampaign: 'été 2027', utmContent: 'a b', landingPath: '/a b' });
   assert.equal(validateAttribution({ utmSource: '\u0000' }), null);
+  assert.equal(validateAttribution({ utmCampaign: 'a\u2028b\u2029c' }).utmCampaign, 'a b c');
   assert.equal(validateAttribution({ landingPath: '\u200B/x' }).landingPath, '/x');
   assert.equal(validateAttribution({ utmSource: `${'\u0000'.repeat(300)}x` }).utmSource, 'x');
 });
