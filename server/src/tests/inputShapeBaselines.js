@@ -181,7 +181,7 @@ async function baselines(app, admin, active) {
     ['POST', '/api/emails/queue', { templateId: s.template, reservationId: s.direct }, { ok: [400, 404, 409] }],
     ['PUT', '/api/terms/draft', { fr: 'Texte', en: 'Text', text: 'Texte' }, { ok: [400, 404] }],
     ['POST', '/api/terms/preview', { fr: 'Texte', en: 'Text', text: 'Texte' }, { ok: [400, 404] }],
-    ['PUT', '/api/terms/enforcement', { enabled: false, enforcement: 'off' }, { ok: [400, 404, 409] }],
+    ['PUT', '/api/terms/enforcement', { requireTermsAcceptance: false }, { plugin: 'website-booking' }],
     ['PUT', '/api/terms/public-site-origin', { publicSiteOrigin: 'https://example.invalid' }],
     ['PUT', '/api/platforms/settings', { platforms: [{ id: platformId, reviewWhereFr: 'sur Booking', reviewWhereEn: 'on Booking' }] }],
     ['PUT', `/api/platforms/${platformId}/color`, { color: '#112233' }],

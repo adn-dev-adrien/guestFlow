@@ -4,6 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { startApp } = require('./inputShapeApp');
 const { validateOptionPayload } = require('../utils/optionValidation');
+const { skipWithout } = require('../plugins/sdk/testing');
 
 const T = JSON.parse('{"toString":1}');
 let app;
@@ -69,9 +70,18 @@ test('rule 32 — a resource: closed values and hours are judged, a stored one e
       assert.equal(res.json.details[0].field, field);
     }
   }
+  assert.equal((await app.call(admin, 'POST', '/api/resources', { ...resource, openDays: [1, 2], hourlyEveningStart: null, openTime: '', closeTime: '' })).status, 200);
+  const made = await app.call(admin, 'POST', '/api/resources', { ...resource, openTime: '08:00', closeTime: '22:00', openDays: '[0,1,2]', hourlyEveningStart: '18:00' });
+  assert.equal(made.status, 200, made.text);
+  const row = (await app.call(admin, 'GET', `/api/resources/${made.json.id}`)).json;
+  assert.equal((await app.call(admin, 'PUT', `/api/resources/${made.json.id}`, row)).status, 200, 'a whole stored row sent back passes');
+});
+
+// Reading of 2026-11-05 (audit R24-S1): `per_hour` needs the hourly-resources plugin, so these cases skip when the tree
+// does not ship it.
+test('rule 32 — an hourly resource: the editor\'s payload passes, a stored row sent back passes', { skip: skipWithout(['hourly-resources']) }, async () => {
   const made = await app.call(admin, 'POST', '/api/resources', { ...resource, priceType: 'per_hour', isComplex: 1, openTime: '08:00', closeTime: '22:00', openDays: '[0,1,2]', hourlyEveningStart: '18:00', minimumUsageMinutes: 60 });
   assert.equal(made.status, 200, made.text);
-  assert.equal((await app.call(admin, 'POST', '/api/resources', { ...resource, openDays: [1, 2], hourlyEveningStart: null, openTime: '', closeTime: '' })).status, 200);
   const row = (await app.call(admin, 'GET', `/api/resources/${made.json.id}`)).json;
   assert.equal((await app.call(admin, 'PUT', `/api/resources/${made.json.id}`, row)).status, 200, 'a whole stored row sent back passes');
 });

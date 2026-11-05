@@ -330,6 +330,12 @@ including the ones added later.
     (`server/src/plugins/<id>/…`) the guard did not see. The sweep now keeps only the files the tree ships. The guard
     reads that form too, unless the file filters on `fs.existsSync(path.join(ROOT, f))` or the literal is only an input
     of `pluginsOf([…])`.
+    Reading of 2026-11-05 (audit R24-S1): 15 cells were red on two suites of #977 that named plugins by their URLs and
+    a price type, which the guard does not read. `route-census` judges only the routes of the plugins the tree ships,
+    through a list of each plugin's write routes held equal to the plugin registry (hosting-h2-account-security
+    rule 68, census); `catalogue-text-enums` skips its `per_hour` case without hourly-resources. The guard is not
+    widened to URLs: a core test names a plugin's URL on purpose in many places that run whatever the tree holds,
+    and the census's owner list is now the record of which URL belongs to which plugin. All 16 cells green after.
 20. **The snapshot server's port is a flag** (audit R4, 2026-10-29). `plugin-removal.mjs cell <id>` took the
     seed-time snapshot server's port as `--port` + 2, which collided with another process or another cell run on the
     same machine. `--snapshot-port` sets it; without it the port is still `--port` + 2.
