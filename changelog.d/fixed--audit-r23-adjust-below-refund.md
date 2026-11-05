@@ -1,0 +1,1 @@
+- Payment marks: a save adjusting a paid arrival or end-of-stay complement below what a book refund needs is refused, naming the refund to delete first (`reservation-refunds.md` rule 52 reading).

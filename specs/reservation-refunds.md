@@ -580,6 +580,14 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
     > `resources`, as `splitEndOfStayDetail`). Solde, complement, one adult more, end of stay paid, cancelled: 42,40 € are offered
     > and every account nets to 0, where they sat on no line. A SAS line with no key names no line of the fiche. The caisse
     > interne's reading is unchanged (review of PR #929, F4). Same test.
+    >
+    > **Accepted, 2026-11-05 (audit R23 L5, L7).** An adjusted complement collects on its bucket, not its line: line 100 €,
+    > complement adjusted to 120 €, paid alone, cancelled: the line offers 100 €, the other 20 € are collected on no line, and
+    > the free line gives them back (a line on accommodation alone offers nothing: `lines: []`). `collectedByLine` does not read
+    > `complementAllocation`: its buckets name no line, and that reading would be new logic for a rare gesture. A refund of a
+    > trop-perçu on its free line, then a cancellation and the give-back, returns every euro but leaves a pair across revenue
+    > accounts, for example 70600000 +90,90 / 70600010 -90,91 (line removed), ±54,55 (lowered), ±45,45 (complement line): no euro
+    > lost. It is the exception to the cross-account residue rule 51 closes. Test: `live-refund-per-line`.
 50. **A live stay refuses a book refund above what it collected** _(D10, Adrien, 2026-11-05; audit R22-7)_. The total of a
     refund made by transfer or in cash (`Espèces`) on a stay that is not cancelled cannot exceed `collectedTtc`, net of the
     refunds already made: 409 `REFUND_EXCEEDS_COLLECTED` « Dépasse l'encaissé (X €). », the same refusal as a cancelled
@@ -618,7 +626,8 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
     *Why:* solde paid, 300 € refunded, un-tick: `collected −300`, 70600000 −272,73 and the bank +300 stayed in the journal, and a
     cancellation then left the negative revenue on an empty register. Shared guard: `utils/refundUntickGuard.js`. The departure and
     arrival SAS commits, which can also take a mark back on a re-open, do not pass through it. Test: `untick-with-open-refund`,
-    `plugins/online-payment/tests/reconciliation-undo-open-refund`.
+    `plugins/online-payment/tests/reconciliation-undo-open-refund`. *Reading of 2026-11-05 (audit R23 L6):* a save adjusting a paid
+    complement or end-of-stay complement down is the same gesture by another door: same guard, same 409, nothing written.
 
 ---
 
@@ -846,9 +855,9 @@ like « Nouvelle note », not a page-level one).
 ## 7. Test plan
 
 ### Server unit tests (38 new — full suite 2421 ✅)
-- [x] `tests/live-refund-per-line.unit.test.js` (17) — rule 51 (D15). `tests/untick-with-open-refund.unit.test.js` (8),
+- [x] `tests/live-refund-per-line.unit.test.js` (18) — rule 51 (D15). `tests/untick-with-open-refund.unit.test.js` (16),
       `plugins/online-payment/tests/reconciliation-undo-open-refund.unit.test.js` (4) — rule 52.
-      `plugins/accounting-export/tests/cancelled-register-plan-and-eos-lines.unit.test.js` (10) — rule 49 readings N5, N6 and D15's
+      `plugins/accounting-export/tests/cancelled-register-plan-and-eos-lines.unit.test.js` (11) — rule 49 readings N5, N6 and D15's
       give-back. Client: `RefundDialog.line-collected.test.jsx` (6). The auditor's unheld lines (R23-S3):
       `complement-split-stamped-on-every-flip` (+5), `cancelled-register-complement-no-split` (+2), `removed-line-contribs` (+4),
       `platform-added-guests-tourist-tax-books` (+1).

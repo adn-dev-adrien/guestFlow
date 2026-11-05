@@ -1,5 +1,4 @@
 - Refunds: a live stay refuses a refund on a line above what that line collected (`REFUND_EXCEEDS_LINE_COLLECTED`), the dialog blocks from the server's figure; free lines stay judged on the total and the caisse interne is not judged.
 - Payment marks: un-ticking a payment, the arrival undo and the reconciliation's « Défaire » refuse while a book refund needs that money, naming the refund to delete first.
-- Payment marks: an un-ticked arrival complement is re-priced, and the end-of-stay line gives back what it had claimed in its place.
 - End-of-stay complement: growth on a fully paid plan with its complement paid is claimed at the end of stay; a future stay whose end-of-stay complement is paid refuses growth, as a started stay does.
 - Cancelled stays: the options and resources a plan collected beyond the lines still naming them, and a paid end-of-stay complement, are offered on the refund register, so giving everything back nets every account to 0.

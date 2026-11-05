@@ -139,3 +139,14 @@ test('D15 — a refund a line could give, then a cancellation and the give-back:
   await cancel(stay.id);
   givesAll(stay.id);
 });
+
+// Audit R23 L3 — rule 49's « rounding cents excepted ».
+test('N5 — a split leaving 1 or 2 cents above the line offers no plan line', async () => {
+  for (const lowered of [99.99, 99.98]) {
+    const stay = fiche(NO_ACOMPTE, 'direct', { customOptions: [free(100)] });
+    await plan(stay);
+    await put(stay, { customOptions: [free(lowered)] });
+    await cancel(stay.id);
+    assert.equal(lineOf(stay.id, PLAN_OPTIONS), undefined, `line at ${lowered}`);
+  }
+});

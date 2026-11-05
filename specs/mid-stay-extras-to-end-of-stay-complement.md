@@ -383,7 +383,7 @@ détectée, et jamais lorsqu'il est encaissé (§3.5). Aucun backfill, aucune pe
 leur couverture existante suffit, aucun test ajouté.
 
 - `end-of-stay-claims-growth.unit.test.js` (14) — rule 20, readings of 2026-11-05 (D9, R23 N1).
-- `eos-paid-refuses-growth.unit.test.js` (7) — rule 20, reading of 2026-11-05 (R23 N4).
+- `eos-paid-refuses-growth.unit.test.js` (9) — rule 20, reading of 2026-11-05 (R23 N4).
 
 ### Client tests (`cd client && npx vitest run` → **774 verts**, +2)
 

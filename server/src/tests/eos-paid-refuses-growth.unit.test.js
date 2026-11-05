@@ -6,7 +6,7 @@ process.env.DB_PATH = ':memory:';
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
-  controller, respond, ADMIN, TODAY, rowOf, NO_ACOMPTE, S, C, forced, free, fiche, put, pay, ficheView,
+  db, controller, respond, ADMIN, TODAY, rowOf, NO_ACOMPTE, S, C, forced, free, fiche, put, pay, ficheView,
 } = require('./moneyLedgerFixture');
 
 const E = { endOfStayComplementPaid: true, endOfStayComplementPaidDate: TODAY };
@@ -74,4 +74,25 @@ test('no paid end of stay: growth passes, as before', async () => {
   const stay = fiche(NO_ACOMPTE, 'direct', { customOptions: [forced(20)] });
   pay(stay.id, S, C);
   assert.equal((await save(stay, { adults: 3 })).statusCode, 200);
+});
+
+// Audit R23 L1.
+test('a rise of the tax alone: refused, the price has not moved', async () => {
+  const stay = fiche(NO_ACOMPTE, 'direct', { adults: 2, children: 1, customOptions: [forced(20)] });
+  pay(stay.id, S, C);
+  await put(stay, { children: 2 });
+  pay(stay.id, E);
+  const before = rowOf(stay.id);
+  const res = await save(stay, { adults: 3, children: 1 });
+  assert.equal(res.body.code, 'MID_STAY_EXTRAS_CLOSED');
+  assert.equal(rowOf(stay.id).touristTaxTotal, before.touristTaxTotal);
+});
+
+test('an admin unlock of a started stay is not judged by this rule: the growth passes', async () => {
+  const stay = await paidEndOfStay();
+  db.prepare("UPDATE reservations SET startDate = date('now', '-1 day'), endDate = date('now', '+1 day') WHERE id = ?").run(stay.id);
+  const moved = { startDate: rowOf(stay.id).startDate, endDate: rowOf(stay.id).endDate };
+  const res = await save(stay, { ...moved, adults: 4, unlockPast: true });
+  assert.notEqual(res.body.code, 'MID_STAY_EXTRAS_CLOSED', JSON.stringify(res.body));
+  assert.equal(res.statusCode, 200, JSON.stringify(res.body));
 });

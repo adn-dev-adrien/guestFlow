@@ -929,7 +929,6 @@ function settleArrivalPayment(req, res) {
     if (refusal) return res.status(refusal.status).json(refusal.body);
   }
   const result = model.settleArrivalBuckets(id, { mode, date });
-  if (mode === 'undo' && result.buckets.includes('complement')) repriceUntickedComplement(id);
   const after = model.getRow(id);
   // The view itemises the payment, which needs the options / ressources of the fiche — `getRow`
   // carries only the reservation columns.
@@ -959,19 +958,16 @@ function arrivalUndoChanges(row) {
   return Object.fromEntries([['arrivalPaymentGroup', null], ...group.buckets.map((bucket) => [ARRIVAL_BUCKET_FLAGS[bucket], 0])]);
 }
 
-// specs/reservation-payment-ledger.md rule 67 — a complement un-ticked asks what the stay asks now, not what it collected, and
-// the end-of-stay line takes back what rule 20 had moved there. A complement the operator adjusted keeps his amount.
-function repriceUntickedComplement(id) {
-  const row = model.getRow(id);
-  const quote = row && quoteStoredReservation(db, row);
-  if (!quote || quote.error) return;
-  const before = round2(row.complementAmount);
-  const next = round2(quote.complementAmount);
-  if (next !== before) {
-    model.updatePaymentField("UPDATE reservations SET complementAmount = ?, updatedAt = datetime('now') WHERE id = ?", next, id);
-    model.addHistoryEntry(id, 'update', [{ field: 'complementAmount', label: 'Complément d\'arrivée', from: formatEurosFr(before), to: formatEurosFr(next) }]);
-  }
-  model.syncMidStayComplement(id, quote.midStayExtrasLines);
+// The amounts a save's adjustment fields would write on the two complements; blank = no adjustment.
+function adjustedComplementChanges(body) {
+  const changes = {};
+  const read = (field, column) => {
+    const value = body[field];
+    if (value !== undefined && value !== null && value !== '' && Number.isFinite(Number(value))) changes[column] = Math.max(0, round2(value));
+  };
+  read('complementAmountOverride', 'complementAmount');
+  read('endOfStayComplementAmountOverride', 'endOfStayComplementAmount');
+  return changes;
 }
 
 // What a payment PATCH would write on the money `comptaCollected` reads (rule 52), computed ahead of any write.
@@ -1200,7 +1196,7 @@ async function calculatePrice(req, res) {
   // the fiche of a stay or devis quotes its stored dates even past the horizon.
   const quotedRowId = Number(req.body.reservationId || 0) || Number(req.body.devisId || 0);
   const quotedStored = quotedRowId > 0 ? model.getRow(quotedRowId) : null;
-  // Rule 17 — the money the save would refuse, refused here too.
+  // specs/reservations-backend-mvc.md rule 19 — the money the save would refuse, refused here too.
   const financeError = validateStayFinance(req.body, quotedStored);
   if (financeError) return res.status(400).json(financeErrorBody(financeError));
 
@@ -1961,7 +1957,7 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
   const cancelled = readOnlyRefusal(db, id);
   if (cancelled) return res.status(cancelled.status).json(cancelled.body);
 
-  // Rule 16 — refused here rather than by the NOT NULL constraint (a 500), as on the creation.
+  // specs/reservations-backend-mvc.md rule 20 — refused here rather than by the NOT NULL constraint (a 500), as on the creation.
   if (!req.body.clientId) return res.status(400).json(CLIENT_REQUIRED);
 
   // specs/direct-installments.md rule 1 — a plan with money in keeps the reservation on the own channels.
@@ -2225,6 +2221,9 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
     && round2(Number(quote.finalPrice || 0) + Number(quote.touristTaxTotal || 0)) > round2(Number(storedPaymentForQuote.finalPrice || 0) + Number(storedPaymentForQuote.touristTaxTotal || 0))) {
     return res.status(400).json({ error: MID_STAY_EXTRAS_CLOSED_MESSAGE, code: 'MID_STAY_EXTRAS_CLOSED' });
   }
+  // specs/reservation-refunds.md rule 52, reading of 2026-11-05 (audit R23 L6) — a paid complement adjusted down lowers what stays collected too.
+  const adjustRefusal = untickRefusal(storedPaymentForQuote, adjustedComplementChanges(req.body), refundsModel.listByReservation(id));
+  if (adjustRefusal) return res.status(adjustRefusal.status).json(adjustRefusal.body);
   if (pastReservationLocked) {
     const allowedLockedFields = new Set([
       'clientId', 'platform', 'touristTaxRate', 'touristTaxTotal', 'discountPercent', 'finalPrice',
@@ -2782,7 +2781,6 @@ function updatePayment(req, res) {
       ]);
     }
   }
-  let complementUnticked = false;
   if (complementPaid !== undefined || complementPaidCash !== undefined) {
     // Arrival complement: normal (compta) paid OR « payé en liquide » (cash, off the books — spec
     // cash-complement-and-endofstay-finance.md §3.2). See resolveComplementPayment for the rules.
@@ -2807,7 +2805,6 @@ function updatePayment(req, res) {
     // échéances. Idempotent : une base déjà posée n'est jamais réécrite.
     if (paid) model.captureArrivalExtrasBaseline(Number(id));
     if (paid && Number(before?.complementPaid || 0) !== 1) stampComplementPaidSplit(db, Number(id));
-    complementUnticked = !paid && Number(before?.complementPaid || 0) === 1;
     // specs/defer-arrival-complement-to-checkout.md §3.2 rule 8 — when the complement was deferred to
     // check-out, the fiche shows ONE card for ONE collection: marking it paid (or « caisse interne »)
     // settles BOTH buckets with the same date, and un-marking clears both. The amounts stay separate
@@ -2843,7 +2840,6 @@ function updatePayment(req, res) {
       model.clearEndOfStayDepartureMarker(Number(id));
     }
   }
-  if (complementUnticked) repriceUntickedComplement(Number(id));
   if (cautionReceived !== undefined) {
     const date = cautionReceivedDate || (cautionReceived ? localTodayIso() : null);
     if (cautionReceived) {

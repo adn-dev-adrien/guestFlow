@@ -195,3 +195,13 @@ test('legacy money no contrib describes keeps the total as its judge', () => {
   db.prepare('UPDATE reservation_custom_options SET soldeContribTtc = NULL WHERE reservationId = ?').run(stay.id);
   assert.equal(refund(stay.id, [{ key: 'custom:libre', amountTtc: 100 }]).statusCode, 201);
 });
+
+// Audit R23 L4.
+test('a plan: what the end of stay collected on a line adds to its bucket’s share', async () => {
+  const stay = fiche(NO_ACOMPTE, 'direct', { customOptions: [free(100, 'Ligne'), forced(20)] });
+  await plan(stay);
+  pay(stay.id, C);
+  await put(stay, { customOptions: [free(130, 'Ligne'), forced(20)] });
+  pay(stay.id, { endOfStayComplementPaid: true, endOfStayComplementPaidDate: TODAY });
+  assert.equal(line(stay.id, 'custom:ligne').availableTtc, 130);
+});

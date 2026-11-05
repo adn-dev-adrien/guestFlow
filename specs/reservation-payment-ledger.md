@@ -751,11 +751,11 @@ tariff would fire on every platform stay (the brut is grossed up by the commissi
 
 ### 3.10 Audit R23 N8 (2026-11-05) — an un-ticked complement
 
-67. **A complement un-ticked asks what the stay asks now.** It kept the amount it had collected, so with its line removed since
-    it asked 50 € on a covered stay, and a re-tick stamped a split with no line. On the flip to unpaid, by the PATCH or the arrival
-    undo, the amount is re-priced from the stored stay (`quoteStoredReservation`), a change leaves a history line, and the
-    end-of-stay line takes back what mid-stay rule 20 had moved there, so a growth is never claimed twice. An adjusted complement
-    keeps the operator's amount. A SAS re-open does not pass here. Test: `unticked-complement-repriced`.
+67. **A complement un-ticked keeps its amount** _(amended 2026-11-05)_. Un-ticking writes the mark only, by the PATCH or the arrival
+    undo, so a mis-click corrected by a re-tick moves no collected money. *Why:* re-pricing on the un-tick (audit R23 N8, withdrawn
+    the same day) rewrote 6 of 16 real paid complements on a re-tick, up to -50 € and a mark that could not be put back. The chain it
+    closed is accepted: a paid complement whose line a forced save removed, then un-ticked, keeps asking its stale amount until the
+    operator adjusts it on the fiche. Test: `unticked-complement-keeps-amount`.
 
 ## 4. Architecture
 
