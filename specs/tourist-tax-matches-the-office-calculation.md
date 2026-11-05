@@ -269,6 +269,8 @@ Nothing the guest has already paid moves. What is still to be collected is corre
     change still re-prices as on a paid solde (rule 17). The VAT regime switch reads `isTouristTaxFrozenAsidePlan`, so a
     plan is reported for its plan first (`vat-optional-mode.md` rule 27), not hidden as frozen. An installment paid with no tax
     share, as when the tax rides the complement, pins nothing until the plan is fully paid.
+    *Reading of 2026-11-05 (R23 verification):* `calculate-price` lifts the pin on the same condition as the save
+    (rule 17's `sameStayAsSold`), so a changed party or date previews what the save stores.
 
 ---
 

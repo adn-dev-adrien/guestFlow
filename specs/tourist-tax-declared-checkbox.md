@@ -53,7 +53,8 @@ Two problems surface in real use:
    or on the added guests' own row, is refused with 409 `TOURIST_TAX_NOT_DECLARABLE` unless the stay is paid AND
    today > `endDate`, today being the server's local day, Europe/Paris (`utils/localDate`). Paid is what the page's
    gate reads on a stay without a plan (`balancePaid`, or `complementPaid` when the tax rides the complement), and
-   every installment paid on a plan: a plan's row whose tax rides an unpaid complement reads the plan alone. The
+   every installment paid on a plan, plus `complementPaid` when the plan's tax rides the complement (Adrien's rule,
+   2026-11-05: declarable only when the stay is paid). The
    only write path is `setTouristTaxDeclared` (no bulk path exists), so the judgment lives there and in the
    helper `isTouristTaxDeclarable`. Each row carries `declarable`; the checkbox is disabled while it is false and
    nothing is ticked, with « Déclarable une fois le séjour payé et terminé. » on desktop and mobile. Unticking stays

@@ -268,7 +268,7 @@ const DEPOSIT_DISABLED_LOCK_REASONS = {
 const TAX_IN_COMPLEMENT_LOCK_REASONS = {
   'collected-on-solde': 'Taxe encaissée avec le solde : décocher le solde d’abord.',
   'collected-on-acompte': 'Taxe encaissée avec l’acompte : décocher l’acompte d’abord.',
-  'collected-on-installment': 'Taxe encaissée avec une échéance : défaire l’échéance d’abord.',
+  'collected-on-installment': 'Taxe encaissée avec une échéance.',
 };
 
 export default function FinanceSection() {

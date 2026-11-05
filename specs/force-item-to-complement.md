@@ -179,6 +179,16 @@ Auto-options (`option.autoOptionType ∈ {early_check_in, late_check_out, …}` 
     solde entry was rewritten at once in a possibly exported month, and a cancel left 4,80 € on no line. The fiche greys
     the switch and says why from `touristTaxInComplementLockedReason` (reservation and live quote). *Reading of §7's « toggles
     stay editable to correct a category »:* still so on a past stay, after unticking the payment that holds the tax.
+    *Readings of 2026-11-05 (R23 verification):* moving the stay to a platform that takes the tax on arrival
+    (`collectsTouristTax = 0`, read through the routing of `TAX_ON_ARRIVAL_SQL`) is the same switch and answers the same 409, no
+    new field; a platform that reverses the tax changes nothing and passes. The « + compl. » chip of the pricing summary is
+    read-only while the reason holds. The installment's caption reads « Taxe encaissée avec une échéance. » with no gesture
+    named: a manually marked installment has no way back, only the bank reconciliation's « Défaire » reaches `markUnpaid`.
+    *Accepted (A2, pre-existing, no money moved):* solde paid and tax on the unpaid complement, then the switch off or a move
+    from a platform taking the tax on arrival to direct: the save passes, the complement stays due, a row may be ticked with
+    the tax uncollected on a stay without a plan.
+    *Accepted (A5, pre-existing, one setting change):* flipping a platform's `collectsTouristTax` rewrites a paid solde's
+    journal at read (46710000 4,80 € to 0), and claims nothing.
 
 ---
 

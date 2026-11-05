@@ -17,7 +17,7 @@ beforeEach(() => { vi.clearAllMocks(); });
 test.each([
   ['collected-on-solde', 'Taxe encaissée avec le solde : décocher le solde d’abord.'],
   ['collected-on-acompte', 'Taxe encaissée avec l’acompte : décocher l’acompte d’abord.'],
-  ['collected-on-installment', 'Taxe encaissée avec une échéance : défaire l’échéance d’abord.'],
+  ['collected-on-installment', 'Taxe encaissée avec une échéance.'],
 ])('%s: disabled, says why, nothing moves', async (reason, caption) => {
   const { ctx } = open({ touristTaxInComplementLockedReason: reason });
   expect(taxSwitch()).toBeDisabled();

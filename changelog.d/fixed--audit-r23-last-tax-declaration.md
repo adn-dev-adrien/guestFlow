@@ -1,0 +1,1 @@
+- « Déclarée »: a plan whose tax rides the complement waits for the complement too. A move to a platform that takes the tax on arrival is refused once the tax is collected (409 `TOURIST_TAX_ALREADY_COLLECTED`). The preview lifts the frozen tax when the party or the dates change, as the save does. The « + compl. » chip is read-only while the switch is locked.

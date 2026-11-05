@@ -188,14 +188,16 @@ is declared to the commune. The accommodation no longer pays for it.
     way. *Why:* with the gate on `balancePaid`, nothing of such a stay was listed: no main row to tick, and the row of its own
     needs a declared main row. *Reading of 2026-11-05 (D16):* ticks wait for the stay paid and over
     (`tourist-tax-declared-checkbox.md` rule 8), the own tick too; rows and stamps read as above.
-29. **The addition above what the declared row held has its own row** _(audit R23-DB-1, 2026-11-05)_. A row of its own
+29. **The addition above what the declared row held has its own row** _(audit R23-DB-1, 2026-11-05; accepted A3 below)_. A row of its own
     exists when the stay is declared, the complement collected and the addition is above the stamp; its amount is the
     addition minus the stamp, its adults what the difference stands for at the stored per-adult figure. The declared row
     keeps what it told: total minus that difference. *Why:* complement unticked after a tick, a party change, collected
     again: the row rose from 7,20 € to 9,60 € while marked declared, and nothing asked for the 2,40 € (rule 12: a
     declaration already made does not move). Re-collected unchanged (addition = stamp), one row as before: the trigger
     does not zero the stamp, that would declare twice. A stamp above the new amount stays silent: one row, lowered, no
-    signal, recorded here as known and left to Adrien.
+    signal, recorded here as known and left to Adrien. *Accepted (A3, 2026-11-05, declaration wording only):* declared,
+    complement unticked, nights extended after the stay ended, re-collected: the row is the same split, its own row
+    flagged « aucun voyageur ajouté ».
 
 **Edge cases:**
 - iCal import with 1 default adult, composition set to 4, then the brut → paid = 4, no added tax.

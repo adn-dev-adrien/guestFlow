@@ -72,6 +72,20 @@ function taxRidesTheComplement(db, reservation) {
 }
 
 /**
+ * Would a stay on this platform carry its tax on the complement? The stay's own switch left aside, read
+ * through the same routing as the stored rows. A platform that is not a text or is not known: no.
+ */
+function platformTakesTaxOnArrival(db, platform) {
+  if (typeof platform !== 'string' || !platform) return false;
+  try {
+    const row = db.prepare(`SELECT ${TAX_ON_ARRIVAL_SQL} AS onArrival FROM (SELECT 0 AS touristTaxInComplement, ? AS platform) r`).get(platform);
+    return Boolean(row && Number(row.onArrival));
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Where a stay's installment plan stands: none, all paid, and whether a paid installment holds a share of
  * the tax. A paid installment's share is the one frozen on it (`paidSplit`), an older row without one
  * reads it from the plan. A minimal test schema without the table holds no plan.
@@ -137,15 +151,16 @@ function isTouristTaxFrozen(db, reservation) {
 
 /**
  * May « Déclarée » be ticked (specs/tourist-tax-declared-checkbox.md rule 8, D16)? The stay is paid and
- * its end date is behind us: today > endDate. Paid is every installment for a plan, the page's own gate
- * otherwise. Today is the server's local day, Europe/Paris (utils/localDate).
+ * its end date is behind us: today > endDate. Paid is the page's own gate on a stay without a plan, every
+ * installment on a plan, and the complement too when the tax rides it. Today is the server's local day, Europe/Paris (utils/localDate).
  */
 function isTouristTaxDeclarable(db, reservation, today = todayIso()) {
   if (!reservation) return false;
   const endDate = String(reservation.endDate || '').slice(0, 10);
   if (!endDate || endDate >= today) return false;
   const plan = installmentPlanState(db, reservation.id);
-  return plan.hasPlan ? plan.allPaid : taxBucketPaid(db, reservation);
+  if (!plan.hasPlan) return taxBucketPaid(db, reservation);
+  return plan.allPaid && (!taxRidesTheComplement(db, reservation) || Boolean(Number(reservation.complementPaid || 0)));
 }
 
 /**
@@ -258,6 +273,7 @@ function reconstructFrozenBase({
 module.exports = {
   TAX_ON_ARRIVAL_SQL,
   taxRidesTheComplement,
+  platformTakesTaxOnArrival,
   isTouristTaxFrozen,
   isTouristTaxFrozenAsidePlan,
   isTouristTaxDeclarable,

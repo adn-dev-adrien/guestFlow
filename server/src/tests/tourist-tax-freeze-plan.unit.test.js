@@ -12,6 +12,7 @@ const installmentsController = require('../controllers/installmentsController');
 const financeController = require('../controllers/financeController');
 const { isTouristTaxFrozen } = require('../utils/touristTaxFreeze');
 const { quoteStoredReservation } = require('../utils/storedReservationQuote');
+const { liveQuote } = require('./ledgerFixture');
 
 async function planOf(id) {
   const res = respond();
@@ -132,4 +133,30 @@ test('rule 11: with no save between tick and untick there is no stamp, so the un
   financeController.setTouristTaxDeclared({ params: { reservationId: stay.id }, body: { declared: false } }, res);
   assert.equal(res.statusCode, 200);
   assert.equal(frozen(stay.id), false);
+});
+
+test('rule 19: an installment paid at no tax share, the tax switched back since: its frozen split decides, nothing is pinned', async (t) => {
+  const stay = fiche(NO_ACOMPTE, 'direct', { touristTaxInComplement: 1 });
+  const plan = await planOf(stay.id);
+  payInstallment(stay.id, plan[0]);
+  assert.equal(JSON.parse(db.prepare('SELECT paidSplit FROM reservation_installments WHERE id = ?').get(plan[0].id).paidSplit).taxCents, 0);
+  await put(stay, { touristTaxInComplement: 0 });
+  assert.equal(rowOf(stay.id).touristTaxInComplement, 0);
+  assert.equal(frozen(stay.id), false);
+  moveRate(t);
+  assert.equal(preview(stay.id).touristTaxTotal, 8);
+});
+
+test('rule 19, reading: calculate-price lifts the pin as the save does: a changed party shows what the save stores', async (t) => {
+  const stay = fiche(NO_ACOMPTE, 'direct');
+  for (const installment of await planOf(stay.id)) payInstallment(stay.id, installment);
+  moveRate(t);
+  const stored = rowOf(stay.id);
+  const asked = (over = {}) => liveQuote(stay.id, { adults: stored.adults, children: stored.children, teens: stored.teens, babies: stored.babies, ...over });
+
+  assert.equal((await asked()).touristTaxTotal, 4.8, 'same stay: pinned');
+  const grown = await asked({ adults: stored.adults + 1 });
+  assert.equal(grown.touristTaxTotal, 12);
+  await put(stay, { adults: stored.adults + 1 });
+  assert.equal(rowOf(stay.id).touristTaxTotal, grown.touristTaxTotal, 'the preview said what the save stored');
 });

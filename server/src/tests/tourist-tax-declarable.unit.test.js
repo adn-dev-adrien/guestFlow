@@ -118,6 +118,21 @@ test('rule 8: a plan is listed with an installment due, not declarable until eve
   assert.equal(tick(stay.id).statusCode, 200);
 });
 
+test('rule 8: a plan whose tax rides the complement waits for the complement too, Adrien\'s rule', async (t) => {
+  const month = nextMonth();
+  const stay = stayIn(month, 'direct', { touristTaxInComplement: 1 });
+  for (const installment of await planOf(stay.id)) payInstallment(stay.id, installment);
+  clockAt(t, `${after(month)}-15T12:00:00`);
+  assert.equal(mainOf(month, stay.id).declarable, false);
+  assertRefused(tick(stay.id));
+  t.mock.timers.reset();
+
+  pay(stay.id, C);
+  clockAt(t, `${after(month)}-15T12:00:00`);
+  assert.equal(mainOf(month, stay.id).declarable, true);
+  assert.equal(tick(stay.id).statusCode, 200);
+});
+
 test('rule 8: the row of its own is judged too: main tick stored, complement collected, stay under way', async (t) => {
   const month = nextMonth();
   const stay = stayIn(month, PLATFORM.ownReversed, { platformGrossAmount: 600 });

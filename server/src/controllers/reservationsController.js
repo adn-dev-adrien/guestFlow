@@ -115,7 +115,7 @@ const { contribLinesOf, recordRemovedLineContribs } = require('../utils/removedL
 const { validateCollectionDate } = require('../utils/arrivalPaymentDate');
 const { parseNotes: parseMidStayNotes } = require('../utils/midStayExtras');
 const ledgerLinks = require('../utils/ledgerLinks');
-const { taxInComplementLockedReason } = require('../utils/touristTaxFreeze');
+const { taxInComplementLockedReason, platformTakesTaxOnArrival } = require('../utils/touristTaxFreeze');
 
 const TAX_IN_COMPLEMENT_LOCKED_MESSAGE = 'Taxe déjà encaissée : décocher le paiement d’abord.';
 const installments = require('./installmentsController');
@@ -1295,7 +1295,8 @@ async function calculatePrice(req, res) {
     platform: req.body.platform,
     touristTaxInComplement: req.body.touristTaxInComplement,
     autoOptionsInComplement: req.body.autoOptionsInComplement,
-    ...frozenTouristTaxInputs(db, reservationId, req.body.refreshTouristTax),
+    // Same lift as the save below: a changed party or date re-prices, so the preview shows what the save stores.
+    ...frozenTouristTaxInputs(db, reservationId, req.body.refreshTouristTax || (reservationId > 0 && !sameStayAsSold(model.getRow(reservationId), req.body))),
     // Read-only preview: the baseline is only CAPTURED on save, never here.
     ...midStayQuoteInputs(db, reservationId),
     // specs/payment-schedule-and-cancellation.md §3.1 — same booking context as the save, so the
@@ -2053,9 +2054,10 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
   // be written can never disagree.
   const storedPaymentForQuote = model.getRow(id) || {};
   // specs/force-item-to-complement.md rule 20 — the tax already collected stays where it was booked; a value
-  // sent back unchanged is no switch.
-  if (req.body.touristTaxInComplement && !Number(storedPaymentForQuote.touristTaxInComplement || 0)
-    && taxInComplementLockedReason(db, storedPaymentForQuote)) {
+  // sent back unchanged is no switch, and a platform that takes the tax on arrival routes it the same way.
+  const taxMovesToComplement = (req.body.touristTaxInComplement && !Number(storedPaymentForQuote.touristTaxInComplement || 0))
+    || (req.body.platform !== storedPaymentForQuote.platform && platformTakesTaxOnArrival(db, req.body.platform));
+  if (taxMovesToComplement && taxInComplementLockedReason(db, storedPaymentForQuote)) {
     return res.status(409).json({ error: TAX_IN_COMPLEMENT_LOCKED_MESSAGE, code: 'TOURIST_TAX_ALREADY_COLLECTED' });
   }
   if (req.body.depositDisabled && !depositDisabledFlag) {

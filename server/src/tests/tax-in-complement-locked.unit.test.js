@@ -5,7 +5,7 @@ process.env.DB_PATH = ':memory:';
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
-  db, controller, respond, rowOf, ADMIN, TODAY, NO_ACOMPTE, WITH_ACOMPTE, S, C, fiche, put, pay, ficheView,
+  db, controller, respond, rowOf, ADMIN, TODAY, NO_ACOMPTE, WITH_ACOMPTE, PLATFORM, S, C, fiche, put, pay, ficheView,
 } = require('./moneyLedgerFixture');
 const installmentsController = require('../controllers/installmentsController');
 
@@ -114,4 +114,29 @@ test('rule 20: a refusal and an ordinary save leave what the solde holds of the 
   assert.equal(rowOf(stay.id).touristTaxSoldeContribTtc, solde);
   await put(stay, { notes: 'an ordinary save' });
   assert.equal(rowOf(stay.id).touristTaxSoldeContribTtc, solde);
+});
+
+test('rule 20, reading: a move to a platform taking the tax on arrival is the same switch, refused the same way', async () => {
+  const stay = fiche(NO_ACOMPTE, 'direct');
+  pay(stay.id, S);
+  const before = JSON.stringify(rowOf(stay.id));
+  const res = await save(stay, { platform: PLATFORM.owner });
+  assert.equal(res.statusCode, 409, JSON.stringify(res.body));
+  assert.equal(res.body.code, CODE);
+  assert.equal(JSON.stringify(rowOf(stay.id)), before, 'nothing written');
+});
+
+test('rule 20, reading: a platform reversing the tax passes, the same platform passes, an unpaid stay moves freely', async () => {
+  const reversed = fiche(NO_ACOMPTE, 'direct');
+  pay(reversed.id, S);
+  assert.equal((await save(reversed, { platform: PLATFORM.reversed })).statusCode, 200);
+  assert.equal(rowOf(reversed.id).platform, PLATFORM.reversed);
+
+  const same = fiche(NO_ACOMPTE, PLATFORM.owner);
+  pay(same.id, S, C);
+  assert.equal((await save(same, { platform: PLATFORM.owner })).statusCode, 200, 'no move');
+
+  const unpaid = fiche(NO_ACOMPTE, 'direct');
+  assert.equal((await save(unpaid, { platform: PLATFORM.owner })).statusCode, 200);
+  assert.equal(rowOf(unpaid.id).platform, PLATFORM.owner);
 });
