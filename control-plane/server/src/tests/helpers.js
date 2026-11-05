@@ -30,10 +30,9 @@ function makeMailer() {
 // A minimal GuestFlow instance directory: data/guestflow.db with a `plugins` table, a `users` table
 // (the directory reads it) and a couple of tables the export reads.
 // `versions` = { id: version }: the table then has phase 4's `version` column.
-function makeInstance(root, slug, { installed = [], users = [], versions = null } = {}) {
-  const dataDir = path.join(root, slug, 'data');
-  fs.mkdirSync(dataDir, { recursive: true });
-  const db = new Database(path.join(dataDir, 'guestflow.db'));
+function writeInstanceDatabase(file, { installed = [], users = [], versions = null } = {}) {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const db = new Database(file);
   db.exec(`CREATE TABLE plugins (id TEXT PRIMARY KEY, enabled INTEGER NOT NULL DEFAULT 1, source TEXT);
     CREATE TABLE reservations (id INTEGER PRIMARY KEY, guest TEXT, total REAL);
     CREATE TABLE clients (id INTEGER PRIMARY KEY, name TEXT, email TEXT);
@@ -48,7 +47,16 @@ function makeInstance(root, slug, { installed = [], users = [], versions = null 
   const insertUser = db.prepare('INSERT INTO users (email, isActive) VALUES (?, ?)');
   for (const u of users) insertUser.run(u.email, u.isActive === false ? 0 : 1);
   db.close();
-  return dataDir;
+}
+
+const seedOf = (root, slug) => path.join(path.dirname(root), 'seeds', `${slug}.db`);
+
+// The database an instance is to start with. It waits beside the instances for the « database » step:
+// on a host that step creates it, and the « dir » step before it refuses one already there
+// (specs/hosting-h1-fleet-runtime.md rule 45). → the instance's data directory, once created
+function makeInstance(root, slug, options) {
+  writeInstanceDatabase(seedOf(root, slug), options);
+  return path.join(root, slug, 'data');
 }
 
 // A release directory as the host keeps it (specs/hosting-h1-fleet-runtime.md H-D4): enough for the
@@ -100,7 +108,12 @@ function makeFakeDrivers({ domain = 'guestflow.test', now = () => new Date() } =
       name: 'fake',
       async initDatabase(inst) {
         record('process.initDatabase', inst);
-        if (!fs.existsSync(inst.dbPath)) makeInstance(path.dirname(inst.dir), inst.slug);
+        if (fs.existsSync(inst.dbPath)) return;
+        const seed = seedOf(path.dirname(inst.dir), inst.slug);
+        if (fs.existsSync(seed)) {
+          fs.mkdirSync(path.dirname(inst.dbPath), { recursive: true });
+          fs.renameSync(seed, inst.dbPath);
+        } else writeInstanceDatabase(inst.dbPath);
       },
       async enableNow(inst) { record('process.enableNow', inst); startProc(inst); },
       async disableNow(inst) { record('process.disableNow', inst); stopProc(inst); },

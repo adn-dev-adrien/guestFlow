@@ -221,12 +221,12 @@ test('rule 48 — a support motive that is not text is « Motif obligatoire. » 
   const h = makeContext({ at: AT });
   try {
     const dataDir = makeInstance(h.root, NEW_CUSTOMER.slug, { users: [{ email: 'claire@example.test' }] });
+    const { customers, support } = h.ctx.controllers;
+    const c = await customers.create(NEW_CUSTOMER, 'op');
     const db = new Database(path.join(dataDir, 'guestflow.db'));
     db.exec(`CREATE TABLE support_access (id INTEGER PRIMARY KEY AUTOINCREMENT, requestId TEXT NOT NULL UNIQUE, reason TEXT NOT NULL,
       requestedAt TEXT NOT NULL, decision TEXT, decidedBy INTEGER, decidedAt TEXT, expiresAt TEXT, revokedAt TEXT, revokedBy INTEGER)`);
     db.close();
-    const { customers, support } = h.ctx.controllers;
-    const c = await customers.create(NEW_CUSTOMER, 'op');
     assert.equal(support.state(c.id).available, true, 'past the 409 UNAVAILABLE');
     const journal = () => customers.view(c.id).history.length;
     const entries = journal();
