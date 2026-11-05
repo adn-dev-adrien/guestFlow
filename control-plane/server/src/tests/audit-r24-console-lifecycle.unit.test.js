@@ -133,10 +133,13 @@ test('hosting-h1-fleet-runtime rule 55 — during an unfinished rename the probe
   try {
     const { customers } = h.ctx.controllers;
     const c = await customers.create(CUSTOMER, 'op');
+    h.host.certs[c.slug] = '2027-01-02T10:00:00.000Z';
+    h.host.certs['bbb-b'] = '2026-11-20T10:00:00.000Z';
     h.host.failNext['process.remove'] = new Error('systemctl busy');
     await renameTo(h, c.id, 'bbb-b');
     assert.equal(h.ctx.models.provisioning.get(c.id, 'rename').status, 'failed');
     await h.ctx.probe.runOnce();
+    assert.equal(h.ctx.models.hosting.get(c.id).cert_expires_at, '2027-01-02T10:00:00.000Z', 'the certificate read is the old address’s (audit R24 R3)');
     h.now.set(new Date(h.now().getTime() + 4 * 60e3));
     await h.ctx.probe.runOnce();
     const row = h.ctx.models.hosting.get(c.id);

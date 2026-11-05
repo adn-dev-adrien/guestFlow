@@ -84,7 +84,10 @@ when it is broken.
     it: not configured, credentials rejected, authorisation to renew, provider not connected,
     Qonto unreachable, Qonto in error, never verified, everything working. Telling a rejected secret
     (`invalid_client`) from a lapsed authorisation (`invalid_grant`) is the whole diagnosis: both
-    arrive as an HTTP 401, one is a form to fill and the other a button to press.
+    arrive as an HTTP 401, one is a form to fill and the other a button to press. _(Reading of 2026-11-05, audit R24
+    verification R1: a refused scope, `insufficient_scope`, is an authorisation to renew, and a public address missing for
+    the webhook check is its own class « Adresse publique manquante »,
+    specs/settings-one-save-and-automatic-webhook.md rule 15.)_
 11. The connection badge shows the last *verified* outcome. It says « Connecté » only when a real call
     to Qonto has succeeded — never merely because a token is stored.
 12. Every failed Qonto call records its code, its message and its date, wherever it was made from —

@@ -91,8 +91,8 @@ function createCustomersController(ctx) {
 
   // Rule 22: until « Dossier renommé… » is done (H1 rule 5 runs it at once), the instance still runs
   // from its old directory and answers at its old address.
-  // H1 rule 38: the « rename » row is written only once the rename holds the customer's lock, so a
-  // rename still waiting behind a fleet item is tracked here. A count, since two may overlap.
+  // H1 rule 38 with rule 52: the « rename » row is written `running` before the slug moves; this count only
+  // covers the instant between the checks and that row. A count, since two may overlap.
   const renaming = new Map();
   const markRenaming = (id) => renaming.set(id, (renaming.get(id) || 0) + 1);
   const unmarkRenaming = (id) => {

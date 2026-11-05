@@ -10,6 +10,7 @@ const path = require('node:path');
 const { freshSettings } = require('./qontoSettingsFixture');
 const { withQonto, qontoStatusPayload, recordQontoFailure, ORIGINS } = require('../../../utils/qonto/qontoService');
 const { ensureWebhookSubscription } = require('../../../utils/qonto/qontoWebhookRegistrar');
+const { createQontoSettingsController } = require('../../../utils/qonto/qontoSettingsController');
 
 const PUBLIC_URL = 'https://gf.example';
 const CALLBACK_URL = `${PUBLIC_URL}/api/payments/qonto/webhook`;
@@ -92,9 +93,11 @@ test('settings-one-save-and-automatic-webhook rule 15 — a missing public addre
   assert.equal((await ensureWebhookSubscription({ settings, env: q.env })).action, 'unconfigured');
   assert.equal(lastError(settings, q.env).origin, 'webhook-register');
   await tick();
+  const before = qontoStatusPayload({ settings, env: q.env }).health.lastSuccessAt;
   settings.upsert({ publicUrl: PUBLIC_URL });
   assert.equal((await ensureWebhookSubscription({ settings, env: q.env })).action, 'skipped');
   assert.equal(lastError(settings, q.env), null);
+  assert.equal(qontoStatusPayload({ settings, env: q.env }).health.lastSuccessAt, before, 'no call made: no success stamped');
 });
 
 test('qonto-settings-in-app rule 13 unchanged — any other failure is still cleared by a success, and a webhook success leaves it alone', async (t) => {
@@ -143,4 +146,50 @@ test('qonto-settings-in-app rule 21 — every origin handed to a Qonto call in t
   assert.ok(found.size >= 10, `scan found ${found.size} origins`);
   const missing = [...found].filter((o) => !ORIGINS[o]);
   assert.deepEqual(missing, []);
+});
+
+// Rule 15 reading of 2026-11-05 (audit R24 R1) — while the webhook check's failure stands, the badge names its real repair,
+// and « Test » runs the check again, so the advice it gives can clear it.
+async function pressTest(settings, env) {
+  const res = { json(body) { this.body = body; return this; } };
+  await createQontoSettingsController({ settings, env }).testQontoConnection({ body: {} }, res);
+  return res.body;
+}
+
+test('settings-one-save-and-automatic-webhook rule 15 — a scope refused by the webhook check: « Test » passes, the badge says « Connexion »', async (t) => {
+  const q = await fakeQonto(t);
+  const settings = connected();
+  await ensureWebhookSubscription({ settings, env: q.env });
+  await tick();
+  const answer = await pressTest(settings, q.env);
+  assert.equal(answer.ok, true);
+  assert.equal(answer.status.health.state, 'reauth_required');
+  assert.equal(answer.status.health.action, '« Connexion », puis accepter l\'accès chez Qonto.');
+  assert.equal(answer.status.health.lastError.origin, 'webhook-register');
+});
+
+test('settings-one-save-and-automatic-webhook rule 15 — a missing public address: the badge names it, and « Test » clears it once set', async (t) => {
+  const q = await fakeQonto(t);
+  q.refuseWebhook = false;
+  const settings = connected();
+  settings.upsert({ publicUrl: '' });
+  assert.equal((await ensureWebhookSubscription({ settings, env: q.env })).action, 'unconfigured');
+  const shown = qontoStatusPayload({ settings, env: q.env }).health;
+  assert.equal(shown.state, 'public_url_missing');
+  assert.equal(shown.action, 'Adresse publique à renseigner (Réglages → Envoi d’emails), puis relancer le test.');
+  await tick();
+  settings.upsert({ publicUrl: PUBLIC_URL });
+  const answer = await pressTest(settings, q.env);
+  assert.equal(answer.status.health.lastError, null);
+  assert.equal(answer.status.health.state, 'ok');
+  assert.equal(q.subscriptions.length, 1, 'the check ran and subscribed');
+});
+
+test('settings-one-save-and-automatic-webhook rule 15 — with no webhook failure standing, « Test » does not run the check', async (t) => {
+  const q = await fakeQonto(t);
+  q.refuseWebhook = false;
+  const settings = connected();
+  const answer = await pressTest(settings, q.env);
+  assert.equal(answer.ok, true);
+  assert.equal(q.subscriptions.length, 0);
 });

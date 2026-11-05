@@ -128,6 +128,15 @@ which « Enregistrer » writes which field.
     poll that follows the check in the same pass. A consent without the `webhook` scope then left no trace on the
     only page that shows the webhook: no notification arrived, a paid link was seen at the guest's return or at the
     poll, up to 8 hours later, and nothing said why. Test: `plugins/online-payment/tests/qonto-webhook-failure-stays.unit.test.js`.
+    *Reading of 2026-11-05 (audit R24 verification R1):* while that failure stands the badge names its own repair, never
+    « Relancer le test » alone: a scope Qonto refuses (`insufficient_scope`) reads « Autorisation à renouveler » with
+    « Connexion » (`reauth_required`), a missing public address reads « Adresse publique manquante » with « Adresse publique
+    à renseigner (Réglages → Envoi d’emails), puis relancer le test. » (`public_url_missing`, qonto-settings-in-app rule 10's
+    table). A successful « Test » runs the check again when, and only when, a `webhook-register` failure stands, so any
+    other cause (a 5xx at consent) clears at the next « Test », in the core and in the console alike. *Accepted (one slot):*
+    the store holds one failure: another origin's failure replaces the webhook's, and that origin's next success clears
+    it; the core's next pass records it again, the console's next consent or « Test » does. Tests:
+    `qonto-webhook-failure-stays` (+3, and the skipped check stamps no `lastSuccessAt`).
 
 **Edge cases:**
 
