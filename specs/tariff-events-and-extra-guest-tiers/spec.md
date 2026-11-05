@@ -232,11 +232,17 @@ current pricing. No other property is affected.
 - **Seasons table** — the event's range shows its label in the Saison cell, in the same discreet
   style as the closure marker.
 - **Devis / invoice PDF** — the supplement is a **line item**: « Surcoût voyageurs (3 pers. au-delà
-  du tarif de base) — 15,00 € la 1ʳᵉ nuit, puis 8,00 €/nuit », accommodation VAT, struck through with
-  the « OFFERT » badge when offered. Before this line existed the supplement lived in the grand total
-  only, so any devis with extra guests printed a sub-total that did not match its own lines. The EN
-  PDF prints the row without the French tier phrase. Skipped under a manual price, whose
-  accommodation row already absorbs the whole total.
+  du tarif de base) » (« Extra-guest supplement (3 guests above the base rate) » in English),
+  accommodation VAT, struck through with the « OFFERT » badge when offered. Before this line existed
+  the supplement lived in the grand total only, so any devis with extra guests printed a sub-total
+  that did not match its own lines. Skipped under a manual price, whose accommodation row already
+  absorbs the whole total.
+  *Reading of 2026-11-05 (Adrien):* the tier phrase that followed the count on the French row
+  (« — 15,00 € la 1ʳᵉ nuit, puis 8,00 €/nuit ») is dropped, on Adrien's request. On v3.21.0 the PDF
+  drew it in a PDF standard face (WinAnsi), which has neither « ʳ » (U+02B3) nor « ᵉ » (U+1D49): an
+  L'Estiva quote read « 15,00 € la 1+1Ô’ àuit, puis 8,00 €/nuit ». The tier rule stays on the
+  reservation summary (`extraGuestTiersLabel`); the PDF row no longer carries it. Tests:
+  `devis-pdf-extra-guest-row`, `devis-pdf-glyphs`.
 - **Dashboard** — the missing event years ride the same card as the horizon-task journal (rule 17):
   one warning row per (property, event, year), not dismissible — it leaves when the dates are filled.
 - **Mobile** — the tier text wraps on two lines on `xs`; no table gains a column, so nothing new can
@@ -255,6 +261,8 @@ current pricing. No other property is affected.
 - `extra-guest-tiers-party-grows.unit.test.js` (4, rule 23) — a stay sold for 2 stores the tiers;
   a teen added later is billed 15 + 8 + 8; a later recipe change does not reach it; a season with no
   tiers stores `[]`.
+- `devis-pdf-extra-guest-row.unit.test.js`, `devis-pdf-glyphs.unit.test.js` — the PDF row, its amounts
+  and its wording (count only, 2026-11-05).
 - `pricing-baseline` — must stay green untouched: it is the proof that no existing quote moved.
 
 ### Manual UI verification

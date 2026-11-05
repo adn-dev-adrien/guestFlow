@@ -374,6 +374,22 @@ guessing; and the quote the guest receives looks like the house that sends it.
     app to sign in again (`api.change-password-wrong-current`).
 45. **The tax page's first tile reads « Réservations (mois) » (audit R23-C9, 2026-11-05).** It counts every row of the
     month, whatever its channel; « directes » was wrong. Test: `TouristTaxPage.kpi-label`.
+46. **Invisible characters never print as boxes on the quote (audit R24, devis PDF check of 2026-11-05).** Text pasted
+    from a phone or another app carries characters with no visible form that the body face cannot draw: direction
+    marks and embeddings (U+200E/F, U+202A–E, U+2066–9 — « ‪+33 6…‬ » from a contact card), joiners (U+200C/D,
+    U+2060), a Windows carriage return, a tab, an em or en space, a line separator. Each printed as the empty box of
+    the face (rule 29 is for visible scripts, not for these). Every string of the quote and of the settings is made
+    printable before anything is measured: a carriage return or a line / paragraph separator becomes a line break, a
+    space the face lacks becomes a plain space, a control or format character the face lacks is dropped. What the
+    face draws (no-break and narrow no-break spaces, soft hyphen, « 1ʳᵉ ») and every visible character it lacks
+    (rule 29) are left as typed. Test: `devis-pdf-glyphs`.
+47. **A quantity prints rounded to the cent, with the language's decimal mark (audit R24, 2026-11-05).** A
+    fractional option quantity printed raw: a third of a unit read « 0.3333333333333333 », wrapped in its column and
+    ran into the next row, and « 2.5 » kept an English point on a French quote. It prints « 0,33 » / « 2,5 » in
+    French, « 0.33 » / « 2.5 » in English; a whole number is unchanged. Test: `devis-pdf-glyphs`.
+48. **The bank block holds a long line (audit R24, 2026-11-05).** An account name or an IBAN that wraps pushes the
+    next line down instead of printing under it (the BIC was drawn over the second line of a long account name),
+    and every line stays inside the frame drawn around the block. Test: `devis-pdf-glyphs`.
 
 ---
 
@@ -400,7 +416,7 @@ guessing; and the quote the guest receives looks like the house that sends it.
 | `controllers/` | `reservationsController.js` | T | `list` rows carry `platformDisplay` (rule 15). |
 | `plugins/sas/` | `nothingToCollect.js` | C | Pure: was anything owed at the door before this run (rule 4). |
 | `plugins/sas/` | `controller.js` | T | The SAS payload carries `nothingToCollect` (rule 4). |
-| `utils/` | `devisPdf.js` | T | Maison palette + serif drawn run by run, rows built before drawing, offered lines grouped, page-1 summary, no expired suffix (rules 17-20). `FACES` / `registerFaces` embed the serif and the three sans faces for every text, the PDF standard fonts only for a missing file; `faceHasGlyph` reads coverage from the font files; `fitFontSize` / `nextLineY` keep long texts in their boxes (rules 27-30). |
+| `utils/` | `devisPdf.js` | T | Maison palette + serif drawn run by run, rows built before drawing, offered lines grouped, page-1 summary, no expired suffix (rules 17-20). `FACES` / `registerFaces` embed the serif and the three sans faces for every text, the PDF standard fonts only for a missing file; `faceHasGlyph` reads coverage from the font files; `fitFontSize` / `nextLineY` keep long texts in their boxes (rules 27-30). `printableText` cleans every string before drawing (rule 46), `formatQuantity` prints the quantity column (rule 47), the bank block wraps through `textLine` (rule 48). |
 | `utils/` | `devisPdfLabels.js` | T | `offeredGroup`, `offeredValue`, `summaryHeading`; `expiredSuffix` removed (rules 18-20). |
 | `assets/fonts/` | `SourceSerif4-Semibold.otf.woff2`, `SourceSerif4-OFL.txt` | C | Embedded serif of the PDF and its licence notice (SIL OFL, © Adobe; upstream release `adobe-fonts/source-serif` 4.005R, unmodified). Replaces the two `@fontsource` subsets (rules 17, 27). |
 | `assets/fonts/` | `SourceSans3-Regular.otf.woff2`, `SourceSans3-Semibold.otf.woff2`, `SourceSans3-It.otf.woff2`, `SourceSans3-OFL.txt` | C | Embedded body of the PDF and its licence notice (SIL OFL, © Adobe; upstream release `adobe-fonts/source-sans` 3.052R, unmodified) (rule 27). |
@@ -539,6 +555,13 @@ rewrites its rule-17 cases for the single serif file and the sans fallback (rule
 licence notices. Manual: `qlmanage -t` page 1 and every page through PDFKit (Swift) of sample quotes
 before and after — Latin Extended, Vietnamese, Greek + Cyrillic, CJK + RTL, and a 30-line quote with a
 long company and logement name.
+
+**Audit R24, devis PDF check (2026-11-05)** — rules 46–48: `server/src/tests/devis-pdf-glyphs.unit.test.js`
+(6: every `doc.text` call is recorded with its face — no box for pasted invisible characters, the text kept
+otherwise, the quantity column, the bank block, the extra-guest row of tariff-events §6 and the Estiva quote's
+totals). Manual: every quote of the 2026-10-22 production copy and every reservation of it rendered as a quote,
+in French and English, plus 17 worst cases, each checked for missing glyphs, overflow and totals; pages viewed
+through PDFKit (Swift).
 
 **Audit 2026-10-27:** `tests/quote-headline-live-stored-parity.unit.test.js` (3, rules 31-32);
 `tests/ui-review-operations-headline.unit.test.js` adjusted to the rule-31 tax; the
