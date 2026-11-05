@@ -26,7 +26,7 @@ const {
   qontoCredentialsPayload, qontoStatusPayload, applyQontoCredentials,
 } = require('./qontoService');
 const { resolveQontoConfig } = require('./qontoConfig');
-const { ensureWebhookSubscription } = require('./qontoWebhookRegistrar');
+const { ensureWebhookSubscription, forgetWebhookSubscription } = require('./qontoWebhookRegistrar');
 const { validateProviderConnection } = require('./paymentProviderValidation');
 
 const SETTINGS_PAGE_PATH = '/parametres/paiements';
@@ -96,6 +96,7 @@ function createQontoSettingsController({ settings, env = process.env, scopes = D
       if (!tokens.refreshToken) return back('error');
       const expiresAt = tokens.expiresIn ? new Date(now() + tokens.expiresIn * 1000).toISOString() : null;
       settings.storeQontoTokens({ accessToken: tokens.accessToken, refreshToken: tokens.refreshToken, expiresAt });
+      await forgetWebhookSubscription({ settings });
 
       await completeQontoAuthorization();
       return back('connected');

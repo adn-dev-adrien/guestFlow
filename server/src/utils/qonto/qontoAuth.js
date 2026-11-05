@@ -19,9 +19,21 @@ const REFRESH_SKEW_MS = 60 * 1000;
 // second use of a rotated token as theft and revoke the whole family, so concurrent callers share one call.
 const refreshesInFlight = new Map();
 
+const notConnected = () => {
+  const err = new Error('Qonto is not connected (no refresh token stored)');
+  err.code = 'QONTO_NOT_CONNECTED';
+  return err;
+};
+
 async function refreshAndStore({ settings, clientFactory, refreshToken, now }) {
   const client = clientFactory();
   const refreshed = await client.refresh({ refreshToken });
+  // Rule 19: new credentials or a new consent landed meanwhile; the answer belongs to the tokens they replaced.
+  const current = settings.qontoTokens();
+  if (current.refreshToken !== refreshToken) {
+    if (current.accessToken) return current.accessToken;
+    throw notConnected();
+  }
   const newExpiresAt = refreshed.expiresIn ? new Date(now + refreshed.expiresIn * 1000).toISOString() : null;
   settings.storeQontoTokens({
     accessToken: refreshed.accessToken,
@@ -33,11 +45,7 @@ async function refreshAndStore({ settings, clientFactory, refreshToken, now }) {
 
 async function getValidQontoAccessToken({ settings, clientFactory = buildQontoClient, now = Date.now() } = {}) {
   const tokens = settings.qontoTokens();
-  if (!tokens.refreshToken) {
-    const err = new Error('Qonto is not connected (no refresh token stored)');
-    err.code = 'QONTO_NOT_CONNECTED';
-    throw err;
-  }
+  if (!tokens.refreshToken) throw notConnected();
 
   const expiresMs = tokens.expiresAt ? Date.parse(tokens.expiresAt) : NaN;
   const stillFresh = Boolean(tokens.accessToken) && Number.isFinite(expiresMs) && (expiresMs - now > REFRESH_SKEW_MS);
