@@ -5,11 +5,15 @@ process.env.NODE_ENV = 'test';
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { db, rowOf, inDays, save, seed, createStay, mark } = require('./ledgerFixture');
+const { db, rowOf, save, seed, createStay, mark } = require('./ledgerFixture');
 const financeModel = require('../models/financeModel');
-const { todayIso } = require('../utils/localDate');
+const { todayIso, localIsoDate } = require('../utils/localDate');
+const { addDaysToIsoDate } = require('../utils/devisHelpers');
 
 const TODAY = todayIso();
+// Every stay sits inside one month, from the 5th of the month after next, so the page read is the month of all its nights
+// whatever today is (audit R24-S2: a stay ending on the 1st had no night on its end month's page).
+const ANCHOR = (() => { const today = new Date(); return localIsoDate(new Date(today.getFullYear(), today.getMonth() + 2, 5)); })();
 seed();
 db.prepare(`INSERT INTO properties (id, name, maxGuests, touristTaxMode, touristTaxPerDayPerPerson, basePriceIncludedGuests, extraGuestPrice, extraGuestPriceUnit, defaultCautionAmount)
   VALUES (3, 'Gite', 8, 'per_day_per_person', 1.2, 2, 20, 'per_night', 0)`).run();
@@ -19,9 +23,9 @@ const finance = financeModel.buildModel(db);
 
 let slot = 0;
 async function collectedThenTicked(t, adults = 3) {
-  const start = 30 + slot * 7;
+  const start = slot * 3;
   slot += 1;
-  const stay = { propertyId: 3, platform: 'Canal', platformGrossAmount: 600, startDate: inDays(start), endDate: inDays(start + 2) };
+  const stay = { propertyId: 3, platform: 'Canal', platformGrossAmount: 600, startDate: addDaysToIsoDate(ANCHOR, start), endDate: addDaysToIsoDate(ANCHOR, start + 2) };
   const id = createStay(stay);
   assert.equal((await save(id, { ...stay, adults })).statusCode, 200);
   mark(id, { balancePaid: true, balancePaidDate: TODAY });
@@ -35,7 +39,7 @@ function afterStay(t, id, run) {
   try { return run(); } finally { t.mock.timers.reset(); }
 }
 function pageOf(t, id) {
-  const month = rowOf(id).endDate.slice(0, 7);
+  const month = rowOf(id).startDate.slice(0, 7);
   return afterStay(t, id, () => finance.getTouristTaxExtraction({ month }).data);
 }
 const rowsOf = (data, id) => data.reservations.filter((r) => r.reservationId === id);

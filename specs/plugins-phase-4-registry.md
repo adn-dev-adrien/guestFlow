@@ -285,6 +285,13 @@ below are the recommended ones; each is reversible in a later spec.
     the host modules of rule 33. *(Clarified 2026-10-18, second review: the list holds names only. It
     catches a module or an export removed or renamed; a changed signature behind the same name is not
     detected, and stays a matter of review and of the SDK major version.)*
+    *Reading of 2026-11-05 (audit R24-P2):* the list holds every name a plugin reads, not only the modules it
+    reaches. A test reads each plugin's `coreModule('m')` destructuring, `coreModule('m').x` and the names taken
+    through a variable holding the module, and fails on a name missing from the list (a second-level read such as
+    `coreModule('qonto').qontoService.x` belongs to its object). Five names joined: `pricing#effectiveMinNightsForDate`,
+    `pricing#getRuleNightBaseForDate` and `propertiesModel#listPricingRules` (there since SDK 2.0.0),
+    `devisModel#appendPublicMessage` (recorded under SDK 2.7.0) and `reservationPaymentMark#takeBackRefusal` (SDK
+    2.21.0); online-payment, which reads the last one, declares `^2.21.0` from 1.5.4.
 36. **A plugin an active plugin requires stays active** (operator decision 2026-10-27, spec review).
     Deactivating a plugin that an **active** plugin requires is refused like uninstalling it (rule
     12): `POST /api/plugins/:id/deactivate` answers 409 `REQUIRED_BY` with `requiredBy` (the

@@ -8,7 +8,7 @@ const { baselines, fuzzRow, junkScanner, dayAt } = require('./inputShapeBaseline
 
 const T = JSON.parse('{"toString":1}');
 const VALUES = [['T', T], ['obj', { a: 1 }], ['true', true], ['huge', 1e308], ['null', null]];
-const PLUGINS = ['hourly-resources', 'school-holidays', 'tariff-recipes', 'accounting-export', 'neat', 'online-payment', 'sas', 'linen'];
+const PLUGINS = ['hourly-resources', 'school-holidays', 'tariff-recipes', 'accounting-export', 'neat', 'online-payment', 'sas', 'linen', 'website-booking'];
 
 let app;
 let admin;

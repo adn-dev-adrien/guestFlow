@@ -137,6 +137,15 @@
       }
     },
     {
+      "version": "2.7.0",
+      "modules": [],
+      "names": {
+        "devisModel": [
+          "appendPublicMessage"
+        ]
+      }
+    },
+    {
       "version": "2.9.0",
       "modules": [
         "platformPenaltiesModel"
@@ -172,6 +181,15 @@
         "stayDates"
       ],
       "names": {}
+    },
+    {
+      "version": "2.21.0",
+      "modules": [],
+      "names": {
+        "reservationPaymentMark": [
+          "takeBackRefusal"
+        ]
+      }
     },
     {
       "version": "2.22.0",
