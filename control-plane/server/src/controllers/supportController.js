@@ -51,7 +51,8 @@ function createSupportController(ctx, customers) {
   function stateOf(c) {
     if (!issuer.canSign) return { available: false, unavailableReason: 'Aucune clé de licence sur la console.' };
     if (c.archivedAt) return { available: false, unavailableReason: 'Client archivé.' };
-    const slug = customers.servedSlug(c);
+    const slug = customers.spaceSlug(c);
+    if (!slug) return { available: false, unavailableReason: customers.ADDRESS_HELD_MESSAGE };
     const written = writtenRequest(slug);
     const read = instances.readSupportAccess(slug, now().toISOString(), written && written.requestId);
     if (!read) return { available: false, unavailableReason: 'Instance illisible, ou antérieure aux accès du support.' };
@@ -102,8 +103,9 @@ function createSupportController(ctx, customers) {
   // Rule 14 — the single-use sign-in link, only while the customer's access is open.
   function link(id, operator) {
     const c = customerOf(id);
-    const slug = customers.servedSlug(c);
-    const read = issuer.canSign ? instances.readSupportAccess(slug, now().toISOString()) : null;
+    if (c.archivedAt) throw httpError(409, 'UNAVAILABLE', 'Client archivé.');
+    const slug = customers.spaceSlug(c);
+    const read = slug && issuer.canSign ? instances.readSupportAccess(slug, now().toISOString()) : null;
     if (!read || !read.open) throw httpError(409, 'NOT_OPEN', 'Aucun accès ouvert : le client doit d’abord l’autoriser.');
     const token = supportAccess.signLink({ slug, accessId: read.open.id, jti: crypto.randomUUID(), now: now() }, issuer.privateKey);
     customers.journal(c.id, operator, 'support', 'Espace du client ouvert par le support.');

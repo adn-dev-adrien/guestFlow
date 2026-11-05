@@ -344,9 +344,10 @@ function createProvisioner({
         const dirRow = provisioning.get(c.id, 'dir');
         const mine = !dirRow || dirRow.status === 'ok';
         if (mine && fs.existsSync(from.dir)) {
+          // Rule 47: checked first, so a blocked retry leaves the running unit alone.
+          if (fs.existsSync(to.dir)) throw new Error(`Le dossier ${to.dir} existe déjà.`);
           // The unit goes, its identity stays: the files keep their owner (rule 21).
           await drivers.process.remove(from, { keepIdentity: true });
-          if (fs.existsSync(to.dir)) throw new Error(`Le dossier ${to.dir} existe déjà.`);
           fs.renameSync(from.dir, to.dir);
         }
         // H1 rule 45: with a port the instance exists somewhere; never record it as moved.

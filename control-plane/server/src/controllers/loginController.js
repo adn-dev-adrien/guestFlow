@@ -14,7 +14,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 function createLoginController(ctx, customersController) {
   const { models, directoryKey } = ctx;
   const { customers, directory } = models;
-  const { urlOf, servedSlug } = customersController;
+  const { urlOf, servedSlug, spaceSlug } = customersController;
 
   // Rule 22: during a rename, the address that answers is the old one until the directory is moved.
   function space(c) {
@@ -62,7 +62,9 @@ function createLoginController(ctx, customersController) {
     });
     let read = 0;
     for (const c of all) {
-      const emails = ctx.instances.readActiveEmails(servedSlug(c));
+      const slug = spaceSlug(c);
+      if (!slug) continue;
+      const emails = ctx.instances.readActiveEmails(slug);
       if (emails === null) continue;
       const claimable = emails.filter((e) => !contactOwners.has(normaliseEmail(e)) || contactOwners.get(normaliseEmail(e)).has(c.id));
       directory.replace(c.id, [...new Set(claimable.map((e) => emailHmac(directoryKey, e)))], at);
