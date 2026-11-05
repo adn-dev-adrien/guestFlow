@@ -46,8 +46,6 @@ const CHART = {
   // The categories of a report chart (specs/report-grammar.md rule 13): the same hues without the
   // red, which stays for alerts — sapin, miel, bleu, olive, prune.
   categorical: [FIR, '#B07F2E', '#2F6690', '#71792B', '#6A4F86'],
-  // The ink banner (rule 31).
-  onInk: { surface: '#27251F', accent: '#E3B566', muted: 'rgba(255, 255, 255, 0.8)', hairline: 'rgba(255, 255, 255, 0.12)', previous: 'rgba(255, 255, 255, 0.7)' },
 };
 // Every icon button except those sitting in a text field's adornment.
 const IN_FIELD_EXCLUDED = '&:not(:is(.MuiInputAdornment-root, .MuiAutocomplete-endAdornment) *)';

@@ -253,17 +253,16 @@ None. Read-only aggregation. **Data impact:** none.
 ## 6. UI / UX
 
 Adapted from the design page `#occupation` to the existing Suivi financier instead of a separate
-section: the occupancy figures already live in the ink hero (rule 8 of the dashboard: no tile repeats
+section: the occupancy figures already live in the hero (a light card since 2026-11-05, dashboard rule 52) (rule 8 of the dashboard: no tile repeats
 them), so the hero's grid of figures grows from four to six — nuits vendues, taux d'occupation, revenu
-moyen / nuit, RevPAR · par nuit ouverte, en direct, nuits ouvertes — each with its « i » (light variant
-on ink) and, where rule 16 says, its pill under the label. « Encaissé » and « Réservations » carry their
+moyen / nuit, RevPAR · par nuit ouverte, en direct, nuits ouvertes — each with its « i » and, where rule 16 says, its pill under the label. « Encaissé » and « Réservations » carry their
 pill in the tile. The notice sits under the hero. « Taux d'occupation » shows the scope's `TrendChart`
 (220 px, area under this year, last year dashed, names at the line ends, « ⋯ » menu) above the
 per-logement small multiples. The ADR label follows rule 25 of the dashboard: « revenu moyen », not
 « prix de la nuitée » and not « hors options et taxe » (see §9).
 
 - **lg (1280):** hero two columns (revenue | 2×3 figures); tiles three across; charts side by side.
-- **md:** as today, charts stacked.
+- **md (900):** hero one column, the figures' grid full width so the pills stay on one line; charts stacked.
 - **xs (390):** hero one column, figures two across with the pills wrapping « (N-1 : …) » to their own
   line; tiles two across; the occupancy chart full width with fewer month ticks. No horizontal page
   scroll (checked: `scrollWidth − clientWidth = 0`).
@@ -287,6 +286,7 @@ per-logement small multiples. The ADR label follows rule 25 of the dashboard: «
 - [x] `pages/__tests__/FinancePage.occupancy-trend.test.jsx` (3) — rule 18: the scope's series and last year's with the table view, no dashed series without a comparable month, one logement without small multiples.
 - [x] `utils/__tests__/comparisonPill.test.js` (3) — rule 16: metric → pill props, not comparable, one-decimal rate.
 - Fixture: `pages/__tests__/financeComparisonFixtures.jsx`. The existing FinancePage suites (older payload) pass unchanged.
+- 2026-11-05 follow-up: the five server suites pin the clock for the whole file (`mock.timers`, Date = 2026-11-05) and the closed-exercise rows of `financeComparisonFixture.js` carry `date-literal-ok` (`specs/server-test-isolation.md` rule 7, `scripts/check-test-dates.mjs --strict`). The banner became a light card (`finance-dashboard-redesign.md` rule 52), so the pills of rule 16 sit in their light-surface style; the hero is two columns from `lg` only, so each pill stays on one line from `sm` up.
 
 ### Manual UI verification (2026-11-05, isolated instance on ports 47130 / 47131, throwaway DB)
 Seeded: two logements (Granja all year, Estiva closed November-March), 99 stays over 2025-2026, booking

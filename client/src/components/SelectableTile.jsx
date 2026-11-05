@@ -97,6 +97,9 @@ export default function SelectableTile({ label, value, caption, dotColor, valueC
         aria-label={`${label} : ${selected ? 'masquer' : 'afficher'} le détail`}
         sx={{
           ...STATIC_SX,
+          // A <button> centres its content vertically whatever its display: a column from the top keeps
+          // the labels of a row aligned whether a tile has a pill or not (specs/report-grammar.md rule 18).
+          display: 'flex', flexDirection: 'column', alignItems: 'stretch', justifyContent: 'flex-start',
           border: '1.5px solid', borderColor: selected ? 'primary.main' : 'transparent',
           transition: 'border-color .15s, transform .1s',
           '&:hover': { transform: 'translateY(-2px)' },
