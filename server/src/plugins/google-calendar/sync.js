@@ -13,7 +13,7 @@
  */
 
 const { buildGoogleOAuthClient, isInvalidGrant } = require('./oauthClient');
-const { mapGoogleError } = require('./client');
+const { mapGoogleError, googleErrorForLog } = require('./client');
 const {
   buildGoogleEventPayload,
   getGoogleEventIdForReservation,
@@ -161,7 +161,7 @@ function createGoogleCalendarSync({
         } catch (error) {
           if (isInvalidGrant(error)) throw error;
           errors += 1;
-          log('[googleCalendarSync.reconcile] reservation', listed.id, (error && error.response && error.response.data) || error);
+          log('[googleCalendarSync.reconcile] reservation', listed.id, googleErrorForLog(error));
         }
       }
 
@@ -179,7 +179,7 @@ function createGoogleCalendarSync({
           const status = getErrorStatus(error);
           if (status === 404 || status === 410) continue;
           errors += 1;
-          log('[googleCalendarSync.reconcile] orphan', event.id, (error && error.response && error.response.data) || error);
+          log('[googleCalendarSync.reconcile] orphan', event.id, googleErrorForLog(error));
         }
       }
 
@@ -190,7 +190,7 @@ function createGoogleCalendarSync({
     } catch (error) {
       const detail = isInvalidGrant(error) ? INVALID_GRANT_DETAIL : mapGoogleError(error).error;
       settings.recordGoogleSyncResult({ ok: false, detail });
-      log('[googleCalendarSync.reconcile]', (error && error.response && error.response.data) || error);
+      log('[googleCalendarSync.reconcile]', googleErrorForLog(error));
       return { ok: false, pushed, deleted, skipped, errors: errors + 1, detail };
     }
   }
@@ -231,14 +231,14 @@ function createGoogleCalendarSync({
   function schedulePush(reservationId) {
     inOrder(reservationId, () => pushReservation(reservationId)).catch((error) => {
       if (isInvalidGrant(error)) settings.recordGoogleSyncResult({ ok: false, detail: INVALID_GRANT_DETAIL });
-      log('[googleCalendarSync.schedulePush]', reservationId, (error && error.response && error.response.data) || error);
+      log('[googleCalendarSync.schedulePush]', reservationId, googleErrorForLog(error));
     });
   }
 
   function scheduleDelete(reservationId) {
     inOrder(reservationId, () => deleteReservationEvent(reservationId)).catch((error) => {
       if (isInvalidGrant(error)) settings.recordGoogleSyncResult({ ok: false, detail: INVALID_GRANT_DETAIL });
-      log('[googleCalendarSync.scheduleDelete]', reservationId, (error && error.response && error.response.data) || error);
+      log('[googleCalendarSync.scheduleDelete]', reservationId, googleErrorForLog(error));
     });
   }
 
