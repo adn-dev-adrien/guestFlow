@@ -19,6 +19,10 @@ import FinanceDetailPanel from '../components/FinanceDetailPanel';
 import MonthlyRevenueChart from '../components/MonthlyRevenueChart';
 import SmallMultiplesLineChart from '../components/SmallMultiplesLineChart';
 import BookingPaceCard from '../components/BookingPaceCard';
+import NoComparisonNotice from '../components/NoComparisonNotice';
+import TrendChart from '../components/TrendChart';
+import { comparisonPill, rateOneDecimal } from '../utils/comparisonPill';
+import { TILE_DEFINITIONS, HERO_DEFINITIONS } from '../constants/financeDefinitions';
 import { seriesColor } from '../utils/chartColors';
 import { formatCurrencyRounded, plural } from '../utils/formatters';
 import api from '../api';
@@ -42,6 +46,16 @@ const TILES = [
   { key: 'properties', label: 'Logements', dot: 'primary.main', read: (t) => (t.count === 1 && t.name ? [formatCurrencyRounded(t.revenue), `${t.revPar == null ? '—' : formatCurrencyRounded(t.revPar)} de RevPAR`] : [plural(t.count, 'logement'), t.leader ? `en tête : ${t.leader}` : '']) },
   { key: 'channels', label: 'Canaux', dot: 'chart.channels', read: (t) => [formatCurrencyRounded(t.commission), 'de commissions'] },
 ];
+
+// specs/finance-revpar-year-over-year.md rule 16 — the figures that carry a year-over-year pill, and how
+// last year's value is written in it.
+const TILE_PILLS = { collected: formatCurrencyRounded, stays: (n) => plural(n, 'séjour') };
+const HERO_PILLS = {
+  nights: (n) => n.toLocaleString('fr-FR'), occupancy: rateOneDecimal,
+  revenuePerNight: formatCurrencyRounded, revPar: formatCurrencyRounded,
+};
+const pillsOf = (metrics, formats) => Object.fromEntries(Object.entries(formats).map(([k, f]) => [k, comparisonPill(metrics && metrics[k], f)]));
+const percentAxis = (x) => `${Math.round(x * 100)} %`;
 
 export default function FinancePage() {
   const navigate = useNavigate();
@@ -172,6 +186,11 @@ export default function FinancePage() {
 
   const d = dashboard;
   const selectedProperty = d && d.propertyId ? d.properties.find((p) => p.propertyId === d.propertyId) : null;
+  const metrics = d && d.comparison ? d.comparison.metrics : null;
+  const tilePills = pillsOf(metrics, TILE_PILLS);
+  const shortOf = new Map(d ? d.revenueMonths.map((m) => [m.month, m.short || m.label]) : []);
+  const occupancyAll = d && d.occupancyAll;
+  const showByProperty = !occupancyAll || d.occupancy.length > 1;
   const defaultMonth = () => {
     const now = iso(new Date()).slice(0, 7);
     return d && d.months.some((m) => m.month === now) ? now : (d && d.months[0] ? d.months[0].month : now);
@@ -254,7 +273,11 @@ export default function FinancePage() {
               propertyName={selectedProperty ? selectedProperty.name : null}
               fiscalYearLabel={d.fiscalYear.label}
               format={FORMAT}
+              comparisons={pillsOf(metrics, HERO_PILLS)}
+              definitions={metrics ? HERO_DEFINITIONS : undefined}
             />
+            {/* Rule 17 — one notice says why the pills read « — vs N-1 », or on how much they compare. */}
+            <NoComparisonNotice text={d.comparison && d.comparison.notice} sx={{ mt: -0.75, mb: 2 }} />
 
             <VatFranchiseCard data={franchise} onOpen={navigate} />
 
@@ -290,6 +313,8 @@ export default function FinancePage() {
                       selected={tile === t.key}
                       onClick={() => openTile(t.key)}
                       controls={DETAIL_ID}
+                      info={metrics ? TILE_DEFINITIONS[t.key] : undefined}
+                      comparison={tilePills[t.key]}
                     />
                   </Grid>
                 );
@@ -344,9 +369,30 @@ export default function FinancePage() {
                   <CardContent>
                     <Typography variant="sectionHeader">Taux d'occupation</Typography>
                     <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
-                      Nuits vendues ÷ nuits ouvrables, par mois · une couleur par logement
+                      {occupancyAll
+                        ? `Nuits vendues ÷ nuits ouvertes, par mois · ${selectedProperty ? selectedProperty.name : 'tous les logements'}`
+                        : 'Nuits vendues ÷ nuits ouvrables, par mois · une couleur par logement'}
                     </Typography>
-                    <SmallMultiplesLineChart
+                    {/* Rule 18 — the scope's occupancy, last year dashed where it compares. */}
+                    {occupancyAll && (
+                      <TrendChart
+                        ariaLabel={`Taux d'occupation par mois, ${d.fiscalYear.label} et ${d.fiscalYear.previousLabel}`}
+                        categoryHeader="Mois"
+                        formatValue={rateOneDecimal}
+                        formatAxis={percentAxis}
+                        categories={occupancyAll.months.map((m) => ({ key: m.month, label: shortOf.get(m.month) || m.label }))}
+                        series={[
+                          { key: 'current', name: d.fiscalYear.label, values: occupancyAll.months.map((m) => m.current), area: true, ...(selectedProperty ? { color: seriesColor(selectedProperty.colorIndex) } : {}) },
+                          ...(occupancyAll.months.some((m) => m.previous != null)
+                            ? [{ key: 'previous', name: d.fiscalYear.previousLabel, values: occupancyAll.months.map((m) => m.previous), dashed: true }]
+                            : []),
+                        ]}
+                      />
+                    )}
+                    {occupancyAll && showByProperty && (
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 2, mb: 1 }}>Par logement</Typography>
+                    )}
+                    {showByProperty && <SmallMultiplesLineChart
                       currentLabel={d.fiscalYear.label}
                       previousLabel={d.fiscalYear.previousLabel}
                       formatValue={percent}
@@ -357,7 +403,7 @@ export default function FinancePage() {
                         caption: o.average == null ? '—' : `moy. ${percent(o.average)}`,
                         points: o.months.map((m) => ({ key: m.month, tick: m.initial, label: m.label, current: m.current, previous: m.previous })),
                       }))}
-                    />
+                    />}
                   </CardContent>
                 </Card>
               </Grid>
