@@ -850,7 +850,7 @@ like « Nouvelle note », not a page-level one).
       `plugins/online-payment/tests/reconciliation-undo-open-refund.unit.test.js` (4) — rule 52.
       `plugins/accounting-export/tests/cancelled-register-plan-and-eos-lines.unit.test.js` (10) — rule 49 readings N5, N6 and D15's
       give-back. Client: `RefundDialog.line-collected.test.jsx` (6). The auditor's unheld lines (R23-S3):
-      `complement-split-stamped-on-every-flip` (+5), `cancelled-register-complement-no-split` (+2), `removed-line-contribs` (+3),
+      `complement-split-stamped-on-every-flip` (+5), `cancelled-register-complement-no-split` (+2), `removed-line-contribs` (+4),
       `platform-added-guests-tourist-tax-books` (+1).
 - [x] `tests/trop-percu-refund-books.unit.test.js` (1) — rule 36: 465,60 € paid, 6 → 2 adults, 409
       `OVERPAID` 110,40 € (options 96 + taxe 14,40), forced save keeps the paid solde at 465,60 €, the
