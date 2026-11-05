@@ -4,7 +4,7 @@ Companion to [guest-app.md](guest-app.md) (the spec) and
 [guest-app-maquettes.html](guest-app-maquettes.html) (charter, prototype, screens). Rule numbers refer to
 spec §3.
 
-**Status:** Draft — awaiting validation
+**Status:** Validated (2026-11-05) — implementation not started
 **Base branch:** `inte/plugins` (the integration branch whose public API, plugin SDK and payment links this
 work builds on). Each slice is one branch `feature/guest-app-<slice>` cut from an up-to-date
 `inte/plugins`, one PR, squash-merged.
