@@ -21,7 +21,7 @@
 
 const crypto = require('crypto');
 const { buildGoogleOAuthClient } = require('./oauthClient');
-const { testConnection, mapGoogleError } = require('./client');
+const { testConnection, mapGoogleError, googleErrorForLog } = require('./client');
 const { getErrorStatus } = require('./events');
 
 // Status labels shown in the Settings chip (spec rule 25). The client keys its chip color on
@@ -146,7 +146,7 @@ function buildController({
       settings.storeGoogleTokens({ refreshToken: tokens.refreshToken, email: tokens.email });
       return back('connected');
     } catch (err) {
-      console.error('[googleCalendarController.oauthCallback]', (err && err.response && err.response.data) || err);
+      console.error('[googleCalendarController.oauthCallback]', googleErrorForLog(err));
       return back('error');
     }
   }
@@ -158,7 +158,7 @@ function buildController({
       settings.clearGoogleConnection();
       return res.json({ ok: true });
     } catch (err) {
-      console.error('[googleCalendarController.oauthDisconnect]', err);
+      console.error('[googleCalendarController.oauthDisconnect]', googleErrorForLog(err));
       return res.status(500).json({ error: 'GOOGLE_DISCONNECT_FAILED', message: 'Erreur lors de la déconnexion du compte Google.' });
     }
   }
@@ -171,7 +171,7 @@ function buildController({
   }
 
   function googleErrorResponse(res, tag, err) {
-    console.error(`[googleCalendarController.${tag}]`, (err && err.response && err.response.data) || err);
+    console.error(`[googleCalendarController.${tag}]`, googleErrorForLog(err));
     const mapped = mapGoogleError(err);
     return res.status(mapped.code === 'UNKNOWN' ? 500 : 400).json({ error: mapped.code, message: mapped.error });
   }
@@ -222,7 +222,7 @@ function buildController({
       const httpStatus = result.code === 'UNKNOWN' ? 500 : 400;
       return res.status(httpStatus).json(result);
     } catch (err) {
-      console.error('[googleCalendarController.testConnection]', err);
+      console.error('[googleCalendarController.testConnection]', googleErrorForLog(err));
       return res.status(500).json({ ok: false, code: 'UNKNOWN', error: 'Erreur serveur lors du test de connexion Google Calendar.' });
     }
   }
@@ -248,7 +248,7 @@ function buildController({
         detail: result.detail || null,
       });
     } catch (error) {
-      console.error('[googleCalendarController.syncNow]', (error && error.response && error.response.data) || error);
+      console.error('[googleCalendarController.syncNow]', googleErrorForLog(error));
       return res.status(500).json({ error: 'GOOGLE_CALENDAR_SYNC_FAILED', message: 'Erreur lors de la synchronisation Google Calendar.' });
     }
   }

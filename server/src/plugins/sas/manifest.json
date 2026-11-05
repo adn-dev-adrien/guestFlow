@@ -1,7 +1,7 @@
 {
   "id": "sas",
   "name": "Arrivée et départ guidés",
-  "version": "1.7.9",
+  "version": "1.7.10",
   "description": "Le sas pas à pas de l’accueil et du départ.",
   "icon": "door",
   "surfaces": [
@@ -100,6 +100,10 @@
       "Compatible avec le SDK 2.21 de GuestFlow."
     ],
     "1.7.9": [
+      "Vente de restauration à l’arrivée : seul le nombre de personnes servies est envoyé.",
+      "Compatible avec le SDK 2.21 de GuestFlow."
+    ],
+    "1.7.10": [
       "Un nombre de personnes servies, une quantité de petit-déjeuner ou un prix facturable aberrants sont refusés, jamais facturés.",
       "Compatible avec le SDK 2.21 de GuestFlow."
     ]

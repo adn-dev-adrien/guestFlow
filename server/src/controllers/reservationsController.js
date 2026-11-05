@@ -2180,7 +2180,13 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
         forceCapacity,
       });
       if (capacityError) return res.status(400).json({ error: capacityError });
+    }
 
+    // specs/reservations-backend-mvc.md rule 17 — the cots are held on a range, so moving it is judged too.
+    const cotRangeUnchanged = existingReservation
+      && sameNum(prev.propertyId, propertyId)
+      && sameStr(prev.startDate, startDate) && sameStr(prev.endDate, endDate);
+    if (!occupancyUnchanged || !cotRangeUnchanged) {
       const babyError = checkBabyBeds({ propertyId, startDate, endDate, children, babies, babyBeds: effectiveBabyBeds, excludeId: id });
       if (babyError) return res.status(400).json({ error: babyError });
     }

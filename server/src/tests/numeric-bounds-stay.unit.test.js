@@ -1,4 +1,4 @@
-// specs/reservations-backend-mvc.md rules 15-17 (audit R22, 2026-11-04) — one reading of a number on a stay's
+// specs/reservations-backend-mvc.md rules 15, 18, 19 (audit R22, 2026-11-04) — one reading of a number on a stay's
 // writes: the party is whole and ≥ 0, a line is not sent twice, the money stops at the usable range, and the
 // preview refuses what the save refuses. Refused, never clamped; a stored value sent back unchanged passes.
 process.env.DB_PATH = ':memory:';
@@ -82,7 +82,7 @@ test('reservations-backend-mvc rule 15: a party the stay already stores is not r
   assert.deepEqual([changed.statusCode, changed.body.code], [400, 'INVALID_QUANTITY']);
 });
 
-test('reservations-backend-mvc rule 16: a repeated optionId or resourceId is 400 INVALID_LINES on the preview and the save, never a 500', async () => {
+test('reservations-backend-mvc rule 18: a repeated optionId or resourceId is 400 INVALID_LINES on the preview and the save, never a 500', async () => {
   const stay = f.createStay(dates());
   const quote = devis.create({ ...devisBody({}), ...dates() }).data.id;
   const options = [{ optionId: OPTION, quantity: 1 }, { optionId: String(OPTION), quantity: 2 }];
@@ -97,7 +97,7 @@ test('reservations-backend-mvc rule 16: a repeated optionId or resourceId is 400
   assert.equal(lineInputRefusal({ customOptions: [{ customOptionId: 3, amount: 1 }, { customOptionId: 3, amount: 2 }] }), null);
 });
 
-test('reservations-backend-mvc rule 17: validateMoneyAmount and validatePercentage reuse the one reading of a number', () => {
+test('reservations-backend-mvc rule 19: validateMoneyAmount and validatePercentage reuse the one reading of a number', () => {
   for (const value of [1e308, 1e300, Number.MAX_SAFE_INTEGER + 2, Infinity, '1e999', 'abc', '0x10', 'Infinity', true, false, [], [5], {}, { a: 1 }]) {
     assert.equal(validateMoneyAmount(value), 'NOT_A_NUMBER', `money ${String(value)}`);
     assert.equal(validatePercentage(value), 'NOT_A_NUMBER', `percent ${String(value)}`);
@@ -123,7 +123,7 @@ test('reservations-backend-mvc rule 17: validateMoneyAmount and validatePercenta
 const MONEY = ['customPrice', 'depositAmount', 'depositAmountOverride', 'complementAmountOverride', 'endOfStayComplementAmountOverride',
   'balanceAmount', 'cautionAmount', 'platformCommissionAmount', 'acompteCommissionAmount', 'platformGrossAmount', 'platformPayoutAmount', 'platformTouristTaxAmount'];
 
-test('reservations-backend-mvc rule 17: the preview refuses what the create and the update refuse, field by field', async () => {
+test('reservations-backend-mvc rule 19: the preview refuses what the create and the update refuse, field by field', async () => {
   const stay = f.createStay(dates());
   for (const field of MONEY) {
     for (const [value, code] of [[1e308, 'NOT_A_NUMBER'], ['abc', 'NOT_A_NUMBER'], [true, 'NOT_A_NUMBER'], [-100, 'NEGATIVE_AMOUNT']]) {
@@ -143,7 +143,7 @@ function devisCall(fn, params, body) {
   return res;
 }
 
-test('reservations-backend-mvc rule 17: the devis shares the list, on its create and its update', () => {
+test('reservations-backend-mvc rule 19: the devis shares the list, on its create and its update', () => {
   const quote = devis.create({ ...devisBody({}), ...dates() }).data.id;
   for (const field of MONEY) {
     assert.deepEqual([devisCall('create', {}, devisBody({ [field]: 1e308 })).statusCode], [400], field);
@@ -152,7 +152,7 @@ test('reservations-backend-mvc rule 17: the devis shares the list, on its create
   assert.equal(f.db.prepare("SELECT COUNT(*) AS n FROM reservations WHERE kind = 'devis' AND finalPrice > 1e15").get().n, 0);
 });
 
-test('reservations-backend-mvc rule 17: a stored amount sent back unchanged is not re-judged, on the preview nor the save', async () => {
+test('reservations-backend-mvc rule 19: a stored amount sent back unchanged is not re-judged, on the preview nor the save', async () => {
   const id = f.createStay(dates());
   f.db.prepare('UPDATE reservations SET cautionAmount = ?, platformGrossAmount = ? WHERE id = ?').run(1e300, 1e300, id);
   assert.equal(validateStayFinance({ cautionAmount: 1e300 }, f.rowOf(id)), null);
@@ -165,7 +165,7 @@ test('reservations-backend-mvc rule 17: a stored amount sent back unchanged is n
   assert.notEqual(patched.body.code, 'NOT_A_NUMBER');
 });
 
-test('reservations-backend-mvc rule 17: the fiche\'s ordinary values still quote and save', async () => {
+test('reservations-backend-mvc rule 19: the fiche\'s ordinary values still quote and save', async () => {
   const id = f.createStay(dates());
   const saved = await update(id, { customPrice: '450.50', discountPercent: '10', cautionAmount: '', platformGrossAmount: null });
   assert.equal(saved.statusCode, 200, JSON.stringify(saved.body).slice(0, 200));
@@ -207,7 +207,7 @@ test('reservations-backend-mvc rule 15: text of spaces alone is refused on a typ
   assert.equal(lineInputRefusal({ options: [{ optionId: OPTION, cardPersons: '', cardNights: null, quantity: '' }] }), null);
 });
 
-test('reservations-backend-mvc rule 17: text of spaces alone on a money field or a percentage stays « not provided »', async () => {
+test('reservations-backend-mvc rule 19: text of spaces alone on a money field or a percentage stays « not provided »', async () => {
   for (const value of SPACES) {
     assert.equal(validateMoneyAmount(value), null);
     assert.equal(validatePercentage(value), null);
@@ -218,7 +218,7 @@ test('reservations-backend-mvc rule 17: text of spaces alone on a money field or
   assert.equal(quoted.statusCode, 200, JSON.stringify(quoted.body).slice(0, 200));
 });
 
-test('reservations-backend-mvc rule 17: the update route reads the stored row, so a stored amount passes and a changed one does not', async () => {
+test('reservations-backend-mvc rule 19: the update route reads the stored row, so a stored amount passes and a changed one does not', async () => {
   const id = f.createStay(dates());
   f.db.prepare('UPDATE reservations SET cautionAmount = ? WHERE id = ?').run(1e300, id);
   const kept = await update(id, { cautionAmount: 1e300 });
@@ -227,7 +227,7 @@ test('reservations-backend-mvc rule 17: the update route reads the stored row, s
   assert.deepEqual([changed.statusCode, changed.body.code], [400, 'NOT_A_NUMBER']);
 });
 
-test('reservations-backend-mvc rule 17: the devis update route reads the stored row, so a stored amount passes and a changed one does not', () => {
+test('reservations-backend-mvc rule 19: the devis update route reads the stored row, so a stored amount passes and a changed one does not', () => {
   const quote = devis.create({ ...devisBody({}), ...dates() }).data.id;
   f.db.prepare('UPDATE reservations SET cautionAmount = ? WHERE id = ?').run(1e300, quote);
   const kept = devisCall('update', { id: String(quote) }, { cautionAmount: 1e300 });

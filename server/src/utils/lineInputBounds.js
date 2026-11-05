@@ -1,7 +1,7 @@
 /**
  * The one reading of a number at a write boundary (`readNumber`, `usableNumber`, `numberRefused`), and the
  * guard of what a reservation, devis or quote write carries on its lines and party
- * (specs/reservations-backend-mvc.md rules 15-16; specs/non-card-option-served-persons.md rule 34). The
+ * (specs/reservations-backend-mvc.md rules 15, 18; specs/non-card-option-served-persons.md rule 34). The
  * money fields (`financeValidation.js`), the catalogue and the billable prices reuse the reading; the SAS
  * holds its intents to the same one in `plugins/sas/sasQuantityBounds.js`.
  *

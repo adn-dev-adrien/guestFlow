@@ -259,11 +259,25 @@ rules — just a clean, testable structure that future slices (and Bloc 5) build
    negative or fractional.
    Tests: `tests/line-input-bounds.unit.test.js`, `tests/numeric-bounds-stay.unit.test.js`, client
    `components/reservation/__tests__/GuestsBedsSection.party-hint.test.jsx`.
-16. **Added 2026-11-04 (audit R22) — a line is sent once.** A repeated `optionId` or `resourceId` within `options`,
+16. **Added 2026-11-04 (audit R22-C4) — only the latest question's answer reaches the fiche.** The occupied dates, the
+   client search and the resources' availability drop an answer a newer question has overtaken (`useLatestRequest`).
+   Coming back to the range already shown overtakes the answer on its way too. *Why:* the old answer wiped a conflict
+   hint, emptied the client list under the text typed, and left « déjà réservée » on the range just left. The server
+   still decides at save. Tests: client `pages/__tests__/ReservationPage.latest-answer.test.jsx`.
+17. **Added 2026-11-04 (audit R22-C6) — the cots left follow the dates.** They are asked when the logement, the dates or
+   the excluded stay change, once per range, latest answer only, like the resources. While the range is one the server
+   would refuse, the hint reads « Dispo restante: ... » and availability sets no ceiling. An answer alone never rewrites
+   the fiche's cots: only a change of party clamps them. On a range with no cot left the number stays and the save
+   answers « Lits bébé indisponibles », rather than a cot silently dropped. The update judges the cots whenever the
+   logement or the dates move, even with the party unchanged (a fiche with one cot moved onto a full range was saved and
+   oversold the stock); with the range and the party unchanged it does not judge them, so an already oversold fiche still
+   saves. Tests: server `tests/cots-follow-the-dates-at-save.unit.test.js`, client
+   `pages/__tests__/ReservationPage.baby-bed-dates.test.jsx`.
+18. **Added 2026-11-04 (audit R22) — a line is sent once.** A repeated `optionId` or `resourceId` within `options`,
    `selectedOptions`, `resources` or `selectedResources` (`8` and `'8'` are the same id) → 400 `INVALID_LINES` on the
    preview, the create, the update and the devis create and update. *Why:* the preview answered 200 and the save a
    500 « Enregistrement impossible. ». Custom lines are not concerned. Tests: `tests/numeric-bounds-stay.unit.test.js`.
-17. **Added 2026-11-04 (audit R22) — the preview refuses what the save refuses, and money stops at the usable
+19. **Added 2026-11-04 (audit R22) — the preview refuses what the save refuses, and money stops at the usable
    range.** `validateStayFinance` (`utils/financeValidation.js`) is one list for the price preview, the create, the
    update and the devis create and update: `customPrice`, the deposit, complement and balance amounts, the caution, the
    platform commissions, gross, payout and tourist tax, `discountPercent`. `validateMoneyAmount` and
@@ -374,7 +388,13 @@ prove behavior is preserved.)
 
 ## 7. Test plan
 
+### Client tests (2026-11-04)
+- [x] `pages/__tests__/ReservationPage.latest-answer.test.jsx` (6) — rule 16: occupied dates and their failure, client search, resources, back on the range shown, onto a refused range
+- [x] `pages/__tests__/ReservationPage.baby-bed-dates.test.jsx` (8) — rule 17: dates, one question per range, blank fiche, refused range, older answer, no cot left, back on the range shown, party change on no cot left
+
 ### Server unit tests
+- [x] `tests/cots-follow-the-dates-at-save.unit.test.js` (8, 2026-11-05) — rule 17: dates onto a full range refused,
+      party changed too, one date alone, free range, no cot held, logement moved, oversold and unchanged, one more cot unchanged range
 - [x] `tests/date-horizon.unit.test.js` (12, 2026-11-02) — rule 13: today + 5 years accepted, one day more
       refused on calculate-price, create, update, drift approval, devis create / update, closures and the
       finance window; stored dates past the horizon saved, restored, extended and converted untouched.

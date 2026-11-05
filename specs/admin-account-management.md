@@ -272,6 +272,15 @@ them, reset their password, deactivate or delete them. Temporary passwords are d
     - **`smtpFromName`** TEXT DEFAULT `'GuestFlow'`
     - **`publicUrl`** TEXT DEFAULT `''` (the public origin Adrien wants users to reach, e.g.
       `https://guestflow.adn-dev.fr`; injected into the welcome email).
+
+    _Reading of 2026-11-04 (audit R22, E22-2):_ `smtpSecure = 0` means STARTTLS is **required** as soon as a
+    login is set, not attempted. nodemailer upgrades only when the server advertises it, so an on-path attacker
+    stripping one EHLO line obtained the password (the one that also opens the intake mailbox) and every guest
+    mail. All three transports now pass `requireTLS: !secure` when `auth` is set: the operator's SMTP, the
+    platform's sender (`hosting-h1-fleet-runtime.md` rules 18–20) and the console's mailer. A relay without a login
+    keeps working. A server with no TLS on 587 now fails, « Envoyer un mail de test » answering `SMTP_TEST_FAILED`,
+    instead of sending in clear. Reaching the SMTP host itself is unchanged: a LAN relay stays a legitimate setting.
+    Tests: `server/src/tests/smtp-require-tls.unit.test.js`, `control-plane/server/src/tests/mailer-require-tls.unit.test.js`.
 16b. **(2026-08-17) Header-injection guard.** Three settings end up *verbatim* inside an email
     header — `smtpFromName` and `smtpFromEmail` build `From: "<name>" <address>`,
     `notificationRecipientEmail` builds `To: <address>`. A C0 control character or DEL in any of

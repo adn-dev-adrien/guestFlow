@@ -36,6 +36,7 @@ test('rule 26: the reader skips the oversized mail and returns the others', asyn
     bodyStructure: { type: 'text/plain', part: '1' }, internalDate: new Date('2026-10-14T16:00:01Z'), headers: Buffer.from(''),
   });
   class Fake {
+    on() {}
     async connect() {}
     async getMailboxLock() { return { release() {} }; }
     async search() { return [1, 2]; }

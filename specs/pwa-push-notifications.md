@@ -151,6 +151,20 @@ reservation's **check-out time** is reached (departure) — only to the users (a
     a whole fan-out takes 10 s at most whatever the number of devices. The TTL stays web-push's default
     (4 weeks): it only says how long the push service keeps a message for an offline device. Test:
     `audit-r7-push-send-timeout.unit.test.js`.
+15. **A subscription is judged when it arrives** (added 2026-11-04, audit R22 finding E22-5). The server POSTs to the
+    stored endpoint, so `https://127.0.0.1:…/internal` was a blind request into the LAN, against the reasoning of
+    `ical-import-hardening.md` rule 17, and `{ endpoint: { a: 1 } }` was stored as `[object Object]`, failing on every
+    fan-out and never pruned. `subscribe` now requires strings, an endpoint of at most 2048 characters without
+    whitespace or backslash, `https:` on the default port, no private literal and no `localhost` (`assertPublicHost` of
+    `safeFeedFetch`, the iCal dev switch not applying), a p256dh of 65 bytes and an auth of 16 bytes in base64url;
+    otherwise 400 `INVALID_SUBSCRIPTION`, « Abonnement refusé. », nothing stored. A name is not resolved, and there
+    is no allow-list of push hosts: it would break a new browser. Rows already stored are not re-judged. Test:
+    `push-subscribe-validation.unit.test.js`.
+    The endpoint must also read as one host to both parsers: the check reads `new URL`, web-push dials
+    `url.parse(endpoint).hostname`, and `https://127.0.0.1}/x` or `https://10.0.0.5%2Eexample/` were public to the first
+    and private to the second. So the host is written `https://` + dot-separated labels of letters, digits, `-`, `_` (or
+    a bracketed IPv6), at most one trailing dot, an optional `:443`, and `new URL` must read it unchanged. A login, a
+    `%`, a repeated dot, an empty host, a host above 255 characters or a numeric form such as `https://134744072/` is refused. Stored as sent.
 
 **Edge cases:**
 - User denies the browser permission → the device isn't subscribed; the UI reflects "non activées".
@@ -207,7 +221,7 @@ installability + push, and avoids precache/build complexity (no offline requirem
 | Method | Endpoint | Body | Response |
 |---|---|---|---|
 | GET | `/push/public-key` | — | `{ publicKey, configured }` |
-| POST | `/push/subscribe` | `{ subscription }` (the `PushSubscription` JSON) | `{ ok }` |
+| POST | `/push/subscribe` | `{ subscription }` (the `PushSubscription` JSON) | `{ ok }`; 400 `INVALID_SUBSCRIPTION` (rule 15); 403 `SUPPORT_FORBIDDEN` (rule 13) |
 | DELETE | `/push/subscribe` | `{ endpoint }` | `{ ok }` |
 | GET | `/push/preferences` | — | `{ newReservation, arrivals, departures }` (the caller's) |
 | PUT | `/push/preferences` | `{ newReservation?, arrivals?, departures? }` | updated prefs |

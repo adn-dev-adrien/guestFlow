@@ -210,6 +210,10 @@ n-3, n-4, m-5 and the systemic touch targets) left these rules. They hold for ev
     `touchHitArea`, and `MuiListItemButton` a 44 px `min-height`. The /finance month columns carry a
     transparent 56 × 44 hit rect in their tick (`PaceMonthChart`), so the keyboard handle is also a
     finger-sized target; a tap anywhere in the column already selected it.
+30. **A switch's input sticks out in height only** (audit R22-C7, 2026-11-04, refines rule 29). MUI's input is 300 %
+    wide: with `overflow: visible` on touch it scrolled a dialog's content sideways (« Restauration » of the arrival
+    SAS, 412 for 390 px) and took taps 38 px left of the switch, over the row's text. The root is
+    `overflow-x: clip; overflow-y: visible`, so the 44 px of height stay and the sides are the root's.
 
 ---
 
@@ -298,6 +302,7 @@ No schema change, no migration.
   `AccountingPage.mobile-journal.test.jsx` (rule 23), `ResourcePlanningPage.compact-bar.test.jsx`
   (rule 24), `plainWording.review-8.test.jsx` + `ClientsPage.states` + `Dashboard` +
   `self-update-plain-reason.unit.test.js` (rule 25).
+- [x] Rule 30: `utils/__tests__/touchHitArea.switch-overflow.test.js`, E2E `mobile/switch-no-sideways-scroll.spec.js`.
 - [x] E2E `mobile/narrow-bar-and-touch-targets.spec.js`: at 390 px touch, the Système bar keeps its
   title whole with Save beside Cancel, both 44 × 44, and the dashboard and planning have no tap
   target under 44 px; at 900 px the dashboard's date navigation takes the bar's second row.
