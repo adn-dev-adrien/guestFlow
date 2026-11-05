@@ -13,11 +13,13 @@ const createStaysModel = require('./models/staysModel');
 const createOrdersModel = require('./models/ordersModel');
 const createItemsModel = require('./models/itemsModel');
 const createStayLinesModel = require('./models/stayLinesModel');
+const createServiceHoursModel = require('./models/serviceHoursModel');
 const { buildGuestSession } = require('./middleware/guestSession');
 const { buildSessionController } = require('./controllers/sessionController');
 const { buildLodgingsController } = require('./controllers/lodgingsController');
 const { buildItemsController } = require('./controllers/itemsController');
 const { buildShopController } = require('./controllers/shopController');
+const { buildServiceHoursController } = require('./controllers/serviceHoursController');
 const { buildPublicRouter } = require('./routes/public');
 const { buildAdminRouter } = require('./routes/admin');
 
@@ -35,21 +37,34 @@ const once = (build) => {
 // The translation catalogue of the language served; tests hand one bound to their own database.
 const coreTranslator = (lang) => sdk.coreModule('translationResolver').forLang(lang);
 
-function buildGuestApi({ db, soliomapUrl, now = () => new Date(), limiters, translator = coreTranslator }) {
+// The hourly slots come from the scheduler `hourly-resources` declares, never from that plugin's files.
+const coreScheduler = () => sdk.core.resourceScheduler();
+
+function buildGuestApi({
+  db, soliomapUrl, now = () => new Date(), limiters, translator = coreTranslator, scheduler = coreScheduler,
+}) {
   const lodgings = once(() => createLodgingsModel(db()));
   const sessions = once(() => createSessionsModel(db()));
   const stays = once(() => createStaysModel(db()));
   const orders = once(() => createOrdersModel(db()));
   const items = once(() => createItemsModel(db()));
   const stayLines = once(() => createStayLinesModel(db()));
+  const serviceHours = once(() => createServiceHoursModel(db()));
   const guestSession = buildGuestSession({ sessions, stays, lodgings, now });
   const controller = buildSessionController({ lodgings, sessions, stays, orders, guestSession, soliomapUrl, now });
-  const shop = buildShopController({ items, stayLines, orders, translator, now });
+  const shop = buildShopController({ items, stayLines, orders, serviceHours, scheduler, translator, now });
   return {
     publicRouter: buildPublicRouter({ controller, shop, guestSession, limiters }),
-    adminRouter: buildAdminRouter({ lodgings: buildLodgingsController({ lodgings }), items: buildItemsController({ items }) }),
+    adminRouter: buildAdminRouter({
+      lodgings: buildLodgingsController({ lodgings }),
+      items: buildItemsController({ items }),
+      serviceHours: buildServiceHoursController({ serviceHours }),
+    }),
     sessions,
     shownKeysOf: controller.shownKeysOf,
+    // Rule 35 — the slots the unpaid card orders hold, for every reader of the resource planning.
+    heldSessions: (range) => orders().heldSessions({ ...range, now: now() }),
+    serviceHoursConfigured: () => serviceHours().isConfigured(),
   };
 }
 
@@ -57,7 +72,6 @@ function register(ctx) {
   ctx.migrations([...MIGRATIONS]);
   ctx.settings.declare(settings.DECLARED);
   ctx.pushChannel({ key: 'guest-orders', label: 'Commandes clients' });
-  ctx.setupStatus(() => (ctx.settings.get('guestHost') ? null : 'adresse de l’application à configurer'));
 
   const rateLimiters = sdk.coreModule('rateLimiters');
   const api = buildGuestApi({
@@ -69,6 +83,12 @@ function register(ctx) {
       read: sdk.middleware.publicApiLimiter,
     },
   });
+  // What the plugin still lacks: the guest host, and the service hours (rule 40 — unconstrained until set).
+  ctx.setupStatus(() => [
+    ctx.settings.get('guestHost') ? null : 'adresse de l’application à configurer',
+    api.serviceHoursConfigured() ? null : 'horaires du service à configurer',
+  ].filter(Boolean).join(', ') || null);
+  ctx.resourceHolds(api.heldSessions);
   ctx.mount('/public/v1/guest', api.publicRouter, { public: true });
   ctx.mount('/api/guest-app', api.adminRouter);
 

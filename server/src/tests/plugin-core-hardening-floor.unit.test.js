@@ -38,6 +38,8 @@ const HARDENINGS = [
   // specs/plugins-phase-1-sdk.md rule 39 (specs/non-card-option-served-persons.md rule 12) — audit R21-P1, C4. The draft
   // that sends `{ optionId, persons }` lives on the client, which this scan skips: `soldOptions` is its server end.
   { feature: 'SAS sale by people served', sdk: '2.21.0', pattern: /\bsoldOptions\b/ },
+  // specs/guest-app.md rules 28-31, 35 — the hourly slots a plugin schedules or holds through the core.
+  { feature: 'resource scheduler and holds', sdk: '2.22.0', pattern: /\b(?:resourceScheduler|resourceHolds)\(/ },
 ];
 
 function sourceFiles(dir) {

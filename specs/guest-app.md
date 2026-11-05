@@ -357,7 +357,8 @@ is pushed every order.
     capacity limit (decided 2026-11-05): an order holds no delivery slot and there is no `DELIVERY_SLOT_GONE`. The first slot is preselected, labelled « Dès que possible — vers 17 h 30 » only while the service is open now.
     No service hours stored at all (neither shared nor per lodging) = no constraint: the service counts as always
     open and the plugin's setup status says « horaires du service à configurer ». Once anything is stored, a day
-    without a range is closed. An ignition may fall at the very end of a range.
+    without a range is closed. While nothing is stored, establishment closures are not applied either (a closed
+    domain has no stay in progress). An ignition may fall at the very end of a range.
 42. **Outside service hours the guest can still order, for later.** The shop shows a banner « Le service
     reprend demain à 8 h — vous pouvez commander dès maintenant pour plus tard » and the delivery picker
     starts at the next opening + lead time (rule 41). No opening left before departure: « Le service est fermé
@@ -824,10 +825,10 @@ le nom et le numéro. »
   offered-by-default already on the stay
 - [ ] `…/guest-app-shop-quote.unit.test.js` — rules 24, 32, 37: quote equals the fiche's pricing engine for
   the same lines, limits
-- [ ] `plugins/hourly-resources/tests/guest-app-slots.unit.test.js` — rules 28-31: guest sessions of other
+- [x] `plugins/hourly-resources/tests/resource-scheduler-hook.unit.test.js` (9) + `guest-app/tests/guest-app-slots.unit.test.js` (7) — rules 28-31: guest sessions of other
   stays, outside bookings, held orders, turnover, capacity, heat-up / retention, closed days, evening rate,
   multi-slot order, ignition outside service hours → `staff`, warm slot not constrained
-- [ ] `…/guest-app-service-hours.unit.test.js` — rules 39-42: weekly ranges, exceptions, establishment
+- [x] `…/guest-app-service-hours.unit.test.js` (14) — rules 39-42: weekly ranges, exceptions, establishment
   closures, lead time, next opening, last delivery before check-out
 - [ ] `…/guest-app-order-note.unit.test.js` — rules 33-34: name only for the note, lock, 0 € order without
   name, lines + sessions land on the fiche and in `endOfStayComplementDetail`, quantities merge
@@ -933,7 +934,8 @@ le nom et le numéro. »
 |---|---|
 | A — Plugin, lodgings, sessions | Done on `feature/guest-app-plugin` (2026-11-05); may change with Q10 |
 | B — Sellable catalogue (server) | Done (2026-11-05): items routes, shop payload, catalogue projections moved to the core (`publicCatalogProjection`, SDK 2.22.0); full server suite 10 561 / 10 561 |
-| C-E — Server slices | In progress (the user's answer of 2026-11-05: server slices go ahead during the review) |
+| C — Planning and service hours (server) | Done (2026-11-05): `ctx.resourceScheduler` / `ctx.resourceHolds` (SDK 2.22.0), hourly-resources 1.4.0, slots, delivery times, service hours; full server suite 10 591 / 10 591 before the last change, targeted suites green after it |
+| D-E — Server slices | In progress |
 | F-G — Guest app, studio | Waiting for the verdicts on the review boards v2 |
 | H — Hardening and rollout | Not started |
 | I — Booklet content | Waiting for the user's booklets |

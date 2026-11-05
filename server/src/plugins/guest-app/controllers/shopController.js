@@ -2,13 +2,20 @@
  * `GET /public/v1/guest/shop` — the sellable catalogue of the stay's lodging, ready to render
  * (specs/guest-app.md rules 23-27). Prices and labels are GuestFlow's, per lodging, through the core
  * projections the website shows; the free / included state is `sellable.js`'s; the shop is open exactly
- * when the fiche takes mid-stay extras.
+ * when the fiche takes mid-stay extras; the service hours of §3.G come from `serviceHours.js`.
+ *
+ * `GET /shop/resources/:id/slots` — the bookable slots of an hourly resource, read from the resource planning
+ * by the scheduler `hourly-resources` declares (rules 28-31); `POST /shop/delivery-slots` — the delivery times
+ * of a cart's staff-prepared items (rules 41-42).
  */
 
 const sdk = require('../../sdk');
 const { parisDate } = require('../currentStay');
 const { BREAKFAST, DEFAULT_BREAKFAST_TIME, remainingMornings, shopItems, stayConsumption } = require('../sellable');
 const { languageOf } = require('./sessionController');
+const {
+  deliveryPicker, deliveryTimes, ignitionInHours, serviceState, wallClock,
+} = require('../serviceHours');
 
 const publicHttp = sdk.coreModule('publicHttp');
 const { toPublicOption, toPublicResource, hoursLabel, isOfferedPlural } = sdk.coreModule('publicCatalogProjection');
@@ -17,9 +24,15 @@ const { isDirectChannel } = sdk.coreModule('platformNameFormat');
 const { isOffered } = sdk.coreModule('resourceOffer');
 const paymentProviders = sdk.coreModule('paymentProviders');
 const { groupOptionsByCategory } = sdk.coreModule('optionGrouping');
+const { isRealIsoDay } = sdk.coreModule('stayDates');
 
 // Rule 26 — hourly resources are sold in « Bien-être »; what has no category closes the list.
 const WELLNESS = 'Bien-être';
+
+// Rule 28, §6.4 — the guest is shown only the slots it can book.
+const BOOKABLE = Object.freeze(new Set(['free', 'evening']));
+const ORDER_KINDS = Object.freeze(['option', 'breakfast', 'resource']);
+const MAX_LINES = 20;
 
 const LABELS = Object.freeze({
   fr: Object.freeze({
@@ -27,6 +40,7 @@ const LABELS = Object.freeze({
     alreadyIncluded: 'Déjà inclus dans votre séjour',
     preArrival: 'Disponible pendant votre séjour',
     closed: 'La boutique est fermée — bon retour !',
+    noDeliveryLeft: 'Plus disponible pour votre séjour',
     wellness: WELLNESS,
     other: 'Autres',
     unitsLeft: (n) => `${n} offert${n > 1 ? 's' : ''} avec votre séjour`,
@@ -42,6 +56,7 @@ const LABELS = Object.freeze({
     alreadyIncluded: 'Already included in your stay',
     preArrival: 'Available during your stay',
     closed: 'The shop is closed — safe travels home!',
+    noDeliveryLeft: 'No longer available for your stay',
     wellness: 'Wellness',
     other: 'Other',
     unitsLeft: (n) => `${n} included with your stay`,
@@ -108,7 +123,31 @@ function breakfastFields(sold, { lang, stay, extras, today, time }) {
   };
 }
 
-function buildShopController({ items, stayLines, orders, translator, now }) {
+/** Rule 39 — prepared by the staff, so delivered at a time of the service: options only (rule 31 governs the bath). */
+const isStaffItem = (sold) => sold.kind === 'option' && Number(sold.item.needsStaff) === 1;
+
+const positiveId = (value) => (typeof value === 'string' && /^\d+$/.test(value) ? Number(value) : NaN);
+
+/** `POST /shop/delivery-slots` — `{ lines: [{ kind, id, … }] }`, 1 to 20 lines; the other keys of a cart line are not read. */
+function deliveryLinesError(body) {
+  if (!body || typeof body !== 'object' || Array.isArray(body) || Object.keys(body).some((k) => k !== 'lines')) return 'Requête invalide.';
+  if (!Array.isArray(body.lines) || body.lines.length < 1 || body.lines.length > MAX_LINES) return 'Le panier est invalide.';
+  const bad = body.lines.some((line) => !line || typeof line !== 'object' || Array.isArray(line)
+    || !ORDER_KINDS.includes(line.kind) || !Number.isInteger(line.id) || line.id <= 0);
+  return bad ? 'Un article du panier est invalide.' : null;
+}
+
+function buildShopController({ items, stayLines, orders, serviceHours, scheduler, translator, now }) {
+  /**
+   * Rules 25, 42 — why an item cannot be ordered: already in the stay, or staff-prepared with no delivery time
+   * left before the check-out.
+   */
+  function unavailableReason(sold, { L, stay, schedule, wall }) {
+    if (sold.alreadyIncluded) return L.alreadyIncluded;
+    if (isStaffItem(sold) && !deliveryTimes({ now: wall, stay, leadMinutes: sold.item.leadMinutes, schedule }).length) return L.noDeliveryLeft;
+    return null;
+  }
+
   /** Rule 24 — the core projection for the stay's lodging, plus the guest app's own fields. */
   function itemView(sold, context) {
     const { lang, translate, L, mediaPaths } = context;
@@ -118,6 +157,7 @@ function buildShopController({ items, stayLines, orders, translator, now }) {
     const shortDescription = (lang === 'en' && item.shortDescriptionEn) || item.shortDescriptionFr || null;
     const mediaPath = item.mediaId ? mediaPaths.get(Number(item.mediaId)) : null;
     const freeLabel = included ? null : freeLeftLabel(sold, L, lang);
+    const unavailable = unavailableReason(sold, context);
     return {
       kind,
       id: projected.id,
@@ -133,7 +173,7 @@ function buildShopController({ items, stayLines, orders, translator, now }) {
       maxQuantity: Number(item.maxQuantity),
       needsStaff: kind !== 'resource' && Number(item.needsStaff) === 1,
       ...(sold.hourly ? { scheduling: 'hourly' } : {}),
-      ...(sold.alreadyIncluded ? { unavailableReason: L.alreadyIncluded } : {}),
+      ...(unavailable ? { unavailableReason: unavailable } : {}),
       ...(kind === BREAKFAST ? breakfastFields(sold, context) : {}),
     };
   }
@@ -161,10 +201,8 @@ function buildShopController({ items, stayLines, orders, translator, now }) {
     ].map(({ name, entries: list }) => ({ name, items: bySortOrder(list).map((e) => itemView(e.sold, context)) }));
   }
 
-  function read(req, res) {
-    const { stay, lodging, mode } = req.guest;
-    const lang = languageOf(req, stay);
-    const L = LABELS[lang];
+  /** Rules 23, 25 — the items the stay's lodging sells, with what the stay already received. */
+  function soldFor({ stay, lodging }) {
     const extras = stayLines().ofStay(stay.id);
     const catalogue = items().catalogueFor(lodging.propertyId);
     const consumed = stayConsumption({
@@ -181,23 +219,99 @@ function buildShopController({ items, stayLines, orders, translator, now }) {
         optionLines: extras.optionLines,
         ...consumed,
       },
-      hourlyOffered: isOffered,
+      // The guest app never schedules hours itself: without the scheduler of `hourly-resources`, no bath.
+      hourlyOffered: (row) => isOffered(row) && Boolean(scheduler()),
     });
+    return { sold, extras, catalogue };
+  }
+
+  const scheduleOf = (lodging, at) => serviceHours().scheduleFor(lodging.propertyId, { from: parisDate(at) });
+
+  function read(req, res) {
+    const { stay, lodging, mode } = req.guest;
+    const lang = languageOf(req, stay);
+    const L = LABELS[lang];
+    const { sold, extras, catalogue } = soldFor(req.guest);
     const at = now();
     const today = parisDate(at);
     const state = shopState(mode, extras.window, today);
+    const schedule = scheduleOf(lodging, at);
     return publicHttp.ok(res, {
       open: state.open,
       ...(state.closedReason ? { closedReason: L[state.closedReason] } : {}),
+      service: serviceState({ now: at, stay, schedule, lang }),
       canPayCard: state.open && Boolean(paymentProviders.active()),
       canPayNote: state.open,
       categories: categoriesOf(sold, {
-        lang, translate: translator(lang), L, mediaPaths: catalogue.mediaPaths, stay, extras, today, time: parisClock.format(at),
+        lang, translate: translator(lang), L, mediaPaths: catalogue.mediaPaths, stay, extras, today, time: parisClock.format(at), schedule, wall: wallClock(at),
       }),
     });
   }
 
-  return { read };
+  /**
+   * Rules 28-31 — the slots the guest can book on an hourly resource of the shop, by day: only `free` and
+   * `evening` ones (§6.4), days without one left out. A slot that needs the resource lit from cold is
+   * bookable only when its ignition falls in the service hours.
+   */
+  function slots(req, res) {
+    const { stay, lodging } = req.guest;
+    const resourceId = positiveId(req.params.id);
+    const { from, to } = req.query;
+    if (!Number.isInteger(resourceId) || resourceId <= 0) return publicHttp.fail(res, 400, 'INVALID_INPUT', 'Identifiant invalide.');
+    if ([from, to].some((d) => d !== undefined && !isRealIsoDay(d))) return publicHttp.fail(res, 400, 'INVALID_INPUT', 'Date invalide.');
+    const lang = languageOf(req, stay);
+    const L = LABELS[lang];
+    const at = now();
+    const sold = soldFor(req.guest).sold.find((s) => s.kind === 'resource' && s.hourly && Number(s.row.id) === resourceId);
+    const found = sold && scheduler().slotsForStay({
+      resourceId, propertyId: lodging.propertyId, stay, now: at, canIgnite: ignitionInHours(scheduleOf(lodging, at)),
+    });
+    if (!found) return publicHttp.fail(res, 404, 'ITEM_NOT_FOUND', 'Cet article n’est pas proposé.');
+    const freeLabel = sold.included ? null : freeLeftLabel(sold, L, lang);
+    return publicHttp.ok(res, {
+      freeMinutesLeft: sold.freeMinutes ? sold.freeMinutes.left : 0,
+      ...(freeLabel ? { freeLabel } : {}),
+      days: found.days
+        .filter((day) => (from === undefined || day.date >= from) && (to === undefined || day.date <= to))
+        .map((day) => ({
+          date: day.date,
+          label: morningLabel(day.date, lang),
+          slots: day.slots.filter((slot) => BOOKABLE.has(slot.state)).map((slot) => ({
+            start: slot.start,
+            end: slot.end,
+            state: slot.state,
+            priceLabel: sold.included ? L.included : priceLabel(slot.price, lang),
+          })),
+        }))
+        .filter((day) => day.slots.length),
+    });
+  }
+
+  /**
+   * Rules 41-42 — the delivery times of a cart: the lead is the longest `leadMinutes` of its staff-prepared
+   * items. A cart without one needs no delivery time. Lines the shop does not sell are not read: the quote
+   * judges the cart.
+   */
+  function deliverySlots(req, res) {
+    const error = deliveryLinesError(req.body);
+    if (error) return publicHttp.fail(res, 400, 'INVALID_INPUT', error);
+    const { stay, lodging } = req.guest;
+    const lang = languageOf(req, stay);
+    const wanted = new Set(req.body.lines.map((line) => `${line.kind}:${line.id}`));
+    const staff = soldFor(req.guest).sold.filter((s) => isStaffItem(s) && wanted.has(`option:${Number(s.row.id)}`));
+    if (!staff.length) return publicHttp.ok(res, { needed: false, asap: null, days: [] });
+    const at = now();
+    const schedule = scheduleOf(lodging, at);
+    const leadMinutes = Math.max(...staff.map((s) => Number(s.item.leadMinutes) || 0));
+    const service = serviceState({ now: at, stay, schedule, lang });
+    return publicHttp.ok(res, {
+      needed: true,
+      ...deliveryPicker({ now: at, stay, leadMinutes, schedule, lang }),
+      ...(service.bannerLabel ? { bannerLabel: service.bannerLabel } : {}),
+    });
+  }
+
+  return { read, slots, deliverySlots };
 }
 
 module.exports = { buildShopController };

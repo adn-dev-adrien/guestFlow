@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const {
-  addOption, addResource, addStay, enable, freshDb, livePlugins, paris, sell, startApi,
+  addOption, addResource, addStay, enable, freshDb, livePlugins, openService, paris, sell, startApi,
 } = require('./guestAppFixtures');
 const { defaultModules } = require('../modules');
 
@@ -44,6 +44,7 @@ withShop('rule 24: each lodging sees its own price — included at one, paid at 
   addStay(db, { propertyId: 2, reservationNumber: 'R-99-002' });
   addOption(db, { id: 1, title: 'Panier du terroir', price: 25, prices: { 1: 0 } });
   sell(db, 'option', 1, { shortDescriptionFr: 'Fromages et charcuterie de la vallée', maxQuantity: 4, needsStaff: 1 });
+  openService(db);
   const granja = item(await shopOf(call, await scan(api, db, call, 1)), 'option', 1);
   assert.deepEqual(granja, {
     kind: 'option', id: 1, title: 'Panier du terroir', shortDescription: 'Fromages et charcuterie de la vallée', imageUrl: null,

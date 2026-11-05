@@ -53,6 +53,9 @@ function emptyRecord(id) {
     pushChannels: [],
     // specs/reconciliation-assisted-matching.md rule 22 — (rows) → rows, applied to the home's « Échéances » card (SDK 2.9.0).
     paymentDeadlineDecorator: null,
+    // specs/guest-app.md rules 28-31, 35 (SDK 2.22.0) — the hourly slots of a stay, and the slots a plugin holds.
+    resourceScheduler: null,
+    resourceHolds: null,
   };
 }
 

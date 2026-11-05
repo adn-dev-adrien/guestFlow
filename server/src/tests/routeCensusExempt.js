@@ -108,12 +108,14 @@ const EXEMPT = {
     'POST /api/reservations/:id/sas/departure/preview',
     'PUT /api/plugins/:id/settings',
   ],
-  'Judged by its own suites: guest-app-input-shape (public guest routes, generic 404 by design), guest-app-lodging-config, guest-app-items.': [
+  'Judged by its own suites: guest-app-input-shape (public guest routes, generic 404 by design; service hours, delivery times), guest-app-lodging-config, guest-app-items, guest-app-service-hours.': [
     'POST /public/v1/guest/me/confirm-name',
     'POST /public/v1/guest/sessions',
     'POST /public/v1/guest/sessions/lookup',
+    'POST /public/v1/guest/shop/delivery-slots',
     'PUT /api/guest-app/items/:kind/:id',
     'PUT /api/guest-app/lodgings/:propertyId',
+    'PUT /api/guest-app/service-hours',
   ],
   'An action on what the URL names; the handler reads no body.': [
     'POST /api/accounting/cancellation-compensations/:id/reopen',

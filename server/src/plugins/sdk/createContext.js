@@ -15,6 +15,7 @@ const PROVIDER_MEMBERS = ['id', 'label', 'errorCode', 'isReady', 'createLink', '
 const PROCESSOR_MEMBERS = ['id', 'isReady', 'priceSync', 'priceLive'];
 const CONTRIBUTOR_MEMBERS = ['id', 'priceTypes', 'priceLine'];
 const SAS_COMMIT_MEMBERS = ['step', 'validate', 'complementItems', 'write'];
+const SCHEDULER_MEMBERS = ['slotsForStay', 'validateSessions'];
 const PUSH_CHANNEL_KEY = /^[a-z][a-z0-9-]{0,39}$/;
 
 function createContext(id, { db, settingsModel, dataDir = null } = {}) {
@@ -110,6 +111,26 @@ function createContext(id, { db, settingsModel, dataDir = null } = {}) {
         if (other) throw new Error(`${prefix} the "${type}" lines are already priced by ${other.id}`);
       });
       record.priceLineContributor = contributor;
+    },
+    // SDK 2.22.0 (specs/guest-app.md rules 28-31) — the slots of an hourly resource for a stay, read from the
+    // resource planning by the plugin that owns it: `slotsForStay(args)` → `{ days }` | null and
+    // `validateSessions(args)` → `{ results }` | null. One per instance; the core hands it out as
+    // `ctx.core.resourceScheduler()`, so a plugin never requires another.
+    resourceScheduler(provider) {
+      SCHEDULER_MEMBERS.forEach((m) => {
+        if (provider == null || typeof provider[m] !== 'function') throw new Error(`${prefix} resource scheduler lacks "${m}"`);
+      });
+      const other = registry.all().find((r) => r.id !== id && r.resourceScheduler);
+      if (other) throw new Error(`${prefix} a resource scheduler is already declared by ${other.id}`);
+      record.resourceScheduler = provider;
+    },
+    // SDK 2.22.0 (specs/guest-app.md rule 35) — ({ resourceId, from, to }) → [{ date, start, end, reservationId? }]:
+    // slots a plugin holds on a resource before they reach the planning (an order awaiting payment). Read by
+    // `ctx.core.resourceHolds(...)` as occupancy. Synchronous, one per plugin.
+    resourceHolds(source) {
+      if (typeof source !== 'function') throw new Error(`${prefix} resourceHolds needs a function`);
+      if (record.resourceHolds) throw new Error(`${prefix} resourceHolds is already declared`);
+      record.resourceHolds = source;
     },
     // (resource, { properties }) → { lines?: [{ label, value }], footer?: string } | null — what the plugin
     // adds to a resource's card on Options & ressources while it is live (specs/options-resources-ux.md

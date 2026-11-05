@@ -911,8 +911,8 @@ summary::-webkit-details-marker{display:none}
 <main class="doc">
 <div class="intro">
   <h1>Application clients « Mon séjour » : les écrans à valider avant le code</h1>
-  <p>Version 2, après ta revue du 05/11. Toutes les surfaces de la spec <code>specs/guest-app.md</code> se manipulent ici et partagent un seul état : un module coupé dans le Studio disparaît de l'app, une commande passée dans l'app arrive dans GuestFlow.</p>
-  <div class="meta"><span class="chipm pri">Version 2 · 05/11/2026</span><span class="chipm ok">Lot A codé et poussé</span><span class="chipm">Lots serveur B à E : en cours</span><span class="chipm warn">Écrans (F, G) : en attente de tes verdicts</span></div>
+  <p>Version 3, après ta revue du 05/11 et une relecture en profondeur sous trois angles (iPhone et accessibilité, expérience, règles de la spec). Toutes les surfaces de la spec <code>specs/guest-app.md</code> se manipulent ici et partagent un seul état : un module coupé dans le Studio disparaît de l'app, une commande passée dans l'app arrive dans GuestFlow.</p>
+  <div class="meta"><span class="chipm pri">Version 3 · 05/11/2026</span><span class="chipm ok">Lots A, B et C codés</span><span class="chipm">Lots serveur D et E : en cours</span><span class="chipm warn">Écrans (F, G) : en attente de tes verdicts</span></div>
 </div>
 
 <section class="sec todo" id="decider" aria-labelledby="h-decider">
@@ -3038,7 +3038,7 @@ function renderTodo() {
 }
 function syncArb() { /* studio and GuestFlow edits can move away from a choice: the recap stays the user's answer */ recap(); }
 function recap() {
-  const lines = ['Revue des planches « Mon séjour », version 2 — 05/11/2026', '', 'Verdicts'];
+  const lines = ['Revue des planches « Mon séjour », version 3 — 05/11/2026', '', 'Verdicts'];
   VERDICTS.forEach(([k, l]) => { const v = S.verdicts[k] || {}; lines.push(`- ${l} : ${v.v === 'ok' ? 'Validé' : v.v === 'redo' ? 'À reprendre' : '(sans réponse)'}${v.t ? ` — ${v.t.trim()}` : ''}`); });
   lines.push('', 'Déjà tranché (05/11)');
   RESOLVED.forEach(([q, a]) => lines.push(`- ${q} : ${a}`));

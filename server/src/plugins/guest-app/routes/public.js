@@ -17,7 +17,10 @@ function buildPublicRouter({ controller, shop, guestSession, limiters }) {
   router.get('/me', limiters.read, guestSession.requireSession, controller.me);
   router.post('/me/confirm-name', limiters.read, guestSession.requireSession, guestSession.requireStay, controller.confirmName);
   router.get('/lodging', limiters.read, controller.lodging);
-  router.get('/shop', limiters.read, guestSession.requireSession, requireModule('shop', controller.shownKeysOf), shop.read);
+  const shopRoute = [limiters.read, guestSession.requireSession, requireModule('shop', controller.shownKeysOf)];
+  router.get('/shop', ...shopRoute, shop.read);
+  router.get('/shop/resources/:id/slots', ...shopRoute, guestSession.requireStay, shop.slots);
+  router.post('/shop/delivery-slots', ...shopRoute, guestSession.requireStay, shop.deliverySlots);
   return router;
 }
 

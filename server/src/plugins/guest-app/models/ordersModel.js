@@ -1,4 +1,7 @@
-/** `guest_orders` — what the home and the shop need of a stay's orders (specs/guest-app.md rules 11, 25). */
+/**
+ * `guest_orders` — what the home and the shop need of a stay's orders (specs/guest-app.md rules 11, 25), and the
+ * hourly slots the unpaid card orders hold (rule 35).
+ */
 
 const READY_MS = 60 * 60 * 1000;
 
@@ -39,6 +42,24 @@ function createOrdersModel(db) {
     /** Rule 25 — the lines of every order that stands (an expired one or a conflict sold nothing). */
     orderedLines(reservationId) {
       return linesOf(reservationId, STANDING);
+    },
+
+    /**
+     * Rule 35 — the sessions of `resourceId` between `from` and `to` that an order awaiting payment still holds
+     * at `now` (`heldUntil` not passed): `[{ date, start, end, reservationId }]`, the `ctx.resourceHolds` source.
+     */
+    heldSessions({ resourceId, from, to, now }) {
+      return db.prepare("SELECT reservationId, linesJson FROM guest_orders WHERE status = 'awaiting_payment' AND heldUntil > ?")
+        .all(now.toISOString())
+        .flatMap((row) => {
+          let lines;
+          try { lines = JSON.parse(row.linesJson); } catch { return []; }
+          return (Array.isArray(lines) ? lines : [])
+            .filter((line) => line && line.kind === 'resource' && Number(line.id) === Number(resourceId) && Array.isArray(line.sessions))
+            .flatMap((line) => line.sessions)
+            .filter((s) => s && typeof s.date === 'string' && s.date >= from && s.date <= to)
+            .map((s) => ({ date: s.date, start: s.start, end: s.end, reservationId: Number(row.reservationId) }));
+        });
     },
   };
 }

@@ -117,17 +117,30 @@ function sell(db, kind, itemId, fields = {}) {
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(kind, itemId, row.sold, row.shortDescriptionFr, row.shortDescriptionEn, row.maxQuantity, row.needsStaff, row.sortOrder, row.mediaId);
 }
 
+/** Service hours every day on the given ranges (shared, or one lodging's own), written as the PUT stores them. */
+function openService(db, ranges = [['08:00', '20:00']], propertyId = null) {
+  const add = db.prepare('INSERT INTO guest_app_service_hours (weekday, fromTime, toTime, propertyId) VALUES (?, ?, ?, ?)');
+  [0, 1, 2, 3, 4, 5, 6].forEach((weekday) => ranges.forEach(([from, to]) => add.run(weekday, from, to, propertyId)));
+}
+
 /**
- * The plugins the shop reads through the registry: something pricing the hours (`hourly-resources`) and a
- * payment provider (`online-payment`). `null` leaves the plugin out.
+ * The plugins the shop reads through the registry: something pricing and scheduling the hours
+ * (`hourly-resources`) and a payment provider (`online-payment`). `null` leaves the plugin out; `scheduler`
+ * replaces the stub scheduler (one that knows no resource).
  */
-function livePlugins({ hourly = true, payment = null } = {}) {
+function livePlugins({ hourly = true, payment = null, scheduler = null } = {}) {
   const registry = require('../../sdk/registry');
   registry.reset();
   registry.configure({ isActive: () => true, allows: () => true });
-  if (hourly) registry.ensure('hourly-resources').priceLineContributor = { id: 'hourly-resources', priceTypes: ['per_hour'], priceLine: () => null };
+  if (hourly) {
+    const record = registry.ensure('hourly-resources');
+    record.priceLineContributor = { id: 'hourly-resources', priceTypes: ['per_hour'], priceLine: () => null };
+    record.resourceScheduler = scheduler || { slotsForStay: () => null, validateSessions: () => null };
+  }
   if (payment) registry.ensure('online-payment').paymentProvider = { id: 'qonto', label: 'Qonto', isReady: () => payment === 'ready' };
   return () => registry.reset();
 }
 
-module.exports = { addOption, addResource, addStay, enable, freshDb, livePlugins, paris, sell, startApi };
+module.exports = {
+  addOption, addResource, addStay, enable, freshDb, livePlugins, openService, paris, sell, startApi,
+};

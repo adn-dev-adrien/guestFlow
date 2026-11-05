@@ -14,9 +14,15 @@
  * Every row comes back in the same shape: `{ date, start, end, kind, reservationId, bookingId }`.
  * No client identity is ever included — the SAS picker is shown with the guest standing there
  * (§3.4 rule 19), and no consumer needs it to decide whether a slot is free.
+ *
+ * A third kind, `hold`, is a slot another plugin holds before it reaches the planning — a guest order
+ * awaiting its card payment (specs/guest-app.md rule 35), read through `ctx.core.resourceHolds`. It blocks
+ * the slot for every consumer, and no `excludeReservationId` lifts it: it is not the stay's sessions yet.
  */
 
-const { formatTimeShort } = require('../sdk').coreModule('dateFr');
+const sdk = require('../sdk');
+
+const { formatTimeShort } = sdk.coreModule('dateFr');
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -47,6 +53,22 @@ function createModel(database) {
       .filter((s) => ISO_DATE.test(s.date) && s.start && s.end);
   }
 
+  /** The slots the live plugins hold on `resourceId` between `from` and `to` (inclusive ISO dates). */
+  function listHolds({ resourceId, from, to }) {
+    const rid = Number(resourceId);
+    if (!rid || !ISO_DATE.test(String(from)) || !ISO_DATE.test(String(to))) return [];
+    return sdk.core.resourceHolds({ resourceId: rid, from, to })
+      .map((h) => ({
+        date: String(h?.date || '').slice(0, 10),
+        start: formatTimeShort(h?.start) || '',
+        end: formatTimeShort(h?.end) || '',
+        kind: 'hold',
+        bookingId: null,
+        reservationId: h?.reservationId ? Number(h.reservationId) : null,
+      }))
+      .filter((h) => ISO_DATE.test(h.date) && h.date >= from && h.date <= to && h.start && h.end);
+  }
+
   /**
    * Every occupancy of `resourceId` between `from` and `to` (inclusive ISO dates).
    *
@@ -75,7 +97,9 @@ function createModel(database) {
       }))
       .filter((b) => b.start && b.end);
 
-    if (!HAS_SESSIONS) return bookings;
+    const holds = listHolds({ resourceId: rid, from, to });
+    const byTime = (a, b) => a.date.localeCompare(b.date) || a.start.localeCompare(b.start);
+    if (!HAS_SESSIONS) return [...bookings, ...holds].sort(byTime);
 
     // Devis are excluded on purpose: a quote reserves no slot until it becomes a reservation, the
     // same rule the planning cards already apply.
@@ -105,8 +129,7 @@ function createModel(database) {
       }
     }
 
-    return [...bookings, ...sessions]
-      .sort((a, b) => a.date.localeCompare(b.date) || a.start.localeCompare(b.start));
+    return [...bookings, ...sessions, ...holds].sort(byTime);
   }
 
   /**
@@ -141,7 +164,7 @@ function createModel(database) {
       .length;
   }
 
-  return { listRange, listForStay, countConflicts, parseSessions };
+  return { listRange, listForStay, listHolds, countConflicts, parseSessions };
 }
 
 module.exports = { create: createModel };

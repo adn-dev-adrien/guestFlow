@@ -283,7 +283,7 @@ function createModel(database) {
         .all(resourceId, date)
     ).map((b) => ({ ...enrichBooking(b), kind: 'booking' }));
 
-    return [...bookings, ...listReservationSessions({ resourceId, from, to })]
+    return [...bookings, ...listReservationSessions({ resourceId, from, to }), ...listHeldSlots({ resourceId, from, to })]
       .sort((a, b) => String(a.date).localeCompare(String(b.date)) || String(a.startTime).localeCompare(String(b.startTime)));
   }
 
@@ -331,6 +331,31 @@ function createModel(database) {
       }
     }
     return out;
+  }
+
+  /**
+   * The slots a guest order awaiting payment holds (specs/guest-app.md rule 35), shaped like a guest session —
+   * read-only, opening the stay's fiche — so the operator sees the slot taken before the money arrives.
+   */
+  function listHeldSlots({ resourceId, from, to }) {
+    const holds = occupancyModel.listHolds({ resourceId, from, to });
+    if (!holds.length) return [];
+    const resource = database.prepare('SELECT name, turnoverMinutes FROM resources WHERE id = ?').get(Number(resourceId)) || {};
+    return holds.map((hold) => ({
+      id: `hold-${hold.reservationId || 0}-${hold.date}-${hold.start}`,
+      kind: 'session',
+      held: true,
+      reservationId: hold.reservationId,
+      resourceId: Number(resourceId),
+      resourceName: resource.name,
+      date: hold.date,
+      startTime: hold.start,
+      endTime: hold.end,
+      turnoverMinutes: Number(resource.turnoverMinutes || 0),
+      propertyName: '',
+      displayName: 'Commande en attente de paiement',
+      paid: false,
+    }));
   }
 
   function findById(id) {
