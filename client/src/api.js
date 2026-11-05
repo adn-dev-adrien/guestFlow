@@ -491,6 +491,8 @@ const api = {
   getFinanceDashboardDetail: (tile, params = {}) => request(`/finance/dashboard/detail/${encodeURIComponent(tile)}?${financeQuery(params)}`),
   // specs/stay-profile.md §4.3 — the « Profil des séjours »: same window and logement parameters as the dashboard.
   getFinanceStayProfile: (params = {}) => request(`/finance/stay-profile?${financeQuery(params)}`),
+  // specs/finance-data-checks.md §4.3 — « À vérifier » of the exercise: `{ fiscalYear, propertyId }`.
+  getFinanceDataChecks: (params = {}) => request(`/finance/data-checks?${financeQuery(params)}`),
   // specs/booking-pace.md §4.3 — réservations à date vs last year, and one month's pickup curve.
   getFinancePace: (params = {}) => request(`/finance/pace?${financeQuery(params)}`),
   getFinancePaceMonth: (month, params = {}) => request(`/finance/pace/${encodeURIComponent(month)}?${financeQuery(params)}`),
