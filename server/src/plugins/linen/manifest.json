@@ -1,7 +1,7 @@
 {
   "id": "linen",
   "name": "Linge et blanchisserie",
-  "version": "1.2.3",
+  "version": "1.2.4",
   "description": "Stock de linge, tournées de blanchisserie, lits à préparer.",
   "icon": "laundry",
   "surfaces": [
@@ -62,6 +62,10 @@
     ],
     "1.2.3": [
       "Le linge compte les personnes servies quand un nombre a été saisi sur l’option.",
+      "Compatible avec le SDK 2.20 de GuestFlow."
+    ],
+    "1.2.4": [
+      "Une période refusée se lit en français.",
       "Compatible avec le SDK 2.20 de GuestFlow."
     ]
   }

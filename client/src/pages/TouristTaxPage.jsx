@@ -155,7 +155,7 @@ export default function TouristTaxPage() {
 
   // KPI cards — neutral « Maison » tiles (2026-07-16 decision).
   const kpiCards = data ? [
-    { label: 'Réservations directes (mois)', value: String(data.totals.reservationsCount || 0), accent: 'info.main' },
+    { label: 'Réservations (mois)', value: String(data.totals.reservationsCount || 0), accent: 'info.main' },
     { label: 'Adultes-nuits (mois)', value: String(data.totals.adultNights), accent: 'primary.main' },
     { label: 'Taxe de séjour totale', value: formatCurrency(data.totals.taxAmount), accent: 'warning.main' },
   ] : [];

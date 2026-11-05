@@ -22,6 +22,7 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import { useLocation } from 'react-router';
 import api from '../api';
 import { useAuth } from '../hooks/useAuth';
+import { logoutThroughGuard } from '../utils/guardedNavigation';
 
 export default function EmailVerifyBanner() {
   const { user, logout } = useAuth();
@@ -55,7 +56,7 @@ export default function EmailVerifyBanner() {
         variant="outlined"
         sx={{ borderWidth: 2 }}
         action={(
-          <Button color="warning" size="small" startIcon={<LogoutIcon />} onClick={() => logout()}>
+          <Button color="warning" size="small" startIcon={<LogoutIcon />} onClick={() => logoutThroughGuard(logout)}>
             Se déconnecter
           </Button>
         )}

@@ -53,20 +53,39 @@ function ficheVersionOf(path, res) {
   } catch { return null; }
 }
 
+// What the operator reads when the server had no say (specs/ui-review-2026-10-19-operations.md rule 44).
+const NETWORK_MESSAGE = 'Connexion au serveur impossible.';
+const BAD_ANSWER_MESSAGE = 'Le serveur ne répond pas correctement.';
+const SESSION_MESSAGE = 'Session expirée.';
+
+function badAnswerError() {
+  return Object.assign(new Error(BAD_ANSWER_MESSAGE), { code: 'BAD_ANSWER' });
+}
+
 async function send(path, options = {}) {
-  const res = await fetch(`${API}${path}`, {
-    headers: options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' },
-    credentials: 'include', // send the session cookie (same-origin in prod, credentialed CORS in dev)
-    ...options,
-    // A raw string body (the translation CSV) is sent as it is; everything else is JSON.
-    body: options.body instanceof FormData || typeof options.body === 'string'
-      ? options.body
-      : (options.body ? JSON.stringify(options.body) : undefined),
-  });
+  let res;
+  try {
+    res = await fetch(`${API}${path}`, {
+      headers: options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' },
+      credentials: 'include', // send the session cookie (same-origin in prod, credentialed CORS in dev)
+      ...options,
+      // A raw string body (the translation CSV) is sent as it is; everything else is JSON.
+      body: options.body instanceof FormData || typeof options.body === 'string'
+        ? options.body
+        : (options.body ? JSON.stringify(options.body) : undefined),
+    });
+  } catch (e) {
+    if (e && e.name === 'AbortError') throw e;
+    throw Object.assign(new Error(NETWORK_MESSAGE), { code: 'NETWORK' });
+  }
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: res.statusText }));
-    const message = err.error || res.statusText;
-    const apiError = new Error(message);
+    const parsed = await res.json().catch(() => null);
+    const err = parsed && typeof parsed === 'object' ? parsed : {};
+    // A code alone says nothing to an operator when it means the session is gone; `message`, when the
+    // server sends one, still wins through the assign below.
+    const sessionLost = res.status === 401 && !path.startsWith('/auth/');
+    const said = err.error || err.message;
+    const apiError = sessionLost ? new Error(SESSION_MESSAGE) : (said ? new Error(said) : badAnswerError());
     Object.assign(apiError, err, { status: res.status });
     // A lost/absent session on any call (other than the auth probe itself) → tell the app to re-auth.
     if (res.status === 401 && path !== '/auth/me' && path !== '/auth/login' && !path.startsWith('/auth/2fa/') && path !== '/auth/reset') {
@@ -91,7 +110,7 @@ async function send(path, options = {}) {
     window.dispatchEvent(new CustomEvent(DATA_CHANGED_EVENT, { detail: ficheVersionOf(path, res) }));
   }
   if (res.status === 204) return null;
-  return res.json();
+  return res.json().catch(() => { throw badAnswerError(); });
 }
 
 // Query string of the Suivi financier: window, logement and detail options; empty values are left out.

@@ -82,7 +82,7 @@ function buildController({
       const from = (req.query && req.query.from) || '';
       const to = (req.query && req.query.to) || '';
       const invalid = checkWindow(from, to);
-      if (invalid) return res.status(400).json({ error: invalid });
+      if (invalid) return res.status(400).json({ error: invalid, message: 'Période invalide.' });
       const current = today();
       const read = stayReader(req);
       const arrivals = idsByDate(injectedDaysModel.arrivalsInRange(from, to));
@@ -129,10 +129,10 @@ function buildController({
       const from = (req.query && req.query.from) || '';
       const to = (req.query && req.query.to) || '';
       if (!isIsoDate(from) || !isIsoDate(to)) {
-        return res.status(400).json({ error: 'INVALID_DATE_RANGE' });
+        return res.status(400).json({ error: 'INVALID_DATE_RANGE', message: 'Période invalide.' });
       }
       if (from > to) {
-        return res.status(400).json({ error: 'INVALID_DATE_RANGE' });
+        return res.status(400).json({ error: 'INVALID_DATE_RANGE', message: 'Période invalide.' });
       }
       const breakfastByDate = injectedBreakfastModel.breakfastByDate({ from, to });
       return res.json({ breakfastByDate });
@@ -155,7 +155,7 @@ function buildController({
         || !isIsoDate(date)
         || !isOptionalText(body.time)
         || (body.done !== undefined && !isFlag(body.done))) {
-        return res.status(400).json({ error: 'INVALID_PAYLOAD' });
+        return res.status(400).json({ error: 'INVALID_PAYLOAD', message: 'Données invalides.' });
       }
       let result = injectedOptionCardsModel.setOccurrenceDone({
         reservationId, optionId, date, time: asText(body.time), done: Boolean(body.done),

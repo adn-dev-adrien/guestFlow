@@ -713,8 +713,11 @@ function suggestBeds(req, res) {
 // specs/mid-stay-notes.md rule 22 — the « Nouvelle note » total while the operator ticks and adds:
 // the dialog prints `items` and `total`, it computes nothing.
 function previewMidStayNote(req, res) {
-  const { opening, current, checkedKeys } = req.body || {};
-  res.json(planMidStayNote({ opening, current, checkedKeys }));
+  const { opening, current, checkedKeys, reservationId } = req.body || {};
+  // specs/mid-stay-notes.md rule 23 (D19): no arrival marked, a sale joins the ordinary balance, so the note says so.
+  const id = ['number', 'string'].includes(typeof reservationId) ? Number(reservationId) : NaN;
+  const arrivalNotMarked = Number.isInteger(id) && id > 0 && model.isArrivalNotMarked(id);
+  res.json({ ...planMidStayNote({ opening, current, checkedKeys }), arrivalNotMarked });
 }
 
 function platformCommission(req, res) {
@@ -785,7 +788,7 @@ function occupiedDates(req, res) {
   }
   // specs/establishment-closures.md rule 20 — real days, at most 750 apart.
   const rangeRefusal = checkPlanningRange(from, to);
-  if (rangeRefusal) return res.status(rangeRefusal.status).json({ error: rangeRefusal.error });
+  if (rangeRefusal) return res.status(rangeRefusal.status).json({ error: rangeRefusal.error, message: rangeRefusal.message });
   const reservations = model.getOccupiedReservations(propertyId, from, to, excludeReservationId);
   const occupiedFromReservations = buildOccupiedDatesFromReservations(reservations);
   const closures = establishmentClosuresModel.list({ propertyId, from, to });

@@ -85,6 +85,7 @@ import MoreVertIcon from '@mui/icons-material/MoreVert';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router';
 import { usePublishPageTitle, useTopBarActionSlot } from '../hooks/usePageTitle';
+import { navigateThroughGuard } from '../utils/guardedNavigation';
 
 // The app bar's height, above the sticky page bar (the bar's `top` below).
 const APP_BAR_HEIGHT = { xs: 56, sm: 64 };
@@ -369,7 +370,7 @@ export default function PageActionBar({
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0, maxWidth: '100%' }}>
             {(onBack || backTo) && (
               <Tooltip title="Retour" enterDelay={500} enterNextDelay={500}>
-                <IconButton aria-label="Retour" onClick={onBack || (() => navigate(backTo))} sx={{ ...borderedSx('default'), flexShrink: 0 }}>
+                <IconButton aria-label="Retour" onClick={onBack || (() => navigateThroughGuard(navigate, backTo))} sx={{ ...borderedSx('default'), flexShrink: 0 }}>
                   <ArrowBackIcon />
                 </IconButton>
               </Tooltip>

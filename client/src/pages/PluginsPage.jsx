@@ -32,6 +32,7 @@ import EmptyState from '../components/EmptyState';
 import ErrorAlert from '../components/ErrorAlert';
 import LoadingState from '../components/LoadingState';
 import { useAuth } from '../hooks/useAuth';
+import useLatestRequest from '../hooks/useLatestRequest';
 import { BUNDLE_FAILURES } from '../plugins/runtimeModules';
 import api from '../api';
 
@@ -68,17 +69,22 @@ export default function PluginsPage({ onReload = reloadPage, pollMs = RESTART_PO
   const [restartLate, setRestartLate] = useState(false);
   const [searching, setSearching] = useState(false);
 
+  // specs/ui-review-2026-10-19-operations.md rule 39: the list a « Rechercher » asked for must not land on the state an
+  // action wrote meanwhile.
+  const beginLoad = useLatestRequest();
   const load = useCallback(async () => {
+    const current = beginLoad();
     try {
       const [list, st] = await Promise.all([api.getPlugins(), api.getPluginsStatus()]);
+      if (!current()) return;
       setPlugins(list);
       setStatus(st);
       setLoadError(null);
       setTab((current) => current || (list.some((p) => p.state !== 'available') ? 'installed' : 'available'));
     } catch (e) {
-      setLoadError(e.message || 'Impossible de charger les plugins.');
+      if (current()) setLoadError(e.message || 'Impossible de charger les plugins.');
     }
-  }, []);
+  }, [beginLoad]);
 
   useEffect(() => { load(); }, [load]);
 

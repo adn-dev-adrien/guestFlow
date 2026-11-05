@@ -135,7 +135,7 @@ test('rule 9 — a malformed, unreal, reversed or over-long window is refused wi
   for (const query of bad) {
     const res = call(controller, query);
     assert.equal(res.status, 400, JSON.stringify(query));
-    assert.deepEqual(res.body, { error: 'INVALID_DATE_RANGE' });
+    assert.deepEqual(res.body, { error: 'INVALID_DATE_RANGE', message: 'Période invalide.' });
   }
 });
 

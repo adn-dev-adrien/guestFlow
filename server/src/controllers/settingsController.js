@@ -355,7 +355,7 @@ function deleteLogo(req, res) {
 // failure. Used by the "Envoyer un mail de test" button on the SMTP card in /parametres.
 async function sendSmtpTest(req, res) {
   if (!settingsModel.smtpConfigured()) {
-    return res.status(400).json({ error: 'SMTP_NOT_CONFIGURED' });
+    return res.status(400).json({ error: 'SMTP_NOT_CONFIGURED', message: 'Envoi d’e-mails non configuré.' });
   }
   const recipient = req.user && req.user.email;
   if (!recipient) {
@@ -367,7 +367,7 @@ async function sendSmtpTest(req, res) {
     return res.json({ ok: true, recipient });
   } catch (err) {
     if (err && err.code === 'EMAIL_NOT_CONFIGURED') {
-      return res.status(400).json({ error: 'SMTP_NOT_CONFIGURED' });
+      return res.status(400).json({ error: 'SMTP_NOT_CONFIGURED', message: 'Envoi d’e-mails non configuré.' });
     }
     // Don't echo the raw transport error back (it can include hostnames, library versions,
     // file paths). Log server-side for diagnosis, send a stable error code to the client.

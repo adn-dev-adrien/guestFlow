@@ -205,7 +205,7 @@ guessing; and the quote the guest receives looks like the house that sends it.
     PR #728). The guards that keep a dirty page on Back (`useDirtyFormGuard`, the reservation page,
     the logement page) put the page's own router state back (`pushState(<page state>)`), never `null`:
     a null entry lost `idx`, so after « Rester » the next « Retour » believed the page was opened
-    directly and went to the planning. A logement opened directly goes back to the logements list
+    directly and went to the planning. (How they hold it: rule 40.) A logement opened directly goes back to the logements list
     (`/properties`), not the planning. On a phone the quote-number link of rule 23 is 44 px tall.
 
 ### Quote PDF, every alphabet (owner decision 2026-10-20)
@@ -317,6 +317,41 @@ guessing; and the quote the guest receives looks like the house that sends it.
     and the e-mail sequence simulation (from, to) follow the same rule. Tests:
     `pages/__tests__/FinancePage.stale-answers.test.jsx`, `ReconciliationPage.stale-refresh`,
     `DevisPage.stale-filter`, `OptionsPage.stale-filter`, `EmailSequenceSimulation.stale-range`.
+    Reading of 2026-11-05 (audit R23-P3): the Plugins list follows it too, a list asked by « Rechercher » and
+    answering after an action never brings the previous state back (`PluginsPage.latest-list`).
+40. **The fiche and the logement hold the back slot (audit R23-C1, 2026-11-05).** Rule 26 said these two pages keep
+    a dirty page on Back; they added their own `popstate` listener, which runs after the router's and so after the
+    form was gone: the back gesture dropped the draft with no prompt. While dirty, both hold
+    `window.__guestflowBeforeBack` (`utils/backGuard.js`, `holdGuardSlot`) and answer the `{ state, url }` the page
+    stands on, read when it became dirty and again whenever the router's location moves, never at the pop (the
+    browser's URL has already moved). They answer `null` once the operator chose to leave, so the back that follows
+    passes. No entry is added: the `history.length` stays the same. Tests: `ReservationPage.browser-back`,
+    `PropertyDetail.browser-back`, e2e `reservations/leave-guards` (`page.goBack()`, 1280 and 390 touch).
+41. **A reload warns on a dirty fiche (audit R23-C2, 2026-11-05).** A reload, a closed tab or a pull-to-refresh fires
+    `beforeunload` while the fiche, new reservation included, is dirty. Tests: `ReservationPage.browser-back`,
+    e2e `reservations/leave-guards`.
+42. **Every way out of a dirty page asks (audit R23-C3 to C6, 2026-11-05).** The top-bar search goes through
+    `navigateThroughGuard`, and closes either way; the prompt is on screen. The `backTo` arrow of `PageActionBar`
+    too. The CGV draft holds `useDirtyFormGuard` and its `UnsavedChangesDialog`; « Enregistrer et quitter » leaves
+    only when the save succeeded. « Se déconnecter » (menu, and the e-mail banner) asks the guard for `/login` through
+    `logoutThroughGuard`: refused, the session stays; « Quitter » reaches the signed-in `/login` route, which signs
+    out, whatever the role, because that path skips the role redirect. Any other signed-in visit to `/login` still goes
+    home and signs nobody out. Tests: `App.leave-guards`, `PageActionBar.back-guard`, `TermsSettingsPage.unsaved`,
+    e2e `reservations/leave-guards`.
+43. **An unknown logement says so (audit R23-C10, 2026-11-05).** A 404 on the logement itself reads « Logement
+    introuvable. » with « Retour aux logements », no retry, like an unknown fiche. Any other failure stays « Impossible
+    de charger le logement. » with its retry. Tests: `PropertyDetail.browser-back`, e2e `reservations/leave-guards`.
+44. **What api.js throws is French (audit R23-C7, 2026-11-05).** `fetch` rejecting reads « Connexion au serveur
+    impossible. » (`code: 'NETWORK'`, an `AbortError` stays one); an answer that is not JSON, or a refusal whose JSON
+    says nothing, reads « Le serveur ne répond pas correctement. » (`code: 'BAD_ANSWER'`), a success included; a 401
+    outside `/auth/*` with no `message` reads « Session expirée. » and still asks the app to sign in again. The draft of
+    a page whose session is gone is not kept: the login page replaces it, accepted, a session that ended cannot save
+    it. A refusal keeps its code in `error`; the server adds a French `message` to `SMTP_NOT_CONFIGURED`,
+    `PUBLIC_URL_NOT_CONFIGURED`, `LAST_ADMIN`, `SELF_ACTION_FORBIDDEN`, `RESERVATION_NOT_FOUND`, `INVALID_DATE_RANGE`,
+    `INVALID_PAYLOAD`, `DATE_RANGE_TOO_WIDE` and the other code-only refusals of the users controller. No client
+    map: `message` wins. Tests: `api.error-wording`, server `refusals-say-french`.
+45. **The tax page's first tile reads « Réservations (mois) » (audit R23-C9, 2026-11-05).** It counts every row of the
+    month, whatever its channel; « directes » was wrong. Test: `TouristTaxPage.kpi-label`.
 
 ---
 

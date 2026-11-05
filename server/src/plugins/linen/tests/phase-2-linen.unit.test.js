@@ -88,8 +88,8 @@ test('specs/plugins-phase-2-hosts.md rule 4: the laundry planning endpoint answe
     assert.deepEqual(res.body, { error: 'PLUGIN_INACTIVE', plugin: 'linen' });
   }
   // The core planning router still answers its own endpoints (a bad range is its own 400).
-  assert.deepEqual((await request(app, 'GET', '/api/planning/breakfast?from=x&to=y')).body, { error: 'INVALID_DATE_RANGE' });
-  assert.deepEqual((await request(app, 'GET', '/api/planning/days?from=x&to=y')).body, { error: 'INVALID_DATE_RANGE' });
+  assert.deepEqual((await request(app, 'GET', '/api/planning/breakfast?from=x&to=y')).body, { error: 'INVALID_DATE_RANGE', message: 'Période invalide.' });
+  assert.deepEqual((await request(app, 'GET', '/api/planning/days?from=x&to=y')).body, { error: 'INVALID_DATE_RANGE', message: 'Période invalide.' });
 
   plugins.install('linen');
   applyPluginSchema(db, 'linen');

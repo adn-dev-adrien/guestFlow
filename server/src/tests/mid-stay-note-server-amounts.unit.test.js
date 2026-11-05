@@ -94,7 +94,7 @@ test('rule 22 — POST /reservations/mid-stay-note/preview answers the items and
   const controller = buildController({ settled: [], storedLines: [] });
   const res = fakeRes();
   controller.previewMidStayNote({ body: { opening: OPENING, current: OPENING, checkedKeys: ['opt:9'] } }, res);
-  assert.deepEqual(res.body, { items: [{ key: 'opt:9', label: 'Petit-déjeuner', amount: 24 }], total: 24 });
+  assert.deepEqual(res.body, { items: [{ key: 'opt:9', label: 'Petit-déjeuner', amount: 24 }], total: 24, arrivalNotMarked: false });
 });
 
 test('rule 22 — settling derives the amounts from the STORED remainder, never from client amounts', () => {

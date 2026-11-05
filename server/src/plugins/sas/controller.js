@@ -311,7 +311,7 @@ function linenPayload(build, { isDeparture }) {
 
 function getSas(req, res) {
   const found = reservationsModel.getByIdWithDetails(req.params.id);
-  if (!found) return res.status(404).json({ error: 'RESERVATION_NOT_FOUND' });
+  if (!found) return res.status(404).json({ error: 'RESERVATION_NOT_FOUND', message: 'Réservation introuvable.' });
   const reservation = withoutLinenAlert(found);
 
   // Cleaning is "included" when the reservation already carries it: a booked option (by
@@ -418,7 +418,7 @@ function getSas(req, res) {
  */
 function previewArrival(req, res) {
   const reservation = reservationsModel.getByIdWithDetails(req.params.id);
-  if (!reservation) return res.status(404).json({ error: 'RESERVATION_NOT_FOUND' });
+  if (!reservation) return res.status(404).json({ error: 'RESERVATION_NOT_FOUND', message: 'Réservation introuvable.' });
   const closed = closedStayRefusal(reservation);
   if (closed) return res.status(409).json(closed);
   const arrivalLock = receptionSasLock(req, reservation, 'arrival');
@@ -462,7 +462,7 @@ const DEPARTURE_TOTAL_HISTORY = { field: 'departureRecapTotal', label: 'Total du
 
 function commitArrival(req, res) {
   const reservation = reservationsModel.getByIdWithDetails(req.params.id);
-  if (!reservation) return res.status(404).json({ error: 'RESERVATION_NOT_FOUND' });
+  if (!reservation) return res.status(404).json({ error: 'RESERVATION_NOT_FOUND', message: 'Réservation introuvable.' });
   const closed = closedStayRefusal(reservation);
   if (closed) return res.status(409).json(closed);
   const arrivalLock = receptionSasLock(req, reservation, 'arrival');
@@ -623,7 +623,7 @@ function departureRecapFor(reservation, plan) {
  */
 function previewDeparture(req, res) {
   const reservation = reservationsModel.getByIdWithDetails(req.params.id);
-  if (!reservation) return res.status(404).json({ error: 'RESERVATION_NOT_FOUND' });
+  if (!reservation) return res.status(404).json({ error: 'RESERVATION_NOT_FOUND', message: 'Réservation introuvable.' });
   const closed = closedStayRefusal(reservation);
   if (closed) return res.status(409).json(closed);
   const departureLock = receptionSasLock(req, reservation, 'departure');
@@ -636,7 +636,7 @@ function previewDeparture(req, res) {
 
 function commitDeparture(req, res) {
   const reservation = reservationsModel.getByIdWithDetails(req.params.id);
-  if (!reservation) return res.status(404).json({ error: 'RESERVATION_NOT_FOUND' });
+  if (!reservation) return res.status(404).json({ error: 'RESERVATION_NOT_FOUND', message: 'Réservation introuvable.' });
   const closed = closedStayRefusal(reservation);
   if (closed) return res.status(409).json(closed);
   const departureLock = receptionSasLock(req, reservation, 'departure');

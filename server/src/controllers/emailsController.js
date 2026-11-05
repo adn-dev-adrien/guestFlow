@@ -206,7 +206,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
     const template = templatesModel.findById(templateId);
     if (!template) return { error: 'TEMPLATE_NOT_FOUND', status: 404 };
     const graph = loadReservationGraph(database, reservationId);
-    if (!graph) return { error: 'RESERVATION_NOT_FOUND', status: 404 };
+    if (!graph) return { error: 'RESERVATION_NOT_FOUND', message: 'Réservation introuvable.', status: 404 };
 
     // Language resolution (specs/email-client-language-and-fiche-polish.md §3 rule 2): explicit override
     // wins, else the CLIENT's language, else the reservation's (transitional fallback), else French.
@@ -307,10 +307,10 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
   function preview(req, res) {
     const { reservationId, templateId, lang, occurrenceKey } = req.query || {};
     if (!reservationId || !templateId) {
-      return res.status(400).json({ error: 'INVALID_PAYLOAD', fields: ['reservationId', 'templateId'] });
+      return res.status(400).json({ error: 'INVALID_PAYLOAD', message: 'Données invalides.', fields: ['reservationId', 'templateId'] });
     }
     const result = buildPreview(Number(reservationId), Number(templateId), {}, lang, { occurrenceKey });
-    if (result.error) return res.status(result.status).json({ error: result.error });
+    if (result.error) return res.status(result.status).json({ error: result.error, message: result.message });
     return res.json({
       to: result.to,
       subject: result.subject,
@@ -326,7 +326,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
   async function send(req, res) {
     const { reservationId, templateId, overrides, lang, confirmResend, occurrenceKey } = req.body || {};
     if (!reservationId || !templateId) {
-      return res.status(400).json({ error: 'INVALID_PAYLOAD', fields: ['reservationId', 'templateId'] });
+      return res.status(400).json({ error: 'INVALID_PAYLOAD', message: 'Données invalides.', fields: ['reservationId', 'templateId'] });
     }
     // A duplicate set aside is never written to; a cancelled stay still receives its cancellation mails.
     if (refuseIfReadOnly(res, database, reservationId, { cancelled: false })) return undefined;
@@ -396,7 +396,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
       body: relink(overrides.body, paymentLink, stayLinks, useLang),
     } : (overrides || {});
     const result = buildPreview(Number(reservationId), Number(templateId), sentOverrides, lang, { occurrenceKey, paymentLink });
-    if (result.error) return res.status(result.status).json({ error: result.error });
+    if (result.error) return res.status(result.status).json({ error: result.error, message: result.message });
     // Hard guard: a placeholder of the preview never reaches a guest.
     if (hasPlaceholder(result.subject) || hasPlaceholder(result.body)) return res.status(409).json(PLACEHOLDER_LEFT);
     const sentKey = result.occurrenceKey;
@@ -512,14 +512,14 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
 
   function acknowledge(req, res) {
     const { templateId, reservationId } = req.params || {};
-    if (!templateId || !reservationId) return res.status(400).json({ error: 'INVALID_PAYLOAD' });
+    if (!templateId || !reservationId) return res.status(400).json({ error: 'INVALID_PAYLOAD', message: 'Données invalides.' });
     const occurrenceKey = String((req.query && req.query.occurrenceKey) || '');
 
     if (refuseIfReadOnly(res, database, reservationId, { cancelled: false })) return undefined;
     const template = templatesModel.findById(templateId);
     if (!template) return res.status(404).json({ error: 'TEMPLATE_NOT_FOUND' });
     const graph = loadReservationGraph(database, reservationId);
-    if (!graph) return res.status(404).json({ error: 'RESERVATION_NOT_FOUND' });
+    if (!graph) return res.status(404).json({ error: 'RESERVATION_NOT_FOUND', message: 'Réservation introuvable.' });
 
     // Skipping always removes the pair from the manual queue, even when it was previously
     // sent/acknowledged (a re-queued pair must still be dismissable).
@@ -572,14 +572,14 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
   // recipient required. Mirrors acknowledge's idempotency + queue-dequeue.
   function markSent(req, res) {
     const { templateId, reservationId } = req.params || {};
-    if (!templateId || !reservationId) return res.status(400).json({ error: 'INVALID_PAYLOAD' });
+    if (!templateId || !reservationId) return res.status(400).json({ error: 'INVALID_PAYLOAD', message: 'Données invalides.' });
     const occurrenceKey = String((req.query && req.query.occurrenceKey) || '');
 
     if (refuseIfReadOnly(res, database, reservationId, { cancelled: false })) return undefined;
     const template = templatesModel.findById(templateId);
     if (!template) return res.status(404).json({ error: 'TEMPLATE_NOT_FOUND' });
     const graph = loadReservationGraph(database, reservationId);
-    if (!graph) return res.status(404).json({ error: 'RESERVATION_NOT_FOUND' });
+    if (!graph) return res.status(404).json({ error: 'RESERVATION_NOT_FOUND', message: 'Réservation introuvable.' });
 
     // Always dequeue, even if already handled (a re-queued pair must still leave the list).
     if (manualQueueModel) manualQueueModel.remove(Number(templateId), Number(reservationId), occurrenceKey);
@@ -686,13 +686,13 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
   function queue(req, res) {
     const { templateId, reservationId, force } = req.body || {};
     if (!templateId || !reservationId) {
-      return res.status(400).json({ error: 'INVALID_PAYLOAD', fields: ['templateId', 'reservationId'] });
+      return res.status(400).json({ error: 'INVALID_PAYLOAD', message: 'Données invalides.', fields: ['templateId', 'reservationId'] });
     }
     if (refuseIfReadOnly(res, database, reservationId, { cancelled: false })) return undefined;
     const template = templatesModel.findById(templateId);
     if (!template) return res.status(404).json({ error: 'TEMPLATE_NOT_FOUND' });
     const graph = loadReservationGraph(database, reservationId);
-    if (!graph) return res.status(404).json({ error: 'RESERVATION_NOT_FOUND' });
+    if (!graph) return res.status(404).json({ error: 'RESERVATION_NOT_FOUND', message: 'Réservation introuvable.' });
 
     // An installment request queued by hand is queued for the installment it will ask for: its key is stored,
     // so sending (which closes the entry under that key) really removes it.
@@ -721,7 +721,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
 
   function previewDraft(req, res) {
     const result = draftPreview.render(req.body || {});
-    if (result.error) return res.status(result.status).json(result.body || { error: result.error });
+    if (result.error) return res.status(result.status).json(result.body || { error: result.error, message: result.message });
     return res.json(result.payload);
   }
 
@@ -733,7 +733,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
       return res.status(409).json({ error: 'EMAIL_NOT_CONFIGURED', message: 'SMTP non configuré : Paramètres › Emails' });
     }
     const result = draftPreview.render(req.body || {});
-    if (result.error) return res.status(result.status).json(result.body || { error: result.error });
+    if (result.error) return res.status(result.status).json(result.body || { error: result.error, message: result.message });
     const settings = readSettings();
     const to = String(settings.companyEmail || '').trim() || resolveEmailIdentity(settings).fromEmail;
     if (!to) return res.status(409).json({ error: 'NO_COMPANY_EMAIL', message: 'Email de l’entreprise manquant : Paramètres › Établissement' });

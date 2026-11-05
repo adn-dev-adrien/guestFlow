@@ -26,7 +26,7 @@ function createController({ bookings: model, scheduling, planningCards, reservat
     // Bound the span before touching the DB (DATA-1): reception can reach this endpoint, and an
     // unbounded range is a query-amplification DoS.
     const rangeError = checkPlanningRange(from, to);
-    if (rangeError) return res.status(rangeError.status).json({ error: rangeError.error });
+    if (rangeError) return res.status(rangeError.status).json({ error: rangeError.error, message: rangeError.message });
 
     const events = model().listPlanningEvents(from, to);
     // Reception must never receive the finance (price/paid) or PII (phone/notes/raw names) that the
@@ -94,7 +94,7 @@ function createController({ bookings: model, scheduling, planningCards, reservat
     // A repeated key arrives as a list: only one id is an id.
     const reservationId = typeof req.query.reservationId === 'string' ? req.query.reservationId : null;
     const reservation = reservationId && reservations.getByIdWithDetails(reservationId);
-    if (!reservation) return res.status(404).json({ error: 'RESERVATION_NOT_FOUND' });
+    if (!reservation) return res.status(404).json({ error: 'RESERVATION_NOT_FOUND', message: 'Réservation introuvable.' });
 
     let pending = [];
     if (req.query.pending) {
@@ -117,7 +117,7 @@ function createController({ bookings: model, scheduling, planningCards, reservat
     const from = (req.query && req.query.from) || '';
     const to = (req.query && req.query.to) || '';
     if (!isIsoDate(from) || !isIsoDate(to) || from > to) {
-      return res.status(400).json({ error: 'INVALID_DATE_RANGE' });
+      return res.status(400).json({ error: 'INVALID_DATE_RANGE', message: 'Période invalide.' });
     }
     return res.json({ resourceCardsByDate: planningCards().cardsInRange({ from, to }) });
   }
@@ -139,7 +139,7 @@ function createController({ bookings: model, scheduling, planningCards, reservat
       || !isIsoDate(date)
       || (start !== null && typeof start !== 'string')
       || (body.done !== undefined && ![true, false, 1, 0].includes(body.done))) {
-      return res.status(400).json({ error: 'INVALID_PAYLOAD' });
+      return res.status(400).json({ error: 'INVALID_PAYLOAD', message: 'Données invalides.' });
     }
     const result = planningCards().setSessionDone({
       reservationId, resourceId, date, start: start || '', done: Boolean(body.done),
