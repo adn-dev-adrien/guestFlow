@@ -255,7 +255,7 @@ Interactive summary: `docs/specs/2026-11-03-platform-added-guests-tourist-tax.ht
 
 ## 7. Test plan
 
-### Server unit tests — `platform-added-guests-tourist-tax.unit.test.js` (@CORE@), `platform-added-guests-tourist-tax-books.unit.test.js` (@BOOKS@), `plugins/accounting-export/tests/platform-added-guests-tourist-tax-books.unit.test.js` (6), `platform-added-guests-stored-readers.unit.test.js` (1), `platform-added-guests-paths.unit.test.js` (@PATHS@), `platform-added-guests-migration.unit.test.js` (3)
+### Server unit tests — `platform-added-guests-tourist-tax.unit.test.js` (22), `platform-added-guests-tourist-tax-books.unit.test.js` (20), `plugins/accounting-export/tests/platform-added-guests-tourist-tax-books.unit.test.js` (6), `platform-added-guests-stored-readers.unit.test.js` (1), `platform-added-guests-paths.unit.test.js` (14), `platform-added-guests-migration.unit.test.js` (3)
 - [x] Rule 1: capture, keep on a corrected brut, clear, re-capture; body value ignored; a locked past stay can still take its brut.
 - [x] Rules 2–5: amount per mode and per tax mode, a platform rate that differs, rounding noise, minors, a child removed on a percentage property (D12).
 - [x] Rules 6–7bis: rises and falls; stored amount kept once the complement is collected; frozen tax + guest added → line in the complement, frozen part unchanged, no double count on the next save. Through the real save and the real preview too.
@@ -285,7 +285,8 @@ Interactive summary: `docs/specs/2026-11-03-platform-added-guests-tourist-tax.ht
 - [x] Same fiche with the balance paid and the row declared, then a guest added: frozen part unchanged, line in the
       complement, own row once collected, ticked alone.
 - [x] Mobile (375 px) and 900 / 1280 px: fiche summary, SAS recap, declaration page, no horizontal scroll.
-- [ ] E2E suite: not run locally (another session holds port 4000), left to the CI.
+- [x] Audit R22 replayed on an isolated copy of the production data (2026-11-05): tick on the collection day keeps one row at 21,60 € and adds nothing to November; a split stay unticked merges without a reload; a ghost tick answers 409; the complement unticked clears the row's tick; the gap's row at 1280, 900 and 375 px with no overflow; a party changed before the upgrade bills no complement on Estiva.
+- [x] E2E suite: 195 passed locally on 2026-11-05 (own ports). No E2E spec opens the declaration page: it is held by the unit suites and the replay above.
 
 ## 8. Out of scope
 
