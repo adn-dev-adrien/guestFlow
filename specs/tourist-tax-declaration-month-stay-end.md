@@ -129,7 +129,7 @@ All automated cases live in `tourist-tax-collection-coverage.unit.test.js`:
 - [x] Paid flag = 1, paid date NULL → last-night month.
 - [x] Future month still rejected; current month accepted (pre-existing, unchanged).
 - [x] Full server suite green — **2075 / 2075 pass**.
-- [x] `plan-tax-declaration.unit.test.js` (20, 2026-11-05), rules 7-8: plan paid, partly paid, nothing paid; stay month against payment month; departure on the 1st; amount, KPIs and aggregate equal to the same stay paid by solde; refunded night; cancelled stay; plan removed; tax on the complement; an own channel that remits itself; a stay without a plan unchanged.
+- [x] `plan-tax-declaration.unit.test.js` (23, 2026-11-05), rules 7-8: plan paid, partly paid, nothing paid; stay month against payment month; departure on the 1st; amount, KPIs and aggregate equal to the same stay paid by solde; refunded night; cancelled stay; plan removed; tax on the complement; an own channel that remits itself; a stay without a plan unchanged.
 - [ ] Manual UI check: month selector on `/finance/tourist-tax` shows the moved stays (desktop + mobile).
 
 ## 7. Out of scope

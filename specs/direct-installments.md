@@ -534,7 +534,7 @@ Baseline 6 264 → **6 373** (+109 net, all green; 5 cron tests of money templat
 - [x] `tests/finance-late-installments.unit.test.js` (3) — rule 48: two late installments as elements, the three-day grace, a covered plan never late
 - [x] `client/src/pages/__tests__/FinancePage.settle-late-installment.test.jsx` (1) — rule 48: « Marquer payé » records each late installment through its endpoint
 - [x] `tests/utc-timestamp-paris-day-labels.unit.test.js` (1 of 4, 2026-10-30) — rule 49: a request stamped 23:30 UTC reads « Demandée le » on its Paris day
-- [x] `tests/plan-tax-declaration.unit.test.js` (20, 2026-11-05) — rule 51: fully paid, partly paid and unpaid plans on the page at the stay month, `balancePaid` still 0
+- [x] `tests/plan-tax-declaration.unit.test.js` (23, 2026-11-05) — rule 51: fully paid, partly paid and unpaid plans on the page at the stay month, `balancePaid` still 0
 - [x] `tests/installment-paid-holds-nights.unit.test.js` (4, 2026-11-01) — rule 50: an installment ticked or paid by link withdraws the devis link on the stay's nights at once; a replay withdraws nothing more; nothing paid holds nothing
 
 ### Client tests
