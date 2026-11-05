@@ -9,7 +9,7 @@ const { validatePeriod } = require('./validation');
 function createController({ model, sentenceCase, sync: runSync }) {
   function readPeriodBody(body = {}) {
     return {
-      label: sentenceCase(body.label || ''),
+      label: typeof body.label === 'string' ? sentenceCase(body.label) : '',
       zoneA_start: body.zoneA_start || null,
       zoneA_end: body.zoneA_end || null,
       zoneB_start: body.zoneB_start || null,

@@ -275,6 +275,7 @@ patch. No new edge behavior is introduced.
    constraint's 500). `POST /suggest-beds`: a `propertyId` that is no id → 400 « propertyId requis », the party held by
    rule 15. `PATCH /devis/:id/status`: only a string can be a status. A write on `/reservations/<not digits>…` → 404.
    Test: `tests/stay-input-shape.unit.test.js`.
+
 ---
 
 ## 4. Architecture

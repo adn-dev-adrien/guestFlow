@@ -82,6 +82,10 @@ routes, mêmes codes de statut, mêmes charges utiles, mêmes sessions.
    decode param ») answers `404 NOT_FOUND`, in the public envelope under `/public/` (rule 8). None is logged: the parser
    sits ahead of every limiter, and any visitor could fill the log with false crashes. `utils/bodyParserRefusal.js`
    `requestRefusal`; test `tests/public-input-shape-core.unit.test.js`.
+10. **Added 2026-11-05 (audit R22, verification of PR #961) — a season on a property that does not exist is a 404.**
+   `POST /properties/<unknown or not digits>/pricing` answers `404` « Logement introuvable. » before reading the body
+   (`propertiesModel.addPricingRule`); it was a foreign key's 500 and an `[unhandled]` line. Test:
+   `tests/authenticated-input-shape.unit.test.js`.
 
 ---
 

@@ -97,6 +97,18 @@ test('rule 16 — preview, create, update, devis create and update all answer it
   assert.deepEqual(row, { platform: 'direct', notes: '', checkInTime: '15:00', depositDisabled: 0 });
 });
 
+test('rule 16 — an empty tick is not sent, and 0 is how a new fiche names no row', () => {
+  for (const field of ['depositDisabled', 'extraGuestSurchargeOffered', 'touristTaxInComplement', 'forceMinNights', 'refreshPricingToCurrent']) {
+    assert.equal(stayShapeRefusal({ [field]: '' }), null, field);
+    assert.equal(stayShapeRefusal({ [field]: 'x' }).code, 'INVALID_FIELD', field);
+  }
+  assert.equal(stayShapeRefusal({ options: [{ optionId: 1, inComplement: '' }], customOptions: [{ inComplement: '' }], resources: [{ resourceId: 1, inComplement: '' }] }), null);
+  for (const field of ['propertyId', 'clientId', 'reservationId', 'devisId']) {
+    assert.equal(stayShapeRefusal({ [field]: 0 }), null, field);
+    assert.equal(stayShapeRefusal({ [field]: -1 }).field, field);
+  }
+});
+
 test('rule 16 — a stored time the guard would refuse is saved back unchanged', async () => {
   const { legacy } = app.ids;
   const [row] = app.readDb('SELECT startDate, endDate FROM reservations WHERE id = ?', legacy);

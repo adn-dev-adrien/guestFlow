@@ -3,6 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { startApp } = require('./inputShapeApp');
+const { validatePropertyInput } = require('../utils/propertyValidation');
 
 const T = JSON.parse('{"toString":1}');
 let app;
@@ -15,6 +16,7 @@ test.before(async () => {
   admin = await app.login('admin@shape.test');
   reception = await app.login('reception@shape.test');
   accountant = await app.login('accountant@shape.test');
+  await app.activatePlugins(admin, ['hourly-resources', 'school-holidays', 'tariff-recipes', 'accounting-export', 'neat']);
 });
 test.after(async () => { if (app) await app.stop(); });
 
@@ -109,6 +111,37 @@ test('rule 68 — the net leaves every pinned refusal in place', async () => {
   const login = await app.call('', 'POST', '/api/auth/login', { email: T, password: 'x' });
   assert.equal(login.status, 400);
   assert.equal(login.json.error, 'MISSING_CREDENTIALS');
+});
+
+test('rule 68 — the assistant\'s company fields answer their own 422, not the net', async () => {
+  for (const phone of [{}, T, [], 1, true]) {
+    const res = await app.call(admin, 'PUT', '/api/onboarding/company', { name: 'Ombre', email: 'bonjour@shape.test', phone });
+    assert.equal(res.status, 422, JSON.stringify(phone));
+    assert.equal(res.json.errors.phone, 'Texte attendu.', JSON.stringify(phone));
+  }
+});
+
+test('rule 68 — a property time is HH:MM, the one it already stores exempt', () => {
+  const stored = { name: 'Ombre', maxGuests: 2, defaultCheckIn: '25:99', defaultCheckOut: '10:00' };
+  const body = { name: 'Ombre', maxGuests: 2, defaultCheckOut: '10:00' };
+  assert.equal(validatePropertyInput({ ...body, defaultCheckIn: '25:99' }, stored).defaultCheckIn, undefined);
+  assert.equal(validatePropertyInput({ ...body, defaultCheckIn: '26:00' }, stored).defaultCheckIn, 'Heure invalide.');
+  assert.equal(validatePropertyInput({ ...body, defaultCheckIn: '25:99' }, null).defaultCheckIn, 'Heure invalide.');
+});
+
+test('express-5-upgrade rule 10 — a season on a property that does not exist is a 404, with no [unhandled] line', async () => {
+  const body = { label: 'Haute', pricePerNight: 100, startDate: app.dates.freeStart, endDate: app.dates.freeEnd };
+  for (const id of ['999999', 'abc', '1.5', '1e999']) {
+    const mark = app.logMark();
+    const res = await app.call(admin, 'POST', `/api/properties/${id}/pricing`, body);
+    assert.equal(res.status, 404, `${id} → ${res.status} ${res.text.slice(0, 120)}`);
+    assert.equal(res.json.error, 'Logement introuvable.');
+    assert.doesNotMatch(app.logSince(mark), /\[unhandled\]/, id);
+  }
+  const good = await app.call(admin, 'POST', `/api/properties/${app.ids.property}/pricing`, body);
+  assert.equal(good.status, 200, good.text.slice(0, 200));
+  const rows = app.readDb('SELECT DISTINCT propertyId FROM pricing_rules');
+  assert.deepEqual(rows, [{ propertyId: app.ids.property }]);
 });
 
 test('R22-I3 — the e-mail preference page answers « lien inconnu » to a token that is not a string', async () => {

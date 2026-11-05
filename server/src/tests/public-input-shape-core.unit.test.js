@@ -168,3 +168,10 @@ test('index.js answers the parser\'s refusal through the same function', () => {
   assert.match(src, /answerBodyRefusal\(req, res, refusal\)/);
   assert.match(src, /const refusal = bodyParserRefusal\(err\) \|\| requestRefusal\(err\)/);
 });
+
+test('express-5-upgrade rule 9 — a body whose length does not match its header is INVALID_JSON, not a crash', () => {
+  const refusal = requestRefusal(Object.assign(new Error('request size did not match content length'), { type: 'request.size.invalid', status: 400 }));
+  assert.equal(refusal.status, 400);
+  assert.equal(refusal.body.code, 'INVALID_JSON');
+  assert.equal(requestRefusal(new Error('anything else')), null);
+});

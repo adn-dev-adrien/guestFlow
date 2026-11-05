@@ -27,7 +27,7 @@ const INVALID_TIME = (field) => ({ error: 'Heure invalide.', code: 'INVALID_TIME
 
 const lines = (list) => (Array.isArray(list) ? list.filter((line) => line && typeof line === 'object' && !Array.isArray(line)) : []);
 const badId = (value) => !notSent(value) && positiveId(value) === null;
-const badFlag = (value) => value !== undefined && value !== null && !isFlag(value);
+const badFlag = (value) => !notSent(value) && !isFlag(value);
 
 function occurrencesRefusal(occurrences) {
   if (occurrences === undefined || occurrences === null) return null;

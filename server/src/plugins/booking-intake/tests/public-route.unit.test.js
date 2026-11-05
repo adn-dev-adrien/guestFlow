@@ -134,3 +134,22 @@ test('rule 22 — a non-scalar id is « Requête incomplète », the handler nev
   assert.equal((await s.post({ ...PAGE, hotelId: 14407976 })).status, 200);
   await s.close();
 });
+
+test('specs/booking-extranet-intake.md rule 36: dismissing a fiche takes digits, anything else is a 404 and nothing is written', async (t) => {
+  const dismissed = [];
+  const app = express();
+  app.use('/admin', adminRouter({ dismissFiche: (id) => dismissed.push(id) }));
+  const server = http.createServer(app);
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => new Promise((resolve) => server.close(resolve)));
+  const base = `http://127.0.0.1:${server.address().port}/admin/pending`;
+  for (const id of ['1e999', 'abc', '1.5', '-1', '0', '0x10', '99999999999999999999']) {
+    const res = await fetch(`${base}/${id}/dismiss`, { method: 'POST' });
+    assert.equal(res.status, 404, id);
+  }
+  assert.deepEqual(dismissed, []);
+  const res = await fetch(`${base}/12/dismiss`, { method: 'POST' });
+  assert.equal(res.status, 200);
+  assert.deepEqual(await res.json(), { ok: true });
+  assert.deepEqual(dismissed, [12]);
+});

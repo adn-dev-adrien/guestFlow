@@ -55,7 +55,12 @@ function adminRouter({ service, pending, dismissFiche, intakeLog, userscript, cr
   router.post('/secret', (req, res) => res.json(createSecret()));
   router.post('/secret/regenerate', (req, res) => { regenerateSecret(); res.json({ ok: true }); });
   router.get('/pending', (req, res) => res.json(pending()));
-  router.post('/pending/:reservationId/dismiss', (req, res) => { dismissFiche(Number(req.params.reservationId)); res.json({ ok: true }); });
+  router.post('/pending/:reservationId/dismiss', (req, res) => {
+    const reservationId = Number(req.params.reservationId);
+    if (!/^[1-9]\d*$/.test(req.params.reservationId) || !Number.isSafeInteger(reservationId)) return res.status(404).json({ error: 'NOT_FOUND' });
+    dismissFiche(reservationId);
+    return res.json({ ok: true });
+  });
   router.get('/intakes', (req, res) => res.json(intakeLog(req.query.limit)));
   router.get('/reservation/:reservationId', (req, res) => res.json({ intake: service().blockFor(Number(req.params.reservationId)) }));
   router.post('/:id/apply', (req, res) => {

@@ -2,7 +2,7 @@
 // right password: a password or a code that is not a string is a wrong one, counted as such; identity fields are text.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { setup, fakeRes, fakeSession } = require('./accountSecurityFixture');
+const { setup, fakeRes, fakeSession, withSupportRequest } = require('./accountSecurityFixture');
 const authController = require('../controllers/authController');
 const { createReauthGuard, MAX_FAILURES } = require('../utils/reauthGuard');
 const totp = require('../utils/totp');
@@ -216,4 +216,13 @@ test('over the application: identity fields', async (t) => {
       assert.equal((await app.call(admin, 'PUT', '/api/terms/public-site-origin', { publicSiteOrigin })).status, 400, JSON.stringify(publicSiteOrigin));
     }
   });
+});
+
+test('rule 68 — a support access length that is no number is INVALID_DURATION, not a throw from Number()', () => {
+  const h = withSupportRequest();
+  const { pending } = h.supportAccess.banner(h.marie);
+  for (const hours of [T, [], {}, true]) {
+    assert.throws(() => h.supportAccess.decide(h.marie, pending.id, { decision: 'accept', hours }), (e) => e.body && e.body.error === 'INVALID_DURATION', JSON.stringify(hours));
+  }
+  assert.equal(h.supportAccess.banner(h.marie).pending.id, pending.id, 'the request still waits');
 });
