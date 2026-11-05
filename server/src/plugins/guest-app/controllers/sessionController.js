@@ -130,6 +130,8 @@ function buildSessionController({ lodgings, sessions, stays, orders, guestSessio
   function confirmName(req, res) {
     const { session, stay } = req.guest;
     if (session.nameConfirmedAt) return publicHttp.ok(res, { nameConfirmed: true });
+    // A body that carries no name is a malformed request, not a wrong name: it spends no attempt.
+    if (!isText(req.body && req.body.lastName)) return publicHttp.fail(res, 400, 'INVALID_INPUT', 'Saisissez votre nom de famille.');
     const at = now();
     const lockedUntil = session.nameLockedUntil ? new Date(session.nameLockedUntil) : null;
     if (lockedUntil && at < lockedUntil) {

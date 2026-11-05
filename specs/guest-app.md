@@ -524,7 +524,7 @@ shape for every plugin: `{ error: 'PLUGIN_INACTIVE', plugin }`.
 | POST | `/public/v1/guest/sessions` | — | `{ lodgingCode }` | `{ mode: 'stay'\|'preArrival'\|'visitor', lodging:{id,name,slug}, opensAt? }` + cookie |
 | POST | `/public/v1/guest/sessions/lookup` | — | `{ lastName, reservationNumber }` | same; 404 `STAY_NOT_FOUND` generic |
 | GET | `/public/v1/guest/me` | session | — | stay / pre-arrival: `{ mode, guest:{firstName}, lodging, stay:{arrival,departure,partySize,statusLine}, language, nameConfirmed, tiles:[…], highlight?:{key,text,module,page?} }`; visitor: `{ mode, lodging, language, tiles:[…], welcome, opensAt?, openingLine? }`; dead session 401 `SESSION_EXPIRED` |
-| POST | `/public/v1/guest/me/confirm-name` | stay or pre-arrival session | `{ lastName }` | `{ nameConfirmed:true }`; 422 `NAME_MISMATCH` `{attemptsLeft}`; 423 `NAME_LOCKED` `{lockedUntil}`; visitor 403 `STAY_REQUIRED` |
+| POST | `/public/v1/guest/me/confirm-name` | stay or pre-arrival session | `{ lastName }` | `{ nameConfirmed:true }`; 400 `INVALID_INPUT` when `lastName` is not text (spends no attempt); 422 `NAME_MISMATCH` `{attemptsLeft}`; 423 `NAME_LOCKED` `{lockedUntil}`; visitor 403 `STAY_REQUIRED` |
 | GET | `/public/v1/guest/booklet?lang=` | session or `lodgingCode` | — | `{ version, pages:[{slug,icon,title,cover}] }` |
 | GET | `/public/v1/guest/booklet/pages/:slug?lang=` | idem | — | `{ slug, title, cover, blocks:[{type, …}] }` |
 | GET | `/public/v1/guest/booklet/search?q=&lang=` | idem | — | `{ results:[{slug,title,excerpt}] }` |
@@ -772,6 +772,8 @@ le nom et le numéro. »
 - [x] `…/guest-app-lodging-config.unit.test.js` — rules 11bis-11quater: module off → absent from `/me` and
   404 `MODULE_OFF` on its endpoints, prerequisites, wifi off → no tile / no wifi block, wifi password
   encrypted at rest, lodging disabled → no QR and lookup refused, new property starts off
+- [x] `…/guest-app-input-shape.unit.test.js` — rules 1, 6, 33: a scan or lookup whose fields are not text
+  answers the generic 404 (never a 500), a confirmation without a name is a 400 that spends no attempt
 - [x] `…/guest-app-plugin-gating.unit.test.js` — rule 22: plugin inactive → 404 `PLUGIN_INACTIVE`, items
   rows kept, no core column touched
 - [ ] `…/guest-app-sellable.unit.test.js` — rules 23, 25: per price type, archived, lodging scope, 0 € in

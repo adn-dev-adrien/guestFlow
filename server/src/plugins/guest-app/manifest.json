@@ -14,7 +14,8 @@
   "sdk": "^2.22.0",
   "changelog": {
     "1.0.0": [
-      "Première version : réglages par logement, code QR de chaque logement, sessions de séjour et page d’accueil côté serveur. Aucun écran client pour l’instant."
+      "Première version : réglages par logement, code QR de chaque logement, sessions de séjour et page d’accueil côté serveur. Aucun écran client pour l’instant.",
+      "Prévu pour le SDK 2.22 de GuestFlow."
     ]
   }
 }
