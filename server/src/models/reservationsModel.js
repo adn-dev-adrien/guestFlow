@@ -8,6 +8,7 @@
  */
 
 const { todayIso: localTodayIso } = require('../utils/localDate');
+const { usableNumber } = require('../utils/lineInputBounds');
 const db = require('../database');
 const { capitalizeFirst } = require('../utils/textFormatters');
 const { formatPlatformName, registerDirectChannelSql, isChoreFreeChannel } = require('../utils/platformNameFormat');
@@ -2751,7 +2752,7 @@ function createReservationsModel(database) {
         JOIN options o ON o.id = ro.optionId
         WHERE ro.reservationId = ? AND COALESCE(o.showsPlanningCard, 0) = 0
       `).all(reservationId).map((row) => [Number(row.optionId), typedCountOf(row, stay)]));
-      // specs/non-card-option-served-persons.md rule 36 (audit R22-6, 2026-11-05) — an offered planning-card line bills
+      // specs/non-card-option-served-persons.md rule 37 (audit R22-6, 2026-11-05) — an offered planning-card line bills
       // 0 €: only the persons it stored can say what was sold. NULL follows the party and is never compared.
       for (const row of database.prepare(`
         SELECT ro.optionId, ro.cardPersons FROM reservation_options ro
@@ -3227,9 +3228,16 @@ function createReservationsModel(database) {
       pluginWrites = [],
     } = {}) {
       // Clamp drink/food counts to non-negative integers (authoritative server-side validation).
-      const clampCount = (v) => (v === undefined ? undefined : Math.max(0, Math.round(Number(v) || 0)));
+      // The SAS controller refuses a bad count first; a direct caller gets a throw, never an Infinity stored
+      // (specs/sas-departure-recap-server-side.md rule 30).
+      const usableCount = (v) => {
+        const n = Number(v) || 0;
+        if (!usableNumber(n)) throw Object.assign(new Error('Quantité invalide.'), { status: 400, code: 'INVALID_QUANTITY' });
+        return n;
+      };
+      const clampCount = (v) => (v === undefined ? undefined : Math.max(0, Math.round(usableCount(v))));
       // Bread is counted in baguettes with half steps (specs/sas-breakfast-bread-and-push.md rule 2).
-      const clampHalf = (v) => (v === undefined ? undefined : Math.max(0, Math.round((Number(v) || 0) * 2) / 2));
+      const clampHalf = (v) => (v === undefined ? undefined : Math.max(0, Math.round(usableCount(v) * 2) / 2));
       const tx = database.transaction(() => {
         const today = localTodayIso();
         // specs/sas-arrival-total-server-side.md rule 2 — the plan is read BEFORE any write, by the very

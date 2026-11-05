@@ -6,7 +6,7 @@ const { isHistoryMessage } = require('../utils/deletionGuard');
 const { buildProgressivePreview } = require('../utils/pricing');
 const { ADMIN, RECEPTION, userHasRole } = require('../constants/roles');
 const { toReceptionPropertyList } = require('../utils/receptionView');
-const { validatePropertyInput } = require('../utils/propertyValidation');
+const { validatePropertyInput, seasonInputRefusal, progressivePreviewRefusal } = require('../utils/propertyValidation');
 const { PROPERTY_LIMITS } = require('../utils/inputLimits');
 const { quotaRefusal } = require('../utils/planQuota');
 const propertyArticle = require('../utils/propertyArticle');
@@ -18,6 +18,7 @@ function respond(res, result) {
     const body = { error: result.error };
     if (result.conflictingRule) body.conflictingRule = result.conflictingRule;
     if (result.code) body.code = result.code;
+    if (result.field) body.field = result.field;
     return res.status(result.status || 400).json(body);
   }
   return res.json(result.data);
@@ -85,8 +86,10 @@ function saveEmailHooks(req, res) {
 }
 
 function progressivePreview(req, res) {
+  const refusal = progressivePreviewRefusal(req.body);
+  if (refusal) return respond(res, refusal);
   const { pricePerNight, progressiveTiers, maxNights } = req.body;
-  res.json(buildProgressivePreview(Number(pricePerNight || 0), progressiveTiers, Number(maxNights || 14)));
+  return res.json(buildProgressivePreview(Number(pricePerNight || 0), progressiveTiers, Number(maxNights || 14)));
 }
 
 // specs/settings-rationalization.md rule 23a — refused before anything is written, one message per field.
@@ -148,11 +151,15 @@ function respondAndAnnounce(res, result, propertyId, source) {
 }
 
 function addPricing(req, res) {
-  respondAndAnnounce(res, model.addPricingRule(req.params.id, req.body), req.params.id, 'pricing');
+  const refusal = seasonInputRefusal(req.body);
+  if (refusal) return respond(res, refusal);
+  return respondAndAnnounce(res, model.addPricingRule(req.params.id, req.body), req.params.id, 'pricing');
 }
 
 function updatePricing(req, res) {
-  respondAndAnnounce(res, model.updatePricingRule(req.params.id, req.params.ruleId, req.body), req.params.id, 'pricing');
+  const refusal = seasonInputRefusal(req.body, model.pricingRuleRow(req.params.id, req.params.ruleId));
+  if (refusal) return respond(res, refusal);
+  return respondAndAnnounce(res, model.updatePricingRule(req.params.id, req.params.ruleId, req.body), req.params.id, 'pricing');
 }
 
 function deletePricing(req, res) {
@@ -173,7 +180,10 @@ function applyPricing(req, res) {
 // Calendar season painting (specs/pricing-min-nights-per-range.md): (re)assign a selected period to a
 // season with a minimum-nights, carving/splitting the covering season(s) server-side.
 function assignPricingDateRange(req, res) {
-  respondAndAnnounce(res, model.assignDateRangeToSeason(req.params.id, req.body), req.params.id, 'pricing');
+  const target = (req.body && req.body.target) || {};
+  const refusal = seasonInputRefusal({ ...(target.mode === 'new' ? target : {}), minNights: req.body && req.body.minNights });
+  if (refusal) return respond(res, refusal);
+  return respondAndAnnounce(res, model.assignDateRangeToSeason(req.params.id, req.body), req.params.id, 'pricing');
 }
 
 function addDocument(req, res) {

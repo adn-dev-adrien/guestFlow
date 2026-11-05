@@ -186,9 +186,9 @@ Rule added 2026-11-03 (audit R21-A1):
 ### 3.6 Bornes (audit R21, 2026-11-03)
 
 16. Les `units` d'une vente sont un nombre fini de 0 à 999, fractions admises sur une option au séjour ; sur une
-    option à la nuit, un entier d'au plus 366 (elles deviennent des `cardNights`). `persons` est un nombre fini
-    d'au plus 999, puis plafonné à la capacité comme avant. Sinon **400 `INVALID_QUANTITY`**, à l'aperçu comme à la
-    validation, avant tout calcul (`plugins/sas/sasQuantityBounds.js`). Des unités que ce SAS a déjà vendues,
+    option à la nuit, un entier d'au plus 366 (elles deviennent des `cardNights`). `persons` est un entier de 1
+    à 999 (lecture du 2026-11-04, audit R22 : `-5`, `0` et `0.5` facturaient tout le groupe), puis plafonné à la capacité comme avant. Du texte fait d'espaces n'est pas un nombre (`''` et null restent « non envoyé »). Sinon **400 `INVALID_QUANTITY`**, à l'aperçu comme à la
+    validation, avant tout calcul (`plugins/sas/sasQuantityBounds.js`). Des unités ou des personnes que ce SAS a déjà vendues,
     renvoyées telles quelles à la réouverture, ne sont pas rejugées. Test :
     `plugins/sas/tests/sas-quantity-bounds.unit.test.js`.
 

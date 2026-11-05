@@ -15,7 +15,7 @@ const { extinguisherCheckOn } = require('./settings');
 const { nothingToCollect } = require('./nothingToCollect');
 const { shapeArrivalRecap } = require('./arrivalRecap');
 const { shapeDepartureRecap } = require('./departureRecap');
-const { wholePiecesMessage, soldOptionsMessage } = require('./sasQuantityBounds');
+const { wholePiecesMessage, soldOptionsMessage, breakfastCountsMessage } = require('./sasQuantityBounds');
 
 // The money stays in the core (specs/plugins-phase-2-hosts.md §1): the SAS commit, the settlement and
 // the reception view are core modules this controller calls, never copies.
@@ -259,7 +259,8 @@ function normaliseArrivalDraft(req, reservation) {
   if (isReceptionOnly(req.user)) body = toReceptionSasCommit(body);
   body = withoutLinenDecisions(Number(reservation.id), body);
   const refusedQuantity = quantityRefusal(wholePiecesMessage(body.linenItems)
-    || soldOptionsMessage(body.soldOptions, (optionId) => optionsModel.get(optionId)?.priceType, reservation.options));
+    || soldOptionsMessage(body.soldOptions, (optionId) => optionsModel.get(optionId)?.priceType, reservation.options)
+    || breakfastCountsMessage(body, reservation));
   if (refusedQuantity) return { refusal: refusedQuantity };
   const plugins = sasCommitHooks.prepare({ reservation, pluginSteps: body.pluginSteps || {} });
   if (plugins.refusal) return { refusal: plugins.refusal };

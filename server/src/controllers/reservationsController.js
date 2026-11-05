@@ -14,7 +14,7 @@ const {
   midStayQuoteInputs, scheduleQuoteInputs, resolvePlatformTakesDeposit, resolvePlatformPayoutDueDays, frozenTouristTaxInputs,
 } = require('../utils/reservationQuoteContext');
 const { resolvePlatformPaidGuests, resolvePlatformPaidAdults } = require('../utils/platformPaidGuests');
-const { validateFinanceInputs, financeErrorBody } = require('../utils/financeValidation');
+const { validateFinanceInputs, validateStayFinance, financeErrorBody } = require('../utils/financeValidation');
 const { stayDatesRefusal, stayDatesRefusalBody, stayItemDatesRefusal } = require('../utils/stayDates');
 const { checkPlanningRange } = require('../utils/planningDateRange');
 const { parseGroup, collectibleArrivalBuckets } = require('../utils/arrivalPaymentGroup');
@@ -1099,24 +1099,16 @@ function depositDisabledLockedReasonOf(reservationId) {
 }
 
 async function calculatePrice(req, res) {
-  const financeError = validateFinanceInputs({
-    customPrice: { value: req.body.customPrice, kind: 'money' },
-    depositAmount: { value: req.body.depositAmount, kind: 'money' },
-    depositAmountOverride: { value: req.body.depositAmountOverride, kind: 'money' },
-    // specs/adjustable-complement-amounts.md §3.1 rule 7 — the operator's complement amounts share the
-    // money validator: finite, ≥ 0, '' meaning « not provided ».
-    complementAmountOverride: { value: req.body.complementAmountOverride, kind: 'money' },
-    endOfStayComplementAmountOverride: { value: req.body.endOfStayComplementAmountOverride, kind: 'money' },
-    balanceAmount: { value: req.body.balanceAmount, kind: 'money' },
-    discountPercent: { value: req.body.discountPercent, kind: 'percentage' },
-  });
-  if (financeError) return res.status(400).json(financeErrorBody(financeError));
-
   // specs/reservations-backend-mvc.md rule 11 — sound dates before any pricing or availability check; rule 13 —
   // the fiche of a stay or devis quotes its stored dates even past the horizon.
   const quotedRowId = Number(req.body.reservationId || 0) || Number(req.body.devisId || 0);
+  const quotedStored = quotedRowId > 0 ? model.getRow(quotedRowId) : null;
+  // Rule 17 — the money the save would refuse, refused here too.
+  const financeError = validateStayFinance(req.body, quotedStored);
+  if (financeError) return res.status(400).json(financeErrorBody(financeError));
+
   // Rule 15 — the numbers of the lines and the party, before anything reads them.
-  const inputRefusal = lineInputRefusal(req.body, quotedRowId > 0 ? bookingLinesModel.getStoredTypedCounts(quotedRowId) : {});
+  const inputRefusal = lineInputRefusal(req.body, quotedRowId > 0 ? bookingLinesModel.getStoredTypedCounts(quotedRowId) : {}, quotedStored);
   if (inputRefusal) return res.status(400).json(inputRefusal);
   const quotedRow = quotedRowId > 0 ? db.prepare('SELECT startDate, endDate FROM reservations WHERE id = ?').get(quotedRowId) : null;
   const datesRefusal = stayDatesRefusal(req.body.startDate, req.body.endDate, { stored: quotedRow });
@@ -1344,23 +1336,7 @@ function pastUnlockRequested(req) {
 }
 
 function createStay(req, res) {
-  const financeError = validateFinanceInputs({
-    customPrice: { value: req.body.customPrice, kind: 'money' },
-    depositAmount: { value: req.body.depositAmount, kind: 'money' },
-    depositAmountOverride: { value: req.body.depositAmountOverride, kind: 'money' },
-    // specs/adjustable-complement-amounts.md §3.1 rule 7 — the operator's complement amounts share the
-    // money validator: finite, ≥ 0, '' meaning « not provided ».
-    complementAmountOverride: { value: req.body.complementAmountOverride, kind: 'money' },
-    endOfStayComplementAmountOverride: { value: req.body.endOfStayComplementAmountOverride, kind: 'money' },
-    balanceAmount: { value: req.body.balanceAmount, kind: 'money' },
-    cautionAmount: { value: req.body.cautionAmount, kind: 'money' },
-    platformCommissionAmount: { value: req.body.platformCommissionAmount, kind: 'money' },
-    acompteCommissionAmount: { value: req.body.acompteCommissionAmount, kind: 'money' },
-    platformGrossAmount: { value: req.body.platformGrossAmount, kind: 'money' },
-    platformPayoutAmount: { value: req.body.platformPayoutAmount, kind: 'money' },
-    platformTouristTaxAmount: { value: req.body.platformTouristTaxAmount, kind: 'money' },
-    discountPercent: { value: req.body.discountPercent, kind: 'percentage' },
-  });
+  const financeError = validateStayFinance(req.body);
   if (financeError) return res.status(400).json(financeErrorBody(financeError));
 
   // specs/reservations-backend-mvc.md rule 15 — the numbers of the lines and the party, before anything reads them.
@@ -1836,28 +1812,13 @@ function enterMidStayExtrasWindow(id, body, today) {
 }
 
 function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
-  const financeError = validateFinanceInputs({
-    customPrice: { value: req.body.customPrice, kind: 'money' },
-    depositAmount: { value: req.body.depositAmount, kind: 'money' },
-    depositAmountOverride: { value: req.body.depositAmountOverride, kind: 'money' },
-    // specs/adjustable-complement-amounts.md §3.1 rule 7 — the operator's complement amounts share the
-    // money validator: finite, ≥ 0, '' meaning « not provided ».
-    complementAmountOverride: { value: req.body.complementAmountOverride, kind: 'money' },
-    endOfStayComplementAmountOverride: { value: req.body.endOfStayComplementAmountOverride, kind: 'money' },
-    balanceAmount: { value: req.body.balanceAmount, kind: 'money' },
-    cautionAmount: { value: req.body.cautionAmount, kind: 'money' },
-    platformCommissionAmount: { value: req.body.platformCommissionAmount, kind: 'money' },
-    acompteCommissionAmount: { value: req.body.acompteCommissionAmount, kind: 'money' },
-    platformGrossAmount: { value: req.body.platformGrossAmount, kind: 'money' },
-    platformPayoutAmount: { value: req.body.platformPayoutAmount, kind: 'money' },
-    platformTouristTaxAmount: { value: req.body.platformTouristTaxAmount, kind: 'money' },
-    discountPercent: { value: req.body.discountPercent, kind: 'percentage' },
-  });
+  const storedBefore = model.getRow(Number(req.params.id));
+  const financeError = validateStayFinance(req.body, storedBefore);
   if (financeError) return res.status(400).json(financeErrorBody(financeError));
 
   // specs/reservations-backend-mvc.md rule 15 — the numbers of the lines and the party, before anything reads
   // them; what the stay already stores is not re-judged.
-  const inputRefusal = lineInputRefusal(req.body, bookingLinesModel.getStoredTypedCounts(Number(req.params.id)));
+  const inputRefusal = lineInputRefusal(req.body, bookingLinesModel.getStoredTypedCounts(Number(req.params.id)), storedBefore);
   if (inputRefusal) return res.status(400).json(inputRefusal);
 
   // specs/reservations-backend-mvc.md rule 11 — sound dates before any pricing or availability check; rule 13 —
@@ -2231,7 +2192,13 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
         forceCapacity,
       });
       if (capacityError) return res.status(400).json({ error: capacityError });
+    }
 
+    // specs/reservations-backend-mvc.md rule 17 — the cots are held on a range, so moving it is judged too.
+    const cotRangeUnchanged = existingReservation
+      && sameNum(prev.propertyId, propertyId)
+      && sameStr(prev.startDate, startDate) && sameStr(prev.endDate, endDate);
+    if (!occupancyUnchanged || !cotRangeUnchanged) {
       const babyError = checkBabyBeds({ propertyId, startDate, endDate, children, babies, babyBeds: effectiveBabyBeds, excludeId: id });
       if (babyError) return res.status(400).json({ error: babyError });
     }
@@ -2549,7 +2516,7 @@ function updatePayment(req, res) {
     depositAmount: { value: req.body.depositAmount, kind: 'money' },
     balanceAmount: { value: req.body.balanceAmount, kind: 'money' },
     cautionAmount: { value: req.body.cautionAmount, kind: 'money' },
-  });
+  }, model.getRow(Number(req.params.id)));
   if (financeError) return res.status(400).json(financeErrorBody(financeError));
   const existing = model.getBasic(Number(req.params.id));
   if (!existing) return res.status(404).json({ error: 'Réservation non trouvée' });

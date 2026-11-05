@@ -8,7 +8,7 @@ const PROBE = `
 const { readMailsFrom } = require(${JSON.stringify(path.join(__dirname, '../plugins/sdk/mailboxReader'))});
 const { Readable } = require('stream');
 const N = 4000;
-class Imap { async connect() {} async getMailboxLock() { return { release() {} }; } async logout() {}
+class Imap { on() {} async connect() {} async getMailboxLock() { return { release() {} }; } async logout() {}
   async search() { return Array.from({ length: N }, (_, i) => i + 1); }
   async *fetch(range) { for (const u of String(range).split(',').map(Number)) yield { uid: u,
     envelope: { from: [{ address: 'resa@gdf07.com' }], messageId: '<' + u + '@x>' + 'M'.repeat(5000), subject: Buffer.alloc(32 * 1024, 'S' + u).toString('latin1'), date: new Date() },

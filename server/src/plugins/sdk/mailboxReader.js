@@ -170,6 +170,12 @@ function capUnverified(mails, limit, verifiable) {
   return [...mails.slice(0, newest), ...mails.slice(mails.length - oldest)];
 }
 
+// imapflow emits 'error' once connected and an EventEmitter throws without a listener, which would reach
+// uncaughtException; the call under way rejects on its own (specs/airbnb-mail-intake.md rule 36).
+function listenForSocketErrors(client, log) {
+  client.on('error', (err) => { log(`mail intake: ${err.code || ''} ${err.message}`); });
+}
+
 async function readMailsFrom({
   host, port = 993, user, password, sender, allowedDomains = null, trustedAuthservId = '',
   sinceDays = 30, now = new Date(), ImapClient = ImapFlow, smtpHostOf = coreSmtpHost, log = () => {},
@@ -179,6 +185,7 @@ async function readMailsFrom({
   const domains = toList(allowedDomains).length ? allowedDomains : domainOf(sender);
   const trusted = trustedAuthservId || defaultAuthservId(smtpHost);
   const client = new ImapClient(connectionOptions({ host: resolveImapHost(smtpHost, host), port, user, password }));
+  listenForSocketErrors(client, log);
   let lock = null;
   try {
     // Inside the try: a refused lock (or a connect that half-opened the socket) still logs out.
@@ -252,8 +259,9 @@ function imapHostFor(smtpHost) {
   return /^smtp\./i.test(host) ? `imap.${host.slice(5)}` : host;
 }
 
-async function testConnection({ host, port = 993, user, password, ImapClient = null, smtpHostOf = coreSmtpHost }) {
+async function testConnection({ host, port = 993, user, password, ImapClient = null, smtpHostOf = coreSmtpHost, log = () => {} }) {
   const client = new (ImapClient || ImapFlow)(connectionOptions({ host: resolveImapHost(smtpHostOf(), host), port, user, password }));
+  listenForSocketErrors(client, log);
   try {
     await client.connect();
     await client.logout();

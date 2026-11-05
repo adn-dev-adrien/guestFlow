@@ -69,7 +69,7 @@ test('a past single-payment fiche can still be saved (was refused PAST_RESERVATI
   const dbSnapshot = { ...buildAuditSnapshotFromPayload(payload, storedQuote), startDate: STORED.startDate };
   const captures = {};
   const controller = withMocks({
-    '../utils/financeValidation': { validateFinanceInputs: () => null, validateClientGrossAmount: () => null },
+    '../utils/financeValidation': { validateFinanceInputs: () => null, validateStayFinance: () => null, validateClientGrossAmount: () => null },
     '../utils/occupancy': { getNightBlocksFromTimes: () => ({}), buildOccupiedDatesFromReservations: () => [] },
     '../utils/reservationHelpers': { computeNextIcalSyncLocked: () => 0, getTodayIsoDate: () => '2026-10-27' },
     '../utils/bedDistribution': { suggestBedDistribution: () => null },

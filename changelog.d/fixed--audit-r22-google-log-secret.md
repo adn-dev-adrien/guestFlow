@@ -1,0 +1,1 @@
+- plugin:google-calendar A network failure while renewing the Google access token no longer writes the refresh token to the logs: every log site prints Google's answer, or message, code and status (audit R22 E22-1). After installing, search the production logs for `refresh_token`; if found, disconnect and reconnect Google and purge those logs.

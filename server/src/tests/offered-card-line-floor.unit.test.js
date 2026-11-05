@@ -1,4 +1,4 @@
-// specs/non-card-option-served-persons.md rule 36 (audit R22-6 of the reservations slice, 2026-11-05) — an offered
+// specs/non-card-option-served-persons.md rule 37 (audit R22-6 of the reservations slice, 2026-11-05) — an offered
 // planning-card line has a floor too: the cardPersons it stored. A NULL count follows the party and is never compared.
 process.env.DB_PATH = ':memory:';
 
