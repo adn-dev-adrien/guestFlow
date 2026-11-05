@@ -150,7 +150,7 @@ Three gaps block selling GuestFlow to customers we do not sit next to:
     Nothing the support does can therefore outlive the access.
     - Widened 2026-10-17 (second review): also refused, for any method, the Qonto OAuth connection
       (`/api/payments/qonto/authorize`, `/callback`, `/refresh-connection`) and
-      `GET /api/settings/gate-connector/secrets`, the only endpoint that returns secrets in clear;
+      `GET /api/settings/gate-connector/secrets`, which returns the connector's keys in clear;
       uninstalling or turning off a plugin (`DELETE /api/plugins/:id`, `POST …/deactivate`), which
       erases or strands its credentials — installing, activating and updating stay allowed; and the
       whole SMTP group, the sender name and address included.
@@ -177,6 +177,13 @@ Three gaps block selling GuestFlow to customers we do not sit next to:
       `PUT /api/onboarding/company` (on prod the first two are empty, so the company email IS the recipient).
       The settings page sends its whole group on every save: only a value that differs from the stored one is
       refused. The refusal is a logged 403 like the others. Tests: `hosting-h2-support-settings-fields.unit.test.js`.
+
+    *Corrected 2026-11-05 (audit R24-A1):* the gate connector's keys are not the only secrets a route returns in clear.
+    The mail preview (`GET` and `POST /api/emails/preview`) renders what the guest would receive, so
+    `arrival_reminder_1d` shows the property's access code and Wi-Fi password, to a support session too. Accepted, not
+    coded: this rule forbids changing those values, not reading them; the reader is inside an access the customer
+    granted, every POST of a support session is journaled (the journal words a POST preview as a write, cosmetic), and
+    `company.portalCode` is already readable. A refusal would be `••••••` in the preview for a support session.
 
     *Reading of 2026-11-05 (audit R23-A1):* **a null clears no secret.** `PUT /onboarding/emails` and `PUT /properties/:id/arrival-facts` read a `null` access code or Wi-Fi password as absent, so the writer agrees with the policy, which lets a `null` through as « nothing written ». The property form's empty field still clears (its own route, refused to a support session); the assistant's empty field writes nothing, as before. A plugin's own secret keeps its contract: `null` clears it (`plugins-phase-1-sdk` rule 7). Test: `tests/arrival-secret-null.unit.test.js`.
 19. **The server logs what the support reads too** (added 2026-10-17, review). Every `GET` of a
@@ -212,7 +219,9 @@ Three gaps block selling GuestFlow to customers we do not sit next to:
     export token (`POST /api/ical/regenerate-token/:id`), which breaks the feed every platform imports.
     Audit of the other plugins on that date: the Météo-France key is a setting declared `secret`
     (rule 18), the Google, Qonto and Neat credentials are already refused, the website's
-    `PUBLIC_API_KEY` is never returned by any route.
+    `PUBLIC_API_KEY` is returned only by the website connection (`GET /api/settings/website-connection`, to an
+    administrator; refused to a support session, rule 31). *Corrected 2026-11-05 (audit R24-A1):* the sentence
+    used to say « never returned by any route ».
 24. **Reading a property's iCal export token is refused to a support session too** (added 2026-10-18,
     second review of the code review). `GET /api/ical/token/:id` returns the feed's address in clear and
     creates the token on its first read, so it falls under rule 23: refused with « Identifiants et
@@ -254,6 +263,11 @@ Three gaps block selling GuestFlow to customers we do not sit next to:
 **Edge cases:**
 - A reset requested for a user who has a second step → the second step is still asked after the new
   password. A reset does not bypass it.
+- *Accepted (audit R24-A2, 2026-11-05):* a reset link used while that user's second step is locked (5 wrong codes,
+  15 minutes) saves the password and spends the link, then answers the lock's 429 « Trop d'essais : réessayer après
+  HH:MM. »: the reset page shows that error and does not say the password was saved. No session opens, the lock holds,
+  the new password works at the next login. A rare chain with no cost; if it must change, `reset` checks the lock
+  first and answers the same 429 without spending the link.
 - The administrator's phone is lost and there is no other administrator → backup codes, or the
   operator runs `reset-admin.js --disable-2fa`. That script is recorded in the history.
 - An access expires while the support session is open → the next request answers 401 and the session

@@ -106,3 +106,20 @@ test('a real edit is an edit: Back asks', async () => {
   expect(await screen.findByText('Modifications non enregistrées')).toBeInTheDocument();
   expect(screen.getByLabelText(/^Notes/i)).toHaveValue('brouillon');
 });
+
+// R24-1, rule 40 reading of 2026-11-05 — a client typed for a stay not saved yet is an edit: Save lights up, leaving asks.
+test('a new client typed on the fiche is an edit: Save enabled, Back and reload ask', async () => {
+  await openNewFiche();
+  api.findDuplicateClient.mockResolvedValue(null);
+  fireEvent.click(screen.getAllByText('+ Créer un nouveau client')[0]);
+  fireEvent.change(await screen.findByLabelText(/^Nom/), { target: { value: 'Testeur' } });
+  fireEvent.change(screen.getByLabelText(/^Prénom/), { target: { value: 'Alex' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+  await waitFor(() => expect(screen.queryByText('Créer un nouveau client', { selector: 'h2' })).not.toBeInTheDocument());
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Enregistrer' })).toBeEnabled());
+  expect(api.createClient).not.toHaveBeenCalled();
+  expect(typeof window.__guestflowBeforeBack).toBe('function');
+  expect(reloadWarns()).toBe(true);
+  window.history.back();
+  expect(await screen.findByText('Modifications non enregistrées')).toBeInTheDocument();
+});
