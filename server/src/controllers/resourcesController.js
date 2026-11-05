@@ -10,7 +10,8 @@ const { tokenError, lengthError } = require('../utils/templateTokens');
 const propertiesModel = require('../models/propertiesModel');
 const { RESOURCE_BOOKED } = require('../utils/stayTextCatalogue');
 
-const { priceProblem, MESSAGES } = require('../utils/optionValidation');
+const { priceProblem, closedValueRefused, MESSAGES } = require('../utils/optionValidation');
+const { isOptionalText, isClockTime, positiveId } = require('../utils/bodyText');
 const { numberRefused, nonNegative, wholeFrom } = require('../utils/lineInputBounds');
 const { buildResourceItems } = require('../utils/resourceCatalogueView');
 const { resourceCatalogueContributors } = require('../utils/resourceCatalogueContributors');
@@ -18,6 +19,18 @@ const { resourceCatalogueContributors } = require('../utils/resourceCatalogueCon
 const isBlank = (value) => value === undefined || value === null || (typeof value === 'string' && value.trim() === '');
 const HOURLY_RATES = ['hourlyEveningRate', 'hourlyExternalDayRate', 'hourlyExternalEveningRate'];
 const RESOURCE_MINUTES = ['slotDuration', 'turnoverMinutes', 'minimumUsageMinutes', 'heatUpMinutes', 'heatRetentionMinutes'];
+const PRICE_TYPES = ['per_stay', 'per_person', 'per_night', 'per_person_per_night', 'per_hour', 'free'];
+const RESOURCE_TEXTS = ['note', 'emailBookedText', 'emailBookedTextEn'];
+const RESOURCE_HOURS = ['openTime', 'closeTime', 'hourlyEveningStart'];
+
+// A list of week days, or the JSON the editor sends it in.
+function isOpenDays(value) {
+  let days = value;
+  if (typeof value === 'string') {
+    try { days = JSON.parse(value); } catch { return false; }
+  }
+  return Array.isArray(days) && days.every((d) => Number.isInteger(d) && d >= 0 && d <= 6);
+}
 
 /**
  * specs/options-resources-ux.md rule 21 — `[{ field, message }]`, empty when the payload is acceptable.
@@ -25,10 +38,27 @@ const RESOURCE_MINUTES = ['slotDuration', 'turnoverMinutes', 'minimumUsageMinute
  * hourly rate, a duration in minutes or `closeTime`. `stored` is the resource being edited: a number it
  * holds, sent back unchanged, is not re-judged (rule 31).
  */
-function validateResourcePayload(body, stored = null) {
+function validateResourcePayload(body, stored = null, knownPropertyIds = null) {
   const payload = body || {};
   const details = [];
-  if (!String(payload.name || '').trim()) details.push({ field: 'name', message: 'Nom requis' });
+  const known = knownPropertyIds ? new Set(knownPropertyIds.map(Number)) : null;
+  const unknownProperty = (pid) => positiveId(pid) === null || (known !== null && !known.has(positiveId(pid)));
+  if (payload.propertyIds !== undefined && payload.propertyIds !== null
+    && (!Array.isArray(payload.propertyIds) || payload.propertyIds.some(unknownProperty))) {
+    details.push({ field: 'propertyIds', message: MESSAGES.unknownProperty });
+  }
+  for (const group of ['propertyPricing', 'propertyPrices']) {
+    Object.keys(payload[group] || {}).filter(unknownProperty).forEach((pid) => details.push({ field: `${group}.${pid}`, message: MESSAGES.unknownProperty }));
+  }
+  if (typeof payload.name !== 'string' || !payload.name.trim()) details.push({ field: 'name', message: 'Nom requis' });
+  RESOURCE_TEXTS.forEach((field) => {
+    if (!isOptionalText(payload[field])) details.push({ field, message: MESSAGES.notText });
+  });
+  if (closedValueRefused(payload.priceType, (v) => PRICE_TYPES.includes(v), stored?.priceType)) details.push({ field: 'priceType', message: MESSAGES.choice });
+  RESOURCE_HOURS.forEach((field) => {
+    if (closedValueRefused(payload[field], isClockTime, stored?.[field])) details.push({ field, message: MESSAGES.time });
+  });
+  if (closedValueRefused(payload.openDays, isOpenDays, stored?.openDays)) details.push({ field: 'openDays', message: MESSAGES.choice });
 
   const quantity = Number(typeof payload.quantity === 'object' ? NaN : payload.quantity);
   const keptQuantity = stored != null && Number(stored.quantity) === quantity;
@@ -54,8 +84,8 @@ function validateResourcePayload(body, stored = null) {
     if (numberRefused(payload[field], nonNegative, stored?.[field])) details.push({ field, message: MESSAGES.notANumber });
   });
 
-  const slotted = payload.priceType === 'per_hour' && Number(payload.isComplex) === 1;
-  if (slotted && payload.openTime && payload.closeTime && payload.closeTime <= payload.openTime) {
+  const slotted = payload.priceType === 'per_hour' && (payload.isComplex === 1 || payload.isComplex === true || payload.isComplex === '1');
+  if (slotted && typeof payload.openTime === 'string' && typeof payload.closeTime === 'string' && payload.openTime && payload.closeTime && payload.closeTime <= payload.openTime) {
     details.push({ field: 'closeTime', message: 'Après l’ouverture' });
   }
   return details;
@@ -131,7 +161,7 @@ function createController(model, {
 
   // Rule 21 — the editor's own checks, authoritative here.
   function validationRefused(body, res, stored = null) {
-    const details = validateResourcePayload(body, stored);
+    const details = validateResourcePayload(body, stored, properties().map((p) => p.id));
     if (details.length === 0) return false;
     res.status(422).json({ error: 'VALIDATION_FAILED', details });
     return true;

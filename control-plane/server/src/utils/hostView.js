@@ -69,7 +69,7 @@ function hostColumns(row, now) {
 }
 
 // The customer page's « Hébergement » card.
-function hostView(c, row, { now, lastCheck, dailyMailLimit, mailToday }) {
+function hostView(c, row, { now, lastCheck, dailyMailLimit, mailToday, renamePending = false }) {
   if (!row) return null;
   const cols = hostColumns(row, now);
   const lines = [
@@ -87,7 +87,7 @@ function hostView(c, row, { now, lastCheck, dailyMailLimit, mailToday }) {
     port: row.port || null,
     previousVersion: row.previous_version || null,
     lines,
-    canRestore: Boolean(row.version && row.port) && !c.archivedAt,
+    canRestore: Boolean(row.version && row.port) && !c.archivedAt && !renamePending,
   };
 }
 

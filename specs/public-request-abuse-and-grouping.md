@@ -75,6 +75,11 @@ someone else is attacking. One guest asking twice for the same stay gets one quo
 ### B. Per-address limits — targeted, never global
 
 6. The existing per-visitor limit (5/hour) and the honeypot stay.
+   *Reading of 2026-11-05 (Adrien's decision D18):* a request refused for its input (`422`) does not spend the 5 per hour;
+   the broad limit and the proof of work stand ([public-api.md](public-api.md) rule 9). Each refused try is still logged by
+   `requireProof`, so the proof a visitor owes keeps growing. Accepted: those refused forms also feed the shared flood count
+   (`surgeBits` sums all addresses), so one address can now reach the 80/hour alone, at most +6 bits for every visitor: 18 bits
+   instead of 12, under a second on a phone. Crafted requests only. Test: `public-refused-form-budget.unit.test.js`.
 7. **Per e-mail.** At most 3 **new** devis per normalised e-mail address per 24 h. Beyond that, a
    request is accepted only if it updates an open devis (rule 13); otherwise `429` with « Plusieurs
    demandes sont déjà en cours pour cette adresse. Elles seront traitées rapidement. »
@@ -125,7 +130,9 @@ someone else is attacking. One guest asking twice for the same stay gets one quo
   Intégrations › Site tab says « Protection anti-robot inactive : mettre à jour l'extension ».
 - Two identical requests within the same second (double click) → the second finds the first through
   rule 13 and returns it, unchanged.
-- An e-mail typed with another case or spaces → normalised before rules 7 and 12.
+- An e-mail typed with another case or spaces → normalised before rules 7 and 12. *Reading of 2026-11-05 (audit R23
+  public findings 4 and 5):* an uppercase non-ASCII letter is another case ([clients.md](clients.md) rule 12), and a format
+  character is no character ([public-api.md](public-api.md) rule 21). Test: `public-email-one-address.unit.test.js`.
 - A request for the same stay whose new composition is no longer bookable (capacity, min stay) →
   refused as a creation would be; the open devis is left untouched.
 - The guest's JavaScript disabled → the form cannot be sent; the drawer already requires JavaScript.
@@ -166,6 +173,13 @@ someone else is attacking. One guest asking twice for the same stay gets one quo
     VALIDATION_FAILED`, `details[0].field = 'message'`; the drawer's textarea stops there). At most 10
     messages are appended to one quote; beyond, the request still succeeds, nothing is appended, and
     the operator e-mail says « message non ajouté : limite atteinte ».
+    *Reading of 2026-11-05 (audit R23 public finding 6):* `cleanFreeText` runs first, so the length and the fingerprint of
+    rule 13 read the cleaned message: CRLF and CR become a line break, control characters leave except the line break and
+    the tab, format characters leave except the joiners (a message that read backwards or held NUL was stored as is).
+    Nothing is refused for it. Accepted, crafted requests only, cost 0: an address holding U+034F, U+3164 or U+FE0F passes and
+    is stored as a second client that reads the same (the cleaner goes by `\p{Cf}`, by decision); 240 × `İ` is valid at 251
+    characters, stored at 491, and refused if the operator re-saves that client; a utm of a lone joiner stays.
+    Test: `public-free-text-cleaning.unit.test.js`.
 23. **Replaced by rule 29 (2026-10-27 spec review)** — counting issued challenges made every page view
     cost the next request 2 bits, and `tooEasy` refused a challenge issued just before the hour crossed
     20. As first written: **A challenge fetched ahead is no bargain** (review). Every challenge handed out to an address is

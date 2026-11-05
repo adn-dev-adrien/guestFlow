@@ -51,6 +51,7 @@ import { useAppDialogs, useToast } from '../components/DialogProvider';
 import PluginGate from '../components/PluginGate';
 import { WEBSITE_BOOKING } from '../constants/plugins';
 import UnsavedChangesDialog from '../components/UnsavedChangesDialog';
+import { holdGuardSlot } from '../utils/backGuard';
 import ReservationCancelDialog from '../components/ReservationCancelDialog';
 import api from '../api';
 import { expandOptionGroups } from '../utils/optionGroups';
@@ -450,6 +451,10 @@ export default function ReservationPage() {
   const [storedSummary, setStoredSummary] = useState(null);
   // specs/disable-deposit-per-reservation.md rule 13 — why « Sans acompte » is locked, as the GET last said.
   const [storedDepositDisabledLockedReason, setStoredDepositDisabledLockedReason] = useState(null);
+  const [storedTaxInComplementLockedReason, setStoredTaxInComplementLockedReason] = useState(null);
+  // The live quote reads the stored payments afresh; the GET answers until it arrives.
+  const taxInComplementLockedReason = pricingQuote && pricingQuote.touristTaxInComplementLockedReason !== undefined
+    ? pricingQuote.touristTaxInComplementLockedReason : storedTaxInComplementLockedReason;
   // specs/payment-link-lifecycle.md rule 46 — null while « Transformer en devis » can be tried.
   const [convertToDevisLockedReason, setConvertToDevisLockedReason] = useState(null);
   // specs/direct-installments.md — the plan of a direct reservation, as the server last sent it.
@@ -667,7 +672,11 @@ export default function ReservationPage() {
   // Once the quote is in it is frozen into `initialSnapshot`; a save or a payment mark moves it from there.
   if (!loading && loadedSnapshot === null) setLoadedSnapshot(formSnapshot);
   let cleanBaseline = initialSnapshot;
-  if (cleanBaseline === null && !loading) {
+  // Rule 40 — a blank new fiche: the logement's defaults, the welcome pack and the quote land on their own and none is an
+  // edit, so the baseline follows the form until the operator's first gesture, which freezes what stood before it.
+  const baselineFollowsForm = isBlankNewBooking && cleanBaseline === null && !loading;
+  if (baselineFollowsForm) cleanBaseline = formSnapshot;
+  else if (cleanBaseline === null && !loading) {
     const isExistingRecord = Boolean(editingReservationId || editingDevisId);
     cleanBaseline = loadedSnapshot !== null ? loadedSnapshot : formSnapshot;
     if (isExistingRecord && pricingQuote) {
@@ -680,6 +689,15 @@ export default function ReservationPage() {
     if (!isExistingRecord || pricingQuote) setInitialSnapshot(cleanBaseline);
   }
   const isDirty = cleanBaseline !== null && formSnapshot !== cleanBaseline;
+  const formSnapshotRef = useRef(formSnapshot);
+  formSnapshotRef.current = formSnapshot;
+  useEffect(() => {
+    if (!baselineFollowsForm) return undefined;
+    const freeze = () => setInitialSnapshot(formSnapshotRef.current);
+    const gestures = ['pointerdown', 'keydown', 'input', 'change', 'click'];
+    gestures.forEach((gesture) => document.addEventListener(gesture, freeze, true));
+    return () => gestures.forEach((gesture) => document.removeEventListener(gesture, freeze, true));
+  }, [baselineFollowsForm]);
   // Review of #727 (H2) — a mark re-reads what the server wrote, then the quote re-prices the form on
   // that state: neither is an edit. A fiche that was clean takes its baseline again once that quote has
   // landed.
@@ -771,22 +789,35 @@ export default function ReservationPage() {
     });
   };
 
+  // Browser back/forward (specs/ui-review-2026-10-19-operations.md rules 26, 40): the interceptor of
+  // utils/backGuard.js asks this handler before the router moves, and puts back the entry it answers, the
+  // one the fiche stands on (read here: on a pop the browser's URL has already moved).
+  const leavingByBackRef = useRef(false);
   useEffect(() => {
-    if (!isDirty) return;
-    const pageState = window.history.state;
-
-    const onPopState = () => {
-      pendingLeaveActionRef.current = () => navigate(-1);
+    if (!isDirty) return undefined;
+    leavingByBackRef.current = false;
+    const keep = { state: window.history.state, url: window.location.href };
+    return holdGuardSlot('__guestflowBeforeBack', () => {
+      if (!isDirtyRef.current || leavingByBackRef.current) return null;
+      pendingLeaveActionRef.current = () => {
+        leavingByBackRef.current = true;
+        navigate(-1);
+      };
       setUnsavedDialogOpen(true);
-      // Keep user on the current page until they confirm.
-      // The page's own router state, not null: a null entry loses `idx`, and the next « Retour » would
-      // think the page was opened directly (specs/ui-review-2026-10-19-operations.md rule 26).
-      window.history.pushState(pageState, '', window.location.href);
-    };
+      return keep;
+    });
+  }, [isDirty, navigate, location]);
 
-    window.addEventListener('popstate', onPopState);
-    return () => window.removeEventListener('popstate', onPopState);
-  }, [isDirty, navigate]);
+  // Reload, closed tab, pull-to-refresh (rule 41).
+  useEffect(() => {
+    if (!isDirty) return undefined;
+    const warn = (e) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [isDirty]);
 
   useEffect(() => {
     const guardHandler = (targetPath) => {
@@ -1038,6 +1069,7 @@ export default function ReservationPage() {
           setStoredHeadline(res.storedHeadline || null);
           setStoredSummary(res.storedSummary || null);
           setStoredDepositDisabledLockedReason(res.depositDisabledLockedReason || null);
+          setStoredTaxInComplementLockedReason(res.touristTaxInComplementLockedReason || null);
           setConvertToDevisLockedReason(res.convertToDevisLockedReason || null);
           setInstallmentPlan(res.installmentPlan || null);
           setPricingQuote(null);
@@ -3006,6 +3038,7 @@ export default function ReservationPage() {
     setStoredHeadline(res.storedHeadline || null);
     setStoredSummary(res.storedSummary || null);
     setStoredDepositDisabledLockedReason(res.depositDisabledLockedReason || null);
+    setStoredTaxInComplementLockedReason(res.touristTaxInComplementLockedReason || null);
     setConvertToDevisLockedReason(res.convertToDevisLockedReason || null);
     setInstallmentPlan(res.installmentPlan || null);
     const serverWritten = {
@@ -3673,8 +3706,8 @@ export default function ReservationPage() {
       ? [{ icon: <RequestQuoteIcon />, tooltip: 'Envoyer la demande de solde', onClick: handleSendBalanceRequest, color: 'info' }] : []),
   ];
 
-  // specs/calendar-property-parity.md rules 22, 24 — « Rétablir » a duplicate set aside; the server refuses
-  // when its dates were booked since.
+  // specs/calendar-property-parity.md rules 22, 24, 31 — « Rétablir » a duplicate set aside; the server refuses
+  // when its dates were booked since or its stock is gone.
   const handleRestoreSuperseded = async () => {
     setRestoring(true);
     try {
@@ -3783,6 +3816,7 @@ export default function ReservationPage() {
     // The live quote reads the stored payments afresh; the GET answers until it arrives.
     depositDisabledLockedReason: pricingQuote && pricingQuote.depositDisabledLockedReason !== undefined
       ? pricingQuote.depositDisabledLockedReason : storedDepositDisabledLockedReason,
+    touristTaxInComplementLockedReason: taxInComplementLockedReason,
     // specs/plugins-phase-3b-neat.md rule 16 — what plugins draw under an option line: their block,
     // its setter, and what they may need to know about the stay.
     pluginBlocks, setPluginBlock,
@@ -3840,6 +3874,7 @@ export default function ReservationPage() {
       onToggleCustomOptionInComplement={setCustomOptionInComplementFromSummary}
       onToggleResourceInComplement={setResourceInComplement}
       onToggleTouristTaxInComplement={(next) => setForm((prev) => ({ ...prev, touristTaxInComplement: Boolean(next) }))}
+      touristTaxInComplementLocked={Boolean(taxInComplementLockedReason) && !form.touristTaxInComplement}
       routingLocked={extrasWindowOpen}
       isFrozenLine={isFrozenArrivalLine}
       isTouristTaxFrozen={isTouristTaxFrozen}

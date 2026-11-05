@@ -316,8 +316,9 @@ its due date, after the operator validates it.
 51. **A plan's tax is declared at the stay month, an installment still due or not** (2026-11-05, D14, Adrien's
     decision). Paying an installment never sets `balancePaid`, so « Suivi taxe de séjour » reads the plan itself, not that
     flag (`specs/tourist-tax-declaration-month-stay-end.md` rules 7-8). *Why:* a plan of two fully paid, 46710000 = 4,80 €,
-    was on no month of the page; the same stay paid by solde had its row of 4,80 €. A tax not yet collected can be declared,
-    accepted.
+    was on no month of the page; the same stay paid by solde had its row of 4,80 €. *Reading of 2026-11-05 (D16, D17):* « can be declared » is withdrawn by
+    Adrien, the tick waits for every installment paid and the stay over (`tourist-tax-declared-checkbox.md` rule 8); a plan fully
+    paid or a paid installment holding a tax share pins the tax (`tourist-tax-matches-the-office-calculation.md` rule 19).
 
 ---
 
@@ -534,7 +535,7 @@ Baseline 6 264 → **6 373** (+109 net, all green; 5 cron tests of money templat
 - [x] `tests/finance-late-installments.unit.test.js` (3) — rule 48: two late installments as elements, the three-day grace, a covered plan never late
 - [x] `client/src/pages/__tests__/FinancePage.settle-late-installment.test.jsx` (1) — rule 48: « Marquer payé » records each late installment through its endpoint
 - [x] `tests/utc-timestamp-paris-day-labels.unit.test.js` (1 of 4, 2026-10-30) — rule 49: a request stamped 23:30 UTC reads « Demandée le » on its Paris day
-- [x] `tests/plan-tax-declaration.unit.test.js` (23, 2026-11-05) — rule 51: fully paid, partly paid and unpaid plans on the page at the stay month, `balancePaid` still 0
+- [x] `tests/plan-tax-declaration.unit.test.js` (27, 2026-11-05) — rule 51: fully paid, partly paid and unpaid plans on the page at the stay month, `balancePaid` still 0
 - [x] `tests/installment-paid-holds-nights.unit.test.js` (4, 2026-11-01) — rule 50: an installment ticked or paid by link withdraws the devis link on the stay's nights at once; a replay withdraws nothing more; nothing paid holds nothing
 
 ### Client tests

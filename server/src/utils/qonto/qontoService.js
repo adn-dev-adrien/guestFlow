@@ -90,7 +90,8 @@ async function withQonto({ settings = guestflowSettings(), env = process.env, or
     if (recordSuccess) recordQontoSuccess({ settings });
     return result;
   } catch (error) {
-    recordQontoFailure({ settings, error, origin });
+    // Rule 19: the health was reset for the new credentials, and an overtaken refresh says nothing about them.
+    if (!error.overtaken) recordQontoFailure({ settings, error, origin });
     throw error;
   }
 }

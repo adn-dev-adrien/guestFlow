@@ -1,0 +1,1 @@
+- A wrong JSON type on `PUT /settings`, `/email-texts`, `/properties/email-hooks` and a platform's review wording is refused, it used to be stored as text. The fiche's draft client loses its control characters, and a pasted tab in a client's text becomes a space.

@@ -30,7 +30,7 @@ const PHASES = { snapshot: 'Instantané de la base', switch: 'Bascule de version
 
 function createFleetUpdater({
   models, drivers, releases, provisioner, now, fetchImpl = fetch, healthTimeoutMs = 60000, journal = () => {},
-  pluginInstaller = null, log = (msg) => console.log(msg),
+  pluginInstaller = null, log = (msg) => console.log(msg), renamePending = () => false,
 }) {
   const { hosting, customers } = models;
   let current = null;
@@ -106,6 +106,12 @@ function createFleetUpdater({
     const row = c && !c.archivedAt && !c.erasedAt ? hosting.get(c.id) : null;
     if (!row || !row.port) {
       if (c) hosting.setItem(update.id, c.id, { state: 'skipped', phase: null, detail: 'Client archivé entre-temps.', snapshot: null });
+      return { ok: true };
+    }
+    // H1 rule 50: `c.slug` is an address the instance has not reached yet; one customer's failed
+    // rename never stops the others.
+    if (renamePending(c)) {
+      set('skipped', null, 'Changement d’adresse à terminer d’abord.');
       return { ok: true };
     }
     set('running', 'snapshot', PHASES.snapshot);

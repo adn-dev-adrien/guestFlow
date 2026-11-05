@@ -13,7 +13,7 @@ const vigilance = require('./meteoVigilance');
 function createController({ getReservation, companyAddress, apiKey: readApiKey, cache }) {
   async function getReservationAlerts(req, res) {
     const reservation = getReservation(req.params.id);
-    if (!reservation) return res.status(404).json({ error: 'RESERVATION_NOT_FOUND' });
+    if (!reservation) return res.status(404).json({ error: 'RESERVATION_NOT_FOUND', message: 'Réservation introuvable.' });
 
     try {
       const apiKey = readApiKey();

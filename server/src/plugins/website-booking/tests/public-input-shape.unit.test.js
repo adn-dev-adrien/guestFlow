@@ -189,8 +189,19 @@ test('rule 20 — a name with no letter nor digit is « required », a control c
   assert.equal(validateGuest({ ...guest, lastName: 'A\nB' }).value.lastName, 'A B');
 });
 
+test('rule 20 — a name of Hangul fillers shows nothing: « required », and D13 keeps its alphabet', () => {
+  for (const name of ['\u3164', '\u115F', '\u1160', '\uFFA0', '\u3164\u3164', '\u3164\u1160', '\u3164\u0301', ' \u3164 ']) {
+    for (const field of ['firstName', 'lastName']) {
+      const out = validateGuest({ ...guest, [field]: name });
+      assert.equal(out.ok, false, JSON.stringify(name));
+      assert.ok(out.errors.some((e) => e.field === `guest.${field}` && e.reason === 'required'), JSON.stringify(out.errors));
+    }
+  }
+  for (const name of ['\u3164김', '김\uFFA0민', '김민']) assert.equal(validateGuest({ ...guest, firstName: name }).value.firstName, name);
+});
+
 test('rule 20 — names the site really sends are unchanged', () => {
-  for (const name of ['Zoé', 'O\'Neil', 'Marie-Anne', 'Иван', '李', 'سارا\u200Cی', 'ㅤ']) {
+  for (const name of ['Zoé', 'O\'Neil', 'Marie-Anne', 'Иван', '李', 'سارا\u200Cی']) {
     assert.equal(validateGuest({ ...guest, firstName: name }).value.firstName, name);
   }
 });

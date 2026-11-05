@@ -36,6 +36,9 @@ const missingPublicUrlError = () => {
 /** Two callback URLs are the same subscription when only a trailing slash separates them. */
 const sameCallback = (a, b) => String(a || '').trim().replace(/\/+$/, '') === String(b || '').trim().replace(/\/+$/, '');
 
+// The check running for each settings store: two at once would both find nothing and both create (rule 8).
+const checksInFlight = new WeakMap();
+
 /**
  * Make sure Qonto is subscribed to payment-link events at the address GuestFlow answers on.
  *
@@ -50,6 +53,24 @@ async function ensureWebhookSubscription({
   origin = 'webhook-register',
   randomSecret = defaultRandomSecret,
 } = {}) {
+  const inFlight = checksInFlight.get(settings);
+  if (inFlight) return inFlight;
+  const check = checkSubscription({ settings, env, origin, randomSecret })
+    .finally(() => checksInFlight.delete(settings));
+  checksInFlight.set(settings, check);
+  return check;
+}
+
+/**
+ * A fresh consent may name another Qonto account, and the record says nothing about that one (rule 10).
+ * Waits for a check in flight: it asked the previous account, and its answer must not land after this.
+ */
+async function forgetWebhookSubscription({ settings = guestflowSettings() } = {}) {
+  while (checksInFlight.has(settings)) await checksInFlight.get(settings);
+  settings.storeQontoWebhookSubscription({ id: '', callbackUrl: '' });
+}
+
+async function checkSubscription({ settings, env, origin, randomSecret }) {
   try {
     const base = typeof settings.publicUrl === 'function' ? String(settings.publicUrl() || '').trim() : '';
     if (!base) {
@@ -103,4 +124,4 @@ async function ensureWebhookSubscription({
   }
 }
 
-module.exports = { ensureWebhookSubscription, WEBHOOK_PATH, SUBSCRIPTION_TYPES, __test: { sameCallback } };
+module.exports = { ensureWebhookSubscription, forgetWebhookSubscription, WEBHOOK_PATH, SUBSCRIPTION_TYPES, __test: { sameCallback } };

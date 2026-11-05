@@ -18,7 +18,7 @@ const { createReconciliationController } = require('../reconciliation/controller
 const { buildLedger } = require('../../../utils/reservationLedger');
 const { parseGroup } = require('../../../utils/arrivalPaymentGroup');
 const { platformDisplay } = require('../../../utils/platformDisplay');
-const { applyPaymentMark, computePlatformCommission } = require('../../../utils/reservationPaymentMark');
+const { applyPaymentMark, computePlatformCommission, takeBackRefusal } = require('../../../utils/reservationPaymentMark');
 const reservations = require('../../../models/reservationsModel');
 const paymentLinks = require('../../../models/paymentLinksModel');
 const { todayIso } = require('../../../utils/localDate');
@@ -66,7 +66,7 @@ function build({ connected = true, startDate = dayAt(-22), mark = applyPaymentMa
   const settings = { get: (k) => store.get(k) || '', set: (k, v) => store.set(k, v) };
   const transactions = createBankTransactionsModel(db);
   const model = createReconciliationModel(db);
-  const writer = createFicheWriter({ model, applyPaymentMark: mark, computePlatformCommission, reservations, installments: require('../../../models/installmentsModel').buildModel(db) });
+  const writer = createFicheWriter({ model, applyPaymentMark: mark, computePlatformCommission, reservations, installments: require('../../../models/installmentsModel').buildModel(db), takeBackRefusal });
   const calls = { qonto: 0, read: 0 };
   const controller = createReconciliationController({
     db, settings, transactions, model, writer,

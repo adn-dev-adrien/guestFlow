@@ -1,5 +1,5 @@
 /**
- * specs/qonto-settings-in-app.md rule 17 — when the settings fail to load, the page says so with a
+ * specs/qonto-settings-in-app.md rule 20 — when the settings fail to load, the page says so with a
  * « Réessayer » instead of spinning forever.
  */
 import React from 'react';
@@ -29,14 +29,14 @@ beforeEach(() => {
 
 const renderPage = () => render(<MemoryRouter><DialogProvider><PaymentsSettingsPage /></DialogProvider></MemoryRouter>);
 
-test('rule 17 — a failed settings load shows the error, not an endless spinner', async () => {
+test('rule 20 — a failed settings load shows the error, not an endless spinner', async () => {
   api.getPaymentSettings.mockRejectedValue(new Error('boom'));
   renderPage();
   expect(await screen.findByText('Impossible de charger les paramètres de paiement.')).toBeInTheDocument();
   expect(screen.queryByRole('progressbar')).toBeNull();
 });
 
-test('rule 17 — « Réessayer » loads again and the page appears', async () => {
+test('rule 20 — « Réessayer » loads again and the page appears', async () => {
   api.getPaymentSettings.mockRejectedValueOnce(new Error('boom')).mockResolvedValue(SETTINGS);
   renderPage();
   await userEvent.click(await screen.findByRole('button', { name: 'Réessayer' }));

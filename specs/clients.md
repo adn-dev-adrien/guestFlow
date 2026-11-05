@@ -110,6 +110,10 @@ list.
     `GET /clients/duplicate?email=&phone=` answers `{ client, message }` or `{ client: null }`: the fiche's
     « Créer un nouveau client » asks it first and offers « Utiliser ce client » or « Modifier la saisie ».
     *Why: the review of 2026-10-18 (F6) created a second client with an email that already existed.*
+    *Reading of 2026-11-05 (audit R23 public finding 4):* an address holding a non-ASCII character is stored in lower case by
+    every writer (`storedEmail`: the model and an operator-typed recipient). The lookups compare a JS lower case with SQLite's
+    `lower()`, which folds ASCII only, so `ÉMILIE@…` matched nothing and made a client per request. An ASCII address keeps
+    its case. No backfill: the production copy holds no such address. Test: `tests/client-email-stored-lowercase.unit.test.js`.
 13. **A client typed on a new fiche is written with the stay (2026-10-18).** On a reservation or a devis
     not saved yet, « Créer un nouveau client » writes nothing: the fiche shows the typed client and sends
     it as `newClient` (no `clientId`) with the first save. `POST /reservations` and `POST /devis` then

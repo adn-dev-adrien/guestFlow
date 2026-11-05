@@ -63,6 +63,7 @@ const rowKey = (row) => `${row.reservationId}${row.addedGuestsRow ? '-added' : '
 const rowName = (row) => `${row.reservationName || 'Réservation'}${row.addedGuestsRow ? ' · Complément de taxe de séjour' : ''}`;
 // Rule 21 — a gap with nobody added: an amount, no person to tell the commune about.
 const NO_GUEST_ADDED_NOTE = 'Écart de taxe, aucun voyageur ajouté';
+const NOT_DECLARABLE_NOTE = 'Déclarable une fois le séjour payé et terminé.';
 
 export default function TouristTaxPage() {
   const navigate = useNavigate();
@@ -142,20 +143,27 @@ export default function TouristTaxPage() {
     ? (formatDeclaredDate(row.touristTaxDeclaredAt) ? `Déclarée le ${formatDeclaredDate(row.touristTaxDeclaredAt)}` : 'Déclarée')
     : 'Non déclarée');
 
-  const declaredCheckbox = (row) => (
-    <Tooltip title={declaredTooltip(row)}>
+  // specs/tourist-tax-declared-checkbox.md rule 8 — the server says when a tick can be made; an existing one can always go.
+  const notDeclarableYet = (row) => !row.declarable && !row.touristTaxDeclaredAt;
+
+  const declaredCheckbox = (row) => {
+    const checkbox = (
       <Checkbox
         size="small"
         checked={!!row.touristTaxDeclaredAt}
+        disabled={notDeclarableYet(row)}
         onChange={() => handleToggleDeclared(row)}
         slotProps={{ input: { 'aria-label': `Déclarée — ${rowName(row)}` } }}
       />
-    </Tooltip>
-  );
+    );
+    return notDeclarableYet(row)
+      ? <Tooltip title={NOT_DECLARABLE_NOTE}><Box component="span" sx={{ display: 'inline-flex' }}>{checkbox}</Box></Tooltip>
+      : <Tooltip title={declaredTooltip(row)}>{checkbox}</Tooltip>;
+  };
 
   // KPI cards — neutral « Maison » tiles (2026-07-16 decision).
   const kpiCards = data ? [
-    { label: 'Réservations directes (mois)', value: String(data.totals.reservationsCount || 0), accent: 'info.main' },
+    { label: 'Réservations (mois)', value: String(data.totals.reservationsCount || 0), accent: 'info.main' },
     { label: 'Adultes-nuits (mois)', value: String(data.totals.adultNights), accent: 'primary.main' },
     { label: 'Taxe de séjour totale', value: formatCurrency(data.totals.taxAmount), accent: 'warning.main' },
   ] : [];
@@ -236,6 +244,9 @@ export default function TouristTaxPage() {
                           </TableCell>
                           <TableCell>
                             {rowName(row)}
+                            {notDeclarableYet(row) && (
+                              <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>{NOT_DECLARABLE_NOTE}</Typography>
+                            )}
                             {row.noGuestAdded && (
                               <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>{NO_GUEST_ADDED_NOTE}</Typography>
                             )}
@@ -262,6 +273,9 @@ export default function TouristTaxPage() {
                             <Typography variant="body2" sx={{ fontWeight: 600 }}>{rowName(row)}</Typography>
                             <Box onClick={(e) => e.stopPropagation()}>{declaredCheckbox(row)}</Box>
                           </Stack>
+                          {notDeclarableYet(row) && (
+                            <Typography variant="caption" color="text.secondary">{NOT_DECLARABLE_NOTE}</Typography>
+                          )}
                           <Typography variant="caption" color="text.secondary">
                             {formatReservationDates(row.startDate, row.endDate)} · {row.nightsCount} nuit{row.nightsCount > 1 ? 's' : ''}{row.noGuestAdded ? '' : ` · ${row.adults} ad. · ${row.children ?? 0} enf.`}
                           </Typography>

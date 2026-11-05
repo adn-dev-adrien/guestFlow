@@ -40,17 +40,9 @@ const EXEMPT_LINE = /^\s*>?\s*\*\*Sans test\*\*\s*[—-]?\s*(.*)$/i;
  * @returns {Array<{id: string, exempt: boolean, reason: string}>}
  */
 export function parseSpecRules(markdown) {
-  const lines = String(markdown || '').split('\n');
-  const start = lines.findIndex((l) => /^##\s+3\./.test(l));
-  if (start === -1) return [];
-  let end = lines.length;
-  for (let i = start + 1; i < lines.length; i += 1) {
-    if (/^##\s/.test(lines[i])) { end = i; break; }
-  }
-
   const rules = [];
   let current = null;
-  for (const line of lines.slice(start + 1, end)) {
+  for (const line of functionalRuleLines(markdown)) {
     const m = line.match(RULE_LINE);
     if (m) {
       current = { id: m[1].toLowerCase(), exempt: false, reason: '' };
@@ -61,9 +53,43 @@ export function parseSpecRules(markdown) {
     const ex = line.match(EXEMPT_LINE);
     if (ex) { current.exempt = true; current.reason = ex[1].trim(); }
   }
-  // Une spec peut citer deux fois le même numéro (une règle et son rappel) : une seule règle.
+  // Un numéro répété ne compte qu'une fois ici ; la barrière le refuse (règle 17).
   const seen = new Set();
   return rules.filter((r) => (seen.has(r.id) ? false : seen.add(r.id)));
+}
+
+function functionalRuleLines(markdown) {
+  const lines = String(markdown || '').split('\n');
+  const start = lines.findIndex((l) => /^##\s+3\./.test(l));
+  if (start === -1) return [];
+  let end = lines.length;
+  for (let i = start + 1; i < lines.length; i += 1) {
+    if (/^##\s/.test(lines[i])) { end = i; break; }
+  }
+  return lines.slice(start + 1, end);
+}
+
+/**
+ * Règle 17 — les numéros portés par plus d'une règle du §3 : un test qui cite ce numéro couvre les deux,
+ * et une règle ajoutée sous un numéro déjà pris passerait la barrière sans test.
+ *
+ * @returns {string[]} les numéros répétés
+ */
+export function duplicateRuleIds(markdown) {
+  const counts = new Map();
+  for (const line of functionalRuleLines(markdown)) {
+    const m = line.match(RULE_LINE);
+    if (m) counts.set(m[1].toLowerCase(), (counts.get(m[1].toLowerCase()) || 0) + 1);
+  }
+  return [...counts].filter(([, n]) => n > 1).map(([id]) => id);
+}
+
+/** `[[fileName, markdown]]` → les specs lues par la couverture qui répètent un numéro. */
+export function specsWithDuplicates(entries) {
+  return entries
+    .filter(([f, markdown]) => f.endsWith('.md') && !/^(TEMPLATE|README|ROADMAP)/.test(f) && !isSuperseded(markdown))
+    .map(([f, markdown]) => ({ spec: f.replace(/\.md$/, ''), rules: duplicateRuleIds(markdown) }))
+    .filter((s) => s.rules.length > 0);
 }
 
 // ── Lecture des citations dans les tests ─────────────────────────────────────
@@ -474,6 +500,13 @@ function report({ specName }) {
 }
 
 function gate(base) {
+  const dir = path.join(ROOT, 'specs');
+  const duplicates = specsWithDuplicates(fs.readdirSync(dir).map((f) => [f, f.endsWith('.md') ? fs.readFileSync(path.join(dir, f), 'utf8') : '']));
+  if (duplicates.length) {
+    for (const d of duplicates) console.error(`✗ specs/${d.spec}.md : numéro(s) porté(s) par plusieurs règles du §3 : ${d.rules.join(', ')}.`);
+    console.error('\n  Un numéro de règle est une identité : la règle la plus récente prend le prochain numéro libre, et ses citations la suivent.');
+    return 1;
+  }
   const { addedRules, modifiedRules, exempt, codeCitations } = changedRules(base);
   const citedAfter = new Set(readCitations(knownSpecNames()).map((c) => `${c.spec}:${c.rule}`));
   const verdict = gateVerdict({ addedRules, modifiedRules, citedAfter });

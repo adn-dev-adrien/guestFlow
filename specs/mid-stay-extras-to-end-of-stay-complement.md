@@ -240,6 +240,13 @@ ait été réglé ou non.
     > **The excess is booked as a prestation on `70600010`, with VAT, accommodation and tax included:** the line is a flat
     > amount of the end-of-stay entry (`buildEndOfStayEntry`), which knows no accommodation account and no 46710000. Adrien's
     > decision: a night sold this way lands on that account, knowingly. Test: `end-of-stay-claims-growth`.
+    > **Reading of 2026-11-05 (audit R23 N1, extends D9).** A plan never sets `balancePaid`: all its installments paid is the same
+    > proof that the buckets agreed. Plan paid, complement paid, one adult more: 42,40 € claimed, one night more: 302,40 €, where
+    > nothing asked for them. A part-paid plan proves nothing. Test: `end-of-stay-claims-growth`.
+    > **Reading of 2026-11-05 (audit R23 N4).** D9 makes the line exist before arrival. Once it is collected (books or caisse
+    > interne) on a stay not started, a save that would raise `finalPrice + touristTaxTotal` is refused as on a started stay:
+    > 400 `MID_STAY_EXTRAS_CLOSED`, nothing else could claim the rise. A lowering, an unchanged total and a text change pass;
+    > un-ticking the line reopens growth. An admin's unlock of a started stay is unchanged. Test: `eos-paid-refuses-growth`.
 
 ---
 
@@ -375,7 +382,8 @@ détectée, et jamais lorsqu'il est encaissé (§3.5). Aucun backfill, aucune pe
 `financeModel` / `reservationSettlement` ne sont pas modifiés (ils somment déjà les quatre buckets) :
 leur couverture existante suffit, aucun test ajouté.
 
-- `end-of-stay-claims-growth.unit.test.js` (10) — rule 20, reading of 2026-11-05 (D9).
+- `end-of-stay-claims-growth.unit.test.js` (14) — rule 20, readings of 2026-11-05 (D9, R23 N1).
+- `eos-paid-refuses-growth.unit.test.js` (9) — rule 20, reading of 2026-11-05 (R23 N4).
 
 ### Client tests (`cd client && npx vitest run` → **774 verts**, +2)
 

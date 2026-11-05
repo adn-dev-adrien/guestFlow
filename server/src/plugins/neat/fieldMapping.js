@@ -57,11 +57,14 @@ function parseMappingJson(json) {
   }
 }
 
+// A source named by a request: `constructor` and `__proto__` are no source (audit R23-I2).
+const sourceOf = (key) => (typeof key === 'string' && Object.hasOwn(SOURCES, key) ? SOURCES[key] : null);
+
 // A string source can feed a string field; numbers feed number fields; datetimes feed datetime
 // fields. String fields also accept any non-constant source (everything stringifies losslessly).
 function sourceFitsField(sourceKey, field) {
   if (sourceKey === 'constant') return true;
-  const src = SOURCES[sourceKey];
+  const src = sourceOf(sourceKey);
   if (!src) return false;
   if (field.type === 'string') return true;
   if (field.type === 'number') return src.type === 'number';
@@ -83,7 +86,7 @@ function validateMapping(mapping, fields) {
       if (field.required) errors.push({ fieldId: field.id, error: 'REQUIRED_UNMAPPED' });
       continue;
     }
-    if (!SOURCES[entry.source]) {
+    if (!sourceOf(entry.source)) {
       errors.push({ fieldId: field.id, error: 'UNKNOWN_SOURCE' });
       continue;
     }
@@ -92,7 +95,7 @@ function validateMapping(mapping, fields) {
       continue;
     }
     if (entry.source === 'constant') {
-      const constant = entry.constant == null ? '' : String(entry.constant);
+      const constant = entry.constant == null || typeof entry.constant === 'object' ? '' : String(entry.constant);
       if (constant === '' && field.type !== 'checkbox') {
         errors.push({ fieldId: field.id, error: 'CONSTANT_REQUIRED' });
         continue;
@@ -139,7 +142,7 @@ function buildServiceFieldValues(mapping, fields, snapshot) {
   const values = [];
   for (const field of fields) {
     const entry = mapping[field.id];
-    if (!entry || !entry.source || !SOURCES[entry.source]) continue;
+    if (!entry || !entry.source || !sourceOf(entry.source)) continue;
     const raw = entry.source === 'constant' ? entry.constant : snapshotValue(entry.source, snapshot);
     if (raw === undefined || raw === null || raw === '') continue;
     let value;

@@ -236,7 +236,8 @@ organised by topic — on a laptop and on a phone. No pricing or catalogue rule 
     entry, but only when it is still the current one. `useDirtyFormGuard` takes the global navigation slot only while its form is dirty and puts
     the previous handler back, and its Back path keeps the page's own URL; a clean or closed form holds
     nothing. « Enregistrer et quitter » continues to the pending destination only when the save
-    succeeded.
+    succeeded. Reading of 2026-11-05: the fiche and the logement hold the same slot
+    (specs/ui-review-2026-10-19-operations.md rule 40).
 30. Accessibility and feedback of the lists and panels: a row or card has one button, its name, stretched
     over the whole row (price, traits and the « ⋯ » menu are not nested inside a button); the panel is
     named by its visible title; a pristine form shows no error — they appear once it is edited; while a
@@ -252,6 +253,7 @@ organised by topic — on a laptop and on a phone. No pricing or catalogue rule 
     `heatUpMinutes`, `heatRetentionMinutes` and a property's `freeMinutes` usable and ≥ 0. A stored number sent back
     unchanged is not re-judged; no business ceiling is decided. *Why:* towels and durations at `1e999` were stored as
     Infinity, prices at `1e308` as they were. Tests: `tests/numeric-bounds-catalogue.unit.test.js`.
+32. **The closed values of the catalogue are judged** (audit R23-A2, R23-A3, 2026-11-05), 422 `VALIDATION_FAILED` with their `field`; not sent (absent, `null`, empty) and the value the row stores, sent back unchanged, pass. An option: `priceType` among the editor's seven, `autoOptionType` among the seeded types, `autoPricingMode` `fixed` or `proportional`, `autoFullNightThreshold` `HH:MM`, `category` text, `propertyIds` a list of known positive ids. A resource: `name`, `note`, `emailBookedText`, `emailBookedTextEn` text, `priceType` among the editor's six, `openTime`, `closeTime`, `hourlyEveningStart` `HH:MM`, `openDays` a list of week days or its JSON (an empty one is a week closed), `propertyIds` and the keys of `propertyPricing` / `propertyPrices` known positive ids. They used to answer 500 (`SQLite3 can only bind`, `is not iterable`, a foreign key) or store `-1.0` and `[object Object]`. Tests: `tests/catalogue-text-enums.unit.test.js`, `tests/input-shape-per-field.unit.test.js`.
 
 **Edge cases:**
 - 12 properties: traits read « 8 logements seulement », the property filter is a select.

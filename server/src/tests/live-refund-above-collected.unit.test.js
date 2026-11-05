@@ -42,10 +42,10 @@ test('D10 — acompte collected: refunds add up to it at most, and it is net of 
   assert.equal(refund(stay.id, [{ key: ACCOMMODATION, amountTtc: collected - 50 }]).statusCode, 201);
 });
 
-test('D10 — the tax on its own stays free per line: only the total is judged', () => {
+test('D10, tightened by D15 — within the total, the tax of an acompte-only stay is judged on what it holds: nothing', () => {
   const stay = fiche(WITH_ACOMPTE, 'direct');
   pay(stay.id, D);
-  assert.equal(refund(stay.id, [{ key: TAX, amountTtc: 4.8 }]).statusCode, 201);
+  assert.equal(refund(stay.id, [{ key: TAX, amountTtc: 4.8 }]).body.code, 'REFUND_EXCEEDS_LINE_COLLECTED');
 });
 
 test('D10 — a refund in the caisse interne is not a book refund: the rule leaves it alone', () => {

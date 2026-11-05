@@ -5,6 +5,7 @@
 const db = require('../database');
 const { defaultMarksStaysClosed } = require('../utils/icalClosedFeed');
 const { KNOWN_PLATFORM_COLORS, DEFAULT_PLATFORM_COLOR } = require('../constants/platformColors');
+const { isOptionalText, isFlag } = require('../utils/bodyText');
 const {
   normalizePlatformKey,
   normalizeIcalSummary,
@@ -56,6 +57,10 @@ const SOURCE_COLUMNS = `id, propertyId, name, url, platformKey, platformLabel, p
 // `collectsTouristTax` boolean (+ optional remittedByPlatform) when the 3-way value is absent, then to
 // the existing row, then to the default "platform handles everything". Normalises the invalid combo:
 // collectsTouristTax = 0 ⇒ remittedByPlatform = 0 (if we collect at arrival, we always remit).
+// Hosting-h2 rule 68 — a source's text is a string, null or absent; a tick reads as INVALID_PAYMENT_FLAG does.
+const SOURCE_TEXTS = ['url', 'name', 'platformKey', 'platformLabel', 'platformColor', 'touristTaxCollection'];
+const SOURCE_FLAGS = ['disabled', 'feedMarksStaysClosed', 'isActive', 'collectsTouristTax', 'touristTaxRemittedByPlatform'];
+
 function resolveTouristTaxColumns(body = {}, existing = null) {
   let collects;
   let remitted;
@@ -131,6 +136,9 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
   }
 
   function resolveSourceInput(body, existing = null) {
+    const refused = SOURCE_TEXTS.find((key) => !isOptionalText(body[key]))
+      || SOURCE_FLAGS.find((key) => body[key] !== undefined && !isFlag(body[key]));
+    if (refused) return { error: 'Valeur invalide.', code: 'INVALID_FIELD', field: refused };
     const url = String(body.url ?? existing?.url ?? '').trim();
     const platformKeyInput = String(body.platformKey ?? existing?.platformKey ?? '').trim();
     const platformLabelInput = String(body.platformLabel ?? existing?.platformLabel ?? '').trim();
@@ -218,7 +226,7 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
       const property = database.prepare('SELECT id FROM properties WHERE id = ?').get(propertyId);
       if (!property) return { error: 'Logement non trouvé', status: 404 };
       const input = resolveSourceInput(body);
-      if (input.error) return { error: input.error, status: 400 };
+      if (input.error) return { ...input, status: 400 };
       // Configure-on-demand (specs/platforms-and-ical-rework.md §3 rule 3): one row per
       // (property, platform). If this property already has a source for the platform, UPDATE it
       // instead of inserting a duplicate — so toggling tax then setting a URL both land on one row.
@@ -249,7 +257,10 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
       const existing = database.prepare('SELECT * FROM ical_sources WHERE id = ? AND propertyId = ?').get(sourceId, propertyId);
       if (!existing) return { error: 'Connexion iCal introuvable.', status: 404 };
       const input = resolveSourceInput(body, existing);
-      if (input.error) return { error: input.error, status: 400 };
+      if (input.error) return { ...input, status: 400 };
+      if (database.prepare('SELECT 1 FROM ical_sources WHERE propertyId = ? AND platformKey = ? AND id != ?').get(propertyId, input.normalizedPlatformKey, sourceId)) {
+        return { error: 'Plateforme déjà connectée sur ce logement.', code: 'SOURCE_EXISTS', field: 'platformKey', status: 409 };
+      }
       const isActive = body.isActive === undefined ? existing.isActive : (body.isActive ? 1 : 0);
       // Tourist-tax handling: derive both booleans from the 3-way value (or legacy boolean), falling
       // back to the existing row when neither is supplied (preserve on URL-only / colour-only edits).

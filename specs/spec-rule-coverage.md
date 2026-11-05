@@ -143,6 +143,11 @@ no test?** » — and prevent a **new** rule from being delivered without its te
     what the PR brings. The case it closes: a header reordered in `booking-intake.spec.js` made the
     smoke-suite spec the file's primary, credited its ten bare « Rule N » to the wrong spec and left one
     orphan nobody saw.
+17. **`--changed` fails on a rule number used twice in a spec's §3** (added 2026-11-05, audit R23-S1). A rule added under a
+    number the spec already uses was judged cited by the old rule's test, so it passed with none, and two parallel PRs merged
+    two rules 16 without a conflict. The gate reads every spec the coverage reads, names the spec and the number, and
+    fails. The later rule takes the next free number, and whatever cites it follows. Nine specs held such pairs; renumbered
+    the same day. Test: `tests/spec-rule-coverage-duplicates.unit.test.js`.
 
 **Edge cases:**
 
@@ -228,6 +233,7 @@ And for the gate, on a PR:
 - [x] `tests/spec-rule-coverage.unit.test.js` — rule 15: `<spec> rule N` without `specs/` goes to the named spec when it exists, to the file's spec otherwise.
 - [x] `tests/spec-rule-coverage-orphans.unit.test.js` (3) — rule 16: a new orphan citation in a changed file fails the gate; one already
       there, or in an untouched file, does not.
+- [x] `tests/spec-rule-coverage-duplicates.unit.test.js` (4) — rule 17: a number used twice in §3 is named, a number repeated outside §3 or under another suffix is not, a superseded spec is not read, and no spec of this repository holds one.
 - [x] `tests/spec-rule-coverage-superseded.unit.test.js` (2) — rule 13: the Status line decides; a
       superseded spec has no rules, neither in the report nor at the gate.
 

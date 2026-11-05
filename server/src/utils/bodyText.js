@@ -40,7 +40,28 @@ const isFlag = (value) => value === true || value === false || value === 1 || va
 /** A time of day: HH:MM. */
 const isClockTime = (value) => typeof value === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
 
+const CONTROL = /\p{Cc}/gu;
+const CONTROL_BUT_LINES = /[^\P{Cc}\n]/gu;
+
+/**
+ * The text a back-office form stores: control characters out, nothing else (NUL read as a blank name; D13 judges the
+ * public form alone). `lines` keeps the newlines of a multi-line field. A value that is not a string is left to its refusal.
+ */
+const withoutControls = (value, { lines = false } = {}) => (typeof value === 'string' ? value.replace(lines ? CONTROL_BUT_LINES : CONTROL, '') : value);
+
+/** `body` with those fields cleaned. A stored value sent back unchanged is not rewritten. */
+function cleanedBody(body, { fields, lineFields = [], stored = null, tabAsSpace = false }) {
+  if (!body || typeof body !== 'object') return body;
+  const clean = { ...body };
+  for (const field of fields) {
+    if (!Object.hasOwn(body, field) || (stored && body[field] === stored[field])) continue;
+    const text = tabAsSpace && typeof body[field] === 'string' ? body[field].replace(/\t/g, ' ') : body[field];
+    clean[field] = withoutControls(text, { lines: lineFields.includes(field) });
+  }
+  return clean;
+}
+
 /** A query string's values: a repeated key arrives as an array, and reads as not sent. */
 const scalarQuery = (query) => Object.fromEntries(Object.entries(query || {}).filter(([, value]) => typeof value === 'string'));
 
-module.exports = { asText, fieldText, isOptionalText, numeric, positiveId, isFlag, isClockTime, scalarQuery };
+module.exports = { asText, fieldText, isOptionalText, numeric, positiveId, isFlag, isClockTime, scalarQuery, withoutControls, cleanedBody };

@@ -18,6 +18,7 @@ const emailTextsCsv = require('../utils/emailTextsCsv');
 const { badlyEncoded, ENCODING_MESSAGE } = require('../utils/translationCsv');
 const textTranslator = require('../utils/textTranslator');
 const { SECTIONS } = require('../utils/templateTokens');
+const { isOptionalText } = require('../utils/bodyText');
 const { displayNameOf } = require('../utils/emailTimeline');
 
 const publicItem = ({ allowed, ...item }) => item;
@@ -48,11 +49,13 @@ function buildController({ database, translator = textTranslator }) {
 
   function save(req, res) {
     const raw = (req.body && req.body.changes) || {};
-    const changes = Object.entries(raw).map(([key, v]) => ({
-      key,
-      fr: v && v.fr !== undefined ? String(v.fr) : undefined,
-      en: v && v.en !== undefined ? String(v.en) : undefined,
-    }));
+    const entries = Object.entries(raw);
+    // specs/hosting-h2-account-security.md rule 68 — a null reads as not sent, any other wrong type is refused.
+    for (const [key, v] of entries) {
+      const field = ['fr', 'en'].find((lang) => v && !isOptionalText(v[lang]));
+      if (field) return res.status(422).json({ key, field, message: 'Texte attendu.' });
+    }
+    const changes = entries.map(([key, v]) => ({ key, fr: v?.fr ?? undefined, en: v?.en ?? undefined }));
     const result = model().apply(changes);
     if (!result.ok) {
       const { ok, ...refusal } = result;

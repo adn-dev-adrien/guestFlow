@@ -47,6 +47,7 @@ import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import ReservationSearchBox from './components/ReservationSearchBox';
 import { withFrom } from './utils/navigation';
+import { LOGIN_PATH, logoutAsked, logoutThroughGuard, navigateThroughGuard, takeAskedLogout } from './utils/guardedNavigation';
 import api from './api';
 import { PLATFORM_COLORS, PLATFORM_TEXT_COLORS, normalizePlatformKey, setPlatformDisplayNames } from './constants/platforms';
 import {
@@ -560,7 +561,7 @@ function NavContent({ onItemClick }) {
             primary: { variant: 'body2' }
           }} />
         </ListItemButton>
-        <ListItemButton onClick={() => logout()} sx={{ py: 0.75, borderRadius: 2, mx: 1 }}>
+        <ListItemButton onClick={() => logoutThroughGuard(logout)} sx={{ py: 0.75, borderRadius: 2, mx: 1 }}>
           <ListItemIcon sx={{ minWidth: 34 }}><LogoutIcon fontSize="small" /></ListItemIcon>
           <ListItemText primary="Se déconnecter" slotProps={{
             primary: { variant: 'body2' }
@@ -645,7 +646,7 @@ function AppShell() {
   const location = useLocation();
   const { user } = useAuth();
   const canSearchReservations = userHasRole(user, ADMIN);
-  const roleRedirect = roleRedirectTarget(user, location.pathname);
+  const roleRedirect = location.pathname === LOGIN_PATH ? null : roleRedirectTarget(user, location.pathname);
   useEffect(() => prefetchOnIdle(IDLE_PAGES), []);
   // A page of an inactive plugin is never mounted (rule 18); in its place the 404, which an
   // administrator reads as « Plugin inactif » (specs/plugins-phase-p-productisation.md rule 42).
@@ -665,7 +666,7 @@ function AppShell() {
   useTopBarTitleRoom(toolbarRef, titleRef, pageTitle, showPageTitle && !searchOpen);
   const handleHeaderSearchSelect = (id) => {
     setSearchOpen(false);
-    navigate(withFrom(`/reservations/${id}`, `${location.pathname}${location.search}`));
+    navigateThroughGuard(navigate, withFrom(`/reservations/${id}`, `${location.pathname}${location.search}`));
   };
 
   // Push the configured company logo into the document's <link rel="icon"> at runtime. Server-side
@@ -882,7 +883,7 @@ function AppShell() {
           {/* specs/hosting-h2-account-security.md rules 13, 15, 17 — managed instances only. */}
           <Route path="/parametres/acces-support" element={canSeeRoute(user, '/parametres/acces-support') ? <SupportAccessPage /> : <Navigate to="/" replace />} />
           {/* The pre-auth pages, reached with a session (a reset that logged in): home. */}
-          <Route path="/login" element={<Navigate to="/" replace />} />
+          <Route path={LOGIN_PATH} element={<SignedInLoginRoute />} />
           <Route path="/mot-de-passe-oublie" element={<Navigate to="/" replace />} />
           <Route path="/nouveau-mot-de-passe" element={<Navigate to="/" replace />} />
           {/* « Mon compte » — every role (rule 6). Legacy paths redirect to it. */}
@@ -900,6 +901,15 @@ function AppShell() {
       </Box>
     </Box>
   );
+}
+
+// `/login` with a session: home, unless a page's prompt just sent the operator here from « Se déconnecter »
+// (specs/ui-review-2026-10-19-operations.md rule 42).
+function SignedInLoginRoute() {
+  const { logout } = useAuth();
+  const [asked] = useState(logoutAsked);
+  useEffect(() => { if (takeAskedLogout()) logout(); }, [logout]);
+  return asked ? null : <Navigate to="/" replace />;
 }
 
 function AuthGate() {

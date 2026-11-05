@@ -315,6 +315,14 @@ them, reset their password, deactivate or delete them. Temporary passwords are d
     "display password in the response" branch (`temporaryPassword` returned) is **removed** —
     nothing prints the password anywhere on screen ever again.
 
+20. **A refusal under a field of the account dialog is French (audit R23 console C6, 2026-11-05).** The server answers
+    `{ error, field }`; `UserManagementPage` (`fieldRefusalText`) prints the server's `detail`, else « Prénom
+    obligatoire. », « Nom obligatoire. », « Adresse email invalide. », « Cet email est déjà utilisé. », « Choisir au moins
+    un rôle. », « Rôle inconnu. », « Module de ce rôle inactif. », else the `message` when it is a sentence, else
+    « Valeur refusée. », never the code. No server change.
+    Test: `UserManagementPage.field-refusals`.
+    *Reading of 2026-11-05 (R23 verification F5):* « Mon compte » reads the same `utils/fieldRefusalText.js` (`AccountPage`).
+
 **Edge cases:**
 - SMTP is configured but the network is down at the moment of account creation → user is created
   in DB, password is set, but the email send fails. We **roll back** the user creation in a

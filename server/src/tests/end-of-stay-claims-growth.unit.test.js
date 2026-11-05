@@ -109,7 +109,8 @@ test('D9 — the proof given, pre-arrival money not settled: the gap is claimed 
     assert.equal(res.statusCode, 200, JSON.stringify(res.body));
   };
   const claimed = () => {
-    const quote = quoteStoredReservation(db, rowOf(stay.id), { paidSoldeCaptured: true, adults: 3 });
+    // D17: a fully paid plan pins its tax; a save that changes the party re-prices it (sameStayAsSold), as here.
+    const quote = quoteStoredReservation(db, rowOf(stay.id), { paidSoldeCaptured: true, adults: 3, freezeTouristTax: false });
     assert.equal(quote.error, undefined);
     return (quote.midStayExtrasLines || []).find((line) => line.key === EXCESS_KEY);
   };
@@ -118,4 +119,61 @@ test('D9 — the proof given, pre-arrival money not settled: the gap is claimed 
   assert.equal(claimed(), undefined);
   await payInstallment(plan[1]);
   assert.equal(claimed().amount, 42.4, 'the same gap, settled, is claimed');
+});
+
+// Rule 20, reading of 2026-11-05 (audit R23 N1) — a plan never sets `balancePaid`: its being fully paid is the proof.
+async function fullyPaidPlan(stay) {
+  const set = respond();
+  await installmentsController.put({ params: { id: stay.id }, body: { count: 2 }, user: ADMIN }, set);
+  assert.equal(set.statusCode, 200, JSON.stringify(set.body));
+  for (const installment of db.prepare('SELECT id FROM reservation_installments WHERE reservationId = ? ORDER BY number').all(stay.id)) {
+    const res = respond();
+    await installmentsController.markPaid({ params: { id: stay.id, installmentId: installment.id }, body: { paidDate: TODAY, method: 'transfer' }, user: ADMIN }, res);
+    assert.equal(res.statusCode, 200, JSON.stringify(res.body));
+  }
+}
+const planGap = (id) => {
+  const stay = ficheView(id);
+  const row = rowOf(id);
+  return Math.round((stay.finalPrice + stay.touristTaxTotal - row.installmentsPaidAmount - row.complementAmount - stay.ledger.remaining) * 100) / 100;
+};
+
+test('N1 — a fully paid plan, complement paid, one adult more: 42,40 € claimed at the end of stay, gap 0', async () => {
+  const stay = fiche(NO_ACOMPTE, 'direct', { customOptions: [forced(20)] });
+  await fullyPaidPlan(stay);
+  pay(stay.id, C);
+  await put(stay, { adults: 3 });
+  assert.equal(ficheView(stay.id).ledger.remaining, 42.4);
+  assert.equal(excessOf(stay.id), 42.4);
+  assert.equal(planGap(stay.id), 0);
+});
+
+test('N1 — the same, one night more: 302,40 € claimed', async () => {
+  const stay = fiche(NO_ACOMPTE, 'direct', { customOptions: [forced(20)] });
+  await fullyPaidPlan(stay);
+  pay(stay.id, C);
+  await put(stay, { endDate: inDays(Math.round((Date.parse(stay.body.endDate) - Date.parse(inDays(0))) / 86400000) + 1) });
+  assert.equal(ficheView(stay.id).ledger.remaining, 302.4);
+  assert.equal(planGap(stay.id), 0);
+});
+
+test('N1 — tax in the complement on a plan: the whole growth is claimed, 42,40 €', async () => {
+  const stay = fiche(NO_ACOMPTE, 'direct', { touristTaxInComplement: 1 });
+  await fullyPaidPlan(stay);
+  pay(stay.id, C);
+  await put(stay, { adults: 3 });
+  assert.equal(ficheView(stay.id).ledger.remaining, 42.4);
+  assert.equal(planGap(stay.id), 0);
+});
+
+test('N1 — a plan part-paid proves nothing: the growth goes on its unpaid installment, never the end of stay', async () => {
+  const stay = fiche(NO_ACOMPTE, 'direct', { customOptions: [forced(20)] });
+  const set = respond();
+  await installmentsController.put({ params: { id: stay.id }, body: { count: 2 }, user: ADMIN }, set);
+  const [first] = db.prepare('SELECT id FROM reservation_installments WHERE reservationId = ? ORDER BY number').all(stay.id);
+  const res = respond();
+  await installmentsController.markPaid({ params: { id: stay.id, installmentId: first.id }, body: { paidDate: TODAY, method: 'transfer' }, user: ADMIN }, res);
+  pay(stay.id, C);
+  await put(stay, { adults: 3 });
+  assert.equal(excessOf(stay.id) || 0, 0);
 });

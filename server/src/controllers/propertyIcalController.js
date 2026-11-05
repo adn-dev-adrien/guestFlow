@@ -5,7 +5,10 @@ const model = require('../models/propertyIcalModel');
 const platformsModel = require('../models/platformsModel');
 
 function respond(res, result) {
-  if (result && result.error) return res.status(result.status || 400).json({ error: result.error });
+  if (result && result.error) {
+    const { error, code, field } = result;
+    return res.status(result.status || 400).json({ error, ...(code ? { code, field } : {}) });
+  }
   return res.json(result.data);
 }
 

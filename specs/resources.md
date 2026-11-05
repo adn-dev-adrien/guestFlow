@@ -44,7 +44,8 @@ except the delete confirmation now states the impact.
    (`resourceId`, `propertyId`). The API still exposes `propertyIds` (array, rebuilt from the pivot) so
    `ResourcesPage` is unchanged. Empty pivot = global (applies to all logements), same semantics as today.
 3. **All applicability consumers read the pivot** (no JSON parsing left): resources list/availability,
-   baby-bed availability (`resourcesModel` + `reservationsModel`), the pricing engine
+   baby-bed availability (`resourcesModel` + `reservationsModel`, counted as the peak of one night since 2026-11-05,
+   `specs/reservations-backend-mvc.md` rule 21), the pricing engine
    (`utils/pricing.js` resource filter), and the baby-bed seed in `database.js`.
 4. **Create/Update** replace the resource's `resource_properties` rows and its `property_resource_prices`
    rows atomically (transaction), validate inputs (name required; quantity/price/freeMinutes

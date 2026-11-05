@@ -108,12 +108,13 @@ function createModel(database) {
       FROM reservations r
       JOIN properties p ON p.id = r.propertyId
       WHERE r.kind = 'reservation'
-        AND (CASE WHEN CAST(SUBSTR(COALESCE(r.checkInTime, '15:00'), 1, 2) AS INTEGER) <= ?
+        AND (CASE WHEN CAST(SUBSTR(COALESCE(r.checkInTime, '15:00'), 1, 2) AS INTEGER) * 60
+                       + CAST(SUBSTR(COALESCE(r.checkInTime, '15:00'), 4, 2) AS INTEGER) <= ?
                   THEN date(r.startDate, '-1 day') ELSE r.startDate END) < ?
         AND (CASE WHEN CAST(SUBSTR(COALESCE(r.checkOutTime, '10:00'), 1, 2) AS INTEGER) >= ?
                   THEN date(r.endDate, '+1 day') ELSE r.endDate END) > ?
     `;
-    const params = [EARLY_CHECKIN_BLOCK_HOUR, endDate, LATE_CHECKOUT_BLOCK_HOUR, startDate];
+    const params = [EARLY_CHECKIN_BLOCK_HOUR * 60, endDate, LATE_CHECKOUT_BLOCK_HOUR, startDate];
     if (propertyId != null) {
       sql += ' AND r.propertyId = ?';
       params.push(Number(propertyId));
@@ -134,12 +135,13 @@ function createModel(database) {
       JOIN properties p ON p.id = r.propertyId
       LEFT JOIN clients c ON c.id = r.clientId
       WHERE r.kind = 'reservation'
-        AND (CASE WHEN CAST(SUBSTR(COALESCE(r.checkInTime, '15:00'), 1, 2) AS INTEGER) <= ?
+        AND (CASE WHEN CAST(SUBSTR(COALESCE(r.checkInTime, '15:00'), 1, 2) AS INTEGER) * 60
+                       + CAST(SUBSTR(COALESCE(r.checkInTime, '15:00'), 4, 2) AS INTEGER) <= ?
                   THEN date(r.startDate, '-1 day') ELSE r.startDate END) < ?
         AND (CASE WHEN CAST(SUBSTR(COALESCE(r.checkOutTime, '10:00'), 1, 2) AS INTEGER) >= ?
                   THEN date(r.endDate, '+1 day') ELSE r.endDate END) > ?
     `;
-    const params = [EARLY_CHECKIN_BLOCK_HOUR, endDate, LATE_CHECKOUT_BLOCK_HOUR, startDate];
+    const params = [EARLY_CHECKIN_BLOCK_HOUR * 60, endDate, LATE_CHECKOUT_BLOCK_HOUR, startDate];
     if (propertyId != null) {
       sql += ' AND r.propertyId = ?';
       params.push(Number(propertyId));

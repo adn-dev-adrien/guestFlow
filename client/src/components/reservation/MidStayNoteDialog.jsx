@@ -32,18 +32,20 @@ import { formatCurrency } from '../../utils/formatters';
  *  - `onSettle({ checkedKeys, opening }, cash)` — save (if the form changed) then settle the note.
  *  - `onSellOnly()` — save only: everything stays due at check-out.
  */
+const NO_PREVIEW = { items: [], total: 0, arrivalNotMarked: false };
+
 export default function MidStayNoteDialog({ open, onClose, pendingLines = [], onSettle, onSellOnly }) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const {
     form, propertyOptions, propertyOptionGroups, setOptionEnabled, setOptionQuantity,
-    quantityPersons, quantityNights, setOptionTypedCount, pricingQuote,
+    quantityPersons, quantityNights, setOptionTypedCount, pricingQuote, editingReservationId,
     captureOptionsState, restoreOptionsState, arrivalLines, maxGuestsAllowed,
   } = useReservationForm();
 
   const [checkedKeys, setCheckedKeys] = useState([]);
   const [busy, setBusy] = useState(false);
-  const [preview, setPreview] = useState({ items: [], total: 0 });
+  const [preview, setPreview] = useState(NO_PREVIEW);
   // The sold options when the dialog opened: « Annuler » must leave the reservation exactly as it was,
   // catalogue additions and removals included (§3.5 edge cases; non-card-option-served-persons.md rule 31).
   // State, not a ref: what the note adds is measured against it (rule 33), so it has to render.
@@ -62,7 +64,7 @@ export default function MidStayNoteDialog({ open, onClose, pendingLines = [], on
       .map((l) => ({ key: l.key, label: l.label, amount: l.amount }));
     setCheckedKeys([]);
     setBusy(false);
-    setPreview({ items: [], total: 0 });
+    setPreview(NO_PREVIEW);
     // Snapshot once per opening; `form.selectedOptions` intentionally not a dependency.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -72,10 +74,13 @@ export default function MidStayNoteDialog({ open, onClose, pendingLines = [], on
     if (!open) return;
     const seq = previewSeq.current + 1;
     previewSeq.current = seq;
-    api.previewMidStayNote({ opening: openingRef.current, current: liveLines || [], checkedKeys })
-      .then((r) => { if (previewSeq.current === seq) setPreview({ items: (r && r.items) || [], total: Number(r && r.total) || 0 }); })
-      .catch(() => { if (previewSeq.current === seq) setPreview({ items: [], total: 0 }); });
-  }, [open, checkedKeys, liveLines]);
+    api.previewMidStayNote({ reservationId: editingReservationId, opening: openingRef.current, current: liveLines || [], checkedKeys })
+      .then((r) => {
+        if (previewSeq.current !== seq) return;
+        setPreview({ items: (r && r.items) || [], total: Number(r && r.total) || 0, arrivalNotMarked: Boolean(r && r.arrivalNotMarked) });
+      })
+      .catch(() => { if (previewSeq.current === seq) setPreview(NO_PREVIEW); });
+  }, [open, checkedKeys, liveLines, editingReservationId]);
 
   const noteTotal = preview.total;
   const instruction = () => ({ checkedKeys, opening: openingRef.current });
@@ -239,6 +244,9 @@ export default function MidStayNoteDialog({ open, onClose, pendingLines = [], on
             <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Total de la note</Typography>
             <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>{formatCurrency(noteTotal)}</Typography>
           </Box>
+          {preview.arrivalNotMarked && (
+            <Typography variant="caption" color="text.secondary">Arrivée non marquée : la vente rejoint le solde.</Typography>
+          )}
         </Stack>
       </DialogContent>
       <DialogActions sx={{ flexDirection: { xs: 'column', sm: 'row' }, gap: 1, '& > :not(style) ~ :not(style)': { ml: { xs: 0, sm: 1 } } }}>

@@ -1,0 +1,1 @@
+- Qonto: a token refresh overtaken by new credentials or a new consent no longer records a failure on the connection, even when that refresh fails (`qonto-settings-in-app.md` rule 19).

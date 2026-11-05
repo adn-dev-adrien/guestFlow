@@ -22,7 +22,8 @@
  * plugin install and activate handlers. A failed plugin is named and the others go through.
  */
 
-const { asText, fieldText, isOptionalText } = require('../utils/bodyText');
+const { asText, fieldText, isOptionalText, positiveId, withoutControls } = require('../utils/bodyText');
+const { usableNumber } = require('../utils/lineInputBounds');
 const validation = require('../utils/settingsValidation');
 const { validatePropertyInput } = require('../utils/propertyValidation');
 const { quotaRefusal } = require('../utils/planQuota');
@@ -219,22 +220,28 @@ function buildController({
     const b = req.body || {};
     const list = Array.isArray(b.properties) ? b.properties : [];
     const errors = {};
+    for (const key of ['phone', 'senderName']) {
+      if (!isOptionalText(b[key])) errors[key] = 'Texte attendu.';
+    }
     const known = new Set(database.prepare('SELECT id FROM properties').all().map((p) => p.id));
     list.forEach((p, i) => {
-      if (!p || !known.has(Number(p.id))) errors[`properties.${i}`] = 'Logement inconnu';
+      if (!p || !known.has(positiveId(p.id))) errors[`properties.${i}`] = 'Logement inconnu';
       else if (p.nameArticle !== undefined && !NAME_ARTICLES.includes(p.nameArticle)) errors[`properties.${i}.nameArticle`] = 'Article inconnu';
       for (const key of ['address', 'access', 'accessCode', 'wifiName', 'wifiPassword']) {
-        if (p && p[key] !== undefined && String(p[key]).length > arrivalFactsModel.MAX_LENGTH) errors[`properties.${i}.${key}`] = 'Trop long';
+        if (p && !isOptionalText(p[key])) errors[`properties.${i}.${key}`] = 'Texte attendu.';
+        else if (p && p[key] != null && p[key].length > arrivalFactsModel.MAX_LENGTH) errors[`properties.${i}.${key}`] = 'Trop long';
       }
-      if (p && p.caution !== undefined && p.caution !== null) {
+      if (p && p.caution !== undefined && p.caution !== null && typeof p.caution !== 'string' && typeof p.caution !== 'number') {
+        errors[`properties.${i}.caution`] = 'Un montant ≥ 0 €';
+      } else if (p && p.caution !== undefined && p.caution !== null) {
         const amount = Number(String(p.caution).replace(',', '.'));
         if (String(p.caution).trim() === '' || !Number.isFinite(amount) || amount < 0) errors[`properties.${i}.caution`] = 'Un montant ≥ 0 €';
       }
     });
     if (Object.keys(errors).length) return res.status(422).json({ errors });
     const settings = {};
-    if (b.phone !== undefined) settings.companyPhone = String(b.phone).trim();
-    if (b.senderName !== undefined) settings.smtpFromName = String(b.senderName).trim();
+    if (b.phone != null) settings.companyPhone = b.phone.trim();
+    if (b.senderName != null) settings.smtpFromName = b.senderName.trim();
     if (Object.keys(settings).length) settingsModel.upsert(settings);
     const companyAddress = String(settingsModel.read().companyAddress || '').trim();
     const arrival = arrivalFactsModel.buildModel(database);
@@ -262,12 +269,13 @@ function buildController({
         }
         const patch = {};
         // The company's address left as it was stays derived, so a later change of it follows.
-        if (p.address !== undefined) patch.address = String(p.address).trim() === companyAddress ? '' : p.address;
+        if (p.address !== undefined) patch.address = String(p.address ?? '').trim() === companyAddress ? '' : p.address;
         if (p.access !== undefined) patch.accessFr = p.access;
         // Rule 32 — the code has its own field, kept encrypted, out of the texts and the file.
-        if (p.accessCode !== undefined && p.accessCode !== '') patch.accessCode = p.accessCode;
+        // Hosting-h2 rule 18 — a null is no secret: the support policy lets it through as « nothing written ».
+        if (p.accessCode != null && p.accessCode !== '') patch.accessCode = p.accessCode;
         if (p.wifiName !== undefined) patch.wifiName = p.wifiName;
-        if (p.wifiPassword !== undefined && p.wifiPassword !== '') patch.wifiPassword = p.wifiPassword;
+        if (p.wifiPassword != null && p.wifiPassword !== '') patch.wifiPassword = p.wifiPassword;
         if (Object.keys(patch).length) arrival.save(id, patch);
       }
     })();
@@ -353,10 +361,10 @@ function buildController({
     }
     const noCapacity = b.maxGuests == null || String(b.maxGuests).trim() === '';
     const body = {
-      name: asText(b.name).trim(),
+      name: withoutControls(asText(b.name)).trim(),
       doubleBeds: b.doubleBeds, singleBeds: b.singleBeds,
       maxGuests: noCapacity ? capacityFor(b.doubleBeds, b.singleBeds) : b.maxGuests,
-      defaultCheckIn: b.checkIn, defaultCheckOut: b.checkOut, pricePerNight: b.pricePerNight,
+      defaultCheckIn: b.checkIn, defaultCheckOut: b.checkOut,
     };
     const errors = validatePropertyInput(body, null);
     if (!body.name) errors.name = 'Nom obligatoire';
@@ -365,7 +373,7 @@ function buildController({
     const price = Number(String(b.pricePerNight ?? '').replace(',', '.'));
     // Rule 38 — an empty price is a missing one, not a negative one.
     if (b.pricePerNight == null || String(b.pricePerNight).trim() === '') errors.pricePerNight = 'Prix obligatoire';
-    else if (!Number.isFinite(price) || price < 0) errors.pricePerNight = 'Prix positif ou nul';
+    else if (!usableNumber(price) || price < 0) errors.pricePerNight = 'Prix positif ou nul';
     for (const [key, field] of [['checkIn', 'defaultCheckIn'], ['checkOut', 'defaultCheckOut']]) {
       if (b[key] && !/^\d{2}:\d{2}$/.test(String(b[key]))) errors[field] = 'Heure invalide';
     }

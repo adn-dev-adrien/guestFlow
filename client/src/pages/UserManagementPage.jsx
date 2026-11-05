@@ -24,6 +24,7 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlineOutlined';
 import PersonAddAlt1Icon from '@mui/icons-material/PersonAddAlt1';
 import PhonelinkEraseIcon from '@mui/icons-material/PhonelinkErase';
 import api from '../api';
+import fieldRefusalText from '../utils/fieldRefusalText';
 import PageActionBar from '../components/PageActionBar';
 import { useToast } from '../components/DialogProvider';
 import ErrorAlert from '../components/ErrorAlert';
@@ -136,7 +137,7 @@ export default function UserManagementPage() {
     } catch (err) {
       // Server-side field errors land under their field; everything else lands in the snackbar.
       if (err && err.field) {
-        setFormErrors({ [err.field]: err.detail || err.error });
+        setFormErrors({ [err.field]: fieldRefusalText(err) });
       } else if (err && err.error === 'EMAIL_ALREADY_EXISTS') {
         setFormErrors({ email: 'Cet email est déjà utilisé.' });
       } else {

@@ -34,6 +34,34 @@ function toMinutes(timeStr) {
   return (hours * 60) + (minutes || 0);
 }
 
+// The request's shape, judged where the model takes it (specs/resource-supplements-total-server-side.md rule 23). A plugin
+// reads no core helper for this: the checks are the ones of `utils/bodyText` (hosting-h2 rule 68).
+const CLOCK_TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
+const isClockTime = (value) => typeof value === 'string' && CLOCK_TIME.test(value);
+const isText = (value) => value === undefined || value === null || typeof value === 'string';
+const isFlag = (value) => value === true || value === false || value === 1 || value === 0;
+const notSent = (value) => value === undefined || value === null || value === '';
+function positiveId(value) {
+  const n = typeof value === 'string' && /^[1-9]\d*$/.test(value) ? Number(value) : value;
+  return Number.isSafeInteger(n) && n > 0 ? n : null;
+}
+const refused = (message) => ({ error: message, status: 400 });
+
+function shapeRefusal(payload, stored = null) {
+  const kept = (field) => stored && payload[field] === stored[field];
+  for (const field of ['startTime', 'endTime']) {
+    if (payload[field] !== undefined && !kept(field) && !isClockTime(payload[field])) return refused('Heure invalide.');
+  }
+  if (payload.date !== undefined && typeof payload.date !== 'string') return refused('Date invalide.');
+  for (const field of ['clientName', 'clientPhone', 'notes']) {
+    if (!isText(payload[field])) return refused('Texte attendu.');
+  }
+  if (payload.paid !== undefined && !isFlag(payload.paid)) return refused('Valeur invalide.');
+  const total = payload.displayedTotal;
+  if (!notSent(total) && (typeof total === 'object' || typeof total === 'boolean' || !Number.isFinite(Number(total)))) return refused('Valeur invalide.');
+  return null;
+}
+
 function roundMoney(value) {
   return Math.round(Number(value || 0) * 100) / 100;
 }
@@ -148,11 +176,14 @@ function createModel(database) {
     if (!resourceId || !date || !startTime || !endTime) {
       return { error: 'resourceId, date, startTime, endTime sont requis', status: 400 };
     }
-    const resource = getResourceForBooking(resourceId);
+    if (positiveId(resourceId) === null || (!notSent(bookingId) && positiveId(bookingId) === null)) return refused('Identifiant invalide.');
+    const shape = shapeRefusal({ date, startTime, endTime }) || linkRefusal({ propertyId });
+    if (shape) return shape;
+    const resource = getResourceForBooking(positiveId(resourceId));
     if (!resource) return { error: 'Ressource non trouvée', status: 404 };
     let reservationId = null;
     let storedDate;
-    if (bookingId) {
+    if (!notSent(bookingId)) {
       const existing = database.prepare('SELECT reservationId, resourceId, date FROM resource_bookings WHERE id = ?').get(bookingId);
       if (!existing) return { error: 'Réservation non trouvée', status: 404 };
       if (Number(existing.resourceId) !== Number(resourceId)) return { error: 'Réservation d’une autre ressource', status: 400 };
@@ -187,6 +218,23 @@ function createModel(database) {
     return occupancyModel.countConflicts({
       resourceId, date, startTime, endTime, turnover, excludeBookingId: excludeId,
     });
+  }
+
+  // Rule 23 — what a booking links to: not sent, or a row that exists; a stored link sent back is not re-judged.
+  const LINKS = [
+    ['reservationId', 'reservations', 'Réservation non trouvée'],
+    ['clientId', 'clients', 'Client non trouvé'],
+    ['propertyId', 'properties', 'Logement non trouvé'],
+  ];
+  function linkRefusal(payload, stored = null) {
+    for (const [field, table, missing] of LINKS) {
+      const value = payload[field];
+      if (notSent(value) || (stored && value === stored[field])) continue;
+      const id = positiveId(value);
+      if (id === null) return refused('Identifiant invalide.');
+      if (!database.prepare(`SELECT 1 FROM ${table} WHERE id = ?`).get(id)) return { error: missing, status: 404 };
+    }
+    return null;
   }
 
   function getResourceForBooking(resourceId) {
@@ -295,7 +343,10 @@ function createModel(database) {
     if (!resourceId || !date || !startTime || !endTime) {
       return { error: 'resourceId, date, startTime, endTime sont requis', status: 400 };
     }
-    const resource = getResourceForBooking(resourceId);
+    if (positiveId(resourceId) === null) return refused('Identifiant invalide.');
+    const shape = shapeRefusal(payload) || linkRefusal(payload);
+    if (shape) return shape;
+    const resource = getResourceForBooking(positiveId(resourceId));
     if (!resource) return { error: 'Ressource non trouvée', status: 404 };
 
     const refusal = checkBookable({ resource, date, startTime, endTime });
@@ -304,13 +355,15 @@ function createModel(database) {
     const totalPrice = breakdownOf({ resource, startTime, endTime, propertyId, reservationId }).total;
     const result = database.prepare(
       'INSERT INTO resource_bookings (resourceId, reservationId, clientId, clientName, clientPhone, propertyId, date, startTime, endTime, notes, totalPrice, paid) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)'
-    ).run(resourceId, reservationId || null, clientId || null, clientName || null, clientPhone || null, propertyId || null, date, startTime, endTime, notes || '', totalPrice, paid ? 1 : 0);
+    ).run(resource.id, reservationId || null, clientId || null, clientName || null, clientPhone || null, propertyId || null, date, startTime, endTime, notes || '', totalPrice, paid ? 1 : 0);
     return { ok: true, id: result.lastInsertRowid, totalPrice, warning: totalWarning(payload.displayedTotal, totalPrice) };
   }
 
   function update(id, payload) {
     const existing = database.prepare('SELECT * FROM resource_bookings WHERE id = ?').get(id);
     if (!existing) return { error: 'Réservation non trouvée', status: 404 };
+    const shape = shapeRefusal(payload, existing) || linkRefusal(payload, existing);
+    if (shape) return shape;
 
     const { reservationId, clientId, clientName, clientPhone, propertyId, date, startTime, endTime, notes, paid } = payload;
     const newDate = date !== undefined ? date : existing.date;
@@ -336,7 +389,7 @@ function createModel(database) {
       clientPhone !== undefined ? (clientPhone || null) : existing.clientPhone,
       propertyId !== undefined ? (propertyId || null) : existing.propertyId,
       newDate, newStart, newEnd,
-      notes !== undefined ? notes : existing.notes,
+      notes !== undefined ? (notes ?? '') : existing.notes,
       totalPrice,
       paid !== undefined ? (paid ? 1 : 0) : existing.paid,
       id,

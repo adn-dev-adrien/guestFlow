@@ -381,7 +381,8 @@ function createPropertiesModel(database) {
       for (const h of hooks) {
         if (!h || !known.has(Number(h.propertyId))) return { error: 'Logement inconnu.', status: 400 };
         for (const key of ['emailHook', 'emailHookEn']) {
-          if (h[key] != null && String(h[key]).length > EMAIL_HOOK_MAX_LENGTH) {
+          if (h[key] != null && typeof h[key] !== 'string') return { error: 'Texte attendu.', status: 400 };
+          if (h[key] != null && h[key].length > EMAIL_HOOK_MAX_LENGTH) {
             return { error: `Une accroche ne dépasse pas ${EMAIL_HOOK_MAX_LENGTH} caractères.`, status: 400 };
           }
         }
@@ -648,7 +649,7 @@ function createPropertiesModel(database) {
     async update(id, body = {}, photoFile = null) {
       const existing = database.prepare('SELECT photo, nameArticle, extraGuestPriceUnit, welcomePackCost, defaultCautionAmount, depositDueDays, balanceDaysBefore, cancelAfterBalanceDueDays FROM properties WHERE id = ?').get(id);
       const newPhoto = photoFile ? await saveOptimizedPhoto(photoFile) : '';
-      const photo = newPhoto || (body.photo || (existing ? existing.photo : ''));
+      const photo = newPhoto || (existing ? existing.photo : '');
 
       database.prepare(`
         UPDATE properties SET name=?, nameArticle=?, photo=?, maxGuests=?, maxBabies=?, basePriceIncludedGuests=?, extraGuestPrice=?, extraGuestPriceUnit=?, welcomePackCost=?, singleBeds=?, doubleBeds=?, depositPercent=?, depositDueDays=?, balanceDaysBefore=?, cancelAfterBalanceDueDays=?, defaultCheckIn=?, defaultCheckOut=?, cleaningHours=?, defaultCautionAmount=?, touristTaxPerDayPerPerson=?, touristTaxMode=?, touristTaxPercentage=?, touristTaxDepartmentPercentage=?, touristTaxFixedAmount=?, depositEnabled=?, updatedAt=datetime('now')

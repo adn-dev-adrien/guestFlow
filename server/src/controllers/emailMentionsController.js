@@ -22,9 +22,12 @@ const { buildStayContent } = require('../utils/stayContentContext');
 const { MENTION_OFFER, MENTION_BOOKED } = require('../utils/stayTextCatalogue');
 const { tokenError, lengthError } = require('../utils/templateTokens');
 
+const { isOptionalText } = require('../utils/bodyText');
+
 const SECTIONS = ['local', 'extras', 'kids'];
 const PRICE_SOURCES = ['min', 'option'];
 const TYPED_ITEMS = ['babyBed', 'towels'];
+const MENTION_TEXTS = ['offerFr', 'offerEn', 'bookedFr', 'bookedEn'];
 
 function validate(body, optionExists) {
   const m = body || {};
@@ -38,7 +41,9 @@ function validate(body, optionExists) {
   if (priceSource === 'option' && !optionIds.includes(priceOptionId)) {
     return { status: 400, error: { field: 'priceOptionId', message: 'Choisir une des options citées' } };
   }
-  const text = (k) => (m[k] == null ? '' : String(m[k]));
+  const notText = MENTION_TEXTS.find((k) => !isOptionalText(m[k]));
+  if (notText) return { status: 400, error: { field: notText, message: 'Texte attendu.' } };
+  const text = (k) => (m[k] == null ? '' : m[k]);
   const mention = {
     section: m.section, optionIds, priceSource, priceOptionId,
     offerFr: text('offerFr'), offerEn: text('offerEn'), bookedFr: text('bookedFr'), bookedEn: text('bookedEn'),

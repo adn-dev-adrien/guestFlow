@@ -273,6 +273,9 @@ a short list of the gaps to fix on the fiches.
     says so. If the fiche was edited since (flag, date or payout no longer the written ones), the
     reconciliation is removed only and the call answers `untouched` — « Fiche modifiée depuis : à
     vérifier à la main ».
+    > **Reading of 2026-11-05 (reservation-refunds rule 52, audit R23 N7).** « Défaire » answers 409 `REFUND_BLOCKS_UNTICK` with
+    > the refund to delete first when what it would take back leaves book refunds above what stays collected: the marks, the
+    > lines and the fiche writes all stay. Marks it would not touch (edited since) do not count. Test: `reconciliation-undo-open-refund`.
 39. On the fiche, a confirmation with unsaved edits follows « Marquer perçu »: the fiche is saved
     first, or the action is refused on a locked fiche with « Enregistrer ou annuler les
     modifications avant de rapprocher ». After a write the fiche's finance section reloads.

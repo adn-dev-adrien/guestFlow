@@ -119,16 +119,16 @@ reservation's **check-out time** is reached (departure) — only to the users (a
     departure pushes already carry both.
 
 ### 3.4 Robustness (no regressions — explicitly tested, not "best-effort")
-10. **Push is fully isolated from the core flows.** Sending a push must **never** affect the iCal sync, the
+16. **Push is fully isolated from the core flows.** Sending a push must **never** affect the iCal sync, the
     booking/devis creation, the reservation save, or the scheduled tick. Every push send is wrapped so a
     failure (no VAPID, no subscription, a browser-endpoint 4xx/5xx, a network error) is caught + logged and
     **cannot propagate** to the caller. This isolation is a **correctness requirement** and is covered by
     tests (a throwing push stub must leave `notifyNewIcalReservation` / the tick returning normally and the
     reservation intact). It is **not** a licence for sloppy code — the push code itself is clean,
     structured, and unit-tested on its own.
-11. **VAPID keys** are generated once on first boot into `server/.env.local` (same pattern as the session
+17. **VAPID keys** are generated once on first boot into `server/.env.local` (same pattern as the session
     secret / PUBLIC_API_KEY) and never committed. The **public** key is exposed via an endpoint for the
-    client subscription; the **private** key stays server-side.
+    client subscription; the **private** key stays server-side. Test: `vapid-keys-once.unit.test.js`.
 12. **No double-fire / no boot flood.** On the very first arrival/departure tick after boot, reservations
     whose time is **already in the past today** are stamped as notified **without** sending (so a restart at
     14:00 doesn't blast every morning arrival). Only events crossing their time **while the server is
@@ -140,7 +140,7 @@ reservation's **check-out time** is reached (departure) — only to the users (a
     user's subscriptions are deleted when the account is deactivated, when the `admin` role is removed, and
     when a support access is revoked (the support account's rows); an access that merely expires leaves rows
     that the fan-out filter never selects.
-14. **Every push send is bounded** (added 2026-10-30, audit R7 finding N7). Rule 10 isolated throws, not
+14. **Every push send is bounded** (added 2026-10-30, audit R7 finding N7). Rule 16 isolated throws, not
     hangs: a push endpoint that accepts the connection and never answers kept `sendToPref` pending for good,
     and several callers await it inside a guarded pass (the online-payment poll holds `inProgress` through
     `notifyPaidAfterCancel` / `notifyConflict`, the Qonto webhook awaits `processPaidLink`, the Neat pass
@@ -157,14 +157,19 @@ reservation's **check-out time** is reached (departure) — only to the users (a
     fan-out and never pruned. `subscribe` now requires strings, an endpoint of at most 2048 characters without
     whitespace or backslash, `https:` on the default port, no private literal and no `localhost` (`assertPublicHost` of
     `safeFeedFetch`, the iCal dev switch not applying), a p256dh of 65 bytes and an auth of 16 bytes in base64url;
-    otherwise 400 `INVALID_SUBSCRIPTION`, « Abonnement refusé. », nothing stored. A name is not resolved, and there
-    is no allow-list of push hosts: it would break a new browser. Rows already stored are not re-judged. Test:
+    otherwise 400 `INVALID_SUBSCRIPTION`, « Abonnement refusé. », nothing stored. A name is judged where it is dialled,
+    and there is no allow-list of push hosts: it would break a new browser. Rows already stored are not re-judged. Test:
     `push-subscribe-validation.unit.test.js`.
     The endpoint must also read as one host to both parsers: the check reads `new URL`, web-push dials
     `url.parse(endpoint).hostname`, and `https://127.0.0.1}/x` or `https://10.0.0.5%2Eexample/` were public to the first
     and private to the second. So the host is written `https://` + dot-separated labels of letters, digits, `-`, `_` (or
     a bracketed IPv6), at most one trailing dot, an optional `:443`, and `new URL` must read it unchanged. A login, a
     `%`, a repeated dot, an empty host, a host above 255 characters or a numeric form such as `https://134744072/` is refused. Stored as sent.
+    _(Reading of 2026-11-05, audit R23 E23-7: `subscribe` still resolves nothing; each send goes through one https agent
+    whose `lookup` is `guardedLookup`, the iCal dev switch not applying, so a name answering a private address opens no
+    connection. The send counts `failed` and the row stays. Limits: Node skips `lookup` for an IP literal, so a literal
+    stored before this rule is still dialled, and the log line of a refusal reads « Adresse du flux… ». Test:
+    `push-send-guarded-lookup.unit.test.js`.)_
 
 **Edge cases:**
 - User denies the browser permission → the device isn't subscribed; the UI reflects "non activées".
@@ -188,7 +193,7 @@ reservation's **check-out time** is reached (departure) — only to the users (a
 |---|---|---|---|
 | deps | `server/package.json` | T | Add `web-push`. |
 | `utils/` | `vapid.js` | C | Load/generate the VAPID keypair from `.env.local` (`web-push.generateVAPIDKeys()` on first run); expose `{ publicKey, configured }` + configure `web-push`. The `sub` subject must be a routable URL/mailto, resolved `VAPID_SUBJECT` → `vapidSubject` setting → company e-mail → SMTP sender, else push off (phase-P rule 18) — see rule 3.ter. |
-| `utils/` | `pushService.js` | C | `sendToPref(prefKey, payload)`: gather subscriptions of users whose `prefKey` is ON, `web-push.sendNotification` each, prune 404/410, count `failed`. `sendToUser(userId, payload)`: same fan-out to one user's own devices (test push). Both injectable for tests, never throw. |
+| `utils/` | `pushService.js` | C | `sendToPref(prefKey, payload)`: gather subscriptions of users whose `prefKey` is ON, `web-push.sendNotification` each, prune 404/410, count `failed`. `sendToUser(userId, payload)`: same fan-out to one user's own devices (test push). Every send dials through one https agent with `guardedLookup` (rule 15). Both injectable for tests, never throw. |
 | `models/` | `pushSubscriptionsModel.js` | C | CRUD on `push_subscriptions` (add/list-by-user/list-for-pref/remove-by-endpoint/`removeByUser`/prune); per-user prefs read/write (`user_push_prefs`). `subscriptionsForPref` and `listByUser` join `users`/`user_roles` through `ELIGIBLE_OWNER` (active, non-support, `admin`) — rule 13. |
 | `utils/` | `pushSubscriptionsCleanup.js` | C | Boot cleanup (called from `database.js`): deletes the devices of an ineligible owner, idempotent — rule 13. |
 | `models/` | `usersModel.js`, `supportAccessModel.js` | T | Rule 13: `softDelete`, the role write and `supportAccessModel.revoke` delete the devices concerned. |

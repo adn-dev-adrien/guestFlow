@@ -13,12 +13,17 @@ const { validateRange } = require('../utils/establishmentClosuresValidation');
 const { sentenceCase } = require('../utils/textFormatters');
 const { emitPricingChanged } = require('../utils/pricingChanged');
 const { closureConflicts, MESSAGES } = require('../utils/closureConflicts');
+const { isOptionalText, positiveId } = require('../utils/bodyText');
 
 function normalizePropertyId(raw) {
   if (raw == null || raw === '' || raw === 'null') return null;
   const n = Number(raw);
   return Number.isFinite(n) && n > 0 ? n : null;
 }
+
+// A body names every property (null, '', 'null') or one, never « every » by accident: the query's lenient reading above
+// closed the whole establishment on a malformed id.
+const isEveryProperty = (raw) => raw == null || raw === '' || raw === 'null';
 
 function buildController({ database, model, onPricingChanged = emitPricingChanged }) {
   function propertyExists(id) {
@@ -27,12 +32,13 @@ function buildController({ database, model, onPricingChanged = emitPricingChange
   }
 
   // The refusal of a write, or null when the closure can be saved.
-  function refusalOf({ propertyId, startDate, endDate, excludeId = null, stored = null }) {
+  function refusalOf({ propertyId, labelRefused, startDate, endDate, excludeId = null, stored = null }) {
     const rangeError = validateRange(startDate, endDate, { stored });
     if (rangeError) return { status: 400, body: { error: rangeError, code: 'INVALID_RANGE' } };
-    if (!propertyExists(propertyId)) {
+    if (propertyId === undefined || !propertyExists(propertyId)) {
       return { status: 400, body: { error: 'Logement introuvable.', code: 'INVALID_PROPERTY' } };
     }
+    if (labelRefused) return { status: 400, body: { error: 'Libellé invalide.', code: 'INVALID_LABEL' } };
     const { reservations, requests } = closureConflicts(model, { propertyId, startDate, endDate });
     if (reservations.length > 0) {
       return { status: 409, body: { error: MESSAGES.RESERVATION_OVERLAP, code: 'RESERVATION_OVERLAP', reservations } };
@@ -48,11 +54,13 @@ function buildController({ database, model, onPricingChanged = emitPricingChange
 
   function readBody(req) {
     const body = req.body || {};
+    const labelRefused = !isOptionalText(body.label);
     return {
-      propertyId: normalizePropertyId(body.propertyId),
-      startDate: body.startDate ? String(body.startDate) : '',
-      endDate: body.endDate ? String(body.endDate) : '',
-      label: sentenceCase(String(body.label || '') || 'Fermeture établissement') || 'Fermeture établissement',
+      propertyId: isEveryProperty(body.propertyId) ? null : (positiveId(body.propertyId) ?? undefined),
+      labelRefused,
+      startDate: typeof body.startDate === 'string' ? body.startDate : '',
+      endDate: typeof body.endDate === 'string' ? body.endDate : '',
+      label: labelRefused ? '' : sentenceCase(body.label || 'Fermeture établissement') || 'Fermeture établissement',
     };
   }
 
@@ -103,8 +111,9 @@ function buildController({ database, model, onPricingChanged = emitPricingChange
   function remove(req, res) {
     const id = Number(req.params.id);
     const existing = model.findById(id);
+    if (!existing) return res.status(404).json({ error: 'Période de fermeture introuvable.' });
     model.delete(id);
-    if (existing) onPricingChanged(existing.propertyId, 'closures');
+    onPricingChanged(existing.propertyId, 'closures');
     return res.json({ ok: true });
   }
 

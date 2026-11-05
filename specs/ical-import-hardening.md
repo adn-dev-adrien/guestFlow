@@ -138,8 +138,13 @@ nothing, and the platforms tab says in one short line what the last sync did.
     refused; a failed lookup is a refusal. The body is capped at 5 MB, by `Content-Length` and
     while streaming (« Flux iCal trop volumineux. »). `GUESTFLOW_ICAL_ALLOW_PRIVATE=1` lifts the address
     check for a development box whose test feed lives on localhost; it is not set in production.
+    _(Reading of 2026-11-05, audit R23 E23-6 and R23-I7: also refused are `192.0.0.0/24`, `192.0.2.0/24`, `192.88.99.0/24`,
+    `198.18.0.0/15`, `198.51.100.0/24` and `203.0.113.0/24`, and any IPv6 address outside `2000::/3`, plus `2001::/23`
+    (Teredo included), `2001:db8::/32` and `3fff::/20`; mapped and 6to4 forms read their IPv4. The list is shared with the
+    push door. Known cost: behind a transparent proxy whose DNS answers fake addresses from `198.18.0.0/15`, iCal and push
+    lose their hosts; `GUESTFLOW_ICAL_ALLOW_PRIVATE` is the exit for iCal only. Test: `safe-feed-reserved-ranges.unit.test.js`.)_
 
-17. *(Added 2026-10-28, audit finding F9.)* **A date is a day of the calendar, and a stay is bounded.** `20270231`
+21. *(Added 2026-10-28, audit finding F9.)* **A date is a day of the calendar, and a stay is bounded.** `20270231`
     and `20271399` used to import as `2027-02-31` / `2027-14-00`, and `DTEND:99991231` as a placeholder blocking
     every later night. An impossible date (also inside a UTC instant) now parses to nothing, so the event is
     dropped (an invalid `DTEND` is not turned into a one-night stay; a missing one still is, and a departure not

@@ -229,9 +229,10 @@ function createNeatController({
       if (!cfg.clientId || !cfg.clientSecret) {
         return res.status(400).json({ error: 'Identifiants Neat non configurés.' });
       }
-      const salesChannelId = String(req.body.salesChannelId || '').trim();
-      const contractId = String(req.body.contractId || '').trim();
-      const paymentMethodId = String(req.body.paymentMethodId || '').trim();
+      const text = (value) => (typeof value === 'string' ? value.trim() : '');
+      const salesChannelId = text(req.body.salesChannelId);
+      const contractId = text(req.body.contractId);
+      const paymentMethodId = text(req.body.paymentMethodId);
       if (!salesChannelId || !contractId || !paymentMethodId) {
         return res.status(400).json({ error: 'Canal, contrat et mode de paiement sont requis.' });
       }

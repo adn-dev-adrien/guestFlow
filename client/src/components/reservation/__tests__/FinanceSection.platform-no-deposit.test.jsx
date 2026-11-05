@@ -2,7 +2,7 @@ import { screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { vi } from 'vitest';
 import { renderFinance as renderLedger, dueRow, naRow, editable, ledgerOf } from './ledgerFixtures';
 
-// specs/accounting-platform-commission-and-no-deposit.md §3.8 rule 21 + §7.3 — a platform without
+// specs/accounting-platform-commission-and-no-deposit.md §3.8 rule 25 + §7.3 — a platform without
 // acompte reads « Sans objet » on the acompte row (the server's words, specs/reservation-payment-ledger.md
 // rule 6); its statement fields (brut, per-échéance commissions — specs/platform-per-echeance-commission.md,
 // specs/platform-payment-entry.md) open from the payout row's amount (ledger).
@@ -43,13 +43,13 @@ async function calculate(ctx) {
 
 beforeEach(() => { vi.clearAllMocks(); });
 
-test('rule 21 — direct reservation: the acompte is a normal row', () => {
+test('rule 25 — direct reservation: the acompte is a normal row', () => {
   renderFinance({ form: { platform: 'direct' } });
   expect(within(document.querySelector('[data-row="deposit"]')).getByText('Acompte')).toBeInTheDocument();
   expect(screen.queryByText(/Sans objet/i)).not.toBeInTheDocument();
 });
 
-test('rule 21 — platform reservation: the acompte row says « Sans objet », with no action and no input', () => {
+test('rule 25 — platform reservation: the acompte row says « Sans objet », with no action and no input', () => {
   renderFinance({ form: { platform: 'GitesDeFrance' } });
   const row = document.querySelector('[data-row="deposit"]');
   expect(within(row).getByText('Sans objet · Gîtes de France encaisse en une fois')).toBeInTheDocument();

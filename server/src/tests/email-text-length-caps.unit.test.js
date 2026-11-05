@@ -60,10 +60,10 @@ test('rule 20: a resource sentence over 20 000 characters is refused, on create 
   const model = {
     insert: (body) => { written.push(body); return 1; },
     update: (id, body) => { written.push(body); },
-    findById: () => ({ id: 1, priceType: 'per_day' }),
+    findById: () => ({ id: 1, priceType: 'per_night' }),
   };
   const controller = resourcesController.buildController(model, { isOffered: () => true, properties: () => [] });
-  const body = { name: 'Sauna', priceType: 'per_day', price: 10, quantity: 1 };
+  const body = { name: 'Sauna', priceType: 'per_night', price: 10, quantity: 1 };
   for (const field of ['emailBookedText', 'emailBookedTextEn']) {
     const refused = call(controller.create, { body: { ...body, [field]: LONG } });
     assert.equal(refused.status, 422, field);

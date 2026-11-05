@@ -155,6 +155,8 @@ or mutable state.
     run. `NODE_ENV=test` alone does not imply it: unit tests drive both code paths with stubbed fetches. The
     reverse holds too: the flag is honoured only under `NODE_ENV=test`, which every E2E server sets. Test:
     `e2e-no-outbound.unit.test.js`.
+    _(Reading of 2026-11-05, audit R23: they also pin `QONTO_API_BASE` and `QONTO_OAUTH_BASE` to a dead local port,
+    which since `qonto-settings-in-app.md` rule 5's reading of that day holds with a stored environment. Same test.)_
 
 ### 3.4 Test coverage — one or more specs per implemented `/specs/` feature
 

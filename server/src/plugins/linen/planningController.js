@@ -80,7 +80,7 @@ function buildController({
       const from = req.query && req.query.from;
       const to = req.query && req.query.to;
       const rangeError = sdk.coreModule('planningDateRange').checkPlanningRange(from, to);
-      if (rangeError) return res.status(rangeError.status).json({ error: rangeError.error });
+      if (rangeError) return res.status(rangeError.status).json({ error: rangeError.error, message: rangeError.message });
 
       const schedule = createSchedule(injectedLaundryScheduleModel.listAll());
       const skippedDates = new Set(injectedLaundryTripSkipsModel.listAll());

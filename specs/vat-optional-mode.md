@@ -296,7 +296,9 @@ Appended, never renumbered; each narrows or completes a rule above.
     accepted keeps its stored figures and is reported (« garde sa taxe de séjour enregistrée »), in the
     preview, in the switch's response (`notRepriced`) and after a rate edit (`vatNotRepriced`). A stay with
     an installment plan is never re-priced (no installment carries the tax): it is reported with its reason
-    (« échéancier : à recalculer depuis la fiche »).
+    (« échéancier : à recalculer depuis la fiche »). *Reading of 2026-11-05 (R23 verification, A4):* a plan reports
+    `plan` first only while unstamped: a paid plan stamped by any save holds a truly kept tax and reads as frozen
+    (`touristTaxKept`), with no « à recalculer » line. Nothing is written either way.
 28. **The identity check compares with the latest period**, not with today's: after a switch dated ahead,
     the way back is offered and the same target is refused. The dialog builds its target from the latest
     period (`state.latest`), and still shows the period in force as the current regime.

@@ -14,6 +14,8 @@ const { billablePriceMessage } = require('./sasQuantityBounds');
 
 const priceRefusal = (message) => ({ error: 'INVALID_PAYLOAD', message });
 
+const labelRefused = (items) => items.some((item) => item && item.label !== undefined && item.label !== null && typeof item.label !== 'string');
+
 const itemsOf = (body) => (Array.isArray(body) ? body : (body && Array.isArray(body.items) ? body.items : null));
 
 function getLinenItems(req, res) {
@@ -22,7 +24,7 @@ function getLinenItems(req, res) {
 
 function updateLinenItems(req, res) {
   const items = itemsOf(req.body);
-  if (!items) return res.status(400).json({ error: 'INVALID_PAYLOAD' });
+  if (!items || labelRefused(items)) return res.status(400).json({ error: 'INVALID_PAYLOAD', message: 'Données invalides.' });
   const refused = billablePriceMessage(items, linenItemsModel.list());
   if (refused) return res.status(400).json(priceRefusal(refused));
   return res.json(linenItemsModel.replaceAll(items));
@@ -34,7 +36,7 @@ function getRepairAmounts(req, res) {
 
 function updateRepairAmounts(req, res) {
   const items = itemsOf(req.body);
-  if (!items) return res.status(400).json({ error: 'INVALID_PAYLOAD' });
+  if (!items || labelRefused(items)) return res.status(400).json({ error: 'INVALID_PAYLOAD', message: 'Données invalides.' });
   const refused = billablePriceMessage(items, repairAmountsModel.list());
   if (refused) return res.status(400).json(priceRefusal(refused));
   return res.json(repairAmountsModel.replaceAll(items, { keepProtected: extinguisherCheckOn() }));

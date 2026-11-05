@@ -15,6 +15,7 @@ const { formatPlatformName, registerDirectChannelSql, isChoreFreeChannel } = req
 const { originDisplay, platformDisplayName } = require('../utils/attributionChannel');
 const { formatTimeShort } = require('../utils/dateFr');
 const { timeToHour, addIsoDays, EARLY_CHECKIN_BLOCK_HOUR, LATE_CHECKOUT_BLOCK_HOUR } = require('../utils/occupancy');
+const { peakCotsHeld, peakResourceHeld, cotsRefusal, resourceRefusal } = require('../utils/stockPeak');
 const { CUSTOM_OPTION_SIGNATURE_BASE, getOptionsSignature, getResourcesSignature, buildHistoryRows } = require('../utils/reservationAudit');
 const { computeBedLinenAlert } = require('../utils/bedLinenAdequacy');
 const { LINEN } = require('../constants/plugins');
@@ -504,7 +505,7 @@ function createReservationsModel(database) {
     if (!HAS_RESERVATION_NUMBER) return;
     const row = database.prepare('SELECT reservationNumber, kind FROM reservations WHERE id = ?').get(reservationId);
     if (!row || row.kind !== 'reservation') return;
-    const override = payload && payload.reservationNumber !== undefined ? String(payload.reservationNumber).trim() : '';
+    const override = payload && payload.reservationNumber != null ? String(payload.reservationNumber).trim() : '';
     if (override) {
       database.prepare('UPDATE reservations SET reservationNumber = ? WHERE id = ?').run(override, reservationId);
       return;
@@ -1524,12 +1525,13 @@ function createReservationsModel(database) {
         FROM reservations
         WHERE kind = 'reservation'
           AND propertyId = ?
-          AND (CASE WHEN CAST(SUBSTR(COALESCE(checkInTime,  '15:00'), 1, 2) AS INTEGER) <= ?
+          AND (CASE WHEN CAST(SUBSTR(COALESCE(checkInTime,  '15:00'), 1, 2) AS INTEGER) * 60
+                         + CAST(SUBSTR(COALESCE(checkInTime,  '15:00'), 4, 2) AS INTEGER) <= ?
                     THEN date(startDate, '-1 day') ELSE startDate END) < ?
           AND (CASE WHEN CAST(SUBSTR(COALESCE(checkOutTime, '10:00'), 1, 2) AS INTEGER) >= ?
                     THEN date(endDate,   '+1 day') ELSE endDate   END) > ?
       `;
-      const overlapParams = [propertyId, EARLY_CHECKIN_BLOCK_HOUR, newEffEnd, LATE_CHECKOUT_BLOCK_HOUR, newEffStart];
+      const overlapParams = [propertyId, EARLY_CHECKIN_BLOCK_HOUR * 60, newEffEnd, LATE_CHECKOUT_BLOCK_HOUR, newEffStart];
       if (excludeId) { overlapSql += ' AND id != ?'; overlapParams.push(excludeId); }
       const strictOverlaps = database.prepare(overlapSql).all(...overlapParams);
       if (strictOverlaps.length > 0) {
@@ -1599,12 +1601,8 @@ function createReservationsModel(database) {
         .filter((r) => r.scopedIds.length === 0 || (propertyIdNum != null && r.scopedIds.includes(propertyIdNum)));
       const babyTotal = babyResources.reduce((sum, r) => sum + Number(r.quantity || 0), 0);
       const babyHasGlobal = babyResources.some((r) => r.scopedIds.length === 0);
-      let babyReservedSql = "SELECT COALESCE(SUM(COALESCE(babyBeds, 0)), 0) as reserved FROM reservations WHERE kind = 'reservation' AND startDate < ? AND endDate > ?";
-      const babyReservedParams = [endDate, startDate];
-      if (excludeId) { babyReservedSql += ' AND id != ?'; babyReservedParams.push(excludeId); }
-      if (!babyHasGlobal) { babyReservedSql += ' AND propertyId = ?'; babyReservedParams.push(propertyId); }
-      const babyReserved = database.prepare(babyReservedSql).get(...babyReservedParams).reserved || 0;
-      return Math.max(0, Number(babyTotal) - Number(babyReserved));
+      const babyReserved = peakCotsHeld(database, { startDate, endDate, propertyId: babyHasGlobal ? null : propertyId, excludeId });
+      return Math.max(0, Number(babyTotal) - babyReserved);
     },
 
     getResourceById(resourceId) {
@@ -1612,15 +1610,25 @@ function createReservationsModel(database) {
     },
 
     getResourceReservedQuantity(resourceId, startDate, endDate, excludeId) {
-      let sql = `
-        SELECT COALESCE(SUM(rr2.quantity), 0) as reserved
-        FROM reservation_resources rr2
-        JOIN reservations r2 ON r2.id = rr2.reservationId
-        WHERE r2.kind = 'reservation' AND rr2.resourceId = ? AND r2.startDate < ? AND r2.endDate > ?
-      `;
-      const params = [resourceId, endDate, startDate];
-      if (excludeId) { sql += ' AND rr2.reservationId != ?'; params.push(excludeId); }
-      return database.prepare(sql).get(...params).reserved || 0;
+      return peakResourceHeld(database, { resourceId, startDate, endDate, excludeId });
+    },
+
+    // specs/devis-accept-to-reservation.md rule 10, specs/calendar-property-parity.md rule 31 — the stock a stored row
+    // would take by becoming a stay: its cots and its lines that hold stock (hourly ones do not, rule 4 of
+    // specs/plugins-phase-3c-hourly-resources.md). Returns the refusal, or null.
+    heldStockRefusal({ id, propertyId, startDate, endDate, babyBeds }) {
+      const cotsLeft = model.getBabyBedAvailability(propertyId, startDate, endDate, null);
+      if (Number(babyBeds || 0) > cotsLeft) return cotsRefusal(cotsLeft);
+      const lines = database.prepare(`
+        SELECT rr.resourceId, rr.quantity, res.name, res.quantity AS stock
+        FROM reservation_resources rr JOIN resources res ON res.id = rr.resourceId
+        WHERE rr.reservationId = ? AND res.priceType != 'per_hour'
+      `).all(id);
+      for (const line of lines) {
+        const left = Number(line.stock) - model.getResourceReservedQuantity(line.resourceId, startDate, endDate, null);
+        if (Number(line.quantity || 0) > left) return resourceRefusal(line.name, left);
+      }
+      return null;
     },
 
     // ── Writes ───────────────────────────────────────────────────────────
@@ -1641,7 +1649,7 @@ function createReservationsModel(database) {
       // to UpperCamelCase here so direct DB queries (`SELECT DISTINCT platform`) yield a
       // case-uniform set. The 'direct' enum stays lowercase (formatPlatformName preserves it).
       const platformNormalized = formatPlatformName(platform) || 'direct';
-      // accounting-platform-commission-and-no-deposit.md §3.2 rule 4: `clientGrossAmount`
+      // accounting-platform-commission-and-no-deposit.md §3.2 rule 24: `clientGrossAmount`
       // is populated on every reservation now. For platforms = the operator-typed gross;
       // for directs = `finalPrice` (since gross === net trivially). This homogenises the
       // shape so the accounting engine doesn't have to special-case NULLs.
@@ -2815,6 +2823,13 @@ function createReservationsModel(database) {
       if (row.arrivalExtrasBaseline) return row.arrivalExtrasBaseline;
       if (!arrivalExtrasBaselineIsDue(row)) return null;
       return JSON.stringify(buildExtrasBaseline(model.readExtraLines(reservationId)));
+    },
+
+    // No baseline, and none due: what is sold now joins the ordinary balance (specs/mid-stay-notes.md rule 23).
+    isArrivalNotMarked(reservationId) {
+      if (!HAS_ARRIVAL_EXTRAS_BASELINE) return false;
+      const row = database.prepare('SELECT * FROM reservations WHERE id = ?').get(reservationId);
+      return Boolean(row) && !row.arrivalExtrasBaseline && !arrivalExtrasBaselineIsDue(row);
     },
 
     getArrivalExtrasBaseline(reservationId) {

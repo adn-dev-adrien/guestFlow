@@ -93,7 +93,7 @@ test('specs/linen-laundry-days.md §3.2 rule 13: both bounds are required and we
     const res = makeRes();
     controller.laundryDays({ query }, res);
     assert.equal(res.statusCode, 400, JSON.stringify(query));
-    assert.deepEqual(res.body, { error: 'INVALID_DATE_RANGE' });
+    assert.deepEqual(res.body, { error: 'INVALID_DATE_RANGE', message: 'Période invalide.' });
   }
 });
 
@@ -106,7 +106,7 @@ test('specs/linen-laundry-days.md §3.2 rule 13: a pathological span is refused 
   const res = makeRes();
   controller.laundryDays({ query: { from: '0001-01-01', to: '9999-12-31' } }, res);
   assert.equal(res.statusCode, 400);
-  assert.deepEqual(res.body, { error: 'DATE_RANGE_TOO_WIDE' });
+  assert.deepEqual(res.body, { error: 'DATE_RANGE_TOO_WIDE', message: 'Période trop longue.' });
 });
 
 // --- Rule 13: which dates are drawn -------------------------------------------------------------

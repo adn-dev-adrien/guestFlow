@@ -13,6 +13,7 @@
  * so the controller only maps codes to HTTP statuses.
  */
 
+const { asText, isOptionalText, positiveId } = require('./bodyText');
 const { isRealIsoDay, dateWindowMessage, dateBeforeHorizon, PAST_HORIZON_MESSAGE, ENTRY_DATE_INVALID_MESSAGE } = require('./stayDates');
 
 // The ceiling is a sanity guard, not a business rule: a cancellation indemnity is a fraction of a
@@ -60,6 +61,7 @@ function windowRefusal(value, fields, { stored = null, today } = {}) {
 function validateApprovalCompensation(input, { today } = {}) {
   if (input === null || input === undefined) return { ok: true, value: null };
   if (typeof input !== 'object') return { ok: false, error: 'INVALID_COMPENSATION', field: 'compensation' };
+  if (!isOptionalText(input.notes)) return { ok: false, error: 'INVALID_FIELD', field: 'notes' };
   const expectedAmount = parseAmount(input.expectedAmount, { positive: false });
   if (Number.isNaN(expectedAmount)) return { ok: false, error: 'INVALID_AMOUNT', field: 'expectedAmount' };
   const expectedDate = parseOptionalDate(input.expectedDate);
@@ -71,6 +73,9 @@ function validateApprovalCompensation(input, { today } = {}) {
     value: { expectedAmount, expectedDate, notes: String(input.notes || '').trim() },
   };
 }
+
+const SNAPSHOT_TEXTS = ['propertyName', 'clientFirstName', 'clientLastName', 'notes'];
+const isAbsentId = (value) => value == null || value === '';
 
 /**
  * Full create/update payload. The snapshot fields are free text on purpose: they describe a
@@ -87,8 +92,11 @@ function validateDraft(input, { stored = null, today } = {}) {
   if (startDate === undefined) return { ok: false, error: 'INVALID_DATE', field: 'startDate' };
   const endDate = parseOptionalDate(body.endDate);
   if (endDate === undefined) return { ok: false, error: 'INVALID_DATE', field: 'endDate' };
-  const platform = String(body.platform || '').trim();
+  const platform = asText(body.platform).trim();
   if (!platform) return { ok: false, error: 'PLATFORM_REQUIRED', field: 'platform' };
+  const notText = SNAPSHOT_TEXTS.find((key) => !isOptionalText(body[key]));
+  if (notText) return { ok: false, error: 'INVALID_FIELD', field: notText };
+  if (!isAbsentId(body.propertyId) && positiveId(body.propertyId) === null) return { ok: false, error: 'INVALID_FIELD', field: 'propertyId' };
   const cancelledStayAmount = body.cancelledStayAmount === '' || body.cancelledStayAmount == null
     ? null
     : parseAmount(body.cancelledStayAmount, { positive: false });
@@ -98,7 +106,7 @@ function validateDraft(input, { stored = null, today } = {}) {
   return {
     ok: true,
     value: {
-      propertyId: body.propertyId == null || body.propertyId === '' ? null : Number(body.propertyId),
+      propertyId: isAbsentId(body.propertyId) ? null : positiveId(body.propertyId),
       propertyName: String(body.propertyName || '').trim(),
       platform,
       clientFirstName: String(body.clientFirstName || '').trim(),
