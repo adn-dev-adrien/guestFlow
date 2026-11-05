@@ -293,6 +293,7 @@ Interactive summary: `docs/specs/2026-11-03-platform-added-guests-tourist-tax.ht
       complement, own row once collected, ticked alone.
 - [x] Mobile (375 px) and 900 / 1280 px: fiche summary, SAS recap, declaration page, no horizontal scroll.
 - [x] Audit R22 replayed on an isolated copy of the production data (2026-11-05): tick on the collection day keeps one row at 21,60 € and adds nothing to November; a split stay unticked merges without a reload; a ghost tick answers 409; the complement unticked clears the row's tick; the gap's row at 1280, 900 and 375 px with no overflow; a party changed before the upgrade bills no complement on Estiva.
+- [x] Rules 25, 26 replayed on the same isolated copy (2026-11-05): a repeated tick on a legacy row keeps its date and its two rows; in a real browser, a tick held on the month left, then a tick on the month shown: no read at the second answer, one read of the month shown at the first.
 - [x] E2E suite: 195 passed locally on 2026-11-05 (own ports). No E2E spec opens the declaration page: it is held by the unit suites and the replay above.
 
 ## 8. Out of scope
