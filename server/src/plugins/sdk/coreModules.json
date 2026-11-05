@@ -266,6 +266,7 @@
     "getPlatformColors",
     "list",
     "listEmailHooks",
+    "listPricingRules",
     "listWelcomePackOptions",
     "platformPrices",
     "remove",
@@ -320,6 +321,7 @@
   ],
   "devisModel": [
     "__test",
+    "appendPublicMessage",
     "buildModel",
     "convertFromReservation",
     "convertToReservation",
@@ -386,7 +388,9 @@
     "computeExtraGuestSurcharge",
     "computePercentOfStayAmount",
     "computeTouristTaxBreakdown",
+    "effectiveMinNightsForDate",
     "getBoundsFromDateRanges",
+    "getRuleNightBaseForDate",
     "getTypeMultiplier",
     "grossFromNet",
     "isPlatformCollectingTouristTax",
@@ -730,7 +734,8 @@
   ],
   "reservationPaymentMark": [
     "applyPaymentMark",
-    "computePlatformCommission"
+    "computePlatformCommission",
+    "takeBackRefusal"
   ],
   "platformDisplay": [
     "platformDisplay"
