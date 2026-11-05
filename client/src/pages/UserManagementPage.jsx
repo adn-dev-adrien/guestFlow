@@ -24,6 +24,7 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlineOutlined';
 import PersonAddAlt1Icon from '@mui/icons-material/PersonAddAlt1';
 import PhonelinkEraseIcon from '@mui/icons-material/PhonelinkErase';
 import api from '../api';
+import fieldRefusalText from '../utils/fieldRefusalText';
 import PageActionBar from '../components/PageActionBar';
 import { useToast } from '../components/DialogProvider';
 import ErrorAlert from '../components/ErrorAlert';
@@ -56,21 +57,6 @@ function isHardDeletable(user) {
 function fullName(user) {
   const both = [user.firstName, user.lastName].filter(Boolean).join(' ').trim();
   return both || user.email;
-}
-
-const FIELD_REFUSALS = {
-  FIRSTNAME_REQUIRED: 'Prénom obligatoire.',
-  LASTNAME_REQUIRED: 'Nom obligatoire.',
-  INVALID_EMAIL: 'Adresse email invalide.',
-  EMAIL_ALREADY_EXISTS: 'Cet email est déjà utilisé.',
-  ROLES_REQUIRED: 'Choisir au moins un rôle.',
-  UNKNOWN_ROLE: 'Rôle inconnu.',
-  ROLE_PLUGIN_INACTIVE: 'Module de ce rôle inactif.',
-};
-
-/** What a server refusal says under its field of the account dialog (specs/admin-account-management.md rule 20). */
-export function fieldRefusalText(err) {
-  return err.detail || FIELD_REFUSALS[err.error] || (err.message !== err.error && err.message) || 'Valeur refusée.';
 }
 
 export default function UserManagementPage() {

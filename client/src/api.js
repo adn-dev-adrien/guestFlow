@@ -62,22 +62,25 @@ function badAnswerError() {
   return Object.assign(new Error(BAD_ANSWER_MESSAGE), { code: 'BAD_ANSWER' });
 }
 
-async function send(path, options = {}) {
-  let res;
+// `fetch` with the session cookie (same-origin in prod, credentialed CORS in dev); a server out of reach says so in French.
+async function reach(path, options = {}) {
   try {
-    res = await fetch(`${API}${path}`, {
-      headers: options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' },
-      credentials: 'include', // send the session cookie (same-origin in prod, credentialed CORS in dev)
-      ...options,
-      // A raw string body (the translation CSV) is sent as it is; everything else is JSON.
-      body: options.body instanceof FormData || typeof options.body === 'string'
-        ? options.body
-        : (options.body ? JSON.stringify(options.body) : undefined),
-    });
+    return await fetch(`${API}${path}`, { credentials: 'include', ...options });
   } catch (e) {
     if (e && e.name === 'AbortError') throw e;
     throw Object.assign(new Error(NETWORK_MESSAGE), { code: 'NETWORK' });
   }
+}
+
+async function send(path, options = {}) {
+  const res = await reach(path, {
+    headers: options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' },
+    ...options,
+    // A raw string body (the translation CSV) is sent as it is; everything else is JSON.
+    body: options.body instanceof FormData || typeof options.body === 'string'
+      ? options.body
+      : (options.body ? JSON.stringify(options.body) : undefined),
+  });
   if (!res.ok) {
     const parsed = await res.json().catch(() => null);
     const err = parsed && typeof parsed === 'object' ? parsed : {};
@@ -142,7 +145,7 @@ const api = {
   // Downloaded through fetch rather than a bare link so the session cookie travels and a failure is
   // an error we can show, not a browser error page.
   downloadTranslations: async () => {
-    const res = await fetch(`${API}/translations/export`, { credentials: 'include' });
+    const res = await reach('/translations/export');
     if (!res.ok) throw new Error('Téléchargement impossible.');
     const blob = await res.blob();
     const disposition = res.headers.get('Content-Disposition') || '';
@@ -585,7 +588,7 @@ const api = {
   // Fetch the devis PDF as a blob. Uses credentials so the session cookie is sent — required because
   // VITE_API_URL can be absolute (cross-origin in dev), where a default fetch would omit the cookie.
   getDevisPdfBlob: async (id) => {
-    const res = await fetch(`${API}/devis/${id}/pdf`, { credentials: 'include' });
+    const res = await reach(`/devis/${id}/pdf`);
     if (!res.ok) throw new Error('Impossible de générer le PDF.');
     return res.blob();
   },
@@ -594,7 +597,7 @@ const api = {
   getAccountingSales: (month, year) => request(`/accounting/sales?month=${month}&year=${year}`),
   getAccountingPlatforms: (month, year) => request(`/accounting/platforms?month=${month}&year=${year}`),
   downloadAccountingSalesCsv: async (month, year) => {
-    const res = await fetch(`${API}/accounting/sales.csv?month=${month}&year=${year}`, { credentials: 'include' });
+    const res = await reach(`/accounting/sales.csv?month=${month}&year=${year}`);
     if (!res.ok) throw new Error("Impossible de générer le CSV.");
     return res.blob();
   },
@@ -846,7 +849,7 @@ const api = {
     { method: 'POST', headers: { 'Content-Type': 'text/csv' }, body: csv },
   ),
   downloadEmailTexts: async () => {
-    const res = await fetch(`${API}/email-texts/export`, { credentials: 'include' });
+    const res = await reach('/email-texts/export');
     if (!res.ok) throw new Error('Téléchargement impossible.');
     const blob = await res.blob();
     const match = /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') || '');

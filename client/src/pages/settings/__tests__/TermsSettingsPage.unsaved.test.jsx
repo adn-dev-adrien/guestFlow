@@ -74,3 +74,18 @@ test('rule 42: a saved draft holds no guard any more', async () => {
   fireEvent.click(screen.getByRole('button', { name: 'Enregistrer le brouillon' }));
   await waitFor(() => expect(window.__guestflowBeforeNavigate).toBeUndefined());
 });
+
+test('rule 42: a refused save does not leave', async () => {
+  const leave = vi.fn();
+  const field = await openPage();
+  fireEvent.change(field, { target: { value: '## Autre' } });
+  await waitFor(() => expect(typeof window.__guestflowBeforeNavigate).toBe('function'));
+  api.saveTermsDraft.mockRejectedValue(new Error('Refusé.'));
+  window.__guestflowBeforeNavigate('/clients');
+  window.addEventListener('popstate', leave);
+  fireEvent.click(await screen.findByRole('button', { name: 'Enregistrer et quitter' }));
+  await waitFor(() => expect(api.saveTermsDraft).toHaveBeenCalled());
+  window.removeEventListener('popstate', leave);
+  expect(screen.getByLabelText('Texte en français (Markdown)')).toHaveValue('## Autre');
+  expect(typeof window.__guestflowBeforeNavigate).toBe('function');
+});

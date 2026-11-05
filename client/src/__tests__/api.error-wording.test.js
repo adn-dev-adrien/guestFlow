@@ -78,3 +78,15 @@ test('rule 44: a refusal keeps its code in `error` and its message wins', async 
   expect(e.message).toBe('Envoi d’e-mails non configuré.');
   expect(e.error).toBe('SMTP_NOT_CONFIGURED');
 });
+
+test.each([
+  ['downloadTranslations', () => api.downloadTranslations()],
+  ['getDevisPdfBlob', () => api.getDevisPdfBlob(1)],
+  ['downloadAccountingSalesCsv', () => api.downloadAccountingSalesCsv(1, 2027)],
+  ['downloadEmailTexts', () => api.downloadEmailTexts()],
+])('rule 44: %s out of reach says the same sentence', async (_name, call) => {
+  vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')));
+  const e = await refusal(call);
+  expect(e.message).toBe('Connexion au serveur impossible.');
+  expect(e.code).toBe('NETWORK');
+});

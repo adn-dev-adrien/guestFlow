@@ -58,6 +58,7 @@ async function openFiche() {
     <BrowserRouter>
       <ThemeProvider theme={theme}>
         <Link to="/reservations/41">vers la fiche</Link>
+        <Link to="/reservations/41#ailleurs">même fiche, ailleurs</Link>
         <Routes>
           <Route path="/prev" element={<p>page précédente</p>} />
           <Route path="/reservations/:reservationId" element={<ReservationPage />} />
@@ -131,4 +132,13 @@ test('rule 41: a reload warns on a dirty fiche, not on a clean one', async () =>
   expect(unload()).toBe(false);
   fireEvent.change(notes, { target: { value: 'brouillon' } });
   await waitFor(() => expect(unload()).toBe(true));
+});
+
+test('rule 40: the slot follows the router: Back after the page moved stays on where it moved to', async () => {
+  await openDirtyFiche();
+  fireEvent.click(screen.getByText('même fiche, ailleurs'));
+  await waitFor(() => expect(window.location.hash).toBe('#ailleurs'));
+  window.history.back();
+  expect(await screen.findByText('Modifications non enregistrées')).toBeInTheDocument();
+  expect(window.location.hash).toBe('#ailleurs');
 });

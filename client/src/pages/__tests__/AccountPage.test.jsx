@@ -141,3 +141,17 @@ describe('AccountPage — "Mes informations" section', () => {
     await waitFor(() => expect(screen.getByText(/NETWORK_DOWN/)).toBeInTheDocument());
   });
 });
+
+test('rule 20 of admin-account-management: a refusal under a field reads French, never the code', async () => {
+  api.getMyEmailStatus.mockResolvedValue({ mustVerifyNewEmail: false });
+  setAuth({ id: 1, firstName: 'Jeanne', lastName: 'Martin', email: 'j@b.test', roles: ['admin'] });
+  api.updateSelf.mockRejectedValue(Object.assign(new Error('FIRSTNAME_REQUIRED'), { error: 'FIRSTNAME_REQUIRED', field: 'firstName' }));
+  renderPage();
+  const user = userEvent.setup();
+  const first = await screen.findByLabelText(/Prénom/);
+  await user.clear(first);
+  await user.type(first, 'J');
+  await user.click(screen.getByRole('button', { name: /Enregistrer/ }));
+  expect(await screen.findByText('Prénom obligatoire.')).toBeInTheDocument();
+  expect(screen.queryByText('FIRSTNAME_REQUIRED')).toBeNull();
+});

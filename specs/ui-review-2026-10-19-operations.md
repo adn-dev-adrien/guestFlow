@@ -326,7 +326,12 @@ guessing; and the quote the guest receives looks like the house that sends it.
     stands on, read when it became dirty and again whenever the router's location moves, never at the pop (the
     browser's URL has already moved). They answer `null` once the operator chose to leave, so the back that follows
     passes. No entry is added: the `history.length` stays the same. Tests: `ReservationPage.browser-back`,
-    `PropertyDetail.browser-back`, e2e `reservations/leave-guards` (`page.goBack()`, 1280 and 390 touch).
+    `PropertyDetail.browser-back`, e2e `reservations/leave-guards` (`page.goBack()`, 1280 and 390 touch). *Reading of 2026-11-05
+    (R23 verification F2):* a blank new fiche is clean until the operator's first gesture: the logement's defaults, the
+    welcome pack and the quote land on their own, so the baseline follows the form until a pointer, key or input event
+    freezes what stood before it (`ReservationPage.new-fiche-clean`). *Accepted (A1):* `asked` stays true after « Rester »:
+    a later signed-in `/login` signs out, reached only by a forced password change in the same session, one more login.
+    *Accepted (A3):* `/properties/new` is dirty by design, so it asks on Back, and « Enregistrer et quitter » creates the logement.
 41. **A reload warns on a dirty fiche (audit R23-C2, 2026-11-05).** A reload, a closed tab or a pull-to-refresh fires
     `beforeunload` while the fiche, new reservation included, is dirty. Tests: `ReservationPage.browser-back`,
     e2e `reservations/leave-guards`.
@@ -337,7 +342,11 @@ guessing; and the quote the guest receives looks like the house that sends it.
     `logoutThroughGuard`: refused, the session stays; « Quitter » reaches the signed-in `/login` route, which signs
     out, whatever the role, because that path skips the role redirect. Any other signed-in visit to `/login` still goes
     home and signs nobody out. Tests: `App.leave-guards`, `PageActionBar.back-guard`, `TermsSettingsPage.unsaved`,
-    e2e `reservations/leave-guards`.
+    `EmailVerifyBanner.leave-guard`, e2e `reservations/leave-guards`. *Reading of 2026-11-05 (R23 verification F1, F4):* a
+    logement's « Enregistrer et quitter » leaves only after a successful save: `handleSaveProperty` answers true or false, a
+    blank name shows « Le nom est obligatoire. » under its field; « Ouvrir la gestion tarifaire » asks the guard
+    (`PropertyDetail.guard-exits`). *Accepted (A2):* `/mon-compte`, the plugin settings sections and `PublicSiteOriginCard`
+    hold no guard: short fields, retyped in seconds.
 43. **An unknown logement says so (audit R23-C10, 2026-11-05).** A 404 on the logement itself reads « Logement
     introuvable. » with « Retour aux logements », no retry, like an unknown fiche. Any other failure stays « Impossible
     de charger le logement. » with its retry. Tests: `PropertyDetail.browser-back`, e2e `reservations/leave-guards`.
@@ -350,6 +359,9 @@ guessing; and the quote the guest receives looks like the house that sends it.
     `PUBLIC_URL_NOT_CONFIGURED`, `LAST_ADMIN`, `SELF_ACTION_FORBIDDEN`, `RESERVATION_NOT_FOUND`, `INVALID_DATE_RANGE`,
     `INVALID_PAYLOAD`, `DATE_RANGE_TOO_WIDE` and the other code-only refusals of the users controller. No client
     map: `message` wins. Tests: `api.error-wording`, server `refusals-say-french`.
+    *Reading of 2026-11-05 (R23 verification F6, F7):* the raw `fetch` of the downloads (translations, devis PDF, sales CSV, e-mail
+    texts) goes through the same helper (`reach`) and says the same sentence; `SMTP_TEST_FAILED` carries « Envoi d’essai refusé par le serveur d’e-mails. »
+    (`api.error-wording`, `smtp-test-refusal-wording`).
 45. **The tax page's first tile reads « Réservations (mois) » (audit R23-C9, 2026-11-05).** It counts every row of the
     month, whatever its channel; « directes » was wrong. Test: `TouristTaxPage.kpi-label`.
 

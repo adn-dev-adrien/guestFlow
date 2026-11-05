@@ -20,6 +20,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { Alert, Box, Card, CardContent, Stack, Typography } from '@mui/material';
 import api from '../api';
+import fieldRefusalText from '../utils/fieldRefusalText';
 import PageActionBar from '../components/PageActionBar';
 import { useToast } from '../components/DialogProvider';
 import ChangePasswordForm from '../components/ChangePasswordForm';
@@ -67,10 +68,7 @@ export default function AccountPage() {
       showSuccess('Informations mises à jour.');
     } catch (err) {
       if (err && err.field) {
-        const friendly = err.error === 'INVALID_EMAIL' ? 'Adresse email invalide.'
-          : err.error === 'EMAIL_ALREADY_EXISTS' ? 'Cette adresse est déjà utilisée par un autre compte.'
-            : (err.detail || err.error);
-        setProfileErrors({ [err.field]: friendly });
+        setProfileErrors({ [err.field]: fieldRefusalText(err) });
         return true;
       }
       if (payload.currentPassword !== undefined) throw err;

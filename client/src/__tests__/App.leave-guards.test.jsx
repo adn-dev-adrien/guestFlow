@@ -40,6 +40,7 @@ const routerGoesTo = (url) => act(async () => {
 
 beforeEach(() => {
   mockAuth.logout = vi.fn();
+  mockAuth.user = { id: 1, roles: ['admin'], enabledPlugins: [] };
   window.history.pushState({}, '', '/clients');
 });
 afterEach(() => {
@@ -98,4 +99,16 @@ test('rule 42: a signed-in visit to /login never signs out, a refused logout lon
   await routerGoesTo('/login');
   await waitFor(() => expect(window.location.pathname).toBe('/'));
   expect(mockAuth.logout).toHaveBeenCalledTimes(1);
+});
+
+test('rule 42: « Quitter » signs out whatever the role: the role redirect does not swallow /login', async () => {
+  mockAuth.user = { id: 2, roles: ['reception'], enabledPlugins: [] };
+  window.history.pushState({}, '', '/planning');
+  const guard = vi.fn(() => true);
+  render(<App />);
+  window.__guestflowBeforeNavigate = guard;
+  fireEvent.click(await screen.findByText('Se déconnecter'));
+  expect(mockAuth.logout).not.toHaveBeenCalled();
+  await routerGoesTo('/login');
+  await waitFor(() => expect(mockAuth.logout).toHaveBeenCalledTimes(1));
 });

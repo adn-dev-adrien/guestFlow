@@ -321,6 +321,7 @@ them, reset their password, deactivate or delete them. Temporary passwords are d
     un rôle. », « Rôle inconnu. », « Module de ce rôle inactif. », else the `message` when it is a sentence, else
     « Valeur refusée. », never the code. No server change.
     Test: `UserManagementPage.field-refusals`.
+    *Reading of 2026-11-05 (R23 verification F5):* « Mon compte » reads the same `utils/fieldRefusalText.js` (`AccountPage`).
 
 **Edge cases:**
 - SMTP is configured but the network is down at the moment of account creation → user is created

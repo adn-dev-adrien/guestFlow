@@ -17,6 +17,7 @@ import ErrorAlert from '../components/ErrorAlert';
 import EmptyState from '../components/EmptyState';
 import SearchOffIcon from '@mui/icons-material/SearchOff';
 import { holdGuardSlot } from '../utils/backGuard';
+import { navigateThroughGuard } from '../utils/guardedNavigation';
 import { useToast } from '../components/DialogProvider';
 import PropertyGeneralTab from '../components/property/PropertyGeneralTab';
 import PropertyTariffTab from '../components/property/PropertyTariffTab';
@@ -402,11 +403,13 @@ export default function PropertyDetail() {
     else navigateBackWithFrom(navigate, from, PROPERTIES_LIST);
   };
 
+  // Rule 42: a refused save stays on the page, its reason shown.
   const handleNavGuardSave = async () => {
-    await handleSaveProperty();
+    const saved = await handleSaveProperty();
     setNavGuardOpen(false);
     const dest = pendingNavRef.current;
     pendingNavRef.current = null;
+    if (!saved) return;
     if (dest) navigate(dest);
     else navigateBackWithFrom(navigate, from, PROPERTIES_LIST);
   };
@@ -454,11 +457,22 @@ export default function PropertyDetail() {
     setDirty(true);
   };
 
+  const showFieldRefusals = (fieldErrors) => {
+    setErrors(fieldErrors);
+    const firstTab = PROPERTY_TABS.find((t) => Object.keys(fieldErrors).some((f) => FIELD_TAB[f] === t.key));
+    if (firstTab) selectTab(firstTab.key);
+    showError('Enregistrement refusé : corrigez les champs en rouge.');
+  };
+
+  // Answers whether everything was saved.
   const handleSaveProperty = async () => {
-    if (!form.name?.trim()) return;
+    if (!form.name?.trim()) {
+      showFieldRefusals({ name: 'Le nom est obligatoire.' });
+      return false;
+    }
     if (photoFile && !SUPPORTED_PHOTO_MIME_TYPES.has(photoFile.type)) {
       setPhotoValidationError(`Format non pris en charge pour la photo. ${SUPPORTED_PHOTO_FORMATS_TEXT}`);
-      return;
+      return false;
     }
     setSaving(true);
     setErrors({});
@@ -468,7 +482,7 @@ export default function PropertyDetail() {
         if (photoFile) fd.append('photo', photoFile);
         const result = await api.createProperty(fd);
         navigate(`/properties/${result.id}`, { replace: true });
-        return;
+        return true;
       }
 
       if (dirty || photoFile) {
@@ -488,7 +502,7 @@ export default function PropertyDetail() {
             setArrivalErrors(err.errors);
             selectTab('sejour');
             showError('Enregistrement refusé : corrigez les champs en rouge.');
-            return;
+            return false;
           }
           throw err;
         }
@@ -503,17 +517,13 @@ export default function PropertyDetail() {
       setPhotoValidationError('');
       await load();
       showSuccess('Logement enregistré.');
+      return true;
     } catch (err) {
       // A refused field lands under its input and lights its tab (rule 23a); anything else toasts —
       // NOT the photo-validation field (reserved for the local file-format check).
-      if (err && err.errors) {
-        setErrors(err.errors);
-        const firstTab = PROPERTY_TABS.find((t) => Object.keys(err.errors).some((f) => FIELD_TAB[f] === t.key));
-        if (firstTab) selectTab(firstTab.key);
-        showError('Enregistrement refusé : corrigez les champs en rouge.');
-      } else {
-        showError(err?.message || "Impossible d'enregistrer le logement.");
-      }
+      if (err && err.errors) showFieldRefusals(err.errors);
+      else showError(err?.message || "Impossible d'enregistrer le logement.");
+      return false;
     } finally {
       setSaving(false);
     }
@@ -603,7 +613,7 @@ export default function PropertyDetail() {
             property={property}
             canManage={canManageExtras}
             getSortedSeasonRanges={getSortedSeasonRanges}
-            onOpenTariffs={() => navigate(withFrom(`/properties/${id}/pricing-seasons`, `/properties/${id}?tab=tarifs`))}
+            onOpenTariffs={() => navigateThroughGuard(navigate, withFrom(`/properties/${id}/pricing-seasons`, `/properties/${id}?tab=tarifs`))}
           />
         )}
         {tab === 'paiement' && (limits ? <PropertyPaymentTab {...common} /> : (

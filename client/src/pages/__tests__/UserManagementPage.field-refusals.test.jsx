@@ -1,5 +1,5 @@
 // specs/admin-account-management.md rule 20 — a refusal under a field of the account dialog is French, never its code.
-import { fieldRefusalText } from '../UserManagementPage';
+import fieldRefusalText from '../../utils/fieldRefusalText';
 
 test.each([
   ['FIRSTNAME_REQUIRED', 'Prénom obligatoire.'],

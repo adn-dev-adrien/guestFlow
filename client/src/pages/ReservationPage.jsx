@@ -452,6 +452,9 @@ export default function ReservationPage() {
   // specs/disable-deposit-per-reservation.md rule 13 — why « Sans acompte » is locked, as the GET last said.
   const [storedDepositDisabledLockedReason, setStoredDepositDisabledLockedReason] = useState(null);
   const [storedTaxInComplementLockedReason, setStoredTaxInComplementLockedReason] = useState(null);
+  // The live quote reads the stored payments afresh; the GET answers until it arrives.
+  const taxInComplementLockedReason = pricingQuote && pricingQuote.touristTaxInComplementLockedReason !== undefined
+    ? pricingQuote.touristTaxInComplementLockedReason : storedTaxInComplementLockedReason;
   // specs/payment-link-lifecycle.md rule 46 — null while « Transformer en devis » can be tried.
   const [convertToDevisLockedReason, setConvertToDevisLockedReason] = useState(null);
   // specs/direct-installments.md — the plan of a direct reservation, as the server last sent it.
@@ -669,7 +672,11 @@ export default function ReservationPage() {
   // Once the quote is in it is frozen into `initialSnapshot`; a save or a payment mark moves it from there.
   if (!loading && loadedSnapshot === null) setLoadedSnapshot(formSnapshot);
   let cleanBaseline = initialSnapshot;
-  if (cleanBaseline === null && !loading) {
+  // Rule 40 — a blank new fiche: the logement's defaults, the welcome pack and the quote land on their own and none is an
+  // edit, so the baseline follows the form until the operator's first gesture, which freezes what stood before it.
+  const baselineFollowsForm = isBlankNewBooking && cleanBaseline === null && !loading;
+  if (baselineFollowsForm) cleanBaseline = formSnapshot;
+  else if (cleanBaseline === null && !loading) {
     const isExistingRecord = Boolean(editingReservationId || editingDevisId);
     cleanBaseline = loadedSnapshot !== null ? loadedSnapshot : formSnapshot;
     if (isExistingRecord && pricingQuote) {
@@ -682,6 +689,15 @@ export default function ReservationPage() {
     if (!isExistingRecord || pricingQuote) setInitialSnapshot(cleanBaseline);
   }
   const isDirty = cleanBaseline !== null && formSnapshot !== cleanBaseline;
+  const formSnapshotRef = useRef(formSnapshot);
+  formSnapshotRef.current = formSnapshot;
+  useEffect(() => {
+    if (!baselineFollowsForm) return undefined;
+    const freeze = () => setInitialSnapshot(formSnapshotRef.current);
+    const gestures = ['pointerdown', 'keydown', 'input', 'change', 'click'];
+    gestures.forEach((gesture) => document.addEventListener(gesture, freeze, true));
+    return () => gestures.forEach((gesture) => document.removeEventListener(gesture, freeze, true));
+  }, [baselineFollowsForm]);
   // Review of #727 (H2) — a mark re-reads what the server wrote, then the quote re-prices the form on
   // that state: neither is an edit. A fiche that was clean takes its baseline again once that quote has
   // landed.
@@ -3800,8 +3816,7 @@ export default function ReservationPage() {
     // The live quote reads the stored payments afresh; the GET answers until it arrives.
     depositDisabledLockedReason: pricingQuote && pricingQuote.depositDisabledLockedReason !== undefined
       ? pricingQuote.depositDisabledLockedReason : storedDepositDisabledLockedReason,
-    touristTaxInComplementLockedReason: pricingQuote && pricingQuote.touristTaxInComplementLockedReason !== undefined
-      ? pricingQuote.touristTaxInComplementLockedReason : storedTaxInComplementLockedReason,
+    touristTaxInComplementLockedReason: taxInComplementLockedReason,
     // specs/plugins-phase-3b-neat.md rule 16 — what plugins draw under an option line: their block,
     // its setter, and what they may need to know about the stay.
     pluginBlocks, setPluginBlock,
@@ -3859,6 +3874,7 @@ export default function ReservationPage() {
       onToggleCustomOptionInComplement={setCustomOptionInComplementFromSummary}
       onToggleResourceInComplement={setResourceInComplement}
       onToggleTouristTaxInComplement={(next) => setForm((prev) => ({ ...prev, touristTaxInComplement: Boolean(next) }))}
+      touristTaxInComplementLocked={Boolean(taxInComplementLockedReason) && !form.touristTaxInComplement}
       routingLocked={extrasWindowOpen}
       isFrozenLine={isFrozenArrivalLine}
       isTouristTaxFrozen={isTouristTaxFrozen}

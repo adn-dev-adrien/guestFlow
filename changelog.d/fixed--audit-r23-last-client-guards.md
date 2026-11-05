@@ -1,0 +1,1 @@
+- A logement's « Enregistrer et quitter » leaves only after a successful save. An untouched new fiche no longer asks on leaving. « Ouvrir la gestion tarifaire » asks on a dirty logement. « Mon compte » shows French refusals, the downloads say « Connexion au serveur impossible. », a failed SMTP test says why in French.

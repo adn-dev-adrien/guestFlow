@@ -1,8 +1,6 @@
 // specs/ui-review-2026-10-19-operations.md rules 26, 40, 43 — the browser « Retour » of a dirty logement with a real
 // BrowserRouter, and an unknown logement that says so rather than offering a retry.
-import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { BrowserRouter, Link, Route, Routes } from 'react-router';
+import { screen, fireEvent, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';
 
 vi.mock('../../components/IcalExportCard', () => ({ default: () => null }));
@@ -16,62 +14,14 @@ vi.mock('../../api', () => ({
 }));
 vi.mock('../../hooks/usePlugins', () => ({ usePlugin: () => true }));
 
-import DialogProvider from '../../components/DialogProvider';
-import PropertyDetail from '../PropertyDetail';
 import api from '../../api';
 import installBackGuard from '../../utils/backGuard';
-import { LIMITS } from '../../components/property/__tests__/propertyLimitsFixtures';
+import { renderApp, openDirty, resetLogementMocks, clearLeaveGuards } from './propertyDetailGuardFixtures';
 
 installBackGuard();
 
-const PROPERTY = {
-  id: 5, name: 'Le Moulin', nameArticle: 'au', maxGuests: 3, maxBabies: 1, singleBeds: 1, doubleBeds: 2,
-  depositPercent: 30, depositDueDays: 7, balanceDaysBefore: 30, cancelAfterBalanceDueDays: 7, defaultCautionAmount: 0,
-  defaultCheckIn: '15:00', defaultCheckOut: '10:00', cleaningHours: 3, pricingRules: [], documents: [], photo: null,
-  pendingFacts: '', cleaningIncluded: 1, towelsProvided: 1, poolSeasonStart: '', poolSeasonEnd: '',
-};
-const FACTS = { address: '', mapUrl: '', accessFr: '', accessEn: '', wifiName: 'Moulin', hasAccessCode: false, hasWifiPassword: false };
-
-function renderApp() {
-  window.history.replaceState(null, '', '/prev');
-  render(
-    <BrowserRouter>
-      <DialogProvider>
-        <Link to="/properties/5?tab=sejour">vers le logement</Link>
-        <Routes>
-          <Route path="/prev" element={<p>page précédente</p>} />
-          <Route path="/properties" element={<p>liste des logements</p>} />
-          <Route path="/properties/:id" element={<PropertyDetail />} />
-        </Routes>
-      </DialogProvider>
-    </BrowserRouter>,
-  );
-  fireEvent.click(screen.getByText('vers le logement'));
-}
-
-async function openDirty() {
-  renderApp();
-  const wifi = await screen.findByLabelText('Réseau Wi-Fi');
-  await waitFor(() => expect(wifi).toHaveValue('Moulin'));
-  fireEvent.change(wifi, { target: { value: 'Autre' } });
-  await waitFor(() => expect(typeof window.__guestflowBeforeBack).toBe('function'));
-}
-
-beforeEach(() => {
-  vi.clearAllMocks();
-  api.getPropertyLimits.mockResolvedValue(LIMITS);
-  api.getOptions.mockResolvedValue([]);
-  api.getProperty.mockResolvedValue({ ...PROPERTY });
-  api.getPropertyArrivalFacts.mockResolvedValue({ ...FACTS });
-  api.savePropertyArrivalFacts.mockResolvedValue({ ...FACTS, wifiName: 'Autre' });
-  api.updateProperty.mockResolvedValue({});
-  api.getPropertyPlatforms.mockResolvedValue({ platforms: [] });
-  api.getPlatformSettings.mockResolvedValue({ platforms: [] });
-});
-afterEach(() => {
-  delete window.__guestflowBeforeBack;
-  window.history.replaceState(null, '', '/');
-});
+beforeEach(resetLogementMocks);
+afterEach(clearLeaveGuards);
 
 test('rule 40: Back on a dirty logement asks, keeps the edit, the URL and the entry state', async () => {
   await openDirty();
@@ -124,4 +74,13 @@ test('rule 43: any other failure stays a load failure with its retry', async () 
   renderApp();
   expect(await screen.findByText('Impossible de charger le logement.')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: /Réessayer/ })).toBeInTheDocument();
+});
+
+test('rule 40: the slot follows the router: Back after the page moved stays on where it moved to', async () => {
+  await openDirty();
+  fireEvent.click(screen.getByRole('tab', { name: /Tarifs/ }));
+  await waitFor(() => expect(window.location.search).toBe('?tab=tarifs'));
+  window.history.back();
+  expect(await screen.findByText('Modifications non enregistrées')).toBeInTheDocument();
+  expect(window.location.search).toBe('?tab=tarifs');
 });
