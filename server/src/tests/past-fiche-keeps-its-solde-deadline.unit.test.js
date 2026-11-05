@@ -94,7 +94,7 @@ function runUpdate({ storedDeadline, startDate = inDays(-109) }) {
         return quoteFor(RECOMPUTED_DEADLINE);
       },
     },
-    '../utils/financeValidation': { validateFinanceInputs: () => null, validateClientGrossAmount: () => null },
+    '../utils/financeValidation': { validateFinanceInputs: () => null, validateStayFinance: () => null, validateClientGrossAmount: () => null },
     '../utils/occupancy': { getNightBlocksFromTimes: () => ({}), buildOccupiedDatesFromReservations: () => [] },
     '../utils/reservationHelpers': { computeNextIcalSyncLocked: () => 0, getTodayIsoDate: () => inDays(-39) },
     '../utils/bedDistribution': { suggestBedDistribution: () => null },

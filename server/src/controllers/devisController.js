@@ -6,18 +6,9 @@
  * tests. (The factory is NOT named `create` — that's a request handler here.)
  */
 
-const { validateFinanceInputs } = require('../utils/financeValidation');
+const { validateStayFinance } = require('../utils/financeValidation');
 const settingsModel = require('../models/settingsModel');
 const { generateDevisPdf } = require('../utils/devisPdf');
-
-function financeError(body) {
-  return validateFinanceInputs({
-    customPrice: { value: body.customPrice, kind: 'money' },
-    depositAmount: { value: body.depositAmount, kind: 'money' },
-    balanceAmount: { value: body.balanceAmount, kind: 'money' },
-    discountPercent: { value: body.discountPercent, kind: 'percentage' },
-  });
-}
 
 const { saveWithDraftClient } = require('../utils/draftClient');
 
@@ -87,7 +78,7 @@ function createController(model, {
 
   // A client typed on the devis is written with it (specs/clients.md rule 13).
   function create(req, res) {
-    const error = financeError(req.body);
+    const error = validateStayFinance(req.body);
     if (error) return res.status(400).json({ error });
     if (!req.body || req.body.clientId || !req.body.newClient) return respond(res, model.create(req.body));
     const result = saveWithDraftClient({
@@ -107,7 +98,7 @@ function createController(model, {
   // specs/reservation-fiche-concurrency.md rule 11 — the editor sends the `updatedAt` it loaded; a save
   // built on an older version would rewrite every column and erase what a guest's new request wrote.
   function update(req, res) {
-    const error = financeError(req.body);
+    const error = validateStayFinance(req.body) && validateStayFinance(req.body, model.findById(req.params.id));
     if (error) return res.status(400).json({ error });
     const loaded = req.body && req.body.loadedUpdatedAt;
     if (loaded != null && loaded !== '') {

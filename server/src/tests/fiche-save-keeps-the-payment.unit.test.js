@@ -76,7 +76,7 @@ function buildController({ captures, storedRow = SETTLED_ROW }) {
 
   return withMocks({
     '../utils/pricing': pricingMock,
-    '../utils/financeValidation': { validateFinanceInputs: () => null, validateClientGrossAmount: () => null },
+    '../utils/financeValidation': { validateFinanceInputs: () => null, validateStayFinance: () => null, validateClientGrossAmount: () => null },
     '../utils/occupancy': { getNightBlocksFromTimes: () => ({}), buildOccupiedDatesFromReservations: () => [] },
     '../utils/reservationHelpers': { computeNextIcalSyncLocked: () => 0, getTodayIsoDate: () => inDays(-64) },
     '../utils/reservationAudit': { buildAuditSnapshotFromPayload: () => ({}), computeAuditChanges: () => [] },

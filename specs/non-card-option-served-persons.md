@@ -184,6 +184,12 @@ Rules added after audit round 21 (2026-11-03):
     line whose next save billed the whole stay, `400` billed 400 nights with no refusal, `-1` silently meant the
     whole party. Prod check of 2026-11-03: every stored `cardPersons` is whole, no `cardNights` above 366. The
     nights field stops at 366 (`OptionRow`, a hint), or at the stored value when higher.
+35. **A sent `persons` on a SAS sale is a whole number from 1 to 999** (audit R22, 2026-11-04), or 400
+    `INVALID_QUANTITY`, preview and commit (`plugins/sas/sasQuantityBounds.js`). Null, absent and `''` still mean not
+    sent, so rule 28 stands; text of spaces alone is refused, it never bills the party; a number above the capacity is still clamped; the count this SAS stored, sent back
+    unchanged, is not re-judged. *Why:* `-5`, `0` and `0.5` were billed as the whole party, against rule 34's reading
+    of the same count on the fiche and rule 28's « never the party ». Test:
+    `plugins/sas/tests/sas-quantity-bounds.unit.test.js`.
 
 Rule added after audit round 22 (2026-11-04):
 

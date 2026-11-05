@@ -11,34 +11,48 @@ const propertiesModel = require('../models/propertiesModel');
 const { RESOURCE_BOOKED } = require('../utils/stayTextCatalogue');
 
 const { priceProblem, MESSAGES } = require('../utils/optionValidation');
+const { numberRefused, nonNegative, wholeFrom } = require('../utils/lineInputBounds');
 const { buildResourceItems } = require('../utils/resourceCatalogueView');
 const { resourceCatalogueContributors } = require('../utils/resourceCatalogueContributors');
 
 const isBlank = (value) => value === undefined || value === null || (typeof value === 'string' && value.trim() === '');
 const HOURLY_RATES = ['hourlyEveningRate', 'hourlyExternalDayRate', 'hourlyExternalEveningRate'];
+const RESOURCE_MINUTES = ['slotDuration', 'turnoverMinutes', 'minimumUsageMinutes', 'heatUpMinutes', 'heatRetentionMinutes'];
 
 /**
  * specs/options-resources-ux.md rule 21 — `[{ field, message }]`, empty when the payload is acceptable.
- * `field` is `name`, `quantity`, `price`, `propertyPricing.<propertyId>`, a hourly rate or `closeTime`.
+ * `field` is `name`, `quantity`, `price`, `propertyPricing.<propertyId>`, `propertyPrices.<propertyId>`, a
+ * hourly rate, a duration in minutes or `closeTime`. `stored` is the resource being edited: a number it
+ * holds, sent back unchanged, is not re-judged (rule 31).
  */
-function validateResourcePayload(body) {
+function validateResourcePayload(body, stored = null) {
   const payload = body || {};
   const details = [];
   if (!String(payload.name || '').trim()) details.push({ field: 'name', message: 'Nom requis' });
 
-  const quantity = Number(payload.quantity);
-  if (isBlank(payload.quantity) || !Number.isFinite(quantity)) details.push({ field: 'quantity', message: MESSAGES.notANumber });
+  const quantity = Number(typeof payload.quantity === 'object' ? NaN : payload.quantity);
+  const keptQuantity = stored != null && Number(stored.quantity) === quantity;
+  if (isBlank(payload.quantity) || !(Number.isFinite(quantity) || keptQuantity)) details.push({ field: 'quantity', message: MESSAGES.notANumber });
   else if (quantity < 0) details.push({ field: 'quantity', message: MESSAGES.negative });
-  else if (!Number.isInteger(quantity)) details.push({ field: 'quantity', message: 'Nombre entier attendu' });
+  else if (!keptQuantity && !wholeFrom(0)(quantity)) details.push({ field: 'quantity', message: 'Nombre entier attendu' });
 
-  const priced = (field, raw) => {
+  const priced = (field, raw, kept) => {
     if (isBlank(raw)) return;
-    const message = priceProblem(raw);
+    const message = priceProblem(raw, { stored: kept });
     if (message) details.push({ field, message });
   };
-  priced('price', payload.price);
-  HOURLY_RATES.forEach((field) => priced(field, payload[field]));
-  Object.entries(payload.propertyPricing || {}).forEach(([pid, line]) => priced(`propertyPricing.${pid}`, line && line.price));
+  priced('price', payload.price, stored?.price);
+  HOURLY_RATES.forEach((field) => priced(field, payload[field], stored?.[field]));
+  Object.entries(payload.propertyPricing || {}).forEach(([pid, line]) => {
+    priced(`propertyPricing.${pid}`, line && line.price, stored?.propertyPricing?.[pid]?.price);
+    if (numberRefused(line && line.freeMinutes, nonNegative, stored?.propertyPricing?.[pid]?.freeMinutes)) {
+      details.push({ field: `propertyPricing.${pid}.freeMinutes`, message: MESSAGES.notANumber });
+    }
+  });
+  Object.entries(payload.propertyPrices || {}).forEach(([pid, raw]) => priced(`propertyPrices.${pid}`, raw, stored?.propertyPrices?.[pid]));
+  RESOURCE_MINUTES.forEach((field) => {
+    if (numberRefused(payload[field], nonNegative, stored?.[field])) details.push({ field, message: MESSAGES.notANumber });
+  });
 
   const slotted = payload.priceType === 'per_hour' && Number(payload.isComplex) === 1;
   if (slotted && payload.openTime && payload.closeTime && payload.closeTime <= payload.openTime) {
@@ -116,8 +130,8 @@ function createController(model, {
   }
 
   // Rule 21 — the editor's own checks, authoritative here.
-  function validationRefused(body, res) {
-    const details = validateResourcePayload(body);
+  function validationRefused(body, res, stored = null) {
+    const details = validateResourcePayload(body, stored);
     if (details.length === 0) return false;
     res.status(422).json({ error: 'VALIDATION_FAILED', details });
     return true;
@@ -133,8 +147,9 @@ function createController(model, {
   }
 
   function update(req, res) {
-    if (!findOffered(req.params.id)) return res.status(404).json(NOT_FOUND);
-    if (validationRefused(req.body, res)) return undefined;
+    const stored = findOffered(req.params.id);
+    if (!stored) return res.status(404).json(NOT_FOUND);
+    if (validationRefused(req.body, res, stored)) return undefined;
     const error = refusedPriceType(req.body);
     if (error) return res.status(400).json({ error });
     const sentence = sentenceError(req.body);

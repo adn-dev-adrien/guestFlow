@@ -8,6 +8,7 @@
  */
 
 const { NO_PROPERTY_PRICE } = require('./optionPayloadScope');
+const { readNumber, usableNumber, numberRefused, nonNegative, wholeFrom, rowsOf } = require('./lineInputBounds');
 
 const MESSAGES = Object.freeze({
   titleRequired: 'Nom requis',
@@ -16,17 +17,25 @@ const MESSAGES = Object.freeze({
   decimals: '2 décimales max',
   percentMax: '100 % max',
   unknownProperty: 'Logement inconnu',
+  whole: 'Nombre entier attendu',
 });
 
 // A negative base price used to be refused with its own 400; the code now rides on the `price` detail.
 const NEGATIVE_PRICE_CODE = 'NEGATIVE_OPTION_PRICE';
 
+const TOWEL_COUNTS = ['towelLargePerPerson', 'towelMediumPerPerson', 'towelSmallPerPerson'];
+
 const isBlank = (value) => value === undefined || value === null || (typeof value === 'string' && value.trim() === '');
 
-/** The message a price value deserves, or '' when it is a fine price. */
-function priceProblem(raw, { percent = false } = {}) {
-  const value = typeof raw === 'string' ? Number(raw) : Number(raw);
-  if (typeof raw === 'boolean' || !Number.isFinite(value)) return MESSAGES.notANumber;
+/**
+ * The message a price value deserves, or '' when it is a fine price. Past the usable range it is not a
+ * number, unless it is the `stored` value sent back unchanged (specs/options-resources-ux.md rule 31).
+ */
+function priceProblem(raw, { percent = false, stored } = {}) {
+  const value = readNumber(raw);
+  if (value === undefined) return '';
+  const kept = stored !== undefined && stored !== null && Number(stored) === value;
+  if (!kept && !usableNumber(value)) return MESSAGES.notANumber;
   if (value < 0) return MESSAGES.negative;
   if (Math.abs(Math.round(value * 100) - value * 100) > 1e-6) return MESSAGES.decimals;
   if (percent && value > 100) return MESSAGES.percentMax;
@@ -35,11 +44,11 @@ function priceProblem(raw, { percent = false } = {}) {
 
 /**
  * @param {object} payload
- * @param {{ knownPropertyIds?: number[] }} [context]  the ids of the properties that exist: any property
- *   id the payload names (scope, prices, defaults, bath mats) must be one of them — an unknown one would
- *   otherwise reach a foreign key and answer 500.
+ * @param {{ knownPropertyIds?: number[], stored?: object }} [context]  the ids of the properties that exist:
+ *   any property id the payload names (scope, prices, defaults, bath mats) must be one of them — an unknown
+ *   one would otherwise reach a foreign key and answer 500. `stored` is the option being edited.
  */
-function validateOptionPayload(payload, { knownPropertyIds } = {}) {
+function validateOptionPayload(payload, { knownPropertyIds, stored } = {}) {
   const body = payload || {};
   const details = [];
   const known = knownPropertyIds ? new Set(knownPropertyIds.map(Number)) : null;
@@ -56,7 +65,7 @@ function validateOptionPayload(payload, { knownPropertyIds } = {}) {
 
   const percent = body.priceType === 'percent_of_stay';
   if (!isBlank(body.price) && body.priceType !== 'free') {
-    const message = priceProblem(body.price, { percent });
+    const message = priceProblem(body.price, { percent, stored: stored?.price });
     if (message) details.push({ field: 'price', message, ...(message === MESSAGES.negative ? { code: NEGATIVE_PRICE_CODE } : {}) });
   }
 
@@ -67,8 +76,21 @@ function validateOptionPayload(payload, { knownPropertyIds } = {}) {
         continue;
       }
       if (isBlank(raw)) continue;
-      const message = priceProblem(raw, { percent });
+      const message = priceProblem(raw, { percent, stored: stored?.propertyPrices?.[pid] });
       if (message) details.push({ field: `propertyPrices.${pid}`, message });
+    }
+  }
+  for (const field of TOWEL_COUNTS) {
+    if (numberRefused(body[field], wholeFrom(0), stored?.[field])) details.push({ field, message: MESSAGES.whole });
+  }
+  for (const [pid, raw] of Object.entries(body.propertyBathMats || {})) {
+    if (numberRefused(raw, wholeFrom(0), stored?.propertyBathMats?.[pid])) details.push({ field: `propertyBathMats.${pid}`, message: MESSAGES.whole });
+  }
+  for (const tier of rowsOf(body.optionProgressiveTiers)) {
+    const kept = rowsOf(stored?.optionProgressiveTiers).some((known) => Number(known.unitPrice) === Number(tier?.unitPrice));
+    if (numberRefused(tier?.unitPrice, nonNegative, kept ? tier.unitPrice : undefined)) {
+      details.push({ field: 'optionProgressiveTiers', message: MESSAGES.notANumber });
+      break;
     }
   }
   return details;
