@@ -142,6 +142,7 @@ const FR = Object.freeze({
   // writes a refusal of its own.
   fieldErrors: Object.freeze({
     required: 'Champ requis.',
+    nameInvalid: 'Caractères non acceptés.',
     emailInvalid: 'Adresse e-mail incomplète.',
     phoneInvalid: 'Numéro de téléphone invalide.',
     tooLong: 'Texte trop long.',
@@ -245,6 +246,7 @@ const EN = Object.freeze({
 
   fieldErrors: Object.freeze({
     required: 'Required.',
+    nameInvalid: 'Characters not accepted.',
     emailInvalid: 'Incomplete email address.',
     phoneInvalid: 'Invalid phone number.',
     tooLong: 'Text too long.',

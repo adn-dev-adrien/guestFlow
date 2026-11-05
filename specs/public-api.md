@@ -237,6 +237,30 @@ or **[CREATE]** (genuinely new logic).
       nothing refused first answers `400 INVALID_FIELD_TYPE` (specs/hosting-h2-account-security.md rule 68), and
       `/public/booking-intake/page` with a `hotelId` or `resId` that is not a string or a number answers its `400 « Requête
       incomplète »` (`plugins/booking-intake/tests/public-route.unit.test.js`).
+23. **What a name holds on the public form** (Adrien's decision D13, 2026-11-05). `guest.firstName` and `guest.lastName`
+    accept letters of any script with their marks (`\p{L}`, `\p{M}`), the joiners rule 20 keeps, space, hyphen, both
+    apostrophes (`'`, `’`) and dot, and nothing else: no digit. Anything else is `422 VALIDATION_FAILED` on that field,
+    `reason: 'nameInvalid'`, « Caractères non acceptés. » / « Characters not accepted. ». `O'Brien`, `N’Diaye`,
+    `de la Fontaine`, `Jean-Pierre`, `St. Tropez`, `محمد`, `李小龙` pass; `Jean123`, `<script>`, `Jean@Dupont`, `Jean_Pierre`
+    are refused. It is judged after rule 20's cleaning: a name with no letter nor digit stays `reason: 'required'`, a digit
+    alone (`3`), accepted by rule 20's reading, is now `nameInvalid`. Rule 20's length cap applies to a name that passes.
+    - **Reach.** `validateGuest` alone judges, and only the public booking request calls it: a platform intake, an iCal
+      placeholder client, the back office and a stored client are not judged, and a request matching a stored client by
+      e-mail neither refuses nor rewrites it (rule 13). The site does not pre-fill a stored name, and a name a visitor types
+      is judged without reading the database, whoever it belongs to: an exemption would tell a visitor whether an e-mail
+      holds that name.
+    - **City and address.** D13 also says a city follows the names' characters and an address adds digits, comma and slash.
+      The form sends neither (`firstName`, `lastName`, `email`, `phone`, `message`), and an unknown `guest` field is ignored
+      and never stored, so no code judges them today. A form that gains one takes this rule on arrival.
+    - **Contract.** This narrows `/public/v1/booking-requests` on these two fields only. The envelope, `field`, `issue`,
+      `reason` and `message` are the documented refusal (§4.3); `nameInvalid` is one more value of `reason`, and the site
+      prints `message` without reading it ([wordpress-plugin.md](wordpress-plugin.md) rule 35). No X version is implied: a
+      caller refused here reads the same documented refusal shape as for any other field.
+    - **What the list implies.** A space or a hyphen is read by its Unicode class, whatever the keyboard typed: a no-break
+      space, the ideographic space of a Japanese IME, an en dash and the Hebrew maqaf look like what the visitor means, and
+      a refusal would show nothing visibly wrong. The katakana middle dot `・`, the Hebrew geresh `׳` and the Catalan `·` are
+      not in the list, so they are refused; a modifier-letter apostrophe `ʼ` is a letter and passes.
+    Covered by `plugins/website-booking/tests/public-name-charset.unit.test.js`.
 
 **Edge cases:**
 
@@ -277,6 +301,7 @@ or **[CREATE]** (genuinely new logic).
 | `utils/` | `utils/publicInputValidation.js` | C | Pure validators for public query/body params (dates, counts, ids, email, phone). Unit-testable. |
 | `utils/` | `pricing.js` | REUSE | **Untouched.** Called by `publicQuoteController` and indirectly by the devis create path. |
 | `plugins/website-booking/` | `nextAvailability.js` | C (2026-10-19) | Pure `findNextAvailableDate` + `stayRulesPredicate` (the engine's min/max stay and changeover days, through SDK 1.3.0 core modules `pricing` and `changeover`) — the availability payload's `nextAvailableDate` (§4.3). Test: `public-next-availability.unit.test.js`. |
+| `plugins/website-booking/` | `publicInputValidation.js`, `utils/publicLabels.js` | T (2026-11-05) | Rule 23: the characters of a public name, `reason: 'nameInvalid'` and its sentence. |
 | `plugins/website-booking/` | `publicInputValidation.js`, `controllers/publicBookingRequestController.js` | T (2026-11-03) | Rule 22: non-scalar counts and times refused, guest and message fields read as strings only, `_hp` and `termsVersion` judged by type. |
 | `controllers/public/` | `publicHttp.js` (`answerBodyRefusal`), `publicPaymentController.js`; `utils/bodyParserRefusal.js`, `utils/publicLabels.js`, `index.js` | T (2026-11-03) | Rule 22: the parser's refusal in the public envelope, language and return path read as strings only. |
 | `plugins/website-booking/` | `publicInputValidation.js` + `utils/publicLabels.js` | T (2026-10-19) | Guest errors carry `reason`; `withFieldMessages` adds `labels(lang).fieldErrors` as `message` (§4.3 booking-requests). Test: `public-guest-field-errors.unit.test.js`. |
@@ -617,7 +642,7 @@ HTTP codes used: `200`, `201`, `401 UNAUTHENTICATED`, `404 PROPERTY_NOT_FOUND`,
   `422 VALIDATION_FAILED`, `404 PROPERTY_NOT_FOUND`, `429 TOO_MANY_REQUESTS`, `401`.
   - Refused contact fields *(2026-10-19, additive — UI/UX review 2026-10-18, decision 3)*: each
     `details[]` entry for `guest.firstName` / `guest.lastName` / `guest.email` / `guest.phone` keeps
-    its `field` and `issue`, and gains `reason` (`required` | `emailInvalid`) and `message`, the
+    its `field` and `issue`, and gains `reason` (`required` | `nameInvalid` (rule 23) | `emailInvalid` | `phoneInvalid` (rule 21) | `tooLong` (rule 20)) and `message`, the
     sentence the site prints under that field, in the request's language (FR « Champ requis. »,
     « Adresse e-mail incomplète. »; EN « Required. », « Incomplete email address. »). The top-level
     `message` reads « Coordonnées incomplètes ou invalides. » (EN « Contact details incomplete or
@@ -678,6 +703,7 @@ follow-up.
       per-option `offered`/`free`/`unitPrice`/`price`/`selectedResources`/…) is dropped before the
       engine; options collapse to `{optionId, quantity}`. **(12 tests)**
 - [x] `plugins/website-booking/tests/public-input-shape.unit.test.js` and `tests/public-input-shape-core.unit.test.js` — rule 22. **(10 + 5 tests)**
+- [x] `plugins/website-booking/tests/public-name-charset.unit.test.js` — rule 23 and [wordpress-plugin.md](wordpress-plugin.md) rule 35: accepted and refused names, the refusal's sentence, nothing written, no city nor address read, stored client, intake, back office and the validator's only caller. **(13 tests)**
 - [x] `tests/public-catalog-readonly.unit.test.js` — `GET /public/v1/properties/:id` reads through the
       side-effect-free `getByIdPublicReadOnly` and **never** the seeding `getByIdWithDetails`, proving a
       public GET performs zero writes; 404 path also writes nothing. **(2 tests)**
