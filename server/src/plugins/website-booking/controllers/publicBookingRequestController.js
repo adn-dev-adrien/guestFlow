@@ -19,7 +19,7 @@ const devisModel = sdk.coreModule('devisModel');
 const notificationService = sdk.coreModule('notificationService');
 const settings = require('../settings');
 const termsModel = sdk.coreModule('termsModel');
-const { validateStayInput, validateGuest, validateAttribution, withFieldMessages } = require('../publicInputValidation');
+const { validateStayInput, validateGuest, validateAttribution, cleanFreeText, withFieldMessages } = require('../publicInputValidation');
 const { classifyAttribution } = sdk.coreModule('attributionChannel');
 const { checkGuestCapacity, publicGuestCap } = sdk.coreModule('capacity');
 const { generateToken, tokensMatch } = sdk.coreModule('publicDevisToken');
@@ -228,7 +228,7 @@ function create(req, res) {
   if (body.message !== undefined && body.message !== null && typeof body.message !== 'string') {
     return failT(res, req, 422, 'VALIDATION_FAILED', 'requestInvalid', [{ field: 'message', issue: 'must be a string' }]);
   }
-  const message = (body.message || '').trim();
+  const message = cleanFreeText(body.message).trim();
   if (message.length > MAX_MESSAGE_LENGTH) {
     // The drawer prints the sentence as it is (its textarea also stops at 2 000).
     return failT(res, req, 422, 'VALIDATION_FAILED', 'messageTooLong',

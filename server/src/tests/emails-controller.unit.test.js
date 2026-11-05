@@ -247,6 +247,16 @@ test('send: client with no email + operator-typed override.to → sends to it AN
   assert.equal(db.prepare('SELECT email FROM clients WHERE id = 1').get().email, 'typed@guest.fr');
 });
 
+test('send: a typed recipient with a non-ASCII letter is saved in lower case (specs/clients.md rule 12)', async () => {
+  const { db, templatesModel, logModel, settingsModel } = makeFixture();
+  db.prepare("UPDATE clients SET email = '' WHERE id = 1").run();
+  const ctl = buildController({ database: db, templatesModel, logModel, settingsModel, emailServiceFactory: fakeEmailService({ sendImpl: async () => {} }) });
+  const r = res();
+  await ctl.send({ body: { reservationId: 100, templateId: 10, overrides: { to: 'ÉLODIE@Guest.fr' } } }, r);
+  assert.equal(r.statusCode, 200);
+  assert.equal(db.prepare('SELECT email FROM clients WHERE id = 1').get().email, 'élodie@guest.fr');
+});
+
 test('send: 404 CLIENT_NO_EMAIL when the client has none AND no override is typed', async () => {
   const { db, templatesModel, logModel, settingsModel } = makeFixture();
   db.prepare("UPDATE clients SET email = '' WHERE id = 1").run();

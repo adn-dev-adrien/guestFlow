@@ -42,7 +42,7 @@ function failureLabel(stored) {
   return sendFailureMessage({ message: text, code: /^[A-Z_]+$/.test(text) ? text : '' });
 }
 const { renderTemplate } = require('../utils/emailTemplateRenderer');
-const { isValidEmailAddress } = require('../utils/emailAddress');
+const { isValidEmailAddress, storedEmail } = require('../utils/emailAddress');
 const { buildContext }   = require('../utils/emailContextBuilder');
 const { emailContext: pluginEmailContext } = require('../plugins/sdk/eventBus');
 const paymentProviders = require('../utils/paymentProviders');
@@ -299,7 +299,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
     if (!clientId || !isValidEmail(email)) return;
     database
       .prepare("UPDATE clients SET email = ?, updatedAt = datetime('now') WHERE id = ? AND COALESCE(email, '') = ''")
-      .run(String(email).trim(), Number(clientId));
+      .run(storedEmail(email), Number(clientId));
   }
 
   // ---------- HTTP handlers ----------

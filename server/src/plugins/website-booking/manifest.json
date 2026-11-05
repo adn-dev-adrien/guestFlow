@@ -1,7 +1,7 @@
 {
   "id": "website-booking",
   "name": "Réservation depuis le site",
-  "version": "1.8.10",
+  "version": "1.8.11",
   "description": "Le moteur de réservation du site WordPress.",
   "icon": "language",
   "surfaces": [
@@ -126,6 +126,12 @@
     ],
     "1.8.10": [
       "Sur le formulaire public, un prénom ou un nom n’accepte que des lettres de toute écriture, l’espace, le tiret, l’apostrophe et le point.",
+      "Compatible avec le SDK 2.17 de GuestFlow."
+    ],
+    "1.8.11": [
+      "Un formulaire refusé pour sa saisie ne compte plus dans la limite de 5 demandes par heure.",
+      "Les messages de limite et de clé d’API suivent la langue du visiteur.",
+      "Une adresse e-mail ou un message perd ses caractères invisibles avant d’être enregistré.",
       "Compatible avec le SDK 2.17 de GuestFlow."
     ]
   }

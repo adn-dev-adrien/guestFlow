@@ -16,6 +16,7 @@ const { todayIso: localTodayIso } = require('../utils/localDate');
 const db = require('../database');
 const { sentenceCase, capitalizeFirst, personNameCase } = require('../utils/textFormatters');
 const { clientWhenLabel, stayDatesLabel } = require('../utils/clientWhenLabel');
+const { storedEmail } = require('../utils/emailAddress');
 
 const MS_PER_DAY = 86400000;
 
@@ -59,7 +60,7 @@ function buildClientFields(payload) {
     city: sentenceCase(payload.city),
     address,
     phone: String(payload.phone || '').trim(),
-    email: String(payload.email || '').trim(),
+    email: storedEmail(payload.email),
     notes: capitalizeFirst(payload.notes),
     // Per-client email language (specs/email-client-language-and-fiche-polish.md). Drives every email
     // for this client. 'en' or 'fr' (default).

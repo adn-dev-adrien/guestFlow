@@ -1,4 +1,7 @@
 const crypto = require('crypto');
+const sdk = require('../sdk');
+
+const { failT } = sdk.coreModule('publicHttp');
 
 /**
  * Public API authentication — server-to-server callers, each with its own shared secret. Distinct
@@ -66,14 +69,10 @@ function callerFor(provided) {
 function requirePublicApiKey(req, res, next) {
   const caller = callerFor(extractKey(req));
   if (!caller) {
-    return res.status(401).json({
-      error: { code: 'UNAUTHENTICATED', message: "Clé d'API manquante ou invalide." },
-    });
+    return failT(res, req, 401, 'UNAUTHENTICATED', 'apiKeyInvalid');
   }
   if (caller === 'roostview' && !roostviewMayCall(req)) {
-    return res.status(403).json({
-      error: { code: 'FORBIDDEN', message: "Cette clé d'API est en lecture seule." },
-    });
+    return failT(res, req, 403, 'FORBIDDEN', 'apiKeyReadOnly');
   }
   req.publicApiCaller = caller;
   return next();

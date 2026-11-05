@@ -10,6 +10,8 @@
  * part, a domain with a dot that is neither first nor last, no whitespace and none of
  * `@ , ; < > "`. Empty is NOT valid here; callers that accept empty test it themselves.
  * `MAX_EMAIL_LENGTH` is the RFC 5321 path limit.
+ *
+ * `storedEmail(value)` → the address as a client row holds it (specs/clients.md rule 12).
  */
 
 const MAX_EMAIL_LENGTH = 254;
@@ -27,4 +29,11 @@ function isValidEmailAddress(value) {
   return dot >= 1 && dot <= domain.length - 2;
 }
 
-module.exports = { isValidEmailAddress, MAX_EMAIL_LENGTH };
+// The lookups compare JS `toLowerCase()` with SQLite's `lower()`, which folds ASCII only: an address with a
+// non-ASCII letter is stored already folded so both read the same key. An ASCII one keeps its case.
+function storedEmail(value) {
+  const v = String(value == null ? '' : value).trim();
+  return /\P{ASCII}/u.test(v) ? v.toLowerCase() : v;
+}
+
+module.exports = { isValidEmailAddress, storedEmail, MAX_EMAIL_LENGTH };
