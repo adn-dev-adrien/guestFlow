@@ -14,9 +14,11 @@ const { __test: { arrivalComplementDetailFromReservation } } = require('../model
 
 const SCHEMA = fs.readFileSync(path.join(__dirname, '..', 'schema.sql'), 'utf8');
 const pad2 = (n) => String(n).padStart(2, '0');
-const now = new Date();
-const year = now.getFullYear();
-const m = now.getMonth() + 1;
+// The stays live in the PREVIOUS month: D16 lets a tick through only once the stay is over, so a stay on days 1-3 of the
+// current month would be refused on the 1st, 2nd and 3rd (audit R24-S2).
+const stayMonth = (() => { const today = new Date(); return new Date(today.getFullYear(), today.getMonth() - 1, 1); })();
+const year = stayMonth.getFullYear();
+const m = stayMonth.getMonth() + 1;
 const month = `${year}-${pad2(m)}`;
 const day = (d) => `${year}-${pad2(m)}-${pad2(d)}`;
 
@@ -157,9 +159,13 @@ test('rule 20: ticked before the complement was collected → its own row, even 
   assert.equal(stamp(db).s, 0);
   db.prepare('UPDATE reservations SET complementPaid = 1, complementPaidDate = ?').run(TODAY);
   const { data } = extract(model);
+  // Collected today, after the stay's month: the row of its own is told in the month it was collected (rule 12).
+  const collected = model.getTouristTaxExtraction({ month: TODAY.slice(0, 7) }).data;
   assert.equal(mainRow(data).taxAmount, 4.8);
-  assert.equal(addedRow(data).taxAmount, 2.4);
-  assert.equal(data.totals.taxAmount, 7.2);
+  assert.equal(addedRow(data), undefined);
+  assert.equal(addedRow(collected).taxAmount, 2.4);
+  assert.equal(mainRow(collected), undefined);
+  assert.equal(Math.round((data.totals.taxAmount + collected.totals.taxAmount) * 100) / 100, 7.2);
 });
 
 test('rule 20: a stamp reads the same whatever the dates say', () => {
