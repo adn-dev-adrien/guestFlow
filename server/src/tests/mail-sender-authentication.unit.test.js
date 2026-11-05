@@ -110,6 +110,7 @@ test('the From address must equal the sender: a display name or a longer address
 
 function fakeImap(messages) {
   class FakeImap {
+    on() {}
     async connect() {}
     async getMailboxLock() { return { release() {} }; }
     async search() { return messages.map((m) => m.uid); }
