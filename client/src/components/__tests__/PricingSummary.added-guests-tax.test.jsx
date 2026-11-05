@@ -11,12 +11,12 @@ const QUOTE = {
 
 test('the added tax has its own line, with no « Offrir »', () => {
   render(<PricingSummary quote={QUOTE} form={{}} />);
-  expect(screen.getByText('Taxe de séjour · voyageurs ajoutés')).toBeInTheDocument();
+  expect(screen.getByText('Complément de taxe de séjour')).toBeInTheDocument();
   expect(screen.getByText('Comprise dans la taxe ci-dessus')).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: 'Offrir' })).not.toBeInTheDocument();
 });
 
 test('no added tax, no line', () => {
   render(<PricingSummary quote={{ ...QUOTE, touristTaxAddedGuestsAmount: 0 }} form={{}} />);
-  expect(screen.queryByText('Taxe de séjour · voyageurs ajoutés')).not.toBeInTheDocument();
+  expect(screen.queryByText('Complément de taxe de séjour')).not.toBeInTheDocument();
 });

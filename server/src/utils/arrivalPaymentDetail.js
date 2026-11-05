@@ -138,6 +138,7 @@ function buildArrivalPaymentDetail(reservation, { buckets = [], complementDetail
   const fallback = [];
   let accommodation = 0;
   let tax = 0;
+  let taxLabel = 'Taxe de séjour';
   let bucketsTotal = 0;
 
   for (const stay of STAY_BUCKETS) {
@@ -209,8 +210,13 @@ function buildArrivalPaymentDetail(reservation, { buckets = [], complementDetail
   if (covered.has('complement')) {
     bucketsTotal = round2(bucketsTotal + round2(reservation.complementAmount));
     for (const line of ((complementDetail && complementDetail.detail) || [])) {
-      // The taxe de séjour is collected once and shown once, whichever bucket carries it.
-      if (line.kind === 'tax') { tax = round2(tax + round2(line.amount)); continue; }
+      // The taxe de séjour is collected once and shown once, whichever bucket carries it. Alone in this
+      // payment, the addition keeps its name (specs/platform-added-guests-tourist-tax.md rule 23).
+      if (line.kind === 'tax') {
+        if (line.addedGuests && tax === 0) taxLabel = line.label;
+        tax = round2(tax + round2(line.amount));
+        continue;
+      }
       lines.push({
         kind: line.kind === 'resource' ? 'resource' : 'option',
         label: line.label,
@@ -227,7 +233,7 @@ function buildArrivalPaymentDetail(reservation, { buckets = [], complementDetail
   }
 
   if (tax > 0) {
-    lines.push({ kind: 'tax', label: 'Taxe de séjour', qty: 1, unitPrice: tax, amount: tax });
+    lines.push({ kind: 'tax', label: taxLabel, qty: 1, unitPrice: tax, amount: tax });
   }
 
   return { lines, accommodation, bucketsTotal };

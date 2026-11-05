@@ -1,7 +1,7 @@
 {
   "id": "accounting-export",
   "name": "Export comptable",
-  "version": "1.0.26",
+  "version": "1.0.27",
   "description": "Écritures, plan comptable et export pour le cabinet comptable.",
   "icon": "book",
   "surfaces": [
@@ -118,6 +118,10 @@
       "Une ligne payée puis retirée reste dans l’écriture qui l’a encaissée.",
       "Le supplément des voyageurs ajoutés va sur le compte d’hébergement dès la première écriture.",
       "Sur un échéancier, la taxe des voyageurs ajoutés n’est plus comptée deux fois.",
+      "Compatible avec le SDK 2.19 de GuestFlow."
+    ],
+    "1.0.27": [
+      "Aucun changement de comportement : référence de spec mise à jour.",
       "Compatible avec le SDK 2.19 de GuestFlow."
     ]
   }

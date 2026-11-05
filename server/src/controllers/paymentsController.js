@@ -161,7 +161,7 @@ function resolveInstallmentComponents(id, installment, plan, db = database) {
         FROM reservations r WHERE r.id = ? AND r.kind = 'reservation'`).get(id);
   } catch { row = null; }
   if (!row) return null;
-  // specs/platform-added-guests-tourist-tax.md rule 19 — the plan holds the tax without the added guests' share.
+  // specs/platform-added-guests-tourist-tax.md rule 27 — the plan holds the tax without the added guests' share.
   const taxCents = row.taxOnArrival ? 0 : Math.round((Number(row.touristTaxTotal || 0) - Number(row.touristTaxAddedGuestsAmount || 0)) * 100);
   const shares = require('../utils/installmentPlan').taxShares(taxCents, plan.map((p) => p.amountCents));
   const share = shares[plan.findIndex((p) => p.id === installment.id)] || 0;

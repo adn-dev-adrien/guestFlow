@@ -165,7 +165,9 @@ function buildReservationEngineInput(db, reservation, { refreshTouristTax = fals
     // specs/platform-added-guests-tourist-tax.md rules 1, 7 — without them a replay puts the added tax
     // back inside the brut, and the payment capture refuses the solde.
     platformPaidAdults: reservation.platformPaidAdults,
+    platformPaidOccupants: reservation.platformPaidOccupants,
     storedTouristTaxAddedGuests: reservation.touristTaxAddedGuestsAmount,
+    storedTouristTaxAddedGuestsAdults: reservation.touristTaxAddedGuestsAdults,
     // The save of a stay left as it was sold pins a collected or declared tax (rule 17): so does its replay.
     ...frozenTouristTaxInputs(db, reservation.id, refreshTouristTax),
     ...scheduleQuoteInputs(db, reservation.id),

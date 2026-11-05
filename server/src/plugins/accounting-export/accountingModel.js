@@ -243,7 +243,7 @@ function createAccountingModel(database, { settings = createAccountSettings(data
         if (hasInstallments) {
           const plan = database.prepare(`SELECT number, amountCents, paidDate, paid, ${paidSplitCol} FROM reservation_installments WHERE reservationId = ? ORDER BY number`).all(row.id);
           // The tax shares are those of the whole plan, so they add up to the tax once every installment is in.
-          // specs/platform-added-guests-tourist-tax.md rule 19 — without the added guests' share: it rides the complement.
+          // specs/platform-added-guests-tourist-tax.md rule 27 — without the added guests' share: it rides the complement.
           const shares = taxShares(Math.round((Number(row.touristTaxTotal || 0) - Number(row.touristTaxAddedGuestsAmount || 0)) * 100), plan.map((i) => Number(i.amountCents)));
           plan.forEach((installment, index) => {
             if (Number(installment.paid) === 1 && inMonth(1, installment.paidDate)) {
@@ -677,7 +677,7 @@ function buildInstallmentEntry(row, installment, count, taxShare, perLineData, c
     balanceAmount: amount,
     balancePaidDate: installment.paidDate,
     touristTaxTotal: taxShare,
-    // specs/platform-added-guests-tourist-tax.md rule 19 — the share already leaves the addition out: never taken off twice.
+    // specs/platform-added-guests-tourist-tax.md rule 27 — the share already leaves the addition out: never taken off twice.
     touristTaxAddedGuestsAmount: 0,
   };
   const entry = buildEntry(standIn, 'balance', { ...perLineData, hasContribs: false }, commissionContext, taxContext);

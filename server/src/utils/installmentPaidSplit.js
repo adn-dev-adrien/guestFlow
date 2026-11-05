@@ -27,7 +27,7 @@ function computeInstallmentPaidSplit(db, installmentId) {
   if (!stay) return null;
   const plan = db.prepare('SELECT id, amountCents FROM reservation_installments WHERE reservationId = ? ORDER BY number')
     .all(installment.reservationId);
-  // specs/platform-added-guests-tourist-tax.md rule 19 — the plan holds the tax without the added guests' share.
+  // specs/platform-added-guests-tourist-tax.md rule 27 — the plan holds the tax without the added guests' share.
   const taxCents = stay.taxOnArrival ? 0 : cents(stay.touristTaxTotal) - cents(stay.touristTaxAddedGuestsAmount);
   const shares = taxShares(taxCents, plan.map((p) => Number(p.amountCents)));
   const share = shares[plan.findIndex((p) => p.id === installment.id)] || 0;

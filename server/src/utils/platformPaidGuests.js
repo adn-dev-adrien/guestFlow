@@ -39,4 +39,24 @@ function resolvePlatformPaidAdults(stored, next) {
   return Number(next.adults || 1) || 1;
 }
 
-module.exports = { isBrutPinned, countPayingPersons, resolvePlatformPaidGuests, resolvePlatformPaidAdults };
+/**
+ * specs/platform-added-guests-tourist-tax.md rule 19 — the occupants the tax of the paid party is priced
+ * on, same lifecycle. Not `platformPaidGuests`: the supplement reads that one, and on a stay whose party
+ * already differs from it the comparison would see a difference nobody made. A row an older release wrote
+ * has no occupants yet and reads the persons, what that release compared with.
+ */
+function resolvePlatformPaidOccupants(stored, next) {
+  if (!isBrutPinned(next.platform, next.platformGrossAmount)) return null;
+  if (stored && isBrutPinned(stored.platform, stored.platformGrossAmount)) {
+    if (stored.platformPaidOccupants != null) return Number(stored.platformPaidOccupants);
+    if (stored.platformPaidGuests != null) return Number(stored.platformPaidGuests);
+  }
+  return countPayingPersons(next);
+}
+
+// specs/platform-added-guests-tourist-tax.md rule 23 — the line's one name, on every surface.
+const ADDED_GUESTS_TAX_LABEL = 'Complément de taxe de séjour';
+
+module.exports = {
+  ADDED_GUESTS_TAX_LABEL, isBrutPinned, countPayingPersons, resolvePlatformPaidGuests, resolvePlatformPaidAdults, resolvePlatformPaidOccupants,
+};

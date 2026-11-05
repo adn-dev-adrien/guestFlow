@@ -56,7 +56,7 @@ function installmentsRetainedOf(installmentsModel, database, id, row) {
   // (paymentsController.resolveInstallmentComponents, accountingModel.buildInstallmentEntry), so the
   // avoir reverses none (specs/direct-installments.md rule 46).
   const taxOnArrival = Number(row.touristTaxInComplement) === 1;
-  // specs/platform-added-guests-tourist-tax.md rule 19 — the plan holds the tax without the added guests' share.
+  // specs/platform-added-guests-tourist-tax.md rule 27 — the plan holds the tax without the added guests' share.
   const taxCents = taxOnArrival ? 0 : Math.round((Number(row.touristTaxTotal || 0) - Number(row.touristTaxAddedGuestsAmount || 0)) * 100);
   const shares = taxShares(taxCents, plan.map((i) => Number(i.amountCents)));
   let amountCents = 0;
