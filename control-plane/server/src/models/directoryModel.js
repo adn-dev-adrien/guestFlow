@@ -9,7 +9,8 @@ function buildDirectoryModel(db) {
   const insertStmt = db.prepare('INSERT OR IGNORE INTO directory (emailHmac, customerId, seenAt) VALUES (?, ?, ?)');
   const lookupStmt = db.prepare('SELECT customerId FROM directory WHERE emailHmac = ? ORDER BY customerId');
   const countStmt = db.prepare('SELECT COUNT(*) AS n FROM directory WHERE customerId = ?');
-  const addAliasStmt = db.prepare('INSERT INTO slug_aliases (slug, customerId, until) VALUES (?, ?, ?) ON CONFLICT (slug) DO UPDATE SET customerId = excluded.customerId, until = excluded.until');
+  // REPLACE, not an upsert: a slug left again takes a new rowid, which aliasesOf reads as « last left ».
+  const addAliasStmt = db.prepare('INSERT OR REPLACE INTO slug_aliases (slug, customerId, until) VALUES (?, ?, ?)');
   const aliasStmt = db.prepare('SELECT * FROM slug_aliases WHERE slug = ? AND until >= ?');
   const aliasesOfStmt = db.prepare('SELECT * FROM slug_aliases WHERE customerId = ? AND until >= ? ORDER BY until DESC, rowid DESC');
   const dropAliasesStmt = db.prepare('DELETE FROM slug_aliases WHERE customerId = ?');

@@ -34,6 +34,7 @@ const EMAIL_MAX = 254;
 const ADDONS_NOT_A_LIST = 'Liste attendue.';
 const TRIAL_NOT_A_BOOLEAN = 'Oui ou non attendu.';
 const RENAME_PENDING_MESSAGE = 'Changement d’adresse à terminer d’abord.';
+const ADDRESS_HELD_MESSAGE = 'Une base de données existe déjà à cette adresse.';
 const ERASE_AFTER_DAYS = 90;
 const EXPORT_LINK_DAYS = 30;
 const FORCE_ACTIVE_DEFAULT_DAYS = 7;
@@ -100,6 +101,13 @@ function createCustomersController(ctx) {
     if (renaming.has(c.id)) return true;
     const row = provisioning.get(c.id, 'rename');
     return Boolean(row && row.status !== 'ok');
+  }
+
+  // H1 rule 45: the first creation step never finished and a database sits at the address: it is
+  // someone else's. Nothing closes it, exports it or moves it on this customer's behalf.
+  function foreignDatabase(c) {
+    const row = provisioning.get(c.id, 'dir');
+    return Boolean(row && row.status !== 'ok') && instances.hasDatabase(c.slug);
   }
 
   function servedSlug(c) {
@@ -527,8 +535,8 @@ function createCustomersController(ctx) {
         forceActive: !archived,
         changePlan: !archived,
         downloadLicence: true,
-        deprovision: !archived && !renamePending(c),
-        deprovisionHint: renamePending(c) ? RENAME_PENDING_MESSAGE : null,
+        deprovision: !archived && !renamePending(c) && !foreignDatabase(c),
+        deprovisionHint: renamePending(c) ? RENAME_PENDING_MESSAGE : (foreignDatabase(c) ? ADDRESS_HELD_MESSAGE : null),
         reactivate: archived,
         rename: !archived && !renamePending(c),
         renameHint: renamePending(c) ? RENAME_PENDING_MESSAGE : null,
@@ -806,7 +814,9 @@ function createCustomersController(ctx) {
     return {
       error,
       url: slug && !error ? urlOf(slug) : null,
-      until: `L’ancienne adresse ${c.slug}.${domain} redirige (301) jusqu’au ${frDay(addDays(today(), host().REDIRECT_DAYS))} et reste réservée jusqu’au ${frDay(until)}.`,
+      until: foreignDatabase(c)
+        ? `L’ancienne adresse ${c.slug}.${domain} reste à son occupant.`
+        : `L’ancienne adresse ${c.slug}.${domain} redirige (301) jusqu’au ${frDay(addDays(today(), host().REDIRECT_DAYS))} et reste réservée jusqu’au ${frDay(until)}.`,
       checklist: RENAME_CHECKLIST,
     };
   }
@@ -826,9 +836,14 @@ function createCustomersController(ctx) {
     const redirectUntil = addDays(today(), host().REDIRECT_DAYS);
     markRenaming(c.id);
     try {
+      // H1 rule 45: an address held by another database was never this customer's to redirect or
+      // reserve, and an alias would have its erasure remove that customer's route (rule 38).
+      const held = foreignDatabase(c);
       customers.setSlug(c.id, slug);
-      directory.addAlias(c.slug, c.id, until);
-      journal(c.id, operator, 'rename', `Adresse : ${c.slug} → ${slug} ; l’ancienne redirige jusqu’au ${frDay(redirectUntil)} et reste réservée jusqu’au ${frDay(until)}`);
+      if (!held) directory.addAlias(c.slug, c.id, until);
+      journal(c.id, operator, 'rename', held
+        ? `Adresse : ${c.slug} → ${slug} ; l’ancienne reste à son occupant`
+        : `Adresse : ${c.slug} → ${slug} ; l’ancienne redirige jusqu’au ${frDay(redirectUntil)} et reste réservée jusqu’au ${frDay(until)}`);
       // H1 rule 5: the directory moves, the unit and the site follow, the old address redirects.
       await host().rename(c.id, c.slug);
     } finally {
@@ -980,6 +995,7 @@ function createCustomersController(ctx) {
     const c = mustGet(id);
     if (c.archivedAt) throw httpError(409, 'ARCHIVED', 'Client déjà archivé.');
     if (renamePending(c)) throw httpError(409, 'RENAME_PENDING', RENAME_PENDING_MESSAGE);
+    if (foreignDatabase(c)) throw httpError(409, 'ADDRESS_HELD', ADDRESS_HELD_MESSAGE);
     if (asText(body.confirmSlug) !== c.slug) throw httpError(400, 'CONFIRM_SLUG', `Tapez exactement « ${c.slug} » pour confirmer.`);
     if (deprovisioning.has(c.id)) return view(c.id);
     deprovisioning.add(c.id);

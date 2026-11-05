@@ -340,7 +340,10 @@ function createProvisioner({
         const from = instanceOf(c, oldSlug);
         const to = instanceOf(c);
         const until = addDaysIso(today(), REDIRECT_DAYS);
-        if (fs.existsSync(from.dir)) {
+        // H1 rule 45: before its first step is done, nothing at the old address is this customer's.
+        const dirRow = provisioning.get(c.id, 'dir');
+        const mine = !dirRow || dirRow.status === 'ok';
+        if (mine && fs.existsSync(from.dir)) {
           // The unit goes, its identity stays: the files keep their owner (rule 21).
           await drivers.process.remove(from, { keepIdentity: true });
           if (fs.existsSync(to.dir)) throw new Error(`Le dossier ${to.dir} existe déjà.`);
@@ -348,7 +351,8 @@ function createProvisioner({
         }
         // H1 rule 45: with a port the instance exists somewhere; never record it as moved.
         if (to.port && !fs.existsSync(to.dir)) throw new Error('Dossier de l’instance introuvable.');
-        if (fs.existsSync(from.envFile) && !fs.existsSync(to.envFile)) fs.renameSync(from.envFile, to.envFile);
+        if (mine && fs.existsSync(from.envFile) && !fs.existsSync(to.envFile)) fs.renameSync(from.envFile, to.envFile);
+        if (!mine && fs.existsSync(from.dbPath)) return 'Aucune instance à déplacer ; adresse occupée, aucune redirection.';
         if (!to.port) {
           await drivers.proxy.writeRedirect(oldSlug, c.slug);
           hosting.addRedirect(oldSlug, c.id, until);
