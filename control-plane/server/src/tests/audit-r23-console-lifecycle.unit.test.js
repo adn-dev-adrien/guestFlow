@@ -1,4 +1,4 @@
-// specs/hosting-h1-fleet-runtime.md rules 46-50 (audit R23, console C1-C5) — during an unfinished rename nothing runs on
+// specs/hosting-h1-fleet-runtime.md rules 46-51 (audit R23, console C1-C5) — during an unfinished rename nothing runs on
 // the address the instance has not reached yet, and a customer refused at `dir` because another customer's database
 // sits at its address has no path into that directory or database.
 
@@ -149,6 +149,7 @@ test('rule 48 — C2: a customer held off an address writes no licence into that
     const result = customers.issueLicence(b.id);
     assert.equal(result.written, false);
     assert.equal(result.reason, HELD);
+    assert.equal(customers.view(b.id).actions.downloadLicence, false);
     assert.equal(fs.readFileSync(licenceOfA, 'utf8'), before);
     const row = h.ctx.models.provisioning.get(b.id, 'licence');
     assert.equal(row.status, 'failed');
@@ -189,6 +190,11 @@ test('rule 48 — C2: seeding and the minute sweep read nothing there', async ()
     assert.equal(modules.seedCustomer({ ...c, pluginsSeededAt: null }), false);
     h.ctx.db.prepare('UPDATE customers SET pluginsSeededAt = NULL WHERE id = ?').run(b.id);
     assert.equal(modules.view(b.id).seedLabel, 'Espace illisible : modules non relevés.');
+    const tables = new Database(h.ctx.instances.dbPath('aulnes'));
+    tables.exec('ALTER TABLE plugin_provisioning RENAME TO p_aside; ALTER TABLE plugin_provisioning_meta RENAME TO m_aside;');
+    assert.equal(modules.view(b.id).seedLabel, 'Espace illisible : modules non relevés.', 'never the too-old label read from A');
+    tables.exec('ALTER TABLE p_aside RENAME TO plugin_provisioning; ALTER TABLE m_aside RENAME TO plugin_provisioning_meta;');
+    tables.close();
     const orderId = 'order-of-b';
     h.ctx.models.customerPlugins.addOrder({ orderId, customerId: b.id, pluginId: 'linen', createdAt: h.now().toISOString(), operator: 'op', removal: false });
     const db = new Database(h.ctx.instances.dbPath('aulnes'));
@@ -365,7 +371,7 @@ test('rule 48 with rule 50 — a held customer reads nothing there for the catal
     const view = catalogue.view();
     const { lines } = catalogue.impact({ lowest: { ...view.lowest, linen: null } });
     assert.ok(lines.length > 0);
-    assert.ok(!lines.some((l) => /[1-9] clients? \S+ gardent? Linge/.test(l)), lines.join('\n'));
+    assert.ok(!lines.some((l) => /[1-9] clients? \S+ garde(nt)? Linge/.test(l)), lines.join('\n'));
     assert.ok(lines.some((l) => /garde Linge.*illisible/.test(l)), lines.join('\n'));
   } finally {
     h.cleanup();

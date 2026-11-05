@@ -117,7 +117,8 @@ function createCustomersController(ctx) {
   }
 
   // H1 rule 48: the address whose directory and database are this customer's; null while they are
-  // someone else's. Every read and write in a space goes through it.
+  // someone else's. Facts, modules, support, directory and catalogue read through it; issueLicence, runAdminScript,
+  // exportInstance and eraseInstance use c.slug behind their own guards.
   const spaceSlug = (c) => (foreignDatabase(c) ? null : servedSlug(c));
 
   function spaceFacts(c) {
@@ -547,7 +548,7 @@ function createCustomersController(ctx) {
         extend: !archived,
         forceActive: !archived,
         changePlan: !archived,
-        downloadLicence: true,
+        downloadLicence: !foreignDatabase(c),
         deprovision: !archived && !renamePending(c) && !foreignDatabase(c),
         deprovisionHint: renamePending(c) ? RENAME_PENDING_MESSAGE : (foreignDatabase(c) ? ADDRESS_HELD_MESSAGE : null),
         reactivate: archived,
