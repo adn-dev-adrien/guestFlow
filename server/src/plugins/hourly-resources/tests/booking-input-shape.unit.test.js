@@ -108,3 +108,11 @@ test('rule 23 — a stored time and a stored id sent back unchanged are not re-j
   assert.ok(res.status === 200 || res.status === 409, res.text);
   assert.notEqual(res.status, 400);
 });
+
+test('rule 23 — notes null clears them, never the word; absent keeps them', async () => {
+  const { id } = (await app.call(admin, 'POST', '/api/resource-bookings', baseline({ notes: 'Note' }))).json;
+  assert.equal((await app.call(admin, 'PUT', `/api/resource-bookings/${id}`, {})).status, 200);
+  assert.equal(app.readDb('SELECT notes FROM resource_bookings WHERE id = ?', id)[0].notes, 'Note');
+  assert.equal((await app.call(admin, 'PUT', `/api/resource-bookings/${id}`, { notes: null })).status, 200);
+  assert.equal(app.readDb('SELECT notes FROM resource_bookings WHERE id = ?', id)[0].notes, '');
+});

@@ -5,6 +5,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { startApp } = require('./inputShapeApp');
 const { KNOWN_PLATFORM_COLORS, isBuiltinColor } = require('../constants/platformColors');
+const { validateApprovalCompensation } = require('../utils/cancellationCompensations');
 
 const T = JSON.parse('{"toString":1}');
 const WRONG = [{ a: 1 }, T, ['x'], [], true, 1.5, -1, 1e308];
@@ -169,4 +170,60 @@ test('R23-I8 — a stored value sent back unchanged is not rewritten', async () 
   const row = (await app.call(admin, 'GET', `/api/clients/${id}`)).json;
   assert.equal((await app.call(admin, 'PUT', `/api/clients/${id}`, row)).status, 200);
   assert.equal(app.readDb('SELECT notes FROM clients WHERE id = ?', id)[0].notes, row.notes);
+});
+
+test('rule 68 — the fix lines no test had pinned, one row each (R23 verification N3)', async (t) => {
+  const { property } = app.ids;
+  await t.test('client update cleans', async () => {
+    const { id } = (await app.call(admin, 'POST', '/api/clients', { lastName: 'Clair', firstName: 'Lea', allowDuplicate: true })).json;
+    assert.equal((await app.call(admin, 'PUT', `/api/clients/${id}`, { lastName: 'Cl\u0000air', firstName: 'Lea', city: 'Pa\u0001ris', allowDuplicate: true })).status, 200);
+    assert.equal(app.readDb('SELECT city FROM clients WHERE id = ?', id)[0].city.toLowerCase(), 'paris');
+  });
+  await t.test('property update cleans', async () => {
+    const { id } = (await app.call(admin, 'POST', '/api/properties', { name: 'Clair', maxGuests: 2, doubleBeds: 1 })).json;
+    const row = (await app.call(admin, 'GET', `/api/properties/${id}`)).json;
+    const saved = await app.call(admin, 'PUT', `/api/properties/${id}`, { ...row, name: 'Cl\u0000air' });
+    assert.equal(saved.status, 200, saved.text);
+    assert.equal(app.readDb('SELECT name FROM properties WHERE id = ?', id)[0].name, 'Clair');
+  });
+  await t.test('assistant property name cleans', async () => {
+    const blank = await startApp();
+    const Database = require('better-sqlite3');
+    const raw = new Database(blank.dbPath);
+    raw.exec('DELETE FROM reservations; DELETE FROM properties;');
+    raw.close();
+    const cookie = await blank.login('admin@shape.test');
+    const made = await blank.call(cookie, 'PUT', '/api/onboarding/property', { name: 'As\u0000sistant', doubleBeds: 1, singleBeds: 0, pricePerNight: 80 });
+    const names = blank.readDb('SELECT name FROM properties').map((row) => row.name);
+    await blank.stop();
+    assert.ok(made.status < 300, made.text);
+    assert.deepEqual(names, ['Assistant']);
+  });
+  await t.test('assistant caution type', async () => {
+    const res = await app.call(admin, 'PUT', '/api/onboarding/emails', { properties: [{ id: property, caution: { a: 1 } }] });
+    assert.equal(res.status, 422);
+    assert.equal(res.json.errors['properties.0.caution'], 'Un montant ≥ 0 €');
+  });
+  await t.test('assistant property id', async () => {
+    for (const id of [true, [property], 1.5]) {
+      const res = await app.call(admin, 'PUT', '/api/onboarding/emails', { properties: [{ id }] });
+      assert.equal(res.status, 422, JSON.stringify(id));
+      assert.equal(res.json.errors['properties.0'], 'Logement inconnu');
+    }
+  });
+  await t.test('stay text property id', async () => {
+    const { key } = (await app.call(admin, 'GET', '/api/stay-texts')).json.texts[0];
+    const res = await app.call(admin, 'PUT', `/api/stay-texts/${key}`, { fr: 'Texte', propertyId: { a: 1 } });
+    assert.equal(res.status, 400, res.text);
+    assert.equal(res.json.field, 'propertyId');
+  });
+  await t.test('compensation property id', async () => {
+    const res = await app.call(admin, 'POST', '/api/accounting/cancellation-compensations', { platform: 'Booking', expectedAmount: 10, propertyId: { a: 1 } });
+    assert.equal(res.status, 400, res.text);
+    assert.equal(res.json.field, 'propertyId');
+  });
+  await t.test('approval compensation notes', () => {
+    assert.deepEqual(validateApprovalCompensation({ expectedAmount: 10, notes: { a: 1 } }), { ok: false, error: 'INVALID_FIELD', field: 'notes' });
+    assert.equal(validateApprovalCompensation({ expectedAmount: 10, notes: ' Note ' }).value.notes, 'Note');
+  });
 });

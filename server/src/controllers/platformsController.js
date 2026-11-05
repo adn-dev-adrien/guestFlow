@@ -6,6 +6,7 @@
 
 const platformsModel = require('../models/platformsModel');
 const { isDirectChannel } = require('../utils/platformNameFormat');
+const { isOptionalText } = require('../utils/bodyText');
 const { parsePayoutDueDaysInput } = require('../utils/platformPayout');
 const { PLATFORM_LIMITS, parseBoundedNumber } = require('../utils/inputLimits');
 const { textColorFor, validateCalendarColor } = require('../utils/colorContrast');
@@ -133,7 +134,9 @@ function planRow(row, current) {
   if (!ownChannel && has('relaysGuestEmail')) {
     apply.push(() => platformsModel.setRelaysGuestEmail(current.id, row.relaysGuestEmail === true));
   }
-  if (!ownChannel && (has('reviewWhereFr') || has('reviewWhereEn'))) {
+  const reviewNotText = ['reviewWhereFr', 'reviewWhereEn'].filter((key) => !isOptionalText(row[key]));
+  reviewNotText.forEach((key) => { errors[key] = 'Texte attendu.'; });
+  if (!ownChannel && !reviewNotText.length && (has('reviewWhereFr') || has('reviewWhereEn'))) {
     const fr = has('reviewWhereFr') ? String(row.reviewWhereFr ?? '').trim() : current.reviewWhereFr;
     const en = has('reviewWhereEn') ? String(row.reviewWhereEn ?? '').trim() : current.reviewWhereEn;
     if (fr.length > MAX_REVIEW_WHERE) errors.reviewWhereFr = `${MAX_REVIEW_WHERE} caractères au plus.`;

@@ -381,7 +381,8 @@ function createPropertiesModel(database) {
       for (const h of hooks) {
         if (!h || !known.has(Number(h.propertyId))) return { error: 'Logement inconnu.', status: 400 };
         for (const key of ['emailHook', 'emailHookEn']) {
-          if (h[key] != null && String(h[key]).length > EMAIL_HOOK_MAX_LENGTH) {
+          if (h[key] != null && typeof h[key] !== 'string') return { error: 'Texte attendu.', status: 400 };
+          if (h[key] != null && h[key].length > EMAIL_HOOK_MAX_LENGTH) {
             return { error: `Une accroche ne dépasse pas ${EMAIL_HOOK_MAX_LENGTH} caractères.`, status: 400 };
           }
         }

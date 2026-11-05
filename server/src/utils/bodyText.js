@@ -50,12 +50,13 @@ const CONTROL_BUT_LINES = /[^\P{Cc}\n]/gu;
 const withoutControls = (value, { lines = false } = {}) => (typeof value === 'string' ? value.replace(lines ? CONTROL_BUT_LINES : CONTROL, '') : value);
 
 /** `body` with those fields cleaned. A stored value sent back unchanged is not rewritten. */
-function cleanedBody(body, { fields, lineFields = [], stored = null }) {
+function cleanedBody(body, { fields, lineFields = [], stored = null, tabAsSpace = false }) {
   if (!body || typeof body !== 'object') return body;
   const clean = { ...body };
   for (const field of fields) {
     if (!Object.hasOwn(body, field) || (stored && body[field] === stored[field])) continue;
-    clean[field] = withoutControls(body[field], { lines: lineFields.includes(field) });
+    const text = tabAsSpace && typeof body[field] === 'string' ? body[field].replace(/\t/g, ' ') : body[field];
+    clean[field] = withoutControls(text, { lines: lineFields.includes(field) });
   }
   return clean;
 }

@@ -136,6 +136,10 @@ const ACCOUNTING_FIELDS = [
 // coerce them consistently — any new BOOL column should go in here.
 const BOOLEAN_INT_COLUMNS = new Set(['smtpSecure', 'notificationsEnabled', 'notifyIcalReservationEnabled']);
 
+// Everything else in the groups is text: a wrong type is refused, it used to land as « [object Object] »
+// (specs/hosting-h2-account-security.md rule 68, reading of 2026-11-05).
+const NOT_TEXT_COLUMNS = new Set([...BOOLEAN_INT_COLUMNS, 'quoteValidityDays', 'fiscalYearEndMonth']);
+
 // Columns whose value ends up VERBATIM inside an email header — `From: "<name>" <address>` and
 // `To: <address>` (specs/admin-account-management.md §3.4 rule 16b). `validateHeaderSafeText`
 // rejects an interior control character above; the trim here removes the surrounding whitespace it
@@ -214,6 +218,10 @@ async function updateSettings(req, res) {
     for (const { input: key, column, validator } of schema) {
       if (Object.prototype.hasOwnProperty.call(input, key)) {
         const value = input[key];
+        if (!NOT_TEXT_COLUMNS.has(column) && value != null && typeof value !== 'string') {
+          errors[column] = 'Texte attendu.';
+          continue;
+        }
         if (validator) {
           const err = validator(value);
           if (err) errors[column] = err;
@@ -373,7 +381,7 @@ async function sendSmtpTest(req, res) {
     // file paths). Log server-side for diagnosis, send a stable error code to the client.
     // Spotted in the 2026-06-01 security audit (finding M3).
     console.error('[settingsController.sendSmtpTest]', err);
-    return res.status(400).json({ error: 'SMTP_TEST_FAILED' });
+    return res.status(400).json({ error: 'SMTP_TEST_FAILED', message: 'Envoi d’essai refusé par le serveur d’e-mails.' });
   }
 }
 
