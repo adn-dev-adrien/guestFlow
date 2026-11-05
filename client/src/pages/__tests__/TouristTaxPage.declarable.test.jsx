@@ -17,12 +17,16 @@ import api from '../../api';
 import TouristTaxPage from '../TouristTaxPage';
 
 const CAPTION = 'Déclarable une fois le séjour payé et terminé.';
+// The page opens on the month before this one: the fixtures live there, whatever today is.
+const first = new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1);
+const MONTH = `${first.getFullYear()}-${String(first.getMonth() + 1).padStart(2, '0')}`;
+const STORED_TICK = `${MONTH}-01 09:00:00`;
 const STAY = {
-  reservationId: 7, propertyId: 1, propertyName: 'Gîte', reservationName: 'Jean Dupont', startDate: '2026-06-20', endDate: '2026-06-22',
-  lastNightDate: '2026-06-21', children: 0, nightsCount: 2, taxRate: 1.2, adults: 2, taxAmount: 4.8, accommodationAmount: 500, touristTaxDeclaredAt: null,
+  reservationId: 7, propertyId: 1, propertyName: 'Gîte', reservationName: 'Jean Dupont', startDate: `${MONTH}-20`, endDate: `${MONTH}-22`,
+  lastNightDate: `${MONTH}-21`, children: 0, nightsCount: 2, taxRate: 1.2, adults: 2, taxAmount: 4.8, accommodationAmount: 500, touristTaxDeclaredAt: null,
 };
 const dataOf = (...rows) => ({
-  month: '2026-06', from: '2026-06-01', toExclusive: '2026-07-01',
+  month: MONTH, from: `${MONTH}-01`, toExclusive: `${MONTH}-28`,
   byProperty: [{ propertyId: 1, propertyName: 'Gîte', reservationsCount: 1, nightsCount: 2, adultNights: 4, taxAmount: 4.8, accommodationAmount: 500 }],
   reservations: rows,
   totals: { reservationsCount: 1, rentedNights: 2, adultNights: 4, taxAmount: 4.8, accommodationAmount: 500 },
@@ -39,7 +43,7 @@ const setPhone = (phone) => {
 beforeEach(() => {
   setPhone(false);
   api.getTouristTaxExtraction.mockReset();
-  api.setTouristTaxDeclared.mockReset().mockResolvedValue({ declaredAt: '2026-07-01 10:00:00' });
+  api.setTouristTaxDeclared.mockReset().mockResolvedValue({ declaredAt: STORED_TICK });
 });
 afterAll(() => { delete window.matchMedia; });
 
@@ -70,7 +74,7 @@ test('declarable: enabled, no caption, the tick goes', async () => {
 });
 
 test('a stored tick on a stay no longer declarable can still go, with no caption', async () => {
-  api.getTouristTaxExtraction.mockResolvedValue(dataOf({ ...STAY, declarable: false, touristTaxDeclaredAt: '2026-06-01 09:00:00' }));
+  api.getTouristTaxExtraction.mockResolvedValue(dataOf({ ...STAY, declarable: false, touristTaxDeclaredAt: STORED_TICK }));
   api.setTouristTaxDeclared.mockResolvedValue({ declaredAt: null });
   renderPage();
   const box = await screen.findByRole('checkbox', { name: /Déclarée — Jean Dupont/ });
@@ -82,7 +86,7 @@ test('a stored tick on a stay no longer declarable can still go, with no caption
 
 test('the row of its own follows its own flag, beside a declared main row', async () => {
   api.getTouristTaxExtraction.mockResolvedValue(dataOf(
-    { ...STAY, declarable: false, touristTaxDeclaredAt: '2026-06-01 09:00:00' },
+    { ...STAY, declarable: false, touristTaxDeclaredAt: STORED_TICK },
     { ...STAY, addedGuestsRow: true, declarable: false, adults: 1, taxAmount: 2.4, accommodationAmount: 0 },
   ));
   renderPage();
