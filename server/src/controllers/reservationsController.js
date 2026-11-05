@@ -108,6 +108,8 @@ const { buildStoredSummary } = require('../utils/storedSummary');
 const propertiesModel = require('../models/propertiesModel');
 const { getDefaultModel: getTariffJournal } = require('../models/tariffChangeJournalModel');
 const { evaluateLedgerEdit } = require('../utils/ledgerAmountEdit');
+const { stampComplementPaidSplit } = require('../utils/complementPaidSplit');
+const { contribLinesOf, recordRemovedLineContribs } = require('../utils/removedLineContribs');
 const { validateCollectionDate } = require('../utils/arrivalPaymentDate');
 const { parseNotes: parseMidStayNotes } = require('../utils/midStayExtras');
 const ledgerLinks = require('../utils/ledgerLinks');
@@ -190,7 +192,9 @@ function storedAccommodationPreArrivalOf(row) {
     if (hit) taxOnArrival = Boolean(hit.onArrival);
   } catch { /* the stored flag decides */ }
   const preArrival = Number(row.depositAmount || 0) + Number(row.balanceAmount || 0);
-  return round2(Math.max(0, preArrival - (taxOnArrival ? 0 : Number(row.touristTaxTotal || 0))));
+  // specs/platform-added-guests-tourist-tax.md rule 19 — the added guests' tax rides the complement, not this money.
+  const taxHeld = Number(row.touristTaxTotal || 0) - Number(row.touristTaxAddedGuestsAmount || 0);
+  return round2(Math.max(0, preArrival - (taxOnArrival ? 0 : taxHeld)));
 }
 
 // specs/mid-stay-notes.md §4.3 — the two note actions carried by the payment PATCH. Business
@@ -961,6 +965,11 @@ function storedSummaryOf(row) {
   });
 }
 
+function soldePaidBeforeAcompte(reservationId) {
+  const row = reservationId > 0 ? model.getRow(reservationId) : null;
+  return Boolean(row) && Number(row.balancePaid || 0) === 1 && Number(row.depositPaid || 0) !== 1;
+}
+
 function getById(req, res) {
   const reservation = model.getByIdWithDetails(req.params.id);
   if (!reservation) return res.status(404).json({ error: 'Réservation non trouvée' });
@@ -1191,7 +1200,9 @@ async function calculatePrice(req, res) {
     depositPaid: req.body.depositPaid,
     balancePaid: req.body.balancePaid,
     extraGuestSurchargeOffered: req.body.extraGuestSurchargeOffered,
-    depositAmount: req.body.depositAmount,
+    // specs/reservation-payment-ledger.md rule 46, reading of 2026-11-05 — a solde paid before its acompte: the acompte
+    // still owed is judged from the stored one, as the save does, never from a figure an earlier preview answered.
+    depositAmount: soldePaidBeforeAcompte(reservationId) ? model.getRow(reservationId).depositAmount : req.body.depositAmount,
     depositAmountOverride: req.body.depositAmountOverride,
     // specs/reservation-payment-ledger.md rule 7 — the live quote prices the per-reservation opt-out
     // like the save does, so the ledger's solde is the one « Enregistrer » will store.
@@ -2000,7 +2011,8 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
     complementPaid: effectiveComplementPaid,
     // specs/reservation-refunds.md rule 36 — a paid acompte or solde is priced on what it collected
     // (the stored amount), never on a figure the browser carried over from an earlier preview.
-    depositAmount: effectiveDepositPaid ? storedPaymentForQuote.depositAmount : req.body.depositAmount,
+    // A solde paid first too (rule 46, reading of 2026-11-05): the acompte still owed is judged from the stored one.
+    depositAmount: (effectiveDepositPaid || effectiveBalancePaid) ? storedPaymentForQuote.depositAmount : req.body.depositAmount,
     depositAmountOverride: req.body.depositAmountOverride,
     // specs/adjustable-complement-amounts.md §3.2 rule 13 — applied last by the engine, over every
     // other branch, so it corrects even a frozen complement.
@@ -2290,6 +2302,8 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
 
     // Nights are never rewritten on a locked fiche, but its extras are while the window is open.
     const writesExtras = !pastReservationLocked || Boolean(midStayWindow);
+    // specs/accounting-books-the-money-collected.md rule 17 (D11) — what the lines hold of the booked entries, before they go.
+    const contribLinesBefore = writesExtras ? contribLinesOf(db, id) : null;
     if (writesExtras && reservationOptions) model.replaceOptions(id, quote.optionLines);
     if (writesExtras) {
       const sasOriginLabels = model.sasOriginCustomLabels(id);
@@ -2309,6 +2323,8 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
       const resourceError = insertResourceLines(id, quote, { propertyId, startDate, endDate, excludeId: id });
       if (resourceError) throw new CreationRefused(resourceError);
     }
+
+    if (contribLinesBefore) recordRemovedLineContribs(db, id, contribLinesBefore);
 
     // specs/mid-stay-extras-to-end-of-stay-complement.md §3.4 rule 11 — the engine has computed what was
     // sold during the stay; store it as the mid-stay lines of the end-of-stay complement (the SAS-owned
@@ -2683,6 +2699,7 @@ function updatePayment(req, res) {
     // sera vendu ensuite parte au complément de fin de séjour au lieu de se perdre entre les
     // échéances. Idempotent : une base déjà posée n'est jamais réécrite.
     if (paid) model.captureArrivalExtrasBaseline(Number(id));
+    if (paid && Number(before?.complementPaid || 0) !== 1) stampComplementPaidSplit(db, Number(id));
     // specs/defer-arrival-complement-to-checkout.md §3.2 rule 8 — when the complement was deferred to
     // check-out, the fiche shows ONE card for ONE collection: marking it paid (or « caisse interne »)
     // settles BOTH buckets with the same date, and un-marking clears both. The amounts stay separate

@@ -100,9 +100,10 @@ test('rule 1 — a failed capture ticks nothing by hand, but never loses money a
   assert.deepEqual(result.captureFailed, ['balance']);
   const row = moneyRow(db, online);
   assert.equal(row.balancePaid, 1, 'the guest paid: the stay says so');
-  // specs/reservation-payment-ledger.md rule 46 — a stay with no contribution yet stays wholly on the
-  // stored-money path of the export: no first contribution that would zero its earlier entries.
-  assert.equal(row.accommodationSoldeContribTtc, null, 'no contribution written: the stored-money path books it');
+  // specs/reservation-payment-ledger.md rule 46, reading of 2026-11-05 — a solde recorded before its acompte has no
+  // earlier entry to flip: it takes the stored split at once, so no later save can rewrite it.
+  assert.equal(row.depositPaid, 0);
+  assert.notEqual(row.accommodationSoldeContribTtc, null, 'the stored split of this very order');
   const history = db.prepare("SELECT changedFields FROM reservation_history WHERE reservationId = ? AND eventType = 'payment_capture_failed'").all(online);
   assert.equal(history.length, 1, 'said on the stay, not only in the server log');
   assert.match(history[0].changedFields, /Paiement en ligne \(solde\).*répartition comptable sur les montants enregistrés/);

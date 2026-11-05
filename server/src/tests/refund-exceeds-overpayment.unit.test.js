@@ -21,7 +21,7 @@ function setup(overpayment) {
   const state = { over: overpayment };
   const controller = createController({
     refundsModel: model,
-    reservationsModel: { getByIdWithDetails: () => ({ id: 1, finalPrice: 480, touristTaxTotal: 13.2, options: [], resources: [] }) },
+    reservationsModel: { getByIdWithDetails: () => ({ id: 1, finalPrice: 480, touristTaxTotal: 13.2, balancePaid: 1, balanceAmount: 493.2, options: [], resources: [] }) },
     vatRateOf: () => 10,
     storedOverpaymentTtc: () => state.over,
   });

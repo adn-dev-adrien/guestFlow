@@ -32,7 +32,8 @@ function withoutStoredLines(summary) {
 
 const VOLATILE = new Set(['createdAt', 'updatedAt', 'cancelledAt', 'vatRegime', 'vatPeriodId', 'showHt',
   'platformPenaltyAmount', 'supersededAt', 'supersededByReservationId', 'supersededReason',
-  'platformPaidAdults', 'touristTaxAddedGuestsAmount', 'touristTaxAddedGuestsDeclaredAt']);
+  'platformPaidAdults', 'touristTaxAddedGuestsAmount', 'touristTaxAddedGuestsDeclaredAt',
+  'complementPaidSplit', 'removedLineContribs']);
 
 function canonical(value) {
   if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;

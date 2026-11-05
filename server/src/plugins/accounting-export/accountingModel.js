@@ -78,6 +78,14 @@ function createAccountingModel(database, { settings = createAccountSettings(data
   const addedGuestsTaxCol = hasReservationColumn('touristTaxAddedGuestsAmount')
     ? 'r.touristTaxAddedGuestsAmount'
     : '0 AS touristTaxAddedGuestsAmount';
+  const surchargeCol = hasReservationColumn('extraGuestComplementSurcharge')
+    ? 'r.extraGuestComplementSurcharge'
+    : '0 AS extraGuestComplementSurcharge';
+  // specs/accounting-books-the-money-collected.md rules 16-17 — on a core older than these columns: « nothing stored ».
+  const bookedEntryCols = [
+    hasReservationColumn('complementPaidSplit') ? 'r.complementPaidSplit' : 'NULL AS complementPaidSplit',
+    hasReservationColumn('removedLineContribs') ? 'r.removedLineContribs' : 'NULL AS removedLineContribs',
+  ].join(', ');
   const arrivalAdjustmentCols = [
     hasReservationColumn('arrivalPaymentReduction') ? 'r.arrivalPaymentReduction' : 'NULL AS arrivalPaymentReduction',
     hasReservationColumn('arrivalPaymentTip') ? 'r.arrivalPaymentTip' : 'NULL AS arrivalPaymentTip',
@@ -174,7 +182,7 @@ function createAccountingModel(database, { settings = createAccountSettings(data
                r.finalPrice, r.clientGrossAmount, r.platformCommissionAmount, r.acompteCommissionAmount,
                r.totalPrice, r.touristTaxTotal,
                r.touristTaxInComplement,
-               ${addedGuestsTaxCol},
+               ${addedGuestsTaxCol}, ${surchargeCol}, ${bookedEntryCols},
                r.accommodationAcompteContribTtc, r.accommodationSoldeContribTtc,
                r.touristTaxAcompteContribTtc, r.touristTaxSoldeContribTtc,
                ${installmentCols},
@@ -235,7 +243,8 @@ function createAccountingModel(database, { settings = createAccountSettings(data
         if (hasInstallments) {
           const plan = database.prepare(`SELECT number, amountCents, paidDate, paid, ${paidSplitCol} FROM reservation_installments WHERE reservationId = ? ORDER BY number`).all(row.id);
           // The tax shares are those of the whole plan, so they add up to the tax once every installment is in.
-          const shares = taxShares(Math.round(Number(row.touristTaxTotal || 0) * 100), plan.map((i) => Number(i.amountCents)));
+          // specs/platform-added-guests-tourist-tax.md rule 19 — without the added guests' share: it rides the complement.
+          const shares = taxShares(Math.round((Number(row.touristTaxTotal || 0) - Number(row.touristTaxAddedGuestsAmount || 0)) * 100), plan.map((i) => Number(i.amountCents)));
           plan.forEach((installment, index) => {
             if (Number(installment.paid) === 1 && inMonth(1, installment.paidDate)) {
               entries.push(buildInstallmentEntry(row, installment, plan.length, shares[index] / 100, perLineData, rowContext, taxContext));
@@ -668,6 +677,8 @@ function buildInstallmentEntry(row, installment, count, taxShare, perLineData, c
     balanceAmount: amount,
     balancePaidDate: installment.paidDate,
     touristTaxTotal: taxShare,
+    // specs/platform-added-guests-tourist-tax.md rule 19 — the share already leaves the addition out: never taken off twice.
+    touristTaxAddedGuestsAmount: 0,
   };
   const entry = buildEntry(standIn, 'balance', { ...perLineData, hasContribs: false }, commissionContext, taxContext);
   if (!entry) return null;
@@ -901,9 +912,14 @@ function buildEntry(row, kind, perLineData, commissionContext, taxContext) {
   // the 46710000 pass-through, never a 70xxx revenue line.
   // The tourist-tax share of an adjusted complement is the one the FICHE ventilated against — the
   // floor guarantees the complement covers it, so the credits close on the announced amount.
-  const taxTtc = complementIsAdjusted && storedAllocation.tax != null
-    ? round2(storedAllocation.tax)
-    : computeTaxTtcForKind(row, kind, taxRoutedToComplement, encaissementTtc, soldeCaptureMatches(row, perLineData));
+  // specs/accounting-books-the-money-collected.md rule 16 — the split a collected complement was stamped with, read as long
+  // as it adds up to the entry; the ratio's historical shapes and an operator's adjustment keep their own paths.
+  const paidSplit = kind === 'complement' && !complementIsAdjusted && Math.abs(grossRatio - 1) < 1e-9 ? parseComplementPaidSplit(row, encaissementTtc) : null;
+  const taxTtc = paidSplit
+    ? paidSplit.tax
+    : complementIsAdjusted && storedAllocation.tax != null
+      ? round2(storedAllocation.tax)
+      : computeTaxTtcForKind(row, kind, taxRoutedToComplement, encaissementTtc, soldeCaptureMatches(row, perLineData));
   const encaissementNetTtc = round2(encaissementTtc - (commissionLine ? commissionLine.ttc : 0));
   // Single global sales VAT rate (specs/single-vat-rate.md) — same one the quote carried.
   const vatRate = commissionContext && Number.isFinite(Number(commissionContext.vatRate))
@@ -942,6 +958,19 @@ function buildEntry(row, kind, perLineData, commissionContext, taxContext) {
       clientGrossAmount: round2(effectiveGross),
       fraction: 1,
       buckets: allocated,
+    };
+  }
+
+  if (paidSplit) {
+    return {
+      ...common,
+      clientGrossAmount: round2(effectiveGross),
+      fraction: 1,
+      buckets: [
+        bucketFromTtc('accommodation', paidSplit.accommodation, vatRate),
+        bucketFromTtc('options',       paidSplit.options,       vatRate),
+        bucketFromTtc('resources',     paidSplit.resources,     vatRate),
+      ].filter((b) => b.ht > 0 || b.vat > 0),
     };
   }
 
@@ -1002,7 +1031,12 @@ function buildEntry(row, kind, perLineData, commissionContext, taxContext) {
   // The split lives in the core (utils/storedMoneySplit): the cancellation reverses a legacy acompte on the very
   // same postes (specs/payment-schedule-and-cancellation.md rule 55).
   const revenueTtc = Math.max(0, round2(encaissementTtc - taxTtc));
-  const collectedHere = storedMoneyCollected(kind, finalPriceTtc, perLineData);
+  const storedHere = storedMoneyCollected(kind, finalPriceTtc, perLineData);
+  // specs/platform-extra-guest-complement.md rule 10, reading of 2026-11-05 (audit R22-5) — the added guests' supplement is
+  // stay revenue from its first entry, whatever was paid before it.
+  const collectedHere = kind === 'complement'
+    ? { ...storedHere, accommodation: round2(nz(row.extraGuestComplementSurcharge)) }
+    : storedHere;
   const collectedTotal = round2(collectedHere.accommodation + collectedHere.options + collectedHere.resources);
 
   let fraction;
@@ -1240,6 +1274,23 @@ function sumComplementContribution(lines, remainingMidStay = {}, isCustom = fals
 
 function sumContribField(lines, field) {
   return (lines || []).reduce((sum, line) => sum + nz(line[field]), 0);
+}
+
+// The split the core stamped on a collected complement (utils/complementPaidSplit.js), in euros; null when absent,
+// unreadable, or no longer adding up to the entry. Parsed here so the export asks nothing new of an older core.
+function parseComplementPaidSplit(row, encaissementTtc) {
+  if (!row.complementPaidSplit) return null;
+  let split;
+  try { split = JSON.parse(row.complementPaidSplit); } catch { return null; }
+  const keys = ['taxCents', 'accommodationCents', 'optionsCents', 'resourcesCents'];
+  if (!split || !keys.every((k) => Number.isInteger(split[k]))) return null;
+  if (keys.reduce((sum, k) => sum + split[k], 0) !== Math.round(Number(encaissementTtc) * 100)) return null;
+  return {
+    tax: split.taxCents / 100,
+    accommodation: split.accommodationCents / 100,
+    options: split.optionsCents / 100,
+    resources: split.resourcesCents / 100,
+  };
 }
 
 // The `paidSplit` JSON the core stores on a collected installment (utils/installmentPaidSplit.js);

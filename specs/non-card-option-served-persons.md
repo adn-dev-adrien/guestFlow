@@ -184,21 +184,25 @@ Rules added after audit round 21 (2026-11-03):
     line whose next save billed the whole stay, `400` billed 400 nights with no refusal, `-1` silently meant the
     whole party. Prod check of 2026-11-03: every stored `cardPersons` is whole, no `cardNights` above 366. The
     nights field stops at 366 (`OptionRow`, a hint), or at the stored value when higher.
-35. **A sent `persons` on a SAS sale is a whole number from 1 to 999** (audit R22, 2026-11-04), or 400
-    `INVALID_QUANTITY`, preview and commit (`plugins/sas/sasQuantityBounds.js`). Null, absent and `''` still mean not
-    sent, so rule 28 stands; text of spaces alone is refused, it never bills the party; a number above the capacity is still clamped; the count this SAS stored, sent back
-    unchanged, is not re-judged. *Why:* `-5`, `0` and `0.5` were billed as the whole party, against rule 34's reading
-    of the same count on the fiche and rule 28's « never the party ». Test:
-    `plugins/sas/tests/sas-quantity-bounds.unit.test.js`.
-
-Rule added after audit round 22 (2026-11-04):
-
 35. **A number typed on an unsold line of the note is that number.** Typing 5 on an unsold plain line sells 5, typing
     1 on an unsold per-night line sells 1 night, typing 2 on an unsold per-person line serves 2 people. The line goes
     through the switch's way in first, so the property's offered default still applies. *Why:* the field used to sell
     the default whatever was typed (1, the stay, the party), and only re-reading it showed the difference. Accepted:
     the field cannot tell a typed 1 from a stepped one, so « + » from 0 on a typed line also commits 1, not the party.
     A count equal to the party or the stay follows them (rule 4).
+
+36. **A sent `persons` on a SAS sale is a whole number from 1 to 999** (audit R22, 2026-11-04), or 400
+    `INVALID_QUANTITY`, preview and commit (`plugins/sas/sasQuantityBounds.js`). Null, absent and `''` still mean not
+    sent, so rule 28 stands; text of spaces alone is refused, it never bills the party; a number above the capacity is still clamped; the count this SAS stored, sent back
+    unchanged, is not re-judged. *Why:* `-5`, `0` and `0.5` were billed as the whole party, against rule 34's reading
+    of the same count on the fiche and rule 28's « never the party ». Test:
+    `plugins/sas/tests/sas-quantity-bounds.unit.test.js`.
+
+37. **An offered planning-card line has a floor too** _(audit R22-6 of the reservations slice, 2026-11-05)_. It bills 0 €, so
+    only the `cardPersons` it stored says what was sold: `readExtraLinesWithQuantity` gives it as `typedCount`, and
+    `arrivalLineFloors` turns it into `minTypedCount`, compared by rule 27. NULL follows the party and is never compared,
+    on either side; a paid card line keeps its amount floor. *Why:* a card line offered for 3 and saved for 2 raised no
+    violation, the non-card line of rule 27 did. Test: `offered-card-line-floor`.
 
 **Edge cases:**
 - Party lowered below a frozen count (3 served, party now 2) → stays 3, within rule 5's ceiling when the
@@ -335,6 +339,7 @@ Interactive rendering in the [decision summary](../docs/specs/2026-11-03-non-car
 
 ### Server unit tests
 - [x] `tests/non-card-option-served-persons.unit.test.js` (12) — rules 1, 5, 6, 12, 14-17, 19
+- [x] `tests/offered-card-line-floor.unit.test.js` (3) — rule 37
 - [x] `plugins/linen/tests/non-card-served-persons.unit.test.js` (2) — rule 6: the contract and the laundry
 - [x] `plugins/linen/tests/non-card-served-persons-simulation.unit.test.js` (2) — rule 6: the sum over the stored lines, and the projection reading `cardPersons`
 - [x] `tests/typed-counts-alerts.unit.test.js` (7) — rules 19, 20, 23, 25: party, nights, which line is flagged, the floor on a typed count

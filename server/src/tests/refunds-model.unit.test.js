@@ -114,7 +114,7 @@ test('listByMonth returns the book-money refunds of the month, caisse interne ex
 function stubbedController(overrides = {}) {
   const { db, model } = freshDb();
   const reservation = {
-    id: 1, finalPrice: 480, touristTaxTotal: 13.2,
+    id: 1, finalPrice: 480, touristTaxTotal: 13.2, balancePaid: 1, balanceAmount: 493.2,
     options: [{ optionId: 7, title: 'Petit-déjeuner', totalPrice: 72, billedUnits: 6, offered: 0 }],
     resources: [],
     ...(overrides.reservation || {}),

@@ -1462,6 +1462,9 @@ function calculateReservationQuote({
   // commune-rate / nightly-price change never silently rewrites an already-declared tax. The routing
   // (offered / balance / complément) still applies to that frozen amount.
   freezeTouristTax,
+  // specs/mid-stay-extras-to-end-of-stay-complement.md rule 20, reading of 2026-11-05 (D9) — the solde's contribs are
+  // captured: proof the buckets agreed when it was paid (scheduleQuoteInputs).
+  paidSoldeCaptured = false,
   frozenTouristTaxTotal,
   frozenTouristTaxRate,
   // specs/tourist-tax-matches-the-office-calculation.md rule 12 — the base (HT, whole stay), the
@@ -2757,6 +2760,14 @@ function calculateReservationQuote({
   if (balancePaid && !paidSoldeFollowsStatement && noDepositToShare && Number(balanceAmount) > 0) {
     resolvedBalanceAmount = paidBalanceAmount;
   }
+  // specs/reservation-payment-ledger.md rule 46, reading of 2026-11-05 (audit R22-3) — a solde collected before its
+  // acompte keeps what it collected: what is still owed shrinks first, a rise goes to the complement.
+  const soldeBeforeAcompte = balancePaid && !paidSoldeFollowsStatement && !depositPaid && !depositDisabled && !noDepositToShare
+    && storedDepositKnown && Number(balanceAmount) > 0;
+  if (soldeBeforeAcompte) {
+    resolvedBalanceAmount = paidBalanceAmount;
+    resolvedDepositAmount = roundMoney(Math.max(0, Math.min(Number(depositAmount) || 0, roundMoney(preArrivalAmount - paidBalanceAmount))));
+  }
 
   // specs/direct-installments.md rules 4-5 — an installment plan replaces the acompte and the solde: the
   // pre-arrival amount (`preArrivalAmount`) is handed to the plan, which the caller rebalances after the
@@ -2869,7 +2880,7 @@ function calculateReservationQuote({
   const noDepositGap = balancePaid && !paidSoldeFollowsStatement && noDepositToShare && Number(balanceAmount) > 0;
   // Rule 8 — a rise on a plan whose installments are all paid goes to the arrival complement, exactly as
   // when acompte and solde are both paid.
-  const preArrivalSettled = ((depositPaid || noDepositGap) && balancePaid) || Boolean(installmentPlan && installmentPlan.allPaid);
+  const preArrivalSettled = ((depositPaid || noDepositGap || soldeBeforeAcompte) && balancePaid) || Boolean(installmentPlan && installmentPlan.allPaid);
   // What the arrival complement would ask for if it were not collected yet.
   let liveComplementAmount;
   if (isTouristTaxCollectedOnArrival || isTouristTaxForcedToComplement || complementForcedItemsTotal > 0
@@ -2898,11 +2909,13 @@ function calculateReservationQuote({
   // specs/mid-stay-extras-to-end-of-stay-complement.md rule 20 — a collected arrival complement is
   // closed, so what was routed to it since (an extra added on the complement before any arrival
   // baseline existed, a tax or an extra guest added after the collection) is billed at check-out, in
-  // the end-of-stay complement. Only the routed items count, never the auto-gap: the excess is what
-  // they now weigh beyond what was collected, so it can under-claim but never invent a due on a stay
-  // whose buckets disagreed before. Never on a complement the operator adjusted (his amount is the
-  // decision), nor once the end-of-stay complement is collected too (its lines are frozen).
-  const routedToComplement = roundMoney(complementForcedItemsTotal + taxInComplement);
+  // the end-of-stay complement. Without proof the buckets agreed only the routed items count, never the
+  // auto-gap: the line can under-claim but never invent a due. With that proof (reading of 2026-11-05, D9:
+  // the solde's contribs captured and the pre-arrival money settled) the auto-gap counts too. Never on a
+  // complement the operator adjusted (his amount is the decision), nor once the end-of-stay complement is
+  // collected too (its lines are frozen).
+  const routedToComplement = roundMoney(complementForcedItemsTotal + taxInComplement
+    + (paidSoldeCaptured && preArrivalSettled ? autoGapBetweenDepositAndBalance : 0));
   const arrivalComplementExcess = complementPaid && !complementOverridden && !endOfStayComplementSettled
     ? roundMoney(Math.max(0, routedToComplement - resolvedComplementAmount))
     : 0;

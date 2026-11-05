@@ -443,6 +443,23 @@ decimals is rounded and shown rounded.
     stored-money path, as it always had: its earlier entries, possibly already sent to the accountant,
     are unchanged. Found while porting rule 42 to master (2026-10-19); reproduced on `inte/plugins`
     (acompte of May 2026 vanishing from the May export once the solde was marked in October).
+    > **Reading of 2026-11-05 (audit R22-3).** The rule's reason is an earlier entry that would flip. A solde ticked while
+    > its acompte is still owed has none: `captureBucketSplit` writes the stored split at once, and the complement's own
+    > entry no longer depends on it (accounting-books rule 16). Three parts make that order hold through a save: the
+    > controller feeds the stored `depositAmount` when the solde is paid too (the preview does as well, for this order);
+    > the engine keeps the paid solde at what it collected and takes the acompte still owed down to
+    > `min(stored, pre-arrival − paid solde)`; `preArrivalSettled` is true, so a rise goes to the complement. Solde 494,80 €
+    > ticked, +20 € line: the solde stays, the acompte stays 210 €, complement 20 €, journal byte-identical (it used to move
+    > to 508,80 €, 70600010 63,64 → 76,36, money never received booked in a possibly closed month). The acompte then pays
+    > normally. Test: `solde-before-acompte`; `stay-payment-recorder` « rule 1 » changed for this very order only.
+    >
+    > **Reading of 2026-11-05 (R22 verification).** A collected complement whose stamped split still adds up (accounting-books
+    > rule 16) does not flip either: it never reads the contribs. So an acompte or a solde whose engine split fails after such
+    > a complement, the other bucket unpaid, takes the stored split at once. Left NULL, its entry stayed a live pro rata of the
+    > fiche, the same mechanism as a removed paid line (D11): acompte 222,60 € ticked after a complement and a free line
+    > added, one adult more moved a booked entry (70600000 163,64 → 165,62, 70600010 38,73 → 36,75). A complement with no
+    > readable split (older, adjusted) and an acompte or solde already paid without one stay `'legacy'`, as above. Test:
+    > `plugins/accounting-export/tests/acompte-after-collected-complement`.
 47. **An open link paid for an amount the stay no longer asks for is booked at its amount.** Rule 29
     retires a stale link only on the fiche's save; a stay re-priced through `performUpdate` (plugins,
     arrival SAS, arrival payment) keeps it open. When the poll or the webhook finds such a `deposit`,

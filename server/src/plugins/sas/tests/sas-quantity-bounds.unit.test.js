@@ -162,7 +162,7 @@ test('sas-breakfast-and-catering-upsell rule 16: the pure pricing never returns 
 });
 
 // specs/sas-breakfast-and-catering-upsell.md rule 16, reading of 2026-11-04, and specs/non-card-option-served-persons.md
-// rule 35 (audit R22): a sent `persons` is a whole number from 1 to 999. An invalid count never sells the whole party.
+// rule 36 (audit R22): a sent `persons` is a whole number from 1 to 999. An invalid count never sells the whole party.
 test('sas-breakfast-and-catering-upsell rule 16: persons not a whole number from 1 to 999 is refused, preview and commit, on a per-person option', () => {
   for (const persons of [-5, -1, 0, 0.5, 0.001, 1.5, '-5', '0', 1000, 1e15, Infinity, 'abc', true, [2], {}]) {
     for (const fn of ['previewArrival', 'commitArrival']) {
