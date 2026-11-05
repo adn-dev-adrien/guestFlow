@@ -151,9 +151,14 @@ function createModel(database) {
   // The refusals shared by the preview and the commit: a real day inside the date window (unless it is the
   // edited booking's stored day, specs/reservations-backend-mvc.md rule 13, reading of 2026-11-02), minimum
   // duration, then capacity — the booking itself excluded when it is edited.
-  function checkBookable({ resource, date, startTime, endTime, excludeId = null, storedDate }) {
+  function checkBookable({ resource, date, startTime, endTime, excludeId = null, storedDate, storedTimes }) {
     const dateError = sdk.coreModule('stayDates').entryDateMessage(date, { stored: storedDate });
     if (dateError) return { error: dateError, status: 400 };
+    // Rule 23, reading of 2026-11-05 — a booking ends after it starts; only the stored pair sent back is exempt.
+    const storedPair = storedTimes && storedTimes.startTime === startTime && storedTimes.endTime === endTime;
+    if (!storedPair && toMinutes(endTime) <= toMinutes(startTime)) {
+      return { error: 'L’heure de fin doit suivre l’heure de début.', status: 400 };
+    }
     const duration = Math.max(0, toMinutes(endTime) - toMinutes(startTime));
     const minUsage = minimumUsageMinutes(resource);
     if (minUsage > 0 && duration < minUsage) {
@@ -183,14 +188,16 @@ function createModel(database) {
     if (!resource) return { error: 'Ressource non trouvée', status: 404 };
     let reservationId = null;
     let storedDate;
+    let storedTimes;
     if (!notSent(bookingId)) {
-      const existing = database.prepare('SELECT reservationId, resourceId, date FROM resource_bookings WHERE id = ?').get(bookingId);
+      const existing = database.prepare('SELECT reservationId, resourceId, date, startTime, endTime FROM resource_bookings WHERE id = ?').get(bookingId);
       if (!existing) return { error: 'Réservation non trouvée', status: 404 };
       if (Number(existing.resourceId) !== Number(resourceId)) return { error: 'Réservation d’une autre ressource', status: 400 };
       reservationId = existing.reservationId;
       storedDate = existing.date;
+      storedTimes = existing;
     }
-    const refusal = checkBookable({ resource, date, startTime, endTime, excludeId: bookingId || null, storedDate });
+    const refusal = checkBookable({ resource, date, startTime, endTime, excludeId: bookingId || null, storedDate, storedTimes });
     if (refusal) return refusal;
     return breakdownOf({ resource, startTime, endTime, propertyId, reservationId });
   }
@@ -373,7 +380,7 @@ function createModel(database) {
     const resource = getResourceForBooking(existing.resourceId);
     if (!resource) return { error: 'Ressource non trouvée', status: 404 };
 
-    const refusal = checkBookable({ resource, date: newDate, startTime: newStart, endTime: newEnd, excludeId: id, storedDate: existing.date });
+    const refusal = checkBookable({ resource, date: newDate, startTime: newStart, endTime: newEnd, excludeId: id, storedDate: existing.date, storedTimes: existing });
     if (refusal) return refusal;
 
     const nextPropertyId = propertyId !== undefined ? propertyId : existing.propertyId;
