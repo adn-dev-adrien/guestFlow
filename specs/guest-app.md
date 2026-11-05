@@ -8,6 +8,7 @@
 | **Author** | Adrien |
 | **Related PR** | (slice A: link once opened) |
 | **Mock-ups** | [`specs/guest-app-maquettes.html`](guest-app-maquettes.html) |
+| **Review boards** | [`specs/guest-app-planches.html`](guest-app-planches.html) — every surface wired to one simulated state, to validate before slices B-H (2026-11-05) |
 | **Plan** | [`specs/guest-app-plan.md`](guest-app-plan.md) |
 | **Builds on** | `public-api.md`, `wordpress-plugin.md` (catalogue projections), `gate-access-sowel-connector.md` + `sowel-stays-in-keys.md` (gate keys), `mid-stay-extras-on-locked-fiche.md` + `mid-stay-extras-to-end-of-stay-complement.md` (the end-of-stay bill), `online-payments-qonto.md` + `payment-link-lifecycle.md` (card payment), `resource-hourly-scheduling.md` (nordic bath slots), `pwa-push-notifications.md` (staff push) |
 
