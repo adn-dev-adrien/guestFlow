@@ -61,10 +61,12 @@ function createRefundsController(deps = {}) {
     // caisse interne's money in the caisse interne only (reading of 2026-11-02, audit R15-L1).
     const cancelled = String(reservation.kind) === 'cancelled'
       ? cancelledRefundBudget({ collectedTtc, cashCollectedTtc: cashCollected(reservation), refunds }) : null;
-    const booked = cancelled && stayDatabase ? bookedStayBuckets({ database: stayDatabase, reservationsModel, installmentsModel }, reservation, vatRate) : null;
-    const taxOnArrival = cancelled && stayDatabase ? taxRidesTheComplement(stayDatabase, reservation) : true;
+    const booked = stayDatabase ? bookedStayBuckets({ database: stayDatabase, reservationsModel, installmentsModel }, reservation, vatRate) : null;
+    const taxOnArrival = stayDatabase ? taxRidesTheComplement(stayDatabase, reservation) : true;
     const lineReading = (cash) => collectedByLine({ reservation, options: reservation.options || [], resources: reservation.resources || [], booked, cash, taxOnArrival });
-    const collected = cancelled ? lineReading(false) : null;
+    // Rule 51 (D15) — a live stay reads it too: its lines answer for what they collected, when its money can be read.
+    const liveReadable = booked && (!(Number(reservation.installmentsPaidAmount) > 0) || booked.installments);
+    const collected = cancelled || liveReadable ? lineReading(false) : null;
     const cashReading = cancelled && cancelled.cashCollectedTtc > 0 ? lineReading(true) : null;
     const refundableLines = buildRefundableLines({
       finalPrice: reservation.finalPrice,
@@ -78,6 +80,8 @@ function createRefundsController(deps = {}) {
       cancelled,
       // Rule 49 reading of 2026-11-02 — a cancelled stay's line offers at most what that line collected.
       collected,
+      planBuckets: !cancelled && booked ? booked.installments : null,
+      reservation: cancelled ? null : reservation,
       cashCollected: cashReading,
       complementCollected: Number(reservation.complementPaid) === 1,
       goneLines: cancelled ? collectedLinesGone({ reservation, options: reservation.options || [], resources: reservation.resources || [], collected, cashCollected: cashReading }) : [],

@@ -343,3 +343,13 @@ test('rule 22: the added row unticks alone, and unticking the main row takes the
   assert.equal(stamp(db).at, null);
   assert.equal(extract(model).data.reservations.length, 1);
 });
+
+test('audit R23-S3 — the added guests’ row tells the commune no accommodation: the stay’s base was declared on its own row', () => {
+  const { model } = seed({
+    complementPaid: 1, complementPaidDate: day(2), touristTaxDeclaredAt: `${day(1)} 09:00:00`,
+    balancePaidDate: day(1), touristTaxFrozenAt: `${day(1)} 09:00:00`, touristTaxAddedGuestsAdults: 1,
+  });
+  const { data } = extract(model);
+  assert.equal(data.reservations.find((r) => r.addedGuestsRow).accommodationAmount, 0);
+  assert.ok(data.reservations.find((r) => !r.addedGuestsRow).accommodationAmount > 0);
+});

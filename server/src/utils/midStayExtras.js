@@ -317,6 +317,7 @@ module.exports = {
   resolveMidStaySplit,
   buildMidStayLine,
   parseNotes,
+  parseDetail,
   settledByKey,
   notesTotal,
   nextNoteId,

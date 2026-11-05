@@ -34,7 +34,7 @@ const VOLATILE = new Set(['createdAt', 'updatedAt', 'cancelledAt', 'vatRegime', 
   'platformPenaltyAmount', 'supersededAt', 'supersededByReservationId', 'supersededReason',
   'platformPaidAdults', 'platformPaidOccupants', 'touristTaxAddedGuestsAmount', 'touristTaxAddedGuestsAdults',
   'touristTaxAddedGuestsDeclaredAt', 'touristTaxDeclaredWithAddedAmount',
-  'complementPaidSplit', 'removedLineContribs']);
+  'complementPaidSplit', 'removedLineContribs', 'availableTtc', 'sharedBucketTtc']);
 
 function canonical(value) {
   if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;

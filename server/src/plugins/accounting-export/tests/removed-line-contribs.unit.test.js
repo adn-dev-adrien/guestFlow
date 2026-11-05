@@ -8,7 +8,7 @@ const assert = require('node:assert/strict');
 const {
   db, NO_ACOMPTE, WITH_ACOMPTE, S, D, free, fiche, put, pay, cancel, register, offered, giveAll, net, csv, entry, rowOf, mark,
 } = require('./journalFixture');
-const { parseRemovedLineContribs } = require('../../../utils/removedLineContribs');
+const { parseRemovedLineContribs, recordRemovedLineContribs } = require('../../../utils/removedLineContribs');
 const reservationsModel = require('../../../models/reservationsModel');
 
 const PRESTATION = '70600010';
@@ -141,4 +141,49 @@ test('the accommodation account stays untouched when the line goes', async () =>
   const accommodation = entry(stay.id, 'balance')[ACCOMMODATION];
   await put(stay, { customOptions: [] });
   assert.equal(entry(stay.id, 'balance')[ACCOMMODATION], accommodation);
+});
+
+// Audit R23-S3 — the lines of the record no test held; the two scenarios are the auditor's probes.
+const { collectedLinesGone } = require('../../../utils/refunds');
+
+test('a second removal of one key adds up: paid by the acompte, removed, re-added, paid by the solde, removed', async () => {
+  const stay = fiche(WITH_ACOMPTE, 'direct', { customOptions: [free(142)] });
+  pay(stay.id, D);
+  const fromAcompte = db.prepare('SELECT acompteContribTtc AS c FROM reservation_custom_options WHERE reservationId = ?').get(stay.id).c;
+  await put(stay, { customOptions: [] });
+  await put(stay, { customOptions: [free(142)] });
+  pay(stay.id, S);
+  const fromSolde = db.prepare('SELECT soldeContribTtc AS c FROM reservation_custom_options WHERE reservationId = ?').get(stay.id).c;
+  await put(stay, { customOptions: [] });
+  const records = parseRemovedLineContribs(rowOf(stay.id).removedLineContribs);
+  assert.equal(records.length, 1);
+  assert.equal(records[0].acompteContribTtc, fromAcompte);
+  assert.equal(records[0].soldeContribTtc, fromSolde);
+  assert.ok(fromAcompte > 0 && fromSolde > 0);
+});
+
+test('the same bucket removed twice adds up', () => {
+  const stay = fiche(WITH_ACOMPTE, 'direct');
+  const lost = (soldeContribTtc) => [{ key: 'custom:libre', label: 'Libre', bucket: 'options', acompteContribTtc: null, soldeContribTtc }];
+  recordRemovedLineContribs(db, stay.id, lost(10));
+  recordRemovedLineContribs(db, stay.id, lost(5));
+  assert.equal(parseRemovedLineContribs(rowOf(stay.id).removedLineContribs)[0].soldeContribTtc, 15);
+});
+
+test('un-ticking the acompte clears its bucket only: the solde’s stays', async () => {
+  const stay = fiche(WITH_ACOMPTE, 'direct', { customOptions: [free(142)] });
+  pay(stay.id, D, S);
+  const held = db.prepare('SELECT soldeContribTtc AS c FROM reservation_custom_options WHERE reservationId = ?').get(stay.id).c;
+  assert.ok(held > 0);
+  await put(stay, { customOptions: [] });
+  pay(stay.id, { depositPaid: false });
+  const [record] = parseRemovedLineContribs(rowOf(stay.id).removedLineContribs);
+  assert.equal(record.acompteContribTtc, null);
+  assert.equal(record.soldeContribTtc, held);
+});
+
+test('a gone line paid in the caisse interne is offered for that money', () => {
+  const reservation = { removedLineContribs: JSON.stringify([{ key: 'custom:libre', label: 'Libre', bucket: 'options', acompteContribTtc: null, soldeContribTtc: 30 }]) };
+  const gone = collectedLinesGone({ reservation, collected: { 'custom:libre': 0 }, cashCollected: { 'custom:libre': 30 } });
+  assert.deepEqual(gone, [{ key: 'custom:libre', label: 'Libre', bucket: 'options', collectedTtc: 30 }]);
 });

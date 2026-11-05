@@ -564,6 +564,22 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
     > 2,40). It now offers 635,20 + 7,20 € and every account nets to 0. A plan never sits beside a paid acompte or solde (D2),
     > so the reading with contribs does not add them. Test:
     > `plugins/accounting-export/tests/added-guests-tax-pre-arrival-readers`.
+    >
+    > **Reading of 2026-11-05 (audit R23 N5).** An installment's split knows the bucket, not the line, so what a plan booked
+    > on options or resources beyond the lines still naming it (a paid line removed, lowered, or moved to the complement) was
+    > on no line: 100 € left in 75880000, `lines: []`, `collected: 100`. `bookedStayBuckets().installments` also returns
+    > `options` and `resources`; `collectedByLine` reads the part above the non-complement lines' billed amounts, keyed
+    > `plan:options` / `plan:resources` (rounding cents excepted), and `collectedLinesGone` offers it as one line per bucket:
+    > « Prestations encaissées », « Activités encaissées ». Line removed 100 €, lowered 100 → 40 €, half-paid line moved to the
+    > complement 49,94 €, option + resource removed 80 + 54 €: everything given back, every account 0. Test:
+    > `plugins/accounting-export/tests/cancelled-register-plan-and-eos-lines`.
+    >
+    > **Reading of 2026-11-05 (audit R23 N6).** On the books, a paid end-of-stay complement and the mid-stay notes hold lines
+    > too (`collectedAfterArrival`): a detail or note line with a key reads on that key, once, and the excess of mid-stay
+    > rule 20 (`arrivalComplementExcess`) is a gone line under its label, bucket `options`, where D9 books it (`res:` keys:
+    > `resources`, as `splitEndOfStayDetail`). Solde, complement, one adult more, end of stay paid, cancelled: 42,40 € are offered
+    > and every account nets to 0, where they sat on no line. A SAS line with no key names no line of the fiche. The caisse
+    > interne's reading is unchanged (review of PR #929, F4). Same test.
 50. **A live stay refuses a book refund above what it collected** _(D10, Adrien, 2026-11-05; audit R22-7)_. The total of a
     refund made by transfer or in cash (`Espèces`) on a stay that is not cancelled cannot exceed `collectedTtc`, net of the
     refunds already made: 409 `REFUND_EXCEEDS_COLLECTED` « Dépasse l'encaissé (X €). », the same refusal as a cancelled
@@ -574,6 +590,35 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
     added, solde 600 € collected, 642,40 € was offered and accepted. Rule 44 (« + Nouveau remboursement » only warns about a
     trop-perçu) is a different case and does not change. The dialog disables the save with « Dépasse l'encaissé de X. » on a
     book means, and keeps the warning on the caisse interne. Test: `live-refund-above-collected`, `RefundDialog.test`.
+    > **Reading of 2026-11-05 (D15).** « Only the total is judged » now reads « the total is judged first »: rule 51 judges the
+    > lines within it. The refusal and the codes of this rule do not move.
+51. **A live stay refuses a line refund above what that line collected** _(D15, Adrien, 2026-11-05; audit R23 N9)_. On a stay
+    that is not cancelled, a book refund on a keyed line cannot exceed what that line collected (`collectedByLine`) net of the
+    book refunds already made on it: 409 `REFUND_EXCEEDS_LINE_COLLECTED`, « Rien d'encaissé sur cette ligne. » at 0, otherwise
+    « Disponible sur cette ligne : X €. ». Rule 7's own refusal comes first, then rule 50's total, then this one.
+    - The server ships the figure: `refundableLines[].availableTtc`, never above `refundableTtc`. The dialog disables a line at
+      0 and says why, pre-fills and caps a line at the figure on « Virement » and « Espèces », and does no math. Absent (a
+      cancelled stay, money no contrib describes), it falls back to `refundableTtc`.
+    - Free lines are judged on the total only, so a trop-perçu refund (rules 34, 42) is unchanged.
+    - The caisse interne is not judged, and its refunds take nothing from a line's figure beyond `refundableTtc` itself.
+    - A plan's installments know the bucket, not the line (N5): the lines no reading names share the bucket's booked money plus
+      what the end of stay and the notes collected on them (`sharedBucketTtc`, refused too on their sum).
+    - Legacy money no contrib describes reads as on the cancelled register: accommodation and tax from `booked`, the other
+      lines carry no figure and the total judges them. Stored refunds are not re-judged, cancelled stays keep rules 48-49.
+    *Why:* the journal is per account. 16 € refunded on an option added after the solde, then a cancellation and the give-back,
+    left total 0 but 70600000 +14,54 and 70600010 −14,55; the same on the tax left 46710000 at −3,60. An acompte alone holds no
+    tax yet, so the tax line refuses there too (it used to pass, D10's « free per line »). Test: `live-refund-per-line`,
+    `live-refund-above-collected`, `RefundDialog.line-collected`, `plugins/accounting-export/tests/cancelled-register-plan-and-eos-lines`.
+52. **A mark taken back never leaves book refunds above what stays collected** _(audit R23 N7, 2026-11-05)_. Rule 50's reverse
+    order. The payment PATCH (`depositPaid`, `balancePaid`, complement and end of stay, their move to the caisse interne, a note
+    cancelled or lowered), the arrival undo and the reconciliation's « Défaire » (installment or bucket, only the marks it would
+    really take back) refuse with 409 `REFUND_BLOCKS_UNTICK` before anything is written, naming the refunds to delete first, most
+    recent first and only as many as needed: « Remboursement du 05/11/2026 (300,00 €) à supprimer d'abord. », with `refundIds`. A
+    gesture that does not lower `comptaCollected`, a caisse-interne refund and what stays collected above the refunds pass.
+    *Why:* solde paid, 300 € refunded, un-tick: `collected −300`, 70600000 −272,73 and the bank +300 stayed in the journal, and a
+    cancellation then left the negative revenue on an empty register. Shared guard: `utils/refundUntickGuard.js`. The departure and
+    arrival SAS commits, which can also take a mark back on a re-open, do not pass through it. Test: `untick-with-open-refund`,
+    `plugins/online-payment/tests/reconciliation-undo-open-refund`.
 
 ---
 
@@ -592,6 +637,13 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
 | `controllers/` | `accountingController.js` | T | Merges encaissement + refund entries, sorted by date, for both `sales.csv` and `sales` |
 | `controllers/` | `reservationsController.js` | T | Feeds `refundsTotal` into the quote inputs (like `midStayQuoteInputs`) and exposes `refundableLines` on `GET /:id` |
 | `utils/` | `refunds.js` | C | **Pure**: `buildRefundableLines(...)` (incl. the per-night tourist-tax line), `validateRefundPayload(...)` (derives the quantity from the amount), `splitHtVat(...)`, `refundedTouristTax(refunds)` → `{ amount, nights }` |
+| `utils/` | `refunds.js` | T | Rule 49 readings of 2026-11-05 (R23) — `PLAN_BUCKET_LINES`, `collectedAfterArrival`, both read by `collectedByLine` and `collectedLinesGone`; rule 51 — `applyLiveCollected` (`availableTtc`, `sharedBucketTtc`), the line check of `validateRefundPayload` |
+| `utils/` | `cancelReservation.js` | T | Rule 49 reading (N5) — `bookedStayBuckets().installments` also returns `options` and `resources` |
+| `utils/` | `refundUntickGuard.js` | C | Rule 52 — `untickRefusal(row, changes, refunds)`: pure, shared by the PATCH, the arrival undo and `takeBackRefusal` |
+| `utils/` | `reservationPaymentMark.js` | T | Rule 52 — `takeBackRefusal(reservationId, { flags, installmentCents })` for a plugin taking a mark back |
+| `controllers/` | `refundsController.js` | T | Rule 51 — reads `collectedByLine` on a live stay too, when its money can be read |
+| `controllers/` | `reservationsController.js` | T | Rule 52 — `paymentPatchChanges`, `arrivalUndoChanges` feed the guard |
+| `plugins/online-payment/reconciliation/` | `ficheWriter.js`, `controller.js`, `index.js` | T | Rule 52 — `undoRefusal`: « Défaire » answers the core's refusal before writing |
 | `utils/` | `refunds.js` | T | Rule 48 — `cancelledRefundBudget(...)`; `buildRefundableLines({ cancelled })` caps each line at what was collected (`indemnityTtc`); `validateRefundPayload({ cancelled })` splits each line between the sale and the `indemnity` bucket |
 | `utils/` | `refunds.js` | T | Rule 49 — `capInOrder`: the lines' sale and indemnity rooms add up to what is left; the refusals name what is left. Reading of 2026-11-02: `collectedByLine` caps each line at what it collected |
 | `controllers/` | `refundsController.js` | T | Rule 49 reading — on a cancelled stay, hands `collectedByLine` (with `bookedStayBuckets`, read on `deps.database`) to `buildRefundableLines` |
@@ -659,7 +711,7 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
 | DELETE | `/api/reservations/:id/refunds/:refundId` | — | `200 { refunds, refundableLines, refundTotals, collectedTtc }` | 404 when the refund doesn't belong to `:id`. |
 
 Auth: `requireAuth` + admin role (403 `FORBIDDEN_ROLE` for reception/accountant).
-Errors: `{ error, code }` with the codes of rules 10–13.
+Errors: `{ error, code }` with the codes of rules 10–13, `REFUND_EXCEEDS_COLLECTED` (rule 50), `REFUND_EXCEEDS_LINE_COLLECTED` (rule 51). `refundableLines[]` also carries `availableTtc` on a live stay (rule 51). `PATCH /payment`, `POST /arrival-payment` (undo) and `DELETE /api/payments/reconciliation/links/:transactionId` answer 409 `REFUND_BLOCKS_UNTICK` `{ error, code, refundIds }` (rule 52).
 Idempotency: none — a double POST creates two refunds (visible in the history, deletable).
 
 **Audit 2026-10-27 (rule 40).** `utils/pricing.js` — the platform branch with both échéances paid,
@@ -757,8 +809,12 @@ Empty state: the block renders with the button only, no total chip, no history l
    « Ce remboursement dépasse le montant encaissé à ce jour. » *(2026-10-18, rule 37: it now reads
    « Dépasse l'encaissé de X € » on one line right above the save button, where a blocking refusal —
    « <ligne> : dépasse le remboursable de X € », « Montant illisible. » — shows too.)* *(2026-11-05,
-   rule 50: a block on « Virement » and « Espèces », still a warning on « Caisse interne ».)*
-8. Validation errors from the server (`REFUND_EXCEEDS_LINE` / `REFUND_EXCEEDS_STAY` / `REFUND_EXCEEDS_COLLECTED`) surface as an
+   rule 50: a block on « Virement » and « Espèces », still a warning on « Caisse interne ».)* *(2026-11-05, rule 51: on those
+   two means a line carries the server's `availableTtc`: at 0 its checkbox is disabled and its caption ends « Rien d'encaissé sur
+   cette ligne. », otherwise the pre-filled amount and « Max » are that figure. « Caisse interne » reopens the line; going back to
+   a book means with the line ticked blocks the save with « <ligne> : rien d'encaissé sur cette ligne. ». Mobile: same content,
+   in the full-screen dialog.)*
+8. Validation errors from the server (`REFUND_EXCEEDS_LINE` / `REFUND_EXCEEDS_STAY` / `REFUND_EXCEEDS_COLLECTED` / `REFUND_EXCEEDS_LINE_COLLECTED`) surface as an
    `ErrorAlert` inside the dialog, the dialog stays open with the input preserved.
 
 Deleting a refund goes through `ConfirmDialog`: « Supprimer ce remboursement ? L'écriture d'avoir
@@ -790,6 +846,12 @@ like « Nouvelle note », not a page-level one).
 ## 7. Test plan
 
 ### Server unit tests (38 new — full suite 2421 ✅)
+- [x] `tests/live-refund-per-line.unit.test.js` (17) — rule 51 (D15). `tests/untick-with-open-refund.unit.test.js` (8),
+      `plugins/online-payment/tests/reconciliation-undo-open-refund.unit.test.js` (4) — rule 52.
+      `plugins/accounting-export/tests/cancelled-register-plan-and-eos-lines.unit.test.js` (10) — rule 49 readings N5, N6 and D15's
+      give-back. Client: `RefundDialog.line-collected.test.jsx` (6). The auditor's unheld lines (R23-S3):
+      `complement-split-stamped-on-every-flip` (+5), `cancelled-register-complement-no-split` (+2), `removed-line-contribs` (+4),
+      `platform-added-guests-tourist-tax-books` (+1).
 - [x] `tests/trop-percu-refund-books.unit.test.js` (1) — rule 36: 465,60 € paid, 6 → 2 adults, 409
       `OVERPAID` 110,40 € (options 96 + taxe 14,40), forced save keeps the paid solde at 465,60 €, the
       refund of the two lines → journal client account 355,20 €, 46710000 7,20 € with no negative
