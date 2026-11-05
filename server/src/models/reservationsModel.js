@@ -504,7 +504,7 @@ function createReservationsModel(database) {
     if (!HAS_RESERVATION_NUMBER) return;
     const row = database.prepare('SELECT reservationNumber, kind FROM reservations WHERE id = ?').get(reservationId);
     if (!row || row.kind !== 'reservation') return;
-    const override = payload && payload.reservationNumber !== undefined ? String(payload.reservationNumber).trim() : '';
+    const override = payload && payload.reservationNumber != null ? String(payload.reservationNumber).trim() : '';
     if (override) {
       database.prepare('UPDATE reservations SET reservationNumber = ? WHERE id = ?').run(override, reservationId);
       return;

@@ -124,6 +124,7 @@ UI redesign: replace `DataPageScaffold` with the shared `PageActionBar` (sticky 
     of the touch picker's « OK »). A typed start still pre-fills the reopening date to start + 1 under the
     same condition as a pick (empty, or not after the start). Test:
     `client/src/pages/__tests__/EstablishmentClosuresPage.keyboard-start.test.jsx`.
+22. **A malformed property never closes every property** _(2026-11-05, audit R23-2)_. On a body, `null`, `''` and `'null'` mean all; anything else is a positive id or its digits naming a row, else 400 `INVALID_PROPERTY`. `normalizePropertyId` read anything unusable as null: `propertyId: "abc"` closed the whole establishment for sale, with no refusal. A query string keeps its lenient reading. `label` is a string or absent, else 400 `INVALID_LABEL`. `DELETE` of an unknown id is 404. Test: `tests/closure-body-shape.unit.test.js`.
 
 ## 4. Architecture
 

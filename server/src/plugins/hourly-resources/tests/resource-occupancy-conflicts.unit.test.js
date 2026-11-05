@@ -46,6 +46,7 @@ const DDL = `
 function seed({ resource = {}, sessions = [], kind = 'reservation' } = {}) {
   const db = new Database(':memory:');
   db.exec(DDL);
+  db.exec("INSERT OR IGNORE INTO properties (id, name) VALUES (1, 'Ombre')");
   const r = {
     name: 'Bain nordique', quantity: 1, price: 30, turnoverMinutes: 15, minimumUsageMinutes: 60,
     slotDuration: 60, ...resource,
@@ -158,7 +159,7 @@ test('listRange: malformed session JSON is ignored, never thrown', () => {
 test('listForResource merges bookings and sessions, tagged, ordered, for the planning page', () => {
   const { db, model, resourceId } = seed({ sessions: GUEST_SESSION });
   db.prepare("INSERT INTO clients (id, firstName, lastName) VALUES (1, 'Camille', 'Dupont')").run();
-  db.prepare("INSERT INTO properties (id, name) VALUES (1, 'Aventura lodge')").run();
+  db.prepare("INSERT OR REPLACE INTO properties (id, name) VALUES (1, 'Aventura lodge')").run();
   model.createBooking({ resourceId, date: inDays(-52), startTime: '17:00', endTime: '18:00', clientName: 'Extérieur' });
 
   const rows = model.listForResource({ resourceId, date: inDays(-52) });

@@ -11,6 +11,7 @@
  * the commit and must never be able to undo it: the Google Calendar delete and the guest's notice.
  */
 
+const { isOptionalText } = require('../utils/bodyText');
 const db = require('../database');
 const reservationsModel = require('../models/reservationsModel');
 const refundsModel = require('../models/refundsModel');
@@ -42,6 +43,7 @@ function cancellationNoticeWarning(reason) {
 // POST /api/reservations/:id/cancel — { reason?, notifyClient? }
 async function cancel(req, res) {
   const id = Number(req.params.id);
+  if (!isOptionalText(req.body && req.body.reason)) return res.status(400).json({ error: 'Valeur invalide.', code: 'INVALID_FIELD', field: 'reason' });
   const result = cancelReservation(
     { database: db, reservationsModel, refundsModel, compensationsModel, paymentLinksModel, installmentsModel },
     id,

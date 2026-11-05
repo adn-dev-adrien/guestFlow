@@ -1183,11 +1183,16 @@ function createController(model = defaultModel, deps = {}) {
       // the whole write, for a key that depends on another one sent with it
       // (specs/google-vacation-rentals-feed.md rule 16: « Envoi » needs the partner id).
       const errors = {};
-      record.settings.forEach(({ key, validate }) => {
+      record.settings.forEach(({ key, secret, validate }) => {
         if (!Object.prototype.hasOwnProperty.call(body, key)) return;
         // Rule 7 (reading of 2026-11-04) — an object or a list is no setting: it would be stored as
         // « [object Object] », over a secret too. The whole write is refused, and no validator sees it.
         if (body[key] !== null && typeof body[key] === 'object') {
+          errors[key] = 'Valeur invalide.';
+          return;
+        }
+        // Reading of 2026-11-05 — a secret is text, and Number(true) is 1 for a validator.
+        if ((secret && body[key] !== null && typeof body[key] !== 'string') || (validate && typeof body[key] === 'boolean')) {
           errors[key] = 'Valeur invalide.';
           return;
         }

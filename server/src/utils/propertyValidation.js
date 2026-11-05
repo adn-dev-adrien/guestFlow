@@ -13,7 +13,7 @@
 const { validateMonthDay } = require('./settingsValidation');
 const { PROPERTY_LIMITS, parseBoundedNumber } = require('./inputLimits');
 const { MODES, poolSeasonModeOf } = require('./poolSeason');
-const { isClockTime } = require('./bodyText');
+const { isClockTime, isOptionalText, cleanedBody } = require('./bodyText');
 const { MAX_STAY_NIGHTS } = require('./stayDates');
 const { numberRefused, usableNumber, nonNegative, wholeFrom, rowsOf } = require('./lineInputBounds');
 
@@ -64,6 +64,8 @@ function validatePoolSeason(body, errors, existing) {
 // else stops here, before a validator reads it or the model stores it. A time is HH:MM or empty, a stored one exempt.
 const TEXT_KEYS = ['name', 'nameArticle', 'photo', 'touristTaxMode', 'extraGuestPriceUnit', 'poolSeasonMode', 'poolSeasonStart', 'poolSeasonEnd'];
 const TIME_KEYS = ['defaultCheckIn', 'defaultCheckOut'];
+// utils/pricing.js computes these three: any other mode silently quotes no tax (settings-input-guards rule 56).
+const TOURIST_TAX_MODES = ['per_day_per_person', 'percentage_accommodation', 'percentage_and_fixed'];
 const NUMBER_KEYS = [
   'maxGuests', 'maxBabies', 'basePriceIncludedGuests', 'extraGuestPrice', 'welcomePackCost', 'doubleBeds', 'singleBeds',
   'depositPercent', 'depositDueDays', 'balanceDaysBefore', 'cancelAfterBalanceDueDays', 'cleaningHours', 'defaultCautionAmount',
@@ -82,8 +84,18 @@ function shapeErrors(body, existing) {
   for (const key of TIME_KEYS) {
     if (sent(key) && !(existing && body[key] === existing[key]) && !isClockTime(body[key])) errors[key] = 'Heure invalide.';
   }
+  // Settings-input-guards rule 56.
+  if (sent('touristTaxMode') && !errors.touristTaxMode && !TOURIST_TAX_MODES.includes(body.touristTaxMode)
+    && !(existing && body.touristTaxMode === existing.touristTaxMode)) errors.touristTaxMode = 'Choix invalide.';
+  // Rule 57 — the upload is the only way to set a photo: a deletion removes the file the row names.
+  if (sent('photo') && !errors.photo && !(existing && body.photo === existing.photo)) errors.photo = 'Valeur invalide.';
+  // Rule 55 — the first price of a new property; an update does not read this key.
+  if (!existing && numberRefused(body.pricePerNight, nonNegative)) errors.pricePerNight = 'Un montant ≥ 0 €.';
   return errors;
 }
+
+/** Audit R23-I8 — NUL used to pass a required name: control characters out of it, a stored one left as it is. */
+const cleanPropertyText = (body, stored = null) => cleanedBody(body || {}, { fields: ['name'], stored });
 
 function validatePropertyInput(body = {}, existing = null) {
   const wrongShape = shapeErrors(body, existing);
@@ -170,6 +182,8 @@ function validatePropertyInput(body = {}, existing = null) {
   return errors;
 }
 
+const SEASON_MODES = ['fixed', 'progressive'];
+const sentValue = (value) => value !== undefined && value !== null && value !== '';
 const SEASON_AMOUNTS = ['pricePerNight', 'netTargetPerNight', 'extraGuestPrice', 'extraGuestNetTarget'];
 const TIER_NUMBERS = {
   progressiveTiers: [['extraNightPrice', nonNegative], ['nightNumber'], ['extraNightDiscountPct']],
@@ -180,6 +194,7 @@ const SEASON_REFUSALS = {
   minNights: 'Minimum de nuits : un nombre entier, au moins 1.',
   maxNights: 'Maximum de nuits : un nombre entier.',
   number: 'Saison : nombre invalide.',
+  value: 'Saison : valeur invalide.',
 };
 const seasonRefusal = (field, kind) => ({ error: SEASON_REFUSALS[kind], code: 'INVALID_SEASON', field, status: 400 });
 
@@ -209,6 +224,12 @@ function tierRefusal(body, stored) {
  * @returns {{error, code, field, status}|null}
  */
 function seasonInputRefusal(body = {}, stored = null) {
+  for (const field of ['label', 'color']) {
+    if (!isOptionalText(body[field])) return seasonRefusal(field, 'value');
+  }
+  if (sentValue(body.pricingMode) && !SEASON_MODES.includes(body.pricingMode) && body.pricingMode !== stored?.pricingMode) {
+    return seasonRefusal('pricingMode', 'value');
+  }
   for (const field of SEASON_AMOUNTS) {
     if (numberRefused(body[field], nonNegative, stored?.[field])) return seasonRefusal(field, 'amount');
   }
@@ -233,4 +254,4 @@ function progressivePreviewRefusal(body = {}) {
   return tierRefusal({ progressiveTiers: body.progressiveTiers });
 }
 
-module.exports = { validatePropertyInput, seasonInputRefusal, progressivePreviewRefusal };
+module.exports = { validatePropertyInput, cleanPropertyText, seasonInputRefusal, progressivePreviewRefusal };

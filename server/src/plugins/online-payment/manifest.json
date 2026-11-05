@@ -1,7 +1,7 @@
 {
   "id": "online-payment",
   "name": "Paiement en ligne (Qonto)",
-  "version": "1.5.2",
+  "version": "1.5.3",
   "description": "Liens de paiement envoyés aux voyageurs, et rapprochement des virements du compte Qonto avec les fiches.",
   "icon": "payments",
   "surfaces": [
@@ -109,6 +109,9 @@
     ],
     "1.5.2": [
       "Rapprochement bancaire : la date de mise en service est un vrai jour, de 5 ans avant à 5 ans après aujourd’hui ; la date déjà enregistrée reste acceptée telle quelle. Compatible avec le SDK 2.20 de GuestFlow."
+    ],
+    "1.5.3": [
+      "Rapprochement bancaire : une demande de mauvaise forme est refusée, jamais une erreur interne ni une ligne écartée illisible. Compatible avec le SDK 2.20 de GuestFlow."
     ]
   }
 }

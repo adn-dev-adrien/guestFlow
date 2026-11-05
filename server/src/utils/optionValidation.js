@@ -9,6 +9,7 @@
 
 const { NO_PROPERTY_PRICE } = require('./optionPayloadScope');
 const { readNumber, usableNumber, numberRefused, nonNegative, wholeFrom, rowsOf } = require('./lineInputBounds');
+const { isOptionalText, isClockTime, cleanedBody } = require('./bodyText');
 
 const MESSAGES = Object.freeze({
   titleRequired: 'Nom requis',
@@ -19,12 +20,30 @@ const MESSAGES = Object.freeze({
   percentMax: '100 % max',
   unknownProperty: 'Logement inconnu',
   whole: 'Nombre entier attendu',
+  choice: 'Choix invalide',
+  time: 'Heure invalide',
 });
 
 // A negative base price used to be refused with its own 400; the code now rides on the `price` detail.
 const NEGATIVE_PRICE_CODE = 'NEGATIVE_OPTION_PRICE';
 
 const TOWEL_COUNTS = ['towelLargePerPerson', 'towelMediumPerPerson', 'towelSmallPerPerson'];
+
+// The closed values of an option (specs/options-resources-ux.md rule 32): what the editors offer and the seeds write.
+const PRICE_TYPES = ['per_stay', 'per_person', 'per_night', 'per_person_per_night', 'per_participant_progressive', 'percent_of_stay', 'free'];
+const AUTO_TYPES = ['breakfast', 'cleaning', 'bed_linen', 'bathroom_linen', 'bath_mat', 'baby_bed', 'early_check_in', 'late_check_out'];
+const PRICING_MODES = ['fixed', 'proportional'];
+const notSent = (value) => value === undefined || value === null || value === '';
+
+/** The refusal of a closed value, or null: not sent and the value the row already stores are never judged. */
+function closedValueRefused(value, isValid, stored) {
+  if (notSent(value)) return false;
+  if (stored !== undefined && stored !== null && value === stored) return false;
+  return !isValid(value);
+}
+
+/** Audit R23-I8 — control characters out of a title and a description, a stored value left as it is. */
+const cleanOptionText = (payload, stored = null) => cleanedBody(payload || {}, { fields: ['title', 'description'], lineFields: ['description'], stored });
 
 const isBlank = (value) => value === undefined || value === null || (typeof value === 'string' && value.trim() === '');
 
@@ -54,7 +73,10 @@ function validateOptionPayload(payload, { knownPropertyIds, stored } = {}) {
   const details = [];
   const known = knownPropertyIds ? new Set(knownPropertyIds.map(Number)) : null;
   const unknown = (pid) => !/^[1-9]\d*$/.test(String(pid)) || (known !== null && !known.has(Number(pid)));
-  if (Array.isArray(body.propertyIds) && body.propertyIds.some(unknown)) {
+  if (body.propertyIds !== undefined && body.propertyIds !== null && !Array.isArray(body.propertyIds)) {
+    details.push({ field: 'propertyIds', message: MESSAGES.unknownProperty });
+  }
+  if (Array.isArray(body.propertyIds) && body.propertyIds.some((pid) => (typeof pid !== 'number' && typeof pid !== 'string') || unknown(pid))) {
     details.push({ field: 'propertyIds', message: MESSAGES.unknownProperty });
   }
   for (const group of ['propertyDefaults', 'propertyBathMats']) {
@@ -66,6 +88,16 @@ function validateOptionPayload(payload, { knownPropertyIds, stored } = {}) {
   if (typeof body.title !== 'string' || !body.title.trim()) details.push({ field: 'title', message: MESSAGES.titleRequired });
   if (body.description !== undefined && body.description !== null && typeof body.description !== 'string') {
     details.push({ field: 'description', message: MESSAGES.notText });
+  }
+
+  if (!isOptionalText(body.category)) details.push({ field: 'category', message: MESSAGES.notText });
+  for (const [field, valid, message] of [
+    ['priceType', (v) => PRICE_TYPES.includes(v), MESSAGES.choice],
+    ['autoOptionType', (v) => AUTO_TYPES.includes(v), MESSAGES.choice],
+    ['autoPricingMode', (v) => PRICING_MODES.includes(v), MESSAGES.choice],
+    ['autoFullNightThreshold', isClockTime, MESSAGES.time],
+  ]) {
+    if (closedValueRefused(body[field], valid, stored?.[field])) details.push({ field, message });
   }
 
   const percent = body.priceType === 'percent_of_stay';
@@ -101,4 +133,4 @@ function validateOptionPayload(payload, { knownPropertyIds, stored } = {}) {
   return details;
 }
 
-module.exports = { validateOptionPayload, priceProblem, MESSAGES, NEGATIVE_PRICE_CODE };
+module.exports = { validateOptionPayload, cleanOptionText, closedValueRefused, priceProblem, MESSAGES, NEGATIVE_PRICE_CODE };

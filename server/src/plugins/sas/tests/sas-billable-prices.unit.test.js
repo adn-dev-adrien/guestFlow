@@ -54,3 +54,19 @@ for (const { fn, table, item } of ROUTES) {
     call(fn, { items: [] });
   });
 }
+
+for (const { fn, table, item } of ROUTES) {
+  test(`settings-input-guards rule 54: ${fn} refuses a label that is not text, audit R23-P2`, () => {
+    assert.equal(call(fn, { items: [item(3)] }).statusCode, 200);
+    for (const label of [{ a: 1 }, JSON.parse('{"toString":1}'), [1, 2], true, 5]) {
+      for (const body of [[{ ...item(3), label }], { items: [{ ...item(3), label }] }]) {
+        const res = call(fn, body);
+        assert.equal(res.statusCode, 400, JSON.stringify(label));
+        assert.equal(res.body.error, 'INVALID_PAYLOAD');
+      }
+    }
+    assert.deepEqual(db.prepare(`SELECT label FROM ${table} WHERE label LIKE '%object%' OR label = '1,2' OR label = 'true'`).all(), []);
+    assert.ok(db.prepare(`SELECT COUNT(*) AS n FROM ${table} WHERE price = 3`).get().n >= 1, 'the list is kept');
+    assert.equal(call(fn, { items: [{ ...item(3), label: null }] }).statusCode, 200, 'a row with no label is dropped as before');
+  });
+}
