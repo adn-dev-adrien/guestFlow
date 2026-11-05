@@ -10,7 +10,9 @@
 // reading of 2026-11-02, nothing else moved), and on 2026-11-03 for six `quote/*` (a non-card line carries
 // `cardPersons`, `cardNights` and `servedPersons`, specs/non-card-option-served-persons.md rules 2 and 18, nothing else moved), and later that day for the
 // same six `quote/*` (each line carries `displayCount`, the same spec's rule 29, nothing else moved), and on 2026-11-05 for
-// `tourist-tax/2027-07` (stay 106's plan enters at its stay month, D14, specs/tourist-tax-declaration-month-stay-end.md rule 7, nothing else moved).
+// `tourist-tax/2027-07` (stay 106's plan enters at its stay month, D14, specs/tourist-tax-declaration-month-stay-end.md rule 7, nothing else moved), and later that day for the four
+// `finance/dashboard/*` (the payload gains `hero.revPar`, `hero.openNights`, `hero.occupiedNights`, `occupancyAll` and `comparison`,
+// specs/finance-revpar-year-over-year.md rule 14, every existing field checked unchanged before the capture was rewritten).
 // `GOLDEN_UPDATE=1` rewrites the capture, which is only ever legitimate on that code (Lot 0).
 
 const test = require('node:test');
