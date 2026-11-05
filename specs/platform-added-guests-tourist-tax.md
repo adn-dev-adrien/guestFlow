@@ -127,6 +127,13 @@ is declared to the commune. The accommodation no longer pays for it.
     shares against, so the lines are not under-credited; `bookedStayBuckets` of a cancelled stay reads
     the solde's tax without the added tax. The fiche's stored summary (`storedSummary.js`) carries
     `touristTaxAddedGuestsAmount`, so the line of rule 14 prints there as on the live quote.
+19. **The tax on pre-arrival money leaves the addition out, everywhere** _(audit R22-8, 2026-11-05)_. It is
+    `touristTaxTotal − touristTaxAddedGuestsAmount` in the plan's shares of the export, in `computeInstallmentPaidSplit`, in
+    the avoir of a plan (`cancelReservation`), in an installment's link basket (`resolveInstallmentComponents`), in a stored
+    link's basket (`storedLinkComponents`) and in the acompte's ceiling (`storedAccommodationPreArrivalOf`). *Why:* on an own
+    channel with a guest added and a plan of two, both paid and the complement paid, 46710000 held 9,60 € for a tax of
+    7,20 €; a link named 592,80 + 7,20 € for a solde holding 595,20 + 4,80 €. Read from the amounts, never from the
+    platform's name. Test: `plugins/accounting-export/tests/added-guests-tax-pre-arrival-readers`.
 
 **Edge cases:**
 - iCal import with 1 default adult, composition set to 4, then the brut → paid = 4, no added tax.
@@ -200,7 +207,7 @@ Interactive summary: `docs/specs/2026-11-03-platform-added-guests-tourist-tax.ht
 
 ## 7. Test plan
 
-### Server unit tests — `platform-added-guests-tourist-tax.unit.test.js` (15), `platform-added-guests-tourist-tax-books.unit.test.js` (5), `plugins/accounting-export/tests/platform-added-guests-tourist-tax-books.unit.test.js` (6), `platform-added-guests-stored-readers.unit.test.js` (1)
+### Server unit tests — `platform-added-guests-tourist-tax.unit.test.js` (15), `platform-added-guests-tourist-tax-books.unit.test.js` (5), `plugins/accounting-export/tests/platform-added-guests-tourist-tax-books.unit.test.js` (6), `platform-added-guests-stored-readers.unit.test.js` (1), `plugins/accounting-export/tests/added-guests-tax-pre-arrival-readers.unit.test.js` (5)
 - [x] Rule 1: capture, keep on a corrected brut, clear, re-capture; body value ignored.
 - [x] Rules 2–5: amount per mode and per tax mode, a platform rate that differs, rounding noise, minors.
 - [x] Rules 6–7bis: rises and falls; stored amount kept once the complement is collected; frozen tax + guest added → line in the complement, frozen part unchanged, no double count on the next save.

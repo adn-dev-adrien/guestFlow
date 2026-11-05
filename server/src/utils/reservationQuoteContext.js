@@ -67,6 +67,8 @@ function scheduleQuoteInputs(db, bookingId) {
     existingDepositDueDate: row.depositDueDate || null,
     kind: row.kind || 'reservation',
     validUntil: row.validUntil || null,
+    // specs/mid-stay-extras-to-end-of-stay-complement.md rule 20, reading of 2026-11-05 (D9).
+    paidSoldeCaptured: Number(row.balancePaid || 0) === 1 && row.accommodationSoldeContribTtc != null,
   };
 }
 

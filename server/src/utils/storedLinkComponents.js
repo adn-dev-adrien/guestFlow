@@ -8,7 +8,7 @@
  * line when the tax rides on the solde. Pure; null when the stored figures cannot be split exactly (the caller then
  * keeps the single 0 % line, rule 6).
  *
- * @param {{ depositAmount, balanceAmount, finalPrice, touristTaxTotal }} row
+ * @param {{ depositAmount, balanceAmount, finalPrice, touristTaxTotal, touristTaxAddedGuestsAmount }} row
  * @param {'deposit'|'balance'|'full'} type
  * @param {{ vatRatePercent: number, taxOnArrival: boolean, titles: object }} opts
  * @returns {{ components: Array<{ title, grossCents, taxable }>, vatRatePercent } | null}
@@ -21,7 +21,8 @@ function storedLinkComponents(row, type, { vatRatePercent, taxOnArrival, titles 
   // A full payment is the acompte plus the solde (specs/deposit-blocks-the-dates.md rule 18): the tax
   // rides on it exactly as on the solde.
   const total = type === 'full' ? cents(Number(row.depositAmount || 0) + Number(row.balanceAmount || 0)) : cents(row.balanceAmount);
-  const tax = taxOnArrival ? 0 : cents(row.touristTaxTotal);
+  // specs/platform-added-guests-tourist-tax.md rule 19 — the added guests' tax rides the complement, not this money.
+  const tax = taxOnArrival ? 0 : Math.max(0, cents(row.touristTaxTotal) - cents(row.touristTaxAddedGuestsAmount));
   if (tax > total) return null;
   const components = [{ title: titles[type], grossCents: total - tax, taxable: true }];
   if (tax > 0) components.push({ title: 'Taxe de séjour', grossCents: tax, taxable: false });

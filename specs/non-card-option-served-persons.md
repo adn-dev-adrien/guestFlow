@@ -182,6 +182,11 @@ Rules added after audit round 21 (2026-11-03):
     line whose next save billed the whole stay, `400` billed 400 nights with no refusal, `-1` silently meant the
     whole party. Prod check of 2026-11-03: every stored `cardPersons` is whole, no `cardNights` above 366. The
     nights field stops at 366 (`OptionRow`, a hint), or at the stored value when higher.
+36. **An offered planning-card line has a floor too** _(audit R22-6 of the reservations slice, 2026-11-05)_. It bills 0 €, so
+    only the `cardPersons` it stored says what was sold: `readExtraLinesWithQuantity` gives it as `typedCount`, and
+    `arrivalLineFloors` turns it into `minTypedCount`, compared by rule 27. NULL follows the party and is never compared,
+    on either side; a paid card line keeps its amount floor. *Why:* a card line offered for 3 and saved for 2 raised no
+    violation, the non-card line of rule 27 did. Test: `offered-card-line-floor`.
 
 **Edge cases:**
 - Party lowered below a frozen count (3 served, party now 2) → stays 3, within rule 5's ceiling when the
@@ -317,6 +322,7 @@ Interactive rendering in the [decision summary](../docs/specs/2026-11-03-non-car
 
 ### Server unit tests
 - [x] `tests/non-card-option-served-persons.unit.test.js` (12) — rules 1, 5, 6, 12, 14-17, 19
+- [x] `tests/offered-card-line-floor.unit.test.js` (3) — rule 36
 - [x] `plugins/linen/tests/non-card-served-persons.unit.test.js` (2) — rule 6: the contract and the laundry
 - [x] `plugins/linen/tests/non-card-served-persons-simulation.unit.test.js` (2) — rule 6: the sum over the stored lines, and the projection reading `cardPersons`
 - [x] `tests/typed-counts-alerts.unit.test.js` (7) — rules 19, 20, 23, 25: party, nights, which line is flagged, the floor on a typed count

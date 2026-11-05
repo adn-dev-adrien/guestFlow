@@ -1,0 +1,9 @@
+- **Growth after solde and arrival complement are paid is claimed.** One adult more on a direct stay left 42,40 € asked of nobody; the end-of-stay complement now claims it, booked as a prestation on 70600010, once the solde's contribs are captured and the pre-arrival money is settled.
+- **A live stay refuses a book refund above what it collected** (`REFUND_EXCEEDS_COLLECTED`), as a cancelled stay does. The refund dialog disables the save on « Virement » and « Espèces »; the caisse interne stays a warning.
+- **A collected complement keeps its entry**, and a paid line removed from the fiche no longer rewrites a booked entry: tax that rises, a change of party or a removed line leave the journal byte-identical.
+- **Cancelled-stay register:** a paid complement reads what each line collected while the solde is unpaid, a line lowered after payment offers what it collected, a removed paid line is offered under its name, and giving everything back nets every account to 0.
+- **A solde ticked before its acompte keeps what it collected** through a save: the acompte still owed shrinks first, a rise goes to the complement, and the stored split is written from its first entry.
+- **The added guests' supplement is accommodation revenue from its first entry**, in every platform mode and order.
+- **The added guests' tax is out of the pre-arrival money** on a plan, a link, a plan's avoir and the acompte's ceiling: 46710000 no longer books it twice.
+- **Saving a platform stay keeps `clientGrossAmount`** unless the body carries a number: legacy stays no longer lose turnover from a closed month.
+- **An offered planning-card line has a floor** on the persons it stored at arrival; a NULL count is never compared.

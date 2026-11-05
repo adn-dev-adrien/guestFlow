@@ -98,6 +98,11 @@ options and resources appear once, at their real amount, only when they were rea
 3. **Caisse interne stays out, definitively.** With rule 1 no ratio can re-inject an off-books amount
    into another entry. Cash-settled complements remain un-exported, as before.
 4. **The legacy `clientGrossAmount` path is untouched** (reservations with no entered commission).
+   > **Reading of 2026-11-05 (audit R22-1, reservations slice).** A save has to keep the column for that to hold: no client
+   > sends the retired field, and saving a platform stay wrote NULL (273 € of turnover gone from April and May 2026 on a
+   > copy of the real data, with no refusal). `updateReservation` keeps what a non-direct stay stored unless the body
+   > carries a number; absent, null and empty are « not carried ». What a direct stay stored is its own total, not a
+   > gross: moved to a platform it is not kept. Test: `plugins/accounting-export/tests/platform-client-gross-kept`.
 
 ### The ventilation (defect 2)
 
@@ -216,6 +221,28 @@ options and resources appear once, at their real amount, only when they were rea
     *cents* of a split, not a ventilation fix: a month the accountant already imported needs a
     correcting entry on their side (VAT −182,91 € / +182,91 € revenue for October, −17,66 € for September).
 
+### What a booked entry keeps (2026-11-05)
+
+16. **A collected arrival complement keeps the entry it was booked on (audit R22-6a).** Its entry was derived live, so any
+    later save rewrote it: tax rising after the flip took the revenue (24,80 €: tax 4,80 → 7,20, revenue 18,18 → 16 HT), a
+    party change overflowed the contribs and sent it from 70600000 to 70600010. The split is computed once, at the flip,
+    with these same rules as they read then, and stored in `reservations.complementPaidSplit` (JSON, cents: tax,
+    accommodation, options, resources, plus `lines` when each line's share is known): `utils/complementPaidSplit.js`, called
+    on every path that collects it (fiche mark, arrival single payment, arrival and departure SAS, a withdrawn link). The
+    export reads it first, on a ratio-1 non-adjusted entry, as long as it adds up to the entry; a trigger clears it with an
+    un-tick. Money with no line to attach it to is what the accommodation gained when it did (a solde paid before its
+    acompte), else a prestation (rule 10). Growth after the flip is claimed at the end of stay (mid-stay-extras rule 20). NULL on a complement collected
+    before the column or adjusted by the operator: those read as they did. Test:
+    `plugins/accounting-export/tests/booked-complement-entry-frozen`.
+17. **Removing a paid line does not rewrite a booked entry (D11, Adrien; audit R22-6b).** The contribs a removed line held
+    stay on the stay, per bucket, in `reservations.removedLineContribs` (JSON: key, label, bucket, acompte and solde contrib);
+    a priced save records what the lines lost, net of what another line of the same bucket gained (a rename is no removal),
+    and an un-tick drops its bucket. Every reader reads them as a line billed 0 €: `buildPerLineData` (so the export's
+    entries and `soldeCaptureMatches`), `capturedScheduleContribs`, `capturedScheduleContribsByPoste`,
+    `depositContribBuckets`, `soldeContribBuckets`, `collectedByLine`. A paid line of 142 € removed: the solde keeps
+    70600010 129,09 € and 70600000 545,45 €, byte-identical, where it moved to 0 and 674,55 €. Test:
+    `plugins/accounting-export/tests/removed-line-contribs`.
+
 ---
 
 ## 4. Architecture
@@ -255,6 +282,10 @@ Unchanged — same endpoints, same CSV columns, same journal-row layout. Only th
 
 No schema change, no migration, no backfill for rules 1-13: the fix is entirely in how stored data is
 read. Rule 14 adds `reservation_installments.paidSplit` (see `specs/direct-installments.md` §5).
+Rules 16-17 add `reservations.complementPaidSplit TEXT NULL` and `reservations.removedLineContribs TEXT NULL`, plus the
+trigger `reservations_clear_complement_paid_split` (`schema.sql`, `database.js` right after the baseline pass). Additive, no
+backfill: NULL reads as before them. A rollback below them ignores both columns and reads the entries live again
+(specs/self-update-and-releases.md rule 39, reading of 2026-11-05).
 
 **Data impact:** none on the records. The **exports** of past months do change for the affected
 reservations — which is the point: they were wrong. Adrien's accountant reprocesses the already-filed
@@ -290,6 +321,10 @@ become the money that actually moved. No new string, no responsive impact, no ac
       13-14) — the October solde unchanged by a tax rise, the 7,50 € complement on 46710000 in its month
       (the stay books 522,50 € in all), a solde without contribs still on the live tax, an installment
       unchanged by a later save, the stored split.
+
+- [x] Round 22 (2026-11-05), all under `plugins/accounting-export/tests/`: `booked-complement-entry-frozen` (12, rule 16),
+      `removed-line-contribs` (11, rule 17), `added-guests-supplement-account` (9), `platform-client-gross-kept` (3, rule 4
+      reading); `tests/complement-split-removed-contribs-schema` (3, the columns, the trigger, the upgrade).
 
 ### Coherence audit (the tool that found this)
 - [x] Re-run over the whole base (7 months, 40 entries): 0 unbalanced entry, 0 negative line, 0 entry

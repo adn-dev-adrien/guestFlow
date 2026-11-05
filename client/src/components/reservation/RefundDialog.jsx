@@ -157,9 +157,12 @@ export default function RefundDialog({
     const excess = round2(selected[overCapLine.key].amount - overCapLine.refundableTtc);
     refusal = { tone: 'error', text: `${overCapLine.label} : dépasse le remboursable de ${formatCurrency(excess)}.` };
   } else if (overCollected && total > 0) {
-    refusal = { tone: 'warning', text: `Dépasse l’encaissé de ${formatCurrency(round2(total - collectedTtc))}.` };
+    // specs/reservation-refunds.md rule 50 (D10): the server refuses a book refund above what was collected; the caisse
+    // interne is off the books, so there it stays a warning.
+    refusal = { tone: method === 'internal' ? 'warning' : 'error', text: `Dépasse l’encaissé de ${formatCurrency(round2(total - collectedTtc))}.` };
   }
-  const blocked = unreadable || missingLabel || Boolean(overCapLine);
+  const overCollectedBook = overCollected && total > 0 && method !== 'internal';
+  const blocked = unreadable || missingLabel || Boolean(overCapLine) || overCollectedBook;
 
   const submit = async () => {
     setError('');

@@ -32,6 +32,8 @@ const { buildEditLock } = require('../utils/midStayExtrasWindow');
 const { priceOptionSale, billablePersons, buildSasSaleOffers, offeredSaleOptionIds } = require('../utils/sasOptionSale');
 const { CATERING_CATEGORY } = require('../utils/optionCategoriesMigration');
 const { typedCountOf, displayCountOf } = require('../utils/typedCounts');
+const { stampComplementPaidSplit } = require('../utils/complementPaidSplit');
+const { parseRemovedLineContribs } = require('../utils/removedLineContribs');
 const { reconcileEndOfStayLines, isAdjustmentLine } = require('../utils/endOfStayAdjustment');
 const {
   realOfStoredLine, classifyStoredLines, storeLine, keepRealLines, recalledArrivalAfter, isRecalled,
@@ -732,6 +734,15 @@ function createReservationsModel(database) {
   const OPTION_DISPLAY_TO_CLIENT_SELECT = HAS_OPTION_DISPLAY_TO_CLIENT
     ? 'o.displayToClient as displayToClient' : '1 as displayToClient';
 
+  // specs/accounting-books-the-money-collected.md rule 17 — the contribs of paid lines since removed, as the contrib
+  // readers below want them. Guarded: a minimal schema has no such column.
+  const removedContribsOf = (reservationId) => {
+    let raw = null;
+    try { raw = database.prepare('SELECT removedLineContribs AS raw FROM reservations WHERE id = ?').get(reservationId)?.raw; } catch { return []; }
+    return parseRemovedLineContribs(raw).map((entry) => ({ a: entry.acompteContribTtc, s: entry.soldeContribTtc, bucket: entry.bucket }));
+  };
+  const removedOf = (removed, bucket, field) => removed.filter((entry) => entry.bucket === bucket).reduce((sum, entry) => sum + Number(entry[field] || 0), 0);
+
   const model = {
     // ── Reads ────────────────────────────────────────────────────────────
     list({ propertyId, clientId, from, to } = {}) {
@@ -1286,6 +1297,8 @@ function createReservationsModel(database) {
           // A minimal schema without this table or its contrib columns.
         }
       }
+      // specs/accounting-books-the-money-collected.md rule 17 — a paid line since removed still holds what it collected.
+      lines.push(...removedContribsOf(reservationId));
       const sum = (values) => (values.every((v) => v == null)
         ? null
         : Math.round(values.reduce((acc, v) => acc + Number(v || 0), 0) * 100) / 100);
@@ -1317,6 +1330,7 @@ function createReservationsModel(database) {
           // A minimal schema without this table or its contrib columns.
         }
       }
+      for (const removed of removedContribsOf(reservationId)) lines[removed.bucket === 'resources' ? 'resources' : 'options'].push(removed);
       const r2 = (v) => Math.round(v * 100) / 100;
       const sumOf = (list, key) => r2(list.reduce((sum, l) => sum + Number(l[key] || 0), 0));
       const bucket = (accommodation, tax, key) => {
@@ -1782,6 +1796,7 @@ function createReservationsModel(database) {
             // own « Marquer complément payé », specs/mid-stay-extras-to-end-of-stay-complement.md).
             model.captureArrivalExtrasBaseline(reservationId);
             persistComplementDeferred(reservationId, false);
+            stampComplementPaidSplit(database, reservationId);
           } else {
             // Best effort, exactly as at check-in: on a booking whose stored solde is the platform's
             // own figure the capture legitimately fails, and losing the payment over an attribution
@@ -1926,8 +1941,13 @@ function createReservationsModel(database) {
       // specs/normalize-platform-names.md §3.2 rule 9 — same canonicalization as insertReservation.
       const platformNormalized = formatPlatformName(platform) || 'direct';
       const platformIsNonDirect = String(platformNormalized).toLowerCase() !== 'direct';
+      // specs/accounting-books-the-money-collected.md rule 4, reading of 2026-11-05 (audit R22-1 of the reservations
+      // slice) — no client sends this retired field and the export still books a legacy stay from it: a save that does not
+      // carry a number keeps what the platform stay stored. What a direct stay stored is its own total, not a gross.
+      const storedGross = database.prepare('SELECT platform, clientGrossAmount FROM reservations WHERE id = ?').get(reservationId);
+      const storedGrossOfPlatform = storedGross && String(storedGross.platform || 'direct').toLowerCase() !== 'direct' ? storedGross.clientGrossAmount : null;
       const grossForPlatform = platformIsNonDirect
-        ? (clientGrossAmount != null && clientGrossAmount !== '' ? Number(clientGrossAmount) : null)
+        ? (clientGrossAmount != null && clientGrossAmount !== '' ? Number(clientGrossAmount) : storedGrossOfPlatform)
         : Number(quote.finalPrice || 0);
       // specs/platform-commission-line.md — operator-entered platform commission (€), clamped ≥ 0; NULL on direct.
       const platformCommissionForStore = platformIsNonDirect
@@ -2005,6 +2025,7 @@ function createReservationsModel(database) {
       // Same ownership release for the complement (specs/single-payment-at-check-in.md rules 8-9):
       // a full fiche save that flips it dissolves the single payment that named it.
       if (Number(beforeStay.complementPaid || 0) !== (complementPaid ? 1 : 0)) model.releaseComplementBucket(reservationId);
+      if (Number(beforeStay.complementPaid || 0) !== 1 && complementPaid) stampComplementPaidSplit(database, reservationId);
     },
 
     // `inComplement` is carried on every write, authoritative as resolved by the pricing engine
@@ -2178,12 +2199,13 @@ function createReservationsModel(database) {
       const sumOf = (table) => Number(database.prepare(
         `SELECT COALESCE(SUM(acompteContribTtc), 0) AS total FROM ${table} WHERE reservationId = ?`,
       ).get(id).total || 0);
+      const removed = removedContribsOf(id);
       return {
         // Same reclass as the deposit entry: a legacy acompte that physically collected a share of
         // the tourist tax keeps it inside its accommodation bucket (accountingModel §deposit).
         accommodation: round2(Number(row.accommodation || 0) + Number(row.tax || 0)),
-        options: round2(sumOf('reservation_options') + sumOf('reservation_custom_options')),
-        resources: round2(sumOf('reservation_resources')),
+        options: round2(sumOf('reservation_options') + sumOf('reservation_custom_options') + removedOf(removed, 'options', 'a')),
+        resources: round2(sumOf('reservation_resources') + removedOf(removed, 'resources', 'a')),
       };
     },
 
@@ -2199,10 +2221,11 @@ function createReservationsModel(database) {
       const sumOf = (table) => Number(database.prepare(
         `SELECT COALESCE(SUM(soldeContribTtc), 0) AS total FROM ${table} WHERE reservationId = ?`,
       ).get(id).total || 0);
+      const removed = removedContribsOf(id);
       return {
         accommodation: Math.max(0, round2(Number(row.accommodation || 0) - Number(row.acompteTax || 0))),
-        options: round2(sumOf('reservation_options') + sumOf('reservation_custom_options')),
-        resources: round2(sumOf('reservation_resources')),
+        options: round2(sumOf('reservation_options') + sumOf('reservation_custom_options') + removedOf(removed, 'options', 's')),
+        resources: round2(sumOf('reservation_resources') + removedOf(removed, 'resources', 's')),
         touristTax: round2(Number(row.tax || 0) + Number(row.acompteTax || 0)),
       };
     },
@@ -2728,6 +2751,13 @@ function createReservationsModel(database) {
         JOIN options o ON o.id = ro.optionId
         WHERE ro.reservationId = ? AND COALESCE(o.showsPlanningCard, 0) = 0
       `).all(reservationId).map((row) => [Number(row.optionId), typedCountOf(row, stay)]));
+      // specs/non-card-option-served-persons.md rule 36 (audit R22-6, 2026-11-05) — an offered planning-card line bills
+      // 0 €: only the persons it stored can say what was sold. NULL follows the party and is never compared.
+      for (const row of database.prepare(`
+        SELECT ro.optionId, ro.cardPersons FROM reservation_options ro
+        JOIN options o ON o.id = ro.optionId
+        WHERE ro.reservationId = ? AND COALESCE(o.showsPlanningCard, 0) = 1 AND COALESCE(ro.offered, 0) = 1 AND ro.cardPersons IS NOT NULL
+      `).all(reservationId)) optionCounts.set(Number(row.optionId), Number(row.cardPersons));
       const optionOccurrences = new Map(database.prepare('SELECT optionId, cardOccurrences FROM reservation_options WHERE reservationId = ?')
         .all(reservationId).map((row) => {
           let list = [];
@@ -3430,6 +3460,7 @@ function createReservationsModel(database) {
             database.prepare("UPDATE reservations SET complementPaid = 1, complementPaidDate = COALESCE(complementPaidDate, ?), complementPaidCash = ?, updatedAt = datetime('now') WHERE id = ?")
               .run(today, complementPaidCash ? 1 : 0, reservationId);
             settledByThisCommit.push('complement');
+            stampComplementPaidSplit(database, reservationId);
           } else {
             database.prepare("UPDATE reservations SET complementPaid = 0, complementPaidDate = NULL, complementPaidCash = 0, updatedAt = datetime('now') WHERE id = ?")
               .run(reservationId);
@@ -3901,6 +3932,7 @@ function createReservationsModel(database) {
             if (arr && Number(arr.complementAmount || 0) > 0 && Number(arr.complementPaid || 0) === 0) {
               database.prepare("UPDATE reservations SET complementPaid = 1, complementPaidDate = COALESCE(complementPaidDate, ?), complementPaidCash = ?, updatedAt = datetime('now') WHERE id = ?")
                 .run(today, cash, reservationId);
+              stampComplementPaidSplit(database, reservationId);
             }
           } else if (settledByThisSas(database, reservationId)) {
             // specs/recall-unpaid-arrival-complement-at-checkout.md rule 9bis — « pas maintenant » ne

@@ -54,6 +54,15 @@ if (!db.prepare('PRAGMA table_info(reservations)').all().some((c) => c.name === 
   db.exec('ALTER TABLE reservations ADD COLUMN complementCollectedTax REAL');
 }
 
+// specs/accounting-books-the-money-collected.md rules 16-17 — what a booked entry holds beyond the live lines: the split
+// of the arrival complement frozen at its flip, the contribs of paid lines since removed. Additive and nullable: NULL is
+// « nothing stored », and every reader then behaves as before them.
+for (const column of ['complementPaidSplit', 'removedLineContribs']) {
+  if (!db.prepare('PRAGMA table_info(reservations)').all().some((c) => c.name === column)) {
+    db.exec(`ALTER TABLE reservations ADD COLUMN ${column} TEXT`);
+  }
+}
+
 
 // ---------- CALENDAR NOTES ----------
 db.exec(`

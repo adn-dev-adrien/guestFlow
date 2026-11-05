@@ -230,6 +230,16 @@ ait été réglé ou non.
     fois le complément de fin de séjour encaissé, la ligne figée compte comme « forcée » (hors acompte
     et solde). Avant : complément de 80 € encaissé avant le séjour, 30 € de bois ajoutés en
     complément → facturés nulle part.
+    > **Reading of 2026-11-05 (D9, Adrien; audit R22-1).** « Only the routed items count » stands for a stay whose buckets
+    > may have disagreed. Once they are known to have agreed, the auto-gap counts too: when the solde's contribs are
+    > captured (`accommodationSoldeContribTtc` not NULL, fed by `scheduleQuoteInputs` as `paidSoldeCaptured`, on the
+    > preview, the save and the replay alike) and the pre-arrival money is settled, what the stay gained after solde and
+    > arrival complement were paid is claimed on this line. Solde and complement paid, one adult more: 42,40 € claimed,
+    > where the ledger used to say « Tout est perçu »; one night more: 302,40 €. Legacy rows (no captured solde) stay
+    > unjudged, an adjusted complement stays the operator's decision, a stay reduced asks nothing.
+    > **The excess is booked as a prestation on `70600010`, with VAT, accommodation and tax included:** the line is a flat
+    > amount of the end-of-stay entry (`buildEndOfStayEntry`), which knows no accommodation account and no 46710000. Adrien's
+    > decision: a night sold this way lands on that account, knowingly. Test: `end-of-stay-claims-growth`.
 
 ---
 
@@ -364,6 +374,8 @@ détectée, et jamais lorsqu'il est encaissé (§3.5). Aucun backfill, aucune pe
 
 `financeModel` / `reservationSettlement` ne sont pas modifiés (ils somment déjà les quatre buckets) :
 leur couverture existante suffit, aucun test ajouté.
+
+- `end-of-stay-claims-growth.unit.test.js` (9) — rule 20, reading of 2026-11-05 (D9).
 
 ### Client tests (`cd client && npx vitest run` → **774 verts**, +2)
 
