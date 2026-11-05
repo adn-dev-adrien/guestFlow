@@ -8,7 +8,7 @@ import { vi } from 'vitest';
 import PricingSummary from '../PricingSummary';
 
 const FORM = {
-  startDate: '2026-08-03', endDate: '2026-08-05', finalPrice: 300, customPrice: '', platform: 'direct',
+  startDate: '2099-08-03', endDate: '2099-08-05', finalPrice: 300, customPrice: '', platform: 'direct',
   touristTaxTotal: 4.8, depositAmount: 0, balanceAmount: 304.8, cautionAmount: 0, depositPaid: 0, balancePaid: 1, depositDisabled: true,
 };
 const QUOTE = {

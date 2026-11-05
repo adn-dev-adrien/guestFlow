@@ -210,6 +210,7 @@ test('rule 26: undo is refused (409, with the stays) once a re-priced stay was p
 
 test('rule 26: a plan paid since the switch settles the stay, whatever it reports to the switch itself', () => {
   const made = call(controller.makeSwitch, { ...FUTURE, fingerprint: call(controller.preview, FUTURE).body.fingerprint, acknowledged: true });
+  // date-literal-ok: a paid installment's dates, the undo reads the flag only
   const planRow = db.prepare("INSERT INTO reservation_installments (reservationId, number, dueDate, amountCents, paid, paidDate) VALUES (110, 1, '2027-10-20', 1000, 1, '2027-10-21')").run();
   const refused = call(controller.remove, null, { id: made.body.period.id });
   assert.equal(refused.statusCode, 409);
@@ -224,6 +225,7 @@ test('rule 27: a paid plan unstamped stays reported for its plan, never as a kep
   const before = asked();
   const stored = db.prepare('SELECT id, paid, paidDate FROM reservation_installments WHERE reservationId = 106').all();
   assert.ok(stored.length > 0);
+  // date-literal-ok: the preview reads the paid flag, never this date
   db.prepare("UPDATE reservation_installments SET paid = 1, paidDate = '2027-06-01' WHERE reservationId = 106").run();
   const paid = asked();
   for (const r of stored) db.prepare('UPDATE reservation_installments SET paid = ?, paidDate = ? WHERE id = ?').run(r.paid, r.paidDate, r.id);
