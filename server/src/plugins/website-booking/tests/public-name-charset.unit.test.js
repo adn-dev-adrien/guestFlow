@@ -148,7 +148,7 @@ test('rule 23 — a stored client is never judged: a request by its e-mail neith
   assert.deepEqual({ ...db.prepare('SELECT firstName, lastName FROM clients WHERE id = ?').get(id) }, { firstName: 'Jean_2', lastName: 'SCI 1789' });
 });
 
-test('rule 35 — the site prints the server\'s sentence under the field: nothing to change in the WordPress form', () => {
+test('specs/wordpress-plugin.md rule 35 — the site prints the server\'s sentence under the field: nothing to change in the WordPress form', () => {
   const form = fs.readFileSync(path.join(__dirname, '../../../../../integrations/wordpress/guestflow-booking/blocks/booking/view.js'), 'utf8');
   assert.match(form, /'guest\.firstName': 'firstName', 'guest\.lastName': 'lastName'/);
   assert.match(form, /showFieldError\(key, d\.message \|\| fallback\);/);
