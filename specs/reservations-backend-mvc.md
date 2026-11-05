@@ -295,6 +295,24 @@ rules — just a clean, testable structure that future slices (and Bloc 5) build
 error, iCal-locked pricing snapshot reuse, night-block conflict on adjacent reservations, payment
 patch. No new edge behavior is introduced.
 
+20. **Added 2026-11-04 (audit R22-4) — the shape of a stay's fields is judged at the same boundary.** On the price
+   preview, the create, the update and the devis create and update, before anything reads them
+   (`utils/stayInputShape.js`, `stayShapeRefusal`; the numbers stay with rule 15): a text field (`platform`, `notes`,
+   `emailLanguage`, `pdfLanguage`, the due dates, `reservationNumber`) is a string or absent, a time (`checkInTime`,
+   `checkOutTime`, `breakfastTime`) matches `^([01]\d|2[0-3]):[0-5]\d$` or is empty, an id (`propertyId`, `clientId`,
+   `reservationId`, `devisId`, a line's `optionId` / `resourceId` / `customOptionId`, `offeredOptionIds`,
+   `autoOptionsInComplement`) a positive integer or its digits, a tick (`depositDisabled`, `extraGuestSurchargeOffered`,
+   `touristTaxInComplement`, the `force*` and refresh flags, a line's `inComplement`) true / false / 1 / 0, as
+   `INVALID_PAYMENT_FLAG` reads it. Else 400 `INVALID_FIELD` or `INVALID_TIME` with `field`; `reservationNumber` holds at
+   most 64 characters. `null` and `''` are « not sent », and a top-level field the row stores, sent back unchanged, is not
+   judged (a legacy `25:99` still saves). `"abc"` used to be stored as a time, `{}` as the note « [Object Object] »,
+   `"false"` as a tick. A plugin (`performUpdate`) and the public form (`devisModel`) build their own values and do not
+   pass here, so `/public/v1` moves nowhere (public-api rule 22).
+   A stay saved with no client, or one that does not exist → 400 `CLIENT_REQUIRED`, on PUT as rule 10 on POST (it was a
+   constraint's 500). `POST /suggest-beds`: a `propertyId` that is no id → 400 « propertyId requis », the party held by
+   rule 15. `PATCH /devis/:id/status`: only a string can be a status. A write on `/reservations/<not digits>…` → 404.
+   Test: `tests/stay-input-shape.unit.test.js`.
+
 ---
 
 ## 4. Architecture

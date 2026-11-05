@@ -1,7 +1,7 @@
 {
   "id": "website-booking",
   "name": "Réservation depuis le site",
-  "version": "1.8.8",
+  "version": "1.8.9",
   "description": "Le moteur de réservation du site WordPress.",
   "icon": "language",
   "surfaces": [
@@ -118,6 +118,10 @@
     ],
     "1.8.8": [
       "Une demande dont un champ n’a pas le bon type est refusée sur ce champ : plus d’erreur interne, ni de nom « True » sur une fiche client.",
+      "Compatible avec le SDK 2.17 de GuestFlow."
+    ],
+    "1.8.9": [
+      "Un prénom ou un nom sans lettre ni chiffre est refusé comme un champ vide.",
       "Compatible avec le SDK 2.17 de GuestFlow."
     ]
   }

@@ -22,7 +22,11 @@ const KEYS = Object.freeze(Object.keys(DEFAULTS));
 const RATE_KEYS = new Set(['vatRateCommission', 'vatRateCancellationCompensation']);
 
 // The same checks as the Plan comptable page, so the generic PUT cannot store what the page refuses.
+// A setting is typed: a string, or a number. Anything else is its field's refusal, never a throw from String().
+const isScalar = (value) => typeof value === 'string' || typeof value === 'number';
+
 function validateRate(value) {
+  if (value != null && !isScalar(value)) return 'Doit être un nombre entre 0 et 100.';
   if (value == null || String(value).trim() === '') return null;
   const n = Number(String(value).replace(',', '.'));
   return Number.isFinite(n) && n >= 0 && n <= 100 ? null : 'Doit être un nombre entre 0 et 100.';
@@ -30,11 +34,13 @@ function validateRate(value) {
 
 // Rule 28: 3 to 12 digits for an account, 1 to 4 capitals or digits for the journal code.
 function validateAccount(value) {
+  if (value != null && !isScalar(value)) return 'De 3 à 12 chiffres.';
   if (value == null || String(value).trim() === '') return null;
   return /^\d{3,12}$/.test(String(value).trim()) ? null : 'De 3 à 12 chiffres.';
 }
 
 function validateJournalCode(value) {
+  if (value != null && !isScalar(value)) return 'De 1 à 4 majuscules ou chiffres.';
   if (value == null || String(value).trim() === '') return null;
   return /^[A-Z0-9]{1,4}$/.test(String(value).trim()) ? null : 'De 1 à 4 majuscules ou chiffres.';
 }

@@ -5,12 +5,13 @@
  * One guard is shared by all of them, so none is a way around another.
  *
  * In memory, in the process that answers: a restart clears it, and a second process would count apart
- * (production runs a single process). An empty password is not a guess and counts for nothing. While
- * locked, even the right password is refused.
+ * (production runs a single process). An empty password is not a guess and counts for nothing; one that
+ * is not a string is a wrong one, and counts (rule 68). While locked, even the right password is refused.
  */
 
 const { httpError } = require('./httpError');
 const { createWindowCounter } = require('./rateLimiter');
+const { asText } = require('./bodyText');
 
 const MAX_FAILURES = 5;
 const LOCK_MINUTES = 15;
@@ -41,10 +42,10 @@ function createReauthGuard({ users, now = () => new Date(), onLock = () => {} })
   // on the 5th wrong password.
   function check(user, password) {
     assertOpen(user.id);
-    const typed = String(password || '');
-    const verified = users.verifyCredentials(user.email, typed);
+    const verified = users.verifyCredentials(user.email, asText(password));
     if (verified) return verified;
-    if (!typed || failures.hit(user.id)) return null;
+    const notAGuess = password === undefined || password === null || password === '';
+    if (notAGuess || failures.hit(user.id)) return null;
     const until = new Date(now().getTime() + LOCK_MINUTES * 60000).toISOString();
     locks.set(user.id, until);
     onLock(user.id);

@@ -18,7 +18,7 @@ const lowerFirst = (text) => text.charAt(0).toLowerCase() + text.slice(1);
  */
 function validatePeriod(period = {}, { stored = null } = {}) {
   const { entryDateMessage } = sdk.coreModule('stayDates');
-  const label = String(period.label || '').trim();
+  const label = typeof period.label === 'string' ? period.label.trim() : '';
   if (!label) {
     return 'Le libellé est obligatoire.';
   }

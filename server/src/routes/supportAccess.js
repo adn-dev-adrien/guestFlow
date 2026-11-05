@@ -9,6 +9,7 @@
 
 const express = require('express');
 const { sendError } = require('../utils/httpError');
+const { asText } = require('../utils/bodyText');
 const { isSupportSession } = require('../middleware/supportAudit');
 
 const run = (fn) => (req, res, next) => {
@@ -33,7 +34,7 @@ function buildRouter(getController) {
   // Rule 15 — the pages the support session opens, reported by the client.
   router.post('/page', (req, res) => {
     if (isSupportSession(req) && req.session.supportAccessId) {
-      c().record(req.session.supportAccessId, { method: 'PAGE', path: String((req.body || {}).path || '/').slice(0, 300), summary: '' });
+      c().record(req.session.supportAccessId, { method: 'PAGE', path: (asText((req.body || {}).path) || '/').slice(0, 300), summary: '' });
     }
     return res.status(204).end();
   });

@@ -847,6 +847,7 @@ function createPropertiesModel(database) {
     },
 
     addPricingRule(propertyId, body = {}) {
+      if (!database.prepare('SELECT 1 FROM properties WHERE id = ?').get(propertyId)) return { error: 'Logement introuvable.', status: 404 };
       const { label, pricePerNight, pricingMode, progressiveTiers, dateRanges, color, startDate, endDate, minNights } = body;
       const normalizedDateRanges = stripRangeMinEqualToDefault(normalizeDateRanges(dateRanges, startDate, endDate), minNights);
       const datesError = rangesWindowMessage(normalizedDateRanges);

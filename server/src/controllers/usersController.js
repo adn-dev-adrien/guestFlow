@@ -31,9 +31,27 @@ const { quotaRefusal } = require('../utils/planQuota');
 const { ROLE_PLUGINS } = require('../constants/plugins');
 const { sendError } = require('../utils/httpError');
 const { isValidEmailAddress } = require('../utils/emailAddress');
+const { asText, isOptionalText } = require('../utils/bodyText');
 
 function isValidEmail(value) {
   return isValidEmailAddress(value);
+}
+
+// specs/hosting-h2-account-security.md rule 68 — company and notes are text, null or left out.
+function notTextRefusal(body) {
+  const field = ['companyName', 'notes'].find((key) => !isOptionalText(body[key]));
+  return field ? { error: 'INVALID_FIELD', field } : null;
+}
+
+// A blank entry is dropped; one that is not a string stays, for UNKNOWN_ROLE to refuse.
+const readRoles = (list) => list
+  .map((role) => (role === undefined || role === null ? '' : (typeof role === 'string' ? role.trim() : role)))
+  .filter((role) => role !== '');
+
+function unknownRoleRefusal(roles) {
+  const role = roles.find((r) => !isKnownRole(r));
+  if (role === undefined) return null;
+  return { error: 'UNKNOWN_ROLE', field: 'roles', ...(typeof role === 'string' ? { role } : {}) };
 }
 
 function asInt(value) {
@@ -142,17 +160,20 @@ function buildController({
     updateSelf(req, res) {
       if (!req.user) return res.status(401).json({ error: 'UNAUTHENTICATED' });
       const body = req.body || {};
-      const firstName = String(body.firstName || '').trim();
-      const lastName = String(body.lastName || '').trim();
+      const firstName = asText(body.firstName).trim();
+      const lastName = asText(body.lastName).trim();
       if (!firstName) return res.status(400).json({ error: 'FIRSTNAME_REQUIRED', field: 'firstName' });
       if (!lastName) return res.status(400).json({ error: 'LASTNAME_REQUIRED', field: 'lastName' });
+      const notText = notTextRefusal(body);
+      if (notText) return res.status(400).json(notText);
 
       // Optional email change — only validate when the body carries a value that differs
       // from the current one. Submitting the same email is a no-op (no format check
       // re-runs, no uniqueness ping).
       let emailForModel;
       if (body.email !== undefined && body.email !== null) {
-        const trimmed = String(body.email).trim();
+        if (typeof body.email !== 'string') return res.status(400).json({ error: 'INVALID_EMAIL', field: 'email' });
+        const trimmed = body.email.trim();
         if (trimmed && trimmed.toLowerCase() !== String(req.user.email || '').toLowerCase()) {
           if (!isValidEmail(trimmed)) return res.status(400).json({ error: 'INVALID_EMAIL', field: 'email' });
           emailForModel = trimmed;
@@ -174,8 +195,8 @@ function buildController({
         updated = usersModel.updateUser(req.user.id, {
           firstName,
           lastName,
-          companyName: String(body.companyName || '').trim(),
-          notes: String(body.notes || '').trim(),
+          companyName: asText(body.companyName).trim(),
+          notes: asText(body.notes).trim(),
           // No `roles` key on purpose — the model preserves the existing roles when undefined.
           ...(emailForModel !== undefined ? { email: emailForModel } : {}),
         });
@@ -232,20 +253,21 @@ function buildController({
     // POST /api/users — create + email welcome with temporary password.
     create(req, res) {
       const body = req.body || {};
-      const firstName = String(body.firstName || '').trim();
-      const lastName = String(body.lastName || '').trim();
-      const email = String(body.email || '').trim();
-      const companyName = String(body.companyName || '').trim();
-      const notes = String(body.notes || '').trim();
-      const roles = Array.isArray(body.roles) ? body.roles.map((r) => String(r || '').trim()).filter(Boolean) : [];
+      const firstName = asText(body.firstName).trim();
+      const lastName = asText(body.lastName).trim();
+      const email = asText(body.email).trim();
+      const companyName = asText(body.companyName).trim();
+      const notes = asText(body.notes).trim();
+      const roles = Array.isArray(body.roles) ? readRoles(body.roles) : [];
 
       if (!firstName) return res.status(400).json({ error: 'FIRSTNAME_REQUIRED', field: 'firstName' });
       if (!lastName) return res.status(400).json({ error: 'LASTNAME_REQUIRED', field: 'lastName' });
       if (!isValidEmail(email)) return res.status(400).json({ error: 'INVALID_EMAIL', field: 'email' });
+      const notText = notTextRefusal(body);
+      if (notText) return res.status(400).json(notText);
       if (roles.length === 0) return res.status(400).json({ error: 'ROLES_REQUIRED', field: 'roles' });
-      for (const role of roles) {
-        if (!isKnownRole(role)) return res.status(400).json({ error: 'UNKNOWN_ROLE', field: 'roles', role });
-      }
+      const unknownRole = unknownRoleRefusal(roles);
+      if (unknownRole) return res.status(400).json(unknownRole);
       const withoutPlugin = roleWithoutPlugin(roles);
       if (withoutPlugin) return res.status(400).json(withoutPlugin);
       // Before the welcome email: a refused account must not receive one.
@@ -308,14 +330,17 @@ function buildController({
       const target = usersModel.findById(id);
       if (!target || target.isSupport) return res.status(404).json({ error: 'USER_NOT_FOUND' });
 
-      const nextRoles = Array.isArray(body.roles)
-        ? body.roles.map((r) => String(r || '').trim()).filter(Boolean)
-        : undefined;
+      // Rule 68 — as on /me: a name that is sent must be a name; a field left out stays as it is.
+      if (body.firstName !== undefined && !asText(body.firstName).trim()) return res.status(400).json({ error: 'FIRSTNAME_REQUIRED', field: 'firstName' });
+      if (body.lastName !== undefined && !asText(body.lastName).trim()) return res.status(400).json({ error: 'LASTNAME_REQUIRED', field: 'lastName' });
+      const notText = notTextRefusal(body);
+      if (notText) return res.status(400).json(notText);
+
+      const nextRoles = Array.isArray(body.roles) ? readRoles(body.roles) : undefined;
       if (nextRoles !== undefined) {
         if (nextRoles.length === 0) return res.status(400).json({ error: 'ROLES_REQUIRED', field: 'roles' });
-        for (const role of nextRoles) {
-          if (!isKnownRole(role)) return res.status(400).json({ error: 'UNKNOWN_ROLE', field: 'roles', role });
-        }
+        const unknownRole = unknownRoleRefusal(nextRoles);
+        if (unknownRole) return res.status(400).json(unknownRole);
         const withoutPlugin = roleWithoutPlugin(nextRoles, target.roles);
         if (withoutPlugin) return res.status(400).json(withoutPlugin);
         // Self-protection: an admin cannot strip their own admin role.

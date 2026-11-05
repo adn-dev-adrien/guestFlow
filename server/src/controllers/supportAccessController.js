@@ -17,6 +17,7 @@
 const supportAccess = require('../utils/supportAccess');
 const { journal } = require('../utils/supportLogLabels');
 const { httpError } = require('../utils/httpError');
+const { numeric } = require('../utils/bodyText');
 const { ADMIN, userHasRole } = require('../constants/roles');
 
 const parisDateTime = (iso) => (iso ? new Date(iso).toLocaleString('fr-FR', {
@@ -82,7 +83,7 @@ function createSupportAccessController({
       return view();
     }
     if (decision !== 'accept') throw httpError(400, 'INVALID_DECISION', 'Décision inconnue.');
-    const h = hours == null ? supportAccess.DEFAULT_HOURS : Number(hours);
+    const h = hours == null ? supportAccess.DEFAULT_HOURS : numeric(hours);
     if (!supportAccess.DURATION_HOURS.includes(h)) throw httpError(400, 'INVALID_DURATION', 'Durée : 1 h, 24 h ou 7 jours.');
     const expiresAt = new Date(now().getTime() + h * 3600000).toISOString();
     if (!model.decide(id, { decision: 'accepted', userId: user.id, nowIso: nowIso(), expiresAt })) throw httpError(409, 'ALREADY_DECIDED', 'Demande déjà traitée.');

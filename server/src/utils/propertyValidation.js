@@ -13,6 +13,7 @@
 const { validateMonthDay } = require('./settingsValidation');
 const { PROPERTY_LIMITS, parseBoundedNumber } = require('./inputLimits');
 const { MODES, poolSeasonModeOf } = require('./poolSeason');
+const { isClockTime } = require('./bodyText');
 const { MAX_STAY_NIGHTS } = require('./stayDates');
 const { numberRefused, usableNumber, nonNegative, wholeFrom, rowsOf } = require('./lineInputBounds');
 
@@ -59,7 +60,34 @@ function validatePoolSeason(body, errors, existing) {
   if (end < start) errors.poolSeasonEnd = 'La fermeture suit l\'ouverture.';
 }
 
+// specs/hosting-h2-account-security.md rule 68 — a multipart form sends strings, the JSON API may send numbers; anything
+// else stops here, before a validator reads it or the model stores it. A time is HH:MM or empty, a stored one exempt.
+const TEXT_KEYS = ['name', 'nameArticle', 'photo', 'touristTaxMode', 'extraGuestPriceUnit', 'poolSeasonMode', 'poolSeasonStart', 'poolSeasonEnd'];
+const TIME_KEYS = ['defaultCheckIn', 'defaultCheckOut'];
+const NUMBER_KEYS = [
+  'maxGuests', 'maxBabies', 'basePriceIncludedGuests', 'extraGuestPrice', 'welcomePackCost', 'doubleBeds', 'singleBeds',
+  'depositPercent', 'depositDueDays', 'balanceDaysBefore', 'cancelAfterBalanceDueDays', 'cleaningHours', 'defaultCautionAmount',
+  'touristTaxPerDayPerPerson', 'touristTaxPercentage', 'touristTaxDepartmentPercentage', 'touristTaxFixedAmount',
+];
+
+function shapeErrors(body, existing) {
+  const errors = {};
+  const sent = (key) => has(body, key) && body[key] !== undefined && body[key] !== null && body[key] !== '';
+  for (const key of TEXT_KEYS) {
+    if (sent(key) && typeof body[key] !== 'string') errors[key] = 'Valeur invalide.';
+  }
+  for (const key of NUMBER_KEYS) {
+    if (sent(key) && typeof body[key] !== 'string' && typeof body[key] !== 'number') errors[key] = 'Valeur invalide.';
+  }
+  for (const key of TIME_KEYS) {
+    if (sent(key) && !(existing && body[key] === existing[key]) && !isClockTime(body[key])) errors[key] = 'Heure invalide.';
+  }
+  return errors;
+}
+
 function validatePropertyInput(body = {}, existing = null) {
+  const wrongShape = shapeErrors(body, existing);
+  if (Object.keys(wrongShape).length) return wrongShape;
   const errors = {};
   const pick = (key) => (has(body, key) ? body[key] : existing && existing[key]);
   // A stored number sent back unchanged is not re-judged (specs/settings-input-guards.md rule 51).
