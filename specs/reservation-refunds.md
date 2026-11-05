@@ -637,6 +637,9 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
     2026-11-05, pre-existing):* on a live stay a book refund is capped at `finalPrice` + tax (`REFUND_EXCEEDS_STAY`), so a paid
     departure-SAS charge (end-of-stay complement, outside `finalPrice`) cannot be given back with the rest; after a
     cancellation the cap is skipped and a free line reaches it. No money is lost.
+    *Reading of 2026-11-05 (audit R24 verification DB-2):* a SAS takes back only what it settled: a solde ticked on the fiche then
+    « Pas maintenant » at the arrival, or an end-of-stay complement ticked outside the departure SAS then « Pas maintenant » at the
+    departure, keeps its mark and is never refused for a refund on it (pinned by `untick-with-open-refund`).
 
 ---
 
@@ -866,7 +869,7 @@ like « Nouvelle note », not a page-level one).
 ## 7. Test plan
 
 ### Server unit tests (38 new — full suite 2421 ✅)
-- [x] `tests/live-refund-per-line.unit.test.js` (18) — rule 51 (D15). `tests/untick-with-open-refund.unit.test.js` (16),
+- [x] `tests/live-refund-per-line.unit.test.js` (18) — rule 51 (D15). `tests/untick-with-open-refund.unit.test.js` (24),
       `plugins/online-payment/tests/reconciliation-undo-open-refund.unit.test.js` (4) — rule 52.
       `plugins/accounting-export/tests/cancelled-register-plan-and-eos-lines.unit.test.js` (11) — rule 49 readings N5, N6 and D15's
       give-back. Client: `RefundDialog.line-collected.test.jsx` (6). The auditor's unheld lines (R23-S3):

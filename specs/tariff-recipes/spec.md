@@ -674,6 +674,10 @@ all-inclusive pricing as the first such recipe.
     (`{ [propertyId]: n }`, rows holding some), read by that check. *Why:* any « Enregistrer » on the apple juice, a description
     fix included, set its free unit to 0: 5 € more on every new direct stay of the Lodge and its welcome pack gone, with no way
     back in the app. Test: `option-free-units`.
+    *Reading of 2026-11-05 (audit R24 verification DB-1):* with « Gratuit » or « Dégressif participants » the editor has no
+    « Prix » column, so the refusal prints under the property's row in « Logements et prix »; otherwise under the row's
+    « Prix » field (disabled when the property is no longer proposed). Test: client
+    `OptionEditorPanel.free-units-refusal`.
 
 ## 4. Architecture
 
@@ -708,7 +712,8 @@ Full code map in [architecture.md](architecture.md). Summary:
   save writes the extras (66).
 - **Audit R24-DB-1 (rule 69):** `models/optionsModel.js` — `freeUnitsFor`, `persistPropertyPrices` re-inserts each row with its
   free units, `get` carries `propertyFreeUnits`; `utils/optionValidation.js` — the `freeUnitsNeedPrice` refusal;
-  `controllers/optionsController.js` hands `storedFreeUnits` to it. No client change: the editor prints the 422 under the field.
+  `controllers/optionsController.js` hands `storedFreeUnits` to it; `client/src/pages/options/OptionPropertyTable.jsx` prints the 422
+  under the row's « Prix » field, or under the property's row when the price type has no « Prix » column (reading below).
 
 ## 5. Data model
 

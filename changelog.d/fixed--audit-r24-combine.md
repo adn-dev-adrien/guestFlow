@@ -1,2 +1,3 @@
 - Reservation page: a client typed on a fiche no longer follows the page to the next fiche it loads (« Retour » after a devis created in place).
 - Public quote: the Roostview price watch is no longer refused for the visitor's times, which it never sends (`specs/roostview-api-key.md` rule 7); the times are judged before the stay rules (public-api rule 24 reading).
+- Option editor: with « Gratuit » or « Dégressif participants », the refusal that keeps a property's free units (« Prix requis : unités offertes ») now shows under that property's row instead of only « 1 champ à corriger » (tariff-recipes rule 69 reading). +2 client tests; +2 server tests pin that a SAS never refuses to re-open a mark it did not settle.
