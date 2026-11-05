@@ -172,6 +172,15 @@
         "stayDates"
       ],
       "names": {}
+    },
+    {
+      "version": "2.22.0",
+      "modules": [],
+      "names": {
+        "blockedDates": [
+          "stayTimesRefused"
+        ]
+      }
     }
   ]
 }

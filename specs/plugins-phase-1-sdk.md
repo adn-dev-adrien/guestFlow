@@ -500,6 +500,14 @@ Optional: a plugin that declares nothing reads « Actif ».
     by extension. In the other direction, the core still reads the former `{ optionId, units }` (rule 28 of the same
     spec). The sale draft lives on the client, which the hardening scan skips, so the row recognises `soldOptions`, its
     server end. Test: `plugin-core-hardening-floor.unit.test.js`.
+40. *(Added 2026-11-05, audit R24 public finding 1, SDK 2.22.0.)* **`coreModule('blockedDates').stayTimesRefused(stay)`
+    judges the visitor's own arrival and departure times** against the neighbouring stays and the closures: the back
+    office's `reservationsModel.validateAvailability` with those times and the nights they take
+    (`getNightBlocksFromTimes`), a time not sent read as the property's default. `website-booking` 1.8.12 asks for
+    `sdk ^2.22.0` and calls it on `/quote` and `/booking-requests`; the core's public `pay` calls it too
+    ([public-api.md](public-api.md) rule 24, [public-online-payment.md](public-online-payment.md) rule 17). A MINOR bump
+    (a name added to a core module); on an older core the plugin would load and throw on its first quote, hence the
+    floor. Tests: `plugin-core-hardening-floor.unit.test.js`, `plugins-sdk-core-module-floor.unit.test.js`.
 
 **Edge cases:**
 - **A plugin throws during `register`.** Rule 4 applies: the other plugins and the core boot. The Plugins

@@ -297,7 +297,7 @@ The former J+7 satisfaction survey and the « season reminder, 8 weeks before th
 | Method | Endpoint | Request | Response | Notes |
 |---|---|---|---|---|
 | GET | `/api/email-sequence/simulation?from=YYYY-MM-DD&to=YYYY-MM-DD` | — | `{ rows: [{ date, mailKey, mailLabel, reservationId, reservationNumber, clientId, clientName, propertyName, status, reason }], counts: { send, blocked, alreadySent, toCheck }, startDate, assumedStartDate, autoSendEnabled }` | Auth; range ≤ 400 days; 400 `INVALID_RANGE`; `status` ∈ `send`, `blocked`, `already-sent`, `to-check` |
-| GET | `/preferences/emails?t=<token>` | — | HTML page with a confirm button | No session, no API key (outside `/public/v1`, which requires the plugin key); own rate limiter; unknown token → neutral page |
+| GET | `/preferences/emails?t=<token>` | — | HTML page with a confirm button | No session, no API key (outside `/public/v1`, which requires the plugin key); own rate limiter; unknown token → neutral page. Past 60 hits in 15 min from one address the limiter answers its own English 429, « Too many requests, please try again later. »: accepted 2026-11-05 (audit R24 public finding 3), no guest reaches it by normal use |
 | POST | `/preferences/emails` | form `t=<token>` | HTML confirmation | Sets `marketingUnsubscribedAt` once; idempotent |
 | POST | `/api/emails/send` | + optional `confirmResend: boolean` | + 409 `ALREADY_SENT` (with `sentAt`) for a sequence key already sent and no `confirmResend` | Rule 13bis |
 | PUT | `/api/clients/:id`, `/api/reservations/:id`, `/api/properties/:id`, `/api/settings` | + new fields | unchanged | Validated at the boundary |
