@@ -99,7 +99,8 @@ which « Enregistrer » writes which field.
     After a switch to production, or a consent on another organisation, the sandbox record answered « skipped » for the
     new account, so no webhook ever arrived there and nothing said so. A successful OAuth callback now forgets the record
     once any check in flight has landed, before rule 14 runs, so every fresh consent lists, adopts or creates; a list that
-    fails leaves it empty and the next poll asks again. An instance that switched before this release needs one
+    fails leaves it empty and the next poll asks again (the console has no poll: `ensureWebhookSubscription` is called only by
+    the plugin job and the controller, so there it asks again at the next consent). An instance that switched before this release needs one
     new consent. Test: `plugins/online-payment/tests/qonto-consent-resubscribes.unit.test.js`.)_
 11. The check runs after each successful Qonto authorisation and at the start of each reconciliation
     pass. A failure is recorded like any other Qonto failure, is shown in Réglages → Paiements, and
@@ -156,7 +157,7 @@ which « Enregistrer » writes which field.
 | `controllers/` | `paymentsController.js` | T | Drops `registerQontoWebhook`; the OAuth callback verifies the connection (rule 14) then triggers the webhook check (rule 11) |
 | `controllers/` | `settingsController.js` | T | Drops `port` from the SMTP field map and derives `smtpPort` from `secure` (rule 5) _(2026-10-27: nothing is written any more — the port is derived at read time in `settingsModel`)_ |
 | `models/` | `settingsModel.js` | T | Reads/writes the subscription record; stores a generated webhook secret (rules 9, 10) |
-| `utils/` | `qontoWebhookRegistrar.js` | C | `ensureWebhookSubscription()` — the whole of rules 7–11, pure of HTTP, client injected |
+| `utils/` | `qontoWebhookRegistrar.js` | C | `ensureWebhookSubscription()` — the whole of rules 7–11, pure of HTTP, client injected, single-flight per settings store; `forgetWebhookSubscription()` — rule 10's reading, after any check in flight |
 | `utils/` | `settingsValidation.js` | T | `smtpPortForSecure(secure)` — the pure derivation of rule 5; `validateSmtpPort` stays for the stored value _(2026-10-27: there is no stored value left and `validateSmtpPort` no longer exists; `smtpPortForSecure` is the one in use)_ |
 | `utils/` | `paymentPollSchedule.js` | C | `resolvePaymentPollTickMs(env)` — the tick of `payment-polling-fair-use` rule 11 |
 | `scheduledTasks.js` | `scheduledTasks.js` | T | Poll tick 15 min → 8 h; calls the registrar at the start of a pass (rule 11) |

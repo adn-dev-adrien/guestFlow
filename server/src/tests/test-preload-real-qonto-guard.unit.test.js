@@ -52,8 +52,11 @@ test('rule 14: a process that never tried keeps its exit code, and a loopback di
 });
 
 test('rule 14: the npm test preload installs the guard, here and on the console suite', () => {
-  const dns = require('node:dns');
-  assert.equal(dns.lookup.realQontoGuard, true);
+  const scrubbed = { ...process.env, DB_PATH: ':memory:' };
+  delete scrubbed.NODE_TEST_CONTEXT;
+  delete scrubbed.NODE_OPTIONS;
+  const out = spawnSync(process.execPath, ['--require', path.join(__dirname, 'setup', 'isolateDefaultDb.js'), '-p', "require('dns').lookup.realQontoGuard"], { encoding: 'utf8', timeout: 30_000, env: scrubbed });
+  assert.equal(out.stdout.trim(), 'true', out.stderr);
   const pkg = require('../../../control-plane/server/package.json');
   assert.match(pkg.scripts.test, /realQontoGuard\.js/);
 });

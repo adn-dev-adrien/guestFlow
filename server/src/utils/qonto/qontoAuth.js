@@ -27,12 +27,15 @@ const notConnected = () => {
 
 async function refreshAndStore({ settings, clientFactory, refreshToken, now }) {
   const client = clientFactory();
-  const refreshed = await client.refresh({ refreshToken });
-  // Rule 19: new credentials or a new consent landed meanwhile; the answer belongs to the tokens they replaced.
+  const refreshed = await client.refresh({ refreshToken }).catch((error) => {
+    if (settings.qontoTokens().refreshToken === refreshToken) throw error;
+    return null;
+  });
+  // Rule 19: new credentials or a new consent landed meanwhile; the answer, or the failure, belongs to the tokens they replaced.
   const current = settings.qontoTokens();
   if (current.refreshToken !== refreshToken) {
     if (current.accessToken) return current.accessToken;
-    throw notConnected();
+    throw Object.assign(notConnected(), { overtaken: true });
   }
   const newExpiresAt = refreshed.expiresIn ? new Date(now + refreshed.expiresIn * 1000).toISOString() : null;
   settings.storeQontoTokens({

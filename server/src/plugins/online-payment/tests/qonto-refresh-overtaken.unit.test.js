@@ -3,10 +3,11 @@
 // new credentials, or over a new consent. Injected client, no network.
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const http = require('node:http');
 
 const { freshSettings } = require('./qontoSettingsFixture');
 const { getValidQontoAccessToken } = require('../../../utils/qonto/qontoAuth');
-const { applyQontoCredentials } = require('../../../utils/qonto/qontoService');
+const { applyQontoCredentials, qontoStatusPayload, withQonto } = require('../../../utils/qonto/qontoService');
 
 const past = () => new Date(Date.now() - 3600_000).toISOString();
 const future = () => new Date(Date.now() + 3600_000).toISOString();
@@ -68,4 +69,60 @@ test('rule 19: a refresh nothing overtook stores its pair, as before', async () 
   assert.equal(await call, 'at-old-family');
   assert.equal(settings.qontoTokens().refreshToken, 'rt-old-family');
   assert.equal(held.calls(), 1);
+});
+
+// A loopback token endpoint whose refresh waits for `gate`, then answers 401 when `refuse`.
+async function fakeTokenEndpoint(t, { refuse = false } = {}) {
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const seen = { refreshes: 0 };
+  const server = http.createServer((req, res) => {
+    req.resume();
+    req.on('end', async () => {
+      res.setHeader('content-type', 'application/json');
+      seen.refreshes += 1;
+      await gate;
+      if (refuse) {
+        res.statusCode = 401;
+        return res.end(JSON.stringify({ error: 'invalid_grant' }));
+      }
+      return res.end(JSON.stringify({ access_token: 'at-old-family', refresh_token: 'rt-old-family', expires_in: 3600 }));
+    });
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => new Promise((done) => { server.closeAllConnections(); server.close(done); }));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  return { env: { QONTO_API_BASE: base, QONTO_OAUTH_BASE: base }, release, seen };
+}
+const refreshStarted = async (fake) => { while (fake.seen.refreshes === 0) await new Promise((resolve) => setImmediate(resolve)); };
+
+test('rule 19: a save during a refresh leaves the health it had just cleared', async (t) => {
+  const settings = expiredInstallation('rt-health-save');
+  const fake = await fakeTokenEndpoint(t);
+  const call = withQonto({ settings, env: fake.env, origin: 'poll' }, (_client, token) => token);
+  await refreshStarted(fake);
+  applyQontoCredentials({ settings, env: fake.env, body: { environment: 'production', clientId: 'cid-prod', clientSecret: 'sec-prod' } });
+  fake.release();
+  await assert.rejects(call, { code: 'QONTO_NOT_CONNECTED' });
+  assert.equal(qontoStatusPayload({ settings, env: fake.env }).lastError, null);
+});
+
+test('rule 19: a consent during a refresh that then fails: fresh tokens, no failure recorded, the caller goes on', async (t) => {
+  const settings = expiredInstallation('rt-health-consent');
+  const fake = await fakeTokenEndpoint(t, { refuse: true });
+  const call = withQonto({ settings, env: fake.env, origin: 'poll', recordSuccess: false }, (_client, token) => token);
+  await refreshStarted(fake);
+  settings.storeQontoTokens({ accessToken: 'at-new-consent', refreshToken: 'rt-new-consent', expiresAt: future() });
+  fake.release();
+  assert.equal(await call, 'at-new-consent');
+  assert.equal(settings.qontoTokens().refreshToken, 'rt-new-consent');
+  assert.equal(qontoStatusPayload({ settings, env: fake.env }).lastError, null);
+});
+
+test('rule 19: a refresh that fails and nothing overtook still records its failure', async (t) => {
+  const settings = expiredInstallation('rt-health-plain');
+  const fake = await fakeTokenEndpoint(t, { refuse: true });
+  fake.release();
+  await assert.rejects(withQonto({ settings, env: fake.env, origin: 'poll' }, (_client, token) => token));
+  assert.ok(qontoStatusPayload({ settings, env: fake.env }).lastError);
 });

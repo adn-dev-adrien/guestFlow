@@ -58,6 +58,34 @@ function sandboxInstallation() {
   return settings;
 }
 
+test('rule 10: a check that starts the moment the one awaited lands is waited for too', async (t) => {
+  const qonto = await fakeQonto(t, { subscriptions: [{ id: 'old-account-sub', callback_url: CALLBACK_URL, types: ['v1/payment-links'] }] });
+  const settings = sandboxInstallation();
+  settings.storeQontoWebhookSubscription({ id: '', callbackUrl: '' });
+  const held = () => {
+    let release;
+    qonto.listGate = new Promise((resolve) => { release = resolve; });
+    return release;
+  };
+  const releaseFirst = held();
+  const first = ensureWebhookSubscription({ settings, env: qonto.env });
+  while (lists(qonto) === 0) await new Promise((resolve) => setImmediate(resolve));
+
+  let releaseSecond;
+  const second = first.then(() => {
+    settings.storeQontoWebhookSubscription({ id: '', callbackUrl: '' });
+    releaseSecond = held();
+    return ensureWebhookSubscription({ settings, env: qonto.env });
+  });
+  const forgotten = forgetWebhookSubscription({ settings });
+  releaseFirst();
+  while (lists(qonto) < 2) await new Promise((resolve) => setImmediate(resolve));
+  releaseSecond();
+  assert.equal((await second).id, 'old-account-sub');
+  await forgotten;
+  assert.deepEqual(settings.qontoWebhookSubscription(), { id: '', callbackUrl: '' });
+});
+
 async function consent(settings, env) {
   const controller = createQontoSettingsController({ settings, env });
   const req = { query: { code: 'c', state: 's' }, session: { qontoOAuthState: 's' } };

@@ -109,7 +109,7 @@ when it is broken.
     authorisation.
 16. Reading and writing these settings requires an authenticated operator, like every other
     `/api/payments/**` route.
-17. **A failed load says so (audit R3, 2026-10-29).** When `GET /api/payments/settings` fails, the page
+20. **A failed load says so (audit R3, 2026-10-29).** When `GET /api/payments/settings` fails, the page
     shows an `ErrorAlert` (« Impossible de charger les paramètres de paiement. ») with « Réessayer »
     instead of an endless spinner. « Réessayer » asks for the settings again, without reloading the page.
 18. **One refresh at a time per refresh token (audit R22 E22-3, 2026-11-04).** The poll, the webhook, a public
@@ -125,7 +125,8 @@ when it is broken.
     consent, while a refresh is running: its answer belongs to the tokens they replaced, and storing it brought back a
     connection built on the old application. After the await, `refreshAndStore` compares the stored refresh token
     with the one it refreshed. When they differ it stores nothing and answers the stored access token, or
-    `QONTO_NOT_CONNECTED` when there is none. Shared with the control plane's billing. Test:
+    `QONTO_NOT_CONNECTED` when there is none. A refresh that fails once overtaken answers the same, and neither writes the
+    connection's health: it belongs to the new credentials or consent. Shared with the control plane's billing. Test:
     `plugins/online-payment/tests/qonto-refresh-overtaken.unit.test.js`.
 
 
@@ -287,7 +288,7 @@ card, next to the fields they act on.
 - [ ] `tests/qonto-failure-record.unit.test.js` — rules 12, 13
 - [ ] `tests/qonto-credentials-clear-tokens.unit.test.js` — rule 15
 - [x] `plugins/online-payment/tests/qonto-env-base-wins.unit.test.js` — rule 5, reading of 2026-11-05 (11 tests)
-- [x] `plugins/online-payment/tests/qonto-refresh-overtaken.unit.test.js` — rule 19 (3 tests)
+- [x] `plugins/online-payment/tests/qonto-refresh-overtaken.unit.test.js` — rule 19 (6 tests)
 
 ### Client unit tests
 
