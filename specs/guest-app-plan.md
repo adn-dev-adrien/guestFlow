@@ -1,13 +1,16 @@
 # Guest app « Mon séjour » — implementation plan
 
 Companion to [guest-app.md](guest-app.md) (the spec) and
-[guest-app-maquettes.html](guest-app-maquettes.html) (charter, prototype, screens). Rule numbers refer to
+[guest-app-planches.html](guest-app-planches.html) (review boards v2, every surface wired; the v1 charter stays in
+[guest-app-maquettes.html](guest-app-maquettes.html)). Rule numbers refer to
 spec §3.
 
 **Status:** Validated (2026-11-05) — slice A implemented, see spec §10
 **Base branch:** `inte/plugins` (the integration branch whose public API, plugin SDK and payment links this
-work builds on). Each slice is one branch `feature/guest-app-<slice>` cut from an up-to-date
-`inte/plugins`, one PR, squash-merged.
+work builds on). All slices ship on ONE branch, `feature/guest-app-plugin`, as ONE pull request with one
+commit per slice (the user's decision of 2026-11-05: the spec-coverage gate refuses code citing a spec still
+Approved, so the spec moves to Implemented in that single PR); `inte/plugins` is merged into the branch at
+every slice.
 **Surface (estimate):** 1 new plugin (`guest-app`, ~30 server files), 2 new front-end apps (`apps/guest`,
 `apps/studio`), 1 plugin client module, ~12 touched core / plugin files, ~18 new server test files,
 ~10 client test files, 1 E2E suite.
@@ -33,9 +36,9 @@ guest UI, so the riskiest code is the most tested before a guest can reach it.
 
 ## 0. Prerequisites
 
-- [ ] Spec `guest-app.md` moved to `Approved` (2026-11-04). The open items of §9 (paper booklets, guest
-      host name, app name, Soliomap framing, launch catalogue and service hours) are **content and
-      configuration**: they block slice H, not the code.
+- [x] Spec `guest-app.md` moved to `Approved` (2026-11-04). Resolved on 2026-11-05: Q1 (booklets → slice I),
+      Q2 (`sejour.domainesolio.com`), Q3 (« Domaine Solio » / « Mon séjour »), Q9 (launch catalogue). Open:
+      Q8 (Soliomap framing) and Q10 (how the guest opens the app — it rewrites part of slice A).
 - [ ] `cd server && npm test` and `cd client && npm test` green on `inte/plugins`; record the counts as
       the baseline (962 server test files today).
 - [ ] Verify on `inte/plugins` that nothing has moved under the hooks this plan extends
@@ -173,7 +176,7 @@ guest UI, so the riskiest code is the most tested before a guest can reach it.
 
 ### D2 — Quote and orders
 28. `POST /orders/quote` priced by the core engine (same function as the fiche); `POST /orders` with
-    `payment: note | none | card`, `NAME_REQUIRED`, `SLOT_TAKEN`, `DELIVERY_SLOT_GONE`, `SHOP_CLOSED`,
+    `payment: note | none | card`, `NAME_REQUIRED`, `SLOT_TAKEN`, `SHOP_CLOSED`,
     `ORDER_LIMIT`; `guestOrderLimiter`; `GET /orders`, `GET /orders/:id`.
 29. `models/ordersModel.js`; priced snapshot in `linesJson`.
 
@@ -199,7 +202,9 @@ guest UI, so the riskiest code is the most tested before a guest can reach it.
 
 ---
 
-## Slice E — Booklet and studio API (rules 16-21, 47-50)
+## Slice E — Booklet and studio API (rules 15bis, 16-21, 47-50)
+
+38bis. `soliomapFeed.js` + the `suggestion` field of `/me` (rule 15bis), test `guest-app-suggestion.unit.test.js`.
 
 39. `models/bookletModel.js`: pages, placements per lodging, blocks with `onlyForPropertyIdsJson`,
     versions per lodging; `resolveBooklet(propertyId, lang)` (placements in order, restricted blocks

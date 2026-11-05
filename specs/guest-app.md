@@ -59,7 +59,7 @@ is pushed every order.
 
 1. **One QR code per lodging.** Each property has a `lodgingCode`: 128 random bits, base64url, stored on the
    property, regenerable from the booklet studio (old printed QR stops working at once). The QR encodes
-   `https://<guest host>/l/<lodgingCode>`. A guessed or stale code answers like an unknown one (no oracle).
+   `https://<guest host>/l/<lodgingCode>`. A guessed or stale code answers like an unknown one (no oracle). The app shows one copy for an unknown, stale or disabled code: « Ce code n'est pas reconnu. »
 2. **Scanning opens the app at that lodging.** `POST /public/v1/guest/sessions {lodgingCode}` resolves the
    property, then its **current stay**: the non-cancelled reservation of that property whose window contains
    *now*. The window is the gate window — `startDate`+`checkInTime` − 3 h → `endDate`+`checkOutTime` + 2 h,
@@ -104,10 +104,8 @@ is pushed every order.
     Boutique · Bain nordique · Soliomap · Livret). A module that is off for the lodging is not rendered (no
     greyed tile).
 11. **Contextual highlight.** One card under the tiles, chosen by the server among: « Le portail est
-    actif » (arrival day), « Prolongez votre bain nordique ce soir » (a bath slot is still free today and the
-    resource is sold in the app), « Votre commande est prête » (an order marked delivered in the last hour),
-    « Départ demain : les consignes » (eve of departure → booklet page *Départ*). At most one, never a
-    marketing carousel. A highlight is only chosen among the lodging's enabled modules. Priority: the order,
+    actif » (arrival day), « Un bain nordique ce soir ? » + the first bookable hour (a slot in state `free` or `evening` remains today and the resource is sold in the app), « Votre commande est prête » (an order marked delivered in the last hour),
+    « Départ demain : les consignes » (eve of departure → booklet page *Départ*). At most one highlight, plus at most one suggestion (rule 15bis), never a marketing carousel. A highlight is only chosen among the lodging's enabled modules. Priority: the order,
     the gate, the departure, the bath: a bath slot is free on nearly every evening, so ahead of the departure
     it would keep the instructions from ever showing.
 
@@ -116,10 +114,9 @@ is pushed every order.
 11bis. **Modules per lodging.** Each lodging has its own list of modules, each **on / off** and ordered:
     `gate` (Portail), `wifi`, `shop` (Boutique), `bath` (Bain nordique shortcut), `soliomap`, `booklet`
     (Livret), `orders` (Mes commandes), `contacts` (Urgences & contacts shortcut). The server resolves them:
-    a module is shown only if it is **on for the lodging** *and* its prerequisite holds (gate → `gate-access`
-    active and a key in window; shop → at least one item sold for this lodging; bath → an hourly resource
+    a module is shown only if it is **on for the lodging** *and* its prerequisite holds (gate → `gate-access` active and the stay inside the gate window — before Sowel's key exists the tile reads « Accès en préparation », rule 13; shop → at least one item sold for this lodging; bath → an hourly resource
     sold for this lodging; wifi → wifi configured for this lodging, rule 11ter; soliomap → its URL set;
-    contacts → at least one contact). A visitor has no `gate`, `shop`, `bath` or `orders`; a pre-arrival session
+    contacts → at least one contact). The `bath` module is a shortcut tile only: the slot list, the quote and the orders belong to `shop`; `shop` off hides the bath tile too. A visitor has no `gate`, `shop`, `bath` or `orders`; a pre-arrival session
     keeps `shop` but has no `gate`, `bath` or `orders` (rules 5, 6). By default the six modules of rule 10 and
     `orders` are on, `contacts` off; `orders` feeds the tab of rule 51 and the home's « Commandes en cours » row,
     never a tile, so the home keeps rule 10's six. Every endpoint of an
@@ -135,7 +132,7 @@ is pushed every order.
     (one place to change a password, both the tile and the booklet follow).
 11quater. **App enabled per lodging.** A lodging can be left out of the app entirely (« Application
     clients » off for that lodging): no QR code is issued, its lookup answers like an unknown stay, and the
-    studio hides it. A new property created in GuestFlow starts **off**.
+    studio hides it. A new property created in GuestFlow starts **off**. Switching a lodging off kills its live sessions on their next request (401 `SESSION_EXPIRED`, then the generic « Ce code n'est pas reconnu » screen, without lookup).
 
 ### 3.C Gate — a door to the existing gate app
 
@@ -145,6 +142,8 @@ is pushed every order.
 13. **Source and window.** The URL is read from the `gate-access` plugin (`gate_key_results` of the stay)
     and returned only for a stay session inside the gate window. Before the key exists (Sowel has not pulled
     yet) the tile reads « Accès en préparation » and is not clickable; outside the window the tile is absent.
+    On arrival day, while the key does not exist yet, the highlight reads « Votre accès au portail se prépare », with
+    no time promised.
 14. **Plugin off** (`gate-access` inactive or not installed) → tile absent, endpoint 404 `PLUGIN_INACTIVE`.
 
 ### 3.D Soliomap
@@ -153,15 +152,17 @@ is pushed every order.
     the app shell, in a full-height frame under the app bar, with « Ouvrir dans le navigateur » in the bar.
     A place opens on its permalink `/#<activity id>` (Soliomap's own deep link); Soliomap reads no language
     nor lodging from the URL. Checked on 2026-11-05: Soliomap answers `frame-ancestors 'self'` and
-    `X-Frame-Options: SAMEORIGIN`, so framing needs the guest host allowed on Soliomap's side (§9 Q8). Until
-    then, and whenever the studio switch « Intégrer dans l'app » is off, the tile opens it in a new tab —
-    decided by that switch, not detected at runtime.
+    `X-Frame-Options: SAMEORIGIN`, so framing needs the guest host allowed on Soliomap's side (§9 Q8). The
+    studio switch « Intégrer dans l'app » is off by default and is turned on only once Soliomap allows the guest
+    host; while it is off the tile and the suggestion card open Soliomap in a new tab (with ↗) — decided by that
+    switch, not detected at runtime.
 15bis. **One activity suggestion on the home.** Under the contextual highlight, a card « À faire pendant
     votre séjour » shows ONE dated event read from Soliomap's feed (`GET /api/activities`, the items that
     carry `startsOn` / `endsOn`, cached by the server for an hour): among the events still to come during the
     stay — they overlap the days from today (or, from 14 h on, from tomorrow; a pre-arrival session counts
-    from the arrival day) to the departure day, and `visibleFrom` is reached — the one with the smallest
-    `driveMinutes`, then the soonest. The card carries the date, « à N min », the name, the category and
+    from the arrival day) to the eve of the departure day, and `visibleFrom` is reached; no such day left → no card — the one with the smallest
+    `driveMinutes`, then the soonest. The card carries the date (one day: « sam. 7 nov. »; several days: « jusqu'au sam. 28 nov. », the event's
+    real `endsOn`), the drive time (« 8 min en voiture », Soliomap's own estimate), the name, the category and
     opens that event on Soliomap (rule 15). No such event, Soliomap unreachable, a visitor session or the
     `soliomap` module off → no card. The guest sees no ranking, no list: one idea, never a carousel.
 
@@ -186,7 +187,9 @@ is pushed every order.
     lists, links), `image`, `gallery`, `callout` (info / warning), `steps` (numbered how-to with optional
     photo per step), `wifi` (network + password + « Copier », QR to join), `contact` (name, role, phone →
     `tel:`, WhatsApp, email), `place` (address + « Itinéraire » → maps link), `faq` (accordion),
-    `button` (label + internal page / shop item / external URL), `hours` (opening times table).
+    `button` (label + internal page / shop item / external URL), `hours` (opening times table). A `button`
+    whose target is not available to the session (module off, item not sold here, a shop or bath target for a
+    visitor or a pre-arrival session) is not rendered.
 19. **Languages.** Every text field has FR and EN. The app language is the guest's `clients.emailLanguage`
     for a stay session, else the browser's (`fr` default), switchable from the app bar. A missing EN text
     falls back to FR, flagged in the studio (« 3 textes non traduits »).
@@ -234,16 +237,22 @@ is pushed every order.
       (« 1 h offerte avec votre séjour », « 1 h offerte — déjà utilisée »);
     - an option **offered by default** to the lodging (`property_option_defaults.offered`) that the stay
       already carries is shown « Déjà inclus dans votre séjour » and not sold again;
-    - an item not linked to the stay's lodging is not shown.
+    - an item not linked to the stay's lodging is not shown;
+    - a 0 € item (included or free) is limited per stay to its `maxQuantity`, counted across orders.
     An order whose quote total is **0 €** (only free / included units) needs no payment and no name: one
     button « Réserver », the order is `confirmed` and written to the fiche like a note order (rule 34).
 26. **Categories.** Items are grouped by the existing option `category` (e.g. « Boissons »,
-    « Restauration », « Bien-être »), in the plugin's category order; hourly resources appear in
+    « Alimentation », « Bien-être »), in the plugin's category order; hourly resources appear in
     « Bien-être ». An empty category is not shown.
 27. **When the shop is open.** Exactly when the core mid-stay extras window is open for the stay
-    (`midStayExtrasWindow.js`: from `startDate` until the end-of-stay complement is collected). Pre-arrival
-    and visitor sessions see the catalogue read-only with « Disponible pendant votre séjour ». After the
-    complement is collected: « La boutique est fermée — bon retour ! ». Staff-prepared items also follow the
+    (`midStayExtrasWindow.js`: from `startDate` until the end-of-stay complement is collected). Pre-arrival sessions see the catalogue read-only (a visitor has no shop, rule 11bis) with « Disponible pendant votre séjour ». After the
+    complement is collected: « La boutique est fermée. Bon retour chez vous ! ».
+27bis. **Breakfast** (decided 2026-11-05 with Q9). The seeded breakfast option (`autoOptionType='breakfast'`,
+    `per_person_per_night`, `utils/breakfastSeed.js`) is sellable despite rule 23's exclusion of its price
+    type. Ordering it means choosing the mornings left in the stay and the hour (inside the service hours),
+    written as the stay's breakfast line `cardOccurrences` and priced per person and night by the core engine;
+    it appears on the planning's `BreakfastDayCard` only, never on a « Commande app » card. A stay that already
+    includes it orders it at 0 €, which only sets its mornings and hour. Staff-prepared items also follow the
     service hours of §3.G.
 
 #### Hourly resources — the GuestFlow resource planning is the only truth
@@ -266,7 +275,9 @@ is pushed every order.
     heating | staff | past`.
 29. **Several uses, several days.** The guest may book several slots, on several days of the stay, of one
     or more hourly resources, in one order; each slot is validated against the others of the same order
-    (they occupy the resource too).
+    (they occupy the resource too). Removing a slot re-validates the others; the quote returns any session no
+    longer bookable (past, taken, heating, staff) as `unavailable`, and a slot that was warm only thanks to a
+    removed or moved session is re-checked under rule 31.
 30. **Ordering writes the planning.** A committed order adds its sessions to the stay's
     `reservation_resources` line (creating the line if the stay had none, raising its sold hours otherwise),
     so the session appears at once on Calendrier › Ressources, on the day's planning card, and on the
@@ -275,7 +286,7 @@ is pushed every order.
     reloads.
 31. **Lighting needs staff.** When a slot needs the resource heated from cold, its ignition time
     (`start − heatUpMinutes`, as the ignition card computes it) must fall inside the service hours of §3.G;
-    otherwise the slot is `staff` (« Trop tôt pour préparer le bain — premier créneau possible 18 h »). A slot
+    otherwise the slot is `staff` and is not listed (§6.4). A slot
     that follows a use while the resource is still warm needs no ignition and is not constrained.
 
 #### Cart, payment, commit
@@ -306,16 +317,19 @@ is pushed every order.
     the payment date. This wires the `complement` type end to end: `ensurePaymentLink` accepts it **only**
     with an explicit guest-order basket, `applyPaidEffect` gets a `complement` branch that commits the order.
     Exempt from the arrival-day lapse (`payment-link-lifecycle.md` rule 9); its own lifetime is **30 min**.
-    While `awaiting_payment` the order **holds** its hourly slots (rule 28) and its staff delivery slot.
+    While `awaiting_payment` the order **holds** its hourly slots (rule 28) and the free minutes it uses; the guest can abandon it from « Mes commandes » (holds released at once). At payment, a `deliverAt` earlier than payment + lead moves to the next valid slot and the order says so.
 36. **Unpaid card order.** If the link is not paid within 30 min the order goes `expired`, its holds are
     released, nothing reaches the fiche. A payment confirmed after expiry (late webhook) still commits the
     order if its slots are still free; otherwise the order goes `paid_conflict`, the operator is pushed, and
-    refunds by hand (refund out of scope).
+    refunds by hand (refund out of scope). A `paid_conflict` payment is recorded on the reservation ledger as a
+    `complement` payment flagged « à rembourser », with a history entry; no line is added. A late payment whose
+    `deliverAt` is already past moves to the next valid delivery time and the order says so.
 37. **Limits.** Per order: ≤ 20 lines, each quantity 1…`maxQuantity` (plugin field, default 10), total
     ≤ 500 € (plugin setting). Per session: 10 orders / hour. Out-of-range → 400 with the documented code;
     the app's steppers already respect `maxQuantity` (UX only).
-38. **Order follow-up.** « Mes commandes » lists the stay's orders with status chips: *En attente de
-    paiement*, *Payée*, *Sur votre note*, *Prévue {jour heure}*, *Livrée*, *Expirée*. The guest cannot cancel a
+38. **Order follow-up.** « Mes commandes » lists the stay's orders with status chips: *En attente de paiement*, *Payée*, *Sur votre note*, *Offerte* (0 €), *Payée · à rembourser*
+    (`paid_conflict`), *Expirée*; a second chip *Prévue {jour heure}* / *Livrée* for orders with a delivery. An
+    unpaid card order shows « Paiement par carte en attente » and no preparation step until it is paid. The guest cannot cancel a
     confirmed order from the app (« Contactez-nous » → booklet contact block).
 
 ### 3.G Service hours — orders that need someone on site
@@ -330,12 +344,13 @@ is pushed every order.
     closures of GuestFlow (`establishment_closures`, all-properties rows) close the service too. Optionally
     per lodging (both lodgings share them by default).
 41. **Ordering a staff item = choosing a delivery time.** The cart asks « Quand souhaitez-vous la
-    recevoir ? » with server-computed delivery slots (30-min steps) that fall inside service hours, at least
-    `max(leadMinutes)` of the cart after *now*, and before the stay's check-out. The first slot is
+    recevoir ? » with server-computed delivery times t (30-min steps) such that check-in ≤ t ≤ check-out and the preparation
+    interval [t − max(leadMinutes), t] lies after *now* inside one service range. Delivery times have no
+    capacity limit (decided 2026-11-05): an order holds no delivery slot and there is no `DELIVERY_SLOT_GONE`. The first slot is
     preselected (« Dès que possible — vers 17 h 30 »).
 42. **Outside service hours the guest can still order, for later.** The shop shows a banner « Le service
     reprend demain à 8 h — vous pouvez commander dès maintenant pour plus tard » and the delivery picker
-    starts at the next opening + lead time. An item whose last possible delivery is past check-out is shown
+    starts at the next opening + lead time (rule 41). An item whose last possible delivery is past check-out is shown
     « Plus disponible pour votre séjour ».
 43. **The delivery time drives the staff.** The order carries `deliverAt`; the push of rule 44 states it;
     a planning card « Commande app » appears on the planning day of `deliverAt` (contributed by the plugin
@@ -440,7 +455,7 @@ plugins only through the functions they export to other plugins (no direct table
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
-| `plugins/guest-app/` | `manifest.json`, `index.js` | C | Declares the plugin, push channel `guestOrders`, settings, migrations, public + admin mounts, the expiry runner |
+| `plugins/guest-app/` | `manifest.json`, `index.js` | C | Declares the plugin, push channel `guest-orders`, settings, migrations, public + admin mounts, the expiry runner |
 | `plugins/guest-app/routes/` | `public.js` | C | `/public/v1/guest/**` — thin: parse → controller → JSON |
 | `plugins/guest-app/routes/` | `admin.js` | C | `/api/guest-app/**` — items, studio, service hours, orders list; admin session guard |
 | `plugins/guest-app/middleware/` | `guestSession.js` | C | Reads `gf_guest`, loads the session, re-derives the window, 401 when dead |
@@ -459,6 +474,7 @@ plugins only through the functions they export to other plugins (no direct table
 | `plugins/guest-app/` | `sellable.js` | C | Pure: which items a lodging's shop shows and their free / included state (rules 23, 25) |
 | `plugins/guest-app/` | `serviceHours.js` | C | Pure: open ranges for a date, next opening, delivery slots from now + lead time to check-out, ignition-in-hours check (rules 31, 40-42) |
 | `plugins/guest-app/` | `homeHighlight.js` | C | Pure: status line + the single highlight (rules 10, 11) |
+| `plugins/guest-app/` | `soliomapFeed.js` | C | Reads Soliomap's `GET /api/activities` (outbound HTTPS, 1 h cache, 5 s timeout; a failure → no card) and picks the stay's suggestion (rule 15bis) |
 | `plugins/guest-app/` | `orderExpiryRunner.js` | C | Every minute: expire unpaid orders, release holds (rule 36) |
 | `plugins/guest-app/` | `planningCards.js` | C | `planning.days` server feed: « Commande app » cards on the delivery day (rule 43) |
 | `plugins/guest-app/` | `migrations.js` | C | Tables of §5 |
@@ -535,7 +551,7 @@ shape for every plugin: `{ error: 'PLUGIN_INACTIVE', plugin }`.
 |---|---|---|---|---|
 | POST | `/public/v1/guest/sessions` | — | `{ lodgingCode }` | `{ mode: 'stay'\|'preArrival'\|'visitor', lodging:{id,name,slug}, opensAt? }` + cookie |
 | POST | `/public/v1/guest/sessions/lookup` | — | `{ lastName, reservationNumber }` | same; 404 `STAY_NOT_FOUND` generic |
-| GET | `/public/v1/guest/me` | session | — | stay / pre-arrival: `{ mode, guest:{firstName}, lodging, stay:{arrival,departure,partySize,statusLine}, language, nameConfirmed, tiles:[…], highlight?:{key,text,module,page?} }`; visitor: `{ mode, lodging, language, tiles:[…], welcome, opensAt?, openingLine? }`; dead session 401 `SESSION_EXPIRED` |
+| GET | `/public/v1/guest/me` | session | — | stay / pre-arrival: `{ mode, guest:{firstName}, lodging, stay:{arrival,departure,partySize,statusLine}, language, nameConfirmed, tiles:[…], suggestion?:{id,name,category,dateLabel,driveLabel,url}, highlight?:{key,text,module,page?} }`; visitor: `{ mode, lodging, language, tiles:[…], welcome, opensAt?, openingLine? }`; dead session 401 `SESSION_EXPIRED` |
 | POST | `/public/v1/guest/me/confirm-name` | stay or pre-arrival session | `{ lastName }` | `{ nameConfirmed:true }`; 400 `INVALID_INPUT` when `lastName` is not text (spends no attempt); 422 `NAME_MISMATCH` `{attemptsLeft}`; 423 `NAME_LOCKED` `{lockedUntil}`; visitor 403 `STAY_REQUIRED` |
 | GET | `/public/v1/guest/booklet?lang=` | session or `lodgingCode` | — | `{ version, pages:[{slug,icon,title,cover}] }` |
 | GET | `/public/v1/guest/booklet/pages/:slug?lang=` | idem | — | `{ slug, title, cover, blocks:[{type, …}] }` |
@@ -546,7 +562,7 @@ shape for every plugin: `{ error: 'PLUGIN_INACTIVE', plugin }`.
 | GET | `/public/v1/guest/shop/resources/:id/slots?from&to` | stay session | — | `{ freeMinutesLeft, freeLabel?, days:[{date,label,closed,slots:[{start,end,state,priceLabel,reasonLabel?}]}] }` |
 | POST | `/public/v1/guest/shop/delivery-slots` | stay session | `{ lines }` | `{ asap:{at,label}, slots:[{at,label}], bannerLabel? }` |
 | POST | `/public/v1/guest/orders/quote` | stay session | `{ lines:[{kind,id,quantity?,sessions?}], deliverAt? }` | `{ lines:[{…, unitPrice, freeUnits?, total, label, unavailable?}], total, totalLabel, needsDelivery }` |
-| POST | `/public/v1/guest/orders` | stay session | `{ lines, deliverAt?, payment:'card'\|'note'\|'none', returnPath }` | card → `{ orderId, paymentUrl }`; note/none → `{ orderId, status:'confirmed' }`; 403 `NAME_REQUIRED`, 409 `SLOT_TAKEN`, 409 `DELIVERY_SLOT_GONE`, 409 `SHOP_CLOSED`, 400 `ORDER_LIMIT` |
+| POST | `/public/v1/guest/orders` | stay session | `{ lines, deliverAt?, payment:'card'\|'note'\|'none', returnPath }` | card → `{ orderId, paymentUrl }`; note/none → `{ orderId, status:'confirmed' }`; 403 `NAME_REQUIRED`, 409 `SLOT_TAKEN`, 409 `SHOP_CLOSED`, 400 `ORDER_LIMIT` |
 | GET | `/public/v1/guest/orders` | stay session | — | `{ orders:[{id, createdAt, deliverAt, lines, total, payment, status, statusLabel}] }` |
 | GET | `/public/v1/guest/orders/:id` | stay session | — | one order (triggers the on-demand Qonto poll like `/booking-requests/:id/status`) |
 | GET | `/public/v1/guest/manifest.webmanifest` | — | — | manifest with the plugin's app name |
@@ -594,7 +610,7 @@ reads under the existing `publicApiLimiter` budget.
   'confirmed'|'paid'|'delivered'|'expired'|'paid_conflict', linesJson (priced snapshot, sessions included),
   total, deliverAt NULL, heldUntil NULL, paymentLinkId NULL, createdAt, confirmedAt, deliveredAt,
   deliveredBy)` — `heldUntil` makes the hourly `holds` provider cheap to query.
-- Plugin settings (`ctx.settings.declare`): `appName`, `soliomapUrl`, `soliomapEmbed`, `maxOrderTotal`,
+- Plugin settings (`ctx.settings.declare`): `appName`, `soliomapUrl`, `soliomapEmbed` (default off), `maxOrderTotal`,
   `guestHost`. The property has no slug column: `lodging.slug` is derived from its name (`L'Estiva` → `l-estiva`).
 
 **Data impact:** additive only, all in plugin tables. Reservations receive lines and resource sessions only
@@ -602,8 +618,9 @@ through the existing mid-stay path. Changelog `Migration` note at implementation
 
 ## 6. UI / UX
 
-Mock-ups and clickable prototype: **`specs/guest-app-maquettes.html`** (charter board, a working phone
-prototype of the main flows, key screens in day and night, tablet / desktop, the studio).
+Review boards: **`specs/guest-app-planches.html`** (v2, 2026-11-05: every surface wired to one simulated state —
+the guest app on a bench of moments and conditions, the studio, the editor contribution, the orders page, the
+access proposal). The v1 charter board and prototype stay in `specs/guest-app-maquettes.html`.
 
 ### 6.0 Two identities, one rule: who is looking
 
@@ -726,8 +743,7 @@ illustration-free icon + one sentence + one action, `ErrorAlert` with « Réessa
 
 ### 6.6 Screen by screen
 
-- **Home** — hero (46 %), `StayCard`, tiles grid (3 × 2 on phone, 6 in a row on desktop), `MomentCard`,
-  « Le livret » photo strip, « Commandes en cours » row if any.
+- **Home** — hero (46 %), `StayCard`, tiles grid (3 × 2 on phone, 6 in a row on desktop), `MomentCard`, the suggestion card (rule 15bis), « Commandes en cours » row if any, « Le livret » photo strip.
 - **Booklet index** — search field (sticky), then `PhotoCard`s in one column (phone) / 2 (tablet) / 3
   (desktop); a shared page is indistinguishable from a lodging one.
 - **Booklet page** — cover photo with title inside, then blocks with 24 px rhythm; « Page suivante » card at
@@ -738,9 +754,9 @@ illustration-free icon + one sentence + one action, `ErrorAlert` with « Réessa
 - **Bath** — eyebrow « BIEN-ÊTRE », title, free-time chip (« 1 h offerte · déjà utilisée lundi »), day
   chips, `SlotGrid`, sticky button with the server price of the selection.
 - **Cart** — lines with thumbnails and steppers, delivery chips (if any staff item), total, `PaymentChoice`,
-  one primary button whose label follows the choice (« PAYER 33,00 € » / « AJOUTER À MA NOTE »).
+  one primary button whose label follows the choice (« PAYER 33,00 € » / « AJOUTER À MA NOTE · 33,00 € » / « RÉSERVER » at 0 €).
 - **Confirmation** — gold check drawn, « Commande envoyée », one-sentence promise built by the server
-  (« Livrée vers 18 h à L'Estiva », « Le bain sera chaud à 20 h »), `OrderTimeline`, « Retour à
+  (« Livraison vers 18 h à L'Estiva », « Le bain sera chaud à 20 h »), `OrderTimeline`, « Retour à
   l'accueil ».
 - **Orders** — current orders first with `OrderTimeline`, then past ones collapsed.
 - **Lookup** (`/retrouver`) — night-register hero photo, two fields, one button; the same calm error.
@@ -806,6 +822,8 @@ le nom et le numéro. »
   branch, refusal without basket
 - [ ] `…/guest-app-gate.unit.test.js` — rules 12-14, no URL outside the window
 - [x] `…/guest-app-home.unit.test.js` — rules 10-11
+- [ ] `…/guest-app-suggestion.unit.test.js` — rule 15bis: 14 h cut-off, eve of departure, `visibleFrom`, nearest
+  then soonest, multi-day label with the real end date, feed down or slow → no card, visitor → none
 
 ### Manual UI verification
 - [ ] Happy path mobile (390 px): scan QR → home → order 2 drinks for 18 h + 1 h bath → note with name → push
@@ -815,8 +833,7 @@ le nom et le numéro. »
   complement unchanged.
 - [ ] Free per lodging: same resource free at La Granja, paid at L'Estiva → each shop shows its own price;
   free hour used at the arrival SAS → app shows « déjà utilisée ».
-- [ ] Out of service hours (e.g. 22:00): banner, drinks orderable for tomorrow 8 h + lead time; cold-bath
-  slot whose ignition falls at night shown « équipe absente ».
+- [ ] Out of service hours (e.g. 22:00): banner, drinks orderable for tomorrow 8 h + lead time; cold-bath slot whose ignition falls outside service hours is not listed.
 - [ ] Plugin deactivated → switch gone from the option / resource editors, guest app answers « indisponible »;
   reactivated → flags back.
 - [ ] Edge: wrong name × 3 → note locked, card still possible; slot taken from the fiche between quote and
@@ -849,12 +866,10 @@ le nom et le numéro. »
   (`frame-ancestors 'self'`). Allow `sejour.domainesolio.com` in Soliomap (one line in the solioMap repository,
   shipped there), or keep opening it in a new tab? (review boards, arbitrage A7)
 - **Q10 — How the guest opens the app.** A lodging QR (rules 1-9 as written) lets a past guest who photographed
-  the poster open the next stay. Proposal A (review boards v2, section « Accès »): one link per stay, random,
-  valid for the stay window only, shown as the QR of the arrival SAS step that today shows the gate QR, and
+  the poster open the next stay. Proposal A (review boards v2, section « Accès »): one link per stay, random: pre-arrival from J-7 00:00, stay session during the window, dead after; shown as the QR of the arrival SAS step that today shows the gate QR, and
   sent in the J-7 e-mail in place of the gate link; it proves the stay, so no name is ever asked, even for the
   bill; the lodging poster opens the visitor mode only. B = rules 1-9 as written; C = lodging QR + a 4-digit
-  code given at the SAS. A changes slice A (session from the stay link, name confirmation removed): rules
-  1-9 and 33 are rewritten once the user picks (arbitrage A6).
+  code given at the SAS. A changes slice A (session from the stay link, name confirmation removed): rules 1-9, 13, 25, 33, §4.3 (confirm-name, `nameConfirmed`), §5 (a `guest_stay_links` table: the token must be shown again at the SAS, in the e-mail and after « Régénérer », so it is stored encrypted, not hash-only), §6.5.1, §6.6, §7, the SAS « Portail » step and the J-7 / J-2 e-mail variable (plugin contributions that fall back to the gate link when the plugin or the lodging is off or the stay has no e-mail), « Régénérer le lien » on the fiche, a direct « Ouvrir le portail » kept at the SAS for weak coverage, and the stated risk that a forwarded link is a bearer token for the bill (remedy: « Régénérer ») are rewritten once the user picks (arbitrage A6).
 
 ### Resolved (2026-11-05, review of the boards v1)
 
@@ -876,8 +891,7 @@ le nom et le numéro. »
 - **Hosting** — served by GuestFlow, plugin `guest-app`, `/public/v1/guest/**` with a per-stay session; the
   catalogue projections are those of the website-booking API on `inte/plugins` (rules 4, 24).
 - **Gate** — the gate app already exists: the tile opens the stay's Sowel key link, no gate screen is built
-  (rules 12-14). The residual risk (an old QR photo shows the tile during a later stay) is accepted: the
-  link is per stay and window-bound.
+  (rules 12-14). Under a lodging QR, a photo of the poster opens the current stay's gate link and its 0 € orders during any later stay; this is the risk Q10 addresses and is not accepted as is.
 - **Soliomap** — existing app at `map.domainesolio.com` (address corrected 2026-11-05), opened from a tile (rule 15).
 - **Booklet editing** — a dedicated web app (« Studio du livret », `/studio`, GuestFlow account) (rules
   47-50).
