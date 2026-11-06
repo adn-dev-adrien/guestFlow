@@ -75,11 +75,19 @@ test('rule 30 — « payé » for the stays\' money: the « Déjà payé » tota
 });
 
 test('finance-dashboard-redesign rule 57 — a refused exercise keeps the page alive and offers the current one', async () => {
-  api.getFinanceDashboard.mockReset().mockImplementation((p) => (p.fiscalYear ? Promise.reject({ error: 'Exercice inconnu.' }) : Promise.resolve(COMPARED)));
+  api.getFinanceDashboard.mockReset().mockImplementation((p) => (p.fiscalYear ? Promise.reject({ error: 'Exercice inconnu.', code: 'UNKNOWN_EXERCISE' }) : Promise.resolve(COMPARED)));
   renderPage('/finance?exercice=2025');
   expect(await screen.findByText('Exercice inconnu.')).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Exercice en cours' }));
   expect(location.search).not.toContain('exercice');
   expect(await screen.findByRole('region', { name: "Chiffre d'affaires" })).toBeInTheDocument();
   expect(within(screen.getByRole('region', { name: "Chiffre d'affaires" })).getByText(/Exercice 2026/)).toBeInTheDocument();
+});
+
+test('finance-dashboard-redesign rule 57 — another refusal does not offer the current exercise', async () => {
+  api.getFinanceDashboard.mockReset().mockRejectedValue({ error: 'Logement inconnu.' });
+  renderPage('/finance?exercice=2025&logement=9');
+  expect(await screen.findByText('Logement inconnu.')).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Exercice en cours' })).toBeNull();
+  expect(screen.getByRole('button', { name: 'Tous les logements' })).toBeInTheDocument();
 });

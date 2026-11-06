@@ -86,6 +86,8 @@ export default function FinancePage() {
 
   const [dashboard, setDashboard] = useState(null);
   const [loadError, setLoadError] = useState(null);
+  // Rule 57 — the refusal's code: « Exercice en cours » answers `UNKNOWN_EXERCISE` only.
+  const [loadErrorCode, setLoadErrorCode] = useState(null);
   const [tile, setTile] = useState(null);
   const [detail, setDetail] = useState({ key: null, data: null, loading: false, error: false });
   const [staysScope, setStaysScope] = useState('window');
@@ -107,7 +109,10 @@ export default function FinancePage() {
       const answer = await api.getFinanceDashboard(params);
       if (current()) setDashboard(answer);
     } catch (err) {
-      if (current()) setLoadError((err && err.error) || 'Impossible de charger les données financières.');
+      if (current()) {
+        setLoadError((err && err.error) || 'Impossible de charger les données financières.');
+        setLoadErrorCode((err && err.code) || null);
+      }
     }
   }, [paramsKey, periodRefusal]);
 
@@ -234,7 +239,7 @@ export default function FinancePage() {
               </Button>
             )}
             {/* specs/finance-dashboard-redesign.md rule 57 — an exercise the server refuses offers the current one. */}
-            {params.fiscalYear && (
+            {loadError && loadErrorCode === 'UNKNOWN_EXERCISE' && (
               <Button size="small" variant="outlined" onClick={() => setParams({ fiscalYear: '', period: 'fy', month: '' })} sx={{ textTransform: 'none', minHeight: 36, '@media (pointer: coarse)': { minHeight: 44 } }}>
                 Exercice en cours
               </Button>

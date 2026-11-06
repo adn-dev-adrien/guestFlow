@@ -470,12 +470,16 @@ without losing anything today's page shows.
 57. **A repeated `fiscalYear` is refused; the served exercise is always offered** (Adrien, D-HC16, and V5-11,
     2026-11-06). The shared context of the dashboard, its detail tables and the stay profile refuses a
     `fiscalYear` that is not a single value (`?fiscalYear=2026&fiscalYear=2025`, a nested key) with
-    « Exercice inconnu. » (400) — it names no exercise, so it is never read as the current one. A single
+    `{ error: 'Exercice inconnu.', code: 'UNKNOWN_EXERCISE' }` (400) — the settings' wording
+    (`utils/revenueGoals`) and the data checks' code (`specs/finance-data-checks.md` rule 22); it names no
+    exercise, so it is never read as the current one. None of these endpoints had a message of its own for an
+    unknown exercise. A single
     unusable value (`abc`, `1999`) keeps reading the current exercise (fiscal-year-and-nights-sold rule 24).
-    The page shows the refusal with its period toolbar and an « Exercice en cours » button that clears the
-    exercise (never a dead end, rule 51's reading). The selector's options (`fiscalYears`) always hold the
+    The page shows the refusal with its period toolbar and, on that code only, an « Exercice en cours » button
+    that clears the exercise (never a dead end, rule 51's reading). The selector's options (`fiscalYears`) always hold the
     exercise the server serves, even one before any data, so the select never shows a blank. Tests:
-    `tests/finance-dashboard-round2.unit.test.js`, `pages/__tests__/FinancePage.round2.test.jsx`.
+    `tests/finance-dashboard-round2.unit.test.js`, `tests/finance-dashboard-repeated-exercise.unit.test.js` (over
+    the controllers), `pages/__tests__/FinancePage.round2.test.jsx`.
 
 ---
 

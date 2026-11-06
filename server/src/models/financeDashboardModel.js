@@ -27,7 +27,8 @@ const { comparisonWindow, compare } = require('../utils/financeComparison');
 
 const H = financeModel.helpers;
 
-const UNKNOWN_EXERCISE = 'Exercice inconnu.';
+// The settings' own wording for an exercise that does not exist, with the data checks' code (D-HC16).
+const UNKNOWN_EXERCISE = require('../utils/revenueGoals').MESSAGES.badExercise;
 
 /**
  * Rule 57 (V5-11) — the selector's options always hold the exercise the page serves, so the select never
@@ -132,7 +133,7 @@ function createDashboardModel(database, finance) {
     // Rule 57 (D-HC16) — a repeated (or nested) `fiscalYear` names no exercise: refused, never read as the
     // current one. A single unusable value keeps reading the current exercise (rule 24 of fiscal-year-and-nights-sold).
     if (params.fiscalYear != null && typeof params.fiscalYear !== 'string' && typeof params.fiscalYear !== 'number') {
-      return { ok: false, status: 400, error: UNKNOWN_EXERCISE };
+      return { ok: false, status: 400, error: UNKNOWN_EXERCISE, code: 'UNKNOWN_EXERCISE' };
     }
     const today = H.todayIso();
     const endMonth = H.getFiscalYearEndMonth(database);

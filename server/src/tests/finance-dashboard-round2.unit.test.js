@@ -21,9 +21,9 @@ test('rule 57 — a repeated or nested fiscalYear is « Exercice inconnu. » (40
   const { db, dashboard } = seeded();
   const profile = stayProfileModel.buildModel(db);
   for (const fiscalYear of [['2026', '2025'], { a: '2026' }]) {
-    assert.deepEqual(dashboard.getDashboard({ fiscalYear }), { ok: false, status: 400, error: 'Exercice inconnu.' });
-    assert.deepEqual(dashboard.getDashboardDetail('stays', { fiscalYear }), { ok: false, status: 400, error: 'Exercice inconnu.' });
-    assert.deepEqual(profile.getStayProfile({ fiscalYear }), { ok: false, status: 400, error: 'Exercice inconnu.' });
+    assert.deepEqual(dashboard.getDashboard({ fiscalYear }), { ok: false, status: 400, error: 'Exercice inconnu.', code: 'UNKNOWN_EXERCISE' });
+    assert.deepEqual(dashboard.getDashboardDetail('stays', { fiscalYear }), { ok: false, status: 400, error: 'Exercice inconnu.', code: 'UNKNOWN_EXERCISE' });
+    assert.deepEqual(profile.getStayProfile({ fiscalYear }), { ok: false, status: 400, error: 'Exercice inconnu.', code: 'UNKNOWN_EXERCISE' });
   }
 });
 
