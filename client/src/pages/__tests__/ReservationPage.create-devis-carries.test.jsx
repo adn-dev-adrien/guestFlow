@@ -1,4 +1,4 @@
-// specs/ui-review-2026-10-19-operations.md rules 50 and 51 (audit R25-C1, R25-C2) — « Créer un devis » on a stay fiche not
+// specs/ui-review-2026-10-19-operations.md rules 50, 51 and 52 (audit R25-C1, R25-C2, verification N1) — « Créer un devis » on a stay fiche not
 // saved yet carries the typed client with the form, and the devis it opens is an edit: Enregistrer is lit, leaving asks.
 import React from 'react';
 import { vi } from 'vitest';
@@ -137,4 +137,24 @@ test('R25-C2 — the bar « Retour » on the prefilled devis asks too', async ()
   await createDevis();
   fireEvent.click(screen.getByRole('button', { name: 'Annuler' }));
   expect(await screen.findByText('Modifications non enregistrées')).toBeInTheDocument();
+});
+
+test('R25 N1 (rule 52) — after the first save, Back lands on the stay fiche, blank, not on the saved draft', async () => {
+  await openStayFiche();
+  await typeClient();
+  await createDevis();
+  api.createDevis.mockResolvedValue({ id: 77 });
+  api.getDevisById.mockResolvedValue({ id: 77, status: 'draft', propertyId: 1, startDate: dayIn(60), endDate: dayIn(63), adults: 2, notes: '' });
+  const depth = window.history.length;
+  fireEvent.click(screen.getByRole('button', { name: 'Enregistrer le devis' }));
+  await waitFor(() => expect(window.location.search).toBe('?mode=devis&devisId=77'));
+  expect(window.history.length).toBe(depth);
+  delete window.__guestflowBeforeBack;
+  window.history.back();
+  await waitFor(() => expect(window.location.search).toBe(`?propertyId=1&startDate=${dayIn(60)}&endDate=${dayIn(63)}`));
+  await screen.findByLabelText(/^Notes/i);
+  await new Promise((resolve) => { setTimeout(resolve, 300); });
+  expect(screen.queryByText(/Testeur/)).not.toBeInTheDocument();
+  expect(screen.queryByText('Modifications non enregistrées')).not.toBeInTheDocument();
+  expect(api.createDevis).toHaveBeenCalledTimes(1);
 });

@@ -2685,7 +2685,8 @@ export default function ReservationPage() {
           if (safeAfterSaveAction) {
             safeAfterSaveAction();
           } else if (created?.id) {
-            navigate(`/reservations/new?mode=devis&devisId=${created.id}`);
+            // Rule 52 (audit R25 N1) — the prefilled entry carries the draft and its client: Back must not re-open them.
+            navigate(`/reservations/new?mode=devis&devisId=${created.id}`, { replace: Boolean(prefillDevis) });
           } else {
             navigate('/devis');
           }

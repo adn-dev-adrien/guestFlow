@@ -411,6 +411,12 @@ guessing; and the quote the guest receives looks like the house that sends it.
     (rule 40, reading of 2026-11-05). *Why:* its clean baseline was the prefilled form itself, so Enregistrer stayed grey
     until a dummy edit and one tap on « Retour » threw the whole typed stay away without a word. Test:
     `ReservationPage.create-devis-carries`.
+52. **The first save of a prefilled devis replaces its history entry (audit R25 verification N1, 2026-11-06).** Saving a
+    devis opened by « Créer un devis » moves to the saved devis in place of the prefilled entry, so Back lands on the
+    stay fiche the devis came from, re-opened blank (rule 40), never on the saved draft shown again as unsaved work. Any
+    other first save of a devis keeps adding its entry, as before. *Why:* that prefilled entry still carried the draft and
+    its client: Back showed them with Enregistrer lit and one tap wrote a second devis and a second client. Test:
+    `ReservationPage.create-devis-carries`.
 
 ---
 
