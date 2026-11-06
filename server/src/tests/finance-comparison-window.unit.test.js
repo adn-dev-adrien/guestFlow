@@ -1,12 +1,11 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-// The clock is pinned for the whole file (specs/server-test-isolation.md rule 7): « today » is the day the
-// comparisons were written against, so no date below is ever passed by the calendar.
-require('node:test').mock.timers.enable({ apis: ['Date'], now: Date.UTC(2026, 10, 5, 11) });
-
 // specs/finance-revpar-year-over-year.md §3 rules 4, 5, 6, 7, 9 and 10 — the comparable range of a
 // window, its one reason and its one notice, and each figure's comparison. Pure: today is passed in.
+// The clock is pinned for the whole file (the server test-isolation spec: no literal date the calendar
+// will pass), on the day these figures were written against.
+require('node:test').mock.timers.enable({ apis: ['Date'], now: Date.UTC(2026, 10, 5, 11) });
 const { comparisonWindow, compare, pointsChange, firstDayAfter } = require('../utils/financeComparison');
 const yoy = require('../utils/yearOverYear');
 
@@ -39,7 +38,7 @@ test('rule 6 — not known yet: the first day a part compares, the month over or
   const byMonthEnd = comparisonWindow({ window: month, coverage: '2025-01', today: '2026-10-18', trackingStart: '2026-04-10' }).status;
   assert.equal(byMonthEnd.reason, 'notYetKnown');
   assert.equal(byMonthEnd.comparableFrom, '2026-11-01');
-  assert.equal(byMonthEnd.notice, "Comparaison avec l'an dernier à partir du 1 novembre 2026.");
+  assert.equal(byMonthEnd.notice, "Comparaison avec l'an dernier une fois le premier mois terminé, à partir du 1er novembre 2026.");
   // The pace's comparableFrom (tracking start + 1 year) comes first.
   const bySnapshot = comparisonWindow({ window: month, coverage: '2025-01', today: '2026-10-18', trackingStart: '2025-10-25' }).status;
   assert.equal(bySnapshot.reason, 'notYetKnown');

@@ -361,7 +361,10 @@ function createFinanceModel(database) {
     // live reservations, manually cancelled ones (kept with `cancelledAt`), and those an approved iCal
     // cancellation deleted (`booking_pace_cancellations`). A cancelled stay is valued as it stood on the
     // books, before any refund of its cancellation.
-    getPaceStays({ propertyId } = {}) {
+    // `withTax` (specs/finance-dashboard-redesign.md rule 53) adds what the dashboard's revenue of the nights
+    // needs to leave the tourist tax out — `finalPrice`, `touristTaxTotal` — to the live stays only; the pace
+    // reads the stays without it, unchanged.
+    getPaceStays({ propertyId, withTax = false } = {}) {
       const scope = scopeSql({ propertyId });
       const hasCancelledAt = hasReservationColumn('cancelledAt');
       const rows = database.prepare(`
@@ -378,6 +381,7 @@ function createFinanceModel(database) {
           totalSejour: totalSejour(cancelledOn ? { ...r, refundsBookTtc: 0 } : r),
           bookedOn: bookingDayOf(r.createdAt),
           cancelledOn,
+          ...(withTax ? { finalPrice: r.finalPrice, touristTaxTotal: r.touristTaxTotal } : {}),
         };
       });
       const hasLedger = database.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'booking_pace_cancellations'").get();

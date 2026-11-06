@@ -66,6 +66,18 @@ function lastYearSnapshotKnown(today, trackingStart) {
   return Boolean(trackingStart) && shiftYear(today, -1) >= trackingStart;
 }
 
+/**
+ * specs/finance-revpar-year-over-year.md rule 22 — the first day `lastYearSnapshotKnown` holds: the
+ * first d with shiftYear(d, −1) ≥ trackingStart. A tracking start on 29 February is reached a year later
+ * on 1 March, never on the 28th (shiftYear lands the 29th on the 28th).
+ */
+function snapshotKnownFrom(trackingStart) {
+  if (!trackingStart) return null;
+  const next = shiftYear(trackingStart, 1);
+  if (shiftYear(next, -1) >= trackingStart) return next;
+  return new Date(Date.parse(`${next}T00:00:00Z`) + 86400000).toISOString().slice(0, 10);
+}
+
 /** A month is over once its last day is before today. */
 function isMonthOver(ym, today) {
   return lastDayOf(ym) < today;
@@ -107,5 +119,5 @@ function change(current, previous) {
 
 module.exports = {
   shiftYear, shiftMonth, coverageMonth, isComparableMonth, comparableRange, change, monthsTouched,
-  lastYearSnapshotKnown, isMonthOver, clampToMonthsOver, lastYearReading,
+  lastYearSnapshotKnown, isMonthOver, clampToMonthsOver, lastYearReading, snapshotKnownFrom,
 };

@@ -35,11 +35,11 @@ const pct = (x) => (x == null ? '—' : `${Math.round(x * 100)} %`);
 const money = (n) => (n == null ? '—' : formatCurrencyRounded(n));
 
 const TITLES = {
-  collected: ['Encaissé', 'Chaque paiement reçu pour les séjours de la période, du plus récent au plus ancien'],
+  collected: ['Déjà payé', 'Chaque paiement reçu pour les séjours de la période, du plus récent au plus ancien'],
   toCollect: ['À encaisser', 'Séjours terminés pas encore soldés, tous exercices · cochez un paiement à sa réception'],
   late: ['En retard', 'Échéances dépassées des réservations en direct et versements plateforme attendus, tous exercices'],
   stays: ['Réservations', 'Rattachées à la période par leur date comptable'],
-  properties: ['Logements', 'Nuits, occupation, revenu moyen par nuit vendue, RevPAR (revenu ÷ nuits ouvrables)'],
+  properties: ['Logements', 'Nuits, occupation, revenu moyen par nuit vendue, RevPAR (revenu des nuits ÷ nuits ouvertes)'],
   channels: ['Canaux', 'Ce que chaque canal rapporte vraiment, commission déduite'],
 };
 

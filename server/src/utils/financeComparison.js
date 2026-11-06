@@ -10,8 +10,8 @@
 const yoy = require('./yearOverYear');
 const { monthLabel } = require('./financeWindow');
 
-const FR_LONG = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
-const longDate = (iso) => FR_LONG.format(new Date(Date.parse(`${iso}T00:00:00Z`)));
+// Rule 23 — « 1er janvier 2027 ».
+const { formatDateLongFr: longDate } = require('./dateFr');
 
 // The first day of the month after `ym`.
 function firstDayAfter(ym) {
@@ -49,20 +49,30 @@ function comparisonWindow({ window, coverage, today, trackingStart }) {
     // Rule 6 — the first day a part of the window compares: its first month is over, or a year of
     // booking dates is reached (the booking pace's own `comparableFrom`), whichever comes first.
     const monthOver = firstDayAfter(natural.current.from.slice(0, 7));
-    const snapshotFrom = trackingStart ? yoy.shiftYear(trackingStart, 1) : null;
-    const comparableFrom = snapshotFrom && snapshotFrom < monthOver ? snapshotFrom : monthOver;
+    // Rule 22 — the pace's own `comparableFrom` (a tracking start on 29 February is known on 1 March).
+    const snapshotFrom = yoy.snapshotKnownFrom(trackingStart);
+    const bySnapshot = Boolean(snapshotFrom) && snapshotFrom < monthOver;
+    const comparableFrom = bySnapshot ? snapshotFrom : monthOver;
+    // Rule 23 — the sentence says what the date is about, so that it never reads against the pace's.
     status = {
       ...base,
       reason: 'notYetKnown',
       comparableFrom,
-      notice: `Comparaison avec l'an dernier à partir du ${longDate(comparableFrom)}.`,
+      notice: bySnapshot
+        ? `Comparaison avec l'an dernier à partir du ${longDate(comparableFrom)}, avec un an de dates de réservation.`
+        : `Comparaison avec l'an dernier une fois le premier mois terminé, à partir du ${longDate(comparableFrom)}.`,
     };
   } else {
     let notice = null;
     if (!range.complete) {
-      notice = natural.complete
-        ? `Comparaison sur ${range.months} mois sur ${totalMonths} : un mois en cours se compare une fois terminé.`
-        : `Comparaison sur ${range.months} mois sur ${totalMonths} : les données commencent en ${monthLabel(coverage)}.`;
+      // Rule 21 — each clamp that removed months gives its reason: the data's start, the months not over.
+      const byCoverage = !natural.complete;
+      const byMonthsOver = range.months < natural.months;
+      const reasons = [
+        ...(byCoverage ? [`les données commencent en ${monthLabel(coverage)}`] : []),
+        ...(byMonthsOver ? ['un mois en cours se compare une fois terminé'] : []),
+      ];
+      notice = `Comparaison sur ${range.months} mois sur ${totalMonths} : ${reasons.join(', et ')}.`;
     }
     status = {
       ...base,

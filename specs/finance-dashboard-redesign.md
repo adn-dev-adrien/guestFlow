@@ -70,6 +70,7 @@ without losing anything today's page shows.
    the text keeps the real percentage.
 8. Four figures that no tile repeats: **nuits vendues**, **taux d'occupation**, **revenu moyen par nuit
    vendue**, **part en direct**.
+   > Reading of 2026-11-06 (review R3-4): six figures since the RevPAR spec — rule 55.
 9. **Cumulative curve** of the window's revenue (weekly points past 62 days, daily below), current
    year solid; last year dashed **only when every month of the window is comparable** (§3.6).
    Otherwise the legend says the curve comes once the whole period has a year of history.
@@ -108,6 +109,7 @@ without losing anything today's page shows.
 | **Logements** | « N logements · en tête : X » (one logement selected: its revenue · RevPAR) | Per logement: nights, occupancy, revenue per night, RevPAR, TTC, HT, change vs last year. Row → filters the page on that logement. *(« Revenu par logement »)* |
 | **Canaux** | « X € » · « de commissions » (rule 36; « − X € · commissions payées » until 2026-10-18) | Website grouped by source (stays, nights, net, **demandes · conversion**), then each platform and « Direct (saisie) »: stays, nights, gross, commission, net, share. Channels with no stay are hidden. *(« Canaux de réservation »)* |
 
+> 2026-11-06: the tile « Encaissé » is named « Déjà payé » (rule 54).
 14. « À encaisser » and « En retard » are operational: they ignore the window (labelled « tous
     exercices ») but honour the logement filter. Every other tile follows the window.
 15. Checking a payment or « Tout solder » / « Marquer payé » PATCHes the reservation through the
@@ -155,6 +157,7 @@ without losing anything today's page shows.
 25. **Revenu moyen par nuit** = revenue ÷ nights sold of the stays of the window. **RevPAR** =
     revenue ÷ sellable nights of the window. Both on the page's revenue basis (extras included) — the
     labels say « revenu moyen », not « prix de la nuitée ».
+    > Superseded by rule 53 (2026-11-06).
 
 ### 3.8 Annual goal (Settings)
 
@@ -317,6 +320,8 @@ without losing anything today's page shows.
     logement shifts the colours of the ones after it. A series colour is a mark colour (3:1), never a
     text one: a small chart writes its logement's name in ink, only the dot before it wears the colour. A Vitest suite checks every information-carrying token
     against WCAG (3:1 for a mark, 4.5:1 for a tick or a written value).
+    > 2026-11-06 (review R3-4): « the ink banner's accents » is history — the banner is a light card on the
+    > chart tokens (rule 52) and `palette.chart.onInk` is gone.
 46. **Before the first month of the exercise is over, the curve stays, shorter** (decision 10 — departs
     from the review's recommendation, which replaced it by a summary line). On the *Exercice* window,
     while the exercise's first month is not over (`hero.curveCompact`, server), the cumulative curve is
@@ -427,6 +432,33 @@ without losing anything today's page shows.
     for a dark background; no brightness jump at the top of the page, no ink block when printed. The risk
     noted on 2026-09-29 (the key figure stands out less) is met by the fir rule and the 3 rem figure.
     Test: `components/__tests__/FinanceHero.light-card.test.jsx`.
+53. **Revenue per night and RevPAR read the revenue of the nights** (Adrien, D-HC9, 2026-11-06, supersedes
+    rule 25). The revenue of a window's nights = for each live stay with an amount, its « total de séjour »
+    **without its tourist tax** (never revenue; the stay profile's `withoutTouristTax`, its HT ratio
+    finalPrice ÷ (finalPrice + tax)) spread evenly over its nights by the booking pace's own split
+    (`bookingPace.revenueOfNights`, the « CA des nuits »; a stay without a night counts where it starts), the
+    share of its nights inside the window. **Revenu moyen par nuit** = that ÷ the distinct nights of the
+    priced stays inside the window (rule 35); **RevPAR** = that ÷ the window's open nights (rule 24). Both
+    are read this way everywhere they appear — the hero, the logements strip, the « Logements » tile and
+    table, the year-over-year comparison — while the page's **revenue** keeps rule 5 (attribution date).
+    The definitions say it: « revenu des nuits de la période (chaque séjour réparti sur ses nuits, options
+    comprises, hors taxe de séjour) ». *Why:* a cash-attributed revenue over night-based open nights gave a
+    RevPAR of 55 € at 0 % occupancy and 1 545 € « per night » in a month whose soldes were paid in it (review
+    R3-1: 14 of 108 months off by more than 30 %). Tests: `tests/finance-nights-revenue.unit.test.js`; the
+    payload pin and the VAT golden were updated for these fields only.
+54. **« Encaissé » is named « Déjà payé »** (Adrien, D-HC11, 2026-11-06). The tile shows the money already
+    paid on the window's stays (`tiles.collected`, unchanged): a figure on the stays' amounts, its
+    definition « Sur les montants des séjours : paiements déjà reçus pour les séjours de la période, nets de
+    commissions, comparés à la même période de l'an dernier », its comparison source `stays`. « Encaissé »
+    stays the word for money received in a period (the accounting synthesis, « Sur les encaissements »),
+    so one word never names two figures (review R6-3: 786 € here, 861,86 € there, same month). The detail
+    table's title follows. Tests: `pages/__tests__/FinancePage.review-fixes.test.jsx`,
+    `tests/finance-yoy-comparison.unit.test.js` (source).
+55. **Rule 8, reading of 2026-11-06: six figures, none repeated by a tile** (review R3-4). The hero carries
+    nuits vendues, taux d'occupation, revenu moyen / nuit, RevPAR · par nuit ouverte, en direct and nuits
+    ouvertes (`specs/finance-revpar-year-over-year.md`). With one logement selected, the « Logements » tile
+    reads its revenue and the logement's name, no longer its RevPAR (which the hero shows). Test:
+    `pages/__tests__/FinancePage.review-fixes.test.jsx`.
 
 ---
 
@@ -575,7 +607,7 @@ Order, top to bottom: `PageActionBar` (« Suivi financier », refresh; the title
 selector) → logements strip → ink hero → three insight cards → six tiles (+ open table) → « Revenu
 par mois » and « Taux d'occupation » side by side.
 
-- **lg / md**: hero on two columns (figure + goal | four figures), curve full width inside the hero;
+- **lg / md**: hero on two columns (figure + goal | six figures, rule 55; from `lg` only since rule 52), curve full width inside the hero;
   tiles 6 across on a wide screen (xl, ≥ 1536 px) and 3 across below, since the
   sidebar leaves too little room for six readable captions; charts side by side (lg), stacked (md).
 - **Insights** (rule 43): a grid of as many 210 px columns as fit — four across at 1280 px, two at

@@ -13,6 +13,9 @@
 // `tourist-tax/2027-07` (stay 106's plan enters at its stay month, D14, specs/tourist-tax-declaration-month-stay-end.md rule 7, nothing else moved), and later that day for the four
 // `finance/dashboard/*` (the payload gains `hero.revPar`, `hero.openNights`, `hero.occupiedNights`, `occupancyAll` and `comparison`,
 // specs/finance-revpar-year-over-year.md rule 14, every existing field checked unchanged before the capture was rewritten).
+// On 2026-11-06 for `finance/dashboard/2025..2028` and `finance/detail/2027|2028/properties`: revenue per night and RevPAR on the
+// revenue of the nights and « Déjà payé »'s source (specs/finance-dashboard-redesign.md rules 53-54), and the 2028 notice naming its
+// date (specs/finance-revpar-year-over-year.md rule 23), nothing else moved.
 // `GOLDEN_UPDATE=1` rewrites the capture, which is only ever legitimate on that code (Lot 0).
 
 const test = require('node:test');

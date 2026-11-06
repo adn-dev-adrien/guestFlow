@@ -21,7 +21,7 @@ import SmallMultiplesLineChart from '../components/SmallMultiplesLineChart';
 import BookingPaceCard from '../components/BookingPaceCard';
 import NoComparisonNotice from '../components/NoComparisonNotice';
 import TrendChart from '../components/TrendChart';
-import { comparisonPill, rateOneDecimal } from '../utils/comparisonPill';
+import { comparisonPill, rateOneDecimal, perNightAmount } from '../utils/comparisonPill';
 import { TILE_DEFINITIONS, HERO_DEFINITIONS } from '../constants/financeDefinitions';
 import FinanceDataChecksCard from '../components/FinanceDataChecksCard';
 import { seriesColor } from '../utils/chartColors';
@@ -34,28 +34,29 @@ import useServerToday from '../hooks/useServerToday';
 const DETAIL_ID = 'finance-detail';
 const percent = (x) => (x == null ? '—' : `${Math.round(x * 100)} %`);
 const shortDate = (iso) => (iso ? new Date(`${String(iso).slice(0, 10)}T12:00:00`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) : '');
-const FORMAT = { amount: formatCurrencyRounded, percent, date: shortDate };
+const FORMAT = { amount: formatCurrencyRounded, perNight: perNightAmount, percent, date: shortDate };
 // The browser's own calendar day, never the UTC one (rule 37).
 const iso = (d) => localIsoToday(d);
 
 // The tiles, in order, each with what its figure reads from `dashboard.tiles` (rule 13).
 const TILES = [
-  { key: 'collected', label: 'Encaissé', dot: 'success.main', read: (t) => [formatCurrencyRounded(t.amount), t.shareOfRevenue == null ? '' : `${percent(t.shareOfRevenue)} du chiffre d'affaires`] },
+  { key: 'collected', label: 'Déjà payé', dot: 'success.main', read: (t) => [formatCurrencyRounded(t.amount), t.shareOfRevenue == null ? '' : `${percent(t.shareOfRevenue)} du chiffre d'affaires`] },
   { key: 'toCollect', label: 'À encaisser', dot: 'secondary.main', read: (t) => [formatCurrencyRounded(t.amount), `${plural(t.stays, 'séjour')} · tous exercices`] },
   { key: 'late', label: 'En retard', dot: 'error.main', read: (t) => [formatCurrencyRounded(t.amount), t.stays ? `${plural(t.stays, 'séjour')} · tous exercices` : 'rien à relancer'], alert: (t) => t.stays > 0 },
   { key: 'stays', label: 'Réservations', dot: 'info.main', read: (t) => [plural(t.count, 'séjour'), `${t.upcoming} à venir`] },
-  { key: 'properties', label: 'Logements', dot: 'primary.main', read: (t) => (t.count === 1 && t.name ? [formatCurrencyRounded(t.revenue), `${t.revPar == null ? '—' : formatCurrencyRounded(t.revPar)} de RevPAR`] : [plural(t.count, 'logement'), t.leader ? `en tête : ${t.leader}` : '']) },
+  { key: 'properties', label: 'Logements', dot: 'primary.main', read: (t) => (t.count === 1 && t.name ? [formatCurrencyRounded(t.revenue), t.name] : [plural(t.count, 'logement'), t.leader ? `en tête : ${t.leader}` : '']) },
   { key: 'channels', label: 'Canaux', dot: 'chart.channels', read: (t) => [formatCurrencyRounded(t.commission), 'de commissions'] },
 ];
 
 // specs/finance-revpar-year-over-year.md rule 16 — the figures that carry a year-over-year pill, and how
 // last year's value is written in it.
 const TILE_PILLS = { collected: formatCurrencyRounded, stays: (n) => plural(n, 'séjour') };
+// Rule 24 — the per-night amounts to the cent under 100 €.
 const HERO_PILLS = {
   nights: (n) => n.toLocaleString('fr-FR'), occupancy: rateOneDecimal,
-  revenuePerNight: formatCurrencyRounded, revPar: formatCurrencyRounded,
+  revenuePerNight: perNightAmount, revPar: perNightAmount,
 };
-const pillsOf = (metrics, formats) => Object.fromEntries(Object.entries(formats).map(([k, f]) => [k, comparisonPill(metrics && metrics[k], f)]));
+const pillsOf = (comparison, formats) => Object.fromEntries(Object.entries(formats).map(([k, f]) => [k, comparisonPill(comparison && comparison.metrics[k], f, comparison)]));
 const percentAxis = (x) => `${Math.round(x * 100)} %`;
 
 export default function FinancePage() {
@@ -188,7 +189,7 @@ export default function FinancePage() {
   const d = dashboard;
   const selectedProperty = d && d.propertyId ? d.properties.find((p) => p.propertyId === d.propertyId) : null;
   const metrics = d && d.comparison ? d.comparison.metrics : null;
-  const tilePills = pillsOf(metrics, TILE_PILLS);
+  const tilePills = pillsOf(d && d.comparison, TILE_PILLS);
   const shortOf = new Map(d ? d.revenueMonths.map((m) => [m.month, m.short || m.label]) : []);
   const occupancyAll = d && d.occupancyAll;
   const showByProperty = !occupancyAll || d.occupancy.length > 1;
@@ -274,7 +275,7 @@ export default function FinancePage() {
               propertyName={selectedProperty ? selectedProperty.name : null}
               fiscalYearLabel={d.fiscalYear.label}
               format={FORMAT}
-              comparisons={pillsOf(metrics, HERO_PILLS)}
+              comparisons={pillsOf(d.comparison, HERO_PILLS)}
               definitions={metrics ? HERO_DEFINITIONS : undefined}
             />
             {/* Rule 17 — one notice says why the pills read « — vs N-1 », or on how much they compare. */}
@@ -348,7 +349,8 @@ export default function FinancePage() {
               </Typography>
             )}
 
-            <Grid container spacing={2} sx={{ mt: 0.5 }}>
+            {/* Rule 26 — each card at its own height: the shorter one leaves no blank inside. */}
+            <Grid container spacing={2} sx={{ mt: 0.5, alignItems: 'flex-start' }}>
               <Grid size={{ xs: 12, lg: 6 }}>
                 <Card sx={{ height: '100%' }}>
                   <CardContent>
@@ -381,6 +383,7 @@ export default function FinancePage() {
                         categoryHeader="Mois"
                         formatValue={rateOneDecimal}
                         formatAxis={percentAxis}
+                        yDomain={[0, 1]}
                         categories={occupancyAll.months.map((m) => ({ key: m.month, label: shortOf.get(m.month) || m.label }))}
                         series={[
                           { key: 'current', name: d.fiscalYear.label, values: occupancyAll.months.map((m) => m.current), area: true, ...(selectedProperty ? { color: seriesColor(selectedProperty.colorIndex) } : {}) },
