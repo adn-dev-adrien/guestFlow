@@ -2,7 +2,7 @@ import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest';
 
 // specs/tourist-tax-report-v2.md §4.3 — the client functions of the tourist-tax report: the query string carries the
 // selection as given (empty values left out), the CSV is saved under the server's file name, and a refusal throws
-// the server's French reason.
+// the server's French reason; rule 36: a lost session reads « Session expirée. », a code alone never shows.
 
 describe('api.js — tourist-tax report', () => {
   let originalFetch;
@@ -56,5 +56,23 @@ describe('api.js — tourist-tax report', () => {
       message: 'Deux dates à choisir.',
       status: 400,
     });
+  });
+
+  test('rule 36: a lost session on the CSV says « Session expirée. » and sends the app back to the login', async () => {
+    global.fetch = vi.fn(async () => ({ ok: false, status: 401, json: async () => ({ error: 'UNAUTHENTICATED' }) }));
+    const heard = vi.fn();
+    window.addEventListener('guestflow:unauthenticated', heard);
+    const api = (await import('../api')).default;
+    await expect(api.downloadTouristTaxReportCsv({ period: 'month', month: '2027-08' })).rejects.toMatchObject({ message: 'Session expirée.', status: 401 });
+    expect(heard).toHaveBeenCalledTimes(1);
+    window.removeEventListener('guestflow:unauthenticated', heard);
+  });
+
+  test('rule 36: a refusal with a code alone reads in French, never the code', async () => {
+    global.fetch = vi.fn(async () => ({ ok: false, status: 403, json: async () => ({ error: 'FORBIDDEN_ROLE' }) }));
+    const api = (await import('../api')).default;
+    await expect(api.downloadTouristTaxReportCsv({ period: 'month', month: '2027-08' })).rejects.toMatchObject({ message: 'Téléchargement impossible.', status: 403 });
+    global.fetch = vi.fn(async () => ({ ok: false, status: 403, json: async () => ({ error: 'FORBIDDEN_ROLE', message: 'Accès réservé.' }) }));
+    await expect(api.downloadTouristTaxReportCsv({ period: 'month', month: '2027-08' })).rejects.toMatchObject({ message: 'Accès réservé.' });
   });
 });

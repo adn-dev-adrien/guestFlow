@@ -63,7 +63,8 @@ declared and what remains, and, apart, what the platforms remit themselves. The 
    reason: an unknown period « Période inconnue. », a month « Mois invalide. Format attendu: YYYY-MM. » (the
    extraction's own message), a quarter « Trimestre invalide. Format attendu: YYYY-Qn. », a year « Année invalide.
    Format attendu: YYYY. », a logement « Logement inconnu. », a declaration status « Statut de déclaration
-   inconnu. », a CSV view « Vue inconnue. ». A query key sent twice reads as not sent. A window starting after the
+   inconnu. », a CSV view « Vue inconnue. ». A query key sent twice is that key's 400 (rule 28, which replaced
+   « reads as not sent »). A window starting after the
    current month is refused « Les mois futurs ne sont pas autorisés. », as the monthly page refuses a future month;
    a window that starts before and runs past the current month is read up to the last day of the current month,
    and says so (`window.coveredTo`, `window.futureExcluded`). « Current month » is the server's local day
@@ -151,6 +152,48 @@ declared and what remains, and, apart, what the platforms remit themselves. The 
     refusal shows the server's reason.
 25. **Filters.** « Logement » (« Tous » + `properties`) and « Déclaration » (Toutes · À déclarer · Déclarées) are
     sent to the server as they are; the page filters nothing itself.
+26. **A tax frozen at 0 € is not ours to remit** (D-HC10, 2026-11-06). The report reads the rows of
+    `getTouristTaxRows`, which drop such a stay (`tourist-tax-declaration-month-stay-end.md` rule 9): it is in no
+    list, register, total or CSV.
+27. **No period outside four-digit years** (review R1-01, R1-02, C-1). A month, quarter or year before 1000 is refused
+    with its own message (`getMonthBounds` returns nothing for it, nor for 9999-12, so the monthly page refuses them
+    too); a month, quarter or year starting after the current month is refused « Les mois futurs… » before any window
+    is built (9999 included). Never a 500, never a window of 1 900 years.
+28. **A key sent twice is its own 400** (D-HC13, reviews R1-08, R6-6). On both endpoints, a key that is not a plain
+    string (repeated, or `key[x]=`) answers that key's refusal: `period` « Période inconnue. », `month`, `quarter`,
+    `year` their format messages, `from` / `to` « Deux dates à choisir. », `propertyId` « Logement inconnu. »,
+    `declaration` « Statut de déclaration inconnu. », `view` « Vue inconnue. » — never a filter silently widened.
+29. **The pickers always hold what is shown** (review R1-07). `choices.months` runs from the earlier of the first
+    stay's month and `defaultMonth`, so the month the page opens on is offered even with no stay; the month, quarter
+    or year being read is added to its list when older than the first stay (rule 15 otherwise unchanged).
+30. **The CSV says what the page says** (reviews R1-09, R1-10, R1-12, R6-8). The file is named after the last day it
+    covers (`coveredTo`); « Déclarée le » is the server's day of the tick (the stamp is UTC; each row carries
+    `touristTaxDeclaredOn`, which the page's tooltip reads too); the added guests' row reads « · Complément de taxe de
+    séjour » as on the page; « Montant » holds only what we remit, a platform's amount sits in « Reversé par la
+    plateforme », so each column adds up to its total line.
+31. **The selection lives in the URL** (reviews R5-10, R4-6). `period`, `month` / `quarter` / `year` / `from` +
+    `to`, `propertyId`, `declaration` and `view=night` are written to the page's URL (replace, not push) and read
+    from it on opening; what is not a period kind, a whole logement id, a status or `night` is ignored, the rest is
+    judged by the server (a refusal falls back, rule 32). A fiche opens with the page's whole URL as its way back.
+    The « À vérifier » month links carry the logement they were counted on.
+32. **The opening month is the server's, and a first refusal is no dead end** (reviews R1-03, R1-04, R4-7, R6-4).
+    A month selection waits for the server's day (`useServerToday`) before its first read: the month opened is the
+    linked one when it is real and not to come for the server, else the month before the server's. A first read
+    refused (400) shows the server's reason and opens that default month with its pickers; a failure that is not a
+    refusal keeps « Réessayer ».
+33. **A tick under a refusal reads what is on screen** (review R1-05). While a refused selection's reason is shown,
+    the tick's optimistic patch and its re-read follow the selection last read, so the bar takes the server's figures.
+34. **The register says when a night lies outside the window** (review R5 note). Each night carries `outsideWindow`
+    (before the window's first day or after its last covered day: a stay attributed by its last night brings its
+    earlier nights with it), `columns.nightsOutsideWindow` says whether any does; the page marks those nights « * »,
+    greyed, with one note « * Nuit hors période d'un séjour rattaché à la période par sa dernière nuit. ». Nights at
+    0,00 € with taxed persons came from stays whose tax is frozen at 0 €: rule 26 removes them.
+35. **`direct` in any case, and an empty platform, are ours** (review R1 C-4). The « we remit » predicate reads
+    `lower(COALESCE(NULLIF(TRIM(platform), ''), 'direct')) = 'direct'`, as the app treats an empty platform as direct
+    (migration platform-empty-to-direct): such a stay is never « reversée par Direct » nor in neither list.
+36. **The CSV refusals read as everywhere else** (review R1-06). `downloadTouristTaxReportCsv` answers a 401 with
+    « Session expirée. » and the app's return to the login, a code-only refusal with its `message` or « Téléchargement
+    impossible. », and keeps the server's French reason of a 400.
 
 **Edge cases:**
 - No stay in the selection → `stays: []`, `nights: []`, every total 0, `allDeclared: false`.
@@ -342,7 +385,9 @@ Target: the `#taxe` mock-up of the design reference, in MUI + the « Maison » t
 - [x] Existing tourist-tax suites unchanged and green (rule 1).
 
 - [x] `tests/tourist-tax-report-base-columns.unit.test.js` (2) — rule 16.
-- Server suites of this spec: 33 tests in 6 files.
+- [x] `tests/tourist-tax-review-fixes.unit.test.js` (6, 2026-11-06) — rules 26-29, 34, 35 (+ declaration-month-stay-end rule 9, declared-checkbox rule 9).
+- [x] `tests/tourist-tax-report-csv.unit.test.js` (+3) — rule 30; `tourist-tax-period-choices.unit.test.js` (+1) — rule 29.
+- Server suites of this spec: 43 tests in 7 files.
 
 ### Client unit tests (Vitest)
 - [x] `src/__tests__/api.tourist-tax-report.test.js` (3) — §4.3: query string, CSV file name and view, refusal.
@@ -352,6 +397,12 @@ Target: the `#taxe` mock-up of the design reference, in MUI + the « Maison » t
 - [x] `pages/__tests__/TouristTaxPage.night-register.test.jsx` (2) — rule 23.
 - [x] `pages/__tests__/TouristTaxPage.export.test.jsx` (2) — rule 24.
 - [x] `pages/__tests__/TouristTaxPage.month-link.test.jsx` (4) — rule 17's `?month=` (lot 5's suite, moved onto the report).
+- [x] `pages/__tests__/TouristTaxPage.server-today.test.jsx` (4) — rule 32.
+- [x] `pages/__tests__/TouristTaxPage.refused-load.test.jsx` (2) — rule 32.
+- [x] `pages/__tests__/TouristTaxPage.tick-after-refusal.test.jsx` (1) — rule 33.
+- [x] `pages/__tests__/TouristTaxPage.url-state.test.jsx` (4) — rule 31.
+- [x] `pages/__tests__/TouristTaxPage.review-fixes.test.jsx` (4) — rules 22, 30, 34.
+- [x] `src/__tests__/api.tourist-tax-report.test.js` (+2) — rule 36; `components/__tests__/FinanceDataChecksCard.load-and-links.test.jsx` (+1) — rule 31's link.
 - [x] `components/__tests__/StickyTotalsBar.test.jsx` (2) — rule 20.
 - [x] `components/__tests__/PeriodSelector.quarter-year.test.jsx` (4) — rule 18.
 - [x] The existing page suites, moved onto the report payload (shared fixture `pages/__tests__/touristTaxReportFixtures.jsx`),

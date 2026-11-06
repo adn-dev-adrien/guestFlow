@@ -4,12 +4,24 @@
 // cents, so the register and the list add up to the same totals to the cent.
 
 const { addDays } = require('./dateDays');
+const { localIsoDate } = require('./localDate');
 
 const DECLARATION_FILTERS = ['all', 'todo', 'done'];
 
 const cents = (euros) => Math.round(Number(euros || 0) * 100);
 const euros = (c) => c / 100;
 const count = (value) => Math.max(0, Math.round(Number(value || 0)));
+
+/**
+ * Rule 30 — the day a tick was made, in the server's day (Europe/Paris): the stamp is SQLite's UTC `datetime('now')`,
+ * so a tick between midnight and 1-2 a.m. would otherwise read the day before.
+ */
+function declaredOnOf(stamp) {
+  if (!stamp) return null;
+  const text = String(stamp).trim();
+  const utc = new Date(/[zZ]|[+-]\d\d:?\d\d$/.test(text) ? text.replace(' ', 'T') : `${text.replace(' ', 'T')}Z`);
+  return Number.isNaN(utc.getTime()) ? text.slice(0, 10) : localIsoDate(utc);
+}
 
 /** `total` split into `parts` whole shares, the remainder on the first ones: Σ shares === total. */
 function distribute(total, parts) {
@@ -51,6 +63,7 @@ function ourStayRow(row, { babies = 0, platformLabel = '' } = {}) {
     refundedTaxNights: count(row.refundedTaxNights),
     refundedTaxAmount: euros(cents(row.refundedTaxAmount)),
     touristTaxDeclaredAt: row.touristTaxDeclaredAt || null,
+    touristTaxDeclaredOn: declaredOnOf(row.touristTaxDeclaredAt),
     declared: Boolean(row.touristTaxDeclaredAt),
     declarable: Boolean(row.declarable),
     // Rule 16 — what the commune's percentage form asks for, as the extraction row carries it.
@@ -86,6 +99,7 @@ function platformStayRow(row) {
     refundedTaxNights: 0,
     refundedTaxAmount: 0,
     touristTaxDeclaredAt: null,
+    touristTaxDeclaredOn: null,
     declared: false,
     declarable: false,
     nightPricePerOccupantHt: null,
@@ -183,5 +197,5 @@ function buildTouristTaxReport({ ourRows, platformRows, declaration = 'all' }) {
 }
 
 module.exports = {
-  buildTouristTaxReport, ourStayRow, platformStayRow, nightRegister, reportTotals, distribute, DECLARATION_FILTERS,
+  buildTouristTaxReport, ourStayRow, platformStayRow, nightRegister, reportTotals, distribute, declaredOnOf, DECLARATION_FILTERS,
 };

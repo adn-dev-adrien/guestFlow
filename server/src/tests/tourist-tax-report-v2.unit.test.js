@@ -395,11 +395,11 @@ test('rule 13: the CSV exports the selection on screen, list or register, with i
   assert.equal(list.headers['content-type'], 'text/csv; charset=utf-8');
   assert.equal(list.headers['content-disposition'], `attachment; filename="taxe-de-sejour-${m}-01_${data.window.to}.csv"`);
   const lines = list.body.replace(/^﻿/, '').trim().split('\r\n');
-  assert.equal(lines[0], 'Statut;Séjour;Logement;Canal;Arrivée;Départ;Nuits;Personnes;Taxées;Exonérées;Nuitées taxées;Nuitées exonérées;Montant');
+  assert.equal(lines[0], 'Statut;Séjour;Logement;Canal;Arrivée;Départ;Nuits;Personnes;Taxées;Exonérées;Nuitées taxées;Nuitées exonérées;Montant;Reversé par la plateforme');
   assert.equal(lines.length, 1 + data.stays.length + 1);
   assert.match(lines[1], /^Déclarée le \d\d\/\d\d\/\d{4};Camille Registre;Sans acompte;Direct;/);
   assert.match(lines[2], /^Reversée par la plateforme;/);
-  assert.equal(lines.at(-1), `Total à reverser;1 séjour;;;;;2;3;2;1;4;2;${formatNumber(data.totals.amount)}`);
+  assert.equal(lines.at(-1), `Total à reverser;1 séjour;;;;;2;3;2;1;4;2;${formatNumber(data.totals.amount)};${formatNumber(data.totals.platformRemittedAmount)}`);
 
   const nights = csv({ period: 'month', month: m, view: 'night', declaration: 'done' });
   assert.match(nights.headers['content-disposition'], /-par-nuit\.csv"$/);

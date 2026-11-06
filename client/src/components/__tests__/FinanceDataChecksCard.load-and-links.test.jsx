@@ -31,7 +31,16 @@ test('rule 16: asks the page’s exercise and logement; a stay opens its fiche w
   open('Séjours terminés sans taxe');
   expect(screen.getByRole('link', { name: /202609011/ })).toHaveAttribute('href', `/reservations/412?from=${encodeURIComponent(FROM)}`);
   open('Mois passés');
-  expect(screen.getByRole('link', { name: /Septembre 2026/ })).toHaveAttribute('href', `/finance/tourist-tax?month=2026-09&from=${encodeURIComponent(FROM)}`);
+  // specs/tourist-tax-report-v2.md rule 31 (review R4-6) — the logement the item was counted on goes with it.
+  expect(screen.getByRole('link', { name: /Septembre 2026/ })).toHaveAttribute('href', `/finance/tourist-tax?month=2026-09&propertyId=3&from=${encodeURIComponent(FROM)}`);
+});
+
+test('rule 16: on every logement, the month link carries none', async () => {
+  api.getFinanceDataChecks.mockResolvedValue(PAYLOAD);
+  render(ui({ propertyId: '' }));
+  await screen.findByText('Exercice 2026');
+  open('Mois passés');
+  expect(screen.getByRole('link', { name: /Septembre 2026/ }).getAttribute('href')).toMatch(/^\/finance\/tourist-tax\?month=2026-09&from=/);
 });
 
 test('rule 15: nothing to check reads one line', async () => {

@@ -100,6 +100,10 @@ function createTouristTaxReportModel(database, finance) {
     });
     const platformRows = platformRemittedRows(span).filter(onProperty);
     const report = buildTouristTaxReport({ ourRows, platformRows, declaration });
+    // Rule 34 — a stay is attributed by its end, so a night of the register may lie outside the window read: each
+    // night says so, and the report says whether any does (the page explains it once).
+    const nights = report.nights.map((n) => ({ ...n, outsideWindow: n.date < window.from || n.date > window.coveredTo }));
+    const columns = { ...report.columns, nightsOutsideWindow: nights.some((n) => n.outsideWindow) };
 
     return {
       ok: true,
@@ -109,8 +113,10 @@ function createTouristTaxReportModel(database, finance) {
         today,
         currentMonth: today.slice(0, 7),
         properties: all,
-        choices: periodChoices({ firstMonth: firstStayMonth(), today }),
+        choices: periodChoices({ firstMonth: firstStayMonth(), today, window }),
         ...report,
+        nights,
+        columns,
       },
     };
   }

@@ -515,8 +515,15 @@ const api = {
   downloadTouristTaxReportCsv: async (params = {}, view = 'list') => {
     const res = await reach(`/finance/tourist-tax/report.csv?${financeQuery({ ...params, view })}`);
     if (!res.ok) {
+      // specs/tourist-tax-report-v2.md rule 36 (review R1-06) — the refusals read as everywhere else: a lost session
+      // says « Session expirée. » and sends the app back to the login; a code alone never reaches the operator.
       const parsed = await res.json().catch(() => null);
-      throw Object.assign(new Error((parsed && parsed.error) || 'Téléchargement impossible.'), { status: res.status });
+      if (res.status === 401) {
+        window.dispatchEvent(new CustomEvent('guestflow:unauthenticated'));
+        throw Object.assign(new Error(SESSION_MESSAGE), { status: 401 });
+      }
+      const said = parsed && (parsed.message || (/^[A-Z0-9_]+$/.test(String(parsed.error || '')) ? '' : parsed.error));
+      throw Object.assign(new Error(said || 'Téléchargement impossible.'), { status: res.status });
     }
     const blob = await res.blob();
     const match = /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') || '');

@@ -223,8 +223,9 @@ test('rule 7: an undeclared row of 0 € leaves nothing to declare: its month is
   const month = lastNight(zero).slice(0, 7);
   const later = nextMonthStart(zero);
   const page = at(t, later, () => finance.getTouristTaxExtraction({ month }).data.reservations);
-  const row = page.find((r) => r.reservationId === zero);
-  assert.ok(row && row.declarable && !row.touristTaxDeclaredAt && row.taxAmount === 0, 'the page lists it, unticked, at 0 €');
+  // specs/tourist-tax-declaration-month-stay-end.md rule 9 (D-HC10) — a tax frozen at 0 € is never ours to remit:
+  // the page no longer lists it at all.
+  assert.equal(page.some((r) => r.reservationId === zero), false, 'a tax frozen at 0 € leaves the page');
   const others = page.filter((r) => r.reservationId !== zero && r.declarable && !r.touristTaxDeclaredAt && r.taxAmount > 0);
   const data = at(t, later, () => dataChecks.getDataChecks({ fiscalYear: fyOf(zero) }).data);
   const item = check(data, 'tourist-tax-undeclared').items.find((i) => i.month === month);
