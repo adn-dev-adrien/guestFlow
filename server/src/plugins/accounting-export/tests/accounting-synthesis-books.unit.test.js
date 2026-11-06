@@ -27,7 +27,7 @@ require('..').register(createContext('accounting-export', { db }));
 const routes = registry.ensure('accounting-export').routes;
 const handler = (method, path) => routes.find((r) => r.method === method && r.path === path).handlers.at(-1);
 
-function call(method, path, query) {
+function call(method, path, query, headers = { 'sec-fetch-site': 'same-origin' }) {
   const res = {
     statusCode: 200, body: null, headers: {},
     status(c) { this.statusCode = c; return this; },
@@ -35,7 +35,7 @@ function call(method, path, query) {
     send(b) { this.body = Buffer.from(b); return this; },
     setHeader(k, v) { this.headers[k] = v; },
   };
-  handler(method, path)({ query }, res);
+  handler(method, path)({ query, headers }, res);
   return res;
 }
 const synthesis = (query) => call('get', '/api/accounting/synthesis', query);

@@ -127,7 +127,9 @@
     "1.0.28": [
       "Comptabilité s’ouvre sur l’onglet « Synthèse » : chiffres de la période (mois, trimestre, exercice ou dates libres) comparés à l’an dernier, TVA à déclarer par taux ou par compte, contrôles des écritures.",
       "Onglet « Encaissements » : répartition par moyen de paiement et par type de règlement, encaissements jour après jour et cumul. Le journal passe dans l’onglet « Écritures ».",
-      "La date du dernier export CSV est conservée.",
+      "La date du dernier export CSV est conservée, quand le fichier est demandé depuis la page.",
+      "Une annulation qui garde un acompte déjà encaissé ne compte ni comme encaissement ni comme remboursement.",
+      "Un écart de TVA d’un centime par écriture s’affiche comme un écart d’arrondi.",
       "Demande le SDK 2.22 de GuestFlow."
     ]
   }

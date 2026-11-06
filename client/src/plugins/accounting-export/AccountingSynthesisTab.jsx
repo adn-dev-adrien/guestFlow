@@ -44,6 +44,8 @@ function KpiRow({ kpis }) {
   const tiles = [
     {
       key: 'revenue', ...KPI.revenue,
+      // R2-10 — outside the VAT the figure is the TTC one: the label says « CA ».
+      label: revenue.showHt ? KPI.revenue.label : 'CA',
       value: formatCurrency(revenue.showHt ? revenue.ht : revenue.ttc),
       caption: caption(revenue.showHt ? `TTC : ${formatCurrencyRounded(revenue.ttc)}` : staysLabel(revenue.stays), revenue.source),
       comparison: pillOf(revenue.yoy),
@@ -57,7 +59,11 @@ function KpiRow({ kpis }) {
     {
       key: 'touristTax', ...KPI.touristTax,
       value: touristTax.amount == null ? '—' : formatCurrency(touristTax.amount),
-      caption: caption(touristTax.amount == null ? touristTax.reason : staysLabel(touristTax.stays), touristTax.source),
+      caption: caption(
+        touristTax.amount == null ? touristTax.reason
+          : (touristTax.until ? `${staysLabel(touristTax.stays)} · jusqu’à ${touristTax.until}` : staysLabel(touristTax.stays)),
+        touristTax.source,
+      ),
       comparison: touristTax.amount == null ? undefined : pillOf(touristTax.yoy),
     },
     vat.notSubject
@@ -80,7 +86,7 @@ function KpiRow({ kpis }) {
   );
 }
 
-const DOT = { ok: 'success.main', gap: 'warning.main', error: 'error.main', info: 'info.main' };
+const DOT = { ok: 'success.main', gap: 'warning.main', error: 'error.main', info: 'info.main', rounding: 'text.disabled' };
 
 function Check({ tone, title, children, testId }) {
   return (
@@ -112,10 +118,13 @@ function ChecksStrip({ checks, canOpenReservation, onOpenEntriesMonth }) {
             ? `Débits = crédits : ${formatCurrency(balanced.totalDebits)}`
             : <>{entriesLabel(balanced.unbalanced.length)} déséquilibrée{balanced.unbalanced.length > 1 ? 's' : ''} · {seeButton('balanced', 'voir')}</>}
         </Check>
-        <Check testId="check-vat" tone={vatCoherence.status === 'ok' ? 'ok' : 'error'} title={CHECKS.vatCoherence}>
-          {vatCoherence.status === 'ok'
-            ? 'Aucun écart avec les écritures'
-            : <>Écart de {formatCurrency(vatCoherence.gap)} · {seeButton('vat', `voir ${vatCoherence.entries.length > 1 ? `les ${entriesLabel(vatCoherence.entries.length)}` : 'l’écriture'}`)}</>}
+        {/* D-HC12 (rule 38) — a cent per entry is rounding, in grey; red only beyond, with its entries. */}
+        <Check testId="check-vat" tone={{ ok: 'ok', rounding: 'rounding', gap: 'error' }[vatCoherence.status]} title={CHECKS.vatCoherence}>
+          {vatCoherence.status === 'ok' && 'Aucun écart avec les écritures'}
+          {vatCoherence.status === 'rounding' && `Écart d’arrondi : ${vatCoherence.roundingCents} ct`}
+          {vatCoherence.status === 'gap' && (
+            <>Écart de {formatCurrency(vatCoherence.gap)} · {seeButton('vat', `voir ${vatCoherence.entries.length > 1 ? `les ${entriesLabel(vatCoherence.entries.length)}` : 'l’écriture'}`)}</>
+          )}
         </Check>
         <Check testId="check-settled" tone={settled.status === 'ok' ? 'ok' : 'gap'} title={CHECKS.settled}>
           {settled.status === 'ok'

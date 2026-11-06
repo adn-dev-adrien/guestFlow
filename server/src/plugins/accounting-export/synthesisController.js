@@ -6,7 +6,7 @@
  */
 
 const sdk = require('../sdk');
-const { resolvePeriod, bucketsOf, monthsOf, isWholeMonths, periodOptions } = require('./synthesisPeriod');
+const { resolvePeriod, bucketsOf, isWholeMonths, periodOptions } = require('./synthesisPeriod');
 const {
   ventilate, vatReturn, balanceCheck, vatCheck, collectionUnits, collections, refundsOf, series,
 } = require('./synthesis');
@@ -14,7 +14,7 @@ const {
 const financeWindow = sdk.coreModule('financeWindow');
 const fiscalYearUtil = sdk.coreModule('fiscalYear');
 const yoy = sdk.coreModule('yearOverYear');
-const { dateWindowMessage, horizonStart } = sdk.coreModule('stayDates');
+const { dateWindowMessage, horizonStart, horizonEnd } = sdk.coreModule('stayDates');
 const { remainingToPay } = sdk.coreModule('reservationSettlement');
 
 const SOURCE = Object.freeze({ stays: 'stays', collections: 'collections' });
@@ -26,6 +26,8 @@ const NOT_SUBJECT_LABELS = {
 };
 
 const TAX_WHOLE_MONTHS = 'La taxe de séjour se déclare par mois entiers.';
+// Rule 39 — a window that starts after the server's month has nothing to declare yet.
+const TAX_NOT_YET = 'Rien à déclarer avant le mois en cours.';
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 const pill = (current, previous) => ({ current: round2(current), previous: round2(previous), change: yoy.change(current, previous) });
@@ -47,7 +49,15 @@ function buildSynthesis(model, query = {}, plan = undefined) {
     const items = ventilate(model.entriesBetween(from, to), plan);
     return { items, units: collectionUnits(items, meansOf) };
   };
-  const taxOf = (from, to) => (isWholeMonths(from, to) ? model.touristTax(monthsOf(from, to), today) : null);
+  // Rules 8 and 39 — whole months only, from the server's month back; one read of the shared extraction rows per span.
+  const serverMonth = today.slice(0, 7);
+  const taxOf = (from, to) => {
+    if (!isWholeMonths(from, to)) return { amount: null, stays: null, until: null, reason: TAX_WHOLE_MONTHS };
+    if (from.slice(0, 7) > serverMonth) return { amount: null, stays: null, until: null, reason: TAX_NOT_YET };
+    const read = model.touristTax({ from, to, today });
+    const until = to.slice(0, 7) > serverMonth ? financeWindow.monthLabel(serverMonth) : null;
+    return { ...read, until, reason: null };
+  };
 
   const current = read(win.from, win.to);
   const vat = vatReturn(current.items, plan);
@@ -65,12 +75,12 @@ function buildSynthesis(model, query = {}, plan = undefined) {
     const previous = read(range.previous.from, range.previous.to);
     const partSummary = range.complete ? summary : model.summary({ from: range.current.from, to: range.current.to, fiscalYear: exercise.key });
     const previousSummary = model.summary({ from: range.previous.from, to: range.previous.to, fiscalYear: exercise.key, knownAt: snapshotKnown ? knownN1 : null });
-    const partTax = tax ? (range.complete ? tax : taxOf(range.current.from, range.current.to)) : null;
-    const previousTax = tax ? taxOf(range.previous.from, range.previous.to) : null;
+    const partTax = tax.amount != null ? (range.complete ? tax : taxOf(range.current.from, range.current.to)) : null;
+    const previousTax = tax.amount != null ? taxOf(range.previous.from, range.previous.to) : null;
     yoyOf = {
       revenue: pill(partSummary.revenueTotalHt, previousSummary.revenueTotalHt),
       collected: pill(collections(part.units).total, collections(previous.units).total),
-      touristTax: partTax && previousTax ? pill(partTax.amount, previousTax.amount) : null,
+      touristTax: partTax && previousTax && partTax.amount != null && previousTax.amount != null ? pill(partTax.amount, previousTax.amount) : null,
       vat: pill(vatReturn(part.items, plan).totals.vat, vatReturn(previous.items, plan).totals.vat),
     };
     if (range.complete) previousUnits = previous.units;
@@ -87,9 +97,12 @@ function buildSynthesis(model, query = {}, plan = undefined) {
     notice: status.notice,
   };
 
-  const regime = model.regimeInForce();
-  const notSubject = regime && regime.regime === 'not_subject' && vat.totals.vat === 0
-    ? { regime: 'not_subject', mention: regime.legalMention || null, label: NOT_SUBJECT_LABELS[regime.legalMention] || NOT_SUBJECT_LABELS.art_293_b }
+  // Rule 35 (D-HC13) — the regime in force DURING the window: the mention only when every regime of the window is
+  // « Sans TVA » and no VAT was collected; a window that was subject, even for a day, shows its amount (a nil return).
+  const regimes = model.regimesDuring(win.from, win.to);
+  const lastRegime = regimes[regimes.length - 1];
+  const notSubject = regimes.length > 0 && regimes.every((r) => r.regime === 'not_subject') && vat.totals.vat === 0
+    ? { regime: 'not_subject', mention: lastRegime.legalMention || null, label: NOT_SUBJECT_LABELS[lastRegime.legalMention] || NOT_SUBJECT_LABELS.art_293_b }
     : null;
 
   // Rule 17 — the stays of the window already over that still owe money.
@@ -111,14 +124,20 @@ function buildSynthesis(model, query = {}, plan = undefined) {
       window: win,
       today,
       fiscalYear: { key: exercise.key, label: exercise.label, from: exercise.from, to: exercise.to },
-      fiscalYears: (summary.fiscalYears || []).map((f) => ({ key: f.key, label: f.label, isCurrent: Boolean(f.isCurrent) })),
+      // R2-12 — the window's own exercise is always offered, even without data.
+      fiscalYears: (() => {
+        const list = (summary.fiscalYears || []).map((f) => ({ key: f.key, label: f.label, isCurrent: Boolean(f.isCurrent) }));
+        if (!list.some((f) => f.key === exercise.key)) list.push({ key: exercise.key, label: exercise.label, isCurrent: false });
+        return list.sort((a, b) => b.key - a.key);
+      })(),
       periodOptions: (() => {
         // Rule 22 — from the oldest exercise (never before the entered-date window) to the server's month.
         const oldest = (summary.fiscalYears || []).reduce((min, f) => (f.from && f.from < min ? f.from : min), exercise.from);
         const floor = horizonStart(today);
+        const ceiling = horizonEnd(today);
         const first = [oldest, win.from].reduce((a, b) => (b < a ? b : a));
         const last = win.to > today ? win.to : today;
-        return periodOptions({ firstMonth: (first < floor ? floor : first).slice(0, 7), lastMonth: last.slice(0, 7) });
+        return periodOptions({ firstMonth: first.slice(0, 7), lastMonth: last.slice(0, 7), floor, ceiling });
       })(),
       counts: { payments: money.payments, entries: current.items.length },
       comparison,
@@ -140,9 +159,10 @@ function buildSynthesis(model, query = {}, plan = undefined) {
         },
         touristTax: {
           source: SOURCE.stays,
-          amount: tax ? tax.amount : null,
-          stays: tax ? tax.stays : null,
-          reason: tax ? null : TAX_WHOLE_MONTHS,
+          amount: tax.amount,
+          stays: tax.stays,
+          until: tax.until,
+          reason: tax.reason,
           yoy: yoyOf.touristTax,
         },
         vat: {

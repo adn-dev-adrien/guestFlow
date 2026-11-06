@@ -31,12 +31,14 @@ test('rule 28 — by rate, then by account, the same server total', async () => 
 
 test('rule 29 — the running total, last year dashed beside it only when the server sends it', async () => {
   const { unmount } = renderTab(synthesisPayload());
-  expect(screen.getByRole('img', { name: 'Encaissements cumulés, T3 2099' })).toBeInTheDocument();
+  // The chart is loaded on first use (client SDK, R5-01): found once it arrives.
+  expect(await screen.findByRole('img', { name: 'Encaissements cumulés, T3 2099' })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'N-1' })).toBeInTheDocument();
   unmount();
   const data = synthesisPayload();
   data.collections.series = { ...data.collections.series, previousAvailable: false };
   renderTab(data);
+  await screen.findByRole('img', { name: 'Encaissements cumulés, T3 2099' });
   expect(screen.queryByRole('button', { name: 'N-1' })).toBeNull();
 });
 

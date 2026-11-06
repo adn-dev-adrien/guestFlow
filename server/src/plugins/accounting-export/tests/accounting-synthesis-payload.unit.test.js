@@ -17,32 +17,36 @@ const saleOn = (paidDate, ttc = 110, rate = 10) => ({
     : [{ name: 'accommodation', ht: ttc, vat: 0, ratePercent: 0 }],
 });
 
-function model({ entries = [], range = null, notice = null, reason = null, regime = { regime: 'subject', rate: 10, legalMention: null }, revenue = () => 0 } = {}) {
+function model({ entries = [], range = null, notice = null, reason = null, regimes = [{ periodId: 1, regime: 'subject', rate: 10, legalMention: null }], revenue = () => 0 } = {}) {
   return {
     today: () => TODAY,
     fiscalEndMonth: () => 12,
     meansResolver: () => () => 'recorded',
     entriesBetween: (from, to) => entries.filter((e) => e.paidDate >= from && e.paidDate <= to),
     summary: ({ from, to }) => ({ revenueTotalHt: revenue(from, to), revenueTotal: revenue(from, to) * 1.1, showHt: true, reservations: [], fiscalYears: [{ key: 2026, label: '2026', isCurrent: true }] }),
-    touristTax: (months) => ({ amount: months.length * 10, stays: months.length }),
+    // Ten euros and one stay per month of the span read (whole months, up to the server's month).
+    touristTax: ({ from, to }) => {
+      const months = (Number(to.slice(0, 4)) - Number(from.slice(0, 4))) * 12 + Number(to.slice(5, 7)) - Number(from.slice(5, 7)) + 1;
+      return { amount: months * 10, stays: months };
+    },
     lastYearRange: () => ({ range, snapshotKnown: true, knownN1: '2025-11-05', status: { comparable: Boolean(range), reason, notice, comparableFrom: null } }),
     lastCsvExport: () => null,
-    regimeInForce: () => regime,
+    regimesDuring: () => regimes,
   };
 }
 
 test('rule 5 — outside the VAT, the tile names the regime instead of a figure', () => {
   const franchise = { regime: 'not_subject', rate: 0, legalMention: 'art_293_b' };
-  const data = buildSynthesis(model({ entries: [saleOn('2026-10-04', 100, 0)], regime: franchise }), { period: 'month', month: '2026-10' }).data;
+  const data = buildSynthesis(model({ entries: [saleOn('2026-10-04', 100, 0)], regimes: [{ periodId: 2, ...franchise }] }), { period: 'month', month: '2026-10' }).data;
   assert.equal(data.kpis.vat.amount, null);
   assert.deepEqual(data.kpis.vat.notSubject, { regime: 'not_subject', mention: 'art_293_b', label: 'Franchise en base de TVA' });
   assert.deepEqual(data.vatReturn.byRate, [{ ratePercent: 0, base: 100, vat: 0 }], 'the base is still shown');
-  const exempt = buildSynthesis(model({ regime: { regime: 'not_subject', rate: 0, legalMention: 'art_261_d_4' } }), { period: 'month', month: '2026-10' }).data;
+  const exempt = buildSynthesis(model({ regimes: [{ periodId: 3, regime: 'not_subject', rate: 0, legalMention: 'art_261_d_4' }] }), { period: 'month', month: '2026-10' }).data;
   assert.equal(exempt.kpis.vat.notSubject.label, 'Exonération de TVA');
 });
 
 test('rule 5 — VAT collected before a switch to the franchise is still due: the figure is shown', () => {
-  const data = buildSynthesis(model({ entries: [saleOn('2026-10-04')], regime: { regime: 'not_subject', rate: 0, legalMention: 'art_293_b' } }), { period: 'month', month: '2026-10' }).data;
+  const data = buildSynthesis(model({ entries: [saleOn('2026-10-04')], regimes: [{ periodId: 2, regime: 'not_subject', rate: 0, legalMention: 'art_293_b' }] }), { period: 'month', month: '2026-10' }).data;
   assert.equal(data.kpis.vat.amount, 10);
   assert.equal(data.kpis.vat.notSubject, null);
   assert.deepEqual(data.kpis.vat.byRate, [{ ratePercent: 10, vat: 10 }]);

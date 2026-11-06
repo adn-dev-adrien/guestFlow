@@ -20,18 +20,20 @@ test('rule 31 — means and types with the server\'s figures, shares to one deci
   expect(link).toHaveTextContent(/24,2\s%/);
   expect(rowOf('Compléments à l’arrivée')).toHaveTextContent(/8,2\s%/);
   expect(screen.getAllByText('96')).toHaveLength(2);
-  expect(screen.getByText(/^Remboursements sur la période, hors encaissements : 1 · 120,00\s€$/)).toBeInTheDocument();
+  expect(screen.getByText(/^Remboursements sur la période, hors encaissements : 1 remboursement · 120,00\s€$/)).toBeInTheDocument();
 });
 
-test('rule 32 — the series is named by its granularity; last year only when sent', () => {
+test('rule 32 — the series is named by its granularity; last year only when sent', async () => {
   const { unmount } = renderTab(synthesisPayload());
   expect(screen.getByText('Encaissements hebdomadaires et cumul')).toBeInTheDocument();
-  expect(screen.getByText('Encaissé de la semaine')).toBeInTheDocument();
+  // The chart is loaded on first use (client SDK, R5-01): found once it arrives.
+  expect(await screen.findByText('Encaissé de la semaine')).toBeInTheDocument();
   expect(screen.getByText('Cumul N-1')).toBeInTheDocument();
   unmount();
   const data = synthesisPayload();
   data.collections.series = { ...data.collections.series, granularity: 'day', previousAvailable: false };
   renderTab(data);
   expect(screen.getByText('Encaissements journaliers et cumul')).toBeInTheDocument();
+  await screen.findByText('Encaissé du jour');
   expect(screen.queryByText('Cumul N-1')).toBeNull();
 });

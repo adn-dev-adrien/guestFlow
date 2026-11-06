@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink, useNavigate, useSearchParams } from 'react-router';
 import {
   Box, Card, CardContent, Typography, Table, TableHead, TableRow,
-  TableCell, TableBody, Stack, Chip, Link, Tooltip, IconButton, Divider, useMediaQuery, useTheme, Alert,
+  TableCell, TableBody, Stack, Chip, Link, Tooltip, IconButton, Divider, useMediaQuery, useTheme, Alert, Button,
 } from '@mui/material';
 import DescriptionIcon from '@mui/icons-material/Description';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
@@ -180,7 +180,8 @@ export default function AccountingPage() {
             items={[
               { value: 'synthese', label: TABS.synthese },
               { value: 'encaissements', label: TABS.encaissements, count: synthesis ? synthesis.counts.payments : undefined },
-              { value: 'ecritures', label: TABS.ecritures, count: synthesis ? synthesis.counts.entries : undefined },
+              // D-HC13 (rule 43) — the badge counts the entries of the month this tab shows.
+              { value: 'ecritures', label: TABS.ecritures, count: sales ? sales.totals.entriesCount : undefined },
             ]}
           />
         )}
@@ -207,6 +208,12 @@ export default function AccountingPage() {
           />
           {synthesisError && (
             <ErrorAlert message={synthesisError} onRetry={() => setSynthesisNonce((n) => n + 1)} />
+          )}
+          {/* Rule 41 (R2-5) — a period refused on the first load (an old link, a hand-typed URL) leaves a way back. */}
+          {synthesisError && !synthesis && (
+            <Box>
+              <Button variant="outlined" onClick={() => setPeriod({})}>Revenir au mois en cours</Button>
+            </Box>
           )}
           {synthesisLoading && !synthesis && <LoadingState label="Chargement de la synthèse…" py={3} />}
           {synthesis && tab === 'synthese' && (

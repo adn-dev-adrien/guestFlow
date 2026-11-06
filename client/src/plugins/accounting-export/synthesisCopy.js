@@ -23,7 +23,7 @@ export const KPI = {
   },
   collected: {
     label: 'Encaissé',
-    info: 'Paiements reçus sur la période, quel que soit le mois du séjour, hors caisse interne. Même total que le journal comptable.',
+    info: 'Paiements reçus sur la période, quel que soit le mois du séjour, nets des commissions plateformes, hors caisse interne.',
   },
   touristTax: {
     label: 'Taxe de séjour',
@@ -60,6 +60,10 @@ const plural = (n, one, many) => `${n} ${n > 1 ? many : one}`;
 export const payments = (n) => plural(n, 'paiement', 'paiements');
 export const stays = (n) => plural(n, 'séjour', 'séjours');
 export const entries = (n) => plural(n, 'écriture', 'écritures');
+export const refunds = (n) => plural(n, 'remboursement', 'remboursements');
+
+// Rule 42 — what an empty breakdown says, like the VAT panel.
+export const NO_COLLECTION = 'Aucun encaissement sur la période.';
 
 /** « 12 k€ » on a chart axis; under 1 000 the amount itself. */
 export const axisEuro = (v) => (Math.abs(v) >= 1000 ? `${Math.round(v / 1000)} k€` : `${Math.round(v)} €`);

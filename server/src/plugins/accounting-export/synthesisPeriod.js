@@ -23,16 +23,20 @@ const addDays = (iso, n) => isoOf(toMs(iso) + n * 86400000);
 const daysBetween = (from, to) => Math.round((toMs(to) - toMs(from)) / 86400000);
 const lastDayOf = (year, month) => new Date(Date.UTC(year, month, 0)).getUTCDate();
 const monthEnd = (ym) => `${ym}-${pad2(lastDayOf(Number(ym.slice(0, 4)), Number(ym.slice(5, 7))))}`;
-const nextMonth = (ym) => {
-  const y = Number(ym.slice(0, 4));
-  const m = Number(ym.slice(5, 7));
-  return m === 12 ? `${String(y + 1).padStart(4, '0')}-01` : `${ym.slice(0, 4)}-${pad2(m + 1)}`;
-};
 
 /** Every `YYYY-MM` the window touches, in order. */
 function monthsOf(from, to) {
+  // Counted on numbers, never compared as text: after « 9999-12 » comes « 10000-01 », which sorts before it and
+  // made an exercise ending in December 9999 loop forever (R2-2 review).
   const out = [];
-  for (let ym = from.slice(0, 7); ym <= to.slice(0, 7); ym = nextMonth(ym)) out.push(ym);
+  let y = Number(from.slice(0, 4));
+  let m = Number(from.slice(5, 7));
+  const end = Number(to.slice(0, 4)) * 12 + Number(to.slice(5, 7));
+  while (y * 12 + m <= end) {
+    out.push(`${String(y).padStart(4, '0')}-${pad2(m)}`);
+    m += 1;
+    if (m > 12) { m = 1; y += 1; }
+  }
   return out;
 }
 
@@ -86,7 +90,8 @@ function bucketsOf(window) {
     const short = MONTHS_SHORT_FR[Number(ym.slice(5, 7)) - 1];
     const start = `${ym}-01` > from ? `${ym}-01` : from;
     const end = monthEnd(ym) < to ? monthEnd(ym) : to;
-    out.push({ key: ym, label: oneYear ? short : `${short} ${ym.slice(0, 4)}`, from: start, to: end });
+    // Short enough for a half-width chart (R5-04): « oct. », or « oct. 25 » when the window spans two years.
+    out.push({ key: ym, label: oneYear ? short : `${short} ${ym.slice(2, 4)}`, from: start, to: end });
   }
   return out;
 }
@@ -163,17 +168,31 @@ function resolvePeriod({ query = {}, today, fiscalEndMonth, fiscalYear, resolveC
 
 /**
  * Rule 22 — what the period selector offers: every month and calendar quarter from `firstMonth` to
- * `lastMonth` (YYYY-MM), newest first, labelled. The selector never builds a period itself.
+ * `lastMonth` (YYYY-MM), newest first, labelled, kept only when the server accepts it — its first day on or
+ * after `floor` and its last day on or before `ceiling` (the entered-date window, rule 2). The selector never
+ * builds a period itself, and never offers one the server would refuse (D-HC13).
  */
-function periodOptions({ firstMonth, lastMonth }) {
-  const months = monthsOf(`${firstMonth}-01`, `${lastMonth}-01`).reverse();
+function periodOptions({ firstMonth, lastMonth, floor, ceiling }) {
+  const accepted = (from, to) => (!floor || from >= floor) && (!ceiling || to <= ceiling);
+  const lo = floor && `${firstMonth}-01` < floor ? floor.slice(0, 7) : firstMonth;
+  const hi = ceiling && `${lastMonth}-01` > ceiling ? ceiling.slice(0, 7) : lastMonth;
+  const months = lo <= hi ? monthsOf(`${lo}-01`, `${hi}-01`).reverse() : [];
   const quarters = [];
+  const seen = new Set();
   for (const ym of months) {
-    const value = `${ym.slice(0, 4)}-Q${Math.floor((Number(ym.slice(5, 7)) - 1) / 3) + 1}`;
-    if (!quarters.some((q) => q.value === value)) quarters.push({ value, label: `T${value.slice(6)} ${ym.slice(0, 4)}` });
+    const year = ym.slice(0, 4);
+    const q = Math.floor((Number(ym.slice(5, 7)) - 1) / 3) + 1;
+    const value = `${year}-Q${q}`;
+    if (seen.has(value)) continue;
+    seen.add(value);
+    const qFrom = `${year}-${pad2((q - 1) * 3 + 1)}-01`;
+    const qTo = monthEnd(`${year}-${pad2(q * 3)}`);
+    if (accepted(qFrom, qTo)) quarters.push({ value, label: `T${q} ${year}` });
   }
   return {
-    months: months.map((ym) => ({ value: ym, label: `${MONTHS_FR[Number(ym.slice(5, 7)) - 1]} ${ym.slice(0, 4)}` })),
+    months: months
+      .filter((ym) => accepted(`${ym}-01`, monthEnd(ym)))
+      .map((ym) => ({ value: ym, label: `${MONTHS_FR[Number(ym.slice(5, 7)) - 1]} ${ym.slice(0, 4)}` })),
     quarters,
   };
 }

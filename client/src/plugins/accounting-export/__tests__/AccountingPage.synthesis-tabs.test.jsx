@@ -1,4 +1,4 @@
-// specs/accounting-synthesis.md §3 rules 23, 24 and 34 — « Comptabilité » opens on « Synthèse »; a journal link
+// specs/accounting-synthesis.md §3 rules 23, 24, 34 and 43 — « Comptabilité » opens on « Synthèse »; a journal link
 // (month + year, the way back from a fiche) opens « Écritures », unchanged; the tabs count what the server counts;
 // the CSV is offered where its month is chosen; a refused period keeps the bar and says why; the accountant reads all.
 import React from 'react';
@@ -49,7 +49,8 @@ test('rule 23 — the page opens on « Synthèse », the other tabs counted by t
   expect(within(tabs).getAllByRole('tab').map((t) => t.textContent)).toEqual(['Synthèse', expect.stringMatching(/^Encaissements/), expect.stringMatching(/^Écritures/)]);
   expect(within(tabs).getByRole('tab', { selected: true })).toHaveTextContent('Synthèse');
   await waitFor(() => expect(within(tabs).getByRole('tab', { name: /Encaissements 96/ })).toBeInTheDocument());
-  expect(within(tabs).getByRole('tab', { name: /Écritures 131/ })).toBeInTheDocument();
+  // Rule 43 (D-HC13) — « Écritures » counts the entries of the month it shows (here none).
+  await waitFor(() => expect(within(tabs).getByRole('tab', { name: /Écritures 0/ })).toBeInTheDocument());
   expect(await screen.findByText('Récapitulatif TVA à déclarer')).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: 'Télécharger le CSV des ventes' })).toBeNull();
   expect(api.getAccountingSynthesis).toHaveBeenCalledWith({ period: '', month: '', quarter: '', fiscalYear: '', from: '', to: '' });

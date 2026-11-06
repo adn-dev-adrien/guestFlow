@@ -182,7 +182,11 @@
         "fiscalYear",
         "yearOverYear"
       ],
-      "names": {}
+      "names": {
+        "vatRegimeModel": [
+          "regimesDuring"
+        ]
+      }
     }
   ]
 }

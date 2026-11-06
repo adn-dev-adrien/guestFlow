@@ -48,8 +48,8 @@ export { ADMIN, userHasRole } from '../../constants/roles';
 export { default as SelectableTile } from '../../components/SelectableTile';
 export { default as NoComparisonNotice } from '../../components/NoComparisonNotice';
 export { default as Panel } from '../../components/Panel';
-export { default as TrendChart } from '../../components/TrendChart';
-export { default as AlignedDailyCumulativeCharts } from '../../components/AlignedDailyCumulativeCharts';
+// Loaded on first use: the SDK is in the initial bundle, the charts' Recharts must not be (R5-01).
+export { TrendChart, AlignedDailyCumulativeCharts } from './reportCharts';
 export { default as ShareTable } from '../../components/ShareTable';
 export { default as useServerToday } from '../../hooks/useServerToday';
 export { customWindowError } from '../../components/PeriodSelector';

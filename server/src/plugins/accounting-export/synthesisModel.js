@@ -11,6 +11,11 @@ const { monthEntries } = require('./controller');
 const { readLastCsvExport } = require('./settings');
 const { monthsOf } = require('./synthesisPeriod');
 
+const firstOfNextMonth = (ym) => {
+  const [y, m] = [Number(ym.slice(0, 4)), Number(ym.slice(5, 7))];
+  return m === 12 ? `${String(y + 1).padStart(4, '0')}-01-01` : `${ym.slice(0, 4)}-${String(m + 1).padStart(2, '0')}-01`;
+};
+
 const vatRegimeModel = sdk.coreModule('vatRegimeModel');
 const { isDirectChannel } = sdk.coreModule('platformNameFormat');
 
@@ -39,8 +44,15 @@ function createSynthesisModel(database, deps = {}) {
 
     /** Rule 4 — every journal entry dated in [from, to]: the months' streams of the CSV, cut to the days. */
     entriesBetween(from, to) {
-      return monthsOf(from, to).flatMap((ym) => monthEntries(accounting, { year: Number(ym.slice(0, 4)), month: Number(ym.slice(5, 7)) }))
+      const entries = monthsOf(from, to).flatMap((ym) => monthEntries(accounting, { year: Number(ym.slice(0, 4)), month: Number(ym.slice(5, 7)) }))
         .filter((entry) => entry.paidDate && entry.paidDate >= from && entry.paidDate <= to);
+      // Rule 10 (R2-1) — a compensation says where its money comes from (`origin`, core data): a retained acompte is
+      // money already booked. Read here, beside the journal's entries, so the export's own entries stay as they are.
+      const ids = entries.filter((e) => e.direction === 'compensation' && e.compensationId != null).map((e) => Number(e.compensationId));
+      if (ids.length === 0 || !hasTable(database, 'cancellation_compensations')) return entries;
+      const origins = new Map(database.prepare(`SELECT id, origin FROM cancellation_compensations WHERE id IN (${ids.map(() => '?').join(', ')})`)
+        .all(...ids).map((r) => [Number(r.id), r.origin || 'platform']));
+      return entries.map((e) => (e.direction === 'compensation' ? { ...e, origin: origins.get(Number(e.compensationId)) || 'platform' } : e));
     },
 
     /**
@@ -87,20 +99,17 @@ function createSynthesisModel(database, deps = {}) {
     },
 
     /**
-     * Rule 8 — the tourist tax WE remit, month by month as the « Taxe de séjour » page extracts it, summed.
-     * A month after the server's one has nothing to declare yet: the page refuses it, so does this sum.
+     * Rules 8 and 39 — the tourist tax WE remit over whole months, from `from` up to the server's month: the rows of
+     * the « Taxe de séjour » extraction (financeModel.getTouristTaxRows, the very rows each month's extraction sums),
+     * read once for the span (R6-11). A month after the server's has nothing to declare yet: the span stops there.
      */
-    touristTax(months, today) {
-      let amountCents = 0;
-      let stays = 0;
-      for (const ym of months) {
-        if (ym > today.slice(0, 7)) continue;
-        const result = finance.getTouristTaxExtraction({ month: ym });
-        if (!result.ok) continue;
-        amountCents += Math.round(Number(result.data.totals.taxAmount || 0) * 100);
-        stays += Number(result.data.totals.reservationsCount || 0);
-      }
-      return { amount: amountCents / 100, stays };
+    touristTax({ from, to, today }) {
+      const lastMonth = to.slice(0, 7) < today.slice(0, 7) ? to.slice(0, 7) : today.slice(0, 7);
+      const rows = finance.getTouristTaxRows({ start: from, endExclusive: firstOfNextMonth(lastMonth) });
+      return {
+        amount: rows.reduce((a, r) => a + Math.round(Number(r.taxAmount || 0) * 100), 0) / 100,
+        stays: rows.filter((r) => !r.addedGuestsRow).length,
+      };
     },
 
     /** Rule 9 — the comparable part of the window and its twin a year earlier (D-HC7). */
@@ -110,8 +119,8 @@ function createSynthesisModel(database, deps = {}) {
 
     lastCsvExport: () => readLastCsvExport(database),
 
-    /** Rule 5 — the VAT regime in force (vat-optional-mode), or null on a database without periods. */
-    regimeInForce: () => vatRegimeModel.inForceBlock(database),
+    /** Rule 35 — the VAT regimes in force during the window (vat-optional-mode), [] on a database without periods. */
+    regimesDuring: (from, to) => vatRegimeModel.regimesDuring(database, from, to),
   };
 }
 
