@@ -156,6 +156,11 @@ email shown beside the text. The whole wording can also go out and come back as 
     *2026-10-17:* a known variable used where it means nothing is refused by its label (« Variable non
     disponible ici : Prix »); only a name nobody knows is shown raw. A subject line offers only the
     variables of every email and those it already uses.
+
+    *Reading of 2026-11-05 (audit R24-I4):* a label is one the catalogue holds as its own. A name only an
+    object's prototype carries (`constructor`, `toString`, `__proto__`…) is a name nobody knows: « Variable
+    inconnue : {{constructor}} », never the text of a native function; its chip, on a stay text or a mention,
+    is labelled by the name itself. Test: `tests/template-token-prototype-names.unit.test.js`.
 12. The former entry points stay as links to the right section of the page: the template list, the J-7
     property-hook dialog and the property's « Textes » block.
 

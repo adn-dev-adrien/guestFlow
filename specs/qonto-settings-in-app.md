@@ -84,14 +84,18 @@ when it is broken.
     it: not configured, credentials rejected, authorisation to renew, provider not connected,
     Qonto unreachable, Qonto in error, never verified, everything working. Telling a rejected secret
     (`invalid_client`) from a lapsed authorisation (`invalid_grant`) is the whole diagnosis: both
-    arrive as an HTTP 401, one is a form to fill and the other a button to press.
+    arrive as an HTTP 401, one is a form to fill and the other a button to press. _(Reading of 2026-11-05, audit R24
+    verification R1: a refused scope, `insufficient_scope`, is an authorisation to renew, and a public address missing for
+    the webhook check is its own class « Adresse publique manquante »,
+    specs/settings-one-save-and-automatic-webhook.md rule 15.)_
 11. The connection badge shows the last *verified* outcome. It says « Connecté » only when a real call
     to Qonto has succeeded — never merely because a token is stored.
 12. Every failed Qonto call records its code, its message and its date, wherever it was made from —
     public payment link, scheduled poll, or a link created by hand. The record is shown in
     Réglages → Paiements.
 13. A successful call clears the recorded failure, so what the page shows is the current state and not
-    an old scar.
+    an old scar. _(Reading of 2026-11-05, audit R24 E24-2: except a failure of the webhook check, which only a
+    successful check clears, specs/settings-one-save-and-automatic-webhook.md rule 15.)_
 14. The visitor on the public site never sees the detail of a Qonto failure: the tunnel keeps
     answering its generic message, and the detail goes to the operator's interface.
 17. A failure from the Qonto Business API carries its own `errors[].code` and `errors[].detail` to
@@ -128,6 +132,15 @@ when it is broken.
     `QONTO_NOT_CONNECTED` when there is none. A refresh that fails once overtaken answers the same, and neither writes the
     connection's health: it belongs to the new credentials or consent. Shared with the control plane's billing. Test:
     `plugins/online-payment/tests/qonto-refresh-overtaken.unit.test.js`.
+21. **The origin of a failure is named in French by the server (audit R24 E24-3, 2026-11-05).** `qontoStatusPayload`
+    adds `health.lastError.originLabel`, read from `ORIGINS` in `qontoService.js`, which now names every origin that
+    reaches `withQonto` (`reconciliation`, `webhook-register`, `lapsed-link`, `replace-link`, `amount-changed`,
+    `last-look` included). The page writes « (<label>, le <date>) », or « (le <date>) » for an origin without a label,
+    never the raw code; its own copy of the labels is gone. *Why:* the page's list lacked three origins that reach
+    `withQonto`, so a French screen read « (reconciliation, le …) ». A core older than this one sends no label, and
+    the page then shows the date alone. Tests: `plugins/online-payment/tests/qonto-webhook-failure-stays.unit.test.js`
+    (a source scan: every origin handed to a Qonto call has a label), client
+    `PaymentsSettingsPage.failure-origin.test.jsx`.
 
 
 **Edge cases:**
@@ -289,6 +302,8 @@ card, next to the fields they act on.
 - [ ] `tests/qonto-credentials-clear-tokens.unit.test.js` — rule 15
 - [x] `plugins/online-payment/tests/qonto-env-base-wins.unit.test.js` — rule 5, reading of 2026-11-05 (11 tests)
 - [x] `plugins/online-payment/tests/qonto-refresh-overtaken.unit.test.js` — rule 19 (6 tests)
+- [x] `plugins/online-payment/tests/qonto-webhook-failure-stays.unit.test.js` — rule 13 reading, rule 21 (6 tests, with
+      specs/settings-one-save-and-automatic-webhook.md rule 15); client `PaymentsSettingsPage.failure-origin.test.jsx` (2)
 
 ### Client unit tests
 

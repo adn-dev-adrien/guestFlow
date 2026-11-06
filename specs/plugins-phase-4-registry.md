@@ -285,6 +285,17 @@ below are the recommended ones; each is reversible in a later spec.
     the host modules of rule 33. *(Clarified 2026-10-18, second review: the list holds names only. It
     catches a module or an export removed or renamed; a changed signature behind the same name is not
     detected, and stays a matter of review and of the SDK major version.)*
+    *Reading of 2026-11-05 (audit R24-P2):* the list holds every name a plugin reads, not only the modules it
+    reaches. A test reads each plugin's `coreModule('m')` destructuring, `coreModule('m').x` and the names taken
+    through a variable holding the module, and fails on a name missing from the list (a second-level read such as
+    `coreModule('qonto').qontoService.x` belongs to its object). Five names joined: `pricing#effectiveMinNightsForDate`,
+    `pricing#getRuleNightBaseForDate` and `propertiesModel#listPricingRules` (there since SDK 2.0.0),
+    `devisModel#appendPublicMessage` (recorded under SDK 2.7.0) and `reservationPaymentMark#takeBackRefusal` (SDK
+    2.21.0); online-payment, which reads the last one, declares `^2.21.0` from 1.5.5.
+    *Reading of 2026-11-05 (audit R24 NEW-2):* the census also reads a module taken through
+    `require('../sdk').coreModule('m')`, a getter `x = () => [y ||] sdk.coreModule('m')` read as `x().n` or destructured
+    from `x()`, and a default parameter or injected property `x = / x: sdk.coreModule('m')` read as `x.n`; comments are
+    not reads. A module name built at run time is still not seen.
 36. **A plugin an active plugin requires stays active** (operator decision 2026-10-27, spec review).
     Deactivating a plugin that an **active** plugin requires is refused like uninstalling it (rule
     12): `POST /api/plugins/:id/deactivate` answers 409 `REQUIRED_BY` with `requiredBy` (the
@@ -429,6 +440,10 @@ below are the recommended ones; each is reversible in a later spec.
     that shipped it (quote-agnostic, a bare `readMailsFrom` call counts), scans every plugin's server sources, and
     requires every plugin that reaches one to floor at that SDK. A hardening nobody listed is not known: shipping
     one adds a line to the table (a reviewer's check), and a module name built at run time is not seen.
+    *Reading of 2026-11-05 (audit R24 NEW-1):* `reservationPaymentMark#takeBackRefusal` (SDK 2.21.0, the take-back
+    refused while a refund needs the money, specs/reservation-refunds.md rule 52) is a row of the table, so
+    online-payment and sas, which both call it, are held to `^2.21.0`; `blockedDates#stayTimesRefused` (SDK 2.22.0)
+    holds website-booking to `^2.22.0`.
 55. **An update, an update-all, a rollback and the bundled-row sync are held to the requirement checks**
     (audit r4, N-R4-2, 2026-10-29). Before the switch: the target manifest is substituted in the graph and a
     cycle through the plugin refuses with `REQUIREMENT_CYCLE` (« Dépendance circulaire : … »); an ACTIVE

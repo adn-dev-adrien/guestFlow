@@ -1,0 +1,1 @@
+- Settings: a logo replaced by another file of the same format shows at once in Paramètres → Établissement, without a reload.

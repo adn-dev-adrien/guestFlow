@@ -1,0 +1,4 @@
+- Options: switching an option's price type without sending its price judges the stored price under the new type, so a 115 € option can no longer become 115 % of the stay unchecked (« 100 % max »); the per-logement prices kept are judged the same way (spec `options-resources-ux.md` rule 34).
+- Logements: a property's option list naming the same option twice is refused (« Liste d’options invalide. ») instead of failing with a server error.
+- Devis: after the first save of a devis opened by « Créer un devis », Back returns to the stay fiche instead of showing the saved draft again as unsaved work, which could write a second devis and a second client (spec `ui-review-2026-10-19-operations.md` rule 52).
+- Online payment: « Connexion » without Qonto credentials names the « Paiements en ligne » page instead of a menu that does not exist.

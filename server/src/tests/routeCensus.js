@@ -39,4 +39,21 @@ function writeRoutes() {
   return [...found].sort();
 }
 
-module.exports = { install, writeRoutes };
+/**
+ * The write routes each plugin of the tree registered, `{ id: ['METHOD /path', …] }`, read from the plugin registry: its
+ * single routes, its webhooks and the routers it mounted, walked like the application's.
+ */
+function pluginWriteRoutes() {
+  const registry = require('../plugins/sdk/registry');
+  const owned = {};
+  for (const record of registry.all()) {
+    const found = new Set();
+    record.routes.filter((r) => WRITES.includes(r.method)).forEach((r) => found.add(`${r.method.toUpperCase()} ${r.path}`));
+    record.webhooks.forEach((w) => found.add(`POST ${w.path}`));
+    record.mounts.forEach((m) => walk(m.router.stack || [], m.path, found));
+    owned[record.id] = [...found].sort();
+  }
+  return owned;
+}
+
+module.exports = { install, writeRoutes, pluginWriteRoutes };

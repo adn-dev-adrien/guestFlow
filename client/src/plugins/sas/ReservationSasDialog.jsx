@@ -491,14 +491,16 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         if (mode === 'departure' && Number(res.endOfStayComplementPaid) === 1) {
           setDeparturePayMode(Number(res.endOfStayComplementPaidCash) === 1 ? 'cash' : 'card');
         }
+        // Same reading for the arrival complement (specs/defer-arrival-complement-to-checkout.md rule 21): one paid before
+        // check-in hides the buttons, so the mode comes from the stored flags on the first run too — paid + cash → 'cash',
+        // paid → 'card', unpaid → 'defer' (recalled at check-out, the fresh default).
+        if (mode === 'arrival') {
+          setArrivalPayMode(Number(res.complementPaid) === 1 ? (Number(res.complementPaidCash) === 1 ? 'cash' : 'card') : 'defer');
+        }
         if (!editing) { setOffered(seed); return; }
         const sealToBool = (v) => (v == null ? true : Number(v) === 1);
         if (mode === 'arrival') {
           setCaution(res.cautionReceived ? 'fait' : null);
-          // Reconstruct the settlement mode from the stored paid flags (specs/sas-recap-payment-buttons.md):
-          // paid + cash → 'cash' (caisse interne); paid non-cash → 'card'; unpaid → 'defer' (an unpaid
-          // complement IS collected at check-out, so it reopens on the same default as a fresh SAS).
-          setArrivalPayMode(Number(res.complementPaid) === 1 ? (Number(res.complementPaidCash) === 1 ? 'cash' : 'card') : 'defer');
           // Same reconstruction for the stay, but from what THIS SAS recorded (`stayPayment.paid`),
           // never from a payment made elsewhere — specs/collect-stay-payment-at-check-in.md rule 14.
           const stay = d.stayPayment || {};

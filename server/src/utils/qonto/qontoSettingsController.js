@@ -57,12 +57,12 @@ function createQontoSettingsController({ settings, env = process.env, scopes = D
   function qontoAuthorize(req, res) {
     const config = qontoConfig();
     if (!config.configured) {
-      return res.status(400).json({ error: 'QONTO_NOT_CONFIGURED', message: 'Identifiants Qonto manquants (Réglages › Paiements).' });
+      return res.status(400).json({ error: 'QONTO_NOT_CONFIGURED', message: 'Identifiants Qonto manquants (page Paiements en ligne).' });
     }
     const client = buildConfiguredQontoClient({ settings, env, config });
     const redirectUri = config.redirectUri;
     if (!redirectUri) {
-      return res.status(400).json({ error: 'PUBLIC_URL_MISSING', message: "L'URL publique de GuestFlow n'est pas configurée (Paramètres) et QONTO_REDIRECT_URI est absent." });
+      return res.status(400).json({ error: 'PUBLIC_URL_MISSING', message: "L'URL publique de GuestFlow n'est pas configurée (Paramètres → Système) et QONTO_REDIRECT_URI est absent." });
     }
     const state = crypto.randomBytes(16).toString('hex');
     req.session.qontoOAuthState = state;
@@ -138,9 +138,17 @@ function createQontoSettingsController({ settings, env = process.env, scopes = D
     return res.json(applyQontoCredentials({ settings, env, body: sent }));
   }
 
-  /** Run a real call against Qonto and report what it means (rules 9-10). */
+  /**
+   * Run a real call against Qonto and report what it means (rules 9-10). A webhook check's failure standing on the page is
+   * cleared only by a check (settings-one-save-and-automatic-webhook rule 15): « Test » runs it again whenever Qonto answered,
+   * the link provider still pending included (rule 16), so its advice holds.
+   */
   async function testQontoConnection(req, res) {
     const result = await runQontoConnectionTest({ settings, env });
+    const qontoAnswered = result.ok || result.state === 'provider_not_connected';
+    if (qontoAnswered && statusPayload().health?.lastError?.origin === 'webhook-register') {
+      await ensureWebhookSubscription({ settings, env });
+    }
     return res.json({ ...result, status: statusPayload() });
   }
 
@@ -191,7 +199,7 @@ function createQontoSettingsController({ settings, env = process.env, scopes = D
   async function qontoConnectProvider(req, res) {
     const { ok, errors, value } = validateProviderConnection(req.body || {});
     const callback = providerCallbackUrl();
-    if (!callback) errors.push("URL publique de GuestFlow non configurée (Paramètres).");
+    if (!callback) errors.push("URL publique de GuestFlow non configurée (Paramètres → Système).");
     if (!ok || errors.length) return res.status(400).json({ error: 'VALIDATION_FAILED', messages: errors });
     try {
       const result = await withAccessToken((client, at) => client.connectProvider({

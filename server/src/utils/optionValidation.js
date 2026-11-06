@@ -22,6 +22,7 @@ const MESSAGES = Object.freeze({
   whole: 'Nombre entier attendu',
   choice: 'Choix invalide',
   time: 'Heure invalide',
+  freeUnitsNeedPrice: 'Prix requis : unités offertes ici (0 € accepté)',
 });
 
 // A negative base price used to be refused with its own 400; the code now rides on the `price` detail.
@@ -64,11 +65,12 @@ function priceProblem(raw, { percent = false, stored } = {}) {
 
 /**
  * @param {object} payload
- * @param {{ knownPropertyIds?: number[], stored?: object }} [context]  the ids of the properties that exist:
- *   any property id the payload names (scope, prices, defaults, bath mats) must be one of them — an unknown
- *   one would otherwise reach a foreign key and answer 500. `stored` is the option being edited.
+ * @param {{ knownPropertyIds?: number[], stored?: object, storedFreeUnits?: object }} [context]  the ids of the properties
+ *   that exist: any property id the payload names (scope, prices, defaults, bath mats) must be one of them — an unknown
+ *   one would otherwise reach a foreign key and answer 500. `stored` is the option being edited, `storedFreeUnits` the
+ *   free units its rows hold ({ [propertyId]: n }).
  */
-function validateOptionPayload(payload, { knownPropertyIds, stored } = {}) {
+function validateOptionPayload(payload, { knownPropertyIds, stored, storedFreeUnits = {} } = {}) {
   const body = payload || {};
   const details = [];
   const known = knownPropertyIds ? new Set(knownPropertyIds.map(Number)) : null;
@@ -101,13 +103,20 @@ function validateOptionPayload(payload, { knownPropertyIds, stored } = {}) {
   }
 
   const percent = body.priceType === 'percent_of_stay';
-  if (!isBlank(body.price) && body.priceType !== 'free') {
-    const message = priceProblem(body.price, { percent, stored: stored?.price });
+  // specs/options-resources-ux.md rule 34 (audit R25 N1) — a price type sent without its price keeps the stored price:
+  // that price is judged under the new type, as if it had been sent back.
+  const typeChanged = Boolean(stored) && body.priceType !== undefined && body.priceType !== stored.priceType;
+  const price = body.price === undefined && typeChanged ? stored.price : body.price;
+  if (!isBlank(price) && body.priceType !== 'free') {
+    const message = priceProblem(price, { percent, stored: stored?.price });
     if (message) details.push({ field: 'price', message, ...(message === MESSAGES.negative ? { code: NEGATIVE_PRICE_CODE } : {}) });
   }
 
+  const scope = Array.isArray(body.propertyIds) ? new Set(body.propertyIds.map(Number)) : null;
+  const keptPrices = Object.fromEntries(Object.entries(stored?.propertyPrices || {}).filter(([pid]) => !scope || scope.has(Number(pid))));
+  const propertyPrices = body.propertyPrices === undefined && typeChanged ? keptPrices : body.propertyPrices;
   if (!NO_PROPERTY_PRICE.includes(body.priceType)) {
-    for (const [pid, raw] of Object.entries(body.propertyPrices || {})) {
+    for (const [pid, raw] of Object.entries(propertyPrices || {})) {
       if (unknown(pid)) {
         details.push({ field: `propertyPrices.${pid}`, message: MESSAGES.unknownProperty });
         continue;
@@ -115,6 +124,14 @@ function validateOptionPayload(payload, { knownPropertyIds, stored } = {}) {
       if (isBlank(raw)) continue;
       const message = priceProblem(raw, { percent, stored: stored?.propertyPrices?.[pid] });
       if (message) details.push({ field: `propertyPrices.${pid}`, message });
+    }
+  }
+  // specs/tariff-recipes/spec.md rule 69 — the row carries the free units: a save that would drop it (price blanked, property
+  // no longer proposed, a price type with no per-property price) is refused on that row's price.
+  if (body.propertyPrices !== undefined) {
+    for (const pid of Object.keys(storedFreeUnits)) {
+      const kept = !NO_PROPERTY_PRICE.includes(body.priceType) && !isBlank((body.propertyPrices || {})[pid]);
+      if (!kept) details.push({ field: `propertyPrices.${pid}`, message: MESSAGES.freeUnitsNeedPrice });
     }
   }
   for (const field of TOWEL_COUNTS) {

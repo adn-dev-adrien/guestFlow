@@ -130,7 +130,8 @@ complement unpaid, and the departure SAS *recalls* it and collects both together
 **Edge cases:**
 - `complementAmount = 0` and « En fin de séjour » chosen → marker set to 1, but nothing to merge; the
   fiche shows only the end-of-stay complement (or nothing). No empty block.
-- Arrival complement already paid (`complementPaid = 1`) → the marker is 0; the fiche keeps the two
+- Arrival complement already paid (`complementPaid = 1`) → the marker is 0 (the SAS leaves a complement
+  paid before check-in untouched, rule 21); the fiche keeps the two
   distinct blocks (« Complément à percevoir » shown as paid + « Complément de fin de séjour »), because
   the two collections really happened at two different moments.
 - Deferred marker set but the departure SAS never runs → the fiche keeps showing one unpaid merged
@@ -213,6 +214,21 @@ alors que c'est là qu'il prépare le séjour et qu'il annonce le montant au cli
     ([sasAudit.js:25](../server/src/utils/sasAudit.js#L25)).
 20. **Réservation annulée ou passée verrouillée** : interrupteur en lecture seule, mêmes gardes que le
     reste de la carte.
+21. **Le SAS arrivée ne touche qu'au complément qu'il a encaissé lui-même** (audit R25-A1, 2026-11-06).
+    Un complément payé **avant** le check-in (lien de paiement, « Marquer complément payé » sur la fiche,
+    rapprochement bancaire) a `complementPaid = 1` et `complementPaidAtArrival = 0` : le commit du SAS
+    arrivée le laisse tel quel, quelle que soit la réponse reçue (`complementSettled` vrai, faux, avec ou
+    sans caisse interne). Ni la date, ni la caisse interne, ni `complementPaidAtArrival`, ni le marqueur
+    `complementDeferredToCheckout` ne bougent, et le garde des remboursements (reservation-refunds
+    règle 52) ne le compte pas parmi ce que le SAS reprend. Seuls un complément encore dû et celui que ce
+    SAS a encaissé (`complementPaidAtArrival = 1`) se règlent, se défont ou se re-tamponnent — la même
+    discipline que les échéances du séjour (`resolveStayPayment`) et que le départ (règle 9bis de
+    [recall-unpaid-arrival-complement-at-checkout.md](recall-unpaid-arrival-complement-at-checkout.md)).
+    Côté récap, le mode de règlement se reconstitue depuis les drapeaux stockés **dès le premier
+    passage** : les boutons sont masqués sur un complément déjà payé, et le mode restait sur « Plus
+    tard », si bien que « Valider et terminer » envoyait « pas encaissé ». Le serveur effaçait alors
+    `complementPaid` et sa date et posait le report : l'argent encaissé disparaissait des livres et le
+    départ le réclamait une seconde fois ; avec un remboursement sur le séjour, le check-in était refusé.
 
 **Edge cases (Part C) :**
 
@@ -407,6 +423,10 @@ de spécifique à `xs`. Cible tactile ≥ 44 px de haut.
       (rule 8).
 - [x] Full server suite green (2157), incl. the untouched accounting + finance arithmetic (rules 9-10).
 
+Rule 21 (audit R25-A1): `sas-prepaid-complement.unit.test.js` — a first arrival SAS on a complement
+paid by the fiche, the reconciliation or a link keeps it paid and not deferred, a refund on the stay
+refuses nothing, reception alike; the SAS still settles an open complement and undoes its own.
+
 ### Client tests (vitest)
 - [x] `ReservationSasDialog` departure: no `cleaning` page when `cleaning.included`; recap shows the
       reminder; the commit payload carries no « Ménage de fin de séjour » line; a re-open drops a
@@ -415,6 +435,9 @@ de spécifique à `xs`. Cible tactile ≥ 44 px de haut.
       total, no « Complément à percevoir » card; paid / caisse-interne settle both buckets;
       non-deferred → today's two cards.
 - [x] Full client suite green (715) + Playwright E2E (32).
+
+Rule 21: `ReservationSasDialog.prepaid-complement.test.jsx` — the first run on a prepaid complement
+sends the stored mode (card or caisse interne), an unpaid one still « Plus tard ».
 
 ### Manual UI verification (dev, 2026-08-03)
 - [x] Deferred reservation (arrival complement 64 € + end-of-stay 40 €) → **one** « Complément de fin de

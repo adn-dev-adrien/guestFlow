@@ -59,6 +59,14 @@ const STATES = {
     explanation: 'Qonto a répondu, mais en erreur. Le détail est repris ci-dessous.',
     action: 'Relancer le test dans quelques minutes ; si l\'erreur persiste, transmettre ce détail au support Qonto.',
   },
+  // specs/settings-one-save-and-automatic-webhook.md rule 15, reading of 2026-11-05 (audit R24 R1) — the webhook check found no
+  // public address: no call reached Qonto, and only that address repairs it.
+  public_url_missing: {
+    ok: false,
+    title: 'Adresse publique manquante',
+    explanation: "Sans l'adresse publique de GuestFlow, Qonto ne peut pas signaler les paiements.",
+    action: 'URL publique à renseigner (Paramètres → Système), puis « Test ».',
+  },
   unverified: {
     ok: false,
     title: 'À vérifier',
@@ -138,6 +146,9 @@ function classifyQontoOutcome(err, context = {}) {
   const code = errorCodeOf(err).toLowerCase();
 
   if (code === 'qonto_not_configured') return decorate('not_configured');
+  if (code === 'public_url_missing') return decorate('public_url_missing');
+  // A scope the authorisation does not grant (the webhook check's 403): only a new consent adds it.
+  if (code === 'insufficient_scope') return decorate('reauth_required');
   // No refresh token stored, or Qonto rejected the one we hold: both need a new authorisation.
   if (code === 'qonto_not_connected' || code === 'invalid_grant') return decorate('reauth_required');
   // The application itself is refused — the secret, not the authorisation.

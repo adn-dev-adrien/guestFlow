@@ -18,7 +18,7 @@ const crypto = require('crypto');
 // (specs/plugins-phase-3a-online-payment.md rule 22): the caller always hands it in.
 const guestflowSettings = () => { throw new Error('[qonto] a settings store is required'); };
 const { resolveQontoConfig } = require('./qontoConfig');
-const { withQonto, recordQontoFailure } = require('./qontoService');
+const { withQonto, recordQontoFailure, recordWebhookCheckSuccess } = require('./qontoService');
 
 const WEBHOOK_PATH = '/api/payments/qonto/webhook';
 const SUBSCRIPTION_TYPES = ['v1/payment-links'];
@@ -28,7 +28,7 @@ const DESCRIPTION = 'GuestFlow payment links';
 const defaultRandomSecret = () => crypto.randomBytes(32).toString('hex');
 
 const missingPublicUrlError = () => {
-  const err = new Error("L'URL publique de GuestFlow n'est pas configurée (Réglages → Envoi d'emails).");
+  const err = new Error("L'URL publique de GuestFlow n'est pas configurée (Paramètres → Système).");
   err.code = 'PUBLIC_URL_MISSING';
   return err;
 };
@@ -84,13 +84,14 @@ async function checkSubscription({ settings, env, origin, randomSecret }) {
     // Rule 10: the recorded subscription still points where we answer → nothing to ask Qonto.
     const known = typeof settings.qontoWebhookSubscription === 'function' ? settings.qontoWebhookSubscription() : { id: '', callbackUrl: '' };
     if (known.id && sameCallback(known.callbackUrl, callbackUrl)) {
+      recordWebhookCheckSuccess({ settings, answered: false });
       return { action: 'skipped', id: known.id, callbackUrl };
     }
 
     // `recordSuccess: false` — this is housekeeping, not a diagnosis. Recording a success here would
     // erase the outcome « Tester la connexion » had just recorded, and the page would claim a
     // connection the test had refused.
-    return await withQonto({ settings, env, origin, recordSuccess: false }, async (client, accessToken) => {
+    const outcome = await withQonto({ settings, env, origin, recordSuccess: false }, async (client, accessToken) => {
       const existing = await client.listWebhookSubscriptions({ accessToken });
       const match = (existing || []).find((s) => sameCallback(s.callbackUrl, callbackUrl));
 
@@ -118,6 +119,8 @@ async function checkSubscription({ settings, env, origin, randomSecret }) {
       settings.storeQontoWebhookSubscription({ id: sub.id, callbackUrl });
       return { action: 'created', id: sub.id, callbackUrl };
     });
+    recordWebhookCheckSuccess({ settings });
+    return outcome;
   } catch (error) {
     // `withQonto` already recorded the failure; swallowing it here is rule 11's "never interrupts".
     return { action: 'failed', error };

@@ -1,34 +1,29 @@
 /**
- * Multer middleware for the company-logo upload endpoint.
+ * Multer middleware for the company-logo upload endpoint (specs/settings.md rule 8).
  *
- * - Disk storage in the instance's uploads directory (`server/uploads/` unless GUESTFLOW_UPLOADS_DIR).
- * - Filename normalized to `company-logo.<ext>` (defaults to `.png`).
+ * - Held in memory: the controller writes `company-logo.<ext>` only once the first bytes are judged, so a
+ *   refused file never replaces the stored logo.
  * - 2 MB size limit.
- * - Image MIME types only.
+ * - PNG and JPEG only, by name and MIME type here, by first bytes in the controller.
  */
 
 const fs = require('fs');
 const multer = require('multer');
-const { isAllowedUpload, allowedExtension } = require('../utils/uploadSafety');
+const { isAllowedUpload } = require('../utils/uploadSafety');
 
 const uploadsDir = require('../utils/instancePaths').uploadsDir();
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, uploadsDir),
-  filename: (req, file, cb) => {
-    // Extension comes from the allowlist, never verbatim from the user's filename.
-    const ext = allowedExtension(file.originalname, 'image', '.png');
-    cb(null, `company-logo${ext}`);
-  },
-});
+const LOGO_FORMAT_REFUSAL = 'Logo en PNG ou JPEG uniquement.';
 
 const logoUpload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 2 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     if (!isAllowedUpload(file.originalname, file.mimetype, 'image')) {
-      return cb(new Error('Seules les images (PNG, JPG, JPEG, WEBP, GIF) sont acceptées.'));
+      const refusal = new Error(LOGO_FORMAT_REFUSAL);
+      refusal.code = 'LOGO_FORMAT';
+      return cb(refusal);
     }
     cb(null, true);
   },
@@ -36,3 +31,4 @@ const logoUpload = multer({
 
 module.exports = logoUpload;
 module.exports.uploadsDir = uploadsDir;
+module.exports.LOGO_FORMAT_REFUSAL = LOGO_FORMAT_REFUSAL;

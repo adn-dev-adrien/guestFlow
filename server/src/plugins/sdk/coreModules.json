@@ -266,6 +266,7 @@
     "getPlatformColors",
     "list",
     "listEmailHooks",
+    "listPricingRules",
     "listWelcomePackOptions",
     "platformPrices",
     "remove",
@@ -320,6 +321,7 @@
   ],
   "devisModel": [
     "__test",
+    "appendPublicMessage",
     "buildModel",
     "convertFromReservation",
     "convertToReservation",
@@ -387,9 +389,11 @@
     "computeExtraGuestSurcharge",
     "computePercentOfStayAmount",
     "computeTouristTaxBreakdown",
+    "effectiveMinNightsForDate",
     "getApplicableOptions",
     "getApplicableResources",
     "getBoundsFromDateRanges",
+    "getRuleNightBaseForDate",
     "getTypeMultiplier",
     "grossFromNet",
     "isPlatformCollectingTouristTax",
@@ -415,7 +419,8 @@
   ],
   "blockedDates": [
     "computeBlockedDates",
-    "rangeHasBlockedNight"
+    "rangeHasBlockedNight",
+    "stayTimesRefused"
   ],
   "changeover": [
     "FRENCH_DAYS",
@@ -736,7 +741,8 @@
   ],
   "reservationPaymentMark": [
     "applyPaymentMark",
-    "computePlatformCommission"
+    "computePlatformCommission",
+    "takeBackRefusal"
   ],
   "platformDisplay": [
     "platformDisplay"

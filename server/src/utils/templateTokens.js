@@ -187,6 +187,11 @@ const STAY_TOKEN_LABELS = Object.freeze({
   address: 'Adresse', mapUrl: 'Lien carte', access: 'Accès', code: 'Code', wifiName: 'Réseau Wi-Fi',
   wifiPassword: 'Mot de passe Wi-Fi',
 });
+
+// specs/guest-email-texts-made-simple.md rule 11, reading of 2026-11-05 — own keys only: `constructor` or `__proto__`
+// typed in a text is a name nobody knows, not the label of a native function.
+const ownLabel = (labels, name) => (Object.hasOwn(labels, name) ? labels[name] : undefined);
+const stayTokenLabel = (name) => ownLabel(STAY_TOKEN_LABELS, name);
 const STAY_FLAG_LABELS = Object.freeze({
   linenOffered: 'Si linge proposé', hasPrice: 'Si prix', stayOverlapsPool: 'Si saison piscine',
   hasGoogleReview: 'Si lien d’avis Google',
@@ -300,8 +305,8 @@ function chipsForSubject(template) {
 /** Chips of a stay text or a mention: its own tokens and flags, labelled. */
 function chipsForText({ tokens = [], flags = [] } = {}) {
   return {
-    variables: tokens.map((name) => ({ name, label: STAY_TOKEN_LABELS[name] || name })),
-    conditions: flags.map((name) => ({ name, label: STAY_FLAG_LABELS[name] || name })),
+    variables: tokens.map((name) => ({ name, label: stayTokenLabel(name) || name })),
+    conditions: flags.map((name) => ({ name, label: ownLabel(STAY_FLAG_LABELS, name) || name })),
   };
 }
 
@@ -335,7 +340,7 @@ function tokenError(field, text, allowed) {
   if (name == null) return null;
   // A known variable used where it means nothing is named by its label (rule 11, 2026-10-17).
   const known = VARIABLES.find((v) => v.name === name) || FLAGS.find((f) => f.name === name);
-  const label = known ? known.label : STAY_TOKEN_LABELS[name];
+  const label = known ? known.label : stayTokenLabel(name);
   const message = label ? `Variable non disponible ici : ${label}` : `Variable inconnue : {{${name}}}`;
   // Rule 41 — the closest variable this text may use, offered as a one-tap fix under the field.
   const suggestion = closestVariable(name, allowed);
@@ -368,7 +373,7 @@ function distance(a, b) {
 
 const labelOfName = (name) => {
   const known = VARIABLES.find((v) => v.name === name);
-  return known ? known.label : (STAY_TOKEN_LABELS[name] || name);
+  return known ? known.label : (stayTokenLabel(name) || name);
 };
 
 /**

@@ -17,17 +17,28 @@ const { classifyQontoOutcome, qontoConnectionState, errorCodeOf, errorMessageOf 
 const guestflowSettings = () => { throw new Error('[qonto] a settings store is required'); };
 
 /** Where a call came from, so the operator reads "le paiement public a échoué", not "une erreur". */
+// The page reads the label from the status payload (rule 21): every origin that reaches `withQonto` has one.
 const ORIGINS = {
   test: 'test de connexion',
-  'public-payment': 'paiement public',
+  'public-payment': 'paiement depuis le site',
   poll: 'vérification automatique',
   'manual-link': 'lien créé à la main',
   'cancel-link': 'désactivation d’un lien',
+  'replace-link': 'remplacement d’un lien',
+  'amount-changed': 'lien d’un montant modifié',
+  'last-look': 'dernière vérification d’un lien',
+  'lapsed-link': 'vérification d’un lien échu',
   webhook: 'notification Qonto',
   'webhook-register': 'abonnement au webhook',
+  reconciliation: 'rapprochement bancaire',
   admin: 'réglages',
   billing: 'facturation des abonnements',
 };
+
+const WEBHOOK_CHECK = 'webhook-register';
+const standingFailureOrigin = (settings) => (typeof settings.qontoHealth === 'function'
+  ? String(settings.qontoHealth().lastError?.origin || '')
+  : '');
 
 function notConfiguredError() {
   const err = new Error('Identifiants Qonto manquants');
@@ -48,11 +59,34 @@ function buildConfiguredQontoClient({ settings = guestflowSettings(), env = proc
   });
 }
 
-/** Rule 13: a success erases the recorded failure, so the page shows now and not last month. */
+/**
+ * Rule 13: a success erases the recorded failure, so the page shows now and not last month.
+ * specs/settings-one-save-and-automatic-webhook.md rule 15: except the webhook check's own failure, which only a successful check clears
+ * (`recordWebhookCheckSuccess`): no other call says anything about the subscription.
+ */
 function recordQontoSuccess({ settings = guestflowSettings(), now = new Date() } = {}) {
   if (!settings || typeof settings.recordQontoHealth !== 'function') return;
   const at = now.toISOString();
+  if (standingFailureOrigin(settings) === WEBHOOK_CHECK) {
+    settings.recordQontoHealth({ lastCheckAt: at });
+    return;
+  }
   settings.recordQontoHealth({ lastCheckAt: at, lastSuccessAt: at, lastErrorAt: '', lastErrorCode: '', lastErrorMessage: '', lastErrorOrigin: '' });
+}
+
+/**
+ * Same rule 15: a webhook check that succeeds clears the failure an earlier check recorded, and nothing else.
+ * `answered` is false when the check needed no call (the record already matched): no success at Qonto to stamp.
+ */
+function recordWebhookCheckSuccess({ settings = guestflowSettings(), now = new Date(), answered = true } = {}) {
+  if (!settings || typeof settings.recordQontoHealth !== 'function') return;
+  if (standingFailureOrigin(settings) !== WEBHOOK_CHECK) return;
+  const at = now.toISOString();
+  settings.recordQontoHealth({
+    lastCheckAt: at,
+    ...(answered ? { lastSuccessAt: at } : {}),
+    lastErrorAt: '', lastErrorCode: '', lastErrorMessage: '', lastErrorOrigin: '',
+  });
 }
 
 /** Rule 12: a failure is recorded with its code, its message and where it happened. */
@@ -158,6 +192,9 @@ function qontoStatusPayload({ settings = guestflowSettings(), env = process.env 
   const health = typeof settings.qontoHealth === 'function'
     ? settings.qontoHealth()
     : { lastCheckAt: null, lastSuccessAt: null, lastError: null };
+  const lastError = health.lastError
+    ? { ...health.lastError, originLabel: ORIGINS[health.lastError.origin] || '' }
+    : health.lastError;
   return {
     ...info,
     configured: config.configured,
@@ -165,6 +202,7 @@ function qontoStatusPayload({ settings = guestflowSettings(), env = process.env 
     environment: config.environment,
     health: {
       ...health,
+      lastError,
       ...qontoConnectionState({
         configured: config.configured,
         hasToken: info.connected,
@@ -218,6 +256,7 @@ module.exports = {
   withQonto,
   runQontoConnectionTest,
   recordQontoSuccess,
+  recordWebhookCheckSuccess,
   recordQontoFailure,
   qontoCredentialsPayload,
   qontoStatusPayload,

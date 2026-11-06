@@ -1,3 +1,5 @@
+process.env.DB_PATH = ':memory:';
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
@@ -201,4 +203,67 @@ test('planning-card breakfast, a single morning for 2 guests → entirely covere
   assert.equal(l.freeUnits, 2);
   assert.equal(l.totalPrice, 0);
   db.close();
+});
+
+// specs/tariff-recipes/spec.md §3 item 69 (audit R24-DB-1, 2026-11-05) — an option save keeps the free units the recipe wrote: the
+// editor never shows nor sends them, and the save used to DELETE and re-insert the per-property prices without them.
+function savedOption() {
+  const appDb = require('../database');
+  const controller = require('../controllers/optionsController');
+  if (!appDb.prepare('SELECT 1 FROM properties WHERE id = 901').get()) {
+    appDb.prepare("INSERT INTO properties (id, name) VALUES (901, 'Lodge'), (902, 'Gîte')").run();
+  }
+  const optionId = Number(appDb.prepare("INSERT INTO options (title, priceType, price) VALUES ('Jus de pomme', 'per_stay', 4)").run().lastInsertRowid);
+  appDb.prepare('INSERT INTO property_options (propertyId, optionId) VALUES (901, ?), (902, ?)').run(optionId, optionId);
+  appDb.prepare('INSERT INTO property_option_prices (propertyId, optionId, price, freeUnits) VALUES (901, ?, 5, 1), (902, ?, 6, 0)').run(optionId, optionId);
+  const respond = () => ({ statusCode: 200, body: null, status(c) { this.statusCode = c; return this; }, json(b) { this.body = b; return this; } });
+  const get = () => { const res = respond(); controller.getOne({ params: { id: optionId } }, res); return res.body; };
+  const put = (over) => {
+    const stored = get();
+    const body = {
+      title: stored.title, description: stored.description, priceType: stored.priceType, price: stored.price,
+      propertyIds: stored.propertyIds, propertyPrices: stored.propertyPrices, ...over,
+    };
+    const res = respond();
+    controller.update({ params: { id: optionId }, body }, res);
+    return res;
+  };
+  const rows = () => Object.fromEntries(appDb.prepare('SELECT propertyId, price, freeUnits FROM property_option_prices WHERE optionId = ? ORDER BY propertyId')
+    .all(optionId).map((r) => [r.propertyId, [r.price, r.freeUnits]]));
+  return { put, rows };
+}
+
+test('R24-DB-1: a save that changes only the description keeps each property\'s free units', () => {
+  const option = savedOption();
+  assert.equal(option.put({ description: 'Bouteille 1 L' }).statusCode, 200);
+  assert.deepEqual(option.rows(), { 901: [5, 1], 902: [6, 0] });
+});
+
+test('R24-DB-1: a new price on the row keeps its free units', () => {
+  const option = savedOption();
+  assert.equal(option.put({ propertyPrices: { 901: 7, 902: 6 } }).statusCode, 200);
+  assert.deepEqual(option.rows(), { 901: [7, 1], 902: [6, 0] });
+});
+
+test('R24-DB-1: blanking the price of a row holding free units is refused 422 on that field, nothing written', () => {
+  const option = savedOption();
+  for (const over of [{ propertyPrices: { 902: 6 } }, { propertyPrices: { 901: '', 902: 6 } }, { propertyIds: [902] }, { priceType: 'free' }]) {
+    const res = option.put(over);
+    assert.equal(res.statusCode, 422, JSON.stringify(over));
+    assert.deepEqual(res.body.details, [{ field: 'propertyPrices.901', message: 'Prix requis : unités offertes ici (0 € accepté)' }], 'R25 F1: the refusal names its way out');
+    assert.deepEqual(option.rows(), { 901: [5, 1], 902: [6, 0] });
+  }
+});
+
+test('R24-DB-1: a row with no free units can still be blanked', () => {
+  const option = savedOption();
+  assert.equal(option.put({ propertyPrices: { 901: 5 } }).statusCode, 200);
+  assert.deepEqual(option.rows(), { 901: [5, 1] });
+});
+
+test('R25 N3 (tariff-recipes item 69): the way out the refusal names works — a price of 0 € keeps the row and its free units', () => {
+  const option = savedOption();
+  const res = option.put({ propertyPrices: { 901: 0, 902: 6 } });
+  assert.equal(res.statusCode, 200, JSON.stringify(res.body));
+  assert.deepEqual(option.rows(), { 901: [0, 1], 902: [6, 0] });
 });

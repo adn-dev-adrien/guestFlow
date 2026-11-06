@@ -329,6 +329,30 @@ a short list of the gaps to fix on the fiches.
     and a far-past one (`0002-10-31`, read by `Date.UTC` as 1902) asked Qonto for the account's whole history.
     online-payment 1.5.2, `sdk ^2.20.0`. Tests: `reconciliation-start-date-window.unit.test.js`, client
     `ReconciliationSettingsCard.start-date.test.jsx`.
+49. **Another bank account gets its own first read (audit R24 E24-1, 2026-11-05).** A read is incremental (rule 5)
+    only when the current account already has a credit stored (`latestSettledAt(bankAccountId)`); otherwise it is a
+    first read, 13 months before the start date. *Why:* the test counted every account's credits against a
+    `lastReadAt` shared by all of them, so after « Compte bancaire » was changed (the main account is the default,
+    rule 4, and the money often lands on another), the new account was read from the last read minus one day only: its
+    older credits never came in, and their receipts showed as gaps with nothing saying the history was missing.
+    Accepted residues, recorded: going back to an account that already has credits stays incremental, so the time
+    spent on the other one is not read again; a start date moved earlier is not read further back either (closing
+    that would need a stored `readFrom`, not worth it). In both cases « Effacer aussi ses données » followed by a read
+    starts over. online-payment 1.5.5. Test: `reconciliation-account-change.unit.test.js`.
+50. **The 8-hour read waits for the Qonto credentials (audit R25 O1, 2026-11-06).** A stored authorisation is not enough:
+    while the effective configuration has no credentials (`resolveQontoConfig(...).configured` false), the job reads
+    nothing and records nothing, and answers `{ skipped: true }`. « Lire maintenant » and the other routes are unchanged.
+    *Why:* on an instance with the plugin on and no credentials (a first install, a copy whose secrets were purged), the
+    boot pass recorded `QONTO_NOT_CONFIGURED` from « rapprochement bancaire », and the Paiements page showed a red
+    « Dernier échec » beside the badge's own « Identifiants manquants ». online-payment 1.5.6. Test:
+    `reconciliation-job-unconfigured.unit.test.js`.
+    *Reading of 2026-11-06 (audit R25 verification N2), accepted:* only the 8-hour job is quiet. With a stored authorisation
+    and no credentials, the link poll and the Paiements page's own account reads (`/bank-accounts`) still record
+    `QONTO_NOT_CONFIGURED` under their origin, so « Dernier échec » repeats the badge's « Identifiants manquants ». That
+    is qonto-settings-in-app rule 12 (a call that never leaves because nothing is configured is recorded like any other
+    failure), kept on purpose; the state is rare (a copy whose secrets were purged), costs nothing, and a true first
+    install, with no authorisation, records nothing. Test: `reconciliation-job-unconfigured.unit.test.js` (the job),
+    `qonto-failure-record.unit.test.js` (rule 12).
 
 **Edge cases:**
 - Reservation cancelled after a payment was reconciled → leaves the scope; its reconciliations stay
@@ -343,7 +367,7 @@ a short list of the gaps to fix on the fiches.
   « Autre crédit », never « Non rattaché » (rules 31 and §8).
 - Credit in a currency other than EUR → listed under « Autres crédits », never proposed.
 - The operator changes the bank account → stored transactions of the previous account are kept but
-  no longer read; reconciliations on them stay.
+  no longer read; reconciliations on them stay. The new account gets its first read (rule 49).
 
 ---
 
@@ -507,6 +531,10 @@ The interactive mock-up of the summary page is the reference
       writes payout 950 / commission 35, the expected solde credit with a payout recorded.
 - [x] `reconciliation-installments-core-module.unit.test.js` (2) — rule 45: the plan read through the
       core model, a failing read throws.
+- [x] `reconciliation-account-change.unit.test.js` (3) — rule 49: a newly picked account read from rule 5's first
+      window, incremental from its second read, back on an account with credits stays incremental (residue).
+- [x] `reconciliation-job-unconfigured.unit.test.js` (3) — rule 50: connected without credentials, the job skips and
+  reads nothing; with credentials it reads; the wiring asks the effective configuration, so no failure is recorded.
 - [x] `reconciliation-start-date-window.unit.test.js` (3) — rule 48: the window bounds and empty accepted;
       impossible day, half-typed year, one day outside refused with nothing written; a stored value kept.
       Client `ReconciliationSettingsCard.start-date.test.jsx` (3): the hint from the server's day, none on the

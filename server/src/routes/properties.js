@@ -4,7 +4,7 @@ const ical = require('../controllers/propertyIcalController');
 const optionDefaults = require('../controllers/propertyOptionDefaultsController');
 const welcomePack = require('../controllers/welcomePackController');
 const arrivalFacts = require('../controllers/propertyArrivalFactsController').buildController({ database: require('../database') });
-const { handlePhotoUpload, handleDocumentUpload, multerErrorHandler } = require('../utils/propertyUploads');
+const { handlePhotoUpload, handleDocumentUpload } = require('../utils/propertyUploads');
 
 // Properties
 router.get('/', ctrl.list);
@@ -59,7 +59,5 @@ router.put('/:id/ical-sources/:sourceId', ical.updateSource);
 router.delete('/:id/ical-sources/:sourceId', ical.removeSource);
 router.post('/:id/ical-sources/:sourceId/sync', ical.sync);
 router.post('/:id/ical-sources/sync-all', ical.syncAll);
-
-router.use(multerErrorHandler);
 
 module.exports = router;

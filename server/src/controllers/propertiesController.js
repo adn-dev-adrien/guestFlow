@@ -9,6 +9,7 @@ const { toReceptionPropertyList } = require('../utils/receptionView');
 const { validatePropertyInput, cleanPropertyText, seasonInputRefusal, progressivePreviewRefusal } = require('../utils/propertyValidation');
 const { positiveId } = require('../utils/bodyText');
 const { isWrongFieldType, WRONG_FIELD_TYPE } = require('../utils/bodyParserRefusal');
+const { isUnreadablePhoto, PHOTO_UNREADABLE } = require('../utils/propertyUploads');
 const { PROPERTY_LIMITS } = require('../utils/inputLimits');
 const { quotaRefusal } = require('../utils/planQuota');
 const propertyArticle = require('../utils/propertyArticle');
@@ -114,6 +115,7 @@ async function create(req, res) {
     // or sharp/multer details that aren't useful to the user but help an attacker fingerprint
     // the stack. Spotted in the 2026-06-01 security audit (finding M3).
     if (isWrongFieldType(err)) return void res.status(WRONG_FIELD_TYPE.status).json(WRONG_FIELD_TYPE.body);
+    if (isUnreadablePhoto(err)) return void res.status(PHOTO_UNREADABLE.status).json(PHOTO_UNREADABLE.body);
     console.error('[propertiesController.create]', err);
     res.status(500).json({ error: 'Erreur lors de la création du logement' });
   }
@@ -130,6 +132,7 @@ async function update(req, res) {
     res.json(result);
   } catch (err) {
     if (isWrongFieldType(err)) return void res.status(WRONG_FIELD_TYPE.status).json(WRONG_FIELD_TYPE.body);
+    if (isUnreadablePhoto(err)) return void res.status(PHOTO_UNREADABLE.status).json(PHOTO_UNREADABLE.body);
     console.error('[propertiesController.update]', err);
     res.status(500).json({ error: 'Erreur lors de la mise à jour du logement' });
   }
@@ -212,6 +215,12 @@ function setOptions(req, res) {
   // specs/settings-input-guards.md, hosting-h2 rule 68 — a list of ids or nothing; left out means an empty list, as before.
   const { optionIds } = req.body || {};
   if (optionIds !== undefined && optionIds !== null && !(Array.isArray(optionIds) && optionIds.every((id) => positiveId(id) !== null))) {
+    return res.status(400).json({ error: 'Liste d’options invalide.' });
+  }
+  // Rule 62 (audit R25-I1) — a real property, real options: an unknown id used to reach the foreign key and answer 500.
+  // Rule 62 reading (audit R25 N2) — an option named twice used to reach the unique key and answer 500.
+  const ids = (optionIds || []).map(positiveId);
+  if (new Set(ids).size !== ids.length || !model.optionListTargetsExist(req.params.id, optionIds || [])) {
     return res.status(400).json({ error: 'Liste d’options invalide.' });
   }
   const result = model.setOptions(req.params.id, optionIds);

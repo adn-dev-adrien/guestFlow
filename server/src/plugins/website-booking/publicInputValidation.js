@@ -239,6 +239,8 @@ const nameOf = (v) => {
 };
 // No address needs a format character, joiners included: the guest lands on the address that reads the same (rule 21).
 const emailOf = (v) => textOf(v).replace(/\p{Cf}/gu, '').trim();
+// A pasted phone reads as it shows (rule 25): format characters go, a no-break or ideographic space is a space.
+const phoneOf = (v) => textOf(v).replace(/\p{Cf}/gu, '').replace(/\p{Zs}/gu, ' ').trim();
 // A message or an attribution value keeps its joiners, line breaks and tabs, and nothing else invisible.
 const cleanFreeText = (v) => textOf(v)
   .replace(/\r\n?/g, '\n')
@@ -254,7 +256,7 @@ function validateGuest(raw) {
   const firstName = nameOf(guest.firstName);
   const lastName = nameOf(guest.lastName);
   const email = emailOf(guest.email);
-  const phone = textOf(guest.phone).trim();
+  const phone = phoneOf(guest.phone);
   const judgeName = (field, name) => {
     if (!name) errors.push({ field: `guest.${field}`, issue: 'required', reason: 'required' });
     else if (!NAME_CHARACTERS.test(name)) errors.push({ field: `guest.${field}`, issue: NAME_REFUSAL, reason: 'nameInvalid' });

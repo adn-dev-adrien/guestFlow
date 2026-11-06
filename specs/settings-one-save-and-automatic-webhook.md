@@ -118,6 +118,43 @@ which « Enregistrer » writes which field.
     a real connection test whose outcome becomes the recorded state. The page therefore opens on what is
     true now, never on the failure that preceded the repair. A test that fails does not undo the
     authorisation: the tokens are kept and the diagnosis is shown instead of a bare « échec ».
+15. **A failed webhook check stays shown until a check succeeds (audit R24 E24-2, 2026-11-05).** While the recorded
+    failure comes from the check (`lastErrorOrigin` `webhook-register`), a successful Qonto call elsewhere (the poll
+    of the same pass, a reconciliation read, « Test ») stamps only `lastCheckAt` and leaves it in place. It goes when a
+    check succeeds: after Qonto answered (subscription adopted or created), with `lastSuccessAt` stamped; or when the
+    record already points at the public address (no call), the failure alone is cleared. A check that succeeds never
+    clears a failure of another origin, so rule 11's `recordSuccess: false` still keeps « Test »'s diagnosis. No new
+    field. *Why:* rule 13 of specs/qonto-settings-in-app.md cleared it at the next successful call, in practice the
+    poll that follows the check in the same pass. A consent without the `webhook` scope then left no trace on the
+    only page that shows the webhook: no notification arrived, a paid link was seen at the guest's return or at the
+    poll, up to 8 hours later, and nothing said why. Test: `plugins/online-payment/tests/qonto-webhook-failure-stays.unit.test.js`.
+    *Reading of 2026-11-05 (audit R24 verification R1):* while that failure stands the badge names its own repair, never
+    « Relancer le test » alone: a scope Qonto refuses (`insufficient_scope`) reads « Autorisation à renouveler » with
+    « Connexion » (`reauth_required`), a missing public address reads « Adresse publique manquante » with its repair
+    (`public_url_missing`, qonto-settings-in-app rule 10's table; wording corrected by rule 16, the menu first named
+    did not exist). A successful « Test » runs the check again when, and only when, a `webhook-register` failure stands, so any
+    other cause (a 5xx at consent) clears at the next « Test », in the core and in the console alike. *Accepted (one slot):*
+    the store holds one failure: another origin's failure replaces the webhook's, and that origin's next success clears
+    it; the core's next pass records it again, the console's next consent or « Test » does. Tests:
+    `qonto-webhook-failure-stays` (+3, and the skipped check stamps no `lastSuccessAt`).
+16. **The advice names a real page, and the « Test » it asks for can clear it (audit R25-C3, R25 E25-1, 2026-11-06).** The
+    public address lives in Paramètres → Système, field « URL publique » (settings-rationalization rule 16): the badge's
+    `public_url_missing` action reads « URL publique à renseigner (Paramètres → Système), puis « Test ». », and the
+    stored failure of the check, the Qonto consent refusal, the provider form refusal and the Google consent refusal
+    name the same page (« (Paramètres → Système) »), never « Réglages → Envoi d’emails », a menu that does not exist,
+    nor « Paramètres » alone. « Test » re-runs the webhook check whenever Qonto answered its call, the link provider
+    still pending or off included (`provider_not_connected`), not only when the whole test is `ok`; a « Test » whose
+    call failed still runs no check (rule 15). So once the address is set, « Test » clears « Adresse publique
+    manquante » and the badge moves to the provider form's advice. *Why:* the advice sent the operator to the e-mail
+    page, which does not hold the field; and with the provider not enabled yet (KYC pending) the « Test » it named
+    could not clear it, only the next 8-hour pass did. Tests: `plugins/online-payment/tests/qonto-advice-reachable.unit.test.js`,
+    `plugins/google-calendar/tests/public-url-advice.unit.test.js`. online-payment 1.5.6, google-calendar 1.2.9.
+    *Reading of 2026-11-06 (audit R25 verification N3, N4):* « Qonto answered » is read from the test's own outcome
+    (`ok` or `provider_not_connected`), never from the page: a « Test » whose call failed without recording anything (a
+    refresh overtaken by a new consent, qonto-settings-in-app rule 19) leaves the webhook-register failure standing,
+    unchanged, and runs no check. The « Connexion » refusal without credentials reads « Identifiants Qonto manquants (page
+    Paiements en ligne). », the title of the page that holds the fields in GuestFlow (Paramètres) and in the console
+    (Réglages) alike; « Réglages › Paiements » named no GuestFlow menu. Same test file.
 
 **Edge cases:**
 
@@ -302,6 +339,7 @@ Neat card and one field from the SMTP card shortens both on mobile.
   - a test that fails after a successful exchange keeps the tokens and still redirects to `connected`
   - the webhook check runs after the test and its failure changes neither
 - [x] `plugins/online-payment/tests/qonto-consent-resubscribes.unit.test.js` — rules 8, 10 (readings of 2026-11-05)
+- [x] `plugins/online-payment/tests/qonto-webhook-failure-stays.unit.test.js` — rule 15 (audit R24 E24-2)
   - switch then consent: one create on the new account, then free; same account: adopted, no create
   - a list refused at the consent leaves the record empty and the next check heals it; a refused consent keeps it
   - two checks at once share one list and one create; a check in flight cannot write over a fresh consent
@@ -329,6 +367,14 @@ Neat card and one field from the SMTP card shortens both on mobile.
 - [x] `pages/__tests__/SettingsPage.neat-save.test.jsx` — rules 1, 4
   - the bar's Save is enabled by a change made inside the Neat card, and pressing it saves that card
   - leaving the page with only a Neat change still raises the confirmation dialog
+
+- [x] `plugins/online-payment/tests/qonto-advice-reachable.unit.test.js` — rule 16 (audit R25, 5)
+  - the `public_url_missing` action names Paramètres → Système and « Test »; no Qonto message names
+    « Envoi d’emails » or « Paramètres » alone; the check's stored failure names the page
+  - provider pending: « Test » runs the check once the address is set, the badge then reads `provider_not_connected`
+  - a « Test » whose Qonto call failed runs no check
+- [x] `plugins/google-calendar/tests/public-url-advice.unit.test.js` — rule 16 (1): the Google consent refused for a
+  missing public address names Paramètres → Système
 
 > Green on 2026-09-16: **4 121 server tests** (+21), **1 269 client tests** (+20), **68 Playwright
 > E2E specs**, and 14/14 rules cited by a test (`scripts/check-spec-coverage.mjs`).

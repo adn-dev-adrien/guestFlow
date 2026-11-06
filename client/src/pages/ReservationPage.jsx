@@ -140,6 +140,8 @@ function parseCustomPrice(value) {
 
 // specs/payment-link-lifecycle.md rule 46 (audit R12-C1) — the devis is built from the stored stay, not the typed values.
 const CONVERT_TO_DEVIS_DIRTY_REASON = "Enregistrer d'abord les modifications.";
+// The clean baseline of a prefilled devis: no form snapshot equals it (rule 51).
+const PREFILLED_DEVIS_BASELINE = 'prefilled-devis';
 const NO_ARRIVAL_LINES = {};
 const NO_FROZEN_CUSTOM_IDS = [];
 
@@ -564,11 +566,13 @@ export default function ReservationPage() {
   // A cancelled stay and a duplicate set aside are history: the fiche only shows them (the server answers 409).
   const isClosedFiche = isCancelledReservation || isSupersededReservation;
   // `typedAtParty` / `typedAtNights` only say what a number was typed against during this edit: they
-  // are not a change of their own (specs/non-card-option-served-persons.md rule 23).
+  // are not a change of their own (specs/non-card-option-served-persons.md rule 23). A client typed for a stay not
+  // saved yet lives outside the form and is an edit too (specs/ui-review-2026-10-19-operations.md rule 40, R24-1).
   const formSnapshot = useMemo(() => JSON.stringify({
     selectedProp: selectedProp ? Number(selectedProp) : null,
     form: { ...form, selectedOptions: withoutTypedAtTags(form.selectedOptions) },
-  }), [selectedProp, form]);
+    pendingClient,
+  }), [selectedProp, form, pendingClient]);
   // specs/tourist-tax-matches-the-office-calculation.md rules 10-12 — the freeze is the SERVER's
   // decision (has the instalment carrying the tax been collected? has the line been declared?), so the
   // page no longer derives it from the dates. It only ever asks for the opposite, through
@@ -678,7 +682,9 @@ export default function ReservationPage() {
   if (baselineFollowsForm) cleanBaseline = formSnapshot;
   else if (cleanBaseline === null && !loading) {
     const isExistingRecord = Boolean(editingReservationId || editingDevisId);
-    cleanBaseline = loadedSnapshot !== null ? loadedSnapshot : formSnapshot;
+    // Rule 51 (R25-C2) — a devis prefilled by « Créer un devis » holds a draft saved nowhere: an edit until its first save.
+    if (prefillDevis) cleanBaseline = PREFILLED_DEVIS_BASELINE;
+    else cleanBaseline = loadedSnapshot !== null ? loadedSnapshot : formSnapshot;
     if (isExistingRecord && pricingQuote) {
       try {
         const loaded = JSON.parse(cleanBaseline);
@@ -893,6 +899,7 @@ export default function ReservationPage() {
         // A (re)load takes its clean baseline again, from what it loads (see the baseline effect).
         setInitialSnapshot(null);
         setLoadedSnapshot(null);
+        setPendingClient(null);
         setPricingQuote(null);
         resnapshotAfterQuoteRef.current = null;
         setNotFound(false);
@@ -929,6 +936,7 @@ export default function ReservationPage() {
             selectedResources: prefillDevis.form.selectedResources || [],
           }));
           setOfferedOptionIds(new Set(prefillDevis.offeredOptionIds || []));
+          setPendingClient(prefillDevis.pendingClient || null);
           setLoading(false);
           return;
         }
@@ -2674,10 +2682,15 @@ export default function ReservationPage() {
           return true;
         } else {
           const created = await api.createDevis(devisPayload);
+          // Rule 52 (audit R25 N1, D1) — the prefilled entry carries the draft and its client: Back must not re-open
+          // them, whichever save created the devis, the bar's or « Enregistrer et quitter ».
+          if (created?.id && prefillDevis && safeAfterSaveAction) {
+            navigate(`/reservations/new?mode=devis&devisId=${created.id}`, { replace: true });
+          }
           if (safeAfterSaveAction) {
             safeAfterSaveAction();
           } else if (created?.id) {
-            navigate(`/reservations/new?mode=devis&devisId=${created.id}`);
+            navigate(`/reservations/new?mode=devis&devisId=${created.id}`, { replace: Boolean(prefillDevis) });
           } else {
             navigate('/devis');
           }
@@ -3305,6 +3318,8 @@ export default function ReservationPage() {
           propertyId: Number(selectedProp || form.propertyId || 0) || null,
           form,
           offeredOptionIds: Array.from(offeredOptionIds || []),
+          // Rule 50 (R25-C1) — the client typed for this stay goes with it: nothing was written yet.
+          pendingClient,
         },
       },
     });

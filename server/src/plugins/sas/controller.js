@@ -31,6 +31,9 @@ const { parseGroup } = sdk.coreModule('arrivalPaymentGroup');
 const { CATERING_CATEGORY } = sdk.coreModule('optionCategoriesMigration');
 const { isReceptionOnly } = sdk.coreModule('roles');
 const { sasLockReason } = sdk.coreModule('sasEditWindow');
+// Exported by the core since the round-23 audit; an older core has none and the SAS commits as before (online-payment does the same).
+const { takeBackRefusal } = sdk.coreModule('reservationPaymentMark');
+const refusalToTakeBack = (id, flags) => (typeof takeBackRefusal === 'function' && flags.length > 0 ? takeBackRefusal(id, { flags }) : null);
 const { stayDueAtArrival, bucketStates } = sdk.coreModule('reservationSettlement');
 const { isUnifiable, totalDiffered, round2 } = sdk.coreModule('arrivalSasPlan');
 const { formatPlatformName, isDirectChannel, isChoreFreeChannel } = sdk.coreModule('platformNameFormat');
@@ -460,6 +463,40 @@ const closedStayRefusal = (reservation) => CLOSED_STAY_REFUSALS[String(reservati
 const ARRIVAL_TOTAL_HISTORY = { field: 'arrivalRecapTotal', label: 'Total du récapitulatif d’arrivée' };
 const DEPARTURE_TOTAL_HISTORY = { field: 'departureRecapTotal', label: 'Total du récapitulatif de départ' };
 
+// specs/reservation-refunds.md rule 52, reading of 2026-11-05 (audit R24-DB-2) — the marks a re-opened SAS would take off the
+// books: an answer « Pas maintenant » (false) or a move to the caisse interne. The stay buckets follow `resolveStayPayment`: the
+// SAS only undoes or re-stamps what it settled itself (`*PaidAtArrival`), the departure what it settled itself too.
+const leavesTheBooks = (settled, cash) => settled === false || (settled === true && Boolean(cash));
+
+// specs/defer-arrival-complement-to-checkout.md rule 21 (audit R25-A1) — the arrival complement is the SAS's to settle, undo or
+// re-stamp only while it is still due or when THIS SAS settled it (`complementPaidAtArrival`): one paid before check-in (link,
+// fiche, reconciliation) is left as it is, whatever the commit answers. Same reading for the end-of-stay complement at departure
+// (`endOfStayComplementPaidAtDeparture`, recall-unpaid-arrival-complement-at-checkout rules 9bis, 10).
+const arrivalSasOwnsComplement = (row) => Number(row.complementPaid || 0) !== 1 || Number(row.complementPaidAtArrival ?? 1) === 1;
+const departureSasOwnsEndOfStay = (row) => Number(row.endOfStayComplementPaid || 0) !== 1
+  || Number(row.endOfStayComplementPaidAtDeparture ?? 1) === 1;
+
+function arrivalTakeBackFlags(row, { stayPaid, stayPaidCash, complementSettled, complementPaidCash }) {
+  const flags = [];
+  if (leavesTheBooks(stayPaid, stayPaidCash)) {
+    if (Number(row.depositPaidAtArrival || 0) === 1) flags.push('depositPaid');
+    if (Number(row.balancePaidAtArrival || 0) === 1) flags.push('balancePaid');
+  }
+  if (leavesTheBooks(complementSettled, complementPaidCash) && arrivalSasOwnsComplement(row)) flags.push('complementPaid');
+  return flags;
+}
+
+function departureTakeBackFlags(row, { complementsSettled, complementsPaidCash }) {
+  return leavesTheBooks(complementsSettled, complementsPaidCash) && departureSasOwnsEndOfStay(row) ? ['endOfStayComplementPaid'] : [];
+}
+
+// specs/reception-role-checkin-only.md rule 16 (audit R25-A2) — reception sees door money only: the refusal names no refund.
+const RECEPTION_REFUND_REFUSAL = 'Un remboursement bloque ce passage : à voir avec l’administrateur.';
+function takeBackAnswer(req, takeBack) {
+  if (!isReceptionOnly(req.user)) return takeBack.body;
+  return { error: RECEPTION_REFUND_REFUSAL, code: takeBack.body.code };
+}
+
 function commitArrival(req, res) {
   const reservation = reservationsModel.getByIdWithDetails(req.params.id);
   if (!reservation) return res.status(404).json({ error: 'RESERVATION_NOT_FOUND', message: 'Réservation introuvable.' });
@@ -532,6 +569,11 @@ function commitArrival(req, res) {
       grouped: undefined,
     };
 
+  const storedRow = reservationsModel.getRow(Number(req.params.id)) || {};
+  const settlement = arrivalSasOwnsComplement(storedRow) ? unified : { ...unified, complementSettled: undefined, complementPaidCash: false };
+  const takeBack = refusalToTakeBack(Number(req.params.id), arrivalTakeBackFlags(storedRow, settlement));
+  if (takeBack) return res.status(takeBack.status).json(takeBackAnswer(req, takeBack));
+
   const beforeSas = snapshotSas(Number(req.params.id));
   const complementAmount = reservationsModel.commitArrivalSas(Number(req.params.id), {
     // Tri-state: undefined (caution step not shown) leaves the marker untouched; the model sets or
@@ -550,15 +592,15 @@ function commitArrival(req, res) {
     departureHandoverNote,
     extinguisherSealOkAtArrival: extinguisherCheckOn() ? extinguisherSealOkAtArrival : undefined,
     // specs/recall-unpaid-arrival-complement-at-checkout.md — explicit « Complément encaissé » confirmation.
-    complementSettled: unified.complementSettled,
-    complementPaidCash: unified.complementPaidCash,
+    complementSettled: settlement.complementSettled,
+    complementPaidCash: settlement.complementPaidCash,
     // specs/collect-stay-payment-at-check-in.md §3.3 — the séjour settled at the door. Same tri-state
     // contract: undefined = the step never ran → the acompte / solde are left untouched.
-    stayPaid: unified.stayPaid,
-    stayPaidCash: unified.stayPaidCash,
+    stayPaid: settlement.stayPaid,
+    stayPaidCash: settlement.stayPaidCash,
     // specs/single-payment-at-check-in.md §3.2 — record the collection as ONE payment. The model
     // decides what the group may claim, from the buckets it really settled.
-    groupArrivalPayment: unified.grouped,
+    groupArrivalPayment: settlement.grouped,
     pluginWrites: draft.plugins.writes,
   });
   recordSasHistory(Number(req.params.id), 'sas_arrival', beforeSas);
@@ -647,6 +689,8 @@ function commitDeparture(req, res) {
     cautionReturned, complementsSettled, complementsPaidCash, displayedDepartureTotal,
   } = draft.body;
   const id = Number(req.params.id);
+  const takeBack = refusalToTakeBack(id, departureTakeBackFlags(reservationsModel.getRow(id) || {}, { complementsSettled, complementsPaidCash }));
+  if (takeBack) return res.status(takeBack.status).json(takeBackAnswer(req, takeBack));
   // Rule 25 — the recap the response carries is the plan this commit executes.
   const plan = reservationsModel.planDepartureSas(id, draft.input);
   const recap = departureRecapFor(reservation, plan);

@@ -139,6 +139,16 @@ being on the preload's lists fails the run once the suite executes the read (rul
    `devis-price-lock`, `devis-pdf-quote-parity` and `payment-link-quote-parity` (`2030-07-10`) now use `FAR_YEAR`. The rule 6
    test reads whichever of its files the tree ships, so a removed plugin takes its tests with it
    ([plugin-removal-resilience.md](plugin-removal-resilience.md) rule 19).
+   **Reading of 2026-11-05 (audit R24-S2).** A date built from today can still hang on the day of the month. Two tax
+   suites did: `platform-added-guests-tourist-tax-books` placed its stay on days 1 to 3 of the current month, which D16
+   (« declarable once the stay is over ») refused to tick on the 1st, 2nd and 3rd; `platform-added-guests-stamp-grown`
+   placed its stays 30 + 7n days out and read the page of their end month, empty when a stay ended on the 1st. The first
+   now lives in the previous month (its own row collected today is read on today's month, rule 12 of
+   platform-added-guests-tourist-tax), the second from the 5th of the month after next, 3 days apart, all its nights in
+   one month. Proof, no guard added: with a clock coherent across `Date` and SQLite, both files are green on the 1st, the
+   3rd, the 9th and the last day of 2026-11, 2026-12, 2027-01, 2027-02, 2027-03, 2027-10 and 2028-02, at 09:00Z and
+   22:30Z (56 runs), and on 62 consecutive days from 2026-11-05; red before on 2026-11-09 (1), 2026-12-01 and 2026-12-03
+   (5). The 274 server files that read the tourist tax are green on the same 56 runs.
 
 7. **A PR adding a literal date to a test is told so, on the line** (added 2026-10-30, audit R8 M-1, the guard
    audit R7 proposed). `scripts/check-test-dates.mjs --base <ref>` reads only the test lines a PR adds (files of
