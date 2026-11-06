@@ -3,11 +3,18 @@
 import React from 'react';
 import { vi } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
-import { BrowserRouter, Link, Route, Routes } from 'react-router';
+import { BrowserRouter, Link, Route, Routes, useNavigate } from 'react-router';
 import { ThemeProvider } from '@mui/material/styles';
 import theme from '../../theme';
 import installBackGuard from '../../utils/backGuard';
 import { addIsoDays, localIsoToday } from '../../utils/isoDay';
+import { navigateThroughGuard } from '../../utils/guardedNavigation';
+
+// A sidebar link: it leaves through the unsaved-changes guard.
+function SideLink() {
+  const navigate = useNavigate();
+  return <button type="button" onClick={() => navigateThroughGuard(navigate, '/devis')}>side-devis</button>;
+}
 
 vi.setConfig({ testTimeout: 30000 });
 
@@ -59,6 +66,7 @@ async function openStayFiche() {
     <BrowserRouter>
       <ThemeProvider theme={theme}>
         <Link to={`/reservations/new?propertyId=1&startDate=${dayIn(60)}&endDate=${dayIn(63)}`}>séjour</Link>
+        <SideLink />
         <Routes>
           <Route path="/prev" element={<p>page précédente</p>} />
           <Route path="/reservations/new" element={<ReservationPage />} />
@@ -156,5 +164,26 @@ test('R25 N1 (rule 52) — after the first save, Back lands on the stay fiche, b
   await new Promise((resolve) => { setTimeout(resolve, 300); });
   expect(screen.queryByText(/Testeur/)).not.toBeInTheDocument();
   expect(screen.queryByText('Modifications non enregistrées')).not.toBeInTheDocument();
+  expect(api.createDevis).toHaveBeenCalledTimes(1);
+});
+
+test('R25 D1 (rule 52) — « Enregistrer et quitter » on the prefilled devis: Back opens the saved devis, never the draft again', async () => {
+  await openStayFiche();
+  await typeClient();
+  await createDevis();
+  api.createDevis.mockResolvedValue({ id: 77 });
+  api.getDevisById.mockResolvedValue({ id: 77, status: 'draft', propertyId: 1, startDate: dayIn(60), endDate: dayIn(63), adults: 2, notes: '' });
+  fireEvent.click(screen.getByText('side-devis'));
+  fireEvent.click(await screen.findByRole('button', { name: 'Enregistrer et quitter' }));
+  await waitFor(() => expect(window.location.pathname).toBe('/devis'));
+  expect(api.createDevis).toHaveBeenCalledTimes(1);
+  delete window.__guestflowBeforeBack;
+  window.history.back();
+  await waitFor(() => expect(window.location.search).toBe('?mode=devis&devisId=77'));
+  await screen.findByLabelText(/^Notes/i);
+  await new Promise((resolve) => { setTimeout(resolve, 300); });
+  expect(screen.queryByText(/Testeur/)).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Enregistrer le devis' }));
+  await new Promise((resolve) => { setTimeout(resolve, 300); });
   expect(api.createDevis).toHaveBeenCalledTimes(1);
 });

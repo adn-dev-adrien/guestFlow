@@ -243,3 +243,21 @@ test('R25 N1 (specs/options-resources-ux.md rule 34): a price type sent without 
   const sentBack = await app.call(admin, 'PUT', `/api/options/${scoped.json.id}`, { title: 'Ménage', priceType: 'percent_of_stay', price: 10, propertyPrices: { [property]: 20 } });
   assert.equal(sentBack.status, 200, sentBack.text);
 });
+
+test('R25 N1 (specs/options-resources-ux.md rule 34): a stored price of a logement outside the option is not judged on a type change', async () => {
+  const other = await app.call(admin, 'POST', '/api/properties', { name: 'Grange', maxGuests: 2, maxBabies: 1, doubleBeds: 1, singleBeds: 0, pricePerNight: 80 });
+  assert.equal(other.status, 200, other.text);
+  const created = await app.call(admin, 'POST', '/api/options', {
+    title: 'Bois', description: '', priceType: 'per_stay', price: 10, propertyIds: [property, other.json.id],
+    propertyPrices: { [property]: 20, [other.json.id]: 140 },
+  });
+  assert.equal(created.status, 200, created.text);
+  const id = created.json.id;
+  const narrowed = await app.call(admin, 'PUT', `/api/options/${id}`, { title: 'Bois', propertyIds: [property] });
+  assert.equal(narrowed.status, 200, narrowed.text);
+  const orphan = app.readDb('SELECT price FROM property_option_prices WHERE optionId = ? AND propertyId = ?', id, other.json.id);
+  assert.deepEqual(orphan, [{ price: 140 }], 'the dropped logement keeps its stored row');
+  const typed = await app.call(admin, 'PUT', `/api/options/${id}`, { title: 'Bois', priceType: 'percent_of_stay' });
+  assert.equal(typed.status, 200, typed.text);
+  assert.equal(app.readDb('SELECT priceType FROM options WHERE id = ?', id)[0].priceType, 'percent_of_stay');
+});

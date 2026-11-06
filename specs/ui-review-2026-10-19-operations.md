@@ -413,8 +413,9 @@ guessing; and the quote the guest receives looks like the house that sends it.
     `ReservationPage.create-devis-carries`.
 52. **The first save of a prefilled devis replaces its history entry (audit R25 verification N1, 2026-11-06).** Saving a
     devis opened by « Créer un devis » moves to the saved devis in place of the prefilled entry, so Back lands on the
-    stay fiche the devis came from, re-opened blank (rule 40), never on the saved draft shown again as unsaved work. Any
-    other first save of a devis keeps adding its entry, as before. *Why:* that prefilled entry still carried the draft and
+    stay fiche the devis came from, re-opened blank (rule 40), never on the saved draft shown again as unsaved work. This
+    holds for whichever save creates it, the bar's or « Enregistrer et quitter » from the leave dialog (audit R25 D1): the
+    entry is replaced before the pending exit runs, so Back after leaving opens the saved devis. *Why:* that prefilled entry still carried the draft and
     its client: Back showed them with Enregistrer lit and one tap wrote a second devis and a second client. Test:
     `ReservationPage.create-devis-carries`.
 

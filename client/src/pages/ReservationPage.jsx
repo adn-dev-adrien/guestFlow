@@ -2682,10 +2682,14 @@ export default function ReservationPage() {
           return true;
         } else {
           const created = await api.createDevis(devisPayload);
+          // Rule 52 (audit R25 N1, D1) — the prefilled entry carries the draft and its client: Back must not re-open
+          // them, whichever save created the devis, the bar's or « Enregistrer et quitter ».
+          if (created?.id && prefillDevis && safeAfterSaveAction) {
+            navigate(`/reservations/new?mode=devis&devisId=${created.id}`, { replace: true });
+          }
           if (safeAfterSaveAction) {
             safeAfterSaveAction();
           } else if (created?.id) {
-            // Rule 52 (audit R25 N1) — the prefilled entry carries the draft and its client: Back must not re-open them.
             navigate(`/reservations/new?mode=devis&devisId=${created.id}`, { replace: Boolean(prefillDevis) });
           } else {
             navigate('/devis');
