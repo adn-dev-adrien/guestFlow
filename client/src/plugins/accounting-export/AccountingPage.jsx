@@ -181,7 +181,8 @@ export default function AccountingPage() {
               { value: 'synthese', label: TABS.synthese },
               { value: 'encaissements', label: TABS.encaissements, count: synthesis ? synthesis.counts.payments : undefined },
               // D-HC13 (rule 43) — the badge counts the entries of the month this tab shows.
-              { value: 'ecritures', label: TABS.ecritures, count: sales ? sales.totals.entriesCount : undefined },
+              // Rule 52 (V2-9) — no count while its month loads or after it failed: never the previous month's.
+              { value: 'ecritures', label: TABS.ecritures, count: sales && !salesLoading && !loadError ? sales.totals.entriesCount : undefined },
             ]}
           />
         )}

@@ -18,7 +18,7 @@ import {
   SelectableTile, NoComparisonNotice, Panel, TrendChart, formatCurrency, formatCurrencyRounded, displayDate,
 } from '../sdk';
 import {
-  KPI, SOURCE_CAPTIONS, CHECKS, VAT_PANEL, payments as paymentsLabel, stays as staysLabel, entries as entriesLabel, axisEuro,
+  NO_COLLECTION, KPI, SOURCE_CAPTIONS, CHECKS, VAT_PANEL, payments as paymentsLabel, stays as staysLabel, entries as entriesLabel, axisEuro,
 } from './synthesisCopy';
 
 const rate = (r) => `${String(r).replace('.', ',')} %`;
@@ -245,7 +245,15 @@ function CumulativePanel({ data }) {
   if (previousAvailable) series.push({ key: 'previous', name: 'N-1', values: buckets.map((b) => b.previousCumulative), dashed: true });
   return (
     <Panel label="Encaissements cumulés">
-      <TrendChart categories={categories} series={series} formatValue={formatCurrencyRounded} formatAxis={axisEuro} ariaLabel={`Encaissements cumulés, ${data.window.label}`} height={200} />
+      <TrendChart
+        categories={categories}
+        series={series}
+        formatValue={formatCurrencyRounded}
+        formatAxis={axisEuro}
+        ariaLabel={`Encaissements cumulés, ${data.window.label}`}
+        height={200}
+        emptyText={data.collections.series.empty ? NO_COLLECTION : undefined}
+      />
       <Source source={data.collections.source} sx={{ mt: 1 }} />
     </Panel>
   );

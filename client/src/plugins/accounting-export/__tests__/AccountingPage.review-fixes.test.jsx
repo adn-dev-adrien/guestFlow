@@ -1,4 +1,4 @@
-// specs/accounting-synthesis.md §3 rules 41 and 43 — review of 2026-11-06: the « Écritures » badge counts the
+// specs/accounting-synthesis.md §3 rules 41, 43 and 52 — review of 2026-11-06: the « Écritures » badge counts the
 // entries of the month that tab shows (D-HC13, R2-8, R5-06); a period refused on the first load leaves a way back
 // to the current month, and pressing the shown kind again loads its default (R2-5).
 import React from 'react';
@@ -68,4 +68,19 @@ test('rule 41 — pressing the kind already shown loads its default instead of d
   await screen.findByText('Période inconnue.');
   await userEvent.click(screen.getByRole('button', { name: 'Mois' }));
   await waitFor(() => expect(api.getAccountingSynthesis).toHaveBeenLastCalledWith(expect.objectContaining({ period: 'month', month: '' })));
+});
+
+test('rule 52 (V2-9) — no « Écritures » count while its month loads, nor after it failed', async () => {
+  api.getAccountingSynthesis.mockResolvedValue(synthesisPayload());
+  api.getAccountingSales.mockReturnValue(new Promise(() => {}));
+  const { unmount } = renderPage('/comptabilite?month=8&year=2099');
+  const tab = () => within(screen.getByRole('tablist', { name: 'Vues de la comptabilité' })).getByRole('tab', { name: /^Écritures/ });
+  await waitFor(() => expect(screen.getByRole('tab', { name: /Encaissements 96/ })).toBeInTheDocument());
+  expect(tab()).toHaveTextContent(/^Écritures$/);
+  unmount();
+  api.getAccountingSales.mockReset();
+  api.getAccountingSales.mockRejectedValue(new Error('boom'));
+  renderPage('/comptabilite?month=8&year=2099');
+  await screen.findByText("Impossible de charger l'aperçu comptable.");
+  expect(tab()).toHaveTextContent(/^Écritures$/);
 });

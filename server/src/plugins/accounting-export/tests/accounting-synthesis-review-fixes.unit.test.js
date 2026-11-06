@@ -121,7 +121,7 @@ const quarterOf = (iso) => `${iso.slice(0, 4)}-Q${Math.floor((Number(iso.slice(5
 
 test('rule 39 (R2-4) — a window after the server\'s month has nothing to declare yet; a straddling one says up to when', () => {
   const ahead = synthesis({ period: 'month', month: nextMonthStart.slice(0, 7) }).body.kpis.touristTax;
-  assert.deepEqual([ahead.amount, ahead.stays, ahead.reason], [null, null, 'Rien à déclarer avant le mois en cours.']);
+  assert.deepEqual([ahead.amount, ahead.stays, ahead.reason], [null, null, 'Mois à venir : rien à déclarer.']);
   assert.equal(ahead.yoy, null);
   const now = synthesis({ period: 'quarter', quarter: quarterOf(TODAY) }).body.kpis.touristTax;
   const lastMonthOfQuarter = Number(quarterOf(TODAY).slice(6)) * 3;

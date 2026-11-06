@@ -61,7 +61,7 @@ add up — before the CSV goes to the accountant.
    (`vatRegimeModel.inForceBlock`, `not_subject`) and the window collected no VAT, the tile carries
    `notSubject: { regime, mention, label }` (« Franchise en base de TVA » for art. 293 B, « Exonération de TVA » for
    art. 261 D 4°) and no amount; VAT collected in the window before a switch is still due, so it is then shown.
-   *Reading of 2026-11-06 (D-HC13): « the regime in force » is the one in force DURING the window — rule 35.*
+   *Superseded by rule 35 (2026-11-06) for the mention: the regimes in force DURING the window, not `inForceBlock`.*
 6. **VAT by revenue account.** The VAT return lists, by rate, the base (revenue lines, credit − debit) and the VAT,
    and, by revenue account of the plan (`70xxx`, the indemnity account, the rebate account, the tip account at 0 %),
    the base and the VAT: the VAT of one entry at one rate is shared over that entry's revenue lines at that rate in
@@ -76,6 +76,8 @@ add up — before the CSV goes to the accountant.
    that remits it to the commune itself is out, one that reverses it to us is in, read from the platform's mode
    (never its name). The extraction is monthly, so a window that is not made of whole months has no figure: `amount`
    null and the reason « La taxe de séjour se déclare par mois entiers. ».
+   *Superseded in part by rule 39 (2026-11-06): a window ahead has no figure, a straddling one says up to when, one read
+   per span.*
 9. **Last year.** The comparison is `financeDashboardModel.lastYearRange` — the dashboard's coverage (the month of
    the earliest stay) and pace tracking start (pace ledger of cancelled iCal stays included), the months already
    over only while last year's snapshot is unknown (D-HC7). Every pill compares the comparable part of the window,
@@ -105,7 +107,8 @@ add up — before the CSV goes to the accountant.
     entries — the cumulated-rounding drift HIPPOCAMP warns about on prorated collections cannot appear as a gap. A
     gap of a cent remains possible and is reported: an entry booked before the TTC split (export rule 33), or a
     residue the export absorbed on the VAT line. There is no tolerance beyond the cent: a cent is shown, the operator
-    judges. *Status and colour: rule 38 (D-HC12).*
+    judges. *Superseded by rule 38 (2026-11-06) for the status, the colour and what `gap` and `entries` hold: a cent per
+    entry is grey rounding (`roundingEntries`, `roundingCents`), `gap` and `entries` are the gaps beyond it.*
 13. **Payment means, as the data records them.** `platform` « Versements plateforme »: the acompte or solde of an
     OTA sale (`isDirectChannel` false — read from the platform's « Compté comme vente directe », never a name), a
     platform penalty, an indemnity a platform wired; `paymentLink` « Lien de paiement »: an entry a paid link of the
@@ -132,7 +135,8 @@ add up — before the CSV goes to the accountant.
 16. **Last CSV export.** Each successful download of the month's CSV stamps `{ at: 'YYYY-MM-DDTHH:MM' (server local
     time), month: 'YYYY-MM' }` in the plugin's settings store (key `lastCsvExport`, never declared: no settings page
     shows or writes it, it is erased with the plugin's configuration); the checks strip reads it, null before the
-    first download or when unreadable. A refused download stamps nothing. *Only a same-origin download: rule 40.*
+    first download or when unreadable. A refused download stamps nothing. *Superseded by rules 40 and 48 (2026-11-06) for
+    which downloads stamp.*
 17. **Finished stays settled.** The stays of the window (rule 7) whose end date is before the server's day and that
     are not settled (`isSettled`) are listed with their `remainingToPay` (`reservationSettlement`), `status`
     `'ok' | 'gap'` and their count.
@@ -157,7 +161,8 @@ add up — before the CSV goes to the accountant.
     was, with its own month and its CSV download — the CSV action is offered on that tab only, where its month is
     chosen. One URL holds the three: `tab`, the journal's `month`/`year`, the synthesis's `p`/`sm`/`sq`/`sfy`/`sfrom`/
     `sto`; a change keeps the others. A link with `month` and `year` and no `tab` (the way back from a fiche, every
-    journal link before this spec) opens « Écritures ». *The « Écritures » count: rule 43.*
+    journal link before this spec) opens « Écritures ». *Superseded by rule 43 (2026-11-06) for the « Écritures » count
+    (no longer `counts.entries`), and by rule 52 while its month loads.*
 24. **The period bar.** Mois · Trimestre · Exercice · Personnalisée, then the month, quarter or exercise among the
     server's options; the shown choice is the payload's `window`. A custom du / au is judged as the server judges it
     (`customWindowError`, from the server's day): refused here with the same message, nothing sent. A period the
@@ -223,12 +228,15 @@ add up — before the CSV goes to the accountant.
     séjours · jusqu'à novembre 2026 »). The sum reads the shared extraction rows (`financeModel.getTouristTaxRows`,
     the very rows each monthly extraction sums) once per span — the window, its comparable part, last year — never
     month by month; whatever the extraction leaves out (D-HC10: a stay whose tax is frozen at 0 €) is left out here.
+    *Superseded by rule 50 (2026-11-06) for the wording of a window ahead.*
 40. **Only the app's own download stamps (R6-5).** The CSV stamps « Dernier export CSV » only when the browser says the
     request comes from the app's own page (`Sec-Fetch-Site: same-origin`); a link opened from another site, a typed
     address, a preview or a probe gets the file and writes nothing.
+    *Superseded in part by rule 48 (2026-11-06): the app's own download header stamps too.*
 41. **A refused first load is never a dead end (R2-5).** When the period of the URL is refused before any figure is
     shown, « Revenir au mois en cours » clears it; pressing the kind already shown (« Mois ») loads that kind's
     default instead of doing nothing.
+    *Superseded in part by rule 49 (2026-11-06): with a period shown, pressing its kind again changes nothing.*
 42. **Unreadable share, empty breakdown (R2-6).** A share the server sends as null prints « — »; a breakdown with no
     row says « Aucun encaissement sur la période. » instead of a lone total.
 43. **The « Écritures » count (D-HC13, R2-8, R5-06).** The « Écritures » badge counts the entries of the month that tab
@@ -244,6 +252,24 @@ add up — before the CSV goes to the accountant.
     load (412,8 kB gzip against a 313,3 kB budget; 298,1 kB after).
     > **Sans test** — a bundle-size property: `scripts/check-bundle-budget.mjs` is the gate; the chart tests of this
     > spec wait for the chart to arrive.
+
+46. **Axis labels say their value (V2-1).** The euro axes of the two charts print « 1,5 k€ », « 2 k€ », « 500 € »,
+    « 0,5 € »: one decimal in k€ when needed, never rounded to the unit, so no two ticks read the same.
+47. **An empty window is said, not drawn (V2-2, V5-2).** `collections.series.empty` is true when the window collected
+    nothing; « Encaissements cumulés » and the per-period chart then show « Aucun encaissement sur la période. » instead
+    of an axis on « 0 € / 1 € ».
+48. **The app's download stamps on any connection (V2-3).** Besides `Sec-Fetch-Site: same-origin`, a download carrying
+    the header the app's own button sends (`X-GuestFlow-Download: 1`) stamps « Dernier export CSV » — plain HTTP and
+    older Safari send no Fetch Metadata. A request the browser marks as from another site never stamps, header or not
+    (and a page of another site cannot add the header: the CORS allowlist refuses it).
+49. **A stray tap keeps the period (V2-4).** With a period shown, pressing its kind again changes nothing; only on a
+    refused first load (no window) does it load that kind's default (rule 41).
+50. **Wording of a window ahead (V2-5).** The tourist-tax reason for a window that starts after the server's month is
+    « Mois à venir : rien à déclarer. ».
+51. **« Autres » says what it holds (V2-6).** The folded row carries its `parts`: its segment's text and a line under
+    the table read « Autres : Pourboires, Indemnités d'annulation ».
+52. **No stale « Écritures » count (V2-9).** While the journal's month loads, or after its load failed, the badge shows
+    no count — never the previous month's.
 
 **Edge cases:**
 - A window with no entry → zeros, empty breakdowns (no share), a flat series, checks `ok`.
@@ -415,7 +441,7 @@ The design reference `#synthese` (approved 2026-11-05), in MUI and the « Maison
 
 ## 7. Test plan
 
-### Server unit tests (59 tests in 8 new files, all in `server/src/plugins/accounting-export/tests/`)
+### Server unit tests (63 tests in 9 new files, all in `server/src/plugins/accounting-export/tests/`)
 - [x] `accounting-synthesis-period.unit.test.js` (9) — rules 1, 2, 8, 15: periods, refusals, granularity, buckets.
 - [x] `accounting-synthesis-engine.unit.test.js` (10) — rules 4, 5, 6, 10–15, 21: VAT return, checks, payments, shares, series.
 - [x] `accounting-synthesis-csv-one-source.unit.test.js` (4) — rules 3, 5, 6: CSV byte-identical (golden file, two plans), rows = ventilation lines, VAT = the CSV's VAT accounts.
@@ -423,11 +449,16 @@ The design reference `#synthese` (approved 2026-11-05), in MUI and the « Maison
 - [x] `accounting-synthesis-payload.unit.test.js` (8) — rules 5, 8, 9, 19, 21 on a model double.
 - [x] `accounting-synthesis-last-export.unit.test.js` (3) — rule 16.
 - [x] `accounting-synthesis-ui-payload.unit.test.js` (6) — rules 14, 16, 22, 25: periods offered (only accepted ones, an exercise far ahead bounded), main VAT rate, export month in words, share ratio.
+- [x] `accounting-synthesis-review-fixes-2.unit.test.js` (4) — rules 47, 48, 50 and D-HC16 (verification of 2026-11-06).
 - [x] `accounting-synthesis-review-fixes.unit.test.js` (10) — rules 3, 10, 22, 35–40: requalified money is no collection (direct, real schema; platform pair), CSV unchanged by the compensation's origin, same-origin stamp, fy 9999 at once, tax ahead / straddling = monthly extractions, regimes during the window, shared-account label, « Autres », rounding vs gap.
 - The books suite also proves the dashboard and the synthesis say the same comparison sentence for the same window (rule 9).
 
-### Client unit tests (Vitest — 35 tests in 10 new files)
-- [x] `client/src/__tests__/api.accounting-synthesis.test.js` (1) — the query sent.
+### Client unit tests (Vitest — 43 tests in 13 new files)
+- [x] `client/src/__tests__/api.accounting-synthesis.test.js` (2) — the query sent; the download header (rule 48).
+- [x] `plugins/accounting-export/__tests__/synthesisCopy.axis.test.js` (2) — rule 46.
+- [x] `plugins/accounting-export/__tests__/AccountingSynthesisTab.review-fixes-2.test.jsx` (1) — rule 47.
+- [x] `plugins/accounting-export/__tests__/AccountingCollectionsTab.review-fixes-2.test.jsx` (2) — rules 47, 51.
+- `SynthesisPeriodBar.periods` +1 (rule 49), `AccountingPage.review-fixes` +1 (rule 52).
 - [x] `plugins/accounting-export/__tests__/AccountingPage.synthesis-tabs.test.jsx` (5) — rules 23, 24, 34.
 - [x] `plugins/accounting-export/__tests__/AccountingSynthesisTab.kpis.test.jsx` (6) — rules 25, 26, 30.
 - [x] `plugins/accounting-export/__tests__/AccountingSynthesisTab.checks.test.jsx` (4) — rules 27, 34.
@@ -484,3 +515,4 @@ The design reference `#synthese` (approved 2026-11-05), in MUI and the « Maison
   share `ratio`; the UI (rules 22–34); 48 server tests, 24 client tests.
 - 2026-11-06 — review fixes (R2-1…R2-12, R5-04, R5-06, R6-2, R6-5, R6-11, D-HC10/12/13): rules 35–44; 59 server
   tests, 35 client tests.
+- 2026-11-06 — verification fixes (V2-1…V2-9, V5-1, V5-2, D-HC16): rules 46–52; 63 server tests, 43 client tests.

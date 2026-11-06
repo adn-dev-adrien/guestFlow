@@ -39,8 +39,10 @@ export default function SynthesisPeriodBar({ window: win, options, today, onChan
   };
 
   const pick = (picked) => {
-    // An exclusive toggle sends null when the shown kind is pressed again: read it as « that kind, its default »,
-    // so a refused period is always one click from a working one (rule 41).
+    // An exclusive toggle sends null when the shown kind is pressed again. With figures shown that changes nothing
+    // (rule 49, V2-4: a stray tap keeps the chosen period); on a refused first load (no window) it loads that kind's
+    // default, so a refusal is one click from a working period (rule 41).
+    if (!picked && win) return;
     const next = picked || shownKind;
     if (next === 'custom') {
       setCustomOpen(true);

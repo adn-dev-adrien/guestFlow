@@ -130,6 +130,7 @@
       "La date du dernier export CSV est conservée, quand le fichier est demandé depuis la page.",
       "Une annulation qui garde un acompte déjà encaissé ne compte ni comme encaissement ni comme remboursement.",
       "Un écart de TVA d’un centime par écriture s’affiche comme un écart d’arrondi.",
+      "Une période sans encaissement l’indique au lieu d’afficher des graphiques vides ; la ligne « Autres » dit ce qu’elle regroupe.",
       "Demande le SDK 2.23 de GuestFlow."
     ]
   }

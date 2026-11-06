@@ -643,7 +643,8 @@ const api = {
     return request(`/accounting/synthesis${qs ? `?${qs}` : ''}`);
   },
   downloadAccountingSalesCsv: async (month, year) => {
-    const res = await reach(`/accounting/sales.csv?month=${month}&year=${year}`);
+    // specs/accounting-synthesis.md rule 48 — the app's own download: the server stamps « Dernier export CSV ».
+    const res = await reach(`/accounting/sales.csv?month=${month}&year=${year}`, { headers: { 'X-GuestFlow-Download': '1' } });
     if (!res.ok) throw new Error("Impossible de générer le CSV.");
     return res.blob();
   },

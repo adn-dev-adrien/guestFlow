@@ -21,8 +21,17 @@ const {
 
 const id = PLUGIN_ID;
 
-// The browser's own word on where a request comes from (Fetch Metadata); absent = not proven same-origin.
-const isSameOriginRequest = (req) => Boolean(req && req.headers && req.headers['sec-fetch-site'] === 'same-origin');
+// Rules 40 and 48 — the browser's own word on where a request comes from (Fetch Metadata), or the header the app's
+// own download sends (a page of another site cannot add a custom header to a navigation, and a cross-origin fetch
+// carrying one is refused at its CORS preflight). Plain HTTP and older Safari send no Fetch Metadata: the header
+// stamps there too.
+const DOWNLOAD_HEADER = 'x-guestflow-download';
+const isSameOriginRequest = (req) => {
+  const headers = (req && req.headers) || {};
+  if (headers['sec-fetch-site'] === 'same-origin') return true;
+  const crossSite = headers['sec-fetch-site'] && headers['sec-fetch-site'] !== 'same-origin';
+  return !crossSite && headers[DOWNLOAD_HEADER] === '1';
+};
 const vatRegimeModel = sdk.coreModule('vatRegimeModel');
 
 const hasTable = (db, name) => Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(name));
