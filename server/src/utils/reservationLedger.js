@@ -60,10 +60,18 @@ const LINK_TYPES_BY_ROW = { deposit: ['deposit'], balance: ['balance', 'full'], 
 /**
  * The link shown on a row (rule 28): the open one when there is one, else the latest.
  */
+function basketRefundOwed(link) {
+  if (!link || !link.basketJson) return false;
+  try { return JSON.parse(link.basketJson).refundOwed === true; } catch { return false; }
+}
+
+// specs/guest-app.md rule 35 — a link billing its own basket (a guest order) is no bucket's link.
+const ofRow = (types) => (l) => types.includes(String(l.type)) && !l.basketJson;
+
 function pickLink(links, rowKey) {
   const types = LINK_TYPES_BY_ROW[rowKey];
   if (!types) return null;
-  const mine = (links || []).filter((l) => types.includes(String(l.type)));
+  const mine = (links || []).filter(ofRow(types));
   if (mine.length === 0) return null;
   const byNewest = [...mine].sort((a, b) => Number(b.id || 0) - Number(a.id || 0));
   return byNewest.find((l) => l.status === 'open') || byNewest[0];
@@ -75,7 +83,7 @@ function pickLink(links, rowKey) {
 function otherOpenLinks(links, rowKey, shown) {
   const types = LINK_TYPES_BY_ROW[rowKey] || [];
   return (links || [])
-    .filter((l) => types.includes(String(l.type)) && (l.status === 'open' || unsettledPayment(l)) && (!shown || l.id !== shown.id))
+    .filter((l) => ofRow(types)(l) && (l.status === 'open' || unsettledPayment(l)) && (!shown || l.id !== shown.id))
     .sort((a, b) => Number(b.id || 0) - Number(a.id || 0));
 }
 
@@ -591,6 +599,17 @@ function buildLedger({
       stateLabel: notes.length > 1 ? `${notes.length} notes perçues` : '1 note perçue',
       action: null, amountEdit: { editable: false, mode: 'none', min: null, max: null, reason: null },
       detail: { slot: 'midStayNotes' },
+    });
+  }
+  // specs/guest-app.md rule 36 — a guest order paid by card that could not be honoured (its slot taken meanwhile):
+  // the money is on the link, nothing reached the fiche, the operator refunds it from the provider's space.
+  const owedBaskets = (links || []).filter((l) => l.status === 'paid' && basketRefundOwed(l));
+  if (owedBaskets.length > 0) {
+    rows.push({
+      key: 'basketRefunds', label: owedBaskets.length > 1 ? 'Commandes clients à rembourser' : 'Commande client à rembourser',
+      amount: owedBaskets.reduce((sum, l) => sum + Number(l.amountCents || 0), 0) / 100, state: 'due', tone: 'warning', stateLabel: 'À rembourser',
+      action: null, amountEdit: { editable: false, mode: 'none', min: null, max: null, reason: null },
+      detail: { lines: owedBaskets.map((l) => `${formatEuros(Number(l.amountCents || 0) / 100)} payés${l.paidAt ? ` le ${shortDate(localIsoDate(new Date(Date.parse(l.paidAt))), stayYear)}` : ''} par carte, lien ${l.id}`) },
     });
   }
   if (!deferred && (endOfStayAmount > 0 || endAdjusted)) {

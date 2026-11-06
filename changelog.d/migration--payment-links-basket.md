@@ -1,0 +1,1 @@
+- **`payment_links.basketJson`** (spec `guest-app.md` rule 35, `plugins-phase-1-sdk.md` rule 44). A nullable column naming the basket a `complement` link bills (`{ source, ref }`, a guest order). Additive: every existing link keeps NULL and behaves as before.

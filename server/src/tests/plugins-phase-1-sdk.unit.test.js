@@ -355,9 +355,10 @@ test('rule 8: the jobs keep today’s intervals and boot delays, and skip their 
   // the Google Vacation Rentals full re-send: an hourly tick, first at 150 s (specs/google-vacation-rentals-feed.md rule 13);
   // the purge of untouched website requests: daily, first at 10 min (specs/public-request-abuse-and-grouping.md rule 10);
   // the payment link lifecycle pass: every 15 min, first at 15 min (specs/payment-link-lifecycle.md rule 16);
-  // the purge of expired guest sessions: daily, first at 200 s (specs/guest-app.md §5).
-  assert.deepEqual(intervals.map(([, ms]) => ms).sort((a, b) => a - b), [5 * 60 * 1000, 15 * 60 * 1000, 15 * 60 * 1000, 15 * 60 * 1000, 15 * 60 * 1000, HOUR, HOUR, HOUR, 8 * HOUR, 8 * HOUR, 24 * HOUR, 24 * HOUR, 24 * HOUR]);
-  assert.deepEqual(timeouts.sort((a, b) => a - b), [60 * 1000, 110 * 1000, 120 * 1000, 130 * 1000, 140 * 1000, 150 * 1000, 150 * 1000, 160 * 1000, 180 * 1000, 200 * 1000, 240 * 1000, 600 * 1000, 900 * 1000]);
+  // the purge of expired guest sessions: daily, first at 200 s (specs/guest-app.md §5);
+  // the expiry of unpaid guest orders: every minute, first at 30 s (specs/guest-app.md rule 36).
+  assert.deepEqual(intervals.map(([, ms]) => ms).sort((a, b) => a - b), [60 * 1000, 5 * 60 * 1000, 15 * 60 * 1000, 15 * 60 * 1000, 15 * 60 * 1000, 15 * 60 * 1000, HOUR, HOUR, HOUR, 8 * HOUR, 8 * HOUR, 24 * HOUR, 24 * HOUR, 24 * HOUR]);
+  assert.deepEqual(timeouts.sort((a, b) => a - b), [30 * 1000, 60 * 1000, 110 * 1000, 120 * 1000, 130 * 1000, 140 * 1000, 150 * 1000, 150 * 1000, 160 * 1000, 180 * 1000, 200 * 1000, 240 * 1000, 600 * 1000, 900 * 1000]);
   const ran = [];
   const record = registry.get('school-holidays');
   record.jobs[0].run = () => { ran.push('tick'); };

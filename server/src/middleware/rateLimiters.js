@@ -137,6 +137,21 @@ const guestLookupLimiter = rateLimit({
   message: { error: { code: 'TOO_MANY_REQUESTS', message: 'Trop de tentatives, réessayez plus tard.' } },
 });
 
+/**
+ * - guestOrderLimiter: a guest session's orders (specs/guest-app.md rule 37, default 10 / hour / session). Keyed by
+ *   the session the guest-app middleware resolved before it, so two devices of one family count apart; an order the
+ *   server refused for its input gives its hit back.
+ */
+const guestOrderLimiter = rateLimit({
+  keyGenerator: (req) => (req.guest && req.guest.session ? `guest-session:${req.guest.session.id}` : publicVisitorKey(req)),
+  windowMs: Number(process.env.GUEST_ORDER_RATELIMIT_WINDOW_MS) || ONE_HOUR,
+  max: Number(process.env.GUEST_ORDER_RATELIMIT_MAX) || 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipFailedRequests: true,
+  message: { error: { code: 'TOO_MANY_REQUESTS', message: 'Trop de commandes en une heure, réessayez plus tard.' } },
+});
+
 module.exports = {
   apiLimiter,
   loginLimiter,
@@ -146,4 +161,5 @@ module.exports = {
   paymentStatusLimiter,
   guestSessionLimiter,
   guestLookupLimiter,
+  guestOrderLimiter,
 };

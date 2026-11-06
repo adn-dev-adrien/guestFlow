@@ -326,7 +326,11 @@ function buildShopController({ items, stayLines, orders, serviceHours, scheduler
     });
   }
 
-  return { read, slots, deliverySlots, soldKeysOf };
+  return {
+    read, slots, deliverySlots, soldKeysOf, soldFor, scheduleOf,
+  };
 }
 
-module.exports = { buildShopController };
+module.exports = {
+  LABELS, buildShopController, isStaffItem, morningLabel, priceLabel, shopState,
+};

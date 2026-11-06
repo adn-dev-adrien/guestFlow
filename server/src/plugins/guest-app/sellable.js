@@ -32,6 +32,7 @@ const OTHER_TYPE_REFUSAL = 'Ce type de prix ne se vend pas dans l’application.
 const INSURANCE_REFUSAL = 'L’assurance annulation ne se vend pas dans l’application.';
 const AUTO_TIMED_REFUSAL = 'Une option horaire automatique (arrivée anticipée, départ tardif) ne se vend pas dans l’application.';
 const INTERNAL_REFUSAL = 'Une option interne n’est jamais montrée aux clients.';
+const CARD_REFUSAL = 'Une option du planning se vend par moment, pas à la quantité, dans l’application.';
 
 const SELLABLE = Object.freeze({ ok: true, reason: null });
 const refused = (reason) => ({ ok: false, reason });
@@ -44,6 +45,8 @@ function sellabilityOf(kind, row) {
     if (!isClientVisibleOption(row)) return refused(INTERNAL_REFUSAL);
     // Rule 27bis — the breakfast is sold by the morning whatever its price type: the core prices it.
     if (row.autoOptionType === BREAKFAST) return SELLABLE;
+    // Rule 23 — any other option of the planning is billed by its moments, which an order line does not carry.
+    if (Number(row.showsPlanningCard || 0) === 1) return refused(CARD_REFUSAL);
   }
   if (SELLABLE_TYPES[kind].includes(row.priceType)) return SELLABLE;
   return refused(TYPE_REFUSALS[row.priceType] || OTHER_TYPE_REFUSAL);

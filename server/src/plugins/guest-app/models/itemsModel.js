@@ -15,7 +15,7 @@ const DEFAULTS = Object.freeze({
 });
 
 const CATALOGUE = Object.freeze({
-  option: 'SELECT id, title, priceType, category, archivedAt, autoOptionType, isCancellationInsurance, displayToClient FROM options',
+  option: 'SELECT id, title, priceType, category, archivedAt, autoOptionType, isCancellationInsurance, displayToClient, showsPlanningCard FROM options',
   resource: 'SELECT id, name AS title, priceType FROM resources',
 });
 

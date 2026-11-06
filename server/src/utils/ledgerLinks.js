@@ -51,9 +51,10 @@ function acompteIsLinkMoney(database, link, stay, paidDay) {
 }
 
 /** Rule 29 — the open links whose amount differs from the row's amount in cents. */
+// specs/guest-app.md rule 35 — a link that bills its own basket (a guest order) owes nothing to the row's amounts.
 function staleLinks(openLinks, row) {
   return (openLinks || []).filter((link) => {
-    if (!link || link.status !== 'open') return false;
+    if (!link || link.status !== 'open' || link.basketJson) return false;
     const now = linkAmountCents(link.type, row);
     return now != null && Number(link.amountCents) !== now;
   });

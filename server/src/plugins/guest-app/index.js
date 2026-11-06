@@ -24,6 +24,8 @@ const { buildLodgingsController } = require('./controllers/lodgingsController');
 const { buildStayLinksController } = require('./controllers/stayLinksController');
 const { buildItemsController } = require('./controllers/itemsController');
 const { buildShopController } = require('./controllers/shopController');
+const { buildOrdersController } = require('./controllers/ordersController');
+const { buildOrdersAdminController } = require('./controllers/ordersAdminController');
 const { buildServiceHoursController } = require('./controllers/serviceHoursController');
 const { buildBookletController, buildBookletResolver } = require('./controllers/bookletController');
 const { buildStudioController } = require('./controllers/studioController');
@@ -50,10 +52,15 @@ const coreScheduler = () => sdk.core.resourceScheduler();
 // The booklet photos sit under the instance's uploads, served by `/uploads` (specs/guest-app.md §5).
 const coreUploadsDir = () => sdk.coreModule('instancePaths').uploadsDir();
 
+// Rules 34-35, 44 — the order is written, and paid, on the core's money path; the staff is told by push.
+const corePayments = () => sdk.core.payments;
+const corePush = () => sdk.coreModule('pushService');
+
 function buildGuestApi({
   db, soliomapUrl, now = () => new Date(), limiters, translator = coreTranslator, scheduler = coreScheduler,
-  appName = () => null, guestHost = () => null, uploadsDir = coreUploadsDir,
+  appName = () => null, guestHost = () => null, uploadsDir = coreUploadsDir, maxOrderTotal = () => 500,
   soliomapFeed = createSoliomapFeed({ url: soliomapUrl, now }),
+  commit = sdk.coreModule('guestOrderCommit'), payments = corePayments, push = corePush,
 }) {
   const lodgings = once(() => createLodgingsModel(db()));
   const sessions = once(() => createSessionsModel(db()));
@@ -73,12 +80,15 @@ function buildGuestApi({
     stayLinks, stays, lodgings, guestHost, now,
   });
   const shop = buildShopController({ items, stayLines, orders, serviceHours, scheduler, translator, now });
+  const orderBook = buildOrdersController({
+    db, orders, stays, lodgings, shop, scheduler, serviceHours, commit, payments, push, maxOrderTotal, guestHost, now,
+  });
   const resolver = buildBookletResolver({
     booklet, media, soldKeysOf: shop.soldKeysOf, shownKeys: controller.shownKeys,
   });
   return {
     publicRouter: buildPublicRouter({
-      controller, shop, booklet: buildBookletController({ resolver, guestSession, lodgings }), guestSession, limiters,
+      controller, shop, orders: orderBook, booklet: buildBookletController({ resolver, guestSession, lodgings }), guestSession, limiters,
     }),
     adminRouter: buildAdminRouter({
       lodgings: buildLodgingsController({
@@ -90,6 +100,7 @@ function buildGuestApi({
         booklet, media, lodgings, resolver, uploadsDir, now,
       }),
       stayLinks: links,
+      orders: buildOrdersAdminController({ orders, stays, lodgings, now }),
     }),
     sessions,
     // Rule 9bis — where the stay link is given: the SAS step and the reminder e-mails.
@@ -99,6 +110,9 @@ function buildGuestApi({
     // Rule 35 — the slots the unpaid card orders hold, for every reader of the resource planning.
     heldSessions: (range) => orders().heldSessions({ ...range, now: now() }),
     serviceHoursConfigured: () => serviceHours().isConfigured(),
+    // Rules 35-36 — the order's side of its paid card link, and the expiry of the unpaid ones.
+    orderPaid: orderBook.paid,
+    expireOrders: orderBook.expireDue,
   };
 }
 
@@ -113,9 +127,11 @@ function register(ctx) {
     soliomapUrl: () => ctx.settings.get('soliomapUrl'),
     appName: () => ctx.settings.get('appName'),
     guestHost: () => ctx.settings.get('guestHost'),
+    maxOrderTotal: () => Number(ctx.settings.get('maxOrderTotal')) || 500,
     limiters: {
       session: rateLimiters.guestSessionLimiter,
       lookup: rateLimiters.guestLookupLimiter,
+      order: rateLimiters.guestOrderLimiter,
       read: sdk.middleware.publicApiLimiter,
     },
   });
@@ -125,12 +141,18 @@ function register(ctx) {
     api.serviceHoursConfigured() ? null : 'horaires du service à configurer',
   ].filter(Boolean).join(', ') || null);
   ctx.resourceHolds(api.heldSessions);
+  // Rules 35-36 — a paid card link of an order commits it, or flags its money « à rembourser ».
+  ctx.paymentBasket({ source: 'guestOrder', paid: api.orderPaid });
   ctx.mount('/public/v1/guest', api.publicRouter, { public: true });
   ctx.mount('/api/guest-app', api.adminRouter);
-  // Rule 9bis (a) — the reception runs the arrival SAS, where the stay link is shown and regenerated.
+  // Rule 9bis (a) — the reception runs the arrival SAS, where the stay link is shown and regenerated; rules 43, 45 —
+  // it prepares and delivers the orders.
   ctx.reception([
     { method: 'GET', re: /^\/guest-app\/reservations\/\d+\/stay-link$/ },
     { method: 'POST', re: /^\/guest-app\/reservations\/\d+\/stay-link\/regenerate$/ },
+    { method: 'GET', re: /^\/guest-app\/orders$/ },
+    { method: 'POST', re: /^\/guest-app\/orders\/\d+\/delivered$/ },
+    { method: 'GET', re: /^\/guest-app\/planning\/order-cards$/ },
   ]);
   // Rule 9bis (a) — the SAS « Portail » step becomes « Mon séjour » while this stay has a link to show.
   ctx.sasData((reservationId) => ({ available: api.stayLinkAvailable(reservationId) }));
@@ -143,6 +165,14 @@ function register(ctx) {
       const url = api.stayAppUrl(reservationId);
       return { tokens: { stayAppUrl: url }, flags: { hasStayApp: Boolean(url) } };
     },
+  });
+
+  // Rule 36 — every minute, an order unpaid 30 minutes on expires and its slots go back to the planning.
+  ctx.jobs.every({
+    name: 'order-expiry',
+    intervalMs: 60 * 1000,
+    bootDelayMs: 30 * 1000,
+    run: async () => { api.expireOrders(); },
   });
 
   ctx.jobs.every({

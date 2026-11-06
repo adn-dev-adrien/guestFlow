@@ -19,6 +19,7 @@ const database = lazy('../../database');
 const pricing = lazy('../../utils/pricing');
 const clientValidation = lazy('../../utils/clientValidation');
 const registry = lazy('./registry');
+const basketPayments = lazy('../../utils/basketPayments');
 
 // specs/gites-de-france-mail-intake.md §4.1 — a plugin changes a reservation the way the operator's
 // « Enregistrer » does: the stored state rebuilt as the fiche's PUT body, the patch on top, then the very
@@ -159,4 +160,11 @@ module.exports = Object.freeze({
   }),
   resourceScheduler,
   resourceHolds,
+  // SDK 2.22.0 (specs/guest-app.md rules 33, 35, 36) — the card payment of a plugin's basket (a guest order): a
+  // `complement` link at the basket's exact total, read on demand, withdrawn; its paid effect is `ctx.paymentBasket`'s.
+  payments: Object.freeze({
+    basketLink: (reservationId, basket, options) => basketPayments().basketLink(reservationId, basket, options),
+    refreshBasketLink: (linkId) => basketPayments().refreshBasketLink(linkId),
+    withdrawBasketLink: (linkId) => basketPayments().withdrawBasketLink(linkId),
+  }),
 });

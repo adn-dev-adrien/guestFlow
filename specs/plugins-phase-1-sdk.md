@@ -523,6 +523,24 @@ Optional: a plugin that declares nothing reads « Actif ».
     `coreModule('instancePaths')`.** The iCal import's public-only fetch (`fetchPublic`, `readCapped`,
     `FeedFetchError`) serves the guest app's Soliomap feed; `instancePaths` exposes `uploadsDir` for the studio's
     media. Tests: `guest-app-suggestion`, `guest-app-media`.
+44. *(Added 2026-11-06, specs/guest-app.md rules 24, 30, 33-36, SDK 2.22.0.)* **`ctx.paymentBasket({ source, paid })`,
+    `ctx.core.payments` and `coreModule('guestOrderCommit')`.** A plugin bills its own basket (a guest order) through a
+    `complement` payment link: `ctx.core.payments.basketLink(reservationId, { source, ref, title, lines })` mints it at
+    the lines' exact total, as a VAT basket at the stay's rate, for 30 minutes, never lapsed by the arrival;
+    `refreshBasketLink(linkId)` reads it at the provider on demand and `withdrawBasketLink(linkId)` withdraws it like
+    « Retirer le lien ». The link names its basket in the new `payment_links.basketJson` (`{ source, ref }`), so no
+    reader of the stay's own buckets (stale links, settled links, the ledger's complement row) takes it for the stay's
+    complement. When it is paid, on time or late, `applyPaidEffect` hands it to the live plugin that declared its
+    `source` (one per source): `paid({ reservationId, ref, linkId, amountCents, paidDate, paidAt, providerPaymentId })`
+    runs synchronously and answers `{ effect }`, or `{ refundOwed: true, reason }` — the core then flags the link, writes
+    « Remboursement à faire » in the stay's history and the ledger shows the row « Commande client à rembourser »; with
+    no live owner the payment is `basket-unallocated` and the admin is alerted. `guestOrderCommit` prices an order by the
+    fiche's own save played without writing (`priceOrder`) and writes it as mid-stay extras through `performUpdate`, a
+    card order's money as a settled mid-stay note, in one transaction with the plugin's own step (`commitOrder`).
+    `coreModule('rateLimiters')` gains `guestOrderLimiter` (10 / hour / guest session). A row of
+    `plugin-core-hardening-floor.unit.test.js` makes a plugin calling them floor at `^2.22.0`. Tests:
+    `payment-complement-link.unit.test.js`, `guest-order-commit.unit.test.js`, `guest-app-order-card`,
+    `guest-app-order-note`.
 
 **Edge cases:**
 - **A plugin throws during `register`.** Rule 4 applies: the other plugins and the core boot. The Plugins

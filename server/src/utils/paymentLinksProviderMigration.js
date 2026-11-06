@@ -89,6 +89,9 @@ function migrateLinkLifecycleColumns(db) {
   // Re-review of #912 (R1, R2, n5) — when the withdrawal happened, and why a link was closed without a notice.
   if (!cols.includes('withdrawnAt')) db.exec('ALTER TABLE payment_links ADD COLUMN withdrawnAt TEXT');
   if (!cols.includes('noticeClosedReason')) db.exec('ALTER TABLE payment_links ADD COLUMN noticeClosedReason TEXT');
+  // specs/guest-app.md rule 35 — a `complement` link bills an explicit basket (a guest order), named here as
+  // `{ source, ref }`: no arrival-complement reader takes it for the stay's complement.
+  if (!cols.includes('basketJson')) db.exec('ALTER TABLE payment_links ADD COLUMN basketJson TEXT');
 }
 
 module.exports = { migratePaymentLinksToProviders, syncLegacyQontoColumns, migrateLinkLifecycleColumns };

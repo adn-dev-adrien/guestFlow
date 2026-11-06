@@ -555,6 +555,7 @@
     "apiLimiter",
     "bookingRequestLimiter",
     "guestLookupLimiter",
+    "guestOrderLimiter",
     "guestSessionLimiter",
     "loginLimiter",
     "paymentStartLimiter",
@@ -852,5 +853,10 @@
   ],
   "instancePaths": [
     "uploadsDir"
+  ],
+  "guestOrderCommit": [
+    "commitOrder",
+    "mergeOrderLines",
+    "priceOrder"
   ]
 }

@@ -112,8 +112,11 @@ function isPollDue(link, nowMs, cadence = POLL_CADENCE_DEFAULTS) {
 function buildModel(database) {
   const OWES_LAST_LOOK = "status = 'expired' OR (status = 'cancelled' AND cancelReason = 'dates-taken')";
 
+  // specs/guest-app.md rule 35 — the basket a `complement` link bills (a guest order). A schema without the column
+  // (a unit suite's own table) has no basket link.
+  const HAS_BASKET = database.prepare('PRAGMA table_info(payment_links)').all().some((c) => c.name === 'basketJson');
   const SELECT_COLS = `id, reservationId, type, provider, providerLinkId, url, amountCents, currency,
-    status, providerPaymentId, createdAt, paidAt, expiresAt, lastPolledAt, remoteCancelPendingAt, cancelReason, installmentId`;
+    status, providerPaymentId, createdAt, paidAt, expiresAt, lastPolledAt, remoteCancelPendingAt, cancelReason, installmentId${HAS_BASKET ? ', basketJson' : ''}`;
 
   const insertStmt = database.prepare(`
     INSERT INTO payment_links
@@ -127,6 +130,16 @@ function buildModel(database) {
   }
 
   function create(payload) {
+    const created = insertLink(payload);
+    if (payload.basket != null) {
+      if (!HAS_BASKET) throw new Error('payment_links has no basket column');
+      database.prepare('UPDATE payment_links SET basketJson = ? WHERE id = ?').run(JSON.stringify(payload.basket), created.id);
+      return findById(created.id);
+    }
+    return created;
+  }
+
+  function insertLink(payload) {
     const type = String(payload.type || '');
     if (!VALID_TYPES.has(type)) throw new Error(`Invalid payment link type: ${type}`);
     const status = payload.status ? String(payload.status) : 'open';
@@ -145,6 +158,18 @@ function buildModel(database) {
       installmentId: payload.installmentId == null ? null : Number(payload.installmentId),
     });
     return findById(info.lastInsertRowid);
+  }
+
+  /** The basket a link bills (`{ source, ref }`), or null for a link of the stay's own buckets. */
+  function basketOf(link) {
+    const raw = link && Object.prototype.hasOwnProperty.call(link, 'basketJson') ? link.basketJson : (link && findById(link.id) || {}).basketJson;
+    if (!raw) return null;
+    try {
+      const basket = JSON.parse(raw);
+      return basket && typeof basket === 'object' && typeof basket.source === 'string' ? basket : null;
+    } catch {
+      return null;
+    }
   }
 
   function listOpen() {
@@ -219,7 +244,7 @@ function buildModel(database) {
            (l.type = 'deposit' AND COALESCE(c.depositPaid, r.depositPaid, 0) = 1)
            OR (l.type IN ('balance', 'full') AND COALESCE(c.balancePaid, r.balancePaid, 0) = 1)
            OR (l.type = 'full' AND COALESCE(c.depositPaid, r.depositPaid, 0) = 1 AND COALESCE(c.depositAmount, r.depositAmount, 0) > 0)
-           OR (l.type = 'complement' AND COALESCE(c.complementPaid, r.complementPaid, 0) = 1)
+           OR (l.type = 'complement' AND COALESCE(c.complementPaid, r.complementPaid, 0) = 1${HAS_BASKET ? ' AND l.basketJson IS NULL' : ''})
            OR (l.type = 'installment' AND EXISTS (
              SELECT 1 FROM reservation_installments i WHERE i.id = l.installmentId AND i.paid = 1
            ))
@@ -530,6 +555,7 @@ function buildModel(database) {
 
   return {
     create,
+    basketOf,
     findById,
     listOpen,
     listOrphanOpen,

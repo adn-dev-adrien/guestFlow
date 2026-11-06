@@ -271,6 +271,7 @@ CREATE TABLE IF NOT EXISTS payment_links (
     noticeJudgedAt TEXT,
     withdrawnAt TEXT,
     noticeClosedReason TEXT,
+    basketJson TEXT,
     CHECK (type IN ('deposit', 'balance', 'full', 'complement', 'installment')),
     CHECK (status IN ('open', 'paid', 'expired', 'cancelled'))
   );

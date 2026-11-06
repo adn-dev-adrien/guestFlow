@@ -40,6 +40,8 @@ const HARDENINGS = [
   { feature: 'SAS sale by people served', sdk: '2.21.0', pattern: /\bsoldOptions\b/ },
   // specs/guest-app.md rules 28-31, 35 — the hourly slots a plugin schedules or holds through the core.
   { feature: 'resource scheduler and holds', sdk: '2.22.0', pattern: /\b(?:resourceScheduler|resourceHolds)\(/ },
+  // specs/plugins-phase-1-sdk.md rule 44 — the card payment of a plugin's basket and its paid effect.
+  { feature: 'payment baskets', sdk: '2.22.0', pattern: /\b(?:paymentBasket\(|core\.payments\b)/ },
 ];
 
 function sourceFiles(dir) {

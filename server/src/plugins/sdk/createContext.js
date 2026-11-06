@@ -132,6 +132,17 @@ function createContext(id, { db, settingsModel, dataDir = null } = {}) {
       if (record.resourceHolds) throw new Error(`${prefix} resourceHolds is already declared`);
       record.resourceHolds = source;
     },
+    // SDK 2.22.0 (specs/guest-app.md rules 35-36) — the baskets a plugin bills through a `complement` link
+    // (`ctx.core.payments.basketLink(...)`): `paid({ reservationId, ref, amountCents, paidDate, paidAt, providerPaymentId })`
+    // runs, synchronously, when such a link is paid — on time or late — and answers `{ effect }`; `refundOwed: true`
+    // marks money the stay keeps nothing for. One plugin per `source`.
+    paymentBasket({ source, paid } = {}) {
+      if (!/^[a-z][a-zA-Z0-9-]{0,39}$/.test(String(source || ''))) throw new Error(`${prefix} a payment basket needs a source like "guestOrder"`);
+      if (typeof paid !== 'function') throw new Error(`${prefix} payment basket "${source}" needs a paid function`);
+      const other = registry.all().find((r) => (r.paymentBaskets || []).some((b) => b.source === source));
+      if (other) throw new Error(`${prefix} the payment basket "${source}" is already declared by ${other.id}`);
+      record.paymentBaskets.push({ source, paid });
+    },
     // (resource, { properties }) → { lines?: [{ label, value }], footer?: string } | null — what the plugin
     // adds to a resource's card on Options & ressources while it is live (specs/options-resources-ux.md
     // rule 19). Synchronous, no I/O; a plugin declares one.

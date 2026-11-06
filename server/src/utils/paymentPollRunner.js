@@ -43,7 +43,7 @@ const { unavailableNights } = require('./closedStayDates');
 // reservation; a full payment marks it fully settled (deposit + balance). On conversion the dates are
 // re-checked (the devis never blocked them) — a conflict flags the reservation + surfaces `conflict:true`.
 // The bucket goes through the same recorder as a manual tick (rule 1).
-function applyPaidEffect({ database, devisModel, link, checkConflict, paidDate = null, recordPayment = recordOn(database), settledAlready = false }) {
+function applyPaidEffect({ database, devisModel, link, checkConflict, paidDate = null, paidAt = null, recordPayment = recordOn(database), settledAlready = false }) {
   const row = database.prepare('SELECT * FROM reservations WHERE id = ?').get(link.reservationId);
   if (!row) return { effect: 'no-reservation' };
   // A payment that lands after the stay was cancelled is money to refund, never a paid stay.
@@ -52,6 +52,12 @@ function applyPaidEffect({ database, devisModel, link, checkConflict, paidDate =
   const convertedRow = row.kind === 'devis' && row.convertedReservationId
     ? database.prepare('SELECT * FROM reservations WHERE id = ?').get(Number(row.convertedReservationId)) : null;
   if (convertedRow && convertedRow.kind === 'cancelled') return { effect: 'reservation-cancelled' };
+
+  // specs/guest-app.md rules 35-36 — a link that bills its own basket is settled by the plugin that owns the basket.
+  if (link.type === 'complement') {
+    const basket = basketOfLink(database, link);
+    if (basket) return settleBasket({ database, link, basket, paidDate, paidAt });
+  }
 
   // specs/direct-installments.md rule 15 — a paid link of an installment marks that installment paid.
   if (link.type === 'installment') {
@@ -145,6 +151,55 @@ function applyPaidEffect({ database, devisModel, link, checkConflict, paidDate =
     return { effect: 'balance-marked' };
   }
   return { effect: 'noop' };
+}
+
+function basketOfLink(database, link) {
+  const hasColumn = database.prepare('PRAGMA table_info(payment_links)').all().some((c) => c.name === 'basketJson');
+  if (!hasColumn) return null;
+  const row = database.prepare('SELECT basketJson FROM payment_links WHERE id = ?').get(Number(link.id));
+  try {
+    const basket = row && row.basketJson ? JSON.parse(row.basketJson) : null;
+    return basket && typeof basket.source === 'string' ? basket : null;
+  } catch {
+    return null;
+  }
+}
+
+// Rules 35-36 — the live plugin that declared the basket's source settles it (`ctx.paymentBasket`). Money it keeps
+// nothing for (`refundOwed`, a guest order whose slot was taken meanwhile) is flagged on the link — the ledger shows
+// it « à rembourser » — and written in the stay's history. With no live owner the money is the admin's to sort out.
+function settleBasket({ database, link, basket, paidDate, paidAt }) {
+  const registry = require('../plugins/sdk/registry');
+  const owner = registry.all().filter((r) => registry.isLive(r.id))
+    .flatMap((r) => (r.paymentBaskets || []).map((b) => ({ id: r.id, ...b })))
+    .find((b) => b.source === basket.source);
+  if (!owner) return { effect: 'basket-unallocated' };
+  const paid = database.prepare('SELECT providerPaymentId, paidAt FROM payment_links WHERE id = ?').get(Number(link.id)) || {};
+  let outcome;
+  try {
+    outcome = owner.paid({
+      reservationId: Number(link.reservationId),
+      ref: basket.ref,
+      linkId: Number(link.id),
+      amountCents: Number(link.amountCents),
+      paidDate,
+      paidAt: paidAt || paid.paidAt || null,
+      providerPaymentId: paid.providerPaymentId || null,
+    }) || {};
+  } catch (err) {
+    console.error(`[plugin:${owner.id}] payment basket failed:`, err && err.message); // eslint-disable-line no-console
+    return { effect: 'basket-unallocated' };
+  }
+  if (outcome.refundOwed) {
+    database.prepare('UPDATE payment_links SET basketJson = ? WHERE id = ?').run(JSON.stringify({ ...basket, refundOwed: true }), Number(link.id));
+    const amount = require('./reservationLedger').formatEuros(Number(link.amountCents || 0) / 100);
+    database.prepare("INSERT INTO reservation_history (reservationId, eventType, changedFields) VALUES (?, 'update', ?)")
+      .run(Number(link.reservationId), JSON.stringify([{
+        field: 'refundOwed', label: 'Remboursement à faire', from: '', to: `${amount} payés (lien ${link.id}) : ${outcome.reason || 'commande non honorée'}, à rembourser depuis l’espace du prestataire`,
+      }]));
+    return { effect: 'basket-refund-owed', reservationId: Number(link.reservationId) };
+  }
+  return { effect: String(outcome.effect || 'basket-settled'), reservationId: Number(link.reservationId) };
 }
 
 // A minimal schema (a unit suite's) without closures or logements has no closed nights.
@@ -340,7 +395,7 @@ async function processPaidLink({ database, devisModel, paymentLinksModel, link, 
       ? { effect: 'settled-elsewhere', reservationId: afterDeposit.stayId, conflict: false }
       : afterDeposit
         ? { effect: 'double-payment', duplicateLink: true, duplicateCents: afterDeposit.duplicateCents, reservationId: afterDeposit.stayId, conflict: false }
-        : applyPaidEffect({ database, devisModel, link, checkConflict, paidDate, recordPayment }));
+        : applyPaidEffect({ database, devisModel, link, checkConflict, paidDate, paidAt, recordPayment }));
   // The link that just paid settles its bucket: every other open link of it is retired now, not at the next poll.
   if (typeof paymentLinksModel.retireSettled === 'function') paymentLinksModel.retireSettled();
   if (effect.effect === 'double-payment') {
@@ -368,7 +423,8 @@ async function processPaidLink({ database, devisModel, paymentLinksModel, link, 
     if (effect.conflict && notifyConflict) { try { await notifyConflict(effect.reservationId); } catch { /* best effort */ } }
     return { id: link.id, reservationId: link.reservationId, type: link.type, status: 'paid', ...effect };
   }
-  if (effect.effect === 'reservation-cancelled' || effect.effect === 'installment-unallocated' || effect.effect === 'installment-double-payment') {
+  if (effect.effect === 'reservation-cancelled' || effect.effect === 'installment-unallocated' || effect.effect === 'installment-double-payment'
+    || effect.effect === 'basket-unallocated') {
     if (notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link); } catch { /* best effort */ } }
     return { id: link.id, reservationId: link.reservationId, type: link.type, status: 'paid', ...effect };
   }

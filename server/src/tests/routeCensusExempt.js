@@ -108,7 +108,8 @@ const EXEMPT = {
     'POST /api/reservations/:id/sas/departure/preview',
     'PUT /api/plugins/:id/settings',
   ],
-  'Judged by its own suites: guest-app-input-shape (public guest routes, generic 404 by design; service hours, delivery times; the studio\'s pages, blocks and photos), guest-app-lodging-config, guest-app-items, guest-app-service-hours, guest-app-booklet, guest-app-block-validation, guest-app-media, guest-app-qr, guest-app-stay-links.': [
+  'Judged by its own suites: guest-app-input-shape (public guest routes, generic 404 by design; service hours, delivery times; the studio\'s pages, blocks and photos), guest-app-lodging-config, guest-app-items, guest-app-service-hours, guest-app-booklet, guest-app-block-validation, guest-app-media, guest-app-qr, guest-app-stay-links, guest-app-shop-quote (the order and quote input shapes), guest-app-order-card, guest-app-orders-admin.': [
+    'POST /api/guest-app/orders/:id/delivered',
     'DELETE /api/guest-app/studio/blocks/:id',
     'DELETE /api/guest-app/studio/pages/:id',
     'DELETE /api/guest-app/studio/pages/:id/placements/:propertyId',
@@ -120,6 +121,9 @@ const EXEMPT = {
     'POST /api/guest-app/studio/pages/:id/blocks',
     'POST /api/guest-app/studio/pages/:id/duplicate',
     'POST /api/guest-app/studio/pages/:id/placements',
+    'POST /public/v1/guest/orders',
+    'POST /public/v1/guest/orders/:id/abandon',
+    'POST /public/v1/guest/orders/quote',
     'POST /public/v1/guest/sessions',
     'POST /public/v1/guest/sessions/lookup',
     'POST /public/v1/guest/shop/delivery-slots',

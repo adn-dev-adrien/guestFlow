@@ -116,6 +116,8 @@ const CORE_MODULES = Object.freeze({
   safeFeedFetch: '../../utils/safeFeedFetch',
   // guest-app — the booklet photos live under the instance's uploads, served by `/uploads` (specs/guest-app.md §5)
   instancePaths: '../../utils/instancePaths',
+  // guest-app — an order written on the fiche as a mid-stay extra and priced by its engine (specs/guest-app.md rules 24, 30, 34, 35)
+  guestOrderCommit: '../../utils/guestOrderCommit',
 });
 
 function coreModule(name) {

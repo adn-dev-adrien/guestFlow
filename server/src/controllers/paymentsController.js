@@ -310,9 +310,18 @@ const ensureInstallmentLinkFor = (id, installmentId) => withProviderLink((deps) 
 // The stay's link of a type, for a request or the acompte reminder sent by hand (specs/payment-link-lifecycle.md rules 26, 35).
 const ensurePaymentLinkFor = (id, type) => withProviderLink((deps) => paymentRequestService.ensurePaymentLink(deps, Number(id), type));
 
+// specs/guest-app.md rule 35 — the link of a basket (a guest order) on a stay, at the stay's VAT rate, back to
+// `redirectUrl` once paid.
+const ensureBasketLinkFor = (id, basket, { redirectUrl = null } = {}) => withProviderLink((deps) => paymentRequestService.ensurePaymentLink({
+  ...deps,
+  vatRateFor: (stayId) => vatRegimeModel.rateForRow(database, { id: stayId }),
+  ...(redirectUrl ? { redirectUrl } : {}),
+  origin: 'guest-order',
+}, Number(id), 'complement', { basket }));
+
 module.exports = {
   createReservationPaymentLink, listReservationPaymentLinks, sendPaymentRequestEmail, pollPaymentsNow,
-  sendBalanceRequestFor, sendDepositRequestFor, ensureInstallmentLinkFor, ensurePaymentLinkFor, withdrawLink, settleLink,
+  sendBalanceRequestFor, sendDepositRequestFor, ensureInstallmentLinkFor, ensurePaymentLinkFor, ensureBasketLinkFor, withdrawLink, settleLink,
 };
 
 // The two money resolvers, with their quote source injectable (specs/payment-link-quote-parity.md §7):

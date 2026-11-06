@@ -7,7 +7,7 @@ const express = require('express');
 const { requireModule } = require('../middleware/guestSession');
 
 function buildPublicRouter({
-  controller, shop, booklet, guestSession, limiters,
+  controller, shop, orders, booklet, guestSession, limiters,
 }) {
   const router = express.Router();
   router.use((req, res, next) => {
@@ -22,6 +22,13 @@ function buildPublicRouter({
   router.get('/shop', ...shopRoute, shop.read);
   router.get('/shop/resources/:id/slots', ...shopRoute, guestSession.requireStay, shop.slots);
   router.post('/shop/delivery-slots', ...shopRoute, guestSession.requireStay, shop.deliverySlots);
+  // Rules 32-38 — a stay's orders: the quote, the order and its page belong to the shop, the list to « Mes commandes ».
+  const stayShop = [...shopRoute, guestSession.requireStay];
+  router.post('/orders/quote', ...stayShop, orders.quote);
+  router.post('/orders', ...stayShop, limiters.order, orders.create);
+  router.get('/orders', limiters.read, guestSession.requireSession, requireModule('orders', controller.shownKeysOf), guestSession.requireStay, orders.list);
+  router.get('/orders/:id', ...stayShop, orders.read);
+  router.post('/orders/:id/abandon', ...stayShop, orders.abandon);
   // Rule 5 — the booklet reads for a session or, in visitor mode, for the printed code.
   const bookletRoute = [limiters.read, booklet.reader, requireModule('booklet', controller.shownKeysOf)];
   router.get('/booklet', ...bookletRoute, booklet.index);

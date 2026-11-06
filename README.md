@@ -295,6 +295,7 @@ Optional environment variables (sensible defaults otherwise):
 | `BOOKING_REQUEST_RATELIMIT_MAX` / `BOOKING_REQUEST_RATELIMIT_WINDOW_MS` | Public booking-request rate limit | `5` / `3600000` |
 | `GUEST_SESSION_RATELIMIT_MAX` / `GUEST_SESSION_RATELIMIT_WINDOW_MS` | Guest app: scanning a lodging's QR code, per IP | `30` / `3600000` |
 | `GUEST_LOOKUP_RATELIMIT_MAX` / `GUEST_LOOKUP_RATELIMIT_WINDOW_MS` | Guest app: name + reservation number fallback, per IP | `5` / `900000` |
+| `GUEST_ORDER_RATELIMIT_MAX` / `GUEST_ORDER_RATELIMIT_WINDOW_MS` | Guest app: orders, per guest session | `10` / `3600000` |
 
 ### Public API (WordPress showcase site)
 

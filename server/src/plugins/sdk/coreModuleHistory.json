@@ -181,11 +181,13 @@
         "publicCatalogProjection",
         "midStayExtrasWindow",
         "safeFeedFetch",
-        "instancePaths"
+        "instancePaths",
+        "guestOrderCommit"
       ],
       "names": {
         "rateLimiters": [
           "guestLookupLimiter",
+          "guestOrderLimiter",
           "guestSessionLimiter"
         ],
         "pricing": [

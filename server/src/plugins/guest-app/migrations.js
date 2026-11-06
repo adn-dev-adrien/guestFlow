@@ -118,19 +118,23 @@ const TABLES_SQL = `
     reservationId INTEGER NOT NULL,
     sessionId     INTEGER,
     payment       TEXT NOT NULL CHECK (payment IN ('card', 'note', 'none')),
-    status        TEXT NOT NULL CHECK (status IN ('awaiting_payment', 'confirmed', 'paid', 'delivered', 'expired', 'paid_conflict')),
+    status        TEXT NOT NULL CHECK (status IN ('awaiting_payment', 'confirmed', 'paid', 'delivered', 'expired', 'paid_conflict', 'abandoned')),
     linesJson     TEXT NOT NULL,
     total         REAL NOT NULL DEFAULT 0,
     deliverAt     TEXT,
+    deliverMoved  INTEGER NOT NULL DEFAULT 0,
     heldUntil     TEXT,
     paymentLinkId INTEGER,
     createdAt     TEXT NOT NULL,
     confirmedAt   TEXT,
+    paidAt        TEXT,
+    closedAt      TEXT,
     deliveredAt   TEXT,
     deliveredBy   INTEGER
   );
   CREATE INDEX IF NOT EXISTS idx_guest_orders_reservation ON guest_orders(reservationId);
   CREATE INDEX IF NOT EXISTS idx_guest_orders_held ON guest_orders(heldUntil);
+  CREATE INDEX IF NOT EXISTS idx_guest_orders_status ON guest_orders(status, deliverAt);
 `;
 
 const TABLES = Object.freeze([
