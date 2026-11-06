@@ -13,6 +13,7 @@ const { bookingChannelOf } = require('../utils/attributionChannel');
 const { isDirectChannel } = require('../utils/platformNameFormat');
 const { bookingDayOf } = require('../utils/vatRegime');
 const { profileOf, basketOf, basketDelta } = require('../utils/stayProfile');
+const { touristTaxInTotal } = require('../utils/stayTouristTaxInTotal');
 const { DIRECT_CHANNEL } = require('../constants/stayProfileBuckets');
 
 // Rule 15 (D-HC8) — every panel names the money it reads; this page reads stay totals only.
@@ -33,11 +34,12 @@ function channelOf(r) {
   return ch.group === 'platform' ? { key: ch.key, label: ch.label } : DIRECT_CHANNEL;
 }
 
-const toStay = (r) => ({
+const toStay = (paceStartOf) => (r) => ({
   totalSejour: r.totalSejour,
   nights: r.nights,
   startDate: r.startDate,
   bookedOn: bookingDayOf(r.createdAt),
+  paceStart: paceStartOf(r.propertyId),
   channel: channelOf(r),
 });
 
@@ -51,7 +53,42 @@ function byMonth(reservations) {
   return out;
 }
 
-function createStayProfileModel(finance, dashboard) {
+function createStayProfileModel(finance, dashboard, database) {
+  const tableExists = (name) => {
+    try { return database.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(name) != null; }
+    catch { return false; }
+  };
+  const hasColumn = (name) => {
+    try { return database.prepare('PRAGMA table_info(reservations)').all().some((c) => c.name === name); }
+    catch { return false; }
+  };
+
+  // Rule 22 — where each stay's tax sits: collected at arrival (financeModel's TAX_ON_ARRIVAL_SQL, the
+  // tax page's own predicate), paid through a plan, and the tax its book refunds gave back. Guarded like
+  // financeModel: a schema without a table or column reads « no ».
+  function taxFacts(ids) {
+    const facts = new Map();
+    if (!ids.length) return facts;
+    const onArrival = tableExists('platforms') && tableExists('ical_sources') && hasColumn('touristTaxInComplement')
+      ? financeModel.helpers.TAX_ON_ARRIVAL_SQL
+      : (hasColumn('touristTaxInComplement') ? '(r.touristTaxInComplement = 1)' : '(0)');
+    const plan = tableExists('reservation_installments')
+      ? '(EXISTS (SELECT 1 FROM reservation_installments i WHERE i.reservationId = r.id))'
+      : '(0)';
+    const refunded = tableExists('reservation_refund_lines') && tableExists('reservation_refunds')
+      ? `COALESCE((SELECT SUM(rl.amountTtc) FROM reservation_refund_lines rl JOIN reservation_refunds rf ON rf.id = rl.refundId
+                    WHERE rf.reservationId = r.id AND rl.lineKey = 'touristTax' AND rf.method <> 'internal'), 0)`
+      : '0';
+    const rows = database.prepare(`SELECT r.id, ${onArrival} AS taxOnArrival, ${plan} AS hasPlan, ${refunded} AS refundedTax
+      FROM reservations r WHERE r.id IN (${ids.map(() => '?').join(',')})`).all(...ids);
+    for (const f of rows) facts.set(f.id, { taxOnArrival: Boolean(f.taxOnArrival), hasPlan: Boolean(f.hasPlan), refundedTax: Number(f.refundedTax || 0) });
+    return facts;
+  }
+  const withTax = (reservations) => {
+    const facts = taxFacts(reservations.map((r) => r.id));
+    return reservations.map((r) => ({ ...r, taxInTotal: touristTaxInTotal(r, facts.get(r.id)) }));
+  };
+
   // Rules 11-13 — the average basket per month of the selected exercise, last year beside it on the
   // months the dashboard compares.
   function basket(ctx, exerciseSummary, paceStart) {
@@ -70,8 +107,8 @@ function createStayProfileModel(finance, dashboard) {
         knownAt: snapshotKnown ? yoy.shiftYear(today, -1) : null,
       })
       : null;
-    const cur = byMonth(exerciseSummary.reservations);
-    const prev = previous ? byMonth(previous.reservations) : new Map();
+    const cur = byMonth(withTax(exerciseSummary.reservations));
+    const prev = previous ? byMonth(withTax(previous.reservations)) : new Map();
     const rows = months
       .map((m, i) => {
         const current = basketOf(cur.get(m.month) || []);
@@ -86,7 +123,10 @@ function createStayProfileModel(finance, dashboard) {
       currentLabel: exercise.label,
       previousLabel: exercise.previousLabel,
       comparable,
-      notice: !comparable && cover ? `Historique depuis ${monthLabel(cover)} : pas encore d'an dernier à comparer.` : null,
+      // Rule 24 — an exercise over before the history starts has nothing to wait for: no notice.
+      notice: !comparable && cover && exercise.to >= `${cover}-01`
+        ? `Historique depuis ${monthLabel(cover)} : pas encore d'an dernier à comparer.`
+        : null,
       rows,
     };
   }
@@ -97,7 +137,13 @@ function createStayProfileModel(finance, dashboard) {
     const { window: win, exercise, propertyId, allProperties } = ctx;
     const summary = finance.getSummary({ from: win.from, to: win.to, fiscalYear: exercise.key, propertyId });
     const paceStart = dashboard.trackingStart(propertyId);
-    const profile = profileOf(summary.reservations.map(toStay), { paceStart });
+    // Rule 23 — one tracking start per logement, so the logements' breakdowns add up to « Tous ».
+    const starts = new Map();
+    const paceStartOf = (id) => {
+      if (!starts.has(id)) starts.set(id, dashboard.trackingStart(id));
+      return starts.get(id);
+    };
+    const profile = profileOf(summary.reservations.map(toStay(paceStartOf)));
     const exerciseSummary = win.kind === 'fy'
       ? summary
       : finance.getSummary({ from: exercise.from, to: exercise.to, fiscalYear: exercise.key, propertyId });
@@ -124,12 +170,12 @@ function createStayProfileModel(finance, dashboard) {
 let defaultModel = null;
 // The production model, built on first use so that requiring this file opens no database.
 function getStayProfile(params) {
-  defaultModel = defaultModel || createStayProfileModel(financeModel, dashboardModel);
+  defaultModel = defaultModel || createStayProfileModel(financeModel, dashboardModel, require('../database'));
   return defaultModel.getStayProfile(params);
 }
 
 function buildModel(database) {
-  return createStayProfileModel(financeModel.buildModel(database), dashboardModel.buildModel(database));
+  return createStayProfileModel(financeModel.buildModel(database), dashboardModel.buildModel(database), database);
 }
 
 module.exports = { getStayProfile, buildModel, channelOf, DIMENSIONS };

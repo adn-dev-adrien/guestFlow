@@ -9,7 +9,8 @@ const MONTH_NAMES = [
   'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre',
 ];
 
-const ISO_MONTH = /^\d{4}-\d{2}$/;
+// A month that names one: 01 to 12 (« 2026-13 » sorts inside an exercise closing in September).
+const ISO_MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
 
 const lastDayOfMonth = (ym) => new Date(Date.UTC(Number(ym.slice(0, 4)), Number(ym.slice(5, 7)), 0)).getUTCDate();
 const frDate = (s) => `${s.slice(8, 10)}/${s.slice(5, 7)}/${s.slice(0, 4)}`;

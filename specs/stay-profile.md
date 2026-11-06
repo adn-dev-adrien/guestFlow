@@ -71,6 +71,7 @@ and the average basket per stay for each month of the exercise against last year
    tracking start** (`booking-pace.md` rule 8: the initial import, where every stay booked before
    GuestFlow landed at once), or when it is **after the arrival** (a fiche entered once the guest was
    there: its real booking day is not known). A fiche created on its arrival day is 0 days.
+   > 2026-11-06 (review R4-3): the tracking start is the stay's own logement's — rule 23.
 8. **Tranche de prix** (« total de séjour »): « Moins de 300 € » (< 300,00 €), « 300–800 € »
    (300,00 € to 800,00 €, both included), « Plus de 800 € » (> 800,00 €); a stay at exactly 0,00 € is
    « Sans montant » (the dashboard's rule 35 notion). A negative total (more refunded than earned)
@@ -102,12 +103,15 @@ and the average basket per stay for each month of the exercise against last year
     missing. When no month of the exercise is comparable, `comparable: false` and ONE notice: « Historique
     depuis <mois> : pas encore d'an dernier à comparer. » (none when the scope holds no stay at all).
     The column headers are the two exercises' labels.
+    > 2026-11-06 (review R4-11): no notice for an exercise over before the history starts — rule 24.
 14. **The basket excludes the tourist tax** (D-HC8): it is not revenue. A stay's basket amount is its
     « total de séjour » less the tourist tax's share of it, the element-by-element split of the page's
     HT (`financeModel.htAmount`, `finance-overview-rework.md` §3.7): `total × (1 − touristTaxTotal ÷
     (finalPrice + touristTaxTotal))`. A stay with no stored tax (none charged, or a platform that
     collects and remits it itself) is unchanged. The breakdowns of §3.2 keep the tax: they read the
     page's « total de séjour », like the dashboard.
+    > **Superseded by rule 22** (review R4-2, 2026-11-06): the proportion was exact only when the tax
+    > was spread over every counted bucket; the basket now removes the tax actually inside the total.
 15. **Every panel names its source** (D-HC8). Each breakdown carries `source: 'stays'` and
     `sourceLabel` « Sur les montants des séjours »; the basket `source: 'stays'`, `excludesTouristTax:
     true` and « Sur les montants des séjours, hors taxe de séjour ». Nothing on this page reads the
@@ -142,6 +146,36 @@ and the average basket per stay for each month of the exercise against last year
     comparable; the basket's `sourceLabel` last (« …, hors taxe de séjour »). No month listed:
     « Aucun séjour sur l'exercice. »
 
+### 3.5 Review of 2026-11-06 (R4-2, R4-3, R4-4 = R6-1, R4-9, R4-11, R6-4)
+
+22. **The tax removed is the tax inside the total** (D-HC8, D-HC9: the tourist tax is never revenue). The
+    basket subtracts, per stay, the tax its counted buckets hold (`utils/stayTouristTaxInTotal.js`),
+    placed as the accounting export books it: never on the acompte; on the solde — its frozen contribs
+    once paid — unless the tax is collected at arrival (forced to the complement, or the platform's mode,
+    financeModel's `TAX_ON_ARRIVAL_SQL`), then on the arrival complement; on the installments for a
+    plan stay; the added guests' share on the complement. A bucket collected in the caisse interne is out
+    of the total, so is its tax; a commission is taken on the stay, never on the tax, so a netted solde
+    still holds its whole tax; the tax given back by book refunds is no longer inside. Never below 0.
+    *Why:* on the production copy the proportion removed 7,63 € from a total holding no tax (tax in a
+    cash complement) and 20,17 € instead of 24 € from a reversing platform's netted solde.
+23. **Lead time per logement.** A stay's booking day is trusted from the tracking start of **its own
+    logement** (`trackingStart(propertyId)`), whatever the filter, so the logements' lead breakdowns add
+    up to « Tous les logements ». *Why:* a logement imported weeks after the first one had its import-day
+    stays read as genuine leads under « Tous ».
+24. **No notice before the history.** The basket's notice (rule 13) only shows when the exercise ends on
+    or after the coverage start; an exercise entirely before the history has none (and no row).
+25. **A month that names none is refused.** The shared finance window (`utils/financeWindow.js`) reads a
+    month as `YYYY-01` to `YYYY-12` only: « 2026-13 », « 2027-00 », « 2026-1 » are « Ce mois n'appartient
+    pas à l'exercice choisi. » (400) on every endpoint reading a month window — the dashboard, its
+    detail tables and this page — never a 200 on an impossible window nor a 500 (invariant « an
+    impossible day is a refusal »). *Why:* on an exercise closing in September, « 2026-13-01 » sorted
+    inside the exercise as text.
+26. **A number never leaves its unit.** Every bucket label joins the number and its unit with a no-break
+    space (« Moins de 300 € », « 7–30 j », « 1–3 mois », « 5–6 nuits »), so a narrow table never leaves
+    « € » alone on a line.
+27. **Default dates from the server's day.** The page's default month (« Mois ») and default custom dates
+    (« Personnalisée ») are the server's month (`useServerToday`, invariant 33), never the device's.
+
 **Edge cases:**
 - A stay of the window booked on the import day → lead time unknown (rule 7), counted everywhere else.
 - A fiche created after its arrival → lead time unknown.
@@ -166,6 +200,8 @@ and the average basket per stay for each month of the exercise against last year
 | `models/` | `stayProfileModel.js` | C | Composes the dashboard's `context` (window, logement, refusals), `financeModel.getSummary` (stays, « total de séjour », attribution), the dashboard's coverage and tracking start; channel per stay; monthly basket against last year |
 | `models/` | `financeDashboardModel.js` | T | Exposes `context`, `coverage`, `trackingStart`; its month N-1 reading calls `yearOverYear.lastYearReading` (same behaviour) |
 | `utils/` | `stayProfile.js` | C | Pure: bucketing, whole-percent shares adding to 100, bar lengths, ranking, lead days, basket, delta, tourist tax removal |
+| `utils/` | `stayTouristTaxInTotal.js` | C | Rule 22: the tourist tax inside a stay's « total de séjour », bucket by bucket |
+| `utils/` | `financeWindow.js` | T | Rule 25: `ISO_MONTH` reads months 01-12 only |
 | `utils/` | `yearOverYear.js` | T | `lastYearReading(ym, { today, snapshotKnown })`: rule 33's reading, shared with the dashboard |
 | `constants/` | `stayProfileBuckets.js` | C | Every bucket boundary and label of rules 5-8, in one place |
 | `database.js` | — | — | (none — no schema change) |
@@ -271,12 +307,17 @@ Per the mock-up (`#profil`), in the « Maison » theme and lot 0's report gramma
   window, the dashboard's refusals, basket with tourist tax excluded and its N-1, no-history notice,
   delta edges, the dashboard's own N-1 reading unchanged.
 
-### Client unit tests (Vitest) — 5 files, 14 tests
+- [x] `server/src/tests/stay-profile.review-fixes.unit.test.js` — 7 tests, rules 22, 23, 24, 26.
+- [x] `server/src/tests/finance-window-impossible-month.unit.test.js` — 2 tests, rule 25 (resolveWindow,
+  dashboard, its detail tables, stay profile).
+
+### Client unit tests (Vitest) — 6 files, 16 tests
 - [x] `client/src/__tests__/api.stay-profile.test.js` — 1 test, rule 1.
 - [x] `client/src/pages/__tests__/StayProfilePage.breakdown.test.jsx` — 6 tests, rules 16, 19, 20.
 - [x] `client/src/pages/__tests__/StayProfilePage.basket.test.jsx` — 3 tests, rules 13, 15, 21.
 - [x] `client/src/pages/__tests__/StayProfilePage.refused-load.test.jsx` — 3 tests, rules 1, 18.
 - [x] `client/src/constants/__tests__/financeMenu.stay-profile.test.js` — 1 test, rule 17.
+- [x] `client/src/pages/__tests__/StayProfilePage.server-month.test.jsx` — 2 tests, rule 27.
 - Fixture: `client/src/pages/__tests__/stayProfileFixtures.js`.
 
 ### Manual UI verification (throwaway seeded DB, ports 47140/47141)
@@ -311,5 +352,5 @@ Per the mock-up (`#profil`), in the « Maison » theme and lot 0's report gramma
   and one grammar across the lots) rather than a new bar component; the « Mesure » switch picks its
   share and bar. The logement filter is a select, not the dashboard's figure strip (this page carries
   no per-logement figure to show in it).
-- Tourist tax removed by the HT split's proportion rather than by subtracting `touristTaxTotal`, so a
-  tax collected in the caisse interne (already out of the total) is not removed twice.
+- ~~Tourist tax removed by the HT split's proportion~~ — wrong, corrected by rule 22 (2026-11-06): a tax
+  collected in the caisse interne was removed from money that never held it.

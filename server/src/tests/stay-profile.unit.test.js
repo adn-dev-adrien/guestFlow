@@ -235,10 +235,9 @@ test('rules 12 and 14 — the delta and the tax split on their edges', () => {
   assert.equal(basketDelta({ average: 300 }, null), null);
   assert.deepEqual(basketDelta({ average: 300 }, { average: 300 }), { amount: 0, change: 0, trend: 'stable' });
   assert.deepEqual(basketDelta({ average: 270 }, { average: 300 }), { amount: -30, change: -10, trend: 'down' });
-  assert.equal(withoutTouristTax({ totalSejour: 330, finalPrice: 300, touristTaxTotal: 30 }), 300);
-  assert.equal(withoutTouristTax({ totalSejour: 297, finalPrice: 300, touristTaxTotal: 30 }), 270);
-  assert.equal(withoutTouristTax({ totalSejour: 150, finalPrice: 0, touristTaxTotal: 0 }), 150);
+  assert.equal(withoutTouristTax({ totalSejour: 330, taxInTotal: 30 }), 300);
   assert.equal(withoutTouristTax({ totalSejour: 150 }), 150);
+  assert.equal(withoutTouristTax({ totalSejour: 150, taxInTotal: -5 }), 150);
 });
 
 test('rule 16 — the 0–1 shares are the whole percents over 100, null with them', () => {
