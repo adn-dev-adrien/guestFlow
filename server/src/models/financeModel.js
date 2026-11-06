@@ -243,6 +243,12 @@ function createFinanceModel(database) {
       return Boolean(database.prepare(`SELECT NOT ${WE_REMIT_SQL} AS theirs FROM reservations r WHERE r.id = ?`).get(id).theirs);
     } catch { return false; }
   };
+  // specs/tourist-tax-declared-checkbox.md rule 10 — the same « frozen at 0 € » reading as the extraction (D-HC10).
+  const frozenAtZeroStay = (stored) => {
+    if (!isTouristTaxFrozen(database, stored)) return false;
+    const quote = quoteStoredReservation(database, stored) || {};
+    return round2(Number(quote.touristTaxTotal || 0)) === 0;
+  };
   const planOfStay = HAS_PLAN_SQL === '(0)' ? null : database.prepare('SELECT 1 FROM reservation_installments WHERE reservationId = ? LIMIT 1');
   const stayHasPlan = (id) => Boolean(planOfStay && planOfStay.get(id));
   const REFUNDED_TAX_COLS = hasRefundTables
@@ -1114,7 +1120,9 @@ function createFinanceModel(database) {
       // here, decided by the same helper, or the declaration would drift away from the fiches it
       // declares — which is exactly what the recomputed base did.
 
-      return rows
+      // D-HC10's stays frozen at 0 €, out of the rows (non-enumerable `frozenAtZero` on the answer, rule 38).
+      const frozenAtZero = [];
+      const answer = rows
         .map((row) => {
           const stored = storedById.get(Number(row.reservationId));
           if (!stored) return null;
@@ -1164,7 +1172,11 @@ function createFinanceModel(database) {
           const grossTaxAmount = round2(Number(quote.touristTaxTotal || 0) - (addedTaxKeptOut ? addedTax - told : 0));
           // specs/tourist-tax-declaration-month-stay-end.md rule 9 (D-HC10, 2026-11-06) — a tax frozen at 0 € is never
           // ours to remit: the stay leaves the declaration (both pages, the synthesis, the data checks).
-          if (round2(Number(quote.touristTaxTotal || 0)) === 0 && isTouristTaxFrozen(database, stored)) return null;
+          if (round2(Number(quote.touristTaxTotal || 0)) === 0 && isTouristTaxFrozen(database, stored)) {
+            // specs/tourist-tax-report-v2.md rule 38 (D-HC15) — kept aside for the report's platform list.
+            frozenAtZero.push({ reservationId: row.reservationId, stored, propertyName: row.propertyName, reservationName: `${row.firstName || ''} ${row.lastName || ''}`.trim() });
+            return null;
+          }
           const grossAdultNights = taxedAdults * Number(quote.touristTaxNights || 0);
           // Pro-rated on the nights: exact for the per-night modes, the natural share for the
           // percentage ones (where the tax isn't night-linear).
@@ -1275,6 +1287,7 @@ function createFinanceModel(database) {
           const { declarationDay, ...rest } = row;
           return Object.defineProperty(rest, 'declarationDay', { value: declarationDay, enumerable: false });
         });
+      return Object.defineProperty(answer, 'frozenAtZero', { value: frozenAtZero, enumerable: false });
     },
 
     // specs/tourist-tax-declared-checkbox.md §3 — the operator ticks « Déclarée » on the extraction page.
@@ -1294,8 +1307,14 @@ function createFinanceModel(database) {
       const notDeclarable = { ok: false, status: 409, code: 'TOURIST_TAX_NOT_DECLARABLE', error: 'Déclarable une fois le séjour payé et terminé.' };
       // specs/tourist-tax-declared-checkbox.md rule 9 — a stay whose platform remits the tax itself is not ours to tick
       // (read from the platform's mode); taking a stored tick off stays possible.
-      if (declared && remittedByPlatform(id)) {
+      // V1-2 — only a NEW tick is judged here: a tick sent back unchanged passes (rule 8), whatever the mode now.
+      const alreadyTicked = Boolean(addedGuests ? stored.touristTaxAddedGuestsDeclaredAt : stored.touristTaxDeclaredAt);
+      if (declared && !alreadyTicked && remittedByPlatform(id)) {
         return { ok: false, status: 400, code: 'TOURIST_TAX_REMITTED_BY_PLATFORM', error: 'La plateforme reverse elle-même cette taxe.' };
+      }
+      if (declared && !alreadyTicked && !addedGuests && frozenAtZeroStay(stored)) {
+        // Rule 10 (D-HC10, review V1-6) — a stay no list shows cannot be ticked; untick stays possible.
+        return { ok: false, status: 400, code: 'TOURIST_TAX_NOTHING_TO_DECLARE', error: 'Aucune taxe à déclarer pour ce séjour.' };
       }
       if (addedGuests) {
         if (!hasAddedGuestsTax) return { ok: false, status: 400, error: 'Réservation invalide.' };

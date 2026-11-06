@@ -22,6 +22,8 @@ function statusOf(row) {
   return row.declared ? `Déclarée le ${frDate(row.touristTaxDeclaredOn || String(row.touristTaxDeclaredAt).slice(0, 10))}` : 'À déclarer';
 }
 
+const listsPlatforms = (report) => ((report.filters && report.filters.declaration) || 'all') === 'all';
+
 function listCsv(report) {
   const rows = report.stays.map((row) => [
     statusOf(row),
@@ -42,7 +44,9 @@ function listCsv(report) {
   const t = report.totals;
   rows.push(['Total à reverser', `${t.staysCount} séjour${t.staysCount > 1 ? 's' : ''}`, '', '', '', '', t.nights, t.persons,
     t.taxedPersons, t.exemptPersons, t.taxedPersonNights, t.exemptPersonNights, t.amount,
-    t.platformRemittedStaysCount ? t.platformRemittedAmount : null]);
+    // Rule 37 (review V1-1) — the platforms' total only where their rows are listed (« Toutes »), so the column
+    // adds up over the rows of the file; the bar keeps its own figure (rule 11).
+    listsPlatforms(report) && t.platformRemittedStaysCount ? t.platformRemittedAmount : null]);
   return serializeCsv(LIST_HEADERS, rows);
 }
 

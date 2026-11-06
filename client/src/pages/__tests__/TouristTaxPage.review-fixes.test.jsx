@@ -1,4 +1,4 @@
-// specs/tourist-tax-report-v2.md §3 rules 22, 30 and 34 (reviews R1-10, R1-11, R5's register note) — the day of a
+// specs/tourist-tax-report-v2.md §3 rules 22, 30 and 34 (and review V1-4) (reviews R1-10, R1-11, R5's register note) — the day of a
 // tick as the server reads it, a long channel tag kept within its card, and the register's nights outside the window.
 import { vi } from 'vitest';
 import { screen, fireEvent, within } from '@testing-library/react';
@@ -27,14 +27,16 @@ test('rule 30: the « Déclarée le » tooltip reads the server day of the tick'
   expect(await screen.findByText('Déclarée le 01/08/2026')).toBeInTheDocument();
 });
 
-test('rule 22: on a card, a long channel tag stays within half the row', async () => {
+test('rule 22 (V1-4): on a card, the tag wraps under the name rather than being cut; only wider than the card is it cut', async () => {
   setPhone(true);
   const label = 'Centrale de réservation départementale des Hautes-Pyrénées';
   api.getTouristTaxReport.mockResolvedValue(reportOf([{ ...ROW, key: '9-platform', remittedBy: 'platform', platformLabel: label, declarable: false }]));
   renderTaxPage();
   const tag = await screen.findByText(`reversée par ${label}`);
   const holder = tag.closest('.MuiChip-root').parentElement;
-  expect(holder).toHaveStyle({ maxWidth: '50%' });
+  expect(holder).not.toHaveStyle({ maxWidth: '50%' });
+  expect(holder).toHaveStyle({ maxWidth: '100%', minWidth: '0px' });
+  expect(holder.parentElement).toHaveStyle({ flexWrap: 'wrap' });
 });
 
 test('rule 34: the register marks the nights outside the window and says why, once', async () => {
