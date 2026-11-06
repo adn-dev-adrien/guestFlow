@@ -17,7 +17,7 @@ test('rule 21 — clamped by the coverage AND by the months not over: both reaso
   // date-literal-ok: inputs of a pure function, today passed in.
   const s = comparisonWindow({ window: { from: '2026-10-01', to: '2027-09-30' }, coverage: '2025-12', today: '2027-03-15', trackingStart: '2026-06-01' }).status;
   assert.equal(s.months, 3, 'December to February');
-  assert.equal(s.notice, 'Comparaison sur 3 mois sur 12 : les données commencent en décembre 2025, et un mois en cours se compare une fois terminé.');
+  assert.equal(s.notice, "Comparé à l'an dernier sur 3 mois sur 12 : les données commencent en décembre 2025, et un mois en cours se compare une fois terminé.");
 });
 
 test('rule 22 — a tracking start on 29 February is known on 1 March a year later', () => {

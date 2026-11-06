@@ -25,7 +25,7 @@ test('rule 8 — exercise 2024 against 2023, on the 8 comparable months, every f
   assert.equal(c.reason, null);
   assert.equal(c.months, 8);
   assert.equal(c.totalMonths, 12);
-  assert.equal(c.notice, 'Comparaison sur 8 mois sur 12 : les données commencent en mai 2023.');
+  assert.equal(c.notice, "Comparé à l'an dernier sur 8 mois sur 12 : les données commencent en mai 2023.");
   assert.deepEqual(Object.keys(c.metrics), KEYS);
   const pick = (k) => { const { current, previous, change, unit } = c.metrics[k]; return { current, previous, change, unit }; };
   assert.deepEqual(pick('revenue'), { current: 1400, previous: 1000, change: 40, unit: 'percent' });

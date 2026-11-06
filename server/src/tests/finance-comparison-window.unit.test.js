@@ -20,7 +20,7 @@ test('rule 4 — the range is the dashboard\'s own: comparableRange, clamped to 
   assert.deepEqual(unknown.range, yoy.clampToMonthsOver(yoy.comparableRange(FY, '2025-01'), '2026-10-18'));
   assert.equal(unknown.status.comparable, true);
   assert.equal(unknown.status.months, 9);
-  assert.match(unknown.status.notice, /^Comparaison sur 9 mois sur 12 : un mois en cours se compare une fois terminé\.$/);
+  assert.match(unknown.status.notice, /^Comparé à l'an dernier sur 9 mois sur 12 : un mois en cours se compare une fois terminé\.$/);
 });
 
 test('rule 5 — no data a year back: reason noHistory, one notice naming where the data starts', () => {
@@ -54,7 +54,7 @@ test('rule 7 — partial on coverage: the notice says how many months, and why',
   assert.equal(s.months, 8);
   assert.deepEqual(s.current, { from: '2026-05-01', to: '2026-12-31' });
   assert.deepEqual(s.previous, { from: '2025-05-01', to: '2025-12-31' });
-  assert.equal(s.notice, 'Comparaison sur 8 mois sur 12 : les données commencent en mai 2025.');
+  assert.equal(s.notice, "Comparé à l'an dernier sur 8 mois sur 12 : les données commencent en mai 2025.");
   const whole = comparisonWindow({ window: FY, coverage: '2024-01', today: '2027-06-01', trackingStart: '2024-01-02' }).status;
   assert.equal(whole.complete, true);
   assert.equal(whole.notice, null);

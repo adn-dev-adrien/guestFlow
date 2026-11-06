@@ -467,6 +467,15 @@ without losing anything today's page shows.
     (`specs/stay-profile.md` rule 28). *Why:* the ratio finalPrice ÷ (finalPrice + tax) removed a tax that
     was not in the total and only part of one that was; two screens must never leave out two different
     taxes for one stay. Test: `tests/finance-tax-in-total-shared.unit.test.js`.
+57. **A repeated `fiscalYear` is refused; the served exercise is always offered** (Adrien, D-HC16, and V5-11,
+    2026-11-06). The shared context of the dashboard, its detail tables and the stay profile refuses a
+    `fiscalYear` that is not a single value (`?fiscalYear=2026&fiscalYear=2025`, a nested key) with
+    « Exercice inconnu. » (400) — it names no exercise, so it is never read as the current one. A single
+    unusable value (`abc`, `1999`) keeps reading the current exercise (fiscal-year-and-nights-sold rule 24).
+    The page shows the refusal with its period toolbar and an « Exercice en cours » button that clears the
+    exercise (never a dead end, rule 51's reading). The selector's options (`fiscalYears`) always hold the
+    exercise the server serves, even one before any data, so the select never shows a blank. Tests:
+    `tests/finance-dashboard-round2.unit.test.js`, `pages/__tests__/FinancePage.round2.test.jsx`.
 
 ---
 

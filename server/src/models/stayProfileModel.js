@@ -118,7 +118,8 @@ function createStayProfileModel(finance, dashboard) {
       data: {
         window: win,
         fiscalYear: ctx.exercise,
-        fiscalYears: summary.fiscalYears,
+        // specs/finance-dashboard-redesign.md rule 57 — the served exercise is always among the options.
+        fiscalYears: dashboardModel.withServedExercise(summary.fiscalYears, ctx.exercise),
         months: exerciseMonths(exercise.from, exercise.to).map((m) => ({ month: m.month, label: m.label })),
         propertyId,
         properties: allProperties.map((p) => ({ id: p.id, name: p.name })),

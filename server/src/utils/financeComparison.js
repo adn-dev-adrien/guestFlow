@@ -72,7 +72,8 @@ function comparisonWindow({ window, coverage, today, trackingStart }) {
         ...(byCoverage ? [`les données commencent en ${monthLabel(coverage)}`] : []),
         ...(byMonthsOver ? ['un mois en cours se compare une fois terminé'] : []),
       ];
-      notice = `Comparaison sur ${range.months} mois sur ${totalMonths} : ${reasons.join(', et ')}.`;
+      // specs/finance-revpar-year-over-year.md rule 27 (D-HC14) — the span is said here, once, never in the pills.
+      notice = `Comparé à l'an dernier sur ${range.months} mois sur ${totalMonths} : ${reasons.join(', et ')}.`;
     }
     status = {
       ...base,

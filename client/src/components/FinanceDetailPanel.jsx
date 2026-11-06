@@ -95,7 +95,7 @@ function CollectedTable({ data, onOpenReservation }) {
           </>
         )}
       />
-      {data.rows.length > 0 && <Total label={`Total encaissé · ${plural(data.totals.count, 'paiement')}`}>{formatCurrency(data.totals.amount)}</Total>}
+      {data.rows.length > 0 && <Total label={`Total déjà payé · ${plural(data.totals.count, 'paiement')}`}>{formatCurrency(data.totals.amount)}</Total>}
     </>
   );
 }
@@ -336,7 +336,7 @@ export default function FinanceDetailPanel({
         <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: { xs: 1, sm: 2.5 }, bgcolor: 'rgba(60,54,36,0.04)', borderRadius: '10px', px: 1.5, py: 1.25, mb: 1.5 }}>
           <TextField size="small" type="date" label="Encaissable d'ici le" value={until || data.projection.until} onChange={(e) => e.target.value && onUntilChange(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
           <Typography variant="body2" sx={TAB}>Total de séjour <b>{formatCurrencyRounded(data.projection.total)}</b></Typography>
-          <Typography variant="body2" sx={TAB}>Déjà encaissé <b>{formatCurrencyRounded(data.projection.collected)}</b></Typography>
+          <Typography variant="body2" sx={TAB}>Déjà payé <b>{formatCurrencyRounded(data.projection.collected)}</b></Typography>
           <Typography variant="body2" sx={TAB}>Reste <b>{formatCurrencyRounded(data.projection.pending)}</b></Typography>
         </Box>
         {data.rows.length === 0

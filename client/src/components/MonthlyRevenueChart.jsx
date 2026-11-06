@@ -1,6 +1,6 @@
 /**
  * MonthlyRevenueChart — « Revenu par mois » of the Suivi financier (specs/finance-dashboard-redesign.md
- * rules 22 and 44): each month of the exercise, this year's column stacked « encaissé ou passé »
+ * rules 22 and 44): each month of the exercise, this year's column stacked « payé ou passé » (rule 54's word)
  * (sapin) / « à venir » (miel profond), last year's column beside it (sable, outlined) on comparable
  * months; the window's months highlighted when the window is not the whole exercise. Readable without
  * hover: the month's total (`totalLabel`, chosen and written by the server) sits above its column,
@@ -89,7 +89,7 @@ export default function MonthlyRevenueChart({ months, highlightWindow, previousY
   return (
     <Box>
       <Legend items={[
-        [{ bgcolor: c.current }, 'Encaissé ou passé'],
+        [{ bgcolor: c.current }, 'Payé ou passé'],
         [{ bgcolor: c.upcoming }, 'À venir'],
         ...(hasPrevious ? [[{ bgcolor: c.lastYear, outline: `1px solid ${c.lastYearEdge}`, outlineOffset: '-1px' }, previousYear]] : []),
       ]} />
