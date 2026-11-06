@@ -261,7 +261,7 @@ test('R24-DB-1: a row with no free units can still be blanked', () => {
   assert.deepEqual(option.rows(), { 901: [5, 1] });
 });
 
-test('R25 N3 (tariff-recipes rule 69): the way out the refusal names works — a price of 0 € keeps the row and its free units', () => {
+test('R25 N3 (tariff-recipes item 69): the way out the refusal names works — a price of 0 € keeps the row and its free units', () => {
   const option = savedOption();
   const res = option.put({ propertyPrices: { 901: 0, 902: 6 } });
   assert.equal(res.statusCode, 200, JSON.stringify(res.body));

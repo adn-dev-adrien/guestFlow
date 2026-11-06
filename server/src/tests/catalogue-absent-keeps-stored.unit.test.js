@@ -218,7 +218,7 @@ test('R25 N4: a panel save naming « Inclus » on « Lit bébé » leaves no def
   assert.deepEqual(app.readDb('SELECT propertyId FROM property_option_defaults WHERE optionId = ?', cot.id), []);
 });
 
-test('R25 N1 (options-resources-ux rule 34): a price type sent without its price judges the stored price under that type', async () => {
+test('R25 N1 (specs/options-resources-ux.md rule 34): a price type sent without its price judges the stored price under that type', async () => {
   const created = await app.call(admin, 'POST', '/api/options', {
     title: 'Navette', description: '', priceType: 'per_stay', price: 115, propertyIds: [property], propertyPrices: {},
   });

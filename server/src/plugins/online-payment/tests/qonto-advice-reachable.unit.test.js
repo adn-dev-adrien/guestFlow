@@ -115,7 +115,7 @@ test('rule 16 (E25-1) — Qonto not answering: « Test » still runs no check', 
   assert.equal(q.webhookCalls, 0, 'no check after a failed test');
 });
 
-// Verification N3 — a « Test » whose call fails WITHOUT recording (a refresh overtaken by a new consent, rule 19) leaves the
+// Verification N3 — a « Test » whose call fails WITHOUT recording (a refresh overtaken by a new consent, specs/qonto-settings-in-app.md rule 19) leaves the
 // standing webhook-register failure on the page: that failure must not be read as « Qonto answered ».
 test('rule 16 (N3) — a « Test » overtaken mid-refresh leaves the webhook failure standing and runs no check', async (t) => {
   const seen = [];
