@@ -11,10 +11,12 @@ function round2(value) {
   return Math.round(Number(value || 0) * 100) / 100;
 }
 
+// specs/tourist-tax-report-v2.md rule 27 — a year before 1000 (Date.UTC reads 0-99 as 1900+, 100-999 lose their
+// padding) or a month whose next one leaves four digits names no month a stay can be in: refused, never stretched.
 function getMonthBounds(monthStr) {
   if (!/^\d{4}-\d{2}$/.test(monthStr || '')) return null;
   const [y, m] = monthStr.split('-').map(Number);
-  if (!y || !m || m < 1 || m > 12) return null;
+  if (!y || y < 1000 || !m || m < 1 || m > 12 || (y === 9999 && m === 12)) return null;
   const start = `${String(y).padStart(4, '0')}-${String(m).padStart(2, '0')}-01`;
   const nextMonthDate = new Date(Date.UTC(y, m, 1));
   const endExclusive = `${nextMonthDate.getUTCFullYear()}-${String(nextMonthDate.getUTCMonth() + 1).padStart(2, '0')}-01`;

@@ -3,7 +3,7 @@
 
 const { addDays } = require('../utils/dateDays');
 const { todayIso: localTodayIso } = require('../utils/localDate');
-const { isTouristTaxDeclarable } = require('../utils/touristTaxFreeze');
+const { isTouristTaxDeclarable, isTouristTaxFrozen } = require('../utils/touristTaxFreeze');
 const db = require('../database');
 const { quoteStoredReservation } = require('../utils/storedReservationQuote');
 const { computePaymentStatus, round2 } = require('../utils/paymentStatus');
@@ -72,8 +72,10 @@ const TAX_ON_ARRIVAL_SQL = `(
 // label (= platforms.name) → direct match; iCal imports store the hyphenated platformKey → bridge to the
 // canonical label via any ical_sources row, then read the global mode (the key→label map is platform-wide).
 // specs/tourist-tax-report-v2.md rule 6 — its negation is the set of stays a platform remits itself.
+// Rule 35 — `direct` in any case, and an empty or NULL platform (the app's « direct », migration
+// platform-empty-to-direct), are ours: never « reversée par Direct », never in neither list.
 const WE_REMIT_SQL = `(
-  r.platform = 'direct'
+  lower(COALESCE(NULLIF(TRIM(r.platform), ''), 'direct')) = 'direct'
   OR EXISTS (
     SELECT 1 FROM platforms pl
     WHERE lower(pl.name) = lower(r.platform)
@@ -231,6 +233,13 @@ function createFinanceModel(database) {
       return '(EXISTS (SELECT 1 FROM reservation_installments i WHERE i.reservationId = r.id))';
     } catch { return '(0)'; }
   })();
+  // Rule 9 of tourist-tax-declared-checkbox — the negation of WE_REMIT_SQL for one stay. A minimal test schema
+  // without the platform tables has no platform to remit anything: the stay is ours.
+  const remittedByPlatform = (id) => {
+    try {
+      return Boolean(database.prepare(`SELECT NOT ${WE_REMIT_SQL} AS theirs FROM reservations r WHERE r.id = ?`).get(id).theirs);
+    } catch { return false; }
+  };
   const planOfStay = HAS_PLAN_SQL === '(0)' ? null : database.prepare('SELECT 1 FROM reservation_installments WHERE reservationId = ? LIMIT 1');
   const stayHasPlan = (id) => Boolean(planOfStay && planOfStay.get(id));
   const REFUNDED_TAX_COLS = hasRefundTables
@@ -1105,6 +1114,9 @@ function createFinanceModel(database) {
           );
           // The tax the fiche shows: frozen on a past stay, recomputed live otherwise.
           const grossTaxAmount = round2(Number(quote.touristTaxTotal || 0) - (addedTaxKeptOut ? addedTax - told : 0));
+          // specs/tourist-tax-declaration-month-stay-end.md rule 9 (D-HC10, 2026-11-06) — a tax frozen at 0 € is never
+          // ours to remit: the stay leaves the declaration (both pages, the synthesis, the data checks).
+          if (round2(Number(quote.touristTaxTotal || 0)) === 0 && isTouristTaxFrozen(database, stored)) return null;
           const grossAdultNights = taxedAdults * Number(quote.touristTaxNights || 0);
           // Pro-rated on the nights: exact for the per-night modes, the natural share for the
           // percentage ones (where the tax isn't night-linear).
@@ -1224,6 +1236,11 @@ function createFinanceModel(database) {
         return { ok: false, status: 404, error: 'Réservation introuvable.' };
       }
       const notDeclarable = { ok: false, status: 409, code: 'TOURIST_TAX_NOT_DECLARABLE', error: 'Déclarable une fois le séjour payé et terminé.' };
+      // specs/tourist-tax-declared-checkbox.md rule 9 — a stay whose platform remits the tax itself is not ours to tick
+      // (read from the platform's mode); taking a stored tick off stays possible.
+      if (declared && remittedByPlatform(id)) {
+        return { ok: false, status: 400, code: 'TOURIST_TAX_REMITTED_BY_PLATFORM', error: 'La plateforme reverse elle-même cette taxe.' };
+      }
       if (addedGuests) {
         if (!hasAddedGuestsTax) return { ok: false, status: 400, error: 'Réservation invalide.' };
         // Rule 22 — a screen left open can show a row the server no longer lists.

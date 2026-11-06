@@ -45,7 +45,11 @@ export default function FinanceDataChecksCard({ fiscalYear, propertyId, refreshK
 
   const itemHref = (item) => {
     if (item.reservationId != null) return withFrom(`/reservations/${item.reservationId}`, from);
-    if (item.month) return withFrom(`/finance/tourist-tax?month=${encodeURIComponent(item.month)}`, from);
+    // specs/tourist-tax-report-v2.md rule 31 (review R4-6) — the logement the item was counted on goes with it.
+    if (item.month) {
+      const logement = propertyId ? `&propertyId=${encodeURIComponent(propertyId)}` : '';
+      return withFrom(`/finance/tourist-tax?month=${encodeURIComponent(item.month)}${logement}`, from);
+    }
     return null;
   };
 

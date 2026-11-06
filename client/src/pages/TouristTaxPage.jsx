@@ -2,7 +2,7 @@
 // declaration status, as a list of stays or a night-by-night register, with the totals pinned at the bottom.
 // Every figure comes from GET /finance/tourist-tax/report; the page renders it and keeps local UI state only.
 import React, { useEffect, useRef, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router';
+import { useLocation, useNavigate, useSearchParams } from 'react-router';
 import {
   Box, Typography, Stack, Checkbox, Tooltip, Chip, TableRow, TableCell, TextField, MenuItem, Alert,
 } from '@mui/material';
@@ -28,28 +28,48 @@ const MONEY = { ...TABULAR, whiteSpace: 'nowrap' };
 const HEAD = { fontWeight: 600, whiteSpace: 'nowrap' };
 const GROUP = { ...HEAD, fontSize: '0.72rem', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.06em' };
 const DENSE = { '& .MuiTableCell-root': { px: 0.875 } };
-const SELF = '/finance/tourist-tax';
 
 function pad2(v) {
   return String(v).padStart(2, '0');
 }
 
-// The page opens on the month before this one, the month a declaration is usually made for.
-function getPreviousMonth() {
-  const d = new Date();
-  d.setDate(1);
-  d.setMonth(d.getMonth() - 1);
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`;
+const PERIOD_KINDS = ['month', 'quarter', 'year', 'custom'];
+const DECLARATIONS = ['all', 'todo', 'done'];
+
+// The page opens on the month before the server's (rule 32), the month a declaration is usually made for.
+function previousMonth(today) {
+  const y = Number(today.slice(0, 4));
+  const m = Number(today.slice(5, 7));
+  return m === 1 ? `${y - 1}-12` : `${y}-${pad2(m - 1)}`;
 }
 
 // specs/finance-data-checks.md rule 16 — `?month=YYYY-MM` (a link of « À vérifier ») opens that month when it is
-// a real one not still to come; anything else opens the default month.
-function linkedMonth(asked) {
+// a real one not still to come, judged from the server's day (rule 32); anything else opens the default month.
+function linkedMonth(asked, today) {
   const m = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(String(asked || ''));
-  if (!m) return null;
-  const d = new Date();
-  const current = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`;
-  return asked <= current ? asked : null;
+  if (!m || Number(m[1]) < 1000) return null;
+  return asked <= today.slice(0, 7) ? asked : null;
+}
+
+// The default selection; its month waits for the server's day when it is not known yet (rule 32).
+const defaultQuery = (serverToday) => ({ period: 'month', month: serverToday ? previousMonth(serverToday) : '', quarter: '', year: '', from: '', to: '', propertyId: '', declaration: 'all' });
+
+// Rule 31 — the selection and the view live in the URL, so returning from a fiche (or a shared link) restores them.
+// The month of a month selection waits for the server's day (rule 32); the rest is read as sent, the server judging it.
+function queryFromUrl(params) {
+  const period = PERIOD_KINDS.includes(params.get('period')) ? params.get('period') : 'month';
+  const propertyId = /^\d+$/.test(params.get('propertyId') || '') ? params.get('propertyId') : '';
+  const declaration = DECLARATIONS.includes(params.get('declaration')) ? params.get('declaration') : 'all';
+  return {
+    period,
+    month: '',
+    quarter: period === 'quarter' ? params.get('quarter') || '' : '',
+    year: period === 'year' ? params.get('year') || '' : '',
+    from: period === 'custom' ? params.get('from') || '' : '',
+    to: period === 'custom' ? params.get('to') || '' : '',
+    propertyId,
+    declaration,
+  };
 }
 
 // The query of a selection: the period's own key only, the filters when set.
@@ -110,11 +130,14 @@ function totalsItems(t) {
 
 export default function TouristTaxPage() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { showError } = useToast();
-  const today = useServerToday() || localIsoToday();
-  const [query, setQuery] = useState(() => ({ period: 'month', month: linkedMonth(searchParams.get('month')) || getPreviousMonth(), quarter: '', year: '', from: '', to: '', propertyId: '', declaration: 'all' }));
-  const [view, setView] = useState('list');
+  const serverToday = useServerToday();
+  const today = serverToday || localIsoToday();
+  const linkMonth = useRef(searchParams.get('month'));
+  const [query, setQuery] = useState(() => queryFromUrl(searchParams));
+  const [view, setView] = useState(() => (searchParams.get('view') === 'night' ? 'night' : 'list'));
   const [data, setData] = useState(null);
   const [loadError, setLoadError] = useState(false);
   const [refusal, setRefusal] = useState('');
@@ -122,8 +145,29 @@ export default function TouristTaxPage() {
   const queryRef = useRef(query);
   queryRef.current = query;
   const lastGood = useRef(null);
+  const refused = useRef(false);
+  const keepRefusal = useRef(false);
   const readSeq = useRef(0);
   const pendingTicks = useRef(0);
+  const waitingForDay = query.period === 'month' && !query.month;
+
+  // Rule 32 — the month a month selection opens on is judged from the server's day, once it is known.
+  useEffect(() => {
+    if (!serverToday || !waitingForDay) return;
+    setQuery((q) => ({ ...q, month: linkedMonth(linkMonth.current, serverToday) || previousMonth(serverToday) }));
+  }, [serverToday, waitingForDay]);
+
+  // Rule 31 — the URL follows the selection and the view (replace: the back button leaves the page, not a filter).
+  useEffect(() => {
+    if (waitingForDay) return;
+    const next = new URLSearchParams();
+    Object.entries(paramsOf(query)).forEach(([k, v]) => { if (v) next.set(k, v); });
+    if (view === 'night') next.set('view', 'night');
+    if (next.toString() !== searchParams.toString()) setSearchParams(next, { replace: true });
+  }, [query, view, waitingForDay]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Rule 33 — the selection on screen: the last one read while a refusal is shown, else the one asked.
+  const shownQuery = () => (refused.current && lastGood.current ? lastGood.current.query : queryRef.current);
 
   const setSelection = (patch) => setQuery((q) => ({ ...q, ...patch }));
 
@@ -131,7 +175,7 @@ export default function TouristTaxPage() {
   const patchDeclared = (target, value) =>
     setData((prev) => (prev ? {
       ...prev,
-      stays: prev.stays.map((r) => (r.key === target.key ? { ...r, touristTaxDeclaredAt: value } : r)),
+      stays: prev.stays.map((r) => (r.key === target.key ? { ...r, touristTaxDeclaredAt: value, touristTaxDeclaredOn: null } : r)),
     } : prev));
 
   // Rule 21 — the rows and the totals are the server's: once no tick is on its way the selection is read again,
@@ -142,7 +186,7 @@ export default function TouristTaxPage() {
     readSeq.current = read;
     api.getTouristTaxReport(paramsOf(forQuery))
       .then((res) => {
-        if (read !== readSeq.current || !sameQuery(forQuery, queryRef.current)) return;
+        if (read !== readSeq.current || !sameQuery(forQuery, shownQuery())) return;
         lastGood.current = { data: res, query: forQuery };
         setData(res);
       })
@@ -150,48 +194,62 @@ export default function TouristTaxPage() {
   };
 
   const handleToggleDeclared = async (row) => {
-    const forQuery = query;
+    const forQuery = shownQuery();
     const declared = !row.touristTaxDeclaredAt;
     readSeq.current += 1;
     pendingTicks.current += 1;
     patchDeclared(row, declared ? '__pending__' : null);
     try {
       const res = await api.setTouristTaxDeclared(row.reservationId, declared, { addedGuests: Boolean(row.addedGuestsRow) });
-      if (sameQuery(forQuery, queryRef.current)) patchDeclared(row, res.declaredAt);
+      if (sameQuery(forQuery, shownQuery())) patchDeclared(row, res.declaredAt);
     } catch (e) {
-      if (sameQuery(forQuery, queryRef.current)) patchDeclared(row, row.touristTaxDeclaredAt);
+      if (sameQuery(forQuery, shownQuery())) patchDeclared(row, row.touristTaxDeclaredAt);
       showError(e.message || TAX_PAGE.tickError);
     }
     pendingTicks.current -= 1;
-    if (pendingTicks.current === 0) refresh(queryRef.current);
+    if (pendingTicks.current === 0) refresh(shownQuery());
   };
 
   useEffect(() => {
+    if (waitingForDay) return undefined;
     let isMounted = true;
     const forQuery = query;
     readSeq.current += 1;
+    refused.current = false;
     setLoadError(false);
     setData(null);
     api.getTouristTaxReport(paramsOf(forQuery))
       .then((res) => {
         if (!isMounted) return;
         lastGood.current = { data: res, query: forQuery };
-        setRefusal('');
+        if (!keepRefusal.current) setRefusal('');
+        keepRefusal.current = false;
         setData(res);
       })
       .catch((e) => {
         if (!isMounted) return;
-        // Rule 19 — a refused selection keeps the last result on screen and says why.
-        if (lastGood.current && e && e.status === 400) {
+        const status = e && e.status;
+        if (status === 400 && lastGood.current) {
+          // Rule 19 — a refused selection keeps the last result on screen and says why.
+          refused.current = true;
           setRefusal(e.message);
           setData(lastGood.current.data);
-        } else {
-          setData(null);
-          setLoadError(true);
+          return;
         }
+        const fallback = defaultQuery(serverToday);
+        if (status === 400 && !sameQuery(forQuery, fallback)) {
+          linkMonth.current = null;
+          // Rule 32 — a FIRST read refused says why and opens the default month instead: never a dead end.
+          keepRefusal.current = true;
+          setRefusal(e.message);
+          setQuery(fallback);
+          return;
+        }
+        setData(null);
+        setLoadError(true);
       });
     return () => { isMounted = false; };
-  }, [query, reloadNonce]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [query, reloadNonce, waitingForDay]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleExport = async () => {
     const shown = lastGood.current ? lastGood.current.query : query;
@@ -202,8 +260,10 @@ export default function TouristTaxPage() {
     }
   };
 
+  // Rule 30 — the day of the tick as the server reads it (`touristTaxDeclaredOn`), the stamp's own day until it arrives.
+  const declaredDay = (row) => (row.touristTaxDeclaredOn ? displayDate(row.touristTaxDeclaredOn) : formatDeclaredDate(row.touristTaxDeclaredAt));
   const declaredTooltip = (row) => (row.touristTaxDeclaredAt
-    ? (formatDeclaredDate(row.touristTaxDeclaredAt) ? `${TAX_PAGE.declared} le ${formatDeclaredDate(row.touristTaxDeclaredAt)}` : TAX_PAGE.declared)
+    ? (declaredDay(row) ? `${TAX_PAGE.declared} le ${declaredDay(row)}` : TAX_PAGE.declared)
     : TAX_PAGE.notDeclared);
 
   // specs/tourist-tax-declared-checkbox.md rule 8 — the server says when a tick can be made; an existing one can always go.
@@ -245,7 +305,7 @@ export default function TouristTaxPage() {
     </>
   );
 
-  const openStay = (row) => navigate(withFrom(`/reservations/${row.reservationId}`, SELF));
+  const openStay = (row) => navigate(withFrom(`/reservations/${row.reservationId}`, `${location.pathname}${location.search}`));
   const base = Boolean(data?.columns?.percentageBase);
   // While a selection loads, the pickers keep the options of the last report read (their values stay offered).
   const known = data || (lastGood.current && lastGood.current.data);
@@ -319,7 +379,7 @@ export default function TouristTaxPage() {
               <Typography variant="body2" sx={{ fontWeight: 600 }}>{rowName(row)}</Typography>
               <Typography variant="caption" color="text.secondary">{`${row.propertyName} · ${row.platformLabel}`}</Typography>
             </Box>
-            <Box onClick={(e) => e.stopPropagation()} sx={{ flexShrink: 0 }}>{byPlatform(row) ? platformTag(row) : declaredCell(row)}</Box>
+            <Box onClick={(e) => e.stopPropagation()} sx={{ flexShrink: 0, maxWidth: '50%', minWidth: 0, display: 'flex', justifyContent: 'flex-end' }}>{byPlatform(row) ? platformTag(row) : declaredCell(row)}</Box>
           </Stack>
           {rowNotes(row)}
           <Typography variant="caption" color="text.secondary">
@@ -358,8 +418,8 @@ export default function TouristTaxPage() {
         </TableRow>
       )}
       renderRow={(n) => (
-        <TableRow key={n.date}>
-          <TableCell sx={TABULAR}>{formatNight(n.date)}</TableCell>
+        <TableRow key={n.date} data-outside-window={n.outsideWindow ? 'true' : undefined} sx={n.outsideWindow ? { '& td': { color: 'text.secondary' } } : undefined}>
+          <TableCell sx={TABULAR}>{formatNight(n.date)}{n.outsideWindow ? ' *' : ''}</TableCell>
           <TableCell align="right" sx={TABULAR}>{n.staysCount}</TableCell>
           <TableCell align="right" sx={TABULAR}>{n.persons}</TableCell>
           <TableCell align="right" sx={TABULAR}>{n.taxedPersons}</TableCell>
@@ -370,7 +430,7 @@ export default function TouristTaxPage() {
       renderMobileCard={(n) => (
         <Stack sx={{ gap: 0.25 }}>
           <Stack direction="row" sx={{ justifyContent: 'space-between' }}>
-            <Typography variant="body2" sx={{ fontWeight: 600, ...TABULAR }}>{formatNight(n.date)}</Typography>
+            <Typography variant="body2" sx={{ fontWeight: 600, ...TABULAR, ...(n.outsideWindow ? { color: 'text.secondary' } : {}) }}>{formatNight(n.date)}{n.outsideWindow ? ' *' : ''}</Typography>
             <Typography variant="body2" sx={{ fontWeight: 600, ...TABULAR }}>{formatCurrency(n.taxAmount)}</Typography>
           </Stack>
           <Typography variant="caption" color="text.secondary">
@@ -430,6 +490,9 @@ export default function TouristTaxPage() {
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: -0.75, mb: 1 }}>{TAX_PAGE.source}</Typography>
               {data.window.futureExcluded && (
                 <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>{TAX_PAGE.futureExcluded}</Typography>
+              )}
+              {view === 'night' && data.columns?.nightsOutsideWindow && (
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>{TAX_PAGE.nightsOutside}</Typography>
               )}
               <Box sx={DENSE}>{view === 'list' ? listTable : nightTable}</Box>
             </Panel>

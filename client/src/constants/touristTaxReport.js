@@ -19,6 +19,7 @@ export const TAX_PAGE = {
     { value: 'done', label: 'Déclarées' },
   ],
   futureExcluded: 'Les mois à venir ne sont pas comptés.',
+  nightsOutside: '* Nuit hors période d’un séjour rattaché à la période par sa dernière nuit.',
   source: 'Sur les montants des séjours, rattachés au mois de leur dernière nuit.',
   listPanel: 'Séjours',
   nightPanel: 'Registre par nuit',
