@@ -2298,7 +2298,9 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
         code: 'PAST_RESERVATION_LOCKED',
       });
     }
-    if (raisesCollectedStay && unclaimedRise(storedPaymentForQuote, quote) > 0) {
+    const savedPlatform = req.body.platform != null ? req.body.platform : storedPaymentForQuote.platform;
+    if (raisesCollectedStay
+      && unclaimedRise(storedPaymentForQuote, quote, { planClaim: installments.planClaimOf(id, quote, savedPlatform) }) > 0) {
       return res.status(400).json({ error: MID_STAY_EXTRAS_CLOSED_MESSAGE, code: 'MID_STAY_EXTRAS_CLOSED' });
     }
   }

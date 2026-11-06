@@ -11,7 +11,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
   db, controller, respond, ADMIN, rowOf, NO_ACOMPTE, WITH_ACOMPTE, PLATFORM, S, C, D, forced, free, fiche, put, pay,
-  storedEndOfStayPaid, ficheView, unclaimed,
+  storedEndOfStayPaid, ficheView, unclaimed, TODAY,
 } = require('./moneyLedgerFixture');
 
 async function save(stay, over) {
@@ -174,4 +174,59 @@ test('finding 1: the same stay with its solde paid: refused, nothing would claim
   const res = await save(stay, { ...moved, discountPercent: 0 });
   assert.equal(res.body.code, 'MID_STAY_EXTRAS_CLOSED');
   assert.equal(rowOf(stay.id).finalPrice, before.finalPrice);
+});
+
+// Audit R26 D21 review L3 — a direct stay paid by a plan keeps its solde at 0: the unpaid installments are what claims a rise
+// (the save re-spreads it on them, direct-installments rules 7-9a). A checked-out stay with one installment still unpaid
+// accepts a removed discount, the installment taking it; a fully paid plan is still refused.
+const installmentsController = require('../controllers/installmentsController');
+
+async function checkedOutOnPlan(paidCount) {
+  const stay = fiche(NO_ACOMPTE, 'direct', { customOptions: [forced(20)], discountPercent: 5 });
+  const set = respond();
+  await installmentsController.put({ params: { id: stay.id }, body: { count: 2 }, user: ADMIN }, set);
+  assert.equal(set.statusCode, 200, JSON.stringify(set.body));
+  const rows = db.prepare('SELECT id FROM reservation_installments WHERE reservationId = ? ORDER BY number').all(stay.id);
+  for (const row of rows.slice(0, paidCount)) {
+    const paid = respond();
+    await installmentsController.markPaid({ params: { id: stay.id, installmentId: row.id }, body: { paidDate: TODAY, method: 'transfer' }, user: ADMIN }, paid);
+    assert.equal(paid.statusCode, 200, JSON.stringify(paid.body));
+  }
+  return checkedOutStay(stay);
+}
+
+function checkedOutStay(stay) {
+  pay(stay.id, C);
+  db.prepare(`UPDATE reservations SET endOfStayComplementAmount = 30, endOfStayComplementDetail = ?, endOfStayComplementPaid = 1,
+      endOfStayComplementPaidDate = date('now'), endOfStayComplementPaidAtDeparture = 1,
+      startDate = date('now', '-3 day'), endDate = date('now', '-1 day'), departureSasDoneAt = datetime('now'), checkOutDone = 1 WHERE id = ?`)
+    .run(JSON.stringify([{ label: 'Ménage', qty: 1, unitPrice: 30, amount: 30, key: 'cleaning' }]), stay.id);
+  return { stay, moved: { startDate: rowOf(stay.id).startDate, endDate: rowOf(stay.id).endDate } };
+}
+
+const planOf = (id) => db.prepare('SELECT number, amountCents, paid FROM reservation_installments WHERE reservationId = ? ORDER BY number').all(id);
+
+test('L3: checked out, one installment unpaid: a discount removed passes, the installment takes the rise', async () => {
+  const { stay, moved } = await checkedOutOnPlan(1);
+  const before = rowOf(stay.id);
+  const [, unpaidBefore] = planOf(stay.id);
+  const res = await save(stay, { ...moved, discountPercent: 0 });
+  assert.equal(res.statusCode, 200, JSON.stringify(res.body));
+  const after = rowOf(stay.id);
+  const rise = Math.round((after.finalPrice + after.touristTaxTotal - before.finalPrice - before.touristTaxTotal) * 100);
+  assert.ok(rise > 0);
+  const [, unpaidAfter] = planOf(stay.id);
+  assert.equal(unpaidAfter.amountCents - unpaidBefore.amountCents, rise);
+  assert.equal(after.endOfStayComplementAmount, 30);
+  assert.equal(ficheView(stay.id).ledger.remaining, unpaidAfter.amountCents / 100);
+});
+
+test('L3: the same stay with its plan fully paid: refused, nothing would claim the rise', async () => {
+  const { stay, moved } = await checkedOutOnPlan(2);
+  const before = rowOf(stay.id);
+  const plan = planOf(stay.id);
+  const res = await save(stay, { ...moved, discountPercent: 0 });
+  assert.equal(res.body.code, 'MID_STAY_EXTRAS_CLOSED');
+  assert.equal(rowOf(stay.id).finalPrice, before.finalPrice);
+  assert.deepEqual(planOf(stay.id), plan);
 });

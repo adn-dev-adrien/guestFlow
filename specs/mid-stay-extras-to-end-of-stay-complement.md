@@ -278,6 +278,12 @@ ait été réglé ou non.
     > whose end of stay was collected at departure: 84,80 € never asked for) cannot happen. N4's refusal message no longer
     > sends to the unlock: « Complément de fin de séjour déjà encaissé : décocher « payé » d’abord. ». Tests:
     > `eos-paid-refuses-growth`, `unlocked-fiche-keeps-final-price`.
+    > **Reading of 2026-11-06 (audit R26 D21 review L3) — extends the finding 1 reading to a plan.** A direct stay paid by
+    > installments keeps its solde at 0: what claims a rise is its unpaid installments, which the save re-spreads it on
+    > (direct-installments rules 7-9a). The unclaimed part also subtracts what that same rebalance adds to the unpaid
+    > installments (`installmentsController.planClaimOf`, read without writing; 0 without a plan or when the save leaves the
+    > own channels). A checked-out stay with an installment still unpaid accepts a removed discount, the installment taking
+    > the rise; a fully paid plan is still refused. Test: `eos-paid-refuses-growth` « L3: … ».
 
 ---
 
@@ -414,8 +420,8 @@ détectée, et jamais lorsqu'il est encaissé (§3.5). Aucun backfill, aucune pe
 leur couverture existante suffit, aucun test ajouté.
 
 - `end-of-stay-claims-growth.unit.test.js` (14) — rule 20, readings of 2026-11-05 (D9, R23 N1).
-- `eos-paid-refuses-growth.unit.test.js` (17) — rule 20, readings of 2026-11-05 (R23 N4) and 2026-11-06 (R26 MEDIUM 1,
-  finding 1, D21).
+- `eos-paid-refuses-growth.unit.test.js` (19) — rule 20, readings of 2026-11-05 (R23 N4) and 2026-11-06 (R26 MEDIUM 1,
+  finding 1, D21, D21 review L3).
 
 ### Client tests (`cd client && npx vitest run` → **774 verts**, +2)
 
