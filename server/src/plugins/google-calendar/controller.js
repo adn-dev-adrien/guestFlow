@@ -120,7 +120,7 @@ function buildController({
     if (!oauth.resolveRedirectUri()) {
       return res.status(400).json({
         error: 'PUBLIC_URL_MISSING',
-        message: "L'URL publique de GuestFlow n'est pas configurée (Paramètres) et GOOGLE_OAUTH_REDIRECT_URI est absent.",
+        message: "L'URL publique de GuestFlow n'est pas configurée (Paramètres → Système) et GOOGLE_OAUTH_REDIRECT_URI est absent.",
       });
     }
     const state = crypto.randomBytes(16).toString('hex');

@@ -38,6 +38,7 @@ const parseJson = (raw, fallback) => { try { return raw ? JSON.parse(raw) : fall
  * @param {object} deps.writer           ficheWriter
  * @param {Function} deps.read           `() → Promise<{ok, read, error?}>` — reads Qonto into `transactions`
  * @param {() => boolean} deps.connected
+ * @param {() => boolean} deps.qontoConfigured  the Qonto credentials are there (rule 50: the job waits for them)
  * @param {Function} deps.withQonto      `(fn) → Promise`
  * @param {object} deps.core             `{ buildLedger, parseGroup, listLinks, platformDisplay, todayIso }`
  */
@@ -51,7 +52,7 @@ const pairsRead = (pairs) => !Array.isArray(pairs) || pairs.every((p) => p && ty
   && optionalScalar(p.transactionId) && optionalScalar(p.reservationId) && optionalScalar(p.ledgerKey) && optionalScalar(p.amountCents));
 const listRead = (list) => !Array.isArray(list) || list.every(isScalar);
 
-function createReconciliationController({ db, settings, transactions, model, writer, read, connected, withQonto, core }) {
+function createReconciliationController({ db, settings, transactions, model, writer, read, connected, qontoConfigured, withQonto, core }) {
   let lastAttemptAt = 0;
 
   const startDateOf = (today) => {
@@ -462,7 +463,8 @@ function createReconciliationController({ db, settings, transactions, model, wri
 
     /** The 8-hour job. Inert until the page has been opened once (rule 1: the start date exists). */
     async runJob() {
-      if (!connected() || !day(settings.get('reconciliationStartDate'))) return { skipped: true };
+      // Rule 50 — without credentials the read can only fail, and the badge already says so.
+      if (!connected() || !qontoConfigured() || !day(settings.get('reconciliationStartDate'))) return { skipped: true };
       lastAttemptAt = Date.now();
       const result = await read();
       if (result && result.ok) afterRead();

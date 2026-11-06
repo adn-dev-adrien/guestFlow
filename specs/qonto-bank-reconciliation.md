@@ -339,6 +339,13 @@ a short list of the gaps to fix on the fiches.
     spent on the other one is not read again; a start date moved earlier is not read further back either (closing
     that would need a stored `readFrom`, not worth it). In both cases « Effacer aussi ses données » followed by a read
     starts over. online-payment 1.5.5. Test: `reconciliation-account-change.unit.test.js`.
+50. **The 8-hour read waits for the Qonto credentials (audit R25 O1, 2026-11-06).** A stored authorisation is not enough:
+    while the effective configuration has no credentials (`resolveQontoConfig(...).configured` false), the job reads
+    nothing and records nothing, and answers `{ skipped: true }`. « Lire maintenant » and the other routes are unchanged.
+    *Why:* on an instance with the plugin on and no credentials (a first install, a copy whose secrets were purged), the
+    boot pass recorded `QONTO_NOT_CONFIGURED` from « rapprochement bancaire », and the Paiements page showed a red
+    « Dernier échec » beside the badge's own « Identifiants manquants ». online-payment 1.5.6. Test:
+    `reconciliation-job-unconfigured.unit.test.js`.
 
 **Edge cases:**
 - Reservation cancelled after a payment was reconciled → leaves the scope; its reconciliations stay
@@ -519,6 +526,8 @@ The interactive mock-up of the summary page is the reference
       core model, a failing read throws.
 - [x] `reconciliation-account-change.unit.test.js` (3) — rule 49: a newly picked account read from rule 5's first
       window, incremental from its second read, back on an account with credits stays incremental (residue).
+- [x] `reconciliation-job-unconfigured.unit.test.js` (3) — rule 50: connected without credentials, the job skips and
+  reads nothing; with credentials it reads; the wiring asks the effective configuration, so no failure is recorded.
 - [x] `reconciliation-start-date-window.unit.test.js` (3) — rule 48: the window bounds and empty accepted;
       impossible day, half-typed year, one day outside refused with nothing written; a stored value kept.
       Client `ReconciliationSettingsCard.start-date.test.jsx` (3): the hint from the server's day, none on the

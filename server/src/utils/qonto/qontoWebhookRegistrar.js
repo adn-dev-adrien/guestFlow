@@ -28,7 +28,7 @@ const DESCRIPTION = 'GuestFlow payment links';
 const defaultRandomSecret = () => crypto.randomBytes(32).toString('hex');
 
 const missingPublicUrlError = () => {
-  const err = new Error("L'URL publique de GuestFlow n'est pas configurée (Réglages → Envoi d'emails).");
+  const err = new Error("L'URL publique de GuestFlow n'est pas configurée (Paramètres → Système).");
   err.code = 'PUBLIC_URL_MISSING';
   return err;
 };
