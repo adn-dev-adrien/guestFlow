@@ -5,7 +5,7 @@
 // page's « total de séjour » (financeModel), `bookedOn` the day its fiche was created.
 
 const {
-  LENGTH_BUCKETS, LEAD_BUCKETS, LEAD_UNKNOWN, PRICE_BUCKETS, PRICE_UNPRICED,
+  LENGTH_BUCKETS, LEAD_BUCKETS, LEAD_UNKNOWN, PRICE_BUCKETS, PRICE_UNPRICED, MAX_ROWS, OTHER_ROW,
 } = require('../constants/stayProfileBuckets');
 const { change } = require('./yearOverYear');
 
@@ -63,6 +63,7 @@ function finish(rows) {
   return rows.map((r, i) => ({
     key: r.key,
     label: r.label,
+    ...(r.other ? { other: true, parts: r.parts } : {}),
     count: r.count,
     amount: euros(r.cents),
     countPercent: countPercents[i],
@@ -73,6 +74,24 @@ function finish(rows) {
     countBar: maxCount > 0 ? round4(r.count / maxCount) : 0,
     amountBar: maxCents > 0 ? round4(Math.max(0, r.cents) / maxCents) : 0,
   }));
+}
+
+/**
+ * Rule 29 — at most five rows: past five, the first four by rank stay and the rest fold into one
+ * « Autres » row (`other: true`, `parts` = the folded labels in rank order), summed before the shares
+ * are computed so they still add up to 100. As the accounting synthesis does (its rule 37).
+ */
+function foldTail(rows) {
+  if (rows.length <= MAX_ROWS) return rows;
+  const kept = rows.slice(0, MAX_ROWS - 1);
+  const rest = rows.slice(MAX_ROWS - 1);
+  return [...kept, {
+    ...OTHER_ROW,
+    other: true,
+    parts: rest.map((r) => r.label),
+    count: rest.reduce((n, r) => n + r.count, 0),
+    cents: rest.reduce((n, r) => n + r.cents, 0),
+  }];
 }
 
 function tally(stays, keyOf, seed) {
@@ -113,8 +132,8 @@ const priceOf = (s) => (cents(s.totalSejour) === 0 ? PRICE_UNPRICED : bucketOf(c
  * @param {Array} stays
  */
 function profileOf(stays) {
-  const channelRows = Array.from(tally(stays, (s) => s.channel, []).values())
-    .sort((a, b) => (b.cents - a.cents) || (b.count - a.count) || a.label.localeCompare(b.label, 'fr'));
+  const channelRows = foldTail(Array.from(tally(stays, (s) => s.channel, []).values())
+    .sort((a, b) => (b.cents - a.cents) || (b.count - a.count) || a.label.localeCompare(b.label, 'fr')));
   const totalCents = stays.reduce((n, s) => n + cents(s.totalSejour), 0);
   return {
     totals: { count: stays.length, amount: euros(totalCents) },
@@ -154,5 +173,5 @@ function basketDelta(current, previous) {
 }
 
 module.exports = {
-  bucketOf, percentShares, leadDays, profileOf, basketOf, basketDelta, withoutTouristTax,
+  foldTail, bucketOf, percentShares, leadDays, profileOf, basketOf, basketDelta, withoutTouristTax,
 };
