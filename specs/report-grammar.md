@@ -12,7 +12,7 @@
 
 ## 1. Context
 
-The HIPPOCAMP benchmark (`docs/rapports/2026-11-05-benchmark-hippocamp.html`, section « Graphiques
+The HIPPOCAMP benchmark (report of 2026-11-05, not versioned: it holds third-party screenshots; archived outside the repository; section « Graphiques
 et mise en page », approved by Adrien on 2026-11-05) found that their recent report screens share one
 layout grammar: four figures first, each with its definition and its change against last year; then
 white panels titled in small capitals, two per row; the detail in tabs that show their size; and

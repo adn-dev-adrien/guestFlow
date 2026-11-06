@@ -12,7 +12,7 @@
 
 ## 1. Context
 
-The benchmark of HIPPOCAMP (`docs/rapports/2026-11-05-benchmark-hippocamp.html`, section « Contrôles »,
+The benchmark of HIPPOCAMP (report of 2026-11-05, not versioned: it holds third-party screenshots; archived outside the repository; section « Contrôles »,
 approved by Adrien on 2026-11-05) found one idea worth taking from its « Faire le point » screen: a list of
 data checks counted over the exercise, each leading to the records concerned. GuestFlow already surfaces many
 defects, each in its own place, and this panel must not repeat any of them:

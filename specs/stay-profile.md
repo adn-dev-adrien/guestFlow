@@ -8,7 +8,7 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
-Validation summary with the interactive mock-up: `docs/rapports/2026-11-05-benchmark-hippocamp.html`,
+Validation summary with the interactive mock-up: the HIPPOCAMP benchmark report of 2026-11-05 (not versioned: it holds third-party screenshots; archived outside the repository),
 section « Profil des séjours » (lot 4), approved by Adrien on 2026-11-05. The mock-up's figures are fake.
 
 ---
