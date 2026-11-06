@@ -11,7 +11,7 @@ const { isDirectChannel } = require('../utils/platformNameFormat');
 const { resolveTaxPeriod, periodChoices } = require('../utils/touristTaxPeriod');
 const { buildTouristTaxReport, ourStayRow, platformStayRow, DECLARATION_FILTERS } = require('../utils/touristTaxReport');
 
-const { WE_REMIT_SQL, todayIso, nightsBetween } = financeModel.helpers;
+const { WE_REMIT_SQL, TAX_ON_ARRIVAL_SQL, todayIso, nightsBetween } = financeModel.helpers;
 
 const MESSAGES = {
   unknownProperty: 'Logement inconnu.',
@@ -32,10 +32,22 @@ const PLATFORM_COLLECTS_SQL = `(
   )
 )`;
 
-const channelLabel = (platform) => (isDirectChannel(platform) ? 'Direct' : platformDisplayName(platform));
 const round2 = (value) => Math.round(Number(value || 0) * 100) / 100;
 
 function createTouristTaxReportModel(database, finance) {
+  // Rule 51 (review V3R-4) — an iCal key (`booking`) reads as its platform's label (`Booking`), through the same
+  // ical_sources bridge as the platform predicates, then the app's display name. A minimal schema has no bridge.
+  const labelOfKey = (() => {
+    try {
+      return database.prepare('SELECT platformLabel FROM ical_sources WHERE lower(platformKey) = lower(?) AND TRIM(COALESCE(platformLabel, \'\')) <> \'\' LIMIT 1');
+    } catch { return null; }
+  })();
+  const channelLabel = (platform) => {
+    if (isDirectChannel(platform)) return 'Direct';
+    const bridged = labelOfKey && platform ? labelOfKey.get(String(platform)) : null;
+    return platformDisplayName(bridged ? bridged.platformLabel : platform);
+  };
+
   const properties = () => database.prepare('SELECT id, name FROM properties ORDER BY id').all();
   // Rule 15 — the first month a stay could be declared in: its last night's.
   const firstStayMonth = () => {
@@ -91,6 +103,9 @@ function createTouristTaxReportModel(database, finance) {
       WHERE r.kind = 'reservation'
         AND ${WE_REMIT_SQL}
         AND ${PLATFORM_COLLECTS_SQL}
+        -- Rule 50 (D-HC21) — a tax WE collected at arrival (the fiche's « en complément », or the platform's mode)
+        -- never went through the platform: the stay stays hidden. The tax page's own at-arrival reading.
+        AND NOT ${TAX_ON_ARRIVAL_SQL}
         AND DATE(r.endDate, '-1 day') >= ?
         AND DATE(r.endDate, '-1 day') < ?
     `).all(start, endExclusive);

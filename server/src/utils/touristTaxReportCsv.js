@@ -25,6 +25,7 @@ function statusOf(row) {
 const listsPlatforms = (report) => ((report.filters && report.filters.declaration) || 'all') === 'all';
 
 function listCsv(report) {
+  const mainListed = new Set(report.stays.filter((r) => r.remittedBy !== 'platform' && !r.addedGuestsRow).map((r) => r.reservationId));
   const rows = report.stays.map((row) => [
     statusOf(row),
     row.addedGuestsRow ? `${row.reservationName}${ADDED_GUESTS_SUFFIX}` : row.reservationName,
@@ -34,9 +35,10 @@ function listCsv(report) {
     frDate(row.endDate),
     // Rule 44 (review V2-6) — a platform's row is told for information: its counts stay empty, so every column of
     // the file adds up to the « Total à reverser » line, which counts only ours.
-    // A row of added guests is the same stay and the same nights: its « Nuits » stays empty, the stay counts them once.
+    // A row of added guests is the same stay and the same nights: the stay's nights are counted once, on its first
+    // listed row — its main row when listed, else this one (rule 52, review V3R-1, as `reportTotals` counts them).
     ...(row.remittedBy === 'platform' ? [null, null, null, null, null, null] : [
-      row.addedGuestsRow ? null : row.nightsCount,
+      row.addedGuestsRow && mainListed.has(row.reservationId) ? null : row.nightsCount,
       row.persons,
       row.taxedPersons,
       row.exemptPersons,

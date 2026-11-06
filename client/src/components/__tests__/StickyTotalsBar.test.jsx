@@ -1,5 +1,5 @@
 /**
- * StickyTotalsBar — specs/tourist-tax-report-v2.md §3 rules 20, 39, 45 and 47: the given figures, as given, in a sticky polite live
+ * StickyTotalsBar — specs/tourist-tax-report-v2.md §3 rules 20, 39, 45, 47 and 54: the given figures, as given, in a sticky polite live
  * region; on a phone the `compact` ones and a toggle that unfolds the rest.
  */
 import React from 'react';
@@ -85,4 +85,11 @@ test('rule 45: a long label is clamped to two lines, its full text kept in its t
   expect(labelEl).toHaveAttribute('title', long);
   expect(labelEl).toHaveStyle({ overflow: 'hidden' });
   expect(labelEl.style.webkitLineClamp || getComputedStyle(labelEl).webkitLineClamp || getComputedStyle(labelEl).getPropertyValue('-webkit-line-clamp')).toBe('2');
+});
+
+test('rule 54: the main figure keeps its own width at the right end of its row, its divider beside it', () => {
+  setPhone(false);
+  renderBar();
+  expect(screen.getByTestId('total-amount')).toHaveStyle({ flex: '0 0 auto', marginLeft: 'auto', textAlign: 'right' });
+  expect(screen.getByTestId('total-persons')).not.toHaveStyle({ marginLeft: 'auto' });
 });

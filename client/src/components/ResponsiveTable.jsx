@@ -62,8 +62,10 @@ export default function ResponsiveTable({
     return () => observer.disconnect();
   }, [measured]);
 
-  // New rows may make the table narrower: measure it afresh.
-  useLayoutEffect(() => { setNaturalWidth(0); }, [items]);
+  // A new column set (`minWidth` moves with it) is measured afresh. New rows alone keep the last measure, so a reload
+  // in the overflow band does not flip to the table for one pass and remount the cards — focus stays where it was
+  // (specs/tourist-tax-report-v2.md rule 53, review V3R-2).
+  useLayoutEffect(() => { setNaturalWidth(0); }, [minWidth]);
 
   // A zero width (jsdom, a hidden tab) is « unknown », not « narrow ».
   const tooNarrow = (Boolean(cardsBelowWidth) && containerWidth > 0 && containerWidth < cardsBelowWidth)

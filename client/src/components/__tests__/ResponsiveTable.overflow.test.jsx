@@ -5,7 +5,7 @@ import { afterEach, vi } from 'vitest';
 
 import ResponsiveTable from '../ResponsiveTable';
 
-// specs/tourist-tax-report-v2.md rule 48 (review V2-5) — `cardsWhenOverflow`: the table, MEASURED, wider than its
+// specs/tourist-tax-report-v2.md rules 48 and 53 (reviews V2-5, V3R-2) — `cardsWhenOverflow`: the table, MEASURED, wider than its
 // container gives way to the cards, so no container width ever scrolls the table inside its card (the fixed
 // `cardsBelowWidth` let 860–877 px show a 878 px table scrolling by 18 px).
 
@@ -44,5 +44,27 @@ test('rule 48: a table that fits its container stays a table', () => {
 test('rule 48: without the flag, the fixed threshold alone decides (870 ≥ 860: a table)', () => {
   withWidths({ container: 870, table: 878 });
   render(<ResponsiveTable {...props} cardsBelowWidth={860} />);
+  expect(screen.getByText('row Marie')).toBeInTheDocument();
+});
+
+test('rule 53: in the overflow band, new rows keep the cards mounted and the focus where it was', () => {
+  withWidths({ container: 870, table: 878 });
+  const cardProps = { ...props, renderMobileCard: (r) => <label>card {r.name}<input type="checkbox" aria-label={`box ${r.name}`} /></label> };
+  const { rerender } = render(<ResponsiveTable {...cardProps} cardsBelowWidth={860} cardsWhenOverflow />);
+  const box = screen.getByLabelText('box Marie');
+  box.focus();
+  expect(document.activeElement).toBe(box);
+  rerender(<ResponsiveTable {...cardProps} items={[{ id: 1, name: 'Marie' }]} cardsBelowWidth={860} cardsWhenOverflow />);
+  expect(screen.getByLabelText('box Marie')).toBe(box);
+  expect(document.activeElement).toBe(box);
+});
+
+test('rule 53: a new column set (another minWidth) is measured afresh', () => {
+  withWidths({ container: 870, table: 878 });
+  const { rerender } = render(<ResponsiveTable {...props} cardsBelowWidth={700} cardsWhenOverflow />);
+  expect(screen.getByText('card Marie')).toBeInTheDocument();
+  vi.restoreAllMocks();
+  withWidths({ container: 870, table: 700 });
+  rerender(<ResponsiveTable {...props} minWidth={700} cardsBelowWidth={700} cardsWhenOverflow />);
   expect(screen.getByText('row Marie')).toBeInTheDocument();
 });

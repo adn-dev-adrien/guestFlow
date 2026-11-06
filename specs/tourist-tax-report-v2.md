@@ -244,6 +244,25 @@ declared and what remains, and, apart, what the platforms remit themselves. The 
 49. **A platform's tag shows whole in the table** (review V2-7). The tag under the guest's name is not capped; it
     wraps inside its chip when the cell is narrower than its text.
 
+50. **A tax we collected at arrival is never the platform's** (D-HC21, 2026-11-06). Rule 43's list leaves out a stay
+    whose tax rides the complement — the fiche's own « Taxe de séjour en complément », or a platform whose mode is
+    « we collect at arrival » — read by the tax page's at-arrival predicate (`TAX_ON_ARRIVAL_SQL`), one reading. Such
+    a stay frozen at 0 € stays hidden, like a direct one, whatever the platform's mode.
+51. **A channel reads as its platform's name** (review V3R-4). A stay stored with an iCal key (`booking`) is labelled
+    with the platform's label the `ical_sources` bridge gives (`Booking`), then `platformDisplayName`, on every row.
+52. **The stay's nights are counted once, on its first listed row** (review V3R-1). In the list CSV a row of added
+    guests leaves « Nuits » empty only when its stay's main row is listed in the same file; listed alone (« À
+    déclarer » after the main row was ticked), it carries the stay's nights, as `reportTotals` counts them. So every
+    count column adds up to the total line under every filter (rules 37, 44).
+53. **A reload keeps the cards and the focus** (review V3R-2). `ResponsiveTable` keeps its last measure of the table
+    across new rows and measures afresh only when the column set changes (`minWidth`): in the overflow band a tick
+    neither flips to the table for one pass nor remounts the cards, so keyboard focus stays on the box.
+54. **The main figure keeps its divider beside it** (review V3R-3). In a row, `main` keeps its own width at the right
+    end of its row, so when it wraps alone onto a row its divider stays next to its figure, not at the bar's left edge.
+55. **The divider's place, in pixels** (review V3R-3).
+    > **Sans test** — a pixel position jsdom cannot measure; rule 54's test pins its means (own width, pushed to the
+    > row's end), the place is checked by eye at 1100 and 1280 px.
+
 **Edge cases:**
 - No stay in the selection → `stays: []`, `nights: []`, every total 0, `allDeclared: false`.
 - A stay ticked on its main row with an added guests' row still to declare → « todo » lists the own row alone; the
@@ -434,11 +453,12 @@ Target: the `#taxe` mock-up of the design reference, in MUI + the « Maison » t
 - [x] Existing tourist-tax suites unchanged and green (rule 1).
 
 - [x] `tests/tourist-tax-report-base-columns.unit.test.js` (2) — rule 16.
+- [x] `tests/tourist-tax-review-fixes-4.unit.test.js` (3, 2026-11-06, round 4) — rules 50, 51, 52.
 - [x] `tests/tourist-tax-review-fixes-3.unit.test.js` (3, 2026-11-06, round 3) — rules 42, 43, 46; `tourist-tax-report-csv` (+1) — rule 44.
 - [x] `tests/tourist-tax-review-fixes-2.unit.test.js` (4, 2026-11-06, round 2) — rules 37, 38 (+ declared-checkbox rules 9, 10).
 - [x] `tests/tourist-tax-review-fixes.unit.test.js` (6, 2026-11-06) — rules 26-29, 34, 35 (+ declaration-month-stay-end rule 9, declared-checkbox rule 9).
 - [x] `tests/tourist-tax-report-csv.unit.test.js` (+3) — rule 30; `tourist-tax-period-choices.unit.test.js` (+1) — rule 29.
-- Server suites of this spec: 51 tests in 9 files.
+- Server suites of this spec: 54 tests in 10 files.
 
 ### Client unit tests (Vitest)
 - [x] `src/__tests__/api.tourist-tax-report.test.js` (3) — §4.3: query string, CSV file name and view, refusal.
@@ -452,8 +472,8 @@ Target: the `#taxe` mock-up of the design reference, in MUI + the « Maison » t
 - [x] `pages/__tests__/TouristTaxPage.refused-load.test.jsx` (2) — rule 32.
 - [x] `pages/__tests__/TouristTaxPage.tick-after-refusal.test.jsx` (1) — rule 33.
 - [x] `pages/__tests__/TouristTaxPage.url-state.test.jsx` (5) — rules 31, 40.
-- [x] `components/__tests__/StickyTotalsBar.test.jsx` (5) — rules 20, 39, 45, 47.
-- [x] `components/__tests__/ResponsiveTable.overflow.test.jsx` (3) — rule 48; `TouristTaxPage.review-fixes` (+1) — rule 49.
+- [x] `components/__tests__/StickyTotalsBar.test.jsx` (6) — rules 20, 39, 45, 47, 54.
+- [x] `components/__tests__/ResponsiveTable.overflow.test.jsx` (5) — rules 48, 53; `TouristTaxPage.review-fixes` (+1) — rule 49.
 - [x] `pages/__tests__/TouristTaxPage.review-fixes.test.jsx` (4) — rules 22, 30, 34.
 - [x] `src/__tests__/api.tourist-tax-report.test.js` (+2) — rule 36; `components/__tests__/FinanceDataChecksCard.load-and-links.test.jsx` (+1) — rule 31's link.
 - [x] `components/__tests__/StickyTotalsBar.test.jsx` (2) — rule 20.

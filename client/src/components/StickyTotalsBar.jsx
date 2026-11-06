@@ -45,8 +45,10 @@ function Figure({ item, inRow = false }) {
       data-testid={`total-${item.key}`}
       sx={{
         minWidth: inRow ? 'min-content' : 0,
-        ...(inRow ? { flex: `1 1 ${FIGURE_BASIS}` } : {}),
-        ...(inRow && item.main ? { textAlign: 'right', pl: 2, borderLeft: 1, borderColor: 'divider' } : {}),
+        ...(inRow ? { flex: item.main ? '0 0 auto' : `1 1 ${FIGURE_BASIS}` } : {}),
+        // Rule 54 (review V3R-3) — the main figure keeps its own width and goes to the right end of its row, so its
+        // divider stays beside it even when it wraps alone onto a row.
+        ...(inRow && item.main ? { ml: 'auto', textAlign: 'right', pl: 2, borderLeft: 1, borderColor: 'divider' } : {}),
       }}
     >
       <Box data-label-block="" sx={{ ...LABEL_BLOCK, ...(inRow && item.main ? { justifyContent: 'flex-end' } : {}) }}>
