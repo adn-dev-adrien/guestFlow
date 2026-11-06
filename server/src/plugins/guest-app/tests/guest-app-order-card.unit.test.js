@@ -72,6 +72,8 @@ withCard('rules 33, 35: « Payer maintenant » mints a `complement` link for exa
 withCard('rule 35: paid → the lines join the reservation and the payment is recorded as a settled note: the end-of-stay complement owes nothing for them', async ({ stayId, call, card, pushes }) => {
   const { orderId } = (await call('POST', '/public/v1/guest/orders', { lines: [{ kind: 'option', id: CIDER, quantity: 2 }], payment: 'card' })).body.data;
   assert.equal(optionLine(stayId, CIDER), undefined, 'nothing reaches the fiche before the payment');
+  await flush();
+  assert.equal(pushes.length, 0, 'rule 44: a card order awaiting its payment pushes nobody');
   card.pay(linkOf(orderRow(orderId)).providerLinkId);
   const page = await call('GET', `/public/v1/guest/orders/${orderId}`);
   assert.equal(page.body.data.status, 'paid');
@@ -87,7 +89,7 @@ withCard('rule 35: paid → the lines join the reservation and the payment is re
   assert.match(pushes[0].payload.body, /2 × Cidre \(payée par carte\)$/);
 });
 
-withCard('rule 35: the guest abandons from « Mes commandes » — Abandonnée, the link withdrawn, the lines back in the cart', async ({ call }) => {
+withCard('rule 35: the guest abandons from « Mes commandes » — Abandonnée, the link withdrawn, the lines back in the cart', async ({ call, pushes }) => {
   const { orderId } = (await call('POST', '/public/v1/guest/orders', { lines: [{ kind: 'option', id: CIDER, quantity: 1 }], payment: 'card' })).body.data;
   const res = await call('POST', `/public/v1/guest/orders/${orderId}/abandon`);
   assert.equal(res.status, 200, JSON.stringify(res.body));
@@ -99,9 +101,11 @@ withCard('rule 35: the guest abandons from « Mes commandes » — Abandonnée, 
   const again = await call('POST', `/public/v1/guest/orders/${orderId}/abandon`);
   assert.equal(again.status, 409);
   assert.equal(again.body.error.code, 'ORDER_NOT_PENDING');
+  await flush();
+  assert.equal(pushes.length, 0, 'rule 44: an abandoned card order never pushed anyone');
 });
 
-withCard('rule 36: unpaid 30 minutes on, the order expires — nothing on the fiche', async ({ stayId, call, api, clock }) => {
+withCard('rule 36: unpaid 30 minutes on, the order expires — nothing on the fiche', async ({ stayId, call, api, clock, pushes }) => {
   const { orderId } = (await call('POST', '/public/v1/guest/orders', { lines: [{ kind: 'option', id: CIDER, quantity: 1 }], payment: 'card' })).body.data;
   clock.now = new Date(clock.now.getTime() + 29 * 60 * 1000);
   assert.equal(api.expireOrders().some((o) => o.id === orderId), false);
@@ -110,6 +114,8 @@ withCard('rule 36: unpaid 30 minutes on, the order expires — nothing on the fi
   assert.deepEqual([orderRow(orderId).status, orderRow(orderId).heldUntil], ['expired', null]);
   assert.equal((await call('GET', `/public/v1/guest/orders/${orderId}`)).body.data.statusLabel, 'Expirée');
   assert.equal(optionLine(stayId, CIDER), undefined);
+  await flush();
+  assert.equal(pushes.length, 0, 'rule 44: an expired card order never pushed anyone');
 });
 
 withCard('rule 36: a payment confirmed after expiry still commits the order when nothing stands in its way', async ({ stayId, call, card, api, clock }) => {

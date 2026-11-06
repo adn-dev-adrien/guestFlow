@@ -383,7 +383,9 @@ is pushed every order.
 
 ### 3.H Staff side
 
-44. **Push.** Every confirmed or paid order pushes the new channel **« Commandes clients »**
+44. **Push.** Every confirmed or paid order pushes the new channel **« Commandes clients »**, **once**: an order put
+    on the end-of-stay complement (or at 0 €) pushes as soon as it is confirmed; a card order pushes **only once
+    paid**, never while it awaits its payment, nor when it is abandoned or expires (Adrien, 2026-11-06)
     (`guest-orders`, declared by the plugin with `ctx.pushChannel`, whose keys are kebab-case) to subscribed staff: « L'Estiva · Marie —
     2 × Cidre pour 18 h, 1 h bain nordique ven. 20 h (sur la note) ». The push opens the order in GuestFlow.
 45. **Orders list in GuestFlow.** A page *Commandes clients* (the same name as the push channel, review of
