@@ -6,9 +6,12 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { ThemeProvider } from '@mui/material/styles';
 import theme from '../../theme';
 import OperationalPaymentsTable from '../OperationalPaymentsTable';
+import { addIsoDays, localIsoToday } from '../../utils/isoDay';
+
+const today = localIsoToday();
 
 const base = {
-  id: 1, clientName: 'Camille', propertyName: 'Le Gîte', startDate: '2026-11-05', endDate: '2026-11-08', platform: 'direct',
+  id: 1, clientName: 'Camille', propertyName: 'Le Gîte', startDate: addIsoDays(today, -1), endDate: addIsoDays(today, 2), platform: 'direct',
   depositAmount: 0, depositDisabled: 1, balanceAmount: 300, balancePaid: 1, complementAmount: 20, complementPaid: 1,
   endOfStayComplementAmount: 25, endOfStayComplementPaid: 0, remainingToPay: 25, totalSejour: 345,
 };
