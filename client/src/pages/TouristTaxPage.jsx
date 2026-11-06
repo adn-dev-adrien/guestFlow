@@ -454,6 +454,7 @@ export default function TouristTaxPage() {
       <PageActionBar
         title={TAX_PAGE.title}
         center={viewSwitch}
+        centerFrom="md"
         actionsBefore={[{ icon: <FileDownloadOutlinedIcon />, tooltip: TAX_PAGE.exportTooltip, onClick: handleExport, color: 'info', disabled: !data }]}
       />
       <Box sx={{ px: { xs: 1.5, sm: 3 }, pt: { xs: 1.5, sm: 3 }, maxWidth: 1240, mx: 'auto' }}>
