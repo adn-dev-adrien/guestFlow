@@ -125,7 +125,41 @@ function storeTtcSplitFrom(database, now = new Date()) {
     .run(PLUGIN_ID, TTC_SPLIT_KEY, firstOfNextMonth(now));
 }
 
+// specs/accounting-synthesis.md rule 16 — the last CSV download: when, and which month. Not an operator
+// setting (never declared, so the generic settings page neither shows nor writes it); one row, rewritten at
+// each download, erased with the plugin's configuration.
+const LAST_CSV_EXPORT_KEY = 'lastCsvExport';
+
+const pad = (n) => String(n).padStart(2, '0');
+const localStamp = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+
+/** `{ at: 'YYYY-MM-DDTHH:MM', month: 'YYYY-MM' }` of the last download, or null (none yet, or unreadable). */
+function readLastCsvExport(database) {
+  try {
+    const row = database.prepare('SELECT value FROM plugin_settings WHERE plugin_id = ? AND key = ?').get(PLUGIN_ID, LAST_CSV_EXPORT_KEY);
+    if (!row) return null;
+    const value = JSON.parse(row.value);
+    const ok = value && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(String(value.at)) && /^\d{4}-\d{2}$/.test(String(value.month));
+    return ok ? { at: value.at, month: value.month } : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Stamps a download of `month` (YYYY-MM) at `now`, local time. Never throws: a download is never refused for it. */
+function storeLastCsvExport(database, month, now = new Date()) {
+  try {
+    database.prepare(`
+      INSERT INTO plugin_settings (plugin_id, key, value, updated_at) VALUES (?, ?, ?, datetime('now'))
+      ON CONFLICT(plugin_id, key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+    `).run(PLUGIN_ID, LAST_CSV_EXPORT_KEY, JSON.stringify({ at: localStamp(now), month }));
+  } catch {
+    // A database without the plugin settings table (a minimal test schema) keeps no stamp.
+  }
+}
+
 module.exports = {
   PLUGIN_ID, DEFAULTS, KEYS, DECLARED, createAccountSettings, validateAccount, validateJournalCode,
   TTC_SPLIT_KEY, TTC_SPLIT_FALLBACK, firstOfNextMonth, readTtcSplitFrom, storeTtcSplitFrom,
+  LAST_CSV_EXPORT_KEY, readLastCsvExport, storeLastCsvExport,
 };

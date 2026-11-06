@@ -55,6 +55,7 @@ const CORE_ROUTE_ROLES = Object.freeze({
   '/reservations/upcoming':  [ADMIN],
   '/finance':                [ADMIN],
   '/finance/tourist-tax':    [ADMIN],
+  '/finance/profil':         [ADMIN],
   // specs/plugins-phase-2-hosts.md rule 21 — core; read-only for the accountant. Comptabilité and
   // Plan comptable are pages of the accounting-export module (MODULE_ROUTE_ROLES below).
   '/finance/indemnites':     [ADMIN, ACCOUNTANT],

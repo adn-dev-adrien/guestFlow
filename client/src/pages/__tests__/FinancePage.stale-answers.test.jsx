@@ -47,7 +47,7 @@ test('a late detail answer for the tile just left does not crash the open tile',
   const slow = deferred();
   api.getFinanceDashboardDetail.mockImplementation((tile) => (tile === 'collected' ? slow.promise : Promise.resolve(CHANNELS)));
   renderPage();
-  fireEvent.click(await screen.findByRole('button', { name: /Encaissé/ }));
+  fireEvent.click(await screen.findByRole('button', { name: /Déjà payé/ })); // the tile renamed by finance-dashboard-redesign rule 54
   fireEvent.click(screen.getByRole('button', { name: /Canaux/ }));
   expect(await screen.findByText('Booking.com')).toBeInTheDocument();
   await act(async () => { slow.resolve(COLLECTED); });

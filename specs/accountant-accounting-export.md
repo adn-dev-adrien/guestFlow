@@ -319,6 +319,14 @@ standard).
     booked TTC with no 44566 line whatever `hasVatOnCommission`, and a cancellation compensation is
     booked at 0 %. A month may mix both kinds of entries; each stays balanced.
 
+### Accounting synthesis (2026-11-05)
+
+38. **The CSV download stamps the last export, and its rows carry their role beside them** ([accounting-synthesis.md](accounting-synthesis.md)
+    rules 3 and 16). A built CSV records `{ at, month }` (server local time) in the plugin's settings store, read by
+    the synthesis's checks strip; a refused download records nothing. Each row the engine writes carries its role
+    and VAT rate as a non-enumerable property (`entryVentilation`), so the synthesis reads the very rows of the
+    CSV: the file's bytes are unchanged (pinned by a golden file).
+
 ## 4. Architecture
 
 > **Moved to plugin `accounting-export` (phase 2, `specs/plugins-phase-2-hosts.md`) — current file map

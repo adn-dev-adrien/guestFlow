@@ -146,6 +146,25 @@ function inForceBlock(db) {
   return { regime: current.regime, rate: subject ? Number(current.rate) : 0, legalMention: current.legalMention || null };
 }
 
+/**
+ * The regimes in force during [from, to] (specs/accounting-synthesis.md rule 35): the regime of a booking made and
+ * arriving on `from`, then on every day a period takes effect inside the window. Distinct blocks, in order; [] on a
+ * database without periods (the historical « subject » reading).
+ */
+function regimesDuring(db, from, to) {
+  const periods = listPeriods(db);
+  if (!periods.length) return [];
+  const days = [from, ...periods.map((p) => p.effectiveFrom).filter((d) => d && d > from && d <= to)].sort();
+  const out = [];
+  for (const day of days) {
+    const period = rules.pickPeriod(periods, { bookingDay: day, startDate: day });
+    if (!period || out.some((b) => b.periodId === period.id)) continue;
+    const subject = period.regime === rules.REGIMES.SUBJECT;
+    out.push({ periodId: period.id, regime: period.regime, rate: subject ? Number(period.rate) : 0, legalMention: period.legalMention || null });
+  }
+  return out;
+}
+
 /** `app_settings.vatRate` mirrors the rate in force (0 when not subject): SDK compatibility only. */
 function syncMirror(db) {
   const current = inForce(db);
@@ -176,5 +195,5 @@ function setMentionInForce(db, key) {
 }
 
 module.exports = {
-  DEFAULT_RATE, mirrorRate, forRow, rateForRow, inForce, inForceBlock, listPeriods, syncMirror, setRateInForce, setMentionInForce,
+  DEFAULT_RATE, mirrorRate, forRow, rateForRow, inForce, inForceBlock, regimesDuring, listPeriods, syncMirror, setRateInForce, setMentionInForce,
 };

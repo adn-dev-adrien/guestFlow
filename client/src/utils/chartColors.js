@@ -10,3 +10,9 @@ export const chart = appTheme.palette.chart;
 export function seriesColor(index) {
   return chart.series[(Number(index) || 0) % chart.series.length];
 }
+
+// The colour of the n-th category of a report chart (specs/report-grammar.md rule 13), when the
+// server sends no slot of its own.
+export function categoricalColor(index) {
+  return chart.categorical[(Number(index) || 0) % chart.categorical.length];
+}

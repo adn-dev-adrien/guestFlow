@@ -88,6 +88,16 @@ function round2(n) {
   return Math.round((Number(n) || 0) * 100) / 100;
 }
 
+// specs/accounting-synthesis.md rule 3 — what each row of the journal IS (its role, and the VAT rate of a
+// revenue or VAT line), carried beside the row and never in it: the CSV cells stay byte-identical, the
+// synthesis reads the very rows the export writes.
+const ROW_META = Symbol('accountingRowMeta');
+function tagRow(row, role, ratePercent = null) {
+  Object.defineProperty(row, ROW_META, { value: { role, ratePercent }, enumerable: false });
+  return row;
+}
+const metaOf = (row) => (row && row[ROW_META]) || { role: 'other', ratePercent: null };
+
 // Parse 'YYYY-MM-DD' into { day, month, year } integers (no Date object → no timezone surprises).
 function splitIsoDate(iso) {
   const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -184,13 +194,14 @@ function rowsAtDefaults(entry, splitFrom = TTC_SPLIT_FALLBACK) {
     // cents it was exported with.
     const rate = Number(bucket.ratePercent) || 0;
     const { ht, vat } = bookedBucketSplit(entry, bucket, splitFrom);
-    if (ht > 0) revenueLines.push({ account, amount: ht });
+    if (ht > 0) revenueLines.push({ account, amount: ht, rate });
     if (vat > 0) vatByRate.set(rate, (vatByRate.get(rate) || 0) + vat);
   }
 
   const vatLines = [...vatByRate.entries()].map(([rate, amount]) => ({
     account: vatAccountForRate(rate),
     amount: round2(amount),
+    rate,
   }));
 
   // Tourist tax credit on the pass-through account (46710000). The customer paid it (it's in
@@ -256,38 +267,38 @@ function rowsAtDefaults(entry, splitFrom = TTC_SPLIT_FALLBACK) {
   const rows = [];
 
   // 1) Debit on the client auxiliary account — anchor row, carries platform info.
-  rows.push(zerofyMoneyColumns([
+  rows.push(tagRow(zerofyMoneyColumns([
     day, month, year,
     SALES_JOURNAL_CODE, piece,
     libelle,
     clientAccount,
     netDebitTtc, '',
     platformInfo.plateforme, platformInfo.prixPayéClient, platformInfo.commission,
-  ]));
+  ]), 'client'));
 
   // 2) Commission debit lines (§3.5). Inserted right after the CCLIENT debit so the
   // accountant reads them as the offset to the net bank movement.
   for (const line of commissionLines) {
-    rows.push(zerofyMoneyColumns([
+    rows.push(tagRow(zerofyMoneyColumns([
       day, month, year, SALES_JOURNAL_CODE, piece, libelle, line.account, line.amount, '', '', '', '',
-    ]));
+    ]), line.account === commission.vatAccount ? 'commissionVat' : 'commission'));
   }
 
   // 3..N) Credit lines: revenue, then VAT, then tax pass-through.
   for (const line of revenueLines) {
-    rows.push(zerofyMoneyColumns([
+    rows.push(tagRow(zerofyMoneyColumns([
       day, month, year, SALES_JOURNAL_CODE, piece, libelle, line.account, '', line.amount, '', '', '',
-    ]));
+    ]), 'revenue', line.rate));
   }
   for (const line of vatLines) {
-    rows.push(zerofyMoneyColumns([
+    rows.push(tagRow(zerofyMoneyColumns([
       day, month, year, SALES_JOURNAL_CODE, piece, libelle, line.account, '', line.amount, '', '', '',
-    ]));
+    ]), 'vat', line.rate));
   }
   for (const line of taxLines) {
-    rows.push(zerofyMoneyColumns([
+    rows.push(tagRow(zerofyMoneyColumns([
       day, month, year, SALES_JOURNAL_CODE, piece, libelle, line.account, '', line.amount, '', '', '',
-    ]));
+    ]), 'touristTax'));
   }
 
   return rows;
@@ -316,30 +327,28 @@ function refundEntryToRows(entry) {
     if (!account) continue;
     const ht = round2(bucket.ht || 0);
     const vat = round2(bucket.vat || 0);
-    if (ht > 0) revenueLines.push({ account, amount: ht });
-    if (vat > 0) {
-      const rate = Number(bucket.ratePercent) || 0;
-      vatByRate.set(rate, (vatByRate.get(rate) || 0) + vat);
-    }
+    const rate = Number(bucket.ratePercent) || 0;
+    if (ht > 0) revenueLines.push({ account, amount: ht, rate, role: 'revenue' });
+    if (vat > 0) vatByRate.set(rate, (vatByRate.get(rate) || 0) + vat);
   }
   // specs/reservation-refunds.md rule 48 — given back from a cancelled stay's indemnity: the indemnity account
   // is debited, at the rate it was credited with (0 % by default, so no VAT line).
   const indemnity = entry.indemnity || null;
   if (indemnity) {
     const ht = round2(indemnity.ht || 0);
-    if (ht > 0) revenueLines.push({ account: indemnity.account || DEFAULT_CANCELLATION_COMPENSATION_ACCOUNT, amount: ht });
+    const rate = Number(indemnity.ratePercent) || 0;
+    if (ht > 0) revenueLines.push({ account: indemnity.account || DEFAULT_CANCELLATION_COMPENSATION_ACCOUNT, amount: ht, rate, role: 'revenue' });
     const vat = round2(indemnity.vat || 0);
-    if (vat > 0) {
-      const rate = Number(indemnity.ratePercent) || 0;
-      vatByRate.set(rate, (vatByRate.get(rate) || 0) + vat);
-    }
+    if (vat > 0) vatByRate.set(rate, (vatByRate.get(rate) || 0) + vat);
   }
   const vatLines = [...vatByRate.entries()].map(([rate, amount]) => ({
     account: vatAccountForRate(rate),
     amount: round2(amount),
+    rate,
+    role: 'vat',
   }));
   const taxLines = taxTtc > 0
-    ? [{ account: PASS_THROUGH_ACCOUNTS.TOURIST_TAX, amount: taxTtc }]
+    ? [{ account: PASS_THROUGH_ACCOUNTS.TOURIST_TAX, amount: taxTtc, role: 'touristTax' }]
     : [];
 
   const allDebits = [...revenueLines, ...vatLines, ...taxLines];
@@ -354,19 +363,19 @@ function refundEntryToRows(entry) {
   const rows = [];
   // 1) Credit on the client auxiliary account — anchor row. A refund has no platform money to
   // report (no commission, no guest-paid gross), so the three extension columns stay empty.
-  rows.push(zerofyMoneyColumns([
+  rows.push(tagRow(zerofyMoneyColumns([
     day, month, year,
     SALES_JOURNAL_CODE, piece,
     libelle,
     clientAccount,
     '', creditTtc,
     '', '', '',
-  ]));
+  ]), 'client'));
   // 2..N) Debit lines: revenue, then VAT, then the tourist-tax pass-through.
   for (const line of allDebits) {
-    rows.push(zerofyMoneyColumns([
+    rows.push(tagRow(zerofyMoneyColumns([
       day, month, year, SALES_JOURNAL_CODE, piece, libelle, line.account, line.amount, '', '', '', '',
-    ]));
+    ]), line.role, line.rate == null ? null : line.rate));
   }
   return rows;
 }
@@ -388,10 +397,11 @@ function compensationEntryToRows(entry) {
   const debitTtc = round2(entry.encaissementTtc);
 
   const credits = [];
+  const compensationRate = Number(config.ratePercent) || 0;
   const ht = round2(config.ht != null ? config.ht : debitTtc);
-  if (ht > 0) credits.push({ account, amount: ht });
+  if (ht > 0) credits.push({ account, amount: ht, role: 'revenue' });
   const vat = round2(config.vat || 0);
-  if (vat > 0) credits.push({ account: vatAccountForRate(config.ratePercent), amount: vat });
+  if (vat > 0) credits.push({ account: vatAccountForRate(config.ratePercent), amount: vat, role: 'vat' });
   if (credits.length > 0) {
     const sum = round2(credits.reduce((a, l) => a + l.amount, 0));
     const residue = round2(debitTtc - sum);
@@ -402,18 +412,18 @@ function compensationEntryToRows(entry) {
   // gross and no commission to put in the two other extension columns.
   const platformLabel = entry.platform && entry.platform !== 'direct' ? entry.platform : '';
 
-  const rows = [zerofyMoneyColumns([
+  const rows = [tagRow(zerofyMoneyColumns([
     day, month, year,
     SALES_JOURNAL_CODE, piece,
     libelle,
     clientAccount,
     debitTtc, '',
     platformLabel, '', '',
-  ])];
+  ]), 'client')];
   for (const line of credits) {
-    rows.push(zerofyMoneyColumns([
+    rows.push(tagRow(zerofyMoneyColumns([
       day, month, year, SALES_JOURNAL_CODE, piece, libelle, line.account, '', line.amount, '', '', '',
-    ]));
+    ]), line.role, compensationRate));
   }
   return rows;
 }
@@ -433,21 +443,22 @@ function discountEntryToRows(entry) {
   const piece = '';
   const ttc = round2(entry.encaissementTtc);
   const debits = [];
+  const discountRate = Number(entry.discount?.ratePercent) || 0;
   const ht = round2(entry.discount?.ht != null ? entry.discount.ht : ttc);
-  if (ht > 0) debits.push({ account: entry.discount?.account || DISCOUNT_ACCOUNT, amount: ht });
+  if (ht > 0) debits.push({ account: entry.discount?.account || DISCOUNT_ACCOUNT, amount: ht, role: 'revenue' });
   const vat = round2(entry.discount?.vat || 0);
-  if (vat > 0) debits.push({ account: vatAccountForRate(entry.discount?.ratePercent), amount: vat });
+  if (vat > 0) debits.push({ account: vatAccountForRate(entry.discount?.ratePercent), amount: vat, role: 'vat' });
   if (debits.length > 0) {
     const sum = round2(debits.reduce((a, l) => a + l.amount, 0));
     const residue = round2(ttc - sum);
     if (residue !== 0) debits[debits.length - 1].amount = round2(debits[debits.length - 1].amount + residue);
   }
-  const rows = debits.map((line) => zerofyMoneyColumns([
+  const rows = debits.map((line) => tagRow(zerofyMoneyColumns([
     day, month, year, SALES_JOURNAL_CODE, piece, libelle, line.account, line.amount, '', '', '', '',
-  ]));
-  rows.push(zerofyMoneyColumns([
+  ]), line.role, discountRate));
+  rows.push(tagRow(zerofyMoneyColumns([
     day, month, year, SALES_JOURNAL_CODE, piece, libelle, clientAccount, '', ttc, '', '', '',
-  ]));
+  ]), 'client'));
   return rows;
 }
 
@@ -461,12 +472,12 @@ function tipEntryToRows(entry) {
   const piece = '';
   const ttc = round2(entry.encaissementTtc);
   return [
-    zerofyMoneyColumns([
+    tagRow(zerofyMoneyColumns([
       day, month, year, SALES_JOURNAL_CODE, piece, libelle, clientAccount, ttc, '', '', '', '',
-    ]),
-    zerofyMoneyColumns([
+    ]), 'client'),
+    tagRow(zerofyMoneyColumns([
       day, month, year, SALES_JOURNAL_CODE, piece, libelle, entry.tipAccount || TIP_ACCOUNT, '', ttc, '', '', '',
-    ]),
+    ]), 'revenue', 0),
   ];
 }
 
@@ -482,12 +493,12 @@ function penaltyEntryToRows(entry) {
   const piece = '';
   const ttc = round2(entry.encaissementTtc);
   return [
-    zerofyMoneyColumns([
+    tagRow(zerofyMoneyColumns([
       day, month, year, SALES_JOURNAL_CODE, piece, libelle, entry.penaltyAccount || PLATFORM_PENALTY_ACCOUNT, ttc, '', '', '', '',
-    ]),
-    zerofyMoneyColumns([
+    ]), 'penalty'),
+    tagRow(zerofyMoneyColumns([
       day, month, year, SALES_JOURNAL_CODE, piece, libelle, clientAccount, '', ttc, '', '', '',
-    ]),
+    ]), 'client'),
   ];
 }
 
@@ -507,7 +518,26 @@ function entryToRows(entry, plan) {
     const out = [...row];
     out[JOURNAL_COLUMN] = mapper.journal;
     out[ACCOUNT_COLUMN] = mapper.account(out[ACCOUNT_COLUMN]);
-    return out;
+    const { role, ratePercent } = metaOf(row);
+    return tagRow(out, role, ratePercent);
+  });
+}
+
+/**
+ * specs/accounting-synthesis.md rule 3 — the lines of one entry exactly as the CSV writes them (the plan's
+ * accounts, the same cents), each with its role (client, revenue, vat, touristTax, commission,
+ * commissionVat, penalty) and, on revenue and VAT lines, the VAT rate it was booked at.
+ */
+function entryVentilation(entry, plan) {
+  return entryToRows(entry, plan).map((row) => {
+    const { role, ratePercent } = metaOf(row);
+    return {
+      account: String(row[ACCOUNT_COLUMN]),
+      role,
+      ratePercent: role === 'revenue' || role === 'vat' ? Number(ratePercent) || 0 : null,
+      debit: round2(row[DEBIT_INDEX]),
+      credit: round2(row[CREDIT_INDEX]),
+    };
   });
 }
 
@@ -652,6 +682,7 @@ function buildStructuredEntries(entries, plan) {
 module.exports = {
   CSV_HEADERS,
   entryToRows,
+  entryVentilation,
   buildRows,
   entryToStructured,
   buildStructuredEntries,

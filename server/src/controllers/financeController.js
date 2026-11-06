@@ -11,15 +11,18 @@ const dashboardParams = (q) => ({
   propertyId: q.propertyId, until: q.until, scope: q.scope,
 });
 
+// specs/finance-dashboard-redesign.md rule 57 — a refusal may carry its code (`UNKNOWN_EXERCISE`).
+const refusal = (res, result) => res.status(result.status || 400).json({ error: result.error, ...(result.code ? { code: result.code } : {}) });
+
 function getDashboard(req, res) {
   const result = dashboard.getDashboard(dashboardParams(req.query));
-  if (!result.ok) return res.status(result.status || 400).json({ error: result.error });
+  if (!result.ok) return refusal(res, result);
   return res.json(result.data);
 }
 
 function getDashboardDetail(req, res) {
   const result = dashboard.getDashboardDetail(req.params.tile, dashboardParams(req.query));
-  if (!result.ok) return res.status(result.status || 400).json({ error: result.error });
+  if (!result.ok) return refusal(res, result);
   return res.json(result.data);
 }
 
@@ -53,10 +56,15 @@ function touristTax(req, res) {
 
 // specs/tourist-tax-declared-checkbox.md §4.3 — tick / untick « Déclarée » for one reservation.
 function setTouristTaxDeclared(req, res) {
+  // specs/tourist-tax-declared-checkbox.md rule 9 — `declared` is a boolean, `addedGuests` a boolean or absent.
+  const body = req.body || {};
+  if (typeof body.declared !== 'boolean' || (body.addedGuests !== undefined && typeof body.addedGuests !== 'boolean')) {
+    return res.status(400).json({ error: 'Déclaration invalide : oui ou non attendu.' });
+  }
   const result = model.setTouristTaxDeclared({
     reservationId: req.params.reservationId,
-    declared: Boolean(req.body && req.body.declared),
-    addedGuests: Boolean(req.body && req.body.addedGuests),
+    declared: body.declared,
+    addedGuests: Boolean(body.addedGuests),
   });
   if (!result.ok) return res.status(result.status || 400).json({ error: result.error, ...(result.code ? { code: result.code } : {}) });
   return res.json({ ok: true, declaredAt: result.data.declaredAt });

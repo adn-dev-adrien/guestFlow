@@ -35,11 +35,11 @@ const pct = (x) => (x == null ? '—' : `${Math.round(x * 100)} %`);
 const money = (n) => (n == null ? '—' : formatCurrencyRounded(n));
 
 const TITLES = {
-  collected: ['Encaissé', 'Chaque paiement reçu pour les séjours de la période, du plus récent au plus ancien'],
+  collected: ['Déjà payé', 'Chaque paiement reçu pour les séjours de la période, du plus récent au plus ancien'],
   toCollect: ['À encaisser', 'Séjours terminés pas encore soldés, tous exercices · cochez un paiement à sa réception'],
   late: ['En retard', 'Échéances dépassées des réservations en direct et versements plateforme attendus, tous exercices'],
   stays: ['Réservations', 'Rattachées à la période par leur date comptable'],
-  properties: ['Logements', 'Nuits, occupation, revenu moyen par nuit vendue, RevPAR (revenu ÷ nuits ouvrables)'],
+  properties: ['Logements', 'Nuits, occupation, revenu moyen par nuit vendue, RevPAR (revenu des nuits ÷ nuits ouvertes)'],
   channels: ['Canaux', 'Ce que chaque canal rapporte vraiment, commission déduite'],
 };
 
@@ -95,7 +95,7 @@ function CollectedTable({ data, onOpenReservation }) {
           </>
         )}
       />
-      {data.rows.length > 0 && <Total label={`Total encaissé · ${plural(data.totals.count, 'paiement')}`}>{formatCurrency(data.totals.amount)}</Total>}
+      {data.rows.length > 0 && <Total label={`Total déjà payé · ${plural(data.totals.count, 'paiement')}`}>{formatCurrency(data.totals.amount)}</Total>}
     </>
   );
 }
@@ -336,7 +336,7 @@ export default function FinanceDetailPanel({
         <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: { xs: 1, sm: 2.5 }, bgcolor: 'rgba(60,54,36,0.04)', borderRadius: '10px', px: 1.5, py: 1.25, mb: 1.5 }}>
           <TextField size="small" type="date" label="Encaissable d'ici le" value={until || data.projection.until} onChange={(e) => e.target.value && onUntilChange(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
           <Typography variant="body2" sx={TAB}>Total de séjour <b>{formatCurrencyRounded(data.projection.total)}</b></Typography>
-          <Typography variant="body2" sx={TAB}>Déjà encaissé <b>{formatCurrencyRounded(data.projection.collected)}</b></Typography>
+          <Typography variant="body2" sx={TAB}>Déjà payé <b>{formatCurrencyRounded(data.projection.collected)}</b></Typography>
           <Typography variant="body2" sx={TAB}>Reste <b>{formatCurrencyRounded(data.projection.pending)}</b></Typography>
         </Box>
         {data.rows.length === 0
