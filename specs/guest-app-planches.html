@@ -911,13 +911,13 @@ summary::-webkit-details-marker{display:none}
 <main class="doc">
 <div class="intro">
   <h1>Application clients « Mon séjour » : les écrans à valider avant le code</h1>
-  <p>Version 3, après ta revue du 05/11 et une relecture en profondeur sous trois angles (iPhone et accessibilité, expérience, règles de la spec). Toutes les surfaces de la spec <code>specs/guest-app.md</code> se manipulent ici et partagent un seul état : un module coupé dans le Studio disparaît de l'app, une commande passée dans l'app arrive dans GuestFlow.</p>
-  <div class="meta"><span class="chipm pri">Version 3 · 05/11/2026</span><span class="chipm ok">Lots A, B et C codés</span><span class="chipm">Lots serveur D et E : en cours</span><span class="chipm warn">Écrans (F, G) : en attente de tes verdicts</span></div>
+  <p>Version 4 du 06/11 : tes deux réponses (accès par QR de séjour, Soliomap dans l'app) sont appliquées, il ne reste que les six verdicts. Version 3, après ta revue du 05/11 et une relecture en profondeur sous trois angles (iPhone et accessibilité, expérience, règles de la spec). Toutes les surfaces de la spec <code>specs/guest-app.md</code> se manipulent ici et partagent un seul état : un module coupé dans le Studio disparaît de l'app, une commande passée dans l'app arrive dans GuestFlow.</p>
+  <div class="meta"><span class="chipm pri">Version 4 · 06/11/2026</span><span class="chipm ok">Lots serveur A à E codés</span><span class="chipm warn">Écrans (F, G) : en attente de tes verdicts</span></div>
 </div>
 
 <section class="sec todo" id="decider" aria-labelledby="h-decider">
   <h2 id="h-decider">Ce qu'il faut décider</h2>
-  <p class="lede">Deux questions et six verdicts. Chaque ligne t'emmène à l'endroit où répondre ; tes réponses restent sur cet appareil et remplissent le récapitulatif à coller en fin de page.</p>
+  <p class="lede">Six verdicts, un par surface : « Validé » ou « À reprendre », avec un commentaire si besoin. Chaque ligne t'emmène à l'endroit où répondre ; tes réponses restent sur cet appareil et remplissent le récapitulatif à coller en fin de page.</p>
   <div id="todo-root"></div>
 </section>
 
@@ -968,7 +968,7 @@ summary::-webkit-details-marker{display:none}
 
 <section class="sec" id="app" aria-labelledby="h-app">
   <h2 id="h-app">L'app client, à manipuler</h2>
-  <p class="lede">Choisis le logement et le moment du séjour, puis utilise l'app comme un client : commander, payer, se tromper de nom, perdre le réseau. Ce que l'app affiche dépend du serveur. Ici, c'est simulé avec les vraies règles de la spec : fenêtre du séjour, horaires du service, chauffe du bain, gratuités par logement.</p>
+  <p class="lede">Choisis le logement et le moment du séjour, puis utilise l'app comme un client : commander, payer, perdre le réseau. Le client arrive par le QR de son séjour (SAS ou e-mail de J-7) : aucun nom à saisir. Ce que l'app affiche dépend du serveur. Ici, c'est simulé avec les vraies règles de la spec : fenêtre du séjour, horaires du service, chauffe du bain, gratuités par logement.</p>
   <div class="bench">
     <aside class="controls" aria-label="Conditions de la simulation">
       <div class="now" id="nowbox"></div>
@@ -999,7 +999,7 @@ summary::-webkit-details-marker{display:none}
       <div class="fit" id="fit" role="region" aria-label="Simulation de l'app client"><div class="device phone" id="device"><div class="app" id="app-root"></div></div></div>
     </div>
   </div>
-  <div class="arb" id="arb-a7"></div>
+  <div class="qa"><p class="ask" style="color:var(--m-ok-text)">Tranché le 06/11</p><h3>Soliomap s'ouvre dans l'app</h3><p>sejour.domainesolio.com est autorisé côté Soliomap. Essaie la carte « À faire pendant votre séjour » ou la tuile Soliomap.</p></div>
   <div class="verdict" id="v-app-mobile" data-verdict="app-mobile"><span class="lab" id="vd-app-mobile">App client sur téléphone</span><div class="segm" role="group" aria-labelledby="vd-app-mobile"><button type="button" data-v="ok">Validé</button><button type="button" data-v="redo">À reprendre</button></div><textarea aria-label="Commentaire : App client sur téléphone" class="vtext" placeholder="Ce qui ne va pas, ce qui manque, ce que tu changerais…"></textarea></div>
   <div class="verdict" id="v-app-wide" data-verdict="app-wide"><span class="lab" id="vd-app-wide">App client sur tablette et ordinateur</span><div class="segm" role="group" aria-labelledby="vd-app-wide"><button type="button" data-v="ok">Validé</button><button type="button" data-v="redo">À reprendre</button></div><textarea aria-label="Commentaire : App client sur tablette et ordinateur" class="vtext" placeholder="Rail de navigation, livret et boutique en deux colonnes…"></textarea></div>
 </section>
@@ -1039,7 +1039,7 @@ summary::-webkit-details-marker{display:none}
           <li><div><b>Montré au SAS, envoyé à J-7</b><span>L'étape « Portail » du SAS devient « Mon séjour » : le QR de ce lien, le code du clavier, et « Partager » pour les autres occupants. L'e-mail de J-7 porte ce lien à la place de celui du portail.</span></div></li>
           <li><div><b>Plus jamais de nom à saisir</b><span>Le lien prouve le séjour, même pour « Ajouter à ma note ». L'affiche du logement n'ouvre plus que le livret, le wifi et Soliomap, et propose « Retrouver mon séjour » en secours.</span></div></li>
         </ol>
-        <p style="margin:0;font-size:13.5px;color:var(--m-muted)">Si un lien circule trop, l'équipe le régénère depuis la fiche : l'ancien cesse de fonctionner. Ce choix modifie le lot A, déjà codé : c'est le lien qui identifie le séjour, et la vérification du nom disparaît.</p>
+        <p style="margin:0;font-size:13.5px;color:var(--m-muted)">Si un lien circule trop, l'équipe le régénère depuis la fiche : l'ancien cesse de fonctionner. Ce choix (retenu le 06/11) a modifié le lot A : c'est le lien qui identifie le séjour, et la vérification du nom disparaît.</p>
       </div>
       <div class="formcard">
         <h3>Dans GuestFlow : SAS d'arrivée › étape « Mon séjour »</h3>
@@ -1056,7 +1056,7 @@ summary::-webkit-details-marker{display:none}
     </div>
     <div id="access-root"></div>
   </div>
-  <div class="arb" id="arb-a6"></div>
+  <div class="qa"><p class="ask" style="color:var(--m-ok-text)">Tranché le 06/11</p><h3>Option A : un QR par séjour</h3><p>Au SAS et dans l'e-mail de J-7. Rien à saisir ; l'affiche du logement n'ouvre que le livret. Le lien se régénère depuis la fiche de la réservation.</p></div>
 </section>
 
 <section class="sec" id="recap" aria-labelledby="h-recap">
@@ -1111,7 +1111,7 @@ function liveSay(id, msg) {
 }
 /* Answers survive a reload of the embed when the browser lets us store them (a sandboxed iframe without
    allow-same-origin throws on localStorage: then we say so under the recap). */
-const STORE_KEY = 'guest-app-planches-v2';
+const STORE_KEY = 'guest-app-planches-v4';
 const store = (() => { try { const k = '__planches'; localStorage.setItem(k, '1'); localStorage.removeItem(k); return localStorage; } catch (e) { return null; } })();
 
 const eur = (n) => {
@@ -1171,11 +1171,11 @@ const S = {
   net: true, card: true, key: true, steal: false, visit2: false, plugin: true,
   screen: 'home', page: null, cat: null, q: '', sheet: null, sheetItem: null, sheetQty: 1,
   cart: { 1: [], 2: [] }, deliver: null, pay: null, cartErr: null,
-  nameProved: false, nameFails: 0, lockUntil: null, found: null, lookupTries: 0, lookupErr: false, lookupLock: false,
+  nameProved: true, nameFails: 0, lockUntil: null, found: null, lookupTries: 0, lookupErr: false, lookupLock: false,
   cancelled: false, badQr: false, bathDay: null, qonto: null, view: null, installHidden: false,
   sasFree: false, lastSess: null,
   appName: 'Domaine Solio', appSub: 'Mon séjour', host: 'sejour.domainesolio.com',
-  soliomapUrl: 'https://map.domainesolio.com', embedMap: false, maxTotal: 500,
+  soliomapUrl: 'https://map.domainesolio.com', embedMap: true, maxTotal: 500,
   cfg: { 1: cfgSeed(1), 2: cfgSeed(2) },
   codes: { 1: 'k3JdQ9vXr2mWfT7bLp0sNw', 2: 'Hq8vZc1uYe5RkD4oGa6tMi' }, oldCodes: [],
   hours: {
@@ -2378,7 +2378,6 @@ const WHY = {
 };
 const CASES = [
   ['bag', 'Remplir un panier type (jus de pomme et bain)', 'fill'],
-  ['receipt', 'Se tromper de nom trois fois', 'badname'],
   ['bath', 'L\'heure offerte déjà prise à l\'arrivée (SAS)', 'sasfree'],
   ['cal', 'Service fermé lun. 9 nov. (exception du Studio)', 'closemon'],
   ['bag', 'Retirer le jus de pomme de la vente, panier ouvert', 'unflag'],
@@ -2443,7 +2442,7 @@ function onControl(k, v) {
   hideToast();
   if (k === 'lodg' || k === 'moment') S.badQr = false;
   const before = session();
-  if (k === 'lodg') { S.lodg = +v; S.screen = S.screen === 'order' ? 'orders' : S.screen; S.page = null; S.nameProved = S.found === +v; S.nameFails = 0; S.lockUntil = null; S.pay = null; S.deliver = null; S.cartErr = null; }
+  if (k === 'lodg') { S.lodg = +v; S.screen = S.screen === 'order' ? 'orders' : S.screen; S.page = null; S.nameProved = true; S.nameFails = 0; S.lockUntil = null; S.pay = null; S.deliver = null; S.cartErr = null; }
   else if (k === 'moment') { S.moment = v; S.cancelled = false; S.lockUntil = null; S.deliver = null; if (!['j3', 'early'].includes(v)) S.found = null; if (v !== 'aft') S.stolen = []; expireOrders(); }
   else S[k] = v;
   const after = session();
@@ -2997,11 +2996,10 @@ function cmdClick(e) {
 }
 
 /* ── Arbitrations, verdicts, recap ───────────────────────────────────────── */
-const ARB = [
-  { id: 'a6', q: 'Comment le client ouvre-t-il l\'app ?', p: 'Les trois options sont comparées juste au-dessus, sur sept cas. Le choix A modifie le lot A déjà codé : c\'est le lien qui identifie le séjour, et la vérification du nom disparaît.', opts: [['A', 'A · Un QR par séjour, au SAS et dans l\'e-mail de J-7 (Recommandé)', 'Rien à saisir, aucune fuite vers le client suivant. L\'affiche du logement n\'ouvre que le livret.'], ['B', 'B · Un QR par logement, le nom pour la note', 'La spec actuelle. Une photo de l\'affiche ouvre le séjour suivant.'], ['C', 'C · QR du logement + code à 4 chiffres dicté au SAS', 'Sûr, mais un code à taper sur chaque téléphone.']] },
-  { id: 'a7', q: 'Soliomap dans l\'app ou dans un onglet ?', apply: (v) => { S.embedMap = v === 'allow'; }, p: 'Vérifié le 05/11 : Soliomap empêche aujourd\'hui son affichage à l\'intérieur d\'une autre app. Essaie la carte « À faire pendant votre séjour » ou la tuile Soliomap : tant que tu n\'as pas répondu, elle s\'ouvre dans un nouvel onglet.', opts: [['allow', 'J\'autorise sejour.domainesolio.com dans Soliomap (Recommandé)', 'Une ligne dans le dépôt solioMap, livrée à part. Soliomap s\'ouvre alors dans l\'app.'], ['tab', 'On l\'ouvre dans un nouvel onglet', 'Rien à changer côté Soliomap ; on quitte l\'app.']] },
-];
+const ARB = [];
 const RESOLVED = [
+  ['A6 · Accès à l\'app (06/11)', 'un QR par séjour, au SAS et dans l\'e-mail de J-7 ; l\'affiche du logement n\'ouvre que le livret'],
+  ['A7 · Soliomap (06/11)', 'intégré dans l\'app ; sejour.domainesolio.com autorisé côté Soliomap (PR solioMap #34 fusionnée)'],
   ['Pendant ta revue', 'je code les lots serveur B à E'],
   ['Q3 · Nom de l\'app', 'Domaine Solio, sous-titre « Mon séjour »'],
   ['Q2 · Adresse de l\'app', 'sejour.domainesolio.com'],
@@ -3038,11 +3036,11 @@ function renderTodo() {
 }
 function syncArb() { /* studio and GuestFlow edits can move away from a choice: the recap stays the user's answer */ recap(); }
 function recap() {
-  const lines = ['Revue des planches « Mon séjour », version 3 — 05/11/2026', '', 'Verdicts'];
+  const lines = ['Revue des planches « Mon séjour », version 4 — 06/11/2026', '', 'Verdicts'];
   VERDICTS.forEach(([k, l]) => { const v = S.verdicts[k] || {}; lines.push(`- ${l} : ${v.v === 'ok' ? 'Validé' : v.v === 'redo' ? 'À reprendre' : '(sans réponse)'}${v.t ? ` — ${v.t.trim()}` : ''}`); });
-  lines.push('', 'Déjà tranché (05/11)');
+  lines.push('', 'Déjà tranché');
   RESOLVED.forEach(([q, a]) => lines.push(`- ${q} : ${a}`));
-  lines.push('', 'Arbitrages');
+  if (ARB.length) lines.push('', 'Arbitrages');
   ARB.forEach((a) => {
     const ans = S.answers[a.id] || {};
     const chosen = a.multi ? (ans.v || []).map((v) => a.opts.find((o) => o[0] === v)[1]).join(', ') : ans.v ? a.opts.find((o) => o[0] === ans.v)[1].replace(' (Recommandé)', '') : '';
