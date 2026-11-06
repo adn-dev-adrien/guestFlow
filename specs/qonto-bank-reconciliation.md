@@ -346,6 +346,13 @@ a short list of the gaps to fix on the fiches.
     boot pass recorded `QONTO_NOT_CONFIGURED` from « rapprochement bancaire », and the Paiements page showed a red
     « Dernier échec » beside the badge's own « Identifiants manquants ». online-payment 1.5.6. Test:
     `reconciliation-job-unconfigured.unit.test.js`.
+    *Reading of 2026-11-06 (audit R25 verification N2), accepted:* only the 8-hour job is quiet. With a stored authorisation
+    and no credentials, the link poll and the Paiements page's own account reads (`/bank-accounts`) still record
+    `QONTO_NOT_CONFIGURED` under their origin, so « Dernier échec » repeats the badge's « Identifiants manquants ». That
+    is qonto-settings-in-app rule 12 (a call that never leaves because nothing is configured is recorded like any other
+    failure), kept on purpose; the state is rare (a copy whose secrets were purged), costs nothing, and a true first
+    install, with no authorisation, records nothing. Test: `reconciliation-job-unconfigured.unit.test.js` (the job),
+    `qonto-failure-record.unit.test.js` (rule 12).
 
 **Edge cases:**
 - Reservation cancelled after a payment was reconciled → leaves the scope; its reconciliations stay

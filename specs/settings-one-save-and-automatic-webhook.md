@@ -149,6 +149,12 @@ which « Enregistrer » writes which field.
     page, which does not hold the field; and with the provider not enabled yet (KYC pending) the « Test » it named
     could not clear it, only the next 8-hour pass did. Tests: `plugins/online-payment/tests/qonto-advice-reachable.unit.test.js`,
     `plugins/google-calendar/tests/public-url-advice.unit.test.js`. online-payment 1.5.6, google-calendar 1.2.9.
+    *Reading of 2026-11-06 (audit R25 verification N3, N4):* « Qonto answered » is read from the test's own outcome
+    (`ok` or `provider_not_connected`), never from the page: a « Test » whose call failed without recording anything (a
+    refresh overtaken by a new consent, qonto-settings-in-app rule 19) leaves the webhook-register failure standing,
+    unchanged, and runs no check. The « Connexion » refusal without credentials reads « Identifiants Qonto manquants (page
+    Paiements en ligne). », the title of the page that holds the fields in GuestFlow (Paramètres) and in the console
+    (Réglages) alike; « Réglages › Paiements » named no GuestFlow menu. Same test file.
 
 **Edge cases:**
 

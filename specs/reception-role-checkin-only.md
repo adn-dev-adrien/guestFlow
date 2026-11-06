@@ -233,6 +233,9 @@ emails, settings, or any monetary figure beyond *the caution and complement to c
     l’administrateur. » and no `refundIds`: refund amounts and dates are not door money (rule 12bis).
     Admin keeps the refusal naming each refund. Arrival and departure SAS alike.
     Test: `sas-prepaid-complement.unit.test.js`.
+    *Reading of 2026-11-06 (audit R25 verification L1), accepted:* the departure branch is defensive. Its refusal
+    needs an end-of-stay complement the departure SAS settled itself, so `departureSasDoneAt` is set and reception's
+    SAS lock already answers `done` before the refund guard is reached; only the arrival branch is pinned by the test.
 
 **Edge cases:**
 - **reception + admin** on the same account → admin wins: full payloads, full nav, no stripping,

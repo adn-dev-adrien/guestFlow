@@ -8,7 +8,7 @@ const http = require('node:http');
 const path = require('node:path');
 
 const { freshSettings } = require('./qontoSettingsFixture');
-const { qontoStatusPayload } = require('../../../utils/qonto/qontoService');
+const { qontoStatusPayload, recordQontoFailure } = require('../../../utils/qonto/qontoService');
 const { STATES } = require('../../../utils/qonto/qontoHealth');
 const { ensureWebhookSubscription } = require('../../../utils/qonto/qontoWebhookRegistrar');
 const { createQontoSettingsController } = require('../../../utils/qonto/qontoSettingsController');
@@ -75,6 +75,7 @@ test('rule 16 — no Qonto message sends the operator to a menu that does not ex
     const source = fs.readFileSync(path.join(root, file), 'utf8');
     assert.doesNotMatch(source, /Envoi d['’]emails/, `${file} names « Envoi d’emails »`);
     assert.doesNotMatch(source, /\(Paramètres\)/, `${file} names « Paramètres » alone`);
+    assert.doesNotMatch(source, /Réglages › Paiements\)/, `${file} names « Réglages › Paiements »`);
   }
 });
 
@@ -112,4 +113,52 @@ test('rule 16 (E25-1) — Qonto not answering: « Test » still runs no check', 
   const answer = await pressTest(settings, q.env);
   assert.equal(answer.ok, false);
   assert.equal(q.webhookCalls, 0, 'no check after a failed test');
+});
+
+// Verification N3 — a « Test » whose call fails WITHOUT recording (a refresh overtaken by a new consent, rule 19) leaves the
+// standing webhook-register failure on the page: that failure must not be read as « Qonto answered ».
+test('rule 16 (N3) — a « Test » overtaken mid-refresh leaves the webhook failure standing and runs no check', async (t) => {
+  const seen = [];
+  let release;
+  const held = new Promise((resolve) => { release = resolve; });
+  const server = http.createServer((req, res) => {
+    seen.push(req.url.split('?')[0]);
+    req.resume();
+    req.on('end', async () => {
+      res.setHeader('content-type', 'application/json');
+      if (req.url.startsWith('/oauth2/token')) await held;
+      res.end(JSON.stringify({ access_token: 'at-old', refresh_token: 'rt-old', expires_in: 3600, webhook_subscriptions: [] }));
+    });
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => new Promise((done) => { server.closeAllConnections(); server.close(done); }));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const env = { QONTO_API_BASE: base, QONTO_OAUTH_BASE: base };
+  const settings = connectedWithoutAddress('enabled');
+  settings.upsert({ publicUrl: PUBLIC_URL });
+  settings.storeQontoTokens({ accessToken: 'at-expired', refreshToken: 'rt-old', expiresAt: new Date(Date.now() - 3600_000).toISOString() });
+  const standing = Object.assign(new Error('scope webhook missing'), { code: 'insufficient_scope' });
+  recordQontoFailure({ settings, error: standing, origin: 'webhook-register' });
+  const before = qontoStatusPayload({ settings, env }).health.lastError;
+
+  const pressed = pressTest(settings, env);
+  while (!seen.includes('/oauth2/token')) await tick();
+  settings.storeQontoTokens({ accessToken: '', refreshToken: 'rt-new-consent', expiresAt: '' });
+  release();
+  const answer = await pressed;
+
+  assert.equal(answer.ok, false);
+  assert.deepEqual(seen, ['/oauth2/token'], 'no webhook check after a call that never answered');
+  assert.deepEqual(answer.status.health.lastError, before, 'the webhook failure still stands, unchanged');
+});
+
+// Verification N4 — the missing-credentials refusal of « Connexion » names the page that holds the fields, which is the
+// same « Paiements en ligne » page in GuestFlow (Paramètres) and in the console (Réglages); « Réglages › Paiements » is no menu
+// of GuestFlow.
+test('rule 16 (N4) — « Connexion » without credentials names the Paiements en ligne page', () => {
+  const { settings } = freshSettings();
+  const res = { statusCode: 200, status(code) { this.statusCode = code; return this; }, json(body) { this.body = body; return this; } };
+  createQontoSettingsController({ settings, env: {} }).qontoAuthorize({ query: {}, body: {} }, res);
+  assert.equal(res.statusCode, 400);
+  assert.deepEqual(res.body, { error: 'QONTO_NOT_CONFIGURED', message: 'Identifiants Qonto manquants (page Paiements en ligne).' });
 });
