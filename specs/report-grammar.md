@@ -154,6 +154,8 @@ like the approved design page, on desktop and phone, without writing chart or ti
     table view (rule 11) is its accessible reading.
 31. **The bar chart shows its « 0 »** (2026-11-06, review R5-18). The top chart of the aligned pair keeps
     room under its plot for its 0 tick.
+    > **Sans test** — a pixel margin of a Recharts chart, which draws nothing in jsdom; checked on the
+    > workbench at 1280 and 390 px (§7).
 32. **A hue is never recycled** (2026-11-06, reviews R5-07, R4-10). Series and share rows take the five
     `palette.chart.categorical` hues in order; past five, and for a row flagged `other` (« Autres »), the
     new `palette.chart.other` grey. The server groups a breakdown beyond five categories into one `other`
@@ -279,7 +281,7 @@ Reference: the approved design page, section « Graphiques » (`#graphiques`), r
   - `components/__tests__/DefinitionButton.review-fixes.test.jsx` — rule 23
   - `components/__tests__/SelectableTile.review-fixes.test.jsx` — rules 24, 25
   - `components/__tests__/TrendChart.review-fixes.test.jsx` — rules 21, 27, 28, 29, 30, 32
-  - `components/__tests__/AlignedDailyCumulativeCharts.review-fixes.test.jsx` — rules 28, 30, 31
+  - `components/__tests__/AlignedDailyCumulativeCharts.review-fixes.test.jsx` — rules 28, 30
   - `components/__tests__/ShareTable.review-fixes.test.jsx` — rules 28, 32
   - `components/__tests__/ChartMenu.reduced-motion.test.jsx` — rule 33
 - Existing suites of `SelectableTile`, `YearOverYearBadge`, `PageTabs` and the finance page stay green; the
