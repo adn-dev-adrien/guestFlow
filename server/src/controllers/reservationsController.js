@@ -2299,8 +2299,12 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
       });
     }
     const savedPlatform = req.body.platform != null ? req.body.platform : storedPaymentForQuote.platform;
+    // Audit R27-RES-1 — the trop-perçu still open before the save is money collected: it claims a rise up to its amount.
     if (raisesCollectedStay
-      && unclaimedRise(storedPaymentForQuote, quote, { planClaim: installments.planClaimOf(id, quote, savedPlatform) }) > 0) {
+      && unclaimedRise(storedPaymentForQuote, quote, {
+        planClaim: installments.planClaimOf(id, quote, savedPlatform),
+        openOverpayment: (storedOverpayment(id) || { overpaymentTtc: 0 }).overpaymentTtc,
+      }) > 0) {
       return res.status(400).json({ error: MID_STAY_EXTRAS_CLOSED_MESSAGE, code: 'MID_STAY_EXTRAS_CLOSED' });
     }
   }

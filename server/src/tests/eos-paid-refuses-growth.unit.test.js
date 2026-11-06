@@ -230,3 +230,46 @@ test('L3: the same stay with its plan fully paid: refused, nothing would claim t
   assert.equal(rowOf(stay.id).finalPrice, before.finalPrice);
   assert.deepEqual(planOf(stay.id), plan);
 });
+
+// Audit R27-RES-1 (auditor's p2 / p3 probes) — a checked-out stay whose every bucket and end of stay are collected holds a
+// trop-perçu once a discount typed by mistake lowered it: the money already collected claims a rise up to that trop-perçu
+// (the ledger's own figure, net of the free refunds), so the operator can take the discount back. Above it, still refused.
+async function overCollected() {
+  const stay = fiche(NO_ACOMPTE, 'direct', { customOptions: [forced(20)], discountPercent: 5 });
+  pay(stay.id, S, C);
+  await put(stay, { adults: 3 });
+  storedEndOfStayPaid(stay.id);
+  db.prepare("UPDATE reservations SET startDate = date('now', '-3 day'), endDate = date('now', '-1 day') WHERE id = ?").run(stay.id);
+  const moved = { startDate: rowOf(stay.id).startDate, endDate: rowOf(stay.id).endDate, adults: 3 };
+  const typo = await save(stay, { ...moved, discountPercent: 20 });
+  assert.equal(typo.statusCode, 200, JSON.stringify(typo.body));
+  return { stay, moved, overpayment: () => (ficheView(stay.id).ledger.rows.find((r) => r.key === 'overpayment') || { amount: 0 }).amount };
+}
+
+test('R27-RES-1: 20 % typed by mistake, back to 5 %: passes, the trop-perçu is gone', async () => {
+  const { stay, moved, overpayment } = await overCollected();
+  assert.equal(rowOf(stay.id).finalPrice, 540);
+  assert.equal(overpayment(), 90);
+  const res = await save(stay, { ...moved, discountPercent: 5 });
+  assert.equal(res.statusCode, 200, JSON.stringify(res.body));
+  assert.equal(rowOf(stay.id).finalPrice, 630);
+  assert.equal(overpayment(), 0);
+  assert.equal(ficheView(stay.id).ledger.remaining, 0);
+});
+
+test('R27-RES-1: 20 % → 10 %: passes, 30 € of trop-perçu left', async () => {
+  const { stay, moved, overpayment } = await overCollected();
+  const res = await save(stay, { ...moved, discountPercent: 10 });
+  assert.equal(res.statusCode, 200, JSON.stringify(res.body));
+  assert.equal(rowOf(stay.id).finalPrice, 600);
+  assert.equal(overpayment(), 30);
+});
+
+test('R27-RES-1: 20 % → 0 %: refused, 30 € above what was collected, nothing moves', async () => {
+  const { stay, moved } = await overCollected();
+  const res = await save(stay, { ...moved, discountPercent: 0 });
+  assert.equal(res.statusCode, 400, JSON.stringify(res.body));
+  assert.equal(res.body.code, 'MID_STAY_EXTRAS_CLOSED');
+  assert.equal(rowOf(stay.id).finalPrice, 540);
+  assert.equal(rowOf(stay.id).discountPercent, 20);
+});

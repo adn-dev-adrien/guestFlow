@@ -284,6 +284,18 @@ ait été réglé ou non.
     > installments (`installmentsController.planClaimOf`, read without writing; 0 without a plan or when the save leaves the
     > own channels). A checked-out stay with an installment still unpaid accepts a removed discount, the installment taking
     > the rise; a fully paid plan is still refused. Test: `eos-paid-refuses-growth` « L3: … ».
+    > **Reading of 2026-11-06 (audit R27-RES-1) — extends the finding 1 reading to money already collected.** A
+    > checked-out stay whose every bucket and end of stay are collected holds a trop-perçu once a discount typed by
+    > mistake lowered it (5 → 20 %: 630 → 540 €, « Trop-perçu 90 € À rembourser »); refusing to take the discount back
+    > left that refund prompt on the fiche. The unclaimed part also subtracts the trop-perçu still open before the save,
+    > the ledger's own figure (`storedOverpayment`, reservation-refunds rules 34 and 38: net of the free refunds, caisse
+    > interne included, 0 on a platform stay), capped at the rise: `max(0, rise − claimed − planClaim − min(rise,
+    > openOverpayment))`. 20 → 5 % and 20 → 10 % pass, 20 → 0 % is still refused (30 € above what was collected); a
+    > trop-perçu already refunded claims nothing; with everything paid and nothing over-collected, still refused. Every
+    > source that can claim the rise on the locked fiche is pinned: unpaid buckets and a platform payout pending (finding
+    > 1), unpaid installments (L3), the open trop-perçu (book money, caisse interne, a fully paid plan), a refund made (no
+    > claim), a received platform payout (no trop-perçu, refused). Tests: `eos-paid-refuses-growth` « R27-RES-1: … »,
+    > `locked-rise-claim-sources`.
 
 ---
 
@@ -420,8 +432,10 @@ détectée, et jamais lorsqu'il est encaissé (§3.5). Aucun backfill, aucune pe
 leur couverture existante suffit, aucun test ajouté.
 
 - `end-of-stay-claims-growth.unit.test.js` (14) — rule 20, readings of 2026-11-05 (D9, R23 N1).
-- `eos-paid-refuses-growth.unit.test.js` (19) — rule 20, readings of 2026-11-05 (R23 N4) and 2026-11-06 (R26 MEDIUM 1,
-  finding 1, D21, D21 review L3).
+- `eos-paid-refuses-growth.unit.test.js` (22) — rule 20, readings of 2026-11-05 (R23 N4) and 2026-11-06 (R26 MEDIUM 1,
+  finding 1, D21, D21 review L3, R27-RES-1).
+- `locked-rise-claim-sources.unit.test.js` (8) — rule 20, reading of 2026-11-06 (R27-RES-1): every source that claims a
+  rise on the locked fiche.
 
 ### Client tests (`cd client && npx vitest run` → **774 verts**, +2)
 
