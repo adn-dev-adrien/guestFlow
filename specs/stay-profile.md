@@ -180,6 +180,20 @@ and the average basket per stay for each month of the exercise against last year
     (`specs/finance-dashboard-redesign.md` rule 56): the basket and the dashboard never leave out two
     different taxes for one stay. Test: `tests/finance-tax-in-total-shared.unit.test.js`.
 
+### 3.6 Verification of 2026-11-06 (V5-3, V5-11)
+
+29. **At most five rows, then « Autres ».** A breakdown with more than five rows keeps the first four by
+    rank and folds the rest into one row « Autres » (`key: 'other'`, `other: true`, `parts` = the folded
+    labels in rank order), summed before the shares are computed so they still add up to 100; the page
+    draws it grey (`ShareTable`'s « Autres » hue, never a recycled one) and its segment's hover names what
+    it holds (« Autres : Abritel, GreenGo, Abracadaroom »). Only « Canal » can exceed five today; the fixed
+    buckets (rules 6-8, at most five with « inconnue » / « sans montant ») never fold. As the accounting
+    synthesis does (its rule 37). *Why:* with seven channels two platforms shared the grey of « Autres »
+    and neither row said so.
+30. **The exercise served is an option.** The payload's `fiscalYears` always holds the exercise it answers
+    on (added in key order when it precedes the first exercise with data), so the « Exercice » select
+    never goes blank. *Why:* `?exercice=2025` was served (200) while the options were 2027 and 2026.
+
 **Edge cases:**
 - A stay of the window booked on the import day → lead time unknown (rule 7), counted everywhere else.
 - A fiche created after its arrival → lead time unknown.
@@ -312,17 +326,19 @@ Per the mock-up (`#profil`), in the « Maison » theme and lot 0's report gramma
   delta edges, the dashboard's own N-1 reading unchanged.
 
 - [x] `server/src/tests/stay-profile.review-fixes.unit.test.js` — 7 tests, rules 22, 23, 24, 26.
+- [x] `server/src/tests/stay-profile.other-fold.unit.test.js` — 3 tests, rules 29, 30.
 - [x] `server/src/tests/finance-window-impossible-month.unit.test.js` — 2 tests, rule 25 (resolveWindow,
   dashboard, its detail tables, stay profile).
 - [x] `server/src/tests/finance-tax-in-total-shared.unit.test.js` — 3 tests, rule 28 (and dashboard rule 56), the read in chunks.
 
-### Client unit tests (Vitest) — 6 files, 16 tests
+### Client unit tests (Vitest) — 7 files, 17 tests
 - [x] `client/src/__tests__/api.stay-profile.test.js` — 1 test, rule 1.
 - [x] `client/src/pages/__tests__/StayProfilePage.breakdown.test.jsx` — 6 tests, rules 16, 19, 20.
 - [x] `client/src/pages/__tests__/StayProfilePage.basket.test.jsx` — 3 tests, rules 13, 15, 21.
 - [x] `client/src/pages/__tests__/StayProfilePage.refused-load.test.jsx` — 3 tests, rules 1, 18.
 - [x] `client/src/constants/__tests__/financeMenu.stay-profile.test.js` — 1 test, rule 17.
 - [x] `client/src/pages/__tests__/StayProfilePage.server-month.test.jsx` — 2 tests, rule 27.
+- [x] `client/src/pages/__tests__/StayProfilePage.other-row.test.jsx` — 1 test, rule 29.
 - Fixture: `client/src/pages/__tests__/stayProfileFixtures.js`.
 
 ### Manual UI verification (throwaway seeded DB, ports 47140/47141)

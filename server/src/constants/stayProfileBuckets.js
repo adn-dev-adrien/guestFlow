@@ -34,7 +34,13 @@ const PRICE_BUCKETS = [
 ];
 const PRICE_UNPRICED = { key: 'unpriced', label: 'Sans montant' };
 
+// Rule 29 — a breakdown shows at most five rows; past five, the tail is one « Autres » row.
+const MAX_ROWS = 5;
+const OTHER_ROW = { key: 'other', label: 'Autres' };
+
 // Rule 5 — every own channel (manual, website, a platform counted as direct) is one row.
 const DIRECT_CHANNEL = { key: 'direct', label: 'Direct' };
 
-module.exports = { LENGTH_BUCKETS, LEAD_BUCKETS, LEAD_UNKNOWN, PRICE_BUCKETS, PRICE_UNPRICED, DIRECT_CHANNEL };
+module.exports = {
+  LENGTH_BUCKETS, LEAD_BUCKETS, LEAD_UNKNOWN, PRICE_BUCKETS, PRICE_UNPRICED, DIRECT_CHANNEL, MAX_ROWS, OTHER_ROW,
+};

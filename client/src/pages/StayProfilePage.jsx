@@ -63,7 +63,11 @@ function BreakdownPanel({ data, dimension, onDimension, measure, onMeasure }) {
           amountHeader={T.amount}
           shareHeader={T.share}
           formatAmount={money}
-          rows={dim.rows.map((r) => ({ key: r.key, label: r.label, quantity: r.count, amount: r.amount, share: r[shareKey] ?? 0 }))}
+          rows={dim.rows.map((r) => ({
+            key: r.key, label: r.label, quantity: r.count, amount: r.amount, share: r[shareKey] ?? 0,
+            // Rule 29 — the server's « Autres » row: grey, its hover names what it holds.
+            ...(r.other ? { other: true, caption: `${r.label} : ${r.parts.join(', ')}` } : {}),
+          }))}
           total={{ quantity: data.totals.count, amount: data.totals.amount }}
         />
       )}
