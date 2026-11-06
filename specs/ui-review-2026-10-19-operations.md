@@ -398,6 +398,19 @@ guessing; and the quote the guest receives looks like the house that sends it.
     Test: `devis-pdf-glyphs`. *Accepted, recorded:* an English quote prints its amounts with the French decimal comma
     (« 15,00 € »): `devisHelpers.formatCurrency` is not the PDF's alone (the trop-perçu refusal of the reservations
     controller reads it, and it is a name of the SDK contract), so it is not localised here.
+50. **« Créer un devis » takes the typed client with it (audit R25-C1, 2026-11-06).** On a stay fiche not saved yet, the
+    bar action « Créer un devis » hands the devis the form and the client typed through « + Créer un nouveau client »
+    (`pendingClient`, nothing written yet, clients rule 13): the devis shows it, and its first save sends it as
+    `newClient`, which writes it with the devis. Every other load of the page still drops it (rule 40, reading of V1): only
+    the prefill carries it. *Why:* the V1 reset ran before the prefill was applied, so the devis opened with no client
+    and nothing said so; the operator had to type the name, e-mail and phone again. Test:
+    `ReservationPage.create-devis-carries`.
+51. **A devis prefilled by « Créer un devis » is an edit (audit R25-C2, 2026-11-06).** It holds a draft saved nowhere: until
+    its first save « Enregistrer le devis » is lit, and Back, « Retour » / « Annuler », the other exits of rule 42 and a
+    reload ask, as on any dirty fiche (rules 40-42). An untouched blank fiche still holds no slot and warns on nothing
+    (rule 40, reading of 2026-11-05). *Why:* its clean baseline was the prefilled form itself, so Enregistrer stayed grey
+    until a dummy edit and one tap on « Retour » threw the whole typed stay away without a word. Test:
+    `ReservationPage.create-devis-carries`.
 
 ---
 
@@ -570,6 +583,12 @@ otherwise, the quantity column, the bank block, the extra-guest row of tariff-ev
 totals). Manual: every quote of the 2026-10-22 production copy and every reservation of it rendered as a quote,
 in French and English, plus 17 worst cases, each checked for missing glyphs, overflow and totals; pages viewed
 through PDFKit (Swift).
+
+**Audit R25 (2026-11-06)** — rules 50-51: `pages/__tests__/ReservationPage.create-devis-carries.test.jsx` (3: the typed
+client stays on the devis and is sent as `newClient`; the prefilled devis lights Enregistrer, warns on reload, asks on
+Back and on « Annuler »). Manual: headless browser on the real-data shadow at 1280 and 390 touch, a new stay fiche, « +
+Créer un nouveau client », then « Créer un devis » (overflow menu on the phone): the client is on the devis, Enregistrer
+is lit, « Retour » asks.
 
 **Audit 2026-10-27:** `tests/quote-headline-live-stored-parity.unit.test.js` (3, rules 31-32);
 `tests/ui-review-operations-headline.unit.test.js` adjusted to the rule-31 tax; the
