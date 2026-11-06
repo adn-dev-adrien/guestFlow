@@ -84,14 +84,16 @@ export function axisTicks(values, { domain, count = 4 } = {}) {
   const finite = values.filter((v) => v != null && Number.isFinite(v));
   const lo = Math.min(0, ...finite);
   const hi = Math.max(0, ...finite);
-  // Rule 34 — the top tick hugs the largest value: of `count`, `count + 1` and `count + 2` intervals,
-  // the first that leaves at most a quarter of the axis empty above it (else the tightest one).
+  // Rules 34, 38 — the outer ticks hug both the largest and the smallest value: of `count`,
+  // `count + 1` and `count + 2` intervals, the first whose empty room above the max and below the min
+  // is at most a quarter of the axis (else the tightest). Steps are multiples from 0, so 0 stays a
+  // tick whenever the range crosses it, and each end is at most one step beyond its value.
   let best = null;
   for (let c = count; c <= count + 2; c += 1) {
     const step = niceStep((hi - lo) / c || 1 / c);
     const start = clean(Math.floor(lo / step) * step);
     const end = clean(Math.max(Math.ceil(hi / step) * step, start + step));
-    const waste = (end - Math.max(hi, start + step / 2)) / (end - start);
+    const waste = ((end - hi) + (lo - start)) / (end - start);
     if (!best || waste < best.waste) best = { step, start, end, waste };
     if (waste <= 0.25) { best = { step, start, end, waste }; break; }
   }
@@ -121,11 +123,12 @@ export function endLabelMargin(names, cap) {
  * Recharts `interval` of the category axis (rules 12, 26, 35): every Nth label from the first, evenly
  * spaced. N is at least the regular thinning of `tickInterval`, and large enough that the longest label
  * fits its slot of the measured plot width. Unmeasured (first paint, tests): long labels let Recharts
- * pick the same evenly spaced N from their measured text (`equidistantPreserveStart`).
+ * pick the same evenly spaced N from their measured text (`equidistantPreserveStart`). `thin: false`
+ * drops the rule-12 floor: every label that fits is shown (the hero's months, rule 40).
  */
-export function xInterval(categories, narrow, plotWidth) {
+export function xInterval(categories, narrow, plotWidth, { thin = true } = {}) {
   const longest = Math.max(0, ...categories.map((c) => String(c.label ?? '').length));
-  const regular = tickInterval(categories.length, narrow);
+  const regular = thin ? tickInterval(categories.length, narrow) : 0;
   if (plotWidth > 0) {
     const perLabel = longest * 6.5 + 12;
     const fit = Math.max(1, Math.floor(plotWidth / perLabel));
@@ -134,8 +137,21 @@ export function xInterval(categories, narrow, plotWidth) {
   return longest > 5 ? 'equidistantPreserveStart' : regular;
 }
 
-/** The end names' margin cap (rule 22): 150 px (96 on a phone), never more than 30 % of the chart. */
+/**
+ * The end names' margin cap (rules 22, 39): 150 px (96 on a phone), and never more than 40 % of the
+ * chart so the plot keeps at least 60 %. It only grows with the chart's width: a name that fits a
+ * narrow chart is never cut on a wider one.
+ */
 export function endLabelCap(narrow, chartWidth) {
   const cap = narrow ? 96 : 150;
-  return chartWidth > 0 ? Math.min(cap, Math.round(chartWidth * 0.3)) : cap;
+  return chartWidth > 0 ? Math.min(cap, Math.round(chartWidth * 0.4)) : cap;
+}
+
+/**
+ * Every Nth of `ticks` from the first (rule 40), N = interval + 1: the explicit tick list of a chart
+ * whose axis is numeric (the hero's days), thinned evenly instead of by Recharts' collision pass.
+ */
+export function everyNth(ticks, interval) {
+  const n = Math.max(1, Number(interval) + 1 || 1);
+  return ticks.filter((_, i) => i % n === 0);
 }

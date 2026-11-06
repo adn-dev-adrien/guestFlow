@@ -19,11 +19,14 @@
  *   definitions?:  { nights, occupancy, revenuePerNight, revPar, openNights } — the « i » of each figure
  */
 import React from 'react';
-import { Box, LinearProgress, Typography } from '@mui/material';
+import { Box, LinearProgress, Typography, useMediaQuery } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
 import { AreaChart, Area, CartesianGrid, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import YearOverYearBadge from './YearOverYearBadge';
 import DefinitionButton from './DefinitionButton';
 import { chart } from '../utils/chartColors';
+import useElementWidth from '../hooks/useElementWidth';
+import { everyNth, xInterval } from '../utils/reportChart';
 
 export function CurveTooltip({ active, payload, format }) {
   if (!active || !payload?.length) return null;
@@ -65,6 +68,14 @@ export default function FinanceHero({ hero, showHt = true, windowLabel, asOf, pr
   const dash = '—';
   const perNight = format.perNight || format.amount;
   const labels = new Map(hero.axis.map((t) => [t.x, t.label]));
+  // specs/report-grammar.md rule 40 — the month ticks are evenly spaced at every width: every Nth from
+  // the first, N from the curve's measured width (never Recharts' collision pass, which drops months
+  // unevenly).
+  const theme = useTheme();
+  const narrow = useMediaQuery(theme.breakpoints.down('sm'));
+  const [curveRef, curveWidth] = useElementWidth();
+  const axisInterval = xInterval(hero.axis.map((t) => ({ key: t.x, label: t.label })), narrow, curveWidth ? curveWidth - 8 : null, { thin: false });
+  const axisTicks = typeof axisInterval === 'number' ? everyNth(hero.axis.map((t) => t.x), axisInterval) : hero.axis.map((t) => t.x);
   return (
     <Box
       component="section"
@@ -117,7 +128,7 @@ export default function FinanceHero({ hero, showHt = true, windowLabel, asOf, pr
           {'openNights' in hero && <Figure value={hero.openNights.toLocaleString('fr-FR')} label="nuits ouvertes" note={`dont ${hero.occupiedNights.toLocaleString('fr-FR')} occupées`} info={definitions.openNights} />}
         </Box>
       </Box>
-      <Box sx={{ mt: 2, pt: 0.75, borderTop: 1, borderColor: 'divider' }}>
+      <Box ref={curveRef} sx={{ mt: 2, pt: 0.75, borderTop: 1, borderColor: 'divider' }}>
         <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', fontSize: 12, color: 'text.secondary', my: 0.75 }}>
           <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.75 }}><Box component="span" sx={{ width: 10, height: 10, borderRadius: '3px', bgcolor: chart.current }} />Cumulé</Box>
           {hasPrevious
@@ -135,7 +146,7 @@ export default function FinanceHero({ hero, showHt = true, windowLabel, asOf, pr
             <CartesianGrid horizontal={false} stroke={chart.grid} />
             <XAxis
               type="number" dataKey="x" domain={['dataMin', 'dataMax']}
-              ticks={hero.axis.map((t) => t.x)} tickFormatter={(x) => labels.get(x)} interval="preserveStart" minTickGap={16}
+              ticks={axisTicks} tickFormatter={(x) => labels.get(x)} interval={typeof axisInterval === 'number' ? 0 : axisInterval}
               tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: chart.tick, textAnchor: 'start' }}
             />
             <YAxis hide domain={[0, 'auto']} />
