@@ -27,19 +27,22 @@ const FAILED = 'Impossible de charger les contrôles.';
 export default function FinanceDataChecksCard({ fiscalYear, propertyId, refreshKey }) {
   const location = useLocation();
   const from = `${location.pathname}${location.search}`;
-  const [state, setState] = useState({ data: null, error: null });
+  const [state, setState] = useState({ data: null, error: null, refused: false });
+  // specs/finance-data-checks.md rule 23 — after a refusal of the exercise, the current one is read (no `fiscalYear`).
+  const [currentExercise, setCurrentExercise] = useState(false);
+  useEffect(() => { setCurrentExercise(false); }, [fiscalYear, propertyId]);
   const begin = useLatestRequest();
 
   const load = useCallback(async () => {
     const current = begin();
-    setState((s) => ({ data: s.data, error: null }));
+    setState((s) => ({ data: s.data, error: null, refused: false }));
     try {
-      const data = await api.getFinanceDataChecks({ fiscalYear, propertyId });
-      if (current()) setState({ data, error: null });
+      const data = await api.getFinanceDataChecks({ fiscalYear: currentExercise ? undefined : fiscalYear, propertyId });
+      if (current()) setState({ data, error: null, refused: false });
     } catch (err) {
-      if (current()) setState({ data: null, error: (err && err.error) || FAILED });
+      if (current()) setState({ data: null, error: (err && err.error) || FAILED, refused: Boolean(err && err.code === 'UNKNOWN_EXERCISE') });
     }
-  }, [fiscalYear, propertyId, begin]);
+  }, [fiscalYear, propertyId, currentExercise, begin]);
 
   useEffect(() => { load(); }, [load, refreshKey]);
 
@@ -54,7 +57,16 @@ export default function FinanceDataChecksCard({ fiscalYear, propertyId, refreshK
   };
 
   if (state.error) {
-    return <Panel label={LABEL}><ErrorAlert message={state.error} onRetry={load} /></Panel>;
+    const offerCurrent = state.refused && !currentExercise && fiscalYear != null && fiscalYear !== '';
+    return (
+      <Panel label={LABEL}>
+        <ErrorAlert
+          message={state.error}
+          onRetry={offerCurrent ? () => setCurrentExercise(true) : load}
+          retryLabel={offerCurrent ? 'Exercice en cours' : undefined}
+        />
+      </Panel>
+    );
   }
   if (!state.data) {
     return <Panel label={LABEL}><LoadingState label="Chargement des contrôles…" py={2} /></Panel>;

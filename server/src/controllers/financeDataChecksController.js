@@ -4,7 +4,7 @@ const model = require('../models/financeDataChecksModel');
 
 function getDataChecks(req, res) {
   const result = model.getDataChecks({ fiscalYear: req.query.fiscalYear, propertyId: req.query.propertyId });
-  if (!result.ok) return res.status(result.status || 400).json({ error: result.error });
+  if (!result.ok) return res.status(result.status || 400).json({ error: result.error, ...(result.code ? { code: result.code } : {}) });
   return res.json(result.data);
 }
 
