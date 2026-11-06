@@ -55,45 +55,60 @@ is pushed every order.
 
 ## 3. Functional rules
 
-### 3.A Identifying the lodging and the stay
+### 3.A Opening the app — one link per stay (Q10, option A, decided 2026-11-06)
 
-1. **One QR code per lodging.** Each property has a `lodgingCode`: 128 random bits, base64url, stored on the
-   property, regenerable from the booklet studio (old printed QR stops working at once). The QR encodes
-   `https://<guest host>/l/<lodgingCode>`. A guessed or stale code answers like an unknown one (no oracle). The app shows one copy for an unknown, stale or disabled code: « Ce code n'est pas reconnu. »
-2. **Scanning opens the app at that lodging.** `POST /public/v1/guest/sessions {lodgingCode}` resolves the
-   property, then its **current stay**: the non-cancelled reservation of that property whose window contains
-   *now*. The window is the gate window — `startDate`+`checkInTime` − 3 h → `endDate`+`checkOutTime` + 2 h,
-   Europe/Paris, same inputs and fallbacks as the gate key window (`plugins/gate-access/window.js`, moved to
-   the core as `utils/stayWindow.js` so both plugins share one helper, not a copy).
-3. **Changeover day.** If two stays' windows contain *now*, the departing stay wins until its
-   `checkOutTime`, the arriving one after. With the default times (10:00 + 2 h / 16:00 − 3 h) the windows
-   never overlap; the rule only matters for custom times.
-4. **A session is a stay capability.** The server creates a `guest_sessions` row bound to `reservationId` +
-   `propertyId`, returns it as an `HttpOnly; Secure; SameSite=Strict` cookie `gf_guest` scoped to
-   `/public/v1/guest` (32 random bytes, only its SHA-256 stored), expiring at the window's end. The same
-   device rescanning during the same stay reuses its session.
-5. **No current stay → visitor mode.** The lodging's booklet and Soliomap stay readable; the home shows
-   « Bienvenue à La Granja » without any personal data; the gate tile and the shop are absent. A guest who
-   scanned too early (e.g. 11:00 for a 16:00 check-in) sees « Votre séjour commence aujourd'hui à 16 h —
-   le portail et la boutique s'ouvriront à 13 h. » (computed server-side). A visitor scan also gets a session
-   (`reservationId` NULL), which ends when that stay's window opens, or after 24 h when no stay starts today:
-   the app then scans again from the code it kept, and gets the stay.
-6. **Fallback, from anywhere: name + reservation number.** `/retrouver` asks the last name and the
-   reservation number (`reservations.reservationNumber`, which carries the platform's number for OTA stays
-   filled by the intake skills). Accepted from **J-7 00:00** until the window's end; before the window the
-   session is « pré-arrivée » (booklet, Soliomap, shop catalogue read-only, no gate). One generic error for
-   every failure (« Nous n'avons pas trouvé ce séjour. Vérifiez le nom et le numéro. »), 5 attempts / 15 min
-   per IP, constant-time comparison.
-7. **Name matching.** Normalised on both sides: NFD, accents stripped, lower-case, every non-letter removed
-   (`Le Goff-Durand` = `legoffdurand`). Compared to the reservation's client `lastName`. `nameMatches` takes a
-   list, so a second guest name can join it, but GuestFlow stores none today: only `clients.lastName` is on
-   file.
+1. **One link per stay.** Each reservation gets a `stayToken`: 128 random bits, base64url, created the first time
+   it is needed (the SAS step, the J-7 e-mail, the fiche), stored **encrypted** in `guest_stay_links` (it must be
+   shown again at the SAS, in the e-mails and after a regeneration) with its SHA-256 for lookup. The link is
+   `https://<guest host>/s/<stayToken>`. « Régénérer le lien » (SAS step and fiche) replaces it: the old link and
+   every session opened from it die at once. A guessed, stale or revoked token answers like an unknown one (no
+   oracle); the app shows one copy for every unknown code: « Ce code n'est pas reconnu. »
+2. **What the link opens, and when.** `POST /public/v1/guest/sessions { stayToken }` resolves the reservation
+   (non-cancelled, its lodging enabled for the app, rule 11quater) and opens, depending on *now* against the
+   stay window — `startDate`+`checkInTime` − 3 h → `endDate`+`checkOutTime` + 2 h, Europe/Paris, the gate key's
+   window (`utils/stayWindow.js`, shared with `gate-access`):
+   - from J-7 00:00 until the window opens → a **pre-arrival** session (booklet, Soliomap, the shop read-only, no
+     gate, no order);
+   - inside the window → a **stay** session (everything the lodging's modules allow);
+   - before J-7 → the lodging's visitor mode; after the window → the lodging's visitor mode with « Votre séjour est
+     terminé. Le livret reste disponible. ».
+   The link proves the stay: **no name is ever asked** (not for the bill either, rule 33). Whoever holds the link —
+   the guests it was shared with, by design — acts for that stay; a link that leaks is the operator's to
+   regenerate (accepted risk, stated).
+3. **The lodging poster opens the visitor mode only.** Each enabled lodging keeps a `lodgingCode` (128 bits,
+   base64url, regenerable from the studio) printed as a QR in the lodging: `https://<guest host>/l/<lodgingCode>`
+   opens that lodging's **visitor** mode, never a stay — so a photo of the poster shows nothing of anyone's stay,
+   at any time. The visitor home offers « Vous séjournez ici ? Retrouver mon séjour » (rule 6).
+4. **A session is a stay capability.** Opening the link creates a `guest_sessions` row bound to `reservationId` +
+   `propertyId` (+ the link's id), returned as an `HttpOnly; Secure; SameSite=Strict` cookie `gf_guest` scoped to
+   `/public/v1/guest` (32 random bytes, only its SHA-256 stored), expiring at the window's end (pre-arrival: when
+   the window opens). The app keeps the stay link on the device and exchanges it again when a session ends, so a
+   pre-arrival session becomes a stay session by itself at H-3. The same device reopening the link during the same
+   phase reuses its session; two devices have two sessions on the same stay.
+5. **Visitor mode.** The lodging's booklet, Soliomap and the wifi; « Bienvenue à La Granja » without any personal
+   data; no gate, no shop, no orders. A visitor session (`reservationId` NULL) lasts 24 h.
+6. **Fallback, from anywhere: name + reservation number.** `/retrouver` asks the last name and the reservation
+   number (`reservations.reservationNumber`, which carries the platform's number for OTA stays filled by the
+   intake skills) and opens the same session as the stay link would (pre-arrival or stay), from **J-7 00:00**
+   until the window's end. One generic error for every failure (« Nous n'avons pas trouvé ce séjour. Vérifiez le
+   nom et le numéro. »), 5 attempts / 15 min per IP, constant-time comparison.
+7. **Name matching** (the fallback only). Normalised on both sides: NFD, accents stripped, lower-case, every
+   non-letter removed (`Le Goff-Durand` = `legoffdurand`). Compared to the reservation's client `lastName`.
 8. **Data minimisation.** A session reads only: the guest's first name, lodging name, arrival / departure
-   instants, party size, language, its own orders. Never the email, phone, address, amounts of the stay,
+   instants, party size, language, its own stay's orders. Never the email, phone, address, amounts of the stay,
    nor any other stay. The visitor mode reads no personal data at all.
-9. **Session end.** At the window's end the session is dead (401 `SESSION_EXPIRED`); the app falls back to
-   the lodging's visitor mode, keeping the booklet. A cancelled or deleted reservation kills its sessions on
-   the next request.
+9. **Session end.** At its expiry the session is dead (401 `SESSION_EXPIRED`); the app reopens the stored link,
+   or falls back to the lodging's visitor mode, keeping the booklet. A cancelled or deleted reservation, a
+   regenerated link and a lodging switched off kill their sessions on the next request.
+9bis. **Where the link is given.** (a) The arrival SAS: while `guest-app` is active and the lodging enabled, its
+   « Portail » step becomes « Mon séjour » — the QR of the stay link (« Flashez pour ouvrir Mon séjour : le portail,
+   le livret, la boutique et le bain »), the gate keypad code, « Partager » (native share sheet, else « Copier le
+   lien »), « Régénérer le lien », and a discreet « QR du portail seul » that shows today's gate QR for weak
+   coverage. Plugin inactive, lodging disabled → the step is today's gate step, unchanged (contribution through
+   the existing `sas.portal` slot, rule 22). (b) The J-7 and J-1 reminder e-mails: the plugin contributes the
+   variable `{{stayAppUrl}}` and its sentence; while the plugin is inactive, the lodging disabled or the stay has
+   no e-mail, the e-mails keep the gate link (`{{gateAccessUrl}}`) as today. (c) The fiche: « Lien Mon séjour »
+   (copy, regenerate) contributed to the reservation page.
 
 ### 3.B Home
 
@@ -306,11 +321,9 @@ is pushed every order.
     - **« Payer maintenant »** (card): the server creates the order `awaiting_payment` and a Qonto payment
       link of type `complement` for exactly its total, with the order's lines as VAT basket; the app
       redirects to Qonto; the return lands on `/commande/<id>` which polls the order status.
-      **No name confirmation** — the card payment is the proof.
-    - **« Ajouter à ma note »** (end-of-stay bill): **only here** the guest confirms their last name (rule 7,
-      once per session — a fallback session already proved it); on success the order is `confirmed` at
+      No name asked — the stay link is the proof (rule 2).
+    - **« Ajouter à ma note »** (end-of-stay bill): no name asked either (rule 2); the order is `confirmed` at
       once and its lines join the stay's end-of-stay complement, collected at the departure SAS as today.
-      3 wrong names lock « Ajouter à ma note » for that session for 1 h; card payment stays available.
     « Payer maintenant » is hidden while the `online-payment` plugin is inactive or Qonto is disconnected.
 34. **How an order lands on the fiche.** A confirmed order (note or 0 €) or a paid order (card) is written
     by the **core** as mid-stay extras on the reservation — the same write path as the operator's `PUT
@@ -419,9 +432,9 @@ is pushed every order.
     screen, WCAG AA in both registers, 44 px touch targets.
 
 **Edge cases:**
-- Guest scans the La Granja QR while staying at L'Estiva (wrong lodging, same estate) → the La Granja stay
-  (or visitor mode) — the QR is the lodging; the fallback lookup always finds the right one.
-- Two devices of the same family → two sessions on the same stay; orders and the name confirmation are per
+- Guest scans the La Granja poster while staying at L'Estiva → La Granja's visitor mode; their own stay opens
+  from their stay link or the fallback lookup.
+- Two devices of the same family → two sessions on the same stay; orders are per
   session, « Mes commandes » shows the stay's orders from every session.
 - Reservation dates changed by the operator → the session expiry follows on the next request (re-derived).
 - Option archived or unflagged while in a cart → quote returns the line `unavailable`, the cart shows it
@@ -429,8 +442,8 @@ is pushed every order.
 - Price changed while in a cart → the quote is the truth; the cart re-renders the new price, no warning
   needed (the total shown before paying is always fresh).
 - Qonto disconnected → « Payer maintenant » hidden, « Ajouter à ma note » only.
-- Reservation from a platform with no client last name (rare iCal-only stay) → note payment impossible
-  (« Ajouter à ma note » hidden), card only; fallback lookup impossible.
+- Reservation from a platform with no client last name (rare iCal-only stay) → the fallback lookup is
+  impossible; the stay link works as for any stay.
 - Stay cancelled mid-cart → next request 401, app back to visitor mode, cart cleared.
 - Operator places a bath session from the fiche while the guest looks at the picker → the guest's next
   quote / order sees it (`SLOT_TAKEN` if they picked that slot); no cache between the planning and the app.
@@ -483,7 +496,8 @@ plugins only through the functions they export to other plugins (no direct table
 | `plugins/guest-app/` | `modules.js` | C | Pure: the modules a lodging shows, from its configuration, the facts and the session's mode (rule 11bis) |
 | `plugins/guest-app/` | `settings.js` | C | The declared settings and their checks (§5) |
 | `plugins/guest-app/` | `currentStay.js` | C | Pure: lodging + instant → current stay (rules 2, 3, 5, 6) |
-| `plugins/guest-app/` | `nameMatch.js` | C | Pure: normalisation + comparison (rule 7) |
+| `plugins/guest-app/` | `nameMatch.js` | C | Pure: normalisation + comparison, for the fallback lookup only (rule 7) |
+| `plugins/guest-app/models/` | `stayLinksModel.js` | C | The stay links: create on first need, read back for the SAS / e-mails / fiche, regenerate (rule 1) |
 | `plugins/guest-app/` | `sellable.js` | C | Pure: which items a lodging's shop shows and their free / included state (rules 23, 25) |
 | `plugins/guest-app/` | `serviceHours.js` | C | Pure: open ranges for a date, next opening, delivery slots from now + lead time to check-out, ignition-in-hours check (rules 31, 40-42) |
 | `plugins/guest-app/` | `homeHighlight.js` | C | Pure: status line + the single highlight (rules 10, 11) |
@@ -519,7 +533,7 @@ tokens of §6.1 and GuestFlow's semantic colours, React Router; fonts Marcellus 
 | Layer | File | T/C | Responsibility |
 |---|---|---|---|
 | `pages/` | `HomePage`, `BookletIndexPage`, `BookletPage`, `ShopPage`, `SlotPickerPage`, `CartPage`, `OrderPage`, `OrdersPage`, `SoliomapPage`, `LookupPage`, `LodgingEntryPage` (`/l/:code`) | C | Route-level views |
-| `components/` | `AppShell` (`TabBar` / `NavRail`), `HeroHeader`, `StayCard`, `QuickTile`, `MomentCard`, `PhotoCard`, `BlockRenderer` + one renderer per block type, `ProductCard`, `ProductSheet`, `QuantityStepper`, `SlotGrid`, `DeliveryTimeChips`, `ServiceHoursBanner`, `CartBar`, `PaymentChoice`, `NameConfirmSheet`, `OrderTimeline`, `StatusChip`, `InstallPrompt`, `OfflineBanner` | C | Rendering only — anatomy in §6.4 |
+| `components/` | `AppShell` (`TabBar` / `NavRail`), `HeroHeader`, `StayCard`, `QuickTile`, `MomentCard`, `PhotoCard`, `BlockRenderer` + one renderer per block type, `ProductCard`, `ProductSheet`, `QuantityStepper`, `SlotGrid`, `DeliveryTimeChips`, `ServiceHoursBanner`, `CartBar`, `PaymentChoice`, `OrderTimeline`, `StatusChip`, `InstallPrompt`, `OfflineBanner` | C | Rendering only — anatomy in §6.4 |
 | `services/` | `api.js` | C | `fetch` with credentials, error envelope → typed errors |
 | `hooks/` | `useSession`, `useCart` (local state + localStorage), `useOrderStatus` (poll) | C | UI state |
 | `i18n/` | `fr.json`, `en.json` | C | App chrome strings (booklet content comes from the server) |
@@ -548,7 +562,7 @@ tokens of §6.1 and GuestFlow's semantic colours, React Router; fonts Marcellus 
 |---|---|---|
 | **Consumed (existing generic)** | `PageActionBar`, `DataPageScaffold`, `StatusBadge`, `EmptyState`, `ConfirmDialog`, `FormDialog` (admin page + studio) | Studio and admin keep GuestFlow's component library. |
 | **Created (new generic, guest app)** | `QuickTile`, `PhotoCard`, `BottomSheet`, `QuantityStepper`, `StatusChip`, `BlockRenderer`, `OrderTimeline` | Generic inside the guest app; `BlockRenderer` is shared with the studio preview. |
-| **Specific** | `SlotGrid`, `DeliveryTimeChips`, `PaymentChoice`, `NameConfirmSheet`, `StayCard`, `MomentCard`, `GuestAppItemFields` | Tied to the stay / order flows. |
+| **Specific** | `SlotGrid`, `DeliveryTimeChips`, `PaymentChoice`, `StayCard`, `MomentCard`, `GuestAppItemFields` | Tied to the stay / order flows. |
 
 Why not reuse `client/` for the guest app: different audience, origin, auth and bundle budget (the guest
 app must load fast on 3G and be cacheable offline; the admin bundle is several MB).
@@ -562,10 +576,9 @@ shape for every plugin: `{ error: 'PLUGIN_INACTIVE', plugin }`.
 
 | Method | Endpoint | Auth | Request | Response |
 |---|---|---|---|---|
-| POST | `/public/v1/guest/sessions` | — | `{ lodgingCode }` | `{ mode: 'stay'\|'preArrival'\|'visitor', lodging:{id,name,slug}, opensAt? }` + cookie |
+| POST | `/public/v1/guest/sessions` | — | `{ stayToken }` or `{ lodgingCode }` | `{ mode: 'stay'\|'preArrival'\|'visitor', lodging:{id,name,slug}, opensAt?, ended? }` + cookie; a `lodgingCode` always opens the visitor mode; unknown → 404 `CODE_NOT_FOUND` (one answer for every unknown, stale, revoked or disabled code) |
 | POST | `/public/v1/guest/sessions/lookup` | — | `{ lastName, reservationNumber }` | same; 404 `STAY_NOT_FOUND` generic |
-| GET | `/public/v1/guest/me` | session | — | stay / pre-arrival: `{ mode, guest:{firstName}, lodging, stay:{arrival,departure,partySize,statusLine}, language, nameConfirmed, tiles:[…], suggestion?:{id,name,category,dateLabel,driveLabel,url}, highlight?:{key,text,module,page?} }`; visitor: `{ mode, lodging, language, tiles:[…], welcome, opensAt?, openingLine? }`; dead session 401 `SESSION_EXPIRED` |
-| POST | `/public/v1/guest/me/confirm-name` | stay or pre-arrival session | `{ lastName }` | `{ nameConfirmed:true }`; 400 `INVALID_INPUT` when `lastName` is not text (spends no attempt); 422 `NAME_MISMATCH` `{attemptsLeft}`; 423 `NAME_LOCKED` `{lockedUntil}`; visitor 403 `STAY_REQUIRED` |
+| GET | `/public/v1/guest/me` | session | — | stay / pre-arrival: `{ mode, guest:{firstName}, lodging, stay:{arrival,departure,partySize,statusLine}, language, tiles:[…], suggestion?:{id,name,category,dateLabel,driveLabel,url}, highlight?:{key,text,module,page?} }`; visitor: `{ mode, lodging, language, tiles:[…], welcome, opensAt?, openingLine? }`; dead session 401 `SESSION_EXPIRED` |
 | GET | `/public/v1/guest/booklet?lang=` | session or `lodgingCode` | — | `{ version, pages:[{slug,icon,title,cover}] }` |
 | GET | `/public/v1/guest/booklet/pages/:slug?lang=` | idem | — | `{ slug, title, cover, blocks:[{type, …}] }` |
 | GET | `/public/v1/guest/booklet/search?q=&lang=` | idem | — | `{ results:[{slug,title,excerpt}] }` |
@@ -597,7 +610,7 @@ shape for every plugin: `{ error: 'PLUGIN_INACTIVE', plugin }`.
 | GET | `/api/guest-app/orders?status=` | admin/staff | — | orders list (rule 45) |
 | POST | `/api/guest-app/orders/:id/delivered` | admin/staff | — | `{ status:'delivered' }` |
 
-Rate limits: sessions 30/h/IP, lookup 5/15 min/IP, confirm-name 3 failures/h/session, orders 10/h/session,
+Rate limits: sessions 30/h/IP, lookup 5/15 min/IP, orders 10/h/session,
 reads under the existing `publicApiLimiter` budget.
 
 ---
@@ -617,9 +630,12 @@ reads under the existing `publicApiLimiter` budget.
   `sold = 0`: nothing is sold until the operator flags it.
 - `guest_app_service_hours(weekday 0-6, fromTime, toTime, propertyId NULL)` and
   `guest_app_service_exceptions(date, propertyId NULL, closed, rangesJson)` (rule 40).
-- `guest_sessions(id, tokenHash UNIQUE, propertyId, reservationId NULL, mode, origin 'qr'|'lookup',
-  nameConfirmedAt, nameFailures, nameLockedUntil, createdAt, lastSeenAt, expiresAt)` — purged 30 days after
+- `guest_sessions(id, tokenHash UNIQUE, propertyId, reservationId NULL, mode, origin 'link'|'poster'|'lookup',
+  stayLinkId, createdAt, lastSeenAt, expiresAt)` — purged 30 days after
   expiry. `reservationId` is NULL for a visitor session (rule 5).
+- `guest_stay_links (id, reservationId UNIQUE while not revoked, tokenEncrypted, tokenHash UNIQUE, createdAt,
+  revokedAt)` — one live link per reservation (rule 1); `tokenEncrypted` through the core encryption helper so
+  the SAS, the e-mails and the fiche can show it again; regenerating revokes the row and creates a new one.
 - `guest_booklet_pages(id, slug, icon, coverMediaId, titleFr, titleEn, updatedAt)` — page content;
   `guest_booklet_placements(pageId, propertyId, sortOrder, published, PRIMARY KEY(pageId, propertyId))` —
   which lodgings' booklets show the page, where (a page placed in two lodgings is « shared », rule 17);
@@ -733,7 +749,6 @@ mock-ups load them from Google Fonts only because they are static files).
 | `DeliveryTimeChips` | Horizontal chips grouped by day, first one « Dès que possible · 17 h 30 ». Out-of-hours banner above (warning soft). |
 | `CartBar` | Floating pill above the tab bar: count, « Voir le panier », server total; slides up on first add. |
 | `PaymentChoice` | Two large selectable cards with icon, title, one-line explanation; the selected one gets a sapin border and check. |
-| `NameConfirmSheet` | One field, autofocus, `autocomplete="family-name"`, explanation in one sentence, primary button + text button « Payer par carte plutôt ». |
 | `OrderTimeline` | Status as a vertical 3-step line: Reçue → En préparation → Livrée (or Payée / Sur votre note), times in `figure`. |
 | `TabBar` / `NavRail` | 4 entries max (rule 11bis decides which); active = filled icon + sapin label + 2 px ocre bar on top. |
 | `BlockRenderer` | One renderer per booklet block; `steps` as a vertical timeline with lichen numerals, `wifi` as a ticket with a perforated edge, `callout` as a soft panel with a left icon, `contact` as a row with « Appeler » / « WhatsApp » buttons, `place` with a static map tile + « Itinéraire ». |
@@ -745,8 +760,8 @@ illustration-free icon + one sentence + one action, `ErrorAlert` with « Réessa
 ### 6.5 UX principles — what makes it feel effortless
 
 1. **Zero steps before value.** The QR opens straight on the guest's home — no splash, no login, no cookie
-   wall (the session cookie is strictly necessary). The only question the app ever asks is the last name,
-   and only to put an order on the bill (rule 33).
+   wall (the session cookie is strictly necessary). The app never asks who the guest is: the stay link proves it (rule 2); only the fallback lookup asks a name
+   and a number (rule 6).
 2. **The home answers « what now? ».** Tiles are the stable map; the `MomentCard` is the one thing that
    matters at this hour (arrival day → Portail; evening → bath; morning → breakfast delivery; eve of
    departure → « Départ : les consignes »).
@@ -888,14 +903,15 @@ le nom et le numéro. »
 
 ## 9. Open questions
 
-- **Q8 — Soliomap framing.** Checked 2026-11-05: `map.domainesolio.com` refuses framing
-  (`frame-ancestors 'self'`). Allow `sejour.domainesolio.com` in Soliomap (one line in the solioMap repository,
-  shipped there), or keep opening it in a new tab? (review boards, arbitrage A7)
-- **Q10 — How the guest opens the app.** A lodging QR (rules 1-9 as written) lets a past guest who photographed
-  the poster open the next stay. Proposal A (review boards v2, section « Accès »): one link per stay, random: pre-arrival from J-7 00:00, stay session during the window, dead after; shown as the QR of the arrival SAS step that today shows the gate QR, and
-  sent in the J-7 e-mail in place of the gate link; it proves the stay, so no name is ever asked, even for the
-  bill; the lodging poster opens the visitor mode only. B = rules 1-9 as written; C = lodging QR + a 4-digit
-  code given at the SAS. A changes slice A (session from the stay link, name confirmation removed): rules 1-9, 13, 25, 33, §4.3 (confirm-name, `nameConfirmed`), §5 (a `guest_stay_links` table: the token must be shown again at the SAS, in the e-mail and after « Régénérer », so it is stored encrypted, not hash-only), §6.5.1, §6.6, §7, the SAS « Portail » step and the J-7 / J-2 e-mail variable (plugin contributions that fall back to the gate link when the plugin or the lodging is off or the stay has no e-mail), « Régénérer le lien » on the fiche, a direct « Ouvrir le portail » kept at the SAS for weak coverage, and the stated risk that a forwarded link is a bearer token for the bill (remedy: « Régénérer ») are rewritten once the user picks (arbitrage A6).
+None open (2026-11-06).
+
+### Resolved (2026-11-06, review of the boards v3)
+
+- **Q10 — How the guest opens the app** → option A: one link per stay, shown as the QR of the arrival SAS step in
+  place of the gate QR and sent in the J-7 / J-1 e-mails; it proves the stay, no name is ever asked; the lodging
+  poster opens the visitor mode only (rules 1-9bis, 33).
+- **Q8 — Soliomap framing** → Soliomap allows `sejour.domainesolio.com` (a change shipped in the solioMap
+  repository); the studio switch « Intégrer dans l'app » is turned on once that change is live (rule 15).
 
 ### Resolved (2026-11-05, review of the boards v1)
 
@@ -911,13 +927,14 @@ le nom et le numéro. »
 
 ### Resolved (2026-11-04)
 
-- **Identification** — lodging QR + current stay; fallback last name + reservation number. The name is
-  asked **only** when the guest puts an order on the end-of-stay bill (rules 1-9, 33).
+- **Identification** — *(superseded on 2026-11-06 by Q10: one link per stay)* lodging QR + current stay;
+  fallback last name + reservation number.
 - **Payment** — the guest chooses card (Qonto `complement` link) or end-of-stay bill (rules 33-36).
 - **Hosting** — served by GuestFlow, plugin `guest-app`, `/public/v1/guest/**` with a per-stay session; the
   catalogue projections are those of the website-booking API on `inte/plugins` (rules 4, 24).
 - **Gate** — the gate app already exists: the tile opens the stay's Sowel key link, no gate screen is built
-  (rules 12-14). Under a lodging QR, a photo of the poster opens the current stay's gate link and its 0 € orders during any later stay; this is the risk Q10 addresses and is not accepted as is.
+  (rules 12-14). The gate link is served to stay sessions only, opened from the stay's own link (Q10, 2026-11-06), so a photo of
+  the lodging poster never reaches it.
 - **Soliomap** — existing app at `map.domainesolio.com` (address corrected 2026-11-05), opened from a tile (rule 15).
 - **Booklet editing** — a dedicated web app (« Studio du livret », `/studio`, GuestFlow account) (rules
   47-50).

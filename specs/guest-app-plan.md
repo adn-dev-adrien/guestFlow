@@ -81,7 +81,7 @@ guest UI, so the riskiest code is the most tested before a guest can reach it.
     `middleware/guestSession.js` (re-derive the window on each request, 401 `SESSION_EXPIRED`, dead on
     cancel / delete).
 11. `controllers/sessionController.js`: `POST /sessions`, `POST /sessions/lookup` (generic 404, constant
-    time), `GET /me` (rule 8 minimisation), `POST /me/confirm-name` (3 failures → 1 h lock),
+    time), `GET /me` (rule 8 minimisation), (name confirmation removed on 2026-11-06, Q10),
     `GET /lodging`. Cookie `gf_guest` `HttpOnly; Secure; SameSite=Strict`.
 12. `middleware/rateLimiters.js`: `guestSessionLimiter`, `guestLookupLimiter` (env-overridable like the
     others).
@@ -97,6 +97,14 @@ guest UI, so the riskiest code is the most tested before a guest can reach it.
 - `stay-window.unit.test.js` (moved gate-access window tests, unchanged assertions).
 
 ---
+
+### A6 — One link per stay (Q10, decided 2026-11-06)
+13bis. `guest_stay_links` (in the unreleased v1 migration), `models/stayLinksModel.js`, `POST /sessions
+    { stayToken }` (pre-arrival from J-7, stay in the window, visitor after), the lodging poster → visitor only,
+    sessions killed by a regenerated link; `confirm-name`, the name columns and the lock removed; the SAS
+    `sas.portal` contribution « Mon séjour » (QR, keypad code, Partager, Régénérer, « QR du portail seul »), the
+    `{{stayAppUrl}}` e-mail variable with the gate-link fallback, the fiche's « Lien Mon séjour ». Tests:
+    `guest-app-stay-links.unit.test.js`, sessions / input-shape suites rewritten, client tests of the SAS step.
 
 ## Slice B — Sellable catalogue (rules 22-27)
 
@@ -238,7 +246,7 @@ guest UI, so the riskiest code is the most tested before a guest can reach it.
     plugin, SPA fallback, `Cache-Control` immutable on hashed assets, CSP allowing only self).
     `scripts/build-plugin-packages.mjs` gains the extra-assets step for this plugin.
 51. Client tests (Vitest, one file per subject): `HomePage.modules.test.jsx`, `ShopPage.free-states.test.jsx`,
-    `SlotGrid.states.test.jsx`, `CartPage.payment-choice.test.jsx`, `NameConfirmSheet.test.jsx`,
+    `SlotGrid.states.test.jsx`, `CartPage.payment-choice.test.jsx`, 
     `BlockRenderer.blocks.test.jsx`, `AppShell.night.test.jsx`.
 52. UI verification (CLAUDE.md §9): `npm run dev` + the guest app dev server, happy path + edge cases of
     spec §7 at 390 / 900 / 1280 px, day and night, EN; screenshots attached to the PR.
