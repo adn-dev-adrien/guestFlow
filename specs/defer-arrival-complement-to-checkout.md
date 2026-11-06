@@ -107,6 +107,11 @@ complement unpaid, and the departure SAS *recalls* it and collects both together
    « Compléments encaissés » already does
    ([recall-unpaid-arrival-complement-at-checkout.md](recall-unpaid-arrival-complement-at-checkout.md)
    §3 rule 4).
+   > **Reading of 2026-11-06 (D20, Adrien).** The merged card collects the end of stay too, so while it holds one
+   > (`endOfStayComplementAmount` > 0) it waits for the check-out (reservation-payment-ledger rule 68): its mark is sent closed
+   > with « Après le départ. », a PATCH answers 409 `END_OF_STAY_BEFORE_CHECKOUT`, and « Tout solder » leaves it
+   > out. The arrival complement can still be collected during the stay once « Percevoir en fin de séjour » is switched off,
+   > in the same PATCH or before. Test: `end-of-stay-after-checkout`.
 9. **The DB split and the accounting stay untouched.** `complementAmount` and
    `endOfStayComplementAmount` remain two separate columns: the pricing engine recomputes
    `complementAmount` on every fiche save ([reservationsModel.js:959](../server/src/models/reservationsModel.js#L959)),

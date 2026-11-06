@@ -85,7 +85,9 @@ import EmptyState from '../components/EmptyState';
 import { useAuth } from '../hooks/useAuth';
 import { ADMIN, userHasRole } from '../constants/roles';
 import { optionLineKey, resourceLineKey } from '../utils/arrivalLineKey';
-import { LOCKED_FICHE_BANNER, MID_STAY_EXTRAS_BANNER } from '../constants/reservationLock';
+import {
+  LOCKED_FICHE_BANNER, MID_STAY_EXTRAS_BANNER, UNLOCKED_FICHE_BANNER, UNLOCKED_NEW_FICHE_BANNER,
+} from '../constants/reservationLock';
 import { isQuotableStay, stayDatesMessage } from '../utils/stayDates';
 
 const DEVIS_STATUS_OPTIONS = [
@@ -4009,7 +4011,7 @@ export default function ReservationPage() {
         )}
         {pastUnlocked && (
           <Alert severity="warning" sx={{ mb: 1 }}>
-            Fiche déverrouillée : dates, logement et suppression sont modifiables. Le verrou revient dès la sortie de la fiche.
+            {reservationId ? UNLOCKED_FICHE_BANNER : UNLOCKED_NEW_FICHE_BANNER}
           </Alert>
         )}
         {pastNewReservation && isAdmin && !pastUnlocked && (

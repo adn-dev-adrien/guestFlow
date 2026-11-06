@@ -165,12 +165,9 @@ export default function FinancePage() {
     await refreshAll();
   };
   const handleTogglePayment = (reservation, field) => markPayment(reservation.id, { [field]: !reservation[field] });
+  // The flags « Tout solder » ticks come from the server (specs/reservation-payment-ledger.md rule 68, D20).
   const handleSettleAll = async (r) => {
-    const payload = {};
-    if (!r.depositDisabled && Number(r.depositAmount || 0) > 0 && !r.depositPaid) payload.depositPaid = true;
-    if (Number(r.balanceAmount || 0) > 0 && !r.balancePaid) payload.balancePaid = true;
-    if (Number(r.complementAmount || 0) > 0 && !r.complementPaid) payload.complementPaid = true;
-    if (Number(r.endOfStayComplementAmount || 0) > 0 && !r.endOfStayComplementPaid) payload.endOfStayComplementPaid = true;
+    const payload = Object.fromEntries((r.settleAllFields || []).map((field) => [field, true]));
     if (Object.keys(payload).length === 0) return;
     await markPayment(r.id, payload);
   };

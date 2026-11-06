@@ -5,7 +5,7 @@ process.env.DB_PATH = ':memory:';
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
-  db, controller, respond, ADMIN, TODAY, rowOf, mark, NO_ACOMPTE, WITH_ACOMPTE, S, C, D, forced, free, fiche, put, pay, refund, register,
+  db, controller, respond, ADMIN, TODAY, rowOf, mark, NO_ACOMPTE, WITH_ACOMPTE, S, C, D, forced, free, fiche, put, pay, storedEndOfStayPaid, refund, register,
 } = require('./moneyLedgerFixture');
 const refundsController = require('../controllers/refundsController');
 
@@ -62,7 +62,7 @@ test('end of stay, un-tick after refunds above what stays: refused', async () =>
   const stay = fiche(NO_ACOMPTE, 'direct', { customOptions: [forced(50)] });
   pay(stay.id, S, C);
   await put(stay, { adults: 3 });
-  pay(stay.id, { endOfStayComplementPaid: true, endOfStayComplementPaidDate: TODAY });
+  storedEndOfStayPaid(stay.id);
   assert.equal(refund(stay.id, [{ key: ACCOMMODATION, amountTtc: 600 }]).statusCode, 201);
   assert.equal(refund(stay.id, [{ key: 'custom:forcée', amountTtc: 50 }]).statusCode, 201);
   assert.equal(refund(stay.id, [{ label: 'Geste', bucket: 'options', amountTtc: 30 }]).statusCode, 201);
@@ -140,7 +140,7 @@ test('a paid end-of-stay complement adjusted down below the refund: the same 409
   const stay = fiche(NO_ACOMPTE, 'direct', { customOptions: [forced(20)] });
   pay(stay.id, S, C);
   await put(stay, { adults: 3 });
-  pay(stay.id, { endOfStayComplementPaid: true, endOfStayComplementPaidDate: TODAY });
+  storedEndOfStayPaid(stay.id);
   assert.equal(refund(stay.id, [{ key: ACCOMMODATION, amountTtc: 600 }]).statusCode, 201);
   assert.equal(refund(stay.id, [{ key: 'custom:forcée', amountTtc: 20 }]).statusCode, 201);
   assert.equal(refund(stay.id, [{ label: 'Geste', bucket: 'options', amountTtc: 30 }]).statusCode, 201);
@@ -308,7 +308,7 @@ test('an end-of-stay complement ticked outside the departure SAS, refunded, then
   const stay = fiche(NO_ACOMPTE, 'direct', { customOptions: [forced(20)] });
   pay(stay.id, S, C);
   await put(stay, { adults: 3 });
-  pay(stay.id, { endOfStayComplementPaid: true, endOfStayComplementPaidDate: TODAY });
+  storedEndOfStayPaid(stay.id);
   assert.equal(rowOf(stay.id).endOfStayComplementPaidAtDeparture, 0);
   const refunded = refund(stay.id, [{ key: ACCOMMODATION, amountTtc: 600 }, { key: 'custom:forcée', amountTtc: 20 }, { label: 'Geste', bucket: 'options', amountTtc: 40 }]);
   assert.equal(refunded.statusCode, 201, JSON.stringify(refunded.body));

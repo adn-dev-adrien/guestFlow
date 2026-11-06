@@ -32,7 +32,10 @@ function buildController({ captures, prev = {} }) {
   const dbMock = { transaction: (fn) => (...a) => fn(...a), prepare: () => ({ get: () => ({}), run: () => ({ changes: 0 }), all: () => [] }) };
   const reservationsModelMock = new Proxy({}, { get: (_, k) => {
     if (k === 'getBasic') return () => ({ id: 1 });                 // exists → no 404
-    if (k === 'getRow') return () => ({ complementAmount: 50, endOfStayComplementAmount: 50,
+    // Departed the day before the mocked today: specs/reservation-payment-ledger.md rule 68 (D20) collects the end of
+    // stay only after the check-out.
+    // date-literal-ok: compared with the mocked getTodayIsoDate only, never with the real clock.
+    if (k === 'getRow') return () => ({ endDate: '2026-06-14', complementAmount: 50, endOfStayComplementAmount: 50,
       complementPaid: 0, complementPaidCash: 0, complementPaidDate: null,
       endOfStayComplementPaid: 0, endOfStayComplementPaidCash: 0, endOfStayComplementPaidDate: null, ...prev });
     if (k === 'updatePaymentField') return (sql, ...args) => { captures.calls.push({ sql, args }); };

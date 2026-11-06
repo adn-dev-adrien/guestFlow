@@ -73,8 +73,10 @@ test('rule 11 — the mark carries the amount the operator saw: one cent off →
 
 test('rule 11 — on a deferred complement the expected amount is the merged one', () => {
   const id = createStay();
-  db.prepare('UPDATE reservations SET complementAmount = 24, endOfStayComplementAmount = 12, complementDeferredToCheckout = 1 WHERE id = ?').run(id);
-  assert.equal(mark(id, { complementPaid: true, complementPaidDate: TODAY, expectedAmountCents: 2400 }).statusCode, 409);
+  // Departing today: the merged card settles the end of stay too, collected after the check-out only (rule 68, D20).
+  db.prepare('UPDATE reservations SET complementAmount = 24, endOfStayComplementAmount = 12, complementDeferredToCheckout = 1, startDate = ?, endDate = ? WHERE id = ?')
+    .run(inDays(-3), TODAY, id);
+  assert.equal(mark(id, { complementPaid: true, complementPaidDate: TODAY, expectedAmountCents: 2400 }).body.code, 'AMOUNT_CHANGED');
   assert.equal(mark(id, { complementPaid: true, complementPaidDate: TODAY, expectedAmountCents: 3600 }).statusCode, 200);
   assert.equal(rowOf(id).endOfStayComplementPaid, 1);
 });

@@ -111,10 +111,11 @@ function solveBalance({ evaluate, startPrice, target, minPrice }) {
  * @param {object} p.ledger             the ledger built on that quote (row states and modes)
  * @param {object} [p.stored]           the stored row: paid flags, paid amounts and dates
  * @param {boolean} [p.pastLocked]      the stay has started and the fiche is not unlocked
+ * @param {boolean} [p.priceFrozen]     the stay has started and the fiche is unlocked (D21: its final price stays)
  * @param {function} [p.evaluate]       (customPrice) → quote, the whole engine (rule 18)
  * @returns {{ok:false, reason:string, refund?:object} | {ok:true, amount:number, reached:number, effects:string[], formPatch:object}}
  */
-function evaluateLedgerEdit({ row, amount, quote, ledger, stored = {}, pastLocked = false, evaluate } = {}) {
+function evaluateLedgerEdit({ row, amount, quote, ledger, stored = {}, pastLocked = false, priceFrozen = false, evaluate } = {}) {
   const value = parseAmount(amount);
   if (value == null) return refuse('Montant illisible : chiffres, virgule, + et − seulement.');
   if (value < 0) return refuse('Un montant ne peut pas être négatif.');
@@ -158,7 +159,9 @@ function evaluateLedgerEdit({ row, amount, quote, ledger, stored = {}, pastLocke
     };
   }
   if (mode !== 'price') return refuse('Ce montant ne se règle pas ici.');
-  if (pastLocked) return refuse('Séjour commencé : déverrouiller la fiche pour changer le prix de l\'hébergement.');
+  // specs/reservation-payment-ledger.md rule 18, reading of 2026-11-06 (D21): the unlock no longer changes the price.
+  if (pastLocked) return refuse('Séjour commencé : passer par « Réduction (%) ».');
+  if (priceFrozen && value !== balanceNow) return refuse('Fiche déverrouillée : le prix final ne change pas.');
   if (typeof evaluate !== 'function') return refuse('Calcul impossible.');
   if (value === balanceNow) return { ok: true, amount: value, reached: value, effects: [], formPatch: {} };
 

@@ -74,6 +74,14 @@ function pay(id, ...marks) {
   }
 }
 
+// specs/reservation-payment-ledger.md rule 68 (D20, 2026-11-06) — no path marks the end-of-stay complement before the
+// check-out. A stay that holds one collected anyway is a row stored before D20, never rewritten: the suites that judge
+// such a row write it as it is stored.
+function storedEndOfStayPaid(id, { date = TODAY, cash = false } = {}) {
+  db.prepare('UPDATE reservations SET endOfStayComplementPaid = 1, endOfStayComplementPaidDate = ?, endOfStayComplementPaidCash = ? WHERE id = ?')
+    .run(date, cash ? 1 : 0, Number(id));
+}
+
 async function cancel(id) {
   const res = respond();
   await cancellationController.cancel({ params: { id }, body: { reason: 't' }, user: ADMIN }, res);
@@ -121,5 +129,5 @@ function unclaimed(id) {
 
 module.exports = {
   db, controller, respond, inDays, rowOf, mark, ADMIN, TODAY, NO_ACOMPTE, WITH_ACOMPTE, PLATFORM, S, C, D, forced, free,
-  seedMoney, fiche, put, pay, cancel, register, offered, keyOf, refund, giveAll, ficheView, unclaimed,
+  seedMoney, fiche, put, pay, storedEndOfStayPaid, cancel, register, offered, keyOf, refund, giveAll, ficheView, unclaimed,
 };

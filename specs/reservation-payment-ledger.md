@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Implemented (rules 1-49) · Implemented — amendment of 2026-10-28 (rules 50-64, §3.8; 53-55 withdrawn) · Implemented — audit R20-M1 of 2026-11-03 (rule 66, §3.9) |
+| **Status** | Implemented (rules 1-49) · Implemented — amendment of 2026-10-28 (rules 50-64, §3.8; 53-55 withdrawn) · Implemented — audit R20-M1 of 2026-11-03 (rule 66, §3.9) · Implemented — D20 of 2026-11-06 (rule 68, §3.11) |
 | **Branch** | `docs/payments-ledger-spec` (spec, #718) · `feature/reservation-payment-ledger` (implementation) |
 | **Created** | 2026-10-19 |
 | **Author** | Adrien |
@@ -231,6 +231,13 @@ decimals is rounded and shown rounded.
       percentage options included).
     - « Valider » applies the returned `formPatch` to the form (saved with the fiche as any price
       change, traced in the history); « Annuler » leaves everything as it was.
+    > **Reading of 2026-11-06 (D21, settings-rationalization rule 35).** On a started stay the solde no longer moves the price
+    > by this editor: still locked, « Séjour commencé : passer par « Réduction (%) ». » (the unlock no longer
+    > changes it); unlocked, a solde other than the current one is refused « Fiche déverrouillée : le prix final ne change
+    > pas. » (`priceFrozen`), the same one passes. Test: `unlocked-fiche-keeps-final-price`.
+    > Amended 2026-11-06 (audit R26 D21 review L1): the locked refusal first named « Prix hébergement ajusté », which the
+    > locked fiche refuses (`customPrice` is not in the locked-fields allowlist, 400 PAST_RESERVATION_LOCKED); the discount
+    > is the only price field a started, locked fiche accepts, so the refusal names it.
 19. **A perceived row keeps what it collected.** On a paid acompte or solde the amount is not
     editable (rule 15). If the operator still types an amount in the editor of a paid row, the
     refusal names the right gesture: lower — « Déjà perçu : 866,40 €. Pour rendre 66,40 €, créer un
@@ -486,6 +493,8 @@ decimals is rounded and shown rounded.
   l'hébergement. ») until an admin unlocks the fiche
   ([admin-unlock-past-reservations.md](admin-unlock-past-reservations.md)). Decided at implementation
   (2026-10-19): read-only would have blocked every payout.
+  _Since 2026-11-06 (D21): the unlock keeps the final price too; the refusal reads « Séjour commencé : passer par
+  « Réduction (%) ». », the only price field the locked fiche accepts (rule 18 reading, amended the same day)._
 - Reception-only user → the ledger is not sent (finance-stripped view, unchanged).
 - Devis → the ledger shows the planned acompte / solde, no « Marquer perçu », no caution rows. The
   amounts are not editable from the ledger yet: the devis model does not store `depositAmountOverride`
@@ -762,6 +771,46 @@ tariff would fire on every platform stay (the brut is grossed up by the commissi
     as accommodation, and a stale amount with no line reads as accommodation: there the way out is to empty the field, then
     « Actualiser tarifs ». An end-of-stay adjustment was already written (`applyEndOfStayAdjustment`).
 
+### 3.11 D20 (Adrien, 2026-11-06) — the end-of-stay complement waits for the check-out
+
+68. **The end-of-stay complement is collected after the check-out, by every path.** *Owner decision D20, verbatim:* « le
+    complément de fin de séjour ne doit pas pouvoir être encaissé tant que le checkout n'est pas fait. En revanche, il faut
+    pouvoir valider des paiements intermédiaires pour par exemple des consommations durant le séjour qui peuvent être réglées
+    par CB au fil de l'eau. Mais normalement c'est déjà pris en charge ».
+    - **Check-out done** (`utils/endOfStayCheckout.js`, `isCheckoutDone`): the departure SAS committed (`departureSasDoneAt`)
+      when the sas plugin is live; without it, the stay's last day reached (server local day, Europe/Paris: `today ≥ endDate`).
+    - **The refusal:** 409 `END_OF_STAY_BEFORE_CHECKOUT` « Complément de fin de séjour encaissable après le départ. », judged
+      before anything is written (after `ALREADY_PAID`, before `AMOUNT_CHANGED`), nothing written.
+    - **What passes:** an end of stay already settled (a mark sent back on it, the caisse interne switched, an un-tick: not a
+      collection); a stored paid end of stay is never rewritten, by no migration and no save (a save carries it back unchanged).
+      The departure SAS settles the end of stay, unchanged: it IS the check-out.
+    - **Every path that can mark the end of stay collected, and its guard:**
+
+      | Path | Guard |
+      |---|---|
+      | Fiche « Marquer perçu » on the end-of-stay row, books or « Caisse interne » (`PATCH /payment`) | `endOfStayMarkRefusal` in `paymentMarkRefusal` |
+      | Fiche « Marquer perçu » on the merged card of a complement deferred to the check-out (`complementPaid` settles both, defer-arrival-complement-to-checkout rule 8) | same: read on the changes the PATCH would write, the deferral sent with it included; un-deferred, the arrival complement is collected alone |
+      | Fiche save (`PUT`) | writes no payment flag (single-payment-from-the-fiche rule 11bis): nothing to guard, a stored mark is carried back |
+      | « Encaisser en une fois » / the single arrival payment (`POST /arrival-payment`) | `collectibleArrivalBuckets(row, { endOfStayCollectible })`: the end of stay is not a bucket before the check-out, in the offer (`arrivalPayment.collectible`) and in the write (`settleArrivalBuckets`); when it is all that is left, the same 409 |
+      | Payment links and payment-request e-mails | no end-of-stay link type exists (`deposit`, `balance`, `full`, `complement`, `installment`); a paid `complement` link records nothing by itself (`paymentPollRunner`, effect `noop`) |
+      | Reconciliation: « Confirmer », « Tout confirmer », the automatic confirmation of a `endOfStayComplement` or `checkoutComplement` receipt | `applyPaymentMark` runs `updatePayment`: the same 409, the confirmation rolled back whole (`writePairs`); the automatic one is skipped and tried again at the next read |
+      | D9 growth paid before arrival (a future stay holding an end of stay) | the same PATCH guard: the last day is not reached |
+      | Accounting export, finance dashboard | the export writes no mark; « Tout solder » sends the server's `settleAllFields` of the row (`financeModel.getOperational`), which leaves out the end of stay and a complement deferred to it until the check-out; its single-bucket toggles are the acompte and the solde |
+      | Arrival SAS | writes no end-of-stay flag (`commitArrivalSas`: acompte, solde, arrival complement; its single-payment group never names the end of stay) |
+      | Departure SAS (`commitDepartureSas`) | the check-out itself: unchanged |
+    - **UI:** the ledger row « Complément de fin de séjour » (and the merged card of a deferred complement holding an end of stay)
+      keeps « Marquer perçu », sent by the server closed (`action.disabled`, `action.reason` « Après le départ. ») and
+      drawn disabled with that caption under it, on desktop and mobile (`LedgerList`); the client computes nothing.
+    - **Payments during the stay stay open:** the mid-stay notes (specs/mid-stay-notes.md) collect consumptions by card or caisse
+      interne as they come, through `PATCH /payment { settleMidStayNote }`; they never mark the end of stay, and their only refusal
+      (`END_OF_STAY_SETTLED`) cannot fire before the check-out any more.
+    - Tests: `end-of-stay-after-checkout` (server, every path above), client `LedgerList.end-of-stay-after-checkout`.
+    > **Reading of 2026-11-06 (audit R26 findings 3 and 4).** « Tout solder » with nothing but the end of stay before the
+    > check-out is drawn closed with « Après le départ. » (`settleAllReason`, finance-dashboard-redesign rule 15 reading). The
+    > merged card of a deferred complement is closed only while its end of stay is still to collect: one already settled (a
+    > stored pre-D20 row, the caisse interne) leaves it open, as the server accepts the mark (`holdsEndOfStay` reads
+    > `!paid.endOfStay`). Tests: `end-of-stay-after-checkout`, client `OperationalPaymentsTable.settle-after-checkout`.
+
 ## 4. Architecture
 
 > **Fat backend, thin frontend.** The rows, their states, the editable ranges, the refusals, the
@@ -793,6 +842,10 @@ tariff would fire on every platform stay (the brut is grossed up by the commissi
 | `tests/` | `ledger-link-amount-mismatch.unit.test.js` | C | A `full` link over a grown acompte, the traced complement booking (rule 31), an open link paid at a drifted amount (rule 47). |
 | `tests/` | `reservation-ledger-parity.unit.test.js` | C | Parity on a neutralised copy of the Solio base (§7), `LEDGER_PARITY_DB=<copy>`; a synthetic base otherwise (CI). |
 | `tests/` | `ledgerFixture.js` | C | Shared fixture: in-memory base, one property, the real controller driven like the fiche. |
+| `utils/` | `endOfStayCheckout.js` | C | D20 (rule 68): `isCheckoutDone`, `endOfStayCollectRefusal`, the message and the caption. |
+| `utils/` | `arrivalPaymentGroup.js` · `reservationLedger.js` | T | Rule 68: the end-of-stay bucket only when `endOfStayCollectible`; the row's mark sent closed with its caption. |
+| `controllers/` · `models/` | `reservationsController.js` · `reservationsModel.js` · `financeModel.js` | T | Rule 68: `endOfStayMarkRefusal` in `paymentMarkRefusal`; the arrival payment offer, refusal and write; `ledgerFor` passes the flag; `settleAllFields` on the operational rows. |
+| `tests/` | `end-of-stay-after-checkout.unit.test.js` | C | Rule 68, every path. `moneyLedgerFixture.storedEndOfStayPaid` writes a pre-D20 row as stored. |
 
 **Amendment 2026-10-28 (rules 50-52, 56-64):**
 
@@ -819,6 +872,7 @@ tariff would fire on every platform stay (the brut is grossed up by the commissi
 | `pages/` | `ReservationPage.jsx` | T | Holds `ledger` from the fiche and the live quote; `markFromLedger` saves first when the fiche is dirty or carries a transfer (rule 10); `checkLedgerEdit` re-sends the last quote body with `ledgerEdit`; `applyLedgerPatch` applies `formPatch` and remembers the edit for the history; stops sending the caution columns. |
 | `api.js` | `api.js` | T | `sendPaymentRequestOfType` (« Renvoyer la demande », rule 28); `markPayment` / `calculatePrice` carry `expectedAmountCents` / `ledgerEdit` in their bodies. |
 | `__tests__/` | `LedgerList.rendering.test.jsx`, `LedgerAmountEditor.refusals.test.jsx`, `FinanceSection.ledger.test.jsx` (+ `ledgerFixtures.jsx`) | C | One file per subject; the existing FinanceSection suites were moved onto the ledger rows. |
+| `components/` · `pages/` | `LedgerList.jsx` · `FinancePage.jsx` | T | Rule 68: an action sent `disabled` is drawn closed with its `reason` as a caption; « Tout solder » sends the row's `settleAllFields`. Test `LedgerList.end-of-stay-after-checkout.test.jsx`. |
 
 **Amendment 2026-10-28 (rules 50-52, 56-64):**
 
@@ -848,7 +902,9 @@ tariff would fire on every platform stay (the brut is grossed up by the commissi
 | GET | `/api/reservations/:id` | — | `{ …, ledger: { rows, remaining } }` | Additive. Absent for a reception-only user. |
 | POST | `/api/reservations/calculate-price` | `{ …, ledgerEdit?: { row: 'deposit' \| 'balance', amount } }` | `{ …quote, ledger, ledgerEdit?: { ok, reason?, effects?, reached?, formPatch? } }` | Additive. `ledgerEdit` answered only when asked; `reached` = the solde actually produced (rule 18). |
 | PUT | `/api/reservations/:id` | unchanged; caution columns ignored | unchanged | Amount validation (400 + French `message`); 409 `LINK_ALREADY_PAID` (rule 30). |
-| PATCH | `/api/reservations/:id/payment` | `{ …, expectedAmountCents?, <bucket>PaidDate }` | `{ ok: true }` | 400 date refusal; 400 `INVALID_PAYMENT_FLAG` for a flag that is not `true`/`false`/`1`/`0` (rule 66); 409 `AMOUNT_CHANGED`, `CAUTION_NOT_RECEIVED`. No new money field. |
+| PATCH | `/api/reservations/:id/payment` | `{ …, expectedAmountCents?, <bucket>PaidDate }` | `{ ok: true }` | 400 date refusal; 400 `INVALID_PAYMENT_FLAG` for a flag that is not `true`/`false`/`1`/`0` (rule 66); 409 `AMOUNT_CHANGED`, `CAUTION_NOT_RECEIVED`; 409 `END_OF_STAY_BEFORE_CHECKOUT` (rule 68). No new money field. |
+| POST | `/api/reservations/:id/arrival-payment` | unchanged | unchanged | Before the check-out the end of stay is not collectible; when it is all that is left, 409 `END_OF_STAY_BEFORE_CHECKOUT` (rule 68). |
+| GET | finance operational rows (`toCollect`) | — | each row + `settleAllFields: string[]` | Additive (rule 68): the flags « Tout solder » ticks. |
 
 Row shape:
 
@@ -1118,6 +1174,13 @@ is now also the reference of the fiche's price check — rules 59-60 here) and
 [tariff-recipes/spec.md](tariff-recipes/spec.md) gets a rule 68 (appended) cross-referencing rule 57 here;
 [platform-price-from-commission.md](platform-price-from-commission.md) gets a rule 8.
 
+**D20 (2026-11-06, rule 68)** adds readings dated 2026-11-06 to [single-payment-from-the-fiche.md](single-payment-from-the-fiche.md)
+rule 2bis (the end of stay is a bucket after the check-out only), [defer-arrival-complement-to-checkout.md](defer-arrival-complement-to-checkout.md)
+rule 8 (the merged card waits for the check-out while it holds an end of stay), [qonto-bank-reconciliation.md](qonto-bank-reconciliation.md)
+rule 34 (an end-of-stay receipt is confirmed after the check-out) and [mid-stay-extras-to-end-of-stay-complement.md](mid-stay-extras-to-end-of-stay-complement.md)
+rule 20 (N4: the admin-unlock question answered by D20), and [finance-dashboard-redesign.md](finance-dashboard-redesign.md) rule 15
+(« Tout solder » sends the server's `settleAllFields`).
+
 ## 9. Open questions
 
 None left. **Resolved 2026-10-19** — Adrien took the recommended option on all five:
@@ -1176,3 +1239,12 @@ Implemented on `feature/clients-directory-and-fiche-tariff` (commits `feat(reser
 - Deviations: `lines[]` replaced by quote-shaped `optionLines` / `resourceLines` (rule 51 note); no `gridCellOf` extraction (rule 59 reads `platformPrices()`); the eight channel totals of tariff recipes rule 54 were not replayed (rule 59 test note); rule 61 gained the « replayed nights differ from today's seasons » clause.
 - Real-data pass (shadow copy of 2026-10-22): of the 6 upcoming platform fiches, **1 raises the alert** — 22308 (Gîtes de France, Granja, 504,00 € paid against 640,00 € on the grid, −21 %; the ménage of 80 € and the withheld tax are out of « paid »). The first run raised 2: 22270 (Booking, Estiva, 2027) read +43 % because it was sold in August 2026 on the 100 € fallback nights of a season that did not exist yet; rule 61's new clause silences it. The Booking fiches 22324, 22282, 22301 and 22304 show no alert and the usual card. Checked at 390 (sheet from the total bar: alert, 44 px link, no horizontal scroll) and 1280.
 - Suites: server 7113 pass in the full run (+1 case added afterwards, its file green), client Vitest 2607 pass, vite build and bundle budget (286.2 kB gzip of 313.3 kB) pass, E2E 165 pass + 1 skipped (one load-only failure, `devis-property-switch-offered`, passes alone), prod E2E 4, bare E2E 6; `check-spec-coverage --changed` and `check-plugin-versions --base origin/inte/plugins` pass.
+
+## 11. Implementation progress — D20 of 2026-11-06
+
+Implemented on `fix/audit-r26-all`: rule 68 and the readings of §8bis. Server `end-of-stay-after-checkout` (17), client
+`LedgerList.end-of-stay-after-checkout` (2). Suites that ticked an end of stay on a future stay as their SETUP now write it as a
+stored pre-D20 row (`storedEndOfStayPaid`): their subject (refund register, untick guard, H1, N4, N6) is unchanged. Prod copy of
+2026-10-22, read-only: 6 stays hold a paid end of stay, every one checked out (departure SAS done, last day past): none is
+blocked, none is rewritten.
+

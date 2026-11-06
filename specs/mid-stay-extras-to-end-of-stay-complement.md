@@ -247,6 +247,43 @@ ait été réglé ou non.
     > interne) on a stay not started, a save that would raise `finalPrice + touristTaxTotal` is refused as on a started stay:
     > 400 `MID_STAY_EXTRAS_CLOSED`, nothing else could claim the rise. A lowering, an unchanged total and a text change pass;
     > un-ticking the line reopens growth. An admin's unlock of a started stay is unchanged. Test: `eos-paid-refuses-growth`.
+    > **Reading of 2026-11-06 (audit R26 L1, accepted).** Un-ticking a paid arrival complement (payment PATCH) leaves the
+    > excess on this line until the next save, which folds it back into the complement (`complementAmount` 20 → 62,40,
+    > this line 42,40 → 0). The total owed and the ledger's remainder never move, nothing is asked twice; until that save the
+    > line's label says « after the collection » of a complement no longer collected. Accepted under the fix policy (rare,
+    > 0 €), no new field. Test: `arrival-complement-untick-excess`.
+    > **Reading of 2026-11-06 (audit R26 H1).** The departure SAS and a sale at the arrival SAS refuse to raise this line
+    > once it is collected outside the departure SAS, 409 `END_OF_STAY_ALREADY_COLLECTED`
+    > (recall-unpaid-arrival-complement-at-checkout rule 11, sas-breakfast-and-catering-upsell rule 17). Test:
+    > `sas-collected-end-of-stay-growth`.
+    > **Reading of 2026-11-06 (D20, Adrien; audit R26 MEDIUM 1) — amends N4's reading.** The end-of-stay complement is
+    > collected after the check-out only (reservation-payment-ledger rule 68): a stay that holds it collected before is a row
+    > stored before D20, never rewritten. N4's refusal covers that row on a stay not started **and on a started stay whose
+    > fiche is still locked**: its price adjustments (`discountPercent`, `finalPrice`, `touristTaxRate`) are allowed fields
+    > of the locked fiche and would raise the stay with nothing to claim it (a 5 % discount removed: 630 → 660 €, unclaimed).
+    > The forbidden changes keep their own refusal (`PAST_RESERVATION_LOCKED`), judged first. The admin unlock of a started
+    > stay is still not judged: the open question it left (audit R26) is answered by D20, no end of stay being collected
+    > while the stay runs, so growth lands on a claimable one; on a stored pre-D20 row it is accepted. Test:
+    > `eos-paid-refuses-growth`.
+    > **Reading of 2026-11-06 (audit R26 finding 1) — amends the reading above for the locked fiche.** « Nothing to claim
+    > it » is false once the stay is checked out with its solde still open: the end of stay is collected at departure, the
+    > solde (a platform's payout above all) comes later. On the locked fiche only the part of the rise no unpaid bucket takes on
+    > is refused: `rise − Σ (quote − stored)` over the unpaid acompte, solde, arrival complement and end of stay, refused when
+    > above 0 (`utils/savePriceGuards.unclaimedRise`). A checked-out stay, direct or on any of the three platform modes, with its
+    > solde open accepts a removed discount, the rise landing on the solde; with everything paid it is still refused. The stay
+    > not started keeps N4 as worded (a plain rise). Test: `eos-paid-refuses-growth`.
+    > **Reading of 2026-11-06 (D21, Adrien) — replaces « the admin unlock of a started stay is not judged ».** The unlocked fiche
+    > keeps its final price and its tourist tax (settings-rationalization rule 35): a save that moves either is refused 409
+    > `UNLOCKED_PRICE_CHANGED`, a rise included, so the growth the audit feared after the check-out (adults 2 → 4 on a stay
+    > whose end of stay was collected at departure: 84,80 € never asked for) cannot happen. N4's refusal message no longer
+    > sends to the unlock: « Complément de fin de séjour déjà encaissé : décocher « payé » d’abord. ». Tests:
+    > `eos-paid-refuses-growth`, `unlocked-fiche-keeps-final-price`.
+    > **Reading of 2026-11-06 (audit R26 D21 review L3) — extends the finding 1 reading to a plan.** A direct stay paid by
+    > installments keeps its solde at 0: what claims a rise is its unpaid installments, which the save re-spreads it on
+    > (direct-installments rules 7-9a). The unclaimed part also subtracts what that same rebalance adds to the unpaid
+    > installments (`installmentsController.planClaimOf`, read without writing; 0 without a plan or when the save leaves the
+    > own channels). A checked-out stay with an installment still unpaid accepts a removed discount, the installment taking
+    > the rise; a fully paid plan is still refused. Test: `eos-paid-refuses-growth` « L3: … ».
 
 ---
 
@@ -383,7 +420,8 @@ détectée, et jamais lorsqu'il est encaissé (§3.5). Aucun backfill, aucune pe
 leur couverture existante suffit, aucun test ajouté.
 
 - `end-of-stay-claims-growth.unit.test.js` (14) — rule 20, readings of 2026-11-05 (D9, R23 N1).
-- `eos-paid-refuses-growth.unit.test.js` (9) — rule 20, reading of 2026-11-05 (R23 N4).
+- `eos-paid-refuses-growth.unit.test.js` (19) — rule 20, readings of 2026-11-05 (R23 N4) and 2026-11-06 (R26 MEDIUM 1,
+  finding 1, D21, D21 review L3).
 
 ### Client tests (`cd client && npx vitest run` → **774 verts**, +2)
 

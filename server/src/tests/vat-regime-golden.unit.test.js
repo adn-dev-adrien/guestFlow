@@ -18,6 +18,8 @@
 // date (specs/finance-revpar-year-over-year.md rule 23), nothing else moved.
 // On 2026-11-06 (round 2) for `finance/dashboard/2025` and `2026`: the exercise served is added to `fiscalYears` when the data does
 // not reach it (specs/finance-dashboard-redesign.md rule 57), nothing else moved.
+// On 2026-11-06 for `finance/operational` and `finance/detail/*` (each operational row carries `settleAllFields`, D20,
+// specs/reservation-payment-ledger.md rule 68, nothing else moved).
 // `GOLDEN_UPDATE=1` rewrites the capture, which is only ever legitimate on that code (Lot 0).
 
 const test = require('node:test');

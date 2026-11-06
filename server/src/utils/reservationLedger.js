@@ -16,6 +16,7 @@
 const { remainingToPay, platformPenalty, round2 } = require('./reservationSettlement');
 const { isRetainedDeposit, isIndemnityLine, refundDeletionRefusal, COMMISSION_KEY } = require('./refunds');
 const { parseGroup } = require('./arrivalPaymentGroup');
+const { END_OF_STAY_BEFORE_CHECKOUT_CAPTION } = require('./endOfStayCheckout');
 const { saleChannel } = require('./saleChannel');
 const { platformDisplay } = require('./platformDisplay');
 const { localIsoDate, localHourMinute } = require('./localDate');
@@ -228,6 +229,8 @@ function retainedLabel(refund, r, planRows) {
  *                                  stay): no withdrawal, a payment to settle is refunded only (rule 56, O4)
  * @param {Set<number>} [p.nettedRefundIds] on a cancelled stay, the refunds its avoir read (payment-schedule rule 55
  *                                  reading of 2026-11-02, audit R16-L1); omitted, every refund before the avoir counts
+ * @param {boolean} [p.endOfStayCollectible] the stay is checked out (utils/endOfStayCheckout): before, the mark of the
+ *                                  end-of-stay complement is drawn disabled with its reason (rule 68, D20); omitted = collectible
  * @param {string} p.today          `YYYY-MM-DD`
  * @returns {{ rows: object[], remaining: number, remainingLabel: string, settled: boolean }}
  */
@@ -235,7 +238,7 @@ function buildLedger({
   row = null, quote = null, live = {}, links = [], refunds = [], overpayment = null,
   midStayNotes = [], cautionAmount = 0, canRequest = false, installmentPlan = null, today,
   storedAccommodationPreArrival = null, penalties = [], providerLabel = null, nightsUnavailable = false, stayReadOnly = false,
-  nettedRefundIds = null,
+  nettedRefundIds = null, endOfStayCollectible = true,
 } = {}) {
   const r = row || {};
   const has = (k) => Object.prototype.hasOwnProperty.call(live, k) && live[k] !== undefined;
@@ -529,7 +532,7 @@ function buildLedger({
   const deferred = flag(has('complementDeferredToCheckout') ? live.complementDeferredToCheckout : r.complementDeferredToCheckout);
   const arrivalAdjusted = r.complementAmountOverride != null && r.complementAmountOverride !== '';
   const endAdjusted = r.endOfStayComplementAmountOverride != null && r.endOfStayComplementAmountOverride !== '';
-  const complementRow = ({ key, label, amount, bucket, paidFlag, cashFlag, dateField, dueLabel, slot }) => {
+  const complementRow = ({ key, label, amount, bucket, paidFlag, cashFlag, dateField, dueLabel, slot, holdsEndOfStay = false }) => {
     const isPaid = paid[bucket];
     const detail = { warnings: [], slot };
     const link = bucket === 'complement' ? pickLink(links, 'complement') : null;
@@ -556,7 +559,11 @@ function buildLedger({
     } else {
       base = {
         state: 'due', tone: amount > 0 ? 'due' : 'muted', stateLabel: amount > 0 ? dueLabel : 'Rien à percevoir',
-        action: canAct && amount > 0 ? { kind: 'mark', label: 'Marquer perçu', dateLabel: 'Perçu le', cash: true } : null,
+        action: canAct && amount > 0 ? {
+          kind: 'mark', label: 'Marquer perçu', dateLabel: 'Perçu le', cash: true,
+          // Rule 68 (D20) — the end-of-stay complement waits for the check-out: the mark is shown, closed, with its reason.
+          ...(holdsEndOfStay && !endOfStayCollectible ? { disabled: true, reason: END_OF_STAY_BEFORE_CHECKOUT_CAPTION } : {}),
+        } : null,
       };
     }
     return {
@@ -572,7 +579,7 @@ function buildLedger({
     rows.push(complementRow({
       key: 'checkoutComplement', label: 'Complément de fin de séjour', amount: mergedAmount, bucket: 'complement',
       paidFlag: 'complementPaid', cashFlag: r.complementPaidCash, dateField: 'complementPaidDate',
-      dueLabel: 'À percevoir au départ', slot: 'checkoutComplement',
+      dueLabel: 'À percevoir au départ', slot: 'checkoutComplement', holdsEndOfStay: endOfStayAmount > 0 && !paid.endOfStay,
     }));
   } else {
     if (complementAmount > 0 || arrivalAdjusted) {
@@ -597,7 +604,7 @@ function buildLedger({
     rows.push(complementRow({
       key: 'endOfStayComplement', label: 'Complément de fin de séjour', amount: endOfStayAmount, bucket: 'endOfStay',
       paidFlag: 'endOfStayComplementPaid', cashFlag: r.endOfStayComplementPaidCash, dateField: 'endOfStayComplementPaidDate',
-      dueLabel: 'À percevoir au départ', slot: 'endOfStayComplement',
+      dueLabel: 'À percevoir au départ', slot: 'endOfStayComplement', holdsEndOfStay: true,
     }));
   }
 
