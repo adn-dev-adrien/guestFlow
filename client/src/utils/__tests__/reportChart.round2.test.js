@@ -30,8 +30,8 @@ test('rule 35 — measured: one evenly spaced N, never thinner than rule 12, eno
   expect(xInterval(short, false, 1200)).toBe(1);
 });
 
-test('rule 22 — the end names never take more than 30 % of a narrow chart', () => {
+test('rules 22 and 39 — the end names never take more than 40 % of a narrow chart', () => {
   expect(endLabelCap(false, 1000)).toBe(150);
-  expect(endLabelCap(false, 300)).toBe(90);
+  expect(endLabelCap(false, 300)).toBe(120);
   expect(endLabelCap(true, null)).toBe(96);
 });

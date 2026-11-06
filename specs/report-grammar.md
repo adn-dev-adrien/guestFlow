@@ -163,14 +163,15 @@ like the approved design page, on desktop and phone, without writing chart or ti
     measures a count), else « label : share ».
 33. **The chart menu opens without motion when asked** (2026-11-06, review R5-19). Under
     `prefers-reduced-motion: reduce` the « ⋯ » menu appears at once (no grow).
-34. **The top tick hugs the largest value** (2026-11-06, verification V5-4). Of `count`, `count + 1` and
+34. **The top tick hugs the largest value** (2026-11-06, verification V5-4). *Extended to both ends by rule 38.* Of `count`, `count + 1` and
     `count + 2` intervals, the axis takes the first whose top tick leaves at most a quarter of the axis
     empty above the largest value (a 25,8 k€ cumul: 0 / 10 / 20 / 30 k€, not 0 / 20 / 40 k€).
 35. **Category labels are evenly spaced** (2026-11-06, verification V5-6). The axis shows every Nth
     label from the first, never a forced last one breaking the rhythm. N is at least rule 12's thinning
     and large enough for the longest label to fit its slot of the chart's measured plot width
     (`hooks/useElementWidth`); before the first measure, long labels use Recharts'
-    `equidistantPreserveStart`. The end names' margin (rule 22) takes at most 30 % of a chart's width.
+    `equidistantPreserveStart`. The end names' margin (rule 22) takes at most 30 % of a chart's width
+    *(this 30 % is superseded by rule 39)*.
     Supersedes the « first and last kept » part of rule 26.
 36. **A scroll closes the definition** (2026-11-06, verification V5-5). The bubble is fixed to the screen
     (rule 23); while open, a scroll of the page or of any container closes it, so it never rides over the
@@ -178,6 +179,18 @@ like the approved design page, on desktop and phone, without writing chart or ti
 37. **No dark variant of the pill** (2026-11-06, verifications V3-9, V5-10, R3-9). Since the hero became a
     light card no caller draws a pill on a dark surface: `YearOverYearBadge` has no `onDark` any more
     (its rule-1 fingerprint went with it; the other variants keep theirs).
+38. **The axis hugs both ends** (2026-11-06, verification V3-8). The empty room above the largest value
+    and below the smallest, together, is at most a quarter of the axis (else the tightest of `count`,
+    `count + 1`, `count + 2` intervals): each end tick is at most one step beyond its value, and 0 stays
+    a tick whenever the range crosses it (a −300 € day on a 2 000 € axis: −1 000 / 0 / 1 000 / 2 000).
+39. **A name that fits is never cut on a wider chart** (2026-11-06, verification V3-4). The end-name
+    margin cap is 150 px (96 on a phone) and at most 40 % of the chart, so the plot keeps 60 %; it only
+    grows with the chart's width. « Exercice 2025-2026 » is whole in the Synthèse at 1280 (434 px) as at
+    900. Supersedes the 30 % of rule 35.
+40. **The hero's months are evenly spaced too** (2026-11-06, verification V3-7). The Suivi financier's
+    cumulative curve (`FinanceHero`) shows every Nth month from the first, N from the curve's measured
+    width (`xInterval` with no rule-12 floor: every month that fits), instead of Recharts' collision
+    pass that dropped November and March at 900.
 
 **Edge cases:**
 - A series whose values are all null → no line, no end label, still listed in the legend and table.
@@ -219,6 +232,7 @@ like the approved design page, on desktop and phone, without writing chart or ti
 | `components/` | `TrendChart.jsx` | C | The report line chart; exports `TrendTooltip`, `SeriesLegend`, `withColors`, `ALL_HIDDEN` |
 | `components/` | `AlignedDailyCumulativeCharts.jsx` | C | Bars + cumulative, synced; exports `DailyTooltip` |
 | `components/` | `ShareTable.jsx` | C | Segmented bar + table, linked highlight; exports `shareColors` (rule 32) |
+| `components/` | `FinanceHero.jsx` | T | Month ticks thinned evenly from the curve's width (rule 40) |
 | `hooks/` | `useElementWidth.js` | C | Measured width of the chart box (ResizeObserver), for label spacing and the end-name margin (rule 35) |
 | `components/` | `LazyReportCharts.jsx` | C | The two charts as the SDK hands them out, loaded on first draw (rule 20) |
 | `plugins/sdk/` | `index.js` | T | `TrendChart` / `AlignedDailyCumulativeCharts` re-exported from `LazyReportCharts` (rule 20) |
@@ -277,7 +291,7 @@ Reference: the approved design page, section « Graphiques » (`#graphiques`), r
 
 ## 7. Test plan
 
-### Client tests (Vitest) — 24 files, 75 tests
+### Client tests (Vitest) — 25 files, 80 tests
 
 - `components/__tests__/ReportGrammar.legacy-unchanged.test.jsx` — rule 1 (8 legacy renders hashed against the base)
 - `components/__tests__/SelectableTile.report-anatomy.test.jsx` — rules 2, 4, 16
@@ -304,6 +318,7 @@ Reference: the approved design page, section « Graphiques » (`#graphiques`), r
   - `utils/__tests__/reportChart.round2.test.js` — rules 22, 34, 35
   - `components/__tests__/DefinitionButton.scroll.test.jsx` — rule 36
   - `components/__tests__/YearOverYearBadge.no-dark-variant.test.jsx` — rule 37
+- Verification round 2, 2026-11-06 (rules 38–40): `utils/__tests__/reportChart.round3.test.js`
   - `ReportGrammar.legacy-unchanged` now holds 7 fingerprints (the dark variant's went with it).
 - Existing suites of `SelectableTile`, `YearOverYearBadge`, `PageTabs` and the finance page stay green; the
   consumers' chart tests wait for the lazy chart (`findBy…`) and name it as a `figure`.
