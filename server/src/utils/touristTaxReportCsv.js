@@ -32,12 +32,17 @@ function listCsv(report) {
     row.platformLabel,
     frDate(row.startDate),
     frDate(row.endDate),
-    row.nightsCount,
-    row.persons,
-    row.taxedPersons,
-    row.exemptPersons,
-    row.taxedPersonNights,
-    row.exemptPersonNights,
+    // Rule 44 (review V2-6) — a platform's row is told for information: its counts stay empty, so every column of
+    // the file adds up to the « Total à reverser » line, which counts only ours.
+    // A row of added guests is the same stay and the same nights: its « Nuits » stays empty, the stay counts them once.
+    ...(row.remittedBy === 'platform' ? [null, null, null, null, null, null] : [
+      row.addedGuestsRow ? null : row.nightsCount,
+      row.persons,
+      row.taxedPersons,
+      row.exemptPersons,
+      row.taxedPersonNights,
+      row.exemptPersonNights,
+    ]),
     row.remittedBy === 'platform' ? null : row.taxAmount,
     row.remittedBy === 'platform' ? row.taxAmount : null,
   ]);

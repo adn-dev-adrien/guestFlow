@@ -290,7 +290,7 @@ export default function TouristTaxPage() {
 
   const platformTag = (row) => (
     <Tooltip title={TAX_PAGE.remittedByTooltip}>
-      <Chip size="small" variant="outlined" label={TAX_PAGE.remittedBy(row.platformLabel)} sx={{ maxWidth: '100%', color: 'text.secondary', height: 22 }} />
+      <Chip size="small" variant="outlined" label={TAX_PAGE.remittedBy(row.platformLabel)} sx={{ maxWidth: '100%', color: 'text.secondary', height: 'auto', minHeight: 22, '& .MuiChip-label': { whiteSpace: 'normal', py: 0.25 } }} />
     </Tooltip>
   );
 
@@ -319,6 +319,7 @@ export default function TouristTaxPage() {
       getKey={(row) => row.key}
       minWidth={base ? 860 : 700}
       cardsBelowWidth={base ? 860 : 700}
+      cardsWhenOverflow
       emptyText={TAX_PAGE.emptyList}
       head={(
         <>
@@ -359,7 +360,7 @@ export default function TouristTaxPage() {
             {rowName(row)}
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', whiteSpace: 'nowrap' }}>{formatReservationDates(row.startDate, row.endDate)}</Typography>
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>{`${row.propertyName} · ${row.platformLabel}`}</Typography>
-            {byPlatform(row) && <Box sx={{ mt: 0.5, maxWidth: 160 }}>{platformTag(row)}</Box>}
+            {byPlatform(row) && <Box sx={{ mt: 0.5 }}>{platformTag(row)}</Box>}
             {rowNotes(row)}
           </TableCell>
           <TableCell align="right" sx={TABULAR}>{row.nightsCount}</TableCell>

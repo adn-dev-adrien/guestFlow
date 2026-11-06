@@ -1,4 +1,4 @@
-// specs/tourist-tax-report-v2.md §3 rules 22, 30 and 34 (and review V1-4) (reviews R1-10, R1-11, R5's register note) — the day of a
+// specs/tourist-tax-report-v2.md §3 rules 22, 30, 34 and 49 (and reviews V1-4, V2-7) (reviews R1-10, R1-11, R5's register note) — the day of a
 // tick as the server reads it, a long channel tag kept within its card, and the register's nights outside the window.
 import { vi } from 'vitest';
 import { screen, fireEvent, within } from '@testing-library/react';
@@ -67,4 +67,15 @@ test('rule 34: no night outside the window, no note', async () => {
   fireEvent.click(screen.getAllByRole('button', { name: 'Par nuit' })[0]);
   await screen.findByText(/Registre par nuit/);
   expect(screen.queryByText(/Nuit hors période/)).toBeNull();
+});
+
+test('rule 49 (V2-7): in the table, a platform\'s tag is not capped and wraps rather than being cut', async () => {
+  setPhone(false);
+  const label = 'Gîtes de France';
+  api.getTouristTaxReport.mockResolvedValue(reportOf([{ ...ROW, key: '9-platform', remittedBy: 'platform', platformLabel: label, declarable: false }]));
+  renderTaxPage();
+  const tag = await screen.findByText(`reversée par ${label}`);
+  expect(tag.closest('tr')).not.toBeNull();
+  expect(tag.closest('.MuiChip-root').parentElement).not.toHaveStyle({ maxWidth: '160px' });
+  expect(tag).toHaveStyle({ whiteSpace: 'normal' });
 });

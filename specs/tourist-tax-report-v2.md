@@ -205,19 +205,44 @@ declared and what remains, and, apart, what the platforms remit themselves. The 
     out of ours (tax frozen at 0 €) and whose channel is a platform (not direct, read from the channel, never its
     name) is listed for information with `remittedBy: 'platform'`, the amount the platform stated
     (`platformTouristTaxAmount`, 0 when none), no tick, and counted in `platformRemittedStaysCount` / `Amount` —
-    never in what we declare. `getTouristTaxRows` hands those stays over as a non-enumerable `frozenAtZero`; the
-    monthly payload is unchanged.
+    never in what we declare. *Superseded in part by rules 42 and 43*: such a stay is attached at its last night and
+    listed only when its platform's mode collects the tax; `frozenAtZero` no longer exists.
 39. **One size, one line** (D-HC17, 2026-11-06). In `StickyTotalsBar` every figure has the same size (`main` by colour
     only), with tabular figures; each label sits in a block two lines high aligned to its bottom, so the figures share
     one baseline whatever their labels; captions sit under the figures. When the bar is narrower than its figures need
     on one line (a phone, a tablet beside the drawer) it folds to its `compact` figures and « Détail des totaux »,
-    the unfolded detail at the same size. Supersedes the « main figure » emphasis by size of rule 20.
+    the unfolded detail at the same size. Supersedes the « main figure » emphasis by size of rule 20. *The fold off a
+    phone is superseded by rule 47.*
 40. **The URL holds what is on screen** (review V1-3). While a refused selection's reason is shown, the page's URL holds
     the selection last read, so a fiche opened then, a reload or a shared link comes back to it.
 41. **The common baseline, in pixels.** At 1280, 900 and 390 px the figures of the bar and of its unfolded detail sit
     on one line.
     > **Sans test** — a pixel position jsdom cannot measure; rule 39's test pins its means (same size, label blocks of
     > one height aligned to the bottom, no wrap), the baseline itself is checked by eye at the three widths.
+
+42. **A platform's stay frozen at 0 € is attached at its last night** (review V2-1). Like every platform row (rule 6),
+    it is read by the day of its last night in the window, never by the day we were paid; the report reads it with
+    its own query (`frozenAtZeroPlatformRows`), not through `getTouristTaxRows`.
+43. **Only when the platform's mode collects the tax** (D-HC18, 2026-11-06). Rule 38's list keeps a stay only when its
+    platform's mode says the platform collects the tax from the guest (`collectsTouristTax = 1`, read from the mode,
+    never the name). A stay frozen at 0 € on a platform that does not collect (« we collect at arrival »), on a
+    property without tax, or direct, stays hidden.
+44. **Every count column of the list CSV adds up** (review V2-6). A platform's row leaves its counts empty (nights,
+    persons, taxed, exempt, person-nights: told for information) and a row of added guests leaves its « Nuits »
+    empty (same stay, same nights), so under any filter each column adds up to the total line, which counts ours.
+45. **A long label never breaks the baseline** (review V2-3). In `StickyTotalsBar` each label is clamped to two lines
+    with an ellipsis, its full text in its `title`, inside a block of exactly two lines.
+46. **Long windows read in chunks** (review V2-8). The stays of a window are read by id in chunks of 500, in
+    `getTouristTaxRows` and in the report, as `withTouristTaxInTotal` does: SQLite caps the parameters of one statement.
+47. **On a tablet, every figure shows, in rows** (D-HC19, 2026-11-06). From `sm` up the bar never folds: when the
+    figures do not fit on one line they wrap onto two or more rows, each row on one baseline, every figure the same
+    size (rule 39), each keeping at least its own content's width so none overlaps another (review V2-4). « Détail des
+    totaux » is for the phone (`xs`) only.
+48. **The table never scrolls inside its card** (review V2-5). `ResponsiveTable` with `cardsWhenOverflow` measures
+    the table: wider than its container, the cards take over, at any container width (the fixed 860 / 700 thresholds
+    stay as a floor).
+49. **A platform's tag shows whole in the table** (review V2-7). The tag under the guest's name is not capped; it
+    wraps inside its chip when the cell is narrower than its text.
 
 **Edge cases:**
 - No stay in the selection → `stays: []`, `nights: []`, every total 0, `allDeclared: false`.
@@ -409,10 +434,11 @@ Target: the `#taxe` mock-up of the design reference, in MUI + the « Maison » t
 - [x] Existing tourist-tax suites unchanged and green (rule 1).
 
 - [x] `tests/tourist-tax-report-base-columns.unit.test.js` (2) — rule 16.
+- [x] `tests/tourist-tax-review-fixes-3.unit.test.js` (3, 2026-11-06, round 3) — rules 42, 43, 46; `tourist-tax-report-csv` (+1) — rule 44.
 - [x] `tests/tourist-tax-review-fixes-2.unit.test.js` (4, 2026-11-06, round 2) — rules 37, 38 (+ declared-checkbox rules 9, 10).
 - [x] `tests/tourist-tax-review-fixes.unit.test.js` (6, 2026-11-06) — rules 26-29, 34, 35 (+ declaration-month-stay-end rule 9, declared-checkbox rule 9).
 - [x] `tests/tourist-tax-report-csv.unit.test.js` (+3) — rule 30; `tourist-tax-period-choices.unit.test.js` (+1) — rule 29.
-- Server suites of this spec: 47 tests in 8 files.
+- Server suites of this spec: 51 tests in 9 files.
 
 ### Client unit tests (Vitest)
 - [x] `src/__tests__/api.tourist-tax-report.test.js` (3) — §4.3: query string, CSV file name and view, refusal.
@@ -426,7 +452,8 @@ Target: the `#taxe` mock-up of the design reference, in MUI + the « Maison » t
 - [x] `pages/__tests__/TouristTaxPage.refused-load.test.jsx` (2) — rule 32.
 - [x] `pages/__tests__/TouristTaxPage.tick-after-refusal.test.jsx` (1) — rule 33.
 - [x] `pages/__tests__/TouristTaxPage.url-state.test.jsx` (5) — rules 31, 40.
-- [x] `components/__tests__/StickyTotalsBar.test.jsx` (+2) — rule 39.
+- [x] `components/__tests__/StickyTotalsBar.test.jsx` (5) — rules 20, 39, 45, 47.
+- [x] `components/__tests__/ResponsiveTable.overflow.test.jsx` (3) — rule 48; `TouristTaxPage.review-fixes` (+1) — rule 49.
 - [x] `pages/__tests__/TouristTaxPage.review-fixes.test.jsx` (4) — rules 22, 30, 34.
 - [x] `src/__tests__/api.tourist-tax-report.test.js` (+2) — rule 36; `components/__tests__/FinanceDataChecksCard.load-and-links.test.jsx` (+1) — rule 31's link.
 - [x] `components/__tests__/StickyTotalsBar.test.jsx` (2) — rule 20.
