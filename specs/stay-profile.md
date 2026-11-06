@@ -194,6 +194,12 @@ and the average basket per stay for each month of the exercise against last year
     on (added in key order when it precedes the first exercise with data), so the « Exercice » select
     never goes blank. *Why:* `?exercice=2025` was served (200) while the options were 2027 and 2026.
 
+31. **A refused exercise offers the current one** (D-HC16, 2026-11-06, review V3-6). When the server refuses the
+    exercise with `code: 'UNKNOWN_EXERCISE'` (`specs/finance-dashboard-redesign.md` rule 57, the shared context),
+    the page shows « Exercice inconnu. » with its period toolbar and an « Exercice en cours » button that clears
+    the exercise from the URL, as the Suivi financier does; any other refusal does not offer it. Test:
+    `pages/__tests__/StayProfilePage.exercise-refusal.test.jsx`.
+
 **Edge cases:**
 - A stay of the window booked on the import day → lead time unknown (rule 7), counted everywhere else.
 - A fiche created after its arrival → lead time unknown.
@@ -331,7 +337,7 @@ Per the mock-up (`#profil`), in the « Maison » theme and lot 0's report gramma
   dashboard, its detail tables, stay profile).
 - [x] `server/src/tests/finance-tax-in-total-shared.unit.test.js` — 3 tests, rule 28 (and dashboard rule 56), the read in chunks.
 
-### Client unit tests (Vitest) — 7 files, 17 tests
+### Client unit tests (Vitest) — 8 files, 19 tests
 - [x] `client/src/__tests__/api.stay-profile.test.js` — 1 test, rule 1.
 - [x] `client/src/pages/__tests__/StayProfilePage.breakdown.test.jsx` — 6 tests, rules 16, 19, 20.
 - [x] `client/src/pages/__tests__/StayProfilePage.basket.test.jsx` — 3 tests, rules 13, 15, 21.
@@ -339,6 +345,7 @@ Per the mock-up (`#profil`), in the « Maison » theme and lot 0's report gramma
 - [x] `client/src/constants/__tests__/financeMenu.stay-profile.test.js` — 1 test, rule 17.
 - [x] `client/src/pages/__tests__/StayProfilePage.server-month.test.jsx` — 2 tests, rule 27.
 - [x] `client/src/pages/__tests__/StayProfilePage.other-row.test.jsx` — 1 test, rule 29.
+- [x] `client/src/pages/__tests__/StayProfilePage.exercise-refusal.test.jsx` — 2 tests, rule 31 (2026-11-06).
 - Fixture: `client/src/pages/__tests__/stayProfileFixtures.js`.
 
 ### Manual UI verification (throwaway seeded DB, ports 47140/47141)

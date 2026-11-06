@@ -84,7 +84,8 @@ export default function FinanceHero({ hero, showHt = true, windowLabel, asOf, pr
             {format.amount(hero.revenue)}
           </Typography>
           <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap', fontSize: 13 }}>
-            {hero.yoy && <YearOverYearBadge change={hero.yoy.change} months={hero.yoy.months} totalMonths={hero.yoy.totalMonths} />}
+            {/* specs/finance-dashboard-redesign.md rule 58 (D-HC20) — the span is said once, by the notice under the card. */}
+            {hero.yoy && <YearOverYearBadge change={hero.yoy.change} />}
             <Box component="span" sx={{ color: 'text.secondary' }}>{showHt ? `${format.amount(hero.revenueHt)} HT · ` : ''}net de commissions · {hero.stays} séjour{hero.stays > 1 ? 's' : ''}</Box>
           </Box>
           {hero.goal && (

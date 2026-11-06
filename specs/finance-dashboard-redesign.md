@@ -130,6 +130,7 @@ without losing anything today's page shows.
     span this year; a *Mois* or *Personnalisée* window works the same way. When not every month of the
     window is comparable, the badge says so (« sur N mois comparables »). With no comparable month,
     no badge.
+    > 2026-11-06: the hero's badge no longer says the span — rule 58 (D-HC20).
 21. Last year is read **as it stood a year ago** for months not yet over (reservations created on or
     before today − 1 year), so an ongoing month compares like with like.
     > In production (data since April 2026) the first badges appear in April 2027.
@@ -481,6 +482,11 @@ without losing anything today's page shows.
     `tests/finance-dashboard-round2.unit.test.js`, `tests/finance-dashboard-repeated-exercise.unit.test.js` (over
     the controllers), `pages/__tests__/FinancePage.round2.test.jsx`.
 
+58. **The revenue badge does not repeat the span** (Adrien, D-HC20, 2026-11-06, review V3-5; supersedes the
+    hero part of rule 20). The badge under the window's revenue reads « ▲ +45,5 % vs N-1 », never « · sur N
+    mois comparables »: the one notice under the card already says « Comparé à l'an dernier sur N mois sur M »
+    (`specs/finance-revpar-year-over-year.md` rule 27, D-HC14), so the span is said once in the hero. The
+    « Logements » table's change column is unchanged. Test: `pages/__tests__/FinancePage.round3.test.jsx`.
 ---
 
 ## 4. Architecture
@@ -709,6 +715,7 @@ par mois » and « Taux d'occupation » side by side.
   the breakdown case of `finance-refunds.unit.test.js` now reads `getSummary`.
 
 ### Client tests
+- [x] `pages/__tests__/FinancePage.round3.test.jsx` (1, 2026-11-06) — rule 58: the revenue badge without its span, the notice saying it.
 - [x] `components/__tests__/FinanceHero.light-card.test.jsx` (4, 2026-11-05) — rule 52: white card, divider border and fir rule, kicker in fir, light pills (`text` on `soft`) and light « i », no `onInk` token left.
 - [x] `PeriodSelector.test.jsx` (3) — rules 1-2: month window, reversed and missing dates refused.
 - [x] `PeriodSelector.window-cap.test.jsx` (2) — rule 51: a window wider than 750 days refused on the spot, never sent.

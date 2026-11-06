@@ -137,6 +137,8 @@ export default function StayProfilePage() {
 
   const [data, setData] = useState(null);
   const [loadError, setLoadError] = useState(null);
+  // specs/stay-profile.md rule 31 — the refusal's code: « Exercice en cours » answers `UNKNOWN_EXERCISE` only.
+  const [loadErrorCode, setLoadErrorCode] = useState(null);
   const [dimension, setDimension] = useState('channel');
   const [measure, setMeasure] = useState('count');
   const begin = useLatestRequest();
@@ -149,7 +151,7 @@ export default function StayProfilePage() {
       const answer = await api.getFinanceStayProfile(params);
       if (current()) setData(answer);
     } catch (err) {
-      if (current()) { setData(null); setLoadError((err && err.error) || T.loadError); }
+      if (current()) { setData(null); setLoadError((err && err.error) || T.loadError); setLoadErrorCode((err && err.code) || null); }
     }
   }, [paramsKey, periodRefusal]);
   useEffect(() => { load(); }, [load]);
@@ -191,6 +193,11 @@ export default function StayProfilePage() {
             {params.propertyId && (
               <Button size="small" variant="outlined" onClick={() => setParams({ propertyId: '' })} sx={{ textTransform: 'none', minHeight: 36, '@media (pointer: coarse)': { minHeight: 44 } }}>
                 {T.allProperties}
+              </Button>
+            )}
+            {loadError && loadErrorCode === 'UNKNOWN_EXERCISE' && (
+              <Button size="small" variant="outlined" onClick={() => setParams({ fiscalYear: '', period: 'fy', month: '' })} sx={{ textTransform: 'none', minHeight: 36, '@media (pointer: coarse)': { minHeight: 44 } }}>
+                {T.currentExercise}
               </Button>
             )}
           </Box>

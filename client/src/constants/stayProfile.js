@@ -8,6 +8,7 @@ export const STAY_PROFILE_TEXT = {
   loading: 'Chargement du profil des séjours…',
   loadError: 'Impossible de charger le profil des séjours.',
   allProperties: 'Tous les logements',
+  currentExercise: 'Exercice en cours',
   propertyLabel: 'Logement',
   exerciseLabel: 'Exercice',
   dimensionLabel: 'Découpage',
