@@ -8,7 +8,7 @@
 | **Author** | Adrien |
 | **Related PR** | (slice A: link once opened) |
 | **Mock-ups** | [`specs/guest-app-maquettes.html`](guest-app-maquettes.html) |
-| **Review boards** | [`specs/guest-app-planches.html`](guest-app-planches.html) — v2 (2026-11-05): every surface wired to one simulated state, the access proposal, to validate before slices F-G |
+| **Review boards** | [`specs/guest-app-planches.html`](guest-app-planches.html) — v5 (2026-11-06): stock per article, delivered or picked up, studio read from GuestFlow, tablet / desktop — to validate before slices F-G |
 | **Plan** | [`specs/guest-app-plan.md`](guest-app-plan.md) |
 | **Builds on** | `public-api.md`, `wordpress-plugin.md` (catalogue projections), `gate-access-sowel-connector.md` + `sowel-stays-in-keys.md` (gate keys), `mid-stay-extras-on-locked-fiche.md` + `mid-stay-extras-to-end-of-stay-complement.md` (the end-of-stay bill), `online-payments-qonto.md` + `payment-link-lifecycle.md` (card payment), `resource-hourly-scheduling.md` (nordic bath slots), `pwa-push-notifications.md` (staff push) |
 
@@ -144,9 +144,10 @@ is pushed every order.
     network name, password, optional « Wifi seulement dans la pièce principale » note — off → no wifi tile,
     no wifi block, and the booklet may show the lodging's « Pas de wifi » message, prefilled from the
     existing stay text `noWifi` of `stayTextCatalogue.js`), **hero photo** (default: the hero of domainesolio.com's
-    home page, the aerial view of the estate), **display name**, **check-in /
+    home page, the aerial view of the estate), **check-in /
     check-out wording**, **emergency contacts**. The `wifi` and `contact` booklet blocks read these facts
-    (one place to change a password, both the tile and the booklet follow).
+    (one place to change a password, both the tile and the booklet follow). The lodging's **name** is never stored
+    by the plugin: it is the GuestFlow property name, read live (rule 48, Adrien 2026-11-06).
 11quater. **App enabled per lodging.** A lodging can be left out of the app entirely (« Application
     clients » off for that lodging): no QR code is issued and its lookup answers like an unknown stay. A new property created in GuestFlow starts
     **off** but appears in the studio at once (rule 48), greyed « Hors application » with the switch to turn it on. Switching a lodging off kills its live sessions on their next request (401 `SESSION_EXPIRED`, then the generic « Ce code n'est pas reconnu » screen, without lookup).
@@ -414,7 +415,8 @@ is pushed every order.
     41), the push and the Commandes clients page say « à retirer » and their check reads « Retirée ».
 41ter. **After ordering, the guest knows when and where.** The confirmation screen (once paid for a card order) and
     the order in « Mes commandes » state, built by the server from `deliverAt` and the mode:
-    « Prête à 17 h 30 — à retirer à l'accueil, maison principale… » or « Livrée à L'Estiva vers 17 h 30 ». The
+    « Prête aujourd'hui à 17 h 30. Lieu de retrait : À l'accueil, maison principale… » (the place as typed) or
+    « Livrée à L'Estiva aujourd'hui vers 17 h 30 ». The
     time is the chosen one (« Dès que possible » = now + the longest `leadMinutes` of the order's staff items,
     rounded to the next 30-min step inside the service hours, rule 41). Only staff-prepared items carry it: an
     hourly resource keeps its own line (« Bain nordique — ven. 20 h, il sera chaud »), a self-service item none;
@@ -691,7 +693,8 @@ bills (rule 35). Everything below is created by the `guest-app` plugin's migrati
 
 - `guest_app_lodgings(propertyId PK, enabled INTEGER DEFAULT 0, lodgingCode TEXT UNIQUE, displayName,
   heroMediaId, modulesJson, wifiAvailable INTEGER DEFAULT 0, wifiNetwork, wifiPasswordEncrypted, wifiNote,
-  contactsJson)` — the per-lodging configuration (rules 11bis-11quater). The QR code is generated when a
+  contactsJson)` — the per-lodging configuration (rules 11bis-11quater). `displayName`, written by lot A, is no longer read nor
+  written (rule 48: the name is GuestFlow's); a later migration drops it. The QR code is generated when a
   lodging is enabled, never logged. The wifi password is encrypted at rest like the other stored secrets
   (`settingsModel` encryption helper) — it is shown to guests, but must not sit in clear in a backup.
 - `guest_app_items(kind 'option'|'resource', itemId, sold INTEGER DEFAULT 0, mediaId, shortDescriptionFr,
@@ -868,7 +871,7 @@ illustration-free icon + one sentence + one action, `ErrorAlert` with « Réessa
 - **Cart** — lines with thumbnails and steppers, delivery chips (if any staff item), total, `PaymentChoice`,
   one primary button whose label follows the choice (« PAYER 33,00 € » / « AJOUTER À MA NOTE · 33,00 € » / « RÉSERVER » at 0 €).
 - **Confirmation** — gold check drawn, « Commande envoyée », one-sentence promise built by the server
-  (« Livrée à L'Estiva vers 18 h » or « Prête à 18 h — à retirer à {lieu} », « Le bain sera chaud à 20 h », rule 41ter), `OrderTimeline`, « Retour à
+  (« Livrée à L'Estiva vers 18 h » or « Prête à 18 h. Lieu de retrait : {lieu} », « Le bain sera chaud à 20 h », rule 41ter), `OrderTimeline`, « Retour à
   l'accueil ».
 - **Orders** — current orders first with `OrderTimeline`, then past ones collapsed.
 - **Lookup** (`/retrouver`) — night-register hero photo, two fields, one button; the same calm error.

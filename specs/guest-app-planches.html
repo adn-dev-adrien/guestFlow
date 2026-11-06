@@ -557,6 +557,11 @@ h3.m{font:600 1.08rem/1.3 var(--m-serif);margin:0}
 .studio{display:grid;grid-template-columns:220px minmax(0,1fr) 300px;background:var(--m-paper);border:1px solid var(--m-line);border-radius:14px;box-shadow:var(--m-shadow);overflow:hidden;min-height:720px}
 .s-nav{border-right:1px solid var(--m-line);padding:14px 10px;display:grid;gap:3px;align-content:start;background:var(--m-bg)}
 .s-nav .sw-l{margin:0 4px 12px}
+.lodgl{display:grid;gap:2px}
+.lodgl button[aria-pressed="true"]{background:var(--m-primary-soft);color:var(--m-primary);font-weight:600}
+.lodgl button span{display:grid;text-align:left}
+.lodgl button small{font-weight:400;font-size:11.5px;color:var(--m-muted)}
+.lodgl button.offl{color:var(--m-muted)}
 .s-nav button{display:flex;align-items:center;gap:10px;text-align:left;border:0;background:transparent;border-radius:10px;padding:9px 11px;font:500 14px var(--m-sans);color:var(--m-muted);min-height:42px}
 .s-nav button svg{width:18px;height:18px}
 .s-nav button[aria-current="page"]{background:var(--m-primary-soft);color:var(--m-primary);font-weight:600}
@@ -631,6 +636,9 @@ h3.m{font:600 1.08rem/1.3 var(--m-serif);margin:0}
 .plug .hd .ic svg{width:18px;height:18px}
 .plug .hd b{font:600 15px var(--m-serif)}
 .plug .hd small{display:block;color:var(--m-muted);font-size:12.5px}
+.stockg{display:grid;gap:12px;border-top:1px solid var(--m-line);padding-top:14px}
+.stockg h4{margin:0;font:600 14px var(--m-sans, inherit);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.stockg .ro{margin:0;font-size:13px;color:var(--m-muted)}
 .reason{display:flex;gap:8px;font-size:13px;color:var(--m-warn-text);background:var(--m-warn-soft);border-radius:10px;padding:9px 11px}
 .reason svg{width:16px;height:16px;margin-top:2px}
 .photo{display:grid;grid-template-columns:76px minmax(0,1fr);gap:12px;align-items:center}
@@ -911,56 +919,54 @@ summary::-webkit-details-marker{display:none}
 <main class="doc">
 <div class="intro">
   <h1>Application clients « Mon séjour » : les écrans à valider avant le code</h1>
-  <p>Version 4 du 06/11 : tes deux réponses (accès par QR de séjour, Soliomap dans l'app) sont appliquées, il ne reste que les six verdicts. Version 3, après ta revue du 05/11 et une relecture en profondeur sous trois angles (iPhone et accessibilité, expérience, règles de la spec). Toutes les surfaces de la spec <code>specs/guest-app.md</code> se manipulent ici et partagent un seul état : un module coupé dans le Studio disparaît de l'app, une commande passée dans l'app arrive dans GuestFlow.</p>
-  <div class="meta"><span class="chipm pri">Version 4 · 06/11/2026</span><span class="chipm ok">Lots serveur A à E codés</span><span class="chipm warn">Écrans (F, G) : en attente de tes verdicts</span></div>
+  <p>Version 5 du 06/11 : tes verdicts de la version 4 sont appliqués. Quatre surfaces sont validées. Le stock par article, la livraison ou le retrait avec l'heure annoncée, et le Studio construit depuis GuestFlow sont à revoir ici. Version 3, après ta revue du 05/11 et une relecture en profondeur sous trois angles (iPhone et accessibilité, expérience, règles de la spec). Toutes les surfaces de la spec <code>specs/guest-app.md</code> se manipulent ici et partagent un seul état : un module coupé dans le Studio disparaît de l'app, une commande passée dans l'app arrive dans GuestFlow.</p>
+  <div class="meta"><span class="chipm pri">Version 5 · 06/11/2026</span><span class="chipm ok">4 surfaces validées</span><span class="chipm ok">Lots serveur A à E codés</span><span class="chipm warn">Écrans (F, G) : en attente de tes verdicts</span></div>
 </div>
 
 <section class="sec todo" id="decider" aria-labelledby="h-decider">
   <h2 id="h-decider">Ce qu'il faut décider</h2>
-  <p class="lede">Six verdicts, un par surface : « Validé » ou « À reprendre », avec un commentaire si besoin. Chaque ligne t'emmène à l'endroit où répondre ; tes réponses restent sur cet appareil et remplissent le récapitulatif à coller en fin de page.</p>
+  <p class="lede">Quatre verdicts : les trois nouveautés de la version 5, et la tablette et l'ordinateur, restés sans réponse. Pour chacun : « Validé » ou « À reprendre », avec un commentaire si besoin. Chaque ligne t'emmène à l'endroit où répondre ; tes réponses restent sur cet appareil et remplissent le récapitulatif à coller en fin de page.</p>
   <div id="todo-root"></div>
 </section>
 
 <section class="sec" id="resume" aria-labelledby="h-resume">
-  <h2 id="h-resume">Ce qui a changé depuis ta revue</h2>
-  <p class="lede">Chaque remarque a sa réponse, et la spec a été mise à jour en même temps.</p>
+  <h2 id="h-resume">Ce qui a changé depuis ta revue de la version 4</h2>
+  <p class="lede">Chaque remarque a sa réponse. La spec a été mise à jour en même temps (règles 15, 37bis à 37quater, 41bis, 41ter, 48).</p>
   <div class="summary">
     <div class="cardm wide">
       <h3 class="m">Tes remarques, une par une</h3>
       <ul>
-        <li><b>Panier, barre jaune disparue, bandeau transparent, « + » sans effet.</b> <span>Trois défauts propres à iPhone, qui ne se reproduisaient pas sur ordinateur : le fond flou d'une barre devient transparent dans une zone mise à l'échelle, les touchers y tombent à côté, et une icône pouvait capter le toucher de son bouton. Sur téléphone, l'app s'affiche désormais à taille réelle, sans cadre ni mise à l'échelle, et les barres ont un fond opaque de secours.</span></li>
-        <li><b>Bain nordique.</b> <span>Seuls les créneaux réservables s'affichent, et la mention « bain déjà chaud » a disparu. Un jour sans créneau libre n'apparaît pas.</span></li>
-        <li><b>Activité autour du domaine.</b> <span>Une carte « À faire pendant votre séjour » sur l'accueil : l'événement Soliomap le plus proche du domaine parmi ceux qui ont lieu pendant le séjour. Les données sont les vraies, lues sur map.domainesolio.com.</span></li>
-        <li><b>QR code.</b> <span>Proposition : un QR unique par séjour, à la place de celui du portail au SAS. Voir la section « Accès ».</span></li>
-        <li><b>Livret.</b> <span>Sorti du code : un lot dédié (I) le remplira à partir de tes livrets. Les textes affichés ici sont marqués « provisoires ».</span></li>
-        <li><b>Photo d'accueil.</b> <span>C'est celle du hero de domainesolio.com (vue aérienne du domaine), par défaut pour les deux logements, modifiable par logement dans le Studio.</span></li>
+        <li><b>Tuile « Activités ».</b> <span>La tuile Soliomap s'appelle désormais « Activités » (« Activities » en anglais), et la page de la carte aussi.</span></li>
+        <li><b>Quand le panier sera prêt, livré ou à retirer.</b> <span>Un seul réglage pour tous les logements, dans Studio › Service : « Livrées au logement » ou « À retirer », avec le lieu de retrait en texte libre. Après le paiement, le client lit « Prête à 17 h 30 — à retirer à l'accueil… » ou « Livrée à L'Estiva vers 17 h 30 ». L'heure tient compte du plus long délai de préparation de son panier (réglé par article). Le bain nordique est une activité : il garde son créneau, sans délai de préparation.</span></li>
+        <li><b>Studio construit depuis GuestFlow.</b> <span>Les logements, leurs noms, les articles, les prix et le stock sont lus dans GuestFlow à chaque ouverture. Un logement créé dans GuestFlow apparaît aussitôt, « hors application » jusqu'à ce qu'on l'active ; un logement renommé suit. Le nom n'est plus modifiable dans le Studio. Seul le fil d'événements de Soliomap est gardé en cache : bouton « Synchroniser » dans Studio › Application. Essaie la carte « Maison › Logements » dans la section GuestFlow.</span></li>
+        <li><b>Stock par article.</b> <span>Dans l'éditeur GuestFlow, section « Application clients » : « Suivre le stock », « En stock » (le compte saisi au réassort), « Prévenir sous », et « En rupture ». Le Studio l'affiche sans le modifier.</span></li>
       </ul>
     </div>
     <div class="cardm narrow">
-      <h3 class="m">Découvert en vérifiant</h3>
+      <h3 class="m">Tes choix sur le stock</h3>
       <ul>
-        <li><b>Soliomap est sur map.domainesolio.com</b>, pas sur soliomap.domainesolio.com comme l'écrivait la spec. <span>Il ouvre une activité par son adresse <code>/#id</code>, mais il ne lit ni la langue ni le logement dans l'URL.</span></li>
-        <li><b>Soliomap refuse aujourd'hui de s'afficher dans une autre app.</b> <span>Pour l'ouvrir dans l'app, il faut autoriser sejour.domainesolio.com côté Soliomap : une ligne, dans son dépôt.</span></li>
-        <li><b>Le domaine est en Ardèche.</b> <span>Mes exemples parlaient du Ventoux : corrigés. Les articles restent des exemples, la vraie liste viendra de GuestFlow.</span></li>
+        <li><b>Quantité et rupture</b>, gérées dans GuestFlow.</li>
+        <li><b>Toutes les ventes comptent</b> : l'app au paiement, le site et l'équipe le jour de l'arrivée du séjour (tout de suite pour un ajout pendant le séjour).</li>
+        <li><b>À 0, seule l'app arrête de vendre.</b> <span>Le site continue pour les séjours à venir, et l'équipe reçoit « Stock bas », puis « épuisé ».</span></li>
+        <li><b>« Dès que possible » reste présélectionné</b>, avec la possibilité de choisir plus tard.</li>
       </ul>
     </div>
     <div class="cardm half">
-      <h3 class="m">Tes réponses, appliquées</h3>
+      <h3 class="m">Validé le 06/11</h3>
       <ul>
-        <li>Nom : Domaine Solio, sous-titre « Mon séjour ».</li>
-        <li>Adresse : sejour.domainesolio.com.</li>
-        <li>Au lancement : petit-déjeuner, bain nordique, et tout ce qui est en Boissons et Alimentation. Le reste n'est pas vendu.</li>
-        <li>Livret : tu m'envoies tes livrets, lot I.</li>
-        <li>Pendant ta revue : je code les lots serveur B à E.</li>
+        <li>App client sur téléphone.</li>
+        <li>Studio du livret.</li>
+        <li>Carte Réglages › Intégrations.</li>
+        <li>Commandes clients : page, notification et planning.</li>
       </ul>
     </div>
     <div class="cardm half">
       <h3 class="m">Ce qu'on ne fait pas</h3>
       <ul>
-        <li>Pas d'écran de portail : la tuile ouvre l'app portail existante.</li>
+        <li>Pas de stock par logement : un seul cellier pour le domaine.</li>
+        <li>Pas de stock sur le bain : le planning des ressources reste sa vérité.</li>
+        <li>Le site et l'équipe ne sont jamais bloqués par le stock.</li>
         <li>Pas d'annulation ni de remboursement par le client.</li>
-        <li>Pas de check-in en ligne ni de messagerie.</li>
-        <li>Pas de vente sans séjour, pas d'app native.</li>
       </ul>
     </div>
   </div>
@@ -1000,8 +1006,8 @@ summary::-webkit-details-marker{display:none}
     </div>
   </div>
   <div class="qa"><p class="ask" style="color:var(--m-ok-text)">Tranché le 06/11</p><h3>Soliomap s'ouvre dans l'app</h3><p>sejour.domainesolio.com est autorisé côté Soliomap. Essaie la carte « À faire pendant votre séjour » ou la tuile Soliomap.</p></div>
-  <div class="verdict" id="v-app-mobile" data-verdict="app-mobile"><span class="lab" id="vd-app-mobile">App client sur téléphone</span><div class="segm" role="group" aria-labelledby="vd-app-mobile"><button type="button" data-v="ok">Validé</button><button type="button" data-v="redo">À reprendre</button></div><textarea aria-label="Commentaire : App client sur téléphone" class="vtext" placeholder="Ce qui ne va pas, ce qui manque, ce que tu changerais…"></textarea></div>
-  <div class="verdict" id="v-app-wide" data-verdict="app-wide"><span class="lab" id="vd-app-wide">App client sur tablette et ordinateur</span><div class="segm" role="group" aria-labelledby="vd-app-wide"><button type="button" data-v="ok">Validé</button><button type="button" data-v="redo">À reprendre</button></div><textarea aria-label="Commentaire : App client sur tablette et ordinateur" class="vtext" placeholder="Rail de navigation, livret et boutique en deux colonnes…"></textarea></div>
+  <div class="qa"><p class="ask" style="color:var(--m-ok-text)">Validé le 06/11</p><h3>App client sur téléphone</h3><p>Nouveau depuis : la tuile « Activités », « Épuisé » et « Plus que 2 » dans la boutique, et l'heure où la commande sera prête dans le panier et la confirmation. Essaie le cas « Livraison ou retrait » ci-dessous.</p></div>
+  <div class="verdict" id="v-app-wide" data-verdict="app-wide"><span class="lab" id="vd-app-wide">App client sur tablette et ordinateur</span><div class="segm" role="group" aria-labelledby="vd-app-wide"><button type="button" data-v="ok">Validé</button><button type="button" data-v="redo">À reprendre</button></div><textarea aria-label="Commentaire : App client sur tablette et ordinateur" class="vtext" placeholder="Rail de navigation, livret et boutique en deux colonnes…"></textarea></div><div class="verdict" id="v-fulfil" data-verdict="fulfil"><span class="lab" id="vd-fulfil">Livrée ou à retirer, et l'heure annoncée</span><div class="segm" role="group" aria-labelledby="vd-fulfil"><button type="button" data-v="ok">Validé</button><button type="button" data-v="redo">À reprendre</button></div><textarea aria-label="Commentaire : Livrée ou à retirer, et l'heure annoncée" class="vtext" placeholder="Réglage Studio › Service, question du panier, phrase de confirmation, puces de « Mes commandes »…"></textarea></div>
 </section>
 
 <section class="sec mais" id="studio" aria-labelledby="h-studio">
@@ -1009,22 +1015,22 @@ summary::-webkit-details-marker{display:none}
   <p class="lede">Une app web dédiée sur <code>/studio</code>, réservée au compte admin GuestFlow, pensée d'abord pour la tablette. Tout se règle par logement, et l'aperçu à droite affiche les vrais composants de l'app client. Les réglages faits ici s'appliquent aussi au banc de simulation ci-dessus.</p>
   <div class="studio" id="studio-root"></div>
   <div id="studio-live" class="sr-only" aria-live="polite"></div>
-  <div class="verdict" id="v-studio" data-verdict="studio"><span class="lab" id="vd-studio">Studio du livret</span><div class="segm" role="group" aria-labelledby="vd-studio"><button type="button" data-v="ok">Validé</button><button type="button" data-v="redo">À reprendre</button></div><textarea aria-label="Commentaire : Studio du livret" class="vtext" placeholder="Modules, infos du logement, éditeur de pages, horaires, QR…"></textarea></div>
+  <div class="verdict" id="v-studio-dyn" data-verdict="studio-dyn"><span class="lab" id="vd-studio-dyn">Studio construit depuis GuestFlow</span><div class="segm" role="group" aria-labelledby="vd-studio-dyn"><button type="button" data-v="ok">Validé</button><button type="button" data-v="redo">À reprendre</button></div><textarea aria-label="Commentaire : Studio construit depuis GuestFlow" class="vtext" placeholder="Liste des logements, logement hors application, nom en lecture seule, bouton Synchroniser…"></textarea></div>
 </section>
 
 <section class="sec mais" id="guestflow" aria-labelledby="h-gf">
   <h2 id="h-gf">Dans GuestFlow : les éditeurs d'options et de ressources, et les Réglages</h2>
-  <p class="lede">Le plugin ajoute une section « Application clients » en bas de l'éditeur d'une option ou d'une ressource, avec les mêmes lignes que l'écran Boutique du Studio. Plugin inactif, la section n'existe pas. Essaie un type de prix qui ne se vend pas, ou une valeur hors limites.</p>
+  <p class="lede">Le plugin ajoute une section « Application clients » en bas de l'éditeur d'une option ou d'une ressource, avec les mêmes lignes que l'écran Boutique du Studio, plus le <b>Stock</b>, qui ne se modifie qu'ici. Plugin inactif, la section n'existe pas. Essaie : passer le jus de pomme à 1 en stock, puis le commander deux fois dans l'app ; simuler l'arrivée d'un séjour réservé sur le site ; cocher « En rupture » sur le miel ; renommer L'Estiva ou créer « Le Pigeonnier » et regarder le Studio.</p>
   <div class="editor" id="gf-root"></div>
-  <div class="verdict" id="v-gf-editor" data-verdict="gf-editor"><span class="lab" id="vd-gf-editor">Section « Application clients » des éditeurs</span><div class="segm" role="group" aria-labelledby="vd-gf-editor"><button type="button" data-v="ok">Validé</button><button type="button" data-v="redo">À reprendre</button></div><textarea aria-label="Commentaire : Section « Application clients » des éditeurs" class="vtext" placeholder="Champs, textes, raisons d'indisponibilité…"></textarea></div>
-  <div class="verdict" id="v-gf-settings" data-verdict="gf-settings"><span class="lab" id="vd-gf-settings">Carte Réglages › Intégrations</span><div class="segm" role="group" aria-labelledby="vd-gf-settings"><button type="button" data-v="ok">Validé</button><button type="button" data-v="redo">À reprendre</button></div><textarea aria-label="Commentaire : Carte Réglages › Intégrations" class="vtext" placeholder="Adresse de l'app, lien vers le Studio…"></textarea></div>
+  <div class="verdict" id="v-stock" data-verdict="stock"><span class="lab" id="vd-stock">Stock par article : éditeur GuestFlow, app et alertes</span><div class="segm" role="group" aria-labelledby="vd-stock"><button type="button" data-v="ok">Validé</button><button type="button" data-v="redo">À reprendre</button></div><textarea aria-label="Commentaire : Stock par article : éditeur GuestFlow, app et alertes" class="vtext" placeholder="Champs du groupe Stock, « Épuisé », « Plus que N », notifications…"></textarea></div>
+  
 </section>
 
 <section class="sec mais" id="commandes" aria-labelledby="h-cmd">
   <h2 id="h-cmd">Les commandes côté équipe : la page, la notification, le planning</h2>
-  <p class="lede">Chaque commande confirmée ou payée envoie la notification « Commandes clients », s'affiche sur la page « Commandes clients » triée par heure de livraison, et prend une carte sur le planning du jour de livraison. Passe une commande dans l'app au-dessus et elle arrive ici. « Marquer livrée » met à jour l'app du client.</p>
+  <p class="lede">Chaque commande confirmée ou payée envoie la notification « Commandes clients », s'affiche sur la page « Commandes clients » triée par heure de livraison, et prend une carte sur le planning du jour de livraison. Passe une commande dans l'app au-dessus et elle arrive ici. « Marquer livrée » met à jour l'app du client. En mode retrait (Studio › Service), elle devient « Marquer retirée ». Les alertes de stock arrivent dans le même canal.</p>
   <div class="adm" id="cmd-root"></div>
-  <div class="verdict" id="v-orders" data-verdict="orders"><span class="lab" id="vd-orders">Commandes clients : page, notification et planning</span><div class="segm" role="group" aria-labelledby="vd-orders"><button type="button" data-v="ok">Validé</button><button type="button" data-v="redo">À reprendre</button></div><textarea aria-label="Commentaire : Commandes clients" class="vtext" placeholder="Colonnes, filtre, texte de la notification…"></textarea></div>
+  
 </section>
 
 <section class="sec mais" id="acces" aria-labelledby="h-acces">
@@ -1111,7 +1117,7 @@ function liveSay(id, msg) {
 }
 /* Answers survive a reload of the embed when the browser lets us store them (a sandboxed iframe without
    allow-same-origin throws on localStorage: then we say so under the recap). */
-const STORE_KEY = 'guest-app-planches-v4';
+const STORE_KEY = 'guest-app-planches-v5';
 const store = (() => { try { const k = '__planches'; localStorage.setItem(k, '1'); localStorage.removeItem(k); return localStorage; } catch (e) { return null; } })();
 
 const eur = (n) => {
@@ -1144,7 +1150,7 @@ const MODDEF = {
   wifi: { fr: 'Wifi', en: 'Wi-Fi', icon: 'wifi' },
   shop: { fr: 'Boutique', en: 'Shop', icon: 'bag' },
   bath: { fr: 'Bain nordique', en: 'Nordic bath', icon: 'bath' },
-  soliomap: { fr: 'Soliomap', en: 'Soliomap', icon: 'pin', ext: true },
+  soliomap: { fr: 'Activités', en: 'Activities', icon: 'pin', ext: true },
   booklet: { fr: 'Livret', en: 'Guide', icon: 'book' },
   orders: { fr: 'Mes commandes', en: 'My orders', icon: 'receipt' },
   contacts: { fr: 'Urgences', en: 'Emergencies', icon: 'phone' },
@@ -1155,14 +1161,18 @@ const GUESTS = {
   2: { first: 'Thomas', last: 'Ribeiro', number: 'GF-2026-0421', persons: 2, lang: 'fr' },
 };
 
+/* Rule 48: the lodgings are GuestFlow's properties, read on each load — names included. Nothing hard-coded
+   in the studio: a property created in GuestFlow appears there at once, outside the app until switched on. */
+const GFP = { 1: { name: 'La Granja' }, 2: { name: 'L\'Estiva' } };
+const gfLodgs = () => Object.keys(GFP).map(Number).filter((id) => !GFP[id].archived);
 const cfgSeed = (id) => ({
-  enabled: true,
-  name: id === 1 ? 'La Granja' : 'L\'Estiva',
+  enabled: id <= 2,
+  name: GFP[id].name,
   hero: 'p-site',
   checkin: 'Arrivée à partir de 16 h', checkout: 'Départ avant 10 h',
   modules: ['gate', 'wifi', 'shop', 'bath', 'soliomap', 'booklet', 'orders', 'contacts'].map((k) => ({ k, on: k !== 'contacts' })),
   wifi: id === 1 ? { on: true, ssid: 'LaGranja-Invites', pass: 'chataignes-2026', note: '' } : { on: false, ssid: '', pass: '', note: '' },
-  noWifi: 'Pas de wifi à L\'Estiva : le réseau 4G passe bien sur la terrasse. Un vrai repos.',
+  noWifi: id === 2 ? 'Pas de wifi à L\'Estiva : le réseau 4G passe bien sur la terrasse. Un vrai repos.' : `Pas de wifi à ${GFP[id].name} pour le moment.`,
   contacts: [{ name: 'Adrien', role: 'Votre hôte', phone: '+33 6 12 34 56 78' }, { name: 'SAMU', role: 'Urgence vitale · 24 h/24', phone: '15' }, { name: 'Médecin de garde', role: 'Soirs, nuits et week-ends', phone: '116 117' }],
 });
 
@@ -1176,6 +1186,7 @@ const S = {
   sasFree: false, lastSess: null,
   appName: 'Domaine Solio', appSub: 'Mon séjour', host: 'sejour.domainesolio.com',
   soliomapUrl: 'https://map.domainesolio.com', embedMap: true, maxTotal: 500,
+  fulfil: 'delivery', pickupPlace: 'À l\'accueil, dans la maison principale — sonnez à la porte verte', syncedAt: null,
   cfg: { 1: cfgSeed(1), 2: cfgSeed(2) },
   codes: { 1: 'k3JdQ9vXr2mWfT7bLp0sNw', 2: 'Hq8vZc1uYe5RkD4oGa6tMi' }, oldCodes: [],
   hours: {
@@ -1191,12 +1202,12 @@ const S = {
 /* GuestFlow catalogue as the plugin sees it: core facts (title, price type, per-lodging prices, links)
    plus the plugin's own row (`sold`, photo, short description, needsStaff, leadMinutes, maxQuantity). */
 const ITEMS = [
-  { id: 'cider', kind: 'option', fr: 'Jus de pomme d\'Ardèche', en: 'Ardèche apple juice', cat: 'Boissons', ptype: 'quantity', unit: 'la bouteille d\'un litre', unitEn: 'per 1 L bottle', ph: 'p-cider', prices: { 1: 4.5, 2: 0 }, links: [1, 2], sold: true, desc: 'Pur jus de pommes d\'Ardèche, servi frais.', descEn: 'Pure Ardèche apple juice, served chilled.', staff: true, lead: 30, max: 6 },
-  { id: 'wine', kind: 'option', fr: 'Saint-Joseph rouge', en: 'Saint-Joseph red', cat: 'Boissons', ptype: 'quantity', unit: 'la bouteille', unitEn: 'per bottle', ph: 'p-wine', prices: { 1: 22, 2: 22 }, links: [1, 2], sold: true, desc: 'Syrah des coteaux du Rhône.', descEn: 'Syrah from the Rhône slopes.', staff: true, lead: 30, max: 4 },
+  { id: 'cider', kind: 'option', fr: 'Jus de pomme d\'Ardèche', en: 'Ardèche apple juice', cat: 'Boissons', ptype: 'quantity', unit: 'la bouteille d\'un litre', unitEn: 'per 1 L bottle', ph: 'p-cider', prices: { 1: 4.5, 2: 0 }, links: [1, 2], sold: true, desc: 'Pur jus de pommes d\'Ardèche, servi frais.', descEn: 'Pure Ardèche apple juice, served chilled.', staff: true, lead: 30, max: 6, stock: { on: true, qty: 5, alert: 3, out: false, setAt: 'lun. 2 nov., 9 h 10', setBy: 'Sophie' } },
+  { id: 'wine', kind: 'option', fr: 'Saint-Joseph rouge', en: 'Saint-Joseph red', cat: 'Boissons', ptype: 'quantity', unit: 'la bouteille', unitEn: 'per bottle', ph: 'p-wine', prices: { 1: 22, 2: 22 }, links: [1, 2], sold: true, desc: 'Syrah des coteaux du Rhône.', descEn: 'Syrah from the Rhône slopes.', staff: true, lead: 30, max: 4, stock: { on: true, qty: 12, alert: 4, out: false, setAt: 'lun. 2 nov., 9 h 10', setBy: 'Sophie' } },
   { id: 'cheese', kind: 'option', fr: 'Plateau de picodons', en: 'Picodon cheese board', cat: 'Alimentation', ptype: 'per_stay', unit: 'pour 2 personnes', unitEn: 'for 2', ph: 'p-cheese', prices: { 1: 12 }, links: [1], sold: true, desc: 'Trois picodons AOP, confiture de châtaigne.', descEn: 'Three PDO picodons, chestnut jam.', staff: true, lead: 45, max: 4 },
   { id: 'breakfast', kind: 'option', auto: 'breakfast', fr: 'Petit-déjeuner du domaine', en: 'Estate breakfast', cat: 'Alimentation', ptype: 'per_person_per_night', unit: 'par personne et par matin', unitEn: 'per person and morning', ph: 'p-bread', prices: { 1: 14, 2: 14 }, links: [1, 2], offered: [2], sold: true, desc: 'Pain du fournil, beurre, confitures, fruits, jus pressé. Livré en panier.', descEn: 'Bakery bread, butter, jams, fruit, fresh juice. Delivered in a basket.', staff: true, lead: 60, max: 8 },
   { id: 'wood', kind: 'option', fr: 'Panier de bois', en: 'Firewood basket', cat: 'Pour la maison', ptype: 'per_stay', unit: 'le panier', unitEn: 'per basket', ph: 'p-wood', prices: { 1: 8 }, links: [1], sold: false, desc: 'Chêne sec, à prendre à l\'abri à bois.', descEn: 'Dry oak, from the woodshed.', staff: false, lead: 0, max: 3 },
-  { id: 'honey', kind: 'option', fr: 'Miel de châtaignier', en: 'Chestnut honey', cat: 'Produits du domaine', ptype: 'quantity', unit: 'le pot de 250 g', unitEn: 'per 250 g jar', ph: 'p-honey', prices: { 1: 9, 2: 9 }, links: [1, 2], sold: false, desc: 'Récolté autour du domaine.', descEn: 'Harvested around the estate.', staff: false, lead: 0, max: 5 },
+  { id: 'honey', kind: 'option', fr: 'Miel de châtaignier', en: 'Chestnut honey', cat: 'Produits du domaine', ptype: 'quantity', unit: 'le pot de 250 g', unitEn: 'per 250 g jar', ph: 'p-honey', prices: { 1: 9, 2: 9 }, links: [1, 2], sold: false, desc: 'Récolté autour du domaine.', descEn: 'Harvested around the estate.', staff: false, lead: 0, max: 5, stock: { on: true, qty: 8, alert: null, out: true, setAt: 'mer. 28 oct., 17 h 45', setBy: 'Adrien' } },
   { id: 'bath', kind: 'resource', fr: 'Bain nordique', en: 'Nordic bath', cat: 'Bien-être', ptype: 'per_hour', unit: 'l\'heure', unitEn: 'per hour', ph: 'p-bath', prices: { 1: { day: 25, eve: 30, free: 60 }, 2: { day: 30, eve: 35, free: 0 } }, links: [1, 2], sold: true, desc: 'Bain au feu de bois sous les arbres. Chauffé par l\'équipe.', descEn: 'Wood-fired bath under the trees. Heated by the team.', staff: false, lead: 0, max: 3 },
   { id: 'cot', kind: 'option', fr: 'Lit bébé', en: 'Baby cot', cat: 'Pour la maison', ptype: 'per_night', unit: 'la nuit', ph: 'p-house', prices: { 1: 0, 2: 0 }, links: [1, 2], sold: false, desc: '', staff: false, lead: 0, max: 1 },
   { id: 'insurance', kind: 'option', fr: 'Assurance annulation', en: 'Cancellation insurance', cat: 'Services', ptype: 'percent_of_stay', unit: '% du séjour', ph: 'p-house', prices: { 1: 0, 2: 0 }, links: [1, 2], sold: false, desc: '', staff: false, lead: 0, max: 1 },
@@ -1249,7 +1260,7 @@ const PAGES = [
 const ORDER = { 1: ['bienvenue-g', 'arrivee', 'logement-g', 'poele', 'bain', 'domaine', 'autour', 'depart', 'urgences'], 2: ['bienvenue-e', 'arrivee', 'logement-e', 'bain', 'domaine', 'autour', 'depart', 'urgences'] };
 const PUBLISHED = { 1: new Set(ORDER[1]), 2: new Set(ORDER[2]) };
 const page = (id) => PAGES.find((p) => p.id === id);
-const sharedWith = (id) => [1, 2].filter((l) => ORDER[l].includes(id));
+const sharedWith = (id) => gfLodgs().filter((l) => ORDER[l].includes(id));
 
 /* Soliomap's own data (map.domainesolio.com/api/activities, read on 2026-11-05): the dated events
    around the stay. The server would read and cache this feed; the board keeps a snapshot. */
@@ -1360,7 +1371,32 @@ function zeroLeft(it, l) {
   const had = visibleOrders().filter((o) => o.lodg === l && !DEAD.includes(o.status)).reduce((s, o) => s + o.lines.filter((x) => x.id === it.id).reduce((a, x) => a + x.qty, 0), 0);
   return Math.max(0, it.max - had);
 }
-const maxFor = (it, l) => Math.min(it.max, zeroLeft(it, l));
+/* Rules 37bis-37quater: one stock per article for the whole estate. Units held by card orders awaiting their
+   payment are not sellable; « En rupture » wins over the count. The website and the staff are never refused. */
+const tracks = (it) => !!(it.stock && it.stock.on);
+const heldUnits = (it) => S.orders.filter((o) => o.status === 'awaiting').reduce((s, o) => s + o.lines.filter((x) => x.id === it.id).reduce((a, x) => a + (x.qty || 1), 0), 0);
+const stockLeft = (it) => (tracks(it) ? it.stock.qty - heldUnits(it) : Infinity);
+const soldOut = (it) => !!(it.stock && (it.stock.out || (it.stock.on && stockLeft(it) <= 0)));
+const stockCap = (it) => (soldOut(it) ? 0 : stockLeft(it));
+function stockAlerts(it) {
+  if (!tracks(it)) return;
+  const st = it.stock, left = st.qty, n = nowAbs();
+  if (left <= 0 && !st.zeroSent) { st.zeroSent = true; st.lowSent = true; S.pushes.unshift({ id: `stock-${it.id}-0`, at: n, kind: 'stock', text: `${it.fr} épuisé : l'app ne le vend plus, le site continue. Réassort à saisir dans GuestFlow.` }); }
+  else if (left > 0 && st.alert != null && left <= st.alert && !st.lowSent) { st.lowSent = true; S.pushes.unshift({ id: `stock-${it.id}-low`, at: n, kind: 'stock', text: `Stock bas : ${it.fr}, plus que ${left}.` }); }
+}
+/* Rule 37ter: an app order counts when confirmed or paid (a card order only holds before that). */
+function consumeStock(o) {
+  o.lines.forEach((l) => {
+    const it = item(l.id);
+    if (!it || !tracks(it)) return;
+    const was = it.stock.qty;
+    it.stock.qty -= l.qty || 1;
+    /* The GuestFlow editor open on this article follows the count, unless the operator is typing a restock. */
+    if (GF.draft && GF.item === it.id && GF.draft.stQty === String(was)) GF.draft.stQty = String(it.stock.qty);
+    stockAlerts(it);
+  });
+}
+const maxFor = (it, l) => Math.min(it.max, zeroLeft(it, l), stockCap(it));
 
 function occupied(d) {
   const set = new Map();
@@ -1427,6 +1463,7 @@ function itemAvailable(it, l = S.lodg) {
   if (it.kind === 'resource') return true;
   if (it.auto === 'breakfast') return bkMorningsLeft(l).length > 0;
   if (zeroLeft(it, l) <= 0) return false;
+  if (soldOut(it)) return false;
   if (!it.staff) return true;
   return deliverySlots(it.lead).length > 0;
 }
@@ -1455,9 +1492,13 @@ function quote(l) {
       lines.push({ ...x, days, at, it, incl, unit: incl ? 0 : it.prices[l], amount: (incl ? 0 : it.prices[l]) * x.qty * days.length, avail: base && ok, why: base && !ok ? ['Un des matins n\'est plus possible à cette heure', 'One of the mornings is no longer possible at that time'] : null, label: `${it.fr} · ${x.qty} pers.`, labelEn: `${it.en} · ${x.qty} ppl`, when: bkWhen(days, at), whenEn: bkWhen(days, at, 'en') });
     } else {
       const unit = it.prices[l] ?? 0;
+      const cap = stockCap(it);
+      let stockNote = null;
+      if (base && cap > 0 && x.qty > cap) { x.qty = cap; stockNote = [`Plus que ${cap} disponible${cap > 1 ? 's' : ''} : quantité ajustée`, `Only ${cap} left: quantity adjusted`]; }
+      if (base && cap <= 0) { lines.push({ ...x, it, amount: 0, unit, avail: false, why: ['Épuisé entre-temps', 'Sold out meanwhile'], label: it.fr, labelEn: it.en }); continue; }
       const over = x.qty > zeroLeft(it, l);
       const ok = base && itemAvailable(it, l) && !over;
-      lines.push({ ...x, it, amount: unit * x.qty, unit, avail: ok, why: base && over && zeroLeft(it, l) > 0 ? [`Offert jusqu'à ${zeroLeft(it, l)} pour le reste du séjour`, `Included up to ${zeroLeft(it, l)} for the rest of the stay`] : null, label: it.fr, labelEn: it.en });
+      lines.push({ ...x, it, amount: unit * x.qty, unit, avail: ok, why: base && over && zeroLeft(it, l) > 0 ? [`Offert jusqu'à ${zeroLeft(it, l)} pour le reste du séjour`, `Included up to ${zeroLeft(it, l)} for the rest of the stay`] : null, label: it.fr, labelEn: it.en, stockNote });
     }
   }
   /* The stay's free minutes go to the first bookable slots, in time order. */
@@ -1684,8 +1725,8 @@ function prodCard(it, c, ro) {
   const canAdd = !ro && avail && (!incl || bk);
   const open = it.id === 'bath' ? 'data-a="go" data-s="bath"' : bk ? 'data-a="bksheet" data-s="breakfast"' : `data-a="sheet" data-s="${it.id}"`;
   const add = it.id === 'bath' ? 'data-a="go" data-s="bath"' : bk ? 'data-a="bksheet" data-s="breakfast"' : `data-a="quickadd" data-s="${it.id}"`;
-  const gone = bk ? tr(c, 'Plus de matin possible pendant votre séjour', 'No morning left in your stay') : isZero(it, l) && zeroLeft(it, l) <= 0 ? tr(c, 'Déjà commandé pour tout le séjour', 'Already ordered for the whole stay') : tr(c, 'Plus disponible pour votre séjour', 'No longer available for your stay');
-  return `<div class="prod${avail ? '' : ' off'}"><div class="addwrap"><button type="button" class="ph ${it.ph}" style="border:0;width:100%;display:block;aspect-ratio:1" ${open} aria-label="${esc(iT(c, it))}"></button>${canAdd ? `<button type="button" class="add" ${add} aria-label="${tr(c, `Ajouter ${esc(iT(c, it))}`, `Add ${esc(iT(c, it))}`)}">${I('plus')}</button>` : ''}</div><div class="t"><b>${esc(iT(c, it))}</b>${avail ? pl : `<span class="st mut">${gone}</span>`}${it.staff && avail ? `<span class="hint">${bk ? tr(c, 'Vos matins, à l\'heure choisie', 'Your mornings, at your time') : tr(c, 'Préparé par l\'équipe', 'Prepared by the team')}</span>` : ''}</div></div>`;
+  const gone = soldOut(it) ? tr(c, 'Épuisé', 'Sold out') : bk ? tr(c, 'Plus de matin possible pendant votre séjour', 'No morning left in your stay') : isZero(it, l) && zeroLeft(it, l) <= 0 ? tr(c, 'Déjà commandé pour tout le séjour', 'Already ordered for the whole stay') : tr(c, 'Plus disponible pour votre séjour', 'No longer available for your stay');
+  return `<div class="prod${avail ? '' : ' off'}"><div class="addwrap"><button type="button" class="ph ${it.ph}" style="border:0;width:100%;display:block;aspect-ratio:1" ${open} aria-label="${esc(iT(c, it))}"></button>${canAdd ? `<button type="button" class="add" ${add} aria-label="${tr(c, `Ajouter ${esc(iT(c, it))}`, `Add ${esc(iT(c, it))}`)}">${I('plus')}</button>` : ''}</div><div class="t"><b>${esc(iT(c, it))}</b>${avail ? pl : `<span class="st mut">${gone}</span>`}${avail && tracks(it) && stockLeft(it) <= 3 ? `<span class="st warn">${tr(c, `Plus que ${stockLeft(it)}`, `Only ${stockLeft(it)} left`)}</span>` : ''}${it.staff && avail ? `<span class="hint">${bk ? tr(c, 'Vos matins, à l\'heure choisie', 'Your mornings, at your time') : tr(c, 'Préparé par l\'équipe', 'Prepared by the team')}</span>` : ''}</div></div>`;
 }
 
 function shopScreen(c) {
@@ -1744,7 +1785,7 @@ function cartBody(c, inPanel) {
     const right = !x.avail ? `<button type="button" class="btn text" data-a="rmline" data-i="${i}">${tr(c, 'Retirer', 'Remove')}</button>` : x.id === 'bath' ? trash : bk ? `<span style="display:flex;gap:4px;align-items:center"><button type="button" class="btn text" data-a="bksheet" data-s="breakfast">${tr(c, 'Modifier', 'Edit')}</button>${trash}</span>` : `<div class="stepper sm"><button type="button" data-a="qty" data-i="${i}" data-v="-1" aria-label="${tr(c, 'Moins', 'Less')}">${I('minus')}</button><b>${x.qty}</b><button type="button" data-a="qty" data-i="${i}" data-v="1" aria-label="${tr(c, 'Plus', 'More')}"${x.qty >= maxFor(x.it, c.lodg) ? ' disabled' : ''}>${I('plus')}</button></div>`;
     const sub = bk ? `<span>${esc(c.lang === 'en' ? x.whenEn : x.when)}${x.incl ? '' : ` · <span class="tn">${eur(x.amount)}</span>`}</span>` : x.offered ? '' : `<span>${x.id !== 'bath' && x.qty > 1 ? `${x.qty} × ${eur(x.unit)} · ` : ''}<span class="tn">${eur(x.amount)}</span></span>`;
     const why = x.why ? (c.lang === 'en' ? x.why[1] : x.why[0]) : tr(c, 'Plus disponible', 'No longer available');
-    return `<div class="cline${x.avail ? '' : ' gone'}"><div class="ph ${x.it.ph}"></div><div><b>${esc(c.lang === 'en' ? x.labelEn : x.label)}</b>${x.avail ? sub : `<span>${why}</span>`}${x.avail ? offered : ''}</div>${right}</div>`;
+    return `<div class="cline${x.avail ? '' : ' gone'}"><div class="ph ${x.it.ph}"></div><div><b>${esc(c.lang === 'en' ? x.labelEn : x.label)}</b>${x.avail ? sub : `<span>${why}</span>`}${x.avail ? offered : ''}${x.avail && x.stockNote ? `<span class="st warn" style="margin-top:3px">${c.lang === 'en' ? x.stockNote[1] : x.stockNote[0]}</span>` : ''}</div>${right}</div>`;
   }).join('');
   if (!q.lines.some((x) => x.avail)) {
     const errNone = S.cartErr ? `<div class="banner bad">${I('alert')}<span>${S.cartErr.text}</span></div>` : '';
@@ -1756,7 +1797,7 @@ function cartBody(c, inPanel) {
     if (!ds.includes(S.deliver)) S.deliver = ds[0] ?? null;
     const byDay = {};
     ds.forEach((t) => { (byDay[dOf(t)] = byDay[dOf(t)] || []).push(t); });
-    deliv = `<div class="dgroup" style="gap:10px"><h2 style="font-size:17px">${tr(c, 'Quand souhaitez-vous la recevoir ?', 'When would you like it?')}</h2>${serviceBanner(c)}${Object.entries(byDay).map(([d, ts]) => `<div class="dgroup"><small>${relDay(+d, c.lang)}</small><div class="dchips">${ts.map((t, k) => `<button type="button" class="chip" data-a="deliver" data-s="${t}" aria-pressed="${S.deliver === t}">${t === ds[0] && inService(nowAbs()) && k === 0 ? tr(c, `Dès que possible · vers ${fh(mOf(t))}`, `As soon as possible · around ${fhEn(mOf(t))}`) : tm(t, c.lang)}</button>`).join('')}</div></div>`).join('')}<p class="hint">${tr(c, `Préparation : ${q.lead} min. Livré devant la porte de ${esc(c.cfg.name)}.`, `Preparation: ${q.lead} min. Delivered to the door of ${esc(c.cfg.name)}.`)}</p></div>`;
+    deliv = `<div class="dgroup" style="gap:10px"><h2 style="font-size:17px">${S.fulfil === 'pickup' ? tr(c, 'Quand souhaitez-vous la récupérer ?', 'When would you like to collect it?') : tr(c, 'Quand souhaitez-vous la recevoir ?', 'When would you like it?')}</h2>${serviceBanner(c)}${Object.entries(byDay).map(([d, ts]) => `<div class="dgroup"><small>${relDay(+d, c.lang)}</small><div class="dchips">${ts.map((t, k) => `<button type="button" class="chip" data-a="deliver" data-s="${t}" aria-pressed="${S.deliver === t}">${t === ds[0] && inService(nowAbs()) && k === 0 ? tr(c, `Dès que possible · vers ${fh(mOf(t))}`, `As soon as possible · around ${fhEn(mOf(t))}`) : tm(t, c.lang)}</button>`).join('')}</div></div>`).join('')}<p class="hint">${S.fulfil === 'pickup' ? tr(c, `Préparation : ${q.lead} min. Lieu de retrait : ${esc(S.pickupPlace)}.`, `Preparation: ${q.lead} min. Where to collect it: ${esc(S.pickupPlace)}.`) : tr(c, `Préparation : ${q.lead} min. Livré devant la porte de ${esc(c.cfg.name)}.`, `Preparation: ${q.lead} min. Delivered to the door of ${esc(c.cfg.name)}.`)}</p></div>`;
   }
   const zero = q.total === 0;
   const locked = S.lockUntil && nowAbs() < S.lockUntil;
@@ -1801,20 +1842,28 @@ function nextService(o) {
 }
 function planChip(o, c) {
   if (!['confirmed', 'paid', 'delivered'].includes(o.status)) return '';
-  if (o.status === 'delivered') return `<span class="st ok">${tr(c, 'Livrée', 'Delivered')}</span>`;
+  const pk = o.ful === 'pickup';
+  if (o.status === 'delivered') return `<span class="st ok">${pk ? tr(c, 'Retirée', 'Collected') : tr(c, 'Livrée', 'Delivered')}</span>`;
   const t = nextService(o);
   if (t == null) return '';
-  return `<span class="st mut">${tr(c, `Prévue ${relDay(dOf(t))} à ${fh(mOf(t))}`, `Planned ${relDay(dOf(t), 'en')} at ${fhEn(mOf(t))}`)}</span>`;
+  return `<span class="st mut">${pk && t === o.deliverAt ? tr(c, `Prête ${relDay(dOf(t))} à ${fh(mOf(t))}`, `Ready ${relDay(dOf(t), 'en')} at ${fhEn(mOf(t))}`) : tr(c, `Prévue ${relDay(dOf(t))} à ${fh(mOf(t))}`, `Planned ${relDay(dOf(t), 'en')} at ${fhEn(mOf(t))}`)}</span>`;
 }
 const lineLabel = (l, c) => (l.id === 'bath' ? esc(l.label) : l.id === 'breakfast' ? `${esc(tr(c, 'Petit-déjeuner', 'Breakfast'))} · ${l.qty} ${tr(c, 'pers.', 'ppl')} · ${esc(bkWhen(l.days, l.at, c.lang))}` : `${l.qty} × ${esc(l.label)}`);
 function orderPromise(o, c) {
   if (o.status === 'awaiting') return tr(c, 'Paiement par carte en attente : rien n\'est préparé avant le paiement.', 'Card payment pending: nothing is prepared before it is paid.');
   const parts = [];
-  if (o.deliverAt) parts.push(tr(c, `Livraison ${relDay(dOf(o.deliverAt))} vers ${fh(mOf(o.deliverAt))} à ${S.cfg[o.lodg].name}`, `Delivery ${relDay(dOf(o.deliverAt), 'en')} around ${fhEn(mOf(o.deliverAt))} at ${S.cfg[o.lodg].name}`));
+  /* Rule 41ter: the time and the place, built by the server from deliverAt and the estate-wide mode. */
+  if (o.deliverAt) {
+    const day = relDay(dOf(o.deliverAt)), dayEn = relDay(dOf(o.deliverAt), 'en');
+    parts.push(o.ful === 'pickup'
+      ? tr(c, `Prête ${day} à ${fh(mOf(o.deliverAt))}. Lieu de retrait : ${o.place}`, `Ready ${dayEn} at ${fhEn(mOf(o.deliverAt))}. Where to collect it: ${o.place}`)
+      : tr(c, `Livrée à ${S.cfg[o.lodg].name} ${day} vers ${fh(mOf(o.deliverAt))}`, `Delivered to ${S.cfg[o.lodg].name} ${dayEn} around ${fhEn(mOf(o.deliverAt))}`));
+    if (o.moved) parts.push(tr(c, 'Votre commande sera prête un peu plus tard que prévu, le temps de la préparer', 'Your order will be ready a little later than planned, to allow for preparation'));
+  }
   const bl = bkLine(o);
   if (bl) parts.push(tr(c, `Petit-déjeuner servi ${bkWhen(bl.days, bl.at).replace(' · ', ', à ')}`, `Breakfast served ${bkWhen(bl.days, bl.at, 'en').replace(' · ', ' at ')}`));
   if (o.slots.length) parts.push(tr(c, `Le bain sera chaud à ${fh(o.slots[0].h * 60)}${o.slots.length > 1 ? ` (${o.slots.length} créneaux)` : ''}`, `The bath will be hot at ${o.slots[0].h}:00`));
-  if (!parts.length) parts.push(tr(c, 'À prendre quand vous voulez', 'Pick it up whenever you like'));
+  if (!parts.length) parts.push(tr(c, 'En libre-service : servez-vous quand vous voulez', 'Self-service: help yourself whenever you like'));
   return parts.join('. ') + '.';
 }
 function timeline(o, c) {
@@ -1829,8 +1878,9 @@ function timeline(o, c) {
   if (o.pay === 'free') rows.push([true, tr(c, 'Offerte avec le séjour', 'Included with your stay'), '', '']);
   const live = ['confirmed', 'paid', 'delivered'].includes(o.status);
   if (live && o.deliverAt) {
-    rows.push([o.status === 'delivered', tr(c, 'En préparation', 'Being prepared'), tr(c, `Prévue ${relDay(dOf(o.deliverAt))} à ${fh(mOf(o.deliverAt))}`, `Planned ${relDay(dOf(o.deliverAt), 'en')} at ${fhEn(mOf(o.deliverAt))}`), '']);
-    rows.push([o.status === 'delivered', tr(c, 'Livrée', 'Delivered'), o.status === 'delivered' ? tr(c, `Devant la porte de ${S.cfg[o.lodg].name}`, `At the door of ${S.cfg[o.lodg].name}`) : tr(c, 'Devant la porte', 'At your door'), '']);
+    const pk = o.ful === 'pickup';
+    rows.push([o.status === 'delivered', tr(c, 'En préparation', 'Being prepared'), pk ? tr(c, `Prête ${relDay(dOf(o.deliverAt))} à ${fh(mOf(o.deliverAt))}`, `Ready ${relDay(dOf(o.deliverAt), 'en')} at ${fhEn(mOf(o.deliverAt))}`) : tr(c, `Prévue ${relDay(dOf(o.deliverAt))} à ${fh(mOf(o.deliverAt))}`, `Planned ${relDay(dOf(o.deliverAt), 'en')} at ${fhEn(mOf(o.deliverAt))}`), '']);
+    rows.push(pk ? [o.status === 'delivered', tr(c, 'Retirée', 'Collected'), esc(o.place), ''] : [o.status === 'delivered', tr(c, 'Livrée', 'Delivered'), o.status === 'delivered' ? tr(c, `Devant la porte de ${S.cfg[o.lodg].name}`, `At the door of ${S.cfg[o.lodg].name}`) : tr(c, 'Devant la porte', 'At your door'), '']);
   }
   const bl = bkLine(o);
   if (live && bl) rows.push([false, tr(c, 'Petit-déjeuner', 'Breakfast'), esc(bkWhen(bl.days, bl.at, c.lang)), '']);
@@ -1868,7 +1918,7 @@ function lookupScreen(c) {
 }
 
 function soliomapScreen(c) {
-  return `<div class="scroll" data-k="soliomap" style="padding-bottom:0">${appbar(c, 'Soliomap', 'home', `<button type="button" class="act" data-a="toast" data-t="${tr(c, 'Soliomap ouvert dans le navigateur', 'Soliomap opened in the browser')}">${I('ext')}${tr(c, 'Navigateur', 'Browser')}</button>`)}</div><div class="frame"><div class="ph p-map"></div><div class="lab"><b>map.domainesolio.com</b>${S.mapPlace ? `<br><span class="tn" style="color:var(--ink-soft);font-size:12px">/#${esc(S.mapPlace)}</span>` : ''}</div></div>`;
+  return `<div class="scroll" data-k="soliomap" style="padding-bottom:0">${appbar(c, tr(c, 'Activités', 'Activities'), 'home', `<button type="button" class="act" data-a="toast" data-t="${tr(c, 'Soliomap ouvert dans le navigateur', 'Soliomap opened in the browser')}">${I('ext')}${tr(c, 'Navigateur', 'Browser')}</button>`)}</div><div class="frame"><div class="ph p-map"></div><div class="lab"><b>map.domainesolio.com</b>${S.mapPlace ? `<br><span class="tn" style="color:var(--ink-soft);font-size:12px">/#${esc(S.mapPlace)}</span>` : ''}</div></div>`;
 }
 
 function sheetHtml(c) {
@@ -2153,7 +2203,7 @@ function placeOrder(pay) {
     id: S.nextId++, lodg: S.lodg, guest: `${c.guest.first} ${c.guest.last}`,
     lines: q.lines.filter((x) => x.avail).map((x) => ({ id: x.id, qty: x.qty || 1, amount: x.amount, label: x.id === 'breakfast' ? x.it.fr : x.label, free: x.amount === 0, d: x.d, h: x.h, days: x.days, at: x.at })),
     slots: q.lines.filter((x) => x.avail && x.id === 'bath').map((x) => ({ d: x.d, h: x.h })),
-    deliverAt: q.needStaff ? S.deliver : null, pay: q.total === 0 ? 'free' : pay, created: n, total: q.total, freeUsed: q.freeUsed,
+    deliverAt: q.needStaff ? S.deliver : null, ful: S.fulfil, place: S.pickupPlace, pay: q.total === 0 ? 'free' : pay, created: n, total: q.total, freeUsed: q.freeUsed,
     status: q.total > 0 && pay === 'card' ? 'awaiting' : 'confirmed', expiresAt: n + 30,
   };
   S.orders.push(o);
@@ -2161,7 +2211,7 @@ function placeOrder(pay) {
   S.cartErr = null; S.sheet = null; S.deliver = null;
   S.orderMode = 'confirm';
   if (o.status === 'awaiting') { S.qonto = o.id; S.screen = 'order'; S.view = o.id; S.orderMode = 'detail'; }
-  else { pushNotif(o); S.screen = 'order'; S.view = o.id; }
+  else { consumeStock(o); pushNotif(o); S.screen = 'order'; S.view = o.id; }
   renderAll();
 }
 
@@ -2170,10 +2220,10 @@ function pushNotif(o) {
   /* The delivery time belongs to the staff-prepared lines only; the bath and the breakfast carry their own time. */
   const staff = o.lines.filter((l) => !['bath', 'breakfast'].includes(l.id)).map((l) => `${l.qty} × ${l.label.replace(/ d'Ardèche$/, '')}`);
   const own = o.lines.filter((l) => ['bath', 'breakfast'].includes(l.id)).map((l) => (l.id === 'bath' ? `Bain ${DAY_SHORT[l.d][0]} ${fh(l.h * 60)}–${fh(l.h * 60 + 60)}` : `Petit-déj. ${l.qty} pers. ${bkWhen(l.days, l.at).replace(' · ', ' à ')}`));
-  const when = o.deliverAt && staff.length ? `À livrer vers ${fh(mOf(o.deliverAt))}${dOf(o.deliverAt) !== dOf(nowAbs()) ? ' ' + relDay(dOf(o.deliverAt)) : ''} : ` : '';
+  const when = o.deliverAt && staff.length ? `${o.ful === 'pickup' ? 'À préparer pour' : 'À livrer vers'} ${fh(mOf(o.deliverAt))}${dOf(o.deliverAt) !== dOf(nowAbs()) ? ' ' + relDay(dOf(o.deliverAt)) : ''} : ` : '';
   const how = { note: 'sur la note', card: 'payée par carte', free: 'offerte' }[o.pay];
   const parts = [staff.length ? when + staff.join(', ') : '', ...own].filter(Boolean);
-  S.pushes.unshift({ id: o.id, at: nowAbs(), text: `${S.cfg[o.lodg].name} · ${g} — ${parts.join(' · ')} · ${how}` });
+  S.pushes.unshift({ id: o.id, at: nowAbs(), text: `${S.cfg[o.lodg].name} · ${g} — ${parts.join(' · ')} · ${how}${o.ful === 'pickup' && o.deliverAt && staff.length ? ' · à retirer' : ''}` });
   S.flash = o.id;
 }
 
@@ -2292,6 +2342,7 @@ function restoreLine(l) {
    to the next valid one, and the order says so. */
 function payOrder(o, paidAt) {
   o.status = 'paid'; o.paidAt = paidAt;
+  consumeStock(o);
   if (o.deliverAt != null) {
     const lead = Math.max(0, ...o.lines.map((l) => item(l.id)).filter((it) => it.staff && it.auto !== 'breakfast').map((it) => it.lead));
     if (!validDelivery(o.deliverAt, lead, paidAt)) { const nx = deliverySlots(lead, paidAt)[0]; if (nx != null) { o.deliverAt = nx; o.moved = true; } }
@@ -2381,6 +2432,8 @@ const CASES = [
   ['bath', 'L\'heure offerte déjà prise à l\'arrivée (SAS)', 'sasfree'],
   ['cal', 'Service fermé lun. 9 nov. (exception du Studio)', 'closemon'],
   ['bag', 'Retirer le jus de pomme de la vente, panier ouvert', 'unflag'],
+  ['bag', 'Commandes à retirer à l\'accueil (Studio › Service)', 'pickup'],
+  ['bag', 'Plus qu\'un jus de pomme en stock, panier de 2', 'lowstock'],
   ['qr', 'Scanner un QR périmé', 'oldqr'],
   ['search', 'Retrouver mon séjour (nom et numéro)', 'lookup'],
   ['x', 'Séjour annulé par l\'équipe', 'cancel'],
@@ -2394,7 +2447,7 @@ function renderBenchInfo() {
   if (why.dataset.h !== wh) { why.innerHTML = wh; why.dataset.h = wh; }
   const cases = $('#cases'), ck = cases.contains(document.activeElement) ? focusKey(document.activeElement) : null;
   cases.innerHTML = CASES.map(([ic, l, k]) => {
-    const on = (k === 'sasfree' && S.sasFree) || (k === 'closemon' && S.exc[6] === 'closed') || (k === 'unflag' && !item('cider').sold) || (k === 'cancel' && S.cancelled) || (k === 'oldqr' && S.badQr);
+    const on = (k === 'sasfree' && S.sasFree) || (k === 'closemon' && S.exc[6] === 'closed') || (k === 'unflag' && !item('cider').sold) || (k === 'pickup' && S.fulfil === 'pickup') || (k === 'cancel' && S.cancelled) || (k === 'oldqr' && S.badQr);
     return `<button type="button" class="case" data-case="${k}">${I(on ? 'check' : ic)}<span>${on ? 'Annuler : ' : ''}${esc(l)}</span></button>`;
   }).join('');
   restoreFocus(cases, ck);
@@ -2413,6 +2466,19 @@ function runCase(k) {
       if (!cart().length) S.cart[S.lodg] = [{ id: 'wine', qty: 1 }];
       S.nameProved = false; S.nameFails = 0; S.lockUntil = null; S.pay = 'note'; S.screen = 'cart'; S.sheet = 'name'; S.nameErr = null; S.nmVal = '';
       syncControls(); renderGuest({ focusSheet: true }); return;
+    case 'pickup':
+      S.fulfil = S.fulfil === 'pickup' ? 'delivery' : 'pickup';
+      if (c.sess !== 'stay') { S.moment = 'aft'; S.found = null; S.cancelled = false; expireOrders(); settleMode(); }
+      if (!cart().length) S.cart[S.lodg] = [{ id: 'wine', qty: 1 }];
+      stLoadKeepView(); S.screen = 'cart'; renderStudio(); renderCmd(); break;
+    case 'lowstock': {
+      const it = item('cider');
+      Object.assign(it.stock, { on: true, out: false, qty: heldUnits(it) + 1, zeroSent: false, lowSent: true });
+      if (c.sess !== 'stay') { S.moment = 'aft'; S.found = null; S.cancelled = false; expireOrders(); settleMode(); }
+      if (!it.links.includes(S.lodg)) S.lodg = 1;
+      S.cart[S.lodg] = [{ id: 'cider', qty: 2 }]; S.screen = 'cart';
+      if (GF.item === 'cider') gfLoad(); renderGf(); renderStudio(); break;
+    }
     case 'sasfree': S.sasFree = !S.sasFree; if (S.lodg !== 1) S.lodg = 1; S.screen = 'bath'; break;
     case 'closemon': if (S.exc[6] === 'closed') delete S.exc[6]; else S.exc[6] = 'closed'; S.moment = 'eve'; S.screen = 'shop'; renderStudio(); break;
     case 'unflag': {
@@ -2455,17 +2521,21 @@ function onControl(k, v) {
 /* ── Studio du livret (GuestFlow « Maison ») ───────────────────────────────── */
 const ST = { lodg: 1, view: 'modules', page: 'arrivee', plang: 'fr', dirty: false, draft: null, pageEdit: null, hoursDraft: null, excDraft: null, setDraft: null, shopDraft: null };
 const other = (l) => (l === 1 ? 2 : 1);
-const lname = (l) => S.cfg[l].name;
+const lname = (l) => GFP[l].name;
 function stLoad() {
   ST.draft = clone(S.cfg[ST.lodg]);
-  ST.hoursDraft = clone(S.hours); ST.excDraft = clone(S.exc);
+  ST.hoursDraft = clone(S.hours); ST.excDraft = clone(S.exc); ST.fulDraft = { mode: S.fulfil, place: S.pickupPlace };
   ST.setDraft = { appName: S.appName, appSub: S.appSub, soliomapUrl: S.soliomapUrl, embedMap: S.embedMap, maxTotal: String(S.maxTotal) };
   ST.shopDraft = Object.fromEntries(ITEMS.map((it) => [it.id, plugOf(it)]));
   if (!ORDER[ST.lodg].includes(ST.page)) ST.page = ORDER[ST.lodg][0];
   ST.pageEdit = pageEditOf(ST.page);
   ST.dirty = false;
 }
-const plugOf = (it) => ({ sold: it.sold, desc: it.desc, descEn: it.descEn || '', staff: it.staff, lead: String(it.lead), max: String(it.max), ph: it.ph });
+const plugOf = (it) => ({ sold: it.sold, desc: it.desc, descEn: it.descEn || '', staff: it.staff, lead: String(it.lead), max: String(it.max), ph: it.ph, stOn: tracks(it), stQty: it.stock ? String(it.stock.qty) : '', stAlert: it.stock && it.stock.alert != null ? String(it.stock.alert) : '', stOut: !!(it.stock && it.stock.out), stQty0: it.stock ? String(it.stock.qty) : '' });
+/* The studio never edits the stock (rule 37bis): its dirty state ignores it. */
+const plugCore = (p) => { const { stOn, stQty, stAlert, stOut, stQty0, ...r } = p; return r; };
+/* Rule 37bis: the stock lives on options and non-hourly resources only — the planning is the bath's truth. */
+const stockable = (it) => canSell(it) && it.ptype !== 'per_hour' && it.auto !== 'breakfast';
 const pageEditOf = (id) => { const p = page(id); return p ? { id, fr: p.fr, en: p.en, sub: p.sub, ph: p.ph, blocks: clone(p.blocks) } : null; };
 let snackTimer;
 function snack(t) {
@@ -2519,7 +2589,6 @@ function viewModules() {
 
 function infosErrors() {
   const d = ST.draft, e = {};
-  if (!d.name.trim()) e.name = 'Le nom est obligatoire.'; else if (d.name.length > 40) e.name = '40 caractères au maximum.';
   if (d.wifi.on) {
     if (!d.wifi.ssid.trim()) e.ssid = 'Saisissez le nom du réseau.'; else if (d.wifi.ssid.length > 32) e.ssid = '32 caractères au maximum (norme wifi).';
     if (d.wifi.pass.length < 8) e.pass = '8 caractères au minimum (norme WPA).'; else if (d.wifi.pass.length > 63) e.pass = '63 caractères au maximum (norme WPA).';
@@ -2537,7 +2606,7 @@ function viewInfos() {
   const d = ST.draft, e = infosErrors(), bad = Object.keys(e).length > 0;
   return `${pab('Infos du logement', `<span class="chipm">${esc(S.cfg[ST.lodg].name)}</span>`, { save: { dis: !ST.dirty || bad }, cancel: { dis: !ST.dirty } })}
   <div class="panelm"><label class="sw"><span><b>Application clients pour ce logement</b><small>Coupée : le QR du logement ne mène plus à l'app, et « Retrouver mon séjour » ne trouve plus ses séjours.</small></span>${tgl('data-sa="appon"', d.enabled, 'Application clients pour ce logement')}</label></div>
-  <div class="panelm"><header><h3>Présentation</h3></header><div class="mrow">${fieldM('f-name', 'Nom affiché', d.name, e.name, { f: 'name', count: 40 })}<div class="mfield"><span class="lab">Photo d'accueil</span><div style="display:flex;gap:8px">${['p-site', 'p-granja', 'p-estiva', 'p-forest'].map((p) => `<button type="button" class="ph ${p}" data-sa="hero" data-s="${p}" aria-label="Photo ${p.slice(2)}" aria-pressed="${d.hero === p}" style="width:58px;height:58px;border-radius:10px;border:${d.hero === p ? '3px solid var(--m-primary)' : '1px solid var(--m-line)'}"></button>`).join('')}</div><span class="help"><span>4:5 sur téléphone, 16:9 sur ordinateur. Une photo de moins de 1 200 px de large sera signalée.</span></span></div></div><div class="mrow">${fieldM('f-in', 'Texte d\'arrivée', d.checkin, null, { f: 'checkin' })}${fieldM('f-out', 'Texte de départ', d.checkout, null, { f: 'checkout' })}</div></div>
+  <div class="panelm"><header><h3>Présentation</h3></header><div class="mrow"><div class="mfield"><span class="lab">Nom</span><span style="font-weight:600">${esc(lname(ST.lodg))}</span><span class="help"><span>Le nom du logement dans GuestFlow. <a href="#guestflow" data-sa="togfp">Modifier dans GuestFlow</a></span></span></div><div class="mfield"><span class="lab">Photo d'accueil</span><div style="display:flex;gap:8px">${['p-site', 'p-granja', 'p-estiva', 'p-forest'].map((p) => `<button type="button" class="ph ${p}" data-sa="hero" data-s="${p}" aria-label="Photo ${p.slice(2)}" aria-pressed="${d.hero === p}" style="width:58px;height:58px;border-radius:10px;border:${d.hero === p ? '3px solid var(--m-primary)' : '1px solid var(--m-line)'}"></button>`).join('')}</div><span class="help"><span>4:5 sur téléphone, 16:9 sur ordinateur. Une photo de moins de 1 200 px de large sera signalée.</span></span></div></div><div class="mrow">${fieldM('f-in', 'Texte d\'arrivée', d.checkin, null, { f: 'checkin' })}${fieldM('f-out', 'Texte de départ', d.checkout, null, { f: 'checkout' })}</div></div>
   <div class="panelm"><header><div><h3>Wifi</h3><p>Une seule source : la tuile Wifi et le bloc wifi du livret lisent ces champs.</p></div>${tgl('data-sa="wifion"', d.wifi.on, 'Wifi disponible')}</header>${d.wifi.on ? `<div class="mrow">${fieldM('f-ssid', 'Nom du réseau', d.wifi.ssid, e.ssid, { f: 'wifi.ssid', nocap: true })}${fieldM('f-pass', 'Mot de passe', d.wifi.pass, e.pass, { f: 'wifi.pass', count: 63, nocap: true })}</div>${fieldM('f-note', 'Précision (facultatif)', d.wifi.note, e.note, { f: 'wifi.note', ph: 'Wifi seulement dans la pièce principale', count: 80 })}` : fieldM('f-nowifi', 'Message « Pas de wifi » du livret', d.noWifi, null, { f: 'noWifi', area: true, help: 'Affiché dans le livret à la place du bloc wifi.' })}</div>
   <div class="panelm"><header><h3>Contacts d'urgence</h3><button type="button" class="mbtn" data-sa="addc">${I('plus')}Ajouter</button></header>${d.contacts.map((c, i) => `<div class="mrow" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) auto;align-items:start">${fieldM('cn' + i, 'Nom', c.name, e['cn' + i], { f: `contacts.${i}.name` })}${fieldM('cr' + i, 'Rôle', c.role, null, { f: `contacts.${i}.role` })}${fieldM('cp' + i, 'Téléphone', c.phone, e['cp' + i], { f: `contacts.${i}.phone`, mode: 'tel' })}<button type="button" class="ib bad" style="margin-top:22px" data-sa="rmc" data-i="${i}" aria-label="Retirer ${esc(c.name)}" data-tip="Retirer">${I('trash')}</button></div>`).join('') || '<p style="margin:0;color:var(--m-muted)">Aucun contact : le module Urgences reste caché.</p>'}</div>`;
 }
@@ -2565,6 +2634,10 @@ function viewPages() {
 
 const plugErrors = (p) => {
   const e = {};
+  if (p.stOn) {
+    if (!/^-?\d+$/.test(p.stQty.trim())) e.stQty = 'Le nombre d\'articles en cellier, en chiffres.'; else if ((+p.stQty < 0 && p.stQty.trim() !== p.stQty0) || +p.stQty > 9999) e.stQty = 'Entre 0 et 9 999. Une vente du site peut ensuite le faire passer sous 0.';
+    if (p.stAlert.trim() && !/^\d+$/.test(p.stAlert.trim())) e.stAlert = 'Un nombre entier, ou vide pour ne pas être prévenu.';
+  }
   if (!p.sold) return e;
   if (p.desc.length > 140) e.desc = '140 caractères au maximum : elle tient sur la carte produit.';
   if (p.descEn.length > 140) e.descEn = '140 caractères au maximum.';
@@ -2572,7 +2645,23 @@ const plugErrors = (p) => {
   if (!/^\d+$/.test(p.max) || +p.max < 1 || +p.max > 50) e.max = 'Entre 1 et 50.';
   return e;
 };
-function plugFields(it, p, scope) {
+function stockGroup(it, p, scope) {
+  if (!stockable(it)) return it.ptype === 'per_hour' ? `<div class="stockg"><h4>Stock</h4><div class="reason" style="background:var(--m-info-soft);color:var(--m-info)">${I('info')}<span>Ressource planifiée : pas de stock, le planning des ressources dit ce qui est libre.</span></div></div>` : '';
+  const e = plugErrors(p), held = heldUnits(it), st = it.stock;
+  if (scope !== 'gf') {
+    const line = !tracks(it) && !(st && st.out) ? 'Stock non suivi : jamais limité.' : `${st.out ? 'En rupture (manuel)' : soldOut(it) ? 'Épuisé' : `${st.qty} en cellier`}${held ? ` · ${held} réservé${held > 1 ? 's' : ''} par un paiement en attente` : ''}`;
+    return `<div class="stockg"><h4>Stock</h4><p class="ro">${line} · <a href="#guestflow" data-sa="togf" data-s="${it.id}">Modifier dans GuestFlow</a></p></div>`;
+  }
+  const state = !p.stOn && !p.stOut ? '' : p.stOut ? '<span class="chipm bad">En rupture : « Épuisé » dans l\'app</span>' : soldOut(it) ? '<span class="chipm bad">Épuisé dans l\'app</span>' : st && st.alert != null && stockLeft(it) <= st.alert ? `<span class="chipm warn">Stock bas · ${stockLeft(it)} vendable${stockLeft(it) > 1 ? 's' : ''}</span>` : tracks(it) ? `<span class="chipm ok">${stockLeft(it)} vendable${stockLeft(it) > 1 ? 's' : ''} dans l'app</span>` : '';
+  const neg = tracks(it) && st.qty < 0 ? `<div class="reason">${I('alert')}<span>Le cellier est à ${st.qty} : le site et l'équipe ont vendu plus que le stock saisi. Saisissez le compte réel au réassort.</span></div>` : '';
+  return `<div class="stockg"><h4>Stock ${state}</h4><p class="ro" style="margin-top:-4px">Un seul stock pour le domaine. Il baisse avec toutes les ventes : l'app au paiement, le site et l'équipe le jour de l'arrivée du séjour (ou tout de suite si l'article est ajouté pendant le séjour).</p>
+  <label class="sw"><span><b>Suivre le stock</b><small>Coupé : l'article n'est jamais limité.</small></span>${tgl(`data-pa="stOn" data-sc="${scope}"`, p.stOn, 'Suivre le stock')}</label>
+  ${p.stOn ? `<div class="mrow">${fieldM(`${scope}-stQty`, 'En stock', p.stQty, e.stQty, { f: 'stQty', mode: 'numeric', help: st && st.setAt ? `Réglé le ${st.setAt} par ${st.setBy}${held ? ` · ${held} réservé${held > 1 ? 's' : ''} par un paiement en attente` : ''}. Saisissez le compte au réassort.` : 'Saisissez le compte au réassort.' }).replace('data-f=', `data-pf2="${scope}" data-f=`)}${fieldM(`${scope}-stAlert`, 'Prévenir sous', p.stAlert, e.stAlert, { f: 'stAlert', mode: 'numeric', help: 'Notification « Stock bas », puis « épuisé ». Vide : seulement à 0.' }).replace('data-f=', `data-pf2="${scope}" data-f=`)}</div>${neg}` : ''}
+  <label class="sw"><span><b>En rupture</b><small>Plus rien à vendre, quel que soit le compte : l'app affiche « Épuisé ». Le site continue de le vendre pour les séjours à venir.</small></span>${tgl(`data-pa="stOut" data-sc="${scope}"`, p.stOut, 'En rupture')}</label>
+  ${tracks(it) ? `<p class="simnote"><button type="button" class="mbtn" data-ga="simsite">${I('cal')}Un séjour réservé sur le site arrive aujourd'hui avec 2 × cet article</button></p>` : ''}</div>`;
+}
+function plugFields(it, p, scope) { return plugFields0(it, p, scope).replace(/<\/div>$/, '') + stockGroup(it, p, scope) + '</div>'; }
+function plugFields0(it, p, scope) {
   const e = plugErrors(p), sellable = canSell(it);
   const head = `<div class="plug"><div class="hd"><span class="ic">${I('bag')}</span><div><b>Application clients</b><small>Ajouté par le plugin « Application clients ». Mêmes réglages que l'écran Boutique du Studio.</small></div></div><label class="sw"><span><b>Vendu dans l'app</b><small>${sellable ? 'Le prix et le titre restent ceux de GuestFlow, par logement.' : ''}</small></span>${tgl(`data-pa="sold" data-sc="${scope}"`, p.sold && sellable, 'Vendu dans l\'app', !sellable)}</label>${sellable ? '' : `<div class="reason">${I('info')}<span>${UNSELLABLE_REASON[it.ptype]}</span></div>`}`;
   if (!sellable || !p.sold) return head + '</div>';
@@ -2588,10 +2677,10 @@ function plugFields(it, p, scope) {
 function viewShop() {
   const l = ST.lodg;
   const list = ITEMS.filter((it) => it.links.includes(l));
-  const dirty = list.some((it) => JSON.stringify(ST.shopDraft[it.id]) !== JSON.stringify(plugOf(it)));
+  const dirty = list.some((it) => JSON.stringify(plugCore(ST.shopDraft[it.id])) !== JSON.stringify(plugCore(plugOf(it))));
   const bad = list.some((it) => Object.keys(plugErrors(ST.shopDraft[it.id])).length);
   ST.dirty = dirty;
-  return `${pab('Boutique', `<span class="chipm">${esc(lname(l))}</span>`, { save: { dis: !dirty || bad }, cancel: { dis: !dirty } })}<p style="margin:0;color:var(--m-muted)">Les articles liés à ${esc(lname(l))} dans GuestFlow. Touchez un article pour régler sa vente dans l'app ; le prix et le titre se modifient dans GuestFlow.</p>${list.map((it) => { const p = ST.shopDraft[it.id]; const pr = it.id === 'bath' ? `${eur(it.prices[l].day)} / h · soirée ${eur(it.prices[l].eve)}${it.prices[l].free ? ' · 1 h offerte' : ''}` : (it.offered || []).includes(l) ? 'Offert au logement' : it.prices[l] === 0 ? 'Inclus (0 €)' : eur(it.prices[l]); return `<details class="panelm"${it.id === ST.openItem ? ' open' : ''} data-item="${it.id}"><summary style="cursor:pointer;display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:12px;align-items:center;list-style:none"><span class="ph ${p.ph}" style="width:44px;height:44px;border-radius:10px"></span><span><b>${esc(it.fr)}</b><small style="display:block;color:var(--m-muted)">${esc(it.cat)} · ${pr} · <a href="#guestflow" data-sa="togf" data-s="${it.id}">Modifier dans GuestFlow</a></small></span><span class="chipm ${p.sold && canSell(it) ? 'ok' : ''}">${p.sold && canSell(it) ? 'Vendu dans l\'app' : canSell(it) ? 'Non vendu' : 'Ne se vend pas dans l\'app'}</span>${canSell(it) ? '' : `<small style="grid-column:2/-1;color:var(--m-muted);margin-top:-6px">${{ per_night: 'Facturé à la nuit : le prix dépend de la durée du séjour.', percent_of_stay: 'Calculé en pourcentage du séjour.' }[it.ptype] || ''}</small>`}</summary>${plugFields(it, p, 'st-' + it.id)}</details>`; }).join('')}`;
+  return `${pab('Boutique', `<span class="chipm">${esc(lname(l))}</span>`, { save: { dis: !dirty || bad }, cancel: { dis: !dirty } })}<p style="margin:0;color:var(--m-muted)">Les articles liés à ${esc(lname(l))} dans GuestFlow. Touchez un article pour régler sa vente dans l'app ; le prix et le titre se modifient dans GuestFlow.</p>${list.map((it) => { const p = ST.shopDraft[it.id]; const pr = it.id === 'bath' ? `${eur(it.prices[l].day)} / h · soirée ${eur(it.prices[l].eve)}${it.prices[l].free ? ' · 1 h offerte' : ''}` : (it.offered || []).includes(l) ? 'Offert au logement' : it.prices[l] === 0 ? 'Inclus (0 €)' : eur(it.prices[l]); return `<details class="panelm"${it.id === ST.openItem ? ' open' : ''} data-item="${it.id}"><summary style="cursor:pointer;display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:12px;align-items:center;list-style:none"><span class="ph ${p.ph}" style="width:44px;height:44px;border-radius:10px"></span><span><b>${esc(it.fr)}</b><small style="display:block;color:var(--m-muted)">${esc(it.cat)} · ${pr} · <a href="#guestflow" data-sa="togf" data-s="${it.id}">Modifier dans GuestFlow</a></small></span><span style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">${soldOut(it) ? '<span class="chipm bad">Épuisé</span>' : ''}<span class="chipm ${p.sold && canSell(it) ? 'ok' : ''}">${p.sold && canSell(it) ? 'Vendu dans l\'app' : canSell(it) ? 'Non vendu' : 'Ne se vend pas dans l\'app'}</span></span>${canSell(it) ? '' : `<small style="grid-column:2/-1;color:var(--m-muted);margin-top:-6px">${{ per_night: 'Facturé à la nuit : le prix dépend de la durée du séjour.', percent_of_stay: 'Calculé en pourcentage du séjour.' }[it.ptype] || ''}</small>`}</summary>${plugFields(it, p, 'st-' + it.id)}</details>`; }).join('')}`;
 }
 
 function hoursErrors(h) {
@@ -2614,12 +2703,17 @@ function timeOpts(v) {
   if (v && !list.includes(v)) { list.push(v); list.sort(); }
   return list.map((t) => `<option value="${t}"${t === v ? ' selected' : ''}>${+t.slice(0, 2)} h ${t.slice(3)}</option>`).join('');
 }
+/* Rule 41bis: one estate-wide setting; pickup needs its place. */
+const fulDirty = () => ST.fulDraft.mode !== S.fulfil || ST.fulDraft.place !== S.pickupPlace;
+const fulError = () => (ST.fulDraft.mode === 'pickup' && !ST.fulDraft.place.trim() ? 'Indiquez où le client vient chercher sa commande.' : ST.fulDraft.place.length > 160 ? '160 caractères au maximum.' : null);
 function viewHours() {
   const h = ST.hoursDraft, e = hoursErrors(h);
-  const dirty = JSON.stringify(h) !== JSON.stringify(S.hours) || JSON.stringify(ST.excDraft) !== JSON.stringify(S.exc);
+  const dirty = JSON.stringify(h) !== JSON.stringify(S.hours) || JSON.stringify(ST.excDraft) !== JSON.stringify(S.exc) || fulDirty();
   ST.dirty = dirty;
-  const bad = Object.keys(e).length > 0;
-  return `${pab('Horaires du service', '<span class="chipm">Les deux logements</span>', { save: { dis: !dirty || bad }, cancel: { dis: !dirty } })}<div class="panelm"><header><div><h3>Semaine type</h3><p>Jusqu'à trois plages par jour. Hors plages, les clients commandent pour plus tard ; un bain froid ne s'allume qu'à l'intérieur.</p></div></header><div class="hours">${WD_ORDER.map(([k, lab]) => `<div class="hrow"><b>${lab}</b><div class="ranges">${(h[k] || []).map(([a, b], i) => `<span class="range"${e[`${k}${i}`] ? ' aria-invalid="true"' : ''}><select data-hr="${k}.${i}.0" aria-label="${lab}, début de la plage ${i + 1}">${timeOpts(a)}</select><span aria-hidden="true">–</span><select data-hr="${k}.${i}.1" aria-label="${lab}, fin de la plage ${i + 1}">${timeOpts(b)}</select><button type="button" data-sa="rmr" data-s="${k}" data-i="${i}" aria-label="Retirer cette plage">${I('x')}</button></span>`).join('') || '<span class="closed">Fermé</span>'}${(h[k] || []).length < 3 ? `<button type="button" class="mbtn" data-sa="addr" data-s="${k}">${I('plus')}Ajouter une plage</button>` : ''}${(h[k] || []).map((_, i) => (e[`${k}${i}`] ? `<span class="rerr" role="alert">Plage ${i + 1} : ${e[`${k}${i}`]}</span>` : '')).join('')}</div></div>`).join('')}</div></div>
+  const bad = Object.keys(e).length > 0 || !!fulError();
+  const fd = ST.fulDraft, fe = fulError();
+  const ful = `<div class="panelm"><header><div><h3>Livraison ou retrait</h3><p>Un seul réglage pour tous les logements. Le client voit l'heure à laquelle sa commande sera prête, calculée sur le plus long délai de préparation de son panier. Les activités comme le bain gardent leur créneau.</p></div></header><div class="segm" role="radiogroup" aria-label="Les commandes sont">${[['delivery', 'Livrées au logement'], ['pickup', 'À retirer']].map(([k, lab]) => `<button type="button" role="radio" data-sa="fulmode" data-s="${k}" aria-checked="${fd.mode === k}" aria-pressed="${fd.mode === k}">${lab}</button>`).join('')}</div>${fd.mode === 'pickup' ? fieldM('f-place', 'Lieu de retrait', fd.place, fe, { f: 'place', area: true, count: 160, help: 'Recopié tel quel au client, avec l\'heure où sa commande sera prête.' }).replace('data-f=', 'data-ful="1" data-f=') : '<p style="margin:0;color:var(--m-muted);font-size:13px">L\'équipe dépose la commande devant la porte du logement, à l\'heure choisie par le client.</p>'}</div>`;
+  return `${pab('Service', '<span class="chipm">Tous les logements</span>', { save: { dis: !dirty || bad }, cancel: { dis: !dirty } })}${ful}<div class="panelm"><header><div><h3>Semaine type</h3><p>Jusqu'à trois plages par jour. Hors plages, les clients commandent pour plus tard ; un bain froid ne s'allume qu'à l'intérieur.</p></div></header><div class="hours">${WD_ORDER.map(([k, lab]) => `<div class="hrow"><b>${lab}</b><div class="ranges">${(h[k] || []).map(([a, b], i) => `<span class="range"${e[`${k}${i}`] ? ' aria-invalid="true"' : ''}><select data-hr="${k}.${i}.0" aria-label="${lab}, début de la plage ${i + 1}">${timeOpts(a)}</select><span aria-hidden="true">–</span><select data-hr="${k}.${i}.1" aria-label="${lab}, fin de la plage ${i + 1}">${timeOpts(b)}</select><button type="button" data-sa="rmr" data-s="${k}" data-i="${i}" aria-label="Retirer cette plage">${I('x')}</button></span>`).join('') || '<span class="closed">Fermé</span>'}${(h[k] || []).length < 3 ? `<button type="button" class="mbtn" data-sa="addr" data-s="${k}">${I('plus')}Ajouter une plage</button>` : ''}${(h[k] || []).map((_, i) => (e[`${k}${i}`] ? `<span class="rerr" role="alert">Plage ${i + 1} : ${e[`${k}${i}`]}</span>` : '')).join('')}</div></div>`).join('')}</div></div>
   <div class="panelm"><header><div><h3>Exceptions</h3><p>Jour férié, absence : un jour fermé ou des plages différentes. Les fermetures de l'établissement dans GuestFlow ferment aussi le service.</p></div></header>${Object.keys(ST.excDraft).length ? Object.entries(ST.excDraft).map(([d]) => `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--m-line)"><span><b>${DAYS[d]}</b> · Fermé</span><button type="button" class="mbtn badb" data-sa="rmexc" data-s="${d}">${I('trash')}Retirer</button></div>`).join('') : '<p style="margin:0;color:var(--m-muted)">Aucune exception.</p>'}<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><select class="selm" style="width:auto" id="excday" aria-label="Jour de l'exception">${DAYS.map((d, i) => (ST.excDraft[i] ? '' : `<option value="${i}">${d}</option>`)).join('')}</select><button type="button" class="mbtn" data-sa="addexc">${I('plus')}Fermer ce jour</button></div></div>`;
 }
 
@@ -2634,8 +2728,9 @@ function viewSettings() {
   const s = ST.setDraft, e = settingsErrors(s);
   const dirty = s.appName !== S.appName || s.appSub !== S.appSub || s.soliomapUrl !== S.soliomapUrl || s.embedMap !== S.embedMap || s.maxTotal !== String(S.maxTotal);
   ST.dirty = dirty;
-  return `${pab('Application', '', { save: { dis: !dirty || Object.keys(e).length > 0 }, cancel: { dis: !dirty } })}<div class="panelm"><div class="mrow">${fieldM('s-name', 'Nom de l\'app', s.appName, e.appName, { f: 'appName', help: 'Écran d\'accueil du téléphone et en-tête.' })}${fieldM('s-sub', 'Sous-titre', s.appSub, null, { f: 'appSub' })}</div><div class="mrow">${fieldM('s-map', 'Adresse de Soliomap', s.soliomapUrl, e.soliomapUrl, { f: 'soliomapUrl', mode: 'url', nocap: true })}<label class="sw" style="margin-top:20px"><span><b>Intégrer dans l'app</b><small>Aujourd'hui Soliomap le refuse : il faut d'abord y autoriser l'adresse de l'app.${S.answers.a7 && S.answers.a7.v === 'allow' ? '' : ' <span class="chipm warn">Attend ta réponse (arbitrage Soliomap)</span>'}</small></span>${tgl('data-sa="embed"', s.embedMap, 'Intégrer Soliomap dans l\'app')}</label></div>${fieldM('s-max', 'Montant maximal d\'une commande (€)', s.maxTotal, e.maxTotal, { f: 'maxTotal', mode: 'numeric' })}</div>
-  ${[1, 2].map((l) => `<div class="panelm"><header><div><h3>QR code · ${esc(lname(l))}</h3><p>Il ouvre l'app sur ce logement. Le régénérer rend l'ancien inutilisable immédiatement.</p></div></header><div class="qrposter"><div class="q"><i style="--q:${9 + (S.codes[l].charCodeAt(0) % 6)}px"></i></div><div style="display:grid;gap:8px"><code>https://${esc(S.host)}/l/${esc(S.codes[l])}</code><div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="mbtn" data-sa="poster" data-s="${l}">${I('print')}Imprimer l'affiche (PDF)</button><button type="button" class="mbtn badb" data-sa="regen" data-s="${l}">${I('refresh')}Régénérer</button></div></div></div></div>`).join('')}`;
+  return `${pab('Application', '', { save: { dis: !dirty || Object.keys(e).length > 0 }, cancel: { dis: !dirty } })}<div class="panelm"><div class="mrow">${fieldM('s-name', 'Nom de l\'app', s.appName, e.appName, { f: 'appName', help: 'Écran d\'accueil du téléphone et en-tête.' })}${fieldM('s-sub', 'Sous-titre', s.appSub, null, { f: 'appSub' })}</div><div class="mrow">${fieldM('s-map', 'Adresse de Soliomap', s.soliomapUrl, e.soliomapUrl, { f: 'soliomapUrl', mode: 'url', nocap: true })}<label class="sw" style="margin-top:20px"><span><b>Intégrer dans l'app</b><small>Soliomap autorise sejour.domainesolio.com depuis le 06/11. Coupé : la tuile et la carte ouvrent Soliomap dans un nouvel onglet.</small></span>${tgl('data-sa="embed"', s.embedMap, 'Intégrer Soliomap dans l\'app')}</label></div>${fieldM('s-max', 'Montant maximal d\'une commande (€)', s.maxTotal, e.maxTotal, { f: 'maxTotal', mode: 'numeric' })}</div>
+  <div class="panelm"><header><div><h3>Données de GuestFlow et de Soliomap</h3><p>Logements, noms, articles, prix et stock sont lus dans GuestFlow à chaque ouverture : rien à synchroniser. Seul le fil d'événements de Soliomap est gardé une heure.</p></div></header><div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><button type="button" class="mbtn" data-sa="sync">${I('refresh')}Synchroniser</button><small style="color:var(--m-muted)">${S.syncedAt == null ? 'Événements Soliomap lus il y a 38 min.' : S.syncedAt >= nowAbs() ? 'Synchronisé à l\'instant.' : `Synchronisé à ${fh(mOf(S.syncedAt))}.`}</small></div></div>
+  ${gfLodgs().filter((l) => S.cfg[l].enabled).map((l) => `<div class="panelm"><header><div><h3>QR code · ${esc(lname(l))}</h3><p>Il ouvre l'app sur ce logement. Le régénérer rend l'ancien inutilisable immédiatement.</p></div></header><div class="qrposter"><div class="q"><i style="--q:${9 + (S.codes[l].charCodeAt(0) % 6)}px"></i></div><div style="display:grid;gap:8px"><code>https://${esc(S.host)}/l/${esc(S.codes[l])}</code><div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="mbtn" data-sa="poster" data-s="${l}">${I('print')}Imprimer l'affiche (PDF)</button><button type="button" class="mbtn badb" data-sa="regen" data-s="${l}">${I('refresh')}Régénérer</button></div></div></div></div>`).join('')}`;
 }
 
 function renderStudio() {
@@ -2647,11 +2742,11 @@ function renderStudio() {
   ST.focusAfter = null;
   const scrollMain = $('.s-main', root) ? $('.s-main', root).scrollTop : 0;
   const views = [['modules', 'sliders', 'Modules'], ['infos', 'home', 'Infos du logement'], ['pages', 'pages', 'Livret'], ['shop', 'bag', 'Boutique']];
-  const sets = [['hours', 'clock', 'Horaires du service'], ['settings', 'gear', 'Application']];
+  const sets = [['hours', 'clock', 'Service'], ['settings', 'gear', 'Application']];
   const navb = (v) => `<button type="button" data-sa="view" data-s="${v[0]}"${ST.view === v[0] ? ' aria-current="page"' : ''}>${I(v[1])}${v[2]}</button>`;
-  const enabled = [1, 2].filter((l) => S.cfg[l].enabled);
+  const enabled = gfLodgs().filter((l) => S.cfg[l].enabled);
   const main = { modules: viewModules, infos: viewInfos, pages: viewPages, shop: viewShop, hours: viewHours, settings: viewSettings }[ST.view]();
-  root.innerHTML = `<nav class="s-nav" aria-label="Studio"><div class="segm sw-l" role="group" aria-label="Logement">${[1, 2].map((l) => `<button type="button" data-sa="slodg" data-s="${l}" aria-pressed="${ST.lodg === l}">${esc(S.cfg[l].name)}${S.cfg[l].enabled ? '' : ' · coupé'}</button>`).join('')}</div><span class="navh">${esc(S.cfg[ST.lodg].name)}</span>${views.map(navb).join('')}<hr><span class="navh">Réglages</span>${sets.map(navb).join('')}${enabled.length < 2 ? '<hr><small style="padding:0 11px;color:var(--m-muted)">Un logement coupé reste modifiable ici, invisible pour ses clients.</small>' : ''}</nav><div class="s-main">${main}</div><aside class="s-prev" aria-label="Aperçu"><div class="lab"><span>Aperçu · ${esc(lname(ST.lodg))}</span><div class="segm" role="group" aria-label="Langue de l'aperçu"><button type="button" data-sa="plang" data-s="fr" aria-pressed="${ST.plang === 'fr'}">FR</button><button type="button" data-sa="plang" data-s="en" aria-pressed="${ST.plang === 'en'}">EN</button></div></div><div class="mini" inert aria-hidden="true"><div class="miniin"><div class="app" id="mini-app"></div></div></div><small style="color:var(--m-muted);text-align:center">${ST.view === 'pages' ? 'Le brouillon, avec les vrais composants de l\'app.' : 'Ce que verront les clients après « Enregistrer ».'}</small></aside>`;
+  root.innerHTML = `<nav class="s-nav" aria-label="Studio"><span class="navh">Logements · GuestFlow</span><div class="lodgl" role="group" aria-label="Logement">${gfLodgs().map((l) => `<button type="button" data-sa="slodg" data-s="${l}" aria-pressed="${ST.lodg === l}"${S.cfg[l].enabled ? '' : ' class="offl"'}>${I('home')}<span>${esc(lname(l))}${S.cfg[l].enabled ? '' : '<small>Hors application</small>'}</span></button>`).join('')}</div><hr><span class="navh">${esc(S.cfg[ST.lodg].name)}</span>${views.map(navb).join('')}<hr><span class="navh">Réglages</span>${sets.map(navb).join('')}${enabled.length < gfLodgs().length ? '<hr><small style="padding:0 11px;color:var(--m-muted)">Un logement hors application reste modifiable ici, invisible pour ses clients.</small>' : ''}</nav><div class="s-main">${main}</div><aside class="s-prev" aria-label="Aperçu"><div class="lab"><span>Aperçu · ${esc(lname(ST.lodg))}</span><div class="segm" role="group" aria-label="Langue de l'aperçu"><button type="button" data-sa="plang" data-s="fr" aria-pressed="${ST.plang === 'fr'}">FR</button><button type="button" data-sa="plang" data-s="en" aria-pressed="${ST.plang === 'en'}">EN</button></div></div><div class="mini" inert aria-hidden="true"><div class="miniin"><div class="app" id="mini-app"></div></div></div><small style="color:var(--m-muted);text-align:center">${ST.view === 'pages' ? 'Le brouillon, avec les vrais composants de l\'app.' : 'Ce que verront les clients après « Enregistrer ».'}</small></aside>`;
   $('.s-main', root).scrollTop = scrollMain;
   if (fkey && !restoreFocus(root, fkey) && /data-sa="(mup|mdown|pup|pdown)"/.test(fkey)) {
     /* The moved row reached an end: its arrow is now disabled, keep focus on the other one. */
@@ -2716,6 +2811,7 @@ function studioInput(e) {
   const root = $('#studio-root');
   if (!root.contains(t)) return;
   /* No re-render while a time field is edited: iOS closes its wheel picker when the input is replaced. */
+  if (t.dataset.ful) { ST.fulDraft.place = t.value; updateInlineErrors({ 'f-place': fulError() }, root); refreshPab(); return; }
   if (t.dataset.hr) { const [k, i, j] = t.dataset.hr.split('.'); ST.hoursDraft[k][+i][+j] = t.value; refreshHours(); refreshPab(); renderStudioPreview(); return; }
   if (t.dataset.pf) { setPath(ST.pageEdit, t.dataset.pf, t.value); ST.dirty = true; refreshPab(); renderStudioPreview(); return; }
   if (t.dataset.pf2) { const id = t.dataset.pf2.replace(/^st-/, ''); ST.shopDraft[id][t.dataset.f] = t.value; const errs = plugErrors(ST.shopDraft[id]); updateInlineErrors(Object.fromEntries(Object.entries(errs).map(([k, v]) => [`${t.dataset.pf2}-${k}`, v])), t.closest('details')); refreshPab(); renderStudioPreview(); return; }
@@ -2739,9 +2835,9 @@ function refreshPab() {
   let bad = false, dirty = ST.dirty;
   if (ST.view === 'infos') bad = Object.keys(infosErrors()).length > 0;
   if (ST.view === 'settings') { const s = ST.setDraft; bad = Object.keys(settingsErrors(s)).length > 0; dirty = s.appName !== S.appName || s.appSub !== S.appSub || s.soliomapUrl !== S.soliomapUrl || s.embedMap !== S.embedMap || s.maxTotal !== String(S.maxTotal); }
-  if (ST.view === 'shop') { const list = ITEMS.filter((it) => it.links.includes(ST.lodg)); dirty = list.some((it) => JSON.stringify(ST.shopDraft[it.id]) !== JSON.stringify(plugOf(it))); bad = list.some((it) => Object.keys(plugErrors(ST.shopDraft[it.id])).length); }
+  if (ST.view === 'shop') { const list = ITEMS.filter((it) => it.links.includes(ST.lodg)); dirty = list.some((it) => JSON.stringify(plugCore(ST.shopDraft[it.id])) !== JSON.stringify(plugCore(plugOf(it)))); bad = list.some((it) => Object.keys(plugErrors(ST.shopDraft[it.id])).length); }
   if (ST.view === 'pages') bad = !ST.pageEdit.fr.trim();
-  if (ST.view === 'hours') { dirty = JSON.stringify(ST.hoursDraft) !== JSON.stringify(S.hours) || JSON.stringify(ST.excDraft) !== JSON.stringify(S.exc); bad = Object.keys(hoursErrors(ST.hoursDraft)).length > 0; }
+  if (ST.view === 'hours') { dirty = JSON.stringify(ST.hoursDraft) !== JSON.stringify(S.hours) || JSON.stringify(ST.excDraft) !== JSON.stringify(S.exc) || fulDirty(); bad = Object.keys(hoursErrors(ST.hoursDraft)).length > 0 || !!fulError(); }
   ST.dirty = dirty;
   const sv = $('[data-sa="save"]', root), cc = $('[data-sa="cancel"]', root);
   if (sv) sv.disabled = !dirty || bad;
@@ -2764,7 +2860,7 @@ function studioSave() {
   } else if (ST.view === 'shop') {
     ITEMS.forEach((it) => { const d = ST.shopDraft[it.id]; if (!it.links.includes(l)) return; Object.assign(it, { sold: d.sold && !!canSell(it), desc: d.desc, descEn: d.descEn, staff: d.staff, lead: +d.lead || 0, max: +d.max, ph: d.ph }); });
     snack('Boutique enregistrée. Les mêmes lignes s\'affichent dans les éditeurs de GuestFlow.'); renderGf();
-  } else if (ST.view === 'hours') { S.hours = clone(ST.hoursDraft); S.exc = clone(ST.excDraft); snack('Horaires enregistrés. Les créneaux de livraison et d\'allumage suivent.'); }
+  } else if (ST.view === 'hours') { S.hours = clone(ST.hoursDraft); S.exc = clone(ST.excDraft); S.fulfil = ST.fulDraft.mode; S.pickupPlace = ST.fulDraft.place.trim(); snack(S.fulfil === 'pickup' ? 'Enregistré. Les clients voient l\'heure où leur commande sera prête et le lieu de retrait.' : 'Enregistré. Les heures de livraison et d\'allumage suivent.'); }
   else if (ST.view === 'settings') { const s = ST.setDraft; S.appName = s.appName; S.appSub = s.appSub; S.soliomapUrl = s.soliomapUrl; S.embedMap = s.embedMap; S.maxTotal = +s.maxTotal; snack('Réglages enregistrés.'); syncArb(); }
   ST.dirty = false;
   stLoadKeepView();
@@ -2815,6 +2911,9 @@ function studioClick(e) {
     case 'slodg': return leave(() => { ST.lodg = +s; const v = ST.view; stLoad(); ST.view = v; });
     case 'plang': ST.plang = s; break;
     case 'save': return studioSave();
+    case 'sync': S.syncedAt = nowAbs(); snack('Synchronisé : le fil d\'événements de Soliomap est relu.'); break;
+    case 'togfp': $('#guestflow').scrollIntoView({ behavior: reduced ? 'auto' : 'smooth' }); return;
+    case 'fulmode': ST.fulDraft.mode = s; ST.focusAfter = `button[data-sa="fulmode"][data-s="${s}"]`; break;
     case 'cancel': stLoadKeepView(); break;
     case 'mup': case 'mdown': { const j = a === 'mup' ? i - 1 : i + 1; [d.modules[i], d.modules[j]] = [d.modules[j], d.modules[i]]; ST.dirty = true; ST.focusAfter = `button[data-sa="${a}"][data-i="${j}"]`; liveSay('studio-live', `${MODDEF[d.modules[j].k].fr} : position ${j + 1} sur ${d.modules.length}.`); break; }
     case 'pup': case 'pdown': { const o = ORDER[l], j = a === 'pup' ? i - 1 : i + 1; [o[i], o[j]] = [o[j], o[i]]; ST.focusAfter = `button[data-sa="${a}"][data-i="${j}"]`; liveSay('studio-live', `${page(o[j]).fr} : position ${j + 1} sur ${o.length}.`); renderGuest(); break; }
@@ -2886,13 +2985,15 @@ function studioChange(e) {
 }
 
 /* ── GuestFlow: option / resource editor contribution + Intégrations card ── */
-const GF = { item: 'cider', draft: null, host: null, hostDirty: false };
+const GF = { item: 'cider', draft: null, host: null, hostDirty: false, pnames: {} };
 function gfLoad() { GF.draft = plugOf(item(GF.item)); }
 function plugAction(t, where) {
   const sc = t.dataset.sc, a = t.dataset.pa;
   const target = where === 'st' ? ST.shopDraft[sc.replace(/^st-/, '')] : GF.draft;
   if (a === 'sold') target.sold = !target.sold;
   if (a === 'staff') target.staff = !target.staff;
+  if (a === 'stOn') { target.stOn = !target.stOn; if (target.stOn && !target.stQty) target.stQty = '0'; }
+  if (a === 'stOut') target.stOut = !target.stOut;
   if (a === 'photo') { const it = item(where === 'st' ? sc.replace(/^st-/, '') : GF.item); const opts = [it.ph, 'p-forest', 'p-house']; target.ph = opts[(opts.indexOf(target.ph) + 1) % opts.length] || it.ph; }
   if (where === 'st') { ST.openItem = sc.replace(/^st-/, ''); renderStudio(); } else renderGf();
 }
@@ -2903,14 +3004,15 @@ function renderGf() {
   if (!GF.draft) gfLoad();
   const dirty = JSON.stringify(GF.draft) !== JSON.stringify(plugOf(it));
   const bad = Object.keys(plugErrors(GF.draft)).length > 0;
-  const prices = [1, 2].map((l) => `<tr><td style="padding:6px 0">${esc(lname(l))}</td><td class="tn" style="text-align:right">${!it.links.includes(l) ? '<span class="chipm">Non lié</span>' : it.id === 'bath' ? `${eur(it.prices[l].day)} / h · soirée ${eur(it.prices[l].eve)}${it.prices[l].free ? ' · 60 min offertes' : ''}` : (it.offered || []).includes(l) ? `${eur(it.prices[l])} · offert par défaut` : eur(it.prices[l])}</td></tr>`).join('');
+  const prices = gfLodgs().map((l) => `<tr><td style="padding:6px 0">${esc(lname(l))}</td><td class="tn" style="text-align:right">${!it.links.includes(l) ? '<span class="chipm">Non lié</span>' : it.id === 'bath' ? `${eur(it.prices[l].day)} / h · soirée ${eur(it.prices[l].eve)}${it.prices[l].free ? ' · 60 min offertes' : ''}` : (it.offered || []).includes(l) ? `${eur(it.prices[l])} · offert par défaut` : eur(it.prices[l])}</td></tr>`).join('');
   const fkey = document.activeElement && root.contains(document.activeElement) ? focusKey(document.activeElement) : null;
   let caret = null; if (fkey) { try { caret = document.activeElement.selectionStart; } catch (e) { caret = null; } }
   const hostVal = GF.host ?? S.host;
   const hostErr = hostError(hostVal);
   root.innerHTML = `<div class="formcard"><div class="pab" style="position:static;border:0;padding:0"><div class="t"><b>${it.kind === 'resource' ? 'Ressource' : 'Option'} · ${esc(it.fr)}</b></div><button type="button" class="ib save" data-ga="save" data-tip="Enregistrer" aria-label="Enregistrer"${!dirty || bad ? ' disabled' : ''}>${I('save')}</button><button type="button" class="ib" data-ga="cancel" data-tip="Annuler" aria-label="Annuler"${dirty ? '' : ' disabled'}>${I('x')}</button></div><div class="mfield"><label for="gf-pick"><span class="simtag">Simulation</span>Article affiché</label><select id="gf-pick" class="selm" data-ga-change="pick">${ITEMS.map((x) => `<option value="${x.id}"${x.id === GF.item ? ' selected' : ''}>${esc(x.fr)} · ${PTYPE_LABEL[x.ptype]}</option>`).join('')}</select></div><div class="mrow"><div class="mfield"><span class="lab">Catégorie</span><span>${esc(it.cat)}</span></div><div class="mfield"><span class="lab">Type de prix</span><span>${PTYPE_LABEL[it.ptype]}</span></div></div><div class="mfield"><span class="lab">Prix par logement</span><table style="width:100%;border-collapse:collapse;font-size:14px">${prices}</table></div>${S.plugin ? plugFields(it, GF.draft, 'gf') : '<p style="margin:0;color:var(--m-muted);font-size:13px;border-top:1px solid var(--m-line);padding-top:14px">Plugin « Application clients » inactif : la section n\'existe pas, rien d\'autre ne change dans l\'éditeur.</p>'}</div>
   <div style="display:grid;gap:16px;align-content:start"><div class="formcard"><h3>${I('gear')}Plugin</h3><label class="sw"><span><b>« Application clients » actif</b><small>Désactivé : l'app répond « indisponible », la section des éditeurs et le Studio disparaissent. Les données sont gardées.</small></span>${tgl('data-ga="plugin"', S.plugin, 'Plugin actif')}</label></div>
-  <div class="formcard"${S.plugin ? '' : ' hidden'}><h3>Réglages › Intégrations › Application clients</h3><div style="display:flex;gap:8px;flex-wrap:wrap"><span class="chipm ok">${I('check')}Active</span><span class="chipm">${[1, 2].filter((l) => S.cfg[l].enabled).length} logement${[1, 2].filter((l) => S.cfg[l].enabled).length > 1 ? 's' : ''} dans l'app</span></div><div class="mfield"><label for="gf-host">Adresse de l'app</label><input id="gf-host" value="${esc(hostVal)}" data-ga-in="host" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" inputmode="url"${hostErr ? ' aria-invalid="true"' : ''}><span class="help${hostErr ? ' bad' : ''}" id="gf-host-h"><span>${hostErr || 'Les QR codes pointent vers cette adresse. Elle demande un enregistrement DNS et une route du proxy.'}</span></span></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="mbtn pri" data-ga="savehost"${hostErr || hostVal === S.host ? ' disabled' : ''}>${I('save')}Enregistrer l'adresse</button><a class="mbtn" href="#studio">${I('ext')}Ouvrir le Studio</a></div></div></div>`;
+  <div class="formcard"><h3>${I('home')}Maison › Logements</h3><p style="margin:0;font-size:13px;color:var(--m-muted)"><span class="simtag">Simulation</span> Les logements de GuestFlow. Le Studio les lit à chaque ouverture : renommez-en un ou créez-en un, il suit sans rien synchroniser.</p>${gfLodgs().map((l) => `<div class="mfield"><label for="gp-${l}">Logement n° ${l}${S.cfg[l].enabled ? '' : ' · hors application'}</label><input id="gp-${l}" value="${esc(GF.pnames[l] ?? GFP[l].name)}" data-ga-in="pname" data-s="${l}" autocomplete="off"></div>`).join('')}<div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="mbtn pri" data-ga="savep"${Object.keys(GF.pnames).some((l) => (GF.pnames[l] || '').trim() && GF.pnames[l].trim() !== GFP[l].name) ? '' : ' disabled'}>${I('save')}Enregistrer les noms</button>${GFP[3] ? '' : `<button type="button" class="mbtn" data-ga="addp">${I('plus')}Créer « Le Pigeonnier »</button>`}</div></div>
+  <div class="formcard"${S.plugin ? '' : ' hidden'}><h3>Réglages › Intégrations › Application clients</h3><div style="display:flex;gap:8px;flex-wrap:wrap"><span class="chipm ok">${I('check')}Active</span><span class="chipm">${gfLodgs().filter((l) => S.cfg[l].enabled).length} logement${gfLodgs().filter((l) => S.cfg[l].enabled).length > 1 ? 's' : ''} dans l'app sur ${gfLodgs().length}</span></div><div class="mfield"><label for="gf-host">Adresse de l'app</label><input id="gf-host" value="${esc(hostVal)}" data-ga-in="host" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" inputmode="url"${hostErr ? ' aria-invalid="true"' : ''}><span class="help${hostErr ? ' bad' : ''}" id="gf-host-h"><span>${hostErr || 'Les QR codes pointent vers cette adresse. Elle demande un enregistrement DNS et une route du proxy.'}</span></span></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="mbtn pri" data-ga="savehost"${hostErr || hostVal === S.host ? ' disabled' : ''}>${I('save')}Enregistrer l'adresse</button><a class="mbtn" href="#studio">${I('ext')}Ouvrir le Studio</a></div></div></div>`;
   if (fkey && restoreFocus(root, fkey) && caret != null) { const el = document.activeElement; try { el.setSelectionRange(caret, caret); } catch (e) { /* not a text field */ } }
   growAreas(root);
 }
@@ -2922,8 +3024,26 @@ function gfClick(e) {
   if (t.dataset.pa) return plugAction(t, 'gf');
   const it = item(GF.item);
   switch (t.dataset.ga) {
-    case 'save': Object.assign(it, { sold: GF.draft.sold && !!canSell(it), desc: GF.draft.desc, descEn: GF.draft.descEn, staff: GF.draft.staff, lead: +GF.draft.lead || 0, max: +GF.draft.max, ph: GF.draft.ph }); snack(`« ${esc(it.fr)} » enregistré.`); gfLoad(); stLoadKeepView(); renderAll(); return;
+    case 'save': {
+      Object.assign(it, { sold: GF.draft.sold && !!canSell(it), desc: GF.draft.desc, descEn: GF.draft.descEn, staff: GF.draft.staff, lead: +GF.draft.lead || 0, max: +GF.draft.max, ph: GF.draft.ph });
+      const d = GF.draft;
+      if (stockable(it) && (d.stOn || d.stOut || it.stock)) {
+        const st = it.stock || (it.stock = { on: false, qty: 0, alert: null, out: false });
+        const restock = d.stOn && (+d.stQty !== st.qty || !st.on);
+        Object.assign(st, { on: d.stOn, out: d.stOut, alert: d.stAlert.trim() ? +d.stAlert : null });
+        if (restock) { st.qty = +d.stQty; st.setAt = MOMENTS[S.moment].label; st.setBy = 'Sophie'; st.zeroSent = false; st.lowSent = false; }
+        stockAlerts(it);
+      }
+    }
+      snack(`« ${esc(it.fr)} » enregistré.`); gfLoad(); stLoadKeepView(); renderAll(); return;
     case 'cancel': gfLoad(); break;
+    case 'simsite': it.stock.qty -= 2; stockAlerts(it); GF.draft.stQty = String(it.stock.qty); snack(`Séjour arrivé : 2 × ${esc(it.fr)} sortis du cellier, ${it.stock.qty} restants. Le site et l'équipe ne sont jamais refusés.`); renderAll(); return;
+    case 'savep': Object.entries(GF.pnames).forEach(([l, v]) => { if (v.trim()) { GFP[l].name = v.trim(); S.cfg[l].name = v.trim(); } }); GF.pnames = {}; stLoadKeepView(); snack('Noms enregistrés dans GuestFlow : le Studio et l\'app les reprennent.'); renderAll(); return;
+    case 'addp': {
+      GFP[3] = { name: 'Le Pigeonnier' }; S.cfg[3] = cfgSeed(3); ORDER[3] = ['arrivee', 'domaine', 'autour', 'depart', 'urgences'].filter((id) => page(id)); PUBLISHED[3] = new Set(); S.cart[3] = [];
+      S.codes[3] = 'Pq2wErT5yU8iOp3aSd6fGh'; GUESTS[3] = { first: 'Camille', last: 'Martin', number: 'GF-2026-0430', persons: 2, lang: 'fr' };
+      snack('« Le Pigeonnier » créé dans GuestFlow : il apparaît dans le Studio, hors application, avec les pages communes du livret en brouillon.'); renderAll(); return;
+    }
     case 'plugin': S.plugin = !S.plugin; syncControls(); renderAll(); return;
     case 'savehost': S.host = GF.host; GF.host = null; snack('Adresse enregistrée : les QR codes et l\'affiche la reprennent.'); syncArb(); renderAll(); return;
     default: return;
@@ -2943,6 +3063,7 @@ function gfInput(e) {
     if (sv) sv.disabled = !!err || GF.host === S.host;
     return;
   }
+  if (t.dataset.gaIn === 'pname') { GF.pnames[t.dataset.s] = t.value; const sv = $('[data-ga="savep"]', root); if (sv) sv.disabled = !Object.keys(GF.pnames).some((l) => (GF.pnames[l] || '').trim() && GF.pnames[l].trim() !== GFP[l].name); return; }
   if (t.dataset.pf2 === 'gf') { GF.draft[t.dataset.f] = t.value; const errs = plugErrors(GF.draft); updateInlineErrors(Object.fromEntries(Object.entries(errs).map(([k, v]) => [`gf-${k}`, v])), root); const sv = $('[data-ga="save"]', root); if (sv) sv.disabled = JSON.stringify(GF.draft) === JSON.stringify(plugOf(item(GF.item))) || Object.keys(errs).length > 0; const cc = $('[data-ga="cancel"]', root); if (cc) cc.disabled = false; }
 }
 function gfChange(e) { const t = e.target; if (t.dataset.gaChange === 'pick') { GF.item = t.value; gfLoad(); renderGf(); } }
@@ -2959,8 +3080,8 @@ function renderCmd() {
   const stL = { confirmed: ['warn', 'À préparer'], paid: ['warn', 'À préparer'], delivered: ['ok', 'Livrée'], conflict: ['bad', 'Payée après expiration · à rembourser'] };
   const rows = list.map((o) => {
     const t = orderTime(o), noDelivery = o.deliverAt == null;
-    const st = noDelivery && o.status !== 'conflict' ? (o.slots.length ? ['pri', 'Au planning des ressources'] : bkLine(o) ? ['pri', 'Sur la carte Petit-déjeuner'] : ['pri', 'Libre-service']) : stL[o.status];
-    return `<div class="orow${S.flash === o.id ? ' fresh' : ''}"><div class="tm">${fh(mOf(t))}<small>${DAYS[dOf(t)]}</small><small>n° ${o.id}</small></div><div class="who"><b>${esc(lname(o.lodg))} · ${esc(o.guest)}</b></div><ul>${o.lines.map((l) => `<li>${l.id === 'bath' ? `Bain nordique ${DAY_SHORT[l.d][0]} ${fh(l.h * 60)}–${fh(l.h * 60 + 60)}` : l.id === 'breakfast' ? `Petit-déjeuner · ${l.qty} pers. · ${esc(bkWhen(l.days, l.at))}` : `${l.qty} × ${esc(l.label)}`}</li>`).join('')}</ul><div class="pm" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center"><span class="chipm ${payL[o.pay][0]}">${payL[o.pay][1]} · <span class="tn">${eur(o.total)}</span></span><span class="chipm ${st[0]}">${st[1]}</span>${o.moved ? '<span class="chipm warn">Livraison décalée après le paiement</span>' : ''}</div><div class="acts">${['confirmed', 'paid'].includes(o.status) && o.deliverAt != null ? `<button type="button" class="mbtn okb" data-ca="deliver" data-s="${o.id}">${I('check')}Marquer livrée</button>` : o.status === 'conflict' ? `<button type="button" class="mbtn" data-ca="fiche" data-s="${o.id}">${I('ext')}Voir la fiche</button>` : ''}</div></div>`;
+    const st = noDelivery && o.status !== 'conflict' ? (o.slots.length ? ['pri', 'Au planning des ressources'] : bkLine(o) ? ['pri', 'Sur la carte Petit-déjeuner'] : ['pri', 'Libre-service']) : o.status === 'delivered' && o.ful === 'pickup' ? ['ok', 'Retirée'] : stL[o.status];
+    return `<div class="orow${S.flash === o.id ? ' fresh' : ''}"><div class="tm">${fh(mOf(t))}<small>${DAYS[dOf(t)]}</small><small>n° ${o.id}</small></div><div class="who"><b>${esc(lname(o.lodg))} · ${esc(o.guest)}</b></div><ul>${o.lines.map((l) => `<li>${l.id === 'bath' ? `Bain nordique ${DAY_SHORT[l.d][0]} ${fh(l.h * 60)}–${fh(l.h * 60 + 60)}` : l.id === 'breakfast' ? `Petit-déjeuner · ${l.qty} pers. · ${esc(bkWhen(l.days, l.at))}` : `${l.qty} × ${esc(l.label)}`}</li>`).join('')}</ul><div class="pm" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center"><span class="chipm ${payL[o.pay][0]}">${payL[o.pay][1]} · <span class="tn">${eur(o.total)}</span></span><span class="chipm ${st[0]}">${st[1]}</span>${o.moved ? '<span class="chipm warn">Livraison décalée après le paiement</span>' : ''}</div><div class="acts">${['confirmed', 'paid'].includes(o.status) && o.deliverAt != null ? `<button type="button" class="mbtn okb" data-ca="deliver" data-s="${o.id}">${I('check')}${o.ful === 'pickup' ? 'Marquer retirée' : 'Marquer livrée'}</button>` : o.status === 'conflict' ? `<button type="button" class="mbtn" data-ca="fiche" data-s="${o.id}">${I('ext')}Voir la fiche</button>` : ''}</div></div>`;
   }).join('') || `<div class="formcard empty-m" style="text-align:center;color:var(--m-muted)">${I('check')} Rien à préparer.</div>`;
   const n = nowAbs(), today = dOf(n);
   /* Planning: a « Commande client » card per delivery (staff lines only), and the breakfast card of rule 27bis
@@ -2972,9 +3093,9 @@ function renderCmd() {
   cards.sort((a, b) => a.t - b.t);
   const planning = cards.slice(0, 5).map((x) => (x.kind === 'bk'
     ? `<div class="pcardm bkcard"><header><span>${I('cup')}Petit-déjeuner</span><span class="tn">${DAY_SHORT[dOf(x.t)][0]} ${fh(mOf(x.t))}</span></header><span style="font-size:13px">${esc(lname(x.o.lodg))} · ${esc(x.o.guest)}</span><ul><li>${x.bl.qty} personne${x.bl.qty > 1 ? 's' : ''}${x.o.pay === 'free' ? ' · inclus au séjour' : ''}</li><li>Choisi dans l'app (n° ${x.o.id})</li></ul></div>`
-    : `<div class="pcardm"><header><span>Commande client n° ${x.o.id}</span><span class="tn">${DAY_SHORT[dOf(x.t)][0]} ${fh(mOf(x.t))}</span></header><span style="font-size:13px">${esc(lname(x.o.lodg))} · ${esc(x.o.guest)}</span><ul>${x.o.lines.filter((l) => !['bath', 'breakfast'].includes(l.id)).map((l) => `<li>${l.qty} × ${esc(l.label)}</li>`).join('')}</ul><label class="ck"><input type="checkbox" data-ca="deliverck" data-s="${x.o.id}"${x.o.status === 'delivered' ? ' checked' : ''}> Livrée</label></div>`)).join('');
+    : `<div class="pcardm"><header><span>Commande client n° ${x.o.id}</span><span class="tn">${DAY_SHORT[dOf(x.t)][0]} ${fh(mOf(x.t))}</span></header><span style="font-size:13px">${esc(lname(x.o.lodg))} · ${esc(x.o.guest)}</span><ul>${x.o.lines.filter((l) => !['bath', 'breakfast'].includes(l.id)).map((l) => `<li>${l.qty} × ${esc(l.label)}</li>`).join('')}</ul><label class="ck"><input type="checkbox" data-ca="deliverck" data-s="${x.o.id}"${x.o.status === 'delivered' ? ' checked' : ''}> ${x.o.ful === 'pickup' ? 'Retirée' : 'Livrée'}</label></div>`)).join('');
   root.innerHTML = `<div style="display:grid;gap:12px;min-width:0">${pab('Commandes clients', `<div class="segm" role="group" aria-label="Filtre"><button type="button" data-ca="filter" data-s="todo" aria-pressed="${S.ordFilter === 'todo'}">À préparer</button><button type="button" data-ca="filter" data-s="all" aria-pressed="${S.ordFilter === 'all'}">Toutes</button></div>`, { before: [{ a: 'refresh', i: 'refresh', tip: 'Actualiser', c: 'info' }] }).replace(/data-sa=/g, 'data-ca=')}<div class="orders">${rows}</div></div>
-  <div style="display:grid;gap:16px;align-content:start"><div class="push" aria-label="Notifications sur le téléphone de l'équipe"><div class="clock">${String(Math.floor(mOf(n) / 60)).padStart(2, '0')}:${String(mOf(n) % 60).padStart(2, '0')}</div>${S.pushes.filter((p) => p.at <= n).slice(0, 3).map((p) => `<div class="notif${(S._pushSeen || []).includes(p.id) ? ' still' : ''}"><span class="ap">${I('bell')}</span><div><b>Commandes clients <small>${p.at === n ? 'maintenant' : fh(mOf(p.at))}</small></b><p>${esc(p.text)}</p></div></div>`).join('') || '<p style="color:rgba(255,255,255,.7);text-align:center;font-size:13px;margin:0">Les notifications des commandes passées dans l\'app arrivent ici.</p>'}</div>
+  <div style="display:grid;gap:16px;align-content:start"><div class="push" aria-label="Notifications sur le téléphone de l'équipe"><div class="clock">${String(Math.floor(mOf(n) / 60)).padStart(2, '0')}:${String(mOf(n) % 60).padStart(2, '0')}</div>${S.pushes.filter((p) => p.at <= n).slice(0, 3).map((p) => `<div class="notif${(S._pushSeen || []).includes(p.id) ? ' still' : ''}"><span class="ap">${I('bell')}</span><div><b>${p.kind === 'stock' ? 'Commandes clients · stock' : 'Commandes clients'} <small>${p.at === n ? 'maintenant' : fh(mOf(p.at))}</small></b><p>${esc(p.text)}</p></div></div>`).join('') || '<p style="color:rgba(255,255,255,.7);text-align:center;font-size:13px;margin:0">Les notifications des commandes passées dans l\'app arrivent ici.</p>'}</div>
   <div class="formcard"><h3>${I('cal')}Planning · ${DAYS[today]} et suivants</h3><div class="plan">${planning || '<p style="margin:0;color:var(--m-muted);font-size:13px">Aucune livraison prévue.</p>'}<p style="margin:0;font-size:12.5px;color:var(--m-muted)">Les séances de bain d'une commande arrivent sur Calendrier › Ressources et sur la carte « Allumer le bain », comme si l'équipe les avait posées depuis la fiche.</p></div></div></div>`;
   S.flash = null;
   S._pushSeen = S.pushes.map((p) => p.id);
@@ -2998,6 +3119,10 @@ function cmdClick(e) {
 /* ── Arbitrations, verdicts, recap ───────────────────────────────────────── */
 const ARB = [];
 const RESOLVED = [
+  ['Verdicts v4 (06/11)', 'validés : app sur téléphone, Studio du livret, carte Réglages › Intégrations, Commandes clients (page, notification, planning)'],
+  ['Tuile Soliomap (06/11)', 'renommée « Activités »'],
+  ['Stock (06/11)', 'quantité + « En rupture », gérés dans GuestFlow ; toutes les ventes comptent, le jour où l\'article sort ; à 0, seule l\'app arrête de vendre, l\'équipe est prévenue'],
+  ['Heure de la commande (06/11)', '« Dès que possible » présélectionné, plus tard possible ; livrée ou à retirer, un réglage pour tous les logements, lieu de retrait en texte libre'],
   ['A6 · Accès à l\'app (06/11)', 'un QR par séjour, au SAS et dans l\'e-mail de J-7 ; l\'affiche du logement n\'ouvre que le livret'],
   ['A7 · Soliomap (06/11)', 'intégré dans l\'app ; sejour.domainesolio.com autorisé côté Soliomap (PR solioMap #34 fusionnée)'],
   ['Pendant ta revue', 'je code les lots serveur B à E'],
@@ -3014,7 +3139,7 @@ const RESOLVED = [
   ['Paiement par carte non terminé', 'le client peut l\'abandonner (créneaux libérés), et une livraison trop proche du paiement est décalée'],
   ['Nom de la page et de la notification', '« Commandes clients »'],
 ];
-const VERDICTS = [['app-mobile', 'App client sur téléphone'], ['app-wide', 'App client sur tablette et ordinateur'], ['studio', 'Studio du livret'], ['gf-editor', 'Section « Application clients » des éditeurs'], ['gf-settings', 'Carte Réglages › Intégrations'], ['orders', 'Commandes clients : page, notification et planning']];
+const VERDICTS = [['stock', 'Stock par article : éditeur GuestFlow, app et alertes'], ['fulfil', 'Livrée ou à retirer, et l\'heure annoncée'], ['studio-dyn', 'Studio construit depuis GuestFlow'], ['app-wide', 'App client sur tablette et ordinateur']];
 function renderArb() {
   ARB.forEach((a) => {
     const root = $(`#arb-${a.id}`);
@@ -3036,7 +3161,7 @@ function renderTodo() {
 }
 function syncArb() { /* studio and GuestFlow edits can move away from a choice: the recap stays the user's answer */ recap(); }
 function recap() {
-  const lines = ['Revue des planches « Mon séjour », version 4 — 06/11/2026', '', 'Verdicts'];
+  const lines = ['Revue des planches « Mon séjour », version 5 — 06/11/2026', '', 'Verdicts'];
   VERDICTS.forEach(([k, l]) => { const v = S.verdicts[k] || {}; lines.push(`- ${l} : ${v.v === 'ok' ? 'Validé' : v.v === 'redo' ? 'À reprendre' : '(sans réponse)'}${v.t ? ` — ${v.t.trim()}` : ''}`); });
   lines.push('', 'Déjà tranché');
   RESOLVED.forEach(([q, a]) => lines.push(`- ${q} : ${a}`));
