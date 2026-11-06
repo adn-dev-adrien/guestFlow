@@ -1,5 +1,6 @@
-// specs/tourist-tax-report-v2.md §3 rule 31 (reviews R5-10, R4-6) — the period, the view and the filters live in the
-// URL: a link (or the way back from a fiche) opens them, a change writes them, and a fiche keeps the whole way back.
+// specs/tourist-tax-report-v2.md §3 rules 31 and 40 (reviews R5-10, R4-6, V1-3) — the period, the view and the filters live in the
+// URL: a link (or the way back from a fiche) opens them, a change writes them, and a fiche keeps the whole way back;
+// rule 40 (review V1-3): under a refusal, the URL holds the selection on screen.
 import { vi } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
@@ -74,4 +75,17 @@ test('rule 31: a change writes the selection and the view; a fiche opens with th
   const target = navigateSpy.mock.calls.at(-1)[0];
   expect(target.startsWith('/reservations/7?from=')).toBe(true);
   expect(decodeURIComponent(target.split('from=')[1])).toBe('/finance/tourist-tax?period=quarter&quarter=2026-Q3');
+});
+
+test('rule 40: a refused selection leaves the URL on the one read, and a fiche opened then comes back to it', async () => {
+  openAt('/finance/tourist-tax?period=quarter&quarter=2026-Q2');
+  await screen.findByText('Jean Dupont');
+  api.getTouristTaxReport.mockRejectedValueOnce(Object.assign(new Error('Les mois futurs ne sont pas autorisés.'), { status: 400 }));
+  fireEvent.mouseDown(screen.getByRole('combobox', { name: 'Trimestre' }));
+  fireEvent.click(await screen.findByRole('option', { name: 'T3 2026 (juil.–sept.)' }));
+  await screen.findByRole('alert');
+  await waitFor(() => expect(where().get('quarter')).toBe('2026-Q2'));
+  fireEvent.click(screen.getByText('Jean Dupont'));
+  const target = navigateSpy.mock.calls.at(-1)[0];
+  expect(decodeURIComponent(target.split('from=')[1])).toBe('/finance/tourist-tax?period=quarter&quarter=2026-Q2');
 });

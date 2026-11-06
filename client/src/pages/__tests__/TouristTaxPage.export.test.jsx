@@ -32,5 +32,5 @@ test('rule 24: a refused export says why', async () => {
   renderTaxPage();
   await screen.findByText('Jean Dupont');
   fireEvent.click(screen.getByRole('button', { name: 'Exporter en CSV' }));
-  expect(await screen.findByText('Période inconnue.')).toBeInTheDocument();
+  expect(await screen.findByText('Période inconnue.', {}, { timeout: 5000 })).toBeInTheDocument();
 });

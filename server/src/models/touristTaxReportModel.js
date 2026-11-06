@@ -92,13 +92,33 @@ function createTouristTaxReportModel(database, finance) {
     const { window } = resolved;
     const span = { start: window.from, endExclusive: window.coveredToExclusive };
     const onProperty = (row) => propertyId == null || Number(row.propertyId) === propertyId;
-    const rows = finance.getTouristTaxRows(span).filter(onProperty);
+    const allRows = finance.getTouristTaxRows(span);
+    const rows = allRows.filter(onProperty);
     const extra = staysById([...new Set(rows.map((r) => Number(r.reservationId)))]);
     const ourRows = rows.map((row) => {
       const stay = extra.get(Number(row.reservationId)) || {};
       return ourStayRow(row, { babies: stay.babies, platformLabel: channelLabel(stay.platform) });
     });
-    const platformRows = platformRemittedRows(span).filter(onProperty);
+    // Rule 38 (D-HC15) — a platform's stay whose tax is frozen at 0 € (D-HC10 keeps it out of ours) is listed as the
+    // platform's, for information, with the amount the platform stated; a direct one stays out.
+    const frozenPlatformRows = (allRows.frozenAtZero || [])
+      .filter(({ stored }) => !isDirectChannel(stored.platform) && String(stored.platform || '').trim() !== '')
+      .map(({ stored, propertyName, reservationName }) => platformStayRow({
+        reservationId: stored.id,
+        propertyId: stored.propertyId,
+        propertyName,
+        reservationName,
+        platformLabel: channelLabel(stored.platform),
+        startDate: stored.startDate,
+        endDate: stored.endDate,
+        nightsCount: nightsBetween(stored.startDate, stored.endDate),
+        adults: stored.adults,
+        children: stored.children,
+        teens: stored.teens,
+        babies: stored.babies,
+        taxAmount: round2(stored.platformTouristTaxAmount),
+      }));
+    const platformRows = [...platformRemittedRows(span), ...frozenPlatformRows].filter(onProperty);
     const report = buildTouristTaxReport({ ourRows, platformRows, declaration });
     // Rule 34 — a stay is attributed by its end, so a night of the register may lie outside the window read: each
     // night says so, and the report says whether any does (the page explains it once).

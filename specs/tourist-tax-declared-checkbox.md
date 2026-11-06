@@ -65,7 +65,12 @@ Two problems surface in real use:
    400 `TOURIST_TAX_REMITTED_BY_PLATFORM` « La plateforme reverse elle-même cette taxe. »; taking a stored tick off
    stays possible. A `declared` that is not a boolean, or an `addedGuests` present and not a boolean, is refused 400
    « Déclaration invalide : oui ou non attendu. » (it used to be read as true). *Why:* no screen offers that tick, and
-   a mode switched later would surface the stay already « Déclarée ».
+   a mode switched later would surface the stay already « Déclarée ». A tick sent back on a stay that already holds one
+   passes unchanged, whatever the mode is now (reading of 2026-11-06, review V1-2: rule 8's « sent back » holds).
+10. **No tick on a stay no list shows** (2026-11-06, D-HC10, review V1-6). A new tick on a stay whose tax is frozen at
+   0 € (the reading of `tourist-tax-declaration-month-stay-end.md` rule 9, which takes it off every page) is refused 400
+   `TOURIST_TAX_NOTHING_TO_DECLARE` « Aucune taxe à déclarer pour ce séjour. »; a stored tick can be sent back or taken
+   off.
 
 **Edge cases:**
 - Re-ticking an already-declared reservation changes nothing: its first date stands. Corrected on
@@ -139,6 +144,7 @@ appears.
 
 ### Server unit tests (`tests/tourist-tax-review-fixes.unit.test.js`, 2026-11-06)
 - [x] Rule 9 (1): a platform's stay refused, its stored tick taken off, four non-boolean bodies refused, a boolean tick passes.
+- [x] `tourist-tax-review-fixes-2.unit.test.js`: rule 9 (a tick sent back passes), rule 10 (frozen at 0 € refused, stored tick kept or taken off).
 
 ### Client vitest tests (`pages/__tests__/TouristTaxPage.test.js`, NEW)
 - [x] **Date non-regression**: a reservation `startDate 2026-06-20 / endDate 2026-06-21` renders

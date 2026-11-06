@@ -4,10 +4,13 @@
  * synthesis and the payment register can reuse it. Renders the figures it is given, already formatted — never
  * computes one.
  *
- * A translucent, frosted surface (solid under `prefers-reduced-transparency`). From `sm` up every figure shows in
- * one row, the `main` one last and emphasised. On a phone only the items flagged `compact` show, with a toggle
- * (« Détail des totaux » / « Masquer le détail », `aria-expanded`) that unfolds the others above them. The figures
- * are a polite live region: a change of selection or a tick is read out once.
+ * A translucent, frosted surface (solid under `prefers-reduced-transparency`). Every figure has the same size and all
+ * figures sit on one line, on a common baseline (specs/tourist-tax-report-v2.md rule 39, D-HC17): each label sits in a
+ * block two lines high, aligned to its bottom, so a label that wraps never pushes its figure down; the caption goes
+ * under the figure. `main` is emphasised by colour only (and a divider before it), never by size. When the bar is too
+ * narrow for one line — a phone, or a tablet beside the drawer — only the items flagged `compact` show, with a toggle
+ * (« Détail des totaux » / « Masquer le détail », `aria-expanded`) that unfolds the others above them, at the same
+ * size. The figures are a polite live region: a change of selection or a tick is read out once.
  *
  * Props:
  *   items:       Array<{ key, label, value, caption?, main?, compact? }>   value / caption: strings or nodes
@@ -16,41 +19,65 @@
  *   lessLabel?:  string     phone toggle, unfolded (default « Masquer le détail »)
  *   sx?:         object
  */
-import React, { useId, useState } from 'react';
+import React, { useId, useLayoutEffect, useRef, useState } from 'react';
 import { Box, ButtonBase, Typography, useMediaQuery } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 
-const FIGURE = { fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' };
+const FIGURE = { fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', fontSize: '1.05rem', fontWeight: 700, lineHeight: 1.25 };
+// Two label lines: a label that wraps fills the block, a short one sits at its bottom, figures share one baseline.
+const LABEL_BLOCK = { display: 'flex', alignItems: 'flex-end', minHeight: 'calc(2 * 1.4 * 0.72rem)' };
+// The width one figure needs on a line; below items × this, the bar folds like on a phone.
+const FIGURE_MIN_WIDTH = 104;
 
-function Figure({ item }) {
+function Figure({ item, inRow = false }) {
   return (
     <Box
       data-testid={`total-${item.key}`}
       sx={{
         minWidth: 0,
-        maxWidth: { sm: item.main ? 'none' : 190 },
-        ...(item.main ? { ml: { sm: 'auto' }, textAlign: { sm: 'right' }, pl: { sm: 2 }, borderLeft: { sm: 1 }, borderColor: { sm: 'divider' } } : {}),
+        ...(inRow ? { flex: item.main ? '0 0 auto' : '1 1 0' } : {}),
+        ...(inRow && item.main ? { textAlign: 'right', pl: 2, borderLeft: 1, borderColor: 'divider' } : {}),
       }}
     >
-      <Typography variant="kpiLabel" component="span" sx={{ display: 'block', color: 'text.secondary' }}>{item.label}</Typography>
-      <Typography
-        component="span"
-        sx={{ ...FIGURE, display: 'block', fontWeight: 700, lineHeight: 1.25, fontSize: item.main ? '1.25rem' : '1.05rem', color: item.main ? 'primary.main' : 'text.primary' }}
-      >
+      <Box sx={{ ...LABEL_BLOCK, ...(inRow && item.main ? { justifyContent: 'flex-end' } : {}) }}>
+        <Typography variant="kpiLabel" component="span" sx={{ display: 'block', color: 'text.secondary' }}>{item.label}</Typography>
+      </Box>
+      <Typography component="span" data-figure="" sx={{ ...FIGURE, display: 'block', color: item.main ? 'primary.main' : 'text.primary' }}>
         {item.value}
       </Typography>
       <Typography variant="caption" component="span" sx={{ display: 'block', color: 'text.secondary', minHeight: '1.2em', lineHeight: 1.3 }}>
-        {item.caption || ' '}
+        {item.caption || '\u00a0'}
       </Typography>
     </Box>
   );
 }
 
+/** Whether the bar's own width holds every figure on one line; unknown (no ResizeObserver) reads as « yes ». */
+function useFitsOneLine(ref, count) {
+  const [fits, setFits] = useState(true);
+  useLayoutEffect(() => {
+    const node = ref.current;
+    if (!node || typeof ResizeObserver === 'undefined') return undefined;
+    const judge = () => {
+      const width = node.getBoundingClientRect().width;
+      setFits(width === 0 || width >= count * FIGURE_MIN_WIDTH);
+    };
+    judge();
+    const observer = new ResizeObserver(judge);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [ref, count]);
+  return fits;
+}
+
 export default function StickyTotalsBar({ items = [], label, moreLabel = 'Détail des totaux', lessLabel = 'Masquer le détail', sx }) {
   const theme = useTheme();
   const phone = useMediaQuery(theme.breakpoints.down('sm'));
+  const barRef = useRef(null);
+  const fits = useFitsOneLine(barRef, items.length);
+  const folded = phone || !fits;
   const [open, setOpen] = useState(false);
   const detailId = useId();
   const compact = items.filter((i) => i.compact);
@@ -59,6 +86,7 @@ export default function StickyTotalsBar({ items = [], label, moreLabel = 'Détai
   return (
     <Box
       component="section"
+      ref={barRef}
       aria-label={label}
       data-testid="sticky-totals-bar"
       sx={{
@@ -80,11 +108,11 @@ export default function StickyTotalsBar({ items = [], label, moreLabel = 'Détai
         ...sx,
       }}
     >
-      {phone ? (
+      {folded ? (
         <>
           {open && (
             <Box id={detailId} sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.25, pb: 1.25, mb: 1.25, borderBottom: 1, borderColor: 'divider' }}>
-              {rest.map((item) => <Figure key={item.key} item={{ ...item, main: false }} />)}
+              {rest.map((item) => <Figure key={item.key} item={item} />)}
             </Box>
           )}
           <Box aria-live="polite" sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.25 }}>
@@ -103,8 +131,8 @@ export default function StickyTotalsBar({ items = [], label, moreLabel = 'Détai
           )}
         </>
       ) : (
-        <Box aria-live="polite" sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', columnGap: { sm: 2, lg: 2.75 }, rowGap: 1 }}>
-          {items.map((item) => <Figure key={item.key} item={item} />)}
+        <Box aria-live="polite" sx={{ display: 'flex', flexWrap: 'nowrap', alignItems: 'flex-start', columnGap: { sm: 1.5, lg: 2.5 } }}>
+          {items.map((item) => <Figure key={item.key} item={item} inRow />)}
         </Box>
       )}
     </Box>

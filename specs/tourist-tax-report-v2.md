@@ -145,6 +145,8 @@ declared and what remains, and, apart, what the platforms remit themselves. The 
     (`platform-added-guests-tourist-tax.md` rules 24, 26).
 22. **A platform's stay is muted.** Its row has no box (« — ») and a tag « reversée par <canal> » under the guest's
     name (beside the name on a card), with the tooltip « La plateforme reverse elle-même cette taxe à la commune. »
+    On a card the tag sits beside the name when both fit, else wraps under it whole; it is cut only when wider than
+    the card (reading of 2026-11-06, review V1-4).
 23. **« Par nuit »** shows `nights`: Nuit du (« sam. 04/07/2026 ») · Séjours · Personnes · Taxées · Exonérées ·
     Montant, its empty state « Aucune nuit à déclarer sur cette période. ». The view is local; switching it reads
     nothing.
@@ -159,8 +161,9 @@ declared and what remains, and, apart, what the platforms remit themselves. The 
     with its own message (`getMonthBounds` returns nothing for it, nor for 9999-12, so the monthly page refuses them
     too); a month, quarter or year starting after the current month is refused « Les mois futurs… » before any window
     is built (9999 included). Never a 500, never a window of 1 900 years.
-28. **A key sent twice is its own 400** (D-HC13, reviews R1-08, R6-6). On both endpoints, a key that is not a plain
-    string (repeated, or `key[x]=`) answers that key's refusal: `period` « Période inconnue. », `month`, `quarter`,
+28. **A key sent twice is its own 400** (D-HC13, reviews R1-08, R6-6). On both endpoints, a key sent twice answers
+    that key's refusal (the controller also refuses a key that is not a plain string, as a defence; over HTTP the
+    query parser keeps `key[x]=` as another, unknown key — reading of 2026-11-06, review V1-5): `period` « Période inconnue. », `month`, `quarter`,
     `year` their format messages, `from` / `to` « Deux dates à choisir. », `propertyId` « Logement inconnu. »,
     `declaration` « Statut de déclaration inconnu. », `view` « Vue inconnue. » — never a filter silently widened.
 29. **The pickers always hold what is shown** (review R1-07). `choices.months` runs from the earlier of the first
@@ -194,6 +197,27 @@ declared and what remains, and, apart, what the platforms remit themselves. The 
 36. **The CSV refusals read as everywhere else** (review R1-06). `downloadTouristTaxReportCsv` answers a 401 with
     « Session expirée. » and the app's return to the login, a code-only refusal with its `message` or « Téléchargement
     impossible. », and keeps the server's French reason of a 400.
+
+37. **The list CSV adds up per filter** (review V1-1). The platforms' total of the « Reversé par la plateforme »
+    column is written only when the file lists their rows (« Toutes »); under « À déclarer » or « Déclarées » it is
+    empty, so every column of the file adds up over its rows. The bar keeps its own figure (rule 11).
+38. **A platform's stay frozen at 0 € is shown as the platform's** (D-HC15, 2026-11-06). A stay that rule 26 keeps
+    out of ours (tax frozen at 0 €) and whose channel is a platform (not direct, read from the channel, never its
+    name) is listed for information with `remittedBy: 'platform'`, the amount the platform stated
+    (`platformTouristTaxAmount`, 0 when none), no tick, and counted in `platformRemittedStaysCount` / `Amount` —
+    never in what we declare. `getTouristTaxRows` hands those stays over as a non-enumerable `frozenAtZero`; the
+    monthly payload is unchanged.
+39. **One size, one line** (D-HC17, 2026-11-06). In `StickyTotalsBar` every figure has the same size (`main` by colour
+    only), with tabular figures; each label sits in a block two lines high aligned to its bottom, so the figures share
+    one baseline whatever their labels; captions sit under the figures. When the bar is narrower than its figures need
+    on one line (a phone, a tablet beside the drawer) it folds to its `compact` figures and « Détail des totaux »,
+    the unfolded detail at the same size. Supersedes the « main figure » emphasis by size of rule 20.
+40. **The URL holds what is on screen** (review V1-3). While a refused selection's reason is shown, the page's URL holds
+    the selection last read, so a fiche opened then, a reload or a shared link comes back to it.
+41. **The common baseline, in pixels.** At 1280, 900 and 390 px the figures of the bar and of its unfolded detail sit
+    on one line.
+    > **Sans test** — a pixel position jsdom cannot measure; rule 39's test pins its means (same size, label blocks of
+    > one height aligned to the bottom, no wrap), the baseline itself is checked by eye at the three widths.
 
 **Edge cases:**
 - No stay in the selection → `stays: []`, `nights: []`, every total 0, `allDeclared: false`.
@@ -385,9 +409,10 @@ Target: the `#taxe` mock-up of the design reference, in MUI + the « Maison » t
 - [x] Existing tourist-tax suites unchanged and green (rule 1).
 
 - [x] `tests/tourist-tax-report-base-columns.unit.test.js` (2) — rule 16.
+- [x] `tests/tourist-tax-review-fixes-2.unit.test.js` (4, 2026-11-06, round 2) — rules 37, 38 (+ declared-checkbox rules 9, 10).
 - [x] `tests/tourist-tax-review-fixes.unit.test.js` (6, 2026-11-06) — rules 26-29, 34, 35 (+ declaration-month-stay-end rule 9, declared-checkbox rule 9).
 - [x] `tests/tourist-tax-report-csv.unit.test.js` (+3) — rule 30; `tourist-tax-period-choices.unit.test.js` (+1) — rule 29.
-- Server suites of this spec: 43 tests in 7 files.
+- Server suites of this spec: 47 tests in 8 files.
 
 ### Client unit tests (Vitest)
 - [x] `src/__tests__/api.tourist-tax-report.test.js` (3) — §4.3: query string, CSV file name and view, refusal.
@@ -400,7 +425,8 @@ Target: the `#taxe` mock-up of the design reference, in MUI + the « Maison » t
 - [x] `pages/__tests__/TouristTaxPage.server-today.test.jsx` (4) — rule 32.
 - [x] `pages/__tests__/TouristTaxPage.refused-load.test.jsx` (2) — rule 32.
 - [x] `pages/__tests__/TouristTaxPage.tick-after-refusal.test.jsx` (1) — rule 33.
-- [x] `pages/__tests__/TouristTaxPage.url-state.test.jsx` (4) — rule 31.
+- [x] `pages/__tests__/TouristTaxPage.url-state.test.jsx` (5) — rules 31, 40.
+- [x] `components/__tests__/StickyTotalsBar.test.jsx` (+2) — rule 39.
 - [x] `pages/__tests__/TouristTaxPage.review-fixes.test.jsx` (4) — rules 22, 30, 34.
 - [x] `src/__tests__/api.tourist-tax-report.test.js` (+2) — rule 36; `components/__tests__/FinanceDataChecksCard.load-and-links.test.jsx` (+1) — rule 31's link.
 - [x] `components/__tests__/StickyTotalsBar.test.jsx` (2) — rule 20.

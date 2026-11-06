@@ -158,13 +158,16 @@ export default function TouristTaxPage() {
   }, [serverToday, waitingForDay]);
 
   // Rule 31 — the URL follows the selection and the view (replace: the back button leaves the page, not a filter).
+  // Rule 40 (review V1-3) — while a refusal is shown, the URL holds the selection last READ, the one on screen, so a
+  // fiche opened then, a reload or a shared link comes back to it rather than to the refused one.
   useEffect(() => {
     if (waitingForDay) return;
+    const shown = refused.current && lastGood.current ? lastGood.current.query : query;
     const next = new URLSearchParams();
-    Object.entries(paramsOf(query)).forEach(([k, v]) => { if (v) next.set(k, v); });
+    Object.entries(paramsOf(shown)).forEach(([k, v]) => { if (v) next.set(k, v); });
     if (view === 'night') next.set('view', 'night');
     if (next.toString() !== searchParams.toString()) setSearchParams(next, { replace: true });
-  }, [query, view, waitingForDay]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [query, view, waitingForDay, refusal, data]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Rule 33 — the selection on screen: the last one read while a refusal is shown, else the one asked.
   const shownQuery = () => (refused.current && lastGood.current ? lastGood.current.query : queryRef.current);
@@ -314,8 +317,8 @@ export default function TouristTaxPage() {
     <ResponsiveTable
       items={data.stays}
       getKey={(row) => row.key}
-      minWidth={base ? 880 : 700}
-      cardsBelowWidth={base ? 880 : 700}
+      minWidth={base ? 860 : 700}
+      cardsBelowWidth={base ? 860 : 700}
       emptyText={TAX_PAGE.emptyList}
       head={(
         <>
@@ -374,12 +377,14 @@ export default function TouristTaxPage() {
       )}
       renderMobileCard={(row) => (
         <Stack onClick={() => openStay(row)} data-remitted-by={row.remittedBy} sx={{ cursor: 'pointer', gap: 0.5, ...(byPlatform(row) ? { color: 'text.secondary' } : {}) }}>
-          <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', gap: 1 }}>
-            <Box sx={{ minWidth: 0 }}>
+          {/* Rule 22 (review V1-4) — a platform's tag sits beside the name when both fit, else wraps under it whole; it is
+              cut only when it is wider than the card itself. */}
+          <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', gap: 1, flexWrap: byPlatform(row) ? 'wrap' : 'nowrap' }}>
+            <Box data-card-name="" sx={{ minWidth: 0, flex: '1 1 auto' }}>
               <Typography variant="body2" sx={{ fontWeight: 600 }}>{rowName(row)}</Typography>
               <Typography variant="caption" color="text.secondary">{`${row.propertyName} · ${row.platformLabel}`}</Typography>
             </Box>
-            <Box onClick={(e) => e.stopPropagation()} sx={{ flexShrink: 0, maxWidth: '50%', minWidth: 0, display: 'flex', justifyContent: 'flex-end' }}>{byPlatform(row) ? platformTag(row) : declaredCell(row)}</Box>
+            <Box onClick={(e) => e.stopPropagation()} sx={{ flex: '0 1 auto', minWidth: 0, maxWidth: '100%', display: 'flex', justifyContent: 'flex-end' }}>{byPlatform(row) ? platformTag(row) : declaredCell(row)}</Box>
           </Stack>
           {rowNotes(row)}
           <Typography variant="caption" color="text.secondary">
