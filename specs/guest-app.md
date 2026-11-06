@@ -128,7 +128,8 @@ is pushed every order.
 #### Per-lodging configuration — each lodging decides what its guests see
 
 11bis. **Modules per lodging.** Each lodging has its own list of modules, each **on / off** and ordered:
-    `gate` (Portail), `wifi`, `shop` (Boutique), `bath` (Bain nordique shortcut), `soliomap`, `booklet`
+    `gate` (Portail), `wifi`, `shop` (Boutique), `bath` (Bain nordique shortcut), `soliomap` (tile « Activités »,
+    Adrien 2026-11-06), `booklet`
     (Livret), `orders` (Mes commandes), `contacts` (Urgences & contacts shortcut). The server resolves them:
     a module is shown only if it is **on for the lodging** *and* its prerequisite holds (gate → `gate-access` active and the stay inside the gate window — before Sowel's key exists the tile reads « Accès en préparation », rule 13; shop → at least one item sold for this lodging; bath → an hourly resource
     sold for this lodging; wifi → wifi configured for this lodging, rule 11ter; soliomap → its URL set;
@@ -147,8 +148,8 @@ is pushed every order.
     check-out wording**, **emergency contacts**. The `wifi` and `contact` booklet blocks read these facts
     (one place to change a password, both the tile and the booklet follow).
 11quater. **App enabled per lodging.** A lodging can be left out of the app entirely (« Application
-    clients » off for that lodging): no QR code is issued, its lookup answers like an unknown stay, and the
-    studio hides it. A new property created in GuestFlow starts **off**. Switching a lodging off kills its live sessions on their next request (401 `SESSION_EXPIRED`, then the generic « Ce code n'est pas reconnu » screen, without lookup).
+    clients » off for that lodging): no QR code is issued and its lookup answers like an unknown stay. A new property created in GuestFlow starts
+    **off** but appears in the studio at once (rule 48), greyed « Hors application » with the switch to turn it on. Switching a lodging off kills its live sessions on their next request (401 `SESSION_EXPIRED`, then the generic « Ce code n'est pas reconnu » screen, without lookup).
 
 ### 3.C Gate — a door to the existing gate app
 
@@ -164,7 +165,8 @@ is pushed every order.
 
 ### 3.D Soliomap
 
-15. **Tile + page.** Soliomap (`https://map.domainesolio.com`, URL stored in the studio settings) opens inside
+15. **Tile + page.** The tile reads **« Activités »** (EN « Activities », Adrien 2026-11-06; the module key stays
+    `soliomap`). Soliomap (`https://map.domainesolio.com`, URL stored in the studio settings) opens inside
     the app shell, in a full-height frame under the app bar, with « Ouvrir dans le navigateur » in the bar.
     A place opens on its permalink `/#<activity id>` (Soliomap's own deep link); Soliomap reads no language
     nor lodging from the URL. Checked on 2026-11-05: Soliomap answers `frame-ancestors 'self'` and
@@ -349,7 +351,39 @@ is pushed every order.
 37. **Limits.** Per order: ≤ 20 lines, each quantity 1…`maxQuantity` (plugin field, default 10), total
     ≤ 500 € (plugin setting). Per session: 10 orders / hour. Out-of-range → 400 with the documented code;
     the app's steppers already respect `maxQuantity` (UX only).
-38. **Order follow-up.** « Mes commandes » lists the stay's orders with status chips: *En attente de paiement*, *Payée*, *Sur votre note*, *Offerte* (0 €), *Payée · à rembourser* (`paid_conflict`), *Expirée*, *Abandonnée*; a second chip *Prévue {jour heure}* / *Livrée* for orders with a delivery. An
+37bis. **Stock per article** (Adrien, 2026-11-06). Each option, and each non-hourly resource, may follow a stock,
+    set in the GuestFlow editor's « Application clients » section (rule 22, §6.6) — the only place it is edited; the
+    studio's shop screen shows it read-only with « Modifier dans GuestFlow »:
+    - « Suivre le stock » (off by default — an article without it is never limited), « En stock » (an integer the
+      operator types at each restock; saving it sets the stock at that moment, with the history line « Stock réglé
+      à 24 — Sophie, 6 nov. 14:02 »), « Prévenir sous » (optional low-stock threshold);
+    - « En rupture » (a manual switch, independent of the count: on = sold out now, whatever the count says).
+    One stock per article for the whole estate (a single cellar), never per lodging. Hourly resources (the bath)
+    have no stock: the resource planning is their truth (rule 28).
+37ter. **Every sale counts, when the article leaves the cellar** (Adrien, 2026-11-06). The stock goes down for the
+    app's orders *and* for the lines the website or the staff put on a reservation, at the moment the article is
+    actually taken:
+    - an app order counts when it is confirmed (note, 0 €) or paid (card); a card order **holds** its units while it
+      awaits its payment (rule 35) and releases them when it expires or is abandoned;
+    - a line already on the reservation counts on the **arrival day** of the stay (the plugin's daily task at
+      00:05, and at once for a stay created or moved to a start date already reached); a line added or raised
+      during the stay counts when it is written; a stay cancelled before its arrival never counted anything;
+    - a counted quantity that goes down (a line lowered or removed, a cancellation after arrival) returns to the stock.
+    The plugin keeps what it has counted per reservation and article (`guest_app_stock_counts`) and reacts to the
+    core's `reservation.created / updated / cancelled / deleted` events (`plugins/sdk/eventBus.js`), so nothing in
+    the core changes; an app order writes its count in the same transaction as its commit, so the event that
+    follows finds nothing left to count. Staff and website sales are never refused: the stock may go below 0
+    (shown « −2 » in the editor).
+37quater. **Sold out = the app stops selling it, the staff is told.** An article whose stock (minus the units held)
+    is 0 or less, or switched « En rupture », shows **« Épuisé »** in the app, its « Ajouter » disabled; the
+    stepper stops at what is left (« Plus que 2 »); a quote or an order beyond it answers 409 `OUT_OF_STOCK` with
+    the units left, and the cart shows the line « Plus que 1 disponible » with the quantity lowered. The website keeps
+    selling it for future stays (the cellar will be restocked) and the reservation editor shows a warning
+    « Stock : épuisé » without blocking. Reaching the « Prévenir sous » threshold, then 0, pushes the channel
+    « Commandes clients » once each (« Stock bas : Cidre — plus que 3 », « Cidre épuisé ») until the next restock.
+    A late card payment (rule 36) whose units are no longer available goes `paid_conflict`, like a taken slot.
+38. **Order follow-up.** « Mes commandes » lists the stay's orders with status chips: *En attente de paiement*, *Payée*, *Sur votre note*, *Offerte* (0 €), *Payée · à rembourser* (`paid_conflict`), *Expirée*, *Abandonnée*; a second chip *Prévue {jour heure}* / *Livrée* for orders with a delivery, *Prête {jour heure}* / *Retirée* in
+    pickup mode (rule 41bis). An
     unpaid card order shows « Paiement par carte en attente » and no preparation step until it is paid. The guest cannot cancel a
     confirmed order from the app (« Contactez-nous » → booklet contact block).
 
@@ -372,6 +406,20 @@ is pushed every order.
     open and the plugin's setup status says « horaires du service à configurer ». Once anything is stored, a day
     without a range is closed. While nothing is stored, establishment closures are not applied either (a closed
     domain has no stay in progress). An ignition may fall at the very end of a range.
+41bis. **Delivered or picked up — one setting for every lodging** (Adrien, 2026-11-06). Studio › Réglages ›
+    Service holds « Les commandes sont… » **Livrées au logement** (default) | **À retirer**; « À retirer » asks for
+    the **pickup place**, one plain text field (e.g. « À l'accueil, maison principale — sonnez à la porte
+    verte »), required to save, relayed as typed in both languages. Pickup mode only changes the words: the cart asks
+    « Quand souhaitez-vous la récupérer ? », a time t means « ready at t » (the same preparation interval as rule
+    41), the push and the Commandes clients page say « à retirer » and their check reads « Retirée ».
+41ter. **After ordering, the guest knows when and where.** The confirmation screen (once paid for a card order) and
+    the order in « Mes commandes » state, built by the server from `deliverAt` and the mode:
+    « Prête à 17 h 30 — à retirer à l'accueil, maison principale… » or « Livrée à L'Estiva vers 17 h 30 ». The
+    time is the chosen one (« Dès que possible » = now + the longest `leadMinutes` of the order's staff items,
+    rounded to the next 30-min step inside the service hours, rule 41). Only staff-prepared items carry it: an
+    hourly resource keeps its own line (« Bain nordique — ven. 20 h, il sera chaud »), a self-service item none;
+    an order with no staff item shows no preparation time. A time moved at payment (rule 35) is the one shown, with
+    « Votre commande sera prête un peu plus tard que prévu ».
 42. **Outside service hours the guest can still order, for later.** The shop shows a banner « Le service
     reprend demain à 8 h — vous pouvez commander dès maintenant pour plus tard » and the delivery picker
     starts at the next opening + lead time (rule 41). No opening left before departure: « Le service est fermé
@@ -387,7 +435,7 @@ is pushed every order.
     on the end-of-stay complement (or at 0 €) pushes as soon as it is confirmed; a card order pushes **only once
     paid**, never while it awaits its payment, nor when it is abandoned or expires (Adrien, 2026-11-06)
     (`guest-orders`, declared by the plugin with `ctx.pushChannel`, whose keys are kebab-case) to subscribed staff: « L'Estiva · Marie —
-    2 × Cidre pour 18 h, 1 h bain nordique ven. 20 h (sur la note) ». The push opens the order in GuestFlow.
+    2 × Cidre pour 18 h, 1 h bain nordique ven. 20 h (sur la note) » (pickup mode: « … à retirer 18 h »). The push opens the order in GuestFlow.
 45. **Orders list in GuestFlow.** A page *Commandes clients* (the same name as the push channel, review of
     2026-11-05) (contributed by the plugin; sidebar, under the
     day-to-day group) lists orders by delivery time, filter « À préparer / Toutes », each row: lodging, guest,
@@ -402,7 +450,13 @@ is pushed every order.
     the plugin is active, with its own lightweight layout optimised for content editing (tablet-first),
     **signed in with the GuestFlow admin account** (same session cookie as `/api`, so no second login on the
     same browser). Roles: admin only; the reception role has no access.
-48. **Lodging first.** The studio opens on a **lodging switcher** (La Granja · L'Estiva); every screen works
+48. **Lodging first, read from GuestFlow** (Adrien, 2026-11-06: nothing hard-coded). The studio opens on a
+    **lodging switcher** listing every non-archived GuestFlow property, with its GuestFlow name, in GuestFlow's
+    order, read on each load — a property added in GuestFlow appears without any action (greyed « Hors
+    application » until switched on, rule 11quater), a renamed one shows its new name, an archived one disappears
+    (its configuration is kept). The articles, prices, titles, categories and stock are also read live. Only
+    what comes from outside GuestFlow is cached — the Soliomap feed (rule 15bis) — and Réglages carries a
+    **« Synchroniser »** button that refreshes it at once (« Synchronisé il y a 2 min »). Every screen works
     on the selected lodging: *Modules* (switches + drag order, rule 11bis), *Infos du logement* (wifi, hero,
     contacts, rule 11ter), *Livret* (that lodging's pages), *Boutique* (presentation of the items sold there).
     A shared page shows a « Partagée avec L'Estiva » chip, and saving it says « Modifie aussi L'Estiva ».
@@ -410,8 +464,8 @@ is pushed every order.
     lodging, publish / draft, icon, cover photo),
     blocks (add from a palette, reorder, edit FR / EN side by side), photos (upload, crop to the block's
     ratio, alt text), shop presentation (per sold item: photo, short description FR/EN, `maxQuantity`,
-    `needsStaff`, `leadMinutes`, category order; the price and title stay GuestFlow's — read-only here with
-    « Modifier dans GuestFlow »), service hours (rule 40), app settings (app name, hero photo per lodging,
+    `needsStaff`, `leadMinutes`, category order; the price, title and stock stay GuestFlow's — read-only here with
+    « Modifier dans GuestFlow »), service hours and delivery / pickup (rules 40, 41bis), app settings (app name, hero photo per lodging,
     Soliomap URL + « Intégrer dans l'app », order limits, regenerate a lodging's QR code, print the QR poster
     PDF per lodging). « Publier » publishes one lodging's booklet; publishing a shared page republishes it in
     every lodging it is placed in.
@@ -599,7 +653,7 @@ shape for every plugin: `{ error: 'PLUGIN_INACTIVE', plugin }`.
 | GET | `/public/v1/guest/shop/resources/:id/slots?from&to` | stay session, `shop` module | — | `{ freeMinutesLeft, freeLabel?, days:[{date, label, slots:[{start, end, state:'free'\|'evening', priceLabel}]}] }` — bookable slots only, days without one dropped; 404 `ITEM_NOT_FOUND` (not a sold hourly item here, or `hourly-resources` inactive), 400 `INVALID_INPUT` |
 | POST | `/public/v1/guest/shop/delivery-slots` | stay session | `{ lines:[{kind, id}] }` (1-20) | `{ needed, asap:{at,label}\|null (null while the service is closed), days:[{date, label, slots:[{at, label}]}], bannerLabel? }`; lead = the longest `leadMinutes` of the cart's staff items |
 | POST | `/public/v1/guest/orders/quote` | stay session, `shop` module, shop open | `{ lines:[{kind:'option',id,quantity} \| {kind:'resource',id,sessions:[{date,start,end}]} \| {kind:'breakfast',id,mornings,time,persons}], deliverAt? }` | `{ lines:[{kind, id, title, label, quantity?, sessions?:[{…, unavailable?, reason?, reasonLabel?}], mornings?, unavailableMornings?, unitPrice, total, totalLabel, unavailable?, unavailableReason?}], total, totalLabel, needsDelivery, deliverAt?, deliverAtUnavailable? }`; 409 `SHOP_CLOSED`, 400 `INVALID_INPUT` / `ORDER_LIMIT` |
-| POST | `/public/v1/guest/orders` | idem, 10 / hour / session | `{ lines, deliverAt?, payment:'card'\|'note'\|'none', returnPath? }` | card → `{ orderId, paymentUrl }`; note/none → `{ orderId, status:'confirmed' }`; 409 `SLOT_TAKEN`, `ITEM_UNAVAILABLE`, `DELIVERY_TIME_UNAVAILABLE`, `SHOP_CLOSED`, `CARD_UNAVAILABLE`, `STAY_NOT_WRITABLE`; 400 `ORDER_LIMIT`, `INVALID_INPUT`; 429 |
+| POST | `/public/v1/guest/orders` | idem, 10 / hour / session | `{ lines, deliverAt?, payment:'card'\|'note'\|'none', returnPath? }` | card → `{ orderId, paymentUrl }`; note/none → `{ orderId, status:'confirmed' }`; 409 `SLOT_TAKEN`, `OUT_OF_STOCK` (`{ itemKey, left }`), `ITEM_UNAVAILABLE`, `DELIVERY_TIME_UNAVAILABLE`, `SHOP_CLOSED`, `CARD_UNAVAILABLE`, `STAY_NOT_WRITABLE`; 400 `ORDER_LIMIT`, `INVALID_INPUT`; 429 |
 | POST | `/public/v1/guest/orders/:id/abandon` | idem | — | the order, `abandoned`, with `cartLines`; 409 `ORDER_NOT_PENDING` |
 | GET | `/public/v1/guest/orders` | stay session | — | `{ orders:[{id, createdAt, deliverAt, lines, total, payment, status, statusLabel}] }` |
 | GET | `/public/v1/guest/orders/:id` | stay session | — | one order (triggers the on-demand Qonto poll like `/booking-requests/:id/status`) |
@@ -642,7 +696,11 @@ bills (rule 35). Everything below is created by the `guest-app` plugin's migrati
   (`settingsModel` encryption helper) — it is shown to guests, but must not sit in clear in a backup.
 - `guest_app_items(kind 'option'|'resource', itemId, sold INTEGER DEFAULT 0, mediaId, shortDescriptionFr,
   shortDescriptionEn, maxQuantity DEFAULT 10, needsStaff INTEGER DEFAULT 0, leadMinutes DEFAULT 30,
-  sortOrder, PRIMARY KEY(kind,itemId))` — the sell switch and its presentation (rules 22, 39). Default
+  sortOrder, stockTracked INTEGER DEFAULT 0, stockQuantity INTEGER NULL, stockSetAt, stockSetBy, stockAlertBelow NULL,
+  soldOut INTEGER DEFAULT 0, PRIMARY KEY(kind,itemId))` — the sell switch, its presentation and the stock (rules 22,
+  37bis, 39). `stockQuantity` is what is left now: set at a restock, lowered and raised by the counts of rule 37ter.
+- `guest_app_stock_counts(reservationId, kind, itemId, quantity, PRIMARY KEY(reservationId,kind,itemId))` — what
+  rule 37ter has already taken from the stock for each reservation (a later event moves the stock by the difference). Default
   `sold = 0`: nothing is sold until the operator flags it.
 - `guest_app_service_hours(weekday 0-6, fromTime, toTime, propertyId NULL)` and
   `guest_app_service_exceptions(date, propertyId NULL, closed, rangesJson)` (rule 40).
@@ -665,6 +723,7 @@ bills (rule 35). Everything below is created by the `guest-app` plugin's migrati
   total, deliverAt NULL, deliverMoved, heldUntil NULL, paymentLinkId NULL, createdAt, confirmedAt, paidAt, closedAt,
   deliveredAt, deliveredBy)` — `heldUntil` makes the hourly `holds` provider cheap to query.
 - Plugin settings (`ctx.settings.declare`): `appName`, `soliomapUrl`, `soliomapEmbed` (default off), `maxOrderTotal`,
+  `fulfilment` (`delivery` | `pickup`, default `delivery`), `pickupPlace` (rule 41bis),
   `guestHost`. The property has no slug column: `lodging.slug` is derived from its name (`L'Estiva` → `l-estiva`).
 
 **Data impact:** additive only, all in plugin tables. Reservations receive lines and resource sessions only
@@ -809,7 +868,7 @@ illustration-free icon + one sentence + one action, `ErrorAlert` with « Réessa
 - **Cart** — lines with thumbnails and steppers, delivery chips (if any staff item), total, `PaymentChoice`,
   one primary button whose label follows the choice (« PAYER 33,00 € » / « AJOUTER À MA NOTE · 33,00 € » / « RÉSERVER » at 0 €).
 - **Confirmation** — gold check drawn, « Commande envoyée », one-sentence promise built by the server
-  (« Livraison vers 18 h à L'Estiva », « Le bain sera chaud à 20 h »), `OrderTimeline`, « Retour à
+  (« Livrée à L'Estiva vers 18 h » or « Prête à 18 h — à retirer à {lieu} », « Le bain sera chaud à 20 h », rule 41ter), `OrderTimeline`, « Retour à
   l'accueil ».
 - **Orders** — current orders first with `OrderTimeline`, then past ones collapsed.
 - **Lookup** (`/retrouver`) — night-register hero photo, two fields, one button; the same calm error.
@@ -824,7 +883,8 @@ illustration-free icon + one sentence + one action, `ErrorAlert` with « Réessa
 **GuestFlow option / resource editors (plugin contribution, « Maison »):** while `guest-app` is active, a
 section « Application clients » appears at the bottom of the editor: switch « Vendu dans l'app », and when
 on: photo, short description FR/EN, « Préparé par l'équipe » + « Délai de préparation (min) », « Quantité
-max. par commande ». Plugin inactive → the section does not exist.
+max. par commande », then the **Stock** group (rule 37bis): « Suivre le stock », « En stock » with the last restock
+line and what is held by unpaid orders, « Prévenir sous », « En rupture ». Plugin inactive → the section does not exist.
 
 **PageActionBar:** applies to the GuestFlow admin page *Commandes clients* (title « Commandes clients », action
 « Actualiser » `RefreshIcon` info) and to the studio pages (editor: Save « Enregistrer le brouillon »,
@@ -890,6 +950,14 @@ le nom et le numéro. »
 - [x] `tests/payment-complement-link.unit.test.js` (7) — `ensurePaymentLink` / `applyPaidEffect` complement
   branch, refusal without basket, 30 min, no arrival lapse, « à rembourser », `ctx.paymentBasket`
 - [x] `tests/guest-order-commit.unit.test.js` (9) — rules 24, 25, 27bis, 30, 34, 35: the core commit and its pricing
+- [ ] `…/guest-app-stock.unit.test.js` — rules 37bis-37quater: restock sets the count, « En rupture », holds of an
+  unpaid card order released on expiry / abandon, a site line counted on the arrival day and not before, a line added
+  mid-stay counted at once, lowered / cancelled after arrival returned, the app order not counted twice by the event,
+  `OUT_OF_STOCK` with `left`, website and staff never refused, the two pushes once each, late payment → `paid_conflict`
+- [ ] `…/guest-app-fulfilment.unit.test.js` — rules 41bis-41ter: pickup needs a place, the sentence of the
+  confirmation per mode, longest lead of the staff items only, the bath and self-service items carry no time, moved time
+- [ ] `…/guest-app-studio-lodgings.unit.test.js` — rule 48: a property added in GuestFlow listed greyed, renamed,
+  archived; « Synchroniser » refreshes the Soliomap cache
 - [ ] `…/guest-app-gate.unit.test.js` — rules 12-14, no URL outside the window
 - [x] `…/guest-app-home.unit.test.js` — rules 10-11
 - [x] `…/guest-app-suggestion.unit.test.js` (9) — rule 15bis: 14 h cut-off, eve of departure, `visibleFrom`, nearest
@@ -1000,6 +1068,20 @@ Points the rules left open, decided in code and recorded here:
   `available`; the other contributions are passed to it as `gateStep`, so the keypad code shows once
   (`specs/plugins-phase-1-sdk.md`, slots table).
 - The SAS line « Le lien vaut jusqu'au… » shows the end of the stay window (check-out + 2 h).
+
+### Resolved (2026-11-06, review of the boards v4)
+
+Adrien's verdicts: phone app, studio, Réglages › Intégrations card, Commandes clients validated; the editors'
+« Application clients » section to rework with a stock.
+- **Tile** « Soliomap » → « Activités » (rule 15).
+- **When and where the order is ready** → rules 41bis-41ter: one estate-wide setting delivered / to pick up with a
+  free-text pickup place; the guest keeps « Dès que possible » or a later time; the summary states the time (the
+  longest preparation of the order's staff items) and the place; activities such as the bath are not concerned.
+- **Studio built from GuestFlow** → rule 48: lodgings, names, articles read live; « Synchroniser » for the
+  Soliomap feed only.
+- **Stock** → rules 37bis-37quater: count + « En rupture », edited in GuestFlow only, every sale counts on the day the
+  article leaves (arrival day for lines booked ahead), the app alone stops selling at 0, the staff is pushed.
+- Tablet / desktop: no verdict yet, asked again on the boards v5.
 
 ### Resolved (2026-11-06, review of the boards v3)
 
