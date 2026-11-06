@@ -1,4 +1,4 @@
-// specs/accounting-synthesis.md §3 rules 47, 48 and 50 — verification of 2026-11-06 (V2-2, V2-3, V2-5) on the real
+// specs/accounting-synthesis.md §3 rules 47, 48, 50 and 54 — verification of 2026-11-06 (V2-2, V2-3, V2-5) on the real
 // schema through the plugin's routes: the series says when nothing was collected; the app's own download header
 // stamps the last export where Fetch Metadata is not sent, a cross-site request never does; the tourist tax of a
 // window ahead reads « Mois à venir : rien à déclarer. ». D-HC16: a repeated `fiscalYear` is a 400.
@@ -62,4 +62,22 @@ test('rule 50 (V2-5) — a window ahead reads « Mois à venir : rien à déclar
 test('D-HC16 — a repeated fiscalYear is refused, never read as the current exercise', () => {
   const res = synthesis({ period: 'fy', fiscalYear: ['2026', '2027'] });
   assert.deepEqual([res.statusCode, res.body], [400, { error: 'Période inconnue.' }]);
+});
+
+test('rule 54 (D-HC16, V2R2-1) — a known key sent twice is refused whatever the kind, even one the kind does not read', () => {
+  const refused = { error: 'Période inconnue.' };
+  for (const query of [
+    { period: 'month', month: TODAY.slice(0, 7), fiscalYear: ['2026', '2026'] },
+    { month: TODAY.slice(0, 7), fiscalYear: ['2026', '2026'] },
+    { period: 'quarter', quarter: `${TODAY.slice(0, 4)}-Q1`, fiscalYear: ['2026', '2026'] },
+    { period: 'quarter', quarter: `${TODAY.slice(0, 4)}-Q1`, month: ['a', 'b'] },
+    { period: 'custom', from: addDaysToIsoDate(TODAY, -10), to: TODAY, fiscalYear: ['2026', '2026'] },
+    { period: 'custom', from: addDaysToIsoDate(TODAY, -10), to: TODAY, quarter: ['x', 'y'] },
+    { period: 'fy', fiscalYear: '2026', from: ['a', 'b'] },
+    { period: 'month', month: TODAY.slice(0, 7), to: ['a', 'b'] },
+  ]) {
+    const res = synthesis(query);
+    assert.deepEqual([res.statusCode, res.body], [400, refused], JSON.stringify(query));
+  }
+  assert.equal(synthesis({ period: 'month', month: TODAY.slice(0, 7), fiscalYear: '2026' }).statusCode, 200, 'a single unread key stays harmless');
 });
