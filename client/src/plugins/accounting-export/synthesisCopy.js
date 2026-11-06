@@ -42,7 +42,7 @@ export const CHECKS = {
   lastExport: 'Dernier export CSV',
 };
 
-// The title of a check that does not hold says so, in words, not only by its dot (rule 45b).
+// The title of a check that does not hold says so, in words, not only by its dot (rule 53).
 export const CHECKS_FAILED = {
   balanced: 'Écritures déséquilibrées',
   vatCoherence: 'Écart de TVA',
@@ -72,5 +72,12 @@ export const refunds = (n) => plural(n, 'remboursement', 'remboursements');
 // Rule 42 — what an empty breakdown says, like the VAT panel.
 export const NO_COLLECTION = 'Aucun encaissement sur la période.';
 
-/** « 12 k€ » on a chart axis; under 1 000 the amount itself. */
-export const axisEuro = (v) => (Math.abs(v) >= 1000 ? `${Math.round(v / 1000)} k€` : `${Math.round(v)} €`);
+/**
+ * Rule 46 (V2-1) — a chart axis label that says its own value: « 1,5 k€ », « 2 k€ », « 500 € », « 0,5 € ». Never
+ * rounded to the unit (1 500 once read « 2 k€ », twice on the same axis).
+ */
+export const axisEuro = (v) => {
+  const fr = (n, digits) => n.toLocaleString('fr-FR', { maximumFractionDigits: digits });
+  if (Math.abs(v) >= 1000) return `${fr(v / 1000, 1)} k€`;
+  return `${fr(v, Number.isInteger(v) ? 0 : 2)} €`;
+};

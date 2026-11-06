@@ -510,7 +510,8 @@ Optional: a plugin that declares nothing reads « Actif ».
     floor. Tests: `plugin-core-hardening-floor.unit.test.js`, `plugins-sdk-core-module-floor.unit.test.js`.
 41. *(Added 2026-11-05, [accounting-synthesis.md](accounting-synthesis.md) rules 7-9, SDK 2.23.0.)* **`coreModule()` hands
     the accounting synthesis the core's own finance readings**: `financeModel` (the stays' revenue of a window,
-    `getSummary`, and the tourist-tax extraction), `financeDashboardModel` (`lastYearRange`, the one reading of
+    `getSummary`, and the tourist-tax extraction's rows `getTouristTaxRows`, with `withTouristTaxInTotal` listed in the
+    contract since 2026-11-06, V2-8), `financeDashboardModel` (`lastYearRange`, the one reading of
     « comparable with last year », extracted from the dashboard's figures, which call it too), `financeWindow` (the
     custom window's refusals), `fiscalYear` and `yearOverYear`; `vatRegimeModel` gains `regimesDuring` (the regimes in
     force during a window, accounting-synthesis rule 35). The plugin never re-derives a figure another screen

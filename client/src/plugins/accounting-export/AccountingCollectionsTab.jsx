@@ -17,13 +17,22 @@ import { SOURCE_CAPTIONS, GRANULARITY, NO_COLLECTION, refunds as refundsLabel, a
 const formatShare = (share) => (share == null ? '—' : `${(Math.round(share * 1000) / 10).toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} %`);
 // The server's rows in the share table's shape: its own count and its fraction of 1, renamed only.
 // Rule 37 — the folded tail « Autres » is the share table's `other` row: its neutral grey, never a hue another row has.
+// Rule 51 (V2-6) — « Autres » says what it holds, on its segment and under the table.
+const otherCaption = (r) => `${r.label} : ${(r.parts || []).join(', ')}`;
 const shareRows = (rows) => rows.map((r) => ({
-  key: r.key, label: r.label, quantity: r.count, amount: r.amount, share: r.ratio, ...(r.key === 'other' ? { other: true } : {}),
+  key: r.key, label: r.label, quantity: r.count, amount: r.amount, share: r.ratio,
+  ...(r.key === 'other' ? { other: true, caption: otherCaption(r) } : {}),
 }));
 
 function Breakdown({ rows, total, labelHeader, ariaLabel }) {
   if (rows.length === 0) return <Typography variant="body2" color="text.secondary">{NO_COLLECTION}</Typography>;
-  return <ShareTable rows={shareRows(rows)} total={total} formatAmount={formatCurrency} formatShare={formatShare} labelHeader={labelHeader} ariaLabel={ariaLabel} />;
+  const other = rows.find((r) => r.key === 'other');
+  return (
+    <>
+      <ShareTable rows={shareRows(rows)} total={total} formatAmount={formatCurrency} formatShare={formatShare} labelHeader={labelHeader} ariaLabel={ariaLabel} />
+      {other && <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>{otherCaption(other)}</Typography>}
+    </>
+  );
 }
 
 export default function AccountingCollectionsTab({ data }) {
@@ -65,6 +74,7 @@ export default function AccountingCollectionsTab({ data }) {
           formatAxis={axisEuro}
           ariaLabel={`${g.panel}, ${win.label}`}
           categoryHeader={g.header}
+          emptyText={collections.series.empty ? NO_COLLECTION : undefined}
         />
         {source}
       </Panel>

@@ -1,4 +1,4 @@
-// specs/accounting-synthesis.md §3 rule 45b — a check that does not hold says so in its title, not
+// specs/accounting-synthesis.md §3 rule 53 — a check that does not hold says so in its title, not
 // only by the colour of its dot; its « voir » is a 44 px target on touch.
 import React from 'react';
 import { render, screen, within } from '@testing-library/react';
@@ -14,7 +14,7 @@ const renderTab = (data) => render(
   </MemoryRouter></ThemeProvider>,
 );
 
-test('rule 45b — failing checks are titled by what fails', () => {
+test('rule 53 — failing checks are titled by what fails', () => {
   const data = synthesisPayload();
   data.checks.balanced = { ...data.checks.balanced, status: 'gap', unbalanced: [{ key: 'x' }] };
   renderTab(data);
@@ -23,7 +23,7 @@ test('rule 45b — failing checks are titled by what fails', () => {
   expect(within(screen.getByTestId('check-settled')).getByText('Séjours non soldés')).toBeInTheDocument();
 });
 
-test('rule 45b — holding checks, and a rounding gap, keep their plain titles', () => {
+test('rule 53 — holding checks, and a rounding gap, keep their plain titles', () => {
   const data = synthesisPayload();
   data.checks.vatCoherence = { source: 'collections', status: 'rounding', roundingCents: 3, entries: [] };
   data.checks.settled = { source: 'stays', status: 'ok', count: 0, stays: [] };
@@ -33,7 +33,7 @@ test('rule 45b — holding checks, and a rounding gap, keep their plain titles',
   expect(within(screen.getByTestId('check-settled')).getByText('Séjours terminés soldés')).toBeInTheDocument();
 });
 
-test('rule 45b — « voir » is 44 px tall on touch', () => {
+test('rule 53 — « voir » is 44 px tall on touch', () => {
   renderTab(synthesisPayload());
   const button = within(screen.getByTestId('check-settled')).getByRole('button', { name: 'voir' });
   const css = Array.from(document.querySelectorAll('style')).map((s) => s.textContent).join('\n');

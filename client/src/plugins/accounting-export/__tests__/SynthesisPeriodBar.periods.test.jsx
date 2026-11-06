@@ -1,4 +1,4 @@
-// specs/accounting-synthesis.md §3 rules 22 and 24 — the period bar offers what the server lists and sends only a
+// specs/accounting-synthesis.md §3 rules 22, 24 and 49 — the period bar offers what the server lists and sends only a
 // period the server would accept: a custom window it would refuse is refused here, judged from the server's day.
 import React from 'react';
 import { vi } from 'vitest';
@@ -52,4 +52,11 @@ test('rule 24 — a custom window beyond the date window is refused with the ser
   fireEvent.change(screen.getByLabelText('Du'), { target: { value: daysAgo(800) } });
   expect(screen.getByRole('alert')).toHaveTextContent('Période trop longue : 750 jours au plus.');
   expect(onChange).toHaveBeenCalledTimes(1);
+});
+
+test('rule 49 (V2-4) — with a period shown, pressing its kind again keeps it', async () => {
+  const onChange = vi.fn();
+  renderBar(onChange);
+  await userEvent.click(screen.getByRole('button', { name: 'Trimestre' }));
+  expect(onChange).not.toHaveBeenCalled();
 });

@@ -820,8 +820,10 @@
     "getProjection",
     "getSummary",
     "getTouristTaxExtraction",
+    "getTouristTaxRows",
     "helpers",
-    "setTouristTaxDeclared"
+    "setTouristTaxDeclared",
+    "withTouristTaxInTotal"
   ],
   "financeDashboardModel": [
     "bestMonthOf",
