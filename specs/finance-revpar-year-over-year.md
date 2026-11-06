@@ -324,7 +324,7 @@ per-logement small multiples. The ADR label follows rule 25 of the dashboard: «
 - [x] `tests/finance-revpar-yoy-payload-pin.unit.test.js` (7) — rule 14: the pre-change payload (exercise, one logement, one month) and its detail tables unchanged, the added fields exactly the documented ones. Fixture: `tests/financeComparisonFixture.js`, pin: `tests/fixtures/finance-dashboard-payload-pin.json` (produced by the model at `5437951d`).
 - [x] `tests/finance-comparison-review-fixes.unit.test.js` (3, 2026-11-06) — rules 21-23: both reasons in the notice, 29 February (dashboard and pace), « 1er » and what the date is about.
 - [x] `tests/finance-nights-revenue.unit.test.js` (5, 2026-11-06) — dashboard rule 53: a solde paid before the nights, the tourist tax left out, a stay across the edge, one figure in the hero / strip / tile / table / comparison, the pace's split shared.
-- [x] `tests/finance-tax-in-total-shared.unit.test.js` (2, 2026-11-06) — dashboard rule 56: the tax left out is the one inside the total, the stay profile's reading.
+- [x] `tests/finance-tax-in-total-shared.unit.test.js` (3, 2026-11-06) — dashboard rule 56: the tax left out is the one inside the total, the stay profile’s reading; read in chunks on a large book.
 - 2026-11-06: `finance-revpar.unit.test.js`, `finance-yoy-comparison.unit.test.js` read the per-night figures of rule 53 (1 600 € of nights, 15 nights) and the `stays` source of « Déjà payé »; the payload pin leaves out the per-night fields of rule 53 (`withoutSuperseded`), every other field still pinned.
 - [x] `tests/vat-regime-golden.unit.test.js` — its four `finance/dashboard/*` captures rewritten for rule 14 after checking that, the added fields removed, each is byte for byte the previous capture.
 

@@ -58,3 +58,17 @@ test('rules 56 / 28 — a tax collected at arrival in the caisse interne is not 
   const month = profile.getStayProfile({}).data.basket.rows.find((r) => r.month === TODAY.slice(0, 7));
   assert.equal(month.current.revenue, 250.74);
 });
+
+test('rules 56 / 28 — a book larger than one statement\'s parameters is read in chunks, never a 500', () => {
+  const { db, finance } = richDb();
+  const insertMany = db.transaction((n) => {
+    for (let i = 0; i < n; i += 1) {
+      insert(db, { startDate: at(-3), endDate: TODAY, createdAt: stamp(-40), balanceAmount: 100, finalPrice: 90, touristTaxTotal: 10 });
+    }
+  });
+  insertMany(1201);
+  const rows = db.prepare('SELECT * FROM reservations').all();
+  const placed = finance.withTouristTaxInTotal(rows);
+  assert.equal(placed.length, rows.length);
+  assert.equal(placed.filter((r) => r.taxInTotal === 10).length, 1201, 'every chunk read its facts');
+});

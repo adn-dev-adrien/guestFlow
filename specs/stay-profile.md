@@ -314,7 +314,7 @@ Per the mock-up (`#profil`), in the « Maison » theme and lot 0's report gramma
 - [x] `server/src/tests/stay-profile.review-fixes.unit.test.js` — 7 tests, rules 22, 23, 24, 26.
 - [x] `server/src/tests/finance-window-impossible-month.unit.test.js` — 2 tests, rule 25 (resolveWindow,
   dashboard, its detail tables, stay profile).
-- [x] `server/src/tests/finance-tax-in-total-shared.unit.test.js` — 2 tests, rule 28 (and dashboard rule 56).
+- [x] `server/src/tests/finance-tax-in-total-shared.unit.test.js` — 3 tests, rule 28 (and dashboard rule 56), the read in chunks.
 
 ### Client unit tests (Vitest) — 6 files, 16 tests
 - [x] `client/src/__tests__/api.stay-profile.test.js` — 1 test, rule 1.

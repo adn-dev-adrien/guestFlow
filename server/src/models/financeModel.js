@@ -157,6 +157,8 @@ function htAmount(r, ttcPortion, vatRate) {
   return round2(portion * ratio);
 }
 
+const TAX_FACTS_CHUNK = 500;
+
 function createFinanceModel(database) {
   const hasReservationColumn = (name) => {
     try { return database.prepare('PRAGMA table_info(reservations)').all().some((c) => c.name === name); }
@@ -366,9 +368,13 @@ function createFinanceModel(database) {
           ? `COALESCE((SELECT SUM(rl.amountTtc) FROM reservation_refund_lines rl JOIN reservation_refunds rf ON rf.id = rl.refundId
                         WHERE rf.reservationId = r.id AND rl.lineKey = 'touristTax' AND rf.method <> 'internal'), 0)`
           : '0';
-        database.prepare(`SELECT r.id, ${onArrival} AS taxOnArrival, ${plan} AS hasPlan, ${refunded} AS refundedTax
-          FROM reservations r WHERE r.id IN (${ids.map(() => '?').join(',')})`).all(...ids)
-          .forEach((f) => facts.set(f.id, { taxOnArrival: Boolean(f.taxOnArrival), hasPlan: Boolean(f.hasPlan), refundedTax: Number(f.refundedTax || 0) }));
+        // In chunks: SQLite caps the bound parameters of one statement (32 766), a large book must not 500.
+        for (let i = 0; i < ids.length; i += TAX_FACTS_CHUNK) {
+          const chunk = ids.slice(i, i + TAX_FACTS_CHUNK);
+          database.prepare(`SELECT r.id, ${onArrival} AS taxOnArrival, ${plan} AS hasPlan, ${refunded} AS refundedTax
+            FROM reservations r WHERE r.id IN (${chunk.map(() => '?').join(',')})`).all(...chunk)
+            .forEach((f) => facts.set(f.id, { taxOnArrival: Boolean(f.taxOnArrival), hasPlan: Boolean(f.hasPlan), refundedTax: Number(f.refundedTax || 0) }));
+        }
       }
       return reservations.map((r) => ({ ...r, taxInTotal: touristTaxInTotal(r, facts.get(r.id)) }));
     },
