@@ -218,7 +218,9 @@ function setOptions(req, res) {
     return res.status(400).json({ error: 'Liste d’options invalide.' });
   }
   // Rule 62 (audit R25-I1) — a real property, real options: an unknown id used to reach the foreign key and answer 500.
-  if (!model.optionListTargetsExist(req.params.id, optionIds || [])) {
+  // Rule 62 reading (audit R25 N2) — an option named twice used to reach the unique key and answer 500.
+  const ids = (optionIds || []).map(positiveId);
+  if (new Set(ids).size !== ids.length || !model.optionListTargetsExist(req.params.id, optionIds || [])) {
     return res.status(400).json({ error: 'Liste d’options invalide.' });
   }
   const result = model.setOptions(req.params.id, optionIds);

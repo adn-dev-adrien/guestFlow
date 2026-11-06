@@ -1,3 +1,3 @@
 - Options: saving « Lit bébé » (or any engine-derived option) from the Options side panel no longer switches its automatic billing off; a catalogue save (option, resource, property) now keeps every field it does not send, so a partial save can no longer turn a property's acompte off, blank its name or empty a resource's logements.
 - Logements: setting a property's option list with an unknown property or option is refused (« Liste d’options invalide. ») instead of failing with a server error.
-- Options: the refusal on a row holding free units now says how to lift it (« Prix requis : unités offertes (à retirer par la recette tarifaire) »).
+- Options: the refusal on a row holding free units now names the way out the app has, a price (0 € included) (« Prix requis : unités offertes ici (0 € accepté) »).

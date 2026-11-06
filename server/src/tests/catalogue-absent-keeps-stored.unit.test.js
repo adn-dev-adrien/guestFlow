@@ -192,3 +192,54 @@ test('R25-I1: a property\'s option list naming an unknown option, or an unknown 
   assert.equal(ok.status, 200, ok.text);
   assert.deepEqual(links(), before);
 });
+
+test('R25 N2: a property\'s option list naming an option twice is refused 400, nothing written', async () => {
+  const [option] = app.readDb("SELECT id FROM options WHERE autoOptionType = 'baby_bed'");
+  const links = () => app.readDb('SELECT optionId FROM property_options WHERE propertyId = ? ORDER BY optionId', property);
+  const before = links();
+  for (const optionIds of [[option.id, option.id], [option.id, String(option.id)]]) {
+    const mark = app.logMark();
+    const res = await app.call(admin, 'PUT', `/api/properties/${property}/options`, { optionIds });
+    assert.equal(res.status, 400, `${JSON.stringify(optionIds)} → ${res.status} ${res.text}`);
+    assert.equal(res.json.error, 'Liste d’options invalide.');
+    assert.doesNotMatch(app.logSince(mark), /\[unhandled\]/);
+    assert.deepEqual(links(), before);
+  }
+});
+
+test('R25 N4: a panel save naming « Inclus » on « Lit bébé » leaves no default row (the stored autoEnabled decides)', async () => {
+  const [cot] = app.readDb("SELECT id FROM options WHERE autoOptionType = 'baby_bed'");
+  const stored = await app.call(admin, 'GET', `/api/options/${cot.id}`);
+  const body = { ...panelPayload(stored.json, { propertyIds: [property] }), propertyDefaults: { [property]: { default: true, offered: false } } };
+  assert.equal(body.autoEnabled, undefined);
+  const res = await app.call(admin, 'PUT', `/api/options/${cot.id}`, body);
+  assert.equal(res.status, 200, res.text);
+  assert.equal(optionRow(cot.id).autoEnabled, 1);
+  assert.deepEqual(app.readDb('SELECT propertyId FROM property_option_defaults WHERE optionId = ?', cot.id), []);
+});
+
+test('R25 N1 (options-resources-ux rule 34): a price type sent without its price judges the stored price under that type', async () => {
+  const created = await app.call(admin, 'POST', '/api/options', {
+    title: 'Navette', description: '', priceType: 'per_stay', price: 115, propertyIds: [property], propertyPrices: {},
+  });
+  assert.equal(created.status, 200, created.text);
+  const id = created.json.id;
+  const row = () => app.readDb('SELECT priceType, price FROM options WHERE id = ?', id)[0];
+  const refused = await app.call(admin, 'PUT', `/api/options/${id}`, { title: 'Navette', priceType: 'percent_of_stay' });
+  assert.equal(refused.status, 422, refused.text);
+  assert.deepEqual(refused.json.details, [{ field: 'price', message: '100 % max' }]);
+  assert.deepEqual(row(), { priceType: 'per_stay', price: 115 });
+  const perNight = await app.call(admin, 'PUT', `/api/options/${id}`, { title: 'Navette', priceType: 'per_night' });
+  assert.equal(perNight.status, 200, perNight.text);
+  assert.deepEqual(row(), { priceType: 'per_night', price: 115 });
+
+  const scoped = await app.call(admin, 'POST', '/api/options', {
+    title: 'Ménage', description: '', priceType: 'per_stay', price: 10, propertyIds: [property], propertyPrices: { [property]: 140 },
+  });
+  assert.equal(scoped.status, 200, scoped.text);
+  const rowPrice = await app.call(admin, 'PUT', `/api/options/${scoped.json.id}`, { title: 'Ménage', priceType: 'percent_of_stay' });
+  assert.equal(rowPrice.status, 422, rowPrice.text);
+  assert.deepEqual(rowPrice.json.details, [{ field: `propertyPrices.${property}`, message: '100 % max' }]);
+  const sentBack = await app.call(admin, 'PUT', `/api/options/${scoped.json.id}`, { title: 'Ménage', priceType: 'percent_of_stay', price: 10, propertyPrices: { [property]: 20 } });
+  assert.equal(sentBack.status, 200, sentBack.text);
+});

@@ -24,6 +24,7 @@ test.after(async () => { if (app) await app.stop(); });
 const allT = (...keys) => Object.fromEntries(keys.map((k) => [k, T]));
 const rows = () => {
   const { reservation, property, devis, client } = app.ids;
+  const [{ id: cot }] = app.readDb("SELECT id FROM options WHERE autoOptionType = 'baby_bed'");
   return [
     ['any', 'POST', '/api/auth/change-password', { currentPassword: 'x', newPassword: T }],
     ['any', 'POST', '/api/auth/2fa/start', { method: 'totp', password: 'wrong', enrolmentToken: T }],
@@ -60,6 +61,7 @@ const rows = () => {
     ['admin', 'PUT', `/api/properties/${property}/options`, { optionIds: T }],
     ['admin', 'PUT', `/api/properties/${property}/options`, { optionIds: 'x' }],
     ['admin', 'PUT', `/api/properties/${property}/options`, { optionIds: [999999] }],
+    ['admin', 'PUT', `/api/properties/${property}/options`, { optionIds: [cot, cot] }],
     ['admin', 'PUT', `/api/properties/${property}/arrival-facts`, allT('accessCode', 'wifiPassword')],
     ['admin', 'POST', `/api/properties/${property}/pricing`, allT('startDate', 'endDate', 'pricePerNight')],
     ['admin', 'POST', `/api/properties/${property}/ical-sources`, allT('url', 'platformKey')],

@@ -15,7 +15,7 @@ vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: () => true }));
 beforeEach(() => {
   vi.clearAllMocks();
   api.updateOption.mockRejectedValue(Object.assign(new Error('VALIDATION_FAILED'), {
-    status: 422, details: [{ field: 'propertyPrices.2', message: 'Prix requis : unités offertes (à retirer par la recette tarifaire)' }],
+    status: 422, details: [{ field: 'propertyPrices.2', message: 'Prix requis : unités offertes ici (0 € accepté)' }],
   }));
 });
 
@@ -29,7 +29,7 @@ for (const [label, priceType] of [['Gratuit', 'free'], ['Dégressif participants
     await user.type(screen.getByLabelText(/^Description/), '!');
     await user.click(screen.getByRole('button', { name: 'Enregistrer' }));
     const row = await screen.findByRole('group', { name: 'Estiva' });
-    expect(await within(row).findByText('Prix requis : unités offertes (à retirer par la recette tarifaire)')).toBeInTheDocument();
-    expect(within(screen.getByRole('group', { name: 'Granja' })).queryByText('Prix requis : unités offertes (à retirer par la recette tarifaire)')).not.toBeInTheDocument();
+    expect(await within(row).findByText('Prix requis : unités offertes ici (0 € accepté)')).toBeInTheDocument();
+    expect(within(screen.getByRole('group', { name: 'Granja' })).queryByText('Prix requis : unités offertes ici (0 € accepté)')).not.toBeInTheDocument();
   });
 }

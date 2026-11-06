@@ -22,7 +22,7 @@ const MESSAGES = Object.freeze({
   whole: 'Nombre entier attendu',
   choice: 'Choix invalide',
   time: 'Heure invalide',
-  freeUnitsNeedPrice: 'Prix requis : unités offertes (à retirer par la recette tarifaire)',
+  freeUnitsNeedPrice: 'Prix requis : unités offertes ici (0 € accepté)',
 });
 
 // A negative base price used to be refused with its own 400; the code now rides on the `price` detail.
@@ -103,13 +103,20 @@ function validateOptionPayload(payload, { knownPropertyIds, stored, storedFreeUn
   }
 
   const percent = body.priceType === 'percent_of_stay';
-  if (!isBlank(body.price) && body.priceType !== 'free') {
-    const message = priceProblem(body.price, { percent, stored: stored?.price });
+  // specs/options-resources-ux.md rule 34 (audit R25 N1) — a price type sent without its price keeps the stored price:
+  // that price is judged under the new type, as if it had been sent back.
+  const typeChanged = Boolean(stored) && body.priceType !== undefined && body.priceType !== stored.priceType;
+  const price = body.price === undefined && typeChanged ? stored.price : body.price;
+  if (!isBlank(price) && body.priceType !== 'free') {
+    const message = priceProblem(price, { percent, stored: stored?.price });
     if (message) details.push({ field: 'price', message, ...(message === MESSAGES.negative ? { code: NEGATIVE_PRICE_CODE } : {}) });
   }
 
+  const scope = Array.isArray(body.propertyIds) ? new Set(body.propertyIds.map(Number)) : null;
+  const keptPrices = Object.fromEntries(Object.entries(stored?.propertyPrices || {}).filter(([pid]) => !scope || scope.has(Number(pid))));
+  const propertyPrices = body.propertyPrices === undefined && typeChanged ? keptPrices : body.propertyPrices;
   if (!NO_PROPERTY_PRICE.includes(body.priceType)) {
-    for (const [pid, raw] of Object.entries(body.propertyPrices || {})) {
+    for (const [pid, raw] of Object.entries(propertyPrices || {})) {
       if (unknown(pid)) {
         details.push({ field: `propertyPrices.${pid}`, message: MESSAGES.unknownProperty });
         continue;
