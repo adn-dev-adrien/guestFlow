@@ -1,13 +1,12 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-// The clock is pinned for the whole file (specs/server-test-isolation.md rule 7): « today » is the day the
-// comparisons were written against, so no date below is ever passed by the calendar.
-require('node:test').mock.timers.enable({ apis: ['Date'], now: Date.UTC(2026, 10, 5, 11) });
-
 // specs/finance-revpar-year-over-year.md §3 rules 4, 5, 6, 8, 10, 11 and 13 — the dashboard's
 // `comparison`: the headline figures against the comparable part of the window a year back, read by
 // the functions that compute the figures themselves, with their source.
+// The clock is pinned for the whole file (the server test-isolation spec: no literal date the calendar
+// will pass), on the day these figures were written against.
+require('node:test').mock.timers.enable({ apis: ['Date'], now: Date.UTC(2026, 10, 5, 11) });
 const { freshDb, insert, TODAY } = require('./financeDashboardFixture');
 const { pinnedDashboard } = require('./financeComparisonFixture');
 const { addDays } = require('../utils/financeOccupancy');
@@ -35,7 +34,7 @@ test('rule 8 — exercise 2024 against 2023, on the 8 comparable months, every f
   assert.deepEqual(pick('nights'), { current: 15, previous: 10, change: 50, unit: 'percent' });
   // May-December: 2024 open 245 + 214 = 459, 17 sold; 2023 open 245 + 153 (Tente from August) = 398, 10 sold.
   assert.deepEqual(pick('occupancy'), { current: 0.037, previous: 0.0251, change: 1.2, unit: 'points' });
-  // Rule 53 of the dashboard (D-HC9): on the revenue of the nights — 1 600 € this side, 1 000 € last year.
+  // finance-dashboard-redesign rule 53 (D-HC9): on the revenue of the nights — 1 600 € this side, 1 000 € last year.
   assert.deepEqual(pick('revenuePerNight'), { current: 106.67, previous: 100, change: 6.7, unit: 'percent' });
   assert.deepEqual(pick('revPar'), { current: 3.49, previous: 2.51, change: 39, unit: 'percent' });
 });
@@ -65,7 +64,7 @@ test('rule 8 — a complete comparison reads this year\'s side as the tiles show
   assert.equal(m.revPar.current, d.hero.revPar);
 });
 
-test('rule 13 — each figure names its source: the stays\' amounts (« Déjà payé » too, dashboard rule 54)', () => {
+test('rule 13 — each figure names its source: the stays\' amounts (« Déjà payé » too, finance-dashboard-redesign rule 54)', () => {
   const { dashboard } = pinnedDashboard();
   const { metrics } = dashboard.getDashboard({ fiscalYear: 2024 }).data.comparison;
   assert.deepEqual(Object.fromEntries(KEYS.map((k) => [k, metrics[k].source])), {

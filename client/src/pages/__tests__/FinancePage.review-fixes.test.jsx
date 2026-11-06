@@ -1,5 +1,5 @@
-// specs/finance-revpar-year-over-year.md §3 rules 19, 20, 24, 25 and 26, specs/finance-dashboard-redesign.md
-// rules 53, 54 and 55 — review of 2026-11-06 (R3-2, R3-3, R3-4, R3-8, R3-11, R5-05, R5-20, R6-3): the pills
+// specs/finance-revpar-year-over-year.md §3 rules 19, 20, 24, 25 and 26;
+// specs/finance-dashboard-redesign.md §3 rules 53, 54 and 55 — review of 2026-11-06 (R3-2, R3-3, R3-4, R3-8, R3-11, R5-05, R5-20, R6-3): the pills
 // name a partial span, the open nights name the occupied ones, the per-night amounts keep their cents
 // under 100 €, the occupancy chart is drawn on 0-100 %, the chart cards keep their own height, « Encaissé »
 // is « Déjà payé », the « Logements » tile repeats no hero figure, and the definitions state their basis.
@@ -76,7 +76,7 @@ test('rule 26 — the chart row lets each card keep its own height', async () =>
   expect(getComputedStyle(row).alignItems).toBe('flex-start');
 });
 
-test('dashboard rule 54 — « Encaissé » is « Déjà payé », read on the stays\' amounts', async () => {
+test('finance-dashboard-redesign rule 54 — « Encaissé » is « Déjà payé », read on the stays\' amounts', async () => {
   renderPage();
   expect(await screen.findByRole('button', { name: 'Déjà payé : afficher le détail' })).toBeInTheDocument();
   expect(screen.queryByText('Encaissé')).toBeNull();
@@ -85,7 +85,7 @@ test('dashboard rule 54 — « Encaissé » is « Déjà payé », read on the s
   expect(screen.getByRole('tooltip')).toHaveTextContent('même période de l\'an dernier');
 });
 
-test('dashboard rule 55 — one logement: the « Logements » tile names it, the RevPAR stays in the hero', async () => {
+test('finance-dashboard-redesign rule 55 — one logement: the « Logements » tile names it, the RevPAR stays in the hero', async () => {
   api.getFinanceDashboard.mockResolvedValue({ ...COMPARED, propertyId: 1, tiles: { ...COMPARED.tiles, properties: { count: 1, name: 'Gîte', revenue: 2400, revPar: 53.4 } } });
   renderPage();
   const tile = (await screen.findByRole('button', { name: 'Logements : afficher le détail' })).parentElement;
@@ -93,7 +93,7 @@ test('dashboard rule 55 — one logement: the « Logements » tile names it, the
   expect(tile).not.toHaveTextContent('RevPAR');
 });
 
-test('dashboard rule 53 — the per-night definitions state their basis: the nights, without the tourist tax', async () => {
+test('finance-dashboard-redesign rule 53 — the per-night definitions state their basis: the nights, without the tourist tax', async () => {
   renderPage();
   fireEvent.click(await screen.findByRole('button', { name: 'Définition : revenu moyen / nuit' }));
   expect(screen.getByRole('tooltip')).toHaveTextContent('revenu des nuits de la période (chaque séjour réparti sur ses nuits, options comprises, hors taxe de séjour) ÷ nuits vendues');

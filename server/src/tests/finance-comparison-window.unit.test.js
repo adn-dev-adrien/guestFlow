@@ -1,12 +1,11 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-// The clock is pinned for the whole file (specs/server-test-isolation.md rule 7): « today » is the day the
-// comparisons were written against, so no date below is ever passed by the calendar.
-require('node:test').mock.timers.enable({ apis: ['Date'], now: Date.UTC(2026, 10, 5, 11) });
-
 // specs/finance-revpar-year-over-year.md §3 rules 4, 5, 6, 7, 9 and 10 — the comparable range of a
 // window, its one reason and its one notice, and each figure's comparison. Pure: today is passed in.
+// The clock is pinned for the whole file (the server test-isolation spec: no literal date the calendar
+// will pass), on the day these figures were written against.
+require('node:test').mock.timers.enable({ apis: ['Date'], now: Date.UTC(2026, 10, 5, 11) });
 const { comparisonWindow, compare, pointsChange, firstDayAfter } = require('../utils/financeComparison');
 const yoy = require('../utils/yearOverYear');
 

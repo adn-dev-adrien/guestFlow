@@ -1,12 +1,12 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-// The clock is pinned for the whole file (specs/server-test-isolation.md rule 7).
-require('node:test').mock.timers.enable({ apis: ['Date'], now: Date.UTC(2026, 10, 6, 11) });
-
 // specs/finance-dashboard-redesign.md §3 rule 53 (D-HC9, 2026-11-06) — revenue per night and RevPAR read the
 // revenue of the window's NIGHTS: each stay's total without its tourist tax, spread over its nights by the
 // booking pace's split; never the cash-attributed revenue (review R3-1: RevPAR 55 € at 0 % occupancy).
+// The clock is pinned for the whole file (the server test-isolation spec: no literal date the calendar
+// will pass), on the day these figures were written against.
+require('node:test').mock.timers.enable({ apis: ['Date'], now: Date.UTC(2026, 10, 6, 11) });
 const { freshDb, insert } = require('./financeDashboardFixture');
 const { revenueOfNights, valueInMonth } = require('../utils/bookingPace');
 

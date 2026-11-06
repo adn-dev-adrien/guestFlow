@@ -5,6 +5,9 @@ const assert = require('node:assert/strict');
 // 2026-11-06) — the notice names every reason months were left out, a tracking start on 29 February is
 // known a year later on 1 March (the pace's date too), and a first of the month reads « 1er ». Pure: today
 // is passed in.
+// The clock is pinned for the whole file (the server test-isolation spec): every date below is an input of
+// a pure function, and « today » never moves either.
+require('node:test').mock.timers.enable({ apis: ['Date'], now: Date.UTC(2026, 10, 6, 11) });
 const { comparisonWindow } = require('../utils/financeComparison');
 const { snapshotKnownFrom, lastYearSnapshotKnown } = require('../utils/yearOverYear');
 const { buildPace } = require('../utils/bookingPace');

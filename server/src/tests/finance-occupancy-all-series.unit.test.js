@@ -1,12 +1,11 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-// The clock is pinned for the whole file (specs/server-test-isolation.md rule 7): « today » is the day the
-// comparisons were written against, so no date below is ever passed by the calendar.
-require('node:test').mock.timers.enable({ apis: ['Date'], now: Date.UTC(2026, 10, 5, 11) });
-
 // specs/finance-revpar-year-over-year.md §3 rule 12 — the monthly occupancy of « Tous les logements »
 // (or the selected one), this year and last year month by month, null where not comparable.
+// The clock is pinned for the whole file (the server test-isolation spec: no literal date the calendar
+// will pass), on the day these figures were written against.
+require('node:test').mock.timers.enable({ apis: ['Date'], now: Date.UTC(2026, 10, 5, 11) });
 const { pinnedDashboard } = require('./financeComparisonFixture');
 
 const month = (series, ym) => series.months.find((m) => m.month === ym);
