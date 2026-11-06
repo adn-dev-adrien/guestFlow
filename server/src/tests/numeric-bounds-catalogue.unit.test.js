@@ -202,8 +202,9 @@ test('options-resources-ux rule 31: an option\'s towels, price, property prices,
     for (const field of ['towelLargePerPerson', 'towelMediumPerPerson', 'towelSmallPerPerson']) assert.equal(refused({ [field]: value }), field, `${field} ${text(value)}`);
   }
   for (const price of [1e999, 1e308]) assert.equal(refused({ price }), 'price');
-  assert.equal(refused({ propertyPrices: { 1: 1e308 } }), 'propertyPrices.1');
-  assert.equal(refused({ propertyBathMats: { 1: 1e308 } }), 'propertyBathMats.1');
+  // A per-logement number is judged on a logement the option is proposed on (rule 15; rule 33: an absent scope is the stored one).
+  assert.equal(refused({ propertyIds: [1], propertyPrices: { 1: 1e308 } }), 'propertyPrices.1');
+  assert.equal(refused({ propertyIds: [1], propertyBathMats: { 1: 1e308 } }), 'propertyBathMats.1');
   assert.equal(refused({ optionProgressiveTiers: [{ participantNumber: 1, unitPrice: 1e308 }] }), 'optionProgressiveTiers');
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM options WHERE price > 1e15 OR towelLargePerPerson > 1e15').get().n, 0);
   assert.equal(call(options.update, { id }, optionBody({ towelLargePerPerson: 2, price: '12.50', propertyPrices: { 1: '' } })).statusCode, 200);

@@ -23,6 +23,7 @@ function mountReconciliation(ctx, { store }) {
   const build = () => {
     if (controller) return controller;
     const { withQonto } = sdk.coreModule('qonto').qontoService;
+    const { resolveQontoConfig } = sdk.coreModule('qonto').qontoConfig;
     const { buildLedger } = sdk.coreModule('reservationLedger');
     const { parseGroup } = sdk.coreModule('arrivalPaymentGroup');
     const { applyPaymentMark, computePlatformCommission, takeBackRefusal } = sdk.coreModule('reservationPaymentMark');
@@ -40,6 +41,7 @@ function mountReconciliation(ctx, { store }) {
     controller = createReconciliationController({
       db: ctx.db, settings: ctx.settings, transactions, model, writer,
       connected: () => store.qontoConnected(),
+      qontoConfigured: () => resolveQontoConfig({ settings: store }).configured,
       withQonto: qonto,
       read: () => readTransactions({
         withQonto: qonto, model: transactions, settings: ctx.settings,

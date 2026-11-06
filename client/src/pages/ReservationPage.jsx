@@ -140,6 +140,8 @@ function parseCustomPrice(value) {
 
 // specs/payment-link-lifecycle.md rule 46 (audit R12-C1) — the devis is built from the stored stay, not the typed values.
 const CONVERT_TO_DEVIS_DIRTY_REASON = "Enregistrer d'abord les modifications.";
+// The clean baseline of a prefilled devis: no form snapshot equals it (rule 51).
+const PREFILLED_DEVIS_BASELINE = 'prefilled-devis';
 const NO_ARRIVAL_LINES = {};
 const NO_FROZEN_CUSTOM_IDS = [];
 
@@ -680,7 +682,9 @@ export default function ReservationPage() {
   if (baselineFollowsForm) cleanBaseline = formSnapshot;
   else if (cleanBaseline === null && !loading) {
     const isExistingRecord = Boolean(editingReservationId || editingDevisId);
-    cleanBaseline = loadedSnapshot !== null ? loadedSnapshot : formSnapshot;
+    // Rule 51 (R25-C2) — a devis prefilled by « Créer un devis » holds a draft saved nowhere: an edit until its first save.
+    if (prefillDevis) cleanBaseline = PREFILLED_DEVIS_BASELINE;
+    else cleanBaseline = loadedSnapshot !== null ? loadedSnapshot : formSnapshot;
     if (isExistingRecord && pricingQuote) {
       try {
         const loaded = JSON.parse(cleanBaseline);
@@ -932,6 +936,7 @@ export default function ReservationPage() {
             selectedResources: prefillDevis.form.selectedResources || [],
           }));
           setOfferedOptionIds(new Set(prefillDevis.offeredOptionIds || []));
+          setPendingClient(prefillDevis.pendingClient || null);
           setLoading(false);
           return;
         }
@@ -2677,10 +2682,15 @@ export default function ReservationPage() {
           return true;
         } else {
           const created = await api.createDevis(devisPayload);
+          // Rule 52 (audit R25 N1, D1) — the prefilled entry carries the draft and its client: Back must not re-open
+          // them, whichever save created the devis, the bar's or « Enregistrer et quitter ».
+          if (created?.id && prefillDevis && safeAfterSaveAction) {
+            navigate(`/reservations/new?mode=devis&devisId=${created.id}`, { replace: true });
+          }
           if (safeAfterSaveAction) {
             safeAfterSaveAction();
           } else if (created?.id) {
-            navigate(`/reservations/new?mode=devis&devisId=${created.id}`);
+            navigate(`/reservations/new?mode=devis&devisId=${created.id}`, { replace: Boolean(prefillDevis) });
           } else {
             navigate('/devis');
           }
@@ -3308,6 +3318,8 @@ export default function ReservationPage() {
           propertyId: Number(selectedProp || form.propertyId || 0) || null,
           form,
           offeredOptionIds: Array.from(offeredOptionIds || []),
+          // Rule 50 (R25-C1) — the client typed for this stay goes with it: nothing was written yet.
+          pendingClient,
         },
       },
     });

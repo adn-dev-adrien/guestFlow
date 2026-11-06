@@ -91,6 +91,7 @@ UX kept simple: **one page, three cards stacked, all fields editable inline**, w
     - 400 `{ ok: false, code: 'NOT_CONFIGURED' | 'INVALID_CREDENTIALS' | 'FORBIDDEN' | 'CALENDAR_NOT_FOUND', error: "..." }`
     - 500 `{ ok: false, code: 'UNKNOWN', error: "..." }`
 17. `routes/googleCalendar.js` is **not** fully refactored here (deferred to Bloc 6) — only the new `test-connection` route gets a thin controller. Existing `/status` and `/sync-reservations` keep using the extracted `getGoogleCalendarConfig` helper.
+18. **A replaced logo shows at once (audit R25-C4, 2026-11-06).** A new file of the same format is stored under the same path (`/uploads/company-logo.png`), so after each successful upload the preview of Paramètres → Établissement asks for that path with a `?v=<upload time>`, the same mark the tab icon gets; the saved `logoPath` stays the plain path, and the page Save is not lit by it. *Why:* the preview kept the former image until a reload (and a broken preview stayed broken), so the operator believed the upload had failed while the devis and the tab icon already used the new file. Test: `client/src/pages/settings/__tests__/EstablishmentSettingsPage.logo-replace.test.jsx`.
 
 ## 4. Architecture
 
@@ -325,6 +326,7 @@ No schema change. The existing `app_settings` table (singleton, 15+ columns incl
 - [ ] `tests/settings-validation.unit.test.js` — each validator (email, SIRET, TVA, IBAN mod-97, BIC, PEM, quoteValidityDays).
 - [ ] `tests/settings-response.unit.test.js` — `maskEmail`, `fingerprintPrivateKey`, `computeConfigured`, `computeStatusLabel`, `formatUpdatedAtLabel`, `shapeResponse` (3 groups wrapping).
 - [ ] `tests/settings-model.unit.test.js` — `read()` defaults, `upsert()` trims and refreshes `updatedAt`, `updateLogoPath()` updates only one column. Uses `:memory:` DB with the same DDL.
+- [x] `client/src/pages/settings/__tests__/EstablishmentSettingsPage.logo-replace.test.jsx` (1) — rule 18: two uploads under the same path each change the preview's `src`, the page Save stays grey.
 - [ ] `tests/google-calendar-test-connection.unit.test.js` — `testConnection` returns `NOT_CONFIGURED` when empty; ok on mocked success; maps 401 / 403 / 404 / 500; returns UNKNOWN (no crash) when `googleapis` not installed.
 
 ### Manual UI verification — desktop

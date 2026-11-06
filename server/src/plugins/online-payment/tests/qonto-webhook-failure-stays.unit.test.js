@@ -180,7 +180,7 @@ test('settings-one-save-and-automatic-webhook rule 15 — a missing public addre
   assert.equal((await ensureWebhookSubscription({ settings, env: q.env })).action, 'unconfigured');
   const shown = qontoStatusPayload({ settings, env: q.env }).health;
   assert.equal(shown.state, 'public_url_missing');
-  assert.equal(shown.action, 'Adresse publique à renseigner (Réglages → Envoi d’emails), puis relancer le test.');
+  assert.equal(shown.action, 'URL publique à renseigner (Paramètres → Système), puis « Test ».');
   await tick();
   settings.upsert({ publicUrl: PUBLIC_URL });
   const answer = await pressTest(settings, q.env);
