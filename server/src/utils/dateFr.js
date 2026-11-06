@@ -32,6 +32,12 @@ function formatDateLong(isoDate, lang = 'fr') {
   return `${dayNum} ${months[monthIdx]} ${yearNum}`;
 }
 
+// specs/finance-revpar-year-over-year.md rule 23 — `2027-01-01` → `1er janvier 2027`: a French long date for a
+// sentence, the first of the month written « 1er ». `formatDateLong` keeps its own output (emails).
+function formatDateLongFr(isoDate) {
+  return formatDateLong(isoDate, 'fr').replace(/^1 /, '1er ');
+}
+
 // `15:00:00` or `15:00` → `15:00`. Empty / malformed → empty string.
 function formatTimeShort(value) {
   if (!value) return '';
@@ -81,6 +87,7 @@ function formatMomentLong(instant, lang = 'fr') {
 
 module.exports = {
   formatDateLong,
+  formatDateLongFr,
   formatMomentLong,
   weekdayLabel,
   formatTimeShort,

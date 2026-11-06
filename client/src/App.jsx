@@ -56,6 +56,7 @@ import {
 import { CALENDAR_ENTRIES, CALENDAR_PATHS, isCalendarPath } from './constants/calendarMenu';
 import { isPluginEnabled, isRouteEnabled, SAS } from './constants/plugins';
 import { FINANCE_MENU, COMPENSATIONS_PATH, canSeeFinanceEntry, isFinancePath } from './constants/financeMenu';
+import { STAY_PROFILE_PATH } from './constants/stayProfile';
 import { allContributions } from './plugins/sdk/registry';
 import { DATA_CHANGED_EVENT } from './constants/appEvents';
 import ScrollToTop from './components/ScrollToTop';
@@ -69,6 +70,8 @@ import NotFoundPage from './components/NotFoundPage';
 const EmailTextsSettingsPage = lazyPage(() => import('./pages/settings/EmailTextsSettingsPage'));
 const UserManagementPage = lazyPage(() => import('./pages/UserManagementPage'));
 const SupportAccessPage = lazyPage(() => import('./pages/settings/SupportAccessPage'));
+// Dev-only workbench of the report grammar (specs/report-grammar.md rule 17): absent from a production build.
+const ReportGrammarPreview = import.meta.env.DEV ? lazyPage(() => import('./pages/ReportGrammarPreview')) : null;
 const SettingsHomePage = lazyPage(() => import('./pages/settings/SettingsHomePage'));
 const Dashboard = lazyPage(() => import('./pages/Dashboard'));
 const ClientsPage = lazyPage(() => import('./pages/ClientsPage'));
@@ -80,6 +83,7 @@ const ReservationPage = lazyPage(() => import('./pages/ReservationPage'));
 const ReservationsUpcomingPage = lazyPage(() => import('./pages/ReservationsUpcomingPage'));
 const FinancePage = lazyPage(() => import('./pages/FinancePage'));
 const TouristTaxPage = lazyPage(() => import('./pages/TouristTaxPage'));
+const StayProfilePage = lazyPage(() => import('./pages/StayProfilePage'));
 const PlanningPage = lazyPage(() => import('./pages/PlanningPage'));
 const EstablishmentSettingsPage = lazyPage(() => import('./pages/settings/EstablishmentSettingsPage'));
 const PlatformsSettingsPage = lazyPage(() => import('./pages/settings/PlatformsSettingsPage'));
@@ -112,6 +116,7 @@ const PAGE_ROUTES = [
   ['/devis', DevisPage],
   ['/finance', FinancePage],
   ['/finance/tourist-tax', TouristTaxPage],
+  [STAY_PROFILE_PATH, StayProfilePage],
   ['/planning', PlanningPage],
   ['/establishment-closures', EstablishmentClosuresPage],
   ['/settings', SettingsHomePage],
@@ -860,6 +865,7 @@ function AppShell() {
           <Route path="/devis" element={<DevisPage />} />
           <Route path="/finance" element={<FinancePage />} />
           <Route path="/finance/tourist-tax" element={<TouristTaxPage />} />
+          <Route path={STAY_PROFILE_PATH} element={<StayProfilePage />} />
           <Route path={COMPENSATIONS_PATH} element={<CompensationsPage />} />
           <Route path="/planning" element={<PlanningPage />} />
           <Route path="/establishment-closures" element={<EstablishmentClosuresPage />} />
@@ -894,6 +900,7 @@ function AppShell() {
           <Route path="/emails"            element={<EmailTemplatesPage />} />
           <Route path="/emails/modeles"    element={<Navigate to="/emails" replace />} />
           <Route path="/emails/historique" element={<EmailHistoryPage />} />
+          {ReportGrammarPreview && <Route path="/design/report-grammar" element={<ReportGrammarPreview />} />}
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
         )}

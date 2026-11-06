@@ -4,7 +4,8 @@ import { vi } from 'vitest';
  *  - « Dates réservation » shows the reservation's stay dates (arrival → departure), NOT the last night
  *    (non-regression: a 1-night stay 20/06 → 21/06 must render « 20/06/2026 au 21/06/2026 »);
  *  - the « Déclarée » checkbox reflects touristTaxDeclaredAt and toggling PATCHes without navigating.
- * The page is pure render (all figures shaped server-side), so the fixture mirrors the financeModel payload.
+ * The page is pure render (all figures shaped server-side), so the fixture mirrors the report payload
+ * (specs/tourist-tax-report-v2.md §4.3).
  */
 
 import React from 'react';
@@ -23,20 +24,16 @@ vi.mock('react-router', async (importOriginal) => {
 vi.mock('../../api', () => ({
   __esModule: true,
   default: {
-    getTouristTaxExtraction: vi.fn(),
+    getTouristTaxReport: vi.fn(),
     setTouristTaxDeclared: vi.fn(),
   },
 }));
 
 import api from '../../api';
 import TouristTaxPage from '../TouristTaxPage';
+import { reportOf } from './touristTaxReportFixtures';
 
-const DATA = {
-  month: '2026-06',
-  from: '2026-06-01',
-  toExclusive: '2026-07-01',
-  byProperty: [{ propertyId: 1, propertyName: 'Gîte', reservationsCount: 2, nightsCount: 3, adultNights: 6, taxAmount: 12, accommodationAmount: 600 }],
-  reservations: [
+const ROWS = [
     {
       reservationId: 7, propertyId: 1, propertyName: 'Gîte', reservationName: 'Jean Dupont',
       startDate: '2026-06-20', endDate: '2026-06-21', lastNightDate: '2026-06-20',
@@ -48,13 +45,12 @@ const DATA = {
       touristTaxDeclaredAt: '2026-06-30 09:00:00', adults: 2, children: 0, nightsCount: 2, taxRate: 1, taxAmount: 8, accommodationAmount: 400,
       refundedTaxNights: 0, refundedTaxAmount: 0,
     },
-  ],
-  totals: { reservationsCount: 2, rentedNights: 3, adultNights: 6, taxAmount: 12, accommodationAmount: 600 },
-};
+];
+const DATA = reportOf(ROWS);
 
 beforeEach(() => {
   navigateSpy.mockReset();
-  api.getTouristTaxExtraction.mockReset().mockResolvedValue(DATA);
+  api.getTouristTaxReport.mockReset().mockResolvedValue(DATA);
   api.setTouristTaxDeclared.mockReset().mockResolvedValue({ declaredAt: '2026-07-01 10:00:00' });
 });
 
@@ -83,10 +79,7 @@ test('« Déclarée » checkbox reflects touristTaxDeclaredAt and toggling PATCH
   expect(declared).toBeChecked();
 
   // The page reads the month again after a tick (specs/platform-added-guests-tourist-tax.md rule 24).
-  api.getTouristTaxExtraction.mockResolvedValue({
-    ...DATA,
-    reservations: DATA.reservations.map((r) => (r.reservationId === 7 ? { ...r, touristTaxDeclaredAt: new Date().toISOString() } : r)),
-  });
+  api.getTouristTaxReport.mockResolvedValue(reportOf(ROWS.map((r) => (r.reservationId === 7 ? { ...r, touristTaxDeclaredAt: new Date().toISOString() } : r))));
   fireEvent.click(undeclared);
   await waitFor(() => expect(api.setTouristTaxDeclared).toHaveBeenCalledWith(7, true, { addedGuests: false }));
   expect(navigateSpy).not.toHaveBeenCalled();
@@ -98,15 +91,12 @@ test('« Déclarée » checkbox reflects touristTaxDeclaredAt and toggling PATCH
 // specs/reservation-refunds.md rule 32 — la ligne DIT pourquoi son net est plus bas : sans cette
 // annotation, l'opérateur qui compare sa déclaration au mois précédent verrait un chiffre inexpliqué.
 test('une nuit dont la taxe est remboursée est annotée sur la ligne', async () => {
-  api.getTouristTaxExtraction.mockResolvedValue({
-    ...DATA,
-    reservations: [{
-      ...DATA.reservations[0],
-      reservationName: 'Camille Durand',
-      nightsCount: 2, adults: 2, taxAmount: 8.8,
-      refundedTaxNights: 1, refundedTaxAmount: 4.4,
-    }],
-  });
+  api.getTouristTaxReport.mockResolvedValue(reportOf([{
+    ...ROWS[0],
+    reservationName: 'Camille Durand',
+    nightsCount: 2, adults: 2, taxAmount: 8.8,
+    refundedTaxNights: 1, refundedTaxAmount: 4.4,
+  }]));
   renderPage();
   expect(await screen.findByText(/dont 1 nuit remboursée \(− 4,40 €\)/)).toBeInTheDocument();
   // Le montant affiché est déjà le net à déclarer.
@@ -123,13 +113,10 @@ test('sans remboursement de taxe, aucune mention ne s’affiche', async () => {
 // commune's percentage form asks for, straight from the fiche. A per-day-per-person property has no
 // price in its tax at all, so the cell reads « — » rather than a misleading 0,00 €.
 test('« Nuit HT / occupant » renders the percentage-mode base, and « — » without one', async () => {
-  api.getTouristTaxExtraction.mockResolvedValue({
-    ...DATA,
-    reservations: [
-      { ...DATA.reservations[0], nightPricePerOccupantHt: 45.43 },
-      { ...DATA.reservations[1], nightPricePerOccupantHt: null },
-    ],
-  });
+  api.getTouristTaxReport.mockResolvedValue(reportOf([
+    { ...ROWS[0], nightPricePerOccupantHt: 45.43 },
+    { ...ROWS[1], nightPricePerOccupantHt: null },
+  ]));
   renderPage();
   expect(await screen.findByRole('columnheader', { name: 'Nuit HT / occupant' })).toBeInTheDocument();
   expect(screen.getByText('45,43 €')).toBeInTheDocument();

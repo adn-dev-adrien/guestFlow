@@ -491,6 +491,10 @@ const api = {
   // specs/finance-dashboard-redesign.md §4.3 — the Suivi financier and the table behind each tile.
   getFinanceDashboard: (params = {}) => request(`/finance/dashboard?${financeQuery(params)}`),
   getFinanceDashboardDetail: (tile, params = {}) => request(`/finance/dashboard/detail/${encodeURIComponent(tile)}?${financeQuery(params)}`),
+  // specs/stay-profile.md §4.3 — the « Profil des séjours »: same window and logement parameters as the dashboard.
+  getFinanceStayProfile: (params = {}) => request(`/finance/stay-profile?${financeQuery(params)}`),
+  // specs/finance-data-checks.md §4.3 — « À vérifier » of the exercise: `{ fiscalYear, propertyId }`.
+  getFinanceDataChecks: (params = {}) => request(`/finance/data-checks?${financeQuery(params)}`),
   // specs/booking-pace.md §4.3 — réservations à date vs last year, and one month's pickup curve.
   getFinancePace: (params = {}) => request(`/finance/pace?${financeQuery(params)}`),
   getFinancePaceMonth: (month, params = {}) => request(`/finance/pace/${encodeURIComponent(month)}?${financeQuery(params)}`),
@@ -505,6 +509,36 @@ const api = {
   getTouristTaxExtraction: (month) => request(`/finance/tourist-tax?month=${encodeURIComponent(month)}`),
   // specs/tourist-tax-declared-checkbox.md — tick / untick « Déclarée » for one reservation.
   setTouristTaxDeclared: (reservationId, declared, { addedGuests = false } = {}) => request(`/finance/tourist-tax/${reservationId}/declared`, { method: 'PATCH', body: { declared, addedGuests } }),
+  // specs/tourist-tax-report-v2.md §4.3 — the report over a month, quarter, year or du / au, by logement and
+  // declaration status: `{ period, month | quarter | year | from + to, propertyId, declaration }`.
+  getTouristTaxReport: (params = {}) => request(`/finance/tourist-tax/report?${financeQuery(params)}`),
+  // The CSV of the same selection (`view`: 'list' | 'night'), saved under the server's file name. A refusal
+  // throws the server's French reason.
+  downloadTouristTaxReportCsv: async (params = {}, view = 'list') => {
+    const res = await reach(`/finance/tourist-tax/report.csv?${financeQuery({ ...params, view })}`);
+    if (!res.ok) {
+      // specs/tourist-tax-report-v2.md rule 36 (review R1-06) — the refusals read as everywhere else: a lost session
+      // says « Session expirée. » and sends the app back to the login; a code alone never reaches the operator.
+      const parsed = await res.json().catch(() => null);
+      if (res.status === 401) {
+        window.dispatchEvent(new CustomEvent('guestflow:unauthenticated'));
+        throw Object.assign(new Error(SESSION_MESSAGE), { status: 401 });
+      }
+      const said = parsed && (parsed.message || (/^[A-Z0-9_]+$/.test(String(parsed.error || '')) ? '' : parsed.error));
+      throw Object.assign(new Error(said || 'Téléchargement impossible.'), { status: res.status });
+    }
+    const blob = await res.blob();
+    const match = /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') || '');
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = match ? match[1] : 'taxe-de-sejour.csv';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    return a.download;
+  },
 
   // School holidays — getSchoolHolidays now returns { periods, syncState }.
   getSchoolHolidays: () => request('/school-holidays'),
@@ -598,8 +632,19 @@ const api = {
   // Accounting (read-only; admin + accountant)
   getAccountingSales: (month, year) => request(`/accounting/sales?month=${month}&year=${year}`),
   getAccountingPlatforms: (month, year) => request(`/accounting/platforms?month=${month}&year=${year}`),
+  // specs/accounting-synthesis.md §4.3 — `{ period: 'month'|'quarter'|'fy'|'custom', month, quarter, fiscalYear, from, to }`;
+  // only the keys given are sent, the server judges them (400 `{ error }` with the French refusal).
+  getAccountingSynthesis: (params = {}) => {
+    const query = new URLSearchParams();
+    ['period', 'month', 'quarter', 'fiscalYear', 'from', 'to'].forEach((key) => {
+      if (params[key] != null && params[key] !== '') query.set(key, String(params[key]));
+    });
+    const qs = query.toString();
+    return request(`/accounting/synthesis${qs ? `?${qs}` : ''}`);
+  },
   downloadAccountingSalesCsv: async (month, year) => {
-    const res = await reach(`/accounting/sales.csv?month=${month}&year=${year}`);
+    // specs/accounting-synthesis.md rule 48 — the app's own download: the server stamps « Dernier export CSV ».
+    const res = await reach(`/accounting/sales.csv?month=${month}&year=${year}`, { headers: { 'X-GuestFlow-Download': '1' } });
     if (!res.ok) throw new Error("Impossible de générer le CSV.");
     return res.blob();
   },

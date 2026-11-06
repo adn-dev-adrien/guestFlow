@@ -71,6 +71,12 @@ appears, so the operator never remits a tax that was not collected.
    rules 2 and 3 are unchanged. With a plan, a stored paid flag is not read, so a stay stays in one
    month (rule 6). A plan removed again (nothing was paid, `direct-installments` rule 2) gives the stay
    its gate back: absent until the solde is paid, its « Déclarée » tick kept.
+9. **A tax frozen at 0 € is never ours to remit** (2026-11-06, D-HC10, Adrien's decision). A stay whose whole tax
+   (`touristTaxTotal` of the fiche's quote, additions included) is 0 € once frozen (`isTouristTaxFrozen`: collected,
+   ticked, stamped or a plan's share paid) leaves the declaration rows (`financeModel.getTouristTaxRows`): neither the
+   monthly page nor the tax report lists it, and nothing reading those rows (the synthesis tax figure, the data
+   checks) counts it « à déclarer ». *Why:* such stays (made under a platform mode that later changed, the tax then
+   offered) showed as « À déclarer » at 0 €, a line nobody can declare. A tax still live keeps its row.
 
 **Edge cases:**
 - Paid flag set but paid **date** missing (legacy data) → treat `paidDate` as the last-night date
@@ -95,7 +101,10 @@ appears, so the operator never remits a tax that was not collected.
 | `tests/` | `tourist-tax-collection-coverage.unit.test.js` | T | Rewrite the attribution cases: paid-early → stay-end month; paid-late → payment month; unpaid → absent; paid-flag-without-date → stay-end month; checkout-on-the-1st → previous month. |
 | `models/` | `financeModel.js` | T | Rules 7-8 (2026-11-05): `HAS_PLAN_SQL` (`EXISTS` on `reservation_installments`, `(0)` on a minimal schema without the table) opens a third branch of the WHERE clause on the last night alone, and closes the two others to a plan. |
 | `tests/` | `plan-tax-declaration.unit.test.js` | C | Rules 7-8, through the real controllers. |
+| `models/` | `financeModel.js` | T | Rule 9 (2026-11-06): `getTouristTaxRows` drops a stay whose frozen tax is 0 €. |
+| `tests/` | `tourist-tax-review-fixes.unit.test.js` | C | Rule 9, on the monthly page and the report. |
 | `tests/` | `fixtures/vat-regime/golden.json` | T | `tourist-tax/2027-07` regenerated, that key alone: the golden's stay 106 has a plan. |
+| `models/` | `financeModel.js` | T | 2026-11-05 (`specs/tourist-tax-report-v2.md` rule 1): this WHERE clause now lives in `getTouristTaxRows({ start, endExclusive })`, which the monthly extraction calls for its month and the period report for any window; the SQL is unchanged. |
 | `routes/` / `controllers/` | — | — | (none — endpoint contract unchanged) |
 | `database.js` | — | — | (no schema change) |
 

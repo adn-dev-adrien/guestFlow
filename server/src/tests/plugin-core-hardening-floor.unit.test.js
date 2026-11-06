@@ -42,6 +42,8 @@ const HARDENINGS = [
   { feature: 'take-back refused while a refund needs the money', sdk: '2.21.0', pattern: /\btakeBackRefusal\b/ },
   // specs/plugins-phase-1-sdk.md rule 40 (specs/public-api.md rule 24) — audit R24 public finding 1.
   { feature: 'visitor times judged against the neighbours', sdk: '2.22.0', pattern: /\bstayTimesRefused\b/ },
+  // specs/plugins-phase-1-sdk.md rule 41 (specs/accounting-synthesis.md rules 7-9).
+  { feature: 'finance readings of the accounting synthesis', sdk: '2.23.0', pattern: /coreModule\(\s*['"`]financeDashboardModel['"`]/ },
 ];
 
 function sourceFiles(dir) {

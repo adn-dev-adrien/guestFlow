@@ -1,13 +1,20 @@
 const router = require('express').Router();
 const ctrl = require('../controllers/financeController');
+const stayProfile = require('../controllers/stayProfileController');
+const touristTaxReport = require('../controllers/touristTaxReportController');
 
 router.get('/dashboard', ctrl.getDashboard);
 router.get('/dashboard/detail/:tile', ctrl.getDashboardDetail);
+router.get('/stay-profile', stayProfile.getStayProfile);
+// specs/finance-data-checks.md — the « À vérifier » panel of the exercise.
+router.get('/data-checks', require('../controllers/financeDataChecksController').getDataChecks);
 router.get('/pace', ctrl.getPace);
 router.get('/pace/:month', ctrl.getPaceMonth);
 router.get('/goal-context', ctrl.goalContext);
 router.get('/vat-franchise', ctrl.getVatFranchise);
 router.get('/tourist-tax', ctrl.touristTax);
+router.get('/tourist-tax/report', touristTaxReport.getReport);
+router.get('/tourist-tax/report.csv', touristTaxReport.getReportCsv);
 router.patch('/tourist-tax/:reservationId/declared', ctrl.setTouristTaxDeclared);
 
 module.exports = router;

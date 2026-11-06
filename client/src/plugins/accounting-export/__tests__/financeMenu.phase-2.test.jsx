@@ -21,11 +21,11 @@ const visible = (user) => FINANCE_MENU.filter((e) => canSeeFinanceEntry(user, e)
 
 test('specs/plugins-phase-2-hosts.md rule 19 — finance.menu ranks the contributed entries after the core ones', () => {
   expect(financeMenu([accountingExport]).map((e) => e.path)).toEqual([
-    '/finance', '/finance/tourist-tax', '/finance/indemnites', '/comptabilite', '/comptabilite/plateformes',
+    '/finance', '/finance/profil', '/finance/tourist-tax', '/finance/indemnites', '/comptabilite', '/comptabilite/plateformes',
   ]);
-  expect(financeMenu([]).map((e) => e.key)).toEqual(['overview', 'tourist-tax', 'compensations']);
+  expect(financeMenu([]).map((e) => e.key)).toEqual(['overview', 'stay-profile', 'tourist-tax', 'compensations']);
   const late = { id: 'probe', contributes: { 'finance.menu': [{ key: 'p', path: '/finance/probe', label: 'Probe', order: 25 }] } };
-  expect(financeMenu([late]).map((e) => e.key)).toEqual(['overview', 'tourist-tax', 'p', 'compensations']);
+  expect(financeMenu([late]).map((e) => e.key)).toEqual(['overview', 'stay-profile', 'tourist-tax', 'p', 'compensations']);
   expect(isFinancePath('/comptabilite/plateformes')).toBe(true);
   expect(isFinancePath('/finance/indemnites')).toBe(true);
   expect(isFinancePath('/planning')).toBe(false);
@@ -33,10 +33,10 @@ test('specs/plugins-phase-2-hosts.md rule 19 — finance.menu ranks the contribu
 
 test('specs/plugins-phase-2-hosts.md rule 19 — the admin sees Comptabilité and Plan comptable only while the plugin is active', () => {
   expect(visible({ roles: ['admin'], enabledPlugins: [ID] })).toEqual([
-    'Vue générale', 'Taxe de séjour', "Indemnités d'annulation", 'Comptabilité', 'Plan comptable',
+    'Vue générale', 'Profil des séjours', 'Taxe de séjour', "Indemnités d'annulation", 'Comptabilité', 'Plan comptable',
   ]);
   expect(visible({ roles: ['admin'], enabledPlugins: [] })).toEqual([
-    'Vue générale', 'Taxe de séjour', "Indemnités d'annulation",
+    'Vue générale', 'Profil des séjours', 'Taxe de séjour', "Indemnités d'annulation",
   ]);
 });
 
