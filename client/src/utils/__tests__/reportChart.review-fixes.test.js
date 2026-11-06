@@ -37,8 +37,8 @@ test('rules 22 — the right margin holds the longest name, within its cap; past
   expect(fitEndLabel('2026-2027', 96)).toBe('2026-2027');
 });
 
-test('rule 26 — short labels keep the regular thinning; long ones are thinned by width, first and last kept', () => {
+test('rules 26 and 35 — short labels keep the regular thinning; long ones every Nth from the first, evenly spaced', () => {
   const short = Array.from({ length: 12 }, (_, i) => ({ key: String(i), label: 'oct.' }));
   expect(xInterval(short, false)).toBe(1);
-  expect(xInterval([{ key: 'a', label: 'oct. 2025' }], false)).toBe('preserveStartEnd');
+  expect(xInterval([{ key: 'a', label: 'oct. 2025' }], false)).toBe('equidistantPreserveStart');
 });

@@ -30,7 +30,8 @@ import ChartMenu from './ChartMenu';
 import ChartDataTable from './ChartDataTable';
 import ChartEndLabels from './ChartEndLabels';
 import { chart, categoricalColor } from '../utils/chartColors';
-import { axisTicks, endLabelMargin, rowsFromSeries, toCsv, xInterval } from '../utils/reportChart';
+import useElementWidth from '../hooks/useElementWidth';
+import { axisTicks, endLabelCap, endLabelMargin, rowsFromSeries, toCsv, xInterval } from '../utils/reportChart';
 
 export const ALL_HIDDEN = 'Toutes les séries sont masquées.';
 
@@ -102,6 +103,7 @@ export default function TrendChart({ categories, series, formatValue, formatAxis
   const colored = useMemo(() => withColors(series), [series]);
   const [hidden, setHidden] = useState(() => new Set(series.filter((s) => s.hidden).map((s) => s.key)));
   const [view, setView] = useState('chart');
+  const [boxRef, boxWidth] = useElementWidth();
   const rows = useMemo(() => rowsFromSeries(categories, colored), [categories, colored]);
   const visible = colored.filter((s) => !hidden.has(s.key));
   const toggle = (key) => setHidden((prev) => {
@@ -117,7 +119,8 @@ export default function TrendChart({ categories, series, formatValue, formatAxis
     rows.map((r) => [r.label, ...visible.map((s) => csvCell(r[s.key]))]),
   );
   const axis = axisTicks(visible.flatMap((s) => s.values), { domain: yDomain });
-  const rightMargin = endLabelMargin(visible.map((s) => s.name), narrow ? 96 : 150);
+  const rightMargin = endLabelMargin(visible.map((s) => s.name), endLabelCap(narrow, boxWidth));
+  const plotWidth = boxWidth ? boxWidth - 60 - rightMargin : null;
 
   let body;
   if (emptyText) {
@@ -134,7 +137,7 @@ export default function TrendChart({ categories, series, formatValue, formatAxis
         <ResponsiveContainer width="100%" height={height}>
           <AreaChart data={rows} margin={{ top: 12, right: rightMargin, bottom: 0, left: 0 }} accessibilityLayer={false}>
             <CartesianGrid vertical={false} stroke={chart.grid} />
-            <XAxis dataKey="key" tickFormatter={(k) => labelOf.get(k) ?? k} interval={xInterval(categories, narrow)} minTickGap={8} tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: chart.tick }} />
+            <XAxis dataKey="key" tickFormatter={(k) => labelOf.get(k) ?? k} interval={xInterval(categories, narrow, plotWidth)} minTickGap={8} tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: chart.tick }} />
             <YAxis width={60} domain={axis.domain} ticks={axis.ticks} allowDataOverflow={Boolean(yDomain)} tickFormatter={formatAxis || formatValue} tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: chart.tick }} />
             <Tooltip content={<TrendTooltip series={visible} formatValue={formatValue} />} cursor={{ stroke: chart.lastYear, strokeWidth: 1 }} />
             {visible.filter((s) => s.area).map((s) => (
@@ -161,7 +164,7 @@ export default function TrendChart({ categories, series, formatValue, formatAxis
     );
   }
   return (
-    <Box sx={{ position: 'relative', minWidth: 0 }}>
+    <Box ref={boxRef} sx={{ position: 'relative', minWidth: 0 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1.25, mb: 0.75 }}>
         <SeriesLegend series={colored} hidden={hidden} onToggle={toggle} />
         <ChartMenu view={view} onViewChange={setView} getCsv={getCsv} />

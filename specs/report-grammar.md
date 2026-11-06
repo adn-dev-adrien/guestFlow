@@ -137,7 +137,7 @@ like the approved design page, on desktop and phone, without writing chart or ti
 25. **A tile's figure is heard** (2026-11-06, review R5-15). A selectable tile with a definition or a pill
     keeps its action as its name (« Déjà payé : afficher le détail ») and is described by its body:
     value, secondary line and pill.
-26. **Category labels never overlap** (2026-11-06, review R5-04). Labels up to 5 characters keep the
+26. **Category labels never overlap** (2026-11-06, review R5-04). *Its « first and last kept » is superseded by rule 35.* Labels up to 5 characters keep the
     regular thinning (rule 12); longer ones (« oct. 2025 ») are thinned from their measured width, the
     first and the last kept. Servers still send short labels where they can.
 27. **The copy is what the chart shows** (2026-11-06, review R5-17). « Copier les données » copies the
@@ -163,6 +163,21 @@ like the approved design page, on desktop and phone, without writing chart or ti
     measures a count), else « label : share ».
 33. **The chart menu opens without motion when asked** (2026-11-06, review R5-19). Under
     `prefers-reduced-motion: reduce` the « ⋯ » menu appears at once (no grow).
+34. **The top tick hugs the largest value** (2026-11-06, verification V5-4). Of `count`, `count + 1` and
+    `count + 2` intervals, the axis takes the first whose top tick leaves at most a quarter of the axis
+    empty above the largest value (a 25,8 k€ cumul: 0 / 10 / 20 / 30 k€, not 0 / 20 / 40 k€).
+35. **Category labels are evenly spaced** (2026-11-06, verification V5-6). The axis shows every Nth
+    label from the first, never a forced last one breaking the rhythm. N is at least rule 12's thinning
+    and large enough for the longest label to fit its slot of the chart's measured plot width
+    (`hooks/useElementWidth`); before the first measure, long labels use Recharts'
+    `equidistantPreserveStart`. The end names' margin (rule 22) takes at most 30 % of a chart's width.
+    Supersedes the « first and last kept » part of rule 26.
+36. **A scroll closes the definition** (2026-11-06, verification V5-5). The bubble is fixed to the screen
+    (rule 23); while open, a scroll of the page or of any container closes it, so it never rides over the
+    app bar while its « i » scrolls away.
+37. **No dark variant of the pill** (2026-11-06, verifications V3-9, V5-10, R3-9). Since the hero became a
+    light card no caller draws a pill on a dark surface: `YearOverYearBadge` has no `onDark` any more
+    (its rule-1 fingerprint went with it; the other variants keep theirs).
 
 **Edge cases:**
 - A series whose values are all null → no line, no end label, still listed in the legend and table.
@@ -204,6 +219,7 @@ like the approved design page, on desktop and phone, without writing chart or ti
 | `components/` | `TrendChart.jsx` | C | The report line chart; exports `TrendTooltip`, `SeriesLegend`, `withColors`, `ALL_HIDDEN` |
 | `components/` | `AlignedDailyCumulativeCharts.jsx` | C | Bars + cumulative, synced; exports `DailyTooltip` |
 | `components/` | `ShareTable.jsx` | C | Segmented bar + table, linked highlight; exports `shareColors` (rule 32) |
+| `hooks/` | `useElementWidth.js` | C | Measured width of the chart box (ResizeObserver), for label spacing and the end-name margin (rule 35) |
 | `components/` | `LazyReportCharts.jsx` | C | The two charts as the SDK hands them out, loaded on first draw (rule 20) |
 | `plugins/sdk/` | `index.js` | T | `TrendChart` / `AlignedDailyCumulativeCharts` re-exported from `LazyReportCharts` (rule 20) |
 | `pages/` | `ReportGrammarPreview.jsx` | C | Dev-only workbench (rule 17) |
@@ -261,7 +277,7 @@ Reference: the approved design page, section « Graphiques » (`#graphiques`), r
 
 ## 7. Test plan
 
-### Client tests (Vitest) — 21 files, 67 tests
+### Client tests (Vitest) — 24 files, 75 tests
 
 - `components/__tests__/ReportGrammar.legacy-unchanged.test.jsx` — rule 1 (8 legacy renders hashed against the base)
 - `components/__tests__/SelectableTile.report-anatomy.test.jsx` — rules 2, 4, 16
@@ -284,6 +300,11 @@ Reference: the approved design page, section « Graphiques » (`#graphiques`), r
   - `components/__tests__/AlignedDailyCumulativeCharts.review-fixes.test.jsx` — rules 28, 30
   - `components/__tests__/ShareTable.review-fixes.test.jsx` — rules 28, 32
   - `components/__tests__/ChartMenu.reduced-motion.test.jsx` — rule 33
+- Verification round 2026-11-06 (rules 34–37):
+  - `utils/__tests__/reportChart.round2.test.js` — rules 22, 34, 35
+  - `components/__tests__/DefinitionButton.scroll.test.jsx` — rule 36
+  - `components/__tests__/YearOverYearBadge.no-dark-variant.test.jsx` — rule 37
+  - `ReportGrammar.legacy-unchanged` now holds 7 fingerprints (the dark variant's went with it).
 - Existing suites of `SelectableTile`, `YearOverYearBadge`, `PageTabs` and the finance page stay green; the
   consumers' chart tests wait for the lazy chart (`findBy…`) and name it as a `figure`.
 
@@ -316,8 +337,8 @@ Reference: the approved design page, section « Graphiques » (`#graphiques`), r
 
 **Resolved by default (2026-11-06, review round):**
 - *`onDark` (review R3-9)* — no caller passes it since the light hero card. Removed from
-  `DefinitionButton` and from the pill's report mode (new code, never used); kept on the legacy pill as its
-  documented generic variant, which rule 1 freezes. **Question to Adrien:** drop it from the legacy pill too?
+  `DefinitionButton` and from the pill's report mode in round 1, then from the legacy pill on 2026-11-06
+  (round 2, integrator's assignment V5-10: no dead code) — rule 37.
 - *Breakdown past five categories (R5-07)* — the server groups the rest into one `other: true` row; the
   component never recycles a hue (rule 32). Lots 2 and 4 must send at most five + « Autres ».
 - *Rates in the CSV (R5-17)* — percent with « (%) » in the header, opt-in with `ratio` (rule 27).

@@ -84,9 +84,18 @@ export function axisTicks(values, { domain, count = 4 } = {}) {
   const finite = values.filter((v) => v != null && Number.isFinite(v));
   const lo = Math.min(0, ...finite);
   const hi = Math.max(0, ...finite);
-  const step = niceStep((hi - lo) / count || 1 / count);
-  const start = clean(Math.floor(lo / step) * step);
-  const end = clean(Math.max(Math.ceil(hi / step) * step, start + step));
+  // Rule 34 — the top tick hugs the largest value: of `count`, `count + 1` and `count + 2` intervals,
+  // the first that leaves at most a quarter of the axis empty above it (else the tightest one).
+  let best = null;
+  for (let c = count; c <= count + 2; c += 1) {
+    const step = niceStep((hi - lo) / c || 1 / c);
+    const start = clean(Math.floor(lo / step) * step);
+    const end = clean(Math.max(Math.ceil(hi / step) * step, start + step));
+    const waste = (end - Math.max(hi, start + step / 2)) / (end - start);
+    if (!best || waste < best.waste) best = { step, start, end, waste };
+    if (waste <= 0.25) { best = { step, start, end, waste }; break; }
+  }
+  const { step, start, end } = best;
   const ticks = [];
   for (let t = start; t <= end + step / 2; t += step) ticks.push(clean(t));
   return { domain: [start, end], ticks };
@@ -109,11 +118,24 @@ export function endLabelMargin(names, cap) {
 }
 
 /**
- * Recharts `interval` of the category axis (rules 12, 26): short labels (« oct. », « 3/10 ») keep the
- * regular thinning of `tickInterval`; longer ones (« oct. 2025 ») let Recharts drop the ticks that would
- * touch, from their measured width, keeping the first and the last.
+ * Recharts `interval` of the category axis (rules 12, 26, 35): every Nth label from the first, evenly
+ * spaced. N is at least the regular thinning of `tickInterval`, and large enough that the longest label
+ * fits its slot of the measured plot width. Unmeasured (first paint, tests): long labels let Recharts
+ * pick the same evenly spaced N from their measured text (`equidistantPreserveStart`).
  */
-export function xInterval(categories, narrow) {
+export function xInterval(categories, narrow, plotWidth) {
   const longest = Math.max(0, ...categories.map((c) => String(c.label ?? '').length));
-  return longest > 5 ? 'preserveStartEnd' : tickInterval(categories.length, narrow);
+  const regular = tickInterval(categories.length, narrow);
+  if (plotWidth > 0) {
+    const perLabel = longest * 6.5 + 12;
+    const fit = Math.max(1, Math.floor(plotWidth / perLabel));
+    return Math.max(regular, Math.ceil(categories.length / fit) - 1);
+  }
+  return longest > 5 ? 'equidistantPreserveStart' : regular;
+}
+
+/** The end names' margin cap (rule 22): 150 px (96 on a phone), never more than 30 % of the chart. */
+export function endLabelCap(narrow, chartWidth) {
+  const cap = narrow ? 96 : 150;
+  return chartWidth > 0 ? Math.min(cap, Math.round(chartWidth * 0.3)) : cap;
 }

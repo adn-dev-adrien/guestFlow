@@ -42,6 +42,13 @@ export const CHECKS = {
   lastExport: 'Dernier export CSV',
 };
 
+// The title of a check that does not hold says so, in words, not only by its dot (rule 45b).
+export const CHECKS_FAILED = {
+  balanced: 'Écritures déséquilibrées',
+  vatCoherence: 'Écart de TVA',
+  settled: 'Séjours non soldés',
+};
+
 export const VAT_PANEL = {
   label: 'Récapitulatif TVA à déclarer',
   byRate: 'Par taux',

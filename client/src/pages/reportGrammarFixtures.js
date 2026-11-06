@@ -41,6 +41,10 @@ export const DAILY = [163, 335, 314, 0, 0, 109, 1, 0, 0, 0, 0, 0, 0, 180, 0, 1, 
 export const CUMULATIVE = [163, 498, 812, 812, 812, 921, 922, 922, 922, 922, 922, 922, 922, 1102, 1102, 1103, 1104, 1104, 1108, 1108, 1374, 1374, 1437, 1440, 1572, 1858, 1858, 1858, 1858, 1858, 1858];
 export const PREVIOUS_CUMULATIVE = [0, 0, 0, 0, 0, 0, 0, 0, 0, 28, 29, 29, 29, 29, 91, 108, 108, 108, 223, 223, 223, 223, 223, 223, 225, 429, 429, 429, 429, 429, 429];
 
+// Month labels as the servers send them for an exercise (« oct. 26 »): long enough to be thinned by width (rule 35).
+export const EXERCISE_MONTHS_DATED = ['oct. 26', 'nov. 26', 'déc. 26', 'janv. 27', 'févr. 27', 'mars 27', 'avr. 27', 'mai 27', 'juin 27', 'juil. 27', 'août 27', 'sept. 27']
+  .map((label, i) => ({ key: `m${i + 1}`, label }));
+
 // A rate on a fixed 0–100 % axis, with long series names (rules 21, 22, 27).
 export const OCCUPANCY_SERIES = [
   { key: 'cur', name: 'Exercice 2026-2027', area: true, values: [0.146, 0.161, 0.09, 0.05, null, null, null, null, null, null, null, null] },
