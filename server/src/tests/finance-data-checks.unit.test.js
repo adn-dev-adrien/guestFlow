@@ -230,7 +230,7 @@ test('rule 7: an undeclared row of 0 € leaves nothing to declare: its month is
   const item = check(data, 'tourist-tax-undeclared').items.find((i) => i.month === month);
   assert.equal(Boolean(item), others.length > 0);
   if (item) assert.equal(item.stays, new Set(others.map((r) => r.reservationId)).size);
-  assert.equal(listed(at(t, later, () => dataChecks.getDataChecks({ fiscalYear: fyOf(zero) }).data), 'tourist-tax-missing', zero), true, 'the missing tax is rule 6’s business');
+  assert.equal(listed(at(t, later, () => dataChecks.getDataChecks({ fiscalYear: fyOf(zero) }).data), 'tourist-tax-missing', zero), false, 'paid, its 0 € is frozen: not rule 6’s either (rule 19)');
 });
 
 test('rule 7: a month whose rows are all ticked, or not declarable yet, is not listed', (t) => {

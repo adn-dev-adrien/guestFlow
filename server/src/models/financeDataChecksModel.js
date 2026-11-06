@@ -1,6 +1,6 @@
 // « À vérifier » of the Suivi financier (specs/finance-data-checks.md). Read-only. Each check reads the rule
 // that already defines its concept — the tax « Recalculer » would give (quoteStoredReservation), the stays the
-// tourist-tax page lists and their « Déclarée » tick (financeModel.getTouristTaxExtraction), the platform stay
+// tourist-tax page lists and their « Déclarée » tick (financeModel.getTouristTaxRows, the extraction's own rows), the platform stay
 // of the finance dashboard (isPlatformStay), the iCal placeholder client (isPlaceholderClient) — and only
 // decides which stays of the exercise it lists.
 
@@ -14,7 +14,14 @@ const { isPlaceholderClient } = require('../utils/placeholderClient');
 const { isPlatformStay } = require('./financeDashboardModel');
 const { platformDisplayName } = require('../utils/attributionChannel');
 const { round2 } = require('../utils/paymentStatus');
+const { isTouristTaxFrozen } = require('../utils/touristTaxFreeze');
+const { ourStayRow, reportTotals } = require('../utils/touristTaxReport');
 const shape = require('../utils/financeDataChecks');
+
+const nextMonthStart = (ym) => {
+  const [y, m] = ym.split('-').map(Number);
+  return m === 12 ? `${String(y + 1).padStart(4, '0')}-01-01` : `${String(y).padStart(4, '0')}-${String(m + 1).padStart(2, '0')}-01`;
+};
 
 const H = financeModel.helpers;
 
@@ -63,10 +70,13 @@ function createDataChecksModel(database, finance) {
   });
 
   // Rule 6 — a stay whose tax WE remit carries 0 € while the tax « Recalculer » would give is above 0.
+  // Rule 19 (D-HC10) — only a tax not yet frozen: a 0 € frozen with the money collected or the declaration made is
+  // never ours to remit, whatever the platform's mode became since.
   function touristTaxMissing(ctx, stays) {
     const items = [];
     for (const stay of stays) {
       if (round2(Number(stay.touristTaxTotal || 0)) !== 0) continue;
+      if (isTouristTaxFrozen(database, stay)) continue;
       const platform = String(stay.platform || 'direct').toLowerCase();
       if (!isTouristTaxRemittedByOwner(database, stay.propertyId, platform)) continue;
       const quote = quoteStoredReservation(database, stay, { freezeTouristTax: false });
@@ -77,28 +87,39 @@ function createDataChecksModel(database, finance) {
     return shape.buildCheck('tourist-tax-missing', items);
   }
 
-  // Rule 7 — a past month of the exercise where the tourist-tax page lists a declarable row not ticked.
+  // Rule 7 — a past month of the exercise whose tax is not all ticked « Déclarée ». Rule 18 — ONE read of the shared
+  // declaration rows over every judged month (financeModel.getTouristTaxRows), split by the day each row is attached
+  // to; rule 20 (D-HC13) — the « reste » of a month is the tax page's own figure (touristTaxReport.reportTotals), and
+  // the part not declarable yet is named.
   function touristTaxUndeclared(ctx) {
     const firstTicked = database.prepare(`
       SELECT MIN(DATE(endDate, '-1 day')) AS day FROM reservations
        WHERE kind = 'reservation' AND touristTaxDeclaredAt IS NOT NULL
     `).get();
-    const items = [];
     const currentMonth = ctx.today.slice(0, 7);
     const startMonth = firstTicked && firstTicked.day ? String(firstTicked.day).slice(0, 7) : null;
-    if (startMonth) {
-      for (const { month } of exerciseMonths(ctx.exercise.from, ctx.exercise.to)) {
-        if (month >= currentMonth || month < startMonth) continue;
-        const result = finance.getTouristTaxExtraction({ month });
-        if (!result.ok) continue;
-        const rows = result.data.reservations.filter((row) => row.declarable && !row.touristTaxDeclaredAt
-          && round2(Number(row.taxAmount || 0)) > 0
-          && (ctx.propertyId == null || Number(row.propertyId) === ctx.propertyId));
-        if (rows.length === 0) continue;
-        const amount = round2(rows.reduce((sum, row) => sum + Number(row.taxAmount || 0), 0));
-        const stays = new Set(rows.map((row) => row.reservationId)).size;
-        items.push({ month, label: shape.monthItemLabel(month), detail: shape.undeclaredDetail(amount, stays), amount, stays });
-      }
+    const months = startMonth
+      ? exerciseMonths(ctx.exercise.from, ctx.exercise.to).map((m) => m.month).filter((m) => m < currentMonth && m >= startMonth)
+      : [];
+    if (months.length === 0) return shape.buildCheck('tourist-tax-undeclared', []);
+    const span = { start: `${months[0]}-01`, endExclusive: nextMonthStart(months[months.length - 1]) };
+    const byMonth = new Map(months.map((m) => [m, []]));
+    for (const row of finance.getTouristTaxRows(span)) {
+      if (ctx.propertyId != null && Number(row.propertyId) !== ctx.propertyId) continue;
+      const list = byMonth.get(String(row.declarationDay || '').slice(0, 7));
+      if (list) list.push(ourStayRow(row));
+    }
+    const items = [];
+    for (const [month, rows] of byMonth) {
+      const amount = reportTotals(rows, []).remainingAmount;
+      if (!(amount > 0)) continue;
+      const open = rows.filter((r) => !r.declared && r.taxAmount > 0);
+      const notDeclarable = round2(open.filter((r) => !r.declarable).reduce((sum, r) => sum + r.taxAmount, 0));
+      const stays = new Set(open.map((r) => r.reservationId)).size;
+      items.push({
+        month, label: shape.monthItemLabel(month), detail: shape.undeclaredDetail(amount, stays, notDeclarable),
+        amount, notDeclarableAmount: notDeclarable, stays,
+      });
     }
     return shape.buildCheck('tourist-tax-undeclared', items);
   }
@@ -115,7 +136,7 @@ function createDataChecksModel(database, finance) {
   function guestNameMissing(ctx, stays) {
     const items = stays
       .filter((stay) => isPlaceholderClient(stay))
-      .map((stay) => stayItem(ctx, stay, `Client : ${[stay.firstName, stay.lastName].filter(Boolean).join(' ')}`, false));
+      .map((stay) => stayItem(ctx, stay, shape.placeholderClientDetail(stay), false));
     return shape.buildCheck('guest-name-missing', items);
   }
 
@@ -141,5 +162,6 @@ function createDataChecksModel(database, finance) {
 
 const defaultModel = createDataChecksModel(db, financeModel);
 defaultModel.buildModel = (database) => createDataChecksModel(database, financeModel.buildModel(database));
+defaultModel.create = createDataChecksModel;
 
 module.exports = defaultModel;

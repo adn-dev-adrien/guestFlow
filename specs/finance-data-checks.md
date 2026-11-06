@@ -63,9 +63,9 @@ look, how many, and opens each one from the list.
    the very function that routes the « Taxe de séjour » page and the 46710000 line (direct, a platform that
    reverses it to us, or one where we collect at arrival; a platform that remits it itself is out), and (b) the
    engine, asked for the tax « Recalculer » would give (`quoteStoredReservation` with the freeze lifted), finds
-   one above 0. The detail gives that amount (« Taxe calculée : 4,80 € »). A logement whose commune levies no
+   one above 0 — on a stay whose tax is not frozen (rule 19). The detail gives that amount (« Taxe calculée : 4,80 € »). A logement whose commune levies no
    tax (rate 0) gives 0 and is never listed; added guests are part of the amount the engine gives.
-7. **`tourist-tax-undeclared` — « Mois passés dont la taxe n’est pas entièrement déclarée ».** For each month of
+7. **`tourist-tax-undeclared` — « Mois passés dont la taxe n’est pas entièrement déclarée ».** _(Amended by rules 18 and 20: one read for all months; « reste » counts every unticked row, the part not declarable named.)_ For each month of
    the exercise strictly before the current month, the rows of `financeModel.getTouristTaxExtraction` (the
    « Suivi taxe de séjour » page itself: same stays, same attribution month, same amounts, added-guests rows
    included) that are `declarable`, not ticked and carry a tax above 0 € (a 0 € row leaves nothing to remit; a
@@ -118,6 +118,23 @@ look, how many, and opens each one from the list.
     period selector (finance-dashboard-redesign rule 51). A refusal of the checks stays inside the panel — the
     server's reason, or « Impossible de charger les contrôles. », with « Réessayer » — and the rest of the page
     is untouched. While loading, the panel shows its spinner « Chargement des contrôles… ».
+18. **One read for the exercise** (review R6-11, 2026-11-06). Rule 7 reads the declaration rows of every judged month in
+    ONE call of `financeModel.getTouristTaxRows({ start, endExclusive })` — the rows the monthly extraction and the
+    tax report list — and splits them by the day each row is attached to (`declarationDay`, carried by the row,
+    non-enumerable so the monthly payload stays key for key). Never the monthly extraction month after month, never
+    a copy of the attachment rule; each month item equals that month's extraction (proved on every branch: tax on
+    the solde, collected on arrival, plan, row of added guests).
+19. **A frozen tax is never « missing »** (D-HC10, review R4-1). Rule 6 judges only a stay whose tax is not frozen
+    (`touristTaxFreeze.isTouristTaxFrozen`): a 0 € frozen when the money was collected or the declaration made is
+    not ours to remit, whatever the platform's mode became since (a platform that remitted the tax itself then
+    reverses it later is not retroactive). Nothing is re-priced.
+20. **« Reste » is the tax page's figure** (D-HC13, review R4-5). A month item's `amount` is the remaining amount of
+    the tax report for that month and logement (`touristTaxReport.reportTotals` over the same rows: every unticked
+    row, declarable or not); the month is listed when it is above 0. When unticked rows are not declarable yet
+    (an unpaid plan, D16), the detail adds « dont X € pas encore déclarables » and the item carries
+    `notDeclarableAmount`; `stays` counts the stays with an unticked amount above 0.
+21. **A client with no name** (review R4-8). Rule 9's detail reads « Client sans nom » when the placeholder client
+    carries no first name and no last name, never « Client : » followed by nothing.
 
 **Edge cases:**
 - A cancelled stay → in no stay check (no tax owed, the cancellation has its own books).
@@ -141,7 +158,8 @@ look, how many, and opens each one from the list.
 | `controllers/` | `financeDataChecksController.js` | C | Thin: query → model → 200 or the model's 400. |
 | `models/` | `financeDataChecksModel.js` | C | Resolves the exercise and logement; reads the finished stays of rule 5; runs the four checks through the rules that define them (`quoteStoredReservation`, `isTouristTaxRemittedByOwner`, `getTouristTaxExtraction`, `isPlatformStay`, `isPlaceholderClient`). |
 | `utils/` | `financeDataChecks.js` | C | Pure: the catalogue (key, severity, label, hint), the cap, the order, the item labels and details. |
-| `models/` | `financeModel.js`, `financeDashboardModel.js` | — | Read only, unchanged. |
+| `models/` | `financeModel.js` | T | `getTouristTaxRows` rows carry a non-enumerable `declarationDay` (rule 18); nothing else changes. |
+| `models/` | `financeDashboardModel.js`, `touristTaxReportModel.js` | — | Read only (`isPlatformStay`; `utils/touristTaxReport` `ourStayRow` / `reportTotals` for « reste »). |
 | `database.js` | — | — | No schema change. |
 
 ### 4.2 Client side (`client/src/`)
@@ -187,7 +205,7 @@ look, how many, and opens each one from the list.
       "label": "Mois passés dont la taxe n’est pas entièrement déclarée",
       "hint": "Des séjours déclarables du mois ne sont pas cochés « Déclarée ».",
       "count": 1, "moreCount": 0,
-      "items": [{ "month": "2026-09", "label": "Septembre 2026", "detail": "Reste 18,15 € à déclarer · 2 séjours", "amount": 18.15, "stays": 2 }]
+      "items": [{ "month": "2026-09", "label": "Septembre 2026", "detail": "Reste 18,15 € à déclarer · 2 séjours · dont 7,20 € pas encore déclarables", "amount": 18.15, "notDeclarableAmount": 7.2, "stays": 2 }]
     },
     {
       "key": "platform-payment-missing", "severity": "check",
@@ -233,7 +251,8 @@ The panel has no action of its own in the `PageActionBar`; the page's « Actuali
 ## 7. Test plan
 
 ### Server unit tests
-- [x] `tests/finance-data-checks.unit.test.js` (16) — rules 1, 2, 4, 5, 6, 7, 8, 9, 10: positive / negative /
+- [x] `tests/finance-data-checks.unit.test.js` (16) — the 0 € row case now reads rule 19 (frozen, not listed as missing).
+- [x] `tests/finance-data-checks.review-fixes.unit.test.js` (7) — rules 18, 19, 20, 21: frozen 0 € after a platform's switch, unfrozen still judged, empty-name client, « reste » = tax report with « pas encore déclarables », one read per request (spy), month items = monthly extraction on four branches, attachment day inside its window month by month. — rules 1, 2, 4, 5, 6, 7, 8, 9, 10: positive / negative /
       edge per check, platform modes (reversed, owner, remitted), rate 0, added guests, cancelled, departure day,
       other logement, other exercise, website request, placeholder label, page-equal amount, unpaid not declarable,
       a 0 € undeclared row, months before the first tick, cap, read-only route.
@@ -278,6 +297,10 @@ The panel has no action of its own in the `PageActionBar`; the page's « Actuali
 - Cap = 20 items per check (rule 4).
 - All counts at 0 → the panel stays with one line rather than disappearing (rule 15).
 - Month link target → `/finance/tourist-tax?month=YYYY-MM`; the tax page did not read a month from its URL, it now does (rule 16).
+
+**Resolved 2026-11-06 (Adrien, D-HC10 / D-HC13, review fixes):** rule 6 skips frozen taxes (rule 19); « reste »
+is the tax page's figure (rule 20); rule 7 reads once (rule 18). A repeated `propertyId` stays « Logement
+inconnu. » (400) and a repeated or unusable `fiscalYear` reads as the current exercise, the dashboard's convention.
 
 **Found while building (not fixed here):** a stay created with `adults: 0` is stored with `adults = 1` but its
 tourist tax computed for 0 adults (seen in the unit fixture). Rule 6 lists such a stay — rightly — but the

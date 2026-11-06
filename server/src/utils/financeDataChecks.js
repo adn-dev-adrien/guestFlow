@@ -60,8 +60,18 @@ function stayLabel(stay, { year = null, withGuest = true } = {}) {
 /** « Septembre 2026 » */
 const monthItemLabel = (month) => capitalize(monthLabel(month));
 
-/** « Reste 18,15 € à déclarer · 2 séjours » */
-const undeclaredDetail = (amount, stays) => `Reste ${emailAmount(amount)} à déclarer · ${plural(stays, 'séjour', 'séjours')}`;
+/** « Reste 18,15 € à déclarer · 2 séjours », then « · dont 7,20 € pas encore déclarables » when some is not (rule 20). */
+const undeclaredDetail = (amount, stays, notDeclarable = 0) => [
+  `Reste ${emailAmount(amount)} à déclarer`,
+  plural(stays, 'séjour', 'séjours'),
+  ...(notDeclarable > 0 ? [`dont ${emailAmount(notDeclarable)} pas encore déclarables`] : []),
+].join(' · ');
+
+/** « Client : Ical Booking », or « Client sans nom » when the client carries no name at all (rule 21). */
+function placeholderClientDetail(stay) {
+  const name = [stay.firstName, stay.lastName].map((s) => String(s == null ? '' : s).trim()).filter(Boolean).join(' ');
+  return name ? `Client : ${name}` : 'Client sans nom';
+}
 
 /** « Taxe calculée : 7,20 € » */
 const expectedTaxDetail = (amount) => `Taxe calculée : ${emailAmount(amount)}`;
@@ -95,5 +105,5 @@ function assemble(checks) {
 }
 
 module.exports = {
-  ITEM_LIMIT, SEVERITIES, CHECKS, stayLabel, monthItemLabel, undeclaredDetail, expectedTaxDetail, buildCheck, assemble,
+  ITEM_LIMIT, SEVERITIES, CHECKS, stayLabel, monthItemLabel, undeclaredDetail, placeholderClientDetail, expectedTaxDetail, buildCheck, assemble,
 };
