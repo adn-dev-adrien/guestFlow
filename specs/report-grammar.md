@@ -112,6 +112,55 @@ like the approved design page, on desktop and phone, without writing chart or ti
     the pill writes its text in the palette's `text` shade (`success.text`, `error.text`,
     `neutral.text`) on its `soft` background — each ≥ 4.5:1, small text — never in `main`
     (`success.main` on `success.soft` is 4.2:1).
+20. **The charts never weigh on the first page** (2026-11-06, review R5-01). The plugin SDK sits in the
+    initial bundle; it hands `TrendChart` and `AlignedDailyCumulativeCharts` out lazily
+    (`components/LazyReportCharts.jsx`: `React.lazy` + a quiet placeholder of the chart's height), so
+    Recharts loads with the first chart drawn. Nothing the SDK imports statically reaches `recharts`, and
+    `scripts/check-bundle-budget.mjs` passes (measured: base `origin/inte/plugins` 292,0 kB gzip,
+    this branch 298,3 kB, budget 313,3 kB).
+21. **Y ticks on nice steps, or a fixed domain** (2026-11-06, review R5-05, shared contract with lot 3).
+    Without `yDomain`, `TrendChart` and `AlignedDailyCumulativeCharts` graduate from 0 (or below a
+    negative value) to just above the largest visible value on 1-2-2,5-5 × 10ⁿ steps — never
+    « 0 / 4,5 / 9 / 13,5 ». With `yDomain` (`[0, 1]` for a rate) the axis is that domain, five even
+    ticks (0, 25, 50, 75, 100 %).
+22. **End names stay readable and inside the card** (2026-11-06, reviews R5-03, R3-10). The right margin
+    is the width of the longest visible name (at least 40 px, at most 150 px — 96 px on a phone); a name
+    longer than its room is cut with « … », the full name in the SVG `<title>`. Names are at least 15 px
+    apart and kept inside the plot: a line ending on 0 has its name above the axis labels.
+23. **The definition bubble is readable everywhere** (2026-11-06, reviews R5-02, R5-12). It takes the
+    width of its text up to 280 px (and at most the screen width minus 32 px), is rendered in a
+    portal with a fixed position (a card that clips its overflow never cuts it), describes its « i »
+    while open (`aria-describedby`), and closes when the focus leaves by Tab — as well as on a second
+    click, a click outside and Escape (rule 2).
+24. **The open tile keeps its pointer** (2026-11-06, review R5-14). A selected tile with a definition or a
+    pill draws the same pointer toward its panel as the legacy tile (finance-dashboard-redesign rule 13).
+25. **A tile's figure is heard** (2026-11-06, review R5-15). A selectable tile with a definition or a pill
+    keeps its action as its name (« Déjà payé : afficher le détail ») and is described by its body:
+    value, secondary line and pill.
+26. **Category labels never overlap** (2026-11-06, review R5-04). Labels up to 5 characters keep the
+    regular thinning (rule 12); longer ones (« oct. 2025 ») are thinned from their measured width, the
+    first and the last kept. Servers still send short labels where they can.
+27. **The copy is what the chart shows** (2026-11-06, review R5-17). « Copier les données » copies the
+    visible series only; with `ratio` (values 0–1) it writes percents with one decimal and « (%) » in the
+    header (« 14,6 », not « 0,1463 »).
+28. **An empty period says so** (2026-11-06, review R5-08). `TrendChart`, `AlignedDailyCumulativeCharts`
+    and `ShareTable` take `emptyText`: when the server says the period is empty the page passes its
+    sentence, which replaces the chart (legend and menu included) or the bar and table — never a flat line
+    on a « 0 / 1 / 2 € » axis or a lone « Total 0 ».
+29. **A hidden series stays readable** (2026-11-06, review R5-13). Its legend text is `text.secondary`
+    (5,4:1), crossed out; only its swatch fades.
+30. **A chart is a figure the keyboard passes over** (2026-11-06, review R5-09). The chart is
+    `role="figure"` with the chart's name, Recharts' keyboard layer is off (no invisible focus stop); the
+    table view (rule 11) is its accessible reading.
+31. **The bar chart shows its « 0 »** (2026-11-06, review R5-18). The top chart of the aligned pair keeps
+    room under its plot for its 0 tick.
+32. **A hue is never recycled** (2026-11-06, reviews R5-07, R4-10). Series and share rows take the five
+    `palette.chart.categorical` hues in order; past five, and for a row flagged `other` (« Autres »), the
+    new `palette.chart.other` grey. The server groups a breakdown beyond five categories into one `other`
+    row. A segment's hover text is the row's `caption` when sent (« Gîtes : 12 séjours » when the bar
+    measures a count), else « label : share ».
+33. **The chart menu opens without motion when asked** (2026-11-06, review R5-19). Under
+    `prefers-reduced-motion: reduce` the « ⋯ » menu appears at once (no grow).
 
 **Edge cases:**
 - A series whose values are all null → no line, no end label, still listed in the legend and table.
@@ -140,7 +189,7 @@ like the approved design page, on desktop and phone, without writing chart or ti
 |---|---|---|---|
 | `theme.js` | `theme.js` | T | `palette.chart.categorical` (rule 13), `panelLabel` typography role (rule 7) |
 | `utils/` | `chartColors.js` | T | `categoricalColor(index)` |
-| `utils/` | `reportChart.js` | C | Pure helpers: `lastValueIndex`, `layoutEndLabels`, `tickInterval`, `rowsFromSeries`, `toCsv` |
+| `utils/` | `reportChart.js` | C | Pure helpers: `lastValueIndex`, `layoutEndLabels`, `tickInterval`, `xInterval`, `rowsFromSeries`, `toCsv`, `niceStep`, `axisTicks`, `endLabelWidth`, `endLabelMargin`, `fitEndLabel` |
 | `components/` | `SelectableTile.jsx` | T | Optional `info`, `comparison`; static mode without `onClick` |
 | `components/` | `YearOverYearBadge.jsx` | T | Optional report mode: `previous`, `unit`, `better`, `showEmpty` |
 | `components/` | `PageTabs.jsx` | T | Optional item `count` |
@@ -152,7 +201,9 @@ like the approved design page, on desktop and phone, without writing chart or ti
 | `components/` | `ChartEndLabels.jsx` | C | Series names at line ends inside a Recharts chart (hooks `useXAxisScale`/`useYAxisScale`) |
 | `components/` | `TrendChart.jsx` | C | The report line chart; exports `TrendTooltip`, `SeriesLegend`, `withColors`, `ALL_HIDDEN` |
 | `components/` | `AlignedDailyCumulativeCharts.jsx` | C | Bars + cumulative, synced; exports `DailyTooltip` |
-| `components/` | `ShareTable.jsx` | C | Segmented bar + table, linked highlight |
+| `components/` | `ShareTable.jsx` | C | Segmented bar + table, linked highlight; exports `shareColors` (rule 32) |
+| `components/` | `LazyReportCharts.jsx` | C | The two charts as the SDK hands them out, loaded on first draw (rule 20) |
+| `plugins/sdk/` | `index.js` | T | `TrendChart` / `AlignedDailyCumulativeCharts` re-exported from `LazyReportCharts` (rule 20) |
 | `pages/` | `ReportGrammarPreview.jsx` | C | Dev-only workbench (rule 17) |
 | `pages/` | `reportGrammarFixtures.js` | C | Fixture figures shared by the workbench and the tests |
 | `App.jsx` | `App.jsx` | T | Dev-only lazy route `/design/report-grammar` |
@@ -170,9 +221,9 @@ like the approved design page, on desktop and phone, without writing chart or ti
 None. The props contracts below are what lots 1–5 shape on the server:
 
 - **KPI tile** `<SelectableTile label value caption? info? comparison?={ change, previous?, unit?, better? } />`
-- **Trend chart** `categories: [{ key, label }]`, `series: [{ key, name, values: (number|null)[], color?, area?, dashed?, hidden? }]`
-- **Aligned charts** `categories`, `daily[]`, `cumulative[]`, `previousCumulative?[]`
-- **Share table** `rows: [{ key, label, quantity?, amount, share (0–1), color? }]`, `total: { quantity?, amount }`
+- **Trend chart** `categories: [{ key, label }]`, `series: [{ key, name, values: (number|null)[], color?, area?, dashed?, hidden? }]`, `yDomain?`, `ratio?`, `emptyText?`
+- **Aligned charts** `categories`, `daily[]`, `cumulative[]`, `previousCumulative?[]`, `emptyText?`
+- **Share table** `rows: [{ key, label, quantity?, amount, share (0–1), color?, other?, caption? }]` (at most five + one `other`), `total: { quantity?, amount }`, `emptyText?`
 
 ---
 
@@ -208,7 +259,7 @@ Reference: the approved design page, section « Graphiques » (`#graphiques`), r
 
 ## 7. Test plan
 
-### Client tests (Vitest) — 11 new files, 46 tests
+### Client tests (Vitest) — 21 files, 67 tests
 
 - `components/__tests__/ReportGrammar.legacy-unchanged.test.jsx` — rule 1 (8 legacy renders hashed against the base)
 - `components/__tests__/SelectableTile.report-anatomy.test.jsx` — rules 2, 4, 16
@@ -216,17 +267,28 @@ Reference: the approved design page, section « Graphiques » (`#graphiques`), r
 - `components/__tests__/NoComparisonNotice.test.jsx` — rule 5
 - `components/__tests__/PageTabs.count.test.jsx` — rule 6
 - `components/__tests__/Panel.test.jsx` — rule 7
-- `components/__tests__/TrendChart.legend-and-menu.test.jsx` — rules 8, 9, 10, 11, 12, 16
+- `components/__tests__/TrendChart.legend-and-menu.test.jsx` — rules 8, 9, 10, 11, 12, 16, 27
 - `components/__tests__/AlignedDailyCumulativeCharts.test.jsx` — rules 11, 14
 - `components/__tests__/ShareTable.test.jsx` — rules 15, 16
 - `components/__tests__/chartPalette.categorical.test.js` — rule 13
 - `utils/__tests__/reportChart.helpers.test.js` — rules 8, 10, 12
-- Existing suites of `SelectableTile`, `YearOverYearBadge`, `PageTabs` and the finance page stay green unmodified.
-- 2026-11-05 (lot 3 follow-up): `components/__tests__/SelectableTile.row-alignment.test.jsx` (2) — rule 18; `components/__tests__/YearOverYearBadge.report-contrast.test.jsx` (5) — rule 19. `ReportGrammar.legacy-unchanged` still passes unmodified: the legacy tile's markup did not move.
+- Lot 3 follow-up (rules 18, 19): `SelectableTile.row-alignment.test.jsx`, `YearOverYearBadge.report-contrast.test.jsx`
+- Review round 2026-11-06 (rules 20–33):
+  - `components/__tests__/pluginSdk.no-recharts-at-boot.test.js` — rule 20
+  - `utils/__tests__/reportChart.review-fixes.test.js` — rules 21, 22, 26
+  - `components/__tests__/DefinitionButton.review-fixes.test.jsx` — rule 23
+  - `components/__tests__/SelectableTile.review-fixes.test.jsx` — rules 24, 25
+  - `components/__tests__/TrendChart.review-fixes.test.jsx` — rules 21, 27, 28, 29, 30, 32
+  - `components/__tests__/AlignedDailyCumulativeCharts.review-fixes.test.jsx` — rules 28, 30, 31
+  - `components/__tests__/ShareTable.review-fixes.test.jsx` — rules 28, 32
+  - `components/__tests__/ChartMenu.reduced-motion.test.jsx` — rule 33
+- Existing suites of `SelectableTile`, `YearOverYearBadge`, `PageTabs` and the finance page stay green; the
+  consumers' chart tests wait for the lazy chart (`findBy…`) and name it as a `figure`.
 
 ### Build
 
 - `npx vite build` passes; the production bundle contains no « Grammaire des rapports » (rule 17).
+- `node scripts/check-bundle-budget.mjs` passes: 298,3 kB gzip for a 313,3 kB budget (rule 20).
 
 ### Manual UI verification (workbench, throwaway DB)
 
@@ -236,6 +298,10 @@ Reference: the approved design page, section « Graphiques » (`#graphiques`), r
 - [x] « ⋯ » → « Voir en tableau » renders the table; 390 px: no page-level horizontal scroll, tiles 2
       per row, share table readable.
 - [x] Console: no error, no warning.
+- [x] 2026-11-06, workbench (now with a 0–100 % occupancy chart and an empty panel): the RevPAR
+      definition spans its text on one line at 1280; ticks 0 / 20 / 40 / 60 k€ and 0 / 25 / 50 / 75 / 100 %;
+      « Exercice 2025-2026 » fits at 1280 and reads « Exercice 20… » at 390, inside the card; the bar chart
+      shows « 0 € »; no horizontal scroll at 390.
 
 ## 8. Out of scope
 
@@ -245,6 +311,16 @@ Reference: the approved design page, section « Graphiques » (`#graphiques`), r
 - Printing/PDF of reports.
 
 ## 9. Open questions
+
+**Resolved by default (2026-11-06, review round):**
+- *`onDark` (review R3-9)* — no caller passes it since the light hero card. Removed from
+  `DefinitionButton` and from the pill's report mode (new code, never used); kept on the legacy pill as its
+  documented generic variant, which rule 1 freezes. **Question to Adrien:** drop it from the legacy pill too?
+- *Breakdown past five categories (R5-07)* — the server groups the rest into one `other: true` row; the
+  component never recycles a hue (rule 32). Lots 2 and 4 must send at most five + « Autres ».
+- *Rates in the CSV (R5-17)* — percent with « (%) » in the header, opt-in with `ratio` (rule 27).
+- *Long category labels (R5-04)* — the component thins them by width (rule 26); short labels from the
+  server remain the better fix.
 
 **Resolved by default (2026-11-05):**
 - *The `/design` page asked for no longer exists* — it was removed on 2026-08-22

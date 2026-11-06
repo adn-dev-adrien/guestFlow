@@ -57,7 +57,7 @@ test('rules 10 and 11 — « Voir en tableau » renders every series, formatted,
   expect(screen.queryByRole('table')).toBeNull();
 });
 
-test('rule 10 — « Copier les données » writes the CSV and says so', async () => {
+test('rules 10 and 27 — « Copier les données » writes the CSV of the visible series and says so', async () => {
   const writeText = vi.fn().mockResolvedValue();
   setClipboard({ writeText });
   renderChart();
@@ -65,8 +65,8 @@ test('rule 10 — « Copier les données » writes the CSV and says so', async (
   await userEvent.click(screen.getByRole('menuitem', { name: 'Copier les données' }));
   expect(await screen.findByText(COPY_DONE)).toBeInTheDocument();
   const csv = writeText.mock.calls[0][0].split('\n');
-  expect(csv[0]).toBe('Période;2026-27;2025-26;2024-25;2023-24');
-  expect(csv[3]).toBe('déc.;;6050;4980;4210');
+  expect(csv[0]).toBe('Période;2026-27;2025-26');
+  expect(csv[3]).toBe('déc.;;6050');
 });
 
 test('rule 10 — a refused clipboard is said, not swallowed', async () => {

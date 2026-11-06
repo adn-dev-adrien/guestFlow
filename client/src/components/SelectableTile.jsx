@@ -20,7 +20,7 @@
  *   comparison?:  { change: number|null, previous?: string, unit?: 'percent'|'points', better?: 'higher'|'lower' }
  *                 the pill under the figure (YearOverYearBadge report mode); change null → « — vs N-1 »
  */
-import React from 'react';
+import React, { useId } from 'react';
 import { Box, ButtonBase, Typography } from '@mui/material';
 import DefinitionButton from './DefinitionButton';
 import YearOverYearBadge from './YearOverYearBadge';
@@ -49,7 +49,15 @@ function Body({ label, value, caption, valueColor, comparison, labelEnd }) {
   );
 }
 
+// The pointer from the open tile toward the panel it opened (specs/finance-dashboard-redesign.md rule 13).
+const OPEN_POINTER = {
+  content: '""', position: 'absolute', left: '50%', bottom: -9, width: 14, height: 14,
+  bgcolor: 'background.paper', borderRight: '1.5px solid', borderBottom: '1.5px solid', borderColor: 'primary.main',
+  transform: 'translateX(-50%) rotate(45deg)', display: { xs: 'none', sm: 'block' },
+};
+
 export default function SelectableTile({ label, value, caption, dotColor, valueColor, selected, onClick, controls, info, comparison }) {
+  const bodyId = useId();
   const definition = info ? <DefinitionButton label={label} definition={info} /> : null;
   if (!onClick) {
     return (
@@ -95,6 +103,8 @@ export default function SelectableTile({ label, value, caption, dotColor, valueC
         aria-expanded={selected}
         aria-controls={controls}
         aria-label={`${label} : ${selected ? 'masquer' : 'afficher'} le détail`}
+        // Rule 25 — the name says the action, the description reads the figure, its line and its pill.
+        aria-describedby={bodyId}
         sx={{
           ...STATIC_SX,
           // A <button> centres its content vertically whatever its display: a column from the top keeps
@@ -104,9 +114,13 @@ export default function SelectableTile({ label, value, caption, dotColor, valueC
           transition: 'border-color .15s, transform .1s',
           '&:hover': { transform: 'translateY(-2px)' },
           '@media (prefers-reduced-motion: reduce)': { transition: 'none', '&:hover': { transform: 'none' } },
+          // Rule 24 — the open tile keeps its pointer, as the legacy tile does.
+          '&::after': selected ? OPEN_POINTER : undefined,
         }}
       >
-        <Body label={label} value={value} caption={caption} valueColor={valueColor} comparison={comparison} labelEnd={info ? <Box component="span" sx={{ width: 24, flex: 'none' }} /> : null} />
+        <Box component="span" id={bodyId} sx={{ display: 'contents' }}>
+          <Body label={label} value={value} caption={caption} valueColor={valueColor} comparison={comparison} labelEnd={info ? <Box component="span" sx={{ width: 24, flex: 'none' }} /> : null} />
+        </Box>
       </ButtonBase>
       {info && <Box sx={{ position: 'absolute', top: 12, right: 14 }}>{definition}</Box>}
     </Box>

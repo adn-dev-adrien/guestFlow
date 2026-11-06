@@ -23,15 +23,17 @@ test('rule 31 — means and types with the server\'s figures, shares to one deci
   expect(screen.getByText(/^Remboursements sur la période, hors encaissements : 1 · 120,00\s€$/)).toBeInTheDocument();
 });
 
-test('rule 32 — the series is named by its granularity; last year only when sent', () => {
+test('rule 32 — the series is named by its granularity; last year only when sent', async () => {
   const { unmount } = renderTab(synthesisPayload());
   expect(screen.getByText('Encaissements hebdomadaires et cumul')).toBeInTheDocument();
-  expect(screen.getByText('Encaissé de la semaine')).toBeInTheDocument();
+  // The SDK hands the charts out lazily (specs/report-grammar.md rule 20): wait for them.
+  expect(await screen.findByText('Encaissé de la semaine', {}, { timeout: 10000 })).toBeInTheDocument();
   expect(screen.getByText('Cumul N-1')).toBeInTheDocument();
   unmount();
   const data = synthesisPayload();
   data.collections.series = { ...data.collections.series, granularity: 'day', previousAvailable: false };
   renderTab(data);
   expect(screen.getByText('Encaissements journaliers et cumul')).toBeInTheDocument();
+  await screen.findByRole('figure', {}, { timeout: 10000 });
   expect(screen.queryByText('Cumul N-1')).toBeNull();
-});
+}, 20000);

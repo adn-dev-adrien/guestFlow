@@ -26,7 +26,7 @@ beforeEach(() => {
 
 test('rule 18 — the scope\'s series and last year\'s, named by the exercises, readable as a table', async () => {
   renderPage();
-  const chart = await screen.findByRole('img', { name: "Taux d'occupation par mois, 2026 et 2025" });
+  const chart = await screen.findByRole('figure', { name: "Taux d'occupation par mois, 2026 et 2025" });
   const card = chart.closest('.MuiCardContent-root');
   const legend = within(card).getByRole('group', { name: 'Séries affichées' });
   expect(within(legend).getByRole('button', { name: /2026/ })).toHaveAttribute('aria-pressed', 'true');
@@ -45,7 +45,7 @@ test('rule 18 — no comparable month last year: no dashed series', async () => 
     ...COMPARED, occupancyAll: { ...COMPARED.occupancyAll, months: COMPARED.occupancyAll.months.map((m) => ({ ...m, previous: null })) },
   });
   renderPage();
-  const chart = await screen.findByRole('img', { name: /Taux d'occupation par mois/ });
+  const chart = await screen.findByRole('figure', { name: /Taux d'occupation par mois/ });
   const legend = within(chart.closest('.MuiCardContent-root')).getByRole('group', { name: 'Séries affichées' });
   expect(within(legend).getAllByRole('button')).toHaveLength(1);
 });
@@ -53,7 +53,7 @@ test('rule 18 — no comparable month last year: no dashed series', async () => 
 test('rule 18 — one logement selected: the chart alone, no small multiple repeating it', async () => {
   api.getFinanceDashboard.mockResolvedValue({ ...COMPARED, propertyId: 1, occupancy: COMPARED.occupancy.slice(0, 1) });
   renderPage();
-  const chart = await screen.findByRole('img', { name: /Taux d'occupation par mois/ });
+  const chart = await screen.findByRole('figure', { name: /Taux d'occupation par mois/ });
   const card = chart.closest('.MuiCardContent-root');
   expect(card).toHaveTextContent('par mois · Gîte');
   expect(within(card).queryByText('Par logement')).toBeNull();

@@ -48,8 +48,8 @@ export { ADMIN, userHasRole } from '../../constants/roles';
 export { default as SelectableTile } from '../../components/SelectableTile';
 export { default as NoComparisonNotice } from '../../components/NoComparisonNotice';
 export { default as Panel } from '../../components/Panel';
-export { default as TrendChart } from '../../components/TrendChart';
-export { default as AlignedDailyCumulativeCharts } from '../../components/AlignedDailyCumulativeCharts';
+// The charts load Recharts on first use, never with the shell (specs/report-grammar.md rule 20).
+export { LazyTrendChart as TrendChart, LazyAlignedDailyCumulativeCharts as AlignedDailyCumulativeCharts } from '../../components/LazyReportCharts';
 export { default as ShareTable } from '../../components/ShareTable';
 export { default as useServerToday } from '../../hooks/useServerToday';
 export { customWindowError } from '../../components/PeriodSelector';

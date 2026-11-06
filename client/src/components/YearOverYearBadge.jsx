@@ -10,7 +10,8 @@
  *   change:       number | null   percent (or points with unit 'points'), one decimal, from the server
  *   months?:      number          comparable months
  *   totalMonths?: number          months of the window
- *   onDark?:      boolean         white variant for a dark background
+ *   onDark?:      boolean         legacy mode only — white variant for a dark background (no caller since
+ *                                 the light hero card; kept as the generic variant of the legacy pill)
  *   previous?:    string          report mode — last year's value, already formatted (« 15 210 € »)
  *   unit?:        'percent' | 'points'   report mode — « % » (default) or « pt » for a rate
  *   better?:      'higher' | 'lower'     report mode — which direction reads as good news (default higher)
@@ -24,15 +25,14 @@ const fmt1 = (x) => Math.abs(Math.round(x * 10) / 10).toFixed(1).replace('.', ',
 
 const PILL_SX = { display: 'inline-flex', alignItems: 'center', fontSize: 12, fontWeight: 600, px: 1, py: 0.25, borderRadius: 99, whiteSpace: 'nowrap' };
 
-function toneColors(tone, onDark) {
-  if (onDark) return { bgcolor: tone === 'bad' ? 'rgba(255,130,110,0.3)' : 'rgba(255,255,255,0.18)', color: '#fff' };
+function toneColors(tone) {
   if (tone === 'flat') return { bgcolor: 'neutral.soft', color: 'neutral.text' };
   return tone === 'good' ? { bgcolor: 'success.soft', color: 'success.text' } : { bgcolor: 'error.soft', color: 'error.text' };
 }
 
-function ReportBadge({ change, previous, unit = 'percent', better = 'higher', onDark }) {
+function ReportBadge({ change, previous, unit = 'percent', better = 'higher' }) {
   if (change == null) {
-    return <Box component="span" data-tone="none" sx={{ ...PILL_SX, ...toneColors('flat', onDark) }}>— vs N-1</Box>;
+    return <Box component="span" data-tone="none" sx={{ ...PILL_SX, ...toneColors('flat') }}>— vs N-1</Box>;
   }
   const flat = Math.abs(change) < 0.05;
   const up = change > 0;
@@ -43,7 +43,7 @@ function ReportBadge({ change, previous, unit = 'percent', better = 'higher', on
     <Box
       component="span"
       data-tone={tone}
-      sx={{ ...PILL_SX, flexWrap: 'wrap', columnGap: 0.5, whiteSpace: 'normal', fontVariantNumeric: 'tabular-nums', ...toneColors(tone, onDark) }}
+      sx={{ ...PILL_SX, flexWrap: 'wrap', columnGap: 0.5, whiteSpace: 'normal', fontVariantNumeric: 'tabular-nums', ...toneColors(tone) }}
     >
       <Box component="span" sx={{ whiteSpace: 'nowrap' }}>{delta}</Box>
       {previous != null && <Box component="span" sx={{ whiteSpace: 'nowrap', fontWeight: 500, opacity: 0.85 }}>(N-1 : {previous})</Box>}
@@ -52,7 +52,7 @@ function ReportBadge({ change, previous, unit = 'percent', better = 'higher', on
 }
 
 export default function YearOverYearBadge({ change, months, totalMonths, onDark = false, previous, unit, better, showEmpty = false }) {
-  if (previous != null || showEmpty) return <ReportBadge change={change} previous={previous} unit={unit} better={better} onDark={onDark} />;
+  if (previous != null || showEmpty) return <ReportBadge change={change} previous={previous} unit={unit} better={better} />;
   if (change == null) return null;
   const flat = Math.abs(change) < 0.5;
   const up = change > 0;

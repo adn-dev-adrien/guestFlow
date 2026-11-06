@@ -5,7 +5,9 @@
  * widths ARE the server's shares.
  *
  * Props:
- *   rows:            Array<{ key, label, quantity?, amount, share: number (0–1), color? }>
+ *   rows:            Array<{ key, label, quantity?, amount, share: number (0–1), color?, other?, caption? }>
+ *                    at most five categories plus one `other: true` row (« Autres », grey) — the server
+ *                    groups the rest; `caption` = the segment's hover text (default « label : share »)
  *   total:           { quantity?, amount }      the total row, from the server
  *   formatAmount:    (n) => string
  *   formatShare?:    (share) => string          default « 38 % »
@@ -14,17 +16,32 @@
  *   amountHeader?:   string                      default « Montant »
  *   shareHeader?:    string                      default « Part »
  *   ariaLabel?:      string                      the bar's name, default « Répartition »
+ *   emptyText?:      string                      when set (the server says there is nothing), this sentence
+ *                                                replaces the bar and the table (rule 28)
  */
 import React, { useState } from 'react';
 import { Box, Table, TableBody, TableCell, TableFooter, TableHead, TableRow } from '@mui/material';
-import { categoricalColor } from '../utils/chartColors';
+import { chart } from '../utils/chartColors';
 
 const defaultShare = (s) => `${Math.round(s * 100)} %`;
 const FADE = { transition: 'opacity .2s', '@media (prefers-reduced-motion: reduce)': { transition: 'none' } };
 
-export default function ShareTable({ rows, total, formatAmount, formatShare = defaultShare, labelHeader = 'Type', quantityHeader = 'Qté', amountHeader = 'Montant', shareHeader = 'Part', ariaLabel = 'Répartition' }) {
+// Rule 32 — never a recycled hue: the five palette hues in order, then the grey of « Autres ».
+export function shareColors(rows) {
+  let n = 0;
+  return rows.map((r) => {
+    if (r.color) return r;
+    if (r.other || n >= chart.categorical.length) return { ...r, color: chart.other };
+    const color = chart.categorical[n];
+    n += 1;
+    return { ...r, color };
+  });
+}
+
+export default function ShareTable({ rows, total, formatAmount, formatShare = defaultShare, labelHeader = 'Type', quantityHeader = 'Qté', amountHeader = 'Montant', shareHeader = 'Part', ariaLabel = 'Répartition', emptyText }) {
   const [active, setActive] = useState(null);
-  const colored = rows.map((r, i) => ({ ...r, color: r.color || categoricalColor(i) }));
+  const colored = shareColors(rows);
+  if (emptyText) return <Box sx={{ py: 3, textAlign: 'center', color: 'text.secondary', fontSize: '0.9rem' }}>{emptyText}</Box>;
   const dim = (key) => active != null && active !== key;
   const showQty = quantityHeader != null;
   return (
@@ -35,7 +52,7 @@ export default function ShareTable({ rows, total, formatAmount, formatShare = de
             key={r.key}
             data-testid={`share-segment-${r.key}`}
             data-dimmed={dim(r.key) ? 'true' : 'false'}
-            title={`${r.label} : ${formatAmount(r.amount)}`}
+            title={r.caption ?? `${r.label} : ${formatShare(r.share)}`}
             onPointerEnter={() => setActive(r.key)}
             sx={{ width: `${r.share * 100}%`, bgcolor: r.color, opacity: dim(r.key) ? 0.28 : 1, ...FADE }}
           />
