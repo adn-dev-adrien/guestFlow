@@ -155,6 +155,13 @@ which « Enregistrer » writes which field.
     unchanged, and runs no check. The « Connexion » refusal without credentials reads « Identifiants Qonto manquants (page
     Paiements en ligne). », the title of the page that holds the fields in GuestFlow (Paramètres) and in the console
     (Réglages) alike; « Réglages › Paiements » named no GuestFlow menu. Same test file.
+17. **Every public-address message names « (Paramètres → Système) »** (audit R26 E26-1, 2026-11-06, the class of rule 16
+    beyond Qonto and Google). « Installer le script » of booking-intake without a public address answers 409 « URL publique
+    de GuestFlow non renseignée (Paramètres → Système). », and gate-access's helper under « Adresse de GuestFlow » reads
+    « … l'URL publique n'est pas renseignée (Paramètres → Système). ». *Why:* they named « Paramètres › Société » and
+    « Réglages → Système », pages GuestFlow does not have (« Réglages » is the console's). A scan of the server and client
+    sources fails on any quoted « URL publique » / « adresse publique » message whose page reference is another one. Test:
+    `tests/public-address-advice-wording.unit.test.js`. booking-intake 1.3.11, gate-access 1.3.3.
 
 **Edge cases:**
 
@@ -373,6 +380,8 @@ Neat card and one field from the SMTP card shortens both on mobile.
     « Envoi d’emails » or « Paramètres » alone; the check's stored failure names the page
   - provider pending: « Test » runs the check once the address is set, the badge then reads `provider_not_connected`
   - a « Test » whose Qonto call failed runs no check
+- [x] `tests/public-address-advice-wording.unit.test.js` — rule 17 (audit R26, 2): the two messages found are caught,
+  and no quoted public-address message of the server or client sources names another page
 - [x] `plugins/google-calendar/tests/public-url-advice.unit.test.js` — rule 16 (1): the Google consent refused for a
   missing public address names Paramètres → Système
 

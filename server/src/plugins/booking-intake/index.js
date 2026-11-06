@@ -95,7 +95,7 @@ function register(ctx) {
       { id: rowId, resId, reservationId, status, error, createdAt })),
     userscript: () => {
       const publicUrl = ctx.core.settings.publicUrl();
-      if (!publicUrl) return { ok: false, error: 'URL publique de GuestFlow non renseignée (Paramètres › Société).' };
+      if (!publicUrl) return { ok: false, error: 'URL publique de GuestFlow non renseignée (Paramètres → Système).' };
       const key = secret();
       if (!key) return { ok: false, error: 'Secret non créé.' };
       return { ok: true, source: buildUserscript({ publicUrl, secret: key }) };
