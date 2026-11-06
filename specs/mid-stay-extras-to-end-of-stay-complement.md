@@ -247,6 +247,15 @@ ait été réglé ou non.
     > interne) on a stay not started, a save that would raise `finalPrice + touristTaxTotal` is refused as on a started stay:
     > 400 `MID_STAY_EXTRAS_CLOSED`, nothing else could claim the rise. A lowering, an unchanged total and a text change pass;
     > un-ticking the line reopens growth. An admin's unlock of a started stay is unchanged. Test: `eos-paid-refuses-growth`.
+    > **Reading of 2026-11-06 (audit R26 L1, accepted).** Un-ticking a paid arrival complement (payment PATCH) leaves the
+    > excess on this line until the next save, which folds it back into the complement (`complementAmount` 20 → 62,40,
+    > this line 42,40 → 0). The total owed and the ledger's remainder never move, nothing is asked twice; until that save the
+    > line's label says « after the collection » of a complement no longer collected. Accepted under the fix policy (rare,
+    > 0 €), no new field. Test: `arrival-complement-untick-excess`.
+    > **Reading of 2026-11-06 (audit R26 H1).** The departure SAS and a sale at the arrival SAS refuse to raise this line
+    > once it is collected outside the departure SAS, 409 `END_OF_STAY_ALREADY_COLLECTED`
+    > (recall-unpaid-arrival-complement-at-checkout rule 11, sas-breakfast-and-catering-upsell rule 17). Test:
+    > `sas-collected-end-of-stay-growth`.
 
 ---
 

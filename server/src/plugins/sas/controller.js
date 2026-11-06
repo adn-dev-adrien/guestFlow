@@ -419,6 +419,16 @@ function getSas(req, res) {
  * commit would receive, planned by the very function the commit runs, and nothing written. A plugin
  * refusal answers exactly as the commit would (rule 12).
  */
+// specs/recall-unpaid-arrival-complement-at-checkout.md rule 11, specs/sas-breakfast-and-catering-upsell.md rule 17 (audit R26 H1) —
+// an end-of-stay complement collected outside the departure SAS is closed: a run that would raise it is refused, preview and
+// commit alike, before anything is written.
+const END_OF_STAY_COLLECTED = 'END_OF_STAY_ALREADY_COLLECTED';
+const collectedEndOfStayRefusal = (raises, gesture) => (raises
+  ? { status: 409, body: { error: `Complément de fin de séjour déjà encaissé : le décocher sur la fiche avant ${gesture}.`, code: END_OF_STAY_COLLECTED } }
+  : null);
+const arrivalGrowthRefusal = (plan) => collectedEndOfStayRefusal(Boolean(plan && plan.saleRaisesCollectedEndOfStay), 'de vendre une prestation');
+const departureGrowthRefusal = (plan) => collectedEndOfStayRefusal(Boolean(plan && plan.raisesCollectedEndOfStay), 'd’ajouter des frais');
+
 function previewArrival(req, res) {
   const reservation = reservationsModel.getByIdWithDetails(req.params.id);
   if (!reservation) return res.status(404).json({ error: 'RESERVATION_NOT_FOUND', message: 'Réservation introuvable.' });
@@ -429,6 +439,8 @@ function previewArrival(req, res) {
   const draft = normaliseArrivalDraft(req, reservation);
   if (draft.refusal) return res.status(draft.refusal.status).json(draft.refusal.body);
   const plan = reservationsModel.planArrivalSas(Number(req.params.id), draft.input);
+  const grows = arrivalGrowthRefusal(plan);
+  if (grows) return res.status(grows.status).json(grows.body);
   return res.json(arrivalRecapFor(req, reservation, plan));
 }
 
@@ -530,7 +542,10 @@ function commitArrival(req, res) {
   // specs/sas-arrival-total-server-side.md rules 8-9 — whether ONE gesture may settle both sides is
   // decided here, on the planned total, never by the dialog: it only says whether the operator chose
   // « Régler séparément ».
-  const recap = arrivalRecapFor(req, reservation, reservationsModel.planArrivalSas(Number(req.params.id), draft.input));
+  const arrivalPlan = reservationsModel.planArrivalSas(Number(req.params.id), draft.input);
+  const grows = arrivalGrowthRefusal(arrivalPlan);
+  if (grows) return res.status(grows.status).json(grows.body);
+  const recap = arrivalRecapFor(req, reservation, arrivalPlan);
   const unifiable = isUnifiable({
     complementOpen: recap.complementOpen,
     stayApplicable: buildStayPayment(reservation, { isDeparture: false, receptionOnly: isReceptionOnly(req.user) }).applicable,
@@ -673,6 +688,8 @@ function previewDeparture(req, res) {
   const draft = normaliseDepartureDraft(req, reservation);
   if (draft.refusal) return res.status(draft.refusal.status).json(draft.refusal.body);
   const plan = reservationsModel.planDepartureSas(Number(req.params.id), draft.input);
+  const grows = departureGrowthRefusal(plan);
+  if (grows) return res.status(grows.status).json(grows.body);
   return res.json(departureRecapFor(reservation, plan));
 }
 
@@ -689,10 +706,12 @@ function commitDeparture(req, res) {
     cautionReturned, complementsSettled, complementsPaidCash, displayedDepartureTotal,
   } = draft.body;
   const id = Number(req.params.id);
-  const takeBack = refusalToTakeBack(id, departureTakeBackFlags(reservationsModel.getRow(id) || {}, { complementsSettled, complementsPaidCash }));
-  if (takeBack) return res.status(takeBack.status).json(takeBackAnswer(req, takeBack));
   // Rule 25 — the recap the response carries is the plan this commit executes.
   const plan = reservationsModel.planDepartureSas(id, draft.input);
+  const grows = departureGrowthRefusal(plan);
+  if (grows) return res.status(grows.status).json(grows.body);
+  const takeBack = refusalToTakeBack(id, departureTakeBackFlags(reservationsModel.getRow(id) || {}, { complementsSettled, complementsPaidCash }));
+  if (takeBack) return res.status(takeBack.status).json(takeBackAnswer(req, takeBack));
   const recap = departureRecapFor(reservation, plan);
   const beforeSas = snapshotSas(id);
   reservationsModel.commitDepartureSas(id, {
