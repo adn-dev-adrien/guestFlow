@@ -34,14 +34,26 @@ function pinnedDashboard() {
 // The fields this spec adds to GET /api/finance/dashboard (rules 1-3, 8, 12).
 const ADDED = { hero: ['revPar', 'openNights', 'occupiedNights'], data: ['occupancyAll', 'comparison'] };
 
+// specs/finance-dashboard-redesign.md rule 53 (D-HC9, 2026-11-06) — revenue per night and RevPAR moved to the
+// revenue of the nights: those fields left the pin on purpose; finance-nights-revenue.unit.test.js pins them.
+function withoutSuperseded(data) {
+  const copy = JSON.parse(JSON.stringify(data));
+  if (copy.hero) delete copy.hero.revenuePerNight;
+  for (const p of copy.properties || []) delete p.revenuePerNight;
+  if (copy.tiles && copy.tiles.properties) delete copy.tiles.properties.revPar;
+  for (const r of copy.rows || []) { delete r.revenuePerNight; delete r.revPar; }
+  if (copy.totals) { delete copy.totals.revenuePerNight; delete copy.totals.revPar; }
+  return copy;
+}
+
 // The dashboard payload as it was before this spec: the added fields removed. `fiscalYears` (the
 // selector's options) grows with the calendar and is left out of the pin.
 function withoutAdded(data) {
-  const copy = JSON.parse(JSON.stringify(data));
+  const copy = withoutSuperseded(data);
   for (const k of ADDED.hero) delete copy.hero[k];
   for (const k of ADDED.data) delete copy[k];
   delete copy.fiscalYears;
   return copy;
 }
 
-module.exports = { pinnedDashboard, withoutAdded, ADDED, LONG_AGO };
+module.exports = { pinnedDashboard, withoutAdded, withoutSuperseded, ADDED, LONG_AGO };

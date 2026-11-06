@@ -60,6 +60,8 @@ server.
    `openNights` (the denominator) and `occupiedNights` (the numerator of `hero.occupancy`), so that
    « N nuits ouvertes » and the rate are always read from one place. A stay across the window's edge
    counts its nights inside the window only.
+   > 2026-11-06: the numerator is the revenue of the window's nights, tourist tax excluded
+   > (`finance-dashboard-redesign.md` rule 53, D-HC9), no longer the page's revenue.
 2. **One RevPAR per scope.** With one logement selected, `hero.revPar` equals `tiles.properties.revPar`
    and the « Logements » table's `totals.revPar`; with all logements, it equals the table's
    `totals.revPar`. The revenue per night sold (ADR) is the existing `hero.revenuePerNight` — no second
@@ -132,6 +134,8 @@ server.
     `'stays'` (« Sur les montants des séjours » — revenue, stays, nights, occupancy, revenue per night,
     RevPAR) or `'payments'` (« Sur les encaissements » — collected). A panel shows figures of one
     source only; the client captions it from this field.
+    > 2026-11-06: `collected` reads `'stays'` — the tile is « Déjà payé », the money paid on the window's
+    > stays (`finance-dashboard-redesign.md` rule 54, D-HC11). No figure of this page reads `'payments'`.
 14. **The payload only gains fields.** Every field of `GET /api/finance/dashboard` and its detail
     tables keeps its value and meaning; added: `hero.revPar`, `hero.openNights`,
     `hero.occupiedNights`, `occupancyAll`, `comparison`. A test pins the payload produced before this
@@ -163,6 +167,36 @@ server.
     the chart and are not drawn. Last year's series is omitted when no month of it compares. An older
     payload without `occupancyAll` / `comparison` renders the page exactly as before.
 
+### 3.7 Review fixes (2026-11-06, review of d11bfb2d)
+
+19. **A partial pill names its span** (R3-3). When `comparison.complete` is false, each pill's last-year
+    value is followed by « · sur N mois » (« ↓ −61,8 % (N-1 : 76 · sur 10 mois) »), as the revenue badge
+    says « sur N mois comparables »: the change is computed on those months only, while the figure above
+    is the whole window's.
+20. **The open nights name the occupied ones** (R3-2). The hero's « nuits ouvertes » reads « · dont N
+    occupées » (`hero.occupiedNights`, the rate's numerator), and the occupancy's definition says « Nuits
+    occupées dans la période ÷ nuits ouvertes »: « nuits vendues » counts the nights of the window's stays,
+    which may fall outside it.
+21. **The notice names every reason** (R3-5). A range cut by the data's start and by the months not over
+    (rule 33) says both: « Comparaison sur 3 mois sur 12 : les données commencent en décembre 2025, et un
+    mois en cours se compare une fois terminé. »
+22. **A tracking start on 29 February** (R3-6). The day last year's snapshot becomes known is the first
+    day d with shiftYear(d, −1) ≥ the tracking start (`yearOverYear.snapshotKnownFrom`): 1 March for a
+    29 February, never the 28th. The booking pace's `comparableFrom` reads the same helper.
+23. **« 1er », and what the date is about** (R3-7, R6-7). Every long date of a sentence writes the first of
+    a month « 1er » (`dateFr.formatDateLongFr`, the notices of this page and of the booking pace; the
+    emails' `formatDateLong` is unchanged). The « not yet known » notice says which date it gives: « …
+    une fois le premier mois terminé, à partir du 1er décembre 2026 » or « … à partir du 10 avril 2027,
+    avec un an de dates de réservation », so it never reads against the pace card's own date.
+24. **Per-night amounts keep their cents under 100 €** (R3-11). The hero's « revenu moyen / nuit » and
+    RevPAR and their pills' last-year value are written to the cent below 100 € (« 5,26 € », « N-1 :
+    5,62 € »), in whole euros above.
+25. **The occupancy chart is drawn on 0-100 %** (R5-05). « Taux d'occupation par mois » passes
+    `yDomain={[0, 1]}` to `TrendChart` (the report grammar's fixed domain, nice ticks 0 / 25 / 50 / 75 /
+    100 %), like the small multiples under it: a 16 % month never looks like a peak.
+26. **Each chart card keeps its own height** (R5-20). The « Revenu par mois » / « Taux d'occupation »
+    row aligns its cards at the top, so the shorter card no longer carries a 170 px blank at 1280.
+
 **Edge cases:**
 - Window wholly closed → `openNights: 0`, `revPar: null`, occupancy comparison `noCurrentValue` or
   `noPreviousValue`.
@@ -187,6 +221,13 @@ server.
 | `utils/` | `financeComparison.js` | C | Pure: `comparisonWindow` (the range of rules 17-20 + 33, its status, reason, notice, `comparableFrom`), `compare` (percent / points, reasons), `pointsChange` |
 | `models/` | `financeDashboardModel.js` | T | `figures()` reads its range from `comparisonWindow` (unchanged values); `getDashboard` adds `hero.revPar` / `openNights` / `occupiedNights`, `comparison`, `occupancyAll`; the stays read starts early enough for the range (rule 11); per-month occupancy factored into one helper shared by the per-logement and all-logements series |
 | `utils/` | `yearOverYear.js`, `financeOccupancy.js`, `bookingPace.js` | — | Reused as is |
+| `models/` | `financeDashboardModel.js` | T | 2026-11-06: `nightsRevenue` (dashboard rule 53) — per-night figures on the revenue of the nights, read from one `getPaceStays({ withTax: true })` per request that also gives the tracking start; `collected` source `stays` (rule 54) |
+| `models/` | `financeModel.js` | T | 2026-11-06: `getPaceStays({ withTax })` adds `finalPrice` / `touristTaxTotal` when asked; the pace's own read is unchanged |
+| `utils/` | `bookingPace.js` | T | 2026-11-06: `spreadOverNights` / `revenueOfNights`, the one night split (pace month values identical); `comparableFrom` via `snapshotKnownFrom`, notice dates via `formatDateLongFr` |
+| `utils/` | `yearOverYear.js` | T | 2026-11-06: `snapshotKnownFrom` (rule 22) |
+| `utils/` | `dateFr.js` | T | 2026-11-06: `formatDateLongFr` — « 1er janvier 2027 » (rule 23) |
+| `utils/` | `financeComparison.js` | T | 2026-11-06: notices of rules 21-23 |
+| `utils/` | `stayProfile.js` | — | `withoutTouristTax` reused (rule 53 of the dashboard) |
 | `routes/`, `controllers/` | — | — | None: the existing `GET /api/finance/dashboard` carries the new fields |
 | `database.js` | — | — | None |
 
@@ -201,13 +242,15 @@ The UI round (2026-11-05, rules 15-18) renders the fields with lot 0's report gr
 | `components/` | `FinanceHero.jsx` | T | Optional `comparisons` / `definitions`; each figure may carry its « i » and its pill; « RevPAR · par nuit ouverte » and « nuits ouvertes » when the payload has them |
 | `utils/` | `comparisonPill.js` | C | Presentational: a server metric → the pill's props (last year formatted, change null when not comparable); `rateOneDecimal` |
 | `constants/` | `financeDefinitions.js` | C | The French definitions of the tiles and hero figures, with their source (D-HC8) |
+| `components/` | `FinanceDetailPanel.jsx` | T | 2026-11-06: « Déjà payé » title, RevPAR basis in the « Logements » subtitle |
+| `utils/` | `comparisonPill.js` | T | 2026-11-06: partial span (rule 19), `perNightAmount` (rule 24) |
 | `api.js` | — | — | None: `getFinanceDashboard` already returns the whole payload |
 
 **Component reuse declaration:**
 
 | Category | Components | Notes |
 |---|---|---|
-| **Consumed (existing generic)** | `SelectableTile` (`info`, `comparison`), `YearOverYearBadge` (report mode, `onDark`), `DefinitionButton`, `NoComparisonNotice`, `TrendChart` (with `ChartMenu` / `ChartDataTable`), `SmallMultiplesLineChart` | Lot 0's grammar, unchanged |
+| **Consumed (existing generic)** | `SelectableTile` (`info`, `comparison`), `YearOverYearBadge` (report mode), `DefinitionButton`, `NoComparisonNotice`, `TrendChart` (with `ChartMenu` / `ChartDataTable`), `SmallMultiplesLineChart` | Lot 0's grammar, unchanged |
 | **Created (new generic)** | — | |
 | **Specific (kept feature-local)** | `FinanceHero` (extended) | Tied to `dashboard.hero` |
 
@@ -279,12 +322,16 @@ per-logement small multiples. The ADR label follows rule 25 of the dashboard: «
 - [x] `tests/finance-yoy-comparison.unit.test.js` (9) — rules 5-6, 8, 10-11, 13: the seven figures on a partial range, revenue = `hero.yoy`, complete range = the tiles, sources, last year closed, a custom window before last exercise, no history, not known yet, « Encaissé » as it stood.
 - [x] `tests/finance-occupancy-all-series.unit.test.js` (3) — rule 12: the scope's series, gaps and non-comparable months, one logement = its series.
 - [x] `tests/finance-revpar-yoy-payload-pin.unit.test.js` (7) — rule 14: the pre-change payload (exercise, one logement, one month) and its detail tables unchanged, the added fields exactly the documented ones. Fixture: `tests/financeComparisonFixture.js`, pin: `tests/fixtures/finance-dashboard-payload-pin.json` (produced by the model at `5437951d`).
+- [x] `tests/finance-comparison-review-fixes.unit.test.js` (3, 2026-11-06) — rules 21-23: both reasons in the notice, 29 February (dashboard and pace), « 1er » and what the date is about.
+- [x] `tests/finance-nights-revenue.unit.test.js` (5, 2026-11-06) — dashboard rule 53: a solde paid before the nights, the tourist tax left out, a stay across the edge, one figure in the hero / strip / tile / table / comparison, the pace's split shared.
+- 2026-11-06: `finance-revpar.unit.test.js`, `finance-yoy-comparison.unit.test.js` read the per-night figures of rule 53 (1 600 € of nights, 15 nights) and the `stays` source of « Déjà payé »; the payload pin leaves out the per-night fields of rule 53 (`withoutSuperseded`), every other field still pinned.
 - [x] `tests/vat-regime-golden.unit.test.js` — its four `finance/dashboard/*` captures rewritten for rule 14 after checking that, the added fields removed, each is byte for byte the previous capture.
 
 ### Client tests (Vitest)
 - [x] `pages/__tests__/FinancePage.yoy-pills.test.jsx` (6) — rules 15-18: the tiles' and hero's pills (points for the occupancy, « — vs N-1 » without a base), RevPAR and open nights, definitions naming their source, one notice under the hero, no history, an older payload unchanged.
 - [x] `pages/__tests__/FinancePage.occupancy-trend.test.jsx` (3) — rule 18: the scope's series and last year's with the table view, no dashed series without a comparable month, one logement without small multiples.
-- [x] `utils/__tests__/comparisonPill.test.js` (3) — rule 16: metric → pill props, not comparable, one-decimal rate.
+- [x] `utils/__tests__/comparisonPill.test.js` (5) — rules 16, 19, 24: metric → pill props, not comparable, one-decimal rate, partial span, cents under 100 €.
+- [x] `pages/__tests__/FinancePage.review-fixes.test.jsx` (8, 2026-11-06) — rules 19, 20, 24, 25, 26 and dashboard rules 53-55: complete pill without span, occupied nights, RevPAR to the cent, `yDomain`, chart row alignment, « Déjà payé », the « Logements » tile without RevPAR, the per-night basis in the definition.
 - Fixture: `pages/__tests__/financeComparisonFixtures.jsx`. The existing FinancePage suites (older payload) pass unchanged.
 - 2026-11-05 follow-up: the five server suites pin the clock for the whole file (`mock.timers`, Date = 2026-11-05) and the closed-exercise rows of `financeComparisonFixture.js` carry `date-literal-ok` (`specs/server-test-isolation.md` rule 7, `scripts/check-test-dates.mjs --strict`). The banner became a light card (`finance-dashboard-redesign.md` rule 52), so the pills of rule 16 sit in their light-surface style; the hero is two columns from `lg` only, so each pill stays on one line from `sm` up.
 
@@ -307,13 +354,16 @@ dates from 2025-01 (snapshot known).
 **Resolved by default (2026-11-05, brief rule 12 — safest and simplest):**
 - Q: RevPAR and ADR on the room revenue only (« hors options et taxe », as the design page's caption
   says)?
-  - A: No — on the page's revenue basis, as rule 25 of the dashboard already decides (« revenu
+  - **Decided 2026-11-06 (Adrien, D-HC9):** on the revenue of the nights, tourist tax excluded, options
+    included — `finance-dashboard-redesign.md` rule 53. The answer below is history.
+  - A (2026-11-05): No — on the page's revenue basis, as rule 25 of the dashboard already decides (« revenu
     moyen », extras included). The room-only part of a stay is not stored uniformly (a platform stay
     carries one net amount, no lines), so a second revenue basis would be a figure derived two ways on
     one page, and the « Logements » tile already shows a RevPAR on this basis. Adrien may reopen it as
     a separate change of rule 25.
 - Q: The tourist tax inside the per-night figures (D-HC8 excludes it from the average basket)?
-  - A: Kept as rule 25 has it today, for the same reason: changing the basis would change
+  - **Decided 2026-11-06 (D-HC9):** excluded (dashboard rule 53). The answer below is history.
+  - A (2026-11-05): Kept as rule 25 has it today, for the same reason: changing the basis would change
     `hero.revenuePerNight` and `tiles.properties.revPar`, which rule 14 forbids. To revisit with rule
     25 if Adrien wants it.
 - Q: « Last year as it stood » with the stays cancelled since (the booking pace's cancellation

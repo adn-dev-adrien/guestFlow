@@ -39,7 +39,7 @@ test('rule 6 — not known yet: the first day a part compares, the month over or
   const byMonthEnd = comparisonWindow({ window: month, coverage: '2025-01', today: '2026-10-18', trackingStart: '2026-04-10' }).status;
   assert.equal(byMonthEnd.reason, 'notYetKnown');
   assert.equal(byMonthEnd.comparableFrom, '2026-11-01');
-  assert.equal(byMonthEnd.notice, "Comparaison avec l'an dernier à partir du 1 novembre 2026.");
+  assert.equal(byMonthEnd.notice, "Comparaison avec l'an dernier une fois le premier mois terminé, à partir du 1er novembre 2026.");
   // The pace's comparableFrom (tracking start + 1 year) comes first.
   const bySnapshot = comparisonWindow({ window: month, coverage: '2025-01', today: '2026-10-18', trackingStart: '2025-10-25' }).status;
   assert.equal(bySnapshot.reason, 'notYetKnown');

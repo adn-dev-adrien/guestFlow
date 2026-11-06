@@ -1,6 +1,6 @@
 /**
  * FinanceHero — the light card at the top of the Suivi financier (specs/finance-dashboard-redesign.md
- * §3.2): the window's revenue, its comparison with last year, the goal bar, four figures no tile
+ * §3.2): the window's revenue, its comparison with last year, the goal bar, six figures no tile
  * repeats and the cumulative curve, graduated on the calendar by `hero.axis`. Until the first month of
  * the exercise is over (`hero.curveCompact`, rule 46) the curve stays, 56 px high instead of 120: no
  * summary line replaces it. Feature-local: it renders `dashboard.hero` as is.
@@ -12,7 +12,8 @@
  *   asOf:          'YYYY-MM-DD' | null   « au <date> » while the window is running
  *   propertyName?: string
  *   fiscalYearLabel: string
- *   format:        { amount, percent, date } presentational formatters
+ *   format:        { amount, perNight?, percent, date } presentational formatters (`perNight`: the per-night
+ *                  amounts, to the cent under 100 €, specs/finance-revpar-year-over-year.md rule 24)
  *   comparisons?:  { nights, occupancy, revenuePerNight, revPar } — each the year-over-year pill props
  *                  (`utils/comparisonPill`), drawn under its figure (specs/finance-revpar-year-over-year.md rule 16)
  *   definitions?:  { nights, occupancy, revenuePerNight, revPar, openNights } — the « i » of each figure
@@ -41,12 +42,14 @@ export function CurveTooltip({ active, payload, format }) {
 const CURVE_HEIGHT = 120;
 const CURVE_HEIGHT_COMPACT = 56;
 
-function Figure({ value, label, info, pill }) {
+// `note` (specs/finance-revpar-year-over-year.md rule 20) — a word after the label: the open nights name
+// the occupied ones, so that the rate reads as their ratio.
+function Figure({ value, label, note, info, pill }) {
   return (
     <Box sx={{ position: 'relative', bgcolor: 'background.paper', px: { xs: 1.5, sm: 2 }, py: 1.5, display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: 72, minWidth: 0 }}>
       {info && <Box sx={{ position: 'absolute', top: 8, right: 8 }}><DefinitionButton label={label} definition={info} /></Box>}
       <Typography sx={{ fontWeight: 700, fontSize: '1.3rem', fontVariantNumeric: 'tabular-nums', lineHeight: 1.2, pr: info ? 3 : 0 }}>{value}</Typography>
-      <Typography variant="caption" sx={{ color: 'text.secondary', mt: 0.25 }}>{label}</Typography>
+      <Typography variant="caption" sx={{ color: 'text.secondary', mt: 0.25 }}>{label}{note ? ` · ${note}` : ''}</Typography>
       {pill && (
         // Rule 52 — one line from sm up: the pill never splits its « (N-1 : …) » there; on a phone it may wrap.
         <Box sx={{ mt: 0.5, '& > span': { flexWrap: { xs: 'wrap', sm: 'nowrap' }, whiteSpace: { sm: 'nowrap' } } }}>
@@ -60,6 +63,7 @@ function Figure({ value, label, info, pill }) {
 export default function FinanceHero({ hero, showHt = true, windowLabel, asOf, propertyName, fiscalYearLabel, format, comparisons = {}, definitions = {} }) {
   const hasPrevious = hero.cumulative.some((p) => p.previous != null);
   const dash = '—';
+  const perNight = format.perNight || format.amount;
   const labels = new Map(hero.axis.map((t) => [t.x, t.label]));
   return (
     <Box
@@ -107,10 +111,10 @@ export default function FinanceHero({ hero, showHt = true, windowLabel, asOf, pr
         >
           <Figure value={hero.nights.toLocaleString('fr-FR')} label="nuits vendues" info={definitions.nights} pill={comparisons.nights} />
           <Figure value={hero.occupancy == null ? dash : format.percent(hero.occupancy)} label="taux d'occupation" info={definitions.occupancy} pill={comparisons.occupancy} />
-          <Figure value={hero.revenuePerNight == null ? dash : format.amount(hero.revenuePerNight)} label="revenu moyen / nuit" info={definitions.revenuePerNight} pill={comparisons.revenuePerNight} />
-          {'revPar' in hero && <Figure value={hero.revPar == null ? dash : format.amount(hero.revPar)} label="RevPAR · par nuit ouverte" info={definitions.revPar} pill={comparisons.revPar} />}
+          <Figure value={hero.revenuePerNight == null ? dash : perNight(hero.revenuePerNight)} label="revenu moyen / nuit" info={definitions.revenuePerNight} pill={comparisons.revenuePerNight} />
+          {'revPar' in hero && <Figure value={hero.revPar == null ? dash : perNight(hero.revPar)} label="RevPAR · par nuit ouverte" info={definitions.revPar} pill={comparisons.revPar} />}
           <Figure value={hero.directShare == null ? dash : format.percent(hero.directShare)} label="en direct" />
-          {'openNights' in hero && <Figure value={hero.openNights.toLocaleString('fr-FR')} label="nuits ouvertes" info={definitions.openNights} />}
+          {'openNights' in hero && <Figure value={hero.openNights.toLocaleString('fr-FR')} label="nuits ouvertes" note={`dont ${hero.occupiedNights.toLocaleString('fr-FR')} occupées`} info={definitions.openNights} />}
         </Box>
       </Box>
       <Box sx={{ mt: 2, pt: 0.75, borderTop: 1, borderColor: 'divider' }}>

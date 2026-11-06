@@ -27,12 +27,13 @@ beforeEach(() => {
 
 const tileOf = async (label) => (await screen.findByRole('button', { name: `${label} : afficher le détail` })).parentElement;
 
-test('rule 16 — « Encaissé » and « Réservations » carry the server\'s change and last year\'s value', async () => {
+test('rule 16 — « Déjà payé » and « Réservations » carry the server\'s change and last year\'s value', async () => {
   renderPage();
-  const collected = await tileOf('Encaissé');
+  const collected = await tileOf('Déjà payé');
   expect(collected).toHaveTextContent('↑ +44,4 %');
-  expect(collected).toHaveTextContent('(N-1 : 20 534 €)');
-  expect(await tileOf('Réservations')).toHaveTextContent('(N-1 : 45 séjours)');
+  // Rule 19 — the fixture compares 8 months of 12: each pill names its span.
+  expect(collected).toHaveTextContent('(N-1 : 20 534 € · sur 8 mois)');
+  expect(await tileOf('Réservations')).toHaveTextContent('(N-1 : 45 séjours · sur 8 mois)');
   for (const label of ['À encaisser', 'En retard', 'Logements', 'Canaux']) {
     expect(await tileOf(label)).not.toHaveTextContent('N-1');
   }
@@ -42,21 +43,21 @@ test('rule 16 — the hero: occupancy in points, RevPAR and open nights, « — 
   renderPage();
   const hero = await screen.findByRole('region', { name: "Chiffre d'affaires" });
   expect(hero).toHaveTextContent('↑ +10,9 pt');
-  expect(hero).toHaveTextContent('(N-1 : 20,9 %)');
+  expect(hero).toHaveTextContent('(N-1 : 20,9 % · sur 8 mois)');
   expect(hero).toHaveTextContent('↓ −4,3 %');
   expect(hero).toHaveTextContent('RevPAR · par nuit ouverte');
-  expect(hero).toHaveTextContent('53 €');
-  expect(hero).toHaveTextContent('579nuits ouvertes');
+  expect(hero).toHaveTextContent('53,40 €');
+  expect(hero).toHaveTextContent('579nuits ouvertes · dont 184 occupées');
   expect(within(hero).getByText('— vs N-1')).toBeInTheDocument();
 });
 
 test('rule 15 — each figure opens its definition, which names its source', async () => {
   renderPage();
-  fireEvent.click(await screen.findByRole('button', { name: 'Définition : Encaissé' }));
-  expect(screen.getByRole('tooltip')).toHaveTextContent(/^Sur les encaissements :/);
-  fireEvent.click(screen.getByRole('button', { name: 'Définition : Encaissé' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Définition : Déjà payé' }));
+  expect(screen.getByRole('tooltip')).toHaveTextContent(/^Sur les montants des séjours : paiements déjà reçus/);
+  fireEvent.click(screen.getByRole('button', { name: 'Définition : Déjà payé' }));
   fireEvent.click(screen.getByRole('button', { name: 'Définition : RevPAR · par nuit ouverte' }));
-  expect(screen.getByRole('tooltip')).toHaveTextContent(/^Sur les montants des séjours : revenu ÷ nuits ouvertes/);
+  expect(screen.getByRole('tooltip')).toHaveTextContent(/^Sur les montants des séjours : revenu des nuits de la période .* ÷ nuits ouvertes/);
 });
 
 test('rule 17 — one notice, the server\'s, under the hero', async () => {
@@ -79,7 +80,7 @@ test('rules 16 and 17 — no history: every pill reads « — vs N-1 » and the 
 test('rule 18 — an older payload renders as before: no pill, no « i », no notice', async () => {
   api.getFinanceDashboard.mockResolvedValue(DASHBOARD);
   renderPage();
-  await screen.findByRole('button', { name: 'Encaissé : afficher le détail' });
+  await screen.findByRole('button', { name: 'Déjà payé : afficher le détail' });
   expect(screen.queryByRole('button', { name: /^Définition/ })).toBeNull();
   expect(screen.queryByText(/N-1 :|— vs N-1/)).toBeNull();
   expect(screen.queryByRole('note')).toBeNull();

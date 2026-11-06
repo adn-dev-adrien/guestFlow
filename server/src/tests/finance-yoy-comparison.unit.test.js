@@ -35,8 +35,9 @@ test('rule 8 — exercise 2024 against 2023, on the 8 comparable months, every f
   assert.deepEqual(pick('nights'), { current: 15, previous: 10, change: 50, unit: 'percent' });
   // May-December: 2024 open 245 + 214 = 459, 17 sold; 2023 open 245 + 153 (Tente from August) = 398, 10 sold.
   assert.deepEqual(pick('occupancy'), { current: 0.037, previous: 0.0251, change: 1.2, unit: 'points' });
-  assert.deepEqual(pick('revenuePerNight'), { current: 107.69, previous: 100, change: 7.7, unit: 'percent' });
-  assert.deepEqual(pick('revPar'), { current: 3.05, previous: 2.51, change: 21.5, unit: 'percent' });
+  // Rule 53 of the dashboard (D-HC9): on the revenue of the nights — 1 600 € this side, 1 000 € last year.
+  assert.deepEqual(pick('revenuePerNight'), { current: 106.67, previous: 100, change: 6.7, unit: 'percent' });
+  assert.deepEqual(pick('revPar'), { current: 3.49, previous: 2.51, change: 39, unit: 'percent' });
 });
 
 test('rule 8 — the revenue comparison is the hero badge, one figure read once', () => {
@@ -64,14 +65,14 @@ test('rule 8 — a complete comparison reads this year\'s side as the tiles show
   assert.equal(m.revPar.current, d.hero.revPar);
 });
 
-test('rule 13 — each figure names its source: the stays\' amounts, or the money collected', () => {
+test('rule 13 — each figure names its source: the stays\' amounts (« Déjà payé » too, dashboard rule 54)', () => {
   const { dashboard } = pinnedDashboard();
   const { metrics } = dashboard.getDashboard({ fiscalYear: 2024 }).data.comparison;
   assert.deepEqual(Object.fromEntries(KEYS.map((k) => [k, metrics[k].source])), {
-    revenue: 'stays', collected: 'payments', stays: 'stays', nights: 'stays', occupancy: 'stays', revenuePerNight: 'stays', revPar: 'stays',
+    revenue: 'stays', collected: 'stays', stays: 'stays', nights: 'stays', occupancy: 'stays', revenuePerNight: 'stays', revPar: 'stays',
   });
   const none = freshDb().dashboard.getDashboard({ fiscalYear: Y }).data.comparison.metrics;
-  assert.equal(none.collected.source, 'payments', 'the source is there when nothing compares too');
+  assert.equal(none.collected.source, 'stays', 'the source is there when nothing compares too');
 });
 
 test('rule 10 — a logement closed all last month: its rates have no base, the money still compares', () => {
@@ -122,7 +123,7 @@ test('rule 6 — the month in progress without last year\'s snapshot: « notYetK
   assert.equal(c.reason, 'notYetKnown');
   const nextMonth = MONTH === 12 ? `${Y + 1}-01-01` : `${ym(Y, MONTH + 1)}-01`;
   assert.equal(c.comparableFrom, nextMonth);
-  assert.match(c.notice, /^Comparaison avec l'an dernier à partir du /);
+  assert.match(c.notice, /^Comparaison avec l'an dernier une fois le premier mois terminé, à partir du /);
   assert.equal(c.metrics.occupancy.reason, 'notYetKnown');
   assert.equal(c.metrics.revenue.current, null);
 });

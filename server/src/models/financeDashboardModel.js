@@ -21,7 +21,8 @@ const { round2 } = require('../utils/paymentStatus');
 const { parseNotes } = require('../utils/midStayExtras');
 const { parseGroup } = require('../utils/arrivalPaymentGroup');
 const { arrivalPaymentAdjustment, platformPenalty } = require('../utils/reservationSettlement');
-const { paceStartOf } = require('../utils/bookingPace');
+const { paceStartOf, revenueOfNights } = require('../utils/bookingPace');
+const { withoutTouristTax } = require('../utils/stayProfile');
 const { comparisonWindow, compare } = require('../utils/financeComparison');
 
 const H = financeModel.helpers;
@@ -31,7 +32,7 @@ const CUMULATIVE_DAILY_UP_TO = 62;
 // specs/finance-revpar-year-over-year.md rules 8 and 13 — the figures compared with last year, their
 // unit, and the source each one reads: the stays' amounts or the money collected, never both.
 const COMPARED = [
-  ['revenue', 'percent', 'stays'], ['collected', 'percent', 'payments'], ['stays', 'percent', 'stays'],
+  ['revenue', 'percent', 'stays'], ['collected', 'percent', 'stays'], ['stays', 'percent', 'stays'],
   ['nights', 'percent', 'stays'], ['occupancy', 'points', 'stays'], ['revenuePerNight', 'percent', 'stays'],
   ['revPar', 'percent', 'stays'],
 ];
@@ -137,20 +138,19 @@ function createDashboardModel(database, finance) {
 
   // Rule 33 — the tracking start: the day booking dates are trusted from, the booking pace's own
   // rule (the earliest creation day is the initial import), on the same stays.
-  const trackingStart = (propertyId) => paceStartOf(finance.getPaceStays({ propertyId }));
+  const trackingStart = (propertyId, paceStays = null) => paceStartOf(paceStays
+    ? paceStays.filter((s) => !propertyId || Number(s.propertyId) === Number(propertyId))
+    : finance.getPaceStays({ propertyId }));
 
   // Rules 17-20, 33 — the comparable part of a window and its twin a year earlier: the one reading of
   // « comparable with last year », shared with the accounting synthesis (specs/accounting-synthesis.md rule 9).
   // A year ago GuestFlow may not have existed yet: last year « as it stood » is then unknown, and only the
-  // months already over (both sides final) can be compared.
-  // Rule 33 — a year ago GuestFlow may not have existed yet: last year « as it stood » is then
-  // unknown, and only the months already over (both sides final) can be compared. The range and its
-  // status come from one place (specs/finance-revpar-year-over-year.md rules 4-7), shared with the
-  // accounting synthesis (specs/accounting-synthesis.md).
-  function lastYearRange({ window: win, today, propertyId = null }) {
+  // months already over (both sides final) can be compared. The range and its status come from one place
+  // (specs/finance-revpar-year-over-year.md rules 4-7).
+  function lastYearRange({ window: win, today, propertyId = null, paceStays = null }) {
     const cover = coverage(propertyId);
     const { range, snapshotKnown, knownAt, status } = comparisonWindow({
-      window: win, coverage: cover, today, trackingStart: trackingStart(propertyId),
+      window: win, coverage: cover, today, trackingStart: trackingStart(propertyId, paceStays),
     });
     return { cover, range, snapshotKnown, knownN1: knownAt, status };
   }
@@ -159,14 +159,43 @@ function createDashboardModel(database, finance) {
   function figures(ctx) {
     const { window: win, exercise, propertyId, today } = ctx;
     const summary = finance.getSummary({ from: win.from, to: win.to, fiscalYear: exercise.key, propertyId });
-    const { cover, range, snapshotKnown, knownN1, status } = lastYearRange({ window: win, today, propertyId });
+    // One read of the stays with their nights' amounts: the tracking start (rule 33) and the revenue of the
+    // nights (rule 53) both come from it.
+    const paceStays = finance.getPaceStays({ withTax: true });
+    const { cover, range, snapshotKnown, knownN1, status } = lastYearRange({ window: win, today, propertyId, paceStays });
     let comparable = null;
     if (range) {
       const cur = range.complete ? summary : finance.getSummary({ from: range.current.from, to: range.current.to, fiscalYear: exercise.key, propertyId });
       const prev = finance.getSummary({ from: range.previous.from, to: range.previous.to, fiscalYear: exercise.key, propertyId, knownAt: snapshotKnown ? knownN1 : null });
       comparable = { range, cur, prev };
     }
-    return { summary, cover, comparable, knownN1, snapshotKnown, status };
+    return { summary, cover, comparable, knownN1, snapshotKnown, status, paceStays };
+  }
+
+  /**
+   * Rule 53 (D-HC9) — the revenue of the NIGHTS of [from, to]: each live stay's « total de séjour » without
+   * its tourist tax (stay profile's `withoutTouristTax`), spread evenly over its nights by the booking
+   * pace's split (`revenueOfNights`), the share of the nights in the window; and the distinct nights of the
+   * priced stays there (rule 35). Per logement and in total. `knownAt` keeps the stays booked by then
+   * (rule 21's « as it stood »).
+   */
+  function nightsRevenue(paceStays, props, from, to, { knownAt = null } = {}) {
+    const ids = new Set(props.map((p) => Number(p.id)));
+    const priced = paceStays.filter((s) => !s.cancelledOn && ids.has(Number(s.propertyId))
+      && (!knownAt || (s.bookedOn && s.bookedOn <= knownAt))
+      && Math.round(Number(s.totalSejour || 0) * 100) !== 0);
+    const byProperty = new Map();
+    let revenue = 0;
+    let pricedNights = 0;
+    for (const p of props) {
+      const own = priced.filter((s) => Number(s.propertyId) === Number(p.id));
+      const r = round2(own.reduce((n, s) => n + revenueOfNights(s, from, to, withoutTouristTax(s)), 0));
+      const n = occupancy.nightKeys(own, from, to).size;
+      byProperty.set(p.id, { revenue: r, pricedNights: n });
+      revenue += r;
+      pricedNights += n;
+    }
+    return { revenue: round2(revenue), pricedNights, byProperty };
   }
 
   const directRevenueOf = (breakdown) => round2((breakdown.site.subtotal.revenue || 0)
@@ -188,7 +217,7 @@ function createDashboardModel(database, finance) {
     const ctx = context(params);
     if (!ctx.ok) return ctx;
     const { window: win, exercise, propertyId, today, allProperties, scopeProperties } = ctx;
-    const { summary, cover, comparable, knownN1, snapshotKnown, status } = figures(ctx);
+    const { summary, cover, comparable, knownN1, snapshotKnown, status, paceStays } = figures(ctx);
     // Rule 33 — which N-1 reading a month gets: as it stood a year ago when that is known, its final
     // value when the month is over, nothing otherwise.
     const previousReading = (ym) => yoy.lastYearReading(ym, { today, snapshotKnown });
@@ -282,7 +311,6 @@ function createDashboardModel(database, finance) {
     const revenue = summary.revenueTotal;
     // Rule 35 — nights sold are distinct per logement; revenue per night only counts priced stays.
     const windowNights = occupancy.stayNights(summary.reservations);
-    const everywhereNights = propertyId ? occupancy.stayNights(everywhere.reservations) : windowNights;
     const direct = directRevenueOf(summary.revenueByChannel);
     const goals = readGoals();
     const goalAmount = win.kind === 'fy' && !propertyId ? goals[exercise.key] : null;
@@ -291,20 +319,24 @@ function createDashboardModel(database, finance) {
     const bestMonth = bestMonthOf(revenueMonths, today);
     const scopeRevenue = propertyId ? byId.get(propertyId) : null;
     const leader = everywhere.revenueByProperty.find((p) => p.revenue > 0);
-    const heroRevPar = occupancy.revPar(revenue, scopeOcc ? scopeOcc.sellable : 0);
+    // Rule 53 — revenue per night and RevPAR on the revenue of the window's nights.
+    const allNights = nightsRevenue(paceStays, allProperties, win.from, win.to);
+    const scopeNights = propertyId ? allNights.byProperty.get(propertyId) : allNights;
+    const heroRevPar = occupancy.revPar(scopeNights.revenue, scopeOcc ? scopeOcc.sellable : 0);
 
     // specs/finance-revpar-year-over-year.md rules 8-11 — each headline figure against the comparable
     // part of the window a year back, read by the very functions that compute the figure itself.
-    const figuresOver = (s, stayList, from, to) => {
+    const figuresOver = (s, stayList, from, to, knownAt = null) => {
       const n = occupancy.stayNights(s.reservations);
       const occ = occupancy.occupancyOver(scopeProperties, stayList, allClosures, from, to, { startOf });
+      const nr = nightsRevenue(paceStays, scopeProperties, from, to, { knownAt });
       return {
         revenue: s.revenueTotal,
         stays: s.reservations.length,
         nights: n.nights,
         occupancy: occ.rate,
-        revenuePerNight: occupancy.revenuePerNight(s.revenueTotal, n.pricedNights),
-        revPar: occupancy.revPar(s.revenueTotal, occ.sellable),
+        revenuePerNight: occupancy.revenuePerNight(nr.revenue, nr.pricedNights),
+        revPar: occupancy.revPar(nr.revenue, occ.sellable),
       };
     };
     let cur = null;
@@ -312,7 +344,7 @@ function createDashboardModel(database, finance) {
     if (comparable) {
       const { range } = comparable;
       cur = figuresOver(comparable.cur, stays, range.current.from, range.current.to);
-      prev = figuresOver(comparable.prev, snapshotKnown ? staysKnownN1 : stays, range.previous.from, range.previous.to);
+      prev = figuresOver(comparable.prev, snapshotKnown ? staysKnownN1 : stays, range.previous.from, range.previous.to, snapshotKnown ? knownN1 : null);
       // Rule 10 — « Encaissé » a year ago as it stood: the payments received by then only.
       const prevCollected = snapshotKnown
         ? round2(paymentsLedger(comparable.prev.reservations).filter((p) => p.date <= knownN1).reduce((n, p) => n + p.amount, 0))
@@ -337,7 +369,7 @@ function createDashboardModel(database, finance) {
         hero: {
           revenue, revenueHt: summary.revenueTotalHt, stays: summary.reservations.length, nights: windowNights.nights,
           occupancy: scopeOcc ? scopeOcc.rate : null,
-          revenuePerNight: occupancy.revenuePerNight(revenue, windowNights.pricedNights),
+          revenuePerNight: occupancy.revenuePerNight(scopeNights.revenue, scopeNights.pricedNights),
           directShare: ratio(direct, revenue),
           // specs/finance-revpar-year-over-year.md rules 1-3.
           revPar: heroRevPar,
@@ -362,8 +394,8 @@ function createDashboardModel(database, finance) {
         properties: allProperties.map((p) => {
           const agg = byId.get(p.id) || { revenue: 0 };
           const o = windowOcc.byProperty.get(p.id);
-          const n = everywhereNights.byProperty.get(p.id);
-          return { propertyId: p.id, name: p.name, colorIndex: p.colorIndex, revenue: agg.revenue, occupancy: o ? o.rate : null, revenuePerNight: occupancy.revenuePerNight(agg.revenue, n ? n.pricedNights : 0) };
+          const n = allNights.byProperty.get(p.id);
+          return { propertyId: p.id, name: p.name, colorIndex: p.colorIndex, revenue: agg.revenue, occupancy: o ? o.rate : null, revenuePerNight: occupancy.revenuePerNight(n.revenue, n.pricedNights) };
         }),
         totalRevenue: everywhere.revenueTotal,
         totalOccupancy: windowOcc.rate,
@@ -373,7 +405,7 @@ function createDashboardModel(database, finance) {
           late: { amount: operational.overdue.totalAmount, stays: operational.overdue.count, payouts: operational.overdue.payouts.count },
           stays: { count: summary.reservations.length, upcoming: operational.upcoming.reservations.length },
           properties: propertyId
-            ? { count: 1, name: scopeRevenue ? scopeRevenue.propertyName : '', revenue: scopeRevenue ? scopeRevenue.revenue : 0, revPar: occupancy.revPar(scopeRevenue ? scopeRevenue.revenue : 0, scopeOcc ? scopeOcc.sellable : 0) }
+            ? { count: 1, name: scopeRevenue ? scopeRevenue.propertyName : '', revenue: scopeRevenue ? scopeRevenue.revenue : 0, revPar: heroRevPar }
             : { count: allProperties.length, leader: leader ? leader.propertyName : null },
           channels: { commission },
         },
@@ -458,7 +490,7 @@ function createDashboardModel(database, finance) {
       return { ok: true, data: { rows: op.pending.reservations, totals: op.pending.totals, projection: { until, total: projection.total, collected: projection.collected, pending: projection.pending } } };
     }
 
-    const { summary, comparable } = figures(ctx);
+    const { summary, comparable, paceStays } = figures(ctx);
 
     if (tile === 'collected') {
       const rows = paymentsLedger(summary.reservations);
@@ -492,6 +524,8 @@ function createDashboardModel(database, finance) {
       const curBy = new Map((comparable ? comparable.cur : summary).revenueByProperty.map((p) => [p.propertyId, p]));
       const prevBy = comparable ? new Map(comparable.prev.revenueByProperty.map((p) => [p.propertyId, p])) : null;
       const nightsOf = occupancy.stayNights(summary.reservations);
+      // Rule 53 — revenue per night and RevPAR on the revenue of the window's nights, as on the page.
+      const nr = nightsRevenue(paceStays, scopeProperties, win.from, win.to);
       const rows = scopeProperties.map((p) => {
         const agg = summary.revenueByProperty.find((x) => x.propertyId === p.id) || { revenue: 0, revenueHt: 0 };
         const o = occ.byProperty.get(p.id);
@@ -499,7 +533,7 @@ function createDashboardModel(database, finance) {
         const n = nightsOf.byProperty.get(p.id) || { nights: 0, pricedNights: 0 };
         return {
           propertyId: p.id, name: p.name, colorIndex: p.colorIndex, nights: n.nights,
-          occupancy: o.rate, revenuePerNight: occupancy.revenuePerNight(agg.revenue, n.pricedNights), revPar: occupancy.revPar(agg.revenue, o.sellable),
+          occupancy: o.rate, revenuePerNight: occupancy.revenuePerNight(nr.byProperty.get(p.id).revenue, nr.byProperty.get(p.id).pricedNights), revPar: occupancy.revPar(nr.byProperty.get(p.id).revenue, o.sellable),
           revenue: agg.revenue, revenueHt: agg.revenueHt,
           change: prev ? yoy.change((curBy.get(p.id) || { revenue: 0 }).revenue, prev.revenue) : null,
         };
@@ -510,8 +544,8 @@ function createDashboardModel(database, finance) {
           rows,
           showHt: summary.showHt,
           totals: {
-            nights: nightsOf.nights, occupancy: occ.rate, revenuePerNight: occupancy.revenuePerNight(summary.revenueTotal, nightsOf.pricedNights),
-            revPar: occupancy.revPar(summary.revenueTotal, occ.sellable), revenue: summary.revenueTotal, revenueHt: summary.revenueTotalHt,
+            nights: nightsOf.nights, occupancy: occ.rate, revenuePerNight: occupancy.revenuePerNight(nr.revenue, nr.pricedNights),
+            revPar: occupancy.revPar(nr.revenue, occ.sellable), revenue: summary.revenueTotal, revenueHt: summary.revenueTotalHt,
           },
           comparableMonths: comparable ? { months: comparable.range.months, totalMonths: comparable.range.totalMonths } : null,
         },

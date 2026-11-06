@@ -5,7 +5,8 @@
 // YYYY-MM-DD. `bookedOn` is the day its fiche was created (rule 1); `cancelledOn` is null for a stay
 // still booked.
 
-const { shiftYear, shiftMonth, change } = require('./yearOverYear');
+const { shiftYear, shiftMonth, change, snapshotKnownFrom } = require('./yearOverYear');
+const { formatDateLongFr } = require('./dateFr');
 const { nightKeys } = require('./financeOccupancy');
 
 const DAY = 86400000;
@@ -32,13 +33,29 @@ function isOnBooks(stay, date) {
 function valueInMonth(stay, ym, metric) {
   if (metric === 'reservations') return String(stay.startDate).slice(0, 7) === ym ? 1 : 0;
   const monthStart = toMs(`${ym}-01`);
-  const from = Math.max(toMs(stay.startDate), monthStart);
-  const to = Math.min(toMs(stay.endDate), monthStart + monthLengthMs(ym));
-  const nights = Math.max(0, Math.round((to - from) / DAY));
-  if (metric === 'nights') return nights;
+  const monthEnd = monthStart + monthLengthMs(ym);
+  if (metric === 'nights') {
+    const from = Math.max(toMs(stay.startDate), monthStart);
+    const to = Math.min(toMs(stay.endDate), monthEnd);
+    return Math.max(0, Math.round((to - from) / DAY));
+  }
+  return spreadOverNights(stay, monthStart, monthEnd, Number(stay.totalSejour || 0));
+}
+
+// Rule 3 — the « CA des nuits »: `amount` spread evenly over the stay's nights, the share of those in
+// [fromMs, toExclusiveMs); a stay without a night counts whole where it starts. The one night split of
+// the app: the dashboard's revenue of the nights reads it too (specs/finance-dashboard-redesign.md rule 53).
+function spreadOverNights(stay, fromMs, toExclusiveMs, amount) {
+  const start = toMs(stay.startDate);
   const total = nightsOf(stay);
-  if (total === 0) return String(stay.startDate).slice(0, 7) === ym ? Number(stay.totalSejour || 0) : 0;
-  return (Number(stay.totalSejour || 0) * nights) / total;
+  if (total === 0) return start >= fromMs && start < toExclusiveMs ? amount : 0;
+  const nights = Math.max(0, Math.round((Math.min(toMs(stay.endDate), toExclusiveMs) - Math.max(start, fromMs)) / DAY));
+  return (amount * nights) / total;
+}
+
+/** `amount` spread over the stay's nights, the share of its nights in [from, to] (ISO days, to inclusive). */
+function revenueOfNights(stay, from, to, amount) {
+  return spreadOverNights(stay, toMs(from), toMs(to) + DAY, amount);
 }
 
 function monthLengthMs(ym) {
@@ -87,7 +104,6 @@ function paceStartOf(stays) {
 }
 
 const FR_SHORT = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short', timeZone: 'UTC' });
-const FR_LONG = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
 const FR_NUMBER = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 });
 const FR_MONTH = new Intl.DateTimeFormat('fr-FR', { month: 'long', year: 'numeric', timeZone: 'UTC' });
 const FR_TICK = new Intl.DateTimeFormat('fr-FR', { month: 'short', timeZone: 'UTC' });
@@ -98,7 +114,8 @@ const monthTick = (ym, first) => {
   const t = FR_TICK.format(new Date(toMs(`${ym}-01`)));
   return ym.endsWith('-01') || first ? `${t} ${ym.slice(2, 4)}` : t;
 };
-const longDate = (iso) => FR_LONG.format(new Date(toMs(iso)));
+// specs/finance-revpar-year-over-year.md rule 23 — « 1er janvier 2027 », the dashboard's own wording.
+const longDate = formatDateLongFr;
 
 function formatValue(metric, v) {
   const n = FR_NUMBER.format(Math.round(v));
@@ -169,7 +186,8 @@ function buildPace({ stays, today, metric, coverageMonth }) {
   const lastYearDay = shiftYear(today, -1);
   const paceStart = paceStartOf(stays);
   const comparableAsOf = Boolean(paceStart) && lastYearDay >= paceStart;
-  const comparableFrom = paceStart ? shiftYear(paceStart, 1) : null;
+  // specs/finance-revpar-year-over-year.md rule 22 — the first day `comparableAsOf` holds (29 February → 1 March).
+  const comparableFrom = snapshotKnownFrom(paceStart);
 
   const months = monthsFrom(today, MONTHS_AHEAD).map((month, i) => {
     const lastYearMonth = shiftMonth(month, -1);
@@ -244,5 +262,5 @@ function buildPickupCurve({ stays, month, today, metric, coverageMonth }) {
 }
 
 module.exports = {
-  METRICS, isOnBooks, valueInMonth, paceStartOf, pickupOver, buildPace, buildPickupCurve, addDays,
+  revenueOfNights, METRICS, isOnBooks, valueInMonth, paceStartOf, pickupOver, buildPace, buildPickupCurve, addDays,
 };

@@ -19,15 +19,17 @@ test('rule 1 — exercise 2024, closures excluded: 581 open nights, RevPAR 1 400
   // Gite 6 + 2 + 2 (30-31 December of a stay attributed to 2025), Tente 4 + 3.
   assert.equal(hero.occupiedNights, 17);
   assert.equal(hero.occupancy, 0.0293, 'occupancy is occupiedNights ÷ openNights');
-  assert.equal(hero.revPar, 2.41);
-  assert.equal(hero.revenuePerNight, 107.69, 'the revenue per night sold is unchanged (1 400 € ÷ 13 priced nights)');
+  // Rule 53 (D-HC9): the revenue of the nights — 700 + 400 + 300 + 200 (two of the three nights of the stay
+  // across the year's end) = 1 600 € over 15 priced nights.
+  assert.equal(hero.revPar, 2.75, '1 600 € ÷ 581');
+  assert.equal(hero.revenuePerNight, 106.67, '1 600 € ÷ 15 priced nights');
 });
 
 test('rule 2 — one logement: the hero RevPAR is the « Logements » tile\'s and the detail\'s', () => {
   const { dashboard } = pinnedDashboard();
   const d = dashboard.getDashboard({ fiscalYear: 2024, propertyId: 1 }).data;
   assert.equal(d.hero.openNights, 306);
-  assert.equal(d.hero.revPar, 2.29, '700 € ÷ 306');
+  assert.equal(d.hero.revPar, 2.94, '(700 + 200) € of nights ÷ 306');
   assert.equal(d.tiles.properties.revPar, d.hero.revPar);
   const detail = dashboard.getDashboardDetail('properties', { fiscalYear: 2024, propertyId: 1 }).data;
   assert.equal(detail.totals.revPar, d.hero.revPar);

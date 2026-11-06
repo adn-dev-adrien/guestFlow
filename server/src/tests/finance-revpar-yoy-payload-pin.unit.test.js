@@ -8,19 +8,21 @@ require('node:test').mock.timers.enable({ apis: ['Date'], now: Date.UTC(2026, 10
 // specs/finance-revpar-year-over-year.md §3 rule 14 — the dashboard payload only GAINS fields: every
 // field it had before this spec keeps its value. The pin was produced by the dashboard model as it was
 // before the change (inte/plugins 5437951d), on the fixed fixture of financeComparisonFixture.js.
+// specs/finance-dashboard-redesign.md rule 53 (D-HC9) — revenue per night and RevPAR changed basis on purpose and
+// are compared elsewhere (finance-nights-revenue.unit.test.js); every other field stays as pinned.
 const pin = require('./fixtures/finance-dashboard-payload-pin.json');
-const { pinnedDashboard, withoutAdded, ADDED } = require('./financeComparisonFixture');
+const { pinnedDashboard, withoutAdded, withoutSuperseded, ADDED } = require('./financeComparisonFixture');
 
 for (const [name, expected] of Object.entries(pin)) {
   test(`rule 14 — « ${name} »: every existing field of the dashboard keeps its value`, () => {
     const { dashboard } = pinnedDashboard();
     const d = dashboard.getDashboard(expected.params).data;
-    assert.deepEqual(withoutAdded(d), expected.dashboard);
+    assert.deepEqual(withoutAdded(d), withoutAdded(expected.dashboard));
   });
 
   test(`rule 14 — « ${name} »: the detail tables are unchanged`, () => {
     const { dashboard } = pinnedDashboard();
-    assert.deepEqual(dashboard.getDashboardDetail('properties', expected.params).data, expected.properties);
+    assert.deepEqual(withoutSuperseded(dashboard.getDashboardDetail('properties', expected.params).data), withoutSuperseded(expected.properties));
     assert.deepEqual(dashboard.getDashboardDetail('collected', expected.params).data, expected.collected);
   });
 }
