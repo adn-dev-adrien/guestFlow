@@ -7,19 +7,17 @@ import { formatCurrency, formatCurrencyRounded } from './formatters';
  * come from the server; this formats last year's value and maps « not comparable » to change null
  * (« — vs N-1 »). Without a metric (an older payload) there is no pill.
  *
- * Rule 19 — on a partial comparison (`span.complete` false) the pill names its span, « (N-1 : 76 · sur
- * 10 mois) », as the revenue badge does: the change is computed on those months only.
+ * Rule 27 (D-HC14) — the pill stays short even on a partial comparison: the span is said once, by the
+ * notice under the hero (« Comparé à l'an dernier sur N mois … »), never in each pill.
  *
  * @param {object|undefined} metric          { current, previous, change, unit, comparable }
  * @param {(v: number) => string} formatPrevious
- * @param {{ complete?: boolean, months?: number }} [span]   `dashboard.comparison`
  * @returns {{ change: number|null, previous?: string, unit: string } | undefined}
  */
-export function comparisonPill(metric, formatPrevious, span) {
+export function comparisonPill(metric, formatPrevious) {
   if (!metric) return undefined;
   if (!metric.comparable) return { change: null, unit: metric.unit };
-  const suffix = span && span.complete === false && span.months ? ` · sur ${span.months} mois` : '';
-  return { change: metric.change, previous: metric.previous == null ? undefined : `${formatPrevious(metric.previous)}${suffix}`, unit: metric.unit };
+  return { change: metric.change, previous: metric.previous == null ? undefined : formatPrevious(metric.previous), unit: metric.unit };
 }
 
 /**

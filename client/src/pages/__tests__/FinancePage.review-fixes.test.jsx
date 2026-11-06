@@ -1,4 +1,4 @@
-// specs/finance-revpar-year-over-year.md §3 rules 19, 20, 24, 25 and 26;
+// specs/finance-revpar-year-over-year.md §3 rules 20, 24, 25, 26 and 27;
 // specs/finance-dashboard-redesign.md §3 rules 53, 54 and 55 — review of 2026-11-06 (R3-2, R3-3, R3-4, R3-8, R3-11, R5-05, R5-20, R6-3): the pills
 // name a partial span, the open nights name the occupied ones, the per-night amounts keep their cents
 // under 100 €, the occupancy chart is drawn on 0-100 %, the chart cards keep their own height, « Encaissé »
@@ -33,7 +33,7 @@ beforeEach(() => {
   window.matchMedia = window.matchMedia || (() => ({ matches: false, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {} }));
 });
 
-test('rule 19 — a complete comparison: the pills carry no span', async () => {
+test('rule 27 — a complete comparison: the pills carry no span either', async () => {
   api.getFinanceDashboard.mockResolvedValue(COMPLETE);
   renderPage();
   const hero = await screen.findByRole('region', { name: "Chiffre d'affaires" });

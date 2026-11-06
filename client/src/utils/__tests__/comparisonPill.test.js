@@ -1,4 +1,4 @@
-// specs/finance-revpar-year-over-year.md §3 rules 16, 19 and 24 — a server metric becomes the pill's props: its
+// specs/finance-revpar-year-over-year.md §3 rules 16, 24 and 27 — a server metric becomes the pill's props: its
 // change and unit as sent, last year's value formatted, « — vs N-1 » (change null) when it does not compare.
 import { comparisonPill, rateOneDecimal, perNightAmount } from '../comparisonPill';
 
@@ -18,10 +18,9 @@ test('rule 16 — a rate is written with one decimal and a comma', () => {
   expect(rateOneDecimal(0.12345)).toBe('12,3 %');
 });
 
-test('rule 19 — a partial comparison names its span after last year\'s value', () => {
-  expect(comparisonPill({ previous: 76, change: -61.8, unit: 'percent', comparable: true }, String, { complete: false, months: 10 }))
-    .toEqual({ change: -61.8, previous: '76 · sur 10 mois', unit: 'percent' });
-  expect(comparisonPill({ previous: 76, change: 1, unit: 'percent', comparable: true }, String, { complete: true, months: 12 }).previous).toBe('76');
+test('rule 27 — even on a partial comparison the pill stays short: the notice says the span, once', () => {
+  expect(comparisonPill({ previous: 76, change: -61.8, unit: 'percent', comparable: true }, String))
+    .toEqual({ change: -61.8, previous: '76', unit: 'percent' });
 });
 
 test('rule 24 — a per-night amount keeps its cents under 100 €', () => {

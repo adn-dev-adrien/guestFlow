@@ -52,13 +52,6 @@ function byMonth(reservations) {
   return out;
 }
 
-// V5-11 — the exercise served is always one of the selector's options, so the select never goes blank.
-function withServedExercise(list, exercise) {
-  if (list.some((f) => f.key === exercise.key)) return list;
-  const { key, label, from, to, isCurrent } = exercise;
-  return [...list, { key, label, from, to, isCurrent }].sort((a, b) => b.key - a.key);
-}
-
 function createStayProfileModel(finance, dashboard) {
   const withTax = (reservations) => finance.withTouristTaxInTotal(reservations);
 
@@ -125,7 +118,8 @@ function createStayProfileModel(finance, dashboard) {
       data: {
         window: win,
         fiscalYear: ctx.exercise,
-        fiscalYears: withServedExercise(summary.fiscalYears, ctx.exercise),
+        // specs/finance-dashboard-redesign.md rule 57 — the served exercise is always among the options.
+        fiscalYears: dashboardModel.withServedExercise(summary.fiscalYears, ctx.exercise),
         months: exerciseMonths(exercise.from, exercise.to).map((m) => ({ month: m.month, label: m.label })),
         propertyId,
         properties: allProperties.map((p) => ({ id: p.id, name: p.name })),
@@ -151,4 +145,4 @@ function buildModel(database) {
   return createStayProfileModel(financeModel.buildModel(database), dashboardModel.buildModel(database));
 }
 
-module.exports = { getStayProfile, buildModel, channelOf, withServedExercise, DIMENSIONS };
+module.exports = { getStayProfile, buildModel, channelOf, DIMENSIONS };

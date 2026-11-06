@@ -92,6 +92,7 @@ server.
    « Comparaison sur N mois sur M : les données commencent en <mois année>. » (coverage), or « … : un
    mois en cours se compare une fois terminé. » (rule 33's months-over clamp). A complete comparison
    has no notice. There is **one** notice per page, never one per tile (D-HC6).
+   > 2026-11-06: worded « Comparé à l'an dernier sur N mois sur M : … » (rule 27).
 
 ### 3.3 The figures compared
 
@@ -173,6 +174,8 @@ server.
     value is followed by « · sur N mois » (« ↓ −61,8 % (N-1 : 76 · sur 10 mois) »), as the revenue badge
     says « sur N mois comparables »: the change is computed on those months only, while the figure above
     is the whole window's.
+    > Superseded by rule 27 (2026-11-06).
+    > **Sans test** — superseded: rule 27 pins the opposite, and no pill carries a span any more.
 20. **The open nights name the occupied ones** (R3-2). The hero's « nuits ouvertes » reads « · dont N
     occupées » (`hero.occupiedNights`, the rate's numerator), and the occupancy's definition says « Nuits
     occupées dans la période ÷ nuits ouvertes »: « nuits vendues » counts the nights of the window's stays,
@@ -180,6 +183,7 @@ server.
 21. **The notice names every reason** (R3-5). A range cut by the data's start and by the months not over
     (rule 33) says both: « Comparaison sur 3 mois sur 12 : les données commencent en décembre 2025, et un
     mois en cours se compare une fois terminé. »
+    > 2026-11-06: the notice opens « Comparé à l'an dernier sur N mois sur M » (rule 27).
 22. **A tracking start on 29 February** (R3-6). The day last year's snapshot becomes known is the first
     day d with shiftYear(d, −1) ≥ the tracking start (`yearOverYear.snapshotKnownFrom`): 1 March for a
     29 February, never the 28th. The booking pace's `comparableFrom` reads the same helper.
@@ -196,6 +200,26 @@ server.
     100 %), like the small multiples under it: a 16 % month never looks like a peak.
 26. **Each chart card keeps its own height** (R5-20). The « Revenu par mois » / « Taux d'occupation »
     row aligns its cards at the top, so the shorter card no longer carries a 170 px blank at 1280.
+
+
+### 3.8 Review fixes, round 2 (2026-11-06)
+
+27. **« sur N mois » is said once, under the hero** (Adrien, D-HC14; supersedes rule 19). On a partial
+    comparison the pills stay short — « ↑ +12 % (N-1 : 11 140 €) », never « · sur N mois » — and the one notice
+    under the hero opens « Comparé à l'an dernier sur N mois sur M » with its reasons (rule 21). Rule 52 of
+    the dashboard holds: each hero pill on one line from `sm` up, wrapping on a phone, inside its cell, with no
+    horizontal page scroll at 1280 / 900 / 390 (review V3-1: the suffix overflowed every cell and gave 9 px of
+    page scroll at 390). Tests: `utils/__tests__/comparisonPill.test.js`, `FinancePage.yoy-pills.test.jsx`.
+28. **The occupancy chart says « et N-1 » only when it draws it** (V3-3). Its name (and its table's caption)
+    reads « Taux d'occupation par mois, 2025-2026 » when no month of last year compares, « …, 2025-2026 et
+    2024-2025 » with the dashed series. Test: `FinancePage.round2.test.jsx`.
+29. **The occupancy chart's copy is in percent** (V5-9). It passes `ratio` to `TrendChart` (report grammar):
+    « Copier les données » writes « 2026 (%) » and 14,6, as the table shows 14,6 %. Test:
+    `FinancePage.round2.test.jsx`.
+30. **« Payé » for the stays' money, everywhere on the page** (V3-2, D-HC11 words). The « Déjà payé » table's
+    total reads « Total déjà payé · N paiements », the projection of « À encaisser » « Déjà payé X », and the
+    « Revenu par mois » legend « Payé ou passé ». « Encaissé » stays for money received in a period (the
+    accounting synthesis). Test: `FinancePage.round2.test.jsx`.
 
 **Edge cases:**
 - Window wholly closed → `openNights: 0`, `revPar: null`, occupancy comparison `noCurrentValue` or
@@ -243,7 +267,8 @@ The UI round (2026-11-05, rules 15-18) renders the fields with lot 0's report gr
 | `utils/` | `comparisonPill.js` | C | Presentational: a server metric → the pill's props (last year formatted, change null when not comparable); `rateOneDecimal` |
 | `constants/` | `financeDefinitions.js` | C | The French definitions of the tiles and hero figures, with their source (D-HC8) |
 | `components/` | `FinanceDetailPanel.jsx` | T | 2026-11-06: « Déjà payé » title, RevPAR basis in the « Logements » subtitle |
-| `utils/` | `comparisonPill.js` | T | 2026-11-06: partial span (rule 19), `perNightAmount` (rule 24) |
+| `utils/` | `comparisonPill.js` | T | 2026-11-06: `perNightAmount` (rule 24); round 2: no span in the pill (rule 27) |
+| `components/` | `MonthlyRevenueChart.jsx` | T | 2026-11-06 round 2: legend « Payé ou passé » (rule 30) |
 | `api.js` | — | — | None: `getFinanceDashboard` already returns the whole payload |
 
 **Component reuse declaration:**
@@ -323,6 +348,9 @@ per-logement small multiples. The ADR label follows rule 25 of the dashboard: «
 - [x] `tests/finance-occupancy-all-series.unit.test.js` (3) — rule 12: the scope's series, gaps and non-comparable months, one logement = its series.
 - [x] `tests/finance-revpar-yoy-payload-pin.unit.test.js` (7) — rule 14: the pre-change payload (exercise, one logement, one month) and its detail tables unchanged, the added fields exactly the documented ones. Fixture: `tests/financeComparisonFixture.js`, pin: `tests/fixtures/finance-dashboard-payload-pin.json` (produced by the model at `5437951d`).
 - [x] `tests/finance-comparison-review-fixes.unit.test.js` (3, 2026-11-06) — rules 21-23: both reasons in the notice, 29 February (dashboard and pace), « 1er » and what the date is about.
+- [x] `tests/finance-dashboard-repeated-exercise.unit.test.js` (2, 2026-11-06 round 2) — dashboard rule 57 over the controllers: 400 `{ error: 'Exercice inconnu.', code: 'UNKNOWN_EXERCISE' }` on the dashboard, a detail table and the stay profile.
+- [x] `tests/finance-dashboard-round2.unit.test.js` (3, 2026-11-06 round 2) — dashboard rule 57: a repeated or nested `fiscalYear` refused on the dashboard, a detail table and the stay profile; a single unusable value reads the current exercise; the served exercise among the options (dashboard and profile).
+- 2026-11-06 round 2: the notices of `finance-comparison-window`, `finance-yoy-comparison`, `finance-comparison-review-fixes` read « Comparé à l'an dernier sur … » (rule 27); the VAT golden's `finance/dashboard/2025|2026` gained the served exercise in `fiscalYears` (dashboard rule 57), nothing else moved.
 - [x] `tests/finance-nights-revenue.unit.test.js` (5, 2026-11-06) — dashboard rule 53: a solde paid before the nights, the tourist tax left out, a stay across the edge, one figure in the hero / strip / tile / table / comparison, the pace's split shared.
 - [x] `tests/finance-tax-in-total-shared.unit.test.js` (3, 2026-11-06) — dashboard rule 56: the tax left out is the one inside the total, the stay profile’s reading; read in chunks on a large book.
 - 2026-11-06: `finance-revpar.unit.test.js`, `finance-yoy-comparison.unit.test.js` read the per-night figures of rule 53 (1 600 € of nights, 15 nights) and the `stays` source of « Déjà payé »; the payload pin leaves out the per-night fields of rule 53 (`withoutSuperseded`), every other field still pinned.
@@ -332,6 +360,8 @@ per-logement small multiples. The ADR label follows rule 25 of the dashboard: «
 - [x] `pages/__tests__/FinancePage.yoy-pills.test.jsx` (6) — rules 15-18: the tiles' and hero's pills (points for the occupancy, « — vs N-1 » without a base), RevPAR and open nights, definitions naming their source, one notice under the hero, no history, an older payload unchanged.
 - [x] `pages/__tests__/FinancePage.occupancy-trend.test.jsx` (3) — rule 18: the scope's series and last year's with the table view, no dashed series without a comparable month, one logement without small multiples.
 - [x] `utils/__tests__/comparisonPill.test.js` (5) — rules 16, 19, 24: metric → pill props, not comparable, one-decimal rate, partial span, cents under 100 €.
+- [x] `pages/__tests__/FinancePage.round2.test.jsx` (6, 2026-11-06 round 2) — rules 28-30 and dashboard rule 57: « et N-1 » only with its series, `ratio` on the occupancy chart, « payé » wording in the panel / projection / legend, an `UNKNOWN_EXERCISE` refusal offering « Exercice en cours », any other refusal not.
+- 2026-11-06 round 2: `comparisonPill.test.js` and `FinancePage.yoy-pills.test.jsx` pin rule 27 (no span in the pills; the notice says it); `FinancePage.review-fixes.test.jsx` cites rule 27 instead of 19.
 - [x] `pages/__tests__/FinancePage.review-fixes.test.jsx` (8, 2026-11-06) — rules 19, 20, 24, 25, 26 and dashboard rules 53-55: complete pill without span, occupied nights, RevPAR to the cent, `yDomain`, chart row alignment, « Déjà payé », the « Logements » tile without RevPAR, the per-night basis in the definition.
 - Fixture: `pages/__tests__/financeComparisonFixtures.jsx`. The existing FinancePage suites (older payload) pass unchanged.
 - 2026-11-05 follow-up: the five server suites pin the clock for the whole file (`mock.timers`, Date = 2026-11-05) and the closed-exercise rows of `financeComparisonFixture.js` carry `date-literal-ok` (`specs/server-test-isolation.md` rule 7, `scripts/check-test-dates.mjs --strict`). The banner became a light card (`finance-dashboard-redesign.md` rule 52), so the pills of rule 16 sit in their light-surface style; the hero is two columns from `lg` only, so each pill stays on one line from `sm` up.

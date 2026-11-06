@@ -31,9 +31,10 @@ test('rule 16 — « Déjà payé » and « Réservations » carry the server\'s
   renderPage();
   const collected = await tileOf('Déjà payé');
   expect(collected).toHaveTextContent('↑ +44,4 %');
-  // Rule 19 — the fixture compares 8 months of 12: each pill names its span.
-  expect(collected).toHaveTextContent('(N-1 : 20 534 € · sur 8 mois)');
-  expect(await tileOf('Réservations')).toHaveTextContent('(N-1 : 45 séjours · sur 8 mois)');
+  // Rule 27 (D-HC14) — the fixture compares 8 months of 12: the pills stay short, the notice says it.
+  expect(collected).toHaveTextContent('(N-1 : 20 534 €)');
+  expect(collected).not.toHaveTextContent('sur 8 mois');
+  expect(await tileOf('Réservations')).toHaveTextContent('(N-1 : 45 séjours)');
   for (const label of ['À encaisser', 'En retard', 'Logements', 'Canaux']) {
     expect(await tileOf(label)).not.toHaveTextContent('N-1');
   }
@@ -43,7 +44,8 @@ test('rule 16 — the hero: occupancy in points, RevPAR and open nights, « — 
   renderPage();
   const hero = await screen.findByRole('region', { name: "Chiffre d'affaires" });
   expect(hero).toHaveTextContent('↑ +10,9 pt');
-  expect(hero).toHaveTextContent('(N-1 : 20,9 % · sur 8 mois)');
+  expect(hero).toHaveTextContent('(N-1 : 20,9 %)');
+  expect(hero).not.toHaveTextContent('sur 8 mois');
   expect(hero).toHaveTextContent('↓ −4,3 %');
   expect(hero).toHaveTextContent('RevPAR · par nuit ouverte');
   expect(hero).toHaveTextContent('53,40 €');
@@ -64,7 +66,7 @@ test('rule 17 — one notice, the server\'s, under the hero', async () => {
   renderPage();
   const notes = await screen.findAllByRole('note');
   expect(notes).toHaveLength(1);
-  expect(notes[0]).toHaveTextContent('Comparaison sur 8 mois sur 12 : les données commencent en mai 2025.');
+  expect(notes[0]).toHaveTextContent("Comparé à l'an dernier sur 8 mois sur 12 : les données commencent en mai 2025.");
   const hero = screen.getByRole('region', { name: "Chiffre d'affaires" });
   expect(hero.compareDocumentPosition(notes[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 });

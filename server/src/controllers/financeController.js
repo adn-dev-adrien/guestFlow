@@ -11,15 +11,18 @@ const dashboardParams = (q) => ({
   propertyId: q.propertyId, until: q.until, scope: q.scope,
 });
 
+// specs/finance-dashboard-redesign.md rule 57 — a refusal may carry its code (`UNKNOWN_EXERCISE`).
+const refusal = (res, result) => res.status(result.status || 400).json({ error: result.error, ...(result.code ? { code: result.code } : {}) });
+
 function getDashboard(req, res) {
   const result = dashboard.getDashboard(dashboardParams(req.query));
-  if (!result.ok) return res.status(result.status || 400).json({ error: result.error });
+  if (!result.ok) return refusal(res, result);
   return res.json(result.data);
 }
 
 function getDashboardDetail(req, res) {
   const result = dashboard.getDashboardDetail(req.params.tile, dashboardParams(req.query));
-  if (!result.ok) return res.status(result.status || 400).json({ error: result.error });
+  if (!result.ok) return refusal(res, result);
   return res.json(result.data);
 }
 

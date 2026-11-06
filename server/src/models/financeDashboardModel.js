@@ -27,6 +27,21 @@ const { comparisonWindow, compare } = require('../utils/financeComparison');
 
 const H = financeModel.helpers;
 
+// The settings' own wording for an exercise that does not exist, with the data checks' code (D-HC16).
+const UNKNOWN_EXERCISE = require('../utils/revenueGoals').MESSAGES.badExercise;
+
+/**
+ * Rule 57 (V5-11) — the selector's options always hold the exercise the page serves, so the select never
+ * shows a blank for an exercise the server accepted (an exercise before the first one with data).
+ */
+function withServedExercise(fiscalYears, exercise) {
+  const list = [...(fiscalYears || [])];
+  if (!list.some((f) => f.key === exercise.key)) {
+    list.push({ key: exercise.key, label: exercise.label, from: exercise.from, to: exercise.to, isCurrent: Boolean(exercise.isCurrent) });
+  }
+  return list.sort((a, b) => b.key - a.key);
+}
+
 const DETAIL_TILES = new Set(['collected', 'toCollect', 'late', 'stays', 'properties', 'channels']);
 const CUMULATIVE_DAILY_UP_TO = 62;
 // specs/finance-revpar-year-over-year.md rules 8 and 13 — the figures compared with last year, their
@@ -115,6 +130,11 @@ function createDashboardModel(database, finance) {
 
   // Window, exercise and logement of a request (rules 1-4). Invalid input → 400 with the page's message.
   function context(params = {}) {
+    // Rule 57 (D-HC16) — a repeated (or nested) `fiscalYear` names no exercise: refused, never read as the
+    // current one. A single unusable value keeps reading the current exercise (rule 24 of fiscal-year-and-nights-sold).
+    if (params.fiscalYear != null && typeof params.fiscalYear !== 'string' && typeof params.fiscalYear !== 'number') {
+      return { ok: false, status: 400, error: UNKNOWN_EXERCISE, code: 'UNKNOWN_EXERCISE' };
+    }
     const today = H.todayIso();
     const endMonth = H.getFiscalYearEndMonth(database);
     const current = fiscalYearUtil.containing(endMonth, today);
@@ -362,7 +382,7 @@ function createDashboardModel(database, finance) {
       data: {
         window: win,
         fiscalYear: ctx.exercise,
-        fiscalYears: summary.fiscalYears,
+        fiscalYears: withServedExercise(summary.fiscalYears, ctx.exercise),
         months: exerciseMonths(exercise.from, exercise.to).map((m) => ({ month: m.month, label: m.label })),
         propertyId,
         showHt: summary.showHt,
@@ -585,6 +605,7 @@ function createDashboardModel(database, finance) {
 const defaultModel = createDashboardModel(db, financeModel);
 defaultModel.buildModel = (database) => createDashboardModel(database, financeModel.buildModel(database));
 defaultModel.bestMonthOf = bestMonthOf;
+defaultModel.withServedExercise = withServedExercise;
 defaultModel.isPlatformStay = isPlatformStay;
 
 module.exports = defaultModel;

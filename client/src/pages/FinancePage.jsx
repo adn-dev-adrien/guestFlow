@@ -56,7 +56,7 @@ const HERO_PILLS = {
   nights: (n) => n.toLocaleString('fr-FR'), occupancy: rateOneDecimal,
   revenuePerNight: perNightAmount, revPar: perNightAmount,
 };
-const pillsOf = (comparison, formats) => Object.fromEntries(Object.entries(formats).map(([k, f]) => [k, comparisonPill(comparison && comparison.metrics[k], f, comparison)]));
+const pillsOf = (comparison, formats) => Object.fromEntries(Object.entries(formats).map(([k, f]) => [k, comparisonPill(comparison && comparison.metrics[k], f)]));
 const percentAxis = (x) => `${Math.round(x * 100)} %`;
 
 export default function FinancePage() {
@@ -86,6 +86,8 @@ export default function FinancePage() {
 
   const [dashboard, setDashboard] = useState(null);
   const [loadError, setLoadError] = useState(null);
+  // Rule 57 — the refusal's code: « Exercice en cours » answers `UNKNOWN_EXERCISE` only.
+  const [loadErrorCode, setLoadErrorCode] = useState(null);
   const [tile, setTile] = useState(null);
   const [detail, setDetail] = useState({ key: null, data: null, loading: false, error: false });
   const [staysScope, setStaysScope] = useState('window');
@@ -107,7 +109,10 @@ export default function FinancePage() {
       const answer = await api.getFinanceDashboard(params);
       if (current()) setDashboard(answer);
     } catch (err) {
-      if (current()) setLoadError((err && err.error) || 'Impossible de charger les données financières.');
+      if (current()) {
+        setLoadError((err && err.error) || 'Impossible de charger les données financières.');
+        setLoadErrorCode((err && err.code) || null);
+      }
     }
   }, [paramsKey, periodRefusal]);
 
@@ -193,6 +198,7 @@ export default function FinancePage() {
   const shortOf = new Map(d ? d.revenueMonths.map((m) => [m.month, m.short || m.label]) : []);
   const occupancyAll = d && d.occupancyAll;
   const showByProperty = !occupancyAll || d.occupancy.length > 1;
+  const occupancyN1 = Boolean(occupancyAll) && occupancyAll.months.some((m) => m.previous != null);
   const defaultMonth = () => {
     const now = iso(new Date()).slice(0, 7);
     return d && d.months.some((m) => m.month === now) ? now : (d && d.months[0] ? d.months[0].month : now);
@@ -230,6 +236,12 @@ export default function FinancePage() {
             {params.propertyId && (
               <Button size="small" variant="outlined" onClick={() => setParams({ propertyId: '' })} sx={{ textTransform: 'none', minHeight: 36, '@media (pointer: coarse)': { minHeight: 44 } }}>
                 Tous les logements
+              </Button>
+            )}
+            {/* specs/finance-dashboard-redesign.md rule 57 — an exercise the server refuses offers the current one. */}
+            {loadError && loadErrorCode === 'UNKNOWN_EXERCISE' && (
+              <Button size="small" variant="outlined" onClick={() => setParams({ fiscalYear: '', period: 'fy', month: '' })} sx={{ textTransform: 'none', minHeight: 36, '@media (pointer: coarse)': { minHeight: 44 } }}>
+                Exercice en cours
               </Button>
             )}
           </Box>
@@ -379,15 +391,18 @@ export default function FinancePage() {
                     {/* Rule 18 — the scope's occupancy, last year dashed where it compares. */}
                     {occupancyAll && (
                       <TrendChart
-                        ariaLabel={`Taux d'occupation par mois, ${d.fiscalYear.label} et ${d.fiscalYear.previousLabel}`}
+                        /* Rule 28 — the name says « et N-1 » only when last year's series is drawn. */
+                        ariaLabel={`Taux d'occupation par mois, ${d.fiscalYear.label}${occupancyN1 ? ` et ${d.fiscalYear.previousLabel}` : ''}`}
                         categoryHeader="Mois"
+                        /* Rule 29 — rates: the copied data reads « 14,6 » under « 2026 (%) », as the table shows. */
+                        ratio
                         formatValue={rateOneDecimal}
                         formatAxis={percentAxis}
                         yDomain={[0, 1]}
                         categories={occupancyAll.months.map((m) => ({ key: m.month, label: shortOf.get(m.month) || m.label }))}
                         series={[
                           { key: 'current', name: d.fiscalYear.label, values: occupancyAll.months.map((m) => m.current), area: true, ...(selectedProperty ? { color: seriesColor(selectedProperty.colorIndex) } : {}) },
-                          ...(occupancyAll.months.some((m) => m.previous != null)
+                          ...(occupancyN1
                             ? [{ key: 'previous', name: d.fiscalYear.previousLabel, values: occupancyAll.months.map((m) => m.previous), dashed: true }]
                             : []),
                         ]}
