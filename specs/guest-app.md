@@ -922,13 +922,33 @@ le nom et le numéro. »
 
 None open (2026-11-06).
 
+### Settled while implementing the stay link (2026-11-06, step 13bis)
+
+Points the rules left open, decided in code and recorded here:
+- A link session keeps its phase; the app exchanges the link again when it ends (rule 4). A lookup session moves
+  from pre-arrival to stay by itself, having no link to exchange.
+- A visitor session opened by a link before D-7 lasts 24 h at most and ends at D-7 00:00.
+- Regenerating kills every session opened from the link, visitor ones included; lookup sessions survive.
+- The poster's visitor `/me` no longer carries `opensAt` / `openingLine` (rule 3); the pre-arrival `/me` does.
+- `stayToken` wins when a request sends both `stayToken` and `lodgingCode`.
+- A token that no longer decrypts (key changed) is revoked and replaced, like a regeneration.
+- The stay-link routes answer 409 for a non-active reservation, a lodging off the app or an unset app host, and
+  404 for an unknown reservation. Reception may read and regenerate (it runs the SAS).
+- `{{stayAppUrl}}` is a core template variable with its gate-link fallback in `emailContextBuilder.js`, so it works
+  without the plugin; the operator writes the sentence in the template under `{{#if hasStayApp}}`. A guest with no
+  e-mail address gets no link from the e-mails.
+- The `sas.portal` slot: a contribution flagged `leadsStep: { title }` leads the step while its SAS data says
+  `available`; the other contributions are passed to it as `gateStep`, so the keypad code shows once
+  (`specs/plugins-phase-1-sdk.md`, slots table).
+- The SAS line « Le lien vaut jusqu'au… » shows the end of the stay window (check-out + 2 h).
+
 ### Resolved (2026-11-06, review of the boards v3)
 
 - **Q10 — How the guest opens the app** → option A: one link per stay, shown as the QR of the arrival SAS step in
   place of the gate QR and sent in the J-7 / J-1 e-mails; it proves the stay, no name is ever asked; the lodging
   poster opens the visitor mode only (rules 1-9bis, 33).
-- **Q8 — Soliomap framing** → Soliomap allows `sejour.domainesolio.com` (a change shipped in the solioMap
-  repository); the studio switch « Intégrer dans l'app » is turned on once that change is live (rule 15).
+- **Q8 — Soliomap framing** → Soliomap allows `sejour.domainesolio.com` (solioMap PR #34, edge note homelab PR
+  #40; Safari checked on an iPhone once deployed); the studio switch « Intégrer dans l'app » is turned on once that change is live (rule 15).
 
 ### Resolved (2026-11-05, review of the boards v1)
 
