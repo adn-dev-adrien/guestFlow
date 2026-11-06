@@ -225,11 +225,14 @@ function createModel(database) {
       : [];
   }
 
+  // `null` leaves that pivot as stored (an update that does not send it).
   function writePivots(resourceId, propertyIds, pricing) {
-    database.prepare('DELETE FROM resource_properties WHERE resourceId = ?').run(resourceId);
-    const insApp = database.prepare('INSERT OR IGNORE INTO resource_properties (resourceId, propertyId) VALUES (?, ?)');
-    propertyIds.forEach((pid) => insApp.run(resourceId, pid));
-
+    if (propertyIds !== null) {
+      database.prepare('DELETE FROM resource_properties WHERE resourceId = ?').run(resourceId);
+      const insApp = database.prepare('INSERT OR IGNORE INTO resource_properties (resourceId, propertyId) VALUES (?, ?)');
+      propertyIds.forEach((pid) => insApp.run(resourceId, pid));
+    }
+    if (pricing === null) return;
     database.prepare('DELETE FROM property_resource_prices WHERE resourceId = ?').run(resourceId);
     const insPrice = database.prepare('INSERT INTO property_resource_prices (propertyId, resourceId, price, freeMinutes) VALUES (?, ?, ?, ?)');
     pricing.forEach((line) => insPrice.run(line.propertyId, resourceId, line.price, line.freeMinutes));
@@ -292,11 +295,15 @@ function createModel(database) {
     return tx();
   }
 
+  // specs/options-resources-ux.md rule 33 (audit R25-DB-1 sweep) — a key the save does not send keeps the stored value,
+  // the logements and the per-logement prices included.
   function update(id, payload) {
-    const cols = columnsFromPayload(payload);
     const resourceId = Number(id);
-    const propertyIds = normalizePropertyIds(payload);
-    const pricing = normalizePricing(payload);
+    const stored = database.prepare('SELECT * FROM resources WHERE id = ?').get(resourceId) || {};
+    const cols = Object.fromEntries(Object.entries(columnsFromPayload(payload))
+      .map(([column, value]) => [column, payload[column] === undefined && column in stored ? stored[column] : value]));
+    const propertyIds = payload.propertyIds === undefined ? null : normalizePropertyIds(payload);
+    const pricing = payload.propertyPricing === undefined && payload.propertyPrices === undefined ? null : normalizePricing(payload);
     const tx = database.transaction(() => {
       const hourlySet = [HOURLY_SET, THERMAL_SET, SENTENCE_SET].filter(Boolean).map((s) => `, ${s}`).join('');
       const updateSql = `UPDATE resources
