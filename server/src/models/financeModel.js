@@ -988,7 +988,16 @@ function createFinanceModel(database) {
           COALESCE(r.finalPrice, 0) as finalPrice,
           r.touristTaxDeclaredAt as touristTaxDeclaredAt,
           ${REFUNDED_TAX_COLS},
-          DATE(r.endDate, '-1 day') as lastNightDate
+          DATE(r.endDate, '-1 day') as lastNightDate,
+          -- specs/finance-data-checks.md rule 18 — the day the WHERE below attaches the row to, so one read
+          -- over many months can be split by month. Same three branches, same expressions (pinned by
+          -- finance-data-checks.single-pass: every row's day lies in the window it was read for).
+          CASE
+            WHEN ${HAS_PLAN_SQL} THEN DATE(r.endDate, '-1 day')
+            WHEN NOT ${TAX_ON_ARRIVAL_SQL} THEN MAX(DATE(r.endDate, '-1 day'), COALESCE(DATE(r.balancePaidDate), DATE(r.endDate, '-1 day')))
+            ELSE MAX(DATE(r.endDate, '-1 day'), COALESCE(DATE(r.complementPaidDate), DATE(r.endDate, '-1 day')))
+          END as declarationDay,
+          MAX(DATE(r.endDate, '-1 day'), COALESCE(DATE(r.complementPaidDate), DATE(r.endDate, '-1 day'))) as addedGuestsDeclarationDay
         FROM reservations r
         JOIN properties p ON p.id = r.propertyId
         JOIN clients c ON c.id = r.clientId
@@ -1124,6 +1133,7 @@ function createFinanceModel(database) {
             startDate: row.startDate,
             endDate: row.endDate,
             lastNightDate: row.lastNightDate,
+            declarationDay: row.declarationDay,
             touristTaxDeclaredAt: row.touristTaxDeclaredAt || null,
             declarable: isTouristTaxDeclarable(database, stored),
             adults: addedTaxKeptOut ? taxedAdults : adults,
@@ -1187,6 +1197,7 @@ function createFinanceModel(database) {
             startDate: row.startDate,
             endDate: row.endDate,
             lastNightDate: row.lastNightDate,
+            declarationDay: row.addedGuestsDeclarationDay,
             touristTaxDeclaredAt: stored.touristTaxAddedGuestsDeclaredAt || null,
             declarable: isTouristTaxDeclarable(database, stored),
             adults: noGuestAdded ? null : addedAdults,
@@ -1206,7 +1217,13 @@ function createFinanceModel(database) {
         // `nightsCount` is the NET figure: a stay whose tourist tax was refunded night after night
         // until nothing is left simply leaves the declaration — there is nothing to remit for it
         // (specs/reservation-refunds.md §3.5 rule 31).
-        .filter((row) => row.nightsCount > 0);
+        .filter((row) => row.nightsCount > 0)
+        // specs/finance-data-checks.md rule 18 — the attachment day rides along for a reader splitting a long window
+        // by month, non-enumerable: the monthly payload stays key for key (tourist-tax-report-v2 rule 1).
+        .map((row) => {
+          const { declarationDay, ...rest } = row;
+          return Object.defineProperty(rest, 'declarationDay', { value: declarationDay, enumerable: false });
+        });
     },
 
     // specs/tourist-tax-declared-checkbox.md §3 — the operator ticks « Déclarée » on the extraction page.
