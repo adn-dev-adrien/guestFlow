@@ -45,6 +45,23 @@ function settleAllFieldsOf(r, today) {
   return fields;
 }
 
+/**
+ * Why « Tout solder » has nothing to tick (reading of 2026-11-06, audit R26 finding 3): before the check-out, a row whose only
+ * dues are the end-of-stay complement (and an arrival complement deferred to it) answers « Après le départ. »; null otherwise.
+ */
+function settleAllReasonOf(r, today, fields) {
+  if (fields.length > 0 || isCheckoutDone(r, { today })) return null;
+  const endOfStayDue = Number(r.endOfStayComplementAmount || 0) > 0
+    && !Number(r.endOfStayComplementPaid || 0) && !Number(r.endOfStayComplementPaidCash || 0);
+  return endOfStayDue ? 'Après le départ.' : null;
+}
+
+function settleAllOf(r, today) {
+  const fields = settleAllFieldsOf(r, today);
+  const reason = settleAllReasonOf(r, today, fields);
+  return { settleAllFields: fields, ...(reason ? { settleAllReason: reason } : {}) };
+}
+
 const UPCOMING_PER_PROPERTY = 5;
 
 // specs/fiscal-year-and-nights-sold.md §3.2 — SQL twin of reservationSettlement's `attributionDate`:
@@ -780,7 +797,7 @@ function createFinanceModel(database) {
         remainingToPay: remainingToPay(r),
         settled: isSettled(r),
         nights: nightsBetween(r.startDate, r.endDate),
-        settleAllFields: settleAllFieldsOf(r, today),
+        ...settleAllOf(r, today),
       });
 
       // Overdue (specs/finance-dashboard-redesign.md rule 34): an own-channel stay whose acompte or solde

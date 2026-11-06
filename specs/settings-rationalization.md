@@ -162,6 +162,8 @@ one place.
     unlock lives in the page state and is gone as soon as the page is left or reloaded. Writes sent
     while unlocked carry `unlockPast: true`; the server honours it for an admin and ignores it for any
     other role, so the lock stays authoritative server-side (`reservationsController.js:824,957,1124,1426`).
+    > **Reading of 2026-11-06 (D21, Adrien).** What the unlock opens on a started stay is bounded by rule 35: every change
+    > that leaves the final price and the tourist tax unchanged. A new past reservation (no stored price) is not judged.
 
 17b. **Removed — the « Envoyer les emails clients sans ma validation » master switch** (decided
     2026-09-21). Each email template already carries its own mode (`email_templates.sendMode`,
@@ -343,6 +345,30 @@ one place.
 33. **One linear email check** (audit R2 N2, 2026-10-29). `utils/emailAddress.isValidEmailAddress` (length ≤ 254 checked first, one `indexOf`, no overlapping quantifiers) is the single shape check of the server — settings, users, emails, client payloads and the plugins through `settingsValidation.validateEmail`; the client mirrors it. A 195 KB address is refused in under 50 ms. Public booking: an address over 254 characters is `tooLong`, not `emailInvalid`. Test: `tests/audit-r2-email-linear.unit.test.js`, `website-booking/tests/guest-email-linear.unit.test.js`.
 34. **The user actions are named (audit R3, 2026-10-29).** In « Utilisateurs », the table and the cards give each icon button its own accessible name — « Modifier », « Réinitialiser le mot de passe », « Désactiver » / « Réactiver », « Supprimer l'utilisateur » — instead of leaving the name on the tooltip's wrapping `span`. The tooltips of the disabled self actions read « Mot de passe personnel : page Mot de passe. » and « Suppression de son propre compte impossible. ». Test: `pages/__tests__/UserManagementPage.accessible-names.test.jsx`.
 
+35. **The unlocked fiche keeps its final price (D21, 2026-11-06).** *Owner decision D21, verbatim:* « Lorsqu'on déverrouille
+    une fiche il faut autoriser que les modifications possibles qui ne changent pas le prix final. Cette feature est utilisée
+    pour changer les montants prévus lorsqu'on est payé par les plateformes ».
+    - **Refused:** a save of a started stay under the admin unlock (`unlockPast`) whose engine quote moves `finalPrice` or
+      `touristTaxTotal` from the stored row (a rise or a lowering: one adult more, a line added, a discount, a night more,
+      a child turned adult) → 409 `UNLOCKED_PRICE_CHANGED`, « Fiche déverrouillée : le prix final doit rester à X. » or
+      « Fiche déverrouillée : la taxe de séjour doit rester à X. » (the stored figure), nothing written, the dry run included
+      (`utils/savePriceGuards.unlockedPriceRefusal`, judged after N4's not-started refusal, before the other save guards).
+      The ledger's solde editor, which reaches a solde by moving the accommodation price, refuses the same way
+      (reservation-payment-ledger rule 18 reading).
+    - **What the unlock still allows,** as long as both figures stay put: the platform payment block (expected payout
+      `platformPayoutAmount`, commissions `platformCommissionAmount` / `acompteCommissionAmount`, the platform's tax
+      `platformTouristTaxAmount`, the brut when it lands on the same final price), the penalties (their own route, never
+      judged), the acompte / solde split typed in the ledger (total unchanged), the payment and caution statuses, the client,
+      the platform, the notes and texts, the dates, logement, guests and lines when the engine (or a pinned
+      « Prix hébergement ajusté ») lands on the same final price and tax, and the deletion of the fiche.
+    - **Not judged:** the locked fiche (its own allowlist, PAST_RESERVATION_LOCKED and mid-stay-extras rule 20), a stay not
+      started, a new past reservation, any role but admin (the flag is ignored, the lock stays).
+    - **UI:** the unlocked fiche's banner reads « Fiche déverrouillée : tout reste modifiable sauf le prix final. Le verrou
+      revient à la sortie de la fiche. » (`constants/reservationLock.UNLOCKED_FICHE_BANNER`, the same `Alert` on desktop
+      and mobile); a refused save shows the server's message as any refused save. The client computes nothing.
+    - Replaces mid-stay-extras rule 20's « the admin unlock of a started stay is not judged » (N4, D20 readings). Tests:
+      `unlocked-fiche-keeps-final-price`, `eos-paid-refuses-growth`.
+
 **Edge cases**
 - A page with unsaved changes and a click on another settings entry → the existing dirty-form guard.
 - (rule 28) The address changes to another provider after a host was saved → the saved host wins;
@@ -372,6 +398,8 @@ one place.
 | `utils/` | `settingsResponse.js` | T | Return `footerTextEn`; return `smtp.derived` and `notifications.derivedRecipient` next to the stored overrides |
 | `controllers/` | `paymentsController.js` | T | Remove the timings GET/PUT |
 | `controllers/` | `reservationsController.js` | T | Replace the `allowEditPastReservations` read by the per-request `unlockPast` flag, admin only (rule 17a) |
+| `utils/` | `savePriceGuards.js` | C | Rule 35 — `unlockedPriceRefusal` (D21) and `unclaimedRise` (mid-stay-extras rule 20 reading of 2026-11-06), read by `applyUpdate` |
+| `utils/` | `ledgerAmountEdit.js` | T | Rule 35 — `priceFrozen`: the solde editor of an unlocked started fiche moves no price |
 | `utils/` | `autoSendPolicy.js`, `emailAutoSendScheduler.js`, `emailAutoSendRunner.js`, `reservationEmailSender.js`, `guestEmailSequenceRunner.js` | T | Per-template decision, no master switch (rule 17b) |
 | `controllers/` | `emailTemplatesController.js`, `emailsController.js`, `settingsController.js` | T | Sequence start date set on the first sequence template switched to `auto`; queue shape no longer depends on a switch (rule 17b) |
 | `controllers/` | `settingsController.js` | T | Drop `smtpPort`; accept the override fields; move commission/indemnity VAT out |
@@ -389,6 +417,7 @@ one place.
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
 | `pages/` | `SettingsPage.jsx` | D | Split into the pages below |
+| `pages/` + `constants/` | `ReservationPage.jsx`, `constants/reservationLock.js` | T | Rule 35 — the unlocked fiche's banner states the D21 rule (`UNLOCKED_FICHE_BANNER`); a new past reservation keeps its own (`UNLOCKED_NEW_FICHE_BANNER`) |
 | `pages/` | `settings/EstablishmentSettingsPage.jsx` (incl. devis), `VatFiscalSettingsPage.jsx`, `EmailSettingsPage.jsx`, `IntegrationsSettingsPage.jsx`, `SystemSettingsPage.jsx`, `PlatformsSettingsPage.jsx` | C | One page per group, each with its own `PageActionBar` and save; they compose the existing `Settings*Section` cards |
 | `pages/` | `AccountPage.jsx` | C | « Mon compte » split out of `UserManagementPage` |
 | `pages/` | `PropertyDetail.jsx` | T | Tabs kept in `?tab=`, dots per tab, one save; field → tab map (`FIELD_TAB`) |
@@ -433,6 +462,7 @@ one place.
 | GET/PUT | `/api/school-holidays/sync-settings` | Removed |
 | GET/PUT | `/api/settings` | `reservations.allowEditPastReservations` removed |
 | POST/PUT/DELETE | `/api/reservations(/:id)` | Accept `unlockPast: true` in the body (`?unlockPast=1` on DELETE), honoured for an admin only |
+| PUT | `/api/reservations/:id` | Rule 35 — under `unlockPast` on a started stay, 409 `{ error, code: 'UNLOCKED_PRICE_CHANGED' }` when the final price or the tourist tax would move |
 | GET/PUT | `/api/properties/email-hooks` | **New** (admin): `[{ propertyId, name, emailHook, emailHookEn }]`; PUT writes only those two columns |
 | POST/PUT | `/api/properties(/:id)` | 400 `{ error: 'PROPERTY_INVALID', errors: { field: message } }` (rule 23a) |
 | GET | `/api/options/catalogue-view` | Leaves out `early_check_in` / `late_check_out` (replaced `/api/options?view=catalogue`) |
@@ -498,6 +528,9 @@ The interactive before/after is the reference:
 - [x] Platform settings endpoint validates commission and payout (rule 17)
 - [x] Accountant can PUT the two VAT rates on plan comptable (rule 14)
 - [x] `unlockPast` lets an admin edit a past reservation, is ignored for reception, and nothing is unlocked without it (rule 17a)
+- [x] Rule 35 (D21): `unlocked-fiche-keeps-final-price.unit.test.js` (10) — platform amounts and a same-price move pass; a
+      guest, a line, a discount, a night, the tax alone refused 409 with nothing written; the locked fiche, a stay not started
+      unjudged; the solde editor refuses a different solde
 - [x] Migration with the switch OFF sets every template to `manual`; nothing is sent by the 08:00 pass afterwards; an `auto` template is sent; a read error sends nothing (rule 17b)
 - [x] Sequence start date set on the first sequence template switched to `auto`, never moved afterwards (rule 17b)
 

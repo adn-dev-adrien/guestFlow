@@ -231,6 +231,10 @@ decimals is rounded and shown rounded.
       percentage options included).
     - « Valider » applies the returned `formPatch` to the form (saved with the fiche as any price
       change, traced in the history); « Annuler » leaves everything as it was.
+    > **Reading of 2026-11-06 (D21, settings-rationalization rule 35).** On a started stay the solde no longer moves the price
+    > by this editor: still locked, « Séjour commencé : passer par « Prix hébergement ajusté ». » (the unlock no longer
+    > changes it); unlocked, a solde other than the current one is refused « Fiche déverrouillée : le prix final ne change
+    > pas. » (`priceFrozen`), the same one passes. Test: `unlocked-fiche-keeps-final-price`.
 19. **A perceived row keeps what it collected.** On a paid acompte or solde the amount is not
     editable (rule 15). If the operator still types an amount in the editor of a paid row, the
     refusal names the right gesture: lower — « Déjà perçu : 866,40 €. Pour rendre 66,40 €, créer un
@@ -486,6 +490,8 @@ decimals is rounded and shown rounded.
   l'hébergement. ») until an admin unlocks the fiche
   ([admin-unlock-past-reservations.md](admin-unlock-past-reservations.md)). Decided at implementation
   (2026-10-19): read-only would have blocked every payout.
+  _Since 2026-11-06 (D21): the unlock keeps the final price too; the refusal reads « Séjour commencé : passer par « Prix
+  hébergement ajusté ». » (rule 18 reading)._
 - Reception-only user → the ledger is not sent (finance-stripped view, unchanged).
 - Devis → the ledger shows the planned acompte / solde, no « Marquer perçu », no caution rows. The
   amounts are not editable from the ledger yet: the devis model does not store `depositAmountOverride`
@@ -796,6 +802,11 @@ tariff would fire on every platform stay (the brut is grossed up by the commissi
       interne as they come, through `PATCH /payment { settleMidStayNote }`; they never mark the end of stay, and their only refusal
       (`END_OF_STAY_SETTLED`) cannot fire before the check-out any more.
     - Tests: `end-of-stay-after-checkout` (server, every path above), client `LedgerList.end-of-stay-after-checkout`.
+    > **Reading of 2026-11-06 (audit R26 findings 3 and 4).** « Tout solder » with nothing but the end of stay before the
+    > check-out is drawn closed with « Après le départ. » (`settleAllReason`, finance-dashboard-redesign rule 15 reading). The
+    > merged card of a deferred complement is closed only while its end of stay is still to collect: one already settled (a
+    > stored pre-D20 row, the caisse interne) leaves it open, as the server accepts the mark (`holdsEndOfStay` reads
+    > `!paid.endOfStay`). Tests: `end-of-stay-after-checkout`, client `OperationalPaymentsTable.settle-after-checkout`.
 
 ## 4. Architecture
 

@@ -263,8 +263,14 @@ test('rule 19 — the admin unlock of a started fiche keeps it too', () => {
   const id = startedStay({ depositDisabled: 1, customOptions: [free('Ligne libre', 100)] });
   paySolde(id);
 
-  save(id, addLine, { unlockPast: true });
+  // D21 (2026-11-06): the unlocked fiche keeps its final price, so the priced save lowers the nights by the line.
+  const finalPrice = rowOf(id).finalPrice;
+  save(id, (body) => {
+    addLine(body);
+    body.customPrice = finalPrice - body.customOptions.reduce((sum, line) => sum + line.amount, 0);
+  }, { unlockPast: true });
 
+  assert.equal(rowOf(id).finalPrice, finalPrice);
   assert.equal(customOf(id, 'Ligne libre').s, 100);
 });
 

@@ -579,7 +579,7 @@ function buildLedger({
     rows.push(complementRow({
       key: 'checkoutComplement', label: 'Complément de fin de séjour', amount: mergedAmount, bucket: 'complement',
       paidFlag: 'complementPaid', cashFlag: r.complementPaidCash, dateField: 'complementPaidDate',
-      dueLabel: 'À percevoir au départ', slot: 'checkoutComplement', holdsEndOfStay: endOfStayAmount > 0,
+      dueLabel: 'À percevoir au départ', slot: 'checkoutComplement', holdsEndOfStay: endOfStayAmount > 0 && !paid.endOfStay,
     }));
   } else {
     if (complementAmount > 0 || arrivalAdjusted) {

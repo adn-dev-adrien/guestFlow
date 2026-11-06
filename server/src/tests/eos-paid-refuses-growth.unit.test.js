@@ -3,13 +3,15 @@
 // nothing could claim it any more. A lowering or an unchanged save still passes.
 // Reading of 2026-11-06 (D20, reservation-payment-ledger rule 68): no path collects the end of stay before the check-out, so a
 // stay in this state is a row stored before D20, written here as stored. Audit R26 MEDIUM 1: a started fiche still locked is
-// judged too (its price adjustments are allowed fields); the admin unlock is not.
+// judged too (its price adjustments are allowed fields), on the part of the rise no unpaid bucket takes on (audit R26
+// finding 1); the admin unlock refuses any final price change (D21).
 process.env.DB_PATH = ':memory:';
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
-  db, controller, respond, ADMIN, rowOf, NO_ACOMPTE, S, C, forced, free, fiche, put, pay, storedEndOfStayPaid, ficheView,
+  db, controller, respond, ADMIN, rowOf, NO_ACOMPTE, WITH_ACOMPTE, PLATFORM, S, C, D, forced, free, fiche, put, pay,
+  storedEndOfStayPaid, ficheView, unclaimed,
 } = require('./moneyLedgerFixture');
 
 async function save(stay, over) {
@@ -89,13 +91,19 @@ test('a rise of the tax alone: refused, the price has not moved', async () => {
   assert.equal(rowOf(stay.id).touristTaxTotal, before.touristTaxTotal);
 });
 
-test('D20: an admin unlock of a started stay is not judged, no end of stay being collected before the check-out; a stored one is not rewritten', async () => {
+// D21 (Adrien, 2026-11-06) replaces N4's « unlock of a started stay unchanged »: the unlocked fiche keeps its final price
+// (specs/settings-rationalization.md rule 35), so the growth line 308 of the audit registry feared is refused there too.
+test('D21: an admin unlock of a started stay refuses the growth, the stay does not move', async () => {
   const stay = await paidEndOfStay();
   db.prepare("UPDATE reservations SET startDate = date('now', '-1 day'), endDate = date('now', '+1 day') WHERE id = ?").run(stay.id);
   const moved = { startDate: rowOf(stay.id).startDate, endDate: rowOf(stay.id).endDate };
+  const before = rowOf(stay.id);
   const res = await save(stay, { ...moved, adults: 4, unlockPast: true });
-  assert.notEqual(res.body.code, 'MID_STAY_EXTRAS_CLOSED', JSON.stringify(res.body));
-  assert.equal(res.statusCode, 200, JSON.stringify(res.body));
+  assert.equal(res.statusCode, 409, JSON.stringify(res.body));
+  assert.equal(res.body.code, 'UNLOCKED_PRICE_CHANGED');
+  assert.equal(rowOf(stay.id).adults, 3);
+  assert.equal(rowOf(stay.id).finalPrice, before.finalPrice);
+  assert.equal(rowOf(stay.id).endOfStayComplementAmount, 42.4);
 });
 
 // Audit R26 MEDIUM 1 (reviewer's w3b probe) — started, NOT unlocked: the discount is an allowed field of the locked fiche.
@@ -131,4 +139,39 @@ test('R26 MEDIUM 1: a forbidden change on that fiche keeps its own refusal', asy
   const { stay, moved } = await startedLocked({ collected: true });
   const res = await save(stay, { ...moved, adults: 4 });
   assert.equal(res.body.code, 'PAST_RESERVATION_LOCKED');
+});
+
+// Audit R26 finding 1 (reviewer's p2 / p3 probes) — a checked-out stay whose end of stay was collected at departure and whose
+// solde is still open: the rise lands on the solde, nothing is left unclaimed, the save passes. All paid stays refused.
+async function checkedOut(platform, marks) {
+  const stay = fiche(platform === 'direct' ? WITH_ACOMPTE : NO_ACOMPTE, platform, { customOptions: [forced(20)], discountPercent: 5 });
+  pay(stay.id, ...marks);
+  db.prepare(`UPDATE reservations SET endOfStayComplementAmount = 30, endOfStayComplementDetail = ?, endOfStayComplementPaid = 1,
+      endOfStayComplementPaidDate = date('now'), endOfStayComplementPaidAtDeparture = 1,
+      startDate = date('now', '-3 day'), endDate = date('now', '-1 day'), departureSasDoneAt = datetime('now'), checkOutDone = 1 WHERE id = ?`)
+    .run(JSON.stringify([{ label: 'Ménage', qty: 1, unitPrice: 30, amount: 30, key: 'cleaning' }]), stay.id);
+  return { stay, moved: { startDate: rowOf(stay.id).startDate, endDate: rowOf(stay.id).endDate } };
+}
+
+for (const platform of ['direct', PLATFORM.remitted, PLATFORM.reversed, PLATFORM.owner]) {
+  test(`finding 1: ${platform}, checked out, solde open: a discount removed passes, the rise on the solde`, async () => {
+    const { stay, moved } = await checkedOut(platform, platform === 'direct' ? [D, C] : [C]);
+    const before = rowOf(stay.id);
+    const res = await save(stay, { ...moved, discountPercent: 0 });
+    assert.equal(res.statusCode, 200, JSON.stringify(res.body));
+    const after = rowOf(stay.id);
+    assert.ok(after.finalPrice > before.finalPrice);
+    assert.equal(Math.round((after.balanceAmount - before.balanceAmount) * 100) / 100,
+      Math.round((after.finalPrice + after.touristTaxTotal - before.finalPrice - before.touristTaxTotal) * 100) / 100);
+    assert.equal(after.endOfStayComplementAmount, 30);
+    assert.equal(unclaimed(stay.id) + 0, 0);
+  });
+}
+
+test('finding 1: the same stay with its solde paid: refused, nothing would claim the rise', async () => {
+  const { stay, moved } = await checkedOut('direct', [D, S, C]);
+  const before = rowOf(stay.id);
+  const res = await save(stay, { ...moved, discountPercent: 0 });
+  assert.equal(res.body.code, 'MID_STAY_EXTRAS_CLOSED');
+  assert.equal(rowOf(stay.id).finalPrice, before.finalPrice);
 });

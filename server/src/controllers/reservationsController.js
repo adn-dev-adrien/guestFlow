@@ -32,6 +32,7 @@ const { computeNextIcalSyncLocked, getTodayIsoDate } = require('../utils/reserva
 const { buildAuditSnapshotFromPayload, computeAuditChanges } = require('../utils/reservationAudit');
 const { suggestBedDistribution } = require('../utils/bedDistribution');
 const { computePlatformCommission } = require('../utils/platformCommission');
+const { unclaimedRise, unlockedPriceRefusal } = require('../utils/savePriceGuards');
 const { checkGuestCapacity } = require('../utils/capacity');
 const { partyOf, nightsOf, typedCountAlerts, typedCountsErrorPayload } = require('../utils/typedCounts');
 const { clearContribsOnUnflip } = require('../utils/forceItemContribsCapture');
@@ -1412,8 +1413,10 @@ async function calculatePrice(req, res) {
     // Rule 21 — the amount editor asks; the server answers the refusal or the consequence.
     const edit = req.body.ledgerEdit;
     if (edit && (edit.row === 'deposit' || edit.row === 'balance')) {
-      const pastLocked = Boolean(storedRow && storedRow.kind === 'reservation' && storedRow.startDate
-        && storedRow.startDate <= getTodayIsoDate()) && !(req.body.unlockPast && userHasRole(req.user, ADMIN));
+      const startedStay = Boolean(storedRow && storedRow.kind === 'reservation' && storedRow.startDate
+        && storedRow.startDate <= getTodayIsoDate());
+      const unlocked = Boolean(req.body.unlockPast && userHasRole(req.user, ADMIN));
+      const pastLocked = startedStay && !unlocked;
       quote.ledgerEdit = evaluateLedgerEdit({
         row: edit.row,
         amount: edit.amount,
@@ -1421,6 +1424,7 @@ async function calculatePrice(req, res) {
         ledger: quote.ledger,
         stored: storedRow || {},
         pastLocked,
+        priceFrozen: startedStay && unlocked,
         evaluate: (customPrice) => quotePostProcessors.applySync({
           engineInput: { ...engineInput, customPrice },
           quote: calculateReservationQuote({ ...engineInput, customPrice }),
@@ -1872,7 +1876,7 @@ function performUpdate(reservationId, body, { unlockPast = false, dryRun = false
 
 const ARRIVAL_LINE_RENAME_MESSAGE = 'Une prestation ne peut plus être renommée une fois le séjour commencé.';
 const ARRIVAL_EXTRAS_FROZEN_MESSAGE = 'Une prestation vendue à l\'arrivée ne peut être ni retirée ni réduite.';
-const MID_STAY_EXTRAS_CLOSED_MESSAGE = 'Complément de fin de séjour déjà encaissé : décocher « payé » ou déverrouiller la fiche.';
+const MID_STAY_EXTRAS_CLOSED_MESSAGE = 'Complément de fin de séjour déjà encaissé : décocher « payé » d’abord.';
 
 // specs/mid-stay-extras-on-locked-fiche.md rule 8 — inside the window the routing of every line is
 // the stored one (a mid-stay sale goes to the end-of-stay complement whatever it is), so the payload
@@ -2235,14 +2239,20 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
   // specs/mid-stay-extras-to-end-of-stay-complement.md rule 20, reading of 2026-11-05 (audit R23 N4) — D9 makes the end-of-stay
   // complement exist before arrival. Once collected nothing can claim a rise: same refusal as a started stay.
   // Reading of 2026-11-06 (audit R26 MEDIUM 1) — a started, still locked fiche too, below: its price adjustments
-  // (discount, final price) are allowed fields and would raise the stay with nothing to claim it. Only the admin
-  // unlock is not judged (D20: no end of stay is collected before the check-out).
-  const notStarted = !(beforeAuditSnapshot?.startDate && beforeAuditSnapshot.startDate <= todayIso);
+  // (discount, final price) are allowed fields. There only the part of the rise no unpaid bucket takes on is refused
+  // (reading of 2026-11-06, audit R26 finding 1): a checked-out stay with its solde open claims the rise on it.
+  const started = Boolean(beforeAuditSnapshot?.startDate && beforeAuditSnapshot.startDate <= todayIso);
   const endOfStayCollected = Number(storedPaymentForQuote.endOfStayComplementPaid || 0) === 1 || Number(storedPaymentForQuote.endOfStayComplementPaidCash || 0) === 1;
   const raisesCollectedStay = endOfStayCollected
     && round2(Number(quote.finalPrice || 0) + Number(quote.touristTaxTotal || 0)) > round2(Number(storedPaymentForQuote.finalPrice || 0) + Number(storedPaymentForQuote.touristTaxTotal || 0));
-  if (notStarted && raisesCollectedStay) {
+  if (!started && raisesCollectedStay) {
     return res.status(400).json({ error: MID_STAY_EXTRAS_CLOSED_MESSAGE, code: 'MID_STAY_EXTRAS_CLOSED' });
+  }
+  // specs/settings-rationalization.md rule 35 (D21, Adrien, 2026-11-06) — the admin unlock of a started stay
+  // exists to correct the amounts expected from the platforms: a save that moves the final price or the tourist tax is refused.
+  if (started && pastUnlocked) {
+    const unlockedRefusal = unlockedPriceRefusal(storedPaymentForQuote, quote);
+    if (unlockedRefusal) return res.status(409).json(unlockedRefusal);
   }
   // specs/reservation-refunds.md rule 52, reading of 2026-11-05 (audit R23 L6) — a paid complement adjusted down lowers what stays collected too.
   // Reading of 2026-11-05 (audit R24-DB-2): « Sans acompte » on a paid acompte takes its mark back.
@@ -2288,7 +2298,9 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
         code: 'PAST_RESERVATION_LOCKED',
       });
     }
-    if (raisesCollectedStay) return res.status(400).json({ error: MID_STAY_EXTRAS_CLOSED_MESSAGE, code: 'MID_STAY_EXTRAS_CLOSED' });
+    if (raisesCollectedStay && unclaimedRise(storedPaymentForQuote, quote) > 0) {
+      return res.status(400).json({ error: MID_STAY_EXTRAS_CLOSED_MESSAGE, code: 'MID_STAY_EXTRAS_CLOSED' });
+    }
   }
 
   if (quote.minNightsBreached && !forceMinNights && !pastReservationLocked) {

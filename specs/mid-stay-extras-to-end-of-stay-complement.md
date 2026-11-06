@@ -265,6 +265,19 @@ ait été réglé ou non.
     > stay is still not judged: the open question it left (audit R26) is answered by D20, no end of stay being collected
     > while the stay runs, so growth lands on a claimable one; on a stored pre-D20 row it is accepted. Test:
     > `eos-paid-refuses-growth`.
+    > **Reading of 2026-11-06 (audit R26 finding 1) — amends the reading above for the locked fiche.** « Nothing to claim
+    > it » is false once the stay is checked out with its solde still open: the end of stay is collected at departure, the
+    > solde (a platform's payout above all) comes later. On the locked fiche only the part of the rise no unpaid bucket takes on
+    > is refused: `rise − Σ (quote − stored)` over the unpaid acompte, solde, arrival complement and end of stay, refused when
+    > above 0 (`utils/savePriceGuards.unclaimedRise`). A checked-out stay, direct or on any of the three platform modes, with its
+    > solde open accepts a removed discount, the rise landing on the solde; with everything paid it is still refused. The stay
+    > not started keeps N4 as worded (a plain rise). Test: `eos-paid-refuses-growth`.
+    > **Reading of 2026-11-06 (D21, Adrien) — replaces « the admin unlock of a started stay is not judged ».** The unlocked fiche
+    > keeps its final price and its tourist tax (settings-rationalization rule 35): a save that moves either is refused 409
+    > `UNLOCKED_PRICE_CHANGED`, a rise included, so the growth the audit feared after the check-out (adults 2 → 4 on a stay
+    > whose end of stay was collected at departure: 84,80 € never asked for) cannot happen. N4's refusal message no longer
+    > sends to the unlock: « Complément de fin de séjour déjà encaissé : décocher « payé » d’abord. ». Tests:
+    > `eos-paid-refuses-growth`, `unlocked-fiche-keeps-final-price`.
 
 ---
 
@@ -401,7 +414,8 @@ détectée, et jamais lorsqu'il est encaissé (§3.5). Aucun backfill, aucune pe
 leur couverture existante suffit, aucun test ajouté.
 
 - `end-of-stay-claims-growth.unit.test.js` (14) — rule 20, readings of 2026-11-05 (D9, R23 N1).
-- `eos-paid-refuses-growth.unit.test.js` (9) — rule 20, reading of 2026-11-05 (R23 N4).
+- `eos-paid-refuses-growth.unit.test.js` (17) — rule 20, readings of 2026-11-05 (R23 N4) and 2026-11-06 (R26 MEDIUM 1,
+  finding 1, D21).
 
 ### Client tests (`cd client && npx vitest run` → **774 verts**, +2)
 

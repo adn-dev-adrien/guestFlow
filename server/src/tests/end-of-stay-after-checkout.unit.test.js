@@ -209,6 +209,11 @@ test('the fiche: the merged card of a deferred complement is closed while it hol
   assert.equal(ledgerRow(stay.id, 'checkoutComplement').action.disabled, undefined, 'no end of stay: the arrival part alone');
   db.prepare('UPDATE reservations SET endOfStayComplementAmount = 12 WHERE id = ?').run(stay.id);
   assert.equal(ledgerRow(stay.id, 'checkoutComplement').action.disabled, true);
+  // Audit R26 finding 4: an end of stay already settled (a stored pre-D20 row, or the caisse interne) closes nothing: the
+  // card opens, as the server accepts the mark.
+  storedEndOfStayPaid(stay.id, { cash: true });
+  assert.equal(ledgerRow(stay.id, 'checkoutComplement').action.disabled, undefined);
+  assert.equal(mark(stay.id, C).statusCode, 200);
 });
 
 test('« Tout solder »: the server leaves the end of stay, and a complement deferred to it, out until the check-out', async () => {
@@ -253,4 +258,20 @@ test('the arrival SAS settles the stay and the arrival complement, never the end
   const row = rowOf(stay.id);
   assert.deepEqual([row.balancePaid, row.complementPaid], [1, 1]);
   assert.deepEqual(endOfStayFlags(stay.id), [0, 0, null]);
+});
+
+// specs/finance-dashboard-redesign.md rule 15, reading of 2026-11-06 (audit R26 finding 3, reviewer's p4 probe): nothing to
+// tick but the end of stay before the check-out → the row carries « Après le départ. », which closes « Tout solder ».
+test('« Tout solder » with only the end of stay left before the check-out: closed by the server, « Après le départ. »', async () => {
+  const stay = await withEndOfStay();
+  setDates(stay.id, inDays(-50), inDays(-48));
+  const rowFor = () => financeModel.getOperational().pending.reservations.find((r) => r.id === stay.id);
+  sasLive(() => {
+    assert.deepEqual([rowFor().settleAllFields, rowFor().settleAllReason, rowFor().remainingToPay], [[], CAPTION, 30]);
+    pay(stay.id, { balancePaid: false });
+    assert.deepEqual([rowFor().settleAllFields, rowFor().settleAllReason], [['balancePaid'], undefined]);
+    pay(stay.id, S);
+    db.prepare("UPDATE reservations SET departureSasDoneAt = datetime('now') WHERE id = ?").run(stay.id);
+    assert.deepEqual([rowFor().settleAllFields, rowFor().settleAllReason], [['endOfStayComplementPaid'], undefined]);
+  });
 });
