@@ -20,14 +20,17 @@ import ShareTable from '../components/ShareTable';
 import YearOverYearBadge from '../components/YearOverYearBadge';
 import NoComparisonNotice from '../components/NoComparisonNotice';
 import { formatCurrencyRounded, plural } from '../utils/formatters';
-import { localIsoToday } from '../utils/isoDay';
+import { addIsoDays, localIsoToday } from '../utils/isoDay';
 import useServerToday from '../hooks/useServerToday';
 import useLatestRequest from '../hooks/useLatestRequest';
 import { STAY_PROFILE_TEXT as T, MEASURES } from '../constants/stayProfile';
 import api from '../api';
 
 const URL_KEYS = { fiscalYear: 'exercice', period: 'periode', month: 'mois', from: 'du', to: 'au', propertyId: 'logement' };
-const iso = (d) => localIsoToday(d);
+const shiftMonth = (ym, n) => {
+  const k = Number(ym.slice(0, 4)) * 12 + Number(ym.slice(5, 7)) - 1 + n;
+  return `${Math.floor(k / 12)}-${String((k % 12) + 1).padStart(2, '0')}`;
+};
 const money = (n) => (n == null ? '—' : formatCurrencyRounded(n));
 const TOOLBAR_SX = { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1.25, mb: 1.75 };
 
@@ -147,14 +150,14 @@ export default function StayProfilePage() {
   }, [paramsKey, periodRefusal]);
   useEffect(() => { load(); }, [load]);
 
+  // Rule 27 — the default month and custom dates are the server's month (invariant 33), not the device's.
   const defaultMonth = () => {
-    const now = iso(new Date()).slice(0, 7);
+    const now = today.slice(0, 7);
     return data && data.months.some((m) => m.month === now) ? now : (data && data.months[0] ? data.months[0].month : now);
   };
   const defaultCustom = () => {
-    const start = new Date(); start.setDate(1);
-    const end = new Date(start); end.setMonth(end.getMonth() + 1, 0);
-    return { from: iso(start), to: iso(end) };
+    const ym = today.slice(0, 7);
+    return { from: `${ym}-01`, to: addIsoDays(`${shiftMonth(ym, 1)}-01`, -1) };
   };
   const onPeriodChange = (w) => {
     if (w.kind === 'fy') setParams({ period: 'fy', month: '', from: '', to: '' });

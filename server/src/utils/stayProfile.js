@@ -99,19 +99,20 @@ function fixed(stays, buckets, keyOf, extra) {
 
 const lengthOf = (s) => bucketOf(Number(s.nights || 0), LENGTH_BUCKETS);
 
-const leadOf = (paceStart) => (s) => {
-  const days = leadDays(s.bookedOn, s.startDate, paceStart);
+// Rule 23 — each stay is judged against the tracking start of its own logement (`s.paceStart`).
+const leadOf = (s) => {
+  const days = leadDays(s.bookedOn, s.startDate, s.paceStart);
   return days == null ? LEAD_UNKNOWN : bucketOf(days, LEAD_BUCKETS);
 };
 
 const priceOf = (s) => (cents(s.totalSejour) === 0 ? PRICE_UNPRICED : bucketOf(cents(s.totalSejour), PRICE_BUCKETS));
 
 /**
- * The four breakdowns of a window's stays (rules 4-10).
+ * The four breakdowns of a window's stays (rules 4-10). Each stay carries `paceStart`, the tracking
+ * start of its logement (rule 23).
  * @param {Array} stays
- * @param {{ paceStart: string|null }} opts
  */
-function profileOf(stays, { paceStart }) {
+function profileOf(stays) {
   const channelRows = Array.from(tally(stays, (s) => s.channel, []).values())
     .sort((a, b) => (b.cents - a.cents) || (b.count - a.count) || a.label.localeCompare(b.label, 'fr'));
   const totalCents = stays.reduce((n, s) => n + cents(s.totalSejour), 0);
@@ -119,24 +120,18 @@ function profileOf(stays, { paceStart }) {
     totals: { count: stays.length, amount: euros(totalCents) },
     channel: finish(channelRows),
     length: fixed(stays, LENGTH_BUCKETS, lengthOf, { key: '' }),
-    lead: fixed(stays, LEAD_BUCKETS, leadOf(paceStart), LEAD_UNKNOWN),
+    lead: fixed(stays, LEAD_BUCKETS, leadOf, LEAD_UNKNOWN),
     price: fixed(stays, PRICE_BUCKETS, priceOf, PRICE_UNPRICED),
   };
 }
 
 /**
- * Rule 14 (D-HC8) — a stay's « total de séjour » without its tourist tax, which is not revenue. The tax's
- * share is the element-by-element split of the page's HT (financeModel.htAmount,
- * specs/finance-overview-rework.md §3.7): touristTaxTotal ÷ (finalPrice + touristTaxTotal), applied to
- * the total so that a bucket left in the caisse interne or netted of a commission keeps its proportion.
- * A stay without a stored tax is unchanged.
+ * Rules 14 and 22 (D-HC8, D-HC9) — a stay's « total de séjour » without the tourist tax it holds, which
+ * is not revenue. `taxInTotal` is the tax inside the total's own buckets, placed by the model through
+ * utils/stayTouristTaxInTotal.js; a stay without it is unchanged.
  */
-function withoutTouristTax(r) {
-  const total = Number(r.totalSejour || 0);
-  const tax = Math.max(0, Number(r.touristTaxTotal || 0));
-  const full = Math.max(0, Number(r.finalPrice || 0)) + tax;
-  if (!(tax > 0) || !(full > 0)) return round2(total);
-  return round2(total * (1 - tax / full));
+function withoutTouristTax(s) {
+  return round2(Number(s.totalSejour || 0) - Math.max(0, Number(s.taxInTotal || 0)));
 }
 
 /**
