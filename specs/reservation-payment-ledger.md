@@ -232,9 +232,12 @@ decimals is rounded and shown rounded.
     - « Valider » applies the returned `formPatch` to the form (saved with the fiche as any price
       change, traced in the history); « Annuler » leaves everything as it was.
     > **Reading of 2026-11-06 (D21, settings-rationalization rule 35).** On a started stay the solde no longer moves the price
-    > by this editor: still locked, « Séjour commencé : passer par « Prix hébergement ajusté ». » (the unlock no longer
+    > by this editor: still locked, « Séjour commencé : passer par « Réduction (%) ». » (the unlock no longer
     > changes it); unlocked, a solde other than the current one is refused « Fiche déverrouillée : le prix final ne change
     > pas. » (`priceFrozen`), the same one passes. Test: `unlocked-fiche-keeps-final-price`.
+    > Amended 2026-11-06 (audit R26 D21 review L1): the locked refusal first named « Prix hébergement ajusté », which the
+    > locked fiche refuses (`customPrice` is not in the locked-fields allowlist, 400 PAST_RESERVATION_LOCKED); the discount
+    > is the only price field a started, locked fiche accepts, so the refusal names it.
 19. **A perceived row keeps what it collected.** On a paid acompte or solde the amount is not
     editable (rule 15). If the operator still types an amount in the editor of a paid row, the
     refusal names the right gesture: lower — « Déjà perçu : 866,40 €. Pour rendre 66,40 €, créer un
@@ -490,8 +493,8 @@ decimals is rounded and shown rounded.
   l'hébergement. ») until an admin unlocks the fiche
   ([admin-unlock-past-reservations.md](admin-unlock-past-reservations.md)). Decided at implementation
   (2026-10-19): read-only would have blocked every payout.
-  _Since 2026-11-06 (D21): the unlock keeps the final price too; the refusal reads « Séjour commencé : passer par « Prix
-  hébergement ajusté ». » (rule 18 reading)._
+  _Since 2026-11-06 (D21): the unlock keeps the final price too; the refusal reads « Séjour commencé : passer par
+  « Réduction (%) ». », the only price field the locked fiche accepts (rule 18 reading, amended the same day)._
 - Reception-only user → the ledger is not sent (finance-stripped view, unchanged).
 - Devis → the ledger shows the planned acompte / solde, no « Marquer perçu », no caution rows. The
   amounts are not editable from the ledger yet: the devis model does not store `depositAmountOverride`
