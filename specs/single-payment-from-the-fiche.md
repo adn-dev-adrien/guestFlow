@@ -58,6 +58,11 @@ buckets, same date, same accounting, the same group read by the fiche and the Co
    belongs to that collection, and its accounting entry books at that date like every other.
    It carries the name of its accounting entry (`endOfStayComplement`), so the journal stamps it with
    no mapping. The **mid-stay notes stay out**: each one is its own collection, at its own date.
+   > **Reading of 2026-11-06 (D20, Adrien).** Only once the guest has left: before the check-out
+   > (reservation-payment-ledger rule 68) the end of stay is no bucket of the single payment, in the offer
+   > (`arrivalPayment.collectible`) and in the write alike; when it is all that is left, « Encaisser » answers 409
+   > `END_OF_STAY_BEFORE_CHECKOUT`. A group stored before D20 that names it is not rewritten. Test:
+   > `end-of-stay-after-checkout`, `arrival-payment-from-fiche`.
 3. It announces what it will collect: « Encaisser en une fois : 852,82 € » and, underneath, the
    buckets it covers with their amounts (« solde 720,82 € · complément 132,00 € »).
 3bis. **The collection date is the operator's**, not the clock's (2026-08-31). A guest who paid at the

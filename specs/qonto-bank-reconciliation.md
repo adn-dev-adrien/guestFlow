@@ -253,6 +253,10 @@ a short list of the gaps to fix on the fiches.
     marked keeps its recorded date and amount, the reconciliation is stored without any write
     (`notWritten: already-received`), and its gap (`date_gap`, `amount_gap`) stays shown for the
     operator to fix on the fiche.
+    > **Reading of 2026-11-06 (D20, Adrien).** An end-of-stay receipt (`endOfStayComplement`, or a `checkoutComplement`
+    > holding one) is written after the check-out only (reservation-payment-ledger rule 68): before, the core answers 409
+    > `END_OF_STAY_BEFORE_CHECKOUT` and the confirmation is cancelled whole; the automatic one is skipped and tried again
+    > at the next read. Test: `end-of-stay-after-checkout`.
 35. **Date** — the date written is the credit's `settled_at` (the latest one when several credits
     cover the échéance).
 36. **Amount** — when the reconciled amount differs from the fiche:

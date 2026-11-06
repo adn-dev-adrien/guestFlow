@@ -113,6 +113,9 @@ without losing anything today's page shows.
 15. Checking a payment or « Tout solder » / « Marquer payé » PATCHes the reservation through the
     existing payment endpoint, then reloads the dashboard (all figures move together). A write the
     server refuses shows its message above the open table and reloads nothing.
+    > **Reading of 2026-11-06 (D20, reservation-payment-ledger rule 68).** « Tout solder » ticks the flags the server lists on
+    > the row (`settleAllFields`), no longer a list the page builds: every bucket still due, except the end-of-stay complement
+    > and an arrival complement deferred to it until the check-out. Test: `end-of-stay-after-checkout`.
 16. On `xs`, every table becomes stacked cards (the `OperationalPaymentsTable` pattern), checkboxes
     included.
 

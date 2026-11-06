@@ -1,0 +1,1 @@
+- Reservations: on a started fiche still locked whose end-of-stay complement is collected, removing a discount (or any allowed price adjustment that raises the stay) is refused like on a stay not yet started (`MID_STAY_EXTRAS_CLOSED`); before, the price rose and nothing asked for the difference.

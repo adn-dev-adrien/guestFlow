@@ -46,6 +46,7 @@ const { hasGuestArrived } = require('../utils/arrivalMoment');
 const { bucketStates } = require('../utils/reservationSettlement');
 const { resolveStayPayment } = require('../utils/stayPayment');
 const { serialiseGroup, groupCovers, parseGroup, collectibleArrivalBuckets } = require('../utils/arrivalPaymentGroup');
+const { isCheckoutDone } = require('../utils/endOfStayCheckout');
 const { clearContribsOnUnflip, captureBucketSplit } = require('../utils/forceItemContribsCapture');
 const { buildArrivalPaymentDetail } = require('../utils/arrivalPaymentDetail');
 const { ADDED_GUESTS_TAX_LABEL } = require('../utils/platformPaidGuests');
@@ -1818,7 +1819,7 @@ function createReservationsModel(database) {
         }
 
         const cash = mode === 'cash' ? 1 : 0;
-        const collectible = collectibleArrivalBuckets(row);
+        const collectible = collectibleArrivalBuckets(row, { endOfStayCollectible: isCheckoutDone(row) });
         if (collectible.length === 0) return { buckets: [], total: 0, grouped: false };
 
         for (const { bucket } of collectible) {

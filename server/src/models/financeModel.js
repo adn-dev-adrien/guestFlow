@@ -4,6 +4,7 @@
 const { addDays } = require('../utils/dateDays');
 const { todayIso: localTodayIso } = require('../utils/localDate');
 const { isTouristTaxDeclarable } = require('../utils/touristTaxFreeze');
+const { isCheckoutDone } = require('../utils/endOfStayCheckout');
 const db = require('../database');
 const { quoteStoredReservation } = require('../utils/storedReservationQuote');
 const { computePaymentStatus, round2 } = require('../utils/paymentStatus');
@@ -25,6 +26,24 @@ const { exerciseMonths } = require('../utils/exerciseOverview');
 const installmentPlan = require('../utils/installmentPlan');
 const vatRegimeModel = require('./vatRegimeModel');
 const { bookingDayOf } = require('../utils/vatRegime');
+
+/**
+ * The payment flags « Tout solder » ticks on an operational row (specs/finance-dashboard-redesign.md rule 15): every bucket
+ * still due, except what specs/reservation-payment-ledger.md rule 68 (D20) keeps for the check-out — the end-of-stay
+ * complement, and an arrival complement deferred to it (ticking that one settles both).
+ */
+function settleAllFieldsOf(r, today) {
+  const due = (amount, paid) => Number(amount || 0) > 0 && !Number(paid || 0);
+  const checkedOut = isCheckoutDone(r, { today });
+  const endOfStayDue = due(r.endOfStayComplementAmount, r.endOfStayComplementPaid) && !Number(r.endOfStayComplementPaidCash || 0);
+  const fields = [];
+  if (!Number(r.depositDisabled || 0) && due(r.depositAmount, r.depositPaid)) fields.push('depositPaid');
+  if (due(r.balanceAmount, r.balancePaid)) fields.push('balancePaid');
+  if (due(r.complementAmount, r.complementPaid)
+    && (checkedOut || !(Number(r.complementDeferredToCheckout || 0) === 1 && endOfStayDue))) fields.push('complementPaid');
+  if (checkedOut && due(r.endOfStayComplementAmount, r.endOfStayComplementPaid)) fields.push('endOfStayComplementPaid');
+  return fields;
+}
 
 const UPCOMING_PER_PROPERTY = 5;
 
@@ -761,6 +780,7 @@ function createFinanceModel(database) {
         remainingToPay: remainingToPay(r),
         settled: isSettled(r),
         nights: nightsBetween(r.startDate, r.endDate),
+        settleAllFields: settleAllFieldsOf(r, today),
       });
 
       // Overdue (specs/finance-dashboard-redesign.md rule 34): an own-channel stay whose acompte or solde

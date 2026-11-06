@@ -256,6 +256,15 @@ ait été réglé ou non.
     > once it is collected outside the departure SAS, 409 `END_OF_STAY_ALREADY_COLLECTED`
     > (recall-unpaid-arrival-complement-at-checkout rule 11, sas-breakfast-and-catering-upsell rule 17). Test:
     > `sas-collected-end-of-stay-growth`.
+    > **Reading of 2026-11-06 (D20, Adrien; audit R26 MEDIUM 1) — amends N4's reading.** The end-of-stay complement is
+    > collected after the check-out only (reservation-payment-ledger rule 68): a stay that holds it collected before is a row
+    > stored before D20, never rewritten. N4's refusal covers that row on a stay not started **and on a started stay whose
+    > fiche is still locked**: its price adjustments (`discountPercent`, `finalPrice`, `touristTaxRate`) are allowed fields
+    > of the locked fiche and would raise the stay with nothing to claim it (a 5 % discount removed: 630 → 660 €, unclaimed).
+    > The forbidden changes keep their own refusal (`PAST_RESERVATION_LOCKED`), judged first. The admin unlock of a started
+    > stay is still not judged: the open question it left (audit R26) is answered by D20, no end of stay being collected
+    > while the stay runs, so growth lands on a claimable one; on a stored pre-D20 row it is accepted. Test:
+    > `eos-paid-refuses-growth`.
 
 ---
 

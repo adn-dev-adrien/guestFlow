@@ -203,6 +203,13 @@ Rule added 2026-11-03 (audit R21-A1):
     vente qui ne monte pas, ou une fin de séjour ouverte, le SAS passe comme avant. Même refus que le SAS départ
     ([recall-unpaid-arrival-complement-at-checkout.md](recall-unpaid-arrival-complement-at-checkout.md) règle 11). Test :
     `tests/sas-collected-end-of-stay-growth.unit.test.js`.
+    > **Reading of 2026-11-06 (audit R26 LOW 2, accepted).** « Ce que ce SAS avait déjà vendu » se lit sur les options
+    > `sasArrivalOrigin = 1` présentes, pas sur le détail du complément de fin de séjour : un SAS rouvert qui retire une vente
+    > déjà vendue (la planche de 17 €) la supprime, le complément de fin de séjour encaissé la facturant toujours (baisse,
+    > figée), puis la même vente remise est refusée. Coût 0 € ; la prestation payée n'est plus préparée ni planifiée tant que
+    > l'opérateur n'a pas décoché le complément de fin de séjour sur la fiche. Accepté tel quel. Avec D20
+    > (reservation-payment-ledger règle 68), le cas ne naît plus que d'une ligne enregistrée avant D20. Test :
+    > `sas-collected-end-of-stay-growth`.
 
 **Edge cases:**
 - Aucune option « Restauration » vendable pour ce logement → la page de demande n'apparaît pas.

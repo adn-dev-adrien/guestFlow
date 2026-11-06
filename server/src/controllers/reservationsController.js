@@ -22,6 +22,7 @@ const { cotsRefusal, resourceRefusal } = require('../utils/stockPeak');
 const { stayDatesRefusal, stayDatesRefusalBody, stayItemDatesRefusal } = require('../utils/stayDates');
 const { checkPlanningRange } = require('../utils/planningDateRange');
 const { parseGroup, collectibleArrivalBuckets } = require('../utils/arrivalPaymentGroup');
+const { endOfStaySettled, endOfStayCollectRefusal, isCheckoutDone } = require('../utils/endOfStayCheckout');
 const { validateArrivalPaymentDate } = require('../utils/arrivalPaymentDate');
 const { buildArrivalPaymentDetail } = require('../utils/arrivalPaymentDetail');
 const { resolveArrivalPaymentAdjustment } = require('../utils/arrivalPaymentAdjustment');
@@ -159,6 +160,7 @@ function ledgerFor({ row, quote = null, live = {}, propertyId = null, overpaymen
     stayReadOnly: id ? require('../utils/withdrawnPayments').stayIsReadOnly(db, id) : false,
     nettedRefundIds: id && String(row.kind) === 'cancelled' ? nettedRefundIdsOf(row, refunds) : null,
     providerLabel: (paymentProviders.declared() || {}).label || null,
+    endOfStayCollectible: isCheckoutDone(row, { today: getTodayIsoDate() }),
     today: getTodayIsoDate(),
   });
 }
@@ -852,7 +854,7 @@ function buildArrivalPaymentView(row) {
   // specs/single-payment-from-the-fiche.md rules 2-3 — no group yet: what could still be collected as
   // ONE payment. Fewer than two buckets is not an offer: the per-bucket buttons already cover it, and
   // calling a lone settlement « paiement unique » would be a lie.
-  const collectible = collectibleArrivalBuckets(row);
+  const collectible = collectibleArrivalBuckets(row, { endOfStayCollectible: isCheckoutDone(row, { today: getTodayIsoDate() }) });
   if (collectible.length < 2) return null;
   return {
     collectible: {
@@ -918,7 +920,12 @@ function settleArrivalPayment(req, res) {
     });
     if (!checked.ok) return res.status(400).json({ error: checked.reason });
     date = checked.date;
-    if (collectibleArrivalBuckets(row).length === 0) {
+    // Rule 68 (D20) — before the check-out the end-of-stay complement is not part of it: when it is all that
+    // is left, the answer says why rather than « nothing to collect ».
+    if (collectibleArrivalBuckets(row, { endOfStayCollectible: isCheckoutDone(row, { today: getTodayIsoDate() }) }).length === 0) {
+      const eosOnly = collectibleArrivalBuckets(row, { endOfStayCollectible: true }).length > 0;
+      const refusal = eosOnly ? endOfStayCollectRefusal(row, { today: getTodayIsoDate() }) : null;
+      if (refusal) return res.status(refusal.status).json(refusal.body);
       return res.status(409).json({ error: 'Il n\'y a plus rien à encaisser sur cette réservation.' });
     }
   }
@@ -2227,10 +2234,14 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
   }
   // specs/mid-stay-extras-to-end-of-stay-complement.md rule 20, reading of 2026-11-05 (audit R23 N4) — D9 makes the end-of-stay
   // complement exist before arrival. Once collected nothing can claim a rise: same refusal as a started stay.
+  // Reading of 2026-11-06 (audit R26 MEDIUM 1) — a started, still locked fiche too, below: its price adjustments
+  // (discount, final price) are allowed fields and would raise the stay with nothing to claim it. Only the admin
+  // unlock is not judged (D20: no end of stay is collected before the check-out).
   const notStarted = !(beforeAuditSnapshot?.startDate && beforeAuditSnapshot.startDate <= todayIso);
   const endOfStayCollected = Number(storedPaymentForQuote.endOfStayComplementPaid || 0) === 1 || Number(storedPaymentForQuote.endOfStayComplementPaidCash || 0) === 1;
-  if (notStarted && endOfStayCollected
-    && round2(Number(quote.finalPrice || 0) + Number(quote.touristTaxTotal || 0)) > round2(Number(storedPaymentForQuote.finalPrice || 0) + Number(storedPaymentForQuote.touristTaxTotal || 0))) {
+  const raisesCollectedStay = endOfStayCollected
+    && round2(Number(quote.finalPrice || 0) + Number(quote.touristTaxTotal || 0)) > round2(Number(storedPaymentForQuote.finalPrice || 0) + Number(storedPaymentForQuote.touristTaxTotal || 0));
+  if (notStarted && raisesCollectedStay) {
     return res.status(400).json({ error: MID_STAY_EXTRAS_CLOSED_MESSAGE, code: 'MID_STAY_EXTRAS_CLOSED' });
   }
   // specs/reservation-refunds.md rule 52, reading of 2026-11-05 (audit R23 L6) — a paid complement adjusted down lowers what stays collected too.
@@ -2277,6 +2288,7 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
         code: 'PAST_RESERVATION_LOCKED',
       });
     }
+    if (raisesCollectedStay) return res.status(400).json({ error: MID_STAY_EXTRAS_CLOSED_MESSAGE, code: 'MID_STAY_EXTRAS_CLOSED' });
   }
 
   if (quote.minNightsBreached && !forceMinNights && !pastReservationLocked) {
@@ -2493,6 +2505,21 @@ const PAYMENT_FLAG_FIELDS = [
 ];
 
 /**
+ * Rule 68 (D20) — a PATCH that would turn an unsettled end-of-stay complement into a collected one, before the
+ * check-out: its own mark (books or caisse interne), or the arrival complement ticked while it is deferred to
+ * the check-out (rule 8 of defer-arrival-complement-to-checkout settles both together). A mark sent on a
+ * complement already settled is not a collection and is left to the other guards.
+ */
+function endOfStayMarkRefusal(row, body, today) {
+  if (endOfStaySettled(row)) return null;
+  // The PATCH applies « Percevoir en fin de séjour » before the complement mark: the deferral it reads is the one sent.
+  const deferral = body.complementDeferredToCheckout === undefined ? {} : { complementDeferredToCheckout: body.complementDeferredToCheckout ? 1 : 0 };
+  const changes = paymentPatchChanges({ ...row, ...deferral }, body, today);
+  if (!endOfStaySettled(changes)) return null;
+  return endOfStayCollectRefusal(row, { today });
+}
+
+/**
  * specs/reservation-payment-ledger.md — the guards of a payment mark:
  *   - rule 9: every recorded date is a real day, not in the future (« not before the booking » is not
  *     applied: reservations typed after the fact carry a later `createdAt` than their payments);
@@ -2590,6 +2617,11 @@ function paymentMarkRefusal(row, body, today) {
     if ((body[field] === true || body[field] === 1) && Number(already || 0) === 1) {
       return { status: 409, body: { error: `${ALREADY_LABELS[field]} Relire la fiche.`, code: 'ALREADY_PAID', field } };
     }
+  }
+  // Rule 68 (D20) — the end-of-stay complement is collected after the check-out, by every path that marks it.
+  {
+    const refusal = endOfStayMarkRefusal(row, body, today);
+    if (refusal) return refusal;
   }
   // Rule 34 — a payout is received with its transfer (and the commission it implies): the two figures
   // ride the mark, under its guards, so a past or locked fiche never needs a full save to record it.

@@ -8,7 +8,7 @@ process.env.DB_PATH = ':memory:';
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
-  db, respond, ADMIN, TODAY, inDays, rowOf, NO_ACOMPTE, S, C, forced, fiche, put, pay, register,
+  db, respond, ADMIN, TODAY, inDays, rowOf, NO_ACOMPTE, S, C, forced, fiche, put, pay, storedEndOfStayPaid, register,
 } = require('./moneyLedgerFixture');
 const { optionalPlugin, skipWithout } = require('../plugins/sdk/testing');
 
@@ -40,12 +40,13 @@ const started = (stay) => {
   return stay;
 };
 
-// Solde and arrival complement paid, one adult more (D9: 42,40 € on the end of stay), the end of stay ticked on the fiche.
-async function endOfStayPaidElsewhere(mark = { endOfStayComplementPaid: true, endOfStayComplementPaidDate: PAID_ON }) {
+// Solde and arrival complement paid, one adult more (D9: 42,40 € on the end of stay), the end of stay collected outside the
+// departure SAS — since D20 (reservation-payment-ledger rule 68) a row stored before the check-out rule, never rewritten.
+async function endOfStayPaidElsewhere({ cash = false } = {}) {
   const stay = fiche(NO_ACOMPTE, 'direct', { customOptions: [forced(20)] });
   pay(stay.id, S, C);
   await put(stay, { adults: 3 });
-  pay(stay.id, mark);
+  storedEndOfStayPaid(stay.id, { date: PAID_ON, cash });
   const row = rowOf(stay.id);
   assert.equal(row.endOfStayComplementAmount, 42.4);
   assert.equal(row.endOfStayComplementPaidAtDeparture, 0);
@@ -72,7 +73,7 @@ for (const settled of [true, false, undefined]) {
 }
 
 test('the same in the caisse interne: refused', SAS, async () => {
-  const stay = await endOfStayPaidElsewhere({ endOfStayComplementPaid: true, endOfStayComplementPaidCash: true, endOfStayComplementPaidDate: PAID_ON });
+  const stay = await endOfStayPaidElsewhere({ cash: true });
   assert.equal(departurePreview(stay.id, ADD_SHEET).body.code, CODE);
   assert.equal(departure(stay.id, { ...ADD_SHEET, complementsSettled: true }).body.code, CODE);
 });
@@ -154,4 +155,19 @@ test('arrival SAS sale on a collected complement with the end of stay open: bill
   const res = arrival(stay.id, SALE);
   assert.equal(res.statusCode, 200, JSON.stringify(res.body));
   assert.equal(rowOf(stay.id).endOfStayComplementAmount, 17);
+});
+
+// specs/sas-breakfast-and-catering-upsell.md rule 17, reading of 2026-11-06 (audit R26 LOW 2, accepted, the reviewer's A6/A7):
+// « what this SAS had sold » reads the sasArrivalOrigin options present. A re-opened SAS dropping the sale deletes it while
+// the collected end of stay still bills it; the same sale put back is then refused. Pinned as accepted, 0 €.
+test('R26 LOW 2 accepted: a sale dropped on a re-opened arrival SAS, then put back, is refused while the end of stay is collected', SAS, async () => {
+  const stay = started(fiche(NO_ACOMPTE, 'direct', { customOptions: [forced(20)] }));
+  pay(stay.id, S, C);
+  assert.equal(arrival(stay.id, SALE).statusCode, 200);
+  assert.equal(rowOf(stay.id).endOfStayComplementAmount, 17);
+  storedEndOfStayPaid(stay.id);
+  assert.equal(arrival(stay.id, { soldOptions: [] }).statusCode, 200);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM reservation_options WHERE reservationId = ? AND optionId = ?').get(stay.id, MEAL).n, 0);
+  assert.equal(rowOf(stay.id).endOfStayComplementAmount, 17);
+  assert.equal(arrival(stay.id, SALE).body.code, CODE);
 });
