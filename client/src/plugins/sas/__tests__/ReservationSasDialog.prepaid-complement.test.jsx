@@ -1,6 +1,7 @@
 // specs/defer-arrival-complement-to-checkout.md rule 21, specs/single-payment-at-check-in.md rule 18 (audit R25-A1) — a
 // complement paid before check-in (payment link, fiche tick, reconciliation) hides the recap's payment buttons; the first
-// arrival SAS must not send « not settled » for it: the mode is read from the stored flags, as the departure does (specs/recall-unpaid-arrival-complement-at-checkout.md rule 9bis).
+// arrival SAS must not send « not settled » for it: the mode is read from the stored flags, as the departure does
+// (specs/recall-unpaid-arrival-complement-at-checkout.md rule 9bis).
 import { screen, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';
 

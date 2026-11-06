@@ -119,7 +119,8 @@
     "1.7.13": [
       "Un complément payé avant l’arrivée reste payé après le SAS d’arrivée.",
       "Au départ, un complément de fin de séjour réglé ailleurs garde son mode de paiement.",
-      "L’accueil ne voit plus le détail d’un remboursement dans un refus du SAS."
+      "L’accueil ne voit plus le détail d’un remboursement dans un refus du SAS.",
+      "Compatible avec le SDK 2.21 de GuestFlow."
     ]
   }
 }
