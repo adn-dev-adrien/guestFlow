@@ -130,13 +130,25 @@ which « Enregistrer » writes which field.
     poll, up to 8 hours later, and nothing said why. Test: `plugins/online-payment/tests/qonto-webhook-failure-stays.unit.test.js`.
     *Reading of 2026-11-05 (audit R24 verification R1):* while that failure stands the badge names its own repair, never
     « Relancer le test » alone: a scope Qonto refuses (`insufficient_scope`) reads « Autorisation à renouveler » with
-    « Connexion » (`reauth_required`), a missing public address reads « Adresse publique manquante » with « Adresse publique
-    à renseigner (Réglages → Envoi d’emails), puis relancer le test. » (`public_url_missing`, qonto-settings-in-app rule 10's
-    table). A successful « Test » runs the check again when, and only when, a `webhook-register` failure stands, so any
+    « Connexion » (`reauth_required`), a missing public address reads « Adresse publique manquante » with its repair
+    (`public_url_missing`, qonto-settings-in-app rule 10's table; wording corrected by rule 16, the menu first named
+    did not exist). A successful « Test » runs the check again when, and only when, a `webhook-register` failure stands, so any
     other cause (a 5xx at consent) clears at the next « Test », in the core and in the console alike. *Accepted (one slot):*
     the store holds one failure: another origin's failure replaces the webhook's, and that origin's next success clears
     it; the core's next pass records it again, the console's next consent or « Test » does. Tests:
     `qonto-webhook-failure-stays` (+3, and the skipped check stamps no `lastSuccessAt`).
+16. **The advice names a real page, and the « Test » it asks for can clear it (audit R25-C3, R25 E25-1, 2026-11-06).** The
+    public address lives in Paramètres → Système, field « URL publique » (settings-rationalization rule 16): the badge's
+    `public_url_missing` action reads « URL publique à renseigner (Paramètres → Système), puis « Test ». », and the
+    stored failure of the check, the Qonto consent refusal, the provider form refusal and the Google consent refusal
+    name the same page (« (Paramètres → Système) »), never « Réglages → Envoi d’emails », a menu that does not exist,
+    nor « Paramètres » alone. « Test » re-runs the webhook check whenever Qonto answered its call, the link provider
+    still pending or off included (`provider_not_connected`), not only when the whole test is `ok`; a « Test » whose
+    call failed still runs no check (rule 15). So once the address is set, « Test » clears « Adresse publique
+    manquante » and the badge moves to the provider form's advice. *Why:* the advice sent the operator to the e-mail
+    page, which does not hold the field; and with the provider not enabled yet (KYC pending) the « Test » it named
+    could not clear it, only the next 8-hour pass did. Tests: `plugins/online-payment/tests/qonto-advice-reachable.unit.test.js`,
+    `plugins/google-calendar/tests/public-url-advice.unit.test.js`. online-payment 1.5.6, google-calendar 1.2.9.
 
 **Edge cases:**
 
@@ -349,6 +361,14 @@ Neat card and one field from the SMTP card shortens both on mobile.
 - [x] `pages/__tests__/SettingsPage.neat-save.test.jsx` — rules 1, 4
   - the bar's Save is enabled by a change made inside the Neat card, and pressing it saves that card
   - leaving the page with only a Neat change still raises the confirmation dialog
+
+- [x] `plugins/online-payment/tests/qonto-advice-reachable.unit.test.js` — rule 16 (audit R25, 5)
+  - the `public_url_missing` action names Paramètres → Système and « Test »; no Qonto message names
+    « Envoi d’emails » or « Paramètres » alone; the check's stored failure names the page
+  - provider pending: « Test » runs the check once the address is set, the badge then reads `provider_not_connected`
+  - a « Test » whose Qonto call failed runs no check
+- [x] `plugins/google-calendar/tests/public-url-advice.unit.test.js` — rule 16 (1): the Google consent refused for a
+  missing public address names Paramètres → Système
 
 > Green on 2026-09-16: **4 121 server tests** (+21), **1 269 client tests** (+20), **68 Playwright
 > E2E specs**, and 14/14 rules cited by a test (`scripts/check-spec-coverage.mjs`).
