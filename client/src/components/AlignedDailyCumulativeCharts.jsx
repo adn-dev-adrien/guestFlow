@@ -14,6 +14,8 @@
  *   formatAxis?:         (v: number) => string
  *   ariaLabel:           string
  *   categoryHeader?:     string                 default « Jour »
+ *   emptyText?:          string                 when set (the server says the period is empty), this
+ *                                               sentence replaces both charts (rule 28)
  */
 import React, { useId, useMemo, useState } from 'react';
 import { Box, useMediaQuery } from '@mui/material';
@@ -23,7 +25,7 @@ import ChartMenu from './ChartMenu';
 import ChartDataTable from './ChartDataTable';
 import ChartEndLabels from './ChartEndLabels';
 import { chart } from '../utils/chartColors';
-import { tickInterval, toCsv } from '../utils/reportChart';
+import { axisTicks, endLabelMargin, toCsv, xInterval } from '../utils/reportChart';
 
 const DEFAULT_LABELS = { daily: 'Encaissé du jour', cumulative: 'Cumul', previous: "Cumul l'an dernier" };
 const Y_WIDTH = 64;
@@ -55,7 +57,7 @@ function Key({ swatch, text }) {
   );
 }
 
-export default function AlignedDailyCumulativeCharts({ categories, daily, cumulative, previousCumulative, labels: labelsIn, formatValue, formatAxis, ariaLabel, categoryHeader = 'Jour' }) {
+export default function AlignedDailyCumulativeCharts({ categories, daily, cumulative, previousCumulative, labels: labelsIn, formatValue, formatAxis, ariaLabel, categoryHeader = 'Jour', emptyText }) {
   const theme = useTheme();
   const narrow = useMediaQuery(theme.breakpoints.down('sm'));
   const syncId = useId();
@@ -68,13 +70,21 @@ export default function AlignedDailyCumulativeCharts({ categories, daily, cumula
   const columns = [{ key: 'daily', label: labels.daily }, { key: 'cumulative', label: labels.cumulative }, ...(hasPrevious ? [{ key: 'previous', label: labels.previous }] : [])];
   const labelOf = new Map(categories.map((c) => [c.key, c.label]));
   const getCsv = () => toCsv([categoryHeader, ...columns.map((c) => c.label)], rows.map((r) => [r.label, ...columns.map((c) => r[c.key])]));
-  const margin = { top: 8, right: narrow ? 52 : 84, bottom: 0, left: 0 };
-  const yAxis = <YAxis width={Y_WIDTH} tickFormatter={formatAxis || formatValue} tickCount={3} tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: chart.tick }} />;
   const ends = [
     { key: 'cumulative', name: labels.cumulative, color: chart.current, values: rows.map((r) => r.cumulative) },
     ...(hasPrevious ? [{ key: 'previous', name: 'N-1', color: chart.lastYearEdge, values: rows.map((r) => r.previous) }] : []),
   ];
+  const right = endLabelMargin(ends.map((e) => e.name), narrow ? 96 : 150);
+  const margin = { top: 8, right, bottom: 0, left: 0 };
+  // Rule 21 — nice ticks, 0 included; rule 31 — the bar chart keeps room for its « 0 » tick.
+  const yAxis = (values) => {
+    const axis = axisTicks(values, { count: 2 });
+    return <YAxis width={Y_WIDTH} domain={axis.domain} ticks={axis.ticks} tickFormatter={formatAxis || formatValue} tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: chart.tick }} />;
+  };
 
+  if (emptyText) {
+    return <Box sx={{ py: 4, textAlign: 'center', color: 'text.secondary', fontSize: '0.9rem' }}>{emptyText}</Box>;
+  }
   return (
     <Box sx={{ position: 'relative', minWidth: 0 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1.25, mb: 0.75 }}>
@@ -88,27 +98,27 @@ export default function AlignedDailyCumulativeCharts({ categories, daily, cumula
       {view === 'table' ? (
         <ChartDataTable caption={ariaLabel} categoryHeader={categoryHeader} columns={columns} rows={rows} formatValue={formatValue} />
       ) : (
-        <Box role="img" aria-label={ariaLabel} sx={{ '& .recharts-wrapper:focus, & .recharts-surface:focus': { outline: 'none' } }}>
+        <Box role="figure" aria-label={ariaLabel}>
           <ResponsiveContainer width="100%" height={110}>
-            <ComposedChart data={rows} syncId={syncId} margin={margin}>
+            <ComposedChart data={rows} syncId={syncId} margin={{ ...margin, bottom: 12 }} accessibilityLayer={false}>
               <CartesianGrid vertical={false} stroke={chart.grid} />
               {/* recharts3 — a hidden axis still reserves its height unless told 0. */}
               <XAxis dataKey="key" scale="band" hide height={0} />
-              {yAxis}
+              {yAxis(rows.map((r) => r.daily))}
               <Tooltip content={() => null} cursor={{ fill: chart.cursor }} />
               <Bar dataKey="daily" fill={chart.current} radius={[3, 3, 0, 0]} maxBarSize={18} isAnimationActive={false} />
             </ComposedChart>
           </ResponsiveContainer>
           <Box sx={{ fontSize: '0.66rem', letterSpacing: '.06em', textTransform: 'uppercase', color: 'text.secondary', pl: `${Y_WIDTH}px`, mt: 1.5, mb: 0.25 }}>{labels.cumulative}</Box>
           <ResponsiveContainer width="100%" height={176}>
-            <ComposedChart data={rows} syncId={syncId} margin={margin}>
+            <ComposedChart data={rows} syncId={syncId} margin={margin} accessibilityLayer={false}>
               <CartesianGrid vertical={false} stroke={chart.grid} />
-              <XAxis dataKey="key" scale="band" tickFormatter={(k) => labelOf.get(k) ?? k} interval={tickInterval(rows.length, narrow)} tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: chart.tick }} />
-              {yAxis}
+              <XAxis dataKey="key" scale="band" tickFormatter={(k) => labelOf.get(k) ?? k} interval={xInterval(categories, narrow)} minTickGap={8} tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: chart.tick }} />
+              {yAxis(rows.flatMap((r) => [r.cumulative, r.previous]))}
               <Tooltip content={<DailyTooltip labels={labels} formatValue={formatValue} hasPrevious={hasPrevious} />} cursor={{ stroke: chart.lastYear, strokeWidth: 1 }} />
               {hasPrevious && <Line dataKey="previous" stroke={chart.lastYearEdge} strokeWidth={1.8} strokeDasharray="5 4" dot={false} activeDot={false} connectNulls={false} isAnimationActive={false} />}
               <Area dataKey="cumulative" stroke={chart.current} strokeWidth={2.2} fill={chart.current} fillOpacity={0.1} dot={false} connectNulls={false} isAnimationActive={false} />
-              <ChartEndLabels items={ends} categories={categories} band />
+              <ChartEndLabels items={ends} categories={categories} band maxWidth={right} />
             </ComposedChart>
           </ResponsiveContainer>
         </Box>

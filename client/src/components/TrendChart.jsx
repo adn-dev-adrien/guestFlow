@@ -15,6 +15,12 @@
  *   ariaLabel:        string                  what the chart shows (also the table's caption)
  *   categoryHeader?:  string                  first column of the table and CSV, default « Période »
  *   height?:          number                  default 220
+ *   yDomain?:         [number, number]        fixed y domain (e.g. [0, 1] for a rate): five even ticks
+ *                                             across it; without it, ticks on nice 1-2-2,5-5 steps (rule 21)
+ *   ratio?:           boolean                 values are ratios 0–1: the CSV writes them in percent with
+ *                                             « (%) » in the header (rule 27)
+ *   emptyText?:       string                  when set (the server says the period is empty), this
+ *                                             sentence replaces the chart, its legend and its menu (rule 28)
  */
 import React, { useMemo, useState } from 'react';
 import { Box, ButtonBase, useMediaQuery } from '@mui/material';
@@ -24,7 +30,7 @@ import ChartMenu from './ChartMenu';
 import ChartDataTable from './ChartDataTable';
 import ChartEndLabels from './ChartEndLabels';
 import { chart, categoricalColor } from '../utils/chartColors';
-import { rowsFromSeries, tickInterval, toCsv } from '../utils/reportChart';
+import { axisTicks, endLabelMargin, rowsFromSeries, toCsv, xInterval } from '../utils/reportChart';
 
 export const ALL_HIDDEN = 'Toutes les séries sont masquées.';
 
@@ -34,7 +40,8 @@ export function withColors(series) {
   return series.map((s) => {
     if (s.color) return s;
     if (s.dashed) return { ...s, color: chart.lastYearEdge };
-    const color = categoricalColor(n);
+    // Rule 32 — never a recycled hue: past the five, the grey of « Autres ».
+    const color = n < chart.categorical.length ? categoricalColor(n) : chart.other;
     n += 1;
     return { ...s, color };
   });
@@ -71,7 +78,8 @@ export function SeriesLegend({ series, hidden, onToggle }) {
             onClick={() => onToggle(s.key)}
             sx={{
               fontSize: '0.8rem', px: 1, minHeight: 44, borderRadius: '8px', gap: 0.75,
-              color: on ? 'text.primary' : '#A39C8C', textDecoration: on ? 'none' : 'line-through',
+              // Rule 29 — a hidden series stays readable (text.secondary, 5,4:1), crossed out; only its swatch fades.
+              color: on ? 'text.primary' : 'text.secondary', textDecoration: on ? 'none' : 'line-through',
               '&:hover': { bgcolor: chart.band }, '&.Mui-focusVisible': { outline: '2px solid', outlineColor: 'primary.main' },
             }}
           >
@@ -88,7 +96,7 @@ export function SeriesLegend({ series, hidden, onToggle }) {
   );
 }
 
-export default function TrendChart({ categories, series, formatValue, formatAxis, ariaLabel, categoryHeader = 'Période', height = 220 }) {
+export default function TrendChart({ categories, series, formatValue, formatAxis, ariaLabel, categoryHeader = 'Période', height = 220, yDomain, ratio = false, emptyText }) {
   const theme = useTheme();
   const narrow = useMediaQuery(theme.breakpoints.down('sm'));
   const colored = useMemo(() => withColors(series), [series]);
@@ -102,21 +110,32 @@ export default function TrendChart({ categories, series, formatValue, formatAxis
     return next;
   });
   const labelOf = new Map(categories.map((c) => [c.key, c.label]));
-  const getCsv = () => toCsv([categoryHeader, ...colored.map((s) => s.name)], rows.map((r) => [r.label, ...colored.map((s) => r[s.key])]));
+  // Rule 27 — the copy is what the chart shows: the visible series, a rate in percent.
+  const csvCell = (v) => (ratio && v != null ? Math.round(v * 1000) / 10 : v);
+  const getCsv = () => toCsv(
+    [categoryHeader, ...visible.map((s) => (ratio ? `${s.name} (%)` : s.name))],
+    rows.map((r) => [r.label, ...visible.map((s) => csvCell(r[s.key]))]),
+  );
+  const axis = axisTicks(visible.flatMap((s) => s.values), { domain: yDomain });
+  const rightMargin = endLabelMargin(visible.map((s) => s.name), narrow ? 96 : 150);
 
   let body;
+  if (emptyText) {
+    return <Box sx={{ py: 4, textAlign: 'center', color: 'text.secondary', fontSize: '0.9rem' }}>{emptyText}</Box>;
+  }
   if (view === 'table') {
     body = <ChartDataTable caption={ariaLabel} categoryHeader={categoryHeader} columns={colored.map((s) => ({ key: s.key, label: s.name }))} rows={rows} formatValue={formatValue} />;
   } else if (!visible.length) {
     body = <Box sx={{ py: 4, textAlign: 'center', color: 'text.secondary', fontSize: '0.9rem' }}>{ALL_HIDDEN}</Box>;
   } else {
     body = (
-      <Box role="img" aria-label={ariaLabel} sx={{ '& .recharts-wrapper:focus, & .recharts-surface:focus': { outline: 'none' } }}>
+      // Rule 30 — a figure the keyboard passes over: the table view is its accessible reading.
+      <Box role="figure" aria-label={ariaLabel}>
         <ResponsiveContainer width="100%" height={height}>
-          <AreaChart data={rows} margin={{ top: 12, right: narrow ? 70 : 92, bottom: 0, left: 0 }}>
+          <AreaChart data={rows} margin={{ top: 12, right: rightMargin, bottom: 0, left: 0 }} accessibilityLayer={false}>
             <CartesianGrid vertical={false} stroke={chart.grid} />
-            <XAxis dataKey="key" tickFormatter={(k) => labelOf.get(k) ?? k} interval={tickInterval(rows.length, narrow)} tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: chart.tick }} />
-            <YAxis width={60} tickFormatter={formatAxis || formatValue} tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: chart.tick }} />
+            <XAxis dataKey="key" tickFormatter={(k) => labelOf.get(k) ?? k} interval={xInterval(categories, narrow)} minTickGap={8} tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: chart.tick }} />
+            <YAxis width={60} domain={axis.domain} ticks={axis.ticks} allowDataOverflow={Boolean(yDomain)} tickFormatter={formatAxis || formatValue} tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: chart.tick }} />
             <Tooltip content={<TrendTooltip series={visible} formatValue={formatValue} />} cursor={{ stroke: chart.lastYear, strokeWidth: 1 }} />
             {visible.filter((s) => s.area).map((s) => (
               <Area key={`${s.key}-area`} dataKey={s.key} stroke="none" fill={s.color} fillOpacity={0.1} connectNulls={false} isAnimationActive={false} activeDot={false} tooltipType="none" />
@@ -135,7 +154,7 @@ export default function TrendChart({ categories, series, formatValue, formatAxis
                 isAnimationActive={false}
               />
             ))}
-            <ChartEndLabels items={visible} categories={categories} />
+            <ChartEndLabels items={visible} categories={categories} maxWidth={rightMargin} />
           </AreaChart>
         </ResponsiveContainer>
       </Box>

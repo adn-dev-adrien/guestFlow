@@ -46,6 +46,9 @@ const CHART = {
   // The categories of a report chart (specs/report-grammar.md rule 13): the same hues without the
   // red, which stays for alerts — sapin, miel, bleu, olive, prune.
   categorical: [FIR, '#B07F2E', '#2F6690', '#71792B', '#6A4F86'],
+  // The « Autres » of a part-to-whole past five categories (specs/report-grammar.md rule 32): a warm
+  // grey, never a recycled hue — 3.7:1.
+  other: '#8E8470',
 };
 // Every icon button except those sitting in a text field's adornment.
 const IN_FIELD_EXCLUDED = '&:not(:is(.MuiInputAdornment-root, .MuiAutocomplete-endAdornment) *)';

@@ -31,14 +31,16 @@ test('rule 28 — by rate, then by account, the same server total', async () => 
 
 test('rule 29 — the running total, last year dashed beside it only when the server sends it', async () => {
   const { unmount } = renderTab(synthesisPayload());
-  expect(screen.getByRole('img', { name: 'Encaissements cumulés, T3 2099' })).toBeInTheDocument();
+  // The SDK hands the charts out lazily (specs/report-grammar.md rule 20): wait for the figure.
+  expect(await screen.findByRole('figure', { name: 'Encaissements cumulés, T3 2099' }, { timeout: 10000 })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'N-1' })).toBeInTheDocument();
   unmount();
   const data = synthesisPayload();
   data.collections.series = { ...data.collections.series, previousAvailable: false };
   renderTab(data);
+  await screen.findByRole('figure', { name: 'Encaissements cumulés, T3 2099' }, { timeout: 10000 });
   expect(screen.queryByRole('button', { name: 'N-1' })).toBeNull();
-});
+}, 20000);
 
 test('rule 30 — both panels say they read the collections', () => {
   renderTab(synthesisPayload());

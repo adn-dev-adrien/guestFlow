@@ -22,7 +22,7 @@ const renderCharts = (previous) => render(
 test('rule 14 — the keys name both charts; last year only when the server sent it', () => {
   const { unmount } = renderCharts(PREVIOUS_CUMULATIVE);
   expect(screen.getByText("Cumul l'an dernier")).toBeInTheDocument();
-  expect(screen.getByRole('img', { name: "Encaissements d'octobre" })).toBeInTheDocument();
+  expect(screen.getByRole('figure', { name: "Encaissements d'octobre" })).toBeInTheDocument();
   unmount();
   renderCharts(undefined);
   expect(screen.getByText('Encaissé du jour')).toBeInTheDocument();

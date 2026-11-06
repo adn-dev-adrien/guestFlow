@@ -10,7 +10,7 @@
  *   ariaLabel?:    string              default « Options du graphique »
  */
 import React, { useEffect, useRef, useState } from 'react';
-import { IconButton, Menu, MenuItem } from '@mui/material';
+import { IconButton, Menu, MenuItem, useMediaQuery } from '@mui/material';
 import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
 
 export const COPY_DONE = 'Données copiées';
@@ -18,6 +18,8 @@ export const COPY_REFUSED = 'Copie refusée par le navigateur';
 
 export default function ChartMenu({ view, onViewChange, getCsv, ariaLabel = 'Options du graphique' }) {
   const [anchor, setAnchor] = useState(null);
+  // Rule 33 — no grow animation under reduced motion.
+  const reduceMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
   const [copyStatus, setCopyStatus] = useState(null);
   const timer = useRef(null);
   useEffect(() => () => clearTimeout(timer.current), []);
@@ -53,6 +55,7 @@ export default function ChartMenu({ view, onViewChange, getCsv, ariaLabel = 'Opt
         onClose={close}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
         transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+        transitionDuration={reduceMotion ? 0 : 'auto'}
       >
         <MenuItem onClick={() => { onViewChange(view === 'table' ? 'chart' : 'table'); close(); }} sx={{ minHeight: 44 }}>
           {view === 'table' ? 'Voir le graphique' : 'Voir en tableau'}
