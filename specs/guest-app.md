@@ -933,6 +933,52 @@ le nom et le numéro. »
 
 None open (2026-11-06).
 
+### Settled while implementing the orders (2026-11-06, lot D server)
+
+Decided by Adrien:
+- **The core column `payment_links.basketJson`** is kept (§5): without a marker, `staleLinks`, `retireSettled` and
+  the ledger's complement line would read an order's `complement` link as the arrival complement's.
+- **Overpayment when a price changes during the 30 minutes** → ignored: the order's note books at most what was
+  paid, the engine keeps the rest on the end-of-stay complement, and an excess is neither flagged nor recorded.
+
+Points the rules left open, decided in code:
+- The plugin owning a basket settles its payment through `ctx.paymentBasket({ source, paid })`
+  (`specs/plugins-phase-1-sdk.md` rule 45); with no live owner the effect is `basket-unallocated` and the usual admin
+  alert fires.
+- A card payment is a settled mid-stay note (`midStaySettledNotes`, `source: guestOrder`, the provider's reference
+  and payment day). `paid_conflict` books no note (it would count as revenue): the link stays paid with `refundOwed`,
+  the history says « Remboursement à faire » and the ledger shows « Commande client à rembourser ».
+- A late payment on an abandoned order is handled like an expired one: booked if its slots are free, else
+  `paid_conflict`. A cancelled stay takes the existing `reservation-cancelled` path and alert.
+- Platform stays accept the basket link (extras are paid on the spot).
+- A planning option other than breakfast cannot be « Vendu dans l'app » (`NOT_SELLABLE`): it sells by moment, not
+  by quantity. A per-person option's ordered quantity adds that many persons served.
+- Breakfast: an existing line keeps its persons; more persons than the stay → 400; chosen mornings take the chosen
+  time, a morning already prepared keeps that status; a morning outside the stay or at an invalid delivery time
+  comes back in `unavailableMornings`.
+- Inputs: the same item twice → 400; the quote needs the shop open (409 `SHOP_CLOSED` before arrival);
+  `payment: 'none'` with a positive total → 400; a card or note order at 0 € is recorded as `none`.
+- Codes: `ITEM_UNAVAILABLE`, `DELIVERY_TIME_UNAVAILABLE`, `CARD_UNAVAILABLE`, `STAY_NOT_WRITABLE` (409); a missing
+  delivery time is a 400; the core's `RESOURCE_SLOT_TAKEN` / `SESSIONS_OVERLAP` map to `SLOT_TAKEN` and
+  `MID_STAY_EXTRAS_CLOSED` to `SHOP_CLOSED`; `ORDER_NOT_PENDING`, `ORDER_NOT_DELIVERABLE`. The 10 orders per hour and
+  session answer 429 `TOO_MANY_REQUESTS`; a refused order does not count.
+- `returnPath` is ignored: the return is always `https://<guestHost>/commande/<id>`, built server-side (no open
+  redirect); no host configured, no return. A provider failure expires the order and relays the error (502
+  `PAYMENT_UNAVAILABLE` by default).
+- Delivery moved at payment: the next valid time at or after the one asked; none left → `deliverAt` emptied and
+  « Livraison à convenir avec l'équipe ».
+- Modules: quote, order, order page and abandon belong to `shop`; the list to `orders`. « Commandes clients »:
+  « À préparer » = confirmed or paid, not delivered; « Toutes » = the last 30 days. Reception sees the list, « Marquer
+  livrée » and the planning cards. A planning card lists prepared option lines only (breakfast- or bath-only orders
+  have none).
+- Push (French, link `/commandes-app?order=<id>`) on creation (note or 0 €), on payment, and on a conflict
+  (« Commande client à rembourser »).
+- Stored line titles are the French catalogue titles. The payment link reads « Commande #N », VAT at the stay's
+  rate; the history writes « Commande client #N » (+ « — payée par carte »). Abandon returns `cartLines`. « Modifiée
+  par l'équipe » shows when a booked session of the order is no longer on the stay record.
+- Expiry runs every 60 s (first pass at 30 s) on `heldUntil` (creation + 30 min); the link expires through its own
+  lifecycle. Status `abandoned` and columns `deliverMoved`, `paidAt`, `closedAt` are in the unreleased v1 migration.
+
 ### Settled while implementing the stay link (2026-11-06, step 13bis)
 
 Points the rules left open, decided in code and recorded here:
