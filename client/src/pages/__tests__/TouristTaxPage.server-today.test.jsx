@@ -59,7 +59,7 @@ test('rule 32: nothing is read before the server day is known', async () => {
   openAt('/finance/tourist-tax');
   await new Promise((resolve) => { setTimeout(resolve, 30); });
   expect(api.getTouristTaxReport).not.toHaveBeenCalled();
-  answer({ today: '2026-03-15' });
+  answer({ today: '2026-03-15' }); // date-literal-ok: the server's day, mocked; the page reads nothing else
   await waitFor(() => expect(api.getTouristTaxReport).toHaveBeenCalled());
   expect(firstMonthRead()).toBe('2026-02');
 });

@@ -43,6 +43,7 @@ test('rule 34: the register marks the nights outside the window and says why, on
     nights: [
       // date-literal-ok: display-only fixture dates
       { date: '2026-05-31', staysCount: 1, persons: 2, taxedPersons: 2, exemptPersons: 0, taxAmount: 2.4, outsideWindow: true },
+      // date-literal-ok: display-only fixture dates
       { date: '2026-06-01', staysCount: 1, persons: 2, taxedPersons: 2, exemptPersons: 0, taxAmount: 2.4, outsideWindow: false },
     ],
     columns: { percentageBase: false, nightsOutsideWindow: true },
